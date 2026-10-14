@@ -14,7 +14,8 @@ export class LiveFeed{
     this.seen=new Set();this.seenQ=[];this.ep=0;this.retry=0;this.reqId=1;this.pending={};this.closed=false;this.ledger=null;this.lastMsg=0;
   }
   start(){this.connect();this.hb=setInterval(()=>{if(this.ws&&this.ws.readyState===1&&Date.now()-this.lastMsg>25000)this.ws.close()},5000);
-    this.rc=setInterval(()=>this.recheckLocks(),this.recheckMin*60000);return this}
+    this.rc=setInterval(()=>this.recheckLocks(),this.recheckMin*60000);
+    const kick=()=>{if(this.closed||document.hidden||(this.ws&&this.ws.readyState<=1))return;clearTimeout(this.rt);this.retry=0;this.connect()};addEventListener('online',kick);document.addEventListener('visibilitychange',kick);return this}
   stop(){this.closed=true;clearInterval(this.hb);clearInterval(this.rc);clearTimeout(this.rt);this.ws&&this.ws.close()}
   status(s,extra){this.state=s;this.onStatus(s,{endpoint:ENDPOINTS[this.ep],ledger:this.ledger,...extra})}
   connect(){if(this.closed)return;const url=ENDPOINTS[this.ep];this.status('connecting');let ws;

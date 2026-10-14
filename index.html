@@ -1,8 +1,12 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<link rel="icon" href="data:,"><title>BURN CITY — XRPL ecosystem in 3D</title>
+<link rel="icon" href="icons/favicon-32.png" type="image/png"><link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#050a18"><meta name="description" content="Burn City: the XRPL ecosystem as a live 3D city. Tokens are towers, AMM pools are bridges.">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Burn City">
+<link rel="modulepreload" href="vendor/three/build/three.module.min.js"><title>BURN CITY — XRPL ecosystem in 3D</title>
 <link rel="stylesheet" href="style.css">
-<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.min.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+<script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.min.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
 <script src="data.js" defer></script></head><body>
 <div id="loader"><div class="lt">◢ BURN CITY ◣</div><div class="bar"><i id="lbar"></i></div><div id="ltxt">Loading 3D engine…</div><div class="dim lsrc">Read-only view of XRPL ledger data</div></div>
 <script>window.__load=(p,t)=>{const b=document.getElementById('lbar'),x=document.getElementById('ltxt');if(b)b.style.width=Math.round(p*100)+'%';if(x&&t)x.textContent=t};window.__load(.04,'Loading 3D engine…');
@@ -11,11 +15,11 @@ addEventListener('error',e=>{const x=document.getElementById('ltxt');if(x&&!wind
  <div id="tot"></div>
  <div id="burnCount"></div>
  <div id="mood"></div>
- <div class="row"><b>Weather</b> <select id="weather"><option value="auto">Auto (market mood)</option><option>clear</option><option>fog</option><option>rain</option><option>storm</option><option value="cycle">Cycle</option></select></div>
- <div class="row"><b>Time</b> <input id="tod" type="range" min="0" max="1" step="0.01" value="0"><label><input type="checkbox" id="todCycle"> cycle</label></div>
- <div class="row tl"><b>Replay</b> <button id="tlPlay" title="Play/pause time-lapse">▶</button><input id="tlRange" type="range" min="0" max="1" step="0.01" value="1"><select id="tlSpeed" title="days per second"><option value="2">2 d/s</option><option value="6" selected>6 d/s</option><option value="20">20 d/s</option></select><button id="tlLive" title="Back to live snapshot">Live</button></div>
+ <div class="row"><b>Weather</b> <select id="weather" aria-label="Weather"><option value="auto">Auto (market mood)</option><option>clear</option><option>fog</option><option>rain</option><option>storm</option><option value="cycle">Cycle</option></select></div>
+ <div class="row"><b>Time</b> <input id="tod" aria-label="Time of day" type="range" min="0" max="1" step="0.01" value="0"><label><input type="checkbox" id="todCycle"> cycle</label></div>
+ <div class="row tl"><b>Replay</b> <button id="tlPlay" aria-label="Play or pause time-lapse" title="Play/pause time-lapse">▶</button><input id="tlRange" aria-label="Replay position" type="range" min="0" max="1" step="0.01" value="1"><select id="tlSpeed" aria-label="Replay speed" title="days per second"><option value="2">2 d/s</option><option value="6" selected>6 d/s</option><option value="20">20 d/s</option></select><button id="tlLive" title="Back to live snapshot">Live</button></div>
  <div class="row dim" id="tlDate">live snapshot</div>
- <div class="row"><b>Graphics</b> <select id="quality"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select> <span class="dim" id="qInfo"></span></div>
+ <div class="row"><b>Graphics</b> <select id="quality" aria-label="Graphics quality"<option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select> <span class="dim" id="qInfo"></span></div>
  <div class="row"><label><input type="checkbox" id="minor" checked> minor pools</label> <label><input type="checkbox" id="dof"> depth of field</label></div>
  <div class="legend">
   <div><i style="background:#3cf3ff;box-shadow:0 0 6px #3cf3ff"></i>Locked LP (blackholed): solid light-road</div>
@@ -25,11 +29,11 @@ addEventListener('error',e=>{const x=document.getElementById('ltxt');if(x&&!wind
   <div class="dim">Tower height ∝ log(pool TVL) · road width ∝ √TVL · vehicles ∝ 24h volume · ⚑ insider LP ≥50%</div>
  </div><div id="src" class="dim"></div></div></div>
 <div id="live" class="connecting"><i></i><span>Connecting…</span></div><div id="evbanner"></div><div id="tourCap"></div><div id="toasts"></div>
-<div id="btns"><button data-m="orbit" class="on">◎ Orbit</button><button data-m="fly">✈ Fly</button><button data-m="explore">🚶 Explore</button><button id="tour">▶ Tour</button><button id="copyLink" title="Copy a link to this exact view">🔗 Link</button><button id="audio">🔇</button></div>
+<div id="btns"><button data-m="orbit" class="on">◎ Orbit</button><button data-m="fly">✈ Fly</button><button data-m="explore">🚶 Explore</button><button id="tour">▶ Tour</button><button id="copyLink" title="Copy a link to this exact view">🔗 Link</button><button id="installBtn" hidden title="Install Burn City as an app">⬇ Install</button><button id="audio" aria-label="Toggle sound">🔇</button></div>
 <div id="labels"></div><div id="tip"></div><div id="info"></div><div id="banner"></div><div id="prompt"></div>
-<canvas id="minimap" width="180" height="180"></canvas>
-<div id="touch"><div id="joy"><div id="knob"></div></div><div id="tbtns"><button id="tJump">⤒</button><button id="tRun">»</button><button id="tUse">E</button><button id="tUp">▲</button><button id="tDown">▼</button></div></div>
-<div id="chat"><div id="chatLog"></div><input id="chatIn" placeholder="Enter to chat (multiplayer)" maxlength="200"></div>
+<canvas id="minimap" aria-label="Minimap" role="img" width="180" height="180"></canvas>
+<div id="touch"><div id="joy"><div id="knob"></div></div><div id="tbtns"><button id="tJump" aria-label="Jump">⤒</button><button id="tRun" aria-label="Run">»</button><button id="tUse" aria-label="Use">E</button><button id="tUp" aria-label="Fly up">▲</button><button id="tDown" aria-label="Fly down">▼</button></div></div>
+<div id="chat"><div id="chatLog"></div><input id="chatIn" aria-label="Chat" placeholder="Enter to chat (multiplayer)" maxlength="200"></div>
 <div id="help"></div>
-<script type="module" src="js/app.js"></script><script data-goatcounter="https://shinigsmi.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<script type="module" src="js/app.js"></script><script type="module" src="js/pwa.js"></script><script data-goatcounter="https://shinigsmi.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body></html>

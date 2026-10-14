@@ -48,3 +48,19 @@ body.replay #tlDate{color:#ffcf6a}
 @media (max-width:700px){#live{top:auto;bottom:10px;right:10px}#toasts{top:auto;bottom:40px}#evbanner{font-size:14px;top:19%;letter-spacing:1px}#hud{max-width:44vw}}
 
 #tourCap{position:fixed;left:50%;bottom:9%;transform:translateX(-50%);font:13px ui-monospace,Menlo,monospace;color:#e6f6ff;background:#050a18b8;padding:7px 14px;border-radius:10px;opacity:0;transition:opacity .45s ease;pointer-events:none;z-index:5;max-width:86vw;text-align:center}#tourCap.show{opacity:1}
+/* PWA install UI */
+#installBtn[hidden]{display:none}#installBtn{border-color:#ff8a2a88!important;color:#ffd2a8}
+#iosHint{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:20;background:#050a18ee;border:1px solid #ff8a2a66;color:#ffe;border-radius:12px;padding:9px 12px;font:12px system-ui,sans-serif;max-width:92vw;box-shadow:0 0 18px #ff5a1a44}
+#iosHint button{background:none;border:0;color:#9fb6d6;font-size:14px;margin-left:6px;cursor:pointer}
+/* Mobile crowding fix: HUD title on its own left column, buttons to the right, event banner below both, safe areas */
+#hud{top:calc(10px + env(safe-area-inset-top));left:calc(10px + env(safe-area-inset-left))}
+#btns{top:calc(10px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right))}
+@media (max-width:700px){
+ #hud{max-width:38vw;padding:6px 9px}#hud .hdr{font-size:10px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #hud.open{max-width:calc(100vw - 20px);z-index:7}
+ #btns{max-width:58vw;gap:4px}#btns button{padding:5px 7px;font-size:10.5px}
+ #evbanner{top:calc(118px + env(safe-area-inset-top));font-size:13px;max-width:94vw}
+ #banner{top:calc(160px + env(safe-area-inset-top));font-size:18px;letter-spacing:3px}
+}
+@media (max-width:700px){#hud{box-sizing:border-box;max-width:34vw}#hud.open{max-width:calc(100vw - 20px)}#btns{max-width:calc(66vw - 30px)}}
+#iosHint{bottom:calc(150px + env(safe-area-inset-bottom))}

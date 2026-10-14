@@ -105,7 +105,7 @@ let net, mode, yaw = 0, keys = {}, fire = false;
 function leave(msg) {               // full teardown so the next mode (or the city) starts clean
   const n = net; net = null; mode = null; if (n) { n.handlers = {}; try { n.ws.close(1000, 'menu'); } catch {} }
   document.pointerLockElement && document.exitPointerLock?.(); keys = {}; fire = false; yaw = 0; overUntil = 0; lastHp = 100;
-  for (const c of cycles.values()) { scene.remove(c); c.geometry.dispose(); c.material.dispose(); } cycles.clear();
+  for (const c of cycles.values()) { if (c.userData.nc) disposeNftChar(c.userData.nc); scene.remove(c); disposeBike(c); } cycles.clear();
   for (const w of walls.values()) { scene.remove(w); w.geometry.dispose(); w.material.dispose(); } walls.clear();
   for (const t of tags.values()) { scene.remove(t); t.material.map.dispose(); t.material.dispose(); } tags.clear();
   FX.clear(); world?.dispose(); world = null; joy.id = null; look.id = null; $('#joy').hidden = true; pred = null;
@@ -177,6 +177,22 @@ $('#lowq').checked = LOW; $('#lowq').onchange = () => { localStorage.setItem('bc
 
 // ---- render pools (no per-frame allocations) ----
 const cycles = new Map(), walls = new Map(), MAXZ = 40;
+// ---- Tron light cycle: shared low-poly geometry, per-rider colour materials. children[0] = canopy (hidden for NFT riders) ----
+const BIKE = (() => { const sh = new THREE.Shape([[-1.25, 0.18], [1.2, 0.2], [1.3, 0.38], [1.0, 0.56], [0.25, 0.78], [-0.55, 0.72], [-1.15, 0.52], [-1.32, 0.3]].map(([x, y]) => new THREE.Vector2(x, y)));
+  const hull = new THREE.ExtrudeGeometry(sh, { depth: 0.46, bevelEnabled: false }).translate(0, 0, -0.23).rotateY(-Math.PI / 2);
+  const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+  return { hull, edges: new THREE.EdgesGeometry(hull, 25), hullM: new THREE.MeshBasicMaterial({ color: 0x07080c }), glowTex, glow: new THREE.PlaneGeometry(2.4, 3.6).rotateX(-Math.PI / 2),
+    canopy: new THREE.SphereGeometry(0.3, 10, 6).scale(0.75, 0.55, 1.6), stripe: new THREE.BoxGeometry(0.03, 0.05, 2.0), hub: new THREE.CylinderGeometry(0.28, 0.28, 0.5, 10).rotateZ(Math.PI / 2) }; })();
+const rimG = lo => new THREE.TorusGeometry(0.42, lo ? 0.07 : 0.055, lo ? 3 : 6, lo ? 10 : 22).rotateY(Math.PI / 2);
+let RIM = null;
+function makeBike() { RIM = RIM || rimG(LOW); const tint = new THREE.MeshBasicMaterial(), acc = new THREE.MeshBasicMaterial(), line = new THREE.LineBasicMaterial({ transparent: true }), glowM = new THREE.MeshBasicMaterial({ map: BIKE.glowTex, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
+  const c = new THREE.Group(); c.rotation.order = 'YXZ'; c.material = tint; c.userData.mats = [tint, acc, line, glowM];
+  const canopy = new THREE.Mesh(BIKE.canopy, acc); canopy.position.set(0, 0.78, 0.15); c.add(canopy);   // children[0]
+  c.add(new THREE.Mesh(BIKE.hull, BIKE.hullM), new THREE.LineSegments(BIKE.edges, line));
+  for (const z of [-0.9, 0.88]) { const r = new THREE.Mesh(RIM, tint); r.position.set(0, 0.42, z); const h = new THREE.Mesh(BIKE.hub, BIKE.hullM); h.position.set(0, 0.42, z); c.add(h, r); }
+  for (const x of [-0.245, 0.245]) { const st = new THREE.Mesh(BIKE.stripe, acc); st.position.set(x, 0.5, 0); c.add(st); }
+  const glow = new THREE.Mesh(BIKE.glow, glowM); glow.position.y = 0.03; c.add(glow); c.userData.glow = glow; c.userData.line = line; c.userData.lean = 0; return c; }
+function disposeBike(c) { for (const m of c.userData.mats || []) m.dispose(); }
 // NFT characters: the server only attaches look.nft for a signed-in wallet that holds that NFT (re-checked on the ledger)
 const NFTOF = id => net?.roster.get(id)?.look?.nft || null;
 function riderNft(p, c) { const n = NFTOF(p.id), cur = c.userData.nc;
@@ -233,11 +249,14 @@ r.setAnimationLoop(() => {
     if (mode === 'tron') {
       const seen = new Set();
       for (const p of st.players) { seen.add(p.id); let c = cycles.get(p.id);
-        if (!c) { c = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 2.2), new THREE.MeshBasicMaterial()); const acc = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.9), new THREE.MeshBasicMaterial()); acc.position.set(0, 0.55, -0.3); c.add(acc); scene.add(c); cycles.set(p.id, c); }
+        if (!c) { c = makeBike(); scene.add(c); cycles.set(p.id, c); }
         c.material.color.copy(tronCol(p.id)); c.children[0].material.color.copy(COL(p.id, 'skin')); w0 = wall(p.id); w0.material.color.copy(c.material.color);
-        c.visible = !!p.alive; c.position.set(p.x, 0.4, p.z); c.rotation.y = DIRYAW[p.r]; riderNft(p, c); drawTrail(p.id, net.trail(p.id, p.x, p.z, p.alive));
+        const u = c.userData; u.line.color.copy(c.material.color); u.glow.material.color.copy(c.material.color);
+        if (u.r !== undefined && u.r !== p.r) u.lean = ((p.r - u.r + 4) % 4 === 1 ? -1 : 1) * 0.38; u.r = p.r; u.lean *= Math.exp(-dt * 5);   // lean into turns
+        const sh = 0.5 + 0.5 * Math.sin(now / 45 + p.id); c.material.color.multiplyScalar(0.85 + 0.3 * sh); u.glow.material.opacity = 0.42 + 0.12 * sh; u.line.opacity = 0.75 + 0.25 * Math.sin(now / 30 + p.id * 2);   // speed shimmer
+        c.visible = !!p.alive; c.position.set(p.x, 0, p.z); c.rotation.set(0, DIRYAW[p.r], u.lean); riderNft(p, c); drawTrail(p.id, net.trail(p.id, p.x, p.z, p.alive));
         const tg = tag(p.id); tg.visible = !!p.alive; tg.position.set(p.x, 2.4, p.z); }
-      for (const [id, c] of cycles) if (!seen.has(id)) { if (c.userData.nc) disposeNftChar(c.userData.nc); scene.remove(c); c.children[0]?.material.dispose(); cycles.delete(id); scene.remove(walls.get(id)); walls.delete(id); const t = tags.get(id); if (t) { scene.remove(t); tags.delete(id); } }
+      for (const [id, c] of cycles) if (!seen.has(id)) { if (c.userData.nc) disposeNftChar(c.userData.nc); scene.remove(c); c.children[0]?.material.dispose(); disposeBike(c); cycles.delete(id); scene.remove(walls.get(id)); walls.delete(id); const t = tags.get(id); if (t) { scene.remove(t); tags.delete(id); } }
       const mc = net.roster.get(net.me)?.color; if (mc) { const e = $('#me'); e.hidden = false; e.style.color = e.style.borderColor = mc; e.style.textShadow = '0 0 8px ' + mc; e.textContent = 'YOU ●'; }
       if (me && !me.alive) { V.set(me.x * 0.3, 95, me.z * 0.3 + 60); cam.position.lerp(V, 1 - Math.exp(-dt * 2)); cam.lookAt(me.x * 0.3, 0, me.z * 0.3); }   // spectate from above while out
       else if (me) { const d = DIRYAW[me.r]; V.set(me.x - Math.sin(d) * 12 + Math.cos(d) * 2.5, 7, me.z - Math.cos(d) * 12 - Math.sin(d) * 2.5); cam.position.distanceTo(V) > 30 ? cam.position.copy(V) : cam.position.lerp(V, 1 - Math.exp(-dt * 5)); cam.lookAt(me.x, 0, me.z); }

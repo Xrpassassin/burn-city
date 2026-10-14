@@ -4,7 +4,7 @@ export const NOTICE = 'We will never DM you or ask for your seed, secret or reco
 const css = `.ps-bg{position:fixed;inset:0;background:#000b;z-index:9999;display:flex;align-items:center;justify-content:center;padding:12px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
 .ps{background:#120a06;color:#fff;border:1px solid #ff7a1a;border-radius:14px;max-width:420px;width:100%;max-height:92vh;overflow:auto;padding:16px;font:14px/1.45 system-ui,-apple-system,sans-serif}
 .ps h3{margin:0 0 8px;color:#ffb347;font-size:17px}.ps .row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #ffffff14}.ps .row b{text-align:right;word-break:break-all}
-.ps .badge{display:inline-flex;align-items:center;gap:6px;background:#0d2a16;border:1px solid #2bd96b;color:#9dffbd;border-radius:999px;padding:3px 9px;font-size:12px;margin:6px 0}
+.badge{display:inline-flex;align-items:center;gap:6px;background:#0d2a16;border:1px solid #2bd96b;color:#9dffbd;border-radius:999px;padding:3px 9px;font-size:12px;margin:6px 0}
 .ps .warn{background:#2a1606;border:1px solid #ff7a1a55;border-radius:8px;padding:8px;margin:8px 0;font-size:12.5px}.ps .note{color:#ffd9a8;font-size:12px;margin-top:6px}
 .ps .btns{display:flex;gap:8px;margin-top:12px}.ps button{flex:1;min-height:44px;border-radius:10px;border:1px solid #ff7a1a;background:#2a1606;color:#fff;font-size:15px}.ps button.go{background:#ff7a1a;color:#120a06;font-weight:700}.ps a{color:#7ad0ff}`;
 let styled = false; const el = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; };

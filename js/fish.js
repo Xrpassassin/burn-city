@@ -50,11 +50,12 @@ const ui = document.createElement('div'); ui.id = 'fUI'; document.body.append(ui
 const NV = '<div class="nv">🪙 Lake coins: free in-game points with no real value. Not sold for XRP, not withdrawable.</div>';
 // ---------- fishing flow ----------
 let state = 'idle', cur = null;
+let FISHOK = false;
 async function doCast() {
-  if (state !== 'idle') return; const c = W(), e = window.__estate, fw = new THREE.Vector3(); c.C.getWorldDirection(fw); fw.y = 0; fw.normalize();
+  if (state !== 'idle' || !FISHOK) return; const c = W(), e = window.__estate, fw = new THREE.Vector3(); c.C.getWorldDirection(fw); fw.y = 0; fw.normalize();
   const from = isDeep() ? window.__boat.pos : c.P.pos; let tgt = from.clone().addScaledVector(fw, 9); if (!e.inLake(tgt.x, tgt.z)) { tgt = from.clone(); for (let k = 0; k < 40 && !e.inLake(tgt.x, tgt.z); k++) tgt.addScaledVector(e.dir, 1); tgt.addScaledVector(e.dir, 3) }
   state = 'wait'; bobber.position.copy(tgt).setY(0.45); bobber.visible = true; ui.style.display = 'block'; ui.innerHTML = '🎣 Waiting for a bite… <div class="nv">bait: ' + bait + '</div><button id="fStop">Reel in</button>'; ui.querySelector('#fStop').onclick = stop;
-  if (tok()) { const r = await api('cast', { bait, deep: isDeep(), weather: weather() }).catch(() => ({ error: 'offline' })); if (r.error) { msg(r.error === 'too_fast' ? 'Easy! Wait a few seconds between casts.' : r.error === 'hourly_limit' ? 'The fish need a rest (hourly limit). Try later.' : 'Server busy, try again.'); return } cur = { ...r, srv: true } }
+  if (tok()) { const r = await api('cast', { bait, deep: isDeep(), weather: weather(), near: FISHOK ? 1 : 0, x: Math.round(from.x), z: Math.round(from.z) }).catch(() => ({ error: 'offline' })); if (r.error) { msg(r.error === 'too_fast' ? 'Easy! Wait a few seconds between casts.' : r.error === 'not_near_water' ? 'Get closer to the water to fish.' : r.error === 'hourly_limit' ? 'The fish need a rest (hourly limit). Try later.' : 'Server busy, try again.'); return } cur = { ...r, srv: true } }
   else { const f = roll(prof.rod, prof.bait[bait] > 0 || bait === 'worm' ? bait : 'worm', { night: night(), deep: isDeep(), weather: weather() }); cur = { fish: f, wait: 2500 + Math.random() * 6000, hits: f.hits, zone: f.zone, r: f.r } }
   cur.t0 = performance.now(); setTimeout(bite, cur.wait) }
 function bite() { if (state !== 'wait') return; state = 'bite'; ui.innerHTML = '<b style="font-size:18px">❗ Bite!</b><br><button id="fHook" style="margin-top:8px;font-size:18px">Hook it!</button>'; ui.querySelector('#fHook').onclick = hook; cur.biteT = performance.now(); setTimeout(() => { if (state === 'bite') { msg('It got away… (hook faster)'); land(false) } }, 1600) }
@@ -90,8 +91,8 @@ bar.querySelector('#fCast').onclick = doCast; bar.querySelector('#fShop').onclic
 // ---------- per-frame: show buttons when in reach, animate bobber + reel marker ----------
 function tick() { requestAnimationFrame(tick); const c = W(), e = window.__estate; if (!c || !e || !dock) return; const t = performance.now() / 1000, m = c.getMode();
   const p = isDeep() ? window.__boat.pos : c.P.pos, walk = m === 'explore';
-  const nearDock = p.distanceTo(dock.tip) < 6 || (p.distanceTo(dock.base) < 22 && Math.abs(p.clone().sub(dock.base).dot(dock.side)) < 3), shore = !e.inLake(p.x, p.z) && e.inLake(p.x, p.z, 7);
-  const canFish = walk && (nearDock || shore || isDeep()), nearShop = walk && !isDeep() && p.distanceTo(shopPos) < 10;
+  const nearDock = p.distanceTo(dock.tip) < 6 || (p.distanceTo(dock.base) < 22 && Math.abs(p.clone().sub(dock.base).dot(dock.side)) < 3), shore = !e.inLake(p.x, p.z) && e.inLake(p.x, p.z, 4);
+  const canFish = walk && (nearDock || shore || isDeep()); FISHOK = canFish; const nearShop = walk && !isDeep() && p.distanceTo(shopPos) < 10;
   bar.style.display = canFish || nearShop ? 'flex' : 'none'; bar.querySelector('#fCast').style.display = canFish ? '' : 'none'; bar.querySelector('#fShop').style.display = nearShop ? '' : 'none';
   if (!canFish && state !== 'idle' && !isDeep()) stop();
   if (bobber.visible) bobber.position.y = 0.45 + (state === 'bite' ? -0.25 + Math.sin(t * 20) * 0.12 : Math.sin(t * 2.2) * 0.06);

@@ -763,6 +763,7 @@ function collide(p){for(const c of colliders){if(p.y>=c.h-.05)continue;const dx=
 const dirOf=()=>_t.set(-Math.sin(yp.yaw)*Math.cos(yp.pitch),Math.sin(yp.pitch),-Math.cos(yp.yaw)*Math.cos(yp.pitch)).clone();
 function updExplore(dt){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run?11:5;
  const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0)-joy.y,s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+joy.x;
+ if(window.__boat&&window.__boat.active){const st=window.__boat.drive(dt,f,s);P.pos.copy(st);P.vel.set(0,0,0);P.onGround=true;P.climb=null;avatar.position.copy(st);avatar.rotation.y=window.__boat.cur.h;avatar.visible=true;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}
  const fw=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw)),rt=new THREE.Vector3(-fw.z,0,fw.x);const mv=fw.multiplyScalar(f).add(rt.multiplyScalar(s));const ml=Math.min(1,mv.length());
  if(ml>.05){mv.normalize().multiplyScalar(sp*ml);const ty=Math.atan2(-mv.x,-mv.z);let dy=ty-avatar.rotation.y;dy=Math.atan2(Math.sin(dy),Math.cos(dy));avatar.rotation.y+=dy*Math.min(1,dt*12)}
  P.pos.x+=mv.x*dt;P.pos.z+=mv.z*dt;if((keys.Space||tb.jump)&&P.onGround){P.vel.y=7.5;P.onGround=false}P.vel.y-=20*dt;P.pos.y+=P.vel.y*dt;
@@ -994,7 +995,8 @@ function frame(){requestAnimationFrame(frame);R.info.reset();const dt=Math.min(c
  if(shoot.t<0&&day<.5&&Math.random()<dt*.08){shoot.t=0;shoot.a=V3((Math.random()-.5)*3000,900+Math.random()*500,-1500-Math.random()*800);shoot.d=V3(-Math.random()-.5,-.35,Math.random()*.4).normalize()}
  if(shoot.t>=0){shoot.t+=dt;const a=shoot.a.clone().addScaledVector(shoot.d,shoot.t*1400);shoot.line.geometry.setFromPoints([a,a.clone().addScaledVector(shoot.d,-160)]);shoot.line.material.opacity=Math.max(0,1-shoot.t);if(shoot.t>1){shoot.t=-1;shoot.line.material.opacity=0}}
  anim.forEach(f=>f(t,dt));updFX(t,dt*FXW);pumpEvents(t);updTL(dt);search.forEach(f=>f(t));updCars(dt);updGround(dt);steam(dt);drones(t);freighter(t);
- if(mode==='explore')updExplore(dt);else if(mode==='fly')updFly(dt);if(DRONE)DRONE.show(mode==='fly');
+ if(DRONE)DRONE.show(mode==='fly');
+ if(mode==='explore')updExplore(dt);else if(mode==='fly')updFly(dt);
  else if(mode==='tour'&&tour){tour.t=Math.min(1,tour.t+dt/80);C.position.copy(tour.cam.getPoint(tour.t));C.lookAt(tour.look.getPoint(tour.t));tourCap(tour.t);if(tour.t>=1){setMode('orbit');$('tourCap').classList.remove('show')}}
  else{orbit.autoRotate=!Q.has('shot')&&$('info').style.display!=='block';orbit.update()}
  let _sh=null;if(SHAKE.a>.01){SHAKE.a*=Math.exp(-dt*3);_sh=V3((Math.random()-.5),(Math.random()-.5),(Math.random()-.5)).multiplyScalar(SHAKE.a);C.position.add(_sh)}

@@ -92,7 +92,7 @@ function connect(){if(ws||document.hidden)return;const t=token();try{ws=new WebS
   ws.onopen=()=>{retry=0;panel.classList.add('on')};
   ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
     if(m.t==='w'){myId=m.id;canChat=m.canChat;if(m.name){window.__myColor=colOf(m.name);dispatchEvent(new CustomEvent('bc-mycolor',{detail:window.__myColor}))}log.replaceChildren();(m.msgs||[]).forEach(x=>addMsg({...x},false));renderFoot();log.scrollTop=log.scrollHeight}
-    else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r)}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
+    else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r,b] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r);const q=peers.get(id);if(q)q.b=b}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
     else if(m.t==='c'){addMsg(m,true);bubble(m.pid,m.b)}
     else if(m.t==='n'){for(const k in m.m){if(m.m[k])nfts.set(+k,m.m[k]);else nfts.delete(+k);const p=peers.get(+k);if(p)setNft(p)}}
     else if(m.t==='e'){if(m.e==='city_full')retry=5;}if(m.t==='e')toast(m.e==='slow_down'?'Slow down a little.':m.e==='banned'?'This account can\'t chat.':m.e==='city_full'?'City is full right now.':'Sign in with XAMAN to chat.')};
@@ -103,12 +103,12 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){if(ws){ws.
 // my position (few updates on phones)
 const _v=new THREE.Vector3(),_d=new THREE.Vector3();
 function myPos(){const c=W(),m=c.getMode();if(m==='explore')return [c.P.pos.x,c.P.pos.y,c.P.pos.z];if(m==='fly'){const d=c.drone&&c.drone();const q=d&&d.visible?d.position:c.C.position;return [q.x,q.y-2.4,q.z]}return [c.C.position.x,Math.max(0,c.C.position.y-2.4),c.C.position.z]}
-function sendPos(now){if(!ws||ws.readyState!==1||now-lastSend<250)return;const p=myPos().map(v=>Math.round(v*10)/10),c=W();c.C.getWorldDirection(_d);const r=Math.round(Math.atan2(_d.x,_d.z)*100)/100,k=p.join()+r;
-  if(k===lastPos&&now-lastSend<5000)return;lastPos=k;lastSend=now;ws.send(JSON.stringify({t:'p',x:p[0],y:p[1],z:p[2],r}))}
+function sendPos(now){if(!ws||ws.readyState!==1||now-lastSend<250)return;const p=myPos().map(v=>Math.round(v*10)/10),c=W();c.C.getWorldDirection(_d);const r=Math.round(Math.atan2(_d.x,_d.z)*100)/100,bt=window.__boat&&window.__boat.active?1:0,k=p.join()+r+bt;
+  if(k===lastPos&&now-lastSend<5000)return;lastPos=k;lastSend=now;ws.send(JSON.stringify({t:'p',x:p[0],y:p[1],z:p[2],r,b:bt}))}
 
 let fr=0;function loop(now){requestAnimationFrame(loop);const c=W();if(!c||!peers.size&&!ws){return}fr++;sendPos(now);if(!peers.size){if(IB)for(const k in IB)IB[k].count=0;return}drawInst(now/1000);
   const k=MOB?.12:.18,w=innerWidth,h=innerHeight,doTags=!MOB||fr%2===0,t=now/1000;
-  for(const p of peers.values()){p.g.position.x+=(p.tx-p.g.position.x)*k;p.g.position.y+=(p.ty-p.g.position.y)*k;p.g.position.z+=(p.tz-p.g.position.z)*k;p.g.userData.core.position.y=2.2+Math.sin(t*2+p.id)*.25;if(p.nc){const mv=Math.abs(p.tx-p.g.position.x)+Math.abs(p.tz-p.g.position.z)>.05;if(mv)p.nc.rotation.y=Math.atan2(p.tx-p.g.position.x,p.tz-p.g.position.z);p.nc.userData.anim(t+p.id,mv)}
+  for(const p of peers.values()){p.g.position.x+=(p.tx-p.g.position.x)*k;p.g.position.y+=(p.ty-p.g.position.y)*k;p.g.position.z+=(p.tz-p.g.position.z)*k;p.g.userData.core.position.y=2.2+Math.sin(t*2+p.id)*.25;if((p.b||p.boat)&&window.__boat)window.__boat.peer(p);if(p.nc){const mv=Math.abs(p.tx-p.g.position.x)+Math.abs(p.tz-p.g.position.z)>.05;if(mv)p.nc.rotation.y=Math.atan2(p.tx-p.g.position.x,p.tz-p.g.position.z);p.nc.userData.anim(t+p.id,mv)}
     if(p.bub&&p.bubT&&Date.now()>p.bubT){p.bub.classList.add('out');p.bubT=0;const b=p.bub;setTimeout(()=>{if(b.classList.contains('out')){b.remove();if(p.bub===b)p.bub=null}},400)}
     if(!doTags)continue;_v.copy(p.g.position);_v.y+=5;const dist=c.C.position.distanceTo(_v);_v.project(c.C);
     const vis=_v.z<1&&Math.abs(_v.x)<1.1&&Math.abs(_v.y)<1.1&&dist<(p.bub?900:450);

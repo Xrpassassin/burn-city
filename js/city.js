@@ -66,7 +66,9 @@ const nfts=new Map();   // peer id -> verified NFT character look (server only s
 function setNft(p){const n=nfts.get(p.id)||null;if((p.nc&&p.nc.userData.nftId)===(n&&n.id))return;if(p.nc){disposeNftChar(p.nc);p.nc=null}
   p.g.userData.core.visible=!n;if(!n)return;try{p.nc=buildNftChar(n,{srv:SRV,card:true});p.nc.scale.setScalar(.9);p.g.add(p.nc)}catch(e){p.nc=null;p.g.userData.core.visible=true}}
 function drop(id){nfts.delete(id);const p=peers.get(id);if(!p)return;if(p.nc)disposeNftChar(p.nc);W().S.remove(p.g);p.tag.remove();peers.delete(id)}
-function bubble(pid,text){const p=peers.get(pid);if(!p)return;if(!p.bub){p.bub=el('div','pbub');p.tag.prepend(p.bub)}p.bub.textContent=text.length>90?text.slice(0,88)+'…':text;p.bub.classList.remove('out');p.bubT=Date.now()+6500}
+const cut=t=>t.length>80?t.slice(0,79)+'…':t;let selfBub=null,selfT=0;
+function bubble(pid,text){if(pid===myId){if(!selfBub){selfBub=el('div','pbub pself');document.body.append(selfBub)}selfBub.textContent=cut(text);selfBub.classList.remove('out');selfBub.style.display='';selfT=Date.now()+5000;return}
+  const p=peers.get(pid);if(!p)return;if(!p.bub){p.bub=el('div','pbub');p.tag.prepend(p.bub)}p.bub.textContent=cut(text);p.bub.classList.remove('out');p.bubT=Date.now()+5000}
 
 // chat panel
 const panel=el('div');panel.id='cityChat';panel.innerHTML='<button class="cch" aria-expanded="false" aria-label="City chat"><span class="cic">💬</span><span class="cdot"></span><span class="ctl">City chat</span><span class="cn"></span><span class="cun" hidden></span><span class="car">▴</span></button><div class="cbody"><div class="clog" role="log" aria-live="polite"></div><div class="cfoot"></div></div>';
@@ -101,7 +103,7 @@ function connect(){if(ws||document.hidden)return;/* new session: ids restart aft
     else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r,b,k,md] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r);const q=peers.get(id);if(q){q.b=b;q.k=k;q.md=md||(b?'b':'f')}}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
     else if(m.t==='c'){addMsg(m,true);bubble(m.pid,m.b)}
     else if(m.t==='n'){for(const k in m.m){if(m.m[k])nfts.set(+k,m.m[k]);else nfts.delete(+k);const p=peers.get(+k);if(p)setNft(p)}}
-    else if(m.t==='e'){if(m.e==='city_full')retry=5;}if(m.t==='e')toast(m.e==='slow_down'?'Slow down a little.':m.e==='banned'?'This account can\'t chat.':m.e==='city_full'?'City is full right now.':'Sign in with XAMAN to chat.')};
+    else if(m.t==='e'){if(m.e==='city_full')retry=5;}if(m.t==='e')toast(m.e==='message_removed'?'Message removed (violates chat rules).':m.e==='muted'?'You are muted for a while.':m.e==='slow_down'?'Slow down a little.':m.e==='banned'?'This account can\'t chat.':m.e==='city_full'?'City is full right now.':'Sign in with XAMAN to chat.')};
   ws.onclose=()=>{ws=null;online=0;badge();for(const id of [...peers.keys()])drop(id);later()};ws.onerror=()=>{}}
 function later(){if(document.hidden)return;setTimeout(connect,Math.min(30e3,2e3*2**Math.min(retry++,4)))}
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(ws){ws.onclose=null;ws.close();ws=null;for(const id of [...peers.keys()])drop(id)}}else connect()});
@@ -113,13 +115,15 @@ function sendPos(now){if(!ws||ws.readyState!==1||now-lastSend<250)return;const p
   if(k===lastPos&&now-lastSend<5000)return;lastPos=k;lastSend=now;ws.send(JSON.stringify({t:'p',x:p[0],y:p[1],z:p[2],r,b:bt,k:sk,md}))}
 
 let fr=0;function loop(now){requestAnimationFrame(loop);const c=W();if(!c||!peers.size&&!ws){return}fr++;sendPos(now);if(!peers.size){if(IB)for(const k in IB)IB[k].count=0;return}drawInst(now/1000);
+  if(selfBub&&c.P&&c.P.pos){if(selfT&&Date.now()>selfT){selfBub.classList.add('out');selfT=0;setTimeout(()=>{if(!selfT)selfBub.style.display='none'},450)}if(selfBub.style.display!=='none'){_v.set(c.P.pos.x,c.P.pos.y+(c.getMode&&c.getMode()==='walk'?3.2:5),c.P.pos.z);_v.project(c.C);selfBub.style.transform=`translate3d(${((_v.x+1)/2*innerWidth).toFixed(1)}px,${((1-_v.y)/2*innerHeight).toFixed(1)}px,0) translate(-50%,-100%)`;selfBub.style.visibility=_v.z<1?'':'hidden'}}
   const k=MOB?.12:.18,w=innerWidth,h=innerHeight,doTags=!MOB||fr%2===0,t=now/1000;
   for(const p of peers.values()){p.g.position.x+=(p.tx-p.g.position.x)*k;p.g.position.y+=(p.ty-p.g.position.y)*k;p.g.position.z+=(p.tz-p.g.position.z)*k;p.g.userData.core.position.y=2.2+Math.sin(t*2+p.id)*.25;if((p.b||p.boat)&&window.__boat)window.__boat.peer(p);walkLook(p);if(p.nc&&p.nc.visible){const mv=Math.abs(p.tx-p.g.position.x)+Math.abs(p.tz-p.g.position.z)>.05;if(mv)p.nc.rotation.y=Math.atan2(p.tx-p.g.position.x,p.tz-p.g.position.z);p.nc.userData.anim(t+p.id,mv)}
     if(p.bub&&p.bubT&&Date.now()>p.bubT){p.bub.classList.add('out');p.bubT=0;const b=p.bub;setTimeout(()=>{if(b.classList.contains('out')){b.remove();if(p.bub===b)p.bub=null}},400)}
-    if(!doTags)continue;_v.copy(p.g.position);_v.y+=5;const dist=c.C.position.distanceTo(_v);_v.project(c.C);
+    if(!doTags)continue;_v.copy(p.g.position);_v.y+=5;const dist=c.C.position.distanceTo(_v);_v.project(c.C);if(p.bub){const me=c.P&&c.P.pos,far=me?Math.hypot(p.g.position.x-me.x,p.g.position.z-me.z)>70:dist>70;p.bub.style.display=far?'none':''}
     const vis=_v.z<1&&Math.abs(_v.x)<1.1&&Math.abs(_v.y)<1.1&&dist<(p.bub?900:450);
     if(!vis){if(p.tag.style.display!=='none')p.tag.style.display='none';continue}if(p.tag.style.display)p.tag.style.display='';
     p.tag.style.transform=`translate3d(${((_v.x+1)/2*w).toFixed(1)}px,${((1-_v.y)/2*h).toFixed(1)}px,0) translate(-50%,-100%) scale(${Math.max(.75,Math.min(1,160/dist)).toFixed(2)})`}}
+window.__cityChat={bubble,upsert,peers,me:()=>myId};
 (function boot(){if(!window.__ready||!W())return setTimeout(boot,500);setTimeout(()=>{connect();requestAnimationFrame(loop)},MOB?1500:400)})();
 window.__cityNet={peers,get ws(){return ws},open:setOpen};
 // ---------- NFT characters (RACC / Firekeepers / 589 Protocol holders) ----------

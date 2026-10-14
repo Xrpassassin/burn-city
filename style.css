@@ -181,3 +181,5 @@ body.replay #wchip{opacity:.6}
 #info{z-index:75!important}
 
 .bamm .bah{font:700 12px system-ui;opacity:.8;margin:8px 0 4px}#bagBtn.dimOn::after{content:' · dim';opacity:.8}.bdim.on{background:#7dffcf33;border-color:#7dffcf;color:#dfffee}
+
+.pbub{background:#101826e6!important;color:#eef!important;border:1.5px solid var(--c,#7cf);font-size:12px}.pbub::after{border-top-color:var(--c,#7cf)!important}.pself{position:fixed!important;left:0;top:0;pointer-events:none;z-index:4;--c:#ffd27a;transition:opacity .45s}@media (max-width:600px){.pbub{max-width:150px;font-size:10.5px;padding:4px 7px}}

@@ -53,17 +53,24 @@ window.__onLive=e=>{if(e.type==='burn')alertBurn(e);else if(e.type==='trade')wha
 const bagG=new THREE.Group();c.S.add(bagG);let held=[];const rg=new THREE.RingGeometry(1,1.18,48),rm=new THREE.MeshBasicMaterial({color:0x7dffcf,transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
 function ring(t){if(bagG.children.length)rm.opacity=.4+.25*Math.sin(t*1.6)}
 const bagBtn=el('button',null,'💼 My bag');bagBtn.id='bagBtn';bagBtn.hidden=true;$('btns')&&$('btns').append(bagBtn);
-const bagList=el('div');bagList.id='bagList';bagList.hidden=true;document.body.append(bagList);
-bagBtn.onclick=()=>{const v=!document.body.classList.contains('bag');document.body.classList.toggle('bag',v);bagBtn.classList.toggle('on',v);bagList.hidden=!v};
+const bagList=el('div');bagList.id='bagList';bagList.hidden=true;bagList.setAttribute('role','dialog');bagList.setAttribute('aria-label','My bag');document.body.append(bagList);
+const bagHead=el('div','bhd'),bagTitle=el('b','bt','My bag'),bagDim=el('button','bdim','Dim others'),bagX=el('button','bx','✕'),bagBody=el('div','bl');
+bagX.setAttribute('aria-label','Close My bag');bagDim.setAttribute('aria-pressed','false');bagHead.append(bagTitle,bagDim,bagX);bagList.append(bagHead,bagBody);
+function setFilter(v){localStorage.bc_bagFilter=v?'1':'0';document.body.classList.toggle('bag',v);bagDim.classList.toggle('on',v);bagDim.setAttribute('aria-pressed',v)}
+function setBag(v){localStorage.bc_bagOpen=v?'1':'0';bagList.hidden=!v;bagBtn.classList.toggle('on',v);bagBtn.setAttribute('aria-expanded',v);if(!v)setFilter(false)}
+bagBtn.onclick=e=>{e.stopPropagation();setBag(bagList.hidden)};bagX.onclick=e=>{e.stopPropagation();setBag(false)};bagDim.onclick=e=>{e.stopPropagation();setFilter(!document.body.classList.contains('bag'))};
+addEventListener('pointerdown',e=>{if(!bagList.hidden&&!bagList.contains(e.target)&&e.target!==bagBtn&&!$('info').contains(e.target))setBag(false)},true);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&!bagList.hidden){setBag(false);e.stopImmediatePropagation()}},true);
+addEventListener('keydown',e=>{if(e.key!=='Escape'||!bagList.hidden||c.getMode()!=='orbit')return;const r=$('recap'),i=$('info'),ch=$('cityChat');if(r){r.querySelector('.x').click()}else if(i&&i.style.display==='block'){i.style.display='none'}else if(ch&&ch.classList.contains('open')){window.__cityNet&&window.__cityNet.open(false)}else return;e.stopImmediatePropagation()},true);
 async function bagLoad(){bagG.clear();held=[];document.querySelectorAll('.lbl.held').forEach(x=>x.classList.remove('held'));const acct=localStorage.bcAcct||Q.get('bagacct');
   if(!on('bag')||!acct||!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(acct)){bagBtn.hidden=true;bagList.hidden=true;document.body.classList.remove('bag');return}
   let lines=[];try{let m;do{const r=await RPC('account_lines',{account:acct,limit:400,ledger_index:'validated',...(m?{marker:m}:{})});lines=lines.concat(r.lines);m=r.marker}while(m&&lines.length<1200)}catch(e){return}
   const keys=new Map();lines.filter(l=>+l.balance>0).forEach(l=>{keys.set(l.account+'-'+l.currency,+l.balance);keys.set(l.account+'-'+hexCur(l.currency),+l.balance)});
   c.E.nodes.forEach(n=>{if(!n.key||!n.key.includes('-'))return;const [i,cu]=n.key.split('-');const bal=keys.get(n.key)??keys.get(i+'-'+hexCur(cu));if(bal==null||(n.price_xrp?bal*n.price_xrp<.01:bal<1))return;held.push([n,bal]);
     const r=new THREE.Mesh(rg,rm);r.rotation.x=-Math.PI/2;r.position.set(n.pos.x,.3,n.pos.z);const s=n.w*1.9+2;r.scale.set(s,s,s);bagG.add(r);n.lblEl&&n.lblEl.classList.add('held')});
-  bagList.replaceChildren(el('div','bh',held.length?`My bag · ${held.length} token${held.length>1?'s':''}`:'No tracked tokens in this wallet yet'));
-  held.sort((a,b)=>(b[1]*(b[0].price_xrp||0))-(a[1]*(a[0].price_xrp||0))).forEach(([n,bal])=>{const b=el('button',null,'');b.append(el('b',null,n.name),el('span',null,short(bal)+(n.price_xrp?' · ≈'+short(bal*n.price_xrp)+' XRP':'')));b.onclick=()=>c.showInfo({node:n});bagList.append(b)});
-  bagBtn.hidden=false}
+  bagTitle.textContent=held.length?`My bag · ${held.length}`:'My bag';bagBody.replaceChildren(held.length?'':el('div','dim','No tracked tokens in this wallet yet'));
+  held.sort((a,b)=>(b[1]*(b[0].price_xrp||0))-(a[1]*(a[0].price_xrp||0))).forEach(([n,bal])=>{const b=el('button',null,'');b.append(el('b',null,n.name),el('span',null,short(bal)+(n.price_xrp?' · ≈'+short(bal*n.price_xrp)+' XRP':'')));b.onclick=()=>c.showInfo({node:n});bagBody.append(b)});
+  bagBtn.hidden=false;bagBtn.setAttribute('aria-expanded','false');setBag(localStorage.bc_bagOpen==='1');setFilter(!bagList.hidden&&localStorage.bc_bagFilter==='1')}
 bagLoad();addEventListener('storage',e=>{if(e.key==='bcAcct')bagLoad()});
 
 // ---------- 5) daily recap (real data only, once per Phoenix day) ----------

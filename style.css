@@ -64,3 +64,23 @@ body.replay #tlDate{color:#ffcf6a}
 }
 @media (max-width:700px){#hud{box-sizing:border-box;max-width:34vw}#hud.open{max-width:calc(100vw - 20px)}#btns{max-width:calc(66vw - 30px)}}
 #iosHint{bottom:calc(150px + env(safe-area-inset-bottom))}
+/* v4: guide, token card buttons, music */
+#btns #guideBtn,#btns #musicBtn{min-width:30px}#btns #musicBtn.on{color:#ffb36b;border-color:#ff7a18}
+#info .x,#music .x{float:right;background:none;border:0;color:inherit;font-size:14px;cursor:pointer;opacity:.75;padding:0 2px}
+.cardBtns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}.cardBtns a{flex:1;text-align:center;padding:7px 8px;border-radius:7px;border:1px solid #ff7a1866;color:#ffd2a8;text-decoration:none;font-size:12px;background:#ff7a1814}
+.cardBtns a.trade{flex:2;background:linear-gradient(90deg,#ff5a1a,#ff9a2a);color:#120600;font-weight:700;border:0}
+#guide{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(2,4,12,.55);backdrop-filter:blur(2px)}#guide[hidden]{display:none}
+#guide .gbox{width:min(360px,calc(100vw - 32px));background:rgba(6,10,24,.95);border:1px solid #ff7a1877;border-radius:14px;padding:18px 18px 12px;text-align:center;box-shadow:0 0 40px #ff5a1a44;color:#e8eefc;font-size:13px}
+#guide .gico{font-size:34px}#guide h3{margin:6px 0;color:#ffb36b;font-size:16px}#guide p{min-height:60px;line-height:1.45;margin:0 0 10px}
+#guide .gdots{display:flex;gap:6px;justify-content:center;margin-bottom:10px}#guide .gdots i{width:7px;height:7px;border-radius:50%;background:#ffffff33}#guide .gdots i.on{background:#ff8a2a}
+#guide .gnav{display:flex;justify-content:space-between}#guide button{background:#ff7a1822;border:1px solid #ff7a1866;color:#ffd2a8;border-radius:7px;padding:7px 14px;cursor:pointer;font:inherit}
+#guide .gnext{background:#ff7a18;color:#120600;font-weight:700}#guide .gbar{height:2px;background:#ffffff14;margin-top:10px;border-radius:2px;overflow:hidden}#guide .gbar i{display:block;height:100%;width:0;background:#ff8a2a}
+#music{position:fixed;right:10px;top:calc(56px + env(safe-area-inset-top));width:260px;z-index:7;background:rgba(4,8,20,.92);border:1px solid #ff7a1866;border-radius:10px;padding:10px 12px;font-size:12px;box-shadow:0 0 22px #ff7a1833}#music[hidden]{display:none}
+#music h2{margin:0 0 4px;font-size:14px;color:#ffb36b}.mnow{opacity:.85;min-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mctl{display:flex;gap:8px;justify-content:center;margin:6px 0}.mctl button{background:#ff7a1822;border:1px solid #ff7a1866;color:#ffd2a8;border-radius:50%;width:36px;height:36px;cursor:pointer;font-size:14px}.mctl .mplay{background:#ff7a18;color:#120600}
+.mprog{height:3px;background:#ffffff18;border-radius:2px;overflow:hidden}.mprog i{display:block;height:100%;width:0;background:#ff8a2a}
+.mlist{margin:6px 0;padding-left:18px;max-height:140px;overflow:auto}.mlist button{background:none;border:0;color:#cfd8ef;cursor:pointer;padding:3px 0;font:inherit;text-align:left}.mlist li.cur button{color:#ff9a3a;font-weight:700}
+.mlinks{opacity:.7}.mlinks a{color:#ffb36b}
+@media (max-width:700px){#music{left:10px;right:10px;width:auto;top:auto;bottom:140px}}
+
+.spons{display:inline-block;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;background:#ff7a18;color:#120600;border-radius:4px;padding:1px 6px;margin-bottom:4px}

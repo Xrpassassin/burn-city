@@ -54,7 +54,9 @@ const kids={};E.nodes.filter(n=>!n.pos).forEach(n=>{const ps=pools.filter(p=>p.a
 Object.entries(kids).forEach(([par,ks])=>{const P0=N[par];ks.sort((a,b)=>b.tvl-a.tvl).forEach((n,i)=>{const a=P0.ang+(i-(ks.length-1)/2)*.11;const r=RING+70+(i%2)*26;
  n.ang=a;n.pos=new THREE.Vector3(Math.cos(a)*r,0,Math.sin(a)*r);n.minor=true})});
 E.nodes.forEach((n,i)=>{const th=THEME[n.name]||{c:MINORC[i%MINORC.length]};n.th=th;n.col=new THREE.Color(th.c);
- n.h=n.name==='XRP'?125:Math.max(10,15*Math.log10(n.tvl+10));n.w=n.name==='XRP'?11:Math.max(2.4,Math.log10(n.tvl+10)*1.85);
+ // HEIGHT = market cap in XRP (circulating supply x AMM price, log scale); BASE WIDTH = pool TVL in XRP (sqrt scale)
+ n.mc=n.name==='XRP'?null:n.mcap_amm!=null?n.mcap_amm:null;n.h=n.name==='XRP'?125:n.mc!=null?Math.min(112,Math.max(12,16*Math.log10(n.mc+10)-14)):Math.max(10,15*Math.log10(n.tvl+10)*.8);
+ n.w=n.name==='XRP'?11:Math.min(9.5,Math.max(2.2,1.7+.042*Math.sqrt(n.tvl)));
  n.distR=n.name==='XRP'?66:n.minor?n.w*3.2:n.w*2.6+20;});
 
 await stage(0.12,'Sky & terrain');
@@ -133,13 +135,37 @@ await stage(0.3,'Raising towers');
 // ---------- towers (hero buildings) ----------
 const pick=[],colliders=[],anim=[],labelEls=[];
 const segGeo=new THREE.CylinderGeometry(.82,1,1,4,1);segGeo.rotateY(Math.PI/4);
+const LOCKT=[[0,'Under construction'],[.15,'Framed'],[.4,'Standard'],[.7,'Premium'],[.92,'Flagship']];
+const lockTier=L=>{let t=0;LOCKT.forEach(([th],i)=>{if(L>=th)t=i});return t};
+const TDENS=[.6,.85,1.15,1.35,1.55];const tierMat=(c,t)=>matCache[c+'|'+t]||(matCache[c+'|'+t]=bMat(c,TDENS[t]));
+// shared tier part materials (keeps batching keys identical across towers)
+const PM={scaf:new THREE.LineBasicMaterial({color:0xffb000,transparent:true,opacity:.5}),warn:new THREE.SpriteMaterial({map:GT,color:0xffa000,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}),
+ glass:new THREE.MeshStandardMaterial({color:0x9fd8ff,metalness:.95,roughness:.08,transparent:true,opacity:.22,depthWrite:false}),chrome:new THREE.MeshStandardMaterial({color:0xdfe8ff,metalness:1,roughness:.18}),
+ padM:new THREE.MeshStandardMaterial({color:0x10182c,metalness:.8,roughness:.3})};
+const WARN=[[],[]];const scafGeo=new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1,1,3,1));
+function tierParts(n,g,si,y,spH,cw,sides){const T=n.tier,col=n.col;
+ if(T<=1){// under construction: amber scaffold cage on the upper body + blinking work lights + tower crane
+  const top=si[si.length-1],cover=T===0?si.slice(-2):[top];cover.forEach(q=>{const sc=new THREE.LineSegments(scafGeo,PM.scaf);sc.scale.set(q.cw*2.25,q.sh*1.02,q.cw*2.25);sc.position.y=q.y+q.sh/2;g.add(sc)});
+  const ly=top.y+top.sh;for(let k=0;k<(n.minor?1:2);k++)WARN[k].push(n.pos.x+(k?-1:1)*top.cw*1.1,ly+.5,n.pos.z);
+  if(!n.minor){const mast=new THREE.Mesh(new THREE.BoxGeometry(.5,spH*1.4,.5),PM.chrome);mast.position.set(top.cw*.6,y+spH*.7,0);g.add(mast);
+   const jib=new THREE.Mesh(new THREE.BoxGeometry(n.w*3.2,.35,.35),PM.chrome);jib.position.set(top.cw*.6+n.w*.9,y+spH*1.4,0);g.add(jib)}
+  return}
+ if(T>=3){// premium: glass curtain wall + chrome trims; flagship adds crown, light strips and a landing pad
+  si.forEach((q,i)=>{if(i===si.length-1&&n.minor)return;const gl=new THREE.Mesh(new THREE.CylinderGeometry(q.top*1.06,q.cw*1.06,q.sh*.96,sides,1,true),PM.glass);gl.position.y=q.y+q.sh/2;g.add(gl);
+   const tr=new THREE.Mesh(new THREE.TorusGeometry(q.top*1.12,.12,4,sides*3),neonStd(n.th.c,1.2));tr.rotation.x=Math.PI/2;tr.position.y=q.y+q.sh;g.add(tr)});
+  if(T>=4&&!n.minor){const crown=new THREE.Group();for(let k=0;k<6;k++){const a=k/6*Math.PI*2;const sp=new THREE.Mesh(new THREE.ConeGeometry(.35,spH*.55,4),PM.chrome);sp.position.set(Math.cos(a)*cw*.9,y+spH*.27,Math.sin(a)*cw*.9);g.add(sp)}
+   const strip=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,si[0].sh*.9+si[1].sh,4),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.9}));strip.userData.noBatch=1;strip.position.set(n.w*1.02,(si[0].sh*.9+si[1].sh)/2,0);g.add(strip);
+   const s2=strip.clone();s2.position.set(-n.w*1.02,s2.position.y,0);g.add(s2);anim.push(t=>{const o=.35+.65*(.5+.5*Math.sin(t*2.2+n.pos.z));strip.material.opacity=o});
+   const pad=new THREE.Mesh(new THREE.CylinderGeometry(cw*1.5,cw*1.5,.25,24),PM.padM);pad.position.y=si[si.length-1].y+si[si.length-1].sh+.6;pad.position.x=0;
+   const ring=new THREE.Mesh(new THREE.RingGeometry(cw*1.25,cw*1.45,24),new THREE.MeshBasicMaterial({color:0x3cf3ff,side:2}));ring.rotation.x=-Math.PI/2;ring.position.y=pad.position.y+.14;g.add(pad);g.add(ring)}}}
 function heroTower(n){const g=new THREE.Group();g.position.copy(n.pos);S.add(g);const col=n.col,sides=n.name==='XRP'?12:n.minor?6:8;
- let y=0,cw=n.w;const segs=n.minor?2:n.name==='XRP'?5:4;const mat=towerMat(n.th.c);
+ const locked=pools.filter(p=>p.a===n.name||p.b===n.name).reduce((s,p)=>s+p.tvl_xrp*p.locked_pct/100,0)/Math.max(1,n.tvl);n.lockedShare=locked;const T=n.tier=n.name==='XRP'?4:lockTier(locked);
+ let y=0,cw=n.w;const segs=n.minor?2:n.name==='XRP'?5:4;const mat=tierMat(n.th.c,T);const segInfo=[];
  for(let s=0;s<segs;s++){const sh=n.h*(s===0?.42:.58/(segs-1)),top=cw*(s===segs-1?.62:.84);const geo=new THREE.CylinderGeometry(top,cw,sh,sides,1),ug=new THREE.CylinderGeometry(top/cw,1,1,sides,1);
-  const m=new THREE.Mesh(ug,mat);m.scale.set(cw,sh,cw);m.position.y=y+sh/2;g.add(m);
-  if(!n.minor){const e=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.45}));e.position.copy(m.position);g.add(e)}
+  const m=new THREE.Mesh(ug,mat);m.scale.set(cw,sh,cw);m.position.y=y+sh/2;g.add(m);segInfo.push({y,sh,cw,top});
+  if(!n.minor&&T>=2){const e=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.45}));e.position.copy(m.position);g.add(e)}
   const ledge=new THREE.Mesh(new THREE.CylinderGeometry(top*1.14,top*1.18,.6,sides),neonStd(n.th.c,.9));ledge.position.y=y+sh;g.add(ledge);
-  if(s===0&&!n.minor)for(let k=0;k<sides;k++){const a=k/sides*Math.PI*2+Math.PI/sides;const fin=new THREE.Mesh(new THREE.BoxGeometry(.35,sh*.9,cw*.28),neonStd(n.th.c,.35));
+  if(s===0&&!n.minor&&T>=1)for(let k=0;k<sides;k++){const a=k/sides*Math.PI*2+Math.PI/sides;const fin=new THREE.Mesh(new THREE.BoxGeometry(.35,sh*.9,cw*.28),neonStd(n.th.c,.35));
    fin.position.set(Math.cos(a)*cw*.98,sh*.45,Math.sin(a)*cw*.98);fin.rotation.y=-a;g.add(fin)}
   y+=sh;cw=top*.9}
  const spH=n.h*(n.minor?.18:.3);const spire=new THREE.Mesh(new THREE.ConeGeometry(cw*.55,spH,sides),neonStd(n.th.c,1.4));spire.position.y=y+spH/2;g.add(spire);
@@ -148,8 +174,8 @@ function heroTower(n){const g=new THREE.Group();g.position.copy(n.pos);S.add(g);
  const red=new THREE.Sprite(new THREE.SpriteMaterial({map:GT,color:0xff2222,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));red.scale.setScalar(2.5);red.position.y=y+spH*.6;g.add(red);
  anim.push(t=>{beacon.material.opacity=.65+.35*Math.sin(t*2+n.pos.x);red.material.opacity=.35+.65*Math.pow(.5+.5*Math.sin(t*1.6+n.pos.z),3)});
  n.top=y+spH+antH;
- const locked=pools.filter(p=>p.a===n.name||p.b===n.name).reduce((s,p)=>s+p.tvl_xrp*p.locked_pct/100,0)/Math.max(1,n.tvl);n.lockedShare=locked;
- if(!n.minor){for(let i=0;i<(TIER==='low'?1:3);i++){const halo=new THREE.Mesh(new THREE.TorusGeometry(n.w*(1.55+i*.42),.1+.05*(2-i),6,96),new THREE.MeshBasicMaterial({color:i===1?0xe8f4ff:col,transparent:true,opacity:.7}));
+ tierParts(n,g,segInfo,y,spH,cw,sides);
+ if(!n.minor&&T>=2){for(let i=0;i<(TIER==='low'?1:T>=3?3:2);i++){const halo=new THREE.Mesh(new THREE.TorusGeometry(n.w*(1.55+i*.42),.1+.05*(2-i),6,96),new THREE.MeshBasicMaterial({color:i===1?0xe8f4ff:col,transparent:true,opacity:.7}));
    halo.position.y=n.h*(.32+i*.2);halo.rotation.x=Math.PI/2+(.22-.22*i);g.add(halo);const sp=(i%2?-1:1)*(.25+.15*i);anim.push((t,dt)=>halo.rotation.z+=dt*sp)}
   if(locked>.001){const arc=new THREE.Mesh(new THREE.TorusGeometry(n.w*2.15,.35,6,96,Math.PI*2*Math.min(1,locked)),new THREE.MeshBasicMaterial({color:0x3cf3ff,transparent:true,opacity:.85}));arc.rotation.x=-Math.PI/2;arc.position.y=1.2;g.add(arc)}}
  const pad=new THREE.Mesh(new THREE.CylinderGeometry(n.w*1.85,n.w*2.05,.5,40),new THREE.MeshStandardMaterial({color:0x0b1020,metalness:.85,roughness:.35}));pad.position.y=.25;g.add(pad);
@@ -161,9 +187,76 @@ function heroTower(n){const g=new THREE.Group();g.position.copy(n.pos);S.add(g);
  labelEls.push({el,pos:new THREE.Vector3(n.pos.x,n.top+4,n.pos.z),pri:n.name==='XRP'?1e9:n.tvl,minor:n.minor});
  n.group=g}
 E.nodes.forEach(heroTower);
+// work lights on under-construction towers: two Points draw calls total, alternating blink
+WARN.forEach((arr,k)=>{if(!arr.length)return;const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));const m=glowMat(0xffa000,2.6);S.add(new THREE.Points(bg,m));anim.push(t=>m.opacity=Math.sin(t*3.4+k*Math.PI)>0?1:.08)});
+
+// ---------- permanent burn marks: one instanced draw call for the whole city ----------
+// Every real burn (Payment of a token to its own issuer) leaves a flame on that tower. Count is capped per tower and globally
+// (by graphics tier); beyond the cap the existing flames burn hotter/larger instead of adding more.
+const MARK_CAP=TIER==='low'?10:TIER==='medium'?16:24,MARK_GLOBAL=TIER==='low'?140:TIER==='medium'?280:460;
+const markCol=n=>n.th.fire===2?0xff3a10:n.th.ice?0x6ab8ff:n.th.fire?0xff7a1a:0xff8a2a;
+const MK={geo:new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1,1.6).translate(0,.55,0)),list:[],byNode:new Map()};
+MK.off=new THREE.InstancedBufferAttribute(new Float32Array(MARK_GLOBAL*4),4);MK.col=new THREE.InstancedBufferAttribute(new Float32Array(MARK_GLOBAL*4),4);
+MK.geo.setAttribute('iOff',MK.off);MK.geo.setAttribute('iCol',MK.col);MK.geo.instanceCount=0;
+MK.mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{t:U.t},
+ vertexShader:`attribute vec4 iOff;attribute vec4 iCol;uniform float t;varying vec2 vUv;varying vec4 vC;varying float vF;
+ void main(){vUv=uv;vC=iCol;float sd=fract(iOff.x*.137+iOff.z*.311);float f=.82+.18*sin(t*(7.+5.*sd)+sd*40.)+.08*sin(t*17.+sd*9.);vF=f;
+  vec4 mv=viewMatrix*vec4(iOff.xyz,1.);mv.xy+=position.xy*iOff.w*f*(1.+.35*(iCol.a-1.));gl_Position=projectionMatrix*mv;}`,
+ fragmentShader:`varying vec2 vUv;varying vec4 vC;varying float vF;
+ void main(){vec2 p=vUv*2.-1.;p.y=(vUv.y-.25)*1.6;float w=mix(.95,.08,clamp(vUv.y,0.,1.));float d=abs(p.x)/w;float a=smoothstep(1.,.25,d)*smoothstep(0.,.18,vUv.y)*smoothstep(1.,.55,vUv.y);
+  vec3 core=mix(vC.rgb,vec3(1.,.95,.8),smoothstep(.6,0.,d)*(1.-vUv.y));float k=min(2.2,.75+.35*vC.a)*vF;gl_FragColor=vec4(core*a*k,a);}`});
+MK.mesh=new THREE.Mesh(MK.geo,MK.mat);MK.mesh.frustumCulled=false;MK.mesh.userData.noBatch=1;MK.mesh.renderOrder=3;S.add(MK.mesh);
+function markSpot(n,i){const r=((i*2654435761)>>>0)/4294967296,r2=((i*40503+n.name.length*977)>>>0)%1000/1000;const hb=n.h*.42;
+ const y=1.5+(i===0?hb*.5:(r2*.92)*(n.h*.95)),wr=y<hb?n.w*1.02:n.w*.86*(1-.25*(y-hb)/(n.h-hb+1));const a=i*2.399+n.pos.x*.01;return [n.pos.x+Math.cos(a)*(wr+.25),y,n.pos.z+Math.sin(a)*(wr+.25)]}
+function layoutMarks(){const want=E.nodes.filter(n=>(n.burn_txs||0)+(n.liveBurns||0)>0).map(n=>{const c=(n.burn_txs||0)+(n.liveBurns||0);return {n,c,k:Math.min(MARK_CAP,c)}});
+ let tot=want.reduce((s,w)=>s+w.k,0);if(tot>MARK_GLOBAL){const f=MARK_GLOBAL/tot;want.forEach(w=>w.k=Math.max(1,Math.floor(w.k*f)))}
+ let j=0;const c3=new THREE.Color();want.forEach(w=>{const n=w.n;c3.set(markCol(n));const inten=1+Math.max(0,Math.log2(w.c/w.k));
+  const vx=n.burn_vol&&n.price_amm?n.burn_vol*n.price_amm:0;const sz=(1.1+.25*Math.min(6,Math.log10(1+vx)))*Math.min(1.6,.6+n.w*.12);
+  for(let i=0;i<w.k&&j<MARK_GLOBAL;i++,j++){const [x,y,z]=markSpot(n,i);MK.off.setXYZW(j,x,y,z,sz*(i===0?1.6:1));MK.col.setXYZW(j,c3.r,c3.g,c3.b,inten)}n.marks=w.k;n.markInt=inten});
+ MK.geo.instanceCount=j;MK.off.needsUpdate=MK.col.needsUpdate=true;window.__marks={instances:j,cap:MARK_GLOBAL,perTower:MARK_CAP}}
+layoutMarks();
+function burnMark(n){n.liveBurns=(n.liveBurns||0)+1;layoutMarks()}
+
+
+const _m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_v=new THREE.Vector3(),_t=new THREE.Vector3(),_s=new THREE.Vector3(),UPV=new THREE.Vector3(0,1,0),_one=new THREE.Vector3(1,1,1),ORIGIN=new THREE.Vector3();
+// ---------- Launchpad district: unbonded bonding-curve tokens (xrpl.fun crucible, via launchpad.js built nightly) ----------
+// Each lot: excavated pit + dirt, instanced cranes, wireframe ghost of the future tower, bonding-progress ring. Capped, mostly shared geometry.
+const LP_DATA=window.LAUNCHPAD||{lots:[],graduated:[]},LOT_CAP=TIER==='low'?4:8;
+const LPD={a:(6.5/8)*Math.PI*2-Math.PI/2,r:108,lots:[]};LPD.c=new THREE.Vector3(Math.cos(LPD.a)*LPD.r,0,Math.sin(LPD.a)*LPD.r);
+{const lots=LP_DATA.lots.slice(0,LOT_CAP);colliders.push({x:LPD.c.x,z:LPD.c.z,r:lots.length?16+lots.length*2:0,h:0});
+ const pitM=new THREE.MeshStandardMaterial({color:0x2a1c12,roughness:1,metalness:0,side:2}),dirtM=new THREE.MeshStandardMaterial({color:0x4a3220,roughness:1}),
+  ghostM=new THREE.LineBasicMaterial({color:0x3cf3ff,transparent:true,opacity:.35,depthWrite:false}),craneM=new THREE.MeshStandardMaterial({color:0xffb000,metalness:.6,roughness:.4,emissive:0x221400}),
+  ringBg=new THREE.MeshBasicMaterial({color:0x332211,side:2}),ringFg=new THREE.MeshBasicMaterial({color:0xff8a2a,side:2});
+ const ghostG=new THREE.EdgesGeometry(new THREE.CylinderGeometry(.62,1,1,8,4));
+ const nC=lots.length*2,mast=new THREE.InstancedMesh(new THREE.BoxGeometry(.5,1,.5),craneM,Math.max(1,nC)),jib=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.4,.4),craneM,Math.max(1,nC));let ci=0;
+ lots.forEach((L,i)=>{const cols=Math.min(lots.length,4),row=Math.floor(i/4),col=i%4;const tang=new THREE.Vector3(-Math.sin(LPD.a),0,Math.cos(LPD.a)),rad=new THREE.Vector3(Math.cos(LPD.a),0,Math.sin(LPD.a));
+  const pos=LPD.c.clone().addScaledVector(tang,(col-(cols-1)/2)*15).addScaledVector(rad,row*15);const g=new THREE.Group();g.position.copy(pos);S.add(g);
+  const pit=new THREE.Mesh(new THREE.CylinderGeometry(5,4,1.6,16,1,true),pitM);pit.position.y=-.4;g.add(pit);const floor=new THREE.Mesh(new THREE.CircleGeometry(4,16).rotateX(-Math.PI/2),pitM);floor.position.y=-1.15;g.add(floor);
+  const rim=new THREE.Mesh(new THREE.RingGeometry(5,6.3,16).rotateX(-Math.PI/2),dirtM);rim.position.y=.06;g.add(rim);
+  for(let k=0;k<3;k++){const m=new THREE.Mesh(new THREE.ConeGeometry(1.2+k*.3,1+k*.4,7),dirtM);const a=k*2.1+i;m.position.set(Math.cos(a)*6.6,.4,Math.sin(a)*6.6);g.add(m)}
+  const H=Math.max(14,Math.min(60,16*Math.log10((L.mcap||1000)+10)-14)),W=3;const ghost=new THREE.LineSegments(ghostG,ghostM);ghost.scale.set(W,H,W);ghost.position.y=H/2;ghost.userData.noBatch=1;g.add(ghost);
+  const pct=L.bond_pct!=null?Math.max(0,Math.min(100,L.bond_pct)):null;
+  const rb=new THREE.Mesh(new THREE.RingGeometry(6.6,7.2,48).rotateX(-Math.PI/2),ringBg);rb.position.y=.1;g.add(rb);
+  if(pct!=null&&pct>0){const rf=new THREE.Mesh(new THREE.RingGeometry(6.6,7.2,48,1,Math.PI/2,-Math.PI*2*pct/100).rotateX(-Math.PI/2),ringFg);rf.position.y=.14;rf.userData.noBatch=1;g.add(rf)}
+  const nCr=i%2?1:2;for(let k=0;k<nCr;k++){const a=k*Math.PI+i*.7,mh=H*.8+6,x=Math.cos(a)*5.5,z=Math.sin(a)*5.5;
+   _m.compose(_v.set(pos.x+x,mh/2,pos.z+z),_q.identity(),_s.set(1,mh,1));mast.setMatrixAt(ci,_m);
+   _m.compose(_v.set(pos.x+x-Math.cos(a)*4,mh,pos.z+z-Math.sin(a)*4),_q.setFromAxisAngle(UPV,-a),_s.set(13,1,1));jib.setMatrixAt(ci++,_m)}
+  const hit=new THREE.Mesh(new THREE.CylinderGeometry(6,6,H,8),new THREE.MeshBasicMaterial({visible:false}));hit.position.y=H/2;hit.userData={kind:'lot',lot:L};g.add(hit);pick.push(hit);
+  const el=document.createElement('div');el.className='lbl lot';el.style.setProperty('--c','#ff8a2a');el.innerHTML=`🚧 ${L.ticker.replace(/[<&]/g,'')}<small>${pct!=null?pct.toFixed(0)+'% bonded':'bonding'}</small>`;$('labels').appendChild(el);
+  labelEls.push({el,pos:new THREE.Vector3(pos.x,H+4,pos.z),pri:1,minor:true});LPD.lots.push({L,g,ghost,H,pos})});
+ mast.count=jib.count=ci;S.add(mast);S.add(jib);
+ anim.push(t=>{ghostM.opacity=.22+.18*(.5+.5*Math.sin(t*1.7))});
+ if(lots.length){const el=document.createElement('div');el.className='lbl';el.style.setProperty('--c','#ffb000');el.innerHTML='LAUNCHPAD<small>unbonded tokens</small>';$('labels').appendChild(el);labelEls.push({el,pos:LPD.c.clone().setY(32),pri:5e3,minor:false})}}
+// Bonding ceremony: ghost rises and solidifies into a tower. Triggered when a lot shows up as graduated in a refreshed launchpad.js.
+const risers=[];function bondLot(ticker){const lo=LPD.lots.find(x=>x.L.ticker===ticker&&!x.done);if(!lo)return;lo.done=1;lo.ghost.material=lo.ghost.material.clone();
+ const m=new THREE.Mesh(new THREE.CylinderGeometry(.62*3,3,1,8),towerMat(0xff8a2a));m.position.copy(lo.pos);m.scale.y=.01;S.add(m);risers.push({m,H:lo.H,t:0,lo});
+ evBanner(`🏗️ ${ticker} BONDED<small>graduated on xrpl.fun · its AMM pool goes live</small>`,'#ffb000')}
+anim.push((t,dt)=>{for(const r of risers){if(r.t>=1)continue;r.t=Math.min(1,r.t+dt/4);const k=1-Math.pow(1-r.t,3);r.m.scale.y=Math.max(.01,r.H*k);r.m.position.y=r.H*k/2;r.lo.ghost.material.opacity=.35*(1-k)}});
+window.__bondLot=bondLot;window.__card=name=>N[name]&&showInfo({node:N[name]});
+setInterval(async()=>{if(!LPD.lots.length||document.hidden)return;try{const tx=await (await fetch('launchpad.js',{cache:'no-cache'})).text();const d=JSON.parse(tx.slice(tx.indexOf('{'),tx.lastIndexOf('}')+1));
+ LPD.lots.forEach(lo=>{if(!lo.done&&(d.graduated||[]).includes(lo.L.ticker))bondLot(lo.L.ticker)})}catch{}},10*60000);
 
 // ---------- satellite buildings (one instanced draw call) + rooftops + neon signs ----------
-const _m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_v=new THREE.Vector3(),_t=new THREE.Vector3(),_s=new THREE.Vector3(),UPV=new THREE.Vector3(0,1,0),_one=new THREE.Vector3(1,1,1),ORIGIN=new THREE.Vector3();
 const sats=[];
 E.nodes.forEach(n=>{const k=Math.round((n.name==='XRP'?70:n.minor?Math.min(10,3+n.pools*2):Math.min(46,18+n.pools*3))*LV.sats);
  for(let i=0,tries=0;i<k&&tries<k*10;tries++){const a=rnd()*Math.PI*2,r=n.w*2.5+rnd()*(n.distR-n.w*2.5-2);const x=n.pos.x+Math.cos(a)*r,z=n.pos.z+Math.sin(a)*r;
@@ -298,9 +391,28 @@ const freighter=(()=>{const g=new THREE.Group();const hm=new THREE.MeshStandardM
  const lp=[];for(const sgn of[1,-1])for(let i=0;i<24;i++){const x=-20+i*1.7;lp.push(x,-.5,sgn*Math.sqrt(Math.max(0,1-(x/26)**2))*7.05)}
  const lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.Float32BufferAttribute(lp,3));g.add(new THREE.Points(lg,glowMat(0xffd9a0,1.8)));
  const eng=new THREE.Sprite(new THREE.SpriteMaterial({map:GT,color:0x66ccff,blending:THREE.AdditiveBlending,depthWrite:false}));eng.position.set(-27,0,0);eng.scale.setScalar(9);g.add(eng);
- const bc=document.createElement('canvas');bc.width=512;bc.height=96;const bx=bc.getContext('2d');bx.fillStyle='#00e5ff';bx.shadowColor='#00e5ff';bx.shadowBlur=16;bx.font='bold 50px monospace';bx.fillText('XRPL FREIGHT ◆ BURN',8,64);
- for(const sgn of[1,-1]){const ban=new THREE.Mesh(new THREE.PlaneGeometry(30,5.6),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(bc),transparent:true,side:2,blending:THREE.AdditiveBlending,depthWrite:false}));ban.position.set(0,-1,sgn*7.3);if(sgn<0)ban.rotation.y=Math.PI;g.add(ban)}
+ const bc=document.createElement('canvas');bc.width=512;bc.height=96;const bx=bc.getContext('2d');window.__blimp={bc,bx,g};bx.fillStyle='#00e5ff';bx.shadowColor='#00e5ff';bx.shadowBlur=16;bx.font='bold 50px monospace';bx.fillText('XRPL FREIGHT ◆ BURN',8,64);
+ for(const sgn of[1,-1]){const ban=new THREE.Mesh(new THREE.PlaneGeometry(30,5.6),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(bc),transparent:true,side:2,blending:THREE.AdditiveBlending,depthWrite:false}));ban.position.set(0,-1,sgn*7.3);if(sgn<0)ban.rotation.y=Math.PI;g.add(ban);(window.__blimp.bans=window.__blimp.bans||[]).push(ban)}
  S.add(g);return t=>{const a=t*.035;g.position.set(Math.cos(a)*120,170+Math.sin(t*.3)*4,Math.sin(a)*120);g.rotation.y=-a}})();
+
+// ---------- sponsored ads (xrpburn.com paid placements, via ads.js built server-side). Only real active ads; labelled "Sponsored". ----------
+const ADS=((window.ADS&&window.ADS.active)||[]).filter(a=>a&&a.ticker).slice(0,8);
+if(ADS.length){const BL=window.__blimp,bills=pick.filter(m=>m.userData.kind==='billboard');bills.forEach(m=>m.userData.orig=m.material.map);
+ const logos={};const loadLogo=a=>{if(!a.logo_url||logos[a.ticker]!==undefined)return;logos[a.ticker]=null;const im=new Image();im.crossOrigin='anonymous';im.decoding='async';im.onload=()=>{logos[a.ticker]=im;if(ADS[ai]===a)drawAd(a)};im.onerror=()=>{logos[a.ticker]=false};im.src=a.logo_url};
+ const adC=document.createElement('canvas');adC.width=512;adC.height=256;const adX=adC.getContext('2d');const adTex=new THREE.CanvasTexture(adC);
+ const esc=t=>String(t||'').slice(0,40);
+ function badge(x,a,cx,cy,r,col){const im=logos[a.ticker];x.save();x.beginPath();x.arc(cx,cy,r,0,7);x.closePath();if(im){x.clip();try{x.drawImage(im,cx-r,cy-r,r*2,r*2)}catch{}}else{x.fillStyle=col;x.fill();x.fillStyle='#120600';x.font=`bold ${r*.8}px monospace`;x.textAlign='center';x.textBaseline='middle';x.fillText(esc(a.ticker).slice(0,3).toUpperCase(),cx,cy+2)}x.restore()}
+ function drawAd(a){const col=a.color||'#ff8a2a',x=adX;x.clearRect(0,0,512,256);x.fillStyle='rgba(16,8,2,.7)';x.fillRect(0,0,512,256);x.strokeStyle=col;x.lineWidth=6;x.strokeRect(6,6,500,244);
+  x.fillStyle=col;x.fillRect(6,6,180,34);x.fillStyle='#120600';x.font='bold 22px monospace';x.fillText('SPONSORED',18,31);badge(x,a,420,120,58,col);
+  x.fillStyle='#fff';x.shadowColor=col;x.shadowBlur=14;x.font='bold 58px monospace';x.fillText('$'+esc(a.ticker).slice(0,9),22,108);x.shadowBlur=0;x.font='26px monospace';x.fillStyle='#ffe2c4';x.fillText(esc(a.name).slice(0,20),22,150);
+  x.fillStyle='#cfd8ef';x.font='20px monospace';x.fillText(esc(a.tagline).slice(0,30),22,186);x.fillStyle=col;x.font='bold 22px monospace';x.fillText('TRADE ON XRPBURN.COM ▸',22,228);adTex.needsUpdate=true;
+  if(BL){const b=BL.bx;b.clearRect(0,0,512,96);b.save();b.fillStyle=col;b.shadowColor=col;b.shadowBlur=16;b.font='bold 20px monospace';b.fillText('SPONSORED',8,22);b.font='bold 46px monospace';b.fillText(('$'+esc(a.ticker)+' ◆ '+esc(a.name)).slice(0,19),8,74);b.restore();
+   const im=logos[a.ticker];if(im)try{b.drawImage(im,440,14,68,68)}catch{};BL.bans.forEach(m=>m.material.map.needsUpdate=true)}}
+ let ai=0,showAd=false;ADS.forEach(loadLogo);drawAd(ADS[0]);
+ if(BL){const hit=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),new THREE.MeshBasicMaterial({visible:false}));hit.scale.set(27,7,8);hit.userData={kind:'ad',get ad(){return ADS[ai]}};BL.g.add(hit);pick.push(hit)}
+ // billboards alternate: 10s token stats, 6s sponsored; blimp always shows the current ad
+ let next=0;anim.push(t=>{if(t<next)return;showAd=!showAd;next=t+(showAd?6:10);if(showAd){ai=(ai+1)%ADS.length;drawAd(ADS[ai])}
+  bills.forEach(m=>{m.material.map=showAd?adTex:m.userData.orig;m.userData.ad=showAd?ADS[ai]:null})});}
 
 await stage(0.78,'Weather from market mood');
 // ---------- weather driven by market mood ----------
@@ -327,13 +439,21 @@ function lightning(){const tg=tallest[Math.floor(Math.random()*tallest.length)];
 
 // ---------- procedural ambient audio (default muted) ----------
 let AC=null,aud={};
-function initAudio(){AC=new (window.AudioContext||window.webkitAudioContext)();const master=AC.createGain();master.gain.value=0;master.connect(AC.destination);
+function initAudio(){AC=new (window.AudioContext||window.webkitAudioContext)();const master=AC.createGain();master.gain.value=0;aud.on=false;master.connect(AC.destination);
  const nb=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate),d=nb.getChannelData(0);let last=0;for(let i=0;i<d.length;i++){last=(last+.02*(Math.random()*2-1))/1.02;d[i]=last*3.5}
  const rs=AC.createBufferSource();rs.buffer=nb;rs.loop=true;const rf=AC.createBiquadFilter();rf.type='highpass';rf.frequency.value=700;const rg=AC.createGain();rg.gain.value=0;rs.connect(rf).connect(rg).connect(master);rs.start();
- const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=380;const dg=AC.createGain();dg.gain.value=.05;[55,55.4,82.4].forEach(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start()});lp.connect(dg).connect(master);aud={master,rg,nb}}
-function thunder(){if(!AC||aud.master.gain.value<.01)return;const s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=160;const g=AC.createGain();const t0=AC.currentTime+.3+Math.random();
+ const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=380;const dg=AC.createGain();dg.gain.value=.05;[55,55.4,82.4].forEach(f=>{const o=AC.createOscillator();o.type='sawtooth';o.frequency.value=f;o.connect(lp);o.start()});lp.connect(dg).connect(master);aud={master,rg,nb,on:false}}
+function thunder(){if(!AC||!aud.on)return;const s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=160;const g=AC.createGain();const t0=AC.currentTime+.3+Math.random();
  g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(1.4,t0+.08);g.gain.exponentialRampToValueAtTime(.001,t0+3.5);s.connect(f).connect(g).connect(aud.master);s.start(t0);s.stop(t0+4)}
-$('audio').onclick=()=>{if(!AC)initAudio();AC.resume();const on=aud.master.gain.value<.01;aud.master.gain.setTargetAtTime(on?.6:0,AC.currentTime,.2);aud.master.gain.value=on?.6:0;$('audio').textContent=on?'🔊':'🔇'};
+function setSound(on){if(!AC)initAudio();AC.resume();aud.master.gain.setTargetAtTime(on?.6:0,AC.currentTime,.2);$('audio').textContent=on?'🔊':'🔇';$('audio').setAttribute('aria-pressed',on);aud.on=on;try{localStorage.setItem('bc_sound',on?'1':'0')}catch{}}
+$('audio').onclick=()=>setSound(!aud.on);
+// remembered "on": browsers require a gesture before audio, so resume on the first tap/click
+if(localStorage.getItem('bc_sound')==='1'){$('audio').textContent='🔊';const g=()=>{removeEventListener('pointerdown',g,true);removeEventListener('keydown',g,true);if(localStorage.getItem('bc_sound')==='1')setSound(true)};addEventListener('pointerdown',g,true);addEventListener('keydown',g,true)}
+function crackle(k=1){if(!AC||!aud.on)return;const t0=AC.currentTime;for(let i=0;i<14;i++){const s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=1500+Math.random()*2500;f.Q.value=2;const g=AC.createGain();const t=t0+Math.random()*1.4;
+ g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.5*k,t+.005);g.gain.exponentialRampToValueAtTime(.001,t+.06+Math.random()*.08);s.connect(f).connect(g).connect(aud.master);s.start(t,Math.random());s.stop(t+.2)}
+ const s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=600;const g=AC.createGain();g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.5,t0+.15);g.gain.exponentialRampToValueAtTime(.001,t0+1.8);s.connect(f).connect(g).connect(aud.master);s.start(t0);s.stop(t0+2)}
+function chime(){if(!AC||!aud.on)return;const t0=AC.currentTime;[880,1318.5,1760].forEach((fr,i)=>{const o=AC.createOscillator();o.type='sine';o.frequency.value=fr;const g=AC.createGain();const t=t0+i*.09;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.12,t+.01);g.gain.exponentialRampToValueAtTime(.0005,t+1.6);o.connect(g).connect(aud.master);o.start(t);o.stop(t+1.7)})}
+window.__sfx={crackle,chime};
 
 await stage(0.85,'Post-processing');
 // ---------- post-processing ----------
@@ -348,16 +468,27 @@ const T=pools.reduce((s,p)=>s+p.tvl_xrp,0),LK=pools.reduce((s,p)=>s+p.tvl_xrp*p.
 $('tot').innerHTML=`Pools <b>${pools.length}</b> · Districts <b>${E.nodes.length}</b> · TVL <b>${fmt(T)} XRP</b><br>Locked LP <b style="color:#3cf3ff">${(LK/T*100).toFixed(1)}%</b> · insider-held pools ⚑ <b style="color:#ffb000">${pools.filter(p=>p.insider_pct>=50).length}</b><br><span class="dim">read-only · sources below</span>`;
 $('hudToggle').onclick=()=>$('hud').classList.toggle('open');
 const lpTag=t=>t.tag==='rpUaH8'||t.tag==='rNbR4'?`<b style="color:#ffb000">⚑ ${t.tag}</b>`:t.tag==='BH'?'<span style="color:#3cf3ff">locked</span>':'';
-function descNode(n){const ps=pools.filter(p=>p.a===n.name||p.b===n.name).sort((a,b)=>b.tvl_xrp-a.tvl_xrp);
- return `<span class="x">✕</span><h2 style="color:#${n.col.getHexString()}">${n.name}${n.minor?' <small style="opacity:.6">minor · near '+n.parent+'</small>':''}</h2><table>
- <tr><td>Price</td><td>${n.name==='XRP'?'1 XRP':fmt(n.price_xrp,12)+' XRP'}</td></tr><tr><td>24h / 1h</td><td>${pct(n.pro24h)} / ${pct(n.pro1h)}</td></tr>
- <tr><td>Pool TVL (sum)</td><td>${fmt(n.tvl)} XRP</td></tr><tr><td>Locked share</td><td>${(n.lockedShare*100).toFixed(1)}%</td></tr><tr><td>24h volume</td><td>${fmt(n.vol24h)} XRP</td></tr><tr><td>Holders</td><td>${fmt(n.holders)}</td></tr></table>
- <div class="dim" style="margin-top:4px">${ps.slice(0,6).map(p=>`${p.a}⇄${p.b} ${fmt(p.tvl_xrp)} XRP · ${p.locked_pct}%🔒${p.insider_pct>=50?' ⚑':''}`).join('<br>')}${ps.length>6?'<br>+'+(ps.length-6)+' more':''}</div>`}
-function descPool(p){const b=bridges.find(x=>x.p===p);return `<span class="x">✕</span><h2>${p.a} ⇄ ${p.b}</h2><table><tr><td>TVL</td><td>${fmt(p.tvl_xrp)} XRP</td></tr><tr><td>Trading fee</td><td>${p.fee_pct}%</td></tr>
+const BURNED=(window.BURNED&&window.BURNED.tokens)||{};
+const tradeUrl=n=>n.name==='XRP'?'https://xrpburn.com/':`https://xrpburn.com/dex/trade/${encodeURIComponent(n.name.toUpperCase())}-XRP`;
+const issuerOf=n=>n.key&&n.key.includes('-')?n.key.split('-')[0]:null;
+const na='<span class="dim">n/a</span>';
+function descNode(n){const ps=pools.filter(p=>p.a===n.name||p.b===n.name).sort((a,b)=>b.tvl_xrp-a.tvl_xrp),iss=issuerOf(n),bu=n.burn_complete&&n.burned_pct!=null?{burned_pct:n.burned_pct,burned:n.burn_vol,burn_txs:n.burn_txs,outstanding:n.circ}:BURNED[n.name];
+ const burnRow=n.name==='XRP'?'':`<tr><td>Burned to issuer</td><td>${bu&&bu.burned_pct!=null?`<b style="color:#ff8a2a">${bu.burned_pct.toFixed(2)}%</b> <i class="est" title="${fmtS(bu.burned)} burned in ${bu.burn_txs} txs vs ${fmtS(bu.outstanding)} outstanding (ledger scan)">est.</i>`:`${na} <span class="dim" title="Issuer history too long to scan fully; no number shown rather than a partial one">(not verified)</span>`}</td></tr>`;
+ return `<button class="x" aria-label="Close">✕</button><h2 style="color:#${n.col.getHexString()}">${n.name}${n.minor?' <small style="opacity:.6">minor · near '+n.parent+'</small>':''}</h2><table>
+ <tr><td>Price</td><td>${n.name==='XRP'?'1 XRP':n.price_xrp!=null?fmt(n.price_xrp,12)+' XRP <i class="est" title="xrpl.to price">est.</i>':na}</td></tr><tr><td>24h / 1h</td><td>${pct(n.pro24h)} / ${pct(n.pro1h)}</td></tr>
+ ${n.name==='XRP'?'':`<tr><td>Market cap <span class="dim">(height)</span></td><td>${n.mc!=null?fmt(n.mc)+' XRP'+(n.price_thin||(n.price_src&&n.price_src!=='amm-xrp')?` <i class="est" title="${n.price_thin?'price from a thin pool (<1,000 XRP depth)':'priced via '+n.price_src.replace('amm-via-','')+' AMM'}">est.</i>`:''):na}</td></tr>`}
+ ${burnRow}${n.name==='XRP'?'':`<tr><td>Burn txs <span class="dim">(flames)</span></td><td>${(n.burn_txs||0)+(n.liveBurns||0)?`${n.burn_complete?'':'≥'}${fmt((n.burn_txs||0)+(n.liveBurns||0))}${n.burn_vol?' · '+fmtS(n.burn_vol)+' '+n.name:''}${n.burn_complete?'':' <span class="dim" title="Only recent issuer history was scanned">(partial scan)</span>'}`:n.burn_txs===0&&n.burn_complete?'0':na}</td></tr>`}
+ <tr><td>LP locked <span class="dim">(build tier)</span></td><td>${(n.lockedShare*100).toFixed(1)}% · <b>${LOCKT[n.tier][1]}</b></td></tr>
+ <tr><td>Pool TVL <span class="dim">(width)</span></td><td>${fmt(n.tvl)} XRP${ps.some(p=>p.a!=='XRP'&&p.b!=='XRP')?' <i class="est" title="non-XRP pools valued at xrpl.to price">est.</i>':''}</td></tr><tr><td>24h volume</td><td>${n.vol24h!=null?fmt(n.vol24h)+' XRP':na}</td></tr><tr><td>Holders</td><td>${n.holders!=null?fmt(n.holders):na}</td></tr></table>
+ <div class="dim" style="margin-top:4px">${ps.slice(0,5).map(p=>`${p.a}⇄${p.b} ${fmt(p.tvl_xrp)} XRP · ${(+p.locked_pct).toFixed(1)}%🔒${p.insider_pct>=50?' ⚑':''}`).join('<br>')}${ps.length>5?'<br>+'+(ps.length-5)+' more':''}</div>
+ <div class="cardBtns"><a class="trade" href="${tradeUrl(n)}" target="_blank" rel="noopener">🔥 Trade on xrpburn.com</a>${iss?`<a href="https://livenet.xrpl.org/accounts/${iss}" target="_blank" rel="noopener" title="${iss}">Issuer ↗</a>`:''}</div>`}
+function descPool(p){const b=bridges.find(x=>x.p===p);return `<button class="x" aria-label="Close">✕</button><h2>${p.a} ⇄ ${p.b}</h2><table><tr><td>TVL</td><td>${fmt(p.tvl_xrp)} XRP</td></tr><tr><td>Trading fee</td><td>${p.fee_pct}%</td></tr>
  <tr><td>Locked LP</td><td style="color:${p.locked_pct>=70?'#3cf3ff':p.locked_pct>=30?'#ffb000':'#ff3b2f'}">${p.locked_pct}%</td></tr><tr><td>Insider LP</td><td>${p.insider_pct}% ${p.insider_pct>=50?'⚑':''}</td></tr><tr><td>LP holders</td><td>${p.lp_holders}</td></tr>
  <tr><td>Traffic basis</td><td>${b&&b.volEst?'est. 2% of TVL':'min 24h vol of pair'} ≈ ${fmt(b&&b.vol)} XRP</td></tr></table>
  <div style="margin-top:4px">Top LP:<br>${p.top_lp.map(t=>`${t.acct.slice(0,10)}… ${t.pct}% ${lpTag(t)}`).join('<br>')}</div><div class="dim" style="margin-top:4px;word-break:break-all">AMM ${p.amm}</div>`}
-function showInfo(u){$('info').innerHTML=u.node?descNode(u.node):descPool(u.pool);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
+function descLot(L){return `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb000">🚧 ${L.ticker.replace(/[<&]/g,'')} <small style="opacity:.6">unbonded · Launchpad</small></h2><table><tr><td>Bonding progress</td><td>${L.bond_pct!=null?L.bond_pct.toFixed(1)+'%':'<span class="dim">n/a</span>'}</td></tr><tr><td>Market cap</td><td>${L.mcap!=null?fmt(L.mcap)+' XRP <i class="est" title="bonding-curve price reported by xrpl.fun">est.</i>':'<span class="dim">n/a</span>'}</td></tr><tr><td>Curve liquidity</td><td>${L.liquidity!=null?fmt(L.liquidity)+' XRP <i class="est">est.</i>':'<span class="dim">n/a</span>'}</td></tr><tr><td>Paired with</td><td>${L.base_pair||'—'}</td></tr></table><div class="dim" style="margin-top:4px">No AMM pool yet. When it bonds it rises into a real tower. Data: xrpl.fun, refreshed nightly.</div><div class="cardBtns"><a class="trade" href="${L.url}" target="_blank" rel="noopener">View on xrpl.fun</a>${L.issuer?`<a href="https://livenet.xrpl.org/accounts/${L.issuer}" target="_blank" rel="noopener">Issuer ↗</a>`:''}</div>`}
+function descAd(a){const e=t=>String(t||'').replace(/[<&"]/g,'');return `<button class="x" aria-label="Close">✕</button><div class="spons">Sponsored · ${e(a.tier||'xrpburn.com')}</div><h2 style="color:${a.color||'#ff8a2a'}">$${e(a.ticker)} <small style="opacity:.7">${e(a.name)}</small></h2>${a.tagline?`<div>${e(a.tagline)}</div>`:''}<div class="dim" style="margin-top:4px">Paid placement on xrpburn.com, not an endorsement. DYOR.</div><div class="cardBtns"><a class="trade" href="${encodeURI(a.url||'https://xrpburn.com/')}" target="_blank" rel="noopener sponsored">Open on xrpburn.com</a>${a.issuer?`<a href="https://livenet.xrpl.org/accounts/${e(a.issuer)}" target="_blank" rel="noopener">Issuer ↗</a>`:''}</div>`}
+function showInfo(u){const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
 
 // ---------- controls: Orbit / Fly / Explore ----------
 const orbit=new OrbitControls(C,R.domElement);orbit.enableDamping=true;orbit.maxPolarAngle=1.5;orbit.target.set(0,30,0);orbit.minDistance=8;orbit.maxDistance=900;orbit.autoRotateSpeed=.35;
@@ -443,7 +574,7 @@ $('tour').onclick=()=>{setMode('orbit');orbit.enabled=false;mode='tour';tour={ca
 const ray=new THREE.Raycaster(),mv2=new THREE.Vector2();
 const hit=e=>{mv2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mv2,C);return ray.intersectObjects(pick.filter(o=>o.parent.visible!==false),false)[0]};
 R.domElement.addEventListener('pointermove',e=>{if(mode!=='orbit'||e.pointerType==='touch')return;const h=hit(e),tip=$('tip');if(h){const u=h.object.userData;tip.style.display='block';tip.style.left=e.clientX+14+'px';tip.style.top=e.clientY+14+'px';
- tip.textContent=u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${u.pool.locked_pct}% locked${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
+ tip.textContent=(u.kind==='ad'||u.ad)?`Sponsored · $${u.ad.ticker}`:u.lot?`Launchpad · ${u.lot.ticker} · ${u.lot.bond_pct!=null?u.lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${u.pool.locked_pct}% locked${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
 let downXY=null;R.domElement.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY]);
 R.domElement.addEventListener('pointerup',e=>{if(mode!=='orbit'||!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>6)return;const h=hit(e);if(h)showInfo(h.object.userData);else $('info').style.display='none'});
 const _p=new THREE.Vector3();
@@ -523,13 +654,13 @@ const fmtS=v=>v>=1e12?(v/1e12).toFixed(2)+'T':v>=1e9?(v/1e9).toFixed(2)+'B':v>=1
 function updCounter(){const r=Object.entries(burned).map(([k,v])=>`<b>${fmtS(v)}</b> ${k}`).join(' · '),d=Object.entries(burnedDemo).map(([k,v])=>`${fmtS(v)} ${k}`).join(' · ');
  $('burnCount').innerHTML=`🔥 Burned live since ${sinceStr}: ${r||'<span class="dim">none yet</span>'}${d?` <span class="dim">· demo: ${d}</span>`:''}`}
 function runEvent(e){evCount++;const tag=e.demo?' <i class="demo">DEMO</i>':'';
- if(e.type==='burn'){const n=N[e.token];if(!n)return;burnFX(n);(e.demo?burnedDemo:burned)[e.token]=((e.demo?burnedDemo:burned)[e.token]||0)+e.amount;updCounter();
+ if(e.type==='burn'){const n=N[e.token];if(!n)return;burnFX(n);if(!e.demo)burnMark(n);(e.demo?burnedDemo:burned)[e.token]=((e.demo?burnedDemo:burned)[e.token]||0)+e.amount;updCounter();
   evBanner(`🔥 ${fmtS(e.amount)} ${e.token} burned${tag}<small>sent to blackholed issuer${e.n>1?` · ${e.n} txs`:''} · ${tStr(e.when)} · XRPL ledger ${short(e.hash)}</small>`,e.token==='IMM'?'#7ac8ff':'#ff8a2a');ambient(e)}
  else if(e.type==='trade'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;pulseFX(b,e.xrp);
   toast(`<b>${b.p.a} ⇄ ${b.p.b}</b> ${e.estimate?'≈':''}${fmt(Math.round(e.xrp))} XRP ${e.kind==='OfferCreate'?'DEX/AMM fill':'swap'}${e.estimate?' <i class="est">est.</i>':''}${tag}<br><span class="dim">${tStr(e.when)} · ${short(e.hash)||'XRPL'}</span>`,'#3cf3ff')}
- else if(e.type==='lock'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;const L=e.pct!=null?e.pct/100:Math.min(1,b.Lv+.15);lockFX(b,L);b.p.locked_pct=Math.max(b.p.locked_pct,L*100);
+ else if(e.type==='lock'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;const L=e.pct!=null?e.pct/100:Math.min(1,b.Lv+.15);lockFX(b,L);chime();b.p.locked_pct=Math.max(b.p.locked_pct,L*100);
   evBanner(`🔒 LP LOCKED · ${b.p.a} ⇄ ${b.p.b}${tag}<small>${(L*100).toFixed(1)}% of LP tokens now in blackholed wallets · ${e.source==='recheck'?'periodic ledger recheck':'XRPL ledger '+short(e.hash)} · ${tStr(e.when)}</small>`,'#3cf3ff')}}
-function ambient(){}
+function ambient(e){if(e&&e.type==='burn')crackle()}
 function pumpEvents(t){if(!evQ.length)return;const now=performance.now();const i=evQ.findIndex(e=>e.type!=='trade');
  if(i>=0&&now>=nextBig){runEvent(evQ.splice(i,1)[0]);nextBig=now+4800;nextSmall=Math.max(nextSmall,now+900);return}
  const j=evQ.findIndex(e=>e.type==='trade');if(j>=0&&now>=nextSmall){runEvent(evQ.splice(j,1)[0]);nextSmall=now+1400}}

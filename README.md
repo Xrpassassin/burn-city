@@ -62,3 +62,32 @@ Draw calls (overview, 1280×720): Low ≈500 · Medium ≈690 · High ≈1360. P
 `node shot.js out.png "view=burn" 13000` (needs playwright-core + Chrome). Previews in `previews/`.
 
 Data is read-only; nothing here signs or submits transactions.
+
+## Visual mapping (v4)
+
+| What you see | What it means | Source |
+|---|---|---|
+| Tower **height** | Market cap in XRP = circulating supply (issued minus issuer, `gateway_balances`) × AMM price, log scale. Marked *est.* when the price comes from a thin pool (<1,000 XRP depth) or is routed through a non-XRP pool. xrpl.to mcap is **not** used. | `tools/enrich.py` → `data.js` (`circ`, `price_amm`, `price_src`, `price_thin`, `mcap_amm`) |
+| Tower **base width** | Total AMM pool TVL in XRP, sqrt scale | `data.js` `tvl` |
+| **Build quality** (5 tiers) | TVL-weighted % of the token's LP locked in blackholed wallets: Under construction (<15%: scaffold cage, crane, blinking work lights, dim sparse windows) · Framed (15–40%) · Standard (40–70%) · Premium (70–92%: glass curtain wall, chrome trims, holo rings) · Flagship (≥92%: + crown spires, animated light strips, landing pad) | `data.js` pools `locked_pct` |
+| **Flames** on a tower | Permanent burn marks: one per burn tx (Payment of the token to its own issuer). Capped per tower (10/16/24 by graphics tier) and city-wide (140/280/460); past the cap flames get hotter/larger instead of more numerous. Live burns add marks in real time. BURN = orange fire, IMM = ice-blue, XRPyro = red-hot inferno. | `data.js` `burn_txs`, `burn_vol`, `burn_complete` |
+| **Launchpad** lots | Bonding-curve tokens on xrpl.fun that have no AMM pool yet: pit, cranes, wireframe ghost of the future tower, progress ring = bond %. On graduation the ghost rises into a tower. | `tools/launchpad.py` → `launchpad.js` |
+| **Sponsored** blimp/billboards | Active paid placements on xrpburn.com (Headliner/Spotlight), rotated and labelled *Sponsored*. When none are active, default content shows. | `tools/ads.py` → `ads.js` |
+
+### Nightly refresh
+After `build_data.py` writes `data.js`, run:
+```
+python3 tools/enrich.py data.js 90   # mcap, burn counts (90 s scan budget per token)
+python3 tools/launchpad.py launchpad.js
+python3 tools/ads.py ads.js
+```
+Burn counts are from the issuer's `account_tx`; very busy issuers can't be fully scanned in the time budget, so the card shows "≥N (partial scan)" and no burned-% in that case.
+
+### ads.js format (hand-editable)
+```js
+window.ADS={"active":[{"ticker":"BURN","name":"Burn","tagline":"…","issuer":"r…","logo_url":"https://…/logo.png","color":"#ff5a1a","tier":"Headliner","url":"https://xrpburn.com/dex/trade/BURN-XRP"}]};
+```
+Only `ticker` is required. Logos must be https and served with CORS (`Access-Control-Allow-Origin`) to render on the 3D canvas; otherwise a text badge is shown.
+
+### Music
+`music/` holds the owner's own tracks re-encoded at 96 kbps (streamed only on Play, never cached by the service worker). `music/playlist.json` lists title + file.

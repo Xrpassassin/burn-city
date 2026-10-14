@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { buildNftChar, disposeNftChar } from './nftchar.js';
 import * as NftPick from './nftpick.js';
+import { droneGeo } from './drone.js';
 const Q=new URLSearchParams(location.search);
 const SRV=Q.get('citysrv')||'https://burn-city-game.fly.dev';
 const WS=SRV.replace(/^http/,'ws')+'/?mode=city';
@@ -40,14 +41,21 @@ const colOf=s=>{let h=0;for(const ch of String(s))h=(h*31+ch.charCodeAt(0))|0;re
 let ws=null,myId=0,canChat=false,online=0,retry=0,lastSend=0,lastPos='',unread=0,open=false;
 const peers=new Map();const layer=el('div');layer.id='ptags';document.body.append(layer);
 let geo=null;const mats=new Map();
-function mkMarker(color){const C=W();if(!geo)geo={core:new THREE.SphereGeometry(.9,12,8),beam:new THREE.CylinderGeometry(.18,.5,26,8,1,true),ring:new THREE.RingGeometry(1.6,2.2,28)};
-  if(!mats.has(color))mats.set(color,{core:new THREE.MeshBasicMaterial({color}),beam:new THREE.MeshBasicMaterial({color,transparent:true,opacity:.28,blending:THREE.AdditiveBlending,depthWrite:false}),ring:new THREE.MeshBasicMaterial({color,transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide})});
-  const m=mats.get(color),g=new THREE.Group(),core=new THREE.Mesh(geo.core,m.core),beam=new THREE.Mesh(geo.beam,m.beam),ring=new THREE.Mesh(geo.ring,m.ring);
-  core.position.y=2.2;beam.position.y=13;ring.rotation.x=-Math.PI/2;ring.position.y=.15;g.add(core,beam,ring);g.userData.core=core;C.S.add(g);return g}
+const CAP=MOB?24:120;let IB=null;
+function inst(){if(IB)return IB;const C=W(),g=droneGeo();const mk=(geo,mat)=>{const m=new THREE.InstancedMesh(geo,mat,CAP);m.count=0;m.frustumCulled=false;m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);C.S.add(m);return m};
+  IB={body:mk(g.body,new THREE.MeshBasicMaterial({color:0xffffff})),rot:mk(g.rot,new THREE.MeshBasicMaterial({color:0xaab0c0,transparent:true,opacity:.6})),
+   glow:mk(new THREE.CircleGeometry(1.8,14).rotateX(-Math.PI/2).translate(0,-.3,0),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}))};return IB}
+function mkMarker(color){const g=new THREE.Group();g.userData.color=new THREE.Color(color);g.userData.core=new THREE.Object3D();W().S.add(g);return g}
+const _m4=new THREE.Matrix4(),_q4=new THREE.Quaternion(),_s4=new THREE.Vector3(2.2,2.2,2.2),_y4=new THREE.Vector3(0,1,0),_dk=new THREE.Color(0x2a3040);
+function drawInst(t){const I=inst();let n=0;const cam=W().C.position,list=[...peers.values()];if(list.length>CAP)list.sort((a,b)=>a.g.position.distanceToSquared(cam)-b.g.position.distanceToSquared(cam));
+  for(const p of list){if(n>=CAP)break;if(p.nc){continue}const P=p.g.position;_q4.setFromAxisAngle(_y4,p.r||0);_m4.compose(_v.set(P.x,P.y+2.4+Math.sin(t*2+p.id)*.25,P.z),_q4,_s4);
+    I.body.setMatrixAt(n,_m4);I.body.setColorAt(n,_dk.clone().lerp(p.g.userData.color,.35));I.glow.setMatrixAt(n,_m4);I.glow.setColorAt(n,p.g.userData.color);
+    _q4.setFromAxisAngle(_y4,(p.r||0)+t*25);_m4.compose(_v,_q4,_s4);I.rot.setMatrixAt(n,_m4);n++}
+  for(const k in I){I[k].count=n;I[k].instanceMatrix.needsUpdate=true;if(I[k].instanceColor)I[k].instanceColor.needsUpdate=true}}
 function upsert(id,name,guest,x,y,z,r){if(id===myId)return;let p=peers.get(id);
-  if(!p){const color=colOf(name);const tag=el('div','ptag');tag.style.setProperty('--c','#'+color.toString(16).padStart(6,'0'));const nm=el('span','pn',(guest?'':'✓ ')+name);tag.append(nm);layer.append(tag);
+  if(!p){const color=colOf(name);const tag=el('div','ptag');tag.style.setProperty('--c','#'+color.toString(16).padStart(6,'0'));const nm=el('span','pn',guest?'visitor':'✓ '+(/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(name)?name.slice(0,5)+'…'+name.slice(-4):name.length>14?name.slice(0,13)+'…':name));tag.append(nm);layer.append(tag);
     p={id,name,g:mkMarker(color),tag,bub:null,bubT:0,tx:x,ty:y,tz:z};p.g.position.set(x,y,z);peers.set(id,p);setNft(p)}
-  p.tx=x;p.ty=y;p.tz=z;p.seen=Date.now()}
+  p.tx=x;p.ty=y;p.tz=z;p.r=r;p.seen=Date.now()}
 const nfts=new Map();   // peer id -> verified NFT character look (server only sends it for the wallet that owns it)
 function setNft(p){const n=nfts.get(p.id)||null;if((p.nc&&p.nc.userData.nftId)===(n&&n.id))return;if(p.nc){disposeNftChar(p.nc);p.nc=null}
   p.g.userData.core.visible=!n;if(!n)return;try{p.nc=buildNftChar(n,{srv:SRV,card:true});p.nc.scale.setScalar(1.6);p.g.add(p.nc)}catch(e){p.nc=null;p.g.userData.core.visible=true}}
@@ -94,11 +102,11 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){if(ws){ws.
 
 // my position (few updates on phones)
 const _v=new THREE.Vector3(),_d=new THREE.Vector3();
-function myPos(){const c=W(),m=c.getMode();if(m==='explore')return [c.P.pos.x,c.P.pos.y,c.P.pos.z];if(m==='fly')return [c.C.position.x,c.C.position.y,c.C.position.z];return [c.orbit.target.x,0,c.orbit.target.z]}
-function sendPos(now){if(!ws||ws.readyState!==1||now-lastSend<(MOB?1000:250))return;const p=myPos().map(v=>Math.round(v*10)/10),c=W();c.C.getWorldDirection(_d);const r=Math.round(Math.atan2(_d.x,_d.z)*100)/100,k=p.join()+r;
+function myPos(){const c=W(),m=c.getMode();if(m==='explore')return [c.P.pos.x,c.P.pos.y,c.P.pos.z];if(m==='fly'){const d=c.drone&&c.drone();const q=d&&d.visible?d.position:c.C.position;return [q.x,q.y-2.4,q.z]}return [c.C.position.x,Math.max(0,c.C.position.y-2.4),c.C.position.z]}
+function sendPos(now){if(!ws||ws.readyState!==1||now-lastSend<250)return;const p=myPos().map(v=>Math.round(v*10)/10),c=W();c.C.getWorldDirection(_d);const r=Math.round(Math.atan2(_d.x,_d.z)*100)/100,k=p.join()+r;
   if(k===lastPos&&now-lastSend<5000)return;lastPos=k;lastSend=now;ws.send(JSON.stringify({t:'p',x:p[0],y:p[1],z:p[2],r}))}
 
-let fr=0;function loop(now){requestAnimationFrame(loop);const c=W();if(!c||!peers.size&&!ws){return}fr++;sendPos(now);if(!peers.size)return;
+let fr=0;function loop(now){requestAnimationFrame(loop);const c=W();if(!c||!peers.size&&!ws){return}fr++;sendPos(now);if(!peers.size){if(IB)for(const k in IB)IB[k].count=0;return}drawInst(now/1000);
   const k=MOB?.12:.18,w=innerWidth,h=innerHeight,doTags=!MOB||fr%2===0,t=now/1000;
   for(const p of peers.values()){p.g.position.x+=(p.tx-p.g.position.x)*k;p.g.position.y+=(p.ty-p.g.position.y)*k;p.g.position.z+=(p.tz-p.g.position.z)*k;p.g.userData.core.position.y=2.2+Math.sin(t*2+p.id)*.25;if(p.nc){const mv=Math.abs(p.tx-p.g.position.x)+Math.abs(p.tz-p.g.position.z)>.05;if(mv)p.nc.rotation.y=Math.atan2(p.tx-p.g.position.x,p.tz-p.g.position.z);p.nc.userData.anim(t+p.id,mv)}
     if(p.bub&&p.bubT&&Date.now()>p.bubT){p.bub.classList.add('out');p.bubT=0;const b=p.bub;setTimeout(()=>{if(b.classList.contains('out')){b.remove();if(p.bub===b)p.bub=null}},400)}

@@ -193,5 +193,20 @@ for t in toks:
   if ws: o['w']=ws   # active wallets (24h unique traders) from nightly snapshots
   if 'lot' in t: o['lot']=1;o['bond']=t['lot'].get('bond_pct')
   out['tok'][nm]=o
+
+# ---- permanent scars: only individual burns worth >10 XRP at burn time (amount x nearest daily close; current AMM price if no history) ----
+SCAR_MIN=10.0
+for t in toks:
+  if 'node' not in t: continue
+  n=t['node'];cl=t.get('close') or {};cd=sorted(cl);sc=[]
+  for b in cache.get(t['name'],{}).get('burns',[]):
+    if cd:
+      j=min(range(len(cd)),key=lambda k:abs((D(cd[k])-D(b[0])).days));px=cl[cd[j]]
+    else: px=n.get('price_amm') or 0
+    v=b[1]*px
+    if v>SCAR_MIN: sc.append([b[0],round(b[1],6),round(v,2)])
+  n['scars']=sorted(sc);n['scar_txs']=len(sc);n['scar_min_xrp']=SCAR_MIN
+  print('scars',t['name'],len(sc),'of',len(cache.get(t['name'],{}).get('burns',[])),flush=True)
+_s=open(os.path.join(ROOT,'data.js')).read();open(os.path.join(ROOT,'data.js'),'w').write(_s[:_s.index('{')]+json.dumps(eco)+';\n')
 open(OUT,'w').write('window.HISTORY='+json.dumps(out,separators=(',',':'))+';\n')
 print('start',start,'days',N,'tokens',len(out['tok']),'bytes',os.path.getsize(OUT))

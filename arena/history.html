@@ -1,0 +1,37 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<title>Burn City · Match history</title><link rel="icon" href="../icons/icon-192.png">
+<style>body{margin:0;background:#07040a;color:#f3e9e0;font:15px/1.45 system-ui,-apple-system,sans-serif;padding:14px max(14px,env(safe-area-inset-left)) 40px}main{max-width:720px;margin:auto}h1{font-size:20px;color:#ffb347;margin:4px 0 10px}
+form{display:flex;gap:6px;flex-wrap:wrap}input{flex:1;min-width:0;font-size:16px;padding:10px;border-radius:9px;border:1px solid #ff7a1a88;background:#140b06;color:#fff}button{min-height:44px;padding:0 14px;border-radius:9px;border:1px solid #ff7a1a;background:#2a1606;color:#fff;font-size:15px}
+.tot{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px;margin:12px 0}.tot div{background:#140b06;border:1px solid #ffffff18;border-radius:9px;padding:8px}.tot b{display:block;font-size:17px;color:#ffd08a}
+.it{border-bottom:1px solid #ffffff14;padding:9px 2px;display:grid;grid-template-columns:1fr auto;gap:2px 10px}.it .k{font-weight:600}.it .s{font-size:12.5px;opacity:.8}.paid,.verified{color:#6dff9c}.queued,.submitted{color:#ffd24a}.under_review{color:#ff9d5a}
+a{color:#7ad0ff}.dim{opacity:.7;font-size:13px}.note{background:#0d2a16;border:1px solid #2bd96b77;border-radius:9px;padding:8px;margin:10px 0;font-size:13px}</style></head><body><main>
+<h1>📜 Match history</h1>
+<form id="f"><input id="a" placeholder="XRPL address (r…)" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Wallet address"><button>Show</button></form>
+<div class="dim" id="who"></div><div id="tot" class="tot"></div><div id="list"></div><button id="more" hidden>Load more</button>
+<div class="note" id="safe"></div>
+<p class="dim"><a href="./">← Arena</a> · <a href="rules.html">Rules</a> · <a href="../">Burn City</a></p></main>
+<script type="module">
+import { badge, NOTICE, txUrl } from './paysafe.js';
+const API = 'https://burn-city-game.fly.dev', $ = s => document.querySelector(s), el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+$('#safe').append(el('div', null, NOTICE), badge());
+const P = new URLSearchParams(location.search); let acct = P.get('acct') || localStorage.bcAcct || '', next = null;
+const label = { entry: '🎟 Ranked entry', prize: '🏆 Prize', refund: '↩ Refund', shop: '🛒 Shop purchase' }, st = { verified: 'verified', paid: 'paid', queued: 'queued', submitted: 'sending…', under_review: 'under review' };
+async function load(reset) {
+  if (!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(acct)) { $('#who').textContent = 'Enter a wallet address, or sign in on the arena page.'; return; }
+  if (reset) { $('#list').replaceChildren(); next = null; }
+  const h = localStorage.bcToken ? { authorization: 'Bearer ' + localStorage.bcToken } : {};
+  let d; try { d = await (await fetch(`${API}/api/history?acct=${acct}&limit=25${next ? '&before=' + next : ''}`, { headers: h })).json(); } catch { $('#who').textContent = 'Could not load right now.'; return; }
+  if (d.error) { $('#who').textContent = d.error === 'slow_down' ? 'Too many requests, try again in a minute.' : 'Invalid address.'; return; }
+  $('#who').textContent = (d.mine ? 'Your wallet ' : 'Public view of ') + acct;
+  if (reset) { const t = d.totals; $('#tot').replaceChildren(...[['Entries', t.entriesXrp], ['Prizes', t.prizesXrp], ['Refunds', t.refundsXrp], ['Shop', t.shopXrp], ['Burned', t.burnedXrp]].map(([k, v]) => { const x = el('div', null, k); x.append(el('b', null, v + ' XRP')); return x; })); }
+  if (!d.items.length && reset) $('#list').append(el('p', 'dim', 'No activity yet.'));
+  for (const i of d.items) { const r = el('div', 'it'); r.append(el('span', 'k', label[i.kind] || i.kind), el('span', 'k', i.xrp + ' XRP'));
+    const s = el('span', 's', new Date(i.t).toLocaleString() + (i.match ? ' · match ' + i.match : '') + (i.item ? ' · ' + i.item : '') + (i.burnXrp ? ' · ' + i.burnXrp + ' XRP burned' : ''));
+    const right = el('span', 's'); right.append(el('span', i.status, st[i.status] || i.status)); if (i.hash) { right.append(' · '); const a = el('a', null, 'tx ↗'); a.href = txUrl(i.hash); a.target = '_blank'; a.rel = 'noopener'; right.append(a); }
+    r.append(s, right); $('#list').append(r); }
+  next = d.next; $('#more').hidden = !next;
+}
+$('#a').value = acct; $('#f').onsubmit = e => { e.preventDefault(); acct = $('#a').value.trim(); history.replaceState(null, '', '?acct=' + acct); load(true); };
+$('#more').onclick = () => load(false); load(true);
+</script><script data-goatcounter="https://shinigsmi.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script></body></html>

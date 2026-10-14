@@ -55,7 +55,7 @@ function ring(t){if(bagG.children.length)rm.opacity=.4+.25*Math.sin(t*1.6)}
 const bagBtn=el('button',null,'💼 My bag');bagBtn.id='bagBtn';bagBtn.hidden=true;$('btns')&&$('btns').append(bagBtn);
 const bagList=el('div');bagList.id='bagList';bagList.hidden=true;bagList.setAttribute('role','dialog');bagList.setAttribute('aria-label','My bag');document.body.append(bagList);
 const bagHead=el('div','bhd'),bagTitle=el('b','bt','My bag'),bagDim=el('button','bdim','Dim others'),bagX=el('button','bx','✕'),bagBody=el('div','bl');
-bagX.setAttribute('aria-label','Close My bag');bagDim.setAttribute('aria-pressed','false');bagHead.append(bagTitle,bagDim,bagX);bagList.append(bagHead,bagBody);
+bagX.setAttribute('aria-label','Close My bag');bagDim.setAttribute('aria-pressed','false');bagHead.append(bagTitle,bagDim,bagX);bagList.append(bagHead,bagBody);{const f=el('div','bft');f.style.cssText='font-size:11.5px;opacity:.85;padding:6px 2px 2px;border-top:1px solid #ffffff1a;margin-top:6px';const h=el('a',null,'📜 My match history & receipts');h.href='arena/history.html';h.style.color='#ffb347';f.append(h,el('div',null,'✔ Official wallet rwfnp…iEpb · We never DM you or ask for your seed/secret.'));bagList.append(f)}
 function setFilter(v){localStorage.bc_bagFilter=v?'1':'0';document.body.classList.toggle('bag',v);bagDim.classList.toggle('on',v);bagDim.setAttribute('aria-pressed',v)}
 function setBag(v){localStorage.bc_bagOpen=v?'1':'0';bagList.hidden=!v;bagBtn.classList.toggle('on',v);bagBtn.setAttribute('aria-expanded',v);if(!v)setFilter(false)}
 bagBtn.onclick=e=>{e.stopPropagation();setBag(bagList.hidden)};bagX.onclick=e=>{e.stopPropagation();setBag(false)};bagDim.onclick=e=>{e.stopPropagation();setFilter(!document.body.classList.contains('bag'))};

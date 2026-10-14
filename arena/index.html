@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https: wss:; font-src 'self' data:; frame-src https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Burn City — Arena</title><link rel="icon" href="../icons/icon-192.png">
 <style>html,body{margin:0;height:100%;background:#050208;color:#ffd9a0;font:14px system-ui;overflow:hidden;touch-action:none}
 #hud{position:fixed;top:8px;left:8px;right:96px;font-size:13px;display:flex;gap:12px;pointer-events:none;text-shadow:0 0 6px #f60}
@@ -26,13 +26,13 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <button id="tcfree">Create free match</button> <span id="tcrk"></span></div>
 <div id="tlobbies" style="margin-top:6px"></div><div id="trk" style="margin-top:6px"></div></div><div class="small"><b>🧟 Zombie Survival</b></div><button data-m="zombie">Free Play</button>
 <div id="ranked" class="small" style="border:1px solid #f604;border-radius:10px;padding:8px 12px;max-width:340px"><b>🏆 Ranked Matches</b> <span id="rkstat"></span><br><span id="rkinfo"></span><div id="rkbtn"></div><div id="rklb"></div><a href="rules.html" style="color:#ffb060">Ranked rules</a></div>
-<a href="../" class="small" style="color:#ffb060">← Back to Burn City</a><div class="small">Free to play. <button id="signin">Sign in with XAMAN</button></div>
+<a href="../" class="small" style="color:#ffb060">← Back to Burn City</a> · <a href="history.html" class="small" style="color:#ffb060">📜 My match history</a><div id="safefoot" class="small" style="margin:6px auto;max-width:420px;opacity:.9"></div><div class="small">Free to play. <button id="signin">Sign in with XAMAN</button></div>
 <div id="price" class="small"></div><div id="qr"></div><div id="shop" class="small"></div><div id="lb" class="small"></div>
 <div class="small">Cosmetics only, never stronger. 32.2% of every sale is burned as BURN. Weekly IMG leaderboard prizes need no purchase.</div></div>
 <div id="touch"><div id="tl" style="left:20px"></div><div id="tr" style="right:20px"></div></div><div id="xh" hidden></div><div id="joy" hidden><i id="knob"></i></div><button id="firebtn" hidden>🔥<br>FIRE</button><button id="gear" hidden>⚙</button>
 <div id="set" hidden><b>Settings</b><label>Look sensitivity <input id="sens" type="range" min="0.3" max="2.5" step="0.1"> <span id="sensv"></span></label><label><input id="autof" type="checkbox"> Auto-fire when the crosshair is on a zombie</label><label><input id="lowq" type="checkbox"> Low graphics<span></span></label></div><div id="codhud" hidden></div><div id="prompt" hidden></div><div id="toast"></div><button id="usebtn" hidden>USE</button><button id="swapbtn" hidden>⇄<br>SWAP</button><div id="hurt"></div><div id="over" hidden></div><div id="hint" hidden></div><div id="teampick" hidden style="position:fixed;left:50%;top:44%;transform:translateX(-50%);z-index:6;display:flex;gap:6px;flex-wrap:wrap;justify-content:center"></div><button id="rkstart" hidden style="position:fixed;left:50%;top:60%;transform:translateX(-50%);z-index:6">▶ Start match</button>
 <script type="module">
-import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
+import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
 const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
 const $ = s => document.querySelector(s), mobile = matchMedia('(pointer:coarse)').matches;
 const qr = x => $('#qr').innerHTML = `<img src="${x.qr}"><div class=small>Scan with XAMAN</div>`;
@@ -43,7 +43,9 @@ async function loadShop_() {
   if (!s.available) { $('#shop').textContent = '🛒 Cosmetic shop: coming soon'; } else
   $('#shop').innerHTML = s.items.map(i => `<button data-buy="${i.id}" style="border-color:${i.color}">${i.name} · ${owned.includes(i.id) ? 'owned' : i.xrp + ' XRP'}</button>`).join(' ');
   $('#shop').querySelectorAll('[data-buy]').forEach(b => b.onclick = async () => { if (!localStorage.bcToken) return $('#price').textContent = 'Sign in first';
-    try { await buy(API, b.dataset.buy, { onQr: qr }); $('#qr').innerHTML = ''; loadShop(); } catch (e) { $('#price').textContent = 'Not purchased: ' + e.message; } });
+    const it = s.items.find(i => i.id === b.dataset.buy);
+    try { const v = await buy(API, b.dataset.buy, { onQr: qr, confirm: tx => confirmPay({ title: 'Buy cosmetic: ' + it.name, dest: tx.Destination, rows: [['Amount', it.xrp + ' XRP'], ['Item', it.name + ' (cosmetic only)'], ['Burned (32.2%)', +(it.xrp * s.burnShare).toFixed(6) + ' XRP · irreversible'], ['Refunds', 'Cosmetics are not refundable']] }) });
+      $('#qr').innerHTML = ''; loadShop(); await receipt({ title: '✅ Purchased ' + it.name, hash: v.hash, rows: [['Amount', it.xrp + ' XRP'], ['Owned by', (localStorage.bcAcct || '').slice(0, 8) + '…']] }); } catch (e) { $('#price').textContent = 'Not purchased: ' + e.message; } });
   const lb = await (await fetch(API + '/api/leaderboard')).json(); if (!lb.top) return;
   $('#lb').innerHTML = `<b>Week ${lb.week}</b><br>` + lb.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 6)}… ${e.kills} kills`).join('<br>');
 }
@@ -94,14 +96,20 @@ async function enterRanked(opts, game = 'zombie') {
   const h = { authorization: 'Bearer ' + localStorage.bcToken };
   const e = await (await fetch(API + '/api/ranked/enter', { method: 'POST', headers: h, body: JSON.stringify(opts) })).json();
   if (e.error) return $('#price').textContent = 'Ranked: ' + e.error.replace(/_/g, ' ');
+  const bx = +e.buyinXrp, burnX = +(bx * 0.0322).toFixed(6), tron = game === 'tron';
+  const okPay = await confirmPay({ title: (tron ? 'Ranked Light Cycles' : 'Ranked Zombies') + ' buy-in', dest: e.tx?.Destination, rows: [['Amount', bx + ' XRP'], ['Match ID', e.match], ['Destination tag', String(e.tx?.DestinationTag ?? '')],
+    ['Burned (3.22%)', burnX + ' XRP · irreversible'], ['Prize split', tron && opts.cfg?.teams ? 'Winning team splits the pot equally' : '1 player 100% · 2 players 62.5/37.5 · 3+ players 50/30/20'], ['Refund rule', 'Match not started in 30 min → refunded automatically, minus the burn']],
+    warn: 'The 3.22% BURN share is burned as soon as you pay and is never refunded, even if the match is cancelled.' });
+  if (!okPay) return $('#price').textContent = 'Payment cancelled. Nothing was sent.';
   if (e.xaman) { qr(e.xaman); if (/iPhone|Android/i.test(navigator.userAgent)) location.href = e.xaman.deeplink; }
   $('#price').textContent = 'Sign the entry payment in XAMAN. Waiting for the ledger… (3.22% is burned at once and is not refunded if the match is cancelled)';
   for (let i = 0; i < 100; i++) { await new Promise(r => setTimeout(r, 3000));
     const v = await (await fetch(API + '/api/ranked/verify', { method: 'POST', headers: h, body: JSON.stringify({ sid: e.sid }) })).json();
-    if (v.ok) { $('#qr').innerHTML = ''; $('#price').textContent = 'Buy-in verified on-ledger. Good luck!'; return start(game, v.ticket); }
+    if (v.ok) { $('#qr').innerHTML = ''; $('#price').textContent = 'Buy-in verified on-ledger. Good luck!'; await receipt({ title: '✅ Buy-in received', hash: v.hash, rows: [['Amount', bx + ' XRP'], ['Match ID', e.match], ['Burned', burnX + ' XRP']] }); return start(game, v.ticket); }
     if (!['no_tx', 'not_validated_yet', 'tx_not_found'].includes(v.reason)) return $('#price').textContent = 'Entry not accepted: ' + v.reason; }
   $('#price').textContent = 'Entry timed out';
 }
+$('#safefoot').append(document.createTextNode(NOTICE + ' '), badge());
 loadRanked(); setInterval(() => $('#menu').hidden || loadRanked(), 30000);
 { const b = document.createElement('button'); b.id = 'nftbtn'; b.hidden = true; $('#signin').after(' ', b); window.__nftp = NftPick.mount(API, { button: b }); }
 loadShop(); $('#price').textContent = localStorage.bcAcct ? 'Signed in ' + localStorage.bcAcct.slice(0, 8) + '…' : 'Playing as guest (not on leaderboard)';

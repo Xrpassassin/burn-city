@@ -11,10 +11,10 @@ export async function signIn(api, { onQr } = {}) {
     if (v.ok) { localStorage.bcToken = v.token; localStorage.bcAcct = v.account; return v; } }
   throw new Error('timeout');
 }
-export async function buy(api, item, { onQr } = {}) {
+export async function buy(api, item, { onQr, confirm } = {}) {
   const h = { authorization: 'Bearer ' + localStorage.bcToken };
   const s = await (await fetch(api + '/api/buy', { method: 'POST', headers: h, body: JSON.stringify({ item }) })).json();
-  if (s.error) throw new Error(s.error); if (s.xaman) openXaman(s.xaman, onQr);
+  if (s.error) throw new Error(s.error); if (confirm && !(await confirm(s.tx))) throw new Error('cancelled'); if (s.xaman) openXaman(s.xaman, onQr);
   for (let i = 0; i < 120; i++) { await sleep(3000);
     const v = await (await fetch(api + '/api/verify', { method: 'POST', body: JSON.stringify({ sid: s.sid }) })).json();
     if (v.ok) return v; if (!['no_tx', 'not_validated_yet', 'tx_not_found'].includes(v.reason)) throw new Error(v.reason); }

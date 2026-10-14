@@ -174,7 +174,7 @@ body.replay #tlDate{color:#ffcf6a}
 @media (max-width:700px){#cityChat{bottom:calc(52px + env(safe-area-inset-bottom))!important;right:10px}#live{bottom:calc(10px + env(safe-area-inset-bottom));right:10px;top:auto}#toasts{bottom:calc(120px + env(safe-area-inset-bottom))}#bagList{bottom:calc(120px + env(safe-area-inset-bottom))}}
 @media (min-width:701px){#info{bottom:74px}}
 @media (max-width:700px){#toasts{width:min(250px,calc(100vw - 150px))}}
-#wchip{position:fixed;right:12px;top:calc(84px + env(safe-area-inset-top));z-index:5;min-height:36px;padding:0 14px;border-radius:18px;border:1px solid #ffffff22;background:rgba(5,10,24,.72);color:#e6f2ff;font:600 12.5px system-ui,-apple-system,sans-serif;cursor:pointer;white-space:nowrap;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#wchip{position:fixed;right:12px;top:calc(84px + env(safe-area-inset-top));z-index:1;min-height:36px;padding:0 14px;border-radius:18px;border:1px solid #ffffff22;background:rgba(5,10,24,.72);color:#e6f2ff;font:600 12.5px system-ui,-apple-system,sans-serif;cursor:pointer;white-space:nowrap;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 @media (max-width:700px){#wchip{right:auto;left:10px;transform:none;top:calc(64px + env(safe-area-inset-top));font-size:11.5px;min-height:32px}}
 body.replay #wchip{opacity:.6}
 @media (min-width:701px){#toasts{top:126px}}

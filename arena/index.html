@@ -98,7 +98,7 @@ const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x050208, 40, 180); s
 const cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 400);
 const fitGun = () => { if (typeof FX !== 'undefined') FX.gun.position.x = cam.aspect < 1 ? 0.03 : 0.2; };
 addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); fitGun(); });
-scene.add(new THREE.HemisphereLight(0xffaa66, 0x220011, 1.2), new THREE.GridHelper(240, 60, 0xff4400, 0x331100));
+const GRIDH = new THREE.GridHelper(240, 60, 0xff4400, 0x331100); scene.add(new THREE.HemisphereLight(0xffaa66, 0x220011, 1.2), GRIDH);
 const LOOK = { skin_ember: '#ff5a1f', skin_chrome: '#c8d4e0', skin_ghost: '#7af0ff', trail_gold: '#ffd24a', trail_plasma: '#c04bff', flame_blue: '#3aa0ff', flame_green: '#5aff4a', flame_burnxrp: '#ff2a00' };
 const COL = (id, kind = 'trail') => { const rc = net?.roster.get(id)?.color; if (rc && kind !== 'flame') return new THREE.Color(rc); const l = net?.roster.get(id)?.look?.[kind]; return l ? new THREE.Color(LOOK[l]) : new THREE.Color().setHSL((id * 0.137) % 1, 1, 0.55); };
 let net, mode, yaw = 0, keys = {}, fire = false;
@@ -108,7 +108,7 @@ function leave(msg) {               // full teardown so the next mode (or the ci
   for (const c of cycles.values()) { if (c.userData.nc) disposeNftChar(c.userData.nc); scene.remove(c); disposeBike(c); } cycles.clear();
   for (const w of walls.values()) { scene.remove(w); w.geometry.dispose(); w.material.dispose(); } walls.clear();
   for (const t of tags.values()) { scene.remove(t); t.material.map.dispose(); t.material.dispose(); } tags.clear();
-  FX.clear(); world?.dispose(); world = null; joy.id = null; look.id = null; $('#joy').hidden = true; pred = null;
+  FX.clear(); world?.dispose(); world = null; GRIDH.visible = true; joy.id = null; look.id = null; $('#joy').hidden = true; pred = null;
   tmsgUntil = 0; $('#teampick').innerHTML = ''; $('#teampick').dataset.n = ''; for (const k of ['#codhud', '#prompt', '#usebtn', '#swapbtn', '#teampick', '#xh', '#hint', '#over', '#fuel', '#me', '#exit', '#rkstart', '#firebtn', '#gear', '#set', '#joy']) $(k).hidden = true; $('#hurt').style.opacity = 0;
   $('#touch').style.display = 'none'; $('#info').textContent = ''; $('#menu').hidden = false; if (msg) $('#price').textContent = msg;
 }
@@ -124,7 +124,7 @@ function start(m, ranked = null, extra = '') {
     .on('lobby', () => tronMsg('Lobby: pick teams, then the creator starts', 2500))
     .on('match_start', () => tronMsg('GO!', 1200))
     .on('init', m => { if (mode === 'zombie' && m.map) { world?.dispose(); world = createCodWorld(scene, m.map, { low: LOW }); } })
-    .on('door', e => { toast(`🚪 ${net.map?.zones[[0, 1, 2, 3, 4, 5].find(i => ((e.open >> i) & 1) && !((lastOpen >> i) & 1)) ?? 0]?.n || 'Area'} opened`); lastOpen = e.open; })
+    .on('door', e => { toast(`🚪 ${net.map?.zones[e.z ?? 0]?.n || 'Area'} opened`); lastOpen = e.open; })
     .on('nopts', e => e.id === net?.me && toast('Not enough points', 1200)).on('perkmax', e => e.id === net?.me && toast('Max 4 perks', 1200))
     .on('buy', e => e.id === net?.me && toast('🔥 ' + world?.wname(e.w))).on('box_give', e => e.id === net?.me && toast('🎁 You got the ' + world?.wname(e.w) + '!'))
     .on('box_roll', e => world?.rolling(e)).on('box_move', () => toast('🧸 Bye bye! The Mystery Box moved…', 3000)).on('box_here', () => toast('🎁 The Mystery Box reappeared somewhere', 2500))
@@ -227,8 +227,7 @@ addEventListener('pointerdown', () => sfx.ctx(), { once: true }); addEventListen
 let hammerT = 0, useHold = false;
 let world = null, lastOpen = 1, useQ = false, swQ = false, toastT = 0;
 function toast(h, ms = 2000) { const t = $('#toast'); t.innerHTML = h; t.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, ms); }
-const in1 = (x, z, open) => net.map.zones.some((zn, i) => ((open >> i) & 1) && x >= zn.r[0] && x <= zn.r[1] && z >= zn.r[2] && z <= zn.r[3]);
-const inZone = (x, z, open) => !net?.map || (in1(x, z, open) && in1(x + 1.5, z, open) && in1(x - 1.5, z, open) && in1(x, z + 1.5, open) && in1(x, z - 1.5, open));
+const inZone = (x, z, open, m = 0.42) => !world || (world.walkable(x + m, z + m, open) && world.walkable(x - m, z + m, open) && world.walkable(x + m, z - m, open) && world.walkable(x - m, z - m, open));   // same body-radius test as the server
 $('#usebtn').ontouchstart = $('#usebtn').onclick = e => { e.preventDefault(); e.stopPropagation(); useQ = true; useHold = true; sfx.ctx(); };
 $('#usebtn').ontouchend = $('#usebtn').ontouchcancel = () => { useHold = false; };
 $('#swapbtn').ontouchstart = $('#swapbtn').onclick = e => { e.preventDefault(); e.stopPropagation(); swQ = true; };
@@ -284,14 +283,14 @@ r.setAnimationLoop(() => {
         const ex = raw[1] - pred.x, ez = raw[2] - pred.z, e = Math.hypot(ex, ez); if (e > 4) { pred.x = raw[1]; pred.z = raw[2]; } else { const k = Math.min(1, dt * 3); pred.x += ex * k; pred.z += ez * k; }
         pred.moving = l > 0.1; }
       const flameCol = net.roster.get(net.me)?.look?.flame ? COL(net.me, 'flame') : null;
-      scene.userData.camQ = cam.quaternion; world?.update(dt, st.map, net.buf.at(-1)?.b);
+      GRIDH.visible = !world; scene.userData.camQ = cam.quaternion; world?.mini(st, net.me); world?.update(dt, st.map, net.buf.at(-1)?.b);
       if (hammerT > 0) { hammerT = Math.max(0, hammerT - dt); FX.gun.rotation.x = Math.sin((0.3 - hammerT) / 0.3 * Math.PI) * 0.9; } else FX.gun.rotation.x = 0;   // hammer swing
       FX.update(dt, st, me && me.alive && !me.down && pred ? { x: pred.x, z: pred.z, yaw, firing: !!me.firing, moving: pred.moving, w: me.w } : null, net.me, id => COL(id, 'skin'), flameCol, NFTOF, API);
       if (me) { const px = pred ? pred.x : me.x, pz = pred ? pred.z : me.z; cam.position.set(px, 1.6 + (pred?.moving ? Math.sin(now / 120) * 0.03 : 0), pz); cam.rotation.set(pitch, yaw + Math.PI, 0, 'YXZ');
         $('#fuel').firstChild.style.width = me.fuel + '%'; }
       const rk = net.buf.at(-1)?.rk; $('#rkstart').hidden = !(rk && rk[0] === 'lobby' && !rk[1]); $('#info').textContent = rk && rk[0] === 'lobby' ? `🏆 Ranked lobby · ${rk[2]} player${rk[2] === 1 ? '' : 's'} here · ${rk[1] ? 'starting in ' + rk[1] + 's' : 'waiting for the creator to start'}` : `${rk ? '🏆 Ranked · ' : ''}Wave ${st.wave} · Zombies ${st.zombies.length} · Score ${st.score} · HP ${me ? me.hp : 0}`;
       if (me && net.map) { const W_ = net.map.weapons, pk = net.map.perks.filter((k, i) => me.perks & (1 << i));
-        $('#codhud').hidden = false; $('#codhud').innerHTML = `<b>${me.pts ?? 0}</b> pts<br>🔥 ${W_[me.w]?.name || ''}${me.w2 >= 0 ? ` <span style="opacity:.6">· ${W_[me.w2].name} (${mobile ? 'SWAP' : 'X'})</span>` : ''}<br>${pk.map(k => `<span class=perk style="color:${k.col}" title="${k.name}"></span>`).join('')}${pk.length ? '<span style="opacity:.7;font-size:12px">' + pk.map(k => k.name).join(' · ') + '</span>' : ''}`;
+        $('#codhud').hidden = false; $('#codhud').innerHTML = `<span style="opacity:.8">📍 ${world?.zoneName(pred?.x ?? me.x, pred?.z ?? me.z) || ''}</span><br><b>${me.pts ?? 0}</b> pts<br>🔥 ${W_[me.w]?.name || ''}${me.w2 >= 0 ? ` <span style="opacity:.6">· ${W_[me.w2].name} (${mobile ? 'SWAP' : 'X'})</span>` : ''}<br>${pk.map(k => `<span class=perk style="color:${k.col}" title="${k.name}"></span>`).join('')}${pk.length ? '<span style="opacity:.7;font-size:12px">' + pk.map(k => k.name).join(' · ') + '</span>' : ''}`;
         const pr = me.alive && !me.down && pred ? world?.prompt(pred, st.map, me.pts, [W_[me.w]?.id, W_[me.w2]?.id], me.perks) : null;
         $('#prompt').hidden = !pr; if (pr) $('#prompt').innerHTML = `${pr.hold ? '' : (mobile ? 'Tap USE' : 'Press F') + ': '}${pr.t}${pr.c ? ` · <b style="color:${me.pts >= pr.c ? '#9f9' : '#f88'}">${pr.c} pts</b>` : ''}`;
         $('#usebtn').hidden = !(mobile && pr && !pr.no); $('#swapbtn').hidden = !(mobile && me.w2 >= 0 && me.alive); }

@@ -45,10 +45,16 @@ const CAP=MOB?24:120;let IB=null;
 function inst(){if(IB)return IB;const C=W(),g=droneGeo();const mk=(geo,mat)=>{const m=new THREE.InstancedMesh(geo,mat,CAP);m.count=0;m.frustumCulled=false;m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);C.S.add(m);return m};
   IB={body:mk(g.body,new THREE.MeshBasicMaterial({color:0xffffff})),rot:mk(g.rot,new THREE.MeshBasicMaterial({color:0xaab0c0,transparent:true,opacity:.6})),
    glow:mk(new THREE.CircleGeometry(1.8,14).rotateX(-Math.PI/2).translate(0,-.3,0),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}))};return IB}
+// remote walker: simple figure in the visitor's colour (verified NFT holders show their NFT character instead)
+let WKG=null;function walkGeo(){if(WKG)return WKG;const b=new THREE.CapsuleGeometry(.32,.8,3,8).translate(0,.95,0),h=new THREE.SphereGeometry(.26,10,8).translate(0,1.75,0),l1=new THREE.BoxGeometry(.16,.55,.16).translate(-.14,.28,0),l2=l1.clone().translate(.28,0,0),v=new THREE.BoxGeometry(.36,.1,.06).translate(0,1.78,-.24);return WKG={b,h,l1,l2,v}}
+function walkLook(p){const walk=p.md==='w'||p.md==='b';if(walk&&!p.nc&&!p.wk){const G=walkGeo(),g=new THREE.Group(),c=p.g.userData.color,m=new THREE.MeshStandardMaterial({color:new THREE.Color(0x1a2030).lerp(c,.35),roughness:.6}),e=new THREE.MeshBasicMaterial({color:c,toneMapped:false});
+  g.add(new THREE.Mesh(G.b,m),new THREE.Mesh(G.h,m),new THREE.Mesh(G.v,e));g.userData.l=[new THREE.Mesh(G.l1,m),new THREE.Mesh(G.l2,m)];g.add(...g.userData.l);p.g.add(g);p.wk=g}
+  if(p.wk){p.wk.visible=walk&&!p.nc;if(p.wk.visible){const dx=p.tx-p.g.position.x,dz=p.tz-p.g.position.z,mv=Math.abs(dx)+Math.abs(dz)>.05;if(mv)p.wk.rotation.y=Math.atan2(-dx,-dz);const s=mv?Math.sin(performance.now()/90)*.5:0;p.wk.userData.l[0].rotation.x=s;p.wk.userData.l[1].rotation.x=-s;p.wk.position.y=p.md==='b'?.3:0}}
+  if(p.nc)p.nc.visible=walk;}
 function mkMarker(color){const g=new THREE.Group();g.userData.color=new THREE.Color(color);g.userData.core=new THREE.Object3D();W().S.add(g);return g}
 const _m4=new THREE.Matrix4(),_q4=new THREE.Quaternion(),_s4=new THREE.Vector3(2.2,2.2,2.2),_y4=new THREE.Vector3(0,1,0),_dk=new THREE.Color(0x2a3040);
 const GOLD=new THREE.Color(0xffb020);function drawInst(t){const I=inst();let n=0;const cam=W().C.position,list=[...peers.values()];if(list.length>CAP)list.sort((a,b)=>a.g.position.distanceToSquared(cam)-b.g.position.distanceToSquared(cam));
-  for(const p of list){if(n>=CAP)break;if(p.nc){continue}const P=p.g.position;_q4.setFromAxisAngle(_y4,p.r||0);_m4.compose(_v.set(P.x,P.y+2.4+Math.sin(t*2+p.id)*.25,P.z),_q4,_s4);
+  for(const p of list){if(n>=CAP)break;if(p.md==='w'||p.md==='b'){continue}const P=p.g.position;_q4.setFromAxisAngle(_y4,p.r||0);_m4.compose(_v.set(P.x,P.y+2.4+Math.sin(t*2+p.id)*.25,P.z),_q4,_s4);
     I.body.setMatrixAt(n,_m4);I.body.setColorAt(n,_dk.clone().lerp(p.g.userData.color,.35));I.glow.setMatrixAt(n,_m4);I.glow.setColorAt(n,p.k?GOLD:p.g.userData.color);
     _q4.setFromAxisAngle(_y4,(p.r||0)+t*25);_m4.compose(_v,_q4,_s4);I.rot.setMatrixAt(n,_m4);n++}
   for(const k in I){I[k].count=n;I[k].instanceMatrix.needsUpdate=true;if(I[k].instanceColor)I[k].instanceColor.needsUpdate=true}}
@@ -92,7 +98,7 @@ function connect(){if(ws||document.hidden)return;/* new session: ids restart aft
   ws.onopen=()=>{retry=0;panel.classList.add('on')};
   ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
     if(m.t==='w'){myId=m.id;canChat=m.canChat;if(m.name){window.__myColor=colOf(m.name);dispatchEvent(new CustomEvent('bc-mycolor',{detail:window.__myColor}))}log.replaceChildren();(m.msgs||[]).forEach(x=>addMsg({...x},false));renderFoot();log.scrollTop=log.scrollHeight}
-    else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r,b,k] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r);const q=peers.get(id);if(q){q.b=b;q.k=k}}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
+    else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r,b,k,md] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r);const q=peers.get(id);if(q){q.b=b;q.k=k;q.md=md||(b?'b':'f')}}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
     else if(m.t==='c'){addMsg(m,true);bubble(m.pid,m.b)}
     else if(m.t==='n'){for(const k in m.m){if(m.m[k])nfts.set(+k,m.m[k]);else nfts.delete(+k);const p=peers.get(+k);if(p)setNft(p)}}
     else if(m.t==='e'){if(m.e==='city_full')retry=5;}if(m.t==='e')toast(m.e==='slow_down'?'Slow down a little.':m.e==='banned'?'This account can\'t chat.':m.e==='city_full'?'City is full right now.':'Sign in with XAMAN to chat.')};
@@ -103,12 +109,12 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){if(ws){ws.
 // my position (few updates on phones)
 const _v=new THREE.Vector3(),_d=new THREE.Vector3();
 function myPos(){const c=W(),m=c.getMode();if(m==='explore')return [c.P.pos.x,c.P.pos.y,c.P.pos.z];if(m==='fly'){const d=c.drone&&c.drone();const q=d&&d.visible?d.position:c.C.position;return [q.x,q.y-2.4,q.z]}return [c.C.position.x,Math.max(0,c.C.position.y-2.4),c.C.position.z]}
-function sendPos(now){if(!ws||ws.readyState!==1||now-lastSend<250)return;const p=myPos().map(v=>Math.round(v*10)/10),c=W();c.C.getWorldDirection(_d);const r=Math.round(Math.atan2(_d.x,_d.z)*100)/100,bt=window.__boat&&window.__boat.active?1:0,sk=localStorage.bcDroneSkin==='drone_burncoin'?1:0,k=p.join()+r+bt+sk;
-  if(k===lastPos&&now-lastSend<5000)return;lastPos=k;lastSend=now;ws.send(JSON.stringify({t:'p',x:p[0],y:p[1],z:p[2],r,b:bt,k:sk}))}
+function sendPos(now){if(!ws||ws.readyState!==1||now-lastSend<250)return;const p=myPos().map(v=>Math.round(v*10)/10),c=W();c.C.getWorldDirection(_d);const r=Math.round(Math.atan2(_d.x,_d.z)*100)/100,bt=window.__boat&&window.__boat.active?1:0,sk=localStorage.bcDroneSkin==='drone_burncoin'?1:0,md=bt?'b':c.getMode()==='explore'?'w':'f',k=p.join()+r+bt+sk+md;
+  if(k===lastPos&&now-lastSend<5000)return;lastPos=k;lastSend=now;ws.send(JSON.stringify({t:'p',x:p[0],y:p[1],z:p[2],r,b:bt,k:sk,md}))}
 
 let fr=0;function loop(now){requestAnimationFrame(loop);const c=W();if(!c||!peers.size&&!ws){return}fr++;sendPos(now);if(!peers.size){if(IB)for(const k in IB)IB[k].count=0;return}drawInst(now/1000);
   const k=MOB?.12:.18,w=innerWidth,h=innerHeight,doTags=!MOB||fr%2===0,t=now/1000;
-  for(const p of peers.values()){p.g.position.x+=(p.tx-p.g.position.x)*k;p.g.position.y+=(p.ty-p.g.position.y)*k;p.g.position.z+=(p.tz-p.g.position.z)*k;p.g.userData.core.position.y=2.2+Math.sin(t*2+p.id)*.25;if((p.b||p.boat)&&window.__boat)window.__boat.peer(p);if(p.nc){const mv=Math.abs(p.tx-p.g.position.x)+Math.abs(p.tz-p.g.position.z)>.05;if(mv)p.nc.rotation.y=Math.atan2(p.tx-p.g.position.x,p.tz-p.g.position.z);p.nc.userData.anim(t+p.id,mv)}
+  for(const p of peers.values()){p.g.position.x+=(p.tx-p.g.position.x)*k;p.g.position.y+=(p.ty-p.g.position.y)*k;p.g.position.z+=(p.tz-p.g.position.z)*k;p.g.userData.core.position.y=2.2+Math.sin(t*2+p.id)*.25;if((p.b||p.boat)&&window.__boat)window.__boat.peer(p);walkLook(p);if(p.nc&&p.nc.visible){const mv=Math.abs(p.tx-p.g.position.x)+Math.abs(p.tz-p.g.position.z)>.05;if(mv)p.nc.rotation.y=Math.atan2(p.tx-p.g.position.x,p.tz-p.g.position.z);p.nc.userData.anim(t+p.id,mv)}
     if(p.bub&&p.bubT&&Date.now()>p.bubT){p.bub.classList.add('out');p.bubT=0;const b=p.bub;setTimeout(()=>{if(b.classList.contains('out')){b.remove();if(p.bub===b)p.bub=null}},400)}
     if(!doTags)continue;_v.copy(p.g.position);_v.y+=5;const dist=c.C.position.distanceTo(_v);_v.project(c.C);
     const vis=_v.z<1&&Math.abs(_v.x)<1.1&&Math.abs(_v.y)<1.1&&dist<(p.bub?900:450);

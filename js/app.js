@@ -5,6 +5,7 @@ import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {BokehPass} from 'three/addons/postprocessing/BokehPass.js';
 import {Reflector} from 'three/addons/objects/Reflector.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
@@ -41,7 +42,7 @@ const FOGV=`#include <fog_pars_vertex>`,TAIL=`#include <tonemapping_fragment>\n#
 const fogU=()=>THREE.UniformsUtils.merge([THREE.UniformsLib.fog]);
 
 // ---------- layout (deterministic, data-driven) ----------
-const THEME={XRP:{c:0x9fd8ff},BURN:{c:0xff5a1a,fire:1},XRPyro:{c:0xff2a00,fire:2},IMM:{c:0x3a8bff,ice:1},IMG:{c:0x8a6bff},RACC:{c:0x00ffa8},VEGAS:{c:0xff2bd6},'666':{c:0xb026ff},RLUSD:{c:0x2bffd9}};
+const THEME={XRP:{c:0x9fd8ff},BURN:{c:0xff5a1a,fire:1},XRPyro:{c:0xff2a00,fire:2},IMM:{c:0x3a8bff,ice:1},IMG:{c:0x8a6bff},RACC:{c:0x00ffa8},VEGAS:{c:0xff2bd6},'666':{c:0xb026ff},RLUSD:{c:0x2bffd9},Budzy:{c:0x4dff5a},'$BTCK':{c:0xf7931a}};
 const MINORC=[0x00e5ff,0x66ff99,0xffd166,0xff66c4,0x7aa2ff,0x9effe0];
 const CORE=['BURN','XRPyro','IMM','IMG','RLUSD','666','VEGAS','RACC'];
 const N={};E.nodes.forEach(n=>N[n.name]=n);
@@ -190,32 +191,83 @@ E.nodes.forEach(heroTower);
 // work lights on under-construction towers: two Points draw calls total, alternating blink
 WARN.forEach((arr,k)=>{if(!arr.length)return;const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));const m=glowMat(0xffa000,2.6);S.add(new THREE.Points(bg,m));anim.push(t=>m.opacity=Math.sin(t*3.4+k*Math.PI)>0?1:.08)});
 
-// ---------- permanent burn marks: one instanced draw call for the whole city ----------
-// Every real burn (Payment of a token to its own issuer) leaves a flame on that tower. Count is capped per tower and globally
-// (by graphics tier); beyond the cap the existing flames burn hotter/larger instead of adding more.
-const MARK_CAP=TIER==='low'?10:TIER==='medium'?16:24,MARK_GLOBAL=TIER==='low'?140:TIER==='medium'?280:460;
-const markCol=n=>n.th.fire===2?0xff3a10:n.th.ice?0x6ab8ff:n.th.fire?0xff7a1a:0xff8a2a;
-const MK={geo:new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1,1.6).translate(0,.55,0)),list:[],byNode:new Map()};
-MK.off=new THREE.InstancedBufferAttribute(new Float32Array(MARK_GLOBAL*4),4);MK.col=new THREE.InstancedBufferAttribute(new Float32Array(MARK_GLOBAL*4),4);
-MK.geo.setAttribute('iOff',MK.off);MK.geo.setAttribute('iCol',MK.col);MK.geo.instanceCount=0;
-MK.mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{t:U.t},
- vertexShader:`attribute vec4 iOff;attribute vec4 iCol;uniform float t;varying vec2 vUv;varying vec4 vC;varying float vF;
- void main(){vUv=uv;vC=iCol;float sd=fract(iOff.x*.137+iOff.z*.311);float f=.82+.18*sin(t*(7.+5.*sd)+sd*40.)+.08*sin(t*17.+sd*9.);vF=f;
-  vec4 mv=viewMatrix*vec4(iOff.xyz,1.);mv.xy+=position.xy*iOff.w*f*(1.+.35*(iCol.a-1.));gl_Position=projectionMatrix*mv;}`,
- fragmentShader:`varying vec2 vUv;varying vec4 vC;varying float vF;
- void main(){vec2 p=vUv*2.-1.;p.y=(vUv.y-.25)*1.6;float w=mix(.95,.08,clamp(vUv.y,0.,1.));float d=abs(p.x)/w;float a=smoothstep(1.,.25,d)*smoothstep(0.,.18,vUv.y)*smoothstep(1.,.55,vUv.y);
-  vec3 core=mix(vC.rgb,vec3(1.,.95,.8),smoothstep(.6,0.,d)*(1.-vUv.y));float k=min(2.2,.75+.35*vC.a)*vF;gl_FragColor=vec4(core*a*k,a);}`});
+// ---------- permanent burn marks v5: noise-shader fire, one instanced draw call + one embers draw call for the whole city ----------
+// Every real burn (Payment of a token to its own issuer) leaves a flame on that tower. Each mark = 3 instances in the SAME draw call:
+// kind 0 = flame (fbm-noise tongues, flicker, heat-shimmer wobble), kind 1 = molten scorch cracks on the facade, kind 2 = smoke wisp (med/high).
+// Count is capped per tower and globally (by graphics tier); beyond the cap flames burn hotter/larger. Bigger burns -> bigger flames.
+const MARK_CAP=TIER==='low'?10:TIER==='medium'?16:24,MARK_GLOBAL=TIER==='low'?140:TIER==='medium'?280:460,MK_SMOKE=TIER!=='low',MK_PER=MK_SMOKE?3:2;
+// per-token fire themes: outer colour + core colour. BURN orange-gold, IMM blue plasma, XRPyro white-hot w/ red core, others = brand colour
+const FIRE={BURN:[0xff6a10,0xffd860],IMM:[0x2a7bff,0xbff0ff],XRPyro:[0xff1a00,0xfff6e8]};
+const fireCols=n=>{const f=FIRE[n.name];if(f)return f;const c=n.col.clone();return [c.getHex(),c.clone().lerp(new THREE.Color(0xffffff),.65).getHex()]};
+const MK={geo:new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1,1.6,1,TIER==='low'?1:4).translate(0,.55,0)),byNode:new Map()};
+const MKN=MARK_GLOBAL*MK_PER;MK.off=new THREE.InstancedBufferAttribute(new Float32Array(MKN*4),4);MK.col=new THREE.InstancedBufferAttribute(new Float32Array(MKN*4),4);MK.core=new THREE.InstancedBufferAttribute(new Float32Array(MKN*4),4);
+MK.geo.setAttribute('iOff',MK.off);MK.geo.setAttribute('iCol',MK.col);MK.geo.setAttribute('iCore',MK.core);MK.geo.instanceCount=0;
+const FNOISE=`float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<OCT;i++){v+=a*vn(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}`;
+MK.mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{t:U.t},defines:{OCT:TIER==='low'?2:TIER==='medium'?3:4},
+ vertexShader:`attribute vec4 iOff;attribute vec4 iCol;attribute vec4 iCore;uniform float t;varying vec2 vUv;varying vec4 vC;varying vec4 vK;varying float vF;
+ void main(){vUv=uv;vC=iCol;vK=iCore;float sd=fract(iOff.x*.137+iOff.z*.311+iOff.y*.071);float kind=floor(iCore.a);float birth=fract(iCore.a)*1000.;
+  float age=t-birth;float flare=birth>0.&&age>0.?1.+2.6*exp(-age*1.1):1.;
+  float f=.86+.14*sin(t*(6.+5.*sd)+sd*40.)+.07*sin(t*17.+sd*9.);vF=f*flare;
+  vec3 p=position;float sz=iOff.w;
+  if(kind<.5){p.x+=sin(t*9.+p.y*5.+sd*20.)*.06*uv.y;p.y*=mix(1.,f,.6);sz*=flare;}          // flame: flicker + heat-shimmer wobble
+  else if(kind<1.5){sz*=1.25;p.y-=.35;}                                                    // scorch cracks: slightly larger, lower on facade
+  else{float ph=fract(t*.12+sd);p.y=p.y*2.2+ph*3.;p.x+=sin(t*.8+sd*7.+p.y)*.35*uv.y;sz*=1.1+ph;vF=ph;}   // smoke wisp: tall, drifting
+  vec4 mv=viewMatrix*vec4(iOff.xyz,1.);mv.xy+=p.xy*sz*(1.+.3*(iCol.a-1.));gl_Position=projectionMatrix*mv;}`,
+ fragmentShader:`uniform float t;varying vec2 vUv;varying vec4 vC;varying vec4 vK;varying float vF;
+ ${FNOISE}
+ void main(){float kind=floor(vK.a);vec2 uv=vUv;float sd=vC.r*7.+vK.g*3.;
+  if(kind<.5){ // ---- volumetric-looking flame tongues
+   vec2 q=vec2(uv.x*3.,uv.y*2.-t*2.2);float n=fbm(q+sd);float n2=fbm(q*2.+vec2(5.,-t*1.5)+sd);
+   float x=(uv.x-.5)*2.+(n-.5)*1.5*uv.y;float w=(1.-uv.y)*.85+.06;float g=1.-abs(x)/w;
+   float tongue=g*1.25-uv.y*.95+(n2-.5)*1.5;float body=smoothstep(0.,.22,tongue)*smoothstep(0.,.08,uv.y);
+   float heat=clamp(tongue*1.5,0.,1.);
+   vec3 col=mix(vC.rgb*vec3(.55,.25,.2),vC.rgb,smoothstep(.0,.35,heat));col=mix(col,vK.rgb,smoothstep(.45,.9,heat));
+   float k=min(1.5,.6+.2*vC.a)*vF;gl_FragColor=vec4(col*body*k,body);
+  }else if(kind<1.5){ // ---- glowing molten cracks on the scorched facade
+   vec2 p=(uv-vec2(.5,.35))*vec2(1.,1.6);float r=length(p);float e=fbm(p*6.+sd);float cr=1.-smoothstep(.0,.05,abs(fbm(p*4.+sd*1.3)-.5));
+   float m=smoothstep(.5,.1,r);float glow=(.55+.45*sin(t*2.+e*9.))*cr*m;vec3 col=mix(vC.rgb,vK.rgb,.35)*glow*1.6+vec3(.02,.01,0.)*m;
+   gl_FragColor=vec4(col,m*.5);
+  }else{ // ---- faint smoke wisp (additive: kept dim and warm-lit at the base)
+   float n=fbm(vec2(uv.x*3.,uv.y*2.-t*.5)+sd);float x=abs(uv.x-.5+(n-.5)*.5)*2.;float a=(1.-smoothstep(.2,.9,x))*smoothstep(0.,.25,uv.y)*smoothstep(1.,.4,uv.y)*n*(1.-vF);
+   vec3 col=mix(vC.rgb*.25,vec3(.16,.15,.17),smoothstep(.0,.5,uv.y));gl_FragColor=vec4(col*a*.55,a*.3);}
+ }`});
 MK.mesh=new THREE.Mesh(MK.geo,MK.mat);MK.mesh.frustumCulled=false;MK.mesh.userData.noBatch=1;MK.mesh.renderOrder=3;S.add(MK.mesh);
+// rising/drifting embers from every mark: one Points draw call, animated fully on the GPU
+const EMBN=TIER==='low'?120:TIER==='medium'?420:960,EM={geo:new THREE.BufferGeometry()};EM.base=new Float32Array(EMBN*4);EM.col=new Float32Array(EMBN*3);
+EM.geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(EMBN*3),3));EM.geo.setAttribute('aBase',new THREE.BufferAttribute(EM.base,4));EM.geo.setAttribute('aCol',new THREE.BufferAttribute(EM.col,3));EM.geo.setDrawRange(0,0);
+EM.mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{t:U.t,px:{value:R.getPixelRatio()*innerHeight*.5}},
+ vertexShader:`attribute vec4 aBase;attribute vec3 aCol;uniform float t,px;varying vec3 vC;varying float vA;
+ void main(){float sd=fract(float(gl_VertexID)*.61803);float sp=.25+.35*sd;float ph=fract(t*sp+sd*13.);
+  vec3 p=aBase.xyz+vec3(sin(t*1.3+sd*40.)*1.6*ph+cos(sd*90.)*.6,ph*(7.+aBase.w*5.),cos(t*1.1+sd*31.)*1.6*ph+sin(sd*70.)*.6);
+  vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;vA=smoothstep(0.,.08,ph)*(1.-ph)*(.6+.4*sin(t*20.+sd*50.));vC=aCol;
+  gl_PointSize=clamp(px*(.18+.22*sd)*(1.+aBase.w*.3)/-mv.z,1.,9.);}`,
+ fragmentShader:`varying vec3 vC;varying float vA;void main(){vec2 d=gl_PointCoord-.5;float a=smoothstep(.5,0.,length(d))*vA;gl_FragColor=vec4(mix(vC,vec3(1.,.95,.8),.35)*a*2.,a);}`});
+EM.pts=new THREE.Points(EM.geo,EM.mat);EM.pts.frustumCulled=false;EM.pts.userData.noBatch=1;EM.pts.renderOrder=4;S.add(EM.pts);
+addEventListener('resize',()=>EM.mat.uniforms.px.value=R.getPixelRatio()*innerHeight*.5);
 function markSpot(n,i){const r=((i*2654435761)>>>0)/4294967296,r2=((i*40503+n.name.length*977)>>>0)%1000/1000;const hb=n.h*.42;
  const y=1.5+(i===0?hb*.5:(r2*.92)*(n.h*.95)),wr=y<hb?n.w*1.02:n.w*.86*(1-.25*(y-hb)/(n.h-hb+1));const a=i*2.399+n.pos.x*.01;return [n.pos.x+Math.cos(a)*(wr+.25),y,n.pos.z+Math.sin(a)*(wr+.25)]}
+// size of one burn relative to supply -> flame scale (bigger burns, bigger flames)
+const burnScale=(n,amt)=>{const f=n.circ&&amt?amt/(n.circ+amt):0;return Math.max(.85,Math.min(2.6,.85+.42*Math.log10(1+f*1e5)))};
 function layoutMarks(){const want=E.nodes.filter(n=>(n.burn_txs||0)+(n.liveBurns||0)>0).map(n=>{const c=(n.burn_txs||0)+(n.liveBurns||0);return {n,c,k:Math.min(MARK_CAP,c)}});
  let tot=want.reduce((s,w)=>s+w.k,0);if(tot>MARK_GLOBAL){const f=MARK_GLOBAL/tot;want.forEach(w=>w.k=Math.max(1,Math.floor(w.k*f)))}
- let j=0;const c3=new THREE.Color();want.forEach(w=>{const n=w.n;c3.set(markCol(n));const inten=1+Math.max(0,Math.log2(w.c/w.k));
-  const vx=n.burn_vol&&n.price_amm?n.burn_vol*n.price_amm:0;const sz=(1.1+.25*Math.min(6,Math.log10(1+vx)))*Math.min(1.6,.6+n.w*.12);
-  for(let i=0;i<w.k&&j<MARK_GLOBAL;i++,j++){const [x,y,z]=markSpot(n,i);MK.off.setXYZW(j,x,y,z,sz*(i===0?1.6:1));MK.col.setXYZW(j,c3.r,c3.g,c3.b,inten)}n.marks=w.k;n.markInt=inten});
- MK.geo.instanceCount=j;MK.off.needsUpdate=MK.col.needsUpdate=true;window.__marks={instances:j,cap:MARK_GLOBAL,perTower:MARK_CAP}}
+ let j=0,m=0,ej=0;const c3=new THREE.Color(),k3=new THREE.Color();const embPer=Math.max(1,Math.floor(EMBN/Math.max(1,want.reduce((s,w)=>s+w.k,0))));
+ want.forEach(w=>{const n=w.n,[oc,cc]=fireCols(n);c3.set(oc);k3.set(cc);const inten=1+Math.max(0,Math.log2(w.c/w.k));
+  const vx=n.burn_vol&&n.price_amm?n.burn_vol*n.price_amm:0;const base=(1.1+.25*Math.min(6,Math.log10(1+vx)))*Math.min(1.6,.6+n.w*.12);
+  const avg=n.burn_vol&&n.burn_txs?n.burn_vol/n.burn_txs:0,live=n.liveAmt||[];n.markIdx=[];
+  for(let i=0;i<w.k&&m<MARK_GLOBAL;i++,m++){const [x,y,z]=markSpot(n,i);const li=live.length-(w.k-i);   // newest marks map to the live burns
+   const amt=li>=0?live[li].amt:avg*(.4+1.2*(((i*7919)>>>0)%100)/100);const sz=base*(i===0?1.5:1)*burnScale(n,amt)*1.5;
+   const birth=li>=0?live[li].birth:0,bf=Math.min(.999,birth/1000);
+   for(let kd=0;kd<MK_PER;kd++,j++){MK.off.setXYZW(j,x,y,z,sz);MK.col.setXYZW(j,c3.r,c3.g,c3.b,inten);MK.core.setXYZW(j,k3.r,k3.g,k3.b,kd+(kd===0?bf:0))}
+   n.markIdx.push([x,y,z,sz]);
+   for(let e=0;e<embPer&&ej<EMBN;e++,ej++){EM.base.set([x,y+sz*.6,z,Math.min(3,sz*.6)],ej*4);EM.col.set([c3.r,c3.g,c3.b],ej*3)}}
+  n.marks=w.k;n.markInt=inten});
+ MK.geo.instanceCount=j;MK.off.needsUpdate=MK.col.needsUpdate=MK.core.needsUpdate=true;EM.geo.setDrawRange(0,ej);EM.geo.attributes.aBase.needsUpdate=EM.geo.attributes.aCol.needsUpdate=true;
+ window.__marks={instances:m,cap:MARK_GLOBAL,perTower:MARK_CAP,shaderInstances:j,embers:ej}}
 layoutMarks();
-function burnMark(n){n.liveBurns=(n.liveBurns||0)+1;layoutMarks()}
+// birth times are packed into iCore.a's fraction (seconds/1000), so flare-ups stay exact for ~16 min of uptime and then just stop flaring
+function burnMark(n,amt){n.liveBurns=(n.liveBurns||0)+1;(n.liveAmt=n.liveAmt||[]).push({amt:amt||0,birth:U.t.value<999?U.t.value:0,demo:arguments[2]});if(n.liveAmt.length>MARK_CAP)n.liveAmt.shift();layoutMarks()}
 
 
 const _m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_v=new THREE.Vector3(),_t=new THREE.Vector3(),_s=new THREE.Vector3(),UPV=new THREE.Vector3(0,1,0),_one=new THREE.Vector3(1,1,1),ORIGIN=new THREE.Vector3();
@@ -459,7 +511,13 @@ await stage(0.85,'Post-processing');
 // ---------- post-processing ----------
 const comp=new EffectComposer(R);comp.setPixelRatio(PR);comp.addPass(new RenderPass(S,C));
 const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth*LV.bloomScale,innerHeight*LV.bloomScale),.7,.4,.5);comp.addPass(bloom);
-const bokeh=new BokehPass(S,C,{focus:120,aperture:.00015,maxblur:.006});bokeh.enabled=false;comp.addPass(bokeh);comp.addPass(new OutputPass());
+const bokeh=new BokehPass(S,C,{focus:120,aperture:.00015,maxblur:.006});bokeh.enabled=false;comp.addPass(bokeh);
+const haze=new ShaderPass({uniforms:{tDiffuse:{value:null},c:{value:new THREE.Vector2(.5,.5)},k:{value:0},t:{value:0},asp:{value:innerWidth/innerHeight}},
+ vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+ fragmentShader:`uniform sampler2D tDiffuse;uniform vec2 c;uniform float k,t,asp;varying vec2 vUv;
+ void main(){vec2 d=(vUv-c)*vec2(asp,1.);float r=length(d);float m=k*smoothstep(.45,.0,r);
+  vec2 o=vec2(sin(vUv.y*90.+t*14.)+sin(vUv.y*37.-t*9.),cos(vUv.x*80.-t*12.))*.0035*m;gl_FragColor=texture2D(tDiffuse,vUv+o);gl_FragColor.rgb+=vec3(.06,.025,0.)*m;}`});
+haze.enabled=false;haze.userData={t:0,p:new THREE.Vector3()};comp.addPass(haze);comp.addPass(new OutputPass());
 if(TIER==='low'){$('minor').checked=false;bridges.forEach(b=>{if(b.minor)b.group.visible=false})}
 $('dof').onchange=e=>bokeh.enabled=e.target.checked;$('minor').onchange=e=>bridges.forEach(b=>{if(b.minor)b.group.visible=e.target.checked});
 
@@ -597,12 +655,12 @@ function updMinimap(){const cw=mm.canvas.width,sc=cw/2/290;mm.clearRect(0,0,cw,c
 const mid=(a,b,s,y)=>V3((N[a].pos.x+N[b].pos.x)/2*s,y,(N[a].pos.z+N[b].pos.z)/2*s);
 const near=(p,d,h,ty)=>{const o=V3(p.x,0,p.z).normalize(),q=V3(-o.z,0,o.x);return[V3(p.x+o.x*d+q.x*d*.55,h,p.z+o.z*d+q.z*d*.55),V3(p.x,ty,p.z)]};
 const BX=N['BURN'].pos.clone().add(N['XRPyro'].pos).multiplyScalar(.5);
-const VIEWS={overview:[V3(235,150,275),V3(0,32,0)],street:[np('BURN',.6,2.6),np('BURN',.95,16)],burn:near(BX,90,58,44),imm:near(N['IMM'].pos,70,55,38),hub:[V3(58,8,62),V3(0,62,0)]};
+const VIEWS={overview:[V3(235,150,275),V3(0,32,0)],street:[np('BURN',.6,2.6),np('BURN',.95,16)],burn:near(BX,90,58,44),imm:near(N['IMM'].pos,70,55,38),hub:[V3(58,8,62),V3(0,62,0)],fire:(()=>{const p=N['BURN'].pos,h=N['BURN'].top||N['BURN'].h||60;return [V3(p.x-.75*h,h*.62,p.z+.55*h),V3(p.x,h*.62,p.z)]})()};
 const VQ0=Q.get('view')||'';const tokV=Object.keys(N).find(k=>k.toLowerCase()===VQ0.toLowerCase());
 if(!VIEWS[VQ0]&&tokV){const n=N[tokV];VIEWS[VQ0]=tokV==='XRP'?VIEWS.hub:near(n.pos,50+n.h*1.5,8+n.h*.6,n.h*.62)}
 if(Q.get('cam')){const c=Q.get('cam').split(',').map(Number);if(c.length===6&&c.every(isFinite))VIEWS.__cam=[V3(c[0],c[1],c[2]),V3(c[3],c[4],c[5])]}
 const VQ=VIEWS.__cam?'__cam':VQ0;if(VIEWS[VQ]){C.position.copy(VIEWS[VQ][0]);orbit.target.copy(VIEWS[VQ][1]);C.lookAt(VIEWS[VQ][1]);setTimeout(()=>{if(mode==='orbit')orbit.target.copy(VIEWS[VQ][1])},50)}
-window.__dbg=()=>({c:C.position.toArray(),t:orbit.target.toArray(),b:N.BURN.pos.toArray(),y:N.XRPyro.pos.toArray(),i:N.IMM.pos.toArray()});
+window.__dbg=()=>({c:C.position.toArray(),t:orbit.target.toArray(),b:N.BURN.pos.toArray(),y:N.XRPyro.pos.toArray(),i:N.IMM.pos.toArray(),bh:N.BURN.h,bw:N.BURN.w,bt:N.BURN.top,nn:['Budzy','$BTCK','$BWTZ'].filter(k=>N[k]).map(k=>({k,p:N[k].pos.toArray(),h:N[k].h,w:N[k].w,tier:N[k].tier,locked:N[k].lockedShare,marks:N[k].marks}))});
 if(Q.get('tod'))$('tod').value=Q.get('tod');
 
 // ---------- live ledger events: burns, big trades, lock ceremonies (pooled FX, queued + rate-limited) ----------
@@ -621,22 +679,57 @@ const EMB=Math.round(420*Math.max(.3,LV.fx)),embG=new THREE.BufferGeometry(),emb
 const embM=new THREE.PointsMaterial({map:GT,color:0xffa24a,size:1.6,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});const emb=new THREE.Points(embG,embM);emb.frustumCulled=false;emb.visible=false;S.add(emb);fxObjs.push(emb);let embT=-1;
 const fxLight=new THREE.PointLight(0xff7a2a,0,110,1.8);if(TIER!=='low')S.add(fxLight); // pre-created: never changes light count (no shader recompiles)
 const take=a=>a.find(x=>x.t<0)||a.reduce((o,x)=>x.t>o.t?x:o);
-function burnFX(n){const top=V3(n.pos.x,n.top||n.h,n.pos.z),hot=n.name==='XRPyro'?0xff3a10:n.th&&n.th.ice?0x7ac8ff:0xff7a1a;
- const b=take(FXP.balls);b.t=0;b.from=top;b.m.material.uniforms.c.value.set(hot);b.m.visible=true;
- [[top,0],[V3(n.pos.x,.6,n.pos.z),.25]].forEach(([p,d])=>{const r=take(FXP.rings);r.t=-d;r.p=p;r.m.material.color.set(hot);r.m.position.copy(p);r.m.visible=true});
- for(let i=0;i<EMB;i++){embP[i*3]=top.x;embP[i*3+1]=top.y;embP[i*3+2]=top.z;const a=Math.random()*6.283,u=Math.random()*2-1,s=8+Math.random()*22,k=Math.sqrt(1-u*u);embV[i*3]=Math.cos(a)*k*s;embV[i*3+1]=Math.abs(u)*s+6;embV[i*3+2]=Math.sin(a)*k*s}
- embM.color.set(hot);embT=0;emb.visible=true;fxLight.position.copy(top);fxLight.color.set(hot);fxLight.userData.t=0}
+// fireball trail: pooled Points (one per ball), positions = recent ball path
+for(const B of FXP.balls){const g=new THREE.BufferGeometry();B.tp=new Float32Array(28*3);g.setAttribute('position',new THREE.BufferAttribute(B.tp,3));
+ const al=new Float32Array(28);for(let i=0;i<28;i++)al[i]=1-i/28;g.setAttribute('aA',new THREE.BufferAttribute(al,1));
+ B.trail=new THREE.Points(g,new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{c:{value:new THREE.Color()},k:{value:0},px:{value:innerHeight}},
+  vertexShader:`attribute float aA;uniform float px;varying float vA;void main(){vA=aA;vec4 mv=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mv;gl_PointSize=clamp(px*(1.2+4.*aA)/-mv.z,1.,64.);}`,
+  fragmentShader:`uniform vec3 c;uniform float k;varying float vA;void main(){float a=smoothstep(.5,0.,length(gl_PointCoord-.5))*vA*k;gl_FragColor=vec4(mix(c,vec3(1.,.95,.8),vA*vA)*a*1.6,a);}`}));
+ B.trail.frustumCulled=false;B.trail.visible=false;S.add(B.trail);fxObjs.push(B.trail)}
+// fire tornado / pillar for big burns: one pooled open cylinder with a swirling noise-fire shader
+const TOR={m:new THREE.Mesh(new THREE.CylinderGeometry(.55,1,1,TIER==='low'?14:28,TIER==='low'?6:16,true).translate(0,.5,0),new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
+ defines:{OCT:TIER==='low'?2:4},uniforms:{t:U.t,o:{value:0},c:{value:new THREE.Color()},k:{value:new THREE.Color()}},
+ vertexShader:`uniform float t;varying vec2 vUv;void main(){vUv=uv;vec3 p=position;float a=t*3.+p.y*4.;p.xz*=1.+.18*sin(a*1.7+p.y*9.);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
+ fragmentShader:`uniform float t,o;uniform vec3 c,k;varying vec2 vUv;${FNOISE}
+ void main(){vec2 q=vec2(vUv.x*6.+vUv.y*3.-t*1.2,vUv.y*4.-t*3.2);float n=fbm(q);float n2=fbm(q*2.3+4.);float b=smoothstep(.35,.85,n+.25*n2)*smoothstep(1.,.55,vUv.y+.2*n2)*smoothstep(0.,.06,vUv.y);
+  vec3 col=mix(c,k,smoothstep(.55,.95,n));gl_FragColor=vec4(col*b*1.8*o,b*o);}`})),t:-1};
+TOR.m.visible=false;TOR.m.frustumCulled=false;S.add(TOR.m);fxObjs.push(TOR.m);
+const SHAKE={on:Q.get('shake')!=='0'&&localStorage.getItem('bc_shake')!=='0',a:0};window.__shake=v=>{SHAKE.on=!!v;localStorage.setItem('bc_shake',v?'1':'0')};{const el=document.getElementById('shakeOpt');if(el){el.checked=SHAKE.on;el.onchange=e=>window.__shake(e.target.checked)}}
+const _hz=new THREE.Vector3();
+function burnFX(n,amt,demo){const [oc,cc]=fireCols(n);const big=!!amt&&((n.circ&&amt>=.01*n.circ)||(n.burn_vol&&n.burn_txs&&amt>=10*n.burn_vol/n.burn_txs));
+ // the new flame for this burn: permanent for real burns, temporary (25 s) for demo burns so demos never fake the ledger history
+ burnMark(n,amt,demo);if(demo)setTimeout(()=>{n.liveBurns=Math.max(0,(n.liveBurns||0)-1);n.liveAmt=(n.liveAmt||[]).filter(x=>!x.demo||U.t.value-x.birth<20);layoutMarks()},25000);
+ const mi=n.markIdx&&n.markIdx.length?n.markIdx[n.markIdx.length-1]:[n.pos.x,n.h*.6,n.pos.z,2];const hit=V3(mi[0],mi[1]+mi[3]*.5,mi[2]);
+ // sender in the sky: a deterministic direction per tower, high above the city
+ const ang=(n.pos.x*.013+n.pos.z*.007)+Math.PI*.75,from=V3(n.pos.x+Math.cos(ang)*140,(n.top||n.h)+150,n.pos.z+Math.sin(ang)*140);
+ const b=take(FXP.balls);b.t=0;b.from=from;b.to=hit;b.n=n;b.big=big;b.oc=oc;b.cc=cc;b.hit=false;b.m.material.uniforms.c.value.set(cc);b.m.visible=true;
+ b.trail.material.uniforms.c.value.set(oc);b.trail.visible=true;for(let i=0;i<28;i++)b.tp.set([from.x,from.y,from.z],i*3)}
+function burnImpact(b){const n=b.n,hit=b.to,hot=new THREE.Color(b.oc);
+ [[hit,0,1],[V3(n.pos.x,.6,n.pos.z),.2,1.6]].forEach(([p,d,s])=>{const r=take(FXP.rings);r.t=-d;r.p=p;r.s=s;r.m.material.color.copy(hot);r.m.position.copy(p);r.m.visible=true});
+ const f=take(FXP.flashes);f.t=0;f.m.position.copy(hit);f.m.material.color.set(b.cc);f.m.visible=true;f.burn=1;
+ for(let i=0;i<EMB;i++){embP[i*3]=hit.x;embP[i*3+1]=hit.y;embP[i*3+2]=hit.z;const a=Math.random()*6.283,u=Math.random()*2-1,s=(8+Math.random()*22)*(b.big?1.5:1),k=Math.sqrt(1-u*u);embV[i*3]=Math.cos(a)*k*s;embV[i*3+1]=Math.abs(u)*s+6;embV[i*3+2]=Math.sin(a)*k*s}
+ embM.color.copy(hot);embT=0;emb.visible=true;fxLight.position.copy(hit);fxLight.color.copy(hot);fxLight.userData.t=0;
+ haze.enabled=true;haze.userData.t=0;haze.userData.p=hit.clone();
+ if(b.big){TOR.t=0;TOR.n=n;TOR.m.position.set(n.pos.x,0,n.pos.z);TOR.m.scale.set(n.w*1.7+3,(n.top||n.h)*1.25+10,n.w*1.7+3);TOR.m.material.uniforms.c.value.copy(hot);TOR.m.material.uniforms.k.value.set(b.cc);TOR.m.visible=true;if(SHAKE.on)SHAKE.a=1.6}
+ else if(SHAKE.on)SHAKE.a=Math.max(SHAKE.a,.35)}
 function pulseFX(b,xrp){const s=take(FXP.sparks);s.t=0;s.b=b;s.dir=Math.random()<.5;s.k=Math.min(1,Math.log10(xrp/TRADE_MIN+1)/1.3);s.m.visible=true;b.pulse=Math.min(1,b.pulse+.6+.4*s.k)}
-function lockFX(b,L){b.lock={from:b.Lv,to:Math.max(b.Lv,L),t:0};const f=take(FXP.flashes);f.t=0;f.m.position.copy(b.curve.getPoint(.5));f.m.visible=true}
+function lockFX(b,L){b.lock={from:b.Lv,to:Math.max(b.Lv,L),t:0};const f=take(FXP.flashes);f.t=0;f.burn=0;f.m.material.color.set(0x9ffcff);f.m.position.copy(b.curve.getPoint(.5));f.m.visible=true}
 function bridgeLook(b){const L=b.Lv,minor=b.minor;b.solid.material.color.set(0x3cf3ff).multiplyScalar(.15+.95*L);b.baseOp=minor?.25:.18+.75*L;b.core.material.opacity=minor?.3:.35+.65*L;b.solid.material.opacity=b.baseOp;if(b.flk)b.rail=Math.max(0,(1-L)/Math.max(.001,1-b.L))}
 bridges.forEach(b=>{b.baseOp=b.solid.material.opacity});
 function updFX(t,dt){
- FXP.balls.forEach(b=>{if(b.t<0)return;b.t+=dt;const k=b.t/3.2;if(k>=1){b.t=-1;b.m.visible=false;return}b.m.position.set(b.from.x,b.from.y+22*easeOut(k),b.from.z);b.m.scale.setScalar(2+9*easeOut(k));b.m.material.uniforms.o.value=Math.sin(Math.PI*Math.min(1,k*1.6))*.9*(1-k)})
- FXP.rings.forEach(r=>{if(r.t===-1)return;r.t+=dt;if(r.t<0)return;const k=r.t/2.6;if(k>=1){r.t=-1;r.m.visible=false;return}r.m.scale.setScalar(2+70*easeOut(k));r.m.material.opacity=.8*(1-k)*(1-k)})
+ FXP.balls.forEach(b=>{if(b.t<0)return;b.t+=dt;const k=b.t/1.5;
+  if(k<1){const e=k*k;_hz.lerpVectors(b.from,b.to,e);_hz.y+=Math.sin(Math.PI*k)*30*(1-k);b.m.position.copy(_hz);b.m.scale.setScalar(2.2+(b.big?2:0)+Math.sin(t*40)*.25);b.m.material.uniforms.o.value=1;
+   b.tp.copyWithin(3,0,b.tp.length-3);b.tp.set([_hz.x,_hz.y,_hz.z],0);b.trail.geometry.attributes.position.needsUpdate=true;b.trail.material.uniforms.k.value=1;return}
+  if(!b.hit){b.hit=true;b.m.visible=false;burnImpact(b)}
+  const k2=(b.t-1.5)/.6;b.trail.material.uniforms.k.value=Math.max(0,1-k2);if(k2>=1){b.t=-1;b.trail.visible=false}})
+ if(TOR.t>=0){TOR.t+=dt;const k=TOR.t/3.8;if(k>=1){TOR.t=-1;TOR.m.visible=false}else{TOR.m.material.uniforms.o.value=Math.min(1,k*5)*Math.min(1,(1-k)*3);TOR.m.rotation.y+=dt*2.2}}
+ if(haze.enabled){const ht=haze.userData.t+=dt;_hz.copy(haze.userData.p).project(C);haze.uniforms.c.value.set(_hz.x*.5+.5,_hz.y*.5+.5);haze.uniforms.t.value=t;haze.uniforms.asp.value=innerWidth/innerHeight;
+  haze.uniforms.k.value=_hz.z<1?Math.min(1,ht*6)*Math.max(0,1-ht/1.6):0;if(ht>1.6)haze.enabled=false}
+ FXP.rings.forEach(r=>{if(r.t===-1)return;r.t+=dt;if(r.t<0)return;const k=r.t/2.6;if(k>=1){r.t=-1;r.m.visible=false;return}r.m.scale.setScalar((2+70*easeOut(k))*(r.s||1));r.m.material.opacity=.8*(1-k)*(1-k)})
  if(embT>=0){embT+=dt;const k=embT/3.4;if(k>=1){embT=-1;emb.visible=false}else{for(let i=0;i<EMB;i++){embV[i*3+1]-=9*dt;embP[i*3]+=embV[i*3]*dt;embP[i*3+1]+=embV[i*3+1]*dt;embP[i*3+2]+=embV[i*3+2]*dt;embV[i*3]*=.985;embV[i*3+2]*=.985}embG.attributes.position.needsUpdate=true;embM.opacity=(1-k)*.95}}
  if(fxLight.userData.t!=null){const lt=fxLight.userData.t+=dt;fxLight.intensity=lt<.25?lt/.25*260:Math.max(0,260*(1-(lt-.25)/2.4));if(lt>2.7){fxLight.intensity=0;fxLight.userData.t=null}}
  FXP.sparks.forEach(s=>{if(s.t<0)return;s.t+=dt;const k=s.t/2.4;if(k>=1){s.t=-1;s.m.visible=false;return}s.b.curve.getPoint(s.dir?ease(k):1-ease(k),s.m.position);s.m.position.y+=1;s.m.scale.setScalar((12+18*s.k)*(1-.3*k));s.m.material.opacity=Math.sin(Math.PI*k)})
- FXP.flashes.forEach(f=>{if(f.t<0)return;f.t+=dt;const k=f.t/2.2;if(k>=1){f.t=-1;f.m.visible=false;return}f.m.scale.setScalar(20+90*easeOut(k));f.m.material.opacity=.85*Math.sin(Math.PI*Math.min(1,k*1.3))*(1-k)})
+ FXP.flashes.forEach(f=>{if(f.t<0)return;f.t+=dt;const k=f.t/2.2;if(k>=1){f.t=-1;f.m.visible=false;return}f.m.scale.setScalar(f.burn?(10+40*easeOut(k)):(20+90*easeOut(k)));if(k>=.99)f.burn=0;f.m.material.opacity=.85*Math.sin(Math.PI*Math.min(1,k*1.3))*(1-k)})
  bridges.forEach(b=>{if(b.lock){b.lock.t+=dt;const k=ease(b.lock.t/2.6);b.Lv=b.lock.from+(b.lock.to-b.lock.from)*k;bridgeLook(b);if(b.lock.t>=2.6)b.lock=null}
   if(b.pulse>0||b.tl!=null){b.pulse=Math.max(0,b.pulse-dt*.45);b.solid.material.opacity=Math.min(1,b.baseOp*(b.tl??1)+.55*b.pulse)}})}
 // ---- event queue: dedupe by tx hash, coalesce burns, rate-limit visuals ----
@@ -654,7 +747,7 @@ const fmtS=v=>v>=1e12?(v/1e12).toFixed(2)+'T':v>=1e9?(v/1e9).toFixed(2)+'B':v>=1
 function updCounter(){const r=Object.entries(burned).map(([k,v])=>`<b>${fmtS(v)}</b> ${k}`).join(' · '),d=Object.entries(burnedDemo).map(([k,v])=>`${fmtS(v)} ${k}`).join(' · ');
  $('burnCount').innerHTML=`🔥 Burned live since ${sinceStr}: ${r||'<span class="dim">none yet</span>'}${d?` <span class="dim">· demo: ${d}</span>`:''}`}
 function runEvent(e){evCount++;const tag=e.demo?' <i class="demo">DEMO</i>':'';
- if(e.type==='burn'){const n=N[e.token];if(!n)return;burnFX(n);if(!e.demo)burnMark(n);(e.demo?burnedDemo:burned)[e.token]=((e.demo?burnedDemo:burned)[e.token]||0)+e.amount;updCounter();
+ if(e.type==='burn'){const n=N[e.token];if(!n)return;burnFX(n,e.amount,!!e.demo);(e.demo?burnedDemo:burned)[e.token]=((e.demo?burnedDemo:burned)[e.token]||0)+e.amount;updCounter();
   evBanner(`🔥 ${fmtS(e.amount)} ${e.token} burned${tag}<small>sent to blackholed issuer${e.n>1?` · ${e.n} txs`:''} · ${tStr(e.when)} · XRPL ledger ${short(e.hash)}</small>`,e.token==='IMM'?'#7ac8ff':'#ff8a2a');ambient(e)}
  else if(e.type==='trade'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;pulseFX(b,e.xrp);
   toast(`<b>${b.p.a} ⇄ ${b.p.b}</b> ${e.estimate?'≈':''}${fmt(Math.round(e.xrp))} XRP ${e.kind==='OfferCreate'?'DEX/AMM fill':'swap'}${e.estimate?' <i class="est">est.</i>':''}${tag}<br><span class="dim">${tStr(e.when)} · ${short(e.hash)||'XRPL'}</span>`,'#3cf3ff')}
@@ -670,13 +763,14 @@ function setStatus(s,info){const el=$('live');el.className=s;el.querySelector('s
 const DEMO=Q.get('demo');let demoN=0;
 function demoEvent(kind){const big=bridges.filter(b=>!b.minor).sort((a,b)=>b.p.tvl_xrp-a.p.tvl_xrp);const id='demo-'+(demoN++);
  if(kind==='burn'){const tk=['BURN','BURN','XRPyro','IMM','IMG'][demoN%5];return{type:'burn',token:tk,amount:Math.round(1e6+Math.random()*4e7),hash:id,demo:1,when:new Date()}}
+ if(kind==='bigburn'){const tk=Q.get('demoToken')||'BURN',n=N[tk]||N.BURN;return{type:'burn',token:n.name,amount:Math.max(1e9,(n.circ||1e9)*.015),hash:id,demo:1,when:new Date()}}
  if(kind==='trade'){const b=big[demoN%Math.min(10,big.length)];return{type:'trade',pool:b.p,xrp:TRADE_MIN*(1+Math.random()*6),hash:id,demo:1,when:new Date(),kind:Math.random()<.5?'Payment':'OfferCreate',estimate:!(b.p.a==='XRP'||b.p.b==='XRP')}}
  const cand=big.filter(b=>b.Lv<.6);const b=cand[demoN%Math.max(1,cand.length)]||big[0];return{type:'lock',pool:b.p,pct:Math.min(100,b.Lv*100+20+Math.random()*15),hash:id,demo:1,when:new Date(),source:'demo'}}
-if(DEMO){const kinds=DEMO==='1'?null:DEMO==='all'?['burn','trade','lock']:DEMO.split(',');
- if(kinds){window.__startDemo=()=>{let d=+(Q.get('demoDelay')||600);kinds.forEach(k=>{setTimeout(()=>pushEvent(demoEvent(k)),d);d+=k==='trade'?300:600})}}
+if(DEMO){const kinds=DEMO==='1'?null:DEMO==='all'?['burn','trade','lock']:DEMO==='burn'?['burn','bigburn']:DEMO.split(',');
+ if(kinds){window.__startDemo=()=>{let d=+(Q.get('demoDelay')||600);kinds.forEach(k=>{setTimeout(()=>pushEvent(demoEvent(k)),d);d+=k==='trade'?300:k==='burn'?+(Q.get('bigDelay')||5000):600})}}
  else{const loop=()=>{const r=Math.random();pushEvent(demoEvent(r<.5?'trade':r<.8?'burn':'lock'));setTimeout(loop,+(Q.get('demoMs')||4000)*(.6+Math.random()*.8))};setTimeout(loop,1500)}}
 let feed=null;
-if(Q.get('live')!=='0'&&!Q.has('shot')){import('./live.js').then(({LiveFeed})=>{feed=new LiveFeed(E,{onEvent:pushEvent,onStatus:setStatus}).start();window.__feed=feed}).catch(()=>setStatus('offline',{}))}
+if(Q.get('live')!=='0'&&!Q.has('shot')){import('./live.js').then(({LiveFeed})=>{feed=new LiveFeed(E,{onEvent:pushEvent,onStatus:setStatus,burnTokens:['BURN','IMM','IMG','XRPyro','Budzy','$BTCK']}).start();window.__feed=feed}).catch(()=>setStatus('offline',{}))}
 else setStatus(DEMO?'demo':'offline',{});
 updCounter();
 
@@ -724,8 +818,9 @@ function frame(){requestAnimationFrame(frame);R.info.reset();const dt=Math.min(c
  if(mode==='explore')updExplore(dt);else if(mode==='fly')updFly(dt);
  else if(mode==='tour'&&tour){tour.t=Math.min(1,tour.t+dt/80);C.position.copy(tour.cam.getPoint(tour.t));C.lookAt(tour.look.getPoint(tour.t));tourCap(tour.t);if(tour.t>=1){setMode('orbit');$('tourCap').classList.remove('show')}}
  else{orbit.autoRotate=!Q.has('shot')&&$('info').style.display!=='block';orbit.update()}
+ let _sh=null;if(SHAKE.a>.01){SHAKE.a*=Math.exp(-dt*3);_sh=V3((Math.random()-.5),(Math.random()-.5),(Math.random()-.5)).multiplyScalar(SHAKE.a);C.position.add(_sh)}
  if(bokeh.enabled)bokeh.uniforms.focus.value=mode==='explore'?6.5:C.position.distanceTo(orbit.target);
- comp.render();updLabels();if(t-lastHud>.25){updMinimap();lastHud=t}
+ comp.render();if(_sh)C.position.sub(_sh);updLabels();if(t-lastHud>.25){updMinimap();lastHud=t}
  {const now=performance.now();fpsN++;if(now-fpsT0>=1000){fpsA=fpsN*1000/(now-fpsT0);fpsN=0;fpsT0=now;window.__info={calls:R.info.render.calls,tris:R.info.render.triangles,geo:R.info.memory.geometries,tex:R.info.memory.textures,progs:R.info.programs.length}}}if(fr%15===0)$('fps').textContent=Math.round(fpsA)+' fps'+(MOBILE?' · mobile':'');window.__fps=fpsA;
  if(!Q.has('shot')&&fpsA<28&&t>5){lowT+=dt;if(lowT>3&&PR>.8){PR=Math.max(.75,PR-.25);R.setPixelRatio(PR);comp.setPixelRatio(PR);lowT=0}}else lowT=0}
 setMode('orbit');

@@ -9,21 +9,27 @@ const STEPS=[
  ['🏙️','Towers are tokens','<b>Height</b> = market cap in XRP (circulating supply × AMM price, log scale). <b>Base width</b> = pool liquidity (TVL). Tap any tower for its card.'],
  ['🏗️','Build quality = locked liquidity','Rough scaffolding and blinking work lights = little LP locked (under construction). Glass, chrome trims, crown spires and a landing pad = most LP permanently locked.'],
  ['🌉','Bridges are AMM pools','<b style="color:#3cf3ff">Solid cyan road</b> = LP locked in blackholed wallets. <b style="color:#ffb000">Amber rails</b> = 30–70% locked. <b style="color:#ff3b2f">Red flicker</b> = under 30%.'],
- ['🔥','Flames are burns','Every burn (tokens sent back to the issuer) leaves a permanent flame on its tower. More burns = more, hotter flames. BURN burns orange, IMM ice-blue, XRPyro red-hot.'],
+ ['🔥','Flames are burns','Every burn (tokens sent back to the issuer) leaves a permanent flame on its tower. Bigger burns = bigger flames, more burns = more of them. BURN burns orange-gold, IMM blue plasma, XRPyro white-hot. Live burns streak in as fireballs.'],
  ['🚧','Launchpad','Construction lots are launchpad tokens still on their bonding curve. The ring shows bonding progress; when one bonds it rises into a real tower.'],
  ['⛈️','Weather & live events','Weather follows 24h market mood. Banners show real burns, big trades and LP locks from the XRPL as they happen (DEMO tags mark tests).']];
 const g=document.createElement('div');g.id='guide';g.setAttribute('role','dialog');g.setAttribute('aria-modal','true');g.setAttribute('aria-label','How to read Burn City');g.hidden=true;
-g.innerHTML='<div class="gbox"><div class="gico"></div><h3></h3><p></p><div class="gdots"></div><div class="gnav"><button class="gskip">Skip</button><button class="gnext">Next</button></div><div class="gbar"><i></i></div></div>';
+g.innerHTML='<div class="gbox"><div class="gstep" aria-live="polite"></div><div class="gico"></div><h3></h3><p></p><div class="gdots"></div><div class="gnav"><button class="gskip">Skip</button><span><button class="gback">Back</button> <button class="gnext">Next</button></span></div><div class="gbar"><i></i></div><div class="gpause">Paused</div></div>';
 document.body.appendChild(g);
-let gi=0,gt=null;const STEP_MS=2600;
-function gShow(i){gi=i;const [ic,h,p]=STEPS[i];g.querySelector('.gico').textContent=ic;g.querySelector('h3').textContent=h;g.querySelector('p').innerHTML=p;
- g.querySelector('.gdots').innerHTML=STEPS.map((_,j)=>`<i class="${j===i?'on':''}"></i>`).join('');g.querySelector('.gnext').textContent=i===STEPS.length-1?'Got it':'Next';
- const bar=g.querySelector('.gbar i');bar.style.transition='none';bar.style.width='0';void bar.offsetWidth;bar.style.transition=`width ${STEP_MS}ms linear`;bar.style.width='100%';
- clearTimeout(gt);gt=setTimeout(()=>i<STEPS.length-1?gShow(i+1):null,STEP_MS)}
-function gOpen(){g.hidden=false;gShow(0);g.querySelector('.gnext').focus()}
-function gClose(){g.hidden=true;clearTimeout(gt);try{localStorage.setItem('bc_guide','1')}catch{}}
-g.querySelector('.gskip').onclick=gClose;g.querySelector('.gnext').onclick=()=>gi<STEPS.length-1?gShow(gi+1):gClose();
-g.onclick=e=>{if(e.target===g)gClose()};addEventListener('keydown',e=>{if(!g.hidden&&e.key==='Escape')gClose()});
+// ~5.8 s per step (6 steps ≈ 35 s). Auto-advance pauses while the pointer hovers or a finger touches the card.
+let gi=0,raf=0,el=0,last=0,paused=false,touchT=null;const STEP_MS=5800,bar=g.querySelector('.gbar i'),box=g.querySelector('.gbox');
+function tick(now){if(g.hidden)return;const d=now-last;last=now;if(!paused){el+=d;if(el>=STEP_MS){if(gi<STEPS.length-1){gShow(gi+1)}else{el=STEP_MS}}}
+ bar.style.width=Math.min(100,el/STEP_MS*100)+'%';raf=requestAnimationFrame(tick)}
+function setPause(p){paused=p;g.classList.toggle('paused',p)}
+function gShow(i){gi=Math.max(0,Math.min(STEPS.length-1,i));const [ic,h,p]=STEPS[gi];el=0;g.querySelector('.gico').textContent=ic;g.querySelector('h3').textContent=h;g.querySelector('p').innerHTML=p;
+ g.querySelector('.gstep').textContent=`Step ${gi+1} of ${STEPS.length}`;
+ g.querySelector('.gdots').innerHTML=STEPS.map((_,j)=>`<i class="${j===gi?'on':j<gi?'done':''}"></i>`).join('');g.querySelector('.gnext').textContent=gi===STEPS.length-1?'Got it':'Next';g.querySelector('.gback').disabled=gi===0}
+function gOpen(){g.hidden=false;setPause(false);gShow(0);cancelAnimationFrame(raf);last=performance.now();raf=requestAnimationFrame(tick);g.querySelector('.gnext').focus()}
+function gClose(){g.hidden=true;cancelAnimationFrame(raf);try{localStorage.setItem('bc_guide','1')}catch{}}
+g.querySelector('.gskip').onclick=gClose;g.querySelector('.gnext').onclick=()=>gi<STEPS.length-1?gShow(gi+1):gClose();g.querySelector('.gback').onclick=()=>gShow(gi-1);
+box.addEventListener('mouseenter',()=>setPause(true));box.addEventListener('mouseleave',()=>setPause(false));
+box.addEventListener('touchstart',()=>{clearTimeout(touchT);setPause(true)},{passive:true});box.addEventListener('touchend',()=>{clearTimeout(touchT);touchT=setTimeout(()=>setPause(false),1500)},{passive:true});
+g.onclick=e=>{if(e.target===g)gClose()};addEventListener('keydown',e=>{if(g.hidden)return;if(e.key==='Escape')gClose();else if(e.key==='ArrowRight')gShow(gi+1);else if(e.key==='ArrowLeft')gShow(gi-1)});
+window.__guide={STEP_MS,steps:STEPS.length};
 helpB.onclick=gOpen;
 const Q=new URLSearchParams(location.search);
 if(!localStorage.getItem('bc_guide')&&!Q.has('shot')&&!Q.has('noguide')){const w=()=>window.__ready?setTimeout(gOpen,600):setTimeout(w,300);w()}

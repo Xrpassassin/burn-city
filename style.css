@@ -84,3 +84,19 @@ body.replay #tlDate{color:#ffcf6a}
 @media (max-width:700px){#music{left:10px;right:10px;width:auto;top:auto;bottom:140px}}
 
 .spons{display:inline-block;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;background:#ff7a18;color:#120600;border-radius:4px;padding:1px 6px;margin-bottom:4px}
+
+#guide .gstep{font-size:11px;color:#ffb36baa;letter-spacing:.05em}#guide .gdots i.done{background:#ff8a2a88}#guide .gback:disabled{opacity:.35;cursor:default}#guide .gpause{font-size:10px;color:#ffffff66;margin-top:4px;visibility:hidden}#guide.paused .gpause{visibility:visible}
+/* v5: bigger touch targets — ≥40px desktop, ≥44px touch/mobile */
+#btns button,#guide button,#info .x,.mctl button,#iosHint button,.row.tl button{min-height:40px;min-width:40px;font-size:14px;box-sizing:border-box}
+#btns button{padding:8px 12px}#btns #guideBtn,#btns #musicBtn,#btns #audio{min-width:40px;font-size:17px}
+#info .x,#music .x{width:40px;height:40px;font-size:18px;display:flex;align-items:center;justify-content:center;padding:0}
+.mctl button{width:44px;height:44px;font-size:17px}
+#hudToggle{min-height:40px;display:flex;align-items:center;gap:6px;cursor:pointer;box-sizing:border-box}
+#hud select{min-height:36px;font-size:13px}#hud input[type=checkbox]{width:20px;height:20px;vertical-align:middle}#hud label{display:inline-flex;align-items:center;gap:4px;min-height:32px}
+.row.tl button{padding:0 10px}
+@media (max-width:700px),(pointer:coarse){
+ #btns{gap:5px}#btns button{min-height:44px;min-width:44px;padding:6px 9px;font-size:13px}#btns #guideBtn,#btns #musicBtn,#btns #audio{font-size:18px}
+ #guide button,#iosHint button,.row.tl button{min-height:44px;min-width:44px}#info .x,#music .x{width:44px;height:44px}
+ #hudToggle{min-height:44px}#hud select{min-height:44px}#hud input[type=checkbox]{width:24px;height:24px}#hud label{min-height:44px}
+ .mlist button{min-height:40px}}
+@media (min-width:701px){#hud{max-height:calc(100vh - 240px);overflow-y:auto;box-sizing:border-box}}

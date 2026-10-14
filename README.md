@@ -91,3 +91,8 @@ Only `ticker` is required. Logos must be https and served with CORS (`Access-Con
 
 ### Music
 `music/` holds the owner's own tracks re-encoded at 96 kbps (streamed only on Play, never cached by the service worker). `music/playlist.json` lists title + file.
+
+## v5 (Oct 2026)
+- New towers: **Budzy** (`r9WdD3QspvnQSR71kmcffNDFyjPV2pdTdU`, XRP pool) and **$BTCK** (`rUWehZhgLx8DTRSP1tQfmHUUjGysLRgxw3`, XRP/666/$BWTZ pools), added to the `SEED` list in `xrpl-arb/ecosystem.py` and `CORE` in `draw_ecosystem.py` so nightly refreshes keep them.
+- Burn visuals: noise-shader flames (flicker, heat-shimmer, molten scorch cracks, smoke wisps) + GPU embers, sized by burn size, per-token fire themes. Live burns: fireball from the sky with a trail, impact flash, shockwave, ember burst, screen heat haze, flare-up of the new flame. Big burns (≥1% of supply or ≥10× the token's average burn) add a fire tornado and an optional camera shake (`?shake=0` or the HUD toggle). `?demo=burn` plays a normal then a big demo burn; `?view=fire` frames the BURN tower. Demo flames are temporary (25 s).
+- Guide: ~5.8 s per step, Back/Next, step counter + progress bar, pauses on hover/touch. Buttons ≥40 px (≥44 px on touch).

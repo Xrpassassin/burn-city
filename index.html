@@ -24,7 +24,7 @@ addEventListener('error',e=>{const x=document.getElementById('ltxt');if(x&&!wind
  <div class="row tl"><b>Replay</b> <button id="tlPlay" aria-label="Play or pause time-lapse" title="Play/pause time-lapse">▶</button><input id="tlRange" aria-label="Replay position" type="range" min="0" max="1" step="0.01" value="1"><select id="tlSpeed" aria-label="Replay speed" title="days per second"><option value="2">2 d/s</option><option value="6" selected>6 d/s</option><option value="20">20 d/s</option></select><button id="tlLive" title="Back to live snapshot">Live</button></div>
  <div class="row dim" id="tlDate">live snapshot</div>
  <div class="row"><b>Graphics</b> <select id="quality" aria-label="Graphics quality"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select> <span class="dim" id="qInfo"></span></div>
- <div class="row"><label><input type="checkbox" id="minor" checked> minor pools</label> <label><input type="checkbox" id="dof"> depth of field</label></div>
+ <div class="row"><label><input type="checkbox" id="minor" checked> minor pools</label> <label><input type="checkbox" id="dof"> depth of field</label> <label title="Shake the camera on big burns"><input type="checkbox" id="shakeOpt" checked> burn shake</label></div>
  <div class="legend">
   <div><i style="background:#3cf3ff;box-shadow:0 0 6px #3cf3ff"></i>Locked LP (blackholed): solid light-road</div>
   <div><i class="dash" style="border-color:#ffb000"></i>30–70% locked: amber scaffold rails</div>

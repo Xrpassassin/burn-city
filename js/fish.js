@@ -37,6 +37,8 @@ function build() {
   const hit = new THREE.Mesh(new THREE.BoxGeometry(9, 5, 7), new THREE.MeshBasicMaterial({ visible: false })); hit.position.copy(shopPos).setY(2.5); hit.rotation.y = yaw; hit.userData = { kind: 'tackle' }; c.S.add(hit); c.pick && c.pick.push(hit);
   bobber = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff3a2a })); bobber.visible = false; c.S.add(bobber);
   window.__fishWorld = { dock, shopPos, shoreAt };
+  const decks = window.__decks = window.__decks || []; decks.push({ base, dir, side, v0: -3, v1: 21.6, hw: 2.1, h: 1.2 });
+  window.__deckAt = (x, z) => { for (const k of decks) { const dx = x - k.base.x, dz = z - k.base.z, v = dx * k.dir.x + dz * k.dir.z, u = dx * k.side.x + dz * k.side.z; if (v > k.v0 && v < k.v1 && Math.abs(u) < k.hw) return k.h } return null };
 }
 // ---------- UI ----------
 const css = document.createElement('style'); css.textContent = `#fBar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));display:none;gap:8px;z-index:31}#fBar button,#fUI button{font:700 15px system-ui;padding:11px 16px;border-radius:12px;border:1px solid #7dffb066;background:#0b1a12e6;color:#dfffe9}
@@ -64,20 +66,24 @@ function drawReel() { ui.innerHTML = `<b>Reel it in!</b> <span class="nv">${cur.
 function tapReel() { if (state !== 'reel') return; const m = (Math.sin(cur.ph) + 1) / 2; if (m >= cur.z0 && m <= cur.z0 + cur.zone) { cur.hit++; cur.z0 = Math.random() * (1 - cur.zone) } else cur.miss++;
   if (cur.hit >= cur.hits) land(true); else if (cur.miss >= 3) { msg('Line snapped!'); land(false) } else drawReel() }
 async function land(ok) { const was = cur; state = 'idle'; bobber.visible = false;
-  let f = null; if (was.srv) { const r = await api('reel', { cid: was.cid, ok }).catch(() => ({})); if (r.fish) { f = r.fish; prof = r.profile } else if (ok) return msg(r.error === 'timing' ? 'Too slow, it slipped off.' : 'Server busy.') }
+  let f = null; if (was.srv) { const r = await api('reel', { cid: was.cid, ok }).catch(() => ({})); if (r.fish) { f = r.fish; prof = r.profile; W()._ft = r.today } else if (ok) return msg(r.error === 'timing' ? 'Too slow, it slipped off.' : 'Server busy.') }
   else { if (bait !== 'worm' && prof.bait[bait] > 0) prof.bait[bait]--; if (ok) { f = was.fish; const L = prof.log[f.id] || { n: 0, best: 0 }; L.n++; L.best = Math.max(L.best, f.kg); prof.log[f.id] = L; prof.creel.push([f.id, f.kg, f.val]); prof.n++ } saveLocal() }
-  if (!ok) return; ui.style.display = 'block'; ui.innerHTML = `<div style="color:${RC[f.r]};font-weight:800">${RN[f.r]}</div><div style="font-size:20px;font-weight:800">🐟 ${f.name}</div>${f.kg} kg · worth ${f.val} 🪙<br><button id="fAgain">Cast again</button> <button id="fLog">📖 Log</button>`;
+  if (!ok) return; dispatchEvent(new CustomEvent('bc-fish-catch', { detail: { today: (was.srv && W()._ft) || 0 } })); ui.style.display = 'block'; ui.innerHTML = `<div style="color:${RC[f.r]};font-weight:800">${RN[f.r]}</div><div style="font-size:20px;font-weight:800">🐟 ${f.name}</div>${f.kg} kg · worth ${f.val} 🪙<br><button id="fAgain">Cast again</button> <button id="fLog">📖 Log</button>`;
   ui.querySelector('#fAgain').onclick = doCast; ui.querySelector('#fLog').onclick = openLog }
 function stop() { state = 'idle'; bobber.visible = false; ui.style.display = 'none' }
 function msg(t) { state = 'idle'; bobber.visible = false; ui.style.display = 'block'; ui.innerHTML = t + '<br><button id="fOk">OK</button>'; ui.querySelector('#fOk').onclick = () => ui.style.display = 'none' }
 // ---------- shop + log ----------
 async function refresh() { if (tok()) { const r = await api('state').catch(() => null); if (r && r.rod) prof = r } }
+const SN = id => (SPECIES.find(s => s[0] === id) || [0, id])[1];
+async function topHtml() { try { const r = await fetch(SRV + '/api/fish/top').then(r => r.json()); const t = r.top || [];
+  return '<h4 style="margin:10px 0 4px">🏆 Biggest catch this week</h4>' + (t.length ? t.map((e, i) => `<div class="c" style="margin:3px 0">${i + 1}. ${e.who} · <b>${e.kg} kg</b> ${SN(e.sp)}</div>`).join('') : '<div class="nv">No signed-in catches yet this week. Be the first!</div>') + '<div class="nv">Signed-in anglers only · resets Monday (UTC)</div>' } catch (e) { return '' } }
+const putTop = () => topHtml().then(h => { const e = panel.querySelector('#fTop'); if (e) e.innerHTML = h });
 async function openShop() { await refresh(); const v = prof.creel.reduce((a, f) => a + f[2], 0);
   panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3 style="margin:0 0 6px">🎣 Tackle & Bait</h3>${NV}<p>🪙 <b>${prof.coins}</b> lake coins · creel: ${prof.creel.length} fish (${v} 🪙)</p><button class="b" id="fSell">Sell all fish (+${v} 🪙)</button>
    <h4>Rods</h4>${SHOP.rods.map(r => `<button class="b" data-rod="${r[0]}">${prof.rod === r[0] ? '✓ ' : ''}${r[1]} · ${prof.rods.includes(r[0]) ? (prof.rod === r[0] ? 'equipped' : 'equip') : r[2] + ' 🪙'}</button>`).join('')}
    <h4>Bait <span class="nv">(using: ${bait})</span></h4>${SHOP.baits.map(b => `<button class="b" data-bait="${b[0]}">${b[1]} · ${b[0] === 'worm' ? 'free' : b[2] + ' 🪙 each · have ' + (prof.bait[b[0]] || 0)}</button>`).join('')}
-   <button class="b" id="fLog2">📖 Fish log</button>`;
-  panel.style.display = 'block'; panel.querySelector('.x').onclick = () => panel.style.display = 'none'; panel.querySelector('#fLog2').onclick = openLog;
+   <button class="b" id="fLog2">📖 Fish log</button><div id="fTop"></div>`;
+  panel.style.display = 'block'; panel.querySelector('.x').onclick = () => panel.style.display = 'none'; panel.querySelector('#fLog2').onclick = openLog; putTop();
   panel.querySelector('#fSell').onclick = async () => { if (tok()) { const r = await api('sell', {}); if (r.profile) prof = r.profile } else { prof.coins += v; prof.creel = []; saveLocal() } openShop() };
   panel.querySelectorAll('[data-rod]').forEach(b => b.onclick = () => buy('rod', b.dataset.rod)); panel.querySelectorAll('[data-bait]').forEach(b => b.onclick = () => { const id = b.dataset.bait; if (id === 'worm' || (prof.bait[id] || 0) > 0) { bait = id; openShop() } else buy('bait', id) }) }
 async function buy(kind, id) { if (tok()) { const r = await api('buy', { kind, id, qty: kind === 'bait' ? 5 : 1 }); if (r.error) return alert(r.error === 'not_enough_coins' ? 'Not enough lake coins.' : 'Could not buy.'); prof = r.profile }
@@ -86,7 +92,7 @@ async function buy(kind, id) { if (tok()) { const r = await api('buy', { kind, i
 function openLog() { const got = Object.keys(prof.log).length;
   panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3 style="margin:0 0 6px">📖 Fish log · ${got}/${SPECIES.length}</h3><div class="nv">Some fish only bite at night, in deep water (from a boat), or in certain market weather.</div><div class="g" style="margin-top:8px">${SPECIES.map(s => { const L = prof.log[s[0]];
     return `<div class="c" style="border-color:${RC[s[2]]}55"><b style="color:${L ? RC[s[2]] : '#666'}">${L ? s[1] : '???'}</b><br>${RN[s[2]]}${L ? ` · ×${L.n} · best ${L.best} kg` : (s[5].night ? ' · 🌙' : '') + (s[5].deep ? ' · 🚤' : '') + (s[5].weather ? ' · ⛅' : '')}</div>` }).join('')}</div>`;
-  panel.style.display = 'block'; ui.style.display = 'none'; panel.querySelector('.x').onclick = () => panel.style.display = 'none' }
+  panel.insertAdjacentHTML('beforeend', '<div id="fTop"></div>'); putTop(); panel.style.display = 'block'; ui.style.display = 'none'; panel.querySelector('.x').onclick = () => panel.style.display = 'none' }
 bar.querySelector('#fCast').onclick = doCast; bar.querySelector('#fShop').onclick = openShop;
 // ---------- per-frame: show buttons when in reach, animate bobber + reel marker ----------
 function tick() { requestAnimationFrame(tick); const c = W(), e = window.__estate; if (!c || !e || !dock) return; const t = performance.now() / 1000, m = c.getMode();

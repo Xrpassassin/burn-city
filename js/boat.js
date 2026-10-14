@@ -13,7 +13,7 @@ function build() { const c = W(), e = window.__estate, f = window.__fishWorld; c
   const dm = new THREE.Mesh(mergeGeometries(g), new THREE.MeshLambertMaterial({ color: 0x7a5636 })); dm.position.copy(base).setY(0); dm.rotation.y = yaw; c.S.add(dm);
   docks = [{ base, tip: base.clone().addScaledVector(dir, 14) }, { base: f.dock.base, tip: f.dock.tip.clone().setY(0) }];
   [0xff5a2a, 0x2ad0ff, 0xffd02a].forEach((col, i) => { const m = hull(col), p = base.clone().addScaledVector(dir, 4 + i * 5).addScaledVector(side, i % 2 ? -4.5 : 4.5); p.y = 0.1; m.position.copy(p); m.rotation.y = yaw + Math.PI; c.S.add(m); B.boats.push({ m, h: yaw + Math.PI, v: 0 }) });
-  B.dockPos = base;
+  B.dockPos = base; (window.__decks = window.__decks || []).push({ base, dir, side, v0: -3, v1: 15.6, hw: 1.8, h: 1.2 });
   barEl = document.createElement('div'); barEl.id = 'bBar'; barEl.style.cssText = 'position:fixed;right:12px;bottom:calc(330px + env(safe-area-inset-bottom));z-index:31;display:none'; barEl.innerHTML = '<button style="font:700 15px system-ui;padding:11px 16px;border-radius:12px;border:1px solid #2ad0ff88;background:#071822e6;color:#dff6ff"></button>'; document.body.append(barEl);
   barEl.firstChild.onclick = () => B.active ? leave() : board(); window.__boatWorld = { docks, base } }
 let near = null;

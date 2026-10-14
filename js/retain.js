@@ -24,15 +24,20 @@ const chip = () => chipEl.textContent = `🔥 ${st.n} · 🪙 ${hunt.got.length}
 const panel = document.createElement('div'); panel.id = 'rPanel'; document.body.append(panel);
 const toastEl = document.createElement('div'); toastEl.id = 'rToast'; document.body.append(toastEl);
 function toast(t) { toastEl.textContent = t; toastEl.style.display = 'block'; clearTimeout(toast.k); toast.k = setTimeout(() => toastEl.style.display = 'none', 3500) }
+function fishToday() { const d = new Date().toISOString().slice(0, 10), f = J('bcFishDay', {}); return f.d === d ? f.n : 0 }
+async function skinRow() { const el = panel.querySelector('#rSkin'); if (!el || !tok()) return; try { const s = await (await fetch(SRV + '/api/shop', { headers: { authorization: 'Bearer ' + tok() } })).json(); if (!(s.owned || []).includes('drone_burncoin')) return; const on = LS.bcDroneSkin === 'drone_burncoin';
+  el.innerHTML = `<button class="b" style="background:#3a2408;border-color:#ffb020">${on ? '✓ BURN Coin Drone equipped (tap to remove)' : '🪙 Equip BURN Coin Drone skin'}</button>`; el.firstChild.onclick = () => { if (on) delete LS.bcDroneSkin; else LS.bcDroneSkin = 'drone_burncoin'; dispatchEvent(new Event('bc-skin')); skinRow() } } catch (e) { } }
+addEventListener('bc-fish-catch', e => { const d = new Date().toISOString().slice(0, 10), f = J('bcFishDay', {}), n = Math.max(f.d === d ? f.n + 1 : 1, (e.detail && e.detail.today) || 0); LS.bcFishDay = JSON.stringify({ d, n }); if (n === 3) { toast('🎣 Daily fishing mission done! Streak day counted.'); sync() } });
 async function openPanel() {
   const nx = st.best < 7 ? `${7 - st.n} more days → Streak Flame skin` : st.best < 30 ? `${30 - st.n} more days → Eternal Flame` : 'All streak rewards earned';
   panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3>🔥 ${st.n}-day streak</h3><div class="r"><span>Best</span><b>${st.best} days</b></div><div class="r"><span>Next reward</span><b>${nx}</b></div>
    <div class="r"><span>🪙 BURN coin hunt (${WK})</span><b>${hunt.got.length}/5 found</b></div><div class="dim" style="font-size:12px;opacity:.7">5 glowing coins hide in the city each week. Walk or fly close to grab them. All 5 → BURN Coin Drone skin.</div>
+   <div class="r"><span>🎣 Daily: catch 3 fish</span><b id="rFish">${Math.min(3, fishToday())}/3${fishToday() >= 3 ? ' ✓' : ''}</b></div><div id="rSkin"></div>
    <div class="r"><span>🧟 Daily zombie challenge</span><b id="rDm">…</b></div><div id="rDt" style="font-size:12px;opacity:.8"></div>
    <button class="b" id="rDaily">Play today's challenge (free)</button><button class="b" id="rCard" style="background:#1a2440;border-color:#4a6aa0">📸 Share postcard</button>
    ${tok() ? '' : '<div style="font-size:12px;opacity:.7;margin-top:6px">Sign in with Xaman to sync your streak and earn rewards.</div>'}`;
   panel.classList.add('on'); panel.querySelector('.x').onclick = () => panel.classList.remove('on');
-  panel.querySelector('#rDaily').onclick = () => location.href = 'arena/?mode=zombie&daily=1'; panel.querySelector('#rCard').onclick = postcard;
+  skinRow(); panel.querySelector('#rDaily').onclick = () => location.href = 'arena/?mode=zombie&daily=1'; panel.querySelector('#rCard').onclick = postcard;
   try { const d = await api('/api/daily'); panel.querySelector('#rDm').textContent = d.mod ? d.mod.name : '—'; panel.querySelector('#rDt').innerHTML = (d.top || []).slice(0, 5).map((e, i) => `${i + 1}. ${e.acct} · ${e.best}`).join('<br>') || 'No scores yet today: be first.' } catch (e) { panel.querySelector('#rDm').textContent = 'offline' }
 }
 chipEl.onclick = openPanel;

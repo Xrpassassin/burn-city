@@ -1,0 +1,115 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Burn City Social</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; connect-src 'self' https://burn-city-game.fly.dev https://shinigsmi.goatcounter.com; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'">
+<style>
+:root{--o:#ff7a1a;--bg:#07040b;--c:#140a14}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#ffe2c4;font:15px/1.45 system-ui,sans-serif}
+header{position:sticky;top:0;z-index:2;background:#0b060fee;border-bottom:1px solid #ff7a1a44;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0 auto 0 0}a{color:var(--o)}button,select{background:#2a0d00;color:#ffb060;border:1px solid var(--o);border-radius:10px;padding:10px 14px;font-size:15px;min-height:44px;cursor:pointer}
+button.on{background:var(--o);color:#000}main{max-width:720px;margin:0 auto;padding:12px}.card{background:var(--c);border:1px solid #ff7a1a33;border-radius:14px;padding:12px;margin:10px 0}
+.row{display:flex;gap:10px;align-items:flex-start}.av{width:42px;height:42px;border-radius:50%;background:#2a0d00;display:grid;place-items:center;font-size:22px;flex:none;overflow:hidden}.av img{width:100%;height:100%;object-fit:cover}
+.nm{font-weight:700;cursor:pointer}.ac{opacity:.55;font-size:12px}.body{white-space:pre-wrap;word-break:break-word;margin:4px 0}.acts button{padding:6px 10px;min-height:36px;font-size:13px;margin-right:6px}
+textarea,input{width:100%;background:#0b060f;color:#ffe2c4;border:1px solid #ff7a1a66;border-radius:10px;padding:10px;font:inherit}.tabs{display:flex;gap:6px;flex-wrap:wrap}
+#chatlog{height:50vh;overflow:auto}.msg{margin:6px 0}.badge{display:inline-block;border:1px solid var(--o);border-radius:99px;padding:2px 8px;margin:2px;font-size:12px}
+#qr img{width:220px;background:#fff;padding:8px;border-radius:10px}.note{opacity:.75;font-size:13px}[hidden]{display:none!important}
+</style></head><body>
+<header><h1>🔥 Burn City Social</h1><a href="../">← City</a><button id="signin">Sign in with XAMAN</button><button id="meBtn" hidden></button></header>
+<main>
+<div id="status" class="note"></div><div id="qr"></div>
+<div class="tabs"><button data-tab="feed" class="on">Feed</button><button data-tab="following">Following</button><button data-tab="chat">Chat</button><button data-tab="me">Profile</button></div>
+<section id="feed"><div class="card" id="composer" hidden><textarea id="postTxt" maxlength="500" rows="3" placeholder="What's burning?"></textarea><div class="row" style="justify-content:space-between;margin-top:6px"><span class="note" id="cnt">0/500</span><button id="postBtn">Post</button></div></div><div id="posts"></div><button id="more" hidden>Load more</button></section>
+<section id="chat" hidden><div class="tabs" id="chans"></div><div class="card" id="chatlog"></div><div class="row" id="chatIn" hidden><input id="chatTxt" maxlength="280" placeholder="Say something"><button id="chatSend">Send</button></div></section>
+<section id="me" hidden></section>
+<section id="profile" hidden></section>
+</main>
+<script type="module">
+const API = new URLSearchParams(location.search).get('api') || 'https://burn-city-game.fly.dev';
+const $ = id => document.getElementById(id);
+const E = (tag, props = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(props)) { if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); } for (const c of kids) if (c != null) e.append(c); return e; };
+const ICON = { flame: '🔥', skull: '💀', bear: '🐻', rocket: '🚀', diamond: '💎', robot: '🤖', zombie: '🧟', cycle: '🏍️', crown: '👑', alien: '👽', dragon: '🐉', bolt: '⚡' };
+let token = localStorage.bcToken || '', acct = localStorage.bcAcct || '', status = {}, tab = 'feed', oldest = null, chan = 'global', lastChat = 0, chatTimer;
+const hdr = () => token ? { authorization: 'Bearer ' + token } : {};
+async function api(path, body) { const r = await fetch(API + path, body ? { method: 'POST', headers: { 'content-type': 'application/json', ...hdr() }, body: JSON.stringify(body) } : { headers: hdr() }); const j = await r.json().catch(() => ({})); if (r.status === 401) { signOut(); } if (j.error) throw new Error(j.error); return j; }
+const say = (t) => { $('status').textContent = t; };
+const errMsg = e => ({ slow_down: 'Slow down a little 🔥', signin_coming_soon: 'Sign-in is coming soon.', sign_in_with_xaman: 'Sign in with XAMAN first.', banned: 'This account is suspended.' }[e.message] || 'Error: ' + e.message);
+function avatar(o) { const d = E('div', { class: 'av' }); if (o.avatarUrl && /^https:\/\//.test(o.avatarUrl)) { const i = E('img', { alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }); i.src = o.avatarUrl; d.append(i); } else d.textContent = ICON[o.avatar] || '🔥'; return d; }
+const ago = t => { const s = (Date.now() - t) / 1e3; return s < 60 ? 'now' : s < 3600 ? (s / 60 | 0) + 'm' : s < 86400 ? (s / 3600 | 0) + 'h' : (s / 86400 | 0) + 'd'; };
+function postCard(p, opts = {}) {
+  const like = E('button', { text: (p.liked ? '❤️ ' : '🤍 ') + p.likes, onclick: async () => { try { const r = await api('/social/like', { id: p.id, on: !p.liked }); p.liked = !p.liked; like.textContent = (p.liked ? '❤️ ' : '🤍 ') + r.likes; } catch (e) { say(errMsg(e)); } } });
+  const rep = E('button', { text: '💬 ' + p.replies, onclick: () => openThread(p.id) });
+  const flag = E('button', { text: '⚑ Report', onclick: async () => { const why = prompt('Why are you reporting this post?'); if (why === null) return; try { await api('/social/report', { kind: 'post', id: p.id, reason: why }); say('Thanks, a moderator will review it.'); } catch (e) { say(errMsg(e)); } } });
+  return E('div', { class: 'card' }, E('div', { class: 'row' }, avatar(p), E('div', { style: 'flex:1;min-width:0' },
+    E('span', { class: 'nm', text: p.name, onclick: () => openProfile(p.acct) }), ' ', E('span', { class: 'ac', text: p.acct.slice(0, 8) + '… · ' + ago(p.created) }),
+    E('div', { class: 'body', text: p.body }), E('div', { class: 'acts' }, like, opts.noReply ? null : rep, flag))));
+}
+async function loadFeed(reset = true) {
+  if (reset) { oldest = null; $('posts').replaceChildren(); }
+  try { const r = await api(`/social/feed?${tab === 'following' ? 'following=1&' : ''}${oldest ? 'before=' + oldest : ''}`);
+    r.posts.forEach(p => $('posts').append(postCard(p))); if (r.posts.length) oldest = r.posts.at(-1).id; $('more').hidden = r.posts.length < 30;
+    if (reset && !r.posts.length) $('posts').append(E('div', { class: 'note', text: tab === 'following' ? 'Follow some burners to fill this feed.' : 'No posts yet. Be the first!' })); } catch (e) { say(errMsg(e)); }
+}
+async function openThread(id) {
+  show('profile'); const s = $('profile'); s.replaceChildren(E('button', { text: '← Back', onclick: () => setTab(tab) }));
+  try { const r = await api('/social/post/' + id); s.append(postCard(r.post, { noReply: true }));
+    r.replies.forEach(p => { const c = postCard(p, { noReply: true }); c.style.marginLeft = '24px'; s.append(c); });
+    if (token) { const t = E('textarea', { maxlength: '500', rows: '2', placeholder: 'Reply…' }); s.append(E('div', { class: 'card' }, t, E('button', { text: 'Reply', onclick: async () => { try { await api('/social/post', { body: t.value, parent: id }); openThread(id); } catch (e) { say(errMsg(e)); } } }))); }
+  } catch (e) { s.append(E('div', { class: 'note', text: errMsg(e) })); }
+}
+async function openProfile(a) {
+  show('profile'); const s = $('profile'); s.replaceChildren(E('button', { text: '← Back', onclick: () => setTab(tab) }));
+  try { const r = await api('/social/profile/' + encodeURIComponent(a)), p = r.profile;
+    const fb = E('button', { text: r.isFollowing ? 'Following ✓' : 'Follow', onclick: async () => { try { await api('/social/follow', { acct: a, on: !r.isFollowing }); r.isFollowing = !r.isFollowing; fb.textContent = r.isFollowing ? 'Following ✓' : 'Follow'; } catch (e) { say(errMsg(e)); } } });
+    const b = E('div'); (r.badges.holdings || []).forEach(h => b.append(E('span', { class: 'badge', text: `💰 ${h.token} ${h.balance.toLocaleString()}` })));
+    if (r.badges.burns) b.append(E('span', { class: 'badge', text: `🔥 ${r.badges.burns} burns` })); Object.entries(r.badges.burned || {}).forEach(([k, v]) => b.append(E('span', { class: 'badge', text: `🔥 burned ${v.toLocaleString()} ${k}` })));
+    s.append(E('div', { class: 'card' }, E('div', { class: 'row' }, avatar(p), E('div', { style: 'flex:1' }, E('div', { class: 'nm', text: p.name }), E('div', { class: 'ac', text: p.acct }),
+      E('div', { class: 'body', text: p.bio }), E('div', { class: 'note', text: `${r.followers} followers · ${r.following} following · ${r.posts} posts` }), b,
+      token && a !== acct ? fb : null, token && a !== acct ? E('button', { text: '⚑ Report user', onclick: async () => { const w = prompt('Reason?'); if (w !== null) try { await api('/social/report', { kind: 'user', acct: a, reason: w }); say('Reported.'); } catch (e) { say(errMsg(e)); } } }) : null))));
+    (r.posts || []).forEach(p => s.append(postCard(p)));
+  } catch (e) { s.append(E('div', { class: 'note', text: errMsg(e) })); }
+}
+async function loadMe() {
+  const s = $('me'); s.replaceChildren();
+  if (!token) { s.append(E('div', { class: 'card note', text: status.signin ? 'Sign in with XAMAN to create your profile. Your wallet address is your account, so everything is here when you come back.' : 'Sign-in is coming soon.' })); return; }
+  try { const r = await api('/social/me'), p = r.profile; let av = p.avatar;
+    const name = E('input', { maxlength: '24', value: p.name }), bio = E('textarea', { maxlength: '280', rows: '3' }); bio.value = p.bio;
+    const grid = E('div', { class: 'tabs' }); (status.presets || []).forEach(k => { const bt = E('button', { text: ICON[k] || k, class: av === k ? 'on' : '', onclick: () => { av = k; grid.querySelectorAll('button').forEach(x => x.classList.remove('on')); bt.classList.add('on'); } }); grid.append(bt); });
+    const nft = E('input', { placeholder: 'or paste an NFTokenID you own (64 hex)', maxlength: '64' });
+    s.append(E('div', { class: 'card' }, E('div', { class: 'row' }, avatar(p), E('div', { class: 'ac', text: p.acct })), E('p', { text: 'Display name' }), name, E('p', { text: 'Bio' }), bio, E('p', { text: 'Avatar' }), grid, nft,
+      E('div', { style: 'margin-top:10px' }, E('button', { text: 'Save', onclick: async () => { try { await api('/social/profile', { name: name.value, bio: bio.value, avatar: nft.value.trim() ? 'nft:' + nft.value.trim() : av }); say('Saved ✓'); loadMe(); } catch (e) { say(e.message === 'nft_not_owned_or_no_image' ? 'That NFT is not in your wallet or has no image.' : errMsg(e)); } } }),
+        ' ', E('button', { text: 'View public profile', onclick: () => openProfile(p.acct) }), ' ', E('button', { text: 'Sign out', onclick: signOut }))));
+  } catch (e) { s.append(E('div', { class: 'note', text: errMsg(e) })); }
+}
+async function pollChat() {
+  try { const r = await api(`/social/chat/${chan}?after=${lastChat}`); const log = $('chatlog'), atEnd = log.scrollTop + log.clientHeight > log.scrollHeight - 30;
+    for (const m of r.messages) { lastChat = Math.max(lastChat, m.id);
+      log.append(E('div', { class: 'msg' }, E('span', { class: 'nm', text: m.name, onclick: () => openProfile(m.acct) }), E('span', { class: 'ac', text: ' ' + ago(m.created) + ' ' }), E('span', { text: m.body }),
+        token ? E('button', { text: '⚑', 'aria-label': 'Report message', style: 'min-height:28px;padding:2px 8px;margin-left:6px', onclick: async () => { try { await api('/social/report', { kind: 'chat', id: m.id, reason: 'chat' }); say('Reported.'); } catch (e) { say(errMsg(e)); } } }) : null)); }
+    if (atEnd) log.scrollTop = log.scrollHeight; } catch (e) {}
+}
+function setChan(c) { chan = c; lastChat = 0; $('chatlog').replaceChildren(); $('chans').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.c === c)); pollChat(); }
+function show(id) { for (const s of ['feed', 'chat', 'me', 'profile']) $(s).hidden = s !== id; }
+function setTab(t) { tab = t; document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); clearInterval(chatTimer);
+  if (t === 'feed' || t === 'following') { show('feed'); loadFeed(); } else if (t === 'chat') { show('chat'); setChan(chan); chatTimer = setInterval(pollChat, 4000); } else { show('me'); loadMe(); } }
+document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+function signOut() { token = acct = ''; delete localStorage.bcToken; delete localStorage.bcAcct; ui(); }
+function ui() { $('signin').hidden = !!token; $('meBtn').hidden = !token; $('meBtn').textContent = acct ? acct.slice(0, 6) + '…' : ''; $('composer').hidden = !token; $('chatIn').hidden = !token;
+  if (!status.signin) { $('signin').textContent = 'Sign-in coming soon'; $('signin').disabled = true; } }
+$('meBtn').onclick = () => setTab('me');
+$('signin').onclick = async () => {
+  try { const s = await (await fetch(API + '/api/signin', { method: 'POST' })).json(); if (!s.xaman) return say('Sign-in is coming soon.');
+    $('qr').replaceChildren(E('img', { src: s.xaman.qr, alt: 'XAMAN sign-in QR' }), E('div', { class: 'note', text: 'Scan with XAMAN (or tap Open XAMAN on your phone).' }), E('a', { href: s.xaman.deeplink, text: 'Open XAMAN', target: '_blank', rel: 'noopener' }));
+    if (/iPhone|iPad|Android/i.test(navigator.userAgent)) location.href = s.xaman.deeplink;
+    for (let i = 0; i < 100; i++) { await new Promise(r => setTimeout(r, 3000)); const v = await (await fetch(API + '/api/signin/finish', { method: 'POST', body: JSON.stringify({ sid: s.sid }) })).json();
+      if (v.ok) { token = localStorage.bcToken = v.token; acct = localStorage.bcAcct = v.account; $('qr').replaceChildren(); say('Signed in ✓ Welcome back!'); ui(); setTab(tab); return; } }
+    say('Sign-in timed out.'); } catch (e) { say('Sign-in failed, try again.'); }
+};
+$('postTxt').oninput = () => $('cnt').textContent = [...$('postTxt').value].length + '/500';
+$('postBtn').onclick = async () => { try { await api('/social/post', { body: $('postTxt').value }); $('postTxt').value = ''; $('cnt').textContent = '0/500'; loadFeed(); } catch (e) { say(errMsg(e)); } };
+$('more').onclick = () => loadFeed(false);
+const sendChat = async () => { try { await api('/social/chat/' + chan, { body: $('chatTxt').value }); $('chatTxt').value = ''; pollChat(); } catch (e) { say(errMsg(e)); } };
+$('chatSend').onclick = sendChat; $('chatTxt').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
+try { status = await (await fetch(API + '/social/status')).json(); } catch { say('Social server is unreachable right now.'); }
+['global', ...(status.tokens || [])].forEach(c => $('chans').append(E('button', { text: c === 'global' ? '🌍 Global' : '$' + c, 'data-c': c, onclick: () => setChan(c) })));
+ui(); setTab('feed');
+</script>
+<script data-goatcounter="https://shinigsmi.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</body></html>

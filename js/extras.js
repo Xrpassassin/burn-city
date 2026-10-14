@@ -3,6 +3,7 @@ const $=id=>document.getElementById(id);
 const btns=$('btns');
 const mk=(id,txt,label)=>{const b=document.createElement('button');b.id=id;b.textContent=txt;b.setAttribute('aria-label',label);b.title=label;btns.appendChild(b);return b};
 const helpB=mk('guideBtn','?','How to read the city'),musB=mk('musicBtn','♪','BURN music');
+const playB=mk('playBtn','🎮 Play','Play the free multiplayer arena'),socB=mk('socialBtn','💬 Social','Burn City Social');playB.onclick=()=>location.href='arena/';socB.onclick=()=>location.href='social/';
 
 // ---------- guide ----------
 const STEPS=[

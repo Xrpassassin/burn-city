@@ -388,6 +388,14 @@ CORE.filter(c=>N[c]).forEach(c=>{const n=N[c];streets.push({type:'line',a:new TH
 const roadM=new THREE.MeshBasicMaterial({color:0x0c1830,transparent:true,opacity:.9,depthWrite:false});
 streets.forEach(s=>{if(s.type==='line'){const len=s.a.distanceTo(s.b);const m=new THREE.Mesh(new THREE.PlaneGeometry(3.2,len),roadM);m.rotation.order='YXZ';m.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);m.rotation.x=-Math.PI/2;m.position.copy(s.a).lerp(s.b,.5).setY(.1);S.add(m)}
  else{const m=new THREE.Mesh(new THREE.RingGeometry(s.r-1.5,s.r+1.5,96),roadM);m.rotation.x=-Math.PI/2;m.position.copy(s.c).setY(.09);S.add(m)}});
+// ---------- arena gates: portals to the multiplayer arena, standing on real hub avenues ----------
+{const av=streets.filter(s=>s.type==='line').slice(0,2),AR=[['tron','Light Cycles',0x3cf3ff],['zombie','Zombie Survival',0xff5a1f]];
+ av.forEach((s,i)=>{const [m,label,col]=AR[i],p=s.a.clone().lerp(s.b,.5),g=new THREE.Group();g.position.copy(p);g.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);
+  const mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.9}),ring=new THREE.Mesh(new THREE.TorusGeometry(3.4,.28,8,40),mat);ring.position.y=3.6;g.add(ring);
+  const core=new THREE.Mesh(new THREE.CircleGeometry(3.1,32),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.18,side:THREE.DoubleSide,depthWrite:false}));core.position.y=3.6;g.add(core);
+  const hitA=new THREE.Mesh(new THREE.BoxGeometry(7,8,3),new THREE.MeshBasicMaterial({visible:false}));hitA.position.y=4;hitA.userData={kind:'arena',arena:m,label};g.add(hitA);pick.push(hitA);
+  anim.push(t=>{ring.rotation.z=t*.8;core.material.opacity=.14+.1*Math.sin(t*3+i)});S.add(g);
+  const el=document.createElement('div');el.className='lbl';el.style.setProperty('--c','#'+new THREE.Color(col).getHexString());el.textContent='🎮 '+label+' Arena';$('labels').appendChild(el);labelEls.push({el,pos:p.clone().setY(9),pri:4e3,minor:false})})}
 const gT=[],SLp=[];streets.forEach(s=>{const len=s.type==='ring'?2*Math.PI*s.r:s.a.distanceTo(s.b);const k=Math.round(len/(MOBILE?12:7));for(let i=0;i<k;i++)gT.push({s,u:Math.random(),d:i%2?1:-1,sp:(6+Math.random()*5)/len});
  const nl=Math.round(len/16);for(let i=0;i<nl;i++){const u=i/nl;SLp.push(s.type==='ring'?new THREE.Vector3(s.c.x+Math.cos(u*6.283)*(s.r+2.1),0,s.c.z+Math.sin(u*6.283)*(s.r+2.1)):s.a.clone().lerp(s.b,u).add(_v.set(s.b.z-s.a.z,0,s.a.x-s.b.x).setLength(2.1)))}});
 const gtG=new THREE.BufferGeometry();gtG.setAttribute('position',new THREE.BufferAttribute(new Float32Array(gT.length*3),3));const gtc=new Float32Array(gT.length*3);gT.forEach((g,i)=>gtc.set(g.d>0?[1,.9,.75]:[1,.15,.1],i*3));gtG.setAttribute('color',new THREE.BufferAttribute(gtc,3));
@@ -632,9 +640,9 @@ $('tour').onclick=()=>{setMode('orbit');orbit.enabled=false;mode='tour';tour={ca
 const ray=new THREE.Raycaster(),mv2=new THREE.Vector2();
 const hit=e=>{mv2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mv2,C);return ray.intersectObjects(pick.filter(o=>o.parent.visible!==false),false)[0]};
 R.domElement.addEventListener('pointermove',e=>{if(mode!=='orbit'||e.pointerType==='touch')return;const h=hit(e),tip=$('tip');if(h){const u=h.object.userData;tip.style.display='block';tip.style.left=e.clientX+14+'px';tip.style.top=e.clientY+14+'px';
- tip.textContent=(u.kind==='ad'||u.ad)?`Sponsored · $${u.ad.ticker}`:u.lot?`Launchpad · ${u.lot.ticker} · ${u.lot.bond_pct!=null?u.lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${u.pool.locked_pct}% locked${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
+ tip.textContent=u.kind==='arena'?`Arena gate · ${u.label} · tap to play (free)`:(u.kind==='ad'||u.ad)?`Sponsored · $${u.ad.ticker}`:u.lot?`Launchpad · ${u.lot.ticker} · ${u.lot.bond_pct!=null?u.lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${u.pool.locked_pct}% locked${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
 let downXY=null;R.domElement.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY]);
-R.domElement.addEventListener('pointerup',e=>{if(mode!=='orbit'||!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>6)return;const h=hit(e);if(h)showInfo(h.object.userData);else $('info').style.display='none'});
+R.domElement.addEventListener('pointerup',e=>{if(mode!=='orbit'||!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>6)return;const h=hit(e);if(h&&h.object.userData.kind==='arena'){location.href='arena/?mode='+h.object.userData.arena;return}if(h)showInfo(h.object.userData);else $('info').style.display='none'});
 const _p=new THREE.Vector3();
 function updLabels(){const placed=[],W2=innerWidth,H2=innerHeight;labelEls.sort((a,b)=>b.pri-a.pri).forEach(l=>{_p.copy(l.pos).project(C);const dist=C.position.distanceTo(l.pos);
  let show=_p.z<1&&Math.abs(_p.x)<1.05&&Math.abs(_p.y)<1.05&&(!l.minor||dist<220)&&dist<1400;

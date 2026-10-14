@@ -80,6 +80,7 @@ After `build_data.py` writes `data.js`, run:
 python3 tools/enrich.py data.js 90   # mcap, burn counts (90 s scan budget per token)
 python3 tools/launchpad.py launchpad.js
 python3 tools/ads.py ads.js
+python3 tools/active.py data.js   # active wallets (xrpl.to 24h unique traders, fallback holders) -> neighbourhood density
 python3 tools/history.py history.js 90   # Replay history: appends today's real snapshot, scans new burns
 ```
 Burn counts are from the issuer's `account_tx`; very busy issuers can't be fully scanned in the time budget, so the card shows "≥N (partial scan)" and no burned-% in that case.

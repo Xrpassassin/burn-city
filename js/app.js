@@ -28,7 +28,7 @@ const rnd=(s=>()=>(s=(s*16807)%2147483647)/2147483647)(1337); // deterministic l
 const R=new THREE.WebGLRenderer({antialias:LV.aa,powerPreference:'high-performance',preserveDrawingBuffer:Q.has('shot')});
 let PR=Math.min(devicePixelRatio,LV.pr);R.setPixelRatio(PR);R.setSize(innerWidth,innerHeight);
 R.info.autoReset=false;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.05;document.body.prepend(R.domElement);
-const S=new THREE.Scene();window.__S=S;S.fog=new THREE.FogExp2(0x060a1c,0.0024);
+const S=new THREE.Scene();window.__S=S;S.fog=new THREE.FogExp2(0x060a1c,0.0019);
 const C=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,0.3,4000);C.position.set(210,140,260);
 const hemi=new THREE.HemisphereLight(0x4466ff,0x180a22,.55);S.add(hemi);const amb=new THREE.AmbientLight(0x223355,.35);S.add(amb);
 const moonL=new THREE.DirectionalLight(0x9db8ff,.35);moonL.position.set(-300,400,-500);S.add(moonL);
@@ -47,20 +47,20 @@ const MINORC=[0x00e5ff,0x66ff99,0xffd166,0xff66c4,0x7aa2ff,0x9effe0];
 const CORE=['BURN','XRPyro','IMM','IMG','RLUSD','666','VEGAS','RACC'];
 const N={};E.nodes.forEach(n=>N[n.name]=n);
 const pools=E.pools.filter(p=>N[p.a]&&N[p.b]);
-const RING=135;
+const RING=175; // core district ring (was 135; widened so active-wallet blocks have room)
 CORE.filter(c=>N[c]).forEach((c,i,arr)=>{const a=i/arr.length*Math.PI*2-Math.PI/2;Object.assign(N[c],{core:true,ang:a,pos:new THREE.Vector3(Math.cos(a)*RING,0,Math.sin(a)*RING)})});
 Object.assign(N.XRP,{pos:new THREE.Vector3(),core:true,ang:0});
 // $BCHAMP landmark: inner plaza between XRP and the core ring, opposite the BURN district
-if(N.BCHAMP){const a=Math.PI/2+Math.PI/CORE.length;Object.assign(N.BCHAMP,{core:true,landmark:true,ang:a,pos:new THREE.Vector3(Math.cos(a)*78,0,Math.sin(a)*78)})}
+if(N.BCHAMP){const a=Math.PI/2+Math.PI/CORE.length;Object.assign(N.BCHAMP,{core:true,landmark:true,ang:a,pos:new THREE.Vector3(Math.cos(a)*122,0,Math.sin(a)*122)})}
 const kids={};E.nodes.filter(n=>!n.pos).forEach(n=>{const ps=pools.filter(p=>p.a===n.name||p.b===n.name).sort((a,b)=>b.tvl_xrp-a.tvl_xrp);
  const par=ps.map(p=>p.a===n.name?p.b:p.a).find(x=>N[x].core&&x!=='XRP')||'BURN';n.parent=par;(kids[par]=kids[par]||[]).push(n)});
-Object.entries(kids).forEach(([par,ks])=>{const P0=N[par];ks.sort((a,b)=>b.tvl-a.tvl).forEach((n,i)=>{const a=P0.ang+(i-(ks.length-1)/2)*.11;const r=RING+70+(i%2)*26;
+Object.entries(kids).forEach(([par,ks])=>{const P0=N[par];ks.sort((a,b)=>b.tvl-a.tvl).forEach((n,i)=>{const a=P0.ang+(i-(ks.length-1)/2)*.1;const r=RING+92+(i%2)*38;
  n.ang=a;n.pos=new THREE.Vector3(Math.cos(a)*r,0,Math.sin(a)*r);n.minor=true})});
 E.nodes.forEach((n,i)=>{const th=THEME[n.name]||{c:MINORC[i%MINORC.length]};n.th=th;n.col=new THREE.Color(th.c);
  // HEIGHT = market cap in XRP (circulating supply x AMM price, log scale); BASE WIDTH = pool TVL in XRP (sqrt scale)
  n.mc=n.name==='XRP'?null:n.mcap_amm!=null?n.mcap_amm:null;n.h=n.name==='XRP'?125:n.mc!=null?Math.min(112,Math.max(12,16*Math.log10(n.mc+10)-14)):Math.max(10,15*Math.log10(n.tvl+10)*.8);
  n.w=n.name==='XRP'?11:Math.min(9.5,Math.max(2.2,1.7+.042*Math.sqrt(n.tvl)));
- n.distR=n.name==='XRP'?66:n.minor?n.w*3.2:n.w*2.6+20;});
+ n.distR=n.name==='XRP'?66:n.minor?n.w*3.4+5:n.landmark?n.w*2.4+14:n.w*3+28;});
 
 await stage(0.12,'Sky & terrain');
 // ---------- sky, moon, stars, aurora, mountains ----------
@@ -310,7 +310,7 @@ const _m=new THREE.Matrix4(),_q=new THREE.Quaternion(),_v=new THREE.Vector3(),_t
 // ---------- Launchpad district: unbonded bonding-curve tokens (xrpl.fun crucible, via launchpad.js built nightly) ----------
 // Each lot: excavated pit + dirt, instanced cranes, wireframe ghost of the future tower, bonding-progress ring. Capped, mostly shared geometry.
 const LP_DATA=window.LAUNCHPAD||{lots:[],graduated:[]},LOT_CAP=TIER==='low'?4:8;
-const LPD={a:(6.5/8)*Math.PI*2-Math.PI/2,r:108,lots:[]};LPD.c=new THREE.Vector3(Math.cos(LPD.a)*LPD.r,0,Math.sin(LPD.a)*LPD.r);
+const LPD={a:(6.5/8)*Math.PI*2-Math.PI/2,r:124,lots:[]};LPD.c=new THREE.Vector3(Math.cos(LPD.a)*LPD.r,0,Math.sin(LPD.a)*LPD.r);
 {const lots=LP_DATA.lots.slice(0,LOT_CAP);colliders.push({x:LPD.c.x,z:LPD.c.z,r:lots.length?16+lots.length*2:0,h:0});
  const pitM=new THREE.MeshStandardMaterial({color:0x2a1c12,roughness:1,metalness:0,side:2}),dirtM=new THREE.MeshStandardMaterial({color:0x4a3220,roughness:1}),
   ghostM=new THREE.LineBasicMaterial({color:0x3cf3ff,transparent:true,opacity:.35,depthWrite:false}),craneM=new THREE.MeshStandardMaterial({color:0xffb000,metalness:.6,roughness:.4,emissive:0x221400}),
@@ -435,8 +435,8 @@ await stage(0.65,'Streets & traffic');
 const streets=[];E.nodes.filter(n=>!n.minor).forEach(n=>streets.push({type:'ring',c:n.pos,r:n.name==='XRP'?40:n.distR*.62},{type:'ring',c:n.pos,r:n.name==='XRP'?62:n.distR*.98}));
 CORE.filter(c=>N[c]).forEach(c=>{const n=N[c];streets.push({type:'line',a:new THREE.Vector3(Math.cos(n.ang)*62,0,Math.sin(n.ang)*62),b:new THREE.Vector3(Math.cos(n.ang),0,Math.sin(n.ang)).multiplyScalar(RING-n.distR*.98)})});
 const roadM=new THREE.MeshBasicMaterial({color:0x0c1830,transparent:true,opacity:.9,depthWrite:false});
-streets.forEach(s=>{if(s.type==='line'){const len=s.a.distanceTo(s.b);const m=new THREE.Mesh(new THREE.PlaneGeometry(3.2,len),roadM);m.rotation.order='YXZ';m.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);m.rotation.x=-Math.PI/2;m.position.copy(s.a).lerp(s.b,.5).setY(.1);S.add(m)}
- else{const m=new THREE.Mesh(new THREE.RingGeometry(s.r-1.5,s.r+1.5,96),roadM);m.rotation.x=-Math.PI/2;m.position.copy(s.c).setY(.09);S.add(m)}});
+streets.forEach(s=>{if(s.type==='line'){const len=s.a.distanceTo(s.b);const m=new THREE.Mesh(new THREE.PlaneGeometry(4.6,len),roadM);m.rotation.order='YXZ';m.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);m.rotation.x=-Math.PI/2;m.position.copy(s.a).lerp(s.b,.5).setY(.1);S.add(m)}
+ else{const m=new THREE.Mesh(new THREE.RingGeometry(s.r-2,s.r+2,96),roadM);m.rotation.x=-Math.PI/2;m.position.copy(s.c).setY(.09);S.add(m)}});
 // ---------- arena gates: portals to the multiplayer arena, standing on real hub avenues ----------
 {const av=streets.filter(s=>s.type==='line').slice(0,2),AR=[['tron','Light Cycles',0x3cf3ff],['zombie','Zombie Survival',0xff5a1f]];
  av.forEach((s,i)=>{const [m,label,col]=AR[i],p=s.a.clone().lerp(s.b,.5),g=new THREE.Group();g.position.copy(p);g.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);
@@ -730,8 +730,8 @@ $('chatIn').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter
 
 // ---------- cinematic tour (overview → hub river → BURN → XRPyro inferno → street level → IMM ice → airship → 666 → park) ----------
 const V3=(x,y,z)=>new THREE.Vector3(x,y,z),np=(k,s,y)=>V3(N[k].pos.x*s,y,N[k].pos.z*s);
-const tourStops=[[V3(260,160,300),V3(0,40,0)],[V3(110,40,90),V3(0,70,0)],[V3(60,5,60),V3(0,30,0)],[np('BURN',.55,46),np('BURN',.3,28)],[np('BURN',1.4,34),np('BURN',1,50)],[np('XRPyro',1.35,26),np('XRPyro',1,62)],
- [np('XRPyro',.62,3.5),np('BURN',.8,14)],[np('IMM',1.38,24),np('IMM',1,36)],[V3(0,200,-170),V3(0,168,0)],[np('666',1.5,60),np('666',1,30)],[V3(-70,5,-40),V3(-110,6,-90)],[V3(260,160,300),V3(0,40,0)]];
+const tourStops=[[V3(330,200,380),V3(0,40,0)],[V3(110,40,90),V3(0,70,0)],[V3(60,5,60),V3(0,30,0)],[np('BURN',.55,46),np('BURN',.3,28)],[np('BURN',1.4,34),np('BURN',1,50)],[np('XRPyro',1.35,26),np('XRPyro',1,62)],
+ [np('XRPyro',.62,3.5),np('BURN',.8,14)],[np('IMM',1.38,24),np('IMM',1,36)],[V3(0,200,-170),V3(0,168,0)],[np('666',1.5,60),np('666',1,30)],[V3(-70,5,-40),V3(-110,6,-90)],[V3(330,200,380),V3(0,40,0)]];
 const tourCaps=['Burn City: every tower is a token, every bridge an XRPL AMM pool','The XRP hub: tallest tower = deepest liquidity','Street level: traffic follows real 24h volume','Light-roads: solid cyan = LP tokens locked in blackholed wallets','BURN: fire district. Live burns to the blackholed issuer erupt from this tower','XRPyro: the inferno','Scaffold rails = LP that could still be withdrawn','IMM: electric ice district','From above: weather follows market mood (TVL-weighted 24h change)','666 district','Bioluminescent parks','Replay history with the time-lapse slider · Copy link to share any view'];
 function tourCap(t){const i=Math.min(tourCaps.length-1,Math.round(t*(tourStops.length-1)));const el=$('tourCap');if(el.dataset.i!=i){el.dataset.i=i;el.classList.remove('show');setTimeout(()=>{el.textContent=tourCaps[i];el.classList.add('show')},450)}}
 $('tour').onclick=()=>{setMode('orbit');orbit.enabled=false;mode='tour';tour={cam:new THREE.CatmullRomCurve3(tourStops.map(s=>s[0])),look:new THREE.CatmullRomCurve3(tourStops.map(s=>s[1])),t:0}};
@@ -751,7 +751,7 @@ function updLabels(){const placed=[],W2=innerWidth,H2=innerHeight;labelEls.sort(
  if(l.vis!==show){l.el.style.display=show?'block':'none';l.vis=show}})}
 labelEls.forEach(l=>{l.el.style.left='0';l.el.style.top='0'});
 const mm=$('minimap').getContext('2d');
-function updMinimap(){const cw=mm.canvas.width,sc=cw/2/290;mm.clearRect(0,0,cw,cw);mm.save();mm.translate(cw/2,cw/2);
+function updMinimap(){const cw=mm.canvas.width,sc=cw/2/375;mm.clearRect(0,0,cw,cw);mm.save();mm.translate(cw/2,cw/2);
  mm.strokeStyle='rgba(60,200,255,.3)';mm.lineWidth=12*sc;mm.beginPath();mm.arc(0,0,81*sc,0,7);mm.stroke();
  bridges.forEach(b=>{if(!b.group.visible)return;const A=N[b.p.a].pos,B=N[b.p.b].pos;mm.strokeStyle=b.actCol?'#'+b.actCol.getHexString():'#3cf3ff';mm.globalAlpha=.45+.5*b.L;mm.lineWidth=.5+b.share*3;mm.beginPath();mm.moveTo(A.x*sc,A.z*sc);mm.lineTo(B.x*sc,B.z*sc);mm.stroke()});mm.globalAlpha=1;
  E.nodes.forEach(n=>{mm.fillStyle='#'+n.col.getHexString();mm.beginPath();mm.arc(n.pos.x*sc,n.pos.z*sc,n.minor?1.6:2.5+n.w*.22,0,7);mm.fill()});
@@ -763,7 +763,7 @@ function updMinimap(){const cw=mm.canvas.width,sc=cw/2/290;mm.clearRect(0,0,cw,c
 const mid=(a,b,s,y)=>V3((N[a].pos.x+N[b].pos.x)/2*s,y,(N[a].pos.z+N[b].pos.z)/2*s);
 const near=(p,d,h,ty)=>{const o=V3(p.x,0,p.z).normalize(),q=V3(-o.z,0,o.x);return[V3(p.x+o.x*d+q.x*d*.55,h,p.z+o.z*d+q.z*d*.55),V3(p.x,ty,p.z)]};
 const BX=N['BURN'].pos.clone().add(N['XRPyro'].pos).multiplyScalar(.5);
-const VIEWS={overview:[V3(235,150,275),V3(0,32,0)],street:[np('BURN',.6,2.6),np('BURN',.95,16)],burn:near(BX,90,58,44),imm:near(N['IMM'].pos,70,55,38),hub:[V3(58,8,62),V3(0,62,0)],fire:(()=>{const p=N['BURN'].pos,h=N['BURN'].top||N['BURN'].h||60;return [V3(p.x-.75*h,h*.62,p.z+.55*h),V3(p.x,h*.62,p.z)]})()};
+const VIEWS={overview:[V3(300,190,350),V3(0,32,0)],street:[np('BURN',.6,2.6),np('BURN',.95,16)],burn:near(BX,90,58,44),imm:near(N['IMM'].pos,70,55,38),hub:[V3(58,8,62),V3(0,62,0)],fire:(()=>{const p=N['BURN'].pos,h=N['BURN'].top||N['BURN'].h||60;return [V3(p.x-.75*h,h*.62,p.z+.55*h),V3(p.x,h*.62,p.z)]})()};
 const VQ0=Q.get('view')||'';const tokV=Object.keys(N).find(k=>k.toLowerCase()===VQ0.toLowerCase());
 if(!VIEWS[VQ0]&&tokV){const n=N[tokV];VIEWS[VQ0]=tokV==='XRP'?VIEWS.hub:near(n.pos,50+n.h*1.5,8+n.h*.6,n.h*.62)}
 if(Q.get('cam')){const c=Q.get('cam').split(',').map(Number);if(c.length===6&&c.every(isFinite))VIEWS.__cam=[V3(c[0],c[1],c[2]),V3(c[3],c[4],c[5])]}
@@ -887,7 +887,7 @@ updCounter();
 // ---------- Replay: real day-by-day city history (js/replay.js lazily loads history.js) ----------
 let RP=null;
 window.__BC={E,N,bridges,layoutMarks,orbit,C,$,setMode:m=>setMode(m),minorVisible:()=>$('minor').checked,
- overview:()=>({cam:V3(230,190,320),tgt:V3(0,22,0)})};
+ overview:()=>({cam:V3(290,235,400),tgt:V3(0,22,0)})};
 $('tlOpen').onclick=async()=>{try{RP=RP||(await import('./replay.js')).init(window.__BC);RP.open()}catch(e){console.warn('replay',e)}};
 if(Q.get('replay')==='1')setTimeout(()=>$('tlOpen').click(),1500);
 function updTL(dt){if(RP)RP.update(dt)}
@@ -910,7 +910,7 @@ function frame(){requestAnimationFrame(frame);R.info.reset();const dt=Math.min(c
  if($('todCycle').checked)$('tod').value=(.5-.5*Math.cos(t*.02)).toFixed(3);const day=+$('tod').value;U.day.value=day;
  if(wMode==='cycle'){const seq=['clear','fog','rain','storm'];wTarget=W[seq[Math.floor(t/30)%4]]}
  for(const k in wCur)wCur[k]+=(wTarget[k]-wCur[k])*Math.min(1,dt*.5);SKY(dt,t,wCur,+$('tod').value);
- S.fog.density=wCur.fog*(1-day*.4);{const dk=1-.6*wCur.storm;S.fog.color.setRGB((.023+day*.45)*dk,(.04+day*.5)*dk,(.11+day*.55)*dk)}U.wet.value=wCur.wet;U.storm.value=wCur.storm;rain.uniforms.amt.value=Math.min(1,wCur.rain);rain.uniforms.cam.value.copy(C.position);banks(wCur.banks,t);
+ S.fog.density=wCur.fog*.8*(1-day*.4);{const dk=1-.6*wCur.storm;S.fog.color.setRGB((.023+day*.45)*dk,(.04+day*.5)*dk,(.11+day*.55)*dk)}U.wet.value=wCur.wet;U.storm.value=wCur.storm;rain.uniforms.amt.value=Math.min(1,wCur.rain);rain.uniforms.cam.value.copy(C.position);banks(wCur.banks,t);
  hemi.intensity=(.55+day*1.4)*(1-.45*wCur.storm);amb.intensity=.35+day*.6;R.toneMappingExposure=1.05+day*.15;stars.material.opacity=1-day;moon.material.opacity=1-day*.8;bloom.strength=.7-day*.35+wCur.wet*.08;
  if(wCur.storm>.5){nextBolt-=dt;if(nextBolt<0){lightning();nextBolt=3+Math.random()*7}}
  if(boltT>0){boltT-=dt;U.flash.value=Math.max(0,boltT*3.3)*(Math.random()<.7?1:.3);flashL.intensity=U.flash.value*3;bolt.material.opacity=Math.min(1,boltT*5)}else{bolt.visible=false;U.flash.value=0;flashL.intensity=0}

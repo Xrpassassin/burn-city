@@ -131,6 +131,7 @@ body.replay #tlDate{color:#ffcf6a}
 #cityChat .cfoot{border-top:1px solid #ffffff12;padding:8px}#cityChat .cform{display:flex;gap:6px}
 #cityChat .cform input{flex:1;min-width:0;min-height:44px;border-radius:10px;border:1px solid #2bd9ff55;background:#081428;color:#e6f2ff;padding:0 10px;font-size:16px}
 #cityChat .cform button,#cityChat .csign{min-height:44px;border-radius:10px;border:0;background:linear-gradient(90deg,#ff5a1a,#ff9a2a);color:#120600;font-weight:700;padding:0 14px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none}
+#cityChat .cnft{margin-top:6px;width:100%;min-height:40px;border-radius:10px;border:1px solid #ffb06088;background:#2a0d00;color:#ffd9a0;font:600 14px system-ui;cursor:pointer}
 #cityChat .cnote{margin-top:6px;font-size:11px;text-align:center}
 #cityChat .ctoast{position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;background:#0b1630;border:1px solid #ff7a1866;border-radius:9px;padding:7px 10px;color:#ffd2a8}
 @media (max-width:700px){#cityChat{left:140px;right:10px;width:auto;bottom:calc(10px + env(safe-area-inset-bottom))}#cityChat .cch{min-height:48px}#cityChat.open{left:10px}#cityChat .clog{max-height:34vh}}

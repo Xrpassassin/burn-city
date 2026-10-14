@@ -1,5 +1,6 @@
 // Burn City Arena: zombie-mode visuals. Low-poly, fully instanced (a handful of draw calls total), no textures/assets.
 import * as THREE from 'three';
+import { buildNftChar, disposeNftChar } from '../js/nftchar.js';
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = new THREE.Vector3(), S = new THREE.Vector3(), C = new THREE.Color();
 const P = new THREE.Vector3(), Pt = new THREE.Matrix4();
 // one instanced mesh per body part; each part has a pivot offset (shoulder/hip) so limbs swing naturally
@@ -116,9 +117,9 @@ export function createZombieFX(scene, { low = false } = {}) {
       if (e.w === 'shotgun') { const ox = (isMe ? meX : e.x) + fx * 1.4, oz = (isMe ? meZ : e.z) + fz * 1.4; burst(ox, isMe ? 1.38 : 1.25, oz, fx, fz, low ? 22 : 45, pr); }
       if (e.w === 'napalm' && blobs.length < NB) blobs.push({ x0: isMe ? meX : e.x, z0: isMe ? meZ : e.z, x1: e.tx, z1: e.tz, t: 0 }); },
     zdie(e) { const z = zs.get(e.id); if (z) { dying.push({ ...z, fade: 0 }); zs.delete(e.id); } },
-    clear() { zs.clear(); ps.clear(); dying.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
+    clear() { for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
     // st: interpolated state; me: predicted self {x,z,yaw,firing}; colorOf(id) -> THREE.Color
-    update(dt, st, me, myId, colorOf, flameCol) {
+    update(dt, st, me, myId, colorOf, flameCol, nftOf, srv) {
       t += dt; const seen = new Set(); nb = 0;
       for (const s of st.zombies) { seen.add(s.id); let z = zs.get(s.id);
         if (!z) zs.set(s.id, z = { id: s.id, x: s.x, z: s.z, yaw: 0, ph: Math.random() * 6, v: 0.92 + ((s.id * 37) % 17) / 100, ty: s.ty, flash: 0, burnT: 0 });
@@ -135,7 +136,12 @@ export function createZombieFX(scene, { low = false } = {}) {
         const d = Math.hypot(p.x - q.x, p.z - q.z); q.spd += (d / Math.max(dt, 1e-3) - q.spd) * Math.min(1, dt * 8); q.x = p.x; q.z = p.z; q.yaw = p.r ?? q.yaw; q.ph += dt * (q.spd > 0.5 ? 9 : 4);
         if (p.firing && (p.w === 0 || p.w === 1 || p.w === 4)) particles(dt, true, q.x + Math.sin(q.yaw) * 1.1, 1.25, q.z + Math.cos(q.yaw) * 1.1, Math.sin(q.yaw), Math.cos(q.yaw), flameCol, 0.5, false, WP[p.w]);   // others' flames (emit only)
         if (p.firing && p.w === 4) beamAt(q.x + Math.sin(q.yaw) * 1.1, 1.25, q.z + Math.cos(q.yaw) * 1.1, q.yaw, 22);
+        const n = nftOf && nftOf(p.id);   // verified NFT holder: their own character instead of the stock pyro
+        if (!n && q.nc) { disposeNftChar(q.nc); q.nc = null; }   // ownership lapsed -> back to the stock pyro
+        if (n && (!q.nc || q.nc.userData.nftId !== n.id)) { if (q.nc) disposeNftChar(q.nc); try { q.nc = buildNftChar(n, { srv, card: !low }); scene.add(q.nc); } catch (e) { q.nc = null; } }
+        if (q.nc) { q.nc.visible = true; q.nc.position.set(q.x, 0, q.z); q.nc.rotation.y = q.yaw; q.nc.rotation.x = 0; if (p.down) { q.nc.rotation.x = -1.3; q.nc.position.y = 0.25; } q.nc.userData.anim(t + p.id, q.spd > 0.5, true); q.seenT = t; continue; }
         q.down = p.down; drawP(j++, q, p.down ? tmp2.setHex(Math.sin(t * 8) > 0 ? 0xff2020 : 0x400000) : colorOf(p.id)); }
+      for (const [id, q] of ps) if (q.nc && q.seenT !== t) { if (!st.players.some(p => p.id === id)) { disposeNftChar(q.nc); ps.delete(id); } else q.nc.visible = false; }
       done(PL, j); done(PL2, j);
       // first-person weapon + flames
       gun.visible = !!me; if (me) { setW(me.w || 0); accent.material.color.copy(colorOf(myId)); pilot.scale.setScalar(0.8 + Math.random() * 0.5);

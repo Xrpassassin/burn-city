@@ -32,7 +32,7 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <div id="touch"><div id="tl" style="left:20px"></div><div id="tr" style="right:20px"></div></div><div id="xh" hidden></div><div id="joy" hidden><i id="knob"></i></div><button id="firebtn" hidden>🔥<br>FIRE</button><button id="gear" hidden>⚙</button>
 <div id="set" hidden><b>Settings</b><label>Look sensitivity <input id="sens" type="range" min="0.3" max="2.5" step="0.1"> <span id="sensv"></span></label><label><input id="autof" type="checkbox"> Auto-fire when the crosshair is on a zombie</label><label><input id="lowq" type="checkbox"> Low graphics<span></span></label></div><div id="codhud" hidden></div><div id="prompt" hidden></div><div id="toast"></div><button id="usebtn" hidden>USE</button><button id="swapbtn" hidden>⇄<br>SWAP</button><div id="hurt"></div><div id="over" hidden></div><div id="hint" hidden></div><div id="teampick" hidden style="position:fixed;left:50%;top:44%;transform:translateX(-50%);z-index:6;display:flex;gap:6px;flex-wrap:wrap;justify-content:center"></div><button id="rkstart" hidden style="position:fixed;left:50%;top:60%;transform:translateX(-50%);z-index:6">▶ Start match</button>
 <script type="module">
-import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js';
+import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
 const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
 const $ = s => document.querySelector(s), mobile = matchMedia('(pointer:coarse)').matches;
 const qr = x => $('#qr').innerHTML = `<img src="${x.qr}"><div class=small>Scan with XAMAN</div>`;
@@ -89,8 +89,9 @@ async function enterRanked(opts, game = 'zombie') {
   $('#price').textContent = 'Entry timed out';
 }
 loadRanked(); setInterval(() => $('#menu').hidden || loadRanked(), 30000);
+{ const b = document.createElement('button'); b.id = 'nftbtn'; b.hidden = true; $('#signin').after(' ', b); window.__nftp = NftPick.mount(API, { button: b }); }
 loadShop(); $('#price').textContent = localStorage.bcAcct ? 'Signed in ' + localStorage.bcAcct.slice(0, 8) + '…' : 'Playing as guest (not on leaderboard)';
-$('#signin').onclick = async () => { try { const v = await signIn(API, { onQr: qr }); $('#qr').innerHTML = ''; $('#price').textContent = 'Signed in ' + v.account.slice(0, 8) + '…'; loadShop(); } catch (e) { $('#price').textContent = e.message; } };
+$('#signin').onclick = async () => { try { const v = await signIn(API, { onQr: qr }); $('#qr').innerHTML = ''; $('#price').textContent = 'Signed in ' + v.account.slice(0, 8) + '…'; loadShop(); window.__nftp?.refresh(); } catch (e) { $('#price').textContent = e.message; } };
 const r = new THREE.WebGLRenderer({ antialias: !mobile, powerPreference: 'high-performance' });
 r.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2)); r.setSize(innerWidth, innerHeight); document.body.prepend(r.domElement);
 const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x050208, 40, 180); scene.background = new THREE.Color(0x050208);
@@ -173,6 +174,12 @@ $('#lowq').checked = LOW; $('#lowq').onchange = () => { localStorage.setItem('bc
 
 // ---- render pools (no per-frame allocations) ----
 const cycles = new Map(), walls = new Map(), MAXZ = 40;
+// NFT characters: the server only attaches look.nft for a signed-in wallet that holds that NFT (re-checked on the ledger)
+const NFTOF = id => net?.roster.get(id)?.look?.nft || null;
+function riderNft(p, c) { const n = NFTOF(p.id), cur = c.userData.nc;
+  if (n && (!cur || cur.userData.nftId !== n.id)) { if (cur) disposeNftChar(cur); try { const g = buildNftChar(n, { srv: API, card: true, panel: false }); g.scale.setScalar(0.62); g.position.set(0, 0.25, -0.2); g.userData.legs.forEach(l => l.rotation.x = -1.3); g.userData.arms.forEach(a => a.rotation.x = -1.1); c.add(g); c.userData.nc = g; } catch (e) {} }
+  if (c.children[0] && c.children[0] !== c.userData.nc) c.children[0].visible = !c.userData.nc;   // NFT rider replaces the stock rider block
+  if (c.userData.nc) { c.userData.nc.visible = !!p.alive; const cd = c.userData.nc.userData.card; if (cd) { cd.position.y = c.userData.nc.userData.frame.position.y = 5.2; cd.scale.set(1.5, 1.5, 1); c.userData.nc.userData.frame.scale.set(1.68, 1.68, 1); } } }
 const LOW = (P.get('q') || localStorage.getItem('bc_quality') || 'auto') === 'low' || ((P.get('q') || localStorage.getItem('bc_quality') || 'auto') === 'auto' && mobile && (navigator.hardwareConcurrency || 4) <= 4);
 const FX = createZombieFX(scene, { low: LOW }); FX.attach(cam); fitGun();
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S1 = new THREE.Vector3(1, 1, 1), UP = new THREE.Vector3(0, 1, 0);
@@ -216,9 +223,9 @@ r.setAnimationLoop(() => {
       for (const p of st.players) { seen.add(p.id); let c = cycles.get(p.id);
         if (!c) { c = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 2.2), new THREE.MeshBasicMaterial()); const acc = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.9), new THREE.MeshBasicMaterial()); acc.position.set(0, 0.55, -0.3); c.add(acc); scene.add(c); cycles.set(p.id, c); }
         c.material.color.copy(tronCol(p.id)); c.children[0].material.color.copy(COL(p.id, 'skin')); w0 = wall(p.id); w0.material.color.copy(c.material.color);
-        c.visible = !!p.alive; c.position.set(p.x, 0.4, p.z); c.rotation.y = DIRYAW[p.r]; drawTrail(p.id, net.trail(p.id, p.x, p.z, p.alive));
+        c.visible = !!p.alive; c.position.set(p.x, 0.4, p.z); c.rotation.y = DIRYAW[p.r]; riderNft(p, c); drawTrail(p.id, net.trail(p.id, p.x, p.z, p.alive));
         const tg = tag(p.id); tg.visible = !!p.alive; tg.position.set(p.x, 2.4, p.z); }
-      for (const [id, c] of cycles) if (!seen.has(id)) { scene.remove(c); c.children[0]?.material.dispose(); cycles.delete(id); scene.remove(walls.get(id)); walls.delete(id); const t = tags.get(id); if (t) { scene.remove(t); tags.delete(id); } }
+      for (const [id, c] of cycles) if (!seen.has(id)) { if (c.userData.nc) disposeNftChar(c.userData.nc); scene.remove(c); c.children[0]?.material.dispose(); cycles.delete(id); scene.remove(walls.get(id)); walls.delete(id); const t = tags.get(id); if (t) { scene.remove(t); tags.delete(id); } }
       const mc = net.roster.get(net.me)?.color; if (mc) { const e = $('#me'); e.hidden = false; e.style.color = e.style.borderColor = mc; e.style.textShadow = '0 0 8px ' + mc; e.textContent = 'YOU ●'; }
       if (me && !me.alive) { V.set(me.x * 0.3, 95, me.z * 0.3 + 60); cam.position.lerp(V, 1 - Math.exp(-dt * 2)); cam.lookAt(me.x * 0.3, 0, me.z * 0.3); }   // spectate from above while out
       else if (me) { const d = DIRYAW[me.r]; V.set(me.x - Math.sin(d) * 12 + Math.cos(d) * 2.5, 7, me.z - Math.cos(d) * 12 - Math.sin(d) * 2.5); cam.position.distanceTo(V) > 30 ? cam.position.copy(V) : cam.position.lerp(V, 1 - Math.exp(-dt * 5)); cam.lookAt(me.x, 0, me.z); }
@@ -247,7 +254,7 @@ r.setAnimationLoop(() => {
         pred.moving = l > 0.1; }
       const flameCol = net.roster.get(net.me)?.look?.flame ? COL(net.me, 'flame') : null;
       scene.userData.camQ = cam.quaternion; world?.update(dt, st.map);
-      FX.update(dt, st, me && me.alive && !me.down && pred ? { x: pred.x, z: pred.z, yaw, firing: !!me.firing, moving: pred.moving, w: me.w } : null, net.me, id => COL(id, 'skin'), flameCol);
+      FX.update(dt, st, me && me.alive && !me.down && pred ? { x: pred.x, z: pred.z, yaw, firing: !!me.firing, moving: pred.moving, w: me.w } : null, net.me, id => COL(id, 'skin'), flameCol, NFTOF, API);
       if (me) { const px = pred ? pred.x : me.x, pz = pred ? pred.z : me.z; cam.position.set(px, 1.6 + (pred?.moving ? Math.sin(now / 120) * 0.03 : 0), pz); cam.rotation.set(pitch, yaw + Math.PI, 0, 'YXZ');
         $('#fuel').firstChild.style.width = me.fuel + '%'; }
       const rk = net.buf.at(-1)?.rk; $('#rkstart').hidden = !(rk && rk[0] === 'lobby' && !rk[1]); $('#info').textContent = rk && rk[0] === 'lobby' ? `🏆 Ranked lobby · ${rk[2]} player${rk[2] === 1 ? '' : 's'} here · ${rk[1] ? 'starting in ' + rk[1] + 's' : 'waiting for the creator to start'}` : `${rk ? '🏆 Ranked · ' : ''}Wave ${st.wave} · Zombies ${st.zombies.length} · Score ${st.score} · HP ${me ? me.hp : 0}`;

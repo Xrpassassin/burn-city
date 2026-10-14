@@ -179,3 +179,5 @@ body.replay #tlDate{color:#ffcf6a}
 body.replay #wchip{opacity:.6}
 @media (min-width:701px){#toasts{top:126px}}
 #info{z-index:75!important}
+
+.bamm .bah{font:700 12px system-ui;opacity:.8;margin:8px 0 4px}#bagBtn.dimOn::after{content:' · dim';opacity:.8}.bdim.on{background:#7dffcf33;border-color:#7dffcf;color:#dfffee}

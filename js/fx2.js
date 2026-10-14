@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 const Q=new URLSearchParams(location.search),$=id=>document.getElementById(id),W=()=>window.__city;
 const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
-const short=v=>v>=1e9?(v/1e9).toFixed(2)+'B':v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'k':(+v).toFixed(v<10?2:0);
+const short=v=>v>=1e12?(v/1e12).toFixed(2)+'T':v>=1e9?(v/1e9).toFixed(2)+'B':v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'k':(+v).toFixed(v<10?2:0);
 const F={alerts:['🔥 Burn alerts (camera sweep + sound)',1],realtime:['🌗 Real Phoenix day/night',1],whale:['🐋 Whale buy flares',1],bag:['💼 Highlight my holdings',1],recap:['📰 Daily city recap',1],weather:['⛅ Market weather (sky follows the market)',1]};
 const on=k=>{const v=localStorage.getItem('bc_f_'+k);return v==null?!!F[k][1]:v==='1'};
 const RPC=async(method,params)=>{for(const u of ['https://xrplcluster.com/','https://s1.ripple.com:51234/']){try{const r=await (await fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({method,params:[params]}),signal:AbortSignal.timeout?AbortSignal.timeout(8000):undefined})).json();if(r&&r.result&&!r.result.error)return r.result}catch(e){}}throw new Error('rpc')};
@@ -57,7 +57,9 @@ const bagList=el('div');bagList.id='bagList';bagList.hidden=true;bagList.setAttr
 const bagHead=el('div','bhd'),bagTitle=el('b','bt','My bag'),bagDim=el('button','bdim','Dim others'),bagX=el('button','bx','✕'),bagBody=el('div','bl');
 bagX.setAttribute('aria-label','Close My bag');bagDim.setAttribute('aria-pressed','false');bagHead.append(bagTitle,bagDim,bagX);bagList.append(bagHead,bagBody);{const f=el('div','bft');f.style.cssText='font-size:11.5px;opacity:.85;padding:6px 2px 2px;border-top:1px solid #ffffff1a;margin-top:6px';const h=el('a',null,'📜 My match history & receipts');h.href='arena/history.html';h.style.color='#ffb347';f.append(h,el('div',null,'✔ Official wallet rwfnp…iEpb · We never DM you or ask for your seed/secret.'));bagList.append(f)}
 function setFilter(v){localStorage.bc_bagFilter=v?'1':'0';document.body.classList.toggle('bag',v);bagDim.classList.toggle('on',v);bagDim.setAttribute('aria-pressed',v)}
-function setBag(v){localStorage.bc_bagOpen=v?'1':'0';bagList.hidden=!v;bagBtn.classList.toggle('on',v);bagBtn.setAttribute('aria-expanded',v);if(!v)setFilter(false)}
+function setBag(v){localStorage.bc_bagOpen=v?'1':'0';bagList.hidden=!v;bagBtn.classList.toggle('on',v);bagBtn.setAttribute('aria-expanded',v)}
+// Dim is a persistent toggle: survives closing the bag, moving, reloads; re-applied every second in case labels were rebuilt
+setInterval(()=>{const v=localStorage.bc_bagFilter==='1'&&!bagBtn.hidden;if(document.body.classList.contains('bag')!==v)document.body.classList.toggle('bag',v);bagDim.classList.toggle('on',v);bagBtn.classList.toggle('dimOn',v)},1000);
 bagBtn.onclick=e=>{e.stopPropagation();setBag(bagList.hidden)};bagX.onclick=e=>{e.stopPropagation();setBag(false)};bagDim.onclick=e=>{e.stopPropagation();setFilter(!document.body.classList.contains('bag'))};
 addEventListener('pointerdown',e=>{if(!bagList.hidden&&!bagList.contains(e.target)&&e.target!==bagBtn&&!$('info').contains(e.target))setBag(false)},true);
 addEventListener('keydown',e=>{if(e.key==='Escape'&&!bagList.hidden){setBag(false);e.stopImmediatePropagation()}},true);
@@ -70,7 +72,16 @@ async function bagLoad(){bagG.clear();held=[];document.querySelectorAll('.lbl.he
     const r=new THREE.Mesh(rg,rm);r.rotation.x=-Math.PI/2;r.position.set(n.pos.x,.3,n.pos.z);const s=n.w*1.9+2;r.scale.set(s,s,s);bagG.add(r);n.lblEl&&n.lblEl.classList.add('held')});
   bagTitle.textContent=held.length?`My bag · ${held.length}`:'My bag';bagBody.replaceChildren(held.length?'':el('div','dim','No tracked tokens in this wallet yet'));
   held.sort((a,b)=>(b[1]*(b[0].price_xrp||0))-(a[1]*(a[0].price_xrp||0))).forEach(([n,bal])=>{const b=el('button',null,'');b.append(el('b',null,n.name),el('span',null,short(bal)+(n.price_xrp?' · ≈'+short(bal*n.price_xrp)+' XRP':'')));b.onclick=()=>c.showInfo({node:n});bagBody.append(b)});
-  bagBtn.hidden=false;bagBtn.setAttribute('aria-expanded','false');setBag(localStorage.bc_bagOpen==='1');setFilter(!bagList.hidden&&localStorage.bc_bagFilter==='1')}
+  bagBtn.hidden=false;bagBtn.setAttribute('aria-expanded','false');setBag(localStorage.bc_bagOpen==='1');setFilter(localStorage.bc_bagFilter==='1');bagAmm(acct,lines)}
+// AMM LP positions: LP-token trust lines (currency code starts with 0x03) -> amm_info on that AMM account -> my share + underlying amounts
+const curName=(cur,iss)=>{if(!cur||cur==='XRP')return 'XRP';const n=c.E.nodes.find(n=>n.key===iss+'-'+cur||n.key===iss+'-'+hexCur(cur));return n?n.name:hexCur(cur)};
+const amt=a=>typeof a==='string'?{cur:'XRP',v:+a/1e6}:{cur:curName(a.currency,a.issuer),v:+a.value};
+async function bagAmm(acct,lines){const lp=lines.filter(l=>/^03/.test(l.currency)&&l.currency.length===40&&+l.balance>0).slice(0,20);if(!lp.length)return;
+  const sec=el('div','bamm');sec.append(el('div','bah','AMM pools · '+lp.length));bagBody.append(sec);
+  for(const l of lp){try{const r=await RPC('amm_info',{amm_account:l.account,ledger_index:'validated'}),a=r.amm;if(!a)continue;const tot=+a.lp_token.value,sh=tot>0?+l.balance/tot:0,A=amt(a.amount),B=amt(a.amount2);
+    const px=x=>x.cur==='XRP'?1:(c.N[x.cur]&&c.N[x.cur].price_xrp)||null,xa=px(A),xb=px(B),xrp=(xa!=null&&xb!=null)?sh*(A.v*xa+B.v*xb):(xa===1?2*sh*A.v:xb===1?2*sh*B.v:null);
+    const br=c.bridges.find(b=>b.p.amm===l.account),b=el('button',null,'');b.append(el('b',null,`${A.cur}⇄${B.cur}`),el('span',null,`${(sh*100).toFixed(sh<.0001?4:2)}% · ${short(sh*A.v)} ${A.cur} + ${short(sh*B.v)} ${B.cur}${xrp!=null?' · ≈'+short(xrp)+' XRP':''}`));
+    if(br){b.onclick=()=>c.showInfo({pool:br.p});br.mine=true}sec.append(b)}catch(e){}}}
 bagLoad();addEventListener('storage',e=>{if(e.key==='bcAcct')bagLoad()});
 
 // ---------- 5) daily recap (real data only, once per Phoenix day) ----------

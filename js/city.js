@@ -58,7 +58,7 @@ const GOLD=new THREE.Color(0xffb020);function drawInst(t){const I=inst();let n=0
     I.body.setMatrixAt(n,_m4);I.body.setColorAt(n,_dk.clone().lerp(p.g.userData.color,.35));I.glow.setMatrixAt(n,_m4);I.glow.setColorAt(n,p.k?GOLD:p.g.userData.color);
     _q4.setFromAxisAngle(_y4,(p.r||0)+t*25);_m4.compose(_v,_q4,_s4);I.rot.setMatrixAt(n,_m4);n++}
   for(const k in I){I[k].count=n;I[k].instanceMatrix.needsUpdate=true;if(I[k].instanceColor)I[k].instanceColor.needsUpdate=true}}
-function upsert(id,name,guest,x,y,z,r){if(id===myId)return;let p=peers.get(id);
+function upsert(id,name,guest,x,y,z,r){if(id===myId||!W()||!W().S)return;let p=peers.get(id);
   if(!p){const color=colOf(name);const tag=el('div','ptag');tag.style.setProperty('--c','#'+color.toString(16).padStart(6,'0'));const nm=el('span','pn',guest?'visitor':'✓ '+(/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(name)?name.slice(0,5)+'…'+name.slice(-4):name.length>14?name.slice(0,13)+'…':name));tag.append(nm);layer.append(tag);
     p={id,name,g:mkMarker(color),tag,bub:null,bubT:0,tx:x,ty:y,tz:z};p.g.position.set(x,y,z);peers.set(id,p);setNft(p)}
   p.tx=x;p.ty=y;p.tz=z;p.r=r;p.seen=Date.now()}

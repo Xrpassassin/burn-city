@@ -141,14 +141,28 @@ $('#exit').onclick = e => { e.stopPropagation(); leave(); };
 document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => start(b.dataset.m));
 $('#dailyBtn').onclick = () => start('zombie', null, '&daily=1');
 if (P.get('daily') === '1') setTimeout(() => start('zombie', null, '&daily=1'), 600);
+// pre-game lobby screen (server sends lobby_state about once a second while a match is waiting)
+const lobbyEl = document.createElement('div'); lobbyEl.id = 'lobbyUI'; lobbyEl.hidden = true;
+lobbyEl.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,380px);max-height:80vh;overflow:auto;z-index:40;background:#0a0d18f2;border:1px solid #ff7a1866;border-radius:14px;padding:14px;color:#eef;font:14px system-ui;box-shadow:0 0 30px #ff7a1833';
+document.body.append(lobbyEl);
+function hideLobby() { lobbyEl.hidden = true }
+function showLobby(e) { lobbyEl.hidden = false; const game = mode === 'tron' ? '🏍 Light Cycles' : '🧟 Zombies';
+  const rows = e.players.map(p => `<div style="display:flex;justify-content:space-between;padding:5px 8px;margin:3px 0;border-radius:8px;background:#ffffff0d"><span>${p.id === net?.me ? '⭐ ' : ''}${String(p.name).replace(/[<>&]/g, '')}${p.look && p.look.nft ? ' · 🎭' : ''}</span>${e.ranked ? `<b style="color:${p.pay === 'confirmed' ? '#5aff9a' : '#ffcc55'}">${p.pay === 'confirmed' ? '✓ paid (on-ledger)' : '⏳ payment pending'}</b>` : ''}</div>`).join('');
+  const cd = e.countdown != null ? `<div style="font-size:22px;font-weight:800;color:#ff9a3c;text-align:center">Starting in ${e.countdown}…</div>` : e.autoIn != null ? `<div style="text-align:center">Auto-start in <b>${e.autoIn}s</b> · others can still join</div>` : `<div style="text-align:center;opacity:.8">Waiting for players (min ${e.min})</div>`;
+  lobbyEl.innerHTML = `<h3 style="margin:0 0 4px">${game} lobby${e.ranked ? ' · Ranked' : ''}</h3><div style="opacity:.8;margin-bottom:6px">Players <b>${e.n}/${e.max}</b> · match ${String(e.id || '').slice(0, 10)}</div>${rows}${cd}
+    ${e.ranked ? '<div style="font-size:12px;opacity:.7;margin-top:6px">Ranked: the match starts only when every entry is confirmed on the ledger. If the lobby expires unfilled, entries are refunded minus the 3.22% burn.</div>' : ''}
+    <button id="lbStart" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:1px solid #ff7a18;background:#3a1a06;color:#fff;font-weight:700" ${e.n >= e.min && e.countdown == null ? '' : 'disabled'}>Start now (host)</button>`;
+  lobbyEl.querySelector('#lbStart').onclick = () => net?.ws.readyState === 1 && net.ws.send(JSON.stringify({ t: 'start' })); }
+window.__lobbyTest = showLobby;
 function start(m, ranked = null, extra = '') {
-  leave(); lastOpen = 1; mode = m; $('#exit').hidden = false; const token = localStorage.bcToken || null;
+  leave(); hideLobby(); lastOpen = 1; mode = m; $('#exit').hidden = false; const token = localStorage.bcToken || null;
   $('#menu').hidden = true; $('#touch').style.display = mobile && mode === 'tron' ? 'block' : 'none'; $('#firebtn').hidden = !(mobile && mode === 'zombie'); $('#gear').hidden = mode !== 'zombie'; $('#fuel').hidden = $('#xh').hidden = $('#hint').hidden = mode !== 'zombie'; $('#tl').textContent = mode === 'tron' ? '◀' : 'MOVE'; $('#tr').textContent = mode === 'tron' ? '▶' : '🔥 FIRE';
   $('#hint').textContent = mode === 'tron' ? '' : mobile ? 'Left thumb: move (joystick appears where you touch) · right side: swipe to look · hold FIRE' : 'Click to lock mouse · mouse/Q/E or ←/→ to aim · WASD move · hold click or Space to fire';
   net = new GameNet(WS, mode, { token, look: owned, name: P.get('name') || 'runner', ranked, extra }).on('ranked_down', e => { if (e.id === net?.me) { overUntil = performance.now() + 36e5; overInfo = { ranked: true, wave: e.wave, kills: e.kills }; } }).on('ranked_result', e => { watchPayout(e.id); overUntil = performance.now() + 6000; overInfo = { ranked: true, result: e, kills: overInfo.kills }; }).on('round_result', e => { tronMsg(`Round ${e.round}: ${e.teams ? (e.teams.length ? e.teams.map(t => TEAMN[t - 1]).join(' & ') + ' team wins' : 'draw') : ''}${e.teams ? '' : e.winner != null ? esc(net?.roster.get(e.winner)?.name || 'rider') + ' survives' : 'draw'}${e.over ? '' : ' · next round soon'}`, 4000); })
     .on('match_over', e => { if (e.ranked) watchPayout(e.id); const mine = e.standings.find(s => s.id === net?.me); tronMsg(`🏁 MATCH OVER${e.winTeams?.length ? ' · ' + e.winTeams.map(t => TEAMN[t - 1]).join(' & ') + ' wins' : ''}${e.potXrp != null ? ' · pot ' + e.potXrp + ' XRP' : ''}<br><small>` + e.standings.slice(0, 8).map(s => `${s.rank}. ${esc(s.name)}${s.team ? ' (' + TEAMN[s.team - 1] + ')' : ''}${e.teams ? '' : ''}${s.prizeXrp ? ' → ' + s.prizeXrp + ' XRP' : ''}${s.review ? ' (review)' : ''}`).join('<br>') + (e.ranked ? '<br>Payouts are sent automatically · status below' : '<br>Back to the lobby for a rematch…') + '</small>', 7000); })
     .on('lobby', () => tronMsg('Lobby: pick teams, then the creator starts', 2500))
-    .on('match_start', () => tronMsg('GO!', 1200))
+    .on('lobby_state', showLobby).on('ranked_start', hideLobby)
+    .on('match_start', () => { hideLobby(); tronMsg('GO!', 1200) })
     .on('init', m => { if (mode === 'zombie' && m.map) { world?.dispose(); world = createCodWorld(scene, m.map, { low: LOW }); } })
     .on('wave', () => sfx.roundStart()).on('door', e => { sfx.door(); toast(`🚪 ${net.map?.zones[e.z ?? 0]?.n || 'Area'} opened`); lastOpen = e.open; })
     .on('nopts', e => e.id === net?.me && toast('Not enough points', 1200)).on('perkmax', e => e.id === net?.me && toast('Max 4 perks', 1200))

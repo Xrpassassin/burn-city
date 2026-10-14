@@ -14,7 +14,7 @@ export function initDrone(c,{color=0x3cf3ff,keys,tb,MOBILE}={}){
   const rots=[];[[1.1,1.1],[-1.1,1.1],[1.1,-1.1],[-1.1,-1.1]].forEach(([x,z],i)=>{const r=new THREE.Mesh(new THREE.BoxGeometry(1.3,.03,.12),new THREE.MeshBasicMaterial({color:0x99a,transparent:true,opacity:.55}));r.position.set(x,.25,z);rots.push(r)});
   const glow=new THREE.Mesh(new THREE.CircleGeometry(1.6,16),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));glow.rotation.x=-Math.PI/2;glow.position.y=-.25;
   const led=new THREE.PointLight(color,MOBILE?0:6,10,2);led.position.y=-.6;
-  const tilt=new THREE.Group();tilt.add(body,...rots,glow);if(!MOBILE)tilt.add(led);grp.add(tilt);grp.visible=false;c.S.add(grp);
+  const tilt=new THREE.Group();tilt.add(body,...rots,glow);if(!MOBILE)tilt.add(led);grp.add(tilt);tilt.visible=false;/* own drone hidden: clear first-person view; others still see a drone */grp.visible=false;c.S.add(grp);
   // speed trail: ring buffer of points
   const TN=48,tp=new Float32Array(TN*3),tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(tp,3));
   const trail=new THREE.Points(tg,new THREE.PointsMaterial({color,size:.9,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false}));trail.frustumCulled=false;trail.visible=false;c.S.add(trail);
@@ -38,6 +38,6 @@ export function initDrone(c,{color=0x3cf3ff,keys,tb,MOBILE}={}){
     grp.position.copy(C.position).addScaledVector(fwd,7).y-=2.2;grp.rotation.set(0,yaw,0);tilt.rotation.set(st.pitch,0,st.bank);
     const sp=st.race?(st.boost||keys.KeyF?40:26):12;rots.forEach((r,i)=>r.rotation.y=t*sp*(i%2?1:-1));glow.material.opacity=.4+.15*Math.sin(t*4);
     const fast=st.race&&Math.abs(f)>.2,tf=baseFov+(fast?(st.boost||keys.KeyF?18:10):0);if(Math.abs(C.fov-tf)>.05){C.fov+=(tf-C.fov)*Math.min(1,dt*4);C.updateProjectionMatrix()}
-    if(trail.visible){const i=(st.ti++%TN)*3;tp[i]=grp.position.x-fwd.x*1.2;tp[i+1]=grp.position.y;tp[i+2]=grp.position.z-fwd.z*1.2;tg.attributes.position.needsUpdate=true;trail.material.opacity=fast?.75:.25}};
+    if(trail.visible){const i=(st.ti++%TN)*3;tp[i]=C.position.x-fwd.x*2;tp[i+1]=C.position.y-3.2;tp[i+2]=C.position.z-fwd.z*2;tg.attributes.position.needsUpdate=true;trail.material.opacity=fast?.75:.25}};
   st.setColor=c=>{glow.material.color.set(c);led.color.set(c);trail.material.color.set(c)};if(window.__myColor!=null)st.setColor(window.__myColor);addEventListener('bc-mycolor',e=>st.setColor(e.detail));
   return st}

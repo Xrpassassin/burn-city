@@ -887,7 +887,8 @@ function burnImpact(b){const n=b.n,hit=b.to,hot=new THREE.Color(b.oc);
  else if(SHAKE.on)SHAKE.a=Math.max(SHAKE.a,.35)}
 function pulseFX(b,xrp){const s=take(FXP.sparks);s.t=0;s.b=b;s.dir=Math.random()<.5;s.k=Math.min(1,Math.log10(xrp/TRADE_MIN+1)/1.3);s.m.visible=true;b.pulse=Math.min(1,b.pulse+.6+.4*s.k)}
 function lockFX(b,L){b.lock={from:b.Lv,to:Math.max(b.Lv,L),t:0};const f=take(FXP.flashes);f.t=0;f.burn=0;f.m.material.color.set(0x9ffcff);f.m.position.copy(b.curve.getPoint(.5));f.m.visible=true}
-function bridgeLook(b){const L=b.Lv,minor=b.minor;if(b.actCol)b.solid.material.color.copy(b.actCol).multiplyScalar(.45+.75*L);else b.solid.material.color.set(0x3cf3ff).multiplyScalar(.15+.95*L);b.baseOp=minor?.25:.18+.75*L;b.core.material.opacity=minor?.3:.35+.65*L;b.solid.material.opacity=b.baseOp;if(b.flk)b.rail=Math.max(0,(1-L)/Math.max(.001,1-b.L))}
+function bridgeLook(b){const L=b.Lv,minor=b.minor;// neon is activity-only again (full intensity for every pool); locked share is shown by the gold Forever Rails layer
+ if(b.actCol)b.solid.material.color.copy(b.actCol);else b.solid.material.color.set(0x3cf3ff);b.baseOp=minor?.3:.85;b.core.material.opacity=minor?.4:.95;b.solid.material.opacity=b.baseOp;if(b.flk)b.rail=Math.max(0,(1-L)/Math.max(.001,1-b.L))}
 actScore();bridges.forEach(b=>{b.baseOp=b.solid.material.opacity});
 {let af=0;anim.push(t=>{if(MOBILE&&(af++%3))return;for(const b of bridges){if(b.act==null||!b.group.visible)continue;const k=b.act,sp=.6+4.4*k*k;b.core.material.color.copy(b.actCol).lerp(WHITE_C,.55);b.core.material.opacity=(b.minor?.3:.35+.65*b.Lv)*(.55+.45*(.5+.5*Math.sin(t*sp+b.r*7)))}})}
 

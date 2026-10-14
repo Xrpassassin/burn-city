@@ -6,26 +6,27 @@ const box = (w, h, d, x, y, z, ry = 0) => { const g = new THREE.BoxGeometry(w, h
 export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [] }) {
   // pick the emptiest direction: farthest (in angle) from every district tower and gate
   const pts = nodes.filter(n => n.pos && n.pos.length() > 60).map(n => Math.atan2(n.pos.z, n.pos.x)).concat(avoid.map(p => Math.atan2(p.z, p.x)));
-  let best = 0, bestD = -1; for (let k = 0; k < 144; k++) { const a = k / 144 * Math.PI * 2 - Math.PI; let d = 9; for (const b of pts) d = Math.min(d, Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI)); const back = window.__lakePref ?? -2.6, off = Math.abs(((a - back + Math.PI * 3) % (Math.PI * 2)) - Math.PI); if (off > 0.7) continue; d -= off * 0.15; if (d > bestD) { bestD = d; best = a; } }
+  let best = 0, bestD = -1; for (let k = 0; k < 144; k++) { const a = k / 144 * Math.PI * 2 - Math.PI; let d = 9; for (const b of pts) d = Math.min(d, Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI)); const back = window.__lakePref ?? -1.1, off = Math.abs(((a - back + Math.PI * 3) % (Math.PI * 2)) - Math.PI); if (off > 0.7) continue; d -= off * 0.15; if (d > bestD) { bestD = d; best = a; } }
   const maxR = Math.max(0, ...nodes.filter(n => n.pos).map(n => n.pos.length() + (n.w || 6) * 2));
   const dir = new THREE.Vector3(Math.cos(best), 0, Math.sin(best)), side = new THREE.Vector3(-dir.z, 0, dir.x), yaw = Math.atan2(dir.x, dir.z);
   // on-ramp: starts ON the outer ring street of the district that faces the lake, then runs straight out (parallel to dir)
   const hub = nodes.filter(n => n.pos && !n.minor && n.distR).sort((a, b) => b.pos.dot(dir) - a.pos.dot(dir))[0];
   const cityEdge = hub ? hub.pos.clone().setY(0).addScaledVector(dir, hub.distR * 0.98) : dir.clone().multiplyScalar(maxR);
-  const LR = 120, k0 = maxR - cityEdge.dot(dir) + 18, lakeC = cityEdge.clone().addScaledVector(dir, k0 + LR), lotC = cityEdge.clone().addScaledVector(dir, k0 + LR * 2 + 95);
+  // long waterway perpendicular to the city->Estates axis: city waterfront on one bank, Estates on the other
+  const WW = 70, WL = 760, LR = WL / 2, k0 = Math.max(10, maxR - cityEdge.dot(dir) + 6), lakeC = cityEdge.clone().addScaledVector(dir, k0 + WW / 2), lotC = cityEdge.clone().addScaledVector(dir, k0 + WW + 26 + 65);
   const G = new THREE.Group(); S.add(G);
   // ---------- lake: animated shader, fake shimmer + streaks of city light ----------
   const water = new THREE.ShaderMaterial({ fog: true, transparent: false, uniforms: { ...THREE.UniformsUtils.merge([THREE.UniformsLib.fog]), t: U.t, day: U.day, cdir: { value: new THREE.Vector2(-dir.x, -dir.z) } },
-    vertexShader: `varying vec2 vP; varying vec3 vW;
+    vertexShader: `varying vec2 vP; varying vec3 vW; varying vec2 vUv;
 #include <fog_pars_vertex>
-void main(){ vP=position.xy; vec4 mvPosition=modelViewMatrix*vec4(position,1.); vW=(modelMatrix*vec4(position,1.)).xyz; gl_Position=projectionMatrix*mvPosition;
+void main(){ vP=position.xy; vUv=uv; vec4 mvPosition=modelViewMatrix*vec4(position,1.); vW=(modelMatrix*vec4(position,1.)).xyz; gl_Position=projectionMatrix*mvPosition;
 #include <fog_vertex>
 }`,
-    fragmentShader: `uniform float t,day; uniform vec2 cdir; varying vec2 vP; varying vec3 vW;
+    fragmentShader: `uniform float t,day; uniform vec2 cdir; varying vec2 vP; varying vec3 vW; varying vec2 vUv;
 #include <fog_pars_fragment>
 float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
-void main(){ float r=length(vP)/${LR.toFixed(1)}; vec2 p=vW.xz*.08;
+void main(){ float r=max(abs(vUv.y*2.-1.),smoothstep(.9,1.,abs(vUv.x*2.-1.))); vec2 p=vW.xz*.08;
   float w=n(p+vec2(t*.25,t*.18))*.6+n(p*2.3-vec2(t*.4,-t*.3))*.4;
   vec3 deep=mix(vec3(.03,.16,.3),vec3(.1,.4,.6),day), col=deep+vec3(.04,.12,.16)*w;
   float along=dot(normalize(vW.xz+vec2(1e-3)),cdir); float across=dot(vW.xz,vec2(-cdir.y,cdir.x));
@@ -36,12 +37,14 @@ void main(){ float r=length(vP)/${LR.toFixed(1)}; vec2 p=vW.xz*.08;
 #include <fog_fragment>
  gl_FragColor.rgb=mix(gl_FragColor.rgb,col,.6);
 }` });
-  const lake = new THREE.Mesh(new THREE.CircleGeometry(LR, low ? 48 : 96), water); lake.rotation.x = -Math.PI / 2; lake.position.set(lakeC.x, 0.06, lakeC.z); lake.renderOrder = 1; G.add(lake);
-  const shore = new THREE.Mesh(new THREE.RingGeometry(LR - 0.5, LR + 10, low ? 48 : 96), new THREE.MeshBasicMaterial({ color: 0x5a4a34 })); shore.rotation.x = -Math.PI / 2; shore.position.set(lakeC.x, 0.05, lakeC.z); G.add(shore);
-  const edge = new THREE.Mesh(new THREE.RingGeometry(LR - 1.2, LR + 0.4, low ? 48 : 96), new THREE.MeshBasicMaterial({ color: 0x6fe8ff, transparent: true, opacity: 0.75, fog: false })); edge.rotation.x = -Math.PI / 2; edge.position.set(lakeC.x, 0.08, lakeC.z); G.add(edge);
+  const along = Math.atan2(-dir.x, -dir.z), wseg = low ? 1 : 1;
+  const lake = new THREE.Mesh(new THREE.PlaneGeometry(WL, WW, wseg, wseg), water); lake.rotation.set(-Math.PI / 2, 0, along); lake.position.set(lakeC.x, 0.06, lakeC.z); lake.renderOrder = 1; G.add(lake);
+  const shore = new THREE.Mesh(new THREE.PlaneGeometry(WL + 16, WW + 20), new THREE.MeshBasicMaterial({ color: 0x5a4a34 })); shore.rotation.set(-Math.PI / 2, 0, along); shore.position.set(lakeC.x, 0.04, lakeC.z); G.add(shore);
+  const edgeG = mergeGeometries([new THREE.PlaneGeometry(WL, 1.4).translate(0, WW / 2, 0), new THREE.PlaneGeometry(WL, 1.4).translate(0, -WW / 2, 0)]);
+  const edge = new THREE.Mesh(edgeG, new THREE.MeshBasicMaterial({ color: 0x6fe8ff, transparent: true, opacity: 0.75, fog: false })); edge.rotation.set(-Math.PI / 2, 0, along); edge.position.set(lakeC.x, 0.08, lakeC.z); G.add(edge);
   // ---------- highway + bridge (one merged mesh) + guide-light strip ----------
-  const bridgeH = 4, RL = 18, seg = [];   // road along +z in local space; constant height, gentle ramps only at the bridge
-  const toLake0 = lakeC.distanceTo(cityEdge) - LR - 4, toLake1 = toLake0 + LR * 2 + 8, roadLen = cityEdge.distanceTo(lotC) - 70, Y0 = 0.2;
+  const bridgeH = 3, RL = 16, seg = [];   // road along +z in local space; constant height, gentle ramps only at the bridge
+  const toLake0 = k0 - 6, toLake1 = k0 + WW + 6, roadLen = cityEdge.distanceTo(lotC) - 70, Y0 = 0.2;
   const ys = z => z < toLake0 - RL || z > toLake1 + RL ? Y0 + 0.15 : z < toLake0 ? Y0 + 0.15 + (z - toLake0 + RL) / RL * bridgeH : z > toLake1 ? Y0 + 0.15 + (toLake1 + RL - z) / RL * bridgeH : Y0 + 0.15 + bridgeH;
   const flat = (z0, z1, y) => seg.push(box(14, 0.3, z1 - z0, 0, y, (z0 + z1) / 2));
   const ramp = (z0, z1, up) => { const len = Math.hypot(z1 - z0, bridgeH), g = new THREE.BoxGeometry(14, 0.3, len); g.rotateX((up ? -1 : 1) * Math.atan2(bridgeH, z1 - z0)); seg.push(g.translate(0, Y0 + bridgeH / 2, (z0 + z1) / 2)); };

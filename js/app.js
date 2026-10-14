@@ -765,18 +765,40 @@ function groundAt(x,z,y){let g=0;for(const c of colliders){if(c.h<=y+.35&&c.h>g&
 function wet(x,z){const es=window.__estate;if(!es||!es.inLake(x,z))return false;if(window.__deckAt&&window.__deckAt(x,z)!=null)return false;const ce=es.cityEdge,dr=es.dir;if(ce&&dr&&Math.abs((x-ce.x)*dr.z-(z-ce.z)*dr.x)<7.5)return false;return true}
 function collide(p){for(const c of colliders){if(p.y>=c.h-.05)continue;const dx=p.x-c.x,dz=p.z-c.z,m=c.r+.38;if(Math.abs(dx)>m||Math.abs(dz)>m)continue;const d=Math.hypot(dx,dz);if(d<m){const k=(m-d)/(d||1);p.x+=dx*k;p.z+=dz*k}}}
 const dirOf=()=>_t.set(-Math.sin(yp.yaw)*Math.cos(yp.pitch),Math.sin(yp.pitch),-Math.cos(yp.yaw)*Math.cos(yp.pitch)).clone();
+// ---------- web shooters: Web mode on -> HOLD jump = attach to the best anchor ahead & above and swing; release = let go, keep momentum ----------
+const WEB={on:localStorage.bcWeb==='1',a:null,L:0,prev:false,cd:0,mom:new THREE.Vector3(),line:null};
+{const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);WEB.line=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.9}));WEB.line.frustumCulled=false;WEB.line.visible=false;S.add(WEB.line)}
+const webBtn=document.createElement('button');webBtn.id='webBtn';webBtn.textContent='🕸 Web';webBtn.style.cssText='position:fixed;right:12px;bottom:calc(400px + env(safe-area-inset-bottom));z-index:31;display:none;font:700 14px system-ui;padding:9px 13px;border-radius:12px;border:1px solid #ffffff66;background:#0b1220e0;color:#fff';document.body.append(webBtn);
+const webSet=v=>{WEB.on=v;localStorage.bcWeb=v?'1':'0';webBtn.style.background=v?'#e8f0ff':'#0b1220e0';webBtn.style.color=v?'#0b1220':'#fff';webBtn.setAttribute('aria-pressed',v);if(!v)webDrop()};webSet(WEB.on);
+webBtn.onclick=e=>{e.stopPropagation();webSet(!WEB.on)};addEventListener('keydown',e=>{if(e.code==='KeyQ'&&mode==='explore'&&document.activeElement?.tagName!=='INPUT'&&document.activeElement?.tagName!=='TEXTAREA')webSet(!WEB.on)});
+function webDrop(){if(WEB.a){WEB.mom.set(P.vel.x,0,P.vel.z)}WEB.a=null;WEB.line.visible=false}
+function webAnchor(){const f=V3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw));let best=null,bs=-1e9;for(const c of colliders){if(!c.r||c.h<P.pos.y+5)continue;const dx=c.x-P.pos.x,dz=c.z-P.pos.z,d=Math.hypot(dx,dz);if(d<4||d>80)continue;const dot=(dx*f.x+dz*f.z)/d;if(dot<.35)continue;
+  const y=Math.min(c.h-.5,P.pos.y+28),ax=c.x-dx/d*c.r,az=c.z-dz/d*c.r,dd=Math.hypot(ax-P.pos.x,y-P.pos.y,az-P.pos.z);if(dd>80)continue;if(y<P.pos.y+8)continue;const sc=dot*2-Math.abs(dd-32)/40+(y-P.pos.y)/25;if(sc>bs){bs=sc;best=V3(ax,y,az)}}return best}
+function webStep(dt,mv){webBtn.style.display=mode==='explore'&&!(window.__boat&&window.__boat.active)?'':'none';const held=!!(keys.Space||tb.jump),rise=held&&!WEB.prev;WEB.prev=held;WEB.cd=Math.max(0,WEB.cd-dt);
+  if(!WEB.on){if(WEB.a)webDrop();return false}
+  if(WEB.a&&!held){webDrop();WEB.cd=.4;P.vel.x=P.vel.z=0;return false}
+  if(!WEB.a&&rise&&WEB.cd<=0){const a=webAnchor();if(!a)return false;WEB.a=a;WEB.L=a.distanceTo(P.pos);P.vel.x=P.vel.x||mv.x;P.vel.z=P.vel.z||mv.z;{const t=a.clone().sub(P.pos).normalize();P.vel.addScaledVector(t,16);P.vel.y=Math.max(P.vel.y,7)}P.onGround=false;P.climb=null}
+  if(!WEB.a)return false;
+  // pendulum: gravity + a little steering + slow reel-in, then the rope constraint removes outward velocity
+  P.vel.y-=20*dt;P.vel.x+=mv.x*1.2*dt;P.vel.z+=mv.z*1.2*dt;WEB.L=Math.max(5,WEB.L-10*dt);
+  const ox=P.pos.x,oz=P.pos.z;P.pos.addScaledVector(P.vel,dt);if(wet(P.pos.x,P.pos.z)){P.pos.x=ox;P.pos.z=oz;P.vel.x*=-.3;P.vel.z*=-.3}
+  const r=P.pos.clone().sub(WEB.a),d=r.length();if(d>WEB.L){r.multiplyScalar(1/d);P.pos.copy(WEB.a).addScaledVector(r,WEB.L);const out=P.vel.dot(r);if(out>0)P.vel.addScaledVector(r,-out)}
+  const sp=P.vel.length();if(sp>40)P.vel.multiplyScalar(40/sp);
+  const la=WEB.line.geometry.attributes.position;la.setXYZ(0,P.pos.x,P.pos.y+1.4,P.pos.z);la.setXYZ(1,WEB.a.x,WEB.a.y,WEB.a.z);la.needsUpdate=true;WEB.line.visible=true;
+  if(P.vel.x||P.vel.z)avatar.rotation.y=Math.atan2(-P.vel.x,-P.vel.z);return true}
+window.__web={WEB,webSet,webAnchor};
 function updExplore(dt){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run?11:5;
  const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0)-joy.y,s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+joy.x;
  if(window.__boat&&window.__boat.active){const st=window.__boat.drive(dt,f,s);P.pos.copy(st);P.vel.set(0,0,0);P.onGround=true;P.climb=null;avatar.position.copy(st);avatar.rotation.y=window.__boat.cur.h;avatar.visible=true;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}
  const fw=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw)),rt=new THREE.Vector3(-fw.z,0,fw.x);const mv=fw.multiplyScalar(f).add(rt.multiplyScalar(s));const ml=Math.min(1,mv.length());
  if(ml>.05){mv.normalize().multiplyScalar(sp*ml);const ty=Math.atan2(-mv.x,-mv.z);let dy=ty-avatar.rotation.y;dy=Math.atan2(Math.sin(dy),Math.cos(dy));avatar.rotation.y+=dy*Math.min(1,dt*12)}
- const ox=P.pos.x,oz=P.pos.z;P.pos.x+=mv.x*dt;P.pos.z+=mv.z*dt;if(wet(P.pos.x,P.pos.z)){if(!wet(P.pos.x,oz))P.pos.z=oz;else if(!wet(ox,P.pos.z))P.pos.x=ox;else if(!wet(ox,oz)){P.pos.x=ox;P.pos.z=oz}}if((keys.Space||tb.jump)&&P.onGround){P.vel.y=7.5;P.onGround=false}P.vel.y-=20*dt;P.pos.y+=P.vel.y*dt;
+ if(!webStep(dt,mv)){ const ox=P.pos.x,oz=P.pos.z;P.pos.x+=mv.x*dt;P.pos.z+=mv.z*dt;if(wet(P.pos.x,P.pos.z)){if(!wet(P.pos.x,oz))P.pos.z=oz;else if(!wet(ox,P.pos.z))P.pos.x=ox;else if(!wet(ox,oz)){P.pos.x=ox;P.pos.z=oz}}if((keys.Space||tb.jump)&&P.onGround){P.vel.y=7.5;P.onGround=false}P.vel.y-=20*dt;P.pos.y+=P.vel.y*dt;if(WEB.mom.lengthSq()>.01){const wx=P.pos.x,wz=P.pos.z;P.pos.x+=WEB.mom.x*dt;P.pos.z+=WEB.mom.z*dt;if(wet(P.pos.x,P.pos.z)){P.pos.x=wx;P.pos.z=wz;WEB.mom.set(0,0,0)}if(P.onGround)WEB.mom.multiplyScalar(Math.pow(.01,dt))}}
  const g=groundAt(P.pos.x,P.pos.z,P.pos.y);if(P.pos.y<=g){P.pos.y=g;P.vel.y=0;P.onGround=true}else P.onGround=P.pos.y-g<.05;
  collide(P.pos);
  // climbing: push into a tower wall -> climb the face; jump/back off detaches; mantle at the roof edge
  {let cw=null;const fv=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw));if(f>.3)for(const c of colliders){if(!c.r||P.pos.y>=c.h-.05)continue;const dx=c.x-P.pos.x,dz=c.z-P.pos.z,d=Math.hypot(dx,dz);if(d<c.r+.6&&(dx*fv.x+dz*fv.z)/(d||1)>.3){cw=c;break}}
   if(cw&&(keys.Space||tb.jump)&&P.climb){P.climb=null;P.vel.y=5;const dx=P.pos.x-cw.x,dz=P.pos.z-cw.z,d=Math.hypot(dx,dz)||1;P.pos.x+=dx/d*1.2;P.pos.z+=dz/d*1.2;cw=null}
-  if(cw){P.climb=cw;P.vel.y=0;P.onGround=false;P.pos.y+=(run?4.5:3)*dt;P.walk+=dt*8;
+  if(cw){P.climb=cw;P.vel.y=0;P.onGround=false;P.pos.y+=(run?12:8.5)*dt;P.walk+=dt*20;
    if(P.pos.y>=cw.h-.05){const dx=cw.x-P.pos.x,dz=cw.z-P.pos.z,d=Math.hypot(dx,dz)||1;P.pos.y=cw.h;P.pos.x+=dx/d*1.4;P.pos.z+=dz/d*1.4;P.climb=null;P.onGround=true}}
   else P.climb=null}
  P.pos.x=Math.max(-900,Math.min(900,P.pos.x));P.pos.z=Math.max(-900,Math.min(900,P.pos.z));

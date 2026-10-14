@@ -13,11 +13,12 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 #hurt{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 120px #f00;opacity:0;transition:opacity .2s}</style>
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script></head><body>
 <button id="exit" hidden style="position:fixed;top:6px;right:8px;z-index:5;padding:8px 14px">✕ Menu</button><div id="hud"><span id="me" hidden style="padding:2px 8px;border-radius:6px;border:2px solid;font-weight:700"></span><span id="info"></span><span id="fuel" hidden><i></i></span></div>
-<div id="menu"><h2>🔥 BURN CITY ARENA</h2><button data-m="tron">Light Cycles</button><button data-m="zombie">Zombie Survival</button>
+<div id="menu"><h2>🔥 BURN CITY ARENA</h2><button data-m="tron">Light Cycles</button><div class="small"><b>🧟 Zombie Survival</b></div><button data-m="zombie">Free Play</button>
+<div id="ranked" class="small" style="border:1px solid #f604;border-radius:10px;padding:8px 12px;max-width:340px"><b>🏆 Ranked Matches</b> <span id="rkstat"></span><br><span id="rkinfo"></span><div id="rkbtn"></div><div id="rklb"></div><a href="rules.html" style="color:#ffb060">Ranked rules</a></div>
 <a href="../" class="small" style="color:#ffb060">← Back to Burn City</a><div class="small">Free to play. <button id="signin">Sign in with XAMAN</button></div>
 <div id="price" class="small"></div><div id="qr"></div><div id="shop" class="small"></div><div id="lb" class="small"></div>
 <div class="small">Cosmetics only, never stronger. 32.2% of every sale is burned as BURN. Weekly IMG leaderboard prizes need no purchase.</div></div>
-<div id="touch"><div id="tl" style="left:20px"></div><div id="tr" style="right:20px"></div></div><div id="xh" hidden></div><div id="hurt"></div><div id="over" hidden></div><div id="hint" hidden></div>
+<div id="touch"><div id="tl" style="left:20px"></div><div id="tr" style="right:20px"></div></div><div id="xh" hidden></div><div id="hurt"></div><div id="over" hidden></div><div id="hint" hidden></div><button id="rkstart" hidden style="position:fixed;left:50%;top:60%;transform:translateX(-50%);z-index:6">▶ Start match</button>
 <script type="module">
 import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js';
 const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
@@ -33,6 +34,31 @@ async function loadShop() {
   const lb = await (await fetch(API + '/api/leaderboard')).json();
   $('#lb').innerHTML = `<b>Week ${lb.week}</b><br>` + lb.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 6)}… ${e.kills} kills`).join('<br>');
 }
+async function loadRanked() {
+  try { const k = await (await fetch(API + '/api/ranked')).json(), x = v => (+v).toFixed(2);
+    $('#rkstat').textContent = k.live ? (k.dryRun ? '· test mode' : '· LIVE') : '· coming soon (not live)';
+    $('#rkinfo').innerHTML = `Pick a match, pay its buy-in in XAMAN, and get the most kills.${k.burnPct > 0 ? ` ${k.burnPct}% of each buy-in is burned as BURN.` : ''} The rest is that match's pot: 1 player 100% · 2 players 62.5/37.5 · 3+ players 50/30/20.`;
+    const open = k.open.length ? k.open.map(m => `<div>${m.buyinXrp} XRP buy-in · ${m.paid} player${m.paid === 1 ? '' : 's'} · pot ${x(m.potXrp)} XRP ${k.live ? `<button data-join="${m.id}" data-b="${m.buyinXrp}">Join · ${m.buyinXrp} XRP</button>` : ''}</div>`).join('') : '<div>No open matches right now</div>';
+    $('#rkbtn').innerHTML = '<b>Open matches</b>' + open + (k.live ? `<div>Create a match: buy-in <input id="rkb" type="number" min="${k.minBuyinXrp}" max="${k.maxBuyinXrp}" step="0.1" value="${k.minBuyinXrp}" style="width:70px"> XRP (${k.minBuyinXrp}-${k.maxBuyinXrp}) <button id="rkgo">Create</button></div>` : '');
+    $('#rkbtn').querySelectorAll('[data-join]').forEach(b => b.onclick = () => confirm(`Join this match for ${b.dataset.b} XRP?`) && enterRanked({ match: b.dataset.join }));
+    $('#rklb').innerHTML = k.recent.length ? '<b>Recent matches</b><br>' + k.recent.map(m => `${x(m.potXrp)} XRP pot · ` + m.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 6)}… ${e.kills}k ${x(e.prizeXrp)}`).join(' · ')).join('<br>') : 'No ranked matches finished yet';
+    if ($('#rkgo')) $('#rkgo').onclick = () => { const b = +$('#rkb').value; if (b >= k.minBuyinXrp && b <= k.maxBuyinXrp && confirm(`Create a match with a ${b} XRP buy-in? You pay it now.`)) enterRanked({ create: true, buyinXrp: b }); else if (!(b >= k.minBuyinXrp && b <= k.maxBuyinXrp)) $('#price').textContent = `Buy-in must be ${k.minBuyinXrp}-${k.maxBuyinXrp} XRP`; };
+  } catch { $('#rkstat').textContent = '· unavailable'; }
+}
+async function enterRanked(opts) {
+  if (!localStorage.bcToken) return $('#price').textContent = 'Sign in with XAMAN first (your wallet = your ranked account)';
+  const h = { authorization: 'Bearer ' + localStorage.bcToken };
+  const e = await (await fetch(API + '/api/ranked/enter', { method: 'POST', headers: h, body: JSON.stringify(opts) })).json();
+  if (e.error) return $('#price').textContent = 'Ranked: ' + e.error.replace(/_/g, ' ');
+  if (e.xaman) { qr(e.xaman); if (/iPhone|Android/i.test(navigator.userAgent)) location.href = e.xaman.deeplink; }
+  $('#price').textContent = 'Sign the entry payment in XAMAN. Waiting for the ledger…';
+  for (let i = 0; i < 100; i++) { await new Promise(r => setTimeout(r, 3000));
+    const v = await (await fetch(API + '/api/ranked/verify', { method: 'POST', headers: h, body: JSON.stringify({ sid: e.sid }) })).json();
+    if (v.ok) { $('#qr').innerHTML = ''; $('#price').textContent = 'Buy-in verified on-ledger. Good luck!'; return start('zombie', v.ticket); }
+    if (!['no_tx', 'not_validated_yet', 'tx_not_found'].includes(v.reason)) return $('#price').textContent = 'Entry not accepted: ' + v.reason; }
+  $('#price').textContent = 'Entry timed out';
+}
+loadRanked(); setInterval(() => $('#menu').hidden || loadRanked(), 30000);
 loadShop(); $('#price').textContent = localStorage.bcAcct ? 'Signed in ' + localStorage.bcAcct.slice(0, 8) + '…' : 'Playing as guest (not on leaderboard)';
 $('#signin').onclick = async () => { try { const v = await signIn(API, { onQr: qr }); $('#qr').innerHTML = ''; $('#price').textContent = 'Signed in ' + v.account.slice(0, 8) + '…'; loadShop(); } catch (e) { $('#price').textContent = e.message; } };
 const r = new THREE.WebGLRenderer({ antialias: !mobile, powerPreference: 'high-performance' });
@@ -51,17 +77,19 @@ function leave(msg) {               // full teardown so the next mode (or the ci
   for (const w of walls.values()) { scene.remove(w); w.geometry.dispose(); w.material.dispose(); } walls.clear();
   for (const t of tags.values()) { scene.remove(t); t.material.map.dispose(); t.material.dispose(); } tags.clear();
   zMesh.count = 0; others.count = 0; flame.visible = false;
-  for (const k of ['#xh', '#hint', '#over', '#fuel', '#me', '#exit']) $(k).hidden = true; $('#hurt').style.opacity = 0;
+  for (const k of ['#xh', '#hint', '#over', '#fuel', '#me', '#exit', '#rkstart']) $(k).hidden = true; $('#hurt').style.opacity = 0;
   $('#touch').style.display = 'none'; $('#info').textContent = ''; $('#menu').hidden = false; if (msg) $('#price').textContent = msg;
 }
+$('#rkstart').onclick = e => { e.stopPropagation(); net?.ws.readyState === 1 && net.ws.send(JSON.stringify({ t: 'start' })); };
 $('#exit').onclick = e => { e.stopPropagation(); leave(); };
-document.querySelectorAll('[data-m]').forEach(b => b.onclick = async () => {
-  leave(); mode = b.dataset.m; $('#exit').hidden = false; const token = localStorage.bcToken || null;
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => start(b.dataset.m));
+function start(m, ranked = null) {
+  leave(); mode = m; $('#exit').hidden = false; const token = localStorage.bcToken || null;
   $('#menu').hidden = true; $('#touch').style.display = mobile ? 'block' : 'none'; $('#fuel').hidden = $('#xh').hidden = $('#hint').hidden = mode !== 'zombie'; $('#tl').textContent = mode === 'tron' ? '◀' : 'MOVE'; $('#tr').textContent = mode === 'tron' ? '▶' : '🔥 FIRE';
   $('#hint').textContent = mode === 'tron' ? '' : mobile ? 'Drag anywhere to aim · hold MOVE to walk · hold FIRE to burn' : 'Click to lock mouse · mouse/Q/E or ←/→ to aim · WASD move · hold click or Space to fire';
-  net = new GameNet(WS, mode, { token, look: owned, name: P.get('name') || 'runner' }).on('gameover', e => { overUntil = performance.now() + (e.in || 5) * 1000; overInfo = e; }).on('close', why => leave('Disconnected ' + (why || '')));
+  net = new GameNet(WS, mode, { token, look: owned, name: P.get('name') || 'runner', ranked }).on('ranked_down', e => { if (e.id === net?.me) { overUntil = performance.now() + 36e5; overInfo = { ranked: true, wave: e.wave, kills: e.kills }; } }).on('ranked_result', e => { overUntil = performance.now() + 6000; overInfo = { ranked: true, result: e, kills: overInfo.kills }; }).on('gameover', e => { overUntil = performance.now() + (e.in || 5) * 1000; overInfo = e; }).on('close', why => leave('Disconnected ' + (why || '')));
   if (mode === 'zombie' && !mobile) r.domElement.requestPointerLock?.()?.catch?.(() => {});
-});
+}
 // ---- input: keyboard/mouse on PC, two thumb zones on phones ----
 addEventListener('keydown', e => { keys[e.code] = 1; if (mode === 'tron' && !e.repeat) { if (/KeyA|ArrowLeft/.test(e.code)) net?.input({ turn: -1 }); if (/KeyD|ArrowRight/.test(e.code)) net?.input({ turn: 1 }); } });
 addEventListener('keyup', e => keys[e.code] = 0);
@@ -131,10 +159,10 @@ r.setAnimationLoop(() => {
         for (let i = 0; i < 30; i++) { const d = 1 + Math.random() * 8, s = (Math.random() - 0.5) * d * 0.6; a[i * 3] = me.x + fx * d + fz * s; a[i * 3 + 1] = 1.2 + (Math.random() - 0.5) * 0.6; a[i * 3 + 2] = me.z + fz * d - fx * s; }
         flame.geometry.attributes.position.needsUpdate = true;
         $('#fuel').firstChild.style.width = me.fuel + '%'; }
-      $('#info').textContent = `Wave ${st.wave} · Zombies ${st.zombies.length} · Score ${st.score} · HP ${me ? me.hp : 0}`;
+      const rk = net.buf.at(-1)?.rk; $('#rkstart').hidden = !(rk && rk[0] === 'lobby' && !rk[1]); $('#info').textContent = rk && rk[0] === 'lobby' ? `🏆 Ranked lobby · ${rk[2]} player${rk[2] === 1 ? '' : 's'} here · ${rk[1] ? 'starting in ' + rk[1] + 's' : 'waiting for the creator to start'}` : `${rk ? '🏆 Ranked · ' : ''}Wave ${st.wave} · Zombies ${st.zombies.length} · Score ${st.score} · HP ${me ? me.hp : 0}`;
       if (me) { $('#hurt').style.opacity = me.alive && me.hp < lastHp ? 0.8 : 0; lastHp = me.hp; }
-      const ov = $('#over'); if (overUntil > now) { ov.hidden = false; ov.innerHTML = `💀 GAME OVER<br><small>Wave ${overInfo.wave} · Score ${overInfo.score}<br>New run in ${Math.ceil((overUntil - now) / 1000)}s</small>`; }
-      else if (me && !me.alive) { ov.hidden = false; ov.innerHTML = '💀 YOU\'RE DOWN<br><small>Back in at the next wave</small>'; } else ov.hidden = true;
+      const ov = $('#over'); if (overUntil > now) { ov.hidden = false; ov.innerHTML = overInfo.ranked ? (overInfo.result ? `🏆 MATCH OVER · pot ${overInfo.result.potXrp} XRP<br><small>` + overInfo.result.standings.slice(0, 8).map(r => `${r.rank}. ${r.acct.slice(0, 6)}… ${r.kills} kills${r.prizeXrp ? ' → ' + r.prizeXrp + ' XRP' : ''}${r.review ? ' (review)' : ''}`).join('<br>') + '<br>Payouts are sent after admin review</small>' : `💀 YOU'RE OUT · ${overInfo.kills} kills<br><small>Waiting for the match to finish…</small>`) : `💀 GAME OVER<br><small>Wave ${overInfo.wave} · Score ${overInfo.score}<br>New run in ${Math.ceil((overUntil - now) / 1000)}s</small>`; }
+      else if (me && !me.alive && !rk) { ov.hidden = false; ov.innerHTML = '💀 YOU\'RE DOWN<br><small>Back in at the next wave</small>'; } else ov.hidden = true;
     }
   }
   r.render(scene, cam);

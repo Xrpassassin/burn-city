@@ -21,10 +21,10 @@ export async function buy(api, item, { onQr } = {}) {
   throw new Error('timeout');
 }
 export class GameNet {
-  constructor(wsUrl, mode, { token, name, look = [], delay = 110 } = {}) {
+  constructor(wsUrl, mode, { token, name, look = [], delay = 110, ranked = null } = {}) {
     this.roster = new Map();
     this.buf = []; this.delay = delay; this.trails = new Map(); this.handlers = {}; this.mode = mode; this.offset = null;
-    const u = `${wsUrl}/?mode=${mode}&name=${encodeURIComponent(name || 'runner')}${token ? '&token=' + token : ''}&look=${look.join(',')}`;
+    const u = `${wsUrl}/?mode=${mode}&name=${encodeURIComponent(name || 'runner')}${token ? '&token=' + token : ''}&look=${look.join(',')}${ranked ? '&ranked=' + ranked : ''}`;
     this.ws = new WebSocket(u);
     this.ws.onmessage = e => this.msg(JSON.parse(e.data));
     this.ws.onclose = e => this.emit('close', e.reason);

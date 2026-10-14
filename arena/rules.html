@@ -1,0 +1,52 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Burn City Ranked Matches: Rules</title><link rel="icon" href="../icons/icon-192.png">
+<style>body{margin:0;background:#050208;color:#ffd9a0;font:15px/1.55 system-ui;padding:20px;max-width:760px;margin:auto}h1,h2{color:#ffb060;text-shadow:0 0 8px #f60}a{color:#ffb060}
+.box{border:1px solid #f606;border-radius:10px;padding:10px 14px;margin:12px 0;background:#ff66000d}.warn{border-color:#ff2a00}table{border-collapse:collapse}td{padding:2px 10px 2px 0}</style></head><body>
+<a href="./">← Back to the Arena</a>
+<h1>🏆 Ranked Matches: Rules</h1>
+<div class="box" id="live">Loading live status…</div>
+<h2>What it is</h2>
+<p>The arena's Zombie Survival has two options. <b>Free Play</b> costs nothing and has no prizes. <b>Ranked Matches</b> are optional, <b>skill-based</b> matches with a buy-in. Each match is its own contest: its pot is made only of the buy-ins paid by the players in that match.</p>
+<h2>Creating and joining a match</h2>
+<ul><li>Whoever creates a match picks the buy-in per player, anywhere from <b><span class="minb">0.2</span> to <span class="maxb">25</span> XRP</b>. The creator pays that buy-in too.</li>
+<li>Everyone can see the open matches with their buy-in and player count. To join, you pay that match's buy-in.</li>
+<li>You sign every payment yourself in XAMAN. We never sign for you or touch your keys. Each payment has its own destination tag and memo, and you can only play after the server sees your payment validated on the XRP Ledger.</li>
+<li>A match can start with just <b>1 player</b>. The creator presses Start; if the creator isn't in the lobby, anyone in it can start after 2 minutes. A match holds up to 8 players.</li>
+<li><b>Nobody can join once the round has started.</b></li>
+<li>One buy-in = one match = one life. If you disconnect, you're out, and the kills you had so far still count.</li>
+<li>Your XAMAN wallet is your account. One account per wallet, one open match at a time, and a limit on buy-ins per hour.</li></ul>
+<h2>Burn, pot and payout</h2>
+<ul><li id="burnline"><b><span class="burn">3.22</span>%</b> of every buy-in is swapped to BURN and sent to the BURN issuer, which permanently burns it. Burns are batched and every batch is listed in the public <a href="https://burn-city-game.fly.dev/burns">burn log</a>.</li>
+<li>The rest of every buy-in is the match pot. A tiny network-fee reserve (100 drops = 0.0001 XRP per payout transaction) comes out of the pot, and the rest is split by <b>zombie kills in that match</b>:
+<table><tr><td>1 player</td><td>100% (you get your buy-in back minus the burn and fee)</td></tr>
+<tr><td>2 players</td><td>62.5% / 37.5% (the 50/30 weights scaled up to 100%)</td></tr>
+<tr><td>3 or more</td><td>1st 50% · 2nd 30% · 3rd 20%, and 4th place and below get nothing</td></tr></table></li>
+<li>A player with 0 kills still gets the prize for their place.</li>
+<li id="example"></li>
+<li>Payouts come only from that match's buy-ins. The project never adds to a pot or pays out more than the match collected.</li></ul>
+<h2>Ties</h2>
+<p>Ties are broken in a fixed order: most kills, then whoever survived longer, then whoever's buy-in was verified first, then wallet address in alphabetical order.</p>
+<h2>Refunds</h2>
+<ul><li>If a match never starts within <b><span class="lobbymin">30</span> minutes</b> of being created, every player's buy-in is refunded <b>minus the 3.22% burn</b> (that part was already burned) <b>and one network fee</b>, after admin review.</li>
+<li>If a match is aborted by a server fault before it starts, entries are restored.</li></ul>
+<h2>Fair play</h2>
+<ul><li>All game logic runs on the server. The game ignores anything the client claims about scores or kills.</li>
+<li>Each player gets sanity checks: kills can't exceed the zombies spawned, kill rate and wave pace must be realistic, and entries per hour are limited.</li>
+<li>A match with flagged players is held until an admin reviews it. If a flagged player is disqualified, their place passes to the next player. If there aren't enough eligible players left to fill the places, the unclaimed share is burned.</li>
+<li>Every match payout is approved by hand before anything is sent. Payouts usually go out within a few days.</li></ul>
+<div class="box warn"><b>Eligibility.</b> You must be 18 or older (or the age of majority where you live). You're responsible for making sure that paid skill competitions are legal where you are. <b>Void where prohibited.</b> Entries are non-refundable unless a run fails because of a server fault. Prizes are paid in XRP to the wallet that entered. We may change or end Ranked at any time; if we do, any open week will be settled or refunded.</div>
+<p><a href="https://burn-city-game.fly.dev/burns">Public burn log</a> · <a href="./">Play</a></p>
+<script>
+fetch('https://burn-city-game.fly.dev/api/ranked').then(r => r.json()).then(k => {
+  const x = v => (+v).toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  document.querySelectorAll('.burn').forEach(e => e.textContent = k.burnPct);
+  if (!(k.burnPct > 0)) document.getElementById('burnline').innerHTML = 'No part of the buy-in is currently burned.';
+  document.querySelectorAll('.minb').forEach(e => e.textContent = k.minBuyinXrp); document.querySelectorAll('.maxb').forEach(e => e.textContent = k.maxBuyinXrp); document.querySelectorAll('.lobbymin').forEach(e => e.textContent = k.lobbyMinutes);
+  const b = 1, net = b * (1 - k.burnPct / 100), pot3 = 3 * net, f = 3 * k.feeDrops / 1e6;
+  document.getElementById('example').textContent = `Example: 3 players at a 1 XRP buy-in → ${x(3 - pot3)} XRP burned, pot ${x(pot3)} XRP → about ${[0.5, 0.3, 0.2].map(s => x((pot3 - f) * s)).join(' / ')} XRP.`;
+  document.getElementById('live').innerHTML = (k.live ? (k.dryRun ? '🧪 <b>Test mode</b>: no real payouts yet.' : '🟢 <b>Live</b>') : '⏳ <b>Coming soon. Ranked Matches are not live yet</b>, so no buy-ins are accepted.') +
+    (k.open.length ? '<br>Open matches:<br>' + k.open.map(m => `${m.buyinXrp} XRP buy-in · ${m.paid} player(s) · pot ${x(m.potXrp)} XRP`).join('<br>') : '<br>No open matches right now.') +
+    (k.recent.length ? '<br>Recent matches:<br>' + k.recent.map(m => `${x(m.potXrp)} XRP pot · ` + m.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 8)}… ${e.kills} kills`).join(' · ')).join('<br>') : '');
+}).catch(() => document.getElementById('live').textContent = 'Live status unavailable right now.');
+</script>
+<script data-goatcounter="https://shinigsmi.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script></body></html>

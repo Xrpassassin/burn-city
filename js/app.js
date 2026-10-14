@@ -730,8 +730,10 @@ $('chatIn').addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter
 
 // ---------- cinematic tour (overview → hub river → BURN → XRPyro inferno → street level → IMM ice → airship → 666 → park) ----------
 const V3=(x,y,z)=>new THREE.Vector3(x,y,z),np=(k,s,y)=>V3(N[k].pos.x*s,y,N[k].pos.z*s);
-const tourStops=[[V3(330,200,380),V3(0,40,0)],[V3(110,40,90),V3(0,70,0)],[V3(60,5,60),V3(0,30,0)],[np('BURN',.55,46),np('BURN',.3,28)],[np('BURN',1.4,34),np('BURN',1,50)],[np('XRPyro',1.35,26),np('XRPyro',1,62)],
- [np('XRPyro',.62,3.5),np('BURN',.8,14)],[np('IMM',1.38,24),np('IMM',1,36)],[V3(0,200,-170),V3(0,168,0)],[np('666',1.5,60),np('666',1,30)],[V3(-70,5,-40),V3(-110,6,-90)],[V3(330,200,380),V3(0,40,0)]];
+// portrait phones: pull wide shots back so the horizontal spread of the city fits the narrow view
+const fitW=(c,t)=>{const a=innerWidth/innerHeight,k=a<1.2?Math.min(2.2,Math.pow(1.45/a,.75)):1;return t.clone().add(c.clone().sub(t).multiplyScalar(k))};
+const tourStops=[[fitW(V3(330,200,380),V3(0,40,0)),V3(0,40,0)],[V3(110,40,90),V3(0,70,0)],[V3(60,5,60),V3(0,30,0)],[np('BURN',.55,46),np('BURN',.3,28)],[np('BURN',1.4,34),np('BURN',1,50)],[np('XRPyro',1.35,26),np('XRPyro',1,62)],
+ [np('XRPyro',.62,3.5),np('BURN',.8,14)],[np('IMM',1.38,24),np('IMM',1,36)],[V3(0,200,-170),V3(0,168,0)],[np('666',1.5,60),np('666',1,30)],[V3(-70,5,-40),V3(-110,6,-90)],[fitW(V3(330,200,380),V3(0,40,0)),V3(0,40,0)]];
 const tourCaps=['Burn City: every tower is a token, every bridge an XRPL AMM pool','The XRP hub: tallest tower = deepest liquidity','Street level: traffic follows real 24h volume','Light-roads: solid cyan = LP tokens locked in blackholed wallets','BURN: fire district. Live burns to the blackholed issuer erupt from this tower','XRPyro: the inferno','Scaffold rails = LP that could still be withdrawn','IMM: electric ice district','From above: weather follows market mood (TVL-weighted 24h change)','666 district','Bioluminescent parks','Replay history with the time-lapse slider · Copy link to share any view'];
 function tourCap(t){const i=Math.min(tourCaps.length-1,Math.round(t*(tourStops.length-1)));const el=$('tourCap');if(el.dataset.i!=i){el.dataset.i=i;el.classList.remove('show');setTimeout(()=>{el.textContent=tourCaps[i];el.classList.add('show')},450)}}
 $('tour').onclick=()=>{setMode('orbit');orbit.enabled=false;mode='tour';tour={cam:new THREE.CatmullRomCurve3(tourStops.map(s=>s[0])),look:new THREE.CatmullRomCurve3(tourStops.map(s=>s[1])),t:0}};
@@ -763,7 +765,7 @@ function updMinimap(){const cw=mm.canvas.width,sc=cw/2/375;mm.clearRect(0,0,cw,c
 const mid=(a,b,s,y)=>V3((N[a].pos.x+N[b].pos.x)/2*s,y,(N[a].pos.z+N[b].pos.z)/2*s);
 const near=(p,d,h,ty)=>{const o=V3(p.x,0,p.z).normalize(),q=V3(-o.z,0,o.x);return[V3(p.x+o.x*d+q.x*d*.55,h,p.z+o.z*d+q.z*d*.55),V3(p.x,ty,p.z)]};
 const BX=N['BURN'].pos.clone().add(N['XRPyro'].pos).multiplyScalar(.5);
-const VIEWS={overview:[V3(300,190,350),V3(0,32,0)],street:[np('BURN',.6,2.6),np('BURN',.95,16)],burn:near(BX,90,58,44),imm:near(N['IMM'].pos,70,55,38),hub:[V3(58,8,62),V3(0,62,0)],fire:(()=>{const p=N['BURN'].pos,h=N['BURN'].top||N['BURN'].h||60;return [V3(p.x-.75*h,h*.62,p.z+.55*h),V3(p.x,h*.62,p.z)]})()};
+const VIEWS={overview:[fitW(V3(300,190,350),V3(0,32,0)),V3(0,32,0)],street:[np('BURN',.6,2.6),np('BURN',.95,16)],burn:near(BX,90,58,44),imm:near(N['IMM'].pos,70,55,38),hub:[V3(58,8,62),V3(0,62,0)],fire:(()=>{const p=N['BURN'].pos,h=N['BURN'].top||N['BURN'].h||60;return [V3(p.x-.75*h,h*.62,p.z+.55*h),V3(p.x,h*.62,p.z)]})()};
 const VQ0=Q.get('view')||'';const tokV=Object.keys(N).find(k=>k.toLowerCase()===VQ0.toLowerCase());
 if(!VIEWS[VQ0]&&tokV){const n=N[tokV];VIEWS[VQ0]=tokV==='XRP'?VIEWS.hub:near(n.pos,50+n.h*1.5,8+n.h*.6,n.h*.62)}
 if(Q.get('cam')){const c=Q.get('cam').split(',').map(Number);if(c.length===6&&c.every(isFinite))VIEWS.__cam=[V3(c[0],c[1],c[2]),V3(c[3],c[4],c[5])]}
@@ -887,7 +889,7 @@ updCounter();
 // ---------- Replay: real day-by-day city history (js/replay.js lazily loads history.js) ----------
 let RP=null;
 window.__BC={E,N,bridges,layoutMarks,orbit,C,$,setMode:m=>setMode(m),minorVisible:()=>$('minor').checked,
- overview:()=>({cam:V3(290,235,400),tgt:V3(0,22,0)})};
+ overview:()=>({cam:fitW(V3(290,235,400),V3(0,22,0)),tgt:V3(0,22,0)})};
 $('tlOpen').onclick=async()=>{try{RP=RP||(await import('./replay.js')).init(window.__BC);RP.open()}catch(e){console.warn('replay',e)}};
 if(Q.get('replay')==='1')setTimeout(()=>$('tlOpen').click(),1500);
 function updTL(dt){if(RP)RP.update(dt)}
@@ -910,7 +912,7 @@ function frame(){requestAnimationFrame(frame);R.info.reset();const dt=Math.min(c
  if($('todCycle').checked)$('tod').value=(.5-.5*Math.cos(t*.02)).toFixed(3);const day=+$('tod').value;U.day.value=day;
  if(wMode==='cycle'){const seq=['clear','fog','rain','storm'];wTarget=W[seq[Math.floor(t/30)%4]]}
  for(const k in wCur)wCur[k]+=(wTarget[k]-wCur[k])*Math.min(1,dt*.5);SKY(dt,t,wCur,+$('tod').value);
- S.fog.density=wCur.fog*.8*(1-day*.4);{const dk=1-.6*wCur.storm;S.fog.color.setRGB((.023+day*.45)*dk,(.04+day*.5)*dk,(.11+day*.55)*dk)}U.wet.value=wCur.wet;U.storm.value=wCur.storm;rain.uniforms.amt.value=Math.min(1,wCur.rain);rain.uniforms.cam.value.copy(C.position);banks(wCur.banks,t);
+ S.fog.density=wCur.fog*.8*(1-day*.4)*Math.min(1,480/Math.max(1,C.position.length()));{const dk=1-.6*wCur.storm;S.fog.color.setRGB((.023+day*.45)*dk,(.04+day*.5)*dk,(.11+day*.55)*dk)}U.wet.value=wCur.wet;U.storm.value=wCur.storm;rain.uniforms.amt.value=Math.min(1,wCur.rain);rain.uniforms.cam.value.copy(C.position);banks(wCur.banks,t);
  hemi.intensity=(.55+day*1.4)*(1-.45*wCur.storm);amb.intensity=.35+day*.6;R.toneMappingExposure=1.05+day*.15;stars.material.opacity=1-day;moon.material.opacity=1-day*.8;bloom.strength=.7-day*.35+wCur.wet*.08;
  if(wCur.storm>.5){nextBolt-=dt;if(nextBolt<0){lightning();nextBolt=3+Math.random()*7}}
  if(boltT>0){boltT-=dt;U.flash.value=Math.max(0,boltT*3.3)*(Math.random()<.7?1:.3);flashL.intensity=U.flash.value*3;bolt.material.opacity=Math.min(1,boltT*5)}else{bolt.visible=false;U.flash.value=0;flashL.intensity=0}

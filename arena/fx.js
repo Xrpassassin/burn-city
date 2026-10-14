@@ -166,7 +166,7 @@ export function createZombieFX(scene, { low = false } = {}) {
         if (!n && q.nc) { disposeNftChar(q.nc); q.nc = null; }   // ownership lapsed -> back to the stock pyro
         if (n && (!q.nc || q.nc.userData.nftId !== n.id)) { if (q.nc) disposeNftChar(q.nc); try { q.nc = buildNftChar(n, { srv, card: !low }); scene.add(q.nc); } catch (e) { q.nc = null; } }
         if (q.nc) { q.nc.visible = true; q.nc.position.set(q.x, 0, q.z); q.nc.rotation.y = q.yaw; q.nc.rotation.x = 0; if (p.down) { q.nc.rotation.x = -1.3; q.nc.position.y = 0.25; } q.nc.userData.anim(t + p.id, q.spd > 0.5, true); q.seenT = t; continue; }
-        q.down = p.down; drawP(j++, q, p.down ? tmp2.setHex(Math.sin(t * 8) > 0 ? 0xff2020 : 0x400000) : colorOf(p.id)); }
+        q.down = p.down; const blink = p.inv && !p.down && Math.sin(t * 40) > 0; if (q.nc && p.inv && !p.down) q.nc.visible = !blink; drawP(j++, q, blink ? tmp2.setHex(0xffffff) : p.down ? tmp2.setHex(Math.sin(t * 8) > 0 ? 0xff2020 : 0x400000) : colorOf(p.id)); }
       for (const [id, q] of ps) if (q.nc && q.seenT !== t) { if (!st.players.some(p => p.id === id)) { disposeNftChar(q.nc); ps.delete(id); } else q.nc.visible = false; }
       done(PL, j); done(PL2, j);
       // first-person weapon + flames

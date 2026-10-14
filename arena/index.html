@@ -9,6 +9,9 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 #touch{position:fixed;bottom:0;left:0;right:0;height:40%;display:none}#touch div{position:absolute;bottom:24px;width:110px;height:110px;border:2px solid #f608;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#ffb060;background:#ff660014}
 #xh{position:fixed;left:50%;top:50%;width:14px;height:14px;margin:-7px;border:2px solid #ffb060;border-radius:50%;pointer-events:none;box-shadow:0 0 6px #f60}
 #over{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:22px;background:radial-gradient(#0000,#600c);pointer-events:none;text-shadow:0 0 8px #f60}
+#joy{position:fixed;width:140px;height:140px;border-radius:50%;border:2px solid #ffb06088;background:radial-gradient(#ff660022,#0000 70%);pointer-events:none;z-index:4}#knob{position:absolute;left:45px;top:45px;width:50px;height:50px;border-radius:50%;background:#ffb060aa;box-shadow:0 0 12px #f60}
+#firebtn{position:fixed;right:22px;bottom:34px;width:118px;height:118px;border-radius:50%;font-size:22px;font-weight:800;z-index:4;background:#5a1400cc;border:3px solid #ff7a1a;color:#ffd9a0;box-shadow:0 0 18px #f60}#firebtn.on{background:#ff6a10;color:#200}
+#gear{position:fixed;top:6px;right:100px;z-index:5;padding:8px 12px}#set{position:fixed;top:52px;right:8px;z-index:7;background:#140804ee;border:1px solid #f60;border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:8px;max-width:300px;font-size:14px}
 #hint{position:fixed;bottom:150px;left:0;right:0;text-align:center;font-size:12px;opacity:.75;pointer-events:none}
 #hurt{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 120px #f00;opacity:0;transition:opacity .2s}</style>
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script></head><body>
@@ -18,20 +21,22 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <a href="../" class="small" style="color:#ffb060">← Back to Burn City</a><div class="small">Free to play. <button id="signin">Sign in with XAMAN</button></div>
 <div id="price" class="small"></div><div id="qr"></div><div id="shop" class="small"></div><div id="lb" class="small"></div>
 <div class="small">Cosmetics only, never stronger. 32.2% of every sale is burned as BURN. Weekly IMG leaderboard prizes need no purchase.</div></div>
-<div id="touch"><div id="tl" style="left:20px"></div><div id="tr" style="right:20px"></div></div><div id="xh" hidden></div><div id="hurt"></div><div id="over" hidden></div><div id="hint" hidden></div><button id="rkstart" hidden style="position:fixed;left:50%;top:60%;transform:translateX(-50%);z-index:6">▶ Start match</button>
+<div id="touch"><div id="tl" style="left:20px"></div><div id="tr" style="right:20px"></div></div><div id="xh" hidden></div><div id="joy" hidden><i id="knob"></i></div><button id="firebtn" hidden>🔥<br>FIRE</button><button id="gear" hidden>⚙</button>
+<div id="set" hidden><b>Settings</b><label>Look sensitivity <input id="sens" type="range" min="0.3" max="2.5" step="0.1"> <span id="sensv"></span></label><label><input id="autof" type="checkbox"> Auto-fire when the crosshair is on a zombie</label><label><input id="lowq" type="checkbox"> Low graphics<span></span></label></div><div id="hurt"></div><div id="over" hidden></div><div id="hint" hidden></div><button id="rkstart" hidden style="position:fixed;left:50%;top:60%;transform:translateX(-50%);z-index:6">▶ Start match</button>
 <script type="module">
-import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js';
+import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { createZombieFX } from './fx.js';
 const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
 const $ = s => document.querySelector(s), mobile = matchMedia('(pointer:coarse)').matches;
 const qr = x => $('#qr').innerHTML = `<img src="${x.qr}"><div class=small>Scan with XAMAN</div>`;
 let owned = [];
-async function loadShop() {
+async function loadShop() { try { await loadShop_(); } catch {} }
+async function loadShop_() {
   const s = await (await fetch(API + '/api/shop', { headers: { authorization: 'Bearer ' + (localStorage.bcToken || '') } })).json(); owned = s.owned;
   if (!s.available) { $('#shop').textContent = '🛒 Cosmetic shop: coming soon'; } else
   $('#shop').innerHTML = s.items.map(i => `<button data-buy="${i.id}" style="border-color:${i.color}">${i.name} · ${owned.includes(i.id) ? 'owned' : i.xrp + ' XRP'}</button>`).join(' ');
   $('#shop').querySelectorAll('[data-buy]').forEach(b => b.onclick = async () => { if (!localStorage.bcToken) return $('#price').textContent = 'Sign in first';
     try { await buy(API, b.dataset.buy, { onQr: qr }); $('#qr').innerHTML = ''; loadShop(); } catch (e) { $('#price').textContent = 'Not purchased: ' + e.message; } });
-  const lb = await (await fetch(API + '/api/leaderboard')).json();
+  const lb = await (await fetch(API + '/api/leaderboard')).json(); if (!lb.top) return;
   $('#lb').innerHTML = `<b>Week ${lb.week}</b><br>` + lb.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 6)}… ${e.kills} kills`).join('<br>');
 }
 async function loadRanked() {
@@ -65,7 +70,8 @@ const r = new THREE.WebGLRenderer({ antialias: !mobile, powerPreference: 'high-p
 r.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2)); r.setSize(innerWidth, innerHeight); document.body.prepend(r.domElement);
 const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x050208, 40, 180); scene.background = new THREE.Color(0x050208);
 const cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 400);
-addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
+const fitGun = () => { if (typeof FX !== 'undefined') FX.gun.position.x = cam.aspect < 1 ? 0.03 : 0.2; };
+addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); fitGun(); });
 scene.add(new THREE.HemisphereLight(0xffaa66, 0x220011, 1.2), new THREE.GridHelper(240, 60, 0xff4400, 0x331100));
 const LOOK = { skin_ember: '#ff5a1f', skin_chrome: '#c8d4e0', skin_ghost: '#7af0ff', trail_gold: '#ffd24a', trail_plasma: '#c04bff', flame_blue: '#3aa0ff', flame_green: '#5aff4a', flame_burnxrp: '#ff2a00' };
 const COL = (id, kind = 'trail') => { const rc = net?.roster.get(id)?.color; if (rc && kind !== 'flame') return new THREE.Color(rc); const l = net?.roster.get(id)?.look?.[kind]; return l ? new THREE.Color(LOOK[l]) : new THREE.Color().setHSL((id * 0.137) % 1, 1, 0.55); };
@@ -76,8 +82,8 @@ function leave(msg) {               // full teardown so the next mode (or the ci
   for (const c of cycles.values()) { scene.remove(c); c.geometry.dispose(); c.material.dispose(); } cycles.clear();
   for (const w of walls.values()) { scene.remove(w); w.geometry.dispose(); w.material.dispose(); } walls.clear();
   for (const t of tags.values()) { scene.remove(t); t.material.map.dispose(); t.material.dispose(); } tags.clear();
-  zMesh.count = 0; others.count = 0; flame.visible = false;
-  for (const k of ['#xh', '#hint', '#over', '#fuel', '#me', '#exit', '#rkstart']) $(k).hidden = true; $('#hurt').style.opacity = 0;
+  FX.clear(); joy.id = null; look.id = null; $('#joy').hidden = true; pred = null;
+  for (const k of ['#xh', '#hint', '#over', '#fuel', '#me', '#exit', '#rkstart', '#firebtn', '#gear', '#set', '#joy']) $(k).hidden = true; $('#hurt').style.opacity = 0;
   $('#touch').style.display = 'none'; $('#info').textContent = ''; $('#menu').hidden = false; if (msg) $('#price').textContent = msg;
 }
 $('#rkstart').onclick = e => { e.stopPropagation(); net?.ws.readyState === 1 && net.ws.send(JSON.stringify({ t: 'start' })); };
@@ -85,31 +91,53 @@ $('#exit').onclick = e => { e.stopPropagation(); leave(); };
 document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => start(b.dataset.m));
 function start(m, ranked = null) {
   leave(); mode = m; $('#exit').hidden = false; const token = localStorage.bcToken || null;
-  $('#menu').hidden = true; $('#touch').style.display = mobile ? 'block' : 'none'; $('#fuel').hidden = $('#xh').hidden = $('#hint').hidden = mode !== 'zombie'; $('#tl').textContent = mode === 'tron' ? '◀' : 'MOVE'; $('#tr').textContent = mode === 'tron' ? '▶' : '🔥 FIRE';
-  $('#hint').textContent = mode === 'tron' ? '' : mobile ? 'Drag anywhere to aim · hold MOVE to walk · hold FIRE to burn' : 'Click to lock mouse · mouse/Q/E or ←/→ to aim · WASD move · hold click or Space to fire';
+  $('#menu').hidden = true; $('#touch').style.display = mobile && mode === 'tron' ? 'block' : 'none'; $('#firebtn').hidden = !(mobile && mode === 'zombie'); $('#gear').hidden = mode !== 'zombie'; $('#fuel').hidden = $('#xh').hidden = $('#hint').hidden = mode !== 'zombie'; $('#tl').textContent = mode === 'tron' ? '◀' : 'MOVE'; $('#tr').textContent = mode === 'tron' ? '▶' : '🔥 FIRE';
+  $('#hint').textContent = mode === 'tron' ? '' : mobile ? 'Left thumb: move (joystick appears where you touch) · right side: swipe to look · hold FIRE' : 'Click to lock mouse · mouse/Q/E or ←/→ to aim · WASD move · hold click or Space to fire';
   net = new GameNet(WS, mode, { token, look: owned, name: P.get('name') || 'runner', ranked }).on('ranked_down', e => { if (e.id === net?.me) { overUntil = performance.now() + 36e5; overInfo = { ranked: true, wave: e.wave, kills: e.kills }; } }).on('ranked_result', e => { overUntil = performance.now() + 6000; overInfo = { ranked: true, result: e, kills: overInfo.kills }; }).on('gameover', e => { overUntil = performance.now() + (e.in || 5) * 1000; overInfo = e; }).on('close', why => leave('Disconnected ' + (why || '')));
   if (mode === 'zombie' && !mobile) r.domElement.requestPointerLock?.()?.catch?.(() => {});
 }
 // ---- input: keyboard/mouse on PC, two thumb zones on phones ----
 addEventListener('keydown', e => { keys[e.code] = 1; if (mode === 'tron' && !e.repeat) { if (/KeyA|ArrowLeft/.test(e.code)) net?.input({ turn: -1 }); if (/KeyD|ArrowRight/.test(e.code)) net?.input({ turn: 1 }); } });
 addEventListener('keyup', e => keys[e.code] = 0);
-addEventListener('mousemove', e => { if (document.pointerLockElement) yaw -= e.movementX * 0.003; });
+addEventListener('mousemove', e => { if (document.pointerLockElement) { yaw -= e.movementX * 0.003 * lookSens; pitch = Math.max(-0.35, Math.min(0.35, pitch - e.movementY * 0.002 * lookSens)); } });
 r.domElement.addEventListener('mousedown', e => { if (mode === 'zombie' && !document.pointerLockElement && !mobile) r.domElement.requestPointerLock?.()?.catch?.(() => {}); fire = true; }); addEventListener('mouseup', () => fire = false);
 addEventListener('keydown', e => { if (e.code === 'Space') { fire = true; e.preventDefault(); } }); addEventListener('keyup', e => { if (e.code === 'Space') fire = false; });
 let touchX = null;
-const tid = {};
-$('#tl').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: -1 }); else keys.KeyW = 1; e.preventDefault(); };
-$('#tl').ontouchend = $('#tl').ontouchcancel = () => keys.KeyW = 0;
-$('#tr').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: 1 }); else fire = true; e.preventDefault(); };
-$('#tr').ontouchend = $('#tr').ontouchcancel = () => fire = false;
-addEventListener('touchstart', e => { for (const t of e.changedTouches) tid[t.identifier] = t.clientX; }, { passive: true });
-addEventListener('touchmove', e => { if (mode !== 'zombie') return; for (const t of e.changedTouches) { const x0 = tid[t.identifier]; if (x0 !== undefined) yaw -= (t.clientX - x0) * 0.008; tid[t.identifier] = t.clientX; } }, { passive: true });
-addEventListener('touchend', e => { for (const t of e.changedTouches) delete tid[t.identifier]; }, { passive: true });
+$('#tl').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: -1 }); e.preventDefault(); };
+$('#tr').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: 1 }); e.preventDefault(); };
+// ---- zombie touch controls: floating joystick (left half), swipe-look (right half), big FIRE button ----
+const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 }, look = { id: null, x: 0, y: 0 }, R_JOY = 56, DEAD = 0.15;
+function setJoy(t) { let dx = t.clientX - joy.ox, dy = t.clientY - joy.oy; const d = Math.hypot(dx, dy), c = Math.min(d, R_JOY);
+  if (d > 0) { dx = dx / d * c; dy = dy / d * c; } $('#knob').style.transform = `translate(${dx}px,${dy}px)`;
+  const m = c / R_JOY, a = m < DEAD ? 0 : (m - DEAD) / (1 - DEAD), k = a * a * (3 - 2 * a) / (m || 1);   // deadzone + smooth analog ramp
+  joy.x = dx / R_JOY * k; joy.y = dy / R_JOY * k; }
+const zTouch = () => mode === 'zombie' && mobile;
+addEventListener('touchstart', e => { if (!zTouch() || (e.target.closest('button,input,#set,a') && e.target.id !== 'firebtn')) return; e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.target.id === 'firebtn') { fire = true; $('#firebtn').classList.add('on'); fireId = t.identifier; }
+    else if (t.clientX < innerWidth / 2 && joy.id === null) { joy.id = t.identifier; joy.ox = t.clientX; joy.oy = t.clientY; joy.x = joy.y = 0; const j = $('#joy'); j.hidden = false; j.style.left = t.clientX - 70 + 'px'; j.style.top = t.clientY - 70 + 'px'; $('#knob').style.transform = ''; }
+    else if (look.id === null) { look.id = t.identifier; look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
+addEventListener('touchmove', e => { if (!zTouch()) return; e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.identifier === joy.id) setJoy(t);
+    else if (t.identifier === look.id) { yaw -= (t.clientX - look.x) * 0.0055 * lookSens; pitch = Math.max(-0.35, Math.min(0.35, pitch - (t.clientY - look.y) * 0.003 * lookSens)); look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
+let fireId = null;
+const tEnd = e => { for (const t of e.changedTouches) { if (t.identifier === joy.id) { joy.id = null; joy.x = joy.y = 0; $('#joy').hidden = true; }
+  if (t.identifier === look.id) look.id = null; if (t.identifier === fireId) { fireId = null; fire = false; $('#firebtn').classList.remove('on'); } } };
+addEventListener('touchend', tEnd); addEventListener('touchcancel', tEnd);
+for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });   // Safari pinch/double-tap zoom
+// settings: look sensitivity, auto-fire, graphics
+queueMicrotask(() => {   // runs after module init (uses LOW / lookSens declared below)
+$('#gear').onclick = e => { e.stopPropagation(); $('#set').hidden = !$('#set').hidden; };
+$('#sens').value = lookSens; $('#sens').oninput = () => { lookSens = +$('#sens').value; localStorage.bcSens = lookSens; $('#sensv').textContent = lookSens.toFixed(1) + '×'; }; $('#sensv').textContent = lookSens.toFixed(1) + '×';
+$('#autof').checked = autoFire; $('#autof').onchange = () => { autoFire = $('#autof').checked; localStorage.bcAuto = autoFire ? '1' : '0'; };
+$('#lowq').checked = LOW; $('#lowq').onchange = () => { localStorage.setItem('bc_quality', $('#lowq').checked ? 'low' : 'auto'); $('#lowq').parentElement.lastChild.textContent = ' (applies on reload)'; };
+});
+
 // ---- render pools (no per-frame allocations) ----
 const cycles = new Map(), walls = new Map(), MAXZ = 40;
-const zMesh = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.45, 1.1, 3, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), MAXZ); zMesh.count = 0; zMesh.frustumCulled = false; scene.add(zMesh);   // r160 caches an empty bounding sphere when created with count 0 -> zombies were culled (invisible)
-const flame = new THREE.Points(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(90), 3)), new THREE.PointsMaterial({ color: 0xff7a1a, size: 0.6, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false })); scene.add(flame);
-const others = new THREE.InstancedMesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), new THREE.MeshLambertMaterial({ color: 0xffaa55 }), 16); others.count = 0; others.frustumCulled = false; scene.add(others);
+const LOW = (P.get('q') || localStorage.getItem('bc_quality') || 'auto') === 'low' || ((P.get('q') || localStorage.getItem('bc_quality') || 'auto') === 'auto' && mobile && (navigator.hardwareConcurrency || 4) <= 4);
+const FX = createZombieFX(scene, { low: LOW }); FX.attach(cam); fitGun();
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S1 = new THREE.Vector3(1, 1, 1), UP = new THREE.Vector3(0, 1, 0);
 function wall(id) { let w = walls.get(id); if (!w) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(1200 * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(1200 * 4), 4));
   w = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: COL(id), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })); w.frustumCulled = false; scene.add(w); walls.set(id, w); } return w; }
@@ -127,6 +155,7 @@ function tag(id) { let t = tags.get(id); const ro = net.roster.get(id) || {}, ke
   x.shadowColor = ro.color || '#fff'; x.shadowBlur = 12; x.fillStyle = ro.color || '#fff'; x.fillText((id === net.me ? '▶ ' : '') + (ro.name || 'rider'), 128, 32);
   t = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false })); t.scale.set(4, 1, 1); t.userData.key = key; scene.add(t); tags.set(id, t); return t; }
 const DIRYAW = [Math.PI / 2, 0, -Math.PI / 2, Math.PI];
+let pred = null, pitch = 0, autoFire = localStorage.bcAuto === '1', lookSens = +(localStorage.bcSens || 1);
 let last = performance.now(), w0, lastHp = 100, overUntil = 0, overInfo = {};
 if (P.get('auto')) setTimeout(() => document.querySelector(`[data-m=${P.get('auto')}]`).click(), 300);
 r.setAnimationLoop(() => {
@@ -146,18 +175,22 @@ r.setAnimationLoop(() => {
       else if (me) { const d = DIRYAW[me.r]; V.set(me.x - Math.sin(d) * 12 + Math.cos(d) * 2.5, 7, me.z - Math.cos(d) * 12 - Math.sin(d) * 2.5); cam.position.distanceTo(V) > 30 ? cam.position.copy(V) : cam.position.lerp(V, 1 - Math.exp(-dt * 5)); cam.lookAt(me.x, 0, me.z); }
       $('#info').textContent = `Light Cycles · ${st.players.filter(p => p.alive).length}/${st.players.length} alive · A/D or tap sides to turn`;
     } else {
-      zMesh.count = Math.min(MAXZ, st.zombies.length);
-      for (let i = 0; i < zMesh.count; i++) { const z = st.zombies[i]; M.compose(V.set(z.x, 0.85, z.z), Q.identity(), S1); zMesh.setMatrixAt(i, M); zMesh.setColorAt(i, z.burn ? _hot : _cold); }
-      zMesh.instanceMatrix.needsUpdate = true; if (zMesh.instanceColor) zMesh.instanceColor.needsUpdate = true;
-      const ot = st.players.filter(p => p.id !== net.me && p.alive); others.count = ot.length;
-      ot.forEach((p, i) => { M.compose(V.set(p.x, 0.9, p.z), Q.identity(), S1); others.setMatrixAt(i, M); }); others.instanceMatrix.needsUpdate = true;
       yaw += ((keys.KeyQ || keys.ArrowLeft ? 1 : 0) - (keys.KeyE || keys.ArrowRight ? 1 : 0)) * dt * 2.4;
-      const mz = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-      net.input({ yaw, mx, mz, fire });
-      if (me) { cam.position.set(me.x, 1.6, me.z); cam.rotation.set(0, yaw + Math.PI, 0, 'YXZ');
-        const a = flame.geometry.attributes.position.array, fx = Math.sin(yaw), fz = Math.cos(yaw); flame.visible = !!me.firing; flame.material.color.copy(net.roster.get(net.me)?.look?.flame ? COL(net.me, 'flame') : _flame);
-        for (let i = 0; i < 30; i++) { const d = 1 + Math.random() * 8, s = (Math.random() - 0.5) * d * 0.6; a[i * 3] = me.x + fx * d + fz * s; a[i * 3 + 1] = 1.2 + (Math.random() - 0.5) * 0.6; a[i * 3 + 2] = me.z + fz * d - fx * s; }
-        flame.geometry.attributes.position.needsUpdate = true;
+      let mz = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+      if (joy.id !== null) { mx = joy.x; mz = -joy.y; }
+      // auto-fire (optional): crosshair on a zombie within flame range
+      let auto = false; if (autoFire && me?.alive) for (const z of st.zombies) { const dx = z.x - me.x, dz = z.z - me.z, d = Math.hypot(dx, dz); if (d < 8.5 && d > 0.1 && (dx * Math.sin(yaw) + dz * Math.cos(yaw)) / d > 0.96) { auto = true; break; } }
+      net.input({ yaw, mx, mz, fire: fire || auto });
+      // client-side prediction for my own movement, reconciled to the newest authoritative snapshot
+      const raw = net.buf.at(-1)?.p.find(p => p[0] === net.me);
+      if (me && raw) { if (!pred || !me.alive) pred = { x: raw[1], z: raw[2] };
+        const s_ = Math.sin(yaw), c_ = Math.cos(yaw); let vx = mz * s_ - mx * c_, vz = mz * c_ + mx * s_; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
+        if (me.alive && !(net.buf.at(-1)?.rk && net.buf.at(-1).rk[0] !== 'live' && false)) { pred.x = Math.max(-120, Math.min(120, pred.x + vx * 6 * dt)); pred.z = Math.max(-120, Math.min(120, pred.z + vz * 6 * dt)); }
+        const ex = raw[1] - pred.x, ez = raw[2] - pred.z, e = Math.hypot(ex, ez); if (e > 4) { pred.x = raw[1]; pred.z = raw[2]; } else { const k = Math.min(1, dt * 3); pred.x += ex * k; pred.z += ez * k; }
+        pred.moving = l > 0.1; }
+      const flameCol = net.roster.get(net.me)?.look?.flame ? COL(net.me, 'flame') : null;
+      FX.update(dt, st, me && me.alive && pred ? { x: pred.x, z: pred.z, yaw, firing: !!me.firing, moving: pred.moving } : null, net.me, id => COL(id, 'skin'), flameCol);
+      if (me) { const px = pred ? pred.x : me.x, pz = pred ? pred.z : me.z; cam.position.set(px, 1.6 + (pred?.moving ? Math.sin(now / 120) * 0.03 : 0), pz); cam.rotation.set(pitch, yaw + Math.PI, 0, 'YXZ');
         $('#fuel').firstChild.style.width = me.fuel + '%'; }
       const rk = net.buf.at(-1)?.rk; $('#rkstart').hidden = !(rk && rk[0] === 'lobby' && !rk[1]); $('#info').textContent = rk && rk[0] === 'lobby' ? `🏆 Ranked lobby · ${rk[2]} player${rk[2] === 1 ? '' : 's'} here · ${rk[1] ? 'starting in ' + rk[1] + 's' : 'waiting for the creator to start'}` : `${rk ? '🏆 Ranked · ' : ''}Wave ${st.wave} · Zombies ${st.zombies.length} · Score ${st.score} · HP ${me ? me.hp : 0}`;
       if (me) { $('#hurt').style.opacity = me.alive && me.hp < lastHp ? 0.8 : 0; lastHp = me.hp; }
@@ -167,5 +200,5 @@ r.setAnimationLoop(() => {
   }
   r.render(scene, cam);
 });
-const _flame = new THREE.Color(0xff7a1a), _hot = new THREE.Color(0xff5500), _cold = new THREE.Color(0x66ff44);
+
 </script><script data-goatcounter="https://shinigsmi.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script></body></html>

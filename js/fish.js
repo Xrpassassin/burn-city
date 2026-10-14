@@ -22,6 +22,30 @@ const saveLocal = () => { LS.bcFish = JSON.stringify(prof) };
 let bait = 'worm';
 // ---------- world: dock + shop on the city shore ----------
 let dock = null, shopPos = null, bobber = null, rod = null;
+// ---------- low-poly fish model: shared geometry, one textured material per species ----------
+// look: [back colour, belly colour, pattern: 0 plain | 1 stripes | 2 spots | 3 lateral glow line | 4 patches, accent]
+const LOOK = { minnow: ['#8a9aa8', '#e8eef2', 0], bluegill: ['#2f7f86', '#ff9a3c', 1, '#1d4d5a'], perch: ['#9aa63a', '#f0e6b0', 1, '#3a4a1a'], carp: ['#a8823c', '#f0d890', 0], shiner: ['#c8d4e0', '#ffffff', 0],
+  dace: ['#7a8a96', '#dfe6ea', 0], trout: ['#3a9a6a', '#f4e8d0', 3, '#ff4fd8'], bass: ['#3c6a2c', '#e8e4c0', 1, '#1e3a14'], catfish: ['#4a4a52', '#c8c0b0', 0], pike: ['#4a6a2a', '#e8e4a8', 2, '#d8e090'],
+  eel: ['#3a3a2a', '#8a8a5a', 0], gar: ['#6a7a5a', '#dad8b8', 2, '#2a3020'], koi: ['#ffffff', '#ffffff', 4, '#ff8a10'], cod: ['#8a7a5a', '#efe8d8', 2, '#5a4a30'], sturgeon: ['#5a5a62', '#c8c8c8', 0],
+  snapper: ['#e0402a', '#ffc0a8', 0], salmon: ['#8a9aa8', '#ff9a80', 2, '#2a3040'], leviathan: ['#2a1a5a', '#7a5aff', 3, '#ff3a00'], marlin: ['#1a3a8a', '#e8f0ff', 1, '#5ad8ff'], whaleshark: ['#3a4a5a', '#e0e4e8', 2, '#f0f4f8'] };
+let FG = null; const FM = {};
+function fishGeo() { if (FG) return FG; const body = new THREE.SphereGeometry(.5, 14, 10), pa = body.attributes.position;
+  for (let i = 0; i < pa.count; i++) { let x = pa.getX(i), y = pa.getY(i), z = pa.getZ(i); const t = (z + .5); const k = t < .5 ? 1 : 1 - (t - .5) * 1.3; pa.setXYZ(i, x * .42 * k, y * .62 * Math.max(.35, k), z * 1.6) } body.computeVertexNormals();
+  const fin = (w, h) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, h, w * .4, 0, 0, w], 3)); g.computeVertexNormals(); return g };
+  const tail = new THREE.BufferGeometry(); tail.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, .42, .5, 0, .05, .3, 0, 0, 0, 0, .05, .3, 0, -.05, .3, 0, 0, 0, 0, -.05, .3, 0, -.42, .5], 3)); tail.computeVertexNormals();
+  return FG = { body, tail, dorsal: fin(.5, .35), side: fin(.3, .14), eye: new THREE.SphereGeometry(.055, 8, 6) } }
+function fishMat(id, r) { if (FM[id]) return FM[id]; const L = LOOK[id] || LOOK.minnow, cv = document.createElement('canvas'); cv.width = 128; cv.height = 64; const x = cv.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, 64); g.addColorStop(0, L[0]); g.addColorStop(.55, L[0]); g.addColorStop(1, L[1]); x.fillStyle = g; x.fillRect(0, 0, 128, 64); x.fillStyle = L[3] || L[0];
+  if (L[2] === 1) for (let i = 0; i < 6; i++) x.fillRect(14 + i * 18, 4, 6, 30); else if (L[2] === 2) for (let i = 0; i < 40; i++) { x.beginPath(); x.arc(Math.random() * 128, Math.random() * 40, 1.5 + Math.random() * 2, 0, 7); x.fill() }
+  else if (L[2] === 3) x.fillRect(0, 26, 128, 6); else if (L[2] === 4) for (let i = 0; i < 5; i++) { x.beginPath(); x.ellipse(15 + Math.random() * 100, 10 + Math.random() * 30, 12, 8, Math.random() * 3, 0, 7); x.fill() }
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; const glow = r >= 3; let em = null; if (L[2] === 3) { const e2 = document.createElement('canvas'); e2.width = 128; e2.height = 64; const y = e2.getContext('2d'); y.fillStyle = '#000'; y.fillRect(0, 0, 128, 64); y.fillStyle = '#fff'; y.fillRect(0, 26, 128, 6); em = new THREE.CanvasTexture(e2) }
+  return FM[id] = { body: new THREE.MeshStandardMaterial({ map: tex, metalness: .35, roughness: .4, emissive: new THREE.Color(em ? L[3] : glow ? (L[3] || L[1]) : '#000'), emissiveMap: em, emissiveIntensity: em ? 1.4 : glow ? (r >= 4 ? .45 : .3) : 0 }),
+    fin: new THREE.MeshStandardMaterial({ color: L[3] || L[0], side: THREE.DoubleSide, transparent: true, opacity: .85, emissive: new THREE.Color(glow ? (L[3] || L[1]) : '#000'), emissiveIntensity: glow ? .5 : 0 }) } }
+function buildFish(id, r, kg) { const G = fishGeo(), M = fishMat(id, r), g = new THREE.Group(), body = new THREE.Mesh(G.body, M.body); g.add(body);
+  const tail = new THREE.Mesh(G.tail, M.fin); tail.position.z = .72; g.add(tail); const d = new THREE.Mesh(G.dorsal, M.fin); d.position.set(0, .24, -.25); g.add(d);
+  for (const sx of [-1, 1]) { const f = new THREE.Mesh(G.side, M.fin); f.position.set(sx * .18, -.08, -.25); f.rotation.z = sx * 1.9; g.add(f); const e = new THREE.Mesh(G.eye, EYE); e.position.set(sx * .15, .07, -.6); g.add(e) }
+  const sz = Math.max(.5, Math.min(2.6, .55 + Math.cbrt(Math.max(.02, kg)) * .55)); g.scale.setScalar(sz); g.userData.tail = tail; return g }
+const EYE = new THREE.MeshBasicMaterial({ color: 0x050505 });
 const ROD_LOOK = { basic: [0x8a5a2b, 0], carbon: [0x1c1c22, 0x2a6aff], pro: [0x2a6aff, 0x2ad0ff], legend: [0xff7a18, 0xff3a00] };
 const castFrom = new THREE.Vector3(), castTo = new THREE.Vector3();
 function build() {
@@ -79,7 +103,7 @@ function tapReel() { if (state !== 'reel') return; const m = (Math.sin(cur.ph) +
 async function land(ok) { const was = cur; was.bob = bobber.position.clone(); state = 'idle'; bobber.visible = false;
   let f = null; if (was.srv) { const r = await api('reel', { cid: was.cid, ok }).catch(() => ({})); if (r.fish) { f = r.fish; prof = r.profile; W()._ft = r.today } else if (ok) return msg(r.error === 'timing' ? 'Too slow, it slipped off.' : 'Server busy.') }
   else { if (bait !== 'worm' && prof.bait[bait] > 0) prof.bait[bait]--; if (ok) { f = was.fish; const L = prof.log[f.id] || { n: 0, best: 0 }; L.n++; L.best = Math.max(L.best, f.kg); prof.log[f.id] = L; prof.creel.push([f.id, f.kg, f.val]); prof.n++ } saveLocal() }
-  if (!ok) return; rod.lift = 1; rod.r = f.r; rod.fm.material.color.set(RC[f.r]); rod.fm.material.emissive.set(RC[f.r]).multiplyScalar(.25 + .1 * f.r); rod.fm.scale.setScalar(.7 + .25 * f.r); rod.from.copy(was.bob || bobber.position).setY(.3); rod.fm.position.copy(rod.from); splash(rod.from); dispatchEvent(new CustomEvent('bc-fish-catch', { detail: { today: (was.srv && W()._ft) || 0 } })); ui.style.display = 'none'; await new Promise(r => setTimeout(r, 1100)); ui.style.display = 'block'; ui.innerHTML = `<div style="color:${RC[f.r]};font-weight:800">${RN[f.r]}</div><div style="font-size:20px;font-weight:800">🐟 ${f.name}</div>${f.kg} kg · worth ${f.val} 🪙<div class="nv">✓ added to your creel & fish log</div>`; clearTimeout(land.k); land.k = setTimeout(() => { if (state === 'idle') ui.style.display = 'none' }, 2600) }
+  if (!ok) return; rod.lift = 1; rod.r = f.r; if (rod.fm) W().S.remove(rod.fm); rod.fm = buildFish(f.id, f.r, f.kg); W().S.add(rod.fm); rod.from.copy(was.bob || bobber.position).setY(.3); rod.fm.position.copy(rod.from); splash(rod.from); dispatchEvent(new CustomEvent('bc-fish-catch', { detail: { today: (was.srv && W()._ft) || 0 } })); ui.style.display = 'none'; await new Promise(r => setTimeout(r, 1100)); ui.style.display = 'block'; ui.innerHTML = `<div style="color:${RC[f.r]};font-weight:800">${RN[f.r]}</div><div style="font-size:20px;font-weight:800">🐟 ${f.name}</div>${f.kg} kg · worth ${f.val} 🪙<div class="nv">✓ added to your creel & fish log</div>`; clearTimeout(land.k); land.k = setTimeout(() => { if (state === 'idle') ui.style.display = 'none' }, 2600) }
 function splash(p) { const a = rod.drops.geometry.attributes.position, v = rod.dv, n = 10 + rod.r * 4; for (let i = 0; i < a.count; i++) { const on = i < n, ang = Math.random() * 6.283, sp = 1 + Math.random() * 2.5; a.setXYZ(i, p.x, on ? .3 : -50, p.z); v[i * 3] = Math.cos(ang) * sp; v[i * 3 + 1] = on ? 3 + Math.random() * 4 : 0; v[i * 3 + 2] = Math.sin(ang) * sp } a.needsUpdate = true; rod.drops.visible = true;
   rod.ring.position.copy(p).setY(.3); rod.ring.scale.setScalar(.5); rod.ring.material.opacity = .8; rod.ring.visible = true }
 function stop() { state = 'idle'; bobber.visible = false; ui.style.display = 'none' }
@@ -130,11 +154,12 @@ function tick() { requestAnimationFrame(tick); const c = W(), e = window.__estat
       if (e < .2) { const k = e / .2; rod.fm.position.copy(rod.from).setY(.3 + Math.sin(k * Math.PI / 2) * 2.2); rod.fm.rotation.set(-1.2 + k * .6, t * 3, Math.sin(t * 30) * .5) }   // burst up out of the water
       else if (e < .7) { const k = (e - .2) / .5, top = rod.from.clone().setY(2.5); rod.fm.position.lerpVectors(top, hang, k); rod.fm.position.y += Math.sin(k * Math.PI) * 2; rod.fm.rotation.set(Math.sin(t * 24) * .6, t * 4, k * 6.283) }   // flip + wiggle along the line
       else { rod.fm.position.copy(hang); rod.fm.rotation.set(Math.PI / 2, 0, Math.sin(t * 16) * .5) }
+      if (rod.fm.userData.tail) rod.fm.userData.tail.rotation.y = Math.sin(t * (e < .7 ? 26 : 14)) * .6;
       if (!rod.lift) rod.fm.visible = false }
     if (rod.drops.visible) { const a = rod.drops.geometry.attributes.position, v = rod.dv; let alive = 0; for (let i = 0; i < a.count; i++) { v[i * 3 + 1] -= 9.8 * dt; const y = a.getY(i) + v[i * 3 + 1] * dt; a.setXYZ(i, a.getX(i) + v[i * 3] * dt, Math.max(.2, y), a.getZ(i) + v[i * 3 + 2] * dt); if (y > .2) alive++ } a.needsUpdate = true; if (!alive) rod.drops.visible = false }
     if (rod.ring.visible) { const m = rod.ring.material; m.opacity -= dt * .7; rod.ring.scale.addScalar(dt * 3); if (m.opacity <= 0) rod.ring.visible = false }
     const end = rod.lift > 0 ? rod.fm.position : bobber.visible ? bobber.position : null; rod.line.visible = show && !!end; if (end) { pa.setXYZ(0, tp.x, tp.y, tp.z); pa.setXYZ(1, end.x, end.y, end.z); pa.needsUpdate = true } }
   if (bobber.visible && !(rod.swing > 0)) bobber.position.y = 0.45 + (state === 'bite' ? -0.25 + Math.sin(t * 20) * 0.12 : Math.sin(t * 2.2) * 0.06);
   if (state === 'reel') { cur.ph += 0.05 * cur.spd * 2.2; const mk = $('fMk'); if (mk) mk.style.left = ((Math.sin(cur.ph) + 1) / 2 * 100) + '%' } }
-window.__fish = { openShop, openLog, doCast, prof: () => prof, roll };
+window.__fish = { openShop, openLog, doCast, prof: () => prof, roll, buildFish };
 (function boot() { if (!window.__ready || !W() || !window.__estate) return setTimeout(boot, 500); build(); refresh(); requestAnimationFrame(tick) })();

@@ -67,7 +67,7 @@ vertexShader:`varying vec3 d;void main(){d=normalize(position);gl_Position=proje
 fragmentShader:`uniform float t,day,flash,storm;varying vec3 d;${NOISE}
 void main(){float y=max(d.y,0.);vec3 night=mix(vec3(.02,.03,.09),vec3(.004,.006,.02),pow(y,.5));
 vec2 p=d.xz/(d.y+.25);float neb=fbm(p*1.2+vec2(t*.003,0.));vec3 nebc=mix(vec3(.25,.05,.4),vec3(.02,.2,.45),fbm(p*.7+3.))*smoothstep(.45,.9,neb)*.55*(1.-storm);
-float aur=smoothstep(.02,.3,y)*smoothstep(.65,.22,y)*smoothstep(-.2,.6,-d.z);float band=sin(d.x*9.+fbm(vec2(d.x*3.,t*.05))*6.+t*.2)*.5+.5;
+float aur=smoothstep(.02,.3,y)*(1.-smoothstep(.22,.65,y))*smoothstep(-.2,.6,-d.z);float band=sin(d.x*9.+fbm(vec2(d.x*3.,t*.05))*6.+t*.2)*.5+.5;
 vec3 aurc=mix(vec3(0.,1.,.6),vec3(.3,.4,1.),y*2.)*aur*band*fbm(vec2(d.x*12.,t*.1+y*4.))*.9*(1.-storm*.9)*(1.-day);
 vec3 c=night+nebc*(1.-day)+aurc;vec3 dayc=mix(vec3(.55,.68,.85),vec3(.18,.36,.72),pow(y,.6));c=mix(c,dayc,day);
 float cl=fbm(p*.9+vec2(t*.02,t*.01));c=mix(c,mix(vec3(.04,.045,.06),vec3(.45,.47,.5),day)*(.6+cl*.6),storm*smoothstep(.3,.7,cl+.2));
@@ -96,16 +96,16 @@ const groundMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,fog:
  void main(){vec2 p=v;float d=length(p);vec3 base=mix(vec3(.012,.016,.03),vec3(.16,.17,.19),day);float a=refl>.5?mix(.84,1.,smoothstep(420.,555.,d)):1.;
  vec2 g=abs(fract(p/14.)-.5);float grid=smoothstep(.485,.5,max(g.x,g.y))*.5;vec3 c=base+vec3(.05,.25,.6)*grid*exp(-d*.003)*(.5+.5*sin(d*.04-t*1.2))*(1.-day*.7);
  c+=vec3(.0,.02,.04)*fbm(p*.08);
- for(int i=0;i<${zoneU.length};i++){vec4 z=zones[i];float zd=length(p-z.xy);float inside=smoothstep(z.z,z.z*.7,zd);
-  float ring1=smoothstep(.9,.0,abs(zd-z.z*.62))+smoothstep(.9,0.,abs(zd-z.z*.98));c+=vec3(.5,.7,1.)*ring1*.2*inside*(1.-day*.6);
+ for(int i=0;i<${zoneU.length};i++){vec4 z=zones[i];float zd=length(p-z.xy);float inside=1.-smoothstep(z.z*.7,z.z,zd);
+  float ring1=(1.-smoothstep(.0,.9,abs(zd-z.z*.62)))+(1.-smoothstep(0.,.9,abs(zd-z.z*.98)));c+=vec3(.5,.7,1.)*ring1*.2*inside*(1.-day*.6);
   c=mix(c,c*.6+vec3(.02,.025,.04),inside*.5);
   if(z.w>.5){float s=z.w;float burn=smoothstep(z.z*(1.+.35*s)+10.,0.,zd);float n=fbm(p*.18+vec2(t*.05,0.));float e=smoothstep(.62,.8,fbm(p*.6-t*.15))*burn;
    c=mix(c,vec3(.05,.015,.005),burn*.8);c+=vec3(1.,.3,.05)*e*(1.2+s*.6)*(.6+.4*sin(t*3.+n*20.))+vec3(.4,.08,.0)*burn*n*.4*s;}
-  if(z.w<-.5){float fr=smoothstep(z.z*1.4+8.,0.,zd);float cr=smoothstep(.04,.0,abs(fbm(p*.25)-.5))+smoothstep(.03,0.,abs(vn(p*.9)-.5))*.6;
+  if(z.w<-.5){float fr=1.-smoothstep(0.,z.z*1.4+8.,zd);float cr=(1.-smoothstep(.0,.04,abs(fbm(p*.25)-.5)))+(1.-smoothstep(0.,.03,abs(vn(p*.9)-.5)))*.6;
    c=mix(c,vec3(.12,.2,.32),fr*.55);c+=vec3(.4,.75,1.)*cr*fr*.5;}}
  float pud=smoothstep(.55,.7,fbm(p*.05))*wet;a*=1.-pud*.45*refl;c=mix(c,c*.6+vec3(.03,.05,.1),pud);
- vec2 cell=floor(p/3.);vec2 f=fract(p/3.)-.5;float ph=fract(t*.9+h21(cell));float rip=smoothstep(.05,.0,abs(length(f)-ph*.5))*(1.-ph)*wet*step(.5,h21(cell+7.));c+=vec3(.5,.7,1.)*rip*.6;
- c+=vec3(.5,.55,.8)*flash*.15;gl_FragColor=vec4(c,a);\n${TAIL}\n}`});
+ vec2 cell=floor(p/3.);vec2 f=fract(p/3.)-.5;float ph=fract(t*.9+h21(cell));float rip=(1.-smoothstep(.0,.05,abs(length(f)-ph*.5)))*(1.-ph)*wet*step(.5,h21(cell+7.));c+=vec3(.5,.7,1.)*rip*.6;
+ c+=vec3(.5,.55,.8)*flash*.15;gl_FragColor=vec4(c,a);if(any(isnan(gl_FragColor))||any(isinf(gl_FragColor)))gl_FragColor=vec4(0.);\n${TAIL}\n}`});
 const ground=new THREE.Mesh(new THREE.CircleGeometry(GROUND,96),groundMat);ground.rotation.x=-Math.PI/2;ground.position.y=.02;ground.renderOrder=-1;S.add(ground);
 
 // ---------- river ring around the XRP hub ----------
@@ -113,7 +113,7 @@ const river=new THREE.Mesh(new THREE.RingGeometry(75,87,160,1),new THREE.ShaderM
  vertexShader:`varying vec2 v;\n${FOGV}\nvoid main(){v=position.xy;vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`,
  fragmentShader:`uniform float t,day;varying vec2 v;\n#include <fog_pars_fragment>\n${NOISE}
  void main(){float a=atan(v.y,v.x);float r=length(v);vec2 q=vec2(a*90.,r*1.5);float flow=fbm(q*.15+vec2(t*.6,0.));float sp=smoothstep(.8,.95,vn(q*.9+vec2(t*2.,0.)));
- float edge=smoothstep(1.2,0.,abs(r-75.))+smoothstep(1.2,0.,abs(r-87.));vec3 c=mix(vec3(.0,.04,.1),vec3(.0,.2,.4),flow)+vec3(.4,.9,1.)*sp*.7+vec3(.2,.9,1.)*edge*.55;
+ float edge=(1.-smoothstep(0.,1.2,abs(r-75.)))+(1.-smoothstep(0.,1.2,abs(r-87.)));vec3 c=mix(vec3(.0,.04,.1),vec3(.0,.2,.4),flow)+vec3(.4,.9,1.)*sp*.7+vec3(.2,.9,1.)*edge*.55;
  c=mix(c,vec3(.2,.35,.45),day*.5);gl_FragColor=vec4(c,.55+edge*.2);\n${TAIL}\n}`}));
 river.rotation.x=-Math.PI/2;river.position.y=.12;S.add(river);
 
@@ -227,11 +227,12 @@ MK.mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THRE
    float k=min(1.5,.6+.2*vC.a)*vF;gl_FragColor=vec4(col*body*k,body);
   }else if(kind<1.5){ // ---- glowing molten cracks on the scorched facade
    vec2 p=(uv-vec2(.5,.35))*vec2(1.,1.6);float r=length(p);float e=fbm(p*6.+sd);float cr=1.-smoothstep(.0,.05,abs(fbm(p*4.+sd*1.3)-.5));
-   float m=smoothstep(.5,.1,r);float glow=(.55+.45*sin(t*2.+e*9.))*cr*m;vec3 col=mix(vC.rgb,vK.rgb,.35)*glow*1.6+vec3(.02,.01,0.)*m;
+   float m=(1.-smoothstep(.1,.5,r));float glow=(.55+.45*sin(t*2.+e*9.))*cr*m;vec3 col=mix(vC.rgb,vK.rgb,.35)*glow*1.6+vec3(.02,.01,0.)*m;
    gl_FragColor=vec4(col,m*.5);
   }else{ // ---- faint smoke wisp (additive: kept dim and warm-lit at the base)
-   float n=fbm(vec2(uv.x*3.,uv.y*2.-t*.5)+sd);float x=abs(uv.x-.5+(n-.5)*.5)*2.;float a=(1.-smoothstep(.2,.9,x))*smoothstep(0.,.25,uv.y)*smoothstep(1.,.4,uv.y)*n*(1.-vF);
+   float n=fbm(vec2(uv.x*3.,uv.y*2.-t*.5)+sd);float x=abs(uv.x-.5+(n-.5)*.5)*2.;float a=(1.-smoothstep(.2,.9,x))*smoothstep(0.,.25,uv.y)*(1.-smoothstep(.4,1.,uv.y))*n*(1.-vF);
    vec3 col=mix(vC.rgb*.25,vec3(.16,.15,.17),smoothstep(.0,.5,uv.y));gl_FragColor=vec4(col*a*.55,a*.3);}
+  if(any(isnan(gl_FragColor))||any(isinf(gl_FragColor)))gl_FragColor=vec4(0.);gl_FragColor=clamp(gl_FragColor,0.,4.);
  }`});
 MK.mesh=new THREE.Mesh(MK.geo,MK.mat);MK.mesh.frustumCulled=false;MK.mesh.userData.noBatch=1;MK.mesh.renderOrder=3;S.add(MK.mesh);
 // rising/drifting embers from every mark: one Points draw call, animated fully on the GPU
@@ -243,7 +244,7 @@ EM.mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THRE
   vec3 p=aBase.xyz+vec3(sin(t*1.3+sd*40.)*1.6*ph+cos(sd*90.)*.6,ph*(7.+aBase.w*5.),cos(t*1.1+sd*31.)*1.6*ph+sin(sd*70.)*.6);
   vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;vA=smoothstep(0.,.08,ph)*(1.-ph)*(.6+.4*sin(t*20.+sd*50.));vC=aCol;
   gl_PointSize=clamp(px*(.18+.22*sd)*(1.+aBase.w*.3)/-mv.z,1.,9.);}`,
- fragmentShader:`varying vec3 vC;varying float vA;void main(){vec2 d=gl_PointCoord-.5;float a=smoothstep(.5,0.,length(d))*vA;gl_FragColor=vec4(mix(vC,vec3(1.,.95,.8),.35)*a*2.,a);}`});
+ fragmentShader:`varying vec3 vC;varying float vA;void main(){vec2 d=gl_PointCoord-.5;float a=(1.-smoothstep(0.,.5,length(d)))*vA;gl_FragColor=vec4(mix(vC,vec3(1.,.95,.8),.35)*a*2.,a);}`});
 EM.pts=new THREE.Points(EM.geo,EM.mat);EM.pts.frustumCulled=false;EM.pts.userData.noBatch=1;EM.pts.renderOrder=4;S.add(EM.pts);
 addEventListener('resize',()=>EM.mat.uniforms.px.value=R.getPixelRatio()*innerHeight*.5);
 function markSpot(n,i){const r=((i*2654435761)>>>0)/4294967296,r2=((i*40503+n.name.length*977)>>>0)%1000/1000;const hb=n.h*.42;
@@ -488,8 +489,9 @@ const rain=(()=>{const n=LV.rain,pos=new Float32Array(n*6),tail=new Float32Array
   vertexShader:`attribute float tail;uniform float t,amt;uniform vec3 cam;varying float a;void main(){vec3 p=position;p.y=mod(p.y-t*70.,140.);p.x=cam.x+mod(p.x-cam.x+130.,260.)-130.;p.z=cam.z+mod(p.z-cam.z+130.,260.)-130.;p.y+=cam.y-50.-tail*2.6;p.x+=tail*.5;
    a=amt*(.22+.3*(1.-tail));gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,fragmentShader:`varying float a;void main(){gl_FragColor=vec4(.72,.82,1.,a);}`});
  const l=new THREE.LineSegments(g,m);l.frustumCulled=false;S.add(l);return m})();
-const banks=(()=>{const arr=[];const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');const gr=x.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'rgba(120,135,175,.4)');gr.addColorStop(1,'rgba(120,135,175,0)');x.fillStyle=gr;x.fillRect(0,0,128,128);const tex=new THREE.CanvasTexture(c);
- for(let i=0;i<(MOBILE?14:30);i++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false,opacity:0}));const a=rnd()*6.283,r=40+rnd()*260;s.position.set(Math.cos(a)*r,4+rnd()*14,Math.sin(a)*r);s.scale.set(90+rnd()*80,22+rnd()*12,1);S.add(s);arr.push(s)}
+const banks=(()=>{const arr=[];const D=new Uint8Array(64*64*4);for(let y=0;y<64;y++)for(let x=0;x<64;x++){const r=Math.min(1,Math.hypot(x-31.5,y-31.5)/31.5),i=(y*64+x)*4,a=(1-r)*(1-r)*(3-2*(1-r))*.4;D[i]=120;D[i+1]=135;D[i+2]=175;D[i+3]=Math.round(a*255)}const tex=new THREE.DataTexture(D,64,64);tex.magFilter=tex.minFilter=THREE.LinearFilter;tex.needsUpdate=true;// raw texels: Safari's 2D-canvas texture upload turned these fog banks into dark rectangles
+
+ for(let i=0;i<(MOBILE?14:30);i++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false,opacity:0,alphaTest:.004}));const a=rnd()*6.283,r=40+rnd()*260;s.position.set(Math.cos(a)*r,4+rnd()*14,Math.sin(a)*r);s.scale.set(90+rnd()*80,22+rnd()*12,1);S.add(s);arr.push(s)}
  return (k,t)=>arr.forEach((s,i)=>{s.material.opacity=k*.28;s.visible=k>.01;s.position.x+=Math.sin(t*.05+i)*.03})})();
 const bolt=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xdfe8ff,transparent:true,fog:false}));bolt.visible=false;bolt.frustumCulled=false;S.add(bolt);
 const flashL=new THREE.DirectionalLight(0xbfd0ff,0);flashL.position.set(100,500,50);S.add(flashL);let nextBolt=Q.get('weather')==='storm'?.5:3,boltT=0;
@@ -523,7 +525,7 @@ const bokeh=new BokehPass(S,C,{focus:120,aperture:.00015,maxblur:.006});bokeh.en
 const haze=new ShaderPass({uniforms:{tDiffuse:{value:null},c:{value:new THREE.Vector2(.5,.5)},k:{value:0},t:{value:0},asp:{value:innerWidth/innerHeight}},
  vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
  fragmentShader:`uniform sampler2D tDiffuse;uniform vec2 c;uniform float k,t,asp;varying vec2 vUv;
- void main(){vec2 d=(vUv-c)*vec2(asp,1.);float r=length(d);float m=k*smoothstep(.45,.0,r);
+ void main(){vec2 d=(vUv-c)*vec2(asp,1.);float r=length(d);float m=k*(1.-smoothstep(.0,.45,r));
   vec2 o=vec2(sin(vUv.y*90.+t*14.)+sin(vUv.y*37.-t*9.),cos(vUv.x*80.-t*12.))*.0035*m;gl_FragColor=texture2D(tDiffuse,vUv+o);gl_FragColor.rgb+=vec3(.06,.025,0.)*m;}`});
 haze.enabled=false;haze.userData={t:0,p:new THREE.Vector3()};comp.addPass(haze);comp.addPass(new OutputPass());
 if(TIER==='low'){$('minor').checked=false;bridges.forEach(b=>{if(b.minor)b.group.visible=false})}
@@ -692,14 +694,14 @@ for(const B of FXP.balls){const g=new THREE.BufferGeometry();B.tp=new Float32Arr
  const al=new Float32Array(28);for(let i=0;i<28;i++)al[i]=1-i/28;g.setAttribute('aA',new THREE.BufferAttribute(al,1));
  B.trail=new THREE.Points(g,new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{c:{value:new THREE.Color()},k:{value:0},px:{value:innerHeight}},
   vertexShader:`attribute float aA;uniform float px;varying float vA;void main(){vA=aA;vec4 mv=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mv;gl_PointSize=clamp(px*(1.2+4.*aA)/-mv.z,1.,64.);}`,
-  fragmentShader:`uniform vec3 c;uniform float k;varying float vA;void main(){float a=smoothstep(.5,0.,length(gl_PointCoord-.5))*vA*k;gl_FragColor=vec4(mix(c,vec3(1.,.95,.8),vA*vA)*a*1.6,a);}`}));
+  fragmentShader:`uniform vec3 c;uniform float k;varying float vA;void main(){float a=(1.-smoothstep(0.,.5,length(gl_PointCoord-.5)))*vA*k;gl_FragColor=vec4(mix(c,vec3(1.,.95,.8),vA*vA)*a*1.6,a);}`}));
  B.trail.frustumCulled=false;B.trail.visible=false;S.add(B.trail);fxObjs.push(B.trail)}
 // fire tornado / pillar for big burns: one pooled open cylinder with a swirling noise-fire shader
 const TOR={m:new THREE.Mesh(new THREE.CylinderGeometry(.55,1,1,TIER==='low'?14:28,TIER==='low'?6:16,true).translate(0,.5,0),new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
  defines:{OCT:TIER==='low'?2:4},uniforms:{t:U.t,o:{value:0},c:{value:new THREE.Color()},k:{value:new THREE.Color()}},
  vertexShader:`uniform float t;varying vec2 vUv;void main(){vUv=uv;vec3 p=position;float a=t*3.+p.y*4.;p.xz*=1.+.18*sin(a*1.7+p.y*9.);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
  fragmentShader:`uniform float t,o;uniform vec3 c,k;varying vec2 vUv;${FNOISE}
- void main(){vec2 q=vec2(vUv.x*6.+vUv.y*3.-t*1.2,vUv.y*4.-t*3.2);float n=fbm(q);float n2=fbm(q*2.3+4.);float b=smoothstep(.35,.85,n+.25*n2)*smoothstep(1.,.55,vUv.y+.2*n2)*smoothstep(0.,.06,vUv.y);
+ void main(){vec2 q=vec2(vUv.x*6.+vUv.y*3.-t*1.2,vUv.y*4.-t*3.2);float n=fbm(q);float n2=fbm(q*2.3+4.);float b=smoothstep(.35,.85,n+.25*n2)*(1.-smoothstep(.55,1.,vUv.y+.2*n2))*smoothstep(0.,.06,vUv.y);
   vec3 col=mix(c,k,smoothstep(.55,.95,n));gl_FragColor=vec4(col*b*1.8*o,b*o);}`})),t:-1};
 TOR.m.visible=false;TOR.m.frustumCulled=false;S.add(TOR.m);fxObjs.push(TOR.m);
 const SHAKE={on:Q.get('shake')!=='0'&&localStorage.getItem('bc_shake')!=='0',a:0};window.__shake=v=>{SHAKE.on=!!v;localStorage.setItem('bc_shake',v?'1':'0')};{const el=document.getElementById('shakeOpt');if(el){el.checked=SHAKE.on;el.onchange=e=>window.__shake(e.target.checked)}}
@@ -835,6 +837,34 @@ setMode('orbit');
 if(VQ==='explore'){setMode('explore');P.pos.copy(np('BURN',.66,0));yp.yaw=Math.atan2(-(N.BURN.pos.x-P.pos.x),-(N.BURN.pos.z-P.pos.z));yp.pitch=.05;C.position.copy(P.pos).add(V3(0,3,0))}
 if(Q.get('mode')==='fly')setMode('fly');
 if(Q.get('mode')==='explore'&&VQ!=='explore'){setMode('explore');const p=(Q.get('pos')||'').split(',').map(Number);if(p.length===3&&p.every(isFinite)){P.pos.set(p[0],groundAt(p[0],p[1],99),p[1]);yp.yaw=p[2]}else{P.pos.copy(np('BURN',.66,0))}C.position.copy(P.pos).add(V3(0,3,0))}
+// ---- view menu: Esc releases pointer lock + pause menu, 1-4 hotkeys, touch Exit button, smooth camera hand-off
+(()=>{const css=document.createElement('style');css.textContent=`#vExit{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;min-width:44px;min-height:44px;padding:0 16px;font:600 15px monospace;color:#fff;background:rgba(20,8,4,.82);border:1px solid #ff7a1a;border-radius:10px;cursor:pointer;display:none}
+#vMenu{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}#vMenu.on{display:flex}
+#vMenu>div{background:rgba(18,10,8,.95);border:1px solid #ff7a1a;border-radius:14px;padding:18px;display:grid;gap:10px;min-width:220px;font:14px monospace;color:#ffd9b0;text-align:center}
+#vMenu button{min-height:44px;font:600 15px monospace;color:#fff;background:#2a140a;border:1px solid #ff9a3a;border-radius:10px;cursor:pointer}#vMenu button:hover{background:#ff7a1a}
+#vHint{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:60;padding:8px 14px;font:14px monospace;color:#fff;background:rgba(0,0,0,.7);border-radius:8px;pointer-events:none;opacity:0;transition:opacity .4s}#vHint.on{opacity:1}`;document.head.appendChild(css);
+const ex=document.createElement('button');ex.id='vExit';ex.textContent='✕ Exit';ex.setAttribute('aria-label','Exit view / view menu');document.body.appendChild(ex);
+const hint=document.createElement('div');hint.id='vHint';document.body.appendChild(hint);
+const mn=document.createElement('div');mn.id='vMenu';mn.innerHTML='<div><b>Paused · choose view</b><button data-v="orbit">1 ◎ Orbit</button><button data-v="fly">2 ✈ Fly</button><button data-v="tour">3 ▶ Tour</button><button data-v="resume">4 ↩ Resume</button></div>';document.body.appendChild(mn);
+let tw=null;const menuOn=()=>mn.classList.contains('on'),hide=()=>mn.classList.remove('on');
+const show=()=>{if(document.pointerLockElement)document.exitPointerLock();mn.classList.add('on')};
+function go(v){hide();const from=mode;
+ if(v==='resume'){if(!MOBILE&&(mode==='fly'||mode==='explore'))R.domElement.requestPointerLock?.();return}
+ if(v==='tour'){$('tour').click();return}
+ const p0=C.position.clone(),q0=C.quaternion.clone();setMode(v);
+ if(v==='orbit'&&(from==='explore'||from==='fly')){const tgt=orbit.target.clone(),dir=p0.clone().sub(tgt).setY(0);if(dir.lengthSq()<1)dir.set(0,0,1);
+  const p1=tgt.clone().add(dir.normalize().multiplyScalar(140)).setY(Math.max(70,p0.y));tw={t:0,p0,p1,q0,tgt}}}
+mn.addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.v);else if(e.target===mn)go('resume')});
+ex.onclick=e=>{e.stopPropagation();menuOn()?go('resume'):show()};
+let hintT;const tip=m=>{hint.textContent=MOBILE?'Tap ✕ Exit to change view':'Esc to exit · 1 Orbit · 2 Fly · 3 Tour';hint.classList.add('on');clearTimeout(hintT);hintT=setTimeout(()=>hint.classList.remove('on'),4000)};
+document.addEventListener('pointerlockchange',()=>{if(!document.pointerLockElement&&(mode==='explore'||mode==='fly')&&!tw)show()});
+addEventListener('keydown',e=>{if(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;
+ if(e.code==='Escape'){if(menuOn())go('resume');else if(mode!=='orbit')show();return}
+ const k={Digit1:'orbit',Digit2:'fly',Digit3:'tour',Digit4:'resume'}[e.code];if(k&&(menuOn()||mode!=='orbit'||k!=='resume'))go(k)});
+const sm=setMode;let last='';setInterval(()=>{const vis=mode==='explore'||mode==='fly';ex.style.display=vis?'block':'none';if(vis&&last!==mode)tip();last=mode},150);
+(function step(){requestAnimationFrame(step);if(!tw)return;if(mode!=='orbit'){tw=null;return}tw.t=Math.min(1,tw.t+1/60);const k=tw.t*tw.t*(3-2*tw.t);
+ C.position.lerpVectors(tw.p0,tw.p1,k);const q1=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(C.position,tw.tgt,C.up));C.quaternion.slerpQuaternions(tw.q0,q1,k);if(tw.t>=1)tw=null})();
+})();
 // ---------- static batching: merge non-animated meshes that share an equivalent material, per parent group ----------
 // Animated objects are detected by simulating the animation callbacks and diffing transforms/material state, so nothing that moves gets frozen.
 function batchStatic(){const t0=performance.now();bridges.forEach(b=>{b.solid.userData.noBatch=b.core.userData.noBatch=1});

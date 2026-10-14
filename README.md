@@ -80,8 +80,29 @@ After `build_data.py` writes `data.js`, run:
 python3 tools/enrich.py data.js 90   # mcap, burn counts (90 s scan budget per token)
 python3 tools/launchpad.py launchpad.js
 python3 tools/ads.py ads.js
+python3 tools/history.py history.js 90   # Replay history: appends today's real snapshot, scans new burns
 ```
 Burn counts are from the issuer's `account_tx`; very busy issuers can't be fully scanned in the time budget, so the card shows "≥N (partial scan)" and no burned-% in that case.
+
+### Replay (city history time-lapse)
+**▶ Replay city history** (panel) or `?replay=1` plays the real ecosystem history day by day: tokens appear as empty
+lots on their launch day, rise into towers when their first AMM pool is created, grow with market cap (height) and
+TVL (base width), and gain a permanent flame on each day a real burn hit the issuer. Controls: play/pause, 1x/4x/16x
+(1x = 4 days/s), a dated scrubber, Esc / ✕ Live to return. Code: `js/replay.js` (only drives existing tower params).
+
+Data: `tools/history.py` → `history.js` (~100 KB, ~25 KB gzipped), lazy-loaded only when Replay opens.
+
+| Field | Source |
+|---|---|
+| Launch day (`l`) | earliest of the issuer's first ledger tx (XRPL `account_tx` forward) and xrpl.to's listing date |
+| Bond day (`a`) | first tx of the earliest AMM account among the token's pools |
+| Market cap (`m`, log10×100) | daily close (xrpl.to OHLC, Data by xrpl.to) × circulating supply (today's obligations + burns made after that day) |
+| TVL (`t`) | **estimated** before nightly snapshots: today's pool TVL × √(close/today's close) for pools alive that day; real from the nightly runs (`tr`) |
+| Approximate (`x`) | days with no trade data are log-interpolated and shown as "≈ approximate"; tokens unknown to xrpl.to carry today's values back |
+| Burns (`b`) | validated Payments of the token delivered to its own issuer, per day. `bp` = scan still partial (busy issuer; backfills each night) |
+| Lock % (`k`) | nightly snapshots only; `k0` = today's value carried back (no older lock history exists) |
+
+`tools/history_cache.json` keeps scan markers, burns and nightly snapshots so each run is incremental.
 
 ### ads.js format (hand-editable)
 ```js

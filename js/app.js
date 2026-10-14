@@ -814,20 +814,13 @@ if(Q.get('live')!=='0'&&!Q.has('shot')){import('./live.js').then(({LiveFeed})=>{
 else setStatus(DEMO?'demo':'offline',{});
 updCounter();
 
-// ---------- time-lapse replay (lazy-loaded data/timeline.json: daily closes from xrpl.to + recorder snapshots) ----------
-let TL=null,tlOn=false,tlPlay=false,tlX=0;const tlEl=$('tlRange');
-async function tlLoad(){if(TL)return TL;$('tlDate').textContent='loading…';const r=await fetch('data/timeline.json');TL=await r.json();tlEl.max=TL.days.length-1;tlEl.value=tlX=TL.days.length-1;return TL}
-function tlApply(x){const i=Math.max(0,Math.min(TL.days.length-1,Math.round(x)));tlX=x;
- E.nodes.forEach(n=>{const s=TL.tok[n.name];const v=s?s[i]:null;n.tlS=v==null?(s?.25:1):Math.max(.3,Math.min(1.6,1+.16*Math.log2(v/1000)))});
- bridges.forEach(b=>{b.tl=Math.min(N[b.p.a].tlS,N[b.p.b].tlS)});
- const m=TL.mood[i];if(wMode==='auto'||tlOn)wTarget=W[m==null?'fog':m>1?'clear':m>-.5?'fog':m>-2?'rain':'storm'];
- $('tlDate').innerHTML=`${TL.days[i]} <span class="dim">· mood ${m==null?'—':pct(m)}</span>`}
-function tlStop(){tlOn=false;tlPlay=false;$('tlPlay').textContent='▶';E.nodes.forEach(n=>n.tlS=1);bridges.forEach(b=>{b.tl=null;b.solid.material.opacity=b.baseOp});setW();$('tlDate').textContent='live snapshot';document.body.classList.remove('replay')}
-$('tlPlay').onclick=async()=>{await tlLoad();if(!tlOn){tlOn=true;document.body.classList.add('replay');if(tlX>=TL.days.length-1)tlX=0}tlPlay=!tlPlay;$('tlPlay').textContent=tlPlay?'❚❚':'▶'};
-tlEl.oninput=async()=>{await tlLoad();tlOn=true;document.body.classList.add('replay');tlPlay=false;$('tlPlay').textContent='▶';tlApply(+tlEl.value)};
-$('tlLive').onclick=tlStop;
-function updTL(dt){if(tlOn&&tlPlay&&TL){tlX+=dt*+$('tlSpeed').value;if(tlX>=TL.days.length-1){tlX=TL.days.length-1;tlPlay=false;$('tlPlay').textContent='▶'}tlEl.value=tlX;tlApply(tlX)}
- E.nodes.forEach(n=>{if(!n.group)return;const tg=n.tlS??1,c=n.group.scale.y;if(Math.abs(tg-c)>.001)n.group.scale.y=c+(tg-c)*Math.min(1,dt*3)})}
+// ---------- Replay: real day-by-day city history (js/replay.js lazily loads history.js) ----------
+let RP=null;
+window.__BC={E,N,bridges,layoutMarks,orbit,C,$,setMode:m=>setMode(m),minorVisible:()=>$('minor').checked,
+ overview:()=>({cam:V3(230,190,320),tgt:V3(0,22,0)})};
+$('tlOpen').onclick=async()=>{try{RP=RP||(await import('./replay.js')).init(window.__BC);RP.open()}catch(e){console.warn('replay',e)}};
+if(Q.get('replay')==='1')setTimeout(()=>$('tlOpen').click(),1500);
+function updTL(dt){if(RP)RP.update(dt)}
 
 // ---------- graphics setting + shareable links + data-source labels ----------
 $('quality').value=TIERS[qPref]?qPref:'auto';$('qInfo').textContent=qPref==='auto'?`auto → ${TIER}`:'';

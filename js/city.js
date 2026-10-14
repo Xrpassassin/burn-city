@@ -59,7 +59,7 @@ function upsert(id,name,guest,x,y,z,r){if(id===myId)return;let p=peers.get(id);
 const nfts=new Map();   // peer id -> verified NFT character look (server only sends it for the wallet that owns it)
 function setNft(p){const n=nfts.get(p.id)||null;if((p.nc&&p.nc.userData.nftId)===(n&&n.id))return;if(p.nc){disposeNftChar(p.nc);p.nc=null}
   p.g.userData.core.visible=!n;if(!n)return;try{p.nc=buildNftChar(n,{srv:SRV,card:true});p.nc.scale.setScalar(1.6);p.g.add(p.nc)}catch(e){p.nc=null;p.g.userData.core.visible=true}}
-function drop(id){const p=peers.get(id);if(!p)return;if(p.nc)disposeNftChar(p.nc);W().S.remove(p.g);p.tag.remove();peers.delete(id)}
+function drop(id){nfts.delete(id);const p=peers.get(id);if(!p)return;if(p.nc)disposeNftChar(p.nc);W().S.remove(p.g);p.tag.remove();peers.delete(id)}
 function bubble(pid,text){const p=peers.get(pid);if(!p)return;if(!p.bub){p.bub=el('div','pbub');p.tag.prepend(p.bub)}p.bub.textContent=text.length>90?text.slice(0,88)+'…':text;p.bub.classList.remove('out');p.bubT=Date.now()+6500}
 
 // chat panel
@@ -88,7 +88,7 @@ function renderFoot(){foot.replaceChildren();
   else{const a=el('a','csign','Sign in with XAMAN to chat');a.href='social/';foot.append(a,el('div','dim cnote','Guests can watch. Be kind: messages are moderated.'))}}
 renderFoot();
 
-function connect(){if(ws||document.hidden)return;const t=token();try{ws=new WebSocket(WS+(t?'&token='+encodeURIComponent(t):''))}catch(e){return later()}
+function connect(){if(ws||document.hidden)return;/* new session: ids restart after a server restart, so forget every old id->NFT mapping and marker */for(const id of [...peers.keys()])drop(id);nfts.clear();const t=token();try{ws=new WebSocket(WS+(t?'&token='+encodeURIComponent(t):''))}catch(e){return later()}
   ws.onopen=()=>{retry=0;panel.classList.add('on')};
   ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
     if(m.t==='w'){myId=m.id;canChat=m.canChat;if(m.name){window.__myColor=colOf(m.name);dispatchEvent(new CustomEvent('bc-mycolor',{detail:window.__myColor}))}log.replaceChildren();(m.msgs||[]).forEach(x=>addMsg({...x},false));renderFoot();log.scrollTop=log.scrollHeight}

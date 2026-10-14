@@ -21,7 +21,9 @@ let prof = (() => { try { return JSON.parse(LS.bcFish || 'null') } catch (e) { r
 const saveLocal = () => { LS.bcFish = JSON.stringify(prof) };
 let bait = 'worm';
 // ---------- world: dock + shop on the city shore ----------
-let dock = null, shopPos = null, bobber = null;
+let dock = null, shopPos = null, bobber = null, rod = null;
+const ROD_LOOK = { basic: [0x8a5a2b, 0], carbon: [0x1c1c22, 0x2a6aff], pro: [0x2a6aff, 0x2ad0ff], legend: [0xff7a18, 0xff3a00] };
+const castFrom = new THREE.Vector3(), castTo = new THREE.Vector3();
 function build() {
   const c = W(), e = window.__estate; if (!e) return; const { lakeC, dir, side } = e;
   const shoreAt = u => { const p = lakeC.clone().addScaledVector(side, u).addScaledVector(dir, -e.D * 2); for (let k = 0; k < 300; k++) { if (e.inLake(p.x, p.z)) return p; p.addScaledVector(dir, 1) } return p };
@@ -36,6 +38,13 @@ function build() {
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(8, 2), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), toneMapped: false })); sign.position.copy(shopPos).addScaledVector(dir, 3.55).setY(3.4); sign.rotation.y = yaw; c.S.add(sign);
   const hit = new THREE.Mesh(new THREE.BoxGeometry(9, 5, 7), new THREE.MeshBasicMaterial({ visible: false })); hit.position.copy(shopPos).setY(2.5); hit.rotation.y = yaw; hit.userData = { kind: 'tackle' }; c.S.add(hit); c.pick && c.pick.push(hit);
   bobber = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff3a2a })); bobber.visible = false; c.S.add(bobber);
+  const rg = new THREE.Group(), rm = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: .5 }), seg = [];
+  for (let i = 0; i < 3; i++) { const g = new THREE.Group(), m = new THREE.Mesh(new THREE.CylinderGeometry(.03 - i * .008, .045 - i * .01, .8, 6).translate(0, .4, 0), rm); g.add(m); g.position.y = i ? .8 : 0; (i ? seg[i - 1] : rg).add(g); seg.push(g) }
+  const reelM = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, .08, 10).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x999999, metalness: .8 })); reelM.position.set(.05, .25, 0); rg.add(reelM);
+  const tip = new THREE.Object3D(); tip.position.y = .8; seg[2].add(tip); rg.position.set(.32, 1.05, -.15); rg.rotation.x = -.9; rg.visible = false; c.avatar.add(rg);
+  const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), line = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xe8f4ff, transparent: true, opacity: .7 })); line.frustumCulled = false; line.visible = false; c.S.add(line);
+  const fm = new THREE.Mesh(new THREE.SphereGeometry(.35, 10, 8).scale(1, .55, 2.1), new THREE.MeshStandardMaterial({ color: 0xc8d0dc, emissive: 0x222222, metalness: .6, roughness: .3 })); fm.visible = false; c.S.add(fm);
+  rod = { rg, rm, seg, tip, line, lg, fm, swing: 0, lift: 0, pull: 0 };
   window.__fishWorld = { dock, shopPos, shoreAt };
   const decks = window.__decks = window.__decks || []; decks.push({ base, dir, side, v0: -3, v1: 21.6, hw: 2.1, h: 1.2 });
   window.__deckAt = (x, z) => { for (const k of decks) { const dx = x - k.base.x, dz = z - k.base.z, v = dx * k.dir.x + dz * k.dir.z, u = dx * k.side.x + dz * k.side.z; if (v > k.v0 && v < k.v1 && Math.abs(u) < k.hw) return k.h } return null };
@@ -56,20 +65,19 @@ let FISHOK = false;
 async function doCast() {
   if (state !== 'idle' || !FISHOK) return; const c = W(), e = window.__estate, fw = new THREE.Vector3(); c.C.getWorldDirection(fw); fw.y = 0; fw.normalize();
   const from = isDeep() ? window.__boat.pos : c.P.pos; let tgt = from.clone().addScaledVector(fw, 9); if (!e.inLake(tgt.x, tgt.z)) { tgt = from.clone(); for (let k = 0; k < 40 && !e.inLake(tgt.x, tgt.z); k++) tgt.addScaledVector(e.dir, 1); tgt.addScaledVector(e.dir, 3) }
-  state = 'wait'; bobber.position.copy(tgt).setY(0.45); bobber.visible = true; ui.style.display = 'block'; ui.innerHTML = '🎣 Waiting for a bite… <div class="nv">bait: ' + bait + '</div><button id="fStop">Reel in</button>'; ui.querySelector('#fStop').onclick = stop;
+  state = 'wait'; rod.swing = 1; rod.tip.getWorldPosition(castFrom); castTo.copy(tgt).setY(0.45); bobber.position.copy(castFrom); bobber.visible = true; ui.style.display = 'block'; ui.innerHTML = '🎣 Waiting for a bite… <div class="nv">bait: ' + bait + '</div><button id="fStop">Reel in</button>'; ui.querySelector('#fStop').onclick = stop;
   if (tok()) { const r = await api('cast', { bait, deep: isDeep(), weather: weather(), near: FISHOK ? 1 : 0, x: Math.round(from.x), z: Math.round(from.z) }).catch(() => ({ error: 'offline' })); if (r.error) { msg(r.error === 'too_fast' ? 'Easy! Wait a few seconds between casts.' : r.error === 'not_near_water' ? 'Get closer to the water to fish.' : r.error === 'hourly_limit' ? 'The fish need a rest (hourly limit). Try later.' : 'Server busy, try again.'); return } cur = { ...r, srv: true } }
   else { const f = roll(prof.rod, prof.bait[bait] > 0 || bait === 'worm' ? bait : 'worm', { night: night(), deep: isDeep(), weather: weather() }); cur = { fish: f, wait: 2500 + Math.random() * 6000, hits: f.hits, zone: f.zone, r: f.r } }
   cur.t0 = performance.now(); setTimeout(bite, cur.wait) }
 function bite() { if (state !== 'wait') return; state = 'bite'; ui.innerHTML = '<b style="font-size:18px">❗ Bite!</b><br><button id="fHook" style="margin-top:8px;font-size:18px">Hook it!</button>'; ui.querySelector('#fHook').onclick = hook; cur.biteT = performance.now(); setTimeout(() => { if (state === 'bite') { msg('It got away… (hook faster)'); land(false) } }, 1600) }
 function hook() { if (state !== 'bite') return; state = 'reel'; cur.hit = 0; cur.miss = 0; cur.z0 = Math.random() * (1 - cur.zone); cur.spd = 0.7 + 0.35 * cur.r; cur.ph = 0; drawReel() }
 function drawReel() { ui.innerHTML = `<b>Reel it in!</b> <span class="nv">${cur.hit}/${cur.hits} · misses ${cur.miss}/3</span><div class="bar"><div class="zone" style="left:${cur.z0 * 100}%;width:${cur.zone * 100}%"></div><div class="mk" id="fMk"></div></div><button id="fReel" style="width:100%;font-size:18px">⟳ Reel!</button>`; ui.querySelector('#fReel').onpointerdown = e => { e.preventDefault(); tapReel() } }
-function tapReel() { if (state !== 'reel') return; const m = (Math.sin(cur.ph) + 1) / 2; if (m >= cur.z0 && m <= cur.z0 + cur.zone) { cur.hit++; cur.z0 = Math.random() * (1 - cur.zone) } else cur.miss++;
+function tapReel() { if (state !== 'reel') return; const m = (Math.sin(cur.ph) + 1) / 2; if (m >= cur.z0 && m <= cur.z0 + cur.zone) { cur.hit++; rod.pull = 1; cur.z0 = Math.random() * (1 - cur.zone) } else cur.miss++;
   if (cur.hit >= cur.hits) land(true); else if (cur.miss >= 3) { msg('Line snapped!'); land(false) } else drawReel() }
 async function land(ok) { const was = cur; state = 'idle'; bobber.visible = false;
   let f = null; if (was.srv) { const r = await api('reel', { cid: was.cid, ok }).catch(() => ({})); if (r.fish) { f = r.fish; prof = r.profile; W()._ft = r.today } else if (ok) return msg(r.error === 'timing' ? 'Too slow, it slipped off.' : 'Server busy.') }
   else { if (bait !== 'worm' && prof.bait[bait] > 0) prof.bait[bait]--; if (ok) { f = was.fish; const L = prof.log[f.id] || { n: 0, best: 0 }; L.n++; L.best = Math.max(L.best, f.kg); prof.log[f.id] = L; prof.creel.push([f.id, f.kg, f.val]); prof.n++ } saveLocal() }
-  if (!ok) return; dispatchEvent(new CustomEvent('bc-fish-catch', { detail: { today: (was.srv && W()._ft) || 0 } })); ui.style.display = 'block'; ui.innerHTML = `<div style="color:${RC[f.r]};font-weight:800">${RN[f.r]}</div><div style="font-size:20px;font-weight:800">🐟 ${f.name}</div>${f.kg} kg · worth ${f.val} 🪙<br><button id="fAgain">Cast again</button> <button id="fLog">📖 Log</button>`;
-  ui.querySelector('#fAgain').onclick = doCast; ui.querySelector('#fLog').onclick = openLog }
+  if (!ok) return; rod.lift = 1; rod.fm.material.color.set(RC[f.r]); rod.fm.material.emissive.set(RC[f.r]).multiplyScalar(.25); rod.tip.getWorldPosition(castFrom); rod.fm.position.copy(bobber.position); dispatchEvent(new CustomEvent('bc-fish-catch', { detail: { today: (was.srv && W()._ft) || 0 } })); ui.style.display = 'block'; ui.innerHTML = `<div style="color:${RC[f.r]};font-weight:800">${RN[f.r]}</div><div style="font-size:20px;font-weight:800">🐟 ${f.name}</div>${f.kg} kg · worth ${f.val} 🪙<div class="nv">✓ added to your creel & fish log</div>`; clearTimeout(land.k); land.k = setTimeout(() => { if (state === 'idle') ui.style.display = 'none' }, 2600) }
 function stop() { state = 'idle'; bobber.visible = false; ui.style.display = 'none' }
 function msg(t) { state = 'idle'; bobber.visible = false; ui.style.display = 'block'; ui.innerHTML = t + '<br><button id="fOk">OK</button>'; ui.querySelector('#fOk').onclick = () => ui.style.display = 'none' }
 // ---------- shop + log ----------
@@ -101,7 +109,16 @@ function tick() { requestAnimationFrame(tick); const c = W(), e = window.__estat
   const canFish = walk && (nearDock || shore || isDeep()); FISHOK = canFish; const nearShop = walk && !isDeep() && p.distanceTo(shopPos) < 10;
   bar.style.display = canFish || nearShop ? 'flex' : 'none'; bar.querySelector('#fCast').style.display = canFish ? '' : 'none'; bar.querySelector('#fShop').style.display = nearShop ? '' : 'none';
   if (!canFish && state !== 'idle' && !isDeep()) stop();
-  if (bobber.visible) bobber.position.y = 0.45 + (state === 'bite' ? -0.25 + Math.sin(t * 20) * 0.12 : Math.sin(t * 2.2) * 0.06);
+  { const show = canFish || state !== 'idle' || rod.lift > 0; rod.rg.visible = show; const lk = ROD_LOOK[prof.rod] || ROD_LOOK.basic; rod.rm.color.setHex(lk[0]); rod.rm.emissive.setHex(lk[1]); rod.rm.emissiveIntensity = lk[1] ? .6 + .3 * Math.sin(t * 3) : 0;
+    const dt = 1 / 60; rod.swing = Math.max(0, rod.swing - dt * 1.6); rod.pull = Math.max(0, rod.pull - dt * 4);
+    const sw = rod.swing > 0 ? (rod.swing > .55 ? -(1 - rod.swing) * 4 : (rod.swing - .55) * 2) : 0; rod.rg.rotation.x = -.9 + sw + rod.pull * .5;
+    const bend = state === 'bite' ? .35 + Math.sin(t * 22) * .15 : state === 'reel' ? .3 + rod.pull * .3 + Math.sin(t * 9) * .05 : rod.lift > 0 ? .4 : .05; rod.seg[1].rotation.x = bend * .5; rod.seg[2].rotation.x = bend;
+    if (rod.swing > 0 && rod.swing < .55 && bobber.visible) { const k = 1 - rod.swing / .55; bobber.position.lerpVectors(castFrom, castTo, k); bobber.position.y = castFrom.y + (castTo.y - castFrom.y) * k + Math.sin(k * Math.PI) * 3 }
+    else if (rod.swing > 0 && bobber.visible) { rod.tip.getWorldPosition(castFrom); bobber.position.copy(castFrom) }
+    const tp = new THREE.Vector3(); rod.tip.getWorldPosition(tp); const pa = rod.lg.attributes.position;
+    if (rod.lift > 0) { rod.lift = Math.max(0, rod.lift - dt * .75); const k = Math.min(1, (1 - rod.lift) * 2.2); rod.fm.visible = true; rod.fm.position.lerpVectors(rod.fm.position, tp.clone().add(new THREE.Vector3(0, -1.1, 0)), k * .2); rod.fm.rotation.set(Math.sin(t * 18) * .4, t * 2, 0); if (!rod.lift) rod.fm.visible = false }
+    const end = rod.lift > 0 ? rod.fm.position : bobber.visible ? bobber.position : null; rod.line.visible = show && !!end; if (end) { pa.setXYZ(0, tp.x, tp.y, tp.z); pa.setXYZ(1, end.x, end.y, end.z); pa.needsUpdate = true } }
+  if (bobber.visible && !(rod.swing > 0)) bobber.position.y = 0.45 + (state === 'bite' ? -0.25 + Math.sin(t * 20) * 0.12 : Math.sin(t * 2.2) * 0.06);
   if (state === 'reel') { cur.ph += 0.05 * cur.spd * 2.2; const mk = $('fMk'); if (mk) mk.style.left = ((Math.sin(cur.ph) + 1) / 2 * 100) + '%' } }
 window.__fish = { openShop, openLog, doCast, prof: () => prof, roll };
 (function boot() { if (!window.__ready || !W() || !window.__estate) return setTimeout(boot, 500); build(); refresh(); requestAnimationFrame(tick) })();

@@ -12,6 +12,7 @@ Per token in data.js + launchpad.js:
   x  [from,to] day ranges where m was interpolated (no trade data that day) -> shown as approximate in the UI
   b  [[day,count],...] burns = validated Payments of the token delivered to its own issuer (XRPL account_tx)
   bp burn scan incomplete (very busy issuer; continues on following nightly runs)
+  w  [[day,active_wallets],...] 24h unique traders (xrpl.to) from nightly snapshots
   k  [[day,locked_pct],...] TVL-weighted % LP locked in blackholed wallets; from nightly snapshots. k0 = 1 means
      the first entry is today's value carried back (no older lock history exists)
 Incremental: tools/history_cache.json keeps burns + scan markers + nightly real snapshots, so each nightly run
@@ -116,7 +117,7 @@ lk={}
 for p in eco['pools']:
   for s in (p['a'],p['b']):
     w=lk.setdefault(s,[0,0]);w[0]+=p.get('tvl_xrp',0)*(p.get('locked_pct') or 0);w[1]+=p.get('tvl_xrp',0)
-snap[TODAY]={t['name']:[round(t['node'].get('tvl') or 0,1),t['node'].get('mcap_amm') or t['node'].get('mcap_xrp'),round(lk[t['name']][0]/lk[t['name']][1],1) if lk.get(t['name'],[0,0])[1] else None] for t in toks if 'node' in t}
+snap[TODAY]={t['name']:[round(t['node'].get('tvl') or 0,1),t['node'].get('mcap_amm') or t['node'].get('mcap_xrp'),round(lk[t['name']][0]/lk[t['name']][1],1) if lk.get(t['name'],[0,0])[1] else None,t['node'].get('active')] for t in toks if 'node' in t}
 json.dump(cache,open(CACHE,'w'),separators=(',',':'))
 # ---- assemble daily grid ----
 def D(s): return datetime.date.fromisoformat(s)
@@ -182,12 +183,14 @@ for t in toks:
     for d in rs:
       i=idx(d)-o['ms']
       if 0<=i<len(o['t']):
-        tv,mc,lpct=snap[d][nm];o['t'][i]=enc(tv);o['tr'].append(idx(d))
+        tv,mc,lpct=snap[d][nm][:3];o['t'][i]=enc(tv);o['tr'].append(idx(d))
         if mc: o['m'][i]=enc(mc)
   ks=[[idx(d),snap[d][nm][2]] for d in rs if snap[d][nm][2] is not None]
   if ks:
     if ks[0][0]>o.get('a',L): ks.insert(0,[o.get('a',L),ks[0][1]]);o['k0']=1
     o['k']=ks
+  ws=[[idx(d),snap[d][nm][3]] for d in rs if len(snap[d][nm])>3 and snap[d][nm][3] is not None]
+  if ws: o['w']=ws   # active wallets (24h unique traders) from nightly snapshots
   if 'lot' in t: o['lot']=1;o['bond']=t['lot'].get('bond_pct')
   out['tok'][nm]=o
 open(OUT,'w').write('window.HISTORY='+json.dumps(out,separators=(',',':'))+';\n')

@@ -42,7 +42,7 @@ const FOGV=`#include <fog_pars_vertex>`,TAIL=`#include <tonemapping_fragment>\n#
 const fogU=()=>THREE.UniformsUtils.merge([THREE.UniformsLib.fog]);
 
 // ---------- layout (deterministic, data-driven) ----------
-const THEME={XRP:{c:0x9fd8ff},BURN:{c:0xff5a1a,fire:1},XRPyro:{c:0xff2a00,fire:2},IMM:{c:0x3a8bff,ice:1},IMG:{c:0x8a6bff},RACC:{c:0x00ffa8},VEGAS:{c:0xff2bd6},'666':{c:0xb026ff},RLUSD:{c:0x2bffd9},Budzy:{c:0x4dff5a},'$BTCK':{c:0xf7931a}};
+const THEME={XRP:{c:0x9fd8ff},BURN:{c:0xff5a1a,fire:1},XRPyro:{c:0xff2a00,fire:2},IMM:{c:0x3a8bff,ice:1},IMG:{c:0x8a6bff},RACC:{c:0x00ffa8},VEGAS:{c:0xff2bd6},'666':{c:0xb026ff},RLUSD:{c:0x2bffd9},Budzy:{c:0x4dff5a},'$BTCK':{c:0xf7931a},BCHAMP:{c:0xffb347}};
 const MINORC=[0x00e5ff,0x66ff99,0xffd166,0xff66c4,0x7aa2ff,0x9effe0];
 const CORE=['BURN','XRPyro','IMM','IMG','RLUSD','666','VEGAS','RACC'];
 const N={};E.nodes.forEach(n=>N[n.name]=n);
@@ -50,6 +50,8 @@ const pools=E.pools.filter(p=>N[p.a]&&N[p.b]);
 const RING=135;
 CORE.filter(c=>N[c]).forEach((c,i,arr)=>{const a=i/arr.length*Math.PI*2-Math.PI/2;Object.assign(N[c],{core:true,ang:a,pos:new THREE.Vector3(Math.cos(a)*RING,0,Math.sin(a)*RING)})});
 Object.assign(N.XRP,{pos:new THREE.Vector3(),core:true,ang:0});
+// $BCHAMP landmark: inner plaza between XRP and the core ring, opposite the BURN district
+if(N.BCHAMP){const a=Math.PI/2+Math.PI/CORE.length;Object.assign(N.BCHAMP,{core:true,landmark:true,ang:a,pos:new THREE.Vector3(Math.cos(a)*78,0,Math.sin(a)*78)})}
 const kids={};E.nodes.filter(n=>!n.pos).forEach(n=>{const ps=pools.filter(p=>p.a===n.name||p.b===n.name).sort((a,b)=>b.tvl_xrp-a.tvl_xrp);
  const par=ps.map(p=>p.a===n.name?p.b:p.a).find(x=>N[x].core&&x!=='XRP')||'BURN';n.parent=par;(kids[par]=kids[par]||[]).push(n)});
 Object.entries(kids).forEach(([par,ks])=>{const P0=N[par];ks.sort((a,b)=>b.tvl-a.tvl).forEach((n,i)=>{const a=P0.ang+(i-(ks.length-1)/2)*.11;const r=RING+70+(i%2)*26;
@@ -173,22 +175,33 @@ function tierParts(n,g,si,y,spH,cw,sides){const T=n.tier,col=n.col;
    const s2=strip.clone();s2.position.set(-n.w*1.02,s2.position.y,0);g.add(s2);anim.push(t=>{const o=.35+.65*(.5+.5*Math.sin(t*2.2+n.pos.z));strip.material.opacity=o});
    const pad=new THREE.Mesh(new THREE.CylinderGeometry(cw*1.5,cw*1.5,.25,24),PM.padM);pad.position.y=si[si.length-1].y+si[si.length-1].sh+.6;pad.position.x=0;
    const ring=new THREE.Mesh(new THREE.RingGeometry(cw*1.25,cw*1.45,24),new THREE.MeshBasicMaterial({color:0x3cf3ff,side:2}));ring.rotation.x=-Math.PI/2;ring.position.y=pad.position.y+.14;g.add(pad);g.add(ring)}}}
-function heroTower(n){const g=new THREE.Group();g.position.copy(n.pos);S.add(g);const col=n.col,sides=n.name==='XRP'?12:n.minor?6:8;
+// signature crowns for the flagships (+ $BCHAMP landmark); cheap shared-material meshes, opaque, no transparency
+function signatureTop(n,g,y,spH,cw){const k=n.name,em=neonStd(n.th.c,2.2);
+ if(k==='BURN'){for(let i=0;i<5;i++){const a=i/5*6.283;const f=new THREE.Mesh(new THREE.ConeGeometry(cw*.32,spH*(.55+.25*(i%2)),5),em);f.position.set(Math.cos(a)*cw*.55,y+spH*.3,Math.sin(a)*cw*.55);f.rotation.set(Math.sin(a)*.25,0,-Math.cos(a)*.25);g.add(f)}}
+ else if(k==='IMM'){const c=new THREE.Mesh(new THREE.OctahedronGeometry(cw*.75,0),em);c.scale.y=1.8;c.position.y=y+spH*.62;g.add(c);anim.push((t,dt)=>c.rotation.y+=dt*.4)}
+ else if(k==='IMG'){const r=new THREE.Mesh(new THREE.TorusGeometry(cw*.95,cw*.12,6,32),em);r.position.y=y+spH*.55;g.add(r);anim.push((t,dt)=>r.rotation.y+=dt*.5)}
+ else if(k==='XRPyro'){for(let i=0;i<3;i++){const a=i/3*6.283;const p=new THREE.Mesh(new THREE.CylinderGeometry(.12,cw*.22,spH*1.1,5),em);p.position.set(Math.cos(a)*cw*.6,y+spH*.55,Math.sin(a)*cw*.6);p.rotation.set(Math.sin(a)*.18,0,-Math.cos(a)*.18);g.add(p)}}
+ else if(k==='BCHAMP'){const c=new THREE.Group();for(let i=0;i<5;i++){const a=i/5*6.283;const p=new THREE.Mesh(new THREE.ConeGeometry(cw*.2,spH*.45,4),em);p.position.set(Math.cos(a)*cw*.85,spH*.22,Math.sin(a)*cw*.85);c.add(p)}
+  const band=new THREE.Mesh(new THREE.TorusGeometry(cw*.9,cw*.1,5,30),em);band.rotation.x=Math.PI/2;c.add(band);c.position.y=y+spH*.15;g.add(c)}}
+function heroTower(n){const g=new THREE.Group();g.position.copy(n.pos);S.add(g);const col=n.col;
  const locked=pools.filter(p=>p.a===n.name||p.b===n.name).reduce((s,p)=>s+p.tvl_xrp*p.locked_pct/100,0)/Math.max(1,n.tvl);n.lockedShare=locked;const T=n.tier=n.name==='XRP'?4:lockTier(locked);
+ // architecture by lock tier (base width n.w and total height n.h unchanged): 0 boxy concrete, 1 stepped setbacks, 2 tapered glass, 3+ twisted spires
+ const SIL=n.name==='XRP'?2:Math.min(3,T),sides=n.name==='XRP'?12:SIL===0?4:SIL===1?(n.minor?4:6):n.minor?6:8;
  let y=0,cw=n.w;const segs=n.minor?2:n.name==='XRP'?5:4;const mat=tierMat(n.th.c,T);const segInfo=[];
- for(let s=0;s<segs;s++){const sh=n.h*(s===0?.42:.58/(segs-1)),top=cw*(s===segs-1?.62:.84);const geo=new THREE.CylinderGeometry(top,cw,sh,sides,1),ug=new THREE.CylinderGeometry(top/cw,1,1,sides,1);
-  const m=new THREE.Mesh(ug,mat);m.scale.set(cw,sh,cw);m.position.y=y+sh/2;g.add(m);segInfo.push({y,sh,cw,top});
+ for(let s=0;s<segs;s++){const sh=n.h*(s===0?.42:.58/(segs-1)),top=cw*(SIL===0?.97:SIL===1?1:s===segs-1?.62:.84);const geo=new THREE.CylinderGeometry(top,cw,sh,sides,1),ug=new THREE.CylinderGeometry(top/cw,1,1,sides,1);
+  if(sides===4){ug.rotateY(Math.PI/4);geo.rotateY(Math.PI/4)}const m=new THREE.Mesh(ug,mat);m.scale.set(cw,sh,cw);m.position.y=y+sh/2;if(SIL===3&&!n.minor){m.rotation.y=s*.32;}g.add(m);segInfo.push({y,sh,cw,top});
   if(!n.minor&&T>=2){const e=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.45}));e.position.copy(m.position);g.add(e)}
   const ledge=new THREE.Mesh(new THREE.CylinderGeometry(top*1.14,top*1.18,.6,sides),neonStd(n.th.c,.9));ledge.position.y=y+sh;g.add(ledge);
   if(s===0&&!n.minor&&T>=1)for(let k=0;k<sides;k++){const a=k/sides*Math.PI*2+Math.PI/sides;const fin=new THREE.Mesh(new THREE.BoxGeometry(.35,sh*.9,cw*.28),neonStd(n.th.c,.35));
    fin.position.set(Math.cos(a)*cw*.98,sh*.45,Math.sin(a)*cw*.98);fin.rotation.y=-a;g.add(fin)}
-  y+=sh;cw=top*.9}
+  y+=sh;cw=SIL===0?top*.96:SIL===1?top*.78:top*.9}
  const spH=n.h*(n.minor?.18:.3);const spire=new THREE.Mesh(new THREE.ConeGeometry(cw*.55,spH,sides),neonStd(n.th.c,1.4));spire.position.y=y+spH/2;g.add(spire);
  const antH=n.h*.16;const ant=new THREE.Mesh(new THREE.CylinderGeometry(.08,.14,antH,4),new THREE.MeshBasicMaterial({color:0xdde8ff}));ant.position.y=y+spH+antH/2;g.add(ant);
  const beacon=new THREE.Sprite(new THREE.SpriteMaterial({map:GT,color:col,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));beacon.scale.setScalar(n.w*1.3+2);beacon.position.y=y+spH+antH;g.add(beacon);
  const red=new THREE.Sprite(new THREE.SpriteMaterial({map:GT,color:0xff2222,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));red.scale.setScalar(2.5);red.position.y=y+spH*.6;g.add(red);
  anim.push(t=>{beacon.material.opacity=.65+.35*Math.sin(t*2+n.pos.x);red.material.opacity=.35+.65*Math.pow(.5+.5*Math.sin(t*1.6+n.pos.z),3)});
- n.top=y+spH+antH;
+ n.top=y+spH+antH;n.roofY=y;n.roofCw=cw;n.spH=spH;
+ signatureTop(n,g,y,spH,cw);
  if(!n.minor&&TIER!=='low'){const k=T>=3?4:T>=1?3:2;for(let q=0;q<k;q++){const an=q/k*6.283+.4,r=cw*.78;ROOF.push([n.pos.x+Math.cos(an)*r,y,n.pos.z+Math.sin(an)*r,cw*(.22+.08*(q%2)),.9+.5*(q%3),an])}
   if(T>=2&&T<4)ROOF.push([n.pos.x,y,n.pos.z,-cw*.5,0,0]);}
  tierParts(n,g,segInfo,y,spH,cw,sides);
@@ -333,10 +346,16 @@ setInterval(async()=>{if(!LPD.lots.length||document.hidden)return;try{const tx=a
 
 // ---------- satellite buildings (one instanced draw call) + rooftops + neon signs ----------
 const sats=[];
-E.nodes.forEach(n=>{const k=Math.round((n.name==='XRP'?70:n.minor?Math.min(10,3+n.pools*2):Math.min(46,18+n.pools*3))*LV.sats);
- for(let i=0,tries=0;i<k&&tries<k*10;tries++){const a=rnd()*Math.PI*2,r=n.w*2.5+rnd()*(n.distR-n.w*2.5-2);const x=n.pos.x+Math.cos(a)*r,z=n.pos.z+Math.sin(a)*r;
+// neighbourhood density = active wallets (n.active: xrpl.to 24h unique traders, fallback holders), log scale, capped per tower
+const segD=(x,z,p,q)=>{const dx=q.x-p.x,dz=q.z-p.z,l=dx*dx+dz*dz||1,u=Math.max(0,Math.min(1,((x-p.x)*dx+(z-p.z)*dz)/l));return Math.hypot(p.x+u*dx-x,p.z+u*dz-z)};
+const poolSegs=pools.map(p=>[N[p.a].pos,N[p.b].pos]);
+E.nodes.forEach(n=>{const act=n.active!=null?n.active:n.holders!=null?n.holders/10:0;n.dens=Math.min(1,Math.log10(1+act)/3.3);
+ const k=Math.round((n.name==='XRP'?70:n.minor?Math.min(14,2+12*n.dens):Math.min(56,8+48*n.dens))*LV.sats);
+ const rnd=(s=>()=>(s=(s*1664525+1013904223)>>>0)/4294967296)([...n.name].reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7));
+ const span=(n.distR-n.w*2.5-2)*(1-.35*n.dens);
+ for(let i=0,tries=0;i<k&&tries<k*10;tries++){const a=rnd()*Math.PI*2,r=n.w*2.5+rnd()*span;const x=n.pos.x+Math.cos(a)*r,z=n.pos.z+Math.sin(a)*r;
   const bw=1.1+rnd()*(n.minor?1.4:2.4),h=3+Math.pow(rnd(),1.6)*n.h*(n.minor?.5:.55);
-  if(Math.abs(Math.hypot(x,z)-81)<9)continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+1.6))continue;
+  if(Math.abs(Math.hypot(x,z)-81)<9)continue;if(poolSegs.some(([p,q])=>segD(x,z,p,q)<bw+2.2))continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+1.6))continue;
   sats.push({x,z,w:bw,h,c:n.col,rot:rnd()*Math.PI,n});colliders.push({x,z,r:bw*1.02,h});i++}});
 {const segs=[];sats.forEach(s=>{let y=0,w=s.w;const ns=s.h>12?3:2;for(let j=0;j<ns;j++){const sh=s.h*(j===0?.55:.45/(ns-1));segs.push({x:s.x,z:s.z,y:y+sh/2,w,h:sh,c:s.c,rot:s.rot});y+=sh;w*=.78}s.top=y;s.topW=w});
  const im=new THREE.InstancedMesh(segGeo,bMat(0xffffff,1.6),segs.length);
@@ -467,10 +486,19 @@ E.nodes.filter(n=>!n.minor).forEach(n=>{const out=n.name==='XRP'?new THREE.Vecto
  m.position.copy(n.pos).addScaledVector(out,n.w*1.9+3).setY(Math.min(n.h*.5,48));m.lookAt(m.position.clone().add(out));m.userData={kind:'billboard',node:n};S.add(m);pick.push(m);const ph=Math.random()*9;anim.push(t=>m.material.opacity=Math.random()<.01?.3:.82+.12*Math.sin(t*2+ph))});
 
 // ---------- searchlights, steam vents, drones, freighter airship ----------
-const search=[];[['XRP',0x9fd8ff],['BURN',0xffa060],['IMM',0x8fc8ff],['666',0xd08cff]].forEach(([k,c],i)=>{if(!N[k])return;const n=N[k];const g=new THREE.Group();g.position.copy(n.pos).setY(n.name==='XRP'?n.h*.42:1);S.add(g);
- const cone=new THREE.Mesh(new THREE.CylinderGeometry(.4,11,320,24,1,true).translate(0,160,0),new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:2,uniforms:{c:{value:new THREE.Color(c)},wet:U.wet},
-  vertexShader:`varying float y;void main(){y=position.y/320.;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`uniform vec3 c;uniform float wet;varying float y;void main(){gl_FragColor=vec4(c,pow(max(0.,1.-y),1.5)*(.022+.03*wet));}`}));g.add(cone);
- search.push(t=>{cone.rotation.z=.45*Math.sin(t*.23+i*2);cone.rotation.x=.45*Math.cos(t*.17+i)})});
+const search=[];const SL=[['XRP',0x9fd8ff],['BURN',0xffa060],['IMM',0x8fc8ff],['BCHAMP',0xffd59a],['666',0xd08cff]].slice(0,TIER==='low'?2:5);
+const lampGeo=new THREE.CylinderGeometry(.9,1.2,1.4,10),lampM=new THREE.MeshStandardMaterial({color:0x1a2030,metalness:.9,roughness:.35}),lensGeo=new THREE.CircleGeometry(.85,14);
+const beamGeo=new THREE.CylinderGeometry(.85,14,240,20,1,true).translate(0,120,0);
+SL.forEach(([k,c],i)=>{const n=N[k];if(!n||n.roofY==null)return;const g=new THREE.Group();const off=n.roofCw*.55;
+ // lamp sits on the roof deck beside the spire; beam origin = lens centre
+ g.position.set(n.pos.x+off,n.roofY+.7,n.pos.z);S.add(g);
+ const base=new THREE.Mesh(lampGeo,lampM);g.add(base);const head=new THREE.Group();head.position.y=.7;g.add(head);
+ const lens=new THREE.Mesh(lensGeo,new THREE.MeshBasicMaterial({color:c}));lens.rotation.x=-Math.PI/2;lens.position.y=.01;head.add(lens);
+ const cone=new THREE.Mesh(beamGeo,new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:2,uniforms:{c:{value:new THREE.Color(c)},wet:U.wet,day:U.day},
+  vertexShader:`varying float y;void main(){y=clamp(position.y/240.,0.,1.);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`uniform vec3 c;uniform float wet,day;varying float y;void main(){float f=1.-y;float a=f*f*(.08+.04*wet)*clamp(1.-day*1.6,0.,1.);gl_FragColor=vec4(c*clamp(a,0.,.2),clamp(a,0.,.2));}`}));
+ cone.frustumCulled=false;head.add(cone);
+ search.push(t=>{const vis=U.day.value<.6;cone.visible=vis;head.rotation.z=.4*Math.sin(t*.21+i*2);head.rotation.x=.4*Math.cos(t*.15+i)})});
 const steam=(()=>{const spots=sats.filter(()=>rnd()<.06);const cnt=Math.max(1,spots.length)*14,g=new THREE.BufferGeometry(),l=new Float32Array(cnt).map(()=>Math.random());g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(cnt*3),3));
  const pts=new THREE.Points(g,glowMat(0x8090a8,5,{blending:THREE.NormalBlending,opacity:.12}));pts.frustumCulled=false;S.add(pts);return dt=>{if(!spots.length)return;const a=g.attributes.position;for(let i=0;i<cnt;i++){l[i]+=dt*.25;if(l[i]>1)l[i]=0;const s=spots[i%spots.length];a.setXYZ(i,s.x+Math.sin(i+l[i]*3)*l[i]*2,s.top+l[i]*9,s.z+Math.cos(i)*l[i]*2)}a.needsUpdate=true}})();
 const drones=(()=>{const D=[];CORE.concat('XRP').filter(c=>N[c]).forEach(c=>{for(let i=0;i<(MOBILE?3:6);i++)D.push({n:N[c],r:N[c].w*2.6+i*1.5,y:N[c].h*(.3+rnd()*.6),sp:(.3+rnd()*.5)*(i%2?1:-1),ph:rnd()*6})});
@@ -607,7 +635,7 @@ function descNodeTable(n){const ps=pools.filter(p=>p.a===n.name||p.b===n.name).s
  ${n.name==='XRP'?'':`<tr><td>Market cap <span class="dim">(height)</span></td><td>${n.mc!=null?fmt(n.mc)+' XRP'+(n.price_thin||(n.price_src&&n.price_src!=='amm-xrp')?` <i class="est" title="${n.price_thin?'price from a thin pool (<1,000 XRP depth)':'priced via '+n.price_src.replace('amm-via-','')+' AMM'}">est.</i>`:''):na}</td></tr>`}
  ${burnRow}${n.name==='XRP'?'':`<tr><td>Burn txs <span class="dim">(flames)</span></td><td>${(n.burn_txs||0)+(n.liveBurns||0)?`${n.burn_complete?'':'≥'}${fmt((n.burn_txs||0)+(n.liveBurns||0))}${n.burn_vol?' · '+fmtS(n.burn_vol)+' '+n.name:''}${n.burn_complete?'':' <span class="dim" title="Only recent issuer history was scanned">(partial scan)</span>'}`:n.burn_txs===0&&n.burn_complete?'0':na}</td></tr>`}
  <tr><td>LP locked <span class="dim">(build tier)</span></td><td>${(n.lockedShare*100).toFixed(1)}% · <b>${LOCKT[n.tier][1]}</b></td></tr>
- <tr><td>Pool TVL <span class="dim">(width)</span></td><td>${fmt(n.tvl)} XRP${ps.some(p=>p.a!=='XRP'&&p.b!=='XRP')?' <i class="est" title="non-XRP pools valued at xrpl.to price">est.</i>':''}</td></tr><tr><td>24h volume</td><td>${n.vol24h!=null?fmt(n.vol24h)+' XRP':na}</td></tr><tr><td>Holders</td><td>${n.holders!=null?fmt(n.holders):na}</td></tr></table>
+ <tr><td>Pool TVL <span class="dim">(width)</span></td><td>${fmt(n.tvl)} XRP${ps.some(p=>p.a!=='XRP'&&p.b!=='XRP')?' <i class="est" title="non-XRP pools valued at xrpl.to price">est.</i>':''}</td></tr><tr><td>24h volume</td><td>${n.vol24h!=null?fmt(n.vol24h)+' XRP':na}</td></tr><tr><td>Holders</td><td>${n.holders!=null?fmt(n.holders):na}</td></tr><tr><td>Active wallets <span class="dim">(block density)</span></td><td>${n.active!=null?fmt(n.active)+(n.active_src==='holders'?' <i class="est" title="no trader data: holder count">holders</i>':' <span class="dim" title="unique wallets that traded in the last 24h (xrpl.to)">24h traders</span>'):na}</td></tr></table>
  <div class="dim" style="margin-top:4px">${ps.slice(0,5).map(p=>`${p.a}⇄${p.b} ${fmt(p.tvl_xrp)} XRP · ${(+p.locked_pct).toFixed(1)}%🔒${p.insider_pct>=50?' ⚑':''}`).join('<br>')}${ps.length>5?'<br>+'+(ps.length-5)+' more':''}</div>
  <div class="cardBtns"><a class="trade" href="${tradeUrl(n)}" target="_blank" rel="noopener">🔥 Trade on xrpburn.com</a>${iss?`<a href="https://livenet.xrpl.org/accounts/${iss}" target="_blank" rel="noopener" title="${iss}">Issuer ↗</a>`:''}</div>`}
 function priceFmt(v){if(v==null)return '—';const a=Math.abs(v);return a>=1?fmt(v,a>=100?0:3):a>=1e-4?(+v).toPrecision(4):(+v).toExponential(2)}
@@ -852,7 +880,7 @@ if(DEMO){const kinds=DEMO==='1'?null:DEMO==='all'?['burn','trade','lock']:DEMO==
  if(kinds){window.__startDemo=()=>{let d=+(Q.get('demoDelay')||600);kinds.forEach(k=>{setTimeout(()=>pushEvent(demoEvent(k)),d);d+=k==='trade'?300:k==='burn'?+(Q.get('bigDelay')||5000):600})}}
  else{const loop=()=>{const r=Math.random();pushEvent(demoEvent(r<.5?'trade':r<.8?'burn':'lock'));setTimeout(loop,+(Q.get('demoMs')||4000)*(.6+Math.random()*.8))};setTimeout(loop,1500)}}
 let feed=null;
-if(Q.get('live')!=='0'&&!Q.has('shot')){import('./live.js').then(({LiveFeed})=>{feed=new LiveFeed(E,{onEvent:pushEvent,onStatus:setStatus,burnTokens:['BURN','IMM','IMG','XRPyro','Budzy','$BTCK']}).start();window.__feed=feed}).catch(()=>setStatus('offline',{}))}
+if(Q.get('live')!=='0'&&!Q.has('shot')){import('./live.js').then(({LiveFeed})=>{feed=new LiveFeed(E,{onEvent:pushEvent,onStatus:setStatus,burnTokens:['BURN','IMM','IMG','XRPyro','Budzy','$BTCK','BCHAMP']}).start();window.__feed=feed}).catch(()=>setStatus('offline',{}))}
 else setStatus(DEMO?'demo':'offline',{});
 updCounter();
 

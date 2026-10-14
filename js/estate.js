@@ -39,7 +39,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/175.0, vv=dot(q,ld)/62.0, aa=at
   float along=dot(normalize(vW.xz+vec2(1e-3)),cdir); float across=dot(vW.xz,vec2(-cdir.y,cdir.x));
   float streak=pow(max(0.,sin(across*.35+w*3.)),18.)*smoothstep(.2,1.,w)*(1.-day*.7);          // broken vertical streaks of city light
   col+=vec3(1.,.55,.2)*streak*.55 + vec3(.3,.6,1.)*pow(max(0.,sin(across*.21+1.7+w*2.)),24.)*.35*(1.-day*.7);
-  col+=vec3(.6,.8,1.)*pow(n(p*6.+t*.6),12.)*.6;                                                   // sparkle shimmer
+  col+=vec3(.6,.8,1.)*pow(n(p*6.+t*.6),12.)*.3;col*=.72;                                                   // sparkle shimmer
   col=mix(col,vec3(.12,.45,.55),smoothstep(.92,1.,r)*.6); gl_FragColor=vec4(col,1.);
 #include <fog_fragment>
  gl_FragColor.rgb=mix(gl_FragColor.rgb,col,.9);

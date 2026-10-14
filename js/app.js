@@ -606,12 +606,22 @@ const banks=(()=>{const arr=[];const D=new Uint8Array(64*64*4);for(let y=0;y<64;
  return (k,t)=>arr.forEach((s,i)=>{s.material.opacity=k*.28;s.visible=k>.01;s.position.x+=Math.sin(t*.05+i)*.03})})();
 // ---- good-market sky FX (thin geometry + additive basic materials only: Safari-safe, no big transparent planes) ----
 const SKY=(()=>{const add=(c,o=0)=>new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
- const rays=new THREE.Group(),rayM=add(0xffd38a);for(let i=0;i<(TIER==='low'?3:6);i++){const m=new THREE.Mesh(new THREE.CylinderGeometry(2+i%3,18+i*3,700,10,1,true),rayM);m.position.set(-500+i*90,260,-700+i*40);m.rotation.z=-.5+i*.06;m.rotation.x=.25;rays.add(m)}rays.visible=false;S.add(rays);
+ // soft god-rays: tapered open cylinders, view-angle + length fade (no hard edges), plus a few dust motes drifting down each shaft
+ const rays=new THREE.Group(),rayM=new THREE.ShaderMaterial({uniforms:{op:{value:0}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
+  vertexShader:'varying vec2 vU;varying float vF;void main(){vU=uv;vec3 n=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vF=abs(dot(n,normalize(-mv.xyz)));gl_Position=projectionMatrix*mv;}',
+  fragmentShader:'uniform float op;varying vec2 vU;varying float vF;void main(){float a=op*pow(vF,2.5)*smoothstep(0.,.45,vU.y)*smoothstep(1.,.75,vU.y);gl_FragColor=vec4(vec3(1.,.86,.6)*a,a);}'});
+ const NR=TIER==='low'?3:6,RAYS=[];for(let i=0;i<NR;i++){const m=new THREE.Mesh(new THREE.CylinderGeometry(2+i%3,18+i*3,700,16,1,true),rayM);m.position.set(-500+i*90,260,-700+i*40);m.rotation.z=-.5+i*.06;m.rotation.x=.25;rays.add(m);RAYS.push(m)}
+ const DPS=TIER==='low'?6:MOBILE?8:14,DN=NR*DPS,dP=new Float32Array(DN*3),dC=new Float32Array(DN*3),dS=[];for(let i=0;i<DN;i++)dS.push({r:i%NR,u:Math.random(),a:Math.random()*6.283,rr:Math.random()*.8,sp:.004+Math.random()*.006});
+ const dG=new THREE.BufferGeometry();dG.setAttribute('position',new THREE.BufferAttribute(dP,3));dG.setAttribute('color',new THREE.BufferAttribute(dC,3));
+ const dust=new THREE.Points(dG,new THREE.PointsMaterial({size:MOBILE?2.2:2.8,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false}));dust.frustumCulled=false;rays.add(dust);
+ const _dv=new THREE.Vector3(),updDust=(dt,k)=>{rays.updateMatrixWorld();dS.forEach((d,i)=>{d.u+=d.sp*dt*6;if(d.u>1){d.u=0;d.a=Math.random()*6.283;d.rr=Math.random()*.8}const m=RAYS[d.r],r=m.geometry.parameters,rad=(r.radiusTop+(r.radiusBottom-r.radiusTop)*d.u)*d.rr;
+   _dv.set(Math.cos(d.a)*rad,350-700*d.u,Math.sin(d.a)*rad).applyMatrix4(m.matrix);dP[i*3]=_dv.x;dP[i*3+1]=_dv.y;dP[i*3+2]=_dv.z;const f=Math.sin(Math.PI*Math.min(1,Math.max(0,(d.u-.25)/.7)))*k*.55;dC[i*3]=f;dC[i*3+1]=f*.88;dC[i*3+2]=f*.65});dG.attributes.position.needsUpdate=dG.attributes.color.needsUpdate=true};
+ rays.visible=false;S.add(rays);
  const bow=new THREE.Group(),bowM=[0xff3b3b,0xff9a2a,0xffe14a,0x4dff7a,0x3aa0ff,0x9a5bff].map(c=>add(c));bowM.forEach((m,i)=>{const t=new THREE.Mesh(new THREE.TorusGeometry(520-i*9,4.2,6,TIER==='low'?48:96,Math.PI),m);bow.add(t)});bow.position.set(150,-60,-950);bow.visible=false;S.add(bow);
  const NC=TIER==='low'?24:MOBILE?60:140,coinG=new THREE.CylinderGeometry(2.2,2.2,.4,14).rotateX(Math.PI/2),coinM=new THREE.MeshStandardMaterial({color:0xffc83a,emissive:0x8a5a00,emissiveIntensity:.9,metalness:1,roughness:.22});
  const coins=new THREE.InstancedMesh(coinG,coinM,NC);coins.frustumCulled=false;coins.visible=false;S.add(coins);const cs=[...Array(NC)].map(()=>({x:(Math.random()-.5)*160,y:Math.random()*120,z:(Math.random()-.5)*160,v:10+Math.random()*12,r:Math.random()*6,s:2+Math.random()*4}));
  const o=new THREE.Object3D(),sp=new THREE.Vector3();
- return (dt,t,w,day)=>{const rk=w.rays*(.35+.65*day);rays.visible=rk>.01;rayM.opacity=rk*.12*(.8+.2*Math.sin(t*.4));
+ return (dt,t,w,day)=>{const rk=w.rays*(.35+.65*day);rays.visible=rk>.01;rayM.uniforms.op.value=rk*.18*(.85+.15*Math.sin(t*.4));if(rays.visible)updDust(dt,Math.min(1,rk));
   bow.visible=w.rainbow>.01;bowM.forEach(m=>m.opacity=w.rainbow*.22*(.55+.45*day));
   coins.visible=w.coins>.01;if(!coins.visible)return;const n=Math.max(1,Math.round(NC*Math.min(1,w.coins)));coins.count=n;coinM.emissiveIntensity=.7+.5*Math.sin(t*9);
   for(let i=0;i<n;i++){const c=cs[i];c.y-=c.v*dt;c.r+=c.s*dt;if(c.y<0){c.y=110+Math.random()*30;c.x=(Math.random()-.5)*160;c.z=(Math.random()-.5)*160}

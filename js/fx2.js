@@ -75,16 +75,26 @@ bagLoad();addEventListener('storage',e=>{if(e.key==='bcAcct')bagLoad()});
 
 // ---------- 5) daily recap (real data only, once per Phoenix day) ----------
 const phxDate=(ms=Date.now())=>new Date(ms-7*3600e3).toISOString().slice(0,10);
-async function recap(){if(!on('recap')||Q.has('shot')||Q.has('norecap'))return;const today=phxDate();if(localStorage.bc_recap===today&&!Q.has('recap'))return;
-  const yd=phxDate(Date.now()-864e5),toks=['BURN','IMM','IMG','XRPyro'].map(t=>c.N[t]).filter(n=>n&&n.key);let top=null,okN=0;
+async function recap(){if(!on('recap')||Q.has('shot')||Q.has('norecap'))return;const today=phxDate();
+  // "while you were away": last-visit timestamp + price/lock snapshots in localStorage (merged into this one popup)
+  const last=+localStorage.bc_lastSeen||0,away=last&&Date.now()-last>3600e3;let snap={};try{snap=JSON.parse(localStorage.bc_snap||'{}')}catch(e){}
+  const saveSnap=()=>{const o={p:{},l:{}};c.E.nodes.forEach(n=>{if(n.price_xrp)o.p[n.name]=n.price_xrp});c.E.pools.forEach(p=>o.l[p.a+'|'+p.b]=p.locked_pct||0);localStorage.bc_snap=JSON.stringify(o);localStorage.bc_lastSeen=Date.now()};
+  addEventListener('pagehide',saveSnap);setTimeout(saveSnap,5000);
+  if(localStorage.bc_recap===today&&!Q.has('recap')&&!away)return;
+  const yd=phxDate(Date.now()-864e5),toks=['BURN','IMM','IMG','XRPyro'].map(t=>c.N[t]).filter(n=>n&&n.key);let top=null,okN=0;const bigs=[];
   await Promise.all(toks.map(async n=>{const [iss,cur]=n.key.split('-');try{const r=await RPC('account_tx',{account:iss,limit:200,forward:false,ledger_index_min:-1,ledger_index_max:-1});okN++;
     for(const t of r.transactions){const tx=t.tx||t.tx_json,m=t.meta;if(!tx||!m||m.TransactionResult!=='tesSUCCESS'||tx.TransactionType!=='Payment'||tx.Destination!==iss)continue;const a=m.delivered_amount||tx.Amount;
-      if(!a||typeof a!=='object'||a.issuer!==iss||a.currency!==cur)continue;if(phxDate((tx.date+946684800)*1e3)!==yd)continue;const xrp=+a.value*(n.price_xrp||0);if(!top||xrp>top.xrp)top={n,amt:+a.value,xrp,hash:tx.hash||t.hash}}}catch(e){}}));
+      if(!a||typeof a!=='object'||a.issuer!==iss||a.currency!==cur)continue;const tms=(tx.date+946684800)*1e3,xrp=+a.value*(n.price_xrp||0);if(away&&tms>last&&xrp>10)bigs.push({n,amt:+a.value,xrp});if(phxDate(tms)!==yd)continue;if(!top||xrp>top.xrp)top={n,amt:+a.value,xrp,hash:tx.hash||t.hash}}}catch(e){}}));
   const bp=[...c.bridges].filter(b=>!b.volEst).sort((a,b)=>b.vol-a.vol)[0],lot=(window.LAUNCHPAD&&window.LAUNCHPAD.lots||[]).slice(-1)[0];
   const d=el('div');d.id='recap';const x=el('button','x','✕');x.setAttribute('aria-label','Dismiss recap');x.onclick=()=>{localStorage.bc_recap=today;d.remove()};
   d.append(x,el('h3',null,'📰 City recap · '+new Date(Date.now()-864e5).toLocaleDateString(undefined,{month:'short',day:'numeric',timeZone:'America/Phoenix'})));
   const row=(ic,l,v,fn)=>{const r=el(fn?'button':'div','rr');r.append(el('span','ri',ic),el('span','rl',l),el('b',null,v));if(fn)r.onclick=fn;d.append(r)};
-  row('🔥','Top burn',top?`${short(top.amt)} ${top.n.name}${top.xrp?' (≈'+short(top.xrp)+' XRP)':''}`:okN?'None found yesterday':'Ledger busy, try later',top?()=>c.showInfo({node:top.n}):null);
+  if(away){const hrs=Math.round((Date.now()-last)/3600e3);d.querySelector('h3').textContent='👋 While you were away · '+(hrs<48?hrs+'h':Math.round(hrs/24)+'d');
+   bigs.sort((a,b)=>b.xrp-a.xrp);row('🔥','Big burns (>10 XRP)',bigs.length?`${bigs.length} · top ${short(bigs[0].amt)} ${bigs[0].n.name} (≈${short(bigs[0].xrp)} XRP)`:'None',bigs.length?()=>c.showInfo({node:bigs[0].n}):null);
+   const nl=c.E.pools.filter(p=>snap.l&&snap.l[p.a+'|'+p.b]!=null&&(p.locked_pct||0)>snap.l[p.a+'|'+p.b]+.5);row('🔒','New locks',nl.length?nl.slice(0,2).map(p=>`${p.a}⇄${p.b} ${(p.locked_pct).toFixed(0)}%`).join(', ')+(nl.length>2?` +${nl.length-2}`:''):'None',null);
+   const mv=c.E.nodes.filter(n=>snap.p&&snap.p[n.name]&&n.price_xrp).map(n=>({n,ch:100*(n.price_xrp/snap.p[n.name]-1)})).sort((a,b)=>Math.abs(b.ch)-Math.abs(a.ch))[0];
+   row('📈','Top price move',mv?`${mv.n.name} ${mv.ch>=0?'+':''}${mv.ch.toFixed(1)}%`:'—',mv?()=>c.showInfo({node:mv.n}):null)}
+  else row('🔥','Top burn',top?`${short(top.amt)} ${top.n.name}${top.xrp?' (≈'+short(top.xrp)+' XRP)':''}`:okN?'None found yesterday':'Ledger busy, try later',top?()=>c.showInfo({node:top.n}):null);
   row('⚡','Most active pool',bp?`${bp.p.a}⇄${bp.p.b} · ${short(bp.vol)} XRP 24h`:'—',bp?()=>c.showInfo({pool:bp.p}):null);
   row('🚧','On the launchpad',lot?`${lot.ticker} · ${lot.bond_pct!=null?lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:'No open launches',null);
   d.append(el('div','dim rs','Burns: XRPL ledger (BURN, IMM, IMG, XRPyro issuers). Pool: 24h volume snapshot. Launchpad: xrpl.fun.'));document.body.append(d)}

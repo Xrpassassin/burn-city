@@ -1,4 +1,4 @@
-// Burn City Estates: lake + shoreline, highway + bridge with instanced car lights, and a fenced "COMING SOON" properties lot.
+// Burn City Estates: lake + shoreline, highway + bridge with instanced car lights, and a fenced "COMING SOON" construction lot.
 // Cheap by design: one shader water disc (no reflection render target), merged/instanced geometry, ~14 draw calls total.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -62,19 +62,20 @@ void main(){ float r=length(vP)/${LR.toFixed(1)}; vec2 p=vW.xz*.08;
       head.setMatrixAt(hi++, M.makeTranslation(x - 0.7, y, z + 1.6 * f)); head.setMatrixAt(hi++, M.makeTranslation(x + 0.7, y, z + 1.6 * f));
       tail.setMatrixAt(ti++, M.makeTranslation(x - 0.7, y, z - 1.6 * f)); tail.setMatrixAt(ti++, M.makeTranslation(x + 0.7, y, z - 1.6 * f)); }
     head.instanceMatrix.needsUpdate = tail.instanceMatrix.needsUpdate = true; });
-  // ---------- the lot: dirt, fence, house frames, cranes, work lights, sign ----------
+  // ---------- the lot: dirt, fence, scaffold frames, cranes, work lights, sign ----------
   const LW = 170, LD = 130, lot = new THREE.Group(); lot.position.copy(lotC); lot.rotation.y = yaw; G.add(lot);
   const dirt = new THREE.Mesh(new THREE.PlaneGeometry(LW, LD), new THREE.MeshLambertMaterial({ color: 0x4a3524 })); dirt.rotation.x = -Math.PI / 2; dirt.position.y = 0.07; lot.add(dirt);
-  // plot grid (future ~760 homes): faint lines merged into one LineSegments
+  // survey grid: faint lines merged into one LineSegments
   const gl = []; for (let x = -LW / 2 + 5; x <= LW / 2 - 5; x += 8) gl.push(x, 0.12, -LD / 2 + 5, x, 0.12, LD / 2 - 5); for (let z = -LD / 2 + 5; z <= LD / 2 - 5; z += 8) gl.push(-LW / 2 + 5, 0.12, z, LW / 2 - 5, 0.12, z);
   const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(gl, 3)); lot.add(new THREE.LineSegments(gg, new THREE.LineBasicMaterial({ color: 0x8a6a40, transparent: true, opacity: 0.35 })));
   const fence = []; const fp = (x, z) => fence.push(box(0.35, 2.4, 0.35, x, 1.2, z));
   for (let x = -LW / 2; x <= LW / 2; x += 6) { fp(x, -LD / 2); fp(x, LD / 2); } for (let z = -LD / 2; z <= LD / 2; z += 6) { fp(-LW / 2, z); fp(LW / 2, z); }
   for (const s of [-1, 1]) { fence.push(box(LW, 0.12, 0.12, 0, 2.1, s * LD / 2)); fence.push(box(LW, 0.12, 0.12, 0, 1.1, s * LD / 2)); fence.push(box(0.12, 0.12, LD, s * LW / 2, 2.1, 0)); fence.push(box(0.12, 0.12, LD, s * LW / 2, 1.1, 0)); }
   lot.add(new THREE.Mesh(mergeGeometries(fence), new THREE.MeshLambertMaterial({ color: 0xc8a040 })));
-  // half-built house frames: box edges merged (tent, house, villa, mansion silhouettes)
-  const fr = [], mk = (w, h, d, x, z) => { const e = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)); e.translate(x, h / 2, z); fr.push(e); const r = new THREE.EdgesGeometry(new THREE.ConeGeometry(Math.max(w, d) * 0.72, h * 0.5, 4).rotateY(Math.PI / 4)); r.translate(x, h + h * 0.25, z); fr.push(r); };
+  // generic scaffolding frames: box edges merged
+  const fr = [], pallets = [], mk = (w, h, d, x, z) => { if (w === 3 && h === 2) { pallets.push(x, z); return; } const e = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)); e.translate(x, h / 2, z); fr.push(e); };
   [[3, 2, 3, -60, -40], [6, 4, 6, -45, -38], [6, 4, 7, -30, -40], [10, 6, 9, -10, -36], [16, 8, 12, 15, -34], [6, 4, 6, 40, -40], [8, 5, 8, 55, -38], [3, 2, 3, -60, -25], [3, 2, 3, -54, -25]].forEach(a => mk(...a));
+  { const tg = []; for (let i = 0; i < pallets.length; i += 2) { const x = pallets[i], z = pallets[i + 1]; tg.push(box(2.4, 1.2, 2.4, x, 0.6, z), box(2.4, 1.2, 2.4, x + 2.8, 0.6, z), box(2.4, 1.2, 2.4, x + 1.4, 1.8, z)); } if (tg.length) lot.add(new THREE.Mesh(mergeGeometries(tg), new THREE.MeshLambertMaterial({ color: 0x8a7a5a }))); }
   lot.add(new THREE.LineSegments(mergeGeometries(fr), new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.8 })));
   // cranes: instanced masts + rotating jibs
   const CR = [[-50, 10, 34], [10, 20, 40], [55, -5, 30]], mast = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 1, 1.4).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({ color: 0xffb020 }), 3);
@@ -89,7 +90,7 @@ void main(){ float r=length(vP)/${LR.toFixed(1)}; vec2 p=vW.xz*.08;
   const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 384; const x = cv.getContext('2d');
   x.fillStyle = '#120802'; x.fillRect(0, 0, 1024, 384); x.strokeStyle = '#ff9a2a'; x.lineWidth = 14; x.strokeRect(10, 10, 1004, 364);
   x.textAlign = 'center'; x.shadowColor = '#ff7a1a'; x.shadowBlur = 30; x.fillStyle = '#ffd27a'; x.font = '900 118px system-ui,-apple-system,sans-serif'; x.fillText('COMING SOON', 512, 190);
-  x.shadowBlur = 12; x.fillStyle = '#ffffff'; x.font = '700 64px system-ui,-apple-system,sans-serif'; x.fillText('BURN CITY ESTATES', 512, 290); x.font = '500 34px system-ui,sans-serif'; x.fillStyle = '#ffb36a'; x.fillText('tents · houses · mansions', 512, 345);
+  x.shadowBlur = 12; x.fillStyle = '#ffffff'; x.font = '700 64px system-ui,-apple-system,sans-serif'; x.fillText('BURN CITY ESTATES', 512, 290); 
   const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4;
   const signM = new THREE.MeshBasicMaterial({ map: tex, fog: false, toneMapped: false, side: THREE.DoubleSide });
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(130, 48), signM); sign.position.set(0, 120, -LD / 2 + 6); sign.rotation.y = Math.PI; lot.add(sign);   // faces back toward the city
@@ -100,4 +101,4 @@ void main(){ float r=length(vP)/${LR.toFixed(1)}; vec2 p=vW.xz*.08;
     const b = Math.sin(t * 3) > 0; wls[0].material.opacity = b ? 1 : 0.15; wls[1].material.opacity = b ? 0.15 : 1; signM.color.setScalar(0.85 + 0.15 * Math.sin(t * 2)); });
   return { lakeC, lotC, maxR, dir };
 }
-export const estateCard = () => `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏗 Burn City Estates</h2><p><b>Properties coming soon:</b> tents, houses, mansions.</p><p class="dim">About 760 home plots across the lake. Stay tuned.</p>`;
+export const estateCard = () => `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏗 Burn City Estates</h2><p><b>Coming soon.</b></p>`;

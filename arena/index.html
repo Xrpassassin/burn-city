@@ -25,7 +25,7 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <div style="margin-top:6px"><b>Create a match</b><br><select id="tcteams"><option value="0">Free-for-all</option><option value="2">2 teams</option><option value="3">3 teams</option><option value="4">4 teams</option></select>
 <label><input id="tcff" type="checkbox" checked> Teammates' trails kill</label> <label><input id="tcbo3" type="checkbox"> Best of 3</label><br>
 <button id="tcfree">Create free match</button> <span id="tcrk"></span></div>
-<div id="tlobbies" style="margin-top:6px"></div><div id="trk" style="margin-top:6px"></div></div><div class="small"><b>🧟 Zombie Survival</b></div><button data-m="zombie">Free Play</button>
+<div id="tlobbies" style="margin-top:6px"></div><div id="trk" style="margin-top:6px"></div></div><div class="small"><b>🧟 Zombie Survival</b></div><button data-m="zombie">Free Play</button><button id="dailyBtn">🗓 Daily Challenge</button>
 <div id="ranked" class="small" style="border:1px solid #f604;border-radius:10px;padding:8px 12px;max-width:340px"><b>🏆 Ranked Matches</b> <span id="rkstat"></span><br><span id="rkinfo"></span><div id="rkbtn"></div><div id="rklb"></div><a href="rules.html" style="color:#ffb060">Ranked rules</a></div>
 <a href="../" class="small" style="color:#ffb060">← Back to Burn City</a> · <a href="history.html" class="small" style="color:#ffb060">📜 My match history</a><div id="safefoot" class="small" style="margin:6px auto;max-width:420px;opacity:.9"></div><div class="small">Free to play. <button id="signin">Sign in with XAMAN</button></div>
 <div id="price" class="small"></div><div id="qr"></div><div id="shop" class="small"></div><div id="lb" class="small"></div>
@@ -48,7 +48,8 @@ async function loadShop_() {
     try { const v = await buy(API, b.dataset.buy, { onQr: qr, confirm: tx => confirmPay({ title: 'Buy cosmetic: ' + it.name, dest: tx.Destination, rows: [['Amount', it.xrp + ' XRP'], ['Item', it.name + ' (cosmetic only)'], ['Burned (32.2%)', +(it.xrp * s.burnShare).toFixed(6) + ' XRP · irreversible'], ['Refunds', 'Cosmetics are not refundable']] }) });
       $('#qr').innerHTML = ''; loadShop(); await receipt({ title: '✅ Purchased ' + it.name, hash: v.hash, rows: [['Amount', it.xrp + ' XRP'], ['Owned by', (localStorage.bcAcct || '').slice(0, 8) + '…']] }); } catch (e) { $('#price').textContent = 'Not purchased: ' + e.message; } });
   const lb = await (await fetch(API + '/api/leaderboard')).json(); if (!lb.top) return;
-  $('#lb').innerHTML = `<b>Week ${lb.week}</b><br>` + lb.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 6)}… ${e.kills} kills`).join('<br>');
+  try { const d = await (await fetch(API + '/api/daily')).json(); if (d.mod) $('#dailyBtn').textContent = '🗓 Daily: ' + d.mod.name; $('#lb').dataset.daily = `<br><b>Daily ${d.day} · ${d.mod?.name || ''}</b><br>` + ((d.top || []).slice(0, 5).map((e, i) => `${i + 1}. ${e.acct} ${e.best}`).join('<br>') || 'No scores yet'); } catch {}
+  $('#lb').innerHTML = `<b>Week ${lb.week}</b><br>` + lb.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 6)}… ${e.kills} kills`).join('<br>') + ($('#lb').dataset.daily || '');
 }
 async function loadRanked() {
   try { const k = await (await fetch(API + '/api/ranked')).json(), x = v => (+v).toFixed(2);
@@ -138,6 +139,8 @@ function leave(msg) {               // full teardown so the next mode (or the ci
 $('#rkstart').onclick = e => { e.stopPropagation(); net?.ws.readyState === 1 && net.ws.send(JSON.stringify({ t: 'start' })); };
 $('#exit').onclick = e => { e.stopPropagation(); leave(); };
 document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => start(b.dataset.m));
+$('#dailyBtn').onclick = () => start('zombie', null, '&daily=1');
+if (P.get('daily') === '1') setTimeout(() => start('zombie', null, '&daily=1'), 600);
 function start(m, ranked = null, extra = '') {
   leave(); lastOpen = 1; mode = m; $('#exit').hidden = false; const token = localStorage.bcToken || null;
   $('#menu').hidden = true; $('#touch').style.display = mobile && mode === 'tron' ? 'block' : 'none'; $('#firebtn').hidden = !(mobile && mode === 'zombie'); $('#gear').hidden = mode !== 'zombie'; $('#fuel').hidden = $('#xh').hidden = $('#hint').hidden = mode !== 'zombie'; $('#tl').textContent = mode === 'tron' ? '◀' : 'MOVE'; $('#tr').textContent = mode === 'tron' ? '▶' : '🔥 FIRE';

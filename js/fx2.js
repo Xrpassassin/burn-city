@@ -4,7 +4,7 @@ import * as THREE from 'three';
 const Q=new URLSearchParams(location.search),$=id=>document.getElementById(id),W=()=>window.__city;
 const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
 const short=v=>v>=1e9?(v/1e9).toFixed(2)+'B':v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'k':(+v).toFixed(v<10?2:0);
-const F={alerts:['🔥 Burn alerts (camera sweep + sound)',1],realtime:['🌗 Real Phoenix day/night',1],whale:['🐋 Whale buy flares',1],bag:['💼 Highlight my holdings',1],recap:['📰 Daily city recap',1]};
+const F={alerts:['🔥 Burn alerts (camera sweep + sound)',1],realtime:['🌗 Real Phoenix day/night',1],whale:['🐋 Whale buy flares',1],bag:['💼 Highlight my holdings',1],recap:['📰 Daily city recap',1],weather:['⛅ Market weather (sky follows the market)',1]};
 const on=k=>{const v=localStorage.getItem('bc_f_'+k);return v==null?!!F[k][1]:v==='1'};
 const RPC=async(method,params)=>{for(const u of ['https://xrplcluster.com/','https://s1.ripple.com:51234/']){try{const r=await (await fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({method,params:[params]}),signal:AbortSignal.timeout?AbortSignal.timeout(8000):undefined})).json();if(r&&r.result&&!r.result.error)return r.result}catch(e){}}throw new Error('rpc')};
 const hexCur=c=>c&&c.length===40?c.replace(/(00)+$/,'').match(/../g).map(h=>String.fromCharCode(parseInt(h,16))).join('').replace(/\0/g,''):c;
@@ -13,8 +13,8 @@ function boot(){const c=W();if(!c||!window.__ready)return setTimeout(boot,500);
 // ---------- settings group ----------
 const hb=$('hudBody'),grp=el('div','row feat');grp.append(el('b',null,'City features'));
 for(const k in F){const l=el('label'),i=el('input');i.type='checkbox';i.checked=on(k);i.id='f_'+k;i.onchange=()=>{localStorage.setItem('bc_f_'+k,i.checked?'1':'0');apply(k)};l.append(i,' '+F[k][0]);grp.append(l)}
-hb&&hb.insertBefore(grp,hb.querySelector('.legend'));
-function apply(k){if(k==='realtime')tick();if(k==='bag')bagLoad();if(k==='alerts'&&!on(k))skip()}
+hb&&hb.insertBefore(grp,hb.querySelector('.legend'));if(!on('weather')&&$('weather').value==='auto')apply('weather');
+function apply(k){if(k==='weather'){const w=$('weather');w.value=on('weather')?'auto':'clear';w.dispatchEvent(new Event('change'))}if(k==='realtime')tick();if(k==='bag')bagLoad();if(k==='alerts'&&!on(k))skip()}
 
 // ---------- 2) real Phoenix day/night (UTC-7, no DST) ----------
 function phxHour(){const d=new Date(Date.now()-7*3600e3);return d.getUTCHours()+d.getUTCMinutes()/60}

@@ -19,7 +19,7 @@ addEventListener('error',e=>{const x=document.getElementById('ltxt');if(x&&!wind
  <div id="tot"></div>
  <div id="burnCount"></div>
  <div id="mood"></div>
- <div class="row"><b>Weather</b> <select id="weather" aria-label="Weather"><option value="auto">Auto (market mood)</option><option>clear</option><option>fog</option><option>rain</option><option>storm</option><option value="cycle">Cycle</option></select></div>
+ <div class="row"><b>Weather</b> <select id="weather" aria-label="Weather"><option value="auto">Auto (market weather)</option><option value="crash">Crash · storm</option><option value="red">Red · rain</option><option value="flat">Flat · clouds</option><option value="green">Green · sunny</option><option value="vgreen">Very green · rainbow</option><option value="gold">Gold rush</option><option>clear</option><option>fog</option><option>rain</option><option>storm</option><option value="cycle">Cycle</option></select></div>
  <div class="row"><b>Time</b> <input id="tod" aria-label="Time of day" type="range" min="0" max="1" step="0.01" value="0"><label><input type="checkbox" id="todCycle"> cycle</label></div>
  <div class="row tl"><button id="tlOpen" aria-label="Replay the city being built, day by day">▶ Replay city history</button></div>
  <div class="row"><b>Graphics</b> <select id="quality" aria-label="Graphics quality"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select> <span class="dim" id="qInfo"></span></div>
@@ -31,7 +31,7 @@ addEventListener('error',e=>{const x=document.getElementById('ltxt');if(x&&!wind
   <div><i style="background:#ff5a1a"></i>BURN fire <i style="background:#ff2a00"></i>XRPyro inferno <i style="background:#3a8bff"></i>IMM ice</div>
   <div class="actLeg" title="Pool line colour = recent trading activity (24h volume + live trades), ranked across pools"><span>Pool activity: quiet</span><i></i><span>very active</span></div><div class="dim">Tower height ∝ log(market cap) · base width ∝ √TVL · build quality = % LP locked · flames = burns · road width ∝ √TVL · vehicles ∝ 24h volume · ⚑ insider LP ≥50%</div>
  </div><div id="src" class="dim"></div></div></div>
-<div id="live" class="connecting"><i></i><span>Connecting…</span></div><div id="evbanner"></div><div id="tourCap"></div><div id="toasts"></div>
+<button id="wchip" title="Market weather"></button><div id="live" class="connecting"><i></i><span>Connecting…</span></div><div id="evbanner"></div><div id="tourCap"></div><div id="toasts"></div>
 <div id="btns"><button data-m="orbit" class="on">◎ Orbit</button><button data-m="fly">✈ Fly</button><button data-m="explore">🚶 Explore</button><button id="tour">▶ Tour</button><button id="copyLink" title="Copy a link to this exact view">🔗 Link</button><button id="installBtn" hidden title="Install Burn City as an app">⬇ Install</button><button id="audio" aria-label="Toggle sound">🔇</button></div>
 <div id="labels"></div><div id="tip"></div><div id="info"></div><div id="banner"></div><div id="prompt"></div>
 <canvas id="minimap" aria-label="Minimap" role="img" width="180" height="180"></canvas>

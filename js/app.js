@@ -118,17 +118,31 @@ const river=new THREE.Mesh(new THREE.RingGeometry(75,87,160,1),new THREE.ShaderM
 river.rotation.x=-Math.PI/2;river.position.y=.12;S.add(river);
 
 // ---------- building material: shader windows, fake AO, top-edge glow (instanced + non-instanced) ----------
-function bMat(color=0xffffff,dens=1){return new THREE.ShaderMaterial({fog:true,uniforms:{...fogU(),c:{value:new THREE.Color(color)},d:{value:dens},t:U.t,day:U.day,flash:U.flash},
+function bMat(color=0xffffff,dens=1){return new THREE.ShaderMaterial({fog:true,defines:TIER==='low'?{LOWQ:''}:{},uniforms:{...fogU(),c:{value:new THREE.Color(color)},d:{value:dens},t:U.t,day:U.day,flash:U.flash},
  vertexShader:`varying vec3 wp,wn,vC,vN,vV;varying float ly;\n${FOGV}\nvoid main(){mat4 M=modelMatrix;\n#ifdef USE_INSTANCING\nM=modelMatrix*instanceMatrix;\n#endif\n
  vec4 w=M*vec4(position,1.);wp=w.xyz;wn=normalize(transpose(inverse(mat3(M)))*normal);ly=position.y;\n#ifdef USE_INSTANCING_COLOR\nvC=instanceColor;\n#else\nvC=vec3(1.);\n#endif\nvec4 mvPosition=viewMatrix*w;vV=-mvPosition.xyz;vN=normalize((viewMatrix*vec4(wn,0.)).xyz);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`,
  fragmentShader:`uniform vec3 c;uniform float d,t,day,flash;varying vec3 wp,wn,vC,vN,vV;varying float ly;\n#include <fog_pars_fragment>\n${NOISE}
- void main(){vec3 col=c*vC;vec3 o=mix(vec3(.018,.024,.045),vec3(.2,.22,.26),day);float fr=pow(max(0.,1.-abs(dot(normalize(wn),normalize(cameraPosition-wp)))),3.);
- if(abs(wn.y)<.6){vec2 uv=vec2(abs(wn.x)>abs(wn.z)?wp.z:wp.x,wp.y)*vec2(.95,.75)*d;vec2 cell=floor(uv),f=fract(uv);
-  float win=step(.16,f.x)*step(f.x,.84)*step(.22,f.y)*step(f.y,.78);float on=step(.58,h21(cell+floor(t*.04+h21(cell)*30.)));float warm=step(.85,h21(cell*3.1));
-  vec3 wc=mix(col,vec3(1.,.8,.55),warm*.6);o+=wc*win*on*(.22+.5*h21(cell*1.7))*(1.-day*.75);
+ // procedural facade: glass curtain wall w/ mullions + floor bands, gradient-sky reflection, random lit windows (more at night), distance LOD, base AO. NaN-safe (clamped pow/normalize).
+ void main(){vec3 col=c*vC;vec3 o=mix(vec3(.018,.024,.045),vec3(.2,.22,.26),day);vec3 N=normalize(wn+vec3(0.,1e-5,0.)),vw=normalize(cameraPosition-wp+vec3(1e-4));
+ float ndv=clamp(abs(dot(N,vw)),0.,1.),fr=pow(1.-ndv,3.);
+ if(abs(N.y)<.6){vec2 uv=vec2(abs(N.x)>abs(N.z)?wp.z:wp.x,wp.y)*vec2(.95,.75)*d;vec2 cell=floor(uv),f=fract(uv);
+  float win=step(.16,f.x)*step(f.x,.84)*step(.22,f.y)*step(f.y,.78);float lit=step(mix(.42,.78,day),h21(cell+floor(t*.04+h21(cell)*30.)));float warm=step(.8,h21(cell*3.1));
+  vec3 wc=mix(col,vec3(1.,.82,.58),warm*.65)*(.25+.55*h21(cell*1.7))*(1.-day*.75);
+ #ifdef LOWQ
+  o+=wc*win*lit;
+ #else
+  float lod=1.-smoothstep(200.,520.,length(cameraPosition-wp));
+  vec3 R=reflect(-vw,N);float sk=clamp(R.y*.5+.5,0.,1.);
+  vec3 env=mix(mix(vec3(.09,.06,.13),vec3(.36,.32,.34),day),mix(vec3(.015,.025,.07),vec3(.12,.2,.34),day),sk);
+  float band=step(.86,f.y)+step(f.y,.1);float mull=1.-win;
+  vec3 glass=env*(.15+.55*fr)+wc*lit*1.15;vec3 metal=mix(vec3(.03,.035,.05),vec3(.25,.27,.3),day)+col*.04+env*.12*fr;
+  vec3 det=mix(metal*(1.+band*.35),glass,win);
+  vec3 far=env*(.15+.5*fr)+wc*.42*(1.-day*.5);
+  o+=mix(far,det,lod);
+ #endif
   o+=col*smoothstep(.47,.5,ly)*1.2;o+=col*step(.96,fract(wp.y*.07))*.5*(1.-day*.5);}
  else o+=col*.05;
- o*=.45+.55*smoothstep(0.,14.,wp.y);o+=col*fr*.35;o+=vec3(.6,.65,1.)*flash*.25;gl_FragColor=vec4(o,1.);\n${TAIL}\n}`})}
+ o*=(.3+.7*smoothstep(0.,6.,wp.y))*(.6+.4*smoothstep(0.,22.,wp.y));o+=col*fr*.3;o+=vec3(.6,.65,1.)*flash*.25;o=clamp(o,0.,16.);gl_FragColor=vec4(o,1.);\n${TAIL}\n}`})}
 const matCache={};const towerMat=c=>matCache[c]||(matCache[c]=bMat(c,1.15));
 const stdCache={};const neonStd=(c,k)=>stdCache[c+'_'+k]||(stdCache[c+'_'+k]=new THREE.MeshStandardMaterial({color:0x0b1020,emissive:c,emissiveIntensity:k,metalness:.9,roughness:.3}));
 
@@ -175,6 +189,8 @@ function heroTower(n){const g=new THREE.Group();g.position.copy(n.pos);S.add(g);
  const red=new THREE.Sprite(new THREE.SpriteMaterial({map:GT,color:0xff2222,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));red.scale.setScalar(2.5);red.position.y=y+spH*.6;g.add(red);
  anim.push(t=>{beacon.material.opacity=.65+.35*Math.sin(t*2+n.pos.x);red.material.opacity=.35+.65*Math.pow(.5+.5*Math.sin(t*1.6+n.pos.z),3)});
  n.top=y+spH+antH;
+ if(!n.minor&&TIER!=='low'){const k=T>=3?4:T>=1?3:2;for(let q=0;q<k;q++){const an=q/k*6.283+.4,r=cw*.78;ROOF.push([n.pos.x+Math.cos(an)*r,y,n.pos.z+Math.sin(an)*r,cw*(.22+.08*(q%2)),.9+.5*(q%3),an])}
+  if(T>=2&&T<4)ROOF.push([n.pos.x,y,n.pos.z,-cw*.5,0,0]);}
  tierParts(n,g,segInfo,y,spH,cw,sides);
  if(!n.minor&&T>=2){for(let i=0;i<(TIER==='low'?1:T>=3?3:2);i++){const halo=new THREE.Mesh(new THREE.TorusGeometry(n.w*(1.55+i*.42),.1+.05*(2-i),6,96),new THREE.MeshBasicMaterial({color:i===1?0xe8f4ff:col,transparent:true,opacity:.7}));
    halo.position.y=n.h*(.32+i*.2);halo.rotation.x=Math.PI/2+(.22-.22*i);g.add(halo);const sp=(i%2?-1:1)*(.25+.15*i);anim.push((t,dt)=>halo.rotation.z+=dt*sp)}
@@ -187,7 +203,13 @@ function heroTower(n){const g=new THREE.Group();g.position.copy(n.pos);S.add(g);
  const el=document.createElement('div');el.className='lbl'+(n.minor?' minor':'');el.style.setProperty('--c','#'+col.getHexString());el.innerHTML=n.name+(n.minor?'':`<small>${fmt(n.tvl)} XRP TVL</small>`);$('labels').appendChild(el);
  n.lblEl=el;labelEls.push({el,pos:new THREE.Vector3(n.pos.x,n.top+4,n.pos.z),pri:n.name==='XRP'?1e9:n.tvl,minor:n.minor});
  n.group=g}
-E.nodes.forEach(heroTower);
+const ROOF=[];E.nodes.forEach(heroTower);
+// rooftop details: HVAC units (instanced boxes) + helipad discs on tier 2-3 towers (tier 4 keeps its landing pad)
+if(ROOF.length){const hv=ROOF.filter(r=>r[3]>0),hp=ROOF.filter(r=>r[3]<0),o=new THREE.Object3D();
+ const box=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:0x2a3142,metalness:.7,roughness:.45,emissive:0x05070c}),hv.length);
+ hv.forEach((r,i)=>{o.position.set(r[0],r[1]+r[4]/2,r[2]);o.rotation.set(0,r[5],0);o.scale.set(r[3]*2,r[4],r[3]*1.4);o.updateMatrix();box.setMatrixAt(i,o.matrix)});S.add(box);
+ if(hp.length){const pad=new THREE.InstancedMesh(new THREE.CylinderGeometry(1,1,.18,20),new THREE.MeshStandardMaterial({color:0x1a2030,metalness:.6,roughness:.5,emissive:0x0a2a30,emissiveIntensity:.6}),hp.length);
+  hp.forEach((r,i)=>{const R=-r[3];o.position.set(r[0],r[1]+.1,r[2]);o.rotation.set(0,0,0);o.scale.set(R,1,R);o.updateMatrix();pad.setMatrixAt(i,o.matrix)});S.add(pad)}}
 // work lights on under-construction towers: two Points draw calls total, alternating blink
 WARN.forEach((arr,k)=>{if(!arr.length)return;const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));const m=glowMat(0xffa000,2.6);S.add(new THREE.Points(bg,m));anim.push(t=>m.opacity=Math.sin(t*3.4+k*Math.PI)>0?1:.08)});
 
@@ -484,12 +506,20 @@ if(ADS.length){const BL=window.__blimp,bills=pick.filter(m=>m.userData.kind==='b
 
 await stage(0.78,'Weather from market mood');
 // ---------- weather driven by market mood ----------
-const moodWeather=MOOD>1?'clear':MOOD>-.5?'fog':MOOD>-2?'rain':'storm';
-$('mood').innerHTML=`<b>Market mood</b> <span style="color:${MOOD>=0?'#3dff8a':'#ff5a5a'}">${pct(MOOD)}</span> <span class="dim">TVL-weighted 24h change of ${moodTok.length} tokens</span><br>→ auto weather <b>${moodWeather.toUpperCase()}</b><br><span class="dim">&gt;+1% clear · −0.5…+1% fog · −2…−0.5% rain · &lt;−2% storm</span>`;
-const W={clear:{fog:.0022,rain:0,wet:0,storm:0,banks:0},fog:{fog:.0046,rain:0,wet:.25,storm:0,banks:1},rain:{fog:.0042,rain:1,wet:1,storm:.35,banks:.4},storm:{fog:.005,rain:1.6,wet:1,storm:1,banks:.6}};
+// market weather tiers: mood = TVL-weighted 24h change, share = fraction of city tokens green
+const GREEN=moodTok.length?moodTok.filter(n=>n.pro24h>0).length/moodTok.length:.5;
+const WTIERS={crash:['⛈','Crash · storm'],red:['🌧','Red · rain'],flat:['☁️','Flat · clouds'],green:['☀️','Green · sunny'],vgreen:['🌈','Very green · rainbow'],gold:['🪙','Whole market green · gold rush']};
+const tierFor=(m,g=.5)=>m==null?'flat':(m<-4||(m<-2&&g<.25))?'crash':m<-.5?'red':m<1?'flat':(g>=.9&&m>0)?'gold':m<4?'green':'vgreen';
+let moodNow=MOOD,greenNow=GREEN,moodWeather=tierFor(MOOD,GREEN);
+$('mood').innerHTML=`<b>Market mood</b> <span style="color:${MOOD>=0?'#3dff8a':'#ff5a5a'}">${pct(MOOD)}</span> <span class="dim">TVL-weighted 24h change of ${moodTok.length} tokens · ${Math.round(GREEN*100)}% green</span><br>→ market weather <b>${WTIERS[moodWeather][1]}</b><br><span class="dim">&lt;−4% crash · −4…−0.5% rain · −0.5…+1% clouds · +1…+4% sunny · &gt;+4% rainbow · ≥90% of tokens green: gold rush</span>`;
+const W0={rays:0,rainbow:0,coins:0};
+const W={clear:{fog:.0022,rain:0,wet:0,storm:0,banks:0,...W0},fog:{fog:.0046,rain:0,wet:.25,storm:0,banks:1,...W0},rain:{fog:.0042,rain:1,wet:1,storm:.35,banks:.4,...W0},storm:{fog:.005,rain:1.6,wet:1,storm:1,banks:.6,...W0}};
+Object.assign(W,{crash:{...W.storm,fog:.0056,rain:1.9},red:{...W.rain},flat:{...W.fog,fog:.0032,banks:.55,wet:.1},green:{...W.clear,rays:1},vgreen:{...W.clear,rays:.7,rainbow:1},gold:{...W.clear,rays:.8,rainbow:1,coins:1}});
 let wMode='auto',wTarget=W[moodWeather];
 const setW=()=>{wMode=$('weather').value;if(wMode==='auto')wTarget=W[moodWeather];else if(wMode!=='cycle')wTarget=W[wMode]};
-if(Q.get('weather'))$('weather').value=Q.get('weather');setW();$('weather').onchange=setW;let wCur={...(Q.get('weather')?wTarget:W.clear)};
+function wchip(){const el=$('wchip');if(!el)return;const k=wMode==='auto'?moodWeather:null;el.textContent=k?`${WTIERS[k][0]} Market ${moodNow>=0?'+':''}${moodNow.toFixed(1)}% · ${WTIERS[k][1].split(' · ')[1]}`:`🌤 Weather: ${wMode} (manual)`;el.title=k?`${Math.round(greenNow*100)}% of city tokens green in 24h. Tap for weather settings.`:'Manual weather override. Tap for settings.'}
+window.setMarketMood=(m,g)=>{if(m==null||!isFinite(m))return;moodNow=+m;if(g!=null&&isFinite(g))greenNow=+g;const k=tierFor(moodNow,greenNow);if(k!==moodWeather){moodWeather=k}if(wMode==='auto')wTarget=W[moodWeather];wchip()};
+if(Q.get('weather'))$('weather').value=Q.get('weather');setW();$('weather').onchange=()=>{setW();wchip()};wchip();$('wchip').onclick=()=>{$('hud').classList.add('open');$('weather').focus()};let wCur={...(Q.get('weather')?wTarget:W.clear)};
 const rain=(()=>{const n=LV.rain,pos=new Float32Array(n*6),tail=new Float32Array(n*2);for(let i=0;i<n;i++){const x=(Math.random()-.5)*260,y=Math.random()*140,z=(Math.random()-.5)*260;pos.set([x,y,z,x,y,z],i*6);tail[i*2+1]=1}
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('tail',new THREE.BufferAttribute(tail,1));
  const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{t:U.t,cam:{value:new THREE.Vector3()},amt:{value:0}},
@@ -500,6 +530,18 @@ const banks=(()=>{const arr=[];const D=new Uint8Array(64*64*4);for(let y=0;y<64;
 
  for(let i=0;i<(MOBILE?14:30);i++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false,opacity:0,alphaTest:.004}));const a=rnd()*6.283,r=40+rnd()*260;s.position.set(Math.cos(a)*r,4+rnd()*14,Math.sin(a)*r);s.scale.set(90+rnd()*80,22+rnd()*12,1);S.add(s);arr.push(s)}
  return (k,t)=>arr.forEach((s,i)=>{s.material.opacity=k*.28;s.visible=k>.01;s.position.x+=Math.sin(t*.05+i)*.03})})();
+// ---- good-market sky FX (thin geometry + additive basic materials only: Safari-safe, no big transparent planes) ----
+const SKY=(()=>{const add=(c,o=0)=>new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:o,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+ const rays=new THREE.Group(),rayM=add(0xffd38a);for(let i=0;i<(TIER==='low'?3:6);i++){const m=new THREE.Mesh(new THREE.CylinderGeometry(2+i%3,18+i*3,700,10,1,true),rayM);m.position.set(-500+i*90,260,-700+i*40);m.rotation.z=-.5+i*.06;m.rotation.x=.25;rays.add(m)}rays.visible=false;S.add(rays);
+ const bow=new THREE.Group(),bowM=[0xff3b3b,0xff9a2a,0xffe14a,0x4dff7a,0x3aa0ff,0x9a5bff].map(c=>add(c));bowM.forEach((m,i)=>{const t=new THREE.Mesh(new THREE.TorusGeometry(520-i*9,4.2,6,TIER==='low'?48:96,Math.PI),m);bow.add(t)});bow.position.set(150,-60,-950);bow.visible=false;S.add(bow);
+ const NC=TIER==='low'?24:MOBILE?60:140,coinG=new THREE.CylinderGeometry(2.2,2.2,.4,14).rotateX(Math.PI/2),coinM=new THREE.MeshStandardMaterial({color:0xffc83a,emissive:0x8a5a00,emissiveIntensity:.9,metalness:1,roughness:.22});
+ const coins=new THREE.InstancedMesh(coinG,coinM,NC);coins.frustumCulled=false;coins.visible=false;S.add(coins);const cs=[...Array(NC)].map(()=>({x:(Math.random()-.5)*160,y:Math.random()*120,z:(Math.random()-.5)*160,v:10+Math.random()*12,r:Math.random()*6,s:2+Math.random()*4}));
+ const o=new THREE.Object3D(),sp=new THREE.Vector3();
+ return (dt,t,w,day)=>{const rk=w.rays*(.35+.65*day);rays.visible=rk>.01;rayM.opacity=rk*.12*(.8+.2*Math.sin(t*.4));
+  bow.visible=w.rainbow>.01;bowM.forEach(m=>m.opacity=w.rainbow*.22*(.55+.45*day));
+  coins.visible=w.coins>.01;if(!coins.visible)return;const n=Math.max(1,Math.round(NC*Math.min(1,w.coins)));coins.count=n;coinM.emissiveIntensity=.7+.5*Math.sin(t*9);
+  for(let i=0;i<n;i++){const c=cs[i];c.y-=c.v*dt;c.r+=c.s*dt;if(c.y<0){c.y=110+Math.random()*30;c.x=(Math.random()-.5)*160;c.z=(Math.random()-.5)*160}
+   o.position.set(C.position.x+c.x,C.position.y-60+c.y,C.position.z+c.z);o.rotation.set(c.r*.7,c.r,0);o.updateMatrix();coins.setMatrixAt(i,o.matrix)}coins.instanceMatrix.needsUpdate=true}})();
 const bolt=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xdfe8ff,transparent:true,fog:false}));bolt.visible=false;bolt.frustumCulled=false;S.add(bolt);
 const flashL=new THREE.DirectionalLight(0xbfd0ff,0);flashL.position.set(100,500,50);S.add(flashL);let nextBolt=Q.get('weather')==='storm'?.5:3,boltT=0;
 const tallest=[...E.nodes].sort((a,b)=>b.h-a.h).slice(0,6);
@@ -839,9 +881,9 @@ const clk=new THREE.Clock();let fpsN=0,fpsT0=performance.now(),fpsA=60,lowT=0,la
 function frame(){requestAnimationFrame(frame);R.info.reset();const dt=Math.min(clk.getDelta(),.05),t=clk.elapsedTime;U.t.value=t;fr++;
  if($('todCycle').checked)$('tod').value=(.5-.5*Math.cos(t*.02)).toFixed(3);const day=+$('tod').value;U.day.value=day;
  if(wMode==='cycle'){const seq=['clear','fog','rain','storm'];wTarget=W[seq[Math.floor(t/30)%4]]}
- for(const k in wCur)wCur[k]+=(wTarget[k]-wCur[k])*Math.min(1,dt*.5);
- S.fog.density=wCur.fog*(1-day*.4);S.fog.color.setRGB(.023+day*.45,.04+day*.5,.11+day*.55);U.wet.value=wCur.wet;U.storm.value=wCur.storm;rain.uniforms.amt.value=Math.min(1,wCur.rain);rain.uniforms.cam.value.copy(C.position);banks(wCur.banks,t);
- hemi.intensity=.55+day*1.4;amb.intensity=.35+day*.6;R.toneMappingExposure=1.05+day*.15;stars.material.opacity=1-day;moon.material.opacity=1-day*.8;bloom.strength=.7-day*.35+wCur.wet*.08;
+ for(const k in wCur)wCur[k]+=(wTarget[k]-wCur[k])*Math.min(1,dt*.5);SKY(dt,t,wCur,+$('tod').value);
+ S.fog.density=wCur.fog*(1-day*.4);{const dk=1-.6*wCur.storm;S.fog.color.setRGB((.023+day*.45)*dk,(.04+day*.5)*dk,(.11+day*.55)*dk)}U.wet.value=wCur.wet;U.storm.value=wCur.storm;rain.uniforms.amt.value=Math.min(1,wCur.rain);rain.uniforms.cam.value.copy(C.position);banks(wCur.banks,t);
+ hemi.intensity=(.55+day*1.4)*(1-.45*wCur.storm);amb.intensity=.35+day*.6;R.toneMappingExposure=1.05+day*.15;stars.material.opacity=1-day;moon.material.opacity=1-day*.8;bloom.strength=.7-day*.35+wCur.wet*.08;
  if(wCur.storm>.5){nextBolt-=dt;if(nextBolt<0){lightning();nextBolt=3+Math.random()*7}}
  if(boltT>0){boltT-=dt;U.flash.value=Math.max(0,boltT*3.3)*(Math.random()<.7?1:.3);flashL.intensity=U.flash.value*3;bolt.material.opacity=Math.min(1,boltT*5)}else{bolt.visible=false;U.flash.value=0;flashL.intensity=0}
  if(aud.rg)aud.rg.gain.value=Math.min(1,wCur.rain)*.35;

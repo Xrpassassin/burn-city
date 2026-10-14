@@ -98,7 +98,7 @@ const groundMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,fog:
  vertexShader:`varying vec2 v;\n${FOGV}\nvoid main(){v=vec2(position.x,-position.y);vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`,
  fragmentShader:`uniform float t,day,wet,flash,refl;uniform vec4 zones[${zoneU.length}];varying vec2 v;\n#include <fog_pars_fragment>\n${NOISE}
  void main(){vec2 p=v;float d=length(p);vec3 base=mix(vec3(.012,.016,.03),vec3(.16,.17,.19),day);float a=refl>.5?mix(.84,1.,smoothstep(420.,555.,d)):1.;
- vec2 g=abs(fract(p/14.)-.5);float grid=smoothstep(.485,.5,max(g.x,g.y))*.5;vec3 c=base+vec3(.05,.25,.6)*grid*exp(-d*.003)*(.5+.5*sin(d*.04-t*1.2))*(1.-day*.7);
+ vec2 g=abs(fract(p/14.)-.5);float grid=smoothstep(.485,.5,max(g.x,g.y))*.5;vec3 c=base+vec3(.05,.25,.6)*grid*exp(-d*.003)*(.5+.5*sin(d*.04-t*1.2))*(1.-day*.3);
  c+=vec3(.0,.02,.04)*fbm(p*.08);
  for(int i=0;i<${zoneU.length};i++){vec4 z=zones[i];float zd=length(p-z.xy);float inside=1.-smoothstep(z.z*.7,z.z,zd);
   float ring1=(1.-smoothstep(.0,.9,abs(zd-z.z*.62)))+(1.-smoothstep(0.,.9,abs(zd-z.z*.98)));c+=vec3(.5,.7,1.)*ring1*.2*inside*(1.-day*.6);
@@ -486,9 +486,22 @@ await stage(0.65,'Streets & traffic');
 // ---------- streets: district ring roads + hub avenues, ground traffic, street lights ----------
 const streets=[];E.nodes.filter(n=>!n.minor).forEach(n=>streets.push({type:'ring',c:n.pos,r:n.name==='XRP'?40:n.distR*.62},{type:'ring',c:n.pos,r:n.name==='XRP'?62:n.distR*.98}));
 CORE.filter(c=>N[c]).forEach(c=>{const n=N[c];streets.push({type:'line',a:new THREE.Vector3(Math.cos(n.ang)*62,0,Math.sin(n.ang)*62),b:new THREE.Vector3(Math.cos(n.ang),0,Math.sin(n.ang)).multiplyScalar(RING-n.distR*.98)})});
-const roadM=new THREE.MeshBasicMaterial({color:0x0c1830,transparent:true,opacity:.9,depthWrite:false});
-streets.forEach(s=>{if(s.type==='line'){const len=s.a.distanceTo(s.b);const m=new THREE.Mesh(new THREE.PlaneGeometry(4.6,len),roadM);m.rotation.order='YXZ';m.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);m.rotation.x=-Math.PI/2;m.position.copy(s.a).lerp(s.b,.5).setY(.1);S.add(m)}
- else{const m=new THREE.Mesh(new THREE.RingGeometry(s.r-2,s.r+2,96),roadM);m.rotation.x=-Math.PI/2;m.position.copy(s.c).setY(.09);S.add(m)}});
+// streets v2: ONE merged strip mesh (asphalt + curbs + sidewalks + soft neon edge lines), uv.x = metres across, uv.y = metres along
+const STRIP=(pts,closed,W,P,UV,IX)=>{const n=pts.length,v0=P.length/3;let along=0;for(let i=0;i<n;i++){const a=pts[i],b=pts[closed?(i+1)%n:Math.min(n-1,i+1)],c=pts[closed?(i-1+n)%n:Math.max(0,i-1)];const tx=b.x-c.x,tz=b.z-c.z,l=Math.hypot(tx,tz)||1,nx=-tz/l,nz=tx/l;if(i)along+=a.distanceTo(pts[i-1]);
+  P.push(a.x+nx*W/2,a.y,a.z+nz*W/2,a.x-nx*W/2,a.y,a.z-nz*W/2);UV.push(W/2,along,-W/2,along);if(i<n-1||closed){const q=v0+i*2,r=v0+((i+1)%n)*2;IX.push(q,q+1,r,q+1,r+1,r)}}};
+{const P=[],UV=[],IX=[],SW=9.6;streets.forEach(s=>{if(s.type==='line'){const k=Math.max(2,Math.ceil(s.a.distanceTo(s.b)/8)),pts=[];for(let i=0;i<=k;i++)pts.push(s.a.clone().lerp(s.b,i/k).setY(.1));STRIP(pts,false,SW,P,UV,IX)}
+  else{const k=Math.max(48,Math.round(s.r*1.2)),pts=[];for(let i=0;i<k;i++){const a=i/k*6.2832;pts.push(new THREE.Vector3(s.c.x+Math.cos(a)*s.r,.09,s.c.z+Math.sin(a)*s.r))}STRIP(pts,true,SW,P,UV,IX)}});
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(UV,2));g.setIndex(IX);
+ const m=new THREE.ShaderMaterial({side:THREE.DoubleSide,transparent:true,depthWrite:false,fog:true,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3,uniforms:{...fogU(),t:U.t,day:U.day},
+  vertexShader:`varying vec2 vS;\n${FOGV}\nvoid main(){vS=uv;vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`,
+  fragmentShader:`uniform float t,day;varying vec2 vS;\n#include <fog_pars_fragment>\nfloat h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+  void main(){float a=abs(vS.x),v=vS.y;float lit=mix(1.,2.6,day);vec3 c;float al=1.;
+   if(a<2.5){c=vec3(.03,.033,.04)*lit*(.85+.3*h(floor(vS*3.)));if(a<.07&&fract(v/6.)<.5)c+=vec3(.55,.45,.15)*.35;}
+   else if(a<2.78){c=vec3(.13,.135,.15)*lit;}
+   else{c=vec3(.075,.078,.085)*lit;float tl=step(.95,fract(v/1.6))+step(.95,fract((a-2.78)/1.05));c*=1.-.25*min(1.,tl);al=1.-smoothstep(4.4,4.8,a);}
+   float ne=exp(-pow((a-2.42)/.09,2.))*(1.-day*.6);c+=vec3(.25,.75,1.)*ne*(.55+.25*sin(v*.08-t*1.5));
+   gl_FragColor=vec4(c,al*.96);\n${TAIL}\n}`});
+ const sm=new THREE.Mesh(g,m);sm.renderOrder=0;sm.frustumCulled=false;S.add(sm);window.__streets=sm}
 // ---------- arena gates: portals to the multiplayer arena, standing on real hub avenues ----------
 {const av=streets.filter(s=>s.type==='line').slice(0,2),AR=[['tron','Light Cycles',0x3cf3ff],['zombie','Zombie Survival',0xff5a1f]];
  av.forEach((s,i)=>{const [m,label,col]=AR[i],p=s.a.clone().lerp(s.b,.5),g=new THREE.Group();g.position.copy(p);g.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);
@@ -724,7 +737,37 @@ function descAd(a){const e=t=>String(t||'').replace(/[<&"]/g,'');return `<button
   const pc=100*(+l.balance)/n.circ,b=pc<.5?0:pc<1?1:pc<2?2:pc<5?3:pc<10?4:5;const sb=n.holderB.find(x=>!x.holder.role&&x.holder.b===b);if(!sb||(b===0&&pc<.05))return;
   const m=new THREE.Mesh(new THREE.BoxGeometry(sb.w*1.5,sb.h*1.15,sb.w*1.5),gm);m.position.set(sb.x,sb.h*.55,sb.z);S.add(m);n.myHold=pc;anim.push(t=>m.material.opacity=.3+.2*Math.sin(t*2.5))})})();
 window.__holderNick=null; // hook: opt-in nickname for your own holder building (later)
-const ESTATE=buildEstate({S,U,pick,anim,nodes:E.nodes,low:TIER==='low',avoid:[LPD.c]});window.__estate=ESTATE;
+const ESTATE=buildEstate({S,U,pick,anim,nodes:E.nodes,low:TIER==='low',avoid:[LPD.c],colliders});window.__estate=ESTATE;
+// ---------- ledger veins: faint light trails in the ground under every AMM bridge; a pulse runs along on each live trade ----------
+{const NV=Math.min(TIER==='low'?8:(TIER==='medium'||MOBILE)?14:40,bridges.length),P=[],UV=[],IX=[],BI=[],act=new Float32Array(40),pt=new Float32Array(40).fill(-99);
+ bridges.slice(0,NV).forEach((b,i)=>{if(!b.curve)return;const pts=[];for(let k=0;k<=32;k++){const q=b.curve.getPoint(k/32);pts.push(new THREE.Vector3(q.x,.07,q.z))}const n0=P.length/3;STRIP(pts,false,1.3,P,UV,IX);for(let k=n0;k<P.length/3;k++)BI.push(i)});
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(UV,2));g.setAttribute('bi',new THREE.Float32BufferAttribute(BI,1));g.setIndex(IX);
+ const m=new THREE.ShaderMaterial({side:THREE.DoubleSide,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{t:U.t,day:U.day,act:{value:act},pt:{value:pt}},
+  vertexShader:'attribute float bi;uniform float act[40],pt[40];varying vec2 vS;varying float vA,vP;void main(){vS=uv;int i=int(bi+.5);vA=act[i];vP=pt[i];gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:'uniform float t,day;varying vec2 vS;varying float vA,vP;void main(){float x=vS.x/.65;float core=exp(-x*x*6.);float dt=t-vP;float head=dt*45.;float d=vS.y-head;float pul=dt>0.&&dt<8.?exp(-d*d/40.)*exp(-dt*.35):0.;float flow=.5+.5*sin(vS.y*.25-t*(.6+1.6*vA));float a=core*(.05+.16*vA*flow+1.1*pul)*(1.-day*.55);vec3 c=mix(vec3(.2,.7,1.),vec3(1.,.55,.15),clamp(vA*1.2+pul,0.,1.));gl_FragColor=vec4(c*a,a);}'});
+ const vm=new THREE.Mesh(g,m);vm.frustumCulled=false;vm.renderOrder=1;S.add(vm);
+ let nx=0;anim.push(t=>{if(t<nx)return;nx=t+1;bridges.slice(0,NV).forEach((b,i)=>{act[i]=b.act||0;pt[i]=b.pulseT??-99})});window.__veins={bridges:()=>bridges.slice(0,NV),pt}}
+// ---------- parks & plazas: lake-shore park + central plaza (grass, low-poly trees, benches, lamps), all instanced ----------
+{const lowT=TIER==='low',e=ESTATE,spots=[],grass=[],benches=[],lamps=[],trees=[];
+ const free=(x,z,r)=>!colliders.some(c=>c.r>0&&Math.hypot(c.x-x,c.z-z)<c.r+r)&&!e.inLake(x,z,4)&&Math.abs((x-e.roadO.x)*e.dir.z-(z-e.roadO.z)*e.dir.x)>13;
+ // lake shore (city side), skipping the docks stretch
+ for(let u=-160;u<=160;u+=lowT?14:8){if(u>-118&&u<-34)continue;const p=e.lakeC.clone().addScaledVector(e.side,u).addScaledVector(e.dir,-e.D*2.2);let k=0;while(k++<200&&!e.inLake(p.x,p.z,5))p.addScaledVector(e.dir,1);if(k>=200)continue;p.addScaledVector(e.dir,-5);
+  for(const off of [3,9,15]){const q=p.clone().addScaledVector(e.dir,-off);if(free(q.x,q.z,2.5))spots.push([q.x,q.z,'shore',u,off])}}
+ // central plaza around the hub
+ for(let i=0;i<(lowT?12:24);i++){const a=i/(lowT?12:24)*6.2832,r=48+(i%2)*6,x=Math.cos(a)*r,z=Math.sin(a)*r;if(free(x,z,2))spots.push([x,z,'plaza',i,0])}
+ spots.forEach(([x,z,kind,u,off],j)=>{if(kind==='shore'){if(off===9)grass.push(x,z,4+(j%3));if(off===15&&j%2===0)trees.push(x,z);if(off===3&&j%3===0)benches.push(x,z,Math.atan2(e.dir.x,e.dir.z));if(off===3&&j%3===1)lamps.push(x,z)}
+  else{if(u%2===0){grass.push(x,z,3.2);trees.push(x+1.5,z)}else{benches.push(x,z,Math.atan2(-x,-z));lamps.push(x*1.04,z*1.04)}}});
+ const g0=new THREE.CircleGeometry(1,10).rotateX(-Math.PI/2),gm=new THREE.InstancedMesh(g0,new THREE.MeshLambertMaterial({color:0x2f7a3a,emissive:0x0c3016}),grass.length/3);
+ for(let i=0;i<grass.length/3;i++){_m.compose(_v.set(grass[i*3],.06,grass[i*3+1]),_q.identity(),_s.set(grass[i*3+2],1,grass[i*3+2]*.8));gm.setMatrixAt(i,_m)}
+ const tN=trees.length/2,tr=new THREE.InstancedMesh(new THREE.CylinderGeometry(.12,.18,1.6,5).translate(0,.8,0),new THREE.MeshLambertMaterial({color:0x3a2a1c}),tN),cr=new THREE.InstancedMesh(new THREE.ConeGeometry(1.2,3.2,6).translate(0,3,0),new THREE.MeshLambertMaterial({color:0x2f6e3a,emissive:0x061a0c}),tN);
+ for(let i=0;i<tN;i++){const s2=.8+((i*37)%10)/20;_m.compose(_v.set(trees[i*2],0,trees[i*2+1]),_q.identity(),_s.set(s2,s2,s2));tr.setMatrixAt(i,_m);cr.setMatrixAt(i,_m);colliders.push({x:trees[i*2],z:trees[i*2+1],r:.4,h:4})}
+ const bN=benches.length/3,bg=mergeGeometries([new THREE.BoxGeometry(1.8,.1,.5).translate(0,.45,0),new THREE.BoxGeometry(1.8,.5,.08).translate(0,.75,-.22),new THREE.BoxGeometry(.08,.45,.45).translate(-.8,.22,0),new THREE.BoxGeometry(.08,.45,.45).translate(.8,.22,0)]),bm=new THREE.InstancedMesh(bg,new THREE.MeshLambertMaterial({color:0x6a4a2e}),bN);
+ for(let i=0;i<bN;i++){_m.compose(_v.set(benches[i*3],0,benches[i*3+1]),_q.setFromEuler(new THREE.Euler(0,benches[i*3+2],0)),_s.set(1,1,1));bm.setMatrixAt(i,_m)}
+ const lN=lamps.length/2,lpm=new THREE.InstancedMesh(new THREE.CylinderGeometry(.05,.07,3.4,5).translate(0,1.7,0),new THREE.MeshStandardMaterial({color:0x2a3040,metalness:.7}),lN),lg=[];
+ for(let i=0;i<lN;i++){_m.makeTranslation(lamps[i*2],0,lamps[i*2+1]);lpm.setMatrixAt(i,_m);lg.push(lamps[i*2],3.5,lamps[i*2+1])}
+ const lgg=new THREE.BufferGeometry();lgg.setAttribute('position',new THREE.Float32BufferAttribute(lg,3));S.add(gm,tr,cr,bm,lpm,new THREE.Points(lgg,glowMat(0xffd9a0,1.8)));
+ window.__parks={grass:grass.length/3,trees:tN,benches:bN,lamps:lN}}
+
 function showInfo(u){if(u.kind==='tackle'){window.__fish&&window.__fish.openShop();return}if(u.kind==='estate'){$('info').innerHTML=estateCard();$('info').classList.remove('v2');$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').classList.toggle('v2',!!(u.node&&!u.lot));$('info').style.display='block';$('info').scrollTop=0;window.__onCard&&window.__onCard($('info'));$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
 
 // ---------- controls: Orbit / Fly / Explore ----------
@@ -768,7 +811,7 @@ $('tUse').addEventListener('touchstart',e=>{interact();e.preventDefault()},{pass
 // ---------- explore: physics, collisions, districts, interaction ----------
 function groundAt(x,z,y){let g=0;for(const c of colliders){if(c.h<=y+.35&&c.h>g&&Math.hypot(x-c.x,z-c.z)<c.r)g=c.h}if(window.__deckAt){const dk=window.__deckAt(x,z);if(dk!=null&&dk<=y+1.4&&dk>g)g=dk}return g}
 // walkers stay out of the water except on docks and the lake bridge
-function wet(x,z){const es=window.__estate;if(!es||!es.inLake(x,z))return false;if(window.__deckAt&&window.__deckAt(x,z)!=null)return false;const ce=es.cityEdge,dr=es.dir;if(ce&&dr&&Math.abs((x-ce.x)*dr.z-(z-ce.z)*dr.x)<7.5)return false;return true}
+function wet(x,z){const es=window.__estate;if(!es||!es.inLake(x,z))return false;if(window.__deckAt&&window.__deckAt(x,z)!=null)return false;const ce=es.roadO||es.cityEdge,dr=es.dir;if(ce&&dr&&Math.abs((x-ce.x)*dr.z-(z-ce.z)*dr.x)<7.5)return false;return true}
 function collide(p){for(const c of colliders){if(p.y>=c.h-.05)continue;const dx=p.x-c.x,dz=p.z-c.z,m=c.r+.38;if(Math.abs(dx)>m||Math.abs(dz)>m)continue;const d=Math.hypot(dx,dz);if(d<m){const k=(m-d)/(d||1);p.x+=dx*k;p.z+=dz*k}}}
 const dirOf=()=>_t.set(-Math.sin(yp.yaw)*Math.cos(yp.pitch),Math.sin(yp.pitch),-Math.cos(yp.yaw)*Math.cos(yp.pitch)).clone();
 // ---------- web shooters: Web mode on -> HOLD jump = attach to the best anchor ahead & above and swing; release = let go, keep momentum ----------
@@ -889,7 +932,7 @@ function updLabels(){const placed=[],W2=innerWidth,H2=innerHeight;labelEls.sort(
 labelEls.forEach(l=>{l.el.style.left='0';l.el.style.top='0'});
 const mm=$('minimap').getContext('2d');
 let MMX=null;function mmExtras(){const e=window.__estate;if(!e)return null;if(MMX)return MMX;const P2=(u,v,c=e.lakeC)=>[c.x+e.side.x*u+e.dir.x*v,c.z+e.side.z*u+e.dir.z*v],lake=[];for(let i=0;i<96;i++){const a=i/96*6.2832,r=e.rho(a);lake.push(P2(e.Wd*r*Math.cos(a),e.D*r*Math.sin(a)))}
- const lot=[[-65,-65],[65,-65],[65,65],[-65,65]].map(([u,v])=>P2(u,v,e.lotC)),R=Math.max(375,...lot.map(([x,z])=>Math.hypot(x,z)+30));return MMX={lake,lot,R,road:[[e.cityEdge.x,e.cityEdge.z],P2(0,-65,e.lotC)],lab:[e.lotC.x,e.lotC.z]}}
+ const lot=[[-65,-65],[65,-65],[65,65],[-65,65]].map(([u,v])=>P2(u,v,e.lotC)),R=Math.max(375,...lot.map(([x,z])=>Math.hypot(x,z)+30));return MMX={lake,lot,R,road:[[(e.roadO||e.cityEdge).x,(e.roadO||e.cityEdge).z],[(e.roadO||e.cityEdge).x+e.dir.x*e.roadLen,(e.roadO||e.cityEdge).z+e.dir.z*e.roadLen]],lab:[e.lotC.x,e.lotC.z]}}
 function updMinimap(){const X=mmExtras(),cw=mm.canvas.width,sc=cw/2/(X?X.R:375);mm.clearRect(0,0,cw,cw);mm.save();mm.translate(cw/2,cw/2);
  if(X){const poly=(pts,close)=>{mm.beginPath();pts.forEach(([x,z],i)=>i?mm.lineTo(x*sc,z*sc):mm.moveTo(x*sc,z*sc));if(close)mm.closePath()};
   poly(X.lake,1);mm.fillStyle='rgba(40,140,230,.55)';mm.fill();mm.strokeStyle='#6fe8ff';mm.lineWidth=1;mm.stroke();
@@ -1005,7 +1048,7 @@ function updCounter(){const r=Object.entries(burned).map(([k,v])=>`<b>${fmtS(v)}
 function runEvent(e){evCount++;try{window.__onLive&&window.__onLive(e)}catch(x){}const tag=e.demo?' <i class="demo">DEMO</i>':'';
  if(e.type==='burn'){const n=N[e.token];if(!n)return;burnFX(n,e.amount,!!e.demo);(e.demo?burnedDemo:burned)[e.token]=((e.demo?burnedDemo:burned)[e.token]||0)+e.amount;updCounter();
   evBanner(`🔥 ${fmtS(e.amount)} ${e.token} burned${tag}<small>sent to blackholed issuer${e.n>1?` · ${e.n} txs`:''} · ${tStr(e.when)} · XRPL ledger ${short(e.hash)}</small>`,e.token==='IMM'?'#7ac8ff':'#ff8a2a');ambient(e)}
- else if(e.type==='trade'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;b.liveVol=(b.liveVol||0)+(+e.xrp||0);actDirty=1;pulseFX(b,e.xrp);
+ else if(e.type==='trade'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;b.pulseT=U.t.value;b.liveVol=(b.liveVol||0)+(+e.xrp||0);actDirty=1;pulseFX(b,e.xrp);
   toast(`<b>${b.p.a} ⇄ ${b.p.b}</b> ${e.estimate?'≈':''}${fmt(Math.round(e.xrp))} XRP ${e.kind==='OfferCreate'?'DEX/AMM fill':'swap'}${e.estimate?' <i class="est">est.</i>':''}${tag}<br><span class="dim">${tStr(e.when)} · ${short(e.hash)||'XRPL'}</span>`,'#3cf3ff')}
  else if(e.type==='lock'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;const L=e.pct!=null?e.pct/100:Math.min(1,b.Lv+.15);lockFX(b,L);chime();b.p.locked_pct=Math.max(b.p.locked_pct,L*100);
   evBanner(`🔒 LP LOCKED · ${b.p.a} ⇄ ${b.p.b}${tag}<small>${(L*100).toFixed(1)}% of LP tokens now in blackholed wallets · ${e.source==='recheck'?'periodic ledger recheck':'XRPL ledger '+short(e.hash)} · ${tStr(e.when)}</small>`,'#3cf3ff')}}

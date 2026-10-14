@@ -127,7 +127,7 @@ export function createZombieFX(scene, { low = false } = {}) {
     if (stepIt) { pg.attributes.position.needsUpdate = true; pg.attributes.color.needsUpdate = true; }
   }
   // napalm: lobbed blobs (0.6 s arc) then burning pools; inferno beam: additive cylinders
-  const blobs = [], pools = [], NB = 12, NPO = 16, NBM = 8;
+  const rays = [], blobs = [], pools = [], NB = 12, NPO = 16, NBM = 8;
   const blobM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.28, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff7a10 }), NB); blobM.count = 0; blobM.frustumCulled = false; scene.add(blobM);
   const poolM = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff5a00, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }), NPO); poolM.count = 0; poolM.frustumCulled = false; scene.add(poolM);
   const beamM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.09, 0.16, 1, 8, 1, true).translate(0, 0.5, 0).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }), NBM); beamM.count = 0; beamM.frustumCulled = false; scene.add(beamM);
@@ -141,12 +141,14 @@ export function createZombieFX(scene, { low = false } = {}) {
     attach(cam) { cam.add(gun); if (!cam.parent) scene.add(cam); },
     shot(e, isMe, meX, meZ) { const pr = WP[e.w === 'napalm' ? 3 : 2], fx = Math.sin(e.y || 0), fz = Math.cos(e.y || 0);
       if (e.w === 'shotgun') { const ox = (isMe ? meX : e.x) + fx * 1.4, oz = (isMe ? meZ : e.z) + fz * 1.4; burst(ox, isMe ? 1.38 : 1.25, oz, fx, fz, low ? 22 : 45, pr); }
+      if (e.w === 'napalm' && e.ray) { const x0 = isMe ? meX : e.x, z0 = isMe ? meZ : e.z; rays.push({ x0, z0, x1: e.tx, z1: e.tz, t: 0.2 }); burst(e.tx, 1.1, e.tz, -fx * 0.2, -fz * 0.2, low ? 8 : 16, WP[1] || pr); return; }
       if (e.w === 'napalm' && blobs.length < NB) blobs.push({ x0: isMe ? meX : e.x, z0: isMe ? meZ : e.z, x1: e.tx, z1: e.tz, t: 0 }); },
     zdie(e) { const z = zs.get(e.id); if (z) { dying.push({ ...z, fade: 0 }); zs.delete(e.id); } },
-    clear() { for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
+    clear() { for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
     // st: interpolated state; me: predicted self {x,z,yaw,firing}; colorOf(id) -> THREE.Color
     update(dt, st, me, myId, colorOf, flameCol, nftOf, srv) {
       t += dt; const seen = new Set(); nb = 0;
+      for (let i = rays.length - 1; i >= 0; i--) { const r = rays[i]; if ((r.t -= dt) <= 0) { rays.splice(i, 1); continue; } const dx = r.x1 - r.x0, dz = r.z1 - r.z0, L = Math.hypot(dx, dz) || 1, yaw = Math.atan2(dx, dz); beamAt(r.x0 + dx / L * 0.6, 1.2, r.z0 + dz / L * 0.6, yaw, Math.max(0.5, L - 0.6)); }   // Firestorm ember bolts
       for (const s of st.zombies) { seen.add(s.id); let z = zs.get(s.id);
         if (!z) zs.set(s.id, z = { id: s.id, x: s.x, z: s.z, yaw: 0, ph: Math.random() * 6, v: 0.92 + ((s.id * 37) % 17) / 100, ty: s.ty, flash: 0, burnT: 0 });
         const dx = s.x - z.x, dz = s.z - z.z, d = Math.hypot(dx, dz); if (d > 0.01) z.yaw += (((Math.atan2(dx, dz) - z.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 6);

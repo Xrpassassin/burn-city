@@ -29,7 +29,7 @@ function mk(i) { const c = W(), g = new THREE.Group(), body = new THREE.MeshStan
   const n = c.E.nodes.filter(x => x.name !== 'XRP' && x.pos)[i % 8] || c.E.nodes[0]; g.position.set(n.pos.x + 12, 0, n.pos.z + 12);
   return { g, legs, tag, bub, tgt: null, next: performance.now() + 3000 + i * 2500, hide: 0, ph: Math.random() * 6 } }
 function pickTgt(b) { const ns = W().E.nodes.filter(n => n.pos && !n.minor), n = ns[(Math.random() * ns.length) | 0], a = Math.random() * 6.283, r = (n.distR || 30) * (.55 + Math.random() * .3);
-  b.tgt = new THREE.Vector3(n.pos.x + Math.cos(a) * r, 0, n.pos.z + Math.sin(a) * r); if (window.__estate && window.__estate.inLake(b.tgt.x, b.tgt.z, 6)) b.tgt = null }
+  b.tgt = new THREE.Vector3(n.pos.x + Math.cos(a) * r, 0, n.pos.z + Math.sin(a) * r); if (window.__estate && window.__estate.inLake(b.tgt.x, b.tgt.z, 6) || window.__onRoad && window.__onRoad(b.tgt.x, b.tgt.z, .5)) b.tgt = null }   // targets on sidewalks/blocks, never mid-road
 const _v = new THREE.Vector3(); let last = performance.now();
 function tick() { requestAnimationFrame(tick); const c = W(); if (!c) return; const now = performance.now(), dt = Math.min(.1, (now - last) / 1000); last = now; const w = innerWidth, h = innerHeight;
   for (const b of bots) { const p = b.g.position; if (!b.tgt) pickTgt(b);

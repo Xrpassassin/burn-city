@@ -40,6 +40,16 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     const strip = new THREE.Mesh(g(new THREE.BoxGeometry(1.36, 0.5, 1.06).translate(0, 2.1, 0)), basic(k.col)); grp.add(cab, strip);
     if (!low) { const h = halo(k.col, 3.2); h.position.y = 1.4; grp.add(h); grp.userData.h = h; }
     const t = label(`${k.name} · ${k.cost}\n${k.desc}`, k.col, 640, 6.5); t.position.y = 3.5; grp.add(t); grp.position.set(k.x, 0, k.z); root.add(grp); return grp; });
+  // boarded windows: dark frame + up to 6 planks (one instanced mesh); ripped planks fly off, new ones slam in
+  const WN = L.windows || [], NB = L.boards || 6, frameM = new THREE.InstancedMesh(g(new THREE.BoxGeometry(1, 1, 1)), basic(0x120804), Math.max(1, WN.length * 3));
+  const plank = new THREE.InstancedMesh(g(new THREE.BoxGeometry(1, 1, 1)), basic(0xffffff), WN.length * NB + 16); plank.frustumCulled = frameM.frustumCulled = false;
+  const Mx = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), Vp = new THREE.Vector3(), Sc = new THREE.Vector3(), PC = [new THREE.Color(0x8a5a32), new THREE.Color(0x6e4626), new THREE.Color(0x9c6a3c)];
+  WN.forEach((w, i) => { const sx = w.ax === 'x' ? 2.6 : 0.5, sz = w.ax === 'x' ? 0.5 : 2.6;
+    frameM.setMatrixAt(i * 3, Mx.compose(Vp.set(w.x, 1.4, w.z), Q.identity(), Sc.set(w.ax === 'x' ? 3.2 : 0.7, 0.25, w.ax === 'x' ? 0.7 : 3.2)));
+    frameM.setMatrixAt(i * 3 + 1, Mx.compose(Vp.set(w.x + (w.ax === 'x' ? 1.45 : 0), 1.9, w.z + (w.ax === 'x' ? 0 : 1.45)), Q.identity(), Sc.set(w.ax === 'x' ? 0.3 : 0.7, 1.6, w.ax === 'x' ? 0.7 : 0.3)));
+    frameM.setMatrixAt(i * 3 + 2, Mx.compose(Vp.set(w.x - (w.ax === 'x' ? 1.45 : 0), 1.9, w.z - (w.ax === 'x' ? 0 : 1.45)), Q.identity(), Sc.set(w.ax === 'x' ? 0.3 : 0.7, 1.6, w.ax === 'x' ? 0.7 : 0.3))); });
+  root.add(frameM, plank); const anim = WN.map(() => Array(NB).fill(1));   // per plank 0..1 (1 = nailed)
+  let boards = WN.map(() => NB), flying = [];
   // mystery box
   const box = new THREE.Group(), boxBody = new THREE.Mesh(g(new THREE.BoxGeometry(2.2, 1, 1.1).translate(0, 0.5, 0)), basic(0x3a2614)), lid = new THREE.Mesh(g(new THREE.BoxGeometry(2.3, 0.15, 1.2)), basic(0x58e0ff));
   lid.position.y = 1.05; const beam = new THREE.Mesh(g(new THREE.CylinderGeometry(0.5, 0.9, 40, 10, 1, true).translate(0, 20, 0)), basic(0x58e0ff, { transparent: true, opacity: 0.22, blending: add, depthWrite: false, side: THREE.DoubleSide }));
@@ -50,7 +60,19 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   return {
     wname,
     rolling(e) { roll = { until: performance.now() + 2500, w: e.w }; },
-    update(dt, m) { t += dt; if (!m) return; const [open, spot, st] = m;
+    rip(e) { const w = WN[e.i]; if (w) flying.push({ w, k: e.n, t: 0 }); },
+    board(e) { if (anim[e.i]) anim[e.i][e.n - 1] = 0; },
+    update(dt, m, b) { t += dt; if (b) boards = b;
+      let pi = 0; WN.forEach((w, i) => { for (let k = 0; k < NB; k++) { const on = k < boards[i]; let a = anim[i][k]; if (on && a < 1) a = anim[i][k] = Math.min(1, a + dt * 5);
+        const y = 0.75 + k * 0.27, tilt = ((k * 7 + i) % 5 - 2) * 0.09, off = on ? (1 - a) * 1.2 : 0;
+        Q.setFromEuler(E.set(w.ax === 'z' ? tilt : 0, 0, w.ax === 'x' ? tilt : 0)); const ox = w.ix - w.x, oz = w.iz - w.z, l = Math.hypot(ox, oz) || 1;
+        Mx.compose(Vp.set(w.x + ox / l * (0.15 + off), y, w.z + oz / l * (0.15 + off)), Q, on ? Sc.set(w.ax === 'x' ? 2.8 : 0.08, 0.2, w.ax === 'x' ? 0.08 : 2.8) : Sc.set(0, 0, 0));
+        plank.setMatrixAt(pi, Mx); plank.setColorAt(pi, PC[(k + i) % 3]); pi++; } });
+      for (let j = flying.length - 1; j >= 0; j--) { const f = flying[j]; f.t += dt; if (f.t > 0.9) { flying.splice(j, 1); continue; } if (pi >= WN.length * NB + 16) continue;
+        const w = f.w, ox = w.x - w.ix, oz = w.z - w.iz, l = Math.hypot(ox, oz) || 1, u = f.t;   // torn outward, spinning, falling
+        Q.setFromEuler(E.set(u * 9, u * 4, u * 6)); Mx.compose(Vp.set(w.x + ox / l * u * 4, 0.75 + f.k * 0.27 + u * 2 - u * u * 6, w.z + oz / l * u * 4), Q, Sc.set(w.ax === 'x' ? 2.8 : 0.08, 0.2, w.ax === 'x' ? 0.08 : 2.8)); plank.setMatrixAt(pi, Mx); plank.setColorAt(pi, PC[0]); pi++; }
+      plank.count = pi;
+      plank.instanceMatrix.needsUpdate = true; if (plank.instanceColor) plank.instanceColor.needsUpdate = true; if (!m) return; const [open, spot, st] = m;
       floors.forEach((f, i) => f.material.color.setHex((open >> i) & 1 ? 0x2a1206 : 0x0a0503));
       L.doors.forEach((d, i) => { doors[i].visible = !(((open >> d.a) & 1) && ((open >> d.b) & 1)); });
       for (const p of perks) if (p.userData.h) { p.userData.h.material.opacity = 0.25 + 0.12 * Math.sin(t * 3 + p.position.x); p.userData.h.quaternion.copy(scene.userData.camQ || p.userData.h.quaternion); }
@@ -60,6 +82,8 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       else if (rollTag) { box.remove(rollTag); rollTag.material.map.dispose(); rollTag.material.dispose(); rollTag = null; } },
     // what pressing USE would do here (the server re-checks everything)
     prompt(me, m, pts, guns, perkBits) { if (!m) return null; const [open, spot, st] = m;
+      const op = m[0]; let bw = -1, bd = 2.6; WN.forEach((w, i) => { const on = ((op >> w.zone) & 1) && (w.behind == null || !((op >> w.behind) & 1)), d = Math.hypot(me.x - w.ix, me.z - w.iz); if (on && d < bd && boards[i] < NB) { bd = d; bw = i; } });
+      if (bw >= 0) return { t: `Hold ${matchMedia('(pointer:coarse)').matches ? 'USE' : 'F'} to rebuild the window (${boards[bw]}/${NB}) · +10 pts per board`, c: 0, hold: 1 };
       for (const d of L.doors) { const ua = (open >> d.a) & 1, ub = (open >> d.b) & 1; if (ua === ub) continue; const along = d.ax === 'x' ? Math.abs(me.x - d.x) : Math.abs(me.z - d.z), across = d.ax === 'x' ? Math.abs(me.z - d.z) : Math.abs(me.x - d.x);
         if (along <= 20 && across <= 3) return { t: `Open ${L.zones[ua ? d.b : d.a].n}`, c: d.cost }; }
       for (const w of L.wallbuys) if (near(me, w.x, w.z)) return guns.includes(w.w) ? { t: `Refill ${wname(w.w)}`, c: Math.round(w.cost / 2) } : { t: `Buy ${wname(w.w)}`, c: w.cost };

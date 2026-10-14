@@ -774,10 +774,14 @@ webBtn.onclick=e=>{e.stopPropagation();webSet(!WEB.on)};addEventListener('keydow
 function webDrop(){if(WEB.a){WEB.mom.set(P.vel.x,0,P.vel.z)}WEB.a=null;WEB.line.visible=false}
 function webAnchor(){const f=V3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw));let best=null,bs=-1e9;for(const c of colliders){if(!c.r||c.h<P.pos.y+5)continue;const dx=c.x-P.pos.x,dz=c.z-P.pos.z,d=Math.hypot(dx,dz);if(d<4||d>80)continue;const dot=(dx*f.x+dz*f.z)/d;if(dot<.35)continue;
   const y=Math.min(c.h-.5,P.pos.y+28),ax=c.x-dx/d*c.r,az=c.z-dz/d*c.r,dd=Math.hypot(ax-P.pos.x,y-P.pos.y,az-P.pos.z);if(dd>80)continue;if(y<P.pos.y+8)continue;const sc=dot*2-Math.abs(dd-32)/40+(y-P.pos.y)/25;if(sc>bs){bs=sc;best=V3(ax,y,az)}}return best}
+const _hv=new THREE.Vector3(),_hd=new THREE.Vector3(),_dn=new THREE.Vector3(0,-1,0);
+function webPose(){const A=avatar.userData.arms;if(!WEB.a){for(const a of A){a.rotation.y=0;a.rotation.z=0}return}const arm=A[WEB.hand===1?1:0];avatar.updateMatrixWorld(true);
+  _hd.copy(WEB.a);avatar.worldToLocal(_hd).sub(arm.position).normalize();arm.quaternion.setFromUnitVectors(_dn,_hd);arm.updateMatrixWorld(true);
+  arm.localToWorld(_hv.set(0,-.55,0));const la=WEB.line.geometry.attributes.position;la.setXYZ(0,_hv.x,_hv.y,_hv.z);la.setXYZ(1,WEB.a.x,WEB.a.y,WEB.a.z);la.needsUpdate=true}
 function webStep(dt,mv){webBtn.style.display=mode==='explore'&&!(window.__boat&&window.__boat.active)?'':'none';const held=!!(keys.Space||tb.jump),rise=held&&!WEB.prev;WEB.prev=held;WEB.cd=Math.max(0,WEB.cd-dt);
   if(!WEB.on){if(WEB.a)webDrop();return false}
   if(WEB.a&&!held){webDrop();WEB.cd=.4;P.vel.x=P.vel.z=0;return false}
-  if(!WEB.a&&rise&&WEB.cd<=0){const a=webAnchor();if(!a)return false;WEB.a=a;WEB.L=a.distanceTo(P.pos);P.vel.x=P.vel.x||mv.x;P.vel.z=P.vel.z||mv.z;{const t=a.clone().sub(P.pos).normalize();P.vel.addScaledVector(t,16);P.vel.y=Math.max(P.vel.y,7)}P.onGround=false;P.climb=null}
+  if(!WEB.a&&rise&&WEB.cd<=0){const a=webAnchor();if(!a)return false;WEB.a=a;WEB.hand=WEB.hand?0:1;WEB.L=a.distanceTo(P.pos);P.vel.x=P.vel.x||mv.x;P.vel.z=P.vel.z||mv.z;{const t=a.clone().sub(P.pos).normalize();P.vel.addScaledVector(t,16);P.vel.y=Math.max(P.vel.y,7)}P.onGround=false;P.climb=null}
   if(!WEB.a)return false;
   // pendulum: gravity + a little steering + slow reel-in, then the rope constraint removes outward velocity
   P.vel.y-=20*dt;P.vel.x+=mv.x*1.2*dt;P.vel.z+=mv.z*1.2*dt;WEB.L=Math.max(5,WEB.L-10*dt);
@@ -804,7 +808,7 @@ function updExplore(dt){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run
  P.pos.x=Math.max(-900,Math.min(900,P.pos.x));P.pos.z=Math.max(-900,Math.min(900,P.pos.z));
  P.walk+=dt*ml*(run?14:9);const sw=Math.sin(P.walk)*.7*ml*(P.onGround?1:.2);const L=avatar.userData;L.legs[0].rotation.x=sw;L.legs[1].rotation.x=-sw;L.arms[0].rotation.x=-sw*.8;L.arms[1].rotation.x=sw*.8;
  if(P.climb){const c2=Math.sin(P.walk*1.4);L.arms[0].rotation.x=-2.6+c2*.5;L.arms[1].rotation.x=-2.6-c2*.5;L.legs[0].rotation.x=.6+c2*.4;L.legs[1].rotation.x=.6-c2*.4}
- avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;const dir=dirOf();
+ avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;webPose();const dir=dirOf();
  if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.7);C.lookAt(C.position.clone().add(dir))}
  else{const want=P.pos.clone().setY(P.pos.y+2.3).addScaledVector(dir,-6.5);want.y=Math.max(want.y,P.pos.y+.6,.6);C.position.lerp(want,1-Math.pow(.0005,dt));C.lookAt(P.pos.clone().setY(P.pos.y+1.6).addScaledVector(dir,4))}
  let best=null,bd=1e9;E.nodes.forEach(n=>{const d=Math.hypot(P.pos.x-n.pos.x,P.pos.z-n.pos.z);if(d<n.distR&&d<bd){bd=d;best=n}});const dn=best?best.name:'';
@@ -836,7 +840,7 @@ let tourStops=[[fitW(V3(330,200,380),V3(0,40,0)),V3(0,40,0)],[V3(110,40,90),V3(0
  [np('XRPyro',.62,3.5),np('BURN',.8,14)],[np('IMM',1.38,24),np('IMM',1,36)],[V3(0,200,-170),V3(0,168,0)],[np('666',1.5,60),np('666',1,30)],[V3(-70,5,-40),V3(-110,6,-90)],[fitW(V3(330,200,380),V3(0,40,0)),V3(0,40,0)]];
 let tourCaps=['Burn City: every tower is a token, every bridge an XRPL AMM pool','The XRP hub: tallest tower = deepest liquidity','Street level: traffic follows real 24h volume','Bridges: colour = trading activity (blue quiet → red busy) · brighter = more LP locked · gold Forever Rails = XRP value locked forever','BURN: fire district. Live burns to the blackholed issuer erupt from this tower','XRPyro: the inferno','Scaffold rails = LP that could still be withdrawn','IMM: electric ice district','From above: weather follows market mood (TVL-weighted 24h change)','666 district','Bioluminescent parks','Replay history with the time-lapse slider · Copy link to share any view'];
 function tourCap(t){const i=Math.min(tourCaps.length-1,Math.round(t*(tourStops.length-1)));const el=$('tourCap');if(el.dataset.i!=i){el.dataset.i=i;el.classList.remove('show');setTimeout(()=>{el.textContent=tourCaps[i];el.classList.add('show')},450)}}
-window.__tourDbg={get:()=>tour,caps:()=>tourCaps};const TS0=tourStops,TC0=tourCaps;function tourBuild(){tourStops=TS0.slice(0,-1);tourCaps=TC0.slice(0,-1);try{const e=window.__estate,f=window.__fishWorld,bw=window.__boatWorld;
+if(/[?&]debug=1/.test(location.search))window.__tourDbg={get:()=>tour,caps:()=>tourCaps};const TS0=tourStops,TC0=tourCaps;function tourBuild(){tourStops=TS0.slice(0,-1);tourCaps=TC0.slice(0,-1);try{const e=window.__estate,f=window.__fishWorld,bw=window.__boatWorld;
   if(e&&e.lakeC){const L=e.lakeC,d=e.dir||V3(1,0,0);tourStops.push([V3(L.x-d.x*140,70,L.z-d.z*140),V3(L.x,0,L.z)]);tourCaps.push('The lake: fishing and boating · Burn City Estates · Coming soon')}
   if(f&&f.shopPos){const sp=f.shopPos,d=f.dock.dir;tourStops.push([V3(sp.x+d.x*16+d.z*10,9,sp.z+d.z*16-d.x*10),V3(sp.x,2,sp.z)]);tourCaps.push('Fishing dock + Tackle & Bait: free rod & worms, catch ~20 species, sell for lake coins (no real value), upgrade rods/bait')}
   if(bw&&bw.base){const b=bw.base,d=f.dock.dir;tourStops.push([V3(b.x-d.x*16+d.z*12,8,b.z-d.z*16-d.x*12),V3(b.x+d.x*4,0,b.z+d.z*4)]);tourCaps.push('Boat dock: hop in and drive a boat around the lake')}

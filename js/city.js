@@ -123,7 +123,7 @@ let fr=0;function loop(now){requestAnimationFrame(loop);const c=W();if(!c||!peer
     const vis=_v.z<1&&Math.abs(_v.x)<1.1&&Math.abs(_v.y)<1.1&&dist<(p.bub?900:450);
     if(!vis){if(p.tag.style.display!=='none')p.tag.style.display='none';continue}if(p.tag.style.display)p.tag.style.display='';
     p.tag.style.transform=`translate3d(${((_v.x+1)/2*w).toFixed(1)}px,${((1-_v.y)/2*h).toFixed(1)}px,0) translate(-50%,-100%) scale(${Math.max(.75,Math.min(1,160/dist)).toFixed(2)})`}}
-window.__cityChat={bubble,upsert,peers,me:()=>myId};
+if(/[?&]debug=1/.test(location.search))window.__cityChat={bubble,upsert,peers,me:()=>myId};
 (function boot(){if(!window.__ready||!W())return setTimeout(boot,500);setTimeout(()=>{connect();requestAnimationFrame(loop)},MOB?1500:400)})();
 window.__cityNet={peers,get ws(){return ws},open:setOpen};
 // ---------- NFT characters (RACC / Firekeepers / 589 Protocol holders) ----------

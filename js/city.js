@@ -91,7 +91,7 @@ renderFoot();
 function connect(){if(ws||document.hidden)return;const t=token();try{ws=new WebSocket(WS+(t?'&token='+encodeURIComponent(t):''))}catch(e){return later()}
   ws.onopen=()=>{retry=0;panel.classList.add('on')};
   ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
-    if(m.t==='w'){myId=m.id;canChat=m.canChat;log.replaceChildren();(m.msgs||[]).forEach(x=>addMsg({...x},false));renderFoot();log.scrollTop=log.scrollHeight}
+    if(m.t==='w'){myId=m.id;canChat=m.canChat;if(m.name){window.__myColor=colOf(m.name);dispatchEvent(new CustomEvent('bc-mycolor',{detail:window.__myColor}))}log.replaceChildren();(m.msgs||[]).forEach(x=>addMsg({...x},false));renderFoot();log.scrollTop=log.scrollHeight}
     else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r)}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
     else if(m.t==='c'){addMsg(m,true);bubble(m.pid,m.b)}
     else if(m.t==='n'){for(const k in m.m){if(m.m[k])nfts.set(+k,m.m[k]);else nfts.delete(+k);const p=peers.get(+k);if(p)setNft(p)}}

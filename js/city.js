@@ -50,11 +50,14 @@ function drop(id){const p=peers.get(id);if(!p)return;W().S.remove(p.g);p.tag.rem
 function bubble(pid,text){const p=peers.get(pid);if(!p)return;if(!p.bub){p.bub=el('div','pbub');p.tag.prepend(p.bub)}p.bub.textContent=text.length>90?text.slice(0,88)+'…':text;p.bub.classList.remove('out');p.bubT=Date.now()+6500}
 
 // chat panel
-const panel=el('div');panel.id='cityChat';panel.innerHTML='<button class="cch" aria-expanded="false"><span class="cdot"></span><span class="ctl">City chat</span><span class="cn"></span><span class="cun" hidden></span><span class="car">▴</span></button><div class="cbody"><div class="clog" role="log" aria-live="polite"></div><div class="cfoot"></div></div>';
+const panel=el('div');panel.id='cityChat';panel.innerHTML='<button class="cch" aria-expanded="false" aria-label="City chat"><span class="cic">💬</span><span class="cdot"></span><span class="ctl">City chat</span><span class="cn"></span><span class="cun" hidden></span><span class="car">▴</span></button><div class="cbody"><div class="clog" role="log" aria-live="polite"></div><div class="cfoot"></div></div>';
 document.body.append(panel);
 const log=panel.querySelector('.clog'),foot=panel.querySelector('.cfoot'),head=panel.querySelector('.cch');
 function setOpen(v){open=v;panel.classList.toggle('open',v);head.setAttribute('aria-expanded',v);if(v){unread=0;badge();log.scrollTop=log.scrollHeight}}
 head.onclick=()=>setOpen(!open);
+// auto-hide during tour, replay, first-person modes and burn-alert sweeps; restore afterwards (state kept)
+setInterval(()=>{const c=W();if(!c)return;const hide=c.getMode()!=='orbit'||c.isTour()||document.body.classList.contains('replay')||!!document.querySelector('.alertPill:not([hidden])');panel.classList.toggle('autohide',hide)},400);
+addEventListener('pointerdown',e=>{if(open&&!panel.contains(e.target)&&e.target.closest&&!e.target.closest('#info'))setOpen(false)},true);
 function badge(){const b=panel.querySelector('.cun');b.hidden=!unread;b.textContent=unread>9?'9+':unread;panel.querySelector('.cn').textContent=online?`· ${online} online`:'· offline'}
 const hidden=new Set(JSON.parse(localStorage.bcHidden||'[]'));
 function addMsg(m,live){if(hidden.has(m.acct))return;const row=el('div','cm');row.dataset.id=m.id;

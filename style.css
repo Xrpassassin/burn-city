@@ -133,7 +133,7 @@ body.replay #tlDate{color:#ffcf6a}
 #cityChat .cform button,#cityChat .csign{min-height:44px;border-radius:10px;border:0;background:linear-gradient(90deg,#ff5a1a,#ff9a2a);color:#120600;font-weight:700;padding:0 14px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none}
 #cityChat .cnote{margin-top:6px;font-size:11px;text-align:center}
 #cityChat .ctoast{position:absolute;bottom:100%;left:0;right:0;margin-bottom:6px;background:#0b1630;border:1px solid #ff7a1866;border-radius:9px;padding:7px 10px;color:#ffd2a8}
-@media (max-width:700px){#cityChat{left:140px;right:10px;width:auto;bottom:calc(10px + env(safe-area-inset-bottom))}#cityChat .cch{min-height:48px}#cityChat.open{left:10px}#cityChat .clog{max-height:34vh}#live{bottom:66px}}
+@media (max-width:700px){#cityChat{left:140px;right:10px;width:auto;bottom:calc(10px + env(safe-area-inset-bottom))}#cityChat .cch{min-height:48px}#cityChat.open{left:10px}#cityChat .clog{max-height:34vh}}
 .actLeg{display:flex;align-items:center;gap:6px;margin:6px 0 2px;font-size:11px;opacity:.9}.actLeg i{flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,#2f7bff,#9a4bff 45%,#ff8a2a 75%,#ff3d14);box-shadow:0 0 8px #ff5a1a55}
 .feat{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin-top:6px}.feat label{margin:0!important;padding:0!important}.feat label{display:flex;align-items:center;gap:6px;min-height:30px}.feat input{width:18px;height:18px}
 .alertPill{position:fixed;left:50%;top:calc(64px + env(safe-area-inset-top));transform:translateX(-50%);z-index:8;min-height:44px;padding:0 18px;border-radius:22px;border:1px solid #ff7a18aa;background:rgba(20,6,0,.85);color:#ffd2a8;font:600 14px system-ui,-apple-system,sans-serif;box-shadow:0 0 20px #ff5a1a66;cursor:pointer;animation:bubIn .3s ease-out}
@@ -158,3 +158,18 @@ body.replay #tlDate{color:#ffcf6a}
 #dbgPanel label{display:flex;gap:6px;align-items:center;min-height:30px}#dbgPanel input{width:18px;height:18px}#dbgPanel pre{white-space:pre-wrap;word-break:break-all;font-size:10.5px;opacity:.85}
 #dbgPanel button{min-height:40px;padding:0 12px;border-radius:8px;border:1px solid #ff08;background:#222;color:#ffc;cursor:pointer}#dbgPanel.min .dl,#dbgPanel.min .dp,#dbgPanel.min pre{display:none}
 .dp{border-top:1px solid #ff04;margin-top:6px;padding-top:6px}
+
+/* city chat v2: floating corner button, compact panel above it, auto-hidden in tour/replay/first-person/alerts */
+#cityChat{left:auto!important;right:calc(12px + env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom))!important;width:auto!important;display:none;flex-direction:column-reverse;align-items:flex-end}
+#cityChat.on{display:flex}#cityChat.autohide{display:none!important}
+#cityChat:not(.open) .cch{width:52px;height:52px;min-height:52px;padding:0;border-radius:50%;justify-content:center;position:relative}
+#cityChat:not(.open) .cch>:not(.cic):not(.cun){display:none}
+#cityChat .cic{font-size:20px}#cityChat.open .cic{font-size:15px}
+#cityChat:not(.open) .cun{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;line-height:20px;padding:0 5px;text-align:center}
+#cityChat.open .cch{width:min(320px,calc(100vw - 24px));border-radius:12px 12px 0 0}#cityChat.open .cbody{width:min(320px,calc(100vw - 24px));margin:0 0 0 0;border-radius:12px 12px 0 0;order:0}
+#cityChat.open{gap:0}#cityChat.open .cch{border-radius:0 0 12px 12px}
+#cityChat .clog{max-height:min(240px,32vh)}
+#cityChat .ctoast{right:0;left:auto;width:min(300px,calc(100vw - 24px))}
+@media (max-width:700px){#cityChat{bottom:calc(52px + env(safe-area-inset-bottom))!important;right:10px}#live{bottom:calc(10px + env(safe-area-inset-bottom));right:10px;top:auto}#toasts{bottom:calc(120px + env(safe-area-inset-bottom))}#bagList{bottom:calc(120px + env(safe-area-inset-bottom))}}
+@media (min-width:701px){#info{bottom:74px}}
+@media (max-width:700px){#toasts{width:min(250px,calc(100vw - 150px))}}

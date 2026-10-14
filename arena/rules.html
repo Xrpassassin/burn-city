@@ -1,12 +1,12 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Burn City Ranked Matches: Rules</title><link rel="icon" href="../icons/icon-192.png">
+<title>Burn City Ranked Matches (Zombie Survival + Light Cycles): Rules</title><link rel="icon" href="../icons/icon-192.png">
 <style>body{margin:0;background:#050208;color:#ffd9a0;font:15px/1.55 system-ui;padding:20px;max-width:760px;margin:auto}h1,h2{color:#ffb060;text-shadow:0 0 8px #f60}a{color:#ffb060}
 .box{border:1px solid #f606;border-radius:10px;padding:10px 14px;margin:12px 0;background:#ff66000d}.warn{border-color:#ff2a00}table{border-collapse:collapse}td{padding:2px 10px 2px 0}</style></head><body>
 <a href="./">← Back to the Arena</a>
 <h1>🏆 Ranked Matches: Rules</h1>
 <div class="box" id="live">Loading live status…</div>
 <h2>What it is</h2>
-<p>The arena's Zombie Survival has two options. <b>Free Play</b> costs nothing and has no prizes. <b>Ranked Matches</b> are optional, <b>skill-based</b> matches with a buy-in. Each match is its own contest: its pot is made only of the buy-ins paid by the players in that match.</p>
+<p>Zombie Survival and Light Cycles each have two options. <b>Free Play</b> costs nothing and has no prizes. <b>Ranked Matches</b> are optional, <b>skill-based</b> matches with a buy-in. Each match is its own contest: its pot is made only of the buy-ins paid by the players in that match.</p>
 <h2>Creating and joining a match</h2>
 <ul><li>Whoever creates a match picks the buy-in per player, anywhere from <b><span class="minb">0.2</span> to <span class="maxb">25</span> XRP</b>. The creator pays that buy-in too.</li>
 <li>Everyone can see the open matches with their buy-in and player count. To join, you pay that match's buy-in.</li>
@@ -25,12 +25,22 @@
 <li id="example"></li>
 <li>Payouts come only from that match's buy-ins. The project never adds to a pot or pays out more than the match collected.</li></ul>
 <h2>Ties</h2>
-<p>Ties are broken in a fixed order: most kills, then whoever survived longer, then whoever's buy-in was verified first, then wallet address in alphabetical order.</p>
+<p><b>Zombie Survival:</b> ties are broken in a fixed order: most kills, then whoever survived longer, then whoever's buy-in was verified first, then wallet address in alphabetical order.</p>
+<h2>🏍 Ranked Light Cycles</h2>
+<ul><li>Same buy-in, XAMAN payment, on-ledger check, burn, pot, 30-minute refund and admin-approval rules as above. The creator also picks the format: <b>free-for-all</b>, <b>2, 3 or 4 teams</b>, whether <b>teammates' trails kill</b> (on by default) and optionally <b>best of 3</b> rounds.</li>
+<li>Team players pick a team in the lobby or are auto-balanced. Teams can't be changed once the match starts.</li>
+<li><b>Free-for-all payout:</b> by placement, i.e. survival order (last rider alive = 1st). Same split as above: 1 player 100% · 2 players 62.5/37.5 · 3 or more 50/30/20 to the top 3.</li>
+<li><b>Team payout:</b> a team wins when its rider(s) are the last ones alive. The winning team's members split the pot <b>equally</b> (minus one network fee per payout); riders who crashed early on the winning team still get their share.</li>
+<li><b>Best of 3:</b> first to 2 round wins. FFA ranks by round wins, then total placement across rounds, then last-round placement.</li>
+<li><b>Ties:</b> riders who crash in the same tick share the same place for that round and are then ordered by the rules above, then by whoever's buy-in was verified first, then wallet address. In team mode, if the last riders of two or more teams crash in the same tick, it's a draw and those teams' members all split the pot equally. If no team has a rider left, every player shares equally.</li>
+<li>Disconnecting counts as crashing (last place in free-for-all).</li>
+<li>Anti-cheat: the server runs all movement and collisions. Matches are flagged for review for shared IPs between wallets, very short matches, or a team-mode rider who never steers (possible throwing). A disqualified team rider's share is burned, not given to anyone else.</li></ul>
+<div class="box"><b>No spectator or side betting.</b> The only money in any match is the players' own buy-ins. Nobody can bet on a match they aren't playing in.</div>
 <h2>Refunds</h2>
 <ul><li>If a match never starts within <b><span class="lobbymin">30</span> minutes</b> of being created, every player's buy-in is refunded <b>minus the 3.22% burn</b> (that part was already burned) <b>and one network fee</b>, after admin review.</li>
 <li>If a match is aborted by a server fault before it starts, entries are restored.</li></ul>
 <h2>Fair play</h2>
-<ul><li>All game logic runs on the server. The game ignores anything the client claims about scores or kills.</li>
+<ul><li><b>Points, doors, weapons, the Mystery Box and perks are in-game only.</b> Points are earned by burning zombies and can't be bought, sold or cashed out; no real money is tied to the box or perks. In Ranked Matches everyone starts with the same 500 points, the same map and the same box odds, so nobody can pay for an edge.</li><li>All game logic runs on the server. The game ignores anything the client claims about scores or kills.</li>
 <li>Each player gets sanity checks: kills can't exceed the zombies spawned, kill rate and wave pace must be realistic, and entries per hour are limited.</li>
 <li>A match with flagged players is held until an admin reviews it. If a flagged player is disqualified, their place passes to the next player. If there aren't enough eligible players left to fill the places, the unclaimed share is burned.</li>
 <li>Every match payout is approved by hand before anything is sent. Payouts usually go out within a few days.</li></ul>
@@ -45,8 +55,8 @@ fetch('https://burn-city-game.fly.dev/api/ranked').then(r => r.json()).then(k =>
   const b = 1, net = b * (1 - k.burnPct / 100), pot3 = 3 * net, f = 3 * k.feeDrops / 1e6;
   document.getElementById('example').textContent = `Example: 3 players at a 1 XRP buy-in → ${x(3 - pot3)} XRP burned, pot ${x(pot3)} XRP → about ${[0.5, 0.3, 0.2].map(s => x((pot3 - f) * s)).join(' / ')} XRP.`;
   document.getElementById('live').innerHTML = (k.live ? (k.dryRun ? '🧪 <b>Test mode</b>: no real payouts yet.' : '🟢 <b>Live</b>') : '⏳ <b>Coming soon. Ranked Matches are not live yet</b>, so no buy-ins are accepted.') +
-    (k.open.length ? '<br>Open matches:<br>' + k.open.map(m => `${m.buyinXrp} XRP buy-in · ${m.paid} player(s) · pot ${x(m.potXrp)} XRP`).join('<br>') : '<br>No open matches right now.') +
-    (k.recent.length ? '<br>Recent matches:<br>' + k.recent.map(m => `${x(m.potXrp)} XRP pot · ` + m.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 8)}… ${e.kills} kills`).join(' · ')).join('<br>') : '');
+    (k.open.length ? '<br>Open matches:<br>' + k.open.map(m => `${m.game === 'tron' ? '🏍 Light Cycles' : '🧟 Zombies'} · ${m.buyinXrp} XRP buy-in · ${m.paid} player(s) · pot ${x(m.potXrp)} XRP`).join('<br>') : '<br>No open matches right now.') +
+    (k.recent.length ? '<br>Recent matches:<br>' + k.recent.map(m => `${x(m.potXrp)} XRP pot · ` + m.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 8)}…${m.game === 'tron' ? '' : ' ' + e.kills + ' kills'}`).join(' · ')).join('<br>') : '');
 }).catch(() => document.getElementById('live').textContent = 'Live status unavailable right now.');
 </script>
 <script data-goatcounter="https://shinigsmi.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script></body></html>

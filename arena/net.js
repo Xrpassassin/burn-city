@@ -21,10 +21,10 @@ export async function buy(api, item, { onQr } = {}) {
   throw new Error('timeout');
 }
 export class GameNet {
-  constructor(wsUrl, mode, { token, name, look = [], delay = 110, ranked = null } = {}) {
+  constructor(wsUrl, mode, { token, name, look = [], delay = 110, ranked = null, extra = '' } = {}) {
     this.roster = new Map();
     this.buf = []; this.delay = delay; this.trails = new Map(); this.handlers = {}; this.mode = mode; this.offset = null;
-    const u = `${wsUrl}/?mode=${mode}&name=${encodeURIComponent(name || 'runner')}${token ? '&token=' + token : ''}&look=${look.join(',')}${ranked ? '&ranked=' + ranked : ''}`;
+    const u = `${wsUrl}/?mode=${mode}&name=${encodeURIComponent(name || 'runner')}${token ? '&token=' + token : ''}&look=${look.join(',')}${ranked ? '&ranked=' + ranked : ''}${extra}`;
     this.ws = new WebSocket(u);
     this.ws.onmessage = e => this.msg(JSON.parse(e.data));
     this.ws.onclose = e => this.emit('close', e.reason);
@@ -33,7 +33,7 @@ export class GameNet {
   on(k, f) { this.handlers[k] = f; return this; }
   emit(k, ...a) { this.handlers[k]?.(...a); }
   msg(m) {
-    if (m.t === 'init') { this.me = m.me; this.life = m.life || 4000; for (const [id, name, look, color] of m.roster || []) this.roster.set(id, { name, look, color }); this.world = m.world; for (const [id, pts] of m.trails || []) this.trails.set(id, pts); return this.emit('init', m); }
+    if (m.t === 'init') { this.me = m.me; this.life = m.life || 4000; for (const [id, name, look, color, team] of m.roster || []) this.roster.set(id, { name, look, color, team }); this.world = m.world; this.map = m.map; for (const [id, pts] of m.trails || []) this.trails.set(id, pts); return this.emit('init', m); }
     if (m.t !== 's') return;
     const now = performance.now(); const off = now - m.ts;              // smoothed clock offset
     this.offset = this.offset === null ? off : this.offset + (Math.min(off, this.offset + 50) - this.offset) * 0.1;
@@ -42,7 +42,8 @@ export class GameNet {
       if (e.e === 'round') { this.trails.clear(); for (const [id, x, z] of e.s || []) this.trails.set(id, [[x, z, e.t]]); }
       if (e.e === 'spawn') this.trails.set(e.id, [[e.x, e.z, e.t]]);
       if (e.e === 'leave') { this.trails.delete(e.id); this.roster.delete(e.id); }
-      if (e.e === 'join') this.roster.set(e.id, { name: e.name, look: e.look || {}, color: e.color });
+      if (e.e === 'join') this.roster.set(e.id, { name: e.name, look: e.look || {}, color: e.color, team: e.team });
+      if (e.e === 'team') { const ro = this.roster.get(e.id); if (ro) ro.team = e.team; }
       if (e.e === 'turn') { const t = this.trails.get(e.id) || []; t.push([e.x, e.z, e.t]); this.trails.set(e.id, t); }
       if (e.e === 'crash') { const t = this.trails.get(e.id); if (t) t.push([e.x, e.z, e.t]); }
       this.emit(e.e, e);
@@ -56,9 +57,9 @@ export class GameNet {
     for (let i = this.buf.length - 1; i >= 0; i--) if (this.buf[i].ts <= rt) { a = this.buf[i]; b = this.buf[i + 1] || a; break; }
     const k = b === a ? 0 : Math.min(1, (rt - a.ts) / (b.ts - a.ts)), lerp = (x, y) => x + (y - x) * k;
     const mapB = new Map(b.p.map(p => [p[0], p]));
-    const players = a.p.map(p => { const q = mapB.get(p[0]) || p; return { id: p[0], x: lerp(p[1], q[1]), z: lerp(p[2], q[2]), r: p[3], alive: q[4], hp: q[5], fuel: q[6], firing: q[7] }; });
+    const players = a.p.map(p => { const q = mapB.get(p[0]) || p; return { id: p[0], x: lerp(p[1], q[1]), z: lerp(p[2], q[2]), r: p[3], alive: q[4], hp: q[5], fuel: q[6], firing: q[7], pts: q[8], w: q[9] || 0, perks: q[10] || 0, down: q[11] || 0, w2: q[12] ?? -1 }; });
     let zombies; if (a.z) { const zb = new Map(b.z.map(z => [z[0], z])); zombies = a.z.map(z => { const q = zb.get(z[0]) || z; return { id: z[0], x: lerp(z[1], q[1]), z: lerp(z[2], q[2]), burn: q[3], ty: z[4] || 0 }; }); }
-    return { players, zombies, wave: b.w, score: b.sc };
+    return { players, zombies, wave: b.w, score: b.sc, map: b.m };
   }
   get now() { return performance.now() - this.offset - this.delay; }   // server-time we are rendering at
   // trail polyline [x,z,ageMs] = timestamped corners + live head, clipped where segments expire (mirrors server)
@@ -74,5 +75,5 @@ export class GameNet {
       else out.push([p[0], p[1], Math.max(0, now - p[2])]); }
     return out;
   }
-  input(o) { const n = performance.now(); if (o.turn || n - this.lastSend > 50) { this.lastSend = n; this.ws.readyState === 1 && this.ws.send(JSON.stringify({ t: 'i', ...o })); } }
+  input(o) { const n = performance.now(); if (o.turn || o.use || o.sw || n - this.lastSend > 50) { this.lastSend = n; this.ws.readyState === 1 && this.ws.send(JSON.stringify({ t: 'i', ...o })); } }
 }

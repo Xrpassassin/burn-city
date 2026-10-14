@@ -185,7 +185,7 @@ function heroTower(n){const g=new THREE.Group();g.position.copy(n.pos);S.add(g);
  colliders.push({x:n.pos.x,z:n.pos.z,r:n.w*1.05,h:n.h*.42,node:n});
  if((TIER==='low'?['XRP']:['XRP','BURN','XRPyro','IMM','666']).includes(n.name)){const pl=new THREE.PointLight(col,n.name==='XRP'?700:260,170,1.6);pl.position.y=n.h*.45;g.add(pl)}
  const el=document.createElement('div');el.className='lbl'+(n.minor?' minor':'');el.style.setProperty('--c','#'+col.getHexString());el.innerHTML=n.name+(n.minor?'':`<small>${fmt(n.tvl)} XRP TVL</small>`);$('labels').appendChild(el);
- labelEls.push({el,pos:new THREE.Vector3(n.pos.x,n.top+4,n.pos.z),pri:n.name==='XRP'?1e9:n.tvl,minor:n.minor});
+ n.lblEl=el;labelEls.push({el,pos:new THREE.Vector3(n.pos.x,n.top+4,n.pos.z),pri:n.name==='XRP'?1e9:n.tvl,minor:n.minor});
  n.group=g}
 E.nodes.forEach(heroTower);
 // work lights on under-construction towers: two Points draw calls total, alternating blink
@@ -375,6 +375,13 @@ const vol=n=>n.name==='XRP'?null:(n.vol24h??null);const lanes=[];
 bridges.forEach(b=>{const vs=[vol(N[b.p.a]),vol(N[b.p.b])].filter(v=>v!=null);const v=vs.length?Math.min(...vs):b.p.tvl_xrp*.02;b.vol=v;b.volEst=!vs.length;
  const k=Math.max(1,Math.round((b.minor?1:2)+6*Math.log10(1+v)/3.5));for(let i=0;i<k;i++)lanes.push({b,u:Math.random(),dir:i%2?1:-1,alt:2+(i%3)*3.2,side:(i%2?1:-1)*(b.r+1.4),sp:(.018+.05*Math.min(1,Math.log10(1+v)/5))*(.8+Math.random()*.4)/Math.max(.5,b.curve.getLength()/150)})});
 lanes.length=Math.min(lanes.length,LV.cars);
+// ---------- pool activity colouring: percentile of (24h volume + live trades), calm blue -> purple -> orange -> fire red; busier = faster pulse ----------
+const WHITE_C=new THREE.Color(0xffffff);const ACT_STOPS=[[0,new THREE.Color(0x2f7bff)],[.45,new THREE.Color(0x9a4bff)],[.75,new THREE.Color(0xff8a2a)],[1,new THREE.Color(0xff3d14)]];
+function actColor(a,out){for(let i=1;i<ACT_STOPS.length;i++)if(a<=ACT_STOPS[i][0]){const [a0,c0]=ACT_STOPS[i-1],[a1,c1]=ACT_STOPS[i];return out.copy(c0).lerp(c1,(a-a0)/(a1-a0))}return out.copy(ACT_STOPS[3][1])}
+function actScore(){const sc=bridges.map(b=>Math.log10(1+Math.min(b.vol||0,Math.max(1,b.p.tvl_xrp)*3)+(b.liveVol||0)*6));const ord=sc.map((v,i)=>[v,i]).sort((x,y)=>x[0]-y[0]),n=Math.max(1,ord.length-1);
+ ord.forEach(([v,i],r)=>{const b=bridges[i];b.act=r/n;b.actCol=actColor(b.act,b.actCol||new THREE.Color());if(b.solid)bridgeLook(b)})}
+let actDirty=0;setInterval(()=>{bridges.forEach(b=>{if(b.liveVol)b.liveVol*=.93});if(actDirty){actDirty=0;actScore()}},10000);
+
 const cars=new THREE.InstancedMesh(new THREE.CapsuleGeometry(.32,1.3,3,8).rotateZ(Math.PI/2),new THREE.MeshStandardMaterial({color:0x1a2236,metalness:.9,roughness:.25,emissive:0x0a1430}),lanes.length);cars.frustumCulled=false;S.add(cars);
 const carLG=new THREE.BufferGeometry();carLG.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lanes.length*6),3));const carC=new Float32Array(lanes.length*6);lanes.forEach((l,i)=>carC.set([1,.95,.85,1,.12,.1],i*6));carLG.setAttribute('color',new THREE.BufferAttribute(carC,3));
 const carL=new THREE.Points(carLG,glowMat(0xffffff,1.6,{vertexColors:true}));carL.frustumCulled=false;S.add(carL);const _q2=new THREE.Quaternion().setFromAxisAngle(UPV,Math.PI/2);
@@ -540,7 +547,7 @@ const BURNED=(window.BURNED&&window.BURNED.tokens)||{};
 const tradeUrl=n=>n.name==='XRP'?'https://xrpburn.com/':`https://xrpburn.com/dex/trade/${encodeURIComponent(n.name.toUpperCase())}-XRP`;
 const issuerOf=n=>n.key&&n.key.includes('-')?n.key.split('-')[0]:null;
 const na='<span class="dim">n/a</span>';
-function descNode(n){const ps=pools.filter(p=>p.a===n.name||p.b===n.name).sort((a,b)=>b.tvl_xrp-a.tvl_xrp),iss=issuerOf(n),bu=n.burn_complete&&n.burned_pct!=null?{burned_pct:n.burned_pct,burned:n.burn_vol,burn_txs:n.burn_txs,outstanding:n.circ}:BURNED[n.name];
+function descNodeTable(n){const ps=pools.filter(p=>p.a===n.name||p.b===n.name).sort((a,b)=>b.tvl_xrp-a.tvl_xrp),iss=issuerOf(n),bu=n.burn_complete&&n.burned_pct!=null?{burned_pct:n.burned_pct,burned:n.burn_vol,burn_txs:n.burn_txs,outstanding:n.circ}:BURNED[n.name];
  const burnRow=n.name==='XRP'?'':`<tr><td>Burned to issuer</td><td>${bu&&bu.burned_pct!=null?`<b style="color:#ff8a2a">${bu.burned_pct.toFixed(2)}%</b> <i class="est" title="${fmtS(bu.burned)} burned in ${bu.burn_txs} txs vs ${fmtS(bu.outstanding)} outstanding (ledger scan)">est.</i>`:`${na} <span class="dim" title="Issuer history too long to scan fully; no number shown rather than a partial one">(not verified)</span>`}</td></tr>`;
  return `<button class="x" aria-label="Close">✕</button><h2 style="color:#${n.col.getHexString()}">${n.name}${n.minor?' <small style="opacity:.6">minor · near '+n.parent+'</small>':''}</h2><table>
  <tr><td>Price</td><td>${n.name==='XRP'?'1 XRP':n.price_xrp!=null?fmt(n.price_xrp,12)+' XRP <i class="est" title="xrpl.to price">est.</i>':na}</td></tr><tr><td>24h / 1h</td><td>${pct(n.pro24h)} / ${pct(n.pro1h)}</td></tr>
@@ -550,13 +557,23 @@ function descNode(n){const ps=pools.filter(p=>p.a===n.name||p.b===n.name).sort((
  <tr><td>Pool TVL <span class="dim">(width)</span></td><td>${fmt(n.tvl)} XRP${ps.some(p=>p.a!=='XRP'&&p.b!=='XRP')?' <i class="est" title="non-XRP pools valued at xrpl.to price">est.</i>':''}</td></tr><tr><td>24h volume</td><td>${n.vol24h!=null?fmt(n.vol24h)+' XRP':na}</td></tr><tr><td>Holders</td><td>${n.holders!=null?fmt(n.holders):na}</td></tr></table>
  <div class="dim" style="margin-top:4px">${ps.slice(0,5).map(p=>`${p.a}⇄${p.b} ${fmt(p.tvl_xrp)} XRP · ${(+p.locked_pct).toFixed(1)}%🔒${p.insider_pct>=50?' ⚑':''}`).join('<br>')}${ps.length>5?'<br>+'+(ps.length-5)+' more':''}</div>
  <div class="cardBtns"><a class="trade" href="${tradeUrl(n)}" target="_blank" rel="noopener">🔥 Trade on xrpburn.com</a>${iss?`<a href="https://livenet.xrpl.org/accounts/${iss}" target="_blank" rel="noopener" title="${iss}">Issuer ↗</a>`:''}</div>`}
-function descPool(p){const b=bridges.find(x=>x.p===p);return `<button class="x" aria-label="Close">✕</button><h2>${p.a} ⇄ ${p.b}</h2><table><tr><td>TVL</td><td>${fmt(p.tvl_xrp)} XRP</td></tr><tr><td>Trading fee</td><td>${p.fee_pct}%</td></tr>
+function priceFmt(v){if(v==null)return '—';const a=Math.abs(v);return a>=1?fmt(v,a>=100?0:3):a>=1e-4?(+v).toPrecision(4):(+v).toExponential(2)}
+function descNode(n){const iss=issuerOf(n),col='#'+n.col.getHexString(),bu=n.burn_complete&&n.burned_pct!=null?{burned_pct:n.burned_pct,burned:n.burn_vol}:BURNED[n.name],isX=n.name==='XRP';
+ const nb=(n.burn_txs||0)+(n.liveBurns||0),ch=n.pro24h,full=descNodeTable(n),tbl=full.slice(full.indexOf('<table>'),full.indexOf('<div class="cardBtns">'));
+ const kp=(l,v,sub)=>`<div class="kpi"><span>${l}</span><b>${v}</b>${sub?`<i>${sub}</i>`:''}</div>`;
+ return `<button class="x" aria-label="Close">✕</button><div class="chead" style="--tc:${col}"><div class="tk">${n.name.slice(0,2)}</div><div><h2 style="color:${col}">${n.name}</h2><div class="dim">$${n.name}${iss?` · <span title="${iss}">${iss.slice(0,6)}…${iss.slice(-4)}</span>`:''}${n.minor?' · minor':''}</div></div>${ch!=null?`<span class="chg ${ch>=0?'up':'dn'}">${pct(ch)}</span>`:''}</div>
+ <div class="kpis">${kp('Price',isX?'1 XRP':n.price_xrp!=null?priceFmt(n.price_xrp)+' XRP':na,'')}${isX?'':kp('Market cap',n.mc!=null?fmtS(n.mc)+' XRP':na,'tower height')}${kp('TVL',fmtS(n.tvl)+' XRP','base width')}${kp('LP locked',(n.lockedShare*100).toFixed(1)+'%',LOCKT[n.tier][1])}${isX?'':kp('Burned',bu&&bu.burned_pct!=null?`<span style="color:#ff8a2a">${bu.burned_pct.toFixed(2)}%</span>`:nb?'🔥 '+fmt(nb)+' txs':na,bu&&bu.burned!=null?fmtS(bu.burned)+' '+n.name:nb?'supply % not verified':'')}</div>
+ ${isX||!iss?'':`<div class="rb"><div class="rbh">🔥 Recent burns <span class="dim">sent to issuer</span></div><div class="rbl" data-iss="${iss}" data-cur="${n.key.split('-')[1]}" data-tok="${n.name}"><span class="dim">Loading from the ledger…</span></div></div>`}
+ <div class="cardBtns"><a class="trade" href="${tradeUrl(n)}" target="_blank" rel="noopener">🔥 Trade ${isX?'':'$'+n.name+' '}on xrpburn.com</a>${iss?`<a href="https://livenet.xrpl.org/accounts/${iss}" target="_blank" rel="noopener" title="${iss}">Issuer ↗</a>`:''}</div>
+ <details class="more"><summary>More stats &amp; pools</summary>${tbl}</details>
+ <div class="attr dim">Trades open on xrpburn.com and are signed in your own wallet; Burn City never holds funds. Prices: <a href="https://xrpl.to" target="_blank" rel="noopener">Data by xrpl.to</a></div>`}
+function descPool(p){const b=bridges.find(x=>x.p===p);return `<button class="x" aria-label="Close">✕</button><h2>${p.a} ⇄ ${p.b}</h2><table><tr><td>Activity <span class="dim">(line colour)</span></td><td>${b&&b.act!=null?`<b style="color:#${b.actCol.getHexString()}">${b.act>=.85?'Very active':b.act>=.6?'Active':b.act>=.3?'Moderate':'Quiet'}</b> · top ${Math.max(1,Math.round((1-b.act)*100))}%`:'—'}</td></tr><tr><td>TVL</td><td>${fmt(p.tvl_xrp)} XRP</td></tr><tr><td>Trading fee</td><td>${p.fee_pct}%</td></tr>
  <tr><td>Locked LP</td><td style="color:${p.locked_pct>=70?'#3cf3ff':p.locked_pct>=30?'#ffb000':'#ff3b2f'}">${p.locked_pct}%</td></tr><tr><td>Insider LP</td><td>${p.insider_pct}% ${p.insider_pct>=50?'⚑':''}</td></tr><tr><td>LP holders</td><td>${p.lp_holders}</td></tr>
  <tr><td>Traffic basis</td><td>${b&&b.volEst?'est. 2% of TVL':'min 24h vol of pair'} ≈ ${fmt(b&&b.vol)} XRP</td></tr></table>
- <div style="margin-top:4px">Top LP:<br>${p.top_lp.map(t=>`${t.acct.slice(0,10)}… ${t.pct}% ${lpTag(t)}`).join('<br>')}</div><div class="dim" style="margin-top:4px;word-break:break-all">AMM ${p.amm}</div>`}
+ <div class="actLeg"><span>Quiet</span><i></i><span>Very active</span></div><div style="margin-top:4px">Top LP:<br>${p.top_lp.map(t=>`${t.acct.slice(0,10)}… ${t.pct}% ${lpTag(t)}`).join('<br>')}</div><div class="dim" style="margin-top:4px;word-break:break-all">AMM ${p.amm}</div>`}
 function descLot(L){return `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb000">🚧 ${L.ticker.replace(/[<&]/g,'')} <small style="opacity:.6">unbonded · Launchpad</small></h2><table><tr><td>Bonding progress</td><td>${L.bond_pct!=null?L.bond_pct.toFixed(1)+'%':'<span class="dim">n/a</span>'}</td></tr><tr><td>Market cap</td><td>${L.mcap!=null?fmt(L.mcap)+' XRP <i class="est" title="bonding-curve price reported by xrpl.fun">est.</i>':'<span class="dim">n/a</span>'}</td></tr><tr><td>Curve liquidity</td><td>${L.liquidity!=null?fmt(L.liquidity)+' XRP <i class="est">est.</i>':'<span class="dim">n/a</span>'}</td></tr><tr><td>Paired with</td><td>${L.base_pair||'—'}</td></tr></table><div class="dim" style="margin-top:4px">No AMM pool yet. When it bonds it rises into a real tower. Data: xrpl.fun, refreshed nightly.</div><div class="cardBtns"><a class="trade" href="${L.url}" target="_blank" rel="noopener">View on xrpl.fun</a>${L.issuer?`<a href="https://livenet.xrpl.org/accounts/${L.issuer}" target="_blank" rel="noopener">Issuer ↗</a>`:''}</div>`}
 function descAd(a){const e=t=>String(t||'').replace(/[<&"]/g,'');return `<button class="x" aria-label="Close">✕</button><div class="spons">Sponsored · ${e(a.tier||'xrpburn.com')}</div><h2 style="color:${a.color||'#ff8a2a'}">$${e(a.ticker)} <small style="opacity:.7">${e(a.name)}</small></h2>${a.tagline?`<div>${e(a.tagline)}</div>`:''}<div class="dim" style="margin-top:4px">Paid placement on xrpburn.com, not an endorsement. DYOR.</div><div class="cardBtns"><a class="trade" href="${encodeURI(a.url||'https://xrpburn.com/')}" target="_blank" rel="noopener sponsored">Open on xrpburn.com</a>${a.issuer?`<a href="https://livenet.xrpl.org/accounts/${e(a.issuer)}" target="_blank" rel="noopener">Issuer ↗</a>`:''}</div>`}
-function showInfo(u){const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
+function showInfo(u){const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').classList.toggle('v2',!!(u.node&&!u.lot));$('info').style.display='block';$('info').scrollTop=0;window.__onCard&&window.__onCard($('info'));$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
 
 // ---------- controls: Orbit / Fly / Explore ----------
 const orbit=new OrbitControls(C,R.domElement);orbit.enableDamping=true;orbit.maxPolarAngle=1.5;orbit.target.set(0,30,0);orbit.minDistance=8;orbit.maxDistance=900;orbit.autoRotateSpeed=.35;
@@ -572,7 +589,7 @@ const avatar=(()=>{const g=new THREE.Group();const suit=new THREE.MeshStandardMa
  const arms=[-1,1].map(s=>{const a=new THREE.Mesh(new THREE.CapsuleGeometry(.08,.45,4,8),suit);a.geometry.translate(0,-.25,0);a.position.set(s*.42,1.38,0);g.add(a);return a});
  const ring=new THREE.Mesh(new THREE.RingGeometry(.45,.55,32),new THREE.MeshBasicMaterial({color:0x7ee0ff,transparent:true,opacity:.3,side:2}));ring.rotation.x=-Math.PI/2;ring.position.y=.03;g.add(ring);
  const pl=new THREE.PointLight(0x7ee0ff,2,6,2);pl.position.y=1.5;g.add(pl);g.userData={legs,arms};g.visible=false;S.add(g);return g})();
-let NET=null;const peers=new Map();
+let NET=null;const peers=new Map();window.__city={S,C,P,R,N,orbit,MOBILE,bridges,U,E,TIER,sfx:{whoosh:()=>{if(!AC||!aud.on)return;const t0=AC.currentTime,s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=1.2;f.frequency.setValueAtTime(300,t0);f.frequency.exponentialRampToValueAtTime(2400,t0+.7);const g=AC.createGain();g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.5,t0+.25);g.gain.exponentialRampToValueAtTime(.001,t0+1.1);s.connect(f).connect(g).connect(aud.master);s.start(t0);s.stop(t0+1.2)}},isTour:()=>!!tour,getMode:()=>mode,showInfo};
 function setMode(m){mode=m;tour=null;$('tourCap')&&$('tourCap').classList.remove('show');document.querySelectorAll('#btns [data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));orbit.enabled=m==='orbit';avatar.visible=m==='explore'&&!P.fp;
  $('touch').classList.toggle('on',MOBILE&&(m==='explore'||m==='fly'));['tUp','tDown'].forEach(i=>$(i).style.display=m==='fly'?'':'none');['tJump','tRun','tUse'].forEach(i=>$(i).style.display=m==='explore'?'':'none');
  if(m!=='orbit'){const d=C.getWorldDirection(new THREE.Vector3());yp.yaw=Math.atan2(-d.x,-d.z);yp.pitch=Math.asin(Math.max(-1,Math.min(1,d.y)))}
@@ -644,7 +661,7 @@ const hit=e=>{mv2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray
 R.domElement.addEventListener('pointermove',e=>{if(mode!=='orbit'||e.pointerType==='touch')return;const h=hit(e),tip=$('tip');if(h){const u=h.object.userData;tip.style.display='block';tip.style.left=e.clientX+14+'px';tip.style.top=e.clientY+14+'px';
  tip.textContent=u.kind==='arena'?`Arena gate · ${u.label} · tap to play (free)`:(u.kind==='ad'||u.ad)?`Sponsored · $${u.ad.ticker}`:u.lot?`Launchpad · ${u.lot.ticker} · ${u.lot.bond_pct!=null?u.lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${u.pool.locked_pct}% locked${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
 let downXY=null;R.domElement.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY]);
-R.domElement.addEventListener('pointerup',e=>{if(mode!=='orbit'||!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>6)return;const h=hit(e);if(h&&h.object.userData.kind==='arena'){location.href='arena/?mode='+h.object.userData.arena;return}if(h)showInfo(h.object.userData);else $('info').style.display='none'});
+R.domElement.addEventListener('pointerup',e=>{if((mode!=='orbit'&&!(e.pointerType==='touch'&&(mode==='explore'||mode==='fly')))||!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>6)return;const h=hit(e);if(h&&h.object.userData.kind==='arena'){location.href='arena/?mode='+h.object.userData.arena;return}if(h)showInfo(h.object.userData);else $('info').style.display='none'});
 const _p=new THREE.Vector3();
 function updLabels(){const placed=[],W2=innerWidth,H2=innerHeight;labelEls.sort((a,b)=>b.pri-a.pri).forEach(l=>{_p.copy(l.pos).project(C);const dist=C.position.distanceTo(l.pos);
  let show=_p.z<1&&Math.abs(_p.x)<1.05&&Math.abs(_p.y)<1.05&&(!l.minor||dist<220)&&dist<1400;
@@ -655,7 +672,7 @@ labelEls.forEach(l=>{l.el.style.left='0';l.el.style.top='0'});
 const mm=$('minimap').getContext('2d');
 function updMinimap(){const cw=mm.canvas.width,sc=cw/2/290;mm.clearRect(0,0,cw,cw);mm.save();mm.translate(cw/2,cw/2);
  mm.strokeStyle='rgba(60,200,255,.3)';mm.lineWidth=12*sc;mm.beginPath();mm.arc(0,0,81*sc,0,7);mm.stroke();
- bridges.forEach(b=>{if(!b.group.visible)return;const A=N[b.p.a].pos,B=N[b.p.b].pos;mm.strokeStyle=b.L>=.7?'rgba(60,243,255,.85)':b.L>=.3?'rgba(255,176,0,.6)':'rgba(255,59,47,.45)';mm.lineWidth=.5+b.share*3;mm.beginPath();mm.moveTo(A.x*sc,A.z*sc);mm.lineTo(B.x*sc,B.z*sc);mm.stroke()});
+ bridges.forEach(b=>{if(!b.group.visible)return;const A=N[b.p.a].pos,B=N[b.p.b].pos;mm.strokeStyle=b.actCol?'#'+b.actCol.getHexString():'#3cf3ff';mm.globalAlpha=.45+.5*b.L;mm.lineWidth=.5+b.share*3;mm.beginPath();mm.moveTo(A.x*sc,A.z*sc);mm.lineTo(B.x*sc,B.z*sc);mm.stroke()});mm.globalAlpha=1;
  E.nodes.forEach(n=>{mm.fillStyle='#'+n.col.getHexString();mm.beginPath();mm.arc(n.pos.x*sc,n.pos.z*sc,n.minor?1.6:2.5+n.w*.22,0,7);mm.fill()});
  peers.forEach(g=>{mm.fillStyle='#ff66c4';mm.fillRect(g.position.x*sc-2,g.position.z*sc-2,4,4)});
  const p=mode==='explore'?P.pos:C.position,d=C.getWorldDirection(_p),yaw=mode==='explore'?avatar.rotation.y:Math.atan2(-d.x,-d.z);
@@ -724,8 +741,10 @@ function burnImpact(b){const n=b.n,hit=b.to,hot=new THREE.Color(b.oc);
  else if(SHAKE.on)SHAKE.a=Math.max(SHAKE.a,.35)}
 function pulseFX(b,xrp){const s=take(FXP.sparks);s.t=0;s.b=b;s.dir=Math.random()<.5;s.k=Math.min(1,Math.log10(xrp/TRADE_MIN+1)/1.3);s.m.visible=true;b.pulse=Math.min(1,b.pulse+.6+.4*s.k)}
 function lockFX(b,L){b.lock={from:b.Lv,to:Math.max(b.Lv,L),t:0};const f=take(FXP.flashes);f.t=0;f.burn=0;f.m.material.color.set(0x9ffcff);f.m.position.copy(b.curve.getPoint(.5));f.m.visible=true}
-function bridgeLook(b){const L=b.Lv,minor=b.minor;b.solid.material.color.set(0x3cf3ff).multiplyScalar(.15+.95*L);b.baseOp=minor?.25:.18+.75*L;b.core.material.opacity=minor?.3:.35+.65*L;b.solid.material.opacity=b.baseOp;if(b.flk)b.rail=Math.max(0,(1-L)/Math.max(.001,1-b.L))}
-bridges.forEach(b=>{b.baseOp=b.solid.material.opacity});
+function bridgeLook(b){const L=b.Lv,minor=b.minor;if(b.actCol)b.solid.material.color.copy(b.actCol).multiplyScalar(.45+.75*L);else b.solid.material.color.set(0x3cf3ff).multiplyScalar(.15+.95*L);b.baseOp=minor?.25:.18+.75*L;b.core.material.opacity=minor?.3:.35+.65*L;b.solid.material.opacity=b.baseOp;if(b.flk)b.rail=Math.max(0,(1-L)/Math.max(.001,1-b.L))}
+actScore();bridges.forEach(b=>{b.baseOp=b.solid.material.opacity});
+{let af=0;anim.push(t=>{if(MOBILE&&(af++%3))return;for(const b of bridges){if(b.act==null||!b.group.visible)continue;const k=b.act,sp=.6+4.4*k*k;b.core.material.color.copy(b.actCol).lerp(WHITE_C,.55);b.core.material.opacity=(b.minor?.3:.35+.65*b.Lv)*(.55+.45*(.5+.5*Math.sin(t*sp+b.r*7)))}})}
+
 function updFX(t,dt){
  FXP.balls.forEach(b=>{if(b.t<0)return;b.t+=dt;const k=b.t/1.5;
   if(k<1){const e=k*k;_hz.lerpVectors(b.from,b.to,e);_hz.y+=Math.sin(Math.PI*k)*30*(1-k);b.m.position.copy(_hz);b.m.scale.setScalar(2.2+(b.big?2:0)+Math.sin(t*40)*.25);b.m.material.uniforms.o.value=1;
@@ -756,10 +775,10 @@ function toast(html,col){const box=$('toasts');const d=document.createElement('d
 const fmtS=v=>v>=1e12?(v/1e12).toFixed(2)+'T':v>=1e9?(v/1e9).toFixed(2)+'B':v>=1e6?(v/1e6).toFixed(2)+'M':v>=1e3?(v/1e3).toFixed(1)+'k':(+v).toFixed(v<10?2:0);
 function updCounter(){const r=Object.entries(burned).map(([k,v])=>`<b>${fmtS(v)}</b> ${k}`).join(' · '),d=Object.entries(burnedDemo).map(([k,v])=>`${fmtS(v)} ${k}`).join(' · ');
  $('burnCount').innerHTML=`🔥 Burned live since ${sinceStr}: ${r||'<span class="dim">none yet</span>'}${d?` <span class="dim">· demo: ${d}</span>`:''}`}
-function runEvent(e){evCount++;const tag=e.demo?' <i class="demo">DEMO</i>':'';
+function runEvent(e){evCount++;try{window.__onLive&&window.__onLive(e)}catch(x){}const tag=e.demo?' <i class="demo">DEMO</i>':'';
  if(e.type==='burn'){const n=N[e.token];if(!n)return;burnFX(n,e.amount,!!e.demo);(e.demo?burnedDemo:burned)[e.token]=((e.demo?burnedDemo:burned)[e.token]||0)+e.amount;updCounter();
   evBanner(`🔥 ${fmtS(e.amount)} ${e.token} burned${tag}<small>sent to blackholed issuer${e.n>1?` · ${e.n} txs`:''} · ${tStr(e.when)} · XRPL ledger ${short(e.hash)}</small>`,e.token==='IMM'?'#7ac8ff':'#ff8a2a');ambient(e)}
- else if(e.type==='trade'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;pulseFX(b,e.xrp);
+ else if(e.type==='trade'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;b.liveVol=(b.liveVol||0)+(+e.xrp||0);actDirty=1;pulseFX(b,e.xrp);
   toast(`<b>${b.p.a} ⇄ ${b.p.b}</b> ${e.estimate?'≈':''}${fmt(Math.round(e.xrp))} XRP ${e.kind==='OfferCreate'?'DEX/AMM fill':'swap'}${e.estimate?' <i class="est">est.</i>':''}${tag}<br><span class="dim">${tStr(e.when)} · ${short(e.hash)||'XRPL'}</span>`,'#3cf3ff')}
  else if(e.type==='lock'){const b=bridges.find(x=>x.p.amm===e.pool.amm||x.p===e.pool);if(!b)return;const L=e.pct!=null?e.pct/100:Math.min(1,b.Lv+.15);lockFX(b,L);chime();b.p.locked_pct=Math.max(b.p.locked_pct,L*100);
   evBanner(`🔒 LP LOCKED · ${b.p.a} ⇄ ${b.p.b}${tag}<small>${(L*100).toFixed(1)}% of LP tokens now in blackholed wallets · ${e.source==='recheck'?'periodic ledger recheck':'XRPL ledger '+short(e.hash)} · ${tStr(e.when)}</small>`,'#3cf3ff')}}

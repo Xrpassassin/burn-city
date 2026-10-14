@@ -7,44 +7,53 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [] }) {
   // pick the emptiest direction: farthest (in angle) from every district tower and gate
   const pts = nodes.filter(n => n.pos && n.pos.length() > 60).map(n => Math.atan2(n.pos.z, n.pos.x)).concat(avoid.map(p => Math.atan2(p.z, p.x)));
   let best = 0, bestD = -1; for (let k = 0; k < 144; k++) { const a = k / 144 * Math.PI * 2 - Math.PI; let d = 9; for (const b of pts) d = Math.min(d, Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI)); const back = window.__lakePref ?? -1.1, off = Math.abs(((a - back + Math.PI * 3) % (Math.PI * 2)) - Math.PI); if (off > 0.7) continue; d -= off * 0.15; if (d > bestD) { bestD = d; best = a; } }
+  best = window.__lakePref ?? 0.35;
   const maxR = Math.max(0, ...nodes.filter(n => n.pos).map(n => n.pos.length() + (n.w || 6) * 2));
   const dir = new THREE.Vector3(Math.cos(best), 0, Math.sin(best)), side = new THREE.Vector3(-dir.z, 0, dir.x), yaw = Math.atan2(dir.x, dir.z);
   // on-ramp: starts ON the outer ring street of the district that faces the lake, then runs straight out (parallel to dir)
   const hub = nodes.filter(n => n.pos && !n.minor && n.distR).sort((a, b) => b.pos.dot(dir) - a.pos.dot(dir))[0];
   const cityEdge = hub ? hub.pos.clone().setY(0).addScaledVector(dir, hub.distR * 0.98) : dir.clone().multiplyScalar(maxR);
-  // long waterway perpendicular to the city->Estates axis: city waterfront on one bank, Estates on the other
-  const WW = 70, WL = 760, LR = WL / 2, k0 = Math.max(10, maxR - cityEdge.dot(dir) + 6), lakeC = cityEdge.clone().addScaledVector(dir, k0 + WW / 2), lotC = cityEdge.clone().addScaledVector(dir, k0 + WW + 26 + 65);
+  // organic lake, long across the city->Estates axis: city shore on one side, Estates on the other
+  const D = 62, Wd = 175, rho = a => 1 + 0.12 * Math.sin(3 * a + 1.3) + 0.07 * Math.sin(5 * a + 0.4) + 0.035 * Math.sin(9 * a + 2.1);
+  const loc = (x, z, c) => { const dx = x - c.x, dz = z - c.z; return [dx * side.x + dz * side.z, dx * dir.x + dz * dir.z]; };
+  const inside = (x, z, c, pad = 0) => { const [u, v] = loc(x, z, c), a = Math.atan2(v / D, u / Wd); return Math.hypot(u / (Wd + pad), v / (D + pad)) < rho(a); };
+  const blockers = nodes.filter(n => n.pos).map(n => [n.pos.x, n.pos.z, (n.distR || n.w * 2 || 10) + 6]).concat(avoid.map(p => [p.x, p.z, 40]));
+  let k0 = 6; for (; k0 < 400; k0 += 4) { const c = cityEdge.clone().addScaledVector(dir, k0 + D); if (!blockers.some(([x, z, r]) => inside(x, z, c, r))) break; }
+  const lakeC = cityEdge.clone().addScaledVector(dir, k0 + D), nearV = D * rho(-Math.PI / 2), farV = D * rho(Math.PI / 2);
+  const toNear = k0 + D - nearV, toFar = k0 + D + farV, lotC = cityEdge.clone().addScaledVector(dir, toFar + 26 + 65), WW = toFar - toNear, LR = Wd;
   const G = new THREE.Group(); S.add(G);
   // ---------- lake: animated shader, fake shimmer + streaks of city light ----------
-  const water = new THREE.ShaderMaterial({ fog: true, transparent: false, uniforms: { ...THREE.UniformsUtils.merge([THREE.UniformsLib.fog]), t: U.t, day: U.day, cdir: { value: new THREE.Vector2(-dir.x, -dir.z) } },
+  const water = new THREE.ShaderMaterial({ fog: true, transparent: true, depthWrite: false, uniforms: { ...THREE.UniformsUtils.merge([THREE.UniformsLib.fog]), t: U.t, day: U.day, cdir: { value: new THREE.Vector2(-dir.x, -dir.z) }, lc: { value: new THREE.Vector2(lakeC.x, lakeC.z) }, ls: { value: new THREE.Vector2(side.x, side.z) }, ld: { value: new THREE.Vector2(dir.x, dir.z) } },
     vertexShader: `varying vec2 vP; varying vec3 vW; varying vec2 vUv;
 #include <fog_pars_vertex>
 void main(){ vP=position.xy; vUv=uv; vec4 mvPosition=modelViewMatrix*vec4(position,1.); vW=(modelMatrix*vec4(position,1.)).xyz; gl_Position=projectionMatrix*mvPosition;
 #include <fog_vertex>
 }`,
-    fragmentShader: `uniform float t,day; uniform vec2 cdir; varying vec2 vP; varying vec3 vW; varying vec2 vUv;
+    fragmentShader: `uniform float t,day; uniform vec2 cdir,lc,ls,ld; varying vec2 vP; varying vec3 vW; varying vec2 vUv;
 #include <fog_pars_fragment>
 float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
-void main(){ float r=max(abs(vUv.y*2.-1.),smoothstep(.9,1.,abs(vUv.x*2.-1.))); vec2 p=vW.xz*.08;
+void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/175.0, vv=dot(q,ld)/62.0, aa=atan(vv,uu); float r=length(vec2(uu,vv))/(1.+.12*sin(3.*aa+1.3)+.07*sin(5.*aa+.4)+.035*sin(9.*aa+2.1)); vec2 p=vW.xz*.08;
   float w=n(p+vec2(t*.25,t*.18))*.6+n(p*2.3-vec2(t*.4,-t*.3))*.4;
-  vec3 deep=mix(vec3(.03,.16,.3),vec3(.1,.4,.6),day), col=deep+vec3(.04,.12,.16)*w;
+  vec3 deep=mix(vec3(.05,.24,.42),vec3(.12,.45,.65),day), col=deep+vec3(.04,.12,.16)*w;
   float along=dot(normalize(vW.xz+vec2(1e-3)),cdir); float across=dot(vW.xz,vec2(-cdir.y,cdir.x));
   float streak=pow(max(0.,sin(across*.35+w*3.)),18.)*smoothstep(.2,1.,w)*(1.-day*.7);          // broken vertical streaks of city light
   col+=vec3(1.,.55,.2)*streak*.55 + vec3(.3,.6,1.)*pow(max(0.,sin(across*.21+1.7+w*2.)),24.)*.35*(1.-day*.7);
   col+=vec3(.6,.8,1.)*pow(n(p*6.+t*.6),12.)*.6;                                                   // sparkle shimmer
   col=mix(col,vec3(.12,.45,.55),smoothstep(.92,1.,r)*.6); gl_FragColor=vec4(col,1.);
 #include <fog_fragment>
- gl_FragColor.rgb=mix(gl_FragColor.rgb,col,.6);
+ gl_FragColor.rgb=mix(gl_FragColor.rgb,col,.9);
 }` });
-  const along = Math.atan2(-dir.x, -dir.z), wseg = low ? 1 : 1;
-  const lake = new THREE.Mesh(new THREE.PlaneGeometry(WL, WW, wseg, wseg), water); lake.rotation.set(-Math.PI / 2, 0, along); lake.position.set(lakeC.x, 0.06, lakeC.z); lake.renderOrder = 1; G.add(lake);
-  const shore = new THREE.Mesh(new THREE.PlaneGeometry(WL + 16, WW + 20), new THREE.MeshBasicMaterial({ color: 0x5a4a34 })); shore.rotation.set(-Math.PI / 2, 0, along); shore.position.set(lakeC.x, 0.04, lakeC.z); G.add(shore);
-  const edgeG = mergeGeometries([new THREE.PlaneGeometry(WL, 1.4).translate(0, WW / 2, 0), new THREE.PlaneGeometry(WL, 1.4).translate(0, -WW / 2, 0)]);
-  const edge = new THREE.Mesh(edgeG, new THREE.MeshBasicMaterial({ color: 0x6fe8ff, transparent: true, opacity: 0.75, fog: false })); edge.rotation.set(-Math.PI / 2, 0, along); edge.position.set(lakeC.x, 0.08, lakeC.z); G.add(edge);
+  const NS = low ? 64 : 120, ring = (k, sc = 1) => { const pts = []; for (let i = 0; i < NS; i++) { const a = i / NS * Math.PI * 2, rr = rho(a) * sc; pts.push(new THREE.Vector2(Math.cos(a) * Wd * rr + Math.sign(Math.cos(a)) * k, Math.sin(a) * D * rr + Math.sign(Math.sin(a)) * k)); } return pts; };
+  const toWorld = g => { const P = g.attributes.position; for (let i = 0; i < P.count; i++) { const u = P.getX(i), v = P.getY(i); P.setXYZ(i, lakeC.x + side.x * u + dir.x * v, 0, lakeC.z + side.z * u + dir.z * v); } g.computeBoundingSphere(); return g; };
+  const lakeShape = new THREE.Shape(ring(0)), shoreShape = new THREE.Shape(ring(11)), edgeShape = new THREE.Shape(ring(1.2)); edgeShape.holes.push(new THREE.Path(ring(-0.6)));
+  const lake = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(lakeShape)), water); lake.position.y = 0.22; lake.renderOrder = 2; G.add(lake);
+  const shore = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(shoreShape)), new THREE.MeshBasicMaterial({ color: 0x4a3e2c, side: THREE.DoubleSide, fog: false, transparent: true, depthWrite: false })); shore.position.y = 0.18; shore.renderOrder = 1; G.add(shore);
+  const edge = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(edgeShape)), new THREE.MeshBasicMaterial({ color: 0x6fe8ff, transparent: true, opacity: 0.75, fog: false, side: THREE.DoubleSide })); edge.position.y = 0.26; G.add(edge);
+  lake.material.side = THREE.DoubleSide;
   // ---------- highway + bridge (one merged mesh) + guide-light strip ----------
   const bridgeH = 3, RL = 16, seg = [];   // road along +z in local space; constant height, gentle ramps only at the bridge
-  const toLake0 = k0 - 6, toLake1 = k0 + WW + 6, roadLen = cityEdge.distanceTo(lotC) - 70, Y0 = 0.2;
+  const toLake0 = toNear - 6, toLake1 = toFar + 6, roadLen = cityEdge.distanceTo(lotC) - 70, Y0 = 0.2;
   const ys = z => z < toLake0 - RL || z > toLake1 + RL ? Y0 + 0.15 : z < toLake0 ? Y0 + 0.15 + (z - toLake0 + RL) / RL * bridgeH : z > toLake1 ? Y0 + 0.15 + (toLake1 + RL - z) / RL * bridgeH : Y0 + 0.15 + bridgeH;
   const flat = (z0, z1, y) => seg.push(box(14, 0.3, z1 - z0, 0, y, (z0 + z1) / 2));
   const ramp = (z0, z1, up) => { const len = Math.hypot(z1 - z0, bridgeH), g = new THREE.BoxGeometry(14, 0.3, len); g.rotateX((up ? -1 : 1) * Math.atan2(bridgeH, z1 - z0)); seg.push(g.translate(0, Y0 + bridgeH / 2, (z0 + z1) / 2)); };
@@ -104,6 +113,6 @@ void main(){ float r=max(abs(vUv.y*2.-1.),smoothstep(.9,1.,abs(vUv.x*2.-1.))); v
   const hitM = new THREE.Mesh(new THREE.BoxGeometry(LW, 150, LD), new THREE.MeshBasicMaterial({ visible: false })); hitM.position.y = 75; hitM.userData = { kind: 'estate', label: 'Burn City Estates' }; lot.add(hitM); pick.push(hitM);
   anim.push(t => { CR.forEach(([x, z, h], i) => { Q.setFromAxisAngle(Y, Math.sin(t * 0.07 + i * 2.1) * 1.3 + i); jib.setMatrixAt(i, M.compose(P.set(x, h, z), Q, one)); }); jib.instanceMatrix.needsUpdate = true;
     const b = Math.sin(t * 3) > 0; wls[0].material.opacity = b ? 1 : 0.15; wls[1].material.opacity = b ? 0.15 : 1; signM.color.setScalar(0.85 + 0.15 * Math.sin(t * 2)); });
-  return { lakeC, lotC, maxR, dir };
+  return { lakeC, lotC, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad), cityEdge, yaw, toNear, toFar };
 }
 export const estateCard = () => `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏗 Burn City Estates</h2><p><b>Coming soon.</b></p>`;

@@ -828,7 +828,7 @@ function updMinimap(){const cw=mm.canvas.width,sc=cw/2/375;mm.clearRect(0,0,cw,c
 const mid=(a,b,s,y)=>V3((N[a].pos.x+N[b].pos.x)/2*s,y,(N[a].pos.z+N[b].pos.z)/2*s);
 const near=(p,d,h,ty)=>{const o=V3(p.x,0,p.z).normalize(),q=V3(-o.z,0,o.x);return[V3(p.x+o.x*d+q.x*d*.55,h,p.z+o.z*d+q.z*d*.55),V3(p.x,ty,p.z)]};
 const BX=N['BURN'].pos.clone().add(N['XRPyro'].pos).multiplyScalar(.5);
-const VIEWS={overview:[fitW(V3(300,190,350),V3(0,32,0)),V3(0,32,0)],street:[np('BURN',.6,2.6),np('BURN',.95,16)],burn:near(BX,90,58,44),imm:near(N['IMM'].pos,70,55,38),hub:[V3(58,8,62),V3(0,62,0)],fire:(()=>{const p=N['BURN'].pos,h=N['BURN'].top||N['BURN'].h||60;return [V3(p.x-.75*h,h*.62,p.z+.55*h),V3(p.x,h*.62,p.z)]})()};
+const VIEWS={overview:[fitW(V3(352,190,297),V3(0,32,0)),V3(0,32,0)],street:[np('BURN',.6,2.6),np('BURN',.95,16)],burn:near(BX,90,58,44),imm:near(N['IMM'].pos,70,55,38),hub:[V3(58,8,62),V3(0,62,0)],fire:(()=>{const p=N['BURN'].pos,h=N['BURN'].top||N['BURN'].h||60;return [V3(p.x-.75*h,h*.62,p.z+.55*h),V3(p.x,h*.62,p.z)]})()};
 const VQ0=Q.get('view')||'';const tokV=Object.keys(N).find(k=>k.toLowerCase()===VQ0.toLowerCase());
 if(!VIEWS[VQ0]&&tokV){const n=N[tokV];VIEWS[VQ0]=tokV==='XRP'?VIEWS.hub:near(n.pos,50+n.h*1.5,8+n.h*.6,n.h*.62)}
 if(Q.get('cam')){const c=Q.get('cam').split(',').map(Number);if(c.length===6&&c.every(isFinite))VIEWS.__cam=[V3(c[0],c[1],c[2]),V3(c[3],c[4],c[5])]}
@@ -953,7 +953,7 @@ updCounter();
 // ---------- Replay: real day-by-day city history (js/replay.js lazily loads history.js) ----------
 let RP=null;
 window.__BC={E,N,bridges,layoutMarks,orbit,C,$,setMode:m=>setMode(m),minorVisible:()=>$('minor').checked,
- overview:()=>({cam:fitW(V3(290,235,400),V3(0,22,0)),tgt:V3(0,22,0)})};
+ overview:()=>({cam:fitW(V3(352,235,348),V3(0,22,0)),tgt:V3(0,22,0)})};
 $('tlOpen').onclick=async()=>{try{RP=RP||(await import('./replay.js')).init(window.__BC);RP.open()}catch(e){console.warn('replay',e)}};
 if(Q.get('replay')==='1')setTimeout(()=>$('tlOpen').click(),1500);
 function updTL(dt){if(RP)RP.update(dt)}

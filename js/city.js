@@ -52,7 +52,7 @@ function walkLook(p){const walk=p.md==='w'||p.md==='b';if(walk&&!p.nc&&!p.wk){co
   if(p.wk){p.wk.visible=walk&&!p.nc;if(p.wk.visible){const dx=p.tx-p.g.position.x,dz=p.tz-p.g.position.z,mv=Math.abs(dx)+Math.abs(dz)>.05;if(mv)p.wk.rotation.y=Math.atan2(-dx,-dz);const s=mv?Math.sin(performance.now()/90)*.5:0;p.wk.userData.l[0].rotation.x=s;p.wk.userData.l[1].rotation.x=-s;p.wk.position.y=p.md==='b'?.3:0}}
   if(p.nc)p.nc.visible=walk;}
 function mkMarker(color){const g=new THREE.Group();g.userData.color=new THREE.Color(color);g.userData.core=new THREE.Object3D();W().S.add(g);return g}
-const _m4=new THREE.Matrix4(),_q4=new THREE.Quaternion(),_s4=new THREE.Vector3(2.2,2.2,2.2),_y4=new THREE.Vector3(0,1,0),_dk=new THREE.Color(0x2a3040);
+const _m4=new THREE.Matrix4(),_q4=new THREE.Quaternion(),_s4=new THREE.Vector3(1,1,1),_y4=new THREE.Vector3(0,1,0),_dk=new THREE.Color(0x2a3040);
 const GOLD=new THREE.Color(0xffb020);function drawInst(t){const I=inst();let n=0;const cam=W().C.position,list=[...peers.values()];if(list.length>CAP)list.sort((a,b)=>a.g.position.distanceToSquared(cam)-b.g.position.distanceToSquared(cam));
   for(const p of list){if(n>=CAP)break;if(p.md==='w'||p.md==='b'){continue}const P=p.g.position;_q4.setFromAxisAngle(_y4,p.r||0);_m4.compose(_v.set(P.x,P.y+2.4+Math.sin(t*2+p.id)*.25,P.z),_q4,_s4);
     I.body.setMatrixAt(n,_m4);I.body.setColorAt(n,_dk.clone().lerp(p.g.userData.color,.35));I.glow.setMatrixAt(n,_m4);I.glow.setColorAt(n,p.k?GOLD:p.g.userData.color);
@@ -64,7 +64,7 @@ function upsert(id,name,guest,x,y,z,r){if(id===myId||!W()||!W().S)return;let p=p
   p.tx=x;p.ty=y;p.tz=z;p.r=r;p.seen=Date.now()}
 const nfts=new Map();   // peer id -> verified NFT character look (server only sends it for the wallet that owns it)
 function setNft(p){const n=nfts.get(p.id)||null;if((p.nc&&p.nc.userData.nftId)===(n&&n.id))return;if(p.nc){disposeNftChar(p.nc);p.nc=null}
-  p.g.userData.core.visible=!n;if(!n)return;try{p.nc=buildNftChar(n,{srv:SRV,card:true});p.nc.scale.setScalar(1.6);p.g.add(p.nc)}catch(e){p.nc=null;p.g.userData.core.visible=true}}
+  p.g.userData.core.visible=!n;if(!n)return;try{p.nc=buildNftChar(n,{srv:SRV,card:true});p.nc.scale.setScalar(.9);p.g.add(p.nc)}catch(e){p.nc=null;p.g.userData.core.visible=true}}
 function drop(id){nfts.delete(id);const p=peers.get(id);if(!p)return;if(p.nc)disposeNftChar(p.nc);W().S.remove(p.g);p.tag.remove();peers.delete(id)}
 function bubble(pid,text){const p=peers.get(pid);if(!p)return;if(!p.bub){p.bub=el('div','pbub');p.tag.prepend(p.bub)}p.bub.textContent=text.length>90?text.slice(0,88)+'…':text;p.bub.classList.remove('out');p.bubT=Date.now()+6500}
 

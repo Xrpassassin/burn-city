@@ -831,7 +831,15 @@ function updLabels(){const placed=[],W2=innerWidth,H2=innerHeight;labelEls.sort(
  if(l.vis!==show){l.el.style.display=show?'block':'none';l.vis=show}})}
 labelEls.forEach(l=>{l.el.style.left='0';l.el.style.top='0'});
 const mm=$('minimap').getContext('2d');
-function updMinimap(){const cw=mm.canvas.width,sc=cw/2/375;mm.clearRect(0,0,cw,cw);mm.save();mm.translate(cw/2,cw/2);
+let MMX=null;function mmExtras(){const e=window.__estate;if(!e)return null;if(MMX)return MMX;const P2=(u,v,c=e.lakeC)=>[c.x+e.side.x*u+e.dir.x*v,c.z+e.side.z*u+e.dir.z*v],lake=[];for(let i=0;i<96;i++){const a=i/96*6.2832,r=e.rho(a);lake.push(P2(e.Wd*r*Math.cos(a),e.D*r*Math.sin(a)))}
+ const lot=[[-65,-65],[65,-65],[65,65],[-65,65]].map(([u,v])=>P2(u,v,e.lotC)),R=Math.max(375,...lot.map(([x,z])=>Math.hypot(x,z)+12));return MMX={lake,lot,R,road:[[e.cityEdge.x,e.cityEdge.z],P2(0,-65,e.lotC)],lab:[e.lotC.x,e.lotC.z]}}
+function updMinimap(){const X=mmExtras(),cw=mm.canvas.width,sc=cw/2/(X?X.R:375);mm.clearRect(0,0,cw,cw);mm.save();mm.translate(cw/2,cw/2);
+ if(X){const poly=(pts,close)=>{mm.beginPath();pts.forEach(([x,z],i)=>i?mm.lineTo(x*sc,z*sc):mm.moveTo(x*sc,z*sc));if(close)mm.closePath()};
+  poly(X.lake,1);mm.fillStyle='rgba(40,140,230,.55)';mm.fill();mm.strokeStyle='#6fe8ff';mm.lineWidth=1;mm.stroke();
+  poly(X.road);mm.strokeStyle='rgba(255,220,150,.75)';mm.lineWidth=2;mm.stroke();
+  poly(X.lot,1);mm.setLineDash([3,2]);mm.strokeStyle='#ffb060';mm.lineWidth=1;mm.stroke();mm.setLineDash([]);
+  mm.fillStyle='#ffd9a8';mm.font=Math.round(cw/22)+'px system-ui';mm.textAlign='center';mm.fillText('Estates · Coming soon',X.lab[0]*sc,X.lab[1]*sc+3);
+  for(const d of (window.__decks||[])){const a=[d.base.x,d.base.z],b=[d.base.x+d.dir.x*d.v1,d.base.z+d.dir.z*d.v1];poly([a,b]);mm.strokeStyle='#d8a060';mm.lineWidth=2.5;mm.stroke()}}
  mm.strokeStyle='rgba(60,200,255,.3)';mm.lineWidth=12*sc;mm.beginPath();mm.arc(0,0,81*sc,0,7);mm.stroke();
  bridges.forEach(b=>{if(!b.group.visible)return;const A=N[b.p.a].pos,B=N[b.p.b].pos;mm.strokeStyle=b.actCol?'#'+b.actCol.getHexString():'#3cf3ff';mm.globalAlpha=.45+.5*b.L;mm.lineWidth=.5+b.share*3;mm.beginPath();mm.moveTo(A.x*sc,A.z*sc);mm.lineTo(B.x*sc,B.z*sc);mm.stroke()});mm.globalAlpha=1;
  E.nodes.forEach(n=>{mm.fillStyle='#'+n.col.getHexString();mm.beginPath();mm.arc(n.pos.x*sc,n.pos.z*sc,n.minor?1.6:2.5+n.w*.22,0,7);mm.fill()});

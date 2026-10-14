@@ -22,26 +22,52 @@ const done = (r, n) => { for (const m of Object.values(r)) { m.count = n; m.inst
 export function createZombieFX(scene, { low = false } = {}) {
   const lam = c => new THREE.MeshLambertMaterial({ color: c });
   // ---------- zombies ----------
+  // torn-cloth canvas texture: ragged hem + holes (alphaTest), grime streaks; tinted per instance -> one material, instanced
+  const rag = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 64, 64);
+    g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.moveTo(0, 64); for (let x = 0; x <= 64; x += 4) g.lineTo(x, 46 + Math.random() * 18); g.lineTo(64, 64); g.fill();
+    for (let i = 0; i < 6; i++) { g.beginPath(); g.ellipse(Math.random() * 64, 8 + Math.random() * 36, 2 + Math.random() * 4, 1.5 + Math.random() * 3, Math.random() * 3, 0, 7); g.fill(); }
+    g.globalCompositeOperation = 'source-over'; for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(40,20,10,${0.2 + Math.random() * 0.35})`; g.fillRect(Math.random() * 64, Math.random() * 40, 2 + Math.random() * 6, 6 + Math.random() * 18); }
+    const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; return t; })();
+  const cloth = new THREE.MeshLambertMaterial({ color: 0xffffff, map: rag, alphaTest: 0.5, side: THREE.DoubleSide });
+  const glow = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'), gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, '#fff'); gr.addColorStop(0.3, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c); })();
   const MAXZ = 48, Z = rig(scene, MAXZ, [
     ['body', box(0.62, 0.8, 0.36, 0.4), lam(0xffffff)], ['head', box(0.42, 0.42, 0.42, 0.21), lam(0xffffff)],
+    ['jaw', box(0.3, 0.1, 0.22), lam(0xffffff)], ['shirt', box(0.68, 0.62, 0.42, 0.47), cloth], ['belly', box(0.78, 0.5, 0.56, 0.25), lam(0xffffff)],
     ['arm', box(0.16, 0.72, 0.16, -0.36), lam(0xffffff)], ['leg', box(0.2, 0.78, 0.2, -0.39), lam(0xffffff)],
-    ['eye', box(0.3, 0.07, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff })]]);
-  const arms2 = rig(scene, MAXZ, [['arm', box(0.16, 0.72, 0.16, -0.36), lam(0xffffff)], ['leg', box(0.2, 0.78, 0.2, -0.39), lam(0xffffff)]]);
-  const TY = [{ s: 1, skin: [0x6f9a4a, 0x7c8d55, 0x5d8a62], eye: 0xfff26a, speed: 1 }, { s: 0.85, skin: [0xa3b86a, 0x9fae7a], eye: 0xff3b2f, speed: 2 }, { s: 1.45, skin: [0x55704a, 0x4a5f52], eye: 0xff8a00, speed: 0.6 }];
+    ['eye', box(0.09, 0.06, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff })],
+    ['glow', new THREE.PlaneGeometry(0.55, 0.3), new THREE.MeshBasicMaterial({ color: 0xffffff, map: glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })]]);
+  const arms2 = rig(scene, MAXZ, [['arm', box(0.16, 0.72, 0.16, -0.36), lam(0xffffff)], ['leg', box(0.2, 0.78, 0.2, -0.39), lam(0xffffff)], ['eye', box(0.09, 0.06, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff })]]);
+  // body variants: 0 walker, 1 runner (lean, hunched forward), 2 brute (huge, belly), 3 crawler-looking (walker id%4==0: bent double, dragging)
+  const TY = [{ s: 1, skin: [0x6f9a4a, 0x7c8d55, 0x5d8a62, 0x8a9a6a], eye: 0xfff26a, speed: 1 }, { s: 0.85, skin: [0xa3b86a, 0x9fae7a, 0xb0a888], eye: 0xff3b2f, speed: 2 }, { s: 1.45, skin: [0x55704a, 0x4a5f52, 0x6a6a50], eye: 0xff8a00, speed: 0.6 }];
+  const CLOTH = [0x5a3a2a, 0x2f3d55, 0x6a6a6a, 0x7a2a22, 0x3e4a2e, 0x8a7a5a, 0x40304a], PANTS = [0x2a2a33, 0x3a3226, 0x23324a, 0x4a3a2a];
   const zs = new Map(), dying = [];   // id -> {x,z,yaw,ph,var,heat}
-  const hit = new THREE.Color(0xffd0a0), burnC = new THREE.Color(0xff5a10), charC = new THREE.Color(0x1a1410), tmp = new THREE.Color(), tmp2 = new THREE.Color();
+  const hit = new THREE.Color(0xffd0a0), burnC = new THREE.Color(0xff5a10), charC = new THREE.Color(0x1a1410), tmp = new THREE.Color(), tmp2 = new THREE.Color(), tmp3 = new THREE.Color(), tmp4 = new THREE.Color();
+  const HID = 0.0001;
   function drawZ(i, z, t, fade, burning) {
-    const ty = TY[z.ty] || TY[0], s = ty.s * z.v, ph = z.ph, lurch = Math.sin(ph) * 0.12, sw = Math.sin(ph) * 0.6;
-    tmp.setHex(ty.skin[z.id % ty.skin.length]); if (burning) tmp.lerp(burnC, 0.45 + 0.3 * Math.sin(t * 30 + z.id)); if (z.flash > 0) tmp.lerp(hit, z.flash);
-    if (fade !== undefined) tmp.lerp(charC, Math.min(1, fade * 2));
-    const y = fade !== undefined ? -fade * 1.2 * s : Math.abs(Math.cos(ph)) * 0.05 * s, sc = s * (fade !== undefined ? 1 - fade * 0.35 : 1);
-    put(Z.body, i, z.x, y + 0.78 * s, z.z, z.yaw, sc, 0, 0, 0, 0.25 + lurch, lurch * 0.5, tmp);
-    put(Z.head, i, z.x, y + 0.78 * s, z.z, z.yaw, sc, 0, 0.8, 0.08, 0.35 + lurch, 0.2 * Math.sin(ph * 0.5), tmp);
-    put(Z.eye, i, z.x, y + 0.78 * s, z.z, z.yaw, sc, 0, 1.03, 0.31, 0.35, 0, tmp2.setHex(fade !== undefined ? 0x000000 : ty.eye));
-    put(Z.arm, i, z.x, y + 0.78 * s, z.z, z.yaw, sc, 0.4, 0.7, 0.05, -1.35 + sw * 0.3, 0.1, tmp);       // arms reach forward
-    put(arms2.arm, i, z.x, y + 0.78 * s, z.z, z.yaw, sc, -0.4, 0.7, 0.05, -1.25 - sw * 0.3, -0.1, tmp);
-    put(Z.leg, i, z.x, y + 0.78 * s, z.z, z.yaw, sc, 0.16, 0, 0, sw, 0, tmp.multiplyScalar(0.7));
-    put(arms2.leg, i, z.x, y + 0.78 * s, z.z, z.yaw, sc, -0.16, 0, 0, -sw, 0, tmp);
+    const ty = TY[z.ty] || TY[0], crawl = z.ty === 0 && z.id % 4 === 0, brute = z.ty === 2, runner = z.ty === 1;
+    const s = ty.s * z.v, ph = z.ph, lurch = Math.sin(ph) * 0.12, sw = Math.sin(ph) * (runner ? 0.9 : 0.6), fl = z.fl || 0, dead = fade !== undefined;
+    const tint = (c, base) => { c.setHex(base); if (burning) c.lerp(burnC, 0.45 + 0.3 * Math.sin(t * 30 + z.id)); if (z.flash > 0) c.lerp(hit, z.flash); if (dead) c.lerp(charC, Math.min(1, fade * 2)); return c; };
+    const skin = tint(tmp, ty.skin[(z.id * 7) % ty.skin.length]), shirt = tint(tmp3, CLOTH[(z.id * 5 + z.ty) % CLOTH.length]);
+    // death: topple forward over 0.35 of the fade, then sink + char. flinch: snap back + small twist.
+    const fall = dead ? Math.min(1, fade / 0.35) : 0, pitch = (crawl ? 0.9 : runner ? 0.45 : 0.25) - fl * 0.55 + fall * (1.45 - (crawl ? 0.6 : 0.25));
+    const y0 = dead ? Math.max(0, 1 - fall) * 0.78 * s - Math.max(0, fade - 0.5) * 0.9 * s + 0.15 * s * fall : (crawl ? 0.45 : 0.78) * s + Math.abs(Math.cos(ph)) * 0.05 * s;
+    const sc = s * (dead ? 1 - Math.max(0, fade - 0.5) * 0.5 : 1), twist = fl * 0.35 * Math.sin(z.id), yaw = z.yaw + twist;
+    put(Z.body, i, z.x, y0, z.z, yaw, sc, 0, 0, 0, pitch + lurch, lurch * 0.5, skin);
+    put(Z.shirt, i, z.x, y0, z.z, yaw, sc, 0, 0, 0, pitch + lurch, lurch * 0.5, shirt);
+    put(Z.belly, i, z.x, y0, z.z, yaw, brute ? sc : HID, 0, 0.02, 0.06, pitch + lurch, 0, tmp2.copy(skin).multiplyScalar(0.85));
+    const hp = pitch + 0.1 + lurch, hy = 0.8 * Math.cos(pitch), hz = 0.8 * Math.sin(pitch) + 0.08;
+    put(Z.head, i, z.x, y0, z.z, yaw, sc, 0, hy, hz, hp, 0.2 * Math.sin(ph * 0.5) + (crawl ? 0.3 : 0), skin);
+    const jawOpen = 0.25 + 0.2 * Math.sin(t * 5 + z.id);
+    put(Z.jaw, i, z.x, y0, z.z, yaw, sc, 0, hy + 0.03 - Math.sin(hp) * 0.05, hz + 0.18 + Math.cos(hp) * 0.04, hp + jawOpen, 0, tmp2.copy(skin).multiplyScalar(0.7));
+    const eyeC = dead ? tmp4.setHex(0x000000) : tmp4.setHex(ty.eye), ey = hy + 0.25 * Math.cos(hp), ez = hz + 0.22 + 0.25 * Math.sin(hp);
+    put(Z.eye, i, z.x, y0, z.z, yaw, sc, 0.1, ey, ez, hp, 0, eyeC); put(arms2.eye, i, z.x, y0, z.z, yaw, sc, -0.1, ey, ez, hp, 0, eyeC);
+    put(Z.glow, i, z.x, y0, z.z, yaw, dead || low ? HID : sc, 0, ey, ez + 0.03, hp, 0, eyeC);
+    const reach = crawl ? -1.6 : runner ? -0.6 - sw * 0.5 : -1.35, ay = 0.7 * Math.cos(pitch), az = 0.7 * Math.sin(pitch) + 0.05;
+    put(Z.arm, i, z.x, y0, z.z, yaw, sc * (brute ? 1.25 : 1), brute ? 0.27 : 0.4, ay, az, reach + sw * 0.3 + fall * 1.2, 0.1, skin);
+    put(arms2.arm, i, z.x, y0, z.z, yaw, sc * (brute ? 1.25 : 1), brute ? -0.27 : -0.4, ay, az, (runner ? -0.6 + sw * 0.5 : reach + 0.1) - sw * 0.3 + fall * 1.2, -0.1, skin);
+    const pants = tint(tmp2, PANTS[z.id % PANTS.length]), lp = crawl ? 0.9 : 0;
+    put(Z.leg, i, z.x, y0, z.z, yaw, sc, 0.16, 0, 0, (crawl ? sw * 0.3 : sw) + lp - fall * 0.3, 0, pants);
+    put(arms2.leg, i, z.x, y0, z.z, yaw, sc, -0.16, 0, 0, -(crawl ? sw * 0.3 : sw) + lp - fall * 0.3, 0, pants);
   }
   // ---------- players (third person): suited pyromaniacs, gas-mask helmet, fuel tanks, accent lights in player color ----------
   const MAXP = 16, PL = rig(scene, MAXP, [
@@ -125,10 +151,10 @@ export function createZombieFX(scene, { low = false } = {}) {
         if (!z) zs.set(s.id, z = { id: s.id, x: s.x, z: s.z, yaw: 0, ph: Math.random() * 6, v: 0.92 + ((s.id * 37) % 17) / 100, ty: s.ty, flash: 0, burnT: 0 });
         const dx = s.x - z.x, dz = s.z - z.z, d = Math.hypot(dx, dz); if (d > 0.01) z.yaw += (((Math.atan2(dx, dz) - z.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 6);
         z.x = s.x; z.z = s.z; z.ph += dt * (d / Math.max(dt, 1e-3) * 1.6 * (TY[s.ty]?.speed ? 1 : 1) + 1.5) * 0.9 / (TY[s.ty]?.s || 1); z.ty = s.ty;
-        if (s.burn && !z.burnT) z.flash = 1; z.burnT = s.burn ? 0.4 : Math.max(0, z.burnT - dt); z.flash = Math.max(0, z.flash - dt * 5); }
+        if (s.burn && !z.burnT) { z.flash = 1; z.fl = 1; } z.burnT = s.burn ? 0.4 : Math.max(0, z.burnT - dt); z.flash = Math.max(0, z.flash - dt * 5); z.fl = Math.max(0, (z.fl || 0) - dt * 6); }
       for (const id of zs.keys()) if (!seen.has(id)) { const z = zs.get(id); dying.push({ ...z, fade: 0 }); zs.delete(id); }
       let i = 0; for (const z of zs.values()) { if (i >= MAXZ) break; drawZ(i++, z, t, undefined, z.burnT > 0); }
-      for (let k = dying.length - 1; k >= 0; k--) { const z = dying[k]; z.fade += dt * 0.9; if (z.fade >= 1) { dying.splice(k, 1); continue; } if (i < MAXZ) drawZ(i++, z, t, z.fade, z.fade < 0.5); }
+      for (let k = dying.length - 1; k >= 0; k--) { const z = dying[k]; z.fade += dt * 0.8; z.fl = 0; if (z.fade >= 1) { dying.splice(k, 1); continue; } if (i < MAXZ) drawZ(i++, z, t, z.fade, z.fade < 0.5); }
       done(Z, i); done(arms2, i);
       // other players
       let j = 0; for (const p of st.players) { if (p.id === myId || !p.alive || j >= MAXP) continue; let q = ps.get(p.id);

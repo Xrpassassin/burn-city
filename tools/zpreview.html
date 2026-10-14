@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zombie preview</title>
+<script type="importmap">{"imports":{"three":"../arena/vendor/three.module.min.js"}}</script><style>body{margin:0;background:#111}</style></head><body>
+<script type="module">
+// Dev preview of zombie variants (walker, runner, brute, crawler) + flinch + death. Not linked from the site.
+import * as THREE from 'three'; import { createZombieFX } from '../arena/fx.js';
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.setPixelRatio(Math.min(2, devicePixelRatio)); document.body.append(r.domElement);
+const sc = new THREE.Scene(); sc.background = new THREE.Color(0x14100c); sc.fog = new THREE.Fog(0x14100c, 14, 30);
+sc.add(new THREE.HemisphereLight(0xffe0c0, 0x202030, 1.1)); const d = new THREE.DirectionalLight(0xffb070, 1.2); d.position.set(3, 6, 4); sc.add(d);
+const g = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshLambertMaterial({ color: 0x3a2a20 })); g.rotation.x = -Math.PI / 2; sc.add(g);
+const cam = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100); cam.position.set(0, 2.2, 7.5); cam.lookAt(0, 1, 0);
+const FX = createZombieFX(sc, { low: /iPhone|Android/i.test(navigator.userAgent) }); FX.gun.visible = false;
+const Z = [{ id: 1, ty: 0, x: -3 }, { id: 2, ty: 1, x: -1 }, { id: 3, ty: 2, x: 1.3 }, { id: 4, ty: 0, x: 3.4 }, { id: 9, ty: 1, x: 0.2, z: -3 }, { id: 6, ty: 0, x: -2, z: -3.5 }];
+let t = 0, last = performance.now();
+function loop(n) { const dt = Math.min(0.05, (n - last) / 1000); last = n; t += dt;
+  const st = { players: [], zombies: Z.map(z => ({ id: z.id, ty: z.ty, x: z.x, z: (z.z || 0) + Math.sin(t * 0.8 + z.id) * 0.02 + t * 0.0001, burn: z.id === 9 && (t % 2) < 0.3 })) };
+  if (t > 3.2 && Z.some(z => z.id === 6)) Z.splice(Z.findIndex(z => z.id === 6), 1);   // death animation
+  FX.update(dt, st, null, -1, () => new THREE.Color(0xffffff), null, null, ''); r.render(sc, cam); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+</script></body></html>

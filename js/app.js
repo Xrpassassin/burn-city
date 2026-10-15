@@ -130,7 +130,7 @@ function bMat(color=0xffffff,dens=1){return new THREE.ShaderMaterial({fog:true,d
  void main(){vec3 col=c*vC;vec3 o=mix(vec3(.018,.024,.045),vec3(.2,.22,.26),day);vec3 N=normalize(wn+vec3(0.,1e-5,0.)),vw=normalize(cameraPosition-wp+vec3(1e-4));
  float ndv=clamp(abs(dot(N,vw)),0.,1.),fr=pow(1.-ndv,3.);
  if(abs(N.y)<.6){vec2 uv=vec2(abs(N.x)>abs(N.z)?wp.z:wp.x,wp.y)*vec2(.95,.75)*d;vec2 cell=floor(uv),f=fract(uv);
-  float win=step(.16,f.x)*step(f.x,.84)*step(.22,f.y)*step(f.y,.78);float lit=step(mix(.42,.78,day),h21(cell+floor(t*.04+h21(cell)*30.)));float warm=step(.8,h21(cell*3.1));
+  float win=step(.16,f.x)*step(f.x,.84)*step(.22,f.y)*step(f.y,.78);float lit=step(mix(.42,.78,day),h21(cell+floor(t*.04+h21(cell)*30.)));lit*=mix(.2,1.,step(.28,h21(vec2(cell.y*1.9+7.,floor((wp.x+wp.z)*.09)))));float warm=step(.8,h21(cell*3.1));
   vec3 wc=mix(col,vec3(1.,.82,.58),warm*.65)*(.25+.55*h21(cell*1.7))*(1.-day*.75);
  #ifdef LOWQ
   o+=wc*win*lit;
@@ -394,9 +394,14 @@ E.nodes.forEach(n=>{const act=n.active!=null?n.active:n.holders!=null?n.holders/
   const bw=1.1+rnd()*(n.minor?1.4:2.4),h=3+Math.pow(rnd(),1.6)*n.h*(n.minor?.5:n.holderB.length?.22:.55);
   if(Math.abs(Math.hypot(x,z)-81)<9)continue;if(poolSegs.some(([p,q])=>segD(x,z,p,q)<bw+2.2))continue;if(onRoad(x,z,bw*1.02+.4))continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+1.6))continue;
   sats.push({x,z,w:bw,h,c:n.col,rot:rnd()*Math.PI,n});colliders.push({x,z,r:bw*1.02,h});i++}});
-{const segs=[];sats.forEach(s=>{let y=0,w=s.w;const ns=s.h>12?3:2;for(let j=0;j<ns;j++){const sh=s.h*(j===0?.55:.45/(ns-1));segs.push({x:s.x,z:s.z,y:y+sh/2,w,h:sh,c:s.c,rot:s.rot});y+=sh;w*=.78}s.top=y;s.topW=w});
+{const segs=[],trims=[],crowns=[];sats.forEach(s=>{let y=0,w=s.w;const ns=s.h>22?4:s.h>12?3:s.h>6?2:(rnd()<.4?2:1),FR=[[1],[.62,.38],[.5,.3,.2],[.4,.26,.2,.14]][ns-1].map(f=>f*(.85+rnd()*.3)),fs=FR.reduce((a,b)=>a+b,0),slab=rnd()<.28,shr=.7+rnd()*.18,ca=Math.cos(s.rot),sa=Math.sin(s.rot);let ox=0,oz=0;
+ for(let j=0;j<ns;j++){const sh=s.h*FR[j]/fs,ax=slab?1.2:1,az=slab?.8:1;if(j&&rnd()<.6){const o=(rnd()-.5)*w*.22;ox+=o*ca;oz+=o*sa}
+  segs.push({x:s.x+ox,z:s.z+oz,y:y+sh/2,w,sx:w*ax,sz:w*az,h:sh,c:s.c,rot:s.rot});if(ns>1&&j<ns-1||s.h>9)trims.push({x:s.x+ox,z:s.z+oz,y:y+sh,sx:w*ax*(j===ns-1?.86:.9),sz:w*az*(j===ns-1?.86:.9),c:s.c,rot:s.rot});y+=sh;w*=shr}
+ s.top=y;s.topW=w;s.ox=ox;s.oz=oz;if(TIER!=='low'&&s.h>14&&rnd()<.42)crowns.push(s)});
  const im=new THREE.InstancedMesh(segGeo,bMat(0xffffff,1.6),segs.length);
- segs.forEach((s,i)=>{_m.compose(_v.set(s.x,s.y,s.z),_q.setFromAxisAngle(UPV,s.rot),_s.set(s.w,s.h,s.w));im.setMatrixAt(i,_m);im.setColorAt(i,s.c)});S.add(im);
+ segs.forEach((s,i)=>{_m.compose(_v.set(s.x,s.y,s.z),_q.setFromAxisAngle(UPV,s.rot),_s.set(s.sx,s.h,s.sz));im.setMatrixAt(i,_m);im.setColorAt(i,s.c)});S.add(im);
+ {const tg=new THREE.CylinderGeometry(.84,.84,.22,4).rotateY(Math.PI/4),tm=new THREE.InstancedMesh(tg,new THREE.MeshBasicMaterial({color:0xffffff}),Math.max(1,trims.length));trims.forEach((t,i)=>{_m.compose(_v.set(t.x,t.y,t.z),_q.setFromAxisAngle(UPV,t.rot),_s.set(t.sx,1,t.sz));tm.setMatrixAt(i,_m);tm.setColorAt(i,new THREE.Color(t.c).lerp(new THREE.Color(0xffffff),.35).multiplyScalar(.95))});tm.count=trims.length;S.add(tm);
+  if(crowns.length){const cg=new THREE.ConeGeometry(.7,1,4).rotateY(Math.PI/4),cm=new THREE.InstancedMesh(cg,new THREE.MeshBasicMaterial({color:0xffffff}),crowns.length);crowns.forEach((c,i)=>{const hh=c.topW*(1.6+rnd()*1.4);_m.compose(_v.set(c.x+c.ox,c.top+hh/2,c.z+c.oz),_q.setFromAxisAngle(UPV,c.rot),_s.set(c.topW*1.3,hh,c.topW*1.3));cm.setMatrixAt(i,_m);cm.setColorAt(i,new THREE.Color(c.c).multiplyScalar(.8));c.top2=c.top+hh});S.add(cm)}}
  const ac=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:0x1a2030,metalness:.7,roughness:.5,emissive:0x0a1020}),sats.length*2);let ai=0;const antG=[],padG=[],blink=[];
  sats.forEach(s=>{for(let j=0;j<2;j++){_m.compose(_v.set(s.x+(rnd()-.5)*s.topW,s.top+.3,s.z+(rnd()-.5)*s.topW),_q.setFromAxisAngle(UPV,s.rot),_s.set(.5+rnd()*.5,.6,.5+rnd()*.4));ac.setMatrixAt(ai++,_m)}
   if(rnd()<.35){antG.push(s);blink.push(s.x,s.top+s.h*.25+.6,s.z)}else if(rnd()<.3)padG.push(s)});ac.count=ai;S.add(ac);

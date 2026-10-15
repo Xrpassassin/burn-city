@@ -127,7 +127,7 @@ const LOOK = { skin_ember: '#ff5a1f', skin_chrome: '#c8d4e0', skin_ghost: '#7af0
 const COL = (id, kind = 'trail') => { const rc = net?.roster.get(id)?.color; if (rc && kind !== 'flame') return new THREE.Color(rc); const l = net?.roster.get(id)?.look?.[kind]; return l ? new THREE.Color(LOOK[l]) : new THREE.Color().setHSL((id * 0.137) % 1, 1, 0.55); };
 let net, mode, yaw = 0, keys = {}, fire = false;
 function leave(msg) {               // full teardown so the next mode (or the city) starts clean
-  const n = net; net = null; mode = null; if (n) { n.handlers = {}; try { n.ws.close(1000, 'menu'); } catch {} }
+  const n = net; net = null; mode = null; if (lobbyEl) lobbyEl.hidden = true; if (n) { n.handlers = {}; try { n.ws.readyState === 1 && n.ws.send(JSON.stringify({ t: 'leave' })); n.ws.close(1000, 'menu'); } catch {} }
   document.pointerLockElement && document.exitPointerLock?.(); keys = {}; fire = false; yaw = 0; overUntil = 0; lastHp = 100;
   for (const c of cycles.values()) { if (c.userData.nc) disposeNftChar(c.userData.nc); scene.remove(c); disposeBike(c); } cycles.clear();
   for (const w of walls.values()) { scene.remove(w); w.geometry.dispose(); w.material.dispose(); } walls.clear();
@@ -142,7 +142,7 @@ document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => start(b.dat
 $('#dailyBtn').onclick = () => start('zombie', null, '&daily=1');
 if (P.get('daily') === '1') setTimeout(() => start('zombie', null, '&daily=1'), 600);
 // pre-game lobby screen (server sends lobby_state about once a second while a match is waiting)
-const lobbyEl = document.createElement('div'); lobbyEl.id = 'lobbyUI'; lobbyEl.hidden = true;
+var lobbyEl = document.createElement('div'); lobbyEl.id = 'lobbyUI'; lobbyEl.hidden = true;
 lobbyEl.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,380px);max-height:80vh;overflow:auto;z-index:40;background:#0a0d18f2;border:1px solid #ff7a1866;border-radius:14px;padding:14px;color:#eef;font:14px system-ui;box-shadow:0 0 30px #ff7a1833';
 document.body.append(lobbyEl);
 function hideLobby() { lobbyEl.hidden = true }
@@ -151,7 +151,9 @@ function showLobby(e) { lobbyEl.hidden = false; const game = mode === 'tron' ? '
   const cd = e.countdown != null ? `<div style="font-size:22px;font-weight:800;color:#ff9a3c;text-align:center">Starting in ${e.countdown}…</div>` : e.autoIn != null ? `<div style="text-align:center">Auto-start in <b>${e.autoIn}s</b> · others can still join</div>` : `<div style="text-align:center;opacity:.8">Waiting for players (min ${e.min})</div>`;
   lobbyEl.innerHTML = `<h3 style="margin:0 0 4px">${game} lobby${e.ranked ? ' · Ranked' : ''}</h3><div style="opacity:.8;margin-bottom:6px">Players <b>${e.n}/${e.max}</b> · match ${String(e.id || '').slice(0, 10)}</div>${rows}${cd}
     ${e.ranked ? '<div style="font-size:12px;opacity:.7;margin-top:6px">Ranked: the match starts only when every entry is confirmed on the ledger. If the lobby expires unfilled, entries are refunded minus the 3.22% burn.</div>' : ''}
-    <button id="lbStart" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:1px solid #ff7a18;background:#3a1a06;color:#fff;font-weight:700" ${e.n >= e.min && e.countdown == null ? '' : 'disabled'}>Start now (host)</button>`;
+    <button id="lbStart" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:1px solid #ff7a18;background:#3a1a06;color:#fff;font-weight:700" ${e.n >= e.min && e.countdown == null ? '' : 'disabled'}>Start now (host)</button>
+    <button id="lbLeave" style="margin-top:6px;width:100%;padding:9px;border-radius:10px;border:1px solid #ffffff44;background:#ffffff10;color:#fff">Leave lobby${e.ranked ? ' (entry refunded minus burn)' : ''}</button>`;
+  lobbyEl.querySelector('#lbLeave').onclick = () => leave();
   lobbyEl.querySelector('#lbStart').onclick = () => net?.ws.readyState === 1 && net.ws.send(JSON.stringify({ t: 'start' })); }
 window.__lobbyTest = showLobby;
 function start(m, ranked = null, extra = '') {

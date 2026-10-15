@@ -377,7 +377,11 @@ const sats=[];
 // neighbourhood density = active wallets (n.active: xrpl.to 24h unique traders, fallback holders), log scale, capped per tower
 const segD=(x,z,p,q)=>{const dx=q.x-p.x,dz=q.z-p.z,l=dx*dx+dz*dz||1,u=Math.max(0,Math.min(1,((x-p.x)*dx+(z-p.z)*dz)/l));return Math.hypot(p.x+u*dx-x,p.z+u*dz-z)};
 const poolSegs=pools.map(p=>[N[p.a].pos,N[p.b].pos]);
-const streets=[];E.nodes.filter(n=>!n.minor).forEach(n=>streets.push({type:'ring',c:n.pos,r:n.name==='XRP'?40:n.distR*.62},{type:'ring',c:n.pos,r:n.name==='XRP'?62:n.distR*.98}));
+const streets=[];
+// district ring streets must never cross a neighbouring district's rings: split the gap between overlapping districts in proportion to their radii (deterministic, depends only on positions/sizes), never below the podium + a street
+const DR=new Map();{const hubs=E.nodes.filter(n=>!n.minor&&n.pos);hubs.forEach(n=>{let R=n.distR;if(n.name!=='XRP'){hubs.forEach(m=>{if(m===n)return;const d=Math.hypot(n.pos.x-m.pos.x,n.pos.z-m.pos.z),sum=n.distR+m.distR;if(d<sum+10)R=Math.min(R,d*n.distR/sum-5)});R=Math.max(R,n.w*2.05+7)}DR.set(n,R)})}
+E.nodes.filter(n=>!n.minor).forEach(n=>{const R=DR.get(n)||n.distR,pr=n.w*2.05;if(n.name==='XRP'){streets.push({type:'ring',c:n.pos,r:40},{type:'ring',c:n.pos,r:62});return}
+ if(R*.62>pr+3.5)streets.push({type:'ring',c:n.pos,r:R*.62});streets.push({type:'ring',c:n.pos,r:R*.98})});E.nodes.forEach((n,i)=>{const r=DR.get(n);if(r&&zoneU[i])zoneU[i].z=r});window.__districtR=()=>[...DR].map(([n,r])=>[n.name,+r.toFixed(1),+n.distR.toFixed(1)]);
 CORE.filter(c=>N[c]).forEach(c=>{const n=N[c];streets.push({type:'line',a:new THREE.Vector3(Math.cos(n.ang)*62,0,Math.sin(n.ang)*62),b:new THREE.Vector3(Math.cos(n.ang),0,Math.sin(n.ang)).multiplyScalar(RING-n.distR*.98)})});
 // road clearance (streets are 9.6 m incl. sidewalks); used deterministically by every placement below and by the load-time audit
 const ROAD_HW=4.8,onRoad=(x,z,pad=0)=>streets.some(s=>(s.type==='ring'?Math.abs(Math.hypot(x-s.c.x,z-s.c.z)-s.r):segD(x,z,s.a,s.b))<ROAD_HW+pad);window.__streetsDef=streets;window.__onRoad=onRoad;

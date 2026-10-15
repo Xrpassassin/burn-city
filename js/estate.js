@@ -69,6 +69,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/175.0, vv=dot(q,ld)/62.0, aa=at
   if (!streetMat) { flat(0, toLake0 - RL, Y0); flat(toLake1 + RL, roadLen, Y0); if (HW_OFF) seg.push(box(HW_OFF + 7, 0.3, 14, HW_OFF / 2, Y0, roadLen - 7)); }   // with the shared street look the land sections are flat street strips at ground level
   ramp(toLake0 - RL, toLake0, true); flat(toLake0, toLake1, Y0 + bridgeH); ramp(toLake1, toLake1 + RL, false);   // turn-in toward the lot
   for (let z = toLake0 + 14; z < toLake1 - 8; z += 22) { seg.push(box(1.4, bridgeH, 1.4, -5.5, bridgeH / 2, z)); seg.push(box(1.4, bridgeH, 1.4, 5.5, bridgeH / 2, z)); }
+  for (const [z0, z1, up] of [[toLake0 - RL, toLake0, true], [toLake1, toLake1 + RL, false]]) for (const sx of [-7, 7]) { const len = Math.hypot(z1 - z0, bridgeH), g = new THREE.BoxGeometry(0.4, 1.1, len); g.rotateX((up ? -1 : 1) * Math.atan2(bridgeH, z1 - z0)); seg.push(g.translate(sx, Y0 + bridgeH / 2 + 0.7, (z0 + z1) / 2)); }   // side rails follow the ramps too
   seg.push(box(0.4, 1.1, toLake1 - toLake0, -7, Y0 + bridgeH + 0.7, (toLake0 + toLake1) / 2)); seg.push(box(0.4, 1.1, toLake1 - toLake0, 7, Y0 + bridgeH + 0.7, (toLake0 + toLake1) / 2));
   if (!streetMat) { const mk = []; for (let z = 4; z < roadLen; z += 6) mk.push(box(0.25, 0.05, 2.4, 0, ys(z) + 0.02, z)); seg.push(...mk.map(g => g)); }
   if (streetMat && STRIP) {   // same asphalt/curb/sidewalk/neon shader as the city streets; starts at the ring's asphalt edge (T-junction), follows ramps and bridge
@@ -77,6 +78,14 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/175.0, vv=dot(q,ld)/62.0, aa=at
     if (HW_OFF) { const e0 = W(roadLen - 4.8), lp = []; for (let x = 2.5; x <= HW_OFF + 4; x += 2) lp.push(e0.clone().addScaledVector(side, -x).setY(0.1)); STRIP(lp, false, 9.6, P, UVs, IX); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UVs, 2)); g.setIndex(IX);
     const hm = new THREE.Mesh(g, streetMat); hm.frustumCulled = false; G.add(hm);
+    // bridge guard (explore mode): invisible side walls on the raised deck/ramps + safety respawn at the nearest bridge end if the walker ends up below the deck / in the water
+    let onB = false;
+    window.__hwGuard = (Pp, vel) => { const dx = Pp.x - roadO.x, dz = Pp.z - roadO.z, al = dx * dir.x + dz * dir.z, lt = dx * side.x + dz * side.z, zone = al > toLake0 - RL - 1 && al < toLake1 + RL + 1, dy = ys(al) + 0.15;
+      if (zone && dy > 1 && Math.abs(lt) < 14 && Pp.y >= dy - 1 && Pp.y < dy + 14) {   // on / just above the raised deck: clamp inside the rails
+        onB = true; if (Math.abs(lt) > 6.45) { const k = Math.sign(lt) * 6.45 - lt; Pp.x += side.x * k; Pp.z += side.z * k; if (vel) { const vl = vel.x * side.x + vel.z * side.z; if (vl * Math.sign(lt) > 0) { vel.x -= side.x * vl; vel.z -= side.z * vl } } } return false }
+      if ((onB && zone && dy > 1 && Pp.y < dy - 2.2 && Math.abs(lt) < 14) || (zone && Math.abs(lt) < 9 && Pp.y < -1)) {   // fell through / below the deck -> nearest bridge end
+        onB = false; const end = al < (toLake0 + toLake1) / 2 ? toLake0 - RL - 3 : toLake1 + RL + 3; Pp.set(roadO.x + dir.x * end, 0.1, roadO.z + dir.z * end); if (vel) vel.set(0, 0, 0); return true }
+      if (onB && !(zone && dy > 1)) onB = false; return false };
     window.__hwDeck = (x, z) => { const dx = x - roadO.x, dz = z - roadO.z, al = dx * dir.x + dz * dir.z, lat = Math.abs(dx * side.x + dz * side.z); return al > toLake0 - RL && al < toLake1 + RL && lat < 7 ? ys(al) + 0.15 : null }; }
   const road = new THREE.Mesh(mergeGeometries(seg), new THREE.MeshLambertMaterial({ color: 0x2a2d38 })); road.position.copy(roadO); road.rotation.y = yaw; G.add(road);
   // lamp posts as glowing dots along both rails

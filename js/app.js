@@ -883,7 +883,7 @@ function updExplore(dt){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run
   if(cw){P.climb=cw;P.vel.y=0;P.onGround=false;P.pos.y+=(run?12:8.5)*dt;P.walk+=dt*20;
    if(P.pos.y>=cw.h-.05){const dx=cw.x-P.pos.x,dz=cw.z-P.pos.z,d=Math.hypot(dx,dz)||1;P.pos.y=cw.h;P.pos.x+=dx/d*1.4;P.pos.z+=dz/d*1.4;P.climb=null;P.onGround=true}}
   else P.climb=null}
- P.pos.x=Math.max(-900,Math.min(900,P.pos.x));P.pos.z=Math.max(-900,Math.min(900,P.pos.z));
+ P.pos.x=Math.max(-900,Math.min(900,P.pos.x));P.pos.z=Math.max(-900,Math.min(900,P.pos.z));if(window.__hwGuard&&window.__hwGuard(P.pos,P.vel)){P.onGround=true;P.climb=null}
  P.walk+=dt*ml*(run?14:9);const L=avatar.userData;poseWalker(avatar,P.walk,Math.min(1,ml)*(P.onGround?1:.25),performance.now()/1000);
  if(P.climb){const c2=Math.sin(P.walk*1.4);L.arms[0].rotation.x=-2.6+c2*.5;L.arms[1].rotation.x=-2.6-c2*.5;L.legs[0].rotation.x=.6+c2*.4;L.legs[1].rotation.x=.6-c2*.4}
  avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;webPose();const dir=dirOf();

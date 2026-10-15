@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const box = (w, h, d, x, y, z, ry = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); return g.translate(x, y, z); };
-export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], colliders = [] }) {
+export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], colliders = [], streetMat = null, STRIP = null }) {
   // pick the emptiest direction: farthest (in angle) from every district tower and gate
   const pts = nodes.filter(n => n.pos && n.pos.length() > 60).map(n => Math.atan2(n.pos.z, n.pos.x)).concat(avoid.map(p => Math.atan2(p.z, p.x)));
   let best = 0, bestD = -1; for (let k = 0; k < 144; k++) { const a = k / 144 * Math.PI * 2 - Math.PI; let d = 9; for (const b of pts) d = Math.min(d, Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI)); const back = window.__lakePref ?? -1.1, off = Math.abs(((a - back + Math.PI * 3) % (Math.PI * 2)) - Math.PI); if (off > 0.7) continue; d -= off * 0.15; if (d > bestD) { bestD = d; best = a; } }
@@ -61,15 +61,23 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/175.0, vv=dot(q,ld)/62.0, aa=at
   lake.material.side = THREE.DoubleSide;
   // ---------- highway + bridge (one merged mesh) + guide-light strip ----------
   const bridgeH = 3, RL = 16, seg = [];   // road along +z in local space; constant height, gentle ramps only at the bridge
-  const roadLen = lotC.clone().sub(roadO).dot(dir) - 70, Y0 = 0.2; let w0 = -1, w1 = -1; for (let z = 0; z < roadLen; z += 1) { const q = roadO.clone().addScaledVector(dir, z); if (inside(q.x, q.z, lakeC, 0)) { if (w0 < 0) w0 = z; w1 = z; } }
+  const roadLen = lotC.clone().sub(roadO).dot(dir) - 70, Y0 = streetMat ? -0.05 : 0.2; let w0 = -1, w1 = -1; for (let z = 0; z < roadLen; z += 1) { const q = roadO.clone().addScaledVector(dir, z); if (inside(q.x, q.z, lakeC, 0)) { if (w0 < 0) w0 = z; w1 = z; } }
   const toLake0 = (w0 < 0 ? toNear : w0) - 6, toLake1 = (w1 < 0 ? toFar : w1) + 6;
-  const ys = z => z < toLake0 - RL || z > toLake1 + RL ? Y0 + 0.15 : z < toLake0 ? Y0 + 0.15 + (z - toLake0 + RL) / RL * bridgeH : z > toLake1 ? Y0 + 0.15 + (toLake1 + RL - z) / RL * bridgeH : Y0 + 0.15 + bridgeH;
+  const YL = streetMat ? 0.1 : Y0 + 0.15, ys = z => z < toLake0 - RL || z > toLake1 + RL ? YL : z < toLake0 ? Y0 + 0.15 + (z - toLake0 + RL) / RL * bridgeH : z > toLake1 ? Y0 + 0.15 + (toLake1 + RL - z) / RL * bridgeH : Y0 + 0.15 + bridgeH;
   const flat = (z0, z1, y) => seg.push(box(14, 0.3, z1 - z0, 0, y, (z0 + z1) / 2));
   const ramp = (z0, z1, up) => { const len = Math.hypot(z1 - z0, bridgeH), g = new THREE.BoxGeometry(14, 0.3, len); g.rotateX((up ? -1 : 1) * Math.atan2(bridgeH, z1 - z0)); seg.push(g.translate(0, Y0 + bridgeH / 2, (z0 + z1) / 2)); };
-  flat(0, toLake0 - RL, Y0); ramp(toLake0 - RL, toLake0, true); flat(toLake0, toLake1, Y0 + bridgeH); ramp(toLake1, toLake1 + RL, false); flat(toLake1 + RL, roadLen, Y0); if (HW_OFF) seg.push(box(HW_OFF + 7, 0.3, 14, HW_OFF / 2, Y0, roadLen - 7));   // turn-in toward the lot
+  if (!streetMat) { flat(0, toLake0 - RL, Y0); flat(toLake1 + RL, roadLen, Y0); if (HW_OFF) seg.push(box(HW_OFF + 7, 0.3, 14, HW_OFF / 2, Y0, roadLen - 7)); }   // with the shared street look the land sections are flat street strips at ground level
+  ramp(toLake0 - RL, toLake0, true); flat(toLake0, toLake1, Y0 + bridgeH); ramp(toLake1, toLake1 + RL, false);   // turn-in toward the lot
   for (let z = toLake0 + 14; z < toLake1 - 8; z += 22) { seg.push(box(1.4, bridgeH, 1.4, -5.5, bridgeH / 2, z)); seg.push(box(1.4, bridgeH, 1.4, 5.5, bridgeH / 2, z)); }
   seg.push(box(0.4, 1.1, toLake1 - toLake0, -7, Y0 + bridgeH + 0.7, (toLake0 + toLake1) / 2)); seg.push(box(0.4, 1.1, toLake1 - toLake0, 7, Y0 + bridgeH + 0.7, (toLake0 + toLake1) / 2));
-  { const mk = []; for (let z = 4; z < roadLen; z += 6) mk.push(box(0.25, 0.05, 2.4, 0, ys(z) + 0.02, z)); seg.push(...mk.map(g => g)); }
+  if (!streetMat) { const mk = []; for (let z = 4; z < roadLen; z += 6) mk.push(box(0.25, 0.05, 2.4, 0, ys(z) + 0.02, z)); seg.push(...mk.map(g => g)); }
+  if (streetMat && STRIP) {   // same asphalt/curb/sidewalk/neon shader as the city streets; starts at the ring's asphalt edge (T-junction), follows ramps and bridge
+    const P = [], UVs = [], IX = [], pts = [], W = (k) => new THREE.Vector3(roadO.x + dir.x * k, 0, roadO.z + dir.z * k);
+    for (let z = 2.5; z <= roadLen; z += 2) pts.push(W(z).setY(ys(z) + 0.02)); STRIP(pts, false, 9.6, P, UVs, IX);
+    if (HW_OFF) { const e0 = W(roadLen - 4.8), lp = []; for (let x = 2.5; x <= HW_OFF + 4; x += 2) lp.push(e0.clone().addScaledVector(side, -x).setY(0.1)); STRIP(lp, false, 9.6, P, UVs, IX); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UVs, 2)); g.setIndex(IX);
+    const hm = new THREE.Mesh(g, streetMat); hm.frustumCulled = false; G.add(hm);
+    window.__hwDeck = (x, z) => { const dx = x - roadO.x, dz = z - roadO.z, al = dx * dir.x + dz * dir.z, lat = Math.abs(dx * side.x + dz * side.z); return al > toLake0 - RL && al < toLake1 + RL && lat < 7 ? ys(al) + 0.15 : null }; }
   const road = new THREE.Mesh(mergeGeometries(seg), new THREE.MeshLambertMaterial({ color: 0x2a2d38 })); road.position.copy(roadO); road.rotation.y = yaw; G.add(road);
   // lamp posts as glowing dots along both rails
   const lamps = []; for (let z = 4; z < roadLen; z += 16) for (const x of [-7.4, 7.4]) lamps.push(x, ys(z) + 3.2, z);

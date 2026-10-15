@@ -492,7 +492,7 @@ await stage(0.65,'Streets & traffic');
 // streets v2: ONE merged strip mesh (asphalt + curbs + sidewalks + soft neon edge lines), uv.x = metres across, uv.y = metres along
 const STRIP=(pts,closed,W,P,UV,IX)=>{const n=pts.length,v0=P.length/3;let along=0;for(let i=0;i<n;i++){const a=pts[i],b=pts[closed?(i+1)%n:Math.min(n-1,i+1)],c=pts[closed?(i-1+n)%n:Math.max(0,i-1)];const tx=b.x-c.x,tz=b.z-c.z,l=Math.hypot(tx,tz)||1,nx=-tz/l,nz=tx/l;if(i)along+=a.distanceTo(pts[i-1]);
   P.push(a.x+nx*W/2,a.y,a.z+nz*W/2,a.x-nx*W/2,a.y,a.z-nz*W/2);UV.push(W/2,along,-W/2,along);if(i<n-1||closed){const q=v0+i*2,r=v0+((i+1)%n)*2;IX.push(q,q+1,r,q+1,r+1,r)}}};
-{const P=[],UV=[],IX=[],SW=9.6;streets.forEach(s=>{if(s.type==='line'){const k=Math.max(2,Math.ceil(s.a.distanceTo(s.b)/8)),pts=[];for(let i=0;i<=k;i++)pts.push(s.a.clone().lerp(s.b,i/k).setY(.1));STRIP(pts,false,SW,P,UV,IX)}
+let STREETM=null;{const P=[],UV=[],IX=[],SW=9.6;streets.forEach(s=>{if(s.type==='line'){const k=Math.max(2,Math.ceil(s.a.distanceTo(s.b)/8)),pts=[];for(let i=0;i<=k;i++)pts.push(s.a.clone().lerp(s.b,i/k).setY(.1));STRIP(pts,false,SW,P,UV,IX)}
   else{const k=Math.max(48,Math.round(s.r*1.2)),pts=[];for(let i=0;i<k;i++){const a=i/k*6.2832;pts.push(new THREE.Vector3(s.c.x+Math.cos(a)*s.r,.09,s.c.z+Math.sin(a)*s.r))}STRIP(pts,true,SW,P,UV,IX)}});
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(UV,2));g.setIndex(IX);
  const m=new THREE.ShaderMaterial({side:THREE.DoubleSide,transparent:true,depthWrite:false,fog:true,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-3,uniforms:{...fogU(),t:U.t,day:U.day},
@@ -504,7 +504,7 @@ const STRIP=(pts,closed,W,P,UV,IX)=>{const n=pts.length,v0=P.length/3;let along=
    else{c=vec3(.075,.078,.085)*lit;float tl=step(.95,fract(v/1.6))+step(.95,fract((a-2.78)/1.05));c*=1.-.25*min(1.,tl);al=1.-smoothstep(4.4,4.8,a);}
    float ne=exp(-pow((a-2.42)/.09,2.))*(1.-day*.6);c+=vec3(.25,.75,1.)*ne*(.55+.25*sin(v*.08-t*1.5));
    gl_FragColor=vec4(c,al*.96);\n${TAIL}\n}`});
- const sm=new THREE.Mesh(g,m);sm.renderOrder=0;sm.frustumCulled=false;S.add(sm);window.__streets=sm}
+ STREETM=m;const sm=new THREE.Mesh(g,m);sm.renderOrder=0;sm.frustumCulled=false;S.add(sm);window.__streets=sm}
 // ---------- arena gates: portals to the multiplayer arena, standing on real hub avenues ----------
 {const av=streets.filter(s=>s.type==='line').slice(0,2),AR=[['tron','Light Cycles',0x3cf3ff],['zombie','Zombie Survival',0xff5a1f]];
  av.forEach((s,i)=>{const [m,label,col]=AR[i],p=s.a.clone().lerp(s.b,.5),g=new THREE.Group();g.position.copy(p);g.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);
@@ -740,7 +740,7 @@ function descAd(a){const e=t=>String(t||'').replace(/[<&"]/g,'');return `<button
   const pc=100*(+l.balance)/n.circ,b=pc<.5?0:pc<1?1:pc<2?2:pc<5?3:pc<10?4:5;const sb=n.holderB.find(x=>!x.holder.role&&x.holder.b===b);if(!sb||(b===0&&pc<.05))return;
   const m=new THREE.Mesh(new THREE.BoxGeometry(sb.w*1.5,sb.h*1.15,sb.w*1.5),gm);m.position.set(sb.x,sb.h*.55,sb.z);S.add(m);n.myHold=pc;anim.push(t=>m.material.opacity=.3+.2*Math.sin(t*2.5))})})();
 window.__holderNick=null; // hook: opt-in nickname for your own holder building (later)
-const ESTATE=buildEstate({S,U,pick,anim,nodes:E.nodes,low:TIER==='low',avoid:[LPD.c],colliders});window.__estate=ESTATE;
+const ESTATE=buildEstate({S,U,pick,anim,nodes:E.nodes,low:TIER==='low',avoid:[LPD.c],colliders,streetMat:STREETM,STRIP});window.__estate=ESTATE;
 // ---------- ledger veins: faint light trails in the ground under every AMM bridge; a pulse runs along on each live trade ----------
 {const NV=Math.min(TIER==='low'?8:(TIER==='medium'||MOBILE)?14:40,bridges.length),P=[],UV=[],IX=[],BI=[],act=new Float32Array(40),pt=new Float32Array(40).fill(-99);
  bridges.slice(0,NV).forEach((b,i)=>{if(!b.curve)return;const pts=[];for(let k=0;k<=32;k++){const q=b.curve.getPoint(k/32);pts.push(new THREE.Vector3(q.x,.07,q.z))}const n0=P.length/3;STRIP(pts,false,1.3,P,UV,IX);for(let k=n0;k<P.length/3;k++)BI.push(i)});
@@ -817,7 +817,7 @@ const hold=(id,k)=>{const el=$(id);el.addEventListener('touchstart',e=>{tb[k]=1;
 $('tUse').addEventListener('touchstart',e=>{interact();e.preventDefault()},{passive:false});
 
 // ---------- explore: physics, collisions, districts, interaction ----------
-function groundAt(x,z,y){let g=0;for(const c of colliders){if(c.h<=y+.35&&c.h>g&&Math.hypot(x-c.x,z-c.z)<c.r)g=c.h}if(window.__deckAt){const dk=window.__deckAt(x,z);if(dk!=null&&dk<=y+1.4&&dk>g)g=dk}return g}
+function groundAt(x,z,y){let g=0;for(const c of colliders){if(c.h<=y+.35&&c.h>g&&Math.hypot(x-c.x,z-c.z)<c.r)g=c.h}if(window.__deckAt){const dk=window.__deckAt(x,z);if(dk!=null&&dk<=y+1.4&&dk>g)g=dk}if(window.__hwDeck){const hd=window.__hwDeck(x,z);if(hd!=null&&hd<=y+1.4&&hd>g)g=hd}return g}
 // walkers stay out of the water except on docks and the lake bridge
 function wet(x,z){const es=window.__estate;if(!es||!es.inLake(x,z))return false;if(window.__deckAt&&window.__deckAt(x,z)!=null)return false;const ce=es.roadO||es.cityEdge,dr=es.dir;if(ce&&dr&&Math.abs((x-ce.x)*dr.z-(z-ce.z)*dr.x)<7.5)return false;return true}
 function collide(p){for(const c of colliders){if(p.y>=c.h-.05)continue;const dx=p.x-c.x,dz=p.z-c.z,m=c.r+.38;if(Math.abs(dx)>m||Math.abs(dz)>m)continue;const d=Math.hypot(dx,dz);if(d<m){const k=(m-d)/(d||1);p.x+=dx*k;p.z+=dz*k}}}

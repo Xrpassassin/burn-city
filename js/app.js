@@ -793,7 +793,7 @@ const avatar=(()=>{const g=new THREE.Group();const suit=new THREE.MeshStandardMa
  const ring=new THREE.Mesh(new THREE.RingGeometry(.45,.55,32),new THREE.MeshBasicMaterial({color:0x7ee0ff,transparent:true,opacity:.3,side:2}));ring.rotation.x=-Math.PI/2;ring.position.y=.03;g.add(ring);
  const pl=new THREE.PointLight(0x7ee0ff,2,6,2);pl.position.y=1.5;g.add(pl);g.userData={legs,arms};g.visible=false;S.add(g);return g})();
 let NET=null;const peers=new Map();window.__city={pick,colliders,groundAt,drone:()=>DRONE&&DRONE.grp,avatar,S,C,P,R,N,orbit,MOBILE,bridges,comp,bloom,sanitize,RT_BYTE,APPLE_GPU,U,E,TIER,sfx:{whoosh:()=>{if(!AC||!aud.on)return;const t0=AC.currentTime,s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=1.2;f.frequency.setValueAtTime(300,t0);f.frequency.exponentialRampToValueAtTime(2400,t0+.7);const g=AC.createGain();g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.5,t0+.25);g.gain.exponentialRampToValueAtTime(.001,t0+1.1);s.connect(f).connect(g).connect(aud.master);s.start(t0);s.stop(t0+1.2)}},isTour:()=>!!tour,getMode:()=>mode,showInfo};
-function setMode(m){const prev=mode;mode=m;tour=null;$('tourCap')&&$('tourCap').classList.remove('show');document.querySelectorAll('#btns [data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));orbit.enabled=m==='orbit';avatar.visible=m==='explore'&&!P.fp;
+function setMode(m){const prev=mode;mode=m;tour=null;window.__modeReset&&window.__modeReset();$('tourCap')&&$('tourCap').classList.remove('show');document.querySelectorAll('#btns [data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));orbit.enabled=m==='orbit';avatar.visible=m==='explore'&&!P.fp;
  $('touch').classList.toggle('on',MOBILE&&(m==='explore'||m==='fly'));['tUp','tDown'].forEach(i=>$(i).style.display=m==='fly'?'':'none');['tJump','tRun','tUse'].forEach(i=>$(i).style.display=m==='explore'?'':'none');
  if(m!=='orbit'){const d=C.getWorldDirection(new THREE.Vector3());yp.yaw=Math.atan2(-d.x,-d.z);yp.pitch=Math.asin(Math.max(-1,Math.min(1,d.y)))}
  if(m==='explore'){if(prev==='fly'){/* drop the walker right under the drone, same heading; over the lake -> nearest shore */const q=C.position,es=window.__estate;let x=q.x,z=q.z;if(es&&es.inLake(x,z)){let dx=x-es.lakeC.x,dz=z-es.lakeC.z;if(Math.hypot(dx,dz)<1){dx=-es.dir.x;dz=-es.dir.z}const dl=Math.hypot(dx,dz);for(let k=0;k<400&&es.inLake(x,z);k++){x+=dx/dl;z+=dz/dl}x+=dx/dl*2;z+=dz/dl*2}
@@ -850,7 +850,7 @@ function jetStep(dt,mv){const ok=!!window.__jetOK&&mode==='explore'&&!(window.__
    for(let k=0;k<2;k++){const i=smI++%SMN;smP[i*3]=P.pos.x+(Math.random()-.5)*.3;smP[i*3+1]=P.pos.y+.9;smP[i*3+2]=P.pos.z+(Math.random()-.5)*.3;smV[i*4]=(Math.random()-.5);smV[i*4+1]=-2-Math.random()*2;smV[i*4+2]=(Math.random()-.5);smV[i*4+3]=1}}
   for(let i=0;i<SMN;i++){if(smV[i*4+3]<=0)continue;smV[i*4+3]-=dt;smP[i*3]+=smV[i*4]*dt;smP[i*3+1]+=smV[i*4+1]*dt;smP[i*3+2]+=smV[i*4+2]*dt;smV[i*4+1]*=.94;if(smV[i*4+3]<=0)smP[i*3+1]=-999}smG.attributes.position.needsUpdate=true;
   window.__jetThrust=JET.thr;return JET.thr}
-window.__jet=JET;
+window.__jet=JET;window.__modeReset=()=>{if(WEB.on)webSet(false);JET.on=false;JET.thr=false;pack.visible=false;jetBtn.style.background='#0b1220e0'};
 const _hv=new THREE.Vector3(),_hd=new THREE.Vector3(),_dn=new THREE.Vector3(0,-1,0);
 function webPose(){const A=avatar.userData.arms;if(!WEB.a){for(const a of A){a.rotation.y=0;a.rotation.z=0}return}const arm=A[WEB.hand===1?1:0];avatar.updateMatrixWorld(true);
   _hd.copy(WEB.a);avatar.worldToLocal(_hd).sub(arm.position).normalize();arm.quaternion.setFromUnitVectors(_dn,_hd);arm.updateMatrixWorld(true);
@@ -1177,3 +1177,5 @@ await stage(.92,'Compiling shaders');fxObjs.forEach(o=>o.visible=true);R.compile
 await stage(.98,'Starting');
 frame();window.__ready=true;window.__readyMs=performance.now();window.__startDemo&&window.__startDemo();requestAnimationFrame(()=>requestAnimationFrame(()=>{window.__load(1,'Ready');if(Q.has('shot'))$('loader').style.transition='none';$('loader').classList.add('done')}));
 addEventListener('resize',()=>{C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix();R.setSize(innerWidth,innerHeight);comp.setSize(innerWidth,innerHeight);labelEls.forEach(l=>l.w=0)});
+
+;addEventListener('pointerdown',function f(){removeEventListener('pointerdown',f,true);try{AC&&AC.state==='suspended'&&AC.resume()}catch(e){}},true);

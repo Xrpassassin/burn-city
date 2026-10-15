@@ -67,7 +67,7 @@ export class GameNet {
     const t = this.trails.get(id); if (!t || !t.length) return [];
     const now = this.now, cut = now - this.life, src = alive ? t.concat([[hx, hz, now]]) : t;
     while (t.length > 2 && t[1][2] <= cut - 500) t.shift();           // forget long-expired corners
-    if (src.length < 2 || !(src.at(-1)[2] > cut)) return [];
+    if (src.length < 2 || !(src[src.length-1][2] > cut)) return [];
     let i = 0; while (i < src.length - 2 && src[i + 1][2] <= cut) i++;
     const out = [];
     for (let j = i; j < src.length; j++) { const p = src[j];

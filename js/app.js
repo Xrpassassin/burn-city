@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import {buildEstate,estateCard} from './estate.js';
 import {initDrone} from './drone.js';
+import {buildWalker,poseWalker} from './walker.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
@@ -788,15 +789,10 @@ const orbit=new OrbitControls(C,R.domElement);orbit.enableDamping=true;orbit.max
 let mode='orbit',tour=null;const keys={},yp={yaw:0,pitch:0};
 const P={pos:new THREE.Vector3(0,0,55),vel:new THREE.Vector3(),onGround:true,fp:false,spawned:0,district:'',walk:0,near:null};
 const me=new PlayerState();
-const avatar=(()=>{const g=new THREE.Group();const suit=new THREE.MeshStandardMaterial({color:0x1b2338,metalness:.8,roughness:.3,emissive:0x050a18});const glow=new THREE.MeshBasicMaterial({color:0x7ee0ff});
- const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.32,.55,4,10),suit);torso.position.y=1.15;g.add(torso);
- const pack=new THREE.Mesh(new THREE.BoxGeometry(.4,.5,.2),suit);pack.position.set(0,1.2,.3);g.add(pack);const thr=new THREE.Mesh(new THREE.BoxGeometry(.3,.06,.05),glow);thr.position.set(0,1.0,.42);g.add(thr);
- const head=new THREE.Mesh(new THREE.SphereGeometry(.24,16,12),suit);head.position.y=1.75;g.add(head);const visor=new THREE.Mesh(new THREE.BoxGeometry(.36,.09,.1),glow);visor.position.set(0,1.77,-.2);g.add(visor);
- const stripe=new THREE.Mesh(new THREE.TorusGeometry(.33,.025,6,24),glow);stripe.rotation.x=Math.PI/2;stripe.position.y=1.05;g.add(stripe);
- const legs=[-1,1].map(s=>{const l=new THREE.Mesh(new THREE.CapsuleGeometry(.11,.5,4,8),suit);l.geometry.translate(0,-.3,0);l.position.set(s*.15,.72,0);g.add(l);return l});
- const arms=[-1,1].map(s=>{const a=new THREE.Mesh(new THREE.CapsuleGeometry(.08,.45,4,8),suit);a.geometry.translate(0,-.25,0);a.position.set(s*.42,1.38,0);g.add(a);return a});
- const ring=new THREE.Mesh(new THREE.RingGeometry(.45,.55,32),new THREE.MeshBasicMaterial({color:0x7ee0ff,transparent:true,opacity:.3,side:2}));ring.rotation.x=-Math.PI/2;ring.position.y=.03;g.add(ring);
- const pl=new THREE.PointLight(0x7ee0ff,2,6,2);pl.position.y=1.5;g.add(pl);g.userData={legs,arms};g.visible=false;S.add(g);return g})();
+const avatar=(()=>{const g=buildWalker({suit:0x2c4468,accent:0x7ee0ff,skin:1});const suit=new THREE.MeshStandardMaterial({color:0x1b2338,metalness:.6,roughness:.35,emissive:0x050a18}),glow=new THREE.MeshBasicMaterial({color:0x7ee0ff});
+ const bp=new THREE.Mesh(new THREE.BoxGeometry(.32,.46,.16),suit);bp.position.set(0,1.3,.22);g.add(bp);const thr=new THREE.Mesh(new THREE.BoxGeometry(.24,.05,.04),glow);thr.position.set(0,1.1,.31);g.add(thr);
+ const ring=new THREE.Mesh(new THREE.RingGeometry(.45,.55,32),new THREE.MeshBasicMaterial({color:0x7ee0ff,transparent:true,opacity:.3,side:2}));ring.rotation.x=-Math.PI/2;ring.position.y=.035;g.add(ring);
+ const pl=new THREE.PointLight(0x7ee0ff,2,6,2);pl.position.y=1.5;g.add(pl);g.visible=false;S.add(g);return g})();
 let NET=null;const peers=new Map();window.__city={pick,colliders,groundAt,drone:()=>DRONE&&DRONE.grp,avatar,S,C,P,R,N,orbit,MOBILE,bridges,comp,bloom,sanitize,RT_BYTE,APPLE_GPU,U,E,TIER,sfx:{whoosh:()=>{if(!AC||!aud.on)return;const t0=AC.currentTime,s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=1.2;f.frequency.setValueAtTime(300,t0);f.frequency.exponentialRampToValueAtTime(2400,t0+.7);const g=AC.createGain();g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.5,t0+.25);g.gain.exponentialRampToValueAtTime(.001,t0+1.1);s.connect(f).connect(g).connect(aud.master);s.start(t0);s.stop(t0+1.2)}},isTour:()=>!!tour,getMode:()=>mode,showInfo};
 function setMode(m){const prev=mode;mode=m;tour=null;window.__modeReset&&window.__modeReset();$('tourCap')&&$('tourCap').classList.remove('show');document.querySelectorAll('#btns [data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));orbit.enabled=m==='orbit';avatar.visible=m==='explore'&&!P.fp;
  $('touch').classList.toggle('on',MOBILE&&(m==='explore'||m==='fly'));['tUp','tDown'].forEach(i=>$(i).style.display=m==='fly'?'':'none');['tJump','tRun','tUse'].forEach(i=>$(i).style.display=m==='explore'?'':'none');
@@ -857,7 +853,7 @@ function jetStep(dt,mv){const ok=!!window.__jetOK&&mode==='explore'&&!(window.__
   window.__jetThrust=JET.thr;return JET.thr}
 window.__jet=JET;window.__modeReset=()=>{if(WEB.on)webSet(false);JET.on=false;JET.thr=false;pack.visible=false;jetBtn.style.background='#0b1220e0'};
 const _hv=new THREE.Vector3(),_hd=new THREE.Vector3(),_dn=new THREE.Vector3(0,-1,0);
-function webPose(){const A=avatar.userData.arms;if(!WEB.a){for(const a of A){a.rotation.y=0;a.rotation.z=0}return}const arm=A[WEB.hand===1?1:0];avatar.updateMatrixWorld(true);
+function webPose(){const A=avatar.userData.arms;if(!WEB.a){for(const a of A)a.rotation.y=0;return}const arm=A[WEB.hand===1?1:0];if(arm.userData.elbow)arm.userData.elbow.rotation.x=0;avatar.updateMatrixWorld(true);
   _hd.copy(WEB.a);avatar.worldToLocal(_hd).sub(arm.position).normalize();arm.quaternion.setFromUnitVectors(_dn,_hd);arm.updateMatrixWorld(true);
   arm.localToWorld(_hv.set(0,-.55,0));const la=WEB.line.geometry.attributes.position;la.setXYZ(0,_hv.x,_hv.y,_hv.z);la.setXYZ(1,WEB.a.x,WEB.a.y,WEB.a.z);la.needsUpdate=true}
 function webStep(dt,mv){webBtn.style.display=mode==='explore'&&!(window.__boat&&window.__boat.active)?'':'none';const held=!!(keys.Space||tb.jump),rise=held&&!WEB.prev;WEB.prev=held;WEB.cd=Math.max(0,WEB.cd-dt);
@@ -888,7 +884,7 @@ function updExplore(dt){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run
    if(P.pos.y>=cw.h-.05){const dx=cw.x-P.pos.x,dz=cw.z-P.pos.z,d=Math.hypot(dx,dz)||1;P.pos.y=cw.h;P.pos.x+=dx/d*1.4;P.pos.z+=dz/d*1.4;P.climb=null;P.onGround=true}}
   else P.climb=null}
  P.pos.x=Math.max(-900,Math.min(900,P.pos.x));P.pos.z=Math.max(-900,Math.min(900,P.pos.z));
- P.walk+=dt*ml*(run?14:9);const sw=Math.sin(P.walk)*.7*ml*(P.onGround?1:.2);const L=avatar.userData;L.legs[0].rotation.x=sw;L.legs[1].rotation.x=-sw;L.arms[0].rotation.x=-sw*.8;L.arms[1].rotation.x=sw*.8;
+ P.walk+=dt*ml*(run?14:9);const L=avatar.userData;poseWalker(avatar,P.walk,Math.min(1,ml)*(P.onGround?1:.25),performance.now()/1000);
  if(P.climb){const c2=Math.sin(P.walk*1.4);L.arms[0].rotation.x=-2.6+c2*.5;L.arms[1].rotation.x=-2.6-c2*.5;L.legs[0].rotation.x=.6+c2*.4;L.legs[1].rotation.x=.6-c2*.4}
  avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;webPose();const dir=dirOf();
  if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.7);C.lookAt(C.position.clone().add(dir))}

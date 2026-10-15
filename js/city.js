@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { buildNftChar, disposeNftChar } from './nftchar.js';
 import * as NftPick from './nftpick.js';
 import { droneGeo } from './drone.js';
+import { buildWalker, poseWalker } from './walker.js';
 const Q=new URLSearchParams(location.search);
 const SRV=Q.get('citysrv')||'https://burn-city-game.fly.dev';
 const WS=SRV.replace(/^http/,'ws')+'/?mode=city';
@@ -46,10 +47,8 @@ function inst(){if(IB)return IB;const C=W(),g=droneGeo();const mk=(geo,mat)=>{co
   IB={body:mk(g.body,new THREE.MeshBasicMaterial({color:0xffffff})),rot:mk(g.rot,new THREE.MeshBasicMaterial({color:0xaab0c0,transparent:true,opacity:.6})),
    glow:mk(new THREE.CircleGeometry(1.8,14).rotateX(-Math.PI/2).translate(0,-.3,0),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}))};return IB}
 // remote walker: simple figure in the visitor's colour (verified NFT holders show their NFT character instead)
-let WKG=null;function walkGeo(){if(WKG)return WKG;const b=new THREE.CapsuleGeometry(.32,.8,3,8).translate(0,.95,0),h=new THREE.SphereGeometry(.26,10,8).translate(0,1.75,0),l1=new THREE.BoxGeometry(.16,.55,.16).translate(-.14,.28,0),l2=l1.clone().translate(.28,0,0),v=new THREE.BoxGeometry(.36,.1,.06).translate(0,1.78,-.24);return WKG={b,h,l1,l2,v}}
-function walkLook(p){const walk=p.md==='w'||p.md==='b';if(walk&&!p.nc&&!p.wk){const G=walkGeo(),g=new THREE.Group(),c=p.g.userData.color,m=new THREE.MeshStandardMaterial({color:new THREE.Color(0x1a2030).lerp(c,.35),roughness:.6}),e=new THREE.MeshBasicMaterial({color:c,toneMapped:false});
-  g.add(new THREE.Mesh(G.b,m),new THREE.Mesh(G.h,m),new THREE.Mesh(G.v,e));g.userData.l=[new THREE.Mesh(G.l1,m),new THREE.Mesh(G.l2,m)];g.add(...g.userData.l);p.g.add(g);p.wk=g}
-  if(p.wk){p.wk.visible=walk&&!p.nc;if(p.wk.visible){const dx=p.tx-p.g.position.x,dz=p.tz-p.g.position.z,mv=Math.abs(dx)+Math.abs(dz)>.05;if(mv)p.wk.rotation.y=Math.atan2(-dx,-dz);const s=mv?Math.sin(performance.now()/90)*.5:0;p.wk.userData.l[0].rotation.x=s;p.wk.userData.l[1].rotation.x=-s;p.wk.position.y=p.md==='b'?.3:0}}
+function walkLook(p){const walk=p.md==='w'||p.md==='b';if(walk&&!p.nc&&!p.wk){const c=p.g.userData.color,k=(p.name||p.id||'').toString().split('').reduce((a,ch)=>a+ch.charCodeAt(0),0),g=buildWalker({suit:new THREE.Color(0x1a2030).lerp(c,.35).getHex(),accent:c.getHex(),skin:k%5,lite:!!(W()&&(W().MOBILE||W().TIER==='low'))});p.g.add(g);p.wk=g;p.wph=Math.random()*6}
+  if(p.wk){p.wk.visible=walk&&!p.nc;if(p.wk.visible){const dx=p.tx-p.g.position.x,dz=p.tz-p.g.position.z,mv=Math.abs(dx)+Math.abs(dz)>.05;if(mv)p.wk.rotation.y=Math.atan2(-dx,-dz);const now=performance.now();p.wph+=mv?(now-(p.wl||now))/1000*9:0;p.wl=now;poseWalker(p.wk,p.wph,mv?.8:0,now/1000);p.wk.position.y=p.md==='b'?.3:0}}
   if(p.nc)p.nc.visible=walk;}
 function mkMarker(color){const g=new THREE.Group();g.userData.color=new THREE.Color(color);g.userData.core=new THREE.Object3D();W().S.add(g);return g}
 const _m4=new THREE.Matrix4(),_q4=new THREE.Quaternion(),_s4=new THREE.Vector3(1,1,1),_y4=new THREE.Vector3(0,1,0),_dk=new THREE.Color(0x2a3040);

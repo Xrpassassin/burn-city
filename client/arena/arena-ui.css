@@ -1,0 +1,89 @@
+/* Burn City Arena — "Ember Glass" UI layer (same tokens as the city's ui.css).
+   Loaded at the end of <body> so it also styles the panels the game script builds. */
+:root{
+  --f-ui:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --f-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --glass:rgba(17,12,11,.64);--glass-2:rgba(14,10,10,.9);--blur:blur(16px) saturate(150%);
+  --edge:rgba(255,178,128,.14);--edge-2:rgba(255,178,128,.28);--hair:rgba(255,255,255,.07);--fill:rgba(255,255,255,.05);--fill-2:rgba(255,255,255,.09);
+  --txt:#f6efe9;--txt-2:#c7b8ae;--txt-3:#8f8078;
+  --ember:#ff6b1a;--ember-hi:#ffa24d;--ember-soft:rgba(255,107,26,.14);--ember-line:rgba(255,120,40,.45);
+  --ember-grad:linear-gradient(135deg,#ff5418 0%,#ff8a2a 60%,#ffb35c 100%);
+  --r-sm:10px;--r:14px;--r-lg:20px;--r-pill:999px;--tap:44px;
+  --shadow:0 12px 34px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);
+  --sa-t:env(safe-area-inset-top,0px);--sa-b:env(safe-area-inset-bottom,0px);--sa-l:env(safe-area-inset-left,0px);--sa-r:env(safe-area-inset-right,0px);
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+html,body{font-family:var(--f-ui)!important;color:var(--txt);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button{font-family:var(--f-ui);font-weight:700;color:var(--txt);background:var(--glass);border:1px solid var(--edge);border-radius:12px;min-height:var(--tap);padding:0 18px;font-size:15px;cursor:pointer;
+  transition:background .18s var(--ease),border-color .18s,transform .12s var(--ease);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+@media (hover:hover){button:hover{background:rgba(40,26,20,.8);border-color:var(--edge-2);color:#fff}}
+button:active{transform:scale(.97)}button:disabled{opacity:.45;transform:none}
+:focus-visible{outline:2px solid #62e4ff!important;outline-offset:2px}
+select,input[type=number]{font-family:var(--f-ui);background:var(--fill);color:var(--txt);border:1px solid var(--edge);border-radius:var(--r-sm);min-height:36px;padding:0 8px;font-size:14px}
+input[type=checkbox],input[type=range]{accent-color:var(--ember)}
+a{color:var(--ember-hi)!important}
+
+/* ---------- menu ---------- */
+#menu{background:radial-gradient(ellipse at 50% 0%,rgba(90,30,8,.55),rgba(6,3,3,.88) 60%)!important;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  gap:12px!important;padding:calc(18px + var(--sa-t)) 16px calc(24px + var(--sa-b))!important;box-sizing:border-box}
+#menu>*{width:min(440px,100%);box-sizing:border-box}
+#menu h2{margin:0 0 4px;text-align:center;font-weight:900;letter-spacing:.14em;font-size:22px;color:#fff;text-shadow:0 0 24px rgba(255,107,26,.6)}
+#menu>.small{max-width:440px!important;color:var(--txt-2);opacity:1!important;font-size:12.5px;line-height:1.5;text-align:center}
+#menu>.small>b{display:block;margin-top:6px;text-align:left;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt);opacity:.9}
+#menu>button{width:min(440px,100%);min-height:50px;font-size:16px;text-align:left;padding:0 18px;display:flex;align-items:center;gap:10px}
+#menu>button[data-m=zombie]{background:var(--ember-grad)!important;color:#1b0700!important;border:0!important;box-shadow:0 8px 26px rgba(255,90,20,.35)}
+#tron,#ranked{max-width:440px!important;width:min(440px,100%);background:var(--glass-2)!important;border:1px solid var(--edge)!important;border-radius:var(--r-lg)!important;padding:14px 16px!important;
+  box-shadow:var(--shadow);text-align:left!important;color:var(--txt-2);opacity:1!important;font-size:13px;line-height:1.55;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+#tron>b:first-child,#ranked>b:first-child{display:block;font-size:15px;color:#fff;margin-bottom:6px}
+#tron button,#ranked button{min-height:40px;font-size:14px;padding:0 14px;margin:4px 4px 4px 0}
+#tron button[data-m=tron]{background:var(--ember-grad)!important;color:#1b0700!important;border:0!important;width:100%}
+#tron label{display:inline-flex;align-items:center;gap:6px;min-height:36px;margin-right:10px}
+#signin{min-height:32px!important;color:var(--ember-hi)!important}
+#qr img{border-radius:var(--r)!important}
+
+/* ---------- top bar & settings ---------- */
+#tbar{gap:8px!important}
+#tbar>*{min-height:40px!important;border-radius:12px!important;font-size:14px!important}
+#tbar button,#exit,#gear,#keysbtn,#nftbtn,#notebtn{font:700 13px var(--f-ui)!important;background:var(--glass)!important;border:1px solid var(--edge)!important;color:var(--txt)!important;padding:0 14px!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+#exit{border-color:var(--ember-line)!important}
+#set{background:var(--glass-2)!important;border:1px solid var(--edge)!important;border-radius:var(--r-lg)!important;padding:14px 16px!important;box-shadow:var(--shadow);color:var(--txt-2);font-size:14px!important;gap:10px!important;
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);min-width:260px;z-index:20!important}
+#set>b{color:#fff;letter-spacing:.06em}
+#set label{display:flex;align-items:center;gap:8px;min-height:var(--tap);flex-wrap:wrap}
+#set input[type=range]{flex:1;min-width:100px}
+#set input[type=checkbox]{width:20px;height:20px}
+
+/* ---------- in-match HUD ---------- */
+#hud{text-shadow:0 1px 3px #000,0 0 8px rgba(255,90,20,.5)!important;font-family:var(--f-ui)!important}
+#hud #me{border-radius:var(--r-pill)!important;padding:3px 10px!important;background:rgba(10,7,7,.5)}
+#codhud{font-family:var(--f-ui)!important;text-shadow:0 1px 3px #000,0 0 8px rgba(255,90,20,.55)!important}
+#codhud b{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+#fuel{border-radius:var(--r-pill);border-color:var(--ember-line)!important;overflow:hidden;background:rgba(0,0,0,.4)}#fuel i{background:var(--ember-grad)!important}
+#prompt{background:var(--glass-2)!important;border:1px solid var(--ember-line)!important;border-radius:var(--r-pill)!important;padding:9px 16px!important;font:600 14px var(--f-ui)!important;color:var(--txt)!important;
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);box-shadow:0 0 0 1px var(--ember-line),0 8px 26px rgba(255,90,20,.3)}
+#toast{font-family:var(--f-ui)!important}
+#hint{font-family:var(--f-ui)!important;color:var(--txt-2)}
+#xh{border-color:#ffd2a8!important;box-shadow:0 0 8px rgba(255,107,26,.8)!important}
+#over{font-family:var(--f-ui)!important}
+#note{background:var(--glass-2)!important;border:1px solid rgba(98,228,255,.35)!important;border-radius:var(--r-lg)!important;box-shadow:var(--shadow)!important;font-family:var(--f-ui)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+#draft>*{font-family:var(--f-ui)!important}
+#draft button{border-radius:var(--r)!important}
+#lobbyUI{background:var(--glass-2)!important;border:1px solid var(--edge)!important;border-radius:var(--r-lg)!important;box-shadow:var(--shadow)!important;font-family:var(--f-ui)!important;color:var(--txt)!important;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+#lbStart{background:var(--ember-grad)!important;color:#1b0700!important;border:0!important;min-height:var(--tap)}
+#lbLeave{min-height:var(--tap);background:var(--fill)!important;border:1px solid var(--edge)!important}
+#rkstart{background:var(--ember-grad)!important;color:#1b0700!important;border:0!important;min-height:50px;padding:0 26px!important;box-shadow:0 8px 26px rgba(255,90,20,.35)}
+#teampick button{min-height:var(--tap)}
+#payst{font-family:var(--f-ui)!important;border-radius:var(--r)!important}
+
+/* ---------- touch controls ---------- */
+#joy{border:1px solid var(--edge-2)!important;background:radial-gradient(circle,rgba(255,107,26,.12) 0%,rgba(14,10,10,.4) 70%)!important;box-shadow:inset 0 0 0 6px rgba(255,255,255,.03)}
+#knob{background:radial-gradient(circle at 40% 35%,#ffd2a8,var(--ember) 70%)!important;box-shadow:0 0 16px rgba(255,107,26,.7)!important}
+#firebtn{background:radial-gradient(circle at 40% 35%,rgba(120,36,8,.85),rgba(40,12,4,.85))!important;border:2px solid var(--ember)!important;color:#ffe2c8!important;font:900 18px/1.1 var(--f-ui)!important;
+  box-shadow:0 0 0 6px rgba(255,107,26,.12),0 10px 26px rgba(0,0,0,.45)!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#firebtn.on{background:var(--ember-grad)!important;color:#1b0700!important}
+#usebtn{border:2px solid rgba(98,228,255,.7)!important;color:#d8f8ff!important;background:rgba(6,30,40,.7)!important;font:800 15px var(--f-ui)!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#swapbtn{border:1px solid var(--edge-2)!important;color:var(--txt)!important;background:rgba(14,10,10,.62)!important;font:800 12px/1.1 var(--f-ui)!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+@media (pointer:coarse){
+  #tbar{top:calc(8px + var(--sa-t))!important}
+  #prompt{max-width:min(78vw,420px)!important}
+}

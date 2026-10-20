@@ -97,13 +97,16 @@ function tryGen(R) {
   const boxZ = [1, ...shuffle(others.slice()), 0].slice(0, 6), BOX = boxZ.map(z => spot(z, 4)).filter(Boolean); if (BOX.length < 3) return null;
   const forge = spot(deepest, 4); if (!forge) return null;
   const powerZ = pick(others.filter(z => z !== deepest).length ? others.filter(z => z !== deepest) : others), power = spot(powerZ, 4); if (!power) return null;
-  const perkZ = { revive: 0, quick: pick([0, 1]), jug: pick(others), speed: pick([1, ...others]), dbl: pick(others) }, PERKSPOT = {};
-  for (const k of Object.keys(perkZ)) { PERKSPOT[k] = spot(perkZ[k], 4) || spot(1, 4); if (!PERKSPOT[k]) return null; }
+  const perkZ = { revive: 0, quick: pick([0, 1]), jug: pick(others), speed: pick([1, ...others]), dbl: pick(others), slag: pick(others), burn: pick(others), valve: pick([1, ...others]), leech: pick([0, 1, ...others]) }, PERKSPOT = {};
+  for (const k of Object.keys(perkZ)) { PERKSPOT[k] = spot(perkZ[k], 4) || spot(1, 4) || spot(pick(others), 3) || spot(1, 3); if (!PERKSPOT[k]) return null; }
+  // Night Shift radio quest: a console against a wall somewhere off the spine, plus the rooms each step's item hides in (any room but spawn)
+  const qc = spot(pick(others), 4) || spot(1, 3); if (!qc) return null; const qz = shuffle(others.slice());
+  const quest = { console: qc, zones: [[qz[0]], [qz[1 % qz.length]], [qz[2 % qz.length]]] };
   // 8. sanity: with every door open, all floor is reachable from spawn
   { let start = -1, total = 0; for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) if (G[r][c] >= 0) { total++; if (start < 0 && G[r][c] === 0) start = r * GW + c; }
     const seen = new Set([start]), q = [start]; for (let h = 0; h < q.length; h++) { const i = q[h], c = i % GW, r = (i - c) / GW; for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nc = c + dc, nr = r + dr, j = nr * GW + nc; if (!seen.has(j) && G[nr]?.[nc] >= 0) { seen.add(j); q.push(j); } } }
     if (seen.size !== total) return null; }
   const tod = pick(['day', 'dusk', 'night', 'night']), env = { tod, storm: R() < 0.3 };
-  return { name: pick(MAPNAMES), env, grid: G, zones: ZONES.map(({ n, r, col }) => ({ n, r, col })), obst: OBST, doordef: DOORDEF, windef: WINDEF, wallbuys: WALLBUYS, box: BOX, forge, power, perks: PERKSPOT };
+  return { name: pick(MAPNAMES), env, grid: G, zones: ZONES.map(({ n, r, col }) => ({ n, r, col })), obst: OBST, doordef: DOORDEF, windef: WINDEF, wallbuys: WALLBUYS, box: BOX, forge, power, perks: PERKSPOT, quest };
 }
 module.exports = { gen, GW, GH };

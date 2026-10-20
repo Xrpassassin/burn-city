@@ -1,13 +1,14 @@
 // Authoritative simulation for both modes. Clients only send inputs; server owns all state,
 // collisions and damage. Numbers are quantized in snapshots to keep bandwidth small.
-const C = require('./config'), Z = require('./cod'), IFRAME = +(process.env.ZOMBIE_IFRAME || 1), SPAWN_GAP = +(process.env.ZOMBIE_SPAWN_GAP || 1.8), REGEN_DELAY = +(process.env.ZOMBIE_REGEN_DELAY || 3.5), REGEN_RATE = +(process.env.ZOMBIE_REGEN_RATE || 22), HS_LAT = 0.3, HS_BONUS = 40, TEST_GOD = process.env.ZOMBIE_TEST_GOD === '1' && !process.env.FLY_APP_NAME;   // local screenshot runs only
+const C = require('./config'), Z = require('./cod'), Quest = require('./quest'), IFRAME = +(process.env.ZOMBIE_IFRAME || 1), SPAWN_GAP = +(process.env.ZOMBIE_SPAWN_GAP || 1.8), REGEN_DELAY = +(process.env.ZOMBIE_REGEN_DELAY || 3.5), REGEN_RATE = +(process.env.ZOMBIE_REGEN_RATE || 22), HS_LAT = 0.3, HS_BONUS = 40, TEST_GOD = process.env.ZOMBIE_TEST_GOD === '1' && !process.env.FLY_APP_NAME;   // local screenshot runs only
 // between-round upgrade draft (Mortuus-style): after each cleared wave every standing player picks 1 of 3 stacking boons
-const DRAFT = { dmg: ['Searing Fuel', '+12% damage', 5], fuel: ['Deep Tanks', '+25% fuel refill', 4], armor: ['Slag Plating', '-10% damage taken', 3], hp: ['Thick Skin', '+20 max health', 5],
-  pts: ['Bounty Hunter', '+15% kill points', 4], regen: ['Second Wind', 'Faster health regen', 3], range: ['Long Reach', '+8% weapon range', 3], hs: ['Executioner', '+25% headshot damage', 3] };
+const DRAFT = { dmg: ['Searing Fuel', '+12% damage', 5, '🔥'], fuel: ['Deep Tanks', '+25% fuel refill', 4, '⛽'], armor: ['Slag Plating', '-10% damage taken', 3, '🛡️'], hp: ['Thick Skin', '+20 max health', 5, '❤️'],
+  pts: ['Bounty Hunter', '+15% kill points', 4, '💰'], regen: ['Second Wind', 'Faster health regen', 3, '🌬️'], range: ['Long Reach', '+8% weapon range', 3, '🎯'], hs: ['Executioner', '+25% headshot damage', 3, '💀'],
+  crit: ['Flashpoint', '7% chance a hit flares for 2.5x damage', 3, '✴️'], rof: ['Overpressure', '+8% fire rate · 8% less fuel burn', 3, '⏩'] };
 const bon = (p, k) => (p.bon && p.bon[k]) || 0, maxHp = p => (Z.has(p, 'jug') ? 250 : 100) + 20 * bon(p, 'hp');
 function offerDraft(p, ev) { const ks = Object.keys(DRAFT).filter(k => bon(p, k) < DRAFT[k][2]); for (let i = ks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ks[i], ks[j]] = [ks[j], ks[i]]; }
-  p.draft = ks.slice(0, 3); if (p.draft.length) ev.push({ e: 'draft', id: p.id, o: p.draft.map(k => [k, DRAFT[k][0], DRAFT[k][1], bon(p, k)]) }); else p.draft = null; }
-function takeDraft(p, i, ev) { const k = p.draft?.[i]; if (!k) return; p.bon ||= {}; p.bon[k] = bon(p, k) + 1; p.draft = null; if (k === 'hp') p.hp += 20; ev.push({ e: 'drafted', id: p.id, k, n: DRAFT[k][0], lv: p.bon[k] }); }
+  p.draft = ks.slice(0, 3); if (p.draft.length) ev.push({ e: 'draft', id: p.id, o: p.draft.map(k => [k, DRAFT[k][0], DRAFT[k][1], bon(p, k), DRAFT[k][3]]) }); else p.draft = null; }
+function takeDraft(p, i, ev) { const k = p.draft?.[i]; if (!k) return; p.bon ||= {}; p.bon[k] = bon(p, k) + 1; p.draft = null; if (k === 'hp') p.hp += 20; ev.push({ e: 'drafted', id: p.id, k, n: DRAFT[k][0], lv: p.bon[k], ic: DRAFT[k][3] }); }
 const HPM = [1, 0.5, 3, 7, 0.6, 0.35], SPM = [1, 1, 0.6, 0.55, 1.75, 1.55], ZPTS = [60, 80, 130, 350, 110, 90], ZHIT = [12, 12, 22, 30, 12, 8];
 const W = 120;                      // world half-size (city streets span -W..W)
 const q = v => Math.round(v * 10) / 10;
@@ -39,7 +40,7 @@ class Room {
   }
   spawn(p) {
     const a = Math.random() * Math.PI * 2, r = this.mode === 'tron' ? 60 + Math.random() * 40 : 8 * Math.random();
-    p.x = Math.cos(a) * r; p.z = Math.sin(a) * r; if (this.mode === 'zombie') { Z.bind(this); let best = null, bd = -1; for (let k = 0; k < 20; k++) { const c = Z.zoneSpawn(), d = Math.min(99, ...[...(this.zombies?.values() || [])].map(z => Math.hypot(z.x - c[0], z.z - c[1]))); if (d > bd) { bd = d; best = c; } if (d > 8) break; } [p.x, p.z] = best; p.inv = Math.max(p.inv || 0, 2); } p.alive = true; p.in = p.in || { mx: 0, mz: 0, fire: false, turn: 0 };
+    p.x = Math.cos(a) * r; p.z = Math.sin(a) * r; if (this.mode === 'zombie') { Z.bind(this); let best = null, bd = -1; for (let k = 0; k < 20; k++) { const c = Z.zoneSpawn(), d = Math.min(99, ...[...(this.zombies?.values() || [])].map(z => Math.hypot(z.x - c[0], z.z - c[1]))); if (d > bd) { bd = d; best = c; } if (d > 8) break; } [p.x, p.z] = best; p.inv = Math.max(p.inv || 0, 2); p.lv = 0; p.y = 0; } p.alive = true; p.in = p.in || { mx: 0, mz: 0, fire: false, turn: 0 };
     if (this.mode === 'tron') {   // grid-aligned heading, pointed roughly inward
       p.dir = Math.abs(p.x) > Math.abs(p.z) ? (p.x > 0 ? 2 : 0) : (p.z > 0 ? 3 : 1);
       p.trail = [[p.x, p.z, this.t]]; p.turnCd = 0; p.deadT = null;
@@ -105,6 +106,7 @@ class Room {
     this.dtNow = dt; Z.tickBox(this, ev);
     if (this.toSpawn === 0 && this.zombies.size === 0) {        // next wave
       if (!this.ranked && this.wave >= 1 && this.drafted !== this.wave) { this.drafted = this.wave; for (const p of ps) if (p.alive && !p.down && !p.spectator) offerDraft(p, ev); }
+      Quest.onBreak(this, ev);   // between rounds: the next radio call (once per break)
       if ((this.waveDelay -= dt) <= 0) { this.wave++; const np = Math.max(1, ps.filter(p => !p.spectator).length); this.toSpawn = Math.round((6 + this.wave * 4) * Z.scaleN(np)); this.waveTotal = this.toSpawn; this.spawnT = 2.5; this.waveDelay = Z.waveGap(np); ev.push({ e: 'wave', n: this.wave }); for (const p of ps) if (p.draft) takeDraft(p, 0, ev);
         for (const p of ps) if (!p.alive && !this.ranked) { this.spawn(p); ev.push({ e: 'spawn', id: p.id, x: q(p.x), z: q(p.z) }); } }
     }
@@ -119,25 +121,28 @@ class Room {
       const roll = Math.random(), sr = this.ranked ? 1 : Math.random(), wv = this.wave;   // specials (not in ranked): 3 Juggernaut, 4 Lope (runs on its arms), 5 Skitter
       const ty = wv >= 5 && sr < 0.035 ? 3 : wv >= 4 && sr < 0.11 ? 4 : wv >= 6 && sr < 0.17 ? 5 : wv >= 2 && roll < 0.18 ? 1 : wv >= 3 && roll > 0.9 ? 2 : 0;   // 1 runner (fast, frail), 2 brute (slow, tanky)
       const base = (60 + this.wave * 15) * (this.mod?.hp || 1) * Z.hpN(Math.max(1, ps.filter(p => !p.spectator).length)), sp = (2.2 + Math.min(this.wave * 0.25, 2.5) + Math.random()) * (this.mod?.sp || 1);
-      this.zombies.set(this.zid, { id: this.zid++, ty, x: sx, z: sz, hp: base * HPM[ty], maxhp: base * HPM[ty], sp: sp * (ty === 1 ? Z.RUNNER : SPM[ty]), win: wn ? wi : null, ph: 0 });
+      this.zombies.set(this.zid, { id: this.zid++, ty, x: sx, z: sz, lv: wn?.lv || 0, y: (wn?.lv || 0) * Z.UH, hp: base * HPM[ty], maxhp: base * HPM[ty], sp: sp * (ty === 1 ? Z.RUNNER : SPM[ty]), win: wn ? wi : null, ph: 0 });
     }
     if (this.spawnT < 0) this.spawnT = 0;   // no banked burst while the alive cap is full
-    const hurt = (zb, amt, p, hs = 0) => { const d = amt * (Z.has(p, 'dbl') ? 2 : 1) * (hs ? hs * (1 + 0.25 * bon(p, 'hs')) : 1) * (1 + 0.12 * bon(p, 'dmg')); zb.hs = hs ? 1 : 0; if (hs) p._hs = 1; const _ = 0, real = Math.min(d, Math.max(0, zb.hp)); zb.hp -= d; if (!this.ranked && !zb.crR && zb.hp > 0 && zb.maxhp && zb.hp < zb.maxhp * 0.4 && zb.ty <= 1) { zb.crR = 1; if (Math.random() < 0.3) { zb.cr = 1; zb.sp *= 0.45; } } zb.burn = 1; zb.by = p.id; if (real > 0) p._hm = Math.max(p._hm || 0, zb.hp <= 0 ? 2 : 1);
+    const hurt = (zb, amt, p, hs = 0, dot = false) => { let d = amt * (Z.has(p, 'dbl') ? 2 : 1) * (hs ? hs * (1 + 0.25 * bon(p, 'hs')) : 1) * (1 + 0.12 * bon(p, 'dmg'));
+      if (!dot && bon(p, 'crit') && Math.random() < 0.07 * bon(p, 'crit')) { d *= 2.5; p._cr = 1; }   // Flashpoint boon
+      if (!dot && Z.has(p, 'burn') && zb.hp > 0) { zb.dot = Math.min((zb.dot || 0) + d * 0.35, zb.maxhp || 1e9); zb.dotBy = p.id; }   // Afterburn perk: 35% extra as burn over ~2 s
+      zb.hs = hs ? 1 : 0; if (hs) p._hs = 1; const _ = 0, real = Math.min(d, Math.max(0, zb.hp)); zb.hp -= d; if (!this.ranked && !zb.crR && zb.hp > 0 && zb.maxhp && zb.hp < zb.maxhp * 0.4 && zb.ty <= 1) { zb.crR = 1; if (Math.random() < 0.3) { zb.cr = 1; zb.sp *= 0.45; } } zb.burn = 1; zb.by = p.id; if (real > 0) p._hm = Math.max(p._hm || 0, zb.hp <= 0 ? 2 : 1);
       p.ptsAcc += real * 0.2; if (p.ptsAcc >= 1) { const k = Math.floor(p.ptsAcc); p.pts += k; p.ptsAcc -= k; } };   // points per hit (by damage dealt)
     const up = ps.filter(p => p.alive && !p.down);
     // Last stand: downed players crawl and fire a BURN pistol (hotter if they own any Forged gun)
     const lastStand = (p, dt) => { const s = Math.sin(p.yaw), c = Math.cos(p.yaw), CR = 1.6; let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
-      const nx = clamp(p.x + vx * CR * dt, -W, W), nz = clamp(p.z + vz * CR * dt, -W, W); if (Z.inside(this, nx, p.z)) p.x = nx; if (Z.inside(this, p.x, nz)) p.z = nz;
+      const nx = clamp(p.x + vx * CR * dt, -W, W), nz = clamp(p.z + vz * CR * dt, -W, W); if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
       const hot = !!(p.up && p.up.length), dmg = hot ? 85 : 42, range = hot ? 22 : 17, cd = hot ? 0.28 : 0.42, splash = hot ? 1.3 : 0; p.cd = Math.max(0, (p.cd || 0) - dt);
       if (!(p.in.fire && p.cd <= 0)) return; p.cd = cd; p.firing = true; let hit = null, hd = range;
-      for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && Z.los(this, p.x, p.z, zb.x, zb.z)) { hd = along; hit = zb; hit._lat = lat; } }
-      let ex = p.x + s * hd, ez = p.z + c * hd; if (!hit) { let d2 = range; while (d2 > 1 && !Z.los(this, p.x, p.z, p.x + s * d2, p.z + c * d2)) d2 -= 0.7; ex = p.x + s * d2; ez = p.z + c * d2; }
+      for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) { hd = along; hit = zb; hit._lat = lat; } }
+      let ex = p.x + s * hd, ez = p.z + c * hd; if (!hit) { let d2 = range; while (d2 > 1 && !Z.los(this, p.x, p.z, p.x + s * d2, p.z + c * d2, p.y)) d2 -= 0.7; ex = p.x + s * d2; ez = p.z + c * d2; }
       if (hit) for (const zb of this.zombies.values()) { if (zb === hit) hurt(zb, dmg, p, hit._lat < HS_LAT ? 2 : 0); else if (splash && Math.hypot(zb.x - ex, zb.z - ez) < splash) hurt(zb, dmg * 0.4, p); }
-      ev.push({ e: 'shot', id: p.id, w: 'napalm', x: q(p.x), z: q(p.z), tx: q(ex), tz: q(ez), ray: 1, ls: hot ? 2 : 1 }); };
+      ev.push({ e: 'shot', id: p.id, w: 'napalm', x: q(p.x), z: q(p.z), tx: q(ex), tz: q(ez), ty: hit ? q(hit.y || 0) : q(p.y || 0), ray: 1, ls: hot ? 2 : 1 }); };
     if ((this.flowT = (this.flowT || 0) - dt) <= 0) { this.flowT = 0.25; Z.flow(this, up); }   // refresh the zombie flow field 4x/s
     for (const p of ps) if (p.alive) {
       if (p.down) {   // downed: bleed out unless revived (teammate stands close) or Phoenix self-revive (solo)
-        p.firing = false; p.in.use = false; p.in.pk = null; const helper = up.find(o => Math.hypot(o.x - p.x, o.z - p.z) < Z.REVIVE_R);
+        p.firing = false; p.in.use = false; p.in.pk = null; const helper = up.find(o => Math.hypot(o.x - p.x, o.z - p.z) < Z.REVIVE_R && Math.abs((o.y || 0) - (p.y || 0)) < 1.3);
         if (p.selfRev) { if ((p.selfRev -= dt) <= 0) { p.down = 0; p.selfRev = 0; p.hp = 60; ev.push({ e: 'revived', id: p.id, by: p.id }); } continue; }
         if (helper) { p.revNeed = Z.has(helper, 'revive') ? 1.5 : 4; p.revT = (p.revT || 0) + dt; p.revBy = helper.id;
           if (p.revT >= p.revNeed) { p.down = 0; p.revT = 0; p.hp = 50; helper.pts += 50;   // a revive hands back one random perk you held before going down
@@ -150,27 +155,27 @@ class Room {
       }
       { const mx = maxHp(p); if (p.hp < mx && this.t - (p.hurtT ?? -99) > REGEN_DELAY - 0.8 * bon(p, 'regen')) p.hp = Math.min(mx, p.hp + REGEN_RATE * (Z.has(p, 'jug') ? 1.5 : 1) * (1 + 0.35 * bon(p, 'regen')) * dt); }
       if (p.in.pk != null) { takeDraft(p, p.in.pk, ev); p.in.pk = null; }   // health regen after a few seconds without damage
-      if (p.in.use) { p.in.use = false; Z.use(this, p, ev); } Z.repair(this, p, dt, ev);
+      if (p.in.use) { p.in.use = false; if (!Quest.use(this, p, ev)) Z.use(this, p, ev); } Z.repair(this, p, dt, ev);
       const s = Math.sin(p.yaw), c = Math.cos(p.yaw), SP = Z.has(p, 'speed') ? 8.2 : 6;           // move relative to view
       let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
       const nx = clamp(p.x + vx * SP * dt, -W, W), nz = clamp(p.z + vz * SP * dt, -W, W);   // stay inside unlocked zones (doors = barriers)
-      if (Z.inside(this, nx, p.z)) p.x = nx; if (Z.inside(this, p.x, nz)) p.z = nz;
-      const w0 = Z.wpn(p), w = bon(p, 'range') || bon(p, 'fuel') ? { ...w0, range: w0.range * (1 + 0.08 * bon(p, 'range')), regen: w0.regen * (1 + 0.25 * bon(p, 'fuel')) } : w0, quick = Z.has(p, 'quick'); p.cd = Math.max(0, p.cd - dt);
+      if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
+      const w0 = Z.wpn(p), ro = bon(p, 'rof'), w = bon(p, 'range') || bon(p, 'fuel') || ro ? { ...w0, range: w0.range * (1 + 0.08 * bon(p, 'range')), regen: w0.regen * (1 + 0.25 * bon(p, 'fuel')), use: w0.use * (1 - 0.08 * ro), cd: w0.cd && w0.cd * (1 - 0.08 * ro) } : w0, quick = Z.has(p, 'quick'); p.cd = Math.max(0, p.cd - dt);
       if (w.kind === 'cone' || w.kind === 'beam') {
         p.firing = p.in.fire && p.fuel > 0; p.fuel = clamp(p.fuel + (p.firing ? -w.use : w.regen * (quick ? 2 : 1)) * dt, 0, 100);
         if (p.firing) for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, d = Math.hypot(dx, dz), along = dx * s + dz * c;
           if (d >= w.range || d <= 0 || along <= 0) continue;
-          if ((w.kind === 'beam' ? Math.abs(dx * c - dz * s) < w.width : along / d > w.cos) && Z.los(this, p.x, p.z, zb.x, zb.z)) hurt(zb, w.dps * dt * (w.kind === 'beam' ? 1 : 1 - d / w.range * 0.5), p, w.kind === 'beam' && Math.abs(dx * c - dz * s) < HS_LAT ? 1.5 : 0); }
+          if ((w.kind === 'beam' ? Math.abs(dx * c - dz * s) < w.width : along / d > w.cos) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) hurt(zb, w.dps * dt * (w.kind === 'beam' ? 1 : 1 - d / w.range * 0.5), p, w.kind === 'beam' && Math.abs(dx * c - dz * s) < HS_LAT ? 1.5 : 0); }
       } else {
         p.fuel = clamp(p.fuel + w.regen * (quick ? 2 : 1) * dt, 0, 100); p.firing = false;
         if (p.in.fire && p.cd <= 0 && p.fuel >= w.use) { p.fuel -= w.use; p.cd = w.cd * (quick ? 0.6 : 1); p.firing = true;
-          if (w.kind === 'burst') { for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, d = Math.hypot(dx, dz); if (d < w.range && d > 0 && (dx * s + dz * c) / d > w.cos && Z.los(this, p.x, p.z, zb.x, zb.z)) hurt(zb, w.dmg * (1 - d / w.range * 0.6), p, Math.abs(dx * c - dz * s) < HS_LAT ? 1.5 : 0); }
+          if (w.kind === 'burst') { for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, d = Math.hypot(dx, dz); if (d < w.range && d > 0 && (dx * s + dz * c) / d > w.cos && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) hurt(zb, w.dmg * (1 - d / w.range * 0.6), p, Math.abs(dx * c - dz * s) < HS_LAT ? 1.5 : 0); }
             ev.push({ e: 'shot', id: p.id, w: w.id, x: q(p.x), z: q(p.z), y: Math.round(p.yaw * 100) / 100 }); }
-          else if (w.kind === 'ray') { let hit = null, hd = w.range; for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && Z.los(this, p.x, p.z, zb.x, zb.z)) { hd = along; hit = zb; hit._lat = lat; } }
-            let ex = p.x + s * hd, ez = p.z + c * hd; if (!hit) { let d2 = w.range; while (d2 > 1 && !Z.los(this, p.x, p.z, p.x + s * d2, p.z + c * d2)) d2 -= 0.7; ex = p.x + s * d2; ez = p.z + c * d2; }
-            if (hit) { for (const zb of this.zombies.values()) { const d = Math.hypot(zb.x - ex, zb.z - ez); if (zb === hit) hurt(zb, w.dmg, p, hit._lat < HS_LAT ? 2 : 0); else if (d < w.splash) hurt(zb, w.dmg * 0.4, p); } }
-            ev.push({ e: 'shot', id: p.id, w: w.id, x: q(p.x), z: q(p.z), tx: q(ex), tz: q(ez), ray: 1 }); }
-          else { let dist = clamp(14 + (p.pitch || 0) * 30, 5, 24); while (dist > 1 && !Z.los(this, p.x, p.z, p.x + s * dist, p.z + c * dist)) dist -= 0.7; const tx = p.x + s * dist, tz = p.z + c * dist;   // napalm lands short of walls this.proj.push({ x: tx, z: tz, t: 0.6, by: p.id, w });
+          else if (w.kind === 'ray') { let hit = null, hd = w.range; for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) { hd = along; hit = zb; hit._lat = lat; } }
+            let ex = p.x + s * hd, ez = p.z + c * hd; if (!hit) { let d2 = w.range; while (d2 > 1 && !Z.los(this, p.x, p.z, p.x + s * d2, p.z + c * d2, p.y)) d2 -= 0.7; ex = p.x + s * d2; ez = p.z + c * d2; }
+            if (hit) { for (const zb of this.zombies.values()) { const d = Math.hypot(zb.x - ex, zb.z - ez); if (zb === hit) hurt(zb, w.dmg, p, hit._lat < HS_LAT ? 2 : 0); else if (d < w.splash && Math.abs((zb.y || 0) - (hit.y || 0)) < 1.5) hurt(zb, w.dmg * 0.4, p); } }
+            ev.push({ e: 'shot', id: p.id, w: w.id, x: q(p.x), z: q(p.z), tx: q(ex), tz: q(ez), ty: hit ? q(hit.y || 0) : q(p.y || 0), ray: 1 }); }
+          else { let dist = clamp(14 + (p.pitch || 0) * 30, 5, 24); while (dist > 1 && !Z.los(this, p.x, p.z, p.x + s * dist, p.z + c * dist, p.y)) dist -= 0.7; const tx = p.x + s * dist, tz = p.z + c * dist;   // napalm lands short of walls this.proj.push({ x: tx, z: tz, t: 0.6, by: p.id, w });
             ev.push({ e: 'shot', id: p.id, w: w.id, x: q(p.x), z: q(p.z), tx: q(tx), tz: q(tz) }); } }
       }
     }
@@ -180,23 +185,27 @@ class Room {
     for (let i = this.pools.length - 1; i >= 0; i--) { const pl = this.pools[i], p = this.players.get(pl.by); if ((pl.t -= dt) <= 0 || !p) { this.pools.splice(i, 1); continue; }
       for (const zb of this.zombies.values()) if (Math.hypot(zb.x - pl.x, zb.z - pl.z) < pl.w.splash) hurt(zb, pl.w.pdps * dt, p); }
     for (const p of this.players.values()) if (p.inv > 0) p.inv -= dt;
-    for (const p of ps) if (p._hm) { ev.push({ e: 'hm', id: p.id, k: p._hm === 2 ? 1 : 0, hs: p._hs ? 1 : 0 }); p._hm = 0; p._hs = 0; }
+    for (const p of ps) if (p._hm) { ev.push({ e: 'hm', id: p.id, k: p._hm === 2 ? 1 : 0, hs: p._hs ? 1 : 0, ...(p._cr ? { cr: 1 } : {}) }); p._hm = 0; p._hs = 0; p._cr = 0; }
+    Quest.tick(this, ps, ev);
     this.zt = (this.zt || 0) + dt; if (!this.winLast) this.winLast = Z.WINDOWS.map(() => -99);
     for (const zb of this.zombies.values()) {
-      if (zb.hp <= 0) { this.zombies.delete(zb.id); this.score += 10; const k = this.players.get(zb.by); if (k) { k.lifeKills++; k.pts += Math.round(((ZPTS[zb.ty] ?? 60) + (zb.hs ? HS_BONUS : 0)) * (1 + 0.15 * bon(k, 'pts'))); if (zb.hs) k.lifeHs = (k.lifeHs || 0) + 1; } ev.push({ e: 'zdie', id: zb.id, x: q(zb.x), z: q(zb.z), ty: zb.ty, hs: zb.hs ? 1 : 0 }); continue; }
+      if (zb.dot > 0 && zb.hp > 0) { const k = this.players.get(zb.dotBy), a = Math.min(zb.dot, Math.max(12, zb.dot * 0.6) * dt); zb.dot -= a; if (k) hurt(zb, a / ((Z.has(k, 'dbl') ? 2 : 1) * (1 + 0.12 * bon(k, 'dmg'))), k, 0, true); else zb.dot = 0; }   // Afterburn tick (already scaled when banked)
+      if (zb.hp <= 0) { this.zombies.delete(zb.id); this.score += 10; const k = this.players.get(zb.by); if (k && Z.has(k, 'leech') && k.alive && !k.down) k.hp = Math.min(maxHp(k), k.hp + 8); if (k) { k.lifeKills++; k.pts += Math.round(((ZPTS[zb.ty] ?? 60) + (zb.hs ? HS_BONUS : 0)) * (1 + 0.15 * bon(k, 'pts'))); if (zb.hs) k.lifeHs = (k.lifeHs || 0) + 1; } ev.push({ e: 'zdie', id: zb.id, x: q(zb.x), z: q(zb.z), ty: zb.ty, hs: zb.hs ? 1 : 0 }); continue; }
       if (Z.atWindow(this, zb, dt, ev)) { zb.burn = Math.max(0, (zb.burn || 0) - dt); continue; }
-      let best = null, bd = 1e9; for (const p of ps) if (p.alive && !p.down) { const d = Math.hypot(p.x - zb.x, p.z - zb.z); if (d < bd) { bd = d; best = p; } }
+      let best = null, bd = 1e9; for (const p of ps) if (p.alive && !p.down) { const d = Math.hypot(p.x - zb.x, p.z - zb.z) + (Math.abs((p.y || 0) - (zb.y || 0)) > 1.3 ? 6 : 0); if (d < bd) { bd = d; best = p; } }   // another floor counts as further away
       if (!best) continue;
-      if (bd > 1.1) {   // follow the flow field; go straight only when close with a clear line
-        let tx = best.x, tz = best.z; const st = Z.nextStep(this, zb.x, zb.z); if (st && !(bd < 3 && Z.los(this, zb.x, zb.z, best.x, best.z))) { tx = st[0]; tz = st[1]; }
-        if (zb.ty === 3) { zb.chT = (zb.chT ?? 5) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < 14 && Z.los(this, zb.x, zb.z, best.x, best.z)) { zb.chT = 7 + Math.random() * 3; zb.charge = 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
+      const sameLv = Math.abs((best.y || 0) - (zb.y || 0)) < 1.3;
+      if (bd > 1.1 || !sameLv) {   // follow the flow field; go straight only when close with a clear line
+        let tx = best.x, tz = best.z; const st = Z.nextStep(this, zb.x, zb.z, zb.lv); if (st && !(bd < 3 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y))) { tx = st[0]; tz = st[1]; }
+        if (zb.ty === 3) { zb.chT = (zb.chT ?? 5) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < 14 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = 7 + Math.random() * 3; zb.charge = 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
         const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1, mv = zb.sp * (zb.charge > 0 ? 3.2 : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
-        if (Z.inside(this, nx, zb.z, 0.32)) zb.x = nx; if (Z.inside(this, zb.x, nz, 0.32)) zb.z = nz;
-        if (!Z.inside(this, zb.x, zb.z, 0.32) && st) { zb.x += (st[0] - zb.x) * Math.min(1, dt * 4); zb.z += (st[1] - zb.z) * Math.min(1, dt * 4); }   // never wedge into a corner
+        if (Z.inside(this, nx, zb.z, 0.32, zb.lv)) zb.x = nx; if (Z.inside(this, zb.x, nz, 0.32, zb.lv)) zb.z = nz;
+        if (!Z.inside(this, zb.x, zb.z, 0.32, zb.lv) && st) { zb.x += (st[0] - zb.x) * Math.min(1, dt * 4); zb.z += (st[1] - zb.z) * Math.min(1, dt * 4); }   // never wedge into a corner
+        Z.lift(zb);
         zb.mv = (zb.mv || 0) + Math.hypot(zb.x - (zb.lx ?? zb.x), zb.z - (zb.lz ?? zb.z)); zb.lx = zb.x; zb.lz = zb.z;
-        if ((zb.stT = (zb.stT || 0) + dt) > 4) { if (zb.mv < 0.6) { const wi = Z.windowSpawn(this), w = Z.WINDOWS[wi]; if (w) { zb.x = w.ox; zb.z = w.oz; zb.win = wi; zb.ph = 0; this.stuckN = (this.stuckN || 0) + 1; } } zb.stT = 0; zb.mv = 0; }   // stuck safety net: re-enter via a window
+        if ((zb.stT = (zb.stT || 0) + dt) > 4) { if (zb.mv < 0.6) { const wi = Z.windowSpawn(this), w = Z.WINDOWS[wi]; if (w) { zb.x = w.ox; zb.z = w.oz; zb.lv = w.lv || 0; zb.y = zb.lv * Z.UH; zb.win = wi; zb.ph = 0; this.stuckN = (this.stuckN || 0) + 1; } } zb.stT = 0; zb.mv = 0; }   // stuck safety net: re-enter via a window
       }
-      else if (!(best.inv > 0) && (ev.push({ e: 'phit', id: best.id, x: q(zb.x), z: q(zb.z) }), best.inv = IFRAME, best.hurtT = this.t, (best.hp -= (TEST_GOD ? 0 : (ZHIT[zb.ty] ?? 12) * (zb.charge > 0 ? 1.5 : 1) * (1 - 0.1 * bon(best, 'armor'))) * Math.max(IFRAME, 0.05)) <= 0)) {   // discrete hit + i-frames (same avg DPS)
+      else if (!(best.inv > 0) && (ev.push({ e: 'phit', id: best.id, x: q(zb.x), z: q(zb.z), ty: zb.ty }), best.inv = IFRAME, best.hurtT = this.t, Z.has(best, 'slag') && (hurt(zb, 120 + 20 * this.wave, best), ev.push({ e: 'slag', id: best.id, zid: zb.id })), (best.hp -= (TEST_GOD ? 0 : (ZHIT[zb.ty] ?? 12) * (zb.charge > 0 ? 1.5 : 1) * (1 - 0.1 * bon(best, 'armor'))) * Math.max(IFRAME, 0.05)) <= 0)) {   // discrete hit + i-frames (same avg DPS); Slag Skin burns the attacker
         const others = ps.some(o => o !== best && o.alive && !o.down), phoenix = Z.has(best, 'revive');
         best.hp = 0; best.prevPerks = best.perks; best.perks = phoenix && !others ? best.perks & ~Z.PB.revive : 0;   // going down costs your perks (Phoenix is used up on a solo self-revive)
         if (phoenix && !others && !best.usedSelf) { best.down = 1; best.selfRev = 3; best.usedSelf = true; ev.push({ e: 'downed', id: best.id, self: 1 }); }
@@ -205,8 +214,12 @@ class Room {
       }
       zb.burn = Math.max(0, (zb.burn || 0) - dt);
     }
+    for (const p of ps) if (p.alive && !p.down && Z.has(p, 'valve') && p.hp < maxHp(p) * 0.35 && this.t >= (p.valveT || 0)) {   // Pressure Valve: fire nova + shove, then a 30 s recharge
+      p.valveT = this.t + 30; p.inv = Math.max(p.inv || 0, 1.5); ev.push({ e: 'nova', id: p.id, x: q(p.x), z: q(p.z), y: q(p.y || 0) });
+      for (const zb of this.zombies.values()) { if (zb.win != null || Math.abs((zb.y || 0) - (p.y || 0)) > 1.5) continue; const dx = zb.x - p.x, dz = zb.z - p.z, d = Math.hypot(dx, dz); if (d > 5) continue;
+        hurt(zb, 250 + 40 * this.wave, p); const k = (5 - d) * 0.6 / (d || 1), nx = zb.x + dx * k, nz = zb.z + dz * k; if (Z.inside(this, nx, nz, 0.32, zb.lv)) { zb.x = nx; zb.z = nz; } } }
     const zl = [...this.zombies.values()].filter(z => z.win == null); for (let i = 0; i < zl.length; i++) for (let j = i + 1; j < zl.length; j++) { const a = zl[i], b = zl[j], dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);   // light crowd separation
-      if (d < 0.7 && d > 1e-3) { const k = (0.7 - d) / d * 0.25, ax = a.x - dx * k, az = a.z - dz * k, bx = b.x + dx * k, bz = b.z + dz * k; if (Z.inside(this, ax, az, 0.3)) { a.x = ax; a.z = az; } if (Z.inside(this, bx, bz, 0.3)) { b.x = bx; b.z = bz; } } }
+      if (d < 0.7 && d > 1e-3 && Math.abs((a.y || 0) - (b.y || 0)) < 1.3) { const k = (0.7 - d) / d * 0.25, ax = a.x - dx * k, az = a.z - dz * k, bx = b.x + dx * k, bz = b.z + dz * k; if (Z.inside(this, ax, az, 0.3, a.lv)) { a.x = ax; a.z = az; } if (Z.inside(this, bx, bz, 0.3, b.lv)) { b.x = bx; b.z = bz; } } }
     const anyUp = ps.some(p => p.alive && (!p.down || p.selfRev));
     if (this.ranked) { if (!anyUp && this.ranked.state === 'live') { for (const p of ps) if (p.alive) { p.alive = false; p.down = 0; this.life(p); } this.ranked.state = 'over'; } return; }
     if (!anyUp) { for (const p of ps) { p.alive = false; p.down = 0; } ev.push({ e: 'gameover', score: this.score, wave: this.wave, in: 5 }); this.over = 5; }
@@ -222,19 +235,19 @@ class Room {
   snapshot() {
     const P = [...this.players.values()].map(p => this.mode === 'tron'
       ? [p.id, q(p.x), q(p.z), p.dir, p.alive ? 1 : 0]
-      : [p.id, q(p.x), q(p.z), Math.round(p.yaw * 100) / 100, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.fuel), p.firing ? 1 : 0, p.pts | 0, Z.WI[p.guns[p.slot]] ?? 0, p.perks, p.down ? (p.revT > 0 || p.selfRev ? 2 : 1) : 0, p.guns[1 - p.slot] ? Z.WI[p.guns[1 - p.slot]] : -1, p.inv > 0 ? 1 : 0, Z.upBits(p), p.down && p.bleed > 0 ? Math.ceil(p.bleed) : 0, p.down && p.revT > 0 && p.revNeed ? Math.round(p.revT / p.revNeed * 100) : 0, p.down && p.up && p.up.length ? 1 : 0]);
+      : [p.id, q(p.x), q(p.z), Math.round(p.yaw * 100) / 100, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.fuel), p.firing ? 1 : 0, p.pts | 0, Z.WI[p.guns[p.slot]] ?? 0, p.perks, p.down ? (p.revT > 0 || p.selfRev ? 2 : 1) : 0, p.guns[1 - p.slot] ? Z.WI[p.guns[1 - p.slot]] : -1, p.inv > 0 ? 1 : 0, Z.upBits(p), p.down && p.bleed > 0 ? Math.ceil(p.bleed) : 0, p.down && p.revT > 0 && p.revNeed ? Math.round(p.revT / p.revNeed * 100) : 0, p.down && p.up && p.up.length ? 1 : 0, q(p.y || 0), this.quest?.it?.by === p.id ? this.quest.it.kind : 0]);
     const s = { t: 's', ts: ms(this.t), p: P };
     if (this.ranked) s.rk = [this.ranked.state, this.ranked.countdown === null ? 0 : Math.ceil(this.ranked.countdown), this.players.size, this.ranked.id];
     if (this.tl) { const k = this.tl, cr = k.ranked ? [...this.players.values()].find(p => p.acct === k.creatorAcct)?.id : k.creatorId;
       s.tl = [k.state, k.countdown == null ? 0 : Math.ceil(k.countdown), k.id, cr ?? 0, k.cfg.teams, k.cfg.ff ? 1 : 0, k.cfg.bo3 ? 1 : 0, k.round || 0, k.ranked ? 1 : 0, k.wins || {}]; }
-    if (this.mode === 'zombie') { s.m = [this.open, this.box.spot, this.box.state, this.power ?? 1]; s.b = this.boards; s.z = [...this.zombies.values()].map(z => [z.id, q(z.x), q(z.z), z.burn > 0 ? 1 : 0, z.ty, (z.cr ? 1 : 0) | (z.charge > 0 ? 2 : 0)]); s.w = this.wave; s.sc = this.score; }
+    if (this.mode === 'zombie') { s.m = [this.open, this.box.spot, this.box.state, this.power ?? 1]; s.b = this.boards; s.z = [...this.zombies.values()].map(z => [z.id, q(z.x), q(z.z), z.burn > 0 || z.dot > 0 ? 1 : 0, z.ty, (z.cr ? 1 : 0) | (z.charge > 0 ? 2 : 0) | (z.win != null ? 4 : 0), q(z.y || 0)]); s.w = this.wave; s.sc = this.score; if (this.quest) s.q = Quest.snap(this); }
     if (this.events.length) { s.ev = this.events; this.events = []; }
     return s;
   }
   init(me) {   // full state for a joiner (trails included)
     if (this.mode === 'zombie') Z.bind(this);
     return { t: 'init', me, mode: this.mode, room: this.id, round: this.round, hz: C.SNAP_HZ, world: W,
-      roster: this.roster(), trails: this.mode === 'tron' ? [...this.players.values()].map(p => [p.id, p.trail.map(([x, z, t]) => [q(x), q(z), ms(t)])]) : undefined, life: LIFE * 1000, map: this.mode === 'zombie' ? Z.layout() : undefined };
+      roster: this.roster(), trails: this.mode === 'tron' ? [...this.players.values()].map(p => [p.id, p.trail.map(([x, z, t]) => [q(x), q(z), ms(t)])]) : undefined, life: LIFE * 1000, map: this.mode === 'zombie' ? Z.layout() : undefined, qnote: this.quest?.note || undefined };
   }
 }
 const ms = t => Math.round(t * 1000);

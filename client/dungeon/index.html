@@ -33,11 +33,26 @@ input{font:inherit;background:#0e0906;color:#fff;border:1px solid #8a6436;border
 <div id="bag" class="scr" hidden style="background:#000a"><div class="box"><div style="display:flex;justify-content:space-between;align-items:center"><h1 style="font-size:22px" id="bTitle"></h1><button onclick="closeBag()">✕ Close (I)</button></div><div id="bStats" class="dim"></div><h2>Equipped</h2><div class="slots" id="bEq"></div><h2>Pack <span class="dim" id="bCount"></span></h2><div class="slots" id="bInv"></div><div class="dim" style="margin-top:8px">Tap/click an item to equip it. Right-click or long-press to scrap it for gold.</div></div></div>
 <div id="dead" class="scr" hidden style="background:#200000cc"><div class="box" style="max-width:420px;text-align:center"><h1 style="color:#ff5a4a">YOU HAVE FALLEN</h1><div id="deadT" class="dim"></div><div style="margin-top:14px"><button id="bRes">Rise again</button></div></div></div>
 <div id="pause" class="scr" hidden style="background:#000b"><div class="box" style="max-width:420px;text-align:center"><h1 style="font-size:24px">Paused</h1><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px"><button id="pRes">Resume</button><button onclick="openBag()">Inventory (I)</button><label class="dim"><input type="checkbox" id="pInv" style="width:auto"> Invert look</label><label class="dim">Look speed <input type="range" id="pSens" min="2" max="20" value="8" style="width:120px"></label><button onclick="save();location.href='../'">Save & return to the city</button></div></div></div>
-<div id="hud"><div id="log"></div><canvas id="mm" width="132" height="132"></canvas><div id="topb"><button id="tBag">🎒 Bag</button><button id="tPause">❚❚</button></div><div id="info"></div><div id="tgt"><b id="tgtN"></b><div class="bar"><i id="tgtH" style="background:#c22"></i></div></div><div id="cross"></div><div id="prompt"></div>
+<div id="hud"><div id="log"></div><canvas id="mm" width="132" height="132"></canvas><div id="topb"><button id="tMus" title="Music on/off (M)" aria-label="Music on/off">🎵</button><button id="tBag">🎒 Bag</button><button id="tPause">❚❚</button></div><div id="info"></div><div id="tgt"><b id="tgtN"></b><div class="bar"><i id="tgtH" style="background:#c22"></i></div></div><div id="cross"></div><div id="prompt"></div>
 <div class="bars"><div id="lvl" style="text-shadow:0 1px 3px #000"></div><div class="bar"><i id="hpB" style="background:linear-gradient(#e33,#911)"></i></div><div class="bar"><i id="mpB" style="background:linear-gradient(#48f,#226)"></i></div><div class="bar"><i id="stB" style="background:linear-gradient(#4c4,#252)"></i></div><div class="bar" style="height:5px"><i id="xpB" style="background:#e0b46a"></i></div><div id="pots" style="margin-top:4px;font-size:13px;text-shadow:0 1px 3px #000"></div></div>
-<div id="keys">WASD move · mouse look · Left-click attack · Right-click / Q fireball · F heal · E use · 1 / 2 potions · Shift sprint · I bag · Esc pause</div></div>
+<div id="keys">WASD move · mouse look · Left-click attack · Right-click / Q fireball · F heal · E use · 1 / 2 potions · Shift sprint · I bag · M music · Esc pause</div></div>
 <div id="touch"><div id="joy"><div id="knob"></div></div><div id="tb"><button id="mSp">🔥<br>Spell</button><button id="mAt">⚔<br>Attack</button><button id="mHe">✚<br>Heal</button><button id="mUse">USE</button><button id="mP1">❤ Pot</button><button id="mP2">💧 Pot</button></div></div>
 <div id="flash"></div><div id="tip"></div>
+<script>
+// Eternal Grind theme: "The Grind Never Ends" (Derrik Hicks). Starts on entering the dungeon (that click is the user gesture iOS needs),
+// loops softly through a WebAudio gain (iOS ignores <audio>.volume), 🎵 button / M toggles it, remembered in localStorage egMusicMute.
+window.egMusic = (() => { let el = null, g = null, ac = null, muted = localStorage.egMusicMute === '1', want = false, pend = false; const VOL = 0.32;
+  const btn = () => document.getElementById('tMus'), paint = () => { const b = btn(); if (b) { b.textContent = muted ? '🔇' : '🎵'; b.style.opacity = muted ? 0.6 : 1; b.setAttribute('aria-pressed', String(!muted)); } };
+  function init() { if (el) return; el = new Audio('music/the-grind-never-ends.mp3'); el.loop = true; el.preload = 'auto'; el.playsInline = true; el.setAttribute('playsinline', '');
+    try { ac = new (window.AudioContext || window.webkitAudioContext)(); const src = ac.createMediaElementSource(el); g = ac.createGain(); g.gain.value = 0; src.connect(g).connect(ac.destination); } catch { g = null; el.volume = VOL; } }
+  function play() { if (!el || muted || !want) return; try { ac && ac.state === 'suspended' && ac.resume(); } catch { } const p = el.play(); if (p && p.then) p.then(() => { pend = false; if (g) g.gain.setTargetAtTime(VOL, ac.currentTime, 0.8); }, () => { pend = true; }); }
+  function set(m) { muted = !!m; localStorage.egMusicMute = muted ? '1' : '0'; paint(); if (!el) return; if (muted) { if (g) g.gain.setTargetAtTime(0, ac.currentTime, 0.15); setTimeout(() => muted && el.pause(), 400); } else play(); }
+  for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, () => { if (pend) play(); }, { passive: true });
+  addEventListener('keydown', e => { if (e.code === 'KeyM' && !e.repeat && want && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) set(!muted); });
+  addEventListener('DOMContentLoaded', () => { paint(); const b = btn(); if (b) b.onclick = e => { e.stopPropagation(); init(); want = true; set(!muted); }; });
+  document.addEventListener('visibilitychange', () => { if (!el) return; if (document.hidden) el.pause(); else play(); });
+  return { start() { want = true; init(); play(); }, set, get state() { return { muted, playing: !!el && !el.paused, t: el ? Math.round(el.currentTime) : 0, loop: !!el?.loop, webaudio: !!g }; } }; })();
+</script>
 <script type="module">
 import * as THREE from 'three';
 import { ENEMIES, GEAR } from './data.js';
@@ -101,7 +116,7 @@ function carve(x0, z0, x1, z1) { let x = x0, z = z0; const hf = rnd() < .5; whil
 const solid = (x, z) => { const i = Math.floor(x / CS), j = Math.floor(z / CS); return i < 0 || j < 0 || i >= N || j >= N || !map[i][j]; };
 function los(ax, az, bx, bz) { const d = Math.hypot(bx - ax, bz - az), n = Math.ceil(d / .6); for (let k = 1; k < n; k++) if (solid(ax + (bx - ax) * k / n, az + (bz - az) * k / n)) return false; return true; }
 let player = { x: 0, z: 0, yaw: 0, pitch: 0, st: 100, cd: 0, scd: 0, hcd: 0, swing: 0, bob: 0, inv: 0 };
-function startFloor(depth) { P.depth = depth; P.best = Math.max(P.best || 1, depth); recalc(); P.hp = Math.max(P.hp, P.st.hp * .5); save();
+function startFloor(depth) { egMusic.start(); P.depth = depth; P.best = Math.max(P.best || 1, depth); recalc(); P.hp = Math.max(P.hp, P.st.hp * .5); save();
   world.clear(); enemies = []; props = []; for (const s of shots) scene.remove(s.m); shots = [];
   theme = THEMES[Math.floor((depth - 1) / 2) % THEMES.length]; const rooms = gen(depth);
   const wallT = stoneTex(theme[2], theme[3], true), floorT = stoneTex(new THREE.Color(theme[2]).multiplyScalar(.7).getHex(), theme[3], false); const ceilT = floorT.clone(); ceilT.needsUpdate = true;

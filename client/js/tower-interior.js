@@ -598,8 +598,9 @@ function privateElevator() {   // UI only: the server is the authority (see /api
 
 // ---------------------------------------------------------------- open / close
 // While inside, every city overlay is hidden (visibility, so nothing underneath can take a tap) except the canvas,
-// the shared prompt, the touch joystick/buttons and multiplayer chat.
-const TOWER_CSS = 'body.in-tower>*:not(canvas):not(#burnTowerInterior){visibility:hidden!important}body.in-tower #prompt,body.in-tower #touch,body.in-tower #chat{visibility:visible!important}body.in-tower #tUp,body.in-tower #tDown,body.in-tower #minimap{display:none!important}';
+// the shared prompt, the touch joystick/buttons and multiplayer chat. The exceptions sit inside the hiding selector itself:
+// a separate 'visibility:visible' rule loses on specificity ((1,1,1) < (1,1,2)), which hid the joystick and USE on phones.
+const TOWER_CSS = 'body.in-tower>*:not(canvas):not(#burnTowerInterior):not(#prompt):not(#touch):not(#chat){visibility:hidden!important}body.in-tower #tUp,body.in-tower #tDown,body.in-tower #tSkate,body.in-tower #minimap{display:none!important}';
 let onKey = null, onDown = null, onMove = null, onUp = null, styleEl = null;
 function hangMyNft() {
   let mine = null; try { mine = NftPick.current(); } catch (e) { }

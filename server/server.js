@@ -37,12 +37,17 @@ function serveStatic(req, res, url) {   // static site files: served before the 
     let f = path.join(__dirname, '..', 'client', decodeURIComponent(url.pathname).slice(1));
     if (f.startsWith(path.join(__dirname, '..', 'client')) && fs.existsSync(f) && fs.statSync(f).isDirectory()) { if (!url.pathname.endsWith('/')) { res.writeHead(301, { location: url.pathname + '/' + url.search }); res.end(); return true; } f = path.join(f, 'index.html'); }
     if (f.startsWith(path.join(__dirname, '..', 'client')) && fs.existsSync(f) && fs.statSync(f).isFile()) {
-      const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.glb': 'model/gltf-binary', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
+      const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.glb': 'model/gltf-binary', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
       // app code/html/css/json always revalidate (ETag -> cheap 304) so a deploy reaches every player on their next load; vendor libs, images and audio cache for a day
-      const st = fs.statSync(f), etag = `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`, ext = path.extname(f).toLowerCase(), fresh = /\/vendor\//.test(f) || /^\.(png|jpe?g|webp|gif|svg|ico|mp3|ogg|woff2?)$/.test(ext);
+      const st = fs.statSync(f), etag = `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`, ext = path.extname(f).toLowerCase(), fresh = /\/vendor\//.test(f) || /^\.(png|jpe?g|webp|gif|svg|ico|mp3|m4a|ogg|woff2?)$/.test(ext);
       const hdr = { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': fresh ? 'public, max-age=86400' : 'no-cache', etag };
       if (req.headers['if-none-match'] === etag) { res.writeHead(304, hdr); res.end(); return true; }
-      res.writeHead(200, hdr); if (req.method === 'HEAD') { res.end(); return true; } fs.createReadStream(f).pipe(res); return true;
+      // byte ranges for audio/video: iOS Safari will not play an <audio> source that can't seek by range
+      const rg = /^\.(mp3|m4a|ogg|wav|mp4)$/.test(ext) && /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || ''); if (/^\.(mp3|m4a|ogg|wav|mp4)$/.test(ext)) hdr['accept-ranges'] = 'bytes';
+      if (rg && (rg[1] || rg[2])) { let a = rg[1] ? +rg[1] : Math.max(0, st.size - +rg[2]), b = rg[1] && rg[2] ? Math.min(+rg[2], st.size - 1) : st.size - 1;
+        if (a >= st.size || a > b) { res.writeHead(416, { ...hdr, 'content-range': `bytes */${st.size}` }); res.end(); return true; }
+        res.writeHead(206, { ...hdr, 'content-range': `bytes ${a}-${b}/${st.size}`, 'content-length': b - a + 1 }); if (req.method === 'HEAD') { res.end(); return true; } fs.createReadStream(f, { start: a, end: b }).pipe(res); return true; }
+      hdr['content-length'] = st.size; res.writeHead(200, hdr); if (req.method === 'HEAD') { res.end(); return true; } fs.createReadStream(f).pipe(res); return true;
     }
   } catch { }
   return false;
@@ -184,11 +189,12 @@ wss.on('connection', (ws, req) => {
     const n = Date.now(); if (n - p.win > 1000) { p.win = n; p.msgs = 0; }
     if (++p.msgs > 40) return;                     // input flood guard (clients send ≤20/s)
     let m; try { m = JSON.parse(d); } catch { return; }
-    if (!m || typeof m !== 'object' || Array.isArray(m) || !['i', 'ping', 'start', 'team', 'leave'].includes(m.t)) return;
+    if (!m || typeof m !== 'object' || Array.isArray(m) || !['i', 'ping', 'start', 'team', 'leave', ...(process.env.ZOMBIE_TEST_TP === '1' && !process.env.FLY_APP_NAME ? ['tp'] : [])].includes(m.t)) return;
     if (m.t === 'leave') { p.left = 1; if (p.ticket && (room.tl?.state === 'lobby' || room.ranked?.state === 'lobby')) Ranked.leaveLobby(p.ticket); ws.close(1000, 'left'); setTimeout(() => { try { ws.terminate(); } catch {} }, 150); return; }   // explicit leave; close handler removes the player, moves host, drops empty room
     if (m.t === 'ping' && !(typeof m.c === 'number' && isFinite(m.c))) return;
     if (m && m.t === 'start') { if (room.ranked) room.ranked.wantStart = p; if (room.tl) room.tl.wantStart = p; }
     if (m && m.t === 'team' && room.tl?.state === 'lobby') room.setTeam(p, +m.team || 0);
+    if (m && m.t === 'tp' && process.env.ZOMBIE_TEST_TP === '1' && !process.env.FLY_APP_NAME && room.mode === 'zombie') { p.x = +m.x || 0; p.z = +m.z || 0; p.lv = m.lv ? 1 : 0; { const Z = require('./cod'); Z.bind(room); Z.lift(p); } if (m.hp) p.hp = +m.hp; return; }   // local test runs only: teleport
     if (m && m.t === 'i') room.input(p, m); else if (m && m.t === 'ping') ws.send(JSON.stringify({ t: 'pong', c: m.c }));
   });
   const drop = () => { if (p.rk) resumeIdx.delete(p.rk); if (room.tl?.ranked && room.tl.state === 'live' && p.acct) { room.tl.left = room.tl.left || {}; room.tl.left[p.acct] = room.t; } room.remove(id); if (room.tl && room.tl.creatorId === id) room.tl.creatorId = room.players.keys().next().value; if (!room.players.size && !(room.tl?.ranked && room.tl.state === 'live')) if (!room.players.size && !(room.tl?.ranked && room.tl.state === 'live') && !(room.ranked && room.ranked.state !== 'lobby' && !room.ranked.settled)) rooms[gm] = rooms[gm].filter(r => r !== room); };

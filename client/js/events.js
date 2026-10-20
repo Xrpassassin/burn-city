@@ -99,8 +99,12 @@ function build() {
   }
   function park(v) { const h = v.home; v.g.position.set(h.x, .02, h.z); v.g.rotation.y = h.yaw; v.state = 'parked'; v.siren = false; v.lb.visible = v.lr.visible = false; }
   const homes = [];
-  if (CL.police) { const p = CL.police, cs = Math.cos(p.yaw), sn = Math.sin(p.yaw); for (const lx of [-4, 4]) homes.push(['police', { x: p.door.x + lx * cs, z: p.door.z - lx * sn, yaw: p.yaw + Math.PI / 2, st: p }]); }
-  if (CL.fire) { const p = CL.fire, cs = Math.cos(p.yaw), sn = Math.sin(p.yaw); homes.push(['fire', { x: p.x - (p.d / 2 + 4.5) * sn, z: p.z - (p.d / 2 + 4.5) * cs, yaw: p.yaw + Math.PI, st: p }]); homes.push(['ambulance', { x: p.x - (p.d / 2 + 4.5) * sn + 5 * cs, z: p.z - (p.d / 2 + 4.5) * cs - 5 * sn, yaw: p.yaw + Math.PI, st: p }]); }
+  // vehicles park nose-out on their station's apron, never on the street
+  const bay = (st, i, fb) => st && st.bays && st.bays[i] ? { ...st.bays[i], st } : fb;
+  if (CL.police) for (let i = 0; i < 2; i++) homes.push(['police', bay(CL.police, i)]);
+  if (CL.fire) homes.push(['fire', bay(CL.fire, 0)]);
+  if (CL.ems) { homes.push(['ambulance', bay(CL.ems, 0)]); homes.push(['ambulance', bay(CL.ems, 1)]); }
+  else if (CL.fire) homes.push(['ambulance', bay(CL.fire, 1)]);
   homes.forEach(([k, h]) => vehicle(k, h));
 
   // ---------- people (individual small meshes, pooled)

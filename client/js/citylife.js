@@ -34,7 +34,7 @@ function atlas(c) {
   }));
   const SHOPS = [['mart', 'BURN MART', '24/7', '#ff6a1a', '#1a0d08'], ['smoke', 'EMBER SMOKE SHOP', 'vapes · glass · lighters', '#ff9a3a', '#16100c'], ['disp', 'GREEN FLAME', 'DISPENSARY · 21+', '#5fe08a', '#08160d'],
     ['coffee', 'HOT BEANS', 'coffee · donuts', '#ffcf6a', '#1a1208'], ['arcade', 'PIXEL ARCADE', 'games · prizes', '#5fe6ff', '#080f1a'], ['police', 'BURN CITY POLICE', 'PRECINCT 1', '#6aa8ff', '#0a1020'], ['fire', 'FIRE STATION 1', 'BURN CITY FIRE DEPT', '#ff4a2a', '#1a0806'],
-    ['power', 'BURN CITY POWER', 'generating station', '#ffd04a', '#14120a'], ['term', 'BURN CITY INTERNATIONAL', 'DEPARTURES · ARRIVALS', '#9fd8ff', '#0a1018']];
+    ['ems', 'BURN CITY MEDICAL', 'EMERGENCY · 24H', '#ff7a7a', '#1a0a0c'], ['power', 'BURN CITY POWER', 'generating station', '#ffd04a', '#14120a'], ['term', 'BURN CITY INTERNATIONAL', 'DEPARTURES · ARRIVALS', '#9fd8ff', '#0a1018']];
   SHOPS.forEach(([id, name, sub, fg, bg], i) => slot('sign_' + id, (i % 4) * 512, 1300 + Math.floor(i / 4) * 128, 512, 128, (g, w, h) => {
     g.fillStyle = bg; g.fillRect(0, 0, w, h); g.strokeStyle = fg; g.lineWidth = 6; g.strokeRect(4, 4, w - 8, h - 8);
     g.fillStyle = fg; g.shadowColor = fg; g.shadowBlur = 18; g.textAlign = 'center'; g.textBaseline = 'middle'; let fs = 58; g.font = `900 ${fs}px system-ui,sans-serif`; while (g.measureText(name).width > w - 40 && fs > 20) { fs -= 2; g.font = `900 ${fs}px system-ui,sans-serif`; }
@@ -237,26 +237,31 @@ function build() {
     claim(x + o.rx * 4.5, z + o.rz * 4.5, 6.4); for (const lz of [2.2, 6.8]) c.colliders.push({ x: x + o.rx * lz, z: z + o.rz * lz, r: 5.2, h: 7 });
   }
   // police + fire stations: frontage on a street, not too far from spawn
+  const APRON = 9;   // concrete apron between the curb and the bay doors, where the vehicles park
   const lot = (w, d, minD, maxD) => {
     const cs = [];
     for (const s of st) { const len = streetLen(s); for (let m = 8; m < len; m += 8) for (const side of [1, -1]) {
-      const p = streetAt(s, m / len), rx = -p.tz * side, rz = p.tx * side, x = p.x + rx * (6 + d / 2), z = p.z + rz * (6 + d / 2), dd = Math.hypot(x - spawn.x, z - spawn.z);
-      if (dd < minD || dd > maxD) continue; const r = Math.hypot(w, d) / 2; if (!free(x, z, r, { offroad: true }) || distToStreets(st, x, z, s) < d / 2 + 5.5 || distToStreets(st, x, z) < 5.5 + d / 2 - 1) continue;
+      const p = streetAt(s, m / len), rx = -p.tz * side, rz = p.tx * side, SB = 6 + APRON + d / 2, x = p.x + rx * SB, z = p.z + rz * SB, dd = Math.hypot(x - spawn.x, z - spawn.z);
+      if (dd < minD || dd > maxD) continue; const r = Math.hypot(w, d + APRON * 2) / 2 + 3; if (!free(x, z, r, { offroad: true }) || distToStreets(st, x, z, s) < SB - .5 || distToStreets(st, x, z) < SB - 1) continue;
       cs.push({ s, m, side, x, z, rx, rz, p, dd, r }); } }
     cs.sort((a, b) => a.dd - b.dd); return cs[0] || null;
   };
   const station = (kind, w, d, wall, trim) => {
-    const o = lot(w, d, 40, 260); if (!o) return null; const yaw = Math.atan2(o.rx, o.rz); claim(o.x, o.z, o.r);
-    const parts = [box(w, 7.5, d, 0, 3.75, 0, wall), box(w + .3, .6, d + .3, 0, 7.8, 0, trim), box(w * .9, .25, 1.4, 0, 4.4, -d / 2 - .7, trim)];
+    const o = lot(w, d, 40, 300); if (!o) return null; const yaw = Math.atan2(o.rx, o.rz); claim(o.x, o.z, o.r);
+    const parts = [box(w + 2, .06, APRON, 0, .03, -d / 2 - APRON / 2, 0x77726c), box(w + 2, .07, .25, 0, .04, -d / 2 - APRON + .2, 0xd8d2c8), box(w, 7.5, d, 0, 3.75, 0, wall), box(w + .3, .6, d + .3, 0, 7.8, 0, trim), box(w * .9, .25, 1.4, 0, 4.4, -d / 2 - .7, trim)];
     if (kind === 'fire') { for (const gx of [-w / 4, w / 4]) parts.push(box(w * .38, 4.2, .15, gx, 2.1, -d / 2 - .02, 0x3a1410), box(w * .38, .1, .16, gx, 4.25, -d / 2 - .03, 0xff8a2a)); parts.push(box(1.6, 12, 1.6, w / 2 - 1.2, 6, d / 2 - 1.2, trim)); }
+    else if (kind === 'ems') { for (const gx of [-w / 4, w / 4]) parts.push(box(w * .36, 3.6, .15, gx, 1.8, -d / 2 - .02, 0xdfe4ea)); parts.push(box(3, .9, .2, 0, 8.6, -d / 2 + .5, 0xe82020), box(.9, 3, .2, 0, 8.6, -d / 2 + .5, 0xe82020), box(w * .9, .25, .1, 0, 4.0, -d / 2 - .08, 0xe82020)); }
     else { parts.push(box(w * .5, 3, .12, 0, 1.9, -d / 2 - .02, 0x14202c), box(2, .4, .4, 0, 8.4, 0, 0x2a4aa8), box(.6, .4, .42, -.7, 8.4, 0, 0xff2a2a), box(.6, .4, .42, .7, 8.4, 0, 0x2a6aff)); }
     blds.push({ geo: merge(parts), x: o.x, z: o.z, yaw }); signs.push({ slot: 'sign_' + kind, w: 7, h: 1.75, x: o.x, z: o.z, yaw, lx: 0, ly: 6.1, lz: -d / 2 - .1 });
     for (const lz of [-d / 4, d / 4]) for (const lx of [-w / 4, w / 4]) c.colliders.push({ x: o.x + lx * Math.cos(yaw) + lz * Math.sin(yaw), z: o.z - lx * Math.sin(yaw) + lz * Math.cos(yaw), r: Math.min(w, d) / 3.2, h: 8 });
     // where vehicles leave/arrive: the street point in front
-    return { x: o.x, z: o.z, yaw, s: o.s, u: o.m / streetLen(o.s), door: { x: o.p.x + o.rx * 4.2, z: o.p.z + o.rz * 4.2 }, w, d };
+    const cs = Math.cos(yaw), sn = Math.sin(yaw), at = (lx, lz) => ({ x: o.x + lx * cs + lz * sn, z: o.z - lx * sn + lz * cs });
+    const bays = (kind === 'police' ? [-w / 3, 0, w / 3] : [-w / 4, w / 4]).map(lx => ({ ...at(lx, -d / 2 - APRON / 2), yaw: yaw + Math.PI }));
+    return { x: o.x, z: o.z, yaw, bays, s: o.s, u: o.m / streetLen(o.s), door: { x: o.p.x + o.rx * 4.2, z: o.p.z + o.rz * 4.2 }, w, d };
   };
   L.police = station('police', 18, 13, 0xdfe6ee, 0x22345a);
   L.fire = station('fire', 16, 14, 0xb8322a, 0xe8e2d6);
+  L.ems = station('ems', 18, 14, 0xf2f2f0, 0xc8201a);
 
   // power plant + wind farm outside town (west/south-west, away from the estate lake in the east)
   const away = (a, r) => ({ x: Math.cos(a) * r, z: Math.sin(a) * r });

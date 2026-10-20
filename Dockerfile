@@ -6,4 +6,5 @@ COPY server ./server
 COPY client ./client
 ENV PORT=8080
 EXPOSE 8080
-CMD ["node","--disable-warning=ExperimentalWarning","server/server.js"]
+# Boot via /data/boot.sh (pulls GitHub main) when the volume has it; otherwise run the baked-in code.
+CMD ["sh","-c","if [ -f /data/boot.sh ]; then exec sh /data/boot.sh; else exec node --disable-warning=ExperimentalWarning server/server.js; fi"]

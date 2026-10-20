@@ -35,22 +35,23 @@ Before any deploy: syntax checks pass, then smoke test on PC and mobile:
 City explore, Zombies match (downed/revive, reconnect), fishing (F / Space / Esc), dungeon character creation + one fight. No console errors.
 
 ## Deploy
-Target workflow (GitHub = single source of truth):
-```bash
-git checkout main && git pull
-fly deploy            # builds from this repo's Dockerfile
-```
-### ⚠️ Overlay caveat (until removed)
-The machine's start command currently runs code from `/data/patch/app` if it exists, otherwise `/app` (the image).
-So right now `fly deploy` alone does NOT change what's live. To switch to repo-only deploys:
-1. Confirm this repo equals the live overlay (it was copied from it on 2026-10-19).
-2. `fly ssh console -C "touch /data/patch/DISABLE"` then `fly deploy` and smoke test.
-3. Once stable, `fly ssh console -C "rm -rf /data/patch/app"` (keep `/data/patch/snap.tgz` as backup).
+GitHub `main` is the single source of truth. The Fly machine's start command is `sh /data/boot.sh`
+(a copy of `scripts/boot.sh`): on every boot it downloads `main` from GitHub, syntax-checks it, and runs it.
+So **deploy = merge to main, then restart the machine**:
+- Automatic: `.github/workflows/deploy.yml` restarts the machine on every push to `main`
+  (needs repo secret `FLY_API_TOKEN`; without it the step is skipped).
+- Manual: `fly machine restart 8d2909be270068 -a burn-city-game`
+- If the download or checks fail, the machine keeps running the last good copy (`/data/gh/cur`).
+- Changing `scripts/boot.sh` itself also requires copying it to `/data/boot.sh` on the volume.
+- Dependencies come from the image's `/app/node_modules`. If you change `package.json` deps,
+  also run `fly deploy` (builds the Dockerfile image) so node_modules updates.
+- Legacy overlay `/data/patch/app` is only a fallback now; do not edit it.
 
 ## Rollback
-- Code: `git revert <sha>` or redeploy a tag: `git checkout v1-stable && fly deploy`.
-- Image: `fly releases` then `fly deploy --image registry.fly.io/burn-city-game:<previous-tag>`.
-- Overlay emergency: `rm /data/patch/DISABLE` + restart brings back the 2026-10-19 overlay code.
+- Code: `git revert <sha>` on main, then restart.
+- Pin a version: `fly ssh console -C "sh -c 'echo tags/live-2026-10-19 > /data/gh/REF'"` then restart
+  (delete `/data/gh/REF` to go back to main).
+- Emergency: `touch /data/gh/DISABLE` + restart runs the old overlay / image code.
 
 ## Rules for bots
 - One bot at a time; one branch per feature (`feat/<name>`), PR into `main`.

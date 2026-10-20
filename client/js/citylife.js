@@ -32,6 +32,13 @@ function atlas(c) {
     g.font = '600 26px system-ui,sans-serif'; g.fillStyle = '#ffffffaa'; g.fillText('on the XRP Ledger', 66, h * .86);
     g.strokeStyle = '#ffffff33'; g.lineWidth = 10; g.strokeRect(5, 5, w - 10, h - 10);
   }));
+  // AEGIS CRITICAL alert face (free 6th ad slot): shown over every street billboard only while the live threat feed is CRITICAL
+  slot('ad_ALERT', 1024, 852, 1024, 426, (g, w, h) => {
+    g.fillStyle = '#1a0402'; g.fillRect(0, 0, w, h);
+    for (let i = -6; i < 30; i++) { g.fillStyle = i % 2 ? '#ffb000' : '#140400'; g.beginPath(); g.moveTo(i * 48, h); g.lineTo(i * 48 + 48, h); g.lineTo(i * 48 + 88, h - 44); g.lineTo(i * 48 + 40, h - 44); g.fill(); g.beginPath(); g.moveTo(i * 48, 0); g.lineTo(i * 48 + 48, 0); g.lineTo(i * 48 + 88, 44); g.lineTo(i * 48 + 40, 44); g.fill(); }
+    g.fillStyle = '#fff'; g.shadowColor = '#ff3b2a'; g.shadowBlur = 34; g.font = '900 132px system-ui,sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'center'; g.fillText('⚠ AEGIS ALERT', w / 2, h * .42);
+    g.shadowBlur = 0; g.font = '700 50px system-ui,sans-serif'; g.fillStyle = '#ffd9b0'; g.fillText('CRITICAL THREAT · CITY WATCH ACTIVE', w / 2, h * .68); g.textAlign = 'left';
+  });
   const SHOPS = [['mart', 'BURN MART', '24/7', '#ff6a1a', '#1a0d08'], ['smoke', 'EMBER SMOKE SHOP', 'vapes · glass · lighters', '#ff9a3a', '#16100c'], ['disp', 'GREEN FLAME', 'DISPENSARY · 21+', '#5fe08a', '#08160d'],
     ['coffee', 'HOT BEANS', 'coffee · donuts', '#ffcf6a', '#1a1208'], ['arcade', 'PIXEL ARCADE', 'games · prizes', '#5fe6ff', '#080f1a'], ['police', 'BURN CITY POLICE', 'PRECINCT 1', '#6aa8ff', '#0a1020'], ['fire', 'FIRE STATION 1', 'BURN CITY FIRE DEPT', '#ff4a2a', '#1a0806'],
     ['ems', 'BURN CITY MEDICAL', 'EMERGENCY · 24H', '#ff7a7a', '#1a0a0c'], ['power', 'BURN CITY POWER', 'generating station', '#ffd04a', '#14120a'], ['term', 'BURN CITY INTERNATIONAL', 'DEPARTURES · ARRIVALS', '#9fd8ff', '#0a1018']];
@@ -227,6 +234,7 @@ function build() {
   const frameGeo = merge([box(12.6, 5.6, .35, 0, 8.5, -.22, 0x22252b), cyl(.3, .35, 6, -3.5, 3, -.4, 0x3a3f48), cyl(.3, .35, 6, 3.5, 3, -.4, 0x3a3f48), box(12.8, .12, .5, 0, 5.62, -.1, 0xff7a1a), box(12.8, .12, .5, 0, 11.38, -.1, 0xff7a1a)]);
   inst(frameGeo, mat, frames, 'bbframes');
   for (const n of ['BURN', 'IMM', 'XRPyro', 'IMG', 'RACC']) inst(facePlane(12, 5, 'ad_' + n).translate(0, 0, -.0), signMat, boards.filter(b => b.n === n).map(b => ({ ...b })), 'ad_' + n);
+  { const al = inst(facePlane(12, 5, 'ad_ALERT').translate(0, 0, .04), signMat, boards.map(b => ({ ...b })), 'ad_alert'); if (al) al.visible = false; L.setAlert = on => { if (al) al.visible = !!on; }; }   // hidden = not drawn: no cost at NORMAL
   for (const b of boards) { const cs = Math.cos(b.yaw), sn = Math.sin(b.yaw); for (const lx of [-3.5, 3.5]) c.colliders.push({ x: b.x + lx * cs - .4 * sn, z: b.z - lx * sn - .4 * cs, r: .4, h: 11.5 }); /* posts sit behind the face */ }
 
   // ---------------- buildings: Main Street shops, police, fire, power plant, wind farm

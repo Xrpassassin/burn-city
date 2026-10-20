@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-const EV = window.__cityEvents = { active: [], log: [], trigger: null, yieldAt: () => false };
+const EV = window.__cityEvents = { active: [], log: [], trigger: null, yieldAt: () => false, threat: 0, setThreat: null };   // threat: AEGIS level 0 NORMAL / 1 ELEVATED / 2 CRITICAL (aegis.js); 0 = the city as it always was
 const Q = new URLSearchParams(location.search);
 const RATE = +(Q.get('eventrate') || 1);   // test hook: ?eventrate=10 makes incidents more frequent
 function colored(g, hex) { g = g.index ? g.toNonIndexed() : g; const c = new THREE.Color(hex), n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); if (g.attributes.uv) g.deleteAttribute('uv'); return g; }
@@ -97,7 +97,7 @@ function build() {
     const v = { kind, g, lb, lr, home, state: 'parked', path: null, i: 0, sp: kind === 'fire' ? 15 : 18, crew: [], siren: false };
     park(v); grp.add(g); vehicles.push(v); return v;
   }
-  function park(v) { const h = v.home; v.g.position.set(h.x, .02, h.z); v.g.rotation.y = h.yaw; v.state = 'parked'; v.siren = false; v.lb.visible = v.lr.visible = false; }
+  function park(v) { const h = v.home; v.g.position.set(h.x, .02, h.z); v.g.rotation.y = h.yaw; v.state = 'parked'; v.siren = false; v.lb.visible = v.lr.visible = false; if (v.patrol) { v.patrol = false; v.sp = 18; } }
   const homes = [];
   // vehicles park nose-out on their station's apron, never on the street
   const bay = (st, i, fb) => st && st.bays && st.bays[i] ? { ...st.bays[i], st } : fb;
@@ -170,14 +170,14 @@ function build() {
 
   // ---------- incident types
   const CRIMES = ['Robbery', 'Car break-in', 'Shoplifting', 'Vandalism', 'Pickpocket', 'Street fight'];
-  function crime(dist) {
+  function crime(dist, aegis) {
     const v = vehicles.find(x => x.kind === 'police' && x.state === 'parked'); if (!v) return false;
     const d = dist || weightedDistrict(n => 1 + Math.max(0, -chg(n)) * 1.6); if (!d) return false;
     const sp = spotNear(d.pos.x, d.pos.z); if (!sp) return false;
-    const what = CRIMES[(Math.random() * CRIMES.length) | 0];
-    const inc = { type: 'crime', x: sp.x, z: sp.z, t: 0, mark: ring(sp.x, sp.z, 0x4a7aff), suspect: spawnPerson('suspect', sp.x + 1, sp.z), v, dname: d.name };
-    if (!dispatch(v, sp.x, sp.z, veh => { inc.phase = 'scene'; inc.t = 0; const p = veh.g.position; veh.crew = [spawnPerson('cop', p.x + 1.2, p.z), spawnPerson('cop', p.x - 1.2, p.z)]; veh.crew.forEach((cp, i) => cp.tgt = { x: sp.x + (i ? -1 : 1) * .9, z: sp.z + .8 }); })) { removePerson(inc.suspect); grp.remove(inc.mark); return false; }
-    inc.phase = 'enroute'; EV.active.push(inc); toast(`🚨 ${what} reported in ${d.name}${chg(d) < 0 ? ` (red market ${chg(d).toFixed(1)}%)` : ''}. Units responding.`); return true;
+    const what = aegis ? 'AEGIS alert' : CRIMES[(Math.random() * CRIMES.length) | 0];
+    const inc = { type: 'crime', x: sp.x, z: sp.z, t: 0, mark: ring(sp.x, sp.z, aegis ? 0xffa020 : 0x4a7aff), suspect: aegis ? null : spawnPerson('suspect', sp.x + 1, sp.z), v, dname: d.name, aegis: !!aegis };
+    if (!dispatch(v, sp.x, sp.z, veh => { inc.phase = 'scene'; inc.t = 0; const p = veh.g.position; veh.crew = [spawnPerson('cop', p.x + 1.2, p.z), spawnPerson('cop', p.x - 1.2, p.z)]; veh.crew.forEach((cp, i) => cp.tgt = { x: sp.x + (i ? -1 : 1) * .9, z: sp.z + .8 }); })) { if (inc.suspect) removePerson(inc.suspect); grp.remove(inc.mark); return false; }
+    inc.phase = 'enroute'; EV.active.push(inc); if (aegis) { toast(`🛰 AEGIS CRITICAL: units deploying to ${d.name}.`); return true; } toast(`🚨 ${what} reported in ${d.name}${chg(d) < 0 ? ` (red market ${chg(d).toFixed(1)}%)` : ''}. Units responding.`); return true;
   }
   function fire(dist, why) {
     if (EV.active.some(a => a.type === 'fire')) return false;
@@ -224,14 +224,33 @@ function build() {
     const d = c.N && c.N[sold]; if (d) fire(d, `large ${sold} sell (${Math.round(e.xrp).toLocaleString()} XRP)`);
   };
 
+  // ---------- AEGIS threat: ELEVATED = a police car patrols the streets (lights off), crimes a little more likely;
+  // CRITICAL = stations roll units with sirens once per escalation, plus more patrols and calls. NORMAL changes nothing.
+  function patrol() {
+    const parked = vehicles.filter(x => x.kind === 'police' && x.state === 'parked'); if (parked.length < (EV.threat >= 2 ? 1 : 2)) return false;   // ELEVATED keeps one car home for calls
+    const v = parked[0], d = weightedDistrict(n => 1 + Math.max(0, -chg(n))); const sp = d && spotNear(d.pos.x, d.pos.z, 140); if (!sp) return false;
+    if (!dispatch(v, sp.x, sp.z, veh => goHome(veh))) return false;
+    v.siren = false; v.lb.visible = v.lr.visible = false; v.sp = 11; v.patrol = true; EV.patrols = (EV.patrols || 0) + 1; return true;
+  }
+  let prevThreat = 0;
+  EV.setThreat = lv => {
+    lv = Math.max(0, Math.min(2, lv | 0)); if (lv === EV.threat) return; const up = lv > EV.threat; EV.threat = lv;
+    if (lv === 1 && up) { toast('🛰 AEGIS ELEVATED: extra patrols on the streets.'); nextPatrol = T + 4; }
+    if (lv === 2 && up) { toast('🛰 AEGIS CRITICAL: emergency units rolling.'); crime(null, true); setTimeout(() => { if (EV.threat >= 2) medical(); }, 2500); nextPatrol = T + 20; }
+    if (lv === 0 && prevThreat > 0) toast('🛰 AEGIS: threat level back to normal.');
+    prevThreat = lv;
+  };
+  let nextPatrol = 1e9;
   // ---------- scheduler: crimes weighted by red markets, occasional medical calls, shows, fireworks
   let nextCrime = 25 + Math.random() * 40, nextMed = 90 + Math.random() * 120, nextShow = 60 + Math.random() * 90, nextFw = 150 + Math.random() * 200, nextFallbackFire = 420;
   const redness = () => { const ds = districts(); if (!ds.length) return 0; return ds.filter(n => chg(n) < 0).length / ds.length; };
   const clk = new THREE.Clock(); let T = 0;
   function update() {
     const dt = Math.min(clk.getDelta(), .05) * RATE; T += dt; const t = performance.now() / 1000;
-    if (T > nextCrime) { crime(); nextCrime = T + (70 + Math.random() * 90) * (1.2 - redness() * .7); }
-    if (T > nextMed) { medical(); nextMed = T + 160 + Math.random() * 200; }
+    const tk = EV.threat >= 2 ? .6 : EV.threat === 1 ? .8 : 1;   // AEGIS: shorter gaps between calls
+    if (T > nextCrime) { crime(); nextCrime = T + (70 + Math.random() * 90) * (1.2 - redness() * .7) * tk; }
+    if (T > nextMed) { medical(); nextMed = T + (160 + Math.random() * 200) * (EV.threat >= 2 ? .7 : 1); }
+    if (EV.threat > 0 && T > nextPatrol) { patrol(); nextPatrol = T + (EV.threat >= 2 ? 35 : 60) + Math.random() * 40; } else if (!EV.threat) nextPatrol = 1e9;
     if (T > nextShow) { show(); nextShow = T + 180 + Math.random() * 240; }
     if (T > nextFw) { const green = districts().filter(n => chg(n) > 4); if (green.length) fireworks(green[(Math.random() * green.length) | 0]); nextFw = T + 240 + Math.random() * 300; }
     if (T > nextFallbackFire) { if (performance.now() - lastFire > 480000 / RATE) fire(null, null); nextFallbackFire = T + 300; }
@@ -247,7 +266,7 @@ function build() {
       if (a.type === 'crime') {
         if (a.phase === 'enroute' && a.suspect && Math.random() < dt * .5) { a.suspect.m.rotation.y += 1; }
         if (a.phase === 'scene') { if (a.suspect) { const l = a.suspect.m; l.rotation.y = Math.atan2(a.v.g.position.x - l.position.x, a.v.g.position.z - l.position.z); } if (a.t > 14 && !a.leaving) { a.leaving = 1; const p = a.v.g.position; a.v.crew.forEach((cp, j) => { cp.tgt = { x: p.x + (j ? -1.2 : 1.2), z: p.z }; }); if (a.suspect) a.suspect.tgt = { x: p.x, z: p.z + .6 }; }
-          if (a.leaving && a.t > 22) { a.v.crew.forEach(removePerson); a.v.crew = []; if (a.suspect) removePerson(a.suspect); grp.remove(a.mark); goHome(a.v); EV.active.splice(i, 1); EV.done = (EV.done || 0) + 1; toast(`🚓 ${a.dname}: suspect in custody.`); } }
+          if (a.leaving && a.t > 22) { a.v.crew.forEach(removePerson); a.v.crew = []; if (a.suspect) removePerson(a.suspect); grp.remove(a.mark); goHome(a.v); EV.active.splice(i, 1); EV.done = (EV.done || 0) + 1; toast(a.aegis ? `🛰 ${a.dname}: perimeter secured.` : `🚓 ${a.dname}: suspect in custody.`); } }
       } else if (a.type === 'fire') {
         const f = a.f; f.smoke.forEach(sp => { sp.userData.o = (sp.userData.o + dt * 2.6) % 22; sp.position.y = 2 + sp.userData.o; const s = 2 + sp.userData.o * .5; sp.scale.set(s, s, s); sp.material.opacity = .55 * (1 - sp.userData.o / 22) * Math.max(.15, f.k); });
         f.light.intensity = 90 * f.k * (.8 + .4 * Math.sin(t * 17) * Math.sin(t * 7)); f.im.material.uniforms.k.value = f.k;

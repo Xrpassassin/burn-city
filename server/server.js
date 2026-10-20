@@ -3,6 +3,7 @@ const http = require('http'), fs = require('fs'), path = require('path'), { WebS
 const Retain = require('./retain'), Fish = require('./fish'), LB = require('./leaderboard'), Ranked = require('./ranked'), { items } = require('./shop');
 const Nft = require('./nft'), Social = require('./social'), C = require('./config'), Pay = require('./payments'), { Room } = require('./game'), S = require('./store'), City = require('./city'), Eco = require('./eco');
 
+const AegisClips = require('./aegis-clips');
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
 const stats = { tickMs: [], bytesOut: 0, started: Date.now() };
 const resumeIdx = new Map();   // free-play zombie reconnect: resume key -> { p, room } (25s grace after a dropped socket)
@@ -49,6 +50,7 @@ function serveStatic(req, res, url) {   // static site files: served before the 
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return json(res, 204, {});
   const url = new URL(req.url, 'http://x'), ip = req.headers['fly-client-ip'] || req.socket.remoteAddress;
+  if (url.pathname.startsWith('/aegis/') && (req.method === 'GET' || req.method === 'HEAD') && AegisClips.handle(req, res, url)) return;   // AEGIS preview clips (AEGIS_CLIPS=1 only; otherwise reports disabled)
   if (serveStatic(req, res, url)) return;
   if (gate('http:' + ip, 300, 60e3)) return json(res, 429, { error: 'slow_down' });
   try {
@@ -323,6 +325,7 @@ const xsdk = () => { const { XummSdk } = require('xumm-sdk'); return new XummSdk
 Ranked.Q.start({ ledger: Pay.ledger, live: () => Ranked.live() && !C.DRY_RUN, wallet: () => { if (!C.TREASURY_SEED) return null; try { return require('xrpl').Wallet.fromSeed(C.TREASURY_SEED); } catch { return null; } } });
 setInterval(() => { try { Ranked.sweepRefunds(); } catch (e) { console.error('refunds', e.message); } Ranked.sweepSessions(Pay.ledger, xsdk).catch(() => {}); Pay.sweepBuys().catch(() => {}); }, 30000);
 server.headersTimeout = 15e3; server.requestTimeout = 30e3; server.keepAliveTimeout = 10e3;   // slow-loris protection
+AegisClips.start({ online: () => City.count() });   // no-op unless AEGIS_CLIPS=1
 server.listen(C.PORT, () => console.log(`burn-city-game :${C.PORT} free=true shop=on dryRun=${C.DRY_RUN} net=${C.NETWORK}`));
 Eco.start();
 module.exports = { server, stats, rooms, tronRoom, tronTick, tronRound, tronFinal };

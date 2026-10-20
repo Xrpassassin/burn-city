@@ -82,3 +82,15 @@ GitHub `main` is the single source of truth, and **deploys are automatic: merge 
 - Eternal Grind: WASD, mouse look, LMB attack, RMB/Q spell, F heal, 1/2 potions, E interact, Shift sprint, I inventory, Esc/P pause. Save key `egSave` in localStorage.
 
 _Auto-deploy verified 2026-10-19._
+
+## AEGIS City Watch (branch feat/aegis, not merged)
+- Client: `client/js/aegis.js` (lazy-loaded by app.js; `?noaegis` / `?aegis=0` or Settings → "Live AEGIS feed" turns it off).
+  Polls `https://api.xrpl.fun/v1/aegis/city` every 60 s (backoff, paused when hidden), validates everything, never loads the AEGIS sdk.js.
+- Threat level (with hysteresis: 2 polls to escalate, 3 polls + 5 min to calm) drives: Auto weather (rain / storm, ~25 s crossfade, only when
+  more severe than market weather), sky tint (`U.aegisTint/aegisA`), police patrols + call odds (`events.js` `EV.setThreat`), CRITICAL unit roll-out,
+  siren cue (sound on only), alert faces on street billboards (`citylife.js` `L.setAlert`) and tower holograms, searchlights/drones.
+- Screens: police station roof, airport terminal canopy, bracket arms on the tallest towers. Poster (img.youtube.com, CORS *) or a looping
+  preview clip (`preview_clip_url` from AEGIS on api.xrpl.fun / xrpl.fun, or our own `/aegis/clip/<id>.mp4`). Max 3 decoding (2 on phones).
+- Ticker lines join the event-banner queue as `type:'aegis'`, always behind gameplay events.
+- Server clip job (`server/aegis-clips.js`): OFF unless `AEGIS_CLIPS=1` and the image has yt-dlp + ffmpeg (`--build-arg AEGIS_TOOLS=1`).
+  Needs a bigger machine than the current 256 MB shared-cpu VM. YouTube ToS risk: prefer clips supplied by the AEGIS API.

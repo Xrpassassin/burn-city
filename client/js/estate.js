@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const box = (w, h, d, x, y, z, ry = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); return g.translate(x, y, z); };
-export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], colliders = [], streetMat = null, STRIP = null }) {
+// lake frame: depends only on the district nodes (+ avoid points), so the city layout can test it before the Estates are built
+function lakeFrame(nodes, avoid = []) {
   // pick the emptiest direction: farthest (in angle) from every district tower and gate
   const pts = nodes.filter(n => n.pos && n.pos.length() > 60).map(n => Math.atan2(n.pos.z, n.pos.x)).concat(avoid.map(p => Math.atan2(p.z, p.x)));
   let best = 0, bestD = -1; for (let k = 0; k < 144; k++) { const a = k / 144 * Math.PI * 2 - Math.PI; let d = 9; for (const b of pts) d = Math.min(d, Math.abs(((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI)); const back = window.__lakePref ?? -1.1, off = Math.abs(((a - back + Math.PI * 3) % (Math.PI * 2)) - Math.PI); if (off > 0.7) continue; d -= off * 0.15; if (d > bestD) { bestD = d; best = a; } }
@@ -20,6 +21,11 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
   const blockers = nodes.filter(n => n.pos).map(n => [n.pos.x, n.pos.z, (n.distR || n.w * 2 || 10) + 6]).concat(avoid.map(p => [p.x, p.z, 40]));
   let k0 = 6; for (; k0 < 400; k0 += 4) { const c = cityEdge.clone().addScaledVector(dir, k0 + D); if (!blockers.some(([x, z, r]) => inside(x, z, c, r))) break; }
   const lakeC = cityEdge.clone().addScaledVector(dir, k0 + D), nearV = D * rho(-Math.PI / 2), farV = D * rho(Math.PI / 2);
+  return { best, maxR, dir, side, yaw, hub, cityEdge, D, Wd, rho, loc, inside, k0, lakeC, nearV, farV };
+}
+export function estateLake(nodes, avoid = []) { const f = lakeFrame(nodes, avoid); return (x, z, pad = 0) => f.inside(x, z, f.lakeC, pad); }
+export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], colliders = [], streetMat = null, STRIP = null }) {
+  const { best, maxR, dir, side, yaw, hub, cityEdge, D, Wd, rho, loc, inside, k0, lakeC, nearV, farV } = lakeFrame(nodes, avoid);
   const toNear = k0 + D - nearV, toFar = k0 + D + farV, lotC = cityEdge.clone().addScaledVector(dir, toFar + 26 + 65), WW = toFar - toNear, LR = Wd;
   // highway origin: shifted sideways (away from the docks) so it clears the hub district by >= 20 m, then traced back to the nearest ring street
   let HW_OFF = 0, roadO = cityEdge.clone(), hwJoin = null;

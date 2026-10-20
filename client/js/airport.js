@@ -90,7 +90,7 @@ function build() {
   GATES.forEach(gt => { T.push(box(3, 3, 16, gt.x - 4, 5, TERM.z - TERM.d / 2 - 8, 0xcfd4da), box(3.4, .4, 3.4, gt.x - 4, 2.2, TERM.z - TERM.d / 2 - 15, 0x5a6068), cyl(.25, .25, 3.5, gt.x - 4, 1.75, TERM.z - TERM.d / 2 - 15, 0x5a6068, 8), box(.2, .02, 26, gt.x, .07, gt.z + 2, 0xe8c020)); });
   const TW_ = { x: 140, z: -600 };
   T.push(cyl(3.2, 4.2, 42, TW_.x, 21, TW_.z, 0xd8dde4, 16), cyl(7, 4.2, 4, TW_.x, 44, TW_.z, 0x2a3240, 16), cyl(7.2, 7.2, .6, TW_.x, 50.6, TW_.z, 0x2a3240, 16), cyl(1.6, 1.6, 5, TW_.x, 53, TW_.z, 0xbfc6cf, 10), cyl(3.4, 3.4, .2, TW_.x, 30, TW_.z, 0xff7a1a, 16));
-  T.push(colored(new THREE.CylinderGeometry(1, 1, 60, 20, 1, true, Math.PI / 2, Math.PI).rotateX(Math.PI / 2).rotateY(Math.PI / 2).scale(36, 22, 1).translate(-220, 0, -615), 0x9aa2ac), box(60, 18, 1, -220, 9, -585, 0x5a6068));   // hangar
+  T.push(colored(new THREE.CylinderGeometry(1, 1, 60, 20, 1, true, Math.PI / 2, Math.PI).rotateX(Math.PI / 2).scale(36, 22, 1).translate(-220, 0, -615), 0x9aa2ac), box(48, 14, 1, -220, 7, -585, 0x5a6068));   // hangar: 72 x 60 m arch (axis along z), door wall on the north face sized to fit inside the arch
   for (let k = 0; k < 3; k++) T.push(cyl(7, 7, 9, 240 + k * 17, 4.5, -540, 0xe6e8ea, 18), cyl(7.1, 7.1, .5, 240 + k * 17, 8, -540, 0xff7a1a, 18));
   add(merge(T), mat);
   // glass: terminal facade (both sides) + tower cab

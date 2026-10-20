@@ -61,6 +61,20 @@ function distToStreets(st, x, z, skip) {
     else { const vx = s.b.x - s.a.x, vz = s.b.z - s.a.z, L2 = vx * vx + vz * vz; let t = ((x - s.a.x) * vx + (z - s.a.z) * vz) / L2; t = Math.max(0, Math.min(1, t)); m = Math.min(m, Math.hypot(x - s.a.x - vx * t, z - s.a.z - vz * t)); } }
   return m;
 }
+// nudge a point out of every street's asphalt + curb band (min distance from each centreline), deterministic
+function clearOfStreets(st, x, z, minD) {
+  for (let it = 0; it < 6; it++) {
+    let worst = null, wd = minD;
+    for (const s of st) {
+      let d, nx, nz;
+      if (s.type === 'ring') { const dx = x - s.c.x, dz = z - s.c.z, l = Math.hypot(dx, dz) || 1; d = Math.abs(l - s.r); const sg = l >= s.r ? 1 : -1; nx = dx / l * sg; nz = dz / l * sg; }
+      else { const vx = s.b.x - s.a.x, vz = s.b.z - s.a.z, L2 = vx * vx + vz * vz; let t = ((x - s.a.x) * vx + (z - s.a.z) * vz) / L2; t = Math.max(0, Math.min(1, t)); const qx = x - s.a.x - vx * t, qz = z - s.a.z - vz * t; d = Math.hypot(qx, qz); nx = qx / (d || 1); nz = qz / (d || 1); }
+      if (d < wd) { wd = d; worst = [nx, nz]; }
+    }
+    if (!worst) break; x += worst[0] * (minD - wd + .05); z += worst[1] * (minD - wd + .05);
+  }
+  return [x, z];
+}
 function intersections(st) {
   const raw = [];
   const add = (x, z, a, b) => raw.push({ x, z, s: [a, b] });
@@ -101,8 +115,8 @@ function build() {
   const free = (x, z, r, opts = {}) => {
     for (const o of c.colliders) if (o.r > 0 && Math.abs(x - o.x) < o.r + r + 2 && Math.hypot(x - o.x, z - o.z) < o.r + r + 1.5) return false;
     for (const o of taken) if (Math.hypot(x - o.x, z - o.z) < o.r + r + 1) return false;
-    const es = window.__estate; if (es && es.inLake && es.inLake(x, z)) return false;
-    const sk = window.__skate && window.__skate.park; if (sk && Math.abs(x - sk.x) < 24 + r && Math.abs(z - sk.z) < 21 + r) return false;
+    const es = window.__estate; if (es && es.inLake && es.inLake(x, z, r)) return false;   // whole footprint clear of the water
+    const sk = window.__skate && (window.__skate.park || window.__skate.parkArea); if (sk && Math.abs(x - sk.x) < 24 + r && Math.abs(z - sk.z) < 21 + r) return false;
     if (Math.abs(c.groundAt(x, z, 3)) > .2) return false;
     if (!opts.offroad && distToStreets(st, x, z) < r + 5.2) return false;
     return true;
@@ -122,7 +136,7 @@ function build() {
         // approach direction = d * tangent; the pole stands on the right curb before the junction
         const ax = t.tx * d, az = t.tz * d, rx = -az, rz = ax;   // right of travel
         const along = s.type === 'line' ? p.u.get(s) * streetLen(s) : 1e9; if (s.type === 'line' && ((d > 0 && along < 8) || (d < 0 && streetLen(s) - along < 8))) continue;
-        const px = p.x - ax * 6.2 + rx * 3.1, pz = p.z - az * 6.2 + rz * 3.1, yaw = Math.atan2(-ax, -az);   // head faces oncoming traffic
+        const [px, pz] = clearOfStreets(st, p.x - ax * 6.2 + rx * 3.1, p.z - az * 6.2 + rz * 3.1, 3.0), yaw = Math.atan2(-ax, -az);   // head faces oncoming traffic; pole stays on the sidewalk, clear of every street's lanes
         poles.push({ x: px, z: pz, yaw }); heads.push({ x: px, z: pz, yaw });
         p.lamps.push({ i: lamps.length, s, x: px, z: pz, yaw }); lamps.push({ x: px, y: 3.62, z: pz, yaw });
         claim(px, pz, .5);

@@ -1,6 +1,6 @@
 // BURN CITY v2 — read-only 3D visualization of the BURN ecosystem AMM graph on the XRP Ledger.
 import * as THREE from 'three';
-import {buildEstate,estateCard} from './estate.js';
+import {buildEstate,estateCard,estateLake} from './estate.js';
 import {initDrone} from './drone.js';
 import {buildWalker,poseWalker} from './walker.js';
 import './skate.js';
@@ -410,7 +410,9 @@ setInterval(async()=>{if(!LPD.lots.length||document.hidden)return;try{const tx=a
  LPD.lots.forEach(lo=>{if(!lo.done&&(d.graduated||[]).includes(lo.L.ticker))bondLot(lo.L.ticker)})}catch{}},10*60000);
 
 // ---------- satellite buildings (one instanced draw call) + rooftops + neon signs ----------
-const sats=[];
+const sats=[];window.__sats=sats;   // read-only layout hook (spacing audit)
+// keep-out zones known before anything is placed: the Ember Yard skatepark (built lazily on first skate) and the Estates lake (built later from the same nodes)
+const PARKA=window.__skate&&window.__skate.parkArea;
 // neighbourhood density = active wallets (n.active: xrpl.to 24h unique traders, fallback holders), log scale, capped per tower
 const segD=(x,z,p,q)=>{const dx=q.x-p.x,dz=q.z-p.z,l=dx*dx+dz*dz||1,u=Math.max(0,Math.min(1,((x-p.x)*dx+(z-p.z)*dz)/l));return Math.hypot(p.x+u*dx-x,p.z+u*dz-z)};
 const poolSegs=pools.map(p=>[N[p.a].pos,N[p.b].pos]);
@@ -435,25 +437,28 @@ const ROAD_HW=4.8,onRoad=(x,z,pad=0)=>streets.some(s=>(s.type==='ring'?Math.abs(
 E.nodes.forEach(n=>{const act=n.active!=null?n.active:n.holders!=null?n.holders/10:0;n.dens=Math.min(1,Math.log10(1+act)/3.3);
  // top holders (nightly tools/holders.py: share bands + roles only, never addresses) are the main buildings; density filler stays small
  const HB=[.1,.16,.24,.34,.46,.6],ROLEC={amm:0x3cf3ff,blackhole:0x2a2a33,exchange:0xffc23a};n.holderB=[];
- if(n.top&&n.top.length&&!n.minor){const tn=n.top.length;n.top.forEach(([b,role],j)=>{for(let tr=0;tr<8;tr++){const a=(j+tr*.37)/tn*Math.PI*2+.3,r=n.w*2.9+(j%2)*4.5+tr*1.5;const x=n.pos.x+Math.cos(a)*r,z=n.pos.z+Math.sin(a)*r,bw=1.6+b*.35,h=4+n.h*HB[b];
-   if(poolSegs.some(([p,q])=>segD(x,z,p,q)<bw+2))continue;if(onRoad(x,z,bw*1.02+.4))continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+1))continue;
+ if(n.top&&n.top.length&&!n.minor){const tn=n.top.length;n.top.forEach(([b,role],j)=>{for(let tr=0;tr<8;tr++){const a=(j+tr*.37)/tn*Math.PI*2+.3,r=Math.max(n.w*2.9,n.w*2.05+(1.6+b*.35)*1.02+2.2)+(j%2)*4.5+tr*1.5;const x=n.pos.x+Math.cos(a)*r,z=n.pos.z+Math.sin(a)*r,bw=1.6+b*.35,h=4+n.h*HB[b];
+   if(poolSegs.some(([p,q])=>segD(x,z,p,q)<bw+2))continue;if(onRoad(x,z,bw*1.02+1))continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+2))continue;
    const sb={x,z,w:bw,h,c:role?new THREE.Color(ROLEC[role]):n.col.clone().lerp(new THREE.Color(0xffffff),.15),rot:a,n,holder:{b,role,j}};sats.push(sb);n.holderB.push(sb);colliders.push({x,z,r:bw*1.02,h});break}})}
  const k=Math.round((n.name==='XRP'?70:n.minor?Math.min(14,2+12*n.dens):Math.min(56,8+48*n.dens))*LV.sats*(n.holderB.length?.6:1));
  const rnd=(s=>()=>(s=(s*1664525+1013904223)>>>0)/4294967296)([...n.name].reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7));
  const span=(n.distR-n.w*2.5-2)*(1-.35*n.dens);
- for(let i=0,tries=0;i<k&&tries<k*10;tries++){const a=rnd()*Math.PI*2,r=n.w*2.5+rnd()*span;const x=n.pos.x+Math.cos(a)*r,z=n.pos.z+Math.sin(a)*r;
+ for(let i=0,tries=0;i<k&&tries<k*12;tries++){const a=rnd()*Math.PI*2,r0=n.w*2.5+rnd()*span;
   const bw=1.1+rnd()*(n.minor?1.4:2.4),h=3+Math.pow(rnd(),1.6)*n.h*(n.minor?.5:n.holderB.length?.22:.55);
-  if(Math.abs(Math.hypot(x,z)-81)<9)continue;if(poolSegs.some(([p,q])=>segD(x,z,p,q)<bw+2.2))continue;if(onRoad(x,z,bw*1.02+.4))continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+1.6))continue;
+  const r=Math.max(r0,n.w*2.05+bw*1.02+2.2),x=n.pos.x+Math.cos(a)*r,z=n.pos.z+Math.sin(a)*r;   // >= 2.2 m off the tower pad
+  if(PARKA&&Math.abs(x-PARKA.x)<PARKA.hx+bw+2&&Math.abs(z-PARKA.z)<PARKA.hz+bw+2)continue;
+  if(Math.abs(Math.hypot(x,z)-81)<9)continue;if(poolSegs.some(([p,q])=>segD(x,z,p,q)<bw+2.2))continue;if(onRoad(x,z,bw*1.02+1))continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+2))continue;
   sats.push({x,z,w:bw,h,c:n.col,rot:rnd()*Math.PI,n});colliders.push({x,z,r:bw*1.02,h});i++}});
 // infill: ordinary low/mid-rise city blocks lining the streets between districts (same facades, rooftops & signs as satellites), deterministic
 {const r0=(s=>()=>(s=(s*1664525+1013904223)>>>0)/4294967296)(90210);const cap=Math.round((TIER==='low'?160:TIER==='medium'?520:1000));
  const hubs=E.nodes.filter(n=>n.pos),Rmax=Math.max(...[...DR].map(([n,r])=>Math.hypot(n.pos.x,n.pos.z)+r*.9));
  const IPAL=[0x9aa6b8,0x8fb3c9,0xc2b59b,0xa59bc0,0x9cc0b0,0xc9a99a,0xb8c4d0,0x7f93ad].map(c=>new THREE.Color(c));
  const distS=(x,z)=>streets.reduce((m,s)=>Math.min(m,s.type==='ring'?Math.abs(Math.hypot(x-s.c.x,z-s.c.z)-s.r):segD(x,z,s.a,s.b)),1e9);
- const inD=(x,z,pad)=>hubs.some(n=>Math.hypot(x-n.pos.x,z-n.pos.z)<(DR.get(n)||n.distR)+pad);let placed=0;
- for(let tries=0;tries<cap*14&&placed<cap;tries++){const a=r0()*6.2832,r=95+Math.sqrt(r0())*(Rmax-95),x=Math.cos(a)*r,z=Math.sin(a)*r;
-  const ds=distS(x,z),bw=1.6+r0()*2.6;if(ds>34&&r0()<.85)continue;if(ds<4.8+bw+.8)continue;if(inD(x,z,bw+2))continue;
-  if(poolSegs.some(([p,q])=>segD(x,z,p,q)<bw+2.2))continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+1.4))continue;
+ const inD=(x,z,pad)=>hubs.some(n=>Math.hypot(x-n.pos.x,z-n.pos.z)<(DR.get(n)||n.distR)+pad);let placed=0;const inLake=estateLake(E.nodes,[LPD.c]);
+ for(let tries=0;tries<cap*17&&placed<cap;tries++){/* 17 (was 14): the 2 m spacing rule rejects more candidates; keeps the density */const a=r0()*6.2832,r=95+Math.sqrt(r0())*(Rmax-95),x=Math.cos(a)*r,z=Math.sin(a)*r;
+  const ds=distS(x,z),bw=1.6+r0()*2.6;if(ds>34&&r0()<.85)continue;if(ds<4.8+bw*1.02+1)continue;if(inD(x,z,bw+2))continue;
+  if(poolSegs.some(([p,q])=>segD(x,z,p,q)<bw+2.2))continue;if(colliders.some(c=>Math.hypot(c.x-x,c.z-z)<c.r+bw+2))continue;
+  if(PARKA&&Math.abs(x-PARKA.x)<PARKA.hx+bw+2&&Math.abs(z-PARKA.z)<PARKA.hz+bw+2)continue;if(inLake(x,z,bw*1.2+3))continue;
   const near=Math.max(0,1-ds/34),h=3.5+Math.pow(r0(),1.8)*(10+22*near)*(1-.45*(r-95)/(Rmax-95+1));
   let rot=r0()*Math.PI;{let best=1e9;streets.forEach(s=>{const d=s.type==='ring'?Math.abs(Math.hypot(x-s.c.x,z-s.c.z)-s.r):segD(x,z,s.a,s.b);if(d<best){best=d;rot=s.type==='ring'?Math.atan2(z-s.c.z,x-s.c.x):Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z)}})}
   sats.push({x,z,w:bw,h,c:IPAL[(r0()*IPAL.length)|0].clone().multiplyScalar(.8+r0()*.3),rot,n:null,infill:1});colliders.push({x,z,r:bw*1.02,h});placed++}
@@ -959,7 +964,7 @@ const ESTATE=buildEstate({S,U,pick,anim,nodes:E.nodes,low:TIER==='low',avoid:[LP
  for(let u=-160;u<=160;u+=lowT?14:8){if(u>-118&&u<-34)continue;const p=e.lakeC.clone().addScaledVector(e.side,u).addScaledVector(e.dir,-e.D*2.2);let k=0;while(k++<200&&!e.inLake(p.x,p.z,5))p.addScaledVector(e.dir,1);if(k>=200)continue;p.addScaledVector(e.dir,-5);
   for(const off of [3,9,15]){const q=p.clone().addScaledVector(e.dir,-off);if(free(q.x,q.z,2.5))spots.push([q.x,q.z,'shore',u,off])}}
  // central plaza around the hub
- for(let i=0;i<(lowT?12:24);i++){const a=i/(lowT?12:24)*6.2832,r=48+(i%2)*6,x=Math.cos(a)*r,z=Math.sin(a)*r;if(free(x,z,2))spots.push([x,z,'plaza',i,0])}
+ for(let i=0;i<(lowT?12:24);i++){const a=i/(lowT?12:24)*6.2832,r=48+(i%2)*6,x=Math.cos(a)*r,z=Math.sin(a)*r;if(Math.hypot(x,z-52)<6)continue;/* keep the explore spawn (0,52) clear */if(free(x,z,2))spots.push([x,z,'plaza',i,0])}
  spots.forEach(([x,z,kind,u,off],j)=>{if(kind==='shore'){if(off===9)grass.push(x,z,4+(j%3));if(off===15&&j%2===0)trees.push(x,z);if(off===3&&j%3===0)benches.push(x,z,Math.atan2(e.dir.x,e.dir.z));if(off===3&&j%3===1)lamps.push(x,z)}
   else{if(u%2===0){grass.push(x,z,3.2);trees.push(x+1.5,z)}else{benches.push(x,z,Math.atan2(-x,-z));lamps.push(x*1.04,z*1.04)}}});
  const g0=new THREE.CircleGeometry(1,10).rotateX(-Math.PI/2),gm=new THREE.InstancedMesh(g0,new THREE.MeshLambertMaterial({color:0x2f7a3a,emissive:0x0c3016}),grass.length/3);

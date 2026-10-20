@@ -63,12 +63,19 @@ function build() {
   const tier = (c.TIER || 'medium'); const spacing = tier === 'high' ? 16 : tier === 'low' ? 30 : 21;
   const lists = {}; Object.keys(MODELS).forEach(k => lists[k] = []); const flames = [];
   const taken = [];   // placed footprints {x,z,r}
+  const PI = window.__props && window.__props.items;
+  // the Estates highway (7.5 m half width, same test as the app's load-time road audit)
+  const es = window.__estate, HW = es && (es.roadO || es.cityEdge) && es.dir ? { o: es.roadO || es.cityEdge, d: es.dir, L: es.roadLen } : null;
+  const onHw = (x, z, r) => { const al = (x - HW.o.x) * HW.d.x + (z - HW.o.z) * HW.d.z; return al > -2 && al < HW.L && Math.abs((x - HW.o.x) * HW.d.z - (z - HW.o.z) * HW.d.x) < 7.5 + r; };
   const free = (x, z, r) => {
-    for (const o of c.colliders) { if (o.r > 0 && Math.abs(x - o.x) < o.r + r + 2 && Math.hypot(x - o.x, z - o.z) < o.r + r + 1.5) return false; }
+    for (const o of c.colliders) { const orr = o.node ? o.node.w * 2.05 : o.r;   // towers: keep off the whole podium pad, not just the shaft
+      if (orr > 0 && Math.abs(x - o.x) < orr + r + 2 && Math.hypot(x - o.x, z - o.z) < orr + r + 1.5) return false; }
+    if (PI) for (const [px, pz, pr] of PI) { if (pr && Math.abs(x - px) < pr + r + .6 && Math.hypot(x - px, z - pz) < pr + r + .5) return false; }   // park benches + lamps
+    if (HW && onHw(x, z, r + .5)) return false;
     const CL = window.__cityLife; if (CL) for (const o of CL.taken) { if (Math.hypot(x - o.x, z - o.z) < o.r + r + .8) return false; }
     for (const o of taken) { if (Math.abs(x - o.x) < o.r + r + 1 && Math.hypot(x - o.x, z - o.z) < o.r + r + .8) return false; }
     const es = window.__estate; if (es && es.inLake && es.inLake(x, z)) return false;
-    if (SK && SK.park && Math.abs(x - SK.park.x) < 28 && Math.abs(z - SK.park.z) < 25) return false;
+    const pk = SK && (SK.park || SK.parkArea); if (pk && Math.abs(x - pk.x) < 28 && Math.abs(z - pk.z) < 25) return false;
     if (Math.abs(c.groundAt(x, z, 3)) > .15) return false;
     return true;
   };

@@ -421,6 +421,7 @@ function build() {
 
 // Ember Yard: one compact park. Everything is a registry piece, so the same pieces can dress streets later.
 const PARK = { x: -106, z: 54, yaw: 0 };
+SK.parkArea = { x: PARK.x, z: PARK.z, hx: 24, hz: 21 };   // keep-out footprint for city placement (the park itself is built lazily on first skate)
 function buildPark(c) {
   const cx = PARK.x, cz = PARK.z;
   const geo = { con: [], steel: [], ember: [], dark: [] };

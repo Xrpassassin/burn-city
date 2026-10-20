@@ -345,7 +345,7 @@ const css = `
 #wlBanner{position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);z-index:48;font:900 clamp(22px,5vw,40px) system-ui,sans-serif;color:#d8ffb0;text-shadow:0 0 18px #5fe08a,0 2px 8px #000;pointer-events:none;opacity:0;transition:opacity .4s;text-align:center;white-space:nowrap}#wlBanner small{display:block;font-size:.45em;color:#fff}
 #wlToast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:44;background:rgba(10,18,12,.88);border:1px solid #7ad07a66;color:#efffe6;border-radius:12px;padding:8px 14px;font:600 13px system-ui,sans-serif;opacity:0;transition:opacity .3s;pointer-events:none;max-width:92vw;text-align:center}
 body.wl-lock #touch,body.wl-lock #prompt{display:none!important}
-@media (max-width:600px){#wlHud{right:auto;left:50%;transform:translateX(-50%);top:calc(112px + env(safe-area-inset-top))}#wlQuest{right:auto;left:50%;transform:translateX(-50%);top:calc(166px + env(safe-area-inset-top))}#wlHud .wb{min-width:104px;padding:5px 8px}#wlModal .row button{flex:1 1 45%}}
+@media (max-width:600px){#wlHud{right:auto;left:10px;top:calc(158px + env(safe-area-inset-top));gap:6px}#wlQuest{right:auto;left:10px;top:calc(210px + env(safe-area-inset-top));max-width:calc(100vw - 110px);white-space:normal}#wlHud .wb{min-width:104px;padding:5px 8px}#wlModal .row button{flex:1 1 45%}}
 `;
 function el(t, cls, html) { const e = document.createElement(t); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
 const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
@@ -406,7 +406,7 @@ function leaveForest() { W.inForest = false; AUD.leaveForest(); if (W.enc) endEn
 
 // ---------------------------------------------------------------- creatures in the world
 function spawn(slot) {
-  const sp = slot.sp, lv = game.rollLevel(sp, 5), c = game.wild(sp, lv), mesh = buildCreature(sp, C().MOBILE); root.add(mesh);
+  const sp = slot.sp, lv = game.rollLevel(sp, clamp(game.state.player.lv + (sp === 'shardmole' ? 4 : 1), 2, 5)), c = game.wild(sp, lv), mesh = buildCreature(sp, C().MOBILE); root.add(mesh);
   let x, z, k = 0; do { const a = Math.random() * 6.3, r = Math.sqrt(Math.random()) * slot.r; x = slot.x + Math.cos(a) * r; z = slot.z + Math.sin(a) * r; if (slot.creek) { const best = nearestCreek(x, z); x = best[0] + (Math.random() - .5) * 4; z = best[1] + (Math.random() - .5) * 4; } } while (k++ < 20 && blocked(x, z, .6));
   mesh.position.set(x, .035, z); const yaw = Math.random() * 6.3; mesh.rotation.y = yaw;
   const cr = { slot, c, mesh, sp, x, z, yaw, vx: 0, vz: 0, spd: 0, st: 'idle', t: 1 + Math.random() * 3, tx: x, tz: z, tag: tag(''), seen: false, cool: 0 };
@@ -585,7 +585,7 @@ function playLine(l) {
   });
 }
 function bindFx(ok) {
-  const enc = W.enc; if (!enc) return; const { x, z } = enc.cr; const { GLOW } = mats();
+  const enc = W.enc; if (!enc) return; const { x, z } = enc.cr; const { GLOW } = mats(); if (enc.bindAnim) { enc.bindAnim.ring.removeFromParent(); enc.bindAnim = null; }
   const ring = new THREE.Mesh(solid(new THREE.TorusGeometry(.9, .04, 6, 40).rotateX(Math.PI / 2), 0x9bffb0), GLOW); ring.position.set(x, .3, z); root.add(ring);
   const t0 = performance.now(); enc.bindAnim = { ring, t0, ok };
   for (let i = 0; i < 6; i++) setTimeout(() => embers.emit(x, .3 + i * .15, z, 12, ok ? 0x9bffb0 : 0xffd27a, { speed: 1.8, up: .6, life: .8, spread: 1.6 }), i * 120);
@@ -612,12 +612,12 @@ function endEncounter(silent) {
 const _cam = new THREE.Vector3(), _look = new THREE.Vector3();
 function encCamera(dt) {
   const enc = W.enc, c = C(), P = P_(); if (!enc) return; const mx = (P.pos.x + enc.cr.x) / 2, mz = (P.pos.z + enc.cr.z) / 2, px = -enc.uz, pz = enc.ux, k = (performance.now() - enc.t0) / 1000;
-  const sway = Math.sin(k * .25) * .25, side = c.MOBILE && innerHeight > innerWidth ? 7.5 : 6.2;
-  _cam.set(mx + (px * Math.cos(sway) - enc.ux * Math.sin(sway) * .6) * side - enc.ux * 2.2, P.pos.y + (c.MOBILE && innerHeight > innerWidth ? 4.6 : 3), mz + (pz * Math.cos(sway) - enc.uz * Math.sin(sway) * .6) * side - enc.uz * 2.2);
+  const portrait = innerHeight > innerWidth, sway = Math.sin(k * .25) * .25, side = portrait ? 5.6 : 4.4;
+  _cam.set(mx + (px * Math.cos(sway) - enc.ux * Math.sin(sway) * .6) * side - enc.ux * 1.2, P.pos.y + (portrait ? 3.4 : 2.1), mz + (pz * Math.cos(sway) - enc.uz * Math.sin(sway) * .6) * side - enc.uz * 1.2);
   // keep the camera out of tree trunks
   for (const o of obAt(_cam.x, _cam.z)) { const ox = _cam.x - o.x, oz = _cam.z - o.z, od = Math.hypot(ox, oz); if (od < o.r + .6) { _cam.x = o.x + ox / (od || 1) * (o.r + .6); _cam.z = o.z + oz / (od || 1) * (o.r + .6); } }
   if (!enc.cam) enc.cam = c.C.position.clone(); enc.cam.lerp(_cam, 1 - Math.pow(.02, dt));
-  c.C.position.copy(enc.cam); _look.set(mx, P.pos.y + (c.MOBILE && innerHeight > innerWidth ? -.6 : .5), mz); c.C.lookAt(_look);
+  c.C.position.copy(enc.cam); _look.set(mx, P.pos.y + (portrait ? -1.5 : -.55), mz);   // aim low so you + the creature sit in the top half, above the action sheet c.C.lookAt(_look);
   // lunges + hit flashes
   const now = performance.now();
   if (enc.lunge) { const u = (now - enc.lunge.t0) / 420; const a = u < 1 ? Math.sin(u * Math.PI) * .9 : 0; if (u >= 1) enc.lunge = null;
@@ -697,7 +697,13 @@ function frame(dt, t) {
   if (explore && !W.inForest && e < .99 && !W.modal && !(window.__boat && window.__boat.active)) showWarning();
   if (W.inForest && (e > 1.03 || !explore)) leaveForest();
   // forest fog + tint (blended over the city's own weather fog so it fades in as you walk under the canopy)
-  const fz = sstep(1.12, .9, camD); if (fz > 0 && c.S.fog) { FOGC.copy(FNIGHT).lerp(FDAY, day); c.S.fog.density = lerp(c.S.fog.density, .0085 + (1 - day) * .004, fz); c.S.fog.color.lerp(FOGC, fz * .85); }
+  const fz = sstep(1.12, .9, camD);
+  // moonlight/skylight boost under the canopy so creatures stay readable at night (existing lights only: no new shader variants)
+  if (!W.lights) W.lights = { hemi: c.S.children.find(o => o.isHemisphereLight), amb: c.S.children.find(o => o.isAmbientLight) };
+  if (fz > 0) { if (W.lights.hemi) W.lights.hemi.intensity += fz * (1 - day) * .9; if (W.lights.amb) W.lights.amb.intensity += fz * (1 - day) * .45; }
+  // third-person camera never ends up inside a tree trunk or rock: pull it in along the line to the player
+  if (explore && !W.enc && fz > 0 && !P.fp) { const cp = c.C.position, hx = P.pos.x, hz = P.pos.z; let f = 1; for (let k = 1; k <= 8; k++) { const u = k / 8, x = hx + (cp.x - hx) * u, z = hz + (cp.z - hz) * u; const o = blocked(x, z, .45); if (o && o.r > .3) { f = Math.max(.25, (k - 1) / 8); break; } } if (f < 1) { cp.x = hx + (cp.x - hx) * f; cp.z = hz + (cp.z - hz) * f; cp.y = Math.max(cp.y, P.pos.y + 1.6); c.C.lookAt(hx, P.pos.y + 1.4, hz); } }
+  if (fz > 0 && c.S.fog) { FOGC.copy(FNIGHT).lerp(FDAY, day); c.S.fog.density = lerp(c.S.fog.density, .0085 + (1 - day) * .004, fz); c.S.fog.color.lerp(FOGC, fz * .85); }
   // creatures (respawn empty slots)
   if (camD < 2) { for (const s of SPAWNS) { if (!s.cr) { s.cool = (s.cool || 0) - dt; if (s.cool <= 0 && Math.hypot(P.pos.x - s.x, P.pos.z - s.z) > 25) spawn(s); } }
     for (const cr of W.creatures.slice()) updCreature(cr, dt, t, P, Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z)); }
@@ -734,7 +740,7 @@ async function boot() {
   try { await loadData(); } catch (e) { console.warn('wilds data', e); return; }
   game = W.game = createGame(DATA);
   buildDom(); buildWorld();
-  (window.__preRender = window.__preRender || []).push(frame);
+  (window.__preRender = window.__preRender || []).push((dt, t) => { try { frame(dt, t); } catch (e) { if (!W.err) { W.err = String(e && e.stack || e).slice(0, 400); console.warn('wilds frame', e); } } });   // never let the forest break the city's render loop
   (window.__interactors = window.__interactors || []).push(interactor);
   const prevLock = window.__exploreLock; window.__exploreLock = () => !!W.modal || !!W.enc || (prevLock ? prevLock() : false);
   addEventListener('keydown', e => { if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) return; if (W.modal && encKey(e)) { e.stopPropagation(); return; } if (!W.modal && e.code === 'KeyR' && C().getMode() === 'explore') openJournal(); }, true);

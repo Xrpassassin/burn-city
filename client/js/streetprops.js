@@ -65,6 +65,7 @@ function build() {
   const taken = [];   // placed footprints {x,z,r}
   const free = (x, z, r) => {
     for (const o of c.colliders) { if (o.r > 0 && Math.abs(x - o.x) < o.r + r + 2 && Math.hypot(x - o.x, z - o.z) < o.r + r + 1.5) return false; }
+    const CL = window.__cityLife; if (CL) for (const o of CL.taken) { if (Math.hypot(x - o.x, z - o.z) < o.r + r + .8) return false; }
     for (const o of taken) { if (Math.abs(x - o.x) < o.r + r + 1 && Math.hypot(x - o.x, z - o.z) < o.r + r + .8) return false; }
     const es = window.__estate; if (es && es.inLake && es.inLake(x, z)) return false;
     if (SK && SK.park && Math.abs(x - SK.park.x) < 28 && Math.abs(z - SK.park.z) < 25) return false;
@@ -145,6 +146,6 @@ function addPhysics(c, SK, k, x, z, yaw) {
 (function wait() {
   const c = window.__city;
   if (new URLSearchParams(location.search).has('noprops')) return;   // A/B switch for perf comparisons
-  if (window.__ready && c && c.streets && c.streets.length && c.colliders.length) { try { build(); } catch (e) { console.warn('streetprops', e); } }
+  if (window.__ready && c && c.streets && c.streets.length && c.colliders.length && (!window.__cityLife || window.__cityLife.ready)) { try { build(); } catch (e) { console.warn('streetprops', e); } }
   else setTimeout(wait, 400);
 })();

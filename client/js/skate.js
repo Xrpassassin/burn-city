@@ -7,11 +7,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { poseWalker } from './walker.js';
+import GEAR from './skategear.js';
+const PIVOT = .05;   // the board group spins about a point 5 cm up (the middle of the board), not the wheel contact
 
 const G = 22, PUSH_MAX = 9.5, MAX_V = 17, STEP_UP = .28, SUB = .2;
 const C = () => window.__city;
 const SK = window.__skate = { active: false, pieces: [], rails: [], addPiece, drive, toggle, state: null, test: {} };
-let built = false, root, board, hud, btns, tut;
+let built = false, root, board, hud, btns, tut, gearBtn;
 const CELL = 16, PG = new Map(), RG = new Map(), EMPTY = [];
 const ck = (x, z) => Math.floor(x / CELL) * 73856 + Math.floor(z / CELL);
 function gridAdd(G, o, x0, z0, x1, z1) { for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) { const k = i * 73856 + j; let a = G.get(k); if (!a) G.set(k, a = []); a.push(o); } }
@@ -101,10 +103,10 @@ function toggle(on) {
   SK.active = on;
   if (on) {
     st.pos.copy(c.P.pos); st.vel.set(0, 0, 0); st.h = c.input.yp.yaw; st.air = false; st.grind = null; st.flip = null; st.bail = 0; st.base = 0; st.mult = 0; st.combo = [];
-    board.visible = true; hud.style.display = 'block'; if (btns) btns.style.display = c.MOBILE ? 'grid' : 'none';
+    board.visible = true; hud.style.display = 'block'; if (gearBtn) gearBtn.style.display = 'block'; if (btns) btns.style.display = c.MOBILE ? 'grid' : 'none';
     tutorial(true);
   } else {
-    c.P.pos.copy(st.pos); c.P.vel.set(0, 0, 0); board.visible = false; hud.style.display = 'none'; if (btns) btns.style.display = 'none';
+    c.P.pos.copy(st.pos); c.P.vel.set(0, 0, 0); board.visible = false; hud.style.display = 'none'; if (gearBtn) gearBtn.style.display = 'none'; GEAR.close(); if (btns) btns.style.display = 'none';
     c.avatar.rotation.x = c.avatar.rotation.z = 0;
   }
   const sb = document.getElementById('tSkate'); if (sb) sb.classList.toggle('on', on);
@@ -321,17 +323,17 @@ function pose(dt) {
   poseWalker(av, (st.pushT) * 7, pushing ? .45 : 0, t);
   const L = av.userData;
   if (L && L.legs && !pushing) { const cr = .35 + st.crouch * .5 + (st.air ? .35 : 0) + (st.grab > 0 ? .5 : 0); L.legs[0].rotation.x = cr * .6; L.legs[1].rotation.x = -cr * .3; if (L.arms) { L.arms[0].rotation.z = .9; L.arms[1].rotation.z = -.9; } }
-  const bh = .11;
+  const bh = (board.children[0].userData.deckTop || .085) + .005;
   av.position.set(st.pos.x, st.pos.y + bh - st.crouch * .12 - (st.grab > 0 ? .2 : 0), st.pos.z);
   av.rotation.y = st.h + Math.PI * .5 * (st.grind ? .35 : .22);   // sideways stance on the board
   av.rotation.z = st.air ? 0 : -(C().input.joy.x + ((K().KeyD ? 1 : 0) - (K().KeyA ? 1 : 0))) * .12 * Math.min(1, st.vel.length() / 6);
   if (st.bail > 0) { av.rotation.x = Math.min(1.3, (1.1 - st.bail) * 3); } else av.rotation.x = 0;
   av.visible = !c.P.fp;
-  board.position.set(st.pos.x, st.pos.y + .06, st.pos.z);
+  board.position.set(st.pos.x, st.pos.y + .004, st.pos.z);
   board.rotation.set(0, st.h, 0);
   const fl = st.flip ? st.flip.t * Math.PI * 2 * st.flip.dir : 0;
   board.children[0].rotation.z = fl;
-  board.children[0].position.y = st.flip ? Math.sin(st.flip.t * Math.PI) * .35 : 0;
+  board.children[0].position.y = PIVOT + (st.flip ? Math.sin(st.flip.t * Math.PI) * .35 : 0);
   board.children[0].rotation.x = st.manual > 0 ? -.22 : 0;
 }
 
@@ -404,12 +406,15 @@ function build() {
   const c = C(); root = new THREE.Group(); root.name = 'skate'; c.S.add(root);
   hud = document.createElement('div'); hud.id = 'skHud'; hud.style.display = 'none'; document.body.appendChild(hud);
   touchButtons(); if (btns) btns.style.display = 'none';
+  gearBtn = document.createElement('button'); gearBtn.id = 'skGearBtn'; gearBtn.textContent = '🛹 Gear'; gearBtn.style.cssText = 'position:fixed;left:12px;top:calc(env(safe-area-inset-top) + 64px);z-index:9;display:none;background:#1b1210e6;color:#ffd8b8;border:1px solid #ff7a1a88;border-radius:999px;padding:7px 13px;font:700 13px system-ui,sans-serif';
+  gearBtn.onclick = e => { e.stopPropagation(); GEAR.open(); }; document.body.appendChild(gearBtn);
+  addEventListener('keydown', e => { if (SK.active && e.code === 'KeyG' && !e.repeat && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { GEAR.ui() ? GEAR.close() : GEAR.open(); } });
   // board
+  // board: socketed parts from the gear registry (deck, trucks, wheels), all inside deckG so flips/grinds move them together
   board = new THREE.Group(); const deckG = new THREE.Group(); board.add(deckG);
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(.22, .025, .8), new THREE.MeshStandardMaterial({ color: 0x1a1210, roughness: .7, metalness: .1 })); deckG.add(deck);
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(.06, .027, .62), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, .55, .12) })); deckG.add(stripe);
-  const wM = new THREE.MeshStandardMaterial({ color: 0xffb347, roughness: .4, emissive: 0x3a1500 }), tM = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, metalness: .9, roughness: .3 });
-  for (const z of [-.28, .28]) { const tr = new THREE.Mesh(new THREE.BoxGeometry(.2, .03, .05), tM); tr.position.set(0, -.03, z); deckG.add(tr); for (const x of [-.1, .1]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .03, 10).rotateZ(Math.PI / 2), wM); w.position.set(x, -.055, z); deckG.add(w); } }
+  GEAR.build(deckG, GEAR.loadout, PIVOT); deckG.position.y = PIVOT;
+  GEAR.onChange = l => { GEAR.build(deckG, l, PIVOT); SK.loadout = { ...l }; };
+  SK.loadout = { ...GEAR.loadout }; SK.board = board;
   board.visible = false; c.S.add(board);
   buildPark(c);
 }

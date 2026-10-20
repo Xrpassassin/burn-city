@@ -4,7 +4,10 @@ import {buildEstate,estateCard} from './estate.js';
 import {initDrone} from './drone.js';
 import {buildWalker,poseWalker} from './walker.js';
 import './skate.js';
+import './citylife.js';
 import './streetprops.js';
+import './events.js';
+import './airport.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
@@ -598,7 +601,7 @@ function spawnShip(e){const b=bridges.find(x=>(e.pool&&e.pool.amm&&x.p.amm===e.p
  const fwd=e.from?e.from===b.p.a:e.to?e.to===b.p.b:Math.random()<.5,sc=Math.min(4,Math.max(.45,.45+.55*Math.log10(1+e.xrp)));
  const wh=isWhale(e),kind=wh?'whale':e.arb?'arb':e.hops>1?'route':e.xrp>=TRADE_MIN?'big':'swap',i=shipI;shipI=(shipI+1)%SHIPN;if(!ships[i])shipLive++;
  const D0=b.doors&&b.doors[fwd?0:1],D1=b.doors&&b.doors[fwd?1:0];
- ships[i]={e,wh,b,fwd,t:0,dur:(5+b.curve.getLength()/40)*(.85+.08*sc)*(wh?1.6:1),sc:wh?Math.min(5,sc*1.4):sc,side:(fwd?1:-1)*(b.r+1.1+sc*.55),alt:1.4+sc*.55+(i%3)*.7,D0,D1,docked:0};DOOR.flash(D0);cars.setColorAt(i,SHIPC[kind]);cars.instanceColor.needsUpdate=true;if(wh&&!e.replay)whaleToast(e,i)}
+ ships[i]={e,wh,b,fwd,t:0,dur:(5+b.curve.getLength()/40)*(.85+.08*sc)*(wh?1.6:1),sc:wh?Math.min(5,sc*1.4):sc,side:(fwd?1:-1)*(b.r+1.1+sc*.55),alt:1.4+sc*.55+(i%3)*.7,D0,D1,docked:0};DOOR.flash(D0);cars.setColorAt(i,SHIPC[kind]);cars.instanceColor.needsUpdate=true;if(wh&&!e.replay)whaleToast(e,i);if(window.__cityEvent&&!e.replay)window.__cityEvent('swap',e,kind)}
 window.__ships=()=>ships.filter(Boolean).length;
 function updCars(dt){if(!shipLive)return;const P=carLG.attributes.position;
  for(let i=0;i<SHIPN;i++){const s=ships[i];if(!s)continue;s.t+=dt;
@@ -708,9 +711,10 @@ function updPeds(dt){const T=performance.now()*.001;peds.forEach((q,i)=>{const s
  if(s.type==='ring'){q.u=(q.u+1)%1;const a=q.u*6.283,rr=s.r+q.lat*q.side;_pp.set(s.c.x+Math.cos(a)*rr,0,s.c.z+Math.sin(a)*rr);hx=-Math.sin(a)*q.d;hz=Math.cos(a)*q.d}
  else{if(q.u>1||q.u<0){q.u=Math.max(0,Math.min(1,q.u));q.d*=-1}const dx=(s.b.x-s.a.x)/q.len,dz=(s.b.z-s.a.z)/q.len;_pp.copy(s.a).lerp(s.b,q.u);_pp.x+=-dz*q.lat*q.side;_pp.z+=dx*q.lat*q.side;_pp.y=0;hx=dx*q.d;hz=dz*q.d}
  _pp.y=Math.abs(Math.sin(T*q.sp*5.2+q.ph))*.05;_pq.setFromAxisAngle(_pu,Math.atan2(hx,hz));_pm.compose(_pp,_pq,_ps);pedM.setMatrixAt(i,_pm)});pedM.instanceMatrix.needsUpdate=true}
-function updGround(dt){updPeds(dt);const P=gtG.attributes.position;gT.forEach((g,i)=>{const s=g.s;
- if(s.type==='ring'){g.u=(g.u+g.sp*dt*g.d+1)%1;const a=g.u*6.283,rr=s.r+1.25*g.side;_gp.set(s.c.x+Math.cos(a)*rr,.02,s.c.z+Math.sin(a)*rr);_gt.set(-Math.sin(a)*g.d,0,Math.cos(a)*g.d)}
- else{g.u+=g.sp*dt*g.d;if(g.u>1||g.u<0){g.u=Math.max(0,Math.min(1,g.u));g.d*=-1;g.side*=-1}_gt.subVectors(s.b,s.a).setY(0).normalize().multiplyScalar(g.d);_gp.copy(s.a).lerp(s.b,g.u).setY(.02)}
+function updGround(dt){updPeds(dt);if(window.__cityLife&&window.__cityLife.traffic)window.__cityLife.traffic(gT,dt,performance.now()/1000);   // red lights, car-following, yielding to sirens
+const P=gtG.attributes.position;gT.forEach((g,i)=>{const s=g.s;
+ if(s.type==='ring'){g.u=(g.u+g.sp*dt*g.d*(g.k??1)+1)%1;const a=g.u*6.283,rr=s.r+1.25*g.side;_gp.set(s.c.x+Math.cos(a)*rr,.02,s.c.z+Math.sin(a)*rr);_gt.set(-Math.sin(a)*g.d,0,Math.cos(a)*g.d)}
+ else{g.u+=g.sp*dt*g.d*(g.k??1);if(g.u>1||g.u<0){g.u=Math.max(0,Math.min(1,g.u));g.d*=-1;g.side*=-1}_gt.subVectors(s.b,s.a).setY(0).normalize().multiplyScalar(g.d);_gp.copy(s.a).lerp(s.b,g.u).setY(.02)}
  _gn.set(-_gt.z,0,_gt.x);if(s.type==='ring')_gp.y=.02;else _gp.addScaledVector(_gn,-1.25);
  _gq.setFromAxisAngle(_gU,Math.atan2(_gt.x,_gt.z));_gm.compose(_gp,_gq,_gs);gcar.setMatrixAt(i,_gm);
  const fx=_gp.x+_gt.x*2.08,fz=_gp.z+_gt.z*2.08,rx=_gp.x-_gt.x*2.08,rz=_gp.z-_gt.z*2.08;

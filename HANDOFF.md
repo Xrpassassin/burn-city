@@ -35,23 +35,25 @@ Before any deploy: syntax checks pass, then smoke test on PC and mobile:
 City explore, Zombies match (downed/revive, reconnect), fishing (F / Space / Esc), dungeon character creation + one fight. No console errors.
 
 ## Deploy
-GitHub `main` is the single source of truth. The Fly machine's start command is `sh /data/boot.sh`
-(a copy of `scripts/boot.sh`): on every boot it downloads `main` from GitHub, syntax-checks it, and runs it.
-So **deploy = merge to main, then restart the machine**:
-- Automatic: `.github/workflows/deploy.yml` restarts the machine on every push to `main`
-  (needs repo secret `FLY_API_TOKEN`; without it the step is skipped).
-- Manual: `fly machine restart 8d2909be270068 -a burn-city-game`
-- If the download or checks fail, the machine keeps running the last good copy (`/data/gh/cur`).
-- Changing `scripts/boot.sh` itself also requires copying it to `/data/boot.sh` on the volume.
-- Dependencies come from the image's `/app/node_modules`. If you change `package.json` deps,
-  also run `fly deploy` (builds the Dockerfile image) so node_modules updates.
-- Legacy overlay `/data/patch/app` is only a fallback now; do not edit it.
+GitHub `main` is the single source of truth, and **deploys are automatic: merge to `main` and it is live within ~3 minutes.**
+- The Fly machine's start command is `sh /data/boot.sh` (a copy of `scripts/boot.sh`). It pulls `main`,
+  syntax-checks `server/server.js` + `server/game.js`, runs it from `/data/gh/cur`, then checks GitHub every
+  3 minutes and restarts onto any new `main` commit. Currently deployed commit: `/data/gh/SHA`.
+- A restart drops live matches, so merge when few players are on.
+- If GitHub is down or the new code fails checks, the last good copy keeps running.
+  If the new server crashes within 30 s of starting, the previous copy (`/data/gh/prev`) is started instead.
+- Changing `scripts/boot.sh` itself only takes effect after copying it to `/data/boot.sh` on the volume and restarting.
+- npm dependencies come from the image's `/app/node_modules`. If you change dependencies in `package.json`,
+  also run `fly deploy` (rebuilds the image from the Dockerfile; its CMD still uses `/data/boot.sh`).
+- `.github/workflows/deploy.yml` runs syntax checks on every push (and an immediate restart if the
+  optional repo secret `FLY_API_TOKEN` is set).
+- Manual restart: `fly machine restart 8d2909be270068 -a burn-city-game`
 
 ## Rollback
-- Code: `git revert <sha>` on main, then restart.
+- Code: `git revert <sha>` on main (auto-deploys in ~3 min).
 - Pin a version: `fly ssh console -C "sh -c 'echo tags/live-2026-10-19 > /data/gh/REF'"` then restart
-  (delete `/data/gh/REF` to go back to main).
-- Emergency: `touch /data/gh/DISABLE` + restart runs the old overlay / image code.
+  (auto-updates pause while pinned; delete `/data/gh/REF` and restart to go back to main).
+- Emergency: `touch /data/gh/DISABLE` + restart runs the code baked into the Docker image (`/app`, older until the next `fly deploy`).
 
 ## Rules for bots
 - One bot at a time; one branch per feature (`feat/<name>`), PR into `main`.

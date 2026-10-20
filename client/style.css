@@ -186,3 +186,4 @@ body.replay #wchip{opacity:.6}
 /* mobile: info/details panels scroll (body has touch-action:none for the canvas) */
 #hud.open,#info{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y}
 @media (max-width:700px){#hud.open{max-height:calc(100dvh - 20px - env(safe-area-inset-top));box-sizing:border-box}#info{max-height:min(calc(100vh - 230px),calc(100dvh - 230px))}}
+.lbl.lockLbl{font-size:10px;background:linear-gradient(90deg,rgba(40,22,4,.78),rgba(20,10,2,.7));letter-spacing:.04em}

@@ -577,6 +577,22 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=A.pos.clone().setY(deckY(A
   fv.forEach(b=>{for(const [A,B] of [[N[b.p.a],N[b.p.b]],[N[b.p.b],N[b.p.a]]]){const d=B.pos.clone().sub(A.pos).setY(0).normalize(),tp=A.pos.clone().addScaledVector(d,A.w*2.25);_m.compose(_v.set(tp.x,3.3,tp.z),_q.setFromAxisAngle(UPV,Math.atan2(d.x,d.z)),_s.set(1,1,1));pm.setMatrixAt(k++,_m)}});
   pm.count=k;S.add(pm);anim.push(t=>pm.material.color.setScalar(.5+.08*Math.sin(t*1.6)))}}
 
+// ---------- AMM rails polish: animated liquidity flow along every bridge core + 🔒 LOCKED FOREVER seals ----------
+// Locked = LP tokens held by verified black-holed wallets (server/eco.js isBlackhole: DisableMaster, no usable RegularKey, no SignerList).
+// Phone-light: one shared shader program for the flow, ONE instanced draw for every seal ring/chain link, DOM labels via the existing declutter.
+{const FV='varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  FF='uniform float t,op,sp;uniform vec3 c,g;uniform float lk;varying vec2 vU;void main(){float s=fract(vU.x*9.-t*sp);float streak=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);vec3 col=mix(c,g,lk*.55)*(.55+1.1*streak);gl_FragColor=vec4(col,op*(.55+.45*streak));}';
+ const LOCKC=new THREE.Color(0xffb020),EMBC=new THREE.Color(0xff5a1a);
+ bridges.forEach(b=>{if(!b.core)return;const o=b.core.material,L=b.L;b.core.material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,
+   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)},g:{value:LOCKC},lk:{value:L}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v}});o.dispose()});
+ const lk=bridges.filter(b=>b.L>=.01&&!b.minor);
+ if(lk.length){const links=TIER==='low'?1:3,im=new THREE.InstancedMesh(new THREE.TorusGeometry(1,.09,5,TIER==='low'?14:20),new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false}),lk.length*2*links);let k=0;const tg=new THREE.Vector3(),cc=new THREE.Color(),ZF=new THREE.Vector3(0,0,1),qa=new THREE.Quaternion();
+  lk.forEach(b=>{cc.copy(EMBC).lerp(LOCKC,Math.min(1,b.L*1.25)).multiplyScalar(.6+1.6*b.L);for(const u0 of [.07,.93])for(let j=0;j<links;j++){const u=u0+(u0<.5?1:-1)*j*.022,q=b.curve.getPoint(u);b.curve.getTangent(u,tg);
+    _q.setFromUnitVectors(ZF,tg);if(j%2)_q.multiply(qa.setFromAxisAngle(ZF,Math.PI/2));const rr=b.r+.55;_m.compose(q,_q,_s.set(rr,rr*(j%2?.7:1),rr));im.setMatrixAt(k,_m);im.setColorAt(k++,cc)}});
+  im.count=k;im.instanceColor.needsUpdate=true;im.frustumCulled=false;S.add(im);anim.push(t=>im.material.color.setScalar(.85+.15*Math.sin(t*1.4)));
+  lk.filter(b=>b.L>=.1).forEach(b=>{const el=document.createElement('div');el.className='lbl lockLbl';el.style.setProperty('--c',b.L>=.7?'#ffc64a':'#ff8a2a');el.textContent=`🔒 LOCKED FOREVER · ${(b.L*100).toFixed(b.L>=.995?0:1)}%`;$('labels').appendChild(el);
+   const top=b.curve.getPoint(.5);labelEls.push({el,pos:top.clone().setY(top.y+b.r+2.5),pri:b.p.tvl_xrp*b.L*.5,minor:true})})}}
+
 // ---------- pool traffic basis (activity colour + card): min 24h volume of the pair ----------
 const vol=n=>n.name==='XRP'?null:(n.vol24h??null);
 bridges.forEach(b=>{const vs=[vol(N[b.p.a]),vol(N[b.p.b])].filter(v=>v!=null);const v=vs.length?Math.min(...vs):b.p.tvl_xrp*.02;b.vol=v;b.volEst=!vs.length});

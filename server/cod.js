@@ -18,91 +18,130 @@ const CELL = 2, GW = 40, GH = 32, MapGen = require('./mapgen');
 const WX = c => (c - GW / 2) * CELL + 1, WZ = r => (r - GH / 2) * CELL + 1;
 // props sit on a floor cell, pushed against the wall behind them (dx/dz)
 const at = (c, r, dx = 0, dz = 0) => ({ x: WX(c) + dx * 0.55, z: WZ(r) + dz * 0.55, face: Math.atan2(-dx, -dz) });
-const PERKINFO = { jug: { name: 'Ember Armor', desc: '250 max health', cost: 2500, col: '#ff3030' }, quick: { name: 'Quick Fuel', desc: 'Faster fuel refill and reload', cost: 2000, col: '#30c0ff' },
-  speed: { name: 'Fire Walk', desc: 'Faster movement', cost: 2000, col: '#30ff70' }, revive: { name: 'Phoenix Revive', desc: 'Revive teammates fast · solo: revive yourself once', cost: 1500, col: '#ffd030' },
-  dbl: { name: 'Double Burn', desc: 'Double damage', cost: 3000, col: '#c040ff' } };
-const PERK_KEYS = ['jug', 'quick', 'speed', 'revive', 'dbl'];
+const PERKINFO = { jug: { name: 'Ember Armor', desc: '250 max health', cost: 2500, col: '#ff3030', ic: '🛡️' }, quick: { name: 'Quick Fuel', desc: 'Faster fuel refill and reload', cost: 2000, col: '#30c0ff', ic: '⛽' },
+  speed: { name: 'Fire Walk', desc: 'Faster movement', cost: 2000, col: '#30ff70', ic: '👟' }, revive: { name: 'Phoenix Revive', desc: 'Revive teammates fast · solo: revive yourself once', cost: 1500, col: '#ffd030', ic: '🪶' },
+  dbl: { name: 'Double Burn', desc: 'Double damage', cost: 3000, col: '#c040ff', ic: '💥' },
+  // 2026-10 additions (appended so the perk bit of every older perk stays the same)
+  slag: { name: 'Slag Skin', desc: 'Zombies that hit you get a face full of molten slag', cost: 2000, col: '#ff8a1a', ic: '🌋' },
+  burn: { name: 'Afterburn', desc: 'Your hits set zombies alight: +35% damage as burn', cost: 2500, col: '#ff4a6a', ic: '🔥' },
+  valve: { name: 'Pressure Valve', desc: 'Below 35% health you vent a fire nova (30 s recharge)', cost: 2000, col: '#ffe14a', ic: '♨️' },
+  leech: { name: 'Cinder Leech', desc: 'Every kill heals 8 health', cost: 1500, col: '#8aff5a', ic: '🩸' } };
+const PERK_KEYS = ['jug', 'quick', 'speed', 'revive', 'dbl', 'slag', 'burn', 'valve', 'leech'];
 // ===== The BURN Refinery: the hand-built classic map (ranked + daily keep it so everyone plays the same layout) =====
 // cell codes: -1 wall/obstacle, 0..n floor of that room, 100+d door d (walkable once open)
 const CLASSIC = { name: 'The BURN Refinery', env: null,
   zones: [{ n: 'Spawn Bay', r: [16, 23, 21, 30], col: '#ff8a3a' }, { n: 'Main Corridor', r: [1, 38, 17, 19], col: '#d8a060' },
     { n: 'Control Room', r: [1, 14, 21, 30], col: '#36c8ff' }, { n: 'Warehouse', r: [25, 38, 21, 30], col: '#e0b070' },
-    { n: 'Lab', r: [1, 12, 1, 15], col: '#5cff9a' }, { n: 'Furnace Hall', r: [27, 38, 1, 15], col: '#ff4a1a' }, { n: 'Courtyard', r: [14, 25, 1, 15], col: '#b47aff' }],
+    { n: 'Lab', r: [1, 12, 1, 15], col: '#5cff9a' }, { n: 'Furnace Hall', r: [27, 38, 1, 15], col: '#ff4a1a' }, { n: 'Courtyard', r: [14, 25, 1, 15], col: '#b47aff' },
+    { n: 'The Gantry', r: [25, 38, 21, 30], col: '#ffc23a', lv: 1 }],   // upper level over the Warehouse (lv 1 zones never fill the ground grid)
   obst: [[18, 18, 24, 24, 3.2, 'pillar'], [21, 21, 24, 24, 3.2, 'pillar'], [18, 18, 27, 27, 3.2, 'pillar'], [21, 21, 27, 27, 3.2, 'pillar'],
     [3, 6, 23, 23, 1.1, 'desk'], [9, 12, 23, 23, 1.1, 'desk'], [3, 6, 27, 27, 1.1, 'desk'], [9, 12, 27, 27, 1.1, 'desk'],
     [27, 28, 23, 24, 2.2, 'crate'], [31, 32, 23, 24, 2.2, 'crate'], [35, 36, 23, 24, 2.2, 'crate'], [27, 28, 27, 28, 2.2, 'crate'], [31, 32, 27, 28, 2.2, 'crate'], [35, 36, 27, 28, 2.2, 'crate'],
     [3, 10, 4, 4, 1.1, 'bench'], [3, 10, 8, 8, 1.1, 'bench'], [3, 10, 12, 12, 1.1, 'bench'],
     [29, 31, 4, 6, 2.6, 'furnace'], [34, 36, 4, 6, 2.6, 'furnace'], [29, 31, 10, 12, 2.6, 'furnace'], [34, 36, 10, 12, 2.6, 'furnace'],
-    [18, 21, 6, 9, 2.2, 'tank'], [8, 9, 17, 17, 3.2, 'pipe'], [29, 30, 19, 19, 3.2, 'pipe']],
+    [18, 21, 6, 9, 2.2, 'tank'], [8, 9, 17, 17, 3.2, 'pipe'], [29, 30, 19, 19, 3.2, 'pipe'],
+    // Gantry: solid stair towers under each ramp landing, low guard rails along the open side of each ramp
+    [29, 30, 21, 22, 3.6, 'support'], [33, 34, 29, 30, 3.6, 'support'], [28, 28, 25, 26, 1.1, 'rail'], [31, 32, 25, 26, 1.1, 'rail'], [35, 35, 25, 26, 1.1, 'rail']],
   doordef: [[0, 1, [[19, 20], [20, 20]], 750], [1, 2, [[7, 20], [8, 20]], 1000], [1, 3, [[31, 20], [32, 20]], 1000], [1, 4, [[6, 16], [7, 16]], 1250],
-    [1, 5, [[32, 16], [33, 16]], 1250], [4, 6, [[13, 7], [13, 8]], 1500], [5, 6, [[26, 7], [26, 8]], 1500]],
+    [1, 5, [[32, 16], [33, 16]], 1250], [4, 6, [[13, 7], [13, 8]], 1500], [5, 6, [[26, 7], [26, 8]], 1500],
+    [3, 7, [[29, 27], [30, 27]], 1250, 'debris'], [3, 7, [[33, 24], [34, 24]], 1250, 'debris']],   // rubble at the foot of both Gantry ramps (clearing either opens the Gantry)
   // boarded windows in exterior walls: wall cell + outward direction
   windef: [[18, 31, 0, 1], [21, 31, 0, 1], [0, 24, -1, 0], [0, 28, -1, 0], [6, 31, 0, 1], [39, 24, 1, 0], [39, 28, 1, 0], [32, 31, 0, 1],
-    [0, 5, -1, 0], [0, 11, -1, 0], [6, 0, 0, -1], [17, 0, 0, -1], [22, 0, 0, -1], [39, 5, 1, 0], [39, 11, 1, 0], [32, 0, 0, -1], [0, 18, -1, 0], [39, 18, 1, 0]],
+    [0, 5, -1, 0], [0, 11, -1, 0], [6, 0, 0, -1], [17, 0, 0, -1], [22, 0, 0, -1], [39, 5, 1, 0], [39, 11, 1, 0], [32, 0, 0, -1], [0, 18, -1, 0], [39, 18, 1, 0],
+    [39, 22, 1, 0, 1], [39, 27, 1, 0, 1], [27, 31, 0, 1, 1], [36, 31, 0, 1, 1]],   // 5th value 1 = upper-level vent (zombies crawl in off the outside ledges)
   wallbuys: [{ w: 'shotgun', cost: 500, s: [16, 25, -1, 0] }, { w: 'dragon', cost: 1000, s: [14, 17, 0, -1] }, { w: 'napalm', cost: 1500, s: [38, 25, 1, 0] }],
   box: [[4, 19, 0, 1], [13, 29, 1, 0], [37, 22, 0, -1], [2, 2, -1, 0], [37, 14, 1, 0], [15, 14, -1, 0]],
   forge: [32, 1, 0, -1], power: null,
-  perks: { jug: [1, 30, -1, 0], quick: [25, 30, -1, 0], speed: [38, 17, 1, 0], revive: [23, 30, 1, 0], dbl: [25, 1, 1, 0] } };
+  perks: { jug: [1, 30, -1, 0], quick: [25, 30, -1, 0], speed: [38, 17, 1, 0], revive: [23, 30, 1, 0], dbl: [25, 1, 1, 0], slag: [14, 4, -1, 0], burn: [38, 8, 1, 0], valve: [26, 21, 0, -1, 1], leech: [12, 3, 1, 0] },
+  quest: { console: [14, 22, 1, 0], zones: [[4, 6], [5], [7]] },   // Night Shift radio quest: the flare console + which rooms hold each step's item
+  // upper level: walkable rects (catwalk ring), outer walls, open void over the Warehouse floor, and two 4-cell ramps (up = the direction you climb)
+  upper: { zone: 7, h: 3.6, atrium: [25, 38, 21, 30], walk: [[25, 38, 21, 22], [25, 38, 29, 30], [25, 26, 23, 28], [37, 38, 23, 28]], walls: [[24, 39, 20, 20], [24, 39, 31, 31], [24, 24, 20, 31], [39, 39, 20, 31]], void: [[27, 36, 23, 28]],
+    ramps: [{ c: [29, 30], r: [23, 26], up: 'n' }, { c: [33, 34], r: [25, 28], up: 's' }] } };
 if (process.env.ZOMBIE_TEST_PROPS && !process.env.FLY_APP_NAME) { CLASSIC.box.push([17, 22, 1, 0]); CLASSIC.forge = [22, 22, 1, 0]; }   // local screenshot runs only
 const FORGE_COST = +process.env.ZOMBIE_FORGE_COST || 5000;
 function build(def, kind) {
   const GRID = def.grid ? def.grid.map(r => r.slice()) : (() => { const G = []; for (let r = 0; r < GH; r++) G.push(new Array(GW).fill(-1));
-    def.zones.forEach((z, i) => { for (let r = z.r[2]; r <= z.r[3]; r++) for (let c = z.r[0]; c <= z.r[1]; c++) G[r][c] = i; });
+    def.zones.forEach((z, i) => { if (z.lv) return; for (let r = z.r[2]; r <= z.r[3]; r++) for (let c = z.r[0]; c <= z.r[1]; c++) G[r][c] = i; });
+    for (const rp of def.upper?.ramps || []) for (let r = rp.r[0]; r <= rp.r[1]; r++) for (let c = rp.c[0]; c <= rp.c[1]; c++) G[r][c] = def.upper.zone;   // ramp cells belong to the upper zone on both levels
     for (const [c0, c1, r0, r1] of def.obst) for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) G[r][c] = -1; return G; })();
-  const DOORS = def.doordef.map(([a, b, cells, cost], d) => { for (const [c, r] of cells) GRID[r][c] = 100 + d;
+  const DOORS = def.doordef.map(([a, b, cells, cost, kind], d) => { for (const [c, r] of cells) GRID[r][c] = 100 + d;
     const x = cells.reduce((s, [c]) => s + WX(c), 0) / cells.length, z = cells.reduce((s, [, r]) => s + WZ(r), 0) / cells.length;
-    return { a, b, cells, cost, x, z, ax: cells[0][1] === cells[1][1] ? 'x' : 'z' }; });
-  const WINDOWS = def.windef.map(([c, r, nx, nz]) => { const x = WX(c), z = WZ(r); return { zone: GRID[r - nz][c - nx], c, r, x, z, ox: x + nx * 1.6, oz: z + nz * 1.6, ix: x - nx * 2.2, iz: z - nz * 2.2, ax: nz ? 'x' : 'z' }; });
+    return { a, b, cells, cost, x, z, ax: cells[0][1] === cells[1][1] ? 'x' : 'z', ...(kind === 'debris' ? { deb: 1 } : {}) }; });
+  // ---- upper level (optional): a second grid on the same cells. -1 wall, -2 open void (see-through), -3 nothing, zone id = walkable
+  const U = def.upper, UH = U ? U.h : 0, UPG = U ? GRID.map(row => row.map(() => -3)) : null, RAMPAT = {};
+  if (U) { const fill = (rects, v) => { for (const [c0, c1, r0, r1] of rects) for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) UPG[r][c] = v; };
+    fill(U.walls, -1); fill(U.void, -2); fill(U.walk, U.zone);
+    U.ramps.forEach((rp, i) => { for (let r = rp.r[0]; r <= rp.r[1]; r++) for (let c = rp.c[0]; c <= rp.c[1]; c++) { UPG[r][c] = U.zone; RAMPAT[r * GW + c] = i; } }); }
+  const RAMPS = U ? U.ramps.map(rp => { const n = rp.up === 'n' || rp.up === 's', z0 = WZ(rp.r[0]) - 1, z1 = WZ(rp.r[1]) + 1, x0 = WX(rp.c[0]) - 1, x1 = WX(rp.c[1]) + 1;
+    return { ...rp, x0, x1, z0, z1, ax: n ? 'z' : 'x', lo: rp.up === 'n' ? z1 : rp.up === 's' ? z0 : rp.up === 'w' ? x1 : x0, hi: rp.up === 'n' ? z0 : rp.up === 's' ? z1 : rp.up === 'w' ? x0 : x1 }; }) : [];
+  const WINDOWS = def.windef.map(([c, r, nx, nz, lv = 0]) => { const x = WX(c), z = WZ(r); return { zone: (lv ? UPG : GRID)[r - nz][c - nx], c, r, x, z, ox: x + nx * 1.6, oz: z + nz * 1.6, ix: x - nx * 2.2, iz: z - nz * 2.2, ax: nz ? 'x' : 'z', ...(lv ? { lv: 1 } : {}) }; });
   // line of sight for flames: tall walls and closed doors block, low desks/benches and boarded windows don't
   const SEE = GRID.map(row => row.map(() => 0)); for (const [c0, c1, r0, r1, h] of def.obst) if (h < 1.5) for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) SEE[r][c] = 1;
-  for (const w of def.windef) SEE[w[1]][w[0]] = 1;
-  const P = s => at(...s);
-  return { kind, name: def.name, env: def.env, seed: def.seed, GRID, SEE, DOORS, WINDOWS, ZONES: def.zones, OBST: def.obst,
+  for (const w of def.windef) if (!w[4]) SEE[w[1]][w[0]] = 1;
+  const UPSEE = U ? UPG.map(row => row.map(v => v === -2 ? 1 : 0)) : null; if (U) for (const w of def.windef) if (w[4]) UPSEE[w[1]][w[0]] = 1;
+  const P = s => ({ ...at(...s), ...(s[4] ? { lv: 1 } : {}) });
+  return { kind, name: def.name, env: def.env, seed: def.seed, GRID, SEE, DOORS, WINDOWS, ZONES: def.zones, OBST: def.obst, UPG, UPSEE, UH, RAMPAT, RAMPS, ATR: U ? U.atrium : null, UZ: U ? U.zone : -1, QDEF: def.quest || null,
     WALLBUYS: def.wallbuys.map(w => ({ w: w.w, cost: w.cost, ...P(w.s) })), BOX_SPOTS: def.box.map(s => { const p = P(s); return [p.x, p.z, p.face]; }),
     FORGE: { ...P(def.forge), cost: FORGE_COST, name: 'Inferno Forge' }, POWER: def.power ? { ...P(def.power), name: 'Power Switch' } : null,
     PERKS: PERK_KEYS.map(k => ({ k, ...PERKINFO[k], ...P(def.perks[k]) })) };
 }
 const CLASSIC_M = build(CLASSIC, 'classic');
-let M, GRID, SEE, DOORS, WINDOWS, ZONES, OBST, WALLBUYS, BOX_SPOTS, FORGE, POWER, PERKS;
-function use_(m) { M = m; ({ GRID, SEE, DOORS, WINDOWS, ZONES, OBST, WALLBUYS, BOX_SPOTS, FORGE, POWER, PERKS } = m); }
+let M, GRID, SEE, DOORS, WINDOWS, ZONES, OBST, WALLBUYS, BOX_SPOTS, FORGE, POWER, PERKS, UPG, UPSEE, UH, RAMPAT, RAMPS, ATR;
+function use_(m) { M = m; ({ GRID, SEE, DOORS, WINDOWS, ZONES, OBST, WALLBUYS, BOX_SPOTS, FORGE, POWER, PERKS, UPG, UPSEE, UH, RAMPAT, RAMPS, ATR } = m); }
 use_(CLASSIC_M);
 // ranked + daily rooms always play the classic Refinery (same layout for everyone on a leaderboard); free play gets a new map per match
 const wantsClassic = room => !!(room.ranked || room.daily || process.env.ZOMBIE_CLASSIC === '1');
 function newMap(room) { if (wantsClassic(room)) return CLASSIC_M; const d = MapGen.gen((Math.random() * 2 ** 31) | 0); return d ? build(d, 'proc') : CLASSIC_M; }
 // every entry point that touches the map binds the room's own layout first (rooms run one at a time, so a module-level binding is safe)
 function bind(room) { if (!room) return use_(CLASSIC_M); if (!room.M || (wantsClassic(room) && room.M.kind !== 'classic')) { resetMap(room); return; } if (M !== room.M) use_(room.M); }
-const cellAt = (x, z) => { const c = Math.floor(x / CELL + GW / 2), r = Math.floor(z / CELL + GH / 2); return r < 0 || r >= GH || c < 0 || c >= GW ? -1 : GRID[r][c]; };
+// lv = which floor (0 ground, 1 upper). Maps without an upper level ignore it, so procedural maps behave exactly as before.
+const gridOf = lv => (lv && UPG) ? UPG : GRID;
+const cellAt = (x, z, lv = 0) => { const c = Math.floor(x / CELL + GW / 2), r = Math.floor(z / CELL + GH / 2); return r < 0 || r >= GH || c < 0 || c >= GW ? -1 : gridOf(lv)[r][c]; };
 const doorOpen = (room, d) => unlocked(room, DOORS[d].a) && unlocked(room, DOORS[d].b);
 const walkCode = (room, v) => v >= 100 ? doorOpen(room, v - 100) : v >= 0 && unlocked(room, v);
-const walk = (room, x, z) => walkCode(room, cellAt(x, z));
-// line of sight for flames: tall walls and closed doors block, low desks/benches and boarded windows don't
-function los(room, x0, z0, x1, z1) { const d = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(d / 0.7);
+const walk = (room, x, z, lv = 0) => walkCode(room, cellAt(x, z, lv));
+const lvOf = y => (UPG && y > UH * 0.5 ? 1 : 0);
+// height + floor of something standing at (x,z): on a ramp the height follows the slope and the floor flips at its midpoint
+function lift(e) { if (!UPG) { e.lv = 0; e.y = 0; return; } const c = Math.floor(e.x / CELL + GW / 2), r = Math.floor(e.z / CELL + GH / 2), ri = r >= 0 && r < GH && c >= 0 && c < GW ? RAMPAT[r * GW + c] : undefined;
+  if (ri === undefined) { e.lv = e.lv ? 1 : 0; e.y = e.lv * UH; return; } const rp = RAMPS[ri], v = rp.ax === 'z' ? e.z : e.x, t = Math.max(0, Math.min(1, (v - rp.lo) / (rp.hi - rp.lo))); e.y = t * UH; e.lv = t > 0.5 ? 1 : 0; }
+const onRamp = (x, z) => { if (!UPG) return false; const c = Math.floor(x / CELL + GW / 2), r = Math.floor(z / CELL + GH / 2); return r >= 0 && r < GH && c >= 0 && c < GW && RAMPAT[r * GW + c] !== undefined; };
+// line of sight for flames: tall walls and closed doors block, low desks/benches and boarded windows don't.
+// Across floors: only inside the Gantry's open atrium, and only to a spot not roofed over by the catwalk (or on a ramp).
+function los(room, x0, z0, x1, z1, y0 = 0, y1 = y0) { const l0 = lvOf(y0), l1 = lvOf(y1);
+  if (l0 !== l1) { const inA = (x, z) => { const c = Math.floor(x / CELL + GW / 2), r = Math.floor(z / CELL + GH / 2); return c >= ATR[0] && c <= ATR[1] && r >= ATR[2] && r <= ATR[3]; };
+    if (!inA(x0, z0) || !inA(x1, z1)) return false; const [lx, lz] = l0 ? [x1, z1] : [x0, z0]; if (onRamp(lx, lz)) return true; const v = cellAt(lx, lz, 1); return v === -2; }
+  const G = gridOf(l0), S = l0 ? UPSEE : SEE, d = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(d / 0.7);
   for (let k = 1; k < n; k++) { const x = x0 + (x1 - x0) * k / n, z = z0 + (z1 - z0) * k / n, c = Math.floor(x / CELL + GW / 2), r = Math.floor(z / CELL + GH / 2);
-    if (r < 0 || r >= GH || c < 0 || c >= GW) continue; const v = GRID[r][c]; if (v >= 100 ? !doorOpen(room, v - 100) : v < 0 && !SEE[r][c]) return false; } return true; }
-// flow field: BFS distance (in cells) from every standing player, over walkable cells; zombies descend it
-function flow(room, ps) { const D = room.flowD || (room.flowD = new Float32Array(GW * GH)); D.fill(1e9); const q = [];
-  for (const p of ps) { const c = Math.floor(p.x / CELL + GW / 2), r = Math.floor(p.z / CELL + GH / 2); if (r >= 0 && r < GH && c >= 0 && c < GW && D[r * GW + c] > 0) { D[r * GW + c] = 0; q.push(r * GW + c); } }
-  for (let h = 0; h < q.length; h++) { const i = q[h], c = i % GW, r = (i - c) / GW;
+    if (r < 0 || r >= GH || c < 0 || c >= GW) continue; const v = G[r][c]; if (v >= 100 ? !doorOpen(room, v - 100) : v < 0 && !S[r][c] && !(l0 && RAMPAT[r * GW + c] !== undefined)) return false; } return true; }
+// flow field: BFS distance (in cells) from every standing player, over walkable cells; zombies descend it.
+// With an upper level the field has two layers; a ramp cell is one shared node (same distance on both layers), which is how zombies follow you up and down.
+function flow(room, ps) { const NL = UPG ? 2 : 1, N = GW * GH, D = room.flowD && room.flowD.length === N * NL ? room.flowD : (room.flowD = new Float32Array(N * NL)); D.fill(1e9); const q = [];
+  const seed = (i, l, v) => { D[l * N + i] = v; q.push(l * N + i); if (NL > 1 && RAMPAT[i] !== undefined && D[(1 - l) * N + i] > v) { D[(1 - l) * N + i] = v; q.push((1 - l) * N + i); } };
+  for (const p of ps) { const c = Math.floor(p.x / CELL + GW / 2), r = Math.floor(p.z / CELL + GH / 2), l = NL > 1 ? (p.lv || 0) : 0; if (r >= 0 && r < GH && c >= 0 && c < GW && D[l * N + r * GW + c] > 0) seed(r * GW + c, l, 0); }
+  for (let h = 0; h < q.length; h++) { const k = q[h], l = k >= N ? 1 : 0, i = k - l * N, c = i % GW, r = (i - c) / GW, G = l ? UPG : GRID;
     for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nc = c + dc, nr = r + dr; if (nc < 0 || nr < 0 || nc >= GW || nr >= GH) continue; const j = nr * GW + nc;
-      if (D[j] <= D[i] + 1 || !walkCode(room, GRID[nr][nc])) continue; D[j] = D[i] + 1; q.push(j); } } }
-// next waypoint for a zombie at (x,z): centre of the best neighbour cell (diagonals only when both sides are open)
-function nextStep(room, x, z) { const D = room.flowD; if (!D) return null; const c = Math.floor(x / CELL + GW / 2), r = Math.floor(z / CELL + GH / 2); if (r < 0 || r >= GH || c < 0 || c >= GW) return null;
-  let best = D[r * GW + c], bc = -1, br = -1; const ok = (cc, rr) => cc >= 0 && rr >= 0 && cc < GW && rr < GH && walkCode(room, GRID[rr][cc]);
+      if (D[l * N + j] <= D[k] + 1 || !walkCode(room, G[nr][nc])) continue; seed(j, l, D[k] + 1); } } }
+// next waypoint for a zombie at (x,z) on floor lv: centre of the best neighbour cell (diagonals only when both sides are open)
+function nextStep(room, x, z, lv = 0) { const D = room.flowD; if (!D) return null; const c = Math.floor(x / CELL + GW / 2), r = Math.floor(z / CELL + GH / 2); if (r < 0 || r >= GH || c < 0 || c >= GW) return null;
+  const l = UPG && lv ? 1 : 0, o = l * GW * GH, G = l ? UPG : GRID;
+  let best = D[o + r * GW + c], bc = -1, br = -1; const ok = (cc, rr) => cc >= 0 && rr >= 0 && cc < GW && rr < GH && walkCode(room, G[rr][cc]);
   for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) { if (!dc && !dr) continue; const nc = c + dc, nr = r + dr; if (!ok(nc, nr)) continue; if (dc && dr && !(ok(c + dc, r) && ok(c, r + dr))) continue;
-    const v = D[nr * GW + nc] + (dc && dr ? 0.4 : 0); if (v < best) { best = v; bc = nc; br = nr; } }
-  return bc < 0 ? null : [WX(bc), WZ(br), D[r * GW + c]]; }
+    const v = D[o + nr * GW + nc] + (dc && dr ? 0.4 : 0); if (v < best) { best = v; bc = nc; br = nr; } }
+  return bc < 0 ? null : [WX(bc), WZ(br), D[o + r * GW + c]]; }
 const BOX_COST = 950, BOX_POOL = ['dragon', 'shotgun', 'napalm', 'beam'];
 const BOARDS = 6, BOARD_PTS = 10, REPAIR_CAP = 500, REPAIR_T = 0.75, TEAR_T = 1.1;
 const MAX_PERKS = 4, START_PTS = +process.env.ZOMBIE_START_POINTS || 500,   // env override is for local testing only
   USE_R = 3, REVIVE_R = 2.6;
 const PB = Object.fromEntries(PERKS.map((p, i) => [p.k, 1 << i]));
-const layout = () => ({ grid: GRID, cell: CELL, gw: GW, gh: GH, obst: OBST, windows: WINDOWS, boards: BOARDS, repairCap: REPAIR_CAP, zones: ZONES, doors: DOORS, wallbuys: WALLBUYS, box: BOX_SPOTS, boxCost: BOX_COST, forge: FORGE, power: POWER, name: M.name, env: M.env, kind: M.kind, perks: PERKS, weapons: WEAPONS.map(w => ({ id: w.id, name: w.name, kind: w.kind, up: UPW[w.id].name })), maxPerks: MAX_PERKS });
+const layout = () => ({ up: UPG ? { grid: UPG, h: UH, ramps: RAMPS, atrium: ATR, zone: M.UZ } : null, quest: M.QDEF ? 1 : 0, grid: GRID, cell: CELL, gw: GW, gh: GH, obst: OBST, windows: WINDOWS, boards: BOARDS, repairCap: REPAIR_CAP, zones: ZONES, doors: DOORS, wallbuys: WALLBUYS, box: BOX_SPOTS, boxCost: BOX_COST, forge: FORGE, power: POWER, name: M.name, env: M.env, kind: M.kind, perks: PERKS, weapons: WEAPONS.map(w => ({ id: w.id, name: w.name, kind: w.kind, up: UPW[w.id].name })), maxPerks: MAX_PERKS });
 
 const WIN_MAX = 2, WIN_GAP = 1.3, RUNNER = 1.4;   // runner speed mult (was 1.7)
 const scaleN = n => n <= 1 ? 0.75 : Math.min(1.9, 0.7 + 0.3 * n), hpN = n => n <= 1 ? 0.85 : Math.min(1.5, 0.8 + 0.12 * n), waveGap = n => n <= 1 ? 12 : Math.max(8, 12 - (n - 1));
-function resetMap(room) { room.M = newMap(room); use_(room.M); room.power = POWER ? 0 : 1; room.flowD = null; room.boards = WINDOWS.map(() => BOARDS); room.winLast = WINDOWS.map(() => -99); room.zt = 0; room.open = 1; room.box = { spot: process.env.ZOMBIE_TEST_BOX ? Math.min(+process.env.ZOMBIE_TEST_BOX, BOX_SPOTS.length - 1) : 0, state: 0, t: 0, uses: 0, moveAfter: 4 + Math.floor(Math.random() * 4) }; room.proj = []; room.pools = []; }
+function resetMap(room) { room.M = newMap(room); use_(room.M); room.power = POWER ? 0 : 1; room.flowD = null; room.boards = WINDOWS.map(() => BOARDS); room.winLast = WINDOWS.map(() => -99); room.zt = 0; room.open = 1; room.box = { spot: process.env.ZOMBIE_TEST_BOX ? Math.min(+process.env.ZOMBIE_TEST_BOX, BOX_SPOTS.length - 1) : 0, state: 0, t: 0, uses: 0, moveAfter: 4 + Math.floor(Math.random() * 4) }; room.proj = []; room.pools = [];
+  if (process.env.ZOMBIE_TEST_OPEN && !process.env.FLY_APP_NAME) room.open = +process.env.ZOMBIE_TEST_OPEN;   // local test runs only: start with these zones unlocked (bitmask)
+  require('./quest').init(room); }
 const unlocked = (room, z) => (room.open >> z) & 1;
-const inside = (room, x, z, m = 0.42) => walk(room, x + m, z + m) && walk(room, x - m, z + m) && walk(room, x + m, z - m) && walk(room, x - m, z - m);   // body-radius collision vs walls / closed doors
+const inside = (room, x, z, m = 0.42, lv = 0) => walk(room, x + m, z + m, lv) && walk(room, x - m, z + m, lv) && walk(room, x + m, z - m, lv) && walk(room, x - m, z - m, lv);   // body-radius collision vs walls / closed doors
 const winOn = (room, i) => unlocked(room, WINDOWS[i].zone);
 function windowSpawn(room) { const ok = WINDOWS.map((w, i) => i).filter(i => winOn(room, i)); return ok[Math.floor(Math.random() * ok.length)]; }
 function zoneSpawn() {   // player spawn: a free cell in the Spawn Bay
@@ -116,9 +155,9 @@ function give(p, w) { if (p.guns.includes(w)) { p.slot = p.guns.indexOf(w); p.fu
 function spend(p, c) { if (p.pts < c) return false; p.pts -= c; return true; }
 // one "use" press: the nearest interactable in range, validated here
 function use(room, p, ev) {
-  const near = (x, z, r = USE_R) => Math.hypot(p.x - x, p.z - z) <= r;
-  if (WINDOWS.some((w, i) => winOn(room, i) && room.boards[i] < BOARDS && Math.hypot(p.x - w.ix, p.z - w.iz) < 2.6)) return;   // near a broken window F does nothing (rebuild is automatic), never a purchase
-  for (let i = 0; i < DOORS.length; i++) { const d = DOORS[i], ua = unlocked(room, d.a), ub = unlocked(room, d.b); if (ua === ub || !near(d.x + (d.ax === 'z' ? 0 : 0), d.z, 22)) continue;
+  const py = p.y || 0, near = (x, z, r = USE_R, lv = 0) => Math.hypot(p.x - x, p.z - z) <= r && Math.abs(py - lv * (UH || 0)) < 1.6;
+  if (WINDOWS.some((w, i) => winOn(room, i) && room.boards[i] < BOARDS && Math.hypot(p.x - w.ix, p.z - w.iz) < 2.6 && Math.abs(py - (w.lv || 0) * (UH || 0)) < 1.6)) return;   // near a broken window F does nothing (rebuild is automatic), never a purchase
+  for (let i = 0; i < DOORS.length; i++) { const d = DOORS[i], ua = unlocked(room, d.a), ub = unlocked(room, d.b); if (ua === ub || !near(d.x, d.z, 22)) continue;
     const along = d.ax === 'x' ? Math.abs(p.x - d.x) : Math.abs(p.z - d.z), across = d.ax === 'x' ? Math.abs(p.z - d.z) : Math.abs(p.x - d.x); if (along > 3 || across > USE_R) continue;
     if (!spend(p, d.cost)) return ev.push({ e: 'nopts', id: p.id }); const nz = ua ? d.b : d.a; room.open |= 1 << nz; return ev.push({ e: 'door', i, z: nz, by: p.id, open: room.open }); }
   for (const w of WALLBUYS) if (near(w.x, w.z)) { const own = p.guns.includes(w.w), c = own ? Math.round(w.cost / 2) : w.cost; if (!spend(p, c)) return ev.push({ e: 'nopts', id: p.id }); give(p, w.w); return ev.push({ e: 'buy', id: p.id, w: w.w }); }
@@ -130,7 +169,7 @@ function use(room, p, ev) {
   if (POWER && near(POWER.x, POWER.z)) { if (room.power) return; room.power = 1; return ev.push({ e: 'power', id: p.id }); }
   if (near(FORGE.x, FORGE.z)) { if (!room.power) return ev.push({ e: 'nopower', id: p.id }); const w = p.guns[p.slot]; p.up ||= []; if (p.up.includes(w)) return ev.push({ e: 'forge_have', id: p.id });
     if (!spend(p, FORGE.cost)) return ev.push({ e: 'nopts', id: p.id }); p.up.push(w); p.fuel = 100; p.cd = 0; return ev.push({ e: 'forge', id: p.id, w }); }
-  for (const k of PERKS) if (near(k.x, k.z)) { if (has(p, k.k)) return; if (!room.power) return ev.push({ e: 'nopower', id: p.id }); let n = 0; for (let v = p.perks; v; v >>= 1) n += v & 1; if (n >= MAX_PERKS) return ev.push({ e: 'perkmax', id: p.id });
+  for (const k of PERKS) if (near(k.x, k.z, USE_R, k.lv || 0)) { if (has(p, k.k)) return; if (!room.power) return ev.push({ e: 'nopower', id: p.id }); let n = 0; for (let v = p.perks; v; v >>= 1) n += v & 1; if (n >= MAX_PERKS) return ev.push({ e: 'perkmax', id: p.id });
     if (!spend(p, k.cost)) return ev.push({ e: 'nopts', id: p.id }); p.perks |= PB[k.k]; if (k.k === 'jug') p.hp = Math.min(250, p.hp + 150); return ev.push({ e: 'perk', id: p.id, k: k.k }); }
 }
 function tickBox(room, ev) { const b = room.box; if (!b.state) return; if ((b.t -= room.dtNow) > 0) return;
@@ -150,8 +189,8 @@ function atWindow(room, zb, dt, ev) { if (zb.win == null) return false; const w 
   zb.win = null; return false; }
 // player holding USE next to a damaged window: one board per REPAIR_T, 10 pts each up to REPAIR_CAP per wave
 function repair(room, p, dt, ev) { if (!p.alive || p.down || p.in.fire) { p.repT = 0; return; }   // automatic: stand near a damaged window, not firing
-  let best = -1, bd = 2.6; WINDOWS.forEach((w, i) => { const d = Math.hypot(p.x - w.ix, p.z - w.iz); if (d < bd && room.boards[i] < BOARDS && winOn(room, i)) { bd = d; best = i; } });
+  let best = -1, bd = 2.6; WINDOWS.forEach((w, i) => { const d = Math.hypot(p.x - w.ix, p.z - w.iz); if (d < bd && room.boards[i] < BOARDS && winOn(room, i) && Math.abs((p.y || 0) - (w.lv || 0) * (UH || 0)) < 1.6) { bd = d; best = i; } });
   if (best < 0) { p.repT = 0; return; } if ((p.repT = (p.repT || 0) + dt) < REPAIR_T) return; p.repT = 0;
   room.boards[best]++; if (p.repWave !== room.wave) { p.repWave = room.wave; p.repPts = 0; } const pts = Math.min(BOARD_PTS, REPAIR_CAP - p.repPts); p.pts += pts; p.repPts += pts;
   ev.push({ e: 'board', i: best, n: room.boards[best], by: p.id, pts }); }
-module.exports = { RUNNER, scaleN, hpN, waveGap, los, flow, nextStep, walk, cellAt, CELL, get WINDOWS() { return WINDOWS; }, windowSpawn, atWindow, repair, WEAPONS, WI, get ZONES() { return ZONES; }, get DOORS() { return DOORS; }, get PERKS() { return PERKS; }, PB, bind, MAX_PERKS, START_PTS, REVIVE_R, layout, resetMap, inside, zoneSpawn, initPlayer, wpn, upBits, has, use, tickBox, get BOX_SPOTS() { return BOX_SPOTS; }, get FORGE() { return FORGE; }, get POWER() { return POWER; } };
+module.exports = { lift, lvOf, onRamp, get UH() { return UH || 0; }, get UPG() { return UPG; }, get QDEF() { return M.QDEF; }, get M() { return M; }, GW, GH, WX, WZ, unlocked, PERKINFO, RUNNER, scaleN, hpN, waveGap, los, flow, nextStep, walk, cellAt, CELL, get WINDOWS() { return WINDOWS; }, windowSpawn, atWindow, repair, WEAPONS, WI, get ZONES() { return ZONES; }, get DOORS() { return DOORS; }, get PERKS() { return PERKS; }, PB, bind, MAX_PERKS, START_PTS, REVIVE_R, layout, resetMap, inside, zoneSpawn, initPlayer, wpn, upBits, has, use, tickBox, get BOX_SPOTS() { return BOX_SPOTS; }, get FORGE() { return FORGE; }, get POWER() { return POWER; } };

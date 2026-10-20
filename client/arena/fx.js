@@ -73,7 +73,8 @@ export function createZombieFX(scene, { low = false } = {}) {
     const skin = tint(tmp, ty.skin[(z.id * 7) % ty.skin.length]).multiplyScalar(1.15), shirt = tint(tmp3, z.ty === 3 ? (z.ch ? 0x8a2a14 : 0x4a4a54) : z.ty === 5 ? 0x1a2230 : CLOTH[(z.id * 5 + z.ty) % CLOTH.length]);   // Juggernaut: iron plate (glows red mid-charge)
     // death: topple forward over 0.35 of the fade, then sink + char. flinch: snap back + small twist.
     const fall = dead ? Math.min(1, fade / 0.35) : 0, pitch = (quad || z.cr ? 1.35 : crawl ? 0.9 : runner ? 0.45 : 0.25) + (z.ch ? 0.35 : 0) - fl * 0.55 + fall * (1.45 - (crawl ? 0.6 : 0.25));
-    const y0 = dead ? Math.max(0, 1 - fall) * 0.78 * s - Math.max(0, fade - 0.5) * 0.9 * s + 0.15 * s * fall : (quad ? 0.5 : z.cr ? 0.2 : crawl ? 0.45 : 0.78) * s + Math.abs(Math.cos(ph)) * (quad ? 0.12 : 0.05) * s;
+    let y0 = dead ? Math.max(0, 1 - fall) * 0.78 * s - Math.max(0, fade - 0.5) * 0.9 * s + 0.15 * s * fall : (quad ? 0.5 : z.cr ? 0.2 : crawl ? 0.45 : 0.78) * s + Math.abs(Math.cos(ph)) * (quad ? 0.12 : 0.05) * s;
+    y0 += z.y || 0;   // upper floor / ramp height
     const sc = s * (dead ? 1 - Math.max(0, fade - 0.5) * 0.5 : 1), twist = fl * 0.35 * Math.sin(z.id), yaw = z.yaw + twist;
     put(Z.body, i, z.x, y0, z.z, yaw, sc, 0, 0, 0, pitch + lurch, lurch * 0.5, skin);
     put(Z.shirt, i, z.x, y0, z.z, yaw, sc, 0, 0, 0, pitch + lurch, lurch * 0.5, shirt);
@@ -102,7 +103,7 @@ export function createZombieFX(scene, { low = false } = {}) {
   const PL2 = rig(scene, MAXP, [['tank', new THREE.CylinderGeometry(0.11, 0.11, 0.62, 8), lam(0xb33a1a)], ['arm', box(0.17, 0.7, 0.17, -0.35), lam(0x2b2b30)], ['leg', box(0.21, 0.78, 0.21, -0.39), lam(0x1f1f24)]]);
   const ps = new Map();
   function drawP(i, p, col) {
-    const ph = p.ph, moving = p.spd > 0.5, sw = moving ? Math.sin(ph) * 0.7 : Math.sin(ph * 0.25) * 0.04, bob = moving ? Math.abs(Math.sin(ph)) * 0.06 : Math.sin(ph * 0.25) * 0.02, y = p.down ? 0.25 : 0.78 + bob;
+    const ph = p.ph, moving = p.spd > 0.5, sw = moving ? Math.sin(ph) * 0.7 : Math.sin(ph * 0.25) * 0.04, bob = moving ? Math.abs(Math.sin(ph)) * 0.06 : Math.sin(ph * 0.25) * 0.02, y = (p.y || 0) + (p.down ? 0.25 : 0.78 + bob);
     put(PL.body, i, p.x, y, p.z, p.yaw, 1, 0, 0, 0); put(PL.head, i, p.x, y, p.z, p.yaw, 1, 0, 0.8, 0);
     put(PL.visor, i, p.x, y, p.z, p.yaw, 1, 0, 1.06, 0.22, 0, 0, col); put(PL.mask, i, p.x, y, p.z, p.yaw, 1, 0, 0.9, 0.26);
     put(PL.belt, i, p.x, y, p.z, p.yaw, 1, 0, 0.06, 0, 0, 0, col);
@@ -193,7 +194,7 @@ export function createZombieFX(scene, { low = false } = {}) {
   const blobM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.28, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff7a10 }), NB); blobM.count = 0; blobM.frustumCulled = false; scene.add(blobM);
   const poolM = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff5a00, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }), NPO); poolM.count = 0; poolM.frustumCulled = false; scene.add(poolM);
   const beamM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.09, 0.16, 1, 8, 1, true).translate(0, 0.5, 0).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }), NBM); beamM.count = 0; beamM.frustumCulled = false; scene.add(beamM);
-  let nb = 0; const beamAt = (x, y, z, yaw, len) => { if (nb >= NBM) return; Q.setFromEuler(E.set(0, yaw, 0)); M.compose(V.set(x, y, z), Q, S.set(1 + Math.random() * 0.4, 1 + Math.random() * 0.4, len)); beamM.setMatrixAt(nb++, M); };
+  let nb = 0; const EB = new THREE.Euler(); const beamAt = (x, y, z, yaw, len, pt = 0) => { if (nb >= NBM) return; Q.setFromEuler(EB.set(pt, yaw, 0, 'YXZ')); M.compose(V.set(x, y, z), Q, S.set(1 + Math.random() * 0.4, 1 + Math.random() * 0.4, len)); beamM.setMatrixAt(nb++, M); };
   // first-person weapon look per weapon: barrel colour, length, thickness
   const LOOKW = [[0xa8aeb8, 1, 1], [0xb02010, 1.25, 1.1], [0x6a4a2a, 0.6, 2.2], [0x3a4a2a, 0.85, 2.8], [0x9af0ff, 1.15, 0.8]];
   let curW = -1, curAc = null; const setW = w => { if (w === curW) return; curW = w; const [c, l, th] = LOOKW[w] || LOOKW[0]; barrel.material.color.setHex(c).lerp(new THREE.Color(0xffffff), 0.35); barrel.scale.set(th, th, l); barrel.position.z = -0.38 * l; nozzle.position.z = -0.78 * l; hot.position.z = -0.74 * l; pilot.position.z = -0.8 * l;
@@ -202,20 +203,20 @@ export function createZombieFX(scene, { low = false } = {}) {
   return {
     gun, zs, ps,
     attach(cam) { cam.add(gun); if (!cam.parent) scene.add(cam); },
-    shot(e, isMe, meX, meZ) { const pr = WP[e.w === 'napalm' ? 3 : 2], fx = Math.sin(e.y || 0), fz = Math.cos(e.y || 0);
-      if (e.w === 'shotgun') { const ox = (isMe ? meX : e.x) + fx * 1.4, oz = (isMe ? meZ : e.z) + fz * 1.4; burst(ox, isMe ? 1.38 : 1.25, oz, fx, fz, low ? 22 : 45, pr); }
-      if (e.w === 'napalm' && e.ray) { const x0 = isMe ? meX : e.x, z0 = isMe ? meZ : e.z; rays.push({ x0, z0, x1: e.tx, z1: e.tz, t: 0.2 }); burst(e.tx, 1.1, e.tz, -fx * 0.2, -fz * 0.2, low ? 8 : 16, WP[1] || pr); return; }
+    shot(e, isMe, meX, meZ, sy = 0) { const pr = WP[e.w === 'napalm' ? 3 : 2], fx = Math.sin(e.y || 0), fz = Math.cos(e.y || 0);
+      if (e.w === 'shotgun') { const ox = (isMe ? meX : e.x) + fx * 1.4, oz = (isMe ? meZ : e.z) + fz * 1.4; burst(ox, (isMe ? 1.38 : 1.25) + sy, oz, fx, fz, low ? 22 : 45, pr); }
+      if (e.w === 'napalm' && e.ray) { const x0 = isMe ? meX : e.x, z0 = isMe ? meZ : e.z, ty = e.ty ?? sy; rays.push({ x0, z0, x1: e.tx, z1: e.tz, y0: sy, y1: ty, t: 0.2 }); burst(e.tx, 1.1 + ty, e.tz, -fx * 0.2, -fz * 0.2, low ? 8 : 16, WP[1] || pr); return; }
       if (e.w === 'napalm' && blobs.length < NB) blobs.push({ x0: isMe ? meX : e.x, z0: isMe ? meZ : e.z, x1: e.tx, z1: e.tz, t: 0 }); },
     zdie(e) { const z = zs.get(e.id); if (z) { dying.push({ ...z, fade: 0 }); zs.delete(e.id); } },
     clear() { for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
     // st: interpolated state; me: predicted self {x,z,yaw,firing}; colorOf(id) -> THREE.Color
     update(dt, st, me, myId, colorOf, flameCol, nftOf, srv) {
       t += dt; const seen = new Set(); nb = 0;
-      for (let i = rays.length - 1; i >= 0; i--) { const r = rays[i]; if ((r.t -= dt) <= 0) { rays.splice(i, 1); continue; } const dx = r.x1 - r.x0, dz = r.z1 - r.z0, L = Math.hypot(dx, dz) || 1, yaw = Math.atan2(dx, dz); beamAt(r.x0 + dx / L * 0.6, 1.2, r.z0 + dz / L * 0.6, yaw, Math.max(0.5, L - 0.6)); }   // Firestorm ember bolts
+      for (let i = rays.length - 1; i >= 0; i--) { const r = rays[i]; if ((r.t -= dt) <= 0) { rays.splice(i, 1); continue; } const dx = r.x1 - r.x0, dz = r.z1 - r.z0, L = Math.hypot(dx, dz) || 1, yaw = Math.atan2(dx, dz); const dy = (r.y1 || 0) - (r.y0 || 0), L3 = Math.hypot(L, dy); beamAt(r.x0 + dx / L * 0.6, 1.2 + (r.y0 || 0), r.z0 + dz / L * 0.6, yaw, Math.max(0.5, L3 - 0.6), -Math.atan2(dy, L)); }   // Firestorm ember bolts
       for (const s of st.zombies) { seen.add(s.id); let z = zs.get(s.id);
         if (!z) zs.set(s.id, z = { id: s.id, x: s.x, z: s.z, yaw: 0, ph: Math.random() * 6, v: 0.92 + ((s.id * 37) % 17) / 100, ty: s.ty, flash: 0, burnT: 0 });
         const dx = s.x - z.x, dz = s.z - z.z, d = Math.hypot(dx, dz); if (d > 0.01) z.yaw += (((Math.atan2(dx, dz) - z.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 6);
-        z.x = s.x; z.z = s.z; z.ph += dt * (d / Math.max(dt, 1e-3) * 1.6 * (TY[s.ty]?.speed ? 1 : 1) + 1.5) * 0.9 / (TY[s.ty]?.s || 1); z.ty = s.ty; z.cr = s.cr; z.ch = s.ch;
+        z.x = s.x; z.z = s.z; z.y = s.y || 0; z.ph += dt * (d / Math.max(dt, 1e-3) * 1.6 * (TY[s.ty]?.speed ? 1 : 1) + 1.5) * 0.9 / (TY[s.ty]?.s || 1); z.ty = s.ty; z.cr = s.cr; z.ch = s.ch;
         if (s.burn && !z.burnT) { z.flash = 1; z.fl = 1; } z.burnT = s.burn ? 0.4 : Math.max(0, z.burnT - dt); z.flash = Math.max(0, z.flash - dt * 5); z.fl = Math.max(0, (z.fl || 0) - dt * 6); }
       for (const id of zs.keys()) if (!seen.has(id)) { const z = zs.get(id); dying.push({ ...z, fade: 0 }); zs.delete(id); }
       let i = 0; for (const z of zs.values()) { if (i >= MAXZ) break; drawZ(i++, z, t, undefined, z.burnT > 0); }
@@ -223,14 +224,14 @@ export function createZombieFX(scene, { low = false } = {}) {
       done(Z, i); done(arms2, i);
       // other players
       let j = 0; for (const p of st.players) { if (p.id === myId || !p.alive || j >= MAXP) continue; let q = ps.get(p.id);
-        if (!q) ps.set(p.id, q = { x: p.x, z: p.z, yaw: p.yaw || 0, ph: 0, spd: 0 });
-        const d = Math.hypot(p.x - q.x, p.z - q.z); q.spd += (d / Math.max(dt, 1e-3) - q.spd) * Math.min(1, dt * 8); q.x = p.x; q.z = p.z; q.yaw = p.r ?? q.yaw; q.ph += dt * (q.spd > 0.5 ? 9 : 4);
-        if (p.firing && (p.w === 0 || p.w === 1 || p.w === 4)) particles(dt, true, q.x + Math.sin(q.yaw) * 1.1, 1.25, q.z + Math.cos(q.yaw) * 1.1, Math.sin(q.yaw), Math.cos(q.yaw), flameCol, 0.5, false, WP[p.w]);   // others' flames (emit only)
-        if (p.firing && p.w === 4) beamAt(q.x + Math.sin(q.yaw) * 1.1, 1.25, q.z + Math.cos(q.yaw) * 1.1, q.yaw, 22);
+        if (!q) ps.set(p.id, q = { x: p.x, z: p.z, y: p.y || 0, yaw: p.yaw || 0, ph: 0, spd: 0 });
+        const d = Math.hypot(p.x - q.x, p.z - q.z); q.spd += (d / Math.max(dt, 1e-3) - q.spd) * Math.min(1, dt * 8); q.x = p.x; q.z = p.z; q.y = p.y || 0; q.yaw = p.r ?? q.yaw; q.ph += dt * (q.spd > 0.5 ? 9 : 4);
+        if (p.firing && (p.w === 0 || p.w === 1 || p.w === 4)) particles(dt, true, q.x + Math.sin(q.yaw) * 1.1, 1.25 + q.y, q.z + Math.cos(q.yaw) * 1.1, Math.sin(q.yaw), Math.cos(q.yaw), flameCol, 0.5, false, WP[p.w]);   // others' flames (emit only)
+        if (p.firing && p.w === 4) beamAt(q.x + Math.sin(q.yaw) * 1.1, 1.25 + q.y, q.z + Math.cos(q.yaw) * 1.1, q.yaw, 22);
         const n = nftOf && nftOf(p.id);   // verified NFT holder: their own character instead of the stock pyro
         if (!n && q.nc) { disposeNftChar(q.nc); q.nc = null; }   // ownership lapsed -> back to the stock pyro
         if (n && (!q.nc || q.nc.userData.nftId !== n.id)) { if (q.nc) disposeNftChar(q.nc); try { q.nc = buildNftChar(n, { srv, card: !low }); scene.add(q.nc); } catch (e) { q.nc = null; } }
-        if (q.nc) { q.nc.visible = true; q.nc.position.set(q.x, 0, q.z); q.nc.rotation.y = q.yaw; q.nc.rotation.x = 0; if (p.down) { q.nc.rotation.x = -1.3; q.nc.position.y = 0.25; } q.nc.userData.anim(t + p.id, q.spd > 0.5, true); q.seenT = t; continue; }
+        if (q.nc) { q.nc.visible = true; q.nc.position.set(q.x, q.y, q.z); q.nc.rotation.y = q.yaw; q.nc.rotation.x = 0; if (p.down) { q.nc.rotation.x = -1.3; q.nc.position.y = q.y + 0.25; } q.nc.userData.anim(t + p.id, q.spd > 0.5, true); q.seenT = t; continue; }
         q.down = p.down; const blink = p.inv && !p.down && Math.sin(t * 40) > 0; if (q.nc && p.inv && !p.down) q.nc.visible = !blink; drawP(j++, q, blink ? tmp2.setHex(0xffffff) : p.down ? tmp2.setHex(Math.sin(t * 8) > 0 ? 0xff2020 : 0x400000) : colorOf(p.id)); }
       for (const [id, q] of ps) if (q.nc && q.seenT !== t) { if (!st.players.some(p => p.id === id)) { disposeNftChar(q.nc); ps.delete(id); } else q.nc.visible = false; }
       done(PL, j); done(PL2, j);
@@ -239,8 +240,8 @@ export function createZombieFX(scene, { low = false } = {}) {
         gun.position.y = -0.18 + Math.sin(t * (me.moving ? 9 : 2)) * (me.moving ? 0.012 : 0.004) + (me.firing ? (Math.random() - 0.5) * 0.008 : 0);
         const fx = Math.sin(me.yaw), fz = Math.cos(me.yaw), rx = -Math.cos(me.yaw), rz = Math.sin(me.yaw);
         const ox = me.x + fx * 1.5 + rx * 0.2, oz = me.z + fz * 1.5 + rz * 0.2;
-        const pr = WP[me.w || 0]; particles(dt, me.firing && (me.w === 0 || me.w === 1 || me.w === 4 || !me.w), ox, 1.38, oz, fx, fz, flameCol, 1, true, pr); if (me.firing && me.w === 4) beamAt(ox, 1.36, oz, me.yaw, 22);
-        if (heat) { heat.position.set(me.x + fx * 3, 1.4, me.z + fz * 3); heat.intensity += ((me.firing ? 18 + Math.random() * 8 : 0) - heat.intensity) * Math.min(1, dt * 12); } }
+        const my = me.y || 0, pr = WP[me.w || 0]; particles(dt, me.firing && (me.w === 0 || me.w === 1 || me.w === 4 || !me.w), ox, 1.38 + my, oz, fx, fz, flameCol, 1, true, pr); if (me.firing && me.w === 4) beamAt(ox, 1.36 + my, oz, me.yaw, 22);
+        if (heat) { heat.position.set(me.x + fx * 3, 1.4 + my, me.z + fz * 3); heat.intensity += ((me.firing ? 18 + Math.random() * 8 : 0) - heat.intensity) * Math.min(1, dt * 12); } }
       else particles(dt, false, 0, 0, 0, 0, 1);
       // napalm arcs -> pools (pools emit a few embers)
       let bi = 0; for (let k = blobs.length - 1; k >= 0; k--) { const b = blobs[k]; b.t += dt / 0.6; if (b.t >= 1) { blobs.splice(k, 1); if (pools.length < NPO) pools.push({ x: b.x1, z: b.z1, t: 0 }); burst(b.x1, 0.5, b.z1, 0, 0, low ? 10 : 24, { sp: 3, spr: 1, life: 0.6, col: WP[3].col }); continue; }

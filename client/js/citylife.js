@@ -151,7 +151,7 @@ function build() {
   const lampGeo = new THREE.SphereGeometry(.12, 10, 8); lampGeo.translate(0, 0, .2);
   const lampIM = inst(lampGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), lamps, 'siglamps');
   if (lampIM) { lamps.forEach((_, i) => lampIM.setColorAt(i, new THREE.Color(1, .1, .05))); lampIM.instanceColor.needsUpdate = true; }
-  inst(new THREE.BoxGeometry(.5, .02, 2.2), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: .7 }), walks, 'crosswalks');
+  // crosswalks + stop bars are painted by the street shader (app.js streets v3), lined up with the lanes; `walks` is kept for counts only
 
   // signal phase: 2 groups; green 10 s, yellow 2.5 s, all-red 0.8 s
   const G = 10, Y = 2.5, AR = .8, CYC = 2 * (G + Y + AR);
@@ -208,26 +208,53 @@ function build() {
   for (const k of [25, 35, 45]) inst(facePlane(.6, .75, 'speed' + k).translate(0, 0, .05), signMat, sp[k], 'speed' + k);
 
   // ---------------- billboards near each token's district
-  const boards = [], frames = [];
-  for (const n of ['BURN', 'IMM', 'XRPyro', 'IMG', 'RACC']) {
-    const d = c.N && c.N[n]; if (!d) continue; let placed = 0;
-    // walk the streets nearest the district and put two boards facing the road
+  // IMG + RACC keep their atlas boards (12x5). BURN / IMM / XRPyro use the owner's artwork, each on a board shaped to its aspect ratio
+  // (never stretched): 3:1 banners on long roadside boards, 3:2 posters on standard boards, 2:3 portraits on tall pylon signs.
+  const boards = [], frames = [], artBoards = [];
+  const spot = (tx, tz, r, maxD = 170) => {   // nearest roadside spot to a target: 13 m back from a street, facing it
     const cand = [];
-    for (const s of st) { const len = streetLen(s); for (let m = 10; m < len; m += 12) { const p = streetAt(s, m / len); const dd = Math.hypot(p.x - d.pos.x, p.z - d.pos.z); if (dd < 160) cand.push({ s, p, dd }); } }
+    for (const s of st) { const len = streetLen(s); for (let m = 10; m < len; m += 10) { const p = streetAt(s, m / len); const dd = Math.hypot(p.x - tx, p.z - tz); if (dd < maxD) cand.push({ s, p, dd }); } }
     cand.sort((a, b) => a.dd - b.dd);
-    for (const cd of cand) {
-      if (placed >= 2) break;
-      for (const side of [1, -1]) {
-        const rx = -cd.p.tz * side, rz = cd.p.tx * side, x = cd.p.x + rx * 13, z = cd.p.z + rz * 13;
-        if (!free(x, z, 6.5, { offroad: true }) || distToStreets(st, x, z) < 12) continue; if (boards.some(b => Math.hypot(b.x - x, b.z - z) < 40)) continue;
-        claim(x, z, 6.5); const yaw = Math.atan2(-rx, -rz); boards.push({ x, z, y: 8.5, yaw, n }); frames.push({ x, z, yaw }); placed++; break;
-      }
+    for (const cd of cand) for (const side of [1, -1]) {
+      const back = Math.max(13, r + 6.5), rx = -cd.p.tz * side, rz = cd.p.tx * side, x = cd.p.x + rx * back, z = cd.p.z + rz * back;
+      if (!free(x, z, r, { offroad: true }) || distToStreets(st, x, z) < back - 1) continue; if ([...boards, ...artBoards].some(b => Math.hypot(b.x - x, b.z - z) < 40)) continue;
+      claim(x, z, r); return { x, z, yaw: Math.atan2(-rx, -rz) };
     }
-  }
+    return null;
+  };
+  for (const n of ['IMG', 'RACC']) { const d = c.N && c.N[n]; if (!d) continue; for (let k = 0; k < 2; k++) { const o = spot(d.pos.x, d.pos.z, 6.5, 160); if (!o) break; boards.push({ ...o, y: 8.5, n }); frames.push(o); } }
   const frameGeo = merge([box(12.6, 5.6, .35, 0, 8.5, -.22, 0x22252b), cyl(.3, .35, 6, -3.5, 3, -.4, 0x3a3f48), cyl(.3, .35, 6, 3.5, 3, -.4, 0x3a3f48), box(12.8, .12, .5, 0, 5.62, -.1, 0xff7a1a), box(12.8, .12, .5, 0, 11.38, -.1, 0xff7a1a)]);
   inst(frameGeo, mat, frames, 'bbframes');
-  for (const n of ['BURN', 'IMM', 'XRPyro', 'IMG', 'RACC']) inst(facePlane(12, 5, 'ad_' + n).translate(0, 0, -.0), signMat, boards.filter(b => b.n === n).map(b => ({ ...b })), 'ad_' + n);
+  for (const n of ['IMG', 'RACC']) inst(facePlane(12, 5, 'ad_' + n).translate(0, 0, -.0), signMat, boards.filter(b => b.n === n).map(b => ({ ...b })), 'ad_' + n);
   for (const b of boards) { const cs = Math.cos(b.yaw), sn = Math.sin(b.yaw); for (const lx of [-3.5, 3.5]) c.colliders.push({ x: b.x + lx * cs - .4 * sn, z: b.z - lx * sn - .4 * cs, r: .4, h: 11.5 }); /* posts sit behind the face */ }
+  // owner artwork (client/img/ads, optimised webp: 1024 px long side, 512 px on phones / low tier), loaded lazily after the city is up
+  const ART = [
+    ['burn-xrp-imm-ring', 'banner', 'BURN'], ['burn-skull-imm', 'banner', 'IMM'],
+    ['burn-dragon-ring', 'poster', 'XRPyro'], ['burn-coin-scarcity', 'poster', 'BURN', 1], ['xrpyro-dashboard', 'poster', 'spawn'],
+    ['fire-trio', 'portrait', 'XRP'], ['flywheel-psalms', 'portrait', 'IMM', 1]];
+  const SHAPE = { banner: { w: 15, h: 5, y: 8.6, posts: [-5, 5], r: 8 }, poster: { w: 9, h: 6.04, y: 9, posts: [-2.8, 2.8], r: 5.5 }, portrait: { w: 5, h: 7.45, y: 9.6, posts: [0], r: 4 } };
+  const ph = new THREE.DataTexture(new Uint8Array([20, 14, 12, 255]), 1, 1); ph.colorSpace = THREE.SRGBColorSpace; ph.needsUpdate = true;
+  const artMats = [];
+  for (const [file, shape, where, alt] of ART) {
+    const d = where === 'spawn' ? { pos: { x: 0, z: 52 } } : c.N && c.N[where]; if (!d || !d.pos) continue;
+    const S0 = SHAPE[shape], tx = d.pos.x + (alt ? 35 : 0), tz = d.pos.z + (alt ? -35 : 0), o = spot(tx, tz, S0.r, 190); if (!o) continue;
+    const fw = S0.w + .5, fh = S0.h + .5, parts = [box(fw, fh, .3, 0, S0.y, -.2, 0x16181d), box(fw + .1, .1, .42, 0, S0.y - fh / 2, -.08, 0xff7a1a), box(fw + .1, .1, .42, 0, S0.y + fh / 2, -.08, 0xff7a1a)];
+    if (shape === 'portrait') parts.push(box(1.1, S0.y - fh / 2, .9, 0, (S0.y - fh / 2) / 2, -.25, 0x2a2e36), box(.06, S0.y - fh / 2 - .4, .92, -.4, (S0.y - fh / 2) / 2, -.25, 0xff7a1a), box(.06, S0.y - fh / 2 - .4, .92, .4, (S0.y - fh / 2) / 2, -.25, 0xff7a1a));
+    else for (const px of S0.posts) parts.push(cyl(.28, .34, S0.y - fh / 2 + .2, px, (S0.y - fh / 2) / 2, -.4, 0x3a3f48));
+    const fr = new THREE.Mesh(merge(parts), mat); fr.position.set(o.x, 0, o.z); fr.rotation.y = o.yaw; grp.add(fr);
+    const m = new THREE.MeshBasicMaterial({ map: ph, toneMapped: false }); m.userData.file = file; artMats.push(m);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(S0.w, S0.h), m); face.position.set(0, S0.y, 0); fr.add(face);
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(S0.w, S0.h), mat); back.rotation.y = Math.PI; back.position.set(0, S0.y, -.36); fr.add(back);
+    const cs = Math.cos(o.yaw), sn = Math.sin(o.yaw); for (const lx of shape === 'portrait' ? [0] : S0.posts) c.colliders.push({ x: o.x + lx * cs - .4 * sn, z: o.z - lx * sn - .4 * cs, r: shape === 'portrait' ? .7 : .4, h: S0.y + fh / 2 });
+    artBoards.push({ x: o.x, z: o.z, yaw: o.yaw, file, shape, w: S0.w, h: S0.h });
+  }
+  L.artBoards = artBoards; L.artMats = artMats;
+  const lowRes = c.MOBILE || tier === 'low';
+  setTimeout(() => { const ld = new THREE.TextureLoader(); artMats.forEach((m, i) => setTimeout(() => ld.load(`img/ads/${m.userData.file}${lowRes ? '-m' : ''}.webp`, t => {
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = lowRes ? 2 : 4; m.map = t; m.needsUpdate = false; L.artLoaded = (L.artLoaded || 0) + 1; }, undefined, () => {}), i * 250)); }, 1200);
+  // night glow: faces run a little hot after dark (bloom picks the bright parts up), plain at noon
+  L.artGlow = day => { const k = 1.28 - .33 * day; for (const m of artMats) m.color.setScalar(k); };
+  for (const b of artBoards) boards.push({ ...b, n: b.file });
 
   // ---------------- buildings: Main Street shops, police, fire, power plant, wind farm
   const blds = [], signs = [];
@@ -343,7 +370,7 @@ function build() {
   const clk = new THREE.Clock();
   L.update = () => {
     const dt = Math.min(clk.getDelta(), .05), t = performance.now() / 1000;
-    updSignals(t); updShoppers(dt, t);
+    updSignals(t); updShoppers(dt, t); if (c.U && L.artGlow) L.artGlow(c.U.day.value);
     if (rotors) { turb.forEach((tb, i) => { const e = new THREE.Euler(0, tb.yaw, t * 1.1 + tb.ph, 'YXZ'); q.setFromEuler(e); const off = new THREE.Vector3(0, 0, -1.6).applyAxisAngle(up, tb.yaw); m4.compose(v.set(tb.x + off.x, 40.5, tb.z + off.z), q, one); rotors.setMatrixAt(i, m4); }); rotors.instanceMatrix.needsUpdate = true; }
   };
   (function tick() { requestAnimationFrame(tick); if (!document.hidden && L.update) L.update(); })();

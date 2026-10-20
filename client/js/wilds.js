@@ -613,11 +613,12 @@ const _cam = new THREE.Vector3(), _look = new THREE.Vector3();
 function encCamera(dt) {
   const enc = W.enc, c = C(), P = P_(); if (!enc) return; const mx = (P.pos.x + enc.cr.x) / 2, mz = (P.pos.z + enc.cr.z) / 2, px = -enc.uz, pz = enc.ux, k = (performance.now() - enc.t0) / 1000;
   const portrait = innerHeight > innerWidth, sway = Math.sin(k * .25) * .25, side = portrait ? 5.6 : 4.4;
-  _cam.set(mx + (px * Math.cos(sway) - enc.ux * Math.sin(sway) * .6) * side - enc.ux * 1.2, P.pos.y + (portrait ? 3.4 : 2.1), mz + (pz * Math.cos(sway) - enc.uz * Math.sin(sway) * .6) * side - enc.uz * 1.2);
+  if (portrait) _cam.set(P.pos.x - enc.ux * 4.2 + px * (1.6 + sway), P.pos.y + 2.7, P.pos.z - enc.uz * 4.2 + pz * (1.6 + sway));   // phones: over-the-shoulder, both of you stacked along the view
+  else _cam.set(mx + (px * Math.cos(sway) - enc.ux * Math.sin(sway) * .6) * side - enc.ux * 1.2, P.pos.y + 2.1, mz + (pz * Math.cos(sway) - enc.uz * Math.sin(sway) * .6) * side - enc.uz * 1.2);
   // keep the camera out of tree trunks
   for (const o of obAt(_cam.x, _cam.z)) { const ox = _cam.x - o.x, oz = _cam.z - o.z, od = Math.hypot(ox, oz); if (od < o.r + .6) { _cam.x = o.x + ox / (od || 1) * (o.r + .6); _cam.z = o.z + oz / (od || 1) * (o.r + .6); } }
   if (!enc.cam) enc.cam = c.C.position.clone(); enc.cam.lerp(_cam, 1 - Math.pow(.02, dt));
-  c.C.position.copy(enc.cam); _look.set(mx, P.pos.y + (portrait ? -1.5 : -.55), mz); c.C.lookAt(_look);   // aim low so you + the creature sit in the top half, above the action sheet
+  c.C.position.copy(enc.cam); if (portrait) _look.set(enc.cr.x + enc.ux * 1.5, P.pos.y - 1.6, enc.cr.z + enc.uz * 1.5); else _look.set(mx, P.pos.y - .55, mz); c.C.lookAt(_look);   // aim low so you + the creature sit in the top half, above the action sheet
   // lunges + hit flashes
   const now = performance.now();
   if (enc.lunge) { const u = (now - enc.lunge.t0) / 420; const a = u < 1 ? Math.sin(u * Math.PI) * .9 : 0; if (u >= 1) enc.lunge = null;

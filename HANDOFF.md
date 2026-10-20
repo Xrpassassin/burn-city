@@ -67,3 +67,5 @@ GitHub `main` is the single source of truth, and **deploys are automatic: merge 
 - Zombies: 30s bleed-out, crawl, revive; free-play reconnect within 25s keeps points/guns/perks.
 - Fishing: F start, Space/F cast-hook-reel, Esc reel in.
 - Eternal Grind: WASD, mouse look, LMB attack, RMB/Q spell, F heal, 1/2 potions, E interact, Shift sprint, I inventory, Esc/P pause. Save key `egSave` in localStorage.
+
+_Auto-deploy verified 2026-10-19._

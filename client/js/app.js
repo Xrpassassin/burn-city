@@ -52,7 +52,7 @@ if(!Q.has('noenv'))try{const es=new THREE.Scene(),pm=new THREE.PMREMGenerator(R)
 const C=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,0.3,4000);C.position.set(210,140,260);
 const hemi=new THREE.HemisphereLight(0x4466ff,0x180a22,.55);S.add(hemi);const amb=new THREE.AmbientLight(0x223355,.35);S.add(amb);
 const moonL=new THREE.DirectionalLight(0x9db8ff,.35);moonL.position.set(-300,400,-500);S.add(moonL);
-const U={t:{value:0},day:{value:0},wet:{value:0},flash:{value:0},storm:{value:0},aegisTint:{value:new THREE.Color(1,1,1)},aegisA:{value:0}};   // aegisTint/aegisA: subtle sky tint from the AEGIS threat feed (aegis.js); 0 = untouched sky
+const U={t:{value:0},day:{value:0},wet:{value:0},flash:{value:0},storm:{value:0},aegisTint:{value:new THREE.Color(1,1,1)},aegisA:{value:0},sunD:{value:new THREE.Vector3(.55,.3,-.78).normalize()}};   // aegisTint/aegisA: subtle sky tint from the AEGIS threat feed (aegis.js); 0 = untouched sky
 const GT=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'#fff');g.addColorStop(.25,'rgba(255,255,255,.65)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
 const glowMat=(color,size,opts={})=>new THREE.PointsMaterial({size,map:GT,color,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,sizeAttenuation:true,...opts});
 const NOISE=`float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
@@ -90,25 +90,54 @@ E.nodes.forEach((n,i)=>{const th=THEME[n.name]||{c:MINORC[i%MINORC.length]};n.th
 
 await stage(0.12,'Sky & terrain');
 // ---------- sky, moon, stars, aurora, mountains ----------
-const sky=new THREE.Mesh(new THREE.SphereGeometry(3000,48,24),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:U,
+const sky=new THREE.Mesh(new THREE.SphereGeometry(3000,48,24),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:U,defines:TIER==='low'?{LOWQ:''}:{},
 vertexShader:`varying vec3 d;void main(){d=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-fragmentShader:`uniform float t,day,flash,storm,aegisA;uniform vec3 aegisTint;varying vec3 d;${NOISE}
+fragmentShader:`uniform float t,day,flash,storm,aegisA;uniform vec3 aegisTint,sunD;varying vec3 d;${NOISE}
 void main(){float y=max(d.y,0.);vec3 night=mix(vec3(.02,.03,.09),vec3(.004,.006,.02),pow(max(0.,y),.5));
 vec2 p=d.xz/(d.y+.25);float neb=fbm(p*1.2+vec2(t*.003,0.));vec3 nebc=mix(vec3(.25,.05,.4),vec3(.02,.2,.45),fbm(p*.7+3.))*smoothstep(.45,.9,neb)*.55*(1.-storm);
 float aur=smoothstep(.02,.3,y)*(1.-smoothstep(.22,.65,y))*smoothstep(-.2,.6,-d.z);float band=sin(d.x*9.+fbm(vec2(d.x*3.,t*.05))*6.+t*.2)*.5+.5;
 vec3 aurc=mix(vec3(0.,1.,.6),vec3(.3,.4,1.),y*2.)*aur*band*fbm(vec2(d.x*12.,t*.1+y*4.))*.9*(1.-storm*.9)*(1.-day);
-vec3 c=night+nebc*(1.-day)+aurc;vec3 dayc=mix(vec3(.62,.74,.88),vec3(.16,.36,.74),pow(max(0.,y),.55));vec3 sd=normalize(vec3(.55,.3,-.78));float sdt=max(dot(d,sd),0.);
+vec3 c=night+nebc*(1.-day)+aurc;vec3 dayc=mix(vec3(.62,.74,.88),vec3(.16,.36,.74),pow(max(0.,y),.55));vec3 sd=sunD;float sdt=max(dot(d,sd),0.);
 dayc+=vec3(1.,.92,.75)*(pow(sdt,1400.)*8.+pow(sdt,90.)*.5+pow(sdt,8.)*.18);
-float cu=fbm(p*.32+vec2(t*.004,t*.0015));float cmk=smoothstep(.52,.78,cu)*smoothstep(.0,.14,y)*(1.-storm);
+float cu=fbm(p*.32+vec2(t*.012,t*.004));
+#ifdef LOWQ
+float cmk=smoothstep(.6,.82,cu)
+#else
+float cmk=smoothstep(.52,.78,cu)
+#endif
+*smoothstep(.0,.14,y)*(1.-storm);
 vec3 cloud=mix(vec3(.7,.74,.82),vec3(1.,.99,.97),smoothstep(.5,.9,fbm(p*1.1+1.7)))+vec3(1.,.85,.6)*pow(sdt,6.)*.4;dayc=mix(dayc,cloud,cmk*.8);
-c=mix(c,dayc,day);float gh=smoothstep(.02,.15,day)*(1.-smoothstep(.18,.42,day));c+=vec3(1.,.48,.22)*pow(1.-y,5.)*gh*.5*(1.-storm);
+float gh=smoothstep(.02,.15,day)*(1.-smoothstep(.18,.42,day));
+vec3 ncl=mix(vec3(.03,.035,.06)*(.7+cu*.5),mix(vec3(.55,.32,.38),vec3(1.,.55,.3),pow(sdt,3.))*(.55+cu*.4),gh*1.6);c=mix(c,ncl,cmk*.7*(1.-day));
+c=mix(c,dayc,day);
+float se=smoothstep(-.05,.03,sd.y)*(1.-storm*.9);vec3 sc=mix(vec3(1.,.42,.12),vec3(1.,.95,.82),smoothstep(.15,.6,day));
+c+=sc*(smoothstep(.9993,.9996,sdt)*1.6*(1.-cmk*.6)+pow(sdt,400.)*.45+pow(sdt,30.)*.06)*se*(1.-day*.5);c+=vec3(1.,.48,.22)*pow(1.-y,5.)*gh*.5*(1.-storm);
 float cl=fbm(p*.9+vec2(t*.02,t*.01));c=mix(c,mix(vec3(.04,.045,.06),vec3(.45,.47,.5),day)*(.6+cl*.6),storm*smoothstep(.3,.7,cl+.2));
 c+=vec3(.6,.65,1.)*flash*(.4+cl);c+=vec3(.25,.1,.05)*pow(max(0.,1.-y),8.)*(1.-day);c=mix(c,c*(.55+aegisTint*.9)+aegisTint*pow(max(0.,1.-y),3.)*.05,aegisA);gl_FragColor=vec4(c,1.);}`}));S.add(sky);
-const moonTex=(()=>{const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');const g=x.createRadialGradient(128,128,40,128,128,128);g.addColorStop(0,'rgba(220,230,255,1)');g.addColorStop(.42,'rgba(200,215,255,.95)');g.addColorStop(.47,'rgba(150,170,255,.25)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,256,256);
+const moonTexOld=0&&(()=>{const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');const g=x.createRadialGradient(128,128,40,128,128,128);g.addColorStop(0,'rgba(220,230,255,1)');g.addColorStop(.42,'rgba(200,215,255,.95)');g.addColorStop(.47,'rgba(150,170,255,.25)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,256,256);
  x.globalAlpha=.12;x.fillStyle='#4a5a8a';for(let i=0;i<14;i++){x.beginPath();x.arc(90+rnd()*80,90+rnd()*80,4+rnd()*14,0,7);x.fill()}return new THREE.CanvasTexture(c)})();
-const moon=new THREE.Sprite(new THREE.SpriteMaterial({map:moonTex,fog:false,depthWrite:false,transparent:true}));moon.position.set(-900,700,-1500);moon.scale.setScalar(260);S.add(moon);
-const stars=(()=>{const g=new THREE.BufferGeometry(),p=[],c=[];for(let i=0;i<3000;i++){const th=rnd()*6.283,ph=Math.acos(rnd()*.95);const r=2600;p.push(r*Math.sin(ph)*Math.cos(th),r*Math.cos(ph),r*Math.sin(ph)*Math.sin(th));const k=.6+rnd()*.4;c.push(k,k,1)}
- g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('color',new THREE.Float32BufferAttribute(c,3));const s=new THREE.Points(g,new THREE.PointsMaterial({size:2.2,vertexColors:true,fog:false,transparent:true,depthWrite:false}));S.add(s);return s})();
+// moon: real lunar phase (synodic 29.53 d from the 2000-01-06 new moon), soft crater mottling, separate additive glow
+const moonPh=(((Date.now()-947182440000)/864e5)%29.530588)/29.530588;
+const moonTex=(()=>{const N=256,c=document.createElement('canvas');c.width=c.height=N;const x=c.getContext('2d'),R0=74,m=N/2;
+ x.fillStyle='rgba(40,50,80,.55)';x.beginPath();x.arc(m,m,R0,0,7);x.fill();   // earthshine on the dark side
+ x.save();x.beginPath();const k=Math.cos(moonPh*2*Math.PI),wax=moonPh<.5;   // lit region = half disc + terminator ellipse
+ x.arc(m,m,R0,-Math.PI/2,Math.PI/2,!wax);x.ellipse(m,m,Math.abs(k)*R0,R0,0,Math.PI/2,-Math.PI/2,(k>0)!==wax);x.closePath();
+ const g=x.createRadialGradient(m-20,m-20,10,m,m,R0);g.addColorStop(0,'#f4f6ff');g.addColorStop(1,'#bcc8ec');x.fillStyle=g;x.fill();x.clip();
+ x.globalAlpha=.13;x.fillStyle='#4a5a8a';for(let i=0;i<16;i++){x.beginPath();x.arc(m-50+rnd()*100,m-50+rnd()*100,4+rnd()*13,0,7);x.fill()}x.restore();return new THREE.CanvasTexture(c)})();
+const glowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),g=x.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(190,210,255,.55)');g.addColorStop(.3,'rgba(150,175,255,.18)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,128,128);return new THREE.CanvasTexture(c)})();
+const moon=new THREE.Sprite(new THREE.SpriteMaterial({map:moonTex,fog:false,depthWrite:false,transparent:true}));moon.scale.setScalar(230);moon.renderOrder=-1;S.add(moon);
+const moonGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,fog:false,depthWrite:false,transparent:true,blending:THREE.AdditiveBlending}));moonGlow.scale.setScalar(900);moonGlow.renderOrder=-2;S.add(moonGlow);
+function placeSky(day,storm){const h=phxHourA(),y=Math.max(-.3,Math.min(.85,day*.95-.18)),am=h>=2&&h<12.5&&!Q.has('tod'),xz=Math.sqrt(1-y*y);
+ U.sunD.value.set((am?-.58:.58)*xz,y,-.81*xz).normalize();const mv=V3(-U.sunD.value.x*.4,Math.max(.16,.3-y*.35),-.85).normalize().multiplyScalar(2000);
+ moon.position.copy(mv);moonGlow.position.copy(mv);const nm=Math.min(1,Math.max(0,(.55-day)/.4))*(1-storm*.85);moon.material.opacity=Math.max(nm,(1-day)*.2);moonGlow.material.opacity=nm*(.35+.65*Math.sin(moonPh*Math.PI));
+ moonL.position.copy(mv).multiplyScalar(.25);}
+function phxHourA(){const d=new Date(Date.now()-7*3600e3);return d.getUTCHours()+d.getUTCMinutes()/60}
+const stars=(()=>{const N=TIER==='low'?1400:TIER==='medium'?3200:5200,g=new THREE.BufferGeometry(),p=[],c=[],q=[];for(let i=0;i<N;i++){const th=rnd()*6.283,ph=Math.acos(rnd()*.95);const r=2600;p.push(r*Math.sin(ph)*Math.cos(th),r*Math.cos(ph),r*Math.sin(ph)*Math.sin(th));const k=.6+rnd()*.4,w=rnd();c.push(k*(w<.15?1:.85+w*.15),k*(w>.9?.85:1),1);q.push(rnd()*6.283,rnd()<.06?3.2:1.2+rnd()*1.4)}
+ g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('color',new THREE.Float32BufferAttribute(c,3));g.setAttribute('tw',new THREE.Float32BufferAttribute(q,2));
+ const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,fog:false,vertexColors:true,uniforms:{t:U.t,opacity:{value:1},pr:{value:R.getPixelRatio()}},
+  vertexShader:`attribute vec2 tw;uniform float t,pr;varying vec3 vc;varying float a;void main(){vc=color;float s=sin(t*(1.3+fract(tw.x)*2.)+tw.x*7.);a=.55+.45*s;gl_PointSize=tw.y*pr*(.85+.25*s);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`uniform float opacity;varying vec3 vc;varying float a;void main(){vec2 d=gl_PointCoord-.5;float r=dot(d,d);if(r>.25)discard;gl_FragColor=vec4(vc,opacity*a*(1.-r*3.2));}`});
+ const s=new THREE.Points(g,m);s.frustumCulled=false;S.add(s);m.uniforms.opacity.value=1;s.material.__op=m.uniforms.opacity;return s})();
 const shoot={line:new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(1,0,0)]),new THREE.LineBasicMaterial({color:0xcfe8ff,fog:false,transparent:true,opacity:0})),t:-1};shoot.line.frustumCulled=false;S.add(shoot.line);
 {const geo=new THREE.BufferGeometry(),pos=[],col=[],idx=[];let base=0;
  [[1500,70,0x0a1230],[1750,120,0x070c20],[2050,190,0x050914]].forEach(([r,amp,hex],L)=>{const cc=new THREE.Color(hex),seg=360;
@@ -1368,7 +1397,7 @@ function frame(){requestAnimationFrame(frame);R.info.reset();const _rd=clk.getDe
  if(wMode==='cycle'){const seq=['clear','fog','rain','storm'];wTarget=W[seq[Math.floor(t/30)%4]]}
  for(const k in wCur)wCur[k]+=(wTarget[k]-wCur[k])*Math.min(1,dt*wRate);SKY(dt,t,wCur,+$('tod').value);
  S.fog.density=wCur.fog*.8*(1-day*.6)*Math.min(1,480/Math.max(1,C.position.length()));{const dk=1-.6*wCur.storm;S.fog.color.setRGB((.023+day*.34)*dk,(.04+day*.40)*dk,(.11+day*.50)*dk)}U.wet.value=wCur.wet;U.storm.value=wCur.storm;rain.uniforms.amt.value=Math.min(1,wCur.rain);rain.uniforms.cam.value.copy(C.position);banks(wCur.banks,t);
- hemi.intensity=(.55+day*1.4)*(1-.45*wCur.storm);amb.intensity=.35+day*.6;R.toneMappingExposure=1.05+day*.05;stars.material.opacity=1-day;moon.material.opacity=1-day*.8;bloom.strength=.7-day*.35+wCur.wet*.08;
+ hemi.intensity=(.55+day*1.4)*(1-.45*wCur.storm);amb.intensity=.35+day*.6;R.toneMappingExposure=1.05+day*.05;stars.material.__op.value=Math.pow(Math.max(0,1-day/.45),1.5)*(1-wCur.storm*.9)*(1-wCur.fog*.5);placeSky(day,wCur.storm);bloom.strength=.7-day*.35+wCur.wet*.08;
  if(wCur.storm>.5){nextBolt-=dt;if(nextBolt<0){lightning();nextBolt=3+Math.random()*7}}
  if(boltT>0){boltT-=dt;U.flash.value=Math.max(0,boltT*3.3)*(Math.random()<.7?1:.3);flashL.intensity=U.flash.value*3;bolt.material.opacity=Math.min(1,boltT*5)}else{bolt.visible=false;U.flash.value=0;flashL.intensity=0}
  if(aud.rg)aud.rg.gain.value=Math.min(1,wCur.rain)*.35;

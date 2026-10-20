@@ -106,7 +106,7 @@ function toggle(on) {
     board.visible = true; hud.style.display = 'block'; if (gearBtn) gearBtn.style.display = 'block'; if (btns) btns.style.display = c.MOBILE ? 'grid' : 'none';
     tutorial(true);
   } else {
-    c.P.pos.copy(st.pos); c.P.vel.set(0, 0, 0); board.visible = false; hud.style.display = 'none'; if (gearBtn) gearBtn.style.display = 'none'; GEAR.close(); if (btns) btns.style.display = 'none';
+    c.P.pos.copy(st.pos); c.P.vel.set(0, 0, 0); board.visible = false; hud.style.display = 'none'; if (gearBtn) gearBtn.style.display = 'none'; GEAR.close(); if (btns) btns.style.display = 'none'; if (tut) tut.el.style.display = 'none';
     c.avatar.rotation.x = c.avatar.rotation.z = 0;
   }
   const sb = document.getElementById('tSkate'); if (sb) sb.classList.toggle('on', on);
@@ -383,7 +383,7 @@ function touchButtons() {
   const c = C();
   // a skate toggle beside the existing touch buttons, and trick buttons that only show while skating
   const tb = document.getElementById('tbtns');
-  if (tb && !document.getElementById('tSkate')) { const b = document.createElement('button'); b.id = 'tSkate'; b.setAttribute('aria-label', 'Skate'); b.textContent = '🛹'; tb.appendChild(b); b.addEventListener('click', e => { e.preventDefault(); toggle(); }); }
+  if (tb && !document.getElementById('tSkate') && !document.getElementById('gbSkate')) { const b = document.createElement('button'); b.id = 'tSkate'; b.setAttribute('aria-label', 'Skate'); b.textContent = '🛹'; tb.appendChild(b); b.addEventListener('click', e => { e.preventDefault(); toggle(); }); }
   btns = document.createElement('div'); btns.id = 'skBtns';
   const mk = (id, label, key) => { const b = document.createElement('button'); b.id = id; b.textContent = label; const on = e => { e.preventDefault(); touchSK[key] = 1; b.classList.add('on'); }, off = e => { e.preventDefault(); touchSK[key] = 0; b.classList.remove('on'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off); btns.appendChild(b); };

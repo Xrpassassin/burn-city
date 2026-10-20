@@ -1022,7 +1022,7 @@ addEventListener('touchmove',e=>{for(const t of e.changedTouches){if(t.identifie
  else if(t.identifier===look.id&&mode!=='orbit'){yp.yaw-=(t.clientX-look.x)*.005;yp.pitch=Math.max(-1.3,Math.min(1.3,yp.pitch-(t.clientY-look.y)*.005));look.x=t.clientX;look.y=t.clientY}}},{passive:true});
 R.domElement.addEventListener('touchstart',e=>{const t=e.changedTouches[0];if(mode!=='orbit'){look.id=t.identifier;look.x=t.clientX;look.y=t.clientY}},{passive:true});
 addEventListener('touchend',e=>{for(const t of e.changedTouches){if(t.identifier===joy.id){joy.id=null;joy.x=joy.y=0;kEl.style.left=kEl.style.top='35px'}if(t.identifier===look.id)look.id=null}});
-const hold=(id,k)=>{const el=$(id);el.addEventListener('touchstart',e=>{tb[k]=1;e.preventDefault()},{passive:false});el.addEventListener('touchend',()=>tb[k]=0)};['tJump:jump','tRun:run','tUp:up','tDown:down'].forEach(s=>hold(...s.split(':')));
+const hold=(id,k)=>{const el=$(id);el.addEventListener('touchstart',e=>{tb[k]=1;e.preventDefault()},{passive:false});el.addEventListener('touchend',()=>tb[k]=0);el.addEventListener('touchcancel',()=>tb[k]=0)};['tJump:jump','tRun:run','tUp:up','tDown:down'].forEach(s=>hold(...s.split(':')));
 $('tUse').addEventListener('touchstart',e=>{interact();e.preventDefault()},{passive:false});
 
 // ---------- explore: physics, collisions, districts, interaction ----------
@@ -1043,23 +1043,42 @@ function webAnchor(){const f=V3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw));let best=
   for(const q of railPts()){const dx=q.x-P.pos.x,dz=q.z-P.pos.z,d=Math.hypot(dx,dz);if(d<4||d>80||q.y<P.pos.y+8)continue;const dot=(dx*f.x+dz*f.z)/d;if(dot<.35)continue;const dd=Math.hypot(d,q.y-P.pos.y);if(dd>80)continue;
    const sc=dot*2-Math.abs(dd-32)/40+Math.min(28,q.y-P.pos.y)/25;if(sc>bs){bs=sc;best=q.clone()}}return best}
 let RAILS=null;function railPts(){if(RAILS)return RAILS;RAILS=[];for(const b of bridges){if(!b.curve||b.minor&&!b.forever)continue;let L=12;try{L=b.curve.getLength()}catch(e){}const n=Math.max(1,Math.round(L/12));for(let i=1;i<n;i++){const v=b.curve.getPoint(i/n);if(v.y>6)RAILS.push(v)}}return RAILS}
-const JET={on:false,f:1,thr:false};
+const JET={on:false,f:1,thr:false,fly:false,v:new THREE.Vector3()};
 const jetBtn=document.createElement('button');jetBtn.id='jetBtn';jetBtn.textContent='🚀 Jet';jetBtn.style.cssText=webBtn.style.cssText.replace('400px','452px');document.body.append(jetBtn);
 const jetBar=document.createElement('div');jetBar.style.cssText='position:fixed;right:12px;bottom:calc(504px + env(safe-area-inset-bottom));z-index:31;width:84px;height:7px;border-radius:4px;background:#ffffff22;display:none;overflow:hidden';jetBar.innerHTML='<i style="display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff5a1f,#ffd27a)"></i>';document.body.append(jetBar);
-jetBtn.onclick=()=>{JET.on=!JET.on;if(JET.on&&WEB.on)webSet(false);jetBtn.style.background=JET.on?'#7a2a08e0':'#0b1220e0'};
+// phones: one gear column (board / web shooters / jetpack) under the top bar, clear of the joystick, the USE pad and the trick buttons
+if(MOBILE){const st=document.createElement('style');st.textContent=`#gearBar{position:fixed;right:calc(10px + env(safe-area-inset-right));top:calc(env(safe-area-inset-top) + 128px);display:none;flex-direction:column;gap:8px;z-index:31}
+#gearBar.on{display:flex}#gearBar button{position:static!important;min-width:76px;height:44px;padding:0 10px;font:700 14px system-ui;border-radius:12px;border:1px solid #ffffff66;background:#0b1220e0;color:#fff;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+#gearBar button.on{background:#ff7a18!important;color:#140600!important;border-color:#ffd2a8}
+@media (max-height:520px){#gearBar{flex-direction:row;top:calc(env(safe-area-inset-top) + 58px);right:auto;left:50%;transform:translateX(-50%)}}`;document.head.append(st);
+ const gb=document.createElement('div');gb.id='gearBar';const sk=document.createElement('button');sk.id='gbSkate';sk.textContent='🛹 Board';sk.setAttribute('aria-label','Skateboard');
+ sk.onclick=e=>{e.stopPropagation();e.preventDefault();if(JET.on)jetBtn.click();if(WEB.on)webSet(false);window.__skate&&window.__skate.toggle()};
+ gb.append(sk,webBtn,jetBtn);document.body.append(gb);
+ const webOn=()=>webBtn.classList.toggle('on',WEB.on);webBtn.addEventListener('click',webOn);webOn();
+ setInterval(()=>{const on=mode==='explore'&&!(window.__boat&&window.__boat.active)&&!window.__burnTowerOpen;gb.classList.toggle('on',on);sk.classList.toggle('on',!!(window.__skate&&window.__skate.active));webOn()},250)}
+jetBtn.onclick=e=>{if(e)e.stopPropagation();JET.on=!JET.on;if(JET.on&&WEB.on)webSet(false);if(JET.on&&window.__skate&&window.__skate.active)window.__skate.toggle(false);jetBtn.style.background=JET.on?'#7a2a08e0':'#0b1220e0';jetBtn.setAttribute('aria-pressed',JET.on);jetBtn.classList.toggle('on',JET.on)};jetBtn.title='Jetpack: Space up · C/Ctrl down · WASD steer';
 const pack=new THREE.Group();{const m=new THREE.MeshStandardMaterial({color:0x8a93a6,metalness:.8,roughness:.35});for(const s of[-1,1]){const t=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.42,8),m);t.position.set(s*.11,1.25,.24);pack.add(t)}
  const fl=new THREE.Mesh(new THREE.ConeGeometry(.09,.55,8).translate(0,-.27,0).rotateX(Math.PI),new THREE.MeshBasicMaterial({color:0xff8a2a,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));fl.rotation.x=Math.PI;
  for(const s of[-1,1]){const f=fl.clone();f.position.set(s*.11,1.02,.24);f.visible=false;pack.add(f)}}pack.visible=false;avatar.add(pack);
 const SMN=40,smG=new THREE.BufferGeometry(),smP=new Float32Array(SMN*3),smV=new Float32Array(SMN*4);smG.setAttribute('position',new THREE.BufferAttribute(smP,3));const smoke=new THREE.Points(smG,new THREE.PointsMaterial({color:0xb0a8a0,size:.45,transparent:true,opacity:.55,depthWrite:false}));smoke.frustumCulled=false;S.add(smoke);let smI=0;
-function jetStep(dt,mv){const ok=!!window.__jetOK&&mode==='explore'&&!(window.__boat&&window.__boat.active);jetBtn.style.display=ok?'':'none';jetBar.style.display=ok&&JET.on?'':'none';pack.visible=ok&&JET.on;
-  if(!ok)JET.on=false;const held=!!(keys.Space||tb.jump);JET.thr=JET.on&&held&&JET.f>0;
-  if(P.onGround&&!JET.thr)JET.f=Math.min(1,JET.f+dt/2.5);jetBar.firstChild.style.width=(JET.f*100).toFixed(0)+'%';
-  pack.children.forEach((c,i)=>{if(i>1){c.visible=JET.thr;c.scale.y=.7+Math.random()*.6}});
-  if(JET.thr){JET.f=Math.max(0,JET.f-dt/4);P.vel.y=Math.min(11,P.vel.y+36*dt);P.onGround=false;const fx=mv.x,fz=mv.z;P.pos.x+=fx*.6*dt;P.pos.z+=fz*.6*dt;
+function jetStep(dt,mv){const ok=!!window.__jetOK&&mode==='explore'&&!(window.__boat&&window.__boat.active);jetBtn.style.display=ok?'':'none';jetBar.style.display='none';pack.visible=ok&&JET.on;
+  if(!ok)JET.on=false;JET.f=1;   // infinite fuel: no drain, no fuel bar
+  const up=!!(keys.Space||tb.jump||tb.up),dn=!!(keys.KeyC||keys.ControlLeft||tb.down);
+  if(MOBILE){const sh=mode==='fly'||(ok&&JET.on)?'':'none';if($('tUp').style.display!==sh){$('tUp').style.display=sh;$('tDown').style.display=sh}}
+  // flying = jet on and airborne (or lifting off); on the ground with the jet on you walk normally until you ascend
+  JET.fly=JET.on&&(!P.onGround||up);JET.thr=JET.fly;
+  if(JET.fly){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,top=run?26:16,ml=Math.hypot(mv.x,mv.z);
+   // horizontal: steer toward the stick / WASD direction relative to the camera, responsive accel, quick stop when released
+   const tx=ml>.05?mv.x/ml*top*Math.min(1,ml/5):0,tz=ml>.05?mv.z/ml*top*Math.min(1,ml/5):0,k=1-Math.exp(-dt*(ml>.05?4.5:2.5));JET.v.x+=(tx-JET.v.x)*k;JET.v.z+=(tz-JET.v.z)*k;
+   // vertical: hover by default, ascend / descend while held (gravity is cancelled here, it is applied after this call)
+   const vy=up?10:dn?-9:0;P.vel.y+=(vy-P.vel.y)*(1-Math.exp(-dt*5))+20*dt;if(P.pos.y>180&&P.vel.y>0)P.vel.y=Math.min(P.vel.y,20*dt);P.onGround=false;
+  }else JET.v.multiplyScalar(Math.pow(.02,dt));
+  pack.children.forEach((c,i)=>{if(i>1){c.visible=JET.thr;c.scale.y=(up?.9:.55)+Math.random()*.5}});
+  if(JET.thr){
    for(let k=0;k<2;k++){const i=smI++%SMN;smP[i*3]=P.pos.x+(Math.random()-.5)*.3;smP[i*3+1]=P.pos.y+.9;smP[i*3+2]=P.pos.z+(Math.random()-.5)*.3;smV[i*4]=(Math.random()-.5);smV[i*4+1]=-2-Math.random()*2;smV[i*4+2]=(Math.random()-.5);smV[i*4+3]=1}}
   for(let i=0;i<SMN;i++){if(smV[i*4+3]<=0)continue;smV[i*4+3]-=dt;smP[i*3]+=smV[i*4]*dt;smP[i*3+1]+=smV[i*4+1]*dt;smP[i*3+2]+=smV[i*4+2]*dt;smV[i*4+1]*=.94;if(smV[i*4+3]<=0)smP[i*3+1]=-999}smG.attributes.position.needsUpdate=true;
   window.__jetThrust=JET.thr;return JET.thr}
-window.__jet=JET;window.__modeReset=()=>{if(WEB.on)webSet(false);JET.on=false;JET.thr=false;pack.visible=false;jetBtn.style.background='#0b1220e0'};
+window.__jet=JET;window.__modeReset=()=>{if(WEB.on)webSet(false);JET.on=false;JET.thr=false;JET.fly=false;JET.v.set(0,0,0);pack.visible=false;jetBtn.style.background='#0b1220e0';jetBtn.classList.remove('on')};
 const _hv=new THREE.Vector3(),_hd=new THREE.Vector3(),_dn=new THREE.Vector3(0,-1,0);
 function webPose(){const A=avatar.userData.arms;if(!WEB.a){for(const a of A)a.rotation.y=0;return}const arm=A[WEB.hand===1?1:0];if(arm.userData.elbow)arm.userData.elbow.rotation.x=0;avatar.updateMatrixWorld(true);
   _hd.copy(WEB.a);avatar.worldToLocal(_hd).sub(arm.position).normalize();arm.quaternion.setFromUnitVectors(_dn,_hd);arm.updateMatrixWorld(true);
@@ -1083,7 +1102,7 @@ function updExplore(dt){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run
  if(window.__boat&&window.__boat.active){const st=window.__boat.drive(dt,f,s);P.pos.copy(st);P.vel.set(0,0,0);P.onGround=true;P.climb=null;avatar.position.copy(st);avatar.rotation.y=window.__boat.cur.h;avatar.visible=true;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}
  const fw=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw)),rt=new THREE.Vector3(-fw.z,0,fw.x);const mv=fw.multiplyScalar(f).add(rt.multiplyScalar(s));const ml=Math.min(1,mv.length());
  if(ml>.05){mv.normalize().multiplyScalar(sp*ml);const ty=Math.atan2(-mv.x,-mv.z);let dy=ty-avatar.rotation.y;dy=Math.atan2(Math.sin(dy),Math.cos(dy));avatar.rotation.y+=dy*Math.min(1,dt*12)}
- if(!webStep(dt,mv)){ const ox=P.pos.x,oz=P.pos.z;P.pos.x+=mv.x*dt;P.pos.z+=mv.z*dt;if(wet(P.pos.x,P.pos.z)){if(!wet(P.pos.x,oz))P.pos.z=oz;else if(!wet(ox,P.pos.z))P.pos.x=ox;else if(!wet(ox,oz)){P.pos.x=ox;P.pos.z=oz}}if(jetStep(dt,mv)){}else if((keys.Space||tb.jump)&&P.onGround){P.vel.y=7.5;P.onGround=false}P.vel.y-=20*dt;P.pos.y+=P.vel.y*dt;if(WEB.mom.lengthSq()>.01){const wx=P.pos.x,wz=P.pos.z;P.pos.x+=WEB.mom.x*dt;P.pos.z+=WEB.mom.z*dt;if(wet(P.pos.x,P.pos.z)){P.pos.x=wx;P.pos.z=wz;WEB.mom.set(0,0,0)}if(P.onGround)WEB.mom.multiplyScalar(Math.pow(.01,dt))}}
+ if(!webStep(dt,mv)){ const ox=P.pos.x,oz=P.pos.z,hv=JET.fly?JET.v:mv;P.pos.x+=hv.x*dt;P.pos.z+=hv.z*dt;if(wet(P.pos.x,P.pos.z)){if(!wet(P.pos.x,oz))P.pos.z=oz;else if(!wet(ox,P.pos.z))P.pos.x=ox;else if(!wet(ox,oz)){P.pos.x=ox;P.pos.z=oz}}if(jetStep(dt,mv)){}else if((keys.Space||tb.jump)&&P.onGround){P.vel.y=7.5;P.onGround=false}P.vel.y-=20*dt;P.pos.y+=P.vel.y*dt;if(WEB.mom.lengthSq()>.01){const wx=P.pos.x,wz=P.pos.z;P.pos.x+=WEB.mom.x*dt;P.pos.z+=WEB.mom.z*dt;if(wet(P.pos.x,P.pos.z)){P.pos.x=wx;P.pos.z=wz;WEB.mom.set(0,0,0)}if(P.onGround)WEB.mom.multiplyScalar(Math.pow(.01,dt))}}
  const g=groundAt(P.pos.x,P.pos.z,P.pos.y);if(P.pos.y<=g){P.pos.y=g;P.vel.y=0;P.onGround=true}else P.onGround=P.pos.y-g<.05;
  collide(P.pos);
  // climbing: push into a tower wall -> climb the face; jump/back off detaches; mantle at the roof edge
@@ -1416,7 +1435,9 @@ await stage(.92,'Compiling shaders');fxObjs.forEach(o=>o.visible=true);
 // compile against the composer's render target: the scene is drawn into it (linear, no tone mapping), so warming against the canvas built the wrong shader variants
 {const rt0=R.getRenderTarget();R.setRenderTarget(comp.readBuffer);try{if(R.compileAsync&&!Q.has('synccompile'))await R.compileAsync(S,C);else R.compile(S,C)}catch(e){R.compile(S,C)}R.setRenderTarget(rt0)}window.__compiledMs=performance.now();comp.render();fxObjs.forEach(o=>o.visible=false);
 await stage(.98,'Starting');
-frame();window.__ready=true;window.__readyMs=performance.now();window.__startDemo&&window.__startDemo();requestAnimationFrame(()=>requestAnimationFrame(()=>{window.__load(1,'Ready');if(Q.has('shot'))$('loader').style.transition='none';$('loader').classList.add('done')}));
+frame();window.__ready=true;window.__readyMs=performance.now();window.__startDemo&&window.__startDemo();{const lift=()=>{if($('loader').classList.contains('done'))return;window.__load(1,'Ready');if(Q.has('shot'))$('loader').style.transition='none';$('loader').classList.add('done')};
+ // lift the loading screen after the first painted frames; the timer covers phones where the first frames stall (shader compile, tab briefly hidden) so the overlay never sits over the menu
+ requestAnimationFrame(()=>requestAnimationFrame(lift));setTimeout(lift,1200)}
 addEventListener('resize',()=>{C.aspect=innerWidth/innerHeight;C.updateProjectionMatrix();R.setSize(innerWidth,innerHeight);comp.setSize(innerWidth,innerHeight);labelEls.forEach(l=>l.w=0)});
 
 ;addEventListener('pointerdown',function f(){removeEventListener('pointerdown',f,true);try{AC&&AC.state==='suspended'&&AC.resume()}catch(e){}},true);

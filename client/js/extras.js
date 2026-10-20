@@ -61,4 +61,9 @@ m.querySelector('.mplay').onclick=()=>{if(!au)return play(cur);au.paused?au.play
 m.querySelector('.mnext').onclick=()=>play(cur+1);m.querySelector('.mprev').onclick=()=>play(au&&au.currentTime>3?cur:cur-1);
 m.querySelector('.x').onclick=()=>m.hidden=true;
 musB.onclick=async()=>{m.hidden=!m.hidden;if(!m.hidden){await loadPL();ui()}};
+// hand-off API for other modules (The Wilds swaps in its own music): fade the city playlist out/in. Volume steps are a
+// desktop nicety; iOS ignores .volume, so there it simply pauses/resumes at the end of the fade.
+let fadeT=null;function fadeTo(v,ms,done){clearInterval(fadeT);if(!au)return done&&done();const v0=au.volume,t0=performance.now();fadeT=setInterval(()=>{const k=Math.min(1,(performance.now()-t0)/ms);try{au.volume=Math.max(0,Math.min(1,v0+(v-v0)*k))}catch(e){}if(k>=1){clearInterval(fadeT);done&&done()}},50)}
+window.__cityMusic={playing:()=>!!(au&&!au.paused),fadeOut:(ms=1500)=>fadeTo(0,ms,()=>{if(au){au.pause();au.volume=.8}}),
+ fadeIn:async(ms=2000)=>{await loadPL();if(!PL.length)return;if(!au){play(cur)}else if(au.paused){au.play().catch(()=>{})}try{au.volume=0}catch(e){}fadeTo(.8,ms)}};
 if('mediaSession' in navigator){navigator.mediaSession.setActionHandler('nexttrack',()=>play(cur+1));navigator.mediaSession.setActionHandler('previoustrack',()=>play(cur-1))}

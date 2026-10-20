@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "note": "Original ability, item and matchup data for BURN City: The Wilds milestone 1. Balance is a first pass for the prototype.",
+  "matchups": {
+    "Ember": ["Verdant", "Gale"],
+    "Verdant": ["Tide", "Stone"],
+    "Tide": ["Ember", "Stone"],
+    "Stone": ["Ember", "Gale"],
+    "Gale": ["Verdant"],
+    "Aether": []
+  },
+  "statuses": {
+    "burn": { "name": "Burn", "turns": 3, "text": "loses a little health each turn" },
+    "root": { "name": "Root", "turns": 2, "text": "can't flee and is easier to bind" },
+    "daze": { "name": "Daze", "turns": 1, "text": "next action is weaker" },
+    "guarded": { "name": "Guarded", "turns": 2, "text": "takes much less damage" }
+  },
+  "abilities": {
+    "leaf_flick":     { "name": "Leaf Flick",     "affinity": "Verdant", "kind": "attack", "power": 7,  "accuracy": 0.95, "status": "root",    "statusChance": 0.2,  "text": "A whip of razor leaves. May Root." },
+    "soothing_call":  { "name": "Soothing Call",  "affinity": "Verdant", "kind": "soothe", "heal": 0.15, "text": "A low hum that settles the foe (bind odds up) and mends a little." },
+    "spark_nip":      { "name": "Spark Nip",      "affinity": "Ember",   "kind": "attack", "power": 7,  "accuracy": 0.95, "status": "burn",    "statusChance": 0.25, "text": "A hot little bite. May Burn." },
+    "flare_dash":     { "name": "Flare Dash",     "affinity": "Ember",   "kind": "attack", "power": 11, "accuracy": 0.85, "text": "A blazing charge. Strong but can miss." },
+    "water_thread":   { "name": "Water Thread",   "affinity": "Tide",    "kind": "attack", "power": 7,  "accuracy": 0.95, "status": "root",    "statusChance": 0.3,  "text": "A lasso of creek water. May Root." },
+    "mist_bubble":    { "name": "Mist Bubble",    "affinity": "Tide",    "kind": "guard",  "status": "guarded", "cleanse": true, "text": "Wraps itself in mist: Guarded, clears Burn." },
+    "shard_bash":     { "name": "Shard Bash",     "affinity": "Stone",   "kind": "attack", "power": 10, "accuracy": 0.9,  "status": "daze",    "statusChance": 0.2,  "text": "A crystal-backed slam. May Daze." },
+    "burrow_stance":  { "name": "Burrow Stance",  "affinity": "Stone",   "kind": "guard",  "status": "guarded", "heal": 0.1, "text": "Digs in: Guarded and mends a little." },
+    "staff_strike":   { "name": "Staff Strike",   "affinity": "None",    "kind": "attack", "power": 6,  "accuracy": 0.95, "text": "Your trail staff. Honest, reliable." },
+    "brace":          { "name": "Brace",          "affinity": "None",    "kind": "guard",  "status": "guarded", "text": "Plant your feet: Guarded for two turns." },
+    "soothe":         { "name": "Soothe",         "affinity": "None",    "kind": "soothe", "text": "Speak softly, hands open. Settles the foe (bind odds up)." }
+  },
+  "items": {
+    "starter_binding_charm": { "name": "Starter Binding Charm", "text": "Mara's woven charm. +12% on your next bind attempt (used up on the attempt)." },
+    "field_bait":            { "name": "Field Bait",            "text": "Sweet root mash. Use in an encounter: +10% bind odds for that encounter, and the creature settles." },
+    "trail_sigil":           { "name": "Trail Sigil",           "text": "The basic binding mark every warden carries. Never runs out." }
+  },
+  "rarityBindBase": { "common": 50, "uncommon": 34, "rare": 20, "epic": 10, "legendary": 4 },
+  "rarityXp": { "common": 1, "uncommon": 1.4, "rare": 2, "epic": 3, "legendary": 4 },
+  "temperament": {
+    "curious":     { "bind": 8,   "calm": 20,  "flees": false, "approach": true },
+    "shy":         { "bind": -8,  "calm": 5,   "flees": true },
+    "bold":        { "bind": -5,  "calm": -15, "flees": false },
+    "territorial": { "bind": -10, "calm": -25, "flees": false },
+    "protective":  { "bind": -6,  "calm": -10, "flees": false },
+    "steady":      { "bind": 0,   "calm": 5,   "flees": false },
+    "independent": { "bind": -8,  "calm": -10, "flees": true },
+    "skittish":    { "bind": -6,  "calm": 0,   "flees": true },
+    "watchful":    { "bind": -4,  "calm": -5,  "flees": true }
+  }
+}

@@ -68,6 +68,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/eco') return json(res, 200, Eco.status());
     if (url.pathname === '/api/status') return json(res, 200, { signin: !!C.XUMM_KEY, shop: !!(C.XUMM_KEY && C.TREASURY), dryRun: C.DRY_RUN, social: true, ranked: Ranked.status(), payoutsPaused: require('./guard').paused() });
     if (url.pathname.startsWith('/nftimg/')) { if (Nft.image(req, res, url.pathname)) return; }
+    // PYRETHEUM (BURN Tower interior) private floor: server-side gate. Allowlist comes only from the MIDNIGHTBLUFF_WALLETS env/Fly secret
+    // (comma-separated r-addresses) and is never sent to the browser. Empty/unset = locked for everyone.
+    if (url.pathname === '/api/tower/midnightbluff') { const u = who(); if (!u) return json(res, 401, { allowed: false, error: 'sign_in_with_xaman' }); if (limited(ip)) return json(res, 429, { allowed: false, error: 'slow_down' });
+      const allow = new Set(String(process.env.MIDNIGHTBLUFF_WALLETS || '').split(/[\s,]+/).filter(a => /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(a)));
+      return json(res, 200, { allowed: allow.has(u.acct) }); }
     if (url.pathname === '/api/nft/mine') { const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' }); if (limited(ip)) return json(res, 429, { error: 'slow_down' });
       try { return json(res, 200, await Nft.mine(u.acct, Nft.mainLedger)); } catch (e) { console.error('nft mine', e.message); return json(res, 200, { error: 'ledger_unavailable', nfts: [] }); } }
     if (url.pathname === '/api/nft/select' && req.method === 'POST') { const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' }); if (limited(ip)) return json(res, 429, { error: 'slow_down' });

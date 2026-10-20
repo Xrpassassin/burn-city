@@ -172,7 +172,12 @@ const css = document.createElement('style'); css.textContent = `#fBar{position:f
 #fPanel .x{position:absolute;right:10px;top:8px;background:none;border:0;color:#fff;font-size:20px}#fPanel .g{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}#fPanel .c{border:1px solid #ffffff1a;border-radius:10px;padding:6px 8px;font-size:12px}#fPanel button.b{margin:3px 0;width:100%;padding:9px;border-radius:10px;border:1px solid #7dffb066;background:#12301e;color:#dfffe9;font-weight:700}
 .nv{font-size:11px;opacity:.7}`; document.head.append(css);
 const bar = document.createElement('div'); bar.id = 'fBar'; bar.innerHTML = '<button id="fCast">🎣 Fish</button><button id="fShop">🛒 Tackle & Bait</button>'; document.body.append(bar);
-const ui = document.createElement('div'); ui.id = 'fUI'; document.body.append(ui); const panel = document.createElement('div'); panel.id = 'fPanel'; document.body.append(panel);
+const ui = document.createElement('div'); ui.id = 'fUI'; document.body.append(ui);
+// Touch ghost-click guard: Cast/Reel act on pointerdown and swap the panel's buttons, so the browser's follow-up click (Android Chrome, iOS Safari)
+// landed on the NEW button under the finger, e.g. 'Reel in' right after Cast, which silently cancelled every cast on phones. Only accept a click on the same button the finger/mouse pressed down on.
+let downB = null; const noGhost = () => { downB = null }; const btnOf = el => el && el.closest && el.closest('button');
+ui.addEventListener('pointerdown', e => { downB = btnOf(e.target) }, true);
+ui.addEventListener('click', e => { if (e.detail && btnOf(e.target) !== downB) { e.stopPropagation(); e.preventDefault() } downB = null }, true);   // a real tap's click hits the button it pressed const panel = document.createElement('div'); panel.id = 'fPanel'; document.body.append(panel);
 const NV = '<div class="nv">🪙 Lake coins: free in-game points with no real value. Not sold for XRP, not withdrawable.</div>';
 // ---------- fishing flow ----------
 let state = 'idle', cur = null;
@@ -183,7 +188,7 @@ let aimT = 0; const FL = { on: 0, t0: 0, dur: 1, h: 3 };   // bobber flight
 function doCast() {
   if (state !== 'idle' || !FISHOK) return; state = 'aim'; aimT = performance.now(); ui.style.display = 'block';
   ui.innerHTML = `<b>🎯 Aim your cast</b> <span class="nv">tap in the gold band for a Perfect cast</span><div class="bar"><div class="zone" style="left:0;width:100%;background:linear-gradient(90deg,#3dff8a33,#3dff8a99)"></div><div class="zone" style="left:72%;width:14%;background:#ffc64acc"></div><div class="mk" id="fMk"></div></div><button id="fGo" style="width:100%;font-size:18px">🎣 Cast!</button>`;
-  ui.querySelector('#fGo').onpointerdown = ev => { ev.preventDefault(); castAt(aimPow()) } }
+  ui.querySelector('#fGo').onpointerdown = ev => { ev.preventDefault(); noGhost(); castAt(aimPow()) } }
 const aimPow = () => { const u = ((performance.now() - aimT) / 1300) % 2; return u < 1 ? u : 2 - u };
 async function castAt(pow) {
   if (state !== 'aim') return; const c = W(), e = window.__estate, fw = new THREE.Vector3(); c.C.getWorldDirection(fw); fw.y = 0; fw.normalize();
@@ -202,7 +207,7 @@ function hook() { if (state === 'wait') { ripple(bobber.position, 1); STK.on = 0
   if (state !== 'bite') return; state = 'reel'; cur.hit = 0; cur.miss = 0; cur.z0 = Math.random() * (1 - cur.zone); cur.spd = 0.7 + 0.35 * cur.r; cur.ph = 0; cur.run = 0; cur.nextRun = performance.now() + 1500 + Math.random() * 1500; drawReel() }
 // the fight: bigger fish make runs; reeling while it runs strains the line (counts as a miss)
 function drawReel() { const run = cur.run > performance.now();
-  ui.innerHTML = `<b>${run ? '<span style="color:#ff6a5a">🐟 It\'s running! Hold off…</span>' : 'Reel it in!'}</b> <span class="nv">${cur.hit}/${cur.hits} · misses ${cur.miss}/3${cur.perfect ? ' · ✨' : ''}</span><div class="bar"><div class="zone" style="left:${cur.z0 * 100}%;width:${cur.zone * 100}%;${run ? 'background:#ff5a4a88' : ''}"></div><div class="mk" id="fMk"></div></div><button id="fReel" style="width:100%;font-size:18px">⟳ Reel!</button>`; ui.querySelector('#fReel').onpointerdown = e => { e.preventDefault(); tapReel() } }
+  ui.innerHTML = `<b>${run ? '<span style="color:#ff6a5a">🐟 It\'s running! Hold off…</span>' : 'Reel it in!'}</b> <span class="nv">${cur.hit}/${cur.hits} · misses ${cur.miss}/3${cur.perfect ? ' · ✨' : ''}</span><div class="bar"><div class="zone" style="left:${cur.z0 * 100}%;width:${cur.zone * 100}%;${run ? 'background:#ff5a4a88' : ''}"></div><div class="mk" id="fMk"></div></div><button id="fReel" style="width:100%;font-size:18px">⟳ Reel!</button>`; ui.querySelector('#fReel').onpointerdown = e => { e.preventDefault(); noGhost(); tapReel() } }
 function tapReel() { if (state !== 'reel') return; const m = (Math.sin(cur.ph) + 1) / 2;
   if (cur.run > performance.now()) { cur.miss++; rod.pull = .4 } else if (m >= cur.z0 && m <= cur.z0 + cur.zone) { cur.hit++; rod.pull = 1; cur.z0 = Math.random() * (1 - cur.zone); ripple(bobber.position, .7) } else cur.miss++;
   if (cur.hit >= cur.hits) land(true); else if (cur.miss >= 3) { msg('Line snapped!'); land(false) } else drawReel() }

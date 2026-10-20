@@ -26,6 +26,8 @@ const TIERS={low:{pr:1,cars:48,rain:600,trees:50,bloomScale:.35,reflect:false,sa
 const qPref=Q.get('q')||localStorage.getItem('bc_quality')||'auto';
 const autoTier=()=>{const cores=navigator.hardwareConcurrency||4,mem=navigator.deviceMemory||4;if(MOBILE)return(cores<=4||mem<=3)?'low':'medium';return(cores<=2||mem<=2)?'medium':'high'};
 const TIER=TIERS[qPref]?qPref:autoTier();const LV=TIERS[TIER];
+// phones: High = medium+ (no 2nd-scene reflector, capped DPR, no MSAA, half-res bloom, fewer cars/rain/trees)
+if(MOBILE&&TIER==='high')Object.assign(LV,{pr:1.4,aa:false,bloomScale:.5,reflect:false,cars:240,rain:3000,trees:200,sats:.8});
 const stage=(p,txt)=>new Promise(r=>{window.__load&&window.__load(p,txt);requestAnimationFrame(()=>setTimeout(r,0))});
 const E=window.ECO;const $=id=>document.getElementById(id);
 const fmt=(n,d)=>n==null||isNaN(n)?'—':(+n).toLocaleString(undefined,{maximumFractionDigits:d??(Math.abs(n)<1?10:0)});
@@ -1417,7 +1419,7 @@ updLabels();if(t-lastHud>.25){updMinimap();lastHud=t}
  adapt(dt,t)}
 // ---------- adaptive quality: watch smoothed frame time; step render resolution (then bloom) down when the device struggles, back up when it has headroom ----------
 // Manual quality choices keep only the old emergency floor; 'auto' adapts both ways and remembers the last level per device.
-const AQ={on:qPref==='auto'&&!Q.has('shot')&&!Q.has('noadapt'),ft:1/60,down:0,up:0,cool:4,max:Math.min(devicePixelRatio,LV.pr),bloomOff:false};
+const AQ={on:(qPref==='auto'||MOBILE)&&!Q.has('shot')&&!Q.has('noadapt'),ft:1/60,down:0,up:0,cool:4,max:Math.min(devicePixelRatio,LV.pr),bloomOff:false};
 {const saved=+localStorage.getItem('bc_pr_'+TIER);if(AQ.on&&saved>=.6&&saved<PR){PR=saved;R.setPixelRatio(PR);comp.setPixelRatio(PR)}}
 function setPR(v){v=Math.round(v*100)/100;if(v===PR)return;PR=v;R.setPixelRatio(PR);comp.setPixelRatio(PR);if(AQ.on)try{localStorage.setItem('bc_pr_'+TIER,PR)}catch(e){}}
 function adapt(dt,t){if(t<5||document.hidden)return;const raw=clk.__raw||dt;AQ.ft+=(raw-AQ.ft)*Math.min(.5,raw*3);const fps=1/AQ.ft;AQ.cool-=raw;window.__aq={pr:PR,fps:Math.round(fps),bloom:!AQ.bloomOff};

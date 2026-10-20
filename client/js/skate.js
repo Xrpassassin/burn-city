@@ -12,24 +12,30 @@ const G = 22, PUSH_MAX = 9.5, MAX_V = 17, STEP_UP = .28, SUB = .2;
 const C = () => window.__city;
 const SK = window.__skate = { active: false, pieces: [], rails: [], addPiece, drive, toggle, state: null, test: {} };
 let built = false, root, board, hud, btns, tut;
+const CELL = 16, PG = new Map(), RG = new Map(), EMPTY = [];
+const ck = (x, z) => Math.floor(x / CELL) * 73856 + Math.floor(z / CELL);
+function gridAdd(G, o, x0, z0, x1, z1) { for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) { const k = i * 73856 + j; let a = G.get(k); if (!a) G.set(k, a = []); a.push(o); } }
+const piecesAt = (x, z) => PG.get(ck(x, z)) || EMPTY, railsAt = (x, z) => RG.get(ck(x, z)) || EMPTY;
+function pushRail(r) { SK.rails.push(r); gridAdd(RG, r, Math.min(r.ax, r.bx) - 1.2, Math.min(r.az, r.bz) - 1.2, Math.max(r.ax, r.bx) + 1.2, Math.max(r.az, r.bz) + 1.2); }
 
 // ---------------------------------------------------------------- registry
 // all coordinates world-space metres; yaw rotates the piece about its centre (local +z = "up the ramp" / "down the stairs")
 function addPiece(p) {
   p.yaw = p.yaw || 0; p.c = Math.cos(p.yaw); p.s = Math.sin(p.yaw);
   p.r = Math.hypot(p.w || 1, p.d || 1) / 2 + 1;
-  SK.pieces.push(p);
+  SK.pieces.push(p); gridAdd(PG, p, p.x - p.r - (p.top || 0) - (p.deck || 0), p.z - p.r - (p.top || 0) - (p.deck || 0), p.x + p.r + (p.top || 0) + (p.deck || 0), p.z + p.r + (p.top || 0) + (p.deck || 0));
   // grind lines along the long top edges of ledges and along quarter-pipe coping
   if (p.type === 'box' && p.grind) for (const sz of [-1, 1]) {   // the two long top edges
     const long = p.d > p.w;
     const a = long ? toWorld(p, sz * p.w / 2, -p.d / 2 + .1) : toWorld(p, -p.w / 2 + .1, sz * p.d / 2), b = long ? toWorld(p, sz * p.w / 2, p.d / 2 - .1) : toWorld(p, p.w / 2 - .1, sz * p.d / 2);
-    SK.rails.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, y: p.h, kind: 'ledge' });
+    pushRail({ ax: a.x, az: a.z, bx: b.x, bz: b.z, y: p.h, kind: p.kind || 'ledge' });
   }
   if (p.type === 'quarter') {
     const a = toWorld(p, -p.w / 2 + .1, p.d / 2), b = toWorld(p, p.w / 2 - .1, p.d / 2);
-    SK.rails.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, y: p.h, kind: 'coping' });
+    pushRail({ ax: a.x, az: a.z, bx: b.x, bz: b.z, y: p.h, kind: 'coping' });
   }
-  if (p.type === 'rail') SK.rails.push({ ax: p.ax, az: p.az, bx: p.bx, bz: p.bz, y: p.y, y2: p.y2 ?? p.y, kind: 'rail' });
+  if (p.type === 'rail') { p.x = (p.ax + p.bx) / 2; p.z = (p.az + p.bz) / 2; }
+  if (p.type === 'rail') pushRail({ ax: p.ax, az: p.az, bx: p.bx, bz: p.bz, y: p.y, y2: p.y2 ?? p.y, kind: p.kind || 'rail' });
   return p;
 }
 function toLocal(p, x, z) { const dx = x - p.x, dz = z - p.z; return { x: dx * p.c - dz * p.s, z: dx * p.s + dz * p.c }; }
@@ -58,11 +64,11 @@ function pieceH(p, x, z) {
 }
 function heightAt(x, z, y) {
   const c = C(); let g = c.groundAt(x, z, y);
-  for (const p of SK.pieces) { const h = pieceH(p, x, z); if (h != null && h <= y + STEP_UP && h > g) g = h; }
+  for (const p of piecesAt(x, z)) { const h = pieceH(p, x, z); if (h != null && h <= y + STEP_UP && h > g) g = h; }
   return g;
 }
 function solidAbove(x, z, y, ox, oz) {   // a wall: some surface here rises more than a step above the board
-  for (const p of SK.pieces) {
+  for (const p of piecesAt(x, z)) {
     const h = pieceH(p, x, z); if (h == null || h <= y + STEP_UP) continue;
     // ramps and quarter pipes are only walls from the sides or the back; from the front you ride up them
     if ((p.type === 'ramp' || p.type === 'quarter' || p.type === 'stairs') && ox !== undefined) {
@@ -109,7 +115,7 @@ addEventListener('keydown', e => {
 });
 
 // ---------------------------------------------------------------- scoring
-const NAMES = { ollie: 'Ollie', kick: 'Kickflip', heel: 'Heelflip', grab: 'Ember Grab', manual: 'Manual', grind: { rail: '50-50', ledge: '5-0 Ledge', coping: 'Coping Grind' } };
+const NAMES = { ollie: 'Ollie', kick: 'Kickflip', heel: 'Heelflip', grab: 'Ember Grab', manual: 'Manual', grind: { rail: '50-50', ledge: '5-0 Ledge', coping: 'Coping Grind', bench: 'Bench Grind', planter: 'Planter Slide', rack: 'Rack Grind', handrail: 'Handrail 50-50' } };
 function addTrick(name, pts) { st.combo.push(name); st.base += pts; st.mult = Math.max(1, st.combo.length); flash(name); }
 function bank() {
   if (!st.combo.length) return;
@@ -281,7 +287,7 @@ function pushOut(p) {
   }
 }
 
-function nearRail(p, rad) { for (const r of SK.rails) { const q = closest(r, p.x, p.z); if (q.d < rad && Math.abs(q.y - p.y) < 1) return r; } return null; }
+function nearRail(p, rad) { for (const r of railsAt(p.x, p.z)) { const q = closest(r, p.x, p.z); if (q.d < rad && Math.abs(q.y - p.y) < 1) return r; } return null; }
 function closest(r, x, z) {
   const vx = r.bx - r.ax, vz = r.bz - r.az, L2 = vx * vx + vz * vz; let t = ((x - r.ax) * vx + (z - r.az) * vz) / L2; t = Math.max(0, Math.min(1, t));
   const y = r.y + ((r.y2 ?? r.y) - r.y) * t; return { t, d: Math.hypot(x - r.ax - vx * t, z - r.az - vz * t), y };
@@ -289,7 +295,7 @@ function closest(r, x, z) {
 function tryGrind(fromGround) {
   const p = st.pos, v = st.vel; const sp = Math.hypot(v.x, v.z); if (sp < 2) return false;
   const reach = st.assist ? .75 : .45;
-  for (const r of SK.rails) {
+  for (const r of railsAt(p.x, p.z)) {
     if (r === st.lastRail && st.railCD > 0) continue;   // no instant re-lock onto the rail you just left
     const q = closest(r, p.x, p.z); if (q.d > reach || q.t <= .01 || q.t >= .99) continue;
     const dyy = p.y - q.y; if (fromGround ? (dyy < -.55 || dyy > .1) : (dyy < -.15 || dyy > .6 || v.y > 1.5)) continue;
@@ -298,13 +304,13 @@ function tryGrind(fromGround) {
     if (fromGround && dyy < -.05) { /* pop up onto a low ledge */ }
     st.grind = { r, t: q.t, dir: Math.sign(along), sp: Math.max(3, sp * Math.abs(along)), time: 0, scored: 0 };
     st.air = false; st.flip = null; st.vert = null; st.rollT = 0; st.manual = 0;
-    addTrick(typeof NAMES.grind === 'object' ? NAMES.grind[r.kind] : 'Grind', 50);
+    addTrick(NAMES.grind[r.kind] || 'Grind', 50);
     return true;
   }
   return false;
 }
 function onQuarterTop(p) {
-  for (const q of SK.pieces) { if (q.type !== 'quarter') continue; if (Math.abs(p.x - q.x) > q.r || Math.abs(p.z - q.z) > q.r) continue; const l = toLocal(q, p.x, p.z); if (Math.abs(l.x) < q.w / 2 && l.z > q.d / 2 - .45 && l.z <= q.d / 2) return q; }
+  for (const q of piecesAt(p.x, p.z)) { if (q.type !== 'quarter') continue; if (Math.abs(p.x - q.x) > q.r || Math.abs(p.z - q.z) > q.r) continue; const l = toLocal(q, p.x, p.z); if (Math.abs(l.x) < q.w / 2 && l.z > q.d / 2 - .45 && l.z <= q.d / 2) return q; }
   return null;
 }
 

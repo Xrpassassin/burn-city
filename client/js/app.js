@@ -4,6 +4,7 @@ import {buildEstate,estateCard} from './estate.js';
 import {initDrone} from './drone.js';
 import {buildWalker,poseWalker} from './walker.js';
 import './skate.js';
+import './streetprops.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';

@@ -617,7 +617,7 @@ function encCamera(dt) {
   // keep the camera out of tree trunks
   for (const o of obAt(_cam.x, _cam.z)) { const ox = _cam.x - o.x, oz = _cam.z - o.z, od = Math.hypot(ox, oz); if (od < o.r + .6) { _cam.x = o.x + ox / (od || 1) * (o.r + .6); _cam.z = o.z + oz / (od || 1) * (o.r + .6); } }
   if (!enc.cam) enc.cam = c.C.position.clone(); enc.cam.lerp(_cam, 1 - Math.pow(.02, dt));
-  c.C.position.copy(enc.cam); _look.set(mx, P.pos.y + (portrait ? -1.5 : -.55), mz);   // aim low so you + the creature sit in the top half, above the action sheet c.C.lookAt(_look);
+  c.C.position.copy(enc.cam); _look.set(mx, P.pos.y + (portrait ? -1.5 : -.55), mz); c.C.lookAt(_look);   // aim low so you + the creature sit in the top half, above the action sheet
   // lunges + hit flashes
   const now = performance.now();
   if (enc.lunge) { const u = (now - enc.lunge.t0) / 420; const a = u < 1 ? Math.sin(u * Math.PI) * .9 : 0; if (u >= 1) enc.lunge = null;

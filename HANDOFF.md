@@ -55,6 +55,19 @@ GitHub `main` is the single source of truth, and **deploys are automatic: merge 
   (auto-updates pause while pinned; delete `/data/gh/REF` and restart to go back to main).
 - Emergency: `touch /data/gh/DISABLE` + restart runs the code baked into the Docker image (`/app`, older until the next `fly deploy`).
 
+## PYRETHEUM (BURN Tower interior)
+- `client/js/tower-interior.js`: overlay Three.js scene opened from the BURN tower's explore interaction
+  (`nearestInteract()` / `interact()` in `client/js/app.js`) or the BURN info card button. The city render pauses
+  while it is open (`window.__burnTowerOpen`); city sim and multiplayer keep running. Esc / EXIT returns to the city.
+- Aegis map: set `AEGIS_MAP_URL` at the top of `tower-interior.js` once the approved URL is confirmed. It opens in an
+  in-game iframe with an "Open in new tab" fallback (some sites block embedding).
+- Midnightbluff private floor: server-gated by `GET /api/tower/midnightbluff` (XAMAN sign-in token). Approved wallets
+  come only from the `MIDNIGHTBLUFF_WALLETS` env var / Fly secret (comma-separated r-addresses). Unset = locked for everyone.
+  Never put the list in client code.
+- Holder art: a signed-in player's own selected Firekeepers / 589 NFT (from the existing verified `/api/nft` cache) hangs
+  in its gallery. No collection scraping or rehosting; galleries link to xrp.cafe.
+- `?towertest=1` exposes `window.__towerTest` for automated tests only.
+
 ## Rules for bots
 - One bot at a time; one branch per feature (`feat/<name>`), PR into `main`.
 - Never commit secrets (XUMM keys, wallet seeds, tokens). Use `fly secrets set`.

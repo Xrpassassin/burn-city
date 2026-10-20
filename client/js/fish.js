@@ -352,10 +352,11 @@ window.__fish = { rg: () => RG.size, openShop, openLog, doCast, prof: () => prof
 (function boot() { if (!window.__ready || !W() || !window.__estate) return setTimeout(boot, 500); build(); refresh(); requestAnimationFrame(tick) })();
 
 // ---------- keyboard fishing (PC): F starts a cast at the water; Space/F then casts, hooks, reels and dismisses; Esc reels in ----------
-const PCK = matchMedia('(any-pointer:fine)').matches;
-if (PCK) { const lab = (id, k) => { const b = ui.querySelector('#' + id) || bar.querySelector('#' + id); if (b && !b.dataset.k) { b.dataset.k = 1; b.insertAdjacentHTML('beforeend', ` <kbd style="font:700 11px system-ui;padding:0 5px;border:1px solid #fff6;border-radius:4px;margin-left:4px;opacity:.85">${k}</kbd>`) } };
-  new MutationObserver(() => { lab('fGo', 'Space'); lab('fHook', 'Space'); lab('fReel', 'Space'); lab('fOk', 'Space'); lab('fStop', 'Esc') }).observe(ui, { childList: true });
-  lab('fCast', 'F');
+// PC = real mouse as the primary pointer and not a phone/tablet. Android often reports any-pointer:fine (stylus, desktop mode), so don't trust that alone.
+const PCK = !/Android|iPhone|iPad|iPod|Mobi/i.test(navigator.userAgent) && !(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) && matchMedia('(pointer:fine)').matches && matchMedia('(hover:hover)').matches;
+{ const lab = (id, k) => { const b = ui.querySelector('#' + id) || bar.querySelector('#' + id); if (b && !b.dataset.k) { b.dataset.k = 1; b.insertAdjacentHTML('beforeend', ` <kbd style="font:700 11px system-ui;padding:0 5px;border:1px solid #fff6;border-radius:4px;margin-left:4px;opacity:.85">${k}</kbd>`) } };
+  if (PCK) { new MutationObserver(() => { lab('fGo', 'Space'); lab('fHook', 'Space'); lab('fReel', 'Space'); lab('fOk', 'Space'); lab('fStop', 'Esc') }).observe(ui, { childList: true });
+  lab('fCast', 'F') }   // key hints only on PC; keys still work with a phone + Bluetooth keyboard
   addEventListener('keydown', ev => { if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) return; const c = ev.code, act = c === 'Space' || c === 'KeyF', okUp = ui.style.display !== 'none' && ui.querySelector('#fOk');
     if (state === 'idle' && !okUp) { if (c === 'KeyF' && !ev.repeat && FISHOK && bar.style.display !== 'none' && bar.querySelector('#fCast').style.display !== 'none' && !(window.__drone && window.__drone.on)) { doCast(); ev.preventDefault(); ev.stopImmediatePropagation() } return }
     if (c === 'Escape' && (state === 'wait' || state === 'aim')) { stop(); ev.preventDefault(); ev.stopImmediatePropagation(); return }

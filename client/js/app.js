@@ -1081,11 +1081,11 @@ function updExplore(dt){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run
  P.near=nearestInteract();$('prompt').style.display=P.near?'block':'none';if(P.near)$('prompt').textContent=(MOBILE?'👆 Tap here · ':'E · ')+P.near.label;$('tUse')&&$('tUse').classList.toggle('hot',!!P.near);
  me.set(P.pos,avatar.rotation.y,P.climb?'climb':ml>.05?(run?'run':'walk'):'idle',dn)}
 function nearestInteract(){let best=null,bd=10;const p=P.pos;
- E.nodes.forEach(n=>{const d=Math.hypot(p.x-n.pos.x,p.z-n.pos.z)-n.w*1.2;if(d<bd){bd=d;best={label:'Inspect '+n.name+' tower',u:{node:n}}}});
+ E.nodes.forEach(n=>{const d=Math.hypot(p.x-n.pos.x,p.z-n.pos.z)-n.w*1.2;if(d<bd){bd=d;best=n.name==='BURN'&&window.__openBurnTowerInterior?{label:'Enter BURN Tower · Inner Realm',u:{node:n},tower:'burn'}:{label:'Inspect '+n.name+' tower',u:{node:n}}}});
  bridges.forEach(b=>{if(!b.group.visible)return;const d=Math.hypot(b.term.position.x-p.x,b.term.position.z-p.z);if(d<4&&d<bd+3){bd=d-3;best={label:`Pool terminal ${b.p.a}⇄${b.p.b}`,u:{pool:b.p}}}
   for(let k=0;k<=20;k++){b.curve.getPoint(k/20,_v);const dd=_v.distanceTo(p);if(dd<b.r+3&&dd<bd){bd=dd;best={label:`Bridge ${b.p.a}⇄${b.p.b}`,u:{pool:b.p}}}}});
  return best}
-function interact(){const n=P.near||nearestInteract();if(n)showInfo(n.u)}
+function interact(){if(window.__burnTowerOpen)return;const n=P.near||nearestInteract();if(!n)return;if(n.tower==='burn'&&window.__openBurnTowerInterior){window.__openBurnTowerInterior();return}showInfo(n.u)}   // BURN Tower entrance -> js/tower-interior.js overlay (only once that module has loaded)
 let DRONE=null;function updFly(dt){if(!DRONE)DRONE=initDrone(window.__city,{keys,tb,MOBILE});const sp=(keys.ShiftLeft?140:60)*DRONE.speedMul()*dt,dir=dirOf(),rt=new THREE.Vector3(-dir.z,0,dir.x).normalize();const f=(keys.KeyW?1:0)-(keys.KeyS?1:0)-joy.y,s=(keys.KeyD?1:0)-(keys.KeyA?1:0)+joy.x;
  C.position.addScaledVector(dir,f*sp).addScaledVector(rt,s*sp);C.position.y=Math.max(1.5,C.position.y+((keys.Space||tb.up?1:0)-(keys.KeyC||keys.ControlLeft||tb.down?1:0))*sp);C.lookAt(C.position.clone().add(dir));DRONE.update(dt,U.t.value,dir,f,s,colliders)}
 
@@ -1317,7 +1317,8 @@ function frame(){requestAnimationFrame(frame);R.info.reset();const _rd=clk.getDe
  else{orbit.autoRotate=!Q.has('shot')&&$('info').style.display!=='block';orbit.update()}
  let _sh=null;if(SHAKE.a>.01){SHAKE.a*=Math.exp(-dt*3);_sh=V3((Math.random()-.5),(Math.random()-.5),(Math.random()-.5)).multiplyScalar(SHAKE.a);C.position.add(_sh)}
  if(bokeh.enabled)bokeh.uniforms.focus.value=mode==='explore'?6.5:C.position.distanceTo(orbit.target);
- comp.render();if(_sh)C.position.sub(_sh);updLabels();if(t-lastHud>.25){updMinimap();lastHud=t}
+ if(!window.__burnTowerOpen)comp.render();if(_sh)C.position.sub(_sh);   // city render pauses while the BURN Tower interior overlay is up (sim/multiplayer keep running)
+updLabels();if(t-lastHud>.25){updMinimap();lastHud=t}
  {const now=performance.now();fpsN++;if(now-fpsT0>=1000){fpsA=fpsN*1000/(now-fpsT0);fpsN=0;fpsT0=now;window.__info={calls:R.info.render.calls,tris:R.info.render.triangles,geo:R.info.memory.geometries,tex:R.info.memory.textures,progs:R.info.programs.length}}}if(fr%15===0)$('fps').textContent=Math.round(fpsA)+' fps'+(MOBILE?' · mobile':'')+(AQ.on&&PR<AQ.max-.01?' · res '+Math.round(PR/AQ.max*100)+'%':'')+(AQ.bloomOff?' · glow off':'');window.__fps=fpsA;
  adapt(dt,t)}
 // ---------- adaptive quality: watch smoothed frame time; step render resolution (then bloom) down when the device struggles, back up when it has headroom ----------
@@ -1392,7 +1393,7 @@ addEventListener('resize',()=>{C.aspect=innerWidth/innerHeight;C.updateProjectio
 ;addEventListener('pointerdown',function f(){removeEventListener('pointerdown',f,true);try{AC&&AC.state==='suspended'&&AC.resume()}catch(e){}},true);
 
 // ---- PC key legend: ⌨ button + H key, contents follow the current mode ----
-(()=>{if(matchMedia('(pointer:coarse)').matches&&!matchMedia('(any-pointer:fine)').matches)return;
+(()=>{if(MOBILE||/Android/i.test(navigator.userAgent)||!matchMedia('(hover:hover)').matches)return;   // no key legend on phones/tablets (Android can report a fine pointer)
 const kb=s=>`<kbd style="display:inline-block;min-width:20px;padding:0 6px;margin:1px 0;border:1px solid #9ab8ff;border-radius:5px;background:#16233f;color:#fff;font-weight:700;text-align:center">${s}</kbd>`;
 const sec=(t,rows)=>`<div style="margin-top:8px"><b style="color:#9fd0ff">${t}</b><br>`+rows.map(([k,v])=>kb(k)+' '+v).join('<br>')+'</div>';
 const btn=document.createElement('button');btn.id='keysBtn';btn.textContent='⌨ Keys';btn.title='Key legend (H)';btn.style.cssText='position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:32;font:700 12px system-ui;padding:7px 11px;border-radius:10px;border:1px solid #ffffff40;background:#0b1220e0;color:#fff;cursor:pointer';

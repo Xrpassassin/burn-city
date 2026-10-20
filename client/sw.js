@@ -3,10 +3,10 @@
 // - Everything else on our origin (HTML, app code, data.js, data/*.json): NETWORK-FIRST,
 //   cache only used when offline -> nightly data refresh and new code always win when online.
 // - Live feed (wss://) and GoatCounter are never touched by the SW.
-const VERSION = 'bc-v11-ui';
+const VERSION = 'bc-v13-tower';
 const SHELL = `${VERSION}-shell`, RUNTIME = `${VERSION}-runtime`;
 const PRECACHE = ['./', 'index.html', 'style.css', 'ui.css', 'data.js', 'burned.js', 'launchpad.js', 'ads.js', 'manifest.webmanifest',
-  'js/app.js', 'js/estate.js', 'js/drone.js', 'js/live.js', 'js/net.js', 'js/pwa.js', 'js/extras.js', 'js/city.js', 'js/nftchar.js', 'js/walker.js', 'js/nftpick.js', 'js/fx2.js', 'js/retain.js', 'js/fish.js', 'js/boat.js', 'js/npc.js', 'js/debug.js', 'js/ui.js', 'js/replay.js',
+  'js/app.js', 'js/estate.js', 'js/drone.js', 'js/live.js', 'js/net.js', 'js/pwa.js', 'js/extras.js', 'js/city.js', 'js/nftchar.js', 'js/walker.js', 'js/nftpick.js', 'js/fx2.js', 'js/retain.js', 'js/fish.js', 'js/boat.js', 'js/npc.js', 'js/debug.js', 'js/ui.js', 'js/replay.js', 'js/tower-interior.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
   'vendor/three/build/three.module.min.js',
   ...['controls/OrbitControls.js','objects/Reflector.js','postprocessing/BokehPass.js','postprocessing/EffectComposer.js',

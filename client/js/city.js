@@ -103,6 +103,7 @@ function connect(){if(ws||document.hidden)return;/* new session: ids restart aft
     else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r,b,k,md,j,fs] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r);const q=peers.get(id);if(q){q.b=b;q.k=k;q.md=md||(b?'b':'f');q.j=j;q.fs=fs||0}}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
     else if(m.t==='c'){addMsg(m,true);bubble(m.pid,m.b)}
     else if(m.t==='fc'){dispatchEvent(new CustomEvent('bc-peer-catch',{detail:m}))}
+    else if(m.t==='ab'){dispatchEvent(new CustomEvent('bc-aegis',{detail:m}))}   // AEGIS Response Ops: a peer holding / stabilizing a beacon (aegis.js)
     else if(m.t==='n'){for(const k in m.m){if(m.m[k])nfts.set(+k,m.m[k]);else nfts.delete(+k);const p=peers.get(+k);if(p)setNft(p)}}
     else if(m.t==='e'){if(m.e==='city_full')retry=5;}if(m.t==='e')toast(m.e==='message_removed'?'Message removed (violates chat rules).':m.e==='muted'?'You are muted for a while.':m.e==='slow_down'?'Slow down a little.':m.e==='banned'?'This account can\'t chat.':m.e==='city_full'?'City is full right now.':'Sign in with XAMAN to chat.')};
   ws.onclose=()=>{ws=null;online=0;badge();for(const id of [...peers.keys()])drop(id);later()};ws.onerror=()=>{}}

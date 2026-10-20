@@ -47,6 +47,9 @@ function attach(ws, url, pass, ip) {
       if (c.acct) { const L = Fish.lastLanded(c.acct); if (!L || Date.now() - L.t > 15e3 || L.shown) return; L.shown = 1; f = { sp: L.id, kg: L.kg, r: L.r }; }
       else f = { sp: 'minnow', kg: 0.2, r: 0 };
       const s = JSON.stringify({ t: 'fc', pid: id, ...f }); for (const o of clients.values()) if (o.id !== id) send(o.ws, s); }
+    else if (m.t === 'ab') {   // AEGIS Response Ops relay: a beacon hold heartbeat (h) or stabilization (s); cosmetic only, no rewards server-side
+      if (rate('ab:' + c.id, 14, 10e3) || typeof m.k !== 'string' || !/^w\d{1,10}-[0-2]$/.test(m.k)) return;
+      const s = JSON.stringify({ t: 'ab', pid: id, name: c.name, k: m.k, h: m.h ? 1 : 0, s: m.s ? 1 : 0 }); for (const o of clients.values()) if (o.id !== id) send(o.ws, s); }
     else if (m.t === 'nft') { if (!c.acct || rate('nft:' + c.id, 4, 60e3)) return; c.nft = Nft.charFor(c.acct); bcast({ t: 'n', m: { [id]: c.nft } }); }
     else if (m.t === 'c') {
       if (!c.acct) return send(ws, { t: 'e', e: 'sign_in_with_xaman' });

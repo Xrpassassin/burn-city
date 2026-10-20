@@ -160,7 +160,7 @@ function bMat(color=0xffffff,dens=1){return new THREE.ShaderMaterial({fog:true,d
  vec4 w=M*vec4(position,1.);wp=w.xyz;wn=normalize(transpose(inverse(mat3(M)))*normal);ly=position.y;\n#ifdef USE_INSTANCING_COLOR\nvC=instanceColor;\n#else\nvC=vec3(1.);\n#endif\nvec4 mvPosition=viewMatrix*w;vV=-mvPosition.xyz;vN=normalize((viewMatrix*vec4(wn,0.)).xyz);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}`,
  fragmentShader:`uniform vec3 c;uniform float d,t,day,flash;varying vec3 wp,wn,vC,vN,vV;varying float ly;\n#include <fog_pars_fragment>\n${NOISE}
  // procedural facade: glass curtain wall w/ mullions + floor bands, gradient-sky reflection, random lit windows (more at night), distance LOD, base AO. NaN-safe (clamped pow/normalize).
- void main(){vec3 col=c*vC;vec3 o=mix(vec3(.018,.024,.045),vec3(.2,.22,.26),day);vec3 N=normalize(wn+vec3(0.,1e-5,0.)),vw=normalize(cameraPosition-wp+vec3(1e-4));
+ void main(){vec3 col=c*vC;vec3 o=mix(vec3(.016,.02,.038),vec3(.12,.135,.16),day);vec3 N=normalize(wn+vec3(0.,1e-5,0.)),vw=normalize(cameraPosition-wp+vec3(1e-4));
  float ndv=clamp(abs(dot(N,vw)),0.,1.),fr=pow(1.-ndv,3.);
  if(abs(N.y)<.6){vec2 uv=vec2(abs(N.x)>abs(N.z)?wp.z:wp.x,wp.y)*vec2(.95,.75)*d;vec2 cell=floor(uv),f=fract(uv);
   float win=step(.16,f.x)*step(f.x,.84)*step(.22,f.y)*step(f.y,.78);float lit=step(mix(.42,.78,day),h21(cell+floor(t*.04+h21(cell)*30.)));lit*=mix(.2,1.,step(.28,h21(vec2(cell.y*1.9+7.,floor((wp.x+wp.z)*.09)))));float warm=step(.8,h21(cell*3.1));

@@ -34,6 +34,16 @@ R.debug.checkShaderErrors=Q.has('debug')||Q.has('shadercheck');window.__progs=()
 let PR=Math.min(devicePixelRatio,LV.pr);R.setPixelRatio(PR);R.setSize(innerWidth,innerHeight);
 R.info.autoReset=false;R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.05;document.body.prepend(R.domElement);
 const S=new THREE.Scene();window.__S=S;S.fog=new THREE.FogExp2(0x060a1c,0.0019);
+// ---- image-based lighting: one small prefiltered env map (built once, ~1 ms per frame cost at most) so metals, gold and glass
+// reflect a dark night sky with a warm ember horizon and a few soft city panels instead of rendering as flat plastic.
+// Deliberately dim: reflections should read as sheen, never as extra neon. ?noenv=1 disables it for A/B checks.
+if(!Q.has('noenv'))try{const es=new THREE.Scene(),pm=new THREE.PMREMGenerator(R);
+ es.add(new THREE.Mesh(new THREE.SphereGeometry(50,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,vertexShader:'varying vec3 d;void main(){d=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:'varying vec3 d;void main(){float y=d.y;vec3 zen=vec3(.012,.016,.035),hor=vec3(.16,.07,.035),gnd=vec3(.02,.016,.02);vec3 c=y>0.?mix(hor,zen,pow(clamp(y,0.,1.),.45)):mix(hor*.6,gnd,clamp(-y*4.,0.,1.));c+=vec3(.5,.16,.04)*exp(-abs(y)*28.)*.5;gl_FragColor=vec4(c,1.);}'})));
+ const pan=(c,k,w,h,x,y,z)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({color:new THREE.Color(c).multiplyScalar(k),side:2}));m.position.set(x,y,z);m.lookAt(0,0,0);es.add(m)};
+ pan(0xffb070,1.6,14,3,0,22,-36);pan(0xff6a2a,1.2,18,2,34,8,10);pan(0x9fb8ff,.7,10,8,-32,14,14);pan(0xffd6a0,1.1,6,6,10,40,8);pan(0x6a8cff,.45,30,4,0,6,38);
+ S.environment=pm.fromScene(es,.04).texture;pm.dispose();es.traverse(o=>{o.geometry&&o.geometry.dispose();o.material&&o.material.dispose()})}catch(e){console.warn('env map',e)}
+
 const C=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,0.3,4000);C.position.set(210,140,260);
 const hemi=new THREE.HemisphereLight(0x4466ff,0x180a22,.55);S.add(hemi);const amb=new THREE.AmbientLight(0x223355,.35);S.add(amb);
 const moonL=new THREE.DirectionalLight(0x9db8ff,.35);moonL.position.set(-300,400,-500);S.add(moonL);
@@ -1299,6 +1309,12 @@ setInterval(poll,15e3);setTimeout(poll,3e3);document.addEventListener('visibilit
 
 // ---------- main loop ----------
 const clk=new THREE.Clock();let fpsN=0,fpsT0=performance.now(),fpsA=60,lowT=0,lastHud=-1,fr=0;
+// ---- ?perf=1 : honest on-device numbers (fps, frame time, draw calls, triangles, GPU memory objects, JS heap, tier) ----
+const PERF=Q.has('perf')?(()=>{const el=document.createElement('div');el.id='perfHud';el.style.cssText='position:fixed;right:6px;top:calc(env(safe-area-inset-top) + 56px);z-index:60;font:11px/1.35 ui-monospace,Menlo,monospace;color:#ffd2a8;background:rgba(8,6,10,.78);border:1px solid #ff7a1855;border-radius:8px;padding:6px 8px;pointer-events:none;white-space:pre';document.body.appendChild(el);
+ const ft=[];let acc=0,n=0,last=0;window.__perf={};return raw=>{ft.push(raw*1000);if(ft.length>240)ft.shift();acc+=raw;n++;if(acc<.5)return;
+ const s=[...ft].sort((a,b)=>a-b),avg=ft.reduce((a,b)=>a+b,0)/ft.length,p95=s[Math.floor(s.length*.95)]||0,i=R.info,m=performance.memory;
+ const o={fps:+(n/acc).toFixed(1),ms:+avg.toFixed(1),p95:+p95.toFixed(1),calls:i.render.calls,tris:i.render.triangles,geo:i.memory.geometries,tex:i.memory.textures,heapMB:m?Math.round(m.usedJSHeapSize/1048576):null,tier:TIER,pr:+R.getPixelRatio().toFixed(2),res:innerWidth+'x'+innerHeight,tower:!!window.__burnTowerOpen};
+ window.__perf=o;el.textContent=`${o.fps} fps  ${o.ms} ms (p95 ${o.p95})\ncalls ${o.calls}  tris ${(o.tris/1000).toFixed(0)}k\ngeo ${o.geo}  tex ${o.tex}${o.heapMB!=null?'  heap '+o.heapMB+'MB':''}\n${o.tier} · pr ${o.pr} · ${o.res}${o.tower?' · tower':''}`;acc=0;n=0}})():null;
 function frame(){requestAnimationFrame(frame);R.info.reset();const _rd=clk.getDelta();clk.__raw=Math.min(_rd,.25);const dt=Math.min(_rd,.05),t=clk.elapsedTime;U.t.value=t;fr++;
  if($('todCycle').checked)$('tod').value=(.5-.5*Math.cos(t*.02)).toFixed(3);const day=+$('tod').value;U.day.value=day;
  if(wMode==='cycle'){const seq=['clear','fog','rain','storm'];wTarget=W[seq[Math.floor(t/30)%4]]}
@@ -1318,7 +1334,7 @@ function frame(){requestAnimationFrame(frame);R.info.reset();const _rd=clk.getDe
  else{orbit.autoRotate=!Q.has('shot')&&$('info').style.display!=='block';orbit.update()}
  let _sh=null;if(SHAKE.a>.01){SHAKE.a*=Math.exp(-dt*3);_sh=V3((Math.random()-.5),(Math.random()-.5),(Math.random()-.5)).multiplyScalar(SHAKE.a);C.position.add(_sh)}
  if(bokeh.enabled)bokeh.uniforms.focus.value=mode==='explore'?6.5:C.position.distanceTo(orbit.target);
- comp.render();if(_sh)C.position.sub(_sh);   // while PYRETHEUM is open its scene/camera are swapped into this same composer (one renderer, one loop)
+ comp.render();if(_sh)C.position.sub(_sh);if(PERF)PERF(_rd);   // while PYRETHEUM is open its scene/camera are swapped into this same composer (one renderer, one loop)
 updLabels();if(t-lastHud>.25){updMinimap();lastHud=t}
  {const now=performance.now();fpsN++;if(now-fpsT0>=1000){fpsA=fpsN*1000/(now-fpsT0);fpsN=0;fpsT0=now;window.__info={calls:R.info.render.calls,tris:R.info.render.triangles,geo:R.info.memory.geometries,tex:R.info.memory.textures,progs:R.info.programs.length}}}if(fr%15===0)$('fps').textContent=Math.round(fpsA)+' fps'+(MOBILE?' · mobile':'')+(AQ.on&&PR<AQ.max-.01?' · res '+Math.round(PR/AQ.max*100)+'%':'')+(AQ.bloomOff?' · glow off':'');window.__fps=fpsA;
  adapt(dt,t)}

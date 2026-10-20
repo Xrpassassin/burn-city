@@ -1,0 +1,19 @@
+app = "burn-city-game"
+primary_region = "lax"
+
+[env]
+  PORT = "8080"
+  DATA_DIR = "/data"
+  DRY_RUN = "false"
+  BURN_JOB_IN_SERVER = "true"
+  SOCIAL_TOKENS = "IMM:rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP,XRPYRO:rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va,BUDZY:r9WdD3QspvnQSR71kmcffNDFyjPV2pdTdU"
+
+[mounts]
+  source = "bcg_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  min_machines_running = 1

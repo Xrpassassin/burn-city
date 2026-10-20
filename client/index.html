@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https: wss:; font-src 'self' data:; frame-src https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<link rel="icon" href="icons/favicon-32.png" type="image/png"><link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#050a18"><meta name="description" content="Burn City: the XRPL ecosystem as a live 3D city. Tokens are towers, AMM pools are bridges.">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Burn City"><meta property="og:url" content="https://xrpassassin.github.io/burn-city/">
+<meta property="og:title" content="Burn City: the XRPL ecosystem as a live 3D city"><meta property="og:description" content="Tokens are towers, AMM pools are bridges, burns are fire. Live XRPL ledger data, in your browser.">
+<meta property="og:image" content="https://xrpassassin.github.io/burn-city/og-image.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Burn City at night: glowing token towers and AMM bridges">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Burn City: the XRPL ecosystem as a live 3D city"><meta name="twitter:description" content="Tokens are towers, AMM pools are bridges, burns are fire. Live XRPL ledger data."><meta name="twitter:image" content="https://xrpassassin.github.io/burn-city/og-image.jpg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Burn City">
+<link rel="modulepreload" href="vendor/three/build/three.module.min.js"><title>BURN CITY — XRPL ecosystem in 3D</title>
+<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ui.css">
+<script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.min.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
+<script src="data.js" defer></script><script src="burned.js" defer></script><script src="launchpad.js" defer></script><script src="ads.js" defer></script></head><body>
+<div id="loader"><div class="lt">◢ BURN CITY ◣</div><div class="bar"><i id="lbar"></i></div><div id="ltxt">Loading 3D engine…</div><div class="dim lsrc">Read-only view of XRPL ledger data</div></div>
+<script>window.__load=(p,t)=>{const b=document.getElementById('lbar'),x=document.getElementById('ltxt');if(b)b.style.width=Math.round(p*100)+'%';if(x&&t)x.textContent=t};window.__load(.04,'Loading 3D engine…');
+addEventListener('error',e=>{const x=document.getElementById('ltxt');if(x&&!window.__ready)x.textContent='Could not load (check connection) — retrying may help'});</script>
+<div id="hud"><div class="hdr" id="hudToggle"><span class="brand"><i class="flame"></i>BURN CITY</span><span id="fps"></span><b class="chev" aria-hidden="true"></b></div><div id="hudBody">
+ <div id="tot"></div>
+ <div id="burnCount"></div>
+ <div id="mood"></div>
+ <details class="sec" id="secSettings"><summary>Settings</summary>
+ <div class="row"><b>Weather</b> <select id="weather" aria-label="Weather"><option value="auto">Auto (market weather)</option><option value="crash">Crash · storm</option><option value="red">Red · rain</option><option value="flat">Flat · clouds</option><option value="green">Green · sunny</option><option value="vgreen">Very green · rainbow</option><option value="gold">Gold rush</option><option>clear</option><option>fog</option><option>rain</option><option>storm</option><option value="cycle">Cycle</option></select></div>
+ <div class="row"><b>Time</b> <input id="tod" aria-label="Time of day" type="range" min="0" max="1" step="0.01" value="0"><label><input type="checkbox" id="todCycle"> cycle</label></div>
+ <div class="row tl"><button id="tlOpen" aria-label="Replay the city being built, day by day">▶ Replay city history</button></div>
+ <div class="row"><b>Graphics</b> <select id="quality" aria-label="Graphics quality"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select> <span class="dim" id="qInfo"></span></div>
+ <div class="row"><label><input type="checkbox" id="minor" checked> minor pools</label> <label><input type="checkbox" id="dof"> depth of field</label> <label title="Shake the camera on big burns"><input type="checkbox" id="shakeOpt" checked> burn shake</label></div>
+ </details>
+ <details class="sec" id="secLegend"><summary>How to read the city</summary>
+ <div class="legend">
+  <div><i style="background:#3cf3ff;box-shadow:0 0 6px #3cf3ff"></i>Locked LP (blackholed): solid light-road</div>
+  <div><i style="background:linear-gradient(90deg,#3a3f48,#ffc64a);box-shadow:0 0 6px #ffc64a"></i>Forever Rails: length/thickness = XRP value locked forever (log scale; deposits never shrink it) · brightness = locked % · ∞ plaque at ≥10k XRP blackholed</div>
+  <div><i class="dash" style="border-color:#ffb000"></i>30–70% locked: amber scaffold rails</div>
+  <div><i class="dash" style="border-color:#ff3b2f"></i>&lt;30% locked: red flickering rails</div>
+  <div><i style="background:#ff5a1a"></i>BURN fire <i style="background:#ff2a00"></i>XRPyro inferno <i style="background:#3a8bff"></i>IMM ice</div>
+  <div class="actLeg" title="Pool line colour = recent trading activity (24h volume + live trades), ranked across pools"><span>Pool activity: quiet</span><i></i><span>very active</span></div><div class="dim">Tower height ∝ log(market cap) · footprint area ∝ TVL · building style = % LP locked · flames = burns over 10 XRP · bridges = AMM pools (colour = activity, thickness = pool TVL, brightness = % locked) · ships on bridges = real swaps as they hit the ledger (size ∝ XRP value, gold = arbitrage loop, violet = multi-pool route, orange = big trade) · ⚑ insider LP ≥50%</div>
+ </div></details><div id="src" class="dim"></div></div></div>
+<button id="wchip" title="Market weather"></button><div id="live" class="connecting"><i></i><span>Connecting…</span></div><div id="evbanner"></div><div id="tourCap"></div><div id="toasts"></div>
+<div id="btns"><button data-m="orbit" class="on">◎ Orbit</button><button data-m="fly">✈ Fly</button><button data-m="explore">🚶 Explore</button><button id="tour">▶ Tour</button><button id="copyLink" title="Copy a link to this exact view">🔗 Link</button><button id="installBtn" hidden title="Install Burn City as an app">⬇ Install</button><button id="audio" aria-label="Toggle sound">🔇</button></div>
+<div id="labels"></div><div id="tip"></div><div id="info"></div><div id="banner"></div><div id="prompt"></div>
+<canvas id="minimap" aria-label="Minimap" role="img" width="180" height="180"></canvas>
+<div id="touch"><div id="joy"><div id="knob"></div></div><div id="tbtns"><button id="tJump" aria-label="Jump">⤒</button><button id="tRun" aria-label="Run">»</button><button id="tUse" aria-label="Use">E</button><button id="tUp" aria-label="Fly up">▲</button><button id="tDown" aria-label="Fly down">▼</button></div></div>
+<div id="chat"><div id="chatLog"></div><input id="chatIn" aria-label="Chat" placeholder="Enter to chat (multiplayer)" maxlength="200"></div>
+<div id="help"></div>
+<script type="module" src="js/app.js"></script><script type="module" src="js/pwa.js"></script><script type="module" src="js/extras.js"></script><script type="module" src="js/city.js"></script><script type="module" src="js/fx2.js"></script><script type="module" src="js/retain.js"></script><script type="module" src="js/fish.js"></script><script type="module" src="js/boat.js"></script><script type="module" src="js/npc.js"></script><script type="module" src="js/debug.js"></script><script type="module" src="js/ui.js"></script><script data-goatcounter="https://shinigsmi.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</body></html>

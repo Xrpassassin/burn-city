@@ -1,0 +1,185 @@
+/* ==========================================================================
+   Burn City UI v6 — one design system layered over style.css
+   Glass panels, one type scale, grouped controls, mobile dock.
+   ========================================================================== */
+:root{
+  --ui-font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --ui-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --glass:rgba(8,12,26,.62);
+  --glass-strong:rgba(8,12,26,.86);
+  --line:rgba(255,255,255,.09);
+  --line-2:rgba(255,255,255,.16);
+  --txt:#e9f0ff;
+  --txt-2:#a9b6d3;
+  --fire:#ff7a1a;
+  --fire-2:#ffb15c;
+  --ice:#4fd8ff;
+  --ok:#3dff8a;
+  --r:14px;
+  --r-sm:10px;
+  --shadow:0 10px 30px rgba(0,0,0,.45),0 1px 0 rgba(255,255,255,.04) inset;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --safe-t:env(safe-area-inset-top);--safe-b:env(safe-area-inset-bottom);
+  --safe-l:env(safe-area-inset-left);--safe-r:env(safe-area-inset-right);
+}
+html,body{font-family:var(--ui-font);color:var(--txt);-webkit-font-smoothing:antialiased}
+
+/* ---------- base controls ---------- */
+button{font-family:var(--ui-font);font-weight:600;letter-spacing:.01em;
+  background:var(--glass);color:var(--txt);border:1px solid var(--line);border-radius:var(--r-sm);
+  box-shadow:none;-webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);
+  transition:background .2s var(--ease),border-color .2s var(--ease),transform .12s var(--ease),color .2s}
+button:hover{background:rgba(30,40,70,.75);border-color:var(--line-2);color:#fff}
+button:active{transform:scale(.96)}
+button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--ice);outline-offset:2px}
+select{font-family:var(--ui-font);background:rgba(255,255,255,.06);color:var(--txt);border:1px solid var(--line-2);border-radius:9px;padding:0 8px}
+input[type=range]{accent-color:var(--fire);background:transparent;border:0}
+input[type=checkbox]{accent-color:var(--fire)}
+
+/* ---------- HUD panel ---------- */
+#hud{background:var(--glass);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);
+  -webkit-backdrop-filter:blur(18px) saturate(150%);backdrop-filter:blur(18px) saturate(150%);
+  width:300px;padding:6px 14px 12px;font-size:12.5px;line-height:1.45;color:var(--txt-2);
+  transition:opacity .3s var(--ease),max-height .3s var(--ease)}
+#hud b{color:var(--txt)}
+#hud .hdr{font-family:var(--ui-font);font-size:13px;font-weight:800;letter-spacing:.16em;color:#fff;text-shadow:none;
+  display:flex;align-items:center;gap:8px;min-height:40px}
+#hud .hdr .brand{display:flex;align-items:center;gap:8px}
+#hud .hdr .flame{width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#ffe2a8,var(--fire) 55%,#c22a00);
+  box-shadow:0 0 10px var(--fire),0 0 20px rgba(255,122,26,.5);animation:ember 2.6s ease-in-out infinite}
+@keyframes ember{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.18);opacity:1}}
+#hud .hdr #fps{margin-left:auto;float:none;font:500 10.5px var(--ui-mono);color:var(--txt-2);opacity:.7;letter-spacing:0}
+#hud .hdr .chev{width:8px;height:8px;border-right:2px solid var(--txt-2);border-bottom:2px solid var(--txt-2);transform:rotate(45deg);margin:-3px 2px 0 4px;transition:transform .25s var(--ease);display:none}
+#hudBody>div,#hudBody>details{margin-top:8px}
+#tot{font-size:12.5px}
+#burnCount{font-size:12px;padding:7px 10px;border-radius:var(--r-sm);background:rgba(255,122,26,.08);border:1px solid rgba(255,122,26,.18);color:#ffd9b8}
+#mood{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-size:11.5px}
+
+/* collapsible sections */
+#hud details.sec{border-top:1px solid var(--line);padding-top:4px}
+#hud details.sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+  min-height:38px;font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt)}
+#hud details.sec>summary::-webkit-details-marker{display:none}
+#hud details.sec>summary::after{content:'';width:7px;height:7px;border-right:2px solid var(--txt-2);border-bottom:2px solid var(--txt-2);transform:rotate(45deg);transition:transform .25s var(--ease);margin-right:4px}
+#hud details.sec[open]>summary::after{transform:rotate(-135deg)}
+#hud details.sec[open]>:not(summary){animation:secIn .28s var(--ease)}
+@keyframes secIn{from{transform:translateY(-4px)}to{transform:none}}
+#hud details.sec .row{margin:6px 0;gap:10px}
+#hud details.sec .row>b{min-width:62px;font-weight:600;color:var(--txt-2)}
+#hud details.sec select{flex:1;min-width:0}
+#hud .row.tl button,#tlOpen{width:100%;justify-content:center;background:rgba(255,122,26,.12);border-color:rgba(255,122,26,.3);color:#ffd2a8;border-radius:var(--r-sm)}
+#hud .legend{font-size:11.5px}
+#hud .legend div{margin:5px 0}
+#hud .feat{border-top:1px solid var(--line);padding-top:8px}
+#src{font-size:10.5px;opacity:.55}
+
+/* ---------- top-right toolbar ---------- */
+#btns{gap:8px;align-items:center;max-width:none}
+#btns>button{min-height:40px;padding:0 14px;font-size:13px;border-radius:12px}
+#btns .seg{display:flex;padding:3px;gap:2px;border-radius:13px;background:var(--glass);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+#btns .seg button{white-space:nowrap;min-height:34px!important;padding:0 12px!important;border:0;background:transparent;border-radius:10px;color:var(--txt-2);-webkit-backdrop-filter:none;backdrop-filter:none;font-size:13px!important}
+#btns .seg button.on{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.08));color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.15) inset,0 4px 14px rgba(0,0,0,.3)}
+#btns #playBtn{background:linear-gradient(135deg,#ff5a1a,#ff9a2a);color:#1a0800;border:0;box-shadow:0 6px 20px rgba(255,90,26,.35)}
+#btns #playBtn:hover{filter:brightness(1.08)}
+#btns #moreBtn{min-width:40px;padding:0;font-size:18px;letter-spacing:.05em}
+#btns #moreBtn.on{background:rgba(255,255,255,.14)}
+
+/* overflow menu */
+#more{position:fixed;z-index:30;right:calc(12px + var(--safe-r));top:calc(60px + var(--safe-t));min-width:210px;padding:6px;
+  background:var(--glass-strong);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);backdrop-filter:blur(20px) saturate(150%);
+  display:flex;flex-direction:column;gap:2px;transform-origin:top right;
+  opacity:0;transform:scale(.96) translateY(-4px);pointer-events:none;transition:opacity .18s var(--ease),transform .18s var(--ease)}
+#more.open{opacity:1;transform:none;pointer-events:auto}
+#more button{display:flex;align-items:center;gap:10px;width:100%;min-height:42px!important;padding:0 12px!important;border:0;background:transparent;
+  border-radius:10px;font-size:14px!important;text-align:left;justify-content:flex-start;-webkit-backdrop-filter:none;backdrop-filter:none;min-width:0!important}
+#more button:hover{background:rgba(255,255,255,.08)}
+#more button::after{content:attr(data-l);color:var(--txt)}
+#more button[hidden]{display:none!important}
+#more .msep{height:1px;background:var(--line);margin:4px 6px}
+
+/* ---------- status row: weather chip + live pill ---------- */
+#status{position:fixed;right:calc(12px + var(--safe-r));top:calc(62px + var(--safe-t));z-index:5;display:flex;gap:8px;align-items:center;pointer-events:none}
+#status>*{pointer-events:auto;position:static!important;transform:none!important}
+#wchip,#live{min-height:32px;border-radius:16px;background:var(--glass);border:1px solid var(--line);font:600 12px var(--ui-font);color:var(--txt);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);padding:0 12px;display:flex;align-items:center;gap:7px;box-shadow:none;margin:0!important;top:auto!important;right:auto!important;left:auto!important;bottom:auto!important}
+#live{color:var(--txt-2);font-weight:500}
+#toasts{top:calc(106px + var(--safe-t))!important;right:calc(12px + var(--safe-r));gap:8px}
+.toast{font:500 12px/1.4 var(--ui-font);background:var(--glass-strong);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:12px;padding:9px 12px;
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:var(--shadow);transform:translateX(16px) scale(.98);transition:opacity .45s var(--ease),transform .45s var(--ease)}
+.toast.in{transform:none}
+
+/* ---------- event banners & captions ---------- */
+#evbanner{font-family:var(--ui-font);font-weight:800;letter-spacing:.08em;font-size:26px;transition:opacity .7s var(--ease),transform .7s var(--ease)}
+#evbanner small{font-weight:500;letter-spacing:.02em}
+#banner{font-family:var(--ui-font);font-weight:800;letter-spacing:.2em}
+#tourCap{font:500 14px/1.45 var(--ui-font);background:var(--glass-strong);border:1px solid var(--line);border-radius:var(--r);padding:10px 16px;
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);transform:translateX(-50%) translateY(6px);transition:opacity .45s var(--ease),transform .45s var(--ease)}
+#tourCap.show{transform:translateX(-50%)}
+#prompt{background:var(--glass-strong);border:1px solid var(--line-2);border-radius:12px;font:600 13px var(--ui-font);padding:8px 14px}
+#tip{font:500 12px var(--ui-font);background:var(--glass-strong);border:1px solid var(--line);border-radius:9px;padding:6px 10px}
+#help{font:500 11px var(--ui-font);opacity:.5}
+.lbl{font-family:var(--ui-font);font-weight:700;letter-spacing:.02em;border-radius:7px;background:rgba(6,10,22,.55);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);text-shadow:0 0 8px var(--c);padding:2px 8px}
+.lbl small{font-family:var(--ui-mono);font-weight:500}
+
+/* ---------- token card & panels ---------- */
+#info,#music,#recap,#bagList,#guide .gbox{background:var(--glass-strong)!important;border:1px solid var(--line)!important;border-radius:18px!important;box-shadow:var(--shadow)!important;
+  -webkit-backdrop-filter:blur(22px) saturate(150%);backdrop-filter:blur(22px) saturate(150%);font-family:var(--ui-font)}
+#info{animation:cardIn .32s var(--ease)}
+@keyframes cardIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+#info h2,#music h2,#recap h3,#guide h3{font-family:var(--ui-font);font-weight:800;letter-spacing:.01em}
+#info .kpi{background:rgba(255,255,255,.05);border-color:var(--line);border-radius:11px}
+#info .kpi b{font-family:var(--ui-mono)}
+#guide{background:rgba(2,4,12,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+#guide .gbox{padding:22px 20px 14px}
+#guide button{border-radius:11px;font-weight:700}
+
+/* minimap */
+#minimap{border:1px solid var(--line-2);box-shadow:0 8px 24px rgba(0,0,0,.45);background:rgba(6,10,22,.6)}
+
+/* loader */
+#loader{font-family:var(--ui-font)}
+#loader .lt{font-weight:800;letter-spacing:.3em;font-size:20px;color:#fff;text-shadow:0 0 24px rgba(255,122,26,.6)}
+#loader .bar{height:4px;border-radius:4px}
+#loader .bar i{background:linear-gradient(90deg,#ff5a1a,#ffb15c,#4fd8ff)}
+
+/* hide clutter during cinematic moments */
+body.rpOn #btns,body.rpOn #status{opacity:.4;transition:opacity .3s}
+
+/* ==========================================================================
+   Phone layout
+   ========================================================================== */
+@media (max-width:700px){
+  #hud{max-width:none!important;width:auto;padding:0 12px;border-radius:20px}
+  #hud .hdr{font-size:11.5px;min-height:40px!important;letter-spacing:.14em;white-space:nowrap}
+  #hud .hdr #fps{display:none}
+  #hud .hdr .chev{display:block}
+  #hud.open{left:calc(10px + var(--safe-l))!important;right:calc(10px + var(--safe-r));width:auto;max-width:none!important;padding:0 14px 12px;border-radius:var(--r)}
+  #hud.open .hdr .chev{transform:rotate(-135deg);margin-top:3px}
+
+  /* top bar: brand left, Play + More right; modes live in the bottom dock */
+  #btns{max-width:none!important;gap:6px}
+  #btns>button{min-height:40px!important;padding:0 12px!important;font-size:13px!important}
+  #btns .seg{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(10px + var(--safe-b));padding:4px;border-radius:18px;
+    background:var(--glass-strong);box-shadow:var(--shadow);z-index:8}
+  #btns .seg button{white-space:nowrap;min-height:42px!important;min-width:64px!important;padding:0 10px!important;font-size:12.5px!important;border-radius:14px}
+  #btns #tour{display:none}
+  body.uiHudOpen #btns{visibility:hidden}
+
+  #status{top:calc(58px + var(--safe-t));left:calc(10px + var(--safe-l));right:auto;flex-wrap:wrap;max-width:calc(100vw - 20px)}
+  #wchip,#live{min-height:30px!important;font-size:11.5px!important}
+  #toasts{top:auto!important;bottom:calc(150px + var(--safe-b))!important;right:10px;width:min(260px,calc(100vw - 20px))!important}
+
+  #minimap{width:96px!important;height:96px!important;bottom:calc(68px + var(--safe-b))!important;left:calc(10px + var(--safe-l))}
+  #cityChat{bottom:calc(68px + var(--safe-b))!important}
+  #rChip{bottom:calc(172px + var(--safe-b))!important}
+  #info{left:8px!important;right:8px!important;bottom:calc(66px + var(--safe-b))!important;border-radius:20px!important;max-height:min(62dvh,calc(100dvh - 200px))!important}
+  #more{top:calc(56px + var(--safe-t));min-width:220px}
+  #evbanner{top:calc(104px + var(--safe-t))!important;font-size:15px!important;letter-spacing:.04em!important}
+  #banner{top:calc(150px + var(--safe-t))!important}
+  #tourCap{bottom:calc(74px + var(--safe-b))!important;font-size:13px}
+  body.mFly #btns .seg,body.mExplore #btns .seg{bottom:auto;top:calc(104px + var(--safe-t))}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}

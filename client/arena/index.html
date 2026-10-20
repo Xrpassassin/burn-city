@@ -1,0 +1,416 @@
+<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https: wss:; font-src 'self' data:; frame-src https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Burn City — Arena</title><link rel="icon" href="../icons/icon-192.png">
+<style>html,body{margin:0;height:100%;background:#050208;color:#ffd9a0;font:14px system-ui;overflow:hidden;touch-action:none}
+#hud{position:fixed;top:calc(8px + env(safe-area-inset-top));left:calc(8px + env(safe-area-inset-left));right:calc(150px + env(safe-area-inset-right));font-size:13px;display:flex;gap:12px;pointer-events:none;text-shadow:0 0 6px #f60}
+[hidden]{display:none!important}#menu{position:fixed;inset:0;overflow:auto;display:flex;flex-direction:column;align-items:center;gap:10px;background:#0009;padding:12px 0}#menu>:first-child{margin-top:auto}#menu>:last-child{margin-bottom:auto}
+button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;padding:12px 20px;font-size:16px}
+#fuel{width:120px;height:8px;border:1px solid #f60}#fuel i{display:block;height:100%;background:#f80}
+#qr img{width:200px;background:#fff;padding:6px;border-radius:8px}.small{font-size:12px;opacity:.7;max-width:320px;text-align:center}
+#touch{position:fixed;bottom:0;left:0;right:0;height:40%;display:none}#touch div{position:absolute;bottom:24px;width:110px;height:110px;border:2px solid #f608;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#ffb060;background:#ff660014}
+#xh{position:fixed;left:50%;top:50%;width:14px;height:14px;margin:-7px;border:2px solid #ffb060;border-radius:50%;pointer-events:none;box-shadow:0 0 6px #f60}
+#over{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:22px;background:radial-gradient(#0000,#600c);pointer-events:none;text-shadow:0 0 8px #f60}
+#joy{position:fixed;width:140px;height:140px;border-radius:50%;border:2px solid #ffb06088;background:radial-gradient(#ff660022,#0000 70%);pointer-events:none;z-index:4}#knob{position:absolute;left:45px;top:45px;width:50px;height:50px;border-radius:50%;background:#ffb060aa;box-shadow:0 0 12px #f60}
+#firebtn{position:fixed;right:calc(22px + env(safe-area-inset-right));bottom:calc(34px + env(safe-area-inset-bottom));width:118px;height:118px;border-radius:50%;font-size:22px;font-weight:800;z-index:4;background:#5a1400cc;border:3px solid #ff7a1a;color:#ffd9a0;box-shadow:0 0 18px #f60}#firebtn.on{background:#ff6a10;color:#200}
+#tbar{position:fixed;top:calc(6px + env(safe-area-inset-top));right:calc(8px + env(safe-area-inset-right));z-index:6;display:flex;gap:6px;align-items:center}#tbar>*{position:static!important;min-height:38px}#tbar>[hidden]{display:none}#gear{padding:8px 12px}#set{position:fixed;top:calc(52px + env(safe-area-inset-top));right:calc(8px + env(safe-area-inset-right));z-index:7;max-height:calc(100vh - 70px);overflow:auto;background:#140804ee;border:1px solid #f60;border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:8px;max-width:300px;font-size:14px}
+#hint{position:fixed;bottom:150px;left:0;right:0;text-align:center;font-size:12px;opacity:.75;pointer-events:none}
+#codhud{position:fixed;left:calc(10px + env(safe-area-inset-left));bottom:calc(12px + env(safe-area-inset-bottom));pointer-events:none;text-shadow:0 0 6px #f60;font-weight:700;font-size:15px;line-height:1.5}#codhud b{font-size:24px;color:#ffe08a}.perk{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:4px;box-shadow:0 0 8px currentColor;background:currentColor;vertical-align:middle}
+#prompt{position:fixed;left:50%;top:64%;transform:translateX(-50%);background:#140804cc;border:1px solid #f60;border-radius:8px;padding:6px 12px;pointer-events:none;white-space:nowrap;font-size:14px}#toast{position:fixed;left:50%;top:22%;transform:translateX(-50%);font-size:20px;font-weight:800;text-shadow:0 0 10px #f60;pointer-events:none;text-align:center;transition:opacity .4s}
+#usebtn,#swapbtn{position:fixed;z-index:4;border-radius:50%;font-weight:800}#usebtn{right:calc(150px + env(safe-area-inset-right));bottom:calc(40px + env(safe-area-inset-bottom));width:84px;height:84px;font-size:16px;border:3px solid #9af0ff;color:#c8f6ff;background:#0a3040cc}#swapbtn{right:calc(30px + env(safe-area-inset-right));bottom:calc(168px + env(safe-area-inset-bottom));width:64px;height:64px;font-size:13px}
+@media (pointer:coarse) and (max-height:500px){#firebtn{width:96px;height:96px;bottom:calc(18px + env(safe-area-inset-bottom))}#usebtn{width:70px;height:70px;bottom:calc(22px + env(safe-area-inset-bottom));right:calc(128px + env(safe-area-inset-right))}#swapbtn{bottom:calc(126px + env(safe-area-inset-bottom));right:calc(36px + env(safe-area-inset-right));width:56px;height:56px}#hint{display:none}#codhud{top:calc(40px + env(safe-area-inset-top))!important}#prompt{bottom:calc(20px + env(safe-area-inset-bottom))!important;max-width:40vw!important}}
+@media (pointer:coarse){#codhud{bottom:auto;top:calc(58px + env(safe-area-inset-top));font-size:13px}#codhud b{font-size:19px}#prompt{top:auto;bottom:178px;white-space:normal;max-width:70vw;text-align:center}}
+#hurt{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 120px #f00;opacity:0;transition:opacity .2s}#vig{position:fixed;inset:0;pointer-events:none;z-index:1;opacity:0;transition:opacity 1s;background:radial-gradient(ellipse at 50% 55%,transparent 55%,rgba(10,2,0,.55) 100%)}body.zmood #vig{opacity:1}
+</style>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script></head><body><div id="vig"></div>
+<div id="tbar"></div><button id="exit" hidden style="padding:8px 14px">✕ Menu</button><div id="hud"><span id="me" hidden style="white-space:nowrap;align-self:flex-start;padding:2px 8px;border-radius:6px;border:2px solid;font-weight:700"></span><span id="info"></span><span id="fuel" hidden><i></i></span></div>
+<div id="menu"><h2>🔥 BURN CITY ARENA</h2><div id="tron" class="small" style="border:1px solid #2ff4;border-radius:10px;padding:8px 12px;max-width:360px"><b>🏍 Light Cycles</b><br><button data-m="tron">Quick Play (free-for-all)</button>
+<div style="margin-top:6px"><b>Create a match</b><br><select id="tcteams"><option value="0">Free-for-all</option><option value="2">2 teams</option><option value="3">3 teams</option><option value="4">4 teams</option></select>
+<label><input id="tcff" type="checkbox" checked> Teammates' trails kill</label> <label><input id="tcbo3" type="checkbox"> Best of 3</label><br>
+<button id="tcfree">Create free match</button> <span id="tcrk"></span></div>
+<div id="tlobbies" style="margin-top:6px"></div><div id="trk" style="margin-top:6px"></div></div><div class="small"><b>🗡 Eternal Grind</b></div><button onclick="location.href='../dungeon/'">Dungeon RPG</button><div class="small"><b>🧟 Zombie Survival</b></div><button data-m="zombie">Free Play</button><button id="dailyBtn">🗓 Daily Challenge</button>
+<div id="ranked" class="small" style="border:1px solid #f604;border-radius:10px;padding:8px 12px;max-width:340px"><b>🏆 Ranked Matches</b> <span id="rkstat"></span><br><span id="rkinfo"></span><div id="rkbtn"></div><div id="rklb"></div><a href="rules.html" style="color:#ffb060">Ranked rules</a></div>
+<a href="../" class="small" style="color:#ffb060">← Back to Burn City</a> · <a href="history.html" class="small" style="color:#ffb060">📜 My match history</a><div id="safefoot" class="small" style="margin:6px auto;max-width:420px;opacity:.9"></div><div class="small">Free to play, no sign-in needed. <button id="signin" style="background:none;border:0;padding:0;color:#ffb060;text-decoration:underline;font-size:12px;cursor:pointer">Sign in to save rewards (optional)</button></div>
+<div id="price" class="small"></div><div id="qr"></div><div id="shop" class="small"></div><div id="lb" class="small"></div>
+<div class="small">Cosmetics only, never stronger. 32.2% of every sale is burned as BURN. Weekly IMG leaderboard prizes need no purchase.</div></div>
+<div id="touch"><div id="tl" style="left:20px"></div><div id="tr" style="right:20px"></div></div><div id="xh" hidden></div><div id="joy" hidden><i id="knob"></i></div><button id="firebtn" hidden>🔥<br>FIRE</button><button id="gear" hidden>⚙</button>
+<div id="set" hidden><b>Settings</b><label>Look sensitivity <input id="sens" type="range" min="0.3" max="2.5" step="0.1"> <span id="sensv"></span></label><label><input id="autof" type="checkbox"> Auto-fire when the crosshair is on a zombie</label><label><input id="lowq" type="checkbox"> Low graphics<span></span></label></div><div id="codhud" hidden></div><div id="prompt" hidden></div><div id="toast"></div><button id="usebtn" hidden>USE</button><button id="swapbtn" hidden>⇄<br>SWAP</button><div id="hurt"></div><div id="over" hidden></div><div id="hint" hidden></div><div id="teampick" hidden style="position:fixed;left:50%;top:44%;transform:translateX(-50%);z-index:6;display:flex;gap:6px;flex-wrap:wrap;justify-content:center"></div><button id="rkstart" hidden style="position:fixed;left:50%;top:60%;transform:translateX(-50%);z-index:6">▶ Start match</button>
+<script type="module">
+import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { sfx as SFX } from './sfx.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
+const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
+const $ = s => document.querySelector(s), mobile = matchMedia('(pointer:coarse)').matches;
+const qr = x => $('#qr').innerHTML = `<img src="${x.qr}"><div class=small>Scan with XAMAN</div>`;
+let owned = [];
+async function loadShop() { try { await loadShop_(); } catch {} }
+async function loadShop_() {
+  const s = await (await fetch(API + '/api/shop', { headers: { authorization: 'Bearer ' + (localStorage.bcToken || '') } })).json(); owned = s.owned;
+  if (!s.available) { $('#shop').textContent = '🛒 Cosmetic shop: coming soon'; } else
+  $('#shop').innerHTML = s.items.map(i => `<button data-buy="${i.id}" style="border-color:${i.color}">${i.name} · ${owned.includes(i.id) ? 'owned' : i.xrp + ' XRP'}</button>`).join(' ');
+  $('#shop').querySelectorAll('[data-buy]').forEach(b => b.onclick = async () => { if (!localStorage.bcToken) return $('#price').textContent = 'Sign in first';
+    const it = s.items.find(i => i.id === b.dataset.buy);
+    try { const v = await buy(API, b.dataset.buy, { onQr: qr, confirm: tx => confirmPay({ title: 'Buy cosmetic: ' + it.name, dest: tx.Destination, rows: [['Amount', it.xrp + ' XRP'], ['Item', it.name + ' (cosmetic only)'], ['Burned (32.2%)', +(it.xrp * s.burnShare).toFixed(6) + ' XRP · irreversible'], ['Refunds', 'Cosmetics are not refundable']] }) });
+      $('#qr').innerHTML = ''; loadShop(); await receipt({ title: '✅ Purchased ' + it.name, hash: v.hash, rows: [['Amount', it.xrp + ' XRP'], ['Owned by', (localStorage.bcAcct || '').slice(0, 8) + '…']] }); } catch (e) { $('#price').textContent = 'Not purchased: ' + e.message; } });
+  const lb = await (await fetch(API + '/api/leaderboard')).json(); if (!lb.top) return;
+  try { const d = await (await fetch(API + '/api/daily')).json(); if (d.mod) $('#dailyBtn').textContent = '🗓 Daily: ' + d.mod.name; $('#lb').dataset.daily = `<br><b>Daily ${d.day} · ${d.mod?.name || ''}</b><br>` + ((d.top || []).slice(0, 5).map((e, i) => `${i + 1}. ${e.acct} ${e.best}`).join('<br>') || 'No scores yet'); } catch {}
+  $('#lb').innerHTML = `<b>Week ${lb.week}</b><br>` + lb.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 6)}… ${e.kills} kills`).join('<br>') + ($('#lb').dataset.daily || '');
+}
+async function loadRanked() {
+  try { const k = await (await fetch(API + '/api/ranked')).json(), x = v => (+v).toFixed(2);
+    $('#rkstat').textContent = k.live ? (k.dryRun ? '· test mode' : '· LIVE') : '· coming soon (not live)';
+    $('#rkinfo').innerHTML = `Pick a match, pay its buy-in in XAMAN, and get the most kills.${k.burnPct > 0 ? ` ${k.burnPct}% of each buy-in is burned as BURN right away. <b>The burn is irreversible and is not refunded</b>, even if the match is cancelled.` : ''} If a match doesn't start before its deadline, everyone who paid is refunded automatically (buy-in minus the burn). The rest is that match's pot: 1 player 100% · 2 players 62.5/37.5 · 3+ players 50/30/20.`;
+    const zo = k.open.filter(m => m.game !== 'tron'), to = k.open.filter(m => m.game === 'tron');
+    $('#tcrk').innerHTML = k.live ? `<br>or ranked: buy-in <input id="trkb" type="number" min="${k.minBuyinXrp}" max="${k.maxBuyinXrp}" step="0.1" value="${k.minBuyinXrp}" style="width:64px"> XRP <button id="trkgo">Create ranked</button>` : '';
+    $('#trk').innerHTML = `<b>🏆 Ranked Light Cycles</b> ${k.live ? (k.dryRun ? '· test mode' : '· LIVE') : '· coming soon (not live)'}<br>FFA: top 3 by survival order (1 player 100% · 2 players 62.5/37.5 · 3+ 50/30/20). Teams: the winning team splits the pot equally.<br>` + (to.length ? to.map(m => `<div>${m.buyinXrp} XRP · ${cfgTxt(m.cfg)} · ${m.paid} paid · pot ${x(m.potXrp)} XRP ${k.live ? `<button data-join="${m.id}" data-b="${m.buyinXrp}" data-g="tron">Join · ${m.buyinXrp} XRP</button>` : ''}</div>`).join('') : '<div>No open ranked races</div>');
+    $('#trk').querySelectorAll('[data-join]').forEach(b => b.onclick = () => rkConfirm(`Join this ranked race for ${b.dataset.b} XRP?`) && enterRanked({ match: b.dataset.join }, 'tron'));
+    if ($('#trkgo')) $('#trkgo').onclick = () => { const b = +$('#trkb').value; if (b >= k.minBuyinXrp && b <= k.maxBuyinXrp) { if (rkConfirm(`Create a ranked Light Cycles match (${cfgTxt(tcfg())}) with a ${b} XRP buy-in? You pay it now.`)) enterRanked({ create: true, buyinXrp: b, game: 'tron', cfg: tcfg() }, 'tron'); } else $('#price').textContent = `Buy-in must be ${k.minBuyinXrp}-${k.maxBuyinXrp} XRP`; };
+    const open = zo.length ? zo.map(m => `<div>${m.buyinXrp} XRP buy-in · ${m.paid} player${m.paid === 1 ? '' : 's'} · pot ${x(m.potXrp)} XRP ${k.live ? `<button data-join="${m.id}" data-b="${m.buyinXrp}">Join · ${m.buyinXrp} XRP</button>` : ''}</div>`).join('') : '<div>No open matches right now</div>';
+    $('#rkbtn').innerHTML = '<b>Open matches</b>' + open + (k.live ? `<div>Create a match: buy-in <input id="rkb" type="number" min="${k.minBuyinXrp}" max="${k.maxBuyinXrp}" step="0.1" value="${k.minBuyinXrp}" style="width:70px"> XRP (${k.minBuyinXrp}-${k.maxBuyinXrp}) <button id="rkgo">Create</button></div>` : '');
+    $('#rkbtn').querySelectorAll('[data-join]').forEach(b => b.onclick = () => rkConfirm(`Join this match for ${b.dataset.b} XRP?`) && enterRanked({ match: b.dataset.join }));
+    $('#rklb').innerHTML = k.recent.length ? '<b>Recent matches</b><br>' + k.recent.map(m => `${m.game === 'tron' ? '🏍' : '🧟'} ${x(m.potXrp)} XRP pot · ` + m.top.map((e, i) => `${i + 1}. ${e.acct.slice(0, 6)}… ${m.game === 'tron' ? (m.team ? TEAMN[e.team - 1] || '' : '') : e.kills + 'k'} ${x(e.prizeXrp)}`).join(' · ')).join('<br>') : 'No ranked matches finished yet';
+    if ($('#rkgo')) $('#rkgo').onclick = () => { const b = +$('#rkb').value; if (b >= k.minBuyinXrp && b <= k.maxBuyinXrp && rkConfirm(`Create a match with a ${b} XRP buy-in? You pay it now.`)) enterRanked({ create: true, buyinXrp: b }); else if (!(b >= k.minBuyinXrp && b <= k.maxBuyinXrp)) $('#price').textContent = `Buy-in must be ${k.minBuyinXrp}-${k.maxBuyinXrp} XRP`; };
+  } catch { $('#rkstat').textContent = '· unavailable'; }
+}
+const TEAMC = ['#ff3b30', '#2f8cff', '#2bd96b', '#ffcc00'], TEAMN = ['Red', 'Blue', 'Green', 'Gold'], esc = t => String(t).replace(/[<>&"]/g, c => '&#' + c.charCodeAt(0) + ';');
+const cfgTxt = c => (c.teams ? c.teams + ' teams' : 'FFA') + (c.teams ? (c.ff ? ' · team trails kill' : ' · team trails safe') : '') + (c.bo3 ? ' · best of 3' : '');
+const tcfg = () => ({ teams: +$('#tcteams').value, ff: $('#tcff').checked, bo3: $('#tcbo3').checked });
+const teamSel = (id, n) => n ? `<select data-tsel="${id}"><option value="0">Auto team</option>${TEAMN.slice(0, n).map((t, i) => `<option value="${i + 1}">${t}</option>`).join('')}</select>` : '';
+$('#tcfree').onclick = () => { const c = tcfg(); start('tron', null, `&create=1&teams=${c.teams}&ff=${c.ff ? 1 : 0}&bo3=${c.bo3 ? 1 : 0}`); };
+async function loadTron() {
+  try { const L = (await (await fetch(API + '/api/tron/lobbies')).json()).lobbies || [];
+    $('#tlobbies').innerHTML = '<b>Open free matches</b>' + (L.length ? L.map(l => `<div>${cfgTxt(l.cfg)} · ${l.players}/8 ${teamSel(l.id, l.cfg.teams)} <button data-tjoin="${l.id}">Join</button></div>`).join('') : '<div>None right now. Create one!</div>');
+    $('#tlobbies').querySelectorAll('[data-tjoin]').forEach(b => b.onclick = () => { const s_ = $('#tlobbies').querySelector(`[data-tsel="${b.dataset.tjoin}"]`); start('tron', null, `&room=${b.dataset.tjoin}&team=${s_ ? s_.value : 0}`); });
+  } catch { $('#tlobbies').textContent = ''; }
+}
+loadTron(); setInterval(() => $('#menu').hidden || loadTron(), 10000);
+const RKNOTE = 'The 3.22% BURN share is burned immediately and is irreversible: it is NOT returned if the match is cancelled. If the match does not start before its deadline, the rest of your buy-in is refunded automatically.';
+const rkConfirm = m => confirm(m + '\n\n' + RKNOTE);
+const txl = h => `<a href="https://livenet.xrpl.org/transactions/${h}" target="_blank" rel="noopener">tx ${h.slice(0, 8)}…</a>`;
+const payTxt = r => `${r.kind === 'refund' ? 'Refund' : 'Prize'} ${r.xrp ?? r.drops / 1e6} XRP → ${r.to ? r.to.slice(0, 6) + '… ' : ''}${r.status === 'paid' ? '✅ paid ' + txl(r.hash) : r.status === 'submitted' ? '⏳ sending… ' + txl(r.hash) : r.status === 'held' ? '🔎 under review' : '⏳ queued'}`;
+let payTimer = null;
+function watchPayout(id) {   // live payout/refund status on the results screen
+  let el = $('#payst'); if (!el) { el = document.createElement('div'); el.id = 'payst'; el.style.cssText = 'position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:60;background:#000c;color:#fff;padding:8px 12px;border-radius:10px;font:13px system-ui;max-width:92vw;text-align:center'; document.body.append(el); }
+  clearInterval(payTimer); let n = 0;
+  const go = async () => { try { const s = await (await fetch(API + '/api/ranked/payout?match=' + encodeURIComponent(id))).json();
+    el.innerHTML = '<b>Payouts</b> · ' + (s.status === 'held_for_review' || s.status === 'held_guard' ? 'under review' : s.status === 'paid' ? 'all paid' : 'sending automatically') + (s.payouts.length ? '<br>' + s.payouts.map(payTxt).join('<br>') : '') + ' <a href="#" id="payx">✕</a>';
+    $('#payx').onclick = ev => { ev.preventDefault(); el.remove(); clearInterval(payTimer); };
+    if (s.status === 'paid' || ++n > 120) clearInterval(payTimer); } catch {} };
+  go(); payTimer = setInterval(go, 5000);
+}
+async function enterRanked(opts, game = 'zombie') {
+  if (!localStorage.bcToken) return $('#price').textContent = 'Sign in with XAMAN first (your wallet = your ranked account)';
+  const h = { authorization: 'Bearer ' + localStorage.bcToken };
+  const e = await (await fetch(API + '/api/ranked/enter', { method: 'POST', headers: h, body: JSON.stringify(opts) })).json();
+  if (e.error) return $('#price').textContent = 'Ranked: ' + e.error.replace(/_/g, ' ');
+  const bx = +e.buyinXrp, burnX = +(bx * 0.0322).toFixed(6), tron = game === 'tron';
+  const okPay = await confirmPay({ title: (tron ? 'Ranked Light Cycles' : 'Ranked Zombies') + ' buy-in', dest: e.tx?.Destination, rows: [['Amount', bx + ' XRP'], ['Match ID', e.match], ['Destination tag', String(e.tx?.DestinationTag ?? '')],
+    ['Burned (3.22%)', burnX + ' XRP · irreversible'], ['Prize split', tron && opts.cfg?.teams ? 'Winning team splits the pot equally' : '1 player 100% · 2 players 62.5/37.5 · 3+ players 50/30/20'], ['Refund rule', 'Match not started in 30 min → refunded automatically, minus the burn']],
+    warn: 'The 3.22% BURN share is burned as soon as you pay and is never refunded, even if the match is cancelled.' });
+  if (!okPay) return $('#price').textContent = 'Payment cancelled. Nothing was sent.';
+  if (e.xaman) { qr(e.xaman); if (/iPhone|Android/i.test(navigator.userAgent)) location.href = e.xaman.deeplink; }
+  $('#price').textContent = 'Sign the entry payment in XAMAN. Waiting for the ledger… (3.22% is burned at once and is not refunded if the match is cancelled)';
+  for (let i = 0; i < 100; i++) { await new Promise(r => setTimeout(r, 3000));
+    const v = await (await fetch(API + '/api/ranked/verify', { method: 'POST', headers: h, body: JSON.stringify({ sid: e.sid }) })).json();
+    if (v.ok) { $('#qr').innerHTML = ''; $('#price').textContent = 'Buy-in verified on-ledger. Good luck!'; await receipt({ title: '✅ Buy-in received', hash: v.hash, rows: [['Amount', bx + ' XRP'], ['Match ID', e.match], ['Burned', burnX + ' XRP']] }); return start(game, v.ticket); }
+    if (!['no_tx', 'not_validated_yet', 'tx_not_found'].includes(v.reason)) return $('#price').textContent = 'Entry not accepted: ' + v.reason; }
+  $('#price').textContent = 'Entry timed out';
+}
+$('#safefoot').append(document.createTextNode(NOTICE + ' '), badge());
+loadRanked(); setInterval(() => $('#menu').hidden || loadRanked(), 30000);
+{ const b = document.createElement('button'); b.id = 'nftbtn'; b.hidden = true; $('#signin').after(' ', b); window.__nftp = NftPick.mount(API, { button: b }); }
+loadShop(); $('#price').textContent = localStorage.bcAcct ? 'Signed in ' + localStorage.bcAcct.slice(0, 8) + '…' : 'Playing as guest (not on leaderboard)';
+$('#signin').onclick = async () => { try { const v = await signIn(API, { onQr: qr }); $('#qr').innerHTML = ''; $('#price').textContent = 'Signed in ' + v.account.slice(0, 8) + '…'; loadShop(); window.__nftp?.refresh(); } catch (e) { $('#price').textContent = e.message; } };
+const r = new THREE.WebGLRenderer({ antialias: !mobile, powerPreference: 'high-performance' });
+r.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2)); r.setSize(innerWidth, innerHeight); document.body.prepend(r.domElement);
+const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x050208, 40, 180); scene.background = new THREE.Color(0x050208);
+const cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 400);
+const fitGun = () => { if (typeof FX !== 'undefined') FX.gun.position.x = cam.aspect < 1 ? 0.03 : 0.2; };
+addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); fitGun(); });
+const GRIDH = new THREE.GridHelper(240, 60, 0xff4400, 0x331100); scene.add(new THREE.HemisphereLight(0xffaa66, 0x220011, 1.2), GRIDH);
+const LOOK = { skin_ember: '#ff5a1f', skin_chrome: '#c8d4e0', skin_ghost: '#7af0ff', trail_gold: '#ffd24a', trail_plasma: '#c04bff', flame_blue: '#3aa0ff', flame_green: '#5aff4a', flame_burnxrp: '#ff2a00' };
+const COL = (id, kind = 'trail') => { const rc = net?.roster.get(id)?.color; if (rc && kind !== 'flame') return new THREE.Color(rc); const l = net?.roster.get(id)?.look?.[kind]; return l ? new THREE.Color(LOOK[l]) : new THREE.Color().setHSL((id * 0.137) % 1, 1, 0.55); };
+let net, mode, yaw = 0, keys = {}, fire = false;
+function leave(msg) {               // full teardown so the next mode (or the city) starts clean
+  showDraft(null);
+  const n = net; net = null; mode = null; if (lobbyEl) lobbyEl.hidden = true; if (n) { n.handlers = {}; try { n.ws.readyState === 1 && n.ws.send(JSON.stringify({ t: 'leave' })); n.ws.close(1000, 'menu'); } catch {} }
+  document.pointerLockElement && document.exitPointerLock?.(); keys = {}; fire = false; yaw = 0; overUntil = 0; lastHp = 100;
+  for (const c of cycles.values()) { if (c.userData.nc) disposeNftChar(c.userData.nc); scene.remove(c); disposeBike(c); } cycles.clear();
+  for (const w of walls.values()) { scene.remove(w); w.geometry.dispose(); w.material.dispose(); } walls.clear();
+  for (const t of tags.values()) { scene.remove(t); t.material.map.dispose(); t.material.dispose(); } tags.clear();
+  FX.clear(); world?.dispose(); world = null; scene.fog.color.setHex(0x050208); scene.fog.near = 40; scene.fog.far = 180; document.body.classList.remove('zmood'); GRIDH.visible = true; joy.id = null; look.id = null; $('#joy').hidden = true; pred = null;
+  tmsgUntil = 0; $('#teampick').innerHTML = ''; $('#teampick').dataset.n = ''; { const v = document.getElementById('dnVig'); if (v) v.style.opacity = 0; for (const i of ['dnMe', 'dnTeam']) { const e = document.getElementById(i); if (e) e.hidden = true; } } for (const k of ['#keysbtn', '#codhud', '#prompt', '#usebtn', '#swapbtn', '#teampick', '#xh', '#hint', '#over', '#fuel', '#me', '#exit', '#rkstart', '#firebtn', '#gear', '#set', '#joy']) { const e = $(k); if (e) e.hidden = true; } $('#hurt').style.opacity = 0;
+  $('#touch').style.display = 'none'; $('#info').textContent = ''; $('#menu').hidden = false; if (msg) $('#price').textContent = msg;
+}
+$('#rkstart').onclick = e => { e.stopPropagation(); net?.ws.readyState === 1 && net.ws.send(JSON.stringify({ t: 'start' })); };
+$('#exit').onclick = e => { e.stopPropagation(); leave(); };
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => start(b.dataset.m));
+$('#dailyBtn').onclick = () => start('zombie', null, '&daily=1');
+if (P.get('daily') === '1') setTimeout(() => start('zombie', null, '&daily=1'), 600);
+// pre-game lobby screen (server sends lobby_state about once a second while a match is waiting)
+var lobbyEl = document.createElement('div'); lobbyEl.id = 'lobbyUI'; lobbyEl.hidden = true;
+lobbyEl.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,380px);max-height:80vh;overflow:auto;z-index:40;background:#0a0d18f2;border:1px solid #ff7a1866;border-radius:14px;padding:14px;color:#eef;font:14px system-ui;box-shadow:0 0 30px #ff7a1833';
+document.body.append(lobbyEl);
+function hideLobby() { lobbyEl.hidden = true }
+function showLobby(e) { lobbyEl.hidden = false; const game = mode === 'tron' ? '🏍 Light Cycles' : '🧟 Zombies';
+  const rows = e.players.map(p => `<div style="display:flex;justify-content:space-between;padding:5px 8px;margin:3px 0;border-radius:8px;background:#ffffff0d"><span>${p.id === net?.me ? '⭐ ' : ''}${String(p.name).replace(/[<>&]/g, '')}${p.look && p.look.nft ? ' · 🎭' : ''}</span>${e.ranked ? `<b style="color:${p.pay === 'confirmed' ? '#5aff9a' : '#ffcc55'}">${p.pay === 'confirmed' ? '✓ paid (on-ledger)' : '⏳ payment pending'}</b>` : ''}</div>`).join('');
+  const cd = e.countdown != null ? `<div style="font-size:22px;font-weight:800;color:#ff9a3c;text-align:center">Starting in ${e.countdown}…</div>` : e.autoIn != null ? `<div style="text-align:center">Auto-start in <b>${e.autoIn}s</b> · others can still join</div>` : `<div style="text-align:center;opacity:.8">Waiting for players (min ${e.min})</div>`;
+  lobbyEl.innerHTML = `<h3 style="margin:0 0 4px">${game} lobby${e.ranked ? ' · Ranked' : ''}</h3><div style="opacity:.8;margin-bottom:6px">Players <b>${e.n}/${e.max}</b> · match ${String(e.id || '').slice(0, 10)}</div>${rows}${cd}
+    ${e.ranked ? '<div style="font-size:12px;opacity:.7;margin-top:6px">Ranked: the match starts only when every entry is confirmed on the ledger. If the lobby expires unfilled, entries are refunded minus the 3.22% burn.</div>' : ''}
+    <button id="lbStart" style="margin-top:8px;width:100%;padding:10px;border-radius:10px;border:1px solid #ff7a18;background:#3a1a06;color:#fff;font-weight:700" ${e.n >= e.min && e.countdown == null ? '' : 'disabled'}>Start now (host)</button>
+    <button id="lbLeave" style="margin-top:6px;width:100%;padding:9px;border-radius:10px;border:1px solid #ffffff44;background:#ffffff10;color:#fff">Leave lobby${e.ranked ? ' (entry refunded minus burn)' : ''}</button>`;
+  lobbyEl.querySelector('#lbLeave').onclick = () => leave();
+  lobbyEl.querySelector('#lbStart').onclick = () => net?.ws.readyState === 1 && net.ws.send(JSON.stringify({ t: 'start' })); }
+window.__lobbyTest = showLobby;
+function start(m, ranked = null, extra = '') {
+  leave(); hideLobby(); lastOpen = 1; mode = m; $('#exit').hidden = false; const token = localStorage.bcToken || null;
+  $('#menu').hidden = true; $('#touch').style.display = mobile && mode === 'tron' ? 'block' : 'none'; $('#firebtn').hidden = !(mobile && mode === 'zombie'); $('#gear').hidden = mode !== 'zombie'; if ($('#keysbtn')) $('#keysbtn').hidden = mobile || mode !== 'zombie'; $('#fuel').hidden = $('#xh').hidden = $('#hint').hidden = mode !== 'zombie'; $('#tl').textContent = mode === 'tron' ? '◀' : 'MOVE'; $('#tr').textContent = mode === 'tron' ? '▶' : '🔥 FIRE';
+  $('#hint').textContent = mode === 'tron' ? '' : mobile ? 'Left thumb: move (joystick appears where you touch) · right side: swipe to look · hold FIRE' : 'Click to lock mouse · mouse/Q/E or ←/→ aim · WASD move · click/Space fire · F use (hold to repair/revive) · X swap · 1/2/3 pick boon · P settings · L leave · H all keys';
+  net = new GameNet(WS, mode, { token, look: owned, name: P.get('name') || (token ? 'runner' : (localStorage.bcGuest || (localStorage.bcGuest = 'Guest-' + (1000 + Math.floor(Math.random() * 9000))))), ranked, extra }).on('ranked_down', e => { if (e.id === net?.me) { overUntil = performance.now() + 36e5; overInfo = { ranked: true, wave: e.wave, kills: e.kills }; } }).on('ranked_result', e => { watchPayout(e.id); overUntil = performance.now() + 6000; overInfo = { ranked: true, result: e, kills: overInfo.kills }; }).on('round_result', e => { tronMsg(`Round ${e.round}: ${e.teams ? (e.teams.length ? e.teams.map(t => TEAMN[t - 1]).join(' & ') + ' team wins' : 'draw') : ''}${e.teams ? '' : e.winner != null ? esc(net?.roster.get(e.winner)?.name || 'rider') + ' survives' : 'draw'}${e.over ? '' : ' · next round soon'}`, 4000); })
+    .on('match_over', e => { if (e.ranked) watchPayout(e.id); const mine = e.standings.find(s => s.id === net?.me); tronMsg(`🏁 MATCH OVER${e.winTeams?.length ? ' · ' + e.winTeams.map(t => TEAMN[t - 1]).join(' & ') + ' wins' : ''}${e.potXrp != null ? ' · pot ' + e.potXrp + ' XRP' : ''}<br><small>` + e.standings.slice(0, 8).map(s => `${s.rank}. ${esc(s.name)}${s.team ? ' (' + TEAMN[s.team - 1] + ')' : ''}${e.teams ? '' : ''}${s.prizeXrp ? ' → ' + s.prizeXrp + ' XRP' : ''}${s.review ? ' (review)' : ''}`).join('<br>') + (e.ranked ? '<br>Payouts are sent automatically · status below' : '<br>Back to the lobby for a rematch…') + '</small>', 7000); })
+    .on('lobby', () => tronMsg('Lobby: pick teams, then the creator starts', 2500))
+    .on('lobby_state', showLobby).on('ranked_start', hideLobby)
+    .on('match_start', () => { hideLobby(); tronMsg('GO!', 1200) })
+    .on('init', m => { if (mode === 'zombie' && m.map) { world?.dispose(); world = createCodWorld(scene, m.map, { low: LOW }); scene.fog.color.setHex(0x0a0504); scene.fog.near = 14; scene.fog.far = 95; world.applyEnv?.(); document.body.classList.add('zmood'); toast('📍 ' + world.title(), 3500); } })
+    .on('map', e => { if (mode !== 'zombie' || !e.map) return; world?.dispose(); world = createCodWorld(scene, e.map, { low: LOW }); scene.fog.color.setHex(0x0a0504); scene.fog.near = 14; scene.fog.far = 95; world.applyEnv?.(); toast('🗺️ New map: ' + world.title(), 4000); })
+    .on('draft', e => { if (e.id === net?.me) { showDraft(e.o); sfx.perk(); } }).on('drafted', e => { if (e.id === net?.me) { showDraft(null); toast('✨ ' + e.n + (e.lv > 1 ? ' ' + 'I'.repeat(e.lv) : ''), 1800); } }).on('jcharge', () => { toast('⚠️ Juggernaut charging!', 1200); sfx.rip?.(0.9); })
+    .on('power', e => { sfx.perk(); toast(e.id === net?.me ? '⚡ You turned the power on. Perks and the Forge are live!' : '⚡ The power is on!', 3000); }).on('nopower', e => e.id === net?.me && toast('⚡ No power yet. Find the Power Switch.', 2000))
+    .on('wave', () => { sfx.roundStart(); showDraft(null); }).on('door', e => { sfx.door(); toast(`🚪 ${net.map?.zones[e.z ?? 0]?.n || 'Area'} opened`); lastOpen = e.open; })
+    .on('nopts', e => e.id === net?.me && toast('Not enough points', 1200)).on('perkmax', e => e.id === net?.me && toast('Max 4 perks', 1200))
+    .on('buy', e => e.id === net?.me && (sfx.buy(), true) && toast('🔥 ' + world?.wname(e.w))).on('forge', e => e.id === net?.me && (sfx.perk(), world?.forged(), toast('⚒️ Forged: ' + (net.map?.weapons.find(w => w.id === e.w)?.up || 'weapon') + '!'))).on('forge_have', e => e.id === net?.me && toast('Already forged. Swap weapons to forge the other one.')).on('box_give', e => e.id === net?.me && toast('🎁 You got the ' + world?.wname(e.w) + '!'))
+    .on('box_roll', e => { world?.rolling(e); sfx.box(); }).on('box_move', () => toast('🧸 Bye bye! The Mystery Box moved…', 3000)).on('box_here', () => toast('🎁 The Mystery Box reappeared somewhere', 2500))
+    .on('perk', e => e.id === net?.me && (sfx.perk(), true) && toast('🥤 ' + (net.map?.perks.find(k => k.k === e.k)?.name || 'Perk'))).on('hm', e => { if (e.id !== net?.me) return; let h = document.getElementById('hitMk'); if (!h) { h = document.createElement('div'); h.id = 'hitMk'; h.textContent = '✕'; h.style.cssText = 'position:fixed;left:50%;top:50%;pointer-events:none;z-index:61;font:900 26px system-ui;color:#fff;text-shadow:0 0 4px #000;transform:translate(-50%,-50%);opacity:0;transition:opacity .25s,transform .25s'; document.body.appendChild(h); }
+      h.style.transition = 'none'; h.style.color = e.hs ? '#ffd23a' : e.k ? '#ff2a2a' : '#fff';
+      if (e.hs && performance.now() - (window.__hsT || 0) > 350) { window.__hsT = performance.now(); let t = document.getElementById('hsMk'); if (!t) { t = document.createElement('div'); t.id = 'hsMk'; t.style.cssText = 'position:fixed;left:50%;top:calc(50% - 46px);pointer-events:none;z-index:61;font:900 15px system-ui;letter-spacing:2px;color:#ffd23a;text-shadow:0 0 6px #000,0 0 2px #000;transform:translate(-50%,0);opacity:0'; document.body.appendChild(t); }
+        t.textContent = e.k ? 'HEADSHOT KILL' : 'HEADSHOT'; t.style.transition = 'none'; t.style.opacity = 1; t.style.transform = 'translate(-50%,0) scale(1.25)'; requestAnimationFrame(() => requestAnimationFrame(() => { t.style.transition = 'opacity .6s .15s,transform .3s'; t.style.opacity = 0; t.style.transform = 'translate(-50%,-8px) scale(1)'; })); } h.style.opacity = 1; h.style.transform = `translate(-50%,-50%) scale(${e.k ? 1.7 : 1})`; requestAnimationFrame(() => requestAnimationFrame(() => { h.style.transition = 'opacity .3s,transform .3s'; h.style.opacity = 0; h.style.transform = 'translate(-50%,-50%) scale(.8)'; }));
+      if (!e.k && performance.now() - (window.__hmT || 0) < 140) return; window.__hmT = performance.now();
+      try { const A = window.__hmAC || (window.__hmAC = new (window.AudioContext || window.webkitAudioContext)()); A.state === 'suspended' && A.resume(); const o = A.createOscillator(), g = A.createGain(); o.type = 'square'; o.frequency.value = e.k ? 520 : 1400; g.gain.setValueAtTime(e.k ? .08 : .05, A.currentTime); g.gain.exponentialRampToValueAtTime(.0001, A.currentTime + (e.k ? .18 : .05)); o.connect(g).connect(A.destination); o.start(); o.stop(A.currentTime + .2); } catch (_) {} })
+    .on('phit', e => { if (e.id !== net?.me) return; if (e.x != null) hitArrow(e.x, e.z); let v = document.getElementById('hitVig'); if (!v) { v = document.createElement('div'); v.id = 'hitVig'; v.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:60;box-shadow:inset 0 0 120px 40px rgba(255,0,0,.75);opacity:0;transition:opacity .45s'; document.body.appendChild(v); } v.style.transition = 'none'; v.style.opacity = 1; requestAnimationFrame(() => requestAnimationFrame(() => { v.style.transition = 'opacity .45s'; v.style.opacity = 0; })); }).on('downed', e => e.id !== net?.me && toast('⚠ ' + (net.roster.get(e.id)?.name || 'A teammate') + ' is down! Stand next to them to revive', 2500))
+    .on('reconnecting', n => toast(`📶 Connection lost · reconnecting${n > 1 ? ' (' + n + ')' : ''}…`, 4000)).on('reconnected', () => toast('✅ Reconnected · you kept your points, guns and perks', 2600)).on('revived', e => { if (e.id !== net?.me) return; const pk = e.kp && net.map?.perks.find(k => k.k === e.kp); toast('❤ Revived!' + (pk ? ` You kept 🥤 ${pk.name}` : ''), 2600); })
+    .on('rip', e => { world?.rip(e); const w = net?.map?.windows[e.i], me_ = pred; if (w && me_) { const d = Math.hypot(w.x - me_.x, w.z - me_.z); if (d < 40) sfx.rip(Math.max(0.15, 1 - d / 40)); } })
+    .on('board', e => { world?.board(e); if (e.by === net?.me) { hammerT = 0.3; sfx.hammer(); if (e.pts) toast(`+${e.pts} 🔨`, 600); else toast('🔨 Board rebuilt (repair points maxed this round)', 900); } })
+    .on('shot', e => (sfx.shot(e.w === 'shotgun' ? 2 : e.w === 'napalm' ? (e.ray ? 1 : 3) : 0, e.id === net?.me), FX.shot(e, e.id === net?.me, pred?.x ?? e.x, pred?.z ?? e.z)))
+    .on('gameover', e => { sfx.roundEnd(); overUntil = performance.now() + (e.in || 5) * 1000; overInfo = e; }).on('close', why => leave(/ranked_locked|match_already_started/.test(why || '') ? 'Ranked match in progress — locked' : 'Disconnected ' + (why || '')));
+  if (mode === 'zombie' && !mobile) r.domElement.requestPointerLock?.()?.catch?.(() => {});
+}
+// ---- PC: every on-screen action also has a key ----
+const shown = sel => { const e = document.querySelector(sel); return !!(e && !e.hidden && e.offsetParent !== null); };
+let leaveArm = 0, keyHelp = null;
+function toggleKeys() { if (!keyHelp) { keyHelp = document.createElement('div'); keyHelp.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9;background:#140a04f2;border:1px solid #ff7a2a;border-radius:14px;padding:14px 18px;color:#ffe0b0;font:14px/1.7 system-ui;min-width:260px';
+  keyHelp.innerHTML = '<b style="color:#ffd27a">⌨ Keys</b> <span style="float:right;opacity:.6;cursor:pointer">✕</span><br>' + [['W A S D', 'move'], ['Mouse / Q E / ← →', 'aim'], ['Click / Space', 'fire'], ['F', 'use: buy, open doors, box, perks, power'], ['Hold F', 'repair boards · revive a teammate'], ['Downed', 'WASD crawl · click/Space BURN pistol'], ['X  (or 1 / 2)', 'swap weapon'], ['1 / 2 / 3', 'pick a boon when a round clears'], ['Enter', 'start the match (lobby)'], ['P', 'settings'], ['M', 'mute sound'], ['L  (twice)', 'leave match'], ['Esc', 'free the mouse'], ['H', 'show / hide this']].map(([k, v]) => `<kbd style="display:inline-block;min-width:22px;padding:0 6px;border:1px solid #ffb060;border-radius:5px;background:#3a1a06;color:#fff;font-weight:700">${k}</kbd> ${v}`).join('<br>'); document.body.appendChild(keyHelp); keyHelp.hidden = true; keyHelp.onclick = () => keyHelp.hidden = true }
+  keyHelp.hidden = !keyHelp.hidden }
+addEventListener('keydown', e => { if (mobile || e.repeat || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) return; const c = e.code;
+  if (draftO && /Numpad[123]/.test(c)) { pkQ = +c.slice(6) - 1; relock(); return; }
+  if (draftO && /Digit[123]/.test(c)) { relock(); return; }   // the pick itself is queued by the main handler
+  if (c === 'Enter') { const b = document.querySelector('#lbStart'); if (b && shown('#lbStart') && !b.disabled) { b.click(); e.preventDefault(); return; } if (shown('#rkstart')) { $('#rkstart').click(); e.preventDefault(); return; } }
+  if (shown('#teampick') && /Digit[1-8]/.test(c)) { const b = document.querySelector(`#teampick [data-team="${c.slice(5)}"]`); if (b) { b.click(); return; } }
+  if (mode !== 'zombie' && mode !== 'tron') return;
+  if (c === 'KeyP') { if (shown('#gear') || !$('#gear').hidden) { $('#set').hidden = !$('#set').hidden; if (!$('#set').hidden && document.pointerLockElement) document.exitPointerLock(); } return; }
+  if (c === 'KeyH') { toggleKeys(); if (!keyHelp.hidden && document.pointerLockElement) document.exitPointerLock(); return; }
+  if (c === 'KeyM') { sfx.unlock?.(); sfx.setMuted(!sfx.muted); toast(sfx.muted ? '🔇 Sound off' : '🔊 Sound on', 900); return; }
+  if (c === 'KeyL') { if (performance.now() < leaveArm) { leaveArm = 0; leave(); } else { leaveArm = performance.now() + 2000; toast('Press L again to leave the match', 1800); } return; }
+});
+// ---- input: keyboard/mouse on PC, two thumb zones on phones ----
+addEventListener('keyup', e => { if (e.code === 'KeyF') keys.KeyF = 0; });
+addEventListener('keydown', e => { keys[e.code] = 1; if (mode === 'zombie' && !e.repeat) { if (e.code === 'KeyF') useQ = true; if (draftO && /Digit[123]/.test(e.code)) { pkQ = +e.code.slice(5) - 1; return; } if (/KeyX|Digit1|Digit2/.test(e.code)) swQ = true; } if (mode === 'tron' && !e.repeat) { if (/KeyA|ArrowLeft/.test(e.code)) net?.input({ turn: -1 }); if (/KeyD|ArrowRight/.test(e.code)) net?.input({ turn: 1 }); } });
+addEventListener('keyup', e => keys[e.code] = 0);
+addEventListener('mousemove', e => { if (document.pointerLockElement) { yaw -= e.movementX * 0.003 * lookSens; pitch = Math.max(-0.35, Math.min(0.35, pitch - e.movementY * 0.002 * lookSens)); } });
+r.domElement.addEventListener('mousedown', e => { if (mode === 'zombie' && !document.pointerLockElement && !mobile) r.domElement.requestPointerLock?.()?.catch?.(() => {}); fire = true; }); addEventListener('mouseup', () => fire = false);
+addEventListener('keydown', e => { if (e.code === 'Space') { fire = true; e.preventDefault(); } }); addEventListener('keyup', e => { if (e.code === 'Space') fire = false; });
+let touchX = null;
+$('#tl').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: -1 }); e.preventDefault(); };
+$('#tr').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: 1 }); e.preventDefault(); };
+// ---- zombie touch controls: floating joystick (left half), swipe-look (right half), big FIRE button ----
+const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 }, look = { id: null, x: 0, y: 0 }, R_JOY = 56, DEAD = 0.15;
+function setJoy(t) { let dx = t.clientX - joy.ox, dy = t.clientY - joy.oy; const d = Math.hypot(dx, dy), c = Math.min(d, R_JOY);
+  if (d > 0) { dx = dx / d * c; dy = dy / d * c; } $('#knob').style.transform = `translate(${dx}px,${dy}px)`;
+  const m = c / R_JOY, a = m < DEAD ? 0 : (m - DEAD) / (1 - DEAD), k = a * a * (3 - 2 * a) / (m || 1);   // deadzone + smooth analog ramp
+  joy.x = dx / R_JOY * k; joy.y = dy / R_JOY * k; }
+const zTouch = () => mode === 'zombie' && mobile;
+addEventListener('touchstart', e => { if (!zTouch() || (e.target.closest('button,input,#set,a') && e.target.id !== 'firebtn')) return; e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.target.id === 'firebtn') { fire = true; $('#firebtn').classList.add('on'); fireId = t.identifier; }
+    else if (t.clientX < innerWidth / 2 && joy.id === null) { joy.id = t.identifier; joy.ox = t.clientX; joy.oy = t.clientY; joy.x = joy.y = 0; const j = $('#joy'); j.hidden = false; j.style.left = t.clientX - 70 + 'px'; j.style.top = t.clientY - 70 + 'px'; $('#knob').style.transform = ''; }
+    else if (look.id === null) { look.id = t.identifier; look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
+addEventListener('touchmove', e => { if (!zTouch()) return; e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.identifier === joy.id) setJoy(t);
+    else if (t.identifier === look.id) { yaw -= (t.clientX - look.x) * 0.0055 * lookSens; pitch = Math.max(-0.35, Math.min(0.35, pitch - (t.clientY - look.y) * 0.003 * lookSens)); look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
+let fireId = null;
+const tEnd = e => { for (const t of e.changedTouches) { if (t.identifier === joy.id) { joy.id = null; joy.x = joy.y = 0; $('#joy').hidden = true; }
+  if (t.identifier === look.id) look.id = null; if (t.identifier === fireId) { fireId = null; fire = false; $('#firebtn').classList.remove('on'); } } };
+addEventListener('touchend', tEnd); addEventListener('touchcancel', tEnd);
+for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });   // Safari pinch/double-tap zoom
+// settings: look sensitivity, auto-fire, graphics
+queueMicrotask(() => {   // runs after module init (uses LOW / lookSens declared below)
+$('#gear').onclick = e => { e.stopPropagation(); $('#set').hidden = !$('#set').hidden; };
+$('#sens').value = lookSens; $('#sens').oninput = () => { lookSens = +$('#sens').value; localStorage.bcSens = lookSens; $('#sensv').textContent = lookSens.toFixed(1) + '×'; }; $('#sensv').textContent = lookSens.toFixed(1) + '×';
+$('#autof').checked = autoFire; $('#autof').onchange = () => { autoFire = $('#autof').checked; localStorage.bcAuto = autoFire ? '1' : '0'; };
+$('#lowq').checked = LOW; $('#lowq').onchange = () => { localStorage.setItem('bc_quality', $('#lowq').checked ? 'low' : 'auto'); $('#lowq').parentElement.lastChild.textContent = ' (applies on reload)'; };
+});
+
+// ---- render pools (no per-frame allocations) ----
+const cycles = new Map(), walls = new Map(), MAXZ = 40;
+// ---- Tron light cycle: shared low-poly geometry, per-rider colour materials. children[0] = canopy (hidden for NFT riders) ----
+const BIKE = (() => { const sh = new THREE.Shape([[-1.25, 0.18], [1.2, 0.2], [1.3, 0.38], [1.0, 0.56], [0.25, 0.78], [-0.55, 0.72], [-1.15, 0.52], [-1.32, 0.3]].map(([x, y]) => new THREE.Vector2(x, y)));
+  const hull = new THREE.ExtrudeGeometry(sh, { depth: 0.46, bevelEnabled: false }).translate(0, 0, -0.23).rotateY(-Math.PI / 2);
+  const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+  return { hull, edges: new THREE.EdgesGeometry(hull, 25), hullM: new THREE.MeshBasicMaterial({ color: 0x07080c }), glowTex, glow: new THREE.PlaneGeometry(2.4, 3.6).rotateX(-Math.PI / 2),
+    canopy: new THREE.SphereGeometry(0.3, 10, 6).scale(0.75, 0.55, 1.6), stripe: new THREE.BoxGeometry(0.03, 0.05, 2.0), hub: new THREE.CylinderGeometry(0.28, 0.28, 0.5, 10).rotateZ(Math.PI / 2) }; })();
+const rimG = lo => new THREE.TorusGeometry(0.42, lo ? 0.07 : 0.055, lo ? 3 : 6, lo ? 10 : 22).rotateY(Math.PI / 2);
+let RIM = null;
+function makeBike() { RIM = RIM || rimG(LOW); const tint = new THREE.MeshBasicMaterial(), acc = new THREE.MeshBasicMaterial(), line = new THREE.LineBasicMaterial({ transparent: true }), glowM = new THREE.MeshBasicMaterial({ map: BIKE.glowTex, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
+  const c = new THREE.Group(); c.rotation.order = 'YXZ'; c.material = tint; c.userData.mats = [tint, acc, line, glowM];
+  const canopy = new THREE.Mesh(BIKE.canopy, acc); canopy.position.set(0, 0.78, 0.15); c.add(canopy);   // children[0]
+  c.add(new THREE.Mesh(BIKE.hull, BIKE.hullM), new THREE.LineSegments(BIKE.edges, line));
+  for (const z of [-0.9, 0.88]) { const r = new THREE.Mesh(RIM, tint); r.position.set(0, 0.42, z); const h = new THREE.Mesh(BIKE.hub, BIKE.hullM); h.position.set(0, 0.42, z); c.add(h, r); }
+  for (const x of [-0.245, 0.245]) { const st = new THREE.Mesh(BIKE.stripe, acc); st.position.set(x, 0.5, 0); c.add(st); }
+  const glow = new THREE.Mesh(BIKE.glow, glowM); glow.position.y = 0.03; c.add(glow); c.userData.glow = glow; c.userData.line = line; c.userData.lean = 0; return c; }
+function disposeBike(c) { for (const m of c.userData.mats || []) m.dispose(); }
+// NFT characters: the server only attaches look.nft for a signed-in wallet that holds that NFT (re-checked on the ledger)
+const NFTOF = id => net?.roster.get(id)?.look?.nft || null;
+function riderNft(p, c) { const n = NFTOF(p.id), cur = c.userData.nc;
+  if (n && (!cur || cur.userData.nftId !== n.id)) { if (cur) disposeNftChar(cur); try { const g = buildNftChar(n, { srv: API, card: true, panel: false }); g.scale.setScalar(0.62); g.position.set(0, 0.25, -0.2); g.userData.legs.forEach(l => l.rotation.x = -1.3); g.userData.arms.forEach(a => a.rotation.x = -1.1); c.add(g); c.userData.nc = g; } catch (e) {} }
+  if (c.children[0] && c.children[0] !== c.userData.nc) c.children[0].visible = !c.userData.nc;   // NFT rider replaces the stock rider block
+  if (c.userData.nc) { c.userData.nc.visible = !!p.alive; const cd = c.userData.nc.userData.card; if (cd) { cd.position.y = c.userData.nc.userData.frame.position.y = 5.2; cd.scale.set(1.5, 1.5, 1); c.userData.nc.userData.frame.scale.set(1.68, 1.68, 1); } } }
+const LOW = (P.get('q') || localStorage.getItem('bc_quality') || 'auto') === 'low' || ((P.get('q') || localStorage.getItem('bc_quality') || 'auto') === 'auto' && mobile && (navigator.hardwareConcurrency || 4) <= 4);
+const FX = createZombieFX(scene, { low: LOW }); FX.attach(cam); fitGun();
+const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S1 = new THREE.Vector3(1, 1, 1), UP = new THREE.Vector3(0, 1, 0);
+function wall(id) { let w = walls.get(id); if (!w) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(1200 * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(1200 * 4), 4));
+  w = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: COL(id), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })); w.frustumCulled = false; scene.add(w); walls.set(id, w); } return w; }
+// pts = [x, z, ageMs]; alpha fades with age (bright head -> transparent tail), top edge brighter than the base
+function drawTrail(id, pts) { const w = wall(id), a = w.geometry.attributes.position.array, c = w.geometry.attributes.color.array, L = net.life || 4000; let n = 0;
+  for (let i = 0; i < pts.length - 1 && n < 1188; i++) { const [x1, z1, t1] = pts[i], [x2, z2, t2] = pts[i + 1], f1 = Math.max(0, 1 - t1 / L), f2 = Math.max(0, 1 - t2 / L), a1 = f1 * f1 * 0.9, a2 = f2 * f2 * 0.9;
+    const ox = z1 === z2 ? 0 : 0.3, oz = z1 === z2 ? 0.3 : 0;   // + glowing top cap so walls stay visible when seen edge-on from behind
+    for (const [x, y, z, al] of [[x1, 0, z1, a1 * .55], [x2, 0, z2, a2 * .55], [x2, 1.6, z2, a2], [x1, 0, z1, a1 * .55], [x2, 1.6, z2, a2], [x1, 1.6, z1, a1],
+      [x1 - ox, 1.6, z1 - oz, a1], [x2 - ox, 1.6, z2 - oz, a2], [x2 + ox, 1.6, z2 + oz, a2], [x1 - ox, 1.6, z1 - oz, a1], [x2 + ox, 1.6, z2 + oz, a2], [x1 + ox, 1.6, z1 + oz, a1]]) { a[n * 3] = x; a[n * 3 + 1] = y; a[n * 3 + 2] = z; c[n * 4] = c[n * 4 + 1] = c[n * 4 + 2] = 1; c[n * 4 + 3] = al; n++; } }
+  w.geometry.setDrawRange(0, n); w.geometry.attributes.position.needsUpdate = true; w.geometry.attributes.color.needsUpdate = true; }
+const tags = new Map();
+function tag(id) { let t = tags.get(id); const ro = net.roster.get(id) || {}, key = (ro.name || '') + ro.color + ro.team; if (t && t.userData.key === key) return t;
+  if (t) { scene.remove(t); t.material.map.dispose(); t.material.dispose(); }
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64; const x = cv.getContext('2d'); x.font = 'bold 34px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.shadowColor = ro.color || '#fff'; x.shadowBlur = 12; x.fillStyle = ro.color || '#fff'; if (ro.team) { x.fillStyle = TEAMC[ro.team - 1]; x.beginPath(); x.arc(128 - x.measureText((id === net.me ? '▶ ' : '') + (ro.name || 'rider')).width / 2 - 8, 32, 10, 0, 7); x.fill(); x.fillStyle = ro.color || '#fff'; } x.fillText((id === net.me ? '▶ ' : '') + (ro.name || 'rider'), 132, 32);
+  t = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false })); t.scale.set(4, 1, 1); t.userData.key = key; scene.add(t); tags.set(id, t); return t; }
+// tiny synthesized SFX (WebAudio, created on first gesture: Safari-safe, no audio files)
+const sfx = SFX; sfx.ctx = sfx.unlock;
+{ const r = document.createElement('label'), rg = document.createElement('input'), mu = document.createElement('input'), ml = document.createElement('label'), v = document.createElement('span');
+  rg.type = 'range'; rg.min = 0; rg.max = 1; rg.step = 0.05; rg.value = sfx.vol; rg.setAttribute('aria-label', 'Sound volume'); mu.type = 'checkbox'; mu.checked = sfx.muted;
+  const show = () => v.textContent = sfx.muted ? 'muted' : Math.round(sfx.vol * 100) + '%'; show();
+  rg.oninput = () => { sfx.unlock(); sfx.setVol(+rg.value); if (+rg.value > 0 && sfx.muted) { sfx.setMuted(false); mu.checked = false; } show(); }; rg.onchange = () => sfx.buy();
+  mu.onchange = () => { sfx.unlock(); sfx.setMuted(mu.checked); show(); };
+  r.append('🔊 Sound ', rg, ' ', v); ml.append(mu, ' Mute all sound'); $('#set').append(r, ml); }
+let groanT = 2; $('#tbar').append($('#gear'), $('#exit'));
+if (!mobile) { const kb = document.createElement('button'); kb.id = 'keysbtn'; kb.textContent = '⌨ Keys'; kb.title = 'Key legend (H)'; kb.style.cssText = 'padding:6px 10px;font-weight:700'; kb.onclick = e => { e.stopPropagation(); toggleKeys(); if (!keyHelp.hidden && document.pointerLockElement) document.exitPointerLock(); }; kb.onmousedown = e => e.stopPropagation(); kb.hidden = true; $('#tbar').prepend(kb); }
+let hammerT = 0, useHold = false;
+let world = null, lastOpen = 1, useQ = false, swQ = false, toastT = 0, draftO = null, pkQ = null;
+function showDraft(o) { draftO = o; let d = document.getElementById('draft'); if (!d) { d = document.createElement('div'); d.id = 'draft'; d.style.cssText = 'position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:6;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:94vw;font-family:system-ui'; document.body.appendChild(d); }
+  if (!o) { d.hidden = true; return; } d.hidden = false; d.innerHTML = '<div style="width:100%;text-align:center;color:#ffd27a;font-weight:700;text-shadow:0 0 8px #f60">Round cleared · pick a boon' + (mobile ? '' : ' · press 1, 2 or 3') + '</div>' + o.map(([k, n, ds, lv], i) => `<button data-pk="${i}" style="pointer-events:auto;min-width:150px;padding:12px 14px;border-radius:12px;border:1px solid #ff7a2a;background:#1a0c06e6;color:#ffe0b0;font:600 14px system-ui;text-align:left">${mobile ? '' : `<kbd style="display:inline-block;min-width:18px;text-align:center;padding:1px 5px;margin-right:4px;border:1px solid #ffb060;border-radius:5px;background:#3a1a06;color:#fff;font:700 12px system-ui">${i + 1}</kbd>`}${n}${lv ? ' ' + 'I'.repeat(lv + 1) : ''}<br><small style="opacity:.8;font-weight:400">${ds}</small></button>`).join('');
+  d.querySelectorAll('[data-pk]').forEach(b => b.ontouchstart = b.onclick = e => { e.preventDefault(); e.stopPropagation(); pkQ = +b.dataset.pk; relock(); });
+  if (!mobile && document.pointerLockElement) { draftUnlock = true; document.exitPointerLock(); } }   // free the cursor so the cards can be clicked too
+let draftUnlock = false; const relock = () => { if (!mobile && mode === 'zombie' && !document.pointerLockElement) r.domElement.requestPointerLock?.()?.catch?.(() => {}); };
+// ---- downed / last stand HUD: your own bleed-out clock + every downed teammate's, visible to the whole squad ----
+function downHud(st, me) { let a = document.getElementById('dnMe'), b = document.getElementById('dnTeam');
+  if (!a) { a = document.createElement('div'); a.id = 'dnMe'; a.style.cssText = 'position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:5;pointer-events:none;text-align:center;font:700 20px system-ui;color:#ffd0b0;text-shadow:0 0 8px #f30;min-width:280px'; document.body.appendChild(a);
+    b = document.createElement('div'); b.id = 'dnTeam'; b.style.cssText = 'position:fixed;left:50%;top:calc(34px + env(safe-area-inset-top));transform:translateX(-50%);z-index:5;pointer-events:none;display:flex;flex-direction:column;gap:4px;align-items:center;font:700 13px system-ui'; document.body.appendChild(b);
+    const vg = document.createElement('div'); vg.id = 'dnVig'; vg.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2;background:radial-gradient(ellipse at center,#0000 55%,#a00a 100%);opacity:0;transition:opacity .3s'; document.body.appendChild(vg); }
+  const vig = document.getElementById('dnVig'), bar = (pct, col) => `<div style="width:240px;height:8px;margin:5px auto 0;border-radius:5px;background:#0008;overflow:hidden;border:1px solid #fff3"><div style="height:100%;width:${Math.max(0, Math.min(100, pct))}%;background:${col}"></div></div>`;
+  if (me && me.alive && me.down && mode === 'zombie') { const solo = !st.players.some(p => p.id !== me.id && p.alive && !p.down), sec = me.bleed || 0;
+    vig.style.opacity = me.down === 2 ? 0.35 : 0.6 + 0.25 * Math.sin(performance.now() / 180);
+    a.hidden = false; a.innerHTML = solo && !sec ? '🔥 DOWNED<br><small style="font-weight:600">Phoenix Revive is bringing you back…</small>'
+      : me.down === 2 ? `❤ BEING REVIVED · ${me.rev || 0}%${bar(me.rev || 0, '#5f5')}<small style="font-weight:600;font-size:12px;opacity:.85">Bleed-out paused at ${sec}s</small>`
+      : `🔥 DOWNED · <span style="color:${sec <= 10 ? '#ff4040' : '#ffd27a'}">${sec}s</span> to live${bar(sec / 30 * 100, sec <= 10 ? '#f33' : '#f90')}<small style="font-weight:600;font-size:12px;opacity:.9">Crawl to a teammate · fire your ${me.lsHot ? 'Forged ' : ''}BURN pistol${mobile ? '' : ' (click / Space)'}</small>`; }
+  else { a.hidden = true; vig.style.opacity = 0; }
+  const downs = mode === 'zombie' ? st.players.filter(p => p.alive && p.down && p.id !== net?.me) : [];
+  b.hidden = !downs.length; if (!downs.length) return; const mx = pred?.x ?? me?.x ?? 0, mz = pred?.z ?? me?.z ?? 0;
+  b.innerHTML = downs.slice(0, 4).map(p => { const nm = String(net.roster.get(p.id)?.name || 'Teammate').replace(/[<>&]/g, '').slice(0, 14), d = Math.hypot(p.x - mx, p.z - mz);
+    const ang = Math.atan2(p.x - mx, p.z - mz) - yaw, arrow = ['⬆', '↖', '⬅', '↙', '⬇', '↘', '➡', '↗'][((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8], sec = p.bleed || 0;
+    return `<div style="padding:4px 10px;border-radius:9px;background:${p.down === 2 ? '#0a3a14d8' : sec <= 10 ? '#5a0808e0' : '#3a1206d8'};border:1px solid ${p.down === 2 ? '#5f5' : '#f63'};color:#fff">${p.down === 2 ? '❤' : '🆘'} ${nm} · ${p.down === 2 ? `reviving ${p.rev || 0}% · paused ${sec}s` : `<b style="color:${sec <= 10 ? '#ff6060' : '#ffd27a'}">${sec}s</b> left`} · ${Math.round(d)}m ${arrow}${p.down !== 2 && d < 8 ? (mobile ? ' · stand close' : ' · stand close to revive') : ''}</div>`; }).join(''); }
+// ---- directional danger: a red chevron at the screen edge points to whatever just hit you; amber pips warn of zombies close behind ----
+const hitArrows = []; let dangerEl = null;
+function arrowEl(col, sz) { const d = document.createElement('div'); d.style.cssText = `position:fixed;left:50%;top:50%;width:0;height:0;border-left:${sz}px solid transparent;border-right:${sz}px solid transparent;border-bottom:${sz * 1.5}px solid ${col};filter:drop-shadow(0 0 6px ${col});pointer-events:none;z-index:7;transition:opacity .2s`; document.body.appendChild(d); return d; }
+function placeArrow(d, ang, R) { const x = -Math.sin(ang) * R, y = -Math.cos(ang) * R; d.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%) rotate(${-ang}rad)`; }
+function hitArrow(x, z) { const d = arrowEl('#ff2a2a', 22); hitArrows.push({ d, x, z, t: 1.1 }); }
+function dangerTick(dt, st, me) { const R = Math.min(innerWidth, innerHeight) * 0.36, mx = pred?.x ?? me?.x ?? 0, mz = pred?.z ?? me?.z ?? 0;
+  for (let i = hitArrows.length - 1; i >= 0; i--) { const h = hitArrows[i]; if ((h.t -= dt) <= 0 || mode !== 'zombie') { h.d.remove(); hitArrows.splice(i, 1); continue; } placeArrow(h.d, Math.atan2(h.x - mx, h.z - mz) - yaw, R); h.d.style.opacity = Math.min(1, h.t * 2); }
+  if (!dangerEl) { dangerEl = [0, 1, 2].map(() => arrowEl('#ffb020', 13)); }
+  const near = mode === 'zombie' && me?.alive ? (st.zombies || []).map(zb => ({ zb, d: Math.hypot(zb.x - mx, zb.z - mz), a: Math.atan2(zb.x - mx, zb.z - mz) - yaw })).filter(o => o.d < 6 && Math.cos(o.a) < 0.55).sort((a, b) => a.d - b.d) : [];
+  dangerEl.forEach((d, i) => { const o = near[i]; d.style.opacity = o ? 0.55 + 0.4 * (1 - o.d / 6) : 0; if (o) placeArrow(d, o.a, R * 0.82); }); }
+function toast(h, ms = 2000) { const t = $('#toast'); t.innerHTML = h; t.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, ms); }
+const inZone = (x, z, open, m = 0.42) => !world || (world.walkable(x + m, z + m, open) && world.walkable(x - m, z + m, open) && world.walkable(x + m, z - m, open) && world.walkable(x - m, z - m, open));   // same body-radius test as the server
+$('#usebtn').ontouchstart = $('#usebtn').onclick = e => { e.preventDefault(); e.stopPropagation(); useQ = true; useHold = true; sfx.ctx(); };
+$('#usebtn').ontouchend = $('#usebtn').ontouchcancel = () => { useHold = false; };
+$('#swapbtn').ontouchstart = $('#swapbtn').onclick = e => { e.preventDefault(); e.stopPropagation(); swQ = true; };
+addEventListener('wheel', () => { if (mode === 'zombie') swQ = true; }, { passive: true });
+let tmsgUntil = 0; function tronMsg(h, ms) { tmsgUntil = performance.now() + ms; const o = $('#over'); o.hidden = false; o.innerHTML = h; }
+const TINT = new THREE.Color(), TC = new THREE.Color();
+function tronCol(id) { const ro = net.roster.get(id) || {}; TINT.copy(COL(id, 'skin')); if (ro.team) { TC.set(TEAMC[ro.team - 1]); TINT.lerp(TC, 0.72); } return TINT; }
+const DIRYAW = [Math.PI / 2, 0, -Math.PI / 2, Math.PI];
+let pred = null, pitch = 0, autoFire = localStorage.bcAuto === '1', lookSens = +(localStorage.bcSens || 1);
+let last = performance.now(), w0, lastHp = 100, overUntil = 0, overInfo = {};
+if (P.get('debug')) Object.assign(window, { __me: () => pred && { x: pred.x, z: pred.z, yaw, map: net?.buf[net.buf.length-1]?.m, layout: net?.map }, __aim: (y, p = 0) => { yaw = y; pitch = p; }, __use: () => useQ = true, __swap: () => swQ = true, __b: () => net?.buf[net.buf.length-1]?.b });   // local test hook
+if (!P.get('ticket') && ['zombie', 'tron'].includes(P.get('mode'))) setTimeout(() => start(P.get('mode')), 400);   // arena gate: straight into free play as a guest
+if (P.get('ticket')) setTimeout(() => start(P.get('game') === 'tron' ? 'tron' : 'zombie', P.get('ticket')), 300);   // resume a paid entry (e.g. back from XAMAN)
+if (P.get('auto')) setTimeout(() => document.querySelector(`[data-m=${P.get('auto')}]`).click(), 300);
+r.setAnimationLoop(() => {
+  const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const st = net?.state(); if (st && mode) {
+    const me = st.players.find(p => p.id === net.me);
+    if (mode === 'tron') {
+      const seen = new Set();
+      for (const p of st.players) { seen.add(p.id); let c = cycles.get(p.id);
+        if (!c) { c = makeBike(); scene.add(c); cycles.set(p.id, c); }
+        c.material.color.copy(tronCol(p.id)); c.children[0].material.color.copy(COL(p.id, 'skin')); w0 = wall(p.id); w0.material.color.copy(c.material.color);
+        const u = c.userData; u.line.color.copy(c.material.color); u.glow.material.color.copy(c.material.color);
+        if (u.r !== undefined && u.r !== p.r) u.lean = ((p.r - u.r + 4) % 4 === 1 ? -1 : 1) * 0.38; u.r = p.r; u.lean *= Math.exp(-dt * 5);   // lean into turns
+        const sh = 0.5 + 0.5 * Math.sin(now / 45 + p.id); c.material.color.multiplyScalar(0.85 + 0.3 * sh); u.glow.material.opacity = 0.42 + 0.12 * sh; u.line.opacity = 0.75 + 0.25 * Math.sin(now / 30 + p.id * 2);   // speed shimmer
+        c.visible = !!p.alive; c.position.set(p.x, 0, p.z); c.rotation.set(0, DIRYAW[p.r], u.lean); riderNft(p, c); drawTrail(p.id, net.trail(p.id, p.x, p.z, p.alive));
+        const tg = tag(p.id); tg.visible = !!p.alive; tg.position.set(p.x, 2.4, p.z); }
+      for (const [id, c] of cycles) if (!seen.has(id)) { if (c.userData.nc) disposeNftChar(c.userData.nc); scene.remove(c); c.children[0]?.material.dispose(); disposeBike(c); cycles.delete(id); scene.remove(walls.get(id)); walls.delete(id); const t = tags.get(id); if (t) { scene.remove(t); tags.delete(id); } }
+      const mc = net.roster.get(net.me)?.color; if (mc) { const e = $('#me'); e.hidden = false; e.style.color = e.style.borderColor = mc; e.style.textShadow = '0 0 8px ' + mc; e.textContent = 'YOU ●'; }
+      if (me && !me.alive) { V.set(me.x * 0.3, 95, me.z * 0.3 + 60); cam.position.lerp(V, 1 - Math.exp(-dt * 2)); cam.lookAt(me.x * 0.3, 0, me.z * 0.3); }   // spectate from above while out
+      else if (me) { const d = DIRYAW[me.r]; V.set(me.x - Math.sin(d) * 12 + Math.cos(d) * 2.5, 7, me.z - Math.cos(d) * 12 - Math.sin(d) * 2.5); cam.position.distanceTo(V) > 30 ? cam.position.copy(V) : cam.position.lerp(V, 1 - Math.exp(-dt * 5)); cam.lookAt(me.x, 0, me.z); }
+      const tl = net.buf[net.buf.length-1]?.tl, myT = net.roster.get(net.me)?.team; if (mc && myT) { const e = $('#me'); e.textContent = 'YOU ● ' + TEAMN[myT - 1]; e.style.borderColor = TEAMC[myT - 1]; }
+      const lob = tl && tl[0] === 'lobby'; $('#rkstart').hidden = !(lob && !tl[1] && tl[3] === net.me);
+      const tp = $('#teampick'); tp.hidden = !(lob && tl[4]); if (!tp.hidden && tp.dataset.n != tl[4] + ':' + myT) { tp.dataset.n = tl[4] + ':' + myT; tp.innerHTML = TEAMN.slice(0, tl[4]).map((t, i) => `<button data-team="${i + 1}" style="border-color:${TEAMC[i]};color:${TEAMC[i]}${myT === i + 1 ? ';background:' + TEAMC[i] + '44' : ''}">${t}</button>`).join('') + '<button data-team="0">Auto</button>';
+        tp.querySelectorAll('[data-team]').forEach(b => b.onclick = ev => { ev.stopPropagation(); net?.ws.send(JSON.stringify({ t: 'team', team: +b.dataset.team })); }); }
+      if (tl) { const cnt = {}; for (const [, ro] of net.roster) if (ro.team) cnt[ro.team] = (cnt[ro.team] || 0) + 1; const tt = tl[4] ? ' · ' + TEAMN.slice(0, tl[4]).map((t, i) => `${t} ${cnt[i + 1] || 0}`).join(' / ') : '';
+        $('#info').textContent = lob ? `${tl[8] ? '🏆 Ranked ' : ''}Light Cycles lobby · ${tl[4] ? tl[4] + ' teams' : 'FFA'}${tl[6] ? ' · best of 3' : ''} · ${st.players.length} rider${st.players.length === 1 ? '' : 's'}${tt} · ${tl[1] ? 'starting in ' + tl[1] + 's' : tl[3] === net.me ? 'press Start when ready' : 'waiting for the creator'}`
+          : `${tl[8] ? '🏆 ' : ''}${tl[4] ? tl[4] + ' teams' : 'FFA'} · round ${tl[7] + 1}${tl[6] ? '/3' : ''} · ${st.players.filter(p => p.alive).length}/${st.players.length} alive${tl[4] ? ' · wins ' + TEAMN.slice(0, tl[4]).map((t, i) => t + ' ' + (tl[9][i + 1] || 0)).join(' ') : ''}`; }
+      else $('#info').textContent = `Light Cycles · ${st.players.filter(p => p.alive).length}/${st.players.length} alive · A/D or tap sides to turn`;
+      if (tmsgUntil && performance.now() > tmsgUntil) { tmsgUntil = 0; $('#over').hidden = true; }
+    } else {
+      yaw += ((keys.KeyQ || keys.ArrowLeft ? 1 : 0) - (keys.KeyE || keys.ArrowRight ? 1 : 0)) * dt * 2.4;
+      let mz = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+      if (joy.id !== null) { mx = joy.x; mz = -joy.y; }
+      // auto-fire (optional): crosshair on a zombie within flame range
+      let auto = false; if (autoFire && me?.alive) for (const z of st.zombies) { const dx = z.x - me.x, dz = z.z - me.z, d = Math.hypot(dx, dz); if (d < 8.5 && d > 0.1 && (dx * Math.sin(yaw) + dz * Math.cos(yaw)) / d > 0.96) { auto = true; break; } }
+      net.input({ yaw, mx, mz, fire: fire || auto, pi: Math.round(pitch * 100) / 100, use: useQ ? 1 : 0, sw: swQ ? 1 : 0, hold: keys.KeyF || useHold ? 1 : 0, ...(pkQ != null ? { pk: pkQ } : {}) }); useQ = swQ = false; pkQ = null;
+      // client-side prediction for my own movement, reconciled to the newest authoritative snapshot
+      const raw = net.buf[net.buf.length-1]?.p.find(p => p[0] === net.me);
+      if (me && raw) { if (!pred || !me.alive) pred = { x: raw[1], z: raw[2] };
+        const s_ = Math.sin(yaw), c_ = Math.cos(yaw); let vx = mz * s_ - mx * c_, vz = mz * c_ + mx * s_; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
+        if (me.alive) { const sp = me.down ? 1.6 : me.perks & 4 ? 8.2 : 6, op = st.map?.[0] ?? 63, nx = pred.x + vx * sp * dt, nz = pred.z + vz * sp * dt; if (inZone(nx, pred.z, op)) pred.x = nx; if (inZone(pred.x, nz, op)) pred.z = nz; }
+        const ex = raw[1] - pred.x, ez = raw[2] - pred.z, e = Math.hypot(ex, ez); if (e > 4) { pred.x = raw[1]; pred.z = raw[2]; } else { const k = Math.min(1, dt * 3); pred.x += ex * k; pred.z += ez * k; }
+        pred.moving = l > 0.1; }
+      const flameCol = net.roster.get(net.me)?.look?.flame ? COL(net.me, 'flame') : null;
+      GRIDH.visible = !world; scene.userData.camQ = cam.quaternion; world?.mini(st, net.me); world?.update(dt, st.map, net.buf[net.buf.length-1]?.b);
+      if (hammerT > 0) { hammerT = Math.max(0, hammerT - dt); FX.gun.rotation.x = Math.sin((0.3 - hammerT) / 0.3 * Math.PI) * 0.9; } else FX.gun.rotation.x = 0;   // hammer swing
+      if (mode === 'zombie' && pred) { if (me?.firing && me.alive && !me.down && (me.w === 0 || me.w === 1 || me.w === 4 || !me.w)) sfx.shot(me.w || 0);
+        if ((groanT -= dt) <= 0) { groanT = 1.6 + Math.random() * 2.6; let best = null, bd = 1e9; for (const z of st.zombies || []) { const d = Math.hypot(z.x - pred.x, z.z - pred.z); if (d < bd && Math.random() < 0.7) { bd = d; best = z; } }
+          if (best) sfx.groan(bd, Math.max(-0.8, Math.min(0.8, Math.sin(Math.atan2(best.x - pred.x, best.z - pred.z) - yaw) * -0.8))); } }
+      FX.update(dt, st, me && me.alive && !me.down && pred ? { x: pred.x, z: pred.z, yaw, firing: !!me.firing, moving: pred.moving, w: me.w } : null, net.me, id => COL(id, 'skin'), flameCol, NFTOF, API);
+      if (me) { const px = pred ? pred.x : me.x, pz = pred ? pred.z : me.z; cam.position.set(px, 1.6 + (pred?.moving ? Math.sin(now / 120) * 0.03 : 0), pz); cam.rotation.set(pitch, yaw + Math.PI, 0, 'YXZ');
+        $('#fuel').firstChild.style.width = me.fuel + '%'; }
+      const rk = net.buf[net.buf.length-1]?.rk; $('#rkstart').hidden = !(rk && rk[0] === 'lobby' && !rk[1]); $('#info').textContent = rk && rk[0] === 'lobby' ? `🏆 Ranked lobby · ${rk[2]} player${rk[2] === 1 ? '' : 's'} here · ${rk[1] ? 'starting in ' + rk[1] + 's' : 'waiting for the creator to start'}` : `${rk ? '🏆 Ranked · ' : ''}Wave ${st.wave} · Zombies ${st.zombies.length} · Score ${st.score} · HP ${me ? me.hp : 0}`;
+      if (me && net.map) { const W_ = net.map.weapons, pk = net.map.perks.filter((k, i) => me.perks & (1 << i));
+        $('#codhud').hidden = false; $('#codhud').innerHTML = `<span style="opacity:.8">📍 ${world?.zoneName(pred?.x ?? me.x, pred?.z ?? me.z) || ''}</span><br><b>${me.pts ?? 0}</b> pts<br>🔥 ${(me.up & 1 ? '⚒️ ' + W_[me.w]?.up : W_[me.w]?.name) || ''}${me.w2 >= 0 ? ` <span style="opacity:.6">· ${me.up & 2 ? W_[me.w2].up : W_[me.w2].name} (${mobile ? 'SWAP' : 'X'})</span>` : ''}<br>${pk.map(k => `<span class=perk style="color:${k.col}" title="${k.name}"></span>`).join('')}${pk.length ? '<span style="opacity:.7;font-size:12px">' + pk.map(k => k.name).join(' · ') + '</span>' : ''}`;
+        const pr = me.alive && !me.down && pred ? world?.prompt(pred, st.map, me.pts, [W_[me.w]?.id, W_[me.w2]?.id], me.perks, me.up) : null;
+        $('#prompt').hidden = !pr; if (pr) $('#prompt').innerHTML = `${pr.hold ? (mobile ? '' : 'Hold F: ') : (mobile ? 'Tap USE' : 'Press F') + ': '}${pr.t}${pr.c ? ` · <b style="color:${me.pts >= pr.c ? '#9f9' : '#f88'}">${pr.c} pts</b>` : ''}`;
+        $('#usebtn').hidden = !(mobile && pr && !pr.no); $('#swapbtn').hidden = !(mobile && me.w2 >= 0 && me.alive); }
+      if (me) { const hurtNow = me.alive && me.hp < lastHp; $('#hurt').style.opacity = hurtNow ? 0.8 : 0; if (hurtNow && lastHp - me.hp >= 3) sfx.hurt(); lastHp = me.hp; }
+      downHud(st, me); dangerTick(dt, st, me);
+      const ov = $('#over'); if (overUntil > now) { ov.hidden = false; ov.innerHTML = overInfo.ranked ? (overInfo.result ? `🏆 MATCH OVER · pot ${overInfo.result.potXrp} XRP<br><small>` + overInfo.result.standings.slice(0, 8).map(r => `${r.rank}. ${r.acct.slice(0, 6)}… ${r.kills} kills${r.prizeXrp ? ' → ' + r.prizeXrp + ' XRP' : ''}${r.review ? ' (review)' : ''}`).join('<br>') + '<br>Payouts are sent automatically · status below</small>' : `💀 YOU'RE OUT · ${overInfo.kills} kills<br><small>Waiting for the match to finish…</small>`) : `💀 GAME OVER<br><small>Wave ${overInfo.wave} · Score ${overInfo.score}<br>New run in ${Math.ceil((overUntil - now) / 1000)}s</small>`; }
+      else if (me && me.alive && me.down) ov.hidden = true;   // downed: compact last-stand panel instead of the full-screen veil, so you can see to shoot
+      else if (me && !me.alive && !rk) { ov.hidden = false; ov.innerHTML = '💀 YOU\'RE DOWN<br><small>Back in at the next wave</small>'; } else ov.hidden = true;
+    }
+  }
+  r.render(scene, cam);
+});
+
+</script><script data-goatcounter="https://shinigsmi.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script></body></html>

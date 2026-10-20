@@ -1,0 +1,28 @@
+// Circuit breakers for every outgoing XRP payment from the treasury (prizes, burns).
+// - reserve: after the payment the wallet keeps base reserve + owner reserve (trust lines / LP / offers) + a margin
+// - per-match ceiling and rolling 24h ceiling for prize payouts
+// Only XRP is ever sent by this server; IMG and LP tokens are never touched.
+const S = require('./store'), E = process.env;
+const G = { MATCH_MAX: +(E.PAYOUT_MAX_MATCH_DROPS || 50e6), DAY_MAX: +(E.PAYOUT_MAX_DAY_DROPS || 150e6), MARGIN: +(E.RESERVE_MARGIN_DROPS || 500000), ADDR_MAX: +(E.PAYOUT_MAX_ADDR_DAY_DROPS || 50e6), BUDGET: +(E.GAME_BUDGET_DROPS || 0) };
+const paused = () => E.PAYOUTS_PAUSED === 'true' || S.load('pause.json', { paused: false }).paused === true;
+const log = (kind, o) => { console.log(`[OUTGOING-TX] ${kind} ${JSON.stringify(o)}`); S.append('outgoing_tx.jsonl', { t: new Date().toISOString(), kind, ...o }); };
+async function spendable(client, acct) {
+  const [ai, ss] = await Promise.all([client.request({ command: 'account_info', account: acct, ledger_index: 'validated' }), client.request({ command: 'server_state' })]);
+  const v = ss.result.state.validated_ledger, base = +v.reserve_base, inc = +v.reserve_inc, d = ai.result.account_data;
+  return +d.Balance - base - inc * (+d.OwnerCount || 0) - G.MARGIN;
+}
+const dayKey = () => new Date().toISOString().slice(0, 10);
+function dayUsed() { const d = S.load('payout_daily.json', {}); return d[dayKey()] || 0; }
+function addrUsed(a) { return (S.load('payout_addr_daily.json', {})[dayKey()] || {})[a] || 0; }
+function bookAddr(a, drops) { const d = S.load('payout_addr_daily.json', {}); const k = dayKey(); d[k] = d[k] || {}; d[k][a] = (d[k][a] || 0) + drops; S.save('payout_addr_daily.json', d); }
+function book(drops) { const T = S.load('payout_total.json', { drops: 0 }); T.drops += drops; S.save('payout_total.json', T); const d = S.load('payout_daily.json', {}); d[dayKey()] = (d[dayKey()] || 0) + drops; S.save('payout_daily.json', d); }
+async function check(client, acct, drops, { prize = false, payees = [] } = {}) {
+  if (paused()) return 'payouts_paused';
+  for (const [a, x] of payees) if (addrUsed(a) + x > G.ADDR_MAX) return 'exceeds_per_address_daily_ceiling:' + a;
+  if (prize && drops > G.MATCH_MAX) return 'exceeds_per_match_ceiling';
+  if (prize && dayUsed() + drops > G.DAY_MAX) return 'exceeds_daily_ceiling';
+  let sp; try { sp = await spendable(client, acct); } catch (e) { return 'reserve_check_failed'; }   // fail closed
+  if (G.BUDGET) sp = Math.min(sp, G.BUDGET - (S.load('payout_total.json', { drops: 0 }).drops)); if (drops > sp) return `would_break_reserve (spendable ${Math.max(0, sp)} drops)`;
+  return null;
+}
+module.exports = { G, paused, log, bookAddr, check, book, dayUsed, spendable, addrUsedPub: addrUsed };

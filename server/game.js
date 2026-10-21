@@ -7,6 +7,10 @@ const DRAFT = { dmg: ['Searing Fuel', '+12% damage', 5, '🔥'], fuel: ['Deep Ta
   pts: ['Bounty Hunter', '+15% kill points', 4, '💰'], regen: ['Second Wind', 'Faster health regen', 3, '🌬️'], range: ['Long Reach', '+8% weapon range', 3, '🎯'], hs: ['Executioner', '+25% headshot damage', 3, '💀'],
   crit: ['Flashpoint', '7% chance a hit flares for 2.5x damage', 3, '✴️'], rof: ['Overpressure', '+8% fire rate · 8% less fuel burn', 3, '⏩'] };
 const bon = (p, k) => (p.bon && p.bon[k]) || 0, maxHp = p => (Z.has(p, 'jug') ? 250 : 100) + 20 * bon(p, 'hp');
+// effective weapon range (m) right now: gun in hand (Forged = +15%) x Long Reach boon (+8% per level); downed = last-stand pistol (17 m, 22 m if any gun is Forged).
+// The server fires with exactly this number and sends it in the snapshot (field 21) so the client's auto-fire reach follows weapon swaps, Forge and boons.
+const LS_RANGE = 17, LS_RANGE_HOT = 22, REACH_PER = 0.08;
+const fireRange = p => p.down ? (p.up && p.up.length ? LS_RANGE_HOT : LS_RANGE) : Z.wpn(p).range * (1 + REACH_PER * bon(p, 'range'));
 function offerDraft(p, ev) { const ks = Object.keys(DRAFT).filter(k => bon(p, k) < DRAFT[k][2]); for (let i = ks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ks[i], ks[j]] = [ks[j], ks[i]]; }
   p.draft = ks.slice(0, 3); if (p.draft.length) ev.push({ e: 'draft', id: p.id, o: p.draft.map(k => [k, DRAFT[k][0], DRAFT[k][1], bon(p, k), DRAFT[k][3]]) }); else p.draft = null; }
 function takeDraft(p, i, ev) { const k = p.draft?.[i]; if (!k) return; p.bon ||= {}; p.bon[k] = bon(p, k) + 1; p.draft = null; if (k === 'hp') p.hp += 20; ev.push({ e: 'drafted', id: p.id, k, n: DRAFT[k][0], lv: p.bon[k], ic: DRAFT[k][3] }); }
@@ -143,7 +147,7 @@ class Room {
     // Last stand: downed players crawl and fire a BURN pistol (hotter if they own any Forged gun)
     const lastStand = (p, dt) => { const s = Math.sin(p.yaw), c = Math.cos(p.yaw), CR = 1.6; let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
       const nx = clamp(p.x + vx * CR * dt, -W, W), nz = clamp(p.z + vz * CR * dt, -W, W); if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
-      const hot = !!(p.up && p.up.length), dmg = hot ? 85 : 42, range = hot ? 22 : 17, cd = hot ? 0.28 : 0.42, splash = hot ? 1.3 : 0; p.cd = Math.max(0, (p.cd || 0) - dt);
+      const hot = !!(p.up && p.up.length), dmg = hot ? 85 : 42, range = hot ? LS_RANGE_HOT : LS_RANGE, cd = hot ? 0.28 : 0.42, splash = hot ? 1.3 : 0; p.cd = Math.max(0, (p.cd || 0) - dt);
       if (!(p.in.fire && p.cd <= 0)) return; p.cd = cd; p.firing = true; let hit = null, hd = reachH(p, range);
       for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && vAim(p, zb, along) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) { hd = along; hit = zb; hit._lat = lat; hit._hv = hsV(p, zb, along); } }
       let ex = p.x + s * hd, ez = p.z + c * hd; if (!hit) { let d2 = missD(p, reachH(p, range)); while (d2 > 1 && !Z.los(this, p.x, p.z, p.x + s * d2, p.z + c * d2, p.y)) d2 -= 0.7; ex = p.x + s * d2; ez = p.z + c * d2; }
@@ -171,7 +175,7 @@ class Room {
       let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
       const nx = clamp(p.x + vx * SP * dt, -W, W), nz = clamp(p.z + vz * SP * dt, -W, W);   // stay inside unlocked zones (doors = barriers)
       if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
-      const w0 = Z.wpn(p), ro = bon(p, 'rof'), w = bon(p, 'range') || bon(p, 'fuel') || ro ? { ...w0, range: w0.range * (1 + 0.08 * bon(p, 'range')), regen: w0.regen * (1 + 0.25 * bon(p, 'fuel')), use: w0.use * (1 - 0.08 * ro), cd: w0.cd && w0.cd * (1 - 0.08 * ro) } : w0, quick = Z.has(p, 'quick'); p.cd = Math.max(0, p.cd - dt);
+      const w0 = Z.wpn(p), ro = bon(p, 'rof'), w = bon(p, 'range') || bon(p, 'fuel') || ro ? { ...w0, range: fireRange(p), regen: w0.regen * (1 + 0.25 * bon(p, 'fuel')), use: w0.use * (1 - 0.08 * ro), cd: w0.cd && w0.cd * (1 - 0.08 * ro) } : w0, quick = Z.has(p, 'quick'); p.cd = Math.max(0, p.cd - dt);
       if (w.kind === 'cone' || w.kind === 'beam') {
         p.firing = p.in.fire && p.fuel > 0; p.fuel = clamp(p.fuel + (p.firing ? -w.use : w.regen * (quick ? 2 : 1)) * dt, 0, 100);
         if (p.firing) for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, d = Math.hypot(dx, dz), along = dx * s + dz * c;
@@ -246,7 +250,7 @@ class Room {
   snapshot() {
     const P = [...this.players.values()].map(p => this.mode === 'tron'
       ? [p.id, q(p.x), q(p.z), p.dir, p.alive ? 1 : 0]
-      : [p.id, q(p.x), q(p.z), Math.round(p.yaw * 100) / 100, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.fuel), p.firing ? 1 : 0, p.pts | 0, Z.WI[p.guns[p.slot]] ?? 0, p.perks, p.down ? (p.revT > 0 || p.selfRev ? 2 : 1) : 0, p.guns[1 - p.slot] ? Z.WI[p.guns[1 - p.slot]] : -1, p.inv > 0 && !p.aboard ? 1 : 0, Z.upBits(p), p.down && p.bleed > 0 ? Math.ceil(p.bleed) : 0, p.down && p.revT > 0 && p.revNeed ? Math.round(p.revT / p.revNeed * 100) : 0, p.down && p.up && p.up.length ? 1 : 0, q(p.y || 0), this.quest?.it?.by === p.id ? this.quest.it.kind : 0, Math.round((p.pitch || 0) * 100) / 100]);
+      : [p.id, q(p.x), q(p.z), Math.round(p.yaw * 100) / 100, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.fuel), p.firing ? 1 : 0, p.pts | 0, Z.WI[p.guns[p.slot]] ?? 0, p.perks, p.down ? (p.revT > 0 || p.selfRev ? 2 : 1) : 0, p.guns[1 - p.slot] ? Z.WI[p.guns[1 - p.slot]] : -1, p.inv > 0 && !p.aboard ? 1 : 0, Z.upBits(p), p.down && p.bleed > 0 ? Math.ceil(p.bleed) : 0, p.down && p.revT > 0 && p.revNeed ? Math.round(p.revT / p.revNeed * 100) : 0, p.down && p.up && p.up.length ? 1 : 0, q(p.y || 0), this.quest?.it?.by === p.id ? this.quest.it.kind : 0, Math.round((p.pitch || 0) * 100) / 100, q(fireRange(p))]);
     const s = { t: 's', ts: ms(this.t), p: P };
     if (this.ranked) s.rk = [this.ranked.state, this.ranked.countdown === null ? 0 : Math.ceil(this.ranked.countdown), this.players.size, this.ranked.id];
     if (this.tl) { const k = this.tl, cr = k.ranked ? [...this.players.values()].find(p => p.acct === k.creatorAcct)?.id : k.creatorId;
@@ -278,4 +282,4 @@ function hit(ax, az, bx, bz, p, r) {      // segment intersection with small wal
   for (let k = 1; k <= 4; k++) { const x = ax + (bx - ax) * k / 4, z = az + (bz - az) * k / 4; if (x >= minx && x <= maxx && z >= minz && z <= maxz) return true; }
   return false;
 }
-module.exports = { Room, W, LIFE, PALETTE, TEAM_COLORS, TEAM_NAMES };
+module.exports = { fireRange, Room, W, LIFE, PALETTE, TEAM_COLORS, TEAM_NAMES };

@@ -41,6 +41,39 @@ ok(Math.abs(1 - Z.RUNNER / 1.7 - 0.176) < 0.02, `runners ${((1 - Z.RUNNER / 1.7)
   ok(!fire(cat[0], cat[1], 1, Math.PI / 2, 0, flo[0], flo[1], 0), 'Gantry: level shot from the catwalk passes over it');
   ok(fire(flo[0], flo[1], 0, -Math.PI / 2, Math.atan((UH + 1 - 1.6) / d), cat[0], cat[1], 1), 'Gantry: pitched-up shot from the floor hits a zombie on the catwalk');
   ok(!fire(flo[0], flo[1], 0, -Math.PI / 2, 0, cat[0], cat[1], 1), 'Gantry: level shot from the floor misses the catwalk'); delete process.env.ZOMBIE_CLASSIC; }
+{ process.env.ZOMBIE_CLASSIC = '1'; const Heli = require('../server/heli');
+  const H = n => { const r = mk(n); r.open = 0x1ff; r.wave = 3; r.toSpawn = 0; r.waveDelay = 1e9; r.zombies.clear(); const ps = [...r.players.values()]; for (const p of ps) { p.in = { mx: 0, mz: 0, fire: false, turn: 0 }; p.inv = 0; } return [r, ps]; };
+  const run = (r, s, dt = 0.05) => { const out = []; for (let t = 0; t < s; t += dt) { r.events = []; r.step(dt); out.push(...r.events); } return out; };
+  const onPad = (r, p) => Object.assign(p, { x: r.heli.x, z: r.heli.z, lv: 1, y: Z.UH });
+  const live = n => { const [rr, ps] = H(n); Z.bind(rr); Heli.start(rr, []); rr.toSpawn = 0; rr.heli.st = 2; rr.heli.t = 60; return [rr, ps]; };
+  { const [r, [p]] = H(1); const q = r.quest; ok(q && q.bea, 'heli: classic quest has the ch.4 pad beacon');
+    q.st = 6; q.brk = -1; r.wave = 3; r.events = []; r.step(0.05); ok(q.st === 7 && q.it && q.it.kind === 4, 'heli: after the flare stack, the next break calls ch.4 (beacon battery)');
+    q.st = 9; q.it = { kind: 5, x: q.bea.x, z: q.bea.z, lv: 1, by: p.id }; Object.assign(p, { x: q.bea.x, z: q.bea.z, lv: 1, y: Z.UH }); p.in.use = true; r.events = []; r.step(0.05);
+    ok(q.st === 10 && r.heli && r.heli.st === 1 && r.toSpawn > 0, 'heli: lighting the flare at the beacon calls the helicopter (+ surge)');
+    const ev = run(r, 20.2); ok(r.heli.st === 2 && ev.some(e => e.e === 'heli' && e.s === 2), 'heli: lands and opens boarding after ~20 s'); }
+  { const [r] = H(1); r.ranked = { state: 'live', results: new Map() }; Heli.start(r, []); ok(!r.heli, 'heli: never in ranked'); }
+  { const [r, [p, o]] = live(2); onPad(r, p); Object.assign(o, { x: r.heli.x + 12, z: r.heli.z, lv: 1, y: Z.UH }); run(r, 0.1);
+    ok(p.aboard && r.heli.b.has(p.id) && !o.aboard, 'heli: standing on the pad boards you'); const hp = p.hp;
+    r.zombies.set(900, { id: 900, ty: 0, x: p.x + 0.5, z: p.z, lv: 1, y: Z.UH, hp: 1e6, maxhp: 1e6, sp: 3, win: null, ph: 1 }); o.inv = 99; run(r, 2);
+    ok(p.hp === hp && p.alive, 'heli: boarded players are protected'); }
+  { const [r, [a, b, c]] = live(3); onPad(r, a); run(r, 0.1); a.in.vote = true; run(r, 0.1); ok(r.heli.st === 2, 'heli: 1 vote of 3 active does not depart');
+    const [r2, [a2, b2, c2]] = live(3); b2.away = true; c2.spectator = true; Object.assign(b2, { x: 0, z: 0 }); Object.assign(c2, { x: 0, z: 0 }); onPad(r2, a2); run(r2, 0.1);
+    ok(r2.heli.st === 3, 'heli: away + spectating players are not counted (sole active player aboard -> departs)');
+    const [r3, [d, e, f]] = live(3); Object.assign(f, { away: true }); onPad(r3, d); Object.assign(e, { x: 0, z: 0, lv: 0, y: 0 }); run(r3, 0.1); ok(r3.heli.st === 2, 'heli: 1 of 2 active aboard, no vote yet: still boarding');
+    d.in.vote = true; run(r3, 0.1); ok(r3.heli.st === 2, 'heli: 1 vote of 2 active is not a majority'); }
+  { const [r, [p, o]] = live(2); Object.assign(o, { x: 0, z: 0, lv: 0, y: 0 }); onPad(r, p); run(r, 0.1); p.in.vote = true; o.in.vote = true; run(r, 0.1);
+    ok(r.heli.st === 2 && !o.aboard, 'heli: votes from players not aboard do nothing'); r.heli.t = 0.01; run(r, 0.1); ok(r.heli.st === 3 && r.heli.why === 'time', 'heli: timer runs out -> departs'); }
+  { const [r, [p, o]] = live(2); Object.assign(o, { x: 0, z: 0, lv: 0, y: 0, inv: 99, hp: 1e9 }); const z = { id: 901, ty: 0, x: 0, z: 0, lv: 1, y: Z.UH, hp: 1e6, maxhp: 1e6, sp: 0, win: null, ph: 1 }; onPad(r, p); run(r, 0.1);   // o stays off the pad so it doesn't auto-depart
+    p.in.use = true; run(r, 0.05); ok(p.mg === 0 && r.heli.g[0] === p.id, 'heli: USE while aboard mans a minigun');
+    const [sx, sz] = [p.x, p.z]; z.x = sx; z.z = sz - 8; for (const k of ["x", "z"]) { const v = z[k]; Object.defineProperty(z, k, { get: () => v, set() {} }); } r.zombies.set(901, z); p.yaw = Math.PI; p.pitch = -Math.atan((p.y + 1.6 - (Z.UH + 1)) / 8);
+    p.in.fire = false; run(r, 0.5); ok(z.hp === 1e6, 'heli: no fire, no minigun damage');
+    p.in.fire = true; const ev = run(r, 1.5); ok(z.hp < 1e6 - 30 * 10 && ev.some(e => e.e === 'shot' && e.w === 'minigun'), `heli: minigun hits resolved server-side (${Math.round(1e6 - z.hp)} dmg, tracers sent)`);
+    const z2 = { ...z, id: 902, hp: 1e6, x: sx + 10, z: sz }; r.zombies.set(902, z2); run(r, 1); ok(z2.hp === 1e6, 'heli: minigun only hits along the aim'); }
+  { const [r, [p, o]] = live(2); onPad(r, p); Object.assign(o, { x: 0, z: 0, lv: 0, y: 0, inv: 0 }); run(r, 0.1); r.heli.t = 0.01; process.env.ZOMBIE_TEST_GOD = '';
+    o.hp = 1e9; const ev = run(r, 18); const rx = ev.find(e => e.e === 'hres' && e.id === p.id), rl = ev.find(e => e.e === 'hres' && e.id === o.id);
+    ok(rx && rx.r === 'x' && rl && rl.r === 'l' && ev.some(e => e.e === 'hleft' && e.id === o.id) && ev.some(e => e.e === 'gameover' && e.heli === 1) && r.over > 0, 'heli: extracted vs left-behind results, brutal surge, then match end');
+    ok((r.heli.swarmN || 0) >= 14, `heli: fast aggressive variants spawned (${r.heli.swarmN})`); }
+  delete process.env.ZOMBIE_CLASSIC; }
 { const r = mk(1); for (let i = 0; i < 20; i++) r.zombies.set(700 + i, { id: 700 + i, ty: 0, x: 0, z: 0, hp: 1, sp: 0, win: null, ph: 0 });
   const p = { name: 'late', ws: { send() {}, readyState: 1 } }; r.add(p); ok(p.alive && p.inv >= 2, 'drop-in mid match: spawned with grace'); }
 { Ranked.lobbies.MX = { id: 'MX', game: 'zombie', state: 'started', paid: ['rA'], buyin: 1e6 }; Ranked.tickets.T1 = { account: 'rA', match: 'MX', used: Date.now(), drops: 1e6, exp: Date.now() + 1e6 }; Ranked.tickets.T2 = { account: 'rB', match: 'MX', used: false, drops: 1e6, exp: Date.now() + 1e6, hash: 'H' };

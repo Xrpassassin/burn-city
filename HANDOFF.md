@@ -117,7 +117,7 @@ GitHub `main` is the single source of truth, and **deploys are automatic: merge 
 
 _Auto-deploy verified 2026-10-19._
 
-## AEGIS City Watch (branch feat/aegis, not merged)
+## AEGIS City Watch (merged; superseded in part by the Pyramid HQ below)
 - Client: `client/js/aegis.js` (lazy-loaded by app.js; `?noaegis` / `?aegis=0` or Settings → "Live AEGIS feed" turns it off).
   Polls `https://api.xrpl.fun/v1/aegis/city` every 60 s (backoff, paused when hidden), validates everything, never loads the AEGIS sdk.js.
 - Threat level (with hysteresis: 2 polls to escalate, 3 polls + 5 min to calm) drives: Auto weather (rain / storm, ~25 s crossfade, only when
@@ -128,6 +128,34 @@ _Auto-deploy verified 2026-10-19._
 - Ticker lines join the event-banner queue as `type:'aegis'`, always behind gameplay events.
 - Server clip job (`server/aegis-clips.js`): OFF unless `AEGIS_CLIPS=1` and the image has yt-dlp + ffmpeg (`--build-arg AEGIS_TOOLS=1`).
   Needs a bigger machine than the current 256 MB shared-cpu VM. YouTube ToS risk: prefer clips supplied by the AEGIS API.
+
+
+## AEGIS Pyramid HQ (feat/aegis-pyramid, sw bc-v50-aegispyr)
+Supersedes the City Watch notes above where they differ: **AEGIS never changes weather, sky or billboards any more.**
+- **Weather**: purely market mood again (TVL-weighted 24 h change). `app.js` `autoKey()` = `moodWeather`; the AEGIS sky tint (`U.aegisTint/aegisA`)
+  and the AEGIS wchip text are gone; `window.setAegisWeather` is kept as a no-op returning false. The tower-billboard AEGIS alert swap in `app.js`
+  is removed and `aegis.js` no longer calls `__cityLife.setAlert` (the `ad_ALERT` slot in citylife.js stays, unused). #28 owner art stays on billboards.
+- **Landmark** `client/js/aegis-pyramid.js` (lazy import in app.js, `?nopyramid` skips it): glass/metal pyramid at **(84, 214)**, half-base 13 m,
+  height 30 m, on open ground NE of centre between the inner districts and the Wilds trailhead (clear of streets, towers, airport, estate lake, gate).
+  4 draw calls: merged body (plinth + faces + steps), merged additive glow (edges, bands, apex crystal), apex beam, merged standby posters.
+  Top-level scene group + one collider (`r 13.5, h 15`), so the deep-Wilds city-hide (`wilds-gate.js` cityOff/hideNew) hides it and stashes
+  its collider like every other city group; its frame loop returns while `__cityPaused`.
+  Look by level: idle (feed off / unreachable / not read yet) dim teal, faint beam, standby posters · NORMAL cyan, slow breathe ·
+  ELEVATED amber, brighter beam, ~1 Hz pulse · CRITICAL red, strong 1.6 Hz pulse, beam widens. Reduced-motion = no pulse.
+- **Feeds** (`aegis.js`): `mounts()` returns only the pyramid faces (`__aegisPyr.mounts(n)`: 4 desktop, 2 phones, 1 low tier; town-facing faces
+  first), screens lie on the face (tilt) with a bezel. The police-roof / airport / tower-arm screens are gone. Ticker lines + the CRITICAL banner
+  run in a strip on the screens (no longer queued as city banners; Response Ops notices still are). Tap a screen = cam modal; tap the pyramid
+  body / table = AEGIS console. No pyramid (failed / `?nopyramid`) = no screens, nothing else changes.
+- **Ported from ae149c9** (Response Ops WIP): command table (globe, now 2-3 instanced pin draws instead of one mesh per cam) placed in front of
+  the town-facing face at (84, 192); anomaly beacons (ELEVATED 1, CRITICAL 3) spawn on a ring 27-45 m round the pyramid (wave-seeded, same on
+  every client); hold-USE stabilise, responder badge (local only), `{t:'ab'}` co-op relay in `city.js` / `server/city.js` (rate-limited,
+  cosmetic); drone searchlights (ELEVATED 3 / CRITICAL 9, phones 2/6) circle the beacons or the apex. `__nearHooks` / `__mmHooks` in app.js.
+- **Test hook** `?debug=1` (or `?aegistest`): `__aegisPyr.force('NORMAL'|'ELEVATED'|'CRITICAL'|'idle'|null)`; it also pins
+  `__aegis.force(lv)` so table/beacons/drones follow; `null` returns to the feed. State: `__aegisPyr.{level,colHex,beamA,glowA,screensLive}`.
+- **Fail safe**: API down / bad payload = pyramid idle with standby posters, no table/beacons/drones, city untouched. Note the live API only sends
+  CORS for the production origin, so on localhost the feed shows `error` (tests route it).
+- Gaps: beacons are ~6 draws each (only at ELEVATED/CRITICAL); phones on the low tier get 1 face screen; pins on the globe are no longer
+  individually tappable (the console lists the cams).
 
 ## UI design system (client/ui.css "Ember Glass")
 - `client/ui.css` is loaded **last** in `index.html` and restyles every overlay, including panels other modules inject. `style.css` keeps structure only.

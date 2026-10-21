@@ -56,7 +56,7 @@ if(!Q.has('noenv'))try{const es=new THREE.Scene(),pm=new THREE.PMREMGenerator(R)
 const C=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,0.3,4000);C.position.set(210,140,260);
 const hemi=new THREE.HemisphereLight(0x4466ff,0x180a22,.55);S.add(hemi);const amb=new THREE.AmbientLight(0x223355,.35);S.add(amb);
 const moonL=new THREE.DirectionalLight(0x9db8ff,.35);moonL.position.set(-300,400,-500);S.add(moonL);
-const U={t:{value:0},day:{value:0},wet:{value:0},flash:{value:0},storm:{value:0},aegisTint:{value:new THREE.Color(1,1,1)},aegisA:{value:0},sunD:{value:new THREE.Vector3(.55,.3,-.78).normalize()}};   // aegisTint/aegisA: subtle sky tint from the AEGIS threat feed (aegis.js); 0 = untouched sky
+const U={t:{value:0},day:{value:0},wet:{value:0},flash:{value:0},storm:{value:0},sunD:{value:new THREE.Vector3(.55,.3,-.78).normalize()}};   // no AEGIS sky tint: the AEGIS feed never touches weather or sky
 const GT=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'#fff');g.addColorStop(.25,'rgba(255,255,255,.65)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})();
 const glowMat=(color,size,opts={})=>new THREE.PointsMaterial({size,map:GT,color,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,sizeAttenuation:true,...opts});
 const NOISE=`float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
@@ -96,7 +96,7 @@ await stage(0.12,'Sky & terrain');
 // ---------- sky, moon, stars, aurora, mountains ----------
 const sky=new THREE.Mesh(new THREE.SphereGeometry(3000,48,24),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:U,defines:TIER==='low'?{LOWQ:''}:{},
 vertexShader:`varying vec3 d;void main(){d=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-fragmentShader:`uniform float t,day,flash,storm,aegisA;uniform vec3 aegisTint,sunD;varying vec3 d;${NOISE}
+fragmentShader:`uniform float t,day,flash,storm;uniform vec3 sunD;varying vec3 d;${NOISE}
 void main(){float y=max(d.y,0.);vec3 night=mix(vec3(.02,.03,.09),vec3(.004,.006,.02),pow(max(0.,y),.5));
 vec2 p=d.xz/(d.y+.25);float neb=fbm(p*1.2+vec2(t*.003,0.));vec3 nebc=mix(vec3(.25,.05,.4),vec3(.02,.2,.45),fbm(p*.7+3.))*smoothstep(.45,.9,neb)*.55*(1.-storm);
 float aur=smoothstep(.02,.3,y)*(1.-smoothstep(.22,.65,y))*smoothstep(-.2,.6,-d.z);float band=sin(d.x*9.+fbm(vec2(d.x*3.,t*.05))*6.+t*.2)*.5+.5;
@@ -117,7 +117,7 @@ c=mix(c,dayc,day);
 float se=smoothstep(-.05,.03,sd.y)*(1.-storm*.9);vec3 sc=mix(vec3(1.,.42,.12),vec3(1.,.95,.82),smoothstep(.15,.6,day));
 c+=sc*(smoothstep(.9993,.9996,sdt)*1.6*(1.-cmk*.6)+pow(sdt,400.)*.45+pow(sdt,30.)*.06)*se*(1.-day*.5);c+=vec3(1.,.48,.22)*pow(1.-y,5.)*gh*.5*(1.-storm);
 float cl=fbm(p*.9+vec2(t*.02,t*.01));c=mix(c,mix(vec3(.04,.045,.06),vec3(.45,.47,.5),day)*(.6+cl*.6),storm*smoothstep(.3,.7,cl+.2));
-c+=vec3(.6,.65,1.)*flash*(.4+cl);c+=vec3(.25,.1,.05)*pow(max(0.,1.-y),8.)*(1.-day);c=mix(c,c*(.55+aegisTint*.9)+aegisTint*pow(max(0.,1.-y),3.)*.05,aegisA);gl_FragColor=vec4(c,1.);}`}));S.add(sky);
+c+=vec3(.6,.65,1.)*flash*(.4+cl);c+=vec3(.25,.1,.05)*pow(max(0.,1.-y),8.)*(1.-day);gl_FragColor=vec4(c,1.);}`}));S.add(sky);
 const moonTexOld=0&&(()=>{const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');const g=x.createRadialGradient(128,128,40,128,128,128);g.addColorStop(0,'rgba(220,230,255,1)');g.addColorStop(.42,'rgba(200,215,255,.95)');g.addColorStop(.47,'rgba(150,170,255,.25)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,256,256);
  x.globalAlpha=.12;x.fillStyle='#4a5a8a';for(let i=0;i<14;i++){x.beginPath();x.arc(90+rnd()*80,90+rnd()*80,4+rnd()*14,0,7);x.fill()}return new THREE.CanvasTexture(c)})();
 // moon: real lunar phase (synodic 29.53 d from the 2000-01-06 new moon), soft crater mottling, separate additive glow
@@ -911,13 +911,7 @@ const moodTok=E.nodes.filter(n=>n.pro24h!=null&&n.name!=='XRP'&&n.name!=='RLUSD'
 E.nodes.filter(n=>!n.minor).forEach(n=>{const out=n.name==='XRP'?new THREE.Vector3(1,0,1).normalize():n.pos.clone().setY(0).normalize();const m=new THREE.Mesh(new THREE.PlaneGeometry(20,10),new THREE.MeshBasicMaterial({map:billTex(n),transparent:true,side:2,depthWrite:false,blending:THREE.AdditiveBlending,opacity:.9}));
  m.position.copy(n.pos).addScaledVector(out,n.w*1.9+3).setY(Math.min(n.h*.5,48));m.lookAt(m.position.clone().add(out));m.userData={kind:'billboard',node:n};S.add(m);pick.push(m);const ph=Math.random()*9;anim.push(t=>m.material.opacity=Math.random()<.01?.3:.82+.12*Math.sin(t*2+ph))});
 
-{const at=(()=>{const c=document.createElement('canvas');c.width=512;c.height=256;const x=c.getContext('2d');x.fillStyle='rgba(30,4,2,.6)';x.fillRect(0,0,512,256);x.strokeStyle='#ff3b2a';x.lineWidth=8;x.strokeRect(6,6,500,244);
- for(let i=-4;i<20;i++){x.fillStyle=i%2?'#ffb000':'#1a0600';x.beginPath();x.moveTo(i*36,232);x.lineTo(i*36+36,232);x.lineTo(i*36+60,250);x.lineTo(i*36+24,250);x.fill()}
- x.fillStyle='#fff';x.shadowColor='#ff3b2a';x.shadowBlur=20;x.font='bold 54px monospace';x.fillText('⚠ AEGIS ALERT',24,82);x.shadowBlur=0;x.font='28px monospace';x.fillStyle='#ffd9b0';x.fillText('CRITICAL THREAT LEVEL',24,136);x.fillText('STAY ALERT · CITY WATCH ON',24,180);
- for(let y=0;y<256;y+=4){x.fillStyle='rgba(0,0,0,.18)';x.fillRect(0,y,512,1)}return new THREE.CanvasTexture(c)})();
- let on=false,prev=new Map();anim.push(()=>{const crit=(window.__aegisThreat||0)>=2;const bills=pick.filter(m=>m.userData.kind==='billboard');
-  if(crit){if(!on){on=true;bills.forEach(m=>prev.set(m,m.material.map))}bills.forEach(m=>{if(m.material.map!==at)m.material.map=at})}
-  else if(on){on=false;bills.forEach(m=>{if(m.material.map===at)m.material.map=prev.get(m)||m.userData.orig||m.material.map});prev.clear()}})}
+// (AEGIS alert faces no longer take over the tower billboards: AEGIS lives on its Pyramid HQ, js/aegis-pyramid.js)
 
 // ---------- searchlights, steam vents, drones, freighter airship ----------
 const search=[];const SL=[['XRP',0x9fd8ff],['BURN',0xffa060],['IMM',0x8fc8ff],['BCHAMP',0xffd59a],['666',0xd08cff]].slice(0,TIER==='low'?2:5);
@@ -979,14 +973,12 @@ $('mood').innerHTML=`<b>Market mood</b> <span style="color:${MOOD>=0?'#3dff8a':'
 const W0={rays:0,rainbow:0,coins:0};
 const W={clear:{fog:.0022,rain:0,wet:0,storm:0,banks:0,...W0},fog:{fog:.0046,rain:0,wet:.25,storm:0,banks:1,...W0},rain:{fog:.0042,rain:1,wet:1,storm:.35,banks:.4,...W0},storm:{fog:.005,rain:1.6,wet:1,storm:1,banks:.6,...W0}};
 Object.assign(W,{crash:{...W.storm,fog:.0056,rain:1.9},red:{...W.rain},flat:{...W.fog,fog:.0032,banks:.55,wet:.1},green:{...W.clear,rays:1},vgreen:{...W.clear,rays:.7,rainbow:1},gold:{...W.clear,rays:.8,rainbow:1,coins:1}});
-let wMode='auto',wTarget=W[moodWeather],aegisW=null,wRate=.5;
-// AEGIS threat weather (aegis.js): only in Auto, and only when it is more severe than the market weather
-const SEV={clear:0,green:0,vgreen:0,gold:0,flat:1,fog:1,red:2,rain:2,crash:3,storm:3};
-const autoKey=()=>aegisW&&SEV[aegisW]>SEV[moodWeather]?aegisW:moodWeather;
+let wMode='auto',wTarget=W[moodWeather],wRate=.5;
+const autoKey=()=>moodWeather;   // Auto weather follows the market only (the AEGIS feed drives Response Ops in aegis.js, never the weather)
 const setW=()=>{wRate=.5;wMode=$('weather').value;if(wMode==='auto')wTarget=W[autoKey()];else if(wMode!=='cycle')wTarget=W[wMode]};
-function wchip(){const el=$('wchip');if(!el)return;if(wMode==='auto'&&autoKey()===aegisW&&aegisW){el.textContent=`🛰 AEGIS ${window.__aegisLevel||'alert'} · ${aegisW}`;el.title='Weather set by the live AEGIS threat feed (more severe than market weather). Tap for weather settings.';return}const k=wMode==='auto'?moodWeather:null;el.textContent=k?`${WTIERS[k][0]} Market ${moodNow>=0?'+':''}${moodNow.toFixed(1)}% · ${WTIERS[k][1].split(' · ')[1]}`:`🌤 Weather: ${wMode} (manual)`;el.title=k?`${Math.round(greenNow*100)}% of city tokens green in 24h. Tap for weather settings.`:'Manual weather override. Tap for settings.'}
+function wchip(){const el=$('wchip');if(!el)return;const k=wMode==='auto'?moodWeather:null;el.textContent=k?`${WTIERS[k][0]} Market ${moodNow>=0?'+':''}${moodNow.toFixed(1)}% · ${WTIERS[k][1].split(' · ')[1]}`:`🌤 Weather: ${wMode} (manual)`;el.title=k?`${Math.round(greenNow*100)}% of city tokens green in 24h. Tap for weather settings.`:'Manual weather override. Tap for settings.'}
 window.setMarketMood=(m,g)=>{if(m==null||!isFinite(m))return;moodNow=+m;if(g!=null&&isFinite(g))greenNow=+g;const k=tierFor(moodNow,greenNow);if(k!==moodWeather){moodWeather=k}if(wMode==='auto')wTarget=W[autoKey()];wchip()};
-window.setAegisWeather=k=>{const nk=(k==='rain'||k==='storm')?k:null;if(nk===aegisW){wchip();return wMode==='auto'}aegisW=nk;if(wMode==='auto'){wRate=.12;wTarget=W[autoKey()]}wchip();return wMode==='auto'};window.__weatherMode=()=>wMode;
+window.setAegisWeather=()=>false;window.__weatherMode=()=>wMode;   // setAegisWeather: kept as a no-op (AEGIS never changes the weather)
 if(Q.get('weather'))$('weather').value=Q.get('weather');setW();$('weather').onchange=()=>{setW();wchip()};wchip();$('wchip').onclick=()=>{$('hud').classList.add('open');$('weather').focus()};let wCur={...(Q.get('weather')?wTarget:W.clear)};
 const rain=(()=>{const n=LV.rain,pos=new Float32Array(n*6),tail=new Float32Array(n*2);for(let i=0;i<n;i++){const x=(Math.random()-.5)*260,y=Math.random()*140,z=(Math.random()-.5)*260;pos.set([x,y,z,x,y,z],i*6);tail[i*2+1]=1}
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('tail',new THREE.BufferAttribute(tail,1));
@@ -1298,6 +1290,7 @@ function nearestInteract(){let best=null,bd=10;const p=P.pos;
  bridges.forEach(b=>{if(!b.group.visible)return;const d=Math.hypot(b.term.position.x-p.x,b.term.position.z-p.z);if(d<4&&d<bd+3){bd=d-3;best={label:`Pool terminal ${b.p.a}⇄${b.p.b}`,u:{pool:b.p}}}
   for(let k=0;k<=20;k++){b.curve.getPoint(k/20,_v);const dd=_v.distanceTo(p);if(dd<b.r+3&&dd<bd){bd=dd;best={label:`Bridge ${b.p.a}⇄${b.p.b}`,u:{pool:b.p}}}}});
  for(const f of window.__interactors||[]){const r=f(p);if(r&&r.d<bd){bd=r.d;best=r}}   // other modules (The Wilds) offer things to USE
+ for(const f of window.__nearHooks||[]){const ex=f(p,bd);if(ex){best=ex;break}}   // optional modules (aegis.js) offer a closer thing to USE: {label,act}
  return best}
 function interact(){if(window.__burnTowerOpen){window.__towerInteract&&window.__towerInteract();return}const n=P.near||nearestInteract();if(!n)return;if(n.act){n.act();return}if(n.tower==='burn'&&window.__openBurnTowerInterior){window.__openBurnTowerInterior();return}showInfo(n.u)}   // BURN Tower entrance -> js/tower-interior.js overlay (only once that module has loaded)
 let DRONE=null;function updFly(dt){if(!DRONE)DRONE=initDrone(window.__city,{keys,tb,MOBILE});const sp=(keys.ShiftLeft?140:60)*DRONE.speedMul()*dt,dir=dirOf(),rt=new THREE.Vector3(-dir.z,0,dir.x).normalize();const f=(keys.KeyW?1:0)-(keys.KeyS?1:0)-joy.y,s=(keys.KeyD?1:0)-(keys.KeyA?1:0)+joy.x;
@@ -1330,7 +1323,7 @@ $('tour').onclick=()=>{if(tlOn())return;tourBuild();setMode('orbit');orbit.enabl
 const ray=new THREE.Raycaster(),mv2=new THREE.Vector2();
 const hit=e=>{mv2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mv2,C);return ray.intersectObjects(pick.filter(o=>o.parent.visible!==false),false)[0]};
 R.domElement.addEventListener('pointermove',e=>{if((mode!=='orbit'&&mode!=='explore')||e.pointerType==='touch'||RLOOK||document.pointerLockElement)return;const h=hit(e),tip=$('tip');if(h){const u=h.object.userData;tip.style.display='block';tip.style.left=e.clientX+14+'px';tip.style.top=e.clientY+14+'px';
- tip.textContent=u.kind==='aegis'?(u.cam?`AEGIS City Watch · ${u.cam.name} · tap for the live feed`:'AEGIS City Watch'):u.kind==='tackle'?'Tackle & Bait · tap to open':u.kind==='estate'?'Burn City Estates · Coming soon':u.kind==='arena'?`Arena gate · ${u.label} · tap to play (free)`:(u.kind==='ad'||u.ad)?`Sponsored · $${u.ad.ticker}`:u.lot?`Launchpad · ${u.lot.ticker} · ${u.lot.bond_pct!=null?u.lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${u.pool.locked_pct}% locked${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
+ tip.textContent=u.kind==='aegis'?(u.cam?`AEGIS City Watch · ${u.cam.name} · tap for the live feed`:u.label||'AEGIS City Watch'):u.kind==='tackle'?'Tackle & Bait · tap to open':u.kind==='estate'?'Burn City Estates · Coming soon':u.kind==='arena'?`Arena gate · ${u.label} · tap to play (free)`:(u.kind==='ad'||u.ad)?`Sponsored · $${u.ad.ticker}`:u.lot?`Launchpad · ${u.lot.ticker} · ${u.lot.bond_pct!=null?u.lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${u.pool.locked_pct}% locked${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
 let downXY=null;R.domElement.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY]);
 R.domElement.addEventListener('pointerup',e=>{if(e.button===2||window.__burnTowerOpen)return;if((mode!=='orbit'&&!(e.pointerType==='touch'&&(mode==='explore'||mode==='fly'))&&!(mode==='explore'&&e.pointerType==='mouse'&&!MOBILE))||!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>6)return;{const si=pickShip(e.clientX,e.clientY,e.pointerType==='touch');if(si>=0){showTrade(si);return}}const h=hit(e);tapRing(e,!!h);if(h&&h.object.userData.kind==='arena'){location.href='arena/?mode='+h.object.userData.arena;return}if(h)showInfo(h.object.userData);else{$('info').style.display='none';if(e.pointerType==='touch'&&mode==='explore'&&(window.__missT=(window.__missT||0)+1)<=3)tipToast('Tap a tower, ship, sign or shop to inspect it')}});
 const _p=new THREE.Vector3();
@@ -1354,6 +1347,7 @@ function updMinimap(){const X=mmExtras(),cw=mm.canvas.width,sc=cw/2/(X?X.R:375);
  bridges.forEach(b=>{if(!b.group.visible)return;const A=N[b.p.a].pos,B=N[b.p.b].pos;mm.strokeStyle=b.actCol?'#'+b.actCol.getHexString():'#3cf3ff';mm.globalAlpha=.45+.5*b.L;mm.lineWidth=.5+b.share*3;mm.beginPath();mm.moveTo(A.x*sc,A.z*sc);mm.lineTo(B.x*sc,B.z*sc);mm.stroke()});mm.globalAlpha=1;
  E.nodes.forEach(n=>{mm.fillStyle='#'+n.col.getHexString();mm.beginPath();mm.arc(n.pos.x*sc,n.pos.z*sc,n.minor?1.6:2.5+n.w*.22,0,7);mm.fill()});
  peers.forEach(g=>{mm.fillStyle='#ff66c4';mm.fillRect(g.position.x*sc-2,g.position.z*sc-2,4,4)});if(window.__peers&&window.__peers.size){mm.save();mm.shadowColor='#ff66c4';mm.shadowBlur=6;window.__peers.forEach(p=>{const g=p.g.position;mm.fillStyle=p.k?'#ffb020':p.b?'#4ad8ff':'#ff66c4';mm.beginPath();mm.arc(Math.max(-cw/2+4,Math.min(cw/2-4,g.x*sc)),Math.max(-cw/2+4,Math.min(cw/2-4,g.z*sc)),3,0,7);mm.fill()});mm.restore()}
+ for(const f of window.__mmHooks||[])try{f(mm,sc,cw)}catch(e){}   // optional modules draw markers (aegis.js beacons)
  const p=mode==='explore'?P.pos:C.position,d=C.getWorldDirection(_p),yaw=mode==='explore'?avatar.rotation.y:Math.atan2(-d.x,-d.z);
  mm.translate(Math.max(-cw/2+8,Math.min(cw/2-8,p.x*sc)),Math.max(-cw/2+8,Math.min(cw/2-8,p.z*sc)));mm.rotate(-yaw);mm.fillStyle='#fff';mm.shadowColor='#7ee0ff';mm.shadowBlur=6;mm.beginPath();mm.moveTo(0,-7);mm.lineTo(4.5,5);mm.lineTo(-4.5,5);mm.fill();mm.restore()}
 
@@ -1481,7 +1475,8 @@ if(DEMO){const kinds=DEMO==='1'?null:DEMO==='all'?['burn','trade','lock']:DEMO==
  if(kinds){window.__startDemo=()=>{let d=+(Q.get('demoDelay')||600);kinds.forEach(k=>{setTimeout(()=>pushEvent(demoEvent(k)),d);d+=k==='trade'?300:k==='burn'?+(Q.get('bigDelay')||5000):600})}}
  else{const loop=()=>{const r=Math.random();pushEvent(demoEvent(r<.5?'trade':r<.8?'burn':'lock'));setTimeout(loop,+(Q.get('demoMs')||4000)*(.6+Math.random()*.8))};setTimeout(loop,1500)}}
 let feed=null;
-// AEGIS live feed (screens, threat weather, ticker): optional module, loaded on its own so any failure leaves the city untouched
+// AEGIS live feed (screens, command table, response ops, ticker): optional module, loaded on its own so any failure leaves the city untouched
+if(!Q.has('nopyramid'))import('./aegis-pyramid.js').catch(e=>console.warn('aegis pyramid',e));   // AEGIS Pyramid HQ landmark (idle without the feed)
 if(!Q.has('noaegis')&&!Q.has('shot'))import('./aegis.js').catch(e=>console.warn('aegis',e));
 // The Wilds (forest north of town): js/wilds-gate.js draws only the trailhead gate and lazy-loads the forest (js/wilds.js) when you walk in; ?nowilds turns it off
 if(!Q.has('nowilds'))import('./wilds-gate.js').catch(e=>console.warn('wilds',e));

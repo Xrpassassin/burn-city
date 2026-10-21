@@ -25,6 +25,22 @@ ok(Math.abs(1 - Z.RUNNER / 1.7 - 0.176) < 0.02, `runners ${((1 - Z.RUNNER / 1.7)
   ok(Z.WEAPONS.find(w => w.id === 'napalm').name === 'Firestorm' && shot && shot.ray, 'Firestorm (id napalm, owners migrate) fires a ray');
   ok(hm && hm.k === 1 && hm.id === p.id, 'server hit marker, kill flag on kill');
   ok(!r.zombies.has(600) || r.zombies.get(600).hp <= 0, 'ray hit first zombie'); ok(r.zombies.get(601)?.hp < 500, 'small splash hit neighbour'); }
+// 3D aim: pitch is clamped server-side; aiming straight at the floor misses a zombie 2 m ahead, level aim still hits it.
+{ const r0 = mk(1), p0 = [...r0.players.values()][0]; r0.input(p0, { mx: 0, mz: 0, yaw: 0, pi: 9 }); ok(Math.abs((p0.pitch ?? 0) - 1.4) < 1e-9, 'aim pitch clamped to 1.4 rad (got ' + p0.pitch + ')');
+  const shoot = pi => { let r, p, z; for (let tries = 0; tries < 12; tries++) { r = mk(1); p = [...r.players.values()][0]; r.wave = 1; r.toSpawn = 0; r.waveDelay = 99; r.zombies.clear(); p.guns = ['napalm']; p.slot = 0; p.fuel = 100; p.cd = 0; p.pitch = pi;
+      const s = Math.sin(p.yaw), c = Math.cos(p.yaw); if (!Z.los(r, p.x, p.z, p.x + s * 2.5, p.z + c * 2.5, p.y)) continue; z = { id: 900, ty: 0, x: p.x + s * 2, z: p.z + c * 2, hp: 1e6, maxhp: 1e6, sp: 0, win: null, ph: 0 }; r.zombies.set(900, z);
+      p.in = { mx: 0, mz: 0, fire: true, turn: 0 }; r.events = []; r.step(0.05); return { hit: z.hp < 1e6, shot: r.events.find(e => e.e === 'shot') }; } return null; };
+  const lv = shoot(0), dn = shoot(-1.4); ok(lv && lv.hit, 'level aim hits zombie 2 m ahead'); ok(dn && !dn.hit && dn.shot && dn.shot.ty < -1, 'aiming at the floor misses it, tracer ends low (ty ' + dn?.shot?.ty + ')'); }
+// Gantry atrium: shoot down from the catwalk and up from the floor through the open centre (pitched aim required, level aim misses).
+{ process.env.ZOMBIE_CLASSIC = '1'; const cx = c => (c - Z.GW / 2 + 0.5) * Z.CELL, cz = r => (r - Z.GH / 2 + 0.5) * Z.CELL, UH = 3.6;
+  const fire = (px, pz, plv, yaw, pi, zx, zz, zlv) => { const r = mk(1), p = [...r.players.values()][0]; r.wave = 1; r.toSpawn = 0; r.waveDelay = 99; r.zombies.clear(); r.open = 0xff;
+    Object.assign(p, { x: px, z: pz, lv: plv, y: plv * UH, yaw, pitch: pi, guns: ['napalm'], slot: 0, fuel: 100, cd: 0, inv: 0 }); const z = { id: 950, ty: 0, x: zx, z: zz, lv: zlv, y: zlv * UH, hp: 1e6, maxhp: 1e6, sp: 0, win: null, ph: 0 }; r.zombies.set(950, z);
+    p.in = { mx: 0, mz: 0, fire: true, turn: 0 }; r.events = []; r.step(0.05); return z.hp < 1e6; };
+  const cat = [cx(26), cz(25)], flo = [cx(31), cz(25)], d = flo[0] - cat[0];
+  ok(fire(cat[0], cat[1], 1, Math.PI / 2, -Math.atan((UH + 1.6 - 1) / d), flo[0], flo[1], 0), 'Gantry: pitched-down shot from the catwalk hits a zombie on the atrium floor');
+  ok(!fire(cat[0], cat[1], 1, Math.PI / 2, 0, flo[0], flo[1], 0), 'Gantry: level shot from the catwalk passes over it');
+  ok(fire(flo[0], flo[1], 0, -Math.PI / 2, Math.atan((UH + 1 - 1.6) / d), cat[0], cat[1], 1), 'Gantry: pitched-up shot from the floor hits a zombie on the catwalk');
+  ok(!fire(flo[0], flo[1], 0, -Math.PI / 2, 0, cat[0], cat[1], 1), 'Gantry: level shot from the floor misses the catwalk'); delete process.env.ZOMBIE_CLASSIC; }
 { const r = mk(1); for (let i = 0; i < 20; i++) r.zombies.set(700 + i, { id: 700 + i, ty: 0, x: 0, z: 0, hp: 1, sp: 0, win: null, ph: 0 });
   const p = { name: 'late', ws: { send() {}, readyState: 1 } }; r.add(p); ok(p.alive && p.inv >= 2, 'drop-in mid match: spawned with grace'); }
 { Ranked.lobbies.MX = { id: 'MX', game: 'zombie', state: 'started', paid: ['rA'], buyin: 1e6 }; Ranked.tickets.T1 = { account: 'rA', match: 'MX', used: Date.now(), drops: 1e6, exp: Date.now() + 1e6 }; Ranked.tickets.T2 = { account: 'rB', match: 'MX', used: false, drops: 1e6, exp: Date.now() + 1e6, hash: 'H' };

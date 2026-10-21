@@ -10,6 +10,15 @@ function offerDraft(p, ev) { const ks = Object.keys(DRAFT).filter(k => bon(p, k)
   p.draft = ks.slice(0, 3); if (p.draft.length) ev.push({ e: 'draft', id: p.id, o: p.draft.map(k => [k, DRAFT[k][0], DRAFT[k][1], bon(p, k), DRAFT[k][3]]) }); else p.draft = null; }
 function takeDraft(p, i, ev) { const k = p.draft?.[i]; if (!k) return; p.bon ||= {}; p.bon[k] = bon(p, k) + 1; p.draft = null; if (k === 'hp') p.hp += 20; ev.push({ e: 'drafted', id: p.id, k, n: DRAFT[k][0], lv: p.bon[k], ic: DRAFT[k][3] }); }
 const HPM = [1, 0.5, 3, 7, 0.6, 0.35], SPM = [1, 1, 0.6, 0.55, 1.75, 1.55], ZPTS = [60, 80, 130, 350, 110, 90], ZHIT = [12, 12, 22, 30, 12, 8];
+// 3D aim (pitch): eye height, max pitch (~80°) and a vertical hit test. The aim line from the eye, pitched, must pass within a zombie's
+// height band at its horizontal distance (forgiving band grows a little with distance, so flat aim still hits crawlers like before).
+const EYE = 1.6, PMAX = 1.4, zTop = zb => (zb.cr || zb.ty === 4 || zb.ty === 5) ? 0.9 : zb.ty === 3 ? 2.3 : 1.9;
+const aimY = (p, along) => (p.y || 0) + EYE + Math.tan(p.pitch || 0) * along;
+function vAim(p, zb, along, extra = 0) { const ay = aimY(p, along), b = zb.y || 0, tol = 0.6 + 0.08 * along + extra; return ay >= b - tol && ay <= b + zTop(zb) + tol; }
+const hsV = (p, zb, along) => aimY(p, along) > (zb.y || 0) + zTop(zb) * 0.55;
+// horizontal reach of a pitched shot, and where a miss ends (own floor when aiming down)
+const reachH = (p, r) => r * Math.cos(p.pitch || 0), missD = (p, r) => (p.pitch || 0) < -0.05 ? Math.min(r, EYE / Math.tan(-p.pitch)) : r;
+const endY = (p, d) => Math.max((p.y || 0) - 6, Math.min((p.y || 0) + 12, (p.y || 0) + Math.tan(p.pitch || 0) * d));
 const W = 120;                      // world half-size (city streets span -W..W)
 const q = v => Math.round(v * 10) / 10;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -51,7 +60,7 @@ class Room {
     else {
       p.in.mx = clamp(+m.mx || 0, -1, 1); p.in.mz = clamp(+m.mz || 0, -1, 1);
       if (Number.isFinite(+m.yaw)) p.yaw = +m.yaw % (Math.PI * 2);
-      p.in.fire = !!m.fire; if (m.use) p.in.use = true; if (m.hold !== undefined) p.in.hold = !!m.hold; if (m.sw && p.guns?.length > 1) p.slot = p.slot ? 0 : 1; if (m.pk === 0 || m.pk === 1 || m.pk === 2) p.in.pk = m.pk; if (Number.isFinite(+m.pi)) p.pitch = clamp(+m.pi, -0.4, 0.4);
+      p.in.fire = !!m.fire; if (m.use) p.in.use = true; if (m.hold !== undefined) p.in.hold = !!m.hold; if (m.sw && p.guns?.length > 1) p.slot = p.slot ? 0 : 1; if (m.pk === 0 || m.pk === 1 || m.pk === 2) p.in.pk = m.pk; if (Number.isFinite(+m.pi)) p.pitch = clamp(+m.pi, -PMAX, PMAX);
     }
   }
   step(dt) { this.t += dt; if (this.rng) { const R0 = Math.random; Math.random = this.rng; try { this.zomb(dt); } finally { Math.random = R0; } return; } this.mode === 'tron' ? this.tron(dt) : this.zomb(dt); }
@@ -134,11 +143,11 @@ class Room {
     const lastStand = (p, dt) => { const s = Math.sin(p.yaw), c = Math.cos(p.yaw), CR = 1.6; let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
       const nx = clamp(p.x + vx * CR * dt, -W, W), nz = clamp(p.z + vz * CR * dt, -W, W); if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
       const hot = !!(p.up && p.up.length), dmg = hot ? 85 : 42, range = hot ? 22 : 17, cd = hot ? 0.28 : 0.42, splash = hot ? 1.3 : 0; p.cd = Math.max(0, (p.cd || 0) - dt);
-      if (!(p.in.fire && p.cd <= 0)) return; p.cd = cd; p.firing = true; let hit = null, hd = range;
-      for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) { hd = along; hit = zb; hit._lat = lat; } }
-      let ex = p.x + s * hd, ez = p.z + c * hd; if (!hit) { let d2 = range; while (d2 > 1 && !Z.los(this, p.x, p.z, p.x + s * d2, p.z + c * d2, p.y)) d2 -= 0.7; ex = p.x + s * d2; ez = p.z + c * d2; }
-      if (hit) for (const zb of this.zombies.values()) { if (zb === hit) hurt(zb, dmg, p, hit._lat < HS_LAT ? 2 : 0); else if (splash && Math.hypot(zb.x - ex, zb.z - ez) < splash) hurt(zb, dmg * 0.4, p); }
-      ev.push({ e: 'shot', id: p.id, w: 'napalm', x: q(p.x), z: q(p.z), tx: q(ex), tz: q(ez), ty: hit ? q(hit.y || 0) : q(p.y || 0), ray: 1, ls: hot ? 2 : 1 }); };
+      if (!(p.in.fire && p.cd <= 0)) return; p.cd = cd; p.firing = true; let hit = null, hd = reachH(p, range);
+      for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && vAim(p, zb, along) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) { hd = along; hit = zb; hit._lat = lat; hit._hv = hsV(p, zb, along); } }
+      let ex = p.x + s * hd, ez = p.z + c * hd; if (!hit) { let d2 = missD(p, reachH(p, range)); while (d2 > 1 && !Z.los(this, p.x, p.z, p.x + s * d2, p.z + c * d2, p.y)) d2 -= 0.7; ex = p.x + s * d2; ez = p.z + c * d2; }
+      if (hit) for (const zb of this.zombies.values()) { if (zb === hit) hurt(zb, dmg, p, hit._lat < HS_LAT && hit._hv ? 2 : 0); else if (splash && Math.hypot(zb.x - ex, zb.z - ez) < splash) hurt(zb, dmg * 0.4, p); }
+      ev.push({ e: 'shot', id: p.id, w: 'napalm', x: q(p.x), z: q(p.z), tx: q(ex), tz: q(ez), ty: hit ? q(hit.y || 0) : q(endY(p, Math.hypot(ex - p.x, ez - p.z))), ray: 1, ls: hot ? 2 : 1 }); };
     if ((this.flowT = (this.flowT || 0) - dt) <= 0) { this.flowT = 0.25; Z.flow(this, up); }   // refresh the zombie flow field 4x/s
     for (const p of ps) if (p.alive) {
       if (p.down) {   // downed: bleed out unless revived (teammate stands close) or Phoenix self-revive (solo)
@@ -165,16 +174,16 @@ class Room {
         p.firing = p.in.fire && p.fuel > 0; p.fuel = clamp(p.fuel + (p.firing ? -w.use : w.regen * (quick ? 2 : 1)) * dt, 0, 100);
         if (p.firing) for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, d = Math.hypot(dx, dz), along = dx * s + dz * c;
           if (d >= w.range || d <= 0 || along <= 0) continue;
-          if ((w.kind === 'beam' ? Math.abs(dx * c - dz * s) < w.width : along / d > w.cos) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) hurt(zb, w.dps * dt * (w.kind === 'beam' ? 1 : 1 - d / w.range * 0.5), p, w.kind === 'beam' && Math.abs(dx * c - dz * s) < HS_LAT ? 1.5 : 0); }
+          if ((w.kind === 'beam' ? Math.abs(dx * c - dz * s) < w.width : along / d > w.cos) && vAim(p, zb, along, w.kind === 'beam' ? w.width : along * Math.sqrt(Math.max(0, 1 - w.cos * w.cos)) / Math.max(0.2, w.cos)) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) hurt(zb, w.dps * dt * (w.kind === 'beam' ? 1 : 1 - d / w.range * 0.5), p, w.kind === 'beam' && Math.abs(dx * c - dz * s) < HS_LAT ? 1.5 : 0); }
       } else {
         p.fuel = clamp(p.fuel + w.regen * (quick ? 2 : 1) * dt, 0, 100); p.firing = false;
         if (p.in.fire && p.cd <= 0 && p.fuel >= w.use) { p.fuel -= w.use; p.cd = w.cd * (quick ? 0.6 : 1); p.firing = true;
-          if (w.kind === 'burst') { for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, d = Math.hypot(dx, dz); if (d < w.range && d > 0 && (dx * s + dz * c) / d > w.cos && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) hurt(zb, w.dmg * (1 - d / w.range * 0.6), p, Math.abs(dx * c - dz * s) < HS_LAT ? 1.5 : 0); }
-            ev.push({ e: 'shot', id: p.id, w: w.id, x: q(p.x), z: q(p.z), y: Math.round(p.yaw * 100) / 100 }); }
-          else if (w.kind === 'ray') { let hit = null, hd = w.range; for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) { hd = along; hit = zb; hit._lat = lat; } }
-            let ex = p.x + s * hd, ez = p.z + c * hd; if (!hit) { let d2 = w.range; while (d2 > 1 && !Z.los(this, p.x, p.z, p.x + s * d2, p.z + c * d2, p.y)) d2 -= 0.7; ex = p.x + s * d2; ez = p.z + c * d2; }
-            if (hit) { for (const zb of this.zombies.values()) { const d = Math.hypot(zb.x - ex, zb.z - ez); if (zb === hit) hurt(zb, w.dmg, p, hit._lat < HS_LAT ? 2 : 0); else if (d < w.splash && Math.abs((zb.y || 0) - (hit.y || 0)) < 1.5) hurt(zb, w.dmg * 0.4, p); } }
-            ev.push({ e: 'shot', id: p.id, w: w.id, x: q(p.x), z: q(p.z), tx: q(ex), tz: q(ez), ty: hit ? q(hit.y || 0) : q(p.y || 0), ray: 1 }); }
+          if (w.kind === 'burst') { for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, d = Math.hypot(dx, dz); if (d < w.range && d > 0 && (dx * s + dz * c) / d > w.cos && vAim(p, zb, dx * s + dz * c, (dx * s + dz * c) * Math.sqrt(Math.max(0, 1 - w.cos * w.cos)) / Math.max(0.2, w.cos)) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) hurt(zb, w.dmg * (1 - d / w.range * 0.6), p, Math.abs(dx * c - dz * s) < HS_LAT ? 1.5 : 0); }
+            ev.push({ e: 'shot', id: p.id, w: w.id, x: q(p.x), z: q(p.z), y: Math.round(p.yaw * 100) / 100, pi: Math.round((p.pitch || 0) * 100) / 100 }); }
+          else if (w.kind === 'ray') { let hit = null, hd = reachH(p, w.range); for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && vAim(p, zb, along) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) { hd = along; hit = zb; hit._lat = lat; hit._hv = hsV(p, zb, along); } }
+            let ex = p.x + s * hd, ez = p.z + c * hd; if (!hit) { let d2 = missD(p, reachH(p, w.range)); while (d2 > 1 && !Z.los(this, p.x, p.z, p.x + s * d2, p.z + c * d2, p.y)) d2 -= 0.7; ex = p.x + s * d2; ez = p.z + c * d2; }
+            if (hit) { for (const zb of this.zombies.values()) { const d = Math.hypot(zb.x - ex, zb.z - ez); if (zb === hit) hurt(zb, w.dmg, p, hit._lat < HS_LAT && hit._hv ? 2 : 0); else if (d < w.splash && Math.abs((zb.y || 0) - (hit.y || 0)) < 1.5) hurt(zb, w.dmg * 0.4, p); } }
+            ev.push({ e: 'shot', id: p.id, w: w.id, x: q(p.x), z: q(p.z), tx: q(ex), tz: q(ez), ty: hit ? q(hit.y || 0) : q(endY(p, Math.hypot(ex - p.x, ez - p.z))), ray: 1 }); }
           else { let dist = clamp(14 + (p.pitch || 0) * 30, 5, 24); while (dist > 1 && !Z.los(this, p.x, p.z, p.x + s * dist, p.z + c * dist, p.y)) dist -= 0.7; const tx = p.x + s * dist, tz = p.z + c * dist;   // napalm lands short of walls this.proj.push({ x: tx, z: tz, t: 0.6, by: p.id, w });
             ev.push({ e: 'shot', id: p.id, w: w.id, x: q(p.x), z: q(p.z), tx: q(tx), tz: q(tz) }); } }
       }
@@ -235,7 +244,7 @@ class Room {
   snapshot() {
     const P = [...this.players.values()].map(p => this.mode === 'tron'
       ? [p.id, q(p.x), q(p.z), p.dir, p.alive ? 1 : 0]
-      : [p.id, q(p.x), q(p.z), Math.round(p.yaw * 100) / 100, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.fuel), p.firing ? 1 : 0, p.pts | 0, Z.WI[p.guns[p.slot]] ?? 0, p.perks, p.down ? (p.revT > 0 || p.selfRev ? 2 : 1) : 0, p.guns[1 - p.slot] ? Z.WI[p.guns[1 - p.slot]] : -1, p.inv > 0 ? 1 : 0, Z.upBits(p), p.down && p.bleed > 0 ? Math.ceil(p.bleed) : 0, p.down && p.revT > 0 && p.revNeed ? Math.round(p.revT / p.revNeed * 100) : 0, p.down && p.up && p.up.length ? 1 : 0, q(p.y || 0), this.quest?.it?.by === p.id ? this.quest.it.kind : 0]);
+      : [p.id, q(p.x), q(p.z), Math.round(p.yaw * 100) / 100, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.fuel), p.firing ? 1 : 0, p.pts | 0, Z.WI[p.guns[p.slot]] ?? 0, p.perks, p.down ? (p.revT > 0 || p.selfRev ? 2 : 1) : 0, p.guns[1 - p.slot] ? Z.WI[p.guns[1 - p.slot]] : -1, p.inv > 0 ? 1 : 0, Z.upBits(p), p.down && p.bleed > 0 ? Math.ceil(p.bleed) : 0, p.down && p.revT > 0 && p.revNeed ? Math.round(p.revT / p.revNeed * 100) : 0, p.down && p.up && p.up.length ? 1 : 0, q(p.y || 0), this.quest?.it?.by === p.id ? this.quest.it.kind : 0, Math.round((p.pitch || 0) * 100) / 100]);
     const s = { t: 's', ts: ms(this.t), p: P };
     if (this.ranked) s.rk = [this.ranked.state, this.ranked.countdown === null ? 0 : Math.ceil(this.ranked.countdown), this.players.size, this.ranked.id];
     if (this.tl) { const k = this.tl, cr = k.ranked ? [...this.players.values()].find(p => p.acct === k.creatorAcct)?.id : k.creatorId;

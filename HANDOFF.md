@@ -144,6 +144,19 @@ _Auto-deploy verified 2026-10-19._
   It only moves existing elements; ids and handlers stay intact. Closed HUD `<details>` sections render no boxes (`display:none`) so audits and hit tests stay honest.
 - Bump `VERSION` in `client/sw.js` (`bc-v<N+1>-<slug>`, one above main) on every client change.
 
+## City pause menu: Explore option (feat/pause-explore)
+- `client/js/app.js`, block "view menu" (`#vMenu`, opened by Esc on desktop or the ✕ Exit button on touch while in Explore / Fly; Esc also during a Tour):
+  buttons are 1 Orbit · 2 Fly · 3 Tour · 🚶 Explore · 4 Resume. Explore goes through the same `go(v)` → `setMode('explore')` path as the toolbar's
+  Explore button (avatar spawn / drop under the drone from Fly, touch joystick + JUMP/RUN/USE on phones, menu closes). Desktop Explore keeps its
+  normal free cursor (right-drag look), so no pointer lock there, same as the toolbar entry. Choosing Explore while already exploring = Resume
+  (no `setMode`, which would reset jetpack/web and pitch). No hotkey (1-4 unchanged). Styling comes from the existing `#vMenu button` rules in `ui.css`
+  (48px rows, ≥44 touch), plus one `ui.css` rule: short landscape phones (`max-height:500px`) lay the card out in two columns (title + Resume span both) so
+  five rows never fill the screen. The menu has no current-mode highlight, so none was added.
+- Test hook: `?debug=1` or `?exploretest` → `window.__vMenu` = {show, go, on}. Used to open the menu from Orbit / on a phone Tour, where there is no
+  Esc / ✕ Exit entry point (Orbit's own way into Explore is the toolbar).
+- Playwright flow used: desktop 1280x800 + iPhone 14 390x844 portrait / 844x390 landscape (emulated insets), open pause from Explore, Fly, Tour and
+  Orbit, tap Explore, then WASD / CDP touch drag on `#joy`. SwiftShader runs ~2 fps, so movement is checked as "position changed", not distance.
+
 ## The Wilds — Cinderwilds forest M1 (lazy-loaded)
 - **Files**: `client/js/wilds-gate.js` (always loaded, small: trailhead gate + signs, the PvP/PvE warning, loading veil, lazy-load/unload,
   every city hook), `client/js/wilds.js` (the forest: world build, creatures AI, encounters, Mara Venn + quests, journal, HUD),

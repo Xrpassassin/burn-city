@@ -2,19 +2,24 @@
 // points the squad at the next part (valve wheel -> igniter fuse -> key card). Carry each one to the flare console; finishing the chain
 // lights the flare stack and pays out. Server-authoritative per match: one shared state per room, so it works the same solo or in co-op.
 const Z = require('./cod');
-const ITEMS = [null, { k: 'valve', n: 'Valve Wheel', ic: '🔧' }, { k: 'fuse', n: 'Igniter Fuse', ic: '⚡' }, { k: 'card', n: "Foreman's Key Card", ic: '💳' }];
+const ITEMS = [null, { k: 'valve', n: 'Valve Wheel', ic: '🔧' }, { k: 'fuse', n: 'Igniter Fuse', ic: '⚡' }, { k: 'card', n: "Foreman's Key Card", ic: '💳' },
+  { k: 'battery', n: 'Beacon Battery', ic: '🔋' }, { k: 'flare', n: 'Signal Flare', ic: '🧨' }];   // ch. 4 (helicopter finale): power the pad beacon, then light the flare
 const PICK_R = 1.5, USE_R = 3, LV_TOL = 1.4, REWARD_PTS = 2000;
+// ch. 4: 7 battery out, 8 beacon powered, 9 flare out, 10 flare lit at the beacon -> helicopter inbound (server/heli.js)
 // stage: 0 waiting for the first radio call, 1/3/5 an item is out, 2/4 part fitted (next call at the next round break), 6 done
 const NOTES = [null,
   (z, c) => ({ t: '📻 Ch. 3 · Night Shift', x: `…anyone still breathing out there? This is Varga, night foreman. The flare stack's gone cold, and that's why they keep coming. Somebody dragged the pressure valve wheel off to the ${z}. Get it onto the flare console in the ${c} and we can start the burn.` }),
   (z) => ({ t: '📻 Ch. 3 · Varga', x: `Pressure's holding. Good work. Next is the igniter fuse. The spare blew clean across the plant, last seen in the ${z}. Bring it back to the console. And keep away from the vents.` }),
   (z) => ({ t: '📻 Ch. 3 · Varga (static)', x: `…kzzt… ignition needs a foreman's key card. Mine's on what's left of Dekker, in the ${z}. Something big has been sitting on him. Grab it and run it to the console. Don't stop.` }),
+  (z, c) => ({ t: '📻 Ch. 4 · Extraction', x: `Varga again. The burn's holding, but this plant is finished. I've got a medevac bird on the line. It needs a beacon on the roof. Open the gate off the Gantry to the ${c}, and bring the beacon battery from the ${z}.` }),
+  (z) => ({ t: '📻 Ch. 4 · Varga', x: `Beacon's live, I see you on the scope. The pilot won't land blind, so light a signal flare at the beacon. The last box of flares is in the ${z}. When that bird touches down, get on it. It won't wait.` }),
 ];
 function zoneName(x, z, lv) { const v = Z.cellAt(x, z, lv); const zn = Z.ZONES[v >= 100 ? -1 : v]; return zn ? zn.n.replace(/^The /, '') : 'refinery'; }
 function init(room) {
   room.quest = null; const d = Z.QDEF; if (!d || room.ranked) return;
   const [c, r, dx, dz, lv = 0] = d.console, x = Z.WX(c) + dx * 0.55, z = Z.WZ(r) + dz * 0.55;
-  room.quest = { st: 0, it: null, con: { x, z, lv, face: Math.atan2(-dx, -dz) }, zones: d.zones, note: null, brk: -1 };
+  const B = d.beacon, bea = B ? { x: Z.WX(B[0]) + B[2] * 0.55, z: Z.WZ(B[1]) + B[3] * 0.55, lv: B[4] || 0, face: Math.atan2(-B[2], -B[3]) } : null;
+  room.quest = { st: d.start || 0, it: null, con: { x, z, lv, face: Math.atan2(-dx, -dz) }, bea, zones: d.zones, note: null, brk: -1 };
 }
 // a random open floor cell inside one of the step's rooms (upper-level rooms use the upper grid; never on a ramp or a door)
 function spotIn(zs) { const UPG = Z.UPG, out = [];
@@ -22,13 +27,14 @@ function spotIn(zs) { const UPG = Z.UPG, out = [];
     for (let r = zn.r[2]; r <= zn.r[3]; r++) for (let c = zn.r[0]; c <= zn.r[1]; c++) { if (G[r][c] !== zi) continue; const x = Z.WX(c), z = Z.WZ(r); if (Z.onRamp(x, z)) continue;
       let open = 0; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if ((G[r + b]?.[c + a] ?? -1) === zi) open++; if (open >= 3) out.push([x, z, lv]); } }
   return out.length ? out[Math.floor(Math.random() * out.length)] : null; }
+const tgt = q => (q.st >= 6 && q.bea ? q.bea : q.con);   // chapters 1-3 fit parts at the flare console, chapter 4 at the helipad beacon
 function call(room, ev) { const q = room.quest, step = (q.st >> 1) + 1, kind = step, zs = q.zones[step - 1] || q.zones[0], sp = spotIn(zs) || spotIn([1]);
   if (!sp) return; q.it = { kind, x: sp[0], z: sp[1], lv: sp[2], by: null }; q.st = step * 2 - 1;
-  const nt = NOTES[step](zoneName(sp[0], sp[1], sp[2]), zoneName(q.con.x, q.con.z, q.con.lv)); q.note = { n: step, ...nt };
+  const tg = tgt(q), nt = NOTES[step](zoneName(sp[0], sp[1], sp[2]), zoneName(tg.x, tg.z, tg.lv)); q.note = { n: step, ...nt };
   ev.push({ e: 'note', n: step, t: nt.t, x: nt.x, it: ITEMS[kind].n, ic: ITEMS[kind].ic }); }
 // called every tick while the wave is between rounds (no zombies left to spawn or alive)
 function onBreak(room, ev) { const q = room.quest; if (!q || q.brk === room.wave || room.wave < 2) return; q.brk = room.wave;
-  if (q.st === 0 || q.st === 2 || q.st === 4) call(room, ev);
+  if (q.st === 0 || q.st === 2 || q.st === 4 || (q.st === 6 && q.bea && NOTES[4])) call(room, ev);
   else if (q.it && q.note) ev.push({ e: 'note', n: q.note.n, t: q.note.t, x: q.note.x, it: ITEMS[q.it.kind].n, ic: ITEMS[q.it.kind].ic, again: 1 }); }   // unfinished step: replay the call as a reminder
 function tick(room, ps, ev) { const q = room.quest; if (!q || !q.it) return; const it = q.it;
   if (it.by != null) { const p = room.players.get(it.by);
@@ -42,9 +48,11 @@ function warden(room, ev) { const wi = Z.windowSpawn(room), w = Z.WINDOWS[wi]; i
   const hp = (60 + room.wave * 15) * (room.mod?.hp || 1) * Z.hpN(n) * 7 * 0.6, sp = 2.4 + Math.min(room.wave * 0.25, 2.5);
   room.zombies.set(room.zid, { id: room.zid++, ty: 3, x: w.ox + (w.ox - w.x) * 2, z: w.oz + (w.oz - w.z) * 2, lv: w.lv || 0, y: (w.lv || 0) * Z.UH, hp, maxhp: hp, sp: sp * 0.55, win: wi, ph: 0, warden: 1 });
   ev.push({ e: 'warden' }); }
-function use(room, p, ev) { const q = room.quest; if (!q || !q.it || q.it.by !== p.id) return false; const c = q.con;
+function use(room, p, ev) { const q = room.quest; if (!q || !q.it || q.it.by !== p.id) return false; const c = tgt(q);
   if (Math.hypot(p.x - c.x, p.z - c.z) > USE_R || Math.abs((p.y || 0) - c.lv * Z.UH) > LV_TOL) return false;
   const k = q.it.kind; q.it = null; q.st = k * 2; ev.push({ e: 'qfit', id: p.id, k, n: ITEMS[k].n });
+  if (k === 4) { call(room, ev); return true; }   // beacon powered: the flare call comes straight away
+  if (k === 5) { q.st = 10; q.note = null; ev.push({ e: 'qflare', x: q1(c.x), z: q1(c.z) }); room.onFlare?.(ev); return true; }   // flare lit: the room starts the extraction
   if (k === 3) { q.st = 6; q.note = null;   // flare stack lit: everyone standing gets points + a free reforge of the gun in hand (or a perk if it's already forged)
     for (const o of room.players.values()) { if (!o.alive || o.spectator) continue; o.pts += REWARD_PTS; const w = o.guns?.[o.slot]; o.up ||= []; let gift = 'pts';
       if (w && !o.up.includes(w)) { o.up.push(w); o.fuel = 100; gift = 'forge'; }
@@ -54,6 +62,6 @@ function use(room, p, ev) { const q = room.quest; if (!q || !q.it || q.it.by !==
   return true; }
 const q1 = v => Math.round(v * 10) / 10;
 // snapshot: [stage, item kind (0 none), item x, item z, item floor, carrier id (0 none), console x, console z, console floor, console facing]
-function snap(room) { const q = room.quest; if (!q) return undefined; const it = q.it, c = q.con;
+function snap(room) { const q = room.quest; if (!q) return undefined; const it = q.it, c = tgt(q);
   return [q.st, it ? it.kind : 0, it ? q1(it.x) : 0, it ? q1(it.z) : 0, it ? it.lv : 0, it && it.by != null ? it.by : 0, q1(c.x), q1(c.z), c.lv, Math.round(c.face * 100) / 100]; }
 module.exports = { init, onBreak, tick, use, snap, ITEMS };

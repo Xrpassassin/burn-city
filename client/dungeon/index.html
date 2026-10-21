@@ -1,43 +1,28 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Eternal Grind · Burn City</title><meta name="theme-color" content="#0a0605">
-<style>
-[hidden]{display:none!important}*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#0a0605;color:#efe3cf;font:15px/1.35 Georgia,'Times New Roman',serif;touch-action:none;user-select:none;-webkit-user-select:none}
-canvas{display:block}button{font:inherit;color:#f3e6cc;background:linear-gradient(#3a2a1c,#21170f);border:1px solid #a07a44;border-radius:8px;padding:9px 14px;cursor:pointer}button:hover{border-color:#e0b46a}button:disabled{opacity:.4}
-.scr{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:#0a0605 center/cover no-repeat;padding:16px}
-.box{background:#140d08ee;border:1px solid #8a6436;border-radius:12px;padding:18px;max-width:760px;width:100%;max-height:94vh;overflow:auto;box-shadow:0 10px 60px #000}
-h1{margin:0 0 4px;font-size:34px;letter-spacing:2px;color:#f0b65a;text-shadow:0 0 18px #ff6a1a77}h2{margin:12px 0 6px;font-size:16px;color:#e0b46a;letter-spacing:1px;text-transform:uppercase}
-.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}.card{border:1px solid #5a4024;border-radius:9px;padding:6px;text-align:center;background:#1d140c;cursor:pointer;font-size:12px}.card.on{border-color:#ffc070;background:#3a2612;box-shadow:0 0 12px #ff9a3a55}.card img{width:100%;height:84px;object-fit:contain}
-input{font:inherit;background:#0e0906;color:#fff;border:1px solid #8a6436;border-radius:8px;padding:9px;width:100%}
-.dim{opacity:.7;font-size:13px}#hud{position:fixed;inset:0;pointer-events:none;z-index:5;display:none}
-.bars{position:absolute;left:14px;bottom:14px;width:220px}.bar{height:12px;border:1px solid #000a;border-radius:3px;background:#0008;margin-top:4px;overflow:hidden}.bar i{display:block;height:100%}
-#tgt{position:absolute;left:50%;top:14px;transform:translateX(-50%);text-align:center;display:none;text-shadow:0 1px 3px #000}#tgt .bar{width:220px;margin:3px auto 0}
-#cross{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff9;box-shadow:0 0 4px #000}
-#info{position:absolute;right:12px;top:150px;text-align:right;text-shadow:0 1px 3px #000;font-size:13px}
-#prompt{position:absolute;left:50%;top:58%;transform:translateX(-50%);background:#000b;border:1px solid #a07a44;border-radius:8px;padding:6px 12px;display:none;pointer-events:auto;cursor:pointer}
-#log{position:absolute;left:14px;top:12px;max-width:52vw;font-size:13px;text-shadow:0 1px 3px #000}#log div{transition:opacity 1s}
-#mm{position:absolute;right:12px;top:12px;width:132px;height:132px;border:1px solid #a07a4488;border-radius:8px;background:#0008}
-#flash{position:fixed;inset:0;pointer-events:none;z-index:6;box-shadow:inset 0 0 140px 50px #c00;opacity:0;transition:opacity .4s}
-#keys{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);font-size:12px;opacity:.65;text-shadow:0 1px 2px #000;white-space:nowrap}
-#touch{display:none;position:fixed;inset:0;z-index:7;pointer-events:none}#joy{position:absolute;left:22px;bottom:96px;width:120px;height:120px;border-radius:50%;border:2px solid #fff3;background:#0003;pointer-events:auto}#knob{position:absolute;left:38px;top:38px;width:44px;height:44px;border-radius:50%;background:#fff4}
-#tb{position:absolute;right:14px;bottom:90px;display:grid;grid-template-columns:repeat(2,64px);gap:10px;pointer-events:auto}#tb button{height:64px;border-radius:50%;padding:0;font-size:13px;font-weight:700;background:#21170fcc}
-#topb{position:absolute;right:154px;top:12px;display:flex;gap:6px;pointer-events:auto}#topb button{padding:6px 10px;font-size:13px;background:#21170fcc}
-#bag .slots{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.it{position:relative;border:2px solid #444;border-radius:8px;background:#100a06;min-height:70px;padding:3px;text-align:center;font-size:11px;cursor:pointer}.it img{width:46px;height:46px;object-fit:contain;display:block;margin:0 auto}
-#tip{position:fixed;z-index:30;background:#100a06f2;border:1px solid #a07a44;border-radius:8px;padding:8px;font-size:13px;display:none;max-width:240px;pointer-events:none}
-@media (max-width:700px){#keys{display:none}.bars{width:160px}#mm{width:96px;height:96px}#topb{right:116px}#info{top:112px}}
-</style>
+<link rel="stylesheet" href="eg.css?v=2">
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.min.js"}}</script></head><body>
-<div id="title" class="scr" style="background-image:linear-gradient(#0008,#000c),url(a/crypt.jpg)"><div class="box" style="max-width:520px;text-align:center"><h1>ETERNAL GRIND</h1><div class="dim">A dark-fantasy dungeon RPG in Burn City</div><div style="margin:18px 0;display:flex;flex-direction:column;gap:10px"><button id="bCont" hidden>▶ Continue</button><button id="bNew">✦ New Character</button><button onclick="location.href='../'">← Back to the city</button></div><div class="dim">Saved on this device. PC: mouse + WASD. Phone: on-screen stick and buttons.</div></div></div>
-<div id="create" class="scr" hidden style="background-image:linear-gradient(#0009,#000d),url(a/ember.jpg)"><div class="box"><h1 style="font-size:24px">Who are you?</h1>
-<h2>Name</h2><input id="cName" maxlength="16" placeholder="Nameless One"><h2>Race</h2><div class="g" id="cRace"></div><div class="dim" id="cRaceD" style="margin-top:6px"></div><h2>Class</h2><div class="g" id="cCls"></div><div class="dim" id="cClsD" style="margin-top:6px"></div>
+<div id="title" class="scr" style="background-image:linear-gradient(#0008,#000c),url(a/crypt.jpg)"><div class="box frame" style="max-width:540px;text-align:center"><h1>ETERNAL GRIND</h1><div class="dim">A dark-fantasy dungeon RPG in Burn City</div>
+<div id="tSave" class="dim" style="margin-top:10px"></div>
+<h2>Run tier</h2><div class="tiers" id="tTiers"></div><div class="dim" id="tTierD" style="margin-top:4px"></div>
+<div style="margin:16px 0;display:flex;flex-direction:column;gap:10px"><button id="bCont" hidden>▶ Continue</button><button id="bNew">✦ New Character</button><button onclick="location.href='../'">← Back to the city</button><div style="display:flex;gap:8px"><button id="bExp" style="flex:1">⬇ Export save</button><button id="bImp" style="flex:1">⬆ Import save</button></div><input type="file" id="fImp" accept=".json,application/json" hidden></div><div class="dim">Saved on this device. PC: mouse + WASD, windows drag by their title bars. Phone: stick, thumb buttons and menus.</div></div></div>
+<div id="create" class="scr" hidden style="background-image:linear-gradient(#0009,#000d),url(a/ember.jpg)"><div class="box frame"><h1 style="font-size:24px">Who are you?</h1>
+<h2>Name</h2><input id="cName" maxlength="16" placeholder="Nameless One"><h2>Race</h2><div class="g" id="cRace"></div><div class="dim" id="cRaceD" style="margin-top:6px"></div>
+<h2>Classes <span class="dim" style="text-transform:none;letter-spacing:0">pick up to 3 · the first is your main style</span></h2><div class="g" id="cCls"></div><div class="dim" id="cClsD" style="margin-top:6px"></div>
 <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button onclick="show('title')">Back</button><button id="cGo">Enter the dungeon →</button></div></div></div>
-<div id="bag" class="scr" hidden style="background:#000a"><div class="box"><div style="display:flex;justify-content:space-between;align-items:center"><h1 style="font-size:22px" id="bTitle"></h1><button onclick="closeBag()">✕ Close (I)</button></div><div id="bStats" class="dim"></div><h2>Equipped</h2><div class="slots" id="bEq"></div><h2>Pack <span class="dim" id="bCount"></span></h2><div class="slots" id="bInv"></div><div class="dim" style="margin-top:8px">Tap/click an item to equip it. Right-click or long-press to scrap it for gold.</div></div></div>
-<div id="dead" class="scr" hidden style="background:#200000cc"><div class="box" style="max-width:420px;text-align:center"><h1 style="color:#ff5a4a">YOU HAVE FALLEN</h1><div id="deadT" class="dim"></div><div style="margin-top:14px"><button id="bRes">Rise again</button></div></div></div>
-<div id="pause" class="scr" hidden style="background:#000b"><div class="box" style="max-width:420px;text-align:center"><h1 style="font-size:24px">Paused</h1><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px"><button id="pRes">Resume</button><button onclick="openBag()">Inventory (I)</button><label class="dim"><input type="checkbox" id="pInv" style="width:auto"> Invert look</label><label class="dim">Look speed <input type="range" id="pSens" min="2" max="20" value="8" style="width:120px"></label><button onclick="save();location.href='../'">Save & return to the city</button></div></div></div>
-<div id="hud"><div id="log"></div><canvas id="mm" width="132" height="132"></canvas><div id="topb"><button id="tMus" title="Music on/off (M)" aria-label="Music on/off">🎵</button><button id="tBag">🎒 Bag</button><button id="tPause">❚❚</button></div><div id="info"></div><div id="tgt"><b id="tgtN"></b><div class="bar"><i id="tgtH" style="background:#c22"></i></div></div><div id="cross"></div><div id="prompt"></div>
-<div class="bars"><div id="lvl" style="text-shadow:0 1px 3px #000"></div><div class="bar"><i id="hpB" style="background:linear-gradient(#e33,#911)"></i></div><div class="bar"><i id="mpB" style="background:linear-gradient(#48f,#226)"></i></div><div class="bar"><i id="stB" style="background:linear-gradient(#4c4,#252)"></i></div><div class="bar" style="height:5px"><i id="xpB" style="background:#e0b46a"></i></div><div id="pots" style="margin-top:4px;font-size:13px;text-shadow:0 1px 3px #000"></div></div>
-<div id="keys">WASD move · mouse look · Left-click attack · Right-click / Q fireball · F heal · E use · 1 / 2 potions · Shift sprint · I bag · M music · Esc pause</div></div>
-<div id="touch"><div id="joy"><div id="knob"></div></div><div id="tb"><button id="mSp">🔥<br>Spell</button><button id="mAt">⚔<br>Attack</button><button id="mHe">✚<br>Heal</button><button id="mUse">USE</button><button id="mP1">❤ Pot</button><button id="mP2">💧 Pot</button></div></div>
-<div id="flash"></div><div id="tip"></div>
+<div id="dead" class="scr" hidden style="background:#200000cc"><div class="box frame" style="max-width:420px;text-align:center"><h1 style="color:#ff5a4a">YOU HAVE FALLEN</h1><div id="deadT" class="dim"></div><div style="margin-top:14px"><button id="bRes">Rise again</button></div></div></div>
+<div id="pause" class="scr" hidden style="background:#000b"><div class="box frame" style="max-width:440px;text-align:center"><h1 style="font-size:24px">Paused</h1><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px"><button id="pRes">Resume</button><button id="pInvB">Inventory (I)</button>
+<div><div class="dim">Run tier (takes effect on the next floor)</div><div class="tiers" id="pTiers" style="margin-top:4px"></div></div>
+<label class="dim"><input type="checkbox" id="pInv" style="width:auto"> Invert look</label><label class="dim">Look speed <input type="range" id="pSens" min="2" max="20" value="8" style="width:120px"></label><button id="pLayout">Reset window layout</button><button onclick="save();location.href='../'">Save & return to the city</button></div></div></div>
+<div id="hud"><div id="cross"></div><div id="prompt"></div><div id="lockhint">Click the world for mouse-look · Esc for the menu</div><div id="dui"></div>
+<div id="mui"><canvas id="mm" width="150" height="150"></canvas>
+ <div id="mport"><div class="pf"><img id="mPort" alt=""></div><span id="mlv"></span><div class="mb"><div id="mName"></div><div class="bar hp"><i id="mhpB"></i></div><div class="bar mp"><i id="mmpB"></i></div><div class="bar en"><i id="mstB"></i></div><div id="buffs"></div><div id="mSitT"></div></div></div>
+ <div id="mtgtw"><div id="mtgt" class="none"><span id="mtgtN"></span><div class="bar tg"><i id="mtgtH"></i></div><span id="mtgtL"></span></div><div id="mcomp"><div class="cstrip"></div><div class="cneedle"></div></div></div>
+ <div id="mmenu"><button data-p="bag">🎒<span>Bag</span></button><button data-p="char">🛡<span>Character</span></button><button data-p="spells">✦<span>Spells</span></button><button data-p="log">📜<span>Journal</span></button><button data-p="map">🗺<span>Map</span></button><button data-p="rest" id="mRest">🧘<span>Rest</span></button></div>
+ <div id="mlog"></div><div id="joy"><div id="knob"></div></div>
+ <div id="mact"><button id="mUse">USE</button><button id="mSp"></button><button id="mAt">⚔</button></div><div id="mq"></div>
+</div></div>
+<div id="mpanel"></div><div id="flash"></div><div id="tip"></div>
 <script>
 // Eternal Grind theme: "The Grind Never Ends" (Derrik Hicks). Starts on entering the dungeon (that click is the user gesture iOS needs),
 // loops softly through a WebAudio gain (iOS ignores <audio>.volume), 🎵 button / M toggles it, remembered in localStorage egMusicMute.
@@ -55,39 +40,46 @@ window.egMusic = (() => { let el = null, g = null, ac = null, muted = localStora
 </script>
 <script type="module">
 import * as THREE from 'three';
-import { ENEMIES, GEAR } from './data.js';
+import { ENEMIES } from './data.js';
+import * as S from './sys.js';
+import { initUI } from './ui.js';
 const $ = id => document.getElementById(id), rnd = Math.random, ri = n => Math.floor(rnd() * n), pick = a => a[ri(a.length)], clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const MOBILE = matchMedia('(pointer:coarse)').matches;
-window.show = id => { for (const s of ['title', 'create', 'bag', 'dead', 'pause']) $(s).hidden = s !== id; };
-// ---------- data: races / classes (from Eternal Grind) ----------
-const RACES = { human: ['Human', 'Balanced and adaptable.', { hp: 1, atk: 1, def: 1, mp: 1 }], ashenborn: ['Ashenborn', 'Fire-touched; strong spells.', { hp: .95, atk: 1, def: .95, mp: 1.25 }], stonefolk: ['Stonefolk', 'Hard as rock; tough defense.', { hp: 1.15, atk: .95, def: 1.25, mp: .85 }], wildkin: ['Wildkin', 'Fast and fierce.', { hp: 1, atk: 1.1, def: .95, mp: .95, spd: 1.12 }], gloomkin: ['Gloomkin', 'Small, sly, deadly crits.', { hp: .9, atk: 1.05, def: .9, mp: 1.1, crit: 8 }], ironhide: ['Ironhide', 'Huge; the most health.', { hp: 1.3, atk: 1.05, def: 1.1, mp: .75, spd: .92 }], skyborn: ['Skyborn', 'Light-footed mystics.', { hp: .92, atk: .98, def: .92, mp: 1.2, spd: 1.08 }], emberkin: ['Emberkin', 'Burning strength.', { hp: 1.05, atk: 1.15, def: .95, mp: 1 }] };
-const CLASSES = { warrior: ['Warrior', 'Heavy melee. Big health, wide swings.', { hp: 130, mp: 40, atk: 14, def: 6, crit: 5, melee: 1, range: 2.8, cd: .55 }, 'iron_longsword'], rogue: ['Rogue', 'Fast strikes, high crit.', { hp: 95, mp: 50, atk: 11, def: 3, crit: 20, melee: 1, range: 2.3, cd: .32 }, 'shadow_dagger'], ranger: ['Ranger', 'Arrows from range.', { hp: 100, mp: 55, atk: 12, def: 3, crit: 12, bow: 1, cd: .6 }, 'hunter_longbow'], mage: ['Mage', 'Arcane bolts; cheap fireballs.', { hp: 85, mp: 110, atk: 13, def: 2, crit: 8, bolt: 1, cd: .5 }, 'arcane_staff'] };
+const MOBILE = matchMedia('(pointer:coarse)').matches || /[?&]mobile=1/.test(location.search);
+if (!MOBILE) $('mui').remove();
+window.show = id => { for (const s of ['title', 'create', 'dead', 'pause']) $(s).hidden = s !== id; };
+const { RACES, CLASSES, RAR, DIFF } = S;
 const THEMES = [['crypt', 'The Bone Crypt', 0x8a8070, 0x3a3028], ['sewer', 'The Drowned Sewers', 0x6f7a5e, 0x2a3020], ['roots', 'The Root Halls', 0x7a6040, 0x302010], ['marsh', 'The Rotting Marsh', 0x5f7050, 0x203018], ['frost', 'The Frozen Deep', 0x9ab0c8, 0x304050], ['ember', 'The Ember Forge', 0xa06040, 0x401008], ['mountain', 'The Mountain Heart', 0x908a80, 0x302a26], ['forest', 'The Buried Grove', 0x6a7a4a, 0x203010], ['garden', 'The Sunken Garden', 0x7a8a6a, 0x2a3424], ['void', 'The Void Below', 0x6a5a90, 0x160c28]];
-const RAR = [['Common', '#bbb', 1], ['Uncommon', '#4c4', 1.25], ['Rare', '#4af', 1.6], ['Epic', '#b5f', 2.1], ['Legendary', '#fa3', 2.8], ['Mythic', '#f44', 3.6]];
-const SLOTS = ['Weapon', 'Helmet', 'Chest', 'Boots', 'Accessory', 'Relic'];
-const pretty = s => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-// ---------- save ----------
+// ---------- save (v2, migrates v1 saves; the untouched v1 save is kept in egSaveV1 once) ----------
 let P = null;
-const save = window.save = () => { if (P) localStorage.egSave = JSON.stringify({ ...P, hp: Math.max(1, P.hp) }); };
-try { if (localStorage.egSave) $('bCont').hidden = false; } catch { }
-// ---------- creation ----------
-let selR = 'human', selC = 'warrior';
-function cards(el, obj, img, cur, on) { el.innerHTML = Object.entries(obj).map(([k, v]) => `<div class="card${k === cur ? ' on' : ''}" data-k="${k}"><img src="a/r/${img(k)}.webp" alt=""><div>${v[0]}</div></div>`).join(''); el.querySelectorAll('.card').forEach(c => c.onclick = () => on(c.dataset.k)); }
-function drawCreate() { cards($('cRace'), RACES, k => k, selR, k => { selR = k; drawCreate(); }); cards($('cCls'), CLASSES, k => k, selC, k => { selC = k; drawCreate(); }); $('cRaceD').textContent = RACES[selR][1]; $('cClsD').textContent = CLASSES[selC][1]; }
+// Before the first overwrite each session the previous raw save is copied to egSaveBak; an unreadable save is parked in egSaveBroken (never overwritten).
+let bakDone = false;
+const keepBak = () => { if (bakDone) return; bakDone = true; try { const cur = localStorage.egSave; if (cur && !localStorage.egSaveBroken) localStorage.egSaveBak = cur; } catch { } };
+const save = window.save = () => { if (!P) return; const o = { ...P, hp: Math.max(1, P.hp) }; delete o.st; delete o.fx; delete o.procs; try { keepBak(); localStorage.egSave = JSON.stringify(o); } catch { } };
+function loadSave() { try { const raw = localStorage.egSave; if (!raw) return null; const r = S.migrate(JSON.parse(raw)); if (!r) return null; if (r.changed && !localStorage.egSaveV1) localStorage.egSaveV1 = raw; return r.P; } catch (e) { console.warn('egSave unreadable', e); try { if (!localStorage.egSaveBroken) localStorage.egSaveBroken = localStorage.egSave; } catch { } return null; } }
+let saved = loadSave(), tier = saved?.diff || 0;
+function drawTitle() { $('bCont').hidden = !saved; $('tSave').innerHTML = saved ? `Continue as <b>${saved.name}</b>, level ${saved.lvl} ${RACES[saved.race][0]} ${S.clsLabel(saved)} · deepest floor ${saved.best || 1}` : '';
+  const tb = el => { el.innerHTML = DIFF.map((d, i) => `<button class="${i === tier ? 'on' : ''}" data-t="${i}">${['I', 'II', 'III', 'IV', 'V'][i]} · ${d[0]}</button>`).join(''); el.onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; tier = +b.dataset.t; if (P && el.id === 'pTiers') { P.diff = tier; ui.log('sys', `Run tier set to ${DIFF[tier][0]}. It applies from the next floor.`); ui.refresh(); } drawTitle(); }; };
+  tb($('tTiers')); tb($('pTiers')); const d = DIFF[tier]; $('tTierD').textContent = `Foes ×${d[1]} power · rewards ×${d[2]}${d[3] ? ` · better loot (+${d[3]} floors of rarity)` : ''} · foes con ${d[4] ? '+' + d[4] + ' levels' : 'normally'}`; }
+// ---------- creation (race + up to 3 classes) ----------
+let selR = 'human', selC = ['warrior'];
+function drawCreate() { const R = $('cRace'), C = $('cCls');
+  R.innerHTML = Object.entries(RACES).map(([k, v]) => `<div class="card${k === selR ? ' on' : ''}" data-k="${k}"><img src="a/r/${k}.webp" alt=""><div>${v[0]}</div></div>`).join(''); R.querySelectorAll('.card').forEach(c => c.onclick = () => { selR = c.dataset.k; drawCreate(); });
+  C.innerHTML = Object.entries(CLASSES).map(([k, v]) => { const i = selC.indexOf(k); return `<div class="card${i >= 0 ? ' on' : ''}" data-k="${k}">${i >= 0 ? `<span class="ord">${i + 1}</span>` : ''}<img src="a/r/${k}.webp" alt=""><div>${v[0]}</div></div>`; }).join('');
+  C.querySelectorAll('.card').forEach(c => c.onclick = () => { const k = c.dataset.k, i = selC.indexOf(k); if (i >= 0) { if (selC.length > 1) selC.splice(i, 1); } else if (selC.length < 3) selC.push(k); else { selC[2] = k; } drawCreate(); });
+  $('cRaceD').textContent = RACES[selR][1]; const sp = Object.values(S.SPELLS).filter(s => selC.includes(s.cls)).map(s => s.n);
+  $('cClsD').innerHTML = `<b>${selC.map(c => CLASSES[c][0]).join(' / ')}</b> · fights like a ${CLASSES[selC[0]][0]} (${CLASSES[selC[0]][1]}) · abilities: ${sp.join(', ')}${selC.length > 1 ? ` · each extra class adds 15% of its stats and all its abilities, but levels need ${selC.length === 2 ? '15' : '30'}% more experience` : ''}`; }
+$('bExp').onclick = () => { const raw = localStorage.egSave; if (!raw) return alert('No save on this device yet.'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([raw], { type: 'application/json' })); a.download = `eternal-grind-${(saved?.name || 'save').replace(/[^\w-]/g, '')}.json`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); };
+$('bImp').onclick = () => $('fImp').click();
+$('fImp').onchange = async e => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; try { const raw = await f.text(); const r = S.migrate(JSON.parse(raw)); if (!r?.P?.name) throw 0; if (localStorage.egSave && !confirm(`Replace the save on this device with ${r.P.name} (level ${r.P.lvl})? The current one is kept as a backup.`)) return; if (localStorage.egSave) localStorage.egSaveBak = localStorage.egSave; localStorage.egSave = raw; location.reload(); } catch { alert('That file is not an Eternal Grind save.'); } };
 $('bNew').onclick = () => { drawCreate(); show('create'); };
-$('bCont').onclick = () => { P = JSON.parse(localStorage.egSave); startFloor(P.depth); };
-$('cGo').onclick = () => { const c = CLASSES[selC][2]; P = { name: ($('cName').value || 'Nameless One').replace(/[^\w .'-]/g, '').slice(0, 16), race: selR, cls: selC, lvl: 1, xp: 0, gold: 20, depth: 1, best: 1, pots: [3, 2], inv: [], eq: {}, hp: 1e9, mp: 1e9 };
-  P.eq.Weapon = mkItem('Weapon', 1, 0, CLASSES[selC][3]); recalc(); P.hp = P.st.hp; P.mp = P.st.mp; startFloor(1); };
-// ---------- items ----------
-function mkItem(slot, depth, rar, name) { rar = rar ?? (() => { const r = rnd() * 100 - Math.min(25, depth * 1.5); return r < 1 ? 5 : r < 4 ? 4 : r < 12 ? 3 : r < 30 ? 2 : r < 58 ? 1 : 0; })();
-  const m = RAR[rar][2], p = (4 + depth * 2.2) * m, it = { slot, n: name || pick(GEAR[slot]), r: rar, s: {} }, f = v => Math.max(1, Math.round(v * (0.85 + rnd() * .3)));
-  if (slot === 'Weapon') it.s.atk = f(p * 1.1); if (slot === 'Helmet') { it.s.def = f(p * .35); it.s.hp = f(p * 1.5); } if (slot === 'Chest') { it.s.def = f(p * .6); it.s.hp = f(p * 2.5); } if (slot === 'Boots') { it.s.def = f(p * .3); it.s.spd = Math.round(3 + rar * 2); }
-  if (slot === 'Accessory') { it.s.crit = Math.round(2 + rar * 2.5); it.s.atk = f(p * .3); } if (slot === 'Relic') { it.s.mp = f(p * 2); it.s.atk = f(p * .4); }
-  if (rar >= 2) { const x = pick(['hp', 'atk', 'def', 'mp']); it.s[x] = (it.s[x] || 0) + f(p * (x === 'hp' || x === 'mp' ? 1.5 : .3)); } it.v = Math.round(5 * (1 + depth) * m); return it; }
-const iscore = it => it ? (it.s.atk || 0) * 3 + (it.s.def || 0) * 3 + (it.s.hp || 0) * .5 + (it.s.mp || 0) * .3 + (it.s.crit || 0) * 1.5 + (it.s.spd || 0) : 0;
-const istats = it => Object.entries(it.s).map(([k, v]) => `+${v}${k === 'crit' || k === 'spd' ? '%' : ''} ${k.toUpperCase()}`).join(' · ');
-function recalc() { const c = CLASSES[P.cls][2], r = RACES[P.race][2], L = P.lvl - 1, s = { hp: (c.hp + L * 14) * r.hp, mp: (c.mp + L * 6) * r.mp, atk: (c.atk + L * 2.2) * r.atk, def: (c.def + L * 1.2) * r.def, crit: c.crit + (r.crit || 0), spd: 100 * (r.spd || 1) };
-  for (const it of Object.values(P.eq)) if (it) for (const [k, v] of Object.entries(it.s)) s[k] += v; for (const k in s) s[k] = Math.round(s[k]); P.st = s; P.hp = Math.min(P.hp, s.hp); P.mp = Math.min(P.mp, s.mp); }
+$('bCont').onclick = () => { P = saved; P.diff = tier; startFloor(P.depth); ui.refresh(); };
+$('cGo').onclick = () => { P = S.newChar(($('cName').value || 'Nameless One').replace(/[^\w .'-]/g, '').slice(0, 16), selR, selC); P.diff = tier; recalc(); P.hp = P.st.hp; P.mp = P.st.mp; startFloor(1); ui.refresh(); ui.log('sys', 'Welcome to Eternal Grind. Press I for your inventory, K for spells, Z to sit and rest.'); };
+// ---------- state ----------
+const buffs = {}; const buffSum = () => { const o = {}; for (const b of Object.values(buffs)) for (const [k, v] of Object.entries(b.buff || {})) o[k] = (o[k] || 0) + v; return o; };
+function recalc() { S.recalc(P, buffSum()); }
+const ename = (e, cap) => { if (e.boss) return e.name; const n = e.name.toLowerCase(), a = /^[aeiou]/.test(n) ? 'an ' : 'a '; return (cap ? a[0].toUpperCase() + a.slice(1) : a) + n; };
+const myVerb = () => { const c = CLASSES[S.classesOf(P)[0]][2], n = P.eq.primary?.n || ''; if (c.bow) return 'shoot'; if (c.bolt) return 'blast'; return /dagger|needles|fang|spear/.test(n) ? 'pierce' : /hammer|maul|crook|staff|rod|branch/.test(n) ? 'crush' : 'slash'; };
+const foeVerb = e => e.boss ? 'crushes' : e.ranged ? 'blasts' : /rat|worm|maggot|beetle|roach|tick|grub|snail|mosquito|flea|bat|spider|frog|snake|viper|wolf|hound|boar|lizard|leech|drake|hydra|crow|harpy|lurker|fang/i.test(e.name) ? 'bites' : /slime|jelly|cube|cap/i.test(e.name) ? 'smothers' : /ogre|troll|golem|giant|minotaur/i.test(e.name) ? 'smashes' : 'hits';
 // ---------- three ----------
 const R = new THREE.WebGLRenderer({ antialias: !MOBILE, powerPreference: 'high-performance' }); R.setPixelRatio(Math.min(devicePixelRatio, MOBILE ? 1.5 : 2)); R.setSize(innerWidth, innerHeight); document.body.prepend(R.domElement);
 const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, .05, 80); scene.add(cam);
@@ -99,15 +91,15 @@ function stoneTex(base, dark, brick) { const c = document.createElement('canvas'
   for (let i = 0; i < 2500; i++) { g.fillStyle = `rgba(${rnd() < .5 ? '0,0,0' : '255,255,255'},${rnd() * .08})`; g.fillRect(ri(256), ri(256), 2 + ri(4), 2 + ri(4)); }
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
 const TL = new THREE.TextureLoader(), texC = {}; const tex = u => texC[u] || (texC[u] = (() => { const t = TL.load(u); t.colorSpace = THREE.SRGBColorSpace; return t; })());
-// weapon in hand (equipped weapon icon) — swings on attack
+// weapon in hand — swings on attack
 const hand = new THREE.Group(); cam.add(hand); hand.position.set(.42, -.32, -.75); const handM = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, metalness: .8, roughness: .35 }), gripM = new THREE.MeshStandardMaterial({ color: 0x4a2e18, roughness: .9 });
-function buildHand() { hand.clear(); const c = P.cls, it = P.eq.Weapon; handM.color.set(it ? RAR[it.r][1] : '#bbb').lerp(new THREE.Color(0xc8ccd0), .55); handM.emissive.set(it && it.r >= 3 ? RAR[it.r][1] : '#000'); handM.emissiveIntensity = .35;
-  const add = (g, m, x, y, z, rx = 0, rz = 0) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.rotation.set(rx, 0, rz); hand.add(o); return o; };
+function buildHand() { hand.clear(); const c = S.classesOf(P)[0], it = P.eq.primary; handM.color.set(it ? RAR[it.r][1] : '#bbb').lerp(new THREE.Color(0xc8ccd0), .55); handM.emissive.set(it && (it.r >= 3 || it.up >= 5) ? (it.up >= 5 ? '#7fe0ff' : RAR[it.r][1]) : '#000'); handM.emissiveIntensity = .35;
+  const add = (g, m, x, y, z, rx = 0, rz = 0) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); o.rotation.set(rx, 0, rz); hand.add(o); return o; }; hand.rotation.y = 0;
   if (c === 'mage') { add(new THREE.CylinderGeometry(.018, .022, .9, 8), gripM, 0, .05, 0); const orb = add(new THREE.SphereGeometry(.06, 12, 10), new THREE.MeshBasicMaterial({ color: 0x8ab0ff }), 0, .52, 0); orb.userData.glow = 1; }
-  else if (c === 'ranger') { const bow = add(new THREE.TorusGeometry(.32, .014, 6, 24, Math.PI * 1.1), gripM, 0, .1, 0, 0, Math.PI * .45); add(new THREE.CylinderGeometry(.003, .003, .6, 4), new THREE.MeshBasicMaterial({ color: 0xddddcc }), -.1, .1, 0); hand.rotation.y = .3; }
+  else if (c === 'ranger') { add(new THREE.TorusGeometry(.32, .014, 6, 24, Math.PI * 1.1), gripM, 0, .1, 0, 0, Math.PI * .45); add(new THREE.CylinderGeometry(.003, .003, .6, 4), new THREE.MeshBasicMaterial({ color: 0xddddcc }), -.1, .1, 0); hand.rotation.y = .3; }
   else { const L = c === 'rogue' ? .32 : .7; add(new THREE.BoxGeometry(.05, L, .012), handM, 0, L / 2 + .08, 0); add(new THREE.BoxGeometry(.2, .03, .04), handM, 0, .08, 0); add(new THREE.CylinderGeometry(.02, .02, .14, 8), gripM, 0, 0, 0); } }
-// ---------- world ----------
-const CS = 4, N = 40; let map, world = new THREE.Group(), seen, enemies = [], props = [], shots = [], stairs, theme, mmDirty = true; scene.add(world);
+// ---------- world (floor generation unchanged) ----------
+const CS = 4, N = 40; let map, world = new THREE.Group(), seen, enemies = [], props = [], shots = [], stairs, forge, theme, mmDirty = true; scene.add(world);
 function gen(depth) { map = Array.from({ length: N }, () => new Uint8Array(N)); seen = Array.from({ length: N }, () => new Uint8Array(N)); const rooms = [];
   for (let t = 0; t < 200 && rooms.length < 9 + Math.min(5, depth >> 1); t++) { const w = 3 + ri(5), h = 3 + ri(5), x = 1 + ri(N - w - 2), z = 1 + ri(N - h - 2); if (rooms.some(r => x < r.x + r.w + 1 && x + w + 1 > r.x && z < r.z + r.h + 1 && z + h + 1 > r.z)) continue; rooms.push({ x, z, w, h, cx: x + (w >> 1), cz: z + (h >> 1) }); for (let i = x; i < x + w; i++) for (let j = z; j < z + h; j++) map[i][j] = 1; }
   rooms.sort((a, b) => a.cx - b.cx); for (let i = 1; i < rooms.length; i++) { const a = rooms[i - 1], b = rooms[i]; carve(a.cx, a.cz, b.cx, b.cz); if (rnd() < .25 && i > 1) carve(rooms[i - 2].cx, rooms[i - 2].cz, b.cx, b.cz); }
@@ -115,9 +107,9 @@ function gen(depth) { map = Array.from({ length: N }, () => new Uint8Array(N)); 
 function carve(x0, z0, x1, z1) { let x = x0, z = z0; const hf = rnd() < .5; while (x !== x1 || z !== z1) { map[x][z] = 1; if (hf ? x !== x1 : z === z1) x += Math.sign(x1 - x); else z += Math.sign(z1 - z); } map[x][z] = 1; }
 const solid = (x, z) => { const i = Math.floor(x / CS), j = Math.floor(z / CS); return i < 0 || j < 0 || i >= N || j >= N || !map[i][j]; };
 function los(ax, az, bx, bz) { const d = Math.hypot(bx - ax, bz - az), n = Math.ceil(d / .6); for (let k = 1; k < n; k++) if (solid(ax + (bx - ax) * k / n, az + (bz - az) * k / n)) return false; return true; }
-let player = { x: 0, z: 0, yaw: 0, pitch: 0, st: 100, cd: 0, scd: 0, hcd: 0, swing: 0, bob: 0, inv: 0 };
+let player = { x: 0, z: 0, yaw: 0, pitch: 0, st: 100, cd: 0, swing: 0, bob: 0, inv: 0, sit: false, ward: 0, hot: null, cds: {} };
 function startFloor(depth) { egMusic.start(); P.depth = depth; P.best = Math.max(P.best || 1, depth); recalc(); P.hp = Math.max(P.hp, P.st.hp * .5); save();
-  world.clear(); enemies = []; props = []; for (const s of shots) scene.remove(s.m); shots = [];
+  world.clear(); enemies = []; props = []; for (const s of shots) scene.remove(s.m); shots = []; player.sit = false; player.cds = {}; for (const k in buffs) delete buffs[k]; player.ward = 0; player.hot = null; recalc();
   theme = THEMES[Math.floor((depth - 1) / 2) % THEMES.length]; const rooms = gen(depth);
   const wallT = stoneTex(theme[2], theme[3], true), floorT = stoneTex(new THREE.Color(theme[2]).multiplyScalar(.7).getHex(), theme[3], false); const ceilT = floorT.clone(); ceilT.needsUpdate = true;
   const wallM = new THREE.MeshStandardMaterial({ map: wallT, roughness: .95 }), floorM = new THREE.MeshStandardMaterial({ map: floorT, roughness: 1 }), ceilM = new THREE.MeshStandardMaterial({ map: ceilT, roughness: 1, color: 0x777777 });
@@ -127,127 +119,185 @@ function startFloor(depth) { egMusic.start(); P.depth = depth; P.best = Math.max
     if (map[i][j]) { m4.makeTranslation(x, 0, z); F.setMatrixAt(b, m4); m4.makeTranslation(x, CS, z); C.setMatrixAt(b++, m4); } else if ([[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].some(([p, q]) => map[i + p]?.[j + q])) { m4.makeTranslation(x, CS / 2, z); W.setMatrixAt(a++, m4); } }
   world.add(W, F, C); scene.fog = new THREE.FogExp2(0x050302, MOBILE ? .06 : .045); scene.background = new THREE.Color(0x050302);
   const s = rooms[0]; player.x = s.cx * CS + CS / 2; player.z = s.cz * CS + CS / 2; player.yaw = 0; player.pitch = 0;
-  // wall torches in rooms (a few real lights, nearest ones only)
   for (const r of rooms) { const fl = new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffa040 })); const ws = [[r.x, r.cz, .3, 0], [r.x + r.w - 1, r.cz, CS - .3, 0]][ri(2)]; fl.position.set(ws[0] * CS + ws[2], 2.6, ws[1] * CS + CS / 2); world.add(fl); props.push({ k: 'torch', m: fl, x: fl.position.x, z: fl.position.z }); }
   const lights = []; for (let i = 0; i < 4; i++) { const l = new THREE.PointLight(0xff8a3a, 18, 14, 1.8); world.add(l); lights.push(l); } world.userData.lights = lights;
-  // stairs in the farthest room
   const far = rooms.reduce((m, r) => Math.hypot(r.cx - s.cx, r.cz - s.cz) > Math.hypot(m.cx - s.cx, m.cz - s.cz) ? r : m, rooms[1]);
   stairs = new THREE.Group(); const ring = new THREE.Mesh(new THREE.TorusGeometry(1, .12, 8, 32), new THREE.MeshBasicMaterial({ color: 0x9a6aff })); ring.rotation.x = Math.PI / 2; ring.position.y = .05; const glow = new THREE.Mesh(new THREE.CircleGeometry(.95, 32), new THREE.MeshBasicMaterial({ color: 0x5a2aaa, transparent: true, opacity: .55 })); glow.rotation.x = -Math.PI / 2; glow.position.y = .03; const pl = new THREE.PointLight(0x9a6aff, 14, 9); pl.position.y = 1; stairs.add(ring, glow, pl); stairs.position.set(far.cx * CS + CS / 2, 0, far.cz * CS + CS / 2); world.add(stairs);
-  // enemies + chests
-  const maxT = Math.min(5, Math.floor((depth - 1) / 2) + 1), pool = ENEMIES.filter(e => e[3] <= maxT && e[3] >= Math.max(0, maxT - 2));
+  // the Ember Forge: an anvil on a glowing altar in the starting room
+  forge = new THREE.Group(); const base = new THREE.Mesh(new THREE.CylinderGeometry(.7, .85, .4, 8), new THREE.MeshStandardMaterial({ color: 0x3a3028, roughness: .9 })); base.position.y = .2;
+  const anvM = new THREE.MeshStandardMaterial({ color: 0x5a5a62, metalness: .85, roughness: .35 }), anv = new THREE.Mesh(new THREE.BoxGeometry(.9, .22, .38), anvM); anv.position.y = .78; const neck = new THREE.Mesh(new THREE.BoxGeometry(.4, .3, .26), anvM); neck.position.y = .55; const horn = new THREE.Mesh(new THREE.ConeGeometry(.12, .4, 8), anvM); horn.rotation.z = Math.PI / 2; horn.position.set(.62, .78, 0);
+  const coal = new THREE.Mesh(new THREE.TorusGeometry(.78, .05, 6, 24), new THREE.MeshBasicMaterial({ color: 0xff6a1a })); coal.rotation.x = Math.PI / 2; coal.position.y = .42; const fpl = new THREE.PointLight(0xff6a1a, 10, 7); fpl.position.y = 1.2;
+  forge.add(base, neck, anv, horn, coal, fpl); let fx = player.x + 2.6, fz = player.z + 2.6; for (const [ox, oz] of [[2.6, 2.6], [-2.6, 2.6], [0, 3], [2.6, -2.6], [-2.6, -2.6], [2, 0]]) { if (!solid(player.x + ox, player.z + oz) && !solid(player.x + ox * 1.3, player.z + oz * 1.3)) { fx = player.x + ox; fz = player.z + oz; break; } } forge.position.set(fx, 0, fz); world.add(forge); props.push({ k: 'forge', m: forge, x: fx, z: fz });
+  const D = DIFF[P.diff], maxT = Math.min(5, Math.floor((depth - 1) / 2) + 1), pool = ENEMIES.filter(e => e[3] <= maxT && e[3] >= Math.max(0, maxT - 2));
   for (const r of rooms) { if (r === s) continue; const n = 1 + ri(2 + Math.min(3, depth >> 1)); for (let k = 0; k < n; k++) spawnEnemy(pick(pool), (r.x + rnd() * r.w) * CS, (r.z + rnd() * r.h) * CS, depth);
     if (rnd() < .45) { const ch = new THREE.Mesh(new THREE.BoxGeometry(1.1, .7, .7), new THREE.MeshStandardMaterial({ color: 0x6a4020, roughness: .8 })); const lid = new THREE.Mesh(new THREE.BoxGeometry(1.15, .12, .75), new THREE.MeshStandardMaterial({ color: 0xc09030, metalness: .6, roughness: .4 })); lid.position.y = .38; ch.add(lid); ch.position.set((r.x + .5 + rnd() * (r.w - 1)) * CS, .35, (r.z + .5 + rnd() * (r.h - 1)) * CS); ch.rotation.y = rnd() * 6; world.add(ch); props.push({ k: 'chest', m: ch, x: ch.position.x, z: ch.position.z }); } }
   if (depth % 5 === 0) { const boss = ENEMIES.filter(e => e[3] >= Math.min(4, maxT)); spawnEnemy(pick(boss.length ? boss : pool), stairs.position.x + 2, stairs.position.z + 2, depth, true); }
   buildHand();
-  for (const s2 of ['title', 'create', 'bag', 'dead', 'pause']) $(s2).hidden = true; $('hud').style.display = 'block'; if (MOBILE) $('touch').style.display = 'block';
-  logm(`<b style="color:#e0b46a">Floor ${depth} · ${theme[1]}</b>${depth % 5 === 0 ? ' — a guardian waits by the portal' : ''}`); if (depth === 1 && !P.tut) { P.tut = 1; setTimeout(() => logm(MOBILE ? 'Left stick moves, drag the right side to look. Find the purple portal to go deeper.' : 'Click to grab the mouse. WASD to move. Find the purple portal to go deeper.'), 1500); }
-  mmDirty = true; running = true; hud(); }
-function spawnEnemy(d, x, z, depth, boss) { if (solid(x, z)) return; const ranged = /archer|lich|necromancer|priest|elemental|imp|acolyte|cultist|banshee|harpy|mirror/.test(d[0]);
+  for (const s2 of ['title', 'create', 'dead', 'pause']) $(s2).hidden = true; $('hud').style.display = 'block';
+  ui.log('sys', `<b>You have entered Floor ${depth}: ${theme[1]}.</b> <span style="opacity:.75">(${D[0]} tier)</span>${depth % 5 === 0 ? ' A guardian waits by the portal.' : ''}`); if (depth === 1 && !P.tut) { P.tut = 1; setTimeout(() => ui.log('sys', MOBILE ? 'Left stick moves, drag the right side to look. Tap 🎒 Bag and 🛡 Character to manage gear. Find the purple portal to go deeper.' : 'Click the world to grab the mouse. WASD moves, 1-0 hotbar, Q/F spells, Z sits. The anvil by the start is the Ember Forge.'), 1500); }
+  mmDirty = true; running = true; menuPaused = false; ui.refresh(); ui.relayout(); }
+function spawnEnemy(d, x, z, depth, boss) { if (solid(x, z)) return; const ranged = /archer|lich|necromancer|priest|elemental|imp|acolyte|cultist|banshee|harpy|mirror/.test(d[0]), D = DIFF[P.diff];
   const sc = (1.2 + d[3] * .32) * (boss ? 1.6 : 1), sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(`a/e/${d[0]}.webp`), transparent: true, alphaTest: .1, fog: true })); sp.center.set(.5, 0); sp.scale.set(sc, sc * 1.15, 1); sp.position.set(x, 0, z); world.add(sp);
-  const pw = d[4] * (1 + (depth - 1) * .28) * (1 + d[3] * .35) * (boss ? 3 : 1);
-  enemies.push({ d, sp, x, z, hp: Math.round(28 * pw), max: Math.round(28 * pw), atk: 5 * pw, ranged, boss, spd: ranged ? 2 : 2.6 + rnd() * .8 - (d[3] > 3 ? .5 : 0), cd: 0, hurt: 0, awake: false, xp: Math.round(10 * pw), name: (boss ? 'Guardian ' : '') + d[1], wob: rnd() * 6 }); }
+  const pw = d[4] * (1 + (depth - 1) * .28) * (1 + d[3] * .35) * (boss ? 3 : 1), hp = Math.round(28 * pw * D[1]);
+  const lvl = Math.max(1, Math.round(depth + d[3] - 1 + (boss ? 3 : 0) + D[4]));
+  enemies.push({ d, sp, x, z, hp, max: hp, atk: 5 * pw * (1 + (D[1] - 1) * .7), ranged, boss, lvl, spd: ranged ? 2 : 2.6 + rnd() * .8 - (d[3] > 3 ? .5 : 0), cd: 0, hurt: 0, awake: false, xp: Math.round(10 * pw), name: (boss ? 'Guardian ' : '') + d[1], wob: rnd() * 6, stun: 0, slow: 0, slowAmt: 0, dots: [] }); }
 // ---------- input ----------
-const keys = {}; let running = false, paused = false, sens = 8, inv = false, mouseDown = false, locked = false;
-addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; keys[e.code] = 1; if (!running) return;
-  if (e.code === 'KeyI' || e.code === 'Tab') { e.preventDefault(); $('bag').hidden ? openBag() : closeBag(); } if (e.code === 'Escape' && !$('bag').hidden) closeBag(); if (e.code === 'KeyE') use(); if (e.code === 'KeyF') heal(); if (e.code === 'KeyQ') spell(); if (e.code === 'Digit1') pot(0); if (e.code === 'Digit2') pot(1); if (e.code === 'KeyP') pause(); });
+const keys = {}; let running = false, menuPaused = false, uiPaused = false, sens = 8, inv = false, mouseDown = false, locked = false;
+const paused = () => menuPaused || uiPaused;
+const typing = () => /INPUT|TEXTAREA/.test(document.activeElement?.tagName || '');
+addEventListener('keydown', e => { if (typing()) return; keys[e.code] = 1; if (!running || e.repeat) return; const c = e.code;
+  if (c === 'Escape') { if (!$('pause').hidden) return resume(); if (ui.closeTop()) return; return pause(); }
+  if (menuPaused) return;
+  if (c === 'KeyI' || c === 'Tab') { e.preventDefault(); ui.toggleInv(); } if (c === 'KeyK') ui.toggleBook(); if (c === 'KeyB') ui.openAllBags(); if (c === 'KeyP') pause();
+  if (uiPaused) return;
+  if (c === 'KeyE') use(); if (c === 'KeyQ') castGem(0); if (c === 'KeyF') castGem(1); if (c === 'KeyZ') sit();
+  const m = /^Digit(\d)$/.exec(c); if (m) useHot((+m[1] + 9) % 10); });
 addEventListener('keyup', e => keys[e.code] = 0);
-R.domElement.addEventListener('mousedown', e => { if (!running || paused) return; if (!locked && !MOBILE) { R.domElement.requestPointerLock?.(); return; } if (e.button === 0) mouseDown = true; if (e.button === 2) spell(); });
+R.domElement.addEventListener('mousedown', e => { if (!running || menuPaused || MOBILE) return; if (!locked) { ui.closeAll(); R.domElement.requestPointerLock?.(); return; } if (e.button === 0) mouseDown = true; if (e.button === 2) castGem(0); });
 addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; }); addEventListener('contextmenu', e => e.preventDefault());
-document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === R.domElement; if (!locked && running && !MOBILE && $('bag').hidden && $('dead').hidden) pause(); });
+document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === R.domElement; $('lockhint').style.display = !locked && running && !MOBILE && !paused() ? 'block' : 'none'; if (!locked) mouseDown = false; });
 addEventListener('mousemove', e => { if (!locked) return; look(e.movementX, e.movementY); });
 function look(dx, dy) { player.yaw -= dx * sens * .00025; player.pitch = clamp(player.pitch - dy * sens * .00025 * (inv ? -1 : 1), -1.2, 1.2); }
-$('pInv').onchange = e => inv = e.target.checked; $('pSens').oninput = e => sens = +e.target.value; $('pRes').onclick = () => { paused = false; show(''); if (!MOBILE) R.domElement.requestPointerLock?.(); };
-function pause() { if (!running) return; paused = true; show('pause'); document.exitPointerLock?.(); } $('tPause').onclick = pause; $('tBag').onclick = () => openBag();
+$('pInv').onchange = e => inv = e.target.checked; $('pSens').oninput = e => sens = +e.target.value;
+function resume() { menuPaused = false; show(''); if (!MOBILE && !uiPaused) R.domElement.requestPointerLock?.(); }
+$('pRes').onclick = resume; $('pInvB').onclick = () => { resume(); ui.toggleInv(); }; $('pLayout').onclick = () => ui.resetLayout();
+function pause() { if (!running) return; menuPaused = true; drawTitle(); show('pause'); document.exitPointerLock?.(); }
 // touch
 let joy = null, lookT = null; const jv = { x: 0, y: 0 };
-$('joy').addEventListener('touchstart', e => { joy = e.changedTouches[0].identifier; e.preventDefault(); }, { passive: false });
-addEventListener('touchmove', e => { for (const t of e.changedTouches) { if (t.identifier === joy) { const r = $('joy').getBoundingClientRect(), dx = clamp((t.clientX - r.left - 60) / 50, -1, 1), dy = clamp((t.clientY - r.top - 60) / 50, -1, 1); jv.x = dx; jv.y = dy; $('knob').style.transform = `translate(${dx * 38}px,${dy * 38}px)`; } else if (lookT && t.identifier === lookT.id) { look((t.clientX - lookT.x) * 2.2, (t.clientY - lookT.y) * 2.2); lookT.x = t.clientX; lookT.y = t.clientY; } } }, { passive: false });
-addEventListener('touchend', e => { for (const t of e.changedTouches) { if (t.identifier === joy) { joy = null; jv.x = jv.y = 0; $('knob').style.transform = ''; } if (lookT && t.identifier === lookT.id) lookT = null; } });
-R.domElement.addEventListener('touchstart', e => { const t = e.changedTouches[0]; if (t.clientX > innerWidth * .35) lookT = { id: t.identifier, x: t.clientX, y: t.clientY }; }, { passive: true });
-const tbtn = (id, f, hold) => { const b = $(id); b.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); hold ? (mouseDown = true) : f(); }, { passive: false }); b.addEventListener('touchend', () => { if (hold) mouseDown = false; }); b.onclick = f; };
-tbtn('mAt', () => attack(), true); tbtn('mSp', spell); tbtn('mHe', heal); tbtn('mUse', use); tbtn('mP1', () => pot(0)); tbtn('mP2', () => pot(1)); $('prompt').onclick = use;
-// ---------- actions ----------
+if (MOBILE) { $('joy').addEventListener('touchstart', e => { joy = e.changedTouches[0].identifier; e.preventDefault(); }, { passive: false });
+  addEventListener('touchmove', e => { for (const t of e.changedTouches) { if (t.identifier === joy) { const r = $('joy').getBoundingClientRect(), dx = clamp((t.clientX - r.left - 62) / 50, -1, 1), dy = clamp((t.clientY - r.top - 62) / 50, -1, 1); jv.x = dx; jv.y = dy; $('knob').style.transform = `translate(${dx * 38}px,${dy * 38}px)`; } else if (lookT && t.identifier === lookT.id) { look((t.clientX - lookT.x) * 2.2, (t.clientY - lookT.y) * 2.2); lookT.x = t.clientX; lookT.y = t.clientY; } } }, { passive: false });
+  addEventListener('touchend', e => { for (const t of e.changedTouches) { if (t.identifier === joy) { joy = null; jv.x = jv.y = 0; $('knob').style.transform = ''; } if (lookT && t.identifier === lookT.id) lookT = null; } });
+  R.domElement.addEventListener('touchstart', e => { const t = e.changedTouches[0]; if (t.clientX > innerWidth * .35) lookT = { id: t.identifier, x: t.clientX, y: t.clientY }; }, { passive: true });
+  const tbtn = (id, f, hold) => { const b = $(id); b.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); hold ? (mouseDown = true) : f(); }, { passive: false }); b.addEventListener('touchend', () => { if (hold) mouseDown = false; }); b.onclick = f; };
+  tbtn('mAt', () => attack(), true); tbtn('mSp', () => castGem(0)); tbtn('mUse', use); }
+$('prompt').onclick = use;
+// ---------- combat ----------
 const fwd = () => new THREE.Vector3(-Math.sin(player.yaw) * Math.cos(player.pitch), Math.sin(player.pitch), -Math.cos(player.yaw) * Math.cos(player.pitch));
-function dmgRoll(base) { const c = rnd() * 100 < P.st.crit; return [Math.round(base * (0.85 + rnd() * .3) * (c ? 1.8 : 1)), c]; }
-function hitEnemy(e, base, kb = .6) { const [d, c] = dmgRoll(base); e.hp -= d; e.hurt = .18; e.awake = true; const dx = e.x - player.x, dz = e.z - player.z, l = Math.hypot(dx, dz) || 1; tryMove(e, dx / l * kb, dz / l * kb);
-  if (c) logm(`<span style="color:#ffd06a">Critical! ${d}</span>`); if (e.hp <= 0) kill(e); }
-function attack() { if (player.cd > 0 || !running || paused) return; const c = CLASSES[P.cls][2]; player.cd = c.cd * 100 / P.st.spd; player.swing = 1;
-  if (c.melee) { if (player.st < 6) return; player.st -= 6; for (const e of enemies) { const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz); if (d < c.range + (e.boss ? .6 : 0) && (-Math.sin(player.yaw) * dx - Math.cos(player.yaw) * dz) / d > .55) hitEnemy(e, P.st.atk); } }
-  else shoot(c.bow ? 0xd8c090 : 0x8ab0ff, c.bow ? 18 : 14, P.st.atk * (c.bow ? 1 : .9), false, c.bow ? .06 : .14); }
-function spell() { if (player.scd > 0 || !running || paused) return; const cost = P.cls === 'mage' ? 10 : 18; if (P.mp < cost) return logm('Not enough magicka.'); P.mp -= cost; player.scd = .8; shoot(0xff6a1a, 12, P.st.atk * (P.cls === 'mage' ? 2.2 : 1.6) + P.lvl * 3, true, .22); }
-function heal() { if (player.hcd > 0 || !running || paused) return; if (P.mp < 22) return logm('Not enough magicka.'); P.mp -= 22; player.hcd = 2; P.hp = Math.min(P.st.hp, P.hp + P.st.hp * .3); logm('<span style="color:#7f7">You mend your wounds.</span>'); }
-function pot(i) { if (!running || !P.pots[i]) return; P.pots[i]--; if (i === 0) P.hp = Math.min(P.st.hp, P.hp + P.st.hp * .5); else P.mp = Math.min(P.st.mp, P.mp + P.st.mp * .6); logm(i ? 'Magicka restored.' : 'Health restored.'); }
-function shoot(col, spd, dmg, aoe, sz, enemy) { const m = new THREE.Mesh(new THREE.SphereGeometry(sz, 8, 6), new THREE.MeshBasicMaterial({ color: col })); const f = enemy ? enemy.f : fwd();
-  const o = enemy ? new THREE.Vector3(enemy.x, 1.1, enemy.z) : new THREE.Vector3(player.x, 1.5, player.z).addScaledVector(f, .6); m.position.copy(o); scene.add(m); shots.push({ m, v: f.multiplyScalar(spd), dmg, aoe, t: 3, hostile: !!enemy }); }
-function kill(e) { world.remove(e.sp); enemies = enemies.filter(x => x !== e); const g = Math.round((3 + P.depth * 2) * (1 + e.d[3] * .5) * (e.boss ? 5 : 1) * (.7 + rnd() * .6)); P.gold += g; gainXp(e.xp);
-  logm(`${e.name} slain. +${g} gold`); if (rnd() < (e.boss ? 1 : .16 + e.d[3] * .04)) loot(mkItem(pick(SLOTS), P.depth, e.boss ? 3 + (rnd() < .3 ? 1 : 0) : undefined)); if (rnd() < .18) { const i = rnd() < .6 ? 0 : 1; P.pots[i]++; logm(i ? 'Found a magicka potion.' : 'Found a health potion.'); } }
-function gainXp(x) { P.xp += x; let need; while (P.xp >= (need = Math.round(60 * Math.pow(P.lvl, 1.45)))) { P.xp -= need; P.lvl++; recalc(); P.hp = P.st.hp; P.mp = P.st.mp; logm(`<b style="color:#ffd06a">Level up! You are now level ${P.lvl}.</b>`); } }
-function loot(it) { const cur = P.eq[it.slot]; if (iscore(it) > iscore(cur)) { if (cur) P.inv.push(cur); P.eq[it.slot] = it; recalc(); if (it.slot === 'Weapon') buildHand(); logm(`Equipped <span style="color:${RAR[it.r][1]}">${pretty(it.n)}</span> (${istats(it)})`); }
-  else if (P.inv.length < 24) { P.inv.push(it); logm(`Looted <span style="color:${RAR[it.r][1]}">${pretty(it.n)}</span>`); } else { P.gold += it.v; logm(`Pack full — scrapped ${pretty(it.n)} for ${it.v} gold`); } }
+function dmgRoll(base, bonusCrit = 0) { const c = rnd() * 100 < P.st.crit + bonusCrit; return [Math.max(1, Math.round(base * (0.85 + rnd() * .3) * (c ? 1.8 : 1))), c]; }
+// src: { verb } for weapon hits, { spell: name } for spells, { dot: name } for ticks; procs only fire on weapon hits
+function hitEnemy(e, base, kb = .6, src = {}) { if (!enemies.includes(e)) return; const [d, c] = src.dot ? [Math.round(base), false] : dmgRoll(base, src.crit || 0); e.hp -= d; e.hurt = .18; e.awake = true;
+  if (kb) { const dx = e.x - player.x, dz = e.z - player.z, l = Math.hypot(dx, dz) || 1; tryMove(e, dx / l * kb, dz / l * kb); }
+  if (c) ui.log('crit', `You score a critical hit! (${d})`);
+  if (src.dot) ui.log('spell', `${ename(e, true)} has taken ${d} damage from your ${src.dot}.`); else if (src.spell) ui.log('spell', `Your ${src.spell} hits ${ename(e)} for ${d} points of damage.`); else ui.log('hit', `You ${src.verb || myVerb()} ${ename(e)} for ${d} points of damage.`);
+  if (src.slow) { e.slow = src.slow; e.slowAmt = src.slowAmt || .4; } if (src.stun) e.stun = Math.max(e.stun, src.stun);
+  if (!src.dot && !src.spell) for (const id of P.procs || []) { const fx = S.EFFECTS[id]; if (rnd() < fx.ch) { ui.log('spell', `Your weapon flares: ${fx.n}!`);
+    if (fx.k === 'burn') e.dots.push({ t: 3, dmg: d * .5, n: fx.n, acc: 0 }); if (fx.k === 'leech') { P.hp = Math.min(P.st.hp, P.hp + d * .4); } if (fx.k === 'chill') { e.slow = 3; e.slowAmt = .4; } if (fx.k === 'stun') e.stun = Math.max(e.stun, 1.5); } }
+  if (e.hp <= 0) kill(e); }
+function attack() { if (player.cd > 0 || !running || paused()) return; const c = CLASSES[S.classesOf(P)[0]][2]; player.cd = c.cd * 100 / P.st.spd / (1 + (P.fx.haste || 0)); player.swing = 1; standUp();
+  if (c.melee) { if (player.st < 6) return; player.st -= 6; let any = false; for (const e of [...enemies]) { const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz); if (d < c.range + (e.boss ? .6 : 0) && (-Math.sin(player.yaw) * dx - Math.cos(player.yaw) * dz) / d > .55) { hitEnemy(e, P.st.atk); any = true; } } }
+  else shoot(c.bow ? 0xd8c090 : 0x8ab0ff, c.bow ? 18 : 14, P.st.atk * (c.bow ? 1 : .9), false, c.bow ? .06 : .14, null, { verb: c.bow ? 'shoot' : 'blast' }); }
+function meleeTarget(range = 3.3) { const t = target(); if (t && Math.hypot(t.x - player.x, t.z - player.z) < range + (t.boss ? .6 : 0)) return t; let best = null, bd = 1e9; for (const e of enemies) { const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz); if (d < range && (-Math.sin(player.yaw) * dx - Math.cos(player.yaw) * dz) / d > .4 && d < bd) { bd = d; best = e; } } return best; }
+const cdFrac = id => { const c = id && player.cds[id]; return c && c[0] > 0 ? c[0] / c[1] : 0; };
+function castGem(i) { const id = P?.gems[i]; if (id) castSpell(id); }
+function castSpell(id) { if (!running || paused()) return; const s = S.SPELLS[id]; if (!s || !S.knownSpells(P).includes(id)) return;
+  if (cdFrac(id) > 0) return ui.log('miss', `${s.n} is not ready yet.`);
+  let cost = id === 'ember_bolt' && S.classesOf(P).includes('mage') ? 10 : s.cost; cost = Math.round(cost * (1 - (P.fx.costRed || 0)));
+  if (s.res === 'mp' ? P.mp < cost : player.st < cost) return ui.log('miss', s.res === 'mp' ? 'Insufficient mana to cast this spell!' : 'You are too tired for that.');
+  const sd = 1 + (P.fx.spellDmg || 0), hp = 1 + (P.fx.healPow || 0), atk = P.st.atk; let tgt = null;
+  if (['bash', 'strike', 'dot'].includes(s.k)) { tgt = meleeTarget(); if (!tgt) return ui.log('miss', 'You must be closer to your target.'); }
+  if (s.k === 'snare') { tgt = target(); if (!tgt) return ui.log('miss', 'You must first select a target for this spell!'); }
+  if (s.res === 'mp') P.mp -= cost; else player.st -= cost; player.cds[id] = [s.cd, s.cd]; standUp(); player.swing = .6;
+  switch (s.k) {
+    case 'bolt': shoot(0xff6a1a, 12, (atk * (S.classesOf(P)[0] === 'mage' ? 2.2 : 1.6) + P.lvl * 3) * sd, true, .22, null, { spell: s.n }); break;
+    case 'heal': { const a = Math.round(P.st.hp * .3 * hp); P.hp = Math.min(P.st.hp, P.hp + a); ui.log('heal', `You mend your wounds. (+${a})`); break; }
+    case 'bash': hitEnemy(tgt, atk * 1.5 * sd, 1, { spell: s.n, stun: 2 }); break;
+    case 'strike': hitEnemy(tgt, atk * s.mul, .4, { spell: s.n, crit: 15 }); break;
+    case 'dot': tgt.dots.push({ t: s.ticks, dmg: atk * s.mul * sd, n: s.n, acc: 0 }); tgt.awake = true; ui.log('spell', `${ename(tgt, true)} is coated in venom.`); break;
+    case 'buff': buffs[id] = { t: s.dur, buff: s.buff }; recalc(); ui.log('spell', `${s.n} takes hold.`); break;
+    case 'volley': for (let k = -2; k <= 2; k++) shoot(0xd8c090, 18, atk * .8 * sd, false, .06, null, { spell: s.n }, k * .12); break;
+    case 'snare': tgt.slow = 6; tgt.slowAmt = .6; tgt.awake = true; ui.log('spell', `Roots clutch at ${ename(tgt)}.`); break;
+    case 'hot': player.hot = { t: 8, amt: P.st.hp * .06 * hp, acc: 0 }; buffs[id] = { t: 8 }; ui.log('heal', 'Wild growth knits your wounds.'); break;
+    case 'frost': shoot(0x8cf0ff, 16, atk * 1.8 * sd, false, .16, null, { spell: s.n, slow: 3, slowAmt: .4 }); break;
+    case 'ward': player.ward = Math.round(P.st.hp * .4); buffs[id] = { t: 30 }; ui.log('spell', `An arcane ward surrounds you. (${player.ward})`); break;
+    case 'nova': { let n = 0; for (const e of [...enemies]) { const d = Math.hypot(e.x - player.x, e.z - player.z); if (d < 4.5) { hitEnemy(e, atk * 1.6 * sd, 1.5, { spell: s.n }); n++; } } if (!n) ui.log('spell', 'Your Cinder Nova scorches empty air.'); break; } } }
+function pot(i) { if (!running || paused()) return; if (!P.pots[i]) return ui.log('miss', i ? 'You have no mana draughts.' : 'You have no healing draughts.'); P.pots[i]--; if (i === 0) P.hp = Math.min(P.st.hp, P.hp + P.st.hp * .5); else P.mp = Math.min(P.st.mp, P.mp + P.st.mp * .6); ui.log('heal', i ? 'You drink a mana draught. Mana restored.' : 'You drink a healing draught. Health restored.'); }
+function useHot(i) { const a = P?.hot[i]; if (!a) return; const [k, v] = a.split(':'); if (k === 'pot') pot(+v); if (k === 'gem') castGem(+v); }
+function sit() { if (!running || paused()) return; player.sit = !player.sit; ui.log('sys', player.sit ? 'You sit down to rest and meditate.' : 'You stand up.'); $('mRest')?.classList.toggle('on', player.sit); }
+function standUp() { if (player.sit) { player.sit = false; ui.log('sys', 'You stand up.'); $('mRest')?.classList.remove('on'); } }
+function shoot(col, spd, dmg, aoe, sz, enemy, src, spread = 0) { const m = new THREE.Mesh(new THREE.SphereGeometry(sz, 8, 6), new THREE.MeshBasicMaterial({ color: col })); const f = enemy ? enemy.f : fwd(); if (spread) f.applyAxisAngle(new THREE.Vector3(0, 1, 0), spread);
+  const o = enemy ? new THREE.Vector3(enemy.x, 1.1, enemy.z) : new THREE.Vector3(player.x, 1.5, player.z).addScaledVector(f, .6); m.position.copy(o); scene.add(m); shots.push({ m, v: f.multiplyScalar(spd), dmg, aoe, t: 3, hostile: !!enemy, src: src || {}, from: enemy?.e }); }
+function kill(e) { world.remove(e.sp); enemies = enemies.filter(x => x !== e); const D = DIFF[P.diff], con = S.conOf(P.lvl, e.lvl);
+  const g = Math.round((3 + P.depth * 2) * (1 + e.d[3] * .5) * (e.boss ? 5 : 1) * (.7 + rnd() * .6) * D[2]); P.gold += g;
+  ui.log('xp', `You have slain ${ename(e)}!`); gainXp(Math.max(1, Math.round(e.xp * D[2] * S.conXp(con.i)))); ui.log('loot', `You receive ${g} gold.`);
+  if (rnd() < (e.boss ? 1 : .16 + e.d[3] * .04)) loot(S.mkItem(S.randomType(), P.depth, e.boss ? 3 + (rnd() < .3 ? 1 : 0) : undefined, undefined, D[3]));
+  if (rnd() < .18) { const i = rnd() < .6 ? 0 : 1; P.pots[i]++; ui.log('loot', i ? 'You find a mana draught.' : 'You find a healing draught.'); }
+  let ore = rnd() < .3 + P.diff * .05 ? 1 + (P.diff >= 3 ? 1 : 0) : 0, sh = rnd() < .03 * (1 + P.diff) ? 1 : 0; if (e.boss) { ore += 4 + P.diff; sh += 1 + ri(2) + (P.diff >= 2 ? 1 : 0); }
+  if (ore || sh) { P.mats.ore += ore; P.mats.shard += sh; ui.log('loot', `You gather ${ore ? ore + ' Ember Ore' : ''}${ore && sh ? ' and ' : ''}${sh ? sh + ' Ash Shard' + (sh > 1 ? 's' : '') : ''}.`); }
+  if (rnd() < (e.boss ? .35 : .015)) loot(S.mkBag(1 + ri(3))); ui.refresh(); }
+function gainXp(x) { P.xp += x; ui.log('xp', 'You gain experience!'); let need; while (P.xp >= (need = S.xpNeed(P))) { P.xp -= need; P.lvl++; recalc(); P.hp = P.st.hp; P.mp = P.st.mp; ui.log('xp', `<b>You have gained a level! Welcome to level ${P.lvl}!</b>`); } }
+function loot(it) { const free = it.t !== 'bag' && Object.keys(S.EQ_SLOTS).find(k => S.EQ_SLOTS[k][1] === it.t && !P.eq[k]); const nm = `<span style="color:${RAR[it.r || 0][1]}">${S.itemName(it)}</span>`;
+  if (free) { P.eq[free] = it; changed(); ui.log('loot', `You receive ${nm} and equip it (${S.EQ_SLOTS[free][0]}).`); return; }
+  const worst = Math.min(...Object.keys(S.EQ_SLOTS).filter(k => S.EQ_SLOTS[k][1] === it.t).map(k => S.iscore(P.eq[k])));
+  if (S.addItem(P, it)) ui.log('loot', `You receive ${nm}.${it.t !== 'bag' && S.iscore(it) > worst ? ' <span style="color:#7f7">(an upgrade)</span>' : ''}`);
+  else { const v = S.scrapValue(it); P.gold += v.gold; P.mats.ore += v.ore; ui.log('loot', `Your bags are full. You scrap ${nm} for ${v.gold} gold.`); } ui.refresh(); }
+function changed() { const w = P.eq.primary?.id; recalc(); if (w !== buildHand.w) { buildHand.w = w; buildHand(); } save(); }
 let near = null;
-function use() { if (!near || !running || paused) return; if (near.k === 'chest') { world.remove(near.m); props = props.filter(p => p !== near); const n = 1 + (rnd() < .35 ? 1 : 0); for (let i = 0; i < n; i++) loot(mkItem(pick(SLOTS), P.depth)); const g = 5 + ri(10 * P.depth); P.gold += g; logm(`+${g} gold`); if (rnd() < .5) P.pots[ri(2)]++; }
-  if (near.k === 'stairs') { if (enemies.some(e => e.boss)) return logm('The guardian bars the way. Defeat it first.'); startFloor(P.depth + 1); } }
-// ---------- bag ----------
-window.openBag = () => { if (!P) return; paused = true; document.exitPointerLock?.(); show('bag'); drawBag(); }; window.closeBag = () => { show(''); paused = false; if (!MOBILE && running) R.domElement.requestPointerLock?.(); };
-function itHtml(it, i, eq) { return it ? `<div class="it" data-i="${i}" data-eq="${eq ? 1 : ''}" style="border-color:${RAR[it.r][1]}"><img src="a/g/${it.n}.webp" alt=""><div>${pretty(it.n)}</div></div>` : `<div class="it" style="opacity:.4"><div style="padding-top:22px">${i}</div></div>`; }
-function drawBag() { const s = P.st; $('bTitle').textContent = `${P.name} · Lv ${P.lvl} ${RACES[P.race][0]} ${CLASSES[P.cls][0]}`; $('bStats').innerHTML = `HP ${s.hp} · Magicka ${s.mp} · Attack ${s.atk} · Defense ${s.def} · Crit ${s.crit}% · Speed ${s.spd}% · 🪙 ${P.gold} · Deepest floor ${P.best}`;
-  $('bEq').innerHTML = SLOTS.map(k => itHtml(P.eq[k], k, 1)).join(''); $('bInv').innerHTML = P.inv.map((it, i) => itHtml(it, i)).join('') || '<div class="dim">Empty</div>'; $('bCount').textContent = `${P.inv.length}/24`;
-  document.querySelectorAll('#bag .it[data-i]').forEach(el => { const it = el.dataset.eq ? P.eq[el.dataset.i] : P.inv[+el.dataset.i]; if (!it) return; let lp;
-    el.onmouseenter = el.ontouchstart = e => { const cur = P.eq[it.slot]; $('tip').innerHTML = `<b style="color:${RAR[it.r][1]}">${pretty(it.n)}</b><br>${RAR[it.r][0]} ${it.slot}<br>${istats(it)}${!el.dataset.eq && cur ? `<br><span class="dim">Equipped: ${istats(cur)}</span>` : ''}<br><span class="dim">Scrap: ${it.v} gold</span>`; const r = el.getBoundingClientRect(); $('tip').style.display = 'block'; $('tip').style.left = Math.min(innerWidth - 250, r.left) + 'px'; $('tip').style.top = (r.bottom + 6) + 'px'; if (e.type === 'touchstart') lp = setTimeout(() => { lp = 'done'; scrap(); }, 600); };
-    el.onmouseleave = () => $('tip').style.display = 'none'; el.ontouchend = () => { if (lp !== 'done') clearTimeout(lp); };
-    const scrap = () => { if (el.dataset.eq) return; P.inv.splice(+el.dataset.i, 1); P.gold += it.v; $('tip').style.display = 'none'; drawBag(); };
-    el.oncontextmenu = e => { e.preventDefault(); scrap(); };
-    el.onclick = () => { if (lp === 'done') return; $('tip').style.display = 'none'; if (el.dataset.eq) { if (P.inv.length >= 24 || it.slot === 'Weapon') return; P.inv.push(it); delete P.eq[it.slot]; } else { const cur = P.eq[it.slot]; P.inv.splice(+el.dataset.i, 1); if (cur) P.inv.push(cur); P.eq[it.slot] = it; if (it.slot === 'Weapon') buildHand(); } recalc(); drawBag(); }; }); }
+function use() { if (!near || !running || paused()) return;
+  if (near.k === 'forge') { document.exitPointerLock?.(); return ui.openForge(); }
+  if (near.k === 'chest') { world.remove(near.m); props = props.filter(p => p !== near); const D = DIFF[P.diff], n = 1 + (rnd() < .35 ? 1 : 0); for (let i = 0; i < n; i++) loot(S.mkItem(S.randomType(), P.depth, undefined, undefined, D[3])); const g = Math.round((5 + ri(10 * P.depth)) * D[2]); P.gold += g; const ore = 1 + ri(3); P.mats.ore += ore; ui.log('loot', `The chest holds ${g} gold and ${ore} Ember Ore.`); if (rnd() < .5) P.pots[ri(2)]++; if (rnd() < .06) loot(S.mkBag(ri(3))); near = null; ui.refresh(); }
+  else if (near.k === 'stairs') { if (enemies.some(e => e.boss)) return ui.log('bad', 'The guardian bars the way. Defeat it first.'); startFloor(P.depth + 1); } }
 // ---------- loop ----------
 function tryMove(o, dx, dz, r = .35) { if (!solid(o.x + dx + Math.sign(dx) * r, o.z) && !solid(o.x + dx + Math.sign(dx) * r, o.z + r * .7) && !solid(o.x + dx + Math.sign(dx) * r, o.z - r * .7)) o.x += dx; if (!solid(o.x, o.z + dz + Math.sign(dz) * r) && !solid(o.x + r * .7, o.z + dz + Math.sign(dz) * r) && !solid(o.x - r * .7, o.z + dz + Math.sign(dz) * r)) o.z += dz; }
-function hurt(d) { const red = Math.round(d * 100 / (100 + P.st.def * 4)); P.hp -= red; player.inv = .25; $('flash').style.transition = 'none'; $('flash').style.opacity = .7; requestAnimationFrame(() => requestAnimationFrame(() => { $('flash').style.transition = 'opacity .5s'; $('flash').style.opacity = 0; }));
-  if (P.hp <= 0) { running = false; document.exitPointerLock?.(); const lost = Math.floor(P.gold / 2); P.gold -= lost; $('deadT').textContent = `Slain on floor ${P.depth}. You lost ${lost} gold but keep your level and gear.`; show('dead'); } }
+function hurt(d, e) { const who = e ? ename(e, true) : 'Something';
+  if (buffs.evade && rnd() * 100 < 40) return ui.log('miss', `${who} tries to hit YOU, but YOU dodge!`);
+  let red = Math.round(d * 100 / (100 + P.st.def * 4)); if (player.ward > 0) { const ab = Math.min(player.ward, red); player.ward -= ab; red -= ab; if (player.ward <= 0) { delete buffs.ward; ui.log('spell', 'Your arcane ward shatters.'); } if (!red) return ui.log('spell', 'Your arcane ward absorbs the blow.'); }
+  P.hp -= red; player.inv = .25; ui.log('hurt', `${who} ${e ? foeVerb(e) : 'hits'} YOU for ${red} points of damage.`); if (player.sit) { player.sit = false; ui.log('sys', 'You are knocked to your feet!'); $('mRest')?.classList.remove('on'); }
+  $('flash').style.transition = 'none'; $('flash').style.opacity = .7; requestAnimationFrame(() => requestAnimationFrame(() => { $('flash').style.transition = 'opacity .5s'; $('flash').style.opacity = 0; }));
+  if (P.hp <= 0) { running = false; document.exitPointerLock?.(); ui.closeAll(); const lost = Math.floor(P.gold / 2); P.gold -= lost; ui.log('bad', `You have been slain by ${e ? ename(e) : 'something'}!`); $('deadT').textContent = `Slain on floor ${P.depth} by ${e ? ename(e) : 'the dark'}. You lost ${lost} gold but keep your level and gear.`; show('dead'); save(); } }
 $('bRes').onclick = () => { recalc(); P.hp = P.st.hp; P.mp = P.st.mp; startFloor(Math.max(1, P.depth - 1)); };
+let curTgt = null; const target = () => curTgt && enemies.includes(curTgt) ? curTgt : null;
 let last = performance.now(), saveT = 0;
-function loop() { requestAnimationFrame(loop); const now = performance.now(), dt = Math.min(.05, (now - last) / 1000); last = now; if (!running || paused || !map) { R.render(scene, cam); return; }
-  // move
+function loop() { requestAnimationFrame(loop); const now = performance.now(), dt = Math.min(.05, (now - last) / 1000); last = now; if (!running || paused() || !map) { R.render(scene, cam); return; }
   let mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + jv.x, mz = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0) + jv.y; const ml = Math.hypot(mx, mz); if (ml > 1) { mx /= ml; mz /= ml; }
+  if (ml > .1) standUp();
   const sprint = (keys.ShiftLeft || keys.ShiftRight || Math.hypot(jv.x, jv.y) > .95) && player.st > 1 && ml > .1, sp = 4.2 * (sprint ? 1.6 : 1) * P.st.spd / 100;
-  if (sprint) player.st -= 18 * dt; else player.st = Math.min(100, player.st + 14 * dt);
+  if (sprint) player.st -= 18 * dt; else player.st = Math.min(100, player.st + (player.sit ? 40 : 14) * dt);
   const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw); tryMove(player, (mx * cy + mz * sy) * sp * dt, (-mx * sy + mz * cy) * sp * dt); player.bob += ml * dt * (sprint ? 12 : 8);
-  cam.position.set(player.x, 1.62 + Math.sin(player.bob) * .045 * Math.min(1, ml), player.z); cam.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
-  if (mouseDown) attack(); player.cd -= dt; player.scd -= dt; player.hcd -= dt; player.inv -= dt; P.mp = Math.min(P.st.mp, P.mp + P.st.mp * .012 * dt);
-  // weapon swing
+  cam.position.set(player.x, (player.sit ? 1.05 : 1.62) + Math.sin(player.bob) * .045 * Math.min(1, ml), player.z); cam.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+  if (mouseDown) attack(); player.cd -= dt; player.inv -= dt;
+  for (const k in player.cds) player.cds[k][0] -= dt;
+  const rg = 1 + (P.fx.regen || 0); if (player.sit) { P.hp = Math.min(P.st.hp, P.hp + P.st.hp * .025 * rg * dt); P.mp = Math.min(P.st.mp, P.mp + P.st.mp * .04 * rg * dt); } else P.mp = Math.min(P.st.mp, P.mp + P.st.mp * .012 * dt);
+  if (player.hot) { player.hot.t -= dt; P.hp = Math.min(P.st.hp, P.hp + player.hot.amt * dt); if (player.hot.t <= 0) player.hot = null; }
+  let bchg = false; for (const [k, b] of Object.entries(buffs)) { b.t -= dt; if (b.t <= 0) { delete buffs[k]; bchg = true; if (k === 'ward') player.ward = 0; ui.log('sys', `Your ${S.SPELLS[k]?.n || k} fades.`); } } if (bchg) recalc();
   player.swing = Math.max(0, player.swing - dt * 4); const s = Math.sin(player.swing * Math.PI); hand.position.set(.42 - s * .3, -.32 + Math.sin(player.bob) * .02 + s * .12, -.75); hand.rotation.z = s * 1.1 - .2; hand.rotation.x = -s * .9;
   torch.intensity = 42 + Math.sin(now * .013) * 2 + Math.sin(now * .031) * 2;
-  // nearest room torches get the real lights
   const L = world.userData.lights; props.filter(p => p.k === 'torch').map(p => [p, Math.hypot(p.x - player.x, p.z - player.z)]).sort((a, b) => a[1] - b[1]).slice(0, L.length).forEach(([p], i) => L[i].position.set(p.x, 2.6, p.z));
-  // discovery for minimap
   const ci = Math.floor(player.x / CS), cj = Math.floor(player.z / CS); for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) { const i = ci + a, j = cj + b; if (i >= 0 && j >= 0 && i < N && j < N && !seen[i][j] && (map[i][j] ? los(player.x, player.z, i * CS + 2, j * CS + 2) : true)) { seen[i][j] = 1; mmDirty = true; } }
-  // enemies
+  // enemies (stun / slow / damage-over-time added; AI unchanged otherwise)
   let tgt = null, tb = 1e9; const f = fwd();
-  for (const e of enemies) { const dx = player.x - e.x, dz = player.z - e.z, d = Math.hypot(dx, dz); const see = d < 13 && los(e.x, e.z, player.x, player.z); if (see && d < 10) e.awake = true;
-    e.cd -= dt; e.hurt -= dt; e.wob += dt * 6;
-    if (e.awake && see) { const want = e.ranged ? 6 : 1.3 + (e.boss ? .6 : 0); if (d > want) tryMove(e, dx / d * e.spd * dt, dz / d * e.spd * dt, .4); else if (e.ranged && d < 4) tryMove(e, -dx / d * e.spd * .6 * dt, -dz / d * e.spd * .6 * dt, .4);
-      if (e.cd <= 0) { if (!e.ranged && d < want + .5) { e.cd = 1.1 + rnd() * .4; hurt(e.atk); } else if (e.ranged && d < 12) { e.cd = 1.8 + rnd(); shoot(0xc04aff, 9, e.atk * .9, false, .16, { x: e.x, z: e.z, f: new THREE.Vector3(dx, (1.5 - 1.1) , dz).normalize() }); } } }
-    else if (e.awake && d < 18) tryMove(e, dx / d * e.spd * .5 * dt, dz / d * e.spd * .5 * dt, .4);
-    e.sp.position.set(e.x, Math.abs(Math.sin(e.wob)) * .05, e.z); e.sp.material.color.setHex(e.hurt > 0 ? 0xff5050 : 0xffffff);
+  for (const e of [...enemies]) { const dx = player.x - e.x, dz = player.z - e.z, d = Math.hypot(dx, dz); const see = d < 13 && los(e.x, e.z, player.x, player.z); if (see && d < 10) e.awake = true;
+    e.cd -= dt; e.hurt -= dt; e.wob += dt * 6; e.slow -= dt; e.stun -= dt;
+    for (const o of e.dots) { o.acc += dt; if (o.acc >= 1) { o.acc -= 1; o.t--; hitEnemy(e, o.dmg, 0, { dot: o.n }); } } if (!enemies.includes(e)) continue; e.dots = e.dots.filter(o => o.t > 0);
+    const spd = e.spd * (e.slow > 0 ? 1 - e.slowAmt : 1);
+    if (e.stun > 0) { } else if (e.awake && see) { const want = e.ranged ? 6 : 1.3 + (e.boss ? .6 : 0); if (d > want) tryMove(e, dx / d * spd * dt, dz / d * spd * dt, .4); else if (e.ranged && d < 4) tryMove(e, -dx / d * spd * .6 * dt, -dz / d * spd * .6 * dt, .4);
+      if (e.cd <= 0) { if (!e.ranged && d < want + .5) { e.cd = 1.1 + rnd() * .4; hurt(e.atk, e); } else if (e.ranged && d < 12) { e.cd = 1.8 + rnd(); shoot(0xc04aff, 9, e.atk * .9, false, .16, { x: e.x, z: e.z, e, f: new THREE.Vector3(dx, (1.5 - 1.1), dz).normalize() }); } } }
+    else if (e.awake && d < 18) tryMove(e, dx / d * spd * .5 * dt, dz / d * spd * .5 * dt, .4);
+    if (!running) return;
+    e.sp.position.set(e.x, e.stun > 0 ? 0 : Math.abs(Math.sin(e.wob)) * .05, e.z); e.sp.material.color.setHex(e.hurt > 0 ? 0xff5050 : e.stun > 0 ? 0xffe08a : e.slow > 0 ? 0x9ad8ff : 0xffffff);
     const v = new THREE.Vector3(e.x - player.x, 1 - 1.62, e.z - player.z); const ang = v.normalize().dot(f); if (d < 14 && ang > .93 && see && d < tb) { tb = d; tgt = e; } }
-  if (tgt) { $('tgt').style.display = 'block'; $('tgtN').textContent = tgt.name; $('tgtH').style.width = Math.max(0, tgt.hp / tgt.max * 100) + '%'; } else $('tgt').style.display = 'none';
-  // shots
+  // EQ-style sticky target: keep the last foe you looked at until it dies or is far away
+  if (tgt) curTgt = tgt; else if (curTgt && (!enemies.includes(curTgt) || Math.hypot(curTgt.x - player.x, curTgt.z - player.z) > 18)) curTgt = null;
   for (let i = shots.length - 1; i >= 0; i--) { const s = shots[i]; s.m.position.addScaledVector(s.v, dt); s.t -= dt; const p = s.m.position; let done = s.t <= 0 || solid(p.x, p.z) || p.y < 0 || p.y > CS;
-    if (!done && s.hostile) { if (Math.hypot(p.x - player.x, p.z - player.z) < .55) { hurt(s.dmg); done = true; } }
+    if (!done && s.hostile) { if (Math.hypot(p.x - player.x, p.z - player.z) < .55) { hurt(s.dmg, s.from); done = true; } }
     else if (!done) for (const e of enemies) { if (Math.hypot(p.x - e.x, p.z - e.z) < .6 + e.d[3] * .08 && p.y < e.sp.scale.y + .2) { done = true; break; } }
-    if (done) { if (!s.hostile && s.t > 0) { for (const e of [...enemies]) { const d = Math.hypot(p.x - e.x, p.z - e.z); if (d < (s.aoe ? 2.6 : .6 + e.d[3] * .08 + .3)) hitEnemy(e, s.dmg * (s.aoe ? 1 - d / 4 : 1), s.aoe ? 1.2 : .3); } } scene.remove(s.m); shots.splice(i, 1); } }
-  // nearby interactables
-  near = null; const sd = Math.hypot(stairs.position.x - player.x, stairs.position.z - player.z); if (sd < 2) near = { k: 'stairs' }; stairs.children[0].rotation.z += dt;
-  for (const p of props) if (p.k === 'chest' && Math.hypot(p.x - player.x, p.z - player.z) < 2) near = p;
-  $('prompt').style.display = near ? 'block' : 'none'; if (near) $('prompt').textContent = (MOBILE ? 'USE · ' : 'E · ') + (near.k === 'chest' ? 'Open chest' : `Descend to floor ${P.depth + 1}`);
-  if ((saveT += dt) > 10) { saveT = 0; save(); } hud(); if (mmDirty) drawMM(); R.render(scene, cam); }
-function hud() { if (!P?.st) return; const s = P.st; $('hpB').style.width = clamp(P.hp / s.hp * 100, 0, 100) + '%'; $('mpB').style.width = clamp(P.mp / s.mp * 100, 0, 100) + '%'; $('stB').style.width = clamp(player.st, 0, 100) + '%'; $('xpB').style.width = clamp(P.xp / Math.round(60 * Math.pow(P.lvl, 1.45)) * 100, 0, 100) + '%';
-  $('lvl').textContent = `${P.name} · Lv ${P.lvl} · ${Math.ceil(P.hp)}/${s.hp} HP`; $('pots').textContent = `❤ ×${P.pots[0]} (1)   💧 ×${P.pots[1]} (2)   🪙 ${P.gold}`; $('info').innerHTML = `Floor ${P.depth}<br><span class="dim">${theme?.[1] || ''}</span><br><span class="dim">${enemies.length} foes left</span>`; }
-function drawMM() { mmDirty = false; const c = $('mm'), g = c.getContext('2d'), k = c.width / N; g.clearRect(0, 0, c.width, c.height);
+    if (done) { if (!s.hostile && s.t > 0) { for (const e of [...enemies]) { const d = Math.hypot(p.x - e.x, p.z - e.z); if (d < (s.aoe ? 2.6 : .6 + e.d[3] * .08 + .3)) hitEnemy(e, s.dmg * (s.aoe ? 1 - d / 4 : 1), s.aoe ? 1.2 : .3, s.src); } } scene.remove(s.m); shots.splice(i, 1); } }
+  if (!running) return;
+  near = null; const sd = Math.hypot(stairs.position.x - player.x, stairs.position.z - player.z); if (sd < 2) near = { k: 'stairs' }; stairs.children[0].rotation.z += dt; forge.children[4].material.color.setHSL(.06, 1, .5 + Math.sin(now * .004) * .08);
+  for (const p of props) if ((p.k === 'chest' && Math.hypot(p.x - player.x, p.z - player.z) < 2) || (p.k === 'forge' && Math.hypot(p.x - player.x, p.z - player.z) < 2.3)) near = p;
+  $('prompt').style.display = near ? 'block' : 'none'; if (near) $('prompt').textContent = (MOBILE ? 'USE · ' : 'E · ') + (near.k === 'chest' ? 'Open chest' : near.k === 'forge' ? 'Use the Ember Forge' : `Descend to floor ${P.depth + 1}`);
+  if ((saveT += dt) > 10) { saveT = 0; save(); } ui.frame(now); if ($('minfo')) { const t = `Floor ${P.depth} · ${enemies.length} foes`; if ($('minfo').textContent !== t) $('minfo').textContent = t; } if (mmDirty) drawMM($('mm')); R.render(scene, cam); }
+function drawMM(c, big) { if (!c || !map) return; if (!big) mmDirty = false; const g = c.getContext('2d'), k = c.width / N; g.clearRect(0, 0, c.width, c.height);
   for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) if (seen[i][j] && map[i][j]) { g.fillStyle = '#a07a4499'; g.fillRect(i * k, j * k, k + .5, k + .5); }
-  const si = Math.floor(stairs.position.x / CS), sj = Math.floor(stairs.position.z / CS); if (seen[si][sj]) { g.fillStyle = '#b080ff'; g.fillRect(si * k - 1, sj * k - 1, k + 2, k + 2); } }
-setInterval(() => { if (running && map) { mmDirty = true; } }, 300);
-const _dm = drawMM; window.__eg = { get P() { return P; }, get enemies() { return enemies; }, player, startFloor };
-// player dot on minimap drawn each refresh
-const oDraw = drawMM; drawMM = function () { oDraw(); const c = $('mm'), g = c.getContext('2d'), k = c.width / N; g.fillStyle = '#fff'; g.beginPath(); g.arc(player.x / CS * k, player.z / CS * k, 2.5, 0, 7); g.fill(); g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(player.x / CS * k, player.z / CS * k); g.lineTo(player.x / CS * k - Math.sin(player.yaw) * 7, player.z / CS * k - Math.cos(player.yaw) * 7); g.stroke(); };
-function logm(h) { const d = document.createElement('div'); d.innerHTML = h; $('log').appendChild(d); while ($('log').children.length > 6) $('log').firstChild.remove(); setTimeout(() => { d.style.opacity = 0; setTimeout(() => d.remove(), 1000); }, 5000); }
+  const si = Math.floor(stairs.position.x / CS), sj = Math.floor(stairs.position.z / CS); if (seen[si][sj]) { g.fillStyle = '#b080ff'; g.fillRect(si * k - 1, sj * k - 1, k + 2, k + 2); }
+  g.fillStyle = '#ff8a3a'; g.fillRect(forge.position.x / CS * k - 2, forge.position.z / CS * k - 2, 4, 4);
+  if (big) for (const e of enemies) if (seen[Math.floor(e.x / CS)]?.[Math.floor(e.z / CS)]) { g.fillStyle = S.conOf(P.lvl, e.lvl).col; g.beginPath(); g.arc(e.x / CS * k, e.z / CS * k, 2.5, 0, 7); g.fill(); }
+  const px = player.x / CS * k, pz = player.z / CS * k; g.fillStyle = '#fff'; g.beginPath(); g.arc(px, pz, big ? 4 : 2.5, 0, 7); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = big ? 2 : 1; g.beginPath(); g.moveTo(px, pz); g.lineTo(px - Math.sin(player.yaw) * (big ? 14 : 7), pz - Math.cos(player.yaw) * (big ? 14 : 7)); g.stroke(); }
+setInterval(() => { if (running && map) mmDirty = true; }, 300);
+// ---------- UI ----------
+const G = { MOBILE, get P() { return P; }, player, buffs, setUiPause(v) { const was = uiPaused; uiPaused = v; if (v && !was) { mouseDown = false; document.exitPointerLock?.(); } $('lockhint').style.display = 'none'; }, changed, save, castGem, useHot, sit, pause, relock() { },
+  nearForge: () => near?.k === 'forge', target, cdFrac, log: (t, h) => ui.log(t, h), themeName: () => theme?.[1] || '', foes: () => enemies.length, drawMap: c => drawMM(c, true) };
+const ui = initUI(G);
+drawTitle();
+window.__eg = { get P() { return P; }, get enemies() { return enemies; }, player, startFloor, ui, S, castGem, castSpell, loot, useHot, sit, kill, target, buffs, get near() { return near; }, get forge() { return forge && { x: forge.position.x, z: forge.position.z }; }, use, hurt, get paused() { return paused(); } };
 loop();
 </script></body></html>

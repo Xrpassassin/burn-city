@@ -10,6 +10,23 @@ jobs:
       - uses: actions/checkout@v4
       - name: Syntax check
         run: node --check server/server.js && node --check server/game.js
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install deps
+        run: npm ci
+      - name: Test money + security suites (blocks restart on failure)
+        env:
+          DRY_RUN: 'true'
+        run: |
+          export DATA_DIR=$(mktemp -d)
+          npm test
+      - name: Other game-rule suites
+        env:
+          DRY_RUN: 'true'
+        run: |
+          export DATA_DIR=$(mktemp -d)
+          npm run test:all
       - name: Restart Fly machine (it pulls main on boot)
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

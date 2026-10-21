@@ -19,6 +19,7 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 @media (pointer:coarse) and (max-height:500px){#firebtn{width:96px;height:96px;bottom:calc(18px + env(safe-area-inset-bottom))}#usebtn{width:70px;height:70px;bottom:calc(22px + env(safe-area-inset-bottom));right:calc(128px + env(safe-area-inset-right))}#swapbtn{bottom:calc(126px + env(safe-area-inset-bottom));right:calc(36px + env(safe-area-inset-right));width:56px;height:56px}#hint{display:none}#codhud{top:calc(40px + env(safe-area-inset-top))!important}#prompt{bottom:calc(20px + env(safe-area-inset-bottom))!important;max-width:40vw!important}}
 @media (pointer:coarse){#codhud{bottom:auto;top:calc(58px + env(safe-area-inset-top));font-size:13px}#codhud b{font-size:19px}#prompt{top:auto;bottom:178px;white-space:normal;max-width:70vw;text-align:center}}
 #hurt{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 120px #f00;opacity:0;transition:opacity .2s}#vig{position:fixed;inset:0;pointer-events:none;z-index:1;opacity:0;transition:opacity 1s;background:radial-gradient(ellipse at 50% 55%,transparent 55%,rgba(10,2,0,.55) 100%)}body.zmood #vig{opacity:1}
+/* tapfix */ #signin,#tcteams{min-height:44px}
 </style>
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script></head><body><div id="vig"></div>
 <div id="tbar"></div><button id="exit" hidden style="padding:8px 14px">✕ Menu</button><div id="hud"><span id="me" hidden style="white-space:nowrap;align-self:flex-start;padding:2px 8px;border-radius:6px;border:2px solid;font-weight:700"></span><span id="info"></span><span id="fuel" hidden><i></i></span></div>
@@ -34,7 +35,7 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <div id="touch"><div id="tl" style="left:20px"></div><div id="tr" style="right:20px"></div></div><div id="xh" hidden></div><div id="joy" hidden><i id="knob"></i></div><button id="firebtn" hidden>🔥<br>FIRE</button><button id="gear" hidden>⚙</button>
 <div id="set" hidden><b>Settings</b><label>Look sensitivity <input id="sens" type="range" min="0.3" max="2.5" step="0.1"> <span id="sensv"></span></label><label><input id="autof" type="checkbox"> Auto-fire when the crosshair is on a zombie</label><label><input id="lowq" type="checkbox"> Low graphics<span></span></label></div><div id="codhud" hidden></div><div id="prompt" hidden></div><div id="toast"></div><button id="usebtn" hidden>USE</button><button id="swapbtn" hidden>⇄<br>SWAP</button><div id="hurt"></div><div id="over" hidden></div><div id="hint" hidden></div><div id="teampick" hidden style="position:fixed;left:50%;top:44%;transform:translateX(-50%);z-index:6;display:flex;gap:6px;flex-wrap:wrap;justify-content:center"></div><button id="rkstart" hidden style="position:fixed;left:50%;top:60%;transform:translateX(-50%);z-index:6">▶ Start match</button>
 <script type="module">
-import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { sfx as SFX } from './sfx.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { createZombieAudio } from './zaudio.js'; import { createMusic } from './music.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
+import { createHeli } from './heli.js'; import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { sfx as SFX } from './sfx.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { createZombieAudio } from './zaudio.js'; import { createMusic } from './music.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
 const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
 const $ = s => document.querySelector(s), mobile = matchMedia('(pointer:coarse)').matches;
 const qr = x => $('#qr').innerHTML = `<img src="${x.qr}"><div class=small>Scan with XAMAN</div>`;
@@ -134,7 +135,7 @@ function leave(msg) {               // full teardown so the next mode (or the ci
   for (const c of cycles.values()) { if (c.userData.nc) disposeNftChar(c.userData.nc); scene.remove(c); disposeBike(c); } cycles.clear();
   for (const w of walls.values()) { scene.remove(w); w.geometry.dispose(); w.material.dispose(); } walls.clear();
   for (const t of tags.values()) { scene.remove(t); t.material.map.dispose(); t.material.dispose(); } tags.clear();
-  FX.clear(); world?.dispose(); world = null; scene.fog.color.setHex(0x050208); scene.fog.near = 40; scene.fog.far = 180; document.body.classList.remove('zmood'); GRIDH.visible = true; joy.id = null; look.id = null; $('#joy').hidden = true; pred = null;
+  FX.clear(); heliMod?.dispose(); heliMod = null; world?.dispose(); world = null; scene.fog.color.setHex(0x050208); scene.fog.near = 40; scene.fog.far = 180; document.body.classList.remove('zmood'); GRIDH.visible = true; joy.id = null; look.id = null; $('#joy').hidden = true; pred = null;
   tmsgUntil = 0; $('#teampick').innerHTML = ''; $('#teampick').dataset.n = ''; { const v = document.getElementById('dnVig'); if (v) v.style.opacity = 0; for (const i of ['dnMe', 'dnTeam']) { const e = document.getElementById(i); if (e) e.hidden = true; } } for (const k of ['#keysbtn', '#codhud', '#prompt', '#usebtn', '#swapbtn', '#teampick', '#xh', '#hint', '#over', '#fuel', '#me', '#exit', '#rkstart', '#firebtn', '#gear', '#set', '#joy']) { const e = $(k); if (e) e.hidden = true; } $('#hurt').style.opacity = 0;
   $('#touch').style.display = 'none'; $('#info').textContent = ''; $('#menu').hidden = false; if (msg) $('#price').textContent = msg;
 }
@@ -160,7 +161,7 @@ function showLobby(e) { lobbyEl.hidden = false; const game = mode === 'tron' ? '
 window.__lobbyTest = showLobby;
 function start(m, ranked = null, extra = '') {
   leave(); hideLobby(); lastOpen = 1; mode = m; $('#exit').hidden = false; const token = localStorage.bcToken || null;
-  $('#menu').hidden = true; $('#touch').style.display = mobile && mode === 'tron' ? 'block' : 'none'; $('#firebtn').hidden = !(mobile && mode === 'zombie'); $('#gear').hidden = mode !== 'zombie'; if ($('#keysbtn')) $('#keysbtn').hidden = mobile || mode !== 'zombie'; $('#fuel').hidden = $('#xh').hidden = $('#hint').hidden = mode !== 'zombie'; $('#tl').textContent = mode === 'tron' ? '◀' : 'MOVE'; $('#tr').textContent = mode === 'tron' ? '▶' : '🔥 FIRE';
+  $('#menu').hidden = true; $('#touch').style.display = mobile && mode === 'tron' ? 'block' : 'none'; $('#firebtn').hidden = !(mobile && mode === 'zombie'); placeJoy(); $('#joy').hidden = !(mobile && mode === 'zombie' && fixJoy()); $('#gear').hidden = mode !== 'zombie'; if ($('#keysbtn')) $('#keysbtn').hidden = mobile || mode !== 'zombie'; $('#fuel').hidden = $('#xh').hidden = $('#hint').hidden = mode !== 'zombie'; $('#tl').textContent = mode === 'tron' ? '◀' : 'MOVE'; $('#tr').textContent = mode === 'tron' ? '▶' : '🔥 FIRE';
   $('#hint').textContent = mode === 'tron' ? '' : mobile ? 'Left thumb: move (joystick appears where you touch) · right side: swipe to look · hold FIRE' : 'Click to lock mouse · mouse/Q/E or ←/→ aim · WASD move · click/Space fire · F use (hold to repair/revive) · X swap · 1/2/3 pick boon · P settings · L leave · H all keys';
   net = new GameNet(WS, mode, { token, look: owned, name: P.get('name') || (token ? 'runner' : (localStorage.bcGuest || (localStorage.bcGuest = 'Guest-' + (1000 + Math.floor(Math.random() * 9000))))), ranked, extra }).on('ranked_down', e => { if (e.id === net?.me) { overUntil = performance.now() + 36e5; overInfo = { ranked: true, wave: e.wave, kills: e.kills }; } }).on('ranked_result', e => { watchPayout(e.id); overUntil = performance.now() + 6000; overInfo = { ranked: true, result: e, kills: overInfo.kills }; }).on('round_result', e => { tronMsg(`Round ${e.round}: ${e.teams ? (e.teams.length ? e.teams.map(t => TEAMN[t - 1]).join(' & ') + ' team wins' : 'draw') : ''}${e.teams ? '' : e.winner != null ? esc(net?.roster.get(e.winner)?.name || 'rider') + ' survives' : 'draw'}${e.over ? '' : ' · next round soon'}`, 4000); })
     .on('match_over', e => { if (e.ranked) watchPayout(e.id); const mine = e.standings.find(s => s.id === net?.me); tronMsg(`🏁 MATCH OVER${e.winTeams?.length ? ' · ' + e.winTeams.map(t => TEAMN[t - 1]).join(' & ') + ' wins' : ''}${e.potXrp != null ? ' · pot ' + e.potXrp + ' XRP' : ''}<br><small>` + e.standings.slice(0, 8).map(s => `${s.rank}. ${esc(s.name)}${s.team ? ' (' + TEAMN[s.team - 1] + ')' : ''}${e.teams ? '' : ''}${s.prizeXrp ? ' → ' + s.prizeXrp + ' XRP' : ''}${s.review ? ' (review)' : ''}`).join('<br>') + (e.ranked ? '<br>Payouts are sent automatically · status below' : '<br>Back to the lobby for a rematch…') + '</small>', 7000); })
@@ -190,8 +191,10 @@ function start(m, ranked = null, extra = '') {
     .on('reconnecting', n => toast(`📶 Connection lost · reconnecting${n > 1 ? ' (' + n + ')' : ''}…`, 4000)).on('reconnected', () => toast('✅ Reconnected · you kept your points, guns and perks', 2600)).on('revived', e => { if (e.id !== net?.me) return; const pk = e.kp && net.map?.perks.find(k => k.k === e.kp); toast('❤ Revived!' + (pk ? ` You kept 🥤 ${pk.name}` : ''), 2600); })
     .on('rip', e => { world?.rip(e); const w = net?.map?.windows[e.i], me_ = pred; if (w && me_) { const d = Math.hypot(w.x - me_.x, w.z - me_.z); if (d < 40) sfx.rip(Math.max(0.15, 1 - d / 40)); } })
     .on('board', e => { world?.board(e); if (e.by === net?.me) { hammerT = 0.3; sfx.hammer(); if (e.pts) toast(`+${e.pts} 🔨`, 600); else toast('🔨 Board rebuilt (repair points maxed this round)', 900); } })
-    .on('shot', e => { const mine = e.id === net?.me, sy = mine ? pred?.y || 0 : net?.state()?.players.find(p => p.id === e.id)?.y || 0; if (sfx.has('shotgun')) ZA.shot(e, mine, sy); else sfx.shot(e.w === 'shotgun' ? 2 : e.w === 'napalm' ? (e.ray ? 1 : 3) : 0, mine); FX.shot(e, mine, pred?.x ?? e.x, pred?.z ?? e.z, sy); })
-    .on('gameover', e => { sfx.roundEnd(); overUntil = performance.now() + (e.in || 5) * 1000; overInfo = e; }).on('close', why => leave(/ranked_locked|match_already_started/.test(why || '') ? 'Ranked match in progress — locked' : 'Disconnected ' + (why || '')));
+    .on('shot', e => { if (e.w === 'minigun') return void HELI().tracer(e, e.id === net?.me); const mine = e.id === net?.me, sy = mine ? pred?.y || 0 : net?.state()?.players.find(p => p.id === e.id)?.y || 0; if (sfx.has('shotgun')) ZA.shot(e, mine, sy); else sfx.shot(e.w === 'shotgun' ? 2 : e.w === 'napalm' ? (e.ray ? 1 : 3) : 0, mine); FX.shot(e, mine, pred?.x ?? e.x, pred?.z ?? e.z, sy); })
+    .on('heli', e => HELI().event(e, net?.me)).on('hboard', e => { if (e.id === net?.me) toast('🚁 Aboard! You are safe. Vote to leave or man a minigun', 2600); }).on('hvote', e => HELI().event(e, net?.me)).on('hgun', e => HELI().event(e, net?.me))
+    .on('hres', e => HELI().event(e, net?.me)).on('hleft', e => { HELI().event(e, net?.me); if (e.id === net?.me) toast('☠️ The bird is gone. They are coming…', 3000); }).on('qflare', () => { toast('🧨 Flare lit! Hold the roof for the helicopter', 2600); sfx.roundStart(); })
+    .on('gameover', e => { heliMod?.event(e, net?.me); sfx.roundEnd(); overUntil = performance.now() + (e.in || 5) * 1000; overInfo = e; }).on('close', why => leave(/ranked_locked|match_already_started/.test(why || '') ? 'Ranked match in progress — locked' : 'Disconnected ' + (why || '')));
   if (mode === 'zombie' && !mobile) r.domElement.requestPointerLock?.()?.catch?.(() => {});
   if (mode === 'zombie') { sfx.unlock(); ZA.start(); MUSIC.startMatch(); }   // Burn City Lives once per match, then the BURN playlist
 }
@@ -216,7 +219,7 @@ addEventListener('keydown', e => { if (mobile || e.repeat || /INPUT|TEXTAREA|SEL
 addEventListener('keyup', e => { if (e.code === 'KeyF') keys.KeyF = 0; });
 addEventListener('keydown', e => { keys[e.code] = 1; if (mode === 'zombie' && !e.repeat) { if (e.code === 'KeyF') useQ = true; if (draftO && /Digit[123]/.test(e.code)) { pkQ = +e.code.slice(5) - 1; return; } if (/KeyX|Digit1|Digit2/.test(e.code)) swQ = true; } if (mode === 'tron' && !e.repeat) { if (/KeyA|ArrowLeft/.test(e.code)) net?.input({ turn: -1 }); if (/KeyD|ArrowRight/.test(e.code)) net?.input({ turn: 1 }); } });
 addEventListener('keyup', e => keys[e.code] = 0);
-addEventListener('mousemove', e => { if (document.pointerLockElement) { yaw -= e.movementX * 0.003 * lookSens; pitch = Math.max(-0.35, Math.min(0.35, pitch - e.movementY * 0.002 * lookSens)); } });
+addEventListener('mousemove', e => { if (document.pointerLockElement) { yaw -= e.movementX * 0.003 * lookSens; pitch = Math.max(-PLIM, Math.min(PLIM, pitch - e.movementY * 0.002 * lookSens)); } });
 r.domElement.addEventListener('mousedown', e => { if (mode === 'zombie' && !document.pointerLockElement && !mobile) r.domElement.requestPointerLock?.()?.catch?.(() => {}); fire = true; }); addEventListener('mouseup', () => fire = false);
 addEventListener('keydown', e => { if (e.code === 'Space') { fire = true; e.preventDefault(); } }); addEventListener('keyup', e => { if (e.code === 'Space') fire = false; });
 let touchX = null;
@@ -224,6 +227,19 @@ $('#tl').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: -1 }); e.
 $('#tr').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: 1 }); e.preventDefault(); };
 // ---- zombie touch controls: floating joystick (left half), swipe-look (right half), big FIRE button ----
 const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 }, look = { id: null, x: 0, y: 0 }, R_JOY = 56, DEAD = 0.15;
+// Fixed joystick option: anchored bottom-left instead of appearing under the thumb. Default on for listed wallets (same signed-in
+// account the city uses, localStorage.bcAcct), otherwise off; anyone can toggle it in Settings (localStorage.bcFixJoy).
+const FIXJOY_DEF = ['ckR0VUVNRlZEaTNLN1RVUUFRTGk2eHhhMVdDZXI4NGRjQQ=='].map(atob);   // Gnasty
+const fixJoy = () => localStorage.bcFixJoy != null ? localStorage.bcFixJoy === '1' : FIXJOY_DEF.includes(localStorage.bcAcct || '');
+function placeJoy() { const j = $('#joy'); j.classList.toggle('fixed', fixJoy()); if (fixJoy()) { j.style.left = j.style.top = ''; $('#knob').style.transform = ''; } }
+{ const st = document.createElement('style'); st.id = 'zjoyCss'; st.textContent = `#joy.fixed{left:calc(26px + env(safe-area-inset-left));bottom:calc(30px + env(safe-area-inset-bottom));top:auto}
+@media (pointer:coarse) and (orientation:landscape){#joy.fixed{left:calc(30px + env(safe-area-inset-left));bottom:calc(18px + env(safe-area-inset-bottom))}
+#firebtn{width:112px!important;height:112px!important;right:calc(26px + env(safe-area-inset-right))!important;bottom:calc(20px + env(safe-area-inset-bottom))!important}
+#usebtn{width:72px!important;height:72px!important;right:calc(150px + env(safe-area-inset-right))!important;bottom:calc(24px + env(safe-area-inset-bottom))!important}
+#swapbtn{width:58px!important;height:58px!important;right:calc(118px + env(safe-area-inset-right))!important;bottom:calc(120px + env(safe-area-inset-bottom))!important}
+#codhud{top:calc(34px + env(safe-area-inset-top))!important;left:calc(10px + env(safe-area-inset-left))!important;font-size:11px!important;line-height:1.35!important}#codhud b{font-size:16px!important}}`; document.head.appendChild(st);
+  const set = $('#set'); if (set) { const lb = document.createElement('label'); lb.innerHTML = '<input id="fixjoy" type="checkbox"> Fixed joystick (bottom-left)'; set.appendChild(lb); const cb = lb.querySelector('input'); cb.checked = fixJoy(); cb.onchange = () => { localStorage.bcFixJoy = cb.checked ? '1' : '0'; placeJoy(); if (zTouchOn()) $('#joy').hidden = !fixJoy(); }; } }
+function zTouchOn() { return mode === 'zombie' && mobile; }
 function setJoy(t) { let dx = t.clientX - joy.ox, dy = t.clientY - joy.oy; const d = Math.hypot(dx, dy), c = Math.min(d, R_JOY);
   if (d > 0) { dx = dx / d * c; dy = dy / d * c; } $('#knob').style.transform = `translate(${dx}px,${dy}px)`;
   const m = c / R_JOY, a = m < DEAD ? 0 : (m - DEAD) / (1 - DEAD), k = a * a * (3 - 2 * a) / (m || 1);   // deadzone + smooth analog ramp
@@ -232,14 +248,15 @@ const zTouch = () => mode === 'zombie' && mobile;
 addEventListener('touchstart', e => { if (!zTouch() || (e.target.closest('button,input,#set,a') && e.target.id !== 'firebtn')) return; e.preventDefault();
   for (const t of e.changedTouches) {
     if (t.target.id === 'firebtn') { fire = true; $('#firebtn').classList.add('on'); fireId = t.identifier; }
-    else if (t.clientX < innerWidth / 2 && joy.id === null) { joy.id = t.identifier; joy.ox = t.clientX; joy.oy = t.clientY; joy.x = joy.y = 0; const j = $('#joy'); j.hidden = false; j.style.left = t.clientX - 70 + 'px'; j.style.top = t.clientY - 70 + 'px'; $('#knob').style.transform = ''; }
+    else if (t.clientX < innerWidth / 2 && joy.id === null) { joy.id = t.identifier; joy.x = joy.y = 0; const j = $('#joy'); j.hidden = false; $('#knob').style.transform = '';
+      if (fixJoy()) { const b = j.getBoundingClientRect(); joy.ox = b.left + b.width / 2; joy.oy = b.top + b.height / 2; setJoy(t); } else { joy.ox = t.clientX; joy.oy = t.clientY; j.style.left = t.clientX - 70 + 'px'; j.style.top = t.clientY - 70 + 'px'; } }
     else if (look.id === null) { look.id = t.identifier; look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
 addEventListener('touchmove', e => { if (!zTouch()) return; e.preventDefault();
   for (const t of e.changedTouches) {
     if (t.identifier === joy.id) setJoy(t);
-    else if (t.identifier === look.id) { yaw -= (t.clientX - look.x) * 0.0055 * lookSens; pitch = Math.max(-0.35, Math.min(0.35, pitch - (t.clientY - look.y) * 0.003 * lookSens)); look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
+    else if (t.identifier === look.id) { yaw -= (t.clientX - look.x) * 0.0055 * lookSens; pitch = Math.max(-PLIM, Math.min(PLIM, pitch - (t.clientY - look.y) * 0.003 * lookSens)); look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
 let fireId = null;
-const tEnd = e => { for (const t of e.changedTouches) { if (t.identifier === joy.id) { joy.id = null; joy.x = joy.y = 0; $('#joy').hidden = true; }
+const tEnd = e => { for (const t of e.changedTouches) { if (t.identifier === joy.id) { joy.id = null; joy.x = joy.y = 0; $('#joy').hidden = !fixJoy(); $('#knob').style.transform = ''; }
   if (t.identifier === look.id) look.id = null; if (t.identifier === fireId) { fireId = null; fire = false; $('#firebtn').classList.remove('on'); } } };
 addEventListener('touchend', tEnd); addEventListener('touchcancel', tEnd);
 for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });   // Safari pinch/double-tap zoom
@@ -277,6 +294,7 @@ function riderNft(p, c) { const n = NFTOF(p.id), cur = c.userData.nc;
   if (c.userData.nc) { c.userData.nc.visible = !!p.alive; const cd = c.userData.nc.userData.card; if (cd) { cd.position.y = c.userData.nc.userData.frame.position.y = 5.2; cd.scale.set(1.5, 1.5, 1); c.userData.nc.userData.frame.scale.set(1.68, 1.68, 1); } } }
 const LOW = (P.get('q') || localStorage.getItem('bc_quality') || 'auto') === 'low' || ((P.get('q') || localStorage.getItem('bc_quality') || 'auto') === 'auto' && mobile && (navigator.hardwareConcurrency || 4) <= 4);
 const FX = createZombieFX(scene, { low: LOW }); FX.attach(cam); fitGun();
+let heliMod = null; const HELI = () => { if (!heliMod) { heliMod = createHeli(scene, { low: LOW, gun: FX.gun }); heliMod.toast = (m) => toast(m, 2200); } return heliMod; };   // helicopter finale (built on first use)
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S1 = new THREE.Vector3(1, 1, 1), UP = new THREE.Vector3(0, 1, 0);
 function wall(id) { let w = walls.get(id); if (!w) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(1200 * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(1200 * 4), 4));
   w = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: COL(id), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })); w.frustumCulled = false; scene.add(w); walls.set(id, w); } return w; }
@@ -315,10 +333,10 @@ function showNote(n, again = false) { let d = document.getElementById('note'); i
   clearTimeout(d._h); d._h = setTimeout(() => { d.hidden = true; }, 16000);
   let b = document.getElementById('notebtn'); if (!b) { b = document.createElement('button'); b.id = 'notebtn'; b.textContent = '📻'; b.title = 'Re-read the last radio call (N)'; b.style.cssText = 'padding:6px 10px'; b.onclick = b.ontouchstart = ev => { ev.preventDefault(); ev.stopPropagation(); if (qNote) showNote(qNote); }; $('#tbar').prepend(b); } b.hidden = false; }
 addEventListener('keydown', e => { if (e.code === 'KeyN' && mode === 'zombie' && !e.repeat) { const d = document.getElementById('note'); if (d && !d.hidden) d.hidden = true; else if (qNote) showNote(qNote); } });
-const QN = [null, ['🔧', 'Valve Wheel'], ['⚡', 'Igniter Fuse'], ['💳', "Foreman's Key Card"]];
-function questLine(q, me) { if (!q || !world) return ''; const st = q[0]; if (!st) return ''; if (st >= 6) return '🔥 Flare stack lit';
+const QN = [null, ['🔧', 'Valve Wheel'], ['⚡', 'Igniter Fuse'], ['💳', "Foreman's Key Card"], ['🔋', 'Beacon Battery'], ['🧨', 'Signal Flare']];
+function questLine(q, me) { if (!q || !world) return ''; const st = q[0]; if (!st) return ''; if (st === 6) return '🔥 Flare stack lit'; if (st >= 10) return '🚁 Flare lit · get to the Rooftop Helipad'; if (st === 8) return '🔋 Beacon powered';
   if (st % 2 === 0) return '📻 Part fitted · the radio will crackle after this round'; const it = QN[q[1]] || ['📻', 'part'];
-  if (q[5] === net?.me) return `${it[0]} Carry the ${it[1]} to the Flare Console (${world.zoneName(q[6], q[7], q[8])})`;
+  if (q[5] === net?.me) return `${it[0]} Carry the ${it[1]} to the ${st > 6 ? 'pad beacon' : 'Flare Console'} (${world.zoneName(q[6], q[7], q[8])})`;
   if (q[5]) return `${it[0]} ${esc(net.roster.get(q[5])?.name || 'A teammate')} is carrying the ${it[1]}`; return `${it[0]} Find the ${it[1]} · ${world.zoneName(q[2], q[3], q[4])}`; }
 // which zombie the crosshair is on (for the hit sound position)
 function aimTarget() { const st = net?.state(); if (!st || !pred) return null; let best = null, bd = 40; for (const z of st.zombies || []) { const dx = z.x - pred.x, dz = z.z - pred.z, al = dx * Math.sin(yaw) + dz * Math.cos(yaw), lat = Math.abs(dx * Math.cos(yaw) - dz * Math.sin(yaw)); if (al > 0 && al < bd && lat < 1.2) { bd = al; best = z; } } return best; }
@@ -367,8 +385,10 @@ let tmsgUntil = 0; function tronMsg(h, ms) { tmsgUntil = performance.now() + ms;
 const TINT = new THREE.Color(), TC = new THREE.Color();
 function tronCol(id) { const ro = net.roster.get(id) || {}; TINT.copy(COL(id, 'skin')); if (ro.team) { TC.set(TEAMC[ro.team - 1]); TINT.lerp(TC, 0.72); } return TINT; }
 const DIRYAW = [Math.PI / 2, 0, -Math.PI / 2, Math.PI];
+const PLIM = 1.35; let roll = 0, lastMx = 0;   // roll: slight camera lean into strafes   // look up/down limit (~77°); the server clamps aim pitch to ±1.4
 let pred = null, pitch = 0, autoFire = localStorage.bcAuto === '1', lookSens = +(localStorage.bcSens || 1);
 let last = performance.now(), w0, lastHp = 100, overUntil = 0, overInfo = {};
+if (P.has('perf')) window.__perf = () => ({ calls: r.info.render.calls, tris: r.info.render.triangles, progs: r.info.programs?.length });   // ?perf only
 if (P.get('debug')) Object.assign(window, { __id: () => net?.me, __tp: (x, z, lv = 0, hp = 0) => { net?.ws.send(JSON.stringify({ t: 'tp', x, z, lv, hp })); if (pred) { pred.x = x; pred.z = z; pred.lv = lv; } }, __za: ZA, __music: MUSIC, __hb: f => ZA.force(f), __st: () => net?.state(), __pred: () => pred, __world: () => world, __me: () => pred && { x: pred.x, z: pred.z, y: pred.y, lv: pred.lv, yaw, map: net?.buf[net.buf.length-1]?.m, layout: net?.map }, __aim: (y, p = 0) => { yaw = y; pitch = p; }, __use: () => useQ = true, __swap: () => swQ = true, __b: () => net?.buf[net.buf.length-1]?.b });   // local test hook
 if (!P.get('ticket') && ['zombie', 'tron'].includes(P.get('mode'))) setTimeout(() => start(P.get('mode')), 400);   // arena gate: straight into free play as a guest
 if (P.get('ticket')) setTimeout(() => start(P.get('game') === 'tron' ? 'tron' : 'zombie', P.get('ticket')), 300);   // resume a paid entry (e.g. back from XAMAN)
@@ -403,11 +423,11 @@ r.setAnimationLoop(() => {
     } else {
       yaw += ((keys.KeyQ || keys.ArrowLeft ? 1 : 0) - (keys.KeyE || keys.ArrowRight ? 1 : 0)) * dt * 2.4;
       let mz = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-      if (joy.id !== null) { mx = joy.x; mz = -joy.y; }
+      if (joy.id !== null) { mx = joy.x; mz = -joy.y; } lastMx = mx;
       // auto-fire (optional): crosshair on a zombie within flame range
       let auto = false; if (autoFire && me?.alive) for (const z of st.zombies) { const dx = z.x - me.x, dz = z.z - me.z, d = Math.hypot(dx, dz); if (d < 8.5 && d > 0.1 && (dx * Math.sin(yaw) + dz * Math.cos(yaw)) / d > 0.96) { auto = true; break; } }
       if (swQ && me?.w2 >= 0) ZA.reload('pistol_reload');
-      net.input({ yaw, mx, mz, fire: fire || auto, pi: Math.round(pitch * 100) / 100, use: useQ ? 1 : 0, sw: swQ ? 1 : 0, hold: keys.KeyF || useHold ? 1 : 0, ...(pkQ != null ? { pk: pkQ } : {}) }); useQ = swQ = false; pkQ = null;
+      net.input({ yaw, mx, mz, fire: fire || auto, pi: Math.round(pitch * 100) / 100, use: useQ ? 1 : 0, sw: swQ ? 1 : 0, hold: keys.KeyF || useHold ? 1 : 0, ...(pkQ != null ? { pk: pkQ } : {}), ...(heliMod?.takeVote() ? { vote: 1 } : {}) }); useQ = swQ = false; pkQ = null;
       // client-side prediction for my own movement, reconciled to the newest authoritative snapshot
       const raw = net.buf[net.buf.length-1]?.p.find(p => p[0] === net.me);
       if (me && raw) { const rawY = raw[18] || 0, rawLv = world?.hasUp && rawY > world.upH * 0.5 ? 1 : 0; if (!pred || !me.alive) pred = { x: raw[1], z: raw[2], lv: rawLv, y: rawY, lvT: 0 };
@@ -415,7 +435,7 @@ r.setAnimationLoop(() => {
         if (me.alive) { const sp = me.down ? 1.6 : me.perks & 4 ? 8.2 : 6, op = st.map?.[0] ?? 63, nx = pred.x + vx * sp * dt, nz = pred.z + vz * sp * dt; if (inZone(nx, pred.z, op, 0.42, pred.lv)) pred.x = nx; if (inZone(pred.x, nz, op, 0.42, pred.lv)) pred.z = nz; }
         const ex = raw[1] - pred.x, ez = raw[2] - pred.z, e = Math.hypot(ex, ez); if (e > 4) { pred.x = raw[1]; pred.z = raw[2]; pred.lv = rawLv; } else { const k = Math.min(1, dt * 3); pred.x += ex * k; pred.z += ez * k; }
         if (world?.lift) { world.lift(pred); if (!world.onRamp(pred.x, pred.z) && !world.onRamp(raw[1], raw[2]) && rawLv !== pred.lv) { if ((pred.lvT += dt) > 0.4) { pred.lv = rawLv; world.lift(pred); pred.lvT = 0; } } else pred.lvT = 0; }   // floor disagrees with the server for a moment: trust the server
-        pred.moving = l > 0.1; }
+        pred.moving = l > 0.1; if (st.heli && heliMod?.aboard(st.heli, net.me)) { pred.x = raw[1]; pred.z = raw[2]; pred.y = rawY; pred.lv = 1; pred.moving = false; } }
       const flameCol = net.roster.get(net.me)?.look?.flame ? COL(net.me, 'flame') : null;
       GRIDH.visible = !world; scene.userData.camQ = cam.quaternion; world?.quest?.(st.quest, net.me); world?.mini(st, net.me, pred?.y || 0); world?.update(dt, st.map, net.buf[net.buf.length-1]?.b);
       if (hammerT > 0) { hammerT = Math.max(0, hammerT - dt); FX.gun.rotation.x = Math.sin((0.3 - hammerT) / 0.3 * Math.PI) * 0.9; } else FX.gun.rotation.x = 0;   // hammer swing
@@ -423,8 +443,8 @@ r.setAnimationLoop(() => {
         ZA.tick(dt, me ? { x: pred.x, y: pred.y || 0, z: pred.z, yaw, hp: me.hp, max: me.perks & 1 ? 250 : 100, alive: !!me.alive, down: !!me.down } : null, st.zombies, st.players.map(p => p.id === net.me ? { ...p, x: pred.x, z: pred.z, y: pred.y } : p), net.me);
         if (!sfx.has('groan') && (groanT -= dt) <= 0) { groanT = 1.6 + Math.random() * 2.6; let best = null, bd = 1e9; for (const z of st.zombies || []) { const d = Math.hypot(z.x - pred.x, z.z - pred.z); if (d < bd && Math.random() < 0.7) { bd = d; best = z; } }
           if (best) sfx.groan(bd, Math.max(-0.8, Math.min(0.8, Math.sin(Math.atan2(best.x - pred.x, best.z - pred.z) - yaw) * -0.8))); } }
-      FX.update(dt, st, me && me.alive && !me.down && pred ? { x: pred.x, z: pred.z, y: pred.y || 0, yaw, firing: !!me.firing, moving: pred.moving, w: me.w } : null, net.me, id => COL(id, 'skin'), flameCol, NFTOF, API);
-      if (me) { const px = pred ? pred.x : me.x, pz = pred ? pred.z : me.z; cam.position.set(px, (pred ? pred.y || 0 : me.y || 0) + 1.6 + (pred?.moving ? Math.sin(now / 120) * 0.03 : 0), pz); cam.rotation.set(pitch, yaw + Math.PI, 0, 'YXZ');
+      FX.update(dt, st, me && me.alive && !me.down && pred ? { x: pred.x, z: pred.z, y: pred.y || 0, yaw, pitch, lean: roll, firing: !!me.firing, moving: pred.moving, w: me.w } : null, net.me, id => COL(id, 'skin'), flameCol, NFTOF, API);
+      if (me) { const px = pred ? pred.x : me.x, pz = pred ? pred.z : me.z; cam.position.set(px, (pred ? pred.y || 0 : me.y || 0) + 1.6 + (pred?.moving ? Math.abs(Math.sin(now / 150)) * 0.045 - 0.02 : 0), pz); roll += (-lastMx * 0.035 - roll) * Math.min(1, dt * 8); cam.rotation.set(pitch, yaw + Math.PI, roll + (pred?.moving ? Math.sin(now / 150) * 0.006 : 0), 'YXZ');   // head bob in step + strafe lean
         $('#fuel').firstChild.style.width = me.fuel + '%'; }
       const rk = net.buf[net.buf.length-1]?.rk; $('#rkstart').hidden = !(rk && rk[0] === 'lobby' && !rk[1]); $('#info').textContent = rk && rk[0] === 'lobby' ? `🏆 Ranked lobby · ${rk[2]} player${rk[2] === 1 ? '' : 's'} here · ${rk[1] ? 'starting in ' + rk[1] + 's' : 'waiting for the creator to start'}` : `${rk ? '🏆 Ranked · ' : ''}Wave ${st.wave} · Zombies ${st.zombies.length} · Score ${st.score} · HP ${me ? me.hp : 0}`;
       if (me && net.map) { const W_ = net.map.weapons, pk = net.map.perks.filter((k, i) => me.perks & (1 << i));
@@ -439,6 +459,7 @@ r.setAnimationLoop(() => {
       else if (me && !me.alive && !rk) { ov.hidden = false; ov.innerHTML = '💀 YOU\'RE DOWN<br><small>Back in at the next wave</small>'; } else ov.hidden = true;
     }
   }
+  if (st?.heli || heliMod) HELI().update(dt, now / 1000, mode === 'zombie' ? st?.heli : null, { me: net?.me, cam, quest: st?.quest, hasPad: !!world?.hasUp, players: st?.players, yaw, pitch });
   r.render(scene, cam);
 });
 

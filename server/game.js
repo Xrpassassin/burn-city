@@ -1,5 +1,6 @@
 // Authoritative simulation for both modes. Clients only send inputs; server owns all state,
 // collisions and damage. Numbers are quantized in snapshots to keep bandwidth small.
+const Heli = require('./heli');   // helicopter finale (Night Shift ch. 4)
 const C = require('./config'), Z = require('./cod'), Quest = require('./quest'), IFRAME = +(process.env.ZOMBIE_IFRAME || 1), SPAWN_GAP = +(process.env.ZOMBIE_SPAWN_GAP || 1.8), REGEN_DELAY = +(process.env.ZOMBIE_REGEN_DELAY || 3.5), REGEN_RATE = +(process.env.ZOMBIE_REGEN_RATE || 22), HS_LAT = 0.3, HS_BONUS = 40, TEST_GOD = process.env.ZOMBIE_TEST_GOD === '1' && !process.env.FLY_APP_NAME;   // local screenshot runs only
 // between-round upgrade draft (Mortuus-style): after each cleared wave every standing player picks 1 of 3 stacking boons
 const DRAFT = { dmg: ['Searing Fuel', '+12% damage', 5, '🔥'], fuel: ['Deep Tanks', '+25% fuel refill', 4, '⛽'], armor: ['Slag Plating', '-10% damage taken', 3, '🛡️'], hp: ['Thick Skin', '+20 max health', 5, '❤️'],
@@ -41,7 +42,7 @@ class Room {
   reset() {
     this.round = (this.round || 0) + 1;
     if (this.mode === 'zombie') { this.over = 0; this.zombies = new Map(); this.spawned = 0; this.wave = (!process.env.FLY_APP_NAME && +process.env.ZOMBIE_START_WAVE) || 0;   // start-wave override: local testing only
-    this.score = 0; this.toSpawn = 0; this.waveDelay = 5; this.zid = 1; const oldM = this.M; Z.resetMap(this); if (oldM && oldM !== this.M) this.events.push({ e: 'map', map: Z.layout() }); for (const p of this.players.values()) Z.initPlayer(p); }
+    this.score = 0; this.toSpawn = 0; this.waveDelay = 5; this.zid = 1; Heli.reset(this); this.onFlare = e => Heli.start(this, e); const oldM = this.M; Z.resetMap(this); if (oldM && oldM !== this.M) this.events.push({ e: 'map', map: Z.layout() }); for (const p of this.players.values()) Z.initPlayer(p); }
     else this.roundEnd = null;
     for (const p of this.players.values()) this.spawn(p);
     if (this.tl) this.tl.order = [];
@@ -60,7 +61,7 @@ class Room {
     else {
       p.in.mx = clamp(+m.mx || 0, -1, 1); p.in.mz = clamp(+m.mz || 0, -1, 1);
       if (Number.isFinite(+m.yaw)) p.yaw = +m.yaw % (Math.PI * 2);
-      p.in.fire = !!m.fire; if (m.use) p.in.use = true; if (m.hold !== undefined) p.in.hold = !!m.hold; if (m.sw && p.guns?.length > 1) p.slot = p.slot ? 0 : 1; if (m.pk === 0 || m.pk === 1 || m.pk === 2) p.in.pk = m.pk; if (Number.isFinite(+m.pi)) p.pitch = clamp(+m.pi, -PMAX, PMAX);
+      p.in.fire = !!m.fire; if (m.use) p.in.use = true; if (m.hold !== undefined) p.in.hold = !!m.hold; if (m.sw && p.guns?.length > 1) p.slot = p.slot ? 0 : 1; if (m.pk === 0 || m.pk === 1 || m.pk === 2) p.in.pk = m.pk; if (Number.isFinite(+m.pi)) p.pitch = clamp(+m.pi, -PMAX, PMAX); if (m.vote) p.in.vote = true;
     }
   }
   step(dt) { this.t += dt; if (this.rng) { const R0 = Math.random; Math.random = this.rng; try { this.zomb(dt); } finally { Math.random = R0; } return; } this.mode === 'tron' ? this.tron(dt) : this.zomb(dt); }
@@ -138,7 +139,7 @@ class Room {
       if (!dot && Z.has(p, 'burn') && zb.hp > 0) { zb.dot = Math.min((zb.dot || 0) + d * 0.35, zb.maxhp || 1e9); zb.dotBy = p.id; }   // Afterburn perk: 35% extra as burn over ~2 s
       zb.hs = hs ? 1 : 0; if (hs) p._hs = 1; const _ = 0, real = Math.min(d, Math.max(0, zb.hp)); zb.hp -= d; if (!this.ranked && !zb.crR && zb.hp > 0 && zb.maxhp && zb.hp < zb.maxhp * 0.4 && zb.ty <= 1) { zb.crR = 1; if (Math.random() < 0.3) { zb.cr = 1; zb.sp *= 0.45; } } zb.burn = 1; zb.by = p.id; if (real > 0) p._hm = Math.max(p._hm || 0, zb.hp <= 0 ? 2 : 1);
       p.ptsAcc += real * 0.2; if (p.ptsAcc >= 1) { const k = Math.floor(p.ptsAcc); p.pts += k; p.ptsAcc -= k; } };   // points per hit (by damage dealt)
-    const up = ps.filter(p => p.alive && !p.down);
+    const up = ps.filter(p => p.alive && !p.down && !p.aboard), AIM = { vAim, hsV, reachH, missD, endY, hurt };
     // Last stand: downed players crawl and fire a BURN pistol (hotter if they own any Forged gun)
     const lastStand = (p, dt) => { const s = Math.sin(p.yaw), c = Math.cos(p.yaw), CR = 1.6; let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
       const nx = clamp(p.x + vx * CR * dt, -W, W), nz = clamp(p.z + vz * CR * dt, -W, W); if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
@@ -164,6 +165,7 @@ class Room {
       }
       { const mx = maxHp(p); if (p.hp < mx && this.t - (p.hurtT ?? -99) > REGEN_DELAY - 0.8 * bon(p, 'regen')) p.hp = Math.min(mx, p.hp + REGEN_RATE * (Z.has(p, 'jug') ? 1.5 : 1) * (1 + 0.35 * bon(p, 'regen')) * dt); }
       if (p.in.pk != null) { takeDraft(p, p.in.pk, ev); p.in.pk = null; }   // health regen after a few seconds without damage
+      if (p.aboard) { Heli.rider(this, p, dt, ev, AIM); continue; }   // seated in the helicopter: vote / minigun only
       if (p.in.use) { p.in.use = false; if (!Quest.use(this, p, ev)) Z.use(this, p, ev); } Z.repair(this, p, dt, ev);
       const s = Math.sin(p.yaw), c = Math.cos(p.yaw), SP = Z.has(p, 'speed') ? 8.2 : 6;           // move relative to view
       let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
@@ -195,13 +197,13 @@ class Room {
       for (const zb of this.zombies.values()) if (Math.hypot(zb.x - pl.x, zb.z - pl.z) < pl.w.splash) hurt(zb, pl.w.pdps * dt, p); }
     for (const p of this.players.values()) if (p.inv > 0) p.inv -= dt;
     for (const p of ps) if (p._hm) { ev.push({ e: 'hm', id: p.id, k: p._hm === 2 ? 1 : 0, hs: p._hs ? 1 : 0, ...(p._cr ? { cr: 1 } : {}) }); p._hm = 0; p._hs = 0; p._cr = 0; }
-    Quest.tick(this, ps, ev);
+    Quest.tick(this, ps, ev); if (Heli.tick(this, ps, dt, ev)) return;
     this.zt = (this.zt || 0) + dt; if (!this.winLast) this.winLast = Z.WINDOWS.map(() => -99);
     for (const zb of this.zombies.values()) {
       if (zb.dot > 0 && zb.hp > 0) { const k = this.players.get(zb.dotBy), a = Math.min(zb.dot, Math.max(12, zb.dot * 0.6) * dt); zb.dot -= a; if (k) hurt(zb, a / ((Z.has(k, 'dbl') ? 2 : 1) * (1 + 0.12 * bon(k, 'dmg'))), k, 0, true); else zb.dot = 0; }   // Afterburn tick (already scaled when banked)
       if (zb.hp <= 0) { this.zombies.delete(zb.id); this.score += 10; const k = this.players.get(zb.by); if (k && Z.has(k, 'leech') && k.alive && !k.down) k.hp = Math.min(maxHp(k), k.hp + 8); if (k) { k.lifeKills++; k.pts += Math.round(((ZPTS[zb.ty] ?? 60) + (zb.hs ? HS_BONUS : 0)) * (1 + 0.15 * bon(k, 'pts'))); if (zb.hs) k.lifeHs = (k.lifeHs || 0) + 1; } ev.push({ e: 'zdie', id: zb.id, x: q(zb.x), z: q(zb.z), ty: zb.ty, hs: zb.hs ? 1 : 0 }); continue; }
       if (Z.atWindow(this, zb, dt, ev)) { zb.burn = Math.max(0, (zb.burn || 0) - dt); continue; }
-      let best = null, bd = 1e9; for (const p of ps) if (p.alive && !p.down) { const d = Math.hypot(p.x - zb.x, p.z - zb.z) + (Math.abs((p.y || 0) - (zb.y || 0)) > 1.3 ? 6 : 0); if (d < bd) { bd = d; best = p; } }   // another floor counts as further away
+      let best = null, bd = 1e9; for (const p of ps) if (p.alive && !p.down && !p.aboard) { const d = Math.hypot(p.x - zb.x, p.z - zb.z) + (Math.abs((p.y || 0) - (zb.y || 0)) > 1.3 ? 6 : 0); if (d < bd) { bd = d; best = p; } }   // another floor counts as further away
       if (!best) continue;
       const sameLv = Math.abs((best.y || 0) - (zb.y || 0)) < 1.3;
       if (bd > 1.1 || !sameLv) {   // follow the flow field; go straight only when close with a clear line
@@ -244,12 +246,12 @@ class Room {
   snapshot() {
     const P = [...this.players.values()].map(p => this.mode === 'tron'
       ? [p.id, q(p.x), q(p.z), p.dir, p.alive ? 1 : 0]
-      : [p.id, q(p.x), q(p.z), Math.round(p.yaw * 100) / 100, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.fuel), p.firing ? 1 : 0, p.pts | 0, Z.WI[p.guns[p.slot]] ?? 0, p.perks, p.down ? (p.revT > 0 || p.selfRev ? 2 : 1) : 0, p.guns[1 - p.slot] ? Z.WI[p.guns[1 - p.slot]] : -1, p.inv > 0 ? 1 : 0, Z.upBits(p), p.down && p.bleed > 0 ? Math.ceil(p.bleed) : 0, p.down && p.revT > 0 && p.revNeed ? Math.round(p.revT / p.revNeed * 100) : 0, p.down && p.up && p.up.length ? 1 : 0, q(p.y || 0), this.quest?.it?.by === p.id ? this.quest.it.kind : 0, Math.round((p.pitch || 0) * 100) / 100]);
+      : [p.id, q(p.x), q(p.z), Math.round(p.yaw * 100) / 100, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.fuel), p.firing ? 1 : 0, p.pts | 0, Z.WI[p.guns[p.slot]] ?? 0, p.perks, p.down ? (p.revT > 0 || p.selfRev ? 2 : 1) : 0, p.guns[1 - p.slot] ? Z.WI[p.guns[1 - p.slot]] : -1, p.inv > 0 && !p.aboard ? 1 : 0, Z.upBits(p), p.down && p.bleed > 0 ? Math.ceil(p.bleed) : 0, p.down && p.revT > 0 && p.revNeed ? Math.round(p.revT / p.revNeed * 100) : 0, p.down && p.up && p.up.length ? 1 : 0, q(p.y || 0), this.quest?.it?.by === p.id ? this.quest.it.kind : 0, Math.round((p.pitch || 0) * 100) / 100]);
     const s = { t: 's', ts: ms(this.t), p: P };
     if (this.ranked) s.rk = [this.ranked.state, this.ranked.countdown === null ? 0 : Math.ceil(this.ranked.countdown), this.players.size, this.ranked.id];
     if (this.tl) { const k = this.tl, cr = k.ranked ? [...this.players.values()].find(p => p.acct === k.creatorAcct)?.id : k.creatorId;
       s.tl = [k.state, k.countdown == null ? 0 : Math.ceil(k.countdown), k.id, cr ?? 0, k.cfg.teams, k.cfg.ff ? 1 : 0, k.cfg.bo3 ? 1 : 0, k.round || 0, k.ranked ? 1 : 0, k.wins || {}]; }
-    if (this.mode === 'zombie') { s.m = [this.open, this.box.spot, this.box.state, this.power ?? 1]; s.b = this.boards; s.z = [...this.zombies.values()].map(z => [z.id, q(z.x), q(z.z), z.burn > 0 || z.dot > 0 ? 1 : 0, z.ty, (z.cr ? 1 : 0) | (z.charge > 0 ? 2 : 0) | (z.win != null ? 4 : 0), q(z.y || 0)]); s.w = this.wave; s.sc = this.score; if (this.quest) s.q = Quest.snap(this); }
+    if (this.mode === 'zombie') { s.m = [this.open, this.box.spot, this.box.state, this.power ?? 1]; s.b = this.boards; s.z = [...this.zombies.values()].map(z => [z.id, q(z.x), q(z.z), z.burn > 0 || z.dot > 0 ? 1 : 0, z.ty, (z.cr ? 1 : 0) | (z.charge > 0 ? 2 : 0) | (z.win != null ? 4 : 0), q(z.y || 0)]); s.w = this.wave; s.sc = this.score; if (this.quest) s.q = Quest.snap(this); if (this.heli) s.h = Heli.snap(this); }
     if (this.events.length) { s.ev = this.events; this.events = []; }
     return s;
   }

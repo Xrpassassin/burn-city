@@ -21,7 +21,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   // ===== refinery geometry from the server grid: everything static is merged into a few draw calls =====
   const G = L.grid, CELL = L.cell, GW = L.gw, GH = L.gh, WX = c => (c - GW / 2) * CELL + 1, WZ = r => (r - GH / 2) * CELL + 1, H = 3.4;
   const winCell = new Set(L.windows.filter(w => !w.lv).map(w => w.r * GW + w.c)), obstH = new Map(), obstS = new Map();
-  const UP = L.up || null, UG = UP ? UP.grid : null, UH = UP ? UP.h : 0, H2 = UH + 3.2, RAMPAT = {}; if (UP) UP.ramps.forEach((rp, i) => { for (let r = rp.r[0]; r <= rp.r[1]; r++) for (let c = rp.c[0]; c <= rp.c[1]; c++) RAMPAT[r * GW + c] = i; });
+  const UP = L.up || null, UPZ = new Set(UP ? UP.zones || [UP.zone] : []), UG = UP ? UP.grid : null, UH = UP ? UP.h : 0, H2 = UH + 3.2, RAMPAT = {}; if (UP) UP.ramps.forEach((rp, i) => { for (let r = rp.r[0]; r <= rp.r[1]; r++) for (let c = rp.c[0]; c <= rp.c[1]; c++) RAMPAT[r * GW + c] = i; });
   for (const [c0, c1, r0, r1, h, st] of L.obst) for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { obstH.set(r * GW + c, h); obstS.set(r * GW + c, st); }
   const STY = { support: [0x16120e, 0x3e342c], rail: [0x2a1a08, 0xc8901a], pillar: [0x241c18, 0x55453a], desk: [0x141c24, 0x3a5064], crate: [0x2a1a0c, 0x6a4824], bench: [0x10201a, 0x36604e], furnace: [0x1a0602, 0xc84a10], tank: [0x1a1028, 0x4a3478], pipe: [0x202024, 0x5a5a62] };
   const TS = 3.4, uv = [], pos = [], col = [], C1 = new THREE.Color(), C2 = new THREE.Color();
@@ -56,7 +56,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       for (const sd of [-1, 1]) { const px = nz ? sd * hw : 0, pz = nx ? sd * hw : 0; box(A, Math.min(ex0, ex1) + px - (nz ? 0.06 : 0), Math.max(ex0, ex1) + px + (nz ? 0.06 : 0), UH, UH + 1.0, Math.min(ez0, ez1) + pz - (nx ? 0.06 : 0), Math.max(ez0, ez1) + pz + (nx ? 0.06 : 0), railD, railC); }
       for (const k of [0.25, 0.75]) { const sx = ex0 + (ex1 - ex0) * k, sz = ez0 + (ez1 - ez0) * k; box(A, sx - 0.18, sx + 0.18, 0, UH - 0.3, sz - 0.18, sz + 0.18, steelB, steelT); } }   // two struts down to the ground
     // catwalk slabs (greedy runs per row) with an underside, so the deck reads from below too
-    for (let r = 0; r < GH; r++) { let c = 0; while (c < GW) { const ok = cc => UG[r][cc] === UP.zone && RAMPAT[r * GW + cc] === undefined; if (!ok(c)) { c++; continue; } let e = c; while (e + 1 < GW && ok(e + 1)) e++;
+    for (let r = 0; r < GH; r++) { let c = 0; while (c < GW) { const ok = cc => UPZ.has(UG[r][cc]) && RAMPAT[r * GW + cc] === undefined; if (!ok(c)) { c++; continue; } let e = c; while (e + 1 < GW && ok(e + 1)) e++;
       box(S, WX(c) - 1, WX(e) + 1, UH - 0.22, UH, WZ(r) - 1, WZ(r) + 1, steelB, steelT, true); c = e + 1; } }
     // ramps: sloped deck + side skirts + tread lines
     const tread = []; for (const rp of UP.ramps) { const yAt = v => Math.max(0.02, Math.min(UH, (v - rp.lo) / (rp.hi - rp.lo) * UH)), x0 = rp.x0, x1 = rp.x1, z0 = rp.z0, z1 = rp.z1;
@@ -68,7 +68,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     // guard rails where the deck meets open air (and along the ramp sides): posts + top rail + toe board, following the slope on ramps
     const hAt = (x, z) => { const c = Math.floor(x / CELL + GW / 2), r = Math.floor(z / CELL + GH / 2), ri = RAMPAT[r * GW + c]; if (ri === undefined) return UH; const rp = UP.ramps[ri], v = rp.ax === 'z' ? z : x; return Math.max(0, Math.min(UH, (v - rp.lo) / (rp.hi - rp.lo) * UH)); };
     const rail = (ax, az, bx, bz, ha, hb) => { const T = 0.05; for (const [y0, hgt] of [[1.0, 0.09], [0.5, 0.05], [0.0, 0.14]]) { const a = [ax, ha + y0, az], b = [bx, hb + y0, bz], at = [ax, ha + y0 + hgt, az], bt = [bx, hb + y0 + hgt, bz]; for (const v of [a, b, bt, a, bt, at]) { RL.pos.push(...v); RL.col.push(railC.r, railC.g, railC.b); } } };
-    for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) { if (UG[r][c] !== UP.zone) continue; const x = WX(c), z = WZ(r);
+    for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) { if (!UPZ.has(UG[r][c])) continue; const x = WX(c), z = WZ(r);
       for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { if (UG[r + dr]?.[c + dc] !== -2) continue; const ex = x + dc * 0.98, ez = z + dr * 0.98, ax = dr ? x - 1 : ex, bx = dr ? x + 1 : ex, az = dc ? z - 1 : ez, bz = dc ? z + 1 : ez;
         const ha = hAt(ax - dc * 0.5, az - dr * 0.5), hb = hAt(bx - dc * 0.5, bz - dr * 0.5); rail(ax, az, bx, bz, ha, hb); for (const [px, pz, ph] of [[ax, az, ha], [bx, bz, hb]]) box(A, px - 0.05, px + 0.05, ph, ph + 1.1, pz - 0.05, pz + 0.05, railD, railC); } }
     const ag = g(new THREE.BufferGeometry()); ag.setAttribute('position', new THREE.Float32BufferAttribute(A.pos, 3)); ag.setAttribute('color', new THREE.Float32BufferAttribute(A.col, 3)); ag.setAttribute('uv', new THREE.Float32BufferAttribute(A.uv, 2)); root.add(new THREE.Mesh(ag, wallMat));
@@ -83,7 +83,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   // floors: one plane per room, tinted by the room's colour (dark until opened); glowing trim line along the top of every wall
   const floors = L.zones.map((z, i) => { if (z.lv) return null; const [c0, c1, r0, r1] = z.r, fw = (c1 - c0 + 1) * CELL, fh = (r1 - r0 + 1) * CELL, fgeo = new THREE.PlaneGeometry(fw, fh).rotateX(-Math.PI / 2), fu = fgeo.attributes.uv; for (let k = 0; k < fu.count; k++) fu.setXY(k, fu.getX(k) * fw / 6, fu.getY(k) * fh / 6); const m = new THREE.Mesh(g(fgeo), basic(0x101010, { map: TEX('floor') }));
     m.position.set((WX(c0) + WX(c1)) / 2, 0.01, (WZ(r0) + WZ(r1)) / 2); root.add(m); m.userData.c = new THREE.Color(z.col);
-    const t = label(z.n, z.col, 512, low ? 7 : 9), under = UP && UP.atrium && c0 >= UP.atrium[0] && c1 <= UP.atrium[1] && r0 >= UP.atrium[2] && r1 <= UP.atrium[3]; t.position.set(m.position.x, under ? H2 + 3.2 : H + 1.4, m.position.z); t.material.opacity = 0.8; root.add(t); return m; });
+    const t = label(z.n, z.col, 512, low ? 7 : 9), under = UP && ((UP.atrium && c0 >= UP.atrium[0] && c1 <= UP.atrium[1] && r0 >= UP.atrium[2] && r1 <= UP.atrium[3]) || [...UPZ].some(k => k !== UP.zone && L.zones[k] && L.zones[k].r.join() === z.r.join())); t.position.set(m.position.x, under ? H2 + 3.2 : H + 1.4, m.position.z); t.material.opacity = 0.8; root.add(t); return m; });
   const trim = []; for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) { if (G[r][c] < 0) continue; const x = WX(c), z = WZ(r);   // light strip at 2.9 m on every wall face that borders floor
     for (const [dc, dr, ax, az, bx, bz] of [[1, 0, 1, -1, 1, 1], [-1, 0, -1, -1, -1, 1], [0, 1, -1, 1, 1, 1], [0, -1, -1, -1, 1, -1]]) { const n = G[r + dr]?.[c + dc]; if (n !== -1 || obstH.has((r + dr) * GW + c + dc)) continue; trim.push(x + ax * 0.98, 2.9, z + az * 0.98, x + bx * 0.98, 2.9, z + bz * 0.98); } }
   const tg = g(new THREE.BufferGeometry()); tg.setAttribute('position', new THREE.Float32BufferAttribute(trim, 3)); const trimM = new THREE.LineBasicMaterial({ color: 0xff7a2a }); mats.push(trimM); root.add(new THREE.LineSegments(tg, trimM));
@@ -96,9 +96,9 @@ export function createCodWorld(scene, L, { low = false } = {}) {
         const u = (k / 8 - 0.5) * 3.4; b.position.set(d.ax === 'x' ? u : ((k * 17) % 5 - 2) * 0.25, h_ / 2 + (k % 3 === 2 ? 0.5 : 0), d.ax === 'x' ? ((k * 17) % 5 - 2) * 0.25 : u); b.rotation.set((k % 3) * 0.2, k * 0.7, (k % 2) * 0.25); grp.add(b); }
       for (const [y, rz] of [[1.2, 0.3], [0.7, -0.4]]) { const beam_ = new THREE.Mesh(g(new THREE.BoxGeometry(d.ax === 'x' ? 4.2 : 0.18, 0.18, d.ax === 'x' ? 0.18 : 4.2)), basic(0x6a5a4a)); beam_.position.y = y; beam_.rotation[d.ax === 'x' ? 'z' : 'x'] = rz; grp.add(beam_); }
       const hz = new THREE.Mesh(g(new THREE.BoxGeometry(d.ax === 'x' ? 3.6 : 0.1, 0.25, d.ax === 'x' ? 0.1 : 3.6)), basic(0xffb020)); hz.position.y = 1.6; grp.add(hz);
-      const t = label(`Clear debris · ${L.zones[d.b].n} · ${d.cost}`, '#ffd060', 512, 3.6); t.position.y = 2.6; grp.add(t); grp.position.set(d.x, 0, d.z); root.add(grp); return grp; }
+      const t = label(`Clear debris · ${L.zones[d.b].n} · ${d.cost}`, '#ffd060', 512, 3.6); t.position.y = 2.6; grp.add(t); grp.position.set(d.x, d.lv ? UH : 0, d.z); root.add(grp); return grp; }
     for (let k = 0; k < 4; k++) { const b = new THREE.Mesh(g(new THREE.BoxGeometry(d.ax === 'x' ? len : 0.14, 0.2, d.ax === 'x' ? 0.14 : len)), k === 2 ? basic(0xffb060) : bm); b.position.y = 0.5 + k * 0.65; grp.add(b); }
-    const t = label(`${L.zones[d.b].n} · ${d.cost}`, '#ffb060', 512, 3.6); t.position.y = 3.1; grp.add(t); grp.position.set(d.x, 0, d.z); root.add(grp); return grp; });
+    const t = label(`${L.zones[d.b].n} · ${d.cost}`, '#ffb060', 512, 3.6); t.position.y = 3.1; grp.add(t); grp.position.set(d.x, d.lv ? UH : 0, d.z); root.add(grp); return grp; });
   // drifting dust + ash in the furnace light: one Points draw call, wraps around the map
   const DN = low ? 160 : 520, dpos = new Float32Array(DN * 3), dsp = new Float32Array(DN), SX = GW * CELL, SZ = GH * CELL;
   for (let k = 0; k < DN; k++) { dpos[k * 3] = (Math.random() - 0.5) * SX; dpos[k * 3 + 1] = Math.random() * H; dpos[k * 3 + 2] = (Math.random() - 0.5) * SZ; dsp[k] = 0.05 + Math.random() * 0.15; }
@@ -117,7 +117,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   function drawMini(open, players, myId, boxSpot, zombies, myY = 0, q = null) { mx.clearRect(0, 0, mm.width, mm.height);
     for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) { const v = G[r][c]; if (v < 0) continue; mx.fillStyle = v >= 100 ? (walkable(WX(c), WZ(r), open) ? '#555' : '#ff3a10') : (open >> v) & 1 ? L.zones[v].col + '88' : '#ffffff14'; mx.fillRect(c * MS, r * MS, MS, MS); }
     if (UP) { const on = (open >> UP.zone) & 1, hi = myY > UH * 0.5; mx.strokeStyle = on ? (hi ? '#ffd27a' : '#ffc23a99') : '#ffffff33'; mx.lineWidth = 1;   // upper deck: outlined cells (bright while you're up there)
-      for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) if (UG[r][c] === UP.zone) { if (hi && on) { mx.fillStyle = '#ffc23a55'; mx.fillRect(c * MS, r * MS, MS, MS); } mx.strokeRect(c * MS + 0.5, r * MS + 0.5, MS - 1, MS - 1); } }
+      for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) if (UPZ.has(UG[r][c])) { const on = (open >> UG[r][c]) & 1; if (hi && on) { mx.fillStyle = '#ffc23a55'; mx.fillRect(c * MS, r * MS, MS, MS); } mx.strokeRect(c * MS + 0.5, r * MS + 0.5, MS - 1, MS - 1); } }
     const P = (x, z) => [(x / CELL + GW / 2) * MS, (z / CELL + GH / 2) * MS];
     const bs = L.box[boxSpot]; if (bs) { const [x, y] = P(bs[0], bs[1]); mx.fillStyle = '#9af0ff'; mx.fillRect(x - 2, y - 2, 4, 4); }
     if (q && q[1] && !q[5]) { const [x, y] = P(q[2], q[3]); mx.fillStyle = (performance.now() / 300 | 0) % 2 ? '#7affff' : '#ffffff'; mx.beginPath(); mx.arc(x, y, 2.6, 0, 7); mx.fill(); }   // radio quest item
@@ -246,7 +246,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       if ((nextBolt -= dt) <= 0) { flash = 1; nextBolt = 5 + Math.random() * 11; } }
     flash = Math.max(0, flash - dt * 4); if (SKY) { const f = flash > 0.05 && Math.sin(flash * 40) > -0.3 ? flash : 0; scene.background.setHex(SKY[0]).lerp(new THREE.Color(0xdfe8ff), f * 0.7); scene.fog.color.setHex(SKY[1]).lerp(new THREE.Color(0xc8d4ff), f * 0.6); wallMat.color.setScalar(LF * (1 + f * 1.4)); } }
   // ===== Night Shift radio quest: the flare console (fixed per map) + the glowing part that's out right now =====
-  const QITEM = [null, { n: 'Valve Wheel', c: 0x7affff }, { n: 'Igniter Fuse', c: 0xffe14a }, { n: "Foreman's Key Card", c: 0xff6ad0 }];
+  const QITEM = [null, { n: 'Valve Wheel', c: 0x7affff }, { n: 'Igniter Fuse', c: 0xffe14a }, { n: "Foreman's Key Card", c: 0xff6ad0 }, { n: 'Beacon Battery', c: 0x6aff7a }, { n: 'Signal Flare', c: 0xff3a2a }];
   let qState = null, myIdQ = 0, qCon = null, qLit = 0; const qItem = new THREE.Group(), qGlow = basic(0x7affff), qBeamM = basic(0x7affff, { transparent: true, opacity: 0.25, blending: add, depthWrite: false, side: THREE.DoubleSide });
   { const wheel = new THREE.Mesh(g(new THREE.TorusGeometry(0.32, 0.07, 6, 14)), qGlow), hub = new THREE.Mesh(g(new THREE.BoxGeometry(0.62, 0.08, 0.08)), qGlow), hub2 = hub.clone(); hub2.rotation.z = Math.PI / 2; wheel.add(hub, hub2); wheel.position.y = 0.9; qItem.add(wheel); qItem.userData.spin = wheel;
     const col = new THREE.Mesh(g(new THREE.CylinderGeometry(0.35, 0.6, 7, 10, 1, true).translate(0, 3.5, 0)), qBeamM); qItem.add(col); qItem.visible = false; root.add(qItem); }
@@ -298,9 +298,9 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     mini(st, myId, myY = 0) { jugOn = !!st.zombies?.some(z => z.ty === 3) || !!window.__jugTest; if ((mmT += 1) % 5 || !st.map) return; drawMini(st.map[0], st.players, myId, st.map[1], st.zombies, myY, st.quest); },
     prompt(me, m, pts, guns, perkBits, upBits = 0) { if (!m) return null; const [open, spot, st] = m;
       const op = m[0]; let bw = -1, bd = 2.6; WN.forEach((w, i) => { const on = ((op >> w.zone) & 1) && (w.behind == null || !((op >> w.behind) & 1)) && Math.abs((me.y || 0) - (w.lv ? UH : 0)) < 1.6, d = Math.hypot(me.x - w.ix, me.z - w.iz); if (on && d < bd && boards[i] < NB) { bd = d; bw = i; } });
-      if (qState && qState[1] && qState[5] === myIdQ && near(me, qState[6], qState[7], 3, qState[8])) return { t: `Flare console: fit the ${QITEM[qState[1]]?.n || 'part'}`, c: 0 };
+      if (qState && qState[1] && qState[5] === myIdQ && near(me, qState[6], qState[7], 3, qState[8])) return { t: `${qState[0] >= 6 ? 'Pad beacon' : 'Flare console'}: fit the ${QITEM[qState[1]]?.n || 'part'}`, c: 0 };
       if (bw >= 0) return { t: `🔨 Rebuilding… (${boards[bw]}/${NB})`, c: 0, hold: 1 };
-      for (const d of L.doors) { const ua = (open >> d.a) & 1, ub = (open >> d.b) & 1; if (ua === ub) continue; const along = d.ax === 'x' ? Math.abs(me.x - d.x) : Math.abs(me.z - d.z), across = d.ax === 'x' ? Math.abs(me.z - d.z) : Math.abs(me.x - d.x);
+      for (const d of L.doors) { const ua = (open >> d.a) & 1, ub = (open >> d.b) & 1; if (ua === ub || Math.abs((me.y || 0) - (d.lv ? UH : 0)) > 1.6) continue; const along = d.ax === 'x' ? Math.abs(me.x - d.x) : Math.abs(me.z - d.z), across = d.ax === 'x' ? Math.abs(me.z - d.z) : Math.abs(me.x - d.x);
         if (along <= 3 && across <= 3 && (me.y || 0) < 1.6) return { t: `${d.deb ? 'Clear the debris to' : 'Open'} ${L.zones[ua ? d.b : d.a].n}`, c: d.cost }; }
       for (const w of L.wallbuys) if (near(me, w.x, w.z)) return guns.includes(w.w) ? { t: `Refill ${wname(w.w)}`, c: Math.round(w.cost / 2) } : { t: `Buy ${wname(w.w)}`, c: w.cost };
       const bs = L.box[spot]; if (st === 0 && bs && near(me, bs[0], bs[1])) return { t: 'Mystery Box: random weapon', c: L.boxCost };

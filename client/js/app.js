@@ -608,6 +608,25 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
   lk.filter(b=>b.L>=.1).forEach(b=>{const el=document.createElement('div');el.className='lbl lockLbl';el.style.setProperty('--c',b.L>=.7?'#ffc64a':'#ff8a2a');el.textContent=`🔒 LOCKED FOREVER · ${(b.L*100).toFixed(b.L>=.995?0:1)}%`;$('labels').appendChild(el);
    const top=b.curve.getPoint(.5);labelEls.push({el,pos:top.clone().setY(top.y+b.r+2.5),pri:b.p.tvl_xrp*b.L*.5,minor:true})})}}
 
+// ---------- AMM swirls: each rail end flows on into a helix wrapping its tower (ONE merged draw) + drifting sparks (ONE Points draw) ----------
+{const SEGH=TIER==='low'?20:MOBILE?32:48,geos=[],paths=[],per={},LOCKC=new THREE.Color(0xffb020),CYC=new THREE.Color(0xbff8ff);
+ bridges.forEach(b=>{if(b.minor)return;[0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a];if(!n)return;const k=per[n.name]=(per[n.name]||0)+1;if(k>(TIER==='low'?3:6))return;   // busy towers: cap swirls so they never starburst
+  const p0=b.curve.getPoint(end?1:0),dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,R=Math.max(Math.hypot(dx,dz),n.w*(n.sxz||1)*1.1+.6)+(k-1)*.35,a0=Math.atan2(dz,dx),dir=k%2?1:-1,drop=Math.min(22,Math.max(6,p0.y-6)),turns=1.1+.12*k;
+  if(p0.y<8)return;const pts=[];for(let j=0;j<=SEGH;j++){const u=j/SEGH,a=a0+dir*u*turns*6.283,rr=R*(1+.06*u);pts.push(new THREE.Vector3(n.pos.x+Math.cos(a)*rr,p0.y-drop*u,n.pos.z+Math.sin(a)*rr))}
+  const cv=new THREE.CatmullRomCurve3(pts),tg=new THREE.TubeGeometry(cv,SEGH,Math.max(.07,b.r*.22),4,false),c=CYC.clone().lerp(LOCKC,b.L*.6),cnt=tg.attributes.position.count,ca=new Float32Array(cnt*4);
+  for(let i=0;i<cnt;i++)ca.set([c.r,c.g,c.b,.35+.6*b.L],i*4);tg.setAttribute('sc',new THREE.BufferAttribute(ca,4));geos.push(tg);paths.push({cv,c,sp:.25+.9*Math.min(1,b.share*2)})})});
+ if(geos.length){const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,uniforms:{t:U.t},
+   vertexShader:'attribute vec4 sc;varying vec2 vU;varying vec4 vC;void main(){vU=uv;vC=sc;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+   fragmentShader:'uniform float t;varying vec2 vU;varying vec4 vC;void main(){float s=fract(vU.x*6.-t*.6);float st=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);float fade=1.-smoothstep(.6,1.,vU.x);gl_FragColor=vec4(vC.rgb*(.5+1.1*st),vC.a*(.45+.55*st)*fade);}'});
+  const mesh=new THREE.Mesh(mergeGeometries(geos),m);mesh.frustumCulled=false;S.add(mesh);
+  // sparks: light, one Points draw; phones ≤150, desktop ≤360, Low = off
+  const NP=TIER==='low'?0:Math.min(MOBILE?150:360,paths.length*(MOBILE?3:5));if(NP){const pg=new THREE.BufferGeometry(),pp=new Float32Array(NP*3),pc=new Float32Array(NP*3),st=[];
+   for(let i=0;i<NP;i++){const P=paths[i%paths.length];st.push({P,u:Math.random(),v:.05+Math.random()*.08});pc.set([P.c.r,P.c.g,P.c.b],i*3)}
+   pg.setAttribute('position',new THREE.BufferAttribute(pp,3));pg.setAttribute('color',new THREE.BufferAttribute(pc,3));
+   const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:MOBILE?.5:.4,vertexColors:true,transparent:true,opacity:.75,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));pts.frustumCulled=false;S.add(pts);
+   const q=new THREE.Vector3();let acc=0;anim.push((t,dt)=>{acc+=dt;if(MOBILE&&acc<1/30)return;const d=acc;acc=0;st.forEach((s,i)=>{s.u+=s.v*d*s.P.sp;if(s.u>.85)s.u-=.85;s.P.cv.getPointAt(s.u,q);pp[i*3]=q.x;pp[i*3+1]=q.y+Math.sin(t*2+i)*.15;pp[i*3+2]=q.z});pg.attributes.position.needsUpdate=true})}
+  window.__swirl={n:geos.length,particles:NP}}}
+
 // ---------- pool traffic basis (activity colour + card): min 24h volume of the pair ----------
 const vol=n=>n.name==='XRP'?null:(n.vol24h??null);
 bridges.forEach(b=>{const vs=[vol(N[b.p.a]),vol(N[b.p.b])].filter(v=>v!=null);const v=vs.length?Math.min(...vs):b.p.tvl_xrp*.02;b.vol=v;b.volEst=!vs.length});
@@ -1269,6 +1288,7 @@ const VQ0=Q.get('view')||'';const tokV=Object.keys(N).find(k=>k.toLowerCase()===
 if(!VIEWS[VQ0]&&tokV){const n=N[tokV];VIEWS[VQ0]=tokV==='XRP'?VIEWS.hub:near(n.pos,50+n.h*1.5,8+n.h*.6,n.h*.62)}
 if(Q.get('cam')){const c=Q.get('cam').split(',').map(Number);if(c.length===6&&c.every(isFinite))VIEWS.__cam=[V3(c[0],c[1],c[2]),V3(c[3],c[4],c[5])]}
 const VQ=VIEWS.__cam?'__cam':VQ0;if(VIEWS[VQ]){C.position.copy(VIEWS[VQ][0]);orbit.target.copy(VIEWS[VQ][1]);C.lookAt(VIEWS[VQ][1]);setTimeout(()=>{if(mode==='orbit')orbit.target.copy(VIEWS[VQ][1])},50)}
+if(/[?&]debug=1/.test(location.search))window.__cam={C,orbit,N};
 if(/[?&]debug=1/.test(location.search))window.__dbg=()=>({c:C.position.toArray(),t:orbit.target.toArray(),b:N.BURN.pos.toArray(),y:N.XRPyro.pos.toArray(),i:N.IMM.pos.toArray(),bh:N.BURN.h,bw:N.BURN.w,bt:N.BURN.top,nn:['Budzy','$BTCK','$BWTZ'].filter(k=>N[k]).map(k=>({k,p:N[k].pos.toArray(),h:N[k].h,w:N[k].w,tier:N[k].tier,locked:N[k].lockedShare,marks:N[k].marks}))});
 if(Q.get('tod'))$('tod').value=Q.get('tod');
 

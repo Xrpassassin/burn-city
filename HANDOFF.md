@@ -90,6 +90,14 @@ GitHub `main` is the single source of truth, and **deploys are automatic: merge 
   existing `ZOMBIE_CLASSIC`, `ZOMBIE_START_WAVE`, `ZOMBIE_START_POINTS`, `ZOMBIE_TEST_GOD`. Arena `?debug=1` exposes
   `__tp`, `__hb({hp,near})`, `__za`, `__music`, `__st`, `__me`.
 
+- **iPhone view + rotate (Arena, all modes)**: `client/arena/index.html` `fitView()` keeps the horizontal FOV sane: base vFOV 70, floor hFOV 75°
+  (portrait 390x844 → vFOV ~118°, was hFOV ~36° = "zoomed in"), cap hFOV 100° on touch landscape; desktop 16:9/16:10 unchanged (vFOV 70).
+  Refits on resize, orientationchange and visualViewport resize, plus once 250 ms later (iOS reports stale sizes right after a rotate).
+  `arena-ui.css`: the short-landscape two-column menu grid is `#menu:not([hidden])` and `#menu[hidden]` is forced `display:none` (the old
+  `#menu{display:grid!important}` beat `[hidden]` on specificity, so rotating mid-match in Zombies / Light Cycles showed the menu over the game).
+  Touch number inputs/selects are 16px and the viewport meta has `maximum-scale=1` (iOS focus auto-zoom). `?debug=1` → `window.__camView()`
+  ({fov, aspect, hfov}). Playwright check: iPhone 14 emulation, start a match, resize 390x844 ↔ 844x390 + fire orientationchange/resize.
+
 ## Rules for bots
 - One bot at a time; one branch per feature (`feat/<name>`), PR into `main`.
 - Never commit secrets (XUMM keys, wallet seeds, tokens). Use `fly secrets set`.

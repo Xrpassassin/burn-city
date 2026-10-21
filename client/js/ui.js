@@ -38,7 +38,7 @@ if (btns) {
   }
   const sweep = () => [...btns.children].filter(x => x.tagName === 'BUTTON').forEach(adopt);
   sweep(); new MutationObserver(sweep).observe(btns, { childList: true });
-  const setOpen = o => { more.classList.toggle('open', o); moreBtn.classList.toggle('on', o); moreBtn.setAttribute('aria-expanded', String(o)); };
+  const setOpen = o => { more.classList.toggle('open', o); document.body.classList.toggle('moreOpen', o); moreBtn.classList.toggle('on', o); moreBtn.setAttribute('aria-expanded', String(o)); };
   moreBtn.onclick = e => { e.stopPropagation(); setOpen(!more.classList.contains('open')); };
   more.addEventListener('click', e => { if (e.target.closest('button')) setTimeout(() => setOpen(false), 120); });
   document.addEventListener('pointerdown', e => { if (!more.contains(e.target) && e.target !== moreBtn) setOpen(false); });

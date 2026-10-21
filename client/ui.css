@@ -528,4 +528,50 @@ body.touch #info button,body.touch #info summary,body.touch #bagList .bdim,body.
 body.touch #rChip,body.touch #skGearBtn,body.touch #keysBtn{min-height:var(--tap)!important}
 body.touch.mExplore #skGearBtn{left:var(--left)!important;bottom:auto!important;top:calc(var(--row2) + 200px)!important}
 body.rpOn #btns .seg{opacity:0;pointer-events:none}
+/* ==========================================================================
+   v7.1 functional fixes (tap reachability, z-order, safe areas)
+   ========================================================================== */
+/* [1] recap sits under the toolbar, its menu, chips and cards (was z 45 = menu level) and steps aside while the menu is open */
+#recap{z-index:var(--z-recap,20)!important}
+body.moreOpen #recap,body.moreOpen #status,body.touch.moreOpen #gearBar{visibility:hidden}
+/* overflow menu: above cards/panels while open; closed = not hit-testable or focusable */
+#more{z-index:calc(var(--z-panel) + 1)!important}
+#more:not(.open){visibility:hidden}
+/* [4] toolbar + menu buttons get their own stacking layer above the 3D canvas */
+#btns>button,#more button,#guideBtn,#musicBtn,#audio,#socialBtn,#copyLink,#tour{position:relative;z-index:1}
+#btns,#more{isolation:isolate}
+/* [8] closed HUD sections take no boxes: their rows (Replay, City features #f_*) no longer sit under #src / #keysBtn while hidden */
+#hud details.sec:not([open])>:not(summary){display:none!important}
+/* [5] touch: every toolbar / chip / card control >=44px */
+body.touch #btns>button,body.touch #btns #playBtn,body.touch #btns #moreBtn{min-height:var(--tap)!important;min-width:var(--tap)!important}
+body.touch #btns #moreBtn{width:var(--tap)!important}
+body.touch #more button{min-height:var(--tap)!important}
+body.touch #hud select{min-height:var(--tap)}
+/* desktop music panel opens under the status chips instead of over #live */
+body:not(.touch) #music{top:calc(var(--row2) + 40px)!important}
+body.touch #wchip,body.touch #live{min-height:var(--tap)!important}
+body.touch #info .attr a,body.touch #recap .rs a{display:inline-flex;align-items:center;min-height:var(--tap)}
+/* 44px chips push everything that hangs off row 2 down by 8px */
+body.touch #recap{top:calc(var(--row2) + 52px)!important}
+body.touch #evbanner,body.touch #cityToast{top:calc(var(--row2) + 52px)!important}
+body.touch #gearBar{top:calc(var(--row2) + 52px)!important}
+body.touch.mExplore #minimap,body.touch.mFly #minimap{top:calc(var(--row2) + 52px)!important}
+body.touch.mExplore #rChip,body.touch.mFly #rChip{top:calc(var(--row2) + 158px)!important}
+body.touch.mExplore #cityChat,body.touch.mFly #cityChat{top:calc(var(--row2) + 52px + 3*52px)!important}
+body.touch.mExplore #skGearBtn{top:calc(var(--row2) + 210px)!important}
+/* [7] safe areas: the mode dock and top row clear the home bar / notch with a floor even when the inset is 0 */
+body.touch{--bottom:calc(var(--sa-b) + max(var(--edge-y),10px));--ctl:var(--tap)}
+@media (max-height:500px) and (orientation:landscape){
+  /* [2] two-column menu stays clear of City chat (bottom-right) */
+  #more{display:grid;grid-template-columns:1fr 1fr;min-width:0;width:min(440px,calc(100vw - var(--left) - var(--right)));max-height:calc(100dvh - var(--top) - var(--tap) - 8px - var(--bottom) - 60px)}
+  body.touch #recap{top:calc(var(--top) + var(--tap) + 8px)!important}
+  body.touch #gearBar{top:calc(var(--top) + var(--tap) + 8px)!important}
+  body.touch #gearBar button{height:var(--tap)!important}
+  body.touch.mExplore #minimap,body.touch.mFly #minimap{top:calc(var(--top) + var(--tap) + 8px)!important}
+  body.touch.mExplore #cityChat,body.touch.mFly #cityChat{top:calc(var(--top) + var(--tap) + 8px)!important}
+  body.touch.mExplore #rChip,body.touch.mFly #rChip{top:calc(var(--top) + var(--tap) + 112px)!important}
+  body.touch.mExplore #skGearBtn{top:calc(var(--top) + var(--tap) + 112px)!important;left:calc(var(--left) + 122px)!important}
+  body.touch:has(#music:not([hidden])) #cityChat:not(.open){visibility:hidden}
+  body.touch.mExplore #toasts,body.touch.mFly #toasts,#toasts{top:calc(var(--top) + var(--tap) + 8px)!important}
+}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}

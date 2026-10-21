@@ -3,7 +3,7 @@
 // Effective BURN = direct trustline balance + BURN share of any BURN AMM LP tokens held.
 const C = require('./config'), { curHex } = require('./burn');
 const SUPPLY = 34.84e12;                        // BURN outstanding (gateway_balances, Oct 2026)
-const TIERS = [0, +(C.FLAIR_T1 || 10e6), +(C.FLAIR_T2 || 1e9), +(C.FLAIR_T3 || 1e12)]; // 10M / 1B / 1T (~0.00003% / 0.003% / 2.9% of supply)
+const TIERS = [0, +(C.FLAIR_T1 || 10e9), +(C.FLAIR_T2 || 100e9), +(C.FLAIR_T3 || 1e12)]; // 10B / 100B / 1T (~0.029% / 0.29% / 2.9% of supply)
 const NAMES = ['', 'holder', 'big holder', 'whale'];
 const OG_MS = 30 * 864e5;                       // profile older than 30 days
 const tierFor = b => { b = +b || 0; for (let i = 3; i > 0; i--) if (b >= TIERS[i]) return i; return 0; };

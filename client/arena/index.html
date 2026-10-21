@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https: wss:; font-src 'self' data:; frame-src https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https: wss:; font-src 'self' data:; frame-src https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Burn City — Arena</title><link rel="icon" href="../icons/icon-192.png">
 <style>html,body{margin:0;height:100%;background:#050208;color:#ffd9a0;font:14px system-ui;overflow:hidden;touch-action:none}
 #hud{position:fixed;top:calc(8px + env(safe-area-inset-top));left:calc(8px + env(safe-area-inset-left));right:calc(150px + env(safe-area-inset-right));font-size:13px;display:flex;gap:12px;pointer-events:none;text-shadow:0 0 6px #f60}
@@ -123,7 +123,15 @@ r.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2)); r.setSize(innerWi
 const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x050208, 40, 180); scene.background = new THREE.Color(0x050208);
 const cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 400);
 const fitGun = () => { if (typeof FX !== 'undefined') FX.gun.position.x = cam.aspect < 1 ? 0.03 : 0.2; };
-addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); fitGun(); });
+// Keep a sane horizontal FOV on phones: a fixed 70° vertical FOV is only ~36° across on a 390x844 portrait (looks zoomed in).
+// Floor hFOV at 75° (portrait), cap it at 100° on touch landscape; desktop 16:9/16:10 stays at vFOV 70 (hFOV ~102°).
+const D2R = Math.PI / 180, hfovOf = (v, a) => 2 * Math.atan(Math.tan(v * D2R / 2) * a) / D2R, vfovFor = (h, a) => 2 * Math.atan(Math.tan(h * D2R / 2) / a) / D2R;
+function fitView(gun = true) { const w = innerWidth, h = innerHeight; if (!w || !h) return; const a = w / h; let v = 70;
+  if (hfovOf(v, a) < 75) v = Math.min(118, vfovFor(75, a)); else if (mobile && hfovOf(v, a) > 100) v = vfovFor(100, a);
+  r.setSize(w, h); cam.aspect = a; cam.fov = v; cam.updateProjectionMatrix(); gun && fitGun(); }
+fitView(false); let fitT = 0; const refit = () => { fitView(); clearTimeout(fitT); fitT = setTimeout(fitView, 250); };   // iOS reports stale sizes right after a rotate
+addEventListener('resize', refit); addEventListener('orientationchange', refit); window.visualViewport?.addEventListener('resize', refit);
+if (P.get('debug')) window.__camView = () => ({ fov: cam.fov, aspect: cam.aspect, hfov: hfovOf(cam.fov, cam.aspect), w: innerWidth, h: innerHeight });
 const GRIDH = new THREE.GridHelper(240, 60, 0xff4400, 0x331100); scene.add(new THREE.HemisphereLight(0xffaa66, 0x220011, 1.2), GRIDH);
 const LOOK = { skin_ember: '#ff5a1f', skin_chrome: '#c8d4e0', skin_ghost: '#7af0ff', trail_gold: '#ffd24a', trail_plasma: '#c04bff', flame_blue: '#3aa0ff', flame_green: '#5aff4a', flame_burnxrp: '#ff2a00' };
 const COL = (id, kind = 'trail') => { const rc = net?.roster.get(id)?.color; if (rc && kind !== 'flame') return new THREE.Color(rc); const l = net?.roster.get(id)?.look?.[kind]; return l ? new THREE.Color(LOOK[l]) : new THREE.Color().setHSL((id * 0.137) % 1, 1, 0.55); };

@@ -106,4 +106,21 @@ ok(Math.abs(1 - Z.RUNNER / 1.7 - 0.176) < 0.02, `runners ${((1 - Z.RUNNER / 1.7)
   ok(!Ranked.reconOk('T2', 'rB', Ranked.lobbies.MX) && !Ranked.ticketOk('T2', 'rB'), 'ranked: late payer locked out of started match');
   ok(!Ranked.reconOk('T1', 'rZ', Ranked.lobbies.MX), 'ranked: other wallet with entrant ticket rejected');
   ok(Ranked.refunds().some(x => x.ticket === 'T2') && !Ranked.refunds().some(x => x.ticket === 'T1'), 'ranked: late payment goes to refund flow'); }
+// Auto-fire reach = effective weapon range (snapshot field 21): grows with Long Reach / Forge, follows weapon swaps, shrinks back when the buff is gone.
+{ const { fireRange } = require('../server/game'), r = mk(1), p = [...r.players.values()][0], ar = () => r.snapshot().p.find(x => x[0] === p.id)[21];
+  const near = (a, b) => Math.abs(a - b) < 0.051;
+  Object.assign(p, { guns: ['flamer', 'napalm'], slot: 0, up: [], bon: {}, down: 0 }); const base = fireRange(p);
+  ok(base === 9 && near(ar(), 9), `auto range = flamer base 9 m (snapshot ${ar()})`);
+  p.bon.range = 1; ok(near(fireRange(p) / base, 1.08) && near(ar(), 9 * 1.08), `Long Reach I: auto range x1.08 -> ${ar()} m`);
+  p.bon.range = 3; ok(near(fireRange(p) / base, 1.24) && near(ar(), 9 * 1.24), `Long Reach III: auto range x1.24 -> ${ar()} m`);
+  p.up = ['flamer']; ok(near(fireRange(p), 9 * 1.15 * 1.24), `Forged + Long Reach III stack: ${fireRange(p).toFixed(2)} m`);
+  p.slot = 1; ok(near(fireRange(p), 26 * 1.24) && near(ar(), 26 * 1.24), `swap to Firestorm: auto range follows the gun -> ${ar()} m`);
+  p.slot = 0; p.up = []; p.bon = {}; ok(fireRange(p) === base && near(ar(), base), `buff gone: auto range shrinks back to ${ar()} m`);
+  p.down = 1; ok(fireRange(p) === 17, 'downed: last-stand pistol 17 m'); p.up = ['flamer']; ok(fireRange(p) === 22, 'downed with a Forged gun: 22 m'); p.down = 0; p.up = [];
+  // the server's real flame reach is the same number: a zombie at 9.5 m is out of reach at base, in reach with Long Reach I (9.72 m)
+  const burn = lvl => { for (let tries = 0; tries < 20; tries++) { const r = mk(1), p = [...r.players.values()][0]; r.wave = 1; r.toSpawn = 0; r.waveDelay = 99; r.zombies.clear();
+      Object.assign(p, { guns: ['flamer'], slot: 0, up: [], bon: { range: lvl }, fuel: 100, cd: 0, inv: 99, pitch: 0 }); p.yaw = tries * 0.7; const s = Math.sin(p.yaw), c = Math.cos(p.yaw);
+      if (!Z.los(r, p.x, p.z, p.x + s * 10, p.z + c * 10, p.y)) continue; const z = { id: 990, ty: 0, x: p.x + s * 9.5, z: p.z + c * 9.5, hp: 1e6, maxhp: 1e6, sp: 0, win: null, ph: 0 }; r.zombies.set(990, z);
+      p.in = { mx: 0, mz: 0, fire: true, turn: 0, yaw: p.yaw }; r.step(0.05); return z.hp < 1e6; } return null; };
+  const b0 = burn(0), b1 = burn(1); ok(b0 === false && b1 === true, `flamer at 9.5 m: base misses (${b0}), Long Reach I hits (${b1})`); }
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

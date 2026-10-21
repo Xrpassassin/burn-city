@@ -97,6 +97,10 @@ GitHub `main` is the single source of truth, and **deploys are automatic: merge 
   `#menu{display:grid!important}` beat `[hidden]` on specificity, so rotating mid-match in Zombies / Light Cycles showed the menu over the game).
   Touch number inputs/selects are 16px and the viewport meta has `maximum-scale=1` (iOS focus auto-zoom). `?debug=1` → `window.__camView()`
   ({fov, aspect, hfov}). Playwright check: iPhone 14 emulation, start a match, resize 390x844 ↔ 844x390 + fire orientationchange/resize.
+- **Auto-fire (Zombies, on by default)**: `client/arena/index.html` reads `localStorage.bcAuto2` (on unless `'0'`); the old `bcAuto` key is ignored,
+  so everyone started with it on once (bc-v48) and only an explicit toggle-off is remembered. Reach = server `fireRange(p)` in `server/game.js`
+  (gun in hand, Forged ×1.15, Long Reach +8%/level, last-stand pistol 17/22 m), the same number the server fires with, sent as player snapshot
+  field 21 (`me.ar` in net.js); client falls back to 8.5 m. No client-side LOS (the server's `Z.los` still decides hits). Test: `test/zombie-sim.js` "auto range".
 
 ## Rules for bots
 - One bot at a time; one branch per feature (`feat/<name>`), PR into `main`.

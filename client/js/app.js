@@ -8,6 +8,7 @@ import './citylife.js';
 import './streetprops.js';
 import './events.js';
 import './airport.js';
+import {makeRainbow} from './rainbow.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
@@ -907,12 +908,12 @@ const SKY=(()=>{const add=(c,o=0)=>new THREE.MeshBasicMaterial({color:c,transpar
  const _dv=new THREE.Vector3(),updDust=(dt,k)=>{rays.updateMatrixWorld();dS.forEach((d,i)=>{d.u+=d.sp*dt*6;if(d.u>1){d.u=0;d.a=Math.random()*6.283;d.rr=Math.random()*.8}const m=RAYS[d.r],r=m.geometry.parameters,rad=(r.radiusTop+(r.radiusBottom-r.radiusTop)*d.u)*d.rr;
    _dv.set(Math.cos(d.a)*rad,350-700*d.u,Math.sin(d.a)*rad).applyMatrix4(m.matrix);dP[i*3]=_dv.x;dP[i*3+1]=_dv.y;dP[i*3+2]=_dv.z;const f=Math.sin(Math.PI*Math.min(1,Math.max(0,(d.u-.25)/.7)))*k*.55;dC[i*3]=f;dC[i*3+1]=f*.88;dC[i*3+2]=f*.65});dG.attributes.position.needsUpdate=dG.attributes.color.needsUpdate=true};
  rays.visible=false;S.add(rays);
- const bow=new THREE.Group(),bowM=[0xff3b3b,0xff9a2a,0xffe14a,0x4dff7a,0x3aa0ff,0x9a5bff].map(c=>add(c));bowM.forEach((m,i)=>{const t=new THREE.Mesh(new THREE.TorusGeometry(520-i*9,4.2,6,TIER==='low'?48:96,Math.PI),m);bow.add(t)});bow.position.set(150,-60,-950);bow.visible=false;S.add(bow);
+ const bow=makeRainbow(S,U,C,TIER==='low'?24:32);
  const NC=TIER==='low'?24:MOBILE?60:140,coinG=new THREE.CylinderGeometry(2.2,2.2,.4,14).rotateX(Math.PI/2),coinM=new THREE.MeshStandardMaterial({color:0xffc83a,emissive:0x8a5a00,emissiveIntensity:.9,metalness:1,roughness:.22});
  const coins=new THREE.InstancedMesh(coinG,coinM,NC);coins.frustumCulled=false;coins.visible=false;S.add(coins);const cs=[...Array(NC)].map(()=>({x:(Math.random()-.5)*160,y:Math.random()*120,z:(Math.random()-.5)*160,v:10+Math.random()*12,r:Math.random()*6,s:2+Math.random()*4}));
  const o=new THREE.Object3D(),sp=new THREE.Vector3();
  return (dt,t,w,day)=>{const rk=w.rays*(.35+.65*day);rays.visible=rk>.01;rayM.uniforms.op.value=rk*.18*(.85+.15*Math.sin(t*.4));rayM.uniforms.rb.value+=((w.rainbow||0)-rayM.uniforms.rb.value)*Math.min(1,dt);if(rays.visible)updDust(dt,Math.min(1,rk));
-  bow.visible=w.rainbow>.01;bowM.forEach(m=>m.opacity=w.rainbow*.22*(.55+.45*day));
+  bow(w.rainbow||0,day);
   coins.visible=w.coins>.01;if(!coins.visible)return;const n=Math.max(1,Math.round(NC*Math.min(1,w.coins)));coins.count=n;coinM.emissiveIntensity=.7+.5*Math.sin(t*9);
   for(let i=0;i<n;i++){const c=cs[i];c.y-=c.v*dt;c.r+=c.s*dt;if(c.y<0){c.y=110+Math.random()*30;c.x=(Math.random()-.5)*160;c.z=(Math.random()-.5)*160}
    o.position.set(C.position.x+c.x,C.position.y-60+c.y,C.position.z+c.z);o.rotation.set(c.r*.7,c.r,0);o.updateMatrix();coins.setMatrixAt(i,o.matrix)}coins.instanceMatrix.needsUpdate=true}})();

@@ -14,14 +14,21 @@ const client = { request: async q => { const c = q.command;
   if (c === 'tx') { const t = L.txs[q.transaction]; if (!t) { const e = new Error('txnNotFound'); e.data = { error: 'txnNotFound', searched_all: !L.gap && L.idx > (q.max_ledger || 0) }; throw e; } return { result: t }; }
   if (c === 'ledger') return { result: { ledger_index: L.idx } };
   if (c === 'server_state') return { result: { state: { validated_ledger: { reserve_base: 1e6, reserve_inc: 2e5 } } } };
-  if (c === 'account_info') return { result: { account_data: { Balance: String(L.bal), OwnerCount: 2 } } };
+  if (c === 'account_info') return { result: { account_data: { Balance: String(L.bal), OwnerCount: 2, Sequence: L.seq } } };
+  if (c === 'account_tx') { const lo = q.ledger_index_min, hi = q.ledger_index_max;
+    const tx = Object.entries(L.txs).filter(([, t]) => t.tx_json.Account === q.account && t.ledger_index >= lo && t.ledger_index <= hi).map(([h, t]) => ({ hash: h, tx_json: t.tx_json, meta: t.meta, validated: true }));
+    return { result: { ledger_index_min: L.gap ? lo + 5 : lo, ledger_index_max: hi, transactions: tx } }; }
   if (c === 'submit') { L.submits++; if (L.failNextSubmit) { L.failNextSubmit--; saveL(); throw new Error('sim network error'); }
     const d = xrpl.decode(q.tx_blob), h = xrpl.hashes.hashSignedTx(q.tx_blob);
+    if (L.stealSeq) { L.stealSeq--; L.seq++; saveL(); }   // some other tx used our Sequence first
+    if (+d.Sequence < L.seq) { saveL(); return { result: { engine_result: 'tefPAST_SEQ' } }; }
+    if (+d.Sequence > L.seq) { saveL(); return { result: { engine_result: 'terPRE_SEQ' } }; }
+    L.seqLog = (L.seqLog || []).concat(+d.Sequence);
     if (L.dropSubmit) { L.dropSubmit--; saveL(); return { result: { engine_result: 'tesSUCCESS' } }; }   // accepted but never validated (lost)
-    const res = L.tec ? (L.tec--, 'tecNO_DST_INSUF_XRP') : 'tesSUCCESS'; if (res === 'tesSUCCESS') L.bal -= +d.Amount;
-    L.txs[h] = { validated: true, tx_json: d, meta: { TransactionResult: res, delivered_amount: d.Amount } }; saveL(); return { result: { engine_result: res } }; }
+    L.seq++; const res = L.tec ? (L.tec--, 'tecNO_DST_INSUF_XRP') : 'tesSUCCESS'; if (res === 'tesSUCCESS') L.bal -= +d.Amount;
+    L.txs[h] = { validated: true, ledger_index: L.idx, tx_json: d, meta: { TransactionResult: res, delivered_amount: d.Amount } }; saveL(); return { result: { engine_result: res } }; }
   throw new Error('unknown ' + c); },
-  autofill: async t => ({ ...t, Fee: '12', Sequence: L.seq++, LastLedgerSequence: L.idx + 20 }) };
+  autofill: async t => ({ ...t, Fee: '12', Sequence: t.Sequence ?? L.seq, LastLedgerSequence: L.idx + 20 }) };
 const deps = { ledger: async () => client, live: () => true, wallet: () => W };
 let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? '  PASS ' : '  FAIL ') + m); };
 const hex = s => Buffer.from(s).toString('hex').toUpperCase();
@@ -72,10 +79,10 @@ ok(tr.status === 'queued', 'clean match -> payouts queued automatically (no admi
 
 console.log('3) automatic payout, failure + idempotent retry');
 L.failNextSubmit = 1; await Q.tick(deps); let rows = Q.forMatch('MTEAM');
-ok(rows.every(r => r.status === 'submitted' || r.status === 'paid'), 'first submit network error -> row kept as submitted with stored hash');
+ok(rows.filter(r => r.status === 'submitted' && r.hash).length === 1 && rows.filter(r => r.status === 'queued').length === 1, 'first submit network error -> row kept as submitted with stored hash, rest of pass stops (serialized)');
 const s0 = L.submits; await Q.tick(deps); rows = Q.forMatch('MTEAM');
 ok(rows.find(r => r.status === 'submitted') && L.submits === s0, 'not on ledger, LastLedgerSequence not passed -> NOT resent');
-L.idx += 25; L.gap = 1; saveL(); const s1 = L.submits; await Q.tick(deps); ok(L.submits === s1, 'server missing ledger history (searched_all=false) -> NOT resent'); L.gap = 0; saveL(); await Q.tick(deps); await Q.tick(deps); rows = Q.forMatch('MTEAM');
+L.idx += 25; L.gap = 1; saveL(); const s1 = L.submits; await Q.tick(deps); ok(L.submits === s1, 'treasury account_tx history incomplete -> NOT resent'); L.gap = 0; saveL(); await Q.tick(deps); await Q.tick(deps); rows = Q.forMatch('MTEAM');
 ok(rows.every(r => r.status === 'paid'), 'after LastLedgerSequence passed -> resent once and paid');
 const paidTx = Object.values(L.txs).filter(t => t.tx_json.Memos?.[0] && Buffer.from(t.tx_json.Memos[0].Memo.MemoData, 'hex').toString().startsWith('MTEAM') && t.meta.TransactionResult === 'tesSUCCESS');
 ok(paidTx.length === 2, 'each winner paid exactly once on-ledger');
@@ -85,6 +92,31 @@ Q.enqueue([{ id: 'MTEC:prize:1', kind: 'prize', match: 'MTEC', dest: acct(), dro
 ok(Q.get('MTEC:prize:1').status === 'paid', 'validated tec failure (funds not moved) -> re-signed and paid');
 // duplicate enqueue is a no-op
 ok(Q.enqueue([{ id: 'MTEC:prize:1', kind: 'prize', match: 'MTEC', dest: acct(), drops: 1e6 }]) === 0, 'enqueueing the same payout twice is a no-op');
+
+console.log('3b) sequence handling (collision fix)');
+{ const d1 = acct(), d2 = acct(); L.seqLog = []; saveL();
+  Q.enqueue([{ id: 'MSEQ:prize:1', kind: 'prize', match: 'MSEQ', dest: d1, drops: 1e6, memo: 'MSEQ 1' }, { id: 'MSEQ:prize:2', kind: 'prize', match: 'MSEQ', dest: d2, drops: 2e6, memo: 'MSEQ 2' }]);
+  await Q.tick(deps); const r1 = Q.get('MSEQ:prize:1'), r2 = Q.get('MSEQ:prize:2');
+  ok(r1.seq && r2.seq && r1.seq !== r2.seq && L.seqLog.length === 2 && L.seqLog[0] !== L.seqLog[1], `two back-to-back payouts get distinct sequences (${r1.seq}, ${r2.seq})`);
+  await Q.tick(deps); ok(Q.get('MSEQ:prize:1').status === 'paid' && Q.get('MSEQ:prize:2').status === 'paid', 'both paid'); }
+{ const d = acct(); Q.enqueue([{ id: 'MCOL:prize:1', kind: 'prize', match: 'MCOL', dest: d, drops: 1e6, memo: 'MCOL 1' }]); L.stealSeq = 1; saveL();
+  await Q.tick(deps); const r = Q.get('MCOL:prize:1'); ok(r.status === 'queued' && /tefPAST_SEQ/.test(r.err), 'Sequence collision (tefPAST_SEQ) -> requeued immediately');
+  await Q.tick(deps); await Q.tick(deps); ok(Q.get('MCOL:prize:1').status === 'paid' && Object.values(L.txs).filter(t => t.tx_json.Destination === d).length === 1, 'collision re-signed with fresh Sequence -> paid exactly once'); }
+{ const d = acct(); Q.enqueue([{ id: 'MEXP:prize:1', kind: 'prize', match: 'MEXP', dest: d, drops: 1e6, memo: 'MEXP 1' }]); L.dropSubmit = 1; saveL();
+  await Q.tick(deps); const h0 = Q.get('MEXP:prize:1').hash; const sA = L.submits; L.idx += 25; saveL(); await Q.tick(deps);
+  ok(L.submits === sA + 1 && Q.get('MEXP:prize:1').hash !== h0 && Q.get('MEXP:prize:1').attempts === 2, 'expired tx verified via treasury account_tx -> retried once');
+  await Q.tick(deps); await Q.tick(deps); ok(Q.get('MEXP:prize:1').status === 'paid' && Object.values(L.txs).filter(t => t.tx_json.Destination === d).length === 1 && L.submits === sA + 1, 'retry paid, no further resends'); }
+{ const d = acct(); Q.enqueue([{ id: 'MDBL:prize:1', kind: 'prize', match: 'MDBL', dest: d, drops: 1e6, memo: 'MDBL 1' }]); await Q.tick(deps);
+  const r = Q.get('MDBL:prize:1'); const t = L.txs[r.hash]; delete L.txs[r.hash]; L.txs['F'.repeat(64)] = t;   // tx validated but our hash lookup misses it
+  L.idx += 25; saveL(); const sB = L.submits; await Q.tick(deps); await Q.tick(deps);
+  ok(Q.get('MDBL:prize:1').status === 'paid' && L.submits === sB, 'tx actually validated (found in treasury account_tx) -> marked paid, no double-pay'); }
+{ const d = acct(); Q.enqueue([{ id: 'MLEG:prize:1', kind: 'prize', match: 'MLEG', dest: d, drops: 1e6, memo: 'MLEG 1' }]);
+  Q.db.prepare("UPDATE payq SET status='submitted', hash=?, lls=?, attempts=1, booked=1, v=0 WHERE id='MLEG:prize:1'").run('E'.repeat(64), L.idx - 50);   // pre-fix row, long expired
+  const sC = L.submits; for (let i = 0; i < 3; i++) await Q.tick(deps);
+  ok(Q.get('MLEG:prize:1').status === 'submitted' && L.submits === sC, 'legacy (pre-fix) submitted row is never auto-retried');
+  Q.enqueue([{ id: 'MLEG2:prize:1', kind: 'prize', match: 'MLEG2', dest: acct(), drops: 1e6 }]); await Q.tick(deps); await Q.tick(deps);
+  ok(Q.get('MLEG2:prize:1').status === 'paid', 'legacy stuck row does not block new payouts');
+  Q.db.prepare("DELETE FROM payq WHERE id='MLEG:prize:1'").run(); }
 
 console.log('4) guard limits + low treasury');
 const big = acct(); const bt = [mk(big, 'MBIG')]; R.tickets[bt[0]].drops = 60e6; R.tickets[bt[0]].burn = 0;

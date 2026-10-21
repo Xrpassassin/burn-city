@@ -9,6 +9,12 @@ const SIL = `<svg viewBox="0 0 120 260" class="sil"><defs><linearGradient id="si
 <path d="M46 74h28M44 112h32M50 150h20" stroke="#a07a4455" stroke-width="2" fill="none"/></svg>`;
 export function initUI(G) {
   const MOB = G.MOBILE; document.body.classList.add(MOB ? 'm' : 'd');
+  // Touch ghost-click guard (same idea as js/fish.js): a tap can swap the buttons under the finger (forge, Study/Imbue, bags, panels),
+  // so the browser's follow-up click is only accepted on the control that got the pointerdown (or an identical re-render of it).
+  { const ctl = t => t?.closest?.('button,.slot,.card,[data-f],[data-fx],[data-c],[data-tab],[data-a],[data-m],[data-gem],[data-spell]'), sig = e => e ? e.tagName + '|' + e.className + '|' + JSON.stringify(e.dataset) + '|' + e.textContent : '';
+    let dn = null, dSig = '', dT = 0, touch = false;
+    document.addEventListener('pointerdown', e => { touch = e.pointerType !== 'mouse'; dn = ctl(e.target); dSig = sig(dn); dT = performance.now(); }, true);
+    document.addEventListener('click', e => { if (!touch || performance.now() - dT > 1200) return; const c = ctl(e.target); if (!c || c === dn || (dn && !dn.isConnected && sig(c) === dSig)) return; e.preventDefault(); e.stopImmediatePropagation(); }, true); }
   const P = () => G.P;
   let wins = {}, zTop = 40, sel = null, selSpell = null, tipEl = $('tip'), ctxEl = null, logLines = [];
   const pos = (() => { try { return JSON.parse(localStorage.egUI || '{}'); } catch { return {}; } })(); const savePos = () => { try { localStorage.egUI = JSON.stringify(pos); } catch { } };

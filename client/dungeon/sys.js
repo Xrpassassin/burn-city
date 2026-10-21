@@ -106,6 +106,7 @@ export function migrate(P) { if (!P || typeof P !== 'object') return null; let c
     for (const it of items) if (!addItem(P, it)) P.gold += it.v || 1;
     delete P.inv; P.mats = { ore: 6, shard: 1 }; P.codex = []; P.diff = 0; P.gems = defaultGems(P); P.hot = DEFAULT_HOT(); P.v = SAVE_V; P.migratedFrom = 1; }
   // light repairs for any v2 save
+  P.classes = (Array.isArray(P.classes) ? P.classes : []).filter(c => CLASSES[c]).slice(0, 3); if (!P.classes.length) P.classes = [CLASSES[P.cls] ? P.cls : 'warrior']; P.cls = P.classes[0]; if (!P.eq || typeof P.eq !== 'object' || Array.isArray(P.eq)) P.eq = {};
   P.gen = (P.gen || []).concat(Array(8).fill(null)).slice(0, 8); P.mats = P.mats || { ore: 0, shard: 0 }; P.codex = P.codex || []; P.pots = P.pots || [0, 0]; P.diff = Math.max(0, Math.min(4, P.diff | 0));
   if (!Array.isArray(P.gems) || P.gems.length !== 8) P.gems = defaultGems(P); if (!Array.isArray(P.hot) || P.hot.length !== 10) P.hot = DEFAULT_HOT(); if (!P.race || !RACES[P.race]) P.race = 'human';
   return { P, changed }; }

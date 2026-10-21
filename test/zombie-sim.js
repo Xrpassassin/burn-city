@@ -50,7 +50,9 @@ ok(Math.abs(1 - Z.RUNNER / 1.7 - 0.176) < 0.02, `runners ${((1 - Z.RUNNER / 1.7)
     q.st = 6; q.brk = -1; r.wave = 3; r.events = []; r.step(0.05); ok(q.st === 7 && q.it && q.it.kind === 4, 'heli: after the flare stack, the next break calls ch.4 (beacon battery)');
     q.st = 9; q.it = { kind: 5, x: q.bea.x, z: q.bea.z, lv: 1, by: p.id }; Object.assign(p, { x: q.bea.x, z: q.bea.z, lv: 1, y: Z.UH }); p.in.use = true; r.events = []; r.step(0.05);
     ok(q.st === 10 && r.heli && r.heli.st === 1 && r.toSpawn > 0, 'heli: lighting the flare at the beacon calls the helicopter (+ surge)');
-    const ev = run(r, 20.2); ok(r.heli.st === 2 && ev.some(e => e.e === 'heli' && e.s === 2), 'heli: lands and opens boarding after ~20 s'); }
+    // The inbound surge is real (random spawns) and can down an idle solo player in 20 s, which ends the match and stops the heli clock
+    // (~17% of runs before this). This check is about the landing timer, so the player can't be hit while the bird is inbound.
+    p.inv = 1e9; const ev = run(r, 20.2); ok(r.heli.st === 2 && ev.some(e => e.e === 'heli' && e.s === 2) && !r.over, 'heli: lands and opens boarding after ~20 s'); }
   { const [r] = H(1); r.ranked = { state: 'live', results: new Map() }; Heli.start(r, []); ok(!r.heli, 'heli: never in ranked'); }
   { const [r, [p, o]] = live(2); onPad(r, p); Object.assign(o, { x: r.heli.x + 12, z: r.heli.z, lv: 1, y: Z.UH }); run(r, 0.1);
     ok(p.aboard && r.heli.b.has(p.id) && !o.aboard, 'heli: standing on the pad boards you'); const hp = p.hp;

@@ -1090,7 +1090,7 @@ const avatar=(()=>{const g=buildWalker({suit:0x2c4468,accent:0x7ee0ff,skin:1});c
  const pl=new THREE.PointLight(0x7ee0ff,0,6,2);S.add(pl);g.userData.pl=pl;g.visible=false;S.add(g);return g})();
 // avatar glow stays in the scene at 0 intensity while hidden: toggling a light's visibility changes the light count and recompiles every lit shader (hitch on entering Explore)
 anim.push(()=>{const pl=avatar.userData.pl;pl.intensity=avatar.visible?2:0;if(avatar.visible)pl.position.set(avatar.position.x,avatar.position.y+1.5,avatar.position.z)});
-let NET=null;const peers=new Map();window.__city={audio:()=>({AC,on:!!aud.on,master:aud.master}),pick,colliders,groundAt,streets,drone:()=>DRONE&&DRONE.grp,avatar,S,C,P,R,N,orbit,MOBILE,bridges,comp,bloom,sanitize,RT_BYTE,APPLE_GPU,U,E,TIER,sfx:{whoosh:()=>{if(!AC||!aud.on)return;const t0=AC.currentTime,s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=1.2;f.frequency.setValueAtTime(300,t0);f.frequency.exponentialRampToValueAtTime(2400,t0+.7);const g=AC.createGain();g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.5,t0+.25);g.gain.exponentialRampToValueAtTime(.001,t0+1.1);s.connect(f).connect(g).connect(aud.master);s.start(t0);s.stop(t0+1.2)}},isTour:()=>!!tour,getMode:()=>mode,showInfo,input:{keys,yp,get joy(){return joy},get tb(){return tb}},get bokeh(){return bokeh}};
+let NET=null;const peers=new Map();window.__city={audio:()=>({AC,on:!!aud.on,master:aud.master}),pick,colliders,groundAt,streets,drone:()=>DRONE&&DRONE.grp,avatar,S,C,P,R,N,orbit,MOBILE,bridges,comp,bloom,sanitize,RT_BYTE,APPLE_GPU,U,E,TIER,sfx:{whoosh:()=>{if(!AC||!aud.on)return;const t0=AC.currentTime,s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=1.2;f.frequency.setValueAtTime(300,t0);f.frequency.exponentialRampToValueAtTime(2400,t0+.7);const g=AC.createGain();g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.5,t0+.25);g.gain.exponentialRampToValueAtTime(.001,t0+1.1);s.connect(f).connect(g).connect(aud.master);s.start(t0);s.stop(t0+1.2)}},isTour:()=>!!tour,getMode:()=>mode,soundOn:()=>!!aud.on,showInfo,input:{keys,yp,get joy(){return joy},get tb(){return tb}},get bokeh(){return bokeh}};
 function setMode(m){const prev=mode;mode=m;tour=null;window.__modeReset&&window.__modeReset();$('tourCap')&&$('tourCap').classList.remove('show');document.querySelectorAll('#btns [data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));orbit.enabled=m==='orbit';avatar.visible=m==='explore'&&!P.fp;
  $('touch').classList.toggle('on',MOBILE&&(m==='explore'||m==='fly'));['tUp','tDown'].forEach(i=>$(i).style.display=m==='fly'?'':'none');['tJump','tRun','tUse'].forEach(i=>$(i).style.display=m==='explore'?'':'none');
  if(m!=='orbit'){const d=C.getWorldDirection(new THREE.Vector3());yp.yaw=Math.atan2(-d.x,-d.z);yp.pitch=Math.asin(Math.max(-1,Math.min(1,d.y)))}
@@ -1191,7 +1191,8 @@ function webStep(dt,mv){webBtn.style.display=mode==='explore'&&!(window.__boat&&
   const la=WEB.line.geometry.attributes.position;la.setXYZ(0,P.pos.x,P.pos.y+1.4,P.pos.z);la.setXYZ(1,WEB.a.x,WEB.a.y,WEB.a.z);la.needsUpdate=true;WEB.line.visible=true;
   if(P.vel.x||P.vel.z)avatar.rotation.y=Math.atan2(-P.vel.x,-P.vel.z);return true}
 window.__web={WEB,webSet,webAnchor,railPts};
-function updExplore(dt){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run?11:5;
+function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=null;$('prompt').style.display='none';P.vel.set(0,0,0);me.set(P.pos,avatar.rotation.y,'idle',P.district);return}   // a modal owns the player (The Wilds: warning / encounter / dialogue)
+ const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run?11:5;
  const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0)-joy.y,s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+joy.x;
  if(window.__skate&&window.__skate.active){window.__skate.drive(dt,f,s);const dir=dirOf();if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.6);C.lookAt(C.position.clone().add(dir))}else{const want=P.pos.clone().setY(P.pos.y+2.2).addScaledVector(dir,-6.2);want.y=Math.max(want.y,P.pos.y+.8,.6);C.position.lerp(want,1-Math.pow(.0005,dt));C.lookAt(P.pos.clone().setY(P.pos.y+1.3).addScaledVector(dir,4))}P.near=null;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}   // skateboarding rides on top of explore, like the boat
  if(window.__boat&&window.__boat.active){const st=window.__boat.drive(dt,f,s);P.pos.copy(st);P.vel.set(0,0,0);P.onGround=true;P.climb=null;avatar.position.copy(st);avatar.rotation.y=window.__boat.cur.h;avatar.visible=true;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}
@@ -1201,7 +1202,7 @@ function updExplore(dt){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run
  const g=groundAt(P.pos.x,P.pos.z,P.pos.y);if(P.pos.y<=g){P.pos.y=g;P.vel.y=0;P.onGround=true}else P.onGround=P.pos.y-g<.05;
  collide(P.pos);
  // climbing: push into a tower wall -> climb the face; jump/back off detaches; mantle at the roof edge
- {let cw=null;const fv=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw));if(f>.3)for(const c of colliders){if(!c.r||P.pos.y>=c.h-.05)continue;const dx=c.x-P.pos.x,dz=c.z-P.pos.z,d=Math.hypot(dx,dz);if(d<c.r+.6&&(dx*fv.x+dz*fv.z)/(d||1)>.3){cw=c;break}}
+ {let cw=null;const fv=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw));if(f>.3)for(const c of colliders){if(!c.r||c.nc||P.pos.y>=c.h-.05)continue;const dx=c.x-P.pos.x,dz=c.z-P.pos.z,d=Math.hypot(dx,dz);if(d<c.r+.6&&(dx*fv.x+dz*fv.z)/(d||1)>.3){cw=c;break}}
   if(cw&&(keys.Space||tb.jump)&&P.climb){P.climb=null;P.vel.y=5;const dx=P.pos.x-cw.x,dz=P.pos.z-cw.z,d=Math.hypot(dx,dz)||1;P.pos.x+=dx/d*1.2;P.pos.z+=dz/d*1.2;cw=null}
   if(cw){P.climb=cw;P.vel.y=0;P.onGround=false;P.pos.y+=(run?12:8.5)*dt;P.walk+=dt*20;
    if(P.pos.y>=cw.h-.05){const dx=cw.x-P.pos.x,dz=cw.z-P.pos.z,d=Math.hypot(dx,dz)||1;P.pos.y=cw.h;P.pos.x+=dx/d*1.4;P.pos.z+=dz/d*1.4;P.climb=null;P.onGround=true}}
@@ -1220,8 +1221,9 @@ function nearestInteract(){let best=null,bd=10;const p=P.pos;
  E.nodes.forEach(n=>{const d=Math.hypot(p.x-n.pos.x,p.z-n.pos.z)-n.w*1.2;if(d<bd){bd=d;best=n.name==='BURN'&&window.__openBurnTowerInterior?{label:'Enter PYRETHEUM',u:{node:n},tower:'burn'}:{label:'Inspect '+n.name+' tower',u:{node:n}}}});
  bridges.forEach(b=>{if(!b.group.visible)return;const d=Math.hypot(b.term.position.x-p.x,b.term.position.z-p.z);if(d<4&&d<bd+3){bd=d-3;best={label:`Pool terminal ${b.p.a}⇄${b.p.b}`,u:{pool:b.p}}}
   for(let k=0;k<=20;k++){b.curve.getPoint(k/20,_v);const dd=_v.distanceTo(p);if(dd<b.r+3&&dd<bd){bd=dd;best={label:`Bridge ${b.p.a}⇄${b.p.b}`,u:{pool:b.p}}}}});
+ for(const f of window.__interactors||[]){const r=f(p);if(r&&r.d<bd){bd=r.d;best=r}}   // other modules (The Wilds) offer things to USE
  return best}
-function interact(){if(window.__burnTowerOpen){window.__towerInteract&&window.__towerInteract();return}const n=P.near||nearestInteract();if(!n)return;if(n.tower==='burn'&&window.__openBurnTowerInterior){window.__openBurnTowerInterior();return}showInfo(n.u)}   // BURN Tower entrance -> js/tower-interior.js overlay (only once that module has loaded)
+function interact(){if(window.__burnTowerOpen){window.__towerInteract&&window.__towerInteract();return}const n=P.near||nearestInteract();if(!n)return;if(n.act){n.act();return}if(n.tower==='burn'&&window.__openBurnTowerInterior){window.__openBurnTowerInterior();return}showInfo(n.u)}   // BURN Tower entrance -> js/tower-interior.js overlay (only once that module has loaded)
 let DRONE=null;function updFly(dt){if(!DRONE)DRONE=initDrone(window.__city,{keys,tb,MOBILE});const sp=(keys.ShiftLeft?140:60)*DRONE.speedMul()*dt,dir=dirOf(),rt=new THREE.Vector3(-dir.z,0,dir.x).normalize();const f=(keys.KeyW?1:0)-(keys.KeyS?1:0)-joy.y,s=(keys.KeyD?1:0)-(keys.KeyA?1:0)+joy.x;
  C.position.addScaledVector(dir,f*sp).addScaledVector(rt,s*sp);C.position.y=Math.max(1.5,C.position.y+((keys.Space||tb.up?1:0)-(keys.KeyC||keys.ControlLeft||tb.down?1:0))*sp);C.lookAt(C.position.clone().add(dir));DRONE.update(dt,U.t.value,dir,f,s,colliders)}
 
@@ -1405,6 +1407,8 @@ if(DEMO){const kinds=DEMO==='1'?null:DEMO==='all'?['burn','trade','lock']:DEMO==
 let feed=null;
 // AEGIS live feed (screens, threat weather, ticker): optional module, loaded on its own so any failure leaves the city untouched
 if(!Q.has('noaegis')&&!Q.has('shot'))import('./aegis.js').catch(e=>console.warn('aegis',e));
+// The Wilds (forest north of town): js/wilds-gate.js draws only the trailhead gate and lazy-loads the forest (js/wilds.js) when you walk in; ?nowilds turns it off
+if(!Q.has('nowilds'))import('./wilds-gate.js').catch(e=>console.warn('wilds',e));
 if(Q.get('live')!=='0'&&!Q.has('shot')){import('./live.js').then(({LiveFeed})=>{feed=new LiveFeed(E,{onEvent:pushEvent,onStatus:setStatus,burnTokens:['BURN','IMM','IMG','XRPyro','Budzy','$BTCK','BCHAMP']}).start();window.__feed=feed}).catch(()=>setStatus('offline',{}))}
 else setStatus(DEMO?'demo':'offline',{});
 updCounter();
@@ -1464,6 +1468,7 @@ function frame(){requestAnimationFrame(frame);R.info.reset();const _rd=clk.getDe
  else{orbit.autoRotate=!Q.has('shot')&&$('info').style.display!=='block';orbit.update()}
  let _sh=null;if(SHAKE.a>.01){SHAKE.a*=Math.exp(-dt*3);_sh=V3((Math.random()-.5),(Math.random()-.5),(Math.random()-.5)).multiplyScalar(SHAKE.a);C.position.add(_sh)}
  if(bokeh.enabled)bokeh.uniforms.focus.value=mode==='explore'?6.5:C.position.distanceTo(orbit.target);
+ if(window.__preRender)for(const f of window.__preRender)f(dt,t);   // late per-frame hooks (fog/camera tweaks) right before the frame is drawn
  comp.render();if(_sh)C.position.sub(_sh);if(PERF)PERF(_rd);   // while PYRETHEUM is open its scene/camera are swapped into this same composer (one renderer, one loop)
 updLabels();if(t-lastHud>.25){updMinimap();lastHud=t}
  {const now=performance.now();fpsN++;if(now-fpsT0>=1000){fpsA=fpsN*1000/(now-fpsT0);fpsN=0;fpsT0=now;window.__info={calls:R.info.render.calls,tris:R.info.render.triangles,geo:R.info.memory.geometries,tex:R.info.memory.textures,progs:R.info.programs.length}}}if(fr%15===0)$('fps').textContent=Math.round(fpsA)+' fps'+(MOBILE?' · mobile':'')+(AQ.on&&PR<AQ.max-.01?' · res '+Math.round(PR/AQ.max*100)+'%':'')+(AQ.bloomOff?' · glow off':'');window.__fps=fpsA;

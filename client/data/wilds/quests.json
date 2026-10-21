@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "quests": [
+    {
+      "id": "first_footfall",
+      "title": "First Footfall",
+      "giver": "mara_venn",
+      "type": "main",
+      "prerequisites": [],
+      "objectives": [
+        {
+          "id": "follow_markers",
+          "type": "discover",
+          "target": "fernway_marker",
+          "count": 3
+        },
+        {
+          "id": "inspect_creature",
+          "type": "inspect",
+          "target": "wild_creature",
+          "count": 1
+        }
+      ],
+      "rewards": {
+        "playerXp": 100,
+        "items": [
+          "starter_binding_charm"
+        ],
+        "flags": [
+          "met_trail_warden"
+        ]
+      },
+      "repeatable": false
+    },
+    {
+      "id": "a_gentle_signal",
+      "title": "A Gentle Signal",
+      "giver": "mara_venn",
+      "type": "main",
+      "prerequisites": [
+        "first_footfall"
+      ],
+      "objectives": [
+        {
+          "id": "calm_or_bind",
+          "type": "encounter_resolution",
+          "target": "mosskit_or_rillfin",
+          "count": 1
+        }
+      ],
+      "rewards": {
+        "playerXp": 180,
+        "companionXp": 80,
+        "items": [
+          "field_bait"
+        ],
+        "flags": [
+          "learned_binding"
+        ]
+      },
+      "repeatable": false
+    },
+    {
+      "id": "tags_in_the_roots",
+      "title": "Tags in the Roots",
+      "giver": "orrick_vale",
+      "type": "side",
+      "prerequisites": [
+        "a_gentle_signal"
+      ],
+      "objectives": [
+        {
+          "id": "tag_a",
+          "type": "collect",
+          "target": "survey_tag",
+          "count": 1
+        },
+        {
+          "id": "tag_b",
+          "type": "collect",
+          "target": "survey_tag",
+          "count": 1
+        },
+        {
+          "id": "tag_c",
+          "type": "collect",
+          "target": "survey_tag",
+          "count": 1
+        }
+      ],
+      "rewards": {
+        "playerXp": 250,
+        "items": [
+          "rootfiber_bundle"
+        ],
+        "reputation": {
+          "relic_survey": 1
+        }
+      },
+      "repeatable": false
+    },
+    {
+      "id": "the_missing_tinker",
+      "title": "The Missing Tinker",
+      "giver": "sable_kest",
+      "type": "side",
+      "prerequisites": [
+        "tags_in_the_roots"
+      ],
+      "objectives": [
+        {
+          "id": "find_clues",
+          "type": "interact",
+          "target": "tinker_clue",
+          "count": 3
+        },
+        {
+          "id": "resolve_disturbance",
+          "type": "encounter_resolution",
+          "target": "territorial_creature",
+          "count": 1
+        }
+      ],
+      "rewards": {
+        "playerXp": 350,
+        "items": [
+          "companion_training_treat"
+        ],
+        "flags": [
+          "field_tinker_rescued"
+        ]
+      },
+      "repeatable": false
+    },
+    {
+      "id": "a_pulse_beneath_ash",
+      "title": "A Pulse Beneath Ash",
+      "giver": "mara_venn",
+      "type": "main",
+      "prerequisites": [
+        "the_missing_tinker"
+      ],
+      "objectives": [
+        {
+          "id": "reach_hollow",
+          "type": "discover",
+          "target": "ashen_hollow_entry",
+          "count": 1
+        },
+        {
+          "id": "survive_elite",
+          "type": "encounter_resolution",
+          "target": "elite_encounter",
+          "count": 1
+        }
+      ],
+      "rewards": {
+        "playerXp": 600,
+        "companionXp": 300,
+        "items": [
+          "aether_fragment"
+        ],
+        "flags": [
+          "ashen_hollow_unlocked"
+        ]
+      },
+      "repeatable": false
+    }
+  ]
+}

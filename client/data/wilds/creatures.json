@@ -1,0 +1,454 @@
+{
+  "schemaVersion": 1,
+  "note": "Original sample content for BURN City: The Wilds. Placeholder names; replace after art/lore review. No Pok\u00e9mon IP included.",
+  "affinities": [
+    "Ember",
+    "Verdant",
+    "Tide",
+    "Gale",
+    "Stone",
+    "Aether"
+  ],
+  "creatures": [
+    {
+      "id": "mosskit",
+      "name": "Mosskit",
+      "rarity": "common",
+      "affinity": [
+        "Verdant"
+      ],
+      "temperament": "curious",
+      "habitats": [
+        "fernway_verge"
+      ],
+      "levelRange": [
+        1,
+        4
+      ],
+      "baseStats": {
+        "hp": 24,
+        "power": 7,
+        "guard": 6,
+        "speed": 8,
+        "focus": 7
+      },
+      "roles": [
+        "starter",
+        "support"
+      ],
+      "passiveTrait": "Softstep: slightly improves escape from hostile encounters.",
+      "abilities": [
+        "leaf_flick",
+        "soothing_call"
+      ],
+      "evolution": {
+        "next": "briarback",
+        "requirements": {
+          "level": 8,
+          "bond": 3,
+          "questFlag": "mosskit_bloom_clue"
+        }
+      },
+      "confluenceTags": [
+        "verdant",
+        "small",
+        "support"
+      ]
+    },
+    {
+      "id": "briarback",
+      "name": "Briarback",
+      "rarity": "uncommon",
+      "affinity": [
+        "Verdant",
+        "Stone"
+      ],
+      "temperament": "protective",
+      "habitats": [
+        "glassroot_grove"
+      ],
+      "levelRange": [
+        8,
+        14
+      ],
+      "baseStats": {
+        "hp": 42,
+        "power": 11,
+        "guard": 14,
+        "speed": 6,
+        "focus": 8
+      },
+      "roles": [
+        "defender",
+        "support"
+      ],
+      "passiveTrait": "Rootguard: gains a small defensive bonus when protecting an ally.",
+      "abilities": [
+        "thorn_sweep",
+        "root_guard"
+      ],
+      "evolution": null,
+      "confluenceTags": [
+        "verdant",
+        "stone",
+        "defender"
+      ]
+    },
+    {
+      "id": "cinderling",
+      "name": "Cinderling",
+      "rarity": "common",
+      "affinity": [
+        "Ember"
+      ],
+      "temperament": "bold",
+      "habitats": [
+        "fernway_verge",
+        "ashen_hollow"
+      ],
+      "levelRange": [
+        2,
+        6
+      ],
+      "baseStats": {
+        "hp": 22,
+        "power": 10,
+        "guard": 5,
+        "speed": 9,
+        "focus": 6
+      },
+      "roles": [
+        "striker"
+      ],
+      "passiveTrait": "Kindle: first Ember ability in an encounter has a small bonus.",
+      "abilities": [
+        "spark_nip",
+        "flare_dash"
+      ],
+      "evolution": {
+        "next": "kilnfox",
+        "requirements": {
+          "level": 10,
+          "bond": 4,
+          "biome": "ashen_hollow"
+        }
+      },
+      "confluenceTags": [
+        "ember",
+        "quick",
+        "striker"
+      ]
+    },
+    {
+      "id": "kilnfox",
+      "name": "Kilnfox",
+      "rarity": "rare",
+      "affinity": [
+        "Ember",
+        "Gale"
+      ],
+      "temperament": "independent",
+      "habitats": [
+        "ashen_hollow"
+      ],
+      "levelRange": [
+        10,
+        18
+      ],
+      "baseStats": {
+        "hp": 36,
+        "power": 15,
+        "guard": 7,
+        "speed": 15,
+        "focus": 10
+      },
+      "roles": [
+        "striker",
+        "scout"
+      ],
+      "passiveTrait": "Heatwake: reveals nearby warm-energy tracks outside combat.",
+      "abilities": [
+        "ember_arc",
+        "afterimage_pounce",
+        "heatwake"
+      ],
+      "evolution": null,
+      "confluenceTags": [
+        "ember",
+        "gale",
+        "quick",
+        "scout"
+      ]
+    },
+    {
+      "id": "rillfin",
+      "name": "Rillfin",
+      "rarity": "common",
+      "affinity": [
+        "Tide"
+      ],
+      "temperament": "shy",
+      "habitats": [
+        "fernway_verge"
+      ],
+      "levelRange": [
+        1,
+        5
+      ],
+      "baseStats": {
+        "hp": 26,
+        "power": 6,
+        "guard": 8,
+        "speed": 7,
+        "focus": 10
+      },
+      "roles": [
+        "support",
+        "control"
+      ],
+      "passiveTrait": "Clearcurrent: slightly improves recovery from Daze.",
+      "abilities": [
+        "water_thread",
+        "mist_bubble"
+      ],
+      "evolution": {
+        "next": "brookwarden",
+        "requirements": {
+          "level": 9,
+          "bond": 4,
+          "questFlag": "rillfin_river_trial"
+        }
+      },
+      "confluenceTags": [
+        "tide",
+        "support",
+        "control"
+      ]
+    },
+    {
+      "id": "brookwarden",
+      "name": "Brookwarden",
+      "rarity": "uncommon",
+      "affinity": [
+        "Tide",
+        "Stone"
+      ],
+      "temperament": "steady",
+      "habitats": [
+        "glassroot_grove"
+      ],
+      "levelRange": [
+        9,
+        15
+      ],
+      "baseStats": {
+        "hp": 46,
+        "power": 9,
+        "guard": 13,
+        "speed": 6,
+        "focus": 13
+      },
+      "roles": [
+        "defender",
+        "support"
+      ],
+      "passiveTrait": "Riverwall: reduces the first hit received after entering combat.",
+      "abilities": [
+        "surge_shell",
+        "restoring_spring"
+      ],
+      "evolution": null,
+      "confluenceTags": [
+        "tide",
+        "stone",
+        "defender",
+        "support"
+      ]
+    },
+    {
+      "id": "shardmole",
+      "name": "Shardmole",
+      "rarity": "uncommon",
+      "affinity": [
+        "Stone"
+      ],
+      "temperament": "territorial",
+      "habitats": [
+        "glassroot_grove",
+        "ashen_hollow"
+      ],
+      "levelRange": [
+        5,
+        12
+      ],
+      "baseStats": {
+        "hp": 34,
+        "power": 10,
+        "guard": 12,
+        "speed": 5,
+        "focus": 7
+      },
+      "roles": [
+        "defender",
+        "gatherer"
+      ],
+      "passiveTrait": "Deepnose: reveals buried crafting resources near marked terrain.",
+      "abilities": [
+        "shard_bash",
+        "burrow_stance"
+      ],
+      "evolution": null,
+      "confluenceTags": [
+        "stone",
+        "gatherer",
+        "defender"
+      ]
+    },
+    {
+      "id": "veilwing",
+      "name": "Veilwing",
+      "rarity": "rare",
+      "affinity": [
+        "Gale",
+        "Aether"
+      ],
+      "temperament": "skittish",
+      "habitats": [
+        "glassroot_grove"
+      ],
+      "levelRange": [
+        7,
+        13
+      ],
+      "baseStats": {
+        "hp": 25,
+        "power": 12,
+        "guard": 6,
+        "speed": 16,
+        "focus": 12
+      },
+      "roles": [
+        "scout",
+        "control"
+      ],
+      "passiveTrait": "Duskglide: improves discovery of hidden paths under low light.",
+      "abilities": [
+        "silk_gust",
+        "veil_pulse"
+      ],
+      "evolution": {
+        "next": "nightprism",
+        "requirements": {
+          "level": 15,
+          "bond": 5,
+          "timeOfDay": "night"
+        }
+      },
+      "confluenceTags": [
+        "gale",
+        "aether",
+        "quick",
+        "scout"
+      ]
+    },
+    {
+      "id": "nightprism",
+      "name": "Nightprism",
+      "rarity": "epic",
+      "affinity": [
+        "Aether",
+        "Gale"
+      ],
+      "temperament": "watchful",
+      "habitats": [
+        "ashen_hollow"
+      ],
+      "levelRange": [
+        15,
+        22
+      ],
+      "baseStats": {
+        "hp": 38,
+        "power": 14,
+        "guard": 9,
+        "speed": 18,
+        "focus": 16
+      },
+      "roles": [
+        "scout",
+        "control"
+      ],
+      "passiveTrait": "Prismatic Warning: occasionally signals an incoming elite encounter.",
+      "abilities": [
+        "prism_cut",
+        "night_current",
+        "warning_glint"
+      ],
+      "evolution": null,
+      "confluenceTags": [
+        "aether",
+        "gale",
+        "scout",
+        "control"
+      ]
+    },
+    {
+      "id": "rootcoloss",
+      "name": "Rootcoloss",
+      "rarity": "elite",
+      "affinity": [
+        "Verdant",
+        "Stone"
+      ],
+      "temperament": "ancient",
+      "habitats": [
+        "ashen_hollow"
+      ],
+      "levelRange": [
+        16,
+        22
+      ],
+      "baseStats": {
+        "hp": 78,
+        "power": 16,
+        "guard": 19,
+        "speed": 4,
+        "focus": 13
+      },
+      "roles": [
+        "boss",
+        "defender"
+      ],
+      "passiveTrait": "Old Growth: gains Guard below one-third health.",
+      "abilities": [
+        "oldwood_slam",
+        "spore_shroud",
+        "rootwall"
+      ],
+      "evolution": null,
+      "confluenceTags": [
+        "verdant",
+        "stone",
+        "boss",
+        "defender"
+      ]
+    }
+  ],
+  "confluenceRecipes": [
+    {
+      "id": "verdant_bulwark",
+      "name": "Verdant Bulwark",
+      "inputs": [
+        "mosskit",
+        "shardmole"
+      ],
+      "output": "briarback",
+      "requirements": {
+        "minimumBondEach": 2,
+        "questFlag": "confluence_basics_unlocked"
+      },
+      "preserveInputs": true,
+      "note": "Prototype recipe; preserve source companions and create a new instance."
+    }
+  ]
+}

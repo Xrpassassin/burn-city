@@ -114,3 +114,7 @@ body.m .book{max-height:none}body.m .gem{width:50px;height:50px}body.m .forge{fl
 #prompt{position:absolute;left:50%;top:58%;transform:translateX(-50%);background:#000b;border:1px solid #a07a44;padding:6px 12px;display:none;pointer-events:auto;cursor:pointer}
 #lockhint{position:absolute;left:50%;top:40%;transform:translateX(-50%);font-size:12px;opacity:.7;text-shadow:0 1px 2px #000;display:none}
 @media (orientation:portrait) and (max-width:520px){#mtgtw{top:calc(84px + var(--st));width:min(48vw,190px)}#mport .mb{width:118px}#mlog{font-size:11.5px;max-width:56vw}}
+/* tapfix: 44px music toggle; keep action cluster off notch/home bar; keep Rest clear of USE on short portrait phones */
+.mmus{min-width:44px;min-height:44px}
+@media (orientation:landscape) and (max-height:500px){#mact{right:calc(14px + max(var(--sR),24px));bottom:calc(12px + max(var(--sb),12px))}.mmus{left:calc(296px + var(--sL))}}
+@media (orientation:portrait) and (max-height:900px){#mmenu{gap:4px}#mmenu button{width:46px;height:46px}}

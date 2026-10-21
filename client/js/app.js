@@ -614,27 +614,28 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
 // ---------- AMM swirls: each rail end flows tangent-continuously into a helix wrapping its tower (ONE merged draw) + drifting sparks on the same path (ONE Points draw) ----------
 // Join: cubic Bezier lead-in leaves the rail end along the rail tangent and lands on the helix along the helix tangent (C1, no kink);
 // flow phase/speed/thickness/colour continue the rail core's so it reads as one stream; tube tapers + fades at the tail.
-{const LOW=TIER==='low',SEGH=LOW?20:MOBILE?32:48,SEGB=LOW?6:MOBILE?8:12,RAD=LOW?4:5,geos=[],paths=[],per={},LOCKC=new THREE.Color(0xffb020),CYC=new THREE.Color(0xbff8ff),tA=new THREE.Vector3(),cP=new THREE.Vector3();
+{const LOW=TIER==='low',SEGH=LOW?20:MOBILE?32:48,SEGB=LOW?6:MOBILE?8:12,RAD=LOW?4:5,geos=[],paths=[],per={},LOCKC=new THREE.Color(0xffb020),CYC=new THREE.Color(0xbff8ff),GOLD=new THREE.Color(0xffc64a),kAt=(cu,t)=>{const h=1e-3;t=Math.min(1-2*h,Math.max(2*h,t));const a=cu.getPoint(t-h),m=cu.getPoint(t),z=cu.getPoint(t+h),d1=z.clone().sub(a),d2=z.clone().add(a).addScaledVector(m,-2);return 4*d1.clone().cross(d2).length()/Math.max(1e-12,d1.length()**3)},kRail=(cu,end)=>{const h=.002;return kAt(cu,end?1-h:h)},tA=new THREE.Vector3(),cP=new THREE.Vector3();
  bridges.forEach(b=>{if(b.minor||!b.core)return;const Lr=b.curve.getLength(),dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5,cr=Math.max(.06,b.r*.28);
  [0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a];if(!n)return;const k=per[n.name]=(per[n.name]||0)+1;if(k>(LOW?3:6))return;   // busy towers: cap swirls so they never starburst
   const p0=b.curve.getPoint(end?1:0);if(p0.y<8)return;b.curve.getTangent(end?1:0,tA);if(!end)tA.negate();   // rail's travel direction at the tower end
   const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+(k-1)*.35,a0=Math.atan2(dz,dx);
   const dir=(dx*tA.z-dz*tA.x)>0?-1:1,drop=Math.min(22,Math.max(6,p0.y-6)),turns=1.1+.12*k,lead=.22,TT=turns*6.283;   // spin the way the rail is already curving
   const H=(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=R*(1+.06*u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
-  const q1=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q1).normalize(),hl=p0.distanceTo(q1)*.42,
-   bz=new THREE.CubicBezierCurve3(p0.clone(),p0.clone().addScaledVector(tA,hl),q1.clone().addScaledVector(ht,-hl),q1.clone());
-  const pts=bz.getPoints(SEGB);for(const p of pts){const ox=p.x-n.pos.x,oz=p.z-n.pos.z,d=Math.hypot(ox,oz);if(d<Rin){p.x=n.pos.x+ox/d*Rin;p.z=n.pos.z+oz/d*Rin}}   // never cut through the tower
+  const q1=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q1).normalize(),D=p0.distanceTo(q1),kr=kRail(b.curve,end),hb=D*.42;
+   // G2-ish join: pick the first handle so the lead-in starts with the rail's own curvature (no sudden tightening), penalising any sharp bend inside it
+   let bz=null,best=1e9;for(const f of [.3,.4,.5,.6,.75,.9]){const c3=new THREE.CubicBezierCurve3(p0.clone(),p0.clone().addScaledVector(tA,D*f),q1.clone().addScaledVector(ht,-hb),q1.clone());let km=0;for(let j=1;j<6;j++)km=Math.max(km,kAt(c3,j/6));const cost=Math.abs(kAt(c3,0)-kr)+.5*km;if(cost<best){best=cost;bz=c3}}
+  const pts=bz.getPoints(SEGB);for(const p of pts.slice(1)){const ox=p.x-n.pos.x,oz=p.z-n.pos.z,d=Math.hypot(ox,oz);if(d<Rin){p.x=n.pos.x+ox/d*Rin;p.z=n.pos.z+oz/d*Rin}}   // never cut through the tower
   for(let j=1;j<=SEGH;j++)pts.push(H(j/SEGH,new THREE.Vector3()));
-  const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=SEGB+SEGH,c=CYC.clone().lerp(LOCKC,b.L*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
+  const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=SEGB+SEGH,lock=b.forever?1:b.L>=.5?b.L:0,UB=SEGB/NS,c=CYC.clone().lerp(LOCKC,b.L*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
   const shell=(rad,aMul)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*3);
    for(let i=0;i<=NS;i++){const u=i/NS;cv.getPointAt(u,cP);const tap=1-.75*Math.pow(u,1.6),fade=1-THREE.MathUtils.smoothstep(u,.62,1),ph=9*(end?1+u*SL/Lr:-u*SL/Lr);
-    for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,op*aMul*fade],v*4);fl.set([ph,end?sp:sp,aMul],v*3)}}
+    for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,op*aMul*fade],v*4);fl.set([ph,sp,lock*THREE.MathUtils.smoothstep(u,0,UB*1.5)],v*3)}}
    tg.setAttribute('sc',new THREE.BufferAttribute(ca,4));tg.setAttribute('fl',new THREE.BufferAttribute(fl,3));tg.deleteAttribute('normal');geos.push(tg)};
   shell(cr,1);if(!LOW)shell(cr*2.6,.32);   // core matches the rail core exactly; soft glow sheath (same draw) makes it read from a distance
-  paths.push({cv,c,sp,fw:end?1:-1})})});
+  paths.push({cv,c:lock?GOLD:c,sp:lock?sp*.45:sp,fw:end?1:-1})})});
  if(geos.length){const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,uniforms:{t:U.t},
    vertexShader:'attribute vec4 sc;attribute vec3 fl;varying vec3 vF;varying vec4 vC;void main(){vF=fl;vC=sc;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-   fragmentShader:'uniform float t;varying vec3 vF;varying vec4 vC;void main(){float s=fract(vF.x-t*vF.y);float st=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);gl_FragColor=vec4(vC.rgb*(.55+1.1*st),vC.a*(.55+.45*st));}'});   // same streak + speed as the rail core shader
+   fragmentShader:'uniform float t;varying vec3 vF;varying vec4 vC;void main(){float s=fract(vF.x-t*vF.y);float st=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);float sh=.55+.45*sin(t*1.3-vF.x*.35);st=mix(st,sh,vF.z);vec3 col=mix(vC.rgb,vec3(1.,.78,.29),vF.z);gl_FragColor=vec4(col*(.55+1.1*st),vC.a*(1.+.6*vF.z)*(.55+.45*st));}'});   // same streak + speed as the rail core shader
   const mesh=new THREE.Mesh(mergeGeometries(geos),m);mesh.frustumCulled=false;S.add(mesh);
   // sparks: light, one Points draw on the exact swirl path, moving with the flow; phones ≤150, desktop ≤360, Low = off
   const NP=LOW?0:Math.min(MOBILE?150:360,paths.length*(MOBILE?3:5));if(NP){const pg=new THREE.BufferGeometry(),pp=new Float32Array(NP*3),pc=new Float32Array(NP*3),st=[];

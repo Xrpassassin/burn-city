@@ -1,5 +1,6 @@
 // Burn City Arena: zombie-mode visuals. Low-poly, fully instanced (a handful of draw calls total); textures are generated on canvases, no asset files.
 import * as THREE from 'three';
+import { createFPBody } from './fpbody.js';
 import { buildNftChar, disposeNftChar } from '../js/nftchar.js';
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = new THREE.Vector3(), S = new THREE.Vector3(), C = new THREE.Color();
 const P = new THREE.Vector3(), Pt = new THREE.Matrix4();
@@ -175,6 +176,7 @@ export function createZombieFX(scene, { low = false } = {}) {
   // first-person torso: one lathe mesh in world space under the camera (chest, shoulders, belt), lit like the 3rd-person suit, with a faint rim tint
   const fpTorso = new THREE.Mesh(new THREE.LatheGeometry([[0.17, 0], [0.22, 0.06], [0.235, 0.3], [0.255, 0.45], [0.2, 0.53], [0.06, 0.56]].map(([a, b]) => new THREE.Vector2(a, b)), 10).scale(1.25, 1, 0.75),
     new THREE.MeshLambertMaterial({ color: 0x2b2b30, emissive: 0x120806 })); fpTorso.visible = false; scene.add(fpTorso);
+  const fpBody = createFPBody(scene, { low });   // Pyretheum-style body for the local player (legs/torso when looking down)
   let kick = 0, swayT = 0; const _mz = new THREE.Vector3(); gun.position.set(0.2, -0.18, -0.34); gun.scale.setScalar(0.36); gun.rotation.y = 0.04; gun.visible = false;
   let heatV = 0;
   // fire particles: world-space points with per-particle age, additive; heat light only when firing (skipped in low mode)
@@ -225,7 +227,7 @@ export function createZombieFX(scene, { low = false } = {}) {
       if (e.w === 'napalm' && e.ray) { const x0 = isMe ? meX : e.x, z0 = isMe ? meZ : e.z, ty = e.ty ?? sy; rays.push({ x0, z0, x1: e.tx, z1: e.tz, y0: mzY != null ? mzY - 1.2 : sy, y1: ty, t: 0.2, mz: mzY != null }); burst(e.tx, 1.1 + ty, e.tz, -fx * 0.2, -fz * 0.2, low ? 8 : 16, WP[1] || pr); return; }
       if (e.w === 'napalm' && blobs.length < NB) blobs.push({ x0: isMe ? meX : e.x, z0: isMe ? meZ : e.z, x1: e.tx, z1: e.tz, t: 0 }); },
     zdie(e) { const z = zs.get(e.id); if (z) { dying.push({ ...z, fade: 0 }); zs.delete(e.id); } },
-    clear() { fpTorso.visible = false; kick = 0; for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
+    clear() { fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
     // st: interpolated state; me: predicted self {x,z,yaw,firing}; colorOf(id) -> THREE.Color
     update(dt, st, me, myId, colorOf, flameCol, nftOf, srv) {
       t += dt; const seen = new Set(); nb = 0;
@@ -251,7 +253,7 @@ export function createZombieFX(scene, { low = false } = {}) {
         if (q.nc) { q.nc.visible = true; q.nc.position.set(q.x, q.y, q.z); q.nc.rotation.y = q.yaw; q.nc.rotation.x = 0; if (p.down) { q.nc.rotation.x = -1.3; q.nc.position.y = q.y + 0.25; } q.nc.userData.anim(t + p.id, q.spd > 0.5, true); q.seenT = t; continue; }
         q.down = p.down; const blink = p.inv && !p.down && Math.sin(t * 40) > 0; if (q.nc && p.inv && !p.down) q.nc.visible = !blink; drawP(j++, q, blink ? tmp2.setHex(0xffffff) : p.down ? tmp2.setHex(Math.sin(t * 8) > 0 ? 0xff2020 : 0x400000) : colorOf(p.id)); }
       for (const [id, q] of ps) if (q.nc && q.seenT !== t) { if (!st.players.some(p => p.id === id)) { disposeNftChar(q.nc); ps.delete(id); } else q.nc.visible = false; }
-      fpTorso.visible = false;   // local player: no world-space torso/legs (sleeves + gloves live on the view-model gun)   // own body seen when looking down
+      fpTorso.visible = false; fpBody.update(dt, me);   // local player: no world-space torso/legs (sleeves + gloves live on the view-model gun)   // own body seen when looking down
       done(PL, j); done(PL2, j);
       // first-person weapon + flames
       gun.visible = !!me; if (me) { setW(me.w || 0); if (curAc != null) accent.material.color.setHex(curAc); else accent.material.color.copy(colorOf(myId)); heatV += ((me.firing ? 1 : 0) - heatV) * Math.min(1, dt * (me.firing ? 0.9 : 0.5)); hot.material.color.setRGB(0.19 + heatV * 0.81, 0.06 + heatV * 0.45, 0.03 + heatV * 0.1); pilot.scale.setScalar(0.8 + Math.random() * 0.5);

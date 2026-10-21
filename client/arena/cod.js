@@ -2,6 +2,7 @@
 // Built once from the server's layout; per-frame work is just visibility toggles + a few transforms. No lights, no textures
 // beyond small canvas labels, so it stays cheap on phones and Safari.
 import * as THREE from 'three';
+import { addRefineryEnv, woodTex } from './codenv.js';
 function label(text, color = '#ffd9a0', w = 512, scale = 6) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = 96; const x = cv.getContext('2d');
   x.font = 'bold 40px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = color; x.shadowBlur = 14; x.fillStyle = color;
@@ -142,6 +143,8 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     frameM.setMatrixAt(i * 3, Mx.compose(Vp.set(w.x, 1.4 + yo, w.z), Q.identity(), Sc.set(w.ax === 'x' ? 3.2 : 0.7, 0.25, w.ax === 'x' ? 0.7 : 3.2)));
     frameM.setMatrixAt(i * 3 + 1, Mx.compose(Vp.set(w.x + (w.ax === 'x' ? 1.45 : 0), 1.9 + yo, w.z + (w.ax === 'x' ? 0 : 1.45)), Q.identity(), Sc.set(w.ax === 'x' ? 0.3 : 0.7, 1.6, w.ax === 'x' ? 0.7 : 0.3)));
     frameM.setMatrixAt(i * 3 + 2, Mx.compose(Vp.set(w.x - (w.ax === 'x' ? 1.45 : 0), 1.9 + yo, w.z - (w.ax === 'x' ? 0 : 1.45)), Q.identity(), Sc.set(w.ax === 'x' ? 0.3 : 0.7, 1.6, w.ax === 'x' ? 0.7 : 0.3))); });
+  if (!low) { plank.material.map = woodTex(); plank.material.needsUpdate = true; }
+  const envTick = addRefineryEnv(root, L, { low, g, basic });   // High tier: AO, decals, pipes, lamps, barrels/crates, steam (codenv.js)
   root.add(frameM, plank); const anim = WN.map(() => Array(NB).fill(1));   // per plank 0..1 (1 = nailed)
   let boards = WN.map(() => NB), flying = [];
   // mystery box
@@ -269,7 +272,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     rip(e) { const w = WN[e.i]; if (w) flying.push({ w, k: e.n, t: 0 }); },
     board(e) { if (anim[e.i]) anim[e.i][e.n - 1] = 0; },
     quest(q, myId) { qState = q || null; myIdQ = myId; },
-    update(dt, m, b) { t += dt; if (b) boards = b; tickQuest(dt); tickFires(dt); tickEnv(dt); tickAtmos(dt, m ? m[0] : 1); if (F) { forgeFlash = Math.max(0, forgeFlash - dt); forgeCore.color.setRGB(1, 0.33 + 0.12 * Math.sin(t * 7) + forgeFlash * 0.4, 0.06 + forgeFlash * 0.3); if (forge.userData.h) { forge.userData.h.material.opacity = 0.3 + 0.12 * Math.sin(t * 5) + forgeFlash * 0.3; forge.userData.h.quaternion.copy(scene.userData.camQ || forge.userData.h.quaternion); } } for (let k = 0; k < DN; k++) { const j = k * 3; dpos[j + 1] += dsp[k] * dt * 0.6; dpos[j] += Math.sin(t * 0.3 + k) * dt * 0.08; if (dpos[j + 1] > H) dpos[j + 1] = 0; } dg.attributes.position.needsUpdate = true;
+    update(dt, m, b) { t += dt; if (b) boards = b; tickQuest(dt); tickFires(dt); tickEnv(dt); envTick(dt); tickAtmos(dt, m ? m[0] : 1); if (F) { forgeFlash = Math.max(0, forgeFlash - dt); forgeCore.color.setRGB(1, 0.33 + 0.12 * Math.sin(t * 7) + forgeFlash * 0.4, 0.06 + forgeFlash * 0.3); if (forge.userData.h) { forge.userData.h.material.opacity = 0.3 + 0.12 * Math.sin(t * 5) + forgeFlash * 0.3; forge.userData.h.quaternion.copy(scene.userData.camQ || forge.userData.h.quaternion); } } for (let k = 0; k < DN; k++) { const j = k * 3; dpos[j + 1] += dsp[k] * dt * 0.6; dpos[j] += Math.sin(t * 0.3 + k) * dt * 0.08; if (dpos[j + 1] > H) dpos[j + 1] = 0; } dg.attributes.position.needsUpdate = true;
       let pi = 0; WN.forEach((w, i) => { for (let k = 0; k < NB; k++) { const on = k < boards[i]; let a = anim[i][k]; if (on && a < 1) a = anim[i][k] = Math.min(1, a + dt * 5);
         const y = 0.75 + k * 0.27 + (w.lv ? UH : 0), tilt = ((k * 7 + i) % 5 - 2) * 0.09, off = on ? (1 - a) * 1.2 : 0;
         Q.setFromEuler(E.set(w.ax === 'z' ? tilt : 0, 0, w.ax === 'x' ? tilt : 0)); const ox = w.ix - w.x, oz = w.iz - w.z, l = Math.hypot(ox, oz) || 1;

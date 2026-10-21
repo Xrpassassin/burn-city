@@ -168,3 +168,32 @@ _Auto-deploy verified 2026-10-19._
   `?wildstest&wildsunload=<s>` shortens the unload timer for tests. Playwright flow used: `setMode('explore')`, set `__city.P.pos`, PROCEED, engage.
 - **Gaps (M1)**: PvP is not live (warning text says so); save is device-only; the companion disappears in the city once the forest unloads;
   on iOS the very first PROCEED before the module finished prefetching relies on the gate-created AudioContext (music may need one more tap).
+
+## City v3 — streets, junctions, LED lights, billboard art
+- **Streets v3** (`client/js/app.js`, block "streets v3"): one opaque merged strip mesh for every ring road + hub avenue (no blending, no overlap).
+  Cross-section in metres from the centreline: asphalt ±2.5, curb to 2.78, sidewalk to 4.8 (= `ROAD_HW`); cars drive ±1.25.
+  Each vertex carries `aj` (junction data): rings get the signed arc distance to the nearest avenue junction + the side the avenue joins on,
+  avenues get the distance from their start/end junction centres (`window.__roadJ` lists the junctions). The shader uses it for the rounded curb
+  corners (radius `RF` 2 m), zebra crosswalks (3.1–4.9 m from the junction centre on the ring, plus the strip across the avenue mouth), stop bars,
+  and to stop the double amber centre line (inside 5.45 m) and the white edge lines (across the crosswalk band) short of every junction.
+  Ember curb glow + sidewalk edge light at night, wet darkening from `U.wet`. Estate roads reuse the same shader (`STREETML`, `aj` kind 0).
+  The old white crosswalk boxes in `citylife.js` are no longer drawn (the `walks` list is kept for counts only).
+- **River road decks**: `RIVER_BR` (up to 24 unit directions) is filled from the avenues that cross the river ring (r 75–87). The river shader
+  discards itself under each deck (the road shows through) and draws an ember rail at 5 m either side.
+- **Street lights**: slim tapered mast + swept arm + LED bar head with an ember ring, 2 instanced draws (`window.__lamps`) + 1 glow-sprite pass.
+- **Buildings**: darker glass/steel day palette, ember accent lines every ~22 m of height (above 8 m), warm horizon band in the reflection.
+  Ground grid glow is ember instead of blue.
+- **Billboard art** (`client/js/citylife.js`, block "owner artwork"): files in `client/img/ads/` — `<name>.webp` (1024 px long side) and
+  `<name>-m.webp` (512 px, phones / low tier). Current set: `burn-xrp-imm-ring` + `burn-skull-imm` (3:1 banners, 15×5 m),
+  `burn-dragon-ring`, `burn-coin-scarcity`, `xrpyro-dashboard` (3:2 posters, 9×6.04 m), `fire-trio` + `flywheel-psalms` (2:3 portrait pylons, 5×7.45 m).
+  The `ART` table maps each file to a shape and a district (`alt` = a second spot 35 m off, `out` = metres pushed away from the hub for crowded
+  districts; the dragon board uses `out 42` + a crowd check). Placement: nearest free roadside spot, 13 m back from the street, facing it.
+  Cost: **2 draws for all 7 boards** — one merged frame mesh + one merged face mesh whose UVs point into an atlas canvas (2048² desktop,
+  1024² phones; cells in `SLOTS`) painted ~1.2 s after the city is ready (1x1 placeholder until then). Night glow via `L.artGlow(day)`.
+  IMG / RACC keep their atlas boards (12×5) and the AEGIS alert faces cover only those.
+  **Swap art**: export the new image at the same aspect ratio as the board shape (3:1, 3:2 or 2:3), save as WebP at 1024 px and 512 px (`-m`)
+  under the same file name, bump the sw VERSION. New file name or shape → edit the `ART` row (a 4th poster fits in `SLOTS.poster`;
+  more banners/portraits need a new atlas cell). Images are fitted inside their cell with their own aspect, never stretched.
+  Test hooks: `window.__cityLife.artBoards` (positions), `.artAtlas` (atlas rects), `.artLoaded` (images painted), `.artCanvas`.
+  Source originals: 1000014819 = $BURN/XRP/$IMM ring, 1000014929 = $BURN skull $IMM, 8D76C5A3 = dragon ouroboros (BURN IMM XRPYRO),
+  9A70E085 = XRPyro dashboard, IMG_0219 = $BURN scarcity coin, IMG_9082 = Fire Trio, IMG_9886 = Flywheel Psalms.

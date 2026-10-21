@@ -121,6 +121,7 @@ export function createHeli(scene, { low = false, gun = null } = {}) {
       if (gun) gun.visible = gun.visible && gi < 0;   // the door gun replaces the view-model while manning
       hud.hidden = S >= 4; vote.hidden = !(on && S === 2); if (vote.hidden) { vote.disabled = false; vote.textContent = '🚁 VOTE TO LEAVE (V)'; }
       if (S === 1) hud.innerHTML = `🚁 KESTREL-TWO INBOUND · ${fmt(tLoc)}<br><small style="opacity:.8">Hold the rooftop helipad</small>`;
+      else if (S === 2 && h[10]) hud.innerHTML = `🚁 DEPARTING IN ${h[10]} · aboard ${h[2].length}/${act}<br><small style="opacity:.8">${on ? 'Man a minigun (USE) · vote to leave now' : 'Get on the pad NOW'}</small>`;
       else if (S === 2) hud.innerHTML = `🚁 BOARDING · ${fmt(tLoc)} · aboard ${h[2].length}/${act}<br><small style="opacity:.8">${on ? `Votes to leave ${h[3]}/${need} needed` : 'Stand on the helipad to board'}</small>`;
       else if (S === 3) hud.innerHTML = '🚁 LIFTING OFF';
       gunP.hidden = !on || S > 3; gunP.textContent = gi >= 0 ? `MINIGUN ${gi ? 'R' : 'L'} · hold FIRE to spin up · USE to let go` : h[5].includes(0) ? 'Press USE to man a door minigun' : 'Both miniguns manned';

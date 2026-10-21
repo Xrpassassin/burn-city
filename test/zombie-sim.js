@@ -58,7 +58,8 @@ ok(Math.abs(1 - Z.RUNNER / 1.7 - 0.176) < 0.02, `runners ${((1 - Z.RUNNER / 1.7)
     ok(p.hp === hp && p.alive, 'heli: boarded players are protected'); }
   { const [r, [a, b, c]] = live(3); onPad(r, a); run(r, 0.1); a.in.vote = true; run(r, 0.1); ok(r.heli.st === 2, 'heli: 1 vote of 3 active does not depart');
     const [r2, [a2, b2, c2]] = live(3); b2.away = true; c2.spectator = true; Object.assign(b2, { x: 0, z: 0 }); Object.assign(c2, { x: 0, z: 0 }); onPad(r2, a2); run(r2, 0.1);
-    ok(r2.heli.st === 3, 'heli: away + spectating players are not counted (sole active player aboard -> departs)');
+    ok(r2.heli.st === 2 && r2.heli.dep > 0, 'heli: away + spectating players are not counted (sole active player aboard -> departing countdown)');
+    run(r2, Heli.DEPART + 0.2); ok(r2.heli.st === 3 && r2.heli.why === 'all', 'heli: departing countdown ends -> liftoff');
     const [r3, [d, e, f]] = live(3); Object.assign(f, { away: true }); onPad(r3, d); Object.assign(e, { x: 0, z: 0, lv: 0, y: 0 }); run(r3, 0.1); ok(r3.heli.st === 2, 'heli: 1 of 2 active aboard, no vote yet: still boarding');
     d.in.vote = true; run(r3, 0.1); ok(r3.heli.st === 2, 'heli: 1 vote of 2 active is not a majority'); }
   { const [r, [p, o]] = live(2); Object.assign(o, { x: 0, z: 0, lv: 0, y: 0 }); onPad(r, p); run(r, 0.1); p.in.vote = true; o.in.vote = true; run(r, 0.1);
@@ -73,7 +74,29 @@ ok(Math.abs(1 - Z.RUNNER / 1.7 - 0.176) < 0.02, `runners ${((1 - Z.RUNNER / 1.7)
     o.hp = 1e9; const ev = run(r, 18); const rx = ev.find(e => e.e === 'hres' && e.id === p.id), rl = ev.find(e => e.e === 'hres' && e.id === o.id);
     ok(rx && rx.r === 'x' && rl && rl.r === 'l' && ev.some(e => e.e === 'hleft' && e.id === o.id) && ev.some(e => e.e === 'gameover' && e.heli === 1) && r.over > 0, 'heli: extracted vs left-behind results, brutal surge, then match end');
     ok((r.heli.swarmN || 0) >= 14, `heli: fast aggressive variants spawned (${r.heli.swarmN})`); }
+  { const [r, [p]] = live(1); onPad(r, p); run(r, 0.1); ok(p.aboard && r.heli.st === 2 && r.heli.dep > 8, 'heli solo: all aboard starts an 8-10 s departing countdown, not an instant leave');
+    p.in.use = true; run(r, 0.1); run(r, 4); ok(r.heli.st === 2 && p.mg === 0, 'heli solo: still boarding 4 s later and the minigun can be manned');
+    p.in.vote = true; run(r, 0.1); ok(r.heli.st === 3 && r.heli.why === 'vote', 'heli solo: a vote skips the countdown'); }
   delete process.env.ZOMBIE_CLASSIC; }
+{ const Quest = require('../server/quest'), Heli = require('../server/heli'); let padOk = 0, qOk = 0, bad = [];
+  for (let k = 0; k < 50; k++) { const seed = 1000 + k * 7777, r = mk(1); r.seedT = seed; r.reset(); Z.bind(r); const M = r.M, Q = M.QDEF, p = [...r.players.values()][0];
+    if (M.kind !== 'proc' || !M.UPG || !Q || !Q.pad || !Q.beacon) { bad.push(seed + ':nopad'); continue; }
+    // two-floor BFS from spawn with every door open; ramps join the floors
+    const key = (lv, c, rr) => lv * 10000 + rr * Z.GW + c, pass = (lv, c, rr) => { const v = (lv ? M.UPG : M.GRID)[rr]?.[c]; return v !== undefined && v >= 0; }, seen = new Set(), q = [];
+    for (let rr = 0; rr < Z.GH && !q.length; rr++) for (let c = 0; c < Z.GW; c++) if (M.GRID[rr][c] === 0) { q.push([0, c, rr]); seen.add(key(0, c, rr)); break; }
+    for (let i = 0; i < q.length; i++) { const [lv, c, rr] = q[i]; const nx = [[lv, c + 1, rr], [lv, c - 1, rr], [lv, c, rr + 1], [lv, c, rr - 1]]; if (M.RAMPAT[rr * Z.GW + c] !== undefined) nx.push([1 - lv, c, rr]);
+      for (const n of nx) { const kk = key(...n); if (!seen.has(kk) && pass(...n)) { seen.add(kk); q.push(n); } } }
+    const cellOf = (x, z) => [Math.floor(x / Z.CELL + Z.GW / 2), Math.floor(z / Z.CELL + Z.GH / 2)], [bc, br] = [Q.beacon[0], Q.beacon[1]], [pc, pr] = cellOf(Z.WX(Q.pad[0]), Z.WZ(Q.pad[1]));
+    const padCells = M.UPG.flat().filter(v => v === Q.padZone).length, vents = M.WINDOWS.filter(w => w.lv && w.zone === Q.padZone).length, door = M.DOORS.some(d => d.b === Q.padZone && d.cost > 0);
+    if (seen.has(key(1, bc, br)) && seen.has(key(1, pc, pr)) && padCells >= 30 && vents >= 2 && door && M.UPG[pr][pc] === Q.padZone) padOk++; else bad.push(seed + ':reach');
+    // play the short Night Shift through to the helicopter (teleporting between steps; reachability is covered above)
+    r.open = (1 << 12) - 1; r.wave = 3; r.toSpawn = 0; r.waveDelay = 1e9; r.zombies.clear(); p.in = { mx: 0, mz: 0 }; const qs = r.quest; let guard = 0;
+    while (qs && qs.st < 10 && guard++ < 12) { const ev = []; if (!qs.it) { qs.brk = -1; Quest.onBreak(r, ev); if (!qs.it) break; }
+      const it = qs.it; Object.assign(p, { x: it.x, z: it.z, lv: it.lv, y: it.lv * Z.UH, alive: true, down: 0 }); Quest.tick(r, [p], ev); r.zombies.clear();
+      const t = qs.st >= 6 ? qs.bea : qs.con; Object.assign(p, { x: t.x, z: t.z, lv: t.lv, y: t.lv * Z.UH }); Quest.use(r, p, ev); }
+    if (qs && qs.st === 10 && r.heli && r.heli.st === 1) qOk++; else bad.push(seed + ':quest' + (qs && qs.st)); }
+  ok(padOk === 50, `generated maps: 50/50 seeds have a reachable rooftop pad behind a door with vents (${padOk}) ${bad.slice(0, 4).join(' ')}`);
+  ok(qOk === 50, `generated maps: 50/50 seeds play the short Night Shift through to the helicopter (${qOk})`); }
 { const r = mk(1); for (let i = 0; i < 20; i++) r.zombies.set(700 + i, { id: 700 + i, ty: 0, x: 0, z: 0, hp: 1, sp: 0, win: null, ph: 0 });
   const p = { name: 'late', ws: { send() {}, readyState: 1 } }; r.add(p); ok(p.alive && p.inv >= 2, 'drop-in mid match: spawned with grace'); }
 { Ranked.lobbies.MX = { id: 'MX', game: 'zombie', state: 'started', paid: ['rA'], buyin: 1e6 }; Ranked.tickets.T1 = { account: 'rA', match: 'MX', used: Date.now(), drops: 1e6, exp: Date.now() + 1e6 }; Ranked.tickets.T2 = { account: 'rB', match: 'MX', used: false, drops: 1e6, exp: Date.now() + 1e6, hash: 'H' };

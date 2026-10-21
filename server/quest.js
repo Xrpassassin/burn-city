@@ -19,7 +19,7 @@ function init(room) {
   room.quest = null; const d = Z.QDEF; if (!d || room.ranked) return;
   const [c, r, dx, dz, lv = 0] = d.console, x = Z.WX(c) + dx * 0.55, z = Z.WZ(r) + dz * 0.55;
   const B = d.beacon, bea = B ? { x: Z.WX(B[0]) + B[2] * 0.55, z: Z.WZ(B[1]) + B[3] * 0.55, lv: B[4] || 0, face: Math.atan2(-B[2], -B[3]) } : null;
-  room.quest = { st: 0, it: null, con: { x, z, lv, face: Math.atan2(-dx, -dz) }, bea, zones: d.zones, note: null, brk: -1 };
+  room.quest = { st: d.start || 0, it: null, con: { x, z, lv, face: Math.atan2(-dx, -dz) }, bea, zones: d.zones, note: null, brk: -1 };
 }
 // a random open floor cell inside one of the step's rooms (upper-level rooms use the upper grid; never on a ramp or a door)
 function spotIn(zs) { const UPG = Z.UPG, out = [];

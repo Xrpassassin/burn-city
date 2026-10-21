@@ -4,7 +4,7 @@
 // Leaves when a majority of ACTIVE players vote (away / timed-out / spectators never count), when every active player is aboard, or when the timer ends.
 // Two door miniguns: a boarded player presses USE to man a free one; hits are resolved here with the PR 12 pitch aim.
 const Z = require('./cod');
-const INBOUND = 20, BOARD = 60, LIFT = 6, LEFT = 9, PAD_R = 4.2, MG_CD = 0.055, MG_DMG = 34, MG_RANGE = 46, MG_SPIN = 0.6, MG_LAT = 1.0;
+const INBOUND = 20, BOARD = 60, DEPART = 9, LIFT = 6, LEFT = 9, PAD_R = 4.2, MG_CD = 0.055, MG_DMG = 34, MG_RANGE = 46, MG_SPIN = 0.6, MG_LAT = 1.0;
 const ST = { inbound: 1, board: 2, lift: 3, left: 4, done: 5 };
 const q = v => Math.round(v * 10) / 10;
 const active = (room, ps) => ps.filter(p => p.alive && !p.spectator && !p.away);   // ps already drops away/disconnected players
@@ -19,7 +19,7 @@ function start(room, ev) {
 }
 // fast aggressive variants (placeholder for the later stage: no climbing yet). Smash straight through boards.
 function swarm(room, n, padOnly) { const h = room.heli; let made = 0;
-  const wins = Z.WINDOWS.map((w, i) => i).filter(i => Z.winOn(room, i) && (!padOnly || Z.WINDOWS[i].zone === 8));
+  const wins = Z.WINDOWS.map((w, i) => i).filter(i => Z.winOn(room, i) && (!padOnly || Z.WINDOWS[i].zone === (Z.QDEF?.padZone ?? 8)));
   if (!wins.length) return 0; const np = Math.max(1, [...room.players.values()].filter(p => !p.spectator).length);
   for (let k = 0; k < n && room.zombies.size < 60; k++) { const wi = wins[k % wins.length], w = Z.WINDOWS[wi]; room.boards[wi] = 0;
     const hp = (60 + room.wave * 15) * (room.mod?.hp || 1) * Z.hpN(np) * 0.8, sp = (2.2 + Math.min(room.wave * 0.25, 2.5)) * 1.9;
@@ -47,8 +47,8 @@ function tick(room, ps, dt, ev) { const h = room.heli; if (!h || h.st === ST.don
     for (const p of ps) if (p.alive && !p.down && !p.spectator && !p.aboard && (p.lv || 0) === 1 && Math.hypot(p.x - h.x, p.z - h.z) < PAD_R) board(room, p, ev);
     const act = active(room, ps), aboard = act.filter(p => h.b.has(p.id)), votes = aboard.filter(p => h.v.has(p.id)).length;
     h.act = act.length; h.vn = votes;
-    if (act.length && aboard.length === act.length) depart(room, 'all', ev);
-    else if (votes * 2 > act.length) depart(room, 'vote', ev);
+    if (votes * 2 > act.length) depart(room, 'vote', ev);   // a vote skips the countdown
+    else if (act.length && aboard.length === act.length) { if (h.dep == null) { h.dep = DEPART; ev.push({ e: 'heli', s: ST.board, dep: DEPART }); } if ((h.dep -= dt) <= 0) depart(room, 'all', ev); }   // everyone aboard: short 'departing' countdown (solo can still man a gun)
     else if (h.t <= 0) depart(room, 'time', ev);
     return false; }
   if (h.st === ST.lift) { h.y = Z.UH + 0.4 + Math.max(0, LIFT - h.t) * 0.9; if (h.t <= 0) finish(room, ps, ev); return h.st === ST.done; }
@@ -73,7 +73,7 @@ function rider(room, p, dt, ev, A) { const h = room.heli; if (!h) { p.aboard = 0
     h.shots = (h.shots || 0) + 1;
     if (h.shots % 2) { const d = hit ? hd : A.missD(p, A.reachH(p, MG_RANGE)), ex = p.x + s * d, ez = p.z + c * d;
       ev.push({ e: 'shot', id: p.id, w: 'minigun', x: q(p.x), z: q(p.z), y: q(p.y), tx: q(ex), tz: q(ez), ty: hit ? q((hit.y || 0) + 1) : q(A.endY(p, d)), ray: 1, g: i, hit: hit ? 1 : 0 }); } } }
-// snapshot: [state, secs left, boarded ids, votes, active count, gunner ids, spin x10, x, z, y]
-function snap(room) { const h = room.heli; if (!h) return undefined; return [h.st, Math.max(0, Math.ceil(h.t)), [...h.b], h.vn | 0, h.act | 0, h.g.slice(), h.spin.map(v => Math.round(v * 10)), q(h.x), q(h.z), q(h.y)]; }
+// snapshot: [state, secs left, boarded ids, votes, active count, gunner ids, spin x10, x, z, y, departing secs (0 = none)]
+function snap(room) { const h = room.heli; if (!h) return undefined; return [h.st, Math.max(0, Math.ceil(h.t)), [...h.b], h.vn | 0, h.act | 0, h.g.slice(), h.spin.map(v => Math.round(v * 10)), q(h.x), q(h.z), q(h.y), h.dep != null && h.st === ST.board ? Math.max(0, Math.ceil(h.dep)) : 0]; }
 function reset(room) { room.heli = null; for (const p of room.players.values()) { p.aboard = 0; p.mg = null; } }
-module.exports = { start, tick, rider, snap, reset, swarm, ST, PAD_R, INBOUND, BOARD };
+module.exports = { DEPART, start, tick, rider, snap, reset, swarm, ST, PAD_R, INBOUND, BOARD };

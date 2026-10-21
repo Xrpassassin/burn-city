@@ -56,7 +56,7 @@ const CLASSIC = { name: 'The BURN Refinery', env: null,
   box: [[4, 19, 0, 1], [13, 29, 1, 0], [37, 22, 0, -1], [2, 2, -1, 0], [37, 14, 1, 0], [15, 14, -1, 0]],
   forge: [32, 1, 0, -1], power: null,
   perks: { jug: [1, 30, -1, 0], quick: [25, 30, -1, 0], speed: [38, 17, 1, 0], revive: [23, 30, 1, 0], dbl: [25, 1, 1, 0], slag: [14, 4, -1, 0], burn: [38, 8, 1, 0], valve: [26, 21, 0, -1, 1], leech: [12, 3, 1, 0] },
-  quest: { console: [14, 22, 1, 0], zones: [[4, 6], [5], [7], [2, 1], [5, 6]], beacon: [19, 23, 0, 1, 1], pad: [19.5, 26.5] },   // ch.4: battery + flare go to the pad beacon   // Night Shift radio quest: the flare console + which rooms hold each step's item
+  quest: { console: [14, 22, 1, 0], zones: [[4, 6], [5], [7], [2, 1], [5, 6]], beacon: [19, 23, 0, 1, 1], pad: [19.5, 26.5], padZone: 8 },   // ch.4: battery + flare go to the pad beacon   // Night Shift radio quest: the flare console + which rooms hold each step's item
   // upper level: walkable rects (catwalk ring), outer walls, open void over the Warehouse floor, and two 4-cell ramps (up = the direction you climb)
   upper: { zone: 7, h: 3.6, atrium: [25, 38, 21, 30], walk: [[25, 38, 21, 22], [25, 38, 29, 30], [25, 26, 23, 28], [37, 38, 23, 28]], walls: [[24, 39, 20, 20], [24, 39, 31, 31], [24, 24, 20, 31], [39, 39, 20, 31]], void: [[27, 36, 23, 28]],
     ramps: [{ c: [29, 30], r: [23, 26], up: 'n' }, { c: [33, 34], r: [25, 28], up: 's' }],
@@ -95,7 +95,7 @@ function use_(m) { M = m; ({ GRID, SEE, DOORS, WINDOWS, ZONES, OBST, WALLBUYS, B
 use_(CLASSIC_M);
 // ranked + daily rooms always play the classic Refinery (same layout for everyone on a leaderboard); free play gets a new map per match
 const wantsClassic = room => !!(room.ranked || room.daily || process.env.ZOMBIE_CLASSIC === '1');
-function newMap(room) { if (wantsClassic(room)) return CLASSIC_M; const d = MapGen.gen((Math.random() * 2 ** 31) | 0); return d ? build(d, 'proc') : CLASSIC_M; }
+function newMap(room) { if (wantsClassic(room)) return CLASSIC_M; const d = MapGen.gen(room.seedT != null && !process.env.FLY_APP_NAME ? room.seedT : (Math.random() * 2 ** 31) | 0); return d ? build(d, 'proc') : CLASSIC_M; }
 // every entry point that touches the map binds the room's own layout first (rooms run one at a time, so a module-level binding is safe)
 function bind(room) { if (!room) return use_(CLASSIC_M); if (!room.M || (wantsClassic(room) && room.M.kind !== 'classic')) { resetMap(room); return; } if (M !== room.M) use_(room.M); }
 // lv = which floor (0 ground, 1 upper). Maps without an upper level ignore it, so procedural maps behave exactly as before.

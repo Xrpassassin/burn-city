@@ -115,3 +115,28 @@ _Auto-deploy verified 2026-10-19._
 - Ticker lines join the event-banner queue as `type:'aegis'`, always behind gameplay events.
 - Server clip job (`server/aegis-clips.js`): OFF unless `AEGIS_CLIPS=1` and the image has yt-dlp + ffmpeg (`--build-arg AEGIS_TOOLS=1`).
   Needs a bigger machine than the current 256 MB shared-cpu VM. YouTube ToS risk: prefer clips supplied by the AEGIS API.
+
+## The Wilds — Cinderwilds forest M1 (lazy-loaded)
+- **Files**: `client/js/wilds-gate.js` (always loaded, small: trailhead gate + signs, the PvP/PvE warning, loading veil, lazy-load/unload,
+  every city hook), `client/js/wilds.js` (the forest: world build, creatures AI, encounters, Mara Venn + quests, journal, HUD),
+  `wilds-rules.js` (pure game rules + save; unit test `node tools/wilds/rules.test.mjs`), `wilds-creatures.js` (procedural creature rigs),
+  `wilds-audio.js` (music + ambience), `client/data/wilds/*.json` (creatures / abilities / quests), `client/music/wilds/*.mp3` (~3 MB each).
+- **App hook**: one line in `app.js` next to the AEGIS import: `import('./wilds-gate.js')` (skipped with `?nowilds`). The gate registers on the
+  existing generic hooks only: `window.__preRender` (per-frame), `window.__interactors` (USE prompts via `nearestInteract()`/`interact()`),
+  `window.__exploreLock` (wraps any previous lock) and one capture-phase keydown listener. No other app.js changes.
+- **Lazy-load flow**: startup draws only the gate (forest ellipse centre (0,625), radii 255×228; gate at (0,394), signpost at (3.5,318)).
+  Within 60 m of the gate in Explore → `import('./wilds.js')` + the 3 JSON files are prefetched (no music). Crossing into the ellipse →
+  "WARNING PVP AND PVE AREA AHEAD. PROCEED?" → PROCEED unlocks Web Audio inside the tap, shows the forest loading veil with progress, builds the
+  forest in stages, `renderer.compileAsync` warms its shaders, then fades in. Leave by the return path and stay > 150 m from the gate (camera
+  outside the forest too) for 30 s → `unload()`: meshes removed, geometries/materials/textures disposed, every collider tagged `wilds:1` removed
+  (gate colliders are tagged `wildsGate:1` and stay), audio elements + AudioContext released, DOM removed. Re-entering rebuilds the identical
+  (seeded) forest. A bound companion only follows you while the forest is loaded.
+- **Save**: `localStorage.bcWilds` (local-only, versioned/migrated in `wilds-rules.js`), survives unload/reload.
+- **Music**: "Whispers of the Wilderness" streams only after PROCEED; "Beneath the Hollow" (battle) is fetched on the first encounter or prefetched
+  ~9 s after entering. Crossfades via one Web Audio graph (iOS-safe). Audible only when the city sound toggle is on (or city music was playing).
+  The service worker never caches `/music/`; only `js/wilds-gate.js` is precached, `wilds*.js` + `data/wilds/*.json` are runtime-cached on demand.
+- **Flags**: `?nowilds` (off), `?wildstest` or `?debug=1` → `window.__wildsGate` (state, `prefetch()`, `proceed()`, `unload()`, counters) and
+  `window.__wilds.test` (`state()`, `nearest(sp)`, `walkTo(x,z)`, `inspectNearest()`, `hold()`, `talk()`, `journal()`, `travel()`);
+  `?wildstest&wildsunload=<s>` shortens the unload timer for tests. Playwright flow used: `setMode('explore')`, set `__city.P.pos`, PROCEED, engage.
+- **Gaps (M1)**: PvP is not live (warning text says so); save is device-only; the companion disappears in the city once the forest unloads;
+  on iOS the very first PROCEED before the module finished prefetching relies on the gate-created AudioContext (music may need one more tap).

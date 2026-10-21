@@ -8,20 +8,21 @@
 //  - roster + one following companion; player/companion XP HUD; Mara Venn at the ruined tram stop with two quests
 //  - Derrik's forest + battle music with crossfades (wilds-audio.js)
 // Save: localStorage only (see wilds-rules.js) — clearly labelled local-only in the UI.
+// LAZY: this module is never imported at startup. js/wilds-gate.js (always loaded, draws only the trailhead gate) imports it
+// when you approach the gate, calls load() on PROCEED and unload() once you have left; it also owns every city hook and
+// forwards them here (frame / interactor / locked / onKey). load() -> unload() -> load() must leave no trace behind.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createGame } from './wilds-rules.js';
-import { buildCreature, animate, mats } from './wilds-creatures.js';
+import { buildCreature, animate, mats, disposeMats } from './wilds-creatures.js';
 import { buildWalker, poseWalker } from './walker.js';
 import * as AUD from './wilds-audio.js';
+import { TEST, FC, RX, RZ, GATE, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
 
-const Q = new URLSearchParams(location.search);
-const W = window.__wilds = { ready: false, inForest: false, modal: null, creatures: [], test: {} };
+const W = { ready: false, inForest: false, modal: null, creatures: [], test: {} };
+if (TEST) window.__wilds = W;   // test/debug only (?wildstest or ?debug=1)
 const C = () => window.__city;
-// ---------------------------------------------------------------- layout (world metres; the city is south, -z)
-export const FC = { x: 0, z: 625 }, RX = 255, RZ = 228;            // forest ellipse: z 397..853
-const ell = (x, z) => Math.hypot((x - FC.x) / RX, (z - FC.z) / RZ);
-const GATE = { x: 0, z: 394 }, TRAM = { x: -28, z: 452 }, FIRE = { x: -17, z: 444 }, MARA = { x: -19.5, z: 441.5 }, CLEAR = { x: 30, z: 630 };
+// ---------------------------------------------------------------- layout (world metres; the city is south, -z; FC/RX/RZ/GATE live in wilds-gate.js)
+const TRAM = { x: -28, z: 452 }, FIRE = { x: -17, z: 444 }, MARA = { x: -19.5, z: 441.5 }, CLEAR = { x: 30, z: 630 };
 const MAIN = [[0, 312], [0, 350], [0, 394], [4, 420], [-6, 440], [-8, 462], [2, 490], [12, 514], [2, 545], [-20, 566], [-16, 596], [8, 616], [30, 628]];
 const RET = [[30, 628], [56, 612], [72, 578], [68, 534], [50, 494], [30, 456], [12, 420], [3, 400], [0, 394]];
 const CREEK = [[-235, 512], [-150, 534], [-80, 520], [-30, 532], [8, 528], [52, 541], [110, 560], [170, 546], [240, 562]];
@@ -69,32 +70,21 @@ gl_Position = projectionMatrix * mvPosition;`);
   mat.customProgramCacheKey = () => 'wilds-' + key;
   return mat;
 }
-// vertex colour helpers
-function colorize(g, fn) { g = g.index ? g.toNonIndexed() : g; const p = g.attributes.position, n = p.count, a = new Float32Array(n * 3), c = new THREE.Color(); g.computeVertexNormals(); const nr = g.attributes.normal;
-  for (let i = 0; i < n; i++) { fn(c, p.getX(i), p.getY(i), p.getZ(i), nr.getY(i)); a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); if (g.attributes.uv) g.deleteAttribute('uv'); return g; }
-const solid = (g, hex) => colorize(g, c => c.set(hex));
-const jitter = (g, k) => { const p = g.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i); const h = Math.sin(x * 41.3 + y * 17.1 + z * 29.7) * 43758.5; const f = 1 + (h - Math.floor(h) - .5) * k; p.setXYZ(i, x * f, y * (1 + (f - 1) * .5), z * f); } return g; };
-const M = a => mergeGeometries(a.map(g => g.index ? g.toNonIndexed() : g), false);
-
-// ---------------------------------------------------------------- textures
-function canvasTex(w, h, draw) { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d'), w, h); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
-function signTex(lines, w = 512, h = 256, bg = '#2a1e14', fg = '#ffd9a0', border = '#ff7a1a') {
-  return canvasTex(w, h, (g) => { g.fillStyle = bg; g.fillRect(0, 0, w, h); for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * .12})`; g.fillRect(Math.random() * w, Math.random() * h, 3, 1 + Math.random() * 6); }
-    g.strokeStyle = border; g.lineWidth = 8; g.strokeRect(8, 8, w - 16, h - 16); g.textAlign = 'center'; g.textBaseline = 'middle';
-    const n = lines.length; lines.forEach((ln, i) => { const [txt, size, col] = Array.isArray(ln) ? ln : [ln, 48, fg]; g.font = `800 ${size}px system-ui,sans-serif`; g.fillStyle = col || fg; g.fillText(txt, w / 2, h * (i + 1) / (n + 1)); }); });
-}
-
 // ---------------------------------------------------------------- build the forest
-let G = null, root, grassIM, fernIM, nearGroup, leaves, flies, shafts, creekMat, flames = [], beams = [], game, ui, maraRig, compMesh = null, compState = null, embers;
-const DATA = {};
-async function loadData() {
-  const get = f => fetch('data/wilds/' + f).then(r => { if (!r.ok) throw new Error(f + ' ' + r.status); return r.json(); });
-  [DATA.creatures, DATA.quests, DATA.abilities] = await Promise.all([get('creatures.json'), get('quests.json'), get('abilities.json')]);
+let root, grassIM, fernIM, nearGroup, leaves, flies, shafts, creekMat, flames = [], beams = [], game, ui, maraRig, compMesh = null, compState = null, embers;
+const DATA = {}; let dataP = null;
+export function prefetch() {   // data JSON only (small); music is never fetched before you PROCEED
+  if (!dataP) { const get = f => fetch('data/wilds/' + f).then(r => { if (!r.ok) throw new Error(f + ' ' + r.status); return r.json(); });
+    dataP = Promise.all([get('creatures.json'), get('quests.json'), get('abilities.json')]).then(a => { [DATA.creatures, DATA.quests, DATA.abilities] = a; }).catch(e => { dataP = null; throw e; }); }
+  return dataP;
 }
 function tierN(lo, med, hi) { const t = C().TIER; return t === 'low' ? lo : t === 'medium' ? med : hi; }
 
-function buildWorld() {
-  const c = C(), S = c.S, { MAT, GLOW } = mats();
+const yieldFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+async function buildWorld(progress = () => { }) {
+  const c = C(), S = c.S, { MAT, GLOW } = mats(); const step = async (p, label) => { progress(p, label); await yieldFrame(); };
+  rs = 9173; flames = []; beams = []; OB.clear();   // seeded: identical forest every load
+  await step(.02, 'Laying the forest floor…');
   root = new THREE.Group(); root.name = 'wilds'; S.add(root);
   nearGroup = new THREE.Group(); root.add(nearGroup);   // detail only drawn when the camera is near the forest
 
@@ -117,6 +107,7 @@ function buildWorld() {
   const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); gg.setAttribute('color', new THREE.BufferAttribute(col, 3)); gg.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); gg.setIndex(idx); gg.computeVertexNormals();
   const floor = new THREE.Mesh(gg, new THREE.MeshStandardMaterial({ vertexColors: true, map: detail, roughness: .95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); floor.renderOrder = -2; root.add(floor);
 
+  await step(.14, 'Following the creek…');
   // --- creek: animated water ribbon (custom shader with fog) + plank bridges where the trails cross
   creekMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: true,
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uT: { value: 0 }, uDay: { value: 0 } }]),
@@ -134,6 +125,7 @@ float e=abs(vUv.y-.5)*2.;float al=(1.-smoothstep(.55,1.,e))*.88;col=mix(col,vec3
       const b = new THREE.Mesh(M(planks), MAT); b.position.set(x, 0, z); b.rotation.y = yaw; root.add(b); for (const k of [-2.2, 0, 2.2]) addCollider(x + Math.sin(yaw) * k, z + Math.cos(yaw) * k, 1.5, .28, true); }
   }
 
+  await step(.24, 'Growing the trees…');
   // --- trees: conifers + broadleaf + a few charred snags with ember seams (it IS the Cinderwilds). Unit-height geometry, scaled per instance.
   const conG = M([colorize(new THREE.CylinderGeometry(.018, .03, .32, 7).translate(0, .16, 0), c => c.set(0x3a2a1e)),
     ...[0, 1, 2, 3, 4].map(k => colorize(jitter(new THREE.ConeGeometry(.2 - k * .032, .3 - k * .025, 9, 2).translate(0, .26 + k * .14, 0), .12), (c, x, y) => c.setRGB(.09 + y * .05, .2 + y * .07, .1 + y * .02)))]);
@@ -163,6 +155,7 @@ float e=abs(vUv.y-.5)*2.;float al=(1.-smoothstep(.55,1.,e))*.88;col=mix(col,vec3
   for (const k in trees) for (const t of trees[k]) addCollider(t.x, t.z, k === 'con' ? .022 * t.w + .25 : k === 'leaf' ? .045 * t.w + .2 : .04 * t.h + .15, t.h * .8, true);
   W.treeCount = placed.length;
 
+  await step(.46, 'Placing stones and fallen logs…');
   // --- boulders (moss on top), fallen logs (hop over them), glowing fungi
   const rockG = colorize(jitter(new THREE.IcosahedronGeometry(1, 1), .35), (c, x, y, z, ny) => { const m = sstep(.35, .8, ny); c.setRGB(lerp(.32, .2, m), lerp(.31, .32, m), lerp(.3, .14, m)); });
   const rocks = []; for (let tries = 0; tries < 600 && rocks.length < tierN(45, 70, 90); tries++) { const a = rnd() * 6.3, r = Math.sqrt(rnd()), x = FC.x + Math.cos(a) * r * RX * .97, z = FC.z + Math.sin(a) * r * RZ * .97; const near = Math.hypot(x + 74, z - 646) < 40; if ((!near && rnd() < .5) || dTrail(x, z) < 3.5 || dCreek(x, z) < 3 || clearings.some(([cx, cz, cr]) => Math.hypot(x - cx, z - cz) < cr) || placed.some(p => Math.hypot(p[0] - x, p[1] - z) < 3)) continue; const s = (near ? 1 : .5) * (.5 + rnd() * 1.3); rocks.push({ x, z, sx: s * (1 + rnd() * .6), sy: s * (.55 + rnd() * .4), sz: s * (1 + rnd() * .5), yaw: rnd() * 6.3 }); }
@@ -179,6 +172,7 @@ float e=abs(vUv.y-.5)*2.;float al=(1.-smoothstep(.55,1.,e))*.88;col=mix(col,vec3
   const fungi = []; for (let i = 0; i < tierN(80, 140, 220); i++) { const p = placed[(rnd() * placed.length) | 0]; if (!p) break; const a = rnd() * 6.3, d = .8 + rnd() * 1.6; fungi.push({ x: p[0] + Math.cos(a) * d, z: p[1] + Math.sin(a) * d, yaw: rnd() * 6, s: .7 + rnd() * 1.4, hot: p[0] > 60 }); }
   nearGroup.add(inst(fungG, fungi, GLOW, t => sc.setScalar(t.s), t => t.hot ? tc.setRGB(1, .45 + rnd() * .2, .12) : tc.setRGB(.25, .9 + rnd() * .1, .75 + rnd() * .2)));
 
+  await step(.58, 'Ferns and grass…');
   // --- ground cover: grass tufts + ferns (instanced; wind sway; grass bends away from your feet)
   const blade = []; for (let b = 0; b < 7; b++) { const a = b / 7 * 6.3 + rnd(), r = .05 + rnd() * .12, h = .45 + rnd() * .5, lean = .15 + rnd() * .2; const g = new THREE.BufferGeometry(); const x = Math.cos(a) * r, z = Math.sin(a) * r, tx = x + Math.cos(a) * lean, tz = z + Math.sin(a) * lean, px = -Math.sin(a) * .035, pz = Math.cos(a) * .035;
     g.setAttribute('position', new THREE.Float32BufferAttribute([x - px, 0, z - pz, x + px, 0, z + pz, tx, h, tz], 3)); blade.push(colorize(g, (c, X, Y) => c.setRGB(.1 + Y * .25, .2 + Y * .4, .06 + Y * .08))); }
@@ -192,6 +186,7 @@ float e=abs(vUv.y-.5)*2.;float al=(1.-smoothstep(.55,1.,e))*.88;col=mix(col,vec3
   const fernGeo = M(frond); const fl = []; for (let tries = 0, N = tierN(220, 420, 650); tries < N * 4 && fl.length < N; tries++) { const p = placed[(rnd() * placed.length) | 0]; const a = rnd() * 6.3, d = 1.4 + rnd() * 4, x = p[0] + Math.cos(a) * d, z = p[1] + Math.sin(a) * d; if (dTrail(x, z) < 2.2 || dCreek(x, z) < 2) continue; fl.push({ x, z, yaw: rnd() * 6.3, s: .7 + rnd() * .8 }); }
   fernIM = inst(fernGeo, fl, grassMat, t => sc.setScalar(t.s), t => tc.setRGB(.8 + rnd() * .3, .85 + rnd() * .3, .8)); nearGroup.add(fernIM);
 
+  await step(.72, 'Lanterns, the old tram stop, Mara\'s camp…');
   buildTrailhead(); buildTram(); buildMarkers(); buildAtmosphere(); buildMara();
 }
 
@@ -201,23 +196,8 @@ function flame(scale = 1) {   // layered additive cones: white-yellow core, oran
   mk(.32 * scale, .9 * scale, 0xff3a08, 0, .55); mk(.22 * scale, .7 * scale, 0xff8a1a, 0, .75); mk(.11 * scale, .42 * scale, 0xfff0b0, 0, .95);
   g.userData.ph = Math.random() * 10; flames.push(g); return g;
 }
-function buildTrailhead() {
-  const { MAT, GLOW } = mats(), g = new THREE.Group(); g.position.set(GATE.x, 0, GATE.z); root.add(g);
-  const stone = (w, h, d, x, y, z) => colorize(jitter(new THREE.BoxGeometry(w, h, d, 2, 3, 2), .05).translate(x, y, z), (c, X, Y, Z, ny) => c.setRGB(.36 + ny * .04, .33 + ny * .03, .3));
-  const parts = []; for (const s of [-1, 1]) { parts.push(stone(1.5, 5.6, 1.5, s * 4.6, 2.8, 0), stone(1.9, .5, 1.9, s * 4.6, 5.8, 0), stone(1.2, .5, 1.2, s * 4.6, 6.3, 0), solid(new THREE.CylinderGeometry(.55, .35, .45, 10).translate(s * 4.6, 6.75, 0), 0x2a2420)); }
-  parts.push(solid(new THREE.BoxGeometry(10.8, .5, .6).translate(0, 5.3, 0), 0x3a2a1c), solid(new THREE.BoxGeometry(10.8, .18, .66).translate(0, 5.05, 0), 0xff6a1a));
-  g.add(new THREE.Mesh(M(parts), MAT)); for (const s of [-1, 1]) { const f = flame(1); f.position.set(s * 4.6, 6.95, 0); g.add(f); addCollider(GATE.x + s * 4.6, GATE.z, 1.05, 6, false); }
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 1.6), new THREE.MeshBasicMaterial({ map: signTex([['THE CINDERWILDS', 64], ['TRAILHEAD · PVP / PVE ZONE', 34, '#ff9a4a']], 1024, 256), toneMapped: false }));
-  sign.position.set(0, 4.2, -.32); sign.rotation.y = Math.PI; g.add(sign); const sign2 = sign.clone(); sign2.position.z = .32; sign2.rotation.y = 0; g.add(sign2);   // readable from both sides
-  // warning board beside the path (city side)
-  const wb = new THREE.Group(); wb.position.set(-6.5, 0, -8); wb.rotation.y = Math.PI + .35; g.add(wb);
-  wb.add(new THREE.Mesh(M([solid(new THREE.BoxGeometry(.18, 2.4, .18).translate(-1.1, 1.2, 0), 0x3a2a1c), solid(new THREE.BoxGeometry(.18, 2.4, .18).translate(1.1, 1.2, 0), 0x3a2a1c)]), MAT));
-  const wbs = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.3), new THREE.MeshBasicMaterial({ map: signTex([['⚠ WARNING', 60, '#ffd23a'], ['PVP AND PVE AREA AHEAD', 38, '#ffffff'], ['Wild creatures roam freely', 28, '#ffc8a0']], 512, 256, '#3a0c08', '#fff', '#ffd23a'), toneMapped: false, side: THREE.DoubleSide }));
-  wbs.position.set(0, 1.9, .1); wb.add(wbs); addCollider(GATE.x - 6.5, GATE.z - 8, .9, 2.6, true);
-  // city-side signpost at the edge of town
-  const sp = new THREE.Group(); sp.position.set(3.5, 0, 318); root.add(sp);
-  sp.add(new THREE.Mesh(solid(new THREE.CylinderGeometry(.09, .11, 3.2, 8).translate(0, 1.6, 0), 0x3a2a1c), MAT));
-  const arrow = new THREE.Mesh(new THREE.PlaneGeometry(2.4, .7), new THREE.MeshBasicMaterial({ map: signTex([['THE WILDS  ↑', 70]], 512, 150, '#24361c', '#e8ffd0', '#8ad05a'), toneMapped: false, side: THREE.DoubleSide })); arrow.position.y = 2.7; arrow.rotation.y = Math.PI; sp.add(arrow);
+function buildTrailhead() {   // the gate arch, its signs and the city signpost are drawn by wilds-gate.js (always loaded)
+  const { MAT, GLOW } = mats();
   // lantern posts along both trails (lantern hangs from a hook arm, never floating)
   const posts = []; for (const tr of [mainS, retS]) for (let i = 8; i < tr.length - 4; i += 11) { const [x, z] = tr[i], [x2, z2] = tr[i + 1]; let dx = x2 - x, dz = z2 - z; const L = Math.hypot(dx, dz) || 1; const side = (i / 11) % 2 ? 1 : -1; posts.push({ x: x + dz / L * 2.2 * side, z: z - dx / L * 2.2 * side, yaw: Math.atan2(-dz * side, dx * side) }); }
   const postG = M([solid(new THREE.CylinderGeometry(.07, .09, 2.6, 6).translate(0, 1.3, 0), 0x2e241c), solid(new THREE.BoxGeometry(.6, .06, .06).translate(.28, 2.5, 0), 0x2e241c), solid(new THREE.CylinderGeometry(.015, .015, .2, 4).translate(.52, 2.38, 0), 0x1a1410), solid(new THREE.CylinderGeometry(.12, .1, .06, 8).translate(.52, 2.27, 0), 0x2a2018), solid(new THREE.CylinderGeometry(.1, .12, .06, 8).translate(.52, 1.97, 0), 0x2a2018)]);
@@ -337,14 +317,8 @@ const css = `
 #wlModal .tabs{display:flex;gap:6px;margin:6px 0 10px;overflow-x:auto}#wlModal .tabs button{flex:0 0 auto;border:1px solid #7ad07a44;background:#1c2a1e;color:#dfffd0;border-radius:999px;padding:6px 12px;font-weight:700;cursor:pointer}#wlModal .tabs button.on{background:#9be37a;color:#0e140f}
 #wlModal .card{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#ffffff0a;border:1px solid #ffffff14;border-radius:12px;padding:8px 10px;margin-bottom:6px}#wlModal .card.act{border-color:#9be37a}#wlModal .card button{flex:0 0 auto;min-height:36px}
 #wlModal .local{font-size:11px;color:#ffd27a;background:#3a2a0a88;border:1px solid #ffb04a55;border-radius:8px;padding:5px 8px;margin-top:8px}
-#wlWarn{position:fixed;inset:0;z-index:47;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;background:radial-gradient(ellipse at center,rgba(60,4,2,.72),rgba(0,0,0,.92));color:#fff;font-family:system-ui,sans-serif;animation:wlIn .35s ease-out}
-#wlWarn h1{font:900 clamp(22px,5.4vw,46px)/1.15 system-ui,sans-serif;letter-spacing:.04em;color:#ff3a1a;text-shadow:0 0 18px #ff2a00,0 0 2px #fff;margin:0 0 14px;max-width:900px}
-#wlWarn p{color:#ffd0b8;max-width:520px;font-size:14px;margin:0 0 20px}#wlWarn .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-#wlWarn button{min-width:150px;min-height:52px;border-radius:12px;font:800 17px system-ui,sans-serif;cursor:pointer;border:1px solid #ff8a3a;background:#2a0c06;color:#fff}#wlWarn button.go{background:#c2300c;border-color:#ffb06a;box-shadow:0 0 20px #ff3a0a88}
-@keyframes wlIn{from{opacity:0}to{opacity:1}}
 #wlBanner{position:fixed;top:38%;left:50%;transform:translate(-50%,-50%);z-index:48;font:900 clamp(22px,5vw,40px) system-ui,sans-serif;color:#d8ffb0;text-shadow:0 0 18px #5fe08a,0 2px 8px #000;pointer-events:none;opacity:0;transition:opacity .4s;text-align:center;white-space:nowrap}#wlBanner small{display:block;font-size:.45em;color:#fff}
 #wlToast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:44;background:rgba(10,18,12,.88);border:1px solid #7ad07a66;color:#efffe6;border-radius:12px;padding:8px 14px;font:600 13px system-ui,sans-serif;opacity:0;transition:opacity .3s;pointer-events:none;max-width:92vw;text-align:center}
-body.wl-lock #touch,body.wl-lock #prompt{display:none!important}
 @media (max-width:600px){#wlHud{right:auto;left:10px;top:calc(158px + env(safe-area-inset-top));gap:6px}#wlQuest{right:auto;left:10px;top:calc(210px + env(safe-area-inset-top));max-width:calc(100vw - 110px);white-space:normal}#wlHud .wb{min-width:104px;padding:5px 8px}#wlModal .row button{flex:1 1 45%}}
 `;
 function el(t, cls, html) { const e = document.createElement(t); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
@@ -358,8 +332,8 @@ function buildDom() {
   banner = el('div'); banner.id = 'wlBanner'; document.body.append(banner);
   toastEl = el('div'); toastEl.id = 'wlToast'; document.body.append(toastEl);
 }
-function toast(msg, ms = 2600) { toastEl.textContent = msg; toastEl.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => toastEl.style.opacity = 0, ms); }
-function bigBanner(txt, sub, ms = 2200) { banner.innerHTML = esc(txt) + (sub ? '<small>' + esc(sub) + '</small>' : ''); banner.style.opacity = 1; setTimeout(() => banner.style.opacity = 0, ms); }
+function toast(msg, ms = 2600) { if (!toastEl) return; toastEl.textContent = msg; toastEl.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => toastEl && (toastEl.style.opacity = 0), ms); }
+function bigBanner(txt, sub, ms = 2200) { if (!banner) return; const bn = banner; bn.innerHTML = esc(txt) + (sub ? '<small>' + esc(sub) + '</small>' : ''); bn.style.opacity = 1; setTimeout(() => bn.style.opacity = 0, ms); }
 const _p = new THREE.Vector3();
 function screenOf(x, y, z) { const c = C(); _p.set(x, y, z).project(c.C); if (_p.z > 1) return null; return [(_p.x * .5 + .5) * innerWidth, (-_p.y * .5 + .5) * innerHeight]; }
 function floatText(x, y, z, txt, cls = '') { const s = screenOf(x, y, z); if (!s) return; const f = el('div', 'wlfloat ' + cls, esc(txt)); f.style.left = s[0] + 'px'; f.style.top = s[1] + 'px'; document.body.append(f); setTimeout(() => f.remove(), 1200); }
@@ -385,19 +359,7 @@ function closeModal() { if (modalEl) modalEl.remove(); modalEl = null; W.modal =
 function clearKeys() { const i = C() && C().input; if (!i) return; for (const k in i.keys) i.keys[k] = 0; if (i.tb) for (const k in i.tb) i.tb[k] = 0; if (i.joy) { i.joy.x = 0; i.joy.y = 0; } }
 const $m = s => modalEl && modalEl.querySelector(s);
 
-// ---------------------------------------------------------------- the PvP/PvE warning
-function showWarning() {
-  if (W.modal) return; W.modal = 'warn'; document.body.classList.add('wl-lock'); clearKeys();
-  const w = el('div'); w.id = 'wlWarn'; w.setAttribute('role', 'alertdialog'); w.setAttribute('aria-label', 'Warning');
-  w.innerHTML = `<h1>WARNING PVP AND PVE AREA AHEAD. PROCEED?</h1><p>The Cinderwilds: wild creatures roam and may fight back. Other players will be able to challenge you here (PvP switches on in a later update). Your Wilds progress is saved on this device only.</p><div class="row"><button class="back">Turn back</button><button class="go">PROCEED</button></div>`;
-  document.body.append(w); w.addEventListener('pointerdown', e => e.stopPropagation());
-  const done = go => { w.remove(); W.modal = null; document.body.classList.remove('wl-lock'); clearKeys(); go ? enterForest() : turnBack(); };
-  w.querySelector('.go').onclick = () => done(true); w.querySelector('.back').onclick = () => done(false);
-  AUD.unlock(); AUD.sfx('warn'); W.warnShown = (W.warnShown || 0) + 1;
-  W._warnKey = e => { if (W.modal !== 'warn') return removeEventListener('keydown', W._warnKey, true); if (e.code === 'Enter' || e.code === 'KeyE') { e.stopPropagation(); done(true); } else if (e.code === 'Escape' || e.code === 'Backspace') { e.stopPropagation(); done(false); } };
-  addEventListener('keydown', W._warnKey, true);
-}
-function turnBack() { const P = C().P; const dx = P.pos.x - FC.x, dz = P.pos.z - FC.z, e = ell(P.pos.x, P.pos.z) || 1; P.pos.x = FC.x + dx / e * 1.035; P.pos.z = FC.z + dz / e * 1.035; C().input.yp.yaw = Math.atan2(-dx, -dz); W.inForest = false; }
+// ---------------------------------------------------------------- entering / leaving (the PvP/PvE warning itself lives in wilds-gate.js)
 function enterForest() {
   hideCityCards(); W.inForest = true; W.entered = (W.entered || 0) + 1; AUD.enterForest(); bigBanner('THE CINDERWILDS', 'Fernway Verge · Lv 1–5'); renderHud();
   if (!game.state.quests.first_footfall) setTimeout(() => toast('Mara Venn waits at the old tram stop, just left of the trail.'), 2400);
@@ -505,7 +467,7 @@ function inspect(cr) {
 function oddsRows(o) { return o.mods.map(m => `<div><span>${esc(m.label)}</span><span class="${m.pp >= 0 ? 'p' : 'n'}">${m.pp >= 0 ? '+' : ''}${m.pp}%</span></div>`).join('') + `<div style="border-top:1px solid #ffffff22;margin-top:3px;padding-top:3px"><b>Chance</b><b>${o.pct}%</b></div>`; }
 function doCalm(cr) {
   const r = game.calm(cr.c); closeModal();
-  if (r.ok) { AUD.sfx('calm'); cr.calm = true; for (let i = 0; i < 4; i++) setTimeout(() => embers.emit(cr.x, .6, cr.z, 10, 0x9bffb0, { up: 1.8, speed: .6, life: 1.4 }), i * 150);
+  if (r.ok) { AUD.sfx('calm'); cr.calm = true; for (let i = 0; i < 4; i++) setTimeout(() => embers && embers.emit(cr.x, .6, cr.z, 10, 0x9bffb0, { up: 1.8, speed: .6, life: 1.4 }), i * 150);
     floatText(cr.x, 1.2, cr.z, '+' + r.xp + ' XP', 'heal'); if (r.ups && r.ups.length) levelUp('You', r.ups);
     // a calmed creature trusts you: offer a gentle bind with a big calm bonus (it won't attack while calm)
     startEncounter(cr, { calm: true, note: 'Calmed (rolled ' + r.roll + ' under ' + r.pct + '%). It trusts you — try a gentle bind, or let it be.' });
@@ -588,7 +550,7 @@ function bindFx(ok) {
   const enc = W.enc; if (!enc) return; const { x, z } = enc.cr; const { GLOW } = mats(); if (enc.bindAnim) { enc.bindAnim.ring.removeFromParent(); enc.bindAnim = null; }
   const ring = new THREE.Mesh(solid(new THREE.TorusGeometry(.9, .04, 6, 40).rotateX(Math.PI / 2), 0x9bffb0), GLOW); ring.position.set(x, .3, z); root.add(ring);
   const t0 = performance.now(); enc.bindAnim = { ring, t0, ok };
-  for (let i = 0; i < 6; i++) setTimeout(() => embers.emit(x, .3 + i * .15, z, 12, ok ? 0x9bffb0 : 0xffd27a, { speed: 1.8, up: .6, life: .8, spread: 1.6 }), i * 120);
+  for (let i = 0; i < 6; i++) setTimeout(() => embers && embers.emit(x, .3 + i * .15, z, 12, ok ? 0x9bffb0 : 0xffd27a, { speed: 1.8, up: .6, life: .8, spread: 1.6 }), i * 120);
 }
 function onEncOver(enc) {
   const r = enc.E.over.result, cr = enc.cr;
@@ -689,13 +651,12 @@ function travel(x, z, yaw) { const c = C(); if (c.getMode() !== 'explore') windo
 // ---------------------------------------------------------------- per-frame
 let lastT = performance.now(), hudT = 0, regenT = 0;
 const FOGC = new THREE.Color(), FDAY = new THREE.Color(.46, .54, .47), FNIGHT = new THREE.Color(.025, .05, .05);
-function frame(dt, t) {
+function frame_(dt, t) {
   if (!W.ready) return; const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen, day = c.U && c.U.day ? c.U.day.value : 0;
   UNI.uT.value = t; UNI.uPl.value.set(P.pos.x, P.pos.y, P.pos.z); creekMat.uniforms.uT.value = t; creekMat.uniforms.uDay.value = day;
   const camD = Math.hypot((c.C.position.x - FC.x) / RX, (c.C.position.z - FC.z) / RZ); nearGroup.visible = camD < 1.6;
-  // zone: warning on the way in, music/fog swap on the way out
+  // zone: the warning on the way in is wilds-gate.js; music/fog swap on the way out
   const e = ell(P.pos.x, P.pos.z);
-  if (explore && !W.inForest && e < .99 && !W.modal && !(window.__boat && window.__boat.active)) showWarning();
   if (W.inForest && (e > 1.03 || !explore)) leaveForest();
   // forest fog + tint (blended over the city's own weather fog so it fades in as you walk under the canopy)
   const fz = sstep(1.12, .9, camD);
@@ -736,29 +697,60 @@ function frame(dt, t) {
 }
 const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v3 = new THREE.Vector3(), _one = new THREE.Vector3(1, 1, 1), _eu = new THREE.Euler();
 
-// ---------------------------------------------------------------- boot
-async function boot() {
-  try { await loadData(); } catch (e) { console.warn('wilds data', e); return; }
-  game = W.game = createGame(DATA);
-  buildDom(); buildWorld();
-  (window.__preRender = window.__preRender || []).push((dt, t) => { try { frame(dt, t); } catch (e) { if (!W.err) { W.err = String(e && e.stack || e).slice(0, 400); console.warn('wilds frame', e); } } });   // never let the forest break the city's render loop
-  (window.__interactors = window.__interactors || []).push(interactor);
-  const prevLock = window.__exploreLock; window.__exploreLock = () => !!W.modal || !!W.enc || (prevLock ? prevLock() : false);
-  addEventListener('keydown', e => { if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) return; if (W.modal && encKey(e)) { e.stopPropagation(); return; } if (!W.modal && e.code === 'KeyR' && C().getMode() === 'explore') openJournal(); }, true);
-  refreshCompanion(); renderHud();
-  W.ready = true; W.readyAt = performance.now();
-  // test hooks (Playwright): read-only views + a few shortcuts
-  Object.assign(W.test, {
-    state: () => ({ inForest: W.inForest, modal: W.modal, creatures: W.creatures.map(c => ({ sp: c.sp, lv: c.c.lv, x: +c.x.toFixed(1), z: +c.z.toFixed(1), st: c.st, spd: +c.spd.toFixed(2) })), trees: W.treeCount, save: JSON.parse(JSON.stringify(game.state)), comp: compState && { x: compState.x, z: compState.z, spd: compState.spd }, audio: AUD.state(), enc: W.enc && { turn: W.enc.E.turn, over: W.enc.E.over, us: W.enc.E.us.name, usHp: W.enc.E.us.hp, foeHp: W.enc.E.foe.hp, odds: game.bindOdds(W.enc.E).pct, busy: W.enc.busy } }),
-    nearest: sp => { const P = C().P; let b = null; for (const c of W.creatures) if ((!sp || c.sp === sp) && c.st !== 'flee' && (!b || Math.hypot(c.x - P.pos.x, c.z - P.pos.z) < Math.hypot(b.x - P.pos.x, b.z - P.pos.z))) b = c; return b && { sp: b.sp, x: b.x, z: b.z }; },
-    walkTo: (x, z) => { const P = C().P; P.pos.set(x, 0, z); }, inspectNearest: () => { const n = nearestCreature(C().P.pos, 6); if (n) inspect(n.cr); return !!n; }, talk: talkMara, journal: openJournal, close: closeModal, travel, FC, RX, RZ, MARA, FIRE, MARKERS, GATE,
-    hold: sp => { for (const c of W.creatures) if (!sp || c.sp === sp) { c.st = 'held'; c.face = c.yaw; } },
-  });
+// ---------------------------------------------------------------- lifecycle (called by wilds-gate.js)
+export const isLoaded = () => W.ready;
+export const inForest = () => W.inForest;
+export const locked = () => !!W.modal || !!W.enc;
+export function unlockAudio() { AUD.unlock(); }   // call inside the PROCEED tap
+export function enter() { if (W.ready) enterForest(); }
+export function frame(dt, t) { frame_(dt, t); }
+export { interactor };
+export function onKey(e) { if (!W.ready || /INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) return; if (W.modal && encKey(e)) { e.stopPropagation(); return; } if (!W.modal && e.code === 'KeyR' && C().getMode() === 'explore') openJournal(); }
+export async function load(progress = () => { }) {
+  if (W.ready) return; if (W.loading) return W.loading;
+  W.loading = (async () => {
+    progress(0, 'Reading the trail map…'); await prefetch();
+    game = createGame(DATA); if (TEST) W.game = game;
+    buildDom(); await buildWorld((p, l) => progress(.05 + p * .85, l));
+    // compile the forest's shaders before the reveal so the first frames under the canopy don't hitch
+    progress(.92, 'Lighting the canopy…'); const c = C();
+    try { if (c.R && c.R.compileAsync) await Promise.race([c.R.compileAsync(root, c.C, c.S), new Promise(r => setTimeout(r, 4000))]); } catch (e) { }
+    refreshCompanion(); renderHud();
+    W.ready = true; W.readyAt = performance.now(); W.colliders = c.colliders.filter(o => o.wilds).length;
+    progress(1, 'Entering the forest');
+  })();
+  try { await W.loading; } finally { W.loading = null; }
 }
-(function wait() {
-  if (Q.has('nowilds')) return;
-  const c = window.__city;
-  W.waitT = W.waitT || performance.now();
-  if (window.__ready && c && c.colliders && c.S && ((window.__airport && window.__airport.ready) || Q.has('noairport') || performance.now() - W.waitT > 40000)) { boot().catch(e => console.warn('wilds', e)); }
-  else setTimeout(wait, 400);
-})();
+function disposeTree(o, seen = { geo: new Set(), mat: new Set(), tex: new Set() }) {
+  o.traverse(m => {
+    if (m.geometry && !seen.geo.has(m.geometry)) { seen.geo.add(m.geometry); m.geometry.dispose(); }
+    for (const mt of [].concat(m.material || [])) { if (seen.mat.has(mt)) continue; seen.mat.add(mt); for (const k in mt) { const v = mt[k]; if (v && v.isTexture && !seen.tex.has(v)) { seen.tex.add(v); v.dispose(); } } if (mt.uniforms) for (const k in mt.uniforms) { const v = mt.uniforms[k].value; if (v && v.isTexture && !seen.tex.has(v)) { seen.tex.add(v); v.dispose(); } } mt.dispose(); }
+    if (m.isInstancedMesh && m.dispose) m.dispose();
+  });
+  return seen;
+}
+export function unload() {
+  if (!W.ready) return; W.ready = false;
+  try { if (W.enc) endEncounter(true); } catch (e) { } W.enc = null; closeModal(); W.inForest = false;
+  AUD.dispose();
+  const c = C();
+  const seen = { geo: new Set(), mat: new Set(), tex: new Set() };
+  if (compMesh) { compMesh.removeFromParent(); disposeTree(compMesh, seen); compMesh = null; }
+  if (compState && compState.tag) compState.tag.remove(); compState = null;
+  for (const cr of W.creatures) cr.tag.remove(); W.creatures = []; for (const s of SPAWNS) { s.cr = null; s.cool = 0; }
+  if (root) { root.removeFromParent(); disposeTree(root, seen); } W.lastDispose = { geo: seen.geo.size, mat: seen.mat.size, tex: seen.tex.size }; root = nearGroup = grassIM = fernIM = leaves = flies = shafts = creekMat = maraRig = embers = null;
+  disposeMats();
+  for (let i = c.colliders.length - 1; i >= 0; i--) if (c.colliders[i].wilds) c.colliders.splice(i, 1);
+  OB.clear(); flames = []; beams = []; for (const m of MARKERS) { delete m.rune; delete m.beam; delete m.g; }
+  for (const e of [W.maraTag, hud, qline, banner, toastEl, document.getElementById('wlCss'), ...document.querySelectorAll('.wlfloat,.wltag')]) if (e) e.remove();
+  W.maraTag = hud = qline = banner = toastEl = null; clearTimeout(toastT);
+  W.lights = null; W.flyData = W.leafData = null; game = null; if (TEST) W.game = null;
+  W.unloadedAt = performance.now();
+}
+// test hooks (Playwright): read-only views + a few shortcuts — only with ?wildstest or ?debug=1
+if (TEST) Object.assign(W.test, {
+  state: () => ({ ready: W.ready, inForest: W.inForest, modal: W.modal, creatures: W.creatures.map(c => ({ sp: c.sp, lv: c.c.lv, x: +c.x.toFixed(1), z: +c.z.toFixed(1), st: c.st, spd: +c.spd.toFixed(2) })), trees: W.treeCount, save: game && JSON.parse(JSON.stringify(game.state)), comp: compState && { x: compState.x, z: compState.z, spd: compState.spd }, audio: AUD.state(), enc: W.enc && { turn: W.enc.E.turn, over: W.enc.E.over, us: W.enc.E.us.name, usHp: W.enc.E.us.hp, foeHp: W.enc.E.foe.hp, odds: game.bindOdds(W.enc.E).pct, busy: W.enc.busy } }),
+  nearest: sp => { const P = C().P; let b = null; for (const c of W.creatures) if ((!sp || c.sp === sp) && c.st !== 'flee' && (!b || Math.hypot(c.x - P.pos.x, c.z - P.pos.z) < Math.hypot(b.x - P.pos.x, b.z - P.pos.z))) b = c; return b && { sp: b.sp, x: b.x, z: b.z }; },
+  walkTo: (x, z) => { const P = C().P; P.pos.set(x, 0, z); }, inspectNearest: () => { const n = nearestCreature(C().P.pos, 6); if (n) inspect(n.cr); return !!n; }, talk: () => talkMara(), journal: t => openJournal(t), close: () => closeModal(), travel, FC, RX, RZ, MARA, FIRE, MARKERS, GATE,
+  hold: sp => { for (const c of W.creatures) if (!sp || c.sp === sp) { c.st = 'held'; c.face = c.yaw; } },
+});

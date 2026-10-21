@@ -5,24 +5,28 @@
 // Audible only while the game's sound toggle (🔊) is on, or when the city music player was already playing when you walked in.
 const SRC = { forest: 'music/wilds/whispers-of-the-wilderness.mp3', battle: 'music/wilds/beneath-the-hollow.mp3' };
 const VOL = { forest: .55, battle: .7, amb: .32 };
-let AC = null, master = null, ambG = null, sfxG = null, tracks = {}, want = null, audible = false, cityWas = false, lastSound = null, amb = null, unlockBound = false;
+let AC = null, master = null, ambG = null, sfxG = null, tracks = {}, want = null, audible = false, cityWas = false, lastSound = null, amb = null;
 const C = () => window.__city;
 const soundOn = () => { const c = C(); return !!(c && c.soundOn && c.soundOn()); };
 const CM = () => window.__cityMusic;
 
+// Only the forest track is created on entry; the battle track is created (and fetched) when the first encounter starts,
+// or prefetched a few seconds after entering. Nothing here runs until you PROCEED into the forest (wilds-gate.js).
+let unlockFn = null, battleT = 0;
+function track(k, preload = 'auto') {
+  if (tracks[k]) { if (preload === 'auto' && tracks[k].el.preload !== 'auto') { tracks[k].el.preload = 'auto'; try { tracks[k].el.load(); } catch (e) { } } return tracks[k]; }
+  const el = new Audio(); el.preload = preload; el.loop = true; el.crossOrigin = 'anonymous'; el.setAttribute('playsinline', ''); el.src = SRC[k];
+  let node = null; try { node = AC.createMediaElementSource(el); } catch (e) { }
+  const g = AC.createGain(); g.gain.value = 0; if (node) node.connect(g); g.connect(master);
+  return (tracks[k] = { el, g, node, on: false });
+}
 function ensure() {
   if (AC) { if (AC.state === 'suspended') AC.resume().catch(() => { }); return true; }
-  try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return false; }
+  try { AC = window.__wildsAC || new (window.AudioContext || window.webkitAudioContext)(); window.__wildsAC = null; if (AC.state === 'suspended') AC.resume().catch(() => { }); } catch (e) { return false; }   // the gate may have created it inside the PROCEED tap
   master = AC.createGain(); master.gain.value = 0; master.connect(AC.destination);
   ambG = AC.createGain(); ambG.gain.value = 0; ambG.connect(master);
   sfxG = AC.createGain(); sfxG.gain.value = .5; sfxG.connect(master);
-  for (const k in SRC) {
-    const el = new Audio(); el.src = SRC[k]; el.loop = true; el.preload = 'auto'; el.crossOrigin = 'anonymous'; el.setAttribute('playsinline', '');
-    let node = null; try { node = AC.createMediaElementSource(el); } catch (e) { }
-    const g = AC.createGain(); g.gain.value = 0; if (node) node.connect(g); g.connect(master);
-    tracks[k] = { el, g, node, on: false };
-  }
-  if (!unlockBound) { unlockBound = true; const u = () => { if (AC && AC.state !== 'running') AC.resume().catch(() => { }); for (const k in tracks) if (tracks[k].on && tracks[k].el.paused) tracks[k].el.play().catch(() => { }); }; addEventListener('pointerdown', u, true); addEventListener('touchend', u, true); addEventListener('keydown', u, true); }
+  if (!unlockFn) { unlockFn = () => { if (AC && AC.state !== 'running') AC.resume().catch(() => { }); for (const k in tracks) if (tracks[k].on && tracks[k].el.paused) tracks[k].el.play().catch(() => { }); }; for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, unlockFn, true); }
   buildAmbience(); return true;
 }
 function ramp(param, v, sec) { const t = AC.currentTime; param.cancelScheduledValues(t); param.setValueAtTime(param.value, t); param.linearRampToValueAtTime(v, t + sec); }
@@ -73,8 +77,7 @@ export function unlock() { return ensure(); }   // call from a user gesture
 export function enterForest() {
   if (!ensure()) return;
   cityWas = !!(CM() && CM().playing && CM().playing()); if (cityWas) CM().fadeOut(1800);
-  // prime the battle track inside this same tap so iOS lets it start later without a tap
-  const b = tracks.battle; if (b && b.el.paused) { const p = b.el.play(); if (p && p.then) p.then(() => { if (!b.on) b.el.pause(); }).catch(() => { }); }
+  track('forest'); clearTimeout(battleT); battleT = setTimeout(() => { if (AC && want) track('battle'); }, 9000);   // battle music: prefetched after entry (or on the first encounter, whichever comes first)
   want = 'forest'; audible = soundOn() || cityWas; lastSound = soundOn(); ramp(master.gain, audible ? 1 : 0, .4); ramp(ambG.gain, VOL.amb, 3); playTrack('forest', 3.5);
 }
 export function leaveForest() {
@@ -82,11 +85,20 @@ export function leaveForest() {
   const cm = CM(); if (cm && (cityWas || (audible && soundOn()))) cm.fadeIn(2500);
   cityWas = false;
 }
-export function fight(on) { if (!AC || !want) return; want = on ? 'battle' : 'forest'; playTrack(want, on ? 1.2 : 2.5); }
+export function fight(on) { if (!AC || !want) return; if (on) track('battle'); want = on ? 'battle' : 'forest'; playTrack(want, on ? 1.2 : 2.5); }
 export function update(dt, day) {
   if (!AC || !want) return;
   // the sound toggle stays the boss: muting while in the forest silences it, unmuting brings it back
   const s = soundOn(); if (s !== lastSound) { lastSound = s; audible = s; ramp(master.gain, audible ? 1 : 0, .5); }
   amb.next -= dt; if (amb.next < 0) { amb.next = day > .35 ? 1.5 + Math.random() * 5 : .6 + Math.random() * 1.6; chirp(day); }
 }
-export function state() { return { ctx: AC && AC.state, want, audible, cityWas, forest: tracks.forest && { on: tracks.forest.on, paused: tracks.forest.el.paused, src: tracks.forest.el.src.split('/').pop(), g: +tracks.forest.g.gain.value.toFixed(2) }, battle: tracks.battle && { on: tracks.battle.on, paused: tracks.battle.el.paused, g: +tracks.battle.g.gain.value.toFixed(2) } }; }
+// unload: stop everything and release the media elements + the audio graph (re-entering builds it again)
+export function dispose() {
+  clearTimeout(battleT); want = null; audible = false;
+  if (cityWas) { const cm = CM(); if (cm) cm.fadeIn(1500); } cityWas = false;
+  for (const k in tracks) { const tr = tracks[k]; try { tr.el.pause(); tr.el.removeAttribute('src'); tr.el.load(); } catch (e) { } try { tr.node && tr.node.disconnect(); tr.g.disconnect(); } catch (e) { } }
+  tracks = {};
+  if (unlockFn) { for (const ev of ['pointerdown', 'touchend', 'keydown']) removeEventListener(ev, unlockFn, true); unlockFn = null; }
+  if (AC) { const a = AC; AC = null; master = ambG = sfxG = null; amb = null; try { a.close(); } catch (e) { } }
+}
+export function state() { return { ctx: AC && AC.state, want, audible, cityWas, forest: tracks.forest && { on: tracks.forest.on, paused: tracks.forest.el.paused, src: tracks.forest.el.src.split('/').pop(), g: +tracks.forest.g.gain.value.toFixed(2) }, battle: tracks.battle && { on: tracks.battle.on, paused: tracks.battle.el.paused, preload: tracks.battle.el.preload, g: +tracks.battle.g.gain.value.toFixed(2) } }; }

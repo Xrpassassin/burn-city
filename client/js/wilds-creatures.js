@@ -15,6 +15,7 @@ export function mats() {
   }
   return { MAT, GLOW, SHADOW };
 }
+export function disposeMats() { for (const m of [MAT, GLOW, SHADOW]) if (m) { if (m.map) m.map.dispose(); m.dispose(); } MAT = GLOW = SHADOW = null; }   // forest unload
 // hash noise for mottling
 const hn = (x, y, z) => { const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453; return s - Math.floor(s); };
 // paint: top colour on the back, belly colour underneath, plus soft noise

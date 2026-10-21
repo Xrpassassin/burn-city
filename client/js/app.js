@@ -1407,6 +1407,8 @@ if(DEMO){const kinds=DEMO==='1'?null:DEMO==='all'?['burn','trade','lock']:DEMO==
 let feed=null;
 // AEGIS live feed (screens, threat weather, ticker): optional module, loaded on its own so any failure leaves the city untouched
 if(!Q.has('noaegis')&&!Q.has('shot'))import('./aegis.js').catch(e=>console.warn('aegis',e));
+// The Wilds (forest north of town): js/wilds-gate.js draws only the trailhead gate and lazy-loads the forest (js/wilds.js) when you walk in; ?nowilds turns it off
+if(!Q.has('nowilds'))import('./wilds-gate.js').catch(e=>console.warn('wilds',e));
 if(Q.get('live')!=='0'&&!Q.has('shot')){import('./live.js').then(({LiveFeed})=>{feed=new LiveFeed(E,{onEvent:pushEvent,onStatus:setStatus,burnTokens:['BURN','IMM','IMG','XRPyro','Budzy','$BTCK','BCHAMP']}).start();window.__feed=feed}).catch(()=>setStatus('offline',{}))}
 else setStatus(DEMO?'demo':'offline',{});
 updCounter();

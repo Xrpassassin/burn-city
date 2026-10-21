@@ -118,3 +118,5 @@ body.m .book{max-height:none}body.m .gem{width:50px;height:50px}body.m .forge{fl
 .mmus{min-width:44px;min-height:44px}
 @media (orientation:landscape) and (max-height:500px){#mact{right:calc(14px + max(var(--sR),24px));bottom:calc(12px + max(var(--sb),12px))}.mmus{left:calc(296px + var(--sL))}}
 @media (orientation:portrait) and (max-height:900px){#mmenu{gap:4px}#mmenu button{width:46px;height:46px}}
+/* ui-cleanup: phone side menu (Bag … Rest) keeps 44px targets in short landscape too; gap trimmed so the row still ends left of the #22 music toggle */
+@media (orientation:landscape) and (max-height:500px){#mmenu{gap:4px}#mmenu button{width:44px;height:44px}}

@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Burn City">
 <link rel="modulepreload" href="vendor/three/build/three.module.min.js"><title>BURN CITY — XRPL ecosystem in 3D</title>
-<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="style.css">
 <script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.min.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
 <script src="data.js" defer></script><script src="burned.js" defer></script><script src="launchpad.js" defer></script><script src="ads.js" defer></script></head><body>
 <div id="loader"><div class="lt">◢ BURN CITY ◣</div><div class="bar"><i id="lbar"></i></div><div id="ltxt">Loading 3D engine…</div><div class="dim lsrc">Read-only view of XRPL ledger data</div></div>
@@ -42,5 +42,6 @@ addEventListener('error',e=>{const x=document.getElementById('ltxt');if(x&&!wind
 <div id="touch"><div id="joy"><div id="knob"></div></div><div id="tbtns"><button id="tJump" aria-label="Jump">⤒</button><button id="tRun" aria-label="Run">»</button><button id="tUse" aria-label="Use">E</button><button id="tUp" aria-label="Fly up">▲</button><button id="tDown" aria-label="Fly down">▼</button></div></div>
 <div id="chat"><div id="chatLog"></div><input id="chatIn" aria-label="Chat" placeholder="Enter to chat (multiplayer)" maxlength="200"></div>
 <div id="help"></div>
+<link rel="stylesheet" href="ui.css">
 <script type="module" src="js/app.js"></script><script type="module" src="js/pwa.js"></script><script type="module" src="js/extras.js"></script><script type="module" src="js/city.js"></script><script type="module" src="js/fx2.js"></script><script type="module" src="js/retain.js"></script><script type="module" src="js/fish.js"></script><script type="module" src="js/boat.js"></script><script type="module" src="js/npc.js"></script><script type="module" src="js/debug.js"></script><script type="module" src="js/ui.js"></script><script type="module" src="js/tower-interior.js"></script><script data-goatcounter="https://shinigsmi.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body></html>

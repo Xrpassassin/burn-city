@@ -7,7 +7,7 @@ const fs = require('fs'), path = require('path'), crypto = require('crypto'), xr
 const FILE = path.join(__dirname, '..', 'client', 'data.js');
 const RPC = ['https://xrplcluster.com/', 'https://s2.ripple.com:51234/', 'https://s1.ripple.com:51234/'];
 const WSS = ['wss://xrplcluster.com', 'wss://s2.ripple.com', 'wss://s1.ripple.com'];
-const BH_KEYS = new Set(['rrrrrrrrrrrrrrrrrrrrrhoLvTp', 'rrrrrrrrrrrrrrrrrrrrBZbvji', 'rrrrrrrrrrrrrrrrrrrn5RM1rHd']);
+const G = require('../client/js/goldlock.js');   // shared strict gold / black-hole rule (also used by the client + lock audit)
 const MARKET_EVERY = 2 * 60e3, SWEEP_EVERY = 60 * 60e3, DISCOVER_MIN_TVL = 50, DISCOVER_NEW_TOKEN_TVL = 2500, DISCOVER_MAX_NEW = 12;
 let eco = null, out = null, live = null, ver = 0, ws = null, wsi = 0, lastLedger = null;
 const status = { ok: false, ts: null, pools: 0, tokens: 0, stream: 'off', ledger: null, poolUpdates: 0, lastPoolUpdate: null, market: null, sweep: null, discovered: [], err: null };
@@ -37,10 +37,8 @@ async function rpc(method, p) {
 async function xrplto(key) { try { const j = await (await fetch('https://api.xrpl.to/v1/token/' + key, { headers: { 'user-agent': 'burn-city/1' }, signal: AbortSignal.timeout(15e3) })).json(); return j.token || j; } catch { return null; } }
 async function isBlackhole(acct) {
   const c = bhCache.get(acct); if (c && Date.now() - c.t < 6 * 3600e3) return c.bh; let bh = false;
-  // black hole = master key disabled AND (no RegularKey or RegularKey is a known black-hole address) AND no SignerList
-  try { const r = await rpc('account_info', { account: acct, ledger_index: 'validated', signer_lists: true }), ad = r.account_data;
-    const sl = (r.signer_lists || (ad && ad.signer_lists) || []);
-    bh = !!ad && (ad.Flags & 0x00100000) !== 0 && (!ad.RegularKey || BH_KEYS.has(ad.RegularKey)) && sl.length === 0; } catch { return c ? c.bh : false; }
+  // black hole = master key disabled AND (no RegularKey or RegularKey is a known black-hole address) AND no SignerList (client/js/goldlock.js)
+  try { const r = await rpc('account_info', { account: acct, ledger_index: 'validated', signer_lists: true }); bh = G.isBlackholedInfo(r); } catch { return c ? c.bh : false; }
   bhCache.set(acct, { bh, t: Date.now() }); return bh;
 }
 const idx = () => { const byKey = {}, byName = {}; for (const n of eco.nodes) { byName[n.name] = n; if (n.key && n.key.includes('-')) byKey[n.key] = n; } return { byKey, byName }; };
@@ -60,7 +58,8 @@ async function readLP(p) {
     marker = al.marker; } while (marker && lines.length < 4000);
   lines.sort((x, y) => y.v - x.v); let locked = 0; const oldTag = Object.fromEntries((p.top_lp || []).map(t => [t.acct, t.tag]));
   for (const l of lines) if (l.v / tot >= 0.001 && await isBlackhole(l.acct)) { l.bh = true; locked += l.v; }
-  p.locked_pct = +(100 * locked / tot).toFixed(1); p.lp_holders = lines.length;
+  // floor (never round up): 94.96% must not display/count as 95.0% and pass the strict gold rule
+  p.locked_pct = Math.floor(10 * G.lockedPct(lines, tot) + 1e-9) / 10; p.lp_holders = lines.length;
   p.top_lp = lines.slice(0, 4).map(l => ({ acct: l.acct, pct: +(100 * l.v / tot).toFixed(2), tag: l.bh ? 'BH' : (oldTag[l.acct] ?? '') }));
 }
 
@@ -75,8 +74,12 @@ function recompute() {
         if (!cand[x] || depth > cand[x].d) cand[x] = { v: depth / sx.v, src: y === 'XRP' ? 'amm-xrp' : 'amm-via-' + y, d: depth }; } }
     Object.assign(price, cand); }
   const val = s => { if (s.cur === 'XRP') return s.v; const n = byKey[s.iss + '-' + s.cur]; const pr = n && (price[n.name] ? price[n.name].v : n.price_xrp); return pr ? s.v * pr : 0; };
-  for (const p of eco.pools) { const r = res[p.amm]; if (!r) continue;
-    p.tvl_xrp = +(r.A.cur === 'XRP' ? 2 * r.A.v : r.B.cur === 'XRP' ? 2 * r.B.v : val(r.A) + val(r.B)).toFixed(2); }
+  const priced = s => s.cur === 'XRP' || val(s) > 0 || !(s.v > 0);
+  for (const p of eco.pools) { const r = res[p.amm]; if (!r) { p.gold = G.isGold(p); continue; }
+    const xrpPair = r.A.cur === 'XRP' || r.B.cur === 'XRP';
+    p.tvl_xrp = +(r.A.cur === 'XRP' ? 2 * r.A.v : r.B.cur === 'XRP' ? 2 * r.B.v : val(r.A) + val(r.B)).toFixed(2);
+    p.tvl_priced = xrpPair || (priced(r.A) && priced(r.B));   // non-XRP pair: both sides need an XRP price, else never gold
+    p.gold = G.isGold(p); }
   for (const n of eco.nodes) {
     const ps = eco.pools.filter(p => p.a === n.name || p.b === n.name);
     n.tvl = +ps.reduce((s, p) => s + (p.tvl_xrp || 0), 0).toFixed(2); n.pools = ps.filter(p => !p.gone).length;
@@ -93,7 +96,7 @@ function recompute() {
   }
 }
 const NODE_LIVE = ['tvl', 'pools', 'price_xrp', 'price_amm', 'price_src', 'price_depth', 'price_thin', 'mcap_amm', 'mcap_xrp', 'mcap', 'mcap_src', 'circ', 'pro24h', 'pro1h', 'pro7d', 'vol24h', 'holders', 'active', 'active_src', 'burned_pct'];
-const POOL_LIVE = ['tvl_xrp', 'fee_pct', 'locked_pct', 'lp_holders', 'top_lp', 'gone'];
+const POOL_LIVE = ['tvl_xrp', 'tvl_priced', 'gold', 'fee_pct', 'locked_pct', 'lp_holders', 'top_lp', 'gone'];
 function publish() {
   eco.ts = new Date().toISOString().slice(0, 19) + 'Z'; eco.enriched_ts = eco.ts; eco.live = true; eco.ledger = lastLedger; ver++;
   const body = 'window.ECO=' + JSON.stringify(eco) + ';\n';
@@ -218,7 +221,7 @@ function send(req, res_, o, type) {
   res_.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache', etag: o.etag }); res_.end(req.method === 'HEAD' ? undefined : o.body); return true;
 }
 module.exports = {
-  start, status: () => status, data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover,
+  start, status: () => status, data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _readPool: async p => { await readPool(p, true); recompute(); return p; }, _bhCache: bhCache, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover,
   serve: (req, r) => out ? send(req, r, out, 'application/javascript; charset=utf-8') : false,
   serveLive: (req, r) => live ? send(req, r, live, 'application/json') : false,
 };

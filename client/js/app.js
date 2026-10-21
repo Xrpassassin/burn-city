@@ -19,6 +19,7 @@ import {BokehPass} from 'three/addons/postprocessing/BokehPass.js';
 import {Reflector} from 'three/addons/objects/Reflector.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {PlayerState,NetClient} from './net.js';
+import './goldlock.js';   // globalThis.BCGold: the ONE strict gold rule (>=95% LP black-holed AND TVL >= 5000 XRP), shared with server/eco.js
 
 // ---------- config / device ----------
 const Q=new URLSearchParams(location.search);
@@ -577,18 +578,22 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
 
 // ---------- Forever Rails: metallic rails + gold edge glow along both sides of every bridge; coverage = LP locked in blackholed wallets ----------
 // ONE merged mesh for all bridges (per-vertex bridge index + arc position; shader clips at b.Lv, so live lockFX animates the rails extending).
-// Pools >=99% locked: FOREVER plaque at each terminal (one instanced draw) + subtle gold pulse.
-{const SEG=TIER==='low'?24:MOBILE?36:56,geos=[],NB=Math.min(bridges.length,64);
- const LV0=Math.log10(10),LVM=Math.log10(Math.max(100,...bridges.map(b=>b.p.tvl_xrp*b.L))),covOf=b=>{const lv=b.p.tvl_xrp*b.Lv;return lv<10?0:Math.min(1,(Math.log10(lv)-LV0)/(LVM-LV0))};bridges.forEach(b=>{b.lockedXrp=b.p.tvl_xrp*b.L;b.forever=b.L>=.95});
- bridges.slice(0,NB).forEach((b,bi)=>{if(b.minor||b.L<=0)return;const side=new THREE.Vector3();for(const sd of [-1,1]){const pts=[];for(let k=0;k<=SEG;k++){const u=k/SEG,q=b.curve.getPoint(u);side.crossVectors(b.curve.getTangent(u),UPV).normalize().multiplyScalar(sd*(b.r+1.1));pts.push(q.add(side).setY(q.y-b.r*.35))}
-   const tg=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),SEG,.14+.42*covOf(b),5,false);const n=tg.attributes.position.count,ba=new Float32Array(n).fill(bi);tg.setAttribute('bi',new THREE.BufferAttribute(ba,1));geos.push(tg)}});
+// Gold = b.forever = BCGold.isGold(pool) (client/js/goldlock.js): >=95% of LP held by black-holed accounts AND pool TVL >= GOLD_MIN_TVL_XRP.
+// Only gold pools get these rails (full length), the FOREVER plaques, gold cores, gold seals, LOCKED FOREVER labels and gold swirls/sparks; everything else has zero gold.
+// ?debug=1&goldtest=1 (top-2 TVL pools) or goldtest=XRP/BURN,XRP/IMM forces gold for visual tests only.
+{const SEG=TIER==='low'?24:MOBILE?36:56,geos=[],NB=Math.min(bridges.length,64),GL=globalThis.BCGold;
+ const GT=/[?&]debug=1/.test(location.search)&&Q.get('goldtest'),gtSet=new Set(GT&&GT!=='1'?GT.split(',').map(x=>x.trim().toUpperCase()):[]),gtTop=GT==='1'?bridges.filter(b=>!b.minor).sort((x,y)=>y.p.tvl_xrp-x.p.tvl_xrp).slice(0,2):[];
+ const forced=b=>!!GT&&(gtTop.includes(b)||gtSet.has((b.p.a+'/'+b.p.b).toUpperCase())||gtSet.has((b.p.b+'/'+b.p.a).toUpperCase())||gtSet.has(String(b.p.amm).toUpperCase()));
+ const LV0=Math.log10(10),LVM=Math.log10(Math.max(100,...bridges.map(b=>b.p.tvl_xrp*b.L))),covOf=b=>{const lv=b.p.tvl_xrp*b.Lv;return lv<10?0:Math.min(1,(Math.log10(lv)-LV0)/(LVM-LV0))};bridges.forEach(b=>{b.lockedXrp=b.p.tvl_xrp*b.L;b.forever=GL.isGold(b.p)||forced(b)});window.__gold={min_tvl:GL.GOLD_MIN_TVL_XRP,min_pct:GL.GOLD_MIN_LOCK_PCT,forced:!!GT,pools:bridges.filter(b=>b.forever).map(b=>b.p.a+'/'+b.p.b)};
+ bridges.slice(0,NB).forEach((b,bi)=>{if(b.minor||!b.forever)return;const side=new THREE.Vector3();for(const sd of [-1,1]){const pts=[];for(let k=0;k<=SEG;k++){const u=k/SEG,q=b.curve.getPoint(u);side.crossVectors(b.curve.getTangent(u),UPV).normalize().multiplyScalar(sd*(b.r+1.1));pts.push(q.add(side).setY(q.y-b.r*.35))}
+   const tg=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),SEG,.14+.42*Math.max(.35,covOf(b)),5,false);const n=tg.attributes.position.count,ba=new Float32Array(n).fill(bi);tg.setAttribute('bi',new THREE.BufferAttribute(ba,1));geos.push(tg)}});
  if(geos.length){const cov=new Float32Array(64),glow=new Float32Array(64);
   const m=new THREE.ShaderMaterial({uniforms:{cov:{value:cov},forever:{value:glow},t:U.t,...THREE.UniformsUtils.merge([THREE.UniformsLib.fog])},fog:true,
    vertexShader:'attribute float bi;varying vec2 vU;varying float vB;varying vec3 vN;\n#include <fog_pars_vertex>\nvoid main(){vU=uv;vB=bi;vN=normalize(normalMatrix*normal);vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
    fragmentShader:'uniform float cov[64];uniform float forever[64];uniform float t;varying vec2 vU;varying float vB;varying vec3 vN;\n#include <fog_pars_fragment>\nvoid main(){int i=int(vB+.5);float c=cov[i];if(vU.x>c)discard;float rim=pow(1.-abs(vN.z),2.);float spec=pow(max(0.,vN.y),6.);'+
     'vec3 steel=vec3(.22,.24,.28)+vec3(.5)*spec;float tip=smoothstep(.04,0.,c-vU.x)*step(c,.999);float fv=floor(forever[i]+.0001);float lp=fract(forever[i]+.0001)*1000.;float pul=fv*(.5+.5*sin(t*1.6-vU.x*6.));vec3 gold=vec3(.85,.5,.04)*((.3+rim*.9)*(.45+.4*lp+.15*pul)+tip*.6);vec3 col=steel*.35+gold;float L=dot(col,vec3(.299,.587,.114));col*=min(1.,.46/max(L,1e-3));gl_FragColor=vec4(col,1.);\n#include <fog_fragment>\n}'});
   const mesh=new THREE.Mesh(mergeGeometries(geos),m);mesh.frustumCulled=false;S.add(mesh);
-  anim.push(()=>{for(let i=0;i<NB;i++){const b=bridges[i];const c=covOf(b);cov[i]=c>=.995?1.01:c;glow[i]=(b.forever?1:0)+Math.min(1,b.Lv)*.001}});}
+  anim.push(()=>{for(let i=0;i<NB;i++){const b=bridges[i];cov[i]=b.forever?1.01:0;glow[i]=b.forever?1.001:0}});}
  // FOREVER plaques
  const fv=bridges.filter(b=>b.forever&&!b.minor);if(fv.length){const cv=document.createElement('canvas');cv.width=256;cv.height=96;const x=cv.getContext('2d');x.fillStyle='#1a1205';x.fillRect(0,0,256,96);x.strokeStyle='#ffc64a';x.lineWidth=6;x.strokeRect(4,4,248,88);x.fillStyle='#ffd77a';x.font='900 44px system-ui,sans-serif';x.textAlign='center';x.fillText('∞ FOREVER',128,64);
   const pm=new THREE.InstancedMesh(new THREE.PlaneGeometry(2.6,1),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv),side:THREE.DoubleSide,toneMapped:false}),fv.length*2);let k=0;
@@ -598,17 +603,17 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
 // ---------- AMM rails polish: animated liquidity flow along every bridge core + 🔒 LOCKED FOREVER seals ----------
 // Locked = LP tokens held by verified black-holed wallets (server/eco.js isBlackhole: DisableMaster, no usable RegularKey, no SignerList).
 // Phone-light: one shared shader program for the flow, ONE instanced draw for every seal ring/chain link, DOM labels via the existing declutter.
-{const FV='varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+{const GLB=globalThis.BCGold,FV='varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
   FF='uniform float t,op,sp;uniform vec3 c,g;uniform float lk;varying vec2 vU;void main(){float s=fract(vU.x*9.-t*sp);float streak=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);vec3 col=mix(c,g,lk*.55)*(.55+1.1*streak);gl_FragColor=vec4(col,op*(.55+.45*streak));}';
  const LOCKC=new THREE.Color(0xffb020),EMBC=new THREE.Color(0xff5a1a);
  bridges.forEach(b=>{if(!b.core)return;const o=b.core.material,L=b.L;b.core.material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,
-   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)},g:{value:LOCKC},lk:{value:L}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material,dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v*dim}});{const sm=b.solid.material;let so=sm.opacity;Object.defineProperty(sm,'opacity',{get:()=>so,set:v=>{so=v*dim}});sm.opacity=so}o.dispose()});
- const lk=bridges.filter(b=>b.L>=.01&&!b.minor);
+   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)},g:{value:LOCKC},lk:{value:b.forever?1:0}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material,dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v*dim}});{const sm=b.solid.material;let so=sm.opacity;Object.defineProperty(sm,'opacity',{get:()=>so,set:v=>{so=v*dim}});sm.opacity=so}o.dispose()});
+ const lk=bridges.filter(b=>(b.forever||b.L>=.01)&&!b.minor);
  if(lk.length){const links=TIER==='low'?1:3,im=new THREE.InstancedMesh(new THREE.TorusGeometry(1,.09,5,TIER==='low'?14:20),new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false}),lk.length*2*links);let k=0;const tg=new THREE.Vector3(),cc=new THREE.Color(),ZF=new THREE.Vector3(0,0,1),qa=new THREE.Quaternion();
-  lk.forEach(b=>{cc.copy(EMBC).lerp(LOCKC,Math.min(1,b.L*1.25)).multiplyScalar(.6+1.6*b.L);for(const u0 of [.07,.93])for(let j=0;j<links;j++){const u=u0+(u0<.5?1:-1)*j*.022,q=b.curve.getPoint(u);b.curve.getTangent(u,tg);
+  lk.forEach(b=>{if(b.forever)cc.copy(LOCKC).multiplyScalar(2.2);else cc.copy(EMBC).multiplyScalar(.6+1.0*b.L);/* gold seals only for gold pools; partly locked = ember */for(const u0 of [.07,.93])for(let j=0;j<links;j++){const u=u0+(u0<.5?1:-1)*j*.022,q=b.curve.getPoint(u);b.curve.getTangent(u,tg);
     _q.setFromUnitVectors(ZF,tg);if(j%2)_q.multiply(qa.setFromAxisAngle(ZF,Math.PI/2));const rr=b.r+.55;_m.compose(q,_q,_s.set(rr,rr*(j%2?.7:1),rr));im.setMatrixAt(k,_m);im.setColorAt(k++,cc)}});
   im.count=k;im.instanceColor.needsUpdate=true;im.frustumCulled=false;S.add(im);anim.push(t=>im.material.color.setScalar(.85+.15*Math.sin(t*1.4)));
-  lk.filter(b=>b.L>=.1).forEach(b=>{const el=document.createElement('div');el.className='lbl lockLbl';el.style.setProperty('--c',b.L>=.7?'#ffc64a':'#ff8a2a');el.textContent=`🔒 LOCKED FOREVER · ${(b.L*100).toFixed(b.L>=.995?0:1)}%`;$('labels').appendChild(el);
+  lk.filter(b=>b.forever||b.L>=.1).forEach(b=>{const el=document.createElement('div'),g=b.forever;el.className='lbl lockLbl'+(g?'':' part');el.style.setProperty('--c',g?'#ffc64a':'#8fd8ff');el.textContent=g?`🔒 LOCKED FOREVER · ${(b.L*100).toFixed(b.L>=.995?0:1)}%${GLB.isGold(b.p)?'':' · test'}`:`🔒 LP locked · ${(b.L*100).toFixed(1)}%`;$('labels').appendChild(el);
    const top=b.curve.getPoint(.5);labelEls.push({el,pos:top.clone().setY(top.y+b.r+2.5),pri:b.p.tvl_xrp*b.L*.5,minor:true})})}}
 
 // ---------- AMM swirls: each rail end flows tangent-continuously into a helix wrapping its tower (ONE merged draw) + drifting sparks on the same path (ONE Points draw) ----------
@@ -627,23 +632,35 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
   const pts=bz.getPoints(SEGB);for(const p of pts.slice(1)){const ox=p.x-n.pos.x,oz=p.z-n.pos.z,d=Math.hypot(ox,oz);if(d<Rin){p.x=n.pos.x+ox/d*Rin;p.z=n.pos.z+oz/d*Rin}}   // never cut through the tower
   for(let j=1;j<=SEGH;j++)pts.push(H(j/SEGH,new THREE.Vector3()));
   const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=SEGB+SEGH,lock=b.forever?1:0,UB=SEGB/NS,c=CYC.clone().lerp(LOCKC,lock*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
-  const shell=(rad,aMul)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*3);
+  const shell=(rad,aMul)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*4);
    for(let i=0;i<=NS;i++){const u=i/NS;cv.getPointAt(u,cP);const tap=1-.75*Math.pow(u,1.6),fade=1-THREE.MathUtils.smoothstep(u,.62,1),ph=9*(end?1+u*SL/Lr:-u*SL/Lr);
-    for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,op*aMul*fade],v*4);fl.set([ph,sp,lock*THREE.MathUtils.smoothstep(u,0,UB*1.5)],v*3)}}
-   tg.setAttribute('sc',new THREE.BufferAttribute(ca,4));tg.setAttribute('fl',new THREE.BufferAttribute(fl,3));tg.deleteAttribute('normal');geos.push(tg)};
+    for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,op*aMul*fade],v*4);fl.set([ph,sp,lock*THREE.MathUtils.smoothstep(u,0,UB*1.5),u],v*4)}}
+   tg.setAttribute('sc',new THREE.BufferAttribute(ca,4));tg.setAttribute('fl',new THREE.BufferAttribute(fl,4));tg.deleteAttribute('normal');geos.push(tg)};
   shell(cr,1);if(!LOW)shell(cr*2.6,.32);   // core matches the rail core exactly; soft glow sheath (same draw) makes it read from a distance
-  paths.push({cv,c:lock?GOLD:c,sp:lock?sp*.45:sp,fw:end?1:-1})})});
+  paths.push({cv,c:lock?GOLD:c,sp:lock?sp*.45:sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z})})});
  if(geos.length){const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,uniforms:{t:U.t},
-   vertexShader:'attribute vec4 sc;attribute vec3 fl;varying vec3 vF;varying vec4 vC;void main(){vF=fl;vC=sc;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-   fragmentShader:'uniform float t;varying vec3 vF;varying vec4 vC;void main(){float s=fract(vF.x-t*vF.y);float st=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);float sh=.55+.45*sin(t*1.3-vF.x*.35);st=mix(st,sh,vF.z);vec3 col=mix(vC.rgb,vec3(1.,.78,.29),vF.z);gl_FragColor=vec4(col*(.55+1.1*st),vC.a*(1.+.6*vF.z)*(.55+.45*st));}'});   // same streak + speed as the rail core shader
+   vertexShader:'attribute vec4 sc;attribute vec4 fl;varying vec4 vF;varying vec4 vC;varying vec2 vU;void main(){vF=fl;vC=sc;vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+   // gold swirls dissolve over their lower half: cells crumble away (moving with the flow) and the edge left behind glows; normal swirls (vF.z=0) unchanged
+   fragmentShader:'uniform float t;varying vec4 vF;varying vec4 vC;varying vec2 vU;void main(){float s=fract(vF.x-t*vF.y);float st=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);float sh=.55+.45*sin(t*1.3-vF.x*.35);st=mix(st,sh,vF.z);vec3 col=mix(vC.rgb,vec3(1.,.78,.29),vF.z);'+
+    'float dz=vF.z*smoothstep(.45,.97,vF.w);float h=fract(sin(dot(floor(vec2(vU.x*150.-t*vF.y*5.,vU.y*7.)),vec2(12.9898,78.233)))*43758.5453);if(h<dz*1.05)discard;float edge=dz*(1.-smoothstep(0.,.18,h-dz));'+
+    'gl_FragColor=vec4(col*(.55+1.1*st)+vec3(1.,.72,.2)*edge*.9,vC.a*(1.+.6*vF.z)*(.55+.45*st)*(1.-.35*dz));}'});   // same streak + speed as the rail core shader
   const mesh=new THREE.Mesh(mergeGeometries(geos),m);mesh.frustumCulled=false;S.add(mesh);
-  // sparks: light, one Points draw on the exact swirl path, moving with the flow; phones ≤150, desktop ≤360, Low = off
-  const NP=LOW?0:Math.min(MOBILE?150:360,paths.length*(MOBILE?3:5));if(NP){const pg=new THREE.BufferGeometry(),pp=new Float32Array(NP*3),pc=new Float32Array(NP*3),st=[];
-   for(let i=0;i<NP;i++){const P=paths[i%paths.length];st.push({P,u:Math.random()*.9,v:.05+Math.random()*.08});pc.set([P.c.r,P.c.g,P.c.b],i*3)}
+  // sparks: light, one Points draw on the exact swirl path, moving with the flow; phones ≤150, desktop ≤360 TOTAL (incl. gold dispersal), Low = off
+  // gold dispersal (same Points draw, +0 calls): gold swirls shed golden motes over their lower half that drift outward + up with the flow and fade
+  const CAP=LOW?0:MOBILE?150:360,gp=paths.filter(P=>P.lock),ND=CAP?Math.min(Math.round(CAP*.5),gp.length*(MOBILE?10:24)):0,NS0=Math.min(CAP-ND,paths.length*(MOBILE?3:5)),NP=NS0+ND;
+  if(NP){const pg=new THREE.BufferGeometry(),pp=new Float32Array(NP*3),pc=new Float32Array(NP*3),st=[],ds=[],dq=new THREE.Vector3(),dt3=new THREE.Vector3();
+   for(let i=0;i<NS0;i++){const P=paths[i%paths.length];st.push({P,u:Math.random()*.9,v:.05+Math.random()*.08});pc.set([P.c.r,P.c.g,P.c.b],i*3)}
+   const spawn=(d,first)=>{const P=d.P,u=.5+Math.random()*.45;P.cv.getPointAt(u,dq);P.cv.getTangentAt(u,dt3);if(P.fw<0)dt3.negate();const ox=dq.x-P.cx,oz=dq.z-P.cz,ol=Math.hypot(ox,oz)||1,vr=.5+Math.random()*1.1,vt=.6+Math.random()*1.2;
+    d.x=dq.x;d.y=dq.y;d.z=dq.z;d.vx=ox/ol*vr+dt3.x*vt;d.vy=.35+Math.random()*.7+Math.max(0,dt3.y)*vt;d.vz=oz/ol*vr+dt3.z*vt;d.life=1.6+Math.random()*1.8;d.age=first?Math.random()*d.life:0};
+   for(let j=0;j<ND;j++){const d={P:gp[j%gp.length]};spawn(d,true);ds.push(d)}
    pg.setAttribute('position',new THREE.BufferAttribute(pp,3));pg.setAttribute('color',new THREE.BufferAttribute(pc,3));
    const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:MOBILE?.55:.45,vertexColors:true,transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));pts.frustumCulled=false;S.add(pts);
-   const q=new THREE.Vector3();let acc=0;anim.push((t,dt)=>{acc+=dt;if(MOBILE&&acc<1/30)return;const d=acc;acc=0;st.forEach((s,i)=>{s.u+=s.P.fw*s.v*d*s.P.sp;if(s.u>.9)s.u-=.9;else if(s.u<0)s.u+=.9;s.P.cv.getPointAt(s.u,q);pp[i*3]=q.x;pp[i*3+1]=q.y+Math.sin(t*2+i)*.08;pp[i*3+2]=q.z});pg.attributes.position.needsUpdate=true})}
-  window.__swirl={n:paths.length,geos:geos.length,particles:NP}}}
+   const q=new THREE.Vector3();let acc=0;anim.push((t,dt)=>{acc+=dt;if(MOBILE&&acc<1/30)return;const d=Math.min(acc,.1);acc=0;st.forEach((s,i)=>{s.u+=s.P.fw*s.v*d*s.P.sp;if(s.u>.9)s.u-=.9;else if(s.u<0)s.u+=.9;s.P.cv.getPointAt(s.u,q);pp[i*3]=q.x;pp[i*3+1]=q.y+Math.sin(t*2+i)*.08;pp[i*3+2]=q.z});
+    if(ND){const off=window.__aq&&!window.__aq.bloom;   // adaptive quality already shed bloom: hide motes too
+     for(let j=0;j<ND;j++){const m=ds[j],i=NS0+j;m.age+=d;if(m.age>=m.life)spawn(m,false);m.vy+=.25*d;m.x+=m.vx*d;m.y+=m.vy*d;m.z+=m.vz*d;pp[i*3]=m.x;pp[i*3+1]=m.y;pp[i*3+2]=m.z;
+      const k=off?0:Math.sin(Math.PI*Math.min(1,m.age/m.life))*(1-.5*m.age/m.life)*1.3;pc[i*3]=1*k;pc[i*3+1]=.78*k;pc[i*3+2]=.3*k}pg.attributes.color.needsUpdate=true}
+    pg.attributes.position.needsUpdate=true})}
+  window.__swirl={n:paths.length,geos:geos.length,particles:NP,sparks:NS0,disperse:ND,gold:gp.length}}}
 
 // ---------- pool traffic basis (activity colour + card): min 24h volume of the pair ----------
 const vol=n=>n.name==='XRP'?null:(n.vol24h??null);
@@ -1081,7 +1098,7 @@ function descNode(n){const iss=issuerOf(n),col='#'+n.col.getHexString(),bu=n.bur
  <div class="cardBtns"><a class="trade" href="${tradeUrl(n)}" target="_blank" rel="noopener">🔥 Trade ${isX?'':'$'+n.name+' '}on xrpburn.com</a>${iss?`<a href="https://livenet.xrpl.org/accounts/${iss}" target="_blank" rel="noopener" title="${iss}">Issuer ↗</a>`:''}</div>
  <details class="more"><summary>More stats &amp; pools</summary>${tbl}</details>
  <div class="attr dim">Trades open on xrpburn.com and are signed in your own wallet; Burn City never holds funds. Prices: <a href="https://xrpl.to" target="_blank" rel="noopener">Data by xrpl.to</a></div>`}
-function descPool(p){const b=bridges.find(x=>x.p===p);return `<button class="x" aria-label="Close">✕</button><h2>${p.a} ⇄ ${p.b}</h2><table><tr><td>Forever Rails</td><td><b style="color:#ffc64a">${fmt(p.tvl_xrp*(p.locked_pct||0)/100)} XRP locked forever</b> (${(p.locked_pct||0).toFixed(1)}% of pool)${b&&b.forever?' ∞':''} <span class="dim">LP in blackholed wallets: can never be withdrawn</span></td></tr><tr><td>Activity <span class="dim">(line colour)</span></td><td>${b&&b.act!=null?`<b style="color:#${b.actCol.getHexString()}">${b.act>=.85?'Very active':b.act>=.6?'Active':b.act>=.3?'Moderate':'Quiet'}</b> · top ${Math.max(1,Math.round((1-b.act)*100))}%`:'—'}</td></tr><tr><td>TVL</td><td>${fmt(p.tvl_xrp)} XRP</td></tr><tr><td>Trading fee</td><td>${p.fee_pct}%</td></tr>
+function descPool(p){const b=bridges.find(x=>x.p===p);return `<button class="x" aria-label="Close">✕</button><h2>${p.a} ⇄ ${p.b}</h2><table><tr><td>Forever Rails</td><td><b style="color:${b&&b.forever?'#ffc64a':'#8fd8ff'}">${fmt(p.tvl_xrp*(p.locked_pct||0)/100)} XRP locked forever</b> (${(p.locked_pct||0).toFixed(1)}% of pool)${b&&b.forever?' ∞':''} <span class="dim">LP in blackholed wallets: can never be withdrawn</span></td></tr><tr><td>Activity <span class="dim">(line colour)</span></td><td>${b&&b.act!=null?`<b style="color:#${b.actCol.getHexString()}">${b.act>=.85?'Very active':b.act>=.6?'Active':b.act>=.3?'Moderate':'Quiet'}</b> · top ${Math.max(1,Math.round((1-b.act)*100))}%`:'—'}</td></tr><tr><td>TVL</td><td>${fmt(p.tvl_xrp)} XRP</td></tr><tr><td>Trading fee</td><td>${p.fee_pct}%</td></tr>
  <tr><td>Locked LP</td><td style="color:${p.locked_pct>=70?'#3cf3ff':p.locked_pct>=30?'#ffb000':'#ff3b2f'}">${p.locked_pct}%</td></tr><tr><td>Insider LP</td><td>${p.insider_pct}% ${p.insider_pct>=50?'⚑':''}</td></tr><tr><td>LP holders</td><td>${p.lp_holders}</td></tr>
  <tr><td>Traffic basis</td><td>${b&&b.volEst?'est. 2% of TVL':'min 24h vol of pair'} ≈ ${fmt(b&&b.vol)} XRP</td></tr></table>
  <div class="actLeg"><span>Quiet</span><i></i><span>Very active</span></div><div style="margin-top:4px">Top LP:<br>${p.top_lp.map(t=>`${t.acct.slice(0,10)}… ${t.pct}% ${lpTag(t)}`).join('<br>')}</div><div class="dim" style="margin-top:4px;word-break:break-all">AMM ${p.amm}</div>`}

@@ -181,6 +181,7 @@ body.replay #wchip{opacity:.6}
 #hud.open,#info{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y}
 @media (max-width:700px){#hud.open{max-height:calc(100dvh - 20px - env(safe-area-inset-top));box-sizing:border-box}#info{max-height:min(calc(100vh - 230px),calc(100dvh - 230px))}}
 .lbl.lockLbl{font-size:10px;background:linear-gradient(90deg,rgba(40,22,4,.78),rgba(20,10,2,.7));letter-spacing:.04em}
+.lbl.lockLbl.part{background:linear-gradient(90deg,rgba(6,18,32,.72),rgba(4,10,20,.66))}   /* partly locked: no gold */
 /* recap card never overlaps the phone gear buttons (#gearBar: right column in portrait, top-centre row when short) */
 body:has(#gearBar.on) #recap{max-height:calc(100vh - 80px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow-y:auto}
 @media (min-height:521px){body:has(#gearBar.on) #recap{margin-left:calc(10px + env(safe-area-inset-left));max-width:calc(100vw - 112px - env(safe-area-inset-left) - env(safe-area-inset-right))}}

@@ -1568,17 +1568,18 @@ if(Q.get('mode')==='explore'&&VQ!=='explore'){setMode('explore');const p=(Q.get(
 #vHint{position:fixed;top:auto;bottom:calc(200px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:4;white-space:nowrap;max-width:92vw;padding:8px 14px;font:14px monospace;color:#fff;background:rgba(0,0,0,.7);border-radius:8px;pointer-events:none;opacity:0;transition:opacity .4s}#vHint.on{opacity:1}`;document.head.appendChild(css);
 const ex=document.createElement('button');ex.id='vExit';ex.textContent='✕ Exit';ex.setAttribute('aria-label','Exit view / view menu');document.body.appendChild(ex);
 const hint=document.createElement('div');hint.id='vHint';document.body.appendChild(hint);
-const mn=document.createElement('div');mn.id='vMenu';mn.innerHTML='<div><b>Paused · choose view</b><button data-v="orbit">1 ◎ Orbit</button><button data-v="fly">2 ✈ Fly</button><button data-v="tour">3 ▶ Tour</button><button data-v="resume">4 ↩ Resume</button></div>';document.body.appendChild(mn);
+const mn=document.createElement('div');mn.id='vMenu';mn.innerHTML='<div><b>Paused · choose view</b><button data-v="orbit">1 ◎ Orbit</button><button data-v="fly">2 ✈ Fly</button><button data-v="tour">3 ▶ Tour</button><button data-v="explore">🚶 Explore</button><button data-v="resume">4 ↩ Resume</button></div>';document.body.appendChild(mn);
 let tw=null;const menuOn=()=>mn.classList.contains('on'),hide=()=>mn.classList.remove('on');
 const show=()=>{if(document.pointerLockElement)document.exitPointerLock();mn.classList.add('on')};
 function go(v){hide();const from=mode;
+ if(v==='explore'&&mode==='explore')v='resume';   // already walking: Explore just closes the menu (setMode would reset the jetpack/web + pitch)
  if(v==='resume'){if(!MOBILE&&mode==='fly')R.domElement.requestPointerLock?.();return}
  if(v==='tour'){$('tour').click();return}
  const p0=C.position.clone(),q0=C.quaternion.clone();setMode(v);
  if(v==='orbit'&&(from==='explore'||from==='fly')){const tgt=orbit.target.clone(),dir=p0.clone().sub(tgt).setY(0);if(dir.lengthSq()<1)dir.set(0,0,1);
   const p1=tgt.clone().add(dir.normalize().multiplyScalar(140)).setY(Math.max(70,p0.y));tw={t:0,p0,p1,q0,tgt}}}
 mn.addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.v);else if(e.target===mn)go('resume')});
-ex.onclick=e=>{e.stopPropagation();menuOn()?go('resume'):show()};
+ex.onclick=e=>{e.stopPropagation();menuOn()?go('resume'):show()};if(Q.has('debug')||Q.has('exploretest'))window.__vMenu={show,go,on:menuOn};
 let hintT;const tip=m=>{hint.textContent=MOBILE?'Tap ✕ Exit to change view':'Esc to exit · 1 Orbit · 2 Fly · 3 Tour';hint.classList.add('on');clearTimeout(hintT);hintT=setTimeout(()=>hint.classList.remove('on'),4000)};
 document.addEventListener('pointerlockchange',()=>{if(!document.pointerLockElement&&mode==='fly'&&!tw&&!window.__lockSwap)show();window.__lockSwap=0});
 addEventListener('keydown',e=>{if(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;

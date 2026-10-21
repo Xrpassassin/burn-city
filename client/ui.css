@@ -300,6 +300,8 @@ body.touch #vExit::after{display:none}
 #vMenu button{min-height:48px!important;font:600 15px var(--f-ui)!important;color:var(--txt)!important;background:var(--fill)!important;border:1px solid var(--edge)!important;border-radius:12px!important;text-align:left;padding:0 16px}
 #vMenu button:hover{background:var(--ember-soft)!important;border-color:var(--ember-line)!important}
 #vMenu button[data-v=resume]{background:var(--ember-grad)!important;color:#1b0700!important;border:0!important}
+/* short landscape phones: 5 view rows would fill the screen, so two columns (title + Resume span both); targets stay 48px */
+@media (max-height:500px) and (orientation:landscape){#vMenu>div{grid-template-columns:1fr 1fr;min-width:min(480px,calc(100vw - var(--sa-l) - var(--sa-r) - 24px))!important;padding:16px!important}#vMenu>div>b,#vMenu button[data-v=resume]{grid-column:1/-1}}
 
 /* AEGIS modal */
 #aegisModal{background:rgba(6,3,3,.78)!important;z-index:var(--z-top)!important}

@@ -434,7 +434,10 @@ r.setAnimationLoop(() => {
       let mz = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
       if (joy.id !== null) { mx = joy.x; mz = -joy.y; } lastMx = mx;
       // auto-fire: crosshair on a zombie within the gun's effective range. me.ar = server's fireRange() (weapon in hand, Forge, Long Reach, last stand), so it follows swaps and buffs; 8.5 m if an old server doesn't send it
-      const autoR = me?.ar || 8.5; let auto = false; if (autoFire && me?.alive) for (const z of st.zombies) { const dx = z.x - me.x, dz = z.z - me.z, d = Math.hypot(dx, dz); if (d < autoR && d > 0.1 && (dx * Math.sin(yaw) + dz * Math.cos(yaw)) / d > 0.96) { auto = true; break; } }
+      const autoR = me?.ar || 8.5; let auto = false; if (autoFire && me?.alive) { const cand = []; for (const z of st.zombies) { const dx = z.x - me.x, dz = z.z - me.z, d = Math.hypot(dx, dz); if (d < autoR && d > 0.1 && (dx * Math.sin(yaw) + dz * Math.cos(yaw)) / d > 0.96) cand.push([d, z]); }
+        // nearest first, 1 LOS ray per candidate: never auto-fire at a zombie behind a wall (damage rules unchanged, server Z.los still decides hits)
+        cand.sort((a, b) => a[0] - b[0]); const myLv = pred?.lv ?? (world?.hasUp && (me.y || 0) > world.upH * 0.5 ? 1 : 0);
+        for (const [, z] of cand) { const zl = world?.hasUp && (z.y || 0) > world.upH * 0.5 ? 1 : 0; if (!world?.los || world.los(me.x, me.z, z.x, z.z, st.map?.[0] ?? 63, myLv, zl)) { auto = true; break; } } }
       if (swQ && me?.w2 >= 0) ZA.reload('pistol_reload');
       net.input({ yaw, mx, mz, fire: fire || auto, pi: Math.round(pitch * 100) / 100, use: useQ ? 1 : 0, sw: swQ ? 1 : 0, hold: keys.KeyF || useHold ? 1 : 0, ...(pkQ != null ? { pk: pkQ } : {}), ...(heliMod?.takeVote() ? { vote: 1 } : {}) }); useQ = swQ = false; pkQ = null;
       // client-side prediction for my own movement, reconciled to the newest authoritative snapshot

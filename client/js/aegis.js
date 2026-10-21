@@ -526,14 +526,20 @@ function opsClear() { for (const b of OPS.beacons) killBeacon(b); OPS.beacons = 
 function opsSpawn() {
   const now = clock(), w = Math.floor(now / WAVE), exp = w * WAVE + LIFE, lv = enabled() ? A.level : 0;
   const ok = lv >= 1 && (A.pinned || A.lastOk && A.fails === 0 && A.state === 'ok');
-  if (!enabled() || lv === 0) { if (OPS.beacons.length) { if (lv === 0 && enabled() && OPS.beacons.some(b => !b.done)) toastCity('🛰 AEGIS stood down: anomaly beacons cleared.'); opsClear(); } return; }
+  if (!enabled() || lv === 0) { OPS.prevLv = 0; OPS.alertPend = false; if (OPS.beacons.length) { if (lv === 0 && enabled() && OPS.beacons.some(b => !b.done)) toastCity('🛰 AEGIS stood down: anomaly beacons cleared.'); opsClear(); } return; }
   for (const b of OPS.beacons) if (!b.done && now > b.exp) { b.done = true; b.expired = true; b.fade = .001; }
-  if (!ok || now >= exp - 5e3) return;
-  const n = lv === 2 ? 3 : 1, pts = spots(w, 3); let fresh = 0;
+  // threat rose (or first read at ELEVATED/CRITICAL): beacons now, not at the next 5-of-8-min window. Off-window alert beacons get
+  // their own wave-seeded key/spots ('w<N>a-i') and a full LIFE from now; pending until the feed is ok.
+  if (lv > (OPS.prevLv || 0)) OPS.alertPend = true; OPS.prevLv = lv;
+  if (!ok) return;
+  const off = now >= exp - 5e3; if (off && !OPS.alertPend) return;
+  const n = lv === 2 ? 3 : 1, pts = spots(off ? w + 100003 : w, 3), aexp = off ? now + LIFE : exp, kw = off ? w + 'a' : w; let fresh = 0;
+  if (off && OPS.alertW === w && OPS.alertLv >= lv) { OPS.alertPend = false; return; }
   for (let i = 0; i < n; i++) {
-    const key = 'w' + w + '-' + i; if (OPS.beacons.some(b => b.k === key) || OPS.rec.done.includes(key)) continue;
-    OPS.beacons.push(makeBeacon(key, w, i, pts[i][0], pts[i][1], exp, lv)); OPS.spawned++; fresh++;
+    const key = 'w' + kw + '-' + i; if (OPS.beacons.some(b => b.k === key) || OPS.rec.done.includes(key)) continue;
+    OPS.beacons.push(makeBeacon(key, w, i, pts[i][0], pts[i][1], aexp, lv)); OPS.spawned++; fresh++;
   }
+  OPS.alertPend = false; if (off) { OPS.alertW = w; OPS.alertLv = lv; }
   if (fresh) { OPS.wave = w; const ds = [...new Set(OPS.beacons.filter(b => !b.done).map(b => b.dname))].join(', ');
     tick(`🛰 AEGIS RESPONSE OPS: ${fresh > 1 ? fresh + ' signal anomalies' : 'signal anomaly'} detected (${ds}). Go there and hold USE to stabilize.`);
     toastCity(`🛰 ${fresh > 1 ? fresh + ' signal anomalies' : 'Signal anomaly'} in ${ds} · check the minimap`); }

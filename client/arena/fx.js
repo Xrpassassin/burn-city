@@ -251,10 +251,7 @@ export function createZombieFX(scene, { low = false } = {}) {
         if (q.nc) { q.nc.visible = true; q.nc.position.set(q.x, q.y, q.z); q.nc.rotation.y = q.yaw; q.nc.rotation.x = 0; if (p.down) { q.nc.rotation.x = -1.3; q.nc.position.y = q.y + 0.25; } q.nc.userData.anim(t + p.id, q.spd > 0.5, true); q.seenT = t; continue; }
         q.down = p.down; const blink = p.inv && !p.down && Math.sin(t * 40) > 0; if (q.nc && p.inv && !p.down) q.nc.visible = !blink; drawP(j++, q, blink ? tmp2.setHex(0xffffff) : p.down ? tmp2.setHex(Math.sin(t * 8) > 0 ? 0xff2020 : 0x400000) : colorOf(p.id)); }
       for (const [id, q] of ps) if (q.nc && q.seenT !== t) { if (!st.players.some(p => p.id === id)) { disposeNftChar(q.nc); ps.delete(id); } else q.nc.visible = false; }
-      if (me && j < MAXP) { const d = Math.hypot(me.x - self.x, me.z - self.z), v = d < 3 ? d / Math.max(dt, 1e-3) : 0; self.spd += (v - self.spd) * Math.min(1, dt * 8);
-        Object.assign(self, { x: me.x, z: me.z, y: me.y || 0, yaw: me.yaw }); self.ph += dt * (self.spd > 0.5 ? 1.5 * self.spd : 4); drawP(j++, self, colorOf(myId), true);   // stride follows real speed
-        const bob = self.spd > 0.5 ? Math.abs(Math.sin(self.ph)) * 0.05 : 0; fpTorso.visible = true; fpTorso.position.set(me.x - Math.sin(me.yaw) * 0.08, (me.y || 0) + 0.66 + bob, me.z - Math.cos(me.yaw) * 0.08); fpTorso.rotation.set(0, me.yaw, me.lean || 0); }
-      else fpTorso.visible = false;   // own body seen when looking down
+      fpTorso.visible = false;   // local player: no world-space torso/legs (sleeves + gloves live on the view-model gun)   // own body seen when looking down
       done(PL, j); done(PL2, j);
       // first-person weapon + flames
       gun.visible = !!me; if (me) { setW(me.w || 0); if (curAc != null) accent.material.color.setHex(curAc); else accent.material.color.copy(colorOf(myId)); heatV += ((me.firing ? 1 : 0) - heatV) * Math.min(1, dt * (me.firing ? 0.9 : 0.5)); hot.material.color.setRGB(0.19 + heatV * 0.81, 0.06 + heatV * 0.45, 0.03 + heatV * 0.1); pilot.scale.setScalar(0.8 + Math.random() * 0.5);

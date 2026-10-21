@@ -41,7 +41,7 @@ const PAL=[0x3cf3ff,0xff8a2a,0xb06bff,0x4dff9a,0xffd23c,0xff5ab4,0x5aa0ff,0xff4d
 const colOf=s=>{let h=0;for(const ch of String(s))h=(h*31+ch.charCodeAt(0))|0;return PAL[Math.abs(h)%PAL.length]};
 window.__citySend=o=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))};
 let ws=null,myId=0,canChat=false,online=0,retry=0,lastSend=0,lastPos='',unread=0,open=false;
-const peers=new Map();window.__peers=peers;const layer=el('div');layer.id='ptags';document.body.append(layer);
+const peers=new Map();window.__peers=peers;let onMsg=null;if(/[?&]debug=1/.test(location.search))window.__cityMsg=m=>onMsg&&onMsg({data:JSON.stringify(m)});const layer=el('div');layer.id='ptags';document.body.append(layer);
 let geo=null;const mats=new Map();
 const CAP=MOB?24:120;let IB=null;
 function inst(){if(IB)return IB;const C=W(),g=droneGeo();const mk=(geo,mat)=>{const m=new THREE.InstancedMesh(geo,mat,CAP);m.count=0;m.frustumCulled=false;m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);C.S.add(m);return m};
@@ -49,14 +49,20 @@ function inst(){if(IB)return IB;const C=W(),g=droneGeo();const mk=(geo,mat)=>{co
    glow:mk(new THREE.CircleGeometry(1.8,14).rotateX(-Math.PI/2).translate(0,-.3,0),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}))};return IB}
 // remote walker: simple figure in the visitor's colour (verified NFT holders show their NFT character instead)
 function walkLook(p){const walk=p.md==='w'||p.md==='b';if(walk&&!p.nc&&!p.wk){const c=p.g.userData.color,k=(p.name||p.id||'').toString().split('').reduce((a,ch)=>a+ch.charCodeAt(0),0),g=buildWalker({suit:new THREE.Color(0x1a2030).lerp(c,.35).getHex(),accent:c.getHex(),skin:k%5,lite:!!(W()&&(W().MOBILE||W().TIER==='low'))});p.g.add(g);p.wk=g;p.wph=Math.random()*6}
-  if(p.wk){p.wk.visible=walk&&!p.nc;if(p.wk.visible){const dx=p.tx-p.g.position.x,dz=p.tz-p.g.position.z,mv=Math.abs(dx)+Math.abs(dz)>.05;if(mv)p.wk.rotation.y=Math.atan2(-dx,-dz);const now=performance.now();p.wph+=mv?(now-(p.wl||now))/1000*9:0;p.wl=now;poseWalker(p.wk,p.wph,mv?.8:0,now/1000);p.wk.position.y=p.md==='b'?.3:0}}
+  if(p.wk){p.wk.visible=walk&&!p.nc;if(p.wk.visible){const dx=p.tx-p.g.position.x,dz=p.tz-p.g.position.z,mv=Math.abs(dx)+Math.abs(dz)>.05;p.mv=mv;if(mv)p.wk.rotation.y=Math.atan2(-dx,-dz);const now=performance.now();p.wph+=mv?(now-(p.wl||now))/1000*9:0;p.wl=now;poseWalker(p.wk,p.wph,mv?.8:0,now/1000);p.wk.position.y=p.md==='b'?.3:0}}
   if(p.nc)p.nc.visible=walk;}
 function mkMarker(color){const g=new THREE.Group();g.userData.color=new THREE.Color(color);g.userData.core=new THREE.Object3D();W().S.add(g);return g}
 const _m4=new THREE.Matrix4(),_q4=new THREE.Quaternion(),_s4=new THREE.Vector3(1,1,1),_y4=new THREE.Vector3(0,1,0),_dk=new THREE.Color(0x2a3040);
-const GOLD=new THREE.Color(0xffb020);function drawInst(t){const I=inst();let n=0;const cam=W().C.position,list=[...peers.values()];if(list.length>CAP)list.sort((a,b)=>a.g.position.distanceToSquared(cam)-b.g.position.distanceToSquared(cam));
+const GOLD=new THREE.Color(0xffb020);
+// holder flair (server-verified BURN tier, bit 4 = OG): tint/scale the existing drone glow; walkers get one instanced feet glow (1 draw call), off on Low quality
+const FLC=[null,new THREE.Color(0xff7a1a),new THREE.Color(0xff3d6e),new THREE.Color(0xffd75a)],FLB=['','🔥','💎','🐋'],FLN=['','BURN holder','Big BURN holder','BURN whale'];const flLow=()=>W()&&W().TIER==='low';
+let FI=null;function flInst(){if(FI)return FI;FI=new THREE.InstancedMesh(new THREE.RingGeometry(.35,1.15,20).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}),CAP);FI.count=0;FI.frustumCulled=false;FI.instanceMatrix.setUsage(THREE.DynamicDrawUsage);W().S.add(FI);return FI}
+function setFlair(p,f){f=f|0;if(p.flt===f)return;p.flt=f;let b=p.tag.querySelector('.pfl');const t=f&3,og=f&4;if(!t&&!og){if(b)b.remove();return}if(!b){b=el('span','pfl');p.tag.querySelector('.pn').prepend(b)}b.textContent=(og?'OG ':'')+FLB[t];b.title=[og?'Long-time player':'',FLN[t]].filter(Boolean).join(' · ');b.dataset.t=t}
+const _fs=new THREE.Vector3();function drawInst(t){const I=inst();let n=0;const cam=W().C.position,list=[...peers.values()];if(list.length>CAP)list.sort((a,b)=>a.g.position.distanceToSquared(cam)-b.g.position.distanceToSquared(cam));
   for(const p of list){if(n>=CAP)break;if(p.md==='w'||p.md==='b'){continue}const P=p.g.position;_q4.setFromAxisAngle(_y4,p.r||0);_m4.compose(_v.set(P.x,P.y+2.4+Math.sin(t*2+p.id)*.25,P.z),_q4,_s4);
-    I.body.setMatrixAt(n,_m4);I.body.setColorAt(n,_dk.clone().lerp(p.g.userData.color,.35));I.glow.setMatrixAt(n,_m4);I.glow.setColorAt(n,p.k?GOLD:p.g.userData.color);
+    I.body.setMatrixAt(n,_m4);I.body.setColorAt(n,_dk.clone().lerp(p.g.userData.color,.35));{const ft=(p.flt&3)&&!flLow()?p.flt&3:0;if(ft){_m4.compose(_v,_q4,_fs.setScalar(1+ft*.18+Math.sin(t*3+p.id)*.06))}I.glow.setMatrixAt(n,_m4);I.glow.setColorAt(n,ft?FLC[ft]:p.k?GOLD:p.g.userData.color);if(ft)_m4.compose(_v,_q4,_s4)}
     _q4.setFromAxisAngle(_y4,(p.r||0)+t*25);_m4.compose(_v,_q4,_s4);I.rot.setMatrixAt(n,_m4);n++}
+  if(!flLow()){const F=flInst();let m=0;for(const p of list){if(m>=CAP)break;const ft=p.flt&3;if(!ft||!(p.md==='w'||p.md==='b')||!p.mv)continue;const P=p.g.position,sc=.8+ft*.15+Math.sin(t*6+p.id)*.08;_q4.setFromAxisAngle(_y4,t*1.5);_m4.compose(_v.set(P.x,P.y+.06,P.z),_q4,_fs.setScalar(sc));F.setMatrixAt(m,_m4);F.setColorAt(m,FLC[ft]);m++}F.count=m;F.instanceMatrix.needsUpdate=true;if(F.instanceColor)F.instanceColor.needsUpdate=true}else if(FI)FI.count=0;
   for(const k in I){I[k].count=n;I[k].instanceMatrix.needsUpdate=true;if(I[k].instanceColor)I[k].instanceColor.needsUpdate=true}}
 function upsert(id,name,guest,x,y,z,r){if(id===myId||!W()||!W().S)return;let p=peers.get(id);
   if(!p){const color=colOf(name);const tag=el('div','ptag');tag.style.setProperty('--c','#'+color.toString(16).padStart(6,'0'));const nm=el('span','pn',guest?'visitor':'✓ '+(/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(name)?name.slice(0,5)+'…'+name.slice(-4):name.length>14?name.slice(0,13)+'…':name));tag.append(nm);layer.append(tag);
@@ -98,9 +104,9 @@ renderFoot();
 
 function connect(){if(ws||document.hidden)return;/* new session: ids restart after a server restart, so forget every old id->NFT mapping and marker */for(const id of [...peers.keys()])drop(id);nfts.clear();const t=token();try{ws=new WebSocket(WS+(t?'&token='+encodeURIComponent(t):''))}catch(e){return later()}
   ws.onopen=()=>{retry=0;panel.classList.add('on')};
-  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
+  ws.onmessage=onMsg=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
     if(m.t==='w'){myId=m.id;canChat=m.canChat;window.__jetOK=!!m.jet;if(m.name){window.__myColor=colOf(m.name);dispatchEvent(new CustomEvent('bc-mycolor',{detail:window.__myColor}))}log.replaceChildren();(m.msgs||[]).forEach(x=>addMsg({...x},false));renderFoot();log.scrollTop=log.scrollHeight}
-    else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r,b,k,md,j,fs] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r);const q=peers.get(id);if(q){q.b=b;q.k=k;q.md=md||(b?'b':'f');q.j=j;q.fs=fs||0}}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
+    else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r,b,k,md,j,fs,fl] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r);const q=peers.get(id);if(q){q.b=b;q.k=k;q.md=md||(b?'b':'f');q.j=j;q.fs=fs||0;setFlair(q,fl)}}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
     else if(m.t==='c'){addMsg(m,true);bubble(m.pid,m.b)}
     else if(m.t==='fc'){dispatchEvent(new CustomEvent('bc-peer-catch',{detail:m}))}
     else if(m.t==='n'){for(const k in m.m){if(m.m[k])nfts.set(+k,m.m[k]);else nfts.delete(+k);const p=peers.get(+k);if(p)setNft(p)}}

@@ -218,7 +218,7 @@ function send(req, res_, o, type) {
   res_.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache', etag: o.etag }); res_.end(req.method === 'HEAD' ? undefined : o.body); return true;
 }
 module.exports = {
-  start, status: () => status, data: () => eco, _load: () => { eco = loadBase(); }, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover,
+  start, status: () => status, data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover,
   serve: (req, r) => out ? send(req, r, out, 'application/javascript; charset=utf-8') : false,
   serveLive: (req, r) => live ? send(req, r, live, 'application/json') : false,
 };

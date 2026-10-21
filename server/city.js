@@ -2,13 +2,14 @@
 // Presence: clients send {t:'p',x,y,z,r} (<=5/s accepted); server broadcasts one compact snapshot at 3 Hz, only when something changed.
 // Chat: signed-in (XAMAN) accounts only, stored in the social SQLite (channel 'CITY'), same clean()/profanity mask,
 // same rate limit as social chat (8 / 30 s), bans + admin hide honoured (admin hide/ban go through /admin/social/*).
-const Fish = require('./fish'), Pay = require('./payments'), { db, clean } = require('./social'), Nft = require('./nft'), Scam = require('./scam'), Hate = require('./hate');
+const Fish = require('./fish'), Pay = require('./payments'), { db, clean } = require('./social'), Nft = require('./nft'), Scam = require('./scam'), Hate = require('./hate'), Flair = require('./flair'), Eco = require('./eco');
+Flair.init({ rpc: Eco.rpc, pools: () => (Eco.data() || {}).pools || [] });
 const MAX = 60, CH = 'CITY', OWNER = process.env.OWNER_ACCT || Buffer.from('ck5iUjRHdzlkOUpSTGRrYjRyQWhrV0RjSnlLUmszOUZvQQ==', 'base64').toString();
 const JETSET = new Set([OWNER, ...['cnBVYUg4RzRIMW8xbnA4WUJESFpNSEdZSnd5b1I2RWdTVA==', 'ckR0VUVNRlZEaTNLN1RVUUFRTGk2eHhhMVdDZXI4NGRjQQ=='].map(x => Buffer.from(x, 'base64').toString())]);   // jetpack allowlist; compared server-side only
 const hasJet = a => !!(a && JETSET.has(a));
 const q = s => db.prepare(s);
 const st = {
-  getP: q('SELECT name, banned FROM profiles WHERE acct=?'),
+  getP: q('SELECT name, banned, created FROM profiles WHERE acct=?'),
   insP: q('INSERT OR IGNORE INTO profiles(acct,name,created,last_seen) VALUES(?,?,?,?)'),
   seen: q('UPDATE profiles SET last_seen=? WHERE acct=?'),
   ins: q('INSERT INTO chat(channel,acct,body,created) VALUES(?,?,?,?)'),
@@ -25,14 +26,15 @@ const bcast = o => { const s = JSON.stringify(o); for (const c of clients.values
 
 function attach(ws, url, pass, ip) {
   if (clients.size >= MAX || [...clients.values()].filter(c => c.ip === ip).length >= 6) { send(ws, { t: 'e', e: 'city_full' }); return ws.close(); }
-  const id = seq++; let acct = null, name;
+  const id = seq++; let acct = null, name, og = false;
   if (pass && /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(pass.acct)) {
     const t = Date.now(); st.insP.run(pass.acct, 'burner-' + pass.acct.slice(1, 6), t, t); st.seen.run(t, pass.acct);
-    const p = st.getP.get(pass.acct); if (!p.banned) { acct = pass.acct; name = p.name; }
+    const p = st.getP.get(pass.acct); if (!p.banned) { acct = pass.acct; name = p.name; og = Flair.isOg(p.created); }
   }
   if (!acct) name = ADJ[(Math.random() * ADJ.length) | 0] + NOUN[(Math.random() * NOUN.length) | 0] + '-' + (100 + ((Math.random() * 900) | 0));
-  const c = { id, ws, ip, acct, name, guest: !acct, x: 0, y: 0, z: 0, r: 0, seen: false, win: Date.now(), msgs: 0 };
+  const c = { id, ws, ip, acct, name, og, fl: 0, guest: !acct, x: 0, y: 0, z: 0, r: 0, seen: false, win: Date.now(), msgs: 0 };
   clients.set(id, c); dirty = true;
+  if (acct) c.fl = Flair.tier(acct, v => { c.fl = v; dirty = true; });
   c.nft = acct ? Nft.charFor(acct) : null; if (c.nft) bcast({ t: 'n', m: { [id]: c.nft } });
   { const all = {}; for (const o of clients.values()) if (o.nft) all[o.id] = o.nft; if (Object.keys(all).length) send(ws, { t: 'n', m: all }); }
   send(ws, { t: 'w', id, name, guest: c.guest, canChat: !!acct, jet: hasJet(acct), msgs: st.recent.all(CH).reverse().map(m => ({ id: m.id, acct: m.acct, name: m.name, b: m.body, ts: m.created })) });
@@ -67,8 +69,9 @@ function attach(ws, url, pass, ip) {
 }
 setInterval(() => {
   if (!dirty) return; dirty = false;
-  const p = [...clients.values()].filter(c => c.seen).map(c => [c.id, c.name, c.guest ? 1 : 0, c.x, c.y, c.z, c.r, c.b ? 1 : 0, c.k ? 1 : 0, c.md || 'f', c.j ? 1 : 0, c.fs || 0]);
+  const p = [...clients.values()].filter(c => c.seen).map(c => [c.id, c.name, c.guest ? 1 : 0, c.x, c.y, c.z, c.r, c.b ? 1 : 0, c.k ? 1 : 0, c.md || 'f', c.j ? 1 : 0, c.fs || 0, (c.fl || 0) | (c.og ? 4 : 0)]);
   bcast({ t: 's', n: clients.size, p });
 }, 333).unref();
+setInterval(() => { for (const c of clients.values()) if (c.acct) { const v = Flair.tier(c.acct, t => { c.fl = t; dirty = true; }); if (v !== c.fl) { c.fl = v; dirty = true; } } }, 120e3).unref();   // holder flair re-check (cache 10 min)
 setInterval(() => { const m = {}; let any = false; for (const c of clients.values()) if (c.acct) { const n = Nft.charFor(c.acct); if ((n?.id || null) !== (c.nft?.id || null)) { c.nft = n; m[c.id] = n; any = true; } } if (any) bcast({ t: 'n', m }); }, 60e3).unref();   // drop transferred characters live
 module.exports = { attach, count: () => clients.size };

@@ -294,7 +294,13 @@ export function createCodWorld(scene, L, { low = false } = {}) {
         if (!rollTag || rollTag.userData.txt !== txt) { if (rollTag) { box.remove(rollTag); rollTag.material.map.dispose(); rollTag.material.dispose(); } rollTag = label(txt, '#fff3a0', 512, 4.5); rollTag.userData.txt = txt; rollTag.position.y = 1.9; box.add(rollTag); } }
       else if (rollTag) { box.remove(rollTag); rollTag.material.map.dispose(); rollTag.material.dispose(); rollTag = null; } },
     // what pressing USE would do here (the server re-checks everything)
-    walkable, zoneOf, lift, onRamp, upH: UH, hasUp: !!UP, zoneName: (x, z, lv = 0) => L.zones[zoneOf(x, z, lv)]?.n || (lv ? '' : L.zones[zoneOf(x, z, 1)]?.n) || '',
+    walkable, zoneOf, lift,
+    // client copy of the server's same-floor flame LOS (server/cod.js los): tall walls + closed doors block, low obstacles/windows don't.
+    // Used only to pick auto-fire targets; cross-floor pairs return true (the server's Z.los still decides every hit).
+    los: (x0, z0, x1, z1, open, l0 = 0, l1 = l0) => { if (l0 !== l1) return true; const GG = l0 && UG ? UG : G, n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.7);
+      for (let k = 1; k < n; k++) { const c = Math.floor((x0 + (x1 - x0) * k / n) / CELL + GW / 2), r = Math.floor((z0 + (z1 - z0) * k / n) / CELL + GH / 2); if (r < 0 || r >= GH || c < 0 || c >= GW) continue;
+        const v = GG[r][c], i = r * GW + c; if (v >= 100) { const d = L.doors[v - 100]; if (!((open >> d.a) & 1 && (open >> d.b) & 1)) return false; }
+        else if (v < 0 && !(l0 ? v === -2 || RAMPAT[i] !== undefined || L.windows.some(w => w.lv && w.r === r && w.c === c) : (obstH.get(i) ?? 9) < 1.5 || winCell.has(i))) return false; } return true; }, onRamp, upH: UH, hasUp: !!UP, zoneName: (x, z, lv = 0) => L.zones[zoneOf(x, z, lv)]?.n || (lv ? '' : L.zones[zoneOf(x, z, 1)]?.n) || '',
     mini(st, myId, myY = 0) { jugOn = !!st.zombies?.some(z => z.ty === 3) || !!window.__jugTest; if ((mmT += 1) % 5 || !st.map) return; drawMini(st.map[0], st.players, myId, st.map[1], st.zombies, myY, st.quest); },
     prompt(me, m, pts, guns, perkBits, upBits = 0) { if (!m) return null; const [open, spot, st] = m;
       const op = m[0]; let bw = -1, bd = 2.6; WN.forEach((w, i) => { const on = ((op >> w.zone) & 1) && (w.behind == null || !((op >> w.behind) & 1)) && Math.abs((me.y || 0) - (w.lv ? UH : 0)) < 1.6, d = Math.hypot(me.x - w.ix, me.z - w.iz); if (on && d < bd && boards[i] < NB) { bd = d; bw = i; } });

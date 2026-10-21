@@ -100,7 +100,7 @@ GitHub `main` is the single source of truth, and **deploys are automatic: merge 
 - **Auto-fire (Zombies, on by default)**: `client/arena/index.html` reads `localStorage.bcAuto2` (on unless `'0'`); the old `bcAuto` key is ignored,
   so everyone started with it on once (bc-v48) and only an explicit toggle-off is remembered. Reach = server `fireRange(p)` in `server/game.js`
   (gun in hand, Forged ×1.15, Long Reach +8%/level, last-stand pistol 17/22 m), the same number the server fires with, sent as player snapshot
-  field 21 (`me.ar` in net.js); client falls back to 8.5 m. No client-side LOS (the server's `Z.los` still decides hits). Test: `test/zombie-sim.js` "auto range".
+  field 21 (`me.ar` in net.js); client falls back to 8.5 m. Target pick skips zombies with no line of sight: candidates in the cone are sorted nearest-first and get one `world.los()` ray each (`client/arena/cod.js`, a same-floor copy of the server's flame LOS; cross-floor pairs pass), so it never fires at a zombie behind a wall. Damage rules unchanged (the server's `Z.los` still decides hits). Test: `test/zombie-sim.js` "auto range".
 
 ## Rules for bots
 - One bot at a time; one branch per feature (`feat/<name>`), PR into `main`.
@@ -154,6 +154,7 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   `__aegis.force(lv)` so table/beacons/drones follow; `null` returns to the feed. State: `__aegisPyr.{level,colHex,beamA,glowA,screensLive}`.
 - **Fail safe**: API down / bad payload = pyramid idle with standby posters, no table/beacons/drones, city untouched. Note the live API only sends
   CORS for the production origin, so on localhost the feed shows `error` (tests route it).
+- **Beacons on alert** (sw bc-v51-polish): when the level rises (or the first feed read is ELEVATED/CRITICAL) outside the live 5-of-8-min window, beacons spawn at once with key `w<N>a-i`, wave-seeded spots (`spots(w+100003)`) and a full 5 min life from now; one alert set per wave (CRITICAL after ELEVATED adds the missing two). Test: `__aegis.tOff` into minute 6 + `__aegisPyr.force('CRITICAL')` → 3 beacons.
 - Gaps: beacons are ~6 draws each (only at ELEVATED/CRITICAL); phones on the low tier get 1 face screen; pins on the globe are no longer
   individually tappable (the console lists the cams).
 
@@ -232,7 +233,7 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   - **City unloaded while inside** (`cityOff`/`cityOn` in wilds-gate.js): every city scene child is hidden (lights, avatar, companion,
     peers `userData.peer`, deep root `userData.wildsDeep` stay), new city objects are hidden as they appear, every non-deep collider is stashed,
     `window.__cityPaused = true` (app.js frame skips `anim`/cars/TL/labels/minimap/etc.; airport, citylife, events, npc, fish, boat, retain, aegis
-    ticks return early; FX/pumpEvents + multiplayer keep running), `body.wl-cityoff` hides labels/minimap/NPC tags, fog `0.021` (phones 0.026),
+    ticks return early; FX/pumpEvents + multiplayer keep running), `body.wl-cityoff` hides labels/minimap/NPC tags and the city-only HUD (`#hud` stats panel, `#status`/`#wchip`/`#live` chips, `#evbanner`, `#tourCap`, `#info`, `#tip`; restored on return), fog `0.021` (phones 0.026),
     background = fog colour, camera far 320. Nothing is destroyed, so coming back is instant. Tree colliders are pooled (~150 within 44 m).
   - **Gameplay reuse**: wilds.js `zoneApi.setZone(ZONE)` runs creatures/encounters/binding/companion/HUD/journal/NPC talk (`talkNpc`) against
     the deep world (spawn slots with `lv` bands, `qtag` for quest creatures, zone `keep()` / `respawn()`); music stays the forest score.
@@ -253,6 +254,7 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   (unit test `node tools/wilds/rules.test.mjs`, which also checks one tag = one objective via `meta.obj`).
 - **Test hooks** (`?wildstest` / `?debug=1`): `__wildsGate.deep` (`enterDeep`, `exitDeep`, `abortDeep`, `unloadDeep`, `CO`, `active()`),
   `__wildsGate.EX` / `exitPrompt` / `travelLock` / `shrink`, `__wildsDeep` (`treeCount`, `visChunks`, `pool`, `test.interactor/act/pick`).
+- **Leak check (sw bc-v51-polish)**: desktop `?wildstest`, `__city.R.info.memory.geometries` after 3 enterDeep/exitDeep/unloadDeep trips: 917 (forest) → 920 → 922 → 923; ~36-50 deep geometries are freed each trip, the +3/+2/+1 residue shrinks (city-side churn, not deep disposal), so no fix needed.
 - **Gaps (M2)**: Ashen Hollow / "A Pulse Beneath Ash" and the Confluence fusion itself are not built (preview only); deep players see each
   other but the city's own player list has no realm label; the companion re-appears beside you after each crossing (no follow animation
   through the veil); Fernway Verge is not an interior space (only the deep area is "bigger on the inside").

@@ -5,6 +5,8 @@ Object.assign(process.env, { DATA_DIR: DIR, PORT: '0', TOKEN_SECRET: 'simsecret'
 const Scam = require('../server/scam'), Srv = require('../server/server'), Pay = require('../server/payments'), WS = require('ws');
 let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? '  PASS ' : '  FAIL ') + m); };
 const wait = ms => new Promise(r => setTimeout(r, ms));
+// Poll instead of fixed sleeps: CI runners can stall the event loop for hundreds of ms. Resolves with fn()'s first truthy value, or undefined after `ms`.
+const until = async (fn, ms = 5000, every = 15) => { const end = Date.now() + ms; for (;;) { const v = fn(); if (v || Date.now() >= end) return v || undefined; await wait(every); } };
 (async () => {
   console.log('Chat filter');
   const blk = ['FREE XRP giveaway', 'airdrop live now', 'claim your BURN here', 'support will dm you', 'DM me for help', 'verify your wallet', 'share your secret key', 'join t.me/burnclaim', 'sEdTM1uX8pu2do5XvTnutH6HsouMaM2', 'snoPBrXtMeMyMHUVTgbuqAfg1SUTb',
@@ -32,20 +34,20 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   r = await fetch(H + '/admin/ranked/matches', { headers: { 'x-admin-token': 'wrong' } }); ok(r.status === 403, 'admin: wrong token -> 403');
 
   console.log('WebSocket hardening');
-  const open = (q, o = {}) => new Promise(res => { const w = new WS('ws://127.0.0.1:' + port + '/?' + q, o), msgs = []; let code = null; w.on('message', d => msgs.push(JSON.parse(d))); w.on('close', c => code = c); w.on('error', () => {}); setTimeout(() => res({ w, msgs, code: () => code }), 400); });
+  const open = (q, o = {}) => new Promise(res => { const w = new WS('ws://127.0.0.1:' + port + '/?' + q, o), msgs = []; let code = null; w.on('message', d => msgs.push(JSON.parse(d))); w.on('close', c => code = c); w.on('error', () => {}); until(() => msgs.length || code !== null).then(() => res({ w, msgs, code: () => code })); });   // settled = server's first message (accepted) or a close (rejected)
   const evil = await open('mode=tron', { headers: { origin: 'https://evil.example' } }); ok(evil.code() === 1008, 'WS: foreign origin rejected');
   const many = []; for (let i = 0; i < 14; i++) many.push(await open('mode=tron')); ok(many.filter(x => x.code() === 1008).length >= 1, 'WS: per-IP connection cap enforced');
-  many.forEach(x => x.w.close()); await wait(300);
-  const big = await open('mode=tron'); big.w.send('x'.repeat(2000)); await wait(300); ok(big.code() !== null, 'WS: oversized message closes the socket');
+  many.forEach(x => x.w.close()); await until(() => many.every(x => x.code() !== null));
+  const big = await open('mode=tron'); big.w.send('x'.repeat(2000)); await until(() => big.code() !== null); ok(big.code() !== null, 'WS: oversized message closes the socket');
   const g = await open('mode=tron'); g.w.send(JSON.stringify({ t: 'i', turn: 999 })); g.w.send(JSON.stringify({ t: 'evil' })); g.w.send('[1,2]'); await wait(200); ok(g.code() === null, 'WS: junk/impossible game messages ignored safely');
   g.w.close(); big.w.close?.();
   console.log('City chat over WS (signed-in)');
   const B = xrpl.Wallet.generate().classicAddress, tok = Pay.sign({ acct: B, exp: Date.now() + 1e6 });
-  const c = await open('mode=city&token=' + encodeURIComponent(tok)); const say = async t => { c.msgs.length = 0; c.w.send(JSON.stringify({ t: 'c', b: t })); await wait(150); return c.msgs.find(m => m.t === 'c' || m.t === 'e'); };
-  let m = await say('hello <script>alert(1)</script>'); ok(m.t === 'c' && !m.b.includes('<script>'), 'HTML is neutralised: ' + m.b);
-  m = await say('check evil.com'); ok(m.t === 'c' && m.b === 'check [link removed]', 'link removed in live chat');
-  m = await say('free xrp airdrop'); ok(m.t === 'e' && m.e === 'blocked_scam', 'scam pitch blocked in live chat');
-  m = await say('go bad.net'); m = await say('normal msg'); ok(m.t === 'e' && m.e === 'muted', 'repeat offender auto-muted');
+  const c = await open('mode=city&token=' + encodeURIComponent(tok)); const say = async t => { c.msgs.length = 0; c.w.send(JSON.stringify({ t: 'c', b: t })); return until(() => c.msgs.find(m => m.t === 'c' || m.t === 'e')); };
+  let m = await say('hello <script>alert(1)</script>'); ok(m?.t === 'c' && !m.b.includes('<script>'), 'HTML is neutralised: ' + m?.b);
+  m = await say('check evil.com'); ok(m?.t === 'c' && m.b === 'check [link removed]', 'link removed in live chat');
+  m = await say('free xrp airdrop'); ok(m?.t === 'e' && m.e === 'blocked_scam', 'scam pitch blocked in live chat');
+  m = await say('go bad.net'); m = await say('normal msg'); ok(m?.t === 'e' && m.e === 'muted', 'repeat offender auto-muted');
   c.w.close();
 
   console.log('Treasury watchdog');

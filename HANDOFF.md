@@ -33,6 +33,7 @@ PORT=8080 DATA_DIR=./.data DRY_RUN=true npm start
 ```
 Before any deploy: syntax checks pass, then smoke test on PC and mobile:
 City explore, Zombies match (downed/revive, reconnect), fishing (F / Space / Esc), dungeon character creation + one fight. No console errors.
+Server suites (`npm test`, `npm run test:all`, also run by `deploy.yml`): use polling, not fixed sleeps (wait until the condition holds, ~5 s cap; drive game rules with simulated `room.step(dt)` ticks), and pin any randomness a check doesn't test (e.g. `p.inv` so a surge can't end the match).
 
 ## Deploy
 GitHub `main` is the single source of truth, and **deploys are automatic: merge to `main` and it is live within ~3 minutes.**

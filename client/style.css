@@ -191,3 +191,4 @@ body.replay #wchip{opacity:.6}
 body:has(#gearBar.on) #recap{max-height:calc(100vh - 80px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow-y:auto}
 @media (min-height:521px){body:has(#gearBar.on) #recap{margin-left:calc(10px + env(safe-area-inset-left));max-width:calc(100vw - 112px - env(safe-area-inset-left) - env(safe-area-inset-right))}}
 @media (max-height:520px){body:has(#gearBar.on) #recap{top:calc(112px + env(safe-area-inset-top));max-height:calc(100vh - 120px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}}
+.ptag .pfl{margin-right:4px;font-size:10px;letter-spacing:.02em}.ptag .pfl[data-t="2"]{filter:drop-shadow(0 0 3px #ff3d6e)}.ptag .pfl[data-t="3"]{filter:drop-shadow(0 0 4px #ffd75a)}

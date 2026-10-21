@@ -216,7 +216,7 @@ addEventListener('keydown', e => { if (mobile || e.repeat || /INPUT|TEXTAREA|SEL
 addEventListener('keyup', e => { if (e.code === 'KeyF') keys.KeyF = 0; });
 addEventListener('keydown', e => { keys[e.code] = 1; if (mode === 'zombie' && !e.repeat) { if (e.code === 'KeyF') useQ = true; if (draftO && /Digit[123]/.test(e.code)) { pkQ = +e.code.slice(5) - 1; return; } if (/KeyX|Digit1|Digit2/.test(e.code)) swQ = true; } if (mode === 'tron' && !e.repeat) { if (/KeyA|ArrowLeft/.test(e.code)) net?.input({ turn: -1 }); if (/KeyD|ArrowRight/.test(e.code)) net?.input({ turn: 1 }); } });
 addEventListener('keyup', e => keys[e.code] = 0);
-addEventListener('mousemove', e => { if (document.pointerLockElement) { yaw -= e.movementX * 0.003 * lookSens; pitch = Math.max(-0.35, Math.min(0.35, pitch - e.movementY * 0.002 * lookSens)); } });
+addEventListener('mousemove', e => { if (document.pointerLockElement) { yaw -= e.movementX * 0.003 * lookSens; pitch = Math.max(-PLIM, Math.min(PLIM, pitch - e.movementY * 0.002 * lookSens)); } });
 r.domElement.addEventListener('mousedown', e => { if (mode === 'zombie' && !document.pointerLockElement && !mobile) r.domElement.requestPointerLock?.()?.catch?.(() => {}); fire = true; }); addEventListener('mouseup', () => fire = false);
 addEventListener('keydown', e => { if (e.code === 'Space') { fire = true; e.preventDefault(); } }); addEventListener('keyup', e => { if (e.code === 'Space') fire = false; });
 let touchX = null;
@@ -237,7 +237,7 @@ addEventListener('touchstart', e => { if (!zTouch() || (e.target.closest('button
 addEventListener('touchmove', e => { if (!zTouch()) return; e.preventDefault();
   for (const t of e.changedTouches) {
     if (t.identifier === joy.id) setJoy(t);
-    else if (t.identifier === look.id) { yaw -= (t.clientX - look.x) * 0.0055 * lookSens; pitch = Math.max(-0.35, Math.min(0.35, pitch - (t.clientY - look.y) * 0.003 * lookSens)); look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
+    else if (t.identifier === look.id) { yaw -= (t.clientX - look.x) * 0.0055 * lookSens; pitch = Math.max(-PLIM, Math.min(PLIM, pitch - (t.clientY - look.y) * 0.003 * lookSens)); look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
 let fireId = null;
 const tEnd = e => { for (const t of e.changedTouches) { if (t.identifier === joy.id) { joy.id = null; joy.x = joy.y = 0; $('#joy').hidden = true; }
   if (t.identifier === look.id) look.id = null; if (t.identifier === fireId) { fireId = null; fire = false; $('#firebtn').classList.remove('on'); } } };
@@ -367,6 +367,7 @@ let tmsgUntil = 0; function tronMsg(h, ms) { tmsgUntil = performance.now() + ms;
 const TINT = new THREE.Color(), TC = new THREE.Color();
 function tronCol(id) { const ro = net.roster.get(id) || {}; TINT.copy(COL(id, 'skin')); if (ro.team) { TC.set(TEAMC[ro.team - 1]); TINT.lerp(TC, 0.72); } return TINT; }
 const DIRYAW = [Math.PI / 2, 0, -Math.PI / 2, Math.PI];
+const PLIM = 1.35;   // look up/down limit (~77°); the server clamps aim pitch to ±1.4
 let pred = null, pitch = 0, autoFire = localStorage.bcAuto === '1', lookSens = +(localStorage.bcSens || 1);
 let last = performance.now(), w0, lastHp = 100, overUntil = 0, overInfo = {};
 if (P.get('debug')) Object.assign(window, { __id: () => net?.me, __tp: (x, z, lv = 0, hp = 0) => { net?.ws.send(JSON.stringify({ t: 'tp', x, z, lv, hp })); if (pred) { pred.x = x; pred.z = z; pred.lv = lv; } }, __za: ZA, __music: MUSIC, __hb: f => ZA.force(f), __st: () => net?.state(), __pred: () => pred, __world: () => world, __me: () => pred && { x: pred.x, z: pred.z, y: pred.y, lv: pred.lv, yaw, map: net?.buf[net.buf.length-1]?.m, layout: net?.map }, __aim: (y, p = 0) => { yaw = y; pitch = p; }, __use: () => useQ = true, __swap: () => swQ = true, __b: () => net?.buf[net.buf.length-1]?.b });   // local test hook
@@ -423,7 +424,7 @@ r.setAnimationLoop(() => {
         ZA.tick(dt, me ? { x: pred.x, y: pred.y || 0, z: pred.z, yaw, hp: me.hp, max: me.perks & 1 ? 250 : 100, alive: !!me.alive, down: !!me.down } : null, st.zombies, st.players.map(p => p.id === net.me ? { ...p, x: pred.x, z: pred.z, y: pred.y } : p), net.me);
         if (!sfx.has('groan') && (groanT -= dt) <= 0) { groanT = 1.6 + Math.random() * 2.6; let best = null, bd = 1e9; for (const z of st.zombies || []) { const d = Math.hypot(z.x - pred.x, z.z - pred.z); if (d < bd && Math.random() < 0.7) { bd = d; best = z; } }
           if (best) sfx.groan(bd, Math.max(-0.8, Math.min(0.8, Math.sin(Math.atan2(best.x - pred.x, best.z - pred.z) - yaw) * -0.8))); } }
-      FX.update(dt, st, me && me.alive && !me.down && pred ? { x: pred.x, z: pred.z, y: pred.y || 0, yaw, firing: !!me.firing, moving: pred.moving, w: me.w } : null, net.me, id => COL(id, 'skin'), flameCol, NFTOF, API);
+      FX.update(dt, st, me && me.alive && !me.down && pred ? { x: pred.x, z: pred.z, y: pred.y || 0, yaw, pitch, firing: !!me.firing, moving: pred.moving, w: me.w } : null, net.me, id => COL(id, 'skin'), flameCol, NFTOF, API);
       if (me) { const px = pred ? pred.x : me.x, pz = pred ? pred.z : me.z; cam.position.set(px, (pred ? pred.y || 0 : me.y || 0) + 1.6 + (pred?.moving ? Math.sin(now / 120) * 0.03 : 0), pz); cam.rotation.set(pitch, yaw + Math.PI, 0, 'YXZ');
         $('#fuel').firstChild.style.width = me.fuel + '%'; }
       const rk = net.buf[net.buf.length-1]?.rk; $('#rkstart').hidden = !(rk && rk[0] === 'lobby' && !rk[1]); $('#info').textContent = rk && rk[0] === 'lobby' ? `🏆 Ranked lobby · ${rk[2]} player${rk[2] === 1 ? '' : 's'} here · ${rk[1] ? 'starting in ' + rk[1] + 's' : 'waiting for the creator to start'}` : `${rk ? '🏆 Ranked · ' : ''}Wave ${st.wave} · Zombies ${st.zombies.length} · Score ${st.score} · HP ${me ? me.hp : 0}`;

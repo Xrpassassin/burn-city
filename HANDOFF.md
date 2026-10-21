@@ -116,6 +116,25 @@ _Auto-deploy verified 2026-10-19._
 - Server clip job (`server/aegis-clips.js`): OFF unless `AEGIS_CLIPS=1` and the image has yt-dlp + ffmpeg (`--build-arg AEGIS_TOOLS=1`).
   Needs a bigger machine than the current 256 MB shared-cpu VM. YouTube ToS risk: prefer clips supplied by the AEGIS API.
 
+## UI design system (client/ui.css "Ember Glass")
+- `client/ui.css` is loaded **last** in `index.html` and restyles every overlay, including panels other modules inject. `style.css` keeps structure only.
+  Arena uses the same tokens in `client/arena/arena-ui.css`; Eternal Grind keeps its own look in `client/dungeon/eg.css`.
+- **Tokens** (`:root` in ui.css): type `--f-ui/--f-mono/--t-*`, surfaces `--glass/--glass-2/--edge/--hair`, brand `--ember*`, shape `--r*`,
+  sizes `--tap:44px` (touch minimum) and `--ctl` (toolbar height: 40 desktop, 44 on touch), layout zones `--top/--row2/--left/--right/--bottom`.
+  Position new floating UI with the zone tokens, never raw px from the screen edge.
+- **z-order scale** (use the tokens, not numbers): `--z-world 2` (labels, toasts) < `--z-hud 10` (toolbar, status chips, minimap, HUD)
+  < recap card 20 < `--z-ctl 30` (touch controls, gear column) < `--z-pop 45` (popovers) < `--z-panel 75` (#info card)
+  < overflow menu `#more` 76 < `--z-modal 100` (guide, replay, shops) < `--z-top 130` (AEGIS modal). The 3D canvas has no z-index;
+  toolbar/menu buttons carry `position:relative;z-index:1` so taps never land on it. A closed `#more` is `visibility:hidden`.
+- **Safe areas**: `viewport-fit=cover` is set on all three pages. Only use `--sa-t/--sa-b/--sa-l/--sa-r` (= `env(safe-area-inset-*)`), via the zone
+  tokens. Touch `--bottom` has a 10px floor above the inset (iPhone home bar). Test with emulated insets (portrait 47/34, landscape 47 L/R + 21 bottom)
+  (headless Chrome reports 0 insets, so test harnesses rewrite `env(safe-area-inset-*)` in the served CSS).
+- **44px rule**: on touch (`body.touch`, set by `js/ui.js`), every button, chip, summary, close ✕ and card link is at least 44x44. Short landscape phones
+  (`max-height:500px`) get the same; lay out in two columns rather than shrinking targets.
+- Layout groups are built in `js/ui.js` (mode segment, `#more` overflow menu, `#status` chips, `#gearBar`, body classes `mFly/mExplore/moreOpen/uiHudOpen`).
+  It only moves existing elements; ids and handlers stay intact. Closed HUD `<details>` sections render no boxes (`display:none`) so audits and hit tests stay honest.
+- Bump `VERSION` in `client/sw.js` (`bc-v<N+1>-<slug>`, one above main) on every client change.
+
 ## The Wilds — Cinderwilds forest M1 (lazy-loaded)
 - **Files**: `client/js/wilds-gate.js` (always loaded, small: trailhead gate + signs, the PvP/PvE warning, loading veil, lazy-load/unload,
   every city hook), `client/js/wilds.js` (the forest: world build, creatures AI, encounters, Mara Venn + quests, journal, HUD),

@@ -45,7 +45,7 @@ i.demo{font-style:normal;font-size:.55em;letter-spacing:1px;background:#b48cff33
 #burnCount{margin:4px 0;font-size:11px}#src{margin-top:6px;font-size:10px;line-height:1.45}#src a{color:#9ffcff}
 .row.tl{display:flex;align-items:center;gap:4px}.row.tl input{flex:1;min-width:60px}.row.tl button{background:#0b1430;color:#cfe9ff;border:1px solid #2bd9ff44;border-radius:4px;padding:1px 6px;font:inherit;cursor:pointer}
 body.replay #tlDate{color:#ffcf6a}
-@media (max-width:700px){#live{top:auto;bottom:10px;right:10px}#toasts{top:auto;bottom:40px}#evbanner{font-size:14px;top:19%;letter-spacing:1px}#hud{max-width:44vw}}
+
 
 #tourCap{position:fixed;left:50%;bottom:9%;transform:translateX(-50%);font:13px ui-monospace,Menlo,monospace;color:#e6f6ff;background:#050a18b8;padding:7px 14px;border-radius:10px;opacity:0;transition:opacity .45s ease;pointer-events:none;z-index:5;max-width:86vw;text-align:center}#tourCap.show{opacity:1}
 /* PWA install UI */
@@ -55,14 +55,8 @@ body.replay #tlDate{color:#ffcf6a}
 /* Mobile crowding fix: HUD title on its own left column, buttons to the right, event banner below both, safe areas */
 #hud{top:calc(10px + env(safe-area-inset-top));left:calc(10px + env(safe-area-inset-left))}
 #btns{top:calc(10px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right))}
-@media (max-width:700px){
- #hud{max-width:38vw;padding:6px 9px}#hud .hdr{font-size:10px;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- #hud.open{max-width:calc(100vw - 20px);z-index:7}
- #btns{max-width:58vw;gap:4px}#btns button{padding:5px 7px;font-size:10.5px}
- #evbanner{top:calc(118px + env(safe-area-inset-top));font-size:13px;max-width:94vw}
- #banner{top:calc(160px + env(safe-area-inset-top));font-size:18px;letter-spacing:3px}
-}
-@media (max-width:700px){#hud{box-sizing:border-box;max-width:34vw}#hud.open{max-width:calc(100vw - 20px)}#btns{max-width:calc(66vw - 30px)}}
+
+
 #iosHint{bottom:calc(150px + env(safe-area-inset-bottom))}
 /* v4: guide, token card buttons, music */
 #btns #guideBtn,#btns #musicBtn{min-width:30px}#btns #musicBtn.on{color:#ffb36b;border-color:#ff7a18}
@@ -171,13 +165,13 @@ body.replay #tlDate{color:#ffcf6a}
 #cityChat.open{gap:0}#cityChat.open .cch{border-radius:0 0 12px 12px}
 #cityChat .clog{max-height:min(240px,32vh)}
 #cityChat .ctoast{right:0;left:auto;width:min(300px,calc(100vw - 24px))}
-@media (max-width:700px){#cityChat{bottom:calc(52px + env(safe-area-inset-bottom))!important;right:10px}#live{bottom:calc(10px + env(safe-area-inset-bottom));right:10px;top:auto}#toasts{bottom:calc(120px + env(safe-area-inset-bottom))}#bagList{bottom:calc(120px + env(safe-area-inset-bottom))}}
-@media (min-width:701px){#info{bottom:74px}}
-@media (max-width:700px){#toasts{width:min(250px,calc(100vw - 150px))}}
+
+
+
 #wchip{position:fixed;right:12px;top:calc(84px + env(safe-area-inset-top));z-index:1;min-height:36px;padding:0 14px;border-radius:18px;border:1px solid #ffffff22;background:rgba(5,10,24,.72);color:#e6f2ff;font:600 12.5px system-ui,-apple-system,sans-serif;cursor:pointer;white-space:nowrap;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-@media (max-width:700px){#wchip{right:auto;left:10px;transform:none;top:calc(64px + env(safe-area-inset-top));font-size:11.5px;min-height:32px}}
+
 body.replay #wchip{opacity:.6}
-@media (min-width:701px){#toasts{top:126px}}
+
 #info{z-index:75!important}
 
 .bamm .bah{font:700 12px system-ui;opacity:.8;margin:8px 0 4px}#bagBtn.dimOn::after{content:' · dim';opacity:.8}.bdim.on{background:#7dffcf33;border-color:#7dffcf;color:#dfffee}

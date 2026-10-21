@@ -97,13 +97,13 @@ async function proceed() {
 function unload() { if (!loaded()) return; note('unload'); mod.unload(); G.unloads++; G.state = 'idle'; G.farSince = 0; }
 // ---------------------------------------------------------------- the PvP/PvE warning
 const css = `
-#wlWarn{position:fixed;inset:0;z-index:47;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;background:radial-gradient(ellipse at center,rgba(60,4,2,.72),rgba(0,0,0,.92));color:#fff;font-family:system-ui,sans-serif;animation:wlIn .35s ease-out}
+#wlWarn{position:fixed;inset:0;z-index:calc(var(--z-top,130) + 1);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;background:radial-gradient(ellipse at center,rgba(60,4,2,.72),rgba(0,0,0,.92));color:#fff;font-family:system-ui,sans-serif;animation:wlIn .35s ease-out}
 #wlWarn h1{font:900 clamp(22px,5.4vw,46px)/1.15 system-ui,sans-serif;letter-spacing:.04em;color:#ff3a1a;text-shadow:0 0 18px #ff2a00,0 0 2px #fff;margin:0 0 14px;max-width:900px}
 #wlWarn p{color:#ffd0b8;max-width:520px;font-size:14px;margin:0 0 20px}#wlWarn .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
 #wlWarn button{min-width:150px;min-height:52px;border-radius:12px;font:800 17px system-ui,sans-serif;cursor:pointer;border:1px solid #ff8a3a;background:#2a0c06;color:#fff}#wlWarn button.go{background:#c2300c;border-color:#ffb06a;box-shadow:0 0 20px #ff3a0a88}
 @keyframes wlIn{from{opacity:0}to{opacity:1}}
 body.wl-lock #touch,body.wl-lock #prompt{display:none!important}
-#wlVeil{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 35%,#1f3a22 0%,#0c1a10 55%,#050a06 100%);color:#e8ffd8;font-family:system-ui,sans-serif;animation:wlIn .3s ease-out;transition:opacity .6s}
+#wlVeil{position:fixed;inset:0;z-index:calc(var(--z-top,130) + 2);display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 35%,#1f3a22 0%,#0c1a10 55%,#050a06 100%);color:#e8ffd8;font-family:system-ui,sans-serif;animation:wlIn .3s ease-out;transition:opacity .6s}
 #wlVeil.out{opacity:0;pointer-events:none}
 #wlVeil .wv-trees{position:absolute;left:0;right:0;bottom:0;height:46%;opacity:.85;background:
  linear-gradient(transparent 0 0),

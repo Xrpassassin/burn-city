@@ -49,6 +49,7 @@ function tryGen(R) {
         if ((l.every(v => v === a) && rr.every(v => v === b)) || (l.every(v => v === b) && rr.every(v => v === a))) out.push([[c, r], [c, r + 1]]); } }
     // keep away from the room's corners: drop the outermost candidates when there are plenty
     return out.length > 4 ? out.slice(1, -1) : out; }
+  const doorCells0 = () => DOORDEF.flatMap(d => d[2]);
   const DOORDEF = [], link = new Set(), addDoor = (a, b, cost) => { const s = doorSpots(a, b); if (!s.length) return false; const cells = pick(s); for (const [c, r] of cells) G[r][c] = 100 + DOORDEF.length; DOORDEF.push([a, b, cells, cost]); link.add(a + ':' + b); return true; };
   if (!addDoor(0, 1, 750)) return null;
   const adj = (a, b) => doorSpots(a, b).length > 0;
@@ -59,9 +60,25 @@ function tryGen(R) {
   for (let k = 0; k < 2; k++) { const a = pick(rest), b = pick(rest); if (a !== b && !link.has(a + ':' + b) && !link.has(b + ':' + a) && adj(a, b)) addDoor(a, b, 1500); }   // a couple of loops between rooms
   // every zone must be reachable through the door graph
   { const seen = new Set([0]); let grew = true; while (grew) { grew = false; for (const [a, b] of DOORDEF) { if (seen.has(a) !== seen.has(b)) { seen.add(a); seen.add(b); grew = true; } } } if (seen.size < NZ) return null; }
+  // 4b. rooftop helipad (helicopter finale): an upper deck over the outer end of a big room, a 2x4 ramp up to it from inside that room,
+  // and a buyable door on the ramp foot. Placed before windows/obstacles so nothing overlaps it. No fit -> this attempt fails (next seed).
+  const PADZ = NZ, PAD = (() => { const cand = shuffle([...Array(NZ).keys()].slice(2));
+    for (const z of cand) { const [c0, c1, r0, r1] = ZONES[z].r, w = c1 - c0 + 1, h = r1 - r0 + 1; if (w < 9 || h < 11) continue;
+      const outerTop = r0 <= 1, DW = 7, DH = 5;   // deck size in cells; the deck hugs the outer map wall so its vents face outside
+      for (let k = 0; k < 6; k++) { const dc0 = ri(c0 + 1, c1 - DW), dr0 = outerTop ? r0 : r1 - DH + 1, dr1 = dr0 + DH - 1, rc = dc0 + 2 + ri(0, DW - 6);
+        const rr0 = outerTop ? dr1 + 1 : dr0 - 4, rr1 = rr0 + 3, fr = outerTop ? rr1 + 1 : rr0 - 1, fr2 = outerTop ? fr + 1 : fr - 1;   // ramp rows, door row, one free row past it
+        const need = []; for (let r = dr0; r <= dr1; r++) for (let c = dc0; c <= dc0 + DW - 1; c++) need.push([c, r]); for (let r = rr0; r <= rr1; r++) need.push([rc, r], [rc + 1, r]); need.push([rc, fr], [rc + 1, fr], [rc, fr2], [rc + 1, fr2]);
+        if (!need.every(([c, r]) => G[r]?.[c] === z)) continue;
+        if (doorCells0().some(([c, r]) => Math.abs(c - rc) <= 2 && Math.abs(r - fr) <= 2)) continue;
+        for (let r = rr0; r <= rr1; r++) { G[r][rc] = PADZ; G[r][rc + 1] = PADZ; }
+        const di = DOORDEF.length; G[fr][rc] = G[fr][rc + 1] = 100 + di; DOORDEF.push([z, PADZ, [[rc, fr], [rc + 1, fr]], 2000]);
+        return { host: z, deck: [dc0, dc0 + DW - 1, dr0, dr1], ramp: { c: [rc, rc + 1], r: [rr0, rr1], up: outerTop ? 'n' : 's' }, outerTop, rc }; } }
+    return null; })();
+  if (!PAD) return null;
   const doorCells = DOORDEF.flatMap(d => d[2]), nearDoor = (c, r, k = 2) => doorCells.some(([dc, dr]) => Math.abs(dc - c) <= k && Math.abs(dr - r) <= k);
   // 5. windows: boarded gaps in the outer wall, 1-3 per zone, spaced apart, never at corners
   const WINDEF = [], winAt = (c, r) => WINDEF.some(w => Math.abs(w[0] - c) + Math.abs(w[1] - r) < 4);
+  { const [d0, d1, e0, e1] = PAD.deck, wr = PAD.outerTop ? e0 - 1 : e1 + 1, dz = PAD.outerTop ? -1 : 1; WINDEF.push([d0 + 1, wr, 0, dz, 1], [d1 - 1, wr, 0, dz, 1]); }   // two roof vents on the deck's outer edge
   for (let z = 0; z < NZ; z++) { const cand = [];
     for (let c = 2; c < GW - 2; c++) { if (floor(c, 1) && G[1][c] === z && floor(c, 2) && G[2][c] === z) cand.push([c, 0, 0, -1]); if (G[GH - 2][c] === z && G[GH - 3][c] === z) cand.push([c, GH - 1, 0, 1]); }
     for (let r = 2; r < GH - 2; r++) { if (G[r][1] === z && G[r][2] === z) cand.push([0, r, -1, 0]); if (G[r][GW - 2] === z && G[r][GW - 3] === z) cand.push([GW - 1, r, 1, 0]); }
@@ -91,7 +108,7 @@ function tryGen(R) {
     for (let r = 1; r < GH - 1; r++) for (let c = 1; c < GW - 1; c++) { if (G[r][c] !== z || nearDoor(c, r, 2) || winNear(c, r, 2) || used.some(([uc, ur]) => Math.abs(uc - c) + Math.abs(ur - r) < avoid)) continue;
       for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (wallOf(c + dc, r + dr) && G[r - dr]?.[c - dc] === z && !solid.has((r - dr) * GW + c - dc)) cand.push([c, r, dc, dr]); }
     if (!cand.length) return null; const s = pick(cand); used.push(s); return s; }
-  const others = [...Array(NZ).keys()].slice(2), deepest = DOORDEF.reduce((m, d) => d[3] > m[1] ? [d[1], d[3]] : m, [others[0], 0])[0];
+  const others = [...Array(NZ).keys()].slice(2), deepest = DOORDEF.reduce((m, d) => d[1] !== PADZ && d[3] > m[1] ? [d[1], d[3]] : m, [others[0], 0])[0];
   const s1 = spot(0), s2 = spot(1), s3 = spot(pick(others)); if (!s1 || !s2 || !s3) return null;
   const WALLBUYS = [{ w: 'shotgun', cost: 500, s: s1 }, { w: 'dragon', cost: 1000, s: s2 }, { w: 'napalm', cost: 1500, s: s3 }];
   const boxZ = [1, ...shuffle(others.slice()), 0].slice(0, 6), BOX = boxZ.map(z => spot(z, 4)).filter(Boolean); if (BOX.length < 3) return null;
@@ -101,12 +118,17 @@ function tryGen(R) {
   for (const k of Object.keys(perkZ)) { PERKSPOT[k] = spot(perkZ[k], 4) || spot(1, 4) || spot(pick(others), 3) || spot(1, 3); if (!PERKSPOT[k]) return null; }
   // Night Shift radio quest: a console against a wall somewhere off the spine, plus the rooms each step's item hides in (any room but spawn)
   const qc = spot(pick(others), 4) || spot(1, 3); if (!qc) return null; const qz = shuffle(others.slice());
-  const quest = { console: qc, zones: [[qz[0]], [qz[1 % qz.length]], [qz[2 % qz.length]]] };
+  const [d0, d1, e0, e1] = PAD.deck, bc = PAD.rc, br = PAD.outerTop ? e1 : e0;   // beacon on the deck right at the top of the ramp
+  const quest = { console: qc, zones: [[qz[0]], [qz[1 % qz.length]], [qz[2 % qz.length]], [qz[3 % qz.length], 1], [qz[4 % qz.length]]], start: 4, padZone: PADZ,   // free play: short Night Shift (key card -> beacon battery -> signal flare)
+    beacon: [bc + (PAD.outerTop ? -1 : -1), br, 0, PAD.outerTop ? 1 : -1, 1], pad: [(d0 + d1 + 1) / 2, (e0 + e1 + 1) / 2] };
   // 8. sanity: with every door open, all floor is reachable from spawn
   { let start = -1, total = 0; for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) if (G[r][c] >= 0) { total++; if (start < 0 && G[r][c] === 0) start = r * GW + c; }
     const seen = new Set([start]), q = [start]; for (let h = 0; h < q.length; h++) { const i = q[h], c = i % GW, r = (i - c) / GW; for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nc = c + dc, nr = r + dr, j = nr * GW + nc; if (!seen.has(j) && G[nr]?.[nc] >= 0) { seen.add(j); q.push(j); } } }
     if (seen.size !== total) return null; }
   const tod = pick(['day', 'dusk', 'night', 'night']), env = { tod, storm: R() < 0.3 };
-  return { name: pick(MAPNAMES), env, grid: G, zones: ZONES.map(({ n, r, col }) => ({ n, r, col })), obst: OBST, doordef: DOORDEF, windef: WINDEF, wallbuys: WALLBUYS, box: BOX, forge, power, perks: PERKSPOT, quest };
+  const ring = [[d0 - 1, d1 + 1, e0 - 1, e0 - 1], [d0 - 1, d1 + 1, e1 + 1, e1 + 1], [d0 - 1, d0 - 1, e0 - 1, e1 + 1], [d1 + 1, d1 + 1, e0 - 1, e1 + 1]];
+  const upper = { zone: PADZ, h: 3.6, atrium: null, walk: [PAD.deck], walls: ring, void: [], ramps: [PAD.ramp] };
+  const zonesOut = ZONES.map(({ n, r, col }) => ({ n, r, col })); zonesOut.push({ n: 'Rooftop Helipad', r: PAD.deck, col: '#7aff6a', lv: 1 });
+  return { name: pick(MAPNAMES), env, upper, grid: G, zones: zonesOut, obst: OBST, doordef: DOORDEF, windef: WINDEF, wallbuys: WALLBUYS, box: BOX, forge, power, perks: PERKSPOT, quest };
 }
 module.exports = { gen, GW, GH };

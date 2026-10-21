@@ -29,9 +29,12 @@ function runwayTex() {
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
 }
 function lineTex(base, line, dash) { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const g = cv.getContext('2d'); g.fillStyle = base; g.fillRect(0, 0, 64, 64); g.fillStyle = line; if (dash) g.fillRect(29, 0, 6, 40); else g.fillRect(29, 0, 6, 64); for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .05})`; g.fillRect(Math.random() * 64, Math.random() * 64, 1, 1); } const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t; }
+// flat airfield surfaces draw AFTER the city ground overlay (transparent, no depth write) in a fixed layer order:
+// no z-fighting at any distance, and still depth-tested against planes/buildings.
+const flat = (m, o) => { m.material.transparent = true; m.material.depthWrite = false; m.renderOrder = 10 + o; return m; };
 function strip(x0, z0, x1, z1, w, tex, rep, y = .05) {   // textured road/taxi strip from (x0,z0) to (x1,z1), texture v along the strip
   const L = Math.hypot(x1 - x0, z1 - z0), g = new THREE.PlaneGeometry(w, L).rotateX(-Math.PI / 2); const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i), uv.getY(i) * L / rep);
-  g.rotateY(Math.atan2(x1 - x0, z1 - z0)); g.translate((x0 + x1) / 2, y, (z0 + z1) / 2); const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, roughness: .9 })); m.receiveShadow = true; return m;
+  g.rotateY(Math.atan2(x1 - x0, z1 - z0)); g.translate((x0 + x1) / 2, y, (z0 + z1) / 2); const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, roughness: .9 })); m.receiveShadow = true; return flat(m, Math.round(y * 100));
 }
 
 // airliner (front = +z): 38 m long, 34 m span, BURN livery
@@ -54,21 +57,27 @@ function airliner() {
 
 function build() {
   const c = window.__city, CL = window.__cityLife, S = c.S, tier = c.TIER || 'medium';
-  const grp = new THREE.Group(); grp.name = 'airport'; S.add(grp);
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .55, metalness: .3 });
-  const glass = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .08, metalness: .6, transparent: true, opacity: .55 });
+  const grp = new THREE.Group(); grp.name = 'airport'; grp.position.y = .18; S.add(grp);   // lift the whole airfield clear of the city ground overlay (it is drawn on top within a few cm)
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .55, metalness: .12 });
+  const glass = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .12, metalness: .25, transparent: true, opacity: .62, emissive: 0x0d2233, emissiveIntensity: .6 });
   const glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
   const add = (geo, m) => { const mm = new THREE.Mesh(geo, m); grp.add(mm); return mm; };
 
   // ---- surfaces
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(1300, 420).rotateX(-Math.PI / 2).translate(0, .02, -650), new THREE.MeshStandardMaterial({ color: 0x3a4a34, roughness: 1 })); grp.add(ground);
-  const rw = new THREE.Mesh(new THREE.PlaneGeometry(RW.x1 - RW.x0, RW.w).rotateX(-Math.PI / 2).translate(0, .05, RW.z), new THREE.MeshStandardMaterial({ map: runwayTex(), roughness: .85 })); grp.add(rw);
-  const twT = lineTex('#34353a', '#e8c020', false); grp.add(strip(RW.x0 + 30, TW.z, RW.x1 - 30, TW.z, 23, twT, 23, .045));
-  for (const x of [-500, -120, 260, 500]) grp.add(strip(x, RW.z + RW.w / 2 - 2, x, APRON.z0 + 2, 20, twT, 20, .046));
-  const ap = new THREE.Mesh(new THREE.PlaneGeometry(TERM.w + 60, APRON.z1 - APRON.z0).rotateX(-Math.PI / 2).translate(0, .044, (APRON.z0 + APRON.z1) / 2), new THREE.MeshStandardMaterial({ color: 0x8a8c90, roughness: .9 })); grp.add(ap);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(1300, 420).rotateX(-Math.PI / 2).translate(0, .02, -650), new THREE.MeshStandardMaterial({ color: 0x3a4a34, roughness: 1 })); grp.add(flat(ground, 0));
+  const rw = new THREE.Mesh(new THREE.PlaneGeometry(RW.x1 - RW.x0, RW.w).rotateX(-Math.PI / 2).translate(0, .12, RW.z), new THREE.MeshStandardMaterial({ map: runwayTex(), roughness: .85, emissive: 0xffffff, emissiveIntensity: .35 })); rw.material.emissiveMap = rw.material.map; grp.add(flat(rw, 30));
+  const twT = lineTex('#34353a', '#e8c020', false); grp.add(strip(RW.x0 + 30, TW.z, RW.x1 - 30, TW.z, 23, twT, 23, .06));
+  for (const x of [-500, -120, 260, 500]) grp.add(strip(x, RW.z + RW.w / 2 - 2, x, APRON.z0 + 2, 20, twT, 20, .09));
+  const ap = new THREE.Mesh(new THREE.PlaneGeometry(TERM.w + 60, APRON.z1 - APRON.z0).rotateX(-Math.PI / 2).translate(0, .03, (APRON.z0 + APRON.z1) / 2), new THREE.MeshStandardMaterial({ color: 0x8a8c90, roughness: .9 })); grp.add(flat(ap, 2));
   const rdT = lineTex('#2b2c30', '#e8e2c8', true); grp.add(strip(ROAD.x, ROAD.z0, ROAD.x, ROAD.z1, 12, rdT, 8, .06));
-  grp.add(strip(-80, CURB.z, 80, CURB.z, 12, rdT, 8, .061)); grp.add(strip(-80, CURB.z, -80, ROAD.z1 + 6, 12, rdT, 8, .062)); grp.add(strip(80, CURB.z, 80, ROAD.z1 + 6, 12, rdT, 8, .062)); grp.add(strip(-80, ROAD.z1 + 6, 80, ROAD.z1 + 6, 12, rdT, 8, .063));
-  const lotM = new THREE.Mesh(new THREE.PlaneGeometry(120, 60).rotateX(-Math.PI / 2).translate(-170, .05, -480), new THREE.MeshStandardMaterial({ color: 0x3a3b40, roughness: .95 })); grp.add(lotM);
+  grp.add(strip(-80, CURB.z, 80, CURB.z, 12, rdT, 8, .09)); grp.add(strip(-80, CURB.z, -80, ROAD.z1 + 6, 12, rdT, 8, .12)); grp.add(strip(80, CURB.z, 80, ROAD.z1 + 6, 12, rdT, 8, .12)); grp.add(strip(-80, ROAD.z1 + 6, 80, ROAD.z1 + 6, 12, rdT, 8, .15));
+  // sidewalks + curbs: access road both sides, terminal-side walk and outer edge of the curb loop (one merged mesh)
+  { const sw = [], K = 0x9a9ca2, C = 0xd8d8d0, H = .18;
+    for (const sx of [-1, 1]) { sw.push(box(3, H, ROAD.z0 - ROAD.z1 - 14, sx * 7.7, H / 2, (ROAD.z0 + ROAD.z1 - 14) / 2 + 7, K), box(.3, H + .04, ROAD.z0 - ROAD.z1 - 14, sx * 6.15, (H + .04) / 2, (ROAD.z0 + ROAD.z1 - 14) / 2 + 7, C)); }
+    sw.push(box(172, H, 9, 0, H / 2, CURB.z - 6 - 4.5, K), box(172, H + .04, .3, 0, (H + .04) / 2, CURB.z - 6.15, C));
+    for (const z of [ROAD.z1 + 6 + 7.7]) for (const [x0, x1] of [[-87.5, -7.7 - 1.5], [7.7 + 1.5, 87.5]]) sw.push(box(x1 - x0, H, 3, (x0 + x1) / 2, H / 2, z, K));
+    add(merge(sw), mat); }
+  const lotM = new THREE.Mesh(new THREE.PlaneGeometry(120, 60).rotateX(-Math.PI / 2).translate(-170, .03, -480), new THREE.MeshStandardMaterial({ color: 0x3a3b40, roughness: .95 })); grp.add(flat(lotM, 2));
 
   // ---- runway edge + approach lights (one Points draw)
   const lp = [], lc = [], push = (x, z, r, g, b) => { lp.push(x, .35, z); lc.push(r, g, b); };

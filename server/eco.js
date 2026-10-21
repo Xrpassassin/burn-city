@@ -37,8 +37,10 @@ async function rpc(method, p) {
 async function xrplto(key) { try { const j = await (await fetch('https://api.xrpl.to/v1/token/' + key, { headers: { 'user-agent': 'burn-city/1' }, signal: AbortSignal.timeout(15e3) })).json(); return j.token || j; } catch { return null; } }
 async function isBlackhole(acct) {
   const c = bhCache.get(acct); if (c && Date.now() - c.t < 6 * 3600e3) return c.bh; let bh = false;
-  try { const ad = (await rpc('account_info', { account: acct, ledger_index: 'validated' })).account_data;
-    bh = !!ad && (ad.Flags & 0x00100000) !== 0 && (!ad.RegularKey || BH_KEYS.has(ad.RegularKey)); } catch { return c ? c.bh : false; }
+  // black hole = master key disabled AND (no RegularKey or RegularKey is a known black-hole address) AND no SignerList
+  try { const r = await rpc('account_info', { account: acct, ledger_index: 'validated', signer_lists: true }), ad = r.account_data;
+    const sl = (r.signer_lists || (ad && ad.signer_lists) || []);
+    bh = !!ad && (ad.Flags & 0x00100000) !== 0 && (!ad.RegularKey || BH_KEYS.has(ad.RegularKey)) && sl.length === 0; } catch { return c ? c.bh : false; }
   bhCache.set(acct, { bh, t: Date.now() }); return bh;
 }
 const idx = () => { const byKey = {}, byName = {}; for (const n of eco.nodes) { byName[n.name] = n; if (n.key && n.key.includes('-')) byKey[n.key] = n; } return { byKey, byName }; };
@@ -216,7 +218,7 @@ function send(req, res_, o, type) {
   res_.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache', etag: o.etag }); res_.end(req.method === 'HEAD' ? undefined : o.body); return true;
 }
 module.exports = {
-  start, status: () => status, data: () => eco, _load: () => { eco = loadBase(); }, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover,
+  start, status: () => status, data: () => eco, rpc: (m, p) => rpc(m, p), _load: () => { eco = loadBase(); }, _trades: trades, _recent: () => recent, _sweep: sweep, _market: market, _discover: discover,
   serve: (req, r) => out ? send(req, r, out, 'application/javascript; charset=utf-8') : false,
   serveLive: (req, r) => live ? send(req, r, live, 'application/json') : false,
 };

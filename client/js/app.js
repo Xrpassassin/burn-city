@@ -542,8 +542,20 @@ const DECK={};E.nodes.forEach(n=>{if(!n.seg0)return;const ends=[];pools.forEach(
  const mid=Math.min(n.h*.33,40),y0=Math.max(2.2,Math.min(mid-(Lv-1)*dy/2,n.seg0.sh-1.6-(Lv-1)*dy));const lvA=[...Array(Lv)].map(()=>[]),gapTo=(L,x)=>L.reduce((m,y)=>Math.min(m,Math.abs(Math.atan2(Math.sin(x-y),Math.cos(x-y)))),9);
  ends.forEach(e=>{let best=0,bg=-1;for(let l=0;l<Lv;l++){const g=gapTo(lvA[l],e.a);if(g>bg+1e-6){bg=g;best=l}}lvA[best].push(e.a);DECK[n.name+'|'+e.p.amm+'|'+e.p.a+e.p.b]={y:y0+best*dy,lv:best}})});
 const deckY=(n,p)=>{const d=DECK[n.name+'|'+p.amm+'|'+p.a+p.b];return d?d.y:Math.min(n.h*.33,40)};
-pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=A.pos.clone().setY(deckY(A,p)),b=B.pos.clone().setY(deckY(B,p));
- const mid=a.clone().add(b).multiplyScalar(.5);mid.y=Math.max(a.y,b.y)+8+a.distanceTo(b)*.1+(i%3)*3;
+// rails land on the tower TOP: roof edge facing the partner tower (landing-pad height on flagship tier); falls back to the old deck height
+// tall / busy towers (e.g. XRP): rails fan out to staggered landing points on a ring below the top; a much lower partner lands on a lower tier
+const RCNT={},RTOT={};pools.forEach(p=>{RTOT[p.a]=(RTOT[p.a]||0)+1;RTOT[p.b]=(RTOT[p.b]||0)+1});
+const roofTop=n=>n.roofY==null?null:n.roofY*(n.sy||1)+(n.tier>=4?.95:.4);
+const topAt=(n,o,p)=>{const top=roofTop(n);if(top==null)return n.pos.clone().setY(deckY(n,p));const d=_v.set(o.pos.x-n.pos.x,0,o.pos.z-n.pos.z).normalize(),ot=roofTop(o)??deckY(o,p);
+ const busy=(RTOT[n.name]||0)>6||top>90,slot=RCNT[n.name]=(RCNT[n.name]||0)+1;let y=top,R=(n.roofCw||n.w)*(n.sxz||1)*.6,ang=0;
+ if(busy||top-ot>25){y=Math.max(12,Math.min(top,ot+10+(slot%6)*3.2));if(y<top-1){R=n.w*(n.sxz||1)*1.08+.6;ang=((slot%5)-2)*.09}}
+ const c=Math.cos(ang),s_=Math.sin(ang),dx=d.x*c-d.z*s_,dz=d.x*s_+d.z*c;return new THREE.Vector3(n.pos.x+dx*R,y,n.pos.z+dz*R)};
+// gentle arc, raised until it clears every other tower it passes over (top + 3 m, spires included)
+const arcMid=(a,b,A,B,i,r)=>{const mid=a.clone().add(b).multiplyScalar(.5);mid.y=Math.max(a.y,b.y)+6+a.distanceTo(b)*.06+(i%3)*2;const q=new THREE.Vector3();
+ for(let it=0;it<6;it++){let need=0;const c=new THREE.QuadraticBezierCurve3(a,mid,b);for(let k=1;k<24;k++){c.getPoint(k/24,q);for(const n of E.nodes){if(n===A||n===B||!n.group||n.top==null)continue;
+  if(Math.hypot(q.x-n.pos.x,q.z-n.pos.z)<n.w*1.15+r+1.5)need=Math.max(need,n.top+3-q.y)}}if(need<=0)break;mid.y+=need*1.2}mid.y=Math.min(mid.y,Math.max(a.y,b.y)+18+a.distanceTo(b)*.22);return mid};   // capped: never a towering loop
+pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p);
+ const mid=arcMid(a,b,A,B,i,.18+2.1*Math.sqrt(p.tvl_xrp/maxT));
  const curve=new THREE.QuadraticBezierCurve3(a,mid,b);const share=Math.sqrt(p.tvl_xrp/maxT),r=.18+2.1*share,L=p.locked_pct/100,minor=p.tvl_xrp<100;const g=new THREE.Group();S.add(g);const b0={rail:1,pulse:0};const lite=TIER==='low'&&rankT.indexOf(p)>=12;
  const solid=new THREE.Mesh(new THREE.TubeGeometry(curve,64,r,8),new THREE.MeshBasicMaterial({color:new THREE.Color(0x3cf3ff).multiplyScalar(.15+.95*L),transparent:true,opacity:minor?.25:.18+.75*L,depthWrite:false,blending:THREE.AdditiveBlending}));
  solid.userData={kind:'bridge',pool:p};g.add(solid);pick.push(solid);
@@ -587,7 +599,7 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=A.pos.clone().setY(deckY(A
   FF='uniform float t,op,sp;uniform vec3 c,g;uniform float lk;varying vec2 vU;void main(){float s=fract(vU.x*9.-t*sp);float streak=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);vec3 col=mix(c,g,lk*.55)*(.55+1.1*streak);gl_FragColor=vec4(col,op*(.55+.45*streak));}';
  const LOCKC=new THREE.Color(0xffb020),EMBC=new THREE.Color(0xff5a1a);
  bridges.forEach(b=>{if(!b.core)return;const o=b.core.material,L=b.L;b.core.material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,
-   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)},g:{value:LOCKC},lk:{value:L}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v}});o.dispose()});
+   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)},g:{value:LOCKC},lk:{value:L}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material,dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v*dim}});{const sm=b.solid.material;let so=sm.opacity;Object.defineProperty(sm,'opacity',{get:()=>so,set:v=>{so=v*dim}});sm.opacity=so}o.dispose()});
  const lk=bridges.filter(b=>b.L>=.01&&!b.minor);
  if(lk.length){const links=TIER==='low'?1:3,im=new THREE.InstancedMesh(new THREE.TorusGeometry(1,.09,5,TIER==='low'?14:20),new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false}),lk.length*2*links);let k=0;const tg=new THREE.Vector3(),cc=new THREE.Color(),ZF=new THREE.Vector3(0,0,1),qa=new THREE.Quaternion();
   lk.forEach(b=>{cc.copy(EMBC).lerp(LOCKC,Math.min(1,b.L*1.25)).multiplyScalar(.6+1.6*b.L);for(const u0 of [.07,.93])for(let j=0;j<links;j++){const u=u0+(u0<.5?1:-1)*j*.022,q=b.curve.getPoint(u);b.curve.getTangent(u,tg);
@@ -611,6 +623,7 @@ const hoverGeo=(()=>{const col=(g,r,gg,b)=>{const n=g.attributes.position.count,
   col(new THREE.CapsuleGeometry(.11,.7,2,6).rotateZ(Math.PI/2).translate(-.15,-.12,.5),.6,.6,.7),col(new THREE.CapsuleGeometry(.11,.7,2,6).rotateZ(Math.PI/2).translate(-.15,-.12,-.5),.6,.6,.7)])})();
 // ---------- garages: every bridge ends in a lit hangar bay on the tower face; ships fly in and out of them ----------
 // one bay per bridge end (instanced: dark vestibule, neon frame + canopy, lit slatted interior) · frames flash when a ship docks or departs
+// garage bays retired (rails now land on tower tops): DOOR keeps only the dock points ships use; its meshes are not added to the scene
 const DOOR=(()=>{const list=[],byN={},byL={};bridges.forEach(b=>[0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a],o=N[end?b.p.a:b.p.b];if(!n||!n.seg0)return;
   const dk=DECK[n.name+'|'+b.p.amm+'|'+b.p.a+b.p.b],d={lv:dk?dk.lv:0,b,end,n,dir:new THREE.Vector3(o.pos.x-n.pos.x,0,o.pos.z-n.pos.z).normalize(),pulse:0,i:list.length};d.ang=Math.atan2(d.dir.z,d.dir.x);list.push(d);(byN[n.name]=byN[n.name]||[]).push(d);(byL[n.name+'|'+d.lv]=byL[n.name+'|'+d.lv]||[]).push(d);(b.doors=b.doors||[])[end]=d}));
  // bay width: sized to the bridge, never wider than the tower face or the gap to the neighbouring bay
@@ -625,7 +638,7 @@ const DOOR=(()=>{const list=[],byN={},byL={};bridges.forEach(b=>[0,1].forEach(en
  const rec=new THREE.InstancedMesh(recG,new THREE.MeshStandardMaterial({color:0x090d18,metalness:.8,roughness:.45}),Math.max(1,list.length));
  const fr=new THREE.InstancedMesh(frG,new THREE.MeshBasicMaterial({color:0xffffff}),Math.max(1,list.length));
  const lit=new THREE.InstancedMesh(inG,new THREE.MeshBasicMaterial({map:tex,color:0xffffff}),Math.max(1,list.length));
- [rec,fr,lit].forEach(m=>{m.frustumCulled=false;m.userData.noBatch=1;S.add(m)});const _c=new THREE.Color(),_o=new THREE.Object3D();
+ [rec,fr,lit].forEach(m=>{m.frustumCulled=false;m.userData.noBatch=1});const _c=new THREE.Color(),_o=new THREE.Object3D();
  function place(d){const n=d.n,s0=d.n.seg0,sx=n.sxz||1,yb=d.end?d.b.curve.v2.y:d.b.curve.v0.y,R=(s0.cw+(s0.top-s0.cw)*Math.min(1,yb/(s0.sh*(n.sy||1))))*sx,rin=R*Math.cos(Math.PI/s0.sides),c=d.b.curve,len=d.b.len||(d.b.len=c.getLength());
   // where the bridge crosses the bay's front face (and a point just inside the wall, where ships vanish/appear)
   const at=dist=>{for(let k=0;k<=240;k++){const u=k/240,uu=d.end?1-u:u;c.getPoint(uu,_v);if(Math.hypot(_v.x-n.pos.x,_v.z-n.pos.z)>=dist)return uu}return d.end?0:1};
@@ -1104,7 +1117,8 @@ function webAnchor(){const f=V3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw));let best=
   const y=Math.min(c.h-.5,P.pos.y+28),ax=c.x-dx/d*c.r,az=c.z-dz/d*c.r,dd=Math.hypot(ax-P.pos.x,y-P.pos.y,az-P.pos.z);if(dd>80)continue;if(y<P.pos.y+8)continue;const sc=dot*2-Math.abs(dd-32)/40+(y-P.pos.y)/25;if(sc>bs){bs=sc;best=V3(ax,y,az)}}
   for(const q of railPts()){const dx=q.x-P.pos.x,dz=q.z-P.pos.z,d=Math.hypot(dx,dz);if(d<4||d>80||q.y<P.pos.y+8)continue;const dot=(dx*f.x+dz*f.z)/d;if(dot<.35)continue;const dd=Math.hypot(d,q.y-P.pos.y);if(dd>80)continue;
    const sc=dot*2-Math.abs(dd-32)/40+Math.min(28,q.y-P.pos.y)/25;if(sc>bs){bs=sc;best=q.clone()}}return best}
-let RAILS=null;function railPts(){if(RAILS)return RAILS;RAILS=[];for(const b of bridges){if(!b.curve||b.minor&&!b.forever)continue;let L=12;try{L=b.curve.getLength()}catch(e){}const n=Math.max(1,Math.round(L/12));for(let i=1;i<n;i++){const v=b.curve.getPoint(i/n);if(v.y>6)RAILS.push(v)}}return RAILS}
+let RAILS=null;function railPts(){if(RAILS)return RAILS;RAILS=[];for(const n of E.nodes){if(!n.group||n.roofY==null)continue;const top=n.roofY*(n.sy||1),R=n.w*(n.sxz||1)*1.1+.5;for(let y=12;y<Math.min(top,64);y+=9)for(let k=0;k<6;k++){const a=k/6*6.283+y*.37;RAILS.push(V3(n.pos.x+Math.cos(a)*R,y,n.pos.z+Math.sin(a)*R))}}   // mid-height tower-face anchors so street-level swings still have targets
+ for(const b of bridges){if(!b.curve||b.minor&&!b.forever)continue;let L=12;try{L=b.curve.getLength()}catch(e){}const n=Math.max(1,Math.round(L/12));for(let i=1;i<n;i++){const v=b.curve.getPoint(i/n);if(v.y>6)RAILS.push(v)}}return RAILS}
 const JET={on:false,f:1,thr:false,fly:false,v:new THREE.Vector3()};
 const jetBtn=document.createElement('button');jetBtn.id='jetBtn';jetBtn.textContent='🚀 Jet';jetBtn.style.cssText=webBtn.style.cssText.replace('400px','452px');document.body.append(jetBtn);
 const jetBar=document.createElement('div');jetBar.style.cssText='position:fixed;right:12px;bottom:calc(504px + env(safe-area-inset-bottom));z-index:31;width:84px;height:7px;border-radius:4px;background:#ffffff22;display:none;overflow:hidden';jetBar.innerHTML='<i style="display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff5a1f,#ffd27a)"></i>';document.body.append(jetBar);

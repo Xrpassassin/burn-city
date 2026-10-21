@@ -284,7 +284,7 @@ function openLog() { const got = Object.keys(prof.log).length;
   panel.insertAdjacentHTML('beforeend', '<div id="fTop"></div>'); putTop(); panel.style.display = 'block'; ui.style.display = 'none'; panel.querySelector('.x').onclick = () => panel.style.display = 'none' }
 bar.querySelector('#fCast').onclick = doCast; bar.querySelector('#fShop').onclick = openShop;
 // ---------- per-frame: show buttons when in reach, animate bobber + reel marker ----------
-function tick() { requestAnimationFrame(tick); const c = W(), e = window.__estate; if (!c || !e || !dock) return; const t = performance.now() / 1000, m = c.getMode();
+function tick() { requestAnimationFrame(tick); if (window.__cityPaused) return; const c = W(), e = window.__estate; if (!c || !e || !dock) return; const t = performance.now() / 1000, m = c.getMode();
   const p = isDeep() ? window.__boat.pos : c.P.pos, walk = m === 'explore';
   const nearDock = p.distanceTo(dock.tip) < 6 || (p.distanceTo(dock.base) < 22 && Math.abs(p.clone().sub(dock.base).dot(dock.side)) < 3), shore = !e.inLake(p.x, p.z) && e.inLake(p.x, p.z, 4);
   const canFish = walk && (nearDock || shore || isDeep()); FISHOK = canFish; const nearShop = walk && !isDeep() && p.distanceTo(shopPos) < 10;

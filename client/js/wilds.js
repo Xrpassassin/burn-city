@@ -16,9 +16,12 @@ import { createGame } from './wilds-rules.js';
 import { buildCreature, animate, mats, disposeMats } from './wilds-creatures.js';
 import { buildWalker, poseWalker } from './walker.js';
 import * as AUD from './wilds-audio.js';
-import { TEST, FC, RX, RZ, GATE, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
+import { TEST, FC, RX, RZ, GATE, THRESH, CFG, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
 
 const W = { ready: false, inForest: false, modal: null, creatures: [], test: {} };
+// ZONE: the deep area (wilds-deep.js) registers itself here while you're inside it; creatures, encounters, binding, NPC talk,
+// quests, HUD and the companion then run against its world (its root, spawns, keep-in, respawn) instead of Fernway Verge.
+let ZONE = null; const R0 = () => (ZONE ? ZONE.root : root);
 if (TEST) window.__wilds = W;   // test/debug only (?wildstest or ?debug=1)
 const C = () => window.__city;
 // ---------------------------------------------------------------- layout (world metres; the city is south, -z; FC/RX/RZ/GATE live in wilds-gate.js)
@@ -41,8 +44,10 @@ function sampleLine(pts, step = 1.5) { const out = []; for (let i = 0; i < pts.l
 function smooth(pts) { const v = pts.map(([x, z]) => new THREE.Vector3(x, 0, z)); const c = new THREE.CatmullRomCurve3(v, false, 'centripetal'); return c.getSpacedPoints(Math.ceil(c.getLength() / 2)).map(p => [p.x, p.z]); }
 function lineGrid(pts) { const G = new Map(), CS = 8; for (const p of pts) { const k = Math.floor(p[0] / CS) + ',' + Math.floor(p[1] / CS); (G.get(k) || G.set(k, []).get(k)).push(p); }
   return (x, z, max = 12) => { let best = 1e9; const r = Math.ceil(max / CS); const cx = Math.floor(x / CS), cz = Math.floor(z / CS); for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) { const a = G.get((cx + i) + ',' + (cz + j)); if (a) for (const p of a) { const d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < best) best = d; } } return Math.sqrt(best); }; }
-const mainS = smooth(MAIN), retS = smooth(RET), creekS = smooth(CREEK);
-const dTrail = lineGrid(sampleLine(mainS).concat(sampleLine(retS))), dCreek = lineGrid(sampleLine(creekS));
+// the far-end spur from the clearing to the threshold arch into the deep area (Glassroot Grove; wilds-deep.js)
+const DEEPT = [[30, 628], [24, 662], [36, 700], [26, 742], [30, 780], [THRESH.x, THRESH.z + 6]];
+const mainS = smooth(MAIN), retS = smooth(RET), creekS = smooth(CREEK), deepS = CFG.deep ? smooth(DEEPT) : [];
+const dTrail = lineGrid(sampleLine(mainS).concat(sampleLine(retS), deepS.length ? sampleLine(deepS) : [])), dCreek = lineGrid(sampleLine(creekS));
 // obstacle grid (trees, rocks, logs, ruins) used by creature steering — same hashing idea as the skate spatial grid
 const OB = new Map(), OCS = 8; const okey = (i, j) => i * 73856 + j;
 function obAdd(o) { const i0 = Math.floor((o.x - o.r) / OCS), i1 = Math.floor((o.x + o.r) / OCS), j0 = Math.floor((o.z - o.r) / OCS), j1 = Math.floor((o.z + o.r) / OCS); for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = okey(i, j); (OB.get(k) || OB.set(k, []).get(k)).push(o); } }
@@ -134,7 +139,7 @@ float e=abs(vUv.y-.5)*2.;float al=(1.-smoothstep(.55,1.,e))*.88;col=mix(col,vec3
   const snagG = M([colorize(new THREE.CylinderGeometry(.02, .045, .8, 7).translate(0, .4, 0), (c, x, y) => c.setRGB(.08, .065, .06)), colorize(new THREE.CylinderGeometry(.008, .016, .3, 5).rotateZ(1).translate(.1, .62, 0), c => c.setRGB(.08, .065, .06)), colorize(new THREE.CylinderGeometry(.008, .014, .22, 5).rotateZ(-1.1).translate(-.08, .5, 0), c => c.setRGB(.08, .065, .06))]);
   const emberG = M([0, 1, 2, 3].map(k => solid(new THREE.BoxGeometry(.006, .09, .004).translate(0, .14 + k * .14, .03 + (k % 2) * .01).rotateY(k * 1.7), 0xff5a10)));
   const trees = { con: [], leaf: [], snag: [] }, placed = [], TG = new Map(), TCS = 6; const tk = (x, z) => Math.floor(x / TCS) + ',' + Math.floor(z / TCS);
-  const clearings = [[TRAM.x, TRAM.z, 20], [CLEAR.x, CLEAR.z, 17], [GATE.x, GATE.z, 11], ...MARKERS.map(m => [m.x, m.z, 6])];
+  const clearings = [[TRAM.x, TRAM.z, 20], [CLEAR.x, CLEAR.z, 17], [GATE.x, GATE.z, 11], ...MARKERS.map(m => [m.x, m.z, 6]), ...(CFG.deep ? [[THRESH.x, THRESH.z, 11]] : [])];
   const nT = tierN(230, 360, 470);
   for (let tries = 0; tries < nT * 14 && placed.length < nT; tries++) {
     const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * 1.08, x = FC.x + Math.cos(a) * r * RX, z = FC.z + Math.sin(a) * r * RZ, e = ell(x, z);
@@ -187,7 +192,22 @@ float e=abs(vUv.y-.5)*2.;float al=(1.-smoothstep(.55,1.,e))*.88;col=mix(col,vec3
   fernIM = inst(fernGeo, fl, grassMat, t => sc.setScalar(t.s), t => tc.setRGB(.8 + rnd() * .3, .85 + rnd() * .3, .8)); nearGroup.add(fernIM);
 
   await step(.72, 'Lanterns, the old tram stop, Mara\'s camp…');
-  buildTrailhead(); buildTram(); buildMarkers(); buildAtmosphere(); buildMara();
+  buildTrailhead(); buildTram(); buildMarkers(); buildAtmosphere(); buildMara(); if (CFG.deep) buildThreshold();
+}
+function buildThreshold() {   // the far end of Fernway Verge: two root-bound glassroot pillars + a teal veil = the way deeper (wilds-gate.js runs the crossing)
+  const { MAT, GLOW } = mats(), g = new THREE.Group(); g.position.set(THRESH.x, 0, THRESH.z); root.add(g);
+  const parts = [], glow = [];
+  for (const s of [-1, 1]) { parts.push(colorize(jitter(new THREE.CylinderGeometry(.9, 1.4, 9, 9, 6).translate(s * 4.2, 4.5, 0), .08), (c, x, y) => c.setRGB(.16 + y * .006, .12 + y * .004, .09)));
+    for (let k = 0; k < 5; k++) parts.push(solid(new THREE.TorusGeometry(1.25 - k * .05, .16, 5, 14).rotateX(Math.PI / 2 + (k % 2 ? .35 : -.3)).translate(s * 4.2, 1 + k * 1.7, 0), 0x2e2016));
+    for (let k = 0; k < 4; k++) glow.push(solid(new THREE.BoxGeometry(.08, 1.6, .08).rotateZ(.3 * (k % 2 ? 1 : -1)).translate(s * 4.2 + s * .75, 1.5 + k * 2, .5 * (k % 2 ? 1 : -1)), 0x5ff0d0)); }
+  parts.push(colorize(jitter(new THREE.TorusGeometry(4.3, .7, 7, 18, Math.PI).translate(0, 8.4, 0), .1), c => c.setRGB(.14, .1, .08)));
+  parts.push(solid(new THREE.BoxGeometry(.16, 2.6, .16).translate(-7.8, 1.3, -3), 0x3a2a1c), solid(new THREE.BoxGeometry(.16, 2.6, .16).translate(-4.6, 1.3, -3), 0x3a2a1c));
+  g.add(new THREE.Mesh(M(parts), MAT), new THREE.Mesh(M(glow), GLOW));
+  const veil = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 9.6), new THREE.MeshBasicMaterial({ color: 0x3fe0c0, transparent: true, opacity: .16, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); veil.position.y = 4.8; g.add(veil); W.threshVeil = veil;
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.4, .85), new THREE.MeshBasicMaterial({ map: signTex([['DEEPER INTO THE CINDERWILDS', 52], ['GLASSROOT GROVE · LV 5–12', 36, '#7af0d0']], 1024, 256, '#14201a', '#d8ffe8', '#5ff0d0'), toneMapped: false, side: THREE.DoubleSide }));
+  sign.position.set(-6.2, 2.3, -3); g.add(sign);
+  for (const s of [-1, 1]) addCollider(THRESH.x + s * 4.2, THRESH.z, 1.35, 9, false);
+  addCollider(THRESH.x - 7.8, THRESH.z - 3, .2, 2.6, true); addCollider(THRESH.x - 4.6, THRESH.z - 3, .2, 2.6, true);
 }
 
 function flame(scale = 1) {   // layered additive cones: white-yellow core, orange body, red tips
@@ -345,11 +365,12 @@ function renderHud() {
   if (comp) { const cs = game.stats(comp), cn = game.compNeed(comp.lv); h += `<div class="wb"><div class="wn"><span>${esc(game.SP[comp.sp].name)}</span><i>Lv ${comp.lv}</i></div><div class="wlbar hp"><b style="width:${100 * comp.hp / cs.hp}%"></b></div><div class="wlbar"><b style="width:${100 * comp.xp / cn}%"></b></div></div>`; }
   if (hud.__h !== h) { hud.innerHTML = h; hud.__h = h; }
   const q = Object.keys(S.quests).map(id => [id, S.quests[id]]).find(([id, s]) => s.st !== 'done');
-  let t = ''; if (q) { const def = game.QS[q[0]]; t = q[1].st === 'ready' ? '★ ' + def.title + ': return to Mara Venn' : def.title + ': ' + def.objectives.map(o => objLabel(o) + ' ' + Math.min(o.count, q[1].prog[o.id] || 0) + '/' + o.count).join(' · '); }
-  else if (W.inForest && !S.quests.first_footfall) t = 'Talk to Mara Venn at the old tram stop';
+  let t = ''; if (q) { const def = game.QS[q[0]]; t = q[1].st === 'ready' ? '★ ' + def.title + ': return to ' + (NPCN[def.giver] || 'Mara Venn') : def.title + ': ' + def.objectives.map(o => objLabel(o) + ' ' + Math.min(o.count, q[1].prog[o.id] || 0) + '/' + o.count).join(' · '); }
+  else if (W.inForest && !S.quests.first_footfall) t = ZONE ? 'Mara Venn waits back in Fernway Verge (first quests)' : 'Talk to Mara Venn at the old tram stop';
   qline.textContent = t; qline.classList.toggle('on', !!t && W.inForest);
 }
-const objLabel = o => ({ follow_markers: 'markers', inspect_creature: 'inspect a creature', calm_or_bind: 'calm or bind a Mosskit/Rillfin' }[o.id] || o.id.replace(/_/g, ' '));
+const objLabel = o => ({ follow_markers: 'markers', inspect_creature: 'inspect a creature', calm_or_bind: 'calm or bind a Mosskit/Rillfin', tag_a: 'survey tag A', tag_b: 'tag B', tag_c: 'tag C', find_clues: 'Sable\'s tools', resolve_disturbance: 'settle the territorial Briarback', reach_hollow: 'reach Ashen Hollow', survive_elite: 'survive the elite' }[o.id] || o.id.replace(/_/g, ' '));
+const NPCN = { mara_venn: 'Mara Venn', orrick_vale: 'Orrick Vale', sable_kest: 'Sable Kest' };
 
 // ---- modal plumbing (one at a time; the Explore controller is paused while one is open)
 let modalEl = null;
@@ -368,7 +389,7 @@ function leaveForest() { W.inForest = false; AUD.leaveForest(); if (W.enc) endEn
 
 // ---------------------------------------------------------------- creatures in the world
 function spawn(slot) {
-  const sp = slot.sp, lv = game.rollLevel(sp, clamp(game.state.player.lv + (sp === 'shardmole' ? 4 : 1), 2, 5)), c = game.wild(sp, lv), mesh = buildCreature(sp, C().MOBILE); root.add(mesh);
+  const sp = slot.sp, lv = slot.lv ? (slot.fixed ? slot.lv[1] : game.rollLevel(sp, clamp(game.state.player.lv + 2, slot.lv[0], slot.lv[1]))) : game.rollLevel(sp, clamp(game.state.player.lv + (sp === 'shardmole' ? 4 : 1), 2, 5)), c = game.wild(sp, lv), mesh = buildCreature(sp, C().MOBILE); R0().add(mesh);
   let x, z, k = 0; do { const a = Math.random() * 6.3, r = Math.sqrt(Math.random()) * slot.r; x = slot.x + Math.cos(a) * r; z = slot.z + Math.sin(a) * r; if (slot.creek) { const best = nearestCreek(x, z); x = best[0] + (Math.random() - .5) * 4; z = best[1] + (Math.random() - .5) * 4; } } while (k++ < 20 && blocked(x, z, .6));
   mesh.position.set(x, .035, z); const yaw = Math.random() * 6.3; mesh.rotation.y = yaw;
   const cr = { slot, c, mesh, sp, x, z, yaw, vx: 0, vz: 0, spd: 0, st: 'idle', t: 1 + Math.random() * 3, tx: x, tz: z, tag: tag(''), seen: false, cool: 0 };
@@ -383,7 +404,8 @@ function steer(cr, dt, wantX, wantZ, maxSpd) {
   // desired velocity toward the target, then push away from nearby trees/rocks (look-ahead), keep inside the forest
   let dx = wantX - cr.x, dz = wantZ - cr.z; const d = Math.hypot(dx, dz); let des = d > .3 ? Math.min(maxSpd, d * 1.5) : 0; dx /= d || 1; dz /= d || 1;
   const ax = cr.x + dx * 1.6, az = cr.z + dz * 1.6; for (const o of obAt(ax, az)) { const ox = ax - o.x, oz = az - o.z, od = Math.hypot(ox, oz), m = o.r + 1.1; if (od < m) { dx += ox / (od || 1) * (m - od) * 1.4; dz += oz / (od || 1) * (m - od) * 1.4; } }
-  const e = ell(cr.x, cr.z); if (e > .94) { dx += (FC.x - cr.x) / RX * 3; dz += (FC.z - cr.z) / RZ * 3; }
+  if (cr.slot.zone) { const k = cr.slot.zone.keep(cr.x, cr.z); if (k) { dx += k[0]; dz += k[1]; } }
+  else { const e = ell(cr.x, cr.z); if (e > .94) { dx += (FC.x - cr.x) / RX * 3; dz += (FC.z - cr.z) / RZ * 3; } }
   const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
   // inertia: accelerate/brake smoothly, turn at a limited rate (no instant snapping)
   const tyaw = des > .05 ? Math.atan2(dx, dz) : cr.yaw; let dy = Math.atan2(Math.sin(tyaw - cr.yaw), Math.cos(tyaw - cr.yaw)); const turn = clamp(dy, -4 * dt, 4 * dt); cr.yawRate = turn / dt; cr.yaw += turn;
@@ -418,7 +440,7 @@ function refreshCompanion() {
   if (compState && compState.key === want) return;
   if (compMesh) { compMesh.removeFromParent(); disposeMesh(compMesh); compMesh = null; if (compState && compState.tag) compState.tag.remove(); compState = null; }
   if (!comp) return;
-  compMesh = buildCreature(comp.sp, C().MOBILE); C().S.add(compMesh);
+  compMesh = buildCreature(comp.sp, C().MOBILE); compMesh.userData.wildsKeep = 1; C().S.add(compMesh);
   const P = C().P; compState = { key: want, x: P.pos.x + 1.5, z: P.pos.z + 1.5, yaw: 0, spd: 0, yawRate: 0, tag: tag('', 'comp') }; compMesh.position.set(compState.x, P.pos.y, compState.z);
   embers.emit(compState.x, P.pos.y + .4, compState.z, 30, 0x9bffb0, { speed: 2, up: 1.5, life: .9 });
 }
@@ -430,7 +452,7 @@ function updCompanion(dt, t) {
   let dx = tx - s.x, dz = tz - s.z; const d = Math.hypot(dx, dz);
   if (d > 28 || (window.__jet && window.__jet.fly && d > 10)) { s.x = tx; s.z = tz; s.spd = 0; embers.emit(s.x, P.pos.y + .3, s.z, 20, 0x9bffb0, { speed: 1.6, up: 1.2 }); }
   else { const want = d > .5 ? Math.min(13, d * (d > 4 ? 2.4 : 1.3)) : 0; const tyaw = d > .5 ? Math.atan2(dx, dz) : (W.enc ? W.enc.stage.cface : s.yaw); let dy = Math.atan2(Math.sin(tyaw - s.yaw), Math.cos(tyaw - s.yaw)); const turn = clamp(dy, -6 * dt, 6 * dt); s.yaw += turn; s.yawRate = turn / dt; s.spd += (want * Math.max(.2, Math.cos(dy)) - s.spd) * Math.min(1, dt * 4);
-    let nx = s.x + Math.sin(s.yaw) * s.spd * dt, nz = s.z + Math.cos(s.yaw) * s.spd * dt; if (ell(nx, nz) < 1.1) { const h = blocked(nx, nz, .3); if (h) { const ox = nx - h.x, oz = nz - h.z, od = Math.hypot(ox, oz) || 1; nx = h.x + ox / od * (h.r + .31); nz = h.z + oz / od * (h.r + .31); } } s.x = nx; s.z = nz; }
+    let nx = s.x + Math.sin(s.yaw) * s.spd * dt, nz = s.z + Math.cos(s.yaw) * s.spd * dt; if (ZONE || ell(nx, nz) < 1.1) { const h = blocked(nx, nz, .3); if (h) { const ox = nx - h.x, oz = nz - h.z, od = Math.hypot(ox, oz) || 1; nx = h.x + ox / od * (h.r + .31); nz = h.z + oz / od * (h.r + .31); } } s.x = nx; s.z = nz; }
   const gy = Math.min(P.pos.y, c.groundAt(s.x, s.z, P.pos.y + .5)); compMesh.position.set(s.x, Math.max(.035, gy), s.z); compMesh.rotation.y = s.yaw;
   animate(compMesh, dt, s.spd, t, { yawRate: s.yawRate, alert: !!W.enc, lookYaw: 0, wag: !W.enc && s.spd < .3 });
 }
@@ -439,6 +461,8 @@ function updCompanion(dt, t) {
 function nearestCreature(p, max = 3.6) { let best = null, bd = max; for (const cr of W.creatures) { if (cr.st === 'flee') continue; const d = Math.hypot(cr.x - p.x, cr.z - p.z); if (d < bd) { bd = d; best = cr; } } return best && { cr: best, d: bd }; }
 function interactor(p) {
   if (!W.ready || W.modal || C().getMode() !== 'explore') return null;
+  if (ZONE) { const n = nearestCreature(p); if (n) return { label: 'Inspect ' + game.SP[n.cr.sp].name + ' (Lv ' + n.cr.c.lv + ')', d: n.d * .5, act: () => inspect(n.cr) }; return ZONE.interactor ? ZONE.interactor(p) : null; }
+  if (W.deepInteract) { const r = W.deepInteract(p); if (r) return r; }   // the threshold arch (wilds-gate.js)
   if (ell(p.x, p.z) > 1.05) return null;
   const n = nearestCreature(p); if (n) return { label: 'Inspect ' + game.SP[n.cr.sp].name + ' (Lv ' + n.cr.c.lv + ')', d: n.d * .5, act: () => inspect(n.cr) };
   const dm = Math.hypot(p.x - MARA.x, p.z - MARA.z); if (dm < 3.6) return { label: 'Talk to Mara Venn', d: dm * .5, act: talkMara };
@@ -467,7 +491,7 @@ function inspect(cr) {
 function oddsRows(o) { return o.mods.map(m => `<div><span>${esc(m.label)}</span><span class="${m.pp >= 0 ? 'p' : 'n'}">${m.pp >= 0 ? '+' : ''}${m.pp}%</span></div>`).join('') + `<div style="border-top:1px solid #ffffff22;margin-top:3px;padding-top:3px"><b>Chance</b><b>${o.pct}%</b></div>`; }
 function doCalm(cr) {
   const r = game.calm(cr.c); closeModal();
-  if (r.ok) { AUD.sfx('calm'); cr.calm = true; for (let i = 0; i < 4; i++) setTimeout(() => embers && embers.emit(cr.x, .6, cr.z, 10, 0x9bffb0, { up: 1.8, speed: .6, life: 1.4 }), i * 150);
+  if (r.ok) { AUD.sfx('calm'); cr.calm = true; if (cr.slot && cr.slot.qtag && game.progress('encounter_resolution', cr.slot.qtag, { sp: cr.sp, how: 'calm' })) toast('Quest updated: the ' + game.SP[cr.sp].name + ' is settled.'); for (let i = 0; i < 4; i++) setTimeout(() => embers && embers.emit(cr.x, .6, cr.z, 10, 0x9bffb0, { up: 1.8, speed: .6, life: 1.4 }), i * 150);
     floatText(cr.x, 1.2, cr.z, '+' + r.xp + ' XP', 'heal'); if (r.ups && r.ups.length) levelUp('You', r.ups);
     // a calmed creature trusts you: offer a gentle bind with a big calm bonus (it won't attack while calm)
     startEncounter(cr, { calm: true, note: 'Calmed (rolled ' + r.roll + ' under ' + r.pct + '%). It trusts you — try a gentle bind, or let it be.' });
@@ -548,7 +572,7 @@ function playLine(l) {
 }
 function bindFx(ok) {
   const enc = W.enc; if (!enc) return; const { x, z } = enc.cr; const { GLOW } = mats(); if (enc.bindAnim) { enc.bindAnim.ring.removeFromParent(); enc.bindAnim = null; }
-  const ring = new THREE.Mesh(solid(new THREE.TorusGeometry(.9, .04, 6, 40).rotateX(Math.PI / 2), 0x9bffb0), GLOW); ring.position.set(x, .3, z); root.add(ring);
+  const ring = new THREE.Mesh(solid(new THREE.TorusGeometry(.9, .04, 6, 40).rotateX(Math.PI / 2), 0x9bffb0), GLOW); ring.position.set(x, .3, z); R0().add(ring);
   const t0 = performance.now(); enc.bindAnim = { ring, t0, ok };
   for (let i = 0; i < 6; i++) setTimeout(() => embers && embers.emit(x, .3 + i * .15, z, 12, ok ? 0x9bffb0 : 0xffd27a, { speed: 1.8, up: .6, life: .8, spread: 1.6 }), i * 120);
 }
@@ -566,6 +590,8 @@ function endEncounter(silent) {
   W.enc = null; closeModal(); AUD.fight(false);
   if (r === 'bound') { despawn(cr, 40); refreshCompanion(); }
   else if (r === 'won' || r === 'escaped') { cr.st = 'flee'; cr.t = 4; cr.gone = true; cr.c.hp = game.stats(cr.c).hp; }
+  if (cr.slot && cr.slot.qtag && (r === 'won' || r === 'bound') && game.progress('encounter_resolution', cr.slot.qtag, { sp: cr.sp, how: r })) toast('Quest updated: the ' + game.SP[cr.sp].name + ' is settled.');
+  if (r === 'lost' && ZONE && ZONE.respawn) { cr.st = 'idle'; cr.cool = 20; cr.c.hp = game.stats(cr.c).hp; ZONE.respawn(); if (!silent) toast(ZONE.wakeMsg || 'You wake at camp, rested. Nothing was lost.', 3600); }
   else if (r === 'lost') { cr.st = 'idle'; cr.cool = 20; cr.c.hp = game.stats(cr.c).hp; const P = C().P; P.pos.set(FIRE.x + 2, 0, FIRE.z + 2); C().input.yp.yaw = Math.atan2(-(FIRE.x - P.pos.x), -(FIRE.z - P.pos.z)); if (!silent) toast('You wake by Mara\'s fire, rested. Nothing was lost.', 3600); }
   else { cr.st = cr.calm ? 'idle' : 'flee'; cr.t = 3; cr.cool = 10; if (!cr.calm) cr.c.hp = Math.min(game.stats(cr.c).hp, cr.c.hp + 5); }
   renderHud();
@@ -652,7 +678,7 @@ function travel(x, z, yaw) { const c = C(); if (c.getMode() !== 'explore') windo
 let lastT = performance.now(), hudT = 0, regenT = 0;
 const FOGC = new THREE.Color(), FDAY = new THREE.Color(.46, .54, .47), FNIGHT = new THREE.Color(.025, .05, .05);
 function frame_(dt, t) {
-  if (!W.ready) return; const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen, day = c.U && c.U.day ? c.U.day.value : 0;
+  if (!W.ready) return; if (ZONE) return zoneFrame(dt, t); const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen, day = c.U && c.U.day ? c.U.day.value : 0;
   UNI.uT.value = t; UNI.uPl.value.set(P.pos.x, P.pos.y, P.pos.z); creekMat.uniforms.uT.value = t; creekMat.uniforms.uDay.value = day;
   const camD = Math.hypot((c.C.position.x - FC.x) / RX, (c.C.position.z - FC.z) / RZ); nearGroup.visible = camD < 1.6;
   // zone: the warning on the way in is wilds-gate.js; music/fog swap on the way out
@@ -672,7 +698,7 @@ function frame_(dt, t) {
   updCompanion(dt, t);
   if (W.enc) encCamera(dt);
   // tags
-  for (const cr of W.creatures) { const d = Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z); const s = explore && d < 14 && cr.mesh.visible && !W.enc && W.modal !== 'inspect' ? screenOf(cr.x, cr.mesh.userData.rig.h * 2.2 + .5, cr.z) : null; if (s) { cr.tag.style.display = 'block'; cr.tag.style.left = s[0] + 'px'; cr.tag.style.top = s[1] + 'px'; const txt = game.SP[cr.sp].name + ' <span class="lv">Lv ' + cr.c.lv + '</span>'; if (cr.tag.__t !== txt) { cr.tag.innerHTML = txt; cr.tag.__t = txt; } } else cr.tag.style.display = 'none'; }
+  for (const cr of W.creatures) { const d = Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z); const s = explore && d < 14 && cr.mesh.visible && !W.enc && W.modal !== 'inspect' ? screenOf(cr.x, (cr.mesh.userData.rig.hw || cr.mesh.userData.rig.h) * 2.2 + .5, cr.z) : null; if (s) { cr.tag.style.display = 'block'; cr.tag.style.left = s[0] + 'px'; cr.tag.style.top = s[1] + 'px'; const txt = game.SP[cr.sp].name + ' <span class="lv">Lv ' + cr.c.lv + '</span>'; if (cr.tag.__t !== txt) { cr.tag.innerHTML = txt; cr.tag.__t = txt; } } else cr.tag.style.display = 'none'; }
   { const d = Math.hypot(MARA.x - P.pos.x, MARA.z - P.pos.z), s = explore && d < 18 && !W.modal ? screenOf(MARA.x, 2.5, MARA.z) : null; W.maraTag.style.display = s ? 'block' : 'none'; if (s) { W.maraTag.style.left = s[0] + 'px'; W.maraTag.style.top = s[1] + 'px'; const S = game.state; const mark = !S.quests.first_footfall || (S.quests.first_footfall.st === 'ready') || (S.quests.first_footfall.st === 'done' && !S.quests.a_gentle_signal) || (S.quests.a_gentle_signal && S.quests.a_gentle_signal.st === 'ready'); const txt = (mark ? '❗ ' : '') + 'Mara Venn · Trail Warden'; if (W.maraTag.textContent !== txt) W.maraTag.textContent = txt; } }
   if (compState && compState.tag) { const comp = game.activeComp(); const d = Math.hypot(compState.x - P.pos.x, compState.z - P.pos.z), s = explore && comp && d < 12 && !W.modal ? screenOf(compState.x, .9, compState.z) : null; compState.tag.style.display = s ? 'block' : 'none'; if (s) { compState.tag.style.left = s[0] + 'px'; compState.tag.style.top = s[1] + 'px'; const txt = '♥ ' + game.SP[comp.sp].name + ' Lv ' + comp.lv; if (compState.tag.textContent !== txt) compState.tag.textContent = txt; } }
   if (!nearGroup.visible) { hudT -= dt; if (hudT < 0) { hudT = .5; renderHud(); } return; }
@@ -697,6 +723,58 @@ function frame_(dt, t) {
 }
 const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v3 = new THREE.Vector3(), _one = new THREE.Vector3(1, 1, 1), _eu = new THREE.Euler();
 
+// ---------------------------------------------------------------- deep-area zone (wilds-deep.js): the same creatures / encounters / NPC talk, run on its world
+function zoneFrame(dt, t) {
+  const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen, Z = ZONE;
+  UNI.uT.value = t; UNI.uPl.value.set(P.pos.x, P.pos.y, P.pos.z);
+  if (explore && !W.enc && !P.fp) { const cp = c.C.position, hx = P.pos.x, hz = P.pos.z; let f = 1; for (let k = 1; k <= 8; k++) { const u = k / 8, x = hx + (cp.x - hx) * u, z = hz + (cp.z - hz) * u; const o = blocked(x, z, .45); if (o && o.r > .3) { f = Math.max(.25, (k - 1) / 8); break; } } if (f < 1) { cp.x = hx + (cp.x - hx) * f; cp.z = hz + (cp.z - hz) * f; cp.y = Math.max(cp.y, P.pos.y + 1.6); c.C.lookAt(hx, P.pos.y + 1.4, hz); } }
+  for (const s of Z.spawns) { if (!s.cr && !(s.when && !s.when())) { s.cool = (s.cool || 0) - dt; if (s.cool <= 0 && Math.hypot(P.pos.x - s.x, P.pos.z - s.z) > 25) spawn(s); } }
+  for (const cr of W.creatures.slice()) if (cr.slot.zone === Z) updCreature(cr, dt, t, P, Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z));
+  updCompanion(dt, t); if (W.enc) encCamera(dt);
+  for (const cr of W.creatures) { if (cr.slot.zone !== Z) { cr.tag.style.display = 'none'; continue; } const d = Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z); const s = explore && d < 14 && cr.mesh.visible && !W.enc && W.modal !== 'inspect' ? screenOf(cr.x, (cr.mesh.userData.rig.hw || cr.mesh.userData.rig.h) * 2.2 + .5, cr.z) : null; if (s) { cr.tag.style.display = 'block'; cr.tag.style.left = s[0] + 'px'; cr.tag.style.top = s[1] + 'px'; const txt = (cr.slot.qtag ? '⚠ ' : '') + game.SP[cr.sp].name + ' <span class="lv">Lv ' + cr.c.lv + '</span>'; if (cr.tag.__t !== txt) { cr.tag.innerHTML = txt; cr.tag.__t = txt; } } else cr.tag.style.display = 'none'; }
+  if (W.maraTag) W.maraTag.style.display = 'none';
+  if (compState && compState.tag) { const comp = game.activeComp(); const d = Math.hypot(compState.x - P.pos.x, compState.z - P.pos.z), s = explore && comp && d < 12 && !W.modal ? screenOf(compState.x, .9, compState.z) : null; compState.tag.style.display = s ? 'block' : 'none'; if (s) { compState.tag.style.left = s[0] + 'px'; compState.tag.style.top = s[1] + 'px'; const txt = '♥ ' + game.SP[comp.sp].name + ' Lv ' + comp.lv; if (compState.tag.textContent !== txt) compState.tag.textContent = txt; } }
+  embers.update(dt); AUD.update(dt, c.U && c.U.day ? c.U.day.value : 0);
+  regenT += dt; if (regenT > 1 && !W.enc) { game.regen(regenT); regenT = 0; }
+  hudT -= dt; if (hudT < 0) { hudT = .25; renderHud(); }
+}
+// generic quest-giver talk (Orrick Vale / Sable Kest): npc = { id, name, role, x, z, quests: [ids], say: { offer_<q>, active_<q>, ready_<q>, locked, done } }
+function talkNpc(npc) {
+  if (W.modal) return; const S = game.state, P = C().P; C().avatar.rotation.y = Math.atan2(-(npc.x - P.pos.x), -(npc.z - P.pos.z)); if (npc.face) npc.face();
+  let say = npc.say.done, qid = null, mode = null;
+  for (const id of npc.quests) { const st = S.quests[id]; if (st && st.st === 'done') continue;
+    if (!st) { if (game.canAccept(id)) { say = npc.say['offer_' + id]; qid = id; mode = 'accept'; } else say = npc.say['locked_' + id] || npc.say.locked; }
+    else if (st.st === 'active') say = npc.say['active_' + id];
+    else if (st.st === 'ready') { say = npc.say['ready_' + id]; qid = id; mode = 'claim'; }
+    break; }
+  const q = qid && game.QS[qid]; let btns = '';
+  if (mode === 'accept') btns += `<button class="pri" data-a="accept">Accept: ${esc(q.title)}<small>${q.rewards.playerXp} XP${q.rewards.companionXp ? ' · ' + q.rewards.companionXp + ' companion XP' : ''}${(q.rewards.items || []).length ? ' · ' + q.rewards.items.map(i => (game.IT[i] || { name: i }).name).join(', ') : ''}</small></button>`;
+  if (mode === 'claim') btns += `<button class="pri" data-a="claim">Claim reward<small>${esc(q.title)}</small></button>`;
+  if (npc.rest) btns += `<button data-a="rest">Rest at the camp<small>heal everyone</small></button>`;
+  btns += `<button data-a="bye">Goodbye</button>`;
+  const prog = npc.quests.filter(id => S.quests[id] && S.quests[id].st !== 'done').map(id => { const d = game.QS[id], s = S.quests[id]; return `<div class="card"><div><b>${esc(d.title)}</b><div class="dim">${d.objectives.map(o => objLabel(o) + ' ' + Math.min(o.count, s.prog[o.id] || 0) + '/' + o.count).join(' · ')}</div></div><span class="chip">${s.st === 'ready' ? 'ready' : 'active'}</span></div>`; }).join('');
+  openModal('npc', `<h2>${esc(npc.name)} <small>${esc(npc.role)}</small><button class="x" aria-label="Close">✕</button></h2><div class="say">“${esc(say)}”</div>${prog}<div class="row">${btns}</div>`);
+  const on = (a, f) => { const b = $m(`[data-a="${a}"]`); if (b) b.onclick = f; };
+  on('accept', () => { const r = game.accept(qid); if (r.ok) { AUD.sfx('ui'); toast('Quest accepted: ' + q.title); } closeModal(); talkNpc(npc); });
+  on('claim', () => { const r = game.claim(qid); closeModal(); if (r.ok) { const rw = r.rewards; AUD.sfx('level'); bigBanner('QUEST COMPLETE', q.title + ' · +' + rw.playerXp + ' XP'); if (rw.items.length) toast('Received: ' + rw.items.map(i => (game.IT[i] || { name: i }).name).join(', '), 4200); if (rw.ups.length) setTimeout(() => levelUp('You', rw.ups), 1200); if (npc.onClaim) npc.onClaim(qid); } else toast('Nothing to claim: ' + r.reason); renderHud(); });
+  on('rest', () => { rest(); closeModal(); }); on('bye', closeModal); const x = $m('.x'); if (x) x.onclick = closeModal;
+  W._modalKeys = { Digit1: mode ? mode : (npc.rest ? 'rest' : 'bye'), Escape: 'bye' };
+}
+function obRemove(pred) { for (const [k, a] of OB) { const b = a.filter(o => !pred(o)); if (!b.length) OB.delete(k); else if (b.length !== a.length) OB.set(k, b); } }
+// what wilds-deep.js may use (one object, so the deep module never reaches into Fernway Verge's internals)
+export const zoneApi = {
+  game: () => game, W, toast, bigBanner, renderHud, talkNpc, tag, esc, swayMat, UNI, openModal, closeModal, rest: () => rest(), levelUp,
+  embersEmit: (...a) => embers && embers.emit(...a), obAdd: o => obAdd(o), obRemove,
+  setZone(z) {   // z = null leaves the zone (creatures of the zone despawn; the companion is re-placed next to you)
+    if (ZONE === z) return; const prev = ZONE;
+    if (W.enc) try { endEncounter(true); } catch (e) { } closeModal();
+    for (const cr of W.creatures.slice()) if (cr.slot.zone === prev || (z && !cr.slot.zone)) { cr.mesh.removeFromParent(); disposeMesh(cr.mesh); cr.tag.remove(); W.creatures.splice(W.creatures.indexOf(cr), 1); cr.slot.cr = null; cr.slot.cool = 0; }
+    ZONE = z || null; if (embers) R0().add(embers.pts);
+    if (compState) { const P = C().P; compState.x = P.pos.x + 1.5; compState.z = P.pos.z + 1.5; compState.spd = 0; }
+    if (W.maraTag) W.maraTag.style.display = 'none'; renderHud();
+  },
+  zone: () => ZONE,
+};
 // ---------------------------------------------------------------- lifecycle (called by wilds-gate.js)
 export const isLoaded = () => W.ready;
 export const inForest = () => W.inForest;
@@ -730,7 +808,7 @@ function disposeTree(o, seen = { geo: new Set(), mat: new Set(), tex: new Set() 
   return seen;
 }
 export function unload() {
-  if (!W.ready) return; W.ready = false;
+  if (!W.ready) return; W.ready = false; ZONE = null;
   try { if (W.enc) endEncounter(true); } catch (e) { } W.enc = null; closeModal(); W.inForest = false;
   AUD.dispose();
   const c = C();

@@ -97,10 +97,35 @@ function chain(parent, x, y, z, n, geoFn, len, glowMat, extraFn) {
   segs.extra = extra; return segs;
 }
 
+// ---------------------------------------------------------------- deep-area species (Glassroot Grove): a base rig, scaled, plus their own parts
+// (same two shared materials, so no new shader programs). Scale lives on an inner group: wilds.js owns the outer group's scale (bind / hit flashes).
+const VARIANT = {
+  briarback: { base: 'shardmole', s: 1.45, spd: .9, add(L, { MAT, GLOW }) {   // bramble-backed Verdant/Stone bruiser: thorn crest + moss pelt
+    part(M([...[[-.14, .24, -.2], [.1, .27, -.05], [-.06, .29, .1], [.13, .22, .2], [0, .31, -.1], [-.15, .2, .05]].map(([x, y, z], i) => paint(new THREE.ConeGeometry(.045, .2 + (i % 3) * .05, 5).rotateX(-.4 + i * .12).translate(x, y + .08, z), 0x3a2a18, 0x6a4a28, .1)),
+      ...[[-.12, .2, -.1], [.12, .22, .1], [0, .26, 0]].map(([x, y, z]) => paint(new THREE.DodecahedronGeometry(.14, 0).scale(1.3, .45, 1.1).translate(x, y, z), 0x3d7a2a, 0x2a5a1e, .2))]), MAT, L.body);
+    part(M([-1, 1].map(s => paint(ell(.03, .03, .03, s * .07, .07, .17), 0x9bff6a, 0x9bff6a, 0))), GLOW, L.head); } },
+  kilnfox: { base: 'cinderling', s: 1.3, spd: 1.35, add(L, { MAT, GLOW }) {   // rare Ember/Gale fox: tall ears, ember mane, long legs
+    for (const s of [-1, 1]) { const ear = new THREE.Group(); ear.position.set(s * .07, .09, .06); L.head.add(ear); part(M([paint(new THREE.ConeGeometry(.05, .2, 4).scale(1, 1, .4).translate(0, .1, 0), 0x3a2a24, 0x2a1e1a, .08), paint(new THREE.ConeGeometry(.025, .12, 4).scale(1, 1, .3).translate(0, .08, .012), 0xff7a1a, 0xffb04a, .1)]), MAT, ear); ear.rotation.z = -s * .25; L.ears.push(ear); }
+    part(M([0, 1, 2, 3, 4].map(k => paint(new THREE.ConeGeometry(.035, .16 - k * .015, 5).rotateX(-.9).translate(0, .14, .3 - k * .1), 0xff5a10, 0xffc04a, .15))), GLOW, L.body); } },
+  brookwarden: { base: 'rillfin', s: 1.7, spd: .8, add(L, { MAT, GLOW }) {   // Tide/Stone creek guardian: river-stone shell plates
+    part(M([[0, .12, -.05, .16], [-.1, .1, .12, .1], [.1, .1, .12, .1], [.09, .11, -.18, .09], [-.09, .11, -.18, .09]].map(([x, y, z, r]) => paint(new THREE.DodecahedronGeometry(r, 0).scale(1.2, .5, 1.2).translate(x, y, z), 0x7a8a92, 0x56646a, .15))), MAT, L.body);
+    part(M([-.06, .06].map(x => paint(new THREE.BoxGeometry(.012, .012, .3).translate(x, .17, -.03), 0x7af0ff, 0x7af0ff, 0))), GLOW, L.body); } },
+  veilwing: { base: 'mosskit', s: .95, spd: 1.2, add(L, { MAT, GLOW }) {   // rare Gale/Aether glider: dusk fur + two veil wings (flap with the ear springs)
+    for (const s of [-1, 1]) { const w = new THREE.Group(); w.position.set(s * .18, .12, -.02); L.body.add(w); part(M([paint(new THREE.CircleGeometry(.34, 7, 0, Math.PI).scale(1, .55, 1).rotateY(s * Math.PI / 2).rotateZ(s * .35).translate(s * .2, .02, -.05), 0xc8b0ff, 0x6a5aa8, .12)]), GLOW, w); L.ears.push(w); }
+    part(M([paint(ell(.27, .21, .39, 0, 0, 0), 0x3a3a6a, 0x8a80c0, .1)]), MAT, L.body); } },
+  rootcoloss: { base: 'shardmole', s: 2.6, spd: .55, add(L, { MAT, GLOW }) {   // elite Verdant/Stone: root-bark hide, glowing sap veins, a sapling on its back
+    part(M([...[0, 1, 2, 3, 4, 5].map(k => paint(new THREE.CylinderGeometry(.02, .035, .5, 5).rotateZ(1.2 + k * .1).rotateY(k * 1.05).translate(Math.cos(k) * .2, .18, Math.sin(k) * .25), 0x4a3424, 0x2e2018, .12)),
+      paint(new THREE.CylinderGeometry(.015, .03, .35, 5).translate(0, .45, -.05), 0x4a3424, 0x4a3424, .1), paint(new THREE.IcosahedronGeometry(.16, 0).translate(0, .66, -.05), 0x3f8a2a, 0x2a6a1e, .2)]), MAT, L.body);
+    part(M([[-.18, .1, .1], [.2, .12, -.08], [0, .2, .25], [-.05, .22, -.25]].map(([x, y, z]) => paint(new THREE.BoxGeometry(.02, .02, .28).rotateY(x * 3).translate(x, y, z), 0xd8ff5a, 0xd8ff5a, 0))), GLOW, L.body); } },
+};
+export const hasRig = sp => !!(BUILD[sp] || VARIANT[sp]);
 export function buildCreature(sp, lite) {
-  const root = new THREE.Group(), L = { sp, ears: [], legs: [], tail: [] };
-  (BUILD[sp] || BUILD.mosskit)(root, L);
-  const { SHADOW } = mats(); const sh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), SHADOW); sh.scale.set(.9, 1, 1.3).multiplyScalar(L.h * 2.4); sh.position.y = .04; sh.renderOrder = -1; root.add(sh);
+  const root = new THREE.Group(), L = { sp, ears: [], legs: [], tail: [] }, V = VARIANT[sp];
+  let host = root, sc = 1; if (V) { host = new THREE.Group(); host.scale.setScalar(V.s); root.add(host); sc = V.s; }
+  (BUILD[V ? V.base : sp] || BUILD.mosskit)(host, L); L.sp = sp;
+  if (V) { V.add(L, mats()); L.speed *= V.spd * Math.sqrt(sc); L.stride *= sc; L.gait /= Math.sqrt(sc); }
+  L.hw = L.h * sc;   // world-space height (tags / framing); L.h stays in rig units for the gait
+  const { SHADOW } = mats(); const sh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), SHADOW); sh.scale.set(.9, 1, 1.3).multiplyScalar(L.hw * 2.4); sh.position.y = .04; sh.renderOrder = -1; root.add(sh);
   root.userData.rig = L; L.ph = Math.random() * 10; L.blink = 0; L.twitch = 0; L.look = 0; L.prevYaw = 0; L.bob = 0;
   root.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
   return root;
@@ -127,7 +152,7 @@ export function animate(root, dt, speed, t, o = {}) {
   // ears / fins: idle flick + random twitch
   L.twitch -= dt; if (L.twitch < 0) { L.twitch = 1.5 + Math.random() * 4; L.tw = .5; }
   L.tw = Math.max(0, (L.tw || 0) - dt * 3);
-  L.ears.forEach((e, i) => { e.rotation.x = Math.sin(t * 3 + i) * .06 + (i === 0 ? L.tw * .6 : 0) + (o.alert ? -.25 : 0); if (L.sp === 'rillfin') e.rotation.y = Math.sin(t * 4 + i * 3) * .25; });
+  L.ears.forEach((e, i) => { e.rotation.x = Math.sin(t * 3 + i) * .06 + (i === 0 ? L.tw * .6 : 0) + (o.alert ? -.25 : 0); if (L.sp === 'rillfin') e.rotation.y = Math.sin(t * 4 + i * 3) * .25; else if (L.sp === 'veilwing' && i >= L.ears.length - 2) e.rotation.z = (i % 2 ? -1 : 1) * (Math.sin(t * 7 + i) * .35 + .1); });
   // tail: each joint is a damped spring chasing (gait sway + turn drag) — reacts to turns and stops with overshoot
   const yawRate = o.yawRate || 0; const k = 60, d = 9;
   L.tail.forEach((sg, i) => { const target = Math.sin(L.ph * (L.wiggle ? 1 : .5) - i * .7) * (L.wiggle ? .35 : .18) * (.4 + mv) - yawRate * .12 + (o.wag ? Math.sin(t * 14) * .5 : 0);

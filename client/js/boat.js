@@ -33,7 +33,7 @@ B.drive = (dt, f, s) => { const b = B.cur, c = W(), t = performance.now() / 1000
   b.m.position.y = 0.1 + Math.sin(t * 2.1) * 0.08; b.m.rotation.set(Math.sin(t * 1.7) * 0.03 - b.v * 0.004, b.h, Math.sin(t * 1.3) * 0.04 + s * 0.05, 'YXZ');
   B.pos.copy(b.m.position); const seat = b.m.position.clone().setY(0.9), cam = seat.clone().add(new THREE.Vector3(-fx * 11, 4.5, -fz * 11));
   c.C.position.lerp(cam, 1 - Math.pow(0.002, dt)); c.C.lookAt(seat.clone().add(new THREE.Vector3(fx * 6, 0.5, fz * 6))); return seat };
-function tick() { requestAnimationFrame(tick); const c = W(); if (!barEl) return; const walk = c.getMode() === 'explore', t = performance.now() / 1000;
+function tick() { requestAnimationFrame(tick); if (window.__cityPaused) return; const c = W(); if (!barEl) return; const walk = c.getMode() === 'explore', t = performance.now() / 1000;
   if (!walk && B.active) { B.active = false; B.cur.v = 0; B.cur = null }
   for (const b of B.boats) if (b !== B.cur) b.m.position.y = 0.1 + Math.sin(t * 2 + b.h) * 0.06;
   let lbl = ''; if (B.active) { if (nearDock()) lbl = '⚓ Exit boat' } else if (walk) { near = B.boats.find(b => Math.hypot(b.m.position.x - c.P.pos.x, b.m.position.z - c.P.pos.z) < 6) || null; if (near) lbl = '🚤 Board boat' }

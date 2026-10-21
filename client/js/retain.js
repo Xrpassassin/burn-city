@@ -56,7 +56,7 @@ function placeCoins() {
 const M = new THREE.Matrix4(), q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), tmp = new THREE.Vector3();
 let lastFind = 0;
 function tick() {
-  requestAnimationFrame(tick); const c = W(); if (!c || !coins) return; const t = performance.now() / 1000, m = c.getMode();
+  requestAnimationFrame(tick); if (window.__cityPaused) return; const c = W(); if (!c || !coins) return; const t = performance.now() / 1000, m = c.getMode();
   const me = m === 'explore' ? c.P.pos : m === 'fly' ? (c.drone && c.drone() && c.drone().visible ? c.drone().position : c.C.position) : null;
   coins.forEach((p, i) => { const got = hunt.got.includes(i); q.setFromAxisAngle(Y, t * 2 + i); M.compose(tmp.copy(p).setY(p.y + Math.sin(t * 2 + i) * .3), q, got ? tmp.clone().set(0, 0, 0) : one); coinMesh.setMatrixAt(i, M);
     if (!got && me && me.distanceTo(p) < (m === 'fly' ? 5 : 3.2) && Date.now() - lastFind > 1500) { lastFind = Date.now(); hunt.got.push(i); saveHunt(); chip(); toast(`🪙 BURN coin ${hunt.got.length}/5 found!${hunt.got.length === 5 ? ' Drone skin unlocked' + (tok() ? '' : ' (sign in to claim)') : ''}`);

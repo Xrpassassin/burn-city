@@ -2,7 +2,7 @@
 // Everything here is LOCAL-ONLY for milestone 1: the save lives in this browser's localStorage, nothing is sent to the server,
 // so none of it is competitive or tradeable yet. Quest rewards are idempotent (a quest moves ready -> done exactly once).
 export const SAVE_KEY = 'bcWilds';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;   // v2 (deep area): + zones.glassroot { visits, picked } — v1 saves migrate in place
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const today = () => new Date().toISOString().slice(0, 10);
@@ -13,7 +13,8 @@ export const MAX_LEVEL = 30, ROSTER_MAX = 12;
 
 export function freshSave() {
   return { v: SAVE_VERSION, created: Date.now(), player: { lv: 1, xp: 0, hp: null }, roster: [], active: null, uidN: 1,
-    items: { trail_sigil: 1 }, flags: {}, quests: {}, found: {}, seen: {}, recent: { day: today(), n: {} }, bankCompXp: 0, stats: { binds: 0, calms: 0, wins: 0 } };
+    items: { trail_sigil: 1 }, flags: {}, quests: {}, found: {}, seen: {}, recent: { day: today(), n: {} }, bankCompXp: 0, stats: { binds: 0, calms: 0, wins: 0 },
+    zones: { glassroot: { visits: 0, picked: {} } } };
 }
 // tolerant loader: unknown/missing fields get defaults; a newer save than this code understands is kept untouched (read-only)
 export function migrate(raw) {
@@ -27,6 +28,9 @@ export function migrate(raw) {
   s.roster = Array.isArray(raw.roster) ? raw.roster.filter(c => c && c.sp && c.uid) : [];
   if (!s.roster.some(c => c.uid === s.active)) s.active = s.roster[0] ? s.roster[0].uid : null;
   s.recent = raw.recent && raw.recent.day === today() ? raw.recent : { day: today(), n: {} };
+  // v1 -> v2: the deep area (Glassroot Grove) keeps its visit count + picked-up survey tags / clues here
+  const z = raw.zones && typeof raw.zones === 'object' ? raw.zones : {}, gr = z.glassroot && typeof z.glassroot === 'object' ? z.glassroot : {};
+  s.zones = Object.assign({}, z, { glassroot: { visits: +gr.visits || 0, picked: Object.assign({}, gr.picked || {}) } });
   s.v = SAVE_VERSION;
   return s;
 }
@@ -75,6 +79,7 @@ export function createGame(data, opts = {}) {
   function canAccept(id) { const q = QS[id]; if (!q || S.quests[id]) return false; return (q.prerequisites || []).every(p => S.quests[p] && S.quests[p].st === 'done'); }
   function matches(obj, type, target, meta) {
     if (obj.type !== type) return false;
+    if (meta && meta.obj && meta.obj !== obj.id) return false;   // one pickup -> one named objective (e.g. survey tag_a / tag_b / tag_c share a target)
     if (obj.target === target) return true;
     if (obj.target === 'wild_creature' && type === 'inspect') return true;
     if (obj.target === 'mosskit_or_rillfin') return meta && (meta.sp === 'mosskit' || meta.sp === 'rillfin') && (meta.how === 'calm' || meta.how === 'bind');

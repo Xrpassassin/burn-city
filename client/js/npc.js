@@ -31,7 +31,7 @@ function mk(i) { const c = W(), g = new THREE.Group(), body = new THREE.MeshStan
 function pickTgt(b) { const ns = W().E.nodes.filter(n => n.pos && !n.minor), n = ns[(Math.random() * ns.length) | 0], a = Math.random() * 6.283, r = (n.distR || 30) * (.55 + Math.random() * .3);
   b.tgt = new THREE.Vector3(n.pos.x + Math.cos(a) * r, 0, n.pos.z + Math.sin(a) * r); if (window.__estate && window.__estate.inLake(b.tgt.x, b.tgt.z, 6) || window.__onRoad && window.__onRoad(b.tgt.x, b.tgt.z, .5)) b.tgt = null }   // targets on sidewalks/blocks, never mid-road
 const _v = new THREE.Vector3(); let last = performance.now();
-function tick() { requestAnimationFrame(tick); const c = W(); if (!c) return; const now = performance.now(), dt = Math.min(.1, (now - last) / 1000); last = now; const w = innerWidth, h = innerHeight;
+function tick() { requestAnimationFrame(tick); if (window.__cityPaused) return; const c = W(); if (!c) return; const now = performance.now(), dt = Math.min(.1, (now - last) / 1000); last = now; const w = innerWidth, h = innerHeight;
   for (const b of bots) { const p = b.g.position; if (!b.tgt) pickTgt(b);
     if (b.tgt) { const dx = b.tgt.x - p.x, dz = b.tgt.z - p.z, d = Math.hypot(dx, dz); if (d < 1.5) b.tgt = null; else { const s = Math.min(d, 2.4 * dt); p.x += dx / d * s; p.z += dz / d * s; b.g.rotation.y = Math.atan2(-dx, -dz); b.ph += dt * 8 } }
     for (const k of c.colliders) { if (!k.r) continue; const ex = p.x - k.x, ez = p.z - k.z, m = k.r + .5; if (Math.abs(ex) > m || Math.abs(ez) > m) continue; const e = Math.hypot(ex, ez); if (e < m) { p.x += ex / (e || 1) * (m - e); p.z += ez / (e || 1) * (m - e); b.tgt = null } }

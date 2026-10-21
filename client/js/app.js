@@ -579,7 +579,7 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
 // ONE merged mesh for all bridges (per-vertex bridge index + arc position; shader clips at b.Lv, so live lockFX animates the rails extending).
 // Pools >=99% locked: FOREVER plaque at each terminal (one instanced draw) + subtle gold pulse.
 {const SEG=TIER==='low'?24:MOBILE?36:56,geos=[],NB=Math.min(bridges.length,64);
- const LV0=Math.log10(10),LVM=Math.log10(Math.max(100,...bridges.map(b=>b.p.tvl_xrp*b.L))),covOf=b=>{const lv=b.p.tvl_xrp*b.Lv;return lv<10?0:Math.min(1,(Math.log10(lv)-LV0)/(LVM-LV0))};bridges.forEach(b=>{b.lockedXrp=b.p.tvl_xrp*b.L;b.forever=b.lockedXrp>=10000&&b.L>0});
+ const LV0=Math.log10(10),LVM=Math.log10(Math.max(100,...bridges.map(b=>b.p.tvl_xrp*b.L))),covOf=b=>{const lv=b.p.tvl_xrp*b.Lv;return lv<10?0:Math.min(1,(Math.log10(lv)-LV0)/(LVM-LV0))};bridges.forEach(b=>{b.lockedXrp=b.p.tvl_xrp*b.L;b.forever=b.L>=.95});
  bridges.slice(0,NB).forEach((b,bi)=>{if(b.minor||b.L<=0)return;const side=new THREE.Vector3();for(const sd of [-1,1]){const pts=[];for(let k=0;k<=SEG;k++){const u=k/SEG,q=b.curve.getPoint(u);side.crossVectors(b.curve.getTangent(u),UPV).normalize().multiplyScalar(sd*(b.r+1.1));pts.push(q.add(side).setY(q.y-b.r*.35))}
    const tg=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),SEG,.14+.42*covOf(b),5,false);const n=tg.attributes.position.count,ba=new Float32Array(n).fill(bi);tg.setAttribute('bi',new THREE.BufferAttribute(ba,1));geos.push(tg)}});
  if(geos.length){const cov=new Float32Array(64),glow=new Float32Array(64);
@@ -626,7 +626,7 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
    let bz=null,best=1e9;for(const f of [.3,.4,.5,.6,.75,.9]){const c3=new THREE.CubicBezierCurve3(p0.clone(),p0.clone().addScaledVector(tA,D*f),q1.clone().addScaledVector(ht,-hb),q1.clone());let km=0;for(let j=1;j<6;j++)km=Math.max(km,kAt(c3,j/6));const cost=Math.abs(kAt(c3,0)-kr)+.5*km;if(cost<best){best=cost;bz=c3}}
   const pts=bz.getPoints(SEGB);for(const p of pts.slice(1)){const ox=p.x-n.pos.x,oz=p.z-n.pos.z,d=Math.hypot(ox,oz);if(d<Rin){p.x=n.pos.x+ox/d*Rin;p.z=n.pos.z+oz/d*Rin}}   // never cut through the tower
   for(let j=1;j<=SEGH;j++)pts.push(H(j/SEGH,new THREE.Vector3()));
-  const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=SEGB+SEGH,lock=b.forever?1:b.L>=.5?b.L:0,UB=SEGB/NS,c=CYC.clone().lerp(LOCKC,b.L*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
+  const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=SEGB+SEGH,lock=b.forever?1:0,UB=SEGB/NS,c=CYC.clone().lerp(LOCKC,lock*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
   const shell=(rad,aMul)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*3);
    for(let i=0;i<=NS;i++){const u=i/NS;cv.getPointAt(u,cP);const tap=1-.75*Math.pow(u,1.6),fade=1-THREE.MathUtils.smoothstep(u,.62,1),ph=9*(end?1+u*SL/Lr:-u*SL/Lr);
     for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,op*aMul*fade],v*4);fl.set([ph,sp,lock*THREE.MathUtils.smoothstep(u,0,UB*1.5)],v*3)}}

@@ -326,3 +326,7 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   "Browse live streams" button. `/api/cams` down = the old AEGIS cams/modal (`openPlain`). CSP already had `frame-src https:`.
 - Tests: `test/cams-sim.js` (in `npm test`): fallback, stubbed API ranking/filtering, quota round-robin, key never leaked, comment length/rate/escape/URL.
 - Gaps: comments have no moderation UI/report button; the dead "acquiring signal" screens were the AEGIS feed's cams (localhost CORS / stale ids), now replaced.
+
+## View menu on phones / return from the arena (sw bc-v53-orbitfix)
+- Phones (`MOBILE`): the top-centre `#vExit` button now shows in every mode: "✕ Exit" in Explore/Fly, "☰ View" in Orbit and Tour, and opens `#vMenu` (Orbit/Fly/Tour/Explore/Resume; the Wilds travel lock still hides all but Explore/Resume via `body.wl-travel`). Landscape phones hide the `#btns .seg` mode dock, so before this Orbit had no way out.
+- Arena gate tap stores `sessionStorage.bc_ret` (mode, walker pos, camera, yaw); the next city load restores Explore/Fly at that spot when no `?mode`/`?view` is given. `pageshow` (bfcache) closes a stale open menu.

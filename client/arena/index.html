@@ -160,7 +160,7 @@ function showLobby(e) { lobbyEl.hidden = false; const game = mode === 'tron' ? '
 window.__lobbyTest = showLobby;
 function start(m, ranked = null, extra = '') {
   leave(); hideLobby(); lastOpen = 1; mode = m; $('#exit').hidden = false; const token = localStorage.bcToken || null;
-  $('#menu').hidden = true; $('#touch').style.display = mobile && mode === 'tron' ? 'block' : 'none'; $('#firebtn').hidden = !(mobile && mode === 'zombie'); $('#gear').hidden = mode !== 'zombie'; if ($('#keysbtn')) $('#keysbtn').hidden = mobile || mode !== 'zombie'; $('#fuel').hidden = $('#xh').hidden = $('#hint').hidden = mode !== 'zombie'; $('#tl').textContent = mode === 'tron' ? '◀' : 'MOVE'; $('#tr').textContent = mode === 'tron' ? '▶' : '🔥 FIRE';
+  $('#menu').hidden = true; $('#touch').style.display = mobile && mode === 'tron' ? 'block' : 'none'; $('#firebtn').hidden = !(mobile && mode === 'zombie'); placeJoy(); $('#joy').hidden = !(mobile && mode === 'zombie' && fixJoy()); $('#gear').hidden = mode !== 'zombie'; if ($('#keysbtn')) $('#keysbtn').hidden = mobile || mode !== 'zombie'; $('#fuel').hidden = $('#xh').hidden = $('#hint').hidden = mode !== 'zombie'; $('#tl').textContent = mode === 'tron' ? '◀' : 'MOVE'; $('#tr').textContent = mode === 'tron' ? '▶' : '🔥 FIRE';
   $('#hint').textContent = mode === 'tron' ? '' : mobile ? 'Left thumb: move (joystick appears where you touch) · right side: swipe to look · hold FIRE' : 'Click to lock mouse · mouse/Q/E or ←/→ aim · WASD move · click/Space fire · F use (hold to repair/revive) · X swap · 1/2/3 pick boon · P settings · L leave · H all keys';
   net = new GameNet(WS, mode, { token, look: owned, name: P.get('name') || (token ? 'runner' : (localStorage.bcGuest || (localStorage.bcGuest = 'Guest-' + (1000 + Math.floor(Math.random() * 9000))))), ranked, extra }).on('ranked_down', e => { if (e.id === net?.me) { overUntil = performance.now() + 36e5; overInfo = { ranked: true, wave: e.wave, kills: e.kills }; } }).on('ranked_result', e => { watchPayout(e.id); overUntil = performance.now() + 6000; overInfo = { ranked: true, result: e, kills: overInfo.kills }; }).on('round_result', e => { tronMsg(`Round ${e.round}: ${e.teams ? (e.teams.length ? e.teams.map(t => TEAMN[t - 1]).join(' & ') + ' team wins' : 'draw') : ''}${e.teams ? '' : e.winner != null ? esc(net?.roster.get(e.winner)?.name || 'rider') + ' survives' : 'draw'}${e.over ? '' : ' · next round soon'}`, 4000); })
     .on('match_over', e => { if (e.ranked) watchPayout(e.id); const mine = e.standings.find(s => s.id === net?.me); tronMsg(`🏁 MATCH OVER${e.winTeams?.length ? ' · ' + e.winTeams.map(t => TEAMN[t - 1]).join(' & ') + ' wins' : ''}${e.potXrp != null ? ' · pot ' + e.potXrp + ' XRP' : ''}<br><small>` + e.standings.slice(0, 8).map(s => `${s.rank}. ${esc(s.name)}${s.team ? ' (' + TEAMN[s.team - 1] + ')' : ''}${e.teams ? '' : ''}${s.prizeXrp ? ' → ' + s.prizeXrp + ' XRP' : ''}${s.review ? ' (review)' : ''}`).join('<br>') + (e.ranked ? '<br>Payouts are sent automatically · status below' : '<br>Back to the lobby for a rematch…') + '</small>', 7000); })
@@ -224,6 +224,19 @@ $('#tl').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: -1 }); e.
 $('#tr').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: 1 }); e.preventDefault(); };
 // ---- zombie touch controls: floating joystick (left half), swipe-look (right half), big FIRE button ----
 const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 }, look = { id: null, x: 0, y: 0 }, R_JOY = 56, DEAD = 0.15;
+// Fixed joystick option: anchored bottom-left instead of appearing under the thumb. Default on for listed wallets (same signed-in
+// account the city uses, localStorage.bcAcct), otherwise off; anyone can toggle it in Settings (localStorage.bcFixJoy).
+const FIXJOY_DEF = ['ckR0VUVNRlZEaTNLN1RVUUFRTGk2eHhhMVdDZXI4NGRjQQ=='].map(atob);   // Gnasty
+const fixJoy = () => localStorage.bcFixJoy != null ? localStorage.bcFixJoy === '1' : FIXJOY_DEF.includes(localStorage.bcAcct || '');
+function placeJoy() { const j = $('#joy'); j.classList.toggle('fixed', fixJoy()); if (fixJoy()) { j.style.left = j.style.top = ''; $('#knob').style.transform = ''; } }
+{ const st = document.createElement('style'); st.id = 'zjoyCss'; st.textContent = `#joy.fixed{left:calc(26px + env(safe-area-inset-left));bottom:calc(30px + env(safe-area-inset-bottom));top:auto}
+@media (pointer:coarse) and (orientation:landscape){#joy.fixed{left:calc(30px + env(safe-area-inset-left));bottom:calc(18px + env(safe-area-inset-bottom))}
+#firebtn{width:112px!important;height:112px!important;right:calc(26px + env(safe-area-inset-right))!important;bottom:calc(20px + env(safe-area-inset-bottom))!important}
+#usebtn{width:72px!important;height:72px!important;right:calc(150px + env(safe-area-inset-right))!important;bottom:calc(24px + env(safe-area-inset-bottom))!important}
+#swapbtn{width:58px!important;height:58px!important;right:calc(118px + env(safe-area-inset-right))!important;bottom:calc(120px + env(safe-area-inset-bottom))!important}
+#codhud{top:calc(34px + env(safe-area-inset-top))!important;left:calc(10px + env(safe-area-inset-left))!important;font-size:11px!important;line-height:1.35!important}#codhud b{font-size:16px!important}}`; document.head.appendChild(st);
+  const set = $('#set'); if (set) { const lb = document.createElement('label'); lb.innerHTML = '<input id="fixjoy" type="checkbox"> Fixed joystick (bottom-left)'; set.appendChild(lb); const cb = lb.querySelector('input'); cb.checked = fixJoy(); cb.onchange = () => { localStorage.bcFixJoy = cb.checked ? '1' : '0'; placeJoy(); if (zTouchOn()) $('#joy').hidden = !fixJoy(); }; } }
+function zTouchOn() { return mode === 'zombie' && mobile; }
 function setJoy(t) { let dx = t.clientX - joy.ox, dy = t.clientY - joy.oy; const d = Math.hypot(dx, dy), c = Math.min(d, R_JOY);
   if (d > 0) { dx = dx / d * c; dy = dy / d * c; } $('#knob').style.transform = `translate(${dx}px,${dy}px)`;
   const m = c / R_JOY, a = m < DEAD ? 0 : (m - DEAD) / (1 - DEAD), k = a * a * (3 - 2 * a) / (m || 1);   // deadzone + smooth analog ramp
@@ -232,14 +245,15 @@ const zTouch = () => mode === 'zombie' && mobile;
 addEventListener('touchstart', e => { if (!zTouch() || (e.target.closest('button,input,#set,a') && e.target.id !== 'firebtn')) return; e.preventDefault();
   for (const t of e.changedTouches) {
     if (t.target.id === 'firebtn') { fire = true; $('#firebtn').classList.add('on'); fireId = t.identifier; }
-    else if (t.clientX < innerWidth / 2 && joy.id === null) { joy.id = t.identifier; joy.ox = t.clientX; joy.oy = t.clientY; joy.x = joy.y = 0; const j = $('#joy'); j.hidden = false; j.style.left = t.clientX - 70 + 'px'; j.style.top = t.clientY - 70 + 'px'; $('#knob').style.transform = ''; }
+    else if (t.clientX < innerWidth / 2 && joy.id === null) { joy.id = t.identifier; joy.x = joy.y = 0; const j = $('#joy'); j.hidden = false; $('#knob').style.transform = '';
+      if (fixJoy()) { const b = j.getBoundingClientRect(); joy.ox = b.left + b.width / 2; joy.oy = b.top + b.height / 2; setJoy(t); } else { joy.ox = t.clientX; joy.oy = t.clientY; j.style.left = t.clientX - 70 + 'px'; j.style.top = t.clientY - 70 + 'px'; } }
     else if (look.id === null) { look.id = t.identifier; look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
 addEventListener('touchmove', e => { if (!zTouch()) return; e.preventDefault();
   for (const t of e.changedTouches) {
     if (t.identifier === joy.id) setJoy(t);
     else if (t.identifier === look.id) { yaw -= (t.clientX - look.x) * 0.0055 * lookSens; pitch = Math.max(-PLIM, Math.min(PLIM, pitch - (t.clientY - look.y) * 0.003 * lookSens)); look.x = t.clientX; look.y = t.clientY; } } }, { passive: false });
 let fireId = null;
-const tEnd = e => { for (const t of e.changedTouches) { if (t.identifier === joy.id) { joy.id = null; joy.x = joy.y = 0; $('#joy').hidden = true; }
+const tEnd = e => { for (const t of e.changedTouches) { if (t.identifier === joy.id) { joy.id = null; joy.x = joy.y = 0; $('#joy').hidden = !fixJoy(); $('#knob').style.transform = ''; }
   if (t.identifier === look.id) look.id = null; if (t.identifier === fireId) { fireId = null; fire = false; $('#firebtn').classList.remove('on'); } } };
 addEventListener('touchend', tEnd); addEventListener('touchcancel', tEnd);
 for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });   // Safari pinch/double-tap zoom

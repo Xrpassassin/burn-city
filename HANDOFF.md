@@ -197,3 +197,23 @@ _Auto-deploy verified 2026-10-19._
   Test hooks: `window.__cityLife.artBoards` (positions), `.artAtlas` (atlas rects), `.artLoaded` (images painted), `.artCanvas`.
   Source originals: 1000014819 = $BURN/XRP/$IMM ring, 1000014929 = $BURN skull $IMM, 8D76C5A3 = dragon ouroboros (BURN IMM XRPYRO),
   9A70E085 = XRPyro dashboard, IMG_0219 = $BURN scarcity coin, IMG_9082 = Fire Trio, IMG_9886 = Flywheel Psalms.
+
+## Strict gold: permanently locked AMM pools (feat/gold-lock-strict)
+- **One rule, one file**: `client/js/goldlock.js` (plain script: `require()` on the server, `import './goldlock.js'` in app.js -> `globalThis.BCGold`).
+  Gold = `locked_pct >= GOLD_MIN_LOCK_PCT` (95, % of LP supply held by black-holed accounts) **AND** `tvl_xrp >= GOLD_MIN_TVL_XRP` (5000) **AND** priced
+  (XRP pair, or `tvl_priced === true`). Black-holed = lsfDisableMaster + (no RegularKey or a known black-hole RegularKey) + no SignerList (`isBlackholedInfo`).
+  Change the thresholds only there.
+- **Server** (`server/eco.js`): `isBlackhole()` uses `BCGold.isBlackholedInfo`; `locked_pct` is floored to 0.1 (never rounds 94.96 up to 95);
+  `recompute()` sets `p.tvl_priced` + `p.gold` (both in `POOL_LIVE`). Test hook: `eco._readPool(p)` (used by the fixture test).
+- **Client** (`client/js/app.js`): `b.forever = BCGold.isGold(b.p)` drives everything gold: Forever Rails (gold pools only, full length), ∞ FOREVER plaques,
+  core-flow gold (`lk` = 0/1), gold seal rings, "LOCKED FOREVER" labels, gold swirls + sparks. Non-gold pools have zero gold: partly locked get ember seals and a
+  blue `.lockLbl.part` "LP locked · X%" label. `window.__gold` = {min_tvl, min_pct, forced, pools}.
+- **Gold dispersal**: gold swirls dissolve over their lower half (fragment discard on a flow-moving cell hash + glowing edge, same swirl mesh) and shed golden motes
+  that drift outward + up with the flow and fade, all in the existing sparks Points draw (+0 draw calls). Budget is the sparks cap: phones 150, desktop 360 total
+  (dispersal takes up to half when gold pools exist, the rest stays normal sparks), Low quality = off, hidden when adaptive quality has turned bloom off.
+  `window.__swirl` = {n, geos, particles, sparks, disperse, gold}.
+- **Visual test hook**: `?debug=1&goldtest=1` (top-2 TVL pools) or `goldtest=XRP/BURN,XRP/IMM` (pairs or AMM accounts) forces gold for those pools (labels say "· test").
+- **Tests/audit**: `test/goldlock-sim.js` (in `npm test`, fixture-based, stubbed fetch: rule edges, signer list/regular key, 94.96% floor, locked pool < 5k not gold,
+  unpriced pair). `scripts/lockaudit.js` re-audits every tracked pool against the ledger -> `lock-audit.md`.
+- **Gaps**: gold is decided when the city builds; a pool crossing the line while the page is open turns gold on the next load. Real-phone check of the dispersal
+  look/fps is still pending (tested in headless iPhone 14 emulation, SwiftShader).

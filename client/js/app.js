@@ -542,8 +542,15 @@ const DECK={};E.nodes.forEach(n=>{if(!n.seg0)return;const ends=[];pools.forEach(
  const mid=Math.min(n.h*.33,40),y0=Math.max(2.2,Math.min(mid-(Lv-1)*dy/2,n.seg0.sh-1.6-(Lv-1)*dy));const lvA=[...Array(Lv)].map(()=>[]),gapTo=(L,x)=>L.reduce((m,y)=>Math.min(m,Math.abs(Math.atan2(Math.sin(x-y),Math.cos(x-y)))),9);
  ends.forEach(e=>{let best=0,bg=-1;for(let l=0;l<Lv;l++){const g=gapTo(lvA[l],e.a);if(g>bg+1e-6){bg=g;best=l}}lvA[best].push(e.a);DECK[n.name+'|'+e.p.amm+'|'+e.p.a+e.p.b]={y:y0+best*dy,lv:best}})});
 const deckY=(n,p)=>{const d=DECK[n.name+'|'+p.amm+'|'+p.a+p.b];return d?d.y:Math.min(n.h*.33,40)};
-pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=A.pos.clone().setY(deckY(A,p)),b=B.pos.clone().setY(deckY(B,p));
- const mid=a.clone().add(b).multiplyScalar(.5);mid.y=Math.max(a.y,b.y)+8+a.distanceTo(b)*.1+(i%3)*3;
+// rails land on the tower TOP: roof edge facing the partner tower (landing-pad height on flagship tier); falls back to the old deck height
+const topAt=(n,o,p)=>{if(n.roofY==null)return n.pos.clone().setY(deckY(n,p));const d=_v.set(o.pos.x-n.pos.x,0,o.pos.z-n.pos.z).normalize(),R=(n.roofCw||n.w)*(n.sxz||1)*.6;
+ return new THREE.Vector3(n.pos.x+d.x*R,n.roofY*(n.sy||1)+(n.tier>=4?.95:.4),n.pos.z+d.z*R)};
+// gentle arc, raised until it clears every other tower it passes over (top + 3 m, spires included)
+const arcMid=(a,b,A,B,i,r)=>{const mid=a.clone().add(b).multiplyScalar(.5);mid.y=Math.max(a.y,b.y)+6+a.distanceTo(b)*.06+(i%3)*2;const q=new THREE.Vector3();
+ for(let it=0;it<6;it++){let need=0;const c=new THREE.QuadraticBezierCurve3(a,mid,b);for(let k=1;k<24;k++){c.getPoint(k/24,q);for(const n of E.nodes){if(n===A||n===B||!n.group||n.top==null)continue;
+  if(Math.hypot(q.x-n.pos.x,q.z-n.pos.z)<n.w*1.15+r+1.5)need=Math.max(need,n.top+3-q.y)}}if(need<=0)break;mid.y+=need*1.2}mid.y=Math.min(mid.y,Math.max(a.y,b.y)+18+a.distanceTo(b)*.22);return mid};   // capped: never a towering loop
+pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p);
+ const mid=arcMid(a,b,A,B,i,.18+2.1*Math.sqrt(p.tvl_xrp/maxT));
  const curve=new THREE.QuadraticBezierCurve3(a,mid,b);const share=Math.sqrt(p.tvl_xrp/maxT),r=.18+2.1*share,L=p.locked_pct/100,minor=p.tvl_xrp<100;const g=new THREE.Group();S.add(g);const b0={rail:1,pulse:0};const lite=TIER==='low'&&rankT.indexOf(p)>=12;
  const solid=new THREE.Mesh(new THREE.TubeGeometry(curve,64,r,8),new THREE.MeshBasicMaterial({color:new THREE.Color(0x3cf3ff).multiplyScalar(.15+.95*L),transparent:true,opacity:minor?.25:.18+.75*L,depthWrite:false,blending:THREE.AdditiveBlending}));
  solid.userData={kind:'bridge',pool:p};g.add(solid);pick.push(solid);
@@ -611,6 +618,7 @@ const hoverGeo=(()=>{const col=(g,r,gg,b)=>{const n=g.attributes.position.count,
   col(new THREE.CapsuleGeometry(.11,.7,2,6).rotateZ(Math.PI/2).translate(-.15,-.12,.5),.6,.6,.7),col(new THREE.CapsuleGeometry(.11,.7,2,6).rotateZ(Math.PI/2).translate(-.15,-.12,-.5),.6,.6,.7)])})();
 // ---------- garages: every bridge ends in a lit hangar bay on the tower face; ships fly in and out of them ----------
 // one bay per bridge end (instanced: dark vestibule, neon frame + canopy, lit slatted interior) · frames flash when a ship docks or departs
+// garage bays retired (rails now land on tower tops): DOOR keeps only the dock points ships use; its meshes are not added to the scene
 const DOOR=(()=>{const list=[],byN={},byL={};bridges.forEach(b=>[0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a],o=N[end?b.p.a:b.p.b];if(!n||!n.seg0)return;
   const dk=DECK[n.name+'|'+b.p.amm+'|'+b.p.a+b.p.b],d={lv:dk?dk.lv:0,b,end,n,dir:new THREE.Vector3(o.pos.x-n.pos.x,0,o.pos.z-n.pos.z).normalize(),pulse:0,i:list.length};d.ang=Math.atan2(d.dir.z,d.dir.x);list.push(d);(byN[n.name]=byN[n.name]||[]).push(d);(byL[n.name+'|'+d.lv]=byL[n.name+'|'+d.lv]||[]).push(d);(b.doors=b.doors||[])[end]=d}));
  // bay width: sized to the bridge, never wider than the tower face or the gap to the neighbouring bay
@@ -625,7 +633,7 @@ const DOOR=(()=>{const list=[],byN={},byL={};bridges.forEach(b=>[0,1].forEach(en
  const rec=new THREE.InstancedMesh(recG,new THREE.MeshStandardMaterial({color:0x090d18,metalness:.8,roughness:.45}),Math.max(1,list.length));
  const fr=new THREE.InstancedMesh(frG,new THREE.MeshBasicMaterial({color:0xffffff}),Math.max(1,list.length));
  const lit=new THREE.InstancedMesh(inG,new THREE.MeshBasicMaterial({map:tex,color:0xffffff}),Math.max(1,list.length));
- [rec,fr,lit].forEach(m=>{m.frustumCulled=false;m.userData.noBatch=1;S.add(m)});const _c=new THREE.Color(),_o=new THREE.Object3D();
+ [rec,fr,lit].forEach(m=>{m.frustumCulled=false;m.userData.noBatch=1});const _c=new THREE.Color(),_o=new THREE.Object3D();
  function place(d){const n=d.n,s0=d.n.seg0,sx=n.sxz||1,yb=d.end?d.b.curve.v2.y:d.b.curve.v0.y,R=(s0.cw+(s0.top-s0.cw)*Math.min(1,yb/(s0.sh*(n.sy||1))))*sx,rin=R*Math.cos(Math.PI/s0.sides),c=d.b.curve,len=d.b.len||(d.b.len=c.getLength());
   // where the bridge crosses the bay's front face (and a point just inside the wall, where ships vanish/appear)
   const at=dist=>{for(let k=0;k<=240;k++){const u=k/240,uu=d.end?1-u:u;c.getPoint(uu,_v);if(Math.hypot(_v.x-n.pos.x,_v.z-n.pos.z)>=dist)return uu}return d.end?0:1};

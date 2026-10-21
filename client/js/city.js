@@ -106,7 +106,7 @@ renderFoot();
 function connect(){if(ws||document.hidden)return;/* new session: ids restart after a server restart, so forget every old id->NFT mapping and marker */for(const id of [...peers.keys()])drop(id);nfts.clear();const t=token();try{ws=new WebSocket(WS+(t?'&token='+encodeURIComponent(t):''))}catch(e){return later()}
   ws.onopen=()=>{retry=0;panel.classList.add('on')};
   ws.onmessage=onMsg=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
-    if(m.t==='w'){myId=m.id;canChat=m.canChat;window.__jetOK=!!m.jet;if(m.name){window.__myColor=colOf(m.name);dispatchEvent(new CustomEvent('bc-mycolor',{detail:window.__myColor}))}log.replaceChildren();(m.msgs||[]).forEach(x=>addMsg({...x},false));renderFoot();log.scrollTop=log.scrollHeight}
+    if(m.t==='w'){myId=m.id;canChat=m.canChat;window.__myName=m.name||'';window.__jetOK=!!m.jet;if(m.name){window.__myColor=colOf(m.name);dispatchEvent(new CustomEvent('bc-mycolor',{detail:window.__myColor}))}log.replaceChildren();(m.msgs||[]).forEach(x=>addMsg({...x},false));renderFoot();log.scrollTop=log.scrollHeight}
     else if(m.t==='s'){online=m.n;badge();const ids=new Set();for(const [id,name,guest,x,y,z,r,b,k,md,j,fs,fl] of m.p){ids.add(id);upsert(id,name,guest,x,y,z,r);const q=peers.get(id);if(q){q.b=b;q.k=k;q.md=md||(b?'b':'f');q.j=j;q.fs=fs||0;setFlair(q,fl)}}for(const id of [...peers.keys()])if(!ids.has(id))drop(id)}
     else if(m.t==='c'){addMsg(m,true);bubble(m.pid,m.b)}
     else if(m.t==='fc'){dispatchEvent(new CustomEvent('bc-peer-catch',{detail:m}))}

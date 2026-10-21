@@ -91,6 +91,36 @@ async function poll() {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && enabled() && (A.state === 'paused' || Date.now() - A.lastOk > POLL)) schedule(800); });
 
+// ---------------------------------------------------------------- live cams (server/cams.js: real YouTube live streams, ranked by viewers)
+// Our server lists them (YouTube Data API behind a server-side key, or a curated fallback); the Pyramid faces show the top streams
+// across categories as thumbnails, the cam modal plays one (the only iframe, only inside the modal). /api/cams down = AEGIS cams as before.
+const SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev', CAMS_POLL = 10 * 60e3;
+const LC = A.live = { cats: [], top: [], source: null, ok: 0, fails: 0 };
+const nfmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'K' : String(n | 0);
+function liveCam(s, cat) { const vid = s.id; return { id: 'yt-' + vid, live: 1, type: 'youtube', vid, cat, name: clean(s.title, 60) || 'Live cam', city: cat, region: clean(s.channel, 40), attribution: clean(s.channel, 48) || 'YouTube live',
+  viewers: Math.max(0, +s.viewers || 0), poster: `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`, embed: `https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1` }; }
+function liveValidate(d) {
+  if (!d || !Array.isArray(d.categories)) return null; const cats = [];
+  for (const c of d.categories.slice(0, 12)) { const name = clean(c && c.name, 24); if (!name || !Array.isArray(c.streams)) continue;
+    const streams = c.streams.filter(s => s && /^[A-Za-z0-9_-]{11}$/.test(s.id)).slice(0, 12).map(s => liveCam(s, name)).sort((a, b) => b.viewers - a.viewers); if (streams.length) cats.push({ name, streams }); }
+  return cats.length ? cats : null;
+}
+function liveTop() {   // best of every category first (round-robin by rank), then by viewers: the faces show variety, ranked
+  const out = [], seen = new Set(); for (let r = 0; r < 3; r++) for (const c of LC.cats.slice().sort((a, b) => (b.streams[r]?.viewers || 0) - (a.streams[r]?.viewers || 0))) { const s = c.streams[r]; if (s && !seen.has(s.vid)) { seen.add(s.vid); out.push(s); } }
+  return out.slice(0, 12);
+}
+const screenList = () => !enabled() ? [] : LC.top.length ? LC.top : (A.data ? A.data.cams : []);
+let camT = 0;
+async function pollCams() {
+  clearTimeout(camT); if (!enabled()) return; if (document.hidden) { camT = setTimeout(pollCams, 30e3); return; }
+  try { const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 10e3);
+    const r = await fetch(SRV + '/api/cams', { cache: 'no-store', credentials: 'omit', signal: ctl.signal }); clearTimeout(to); if (!r.ok) throw new Error('http ' + r.status);
+    const d = await r.json(), cats = liveValidate(d); if (!cats) throw new Error('bad payload');
+    LC.cats = cats; LC.top = liveTop(); LC.source = d.source === 'youtube' ? 'youtube' : 'fallback'; LC.ok = Date.now(); LC.fails = 0; LC.err = null;
+    syncScreens(screenList()); camT = setTimeout(pollCams, CAMS_POLL);
+  } catch (e) { LC.fails++; LC.err = String(e && e.message || e); camT = setTimeout(pollCams, Math.min(30 * 60e3, CAMS_POLL * Math.pow(2, Math.min(LC.fails, 2)))); }
+}
+
 // ---------------------------------------------------------------- hysteresis -> effective level
 let pend = { lv: 0, n: 0 }, changedAt = 0;
 function ingest(v) {
@@ -103,7 +133,7 @@ function ingest(v) {
     const up = v.level > A.level;
     if (up ? pend.n >= 2 : (pend.n >= 3 && Date.now() - changedAt > CALM_DWELL)) setLevel(v.level);
   }
-  applyLevel(v); syncScreens(v.cams); syncTable(v);
+  applyLevel(v); syncScreens(screenList()); syncTable(v);
 }
 function setLevel(lv, first) { A.level = lv; changedAt = Date.now(); pend = { lv, n: 0 }; A.changes = (A.changes || 0) + (first ? 0 : 1); }
 let lastSirenKey = '';
@@ -117,7 +147,7 @@ function applyLevel(v) {
 }
 function clearAll() {
   A.data = null; A.level = 0; A.everOk = false; pend = { lv: 0, n: 0 }; lastSirenKey = '';
-  applyLevel(null); syncScreens([]); syncTable(null); opsClear(); close(); status();
+  applyLevel(null); syncScreens(LC.top.length && enabled() ? LC.top : []); syncTable(null); opsClear(); close(); status();
 }
 
 // ---------------------------------------------------------------- screens: diegetic mounts
@@ -178,9 +208,9 @@ function drawScreen(s) {
   // header: AEGIS CITY WATCH — <city>, alert-coloured by level
   const lv = window.__aegisThreat || 0, hc = lv === 2 ? '#ff3b2a' : lv === 1 ? '#ffb000' : '#2fe3ff';
   g.fillStyle = lv === 2 ? '#2a0806' : '#071722'; g.fillRect(0, 0, CW, py); g.fillStyle = hc; g.fillRect(0, py - 2, CW, 2);
-  g.font = '900 17px system-ui,sans-serif'; g.fillStyle = '#e6fbff'; g.fillText(('AEGIS CITY WATCH — ' + cam.city).slice(0, 40), 12, 23);
+  g.font = '900 17px system-ui,sans-serif'; g.fillStyle = '#e6fbff'; g.fillText(((cam.live ? 'AEGIS LIVE — ' : 'AEGIS CITY WATCH — ') + cam.city).slice(0, 40), 12, 23);
   const blink = reduced() ? true : s.blink; g.fillStyle = blink ? '#ff3b3b' : '#5a1a1a'; g.beginPath(); g.arc(CW - 62, 17, 7, 0, 7); g.fill();
-  g.fillStyle = '#ffd6d6'; g.font = '800 15px system-ui,sans-serif'; g.fillText(cam.type === 'snapshot' ? 'CAM' : 'LIVE', CW - 50, 23);
+  g.fillStyle = '#ffd6d6'; g.font = '800 15px system-ui,sans-serif'; g.fillText(cam.type === 'snapshot' ? 'CAM' : 'LIVE', CW - 50, 23); if (cam.viewers) { g.font = '700 13px system-ui,sans-serif'; g.fillStyle = '#bff6ff'; const vt = '👁 ' + nfmt(cam.viewers); g.fillText(vt, CW - 74 - g.measureText(vt).width, 23); }
   g.strokeStyle = hc + '99'; g.lineWidth = 4; g.strokeRect(2, 2, CW - 4, CH - 4);
   s.tex.needsUpdate = true;
 }
@@ -309,6 +339,10 @@ function shell(label) {   // one modal at a time; switching (console -> cam) kee
 }
 function open(cam) {
   if (!cam) return openConsole();
+  if (cam.live || (cam === 'live')) return openLive(cam === 'live' ? null : cam);
+  return openPlain(cam);
+}
+function openPlain(cam) {
   const card = shell('AEGIS City Watch: ' + cam.name);
   const head = document.createElement('div'); head.className = 'am-head';
   const tl = document.createElement('div'); const b = document.createElement('b'); b.textContent = 'AEGIS CITY WATCH — ' + cam.city; const sm = document.createElement('small'); sm.textContent = cam.name + (cam.region ? ' · ' + cam.region : ''); tl.append(b, sm);
@@ -327,8 +361,46 @@ function open(cam) {
 addEventListener('popstate', () => { if (modal) { pushed = false; close(); } });   // Android/browser back closes the modal instead of leaving the game
 const swallow = e => { if (!modal) return; if (e.key === 'Escape') { if (e.type === 'keydown') close(); } e.stopImmediatePropagation(); };
 addEventListener('keydown', swallow, true); addEventListener('keyup', swallow, true);
-function close(keepHist) { clearInterval(snapTimer); clearInterval(conTimer); const had = !!modal; if (modal) { modal.remove(); modal = null; } A.modalOpen = null; A.consoleOpen = false; window.__aegisModalOpen = false;
+function close(keepHist) { clearInterval(snapTimer); clearInterval(conTimer); clearInterval(comT); const had = !!modal; if (modal) { modal.remove(); modal = null; } A.modalOpen = null; A.consoleOpen = false; window.__aegisModalOpen = false;
   if (had && pushed && keepHist !== true) { pushed = false; try { if (history.state && history.state.aegisModal) history.back(); } catch { } } }
+
+// ---------------------------------------------------------------- live-stream browser: category tabs, list by viewers, one player, comments
+let comT = 0;
+const myName = () => { try { return (window.__myName || localStorage.getItem('bc_name') || '').toString().slice(0, 24); } catch { return ''; } };
+const myPid = () => { try { let p = localStorage.getItem('bc_cpid'); if (!p) { p = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); localStorage.setItem('bc_cpid', p); } return p; } catch { return ''; } };
+function openLive(cam) {
+  if (!LC.cats.length) { if (cam) return openPlain(cam); return openConsole(); }
+  const card = shell('AEGIS live streams'); card.classList.add('am-live');
+  let cat = (cam && LC.cats.find(c => c.name === cam.cat)) || LC.cats[0], cur = cam && cat.streams.find(s => s.vid === cam.vid) || cat.streams[0];
+  const head = E('div', 'am-head'), tl = E('div'), hb = E('b'), hs = E('small'); tl.append(hb, hs);
+  const x = E('button', 'am-x', '✕'); x.type = 'button'; x.setAttribute('aria-label', 'Close'); x.onclick = close; head.append(tl, x);
+  const tabs = E('div', 'al-tabs'); tabs.setAttribute('role', 'tablist');
+  const box = E('div', 'am-video'), body = E('div', 'al-body'), side = E('div', 'al-list'), com = E('div', 'al-com');
+  const cl = E('div', 'al-clist'), form = E('form', 'al-form'), inp = E('input'), sb = E('button', null, 'Post'), msg = E('div', 'ac-dim al-msg');
+  inp.maxLength = 200; inp.placeholder = 'Say something about this stream (200 max)'; inp.setAttribute('aria-label', 'Comment'); inp.autocomplete = 'off'; sb.type = 'submit'; form.append(inp, sb);
+  com.append(E('h4', null, '💬 Comments'), cl, form, msg);
+  // the modal swallows keys for the game, but typing must still reach the input
+  inp.addEventListener('keydown', e => { if (e.key === 'Escape') close(); e.stopPropagation(); }); inp.addEventListener('keyup', e => e.stopPropagation());
+  function renderTabs() { tabs.replaceChildren(); for (const c of LC.cats) { const b = E('button', 'al-tab' + (c === cat ? ' on' : ''), c.name); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', c === cat ? 'true' : 'false');
+    b.onclick = () => { if (c === cat) return; cat = c; renderTabs(); renderList(); play(cat.streams[0]); }; tabs.append(b); } }
+  function renderList() { side.replaceChildren(); cat.streams.forEach((s, i) => { const b = E('button', 'al-item' + (s === cur ? ' on' : '')); b.type = 'button'; const im = E('img'); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.src = s.poster; im.onerror = () => im.remove();
+    const t = E('div'); t.append(E('b', null, (i + 1) + '. ' + s.name), E('small', null, (s.viewers ? '👁 ' + nfmt(s.viewers) + ' watching · ' : '') + (s.region || ''))); b.append(im, t); b.onclick = () => { play(s); renderList(); }; side.append(b); }); }
+  function play(s) { cur = s; box.replaceChildren(); hb.textContent = 'AEGIS LIVE — ' + cat.name; hs.textContent = s.name + (s.viewers ? ' · ' + nfmt(s.viewers) + ' watching' : '');
+    const f = document.createElement('iframe'); f.src = s.embed; f.title = s.name; f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; f.setAttribute('allowfullscreen', ''); f.referrerPolicy = 'strict-origin-when-cross-origin'; box.append(f);
+    A.modalOpen = s.id; loadComments(); }
+  async function loadComments() { const vid = cur.vid; try { const r = await fetch(SRV + '/api/cams/' + vid + '/comments', { cache: 'no-store', credentials: 'omit' }); if (!r.ok) throw 0; const d = await r.json(); if (cur.vid !== vid || !modal) return; renderComments(Array.isArray(d.comments) ? d.comments : []); } catch { if (cur.vid === vid) msg.textContent = 'Comments are offline right now.'; } }
+  function renderComments(list) { cl.replaceChildren(); if (!list.length) cl.append(E('div', 'ac-dim', 'No comments yet. Be the first.'));
+    for (const c of list.slice(-50).reverse()) { const r = E('div', 'al-c'); r.append(E('b', null, clean(c.name, 24) || 'guest'), E('span', null, clean(c.text, 200)), E('small', null, new Date(+c.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))); cl.append(r); } }   // textContent only: never innerHTML
+  form.onsubmit = async e => { e.preventDefault(); const text = inp.value.trim(); if (!text) return; sb.disabled = true; msg.textContent = '';
+    try { const r = await fetch(SRV + '/api/cams/' + cur.vid + '/comments', { method: 'POST', credentials: 'omit', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, name: myName(), pid: myPid() }) }); const d = await r.json().catch(() => ({}));
+      if (r.ok) { inp.value = ''; loadComments(); } else msg.textContent = d.error === 'slow_down' ? 'One comment every 5 seconds, please.' : d.error === 'too_long' ? 'Max 200 characters.' : 'Could not post that.'; }
+    catch { msg.textContent = 'Comments are offline right now.'; } finally { setTimeout(() => sb.disabled = false, 1200); } };
+  const foot = E('div', 'am-foot', `Streams: YouTube live (${LC.source === 'youtube' ? 'ranked by live viewers, refreshed by our server' : 'curated 24/7 cams'}) · plays via YouTube privacy-enhanced mode · comments are public, keep it friendly`);
+  const main = E('div', 'al-main'); main.append(box, com); body.append(main, side);
+  card.append(head, tabs, body, foot); renderTabs(); renderList(); play(cur); comT = setInterval(() => { if (!document.hidden) loadComments(); }, 15e3);
+  x.focus({ preventScroll: true }); A.liveOpen = true;
+}
+A.openLive = openLive;
 
 // ---------------------------------------------------------------- ticker -> the city's event queue (ranked below gameplay)
 let tickI = 0, tickNext = 0;
@@ -665,7 +737,8 @@ function openConsole() {
   thr.append(E('span', 'ac-pill', LNAME[lv]), E('div', 'ac-ban', (v && v.banner) || (v ? 'All quiet across the network.' : 'Feed offline · city runs as normal')));
   if (v && v.reason) thr.append(E('div', 'ac-dim', v.reason));
   opsBox = E('div', 'ac-sec'); renderOps();
-  const camS = E('div', 'ac-sec'); camS.append(E('h4', null, `📡 Live cams (${v ? v.cams.length : 0}) · tap to watch`)); const grid = E('div', 'ac-cams');
+  const camS = E('div', 'ac-sec'); camS.append(E('h4', null, `📡 Live cams (${v ? v.cams.length : 0}) · tap to watch`));
+  if (LC.cats.length) { const lb = E('button', 'ac-cam ac-livebtn', '▶ Browse live streams by category (' + LC.cats.reduce((n, c) => n + c.streams.length, 0) + ')'); lb.type = 'button'; lb.onclick = () => openLive(null); camS.append(lb); } const grid = E('div', 'ac-cams');
   for (const cam of (v ? v.cams : [])) { const b = E('button', 'ac-cam'); b.type = 'button'; const im = E('img'); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.src = cam.poster; im.onerror = () => im.remove();
     b.append(im, E('b', null, cam.name), E('small', null, cam.region || cam.city)); b.onclick = () => open(cam); grid.append(b); }
   if (!v || !v.cams.length) grid.append(E('div', 'ac-dim', 'No cams on the feed right now.')); camS.append(grid);
@@ -702,7 +775,7 @@ function settings() {
   const st = document.createElement('div'); st.id = 'aegisStatus'; st.className = 'dim'; st.style.cssText = 'font-size:11px;margin:2px 0 0 22px';
   l.append(i, ' 🛰 Live AEGIS feed (city watch cams, command table, response ops, ticker)'); row.append(l, st); ss.append(row);
   i.onchange = () => { try { localStorage.setItem('bc_aegis', i.checked ? '1' : '0'); } catch { }
-    if (i.checked) { A.sig = null; schedule(100); } else { clearTimeout(timer); clearAll(); A.state = 'off'; } status(); };
+    if (i.checked) { A.sig = null; schedule(100); camT = setTimeout(pollCams, 200); } else { clearTimeout(timer); clearTimeout(camT); clearAll(); A.state = 'off'; } status(); };
   status();
 }
 function css() {
@@ -725,7 +798,23 @@ function css() {
 #aegisModal .ac-cams{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 #aegisModal .ac-cam{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:44px;padding:0 0 7px;border-radius:10px;border:1px solid #2fe3ff44;background:#0b2230;color:#e6fbff;text-align:left;cursor:pointer;overflow:hidden;font:inherit}
 #aegisModal .ac-cam img{width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;display:block}#aegisModal .ac-cam b{padding:0 8px;font-size:12px}#aegisModal .ac-cam small{padding:0 8px;opacity:.7;font-size:11px}
-#aegisModal .ac-tk{font-size:12px;opacity:.85;padding:2px 0;border-bottom:1px dashed #2fe3ff22}`;
+#aegisModal .ac-tk{font-size:12px;opacity:.85;padding:2px 0;border-bottom:1px dashed #2fe3ff22}
+#aegisModal .ac-livebtn{width:100%;padding:10px;margin-bottom:8px;font-weight:800;align-items:center}
+#aegisModal .am-live{width:min(1100px,100%)}
+#aegisModal .al-tabs{display:flex;gap:6px;overflow-x:auto;padding:0 12px 8px;scrollbar-width:none}
+#aegisModal .al-tab{flex:none;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid #2fe3ff55;background:#0b2230;color:#dff8ff;font:700 12px system-ui,sans-serif;cursor:pointer}
+#aegisModal .al-tab.on{background:#2fe3ff;color:#04121a}
+#aegisModal .al-body{display:flex;gap:10px;padding:0 12px}#aegisModal .al-main{flex:1 1 auto;min-width:0}
+#aegisModal .al-list{flex:0 0 300px;max-height:min(560px,62vh);overflow:auto;display:flex;flex-direction:column;gap:6px}
+#aegisModal .al-item{display:flex;gap:8px;align-items:center;min-height:44px;padding:4px;border-radius:9px;border:1px solid #2fe3ff33;background:#0a1a25;color:#e6fbff;text-align:left;cursor:pointer;font:inherit}
+#aegisModal .al-item.on{border-color:#2fe3ff;background:#0f2a3a}#aegisModal .al-item img{width:96px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;flex:none;background:#000}
+#aegisModal .al-item b{display:block;font-size:12px;line-height:1.25;max-height:2.5em;overflow:hidden}#aegisModal .al-item small{opacity:.7;font-size:11px}
+#aegisModal .al-com h4{margin:8px 0 4px;font-size:13px;color:#9feaff}#aegisModal .al-clist{max-height:180px;overflow:auto}
+#aegisModal .al-c{padding:4px 0;border-bottom:1px dashed #2fe3ff22;font-size:12px;overflow-wrap:anywhere}#aegisModal .al-c b{color:#ffe08a;margin-right:6px}#aegisModal .al-c small{opacity:.5;margin-left:6px}
+#aegisModal .al-form{display:flex;gap:6px;margin-top:6px}#aegisModal .al-form input{flex:1;min-width:0;min-height:40px;padding:0 10px;border-radius:9px;border:1px solid #2fe3ff55;background:#04101a;color:#fff;font:500 14px system-ui,sans-serif}
+#aegisModal .al-form button{min-height:40px;min-width:64px;border-radius:9px;border:0;background:#2fe3ff;color:#04121a;font-weight:800;cursor:pointer}
+body.touch #aegisModal .al-tab,body.touch #aegisModal .al-form button,body.touch #aegisModal .al-form input{min-height:44px}
+@media (max-width:760px){#aegisModal .al-body{flex-direction:column}#aegisModal .al-list{flex:none;max-height:none}}`;
   document.head.append(st);
 }
 
@@ -739,5 +828,5 @@ function css() {
     if (name == null) { A.pinned = false; if (A.raw != null) setLevel(A.raw); applyLevel(A.data); syncTable(A.data); opsSpawn(); status(); return null; }
     const lv = Math.max(0, Math.min(2, LEVELS[name] ?? (+name | 0))); A.pinned = true; A.everOk = true; setLevel(lv); applyLevel(A.data); syncTable(A.data || { cams: [], incidents: [], ticker: [] }); opsSpawn(); status(); return lv; };
   loop(); setInterval(() => { try { tickerTick(); } catch { } }, 2e3); setInterval(() => { try { if (!document.hidden) opsSpawn(); } catch (e) { A.opsErr = String(e && e.message || e); } }, 1000); setInterval(status, 30e3);
-  if (enabled()) schedule(FAST ? 300 : 4000); else A.state = 'off';
+  if (enabled()) { schedule(FAST ? 300 : 4000); camT = setTimeout(pollCams, FAST ? 200 : 1500); } else A.state = 'off';
 })();

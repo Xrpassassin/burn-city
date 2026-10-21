@@ -3,7 +3,7 @@ const http = require('http'), fs = require('fs'), path = require('path'), { WebS
 const Retain = require('./retain'), Fish = require('./fish'), LB = require('./leaderboard'), Ranked = require('./ranked'), { items } = require('./shop');
 const Nft = require('./nft'), Social = require('./social'), C = require('./config'), Pay = require('./payments'), { Room } = require('./game'), S = require('./store'), City = require('./city'), Eco = require('./eco');
 
-const AegisClips = require('./aegis-clips');
+const AegisClips = require('./aegis-clips'), Cams = require('./cams');
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
 const stats = { tickMs: [], bytesOut: 0, started: Date.now() };
 const resumeIdx = new Map();   // free-play zombie reconnect: resume key -> { p, room } (25s grace after a dropped socket)
@@ -71,6 +71,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { tickAvgMs: a.reduce((x, y) => x + y, 0) / (a.length || 1), tickP99Ms: a[Math.floor(a.length * 0.99)] || 0, tickMaxMs: a.at(-1) || 0, bytesOut: stats.bytesOut, upS: (Date.now() - stats.started) / 1e3, mem: process.memoryUsage().rss }); }
     const body = async () => { let b = ''; for await (const c of req) { b += c; if (b.length > 8000) throw new Error('big'); } try { const o = JSON.parse(b || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; } };
     const who = () => Pay.checkToken((req.headers.authorization || '').replace(/^Bearer /, ''));
+    if (url.pathname.startsWith('/api/cams') && await Cams.handle(req, res, url, { json, gate, ip, body })) return;   // AEGIS Pyramid live cams + per-stream comments (server/cams.js)
     if (url.pathname === '/api/eco/live') { if (Eco.serveLive(req, res)) return; return json(res, 503, { error: 'warming_up' }); }
     if (url.pathname === '/api/eco') return json(res, 200, Eco.status());
     if (url.pathname === '/api/status') return json(res, 200, { signin: !!C.XUMM_KEY, shop: !!(C.XUMM_KEY && C.TREASURY), dryRun: C.DRY_RUN, social: true, ranked: Ranked.status(), payoutsPaused: require('./guard').paused() });
@@ -331,7 +332,8 @@ const xsdk = () => { const { XummSdk } = require('xumm-sdk'); return new XummSdk
 Ranked.Q.start({ ledger: Pay.ledger, live: () => Ranked.live() && !C.DRY_RUN, wallet: () => { if (!C.TREASURY_SEED) return null; try { return require('xrpl').Wallet.fromSeed(C.TREASURY_SEED); } catch { return null; } } });
 setInterval(() => { try { Ranked.sweepRefunds(); } catch (e) { console.error('refunds', e.message); } Ranked.sweepSessions(Pay.ledger, xsdk).catch(() => {}); Pay.sweepBuys().catch(() => {}); }, 30000);
 server.headersTimeout = 15e3; server.requestTimeout = 30e3; server.keepAliveTimeout = 10e3;   // slow-loris protection
-AegisClips.start({ online: () => City.count() });   // no-op unless AEGIS_CLIPS=1
+AegisClips.start({ online: () => City.count() });
+Cams.start();   // YouTube live-cam refresh: no-op unless YT_API_KEY / Youtube_API is set   // no-op unless AEGIS_CLIPS=1
 server.listen(C.PORT, () => console.log(`burn-city-game :${C.PORT} free=true shop=on dryRun=${C.DRY_RUN} net=${C.NETWORK}`));
 Eco.start();
 module.exports = { server, stats, rooms, tronRoom, tronTick, tronRound, tronFinal };

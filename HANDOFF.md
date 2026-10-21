@@ -307,3 +307,22 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   unpriced pair). `scripts/lockaudit.js` re-audits every tracked pool against the ledger -> `lock-audit.md`.
 - **Gaps**: gold is decided when the city builds; a pool crossing the line while the page is open turns gold on the next load. Real-phone check of the dispersal
   look/fps is still pending (tested in headless iPhone 14 emulation, SwiftShader).
+
+## AEGIS Live Cams (feat/live-cams, sw bc-v52-livecams)
+- **Server** `server/cams.js` (hook: one line in `server.js` before `/api/eco/live`, plus `Cams.start()` at boot).
+  Key: `process.env.YT_API_KEY || process.env.Youtube_API` (the Fly secret is named **`Youtube_API`**). Never sent to the client.
+  With a key: YouTube Data API v3 `search.list` (type=video, eventType=live, videoEmbeddable) per category + one `videos.list`
+  (liveStreamingDetails,snippet,status) for viewer counts; keeps only public, embeddable, still-live streams. Cold start searches all 6
+  categories (600 units); after that one category per tick round-robin (`CAMS_TICK_MIN`, default 20 min) + one videos.list → ~7.3k units/day.
+  No key / API error = last good list, else the curated `FALLBACK` (12 ids, oembed-checked Oct 2026; live state not verifiable from the sandbox).
+  Cache `<DATA_DIR>/cams.json`. Categories: City/Traffic, Nature/Wildlife, Beach/Ocean, Space/ISS, Weather/Storms, Airports.
+- **API**: `GET /api/cams` → `{source:'youtube'|'fallback', updated, categories:[{name, streams:[{id,title,channel,viewers}]}]}` (viewers desc,
+  30/min/IP). `GET|POST /api/cams/:id/comments` (`{text, name, pid}`): 200 chars, 1 per 5 s per IP and per player id, last 100 per stream,
+  `social.clean` (profanity mask, `<>` → `‹›`) + URL removal, persisted to `<DATA_DIR>/cam-comments.json`. Names are client-supplied (city WS name
+  via `window.__myName`, set in `city.js`), so they are cosmetic, not authenticated.
+- **Client** (`aegis.js`): polls `SRV/api/cams` every 10 min; Pyramid faces show the top streams across categories as `i.ytimg.com` hqdefault
+  thumbnails with a viewer count; tapping one opens the live browser (`__aegis.openLive(cam|null)`): category tabs, ranked list, one
+  youtube-nocookie iframe (the only iframe, only in the modal), comments under the player (textContent only). The console has a
+  "Browse live streams" button. `/api/cams` down = the old AEGIS cams/modal (`openPlain`). CSP already had `frame-src https:`.
+- Tests: `test/cams-sim.js` (in `npm test`): fallback, stubbed API ranking/filtering, quota round-robin, key never leaked, comment length/rate/escape/URL.
+- Gaps: comments have no moderation UI/report button; the dead "acquiring signal" screens were the AEGIS feed's cams (localhost CORS / stale ids), now replaced.

@@ -48,7 +48,7 @@ let CITY = null, built = false, active = false, opening = false;
 let scene, camera, root, hud, fade, panel = null, msgTimer = 0;
 let rpass = null, saved = null, lightMul = 1, reveal = 0;
 const stations = [], animated = [], hitProxies = [], boxes = [], cyls = [], rects = [], discs = [], ramps = [];
-const lights = [];
+const lights = []; let REACT = null;   // reactor light (flickers)
 const P = { pos: new THREE.Vector3(0, 0, 21.5), vy: 0, onGround: true, walk: 0, speed: 0, bodyYaw: 0, seated: false, bob: 0 };
 let body = null, MINE = null, nearSt = null, artMesh = null;
 const _v = new THREE.Vector3(), _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2();
@@ -182,18 +182,28 @@ function bevelBox(w, h, d) {           // cheap chamfer: a box with a slightly s
 // ---------------------------------------------------------------- the building
 function build() {
   makeMaterials();
-  scene = new THREE.Scene(); scene.background = new THREE.Color(0x050406); scene.fog = new THREE.Fog(0x070507, 40, 95);
+  scene = new THREE.Scene(); scene.background = new THREE.Color(0x050406); scene.fog = new THREE.Fog(0x0b0807, 30, 88);   // warmer, slightly nearer haze for depth
   camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, .05, 160); camera.rotation.order = 'YXZ';
   envMap();
   // --- lighting hierarchy: soft base, sky from the oculus, warm practicals at circulation, restrained reactor red
-  const hemi = new THREE.HemisphereLight(0xffe8d6, 0x2a1d1a, 1.7); scene.add(hemi); lights.push([hemi, 1.7]);
+  const hemi = new THREE.HemisphereLight(0xffe8d6, 0x2a1d1a, 1.25); scene.add(hemi); lights.push([hemi, 1.25]);   // less flat fill: the practicals carry the room
   const sky = new THREE.DirectionalLight(0xfff1e0, 1.5); sky.position.set(4, 30, 6); scene.add(sky); lights.push([sky, 1.5]);
   const pl = (c, i, d, x, y, z) => { const l = new THREE.PointLight(c, i, d, 2); l.position.set(x, y, z); scene.add(l); lights.push([l, i]); return l; };
-  const reactorLight = pl(0xff4a1c, 100, 15, 0, 3.4, 0);
+  const reactorLight = pl(0xff4a1c, 100, 15, 0, 3.4, 0); REACT = reactorLight;
   pl(0xffb27a, 120, 24, 0, 5.2, 21.5);        // entrance
   pl(0xffb27a, 90, 18, 0, 5.4, -22.5);         // north lobby / lifts
   if (!TOUCH) { pl(0xffa868, 70, 14, -15.5, 10.2, 13); pl(0xffa868, 60, 13, 0, 11.5, -30); }   // Ember Bar, Aegis Sanctum (desktop only)
 
+  // --- fake light (2 draws, no extra lights): warm bounce pools on the floor under each practical + a soft oculus shaft
+  { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.45, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(c), pos = [], uv = [], col = [], C = new THREE.Color();
+    const pool = (x0, z0, rr, hex, k) => { C.setHex(hex).multiplyScalar(k); const P = [[-1, -1], [1, -1], [1, 1], [-1, 1]]; for (const i of [0, 2, 1, 0, 3, 2]) { pos.push(x0 + P[i][0] * rr, .015, z0 + P[i][1] * rr); uv.push((P[i][0] + 1) / 2, (P[i][1] + 1) / 2); col.push(C.r, C.g, C.b); } };
+    pool(0, 0, 7, 0xff4a1c, .32); pool(0, 21.5, 7, 0xffb27a, .22); pool(0, -22.5, 6, 0xffb27a, .2); if (!TOUCH) { pool(-15.5, 13, 5, 0xffa868, .16); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -3 })); m.matrixAutoUpdate = false; m.renderOrder = 1; scene.add(m);
+    const sg = new THREE.CylinderGeometry(2.6, 3.8, 11, 20, 1, true), su = sg.attributes.uv, sc = []; for (let i = 0; i < su.count; i++) { const v = su.getY(i); sc.push(v * v * .05, v * v * .044, v * v * .034); }   // bright at the oculus, fading to the floor
+    sg.setAttribute('color', new THREE.Float32BufferAttribute(sc, 3)); const shaft = new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+    shaft.position.set(0, 5.5, 0); shaft.updateMatrix(); shaft.matrixAutoUpdate = false; scene.add(shaft); }
   // --- floors
   { const g = new THREE.PlaneGeometry(HX * 2, HZ * 2); g.rotateX(-Math.PI / 2); const m = new THREE.Mesh(g, M.floor); m.matrixAutoUpdate = false; scene.add(m); }
   floorRect(-HX, HX, -HZ, HZ, 0); floorRect(-3.4, 3.4, HZ - .4, HZ + 3.6, 0);   // hall + entrance vestibule
@@ -533,6 +543,7 @@ function towerFrame(dt, t) {
     fade.style.opacity = String(Math.max(0, 1 - e * 1.6)); body.visible = reveal < .2;
   } else lightMul = 1;
   for (const [l, i] of lights) l.intensity = i * lightMul;
+  if (REACT) { const tt = performance.now() / 1000; REACT.intensity *= .9 + .07 * Math.sin(tt * 7.3) + .03 * Math.sin(tt * 19.1); }   // reactor breathes/flickers
   for (const o of animated) o.userData.tick && o.userData.tick(dt, t);
   // nearest station on this level -> reuse the city's prompt and USE button
   nearSt = null; let bd = 1e9;

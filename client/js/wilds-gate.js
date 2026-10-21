@@ -13,10 +13,22 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const Q = new URLSearchParams(location.search);
 export const TEST = Q.has('wildstest') || Q.get('debug') === '1';   // test hooks only with ?wildstest or ?debug=1
+// ---------------------------------------------------------------- KILL SWITCH / config (one place). Flip WILDS_DEEP_ENABLED to false to turn off
+// the deep area (threshold arch, city unload, Glassroot Grove) everywhere; ?nodeep=1 turns it off for one visit.
+// ?nowildslock turns off the on-foot travel lock + the Return-to-city barrier for one visit (the forest then behaves like M1).
+export const WILDS_DEEP_ENABLED = true;
+export const CFG = { deep: WILDS_DEEP_ENABLED && !Q.has('nodeep'), travelLock: !Q.has('nowildslock'), exitGate: !Q.has('nowildslock') };
 // ---------------------------------------------------------------- shared layout (world metres; the city is south, -z)
 export const FC = { x: 0, z: 625 }, RX = 255, RZ = 228;            // forest ellipse: z 397..853
 export const ell = (x, z) => Math.hypot((x - FC.x) / RX, (z - FC.z) / RZ);
 export const GATE = { x: 0, z: 394 };
+export const THRESH = { x: 30, z: 812 };   // the threshold arch at the far (north) end of Fernway Verge -> the deep area
+// The deep area (Glassroot Grove) is its own realm: off the city map (the city clamps walkers to ±900, the server keeps ±2000),
+// ~3.4x the area of Fernway Verge, so "it's bigger on the inside". Players there send these real coordinates, so they see each other
+// exactly; city players never draw them (window.__peerRealm) and they never draw city players.
+export const DEEP = { x: 1400, z: 1370, rx: 420, rz: 420 };
+export const inDeepRealm = (x, z) => x > 940 && z > 900;
+export const dEll = (x, z) => Math.hypot((x - DEEP.x) / DEEP.rx, (z - DEEP.z) / DEEP.rz);
 const PREFETCH_M = 60, UNLOAD_M = 150, UNLOAD_S = TEST && Q.has('wildsunload') ? +Q.get('wildsunload') : 30;
 // ---------------------------------------------------------------- shared geometry helpers (also used by wilds.js)
 export function colorize(g, fn) { g = g.index ? g.toNonIndexed() : g; const p = g.attributes.position, n = p.count, a = new Float32Array(n * 3), c = new THREE.Color(); g.computeVertexNormals(); const nr = g.attributes.normal;
@@ -72,9 +84,9 @@ function prefetch() {   // module code + data JSON only (no music); safe to call
 }
 const loaded = () => !!(mod && mod.isLoaded());
 let veil = null;
-function showVeil() {
-  veil = document.createElement('div'); veil.id = 'wlVeil'; veil.setAttribute('role', 'progressbar'); veil.setAttribute('aria-label', 'Loading The Cinderwilds');
-  veil.innerHTML = '<div class="wv-trees"></div><div class="wv-c"><div class="wv-t">THE CINDERWILDS</div><div class="wv-s">Fernway Verge · Lv 1–5</div><div class="wv-bar"><b></b></div><div class="wv-l">Following the trail…</div></div>';
+function showVeil(title = 'THE CINDERWILDS', sub = 'Fernway Verge · Lv 1–5', cls = '') {
+  if (veil) veil.remove(); veil = document.createElement('div'); veil.id = 'wlVeil'; if (cls) veil.className = cls; veil.setAttribute('role', 'progressbar'); veil.setAttribute('aria-label', 'Loading ' + title);
+  veil.innerHTML = '<div class="wv-trees"></div><div class="wv-c"><div class="wv-t">' + title + '</div><div class="wv-s">' + sub + '</div><div class="wv-bar"><b></b></div><div class="wv-l">Following the trail…</div></div>';
   document.body.append(veil); veil.addEventListener('pointerdown', e => e.stopPropagation());
 }
 function veilProgress(p, label) { if (!veil) return; veil.querySelector('.wv-bar>b').style.width = Math.round(Math.max(0, Math.min(1, p)) * 100) + '%'; if (label) veil.querySelector('.wv-l').textContent = label; G.veilP = p; }
@@ -83,7 +95,7 @@ async function proceed() {
   // inside the PROCEED tap: unlock Web Audio now (iOS), even if the module is still downloading
   if (mod) mod.unlockAudio(); else { try { const AC = window.__wildsAC = window.__wildsAC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume().catch(() => { }); } catch (e) { } }
   { const c = C(), P = c.P; c.input.yp.yaw = Math.atan2(-(FC.x - P.pos.x), -(FC.z - P.pos.z)); }   // face into the forest
-  if (loaded()) { mod.enter(); return; }
+  if (loaded()) { mod.enter(); shrink('in'); return; }
   G.modal = 'loading'; G.state = 'loading'; showVeil(); veilProgress(.04, 'Following the trail…'); const t0 = performance.now(); note('load start');
   try {
     let fake = .04; const tick = setInterval(() => { fake = Math.min(.3, fake + .02); if (G.veilP < fake) veilProgress(fake); }, 120);
@@ -91,10 +103,10 @@ async function proceed() {
     await m.load((p, label) => veilProgress(.32 + p * .66, label));
     veilProgress(1, 'Entering the forest'); G.loads++; G.state = 'loaded'; G.loadMs = Math.round(performance.now() - t0); note('loaded ' + G.loadMs + 'ms');
     await new Promise(r => setTimeout(r, 250));
-    G.modal = null; m.enter(); hideVeil();
+    G.modal = null; m.enter(); hideVeil(); shrink('in');
   } catch (e) { G.err = String(e && e.stack || e).slice(0, 400); console.warn('wilds load', e); G.state = 'idle'; G.modal = null; hideVeil(); turnBack(); try { mod && mod.unload(); } catch (e2) { } }
 }
-function unload() { if (!loaded()) return; note('unload'); mod.unload(); G.unloads++; G.state = 'idle'; G.farSince = 0; }
+function unload() { if (!loaded()) return; if (D.active) abortDeep('unload'); unloadDeep(); note('unload'); mod.unload(); G.unloads++; G.state = 'idle'; G.farSince = 0; }
 // ---------------------------------------------------------------- the PvP/PvE warning
 const css = `
 #wlWarn{position:fixed;inset:0;z-index:calc(var(--z-top,130) + 1);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;background:radial-gradient(ellipse at center,rgba(60,4,2,.72),rgba(0,0,0,.92));color:#fff;font-family:system-ui,sans-serif;animation:wlIn .35s ease-out}
@@ -103,6 +115,12 @@ const css = `
 #wlWarn button{min-width:150px;min-height:52px;border-radius:12px;font:800 17px system-ui,sans-serif;cursor:pointer;border:1px solid #ff8a3a;background:#2a0c06;color:#fff}#wlWarn button.go{background:#c2300c;border-color:#ffb06a;box-shadow:0 0 20px #ff3a0a88}
 @keyframes wlIn{from{opacity:0}to{opacity:1}}
 body.wl-lock #touch,body.wl-lock #prompt{display:none!important}
+body.wl-travel #btns [data-m=orbit],body.wl-travel #btns [data-m=fly],body.wl-travel #tour,body.wl-travel #webBtn,body.wl-travel #jetBtn,body.wl-travel #gbSkate,body.wl-travel #tSkate,body.wl-travel #tUp,body.wl-travel #tDown,body.wl-travel #vMenu button[data-v=orbit],body.wl-travel #vMenu button[data-v=fly],body.wl-travel #vMenu button[data-v=tour],body.wl-travel #tlOpen{display:none!important}
+body.wl-cityoff #labels,body.wl-cityoff #minimap,body.wl-cityoff .npcTag,body.wl-cityoff .npcBub,body.wl-cityoff #rChip,body.wl-cityoff .pbub{display:none!important}
+#wlShrink{position:fixed;inset:0;z-index:calc(var(--z-top,130) + 3);pointer-events:none;background:radial-gradient(circle at 50% 55%,transparent 0 18%,rgba(20,60,40,.55) 46%,rgba(2,8,5,.96) 78%);opacity:0;transition:opacity .28s ease-out}
+#wlShrink.on{opacity:1}
+#wlWarn.ret h1{color:#9bffb0;text-shadow:0 0 18px #2aff6a,0 0 2px #fff}#wlWarn.ret{background:radial-gradient(ellipse at center,rgba(6,40,18,.72),rgba(0,0,0,.92))}#wlWarn.ret p{color:#d0f0d8}#wlWarn.ret button.go{background:#1c7a3a;border-color:#9be37a;box-shadow:0 0 20px #2aff6a66}#wlWarn.ret button{border-color:#7ad07a}
+#wlVeil.deep{background:radial-gradient(ellipse at 50% 35%,#0f2a26 0%,#061612 55%,#020806 100%)}#wlVeil.deep .wv-t{white-space:normal;font-size:clamp(22px,5.8vw,40px);color:#a8fff0;text-shadow:0 0 22px #3fe0c0,0 2px 8px #000}#wlVeil.deep .wv-bar>b{background:linear-gradient(90deg,#1a8a7a,#5ff0d0,#c8fff0)}
 #wlVeil{position:fixed;inset:0;z-index:calc(var(--z-top,130) + 2);display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 35%,#1f3a22 0%,#0c1a10 55%,#050a06 100%);color:#e8ffd8;font-family:system-ui,sans-serif;animation:wlIn .3s ease-out;transition:opacity .6s}
 #wlVeil.out{opacity:0;pointer-events:none}
 #wlVeil .wv-trees{position:absolute;left:0;right:0;bottom:0;height:46%;opacity:.85;background:
@@ -129,6 +147,109 @@ function showWarning() {
   addEventListener('keydown', key, true); G.warnShown = (G.warnShown || 0) + 1; warnTone();
 }
 function turnBack() { const c = C(), P = c.P; const dx = P.pos.x - FC.x, dz = P.pos.z - FC.z, e = ell(P.pos.x, P.pos.z) || 1; P.pos.x = FC.x + dx / e * 1.035; P.pos.z = FC.z + dz / e * 1.035; c.input.yp.yaw = Math.atan2(-dx, -dz); }
+// ---------------------------------------------------------------- "TARDIS" shrink transition: vignette veil + FOV pulse (both ways, every gate)
+const SH = { t0: 0, base: 0, dur: 900, k: 0 };
+function shrink(dir) {
+  try { const c = C(); if (!SH.t0) SH.base = c.C.fov; SH.t0 = performance.now(); SH.k = dir === 'out' ? -.28 : .42; G.shrinks = (G.shrinks || 0) + 1;
+    let v = document.getElementById('wlShrink'); if (!v) { v = document.createElement('div'); v.id = 'wlShrink'; document.body.append(v); } v.classList.add('on'); setTimeout(() => v.classList.remove('on'), 420); } catch (e) { }
+}
+function shrinkFrame() { if (!SH.t0) return; const c = C(), u = (performance.now() - SH.t0) / SH.dur; if (u >= 1) { c.C.fov = SH.base; SH.t0 = 0; } else c.C.fov = SH.base * (1 + SH.k * Math.sin(Math.PI * u) * (1 - u * .3)); c.C.updateProjectionMatrix(); }
+// ---------------------------------------------------------------- generic two-button prompt in the entry warning's style (Return to BURN City?)
+function prompt2(h1, p, goTxt, backTxt, cls, onGo, onBack) {
+  if (G.modal) return false; G.modal = 'prompt'; document.body.classList.add('wl-lock'); clearKeys(); hideCity();
+  const w = document.createElement('div'); w.id = 'wlWarn'; if (cls) w.className = cls; w.setAttribute('role', 'alertdialog'); w.setAttribute('aria-label', h1);
+  w.innerHTML = `<h1>${h1}</h1><p>${p}</p><div class="row"><button class="back">${backTxt}</button><button class="go">${goTxt}</button></div>`;
+  document.body.append(w); w.addEventListener('pointerdown', e => e.stopPropagation());
+  const done = go => { G.closePrompt = null; w.remove(); removeEventListener('keydown', key, true); G.modal = null; document.body.classList.remove('wl-lock'); clearKeys(); try { go ? onGo() : onBack(); } catch (e) { G.err = String(e).slice(0, 300); } };
+  w.querySelector('.go').onclick = () => done(true); w.querySelector('.back').onclick = () => done(false);
+  const key = e => { if (e.code === 'Enter' || e.code === 'KeyE') { e.stopPropagation(); done(true); } else if (e.code === 'Escape' || e.code === 'Backspace') { e.stopPropagation(); done(false); } };
+  addEventListener('keydown', key, true); G.closePrompt = () => { G.closePrompt = null; w.remove(); removeEventListener('keydown', key, true); G.modal = null; document.body.classList.remove('wl-lock'); clearKeys(); }; return true;
+}
+function hideCity() { for (const id of ['info', 'recap']) { const e = document.getElementById(id); if (e && getComputedStyle(e).display !== 'none') { if (id === 'info') e.style.display = 'none'; else e.remove(); } } }
+// ---- the city-side barrier: walking out of Fernway Verge stops at the edge and asks; teleports / respawns are never blocked
+const EX = { ok: false, cool: 0, prev: null };
+function exitPrompt() {
+  G.exitAsked = (G.exitAsked || 0) + 1;
+  prompt2('RETURN TO BURN CITY?', 'You are leaving the Cinderwilds. Your Wilds progress is saved on this device. Your companion waits for you at the trailhead.', 'PROCEED', 'Stay', 'ret',
+    () => { const c = C(), P = c.P; EX.ok = true; G.exits = (G.exits || 0) + 1; const near = Math.hypot(P.pos.x - GATE.x, P.pos.z - GATE.z) < 30;
+      if (near) P.pos.set(GATE.x, 0, GATE.z - 8); else { const dx = P.pos.x - FC.x, dz = P.pos.z - FC.z, e = ell(P.pos.x, P.pos.z) || 1; P.pos.x = FC.x + dx / e * 1.07; P.pos.z = FC.z + dz / e * 1.07; }
+      P.vel.set(0, 0, 0); c.input.yp.yaw = near ? 0 : Math.atan2(-(P.pos.x - FC.x), -(P.pos.z - FC.z)) + Math.PI; shrink('out'); },
+    () => { const P = C().P, dx = P.pos.x - FC.x, dz = P.pos.z - FC.z, e = ell(P.pos.x, P.pos.z) || 1; P.pos.x = FC.x + dx / e * .955; P.pos.z = FC.z + dz / e * .955; P.vel.set(0, 0, 0); EX.cool = performance.now() + 1500; G.stays = (G.stays || 0) + 1; });
+}
+function barrier(P, explore) {   // runs before the forest's own frame, so "e > 1.03 -> leave" never fires while the barrier holds
+  const prev = EX.prev; EX.prev = { x: P.pos.x, z: P.pos.z };
+  if (!CFG.exitGate || EX.ok || !explore || !loaded() || !mod.inForest() || deepActive()) return;
+  const e = ell(P.pos.x, P.pos.z); if (e <= .985) return;
+  if (prev && Math.hypot(P.pos.x - prev.x, P.pos.z - prev.z) > 8) return;   // a teleport / respawn / fast travel: let it through
+  const dx = P.pos.x - FC.x, dz = P.pos.z - FC.z; P.pos.x = FC.x + dx / e * .98; P.pos.z = FC.z + dz / e * .98; P.vel.x = 0; P.vel.z = 0; EX.prev = { x: P.pos.x, z: P.pos.z }; G.blocked = (G.blocked || 0) + 1;
+  if (!G.modal && !(mod && mod.locked()) && performance.now() > EX.cool) exitPrompt();
+}
+// ---------------------------------------------------------------- travel lock: on foot only in the Wilds (app.js owns the toggles: window.__wildsTravelLock)
+function travelLock(on) { on = !!on && CFG.travelLock; if (G.tl === on) return; try { if (window.__wildsTravelLock) window.__wildsTravelLock(on); G.tl = on; G.tlFlips = (G.tlFlips || 0) + 1; } catch (e) { G.err = 'travelLock ' + e; } }
+// ---------------------------------------------------------------- city off / on (deep area only). Never destroys anything: hide + pause + stash, restored exactly.
+const CO = { off: false, hid: [], stash: [], bg: null, far: 0, fogD: 0, offAt: 0 };
+const keepObj = o => o.isLight || o.isCamera || o === C().avatar || (o.userData && (o.userData.wildsKeep || o.userData.peer || o.userData.wildsDeep));
+function hideNew() { for (const o of C().S.children) if (o.visible && !keepObj(o)) { o.visible = false; CO.hid.push(o); } }
+function cityOff() {
+  if (CO.off) return; const c = C(); CO.off = true; CO.offAt = performance.now(); CO.hid = []; hideNew();
+  const keep = [], stash = []; for (const o of c.colliders) (o.wildsDeep ? keep : stash).push(o); c.colliders.length = 0; c.colliders.push(...keep); CO.stash = stash;   // groundAt / webs walk every collider: keep only the deep area's
+  CO.bg = c.S.background; CO.far = c.C.far; window.__cityPaused = true; window.__exploreLim = 1990; document.body.classList.add('wl-cityoff'); G.cityOffs = (G.cityOffs || 0) + 1;
+}
+function cityOn() {
+  if (!CO.off) return; const c = C(); CO.off = false;
+  for (const o of CO.hid) o.visible = true; CO.hid = [];
+  c.colliders.push(...CO.stash); CO.stash = [];
+  c.S.background = CO.bg; if (CO.far) { c.C.far = CO.far; c.C.updateProjectionMatrix(); }
+  window.__cityPaused = false; delete window.__exploreLim; document.body.classList.remove('wl-cityoff'); G.cityOns = (G.cityOns || 0) + 1;
+}
+// ---------------------------------------------------------------- the deep area (wilds-deep.js, lazy)
+const D = { mod: null, p: null, active: false, busy: false, leftAt: 0, errs: 0, loads: 0, unloads: 0, trips: 0 };
+const deepActive = () => D.active;
+function deepPrefetch() {
+  if (!CFG.deep) return Promise.reject(new Error('deep off'));
+  if (!D.p) { note('deep prefetch'); D.p = import('./wilds-deep.js').then(m => { D.mod = m; return m; }).catch(e => { D.p = null; G.deepErr = String(e).slice(0, 300); throw e; }); }
+  return D.p;
+}
+async function enterDeep() {
+  if (D.busy || D.active || !CFG.deep || !loaded()) return; D.busy = true; G.modal = 'deep'; document.body.classList.add('wl-lock'); clearKeys();
+  showVeil('DEEPER INTO THE CINDERWILDS', 'Glassroot Grove · Lv 5–12', 'deep'); veilProgress(.05, 'Following the roots…'); const t0 = performance.now(); shrink('in');
+  try {
+    const m = await deepPrefetch(); veilProgress(.25, 'The trees close in…');
+    if (!m.isLoaded()) { await m.load(mod.zoneApi, (p, l) => veilProgress(.25 + p * .65, l), { exit: () => exitDeep() }); D.loads++; }
+    veilProgress(.95, 'Glassroot Grove'); await new Promise(r => setTimeout(r, 200));
+    cityOff(); m.enter(); D.active = true; D.trips++; D.leftAt = 0; D.errs = 0; G.deepMs = Math.round(performance.now() - t0); note('deep in ' + G.deepMs + 'ms');
+  } catch (e) { G.deepErr = String(e && e.stack || e).slice(0, 400); console.warn('wilds deep', e); abortDeep('load'); }
+  finally { D.busy = false; G.modal = null; document.body.classList.remove('wl-lock'); clearKeys(); hideVeil(); }
+}
+function placeAtThreshold() { const c = C(), P = c.P; P.pos.set(THRESH.x, 0, THRESH.z - 5); P.vel.set(0, 0, 0); c.input.yp.yaw = 0; EX.prev = null; c.C.position.set(THRESH.x, 3, THRESH.z - 11); }   // yaw 0 faces -z: back toward the trailhead
+function exitDeep() {
+  if (!D.active || D.busy) return; D.busy = true; G.modal = 'deep'; showVeil('FERNWAY VERGE', 'Back toward the trailhead', 'deep'); veilProgress(.6, 'The canopy opens…'); shrink('out');
+  setTimeout(() => { try { D.mod.leave(); } catch (e) { G.deepErr = 'leave ' + e; } D.active = false; cityOn(); placeAtThreshold(); D.leftAt = performance.now(); veilProgress(1);
+    D.busy = false; G.modal = null; hideVeil(); note('deep out'); }, 380);
+}
+function abortDeep(why) {   // never strand anyone: city back on, zone cleared, standing in Fernway Verge on foot (or the city if the forest is gone)
+  G.deepAborts = (G.deepAborts || 0) + 1; G.deepAbortWhy = why; note('deep abort ' + why);
+  try { if (D.mod && D.mod.isLoaded()) D.mod.leave(); } catch (e) { } D.active = false; cityOn();
+  const c = C(), P = c.P; if (inDeepRealm(P.pos.x, P.pos.z)) { if (loaded()) placeAtThreshold(); else { P.pos.set(GATE.x, 0, GATE.z - 10); P.vel.set(0, 0, 0); } }
+  D.leftAt = performance.now();
+}
+function unloadDeep() { if (!D.mod || !D.mod.isLoaded() || D.active) return; try { D.mod.unload(); } catch (e) { G.deepErr = 'unload ' + e; } D.unloads++; D.leftAt = 0; note('deep unload'); }
+function threshInteract(p) {
+  if (!CFG.deep || D.active || D.busy) return null; const d = Math.hypot(p.x - THRESH.x, p.z - THRESH.z);
+  return d < 6 ? { label: 'Go deeper: Glassroot Grove (Lv 5–12)', d: d * .5, act: () => enterDeep() } : null;
+}
+// safety net, every frame, separate from everything else: no invisible city, no stuck lock, no stuck barrier
+function safety() {
+  const c = C(); if (!c || !c.P) return; const P = c.P;
+  if (CO.off && !D.active && !D.busy) cityOn();                                       // city hidden but nobody in the deep area
+  if (D.active && !D.busy && !inDeepRealm(P.pos.x, P.pos.z)) abortDeep('teleported');  // moved out of the deep realm by anything else
+  if (window.__cityPaused && !CO.off) window.__cityPaused = false;
+  if (EX.ok && (!loaded() || !mod.inForest())) EX.ok = false;                          // the exit pass is single-use
+  const inWilds = (loaded() && mod.inForest()) || D.active;
+  travelLock(inWilds);
+  if (G.modal === 'prompt' && !(loaded() && mod.inForest())) { if (G.closePrompt) G.closePrompt(); G.staleExit = (G.staleExit || 0) + 1; }   // teleported out while "Return to BURN City?" was open
+  if (G.modal && !document.getElementById('wlWarn') && !document.getElementById('wlVeil') && G.modal !== 'loading' && G.modal !== 'deep') G.modal = null;   // a prompt that vanished
+}
 // ---------------------------------------------------------------- per frame (cheap: a few distance checks)
 function frame(dt, t) {
   const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen;
@@ -136,7 +257,20 @@ function frame(dt, t) {
   const dGate = Math.hypot(P.pos.x - GATE.x, P.pos.z - GATE.z), e = ell(P.pos.x, P.pos.z);
   if (explore && !modP && (dGate < PREFETCH_M || e < 1.05)) prefetch().catch(() => { });
   const inF = loaded() && mod.inForest();
-  if (explore && !inF && e < .99 && !G.modal && !(mod && mod.locked()) && !(window.__boat && window.__boat.active)) showWarning();
+  if (explore && !inF && e < .99 && !D.active && !G.modal && !(mod && mod.locked()) && !(window.__boat && window.__boat.active)) showWarning();
+  if (D.active) {   // deep area: the city is hidden + paused; only the deep world + the shared Wilds systems run
+    try { D.mod.frame(dt, t); mod.frame(dt, t); D.errs = 0; } catch (err) { if (++D.errs > 3) { G.deepErr = String(err && err.stack || err).slice(0, 400); abortDeep('error'); } }
+    if (CO.off) hideNew(); shrinkFrame(); return;
+  }
+  if (loaded()) barrier(P, explore);
+  if (loaded() && CFG.deep && mod.inForest()) {
+    const dT = Math.hypot(P.pos.x - THRESH.x, P.pos.z - THRESH.z);
+    if (dT < 70 && !D.p) deepPrefetch().catch(() => { });
+    if (explore && !G.modal && !mod.locked() && !D.busy && Math.abs(P.pos.x - THRESH.x) < 3 && P.pos.z > THRESH.z - .4 && P.pos.z < THRESH.z + 2.5 && EX.prev) enterDeep();   // walked through the veil
+    if (mod.zoneApi && !mod.zoneApi.W.deepInteract) mod.zoneApi.W.deepInteract = threshInteract;
+  }
+  if (D.mod && D.leftAt && performance.now() - D.leftAt > UNLOAD_S * 1000) unloadDeep();
+  shrinkFrame();
   if (loaded()) {
     mod.frame(dt, t);
     const cam = c.C.position, far = !mod.inForest() && !mod.locked() && dGate > UNLOAD_M && e > 1.1 && ell(cam.x, cam.z) > 1.3;
@@ -151,11 +285,14 @@ function frame(dt, t) {
   try {
     const st = document.createElement('style'); st.id = 'wlGateCss'; st.textContent = css; document.head.append(st);
     G.gate = buildGate();
+    (window.__preRender = window.__preRender || []).push(() => { try { safety(); } catch (e) { if (!G.serr) { G.serr = String(e && e.stack || e).slice(0, 300); console.warn('wilds safety', e); } } });
+    window.__peerRealm = (x, z) => { const c = C(), q = c.getMode() === 'explore' ? c.P.pos : c.C.position; return inDeepRealm(x, z) === inDeepRealm(q.x, q.z); };
     (window.__preRender = window.__preRender || []).push((dt, t) => { try { frame(dt, t); } catch (e) { if (!G.ferr) { G.ferr = String(e && e.stack || e).slice(0, 400); console.warn('wilds frame', e); } } });   // never let the forest break the city's render loop
     (window.__interactors = window.__interactors || []).push(p => loaded() ? mod.interactor(p) : null);
     const prevLock = window.__exploreLock; window.__exploreLock = () => !!G.modal || (loaded() && mod.locked()) || (prevLock ? prevLock() : false);
     addEventListener('keydown', e => { if (loaded()) mod.onKey(e); }, true);
     G.state = 'idle'; G.readyAt = performance.now();
   } catch (e) { G.err = String(e && e.stack || e).slice(0, 400); console.warn('wilds gate', e); }
-  if (TEST) window.__wildsGate = Object.assign(G, { prefetch, proceed, unload, showWarning, loaded, mod: () => mod, cfg: { PREFETCH_M, UNLOAD_M, UNLOAD_S } });
+  if (TEST) window.__wildsGate = Object.assign(G, { prefetch, proceed, unload, showWarning, loaded, mod: () => mod, cfg: { PREFETCH_M, UNLOAD_M, UNLOAD_S }, CFG, THRESH, DEEP,
+    deep: { D, enterDeep, exitDeep, abortDeep, unloadDeep, cityOff, cityOn, CO, active: deepActive, mod: () => D.mod }, exitPrompt, EX, travelLock, shrink });
 })();

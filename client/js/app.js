@@ -1162,7 +1162,8 @@ const avatar=(()=>{const g=buildWalker({suit:0x2c4468,accent:0x7ee0ff,skin:1});c
 // avatar glow stays in the scene at 0 intensity while hidden: toggling a light's visibility changes the light count and recompiles every lit shader (hitch on entering Explore)
 anim.push(()=>{const pl=avatar.userData.pl;pl.intensity=avatar.visible?2:0;if(avatar.visible)pl.position.set(avatar.position.x,avatar.position.y+1.5,avatar.position.z)});
 let NET=null;const peers=new Map();window.__city={audio:()=>({AC,on:!!aud.on,master:aud.master}),pick,colliders,groundAt,streets,drone:()=>DRONE&&DRONE.grp,avatar,S,C,P,R,N,orbit,MOBILE,bridges,comp,bloom,sanitize,RT_BYTE,APPLE_GPU,U,E,TIER,sfx:{whoosh:()=>{if(!AC||!aud.on)return;const t0=AC.currentTime,s=AC.createBufferSource();s.buffer=aud.nb;const f=AC.createBiquadFilter();f.type='bandpass';f.Q.value=1.2;f.frequency.setValueAtTime(300,t0);f.frequency.exponentialRampToValueAtTime(2400,t0+.7);const g=AC.createGain();g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(.5,t0+.25);g.gain.exponentialRampToValueAtTime(.001,t0+1.1);s.connect(f).connect(g).connect(aud.master);s.start(t0);s.stop(t0+1.2)}},isTour:()=>!!tour,getMode:()=>mode,soundOn:()=>!!aud.on,showInfo,input:{keys,yp,get joy(){return joy},get tb(){return tb}},get bokeh(){return bokeh}};
-function setMode(m){const prev=mode;mode=m;tour=null;window.__modeReset&&window.__modeReset();$('tourCap')&&$('tourCap').classList.remove('show');document.querySelectorAll('#btns [data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));orbit.enabled=m==='orbit';avatar.visible=m==='explore'&&!P.fp;
+function tlOn(){return !!(window.__wildsTravelLocked&&window.__wildsTravelLocked())}
+function setMode(m){if(tlOn()&&m!=='explore')return;const prev=mode;mode=m;tour=null;window.__modeReset&&window.__modeReset();$('tourCap')&&$('tourCap').classList.remove('show');document.querySelectorAll('#btns [data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));orbit.enabled=m==='orbit';avatar.visible=m==='explore'&&!P.fp;
  $('touch').classList.toggle('on',MOBILE&&(m==='explore'||m==='fly'));['tUp','tDown'].forEach(i=>$(i).style.display=m==='fly'?'':'none');['tJump','tRun','tUse'].forEach(i=>$(i).style.display=m==='explore'?'':'none');
  if(m!=='orbit'){const d=C.getWorldDirection(new THREE.Vector3());yp.yaw=Math.atan2(-d.x,-d.z);yp.pitch=Math.asin(Math.max(-1,Math.min(1,d.y)))}
  if(m==='explore'){if(prev==='fly'){/* drop the walker right under the drone, same heading; over the lake -> nearest shore */const q=C.position,es=window.__estate;let x=q.x,z=q.z;if(es&&es.inLake(x,z)){let dx=x-es.lakeC.x,dz=z-es.lakeC.z;if(Math.hypot(dx,dz)<1){dx=-es.dir.x;dz=-es.dir.z}const dl=Math.hypot(dx,dz);for(let k=0;k<400&&es.inLake(x,z);k++){x+=dx/dl;z+=dz/dl}x+=dx/dl*2;z+=dz/dl*2}
@@ -1201,7 +1202,7 @@ const WEB={on:localStorage.bcWeb==='1',a:null,L:0,prev:false,cd:0,mom:new THREE.
 {const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);WEB.line=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.9}));WEB.line.frustumCulled=false;WEB.line.visible=false;S.add(WEB.line)}
 const webBtn=document.createElement('button');webBtn.id='webBtn';webBtn.textContent='🕸 Web';webBtn.style.cssText='position:fixed;right:12px;bottom:calc(400px + env(safe-area-inset-bottom));z-index:31;display:none;font:700 14px system-ui;padding:9px 13px;border-radius:12px;border:1px solid #ffffff66;background:#0b1220e0;color:#fff';document.body.append(webBtn);
 const webSet=v=>{WEB.on=v;localStorage.bcWeb=v?'1':'0';webBtn.style.background=v?'#e8f0ff':'#0b1220e0';webBtn.style.color=v?'#0b1220':'#fff';webBtn.setAttribute('aria-pressed',v);if(!v)webDrop()};webSet(WEB.on);
-webBtn.onclick=e=>{e.stopPropagation();webSet(!WEB.on);if(WEB.on&&window.__jet&&window.__jet.on)jetBtn.click()};addEventListener('keydown',e=>{if(e.code==='KeyQ'&&mode==='explore'&&document.activeElement?.tagName!=='INPUT'&&document.activeElement?.tagName!=='TEXTAREA')webSet(!WEB.on)});
+webBtn.onclick=e=>{e.stopPropagation();webSet(!WEB.on);if(WEB.on&&window.__jet&&window.__jet.on)jetBtn.click()};addEventListener('keydown',e=>{if(e.code==='KeyQ'&&mode==='explore'&&!tlOn()&&document.activeElement?.tagName!=='INPUT'&&document.activeElement?.tagName!=='TEXTAREA')webSet(!WEB.on)});
 function webDrop(){if(WEB.a){WEB.mom.set(P.vel.x,0,P.vel.z)}WEB.a=null;WEB.line.visible=false}
 function webAnchor(){const f=V3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw));let best=null,bs=-1e9;for(const c of colliders){if(!c.r||c.h<P.pos.y+5)continue;const dx=c.x-P.pos.x,dz=c.z-P.pos.z,d=Math.hypot(dx,dz);if(d<4||d>80)continue;const dot=(dx*f.x+dz*f.z)/d;if(dot<.35)continue;
   const y=Math.min(c.h-.5,P.pos.y+28),ax=c.x-dx/d*c.r,az=c.z-dz/d*c.r,dd=Math.hypot(ax-P.pos.x,y-P.pos.y,az-P.pos.z);if(dd>80)continue;if(y<P.pos.y+8)continue;const sc=dot*2-Math.abs(dd-32)/40+(y-P.pos.y)/25;if(sc>bs){bs=sc;best=V3(ax,y,az)}}
@@ -1245,6 +1246,10 @@ function jetStep(dt,mv){const ok=!!window.__jetOK&&mode==='explore'&&!(window.__
   for(let i=0;i<SMN;i++){if(smV[i*4+3]<=0)continue;smV[i*4+3]-=dt;smP[i*3]+=smV[i*4]*dt;smP[i*3+1]+=smV[i*4+1]*dt;smP[i*3+2]+=smV[i*4+2]*dt;smV[i*4+1]*=.94;if(smV[i*4+3]<=0)smP[i*3+1]=-999}smG.attributes.position.needsUpdate=true;
   window.__jetThrust=JET.thr;return JET.thr}
 window.__jet=JET;window.__modeReset=()=>{if(WEB.on)webSet(false);JET.on=false;JET.thr=false;JET.fly=false;JET.v.set(0,0,0);pack.visible=false;jetBtn.style.background='#0b1220e0';jetBtn.classList.remove('on')};
+// The Wilds travel lock (wilds-gate.js): on foot only while in the forest. Blocks Orbit/Fly/Tour (setMode/tour guards), web (Q), jetpack, skateboard; restores web/jet toggles on unlock.
+const TL={on:false,web:false,jet:false};window.__wildsTravelLocked=()=>TL.on;
+window.__wildsTravelLock=on=>{on=!!on;if(on===TL.on)return TL.on;if(on){if(mode!=='explore')setMode('explore');TL.web=WEB.on;TL.jet=JET.on;if(WEB.on)webSet(false);if(JET.on)jetBtn.click();JET.fly=false;if(window.__skate&&window.__skate.active)window.__skate.toggle(false);TL.on=true}
+ else{TL.on=false;if(TL.web&&!WEB.on)webSet(true);if(TL.jet&&!JET.on)jetBtn.click();TL.web=TL.jet=false}document.body.classList.toggle('wl-travel',TL.on);return TL.on};
 const _hv=new THREE.Vector3(),_hd=new THREE.Vector3(),_dn=new THREE.Vector3(0,-1,0);
 function webPose(){const A=avatar.userData.arms;if(!WEB.a){for(const a of A)a.rotation.y=0;return}const arm=A[WEB.hand===1?1:0];if(arm.userData.elbow)arm.userData.elbow.rotation.x=0;avatar.updateMatrixWorld(true);
   _hd.copy(WEB.a);avatar.worldToLocal(_hd).sub(arm.position).normalize();arm.quaternion.setFromUnitVectors(_dn,_hd);arm.updateMatrixWorld(true);
@@ -1278,7 +1283,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
   if(cw){P.climb=cw;P.vel.y=0;P.onGround=false;P.pos.y+=(run?12:8.5)*dt;P.walk+=dt*20;
    if(P.pos.y>=cw.h-.05){const dx=cw.x-P.pos.x,dz=cw.z-P.pos.z,d=Math.hypot(dx,dz)||1;P.pos.y=cw.h;P.pos.x+=dx/d*1.4;P.pos.z+=dz/d*1.4;P.climb=null;P.onGround=true}}
   else P.climb=null}
- P.pos.x=Math.max(-900,Math.min(900,P.pos.x));P.pos.z=Math.max(-900,Math.min(900,P.pos.z));if(window.__hwGuard&&window.__hwGuard(P.pos,P.vel)){P.onGround=true;P.climb=null}
+ {const XL=window.__exploreLim||900;P.pos.x=Math.max(-XL,Math.min(XL,P.pos.x));P.pos.z=Math.max(-XL,Math.min(XL,P.pos.z))}if(window.__hwGuard&&window.__hwGuard(P.pos,P.vel)){P.onGround=true;P.climb=null}
  P.walk+=dt*ml*(run?14:9);const L=avatar.userData;poseWalker(avatar,P.walk,Math.min(1,ml)*(P.onGround?1:.25),performance.now()/1000);
  if(P.climb){const c2=Math.sin(P.walk*1.4);L.arms[0].rotation.x=-2.6+c2*.5;L.arms[1].rotation.x=-2.6-c2*.5;L.legs[0].rotation.x=.6+c2*.4;L.legs[1].rotation.x=.6-c2*.4}
  avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;webPose();const dir=dirOf();
@@ -1319,7 +1324,7 @@ if(/[?&]debug=1/.test(location.search))window.__tourDbg={get:()=>tour,caps:()=>t
   if(f&&f.shopPos){const sp=f.shopPos,d=f.dock.dir;tourStops.push([V3(sp.x+d.x*16+d.z*10,9,sp.z+d.z*16-d.x*10),V3(sp.x,2,sp.z)]);tourCaps.push('Fishing dock + Tackle & Bait: free rod & worms, catch ~20 species, sell for lake coins (no real value), upgrade rods/bait')}
   if(bw&&bw.base){const b=bw.base,d=f.dock.dir;tourStops.push([V3(b.x-d.x*16+d.z*12,8,b.z-d.z*16-d.x*12),V3(b.x+d.x*4,0,b.z+d.z*4)]);tourCaps.push('Boat dock: hop in and drive a boat around the lake')}
  }catch(err){}tourStops.push(TS0[TS0.length-1]);tourCaps.push(TC0[TC0.length-1])}
-$('tour').onclick=()=>{tourBuild();setMode('orbit');orbit.enabled=false;mode='tour';tour={cam:new THREE.CatmullRomCurve3(tourStops.map(s=>s[0])),look:new THREE.CatmullRomCurve3(tourStops.map(s=>s[1])),t:0}};
+$('tour').onclick=()=>{if(tlOn())return;tourBuild();setMode('orbit');orbit.enabled=false;mode='tour';tour={cam:new THREE.CatmullRomCurve3(tourStops.map(s=>s[0])),look:new THREE.CatmullRomCurve3(tourStops.map(s=>s[1])),t:0}};
 
 // ---------- picking, labels (screen-space de-cluttering), minimap ----------
 const ray=new THREE.Raycaster(),mv2=new THREE.Vector2();
@@ -1531,7 +1536,7 @@ function frame(){requestAnimationFrame(frame);R.info.reset();const _rd=clk.getDe
  if(aud.rg)aud.rg.gain.value=Math.min(1,wCur.rain)*.35;
  if(shoot.t<0&&day<.5&&Math.random()<dt*.08){shoot.t=0;shoot.a=V3((Math.random()-.5)*3000,900+Math.random()*500,-1500-Math.random()*800);shoot.d=V3(-Math.random()-.5,-.35,Math.random()*.4).normalize()}
  if(shoot.t>=0){shoot.t+=dt;const a=shoot.a.clone().addScaledVector(shoot.d,shoot.t*1400);shoot.line.geometry.setFromPoints([a,a.clone().addScaledVector(shoot.d,-160)]);shoot.line.material.opacity=Math.max(0,1-shoot.t);if(shoot.t>1){shoot.t=-1;shoot.line.material.opacity=0}}
- anim.forEach(f=>f(t,dt));updFX(t,dt*FXW);pumpEvents(t);updTL(dt);search.forEach(f=>f(t));updCars(dt);updGround(dt);steam(dt);drones(t);freighter(t);
+ const _cp=!!window.__cityPaused;if(!_cp){anim.forEach(f=>f(t,dt))}updFX(t,dt*FXW);pumpEvents(t);if(!_cp){updTL(dt);search.forEach(f=>f(t));updCars(dt);updGround(dt);steam(dt);drones(t);freighter(t)}   // __cityPaused: The Wilds deep area (city hidden) skips the city's per-frame work
  if(DRONE)DRONE.show(mode==='fly');
  if(window.__burnTowerOpen&&window.__towerFrame){window.__towerFrame(dt,t);me.set(P.pos,avatar.rotation.y,'idle',P.district)}   // inside PYRETHEUM: the interior drives the camera from the same input; the avatar waits at the door
  else if(mode==='explore')updExplore(dt);else if(mode==='fly')updFly(dt);
@@ -1541,7 +1546,7 @@ function frame(){requestAnimationFrame(frame);R.info.reset();const _rd=clk.getDe
  if(bokeh.enabled)bokeh.uniforms.focus.value=mode==='explore'?6.5:C.position.distanceTo(orbit.target);
  if(window.__preRender)for(const f of window.__preRender)f(dt,t);   // late per-frame hooks (fog/camera tweaks) right before the frame is drawn
  comp.render();if(_sh)C.position.sub(_sh);if(PERF)PERF(_rd);   // while PYRETHEUM is open its scene/camera are swapped into this same composer (one renderer, one loop)
-updLabels();if(t-lastHud>.25){updMinimap();lastHud=t}
+if(!_cp){updLabels();if(t-lastHud>.25){updMinimap();lastHud=t}}
  {const now=performance.now();fpsN++;if(now-fpsT0>=1000){fpsA=fpsN*1000/(now-fpsT0);fpsN=0;fpsT0=now;window.__info={calls:R.info.render.calls,tris:R.info.render.triangles,geo:R.info.memory.geometries,tex:R.info.memory.textures,progs:R.info.programs.length}}}if(fr%15===0)$('fps').textContent=Math.round(fpsA)+' fps'+(MOBILE?' · mobile':'')+(AQ.on&&PR<AQ.max-.01?' · res '+Math.round(PR/AQ.max*100)+'%':'')+(AQ.bloomOff?' · glow off':'');window.__fps=fpsA;
  adapt(dt,t)}
 // ---------- adaptive quality: watch smoothed frame time; step render resolution (then bloom) down when the device struggles, back up when it has headroom ----------

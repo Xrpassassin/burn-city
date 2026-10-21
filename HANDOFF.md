@@ -186,6 +186,49 @@ _Auto-deploy verified 2026-10-19._
 - **Gaps (M1)**: PvP is not live (warning text says so); save is device-only; the companion disappears in the city once the forest unloads;
   on iOS the very first PROCEED before the module finished prefetching relies on the gate-created AudioContext (music may need one more tap).
 
+- **Deep area — Glassroot Grove (M2, `client/js/wilds-deep.js` + `wilds-deep-data.js`)**: zone 2 of the design package (mineral-veined roots,
+  old power conduits, ruins; Lv 5–12) with **Orrick Vale** (Ruin Surveyor, "Tags in the Roots": 3 survey tags) and **Sable Kest** (Field Tinker,
+  "The Missing Tinker": 3 tools + settle the territorial Briarback ⚠), the **Confluence** stones (recipe preview only), and the deep species
+  (Briarback, Brookwarden, Veilwing, Kilnfox, the elite Rootcoloss Lv 16 + some Shardmole/Mosskit/Cinderling). New rigs are variants in
+  `wilds-creatures.js` (`VARIANT`: base rig + scale + own parts, same 2 materials). Content/layout lives in `js/wilds-deep-data.js` (not
+  `client/data/wilds/`), loaded only with the module.
+  - **Way in / out**: the far-end spur from the clearing (30,628) to the **threshold arch** at THRESH (30,812). Within 70 m → `import('./wilds-deep.js')`;
+    walk through the teal veil (or USE "Go deeper") → "DEEPER INTO THE CINDERWILDS" veil + shrink pulse → built in stages → you stand at (1400,990).
+    Back: walk south through the return arch (or USE) → you're at (30,807) in Fernway Verge. Deep unloads `UNLOAD_S` (30 s) after you leave it,
+    and always before Fernway Verge unloads.
+  - **"Bigger on the inside" (TARDIS)**: the Grove is its own realm *off the city map* (DEEP centre (1400,1370), r 420 ≈ 3.4× Fernway Verge's area),
+    so the trailhead/forest footprint seen from the city is unchanged. `app.js` clamps walkers to `window.__exploreLim || 900` (set to 1990 only in
+    the deep area; the server clamps positions to ±2000). Multiplayer: positions are sent as-is; `window.__peerRealm` (wilds-gate.js) makes
+    `city.js` draw only peers in your own realm (deep vs city), and a teleport > 60 m snaps a peer instead of gliding across the map.
+    Fernway Verge itself was NOT moved into an interior space (it stays on the map so city/forest players keep sharing positions; option (b) scaling was rejected for collision/camera/PvP risk).
+  - **City unloaded while inside** (`cityOff`/`cityOn` in wilds-gate.js): every city scene child is hidden (lights, avatar, companion,
+    peers `userData.peer`, deep root `userData.wildsDeep` stay), new city objects are hidden as they appear, every non-deep collider is stashed,
+    `window.__cityPaused = true` (app.js frame skips `anim`/cars/TL/labels/minimap/etc.; airport, citylife, events, npc, fish, boat, retain, aegis
+    ticks return early; FX/pumpEvents + multiplayer keep running), `body.wl-cityoff` hides labels/minimap/NPC tags, fog `0.021` (phones 0.026),
+    background = fog colour, camera far 320. Nothing is destroyed, so coming back is instant. Tree colliders are pooled (~150 within 44 m).
+  - **Gameplay reuse**: wilds.js `zoneApi.setZone(ZONE)` runs creatures/encounters/binding/companion/HUD/journal/NPC talk (`talkNpc`) against
+    the deep world (spawn slots with `lv` bands, `qtag` for quest creatures, zone `keep()` / `respawn()`); music stays the forest score.
+- **Travel lock (forest + deep)**: `window.__wildsTravelLock(on)` in app.js (one helper; wilds-gate.js flips it every frame from
+  `inForest || deep`): blocks `setMode` to Orbit/Fly/Tour (the Tour button too), web (Q), jetpack, skateboard (skate.js `toggle` guard); body
+  class `wl-travel` hides Orbit/Fly/Tour/Web/Jet/Board/▲▼/timeline buttons and the pause menu's Orbit/Fly/Tour (Explore/Resume stay).
+  Web/jet toggles are restored on unlock. Reload never keeps the lock (nothing is stored).
+- **Return barrier**: walking out of Fernway Verge stops at the ellipse edge (e 0.98) and asks "RETURN TO BURN CITY? [Stay] [PROCEED]"
+  (entry-warning style). PROCEED steps you out (shrink pulse) and the forest's normal leave runs; Stay keeps you in. A jump of > 8 m in one
+  frame (teleport / respawn / fast travel) is never blocked.
+- **Safety net** (`safety()` hook, own try/catch, every frame): city hidden but nobody inside → `cityOn()`; moved out of the deep realm by
+  anything (teleport, respawn) → `abortDeep()`; > 3 consecutive deep-frame errors or a failed deep load → `abortDeep()` (city back on, you
+  stand at the threshold in Fernway Verge, controls normal); stale prompt state cleared; travel lock follows where you actually are.
+  A "Return to BURN City?" prompt still open after a teleport/respawn out of the forest is closed silently (`G.closePrompt`, counted in `G.staleExit`).
+- **Kill switch**: `WILDS_DEEP_ENABLED` in `wilds-gate.js` (false = no threshold arch, no deep module, no city unload). Per visit:
+  `?nodeep=1` (deep off), `?nowildslock` (no travel lock + no return barrier).
+- **Save v2**: `bcWilds` now `v: 2` with `zones.glassroot { visits, picked{tag_a..., clue_1...}, confluenceSeen }`; v1 saves migrate in place
+  (unit test `node tools/wilds/rules.test.mjs`, which also checks one tag = one objective via `meta.obj`).
+- **Test hooks** (`?wildstest` / `?debug=1`): `__wildsGate.deep` (`enterDeep`, `exitDeep`, `abortDeep`, `unloadDeep`, `CO`, `active()`),
+  `__wildsGate.EX` / `exitPrompt` / `travelLock` / `shrink`, `__wildsDeep` (`treeCount`, `visChunks`, `pool`, `test.interactor/act/pick`).
+- **Gaps (M2)**: Ashen Hollow / "A Pulse Beneath Ash" and the Confluence fusion itself are not built (preview only); deep players see each
+  other but the city's own player list has no realm label; the companion re-appears beside you after each crossing (no follow animation
+  through the veil); Fernway Verge is not an interior space (only the deep area is "bigger on the inside").
+
 ## City v3 — streets, junctions, LED lights, billboard art
 - **Streets v3** (`client/js/app.js`, block "streets v3"): one opaque merged strip mesh for every ring road + hub avenue (no blending, no overlap).
   Cross-section in metres from the centreline: asphalt ±2.5, curb to 2.78, sidewalk to 4.8 (= `ROAD_HW`); cars drive ±1.25.

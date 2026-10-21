@@ -97,6 +97,7 @@ function toggle(on) {
   const c = C(); if (!c) return;
   if (on === undefined) on = !SK.active;
   if (on && (c.getMode && c.getMode() !== 'explore')) return;
+  if (on && window.__wildsTravelLocked && window.__wildsTravelLocked()) return;   // The Wilds: on foot only
   if (on && window.__burnTowerOpen) return;
   if (on && window.__boat && window.__boat.active) return;
   if (!built) build();

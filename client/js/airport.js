@@ -207,7 +207,7 @@ function build() {
     if (!flight) { opT += dt; if (opT > nextOp) startFlight(); } else updFlight(dt);
     updCars(dt); updTugs(dt);
   }
-  (function tick() { requestAnimationFrame(tick); if (!document.hidden) update(); })();
+  (function tick() { requestAnimationFrame(tick); if (!document.hidden && !window.__cityPaused) update(); })();   // __cityPaused: The Wilds deep area
   A.gates = GATES.length; A.ready = true;
 }
 

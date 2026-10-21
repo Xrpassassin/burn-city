@@ -288,7 +288,7 @@ function build() {
     // fireworks particles
     for (let i = fwPool.length - 1; i >= 0; i--) { const f = fwPool[i]; f.t += dt; const P = f.p.geometry.attributes.position; for (let j = 0; j < f.vel.length / 3; j++) { f.vel[j * 3 + 1] -= 9.8 * dt * .4; P.setXYZ(j, P.getX(j) + f.vel[j * 3] * dt, P.getY(j) + f.vel[j * 3 + 1] * dt, P.getZ(j) + f.vel[j * 3 + 2] * dt); } P.needsUpdate = true; f.p.material.opacity = Math.max(0, 1 - f.t / 2.2); if (f.t > 2.2) { grp.remove(f.p); f.p.geometry.dispose(); fwPool.splice(i, 1); } }
   }
-  (function tick() { requestAnimationFrame(tick); if (!document.hidden) update(); })();
+  (function tick() { requestAnimationFrame(tick); if (!document.hidden && !window.__cityPaused) update(); })();   // __cityPaused: The Wilds deep area
   EV.vehicles = () => vehicles.map(v => ({ kind: v.kind, state: v.state, x: +v.g.position.x.toFixed(1), z: +v.g.position.z.toFixed(1), trips: v.trips || 0, crew: v.crew.length }));
   EV.ready = true;
 }

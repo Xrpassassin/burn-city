@@ -406,7 +406,7 @@ function build() {
     updSignals(t); updShoppers(dt, t); if (c.U && L.artGlow) L.artGlow(c.U.day.value);
     if (rotors) { turb.forEach((tb, i) => { const e = new THREE.Euler(0, tb.yaw, t * 1.1 + tb.ph, 'YXZ'); q.setFromEuler(e); const off = new THREE.Vector3(0, 0, -1.6).applyAxisAngle(up, tb.yaw); m4.compose(v.set(tb.x + off.x, 40.5, tb.z + off.z), q, one); rotors.setMatrixAt(i, m4); }); rotors.instanceMatrix.needsUpdate = true; }
   };
-  (function tick() { requestAnimationFrame(tick); if (!document.hidden && L.update) L.update(); })();
+  (function tick() { requestAnimationFrame(tick); if (!document.hidden && !window.__cityPaused && L.update) L.update(); })();   // __cityPaused: The Wilds deep area
   L.counts = { junctions: X.length, signals: lamps.length, crosswalkBars: walks.length, drains: drains.length, manholes: holes.length, speedSigns: spPoles.length, billboards: boards.length, shops: L.shops.length, police: !!L.police, fire: !!L.fire, power: !!L.power, turbines: turb.length, shoppers: NSH, drawCalls: grp.children.length };
   L.ready = true;
 }

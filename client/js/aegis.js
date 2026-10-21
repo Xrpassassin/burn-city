@@ -214,7 +214,7 @@ function reposeTowers() {   // towers reshape live with the market: keep the arm
 // per-frame upkeep (cheap): sky tint crossfade (~25 s), LIVE blink at ~1 Hz, cam rotation, snapshot refresh
 let lastT = performance.now(), slowT = 0, lastLv = -1;
 function loop() {
-  requestAnimationFrame(loop);
+  requestAnimationFrame(loop); if (window.__cityPaused) return;   // The Wilds deep area hides the city
   const now = performance.now(), dt = Math.min(.1, (now - lastT) / 1e3); lastT = now;
   const c = window.__city; if (!c || document.hidden) return;
   const U = c.U; if (U && U.aegisA) { const k = Math.min(1, dt * .12), tgt = enabled() ? tintTarget : 0; U.aegisA.value += (tgt - U.aegisA.value) * k; U.aegisTint.value.lerp(tintCol, k); }

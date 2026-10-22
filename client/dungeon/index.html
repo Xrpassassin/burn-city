@@ -140,7 +140,7 @@ function spawnEnemy(d, x, z, depth, boss) { if (solid(x, z)) return; const range
   const sc = (1.2 + d[3] * .32) * (boss ? 1.6 : 1), sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(`a/e/${d[0]}.webp`), transparent: true, alphaTest: .1, fog: true })); sp.center.set(.5, 0); sp.scale.set(sc, sc * 1.15, 1); sp.position.set(x, 0, z); world.add(sp);
   const pw = d[4] * (1 + (depth - 1) * .28) * (1 + d[3] * .35) * (boss ? 3 : 1), hp = Math.round(28 * pw * D[1]);
   const lvl = Math.max(1, Math.round(depth + d[3] - 1 + (boss ? 3 : 0) + D[4]));
-  enemies.push({ d, sp, x, z, hp, max: hp, atk: 5 * pw * (1 + (D[1] - 1) * .7), ranged, boss, lvl, spd: ranged ? 2 : 2.6 + rnd() * .8 - (d[3] > 3 ? .5 : 0), cd: 0, hurt: 0, awake: false, xp: Math.round(10 * pw), name: (boss ? 'Guardian ' : '') + d[1], wob: rnd() * 6, stun: 0, slow: 0, slowAmt: 0, dots: [] }); }
+  enemies.push({ d, sp, x, z, hp, max: hp, atk: 5 * pw * (1 + (D[1] - 1) * .7), ranged, boss, lvl, spd: ranged ? 2 : 2.6 + rnd() * .8 - (d[3] > 3 ? .5 : 0), cd: 0, hurt: 0, awake: false, xp: Math.round(10 * pw), name: (boss ? 'Guardian ' : '') + d[1], wob: rnd() * 6, stun: 0, slow: 0, slowAmt: 0, windup: 0, windupKind: null, baseScale: sc, dots: [] }); }
 // ---------- input ----------
 const keys = {}; let running = false, menuPaused = false, uiPaused = false, sens = 8, inv = false, mouseDown = false, locked = false;
 const paused = () => menuPaused || uiPaused;
@@ -269,11 +269,30 @@ function loop() { requestAnimationFrame(loop); const now = performance.now(), dt
     e.cd -= dt; e.hurt -= dt; e.wob += dt * 6; e.slow -= dt; e.stun -= dt;
     for (const o of e.dots) { o.acc += dt; if (o.acc >= 1) { o.acc -= 1; o.t--; hitEnemy(e, o.dmg, 0, { dot: o.n }); } } if (!enemies.includes(e)) continue; e.dots = e.dots.filter(o => o.t > 0);
     const spd = e.spd * (e.slow > 0 ? 1 - e.slowAmt : 1);
-    if (e.stun > 0) { } else if (e.awake && see) { const want = e.ranged ? 6 : 1.3 + (e.boss ? .6 : 0); if (d > want) tryMove(e, dx / d * spd * dt, dz / d * spd * dt, .4); else if (e.ranged && d < 4) tryMove(e, -dx / d * spd * .6 * dt, -dz / d * spd * .6 * dt, .4);
-      if (e.cd <= 0) { if (!e.ranged && d < want + .5) { e.cd = 1.1 + rnd() * .4; hurt(e.atk, e); } else if (e.ranged && d < 12) { e.cd = 1.8 + rnd(); shoot(0xc04aff, 9, e.atk * .9, false, .16, { x: e.x, z: e.z, e, f: new THREE.Vector3(dx, (1.5 - 1.1), dz).normalize() }); } } }
+    if (e.stun > 0) { e.windup = 0; e.windupKind = null; }
+    else if (e.windup > 0) {
+      e.windup -= dt;
+      if (e.windup <= 0) {
+        const kind = e.windupKind; e.windupKind = null;
+        if (see && kind === 'melee' && d < (e.boss ? 2.45 : 1.85)) hurt(e.atk, e);
+        else if (see && kind === 'ranged' && d < 12) shoot(0xc04aff, 9, e.atk * .9, false, .16, { x: e.x, z: e.z, e, f: new THREE.Vector3(dx, (1.5 - 1.1), dz).normalize() });
+      }
+    }
+    else if (e.awake && see) {
+      const want = e.ranged ? 6 : 1.3 + (e.boss ? .6 : 0);
+      if (d > want) tryMove(e, dx / d * spd * dt, dz / d * spd * dt, .4);
+      else if (e.ranged && d < 4) tryMove(e, -dx / d * spd * .6 * dt, -dz / d * spd * .6 * dt, .4);
+      if (e.cd <= 0) {
+        if (!e.ranged && d < want + .5) { e.cd = 1.1 + rnd() * .4; e.windup = e.boss ? .68 : .42; e.windupKind = 'melee'; }
+        else if (e.ranged && d < 12) { e.cd = 1.8 + rnd(); e.windup = e.boss ? .82 : .62; e.windupKind = 'ranged'; }
+      }
+    }
     else if (e.awake && d < 18) tryMove(e, dx / d * spd * .5 * dt, dz / d * spd * .5 * dt, .4);
     if (!running) return;
-    e.sp.position.set(e.x, e.stun > 0 ? 0 : Math.abs(Math.sin(e.wob)) * .05, e.z); e.sp.material.color.setHex(e.hurt > 0 ? 0xff5050 : e.stun > 0 ? 0xffe08a : e.slow > 0 ? 0x9ad8ff : 0xffffff);
+    const cuePulse = e.windup > 0 ? 1 + Math.sin(now * .025) * (e.boss ? .11 : .065) : 1;
+    e.sp.scale.set(e.baseScale * cuePulse, e.baseScale * 1.15 * cuePulse, 1);
+    e.sp.position.set(e.x, e.stun > 0 ? 0 : Math.abs(Math.sin(e.wob)) * .05, e.z);
+    e.sp.material.color.setHex(e.hurt > 0 ? 0xff5050 : e.stun > 0 ? 0xffe08a : e.windup > 0 ? (e.windupKind === 'ranged' ? 0xc080ff : 0xff8a3a) : e.slow > 0 ? 0x9ad8ff : 0xffffff);
     const v = new THREE.Vector3(e.x - player.x, 1 - 1.62, e.z - player.z); const ang = v.normalize().dot(f); if (d < 14 && ang > .93 && see && d < tb) { tb = d; tgt = e; } }
   // EQ-style sticky target: keep the last foe you looked at until it dies or is far away
   if (tgt) curTgt = tgt; else if (curTgt && (!enemies.includes(curTgt) || Math.hypot(curTgt.x - player.x, curTgt.z - player.z) > 18)) curTgt = null;

@@ -132,7 +132,7 @@ function build() {
     screen.position.set(0, 3.7, .76); desk.add(screen);
     const hit = new THREE.Mesh(new THREE.BoxGeometry(6.5, 6.5, 4.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }));
     hit.position.set(-130, 3.3, -535);
-    hit.userData = { kind: 'experience', experienceId: 'zombies', label: 'Zombie Extermination Flight', description: 'Board a flight to Zombie Survival. You can return to this airport after leaving the expedition.', returnTo: 'airport', returnX: -130, returnZ: -535, returnYaw: Math.PI };
+    hit.userData = { kind: 'experience', experienceId: 'zombies', label: 'Zombie Extermination Flight', description: 'Board a flight to Zombie Survival. You can return to this airport after leaving the expedition.', returnTo: 'airport', returnX: -136, returnZ: -535, returnYaw: Math.PI };
     // The picker expects scene-level coordinates, so this hit volume belongs to the airport group.
     grp.add(hit); c.pick.push(hit);
     c.colliders.push({ x: -130, z: -535, r: 1.8, h: 1.2 });

@@ -165,3 +165,15 @@ Before implementation, return:
 4. Assumptions that require design approval.
 
 **Do not merge this proposal as if it were a feature.** It is a reviewable specification; production changes should be separate, small PRs after the audit.
+
+
+## Beta character translation: give players a choice
+
+This project is in beta, so the progression model may be substantially redesigned. We do not need to preserve every legacy class rule forever. We should, however, give existing players transparent choices rather than silently forcing one conversion.
+
+Recommended migration options at rollout:
+1. **Translate existing character** into the new model using a documented mapping. Show a before/after preview of class, specialization, level/XP, abilities, stats, inventory, gear, and currency before confirmation.
+2. **Start fresh** with the new model while keeping the old save available as a backup/export.
+3. **Continue legacy or defer** only if the team can support it safely, with a clearly communicated transition window.
+
+For old multiclass combinations with no obvious equivalent, offer a choice between valid mappings. Back up before migration; keep supported items; disclose any item/currency conversion; and make the migration idempotent so retries cannot duplicate rewards. If maintaining a legacy path is not feasible, be direct about that and provide a fair, well-explained beta transition. This policy permits meaningful redesign while respecting players' time and effort.

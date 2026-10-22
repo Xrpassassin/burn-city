@@ -350,6 +350,12 @@ function entrance() {   // portal in the south wall: dark-metal jambs, gold reve
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(6.6, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(.22, .15, .1) })); glow.position.set(0, 3, HZ + 3.7); glow.rotation.y = Math.PI; scene.add(glow);
   plaque('RETURN TO BURN CITY', null, 0, 7.4, HZ - .25, Math.PI, 3.2);
   station('exit', 'Return to BURN City', 0, 0, HZ + 1.6, 3.2, [6.4, 5.5, 2]);
+  // A discreet, wall-mounted directory near the entrance. It describes real current status rather than
+  // implying that prepared-only floors or the Aegis integration are already functional.
+  box(-17.86, -17.56, .35, 4.5, 15.2, 21.2, M.metal, false);
+  box(-17.55, -17.49, .5, 4.3, 15.35, 21.05, M.gold, false);
+  plaque('PYRETHEUM DIRECTORY', 'FLOORS · DESTINATIONS · ACCESS', -17.46, 4.9, 18.2, Math.PI / 2, 3.8, '#d7a65e');
+  station('directory', 'Pyretheum directory', -15.8, 0, 18.2, 2.8, [1.2, 3.8, 3.6]);
 }
 function lobby() {     // lift lobby under the north gallery: two cars in anodized frames with gold reveals
   for (const [x, id, label, t, sub] of [[-5, 'lift', 'Headquarters lift', 'HEADQUARTERS', 'UPPER FLOORS · OPENING LATER'], [5, 'elevator', 'Private lift · Midnightbluff', 'PRIVATE', 'MIDNIGHTBLUFF · MEMBERS ONLY']]) {
@@ -568,12 +574,81 @@ function interact(id) {
     case 'residences': textPanel('RESIDENCES', 'Private penthouse floors for verified holders are planned for a later phase. Nothing here is live yet.'); break;
     case 'bar': textPanel('THE EMBER BAR', 'The Ember Bar is pouring soon. Pull up a stool while you wait.'); break;
     case 'sit': P.seated = true; P.pos.copy(P.seatPos); CITY.input.yp.yaw = Math.PI / 2; CITY.input.yp.pitch = -.05; toast('Seated. Move to stand up.'); break;
+    case 'directory': showDirectory(); break;
     case 'aegis': showAegis(); break;
     case 'elevator': privateElevator(); break;
     case 'lift': textPanel('HEADQUARTERS LIFT', 'The upper headquarters floors are under construction. Take the stairs to the galleries, the Ember Bar, the lounge and the Aegis Sanctum.'); break;
     case 'hidden': toast('Something is behind this stone. Not yet.'); break;
     case 'exit': close(); break;
   }
+}
+function showDirectory() {
+  panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-directory';
+  Object.assign(panel.style, {
+    position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
+    width: 'min(560px,calc(100vw - 24px))', maxHeight: 'min(82dvh,760px)',
+    display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    padding: '18px', background: 'linear-gradient(145deg,#141016fa,#08070afa)',
+    border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a',
+    color: '#efe3d2', zIndex: 10, pointerEvents: 'auto'
+  });
+  const head = document.createElement('div');
+  Object.assign(head.style, { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' });
+  const title = document.createElement('h2'); title.textContent = 'PYRETHEUM DIRECTORY';
+  Object.assign(title.style, { margin: '0', fontSize: '16px', letterSpacing: '.12em', color: '#d7a65e', fontFamily: 'Georgia,serif', fontWeight: '600', flex: '1' });
+  const close = btn('CLOSE', true); close.addEventListener('click', () => { panel?.remove(); panel = null; });
+  head.append(title, close); panel.appendChild(head);
+  const intro = document.createElement('p');
+  intro.textContent = 'A guide to the BURN Tower interior. Status labels distinguish usable interactions from destinations still being built.';
+  Object.assign(intro.style, { margin: '0 0 12px', color: '#cbbcaa', lineHeight: '1.45', fontSize: '13px' });
+  panel.appendChild(intro);
+  const list = document.createElement('div');
+  Object.assign(list.style, { overflowY: 'auto', minHeight: '0', paddingRight: '3px', overscrollBehavior: 'contain' });
+  const groups = [
+    { title: 'EMBER HALL · GROUND FLOOR', rows: [
+      ['Ember Hall', 'The main atrium and reactor centerpiece.', 'YOU ARE HERE', '#d7a65e'],
+      ['Headquarters lift', 'Upper headquarters floors are planned; they are not open yet.', 'IN DEVELOPMENT', '#c9a063'],
+      ['Midnightbluff private lift', 'Wallet access is checked by the server. The private floor is not open yet.', 'ACCESS-GATED · NOT OPEN', '#b8a0d8'],
+      ['Concealed destination', 'A hidden architectural clue is present, but the destination is not implemented.', 'UNDISCOVERED', '#c9a063']
+    ]},
+    { title: 'MEZZANINE · SOCIAL & INTELLIGENCE', rows: [
+      ['Aegis Sanctum', 'The display is an integration point. The live map is not connected until an approved HTTPS URL is configured.', 'INTEGRATION PENDING', '#9fc2ea'],
+      ['The Ember Bar', 'The bar and seating are built as scenery; service and gameplay are not active yet.', 'SCENERY · FUTURE GAMEPLAY', '#d7a65e'],
+      ['Dionysian Lounge', 'Explore the lounge and use the seating interaction.', 'SEATING AVAILABLE', '#d7a65e']
+    ]},
+    { title: 'GALLERIES & FUTURE FLOORS', rows: [
+      ['589 Protocol Gallery', 'Collection link is available; the dedicated gallery room is not open yet.', 'ROOM IN DEVELOPMENT', '#d9a15a'],
+      ['Hall of Firekeepers', 'Collection link is available; the dedicated gallery room is not open yet.', 'ROOM IN DEVELOPMENT', '#e0704a'],
+      ['RACC Gallery', 'Collection link is available; the dedicated gallery room is not open yet.', 'ROOM IN DEVELOPMENT', '#b8b4c8'],
+      ['Residences', 'Private penthouse floors are reserved for a later phase.', 'FUTURE PHASE', '#c9a063']
+    ]}
+  ];
+  for (const group of groups) {
+    const h = document.createElement('h3'); h.textContent = group.title;
+    Object.assign(h.style, { margin: '12px 0 7px', paddingBottom: '6px', borderBottom: '1px solid #493827', fontSize: '11px', letterSpacing: '.12em', color: '#d7a65e' });
+    list.appendChild(h);
+    for (const [name, detail, status, color] of group.rows) {
+      const row = document.createElement('div');
+      Object.assign(row.style, { padding: '9px 0', borderBottom: '1px solid #ffffff12' });
+      const top = document.createElement('div');
+      Object.assign(top.style, { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '5px 10px' });
+      const label = document.createElement('strong'); label.textContent = name;
+      Object.assign(label.style, { color: '#f0e3d2', fontSize: '13px' });
+      const badge = document.createElement('span'); badge.textContent = status;
+      Object.assign(badge.style, { color, fontSize: '9px', letterSpacing: '.07em', fontWeight: '700' });
+      top.append(label, badge); row.appendChild(top);
+      const desc = document.createElement('p'); desc.textContent = detail;
+      Object.assign(desc.style, { margin: '4px 0 0', color: '#bcae9f', fontSize: '12px', lineHeight: '1.45' });
+      row.appendChild(desc); list.appendChild(row);
+    }
+  }
+  panel.appendChild(list);
+  const actions = document.createElement('div');
+  Object.assign(actions.style, { display: 'flex', flexWrap: 'wrap', gap: '8px', paddingTop: '12px' });
+  const aegis = btn('CHECK AEGIS DISPLAY', false); aegis.addEventListener('click', () => interact('aegis'));
+  const privateLift = btn('CHECK PRIVATE ACCESS', true); privateLift.addEventListener('click', () => interact('elevator'));
+  actions.append(aegis, privateLift); panel.appendChild(actions);
+  root.appendChild(panel);
 }
 function textPanel(title, text, action, buttonLabel) {
   panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel';

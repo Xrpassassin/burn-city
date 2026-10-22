@@ -1161,7 +1161,7 @@ function setMode(m){if(tlOn()&&m!=='explore')return;const prev=mode;mode=m;tour=
  if(m==='explore'){if(prev==='fly'){/* drop the walker right under the drone, same heading; over the lake -> nearest shore */const q=C.position,es=window.__estate;let x=q.x,z=q.z;if(es&&es.inLake(x,z)){let dx=x-es.lakeC.x,dz=z-es.lakeC.z;if(Math.hypot(dx,dz)<1){dx=-es.dir.x;dz=-es.dir.z}const dl=Math.hypot(dx,dz);for(let k=0;k<400&&es.inLake(x,z);k++){x+=dx/dl;z+=dz/dl}x+=dx/dl*2;z+=dz/dl*2}
   x=Math.max(-900,Math.min(900,x));z=Math.max(-900,Math.min(900,z));{const g0=groundAt(x,z,q.y);P.pos.set(x,Math.max(g0,Math.min(q.y-2.5,g0+30)),z)}P.vel.set(0,0,0);P.onGround=false;P.climb=null;P.spawned=1;avatar.rotation.y=yp.yaw}
  else if(!P.spawned){P.pos.set(0,0,52);P.spawned=1;yp.yaw=0}yp.pitch=-.12}
- if(m==='explore'&&document.pointerLockElement){window.__lockSwap=1;document.exitPointerLock()}
+ if((m==='explore'||m==='fly')&&document.pointerLockElement){window.__lockSwap=1;document.exitPointerLock()}
  if(m==='orbit'){if(document.pointerLockElement)document.exitPointerLock();orbit.target.copy(C.position).add(C.getWorldDirection(new THREE.Vector3()).multiplyScalar(80));orbit.target.y=Math.max(5,orbit.target.y)}
  $('prompt').style.display='none';
  $('help').textContent=m==='orbit'?'Drag orbit · scroll/pinch zoom · click a tower, road, billboard or terminal for live stats':m==='fly'?'WASD move · right-click drag to look · left-click objects to inspect · Space up · C down · Shift fast':MOBILE?'Left stick walk · drag to look · tap things to inspect · USE talks to what\'s next to you':'WASD walk · Shift run · Space jump · hold right-click to look · left-click to select · E interact · V 1st/3rd person'+(NET?' · Enter chat':'')}

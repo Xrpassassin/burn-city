@@ -43,3 +43,8 @@ Before any of these models enter live combat:
 ## Verification status
 
 No browser/device runtime test or automated repository test suite has been run for this prototype. Test on desktop and mobile before merging.
+
+
+## Opt-in live visual pilot
+
+The live dungeon now has a narrowly scoped, opt-in Bat model pilot for existing Harpy enemies. Open Eternal Grind with `?enemyModels=1` to enable it. Normal play remains sprite-based; the sprite is hidden only after the model loads successfully and stays available as the failure fallback. The pilot does not change enemy combat or progression. It has not yet passed browser/mobile runtime testing and must remain opt-in until validated.

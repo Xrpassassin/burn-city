@@ -17,7 +17,7 @@ assert.deepEqual(advanceExperience({ level: 1, xp: 0 }, oneThreshold, 1), {
 
 // Existing XP plus an award may cross more than one level threshold.
 const twoThresholds = oneThreshold + xpThreshold(2, 1);
-assert.deepEqual(advanceExperience({ level: 1, xp: 0 }, twoThreshold + 7, 1), {
+assert.deepEqual(advanceExperience({ level: 1, xp: 0 }, twoThresholds + 7, 1), {
   level: 3, xp: 7, levelsGained: [2, 3]
 });
 

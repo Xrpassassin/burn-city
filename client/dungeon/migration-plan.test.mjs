@@ -27,7 +27,7 @@ assert.equal(a.sourceIntegrity.storageAccessed, false);
 assert.equal(JSON.stringify(save), before, 'source save must remain unchanged');
 assert.equal(migrationTargetOptions().length, 6);
 assert.throws(() => buildMigrationPlan(null, 'arcanist'), /JSON object/);
-assert.throws(() => buildMigrationPlan({ ...save, v: 999 }, 'arcanist'), /recognized integer version/);
+assert.throws(() => buildMigrationPlan({ ...save, v: 999 }, 'arcanist'), /version is not supported/);
 assert.throws(() => buildMigrationPlan({ ...save, lvl: 0 }, 'arcanist'), /positive integer/);
 assert.throws(() => buildMigrationPlan(save, 'not-a-class'), /supported proposed target/);
 assert.throws(() => buildMigrationPlan(save, 'arcanist', '   '), /ruleset ID/);

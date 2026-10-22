@@ -369,3 +369,13 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
 - **Skate physics** (`client/js/skate-physics-core.mjs` + `.test.mjs`, in `npm test` and `npm run test:skate`): carving keeps world momentum, lateral grip decay, board lean.
 - **Forest polish**: `wilds-gate.js` toggles `body.wl-forest` in the forest / deep area to hide city banners and toasts; skate touch buttons respect safe areas and small phones.
 - **BURN Radio plan** (`client/music/README.md`): docs only. Audius profile streaming does not by itself grant in-game sync/public-performance rights; use only the official Audius API/embed and confirm the owner holds the rights to every track before shipping.
+
+## Eternal Grind labs + design batch (integrate/eternal-grind-oct22, sw bc-v60-egoct22)
+Merged 15 Xrpassassin branches from Oct 21 22:08–23:18 (feat/eternal-grind-progression-core was superseded by feat/eternal-grind-xp-core-integration, which carries the same module plus the live wiring).
+- **Live game changes (client/dungeon/index.html):** enemy attack telegraphs (windup pulse/tint), procedural combat SFX (`sfx.mjs`, pause-menu toggle, `localStorage.egSfxMute`, AudioContext only after a gesture), XP awards routed through `progression-core.mjs` (`advanceExperience`, same curve as before).
+- **Opt-in model pilot:** `?enemyModels=1` swaps Harpy sprites for the animated Quaternius Bat. GLTFLoader/SkeletonUtils are lazy `import()`ed only with that flag, so the default/mobile load is unchanged.
+- **Standalone labs (no save writes):** `audio-lab.html`, `combat-lab.html`, `visual-lab.html`, `enemy-behavior-lab.html`, `forest-encounter-lab.html`, `regional-encounter-planner.html`, `character-migration-lab.html`, `enemy-model-workshop.html`. The title-screen Workshop button only shows with `?debug=1` or `?labs=1`.
+- **Assets:** CC0 Quaternius Slime/Bat/Dragon as binary GLB in `client/dungeon/a/models/` (+ `PROVENANCE.txt`). The branch shipped them as ~24k lines of base64; they were decoded byte-for-byte. Never commit base64 blobs. Vendored three r160 `examples/jsm/loaders/GLTFLoader.js` + `utils/SkeletonUtils.js` (MIT, client/vendor/three/LICENSE).
+- **Pure modules + tests:** `progression-core`, `character-migration-preview`, `migration-plan`, `migration-staged-writer` (`npm run test:eternal-grind`, also run by `npm test`). Two branch test bugs fixed (undefined `twoThreshold`; stale error regex).
+- **Docs/data only:** `docs/design/*` progression/class proposals + beta migration safety contract, `client/dungeon/FOREST_ENCOUNTER_CATALOG(.schema).json` + contract.
+- Gaps: migration writer/planner are not wired into the live save yet; model pilot tints overwrite material base colors (cosmetic, flag-only).

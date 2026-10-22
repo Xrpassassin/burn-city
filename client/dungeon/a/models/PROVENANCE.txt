@@ -1,0 +1,23 @@
+Quaternius animated monster models bundled with BURN City Enemy Model Workshop
+
+Models: Slime.glb, Bat.glb, Dragon.glb
+Original pack: Quaternius LowPoly Animated Monsters
+Source: https://quaternius.itch.io/lowpoly-animated-monsters
+License: CC0 1.0 Universal (public-domain dedication), as listed on the source page.
+
+These GLB payloads were sourced from the public Cairnfall asset repository, which records that the models were converted from Quaternius FBX to GLB and that geometry was not modified. Animation clip names were normalized in that repository. This is a prototype asset intake, not a claim that the upstream archive itself was downloaded in this session.
+
+Quaternius — "Monster Pack Animated" (Bat, Dragon, Slime; Skeleton omitted)
+License: CC0 1.0 Universal (Public Domain Dedication)
+Source:  https://quaternius.itch.io/lowpoly-animated-monsters
+Author:  Quaternius (https://quaternius.com)  — all Quaternius packs are CC0.
+Note:    The distributed ZIP shipped no bundled license file; CC0 status was
+         verified on the source page above (states "CC0 License,
+         creativecommons.org/publicdomain/zero/1.0"). Recorded here as provenance.
+Pipeline: FBX -> GLB via Blender (headless), animation actions renamed to
+         CAIRNFALL's CharacterVisual convention (Idle / Running_A /
+         2H_Melee_Attack_Chop / Death_A). Meshes use glTF material baseColor
+         (no texture maps). ORIGINAL third-party CC0 art, unmodified geometry.
+
+
+Repo note (Oct 22, 2026 integration): the original branch carried these as base64 text (*.glb.b64); they were decoded byte-for-byte to binary .glb and moved to client/dungeon/a/models/. Three.js loaders vendored under client/vendor/three/examples/jsm are upstream r160 (MIT, see client/vendor/three/LICENSE).

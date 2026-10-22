@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { sampleOceanHeight, updateOceanGeometry } from './ocean.js';
 import * as Trade from './trade.js';
 import * as Boats from './boats.js';
+import * as Combat from './combat.js';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -148,7 +149,22 @@ function tick(){
     $('speed').textContent=Math.round(Math.abs(speed)*2.1)+' knots';
     $('heading').textContent=String((Math.round((heading*180/Math.PI%360+360)%360))).padStart(3,'0')+'°';
     if(Math.abs(ship.position.x)>870||Math.abs(ship.position.z)>870){ship.position.x=THREE.MathUtils.clamp(ship.position.x,-870,870);ship.position.z=THREE.MathUtils.clamp(ship.position.z,-870,870);speed*=.4;$('message').textContent='The charts end here. Turn back toward known waters.'}
-    for(const p of projectiles){p.position.addScaledVector(p.userData.velocity,dt);p.userData.life-=dt;if(p.userData.life<=0){scene.remove(p);p.geometry.dispose();p.material.dispose()}}
+    for(const p of projectiles){
+      p.position.addScaledVector(p.userData.velocity,dt);
+      p.userData.life-=dt;
+      const target=Combat.findProjectileTarget(p,fleet);
+      if(target){
+        const result=Combat.applyCannonDamage(target);
+        p.userData.life=0;
+        if(result.sunk){
+          Boats.removeVessel(scene,target);
+          $('message').textContent='Enemy vessel sunk. (Prototype: no loot or server reward yet.)';
+        }else{
+          $('message').textContent='Cannon hit on '+target.kind+' vessel — hull '+result.remaining+'/'+target.maxHealth+'.';
+        }
+      }
+      if(p.userData.life<=0){scene.remove(p);p.geometry.dispose();p.material.dispose()}
+    }
     for(let i=projectiles.length-1;i>=0;i--)if(projectiles[i].userData.life<=0)projectiles.splice(i,1);
   }else{
     camera.position.x=Math.sin(elapsed*.07)*3;

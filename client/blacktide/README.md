@@ -10,11 +10,13 @@ Blacktide is an isolated browser-native region prototype under `/blacktide/`. It
 - Space or touch button to fire a visual broadside.
 - Mobile touch controls and a minimal vessel HUD.
 - Return link to the existing BURN City page.
-- No server-authoritative movement, persistence, damage, trading, quests, NPCs, or multiplayer yet.
+- Ports with docking and a cargo market (rum, sugar, spice, timber, silk) paid in gold doubloons, a Blacktide-only currency. Prices, gold, cargo and hold size live on the server (`server/blacktide.js`, `/api/bt/*`) and persist per XAMAN account.
+- Region data model: each region has `id`, `levelMin`, `pvp`. Only the protected starter waters (Ashen Shallows, PvP off) are live; level-gated PvP regions exist as data/docs only.
+- No server-authoritative movement, combat damage, quests, NPC ships, or multiplayer yet.
 
 ## Route
 
-The static server should serve this folder at `/blacktide/` through the existing `client` root. This prototype is intentionally not linked into the main city UI yet; it can be tested directly at `/blacktide/` without changing the live city navigation.
+The static server should serve this folder at `/blacktide/` through the existing `client` root. The city links here from the pause/view menu (⚓ Blacktide); the top-left link returns to the city.
 
 ## Compatibility and integration rules
 

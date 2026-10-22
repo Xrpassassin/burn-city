@@ -1515,13 +1515,17 @@ setInterval(poll,15e3);setTimeout(poll,3e3);document.addEventListener('visibilit
 
 // ---------- main loop ----------
 const clk=new THREE.Clock();let fpsN=0,fpsT0=performance.now(),fpsA=60,lowT=0,lastHud=-1,fr=0;
+// Optional input-to-next-frame sampling is only enabled with ?perf=1; this measures browser scheduling, not GPU/display presentation.
+let perfPendingInputAt=0;const perfInputSamples=[];
+if(Q.has('perf')){const markInput=()=>{perfPendingInputAt=performance.now()};for(const ev of ['pointerdown','pointermove','pointerup','keydown','keyup','wheel','touchstart'])addEventListener(ev,markInput,{passive:true});}
 // ---- ?perf=1 : honest on-device numbers (fps, frame time, draw calls, triangles, GPU memory objects, JS heap, tier) ----
 const PERF=Q.has('perf')?(()=>{const el=document.createElement('div');el.id='perfHud';el.style.cssText='position:fixed;right:6px;top:calc(env(safe-area-inset-top) + 56px);z-index:60;font:11px/1.35 ui-monospace,Menlo,monospace;color:#ffd2a8;background:rgba(8,6,10,.78);border:1px solid #ff7a1855;border-radius:8px;padding:6px 8px;pointer-events:none;white-space:pre';document.body.appendChild(el);
  const ft=[];let acc=0,n=0,last=0;window.__perf={};return raw=>{ft.push(raw*1000);if(ft.length>240)ft.shift();acc+=raw;n++;if(acc<.5)return;
- const s=[...ft].sort((a,b)=>a-b),avg=ft.reduce((a,b)=>a+b,0)/ft.length,p95=s[Math.floor(s.length*.95)]||0,i=R.info,m=performance.memory;
- const o={fps:+(n/acc).toFixed(1),ms:+avg.toFixed(1),p95:+p95.toFixed(1),calls:i.render.calls,tris:i.render.triangles,geo:i.memory.geometries,tex:i.memory.textures,heapMB:m?Math.round(m.usedJSHeapSize/1048576):null,tier:TIER,pr:+R.getPixelRatio().toFixed(2),res:innerWidth+'x'+innerHeight,tower:!!window.__burnTowerOpen};
- window.__perf=o;el.textContent=`${o.fps} fps  ${o.ms} ms (p95 ${o.p95})\ncalls ${o.calls}  tris ${(o.tris/1000).toFixed(0)}k\ngeo ${o.geo}  tex ${o.tex}${o.heapMB!=null?'  heap '+o.heapMB+'MB':''}\n${o.tier} · pr ${o.pr} · ${o.res}${o.tower?' · tower':''}`;acc=0;n=0}})():null;
-function frame(){requestAnimationFrame(frame);R.info.reset();const _rd=clk.getDelta();clk.__raw=Math.min(_rd,.25);const dt=Math.min(_rd,.05),t=clk.elapsedTime;U.t.value=t;fr++;
+ const s=[...ft].sort((a,b)=>a-b),avg=ft.reduce((a,b)=>a+b,0)/ft.length,p95=s[Math.floor(s.length*.95)]||0;
+ const ins=[...perfInputSamples].sort((a,b)=>a-b),inputP95=ins[Math.floor(ins.length*.95)]||0,i=R.info,m=performance.memory;
+ const o={fps:+(n/acc).toFixed(1),ms:+avg.toFixed(1),p95:+p95.toFixed(1),inputP95:+inputP95.toFixed(1),inputSamples:ins.length,calls:i.render.calls,tris:i.render.triangles,geo:i.memory.geometries,tex:i.memory.textures,heapMB:m?Math.round(m.usedJSHeapSize/1048576):null,tier:TIER,pr:+R.getPixelRatio().toFixed(2),res:innerWidth+'x'+innerHeight,tower:!!window.__burnTowerOpen};
+ window.__perf=o;el.textContent=`${o.fps} fps  ${o.ms} ms (frame p95 ${o.p95})\ninput→frame p95 ${o.inputP95} ms (${o.inputSamples} samples)\ncalls ${o.calls}  tris ${(o.tris/1000).toFixed(0)}k\ngeo ${o.geo}  tex ${o.tex}${o.heapMB!=null?'  heap '+o.heapMB+'MB':''}\n${o.tier} · pr ${o.pr} · ${o.res}${o.tower?' · tower':''}`;acc=0;n=0}})():null;
+function frame(){requestAnimationFrame(frame);if(perfPendingInputAt){perfInputSamples.push(Math.max(0,performance.now()-perfPendingInputAt));if(perfInputSamples.length>240)perfInputSamples.shift();perfPendingInputAt=0}R.info.reset();const _rd=clk.getDelta();clk.__raw=Math.min(_rd,.25);const dt=Math.min(_rd,.05),t=clk.elapsedTime;U.t.value=t;fr++;
  if($('todCycle').checked)$('tod').value=(.5-.5*Math.cos(t*.02)).toFixed(3);const day=+$('tod').value;U.day.value=day;
  if(wMode==='cycle'){const seq=['clear','fog','rain','storm'];wTarget=W[seq[Math.floor(t/30)%4]]}
  for(const k in wCur)wCur[k]+=(wTarget[k]-wCur[k])*Math.min(1,dt*wRate);SKY(dt,t,wCur,+$('tod').value);

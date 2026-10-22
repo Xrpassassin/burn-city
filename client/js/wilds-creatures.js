@@ -117,6 +117,20 @@ const VARIANT = {
     part(M([...[0, 1, 2, 3, 4, 5].map(k => paint(new THREE.CylinderGeometry(.02, .035, .5, 5).rotateZ(1.2 + k * .1).rotateY(k * 1.05).translate(Math.cos(k) * .2, .18, Math.sin(k) * .25), 0x4a3424, 0x2e2018, .12)),
       paint(new THREE.CylinderGeometry(.015, .03, .35, 5).translate(0, .45, -.05), 0x4a3424, 0x4a3424, .1), paint(new THREE.IcosahedronGeometry(.16, 0).translate(0, .66, -.05), 0x3f8a2a, 0x2a6a1e, .2)]), MAT, L.body);
     part(M([[-.18, .1, .1], [.2, .12, -.08], [0, .2, .25], [-.05, .22, -.25]].map(([x, y, z]) => paint(new THREE.BoxGeometry(.02, .02, .28).rotateY(x * 3).translate(x, y, z), 0xd8ff5a, 0xd8ff5a, 0))), GLOW, L.body); } },
+  mirehare: { base: 'mosskit', s: .82, spd: 1.22, add(L, { MAT, GLOW }) {
+    // Long-eared marsh grazer with pale cheek markings and a luminous dew tuft.
+    for (const s of [-1, 1]) {
+      const ear = new THREE.Group(); ear.position.set(s * .075, .09, .02); ear.rotation.z = -s * .12; L.head.add(ear);
+      part(M([paint(ell(.035, .18, .025, 0, .14, 0), 0x9a8d79, 0xd8c8a7, .04), paint(ell(.014, .12, .008, 0, .14, .022), 0xd8a4a0, 0xe8c0b4, .02)]), MAT, ear);
+      L.ears.push(ear);
+    }
+    part(M([paint(ell(.045, .045, .045, 0, .16, .16), 0x9bffb0, 0x9bffb0, 0)]), GLOW, L.head);
+  } },
+  ashfang: { base: 'cinderling', s: 1.18, spd: 1.28, add(L, { MAT, GLOW }) {
+    // A soot-coated territorial predator with a jagged ash ridge and ember eyes.
+    part(M([...[0, 1, 2, 3, 4].map(k => paint(new THREE.ConeGeometry(.045, .16 + (k % 2) * .06, 5).rotateX(-.7).translate(0, .16, .23 - k * .11), 0x171514, 0x3b2a25, .06))]), MAT, L.body);
+    part(M([-1, 1].map(s => paint(ell(.035, .028, .025, s * .09, .04, .19), 0xff5a10, 0xffa02a, 0))), GLOW, L.head);
+  } },
 };
 export const hasRig = sp => !!(BUILD[sp] || VARIANT[sp]);
 export function buildCreature(sp, lite) {

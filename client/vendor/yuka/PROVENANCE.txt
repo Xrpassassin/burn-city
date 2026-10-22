@@ -1,0 +1,7 @@
+Yuka 0.7.8 (MIT) - JavaScript game AI library by Mugen87 and the Yuka authors.
+build/yuka.module.js: byte-for-byte copy of the npm release, https://registry.npmjs.org/yuka/-/yuka-0.7.8.tgz
+  (package/build/yuka.module.js, 442887 bytes, sha256 9b0c24534a47f2e1c9549a63a5e00a850577e22fe8d18dbc7a532008a027cb89;
+  matches unpkg integrity sha256-mwwkU0pH8uHJVJpjpeAKhQV34i/o0Y28elMgCKAny4k=). Upstream git: https://github.com/Mugen87/yuka (gitHead e6250dc).
+LICENSE: upstream https://github.com/Mugen87/yuka/blob/master/LICENSE (MIT).
+Do not edit these files; upgrade by replacing them with a newer upstream release and updating this note.
+Used by client/js/wilds-yuka-ai.mjs (wander steering only; loaded only with the Wilds forest module).

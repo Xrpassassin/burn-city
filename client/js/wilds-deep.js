@@ -11,6 +11,7 @@ import { TEST, DEEP, dEll, colorize, solid, jitter, M, canvasTex, signTex } from
 import { mats } from './wilds-creatures.js';
 import { buildWalker, poseWalker } from './walker.js';
 import * as DD from './wilds-deep-data.js';
+import { createAmbientWildsSpawns } from './wilds-ambient-spawns.mjs';
 
 const C = () => window.__city;
 const S = { ready: false, active: false, loading: null, root: null, chunks: [], npcs: [], picks: [], tags: [], pool: [], poolAt: null, test: {} };
@@ -136,8 +137,12 @@ async function build(progress) {
   // --- motes: drifting teal spores around the camera (one Points draw)
   { const N = tierN(90, 160, 240), pos = new Float32Array(N * 3); S.motes = []; for (let i = 0; i < N; i++) S.motes.push({ x: 0, y: -99, z: 0, p: rnd() * 6.28, s: .3 + rnd() * .7 });
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); S.moteP = new THREE.Points(g, new THREE.PointsMaterial({ size: .16, color: 0x8affe0, transparent: true, opacity: .75, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })); S.moteP.frustumCulled = false; root.add(S.moteP); }
-  // encounter table
-  ZONE.spawns = DD.SPAWNS.map(s => ({ ...s, zone: ZONE, cr: null, cool: 0, when: s.quest ? () => { const st = Z.game().state.quests[s.quest]; return st && st.st === 'active' && !((st.prog[s.obj] || 0) >= 1); } : null }));
+  // Keep authored quest/landmark encounters fixed; ambient locations are deterministic and separately tested.
+  const ambient = createAmbientWildsSpawns({
+    center: DEEP, dEll, dTrail, dCreek, clearings: DD.CLEARINGS, authoredSpawns: DD.SPAWNS,
+  });
+  ZONE.spawns = DD.SPAWNS.concat(ambient).map(s => ({ ...s, zone: ZONE, cr: null, cool: 0, when: s.quest ? () => { const st = Z.game().state.quests[s.quest]; return st && st.st === 'active' && !((st.prog[s.obj] || 0) >= 1); } : null }));
+  S.ambientSpawnCount = ambient.length;
   await step(.85, 'Listening for the Grove…');
 }
 

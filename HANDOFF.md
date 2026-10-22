@@ -342,3 +342,9 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
 - It stands inside the playable forest area (z 485-580), so `frame()` shows it only while the Cinderwilds module is unloaded; while the deep area is active, cityOff/cityOn hide and restore it like any other city object.
 - Fixed on integrate: a stray literal `\n` token before the boot block (a module syntax error; `node --check` misses it on ESM, use `node --input-type=module --check < file`).
 - iPhone 390x844 smoke (swiftshader, ?perf=1): city ~402 calls (main ~396-404 in the same harness), forest 278, deep 53.
+
+## Blacktide (pirate region prototype, `/blacktide/`)
+- Files: `client/blacktide/` (index.html, blacktide.js, ocean.js, style.css, README.md, THIRD_PARTY_LICENSES.md). Own three.js scene from `vendor/three` (importmap); no shared renderer, no server protocol changes.
+- **Phone fixes (sw bc-v56-btphone)**: portrait hFOV floor 66° (`fitView()`, refits on resize + orientationchange; was ~28° across so the ship filled the screen); frame dt cap .04 → .1 (below 25 fps the ship sailed in slow motion); ocean grid 64² on touch (100² desktop; normals are recomputed on the CPU every frame); keyboard hint hidden on touch; empty favicon (console 404).
+- **Test hook**: `?bttest` or `?debug=1` → `window.__bt` = `state()` {started, speed, heading, x, z, cam, proj} and `info()` {calls, tris, geos, dpr}.
+- **Smoke harness** (not in git): Playwright WebKit as iPhone 13 (390x844, touch, mobile Safari UA) + Chromium (SwiftShader) mobile + desktop: TAKE THE HELM, hold ▲ / ↶, FIRE, camera follow, fps, draw calls, console errors. Sandbox note: WebKit needs `proxy:{server:'per-context'}` + a context proxy with `bypass:'127.0.0.1'` to reach a local server.

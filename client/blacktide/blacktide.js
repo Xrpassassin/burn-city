@@ -25,7 +25,8 @@ const ember = new THREE.PointLight(0xff6233, 120, 240);
 ember.position.set(-8, 13, -28);
 scene.add(ember);
 
-const waterGeo = new THREE.PlaneGeometry(1800, 1800, 100, 100);
+const COARSE = matchMedia('(pointer:coarse)').matches;
+const waterGeo = new THREE.PlaneGeometry(1800, 1800, COARSE ? 64 : 100, COARSE ? 64 : 100); // phones: ~40% of the per-frame wave/normal CPU work
 waterGeo.rotateX(-Math.PI / 2);
 const basePositions = waterGeo.attributes.position.array.slice();
 const waterMat = new THREE.MeshStandardMaterial({color:0x103e55, roughness:.32, metalness:.26, flatShading:false});
@@ -114,7 +115,7 @@ function fireBroadside(){
 const clock=new THREE.Clock();
 function tick(){
   requestAnimationFrame(tick);
-  const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;
+  const dt=Math.min(clock.getDelta(),.1); // .04 cap made the ship crawl in slow motion below 25 fps (phones)elapsed+=dt;
   updateOceanGeometry(waterGeo,basePositions,elapsed);
   if(started){
     const forward=keys.has('w')||keys.has('arrowup')||controls.forward;
@@ -150,5 +151,14 @@ function tick(){
   }
   renderer.render(scene,camera);
 }
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,matchMedia('(pointer:coarse)').matches?1.35:1.8))});
+// Portrait phones: keep the horizontal FOV >= 66 deg (a fixed 58 deg vertical FOV gave ~28 deg across = ship fills the screen).
+function fitView(){const a=innerWidth/innerHeight;camera.aspect=a;const minH=66*Math.PI/180;camera.fov=Math.max(58,2*Math.atan(Math.tan(minH/2)/a)*180/Math.PI);camera.updateProjectionMatrix()}
+fitView();
+addEventListener('orientationchange',()=>setTimeout(fitView,250));
+addEventListener('resize',()=>{fitView();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,matchMedia('(pointer:coarse)').matches?1.35:1.8))});
+// Test hook (?bttest or ?debug=1 only): read-only ship/camera/renderer state for smoke tests.
+if(/[?&](bttest|debug=1)/.test(location.search))window.__bt={
+  state:()=>({started,speed,heading,x:ship.position.x,z:ship.position.z,cam:camera.position.toArray(),proj:projectiles.length,shots:lastShot}),
+  info:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,geos:renderer.info.memory.geometries,dpr:renderer.getPixelRatio()})
+};
 tick();

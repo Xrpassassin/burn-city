@@ -120,3 +120,5 @@ body.m .book{max-height:none}body.m .gem{width:50px;height:50px}body.m .forge{fl
 @media (orientation:portrait) and (max-height:900px){#mmenu{gap:4px}#mmenu button{width:46px;height:46px}}
 /* ui-cleanup: phone side menu (Bag … Rest) keeps 44px targets in short landscape too; gap trimmed so the row still ends left of the #22 music toggle */
 @media (orientation:landscape) and (max-height:500px){#mmenu{gap:4px}#mmenu button{width:44px;height:44px}}
+/* phone cleanup (sw bc-v67-hub): title / character screens keep the 44px touch minimum */
+body.m .scr button{min-height:44px}

@@ -206,6 +206,95 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       const slat = new THREE.Mesh(g(new THREE.BoxGeometry(0.98, 0.08, 0.9)), rustMat); slat.position.set(x, 0.77, z); slat.rotation.y = rot; yard.add(slat);
     }
     yard.position.set(WX(33), 0, WZ(25)); root.add(yard);
+
+    // Abandoned deep-space research complex: brutalist facades, dead observation windows,
+    // collapsed conduits, old cryogenic equipment and battered facility signage.
+    // These are lightweight decorative meshes only; gameplay collision stays server-authored.
+    const ruin = new THREE.Group();
+    const concrete = basic(0x555652), paleConcrete = basic(0x77776d), rust = basic(0x6b3928);
+    const glassDead = basic(0x172a30, { transparent: true, opacity: 0.82, metalness: 0.15, roughness: 0.8 });
+    const emergency = basic(0x9e3328), fadedCream = basic(0xb5a77d), cableMat = basic(0x292d30);
+    const boxMesh = (w, h, d, mat, x, y, z, rot = 0, parent = ruin) => {
+      const m = new THREE.Mesh(g(new THREE.BoxGeometry(w, h, d)), mat);
+      m.position.set(x, y, z); m.rotation.y = rot; parent.add(m); return m;
+    };
+    const cylinder = (radius, length, mat, x, y, z, rotZ = Math.PI / 2, parent = ruin) => {
+      const m = new THREE.Mesh(g(new THREE.CylinderGeometry(radius, radius, length, low ? 5 : 8)), mat);
+      m.position.set(x, y, z); m.rotation.z = rotZ; parent.add(m); return m;
+    };
+    // Low, windowed observation annexes sit against room edges, not across the combat lanes.
+    const annex = (cx, cz, width, depth, rot = 0) => {
+      const a = new THREE.Group(); a.position.set(cx, 0, cz); a.rotation.y = rot; ruin.add(a);
+      boxMesh(width, 2.8, depth, concrete, 0, 1.4, 0, 0, a);
+      boxMesh(width * 0.82, 0.10, depth * 1.04, rust, 0, 2.85, 0, 0, a);
+      const n = Math.max(2, Math.floor(width / 1.25));
+      for (let i = 0; i < n; i++) {
+        const x = -width * 0.36 + i * (width * 0.72 / Math.max(1, n - 1));
+        boxMesh(width / n * 0.68, 0.82, 0.06, glassDead, x, 1.92, depth / 2 + 0.035, 0, a);
+        boxMesh(0.07, 0.94, 0.10, paleConcrete, x, 1.92, depth / 2 + 0.08, 0, a);
+      }
+      // A broken corner and exposed rebar make the building look decades abandoned.
+      boxMesh(width * 0.22, 0.16, depth * 0.32, rust, width * 0.37, 2.2, -depth * 0.2, 0.22, a);
+      for (let i = 0; i < 3; i++) cylinder(0.035, 0.7, rust, width * 0.35 + i * 0.13, 2.45, -depth * 0.25, 0.6, a);
+    };
+    annex(WX(8), WZ(27), 6.8, 1.8, 0);
+    annex(WX(8), WZ(5), 6.8, 1.8, Math.PI);
+    annex(WX(20), WZ(5), 6.4, 1.6, Math.PI);
+    annex(WX(32), WZ(5), 6.5, 1.8, Math.PI);
+    // Old launch-control consoles: slanted monitor banks, cracked screens and dead indicator lamps.
+    const consoleBank = (x, z, count = 3) => {
+      for (let i = 0; i < count; i++) {
+        const px = x + (i - (count - 1) / 2) * 1.15;
+        boxMesh(0.95, 0.9, 0.58, concrete, px, 0.55, z);
+        const screen = boxMesh(0.72, 0.42, 0.08, glassDead, px, 1.03, z + 0.27, -0.12);
+        screen.material = glassDead;
+        boxMesh(0.8, 0.06, 0.62, rust, px, 1.15, z);
+        for (let j = 0; j < 3; j++) {
+          const lamp = new THREE.Mesh(g(new THREE.SphereGeometry(0.045, low ? 4 : 6, 4)), basic(j === 0 ? 0x9e3328 : 0x8a713d));
+          lamp.position.set(px - 0.2 + j * 0.2, 0.76, z + 0.33); ruin.add(lamp);
+        }
+      }
+    };
+    consoleBank(WX(19), WZ(7), 4);
+    consoleBank(WX(8), WZ(9), 3);
+    // Containment lab: obsolete cryo cylinders with cracked inspection bands and a leaking pipe.
+    for (const [x, z, h] of [[4.8, 7.2, 2.3], [11.8, 7.8, 2.6], [5.4, 13.2, 2.0]]) {
+      const pod = new THREE.Mesh(g(new THREE.CylinderGeometry(0.46, 0.52, h, low ? 6 : 10)), concrete);
+      pod.position.set(WX(x), h / 2, WZ(z)); ruin.add(pod);
+      const viewport = new THREE.Mesh(g(new THREE.CylinderGeometry(0.39, 0.39, 0.09, low ? 6 : 10)), glassDead);
+      viewport.position.set(WX(x), h * 0.67, WZ(z)); ruin.add(viewport);
+      const band = new THREE.Mesh(g(new THREE.CylinderGeometry(0.54, 0.54, 0.12, low ? 6 : 10)), rust);
+      band.position.set(WX(x), h * 0.28, WZ(z)); ruin.add(band);
+      boxMesh(0.55, 0.09, 0.12, emergency, WX(x) + 0.45, h * 0.58, WZ(z) + 0.02);
+    }
+    // Sagging overhead service lines and severed conduits along the wall edges.
+    for (const [x0, x1, z, y] of [[4, 13, 16.1, 2.6], [16, 24, 16.1, 2.3], [28, 37, 16.1, 2.7], [4, 12, 31.2, 2.4]]) {
+      cylinder(0.075, Math.abs(WX(x1) - WX(x0)), cableMat, (WX(x0) + WX(x1)) / 2, y, WZ(z));
+      for (const x of [x0, x1]) boxMesh(0.16, 0.75, 0.16, rust, WX(x), y - 0.45, WZ(z));
+    }
+    // Facility wayfinding plates: worn, faded blocks with emergency-red header bars.
+    const sign = (textLabel, x, z, w = 2.4) => {
+      const plate = new THREE.Group();
+      boxMesh(w, 0.72, 0.12, fadedCream, 0, 0, 0, 0, plate);
+      boxMesh(w * 0.94, 0.12, 0.14, emergency, 0, 0.25, 0, 0, plate);
+      const tag = label(textLabel, '#d8cba5', 512, 1.25);
+      tag.position.set(0, -0.02, 0.09); tag.scale.set(w * 0.88, 0.34, 1); plate.add(tag);
+      plate.position.set(WX(x), 3.0, WZ(z)); plate.rotation.y = Math.PI; ruin.add(plate);
+    };
+    sign('LAUNCH CONTROL', 19, 3.6, 3.4);
+    sign('CRYO / BIOHAZARD', 8, 3.6, 3.5);
+    sign('REACTOR ACCESS', 32, 3.6, 3.0);
+    sign('STAFF SHELTER', 8, 18.6, 2.8);
+    // Rubble piles, fallen panels and torn insulation: scattered to the sides of routes.
+    for (const [x, z, rot] of [[5, 20, 0.3], [12, 28, -0.5], [17, 13, 0.7], [23, 11, -0.25], [28, 20, 0.45], [36, 14, -0.7]]) {
+      boxMesh(1.0, 0.22, 0.7, paleConcrete, WX(x), 0.12, WZ(z), rot);
+      boxMesh(0.6, 0.12, 0.45, rust, WX(x) + 0.12, 0.28, WZ(z) - 0.08, rot + 0.3);
+      boxMesh(0.8, 0.07, 0.12, cableMat, WX(x) - 0.22, 0.38, WZ(z) + 0.18, rot - 0.2);
+    }
+    // A failed emergency bulkhead hangs crooked at the access spine.
+    boxMesh(1.6, 2.6, 0.18, emergency, WX(24.6), 1.3, WZ(20.5), -0.07);
+    boxMesh(1.2, 0.12, 0.22, fadedCream, WX(24.6), 2.45, WZ(20.5), -0.07);
+    ruin.position.set(0, 0, 0); root.add(ruin);
   }
   root.add(frameM, plank); const anim = WN.map(() => Array(NB).fill(1));   // per plank 0..1 (1 = nailed)
   let boards = WN.map(() => NB), flying = [];

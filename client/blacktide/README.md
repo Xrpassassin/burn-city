@@ -4,7 +4,8 @@ Blacktide is an isolated browser-native region prototype under `/blacktide/`. It
 
 ## Current prototype
 
-- 3D ocean with animated surface, distant islands, a player ship, and a follow camera.
+- 3D ocean with directional multi-wave surface motion, distant islands, a player ship, and a follow camera.
+- Shared analytical wave sampling drives both the visible ocean and ship bobbing, so the vessel responds to the same swell that renders beneath it.
 - Sailing controls: W/Up to accelerate, S/Down to slow/reverse, A/D or Left/Right to steer.
 - Space or touch button to fire a visual broadside.
 - Mobile touch controls and a minimal vessel HUD.
@@ -25,13 +26,16 @@ The static server should serve this folder at `/blacktide/` through the existing
 
 ## Open-source reference
 
-The project uses **original prototype code** informed by the design space of open-source pirate games. It does not copy proprietary code or assets from Tempest: Pirate Action RPG.
+The project uses **original prototype code** informed by open-source pirate-game research. It does not copy proprietary code or assets from Tempest: Pirate Action RPG. The ocean model is a new Three.js implementation inspired by the publicly documented multi-wave parameters and concepts in The Legend of Pirates Online's `libpirates-src`; it does not port the Panda3D/C++ implementation.
 
-Reference candidate: [Corsairs: Wind of Freedom](https://github.com/Elkhan-Isayev/corsairs), an independent Godot project released under the MIT license. Its Godot scripts are not directly compatible with this Three.js web client; port mechanics only where useful and preserve required attribution if any source code is later reused. Verify the upstream license and third-party asset licenses at the exact time of reuse.
+References:
+
+- [The Legend of Pirates Online — libpirates-src](https://github.com/TheLegendOfPiratesOnline/libpirates-src), BSD-3-Clause. Its documented ocean system uses several directional waves with configurable amplitude, wavelength, direction, and speed. The repository targets Panda3D, so Blacktide uses a fresh JavaScript/Three.js approximation rather than importing that engine-specific code.
+- [Corsairs: Wind of Freedom](https://github.com/Elkhan-Isayev/corsairs), an independent Godot project released under the MIT license. Its Godot scripts are not directly compatible with this Three.js client; mechanics can be ported selectively if useful, with attribution and asset-license checks.
 
 ## Next steps
 
-1. Run `node --check client/blacktide/blacktide.js` (ES module syntax check).
+1. Run `node --check client/blacktide/blacktide.js` and `node --check client/blacktide/ocean.js` (ES module syntax checks).
 2. Test `/blacktide/` on desktop and mobile Safari.
 3. Fix any console/runtime errors and confirm the original city still loads unchanged.
 4. Add island docking and region transition behavior.

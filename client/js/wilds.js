@@ -454,7 +454,7 @@ function updCreature(cr, dt, t, P, distP) {
   const def = game.SP[cr.sp], tp = TEMP()[def.temperament] || {}, L = cr.mesh.userData.rig;
   let maxSpd = L.speed, lookYaw = 0, sniff = false, alert = false, wag = false;
   const toP = Math.atan2(P.pos.x - cr.x, P.pos.z - cr.z); const run = C().input.keys.ShiftLeft || C().input.keys.ShiftRight || (C().input.tb && C().input.tb.run);
-  cr.wanderHeading = updateWildsWanderAgent(cr.ai, dt, cr.x, cr.z, cr.yaw, L.speed) || cr.wanderHeading;
+  if (cr.st === 'idle' || cr.st === 'wander') cr.wanderHeading = updateWildsWanderAgent(cr.ai, dt, cr.x, cr.z, cr.yaw, L.speed) || cr.wanderHeading;
   cr.t -= dt; cr.cool = Math.max(0, cr.cool - dt);
   if (cr.st === 'held') { cr.spd *= Math.pow(.02, dt); let dy = Math.atan2(Math.sin(cr.face - cr.yaw), Math.cos(cr.face - cr.yaw)); cr.yaw += dy * Math.min(1, dt * 5); cr.yawRate = dy * 5; alert = true; }
   else if (cr.st === 'flee') { const fx = cr.x - (P.pos.x - cr.x) * 3, fz = cr.z - (P.pos.z - cr.z) * 3; steer(cr, dt, fx, fz, L.speed * 2.2); if (cr.t < 0) { cr.st = 'idle'; cr.t = 2; } if (cr.gone && distP > 30) { despawn(cr, 40); return; } }

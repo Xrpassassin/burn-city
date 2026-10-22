@@ -157,34 +157,74 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   // Curbs/sidewalks flank the boulevard and cross streets.
   for (const x of [-6.2,6.2]) addBox(paths,.5,.22,LD-18,x,.22,2);
   for (const z of [-40,-30,33,43]) addBox(paths,LW-18,.18,1.1,0,.2,z);
+  // Five visible housing tiers, ordered from the city-facing entrance toward the lake.
+  // These are environmental models only; purchasing, rent, interiors, and ownership need a separate economy/player-system integration.
   const homes = [
-    {x:-65,z:-10,w:36,d:25,h:8,roof:0x303b4c,wall:0xc8c7bd},
-    {x:65,z:-10,w:36,d:25,h:8,roof:0x3d4147,wall:0xd8c7ac},
-    {x:-65,z:58,w:40,d:27,h:9,roof:0x26394a,wall:0xc6d0d0},
-    {x:65,z:58,w:40,d:27,h:9,roof:0x4a3d34,wall:0xd9d0c1}
+    {tier:'trailer',x:-82,z:-57,w:24,d:12,h:3.4,roof:0x303b4c,wall:0xb7a58c},
+    {tier:'trailer',x:-50,z:-57,w:24,d:12,h:3.4,roof:0x3d4147,wall:0xc7c1b4},
+    {tier:'apartment',x:31,z:-57,w:40,d:27,h:14,roof:0x303945,wall:0xb8bec0},
+    {tier:'starter',x:-72,z:-10,w:27,d:20,h:7,roof:0x26394a,wall:0xc6d0d0},
+    {tier:'starter',x:72,z:-10,w:27,d:20,h:7,roof:0x4a3d34,wall:0xd9d0c1},
+    {tier:'family',x:-72,z:30,w:34,d:24,h:9,roof:0x303b4c,wall:0xc8c7bd},
+    {tier:'family',x:72,z:30,w:34,d:24,h:9,roof:0x3d4147,wall:0xd8c7ac},
+    {tier:'mansion',x:-65,z:66,w:43,d:27,h:12,roof:0x26394a,wall:0xc6d0d0},
+    {tier:'mansion',x:65,z:66,w:43,d:27,h:12,roof:0x4a3d34,wall:0xd9d0c1}
   ];
   for (let i=0;i<homes.length;i++) {
     const h=homes[i], front=h.z+h.d/2;
-    // Property pad, main volume, flat modern roof and a recessed garage wing.
-    addBox(foundations,h.w+5,.45,h.d+5,h.x,.35,h.z);
-    addBox(walls,h.w,h.h,h.d,h.x,h.h/2+.55,h.z);
-    addBox(roofs,h.w+1.8,1.15,h.d+1.8,h.x,h.h+1.15,h.z);
-    addBox(walls,h.w*.42,4.2,9,h.x+h.w*.28,2.65,front+4.5);
-    // Street-facing panoramic glazing and upper clerestory windows.
-    for (const sx of [-.29,-.08,.13,.32]) {
-      addBox(glass,h.w*.16,2.8,.16,h.x+h.w*sx,3.0,front+.12);
-      addBox(glass,h.w*.16,1.0,.16,h.x+h.w*sx,6.1,front+.12);
+    const isTrailer=h.tier==='trailer', isApartment=h.tier==='apartment', isMansion=h.tier==='mansion';
+    // Larger plots and architectural mass scale with the housing tier.
+    const yardPad=isTrailer?2:isApartment?3:isMansion?9:5;
+    addBox(foundations,h.w+yardPad*2,.4,h.d+yardPad*2,h.x,.3,h.z);
+    addBox(walls,h.w,h.h,h.d,h.x,h.h/2+.5,h.z);
+    // Trailer roofs are low and pitched-looking; other tiers use clean flat roof silhouettes.
+    if (isTrailer) {
+      addBox(roofs,h.w+1,.45,h.d+1,h.x,h.h+.45,h.z);
+      // Small dark wheel pairs make the compact manufactured-home silhouette read clearly.
+      for (const wx of [-h.w*.31,h.w*.31]) {
+        const wheel=new THREE.CylinderGeometry(.62,.62,.32,8); wheel.rotateZ(Math.PI/2); wheel.translate(h.x+wx,.72,h.z+h.d*.34); foundations.push(wheel);
+        const wheel2=new THREE.CylinderGeometry(.62,.62,.32,8); wheel2.rotateZ(Math.PI/2); wheel2.translate(h.x+wx,.72,h.z-h.d*.34); foundations.push(wheel2);
+      }
+      addBox(glass,4.2,1.3,.14,h.x-h.w*.27,2.2,front+.08);
+      addBox(glass,4.2,1.3,.14,h.x+h.w*.05,2.2,front+.08);
+      addBox(glass,3.2,1.3,.14,h.x+h.w*.32,2.2,front+.08);
+      addBox(trim,3.2,2.5,.18,h.x-h.w*.3,1.65,front+.1);
+    } else if (isApartment) {
+      addBox(roofs,h.w+1.5,.8,h.d+1.5,h.x,h.h+.9,h.z);
+      // Repeated windows and balcony bands suggest a low-rise multi-unit building without individual draw calls.
+      for (let floor=0;floor<3;floor++) {
+        const wy=2.7+floor*3.7;
+        for (let col=0;col<5;col++) {
+          const wx=h.x-h.w*.38+col*h.w*.19;
+          addBox(glass,4.2,2.0,.16,wx,wy,front+.12);
+          addBox(trim,4.7,.16,.3,wx,wy-1.2,front+.22);
+        }
+      }
+      addBox(glass,5,3,.18,h.x,2.1,front+.14);
+      addBox(trim,h.w*.72,.35,.4,h.x,10.2,front+.22);
+    } else {
+      addBox(roofs,h.w+(isMansion?3:1.8),isMansion?1.5:1.0,h.d+(isMansion?3:1.8),h.x,h.h+1.0,h.z);
+      // Mansion wings and a raised central roofline distinguish premium lakefront architecture.
+      if (isMansion) {
+        addBox(walls,h.w*.34,h.h*.62,h.d*.48,h.x,h.h*.31+h.h+.25,h.z-h.d*.08);
+        addBox(roofs,h.w*.39,.9,h.d*.54,h.x,h.h*.62+h.h+.75,h.z-h.d*.08);
+      }
+      for (const sx of [-.34,-.12,.12,.34]) {
+        addBox(glass,h.w*.15,2.6,.16,h.x+h.w*sx,3.0,front+.12);
+        addBox(glass,h.w*.15,1.0,.16,h.x+h.w*sx,6.1,front+.12);
+      }
+      addBox(glass,isMansion?8:5.5,isMansion?4:3.2,.18,h.x+h.w*.22,2.5,front+.14);
+      addBox(trim,h.w*(isMansion?.62:.48),.28,.35,h.x,5.0,front+.25);
     }
-    addBox(glass,5.5,3.2,.18,h.x+h.w*.28,2.5,front+9.08);
-    addBox(trim,h.w*.48,.28,.35,h.x,5.0,front+.25);
-    addBox(paths,8,.12,11,h.x, .24, front+9);
-    // Low planting beds and evenly spaced trees; geometry is merged below.
+    // Driveway paths lead from each home toward the internal street grid.
+    addBox(paths,isTrailer?5:isApartment?9:isMansion?12:8,.12,isTrailer?8:isApartment?10:isMansion?14:11,h.x, .24, front+(isTrailer?5:isApartment?6:isMansion?11:9));
+    // Private planting; premium plots receive a wider landscape buffer.
     for (const s of [-1,1]) {
-      addBox(greenery,5,.6,2.2,h.x+s*(h.w/2+1.2),.35,h.z);
+      addBox(greenery,isMansion?8:5,.6,2.2,h.x+s*(h.w/2+1.2),.35,h.z);
       for (const dz of [-h.d/2-5,h.d/2+5]) {
-        const tx=h.x+s*(h.w/2+5), tz=h.z+dz;
+        const tx=h.x+s*(h.w/2+(isMansion?8:5)), tz=h.z+dz;
         addBox(trunks,.7,4,.7,tx,2.1,tz);
-        const crown=new THREE.ConeGeometry(2.7,6,5); crown.translate(tx,6.8,tz); canopies.push(crown);
+        const crown=new THREE.ConeGeometry(isMansion?3.2:2.7,isMansion?7:6,5); crown.translate(tx,isMansion?7.2:6.8,tz); canopies.push(crown);
       }
     }
   }

@@ -339,22 +339,57 @@ function rooftopSkyLounge() {
     box(x-.12,x+.12,y+2.85,y+2.94,-zEdge+1.08,-zEdge+1.32,M.amber,false);
   }
   plaque('BURN TOWER', 'PYRETHEUM · SKY LOUNGE', 0, y+3.05, -zEdge+1.38, 0, 5.6, '#e0704a');
-  // Panoramic night skyline: lightweight, low-poly silhouettes beyond the glass, with emissive window grids.
-  const skyline = new THREE.Group();
+  // Panoramic night skyline. Open-source Three.js InstancedMesh keeps the skyline to two draw calls.
+  // Buildings and windows are generated locally; no third-party assets, downloads, or license ambiguity.
+  const buildingGeo = new THREE.BoxGeometry(1,1,1);
+  const buildingMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .88, metalness: .15 });
+  const windowGeo = new THREE.BoxGeometry(1,1,1);
+  const windowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+  const skylineBuildings = new THREE.InstancedMesh(buildingGeo, buildingMat, 34);
+  const skylineWindows = new THREE.InstancedMesh(windowGeo, windowMat, 340);
   const darks = [0x17131b,0x201820,0x211b21,0x151821];
+  const dummy = new THREE.Object3D();
+  let wi = 0;
   for (let i=0;i<34;i++) {
     const a = i * 2.399963, radius = 30 + (i%5)*2.7;
     const sx = Math.cos(a)*radius, sz = Math.sin(a)*radius;
     const w = 2.1 + (i%4)*.8, d = 2.2 + (i%3)*.9, h = 5 + (i%7)*2.1;
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshStandardMaterial({color:darks[i%darks.length],roughness:.88,metalness:.15}));
-    tower.position.set(sx,y+h/2-1.2,sz); skyline.add(tower);
-    const winMat = new THREE.MeshBasicMaterial({color:i%4===0?0xff6a28:0xc9975c});
-    for (let row=0;row<Math.min(5,Math.floor(h/2));row++) {
-      const win = new THREE.Mesh(new THREE.BoxGeometry(.12,.22,.04),winMat);
-      win.position.set(sx-w*.22+(row%2)*.24,y+1+row*1.35,sz-d/2-.025); skyline.add(win);
+    dummy.position.set(sx,y+h/2-1.2,sz); dummy.scale.set(w,h,d); dummy.rotation.set(0,(i%4)*Math.PI/2,0); dummy.updateMatrix();
+    skylineBuildings.setMatrixAt(i,dummy.matrix);
+    skylineBuildings.setColorAt(i,new THREE.Color(darks[i%darks.length]));
+    // Two visible facades per tower, with staggered windows and sparse dark floors for a less uniform skyline.
+    const rows = Math.min(5,Math.floor(h/2));
+    for (let row=0;row<rows;row++) for (const face of [-1,1]) {
+      if (wi >= skylineWindows.count) break;
+      dummy.position.set(sx-w*.22+(row%2)*.24,y+1+row*1.35,sz+face*(d/2+.025));
+      dummy.scale.set(.12,.22,.035); dummy.rotation.set(0,face < 0 ? Math.PI : 0,0); dummy.updateMatrix();
+      skylineWindows.setMatrixAt(wi,dummy.matrix);
+      skylineWindows.setColorAt(wi,new THREE.Color((i+row)%5===0?0xff6a28:((i+row)%4===0?0x60402c:0xc9975c)));
+      wi++;
     }
   }
-  scene.add(skyline);
+  skylineWindows.count = wi;
+  skylineBuildings.instanceMatrix.needsUpdate = true; skylineWindows.instanceMatrix.needsUpdate = true;
+  if (skylineBuildings.instanceColor) skylineBuildings.instanceColor.needsUpdate = true;
+  if (skylineWindows.instanceColor) skylineWindows.instanceColor.needsUpdate = true;
+  scene.add(skylineBuildings, skylineWindows);
+  // Four compact rooftop planters soften the metal-and-glass architecture without external models.
+  const planterGeo = new THREE.BoxGeometry(2.4,.55,1.05);
+  const planterMat = M.metal;
+  const plantGeo = new THREE.ConeGeometry(.22,1.15,5);
+  const plantMat = new THREE.MeshStandardMaterial({color:0x26392a,roughness:.95});
+  const planters = new THREE.InstancedMesh(planterGeo,planterMat,4);
+  const foliage = new THREE.InstancedMesh(plantGeo,plantMat,20);
+  let pi=0, fi=0;
+  for (const [px,pz] of [[-13.8,-18],[13.8,-18],[-13.8,18],[13.8,18]]) {
+    dummy.position.set(px,y+.3,pz); dummy.scale.set(1,1,1); dummy.rotation.set(0,px<0?0:Math.PI,0); dummy.updateMatrix(); planters.setMatrixAt(pi++,dummy.matrix);
+    for(let k=0;k<5;k++) {
+      dummy.position.set(px-0.85+(k%3)*.82,y+.9+(k%2)*.12,pz+(k%2?-.18:.18));
+      dummy.scale.set(.75,.72+(k%3)*.18,.75); dummy.rotation.set(0,k*.8,0); dummy.updateMatrix(); foliage.setMatrixAt(fi++,dummy.matrix);
+    }
+  }
+  planters.instanceMatrix.needsUpdate=true; foliage.instanceMatrix.needsUpdate=true;
+  scene.add(planters,foliage);
   // Social furniture kept in the central circulation zone; all decorative meshes share a few materials.
   const sofa = (x,z,rot=0) => {
     const g = new THREE.Group();

@@ -1,0 +1,306 @@
+{
+  "schemaVersion": "1.0.0",
+  "status": "design-only",
+  "notes": [
+    "Illustrative encounter content. Not wired to the live spawn system.",
+    "Numbers describe encounter composition and safety constraints, not enemy combat stats or guaranteed spawn probabilities.",
+    "A production adapter must enforce these constraints server-side."
+  ],
+  "safetyPolicy": {
+    "protectedZoneIds": [
+      "starter_camp",
+      "safe_gate"
+    ],
+    "denyHostileSpawnsInProtectedZones": true,
+    "denyHostileAggroAcrossProtectedBoundary": true,
+    "maxSimultaneousHostileEntitiesPerPlayer": 8,
+    "maxActiveEncounterGroupsPerRegion": 12,
+    "minimumGroupSeparationMeters": 18,
+    "eliteRequiresExplicitRegionPermission": true
+  },
+  "archetypes": [
+    {
+      "id": "cryptbound",
+      "role": "melee_baseline",
+      "behaviorProfile": "measured_melee",
+      "telegraphRequired": true,
+      "counterplay": [
+        "spacing",
+        "dodge_or_block"
+      ]
+    },
+    {
+      "id": "ashen_brute",
+      "role": "heavy",
+      "behaviorProfile": "slow_heavy_slam",
+      "telegraphRequired": true,
+      "counterplay": [
+        "leave_attack_area",
+        "punish_recovery"
+      ]
+    },
+    {
+      "id": "plague_ghoul",
+      "role": "skirmisher",
+      "behaviorProfile": "fast_approach_short_windup",
+      "telegraphRequired": true,
+      "counterplay": [
+        "maintain_spacing",
+        "interrupt_or_evade"
+      ]
+    },
+    {
+      "id": "gravecaller",
+      "role": "ranged_caster",
+      "behaviorProfile": "ranged_curse",
+      "telegraphRequired": true,
+      "counterplay": [
+        "break_line_of_sight",
+        "close_distance"
+      ]
+    },
+    {
+      "id": "bone_archer",
+      "role": "ranged_support",
+      "behaviorProfile": "projectile_pressure",
+      "telegraphRequired": true,
+      "counterplay": [
+        "cover",
+        "movement"
+      ]
+    },
+    {
+      "id": "crypt_stalker",
+      "role": "ambusher",
+      "behaviorProfile": "signposted_flank",
+      "telegraphRequired": true,
+      "counterplay": [
+        "environmental_cue",
+        "turn_and_evade"
+      ]
+    },
+    {
+      "id": "grave_warden",
+      "role": "elite",
+      "behaviorProfile": "distinct_elite_moveset",
+      "telegraphRequired": true,
+      "counterplay": [
+        "learned_pattern",
+        "team_focus"
+      ]
+    }
+  ],
+  "regions": [
+    {
+      "id": "starter_camp",
+      "band": "protected",
+      "allowedEncounterTemplateIds": [],
+      "eliteAllowed": false,
+      "maxThreatTier": 0
+    },
+    {
+      "id": "safe_gate",
+      "band": "protected",
+      "allowedEncounterTemplateIds": [],
+      "eliteAllowed": false,
+      "maxThreatTier": 0
+    },
+    {
+      "id": "outer_forest",
+      "band": "outer",
+      "allowedEncounterTemplateIds": [
+        "outer_patrol",
+        "outer_scavengers"
+      ],
+      "eliteAllowed": false,
+      "maxThreatTier": 2
+    },
+    {
+      "id": "mid_forest",
+      "band": "middle",
+      "allowedEncounterTemplateIds": [
+        "mixed_patrol",
+        "ranged_screen",
+        "stalker_ambush"
+      ],
+      "eliteAllowed": false,
+      "maxThreatTier": 3
+    },
+    {
+      "id": "deep_forest",
+      "band": "deep",
+      "allowedEncounterTemplateIds": [
+        "heavy_guard",
+        "deep_hunt",
+        "warden_hunt"
+      ],
+      "eliteAllowed": true,
+      "maxThreatTier": 5
+    }
+  ],
+  "encounterTemplates": [
+    {
+      "id": "outer_patrol",
+      "threatTier": 1,
+      "elite": false,
+      "members": [
+        {
+          "archetypeId": "cryptbound",
+          "count": 2
+        }
+      ],
+      "intent": "Teach baseline melee and spacing."
+    },
+    {
+      "id": "outer_scavengers",
+      "threatTier": 2,
+      "elite": false,
+      "members": [
+        {
+          "archetypeId": "plague_ghoul",
+          "count": 2
+        }
+      ],
+      "intent": "Introduce faster pressure with room to retreat."
+    },
+    {
+      "id": "mixed_patrol",
+      "threatTier": 3,
+      "elite": false,
+      "members": [
+        {
+          "archetypeId": "cryptbound",
+          "count": 2
+        },
+        {
+          "archetypeId": "plague_ghoul",
+          "count": 1
+        }
+      ],
+      "intent": "Ask players to handle two readable melee roles."
+    },
+    {
+      "id": "ranged_screen",
+      "threatTier": 3,
+      "elite": false,
+      "members": [
+        {
+          "archetypeId": "cryptbound",
+          "count": 1
+        },
+        {
+          "archetypeId": "gravecaller",
+          "count": 1
+        }
+      ],
+      "intent": "Teach target priority and line-of-sight counterplay."
+    },
+    {
+      "id": "stalker_ambush",
+      "threatTier": 3,
+      "elite": false,
+      "members": [
+        {
+          "archetypeId": "crypt_stalker",
+          "count": 1
+        },
+        {
+          "archetypeId": "plague_ghoul",
+          "count": 1
+        }
+      ],
+      "intent": "Use clear environmental cues before flanking pressure."
+    },
+    {
+      "id": "heavy_guard",
+      "threatTier": 4,
+      "elite": false,
+      "members": [
+        {
+          "archetypeId": "ashen_brute",
+          "count": 1
+        },
+        {
+          "archetypeId": "cryptbound",
+          "count": 2
+        }
+      ],
+      "intent": "Mix a slow heavy threat with baseline melee."
+    },
+    {
+      "id": "deep_hunt",
+      "threatTier": 5,
+      "elite": false,
+      "members": [
+        {
+          "archetypeId": "gravecaller",
+          "count": 1
+        },
+        {
+          "archetypeId": "bone_archer",
+          "count": 1
+        },
+        {
+          "archetypeId": "plague_ghoul",
+          "count": 2
+        }
+      ],
+      "intent": "Use a capped mixed-role encounter; tune carefully for mobile readability."
+    },
+    {
+      "id": "warden_hunt",
+      "threatTier": 5,
+      "elite": true,
+      "members": [
+        {
+          "archetypeId": "grave_warden",
+          "count": 1
+        },
+        {
+          "archetypeId": "cryptbound",
+          "count": 2
+        }
+      ],
+      "intent": "Rare, signposted elite encounter with explicit counterplay."
+    }
+  ],
+  "events": [
+    {
+      "id": "monster_migration",
+      "eligibleRegionIds": [
+        "outer_forest",
+        "mid_forest",
+        "deep_forest"
+      ],
+      "allowedTemplateIds": [
+        "outer_scavengers",
+        "mixed_patrol",
+        "deep_hunt"
+      ],
+      "rule": "Select only templates already allowed by the current region."
+    },
+    {
+      "id": "corruption_surge",
+      "eligibleRegionIds": [
+        "mid_forest",
+        "deep_forest"
+      ],
+      "allowedTemplateIds": [
+        "ranged_screen",
+        "stalker_ambush",
+        "deep_hunt"
+      ],
+      "rule": "May change roster selection; must not bypass safe-zone or entity caps."
+    },
+    {
+      "id": "elite_hunt",
+      "eligibleRegionIds": [
+        "deep_forest"
+      ],
+      "allowedTemplateIds": [
+        "warden_hunt"
+      ],
+      "rule": "Requires deep_forest permission, clear event messaging, and explicit elite authorization."
+    }
+  ]
+}

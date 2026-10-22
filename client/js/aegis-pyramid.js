@@ -73,6 +73,36 @@ function build() {
   body.userData = standby.userData = { kind: 'aegis', cam: null, label: 'AEGIS Pyramid HQ · tap for the AEGIS console' };
   g.add(body, glow, beam, standby); c.S.add(g); c.pick.push(body, standby);
   if (c.colliders) c.colliders.push(P.coll = { x: X, z: Z, r: HB + .5, h: H * .5 });
+  // Dedicated Light Cycles launch kiosk beside the Pyramid. It is a physical sign/pad, not a floating portal.
+  {
+    const plaza = new THREE.Group();
+    plaza.name = 'aegis_light_cycles_launch';
+    plaza.position.set(X + 20, P.gy, Z);
+    const padMat = new THREE.MeshStandardMaterial({ color: 0x07131f, metalness: .85, roughness: .28, emissive: 0x063b52, emissiveIntensity: 1.1 });
+    const neon = new THREE.MeshBasicMaterial({ color: 0x36f3ff, toneMapped: false });
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(5.2, .22, 4.2), padMat);
+    pad.position.y = .11; plaza.add(pad);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(5.4, .07, .12), neon);
+    trim.position.set(0, .25, 2.05); plaza.add(trim);
+    const cv = document.createElement('canvas'); cv.width = 640; cv.height = 320;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#030b14'; cx.fillRect(0, 0, cv.width, cv.height);
+    cx.strokeStyle = '#36f3ff'; cx.lineWidth = 10; cx.strokeRect(8, 8, cv.width - 16, cv.height - 16);
+    cx.fillStyle = '#36f3ff'; cx.font = 'bold 36px system-ui,sans-serif'; cx.textAlign = 'center';
+    cx.fillText('AEGIS TRANSIT', 320, 75);
+    cx.fillStyle = '#ffffff'; cx.font = 'bold 52px system-ui,sans-serif'; cx.fillText('LIGHT CYCLES', 320, 155);
+    cx.fillStyle = '#9baeff'; cx.font = 'bold 26px system-ui,sans-serif'; cx.fillText('NEON GRID  ·  ENTER ARENA', 320, 230);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 2.4), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+    sign.position.set(0, 2.6, 1.25); plaza.add(sign);
+    c.S.add(plaza);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(6.5, 5.5, 5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }));
+    hit.position.set(X + 20, P.gy + 2.7, Z);
+    hit.userData = { kind: 'experience', experienceId: 'light-cycles', label: 'Light Cycles · Neon Grid', description: 'Enter the Light Cycles arena. Your city return point will be this Aegis Pyramid plaza.', returnTo: 'aegis-pyramid-plaza', returnX: X + 20, returnZ: Z, returnYaw: -Math.PI / 2 };
+    c.S.add(hit); c.pick.push(hit);
+    if (c.colliders) c.colliders.push({ x: X + 20, z: Z, r: 2.2, h: 1.1 });
+    P.lightCyclesPlaza = plaza;
+  }
   G = { g, body, glow, glowM, beam, beamM, standby, col: IDLE.clone() };
   P.group = g; P.ready = true;
 }

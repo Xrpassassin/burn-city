@@ -26,13 +26,46 @@ import './goldlock.js';   // globalThis.BCGold: the ONE strict gold rule (>=95% 
 
 // ---------- config / device ----------
 const Q=new URLSearchParams(location.search);
+function showExperienceTransition(theme, icon, title, subtitle) {
+ return new Promise(resolve => {
+  let style=document.getElementById('bcExperienceTransitionStyle');
+  if(!style){
+   style=document.createElement('style'); style.id='bcExperienceTransitionStyle';
+   style.textContent=`
+    #bcExperienceTransition{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 50% 55%,#112a3b 0%,#03060d 72%);color:#f2fbff;font:600 15px system-ui;text-align:center}
+    #bcExperienceTransition .bc-travel-panel{position:relative;width:min(90vw,560px);padding:28px 20px;border:1px solid #5deaff77;border-radius:18px;background:#06111beF;box-shadow:0 0 42px #22d8ff20}
+    #bcExperienceTransition .bc-travel-icon{font-size:clamp(56px,12vw,94px);line-height:1.2;display:block;margin:0 auto 18px;animation:bcTravelMove 1.55s ease-in-out both}
+    #bcExperienceTransition h2{margin:0 0 9px;font-size:clamp(17px,4vw,25px);letter-spacing:.1em}
+    #bcExperienceTransition p{margin:0;color:#b8d8e8}
+    #bcExperienceTransition .bc-travel-track{height:3px;margin:22px auto 0;max-width:330px;overflow:hidden;background:#173346;border-radius:3px}
+    #bcExperienceTransition .bc-travel-track i{display:block;height:100%;width:36%;background:#36f3ff;box-shadow:0 0 12px #36f3ff;animation:bcTravelProgress 1.5s ease-in-out both}
+    #bcExperienceTransition.neon{background:linear-gradient(#07101c,#02040a);background-image:linear-gradient(#36f3ff12 1px,transparent 1px),linear-gradient(90deg,#36f3ff12 1px,transparent 1px),radial-gradient(ellipse at center,#102d4a,#02040a 72%);background-size:32px 32px,32px 32px,auto}
+    #bcExperienceTransition.neon .bc-travel-panel{border-color:#36f3ff99;box-shadow:0 0 48px #36f3ff28}
+    #bcExperienceTransition.neon .bc-travel-track i{background:#b1a5ff;box-shadow:0 0 12px #36f3ff}
+    @keyframes bcTravelMove{0%{transform:translateX(-42vw) translateY(12px) rotate(-9deg);opacity:.2}35%{opacity:1}100%{transform:translateX(42vw) translateY(-8px) rotate(4deg);opacity:1}}
+    @keyframes bcTravelProgress{0%{transform:translateX(-120%)}100%{transform:translateX(330%)}}
+   `;
+   document.head.append(style);
+  }
+  document.getElementById('bcExperienceTransition')?.remove();
+  const overlay=document.createElement('div'); overlay.id='bcExperienceTransition'; overlay.className=theme; overlay.setAttribute('role','status'); overlay.setAttribute('aria-live','polite');
+  overlay.innerHTML='<div class="bc-travel-panel"><span class="bc-travel-icon"></span><h2></h2><p></p><div class="bc-travel-track"><i></i></div></div>';
+  overlay.querySelector('.bc-travel-icon').textContent=icon;
+  overlay.querySelector('h2').textContent=title;
+  overlay.querySelector('p').textContent=subtitle;
+  document.body.append(overlay);
+  setTimeout(resolve,1600);
+ });
+}
 const EXPERIENCE_REGISTRY = window.__burnExperienceRegistry = createBurnCityExperienceRegistry({
  launchers: {
   zombies: async ({ returnTo }) => {
+   await showExperienceTransition('flight','✈','BURN CITY INTERNATIONAL','Boarding the Zombie Extermination expedition…');
    location.href = 'arena/?mode=zombie&from=' + encodeURIComponent(returnTo);
    return { navigating: true };
   },
   'light-cycles': async ({ returnTo }) => {
+   await showExperienceTransition('neon','🏍','AEGIS TRANSIT','Entering the Light Cycles neon grid…');
    location.href = 'arena/?mode=tron&from=' + encodeURIComponent(returnTo);
    return { navigating: true };
   }

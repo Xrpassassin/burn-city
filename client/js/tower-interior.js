@@ -1065,13 +1065,13 @@ async function fetchMyResidences() {
   });
   if (response.status === 401) return { error: 'signin' };
   if (response.status === 429) return { error: 'slow_down' };
-  if (!response.ok) return { error: response.status === 503 ? 'ledger_unavailable' : 'service_unavailable' };
+  if (!response.ok) { let j = null; try { j = await response.json(); } catch (e) { } if (j && j.error === 'not_available_yet') return { error: 'not_available_yet' }; return { error: response.status === 503 ? 'ledger_unavailable' : 'service_unavailable' }; }
   return response.json();
 }
 function openResidences() {
   fetchMyResidences().then(data => {
     if (data.error) {
-      const messages = { signin: 'Sign in with Xaman first. The server must verify your current XRPL holdings before granting residence access.', slow_down: 'Please wait a moment before checking your residence access again.', ledger_unavailable: 'The XRPL ownership check is temporarily unavailable. No private access was granted.', service_unavailable: 'Residence verification is not available on the connected server yet. No private access was granted.' };
+      const messages = { not_available_yet: 'Private residences are not open yet. Wallet-verified suites and penthouses are coming in a later update.', signin: 'Sign in with Xaman first. The server must verify your current XRPL holdings before granting residence access.', slow_down: 'Please wait a moment before checking your residence access again.', ledger_unavailable: 'The XRPL ownership check is temporarily unavailable. No private access was granted.', service_unavailable: 'Residence verification is not available on the connected server yet. No private access was granted.' };
       textPanel('PRIVATE RESIDENCES', messages[data.error] || messages.service_unavailable);
       return;
     }

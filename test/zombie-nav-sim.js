@@ -13,15 +13,16 @@ function makeRoom() {
   return room;
 }
 function findTargets(room, count) {
-  const out = [];
-  for (let r = 0; r < Z.GH && out.length < count; r++) {
-    for (let c = 0; c < Z.GW && out.length < count; c++) {
+  const candidates = [];
+  for (let r = 0; r < Z.GH; r++) {
+    for (let c = 0; c < Z.GW; c++) {
       const x = Z.WX(c), z = Z.WZ(r);
-      if (Z.walk(room, x, z, 0) && Z.cellAt(x, z, 0) === 0) out.push({ x, z, lv: 0 });
+      if (Z.walk(room, x, z, 0) && Z.cellAt(x, z, 0) === 0) candidates.push({ x, z, lv: 0 });
     }
   }
-  assert.equal(out.length, count, `found ${count} valid Spawn Bay target cells`);
-  return out;
+  assert.ok(candidates.length >= count, `found at least ${count} valid Spawn Bay target cells`);
+  // Spread targets across the available Spawn Bay cells rather than clustering them together.
+  return Array.from({ length: count }, (_, i) => candidates[Math.floor(i * candidates.length / count)]);
 }
 function runScenario(playerCount) {
   const room = makeRoom();
@@ -30,7 +31,6 @@ function runScenario(playerCount) {
   Z.flow(room, players);
   const elapsedMs = performance.now() - started;
   const distances = room.flowD;
-  const n = Z.GW * Z.GH;
   let reachableCells = 0, farthest = null;
   for (let r = 0; r < Z.GH; r++) for (let c = 0; c < Z.GW; c++) {
     const x = Z.WX(c), z = Z.WZ(r), d = distances[r * Z.GW + c];

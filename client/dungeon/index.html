@@ -143,7 +143,7 @@ const enemyModelLoader = new GLTFLoader(); let batModelPromise = null;
 function loadBatModel() {
   if (!batModelPromise) batModelPromise = (async () => {
     const response = await fetch('assets/enemy-models/bat.glb.b64'); if (!response.ok) throw new Error('bat model HTTP ' + response.status);
-    const encoded = (await response.text()).replace(/\\s/g, ''); const bytes = Uint8Array.from(atob(encoded), ch => ch.charCodeAt(0));
+    const encoded = (await response.text()).replace(/\s/g, ''); const bytes = Uint8Array.from(atob(encoded), ch => ch.charCodeAt(0));
     return await new Promise((resolve, reject) => enemyModelLoader.parse(bytes.buffer, '', resolve, reject));
   })().catch(error => { console.warn('[Eternal Grind] Bat model pilot unavailable; retaining sprite fallback.', error); batModelPromise = null; throw error; });
   return batModelPromise;

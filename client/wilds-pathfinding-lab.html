@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>BURN City · Pathfinding Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#10140f;--panel:#1b2319;--edge:#46563c;--text:#edf4e8;--muted:#a9b8a0;--green:#9be37a;--gold:#ffd27a;--red:#ff8878}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#263320,var(--bg) 65%);color:var(--text);font:15px/1.45 system-ui,sans-serif}
+main{max-width:1000px;margin:auto;padding:clamp(12px,3vw,28px)}h1{margin:0;font-size:clamp(24px,5vw,36px)}p{color:var(--muted);margin:8px 0 16px}.panel{background:#151c13eF;border:1px solid var(--edge);border-radius:16px;padding:14px;margin:12px 0}
+.warning{border-left:3px solid var(--gold);padding-left:10px;color:#e8d9b2;font-size:13px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}button{min-height:44px;padding:9px 13px;border-radius:10px;border:1px solid var(--edge);background:#263321;color:var(--text);font:700 14px system-ui;cursor:pointer}button[aria-pressed=true]{border-color:var(--green);background:#2d4925;box-shadow:inset 0 0 0 1px #9be37a55}button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.canvas-wrap{width:100%;overflow:hidden;border:1px solid #53664a;border-radius:12px;background:#11170f}canvas{display:block;width:100%;height:auto;touch-action:manipulation}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.stat{background:#222d1e;border:1px solid #3b4b31;border-radius:9px;padding:7px 10px;font-size:13px}.stat b{color:var(--green)}.legend{display:flex;flex-wrap:wrap;gap:12px;color:var(--muted);font-size:12px;margin-top:12px}.key{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+small{color:var(--muted)}footer{color:var(--muted);font-size:12px;margin-top:16px}
+@media(max-width:540px){main{padding:12px}.panel{padding:10px}button{flex:1 1 42%}}
+</style>
+</head>
+<body>
+<main>
+  <h1>🌲 CinderWilds Pathfinding Lab</h1>
+  <p>Test bounded four-way routes, blocked cells, and the world-coordinate adapter on desktop or mobile.</p>
+  <section class="panel">
+    <div class="warning">Prototype sandbox only. This page uses a synthetic grid; it does not read the live forest terrain, colliders, or NPCs and does not change gameplay.</div>
+  </section>
+  <section class="panel">
+    <div class="controls" role="group" aria-label="Grid editing mode">
+      <button type="button" data-mode="block" aria-pressed="true">Toggle obstacles</button>
+      <button type="button" data-mode="start" aria-pressed="false">Set start</button>
+      <button type="button" data-mode="goal" aria-pressed="false">Set goal</button>
+      <button type="button" id="clear">Clear obstacles</button>
+      <button type="button" id="reset">Reset lab</button>
+    </div>
+    <div class="canvas-wrap"><canvas id="grid" width="960" height="640" role="img" aria-label="Interactive pathfinding grid. Tap a cell to set a start, goal, or obstacle according to the selected mode."></canvas></div>
+    <div class="stats" aria-live="polite">
+      <div class="stat">Status: <b id="status">Ready</b></div>
+      <div class="stat">Path cells: <b id="steps">—</b></div>
+      <div class="stat">Visited: <b id="visited">—</b></div>
+      <div class="stat">Cell size: <b id="cellsize">2.5 m</b></div>
+    </div>
+    <div class="legend">
+      <span><i class="key" style="background:#9be37a"></i>Start</span>
+      <span><i class="key" style="background:#ff8878"></i>Goal</span>
+      <span><i class="key" style="background:#ffd27a"></i>Route</span>
+      <span><i class="key" style="background:#394035"></i>Blocked</span>
+    </div>
+  </section>
+  <footer>Pathfinding is a bounded breadth-first search. It finds a shortest route on this grid using up/down/left/right movement only. This lab is for manual debugging, not a benchmark of full 3D rendering or terrain collision.</footer>
+</main>
+<script type="module">
+import { findWorldPath } from './js/wilds-pathfinding-world.mjs';
+
+const canvas = document.querySelector('#grid');
+const ctx = canvas.getContext('2d');
+const statusEl = document.querySelector('#status');
+const stepsEl = document.querySelector('#steps');
+const visitedEl = document.querySelector('#visited');
+const cols = 24, rows = 16, cellSize = 2.5, origin = { x: 100, z: 200 };
+const bounds = { minX: 0, maxX: cols - 1, minZ: 0, maxZ: rows - 1 };
+const key = (x,z) => x + ',' + z;
+let start = { x: 2, z: 2 }, goal = { x: 20, z: 12 }, mode = 'block';
+let blocked = new Set(), result = null, cssWidth = 960, cssHeight = 640;
+
+function world(cell) { return { x: origin.x + cell.x * cellSize, z: origin.z + cell.z * cellSize }; }
+function cell(worldPoint) { return { x: Math.round((worldPoint.x - origin.x) / cellSize), z: Math.round((worldPoint.z - origin.z) / cellSize) }; }
+function recalc() {
+  result = findWorldPath({ start: world(start), goal: world(goal), origin, cellSize, bounds,
+    isBlocked: (_x, _z, x, z) => blocked.has(key(x,z)), maxVisited: 12000 });
+  statusEl.textContent = result.reached ? 'Route found' : 'No route';
+  stepsEl.textContent = result.reached ? String(result.path.length) : '0';
+  visitedEl.textContent = String(result.visited);
+  draw();
+}
+function draw() {
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  const rect = canvas.getBoundingClientRect();
+  cssWidth = Math.max(1, rect.width);
+  cssHeight = cssWidth * rows / cols;
+  canvas.style.height = cssHeight + 'px';
+  if (canvas.width !== Math.round(cssWidth*dpr) || canvas.height !== Math.round(cssHeight*dpr)) {
+    canvas.width = Math.round(cssWidth*dpr); canvas.height = Math.round(cssHeight*dpr);
+  }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssWidth,cssHeight);
+  const cw = cssWidth/cols, ch = cssHeight/rows;
+  ctx.fillStyle = '#151c13'; ctx.fillRect(0,0,cssWidth,cssHeight);
+  for (let z=0;z<rows;z++) for(let x=0;x<cols;x++) {
+    const k=key(x,z), px=x*cw, py=z*ch;
+    ctx.fillStyle = blocked.has(k) ? '#394035' : ((x+z)%2 ? '#202a1c' : '#1c2518');
+    ctx.fillRect(px+1,py+1,cw-2,ch-2);
+  }
+  if (result && result.reached) {
+    for (const p of result.cells) {
+      if ((p.x===start.x && p.z===start.z)||(p.x===goal.x && p.z===goal.z)) continue;
+      ctx.fillStyle='#8c6d2b'; ctx.fillRect(p.x*cw+cw*.17,p.z*ch+ch*.17,cw*.66,ch*.66);
+    }
+    ctx.beginPath();
+    ctx.moveTo(start.x*cw+cw/2,start.z*ch+ch/2);
+    for(const p of result.cells.slice(1)) ctx.lineTo(p.x*cw+cw/2,p.z*ch+ch/2);
+    ctx.strokeStyle='#ffd27a';ctx.lineWidth=Math.max(2,cw*.09);ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();
+  }
+  const mark=(p,color,label)=>{const x=p.x*cw,y=p.z*ch;ctx.fillStyle=color;ctx.fillRect(x+cw*.13,y+ch*.13,cw*.74,ch*.74);ctx.fillStyle='#10140f';ctx.font='bold '+Math.max(10,Math.min(15,cw*.38))+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,x+cw/2,y+ch/2);};
+  mark(start,'#9be37a','S');mark(goal,'#ff8878','G');
+  // grid lines remain subtle but visible for precise touch targets
+  ctx.strokeStyle='#71826733';ctx.lineWidth=1;ctx.beginPath();
+  for(let x=0;x<=cols;x++){ctx.moveTo(x*cw,0);ctx.lineTo(x*cw,cssHeight);}
+  for(let z=0;z<=rows;z++){ctx.moveTo(0,z*ch);ctx.lineTo(cssWidth,z*ch);}
+  ctx.stroke();
+}
+function setMode(next) {
+  mode=next;
+  document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));
+}
+document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+canvas.addEventListener('pointerdown',e=>{
+  const r=canvas.getBoundingClientRect(),cw=r.width/cols,ch=r.height/rows;
+  const x=Math.floor((e.clientX-r.left)/cw),z=Math.floor((e.clientY-r.top)/ch);
+  if(x<0||z<0||x>=cols||z>=rows)return;
+  const p={x,z},k=key(x,z);
+  if(mode==='start'){if(k!==key(goal.x,goal.z)&&!blocked.has(k))start=p;}
+  else if(mode==='goal'){if(k!==key(start.x,start.z)&&!blocked.has(k))goal=p;}
+  else if(k!==key(start.x,start.z)&&k!==key(goal.x,goal.z)){blocked.has(k)?blocked.delete(k):blocked.add(k);}
+  recalc();
+});
+document.querySelector('#clear').addEventListener('click',()=>{blocked.clear();recalc();});
+document.querySelector('#reset').addEventListener('click',()=>{start={x:2,z:2};goal={x:20,z:12};blocked.clear();setMode('block');recalc();});
+new ResizeObserver(draw).observe(canvas);
+window.addEventListener('orientationchange',draw);
+recalc();
+</script>
+</body>
+</html>

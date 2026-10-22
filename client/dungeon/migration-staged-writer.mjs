@@ -87,6 +87,12 @@ export function commitCandidate({
   }
   validateCandidate(parseObject(staged.candidateRaw, 'Staged candidate'));
 
+  // Re-check immediately before promotion to avoid overwriting a save changed by another tab.
+  const prePromotionRaw = read(storage, sourceKey);
+  if (prePromotionRaw !== sourceRaw || digestText(prePromotionRaw) !== sourceDigest) {
+    throw new Error('Active save changed during staging. Candidate was not promoted; preserve backup and pending record.');
+  }
+
   // One key replacement is atomic in Web Storage. Keep backup/pending if anything fails.
   write(storage, sourceKey, candidateRaw);
   const promotedRaw = read(storage, sourceKey);

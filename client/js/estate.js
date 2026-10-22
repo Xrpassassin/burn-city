@@ -188,7 +188,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
       }
     }
   }
-  const merged = (bits, material) => { if (!bits.length) return null; const g=mergeGeometries(bits,true); const m=new THREE.Mesh(g,material); lot.add(m); return m; };
+  const merged = (bits, material) => { if (!bits.length) return null; const g=mergeGeometries(bits); const m=new THREE.Mesh(g,material); lot.add(m); return m; };
   merged(roadBits,new THREE.MeshLambertMaterial({color:0x252a32}));
   merged(paths,new THREE.MeshLambertMaterial({color:0xaaa99f}));
   merged(foundations,new THREE.MeshLambertMaterial({color:0x777b7b}));

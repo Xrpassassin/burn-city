@@ -20,20 +20,25 @@ export function updateNavigation({
   if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z) ||
       !Number.isFinite(nowMs) || typeof canMoveTo !== 'function') return null;
 
-  const usableRoute = route && route.reached === true && Array.isArray(route.path) &&
-    Number.isInteger(route.waypointIndex) && route.waypointIndex < route.path.length;
+  const validRoute = route && route.reached === true && Array.isArray(route.path) &&
+    Number.isInteger(route.waypointIndex) && route.waypointIndex >= 0 &&
+    route.waypointIndex <= route.path.length && route.path.length > 0;
 
-  if (!usableRoute) {
+  if (validRoute && route.waypointIndex >= route.path.length) {
+    return {
+      position: { x: position.x, z: position.z }, route,
+      moved: 0, reached: true, blocked: false,
+      replan: { shouldReplan: false, reason: 'route-complete', attempts, waitMs: 0 },
+    };
+  }
+
+  if (!validRoute) {
     const decision = getReplanDecision({
       routeMissing: true, nowMs, lastAttemptMs, cooldownMs, attempts, maxAttempts, resetAfterMs,
     });
     return {
-      position: { x: position.x, z: position.z },
-      route,
-      moved: 0,
-      reached: false,
-      blocked: false,
-      replan: decision,
+      position: { x: position.x, z: position.z }, route,
+      moved: 0, reached: false, blocked: false, replan: decision,
     };
   }
 
@@ -51,9 +56,5 @@ export function updateNavigation({
     waitMs: 0,
   };
 
-  return {
-    ...step,
-    route: { ...route, waypointIndex: step.waypointIndex },
-    replan,
-  };
+  return { ...step, route: { ...route, waypointIndex: step.waypointIndex }, replan };
 }

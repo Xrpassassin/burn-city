@@ -1569,17 +1569,18 @@ if(Q.get('mode')==='explore'&&VQ!=='explore'){setMode('explore');const p=(Q.get(
 (()=>{const css=document.createElement('style');css.textContent=`#vExit{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;min-width:44px;min-height:44px;padding:0 16px;font:600 15px monospace;color:#fff;background:rgba(20,8,4,.82);border:1px solid #ff7a1a;border-radius:10px;cursor:pointer;display:none}
 #vMenu{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}#vMenu.on{display:flex}
 #vMenu>div{background:rgba(18,10,8,.95);border:1px solid #ff7a1a;border-radius:14px;padding:18px;display:grid;gap:10px;min-width:220px;font:14px monospace;color:#ffd9b0;text-align:center}
-#vMenu button{min-height:44px;font:600 15px monospace;color:#fff;background:#2a140a;border:1px solid #ff9a3a;border-radius:10px;cursor:pointer}#vMenu button:hover{background:#ff7a1a}
+body.wl-travel #vMenu button[data-v=blacktide]{display:none}#vMenu button{min-height:44px;font:600 15px monospace;color:#fff;background:#2a140a;border:1px solid #ff9a3a;border-radius:10px;cursor:pointer}#vMenu button:hover{background:#ff7a1a}
 #vHint{position:fixed;top:auto;bottom:calc(200px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:4;white-space:nowrap;max-width:92vw;padding:8px 14px;font:14px monospace;color:#fff;background:rgba(0,0,0,.7);border-radius:8px;pointer-events:none;opacity:0;transition:opacity .4s}#vHint.on{opacity:1}`;document.head.appendChild(css);
 const ex=document.createElement('button');ex.id='vExit';ex.textContent='✕ Exit';ex.setAttribute('aria-label','Exit view / view menu');document.body.appendChild(ex);
 const hint=document.createElement('div');hint.id='vHint';document.body.appendChild(hint);
-const mn=document.createElement('div');mn.id='vMenu';mn.innerHTML='<div><b>Paused · choose view</b><button data-v="orbit">1 ◎ Orbit</button><button data-v="fly">2 ✈ Fly</button><button data-v="tour">3 ▶ Tour</button><button data-v="explore">🚶 Explore</button><button data-v="resume">4 ↩ Resume</button></div>';document.body.appendChild(mn);
+const mn=document.createElement('div');mn.id='vMenu';mn.innerHTML='<div><b>Paused · choose view</b><button data-v="orbit">1 ◎ Orbit</button><button data-v="fly">2 ✈ Fly</button><button data-v="tour">3 ▶ Tour</button><button data-v="explore">🚶 Explore</button><button data-v="blacktide">⚓ Blacktide</button><button data-v="resume">4 ↩ Resume</button></div>';document.body.appendChild(mn);
 let tw=null;const menuOn=()=>mn.classList.contains('on'),hide=()=>mn.classList.remove('on');
 const show=()=>{if(document.pointerLockElement)document.exitPointerLock();mn.classList.add('on')};
 function go(v){hide();const from=mode;
  if(v==='explore'&&mode==='explore')v='resume';   // already walking: Explore just closes the menu (setMode would reset the jetpack/web + pitch)
  if(v==='resume'){if(!MOBILE&&mode==='fly')R.domElement.requestPointerLock?.();return}
  if(v==='tour'){$('tour').click();return}
+ if(v==='blacktide'){if(document.body.classList.contains('wl-travel'))return;try{sessionStorage.bc_ret=JSON.stringify({m:mode,p:[P.pos.x,P.pos.y,P.pos.z],c:[C.position.x,C.position.y,C.position.z],yaw:yp.yaw})}catch(_){}location.href='blacktide/';return}   // isolated pirate region; its return link lands back here via bc_ret
  const p0=C.position.clone(),q0=C.quaternion.clone();setMode(v);
  if(v==='orbit'&&(from==='explore'||from==='fly')){const tgt=orbit.target.clone(),dir=p0.clone().sub(tgt).setY(0);if(dir.lengthSq()<1)dir.set(0,0,1);
   const p1=tgt.clone().add(dir.normalize().multiplyScalar(140)).setY(Math.max(70,p0.y));tw={t:0,p0,p1,q0,tgt}}}

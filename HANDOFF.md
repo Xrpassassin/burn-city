@@ -403,3 +403,12 @@ Integrates Xrpassassin PRs #105 → #106 → #107 → #108 → #109 (stacked; ti
   - `?citysrv=` is now restricted to same-origin, burn-city-game.fly.dev, or localhost (http allowed only for localhost); anything else falls back to the default server.
   - Server untouched: `/api/cams` YouTube search keeps `safeSearch: 'moderate'` (#104) and the YouTube source.
 - Gaps: on phones the Fly help line still mentions WASD/right-click; the Lake boat entry only gives a hint (no auto-route).
+
+## Wilds: Yuka wander steering + Glassroot ambient wildlife/enemies (integrate/wilds-yuka, sw bc-v64-wildsyuka)
+Integrates Xrpassassin PRs #110 → #111 (stacked; tip #111 merged).
+- **Yuka** (`client/vendor/yuka/`): upstream yuka 0.7.8 `build/yuka.module.js` byte-for-byte from the npm tarball + upstream MIT `LICENSE` + `PROVENANCE.txt` (sha256). The branch's copy had an edited copyright year; it was replaced with the exact upstream file. Loaded only with the Wilds forest module (~440 KB, not on the city path).
+- `client/js/wilds-yuka-ai.mjs`: one Yuka `Vehicle` + `WanderBehavior` per creature, used only for the idle/wander heading in `pickWander`; Burn City still owns position, collision, terrain bounds, animation and state. Agents are disposed on despawn/zone unload/reset. Fixed on integrate: non-finite `dt` is now rejected (the branch's own test expected that and failed).
+- `client/js/wilds-ambient-spawns.mjs`: deterministic (seeded) ambient slots in the deep area (8 Mirehare, 6 Ashfang, 3 Veilwing, 3 Shardmole; 9 hostile), away from trails, creek, clearings and authored quest spawns. Hostile slots chase and start an encounter within 2.8 m only while exploring (`⚔` tag).
+- New species Mirehare + Ashfang: rigs in `wilds-creatures.js`; data in `client/js/wilds-ambient-species.mjs`, merged into the loaded `creatures.json` by `prefetch()` only when the id is missing (`client/data/wilds/` is not edited by integrations; moving them into the JSON later is fine, the JSON wins).
+- `wilds-navmesh-adapter.mjs` + `docs/cinderwilds-three-pathfinding-spike.md`: isolated three-pathfinding adapter, not wired into live movement.
+- Tests: `npm run test:wilds` (yuka-ai, ambient-spawns, ambient-species, navmesh-adapter; also in `npm test`).

@@ -17,6 +17,8 @@ import { buildCreature, animate, mats, disposeMats } from './wilds-creatures.js'
 import { buildWalker, poseWalker } from './walker.js';
 import * as AUD from './wilds-audio.js';
 import { findWorldPath } from './wilds-pathfinding-world.mjs';
+import { withAmbientSpecies } from './wilds-ambient-species.mjs';
+import { createWildsWanderAgent, updateWildsWanderAgent, disposeWildsWanderAgent } from './wilds-yuka-ai.mjs';
 import { TEST, FC, RX, RZ, GATE, THRESH, CFG, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
 
 const W = { ready: false, inForest: false, modal: null, creatures: [], test: {} };
@@ -81,7 +83,7 @@ let root, grassIM, fernIM, nearGroup, leaves, flies, shafts, creekMat, flames = 
 const DATA = {}; let dataP = null;
 export function prefetch() {   // data JSON only (small); music is never fetched before you PROCEED
   if (!dataP) { const get = f => fetch('data/wilds/' + f).then(r => { if (!r.ok) throw new Error(f + ' ' + r.status); return r.json(); });
-    dataP = Promise.all([get('creatures.json'), get('quests.json'), get('abilities.json')]).then(a => { [DATA.creatures, DATA.quests, DATA.abilities] = a; }).catch(e => { dataP = null; throw e; }); }
+    dataP = Promise.all([get('creatures.json'), get('quests.json'), get('abilities.json')]).then(a => { [DATA.creatures, DATA.quests, DATA.abilities] = a; withAmbientSpecies(DATA.creatures); }).catch(e => { dataP = null; throw e; }); }
   return dataP;
 }
 function tierN(lo, med, hi) { const t = C().TIER; return t === 'low' ? lo : t === 'medium' ? med : hi; }
@@ -425,12 +427,14 @@ function spawn(slot) {
   const sp = slot.sp, lv = slot.lv ? (slot.fixed ? slot.lv[1] : game.rollLevel(sp, clamp(game.state.player.lv + 2, slot.lv[0], slot.lv[1]))) : game.rollLevel(sp, clamp(game.state.player.lv + (sp === 'shardmole' ? 4 : 1), 2, 5)), c = game.wild(sp, lv), mesh = buildCreature(sp, C().MOBILE); R0().add(mesh);
   let x, z, k = 0; do { const a = Math.random() * 6.3, r = Math.sqrt(Math.random()) * slot.r; x = slot.x + Math.cos(a) * r; z = slot.z + Math.sin(a) * r; if (slot.creek) { const best = nearestCreek(x, z); x = best[0] + (Math.random() - .5) * 4; z = best[1] + (Math.random() - .5) * 4; } } while (k++ < 20 && blocked(x, z, .6));
   mesh.position.set(x, .035, z); const yaw = Math.random() * 6.3; mesh.rotation.y = yaw;
-  const cr = { slot, c, mesh, sp, x, z, yaw, vx: 0, vz: 0, spd: 0, st: 'idle', t: 1 + Math.random() * 3, tx: x, tz: z, tag: tag(''), seen: false, cool: 0 };
+  const ai = createWildsWanderAgent({ x, z, yaw, maxSpeed: mesh.userData.rig.speed });
+  mesh.userData.wildsAi = ai;
+  const cr = { slot, c, mesh, sp, x, z, yaw, vx: 0, vz: 0, spd: 0, st: 'idle', t: 1 + Math.random() * 3, tx: x, tz: z, tag: tag(''), seen: false, cool: 0, ai, wanderHeading: { x: Math.sin(yaw), z: Math.cos(yaw) } };
   slot.cr = cr; W.creatures.push(cr); return cr;
 }
 function nearestCreek(x, z) { let b = null, bd = 1e9; for (const p of creekS) { const d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; b = p; } } return b; }
 function blocked(x, z, r) { for (const o of obAt(x, z)) if (Math.hypot(o.x - x, o.z - z) < o.r + r) return o; return null; }
-function despawn(cr, delay = 45) { cr.mesh.removeFromParent(); disposeMesh(cr.mesh); cr.tag.remove(); W.creatures.splice(W.creatures.indexOf(cr), 1); cr.slot.cr = null; cr.slot.cool = delay; }
+function despawn(cr, delay = 45) { disposeWildsWanderAgent(cr.ai); cr.mesh.removeFromParent(); disposeMesh(cr.mesh); cr.tag.remove(); W.creatures.splice(W.creatures.indexOf(cr), 1); cr.slot.cr = null; cr.slot.cool = delay; }
 function disposeMesh(m) { m.traverse(o => { if (o.isMesh && o.geometry) o.geometry.dispose(); }); }
 const TEMP = () => DATA.abilities.temperament;
 function steer(cr, dt, wantX, wantZ, maxSpd) {
@@ -451,13 +455,14 @@ function updCreature(cr, dt, t, P, distP) {
   const def = game.SP[cr.sp], tp = TEMP()[def.temperament] || {}, L = cr.mesh.userData.rig;
   let maxSpd = L.speed, lookYaw = 0, sniff = false, alert = false, wag = false;
   const toP = Math.atan2(P.pos.x - cr.x, P.pos.z - cr.z); const run = C().input.keys.ShiftLeft || C().input.keys.ShiftRight || (C().input.tb && C().input.tb.run);
+  if (cr.st === 'idle' || cr.st === 'wander') cr.wanderHeading = updateWildsWanderAgent(cr.ai, dt, cr.x, cr.z, cr.yaw, L.speed) || cr.wanderHeading;
   cr.t -= dt; cr.cool = Math.max(0, cr.cool - dt);
   if (cr.st === 'held') { cr.spd *= Math.pow(.02, dt); let dy = Math.atan2(Math.sin(cr.face - cr.yaw), Math.cos(cr.face - cr.yaw)); cr.yaw += dy * Math.min(1, dt * 5); cr.yawRate = dy * 5; alert = true; }
   else if (cr.st === 'flee') { const fx = cr.x - (P.pos.x - cr.x) * 3, fz = cr.z - (P.pos.z - cr.z) * 3; steer(cr, dt, fx, fz, L.speed * 2.2); if (cr.t < 0) { cr.st = 'idle'; cr.t = 2; } if (cr.gone && distP > 30) { despawn(cr, 40); return; } }
   else {
     if (W.inForest && distP < 9 && cr.cool <= 0 && !W.enc) {
       if (tp.flees && distP < (run ? 7 : 3.2) && !cr.calm) { cr.st = 'flee'; cr.t = 2.5; }
-      else { alert = true; lookYaw = Math.atan2(Math.sin(toP - cr.yaw), Math.cos(toP - cr.yaw)); if ((tp.approach || cr.calm) && distP > 2.6) { steer(cr, dt, P.pos.x, P.pos.z, L.speed * .6); } else steer(cr, dt, cr.x, cr.z, 0); wag = !!cr.calm; }
+      else { alert = true; lookYaw = Math.atan2(Math.sin(toP - cr.yaw), Math.cos(toP - cr.yaw)); if ((tp.approach || cr.calm || (ZONE && cr.slot.hostile)) && distP > 2.6) { steer(cr, dt, P.pos.x, P.pos.z, cr.slot.hostile ? L.speed * .9 : L.speed * .6); } else steer(cr, dt, cr.x, cr.z, 0); wag = !!cr.calm; }
     } else if (cr.st === 'idle') { steer(cr, dt, cr.x, cr.z, 0); sniff = true; if (cr.t < 0) { pickWander(cr); } }
     else if (cr.st === 'wander') { const d = steer(cr, dt, cr.tx, cr.tz, L.speed); if (d < .6 || cr.t < 0) { cr.st = 'idle'; cr.t = 1.5 + Math.random() * 4; } }
   }
@@ -465,7 +470,7 @@ function updCreature(cr, dt, t, P, distP) {
   if (distP < 70) animate(cr.mesh, dt, cr.spd, t, { lookYaw, sniff, alert, yawRate: cr.yawRate || 0, wag });
   cr.mesh.visible = distP < 140;
 }
-function pickWander(cr) { const s = cr.slot; for (let k = 0; k < 8; k++) { let x, z; if (s.creek) { const p = creekS[(Math.random() * creekS.length) | 0]; if (Math.hypot(p[0] - s.x, p[1] - s.z) > s.r * 1.6) continue; x = p[0] + (Math.random() - .5) * 5; z = p[1] + (Math.random() - .5) * 5; } else { const a = Math.random() * 6.3, r = Math.sqrt(Math.random()) * s.r; x = s.x + Math.cos(a) * r; z = s.z + Math.sin(a) * r; } if (!blocked(x, z, .8)) { cr.tx = x; cr.tz = z; cr.st = 'wander'; cr.t = 12; return; } } cr.t = 2; }
+function pickWander(cr) { const s = cr.slot; for (let k = 0; k < 8; k++) { let x, z; if (s.creek) { const p = creekS[(Math.random() * creekS.length) | 0]; if (Math.hypot(p[0] - s.x, p[1] - s.z) > s.r * 1.6) continue; x = p[0] + (Math.random() - .5) * 5; z = p[1] + (Math.random() - .5) * 5; } else { const a = Math.atan2(cr.wanderHeading?.x || 0, cr.wanderHeading?.z || 1) + (Math.random() - .5) * 1.3, r = 3 + Math.sqrt(Math.random()) * Math.max(2, s.r * .65); x = cr.x + Math.sin(a) * r; z = cr.z + Math.cos(a) * r; if (Math.hypot(x - s.x, z - s.z) > s.r * .92) { x = s.x + (x - s.x) * .65; z = s.z + (z - s.z) * .65; } } if (!blocked(x, z, .8)) { cr.tx = x; cr.tz = z; cr.st = 'wander'; cr.t = 12; return; } } cr.t = 2; }
 
 // ---------------------------------------------------------------- companion (follows you everywhere in Explore)
 function refreshCompanion() {
@@ -762,9 +767,14 @@ function zoneFrame(dt, t) {
   UNI.uT.value = t; UNI.uPl.value.set(P.pos.x, P.pos.y, P.pos.z);
   if (explore && !W.enc && !P.fp) { const cp = c.C.position, hx = P.pos.x, hz = P.pos.z; let f = 1; for (let k = 1; k <= 8; k++) { const u = k / 8, x = hx + (cp.x - hx) * u, z = hz + (cp.z - hz) * u; const o = blocked(x, z, .45); if (o && o.r > .3) { f = Math.max(.25, (k - 1) / 8); break; } } if (f < 1) { cp.x = hx + (cp.x - hx) * f; cp.z = hz + (cp.z - hz) * f; cp.y = Math.max(cp.y, P.pos.y + 1.6); c.C.lookAt(hx, P.pos.y + 1.4, hz); } }
   for (const s of Z.spawns) { if (!s.cr && !(s.when && !s.when())) { s.cool = (s.cool || 0) - dt; if (s.cool <= 0 && Math.hypot(P.pos.x - s.x, P.pos.z - s.z) > 25) spawn(s); } }
-  for (const cr of W.creatures.slice()) if (cr.slot.zone === Z) updCreature(cr, dt, t, P, Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z));
+  for (const cr of W.creatures.slice()) if (cr.slot.zone === Z) {
+    const d = Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z);
+    updCreature(cr, dt, t, P, d);
+    // Designated hostile spawns initiate combat only during active exploration.
+    if (explore && !W.enc && !W.modal && cr.slot.hostile && cr.cool <= 0 && d < 2.8) { startEncounter(cr); break; }
+  }
   updCompanion(dt, t); if (W.enc) encCamera(dt);
-  for (const cr of W.creatures) { if (cr.slot.zone !== Z) { cr.tag.style.display = 'none'; continue; } const d = Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z); const s = explore && d < 14 && cr.mesh.visible && !W.enc && W.modal !== 'inspect' ? screenOf(cr.x, (cr.mesh.userData.rig.hw || cr.mesh.userData.rig.h) * 2.2 + .5, cr.z) : null; if (s) { cr.tag.style.display = 'block'; cr.tag.style.left = s[0] + 'px'; cr.tag.style.top = s[1] + 'px'; const txt = (cr.slot.qtag ? '⚠ ' : '') + game.SP[cr.sp].name + ' <span class="lv">Lv ' + cr.c.lv + '</span>'; if (cr.tag.__t !== txt) { cr.tag.innerHTML = txt; cr.tag.__t = txt; } } else cr.tag.style.display = 'none'; }
+  for (const cr of W.creatures) { if (cr.slot.zone !== Z) { cr.tag.style.display = 'none'; continue; } const d = Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z); const s = explore && d < 14 && cr.mesh.visible && !W.enc && W.modal !== 'inspect' ? screenOf(cr.x, (cr.mesh.userData.rig.hw || cr.mesh.userData.rig.h) * 2.2 + .5, cr.z) : null; if (s) { cr.tag.style.display = 'block'; cr.tag.style.left = s[0] + 'px'; cr.tag.style.top = s[1] + 'px'; const txt = (cr.slot.hostile ? '⚔ ' : cr.slot.qtag ? '⚠ ' : '') + game.SP[cr.sp].name + ' <span class="lv">Lv ' + cr.c.lv + '</span>'; if (cr.tag.__t !== txt) { cr.tag.innerHTML = txt; cr.tag.__t = txt; } } else cr.tag.style.display = 'none'; }
   if (W.maraTag) W.maraTag.style.display = 'none';
   if (compState && compState.tag) { const comp = game.activeComp(); const d = Math.hypot(compState.x - P.pos.x, compState.z - P.pos.z), s = explore && comp && d < 12 && !W.modal ? screenOf(compState.x, .9, compState.z) : null; compState.tag.style.display = s ? 'block' : 'none'; if (s) { compState.tag.style.left = s[0] + 'px'; compState.tag.style.top = s[1] + 'px'; const txt = '♥ ' + game.SP[comp.sp].name + ' Lv ' + comp.lv; if (compState.tag.textContent !== txt) compState.tag.textContent = txt; } }
   embers.update(dt); AUD.update(dt, c.U && c.U.day ? c.U.day.value : 0);
@@ -801,7 +811,7 @@ export const zoneApi = {
   setZone(z) {   // z = null leaves the zone (creatures of the zone despawn; the companion is re-placed next to you)
     if (ZONE === z) return; const prev = ZONE;
     if (W.enc) try { endEncounter(true); } catch (e) { } closeModal();
-    for (const cr of W.creatures.slice()) if (cr.slot.zone === prev || (z && !cr.slot.zone)) { cr.mesh.removeFromParent(); disposeMesh(cr.mesh); cr.tag.remove(); W.creatures.splice(W.creatures.indexOf(cr), 1); cr.slot.cr = null; cr.slot.cool = 0; }
+    for (const cr of W.creatures.slice()) if (cr.slot.zone === prev || (z && !cr.slot.zone)) { disposeWildsWanderAgent(cr.ai); cr.mesh.removeFromParent(); disposeMesh(cr.mesh); cr.tag.remove(); W.creatures.splice(W.creatures.indexOf(cr), 1); cr.slot.cr = null; cr.slot.cool = 0; }
     ZONE = z || null; if (embers) R0().add(embers.pts);
     if (compState) { const P = C().P; compState.x = P.pos.x + 1.5; compState.z = P.pos.z + 1.5; compState.spd = 0; }
     if (W.maraTag) W.maraTag.style.display = 'none'; renderHud();
@@ -848,7 +858,7 @@ export function unload() {
   const seen = { geo: new Set(), mat: new Set(), tex: new Set() };
   if (compMesh) { compMesh.removeFromParent(); disposeTree(compMesh, seen); compMesh = null; }
   if (compState && compState.tag) compState.tag.remove(); compState = null;
-  for (const cr of W.creatures) cr.tag.remove(); W.creatures = []; for (const s of SPAWNS) { s.cr = null; s.cool = 0; }
+  for (const cr of W.creatures) { disposeWildsWanderAgent(cr.ai); cr.tag.remove(); } W.creatures = []; for (const s of SPAWNS) { s.cr = null; s.cool = 0; }
   if (root) { root.removeFromParent(); disposeTree(root, seen); } W.lastDispose = { geo: seen.geo.size, mat: seen.mat.size, tex: seen.tex.size }; root = nearGroup = grassIM = fernIM = leaves = flies = shafts = creekMat = maraRig = embers = null;
   disposeMats();
   for (let i = c.colliders.length - 1; i >= 0; i--) if (c.colliders[i].wilds) c.colliders.splice(i, 1);

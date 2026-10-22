@@ -28,6 +28,23 @@ const unreachable = simulateNavigation({
 assert.equal(unreachable.status, 'unreachable');
 assert.equal(unreachable.ticks, 0);
 
+const betweenCellObstacle = simulateNavigation({
+  start: { x: 1, z: 1 }, goal: { x: 4, z: 1 }, bounds,
+  // Grid-center planning can miss this narrow obstacle; route sampling must catch it.
+  isBlocked: x => x > 2.2 && x < 2.8,
+});
+assert.equal(betweenCellObstacle.status, 'route-invalid');
+assert.equal(betweenCellObstacle.reason, 'blocked');
+assert.equal(betweenCellObstacle.ticks, 0);
+assert.deepEqual(betweenCellObstacle.position, { x: 1, z: 1 });
+
+const outsideRoute = simulateNavigation({
+  start: { x: 1, z: 1 }, goal: { x: 4, z: 1 }, bounds,
+  isOutsidePlayableArea: x => x > 2.2 && x < 2.8,
+});
+assert.equal(outsideRoute.status, 'route-invalid');
+assert.equal(outsideRoute.reason, 'outside-playable-area');
+
 const limited = simulateNavigation({
   start: { x: 1, z: 1 }, goal: { x: 9, z: 9 }, bounds, maxTicks: 1,
 });

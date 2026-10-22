@@ -165,6 +165,42 @@ Add debug counters for active entities, colliders, draw calls/triangles when ava
 
 **Acceptance:** a written class/save audit; tested rules for level-up and unlock decisions; at least one complete playable class-progression slice; deterministic migration fixtures; death recovery that never deletes equipment permanently; and a concise open-source decision record distinguishing already integrated, prototype-only, rejected and not-yet-evaluated candidates.
 
+
+## Cross-experience access from BURN City
+
+BURN City should become the readable central hub for multiple distinct game experiences. Preserve the existing implementation and identity of each experience; connect them through clear, intentional world-space entrances rather than flattening them into one giant scene or forcing them to share one engine loop.
+
+### Zombies: airport expedition
+
+- Add a clearly signed **Zombie Extermination / Outbreak Flight** option at the airport terminal, using the existing airport and shared-aircraft direction where practical.
+- The player approaches a departure board, gate attendant or flight interaction and explicitly chooses to deploy to the Zombies experience. Use a short boarding/flight transition, then load or join the Zombies experience as its own scene/zone/session.
+- Provide a clear return/debrief route back to BURN City (for example, an extraction flight or return gate) and communicate whether the player is entering a solo, party or shared run before launch.
+- The plane is the diegetic transport and presentation layer; it should not require rendering the entire Zombies map inside the main city scene. Keep loading boundaries, memory use, save ownership and failure/reconnect behavior explicit.
+- Reuse the shared airport/aircraft identity where it fits, but do not imply that all airport traffic is player transport. Ambient aircraft remain a separate world-simulation feature.
+- Keep the Zombies experience distinct. Do not allow zombie hordes to spill into the main city unless a future, deliberately designed world event enables it; an airport trip alone must not mutate city safety or persistence.
+- Make the interaction keyboard, touch and controller friendly, with a clear confirmation and loading/failure state. Never strand the player if loading fails.
+
+### Light Cycles: Aegis Pyramid attraction
+
+- Place a separate **Light Cycles / Neon Grid** entrance or launch plaza next to the Aegis Pyramid, with its own silhouette, signage and visual language.
+- Make the Tron-like identity immediately legible: luminous geometric architecture, dark reflective surfaces, saturated neon lane markings, grid motifs, strong light trails and a high-contrast futuristic launch interface. Treat these as an art-direction brief, not a requirement to copy protected Tron logos, characters, music or exact visual assets.
+- Give this attraction a dedicated entry/exit flow and mode-specific rules/UI. Keep its arena, cycle physics, trail collisions, scoring and match lifecycle isolated from BURN City's ordinary walking/combat simulation.
+- The hub entrance should explain the activity before launch and clearly distinguish solo practice, time trial or multiplayer modes as those modes become available. Do not display unavailable modes as if they are playable.
+- The attraction can be visually near the pyramid without becoming part of the pyramid's internal architecture; preserve room for future expansion and avoid blocking existing navigation or landmarks.
+
+### Shared transition contract
+
+Use a small experience registry/adapter rather than hard-coded cross-imports between game modes. Each destination should declare a stable ID, display name, availability state, entry requirements, load/unload adapter, return destination, and failure/retry behavior. Transitions should be idempotent, cancellable, and safe if the player disconnects or taps twice. Keep destination saves and progression isolated unless an explicit, versioned cross-mode reward contract is approved.
+
+**Suggested implementation order:**
+1. Audit the current airport interaction, aircraft paths, BURN City scene lifecycle and how the Zombies and Light Cycles builds are currently hosted/loaded. Do not assume they share a runtime or save format.
+2. Add a small hub-side destination registry and mock/disabled destinations so the airport and pyramid interactions have a stable contract before either mode is deeply integrated.
+3. Wire the airport to the existing Zombies entry point with a visible loading/return flow; test success, cancel, failure and repeat entry.
+4. Add the Light Cycles launch plaza beside the Aegis Pyramid with a distinct visual treatment and its own transition adapter.
+5. Measure memory, load time, mobile controls and cleanup on repeated transitions. Keep each mode separately deployable if that is the safest current architecture.
+
+**Acceptance:** players can discover both entrances without a tutorial; each interaction states where it leads; loading failures return safely to BURN City; repeat travel does not duplicate listeners, audio, entities or render resources; and the three experiences retain distinct visual/gameplay identities.
+
 ## Open-source candidates and decision status
 
 ### Yuka — reuse the integration already present

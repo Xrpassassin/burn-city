@@ -22,7 +22,7 @@ assert.deepEqual(result.metrics, {
   validatedRoutes: 6,
   invalidRoutes: 0,
   plannerErrors: 0,
-  validationSamples: 12,
+  validationSamples: 18,
   estimatedCostUnits: 12,
   queuePeak: 4,
   queueRemaining: 2,
@@ -72,7 +72,7 @@ assert.equal(invalidPath.metrics.validatedRoutes, 0);
 const errors = await runNavigationLoadTest({
   ticks: 1, arrivalsPerTick: 2, workerBudget: 2,
   planRoute: async request => {
-    if (request.entityId.endsWith('-1-0')) throw new Error('synthetic failure');
+    if (request.entityId === 'sim-0-0') throw new Error('synthetic failure');
     return { path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] };
   },
 });

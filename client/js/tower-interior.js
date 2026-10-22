@@ -615,7 +615,6 @@ function showDirectory() {
       ['mezz', 'Mezzanine', 'Travel to the upper gallery walkway.', 'TRAVEL', '#d7a65e'],
       ['aegis', 'Aegis Sanctum', 'Visit the display and open the configured live map if available.', 'VISIT', '#9fc2ea'],
       ['bar', 'The Ember Bar', 'Open the roleplay house menu. No currency or inventory is charged.', 'OPEN MENU', '#d7a65e'],
-      ['lounge', 'Dionysian Lounge', 'Visit the lounge and use the seating interaction.', 'VISIT', '#d7a65e'],
       ['lounge', 'Dionysian Lounge', 'Visit the lounge and use the seating interaction.', 'VISIT', '#d7a65e']
     ]},
     { title: 'GALLERIES & FUTURE FLOORS', rows: [

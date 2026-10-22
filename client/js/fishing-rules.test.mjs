@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { resolveFightTap, baitAffinity, journalAchievements } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard } from './fishing-rules.mjs';
 
 const clean = resolveFightTap({ position: 0.5, zoneStart: 0.4, zoneWidth: 0.2 });
 assert.deepEqual(clean, { hit: true, miss: false, tension: 0, broke: false });
@@ -32,4 +32,17 @@ assert.equal(fullJournal.find(a => a.id === 'rarity-tour').unlocked, true);
 assert.equal(fullJournal.find(a => a.id === 'big-game').unlocked, true);
 const badJournal = journalAchievements({ nope: { n: 99, best: 9999 } }, species);
 assert.equal(badJournal.find(a => a.id === 'first-catch').unlocked, false);
-console.log('Fishing rules and journal achievements: 21 assertions passed');
+
+const challengeDate = '2026-10-21';
+const zeroBoard = challengeBoard([], challengeDate);
+assert.equal(zeroBoard.day, challengeDate);
+assert.equal(zeroBoard.items.length, 4);
+assert.equal(zeroBoard.items.every(a => a.progress === 0 && !a.unlocked), true);
+const challengeTarget = zeroBoard.target;
+const progressBoard = challengeBoard([{sp: challengeTarget, kg: 6}, {sp: 'trout', kg: 1}, {sp: 'bass', kg: 7}], challengeDate);
+assert.equal(progressBoard.items.find(a => a.id === 'daily-three').unlocked, true);
+assert.equal(progressBoard.items.find(a => a.id === 'daily-target').unlocked, true);
+assert.equal(progressBoard.items.find(a => a.id === 'daily-variety').unlocked, true);
+assert.equal(progressBoard.items.find(a => a.id === 'daily-heavy').unlocked, true);
+assert.equal(challengeBoard([], '2026-10-22').target !== challengeTarget, true, 'featured species rotates by UTC day');
+console.log('Fishing rules, journal, and daily challenges: 30 assertions passed');

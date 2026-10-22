@@ -2,6 +2,7 @@
 // Lake coins are a free in-game score: NO real value, cannot be bought with XRP, cannot be withdrawn.
 // Signed in: server rolls + stores progress (anti-script limits). Guests: same rules locally (localStorage).
 import * as THREE from 'three';
+import { resolveFightTap } from './fishing-rules.mjs';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const SPECIES = [["minnow","Ledger Minnow",0,[0.05,0.3],3,{}],["bluegill","Bluegill Byte",0,[0.1,0.6],4,{}],["perch","Pond Perch",0,[0.2,1.2],5,{}],["carp","Mud Carp",0,[0.8,6],6,{}],["shiner","River Shiner",0,[0.05,0.4],3,{}],["dace","Silver Dace",0,[0.1,0.5],4,{}],["trout","Neon Trout",1,[0.5,4],12,{}],["bass","Amber Bass",1,[0.6,5],14,{}],["catfish","Glass Catfish",1,[1,9],15,{"night":1}],["pike","Spotted Pike",1,[1,8],16,{}],["eel","Moon Eel",2,[0.8,5],40,{"night":1}],["gar","Storm Gar",2,[2,12],45,{"weather":"storm"}],["koi","Gold Koi",2,[1,7],50,{}],["cod","Deepwater Cod",2,[3,20],48,{"deep":1}],["sturgeon","Phantom Sturgeon",3,[10,60],140,{"night":1,"deep":1}],["snapper","Lava Snapper",3,[2,14],120,{}],["salmon","Aurora Salmon",3,[3,18],130,{"weather":"bull"}],["leviathan","Burn Leviathan",4,[80,300],600,{"deep":1,"night":1}],["marlin","Crystal Marlin",4,[40,180],520,{"deep":1}],["whaleshark","XRP Whale Shark",4,[200,900],750,{"deep":1,"weather":"bull"}]], SHOP = {"rods":[["basic","Basic Rod",0,0],["carbon","Carbon Rod",150,1],["pro","Pro Rod",600,2],["legend","Ember Legend Rod",2000,3]], "baits":[["worm","Worm (free)",0,0],["shrimp","Shrimp",5,1],["glow","Glow Lure",20,2],["burnfly","Burn Fly",60,3]]}, RW = [60, 25, 10, 4, 1], RN = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'], RC = ['#c8d0dc', '#5aff9a', '#4aa8ff', '#c06bff', '#ffb020'];
 const Q = new URLSearchParams(location.search), SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev', LS = localStorage;
@@ -177,7 +178,8 @@ const ui = document.createElement('div'); ui.id = 'fUI'; document.body.append(ui
 // landed on the NEW button under the finger, e.g. 'Reel in' right after Cast, which silently cancelled every cast on phones. Only accept a click on the same button the finger/mouse pressed down on.
 let downB = null; const noGhost = () => { downB = null }; const btnOf = el => el && el.closest && el.closest('button');
 ui.addEventListener('pointerdown', e => { downB = btnOf(e.target) }, true);
-ui.addEventListener('click', e => { if (e.detail && btnOf(e.target) !== downB) { e.stopPropagation(); e.preventDefault() } downB = null }, true);   // a real tap's click hits the button it pressed const panel = document.createElement('div'); panel.id = 'fPanel'; document.body.append(panel);
+ui.addEventListener('click', e => { if (e.detail && btnOf(e.target) !== downB) { e.stopPropagation(); e.preventDefault() } downB = null }, true); // Ignore synthetic clicks that land on a different button after the panel changes.
+const panel = document.createElement('div'); panel.id = 'fPanel'; document.body.append(panel);
 const NV = '<div class="nv">🪙 Lake coins: free in-game points with no real value. Not sold for XRP, not withdrawable.</div>';
 // ---------- fishing flow ----------
 let state = 'idle', cur = null;
@@ -204,13 +206,16 @@ async function castAt(pow) {
   cur.t0 = performance.now(); cur.nib = [.5 + Math.random() * .15, .78 + Math.random() * .1].filter(() => Math.random() < .85).map(k => k * cur.wait); spawnStalker(); setTimeout(bite, cur.wait) }
 function bite() { if (state !== 'wait') return; state = 'bite'; ui.innerHTML = '<b style="font-size:18px">❗ Bite!</b><br><button id="fHook" style="margin-top:8px;font-size:18px">Hook it!</button>'; ui.querySelector('#fHook').onclick = hook; cur.biteT = performance.now(); ripple(bobber.position, 1.4); setTimeout(() => { if (state === 'bite') { msg('It got away… (hook faster)'); land(false) } }, 1600) }
 function hook() { if (state === 'wait') { ripple(bobber.position, 1); STK.on = 0; streak = 0; msg(cur ? '💨 Too early! The fish spooked. Wait for the big dip.' : 'Too early!'); return }
-  if (state !== 'bite') return; state = 'reel'; cur.hit = 0; cur.miss = 0; cur.z0 = Math.random() * (1 - cur.zone); cur.spd = 0.7 + 0.35 * cur.r; cur.ph = 0; cur.run = 0; cur.nextRun = performance.now() + 1500 + Math.random() * 1500; drawReel() }
+  if (state !== 'bite') return; state = 'reel'; cur.hit = 0; cur.miss = 0; cur.tension = 0; cur.rodTier = tier(SHOP.rods, prof.rod); cur.z0 = Math.random() * (1 - cur.zone); cur.spd = 0.7 + 0.35 * cur.r; cur.ph = 0; cur.run = 0; cur.nextRun = performance.now() + 1500 + Math.random() * 1500; drawReel() }
 // the fight: bigger fish make runs; reeling while it runs strains the line (counts as a miss)
 function drawReel() { const run = cur.run > performance.now();
-  ui.innerHTML = `<b>${run ? '<span style="color:#ff6a5a">🐟 It\'s running! Hold off…</span>' : 'Reel it in!'}</b> <span class="nv">${cur.hit}/${cur.hits} · misses ${cur.miss}/3${cur.perfect ? ' · ✨' : ''}</span><div class="bar"><div class="zone" style="left:${cur.z0 * 100}%;width:${cur.zone * 100}%;${run ? 'background:#ff5a4a88' : ''}"></div><div class="mk" id="fMk"></div></div><button id="fReel" style="width:100%;font-size:18px">⟳ Reel!</button>`; ui.querySelector('#fReel').onpointerdown = e => { e.preventDefault(); noGhost(); tapReel() } }
-function tapReel() { if (state !== 'reel') return; const m = (Math.sin(cur.ph) + 1) / 2;
-  if (cur.run > performance.now()) { cur.miss++; rod.pull = .4 } else if (m >= cur.z0 && m <= cur.z0 + cur.zone) { cur.hit++; rod.pull = 1; cur.z0 = Math.random() * (1 - cur.zone); ripple(bobber.position, .7) } else cur.miss++;
-  if (cur.hit >= cur.hits) land(true); else if (cur.miss >= 3) { msg('Line snapped!'); land(false) } else drawReel() }
+  ui.innerHTML = `<b>${run ? '<span style="color:#ff6a5a">🐟 It\'s running! Hold off…</span>' : 'Reel it in!'}</b> <span class="nv">${cur.hit}/${cur.hits} · misses ${cur.miss}/3${cur.perfect ? ' · ✨' : ''}</span><div class="bar"><div class="zone" style="left:${cur.z0 * 100}%;width:${cur.zone * 100}%;${run ? 'background:#ff5a4a88' : ''}"></div><div class="mk" id="fMk"></div></div><div class="nv">Line tension ${Math.round((cur.tension || 0) * 100)}%</div><div class="bar" aria-label="Line tension"><div style="height:100%;width:${Math.min(100, (cur.tension || 0) * 100)}%;background:${cur.tension >= .75 ? '#ff5a4a' : cur.tension >= .45 ? '#ffc64a' : '#3dff8a'};transition:width .12s"></div></div><button id="fReel" style="width:100%;font-size:18px">⟳ Reel!</button>`; ui.querySelector('#fReel').onpointerdown = e => { e.preventDefault(); noGhost(); tapReel() } }
+function tapReel() { if (state !== 'reel') return; const m = (Math.sin(cur.ph) + 1) / 2, running = cur.run > performance.now();
+  const result = resolveFightTap({ position: m, zoneStart: cur.z0, zoneWidth: cur.zone, running, tension: cur.tension || 0, rodTier: cur.rodTier || 0, rarity: cur.r || 0 });
+  cur.tension = result.tension;
+  if (result.hit) { cur.hit++; rod.pull = 1; cur.z0 = Math.random() * (1 - cur.zone); ripple(bobber.position, .7) }
+  else { cur.miss++; rod.pull = running ? .4 : .15 }
+  if (result.broke || cur.miss >= 3) { msg('Line snapped!'); land(false) } else if (cur.hit >= cur.hits) land(true); else drawReel() }
 // fish shadows: ambient fish cruising the shallows + the one stalking your bobber (slot 0)
 const STK = { on: 0, x: 0, z: 0, hd: 0, sz: 1, a0: 0, r0: 12 }, AMB = [];
 function spawnStalker() { const b = castTo; STK.on = 1; STK.a0 = Math.random() * 6.283; STK.r0 = 9 + Math.random() * 5; STK.sz = .7 + .38 * (cur.r || 0) + Math.random() * .2; STK.x = b.x + Math.cos(STK.a0) * STK.r0; STK.z = b.z + Math.sin(STK.a0) * STK.r0 }

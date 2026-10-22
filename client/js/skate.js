@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { poseWalker } from './walker.js';
 import GEAR from './skategear.js';
+import { decomposeVelocity, composeVelocity, dampLateral, clampHorizontalVelocity } from './skate-physics-core.mjs';
 const PIVOT = .05;   // the board group spins about a point 5 cm up (the middle of the board), not the wheel contact
 
 const G = 22, PUSH_MAX = 9.5, MAX_V = 17, STEP_UP = .28, SUB = .2;
@@ -188,8 +189,7 @@ function step(dt, f, s, ev, pop, grabK, grindK) {
     const e = .25, gx = (heightAt(p.x + e, p.z, p.y + .5) - heightAt(p.x - e, p.z, p.y + .5)) / (2 * e), gz = (heightAt(p.x, p.z + e, p.y + .5) - heightAt(p.x, p.z - e, p.y + .5)) / (2 * e);
     // Keep world-space momentum while carving. A real board turns under the rider;
     // it does not instantly rotate all of its velocity to match the nose.
-    let fwd = v.x * fx + v.z * fz;
-    let lateral = v.x * Math.cos(st.h) - v.z * Math.sin(st.h);
+    let { forward: fwd, lateral } = decomposeVelocity(v.x, v.z, st.h);
     // Push acceleration is capped on flat ground; downhill gravity can carry the board faster.
     if (f > .1 && st.bail <= 0 && st.manual <= 0) {
       st.pushT += dt;
@@ -203,19 +203,15 @@ function step(dt, f, s, ev, pop, grabK, grindK) {
     fwd = Math.max(-MAX_V, Math.min(MAX_V, fwd));
     // Apply longitudinal forces along the current nose, then rotate the nose under
     // the existing world-space velocity. Re-projecting after the turn preserves momentum.
-    v.x = fx * fwd + Math.cos(st.h) * lateral;
-    v.z = fz * fwd - Math.sin(st.h) * lateral;
+    ({ x: v.x, z: v.z } = composeVelocity(fwd, lateral, st.h));
     const speed = Math.hypot(v.x, v.z);
     const turn = 2.45 / (1 + speed * .075);
     st.h -= s * turn * dt;
     const nfx = -Math.sin(st.h), nfz = -Math.cos(st.h);
-    fwd = v.x * nfx + v.z * nfz;
-    lateral = v.x * Math.cos(st.h) - v.z * Math.sin(st.h);
-    lateral *= Math.exp(-dt * (2.0 + speed * .10));
-    v.x = nfx * fwd + Math.cos(st.h) * lateral;
-    v.z = nfz * fwd - Math.sin(st.h) * lateral;
-    const horizontal = Math.hypot(v.x, v.z);
-    if (horizontal > MAX_V) { v.x *= MAX_V / horizontal; v.z *= MAX_V / horizontal; }
+    ({ forward: fwd, lateral } = decomposeVelocity(v.x, v.z, st.h));
+    lateral = dampLateral(lateral, dt, speed);
+    ({ x: v.x, z: v.z } = composeVelocity(fwd, lateral, st.h));
+    ({ x: v.x, z: v.z } = clampHorizontalVelocity(v.x, v.z, MAX_V));
     // Vertical velocity follows the surface under the wheels while grounded.
     v.y = gx * v.x + gz * v.z;
     st.lean += ((-s * Math.min(1, speed / 8)) - st.lean) * Math.min(1, dt * 8);

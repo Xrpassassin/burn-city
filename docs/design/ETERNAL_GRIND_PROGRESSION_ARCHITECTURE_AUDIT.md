@@ -113,3 +113,26 @@ Add specialization choices, weapon proficiency, respec ledger, and additional cl
 - Pure progression tests run under the repository's existing Node version without adding dependencies.
 - Existing project test commands and server syntax checks remain green.
 - Handoff explicitly says whether the change is design-only, tested, merged, and deployed; never infer one status from another.
+
+
+## Beta migration policy — player choice, not forced preservation
+
+The project is in beta. A progression redesign is allowed; compatibility is a product decision, not a requirement to keep every legacy rule forever. **However, existing players should be offered clear choices for translating their characters.**
+
+When the new progression model is ready, present a migration preview with at least these options:
+
+1. **Translate my character** — map the existing character into the new class/specialization system using a documented conversion table. Show the resulting class, specialization, level, XP, attributes, abilities, and any currency/inventory changes before confirmation.
+2. **Keep a legacy path (if supportable)** — retain the old character model for a clearly explained transition period or separate legacy mode. Do not promise this option until it is technically practical and does not compromise shared multiplayer balance.
+3. **Start fresh** — create a new-model character while retaining the old character backup/export so the player can return to it during beta.
+4. **Export/decide later** — let players download their current character data and defer migration until a stated deadline, if the live beta schedule permits.
+
+### Migration UX and safety rules
+
+- Show a before/after comparison and explain that beta balance, class names, abilities, and progression may change.
+- Create a recoverable backup before any migration; never silently overwrite the only copy.
+- Make the choice explicit and idempotent: repeated confirmation/retry must not duplicate XP, currency, items, unlocks, or migration grants.
+- Document the conversion table. Do not imply every old class combination has a perfect one-to-one equivalent; offer a player-selected choice when mapping is ambiguous.
+- If a legacy mode cannot be supported safely, say so honestly and provide a generous, clearly communicated translation/reset option rather than implying permanent preservation.
+- Keep gear and inventory unless the new model genuinely cannot support an item; in that case, show the conversion or compensation before confirmation.
+- Keep migration separate from the first pure XP rules extraction. First test the new rules, then build and test a migration adapter with representative legacy-save fixtures.
+- This is a beta character-migration plan, not an instruction to preserve current progression formulas indefinitely.

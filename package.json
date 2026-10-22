@@ -11,7 +11,7 @@
     "burn": "node server/burn.js",
     "bots": "node test/bots.js ws://localhost:8080 8 30",
     "test:testnet": "node test/testnet-payments.js",
-    "test": "node test/payments-sim.js && node test/security-sim.js && node test/flair-sim.js && node test/goldlock-sim.js && node test/cams-sim.js && node client/js/wilds-pathfinding-core.test.mjs",
+    "test": "node test/payments-sim.js && node test/security-sim.js && node test/flair-sim.js && node test/goldlock-sim.js && node test/cams-sim.js && node client/js/wilds-pathfinding-core.test.mjs && node client/js/skate-physics-core.test.mjs",
     "test:wilds-pathfinding": "node client/js/wilds-pathfinding-core.test.mjs",
     "test:skate": "node client/js/skate-physics-core.test.mjs",
     "test:fishing-rules": "node client/js/fishing-rules.test.mjs",

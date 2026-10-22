@@ -145,6 +145,29 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     frameM.setMatrixAt(i * 3 + 2, Mx.compose(Vp.set(w.x - (w.ax === 'x' ? 1.45 : 0), 1.9 + yo, w.z - (w.ax === 'x' ? 0 : 1.45)), Q.identity(), Sc.set(w.ax === 'x' ? 0.3 : 0.7, 1.6, w.ax === 'x' ? 0.7 : 0.3))); });
   if (!low) { plank.material.map = woodTex(); plank.material.needsUpdate = true; }
   const envTick = addRefineryEnv(root, L, { low, g, basic });   // High tier: AO, decals, pipes, lamps, barrels/crates, steam (codenv.js)
+  // Fixed-map landmark: a low-poly rocket and gantry silhouette, built from primitives to avoid external assets.
+  if (L.kind === 'cosmodrome') {
+    const launch = new THREE.Group();
+    const hullMat = basic(0xb8c0c7), noseMat = basic(0xc74b36), towerMat = basic(0x454b52), hazardMat = basic(0xe3a33b), padMat = basic(0x30343a);
+    const pad = new THREE.Mesh(g(new THREE.CylinderGeometry(3.8, 3.8, 0.18, low ? 8 : 14)), padMat); pad.position.y = 0.12; launch.add(pad);
+    const body = new THREE.Mesh(g(new THREE.CylinderGeometry(0.78, 0.98, 7.2, low ? 6 : 10)), hullMat); body.position.y = 4.05; launch.add(body);
+    const nose = new THREE.Mesh(g(new THREE.ConeGeometry(0.79, 2.0, low ? 6 : 10)), noseMat); nose.position.y = 8.65; launch.add(nose);
+    const stripe = new THREE.Mesh(g(new THREE.CylinderGeometry(0.99, 0.99, 0.34, low ? 6 : 10)), hazardMat); stripe.position.y = 2.0; launch.add(stripe);
+    const postGeo = g(new THREE.BoxGeometry(0.22, 8.2, 0.22));
+    const beamGeo = g(new THREE.BoxGeometry(6.4, 0.22, 0.22));
+    const braceGeo = g(new THREE.BoxGeometry(4.4, 0.12, 0.12));
+    for (const x of [-2.8, 2.8]) for (const z of [-1.8, 1.8]) {
+      const post = new THREE.Mesh(postGeo, towerMat); post.position.set(x, 4.1, z); launch.add(post);
+    }
+    for (const y of [1.2, 4.2, 7.8]) {
+      const beamX = new THREE.Mesh(beamGeo, towerMat); beamX.position.set(0, y, -1.8); launch.add(beamX);
+      const beamZ = new THREE.Mesh(beamGeo, towerMat); beamZ.position.set(-2.8, y, 0); beamZ.rotation.y = Math.PI / 2; launch.add(beamZ);
+    }
+    for (const side of [-1, 1]) {
+      const brace = new THREE.Mesh(braceGeo, towerMat); brace.position.set(side * 2.8, 3.6, -1.8); brace.rotation.z = side * -0.9; launch.add(brace);
+    }
+    launch.position.set(WX(33), 0, WZ(25)); root.add(launch);
+  }
   root.add(frameM, plank); const anim = WN.map(() => Array(NB).fill(1));   // per plank 0..1 (1 = nailed)
   let boards = WN.map(() => NB), flying = [];
   // mystery box

@@ -10,8 +10,8 @@
 //  * Collision: simplified boxes + cylinders + walkable surfaces (floors, dais, stairs, mezzanine), resolved with
 //    sub-stepped, axis-separated sliding against a player cylinder (r 0.35 m, h 1.8 m).
 //
-// Prepared-only locations (clearly signposted, not functional yet): Firekeepers Hall, 589 Protocol Gallery,
-// RACC Gallery, residential floors, the concealed destination. The Aegis Sanctum display is an integration point.
+// Gallery wings and the concealed destination remain prepared-only. Residential access is checked by the game server
+// against current XRPL holdings; room interiors are local scene instances, not shared multiplayer spaces yet.
 // The Midnightbluff lift asks the server (/api/tower/midnightbluff); the allowlist never reaches the client.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -234,7 +234,7 @@ function build() {
   // pilasters with gold reveals on the long walls
   for (let z = -HZ + 6; z < HZ - 2; z += 6) for (const s of [-1, 1]) { if (z > -1 && z < 9) continue; const x = s * (HX - .25); box(x - .25, x + .25, 0, CEIL, z - .55, z + .55, M.wall, true); box(x - s * .27 - .01, x - s * .27 + .01, .3, CEIL - .6, z - .02, z + .02, M.gold, false); }
 
-  mezzanine(); columns(); stairs(); reactor(); entrance(); lobby(); sanctum(); portals(); barAndLounge(); concealed();
+  mezzanine(); columns(); stairs(); reactor(); entrance(); lobby(); sanctum(); portals(); barAndLounge(); concealed(); residentialSpaces(); rooftopSkyLounge();
   // floor inlays: brushed gold channels from the dais to each threshold, with a fine amber light line beside them
   for (const [x0, x1, z0, z1] of [[-.06, .06, 6.3, HZ], [-.06, .06, -HZ, -6.3], [6.3, EDGE, -.06, .06], [-EDGE, -6.3, -.06, .06]]) {
     box(x0, x1, 0, .004, z0, z1, M.inlay, false);
@@ -255,6 +255,244 @@ function build() {
   body = makeBody(); scene.add(body);
   built = true;
 }
+
+function residentialSpaces() {
+  // Prototype rooms sit in a private scene wing outside the public atrium. This tower scene is client-local,
+  // so no other player can see this room instance; the server supplies a wallet-derived unit label.
+  const room = (x0, x1, z0, z1, name, sub, premium) => {
+    const y0 = MEZZ, y1 = MEZZ + 4.45, mid = (z0 + z1) / 2;
+    floorRect(x0, x1, z0, z1, y0);
+    box(x0, x1, y0 - SLAB, y0, z0, z1, premium ? M.floorB : M.stone, false);
+    box(x0, x1, y1, y1 + .18, z0, z1, M.ceiling, false);
+    box(x0, x0 + .22, y0, y1, z0, mid - 1.15, M.wall);
+    box(x0, x0 + .22, y0, y1, mid + 1.15, z1, M.wall);
+    box(x1 - .22, x1, y0, y1, z0, z1, M.wall);
+    box(x0, x1, y0, y1, z0, z0 + .22, M.wall);
+    box(x0, x1, y0, y1, z1 - .22, z1, M.wall);
+    station('residence-exit', 'Return to headquarters lift', x0 + .8, y0, mid, 2.3, [1.4, 2.6, 1.4]);
+    box(x0 + .20, x0 + .27, y0, y1 - .05, mid - 1.18, mid - 1.10, M.gold, false);
+    box(x0 + .20, x0 + .27, y0, y1 - .05, mid + 1.10, mid + 1.18, M.gold, false);
+    box(x0 + .20, x0 + .27, y1 - .12, y1 - .04, mid - 1.18, mid + 1.18, M.gold, false);
+    plaque(name, sub, (x0 + x1) / 2, y1 - .55, z0 + .25, 0, Math.min(6.2, x1 - x0 - 1), premium ? '#e6bd74' : '#9e8a72');
+    const bx = x1 - (premium ? 5.0 : 4.1), bz = mid;
+    box(bx - 1.8, bx + 1.8, y0 + .12, y0 + .34, bz - 2.15, bz + 2.15, M.metal);
+    box(bx - 1.65, bx + 1.65, y0 + .34, y0 + .62, bz - 2.0, bz + 2.0, premium ? M.floorB : M.stone);
+    box(bx - 1.75, bx + 1.75, y0 + .3, y0 + 1.45, bz + 2.0, bz + 2.22, premium ? M.gold : M.metal);
+    for (const side of [-1, 1]) {
+      box(bx + side * 2.25 - .35, bx + side * 2.25 + .35, y0, y0 + .55, bz - 1.55, bz - .75, M.metal);
+      box(bx + side * 2.25 - .4, bx + side * 2.25 + .4, y0 + .55, y0 + .62, bz - 1.6, bz - .7, M.gold, false);
+    }
+    if (premium) {
+      box(x0 + 2.2, x0 + 5.4, y0 + .18, y0 + .48, z1 - 2.5, z1 - 1.65, M.metal);
+      box(x0 + 2.25, x0 + 5.35, y0 + .48, y0 + 1.05, z1 - 2.42, z1 - 1.72, M.floorB);
+      box(x0 + 6.1, x0 + 8.6, y0 + .18, y0 + .8, z1 - 2.6, z1 - 1.55, M.stone);
+      box(x0 + 2.0, x0 + 5.7, y0 + .95, y0 + 1.02, z1 - 1.62, z1 - 1.48, M.gold, false);
+      box(x0 + 2.2, x0 + 4.8, y0 + .2, y0 + .35, z0 + 2.0, z0 + 2.8, M.gold, false);
+    } else {
+      box(x0 + 2.1, x0 + 4.8, y0 + .2, y0 + .8, z1 - 2.5, z1 - 1.55, M.metal);
+      box(x0 + 2.15, x0 + 4.75, y0 + .8, y0 + .88, z1 - 2.48, z1 - 1.57, M.stone, false);
+      box(x0 + 2.0, x0 + 4.9, y0 + .18, y0 + .28, z0 + 2.1, z0 + 2.8, M.gold, false);
+    }
+  };
+  room(30, 47, -7, 7, 'FIREKEEPER PENTHOUSE', 'PRIVATE RESIDENCE · VERIFIED FIREKEEPERS', true);
+  room(53, 68, -7, 7, 'MEMBERS SUITE', '589 PROTOCOL / RACC · PRIVATE RESIDENCE', false);
+  for (const x of [32, 44, 55, 66]) {
+    box(x - .08, x + .08, MEZZ + 2.4, MEZZ + 3.2, -6.72, -6.62, M.gold, false);
+    box(x - .22, x + .22, MEZZ + 2.3, MEZZ + 2.38, -6.70, -6.6, M.amber, false);
+  }
+}
+
+
+function rooftopSkyLounge() {
+  // BURN Tower crown: a rooftop sky lounge directly above the main atrium.
+  // Built from the existing merged-geometry/collision system; no second renderer or downloaded assets.
+  const y = CEIL + 4, xEdge = 17.2, zEdge = 24.5;
+  floorRect(-xEdge, xEdge, -zEdge, zEdge, y);
+  box(-xEdge, xEdge, y - .45, y, -zEdge, zEdge, M.dais, false);
+  box(-xEdge + .3, xEdge - .3, y - .05, y, -zEdge + .3, zEdge - .3, M.floorB, false);
+  // Gold/ember perimeter inlay frames the observation deck.
+  for (const [x0,x1,z0,z1] of [
+    [-xEdge+1,xEdge-1,-zEdge+1,-zEdge+.12],
+    [-xEdge+1,xEdge-1,zEdge-.12,zEdge-1],
+    [-xEdge+.12,xEdge-1,-zEdge+1,zEdge-1],
+    [xEdge-1,xEdge-.12,-zEdge+1,zEdge-1]
+  ]) box(x0,x1,y+.012,y+.035,z0,z1,M.amber,false);
+  // Glass safety wall with dark-metal top rail and regularly spaced supports.
+  for (const [x0,x1,z0,z1] of [
+    [-xEdge,xEdge,-zEdge-.12,-zEdge+.12],
+    [-xEdge,xEdge,zEdge-.12,zEdge+.12],
+    [-xEdge-.12,-xEdge+.12,-zEdge,zEdge],
+    [xEdge-.12,xEdge+.12,-zEdge,zEdge]
+  ]) {
+    box(x0,x1,y,y+1.25,z0,z1,M.glass,true);
+    box(x0,x1,y+1.22,y+1.34,z0,z1,M.metal,false);
+  }
+  for (let x=-15.5;x<=15.5;x+=3.1) for (const z of [-zEdge,zEdge]) {
+    box(x-.055,x+.055,y,y+1.34,z-.09,z+.09,M.gold,false);
+  }
+  for (let z=-22;z<=22;z+=3.1) for (const x of [-xEdge,xEdge]) {
+    box(x-.09,x+.09,y,y+1.34,z-.055,z+.055,M.gold,false);
+  }
+  // Fine satin-gold cap inlay and a recessed-looking lower shoe make the glass rail read as a fitted assembly.
+  // Keep the bands as merged static geometry; no extra materials, lights, or per-frame work.
+  for (const [x0,x1,z0,z1] of [
+    [-xEdge,xEdge,-zEdge-.12,-zEdge+.12],
+    [-xEdge,xEdge,zEdge-.12,zEdge+.12],
+    [-xEdge-.12,-xEdge+.12,-zEdge,zEdge],
+    [xEdge-.12,xEdge+.12,-zEdge,zEdge]
+  ]) {
+    box(x0,x1,y+.035,y+.09,z0,z1,M.metal,false);
+    box(x0,x1,y+.095,y+.12,z0,z1,M.amberDim,false);
+    box(x0,x1,y+1.34,y+1.375,z0,z1,M.gold,false);
+  }
+  // Subtle inner-facing glass reflections: slim translucent vertical strips between structural posts.
+  // These are deliberately sparse to preserve transparency sorting and mobile fill-rate.
+  for (let x=-13.95;x<=13.95;x+=3.1) {
+    box(x-.012,x+.012,y+.2,y+1.15,-zEdge+.13,-zEdge+.145,M.glass,false);
+    box(x-.012,x+.012,y+.2,y+1.15,zEdge-.145,zEdge-.13,M.glass,false);
+  }
+  for (let z=-18.6;z<=18.6;z+=3.1) {
+    box(-xEdge+.13,-xEdge+.145,y+.2,y+1.15,z-.012,z+.012,M.glass,false);
+    box(xEdge-.145,xEdge-.13,y+.2,y+1.15,z-.012,z+.012,M.glass,false);
+  }
+  // Low architectural fins, ember light bands, and a dramatic but safe glass overlook.
+  for (const x of [-12,-6,0,6,12]) {
+    box(x-.07,x+.07,y,y+3.2,-zEdge+1.1,-zEdge+1.3,M.metal,false);
+    box(x-.12,x+.12,y+2.85,y+2.94,-zEdge+1.08,-zEdge+1.32,M.amber,false);
+  }
+  plaque('BURN TOWER', 'PYRETHEUM · SKY LOUNGE', 0, y+3.05, -zEdge+1.38, 0, 5.6, '#e0704a');
+  // Panoramic night skyline. Open-source Three.js InstancedMesh keeps the skyline to two draw calls.
+  // Buildings and windows are generated locally; no third-party assets, downloads, or license ambiguity.
+  const buildingGeo = new THREE.BoxGeometry(1,1,1);
+  const buildingMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .88, metalness: .15 });
+  const windowGeo = new THREE.BoxGeometry(1,1,1);
+  const windowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+  const skylineBuildings = new THREE.InstancedMesh(buildingGeo, buildingMat, 34);
+  // A single instanced window mesh gives each facade several columns instead of one repetitive stripe.
+  // Capacity is bounded (34 towers × at most 5 rows × 3 columns × 2 facades).
+  const skylineWindows = new THREE.InstancedMesh(windowGeo, windowMat, 1020);
+  const darks = [0x17131b,0x201820,0x211b21,0x151821];
+  const dummy = new THREE.Object3D();
+  let wi = 0;
+  for (let i=0;i<34;i++) {
+    const a = i * 2.399963, radius = 30 + (i%5)*2.7;
+    const sx = Math.cos(a)*radius, sz = Math.sin(a)*radius;
+    const w = 2.1 + (i%4)*.8, d = 2.2 + (i%3)*.9, h = 5 + (i%7)*2.1;
+    dummy.position.set(sx,y+h/2-1.2,sz); dummy.scale.set(w,h,d); dummy.rotation.set(0,(i%4)*Math.PI/2,0); dummy.updateMatrix();
+    skylineBuildings.setMatrixAt(i,dummy.matrix);
+    skylineBuildings.setColorAt(i,new THREE.Color(darks[i%darks.length]));
+    // Stagger rows and vary the number of window columns by building width to break up the repeating pattern.
+    const rows = Math.min(5,Math.floor(h/2));
+    const cols = w > 3.5 ? 3 : 2;
+    for (let row=0;row<rows;row++) for (let col=0;col<cols;col++) for (const face of [-1,1]) {
+      const wx = sx + (col-(cols-1)/2)*w*.28 + (row%2)*.08;
+      const wy = y + 1 + row*1.35;
+      dummy.position.set(wx,wy,sz+face*(d/2+.025));
+      dummy.scale.set(.13,.22,.035); dummy.rotation.set(0,face < 0 ? Math.PI : 0,0); dummy.updateMatrix();
+      skylineWindows.setMatrixAt(wi,dummy.matrix);
+      // Most windows glow warm; occasional dim and ember-red windows make the city feel lived in.
+      const tone = (i*3+row*2+col)%11===0 ? 0xff6a28 : ((i+row+col)%4===0 ? 0x60402c : 0xc9975c);
+      skylineWindows.setColorAt(wi,new THREE.Color(tone));
+      wi++;
+    }
+  }
+  skylineWindows.count = wi;
+  skylineBuildings.instanceMatrix.needsUpdate = true; skylineWindows.instanceMatrix.needsUpdate = true;
+  if (skylineBuildings.instanceColor) skylineBuildings.instanceColor.needsUpdate = true;
+  if (skylineWindows.instanceColor) skylineWindows.instanceColor.needsUpdate = true;
+  scene.add(skylineBuildings, skylineWindows);
+  // Four compact rooftop planters soften the metal-and-glass architecture without external models.
+  const planterGeo = new THREE.BoxGeometry(2.4,.55,1.05);
+  const planterMat = M.metal;
+  const plantGeo = new THREE.ConeGeometry(.22,1.15,5);
+  const plantMat = new THREE.MeshStandardMaterial({color:0x26392a,roughness:.95});
+  const planters = new THREE.InstancedMesh(planterGeo,planterMat,4);
+  const foliage = new THREE.InstancedMesh(plantGeo,plantMat,20);
+  let pi=0, fi=0;
+  for (const [px,pz] of [[-13.8,-18],[13.8,-18],[-13.8,18],[13.8,18]]) {
+    dummy.position.set(px,y+.3,pz); dummy.scale.set(1,1,1); dummy.rotation.set(0,px<0?0:Math.PI,0); dummy.updateMatrix(); planters.setMatrixAt(pi++,dummy.matrix);
+    for(let k=0;k<5;k++) {
+      dummy.position.set(px-0.85+(k%3)*.82,y+.9+(k%2)*.12,pz+(k%2?-.18:.18));
+      dummy.scale.set(.75,.72+(k%3)*.18,.75); dummy.rotation.set(0,k*.8,0); dummy.updateMatrix(); foliage.setMatrixAt(fi++,dummy.matrix);
+    }
+  }
+  planters.instanceMatrix.needsUpdate=true; foliage.instanceMatrix.needsUpdate=true;
+  scene.add(planters,foliage);
+  // Social furniture kept in the central circulation zone; all decorative meshes share a few materials.
+  const sofa = (x,z,rot=0) => {
+    const g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(3.4,.38,1.05),M.metal); base.position.y=.35; g.add(base);
+    const cushion = new THREE.Mesh(new THREE.BoxGeometry(3.18,.3,.92),M.fabric); cushion.position.set(0,.68,0); g.add(cushion);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(3.25,.8,.22),M.fabric); back.position.set(0,1.05,-.39); g.add(back);
+    for (const sx of [-1.55,1.55]) { const arm=new THREE.Mesh(new THREE.BoxGeometry(.25,.52,1.02),M.fabric); arm.position.set(sx,.72,0); g.add(arm); }
+    // Tailored upholstery: inset seat panels, subtle piping, and contrasting throw cushions.
+    for (const sx of [-.92,-.3,.32,.94]) {
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(.018,.012,.78),M.stone);
+      seam.position.set(sx,.836,0); g.add(seam);
+    }
+    for (const [px,pz,pr] of [[-1.08,-.23,-.12],[1.08,-.23,.12]]) {
+      const pillow = new THREE.Mesh(new THREE.BoxGeometry(.56,.2,.48),M.stone);
+      pillow.position.set(px,.91,pz); pillow.rotation.y=pr; g.add(pillow);
+      const accent = new THREE.Mesh(new THREE.BoxGeometry(.36,.012,.025),M.gold);
+      accent.position.set(px,1.02,pz); accent.rotation.y=pr; g.add(accent);
+    }
+    g.position.set(x,y,z); g.rotation.y=rot; scene.add(g);
+  };
+  const table = (x,z) => {
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(.68,.72,.12,12),M.gold); top.position.set(x,y+.82,z); scene.add(top);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.12,.2,.72,8),M.metal); stem.position.set(x,y+.42,z); scene.add(stem);
+    const glow = new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.025,12),M.amber); glow.position.set(x,y+.9,z); scene.add(glow);
+    // Small, low-profile tabletop accents add scale without cluttering the walking path.
+    const vessel = new THREE.Mesh(new THREE.CylinderGeometry(.075,.09,.18,8),M.glass);
+    vessel.position.set(x-.19,y+.98,z); scene.add(vessel);
+    const coaster = new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.018,12),M.stone);
+    coaster.position.set(x+.2,y+.89,z+.08); scene.add(coaster);
+    const candle = new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.12,8),M.amber);
+    candle.position.set(x+.2,y+.96,z+.08); scene.add(candle);
+  };
+  sofa(-9,-5,0); sofa(9,-5,Math.PI); sofa(-9,6,0); sofa(9,6,Math.PI);
+  for (const [x,z] of [[-6,-5],[6,-5],[-6,6],[6,6]]) table(x,z);
+  // Four restrained bar stools: dark pedestal, foot ring, and upholstered seat.
+  for (const x of [-1.8,-.6,.6,1.8]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(.055,.09,.58,8),M.metal);
+    leg.position.set(x,y+.36,9.75); scene.add(leg);
+    const foot = new THREE.Mesh(new THREE.TorusGeometry(.17,.025,6,12),M.gold);
+    foot.rotation.x=Math.PI/2; foot.position.set(x,y+.22,9.75); scene.add(foot);
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.13,12),M.fabric);
+    seat.position.set(x,y+.72,9.75); scene.add(seat);
+    const seatTrim = new THREE.Mesh(new THREE.TorusGeometry(.3,.018,5,12),M.gold);
+    seatTrim.position.set(x,y+.79,9.75); scene.add(seatTrim);
+  }
+  // Rooftop bar: decorative counter plus backlit shelving; menu interaction is roleplay-only.
+  // A recessed plinth, shadow gap, and slim under-counter glow give the counter a layered built-in finish.
+  box(-2.8,2.8,y,y+.16,10.5,11.4,M.metal);
+  box(-2.58,2.58,y+.16,y+1.15,10.65,11.35,M.stone);
+  box(-2.62,2.62,y+.2,y+.28,10.62,10.68,M.gold,false);
+  box(-2.64,2.64,y+.28,y+.34,10.6,10.66,M.amberDim,false);
+  box(-2.9,2.9,y+1.12,y+1.2,10.6,11.4,M.gold,false);
+  box(-2.4,2.4,y+1.35,y+3.0,12.2,12.35,M.metal,false);
+  // Floating shelf lips catch warm light; repeated details merge with the other static geometry.
+  for (const shelfY of [y+1.48,y+2.1,y+2.72]) {
+    box(-2.25,2.25,shelfY,shelfY+.045,12.08,12.2,M.gold,false);
+    box(-2.15,2.15,shelfY-.055,shelfY-.025,12.075,12.1,M.amberDim,false);
+  }
+  for (let x=-1.8;x<=1.8;x+=.6) box(x-.025,x+.025,y+1.55,y+2.8,12.14,12.18,M.amber,false);
+  // Low, flush deck guides subtly frame the social zone without becoming collision obstacles.
+  for (const [x0,x1,z0,z1] of [
+    [-4.4,-4.34,3.4,8.6],[4.34,4.4,3.4,8.6],
+    [-4.4,-3.2,8.54,8.6],[3.2,4.4,8.54,8.6]
+  ]) {
+    box(x0,x1,y+.018,y+.035,z0,z1,M.amberDim,false);
+  }
+  const crownLight = new THREE.PointLight(0xff5422,TOUCH?34:55,38,2);
+  crownLight.position.set(0,y+4,0); scene.add(crownLight); lights.push([crownLight,TOUCH?34:55]);
+  const edgeLight = new THREE.PointLight(0xff7a32,TOUCH?18:28,24,2);
+  edgeLight.position.set(0,y+1.4,-17); scene.add(edgeLight); lights.push([edgeLight,TOUCH?18:28]);
+  station('rooftop-return','Rooftop lift · return to tower',0,y,20.5,2.8,[2.8,2.8,1.3]);
+  station('rooftop-bar','BURN Tower sky bar',0,y,9.2,2.8,[6,2.8,1.6]);
+  station('rooftop-view','Panoramic observation deck',0,y,-16.5,3.8,[5,2.8,1.2]);
+}
+
 function envMap() {   // tiny procedural environment for plausible metal/glass reflections (no HDR download)
   const s = new THREE.Scene(); s.background = new THREE.Color(0x0c0a0c);
   const add = (c, w, h, x, y, z, rx = 0, ry = 0) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); s.add(m); };
@@ -350,6 +588,12 @@ function entrance() {   // portal in the south wall: dark-metal jambs, gold reve
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(6.6, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(.22, .15, .1) })); glow.position.set(0, 3, HZ + 3.7); glow.rotation.y = Math.PI; scene.add(glow);
   plaque('RETURN TO BURN CITY', null, 0, 7.4, HZ - .25, Math.PI, 3.2);
   station('exit', 'Return to BURN City', 0, 0, HZ + 1.6, 3.2, [6.4, 5.5, 2]);
+  // A discreet, wall-mounted directory near the entrance. It describes real current status rather than
+  // implying that prepared-only floors or the Aegis integration are already functional.
+  box(-17.86, -17.56, .35, 4.5, 15.2, 21.2, M.metal, false);
+  box(-17.55, -17.49, .5, 4.3, 15.35, 21.05, M.gold, false);
+  plaque('PYRETHEUM DIRECTORY', 'FLOORS · DESTINATIONS · ACCESS', -17.46, 4.9, 18.2, Math.PI / 2, 3.8, '#d7a65e');
+  station('directory', 'Pyretheum directory', -15.8, 0, 18.2, 2.8, [1.2, 3.8, 3.6]);
 }
 function lobby() {     // lift lobby under the north gallery: two cars in anodized frames with gold reveals
   for (const [x, id, label, t, sub] of [[-5, 'lift', 'Headquarters lift', 'HEADQUARTERS', 'UPPER FLOORS · OPENING LATER'], [5, 'elevator', 'Private lift · Midnightbluff', 'PRIVATE', 'MIDNIGHTBLUFF · MEMBERS ONLY']]) {
@@ -408,7 +652,7 @@ function barAndLounge() {
   instanced(new THREE.CylinderGeometry(.22, .18, .06, 20), M.gold, [0, 1, 2, 3, 4].map(i => [-14.25, MEZZ + .78, bz0 + 1 + i * 1.7]));
   instanced(new THREE.CylinderGeometry(.04, .04, .75, 8), M.metal, [0, 1, 2, 3, 4].map(i => [-14.25, MEZZ + .38, bz0 + 1 + i * 1.7]));
   for (let i = 0; i < 5; i++) cyl(-14.25, bz0 + 1 + i * 1.7, .25, MEZZ, MEZZ + .8);
-  plaque('THE EMBER BAR', 'POURING SOON', -HX + .06, MEZZ + 4.4, 13.5, Math.PI / 2, 3.2);
+  plaque('THE EMBER BAR', 'HOUSE MENU', -HX + .06, MEZZ + 4.4, 13.5, Math.PI / 2, 3.2);
   station('bar', 'The Ember Bar', -14.2, MEZZ, 13.5, 3.2, [1.2, 1.3, 9]);
   // THE DIONYSIAN LOUNGE (east gallery): low sofas facing the atrium, stone table
   const sofa = (x, z, ry) => { const g = new THREE.Group(); g.position.set(x, MEZZ, z); g.rotation.y = ry;
@@ -565,16 +809,299 @@ function interact(id) {
         `This gallery opens in the next phase, with genuine ${names[id]} artwork from the ledger.` + (id === 'racc' ? '' : ' ' + CREATOR + '.') + (mine ? ` Your verified ${MINE.name} will hang here.` : ''),
         () => window.open(mine && MINE.id ? 'https://xrp.cafe/nft/' + MINE.id : LINKS[id], '_blank', 'noopener,noreferrer'), mine ? 'VIEW MY NFT' : 'VIEW COLLECTION');
       break; }
-    case 'residences': textPanel('RESIDENCES', 'Private penthouse floors for verified holders are planned for a later phase. Nothing here is live yet.'); break;
-    case 'bar': textPanel('THE EMBER BAR', 'The Ember Bar is pouring soon. Pull up a stool while you wait.'); break;
-    case 'sit': P.seated = true; P.pos.copy(P.seatPos); CITY.input.yp.yaw = Math.PI / 2; CITY.input.yp.pitch = -.05; toast('Seated. Move to stand up.'); break;
+    case 'residences': openResidences(); break;
+    case 'residence-exit': travelTo('lift-ground'); break;
+    case 'rooftop-return': travelTo('lift-ground'); break;
+    case 'rooftop-bar': textPanel('BURN TOWER SKY BAR', 'Welcome to the rooftop bar. Drinks, service, and currency interactions are decorative roleplay only in this phase.'); break;
+    case 'rooftop-view': textPanel('PANORAMIC OBSERVATION DECK', 'Take in the BURN City skyline from the crown of PYRETHEUM. The perimeter is enclosed by glass safety barriers.'); break;
+    case 'bar': showBarMenu(); break;
+    case 'sit': showLoungeMenu(); break;
+    case 'directory': showDirectory(); break;
     case 'aegis': showAegis(); break;
     case 'elevator': privateElevator(); break;
-    case 'lift': textPanel('HEADQUARTERS LIFT', 'The upper headquarters floors are under construction. Take the stairs to the galleries, the Ember Bar, the lounge and the Aegis Sanctum.'); break;
+    case 'lift': showLiftMenu(); break;
     case 'hidden': toast('Something is behind this stone. Not yet.'); break;
     case 'exit': close(); break;
   }
 }
+function showDirectory() {
+  panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-directory';
+  Object.assign(panel.style, {
+    position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
+    width: 'min(600px,calc(100vw - 24px))', maxHeight: 'min(84dvh,780px)',
+    display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    padding: '16px', background: 'linear-gradient(145deg,#141016fa,#08070afa)',
+    border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a',
+    color: '#efe3d2', zIndex: 10, pointerEvents: 'auto'
+  });
+  const head = document.createElement('div');
+  Object.assign(head.style, { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' });
+  const title = document.createElement('h2'); title.textContent = 'PYRETHEUM DIRECTORY';
+  Object.assign(title.style, { margin: '0', fontSize: '16px', letterSpacing: '.12em', color: '#d7a65e', fontFamily: 'Georgia,serif', fontWeight: '600', flex: '1' });
+  const close = btn('CLOSE', true); close.addEventListener('click', () => { panel?.remove(); panel = null; });
+  head.append(title, close); panel.appendChild(head);
+  const intro = document.createElement('p');
+  intro.textContent = 'Choose a destination to travel to an existing area, or open a destination’s current interaction. Rooms still under construction are labelled honestly.';
+  Object.assign(intro.style, { margin: '0 0 8px', color: '#cbbcaa', lineHeight: '1.45', fontSize: '12px' });
+  panel.appendChild(intro);
+  const list = document.createElement('div');
+  Object.assign(list.style, { overflowY: 'auto', minHeight: '0', paddingRight: '3px', overscrollBehavior: 'contain' });
+  const groups = [
+    { title: 'GROUND FLOOR', rows: [
+      ['hall', 'Ember Hall', 'Main atrium and reactor centerpiece.', 'TRAVEL', '#d7a65e'],
+      ['lift-ground', 'Headquarters lift · Ground', 'Return to the lift lobby.', 'TRAVEL', '#d7a65e'],
+      ['midnightbluff', 'Midnightbluff private lift', 'Server-checked wallet access; the private floor is not open yet.', 'CHECK ACCESS', '#b8a0d8'],
+      ['hidden', 'Concealed destination', 'The hidden entrance is a clue only; its destination is not implemented.', 'VIEW STATUS', '#c9a063']
+    ]},
+    { title: 'MEZZANINE · SOCIAL & INTELLIGENCE', rows: [
+      ['mezz', 'Mezzanine', 'Travel to the upper gallery walkway.', 'TRAVEL', '#d7a65e'],
+      ['aegis', 'Aegis Sanctum', 'Visit the display and open the configured live map if available.', 'VISIT', '#9fc2ea'],
+      ['bar', 'The Ember Bar', 'Open the roleplay house menu. No currency or inventory is charged.', 'OPEN MENU', '#d7a65e'],
+      ['lounge', 'Dionysian Lounge', 'Visit the lounge and use the seating interaction.', 'VISIT', '#d7a65e'],
+      ['rooftop', 'BURN Tower Sky Lounge', 'Panoramic rooftop deck, glass safety barriers, night skyline, lounge seating, and sky bar.', 'TRAVEL', '#e0704a']
+    ]},
+    { title: 'GALLERIES & FUTURE FLOORS', rows: [
+      ['protocol', '589 Protocol Gallery', 'Dedicated room is not open yet; its collection link is available.', 'COLLECTION', '#d9a15a'],
+      ['firekeepers', 'Hall of Firekeepers', 'Dedicated room is not open yet; its collection link is available.', 'COLLECTION', '#e0704a'],
+      ['racc', 'RACC Gallery', 'Dedicated room is not open yet; its collection link is available.', 'COLLECTION', '#b8b4c8'],
+      ['residences', 'Residences', 'Private penthouse floors are reserved for a later phase.', 'VIEW STATUS', '#c9a063']
+    ]}
+  ];
+  const actions = {
+    hall: () => travelTo('hall'),
+    'lift-ground': () => travelTo('lift-ground'),
+    mezz: () => travelTo('mezz'),
+    aegis: () => travelTo('aegis'),
+    bar: () => { travelTo('bar'); showBarMenu(); },
+    lounge: () => { travelTo('lounge'); showLoungeMenu(); },
+    midnightbluff: () => interact('elevator'),
+    hidden: () => interact('hidden'),
+    protocol: () => interact('protocol'),
+    firekeepers: () => interact('firekeepers'),
+    racc: () => interact('racc'),
+    residences: () => interact('residences'),
+     rooftop: () => travelTo('rooftop')
+  };
+  for (const group of groups) {
+    const h = document.createElement('h3'); h.textContent = group.title;
+    Object.assign(h.style, { margin: '12px 0 6px', paddingBottom: '6px', borderBottom: '1px solid #493827', fontSize: '10px', letterSpacing: '.12em', color: '#d7a65e' });
+    list.appendChild(h);
+    for (const [id, name, detail, actionLabel, color] of group.rows) {
+      const row = document.createElement('div');
+      Object.assign(row.style, { display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 0', borderBottom: '1px solid #ffffff12' });
+      const copy = document.createElement('div'); Object.assign(copy.style, { minWidth: '0', flex: '1' });
+      const label = document.createElement('strong'); label.textContent = name;
+      Object.assign(label.style, { display: 'block', color: '#f0e3d2', fontSize: '12px' });
+      const desc = document.createElement('p'); desc.textContent = detail;
+      Object.assign(desc.style, { margin: '4px 0 0', color: '#bcae9f', fontSize: '11px', lineHeight: '1.4' });
+      copy.append(label, desc);
+      const action = btn(actionLabel, false);
+      Object.assign(action.style, { flexShrink: '0', padding: '8px 9px', fontSize: '9px', maxWidth: '104px', whiteSpace: 'normal' });
+      action.addEventListener('click', () => {
+        const run = actions[id];
+        // Close the directory first; the destination interaction may open its own panel.
+        panel?.remove(); panel = null;
+        if (run) run();
+      });
+      action.setAttribute('aria-label', actionLabel + ': ' + name);
+      action.style.borderColor = color;
+      row.append(copy, action); list.appendChild(row);
+    }
+  }
+  panel.appendChild(list);
+  const footer = document.createElement('div');
+  Object.assign(footer.style, { display: 'flex', flexWrap: 'wrap', gap: '8px', paddingTop: '10px' });
+  const lift = btn('OPEN LIFT CONTROLS'); lift.addEventListener('click', () => showLiftMenu());
+  const exit = btn('EXIT TO CITY', true); exit.addEventListener('click', close);
+  footer.append(lift, exit); panel.appendChild(footer);
+  root.appendChild(panel);
+}
+function showLiftMenu() {
+  panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-lift';
+  Object.assign(panel.style, {
+    position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
+    width: 'min(420px,calc(100vw - 24px))', maxHeight: 'min(80dvh,680px)',
+    overflowY: 'auto', padding: '18px', background: 'linear-gradient(145deg,#141016fa,#08070afa)',
+    border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a',
+    color: '#efe3d2', zIndex: 10, pointerEvents: 'auto'
+  });
+  const h = document.createElement('h2'); h.textContent = 'HEADQUARTERS LIFT';
+  Object.assign(h.style, { margin: '0 0 8px', fontSize: '16px', letterSpacing: '.12em', color: '#d7a65e', fontFamily: 'Georgia,serif' });
+  panel.appendChild(h);
+  const p = document.createElement('p'); p.textContent = 'Select an open destination. Private and unfinished floors remain locked until their actual rooms are implemented.';
+  Object.assign(p.style, { margin: '0 0 12px', color: '#cbbcaa', fontSize: '12px', lineHeight: '1.45' }); panel.appendChild(p);
+  const destinations = [
+    ['GROUND FLOOR · EMBER HALL', 'hall'],
+    ['GROUND FLOOR · LIFT LOBBY', 'lift-ground'],
+    ['MEZZANINE WALKWAY', 'mezz'],
+    ['AEGIS SANCTUM', 'aegis'],
+    ['THE EMBER BAR', 'bar'],
+    ['DIONYSIAN LOUNGE', 'lounge'],
+    ['PRIVATE RESIDENCES · CHECK WALLET', 'residences'],
+    ['BURN TOWER · ROOFTOP SKY LOUNGE', 'rooftop']
+  ];
+  for (const [label, destination] of destinations) {
+    const b = btn(label); Object.assign(b.style, { display: 'block', width: '100%', margin: '7px 0', textAlign: 'left' });
+    b.addEventListener('click', () => destination === 'residences' ? interact('residences') : travelTo(destination)); panel.appendChild(b);
+  }
+  const privateButton = btn('CHECK MIDNIGHTBLUFF ACCESS', true);
+  Object.assign(privateButton.style, { display: 'block', width: '100%', margin: '7px 0', textAlign: 'left' });
+  privateButton.addEventListener('click', () => interact('elevator')); panel.appendChild(privateButton);
+  const c = btn('CLOSE', true); c.style.marginTop = '8px'; c.addEventListener('click', () => { panel?.remove(); panel = null; }); panel.appendChild(c);
+  root.appendChild(panel);
+}
+function takeLoungeSeat() {
+  panel?.remove(); panel = null;
+  P.seated = true; P.pos.copy(P.seatPos);
+  P.vy = 0; P.onGround = true; P.speed = 0; P.walk = 0;
+  CITY.input.yp.yaw = Math.PI / 2; CITY.input.yp.pitch = -.05;
+  camera.position.set(P.pos.x, P.pos.y + EYE, P.pos.z);
+  camera.rotation.set(CITY.input.yp.pitch, CITY.input.yp.yaw, 0);
+  toast('You settle into the Dionysian Lounge. Move to stand up.');
+}
+function showLoungeMenu() {
+  panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-lounge-menu';
+  Object.assign(panel.style, {
+    position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
+    width: 'min(400px,calc(100vw - 24px))', padding: '18px',
+    background: 'linear-gradient(145deg,#141016fa,#08070afa)',
+    border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a',
+    color: '#efe3d2', zIndex: 10, pointerEvents: 'auto'
+  });
+  const h = document.createElement('h2'); h.textContent = 'THE DIONYSIAN LOUNGE';
+  Object.assign(h.style, { margin: '0 0 8px', fontSize: '15px', letterSpacing: '.1em', color: '#d7a65e', fontFamily: 'Georgia,serif' });
+  const p = document.createElement('p'); p.textContent = 'A quiet overlook above the Ember Hall. Take a seat to pause and look across the atrium.';
+  Object.assign(p.style, { margin: '0 0 12px', color: '#cbbcaa', fontSize: '12px', lineHeight: '1.5' });
+  const seat = btn('TAKE A SEAT'); seat.style.width = '100%'; seat.addEventListener('click', takeLoungeSeat);
+  const closeBtn = btn('KEEP EXPLORING', true); Object.assign(closeBtn.style, { width: '100%', marginTop: '8px' });
+  closeBtn.addEventListener('click', () => { panel?.remove(); panel = null; });
+  panel.append(h, p, seat, closeBtn); root.appendChild(panel);
+}
+function showBarMenu() {
+  panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-bar-menu';
+  Object.assign(panel.style, {
+    position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
+    width: 'min(430px,calc(100vw - 24px))', maxHeight: 'min(82dvh,700px)', overflowY: 'auto',
+    padding: '18px', background: 'linear-gradient(145deg,#141016fa,#08070afa)',
+    border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a',
+    color: '#efe3d2', zIndex: 10, pointerEvents: 'auto'
+  });
+  const h = document.createElement('h2'); h.textContent = 'THE EMBER BAR';
+  Object.assign(h.style, { margin: '0 0 6px', fontSize: '16px', letterSpacing: '.12em', color: '#d7a65e', fontFamily: 'Georgia,serif' });
+  panel.appendChild(h);
+  const intro = document.createElement('p');
+  intro.textContent = 'Choose a house special for a small roleplay moment. This is a cosmetic interaction only: it does not spend currency, change inventory, or apply gameplay effects.';
+  Object.assign(intro.style, { margin: '0 0 12px', color: '#cbbcaa', fontSize: '12px', lineHeight: '1.5' });
+  panel.appendChild(intro);
+  const specials = [
+    ['CINDER TEA', 'Smoked black tea, clove, and a slow amber glow.'],
+    ['EMBER FIZZ', 'A bright citrus sparkle with a warm red finish.'],
+    ['BLACKGLASS TONIC', 'Dark berry, cool mint, and a shimmer like volcanic glass.']
+  ];
+  for (const [name, description] of specials) {
+    const card = document.createElement('div');
+    Object.assign(card.style, { padding: '10px', margin: '8px 0', border: '1px solid #493827', borderRadius: '9px', background: '#ffffff05' });
+    const title = document.createElement('strong'); title.textContent = name;
+    Object.assign(title.style, { display: 'block', color: '#f0d2a2', fontSize: '12px', letterSpacing: '.08em' });
+    const detail = document.createElement('p'); detail.textContent = description;
+    Object.assign(detail.style, { margin: '5px 0 10px', color: '#bcae9f', fontSize: '11px', lineHeight: '1.45' });
+    const order = btn('CHOOSE SPECIAL');
+    order.style.width = '100%';
+    order.addEventListener('click', () => {
+      panel?.remove(); panel = null;
+      toast(name + ' selected · roleplay only, no inventory change.');
+    });
+    card.append(title, detail, order); panel.appendChild(card);
+  }
+  const c = btn('CLOSE', true); c.style.marginTop = '8px';
+  c.addEventListener('click', () => { panel?.remove(); panel = null; });
+  panel.appendChild(c); root.appendChild(panel);
+}
+function travelTo(destination) {
+  const points = {
+    hall: { x: 0, y: 0, z: 21.5, yaw: 0, message: 'Arrived at Ember Hall.' },
+    'lift-ground': { x: -5, y: 0, z: -22.3, yaw: 0, message: 'Arrived at the ground-floor lift lobby.' },
+    mezz: { x: -5, y: MEZZ, z: -22.3, yaw: 0, message: 'Arrived at the mezzanine walkway.' },
+    aegis: { x: 0, y: MEZZ, z: -30.2, yaw: 0, message: 'Arrived at Aegis Sanctum.' },
+    bar: { x: -13.5, y: MEZZ, z: 13.5, yaw: Math.PI / 2, message: 'Arrived at the Ember Bar.' },
+    lounge: { x: 13.6, y: MEZZ, z: 15.25, yaw: -Math.PI / 2, message: 'Arrived at the Dionysian Lounge.' },
+    penthouse: { x: 34, y: MEZZ, z: 0, yaw: 0, message: 'Welcome home, Firekeeper.' },
+    suite: { x: 57, y: MEZZ, z: 0, yaw: 0, message: 'Welcome to your private members suite.' },
+    rooftop: { x: 0, y: CEIL + 4, z: 0, yaw: 0, message: 'Welcome to the BURN Tower Sky Lounge.' }
+  };
+  const target = points[destination];
+  if (!target) { toast('That destination is not open yet.'); return; }
+
+  // Never teleport blindly: use the same collision/ground model as walking. If a furnishing or
+  // future geometry blocks the preferred arrival point, try nearby offsets on the same floor.
+  const offsets = [[0, 0], [0, 1.25], [1.25, 0], [0, -1.25], [-1.25, 0],
+    [1.25, 1.25], [-1.25, 1.25], [1.25, -1.25], [-1.25, -1.25], [0, 2.5], [2.5, 0], [-2.5, 0]];
+  let arrival = null;
+  for (const [ox, oz] of offsets) {
+    const x = target.x + ox, z = target.z + oz;
+    const floor = groundAt(x, z, target.y);
+    if (floor < -50 || Math.abs(floor - target.y) > STEP || blocked(x, z, floor)) continue;
+    arrival = { x, y: floor, z };
+    break;
+  }
+  if (!arrival) {
+    toast('That arrival point is blocked. Please try another destination.');
+    return;
+  }
+
+  panel?.remove(); panel = null;
+  P.pos.set(arrival.x, arrival.y, arrival.z); P.vy = 0; P.onGround = true; P.seated = false; P.speed = 0; P.walk = 0; P.bodyYaw = target.yaw;
+  CITY.input.yp.yaw = target.yaw; CITY.input.yp.pitch = 0;
+  camera.position.set(P.pos.x, P.pos.y + EYE, P.pos.z); camera.rotation.set(0, target.yaw, 0);
+  toast(target.message);
+}
+
+
+async function fetchMyResidences() {
+  let token = ''; try { token = localStorage.bcToken || ''; } catch (e) { }
+  if (!token) return { error: 'signin' };
+  const response = await fetch(SRV.replace(/\/$/, '') + '/api/tower/residence', {
+    headers: { authorization: 'Bearer ' + token }, cache: 'no-store'
+  });
+  if (response.status === 401) return { error: 'signin' };
+  if (response.status === 429) return { error: 'slow_down' };
+  if (!response.ok) return { error: response.status === 503 ? 'ledger_unavailable' : 'service_unavailable' };
+  return response.json();
+}
+function openResidences() {
+  fetchMyResidences().then(data => {
+    if (data.error) {
+      const messages = { signin: 'Sign in with Xaman first. The server must verify your current XRPL holdings before granting residence access.', slow_down: 'Please wait a moment before checking your residence access again.', ledger_unavailable: 'The XRPL ownership check is temporarily unavailable. No private access was granted.', service_unavailable: 'Residence verification is not available on the connected server yet. No private access was granted.' };
+      textPanel('PRIVATE RESIDENCES', messages[data.error] || messages.service_unavailable);
+      return;
+    }
+    const residences = Array.isArray(data.residences) ? data.residences : [];
+    panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-residences';
+    Object.assign(panel.style, { position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(460px,calc(100vw - 24px))', maxHeight: 'min(82dvh,700px)', overflowY: 'auto', padding: '18px', background: 'linear-gradient(145deg,#141016fa,#08070afa)', border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a', color: '#efe3d2', zIndex: 10, pointerEvents: 'auto' });
+    const h = document.createElement('h2'); h.textContent = 'YOUR PRIVATE RESIDENCES'; Object.assign(h.style, { margin: '0 0 8px', fontSize: '16px', color: '#d7a65e', letterSpacing: '.1em' }); panel.appendChild(h);
+    const p = document.createElement('p'); p.textContent = 'Access is rechecked by the game server against current wallet holdings each time you enter. Your residence is a private local interior instance in this phase; shared multiplayer persistence is a later integration.'; Object.assign(p.style, { margin: '0 0 14px', fontSize: '12px', lineHeight: '1.5', color: '#cbbcaa' }); panel.appendChild(p);
+    if (!residences.length) { const empty = document.createElement('p'); empty.textContent = 'No eligible Firekeepers, 589 Protocol, or RACC NFTs were verified for this wallet.'; Object.assign(empty.style, { fontSize: '13px', lineHeight: '1.5' }); panel.appendChild(empty); }
+    for (const residence of residences) {
+      const premium = residence.kind === 'penthouse';
+      const b = btn((premium ? '✦ PENTHOUSE' : '◇ MEMBERS SUITE') + ' · UNIT ' + residence.unit);
+      Object.assign(b.style, { display: 'block', width: '100%', textAlign: 'left', margin: '8px 0', padding: '13px', whiteSpace: 'normal', lineHeight: '1.4' });
+      const detail = document.createElement('div'); detail.textContent = residence.name + (premium ? ' · best views, private lounge, premium finishes' : ' · compact private suite, refined finishes'); Object.assign(detail.style, { fontSize: '11px', color: '#cbbcaa', margin: '0 0 10px' });
+      b.addEventListener('click', async () => {
+        b.disabled = true; b.textContent = 'VERIFYING WALLET…';
+        let fresh;
+        try { fresh = await fetchMyResidences(); } catch (e) { fresh = { error: 'service_unavailable' }; }
+        const authorized = fresh && Array.isArray(fresh.residences) && fresh.residences.some(r => r.key === residence.key && r.unit === residence.unit && r.kind === residence.kind);
+        if (!authorized) { panel?.remove(); panel = null; toast(fresh?.error === 'signin' ? 'Sign-in expired. Please sign in again.' : 'Residence access could not be re-verified. Entry denied.'); return; }
+        travelTo(premium ? 'penthouse' : 'suite');
+        toast('UNIT ' + residence.unit + ' · ' + (premium ? 'FIREKEEPER PENTHOUSE' : residence.name.toUpperCase() + ' SUITE'));
+      });
+      panel.append(b, detail);
+    }
+    const closeBtn = btn('CLOSE', true); closeBtn.style.marginTop = '8px'; closeBtn.addEventListener('click', () => { panel?.remove(); panel = null; }); panel.appendChild(closeBtn);
+    root.appendChild(panel);
+  }).catch(() => textPanel('PRIVATE RESIDENCES', 'The wallet ownership service could not be reached. Entry is denied until verification succeeds.'));
+}
+
 function textPanel(title, text, action, buttonLabel) {
   panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel';
   Object.assign(panel.style, { position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(430px,calc(100vw - 32px))', padding: '22px', background: 'linear-gradient(145deg,#141016f5,#08070af5)', border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a', color: '#efe3d2', zIndex: 10, pointerEvents: 'auto' });
@@ -644,7 +1171,7 @@ export async function openBurnTowerInterior() {
 function addHud() {
   hud = document.createElement('div');
   Object.assign(hud.style, { position: 'absolute', left: 'max(12px,env(safe-area-inset-left))', top: 'max(12px,env(safe-area-inset-top))', padding: '10px 12px', background: '#0a080be0', border: '1px solid #4d3b26', borderRadius: '12px', color: '#e9dcc8', zIndex: 3, pointerEvents: 'auto', maxWidth: 'min(330px,calc(100vw - 24px))' });
-  hud.innerHTML = '<div style="font:600 13px Georgia,serif;letter-spacing:.24em;color:#d7a65e">PYRETHEUM</div><div style="margin-top:3px;font-size:12px;color:#a8998a">' + (TOUCH ? 'Joystick to walk · drag to look · USE near signs' : 'WASD to walk · drag to look · E or click to use · Esc to leave') + '</div>';
+  hud.innerHTML = '<div style="font:600 13px Georgia,serif;letter-spacing:.24em;color:#d7a65e">BURN TOWER · PYRETHEUM</div><div style="margin-top:3px;font-size:12px;color:#a8998a">' + (TOUCH ? 'Joystick to walk · drag to look · USE near signs' : 'WASD to walk · drag to look · E or click to use · Esc to leave') + '</div>';
   const ex = btn('← EXIT TO CITY'); ex.style.marginTop = '8px'; ex.style.padding = '8px 11px'; ex.addEventListener('click', close); hud.appendChild(ex); root.appendChild(hud);
 }
 function bindInput() {
@@ -676,4 +1203,34 @@ window.__openBurnTowerInterior = openBurnTowerInterior;
 window.__closeBurnTowerInterior = close;
 window.__towerFrame = towerFrame;
 window.__towerInteract = () => { if (!active) return; if (panel) { panel.remove(); panel = null; return; } if (nearSt) interact(nearSt.id); else toast('Walk up to a sign, a lift or the exit.'); };
-if (Q.has('towertest')) window.__towerTest = { interact, P, get camera() { return camera; }, get panel() { return panel; }, get near() { return nearSt; }, get scene() { return scene; }, blocked, groundAt, stations, body: () => body, close, sim(sec) { for (let i = 0; i < sec * 60; i++) towerFrame(1 / 60, performance.now() / 1000); } };
+if (Q.has('towertest')) window.__towerTest = {
+  interact, travelTo, P, get camera() { return camera; }, get panel() { return panel; },
+  get near() { return nearSt; }, get scene() { return scene; }, blocked, groundAt, stations,
+  body: () => body, close,
+  // Quick browser-console diagnostic for directory/lift destination smoke tests.
+  checkDestinations() {
+    const points = {
+      hall: [0, 0, 21.5], 'lift-ground': [-5, 0, -22.3], mezz: [-5, MEZZ, -22.3],
+      aegis: [0, MEZZ, -30.2], bar: [-13.5, MEZZ, 13.5], lounge: [13.6, MEZZ, 15.25], rooftop: [0, CEIL + 4, 0]
+    };
+    return Object.entries(points).map(([id, [x, y, z]]) => {
+      const floor = groundAt(x, z, y);
+      const result = { id, floor, expectedFloor: y, hasFloor: floor > -50,
+        floorMatches: Math.abs(floor - y) <= STEP, blocked: floor > -50 ? blocked(x, z, floor) : true };
+      if (id === 'rooftop') {
+        // Diagnostic-only collision probes: the glass perimeter must block the player while the inner walkway stays clear.
+        result.perimeterCollision = {
+          north: blocked(0, -24.5, y),
+          south: blocked(0, 24.5, y),
+          west: blocked(-17.2, 0, y),
+          east: blocked(17.2, 0, y)
+        };
+        result.innerWalkwayClear = !blocked(0, -23.7, y) && !blocked(0, 23.7, y)
+          && !blocked(-16.4, 0, y) && !blocked(16.4, 0, y);
+        result.perimeterPasses = Object.values(result.perimeterCollision).every(Boolean) && result.innerWalkwayClear;
+      }
+      return result;
+    });
+  },
+  sim(sec) { for (let i = 0; i < sec * 60; i++) towerFrame(1 / 60, performance.now() / 1000); }
+};

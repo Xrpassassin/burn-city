@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { poseWalker } from './walker.js';
 import GEAR from './skategear.js';
+import { decomposeVelocity, composeVelocity, dampLateral, clampHorizontalVelocity } from './skate-physics-core.mjs';
 const PIVOT = .05;   // the board group spins about a point 5 cm up (the middle of the board), not the wheel contact
 
 const G = 22, PUSH_MAX = 9.5, MAX_V = 17, STEP_UP = .28, SUB = .2;
@@ -87,7 +88,7 @@ const st = SK.state = {
   pos: new THREE.Vector3(), vel: new THREE.Vector3(), h: 0, air: false, airT: 0, grind: null, manual: 0,
   flip: null, grab: 0, spin: 0, bail: 0, crouch: 0, pushT: 0, popHeld: false, lastPop: 0,
   combo: [], base: 0, mult: 0, total: +(localStorage.getItem('bc_skate_best') || 0) * 0, best: +(localStorage.getItem('bc_skate_best') || 0), rollT: 0,
-  assist: localStorage.getItem('bc_skate_pro') ? 0 : 1, msg: '', msgT: 0,
+  assist: localStorage.getItem('bc_skate_pro') ? 0 : 1, lean: 0, msg: '', msgT: 0,
 };
 const K = () => C().input.keys, TB = () => C().input.tb;
 const touchSK = { flip: 0, heel: 0, grab: 0, grind: 0 };
@@ -162,7 +163,8 @@ function drive(dt, f, s) {
 function step(dt, f, s, ev, pop, grabK, grindK) {
   const p = st.pos, v = st.vel, fx = -Math.sin(st.h), fz = -Math.cos(st.h);
   if (st.railCD > 0) st.railCD -= dt;
-  st.crouch += ((pop && !st.air) ? 1 : 0 - st.crouch) * Math.min(1, dt * 14);
+  const crouchTarget = pop && !st.air ? 1 : 0;
+  st.crouch += (crouchTarget - st.crouch) * Math.min(1, dt * 14);
 
   // ---- grinding: locked to the line, sliding along it
   if (st.grind) {
@@ -185,21 +187,34 @@ function step(dt, f, s, ev, pop, grabK, grindK) {
   if (!st.air) {
     // slope from the height field (finite differences)
     const e = .25, gx = (heightAt(p.x + e, p.z, p.y + .5) - heightAt(p.x - e, p.z, p.y + .5)) / (2 * e), gz = (heightAt(p.x, p.z + e, p.y + .5) - heightAt(p.x, p.z - e, p.y + .5)) / (2 * e);
-    // forward speed along heading (signed: negative = rolling fakie/back)
-    let fwd = v.x * fx + v.z * fz;
-    // push / brake / rolling resistance
-    if (f > .1 && st.bail <= 0 && st.manual <= 0) { st.pushT += dt; if (fwd < PUSH_MAX) fwd += 11 * f * dt; }
-    else if (f < -.1) fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), 12 * -f * dt);
-    fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), (.35 + .012 * fwd * fwd) * dt);
-    // gravity along the slope
+    // Keep world-space momentum while carving. A real board turns under the rider;
+    // it does not instantly rotate all of its velocity to match the nose.
+    let { forward: fwd, lateral } = decomposeVelocity(v.x, v.z, st.h);
+    // Push acceleration is capped on flat ground; downhill gravity can carry the board faster.
+    if (f > .1 && st.bail <= 0 && st.manual <= 0) {
+      st.pushT += dt;
+      if (fwd < PUSH_MAX) fwd += 8.5 * f * dt;
+    } else if (f < -.1) {
+      fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), 12 * -f * dt);
+    }
+    fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), (.28 + .009 * fwd * fwd) * dt);
+    // Gravity converts height into speed uphill/downhill using the actual local slope.
     fwd -= G * (gx * fx + gz * fz) / Math.sqrt(1 + gx * gx + gz * gz) * dt;
     fwd = Math.max(-MAX_V, Math.min(MAX_V, fwd));
-    // carving: heading turns with steering; tighter when slow
-    const turn = 2.6 / (1 + Math.abs(fwd) * .06);
+    // Apply longitudinal forces along the current nose, then rotate the nose under
+    // the existing world-space velocity. Re-projecting after the turn preserves momentum.
+    ({ x: v.x, z: v.z } = composeVelocity(fwd, lateral, st.h));
+    const speed = Math.hypot(v.x, v.z);
+    const turn = 2.45 / (1 + speed * .075);
     st.h -= s * turn * dt;
-    // full grip: velocity follows the heading
-    v.x = fx * fwd; v.z = fz * fwd;
-    v.y = -(gx * v.x + gz * v.z) * -1;   // vertical rate implied by the slope under the wheels
+    const nfx = -Math.sin(st.h), nfz = -Math.cos(st.h);
+    ({ forward: fwd, lateral } = decomposeVelocity(v.x, v.z, st.h));
+    lateral = dampLateral(lateral, dt, speed);
+    ({ x: v.x, z: v.z } = composeVelocity(fwd, lateral, st.h));
+    ({ x: v.x, z: v.z } = clampHorizontalVelocity(v.x, v.z, MAX_V));
+    // Vertical velocity follows the surface under the wheels while grounded.
+    v.y = gx * v.x + gz * v.z;
+    st.lean += ((-s * Math.min(1, speed / 8)) - st.lean) * Math.min(1, dt * 8);
     // ollie (press = crouch, release = pop; quick tap still pops)
     if (ev.popUp && st.bail <= 0) { ollie(); return; }
     // manual: Shift on open ground, no rail in reach
@@ -269,7 +284,7 @@ function land(g) {
   }
   if (wasVert && ok) { st.h += Math.PI; const sp2 = Math.max(4, Math.abs(v.y) * .8); v.set(-Math.sin(st.h) * sp2, 0, -Math.cos(st.h) * sp2); }   // drop back in
   const spins = Math.round(Math.abs(st.spin) / Math.PI); if (ok && spins >= 1) addTrick(`${spins * 180}`, 100 * spins);
-  st.spin = 0; st.grab = 0; st.grabbed = 0; st.rollT = 0;
+  st.spin = 0; st.grab = 0; st.grabbed = 0; st.rollT = 0; st.lean *= .25;
   if (!ok) { bail(why); return; }
   SK.test.landings = (SK.test.landings || 0) + 1;
   // keep the speed along the board, lose a little on impact
@@ -331,7 +346,7 @@ function pose(dt) {
   if (st.bail > 0) { av.rotation.x = Math.min(1.3, (1.1 - st.bail) * 3); } else av.rotation.x = 0;
   av.visible = !c.P.fp;
   board.position.set(st.pos.x, st.pos.y + .004, st.pos.z);
-  board.rotation.set(0, st.h, 0);
+  board.rotation.set(0, st.h, st.air ? 0 : st.lean * .08);
   const fl = st.flip ? st.flip.t * Math.PI * 2 * st.flip.dir : 0;
   board.children[0].rotation.z = fl;
   board.children[0].position.y = PIVOT + (st.flip ? Math.sin(st.flip.t * Math.PI) * .35 : 0);
@@ -373,11 +388,13 @@ function css() {
 #skHud .sk-msg{margin-top:6px;font-size:16px;color:#fff}#skHud .sk-msg.big{font-size:22px;color:#ffb347}
 #skTut{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 26px);transform:translateX(-50%);z-index:8;background:rgba(14,8,6,.86);border:1px solid #ff7a1877;border-radius:12px;padding:8px 14px 8px;color:#ffe9d2;font:13px/1.35 system-ui,sans-serif;text-align:center;box-shadow:0 0 24px #ff4a1a44;min-width:220px}
 #skTut small{display:block;font-size:10px;color:#ffb36baa;letter-spacing:.08em}#skTut b{display:block;font-size:15px;color:#ffb36b}#skTut button{margin-top:4px;background:none;border:0;color:#ffffff77;font:11px system-ui;pointer-events:auto}
-#skBtns{position:fixed;right:16px;bottom:calc(120px + 58px*3 + 30px);display:none;grid-template-columns:repeat(2,64px);gap:10px;z-index:7}
-#skBtns button{height:64px;border-radius:50%;border:1px solid #ff7a1888;background:radial-gradient(circle at 40% 35%,#3a1a0ccc,#120806dd);color:#ffd2a8;font:700 12px system-ui;touch-action:none;-webkit-user-select:none;user-select:none}
+#skBtns{position:fixed;right:calc(env(safe-area-inset-right) + 12px);bottom:calc(env(safe-area-inset-bottom) + 300px);display:none;grid-template-columns:repeat(2,minmax(48px,56px));gap:8px;z-index:7}
+#skBtns button{width:clamp(48px,13vw,56px);height:clamp(48px,13vw,56px);padding:0;border-radius:50%;border:1px solid #ff7a1888;background:radial-gradient(circle at 40% 35%,#3a1a0ccc,#120806dd);color:#ffd2a8;font:700 11px/1 system-ui,sans-serif;touch-action:none;-webkit-user-select:none;user-select:none}
 #skBtns button.on,#skBtns button:active{background:radial-gradient(circle,#ff7a18,#7a2a08);color:#140600}
 #tSkate.on{background:#ff7a18!important;color:#140600!important}
-@media (max-height:520px){#skBtns{bottom:20px;right:calc(16px + 58px*2 + 26px)}}`;
+@media (max-height:520px){#skBtns{bottom:calc(env(safe-area-inset-bottom) + 12px);right:calc(env(safe-area-inset-right) + 190px);grid-template-columns:repeat(2,48px);gap:6px}#skBtns button{width:48px;height:48px;font-size:10px}}
+@media (max-width:390px) and (orientation:portrait){#skBtns{right:calc(env(safe-area-inset-right) + 8px);bottom:calc(env(safe-area-inset-bottom) + 280px);grid-template-columns:repeat(2,46px);gap:6px}#skBtns button{width:46px;height:46px;font-size:10px}}
+`;
   document.head.appendChild(s);
 }
 function touchButtons() {

@@ -359,3 +359,13 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   - Tests: `test/bt-sim.js` (in `npm test`): regions shape, spreads, qty/port/good validation, capacity, overspend, sell-without-cargo, upgrade tiers, save + reload from disk, HTTP auth (missing/expired/forged token), client fields ignored, rate limit. Phone smoke (WebKit iPhone 13): dock Cinder Cove → buy 2 rum → dock Saltmere → sell 1 → reload → same gold/hold; also a server restart keeps it. `?bttest`: `__bt.tp(x,z)`, `__bt.trade.state()/ports()`.
   - Hold upgrade also smoke-tested in the port panel (WebKit iPhone 13: cap 20 → 30, 1000 → 700 g, survives reload).
   - Not built yet: NPC ships, quests, speed upgrade, level gating, multiplayer, server-side ship position.
+
+## Oct 22 GPT batch (integrate/gpt-oct22)
+- **PYRETHEUM directory + rooftop** (`client/js/tower-interior.js`): wall directory near the entrance, lift menu, guarded `travelTo()` (never lands on a blocked point),
+  Ember Bar menu, lounge seating, rooftop Sky Lounge (InstancedMesh skyline/windows/planters, glass perimeter collision).
+  Private residences call `GET /api/tower/residence` (Bearer `bcToken`), which **does not exist on the server yet**, so entry always fails closed.
+  `?towertest=1` adds `travelTo` and `checkDestinations()` (floor + collision + rooftop perimeter probes) to `window.__towerTest`; nothing runs for normal players.
+  Asset policy: `docs/pyretheum-visual-assets.md`.
+- **Skate physics** (`client/js/skate-physics-core.mjs` + `.test.mjs`, in `npm test` and `npm run test:skate`): carving keeps world momentum, lateral grip decay, board lean.
+- **Forest polish**: `wilds-gate.js` toggles `body.wl-forest` in the forest / deep area to hide city banners and toasts; skate touch buttons respect safe areas and small phones.
+- **BURN Radio plan** (`client/music/README.md`): docs only. Audius profile streaming does not by itself grant in-game sync/public-performance rights; use only the official Audius API/embed and confirm the owner holds the rights to every track before shipping.

@@ -80,20 +80,24 @@ export function createExperienceRegistry({ onState = () => {} } = {}) {
 }
 
 /** Pre-register the two planned cross-experience destinations without pretending either is live. */
-export function createBurnCityExperienceRegistry(options = {}) {
+export function createBurnCityExperienceRegistry({ launchers = {}, ...options } = {}) {
   const registry = createExperienceRegistry(options);
+  const zombieLaunch = launchers.zombies;
   registry.register({
     id: 'zombies',
     label: 'Zombie Extermination',
-    description: 'Airport expedition; unavailable until entry, loading, extraction, and return are wired.',
-    status: 'planned',
+    description: 'Airport expedition with a return route to BURN City International.',
+    status: typeof zombieLaunch === 'function' ? 'available' : 'planned',
+    launch: zombieLaunch,
     returnTo: 'airport'
   });
+  const cyclesLaunch = launchers['light-cycles'];
   registry.register({
     id: 'light-cycles',
     label: 'Light Cycles',
-    description: 'Neon-grid arena; unavailable until the Aegis Pyramid entrance and return path are wired.',
-    status: 'planned',
+    description: 'Neon-grid arena with a return route to the Aegis Pyramid plaza.',
+    status: typeof cyclesLaunch === 'function' ? 'available' : 'planned',
+    launch: cyclesLaunch,
     returnTo: 'aegis-pyramid-plaza'
   });
   return registry;

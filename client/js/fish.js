@@ -2,7 +2,7 @@
 // Lake coins are a free in-game score: NO real value, cannot be bought with XRP, cannot be withdrawn.
 // Signed in: server rolls + stores progress (anti-script limits). Guests: same rules locally (localStorage).
 import * as THREE from 'three';
-import { resolveFightTap, baitAffinity, journalAchievements } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard } from './fishing-rules.mjs';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const SPECIES = [["minnow","Ledger Minnow",0,[0.05,0.3],3,{}],["bluegill","Bluegill Byte",0,[0.1,0.6],4,{}],["perch","Pond Perch",0,[0.2,1.2],5,{}],["carp","Mud Carp",0,[0.8,6],6,{}],["shiner","River Shiner",0,[0.05,0.4],3,{}],["dace","Silver Dace",0,[0.1,0.5],4,{}],["trout","Neon Trout",1,[0.5,4],12,{}],["bass","Amber Bass",1,[0.6,5],14,{}],["catfish","Glass Catfish",1,[1,9],15,{"night":1}],["pike","Spotted Pike",1,[1,8],16,{}],["eel","Moon Eel",2,[0.8,5],40,{"night":1}],["gar","Storm Gar",2,[2,12],45,{"weather":"storm"}],["koi","Gold Koi",2,[1,7],50,{}],["cod","Deepwater Cod",2,[3,20],48,{"deep":1}],["sturgeon","Phantom Sturgeon",3,[10,60],140,{"night":1,"deep":1}],["snapper","Lava Snapper",3,[2,14],120,{}],["salmon","Aurora Salmon",3,[3,18],130,{"weather":"bull"}],["leviathan","Burn Leviathan",4,[80,300],600,{"deep":1,"night":1}],["marlin","Crystal Marlin",4,[40,180],520,{"deep":1}],["whaleshark","XRP Whale Shark",4,[200,900],750,{"deep":1,"weather":"bull"}]], SHOP = {"rods":[["basic","Basic Rod",0,0],["carbon","Carbon Rod",150,1],["pro","Pro Rod",600,2],["legend","Ember Legend Rod",2000,3]], "baits":[["worm","Worm (free)",0,0],["shrimp","Shrimp",5,1],["glow","Glow Lure",20,2],["burnfly","Burn Fly",60,3]]}, RW = [60, 25, 10, 4, 1], RN = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'], RC = ['#c8d0dc', '#5aff9a', '#4aa8ff', '#c06bff', '#ffb020'];
 const Q = new URLSearchParams(location.search), SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev', LS = localStorage;
@@ -255,7 +255,7 @@ function leaps(t) { const dt = Math.min(.05, t - (leaps.lt || t)); leaps.lt = t;
 async function land(ok) { const was = cur; was.bob = bobber.position.clone(); state = 'idle'; bobber.visible = false;
   let f = null; if (was.srv) { const r = await api('reel', { cid: was.cid, ok }).catch(() => ({})); if (r.fish) { f = r.fish; prof = r.profile; W()._ft = r.today; if (r.streak) { streak = r.streak.cur - 1; srvBest = r.streak.wbest } } else if (ok) return msg(r.error === 'timing' ? 'Too slow, it slipped off.' : 'Server busy.') }
   else { if (bait !== 'worm' && prof.bait[bait] > 0) prof.bait[bait]--; if (ok) { f = was.fish; const L = prof.log[f.id] || { n: 0, best: 0 }; L.n++; L.best = Math.max(L.best, f.kg); prof.log[f.id] = L; prof.creel.push([f.id, f.kg, f.val]); prof.n++ } saveLocal() }
-  if (!ok) { streak = 0; return } streak++; rod.lift = 1; rod.r = f.r; if (rod.fm) W().S.remove(rod.fm); rod.fm = buildFish(f.id, f.r, f.kg); W().S.add(rod.fm); rod.from.copy(was.bob || bobber.position).setY(.3); rod.fm.position.copy(rod.from); splash(rod.from); window.__citySend && window.__citySend({ t: 'fc' }); dispatchEvent(new CustomEvent('bc-fish-catch', { detail: { today: (was.srv && W()._ft) || 0 } })); ui.style.display = 'none'; await new Promise(r => setTimeout(r, 1100)); ui.style.display = 'block'; ui.innerHTML = `<div style="color:${RC[f.r]};font-weight:800">${RN[f.r]}</div><div style="font-size:20px;font-weight:800">🐟 ${f.name}</div>${f.kg} kg · worth ${f.val} 🪙<div class="nv">✓ added to your creel & fish log</div>${STKS()}`; clearTimeout(land.k); land.k = setTimeout(() => { if (state === 'idle') ui.style.display = 'none' }, 2600) }
+  if (!ok) { streak = 0; return } if (!was.srv) { const saved = guestDailyCatches(); saved.catches.push({ sp: f.id, kg: f.kg }); try { LS.bcFishChallengeLog = JSON.stringify({ day: saved.day, catches: saved.catches.slice(-100) }) } catch (e) { } } streak++; rod.lift = 1; rod.r = f.r; if (rod.fm) W().S.remove(rod.fm); rod.fm = buildFish(f.id, f.r, f.kg); W().S.add(rod.fm); rod.from.copy(was.bob || bobber.position).setY(.3); rod.fm.position.copy(rod.from); splash(rod.from); window.__citySend && window.__citySend({ t: 'fc' }); dispatchEvent(new CustomEvent('bc-fish-catch', { detail: { today: (was.srv && W()._ft) || 0 } })); ui.style.display = 'none'; await new Promise(r => setTimeout(r, 1100)); ui.style.display = 'block'; ui.innerHTML = `<div style="color:${RC[f.r]};font-weight:800">${RN[f.r]}</div><div style="font-size:20px;font-weight:800">🐟 ${f.name}</div>${f.kg} kg · worth ${f.val} 🪙<div class="nv">✓ added to your creel & fish log</div>${STKS()}`; clearTimeout(land.k); land.k = setTimeout(() => { if (state === 'idle') ui.style.display = 'none' }, 2600) }
 function splash(p) { const a = rod.drops.geometry.attributes.position, v = rod.dv, n = rod.r < 0 ? 6 : 10 + rod.r * 4; for (let i = 0; i < a.count; i++) { const on = i < n, ang = Math.random() * 6.283, sp = 1 + Math.random() * 2.5; a.setXYZ(i, p.x, on ? .3 : -50, p.z); v[i * 3] = Math.cos(ang) * sp; v[i * 3 + 1] = on ? 3 + Math.random() * 4 : 0; v[i * 3 + 2] = Math.sin(ang) * sp } a.needsUpdate = true; rod.drops.visible = true;
   ripple(p, 1.7); rod.ring.position.copy(p).setY(.3); rod.ring.scale.setScalar(.5); rod.ring.material.opacity = .8; rod.ring.visible = true }
 function stop() { state = 'idle'; FL.on = 0; STK.on = 0; bobber.visible = false; ui.style.display = 'none' }
@@ -274,8 +274,8 @@ async function openShop() { await refresh(); const v = prof.creel.reduce((a, f) 
    <h4>Rods</h4>${SHOP.rods.map(r => `<button class="b" data-rod="${r[0]}">${prof.rod === r[0] ? '✓ ' : ''}${r[1]} · ${prof.rods.includes(r[0]) ? (prof.rod === r[0] ? 'equipped' : 'equip') : r[2] + ' 🪙'}</button>`).join('')}
    <h4>Bait <span class="nv">(using: ${bait})</span></h4><div class="nv" style="margin:4px 0 8px">Bait tips: Worms favor common small fish · Shrimp favors bottom-feeders · Glow Lures favor select rare fish · Burn Fly favors predators.</div>${SHOP.baits.map(b => { if (b[0] === 'worm') return `<button class="b" data-use="worm">${bait === 'worm' ? '✓ ' : ''}${b[1]} · free</button>`; const mx = Math.min(50, Math.floor(prof.coins / b[2])), have = prof.bait[b[0]] || 0;
      return `<div class="c" style="margin:4px 0"><b>${b[1]}</b> · ${b[2]} 🪙 each · have ${have}${have ? ` <button class="b" style="width:auto;padding:4px 10px" data-use="${b[0]}">${bait === b[0] ? '✓ using' : 'use'}</button>` : ''}<br>${mx >= 1 ? `<input type="range" min="1" max="${mx}" value="1" data-q="${b[0]}" style="width:60%;vertical-align:middle"> <button class="b" style="width:auto;padding:6px 10px" data-bait="${b[0]}">Buy 1 · ${b[2]} 🪙</button>` : '<span class="nv">Not enough lake coins yet</span>'}</div>` }).join('')}
-   <button class="b" id="fLog2">📖 Fish log</button><div id="fTop"></div>`;
-  panel.style.display = 'block'; panel.querySelector('.x').onclick = () => panel.style.display = 'none'; panel.querySelector('#fLog2').onclick = openLog; putTop();
+   <button class="b" id="fLog2">📖 Fish Journal</button><button class="b" id="fChallenges">🎯 Daily Challenges</button><div id="fTop"></div>`;
+  panel.style.display = 'block'; panel.querySelector('.x').onclick = () => panel.style.display = 'none'; panel.querySelector('#fLog2').onclick = openLog; panel.querySelector('#fChallenges').onclick = openChallenges; putTop();
   panel.querySelector('#fSell').onclick = async () => { if (tok()) { const r = await api('sell', {}); if (r.profile) prof = r.profile } else { prof.coins += v; prof.creel = []; saveLocal() } openShop() };
   panel.querySelectorAll('[data-rod]').forEach(b => b.onclick = () => buy('rod', b.dataset.rod)); panel.querySelectorAll('[data-use]').forEach(b => b.onclick = () => { bait = b.dataset.use; openShop() });
   panel.querySelectorAll('[data-q]').forEach(r => { const id = r.dataset.q, it = SHOP.baits.find(x => x[0] === id), btn = panel.querySelector(`[data-bait="${id}"]`); r.oninput = () => btn.textContent = `Buy ${r.value} · ${r.value * it[2]} 🪙` });
@@ -286,11 +286,32 @@ async function buy(kind, id, qty = 1) { qty = Math.max(1, Math.min(50, qty | 0))
 function openLog() { const got = Object.keys(prof.log).filter(id => SPECIES.some(s => s[0] === id)).length;
   const achievements = journalAchievements(prof.log, SPECIES);
   const earned = achievements.filter(a => a.unlocked).length;
-  panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3 style="margin:0 0 6px">📖 Fish Journal · ${got}/${SPECIES.length}</h3><div class="nv">Some fish only bite at night, in deep water (from a boat), or in certain market weather. Records and milestones are based on your saved catch log.</div>
+  panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3 style="margin:0 0 6px">📖 Fish Journal · ${got}/${SPECIES.length}</h3><div class="nv">Some fish only bite at night, in deep water (from a boat), or in certain market weather. Records and milestones are based on your saved catch log.</div><button class="b" id="fChallenges" style="margin-top:8px">🎯 View Daily Challenges</button>
   <h4 style="margin:10px 0 5px">🏅 Angler milestones · ${earned}/${achievements.length}</h4><div class="g">${achievements.map(a => `<div class="c" style="border-color:${a.unlocked ? '#ffb02088' : '#ffffff22'}"><b style="color:${a.unlocked ? '#ffb020' : '#b8c0cc'}">${a.unlocked ? '✓ ' : '○ '}${a.title}</b><br><span class="nv">${a.detail}</span><br><b>${a.progress}/${a.goal}</b> ${a.unlocked ? '· unlocked' : '· in progress'}</div>`).join('')}</div>
   <h4 style="margin:10px 0 5px">🐟 Species discoveries</h4><div class="g" style="margin-top:8px">${SPECIES.map(s => { const L = prof.log[s[0]];
     return `<div class="c" style="border-color:${RC[s[2]]}55"><b style="color:${L ? RC[s[2]] : '#666'}">${L ? s[1] : '???'}</b><br>${RN[s[2]]}${L ? ` · ×${L.n} · best ${L.best} kg` : (s[5].night ? ' · 🌙' : '') + (s[5].deep ? ' · 🚤' : '') + (s[5].weather ? ' · ⛅' : '')}</div>` }).join('')}</div>`;
-  panel.insertAdjacentHTML('beforeend', '<div id="fTop"></div>'); putTop(); panel.style.display = 'block'; ui.style.display = 'none'; panel.querySelector('.x').onclick = () => panel.style.display = 'none' }
+  panel.insertAdjacentHTML('beforeend', '<div id="fTop"></div>'); putTop(); panel.style.display = 'block'; ui.style.display = 'none'; panel.querySelector('.x').onclick = () => panel.style.display = 'none'; panel.querySelector('#fChallenges').onclick = openChallenges }
+
+function guestDailyCatches() {
+  const day = new Date().toISOString().slice(0, 10);
+  let saved = null; try { saved = JSON.parse(LS.bcFishChallengeLog || 'null') } catch (e) { }
+  if (!saved || saved.day !== day || !Array.isArray(saved.catches)) saved = { day, catches: [] };
+  return saved;
+}
+async function openChallenges() {
+  let board;
+  if (tok()) {
+    const r = await api('challenges').catch(() => null);
+    if (!r || !Array.isArray(r.items)) { msg('Daily challenges are temporarily unavailable.'); return }
+    board = r;
+  } else {
+    const saved = guestDailyCatches();
+    board = challengeBoard(saved.catches, saved.day);
+  }
+  const done = board.items.filter(a => a.unlocked).length;
+  panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3 style="margin:0 0 6px">🎯 Daily Fishing Challenges</h3><div class="nv">Resets at 00:00 UTC · ${board.day} · ${done}/${board.items.length} complete</div><div class="g" style="margin-top:10px">${board.items.map(a => `<div class="c" style="border-color:${a.unlocked ? '#5aff9a88' : '#ffffff22'}"><b style="color:${a.unlocked ? '#5aff9a' : '#e8edf5'}">${a.unlocked ? '✓ ' : '○ '}${a.title}</b><br><span class="nv">${a.detail}</span><br><b>${a.progress}/${a.goal}</b> ${a.unlocked ? '· complete' : '· in progress'}</div>`).join('')}</div><div class="nv" style="margin-top:10px">${tok() ? 'Progress uses server-recorded catches for your signed-in profile.' : 'Guest progress is saved in this browser on this device.'}</div>`;
+  panel.style.display = 'block'; ui.style.display = 'none'; panel.querySelector('.x').onclick = () => panel.style.display = 'none';
+}
 bar.querySelector('#fCast').onclick = doCast; bar.querySelector('#fShop').onclick = openShop;
 // ---------- per-frame: show buttons when in reach, animate bobber + reel marker ----------
 function tick() { requestAnimationFrame(tick); if (window.__cityPaused) return; const c = W(), e = window.__estate; if (!c || !e || !dock) return; const t = performance.now() / 1000, m = c.getMode();

@@ -1,0 +1,27 @@
+name: Blacktide focused tests
+
+on:
+  pull_request:
+    paths:
+      - 'client/blacktide/**'
+      - 'package.json'
+      - '.github/workflows/blacktide-ocean-test.yml'
+  push:
+    branches:
+      - feat/blacktide-spectral-ocean
+      - feat/blacktide-npc-encounter-ai
+      - feat/blacktide-npc-cannon-combat
+    paths:
+      - 'client/blacktide/**'
+      - 'package.json'
+      - '.github/workflows/blacktide-ocean-test.yml'
+
+jobs:
+  blacktide-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run test:blacktide

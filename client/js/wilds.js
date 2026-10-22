@@ -19,6 +19,7 @@ import * as AUD from './wilds-audio.js';
 import { findWorldPath } from './wilds-pathfinding-world.mjs';
 import { withAmbientSpecies } from './wilds-ambient-species.mjs';
 import { createWildsWanderAgent, updateWildsWanderAgent, disposeWildsWanderAgent } from './wilds-yuka-ai.mjs';
+import { validateWorldRoute } from './wilds-route-validation.mjs';
 import { TEST, FC, RX, RZ, GATE, THRESH, CFG, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
 
 const W = { ready: false, inForest: false, modal: null, creatures: [], test: {} };
@@ -902,6 +903,26 @@ if (TEST) {
     clearPathPreview();
     if (!route || !route.reached || route.path.length < 2) {
       return { reached: false, visited: route ? route.visited : 0, reason: 'no-route-within-bounds-or-search-cap' };
+    }
+    // Validate the sampled route against the same live obstacle grid and playable-area boundary.
+    // This remains test-only and deliberately does not control production movement.
+    const validation = validateWorldRoute({
+      path: route.path,
+      sampleSpacing: 0.75,
+      maxSamples: 5000,
+      isOutsidePlayableArea: (wx, wz) => ell(wx, wz) > 1.13,
+      isBlocked: (wx, wz) => !!blocked(wx, wz, 0.8),
+    });
+    if (!validation || !validation.valid) {
+      return {
+        reached: false,
+        reason: validation ? 'route-validation-' + validation.reason : 'route-validation-invalid-input',
+        visited: route.visited,
+        cells: route.cells.length,
+        validation,
+        start,
+        goal: { x, z },
+      };
     }
     const points = route.path.map(p => new THREE.Vector3(p.x, 0.22, p.z));
     const geometry = new THREE.BufferGeometry().setFromPoints(points);

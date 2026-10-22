@@ -655,8 +655,9 @@ function showDirectory() {
       Object.assign(action.style, { flexShrink: '0', padding: '8px 9px', fontSize: '9px', maxWidth: '104px', whiteSpace: 'normal' });
       action.addEventListener('click', () => {
         const run = actions[id];
+        // Close the directory first; the destination interaction may open its own panel.
+        panel?.remove(); panel = null;
         if (run) run();
-        if (panel && panel.isConnected) { panel.remove(); panel = null; }
       });
       action.setAttribute('aria-label', actionLabel + ': ' + name);
       action.style.borderColor = color;

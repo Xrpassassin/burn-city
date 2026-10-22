@@ -368,7 +368,9 @@ function rooftopSkyLounge() {
   const windowGeo = new THREE.BoxGeometry(1,1,1);
   const windowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   const skylineBuildings = new THREE.InstancedMesh(buildingGeo, buildingMat, 34);
-  const skylineWindows = new THREE.InstancedMesh(windowGeo, windowMat, 340);
+  // A single instanced window mesh gives each facade several columns instead of one repetitive stripe.
+  // Capacity is bounded (34 towers × at most 5 rows × 3 columns × 2 facades).
+  const skylineWindows = new THREE.InstancedMesh(windowGeo, windowMat, 1020);
   const darks = [0x17131b,0x201820,0x211b21,0x151821];
   const dummy = new THREE.Object3D();
   let wi = 0;
@@ -379,14 +381,18 @@ function rooftopSkyLounge() {
     dummy.position.set(sx,y+h/2-1.2,sz); dummy.scale.set(w,h,d); dummy.rotation.set(0,(i%4)*Math.PI/2,0); dummy.updateMatrix();
     skylineBuildings.setMatrixAt(i,dummy.matrix);
     skylineBuildings.setColorAt(i,new THREE.Color(darks[i%darks.length]));
-    // Two visible facades per tower, with staggered windows and sparse dark floors for a less uniform skyline.
+    // Stagger rows and vary the number of window columns by building width to break up the repeating pattern.
     const rows = Math.min(5,Math.floor(h/2));
-    for (let row=0;row<rows;row++) for (const face of [-1,1]) {
-      if (wi >= skylineWindows.count) break;
-      dummy.position.set(sx-w*.22+(row%2)*.24,y+1+row*1.35,sz+face*(d/2+.025));
-      dummy.scale.set(.12,.22,.035); dummy.rotation.set(0,face < 0 ? Math.PI : 0,0); dummy.updateMatrix();
+    const cols = w > 3.5 ? 3 : 2;
+    for (let row=0;row<rows;row++) for (let col=0;col<cols;col++) for (const face of [-1,1]) {
+      const wx = sx + (col-(cols-1)/2)*w*.28 + (row%2)*.08;
+      const wy = y + 1 + row*1.35;
+      dummy.position.set(wx,wy,sz+face*(d/2+.025));
+      dummy.scale.set(.13,.22,.035); dummy.rotation.set(0,face < 0 ? Math.PI : 0,0); dummy.updateMatrix();
       skylineWindows.setMatrixAt(wi,dummy.matrix);
-      skylineWindows.setColorAt(wi,new THREE.Color((i+row)%5===0?0xff6a28:((i+row)%4===0?0x60402c:0xc9975c)));
+      // Most windows glow warm; occasional dim and ember-red windows make the city feel lived in.
+      const tone = (i*3+row*2+col)%11===0 ? 0xff6a28 : ((i+row+col)%4===0 ? 0x60402c : 0xc9975c);
+      skylineWindows.setColorAt(wi,new THREE.Color(tone));
       wi++;
     }
   }

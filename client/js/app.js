@@ -8,6 +8,7 @@ import './citylife.js';
 import './streetprops.js';
 import './events.js';
 import './airport.js';
+import { createBurnCityExperienceRegistry } from './experience-registry.mjs';
 import {makeRainbow} from './rainbow.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
@@ -25,6 +26,53 @@ import './goldlock.js';   // globalThis.BCGold: the ONE strict gold rule (>=95% 
 
 // ---------- config / device ----------
 const Q=new URLSearchParams(location.search);
+function showExperienceTransition(theme, icon, title, subtitle) {
+ return new Promise(resolve => {
+  let style=document.getElementById('bcExperienceTransitionStyle');
+  if(!style){
+   style=document.createElement('style'); style.id='bcExperienceTransitionStyle';
+   style.textContent=`
+    #bcExperienceTransition{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 50% 55%,#112a3b 0%,#03060d 72%);color:#f2fbff;font:600 15px system-ui;text-align:center}
+    #bcExperienceTransition .bc-travel-panel{position:relative;width:min(90vw,560px);padding:28px 20px;border:1px solid #5deaff77;border-radius:18px;background:#06111beF;box-shadow:0 0 42px #22d8ff20}
+    #bcExperienceTransition .bc-travel-icon{font-size:clamp(56px,12vw,94px);line-height:1.2;display:block;margin:0 auto 18px;animation:bcTravelMove 1.55s ease-in-out both}
+    #bcExperienceTransition h2{margin:0 0 9px;font-size:clamp(17px,4vw,25px);letter-spacing:.1em}
+    #bcExperienceTransition p{margin:0;color:#b8d8e8}
+    #bcExperienceTransition .bc-travel-track{height:3px;margin:22px auto 0;max-width:330px;overflow:hidden;background:#173346;border-radius:3px}
+    #bcExperienceTransition .bc-travel-track i{display:block;height:100%;width:36%;background:#36f3ff;box-shadow:0 0 12px #36f3ff;animation:bcTravelProgress 1.5s ease-in-out both}
+    #bcExperienceTransition.neon{background:linear-gradient(#07101c,#02040a);background-image:linear-gradient(#36f3ff12 1px,transparent 1px),linear-gradient(90deg,#36f3ff12 1px,transparent 1px),radial-gradient(ellipse at center,#102d4a,#02040a 72%);background-size:32px 32px,32px 32px,auto}
+    #bcExperienceTransition.neon .bc-travel-panel{border-color:#36f3ff99;box-shadow:0 0 48px #36f3ff28}
+    #bcExperienceTransition.neon .bc-travel-track i{background:#b1a5ff;box-shadow:0 0 12px #36f3ff}
+    @keyframes bcTravelMove{0%{transform:translateX(-42vw) translateY(12px) rotate(-9deg);opacity:.2}35%{opacity:1}100%{transform:translateX(42vw) translateY(-8px) rotate(4deg);opacity:1}}
+    @keyframes bcTravelProgress{0%{transform:translateX(-120%)}100%{transform:translateX(330%)}}
+   `;
+   document.head.append(style);
+  }
+  document.getElementById('bcExperienceTransition')?.remove();
+  const overlay=document.createElement('div'); overlay.id='bcExperienceTransition'; overlay.className=theme; overlay.setAttribute('role','status'); overlay.setAttribute('aria-live','polite');
+  overlay.innerHTML='<div class="bc-travel-panel"><span class="bc-travel-icon"></span><h2></h2><p></p><div class="bc-travel-track"><i></i></div></div>';
+  overlay.querySelector('.bc-travel-icon').textContent=icon;
+  overlay.querySelector('h2').textContent=title;
+  overlay.querySelector('p').textContent=subtitle;
+  document.body.append(overlay);
+  setTimeout(resolve,1600);
+ });
+}
+// Back/forward cache: coming back from the arena must not leave the full-screen boarding overlay or a disabled travel card up.
+addEventListener('pageshow',e=>{if(!e.persisted)return;document.getElementById('bcExperienceTransition')?.remove();const i=document.getElementById('info');if(i&&window.__infoU&&window.__infoU.kind==='experience')i.style.display='none'});
+const EXPERIENCE_REGISTRY = window.__burnExperienceRegistry = createBurnCityExperienceRegistry({
+ launchers: {
+  zombies: async ({ returnTo }) => {
+   await showExperienceTransition('flight','✈','BURN CITY INTERNATIONAL','Boarding the Zombie Extermination expedition…');
+   location.href = 'arena/?mode=zombie&from=' + encodeURIComponent(returnTo);
+   return { navigating: true };
+  },
+  'light-cycles': async ({ returnTo }) => {
+   await showExperienceTransition('neon','🏍','AEGIS TRANSIT','Entering the Light Cycles neon grid…');
+   location.href = 'arena/?mode=tron&from=' + encodeURIComponent(returnTo);
+   return { navigating: true };
+  }
+ }
+});
 const MOBILE=matchMedia('(pointer:coarse)').matches||/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)||Q.has('mobile');
 const TIERS={low:{pr:1,cars:48,rain:600,trees:50,bloomScale:.35,reflect:false,sats:.3,fx:.2,aa:false},medium:{pr:1.25,cars:160,rain:2200,trees:160,bloomScale:.5,reflect:false,sats:.6,fx:.45,aa:false},high:{pr:1.75,cars:480,rain:6500,trees:360,bloomScale:1,reflect:true,sats:1,fx:1,aa:true}};
 const qPref=Q.get('q')||localStorage.getItem('bc_quality')||'auto';
@@ -857,14 +905,7 @@ let STREETM=null,STREETML=null;const ROADJ=[];{const P=[],UV=[],IX=[],AJ=[],SW=9
    c=mix(c,c*.65+vec3(.02,.03,.05),wet*.5*step(e,0.));
    gl_FragColor=vec4(c,1.);\n${TAIL}\n}`});
  STREETM=mk(-3);STREETML=mk(-4);const sm=new THREE.Mesh(g,STREETM);sm.renderOrder=0;sm.frustumCulled=false;S.add(sm);window.__streets=sm;window.__roadJ=ROADJ}
-// ---------- arena gates: portals to the multiplayer arena, standing on real hub avenues ----------
-{const av=streets.filter(s=>s.type==='line').slice(0,2),AR=[['tron','Light Cycles',0x3cf3ff],['zombie','Zombie Survival',0xff5a1f]];
- av.forEach((s,i)=>{const [m,label,col]=AR[i],p=s.a.clone().lerp(s.b,.5),g=new THREE.Group();g.position.copy(p);g.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);
-  const mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.9}),ring=new THREE.Mesh(new THREE.TorusGeometry(3.4,.28,8,40),mat);ring.position.y=3.6;g.add(ring);
-  const core=new THREE.Mesh(new THREE.CircleGeometry(3.1,32),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.18,side:THREE.DoubleSide,depthWrite:false}));core.position.y=3.6;g.add(core);
-  const hitA=new THREE.Mesh(new THREE.BoxGeometry(7,8,3),new THREE.MeshBasicMaterial({visible:false}));hitA.position.y=4;hitA.userData={kind:'arena',arena:m,label};g.add(hitA);pick.push(hitA);
-  anim.push(t=>{ring.rotation.z=t*.8;core.material.opacity=.14+.1*Math.sin(t*3+i)});S.add(g);
-  const el=document.createElement('div');el.className='lbl';el.style.setProperty('--c','#'+new THREE.Color(col).getHexString());el.textContent='🎮 '+label+' Arena';$('labels').appendChild(el);labelEls.push({el,pos:p.clone().setY(9),pri:4e3,minor:false})})}
+// Physical travel entrances are registered through experience-registry.mjs when their destination is genuinely wired.
 const gT=[],SLp=[],SLd=[];streets.forEach(s=>{const len=s.type==='ring'?2*Math.PI*s.r:s.a.distanceTo(s.b);const k=Math.round(len/(MOBILE?12:7));for(let i=0;i<k;i++)gT.push({s,u:Math.random(),d:i%2?1:-1,sp:(6+Math.random()*5)/len});
  const nl=Math.round(len/16);for(let i=0;i<nl;i++){const u=i/nl;const L0=SLp.length;SLp.push(s.type==='ring'?new THREE.Vector3(s.c.x+Math.cos(u*6.283)*(s.r+4.4),0,s.c.z+Math.sin(u*6.283)*(s.r+4.4)):s.a.clone().lerp(s.b,u).add(_v.set(s.b.z-s.a.z,0,s.a.x-s.b.x).setLength(4.4)));const lv=SLp[L0];if(onRoad(lv.x,lv.z,-2.0)){SLp.pop();continue}SLd.push(s.type==='ring'?new THREE.Vector3(s.c.x-lv.x,0,s.c.z-lv.z).normalize():_v.clone().normalize().negate())}});
 // ground traffic v2: real low-poly cars (one instanced draw call) with head/tail lights, right-hand lanes, U-turns at avenue ends
@@ -1178,7 +1219,29 @@ const ESTATE=buildEstate({S,U,pick,anim,nodes:E.nodes,low:TIER==='low',avoid:[LP
   for(const k of colliders)if(k.r>0&&!k.node&&(onRoad(k.x,k.z,k.r)||hw(k.x,k.z,k.r)))solid++;for(const [x,z,r] of items)if(onRoad(x,z,r)||hw(x,z,r))props++;
   window.__roadAudit={solid,props};if(solid||props)console.warn('[roads] objects on roads:',solid,props)}}
 
-function showInfo(u){window.__infoU=u;if(u.kind==='ammlock'){window.__ammLock&&window.__ammLock.open(u);return}if(u.kind==='aegis'){$('info').style.display='none';window.__aegis&&window.__aegis.open(u.cam);return}if(u.kind==='tackle'){window.__fish&&window.__fish.openShop();return}if(u.kind==='estate'){$('info').innerHTML=estateCard();$('info').classList.remove('v2');$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').classList.toggle('v2',!!(u.node&&!u.lot));$('info').style.display='block';if(u.node&&u.node.name==='BURN'&&window.__openBurnTowerInterior&&!u.lot){const eb=document.createElement('button');eb.type='button';eb.textContent='🔥 Enter the PYRETHEUM';eb.style.cssText='display:block;margin:10px 0 2px;padding:9px 14px;border-radius:10px;border:1px solid #ff9d43;background:#29120b;color:#ffd4a0;font:700 13px system-ui;cursor:pointer';eb.onclick=e=>{e.stopPropagation();$('info').style.display='none';window.__openBurnTowerInterior()};$('info').appendChild(eb)}window.__ammLock&&window.__ammLock.card($('info'),u);$('info').scrollTop=0;window.__onCard&&window.__onCard($('info'));$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
+function showInfo(u){window.__infoU=u;
+if(u.kind==='experience'){
+ const panel=$('info'); panel.classList.remove('v2'); panel.replaceChildren();
+ const close=document.createElement('button'); close.className='x'; close.type='button'; close.textContent='×'; close.setAttribute('aria-label','Close travel details');
+ close.onclick=()=>{panel.style.display='none'};
+ const title=document.createElement('h3'); title.textContent=u.label||'Travel destination';
+ const detail=document.createElement('p'); detail.textContent=u.description||'Choose whether to enter this experience.';
+ detail.style.cssText='margin:8px 0 14px;line-height:1.45';
+ const enter=document.createElement('button'); enter.type='button'; enter.textContent=u.experienceId==='zombies'?'✈ Board expedition flight':'⚡ Enter Light Cycles';
+ enter.style.cssText='display:block;width:100%;min-height:44px;margin:8px 0;padding:11px 14px;border-radius:10px;border:1px solid #43eaff;background:#082433;color:#e7fbff;font:700 14px system-ui;cursor:pointer';
+ enter.onclick=async e=>{
+  e.stopPropagation(); enter.disabled=true; enter.textContent='Preparing transition…';
+  const rx=Number(u.returnX), rz=Number(u.returnZ);
+  try{
+   sessionStorage.bc_ret=JSON.stringify({m:'explore',p:[rx,groundAt(rx,rz,0),rz],c:[C.position.x,C.position.y,C.position.z],yaw:Number.isFinite(u.returnYaw)?u.returnYaw:yp.yaw});
+  }catch(_){}
+  const result=await EXPERIENCE_REGISTRY.enter(u.experienceId,{source:'city-map'});
+  if(!result.ok){document.getElementById('bcExperienceTransition')?.remove();try{sessionStorage.removeItem('bc_ret')}catch(_){}enter.disabled=false;enter.textContent=u.experienceId==='zombies'?'✈ Board expedition flight':'⚡ Enter Light Cycles';detail.textContent='Travel could not start ('+result.reason+'). You are still in BURN City; try again.'}
+ };
+ const cancel=document.createElement('button'); cancel.type='button'; cancel.textContent='Stay in BURN City'; cancel.style.cssText='display:block;width:100%;min-height:44px;padding:10px;border-radius:10px;border:1px solid #ffffff35;background:#ffffff0a;color:#fff;font:600 13px system-ui;cursor:pointer'; cancel.onclick=()=>{panel.style.display='none'};
+ panel.append(close,title,detail,enter,cancel); panel.style.display='block'; panel.scrollTop=0; return;
+}
+if(u.kind==='ammlock'){window.__ammLock&&window.__ammLock.open(u);return}if(u.kind==='aegis'){$('info').style.display='none';window.__aegis&&window.__aegis.open(u.cam);return}if(u.kind==='tackle'){window.__fish&&window.__fish.openShop();return}if(u.kind==='estate'){$('info').innerHTML=estateCard();$('info').classList.remove('v2');$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').classList.toggle('v2',!!(u.node&&!u.lot));$('info').style.display='block';if(u.node&&u.node.name==='BURN'&&window.__openBurnTowerInterior&&!u.lot){const eb=document.createElement('button');eb.type='button';eb.textContent='🔥 Enter the PYRETHEUM';eb.style.cssText='display:block;margin:10px 0 2px;padding:9px 14px;border-radius:10px;border:1px solid #ff9d43;background:#29120b;color:#ffd4a0;font:700 13px system-ui;cursor:pointer';eb.onclick=e=>{e.stopPropagation();$('info').style.display='none';window.__openBurnTowerInterior()};$('info').appendChild(eb)}window.__ammLock&&window.__ammLock.card($('info'),u);$('info').scrollTop=0;window.__onCard&&window.__onCard($('info'));$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
 
 // ---------- controls: Orbit / Fly / Explore ----------
 const orbit=new OrbitControls(C,R.domElement);orbit.enableDamping=true;orbit.maxPolarAngle=1.5;orbit.target.set(0,30,0);orbit.minDistance=8;orbit.maxDistance=900;orbit.autoRotateSpeed=.35;
@@ -1362,7 +1425,7 @@ $('tour').onclick=()=>{if(tlOn())return;tourBuild();setMode('orbit');orbit.enabl
 const ray=new THREE.Raycaster(),mv2=new THREE.Vector2();
 const hit=e=>{mv2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mv2,C);return ray.intersectObjects(pick.filter(o=>o.parent.visible!==false),false)[0]};
 R.domElement.addEventListener('pointermove',e=>{if((mode!=='orbit'&&mode!=='explore'&&mode!=='fly')||e.pointerType==='touch'||RLOOK||document.pointerLockElement)return;const h=hit(e),tip=$('tip');if(h){const u=h.object.userData;tip.style.display='block';tip.style.left=e.clientX+14+'px';tip.style.top=e.clientY+14+'px';
- tip.textContent=u.kind==='ammlock'?(window.__ammLock?window.__ammLock.tip(u):'Black hole'):u.kind==='aegis'?(u.cam?`AEGIS City Watch · ${u.cam.name} · tap for the live feed`:u.label||'AEGIS City Watch'):u.kind==='tackle'?'Tackle & Bait · tap to open':u.kind==='estate'?'Burn City Estates · Coming soon':u.kind==='arena'?`Arena gate · ${u.label} · tap to play (free)`:(u.kind==='ad'||u.ad)?`Sponsored · $${u.ad.ticker}`:u.lot?`Launchpad · ${u.lot.ticker} · ${u.lot.bond_pct!=null?u.lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${window.__ammLock?window.__ammLock.lpText(u.pool):u.pool.locked_pct+'% locked'}${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
+ tip.textContent=u.kind==='ammlock'?(window.__ammLock?window.__ammLock.tip(u):'Black hole'):u.kind==='aegis'?(u.cam?`AEGIS City Watch · ${u.cam.name} · tap for the live feed`:u.label||'AEGIS City Watch'):u.kind==='tackle'?'Tackle & Bait · tap to open':u.kind==='estate'?'Burn City Estates · Coming soon':u.kind==='arena'?`Arena gate · ${u.label} · tap to play (free)`:u.kind==='experience'?`${u.label} · tap to travel`:(u.kind==='ad'||u.ad)?`Sponsored · $${u.ad.ticker}`:u.lot?`Launchpad · ${u.lot.ticker} · ${u.lot.bond_pct!=null?u.lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${window.__ammLock?window.__ammLock.lpText(u.pool):u.pool.locked_pct+'% locked'}${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
 let downXY=null;R.domElement.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY]);
 R.domElement.addEventListener('pointerup',e=>{if(e.button===2||window.__burnTowerOpen)return;if((mode!=='orbit'&&!(e.pointerType==='touch'&&(mode==='explore'||mode==='fly'))&&!((mode==='explore'||mode==='fly')&&e.pointerType==='mouse'&&!MOBILE))||!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>6)return;{const si=pickShip(e.clientX,e.clientY,e.pointerType==='touch');if(si>=0){showTrade(si);return}}const h=hit(e);tapRing(e,!!h);if(h&&h.object.userData.kind==='arena'){try{sessionStorage.bc_ret=JSON.stringify({m:mode,p:[P.pos.x,P.pos.y,P.pos.z],c:[C.position.x,C.position.y,C.position.z],yaw:yp.yaw})}catch(_){}location.href='arena/?mode='+h.object.userData.arena;return}if(h)showInfo(h.object.userData);else{$('info').style.display='none';if(e.pointerType==='touch'&&mode==='explore'&&(window.__missT=(window.__missT||0)+1)<=3)tipToast('Tap a tower, ship, sign or shop to inspect it')}});
 const _p=new THREE.Vector3();

@@ -312,6 +312,12 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   act on the vein only (the activity-coloured tube never breaks up); gold dispersal motes and gold sparks are unchanged. LOW tier: same vein, core shell only (no sheath).
   `window.__swirl.veins` = [{pool, lockedXrp, w}]. Gap: partly locked (non-gold) pools get no vein, by the strict-gold rule; no live pool is gold right now, so check it with `goldtest`.
 - **Lock halo** (see the AMM locked liquidity section below): the vein stays the strict-gold badge; how much LP is locked is the gold chain halo.
+- **Rail sync** (sw bc-v70-railsync): every major rail (TVL >= 100, a tower end that gets a swirl) now ENDS on that tower's swirl helix start instead of running to the roof
+  near the tower axis: `helixAt()` (app.js, above the pool loop) is the swirl's own helix (same radius, height, spin, per-tower order + cap: LOW 3 / else 6), computed from the plain arc;
+  `railSync()` rebuilds the rail as a CurvePath of two cubics: helix start (leaving along the helix tangent) -> the old arc midpoint (same clearance height, horizontal) -> the other helix start.
+  The swirl then starts exactly at the rail end (no Bezier lead-in, `b.hx[end]` reused; one extra spline point so it leaves along the true helix tangent). Rail thickness, activity colours,
+  flow phase and the gold vein are unchanged (same tube radius/shaders). Ends without a swirl (minor pools, capped towers, ends below 8 m) keep the old roof endpoint. `curve.v0/v2` stay the end points
+  (garage decks). CurvePath.getPoint is clamped (three returns null at t=1 from float error). Test: `?debug=1&railsync=0` shows the old endpoints (A/B only). +0 draws.
 - **Visual test hook**: `?debug=1&goldtest=1` (top-2 TVL pools) or `goldtest=XRP/BURN,XRP/IMM` (pairs or AMM accounts) forces gold for those pools (labels say "· test").
 - **Tests/audit**: `test/goldlock-sim.js` (in `npm test`, fixture-based, stubbed fetch: rule edges, signer list/regular key, 94.96% floor, locked pool < 5k not gold,
   unpriced pair). `scripts/lockaudit.js` re-audits every tracked pool against the ledger -> `lock-audit.md`.

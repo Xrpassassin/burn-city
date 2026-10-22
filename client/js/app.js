@@ -1165,6 +1165,7 @@ function setMode(m){if(tlOn()&&m!=='explore')return;const prev=mode;mode=m;tour=
  if(m==='orbit'){if(document.pointerLockElement)document.exitPointerLock();orbit.target.copy(C.position).add(C.getWorldDirection(new THREE.Vector3()).multiplyScalar(80));orbit.target.y=Math.max(5,orbit.target.y)}
  $('prompt').style.display='none';
  $('help').textContent=m==='orbit'?'Drag orbit · scroll/pinch zoom · click a tower, road, billboard or terminal for live stats':m==='fly'?'WASD move · right-click drag to look · left-click objects to inspect · Space up · C down · Shift fast':MOBILE?'Left stick walk · drag to look · tap things to inspect · USE talks to what\'s next to you':'WASD walk · Shift run · Space jump · hold right-click to look · left-click to select · E interact · V 1st/3rd person'+(NET?' · Enter chat':'')}
+window.__setBurnMode=setMode;
 document.querySelectorAll('#btns [data-m]').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
 addEventListener('keydown',e=>{if(document.activeElement===$('chatIn'))return;keys[e.code]=1;if(mode==='explore'){if(e.code==='KeyE')interact();if(e.code==='KeyV'){P.fp=!P.fp}}if(e.code==='Enter'&&NET){$('chatIn').focus();e.preventDefault()}});
 addEventListener('keyup',e=>keys[e.code]=0);

@@ -4,6 +4,7 @@ const Retain = require('./retain'), Fish = require('./fish'), LB = require('./le
 const Nft = require('./nft'), Social = require('./social'), C = require('./config'), Pay = require('./payments'), { Room } = require('./game'), S = require('./store'), City = require('./city'), Eco = require('./eco');
 
 const AegisClips = require('./aegis-clips'), Cams = require('./cams');
+const BT = require('./blacktide');   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
 const stats = { tickMs: [], bytesOut: 0, started: Date.now() };
 const resumeIdx = new Map();   // free-play zombie reconnect: resume key -> { p, room } (25s grace after a dropped socket)
@@ -71,7 +72,8 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { tickAvgMs: a.reduce((x, y) => x + y, 0) / (a.length || 1), tickP99Ms: a[Math.floor(a.length * 0.99)] || 0, tickMaxMs: a.at(-1) || 0, bytesOut: stats.bytesOut, upS: (Date.now() - stats.started) / 1e3, mem: process.memoryUsage().rss }); }
     const body = async () => { let b = ''; for await (const c of req) { b += c; if (b.length > 8000) throw new Error('big'); } try { const o = JSON.parse(b || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; } };
     const who = () => Pay.checkToken((req.headers.authorization || '').replace(/^Bearer /, ''));
-    if (url.pathname.startsWith('/api/cams') && await Cams.handle(req, res, url, { json, gate, ip, body })) return;   // AEGIS Pyramid live cams + per-stream comments (server/cams.js)
+    if (url.pathname.startsWith('/api/cams') && await Cams.handle(req, res, url, { json, gate, ip, body })) return;
+    if (url.pathname.startsWith('/api/bt/') && await BT.handle(req, res, url, { json, gate, ip, body, who })) return;   // Blacktide trade/progression (server/blacktide.js)   // AEGIS Pyramid live cams + per-stream comments (server/cams.js)
     if (url.pathname === '/api/eco/live') { if (Eco.serveLive(req, res)) return; return json(res, 503, { error: 'warming_up' }); }
     if (url.pathname === '/api/eco') return json(res, 200, Eco.status());
     if (url.pathname === '/api/status') return json(res, 200, { signin: !!C.XUMM_KEY, shop: !!(C.XUMM_KEY && C.TREASURY), dryRun: C.DRY_RUN, social: true, ranked: Ranked.status(), payoutsPaused: require('./guard').paused() });

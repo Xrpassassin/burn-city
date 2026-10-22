@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { sampleOceanHeight, updateOceanGeometry } from './ocean.js';
+import * as Trade from './trade.js';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -118,10 +119,12 @@ function tick(){
   const dt=Math.min(clock.getDelta(),.1); // .04 cap made the ship crawl in slow motion below 25 fps (phones)elapsed+=dt;
   updateOceanGeometry(waterGeo,basePositions,elapsed);
   if(started){
-    const forward=keys.has('w')||keys.has('arrowup')||controls.forward;
-    const back=keys.has('s')||keys.has('arrowdown')||controls.back;
-    const left=keys.has('a')||keys.has('arrowleft')||controls.left;
-    const right=keys.has('d')||keys.has('arrowright')||controls.right;
+    const atPort=Trade.tick(ship.position);   // docked: helm locked while the port panel is open
+    if(atPort)speed=0;
+    const forward=!atPort&&(keys.has('w')||keys.has('arrowup')||controls.forward);
+    const back=!atPort&&(keys.has('s')||keys.has('arrowdown')||controls.back);
+    const left=!atPort&&(keys.has('a')||keys.has('arrowleft')||controls.left);
+    const right=!atPort&&(keys.has('d')||keys.has('arrowright')||controls.right);
     if(forward)speed=Math.min(20,speed+dt*4.6);
     else if(back)speed=Math.max(-4,speed-dt*6);
     else speed*=Math.pow(.985,dt*60);
@@ -159,6 +162,9 @@ addEventListener('resize',()=>{fitView();renderer.setSize(innerWidth,innerHeight
 // Test hook (?bttest or ?debug=1 only): read-only ship/camera/renderer state for smoke tests.
 if(/[?&](bttest|debug=1)/.test(location.search))window.__bt={
   state:()=>({started,speed,heading,x:ship.position.x,z:ship.position.z,cam:camera.position.toArray(),proj:projectiles.length,shots:lastShot}),
+  trade:Trade.test,
+  tp:(x,z,h)=>{ship.position.x=x;ship.position.z=z;if(h!=null)heading=h;speed=0},
   info:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,geos:renderer.info.memory.geometries,dpr:renderer.getPixelRatio()})
 };
+Trade.init(scene);
 tick();

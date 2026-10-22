@@ -7,6 +7,16 @@ assert.deepEqual(defaults.list().map(e => [e.id, e.status, e.available]), [
   ['light-cycles', 'planned', false]
 ]);
 assert.deepEqual(await defaults.enter('zombies'), { ok: false, reason: 'not-available' });
+const wired = createBurnCityExperienceRegistry({
+  launchers: {
+    zombies: async ctx => ({ path: 'arena/?mode=zombie', returnTo: ctx.returnTo }),
+    'light-cycles': async ctx => ({ path: 'arena/?mode=tron', returnTo: ctx.returnTo })
+  }
+});
+assert.equal(wired.get('zombies').available, true);
+assert.equal(wired.get('light-cycles').available, true);
+assert.equal((await wired.enter('zombies')).result.returnTo, 'airport');
+assert.equal((await wired.enter('light-cycles')).result.returnTo, 'aegis-pyramid-plaza');
 
 const states = [];
 const registry = createExperienceRegistry({ onState: state => states.push(state) });

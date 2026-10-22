@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
-import { createExperienceRegistry } from './experience-registry.mjs';
+import { createExperienceRegistry, createBurnCityExperienceRegistry } from './experience-registry.mjs';
+
+const defaults = createBurnCityExperienceRegistry();
+assert.deepEqual(defaults.list().map(e => [e.id, e.status, e.available]), [
+  ['zombies', 'planned', false],
+  ['light-cycles', 'planned', false]
+]);
+assert.deepEqual(await defaults.enter('zombies'), { ok: false, reason: 'not-available' });
 
 const states = [];
 const registry = createExperienceRegistry({ onState: state => states.push(state) });

@@ -16,12 +16,18 @@ export function updateNpcCannons(fleet, player, dt) {
   const shots = [];
 
   for (const vessel of fleet || []) {
-    if (!vessel?.alive || vessel.kind !== 'patrol' || vessel.aiState !== 'engage') continue;
+    if (!vessel?.alive || vessel.kind !== 'patrol') continue;
+    if (vessel.aiState !== 'engage') {
+      vessel.cannonWindup = 0;
+      vessel.cannonReady = false;
+      continue;
+    }
     const dx = player.x - vessel.group.position.x;
     const dz = player.z - vessel.group.position.z;
     const distance = Math.hypot(dx, dz);
     if (!finite(distance) || distance > NPC_CANNON.range) {
       vessel.cannonWindup = 0;
+      vessel.cannonReady = false;
       vessel.cannonReload = Math.max(0, vessel.cannonReload || 0);
       continue;
     }

@@ -177,7 +177,8 @@ const ui = document.createElement('div'); ui.id = 'fUI'; document.body.append(ui
 // landed on the NEW button under the finger, e.g. 'Reel in' right after Cast, which silently cancelled every cast on phones. Only accept a click on the same button the finger/mouse pressed down on.
 let downB = null; const noGhost = () => { downB = null }; const btnOf = el => el && el.closest && el.closest('button');
 ui.addEventListener('pointerdown', e => { downB = btnOf(e.target) }, true);
-ui.addEventListener('click', e => { if (e.detail && btnOf(e.target) !== downB) { e.stopPropagation(); e.preventDefault() } downB = null }, true);   // a real tap's click hits the button it pressed const panel = document.createElement('div'); panel.id = 'fPanel'; document.body.append(panel);
+ui.addEventListener('click', e => { if (e.detail && btnOf(e.target) !== downB) { e.stopPropagation(); e.preventDefault() } downB = null }, true); // Ignore synthetic clicks that land on a different button after the panel changes.
+const panel = document.createElement('div'); panel.id = 'fPanel'; document.body.append(panel);
 const NV = '<div class="nv">🪙 Lake coins: free in-game points with no real value. Not sold for XRP, not withdrawable.</div>';
 // ---------- fishing flow ----------
 let state = 'idle', cur = null;

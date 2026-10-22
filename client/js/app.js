@@ -1168,7 +1168,7 @@ function showInfo(u){window.__infoU=u;if(u.kind==='aegis'){$('info').style.displ
 
 // ---------- controls: Orbit / Fly / Explore ----------
 const orbit=new OrbitControls(C,R.domElement);orbit.enableDamping=true;orbit.maxPolarAngle=1.5;orbit.target.set(0,30,0);orbit.minDistance=8;orbit.maxDistance=900;orbit.autoRotateSpeed=.35;
-let mode='orbit',tour=null;const keys={},yp={yaw:0,pitch:0};
+let mode='orbit',tour=null;const keys={},yp={yaw:0,pitch:0};let exploreCamDistance=6.5;const EXPLORE_CAM_MIN=2.5,EXPLORE_CAM_MAX=14;
 const P={pos:new THREE.Vector3(0,0,55),vel:new THREE.Vector3(),onGround:true,fp:false,spawned:0,district:'',walk:0,near:null};
 const me=new PlayerState();
 const avatar=(()=>{const g=buildWalker({suit:0x2c4468,accent:0x7ee0ff,skin:1});const suit=new THREE.MeshStandardMaterial({color:0x1b2338,metalness:.6,roughness:.35,emissive:0x050a18}),glow=new THREE.MeshBasicMaterial({color:0x7ee0ff});
@@ -1184,7 +1184,7 @@ function setMode(m){if(tlOn()&&m!=='explore')return;const prev=mode;mode=m;tour=
  if(m!=='orbit'){const d=C.getWorldDirection(new THREE.Vector3());yp.yaw=Math.atan2(-d.x,-d.z);yp.pitch=Math.asin(Math.max(-1,Math.min(1,d.y)))}
  if(m==='explore'){if(prev==='fly'){/* drop the walker right under the drone, same heading; over the lake -> nearest shore */const q=C.position,es=window.__estate;let x=q.x,z=q.z;if(es&&es.inLake(x,z)){let dx=x-es.lakeC.x,dz=z-es.lakeC.z;if(Math.hypot(dx,dz)<1){dx=-es.dir.x;dz=-es.dir.z}const dl=Math.hypot(dx,dz);for(let k=0;k<400&&es.inLake(x,z);k++){x+=dx/dl;z+=dz/dl}x+=dx/dl*2;z+=dz/dl*2}
   x=Math.max(-900,Math.min(900,x));z=Math.max(-900,Math.min(900,z));{const g0=groundAt(x,z,q.y);P.pos.set(x,Math.max(g0,Math.min(q.y-2.5,g0+30)),z)}P.vel.set(0,0,0);P.onGround=false;P.climb=null;P.spawned=1;avatar.rotation.y=yp.yaw}
- else if(!P.spawned){P.pos.set(0,0,52);P.spawned=1;yp.yaw=0}yp.pitch=-.12}
+ else if(!P.spawned){P.pos.set(0,0,52);P.spawned=1;yp.yaw=0;yp.pitch=-.12}}
  if((m==='explore'||m==='fly')&&document.pointerLockElement){window.__lockSwap=1;document.exitPointerLock()}
  if(m==='orbit'){if(document.pointerLockElement)document.exitPointerLock();orbit.target.copy(C.position).add(C.getWorldDirection(new THREE.Vector3()).multiplyScalar(80));orbit.target.y=Math.max(5,orbit.target.y)}
  $('prompt').style.display='none';
@@ -1193,18 +1193,20 @@ window.__setBurnMode=setMode;
 document.querySelectorAll('#btns [data-m]').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
 addEventListener('keydown',e=>{if(document.activeElement===$('chatIn'))return;keys[e.code]=1;if(mode==='explore'){if(e.code==='KeyE')interact();if(e.code==='KeyV'){P.fp=!P.fp}}if(e.code==='Enter'&&NET){$('chatIn').focus();e.preventDefault()}});
 addEventListener('keyup',e=>keys[e.code]=0);
+// Third-person camera zoom: keep scroll from moving the page while exploring, and clamp to a comfortable collision-safe range.
+R.domElement.addEventListener('wheel',e=>{if(mode!=='explore'||P.fp)return;e.preventDefault();exploreCamDistance=THREE.MathUtils.clamp(exploreCamDistance+Math.sign(e.deltaY)*.85,EXPLORE_CAM_MIN,EXPLORE_CAM_MAX)},{passive:false});
 addEventListener('mousemove',e=>{const lk=document.pointerLockElement===R.domElement&&(mode==='fly'||mode==='explore'),rl=(mode==='explore'||mode==='fly')&&!MOBILE&&RLOOK&&(e.buttons&2);if(lk||rl){const k=rl?.0028:.0022;yp.yaw-=e.movementX*k;yp.pitch=Math.max(-1.3,Math.min(1.3,yp.pitch-e.movementY*k))}});
 // Explore on PC: cursor stays visible. Hold right mouse to look around, left-click things (towers, ships, shop, signs).
 let RLOOK=false;R.domElement.addEventListener('contextmenu',e=>{if(mode==='explore'||mode==='fly')e.preventDefault()});
 R.domElement.addEventListener('pointerdown',e=>{if((mode==='explore'||mode==='fly')&&e.pointerType==='mouse'&&e.button===2){RLOOK=true;R.domElement.style.cursor='grabbing';$('tip').style.display='none'}});
 addEventListener('pointerup',e=>{if(e.button===2&&RLOOK){RLOOK=false;R.domElement.style.cursor=''}});addEventListener('blur',()=>{RLOOK=false;R.domElement.style.cursor=''});
 // Fly mode keeps the cursor available: right-drag looks, left-click inspects objects.
-const joy={x:0,y:0,id:null},look={id:null,x:0,y:0},tb={jump:0,run:0,up:0,down:0};const jEl=$('joy'),kEl=$('knob');
+const joy={x:0,y:0,id:null},look={id:null,x:0,y:0},tb={jump:0,run:0,up:0,down:0};let pinchDist=0;const jEl=$('joy'),kEl=$('knob');
 jEl.addEventListener('touchstart',e=>{joy.id=e.changedTouches[0].identifier;e.preventDefault()},{passive:false});
-addEventListener('touchmove',e=>{for(const t of e.changedTouches){if(t.identifier===joy.id){const r=jEl.getBoundingClientRect();let dx=(t.clientX-r.left-60)/50,dy=(t.clientY-r.top-60)/50;const l=Math.hypot(dx,dy);if(l>1){dx/=l;dy/=l}joy.x=dx;joy.y=dy;kEl.style.left=35+dx*40+'px';kEl.style.top=35+dy*40+'px'}
+addEventListener('touchmove',e=>{if(e.touches.length>=2&&mode==='explore'&&!P.fp){const a=e.touches[0],b=e.touches[1],d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);if(pinchDist)exploreCamDistance=THREE.MathUtils.clamp(exploreCamDistance+(pinchDist-d)*.025,EXPLORE_CAM_MIN,EXPLORE_CAM_MAX);pinchDist=d;return}for(const t of e.changedTouches){if(t.identifier===joy.id){const r=jEl.getBoundingClientRect();let dx=(t.clientX-r.left-60)/50,dy=(t.clientY-r.top-60)/50;const l=Math.hypot(dx,dy);if(l>1){dx/=l;dy/=l}joy.x=dx;joy.y=dy;kEl.style.left=35+dx*40+'px';kEl.style.top=35+dy*40+'px'}
  else if(t.identifier===look.id&&mode!=='orbit'){yp.yaw-=(t.clientX-look.x)*.005;yp.pitch=Math.max(-1.3,Math.min(1.3,yp.pitch-(t.clientY-look.y)*.005));look.x=t.clientX;look.y=t.clientY}}},{passive:true});
-R.domElement.addEventListener('touchstart',e=>{const t=e.changedTouches[0];if(mode!=='orbit'){look.id=t.identifier;look.x=t.clientX;look.y=t.clientY}},{passive:true});
-addEventListener('touchend',e=>{for(const t of e.changedTouches){if(t.identifier===joy.id){joy.id=null;joy.x=joy.y=0;kEl.style.left=kEl.style.top='35px'}if(t.identifier===look.id)look.id=null}});
+R.domElement.addEventListener('touchstart',e=>{if(e.touches.length>=2&&mode==='explore'&&!P.fp){const a=e.touches[0],b=e.touches[1];pinchDist=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);look.id=null;return}const t=e.changedTouches[0];if(mode!=='orbit'){look.id=t.identifier;look.x=t.clientX;look.y=t.clientY}},{passive:true});
+addEventListener('touchend',e=>{for(const t of e.changedTouches){if(t.identifier===joy.id){joy.id=null;joy.x=joy.y=0;kEl.style.left=kEl.style.top='35px'}if(t.identifier===look.id)look.id=null}if(e.touches.length<2)pinchDist=0}});
 const hold=(id,k)=>{const el=$(id);el.addEventListener('touchstart',e=>{tb[k]=1;e.preventDefault()},{passive:false});el.addEventListener('touchend',()=>tb[k]=0);el.addEventListener('touchcancel',()=>tb[k]=0)};['tJump:jump','tRun:run','tUp:up','tDown:down'].forEach(s=>hold(...s.split(':')));
 $('tUse').addEventListener('touchstart',e=>{interact();e.preventDefault()},{passive:false});
 
@@ -1305,7 +1307,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
  if(P.climb){const c2=Math.sin(P.walk*1.4);L.arms[0].rotation.x=-2.6+c2*.5;L.arms[1].rotation.x=-2.6-c2*.5;L.legs[0].rotation.x=.6+c2*.4;L.legs[1].rotation.x=.6-c2*.4}
  avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;webPose();const dir=dirOf();
  if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.7);C.lookAt(C.position.clone().add(dir))}
- else{const want=P.pos.clone().setY(P.pos.y+2.3).addScaledVector(dir,-6.5);want.y=Math.max(want.y,P.pos.y+.6,.6);C.position.lerp(want,1-Math.pow(.0005,dt));C.lookAt(P.pos.clone().setY(P.pos.y+1.6).addScaledVector(dir,4))}
+ else{const want=P.pos.clone().setY(P.pos.y+2.3).addScaledVector(dir,-exploreCamDistance);want.y=Math.max(want.y,P.pos.y+.6,.6);C.position.lerp(want,1-Math.pow(.0005,dt));C.lookAt(P.pos.clone().setY(P.pos.y+1.6).addScaledVector(dir,4))}
  let best=null,bd=1e9;E.nodes.forEach(n=>{const d=Math.hypot(P.pos.x-n.pos.x,P.pos.z-n.pos.z);if(d<n.distR&&d<bd){bd=d;best=n}});const dn=best?best.name:'';
  if(dn!==P.district){P.district=dn;if(dn){const b=$('banner');b.innerHTML=`${dn} DISTRICT<small>${fmt(best.tvl)} XRP pool TVL · ${best.pools} pools${best.pro24h!=null?' · 24h '+pct(best.pro24h):''}</small>`;b.style.color='#'+best.col.getHexString();b.style.textShadow='0 0 14px #'+best.col.getHexString();b.style.opacity=1;clearTimeout(P.bt);P.bt=setTimeout(()=>b.style.opacity=0,2800)}}
  P.near=nearestInteract();$('prompt').style.display=P.near?'block':'none';if(P.near)$('prompt').textContent=(MOBILE?'👆 Tap here · ':'E · ')+P.near.label;$('tUse')&&$('tUse').classList.toggle('hot',!!P.near);

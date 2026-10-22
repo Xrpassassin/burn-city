@@ -2,7 +2,7 @@
 // Lake coins are a free in-game score: NO real value, cannot be bought with XRP, cannot be withdrawn.
 // Signed in: server rolls + stores progress (anti-script limits). Guests: same rules locally (localStorage).
 import * as THREE from 'three';
-import { resolveFightTap } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity } from './fishing-rules.mjs';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const SPECIES = [["minnow","Ledger Minnow",0,[0.05,0.3],3,{}],["bluegill","Bluegill Byte",0,[0.1,0.6],4,{}],["perch","Pond Perch",0,[0.2,1.2],5,{}],["carp","Mud Carp",0,[0.8,6],6,{}],["shiner","River Shiner",0,[0.05,0.4],3,{}],["dace","Silver Dace",0,[0.1,0.5],4,{}],["trout","Neon Trout",1,[0.5,4],12,{}],["bass","Amber Bass",1,[0.6,5],14,{}],["catfish","Glass Catfish",1,[1,9],15,{"night":1}],["pike","Spotted Pike",1,[1,8],16,{}],["eel","Moon Eel",2,[0.8,5],40,{"night":1}],["gar","Storm Gar",2,[2,12],45,{"weather":"storm"}],["koi","Gold Koi",2,[1,7],50,{}],["cod","Deepwater Cod",2,[3,20],48,{"deep":1}],["sturgeon","Phantom Sturgeon",3,[10,60],140,{"night":1,"deep":1}],["snapper","Lava Snapper",3,[2,14],120,{}],["salmon","Aurora Salmon",3,[3,18],130,{"weather":"bull"}],["leviathan","Burn Leviathan",4,[80,300],600,{"deep":1,"night":1}],["marlin","Crystal Marlin",4,[40,180],520,{"deep":1}],["whaleshark","XRP Whale Shark",4,[200,900],750,{"deep":1,"weather":"bull"}]], SHOP = {"rods":[["basic","Basic Rod",0,0],["carbon","Carbon Rod",150,1],["pro","Pro Rod",600,2],["legend","Ember Legend Rod",2000,3]], "baits":[["worm","Worm (free)",0,0],["shrimp","Shrimp",5,1],["glow","Glow Lure",20,2],["burnfly","Burn Fly",60,3]]}, RW = [60, 25, 10, 4, 1], RN = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'], RC = ['#c8d0dc', '#5aff9a', '#4aa8ff', '#c06bff', '#ffb020'];
 const Q = new URLSearchParams(location.search), SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev', LS = localStorage;
@@ -12,7 +12,7 @@ const W = () => window.__city, $ = id => document.getElementById(id);
 const tier = (list, id) => (list.find(x => x[0] === id) || [0, 0, 0, 0])[3];
 function roll(rodId, baitId, ctx) { const rt = tier(SHOP.rods, rodId), bt = tier(SHOP.baits, baitId), luck = rt * 0.5 + bt;
   const ok = SPECIES.filter(s => (!s[5].night || ctx.night) && (!s[5].deep || ctx.deep) && (!s[5].weather || s[5].weather === ctx.weather) && !(s[2] === 4 && bt < 2) && !(s[2] === 3 && bt < 1 && rt < 1));
-  const w = ok.map(s => RW[s[2]] * Math.pow(1 + luck, s[2] * 0.6)); let x = Math.random() * w.reduce((a, b) => a + b, 0), i = 0; while (x > w[i]) x -= w[i++];
+  const w = ok.map(s => RW[s[2]] * Math.pow(1 + luck, s[2] * 0.6) * baitAffinity(s[0], bt)); let x = Math.random() * w.reduce((a, b) => a + b, 0), i = 0; while (x > w[i]) x -= w[i++];
   const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(Math.random(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +(s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
   return { id: s[0], name: s[1], r: s[2], kg, val: Math.round(s[4] * (1 + f)), hits: 1 + s[2], zone: +(0.3 - 0.04 * s[2] + 0.05 * rt).toFixed(2) } }
 const night = () => { const h = (new Date().getUTCHours() + 17) % 24; return h >= 19 || h < 6 };

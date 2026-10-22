@@ -15,7 +15,7 @@ css.textContent = `
 `;
 document.head.appendChild(css);
 const wrap=document.createElement('div');wrap.id='bcTransportWrap';
-wrap.innerHTML='<button id="bcTransportOpen" type="button" aria-haspopup="true" aria-expanded="false">⇄ Transport ▾</button><div id="bcTransportMenu" role="menu" aria-label="Transport options"><button type="button" data-transport="fly" role="menuitem"><strong>✈ Flight</strong><small>Move freely above the city · WASD, Space up, C down</small></button><button type="button" data-transport="boat" role="menuitem"><strong>⛵ Lake boat</strong><small>Go to the lake dock and use E near the boat to board or interact</small></button><p class="bc-transport-note">Transport options are separate from Orbit, Explore, and Tour.</p></div>';
+wrap.innerHTML='<button id="bcTransportOpen" type="button" aria-haspopup="true" aria-expanded="false">⇄ Transport ▾</button><div id="bcTransportMenu" role="menu" aria-label="Transport options"><button type="button" data-transport="fly" role="menuitem"><strong>✈ Flight</strong><small>Move freely above the city · WASD, Space up, C down</small></button><button type="button" data-transport="boat" role="menuitem"><strong>⛵ Lake boat</strong><small>At the lake dock, use E near the boat to board or interact</small></button><p class="bc-transport-note">Transport options are separate from Orbit, Explore, and Tour.</p></div>';
 document.body.appendChild(wrap);
 const opener=wrap.querySelector('#bcTransportOpen'),menu=wrap.querySelector('#bcTransportMenu');
 const close=()=>{menu.classList.remove('on');opener.setAttribute('aria-expanded','false')};
@@ -25,11 +25,10 @@ menu.addEventListener('click',e=>{
  if(b.dataset.transport==='fly'){document.querySelector('#btns [data-m="fly"]')?.click();close();return}
  if(b.dataset.transport==='boat'){
    // Route the player toward the existing lake/boat dock if its world anchor is available.
-   const estate=window.__estate,base=estate?.boatWorld?.base||estate?.boat?.base||estate?.base;
-   if(base&&window.__burnCitySetPosition){window.__burnCitySetPosition(base.x,base.z);close();return}
+   if(window.__setBurnMode)window.__setBurnMode('explore');
    close();
    const h=document.querySelector('#help');
-   if(h)h.textContent='Lake boat: switch to Explore, head to the lake dock, then press E near the boat to interact.';
+   if(h)h.textContent='Lake boat: head to the lake dock and press E near the boat to interact.';
  }
 });
 document.addEventListener('pointerdown',e=>{if(!wrap.contains(e.target))close()});

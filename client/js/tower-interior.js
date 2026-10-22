@@ -458,11 +458,26 @@ function rooftopSkyLounge() {
     seatTrim.position.set(x,y+.79,9.75); scene.add(seatTrim);
   }
   // Rooftop bar: decorative counter plus backlit shelving; menu interaction is roleplay-only.
+  // A recessed plinth, shadow gap, and slim under-counter glow give the counter a layered built-in finish.
   box(-2.8,2.8,y,y+.16,10.5,11.4,M.metal);
-  box(-2.7,2.7,y+.16,y+1.15,10.65,11.35,M.stone);
+  box(-2.58,2.58,y+.16,y+1.15,10.65,11.35,M.stone);
+  box(-2.62,2.62,y+.2,y+.28,10.62,10.68,M.gold,false);
+  box(-2.64,2.64,y+.28,y+.34,10.6,10.66,M.amberDim,false);
   box(-2.9,2.9,y+1.12,y+1.2,10.6,11.4,M.gold,false);
   box(-2.4,2.4,y+1.35,y+3.0,12.2,12.35,M.metal,false);
+  // Floating shelf lips catch warm light; repeated details merge with the other static geometry.
+  for (const shelfY of [y+1.48,y+2.1,y+2.72]) {
+    box(-2.25,2.25,shelfY,shelfY+.045,12.08,12.2,M.gold,false);
+    box(-2.15,2.15,shelfY-.055,shelfY-.025,12.075,12.1,M.amberDim,false);
+  }
   for (let x=-1.8;x<=1.8;x+=.6) box(x-.025,x+.025,y+1.55,y+2.8,12.14,12.18,M.amber,false);
+  // Low, flush deck guides subtly frame the social zone without becoming collision obstacles.
+  for (const [x0,x1,z0,z1] of [
+    [-4.4,-4.34,3.4,8.6],[4.34,4.4,3.4,8.6],
+    [-4.4,-3.2,8.54,8.6],[3.2,4.4,8.54,8.6]
+  ]) {
+    box(x0,x1,y+.018,y+.035,z0,z1,M.amberDim,false);
+  }
   const crownLight = new THREE.PointLight(0xff5422,TOUCH?34:55,38,2);
   crownLight.position.set(0,y+4,0); scene.add(crownLight); lights.push([crownLight,TOUCH?34:55]);
   const edgeLight = new THREE.PointLight(0xff7a32,TOUCH?18:28,24,2);

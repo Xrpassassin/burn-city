@@ -302,6 +302,15 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   that drift outward + up with the flow and fade, all in the existing sparks Points draw (+0 draw calls). Budget is the sparks cap: phones 150, desktop 360 total
   (dispersal takes up to half when gold pools exist, the rest stays normal sparks), Low quality = off, hidden when adaptive quality has turned bloom off.
   `window.__swirl` = {n, geos, particles, sparks, disperse, gold}.
+- **Swirl colours + gold lock vein** (PR replacing #118): every AMM swirl takes its pool's live activity colour (`b.actCol`, blue → purple → orange → red, same as the bridge tube;
+  the swirl core is that colour lerped 35% toward the rail core's cyan, the glow sheath is the colour itself), and so do its sparks. Repaint is CPU-only: `swirlRecolor()` (set in the
+  swirl block, called at the end of `actScore()`) rewrites the merged mesh's `sc` rgb per vertex range + the spark colours. Still ONE merged swirl draw + ONE Points draw.
+  Gold pools (`b.forever`) are NOT painted gold any more: they keep the activity colour and get a **gold vein** down the middle of the swirl tube and of the rail core
+  (view-facing band from the kept tube normals, `off = sqrt(1 - nView.z²)`; vein where `off < w`). Width `w = veinW(b)` (app.js, above the rails polish block):
+  log10 of `b.lockedXrp` (= tvl_xrp × locked share), ~3.2k XRP → .28 of the core radius, 1M+ XRP → .88, clamped. Swirls pack it into `fl.y` (`sp + 8·round(100·w)`,
+  unpacked in the vertex shader; the sheath gets `w/2.6` so both shells share one vein); the rail core gets a `vw` uniform. The old gold shimmer + lower-half dissolve now
+  act on the vein only (the activity-coloured tube never breaks up); gold dispersal motes and gold sparks are unchanged. LOW tier: same vein, core shell only (no sheath).
+  `window.__swirl.veins` = [{pool, lockedXrp, w}]. Gap: partly locked (non-gold) pools get no vein, by the strict-gold rule; no live pool is gold right now, so check it with `goldtest`.
 - **Visual test hook**: `?debug=1&goldtest=1` (top-2 TVL pools) or `goldtest=XRP/BURN,XRP/IMM` (pairs or AMM accounts) forces gold for those pools (labels say "· test").
 - **Tests/audit**: `test/goldlock-sim.js` (in `npm test`, fixture-based, stubbed fetch: rule edges, signer list/regular key, 94.96% floor, locked pool < 5k not gold,
   unpriced pair). `scripts/lockaudit.js` re-audits every tracked pool against the ledger -> `lock-audit.md`.

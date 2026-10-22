@@ -87,7 +87,7 @@ const st = SK.state = {
   pos: new THREE.Vector3(), vel: new THREE.Vector3(), h: 0, air: false, airT: 0, grind: null, manual: 0,
   flip: null, grab: 0, spin: 0, bail: 0, crouch: 0, pushT: 0, popHeld: false, lastPop: 0,
   combo: [], base: 0, mult: 0, total: +(localStorage.getItem('bc_skate_best') || 0) * 0, best: +(localStorage.getItem('bc_skate_best') || 0), rollT: 0,
-  assist: localStorage.getItem('bc_skate_pro') ? 0 : 1, msg: '', msgT: 0,
+  assist: localStorage.getItem('bc_skate_pro') ? 0 : 1, lean: 0, msg: '', msgT: 0,
 };
 const K = () => C().input.keys, TB = () => C().input.tb;
 const touchSK = { flip: 0, heel: 0, grab: 0, grind: 0 };
@@ -162,7 +162,8 @@ function drive(dt, f, s) {
 function step(dt, f, s, ev, pop, grabK, grindK) {
   const p = st.pos, v = st.vel, fx = -Math.sin(st.h), fz = -Math.cos(st.h);
   if (st.railCD > 0) st.railCD -= dt;
-  st.crouch += ((pop && !st.air) ? 1 : 0 - st.crouch) * Math.min(1, dt * 14);
+  const crouchTarget = pop && !st.air ? 1 : 0;
+  st.crouch += (crouchTarget - st.crouch) * Math.min(1, dt * 14);
 
   // ---- grinding: locked to the line, sliding along it
   if (st.grind) {
@@ -185,21 +186,34 @@ function step(dt, f, s, ev, pop, grabK, grindK) {
   if (!st.air) {
     // slope from the height field (finite differences)
     const e = .25, gx = (heightAt(p.x + e, p.z, p.y + .5) - heightAt(p.x - e, p.z, p.y + .5)) / (2 * e), gz = (heightAt(p.x, p.z + e, p.y + .5) - heightAt(p.x, p.z - e, p.y + .5)) / (2 * e);
-    // forward speed along heading (signed: negative = rolling fakie/back)
+    // Keep world-space momentum while carving. A real board turns under the rider;
+    // it does not instantly rotate all of its velocity to match the nose.
     let fwd = v.x * fx + v.z * fz;
-    // push / brake / rolling resistance
-    if (f > .1 && st.bail <= 0 && st.manual <= 0) { st.pushT += dt; if (fwd < PUSH_MAX) fwd += 11 * f * dt; }
-    else if (f < -.1) fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), 12 * -f * dt);
-    fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), (.35 + .012 * fwd * fwd) * dt);
-    // gravity along the slope
+    let lateral = v.x * Math.cos(st.h) - v.z * Math.sin(st.h);
+    // Push acceleration is capped on flat ground; downhill gravity can carry the board faster.
+    if (f > .1 && st.bail <= 0 && st.manual <= 0) {
+      st.pushT += dt;
+      if (fwd < PUSH_MAX) fwd += 8.5 * f * dt;
+    } else if (f < -.1) {
+      fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), 12 * -f * dt);
+    }
+    fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), (.28 + .009 * fwd * fwd) * dt);
+    // Gravity converts height into speed uphill/downhill using the actual local slope.
     fwd -= G * (gx * fx + gz * fz) / Math.sqrt(1 + gx * gx + gz * gz) * dt;
     fwd = Math.max(-MAX_V, Math.min(MAX_V, fwd));
-    // carving: heading turns with steering; tighter when slow
-    const turn = 2.6 / (1 + Math.abs(fwd) * .06);
+    // Carving is easier at low speed. Lateral grip bleeds drift naturally instead of snapping.
+    const speed = Math.hypot(v.x, v.z);
+    const turn = 2.45 / (1 + speed * .075);
     st.h -= s * turn * dt;
-    // full grip: velocity follows the heading
-    v.x = fx * fwd; v.z = fz * fwd;
-    v.y = -(gx * v.x + gz * v.z) * -1;   // vertical rate implied by the slope under the wheels
+    lateral *= Math.exp(-dt * (2.0 + speed * .10));
+    const nfx = -Math.sin(st.h), nfz = -Math.cos(st.h);
+    v.x = nfx * fwd + Math.cos(st.h) * lateral;
+    v.z = nfz * fwd - Math.sin(st.h) * lateral;
+    const horizontal = Math.hypot(v.x, v.z);
+    if (horizontal > MAX_V) { v.x *= MAX_V / horizontal; v.z *= MAX_V / horizontal; }
+    // Vertical velocity follows the surface under the wheels while grounded.
+    v.y = gx * v.x + gz * v.z;
+    st.lean += ((-s * Math.min(1, speed / 8)) - st.lean) * Math.min(1, dt * 8);
     // ollie (press = crouch, release = pop; quick tap still pops)
     if (ev.popUp && st.bail <= 0) { ollie(); return; }
     // manual: Shift on open ground, no rail in reach
@@ -269,7 +283,7 @@ function land(g) {
   }
   if (wasVert && ok) { st.h += Math.PI; const sp2 = Math.max(4, Math.abs(v.y) * .8); v.set(-Math.sin(st.h) * sp2, 0, -Math.cos(st.h) * sp2); }   // drop back in
   const spins = Math.round(Math.abs(st.spin) / Math.PI); if (ok && spins >= 1) addTrick(`${spins * 180}`, 100 * spins);
-  st.spin = 0; st.grab = 0; st.grabbed = 0; st.rollT = 0;
+  st.spin = 0; st.grab = 0; st.grabbed = 0; st.rollT = 0; st.lean *= .25;
   if (!ok) { bail(why); return; }
   SK.test.landings = (SK.test.landings || 0) + 1;
   // keep the speed along the board, lose a little on impact
@@ -331,7 +345,7 @@ function pose(dt) {
   if (st.bail > 0) { av.rotation.x = Math.min(1.3, (1.1 - st.bail) * 3); } else av.rotation.x = 0;
   av.visible = !c.P.fp;
   board.position.set(st.pos.x, st.pos.y + .004, st.pos.z);
-  board.rotation.set(0, st.h, 0);
+  board.rotation.set(0, st.h, st.air ? 0 : st.lean * .08);
   const fl = st.flip ? st.flip.t * Math.PI * 2 * st.flip.dir : 0;
   board.children[0].rotation.z = fl;
   board.children[0].position.y = PIVOT + (st.flip ? Math.sin(st.flip.t * Math.PI) * .35 : 0);

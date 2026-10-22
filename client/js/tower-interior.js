@@ -269,6 +269,7 @@ function residentialSpaces() {
     box(x1 - .22, x1, y0, y1, z0, z1, M.wall);
     box(x0, x1, y0, y1, z0, z0 + .22, M.wall);
     box(x0, x1, y0, y1, z1 - .22, z1, M.wall);
+    station('residence-exit', 'Return to headquarters lift', x0 + .8, y0, mid, 2.3, [1.4, 2.6, 1.4]);
     box(x0 + .20, x0 + .27, y0, y1 - .05, mid - 1.18, mid - 1.10, M.gold, false);
     box(x0 + .20, x0 + .27, y0, y1 - .05, mid + 1.10, mid + 1.18, M.gold, false);
     box(x0 + .20, x0 + .27, y1 - .12, y1 - .04, mid - 1.18, mid + 1.18, M.gold, false);
@@ -618,6 +619,7 @@ function interact(id) {
         () => window.open(mine && MINE.id ? 'https://xrp.cafe/nft/' + MINE.id : LINKS[id], '_blank', 'noopener,noreferrer'), mine ? 'VIEW MY NFT' : 'VIEW COLLECTION');
       break; }
     case 'residences': openResidences(); break;
+    case 'residence-exit': travelTo('lift-ground'); break;
     case 'bar': showBarMenu(); break;
     case 'sit': showLoungeMenu(); break;
     case 'directory': showDirectory(); break;

@@ -2,7 +2,7 @@
 
 ## Decision
 
-**Pilot the Bat first, but only behind a visual/model feature flag and only after runtime checks.** Keep Slime and Dragon in the workshop for now. Do not replace the existing sprite enemy path in this change.
+**Pilot the Bat first, behind an opt-in visual flag.** The first integration is now implemented for the existing Harpy enemy when Eternal Grind is opened with `?enemyModels=1`; normal play still uses sprites. Keep Slime and Dragon in the workshop for now. The opt-in path still needs browser/mobile validation before it is considered production-ready.
 
 This is a role-fit decision from the current asset set and known game architecture, not a claim that the models have been visually tested in the running game. The live dungeon currently uses enemy sprites, and the workshop has not yet been browser/mobile tested.
 
@@ -22,9 +22,9 @@ Performance-risk scores are qualitative expectations based on role/size, not mea
 
 1. **Workshop validation:** confirm each model loads, faces the right direction, fits the floor, and has usable idle/movement/attack/death clips. Verify color, emissive, and wireframe controls.
 2. **Binary assets:** replace base64 text payloads with real binary GLB files before shipping; preserve the CC0 provenance record.
-3. **Single-enemy prototype:** add Bat as an opt-in visual for one existing enemy type. Keep its existing server-authoritative health, aggro, attacks, damage, loot, and save/progression behavior unchanged.
+3. **Single-enemy prototype (implemented, not runtime-verified):** open Eternal Grind with `?enemyModels=1` to try the animated Bat on existing Harpy enemies. Their health, aggro, attacks, damage, loot, and save/progression behavior are unchanged; sprite remains the default and load-failure fallback.
 4. **Fallback:** keep the sprite path as default and automatic fallback if the model fails or reduced-motion/low-performance settings request it.
-5. **Validation:** run the project test suite; test desktop and a mobile device; measure model load time and frame rate with multiple enemies.
+5. **Validation (still required):** run the project test suite; test desktop and a mobile device; measure model load time and frame rate with multiple enemies.
 6. **Decision review:** only enable by default if it passes the checks. Then evaluate Slime as a second low-cost visual. Keep Dragon for a dedicated elite/boss experiment later.
 
 ## Non-goals

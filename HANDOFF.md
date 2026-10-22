@@ -330,3 +330,9 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
 ## View menu on phones / return from the arena (sw bc-v53-orbitfix)
 - Phones (`MOBILE`): the top-centre `#vExit` button now shows in every mode: "✕ Exit" in Explore/Fly, "☰ View" in Orbit and Tour, and opens `#vMenu` (Orbit/Fly/Tour/Explore/Resume; the Wilds travel lock still hides all but Explore/Resume via `body.wl-travel`). Landscape phones hide the `#btns .seg` mode dock, so before this Orbit had no way out.
 - Arena gate tap stores `sessionStorage.bc_ret` (mode, walker pos, camera, yaw); the next city load restores Explore/Fly at that spot when no `?mode`/`?view` is given. `pageshow` (bfcache) closes a stale open menu.
+
+## Fishing: fight upgrade, daily challenges, tackle shop panel (sw bc-v54-fishing)
+- Files: client/js/fish.js (line-tension bar in the reel UI; Tackle & Bait panel fix: the `fPanel` element was being swallowed by a trailing comment on main and is now created again), client/js/fishing-rules.mjs (+ fishing-rules.test.mjs: rules, journal, daily challenges), server/fish.js + server/server.js (server-authoritative daily challenges), test/fish-sim.js.
+- Tests: `npm run test:fishing-rules`, `node test/fish-sim.js`; `npm run test:all` runs both plus the server sims.
+- Hooks: `window.__fish.openShop()` / `openLog()` for smoke tests. Touch ghost-click guard (pointerdown + capture-phase click filter) is unchanged.
+- Known gap: not yet in the default `npm test`; iPhone 390x844 smoke is about 5 draw calls above main (~403 vs ~398 in the swiftshader harness).

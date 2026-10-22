@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#061421">
+  <meta name="description" content="Blacktide — the pirate frontier prototype for BURN City.">
+  <title>BLACKTIDE — BURN CITY</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.min.js"}}</script>
+</head>
+<body>
+  <main id="game" aria-label="Blacktide pirate sailing prototype">
+    <header class="topbar">
+      <a class="brand" href="../" aria-label="Return to BURN City">BURN CITY <span>/ BLACKTIDE</span></a>
+      <div class="status"><span class="dot"></span> FRONTIER PROTOTYPE</div>
+    </header>
+    <section class="intro" id="intro">
+      <p class="eyebrow">THE LAWLESS FRONTIER</p>
+      <h1>BLACKTIDE</h1>
+      <p class="tagline">Every tide takes a price.</p>
+      <button id="begin" type="button">TAKE THE HELM</button>
+    </section>
+    <aside class="hud" aria-live="polite">
+      <div class="hud-title">VESSEL STATUS</div>
+      <div class="hud-row"><span>Ship</span><strong>The Ashen Wake</strong></div>
+      <div class="hud-row"><span>Speed</span><strong id="speed">0 knots</strong></div>
+      <div class="hud-row"><span>Heading</span><strong id="heading">000°</strong></div>
+      <div class="hud-row"><span>Hull</span><strong id="hull">100%</strong></div>
+      <div class="hint">W / ↑ sail · S / ↓ slow · A D / ← → turn · SPACE fire broadside</div>
+    </aside>
+    <div class="message" id="message">A dark sea stretches beyond the harbor. Take the helm to begin.</div>
+    <div class="mobile-controls" aria-label="Touch sailing controls">
+      <div class="steering">
+        <button data-control="left" aria-label="Turn left">↶</button>
+        <button data-control="right" aria-label="Turn right">↷</button>
+      </div>
+      <div class="sailing">
+        <button data-control="forward" aria-label="Sail forward">▲</button>
+        <button data-control="back" aria-label="Slow down">▼</button>
+        <button data-control="fire" aria-label="Fire cannons">⚓ FIRE</button>
+      </div>
+    </div>
+    <footer>BLACKTIDE IS AN EARLY PROTOTYPE · REGION ISOLATED FROM THE LIVE CITY</footer>
+  </main>
+  <script type="module" src="./blacktide.js"></script>
+</body>
+</html>

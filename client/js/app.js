@@ -1170,7 +1170,7 @@ function setMode(m){if(tlOn()&&m!=='explore')return;const prev=mode;mode=m;tour=
  if((m==='explore'||m==='fly')&&document.pointerLockElement){window.__lockSwap=1;document.exitPointerLock()}
  if(m==='orbit'){if(document.pointerLockElement)document.exitPointerLock();orbit.target.copy(C.position).add(C.getWorldDirection(new THREE.Vector3()).multiplyScalar(80));orbit.target.y=Math.max(5,orbit.target.y)}
  $('prompt').style.display='none';
- $('help').textContent=m==='orbit'?'Drag orbit · scroll/pinch zoom · click a tower, road, billboard or terminal for live stats':m==='fly'?'WASD move · right-click drag to look · left-click objects to inspect · Space up · C down · Shift fast':MOBILE?'Left stick walk · drag to look · tap things to inspect · USE talks to what\'s next to you':'WASD walk · Shift run · Space jump · hold right-click to look · left-click to select · E interact · V 1st/3rd person'+(NET?' · Enter chat':'')}
+ $('help').textContent=m==='orbit'?'Drag orbit · scroll/pinch zoom · click a tower, road, billboard or terminal for live stats':m==='fly'?(MOBILE?'Left stick fly · drag to look · ▲ up · ▼ down · tap things to inspect':'WASD move · right-click drag to look · left-click objects to inspect · Space up · C down · Shift fast'):MOBILE?'Left stick walk · drag to look · tap things to inspect · USE talks to what\'s next to you':'WASD walk · Shift run · Space jump · hold right-click to look · left-click to select · E interact · V 1st/3rd person'+(NET?' · Enter chat':'')}
 window.__setBurnMode=setMode;
 document.querySelectorAll('#btns [data-m]').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
 addEventListener('keydown',e=>{if(document.activeElement===$('chatIn'))return;keys[e.code]=1;if(mode==='explore'){if(e.code==='KeyE')interact();if(e.code==='KeyV'){P.fp=!P.fp}}if(e.code==='Enter'&&NET){$('chatIn').focus();e.preventDefault()}});
@@ -1585,6 +1585,9 @@ if(Q.get('mode')==='explore'&&VQ!=='explore'){setMode('explore');const p=(Q.get(
 const ex=document.createElement('button');ex.id='vExit';ex.textContent='✕ Exit';ex.setAttribute('aria-label','Exit view / view menu');document.body.appendChild(ex);
 const hint=document.createElement('div');hint.id='vHint';document.body.appendChild(hint);
 const mn=document.createElement('div');mn.id='vMenu';mn.innerHTML='<div><b>Paused · choose view</b><button data-v="orbit">1 ◎ Orbit</button><button data-v="fly">2 ✈ Fly</button><button data-v="tour">3 ▶ Tour</button><button data-v="explore">🚶 Explore</button><button data-v="resume">4 ↩ Resume</button></div>';document.body.appendChild(mn);
+// Movement & Games hub (movement-games-menu.js): city toasts + "take me there" (Explore at a known world spot, facing `face`). Refuses during the Wilds travel lock, in a boat or the tower.
+window.__bcToast=(text,col)=>{const d=document.createElement('span');d.textContent=String(text);toast(d.innerHTML,col)};
+window.__walkTo=(x,z,face)=>{if(tlOn()||window.__burnTowerOpen||(window.__boat&&window.__boat.active)||!isFinite(x)||!isFinite(z))return false;if(mode!=='explore')setMode('explore');if(mode!=='explore')return false;P.pos.set(x,groundAt(x,z,99),z);P.vel.set(0,0,0);P.spawned=1;if(face&&isFinite(face.x)&&isFinite(face.z)){yp.yaw=Math.atan2(face.x-x,-(face.z-z));avatar.rotation.y=yp.yaw}return true};
 window.__launchBlacktide=()=>{if(document.body.classList.contains('wl-travel'))return false;try{sessionStorage.bc_ret=JSON.stringify({m:mode,p:[P.pos.x,P.pos.y,P.pos.z],c:[C.position.x,C.position.y,C.position.z],yaw:yp.yaw})}catch(_){}location.href='blacktide/';return true};
 let tw=null;const menuOn=()=>mn.classList.contains('on'),hide=()=>mn.classList.remove('on');
 const show=()=>{if(document.pointerLockElement)document.exitPointerLock();mn.classList.add('on')};

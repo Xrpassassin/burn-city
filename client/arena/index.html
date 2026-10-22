@@ -160,6 +160,7 @@ function leave(msg) {               // full teardown so the next mode (or the ci
 $('#rkstart').onclick = e => { e.stopPropagation(); net?.ws.readyState === 1 && net.ws.send(JSON.stringify({ t: 'start' })); };
 $('#exit').onclick = e => { e.stopPropagation(); leave(); };
 function returnToCity() {
+ if (document.getElementById('bcReturnTransition')) return;   // repeated taps: one teardown, one overlay
  const airport=P.get('from')==='airport';
  leave();
  const overlay=document.createElement('div'); overlay.id='bcReturnTransition'; overlay.className=airport?'flight':'neon';
@@ -172,6 +173,7 @@ function returnToCity() {
  setTimeout(()=>{ location.href='../'; },1450);
 }
 $('#returnCity').onclick = e => { e.stopPropagation(); returnToCity(); };
+addEventListener('pageshow', e => { if (e.persisted) document.getElementById('bcReturnTransition')?.remove(); });
 document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => start(b.dataset.m));
 $('#dailyBtn').onclick = () => start('zombie', null, '&daily=1');
 if (P.get('daily') === '1') setTimeout(() => start('zombie', null, '&daily=1'), 600);

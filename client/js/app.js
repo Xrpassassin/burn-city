@@ -57,6 +57,8 @@ function showExperienceTransition(theme, icon, title, subtitle) {
   setTimeout(resolve,1600);
  });
 }
+// Back/forward cache: coming back from the arena must not leave the full-screen boarding overlay or a disabled travel card up.
+addEventListener('pageshow',e=>{if(!e.persisted)return;document.getElementById('bcExperienceTransition')?.remove();const i=document.getElementById('info');if(i&&window.__infoU&&window.__infoU.kind==='experience')i.style.display='none'});
 const EXPERIENCE_REGISTRY = window.__burnExperienceRegistry = createBurnCityExperienceRegistry({
  launchers: {
   zombies: async ({ returnTo }) => {
@@ -1226,7 +1228,7 @@ if(u.kind==='experience'){
  const detail=document.createElement('p'); detail.textContent=u.description||'Choose whether to enter this experience.';
  detail.style.cssText='margin:8px 0 14px;line-height:1.45';
  const enter=document.createElement('button'); enter.type='button'; enter.textContent=u.experienceId==='zombies'?'✈ Board expedition flight':'⚡ Enter Light Cycles';
- enter.style.cssText='display:block;width:100%;margin:8px 0;padding:11px 14px;border-radius:10px;border:1px solid #43eaff;background:#082433;color:#e7fbff;font:700 14px system-ui;cursor:pointer';
+ enter.style.cssText='display:block;width:100%;min-height:44px;margin:8px 0;padding:11px 14px;border-radius:10px;border:1px solid #43eaff;background:#082433;color:#e7fbff;font:700 14px system-ui;cursor:pointer';
  enter.onclick=async e=>{
   e.stopPropagation(); enter.disabled=true; enter.textContent='Preparing transition…';
   const rx=Number(u.returnX), rz=Number(u.returnZ);
@@ -1236,7 +1238,7 @@ if(u.kind==='experience'){
   const result=await EXPERIENCE_REGISTRY.enter(u.experienceId,{source:'city-map'});
   if(!result.ok){document.getElementById('bcExperienceTransition')?.remove();try{sessionStorage.removeItem('bc_ret')}catch(_){}enter.disabled=false;enter.textContent=u.experienceId==='zombies'?'✈ Board expedition flight':'⚡ Enter Light Cycles';detail.textContent='Travel could not start ('+result.reason+'). You are still in BURN City; try again.'}
  };
- const cancel=document.createElement('button'); cancel.type='button'; cancel.textContent='Stay in BURN City'; cancel.style.cssText='display:block;width:100%;padding:10px;border-radius:10px;border:1px solid #ffffff35;background:#ffffff0a;color:#fff;font:600 13px system-ui;cursor:pointer'; cancel.onclick=()=>{panel.style.display='none'};
+ const cancel=document.createElement('button'); cancel.type='button'; cancel.textContent='Stay in BURN City'; cancel.style.cssText='display:block;width:100%;min-height:44px;padding:10px;border-radius:10px;border:1px solid #ffffff35;background:#ffffff0a;color:#fff;font:600 13px system-ui;cursor:pointer'; cancel.onclick=()=>{panel.style.display='none'};
  panel.append(close,title,detail,enter,cancel); panel.style.display='block'; panel.scrollTop=0; return;
 }
 if(u.kind==='ammlock'){window.__ammLock&&window.__ammLock.open(u);return}if(u.kind==='aegis'){$('info').style.display='none';window.__aegis&&window.__aegis.open(u.cam);return}if(u.kind==='tackle'){window.__fish&&window.__fish.openShop();return}if(u.kind==='estate'){$('info').innerHTML=estateCard();$('info').classList.remove('v2');$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').classList.toggle('v2',!!(u.node&&!u.lot));$('info').style.display='block';if(u.node&&u.node.name==='BURN'&&window.__openBurnTowerInterior&&!u.lot){const eb=document.createElement('button');eb.type='button';eb.textContent='🔥 Enter the PYRETHEUM';eb.style.cssText='display:block;margin:10px 0 2px;padding:9px 14px;border-radius:10px;border:1px solid #ff9d43;background:#29120b;color:#ffd4a0;font:700 13px system-ui;cursor:pointer';eb.onclick=e=>{e.stopPropagation();$('info').style.display='none';window.__openBurnTowerInterior()};$('info').appendChild(eb)}window.__ammLock&&window.__ammLock.card($('info'),u);$('info').scrollTop=0;window.__onCard&&window.__onCard($('info'));$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}

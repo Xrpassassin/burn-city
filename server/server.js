@@ -114,6 +114,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/fish/')) { const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' }); if (gate('fish:' + u.acct, 40, 60e3)) return json(res, 429, { error: 'slow_down' });
       const b = req.method === 'POST' ? await body() : {}, op = url.pathname.slice(10);
       if (op === 'state') return json(res, 200, { ...Fish.get(u.acct), today: Fish.today(u.acct) });
+      if (op === 'challenges' && req.method === 'GET') return json(res, 200, Fish.challenges(u.acct));
+      if (op === 'challenges' && req.method === 'GET') return json(res, 200, Fish.challenges(u.acct));
       if (op === 'cast' && req.method === 'POST' && (!b.near || !Number.isFinite(+b.x) || !Number.isFinite(+b.z) || Math.abs(+b.x) > 900 || Math.abs(+b.z) > 900)) return json(res, 200, { error: 'not_near_water' });
       if (op === 'cast' && req.method === 'POST') return json(res, 200, Fish.cast(u.acct, { bait: String(b.bait || 'worm'), deep: !!b.deep, weather: String(b.weather || '') }));
       if (op === 'reel' && req.method === 'POST') return json(res, 200, Fish.reel(u.acct, String(b.cid || ''), !!b.ok));

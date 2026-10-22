@@ -4,6 +4,10 @@ Object.assign(process.env, { DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'bc
 const F = require('../server/fish'); let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? '  PASS ' : '  FAIL ') + m); };
 const realNow = Date.now; let off = 0; Date.now = () => realNow() + off; const A = 'rFishSim11111111111111111111';
 ok(F.SPECIES.length === 20 && new Set(F.SPECIES.map(s => s[2])).size === 5, '20 species across 5 rarities');
+ok(F.baitAffinity('minnow', 0) === 1.25 && F.baitAffinity('minnow', 3) === 0.9, 'preferred bait boosts odds and mismatched bait modestly lowers them');
+ok(F.baitAffinity('unknown-species', 2) === 1, 'unknown species retain neutral bait affinity');
+ok(F.baitAffinity('leviathan', 99) === 0.9, 'bait tier is clamped safely');
+ok(F.SPECIES.every(s => [1.25, 0.9].includes(F.baitAffinity(s[0], 0))), 'all 20 defined species have an explicit preferred bait');
 let deepOnly = 0, leg = 0; for (let i = 0; i < 4000; i++) { const f = F.roll('basic', 'worm', { night: false, deep: false }); if (['cod', 'marlin', 'leviathan', 'whaleshark', 'sturgeon'].includes(f.id)) deepOnly++; if (f.r === 4) leg++; }
 ok(deepOnly === 0, 'deep-water fish never from shore'); ok(leg === 0, 'no legendary on worm bait');
 let legB = 0; for (let i = 0; i < 4000; i++) if (F.roll('legend', 'burnfly', { night: true, deep: true }).r === 4) legB++; ok(legB > 20, 'legendary possible from boat with good gear (' + legB + '/4000)');
@@ -17,11 +21,23 @@ while (F.get(A).coins < 5) { off += 10e3; const k = F.cast(A, {}); off += k.wait
 ok(F.buy(A, 'bait', 'shrimp', 1).profile.bait.shrimp === 1, 'bait purchase with coins');
 off += 10e3; const c3 = F.cast(A, {}); off += c3.wait + 25e3; ok(F.reel(A, c3.cid, true).error === 'timing', 'stale reel (bot left it) rejected');
 { const db = require('../server/payments').sdb, X = 'rFishSimX9999999999999999999', st = db.prepare('INSERT INTO fish_catch(acct,t) VALUES(?,?)'); for (let i = 0; i < F.LIM.maxPerHour - 1; i++) st.run(X, Date.now()); ok(!F.cast(X, {}).error, 'cast allowed just under the hourly cap (' + F.LIM.maxPerHour + ')'); st.run(X, Date.now()); off += 6e3; ok(F.cast(X, {}).error === 'hourly_limit' && F.LIM.maxPerHour === 1000, 'hourly catch cap enforced at 1000'); }
-{ off = 0; const B = 'rFishSimB2222222222222222222'; const k = F.cast(B, {}); off += k.wait + 100; F.reel(B, k.cid, true); const top = F.weekTop(); ok(top.length >= 1 && top.every(e => e.who.length <= 8 && !e.who.includes(A) && e.kg > 0 && e.sp), 'weekly top: masked handles, kg + species'); ok(top[0].kg >= top[top.length - 1].kg, 'weekly top sorted by biggest kg'); ok(F.today(B) === 1, 'today catch count for daily mission'); }
+{ off = 0; const B = 'rFishSimB2222222222222222222'; const k = F.cast(B, {}); off += k.wait + 100; F.reel(B, k.cid, true); const top = F.weekTop(); ok(top.length >= 1 && top.every(e => e.who.length <= 8 && !e.who.includes(A) && e.kg > 0 && e.sp), 'weekly top: masked handles, kg + species'); ok(top[0].kg >= top[top.length - 1].kg, 'weekly top sorted by biggest kg'); ok(F.today(B) === 1, 'today catch count for daily mission');
+  const board = F.challenges(B);
+  ok(board.items.length === 4 && board.day === new Date().toISOString().slice(0, 10), 'daily challenge board returns four UTC-day objectives');
+  ok(board.items[0].progress === 1 && !board.items[0].unlocked, 'daily catch objective progresses from server-recorded catches');
+  ok(board.items.every(a => Number.isFinite(a.progress) && a.goal > 0 && typeof a.unlocked === 'boolean'), 'daily challenge progress fields are valid');
+  ok(F.challenges(B, Date.parse('2026-10-21T12:00:00Z')).target !== F.challenges(B, Date.parse('2026-10-22T12:00:00Z')).target, 'featured species rotates across UTC days'); }
 { const G = 'rFishSimG3333333333333333333'; const k = F.cast(G, {}); off += k.wait + 100; F.reel(G, k.cid, true); const pre = F.get(G).log;
   const r = F.importGuest(G, { coins: 99999, rod: 'pro', rods: ['basic', 'carbon', 'pro', 'hacked'], bait: { glow: 9999, worm: 5, fake: 3 }, log: { trout: { n: 3, best: 9999 }, nope: { n: 5, best: 1 } }, n: 50 });
   ok(r.ok && r.profile.coins === F.IMP.coins, 'import: coins capped at ' + F.IMP.coins); ok(r.profile.rods.includes('pro') && !r.profile.rods.includes('hacked') && r.profile.rod === 'pro', 'import: valid rods merged, unknown dropped');
   ok(r.profile.bait.glow === F.IMP.bait && !('fake' in r.profile.bait), 'import: bait capped, unknown dropped'); ok(r.profile.log.trout && r.profile.log.trout.best <= 4 && !r.profile.log.nope, 'import: species validated, weight capped');
   ok(Object.keys(pre).every(id => r.profile.log[id] && r.profile.log[id].n >= pre[id].n) && r.profile.log.trout.n >= 3, 'import: merged with existing catches'); ok(F.importGuest(G, { coins: 5 }).error === 'already_imported', 'import: only once per wallet');
   const H = 'rFishSimH4444444444444444444'; F.importGuest(H, { coins: 10, rods: ['carbon'] }); const H2 = 'rFishSimH5555555555555555555'; F.importGuest(H2, { coins: 2000, rods: ['carbon'] }); ok(true, 'setup'); }
+
+{ const C = 'rFishChallengeC66666666666666666'; const before = F.challenges(C, Date.UTC(2026, 9, 22)); 
+  ok(before.day === '2026-10-22' && before.items.length === 4 && before.items.every(x => x.progress === 0), 'daily challenges start with zero progress for a new angler');
+  const cast = F.cast(C, {}); off += cast.wait + 100; const landed = F.reel(C, cast.cid, true); 
+  const after = F.challenges(C, Date.UTC(2026, 9, 22)); 
+  ok(landed.fish && after.catches === 1 && after.items.find(x => x.id === 'daily-three').progress === 1, 'server challenge progress updates from an authoritative landed catch');
+  ok(F.challenges(C, Date.UTC(2026, 9, 23)).catches === 0, 'daily challenge progress resets on the next UTC day'); }
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

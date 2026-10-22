@@ -6,10 +6,13 @@ for (const c of ['kg REAL', 'sp TEXT']) try { db.exec('ALTER TABLE fish_catch AD
 const SPECIES = [["minnow","Ledger Minnow",0,[0.05,0.3],3,{}],["bluegill","Bluegill Byte",0,[0.1,0.6],4,{}],["perch","Pond Perch",0,[0.2,1.2],5,{}],["carp","Mud Carp",0,[0.8,6],6,{}],["shiner","River Shiner",0,[0.05,0.4],3,{}],["dace","Silver Dace",0,[0.1,0.5],4,{}],["trout","Neon Trout",1,[0.5,4],12,{}],["bass","Amber Bass",1,[0.6,5],14,{}],["catfish","Glass Catfish",1,[1,9],15,{"night":1}],["pike","Spotted Pike",1,[1,8],16,{}],["eel","Moon Eel",2,[0.8,5],40,{"night":1}],["gar","Storm Gar",2,[2,12],45,{"weather":"storm"}],["koi","Gold Koi",2,[1,7],50,{}],["cod","Deepwater Cod",2,[3,20],48,{"deep":1}],["sturgeon","Phantom Sturgeon",3,[10,60],140,{"night":1,"deep":1}],["snapper","Lava Snapper",3,[2,14],120,{}],["salmon","Aurora Salmon",3,[3,18],130,{"weather":"bull"}],["leviathan","Burn Leviathan",4,[80,300],600,{"deep":1,"night":1}],["marlin","Crystal Marlin",4,[40,180],520,{"deep":1}],["whaleshark","XRP Whale Shark",4,[200,900],750,{"deep":1,"weather":"bull"}]], SHOP = {"rods":[["basic","Basic Rod",0,0],["carbon","Carbon Rod",150,1],["pro","Pro Rod",600,2],["legend","Ember Legend Rod",2000,3]], "baits":[["worm","Worm (free)",0,0],["shrimp","Shrimp",5,1],["glow","Glow Lure",20,2],["burnfly","Burn Fly",60,3]]};
 const RW = [60, 25, 10, 4, 1];
 const tier = (list, id) => (list.find(x => x[0] === id) || [0, 0, 0, 0])[3];
+// Species-specific preferred bait, applied on the server so signed-in players get the same rules as guests.
+const PREFERRED_BAIT = { minnow: 0, bluegill: 0, perch: 0, shiner: 0, dace: 0, carp: 1, catfish: 1, eel: 2, gar: 2, koi: 2, cod: 1, sturgeon: 1, snapper: 3, trout: 3, bass: 3, pike: 3, salmon: 3, leviathan: 2, marlin: 2, whaleshark: 2 };
+function baitAffinity(speciesId, baitTier) { const preferred = PREFERRED_BAIT[speciesId]; if (preferred === undefined) return 1; return Math.max(0, Math.min(3, +baitTier || 0)) === preferred ? 1.25 : 0.9; }
 function roll(rodId, baitId, ctx, rnd = Math.random) {
   const rt = tier(SHOP.rods, rodId), bt = tier(SHOP.baits, baitId), luck = rt * 0.5 + bt;
   const ok = SPECIES.filter(s => (!s[5].night || ctx.night) && (!s[5].deep || ctx.deep) && (!s[5].weather || s[5].weather === ctx.weather) && !(s[2] === 4 && bt < 2) && !(s[2] === 3 && bt < 1 && rt < 1));
-  const w = ok.map(s => RW[s[2]] * Math.pow(1 + luck, s[2] * 0.6)); let x = rnd() * w.reduce((a, b) => a + b, 0), i = 0; while (x > w[i]) x -= w[i++];
+  const w = ok.map(s => RW[s[2]] * Math.pow(1 + luck, s[2] * 0.6) * baitAffinity(s[0], bt)); let x = rnd() * w.reduce((a, b) => a + b, 0), i = 0; while (x > w[i]) x -= w[i++];
   const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(rnd(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +(s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
   return { id: s[0], name: s[1], r: s[2], kg, val: Math.round(s[4] * (1 + f)), hits: 1 + s[2], zone: +(0.3 - 0.04 * s[2] + 0.05 * rt).toFixed(2) };
 }
@@ -80,4 +83,19 @@ const mask = a => a.slice(0, 4) + '…' + a.slice(-3);
 function weekTop(n = 10) { return db.prepare('SELECT acct, sp, MAX(kg) kg, t FROM fish_catch WHERE t>=? AND kg IS NOT NULL GROUP BY acct ORDER BY kg DESC LIMIT ?').all(weekStart(), n).map(r => ({ who: mask(r.acct), sp: r.sp, kg: r.kg, t: r.t })); }
 function streakTop(n = 10) { return db.prepare('SELECT acct, wbest, wt FROM fish_streak WHERE wk=? AND wbest>=2 ORDER BY wbest DESC, wt ASC LIMIT ?').all(weekStart(), n).map(r => ({ who: mask(r.acct), n: r.wbest })); }
 const today = acct => db.prepare('SELECT COUNT(*) c FROM fish_catch WHERE acct=? AND t>=?').get(acct, dayStart()).c;
-module.exports = { lastLanded: a => landed.get(a), streakTop, streakHit, importGuest, IMP, weekTop, today, weekStart, get, cast, reel, sell, buy, roll, SPECIES, SHOP, LIM, _casts: casts };
+// Rotating daily board: progress is derived from server-recorded catches, never client claims.
+const DAILY_TARGETS = ['minnow', 'bluegill', 'perch', 'carp', 'shiner', 'dace', 'trout', 'bass', 'pike', 'koi', 'snapper'];
+function challenges(acct, ms = Date.now()) {
+  const start = dayStart(ms), day = new Date(start).toISOString().slice(0, 10);
+  const dayNumber = Math.floor(start / 864e5), target = DAILY_TARGETS[((dayNumber % DAILY_TARGETS.length) + DAILY_TARGETS.length) % DAILY_TARGETS.length];
+  const catches = db.prepare('SELECT sp, kg FROM fish_catch WHERE acct=? AND t>=? AND t<? AND sp IS NOT NULL ORDER BY t').all(acct, start, start + 864e5);
+  const unique = new Set(catches.map(c => c.sp)), bestKg = catches.reduce((best, c) => Math.max(best, Number(c.kg) || 0), 0);
+  const items = [
+    { id: 'daily-three', title: 'Keep the Line Tight', detail: 'Land 3 fish today', progress: Math.min(catches.length, 3), goal: 3 },
+    { id: 'daily-target', title: 'Species Spotlight', detail: 'Catch today’s featured species: ' + target, progress: Math.min(catches.filter(c => c.sp === target).length, 1), goal: 1, species: target },
+    { id: 'daily-variety', title: 'A Varied Creel', detail: 'Land 2 different species today', progress: Math.min(unique.size, 2), goal: 2 },
+    { id: 'daily-heavy', title: 'Heavy Haul', detail: 'Land a fish weighing at least 5 kg today', progress: bestKg >= 5 ? 1 : 0, goal: 1 }
+  ].map(item => ({ ...item, unlocked: item.progress >= item.goal }));
+  return { day, target, catches: catches.length, items };
+}
+module.exports = { lastLanded: a => landed.get(a), streakTop, streakHit, importGuest, IMP, weekTop, today, challenges, weekStart, get, cast, reel, sell, buy, roll, baitAffinity, SPECIES, SHOP, LIM, _casts: casts };

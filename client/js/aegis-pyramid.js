@@ -98,7 +98,7 @@ function build() {
     c.S.add(plaza);
     const hit = new THREE.Mesh(new THREE.BoxGeometry(6.5, 5.5, 5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }));
     hit.position.set(X + 20, P.gy + 2.7, Z);
-    hit.userData = { kind: 'experience', experienceId: 'light-cycles', label: 'Light Cycles · Neon Grid', description: 'Enter the Light Cycles arena. Your city return point will be this Aegis Pyramid plaza.', returnTo: 'aegis-pyramid-plaza', returnX: X + 20, returnZ: Z, returnYaw: -Math.PI / 2 };
+    hit.userData = { kind: 'experience', experienceId: 'light-cycles', label: 'Light Cycles · Neon Grid', description: 'Enter the Light Cycles arena. Your city return point will be this Aegis Pyramid plaza.', returnTo: 'aegis-pyramid-plaza', returnX: X + 23, returnZ: Z, returnYaw: -Math.PI / 2 };
     c.S.add(hit); c.pick.push(hit);
     if (c.colliders) c.colliders.push({ x: X + 20, z: Z, r: 2.2, h: 1.1 });
     P.lightCyclesPlaza = plaza;

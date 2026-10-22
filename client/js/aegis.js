@@ -94,7 +94,19 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && en
 // ---------------------------------------------------------------- live cams (server/cams.js: real YouTube live streams, ranked by viewers)
 // Our server lists them (YouTube Data API behind a server-side key, or a curated fallback); the Pyramid faces show the top streams
 // across categories as thumbnails, the cam modal plays one (the only iframe, only inside the modal). /api/cams down = AEGIS cams as before.
-const SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev', CAMS_POLL = 10 * 60e3;
+const DEFAULT_SRV = 'https://burn-city-game.fly.dev', CAMS_POLL = 10 * 60e3;
+function serverOrigin() {
+  const raw = Q.get('citysrv');
+  if (!raw) return DEFAULT_SRV;
+  try {
+    const u = new URL(raw, location.origin);
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+    const allowed = u.origin === location.origin || u.hostname === 'burn-city-game.fly.dev' || local;
+    if (!allowed || (u.protocol !== 'https:' && !(local && u.protocol === 'http:'))) return DEFAULT_SRV;
+    return u.origin;
+  } catch { return DEFAULT_SRV; }
+}
+const SRV = serverOrigin();
 const LC = A.live = { cats: [], top: [], source: null, ok: 0, fails: 0 };
 const nfmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'K' : String(n | 0);
 function liveCam(s, cat) { const vid = s.id; return { id: 'yt-' + vid, live: 1, type: 'youtube', vid, cat, name: clean(s.title, 60) || 'Live cam', city: cat, region: clean(s.channel, 40), attribution: clean(s.channel, 48) || 'YouTube live',
@@ -361,7 +373,7 @@ function openPlain(cam) {
 addEventListener('popstate', () => { if (modal) { pushed = false; close(); } });   // Android/browser back closes the modal instead of leaving the game
 const swallow = e => { if (!modal) return; if (e.key === 'Escape') { if (e.type === 'keydown') close(); } e.stopImmediatePropagation(); };
 addEventListener('keydown', swallow, true); addEventListener('keyup', swallow, true);
-function close(keepHist) { clearInterval(snapTimer); clearInterval(conTimer); clearInterval(comT); const had = !!modal; if (modal) { modal.remove(); modal = null; } A.modalOpen = null; A.consoleOpen = false; window.__aegisModalOpen = false;
+function close(keepHist) { clearInterval(snapTimer); clearInterval(conTimer); clearInterval(comT); const had = !!modal; if (modal) { modal.remove(); modal = null; } A.modalOpen = null; A.consoleOpen = false; A.liveOpen = false; window.__aegisModalOpen = false;
   if (had && pushed && keepHist !== true) { pushed = false; try { if (history.state && history.state.aegisModal) history.back(); } catch { } } }
 
 // ---------------------------------------------------------------- live-stream browser: category tabs, list by viewers, one player, comments
@@ -433,10 +445,13 @@ function openLive(cam) {
   }
   function renderComments(list) { cl.replaceChildren(); if (!list.length) cl.append(E('div', 'ac-dim', 'No comments yet. Be the first.'));
     for (const c of list.slice(-50).reverse()) { const r = E('div', 'al-c'); r.append(E('b', null, clean(c.name, 24) || 'guest'), E('span', null, clean(c.text, 200)), E('small', null, new Date(+c.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))); cl.append(r); } }
-  form.onsubmit = async e => { e.preventDefault(); const text = inp.value.trim(); if (!text || !cur) return; sb.disabled = true; msg.textContent = '';
-    try { const r = await fetch(SRV + '/api/cams/' + cur.vid + '/comments', { method: 'POST', credentials: 'omit', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, name: myName(), pid: myPid() }) }); const d = await r.json().catch(() => ({}));
+  form.onsubmit = async e => { e.preventDefault(); const text = inp.value.trim(); if (!text || !cur) return; const submittedVid = cur.vid; sb.disabled = true; msg.textContent = '';
+    try { const r = await fetch(SRV + '/api/cams/' + submittedVid + '/comments', { method: 'POST', credentials: 'omit', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, name: myName(), pid: myPid() }) }); const d = await r.json().catch(() => ({}));
+      // A slow response for a previous stream must not change the new stream's UI.
+      if (!modal || !cur || cur.vid !== submittedVid) return;
       if (r.ok) { inp.value = ''; loadComments(); } else msg.textContent = d.error === 'slow_down' ? 'One comment every 5 seconds, please.' : d.error === 'too_long' ? 'Max 200 characters.' : 'Could not post that.'; }
-    catch { msg.textContent = 'Comments are offline right now.'; } finally { setTimeout(() => sb.disabled = false, 1200); } };
+    catch { if (modal && cur && cur.vid === submittedVid) msg.textContent = 'Comments are offline right now.'; }
+    finally { if (modal && cur && cur.vid === submittedVid) setTimeout(() => { if (modal && cur && cur.vid === submittedVid) sb.disabled = false; }, 1200); } };
   search.addEventListener('input', renderList); sort.addEventListener('change', () => { sortBy = sort.value; renderList(); });
   const foot = E('div', 'am-foot', `Streams: YouTube live (${LC.source === 'youtube' ? 'ranked by live viewers, refreshed by our server' : 'curated 24/7 cams'}) · one player at a time · comments are public, keep it friendly`);
   const main = E('div', 'al-main'); main.append(box, com); body.append(main, side);

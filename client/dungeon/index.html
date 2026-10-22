@@ -42,6 +42,7 @@ window.egMusic = (() => { let el = null, g = null, ac = null, muted = localStora
 import * as THREE from 'three';
 import { ENEMIES } from './data.js';
 import * as S from './sys.js';
+import { advanceExperience } from './progression-core.mjs';
 import { initUI } from './ui.js';
 const $ = id => document.getElementById(id), rnd = Math.random, ri = n => Math.floor(rnd() * n), pick = a => a[ri(a.length)], clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const MOBILE = matchMedia('(pointer:coarse)').matches || /[?&]mobile=1/.test(location.search);
@@ -224,7 +225,7 @@ function kill(e) { world.remove(e.sp); enemies = enemies.filter(x => x !== e); c
   let ore = rnd() < .3 + P.diff * .05 ? 1 + (P.diff >= 3 ? 1 : 0) : 0, sh = rnd() < .03 * (1 + P.diff) ? 1 : 0; if (e.boss) { ore += 4 + P.diff; sh += 1 + ri(2) + (P.diff >= 2 ? 1 : 0); }
   if (ore || sh) { P.mats.ore += ore; P.mats.shard += sh; ui.log('loot', `You gather ${ore ? ore + ' Ember Ore' : ''}${ore && sh ? ' and ' : ''}${sh ? sh + ' Ash Shard' + (sh > 1 ? 's' : '') : ''}.`); }
   if (rnd() < (e.boss ? .35 : .015)) loot(S.mkBag(1 + ri(3))); ui.refresh(); }
-function gainXp(x) { P.xp += x; ui.log('xp', 'You gain experience!'); let need; while (P.xp >= (need = S.xpNeed(P))) { P.xp -= need; P.lvl++; recalc(); P.hp = P.st.hp; P.mp = P.st.mp; ui.log('xp', `<b>You have gained a level! Welcome to level ${P.lvl}!</b>`); } }
+function gainXp(x) { const result = advanceExperience({ level: P.lvl, xp: P.xp }, x, S.classesOf(P).length); P.xp = result.xp; ui.log('xp', 'You gain experience!'); for (const level of result.levelsGained) { P.lvl = level; recalc(); P.hp = P.st.hp; P.mp = P.st.mp; ui.log('xp', `<b>You have gained a level! Welcome to level ${P.lvl}!</b>`); } }
 function loot(it) { const free = it.t !== 'bag' && Object.keys(S.EQ_SLOTS).find(k => S.EQ_SLOTS[k][1] === it.t && !P.eq[k]); const nm = `<span style="color:${RAR[it.r || 0][1]}">${S.itemName(it)}</span>`;
   if (free) { P.eq[free] = it; changed(); ui.log('loot', `You receive ${nm} and equip it (${S.EQ_SLOTS[free][0]}).`); return; }
   const worst = Math.min(...Object.keys(S.EQ_SLOTS).filter(k => S.EQ_SLOTS[k][1] === it.t).map(k => S.iscore(P.eq[k])));

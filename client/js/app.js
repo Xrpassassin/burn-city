@@ -1181,7 +1181,7 @@ let NET=null;const peers=new Map();window.__city={audio:()=>({AC,on:!!aud.on,mas
 function tlOn(){return !!(window.__wildsTravelLocked&&window.__wildsTravelLocked())}
 function setMode(m){if(tlOn()&&m!=='explore')return;const prev=mode;mode=m;tour=null;window.__modeReset&&window.__modeReset();$('tourCap')&&$('tourCap').classList.remove('show');document.querySelectorAll('#btns [data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));orbit.enabled=m==='orbit';avatar.visible=m==='explore'&&!P.fp;
  $('touch').classList.toggle('on',MOBILE&&(m==='explore'||m==='fly'));['tUp','tDown'].forEach(i=>$(i).style.display=m==='fly'?'':'none');['tJump','tRun','tUse'].forEach(i=>$(i).style.display=m==='explore'?'':'none');
- if(m!=='orbit'){const d=C.getWorldDirection(new THREE.Vector3());yp.yaw=Math.atan2(-d.x,-d.z);yp.pitch=Math.asin(Math.max(-1,Math.min(1,d.y)))}
+ if(m!=='orbit'&&prev!==m){const d=C.getWorldDirection(new THREE.Vector3());yp.yaw=Math.atan2(-d.x,-d.z);yp.pitch=Math.asin(Math.max(-1,Math.min(1,d.y)))}
  if(m==='explore'){if(prev==='fly'){/* drop the walker right under the drone, same heading; over the lake -> nearest shore */const q=C.position,es=window.__estate;let x=q.x,z=q.z;if(es&&es.inLake(x,z)){let dx=x-es.lakeC.x,dz=z-es.lakeC.z;if(Math.hypot(dx,dz)<1){dx=-es.dir.x;dz=-es.dir.z}const dl=Math.hypot(dx,dz);for(let k=0;k<400&&es.inLake(x,z);k++){x+=dx/dl;z+=dz/dl}x+=dx/dl*2;z+=dz/dl*2}
   x=Math.max(-900,Math.min(900,x));z=Math.max(-900,Math.min(900,z));{const g0=groundAt(x,z,q.y);P.pos.set(x,Math.max(g0,Math.min(q.y-2.5,g0+30)),z)}P.vel.set(0,0,0);P.onGround=false;P.climb=null;P.spawned=1;avatar.rotation.y=yp.yaw}
  else if(!P.spawned){P.pos.set(0,0,52);P.spawned=1;yp.yaw=0;yp.pitch=-.12}}

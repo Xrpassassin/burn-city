@@ -3,6 +3,7 @@ import { sampleOceanHeight, updateOceanGeometry } from './ocean.js';
 import * as Trade from './trade.js';
 import * as Boats from './boats.js';
 import * as Combat from './combat.js';
+import * as CannonAI from './cannon-ai.js';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -93,6 +94,7 @@ const keys = new Set();
 const controls = {left:false,right:false,forward:false,back:false,fire:false};
 let started=false, speed=0, heading=0, hullHealth=100, lastShot=0, elapsed=0;
 const projectiles=[];
+const enemyProjectiles=[];
 addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Space'].includes(e.key))e.preventDefault();keys.add(e.key.toLowerCase());if(e.code==='Space')fireBroadside()});
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 addEventListener('blur',()=>keys.clear());
@@ -125,6 +127,31 @@ function tick(){
   elapsed+=dt;
   updateOceanGeometry(waterGeo,basePositions,elapsed);
   Boats.updateFleet(fleet,dt,elapsed,sampleOceanHeight,started,started?ship.position:null);
+  if (started) {
+    for (const boat of fleet) {
+      if (!boat.alive || boat.kind !== 'patrol') continue;
+      const wasWinding = (boat.cannonWindup || 0) > 0;
+      if (boat.warningLamp) boat.warningLamp.visible = wasWinding;
+    }
+    const cannonShots = CannonAI.updateNpcCannons(fleet, ship.position, dt);
+    for (const shot of cannonShots) {
+      const ball = new THREE.Mesh(
+        new THREE.SphereGeometry(0.28, 8, 6),
+        new THREE.MeshBasicMaterial({ color: 0xff493b })
+      );
+      ball.position.set(shot.x, 1.25, shot.z);
+      ball.userData = { vx: shot.vx, vz: shot.vz, life: shot.life, damage: shot.damage, sourceId: shot.sourceId };
+      scene.add(ball);
+      enemyProjectiles.push(ball);
+    }
+    for (const boat of fleet) {
+      if (boat.kind === 'patrol' && (boat.cannonWindup || 0) > 0.7 && !(boat._reportedWindup)) {
+        boat._reportedWindup = true;
+        $('message').textContent = 'Enemy patrol is lining up a broadside — turn hard to evade!';
+      }
+      if (!(boat.cannonWindup > 0)) boat._reportedWindup = false;
+    }
+  }
   if(started){
     const atPort=Trade.tick(ship.position);   // docked: helm locked while the port panel is open
     if(atPort)speed=0;
@@ -166,6 +193,28 @@ function tick(){
       if(p.userData.life<=0){scene.remove(p);p.geometry.dispose();p.material.dispose()}
     }
     for(let i=projectiles.length-1;i>=0;i--)if(projectiles[i].userData.life<=0)projectiles.splice(i,1);
+    for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+      const p = enemyProjectiles[i];
+      p.position.x += p.userData.vx * dt;
+      p.position.z += p.userData.vz * dt;
+      p.userData.life -= dt;
+      const hit = CannonAI.projectileHitsPlayer(p.position, ship);
+      if (hit) {
+        hullHealth = Math.max(0, hullHealth - p.userData.damage);
+        $('hull').textContent = hullHealth + '%';
+        $('message').textContent = hullHealth > 0
+          ? 'Enemy broadside hit! Hull integrity ' + hullHealth + '%. Keep moving to evade the next volley.'
+          : 'Your hull is broken. The Ashen Wake is disabled — this prototype has no repair or respawn loop yet.';
+        if (hullHealth === 0) speed = 0;
+        p.userData.life = 0;
+      }
+      if (p.userData.life <= 0) {
+        scene.remove(p);
+        p.geometry.dispose();
+        p.material.dispose();
+        enemyProjectiles.splice(i, 1);
+      }
+    }
   }else{
     camera.position.x=Math.sin(elapsed*.07)*3;
     camera.position.y=20+Math.sin(elapsed*.2)*.8;

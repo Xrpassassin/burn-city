@@ -22,7 +22,7 @@ const close=()=>{menu.classList.remove('on');opener.setAttribute('aria-expanded'
 opener.addEventListener('click',()=>{const on=menu.classList.toggle('on');opener.setAttribute('aria-expanded',String(on))});
 menu.addEventListener('click',e=>{
  const b=e.target.closest('[data-transport]');if(!b)return;
- if(b.dataset.transport==='fly'){document.querySelector('#btns [data-m="fly"]')?.click();close();return}
+ if(b.dataset.transport==='fly'){if(window.__setBurnMode)window.__setBurnMode('fly');close();return}
  if(b.dataset.transport==='boat'){
    // Route the player toward the existing lake/boat dock if its world anchor is available.
    if(window.__setBurnMode)window.__setBurnMode('explore');

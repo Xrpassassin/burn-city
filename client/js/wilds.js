@@ -352,6 +352,38 @@ function buildDom() {
   qline = el('div'); qline.id = 'wlQuest'; document.body.append(qline);
   banner = el('div'); banner.id = 'wlBanner'; document.body.append(banner);
   toastEl = el('div'); toastEl.id = 'wlToast'; document.body.append(toastEl);
+  if (TEST) {
+    const panel = el('section'); panel.id = 'wlPathDebugUi';
+    Object.assign(panel.style, { position: 'fixed', left: '10px', top: 'calc(10px + env(safe-area-inset-top))', zIndex: '90', width: 'min(270px, calc(100vw - 20px))', padding: '10px', borderRadius: '12px', border: '1px solid #9be37a88', background: 'rgba(7,14,9,.94)', color: '#efffe6', font: '12px/1.35 system-ui,sans-serif', boxShadow: '0 4px 20px #0009' });
+    const title = el('div', null, '<b>CinderWilds Path Test</b>');
+    const note = el('div', null, 'Target world X/Z (metres). This is a debug preview only.');
+    note.style.cssText = 'color:#b8d8b0;margin:4px 0 8px';
+    const fields = el('div');
+    fields.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px';
+    const makeField = (labelText, value) => {
+      const wrap = el('label'); wrap.textContent = labelText;
+      wrap.style.cssText = 'display:flex;flex-direction:column;gap:3px;color:#dfffd0';
+      const input = document.createElement('input'); input.type = 'number'; input.inputMode = 'decimal'; input.value = String(value); input.step = '2.5';
+      input.style.cssText = 'width:100%;min-width:0;min-height:40px;padding:6px;border-radius:7px;border:1px solid #52674a;background:#172116;color:#fff;font:14px system-ui';
+      wrap.append(input); fields.append(wrap); return input;
+    };
+    const xInput = makeField('Target X', 0), zInput = makeField('Target Z', 550);
+    const actions = el('div'); actions.style.cssText = 'display:flex;gap:6px;margin-top:8px';
+    const makeButton = (label) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.style.cssText = 'flex:1;min-height:42px;padding:7px;border-radius:8px;border:1px solid #9be37a;background:#263b20;color:#fff;font:700 12px system-ui'; return b; };
+    const run = makeButton('Preview route'), clear = makeButton('Clear');
+    actions.append(run, clear);
+    const output = el('div', null, 'Ready when forest is loaded.');
+    output.setAttribute('aria-live', 'polite'); output.style.cssText = 'margin-top:8px;color:#ffd27a;overflow-wrap:anywhere';
+    run.onclick = e => {
+      e.stopPropagation();
+      const tx = Number(xInput.value), tz = Number(zInput.value);
+      const result = W.test.previewPath && W.test.previewPath(tx, tz);
+      output.textContent = !result ? 'Preview hook unavailable.' : result.reached ? 'Route found · ' + result.cells + ' cells · ' + result.visited + ' visited' : 'No route · ' + (result.reason || 'target blocked/out of range');
+    };
+    clear.onclick = e => { e.stopPropagation(); if (W.test.clearPathPreview) W.test.clearPathPreview(); output.textContent = 'Preview cleared.'; };
+    panel.append(title, note, fields, actions, output); panel.addEventListener('pointerdown', e => e.stopPropagation()); panel.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+    document.body.append(panel); W.test.pathUi = panel;
+  }
 }
 function toast(msg, ms = 2600) { if (!toastEl) return; toastEl.textContent = msg; toastEl.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => toastEl && (toastEl.style.opacity = 0), ms); }
 function bigBanner(txt, sub, ms = 2200) { if (!banner) return; const bn = banner; bn.innerHTML = esc(txt) + (sub ? '<small>' + esc(sub) + '</small>' : ''); bn.style.opacity = 1; setTimeout(() => bn.style.opacity = 0, ms); }
@@ -821,7 +853,8 @@ export function unload() {
   disposeMats();
   for (let i = c.colliders.length - 1; i >= 0; i--) if (c.colliders[i].wilds) c.colliders.splice(i, 1);
   OB.clear(); flames = []; beams = []; for (const m of MARKERS) { delete m.rune; delete m.beam; delete m.g; }
-  for (const e of [W.maraTag, hud, qline, banner, toastEl, document.getElementById('wlCss'), ...document.querySelectorAll('.wlfloat,.wltag')]) if (e) e.remove();
+  for (const e of [W.maraTag, hud, qline, banner, toastEl, W.test.pathUi, document.getElementById('wlCss'), ...document.querySelectorAll('.wlfloat,.wltag')]) if (e) e.remove();
+  if (TEST) W.test.pathUi = null;
   W.maraTag = hud = qline = banner = toastEl = null; clearTimeout(toastT);
   W.lights = null; W.flyData = W.leafData = null; game = null; if (TEST) W.game = null;
   W.unloadedAt = performance.now();

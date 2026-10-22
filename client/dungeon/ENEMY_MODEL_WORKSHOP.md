@@ -11,11 +11,11 @@ The workshop creates four original, lightweight Three.js mesh archetypes from bu
 - **Plague Ghoul** — hunched, lean frame, long limbs and sickly eye glow
 - **Gravecaller** — robe/hood silhouette, staff and arcane focus
 
-These are in-repository procedural prototypes, not downloaded or rigged third-party models. They exist to establish readable silhouettes, relative proportions and material palettes before we select and integrate production assets.
+The first four are in-repository procedural prototypes. The workshop also bundles three imported, animated Quaternius CC0 models: Slime, Bat, and Dragon. Their GLB payloads are stored as base64 text under `assets/enemy-models/`, decoded on demand, and parsed with the vendored Three.js r160 GLTFLoader. The GLB conversion source records that the original Quaternius geometry was not modified and animation names were normalized.
 
 ## Visual controls
 
-- Archetype selector
+- Archetype selector: four procedural silhouettes plus Slime, Bat, and Dragon imported animated models
 - Overall scale, body mass, head size and weapon size
 - Skin/base, armor, accent/emissive and metal/bone colors
 - Emissive intensity, wireframe inspection, auto-rotation, ground/plinth toggle

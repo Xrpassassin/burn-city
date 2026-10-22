@@ -128,12 +128,25 @@ function tick(){
   updateOceanGeometry(waterGeo,basePositions,elapsed);
   Boats.updateFleet(fleet,dt,elapsed,sampleOceanHeight,started,started?ship.position:null);
   if (started) {
+    const cannonShots = CannonAI.updateNpcCannons(fleet, ship.position, dt);
     for (const boat of fleet) {
       if (!boat.alive || boat.kind !== 'patrol') continue;
-      const wasWinding = (boat.cannonWindup || 0) > 0;
-      if (boat.warningLamp) boat.warningLamp.visible = wasWinding;
+      const winding = (boat.cannonWindup || 0) > 0;
+      if (winding && !boat.warningLamp) {
+        boat.warningLamp = new THREE.Mesh(
+          new THREE.SphereGeometry(0.32, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0xff2118 })
+        );
+        boat.warningLamp.position.set(0, 6.45, 0);
+        boat.group.add(boat.warningLamp);
+      }
+      if (boat.warningLamp) boat.warningLamp.visible = winding;
+      if (winding && boat.cannonWindup > 0.7 && !boat._reportedWindup) {
+        boat._reportedWindup = true;
+        $('message').textContent = 'Enemy patrol is lining up a broadside — turn hard to evade!';
+      }
+      if (!winding) boat._reportedWindup = false;
     }
-    const cannonShots = CannonAI.updateNpcCannons(fleet, ship.position, dt);
     for (const shot of cannonShots) {
       const ball = new THREE.Mesh(
         new THREE.SphereGeometry(0.28, 8, 6),
@@ -143,13 +156,6 @@ function tick(){
       ball.userData = { vx: shot.vx, vz: shot.vz, life: shot.life, damage: shot.damage, sourceId: shot.sourceId };
       scene.add(ball);
       enemyProjectiles.push(ball);
-    }
-    for (const boat of fleet) {
-      if (boat.kind === 'patrol' && (boat.cannonWindup || 0) > 0.7 && !(boat._reportedWindup)) {
-        boat._reportedWindup = true;
-        $('message').textContent = 'Enemy patrol is lining up a broadside — turn hard to evade!';
-      }
-      if (!(boat.cannonWindup > 0)) boat._reportedWindup = false;
     }
   }
   if(started){

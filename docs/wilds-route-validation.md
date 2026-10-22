@@ -18,3 +18,10 @@ node client/js/wilds-route-validation.test.mjs
 ## Integration guardrails
 
 This PR does not wire callbacks into `wilds.js` or change creature movement. A later integration must bind to the actual CinderWilds obstacle grid/collision checks and playable-ground mask, define actor clearance (not just point clearance), and account for vertical terrain, water, narrow gaps, and moving obstacles. A route reported valid is not a collision-free guarantee between samples. The existing synthetic simulation is still a harness, not proof of live-world navigation.
+
+
+## Test-only CinderWilds preview integration
+
+The stacked follow-up wires this validator into the existing `?wildstest`/`?debug=1` path preview in `client/js/wilds.js`. It checks the proposed route against the existing `ell(wx, wz)` playable-area boundary and the current `blocked(wx, wz, 0.8)` obstacle-grid query before drawing the gold debug line. A route that fails validation is not drawn and the test panel receives a validation reason.
+
+This uses current forest obstacle data, but it is still an approximation: the obstacle grid represents registered colliders, the boundary is an ellipse-based mask, and point samples do not prove full swept-volume clearance. This hook is test-only; it does not steer creatures or alter normal gameplay. Deep-area navigation remains unsupported by this preview.

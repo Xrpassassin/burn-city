@@ -5,6 +5,7 @@ const STATUSES = new Set(['planned', 'available']);
 
 export function createExperienceRegistry({ onState = () => {} } = {}) {
   const entries = new Map();
+  const notify = state => { try { onState(state); } catch { /* Observers must not wedge navigation. */ } };
   let pendingId = null;
   let activeId = null;
 
@@ -55,7 +56,7 @@ export function createExperienceRegistry({ onState = () => {} } = {}) {
     }
 
     pendingId = id;
-    onState({ state: 'loading', destinationId: id });
+    notify({ state: 'loading', destinationId: id });
     try {
       const result = await entry.launch({ ...context, destinationId: id, returnTo: entry.returnTo });
       activeId = id;
@@ -64,7 +65,7 @@ export function createExperienceRegistry({ onState = () => {} } = {}) {
       return { ok: false, reason: 'launch-failed', error };
     } finally {
       pendingId = null;
-      onState({ state: 'idle', destinationId: id, activeId });
+      notify({ state: 'idle', destinationId: id, activeId });
     }
   }
 
@@ -76,4 +77,24 @@ export function createExperienceRegistry({ onState = () => {} } = {}) {
     get activeId() { return activeId; },
     get pendingId() { return pendingId; }
   });
+}
+
+/** Pre-register the two planned cross-experience destinations without pretending either is live. */
+export function createBurnCityExperienceRegistry(options = {}) {
+  const registry = createExperienceRegistry(options);
+  registry.register({
+    id: 'zombies',
+    label: 'Zombie Extermination',
+    description: 'Airport expedition; unavailable until entry, loading, extraction, and return are wired.',
+    status: 'planned',
+    returnTo: 'airport'
+  });
+  registry.register({
+    id: 'light-cycles',
+    label: 'Light Cycles',
+    description: 'Neon-grid arena; unavailable until the Aegis Pyramid entrance and return path are wired.',
+    status: 'planned',
+    returnTo: 'aegis-pyramid-plaza'
+  });
+  return registry;
 }

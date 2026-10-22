@@ -38,10 +38,17 @@ const args = storage => ({ storage, sourceRaw, sourceDigest, rulesetId: 'test-ru
   assert.ok(storage.getItem(result.receiptKey));
   assert.equal(storage.getItem('egSaveMigrationPending:attempt_12345678'), null);
   assert.equal(commitCandidate(args(storage)).status, 'already-committed');
+  storage.setItem('egSave', JSON.stringify({ ...candidate, xp: 100 }));
+  assert.throws(() => commitCandidate(args(storage)), /active save no longer matches it/);
 }
 {
   const storage = new MemoryStorage(); storage.setItem('egSave', sourceRaw);
   assert.throws(() => commitCandidate({ ...args(storage), confirmed: false }), /confirmation/);
+  assert.equal(storage.getItem('egSave'), sourceRaw);
+}
+{
+  const storage = new MemoryStorage(); storage.setItem('egSave', sourceRaw);
+  assert.throws(() => commitCandidate({ ...args(storage), sourceDigest: 'wrong-digest' }), /does not match/);
   assert.equal(storage.getItem('egSave'), sourceRaw);
 }
 {

@@ -596,7 +596,7 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
   const merged=mergeGeometries(geos),mesh=new THREE.Mesh(merged,m);mesh.frustumCulled=false;S.add(mesh);
   // Repaint every swirl from its owning pool's activity colour. Geometry stays merged for performance.
   const swirlColorRanges=[];let colorOffset=0;
-  paths.forEach((P,i)=>{for(let j=i*2;j<i*2+2;j++){const count=geos[j].attributes.sc.count;swirlColorRanges.push({P,start:colorOffset,count});colorOffset+=count}});
+  paths.forEach(P=>{for(let j=P.geoStart;j<P.geoStart+P.geoCount;j++){const count=geos[j].attributes.sc.count;swirlColorRanges.push({P,start:colorOffset,count});colorOffset+=count}});
   window.__updateSwirlColors=()=>{const attr=merged.getAttribute('sc');if(!attr)return;
    for(const range of swirlColorRanges){const col=range.P.b.actCol;if(!col)continue;for(let j=range.start;j<range.start+range.count;j++){attr.setXYZW(j,col.r,col.g,col.b,attr.getW(j))}}
    attr.needsUpdate=true;
@@ -644,8 +644,8 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
    for(let i=0;i<=NS;i++){const u=i/NS;cv.getPointAt(u,cP);const tap=1-.75*Math.pow(u,1.6),fade=1-THREE.MathUtils.smoothstep(u,.62,1),ph=9*(end?1+u*SL/Lr:-u*SL/Lr);
     for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,op*aMul*fade],v*4);fl.set([ph,sp,lock*THREE.MathUtils.smoothstep(u,0,UB*1.5),u],v*4)}}
    tg.setAttribute('sc',new THREE.BufferAttribute(ca,4));tg.setAttribute('fl',new THREE.BufferAttribute(fl,4));tg.deleteAttribute('normal');geos.push(tg)};
-  shell(cr,1);if(!LOW)shell(cr*2.6,.32);   // core matches the rail core exactly; soft glow sheath (same draw) makes it read from a distance
-  paths.push({cv,b,c:lock?GOLD:c,sp:lock?sp*.45:sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z})})});
+  const geoStart=geos.length;shell(cr,1);if(!LOW)shell(cr*2.6,.32);   // core matches the rail core exactly; soft glow sheath (same draw) makes it read from a distance
+  paths.push({cv,b,geoStart,geoCount:geos.length-geoStart,c:lock?GOLD:c,sp:lock?sp*.45:sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z})})});
  if(geos.length){const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,uniforms:{t:U.t},
    vertexShader:'attribute vec4 sc;attribute vec4 fl;varying vec4 vF;varying vec4 vC;varying vec2 vU;void main(){vF=fl;vC=sc;vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
    // gold swirls dissolve over their lower half: cells crumble away (moving with the flow) and the edge left behind glows; normal swirls (vF.z=0) unchanged

@@ -17,9 +17,11 @@ import { buildCreature, animate, mats, disposeMats } from './wilds-creatures.js'
 import { buildWalker, poseWalker } from './walker.js';
 import * as AUD from './wilds-audio.js';
 import { findWorldPath } from './wilds-pathfinding-world.mjs';
+import { drawGroundTexture } from './wilds-ground-materials.mjs';
 import { TEST, FC, RX, RZ, GATE, THRESH, CFG, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
 
 const W = { ready: false, inForest: false, modal: null, creatures: [], test: {} };
+let groundMaterialSwap = null;
 // ZONE: the deep area (wilds-deep.js) registers itself here while you're inside it; creatures, encounters, binding, NPC talk,
 // quests, HUD and the companion then run against its world (its root, spawns, keep-in, respawn) instead of Fernway Verge.
 let ZONE = null; const R0 = () => (ZONE ? ZONE.root : root);
@@ -97,6 +99,9 @@ async function buildWorld(progress = () => { }) {
   // --- forest floor: one grid mesh with baked colour (moss / leaf litter / dirt trail / wet creek banks) + detail texture
   const detail = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#c8c8c8'; g.fillRect(0, 0, w, h); for (let i = 0; i < 2600; i++) { const v = 150 + Math.random() * 105 | 0; g.fillStyle = `rgb(${v},${v},${v})`; const s = 1 + Math.random() * 4; g.save(); g.translate(Math.random() * w, Math.random() * h); g.rotate(Math.random() * 6.3); g.fillRect(-s, -s * .4, s * 2, s * .8); g.restore(); } });
   detail.wrapS = detail.wrapT = THREE.RepeatWrapping; detail.colorSpace = THREE.NoColorSpace;
+  // Alternate colored micro-detail exists only in explicit test/debug sessions; production keeps the established texture.
+  const naturalDetail = TEST ? canvasTex(256, 256, (g, w, h) => drawGroundTexture(g, w, h, 'natural')) : null;
+  if (naturalDetail) { naturalDetail.wrapS = naturalDetail.wrapT = THREE.RepeatWrapping; naturalDetail.colorSpace = THREE.SRGBColorSpace; }
   const STEP = tierN(4, 3, 2.5), X0 = -300, X1 = 300, Z0 = 300, Z1 = 880, nx = Math.round((X1 - X0) / STEP) + 1, nz = Math.round((Z1 - Z0) / STEP) + 1;
   const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3), uv = new Float32Array(nx * nz * 2), keep = new Uint8Array(nx * nz);
   const moss = new THREE.Color(0x24381a), litter = new THREE.Color(0x4a3420), dirt = new THREE.Color(0x6a5238), mud = new THREE.Color(0x2a2418), dark = new THREE.Color(0x0e1410), meadow = new THREE.Color(0x2e4a22), cc = new THREE.Color();
@@ -111,7 +116,14 @@ async function buildWorld(progress = () => { }) {
   }
   const idx = []; for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i, b = a + 1, d = a + nx, e2 = d + 1; if (keep[a] || keep[b] || keep[d] || keep[e2]) idx.push(a, d, b, b, d, e2); }
   const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); gg.setAttribute('color', new THREE.BufferAttribute(col, 3)); gg.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); gg.setIndex(idx); gg.computeVertexNormals();
-  const floor = new THREE.Mesh(gg, new THREE.MeshStandardMaterial({ vertexColors: true, map: detail, roughness: .95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); floor.renderOrder = -2; root.add(floor);
+  const floorMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, map: detail, roughness: .95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const floor = new THREE.Mesh(gg, floorMaterial); floor.renderOrder = -2; root.add(floor);
+  groundMaterialSwap = TEST ? variant => {
+    if (variant !== 'natural' && variant !== 'current') return { ok: false, reason: 'unknown-material', material: floorMaterial.map === naturalDetail ? 'natural' : 'current' };
+    floorMaterial.map = variant === 'natural' ? naturalDetail : detail;
+    floorMaterial.needsUpdate = true;
+    return { ok: true, material: variant };
+  } : null;
 
   await step(.14, 'Following the creek…');
   // --- creek: animated water ribbon (custom shader with fog) + plank bridges where the trails cross
@@ -841,7 +853,7 @@ function disposeTree(o, seen = { geo: new Set(), mat: new Set(), tex: new Set() 
   return seen;
 }
 export function unload() {
-  if (!W.ready) return; if (TEST && W.test.clearPathPreview) W.test.clearPathPreview(); W.ready = false; ZONE = null;
+  if (!W.ready) return; if (TEST && W.test.clearPathPreview) W.test.clearPathPreview(); W.ready = false; ZONE = null; groundMaterialSwap = null;
   try { if (W.enc) endEncounter(true); } catch (e) { } W.enc = null; closeModal(); W.inForest = false;
   AUD.dispose();
   const c = C();
@@ -903,6 +915,10 @@ if (TEST) {
   }
   W.test.previewPath = previewPath;
   W.test.clearPathPreview = clearPathPreview;
+  W.test.setGroundMaterial = variant => {
+    if (!W.ready || !groundMaterialSwap) return { ok: false, reason: 'forest-not-ready' };
+    return groundMaterialSwap(variant);
+  };
 }
 if (TEST) Object.assign(W.test, {
   state: () => ({ ready: W.ready, inForest: W.inForest, modal: W.modal, creatures: W.creatures.map(c => ({ sp: c.sp, lv: c.c.lv, x: +c.x.toFixed(1), z: +c.z.toFixed(1), st: c.st, spd: +c.spd.toFixed(2) })), trees: W.treeCount, save: game && JSON.parse(JSON.stringify(game.state)), comp: compState && { x: compState.x, z: compState.z, spd: compState.spd }, audio: AUD.state(), enc: W.enc && { turn: W.enc.E.turn, over: W.enc.E.over, us: W.enc.E.us.name, usHp: W.enc.E.us.hp, foeHp: W.enc.E.foe.hp, odds: game.bindOdds(W.enc.E).pct, busy: W.enc.busy } }),

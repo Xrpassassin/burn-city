@@ -133,3 +133,206 @@ The actual server framework and current authentication/session contracts must be
 ## Non-goals for this proposal
 
 No production MOBA, new server, dependencies, wallet integration, ranked ladder, live AI agents, save migration, database changes, runtime imports, or deployment. This is an architecture contract for review, not a claim that the game mode is implemented.
+
+
+---
+
+# Refined implementation framework
+
+This section turns the product plan into explicit module boundaries, data contracts, state transitions and acceptance tests. Names below are proposed interfaces, not existing production APIs.
+
+## 1. Proposed repository shape
+
+Keep the first prototype self-contained and framework-neutral. Do not add a server process or dependencies until the Phase 0 audit confirms the right deployment boundary.
+
+    client/moba/
+      index.html
+      src/app.mjs
+      src/match-client.mjs
+      src/input/command-mapper.mjs
+      src/camera/camera-controller.mjs
+      src/camera/isometric-camera.mjs
+      src/camera/third-person-camera.mjs
+      src/ui/hud.mjs
+      src/ui/minimap.mjs
+      src/ui/scoreboard.mjs
+      src/presentation/hero-view.mjs
+      tests/camera-parity.test.mjs
+    server/moba/
+      protocol.mjs
+      match-session.mjs
+      simulation.mjs
+      combat-rules.mjs
+      objectives.mjs
+      bots/controller.mjs
+      bots/difficulty-profiles.mjs
+      matchmaking/queue-policy.mjs
+      matchmaking/backfill.mjs
+      results/match-record.mjs
+      results/ranked-adapter.mjs
+
+This is a logical target layout, not a mandate to create every file in one pass. The first code PR should add only a renderer-independent rules core and tests; add a rendered prototype only after contracts are reviewed. Reuse repository conventions and existing components where safe; do not duplicate camera/rendering infrastructure unnecessarily.
+
+## 2. Core domain model
+
+Use plain serializable data at boundaries. Keep render objects, callbacks, DOM elements and Three.js objects out of authoritative state.
+
+    match = {
+      schemaVersion: 1,
+      matchId: "server-generated-id",
+      rulesetId: "classic-5v5",
+      status: "live",
+      tick: 0,
+      teams: [
+        { teamId: "blue", coreHealth: 10000, playerSlots: [] },
+        { teamId: "red", coreHealth: 10000, playerSlots: [] }
+      ],
+      entities: [],
+      objectives: [],
+      visibilityByPlayer: {},
+      result: null
+    }
+
+Required concepts:
+- **MatchSession:** match ID, ruleset version, lifecycle, roster, server clock, reconnect deadlines and result status.
+- **PlayerSlot:** stable slot ID, team, selected hero, controller type (human, bot, empty), connection state and bot profile when applicable.
+- **HeroState:** position/velocity, health/resources, level/experience, cooldowns, status effects, respawn state and server-issued entity ID.
+- **AbilityDefinition:** immutable targeting, range, cooldown, cost, windup, effect and valid-target rules.
+- **MatchRecord:** final roster/controller history, result, ruleset version, duration, disconnects, anti-cheat flags and rating disposition.
+- **CameraPreference:** client-only setting; never authoritative combat state.
+
+Use stable server-issued entity IDs. Reject invalid values at network boundaries. Never accept client-submitted health, cooldown, damage, objective completion, win/loss, rating or reward amount.
+
+## 3. Network command and snapshot contract
+
+The client sends intent, not outcomes. The server validates each intent against current state.
+
+Proposed client-to-server messages:
+- match.ready: player confirms assets and controls are ready.
+- hero.select: requested hero ID, only during selection.
+- input.move: normalized movement vector and sequence number.
+- ability.cast: ability ID, target entity or aim point, and sequence number.
+- target.request: optional target preference; server validates visibility and range.
+- match.ping: limited, rate-limited tactical ping.
+- session.reconnect: authenticated session token and last acknowledged sequence.
+
+Proposed server-to-client messages:
+- match.snapshot: authoritative tick, visible entity state and event sequence.
+- match.event: validated events such as ability started, damage applied, tower destroyed, hero defeated or objective captured.
+- match.roster: teams, human/bot slot markers and reconnect status.
+- match.phase: lifecycle transitions and timers.
+- match.finalized: immutable result summary and record ID.
+
+Protocol requirements:
+- Validate payload size, types, ranges, enum values, ownership and rate limits.
+- Include schema/ruleset versions and monotonic sequence/tick identifiers.
+- Client prediction may improve responsiveness, but reconciliation returns to authoritative state.
+- Send only opponents/entities visible under server visibility rules.
+- Reuse existing auth/session only after audit; do not invent a parallel identity or wallet token.
+- Never place signing keys or XRP payout credentials in browser code.
+
+## 4. Match state machine
+
+    created -> queueing -> assembling_roster -> ready_check -> loading
+      -> live -> resolving_result -> finalized -> returned_to_hub
+
+    queueing / assembling_roster / ready_check / loading -> cancelled
+    live -> recovery -> live or resolving_result
+
+Every transition needs one owner and explicit timeout behavior. Finalization must be idempotent: duplicate finish messages or reconnect retries cannot grant duplicate rating or rewards. If the server cannot establish a trustworthy result, mark it void or disputed rather than infer a winner from client reports.
+
+## 5. AI slot and difficulty contract
+
+A bot occupies a normal player slot and submits permitted intents through the same simulation boundary. It cannot bypass combat validation.
+
+Suggested difficulty profile fields:
+- reaction delay range;
+- decision update interval;
+- pathing and positioning quality;
+- last-hit timing tolerance;
+- retreat and resource thresholds;
+- objective-priority weights;
+- team-coordination level;
+- hero familiarity and combo proficiency.
+
+Difficulty changes decision quality and consistency, not hidden combat math. Keep each bot profile stable for a match; do not silently escalate difficulty because a human is winning.
+
+Backfill policy:
+1. Determine queue mode and allowed human/bot composition.
+2. Fill missing slots with the selected, disclosed bot profile.
+3. Publish roster and bot slots before ready check.
+4. Lock roster at match start except documented disconnect takeover.
+5. On disconnect, start a grace timer; if policy permits, bot takeover is recorded as a match event.
+6. On reconnect, pause bot decisions at a safe simulation boundary and transfer control exactly once.
+7. Finalize controller history for ranked eligibility and review.
+
+Recommended queues: Practice vs AI (always available), Unranked 5v5 (AI fill after a wait), and later Ranked 5v5 (human-only by default until a published bot policy is approved). Never label a bot-filled match as human-only ranked.
+
+## 6. Dual-camera parity framework
+
+Camera changes only a local view adapter. The match client continues to emit the same normalized intent schema.
+
+    keyboard / touch / controller
+                |
+          command mapper
+                |
+          match client ---- authoritative server
+                |
+           local hero target
+             /          \
+        isometric     third-person
+          camera         camera
+
+Acceptance tests:
+- Switching camera 100 times during movement does not duplicate input or alter server hero identity.
+- Cooldowns, health, position, hit results and ability ranges remain unchanged across camera choices.
+- Hidden enemies remain hidden in both views; no camera sees through walls or bypasses fog-of-war.
+- Switching while stunned, casting, dead, respawning, crowded or reconnecting does not reset ability state.
+- Phone controls respect safe-area insets and touch targets of at least 44 CSS px.
+- If aiming differs by camera, define a fair server-side target-resolution policy and test it before ranked release.
+
+## 7. Initial combat and map rules
+
+Use versioned, data-driven rules. Keep the first prototype deliberately small:
+- One test hero per team initially; expand to three archetypes after movement/camera/combat is stable.
+- Three lanes are the long-term target; prototype one short lane and two base structures first if that accelerates iteration.
+- Basic attack, one active ability, health/resource, death/respawn, one tower per side, minion waves and a core win condition.
+- No inventory shop, jungle, ranked rating, XRP integration or persistent hero power in the first vertical slice.
+
+A renderer-free simulation test must advance ticks and assert movement bounds, cooldown enforcement, damage limits, death/respawn and win-condition finalization without launching a browser.
+
+## 8. Ranked result and XRP adapter boundary
+
+The ranked adapter accepts only a finalized server-generated MatchRecord. It returns eligible, ineligible or review plus reason codes; it does not transfer funds.
+
+Before ranked beta, define allowed rulesets, minimum human participation, bot-slot policy, surrender/disconnect/remake/server-crash outcomes, anti-smurf and collusion review, rating reversals, season placement and public rules.
+
+A future XRP service is a separate trust boundary. It must independently verify eligibility, use server-controlled limits, record transaction IDs and reconcile failures. No client-triggered payout and no automated financial reward in this framework.
+
+## 9. Test matrix and exit gates
+
+| Area | Required proof before advancing |
+|---|---|
+| Pure rules | Deterministic tests for cooldown, range, damage, death, respawn, objectives and core destruction |
+| Camera | Parity tests; no state reset or hidden-information leak |
+| AI | Full roster fill, disclosed bot slots, difficulty profiles and reconnect handoff without duplicate control |
+| Protocol | Reject invalid payloads, spoofed entities, stale sequences, replays, rate-limit violations and oversized messages |
+| Match lifecycle | Every valid transition, timeout/cancel paths and idempotent finalization |
+| Ranked | Bot policy, disconnect disposition, duplicate-result rejection and rating audit trail |
+| Mobile | Portrait/landscape, safe-area controls, camera toggle and readable ability telegraphs |
+| Performance | Target-player simulation and low-end mobile render budget measured before public beta |
+| Security | Server-authority audit, session authentication and no wallet secrets in client |
+| Integration | Launch/return through existing experience contract, only after review and behind an opt-in entry |
+
+## 10. Refined implementation order
+
+1. **Audit-only:** confirm the existing experience registry, auth/session path, Node server, websocket patterns, test scripts and open PR conflicts. Record findings without touching live files.
+2. **Rules core:** pure modules for match lifecycle, player slots, combat primitives and validation, with deterministic Node tests. No Three.js dependency.
+3. **Camera lab:** isolated client prototype uses the same local hero state and input mapper with two camera adapters. Not connected to ranked or live hub.
+4. **Local AI:** basic bot uses the same command interface; add difficulty parameters and simulation tests.
+5. **Offline vertical slice:** one lane, two heroes, minions/towers/core and both cameras. Demonstrate match win and return screen.
+6. **Dedicated online match:** only after security/session review, add server authority, matchmaking, backfill, reconnect and match records.
+7. **Ranked beta:** human-only by default, rating service, audit/appeal policy and anti-cheat.
+8. **XRP/event extensions:** separately reviewed and disabled by default; world invasion first appears in an unranked event mode.
+
+**Definition of done for the first implementation PR:** a pure rules core with tests, no production imports, no runtime route, no save migration, no new dependency, and a review note explaining how a standalone MOBA client/server will consume it. Do not bundle camera prototype or wallet functionality into that first PR.

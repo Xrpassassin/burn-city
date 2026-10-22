@@ -16,6 +16,7 @@ const TARGET_CLASSES = Object.freeze({
   binder: { label: 'Binder', specializations: ['Pactcaller', 'Hexbinder'] }
 });
 const LEGACY_CLASSES = new Set(['warrior', 'rogue', 'ranger', 'mage']);
+const KNOWN_SOURCE_VERSIONS = new Set([1, 2]);
 const isObject = x => x !== null && typeof x === 'object' && !Array.isArray(x);
 const countOccupied = x => Array.isArray(x)
   ? x.filter(Boolean).length
@@ -24,7 +25,7 @@ const cloneJson = value => JSON.parse(JSON.stringify(value));
 
 function validateSource(save) {
   if (!isObject(save)) throw new TypeError('Source save must be a JSON object.');
-  if (!Number.isInteger(save.v) || save.v < 1) throw new TypeError('Source save must have a recognized integer version.');
+  if (!Number.isInteger(save.v) || !KNOWN_SOURCE_VERSIONS.has(save.v)) throw new TypeError('Source save version is not supported; export it and keep the original unchanged.');
   if (!Number.isInteger(save.lvl) || save.lvl < 1) throw new TypeError('Source level must be a positive integer.');
   if (!Number.isFinite(save.xp) || save.xp < 0) throw new TypeError('Source XP must be a finite non-negative number.');
   if (save.gold !== undefined && (!Number.isFinite(save.gold) || save.gold < 0)) throw new TypeError('Source gold must be a finite non-negative number.');

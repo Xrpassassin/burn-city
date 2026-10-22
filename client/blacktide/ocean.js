@@ -55,9 +55,23 @@ export function updateOceanGeometry(geometry, basePositions, time) {
   const normals = geometry.attributes.normal;
   for (let i = 0; i < positions.count; i++) {
     const offset = i * 3;
-    const surface = sampleOceanSurface(basePositions[offset], basePositions[offset + 2], time);
-    positions.array[offset + 1] = surface.height;
-    const nx = -surface.slopeX, ny = 1, nz = -surface.slopeZ;
+    const x = basePositions[offset], z = basePositions[offset + 2];
+    let height = 0, slopeX = 0, slopeZ = 0;
+    // Inline the vertex calculation to avoid allocating one object per vertex.
+    for (const wave of waveData) {
+      const phase = (x * wave.dx + z * wave.dz) * wave.k - time * wave.speed;
+      height += Math.sin(phase) * wave.amplitude;
+      const derivative = Math.cos(phase) * wave.amplitude * wave.k;
+      slopeX += derivative * wave.dx;
+      slopeZ += derivative * wave.dz;
+    }
+    const detailPhase = x * 0.075 + z * 0.041 + time * 2.2;
+    height += Math.sin(detailPhase) * 0.075;
+    const detailSlope = Math.cos(detailPhase) * 0.075;
+    slopeX += detailSlope * 0.075;
+    slopeZ += detailSlope * 0.041;
+    positions.array[offset + 1] = height;
+    const nx = -slopeX, ny = 1, nz = -slopeZ;
     const invLength = 1 / Math.hypot(nx, ny, nz);
     normals.array[offset] = nx * invLength;
     normals.array[offset + 1] = ny * invLength;

@@ -7,7 +7,7 @@ function mockContext() {
     fillRect(...args) { calls.push({ color: this.fillStyle, args }); } };
 }
 const a = mockContext();
-const result = drawGroundTexture(a, 64, 64, 'natural', () => 0.25);
+const result = drawGroundTexture(a, 64, 64, 'natural', () => 0.4);
 assert.equal(result.variant, 'natural');
 assert.ok(result.flecks > 0);
 assert.equal(a.calls.length, result.flecks + 1);

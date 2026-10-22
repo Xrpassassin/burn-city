@@ -4,6 +4,9 @@ Object.assign(process.env, { DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'bc
 const F = require('../server/fish'); let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? '  PASS ' : '  FAIL ') + m); };
 const realNow = Date.now; let off = 0; Date.now = () => realNow() + off; const A = 'rFishSim11111111111111111111';
 ok(F.SPECIES.length === 20 && new Set(F.SPECIES.map(s => s[2])).size === 5, '20 species across 5 rarities');
+ok(F.baitAffinity('minnow', 0) === 1.25 && F.baitAffinity('minnow', 3) === 0.9, 'preferred bait boosts odds and mismatched bait modestly lowers them');
+ok(F.baitAffinity('unknown-species', 2) === 1, 'unknown species retain neutral bait affinity');
+ok(F.baitAffinity('leviathan', 99) === 0.9, 'bait tier is clamped safely');
 let deepOnly = 0, leg = 0; for (let i = 0; i < 4000; i++) { const f = F.roll('basic', 'worm', { night: false, deep: false }); if (['cod', 'marlin', 'leviathan', 'whaleshark', 'sturgeon'].includes(f.id)) deepOnly++; if (f.r === 4) leg++; }
 ok(deepOnly === 0, 'deep-water fish never from shore'); ok(leg === 0, 'no legendary on worm bait');
 let legB = 0; for (let i = 0; i < 4000; i++) if (F.roll('legend', 'burnfly', { night: true, deep: true }).r === 4) legB++; ok(legB > 20, 'legendary possible from boat with good gear (' + legB + '/4000)');

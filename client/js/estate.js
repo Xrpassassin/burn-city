@@ -153,6 +153,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   addBox(roadBits, 10, .16, LD-18, 0, .14, 2);
   addBox(roadBits, LW-18, .16, 8, 0, .14, -35);
   addBox(roadBits, LW-18, .16, 8, 0, .14, 38);
+  addBox(roadBits, LW-18, .16, 7, 0, .14, 46);
   for (const x of [-62,62]) addBox(roadBits, 5, .12, 31, x, .18, 1);
   // Curbs/sidewalks flank the boulevard and cross streets.
   for (const x of [-6.2,6.2]) addBox(paths,.5,.22,LD-18,x,.22,2);
@@ -217,7 +218,9 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
       addBox(trim,h.w*(isMansion?.62:.48),.28,.35,h.x,5.0,front+.25);
     }
     // Driveway paths lead from each home toward the internal street grid.
-    addBox(paths,isTrailer?5:isApartment?9:isMansion?12:8,.12,isTrailer?8:isApartment?10:isMansion?14:11,h.x, .24, front+(isTrailer?5:isApartment?6:isMansion?11:9));
+    const drivewayLength=isTrailer?8:isApartment?10:isMansion?8:11;
+    const drivewayZ=isTrailer?front+4:isApartment?front+5:isMansion?h.z-h.d/2-4:front+4;
+    addBox(paths,isTrailer?5:isApartment?9:isMansion?12:8,.12,drivewayLength,h.x, .24, drivewayZ);
     // Private planting; premium plots receive a wider landscape buffer.
     for (const s of [-1,1]) {
       addBox(greenery,isMansion?8:5,.6,2.2,h.x+s*(h.w/2+1.2),.35,h.z);
@@ -263,4 +266,4 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   anim.push(t=>{signM.color.setScalar(.9+.1*Math.sin(t*1.2))});
   return { lakeC, lotC, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
 }
-export const estateCard = () => `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏗 Burn City Estates</h2><p><b>Coming soon.</b></p>`;
+export const estateCard = () => `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏡 Burn City Estates</h2><p><b>Residential district in development.</b></p><p>Planned housing tiers: trailer homes, apartments, two-bedroom starter houses, four-bedroom family homes, and luxury lakefront mansions.</p><p>Homes are currently environmental models; purchasing, renting, interiors, and ownership progression are not implemented yet.</p>`;

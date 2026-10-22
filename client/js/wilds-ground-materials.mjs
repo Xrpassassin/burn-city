@@ -1,6 +1,6 @@
 // Procedural, dependency-free ground texture painter. Callers own the canvas/texture lifecycle.
 const PALETTES = Object.freeze({
-  natural: Object.freeze(['#38472b', '#52603a', '#6b5638', '#332b22', '#7a6745', '#29372a', '#4b3b2a']),
+  natural: Object.freeze(['#9ba978', '#b9a17a', '#8c9b72', '#c6b18a', '#87977a', '#a88d6a', '#d0c29a']),
   legacy: Object.freeze(['#969696', '#a7a7a7', '#b4b4b4', '#858585']),
 });
 
@@ -9,7 +9,7 @@ export function drawGroundTexture(ctx, width, height, variant = 'natural', rando
     throw new TypeError('A 2D context and positive dimensions are required');
   }
   const palette = PALETTES[variant] || PALETTES.natural;
-  ctx.fillStyle = variant === 'legacy' ? '#c8c8c8' : '#52603a';
+  ctx.fillStyle = variant === 'legacy' ? '#c8c8c8' : '#c2c9a7';
   ctx.fillRect(0, 0, width, height);
   const count = Math.floor(width * height / (variant === 'legacy' ? 25 : 19));
   for (let i = 0; i < count; i++) {

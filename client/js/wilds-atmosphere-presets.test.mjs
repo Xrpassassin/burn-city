@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { WILDS_ATMOSPHERE_PRESETS, getWildsAtmospherePreset, isWildsAtmospherePreset } from './wilds-atmosphere-presets.mjs';
+assert.deepEqual(Object.keys(WILDS_ATMOSPHERE_PRESETS), ['balanced', 'moonlit', 'clear']);
+assert.equal(getWildsAtmospherePreset().fogDensity, 1);
+assert.equal(getWildsAtmospherePreset('moonlit').fogTint, 0.96);
+assert.equal(getWildsAtmospherePreset('clear').shafts, 0.7);
+assert.equal(getWildsAtmospherePreset('unknown'), WILDS_ATMOSPHERE_PRESETS.balanced);
+assert.equal(isWildsAtmospherePreset('clear'), true);
+assert.equal(isWildsAtmospherePreset('unknown'), false);
+assert.ok(Object.isFrozen(WILDS_ATMOSPHERE_PRESETS));
+assert.ok(Object.isFrozen(WILDS_ATMOSPHERE_PRESETS.moonlit));
+console.log('wilds-atmosphere-presets: all tests passed');

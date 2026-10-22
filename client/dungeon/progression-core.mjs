@@ -1,9 +1,9 @@
 /**
  * Pure Eternal Grind XP/level rules.
  *
- * This module deliberately is not wired into live gameplay yet. It captures the
- * current XP threshold formula so the rules can be reviewed and tested before
- * a separate integration change touches the dungeon loop.
+ * This module is used by the live Eternal Grind XP award path on the
+ * integration branch. It captures the existing XP threshold formula so the
+ * rules can be tested independently of the dungeon loop.
  */
 export function xpThreshold(level, classCount = 1) {
   if (!Number.isInteger(level) || level < 1) {

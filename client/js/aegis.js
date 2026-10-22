@@ -948,6 +948,25 @@ function css() {
 #aegisModal .al-form button{min-height:40px;min-width:64px;border-radius:9px;border:0;background:#2fe3ff;color:#04121a;font-weight:800;cursor:pointer}
 #aegisModal .al-tab:focus-visible,#aegisModal .al-item:focus-visible,#aegisModal .am-x:focus-visible{outline:2px solid #fff;outline-offset:2px}
 body.touch #aegisModal .al-tab,body.touch #aegisModal .al-form button,body.touch #aegisModal .al-form input{min-height:44px}
+#aegisModal .al-feed-status{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin:0 0 10px;padding:9px 11px;border:1px solid #2fe3ff33;border-radius:9px;background:#071722;color:#cdebf4;font-size:12px;line-height:1.4}
+#aegisModal .al-feed-status b{white-space:nowrap;color:#bff6ff}
+#aegisModal .al-feed-status span:last-child{opacity:.8;min-width:0;overflow-wrap:anywhere}
+#aegisModal .al-feed-dot{width:8px;height:8px;flex:none;border-radius:50%;margin-top:4px;background:#7b8790}
+#aegisModal .al-feed-dot.connected{background:#43e08a;box-shadow:0 0 8px #43e08a66}
+#aegisModal .al-feed-dot.degraded{background:#ffb000}
+#aegisModal .al-feed-dot.stale{background:#ff3b2a}
+#aegisModal .al-incidents{margin:0 0 12px;padding:10px;border:1px solid #ffb00033;border-radius:10px;background:#080f17}
+#aegisModal .al-incidents-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+#aegisModal .al-incidents-head b{font-size:12px;letter-spacing:.06em;color:#ffdf9a}
+#aegisModal .al-incidents-head small{font-size:10px;opacity:.65}
+#aegisModal .al-incident-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:6px}
+#aegisModal .al-incident{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;min-height:68px;padding:9px;border:1px solid #ffb00033;border-radius:8px;background:#111c26;color:#e6fbff;text-align:left;cursor:pointer;font:inherit}
+#aegisModal .al-incident:hover{border-color:#ffb000aa;background:#172634}
+#aegisModal .al-incident b{font-size:12px;line-height:1.35;overflow-wrap:anywhere}
+#aegisModal .al-incident small{font-size:10px;letter-spacing:.04em}
+#aegisModal .al-incident span{font-size:11px;line-height:1.35;opacity:.75;overflow-wrap:anywhere}
+#aegisModal .al-incident-note{margin-top:7px;font-size:10px;line-height:1.4}
+#aegisModal .al-incident:focus-visible{outline:2px solid #fff;outline-offset:2px}
 @media (max-width:760px){
  #aegisModal{padding:max(6px,env(safe-area-inset-top)) 6px max(6px,env(safe-area-inset-bottom))}
  #aegisModal .am-live{width:100%;height:100%;max-height:100%;border-radius:12px}

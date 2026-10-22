@@ -13,6 +13,7 @@ import { createMatch, setSlotController } from "./rules-core.mjs";
 {
   let state = createMatch({ slotsPerTeam: 1 });
   state = setSlotController(state, "blue-hero-1", "bot", false);
+  state.tick = 6;
   assert.equal(chooseBotIntent(state, "blue-hero-1", "easy"), null, "easy policy waits for its decision tick");
   const intents = ["normal", "hard", "expert"].map((difficulty) => chooseBotIntent(state, "blue-hero-1", difficulty));
   assert.ok(intents.every((intent) => intent?.type === "move"));

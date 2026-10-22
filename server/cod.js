@@ -79,7 +79,7 @@ const COSMODROME = { name: 'The Ashen Cosmodrome', kind: 'cosmodrome', env: { to
     [17, 18, 5, 6, 1.1, 'desk'], [22, 23, 12, 13, 1.1, 'desk'],
     [29, 30, 5, 6, 2.6, 'furnace'], [35, 36, 5, 6, 2.6, 'furnace'],
     [29, 30, 11, 12, 2.6, 'furnace'], [35, 36, 11, 12, 2.6, 'furnace'],
-    [29, 30, 21, 22, 3.6, 'support'], [36, 37, 21, 22, 3.6, 'support'],
+    [29, 30, 21, 22, 3.6, 'support'], [36, 37, 21, 22, 3.6, 'support'], [33, 33, 25, 25, 1.0, 'support'],
     [29, 30, 27, 28, 3.6, 'support'], [36, 37, 27, 28, 3.6, 'support'],
     [32, 33, 22, 22, 1.1, 'rail'], [32, 33, 29, 29, 1.1, 'rail']
   ],

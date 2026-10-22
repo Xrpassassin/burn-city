@@ -80,6 +80,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/nftimg/')) { if (Nft.image(req, res, url.pathname)) return; }
     // PYRETHEUM (BURN Tower interior) private floor: server-side gate. Allowlist comes only from the MIDNIGHTBLUFF_WALLETS env/Fly secret
     // (comma-separated r-addresses) and is never sent to the browser. Empty/unset = locked for everyone.
+    if (url.pathname === '/api/tower/residence') { const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' }); if (limited(ip)) return json(res, 429, { error: 'slow_down' });
+      return json(res, 503, { error: 'not_available_yet', residences: [] }); }   // Pyretheum private residences: NFT ownership check not built yet (client shows a clean message)
     if (url.pathname === '/api/tower/midnightbluff') { const u = who(); if (!u) return json(res, 401, { allowed: false, error: 'sign_in_with_xaman' }); if (limited(ip)) return json(res, 429, { allowed: false, error: 'slow_down' });
       const allow = new Set(String(process.env.MIDNIGHTBLUFF_WALLETS || '').split(/[\s,]+/).filter(a => /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(a)));
       return json(res, 200, { allowed: allow.has(u.acct) }); }

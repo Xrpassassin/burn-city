@@ -379,3 +379,7 @@ Merged 15 Xrpassassin branches from Oct 21 22:08–23:18 (feat/eternal-grind-pro
 - **Pure modules + tests:** `progression-core`, `character-migration-preview`, `migration-plan`, `migration-staged-writer` (`npm run test:eternal-grind`, also run by `npm test`). Two branch test bugs fixed (undefined `twoThreshold`; stale error regex).
 - **Docs/data only:** `docs/design/*` progression/class proposals + beta migration safety contract, `client/dungeon/FOREST_ENCOUNTER_CATALOG(.schema).json` + contract.
 - Gaps: migration writer/planner are not wired into the live save yet; model pilot tints overwrite material base colors (cosmetic, flag-only).
+
+## Pyretheum residences stub (fix/tower-residence-stub, sw bc-v61-residence)
+`/api/tower/residence` (server/server.js, next to `/api/tower/midnightbluff`): 401 without a Xaman token, 429 when rate-limited, otherwise `503 {error:'not_available_yet', residences:[]}`. `client/js/tower-interior.js` shows "Private residences are not open yet…" for that error. Replace with the real XRPL NFT ownership check (Firekeepers / 589 Protocol / RACC → `residences:[{key,unit,kind,name}]`) when it is built.
+Known open items (Oct 22): live cams fall back because the running machine has no `Youtube_API` env (secret set Oct 21 but not applied; needs `fly secrets deploy` or `fly deploy`); Blacktide dock range is client-only (server `/api/bt` trusts the dock claim).

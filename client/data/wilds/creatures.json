@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "note": "Original sample content for BURN City: The Wilds. Placeholder names; replace after art/lore review. No Pok\u00e9mon IP included.",
+  "note": "Original sample content for BURN City: The Wilds. Placeholder names; replace after art/lore review. No Pokémon IP included.",
   "affinities": [
     "Ember",
     "Verdant",
@@ -431,6 +431,87 @@
         "stone",
         "boss",
         "defender"
+      ]
+    },
+    {
+      "id": "mirehare",
+      "name": "Mirehare",
+      "rarity": "common",
+      "affinity": [
+        "Verdant",
+        "Gale"
+      ],
+      "temperament": "skittish",
+      "habitats": [
+        "glassroot_grove"
+      ],
+      "levelRange": [
+        5,
+        9
+      ],
+      "baseStats": {
+        "hp": 28,
+        "power": 8,
+        "guard": 7,
+        "speed": 13,
+        "focus": 8
+      },
+      "roles": [
+        "wildlife",
+        "scout"
+      ],
+      "passiveTrait": "Quickstep: its swift movement makes it difficult to corner.",
+      "abilities": [
+        "leaf_flick",
+        "soothing_call"
+      ],
+      "evolution": null,
+      "confluenceTags": [
+        "verdant",
+        "gale",
+        "wildlife",
+        "quick"
+      ]
+    },
+    {
+      "id": "ashfang",
+      "name": "Ashfang",
+      "rarity": "uncommon",
+      "affinity": [
+        "Ember",
+        "Stone"
+      ],
+      "temperament": "territorial",
+      "habitats": [
+        "glassroot_grove",
+        "ashen_hollow"
+      ],
+      "levelRange": [
+        6,
+        11
+      ],
+      "baseStats": {
+        "hp": 38,
+        "power": 13,
+        "guard": 9,
+        "speed": 11,
+        "focus": 7
+      },
+      "roles": [
+        "predator",
+        "striker"
+      ],
+      "passiveTrait": "Ambusher: guards its territory and charges intruders who approach too closely.",
+      "abilities": [
+        "spark_nip",
+        "flare_dash"
+      ],
+      "evolution": null,
+      "confluenceTags": [
+        "ember",
+        "stone",
+        "predator",
+        "striker"
       ]
     }
   ],

@@ -40,6 +40,8 @@ window.egMusic = (() => { let el = null, g = null, ac = null, muted = localStora
 </script>
 <script type="module">
 import * as THREE from 'three';
+import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { ENEMIES } from './data.js';
 import * as S from './sys.js';
 import { initUI } from './ui.js';
@@ -136,11 +138,39 @@ function startFloor(depth) { egMusic.start(); P.depth = depth; P.best = Math.max
   for (const s2 of ['title', 'create', 'dead', 'pause']) $(s2).hidden = true; $('hud').style.display = 'block';
   ui.log('sys', `<b>You have entered Floor ${depth}: ${theme[1]}.</b> <span style="opacity:.75">(${D[0]} tier)</span>${depth % 5 === 0 ? ' A guardian waits by the portal.' : ''}`); if (depth === 1 && !P.tut) { P.tut = 1; setTimeout(() => ui.log('sys', MOBILE ? 'Left stick moves, drag the right side to look. Tap 🎒 Bag and 🛡 Character to manage gear. Find the purple portal to go deeper.' : 'Click the world to grab the mouse. WASD moves, 1-0 hotbar, Q/F spells, Z sits. The anvil by the start is the Ember Forge.'), 1500); }
   mmDirty = true; running = true; menuPaused = false; ui.refresh(); ui.relayout(); }
+const ENEMY_MODEL_PILOT = new URLSearchParams(location.search).get('enemyModels') === '1';
+const enemyModelLoader = new GLTFLoader(); let batModelPromise = null;
+function loadBatModel() {
+  if (!batModelPromise) batModelPromise = (async () => {
+    const response = await fetch('assets/enemy-models/bat.glb.b64'); if (!response.ok) throw new Error('bat model HTTP ' + response.status);
+    const encoded = (await response.text()).replace(/\\s/g, ''); const bytes = Uint8Array.from(atob(encoded), ch => ch.charCodeAt(0));
+    return await new Promise((resolve, reject) => enemyModelLoader.parse(bytes.buffer, '', resolve, reject));
+  })().catch(error => { console.warn('[Eternal Grind] Bat model pilot unavailable; retaining sprite fallback.', error); batModelPromise = null; throw error; });
+  return batModelPromise;
+}
+function attachBatModel(enemy) {
+  loadBatModel().then(gltf => {
+    if (!enemies.includes(enemy)) return;
+    const model = cloneSkeleton(gltf.scene); model.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(model), size = bounds.getSize(new THREE.Vector3()), center = bounds.getCenter(new THREE.Vector3());
+    model.position.sub(center); model.position.y += size.y * .5; model.scale.setScalar(2.25 / (Math.max(size.x, size.y, size.z) || 1));
+    const holder = new THREE.Group(); holder.add(model); world.add(holder);
+    enemy.modelRoot = holder; enemy.sp.visible = false;
+    enemy.modelMixer = new THREE.AnimationMixer(model);
+    const idle = gltf.animations.find(c => /idle|fly|flap/i.test(c.name)) || gltf.animations[0];
+    if (idle) enemy.modelMixer.clipAction(idle).play();
+    enemy.modelClips = gltf.animations;
+  }).catch(() => { /* sprite remains visible as the safe fallback */ });
+}
 function spawnEnemy(d, x, z, depth, boss) { if (solid(x, z)) return; const ranged = /archer|lich|necromancer|priest|elemental|imp|acolyte|cultist|banshee|harpy|mirror/.test(d[0]), D = DIFF[P.diff];
   const sc = (1.2 + d[3] * .32) * (boss ? 1.6 : 1), sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(`a/e/${d[0]}.webp`), transparent: true, alphaTest: .1, fog: true })); sp.center.set(.5, 0); sp.scale.set(sc, sc * 1.15, 1); sp.position.set(x, 0, z); world.add(sp);
   const pw = d[4] * (1 + (depth - 1) * .28) * (1 + d[3] * .35) * (boss ? 3 : 1), hp = Math.round(28 * pw * D[1]);
   const lvl = Math.max(1, Math.round(depth + d[3] - 1 + (boss ? 3 : 0) + D[4]));
-  enemies.push({ d, sp, x, z, hp, max: hp, atk: 5 * pw * (1 + (D[1] - 1) * .7), ranged, boss, lvl, spd: ranged ? 2 : 2.6 + rnd() * .8 - (d[3] > 3 ? .5 : 0), cd: 0, hurt: 0, awake: false, xp: Math.round(10 * pw), name: (boss ? 'Guardian ' : '') + d[1], wob: rnd() * 6, stun: 0, slow: 0, slowAmt: 0, dots: [] }); }
+  const enemy = { d, sp, x, z, hp, max: hp, atk: 5 * pw * (1 + (D[1] - 1) * .7), ranged, boss, lvl, spd: ranged ? 2 : 2.6 + rnd() * .8 - (d[3] > 3 ? .5 : 0), cd: 0, hurt: 0, awake: false, xp: Math.round(10 * pw), name: (boss ? 'Guardian ' : '') + d[1], wob: rnd() * 6, stun: 0, slow: 0, slowAmt: 0, dots: [] };
+  enemies.push(enemy);
+  // Opt-in visual-only pilot: use the animated bat for Harpy; sprite remains the default and fallback.
+  if (ENEMY_MODEL_PILOT && /harpy/i.test(d[0])) attachBatModel(enemy);
+}
 // ---------- input ----------
 const keys = {}; let running = false, menuPaused = false, uiPaused = false, sens = 8, inv = false, mouseDown = false, locked = false;
 const paused = () => menuPaused || uiPaused;
@@ -216,7 +246,7 @@ function sit() { if (!running || paused()) return; player.sit = !player.sit; ui.
 function standUp() { if (player.sit) { player.sit = false; ui.log('sys', 'You stand up.'); $('mRest')?.classList.remove('on'); } }
 function shoot(col, spd, dmg, aoe, sz, enemy, src, spread = 0) { const m = new THREE.Mesh(new THREE.SphereGeometry(sz, 8, 6), new THREE.MeshBasicMaterial({ color: col })); const f = enemy ? enemy.f : fwd(); if (spread) f.applyAxisAngle(new THREE.Vector3(0, 1, 0), spread);
   const o = enemy ? new THREE.Vector3(enemy.x, 1.1, enemy.z) : new THREE.Vector3(player.x, 1.5, player.z).addScaledVector(f, .6); m.position.copy(o); scene.add(m); shots.push({ m, v: f.multiplyScalar(spd), dmg, aoe, t: 3, hostile: !!enemy, src: src || {}, from: enemy?.e }); }
-function kill(e) { world.remove(e.sp); enemies = enemies.filter(x => x !== e); const D = DIFF[P.diff], con = S.conOf(P.lvl, e.lvl);
+function kill(e) { world.remove(e.sp); if (e.modelRoot) world.remove(e.modelRoot); enemies = enemies.filter(x => x !== e); const D = DIFF[P.diff], con = S.conOf(P.lvl, e.lvl);
   const g = Math.round((3 + P.depth * 2) * (1 + e.d[3] * .5) * (e.boss ? 5 : 1) * (.7 + rnd() * .6) * D[2]); P.gold += g;
   ui.log('xp', `You have slain ${ename(e)}!`); gainXp(Math.max(1, Math.round(e.xp * D[2] * S.conXp(con.i)))); ui.log('loot', `You receive ${g} gold.`);
   if (rnd() < (e.boss ? 1 : .16 + e.d[3] * .04)) loot(S.mkItem(S.randomType(), P.depth, e.boss ? 3 + (rnd() < .3 ? 1 : 0) : undefined, undefined, D[3]));
@@ -274,6 +304,7 @@ function loop() { requestAnimationFrame(loop); const now = performance.now(), dt
     else if (e.awake && d < 18) tryMove(e, dx / d * spd * .5 * dt, dz / d * spd * .5 * dt, .4);
     if (!running) return;
     e.sp.position.set(e.x, e.stun > 0 ? 0 : Math.abs(Math.sin(e.wob)) * .05, e.z); e.sp.material.color.setHex(e.hurt > 0 ? 0xff5050 : e.stun > 0 ? 0xffe08a : e.slow > 0 ? 0x9ad8ff : 0xffffff);
+    if (e.modelRoot) { e.modelRoot.position.set(e.x, e.stun > 0 ? 0 : Math.abs(Math.sin(e.wob)) * .05, e.z); e.modelRoot.rotation.y = Math.atan2(player.x - e.x, player.z - e.z); e.modelRoot.scale.setScalar((1.2 + e.d[3] * .32) * (e.boss ? 1.6 : 1) / 1.8); if (e.modelMixer) e.modelMixer.update(dt); const tint = e.hurt > 0 ? 0xff5050 : e.stun > 0 ? 0xffe08a : e.slow > 0 ? 0x9ad8ff : 0xffffff; e.modelRoot.traverse(o => { if (o.isMesh) { const mats = Array.isArray(o.material) ? o.material : [o.material]; for (const m of mats) m.color.setHex(tint); } }); }
     const v = new THREE.Vector3(e.x - player.x, 1 - 1.62, e.z - player.z); const ang = v.normalize().dot(f); if (d < 14 && ang > .93 && see && d < tb) { tb = d; tgt = e; } }
   // EQ-style sticky target: keep the last foe you looked at until it dies or is far away
   if (tgt) curTgt = tgt; else if (curTgt && (!enemies.includes(curTgt) || Math.hypot(curTgt.x - player.x, curTgt.z - player.z) > 18)) curTgt = null;

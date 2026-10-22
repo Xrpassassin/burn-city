@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Eternal Grind · Dungeon Layout Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#100d0c;--panel:#211a17;--line:#57443a;--text:#f3e8d8;--muted:#b9a696;--ember:#e18a4b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,sans-serif;overflow:hidden}
+#view{position:fixed;inset:0;touch-action:none}canvas{display:block;width:100%;height:100%}
+#panel{position:fixed;top:max(12px,env(safe-area-inset-top));left:12px;right:12px;max-width:460px;padding:14px;background:#160f0ee8;border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px)}
+h1{font-size:18px;margin:0 0 4px;letter-spacing:.08em}p{margin:4px 0 10px;color:var(--muted);font-size:12px}
+.controls{display:flex;gap:8px;align-items:center}input,button{font:inherit;border-radius:8px;border:1px solid var(--line);padding:9px;background:var(--panel);color:var(--text)}input{min-width:0;flex:1}button{cursor:pointer;background:#482819;border-color:#89502f}
+#stats{font-size:12px;color:var(--muted);margin-top:9px}.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:7px;font-size:11px;color:var(--muted)}.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
+#hint{position:fixed;bottom:max(12px,env(safe-area-inset-bottom));left:12px;right:12px;text-align:center;color:#eee0ce;background:#160f0ebd;border-radius:8px;padding:8px;font-size:11px;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="view" aria-label="Interactive three-dimensional dungeon layout preview"></div>
+<section id="panel">
+<h1>ETERNAL GRIND · LAYOUT LAB</h1>
+<p>Isolated preview only. This does not alter live floors, combat, loot or saves.</p>
+<div class="controls"><input id="seed" maxlength="64" value="ashen-depths-001" aria-label="Dungeon seed"><button id="generate">Generate</button></div>
+<div id="stats" aria-live="polite"></div>
+<div class="legend"><span><i class="dot" style="background:#e7a15e"></i>Entrance</span><span><i class="dot" style="background:#d34e3d"></i>Boss chamber</span><span><i class="dot" style="background:#75665c"></i>Chamber</span><span><i class="dot" style="background:#4b3d36"></i>Corridor</span></div>
+</section>
+<div id="hint">Drag to orbit · Pinch or scroll to zoom · Enter a seed to reproduce a floor</div>
+<script type="module" src="./dungeon-layout-lab.mjs"></script>
+</body></html>

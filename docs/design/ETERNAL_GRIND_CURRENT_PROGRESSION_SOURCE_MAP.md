@@ -62,3 +62,15 @@ This is a real design conflict with the proposed policy “temporary recovery pe
 ## Smallest low-risk code seam
 
 A dedicated pure helper can extract the level/XP accumulation loop from `gainXp(x)` while preserving the current threshold formula and multi-level-up behavior. It should have tests for exact threshold boundaries, several levels gained in one award, fractional/invalid XP, and level-up ordering. Integration should be a separate PR so the pure rules can be reviewed before altering the live page.
+
+
+## Beta migration decision
+
+The current progression model is allowed to change. Do not treat today's classes, multiclass bonuses, XP curve, or death penalty as untouchable merely because they are live in beta. The requirement is to make the transition understandable and recoverable for players.
+
+Before rollout, provide a player-facing migration screen with:
+- **Translate to the new system** using a published mapping and a before/after preview.
+- **Start a new character** while preserving a backup/export of the old save.
+- **Legacy continuation or defer migration**, only if the team confirms that it can be supported safely and for a clearly stated period.
+
+For ambiguous old multiclass combinations, let the player choose among valid mappings instead of silently picking a class. Preserve supported inventory and gear; disclose any unavoidable conversions or compensation before the player confirms. Back up first, make migration idempotent, and test against real legacy-save fixtures. If a legacy path cannot be maintained, explain the beta reset/translation terms clearly rather than promising indefinite compatibility.

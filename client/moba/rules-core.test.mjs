@@ -4,7 +4,7 @@ import { applyIntent, advanceTick, createMatch, getMatchSummary, setSlotControll
 const makeCloseMatch = () => createMatch({
   matchId: "test",
   slotsPerTeam: 1,
-  rules: { heroAttackRange: 12, heroAttackDamage: 600, towerMaxHealth: 600, coreMaxHealth: 600, heroRespawnTicks: 2, heroAttackCooldownTicks: 2 }
+  rules: { heroAttackRange: 50, heroAttackDamage: 600, towerMaxHealth: 600, coreMaxHealth: 600, heroRespawnTicks: 2, heroAttackCooldownTicks: 2 }
 });
 
 {
@@ -68,7 +68,7 @@ const makeCloseMatch = () => createMatch({
   const blue = state.entities["blue-hero-1"];
   const red = state.entities["red-hero-1"];
   const positioned = structuredClone(state);
-  positioned.entities[blue.id].x = 20;
+  positioned.entities[blue.id].x = 50;
   positioned.entities[blue.id].y = 0;
   positioned.entities[red.id].x = 80;
   positioned.entities[red.id].y = 0;

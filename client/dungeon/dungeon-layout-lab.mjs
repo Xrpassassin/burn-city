@@ -26,8 +26,7 @@ const wallMat = new THREE.MeshStandardMaterial({ color: '#382b25', roughness: 1 
 let layoutGroup = new THREE.Group();
 scene.add(layoutGroup);
 let yaw = 0.65, pitch = 0.82, distance = 72, target = new THREE.Vector3();
-let dragging = false, lastX = 0, lastY = 0, pinchStart = null;
-const materialCache = new Map();
+let dragging = false, lastX = 0, lastY = 0;
 
 function box(w, h, d, material, x, y, z) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
@@ -54,12 +53,38 @@ function renderLayout(seed) {
     const material = room.type === 'entrance' ? entranceMat : room.type === 'boss' ? bossMat : roomMat;
     box(size, 0.8, size, floorMat, room.x, -0.05, room.z);
     box(size, 0.7, size, material, room.x, 0.35, room.z);
-    // Four low wall blocks leave the center visibly open; door openings are abstracted by the graph.
+    // Leave actual door gaps wherever the graph has a corridor edge.
     const wallH = room.type === 'boss' ? 3.8 : 2.8;
-    box(size, wallH, 0.55, wallMat, room.x, wallH / 2 + 0.65, room.z - size / 2);
-    box(size, wallH, 0.55, wallMat, room.x, wallH / 2 + 0.65, room.z + size / 2);
-    box(0.55, wallH, size, wallMat, room.x - size / 2, wallH / 2 + 0.65, room.z);
-    box(0.55, wallH, size, wallMat, room.x + size / 2, wallH / 2 + 0.65, room.z);
+    const wallY = wallH / 2 + 0.65;
+    const linked = new Set();
+    for (const next of [...(layout.rooms)]) {
+      if (Math.abs(next.gridX - room.gridX) + Math.abs(next.gridZ - room.gridZ) !== 1) continue;
+      if (layout.corridors.some(edge => (edge.a === room.id && edge.b === next.id) || (edge.b === room.id && edge.a === next.id))) {
+        linked.add(next.id);
+      }
+    }
+    const door = 4.2;
+    const side = (neighborId, axis) => {
+      const hasDoor = linked.has(neighborId);
+      if (!hasDoor) {
+        if (axis === 'z') box(size, wallH, 0.55, wallMat, room.x, wallY, room.z + (neighborId < room.id ? -size / 2 : size / 2));
+        else box(0.55, wallH, size, wallMat, room.x + (neighborId < room.id ? -size / 2 : size / 2), wallY, room.z);
+        return;
+      }
+      if (axis === 'z') {
+        const z = room.z + (neighborId < room.id ? -size / 2 : size / 2);
+        box((size - door) / 2, wallH, 0.55, wallMat, room.x - (size + door) / 4, wallY, z);
+        box((size - door) / 2, wallH, 0.55, wallMat, room.x + (size + door) / 4, wallY, z);
+      } else {
+        const x = room.x + (neighborId < room.id ? -size / 2 : size / 2);
+        box(0.55, wallH, (size - door) / 2, wallMat, x, wallY, room.z - (size + door) / 4);
+        box(0.55, wallH, (size - door) / 2, wallMat, x, wallY, room.z + (size + door) / 4);
+      }
+    };
+    side(room.id - layout.columns, 'z');
+    side(room.id + layout.columns, 'z');
+    side(room.id - 1, 'x');
+    side(room.id + 1, 'x');
     if (room.type !== 'chamber') {
       const marker = new THREE.Mesh(new THREE.ConeGeometry(1.15, 2.6, 5), material);
       marker.position.set(room.x, 3.5, room.z);
@@ -87,11 +112,32 @@ function resize() {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
+const activePointers = new Map();
+let previousPinchDistance = 0;
 host.addEventListener('pointerdown', event => {
   if (event.pointerType === 'touch') host.setPointerCapture(event.pointerId);
-  dragging = true; lastX = event.clientX; lastY = event.clientY;
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  dragging = activePointers.size === 1;
+  lastX = event.clientX; lastY = event.clientY;
+  if (activePointers.size === 2) {
+    const points = [...activePointers.values()];
+    previousPinchDistance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+  }
 });
 host.addEventListener('pointermove', event => {
+  if (!activePointers.has(event.pointerId)) return;
+  const previous = activePointers.get(event.pointerId);
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (activePointers.size >= 2) {
+    const points = [...activePointers.values()];
+    const nextDistance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+    if (previousPinchDistance > 0) {
+      distance = Math.max(26, Math.min(150, distance - (nextDistance - previousPinchDistance) * 0.16));
+      updateCamera();
+    }
+    previousPinchDistance = nextDistance;
+    return;
+  }
   if (!dragging) return;
   yaw -= (event.clientX - lastX) * 0.008;
   pitch = Math.max(0.18, Math.min(1.35, pitch + (event.clientY - lastY) * 0.006));
@@ -99,7 +145,11 @@ host.addEventListener('pointermove', event => {
   updateCamera();
 });
 for (const eventName of ['pointerup', 'pointercancel', 'pointerleave']) {
-  host.addEventListener(eventName, () => { dragging = false; });
+  host.addEventListener(eventName, event => {
+    activePointers.delete(event.pointerId);
+    dragging = activePointers.size === 1;
+    previousPinchDistance = 0;
+  });
 }
 host.addEventListener('wheel', event => {
   event.preventDefault();

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { resolveFightTap, baitAffinity } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity, journalAchievements } from './fishing-rules.mjs';
 
 const clean = resolveFightTap({ position: 0.5, zoneStart: 0.4, zoneWidth: 0.2 });
 assert.deepEqual(clean, { hit: true, miss: false, tension: 0, broke: false });
@@ -18,4 +18,18 @@ assert.equal(baitAffinity('minnow', 0), 1.25, 'preferred worm bait improves minn
 assert.equal(baitAffinity('minnow', 3), 0.9, 'non-preferred bait has a modest odds penalty');
 assert.equal(baitAffinity('unknown-species', 2), 1, 'unknown species keep neutral bait odds');
 assert.equal(baitAffinity('leviathan', 99), 0.9, 'bait tier input is safely clamped');
-console.log('Fishing fight rules: 12 assertions passed');
+
+const species = [['minnow','Minnow',0],['trout','Trout',1],['koi','Koi',2],['sturgeon','Sturgeon',3],['leviathan','Leviathan',4]];
+const emptyJournal = journalAchievements({}, species);
+assert.equal(emptyJournal.find(a => a.id === 'first-catch').unlocked, false);
+const partialJournal = journalAchievements({ minnow: { n: 3, best: 0.2 }, trout: { n: 1, best: 2 } }, species);
+assert.equal(partialJournal.find(a => a.id === 'first-catch').unlocked, true);
+assert.equal(partialJournal.find(a => a.id === 'five-species').progress, 2);
+assert.equal(partialJournal.find(a => a.id === 'rarity-tour').progress, 2);
+const fullJournal = journalAchievements({ minnow:{n:1,best:.2},trout:{n:1,best:2},koi:{n:1,best:5},sturgeon:{n:1,best:50},leviathan:{n:1,best:120} }, species);
+assert.equal(fullJournal.find(a => a.id === 'full-journal').unlocked, true);
+assert.equal(fullJournal.find(a => a.id === 'rarity-tour').unlocked, true);
+assert.equal(fullJournal.find(a => a.id === 'big-game').unlocked, true);
+const badJournal = journalAchievements({ nope: { n: 99, best: 9999 } }, species);
+assert.equal(badJournal.find(a => a.id === 'first-catch').unlocked, false);
+console.log('Fishing rules and journal achievements: 20 assertions passed');

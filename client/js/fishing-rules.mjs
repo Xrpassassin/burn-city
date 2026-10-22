@@ -44,3 +44,20 @@ export function journalAchievements(log = {}, species = []) {
     { id: 'big-game', title: 'Big Game', detail: 'Record a fish weighing at least 100 kg', progress: biggest >= 100 ? 1 : 0, goal: 1 }
   ].map(a => ({ ...a, unlocked: a.progress >= a.goal }));
 }
+
+const DAILY_TARGETS = ['minnow', 'bluegill', 'perch', 'carp', 'shiner', 'dace', 'trout', 'bass', 'pike', 'koi', 'snapper'];
+export function challengeBoard(catches = [], date = new Date()) {
+  const day = date instanceof Date ? date.toISOString().slice(0, 10) : String(date).slice(0, 10);
+  const dayNumber = Math.floor(Date.parse(day + 'T00:00:00Z') / 86400000);
+  const target = DAILY_TARGETS[((dayNumber % DAILY_TARGETS.length) + DAILY_TARGETS.length) % DAILY_TARGETS.length];
+  const valid = Array.isArray(catches) ? catches.filter(c => c && typeof c.sp === 'string' && Number.isFinite(+c.kg) && +c.kg >= 0) : [];
+  const unique = new Set(valid.map(c => c.sp));
+  const bestKg = valid.reduce((best, c) => Math.max(best, +c.kg), 0);
+  const items = [
+    { id: 'daily-three', title: 'Keep the Line Tight', detail: 'Land 3 fish today', progress: Math.min(valid.length, 3), goal: 3 },
+    { id: 'daily-target', title: 'Species Spotlight', detail: 'Catch today’s featured species: ' + target, progress: Math.min(valid.filter(c => c.sp === target).length, 1), goal: 1, species: target },
+    { id: 'daily-variety', title: 'A Varied Creel', detail: 'Land 2 different species today', progress: Math.min(unique.size, 2), goal: 2 },
+    { id: 'daily-heavy', title: 'Heavy Haul', detail: 'Land a fish weighing at least 5 kg today', progress: bestKg >= 5 ? 1 : 0, goal: 1 }
+  ].map(item => ({ ...item, unlocked: item.progress >= item.goal }));
+  return { day, target, catches: valid.length, items };
+}

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a0605">
+<title>Eternal Grind · Character Migration Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#100d0b;--panel:#211a15;--line:#5c432c;--gold:#e9b96b;--text:#f1e7d8;--muted:#bcae9a;--warn:#e5a06a}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#302114,#100d0b 60%);color:var(--text);font:16px/1.5 system-ui,-apple-system,sans-serif}
+main{max-width:1040px;margin:auto;padding:clamp(16px,4vw,36px)}h1,h2{font-family:Georgia,serif;line-height:1.15}h1{font-size:clamp(2rem,6vw,3.2rem);margin:.2rem 0 .5rem;color:var(--gold)}h2{font-size:1.35rem;margin:0 0 .75rem}.eyebrow{letter-spacing:.16em;text-transform:uppercase;color:var(--gold);font-size:.75rem;font-weight:700}.lead,.muted{color:var(--muted)}.panel{background:#211a15eF;border:1px solid var(--line);border-radius:14px;padding:clamp(14px,3vw,24px);margin:18px 0;box-shadow:0 12px 35px #0003}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}label{display:block;font-weight:700;margin-bottom:6px}textarea,select{width:100%;background:#100d0b;color:var(--text);border:1px solid #765938;border-radius:8px;padding:12px;font:inherit}textarea{min-height:190px;resize:vertical}button{border:1px solid var(--gold);border-radius:8px;background:#4a321b;color:#fff0d3;font:inherit;font-weight:700;padding:11px 15px;cursor:pointer}button:hover{background:#624421}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #f2d29b;outline-offset:2px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}.stat{padding:12px;background:#100d0b;border:1px solid #493626;border-radius:9px}.stat small{display:block;color:var(--muted)}.stat strong{font-size:1.1rem;overflow-wrap:anywhere}.choice{padding:12px;border:1px solid #60482e;border-radius:9px;margin:8px 0}.choice strong{color:var(--gold)}.warning{border-left:3px solid var(--warn);padding-left:12px;color:#e7c7a8}.hidden{display:none!important}ul{padding-left:20px}li{margin:.35rem 0}.status{min-height:1.5em;color:var(--warn);margin-top:10px}footer{font-size:.85rem;color:var(--muted);margin:24px 0}
+</style>
+</head>
+<body><main>
+<div class="eyebrow">BURN CITY · DEVELOPMENT TOOL</div>
+<h1>Character Migration Lab</h1>
+<p class="lead">Preview a possible beta class translation without touching the live save. This is a planning tool, not a migration or a promise of final class balance.</p>
+<div class="panel">
+<h2>1 · Load a save export</h2>
+<p class="muted">Paste the JSON contents of a character save. This page does not read browser storage and does not upload the pasted data.</p>
+<label for="saveJson">Character save JSON</label>
+<textarea id="saveJson" spellcheck="false" autocomplete="off" placeholder='{"v":2,"name":"Your character","cls":"warrior","classes":["warrior"],"lvl":10,"xp":45,"race":"human","gold":100,"eq":{},"gen":[]} '></textarea>
+<div class="actions"><button id="previewBtn" type="button">Build preview</button><button id="exampleBtn" type="button">Load example</button><button id="clearBtn" type="button">Clear</button></div>
+<div id="status" class="status" role="status" aria-live="polite"></div>
+</div>
+<section id="result" class="hidden" aria-live="polite">
+<div class="panel"><h2>2 · Existing character</h2><div id="summary" class="cards"></div><h3>Legacy class combination</h3><div id="legacy"></div></div>
+<div class="panel"><h2>3 · Choose a possible destination</h2><p class="muted">If your old character had several classes, multiple destinations may fit. Nothing is selected automatically.</p><label for="targetClass">Proposed class</label><select id="targetClass"><option value="">Choose a destination…</option></select><div id="choice" class="choice muted">Choose a destination to inspect its proposed specializations.</div></div>
+<div class="panel"><h2>4 · Migration review checklist</h2><ul id="warnings"></ul><p class="warning">No character conversion has been performed. Do not overwrite a real save based on this preview.</p></div>
+</section>
+<footer>Prototype only · No localStorage writes · No migrated save output · Mapping and preservation rules require review before production.</footer>
+</main>
+<script type="module">
+import { previewLegacyCharacter, TARGET_CLASSES } from './character-migration-preview.mjs';
+const $ = id => document.getElementById(id);
+let currentSave = null;
+const fmt = value => value === null || value === undefined ? 'Not present' : String(value);
+const card = (label,value) => { const d=document.createElement('div');d.className='stat';const s=document.createElement('small');s.textContent=label;const b=document.createElement('strong');b.textContent=fmt(value);d.append(s,b);return d; };
+function showPreview(){
+ try{
+  currentSave=JSON.parse($('saveJson').value);
+  const p=previewLegacyCharacter(currentSave);
+  $('summary').replaceChildren(
+   card('Character',p.preservedSummary.name),card('Level',p.preservedSummary.level),card('Current XP',p.preservedSummary.xp),
+   card('Race',p.preservedSummary.race),card('Gold',p.preservedSummary.gold),card('Deepest floor',p.preservedSummary.deepestFloor),
+   card('Equipped items',p.preservedSummary.equippedItems),card('Occupied bag slots',p.preservedSummary.occupiedBagSlots),
+   card('Materials',p.preservedSummary.materials?JSON.stringify(p.preservedSummary.materials):'Not present'),
+   card('Potions',p.preservedSummary.potions?JSON.stringify(p.preservedSummary.potions):'Not present')
+  );
+  $('legacy').textContent=p.legacyClasses.map(c=>c.label).join(' / ');
+  const target=$('targetClass'), old=target.value;target.replaceChildren(new Option('Choose a destination…',''));
+  for(const item of p.suggestions){const o=new Option(item.label+' — suggested match',item.id);target.add(o);}
+  target.value=p.suggestions.some(x=>x.id===old)?old:'';
+  $('choice').textContent=target.value?'':'Choose a destination to inspect its proposed specializations.';
+  $('warnings').replaceChildren(...p.warnings.map(w=>{const li=document.createElement('li');li.textContent=w;return li;}));
+  $('result').classList.remove('hidden');$('status').textContent='Preview ready. No save was changed.';
+  if(target.value)showChoice();
+ }catch(e){$('result').classList.add('hidden');$('status').textContent=e instanceof Error?e.message:'Could not read that save JSON.';}
+}
+function showChoice(){
+ if(!currentSave||!$('targetClass').value)return;
+ try{
+  const p=previewLegacyCharacter(currentSave,$('targetClass').value);
+  $('choice').replaceChildren();
+  const title=document.createElement('strong');title.textContent=p.selectedTarget.label;
+  const desc=document.createElement('p');desc.textContent='Possible specializations: '+p.selectedTarget.paths.join(' or ')+'.';
+  const note=document.createElement('p');note.className='muted';note.textContent='This selection is for comparison only. It has not been written to a character.';
+  $('choice').append(title,desc,note);
+ }catch(e){$('status').textContent=e.message;}
+}
+$('previewBtn').addEventListener('click',showPreview);
+$('targetClass').addEventListener('change',showChoice);
+$('clearBtn').addEventListener('click',()=>{$('saveJson').value='';$('result').classList.add('hidden');$('status').textContent='Cleared.';currentSave=null;});
+$('exampleBtn').addEventListener('click',()=>{$('saveJson').value=JSON.stringify({v:2,name:'Ashwalker',cls:'warrior',classes:['warrior','mage'],lvl:18,xp:340,race:'ashenborn',gold:582,best:11,eq:{primary:{id:'iron_longsword'},head:{id:'old_helm'},charm:null},gen:[{id:'bag1'},null,{id:'bag2'}],mats:{ore:7,shard:3},pots:{hp:2,mp:4}},null,2);showPreview();});
+</script></body></html>

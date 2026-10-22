@@ -16,7 +16,7 @@
     "test:skate": "node client/js/skate-physics-core.test.mjs",
     "test:fishing-rules": "node client/js/fishing-rules.test.mjs",
     "test:eternal-grind": "node client/dungeon/progression-core.test.mjs && node client/dungeon/character-migration-preview.test.mjs && node client/dungeon/migration-plan.test.mjs && node client/dungeon/migration-staged-writer.test.mjs",
-    "test:all": "node client/js/fishing-rules.test.mjs || exit 1; for t in payments security tron shop fish retain hate lobby zombie; do node test/$t-sim.js || exit 1; done",
+    "test:all": "node client/js/fishing-rules.test.mjs || exit 1; for t in payments security tron shop fish retain hate lobby zombie; do node test/$t-sim.js || exit 1; done; node test/zombie-nav-sim.js",
     "test:blacktide-ocean": "node client/blacktide/ocean.test.mjs",
     "test:blacktide-ai": "node client/blacktide/boat-ai.test.mjs",
     "test:blacktide-cannons": "node client/blacktide/cannon-ai.test.mjs",
@@ -36,7 +36,8 @@
     "test:wilds-navigation-benchmark": "node client/js/wilds-navigation-benchmark.test.mjs",
     "test:wilds-query-profiler": "node client/js/wilds-query-profiler.test.mjs",
     "bench:wilds-navigation": "node client/js/run-wilds-navigation-benchmark.mjs",
-    "test:wilds-nav": "node client/js/wilds-waypoint-follower.test.mjs && node client/js/wilds-route-validation.test.mjs && node client/js/wilds-navigation-simulation.test.mjs && node client/js/wilds-navigation-harness.test.mjs && node client/js/wilds-navigation-controller.test.mjs && node client/js/wilds-replan-policy.test.mjs && node client/js/wilds-replan-queue.test.mjs && node client/js/wilds-route-invalidation.test.mjs && node client/js/wilds-replan-orchestrator.test.mjs && node client/js/wilds-replan-worker.test.mjs && node client/js/wilds-replan-pipeline-simulation.test.mjs && node client/js/wilds-navigation-load-test.test.mjs && node client/js/wilds-navigation-benchmark.test.mjs && node client/js/wilds-query-profiler.test.mjs"
+    "test:wilds-nav": "node client/js/wilds-path-smoothing.test.mjs && node client/js/wilds-waypoint-follower.test.mjs && node client/js/wilds-route-validation.test.mjs && node client/js/wilds-navigation-simulation.test.mjs && node client/js/wilds-navigation-harness.test.mjs && node client/js/wilds-navigation-controller.test.mjs && node client/js/wilds-replan-policy.test.mjs && node client/js/wilds-replan-queue.test.mjs && node client/js/wilds-route-invalidation.test.mjs && node client/js/wilds-replan-orchestrator.test.mjs && node client/js/wilds-replan-worker.test.mjs && node client/js/wilds-replan-pipeline-simulation.test.mjs && node client/js/wilds-navigation-load-test.test.mjs && node client/js/wilds-navigation-benchmark.test.mjs && node client/js/wilds-query-profiler.test.mjs",
+    "test:zombie-nav": "node test/zombie-nav-sim.js"
   },
   "keywords": [],
   "author": "",

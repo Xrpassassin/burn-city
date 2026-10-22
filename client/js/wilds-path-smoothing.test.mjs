@@ -26,7 +26,7 @@ assert.deepEqual(simplifyWorldPath({ path: [{ x: 1, z: 2 }, { x: 3, z: 4 }] }),
   [{ x: 1, z: 2 }, { x: 3, z: 4 }]);
 assert.equal(simplifyWorldPath({ path: [{ x: 0, z: 0 }, { x: Infinity, z: 1 }] }), null);
 assert.equal(simplifyWorldPath({ path: route, sampleSpacing: 0 }), null);
-assert.equal(simplifyWorldPath({ path: route, isBlocked: () => { throw new Error('test callback'); } }).length > 0, true);
+assert.deepEqual(simplifyWorldPath({ path: route, isBlocked: () => true }), route);
 
 const bounded = simplifyWorldPath({
   path: [{ x: 0, z: 0 }, { x: 1, z: 0 }, { x: 10000, z: 0 }],

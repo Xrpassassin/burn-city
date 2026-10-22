@@ -22,6 +22,7 @@
     "test:wilds-replan-pipeline-simulation": "node client/js/wilds-replan-pipeline-simulation.test.mjs",
     "test:wilds-navigation-load-test": "node client/js/wilds-navigation-load-test.test.mjs",
     "test:wilds-navigation-benchmark": "node client/js/wilds-navigation-benchmark.test.mjs",
+    "test:wilds-query-profiler": "node client/js/wilds-query-profiler.test.mjs",
     "bench:wilds-navigation": "node client/js/run-wilds-navigation-benchmark.mjs",
     "test:all": "for t in payments security tron shop fish retain hate lobby zombie; do node test/$t-sim.js || exit 1; done"
   },

@@ -844,14 +844,7 @@ let STREETM=null,STREETML=null;const ROADJ=[];{const P=[],UV=[],IX=[],AJ=[],SW=9
    c=mix(c,c*.65+vec3(.02,.03,.05),wet*.5*step(e,0.));
    gl_FragColor=vec4(c,1.);\n${TAIL}\n}`});
  STREETM=mk(-3);STREETML=mk(-4);const sm=new THREE.Mesh(g,STREETM);sm.renderOrder=0;sm.frustumCulled=false;S.add(sm);window.__streets=sm;window.__roadJ=ROADJ}
-// ---------- arena gates: portals to the multiplayer arena, standing on real hub avenues ----------
-{const av=streets.filter(s=>s.type==='line').slice(0,2),AR=[['tron','Light Cycles',0x3cf3ff],['zombie','Zombie Survival',0xff5a1f]];
- av.forEach((s,i)=>{const [m,label,col]=AR[i],p=s.a.clone().lerp(s.b,.5),g=new THREE.Group();g.position.copy(p);g.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);
-  const mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.9}),ring=new THREE.Mesh(new THREE.TorusGeometry(3.4,.28,8,40),mat);ring.position.y=3.6;g.add(ring);
-  const core=new THREE.Mesh(new THREE.CircleGeometry(3.1,32),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.18,side:THREE.DoubleSide,depthWrite:false}));core.position.y=3.6;g.add(core);
-  const hitA=new THREE.Mesh(new THREE.BoxGeometry(7,8,3),new THREE.MeshBasicMaterial({visible:false}));hitA.position.y=4;hitA.userData={kind:'arena',arena:m,label};g.add(hitA);pick.push(hitA);
-  anim.push(t=>{ring.rotation.z=t*.8;core.material.opacity=.14+.1*Math.sin(t*3+i)});S.add(g);
-  const el=document.createElement('div');el.className='lbl';el.style.setProperty('--c','#'+new THREE.Color(col).getHexString());el.textContent='🎮 '+label+' Arena';$('labels').appendChild(el);labelEls.push({el,pos:p.clone().setY(9),pri:4e3,minor:false})})}
+// Physical travel entrances are registered through experience-registry.mjs when their destination is genuinely wired.
 const gT=[],SLp=[],SLd=[];streets.forEach(s=>{const len=s.type==='ring'?2*Math.PI*s.r:s.a.distanceTo(s.b);const k=Math.round(len/(MOBILE?12:7));for(let i=0;i<k;i++)gT.push({s,u:Math.random(),d:i%2?1:-1,sp:(6+Math.random()*5)/len});
  const nl=Math.round(len/16);for(let i=0;i<nl;i++){const u=i/nl;const L0=SLp.length;SLp.push(s.type==='ring'?new THREE.Vector3(s.c.x+Math.cos(u*6.283)*(s.r+4.4),0,s.c.z+Math.sin(u*6.283)*(s.r+4.4)):s.a.clone().lerp(s.b,u).add(_v.set(s.b.z-s.a.z,0,s.a.x-s.b.x).setLength(4.4)));const lv=SLp[L0];if(onRoad(lv.x,lv.z,-2.0)){SLp.pop();continue}SLd.push(s.type==='ring'?new THREE.Vector3(s.c.x-lv.x,0,s.c.z-lv.z).normalize():_v.clone().normalize().negate())}});
 // ground traffic v2: real low-poly cars (one instanced draw call) with head/tail lights, right-hand lanes, U-turns at avenue ends

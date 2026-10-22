@@ -7,10 +7,12 @@ This branch expands the existing procedural lake and replaces the isolated const
 - Enlarges the lake's half-width from 175 m to 210 m and half-depth from 62 m to 78 m (about 20% wider and 26% deeper).
 - Updates the water shader's normalized coordinates to match the geometry, preserving the organic shoreline, animated surface, reflections approximation, ripple hooks, fish-shadow hooks, and low-tier geometry choice.
 - The existing lake-frame placement logic automatically pushes the far shore and Estates farther from the city as the lake grows.
-- Replaces the single fenced construction site with a separate residential district: two trailer-home models, one low-rise apartment building, two two-bedroom starter homes, two four-bedroom family homes, and two luxury lakefront mansions, plus plots, driveways, internal roads, sidewalks, landscaping, boulevard lighting, and a city-facing entrance sign.
+- Replaces the single fenced construction site with a separate residential district: two trailer-home models, one low-rise apartment building, two two-bedroom starter homes, two four-bedroom family homes, and two luxury lakefront mansions, plus plots, driveways, internal roads, sidewalks, boulevard lighting, and a city-facing entrance sign.
+- Adds a shared pocket park with walking paths, planted flower beds, benches, picnic tables, bins, and a simple play area.
+- Adds merged low-poly street/perimeter trees, shrubs, private-yard fencing, and mailboxes to give the neighborhood more natural variation and lived-in detail.
 - Places lower-cost housing nearer the city-facing entrance and reserves the lakeward side for larger family homes and premium mansions; apartments use repeated window/balcony geometry and trailers use compact manufactured-home silhouettes.
 - Updates the Estates interaction card to describe the housing tiers while clearly noting that rent, purchases, interiors, and ownership progression are not implemented.
-- Uses the project's existing Three.js geometry and `BufferGeometryUtils.mergeGeometries` patterns. No new dependency or downloaded third-party asset is added; this avoids introducing an unverified asset license or extra mobile payload.
+- Uses the project's existing Three.js geometry and `BufferGeometryUtils.mergeGeometries` patterns for trees and amenities. No new dependency or downloaded third-party asset is added; this avoids introducing an unverified asset license or extra mobile payload. Open-source procedural tree generators were reviewed as possible future sources, but no incompatible WebGPU/alpha library was imported into the current rendering path.
 - Retains the existing estate interaction target and exported lake/road metadata.
 
 ## Validation required before merge
@@ -19,6 +21,7 @@ This branch expands the existing procedural lake and replaces the isolated const
 3. Verify fishing/ripples, lake avoidance/collision, bridge deck/guard, road approach, and estate interaction.
 4. Check the entrance sign faces the city and the internal boulevard joins the bridge without a gap.
 5. Inspect mobile frame time and GPU memory; reduce tree/lighting detail if needed.
+6. Verify the pocket park, playground props, fences, and mailboxes do not overlap walkable paths or block character movement.
 6. Review all changed files alongside Hark's pending changes before merging.
 
 ## Follow-up opportunities

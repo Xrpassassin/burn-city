@@ -1,7 +1,7 @@
 # Lake expansion and Waterfront Estates
 
 ## Scope
-This branch expands the existing procedural lake and replaces the isolated construction-lot presentation with a separate four-home Waterfront Estates district across the water. It is deliberately independent of other open pull requests and does not merge to `main`.
+This branch expands the existing procedural lake and replaces the isolated construction-lot presentation with a separate tiered Waterfront Estates district across the water. It is deliberately independent of other open pull requests and does not merge to `main`.
 
 ## Implementation
 - Enlarges the lake's half-width from 175 m to 210 m and half-depth from 62 m to 78 m (about 20% wider and 26% deeper).

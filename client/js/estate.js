@@ -147,7 +147,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const LW = 230, LD = 180, lot = new THREE.Group(); lot.position.copy(lotC); lot.rotation.y = yaw; G.add(lot);
   const dirt = new THREE.Mesh(new THREE.PlaneGeometry(LW, LD), new THREE.MeshLambertMaterial({ color: 0x394536 }));
   dirt.rotation.x = -Math.PI / 2; dirt.position.y = 0.06; lot.add(dirt);
-  const roadBits = [], paths = [], foundations = [], walls = [], roofs = [], glass = [], trim = [], greenery = [], trunks = [], canopies = [];
+  const roadBits = [], paths = [], foundations = [], walls = [], roofs = [], glass = [], trim = [], greenery = [], trunks = [], canopies = [], parkProps = [], shrubs = [], flowerBeds = [], fences = [];
   const addBox = (arr,w,h,d,x,y,z,ry=0) => arr.push(box(w,h,d,x,y,z,ry));
   // A small internal street grid links every driveway to the bridge approach.
   addBox(roadBits, 10, .16, LD-18, 0, .14, 2);
@@ -231,6 +231,67 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
       }
     }
   }
+  // ---------- neighborhood life: pocket park, street trees, gardens and public furniture ----------
+  // Compact procedural meshes keep this asset-free and batch most repeated scenery into a few draw calls.
+  // A small green commons sits between the starter and family-home rows, clear of the central boulevard.
+  addBox(greenery,24,.22,20,-34,.18,-8);
+  // A simple paved walking loop and cross-path through the park.
+  addBox(paths,2.2,.12,17,-34,.32,-8);
+  addBox(paths,20,.12,2.2,-34,.32,-8);
+  // Raised planting beds and flower clusters add color without texture downloads.
+  for (const [x,z,w,d] of [[-42,-15,5,2],[-26,-15,5,2],[-42,-1,5,2],[-26,-1,5,2]]) {
+    addBox(flowerBeds,w,.35,d,x,.42,z);
+    for (let i=0;i<7;i++) {
+      const fx=x-w*.4+i*w*.13, fz=z+(i%2?-.25:.25);
+      const bloom=new THREE.SphereGeometry(.32,5,4); bloom.scale(1,.8,1); bloom.translate(fx,.9,fz); shrubs.push(bloom);
+    }
+  }
+  // Benches: seat, back and two supports; picnic tables give the park a usable community purpose.
+  for (const [x,z,rot] of [[-40,-8,0],[-28,-8,Math.PI],[-34,-16,Math.PI/2]]) {
+    const c=Math.cos(rot), sn=Math.sin(rot);
+    const part=(w,h,d,ox,oy,oz)=>{ const px=x+ox*c+oz*sn, pz=z-ox*sn+oz*c; parkProps.push(box(w,h,d,px,oy,pz,rot)); };
+    part(3.2,.22,.65,0,1.05,0); part(3.2,.95,.18,0,1.55,-.24);
+    part(.18,.85,.18,-1.15,.55,0); part(.18,.85,.18,1.15,.55,0);
+  }
+  for (const [x,z] of [[-37,-5],[-31,-5]]) {
+    addBox(parkProps,3.2,.22,1.2,x,.95,z);
+    addBox(parkProps,.22,1.0,.22,x-1,.5,z-.35); addBox(parkProps,.22,1.0,.22,x+1,.5,z-.35);
+    addBox(parkProps,.22,1.0,.22,x-1,.5,z+.35); addBox(parkProps,.22,1.0,.22,x+1,.5,z+.35);
+    addBox(parkProps,2.7,.14,.35,x,1.4,z);
+  }
+  // Trash/recycling bins and low posts are simple, merged props.
+  for (const [x,z] of [[-44,-8],[-24,-8],[-34,2]]) {
+    addBox(parkProps,.8,1.1,.8,x,.65,z);
+    addBox(parkProps,.9,.12,.9,x,1.25,z);
+  }
+  // A small play area: low climbing frame, slide, and safety surface; no physics or gameplay claims.
+  addBox(greenery,9,.12,6,-34,.34,5);
+  for (const x of [-37,-31]) { addBox(parkProps,.18,3,.18,x,1.9,5); addBox(parkProps,.18,3,.18,x,1.9,9); addBox(parkProps,.18,.18,4,x,3.3,7); }
+  addBox(parkProps,1.1,.16,4,-36,1.8,7, -.35);
+  // Tree-lined outer edges and occasional shade trees along streets. Geometry is merged per material.
+  for (const x of [-105,105]) for (let z=-66;z<=66;z+=22) {
+    addBox(trunks,.65,4.8,.65,x,2.5,z);
+    const crown=new THREE.ConeGeometry(3.0,7.2,5); crown.translate(x,7.3,z); canopies.push(crown);
+    const bush=new THREE.SphereGeometry(1.25,6,5); bush.scale(1.35,.72,1.0); bush.translate(x+(x<0?3:-3),.9,z+4); shrubs.push(bush);
+  }
+  for (const x of [-15,15]) for (let z=-60;z<=60;z+=24) {
+    // Keep the apartment frontage clear; trees are set back from the pavement.
+    if (x===15 && z < -35) continue;
+    addBox(trunks,.55,3.8,.55,x,2.0,z);
+    const crown=new THREE.ConeGeometry(2.5,6.2,5); crown.translate(x,6.1,z); canopies.push(crown);
+  }
+  // Low privacy fencing distinguishes private yards from the shared public green.
+  for (const h of homes) {
+    if (h.tier==='apartment') continue;
+    const halfW=h.w/2+2, halfD=h.d/2+2, fx=h.x, fz=h.z;
+    for (const sideX of [-1,1]) {
+      addBox(fences,.18,1.0,halfD*2,fx+sideX*halfW,.6,fz);
+      for (const dz of [-halfD,0,halfD]) addBox(fences,.25,1.25,.25,fx+sideX*halfW,.7,fz+dz);
+    }
+    // Mailbox at the street-facing edge makes each lot read as a lived-in address.
+    addBox(parkProps,.55,.8,.45,fx+h.w*.42,.55,fz-h.d/2-3);
+    addBox(parkProps,.8,.12,.6,fx+h.w*.42,.98,fz-h.d/2-3);
+  }
   const merged = (bits, material) => { if (!bits.length) return null; const g=mergeGeometries(bits); const m=new THREE.Mesh(g,material); lot.add(m); return m; };
   merged(roadBits,new THREE.MeshLambertMaterial({color:0x252a32}));
   merged(paths,new THREE.MeshLambertMaterial({color:0xaaa99f}));
@@ -240,6 +301,10 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   merged(glass,new THREE.MeshBasicMaterial({color:0x79d8ed,transparent:true,opacity:.78}));
   merged(trim,new THREE.MeshLambertMaterial({color:0xffb75b}));
   merged(greenery,new THREE.MeshLambertMaterial({color:0x385d3c}));
+  merged(flowerBeds,new THREE.MeshLambertMaterial({color:0x5d5547}));
+  merged(parkProps,new THREE.MeshLambertMaterial({color:0x786f62}));
+  merged(fences,new THREE.MeshLambertMaterial({color:0xb4a58a}));
+  merged(shrubs,new THREE.MeshLambertMaterial({color:0x43804b}));
   merged(trunks,new THREE.MeshLambertMaterial({color:0x57402b}));
   if (canopies.length) merged(canopies,new THREE.MeshLambertMaterial({color:0x2e7548}));
   // Boulevard lighting: one merged pole mesh plus low-cost glowing point markers.

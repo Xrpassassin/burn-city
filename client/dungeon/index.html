@@ -13,7 +13,7 @@
 <div id="dead" class="scr" hidden style="background:#200000cc"><div class="box frame" style="max-width:420px;text-align:center"><h1 style="color:#ff5a4a">YOU HAVE FALLEN</h1><div id="deadT" class="dim"></div><div style="margin-top:14px"><button id="bRes">Rise again</button></div></div></div>
 <div id="pause" class="scr" hidden style="background:#000b"><div class="box frame" style="max-width:440px;text-align:center"><h1 style="font-size:24px">Paused</h1><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px"><button id="pRes">Resume</button><button id="pInvB">Inventory (I)</button>
 <div><div class="dim">Run tier (takes effect on the next floor)</div><div class="tiers" id="pTiers" style="margin-top:4px"></div></div>
-<label class="dim"><input type="checkbox" id="pInv" style="width:auto"> Invert look</label><label class="dim">Look speed <input type="range" id="pSens" min="2" max="20" value="8" style="width:120px"></label><button id="pLayout">Reset window layout</button><button onclick="save();location.href='../'">Save & return to the city</button></div></div></div>
+<label class="dim"><input type="checkbox" id="pInv" style="width:auto"> Invert look</label><label class="dim">Look speed <input type="range" id="pSens" min="2" max="20" value="8" style="width:120px"></label><button id="pSfx" aria-pressed="true">🔊 Sound effects: On</button><button id="pLayout">Reset window layout</button><button onclick="save();location.href='../'">Save & return to the city</button></div></div></div>
 <div id="hud"><div id="cross"></div><div id="prompt"></div><div id="lockhint">Click the world for mouse-look · Esc for the menu</div><div id="dui"></div>
 <div id="mui"><canvas id="mm" width="150" height="150"></canvas>
  <div id="mport"><div class="pf"><img id="mPort" alt=""></div><span id="mlv"></span><div class="mb"><div id="mName"></div><div class="bar hp"><i id="mhpB"></i></div><div class="bar mp"><i id="mmpB"></i></div><div class="bar en"><i id="mstB"></i></div><div id="buffs"></div><div id="mSitT"></div></div></div>
@@ -43,7 +43,13 @@ import * as THREE from 'three';
 import { ENEMIES } from './data.js';
 import * as S from './sys.js';
 import { initUI } from './ui.js';
+import SFX from './sfx.mjs';
 const $ = id => document.getElementById(id), rnd = Math.random, ri = n => Math.floor(rnd() * n), pick = a => a[ri(a.length)], clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+$('pSfx').textContent = SFX.isEnabled() ? '🔊 Sound effects: On' : '🔇 Sound effects: Off';
+$('pSfx').setAttribute('aria-pressed', String(SFX.isEnabled()));
+$('pSfx').onclick = () => { const on = SFX.setEnabled(!SFX.isEnabled()); $('pSfx').textContent = on ? '🔊 Sound effects: On' : '🔇 Sound effects: Off'; $('pSfx').setAttribute('aria-pressed', String(on)); if (on) SFX.unlock(); };
+addEventListener('pointerdown', () => SFX.unlock(), { once: true, passive: true });
+addEventListener('keydown', () => SFX.unlock(), { once: true });
 const MOBILE = matchMedia('(pointer:coarse)').matches || /[?&]mobile=1/.test(location.search);
 if (!MOBILE) $('mui').remove();
 window.show = id => { for (const s of ['title', 'create', 'dead', 'pause']) $(s).hidden = s !== id; };
@@ -175,7 +181,7 @@ $('prompt').onclick = use;
 const fwd = () => new THREE.Vector3(-Math.sin(player.yaw) * Math.cos(player.pitch), Math.sin(player.pitch), -Math.cos(player.yaw) * Math.cos(player.pitch));
 function dmgRoll(base, bonusCrit = 0) { const c = rnd() * 100 < P.st.crit + bonusCrit; return [Math.max(1, Math.round(base * (0.85 + rnd() * .3) * (c ? 1.8 : 1))), c]; }
 // src: { verb } for weapon hits, { spell: name } for spells, { dot: name } for ticks; procs only fire on weapon hits
-function hitEnemy(e, base, kb = .6, src = {}) { if (!enemies.includes(e)) return; const [d, c] = src.dot ? [Math.round(base), false] : dmgRoll(base, src.crit || 0); e.hp -= d; e.hurt = .18; e.awake = true;
+function hitEnemy(e, base, kb = .6, src = {}) { if (!enemies.includes(e)) return; const [d, c] = src.dot ? [Math.round(base), false] : dmgRoll(base, src.crit || 0); e.hp -= d; e.hurt = .18; e.awake = true; if (!src.dot) SFX.play(src.spell ? 'magic' : c ? 'critical' : 'impact');
   if (kb) { const dx = e.x - player.x, dz = e.z - player.z, l = Math.hypot(dx, dz) || 1; tryMove(e, dx / l * kb, dz / l * kb); }
   if (c) ui.log('crit', `You score a critical hit! (${d})`);
   if (src.dot) ui.log('spell', `${ename(e, true)} has taken ${d} damage from your ${src.dot}.`); else if (src.spell) ui.log('spell', `Your ${src.spell} hits ${ename(e)} for ${d} points of damage.`); else ui.log('hit', `You ${src.verb || myVerb()} ${ename(e)} for ${d} points of damage.`);
@@ -183,7 +189,7 @@ function hitEnemy(e, base, kb = .6, src = {}) { if (!enemies.includes(e)) return
   if (!src.dot && !src.spell) for (const id of P.procs || []) { const fx = S.EFFECTS[id]; if (rnd() < fx.ch) { ui.log('spell', `Your weapon flares: ${fx.n}!`);
     if (fx.k === 'burn') e.dots.push({ t: 3, dmg: d * .5, n: fx.n, acc: 0 }); if (fx.k === 'leech') { P.hp = Math.min(P.st.hp, P.hp + d * .4); } if (fx.k === 'chill') { e.slow = 3; e.slowAmt = .4; } if (fx.k === 'stun') e.stun = Math.max(e.stun, 1.5); } }
   if (e.hp <= 0) kill(e); }
-function attack() { if (player.cd > 0 || !running || paused()) return; const c = CLASSES[S.classesOf(P)[0]][2]; player.cd = c.cd * 100 / P.st.spd / (1 + (P.fx.haste || 0)); player.swing = 1; standUp();
+function attack() { if (player.cd > 0 || !running || paused()) return; const c = CLASSES[S.classesOf(P)[0]][2]; player.cd = c.cd * 100 / P.st.spd / (1 + (P.fx.haste || 0)); player.swing = 1; SFX.play(c.bolt ? 'magic' : 'swing'); standUp();
   if (c.melee) { if (player.st < 6) return; player.st -= 6; let any = false; for (const e of [...enemies]) { const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz); if (d < c.range + (e.boss ? .6 : 0) && (-Math.sin(player.yaw) * dx - Math.cos(player.yaw) * dz) / d > .55) { hitEnemy(e, P.st.atk); any = true; } } }
   else shoot(c.bow ? 0xd8c090 : 0x8ab0ff, c.bow ? 18 : 14, P.st.atk * (c.bow ? 1 : .9), false, c.bow ? .06 : .14, null, { verb: c.bow ? 'shoot' : 'blast' }); }
 function meleeTarget(range = 3.3) { const t = target(); if (t && Math.hypot(t.x - player.x, t.z - player.z) < range + (t.boss ? .6 : 0)) return t; let best = null, bd = 1e9; for (const e of enemies) { const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz); if (d < range && (-Math.sin(player.yaw) * dx - Math.cos(player.yaw) * dz) / d > .4 && d < bd) { bd = d; best = e; } } return best; }
@@ -199,7 +205,7 @@ function castSpell(id) { if (!running || paused()) return; const s = S.SPELLS[id
   if (s.res === 'mp') P.mp -= cost; else player.st -= cost; player.cds[id] = [s.cd, s.cd]; standUp(); player.swing = .6;
   switch (s.k) {
     case 'bolt': shoot(0xff6a1a, 12, (atk * (S.classesOf(P)[0] === 'mage' ? 2.2 : 1.6) + P.lvl * 3) * sd, true, .22, null, { spell: s.n }); break;
-    case 'heal': { const a = Math.round(P.st.hp * .3 * hp); P.hp = Math.min(P.st.hp, P.hp + a); ui.log('heal', `You mend your wounds. (+${a})`); break; }
+    case 'heal': { const a = Math.round(P.st.hp * .3 * hp); P.hp = Math.min(P.st.hp, P.hp + a); SFX.play('heal'); ui.log('heal', `You mend your wounds. (+${a})`); break; }
     case 'bash': hitEnemy(tgt, atk * 1.5 * sd, 1, { spell: s.n, stun: 2 }); break;
     case 'strike': hitEnemy(tgt, atk * s.mul, .4, { spell: s.n, crit: 15 }); break;
     case 'dot': tgt.dots.push({ t: s.ticks, dmg: atk * s.mul * sd, n: s.n, acc: 0 }); tgt.awake = true; ui.log('spell', `${ename(tgt, true)} is coated in venom.`); break;
@@ -210,12 +216,12 @@ function castSpell(id) { if (!running || paused()) return; const s = S.SPELLS[id
     case 'frost': shoot(0x8cf0ff, 16, atk * 1.8 * sd, false, .16, null, { spell: s.n, slow: 3, slowAmt: .4 }); break;
     case 'ward': player.ward = Math.round(P.st.hp * .4); buffs[id] = { t: 30 }; ui.log('spell', `An arcane ward surrounds you. (${player.ward})`); break;
     case 'nova': { let n = 0; for (const e of [...enemies]) { const d = Math.hypot(e.x - player.x, e.z - player.z); if (d < 4.5) { hitEnemy(e, atk * 1.6 * sd, 1.5, { spell: s.n }); n++; } } if (!n) ui.log('spell', 'Your Cinder Nova scorches empty air.'); break; } } }
-function pot(i) { if (!running || paused()) return; if (!P.pots[i]) return ui.log('miss', i ? 'You have no mana draughts.' : 'You have no healing draughts.'); P.pots[i]--; if (i === 0) P.hp = Math.min(P.st.hp, P.hp + P.st.hp * .5); else P.mp = Math.min(P.st.mp, P.mp + P.st.mp * .6); ui.log('heal', i ? 'You drink a mana draught. Mana restored.' : 'You drink a healing draught. Health restored.'); }
+function pot(i) { if (!running || paused()) return; if (!P.pots[i]) return ui.log('miss', i ? 'You have no mana draughts.' : 'You have no healing draughts.'); P.pots[i]--; if (i === 0) { P.hp = Math.min(P.st.hp, P.hp + P.st.hp * .5); SFX.play('heal'); } else P.mp = Math.min(P.st.mp, P.mp + P.st.mp * .6); ui.log('heal', i ? 'You drink a mana draught. Mana restored.' : 'You drink a healing draught. Health restored.'); }
 function useHot(i) { const a = P?.hot[i]; if (!a) return; const [k, v] = a.split(':'); if (k === 'pot') pot(+v); if (k === 'gem') castGem(+v); }
 function sit() { if (!running || paused()) return; player.sit = !player.sit; ui.log('sys', player.sit ? 'You sit down to rest and meditate.' : 'You stand up.'); $('mRest')?.classList.toggle('on', player.sit); }
 function standUp() { if (player.sit) { player.sit = false; ui.log('sys', 'You stand up.'); $('mRest')?.classList.remove('on'); } }
 function shoot(col, spd, dmg, aoe, sz, enemy, src, spread = 0) { const m = new THREE.Mesh(new THREE.SphereGeometry(sz, 8, 6), new THREE.MeshBasicMaterial({ color: col })); const f = enemy ? enemy.f : fwd(); if (spread) f.applyAxisAngle(new THREE.Vector3(0, 1, 0), spread);
-  const o = enemy ? new THREE.Vector3(enemy.x, 1.1, enemy.z) : new THREE.Vector3(player.x, 1.5, player.z).addScaledVector(f, .6); m.position.copy(o); scene.add(m); shots.push({ m, v: f.multiplyScalar(spd), dmg, aoe, t: 3, hostile: !!enemy, src: src || {}, from: enemy?.e }); }
+  const o = enemy ? new THREE.Vector3(enemy.x, 1.1, enemy.z) : new THREE.Vector3(player.x, 1.5, player.z).addScaledVector(f, .6); m.position.copy(o); scene.add(m); if (enemy) SFX.play('enemy-shot'); shots.push({ m, v: f.multiplyScalar(spd), dmg, aoe, t: 3, hostile: !!enemy, src: src || {}, from: enemy?.e }); }
 function kill(e) { world.remove(e.sp); enemies = enemies.filter(x => x !== e); const D = DIFF[P.diff], con = S.conOf(P.lvl, e.lvl);
   const g = Math.round((3 + P.depth * 2) * (1 + e.d[3] * .5) * (e.boss ? 5 : 1) * (.7 + rnd() * .6) * D[2]); P.gold += g;
   ui.log('xp', `You have slain ${ename(e)}!`); gainXp(Math.max(1, Math.round(e.xp * D[2] * S.conXp(con.i)))); ui.log('loot', `You receive ${g} gold.`);
@@ -241,9 +247,9 @@ function tryMove(o, dx, dz, r = .35) { if (!solid(o.x + dx + Math.sign(dx) * r, 
 function hurt(d, e) { const who = e ? ename(e, true) : 'Something';
   if (buffs.evade && rnd() * 100 < 40) return ui.log('miss', `${who} tries to hit YOU, but YOU dodge!`);
   let red = Math.round(d * 100 / (100 + P.st.def * 4)); if (player.ward > 0) { const ab = Math.min(player.ward, red); player.ward -= ab; red -= ab; if (player.ward <= 0) { delete buffs.ward; ui.log('spell', 'Your arcane ward shatters.'); } if (!red) return ui.log('spell', 'Your arcane ward absorbs the blow.'); }
-  P.hp -= red; player.inv = .25; ui.log('hurt', `${who} ${e ? foeVerb(e) : 'hits'} YOU for ${red} points of damage.`); if (player.sit) { player.sit = false; ui.log('sys', 'You are knocked to your feet!'); $('mRest')?.classList.remove('on'); }
+  P.hp -= red; player.inv = .25; SFX.play('player-hit'); ui.log('hurt', `${who} ${e ? foeVerb(e) : 'hits'} YOU for ${red} points of damage.`); if (player.sit) { player.sit = false; ui.log('sys', 'You are knocked to your feet!'); $('mRest')?.classList.remove('on'); }
   $('flash').style.transition = 'none'; $('flash').style.opacity = .7; requestAnimationFrame(() => requestAnimationFrame(() => { $('flash').style.transition = 'opacity .5s'; $('flash').style.opacity = 0; }));
-  if (P.hp <= 0) { running = false; document.exitPointerLock?.(); ui.closeAll(); const lost = Math.floor(P.gold / 2); P.gold -= lost; ui.log('bad', `You have been slain by ${e ? ename(e) : 'something'}!`); $('deadT').textContent = `Slain on floor ${P.depth} by ${e ? ename(e) : 'the dark'}. You lost ${lost} gold but keep your level and gear.`; show('dead'); save(); } }
+  if (P.hp <= 0) { SFX.play('death'); running = false; document.exitPointerLock?.(); ui.closeAll(); const lost = Math.floor(P.gold / 2); P.gold -= lost; ui.log('bad', `You have been slain by ${e ? ename(e) : 'something'}!`); $('deadT').textContent = `Slain on floor ${P.depth} by ${e ? ename(e) : 'the dark'}. You lost ${lost} gold but keep your level and gear.`; show('dead'); save(); } }
 $('bRes').onclick = () => { recalc(); P.hp = P.st.hp; P.mp = P.st.mp; startFloor(Math.max(1, P.depth - 1)); };
 let curTgt = null; const target = () => curTgt && enemies.includes(curTgt) ? curTgt : null;
 let last = performance.now(), saveT = 0;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sampleOceanHeight, updateOceanGeometry } from './ocean.js';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -26,7 +27,7 @@ scene.add(ember);
 
 const waterGeo = new THREE.PlaneGeometry(1800, 1800, 100, 100);
 waterGeo.rotateX(-Math.PI / 2);
-const baseY = waterGeo.attributes.position.array.slice();
+const basePositions = waterGeo.attributes.position.array.slice();
 const waterMat = new THREE.MeshStandardMaterial({color:0x103e55, roughness:.32, metalness:.26, flatShading:false});
 const ocean = new THREE.Mesh(waterGeo, waterMat);
 ocean.position.y = -0.9;
@@ -114,12 +115,7 @@ const clock=new THREE.Clock();
 function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(clock.getDelta(),.04);elapsed+=dt;
-  const pos=waterGeo.attributes.position;
-  for(let i=0;i<pos.count;i++){
-    const x=baseY[i*3],z=baseY[i*3+2];
-    pos.array[i*3+1]=Math.sin(x*.022+elapsed*1.3)*.24+Math.cos(z*.028-elapsed*1.1)*.18+Math.sin((x+z)*.012+elapsed*.7)*.12;
-  }
-  pos.needsUpdate=true;waterGeo.computeVertexNormals();
+  updateOceanGeometry(waterGeo,basePositions,elapsed);
   if(started){
     const forward=keys.has('w')||keys.has('arrowup')||controls.forward;
     const back=keys.has('s')||keys.has('arrowdown')||controls.back;
@@ -133,7 +129,7 @@ function tick(){
     ship.rotation.y=heading;
     ship.position.x+=Math.sin(heading)*speed*dt;
     ship.position.z-=Math.cos(heading)*speed*dt;
-    ship.position.y=Math.sin(elapsed*2.1)*.13;
+    ship.position.y=sampleOceanHeight(ship.position.x,ship.position.z,elapsed)+.08;
     sail.rotation.y=Math.sin(elapsed*.7)*.035;
     const forwardVec=new THREE.Vector3(Math.sin(heading),0,-Math.cos(heading));
     const camTarget=ship.position.clone().add(new THREE.Vector3(0,5,0)).add(forwardVec.clone().multiplyScalar(-20));

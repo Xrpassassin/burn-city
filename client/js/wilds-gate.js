@@ -117,6 +117,8 @@ const css = `
 body.wl-lock #touch,body.wl-lock #prompt{display:none!important}
 body.wl-travel #btns [data-m=orbit],body.wl-travel #btns [data-m=fly],body.wl-travel #tour,body.wl-travel #webBtn,body.wl-travel #jetBtn,body.wl-travel #gbSkate,body.wl-travel #tSkate,body.wl-travel #tUp,body.wl-travel #tDown,body.wl-travel #vMenu button[data-v=orbit],body.wl-travel #vMenu button[data-v=fly],body.wl-travel #vMenu button[data-v=tour],body.wl-travel #tlOpen{display:none!important}
 body.wl-cityoff #labels,body.wl-cityoff #minimap,body.wl-cityoff .npcTag,body.wl-cityoff .npcBub,body.wl-cityoff #rChip,body.wl-cityoff .pbub,body.wl-cityoff #hud,body.wl-cityoff #status,body.wl-cityoff #wchip,body.wl-cityoff #live,body.wl-cityoff #evbanner,body.wl-cityoff #tourCap,body.wl-cityoff #info,body.wl-cityoff #tip{display:none!important}
+body.wl-forest #labels,body.wl-forest #minimap,body.wl-forest .npcTag,body.wl-forest .npcBub,body.wl-forest #rChip,body.wl-forest .pbub,body.wl-forest #hud,body.wl-forest #status,body.wl-forest #wchip,body.wl-forest #live,body.wl-forest #evbanner,body.wl-forest #tourCap,body.wl-forest #info,body.wl-forest #tip{display:none!important}
+body.wl-forest #toasts,body.wl-forest #cityToast,body.wl-forest #whaleToast,body.wl-forest .alertPill,body.wl-forest .toast{display:none!important}
 #wlShrink{position:fixed;inset:0;z-index:calc(var(--z-top,130) + 3);pointer-events:none;background:radial-gradient(circle at 50% 55%,transparent 0 18%,rgba(20,60,40,.55) 46%,rgba(2,8,5,.96) 78%);opacity:0;transition:opacity .28s ease-out}
 #wlShrink.on{opacity:1}
 #wlWarn.ret h1{color:#9bffb0;text-shadow:0 0 18px #2aff6a,0 0 2px #fff}#wlWarn.ret{background:radial-gradient(ellipse at center,rgba(6,40,18,.72),rgba(0,0,0,.92))}#wlWarn.ret p{color:#d0f0d8}#wlWarn.ret button.go{background:#1c7a3a;border-color:#9be37a;box-shadow:0 0 20px #2aff6a66}#wlWarn.ret button{border-color:#7ad07a}
@@ -258,6 +260,8 @@ function frame(dt, t) {
   const dGate = Math.hypot(P.pos.x - GATE.x, P.pos.z - GATE.z), e = ell(P.pos.x, P.pos.z);
   if (explore && !modP && (dGate < PREFETCH_M || e < 1.05)) prefetch().catch(() => { });
   const inF = loaded() && mod.inForest();
+  // Keep city-wide banners/toasts out of the forest; forest-owned HUD remains available.
+  document.body.classList.toggle('wl-forest', inF || D.active);
   if (explore && !inF && e < .99 && !D.active && !G.modal && !(mod && mod.locked()) && !(window.__boat && window.__boat.active)) showWarning();
   if (D.active) {   // deep area: the city is hidden + paused; only the deep world + the shared Wilds systems run
     try { D.mod.frame(dt, t); mod.frame(dt, t); D.errs = 0; } catch (err) { if (++D.errs > 3) { G.deepErr = String(err && err.stack || err).slice(0, 400); abortDeep('error'); } }

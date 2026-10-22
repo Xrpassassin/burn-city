@@ -1221,7 +1221,7 @@ if(u.kind==='experience'){
    sessionStorage.bc_ret=JSON.stringify({m:'explore',p:[rx,groundAt(rx,rz,0),rz],c:[C.position.x,C.position.y,C.position.z],yaw:Number.isFinite(u.returnYaw)?u.returnYaw:yp.yaw});
   }catch(_){}
   const result=await EXPERIENCE_REGISTRY.enter(u.experienceId,{source:'city-map'});
-  if(!result.ok){try{sessionStorage.removeItem('bc_ret')}catch(_){}enter.disabled=false;enter.textContent=u.experienceId==='zombies'?'✈ Board expedition flight':'⚡ Enter Light Cycles';detail.textContent='Travel could not start ('+result.reason+'). You are still in BURN City; try again.'}
+  if(!result.ok){document.getElementById('bcExperienceTransition')?.remove();try{sessionStorage.removeItem('bc_ret')}catch(_){}enter.disabled=false;enter.textContent=u.experienceId==='zombies'?'✈ Board expedition flight':'⚡ Enter Light Cycles';detail.textContent='Travel could not start ('+result.reason+'). You are still in BURN City; try again.'}
  };
  const cancel=document.createElement('button'); cancel.type='button'; cancel.textContent='Stay in BURN City'; cancel.style.cssText='display:block;width:100%;padding:10px;border-radius:10px;border:1px solid #ffffff35;background:#ffffff0a;color:#fff;font:600 13px system-ui;cursor:pointer'; cancel.onclick=()=>{panel.style.display='none'};
  panel.append(close,title,detail,enter,cancel); panel.style.display='block'; panel.scrollTop=0; return;

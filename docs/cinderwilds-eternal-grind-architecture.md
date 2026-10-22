@@ -139,6 +139,32 @@ Add debug counters for active entities, colliders, draw calls/triangles when ava
 
 **Acceptance:** combat simulations cover aggro, leash, target switching, cooldowns, crowding, death/drop behavior and boss phase transitions; no behavior can award duplicate loot or bypass save validation.
 
+
+### EG-4: Class identity, flexible builds, and satisfying progression
+
+**Design direction to preserve from the owner:** make Eternal Grind feel like a long-lived RPG with EverQuest-style character identity, but give BURN City its own mechanics and pacing. This is a design target, not permission to rewrite the live save or combat loop in one pass.
+
+- **Class first, build second.** Players choose a recognizable base class with a clear fantasy and role, then personalize it through weapon skills, a small number of specializations, passive perks and active abilities. Avoid making every class play identically, but avoid hard-locking a character into one narrow build.
+- **Meaningful, readable choices.** Level-ups should provide a clear reward: a stat/skill choice, a new ability or upgrade, a specialization milestone, a useful unlock, or a choice of reward. Avoid levels that only increase invisible numbers for long stretches.
+- **Progress through play, not just grinding.** Tie rewards to varied activities: defeating new enemy archetypes, exploring optional rooms, completing quests/challenges, discovering lore/landmarks, defeating bosses, crafting/upgrading gear where supported, and mastering weapon styles. Use clear progress feedback and a next-goal indicator without turning every activity into a checklist.
+- **Distinct class hooks.** Build class-specific interactions and synergies—e.g. different answers to armor, groups, ranged threats, crowd control and boss mechanics—using existing combat affordances first. New classes should not be just renamed stat multipliers.
+- **Specialization and respec.** Permit build experimentation, but make respecs limited or earned rather than endlessly free. Explain the cost before confirming, and never strand a character because an early beta choice became obsolete.
+- **Death should sting without destroying investment.** The agreed direction is a temporary death-recovery penalty or recovery objective, not permanent gear loss. Show exactly what was lost/paused and how to recover it; avoid punitive loops that make a death cascade into more unavoidable deaths.
+- **Beta character migration is a first-class requirement.** Before any breaking class/save change, preview the translation and offer player choice: translate the existing character, start fresh while retaining a recoverable backup, or use a supported temporary legacy/defer path. Never silently overwrite the old save.
+- **Keep the first slice small.** Audit existing classes, character schema, XP awarding, stat derivation, equipment, ability UI and save migration. Then ship one complete vertical slice: one class choice, one specialization choice, one meaningful unlock, one class-aware encounter/reward, save/reload coverage, and mobile UI review. Expand only after the slice is fun and stable.
+
+**Progression architecture:** keep rules pure and testable where practical (XP thresholds, level awards, stat derivation, skill prerequisites, perk unlocks, respec eligibility and death recovery). Keep class/ability/weapon/perk definitions data-driven with stable IDs and schema versions. UI displays choices; a single rules layer validates them. If/when progression becomes shared multiplayer, the server must validate class changes, XP, drops, inventory and rewards; local browser saves are not authoritative.
+
+**Open-source reuse for classes and progression:**
+
+- First inventory existing code and inspect the project history before adding anything. The repo already has an isolated XP helper and progression tests in client/dungeon/progression-core.mjs and npm run test:eternal-grind; that is a useful foundation, **not** a finished class system.
+- No dedicated third-party class/skill-tree/progression package has been selected or verified as integrated by this planning document. Hark should search for small, actively maintained, permissively licensed modules that solve a specific gap (skill prerequisite graphs, effect/modifier composition, loot tables, quest objective state, or data validation), rather than adopting a large RPG framework.
+- Evaluate candidates against the actual vanilla JS + Three.js setup and mobile budget. Prefer MIT/BSD/Apache-2.0 when compatible; inspect the exact repository license, package contents, maintenance/activity, transitive dependencies, browser support, and attribution requirements. A repository badge or README claim is not enough.
+- Reuse algorithms or isolated utilities behind small adapters; retain BURN City's own class design, balance, UI, names, lore, and progression rules. Do not copy assets, demo content, or code with incompatible/unclear licensing. Record source, version/commit, license, and any modifications in a third-party notices file.
+- Do not add a dependency solely because it is open source. A short comparison spike and tests must show that it improves authoring, correctness or maintainability over a small native module. Keep a dependency-free fallback where practical.
+
+**Acceptance:** a written class/save audit; tested rules for level-up and unlock decisions; at least one complete playable class-progression slice; deterministic migration fixtures; death recovery that never deletes equipment permanently; and a concise open-source decision record distinguishing already integrated, prototype-only, rejected and not-yet-evaluated candidates.
+
 ## Open-source candidates and decision status
 
 ### Yuka — reuse the integration already present

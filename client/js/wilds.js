@@ -16,6 +16,7 @@ import { createGame } from './wilds-rules.js';
 import { buildCreature, animate, mats, disposeMats } from './wilds-creatures.js';
 import { buildWalker, poseWalker } from './walker.js';
 import * as AUD from './wilds-audio.js';
+import { findWorldPath } from './wilds-pathfinding-world.mjs';
 import { TEST, FC, RX, RZ, GATE, THRESH, CFG, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
 
 const W = { ready: false, inForest: false, modal: null, creatures: [], test: {} };
@@ -808,7 +809,7 @@ function disposeTree(o, seen = { geo: new Set(), mat: new Set(), tex: new Set() 
   return seen;
 }
 export function unload() {
-  if (!W.ready) return; W.ready = false; ZONE = null;
+  if (!W.ready) return; if (TEST && W.test.clearPathPreview) W.test.clearPathPreview(); W.ready = false; ZONE = null;
   try { if (W.enc) endEncounter(true); } catch (e) { } W.enc = null; closeModal(); W.inForest = false;
   AUD.dispose();
   const c = C();
@@ -826,6 +827,50 @@ export function unload() {
   W.unloadedAt = performance.now();
 }
 // test hooks (Playwright): read-only views + a few shortcuts — only with ?wildstest or ?debug=1
+if (TEST) {
+  let pathDebugLine = null;
+  function clearPathPreview() {
+    if (!pathDebugLine) return;
+    pathDebugLine.removeFromParent();
+    pathDebugLine.geometry.dispose();
+    pathDebugLine.material.dispose();
+    pathDebugLine = null;
+  }
+  function previewPath(x, z, sp) {
+    if (ZONE) return { reached: false, reason: 'deep-area-preview-not-supported-yet' };
+    if (!W.ready || !root || !Number.isFinite(x) || !Number.isFinite(z)) {
+      return { reached: false, reason: 'forest-not-ready-or-invalid-target' };
+    }
+    const P = C().P;
+    let cr = null, best = Infinity;
+    for (const candidate of W.creatures) {
+      if (sp && candidate.sp !== sp) continue;
+      if (ZONE && candidate.slot.zone !== ZONE) continue;
+      const d = Math.hypot(candidate.x - P.pos.x, candidate.z - P.pos.z);
+      if (d < best) { best = d; cr = candidate; }
+    }
+    const start = cr ? { x: cr.x, z: cr.z } : { x: P.pos.x, z: P.pos.z };
+    const cellSize = 2.5, origin = { x: -300, z: 300 };
+    const bounds = { minX: 0, maxX: 240, minZ: 0, maxZ: 232 };
+    const route = findWorldPath({
+      start, goal: { x, z }, origin, cellSize, bounds, maxVisited: 12000,
+      isBlocked: (wx, wz) => ell(wx, wz) > 1.13 || !!blocked(wx, wz, 0.8),
+    });
+    clearPathPreview();
+    if (!route || !route.reached || route.path.length < 2) {
+      return { reached: false, visited: route ? route.visited : 0, reason: 'no-route-within-bounds-or-search-cap' };
+    }
+    const points = route.path.map(p => new THREE.Vector3(p.x, 0.22, p.z));
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({ color: 0xffd27a, depthTest: true, transparent: true, opacity: 0.95 });
+    pathDebugLine = new THREE.Line(geometry, material);
+    pathDebugLine.name = 'wilds-pathfinding-debug-only';
+    (ZONE ? ZONE.root : root).add(pathDebugLine);
+    return { reached: true, visited: route.visited, cells: route.cells.length, path: route.path, start, goal: { x, z } };
+  }
+  W.test.previewPath = previewPath;
+  W.test.clearPathPreview = clearPathPreview;
+}
 if (TEST) Object.assign(W.test, {
   state: () => ({ ready: W.ready, inForest: W.inForest, modal: W.modal, creatures: W.creatures.map(c => ({ sp: c.sp, lv: c.c.lv, x: +c.x.toFixed(1), z: +c.z.toFixed(1), st: c.st, spd: +c.spd.toFixed(2) })), trees: W.treeCount, save: game && JSON.parse(JSON.stringify(game.state)), comp: compState && { x: compState.x, z: compState.z, spd: compState.spd }, audio: AUD.state(), enc: W.enc && { turn: W.enc.E.turn, over: W.enc.E.over, us: W.enc.E.us.name, usHp: W.enc.E.us.hp, foeHp: W.enc.E.foe.hp, odds: game.bindOdds(W.enc.E).pct, busy: W.enc.busy } }),
   nearest: sp => { const P = C().P; let b = null; for (const c of W.creatures) if ((!sp || c.sp === sp) && c.st !== 'flee' && (!b || Math.hypot(c.x - P.pos.x, c.z - P.pos.z) < Math.hypot(b.x - P.pos.x, b.z - P.pos.z))) b = c; return b && { sp: b.sp, x: b.x, z: b.z }; },

@@ -10,8 +10,8 @@
 //  * Collision: simplified boxes + cylinders + walkable surfaces (floors, dais, stairs, mezzanine), resolved with
 //    sub-stepped, axis-separated sliding against a player cylinder (r 0.35 m, h 1.8 m).
 //
-// Prepared-only locations (clearly signposted, not functional yet): Firekeepers Hall, 589 Protocol Gallery,
-// RACC Gallery, residential floors, the concealed destination. The Aegis Sanctum display is an integration point.
+// Gallery wings and the concealed destination remain prepared-only. Residential access is checked by the game server
+// against current XRPL holdings; room interiors are local scene instances, not shared multiplayer spaces yet.
 // The Midnightbluff lift asks the server (/api/tower/midnightbluff); the allowlist never reaches the client.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -234,7 +234,7 @@ function build() {
   // pilasters with gold reveals on the long walls
   for (let z = -HZ + 6; z < HZ - 2; z += 6) for (const s of [-1, 1]) { if (z > -1 && z < 9) continue; const x = s * (HX - .25); box(x - .25, x + .25, 0, CEIL, z - .55, z + .55, M.wall, true); box(x - s * .27 - .01, x - s * .27 + .01, .3, CEIL - .6, z - .02, z + .02, M.gold, false); }
 
-  mezzanine(); columns(); stairs(); reactor(); entrance(); lobby(); sanctum(); portals(); barAndLounge(); concealed();
+  mezzanine(); columns(); stairs(); reactor(); entrance(); lobby(); sanctum(); portals(); barAndLounge(); concealed(); residentialSpaces();
   // floor inlays: brushed gold channels from the dais to each threshold, with a fine amber light line beside them
   for (const [x0, x1, z0, z1] of [[-.06, .06, 6.3, HZ], [-.06, .06, -HZ, -6.3], [6.3, EDGE, -.06, .06], [-EDGE, -6.3, -.06, .06]]) {
     box(x0, x1, 0, .004, z0, z1, M.inlay, false);
@@ -255,6 +255,52 @@ function build() {
   body = makeBody(); scene.add(body);
   built = true;
 }
+
+function residentialSpaces() {
+  // Prototype rooms sit in a private scene wing outside the public atrium. This tower scene is client-local,
+  // so no other player can see this room instance; the server supplies a wallet-derived unit label.
+  const room = (x0, x1, z0, z1, name, sub, premium) => {
+    const y0 = MEZZ, y1 = MEZZ + 4.45, mid = (z0 + z1) / 2;
+    floorRect(x0, x1, z0, z1, y0);
+    box(x0, x1, y0 - SLAB, y0, z0, z1, premium ? M.floorB : M.stone, false);
+    box(x0, x1, y1, y1 + .18, z0, z1, M.ceiling, false);
+    box(x0, x0 + .22, y0, y1, z0, mid - 1.15, M.wall);
+    box(x0, x0 + .22, y0, y1, mid + 1.15, z1, M.wall);
+    box(x1 - .22, x1, y0, y1, z0, z1, M.wall);
+    box(x0, x1, y0, y1, z0, z0 + .22, M.wall);
+    box(x0, x1, y0, y1, z1 - .22, z1, M.wall);
+    box(x0 + .20, x0 + .27, y0, y1 - .05, mid - 1.18, mid - 1.10, M.gold, false);
+    box(x0 + .20, x0 + .27, y0, y1 - .05, mid + 1.10, mid + 1.18, M.gold, false);
+    box(x0 + .20, x0 + .27, y1 - .12, y1 - .04, mid - 1.18, mid + 1.18, M.gold, false);
+    plaque(name, sub, (x0 + x1) / 2, y1 - .55, z0 + .25, Math.PI, Math.min(6.2, x1 - x0 - 1), premium ? '#e6bd74' : '#9e8a72');
+    const bx = x1 - (premium ? 5.0 : 4.1), bz = mid;
+    box(bx - 1.8, bx + 1.8, y0 + .12, y0 + .34, bz - 2.15, bz + 2.15, M.metal);
+    box(bx - 1.65, bx + 1.65, y0 + .34, y0 + .62, bz - 2.0, bz + 2.0, premium ? M.floorB : M.stone);
+    box(bx - 1.75, bx + 1.75, y0 + .3, y0 + 1.45, bz + 2.0, bz + 2.22, premium ? M.gold : M.metal);
+    for (const side of [-1, 1]) {
+      box(bx + side * 2.25 - .35, bx + side * 2.25 + .35, y0, y0 + .55, bz - 1.55, bz - .75, M.metal);
+      box(bx + side * 2.25 - .4, bx + side * 2.25 + .4, y0 + .55, y0 + .62, bz - 1.6, bz - .7, M.gold, false);
+    }
+    if (premium) {
+      box(x0 + 2.2, x0 + 5.4, y0 + .18, y0 + .48, z1 - 2.5, z1 - 1.65, M.metal);
+      box(x0 + 2.25, x0 + 5.35, y0 + .48, y0 + 1.05, z1 - 2.42, z1 - 1.72, M.floorB);
+      box(x0 + 6.1, x0 + 8.6, y0 + .18, y0 + .8, z1 - 2.6, z1 - 1.55, M.stone);
+      box(x0 + 2.0, x0 + 5.7, y0 + .95, y0 + 1.02, z1 - 1.62, z1 - 1.48, M.gold, false);
+      box(x0 + 2.2, x0 + 4.8, y0 + .2, y0 + .35, z0 + 2.0, z0 + 2.8, M.gold, false);
+    } else {
+      box(x0 + 2.1, x0 + 4.8, y0 + .2, y0 + .8, z1 - 2.5, z1 - 1.55, M.metal);
+      box(x0 + 2.15, x0 + 4.75, y0 + .8, y0 + .88, z1 - 2.48, z1 - 1.57, M.stone, false);
+      box(x0 + 2.0, x0 + 4.9, y0 + .18, y0 + .28, z0 + 2.1, z0 + 2.8, M.gold, false);
+    }
+  };
+  room(30, 47, -7, 7, 'FIREKEEPER PENTHOUSE', 'PRIVATE RESIDENCE · VERIFIED FIREKEEPERS', true);
+  room(53, 68, -7, 7, 'MEMBERS SUITE', '589 PROTOCOL / RACC · PRIVATE RESIDENCE', false);
+  for (const x of [32, 44, 55, 66]) {
+    box(x - .08, x + .08, MEZZ + 2.4, MEZZ + 3.2, -6.72, -6.62, M.gold, false);
+    box(x - .22, x + .22, MEZZ + 2.3, MEZZ + 2.38, -6.70, -6.6, M.amber, false);
+  }
+}
+
 function envMap() {   // tiny procedural environment for plausible metal/glass reflections (no HDR download)
   const s = new THREE.Scene(); s.background = new THREE.Color(0x0c0a0c);
   const add = (c, w, h, x, y, z, rx = 0, ry = 0) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); s.add(m); };
@@ -571,7 +617,7 @@ function interact(id) {
         `This gallery opens in the next phase, with genuine ${names[id]} artwork from the ledger.` + (id === 'racc' ? '' : ' ' + CREATOR + '.') + (mine ? ` Your verified ${MINE.name} will hang here.` : ''),
         () => window.open(mine && MINE.id ? 'https://xrp.cafe/nft/' + MINE.id : LINKS[id], '_blank', 'noopener,noreferrer'), mine ? 'VIEW MY NFT' : 'VIEW COLLECTION');
       break; }
-    case 'residences': textPanel('RESIDENCES', 'Private penthouse floors for verified holders are planned for a later phase. Nothing here is live yet.'); break;
+    case 'residences': openResidences(); break;
     case 'bar': showBarMenu(); break;
     case 'sit': showLoungeMenu(); break;
     case 'directory': showDirectory(); break;
@@ -692,11 +738,12 @@ function showLiftMenu() {
     ['MEZZANINE WALKWAY', 'mezz'],
     ['AEGIS SANCTUM', 'aegis'],
     ['THE EMBER BAR', 'bar'],
-    ['DIONYSIAN LOUNGE', 'lounge']
+    ['DIONYSIAN LOUNGE', 'lounge'],
+    ['PRIVATE RESIDENCES · CHECK WALLET', 'residences']
   ];
   for (const [label, destination] of destinations) {
     const b = btn(label); Object.assign(b.style, { display: 'block', width: '100%', margin: '7px 0', textAlign: 'left' });
-    b.addEventListener('click', () => travelTo(destination)); panel.appendChild(b);
+    b.addEventListener('click', () => destination === 'residences' ? interact('residences') : travelTo(destination)); panel.appendChild(b);
   }
   const privateButton = btn('CHECK MIDNIGHTBLUFF ACCESS', true);
   Object.assign(privateButton.style, { display: 'block', width: '100%', margin: '7px 0', textAlign: 'left' });
@@ -778,7 +825,9 @@ function travelTo(destination) {
     mezz: { x: -5, y: MEZZ, z: -22.3, yaw: 0, message: 'Arrived at the mezzanine walkway.' },
     aegis: { x: 0, y: MEZZ, z: -30.2, yaw: 0, message: 'Arrived at Aegis Sanctum.' },
     bar: { x: -13.2, y: MEZZ, z: 13.5, yaw: Math.PI / 2, message: 'Arrived at the Ember Bar.' },
-    lounge: { x: 13.6, y: MEZZ, z: 15.25, yaw: -Math.PI / 2, message: 'Arrived at the Dionysian Lounge.' }
+    lounge: { x: 13.6, y: MEZZ, z: 15.25, yaw: -Math.PI / 2, message: 'Arrived at the Dionysian Lounge.' },
+    penthouse: { x: 34, y: MEZZ, z: 0, yaw: 0, message: 'Welcome home, Firekeeper.' },
+    suite: { x: 57, y: MEZZ, z: 0, yaw: 0, message: 'Welcome to your private members suite.' }
   };
   const target = points[destination];
   if (!target) { toast('That destination is not open yet.'); return; }
@@ -805,6 +854,52 @@ function travelTo(destination) {
   CITY.input.yp.yaw = target.yaw; CITY.input.yp.pitch = 0;
   camera.position.set(P.pos.x, P.pos.y + EYE, P.pos.z); camera.rotation.set(0, target.yaw, 0);
   toast(target.message);
+}
+
+
+async function fetchMyResidences() {
+  let token = ''; try { token = localStorage.bcToken || ''; } catch (e) { }
+  if (!token) return { error: 'signin' };
+  const response = await fetch(SRV.replace(/\/$/, '') + '/api/tower/residence', {
+    headers: { authorization: 'Bearer ' + token }, cache: 'no-store'
+  });
+  if (response.status === 401) return { error: 'signin' };
+  if (response.status === 429) return { error: 'slow_down' };
+  if (!response.ok) return { error: response.status === 503 ? 'ledger_unavailable' : 'service_unavailable' };
+  return response.json();
+}
+function openResidences() {
+  fetchMyResidences().then(data => {
+    if (data.error) {
+      const messages = { signin: 'Sign in with Xaman first. The server must verify your current XRPL holdings before granting residence access.', slow_down: 'Please wait a moment before checking your residence access again.', ledger_unavailable: 'The XRPL ownership check is temporarily unavailable. No private access was granted.', service_unavailable: 'Residence verification is not available on the connected server yet. No private access was granted.' };
+      textPanel('PRIVATE RESIDENCES', messages[data.error] || messages.service_unavailable);
+      return;
+    }
+    const residences = Array.isArray(data.residences) ? data.residences : [];
+    panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-residences';
+    Object.assign(panel.style, { position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(460px,calc(100vw - 24px))', maxHeight: 'min(82dvh,700px)', overflowY: 'auto', padding: '18px', background: 'linear-gradient(145deg,#141016fa,#08070afa)', border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a', color: '#efe3d2', zIndex: 10, pointerEvents: 'auto' });
+    const h = document.createElement('h2'); h.textContent = 'YOUR PRIVATE RESIDENCES'; Object.assign(h.style, { margin: '0 0 8px', fontSize: '16px', color: '#d7a65e', letterSpacing: '.1em' }); panel.appendChild(h);
+    const p = document.createElement('p'); p.textContent = 'Access is rechecked by the game server against current wallet holdings each time you enter. Your residence is a private local interior instance in this phase; shared multiplayer persistence is a later integration.'; Object.assign(p.style, { margin: '0 0 14px', fontSize: '12px', lineHeight: '1.5', color: '#cbbcaa' }); panel.appendChild(p);
+    if (!residences.length) { const empty = document.createElement('p'); empty.textContent = 'No eligible Firekeepers, 589 Protocol, or RACC NFTs were verified for this wallet.'; Object.assign(empty.style, { fontSize: '13px', lineHeight: '1.5' }); panel.appendChild(empty); }
+    for (const residence of residences) {
+      const premium = residence.kind === 'penthouse';
+      const b = btn((premium ? '✦ PENTHOUSE' : '◇ MEMBERS SUITE') + ' · UNIT ' + residence.unit);
+      Object.assign(b.style, { display: 'block', width: '100%', textAlign: 'left', margin: '8px 0', padding: '13px', whiteSpace: 'normal', lineHeight: '1.4' });
+      const detail = document.createElement('div'); detail.textContent = residence.name + (premium ? ' · best views, private lounge, premium finishes' : ' · compact private suite, refined finishes'); Object.assign(detail.style, { fontSize: '11px', color: '#cbbcaa', margin: '0 0 10px' });
+      b.addEventListener('click', async () => {
+        b.disabled = true; b.textContent = 'VERIFYING WALLET…';
+        let fresh;
+        try { fresh = await fetchMyResidences(); } catch (e) { fresh = { error: 'service_unavailable' }; }
+        const authorized = fresh && Array.isArray(fresh.residences) && fresh.residences.some(r => r.key === residence.key && r.unit === residence.unit && r.kind === residence.kind);
+        if (!authorized) { panel?.remove(); panel = null; toast(fresh?.error === 'signin' ? 'Sign-in expired. Please sign in again.' : 'Residence access could not be re-verified. Entry denied.'); return; }
+        travelTo(premium ? 'penthouse' : 'suite');
+        toast('UNIT ' + residence.unit + ' · ' + (premium ? 'FIREKEEPER PENTHOUSE' : residence.name.toUpperCase() + ' SUITE'));
+      });
+      panel.append(b, detail);
+    }
+    const closeBtn = btn('CLOSE', true); closeBtn.style.marginTop = '8px'; closeBtn.addEventListener('click', () => { panel?.remove(); panel = null; }); panel.appendChild(closeBtn);
+    root.appendChild(panel);
+  }).catch(() => textPanel('PRIVATE RESIDENCES', 'The wallet ownership service could not be reached. Entry is denied until verification succeeds.'));
 }
 
 function textPanel(title, text, action, buttonLabel) {

@@ -107,7 +107,7 @@ document.querySelectorAll('[data-control]').forEach(button=>{
 });
 
 function fireBroadside(){
-  if(!started||performance.now()-lastShot<650)return;
+  if(!started||hullHealth<=0||performance.now()-lastShot<650)return;
   lastShot=performance.now();
   const direction=new THREE.Vector3(Math.sin(heading),0,-Math.cos(heading));
   for(const side of [-1,1]){
@@ -161,10 +161,10 @@ function tick(){
   if(started){
     const atPort=Trade.tick(ship.position);   // docked: helm locked while the port panel is open
     if(atPort)speed=0;
-    const forward=!atPort&&(keys.has('w')||keys.has('arrowup')||controls.forward);
-    const back=!atPort&&(keys.has('s')||keys.has('arrowdown')||controls.back);
-    const left=!atPort&&(keys.has('a')||keys.has('arrowleft')||controls.left);
-    const right=!atPort&&(keys.has('d')||keys.has('arrowright')||controls.right);
+    const forward=!atPort&&hullHealth>0&&(keys.has('w')||keys.has('arrowup')||controls.forward);
+    const back=!atPort&&hullHealth>0&&(keys.has('s')||keys.has('arrowdown')||controls.back);
+    const left=!atPort&&hullHealth>0&&(keys.has('a')||keys.has('arrowleft')||controls.left);
+    const right=!atPort&&hullHealth>0&&(keys.has('d')||keys.has('arrowright')||controls.right);
     if(forward)speed=Math.min(20,speed+dt*4.6);
     else if(back)speed=Math.max(-4,speed-dt*6);
     else speed*=Math.pow(.985,dt*60);

@@ -337,7 +337,7 @@ function videoSchedule(now) {
 document.addEventListener('visibilitychange', () => { if (document.hidden) for (const s of A.screens) if (s.vid) try { s.vid.el.pause(); } catch { } });
 
 // ---------------------------------------------------------------- live-cam modal (tap a screen)
-let modal = null, snapTimer = 0, conTimer = 0, pushed = false;
+let modal = null, snapTimer = 0, conTimer = 0, healthT = 0, pushed = false;
 function shell(label) {   // one modal at a time; switching (console -> cam) keeps the single history entry
   close(true);
   modal = document.createElement('div'); modal.id = 'aegisModal'; modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-label', label);
@@ -373,7 +373,7 @@ function openPlain(cam) {
 addEventListener('popstate', () => { if (modal) { pushed = false; close(); } });   // Android/browser back closes the modal instead of leaving the game
 const swallow = e => { if (!modal) return; if (e.key === 'Escape') { if (e.type === 'keydown') close(); } e.stopImmediatePropagation(); };
 addEventListener('keydown', swallow, true); addEventListener('keyup', swallow, true);
-function close(keepHist) { clearInterval(snapTimer); clearInterval(conTimer); clearInterval(comT); const had = !!modal; if (modal) { modal.remove(); modal = null; } A.modalOpen = null; A.consoleOpen = false; A.liveOpen = false; window.__aegisModalOpen = false;
+function close(keepHist) { clearInterval(snapTimer); clearInterval(conTimer); clearInterval(comT); clearInterval(healthT); const had = !!modal; if (modal) { modal.remove(); modal = null; } A.modalOpen = null; A.consoleOpen = false; A.liveOpen = false; window.__aegisModalOpen = false;
   if (had && pushed && keepHist !== true) { pushed = false; try { if (history.state && history.state.aegisModal) history.back(); } catch { } } }
 
 // ---------------------------------------------------------------- live-stream browser: category tabs, list by viewers, one player, comments
@@ -401,12 +401,76 @@ function openLive(cam) {
   const cl = E('div', 'al-clist'), form = E('form', 'al-form'), inp = E('input'), sb = E('button', null, 'Post'), msg = E('div', 'ac-dim al-msg');
   inp.maxLength = 200; inp.placeholder = 'Say something about this stream (200 max)'; inp.setAttribute('aria-label', 'Comment'); inp.autocomplete = 'off'; sb.type = 'submit'; form.append(inp, sb);
   com.append(E('h4', null, '💬 Comments'), cl, form, msg);
+  const feedStatus = E('div', 'al-feed-status');
+  feedStatus.setAttribute('role', 'status'); feedStatus.setAttribute('aria-live', 'polite');
+  const incidents = E('section', 'al-incidents');
+  const incidentHead = E('div', 'al-incidents-head');
+  incidentHead.append(E('b', null, '⚠ AEGIS INCIDENTS'), E('small', null, 'Select an incident to find a related feed'));
+  const incidentList = E('div', 'al-incident-list');
+  const incidentNote = E('div', 'ac-dim al-incident-note');
+  incidents.append(incidentHead, incidentList, incidentNote);
   // The modal swallows game controls; text fields retain normal keyboard behavior.
   for (const el of [inp, search]) {
     el.addEventListener('keydown', e => { if (e.key === 'Escape') { if (el === search && search.value) { search.value = ''; renderList(); e.stopPropagation(); } else close(); } e.stopPropagation(); });
     el.addEventListener('keyup', e => e.stopPropagation());
   }
   sort.addEventListener('keydown', e => e.stopPropagation());
+  function feedAge(ms) {
+    if (!ms || ms < 0) return 'not yet received';
+    const mins = Math.floor(ms / 60000);
+    return mins < 1 ? 'less than a minute ago' : mins < 60 ? mins + 'm ago' : Math.floor(mins / 60) + 'h ago';
+  }
+  function updateFeedStatus() {
+    const age = LC.ok ? Date.now() - LC.ok : 0;
+    let state = 'WAITING', detail = 'No successful API refresh recorded yet.';
+    if (LC.ok && age > 20 * 60e3) { state = 'STALE'; detail = 'Last successful API response ' + feedAge(age) + '; retrying in background.'; }
+    else if (LC.fails > 0) { state = 'DEGRADED'; detail = 'Last success ' + feedAge(age) + '; ' + LC.fails + ' refresh failure' + (LC.fails === 1 ? '' : 's') + ' since then.'; }
+    else if (LC.ok) { state = 'CONNECTED'; detail = (LC.source === 'youtube' ? 'YouTube-ranked feed' : 'Curated fallback feed') + ' · API refreshed ' + feedAge(age) + '.'; }
+    feedStatus.replaceChildren();
+    const dot = E('span', 'al-feed-dot ' + state.toLowerCase());
+    const label = E('b', null, 'FEED ' + state);
+    const note = E('span', null, detail);
+    feedStatus.append(dot, label, note);
+  }
+  function renderIncidents() {
+    incidentList.replaceChildren();
+    const list = A.data && Array.isArray(A.data.incidents) ? A.data.incidents : [];
+    if (!list.length) {
+      incidentList.append(E('div', 'ac-dim', A.data ? 'No active incidents reported by the AEGIS city feed.' : 'Incident data is unavailable until the AEGIS feed connects.'));
+      incidentNote.textContent = '';
+      return;
+    }
+    const colors = ['#2fe3ff', '#ffb000', '#ff3b2a'];
+    for (const inc of list.slice(0, 8)) {
+      const b = E('button', 'al-incident');
+      b.type = 'button';
+      const sev = Math.max(0, Math.min(2, +inc.sev || 0));
+      const title = E('b', null, inc.title || 'Unspecified incident');
+      const meta = E('small', null, (inc.cat || 'INCIDENT') + ' · ' + ['NORMAL', 'ELEVATED', 'CRITICAL'][sev]);
+      meta.style.color = colors[sev];
+      const summary = E('span', null, inc.summary || 'No additional details provided.');
+      b.append(title, meta, summary);
+      b.onclick = () => {
+        const words = ((inc.title || '') + ' ' + (inc.cat || '') + ' ' + (inc.summary || '')).toLocaleLowerCase()
+          .split(/[^a-z0-9]+/).filter(w => w.length > 3 && !['with','from','near','that','this','incident','reported','area'].includes(w));
+        let best = null, bestScore = 0;
+        for (const c of LC.cats) for (const s of c.streams) {
+          const hay = (s.name + ' ' + s.region + ' ' + s.cat).toLocaleLowerCase();
+          const score = words.reduce((n, w) => n + (hay.includes(w) ? (w.length > 6 ? 3 : 1) : 0), 0);
+          if (score > bestScore) { best = s; bestScore = score; }
+        }
+        const chosen = best || all.streams.slice().sort((a, b) => b.viewers - a.viewers)[0];
+        if (!chosen) { incidentNote.textContent = 'No available streams to open right now.'; return; }
+        const match = bestScore > 0;
+        cat = LC.cats.find(c => c.name === chosen.cat) || all;
+        search.value = '';
+        renderTabs(); renderList(); play(chosen);
+        incidentNote.textContent = 'Opened ' + chosen.name + (match ? ' · best title/channel match for this incident (not location-verified).' : ' · no keyword match; opened the highest-ranked available feed.');
+      };
+      incidentList.append(b);
+    }
+    incidentNote.textContent = 'Feed matching uses incident text and stream titles/channels; camera location is not verified.';
+  }
   function renderTabs() {
     tabs.replaceChildren();
     for (const c of [all, ...LC.cats]) {
@@ -454,8 +518,10 @@ function openLive(cam) {
     finally { if (modal && cur && cur.vid === submittedVid) setTimeout(() => { if (modal && cur && cur.vid === submittedVid) sb.disabled = false; }, 1200); } };
   search.addEventListener('input', renderList); sort.addEventListener('change', () => { sortBy = sort.value; renderList(); });
   const foot = E('div', 'am-foot', `Streams: YouTube live (${LC.source === 'youtube' ? 'ranked by live viewers, refreshed by our server' : 'curated 24/7 cams'}) · one player at a time · comments are public, keep it friendly`);
-  const main = E('div', 'al-main'); main.append(box, com); body.append(main, side);
-  card.append(head, tabs, tools, body, foot); renderTabs(); renderList(); play(cur); comT = setInterval(() => { if (!document.hidden) loadComments(); }, 15e3);
+  const main = E('div', 'al-main'); main.append(box, feedStatus, incidents, com); body.append(main, side);
+  card.append(head, tabs, tools, body, foot); renderTabs(); renderList(); updateFeedStatus(); renderIncidents(); play(cur);
+  comT = setInterval(() => { if (!document.hidden) loadComments(); }, 15e3);
+  healthT = setInterval(() => { if (!document.hidden && modal) { updateFeedStatus(); renderIncidents(); } }, 15e3);
   x.focus({ preventScroll: true }); A.liveOpen = true;
 }
 A.openLive = openLive;

@@ -17,6 +17,7 @@ import { buildCreature, animate, mats, disposeMats } from './wilds-creatures.js'
 import { buildWalker, poseWalker } from './walker.js';
 import * as AUD from './wilds-audio.js';
 import { findWorldPath } from './wilds-pathfinding-world.mjs';
+import { createWildsWanderAgent, updateWildsWanderAgent, disposeWildsWanderAgent } from './wilds-yuka-ai.mjs';
 import { TEST, FC, RX, RZ, GATE, THRESH, CFG, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
 
 const W = { ready: false, inForest: false, modal: null, creatures: [], test: {} };
@@ -425,12 +426,14 @@ function spawn(slot) {
   const sp = slot.sp, lv = slot.lv ? (slot.fixed ? slot.lv[1] : game.rollLevel(sp, clamp(game.state.player.lv + 2, slot.lv[0], slot.lv[1]))) : game.rollLevel(sp, clamp(game.state.player.lv + (sp === 'shardmole' ? 4 : 1), 2, 5)), c = game.wild(sp, lv), mesh = buildCreature(sp, C().MOBILE); R0().add(mesh);
   let x, z, k = 0; do { const a = Math.random() * 6.3, r = Math.sqrt(Math.random()) * slot.r; x = slot.x + Math.cos(a) * r; z = slot.z + Math.sin(a) * r; if (slot.creek) { const best = nearestCreek(x, z); x = best[0] + (Math.random() - .5) * 4; z = best[1] + (Math.random() - .5) * 4; } } while (k++ < 20 && blocked(x, z, .6));
   mesh.position.set(x, .035, z); const yaw = Math.random() * 6.3; mesh.rotation.y = yaw;
-  const cr = { slot, c, mesh, sp, x, z, yaw, vx: 0, vz: 0, spd: 0, st: 'idle', t: 1 + Math.random() * 3, tx: x, tz: z, tag: tag(''), seen: false, cool: 0 };
+  const ai = createWildsWanderAgent({ x, z, yaw, maxSpeed: mesh.userData.rig.speed });
+  mesh.userData.wildsAi = ai;
+  const cr = { slot, c, mesh, sp, x, z, yaw, vx: 0, vz: 0, spd: 0, st: 'idle', t: 1 + Math.random() * 3, tx: x, tz: z, tag: tag(''), seen: false, cool: 0, ai, wanderHeading: { x: Math.sin(yaw), z: Math.cos(yaw) } };
   slot.cr = cr; W.creatures.push(cr); return cr;
 }
 function nearestCreek(x, z) { let b = null, bd = 1e9; for (const p of creekS) { const d = (p[0] - x) ** 2 + (p[1] - z) ** 2; if (d < bd) { bd = d; b = p; } } return b; }
 function blocked(x, z, r) { for (const o of obAt(x, z)) if (Math.hypot(o.x - x, o.z - z) < o.r + r) return o; return null; }
-function despawn(cr, delay = 45) { cr.mesh.removeFromParent(); disposeMesh(cr.mesh); cr.tag.remove(); W.creatures.splice(W.creatures.indexOf(cr), 1); cr.slot.cr = null; cr.slot.cool = delay; }
+function despawn(cr, delay = 45) { disposeWildsWanderAgent(cr.ai); cr.mesh.removeFromParent(); disposeMesh(cr.mesh); cr.tag.remove(); W.creatures.splice(W.creatures.indexOf(cr), 1); cr.slot.cr = null; cr.slot.cool = delay; }
 function disposeMesh(m) { m.traverse(o => { if (o.isMesh && o.geometry) o.geometry.dispose(); }); }
 const TEMP = () => DATA.abilities.temperament;
 function steer(cr, dt, wantX, wantZ, maxSpd) {
@@ -451,6 +454,7 @@ function updCreature(cr, dt, t, P, distP) {
   const def = game.SP[cr.sp], tp = TEMP()[def.temperament] || {}, L = cr.mesh.userData.rig;
   let maxSpd = L.speed, lookYaw = 0, sniff = false, alert = false, wag = false;
   const toP = Math.atan2(P.pos.x - cr.x, P.pos.z - cr.z); const run = C().input.keys.ShiftLeft || C().input.keys.ShiftRight || (C().input.tb && C().input.tb.run);
+  cr.wanderHeading = updateWildsWanderAgent(cr.ai, dt, cr.x, cr.z, cr.yaw, L.speed) || cr.wanderHeading;
   cr.t -= dt; cr.cool = Math.max(0, cr.cool - dt);
   if (cr.st === 'held') { cr.spd *= Math.pow(.02, dt); let dy = Math.atan2(Math.sin(cr.face - cr.yaw), Math.cos(cr.face - cr.yaw)); cr.yaw += dy * Math.min(1, dt * 5); cr.yawRate = dy * 5; alert = true; }
   else if (cr.st === 'flee') { const fx = cr.x - (P.pos.x - cr.x) * 3, fz = cr.z - (P.pos.z - cr.z) * 3; steer(cr, dt, fx, fz, L.speed * 2.2); if (cr.t < 0) { cr.st = 'idle'; cr.t = 2; } if (cr.gone && distP > 30) { despawn(cr, 40); return; } }
@@ -465,7 +469,7 @@ function updCreature(cr, dt, t, P, distP) {
   if (distP < 70) animate(cr.mesh, dt, cr.spd, t, { lookYaw, sniff, alert, yawRate: cr.yawRate || 0, wag });
   cr.mesh.visible = distP < 140;
 }
-function pickWander(cr) { const s = cr.slot; for (let k = 0; k < 8; k++) { let x, z; if (s.creek) { const p = creekS[(Math.random() * creekS.length) | 0]; if (Math.hypot(p[0] - s.x, p[1] - s.z) > s.r * 1.6) continue; x = p[0] + (Math.random() - .5) * 5; z = p[1] + (Math.random() - .5) * 5; } else { const a = Math.random() * 6.3, r = Math.sqrt(Math.random()) * s.r; x = s.x + Math.cos(a) * r; z = s.z + Math.sin(a) * r; } if (!blocked(x, z, .8)) { cr.tx = x; cr.tz = z; cr.st = 'wander'; cr.t = 12; return; } } cr.t = 2; }
+function pickWander(cr) { const s = cr.slot; for (let k = 0; k < 8; k++) { let x, z; if (s.creek) { const p = creekS[(Math.random() * creekS.length) | 0]; if (Math.hypot(p[0] - s.x, p[1] - s.z) > s.r * 1.6) continue; x = p[0] + (Math.random() - .5) * 5; z = p[1] + (Math.random() - .5) * 5; } else { const a = Math.atan2(cr.wanderHeading?.x || 0, cr.wanderHeading?.z || 1) + (Math.random() - .5) * 1.3, r = 3 + Math.sqrt(Math.random()) * Math.max(2, s.r * .65); x = cr.x + Math.sin(a) * r; z = cr.z + Math.cos(a) * r; if (Math.hypot(x - s.x, z - s.z) > s.r * .92) { x = s.x + (x - s.x) * .65; z = s.z + (z - s.z) * .65; } } if (!blocked(x, z, .8)) { cr.tx = x; cr.tz = z; cr.st = 'wander'; cr.t = 12; return; } } cr.t = 2; }
 
 // ---------------------------------------------------------------- companion (follows you everywhere in Explore)
 function refreshCompanion() {
@@ -801,7 +805,7 @@ export const zoneApi = {
   setZone(z) {   // z = null leaves the zone (creatures of the zone despawn; the companion is re-placed next to you)
     if (ZONE === z) return; const prev = ZONE;
     if (W.enc) try { endEncounter(true); } catch (e) { } closeModal();
-    for (const cr of W.creatures.slice()) if (cr.slot.zone === prev || (z && !cr.slot.zone)) { cr.mesh.removeFromParent(); disposeMesh(cr.mesh); cr.tag.remove(); W.creatures.splice(W.creatures.indexOf(cr), 1); cr.slot.cr = null; cr.slot.cool = 0; }
+    for (const cr of W.creatures.slice()) if (cr.slot.zone === prev || (z && !cr.slot.zone)) { disposeWildsWanderAgent(cr.ai); cr.mesh.removeFromParent(); disposeMesh(cr.mesh); cr.tag.remove(); W.creatures.splice(W.creatures.indexOf(cr), 1); cr.slot.cr = null; cr.slot.cool = 0; }
     ZONE = z || null; if (embers) R0().add(embers.pts);
     if (compState) { const P = C().P; compState.x = P.pos.x + 1.5; compState.z = P.pos.z + 1.5; compState.spd = 0; }
     if (W.maraTag) W.maraTag.style.display = 'none'; renderHud();
@@ -848,7 +852,7 @@ export function unload() {
   const seen = { geo: new Set(), mat: new Set(), tex: new Set() };
   if (compMesh) { compMesh.removeFromParent(); disposeTree(compMesh, seen); compMesh = null; }
   if (compState && compState.tag) compState.tag.remove(); compState = null;
-  for (const cr of W.creatures) cr.tag.remove(); W.creatures = []; for (const s of SPAWNS) { s.cr = null; s.cool = 0; }
+  for (const cr of W.creatures) { disposeWildsWanderAgent(cr.ai); cr.tag.remove(); } W.creatures = []; for (const s of SPAWNS) { s.cr = null; s.cool = 0; }
   if (root) { root.removeFromParent(); disposeTree(root, seen); } W.lastDispose = { geo: seen.geo.size, mat: seen.mat.size, tex: seen.tex.size }; root = nearGroup = grassIM = fernIM = leaves = flies = shafts = creekMat = maraRig = embers = null;
   disposeMats();
   for (let i = c.colliders.length - 1; i >= 0; i--) if (c.colliders[i].wilds) c.colliders.splice(i, 1);

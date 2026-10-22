@@ -715,8 +715,26 @@ function travelTo(destination) {
   };
   const target = points[destination];
   if (!target) { toast('That destination is not open yet.'); return; }
+
+  // Never teleport blindly: use the same collision/ground model as walking. If a furnishing or
+  // future geometry blocks the preferred arrival point, try nearby offsets on the same floor.
+  const offsets = [[0, 0], [0, 1.25], [1.25, 0], [0, -1.25], [-1.25, 0],
+    [1.25, 1.25], [-1.25, 1.25], [1.25, -1.25], [-1.25, -1.25], [0, 2.5], [2.5, 0], [-2.5, 0]];
+  let arrival = null;
+  for (const [ox, oz] of offsets) {
+    const x = target.x + ox, z = target.z + oz;
+    const floor = groundAt(x, z, target.y);
+    if (floor < -50 || Math.abs(floor - target.y) > STEP || blocked(x, z, floor)) continue;
+    arrival = { x, y: floor, z };
+    break;
+  }
+  if (!arrival) {
+    toast('That arrival point is blocked. Please try another destination.');
+    return;
+  }
+
   panel?.remove(); panel = null;
-  P.pos.set(target.x, target.y, target.z); P.vy = 0; P.onGround = true; P.seated = false; P.speed = 0; P.walk = 0; P.bodyYaw = target.yaw;
+  P.pos.set(arrival.x, arrival.y, arrival.z); P.vy = 0; P.onGround = true; P.seated = false; P.speed = 0; P.walk = 0; P.bodyYaw = target.yaw;
   CITY.input.yp.yaw = target.yaw; CITY.input.yp.pitch = 0;
   camera.position.set(P.pos.x, P.pos.y + EYE, P.pos.z); camera.rotation.set(0, target.yaw, 0);
   toast(target.message);

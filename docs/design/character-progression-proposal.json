@@ -1,0 +1,165 @@
+{
+  "proposalVersion": "1.0.0",
+  "status": "design-only",
+  "compatibility": "Existing BURN City browser-based Three.js client and Node server; adapt to existing save/combat architecture before implementation.",
+  "decisions": {
+    "classModel": "class-plus-flexible-specializations-and-weapon-skills",
+    "respecPolicy": "limited-respecs",
+    "deathPolicy": "temporary-recovery-penalty-no-permanent-gear-loss"
+  },
+  "progression": {
+    "proposedLevelCap": 50,
+    "levelCapConfigurable": true,
+    "xpSources": [
+      "validated-combat-contribution",
+      "quest-completion",
+      "first-time-exploration",
+      "approved-group-or-world-objective"
+    ],
+    "serverAuthoritative": true,
+    "idempotentRewards": true,
+    "finalXpCurveApproved": false
+  },
+  "attributes": [
+    {
+      "id": "might",
+      "concept": "Physical force and selected heavy-weapon interactions"
+    },
+    {
+      "id": "vitality",
+      "concept": "Health and resilience"
+    },
+    {
+      "id": "agility",
+      "concept": "Mobility, evasion, finesse weapon scaling"
+    },
+    {
+      "id": "intellect",
+      "concept": "Arcane power and resource efficiency"
+    },
+    {
+      "id": "spirit",
+      "concept": "Healing, resistance, selected support effects"
+    }
+  ],
+  "classes": [
+    {
+      "id": "vanguard",
+      "identity": "Defensive melee, shields, threat management",
+      "specializations": [
+        {
+          "id": "bulwark",
+          "identity": "Protection"
+        },
+        {
+          "id": "weaponmaster",
+          "identity": "Weapon pressure"
+        }
+      ]
+    },
+    {
+      "id": "warden",
+      "identity": "Nature, healing, control, resilience",
+      "specializations": [
+        {
+          "id": "grovekeeper",
+          "identity": "Healing and control"
+        },
+        {
+          "id": "wildbound",
+          "identity": "Nature offense and companions"
+        }
+      ]
+    },
+    {
+      "id": "arcanist",
+      "identity": "Arcane ranged damage and control",
+      "specializations": [
+        {
+          "id": "spellfire",
+          "identity": "Burst and area damage"
+        },
+        {
+          "id": "runeseer",
+          "identity": "Control and utility"
+        }
+      ]
+    },
+    {
+      "id": "ranger",
+      "identity": "Bow, tracking, traps, wilderness mobility",
+      "specializations": [
+        {
+          "id": "deadeye",
+          "identity": "Precision"
+        },
+        {
+          "id": "trapper",
+          "identity": "Control and ambush"
+        }
+      ]
+    },
+    {
+      "id": "reaver",
+      "identity": "Risk/reward melee and self-sustain",
+      "specializations": [
+        {
+          "id": "bloodedge",
+          "identity": "Sustain"
+        },
+        {
+          "id": "ravager",
+          "identity": "Burst damage"
+        }
+      ]
+    },
+    {
+      "id": "binder",
+      "identity": "Bound creatures, debuffs, tactical support",
+      "specializations": [
+        {
+          "id": "pactcaller",
+          "identity": "Summons"
+        },
+        {
+          "id": "hexbinder",
+          "identity": "Debuffs and control"
+        }
+      ]
+    }
+  ],
+  "respec": {
+    "classSwapAvailable": false,
+    "specializationRespec": "limited",
+    "implementationChoicePending": "earnable-token-or-displayed-in-game-cost",
+    "requiresConfirmation": true,
+    "requiresAtomicSave": true,
+    "realMoney": false
+  },
+  "deathRecovery": {
+    "temporary": true,
+    "permanentGearLoss": false,
+    "corpseRecoveryRequired": false,
+    "proposedDurationMinutes": {
+      "min": 2,
+      "max": 5
+    },
+    "durationApproved": false,
+    "unboundedStacking": false,
+    "serverTimestampAuthority": true
+  },
+  "safety": {
+    "clientCannotSetXpOrLevel": true,
+    "clientCannotSetFinalStatsOrUnlocks": true,
+    "existingSaveBackwardsCompatibilityRequired": true,
+    "noParallelSaveSystem": true,
+    "noParallelCombatSystem": true
+  },
+  "implementationPhases": [
+    "audit-existing-architecture",
+    "pure-progression-functions-and-tests",
+    "one-class-two-ability-vertical-slice",
+    "specialization-respec-weapon-skill-recovery",
+    "expand-classes-and-content"
+  ]
+}

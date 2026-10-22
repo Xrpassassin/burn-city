@@ -152,7 +152,20 @@ Only after the preceding phases are stable should the team connect broader syste
 - [ ] Rollback and persistence implications documented.
 - [ ] PR description clearly distinguishes implemented, tested, and untested behavior.
 
-## Immediate next task for Hark
+#
+## Hub-to-experience travel: Zombies and Light Cycles
+
+BURN City should act as the central hub for multiple distinct game modes, with diegetic entrances that make each destination obvious without forcing every mode into one runtime or scene.
+
+- **Airport → Zombies:** add a clearly signed outbreak/zombie-clearing flight interaction at the airport. The player chooses to board, receives a clear transition/loading state, enters the Zombies experience, and can return by extraction/flight. Keep ambient aircraft simulation separate from transport interactions. A flight must not silently change city safety, player state or city persistence; any future city-wide outbreak is a separate explicit world event.
+- **Aegis Pyramid → Light Cycles:** place a dedicated launch plaza beside the pyramid. Use original Tron-inspired visual cues—neon grid geometry, dark reflective materials, bright lane lines and light trails—while avoiding copied trademarks, logos, music or protected assets. Give this mode its own arena, cycle/trail collision rules, scoring and match lifecycle.
+- **Use an experience registry/adapter:** stable destination ID, display name, availability, entry requirements, load/unload, return target, and failure/retry behavior. Avoid direct cross-imports between unrelated game modes. Don't assume shared save formats, server authority, hosting or deployment until a read-only audit confirms them.
+- **Integration order:** inspect existing Zombies/Light Cycles entry points and BURN City scene lifecycle; establish and test the hub transition contract; connect airport to Zombies; add the Light Cycles launch plaza; then validate mobile input, repeated travel, cancellation, loading failure and resource cleanup.
+- **Scope control:** do not interrupt Hark's active task or modify overlapping runtime files without coordination. Keep work on isolated branches/draft PRs; no merge or deploy without owner approval.
+
+The mode-selection UI should state where the player is going and whether the destination is currently available. If a mode is not ready, show an honest “coming soon” or disabled state rather than a fake playable interaction.
+
+# Immediate next task for Hark
 
 **Do not start by rewriting networking.** Finish the currently active task, then perform Phase 0 as a read-only audit. Return:
 1. a diagram or concise map of existing client-to-server flows;

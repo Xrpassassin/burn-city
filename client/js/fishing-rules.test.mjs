@@ -32,4 +32,4 @@ assert.equal(fullJournal.find(a => a.id === 'rarity-tour').unlocked, true);
 assert.equal(fullJournal.find(a => a.id === 'big-game').unlocked, true);
 const badJournal = journalAchievements({ nope: { n: 99, best: 9999 } }, species);
 assert.equal(badJournal.find(a => a.id === 'first-catch').unlocked, false);
-console.log('Fishing rules and journal achievements: 20 assertions passed');
+console.log('Fishing rules and journal achievements: 21 assertions passed');

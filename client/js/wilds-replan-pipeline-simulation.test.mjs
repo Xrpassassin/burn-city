@@ -12,6 +12,7 @@ const result = await simulateReplanPipeline({
   maxRequests: 3,
   nowMs: 5000,
   cooldownMs: 1000,
+  sampleSpacing: 0.1, // the synthetic blocker is 0.2 m wide; the 0.75 m default would step over it
   retryStateByEntity: { blocked: { attempts: 1, lastAttemptMs: 0 } },
   isBlocked: (x, z) => x > 2.4 && x < 2.6,
   isOutsidePlayableArea: (x, z) => x < 0 || x > 10 || z < 0 || z > 10,

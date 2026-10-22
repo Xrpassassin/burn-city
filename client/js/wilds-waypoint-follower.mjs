@@ -37,6 +37,17 @@ export function stepWaypointPath({
     consumed++;
   }
 
+  // Cap reached on already-reached points: stop here so per-call work stays bounded.
+  if (consumed >= maxWaypointsPerStep && index < path.length) {
+    return {
+      position: { x, z },
+      waypointIndex: index,
+      reached: false,
+      moved: Math.hypot(x - position.x, z - position.z),
+      remainingDistance: Math.hypot(path[index].x - x, path[index].z - z),
+    };
+  }
+
   if (index >= path.length) {
     return {
       position: { x, z },

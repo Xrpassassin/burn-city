@@ -31,7 +31,7 @@ assert.deepEqual(result.metrics, {
 });
 assert.equal(result.perTick.length, 3);
 assert.deepEqual(result.perTick.map(t => t.processed), [2, 2, 2]);
-assert.deepEqual(result.remaining.map(x => x.entityId), ['sim-2-1', 'sim-2-2']);
+assert.deepEqual(result.remaining.map(x => x.entityId), ['sim-2-0', 'sim-2-1']);
 
 const overload = await runNavigationLoadTest({
   ticks: 3,

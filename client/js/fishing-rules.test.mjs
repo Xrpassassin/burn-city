@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { resolveFightTap } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity } from './fishing-rules.mjs';
 
 const clean = resolveFightTap({ position: 0.5, zoneStart: 0.4, zoneWidth: 0.2 });
 assert.deepEqual(clean, { hit: true, miss: false, tension: 0, broke: false });
@@ -14,4 +14,8 @@ assert.ok(betterRod.tension < miss.tension, 'better rods reduce tension from a m
 const snapped = resolveFightTap({ position: 0.9, zoneStart: 0.4, zoneWidth: 0.2, running: true, tension: 0.8, rarity: 4 });
 assert.equal(snapped.broke, true);
 assert.equal(snapped.tension, 1.18);
-console.log('Fishing fight rules: 8 assertions passed');
+assert.equal(baitAffinity('minnow', 0), 1.25, 'preferred worm bait improves minnow odds');
+assert.equal(baitAffinity('minnow', 3), 0.9, 'non-preferred bait has a modest odds penalty');
+assert.equal(baitAffinity('unknown-species', 2), 1, 'unknown species keep neutral bait odds');
+assert.equal(baitAffinity('leviathan', 99), 0.9, 'bait tier input is safely clamped');
+console.log('Fishing fight rules: 12 assertions passed');

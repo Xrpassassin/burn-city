@@ -373,11 +373,13 @@ function css() {
 #skHud .sk-msg{margin-top:6px;font-size:16px;color:#fff}#skHud .sk-msg.big{font-size:22px;color:#ffb347}
 #skTut{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 26px);transform:translateX(-50%);z-index:8;background:rgba(14,8,6,.86);border:1px solid #ff7a1877;border-radius:12px;padding:8px 14px 8px;color:#ffe9d2;font:13px/1.35 system-ui,sans-serif;text-align:center;box-shadow:0 0 24px #ff4a1a44;min-width:220px}
 #skTut small{display:block;font-size:10px;color:#ffb36baa;letter-spacing:.08em}#skTut b{display:block;font-size:15px;color:#ffb36b}#skTut button{margin-top:4px;background:none;border:0;color:#ffffff77;font:11px system-ui;pointer-events:auto}
-#skBtns{position:fixed;right:16px;bottom:calc(120px + 58px*3 + 30px);display:none;grid-template-columns:repeat(2,64px);gap:10px;z-index:7}
-#skBtns button{height:64px;border-radius:50%;border:1px solid #ff7a1888;background:radial-gradient(circle at 40% 35%,#3a1a0ccc,#120806dd);color:#ffd2a8;font:700 12px system-ui;touch-action:none;-webkit-user-select:none;user-select:none}
+#skBtns{position:fixed;right:calc(env(safe-area-inset-right) + 12px);bottom:calc(env(safe-area-inset-bottom) + 300px);display:none;grid-template-columns:repeat(2,minmax(48px,56px));gap:8px;z-index:7}
+#skBtns button{width:clamp(48px,13vw,56px);height:clamp(48px,13vw,56px);padding:0;border-radius:50%;border:1px solid #ff7a1888;background:radial-gradient(circle at 40% 35%,#3a1a0ccc,#120806dd);color:#ffd2a8;font:700 11px/1 system-ui,sans-serif;touch-action:none;-webkit-user-select:none;user-select:none}
 #skBtns button.on,#skBtns button:active{background:radial-gradient(circle,#ff7a18,#7a2a08);color:#140600}
 #tSkate.on{background:#ff7a18!important;color:#140600!important}
-@media (max-height:520px){#skBtns{bottom:20px;right:calc(16px + 58px*2 + 26px)}}`;
+@media (max-height:520px){#skBtns{bottom:calc(env(safe-area-inset-bottom) + 12px);right:calc(env(safe-area-inset-right) + 190px);grid-template-columns:repeat(2,48px);gap:6px}#skBtns button{width:48px;height:48px;font-size:10px}}
+@media (max-width:390px) and (orientation:portrait){#skBtns{right:calc(env(safe-area-inset-right) + 8px);bottom:calc(env(safe-area-inset-bottom) + 280px);grid-template-columns:repeat(2,46px);gap:6px}#skBtns button{width:46px;height:46px;font-size:10px}}
+`;
   document.head.appendChild(s);
 }
 function touchButtons() {

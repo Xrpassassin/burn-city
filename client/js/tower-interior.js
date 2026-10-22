@@ -333,6 +333,28 @@ function rooftopSkyLounge() {
   for (let z=-22;z<=22;z+=3.1) for (const x of [-xEdge,xEdge]) {
     box(x-.09,x+.09,y,y+1.34,z-.055,z+.055,M.gold,false);
   }
+  // Fine satin-gold cap inlay and a recessed-looking lower shoe make the glass rail read as a fitted assembly.
+  // Keep the bands as merged static geometry; no extra materials, lights, or per-frame work.
+  for (const [x0,x1,z0,z1] of [
+    [-xEdge,xEdge,-zEdge-.12,-zEdge+.12],
+    [-xEdge,xEdge,zEdge-.12,zEdge+.12],
+    [-xEdge-.12,-xEdge+.12,-zEdge,zEdge],
+    [xEdge-.12,xEdge+.12,-zEdge,zEdge]
+  ]) {
+    box(x0,x1,y+.035,y+.09,z0,z1,M.metal,false);
+    box(x0,x1,y+.095,y+.12,z0,z1,M.amberDim,false);
+    box(x0,x1,y+1.34,y+1.375,z0,z1,M.gold,false);
+  }
+  // Subtle inner-facing glass reflections: slim translucent vertical strips between structural posts.
+  // These are deliberately sparse to preserve transparency sorting and mobile fill-rate.
+  for (let x=-13.95;x<=13.95;x+=3.1) {
+    box(x-.012,x+.012,y+.2,y+1.15,-zEdge+.13,-zEdge+.145,M.glass,false);
+    box(x-.012,x+.012,y+.2,y+1.15,zEdge-.145,zEdge-.13,M.glass,false);
+  }
+  for (let z=-18.6;z<=18.6;z+=3.1) {
+    box(-xEdge+.13,-xEdge+.145,y+.2,y+1.15,z-.012,z+.012,M.glass,false);
+    box(xEdge-.145,xEdge-.13,y+.2,y+1.15,z-.012,z+.012,M.glass,false);
+  }
   // Low architectural fins, ember light bands, and a dramatic but safe glass overlook.
   for (const x of [-12,-6,0,6,12]) {
     box(x-.07,x+.07,y,y+3.2,-zEdge+1.1,-zEdge+1.3,M.metal,false);

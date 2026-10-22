@@ -23,6 +23,7 @@ export function commitCandidate({
   if (confirmed !== true) throw new Error('Explicit player confirmation is required.');
   if (typeof attemptId !== 'string' || !/^[a-zA-Z0-9_-]{8,100}$/.test(attemptId)) throw new TypeError('A valid unique migration attempt ID is required.');
   if (typeof sourceRaw !== 'string' || typeof sourceDigest !== 'string' || !sourceDigest) throw new TypeError('A source snapshot and digest are required.');
+  if (digestText(sourceRaw) !== sourceDigest) throw new Error('Source digest does not match the supplied snapshot.');
   if (typeof rulesetId !== 'string' || !rulesetId.trim()) throw new TypeError('A migration ruleset ID is required.');
 
   const backupKey = backupPrefix + attemptId;
@@ -32,6 +33,10 @@ export function commitCandidate({
   if (priorReceiptRaw) {
     const prior = parseObject(priorReceiptRaw, 'Migration receipt');
     if (prior.status === 'committed' && prior.sourceDigest === sourceDigest && prior.rulesetId === rulesetId) {
+      const activeRaw = read(storage, sourceKey);
+      if (typeof prior.candidateDigest !== 'string' || activeRaw == null || digestText(activeRaw) !== prior.candidateDigest) {
+        throw new Error('A committed receipt exists but the active save no longer matches it. Preserve the current save and inspect recovery options.');
+      }
       return { status: 'already-committed', attemptId, candidateDigest: prior.candidateDigest };
     }
     throw new Error('This migration attempt ID is already in use.');

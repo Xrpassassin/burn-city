@@ -14,4 +14,4 @@ assert.ok(betterRod.tension < miss.tension, 'better rods reduce tension from a m
 const snapped = resolveFightTap({ position: 0.9, zoneStart: 0.4, zoneWidth: 0.2, running: true, tension: 0.8, rarity: 4 });
 assert.equal(snapped.broke, true);
 assert.equal(snapped.tension, 1.18);
-console.log('Fishing fight rules: 6 assertions passed');
+console.log('Fishing fight rules: 8 assertions passed');

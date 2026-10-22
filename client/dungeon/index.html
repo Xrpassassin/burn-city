@@ -5,7 +5,7 @@
 <div id="title" class="scr" style="background-image:linear-gradient(#0008,#000c),url(a/crypt.jpg)"><div class="box frame" style="max-width:540px;text-align:center"><h1>ETERNAL GRIND</h1><div class="dim">A dark-fantasy dungeon RPG in Burn City</div>
 <div id="tSave" class="dim" style="margin-top:10px"></div>
 <h2>Run tier</h2><div class="tiers" id="tTiers"></div><div class="dim" id="tTierD" style="margin-top:4px"></div>
-<div style="margin:16px 0;display:flex;flex-direction:column;gap:10px"><button id="bCont" hidden>▶ Continue</button><button id="bNew">✦ New Character</button><button onclick="location.href='../'">← Back to the city</button><div style="display:flex;gap:8px"><button id="bExp" style="flex:1">⬇ Export save</button><button id="bImp" style="flex:1">⬆ Import save</button></div><input type="file" id="fImp" accept=".json,application/json" hidden></div><div class="dim">Saved on this device. PC: mouse + WASD, windows drag by their title bars. Phone: stick, thumb buttons and menus.</div></div></div>
+<div style="margin:16px 0;display:flex;flex-direction:column;gap:10px"><button id="bCont" hidden>▶ Continue</button><button id="bNew">✦ New Character</button><button id="bLab" hidden onclick="location.href='enemy-model-workshop.html'">🧟 Enemy Model Workshop</button><button onclick="location.href='../'">← Back to the city</button><div style="display:flex;gap:8px"><button id="bExp" style="flex:1">⬇ Export save</button><button id="bImp" style="flex:1">⬆ Import save</button></div><input type="file" id="fImp" accept=".json,application/json" hidden></div><div class="dim">Saved on this device. PC: mouse + WASD, windows drag by their title bars. Phone: stick, thumb buttons and menus.</div></div></div>
 <div id="create" class="scr" hidden style="background-image:linear-gradient(#0009,#000d),url(a/ember.jpg)"><div class="box frame"><h1 style="font-size:24px">Who are you?</h1>
 <h2>Name</h2><input id="cName" maxlength="16" placeholder="Nameless One"><h2>Race</h2><div class="g" id="cRace"></div><div class="dim" id="cRaceD" style="margin-top:6px"></div>
 <h2>Classes <span class="dim" style="text-transform:none;letter-spacing:0">pick up to 3 · the first is your main style</span></h2><div class="g" id="cCls"></div><div class="dim" id="cClsD" style="margin-top:6px"></div>
@@ -13,7 +13,7 @@
 <div id="dead" class="scr" hidden style="background:#200000cc"><div class="box frame" style="max-width:420px;text-align:center"><h1 style="color:#ff5a4a">YOU HAVE FALLEN</h1><div id="deadT" class="dim"></div><div style="margin-top:14px"><button id="bRes">Rise again</button></div></div></div>
 <div id="pause" class="scr" hidden style="background:#000b"><div class="box frame" style="max-width:440px;text-align:center"><h1 style="font-size:24px">Paused</h1><div style="display:flex;flex-direction:column;gap:10px;margin-top:12px"><button id="pRes">Resume</button><button id="pInvB">Inventory (I)</button>
 <div><div class="dim">Run tier (takes effect on the next floor)</div><div class="tiers" id="pTiers" style="margin-top:4px"></div></div>
-<label class="dim"><input type="checkbox" id="pInv" style="width:auto"> Invert look</label><label class="dim">Look speed <input type="range" id="pSens" min="2" max="20" value="8" style="width:120px"></label><button id="pLayout">Reset window layout</button><button onclick="save();location.href='../'">Save & return to the city</button></div></div></div>
+<label class="dim"><input type="checkbox" id="pInv" style="width:auto"> Invert look</label><label class="dim">Look speed <input type="range" id="pSens" min="2" max="20" value="8" style="width:120px"></label><button id="pSfx" aria-pressed="true">🔊 Sound effects: On</button><button id="pLayout">Reset window layout</button><button onclick="save();location.href='../'">Save & return to the city</button></div></div></div>
 <div id="hud"><div id="cross"></div><div id="prompt"></div><div id="lockhint">Click the world for mouse-look · Esc for the menu</div><div id="dui"></div>
 <div id="mui"><canvas id="mm" width="150" height="150"></canvas>
  <div id="mport"><div class="pf"><img id="mPort" alt=""></div><span id="mlv"></span><div class="mb"><div id="mName"></div><div class="bar hp"><i id="mhpB"></i></div><div class="bar mp"><i id="mmpB"></i></div><div class="bar en"><i id="mstB"></i></div><div id="buffs"></div><div id="mSitT"></div></div></div>
@@ -42,8 +42,15 @@ window.egMusic = (() => { let el = null, g = null, ac = null, muted = localStora
 import * as THREE from 'three';
 import { ENEMIES } from './data.js';
 import * as S from './sys.js';
+import { advanceExperience } from './progression-core.mjs';
 import { initUI } from './ui.js';
+import SFX from './sfx.mjs';
 const $ = id => document.getElementById(id), rnd = Math.random, ri = n => Math.floor(rnd() * n), pick = a => a[ri(a.length)], clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+$('pSfx').textContent = SFX.isEnabled() ? '🔊 Sound effects: On' : '🔇 Sound effects: Off';
+$('pSfx').setAttribute('aria-pressed', String(SFX.isEnabled()));
+$('pSfx').onclick = () => { const on = SFX.setEnabled(!SFX.isEnabled()); $('pSfx').textContent = on ? '🔊 Sound effects: On' : '🔇 Sound effects: Off'; $('pSfx').setAttribute('aria-pressed', String(on)); if (on) SFX.unlock(); };
+addEventListener('pointerdown', () => SFX.unlock(), { once: true, passive: true });
+addEventListener('keydown', () => SFX.unlock(), { once: true });
 const MOBILE = matchMedia('(pointer:coarse)').matches || /[?&]mobile=1/.test(location.search);
 if (!MOBILE) $('mui').remove();
 window.show = id => { for (const s of ['title', 'create', 'dead', 'pause']) $(s).hidden = s !== id; };
@@ -57,7 +64,7 @@ const keepBak = () => { if (bakDone) return; bakDone = true; try { const cur = l
 const save = window.save = () => { if (!P) return; const o = { ...P, hp: Math.max(1, P.hp) }; delete o.st; delete o.fx; delete o.procs; try { keepBak(); localStorage.egSave = JSON.stringify(o); } catch { } };
 function loadSave() { try { const raw = localStorage.egSave; if (!raw) return null; const r = S.migrate(JSON.parse(raw)); if (!r) return null; if (r.changed && !localStorage.egSaveV1) localStorage.egSaveV1 = raw; return r.P; } catch (e) { console.warn('egSave unreadable', e); try { if (!localStorage.egSaveBroken) localStorage.egSaveBroken = localStorage.egSave; } catch { } return null; } }
 let saved = loadSave(), tier = saved?.diff || 0;
-function drawTitle() { $('bCont').hidden = !saved; $('tSave').innerHTML = saved ? `Continue as <b>${saved.name}</b>, level ${saved.lvl} ${RACES[saved.race][0]} ${S.clsLabel(saved)} · deepest floor ${saved.best || 1}` : '';
+function drawTitle() { $('bCont').hidden = !saved; if ($('bLab')) $('bLab').hidden = !/[?&](debug|labs)=1/.test(location.search); $('tSave').innerHTML = saved ? `Continue as <b>${saved.name}</b>, level ${saved.lvl} ${RACES[saved.race][0]} ${S.clsLabel(saved)} · deepest floor ${saved.best || 1}` : '';
   const tb = el => { el.innerHTML = DIFF.map((d, i) => `<button class="${i === tier ? 'on' : ''}" data-t="${i}">${['I', 'II', 'III', 'IV', 'V'][i]} · ${d[0]}</button>`).join(''); el.onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; tier = +b.dataset.t; if (P && el.id === 'pTiers') { P.diff = tier; ui.log('sys', `Run tier set to ${DIFF[tier][0]}. It applies from the next floor.`); ui.refresh(); } drawTitle(); }; };
   tb($('tTiers')); tb($('pTiers')); const d = DIFF[tier]; $('tTierD').textContent = `Foes ×${d[1]} power · rewards ×${d[2]}${d[3] ? ` · better loot (+${d[3]} floors of rarity)` : ''} · foes con ${d[4] ? '+' + d[4] + ' levels' : 'normally'}`; }
 // ---------- creation (race + up to 3 classes) ----------
@@ -136,11 +143,40 @@ function startFloor(depth) { egMusic.start(); P.depth = depth; P.best = Math.max
   for (const s2 of ['title', 'create', 'dead', 'pause']) $(s2).hidden = true; $('hud').style.display = 'block';
   ui.log('sys', `<b>You have entered Floor ${depth}: ${theme[1]}.</b> <span style="opacity:.75">(${D[0]} tier)</span>${depth % 5 === 0 ? ' A guardian waits by the portal.' : ''}`); if (depth === 1 && !P.tut) { P.tut = 1; setTimeout(() => ui.log('sys', MOBILE ? 'Left stick moves, drag the right side to look. Tap 🎒 Bag and 🛡 Character to manage gear. Find the purple portal to go deeper.' : 'Click the world to grab the mouse. WASD moves, 1-0 hotbar, Q/F spells, Z sits. The anvil by the start is the Ember Forge.'), 1500); }
   mmDirty = true; running = true; menuPaused = false; ui.refresh(); ui.relayout(); }
+const ENEMY_MODEL_PILOT = new URLSearchParams(location.search).get('enemyModels') === '1';
+let batModelPromise = null, cloneSkeleton = null; // loaders are lazy-imported only when ?enemyModels=1 (keeps default/mobile load lean)
+function loadBatModel() {
+  if (!batModelPromise) batModelPromise = (async () => {
+    const [{ GLTFLoader }, SU] = await Promise.all([import('../vendor/three/examples/jsm/loaders/GLTFLoader.js'), import('../vendor/three/examples/jsm/utils/SkeletonUtils.js')]); cloneSkeleton = SU.clone;
+    const response = await fetch('a/models/bat.glb'); if (!response.ok) throw new Error('bat model HTTP ' + response.status);
+    const buf = await response.arrayBuffer();
+    return await new Promise((resolve, reject) => new GLTFLoader().parse(buf, '', resolve, reject));
+  })().catch(error => { console.warn('[Eternal Grind] Bat model pilot unavailable; retaining sprite fallback.', error); batModelPromise = null; throw error; });
+  return batModelPromise;
+}
+function attachBatModel(enemy) {
+  loadBatModel().then(gltf => {
+    if (!enemies.includes(enemy)) return;
+    const model = cloneSkeleton(gltf.scene); model.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(model), size = bounds.getSize(new THREE.Vector3()), center = bounds.getCenter(new THREE.Vector3());
+    model.position.sub(center); model.position.y += size.y * .5; model.scale.setScalar(2.25 / (Math.max(size.x, size.y, size.z) || 1));
+    const holder = new THREE.Group(); holder.add(model); world.add(holder);
+    enemy.modelRoot = holder; enemy.sp.visible = false;
+    enemy.modelMixer = new THREE.AnimationMixer(model);
+    const idle = gltf.animations.find(c => /idle|fly|flap/i.test(c.name)) || gltf.animations[0];
+    if (idle) enemy.modelMixer.clipAction(idle).play();
+    enemy.modelClips = gltf.animations;
+  }).catch(() => { /* sprite remains visible as the safe fallback */ });
+}
 function spawnEnemy(d, x, z, depth, boss) { if (solid(x, z)) return; const ranged = /archer|lich|necromancer|priest|elemental|imp|acolyte|cultist|banshee|harpy|mirror/.test(d[0]), D = DIFF[P.diff];
   const sc = (1.2 + d[3] * .32) * (boss ? 1.6 : 1), sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(`a/e/${d[0]}.webp`), transparent: true, alphaTest: .1, fog: true })); sp.center.set(.5, 0); sp.scale.set(sc, sc * 1.15, 1); sp.position.set(x, 0, z); world.add(sp);
   const pw = d[4] * (1 + (depth - 1) * .28) * (1 + d[3] * .35) * (boss ? 3 : 1), hp = Math.round(28 * pw * D[1]);
   const lvl = Math.max(1, Math.round(depth + d[3] - 1 + (boss ? 3 : 0) + D[4]));
-  enemies.push({ d, sp, x, z, hp, max: hp, atk: 5 * pw * (1 + (D[1] - 1) * .7), ranged, boss, lvl, spd: ranged ? 2 : 2.6 + rnd() * .8 - (d[3] > 3 ? .5 : 0), cd: 0, hurt: 0, awake: false, xp: Math.round(10 * pw), name: (boss ? 'Guardian ' : '') + d[1], wob: rnd() * 6, stun: 0, slow: 0, slowAmt: 0, dots: [] }); }
+  const enemy = { d, sp, x, z, hp, max: hp, atk: 5 * pw * (1 + (D[1] - 1) * .7), ranged, boss, lvl, spd: ranged ? 2 : 2.6 + rnd() * .8 - (d[3] > 3 ? .5 : 0), cd: 0, hurt: 0, awake: false, xp: Math.round(10 * pw), name: (boss ? 'Guardian ' : '') + d[1], wob: rnd() * 6, stun: 0, slow: 0, slowAmt: 0, windup: 0, windupKind: null, baseScale: sc, dots: [] };
+  enemies.push(enemy);
+  // Opt-in visual-only pilot: use the animated bat for Harpy; sprite remains the default and fallback.
+  if (ENEMY_MODEL_PILOT && /harpy/i.test(d[0])) attachBatModel(enemy);
+}
 // ---------- input ----------
 const keys = {}; let running = false, menuPaused = false, uiPaused = false, sens = 8, inv = false, mouseDown = false, locked = false;
 const paused = () => menuPaused || uiPaused;
@@ -175,7 +211,7 @@ $('prompt').onclick = use;
 const fwd = () => new THREE.Vector3(-Math.sin(player.yaw) * Math.cos(player.pitch), Math.sin(player.pitch), -Math.cos(player.yaw) * Math.cos(player.pitch));
 function dmgRoll(base, bonusCrit = 0) { const c = rnd() * 100 < P.st.crit + bonusCrit; return [Math.max(1, Math.round(base * (0.85 + rnd() * .3) * (c ? 1.8 : 1))), c]; }
 // src: { verb } for weapon hits, { spell: name } for spells, { dot: name } for ticks; procs only fire on weapon hits
-function hitEnemy(e, base, kb = .6, src = {}) { if (!enemies.includes(e)) return; const [d, c] = src.dot ? [Math.round(base), false] : dmgRoll(base, src.crit || 0); e.hp -= d; e.hurt = .18; e.awake = true;
+function hitEnemy(e, base, kb = .6, src = {}) { if (!enemies.includes(e)) return; const [d, c] = src.dot ? [Math.round(base), false] : dmgRoll(base, src.crit || 0); e.hp -= d; e.hurt = .18; e.awake = true; if (!src.dot) SFX.play(src.spell ? 'magic' : c ? 'critical' : 'impact');
   if (kb) { const dx = e.x - player.x, dz = e.z - player.z, l = Math.hypot(dx, dz) || 1; tryMove(e, dx / l * kb, dz / l * kb); }
   if (c) ui.log('crit', `You score a critical hit! (${d})`);
   if (src.dot) ui.log('spell', `${ename(e, true)} has taken ${d} damage from your ${src.dot}.`); else if (src.spell) ui.log('spell', `Your ${src.spell} hits ${ename(e)} for ${d} points of damage.`); else ui.log('hit', `You ${src.verb || myVerb()} ${ename(e)} for ${d} points of damage.`);
@@ -183,7 +219,7 @@ function hitEnemy(e, base, kb = .6, src = {}) { if (!enemies.includes(e)) return
   if (!src.dot && !src.spell) for (const id of P.procs || []) { const fx = S.EFFECTS[id]; if (rnd() < fx.ch) { ui.log('spell', `Your weapon flares: ${fx.n}!`);
     if (fx.k === 'burn') e.dots.push({ t: 3, dmg: d * .5, n: fx.n, acc: 0 }); if (fx.k === 'leech') { P.hp = Math.min(P.st.hp, P.hp + d * .4); } if (fx.k === 'chill') { e.slow = 3; e.slowAmt = .4; } if (fx.k === 'stun') e.stun = Math.max(e.stun, 1.5); } }
   if (e.hp <= 0) kill(e); }
-function attack() { if (player.cd > 0 || !running || paused()) return; const c = CLASSES[S.classesOf(P)[0]][2]; player.cd = c.cd * 100 / P.st.spd / (1 + (P.fx.haste || 0)); player.swing = 1; standUp();
+function attack() { if (player.cd > 0 || !running || paused()) return; const c = CLASSES[S.classesOf(P)[0]][2]; player.cd = c.cd * 100 / P.st.spd / (1 + (P.fx.haste || 0)); player.swing = 1; SFX.play(c.bolt ? 'magic' : 'swing'); standUp();
   if (c.melee) { if (player.st < 6) return; player.st -= 6; let any = false; for (const e of [...enemies]) { const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz); if (d < c.range + (e.boss ? .6 : 0) && (-Math.sin(player.yaw) * dx - Math.cos(player.yaw) * dz) / d > .55) { hitEnemy(e, P.st.atk); any = true; } } }
   else shoot(c.bow ? 0xd8c090 : 0x8ab0ff, c.bow ? 18 : 14, P.st.atk * (c.bow ? 1 : .9), false, c.bow ? .06 : .14, null, { verb: c.bow ? 'shoot' : 'blast' }); }
 function meleeTarget(range = 3.3) { const t = target(); if (t && Math.hypot(t.x - player.x, t.z - player.z) < range + (t.boss ? .6 : 0)) return t; let best = null, bd = 1e9; for (const e of enemies) { const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz); if (d < range && (-Math.sin(player.yaw) * dx - Math.cos(player.yaw) * dz) / d > .4 && d < bd) { bd = d; best = e; } } return best; }
@@ -199,7 +235,7 @@ function castSpell(id) { if (!running || paused()) return; const s = S.SPELLS[id
   if (s.res === 'mp') P.mp -= cost; else player.st -= cost; player.cds[id] = [s.cd, s.cd]; standUp(); player.swing = .6;
   switch (s.k) {
     case 'bolt': shoot(0xff6a1a, 12, (atk * (S.classesOf(P)[0] === 'mage' ? 2.2 : 1.6) + P.lvl * 3) * sd, true, .22, null, { spell: s.n }); break;
-    case 'heal': { const a = Math.round(P.st.hp * .3 * hp); P.hp = Math.min(P.st.hp, P.hp + a); ui.log('heal', `You mend your wounds. (+${a})`); break; }
+    case 'heal': { const a = Math.round(P.st.hp * .3 * hp); P.hp = Math.min(P.st.hp, P.hp + a); SFX.play('heal'); ui.log('heal', `You mend your wounds. (+${a})`); break; }
     case 'bash': hitEnemy(tgt, atk * 1.5 * sd, 1, { spell: s.n, stun: 2 }); break;
     case 'strike': hitEnemy(tgt, atk * s.mul, .4, { spell: s.n, crit: 15 }); break;
     case 'dot': tgt.dots.push({ t: s.ticks, dmg: atk * s.mul * sd, n: s.n, acc: 0 }); tgt.awake = true; ui.log('spell', `${ename(tgt, true)} is coated in venom.`); break;
@@ -210,13 +246,13 @@ function castSpell(id) { if (!running || paused()) return; const s = S.SPELLS[id
     case 'frost': shoot(0x8cf0ff, 16, atk * 1.8 * sd, false, .16, null, { spell: s.n, slow: 3, slowAmt: .4 }); break;
     case 'ward': player.ward = Math.round(P.st.hp * .4); buffs[id] = { t: 30 }; ui.log('spell', `An arcane ward surrounds you. (${player.ward})`); break;
     case 'nova': { let n = 0; for (const e of [...enemies]) { const d = Math.hypot(e.x - player.x, e.z - player.z); if (d < 4.5) { hitEnemy(e, atk * 1.6 * sd, 1.5, { spell: s.n }); n++; } } if (!n) ui.log('spell', 'Your Cinder Nova scorches empty air.'); break; } } }
-function pot(i) { if (!running || paused()) return; if (!P.pots[i]) return ui.log('miss', i ? 'You have no mana draughts.' : 'You have no healing draughts.'); P.pots[i]--; if (i === 0) P.hp = Math.min(P.st.hp, P.hp + P.st.hp * .5); else P.mp = Math.min(P.st.mp, P.mp + P.st.mp * .6); ui.log('heal', i ? 'You drink a mana draught. Mana restored.' : 'You drink a healing draught. Health restored.'); }
+function pot(i) { if (!running || paused()) return; if (!P.pots[i]) return ui.log('miss', i ? 'You have no mana draughts.' : 'You have no healing draughts.'); P.pots[i]--; if (i === 0) { P.hp = Math.min(P.st.hp, P.hp + P.st.hp * .5); SFX.play('heal'); } else P.mp = Math.min(P.st.mp, P.mp + P.st.mp * .6); ui.log('heal', i ? 'You drink a mana draught. Mana restored.' : 'You drink a healing draught. Health restored.'); }
 function useHot(i) { const a = P?.hot[i]; if (!a) return; const [k, v] = a.split(':'); if (k === 'pot') pot(+v); if (k === 'gem') castGem(+v); }
 function sit() { if (!running || paused()) return; player.sit = !player.sit; ui.log('sys', player.sit ? 'You sit down to rest and meditate.' : 'You stand up.'); $('mRest')?.classList.toggle('on', player.sit); }
 function standUp() { if (player.sit) { player.sit = false; ui.log('sys', 'You stand up.'); $('mRest')?.classList.remove('on'); } }
 function shoot(col, spd, dmg, aoe, sz, enemy, src, spread = 0) { const m = new THREE.Mesh(new THREE.SphereGeometry(sz, 8, 6), new THREE.MeshBasicMaterial({ color: col })); const f = enemy ? enemy.f : fwd(); if (spread) f.applyAxisAngle(new THREE.Vector3(0, 1, 0), spread);
-  const o = enemy ? new THREE.Vector3(enemy.x, 1.1, enemy.z) : new THREE.Vector3(player.x, 1.5, player.z).addScaledVector(f, .6); m.position.copy(o); scene.add(m); shots.push({ m, v: f.multiplyScalar(spd), dmg, aoe, t: 3, hostile: !!enemy, src: src || {}, from: enemy?.e }); }
-function kill(e) { world.remove(e.sp); enemies = enemies.filter(x => x !== e); const D = DIFF[P.diff], con = S.conOf(P.lvl, e.lvl);
+  const o = enemy ? new THREE.Vector3(enemy.x, 1.1, enemy.z) : new THREE.Vector3(player.x, 1.5, player.z).addScaledVector(f, .6); m.position.copy(o); scene.add(m); if (enemy) SFX.play('enemy-shot'); shots.push({ m, v: f.multiplyScalar(spd), dmg, aoe, t: 3, hostile: !!enemy, src: src || {}, from: enemy?.e }); }
+function kill(e) { world.remove(e.sp); if (e.modelRoot) world.remove(e.modelRoot); enemies = enemies.filter(x => x !== e); const D = DIFF[P.diff], con = S.conOf(P.lvl, e.lvl);
   const g = Math.round((3 + P.depth * 2) * (1 + e.d[3] * .5) * (e.boss ? 5 : 1) * (.7 + rnd() * .6) * D[2]); P.gold += g;
   ui.log('xp', `You have slain ${ename(e)}!`); gainXp(Math.max(1, Math.round(e.xp * D[2] * S.conXp(con.i)))); ui.log('loot', `You receive ${g} gold.`);
   if (rnd() < (e.boss ? 1 : .16 + e.d[3] * .04)) loot(S.mkItem(S.randomType(), P.depth, e.boss ? 3 + (rnd() < .3 ? 1 : 0) : undefined, undefined, D[3]));
@@ -224,7 +260,7 @@ function kill(e) { world.remove(e.sp); enemies = enemies.filter(x => x !== e); c
   let ore = rnd() < .3 + P.diff * .05 ? 1 + (P.diff >= 3 ? 1 : 0) : 0, sh = rnd() < .03 * (1 + P.diff) ? 1 : 0; if (e.boss) { ore += 4 + P.diff; sh += 1 + ri(2) + (P.diff >= 2 ? 1 : 0); }
   if (ore || sh) { P.mats.ore += ore; P.mats.shard += sh; ui.log('loot', `You gather ${ore ? ore + ' Ember Ore' : ''}${ore && sh ? ' and ' : ''}${sh ? sh + ' Ash Shard' + (sh > 1 ? 's' : '') : ''}.`); }
   if (rnd() < (e.boss ? .35 : .015)) loot(S.mkBag(1 + ri(3))); ui.refresh(); }
-function gainXp(x) { P.xp += x; ui.log('xp', 'You gain experience!'); let need; while (P.xp >= (need = S.xpNeed(P))) { P.xp -= need; P.lvl++; recalc(); P.hp = P.st.hp; P.mp = P.st.mp; ui.log('xp', `<b>You have gained a level! Welcome to level ${P.lvl}!</b>`); } }
+function gainXp(x) { const result = advanceExperience({ level: P.lvl, xp: P.xp }, x, Math.max(1, S.classesOf(P).length)); P.xp = result.xp; ui.log('xp', 'You gain experience!'); for (const level of result.levelsGained) { P.lvl = level; recalc(); P.hp = P.st.hp; P.mp = P.st.mp; ui.log('xp', `<b>You have gained a level! Welcome to level ${P.lvl}!</b>`); } }
 function loot(it) { const free = it.t !== 'bag' && Object.keys(S.EQ_SLOTS).find(k => S.EQ_SLOTS[k][1] === it.t && !P.eq[k]); const nm = `<span style="color:${RAR[it.r || 0][1]}">${S.itemName(it)}</span>`;
   if (free) { P.eq[free] = it; changed(); ui.log('loot', `You receive ${nm} and equip it (${S.EQ_SLOTS[free][0]}).`); return; }
   const worst = Math.min(...Object.keys(S.EQ_SLOTS).filter(k => S.EQ_SLOTS[k][1] === it.t).map(k => S.iscore(P.eq[k])));
@@ -241,9 +277,9 @@ function tryMove(o, dx, dz, r = .35) { if (!solid(o.x + dx + Math.sign(dx) * r, 
 function hurt(d, e) { const who = e ? ename(e, true) : 'Something';
   if (buffs.evade && rnd() * 100 < 40) return ui.log('miss', `${who} tries to hit YOU, but YOU dodge!`);
   let red = Math.round(d * 100 / (100 + P.st.def * 4)); if (player.ward > 0) { const ab = Math.min(player.ward, red); player.ward -= ab; red -= ab; if (player.ward <= 0) { delete buffs.ward; ui.log('spell', 'Your arcane ward shatters.'); } if (!red) return ui.log('spell', 'Your arcane ward absorbs the blow.'); }
-  P.hp -= red; player.inv = .25; ui.log('hurt', `${who} ${e ? foeVerb(e) : 'hits'} YOU for ${red} points of damage.`); if (player.sit) { player.sit = false; ui.log('sys', 'You are knocked to your feet!'); $('mRest')?.classList.remove('on'); }
+  P.hp -= red; player.inv = .25; SFX.play('player-hit'); ui.log('hurt', `${who} ${e ? foeVerb(e) : 'hits'} YOU for ${red} points of damage.`); if (player.sit) { player.sit = false; ui.log('sys', 'You are knocked to your feet!'); $('mRest')?.classList.remove('on'); }
   $('flash').style.transition = 'none'; $('flash').style.opacity = .7; requestAnimationFrame(() => requestAnimationFrame(() => { $('flash').style.transition = 'opacity .5s'; $('flash').style.opacity = 0; }));
-  if (P.hp <= 0) { running = false; document.exitPointerLock?.(); ui.closeAll(); const lost = Math.floor(P.gold / 2); P.gold -= lost; ui.log('bad', `You have been slain by ${e ? ename(e) : 'something'}!`); $('deadT').textContent = `Slain on floor ${P.depth} by ${e ? ename(e) : 'the dark'}. You lost ${lost} gold but keep your level and gear.`; show('dead'); save(); } }
+  if (P.hp <= 0) { SFX.play('death'); running = false; document.exitPointerLock?.(); ui.closeAll(); const lost = Math.floor(P.gold / 2); P.gold -= lost; ui.log('bad', `You have been slain by ${e ? ename(e) : 'something'}!`); $('deadT').textContent = `Slain on floor ${P.depth} by ${e ? ename(e) : 'the dark'}. You lost ${lost} gold but keep your level and gear.`; show('dead'); save(); } }
 $('bRes').onclick = () => { recalc(); P.hp = P.st.hp; P.mp = P.st.mp; startFloor(Math.max(1, P.depth - 1)); };
 let curTgt = null; const target = () => curTgt && enemies.includes(curTgt) ? curTgt : null;
 let last = performance.now(), saveT = 0;
@@ -269,11 +305,31 @@ function loop() { requestAnimationFrame(loop); const now = performance.now(), dt
     e.cd -= dt; e.hurt -= dt; e.wob += dt * 6; e.slow -= dt; e.stun -= dt;
     for (const o of e.dots) { o.acc += dt; if (o.acc >= 1) { o.acc -= 1; o.t--; hitEnemy(e, o.dmg, 0, { dot: o.n }); } } if (!enemies.includes(e)) continue; e.dots = e.dots.filter(o => o.t > 0);
     const spd = e.spd * (e.slow > 0 ? 1 - e.slowAmt : 1);
-    if (e.stun > 0) { } else if (e.awake && see) { const want = e.ranged ? 6 : 1.3 + (e.boss ? .6 : 0); if (d > want) tryMove(e, dx / d * spd * dt, dz / d * spd * dt, .4); else if (e.ranged && d < 4) tryMove(e, -dx / d * spd * .6 * dt, -dz / d * spd * .6 * dt, .4);
-      if (e.cd <= 0) { if (!e.ranged && d < want + .5) { e.cd = 1.1 + rnd() * .4; hurt(e.atk, e); } else if (e.ranged && d < 12) { e.cd = 1.8 + rnd(); shoot(0xc04aff, 9, e.atk * .9, false, .16, { x: e.x, z: e.z, e, f: new THREE.Vector3(dx, (1.5 - 1.1), dz).normalize() }); } } }
+    if (e.stun > 0) { e.windup = 0; e.windupKind = null; }
+    else if (e.windup > 0) {
+      e.windup -= dt;
+      if (e.windup <= 0) {
+        const kind = e.windupKind; e.windupKind = null;
+        if (see && kind === 'melee' && d < (e.boss ? 2.45 : 1.85)) hurt(e.atk, e);
+        else if (see && kind === 'ranged' && d < 12) shoot(0xc04aff, 9, e.atk * .9, false, .16, { x: e.x, z: e.z, e, f: new THREE.Vector3(dx, (1.5 - 1.1), dz).normalize() });
+      }
+    }
+    else if (e.awake && see) {
+      const want = e.ranged ? 6 : 1.3 + (e.boss ? .6 : 0);
+      if (d > want) tryMove(e, dx / d * spd * dt, dz / d * spd * dt, .4);
+      else if (e.ranged && d < 4) tryMove(e, -dx / d * spd * .6 * dt, -dz / d * spd * .6 * dt, .4);
+      if (e.cd <= 0) {
+        if (!e.ranged && d < want + .5) { e.cd = 1.1 + rnd() * .4; e.windup = e.boss ? .68 : .42; e.windupKind = 'melee'; }
+        else if (e.ranged && d < 12) { e.cd = 1.8 + rnd(); e.windup = e.boss ? .82 : .62; e.windupKind = 'ranged'; }
+      }
+    }
     else if (e.awake && d < 18) tryMove(e, dx / d * spd * .5 * dt, dz / d * spd * .5 * dt, .4);
     if (!running) return;
-    e.sp.position.set(e.x, e.stun > 0 ? 0 : Math.abs(Math.sin(e.wob)) * .05, e.z); e.sp.material.color.setHex(e.hurt > 0 ? 0xff5050 : e.stun > 0 ? 0xffe08a : e.slow > 0 ? 0x9ad8ff : 0xffffff);
+    const cuePulse = e.windup > 0 ? 1 + Math.sin(now * .025) * (e.boss ? .11 : .065) : 1;
+    e.sp.scale.set(e.baseScale * cuePulse, e.baseScale * 1.15 * cuePulse, 1);
+    e.sp.position.set(e.x, e.stun > 0 ? 0 : Math.abs(Math.sin(e.wob)) * .05, e.z);
+    e.sp.material.color.setHex(e.hurt > 0 ? 0xff5050 : e.stun > 0 ? 0xffe08a : e.windup > 0 ? (e.windupKind === 'ranged' ? 0xc080ff : 0xff8a3a) : e.slow > 0 ? 0x9ad8ff : 0xffffff);
+    if (e.modelRoot) { e.modelRoot.position.set(e.x, e.stun > 0 ? 0 : Math.abs(Math.sin(e.wob)) * .05, e.z); e.modelRoot.rotation.y = Math.atan2(player.x - e.x, player.z - e.z); e.modelRoot.scale.setScalar((1.2 + e.d[3] * .32) * (e.boss ? 1.6 : 1) / 1.8); if (e.modelMixer) e.modelMixer.update(dt); const tint = e.hurt > 0 ? 0xff5050 : e.stun > 0 ? 0xffe08a : e.slow > 0 ? 0x9ad8ff : 0xffffff; e.modelRoot.traverse(o => { if (o.isMesh) { const mats = Array.isArray(o.material) ? o.material : [o.material]; for (const m of mats) m.color.setHex(tint); } }); }
     const v = new THREE.Vector3(e.x - player.x, 1 - 1.62, e.z - player.z); const ang = v.normalize().dot(f); if (d < 14 && ang > .93 && see && d < tb) { tb = d; tgt = e; } }
   // EQ-style sticky target: keep the last foe you looked at until it dies or is far away
   if (tgt) curTgt = tgt; else if (curTgt && (!enemies.includes(curTgt) || Math.hypot(curTgt.x - player.x, curTgt.z - player.z) > 18)) curTgt = null;

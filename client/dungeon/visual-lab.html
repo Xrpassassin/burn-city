@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#100d0c">
+<title>Eternal Grind · Isometric Visual Lab</title>
+<script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.min.js"}}</script>
+<style>
+:root{color-scheme:dark;--bg:#100d0c;--panel:#1b1715;--edge:#59443a;--ember:#e58b50;--muted:#b7a79d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f4e9df;font:14px/1.45 system-ui,-apple-system,sans-serif;overflow:hidden}
+#view{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
+header{position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px;pointer-events:none;background:linear-gradient(#100d0ce8,transparent)}
+header>*{pointer-events:auto}h1{font-size:16px;letter-spacing:.13em;margin:0;text-transform:uppercase}header p{margin:3px 0;color:var(--muted);font-size:12px}
+.panel{position:fixed;right:16px;top:86px;width:min(300px,calc(100vw - 32px));padding:14px;border:1px solid var(--edge);border-radius:12px;background:#171311eF;box-shadow:0 12px 40px #0008;backdrop-filter:blur(12px);max-height:calc(100dvh - 110px);overflow:auto}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--ember);margin:0 0 9px}
+.group{padding-bottom:13px;margin-bottom:13px;border-bottom:1px solid #ffffff16}.group:last-child{border:0;margin:0;padding:0}
+label{display:block;color:var(--muted);font-size:12px;margin:0 0 5px}
+select,button{width:100%;min-height:42px;border:1px solid #59443a;border-radius:8px;background:#28201c;color:#f4e9df;padding:8px 10px;font:inherit}
+button{cursor:pointer;text-align:left}button[aria-pressed=true]{border-color:var(--ember);background:#55301f}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.note{font-size:11px;color:var(--muted);margin-top:8px}
+#status{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:min(420px,calc(100vw - 32px));padding:10px 12px;background:#171311dc;border:1px solid #59443a;border-radius:9px;color:#d7c5b8;font-size:12px}
+#back{color:#ffc08a;text-decoration:none;font-size:12px}
+@media(max-width:650px){.panel{top:auto;bottom:calc(74px + env(safe-area-inset-bottom,0px));right:10px;width: min(240px,calc(100vw - 20px));padding:10px;max-height:48dvh}.group{padding-bottom:8px;margin-bottom:8px}select,button{min-height:38px;padding:6px 8px}.note{display:none}header{padding:10px}#status{bottom:calc(10px + env(safe-area-inset-bottom,0px));left:10px;max-width:calc(100vw - 270px)}}
+</style>
+</head>
+<body>
+<div id="view" aria-label="Interactive isometric character preview"></div>
+<header><div><h1>Eternal Grind · Visual Lab</h1><p>Dark-fantasy character and equipment prototype</p></div><a id="back" href="./">← Eternal Grind</a></header>
+<aside class="panel">
+  <div class="group"><h2>Character skin</h2><label for="skin">Whole-character look</label><select id="skin"><option value="ash">Ashen Warden</option><option value="crypt">Cryptbound</option><option value="ember">Ember Knight</option></select><p class="note">Skin presets recolor the complete prototype character; they do not affect game stats.</p></div>
+  <div class="group"><h2>Modular equipment</h2><label for="armor">Armor set</label><select id="armor"><option value="iron">Weathered iron</option><option value="bone">Bone-plated</option><option value="royal">Ruined regalia</option></select><label for="weapon" style="margin-top:9px">Weapon</label><select id="weapon"><option value="sword">Longsword</option><option value="axe">War axe</option><option value="staff">Ash staff</option></select></div>
+  <div class="group"><h2>Visibility tests</h2><div class="grid"><button id="helmet" aria-pressed="true">Helmet: on</button><button id="cape" aria-pressed="true">Cloak: on</button><button id="shield" aria-pressed="true">Shield: on</button><button id="reset">Reset view</button></div></div>
+  <p class="note">Prototype only. No live inventory, combat, saves, or multiplayer state is changed.</p>
+</aside>
+<div id="status">Drag to orbit · Scroll or pinch-wheel to zoom · Select gear to preview</div>
+<script type="module">
+import * as THREE from 'three';
+const host=document.querySelector('#view');
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.15;host.appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x100d0c);scene.fog=new THREE.Fog(0x100d0c,13,31);
+const camera=new THREE.OrthographicCamera(-7,7,5,-5,.1,100);
+let azimuth=Math.PI/4,radius=15,drag=null;
+function placeCamera(){const h=radius*Math.cos(.56),v=radius*Math.sin(.56);camera.position.set(Math.sin(azimuth)*h,v,Math.cos(azimuth)*h);camera.lookAt(0,1.4,0);const aspect=innerWidth/innerHeight;const span=radius*.47;camera.left=-span*aspect;camera.right=span*aspect;camera.top=span;camera.bottom=-span;camera.updateProjectionMatrix()}
+placeCamera();
+scene.add(new THREE.HemisphereLight(0xc5c9dc,0x26160f,2.0));
+const key=new THREE.DirectionalLight(0xffd5a2,3.2);key.position.set(-4,9,5);scene.add(key);
+const rim=new THREE.DirectionalLight(0x708dca,2.2);rim.position.set(5,5,-5);scene.add(rim);
+const fire=new THREE.PointLight(0xff642c,22,10,2);fire.position.set(-3,1.3,1);scene.add(fire);
+const floor=new THREE.Mesh(new THREE.CircleGeometry(13,64),new THREE.MeshStandardMaterial({color:0x29221e,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.04;scene.add(floor);
+const grid=new THREE.GridHelper(24,24,0x4b382d,0x342922);grid.position.y=-.025;grid.material.transparent=true;grid.material.opacity=.35;scene.add(grid);
+const stoneMat=new THREE.MeshStandardMaterial({color:0x3b302b,roughness:.96}), trimMat=new THREE.MeshStandardMaterial({color:0x625047,roughness:.82});
+function box(parent,geo,mat,pos,scale,rot){const m=new THREE.Mesh(geo,mat);m.position.set(...pos);m.scale.set(...scale);if(rot)m.rotation.set(...rot);m.castShadow=false;m.receiveShadow=true;parent.add(m);return m}
+for(let i=0;i<8;i++){const a=i*Math.PI/4;const x=Math.cos(a)*7,z=Math.sin(a)*7;box(scene,new THREE.BoxGeometry(1,2.8,1),stoneMat,[x,1.35,z],[1,1,1],[0,-a,0]);box(scene,new THREE.BoxGeometry(1.25,.18,1.25),trimMat,[x,2.75,z],[1,1,1],[0,-a,0])}
+const mat=(color,roughness=.75,metalness=.1)=>new THREE.MeshStandardMaterial({color,roughness,metalness});
+const geo={sphere:new THREE.SphereGeometry(1,16,12),box:new THREE.BoxGeometry(1,1,1),cyl:new THREE.CylinderGeometry(.5,.5,1,10),cone:new THREE.ConeGeometry(.5,1,10)};
+const character=new THREE.Group();scene.add(character);
+const torso=new THREE.Group();character.add(torso);
+const skin=mat(0x6f6258),cloth=mat(0x302824),armor=mat(0x656b70,.36,.72),darkMetal=mat(0x303438,.42,.65),leather=mat(0x38241a),gold=mat(0x9c6333,.4,.6),bone=mat(0xb4a58a,.65,.15),glow=mat(0xd66b32,.32,.15);
+box(torso,geo.box,cloth,[0,1.55,0],[.82,.88,.45]);
+box(torso,geo.box,armor,[0,1.68,.255],[.7,.56,.12]);
+box(torso,geo.box,leather,[0,1.27,.04],[.88,.18,.5]);
+const head=new THREE.Group();head.position.set(0,2.28,0);torso.add(head);
+box(head,geo.sphere,skin,[0,0,0],[.31,.38,.29]);
+const helmet=new THREE.Group();head.add(helmet);
+box(helmet,geo.sphere,darkMetal,[0,.14,0],[.36,.34,.34]);
+box(helmet,geo.box,armor,[0,-.03,.285],[.33,.12,.08]);
+box(helmet,geo.box,glow,[0,.015,.335],[.19,.035,.018]);
+const arms=[];
+for(const side of [-1,1]){const arm=new THREE.Group();arm.position.set(side*.53,1.86,0);torso.add(arm);box(arm,geo.cyl,cloth,[0,-.28,0],[.18,.62,.18],[0,0,side*-.12]);box(arm,geo.box,armor,[0,-.27,.08],[.25,.28,.22]);box(arm,geo.sphere,leather,[0,-.62,.03],[.14,.15,.14]);arms.push(arm)}
+const legs=[];
+for(const side of [-1,1]){const leg=new THREE.Group();leg.position.set(side*.22,.98,0);torso.add(leg);box(leg,geo.cyl,cloth,[0,-.32,0],[.25,.72,.28]);box(leg,geo.box,armor,[0,-.27,.16],[.27,.28,.1]);box(leg,geo.box,darkMetal,[0,-.68,.09],[.32,.16,.48]);legs.push(leg)}
+const cape=new THREE.Group();torso.add(cape);box(cape,geo.box,cloth,[0,1.48,-.31],[.72,.95,.08],[.12,0,0]);box(cape,geo.box,glow,[0,1.14,-.36],[.06,.45,.025]);
+const shield=new THREE.Group();shield.position.set(-.77,1.2,.02);torso.add(shield);box(shield,geo.box,armor,[0,0,0],[.1,.72,.55],[0,0,-.08]);box(shield,geo.sphere,gold,[.06,0,.02],[.09,.13,.13]);
+const weapon=new THREE.Group();weapon.position.set(.72,1.08,.08);torso.add(weapon);
+function clearGroup(g){while(g.children.length)g.remove(g.children[g.children.length-1])}
+function makeWeapon(type){clearGroup(weapon);if(type==='sword'){box(weapon,geo.box,armor,[0,.43,.02],[.09,.76,.12],[0,0,-.06]);box(weapon,geo.cone,armor,[0,.88,.02],[.09,.23,.12]);box(weapon,geo.box,gold,[0,.06,.02],[.38,.07,.16]);box(weapon,geo.cyl,leather,[0,-.18,.02],[.1,.36,.1])}else if(type==='axe'){box(weapon,geo.cyl,leather,[0,.12,0],[.09,1.05,.09]);box(weapon,geo.box,armor,[.15,.49,0],[.37,.42,.12],[0,0,-.2]);box(weapon,geo.cone,armor,[-.02,.49,0],[.19,.38,.12],[0,0,Math.PI/2])}else{box(weapon,geo.cyl,leather,[0,.12,0],[.1,1.3,.1]);box(weapon,geo.cone,glow,[0,.85,0],[.19,.35,.19]);box(weapon,geo.sphere,gold,[0,.98,0],[.12,.12,.12])}}
+makeWeapon('sword');
+function applySkin(v){if(v==='ash'){skin.color.setHex(0x6f6258);cloth.color.setHex(0x302824);glow.color.setHex(0xd66b32);gold.color.setHex(0x9c6333)}else if(v==='crypt'){skin.color.setHex(0x9b9a83);cloth.color.setHex(0x242a2b);glow.color.setHex(0x72a69b);gold.color.setHex(0x6d807b)}else{skin.color.setHex(0x715448);cloth.color.setHex(0x451d16);glow.color.setHex(0xff9a3d);gold.color.setHex(0xb17b3e)}}
+function applyArmor(v){if(v==='iron'){armor.color.setHex(0x656b70);darkMetal.color.setHex(0x303438);leather.color.setHex(0x38241a)}else if(v==='bone'){armor.color.setHex(0xb4a58a);darkMetal.color.setHex(0x494039);leather.color.setHex(0x2c211b)}else{armor.color.setHex(0x77513a);darkMetal.color.setHex(0x29212a);leather.color.setHex(0x4b2d23)}}
+document.querySelector('#skin').addEventListener('change',e=>applySkin(e.target.value));
+document.querySelector('#armor').addEventListener('change',e=>applyArmor(e.target.value));
+document.querySelector('#weapon').addEventListener('change',e=>makeWeapon(e.target.value));
+function toggle(id,obj,label){const b=document.querySelector('#'+id);b.addEventListener('click',()=>{obj.visible=!obj.visible;b.setAttribute('aria-pressed',String(obj.visible));b.textContent=label+': '+(obj.visible?'on':'off')})}
+toggle('helmet',helmet,'Helmet');toggle('cape',cape,'Cloak');toggle('shield',shield,'Shield');
+document.querySelector('#reset').addEventListener('click',()=>{azimuth=Math.PI/4;radius=15;placeCamera()});
+renderer.domElement.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,id:e.pointerId};renderer.domElement.setPointerCapture(e.pointerId)});
+renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;azimuth-=(e.clientX-drag.x)*.008;drag.x=e.clientX;drag.y=e.clientY;placeCamera()});
+renderer.domElement.addEventListener('pointerup',()=>drag=null);renderer.domElement.addEventListener('pointercancel',()=>drag=null);
+renderer.domElement.addEventListener('wheel',e=>{radius=THREE.MathUtils.clamp(radius+e.deltaY*.012,9,23);placeCamera()},{passive:true});
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));placeCamera()});
+const clock=new THREE.Clock();
+function animate(){requestAnimationFrame(animate);const t=clock.getElapsedTime();torso.position.y=Math.sin(t*1.8)*.025;torso.rotation.y=Math.sin(t*.55)*.07;arms[0].rotation.x=Math.sin(t*1.8)*.025;arms[1].rotation.x=-Math.sin(t*1.8)*.025;fire.intensity=20+Math.sin(t*4)*3;renderer.render(scene,camera)}
+applySkin('ash');applyArmor('iron');animate();
+</script>
+</body>
+</html>

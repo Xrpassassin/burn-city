@@ -62,6 +62,23 @@ const args = storage => ({ storage, sourceRaw, sourceDigest, rulesetId: 'test-ru
 }
 {
   const storage = new MemoryStorage(); storage.setItem('egSave', sourceRaw);
+  // Mutate the active save after staging; the last-moment guard must refuse promotion.
+  const originalSet = storage.setItem.bind(storage);
+  let changedDuringStage = false;
+  storage.setItem = (k,v) => {
+    originalSet(k,v);
+    if (k === 'egSaveMigrationPending:attempt_12345678' && !changedDuringStage) {
+      changedDuringStage = true;
+      originalSet('egSave', JSON.stringify({ ...source, xp: 99 }));
+    }
+  };
+  assert.throws(() => commitCandidate(args(storage)), /changed during staging/);
+  assert.equal(storage.getItem('egSave'), JSON.stringify({ ...source, xp: 99 }));
+  assert.ok(storage.getItem('egSaveMigrationBackup:attempt_12345678'));
+  assert.ok(storage.getItem('egSaveMigrationPending:attempt_12345678'));
+}
+{
+  const storage = new MemoryStorage(); storage.setItem('egSave', sourceRaw);
   // Simulate a crash after active-save promotion but before receipt write.
   const originalSet = storage.setItem.bind(storage);
   let failReceipt = true;

@@ -397,15 +397,44 @@ function rooftopSkyLounge() {
     const cushion = new THREE.Mesh(new THREE.BoxGeometry(3.18,.3,.92),M.fabric); cushion.position.set(0,.68,0); g.add(cushion);
     const back = new THREE.Mesh(new THREE.BoxGeometry(3.25,.8,.22),M.fabric); back.position.set(0,1.05,-.39); g.add(back);
     for (const sx of [-1.55,1.55]) { const arm=new THREE.Mesh(new THREE.BoxGeometry(.25,.52,1.02),M.fabric); arm.position.set(sx,.72,0); g.add(arm); }
+    // Tailored upholstery: inset seat panels, subtle piping, and contrasting throw cushions.
+    for (const sx of [-.92,-.3,.32,.94]) {
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(.018,.012,.78),M.stone);
+      seam.position.set(sx,.836,0); g.add(seam);
+    }
+    for (const [px,pz,pr] of [[-1.08,-.23,-.12],[1.08,-.23,.12]]) {
+      const pillow = new THREE.Mesh(new THREE.BoxGeometry(.56,.2,.48),M.stone);
+      pillow.position.set(px,.91,pz); pillow.rotation.y=pr; g.add(pillow);
+      const accent = new THREE.Mesh(new THREE.BoxGeometry(.36,.012,.025),M.gold);
+      accent.position.set(px,1.02,pz); accent.rotation.y=pr; g.add(accent);
+    }
     g.position.set(x,y,z); g.rotation.y=rot; scene.add(g);
   };
   const table = (x,z) => {
     const top = new THREE.Mesh(new THREE.CylinderGeometry(.68,.72,.12,12),M.gold); top.position.set(x,y+.82,z); scene.add(top);
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(.12,.2,.72,8),M.metal); stem.position.set(x,y+.42,z); scene.add(stem);
     const glow = new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.025,12),M.amber); glow.position.set(x,y+.9,z); scene.add(glow);
+    // Small, low-profile tabletop accents add scale without cluttering the walking path.
+    const vessel = new THREE.Mesh(new THREE.CylinderGeometry(.075,.09,.18,8),M.glass);
+    vessel.position.set(x-.19,y+.98,z); scene.add(vessel);
+    const coaster = new THREE.Mesh(new THREE.CylinderGeometry(.13,.13,.018,12),M.stone);
+    coaster.position.set(x+.2,y+.89,z+.08); scene.add(coaster);
+    const candle = new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.12,8),M.amber);
+    candle.position.set(x+.2,y+.96,z+.08); scene.add(candle);
   };
   sofa(-9,-5,0); sofa(9,-5,Math.PI); sofa(-9,6,0); sofa(9,6,Math.PI);
   for (const [x,z] of [[-6,-5],[6,-5],[-6,6],[6,6]]) table(x,z);
+  // Four restrained bar stools: dark pedestal, foot ring, and upholstered seat.
+  for (const x of [-1.8,-.6,.6,1.8]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(.055,.09,.58,8),M.metal);
+    leg.position.set(x,y+.36,9.75); scene.add(leg);
+    const foot = new THREE.Mesh(new THREE.TorusGeometry(.17,.025,6,12),M.gold);
+    foot.rotation.x=Math.PI/2; foot.position.set(x,y+.22,9.75); scene.add(foot);
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.13,12),M.fabric);
+    seat.position.set(x,y+.72,9.75); scene.add(seat);
+    const seatTrim = new THREE.Mesh(new THREE.TorusGeometry(.3,.018,5,12),M.gold);
+    seatTrim.position.set(x,y+.79,9.75); scene.add(seatTrim);
+  }
   // Rooftop bar: decorative counter plus backlit shelving; menu interaction is roleplay-only.
   box(-2.8,2.8,y,y+.16,10.5,11.4,M.metal);
   box(-2.7,2.7,y+.16,y+1.15,10.65,11.35,M.stone);

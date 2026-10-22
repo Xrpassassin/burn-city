@@ -49,7 +49,7 @@ async function tick(fetchImpl) {
     const st = live && live.cats ? live : { updated: 0, cats: {}, next: 0 };
     const cold = !CATS.some(c => (st.cats[c.name] || []).length);   // nothing cached yet: search every category once (600 units)
     const todo = cold ? CATS : [CATS[(st.next | 0) % CATS.length]], found = new Map();
-    for (const cat of todo) { const s = await yt('search', { part: 'snippet', type: 'video', eventType: 'live', videoEmbeddable: 'true', q: cat.q, maxResults: '10', safeSearch: 'strict' }, fetchImpl); ST.units += 100;
+    for (const cat of todo) { const s = await yt('search', { part: 'snippet', type: 'video', eventType: 'live', videoEmbeddable: 'true', q: cat.q, maxResults: '10', safeSearch: 'moderate' }, fetchImpl); ST.units += 100;
       found.set(cat.name, (s.items || []).map(i => i && i.id && i.id.videoId).filter(x => ID.test(x || ''))); }
     const ids = new Set([].concat(...found.values())); for (const l of Object.values(st.cats)) for (const x of l) ids.add(x.id);
     const info = new Map(), all = [...ids].slice(0, 150);

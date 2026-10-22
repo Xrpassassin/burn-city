@@ -18,7 +18,7 @@
 
 BURN Radio should be an **optional city-only** listening feature, separate from zone music.
 
-1. First verify the official BURN/Codex:BURN artist and release URLs on Audius, Apple Music, Spotify, and any other service where the catalog is actually published. Do not infer artist identity from search results alone.
+1. User-provided Audius artist profile for BURN Radio discovery: https://audius.co/shinigami11769 (displayed handle: @Shinigami11769). Treat this as the primary catalog source supplied by the project owner. Verify individual track URLs and playback eligibility before adding them to the in-game player. Other platforms (Apple Music, Spotify, etc.) must be added only after the official catalog/profile is confirmed there.
 2. Implement a provider adapter/UI that opens or embeds only the provider's documented player and uses the verified artist/track URL. The city should remain playable when a provider is blocked, unavailable, offline, or not logged in.
 3. Keep radio opt-in and respect browser autoplay restrictions, user mute state, mobile audio unlock, and safe-area UI placement.
 4. When entering CinderWilds, Glassroot Grove, zombie territory, or Eternal Grind, suspend city radio before zone music begins. When returning to the city, resume only if the player had opted in and the zone did not override their choice.
@@ -28,4 +28,4 @@ BURN Radio should be an **optional city-only** listening feature, separate from 
 
 ## Next implementation gate
 
-The current repository audit found **no existing city-only soundtrack asset/controller to remove**. The next safe coding step is to verify the official artist/catalog URLs and then add a city-only radio UI/adapter behind a feature flag. Until that is done, keep every existing audio file and zone transition unchanged.
+The current repository audit found **no existing city-only soundtrack asset/controller to remove**. The project owner has now supplied the Audius profile URL above. The next implementation step is an opt-in city-only player using Audius' documented SDK/API or official embed player, with the supplied profile as the source. Audius documents public catalog search/stream access and recommends an API key for higher limits; obtain/configure the project's public API key if required rather than hard-coding a secret. Do not stream through unofficial endpoints. Keep all existing local forest, zombie/arena, and dungeon music and zone transitions unchanged.

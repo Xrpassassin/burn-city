@@ -841,4 +841,21 @@ window.__openBurnTowerInterior = openBurnTowerInterior;
 window.__closeBurnTowerInterior = close;
 window.__towerFrame = towerFrame;
 window.__towerInteract = () => { if (!active) return; if (panel) { panel.remove(); panel = null; return; } if (nearSt) interact(nearSt.id); else toast('Walk up to a sign, a lift or the exit.'); };
-if (Q.has('towertest')) window.__towerTest = { interact, P, get camera() { return camera; }, get panel() { return panel; }, get near() { return nearSt; }, get scene() { return scene; }, blocked, groundAt, stations, body: () => body, close, sim(sec) { for (let i = 0; i < sec * 60; i++) towerFrame(1 / 60, performance.now() / 1000); } };
+if (Q.has('towertest')) window.__towerTest = {
+  interact, travelTo, P, get camera() { return camera; }, get panel() { return panel; },
+  get near() { return nearSt; }, get scene() { return scene; }, blocked, groundAt, stations,
+  body: () => body, close,
+  // Quick browser-console diagnostic for directory/lift destination smoke tests.
+  checkDestinations() {
+    const points = {
+      hall: [0, 0, 21.5], 'lift-ground': [-5, 0, -22.3], mezz: [-5, MEZZ, -22.3],
+      aegis: [0, MEZZ, -30.2], bar: [-13.2, MEZZ, 13.5], lounge: [13.6, MEZZ, 15.25]
+    };
+    return Object.entries(points).map(([id, [x, y, z]]) => {
+      const floor = groundAt(x, z, y);
+      return { id, floor, expectedFloor: y, hasFloor: floor > -50,
+        floorMatches: Math.abs(floor - y) <= STEP, blocked: floor > -50 ? blocked(x, z, floor) : true };
+    });
+  },
+  sim(sec) { for (let i = 0; i < sec * 60; i++) towerFrame(1 / 60, performance.now() / 1000); }
+};

@@ -15,7 +15,7 @@ function lakeFrame(nodes, avoid = []) {
   const hub = nodes.filter(n => n.pos && !n.minor && n.distR).sort((a, b) => b.pos.dot(dir) - a.pos.dot(dir))[0];
   const cityEdge = hub ? hub.pos.clone().setY(0).addScaledVector(dir, hub.distR * 0.98) : dir.clone().multiplyScalar(maxR);
   // organic lake, long across the city->Estates axis: city shore on one side, Estates on the other
-  const D = 62, Wd = 175, rho = a => 1 + 0.12 * Math.sin(3 * a + 1.3) + 0.07 * Math.sin(5 * a + 0.4) + 0.035 * Math.sin(9 * a + 2.1);
+  const D = 78, Wd = 210, rho = a => 1 + 0.12 * Math.sin(3 * a + 1.3) + 0.07 * Math.sin(5 * a + 0.4) + 0.035 * Math.sin(9 * a + 2.1);
   const loc = (x, z, c) => { const dx = x - c.x, dz = z - c.z; return [dx * side.x + dz * side.z, dx * dir.x + dz * dir.z]; };
   const inside = (x, z, c, pad = 0) => { const [u, v] = loc(x, z, c), a = Math.atan2(v / D, u / Wd); return Math.hypot(u / (Wd + pad), v / (D + pad)) < rho(a); };
   const blockers = nodes.filter(n => n.pos).map(n => [n.pos.x, n.pos.z, (n.distR || n.w * 2 || 10) + 6]).concat(avoid.map(p => [p.x, p.z, 40]));
@@ -56,7 +56,7 @@ varying vec3 vW;
 float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
 vec2 wv(vec2 d,float k,float a,float s,vec2 p){return d*k*a*cos(dot(d,p)*k+t*s);}
-void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/175.0, vv=dot(q,ld)/62.0, aa=atan(vv,uu); float r=length(vec2(uu,vv))/(1.+.12*sin(3.*aa+1.3)+.07*sin(5.*aa+.4)+.035*sin(9.*aa+2.1)); vec2 p=vW.xz*.08;
+void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=atan(vv,uu); float r=length(vec2(uu,vv))/(1.+.12*sin(3.*aa+1.3)+.07*sin(5.*aa+.4)+.035*sin(9.*aa+2.1)); vec2 p=vW.xz*.08;
   float w=n(p+vec2(t*.25,t*.18))*.6+n(p*2.3-vec2(t*.4,-t*.3))*.4;
   // surface slope: a few travelling waves (choppier in storms) + ripple rings from casts, bites, splashes and boat wakes + rain
   float ch=1.+storm*1.6+wet*.5; vec2 P=vW.xz, g=vec2(0);
@@ -143,43 +143,84 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/175.0, vv=dot(q,ld)/62.0, aa=at
       head.setMatrixAt(hi++, M.makeTranslation(x - 0.7, y, z + 1.6 * f)); head.setMatrixAt(hi++, M.makeTranslation(x + 0.7, y, z + 1.6 * f));
       tail.setMatrixAt(ti++, M.makeTranslation(x - 0.7, y, z - 1.6 * f)); tail.setMatrixAt(ti++, M.makeTranslation(x + 0.7, y, z - 1.6 * f)); }
     head.instanceMatrix.needsUpdate = tail.instanceMatrix.needsUpdate = true; });
-  // ---------- the lot: dirt, fence, scaffold frames, cranes, work lights, sign ----------
-  const LW = 170, LD = 130, lot = new THREE.Group(); lot.position.copy(lotC); lot.rotation.y = yaw; G.add(lot);
-  const dirt = new THREE.Mesh(new THREE.PlaneGeometry(LW, LD), new THREE.MeshLambertMaterial({ color: 0x4a3524 })); dirt.rotation.x = -Math.PI / 2; dirt.position.y = 0.07; lot.add(dirt);
-  // survey grid: faint lines merged into one LineSegments
-  const gl = []; for (let x = -LW / 2 + 5; x <= LW / 2 - 5; x += 8) gl.push(x, 0.12, -LD / 2 + 5, x, 0.12, LD / 2 - 5); for (let z = -LD / 2 + 5; z <= LD / 2 - 5; z += 8) gl.push(-LW / 2 + 5, 0.12, z, LW / 2 - 5, 0.12, z);
-  const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(gl, 3)); lot.add(new THREE.LineSegments(gg, new THREE.LineBasicMaterial({ color: 0x8a6a40, transparent: true, opacity: 0.35 })));
-  const fence = []; const fp = (x, z) => fence.push(box(0.35, 2.4, 0.35, x, 1.2, z));
-  for (let x = -LW / 2; x <= LW / 2; x += 6) { fp(x, -LD / 2); fp(x, LD / 2); } for (let z = -LD / 2; z <= LD / 2; z += 6) { fp(-LW / 2, z); fp(LW / 2, z); }
-  for (const s of [-1, 1]) { fence.push(box(LW, 0.12, 0.12, 0, 2.1, s * LD / 2)); fence.push(box(LW, 0.12, 0.12, 0, 1.1, s * LD / 2)); fence.push(box(0.12, 0.12, LD, s * LW / 2, 2.1, 0)); fence.push(box(0.12, 0.12, LD, s * LW / 2, 1.1, 0)); }
-  lot.add(new THREE.Mesh(mergeGeometries(fence), new THREE.MeshLambertMaterial({ color: 0xc8a040 })));
-  // generic scaffolding frames: box edges merged
-  const fr = [], pallets = [], mk = (w, h, d, x, z) => { if (w === 3 && h === 2) { pallets.push(x, z); return; } const e = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)); e.translate(x, h / 2, z); fr.push(e); };
-  [[3, 2, 3, -60, -40], [6, 4, 6, -45, -38], [6, 4, 7, -30, -40], [10, 6, 9, -10, -36], [16, 8, 12, 15, -34], [6, 4, 6, 40, -40], [8, 5, 8, 55, -38], [3, 2, 3, -60, -25], [3, 2, 3, -54, -25]].forEach(a => mk(...a));
-  { const tg = []; for (let i = 0; i < pallets.length; i += 2) { const x = pallets[i], z = pallets[i + 1]; tg.push(box(2.4, 1.2, 2.4, x, 0.6, z), box(2.4, 1.2, 2.4, x + 2.8, 0.6, z), box(2.4, 1.2, 2.4, x + 1.4, 1.8, z)); } if (tg.length) lot.add(new THREE.Mesh(mergeGeometries(tg), new THREE.MeshLambertMaterial({ color: 0x8a7a5a }))); }
-  lot.add(new THREE.LineSegments(mergeGeometries(fr), new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.8 })));
-  // cranes: instanced masts + rotating jibs
-  const CR = [[-50, 10, 34], [10, 20, 40], [55, -5, 30]], mast = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 1, 1.4).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({ color: 0xffb020 }), 3);
-  const jibG = mergeGeometries([box(1, 1, 30, 0, 0, 9), box(1.2, 1.2, 8, 0, 0, -9), box(2.5, 2.5, 2.5, 0, -0.2, -12), box(0.15, 10, 0.15, 0, -5, 20)]);
-  const jib = new THREE.InstancedMesh(jibG, new THREE.MeshLambertMaterial({ color: 0xffc23a }), 3); CR.forEach(([x, z, h], i) => mast.setMatrixAt(i, M.compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion(), new THREE.Vector3(1, h, 1)))); lot.add(mast, jib);
-  const Q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1), P = new THREE.Vector3();
-  // work lights: two blinking point sets (alternate phase)
-  const wl = [[], []]; for (let i = 0; i < 28; i++) { const a = i % 2, x = (Math.random() - 0.5) * LW * 0.95, z = (Math.random() - 0.5) * LD * 0.95; wl[a].push(x, 2.5, z); }
-  CR.forEach(([x, z, h]) => wl[0].push(x, h + 1.5, z));
-  const wls = wl.map(a => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(a, 3)); const p = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xff7a1a, size: 3.2, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })); lot.add(p); return p; });
-  // sign: canvas texture, unfogged + bright so it reads from the overview
-  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 384; const x = cv.getContext('2d');
-  x.fillStyle = '#120802'; x.fillRect(0, 0, 1024, 384); x.strokeStyle = '#ff9a2a'; x.lineWidth = 14; x.strokeRect(10, 10, 1004, 364);
-  x.textAlign = 'center'; x.shadowColor = '#ff7a1a'; x.shadowBlur = 30; x.fillStyle = '#ffd27a'; x.font = '900 118px system-ui,-apple-system,sans-serif'; x.fillText('COMING SOON', 512, 190);
-  x.shadowBlur = 12; x.fillStyle = '#ffffff'; x.font = '700 64px system-ui,-apple-system,sans-serif'; x.fillText('BURN CITY ESTATES', 512, 290); 
-  const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4;
-  const signM = new THREE.MeshBasicMaterial({ map: tex, fog: false, toneMapped: false, side: THREE.DoubleSide });
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(130, 48), signM); sign.position.set(0, 120, -LD / 2 + 6); sign.rotation.y = Math.PI; lot.add(sign);   // faces back toward the city
-  const legs = new THREE.Mesh(mergeGeometries([box(2.4, 96, 2.4, -46, 48, -LD / 2 + 6.5), box(2.4, 96, 2.4, 46, 48, -LD / 2 + 6.5)]), new THREE.MeshLambertMaterial({ color: 0x333 })); lot.add(legs);
-  // tap target covering the whole lot + sign
-  const hitM = new THREE.Mesh(new THREE.BoxGeometry(LW, 150, LD), new THREE.MeshBasicMaterial({ visible: false })); hitM.position.y = 75; hitM.userData = { kind: 'estate', label: 'Burn City Estates' }; lot.add(hitM); pick.push(hitM);
-  anim.push(t => { CR.forEach(([x, z, h], i) => { Q.setFromAxisAngle(Y, Math.sin(t * 0.07 + i * 2.1) * 1.3 + i); jib.setMatrixAt(i, M.compose(P.set(x, h, z), Q, one)); }); jib.instanceMatrix.needsUpdate = true;
-    const b = Math.sin(t * 3) > 0; wls[0].material.opacity = b ? 1 : 0.15; wls[1].material.opacity = b ? 0.15 : 1; signM.color.setScalar(0.85 + 0.15 * Math.sin(t * 2)); });
+  // ---------- Waterfront Estates district: compact geometry, four distinct homes, landscaped plots ----------
+  const LW = 230, LD = 180, lot = new THREE.Group(); lot.position.copy(lotC); lot.rotation.y = yaw; G.add(lot);
+  const dirt = new THREE.Mesh(new THREE.PlaneGeometry(LW, LD), new THREE.MeshLambertMaterial({ color: 0x394536 }));
+  dirt.rotation.x = -Math.PI / 2; dirt.position.y = 0.06; lot.add(dirt);
+  const roadBits = [], paths = [], foundations = [], walls = [], roofs = [], glass = [], trim = [], greenery = [], trunks = [], canopies = [];
+  const addBox = (arr,w,h,d,x,y,z,ry=0) => arr.push(box(w,h,d,x,y,z,ry));
+  // A small internal street grid links every driveway to the bridge approach.
+  addBox(roadBits, 10, .16, LD-18, 0, .14, 2);
+  addBox(roadBits, LW-18, .16, 8, 0, .14, -35);
+  addBox(roadBits, LW-18, .16, 8, 0, .14, 38);
+  for (const x of [-62,62]) addBox(roadBits, 5, .12, 31, x, .18, 1);
+  // Curbs/sidewalks flank the boulevard and cross streets.
+  for (const x of [-6.2,6.2]) addBox(paths,.5,.22,LD-18,x,.22,2);
+  for (const z of [-40,-30,33,43]) addBox(paths,LW-18,.18,1.1,0,.2,z);
+  const homes = [
+    {x:-65,z:-10,w:36,d:25,h:8,roof:0x303b4c,wall:0xc8c7bd},
+    {x:65,z:-10,w:36,d:25,h:8,roof:0x3d4147,wall:0xd8c7ac},
+    {x:-65,z:58,w:40,d:27,h:9,roof:0x26394a,wall:0xc6d0d0},
+    {x:65,z:58,w:40,d:27,h:9,roof:0x4a3d34,wall:0xd9d0c1}
+  ];
+  for (let i=0;i<homes.length;i++) {
+    const h=homes[i], front=h.z+h.d/2;
+    // Property pad, main volume, flat modern roof and a recessed garage wing.
+    addBox(foundations,h.w+5,.45,h.d+5,h.x,.35,h.z);
+    addBox(walls,h.w,h.h,h.d,h.x,h.h/2+.55,h.z);
+    addBox(roofs,h.w+1.8,1.15,h.d+1.8,h.x,h.h+1.15,h.z);
+    addBox(walls,h.w*.42,4.2,9,h.x+h.w*.28,2.65,front+4.5);
+    // Street-facing panoramic glazing and upper clerestory windows.
+    for (const sx of [-.29,-.08,.13,.32]) {
+      addBox(glass,h.w*.16,2.8,.16,h.x+h.w*sx,3.0,front+.12);
+      addBox(glass,h.w*.16,1.0,.16,h.x+h.w*sx,6.1,front+.12);
+    }
+    addBox(glass,5.5,3.2,.18,h.x+h.w*.28,2.5,front+9.08);
+    addBox(trim,h.w*.48,.28,.35,h.x,5.0,front+.25);
+    addBox(paths,8,.12,11,h.x, .24, front+9);
+    // Low planting beds and evenly spaced trees; geometry is merged below.
+    for (const s of [-1,1]) {
+      addBox(greenery,5,.6,2.2,h.x+s*(h.w/2+1.2),.35,h.z);
+      for (const dz of [-h.d/2-5,h.d/2+5]) {
+        const tx=h.x+s*(h.w/2+5), tz=h.z+dz;
+        addBox(trunks,.7,4,.7,tx,2.1,tz);
+        const crown=new THREE.ConeGeometry(2.7,6,5); crown.translate(tx,6.8,tz); canopies.push(crown);
+      }
+    }
+  }
+  const merged = (bits, material) => { if (!bits.length) return null; const g=mergeGeometries(bits,true); const m=new THREE.Mesh(g,material); lot.add(m); return m; };
+  merged(roadBits,new THREE.MeshLambertMaterial({color:0x252a32}));
+  merged(paths,new THREE.MeshLambertMaterial({color:0xaaa99f}));
+  merged(foundations,new THREE.MeshLambertMaterial({color:0x777b7b}));
+  merged(walls,new THREE.MeshLambertMaterial({color:0xbab9b1}));
+  merged(roofs,new THREE.MeshLambertMaterial({color:0x303945}));
+  merged(glass,new THREE.MeshBasicMaterial({color:0x79d8ed,transparent:true,opacity:.78}));
+  merged(trim,new THREE.MeshLambertMaterial({color:0xffb75b}));
+  merged(greenery,new THREE.MeshLambertMaterial({color:0x385d3c}));
+  merged(trunks,new THREE.MeshLambertMaterial({color:0x57402b}));
+  if (canopies.length) merged(canopies,new THREE.MeshLambertMaterial({color:0x2e7548}));
+  // Boulevard lighting: one merged pole mesh plus low-cost glowing point markers.
+  const poles=[], lights=[];
+  for (let z=-LD/2+15;z<LD/2-5;z+=22) for (const x of [-8.5,8.5]) {
+    addBox(poles,.28,5,.28,x,2.6,z);
+    lights.push(x,5.2,z);
+  }
+  merged(poles,new THREE.MeshLambertMaterial({color:0x303640}));
+  const lampGeo=new THREE.BufferGeometry(); lampGeo.setAttribute('position',new THREE.Float32BufferAttribute(lights,3));
+  lot.add(new THREE.Points(lampGeo,new THREE.PointsMaterial({color:0xffc777,size:2.1,transparent:true,opacity:.95,depthWrite:false,blending:THREE.AdditiveBlending})));
+  // Entrance sign faces the city; no giant construction billboard blocking the waterfront view.
+  const cv=document.createElement('canvas'); cv.width=1024; cv.height=384; const cx=cv.getContext('2d');
+  cx.fillStyle='#101b24'; cx.fillRect(0,0,1024,384); cx.strokeStyle='#ffb45b'; cx.lineWidth=12; cx.strokeRect(9,9,1006,366);
+  cx.textAlign='center'; cx.shadowColor='#ff9a36'; cx.shadowBlur=22; cx.fillStyle='#ffe0a2';
+  cx.font='900 106px system-ui,-apple-system,sans-serif'; cx.fillText('BURN CITY ESTATES',512,170);
+  cx.shadowBlur=8; cx.fillStyle='#c5f2ff'; cx.font='700 48px system-ui,-apple-system,sans-serif'; cx.fillText('LAKEFRONT RESIDENCES',512,258);
+  const tex=new THREE.CanvasTexture(cv); tex.anisotropy=4;
+  const signM=new THREE.MeshBasicMaterial({map:tex,fog:false,toneMapped:false,side:THREE.DoubleSide});
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(74,28),signM); sign.position.set(0,17,-LD/2+8); sign.rotation.y=Math.PI; lot.add(sign);
+  merged([box(1.4,18,1.4,-27,9,-LD/2+8),box(1.4,18,1.4,27,9,-LD/2+8)],new THREE.MeshLambertMaterial({color:0x303640}));
+  const hitM=new THREE.Mesh(new THREE.BoxGeometry(LW,24,LD),new THREE.MeshBasicMaterial({visible:false}));
+  hitM.position.y=12; hitM.userData={kind:'estate',label:'Burn City Estates'}; lot.add(hitM); pick.push(hitM);
+  anim.push(t=>{signM.color.setScalar(.9+.1*Math.sin(t*1.2))});
   return { lakeC, lotC, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
 }
 export const estateCard = () => `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏗 Burn City Estates</h2><p><b>Coming soon.</b></p>`;

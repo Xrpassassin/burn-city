@@ -13,7 +13,7 @@ const result = await simulateReplanPipeline({
   nowMs: 5000,
   cooldownMs: 1000,
   retryStateByEntity: { blocked: { attempts: 1, lastAttemptMs: 0 } },
-  isBlocked: (x, z) => x > 1.4 && x < 1.6,
+  isBlocked: (x, z) => x > 2.4 && x < 2.6,
   isOutsidePlayableArea: (x, z) => x < 0 || x > 10 || z < 0 || z > 10,
   planRoute: async request => {
     if (request.entityId === 'throws') throw new Error('synthetic planner failure');
@@ -38,7 +38,7 @@ assert.equal(result.metrics.requested, 3);
 assert.equal(result.metrics.validatedRoutes, 1);
 assert.equal(result.metrics.invalidRoutes, 1);
 assert.equal(result.metrics.plannerErrors, 1);
-assert.equal(result.metrics.estimatedCostUnits, 18);
+assert.equal(result.metrics.estimatedCostUnits, 11);
 assert.ok(result.metrics.validationSamples > 0);
 assert.equal(result.metrics.costMetric, 'deterministic-estimated-units-not-wall-clock');
 

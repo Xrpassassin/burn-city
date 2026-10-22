@@ -393,3 +393,13 @@ Integrates Xrpassassin PRs #96 → #97 → #99 → #101 (stacked; tip #101 merge
 - **Play section** (`client/js/play-menu.js`, #103): top-right `▶ Play` button opens a game picker; Blacktide moved out of the pause view menu into it. It calls `window.__launchBlacktide()` (app.js: stores `sessionStorage.bc_ret`, then `blacktide/`), so the `../` return link still restores Explore/Fly at the same spot. Hidden under `body.wl-travel`.
 - Tests: `npm run test:blacktide` (ocean, boat AI, cannon AI; also in `npm test`). CI: `.github/workflows/blacktide-ocean-test.yml`.
 - Gaps: NPC sinkings don't respawn until reload; no repair; cannonballs allocate a small geometry per shot (disposed on expiry).
+
+## City transport/fly controls, input-latency HUD, AEGIS live explorer (integrate/city-aegis, sw bc-v63-cityaegis)
+Integrates Xrpassassin PRs #105 → #106 → #107 → #108 → #109 (stacked; tip #109 merged; #103 already landed in #112).
+- **Transport menu** (`client/js/transport-menu.js`): top-right `⇄ Transport` (Flight → `window.__setBurnMode('fly')`; Lake boat → Explore + a hint). `✈ Fly` left the `#btns` mode dock (still in the pause view menu). Phones (≤520px) show the icon only so it sits between `#vExit` and `▶ Play` (the full label overlapped `#vExit` on iPhone 13; fixed on integrate). `setMode` keeps the Wilds travel-lock guard.
+- **Fly on desktop** (app.js): no pointer lock on click any more; right-drag looks, left-click inspects (hover tips + `showInfo` work in Fly like Explore).
+- **`?perf=1` HUD**: adds input→next-frame p95 (`__perf.inputP95`, `inputSamples`); the listeners only exist with `?perf`.
+- **AEGIS live explorer** (`client/js/aegis.js` `openLive`): "All streams" tab, search + sort, feed-health line (CONNECTED / DEGRADED / STALE from `LC.ok`/`LC.fails`/`LC.source`), incident cards that open the best title-matched stream (text match only, not location-verified), one iframe at a time, stale comment responses ignored. All text via textContent.
+  - `?citysrv=` is now restricted to same-origin, burn-city-game.fly.dev, or localhost (http allowed only for localhost); anything else falls back to the default server.
+  - Server untouched: `/api/cams` YouTube search keeps `safeSearch: 'moderate'` (#104) and the YouTube source.
+- Gaps: on phones the Fly help line still mentions WASD/right-click; the Lake boat entry only gives a hint (no auto-route).

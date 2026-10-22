@@ -94,7 +94,19 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && en
 // ---------------------------------------------------------------- live cams (server/cams.js: real YouTube live streams, ranked by viewers)
 // Our server lists them (YouTube Data API behind a server-side key, or a curated fallback); the Pyramid faces show the top streams
 // across categories as thumbnails, the cam modal plays one (the only iframe, only inside the modal). /api/cams down = AEGIS cams as before.
-const SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev', CAMS_POLL = 10 * 60e3;
+const DEFAULT_SRV = 'https://burn-city-game.fly.dev', CAMS_POLL = 10 * 60e3;
+function serverOrigin() {
+  const raw = Q.get('citysrv');
+  if (!raw) return DEFAULT_SRV;
+  try {
+    const u = new URL(raw, location.origin);
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+    const allowed = u.origin === location.origin || u.hostname === 'burn-city-game.fly.dev' || local;
+    if (!allowed || (u.protocol !== 'https:' && !(local && u.protocol === 'http:'))) return DEFAULT_SRV;
+    return u.origin;
+  } catch { return DEFAULT_SRV; }
+}
+const SRV = serverOrigin();
 const LC = A.live = { cats: [], top: [], source: null, ok: 0, fails: 0 };
 const nfmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'K' : String(n | 0);
 function liveCam(s, cat) { const vid = s.id; return { id: 'yt-' + vid, live: 1, type: 'youtube', vid, cat, name: clean(s.title, 60) || 'Live cam', city: cat, region: clean(s.channel, 40), attribution: clean(s.channel, 48) || 'YouTube live',
@@ -325,7 +337,7 @@ function videoSchedule(now) {
 document.addEventListener('visibilitychange', () => { if (document.hidden) for (const s of A.screens) if (s.vid) try { s.vid.el.pause(); } catch { } });
 
 // ---------------------------------------------------------------- live-cam modal (tap a screen)
-let modal = null, snapTimer = 0, conTimer = 0, pushed = false;
+let modal = null, snapTimer = 0, conTimer = 0, healthT = 0, pushed = false;
 function shell(label) {   // one modal at a time; switching (console -> cam) keeps the single history entry
   close(true);
   modal = document.createElement('div'); modal.id = 'aegisModal'; modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-label', label);
@@ -361,7 +373,7 @@ function openPlain(cam) {
 addEventListener('popstate', () => { if (modal) { pushed = false; close(); } });   // Android/browser back closes the modal instead of leaving the game
 const swallow = e => { if (!modal) return; if (e.key === 'Escape') { if (e.type === 'keydown') close(); } e.stopImmediatePropagation(); };
 addEventListener('keydown', swallow, true); addEventListener('keyup', swallow, true);
-function close(keepHist) { clearInterval(snapTimer); clearInterval(conTimer); clearInterval(comT); const had = !!modal; if (modal) { modal.remove(); modal = null; } A.modalOpen = null; A.consoleOpen = false; window.__aegisModalOpen = false;
+function close(keepHist) { clearInterval(snapTimer); clearInterval(conTimer); clearInterval(comT); clearInterval(healthT); const had = !!modal; if (modal) { modal.remove(); modal = null; } A.modalOpen = null; A.consoleOpen = false; A.liveOpen = false; window.__aegisModalOpen = false;
   if (had && pushed && keepHist !== true) { pushed = false; try { if (history.state && history.state.aegisModal) history.back(); } catch { } } }
 
 // ---------------------------------------------------------------- live-stream browser: category tabs, list by viewers, one player, comments
@@ -371,33 +383,145 @@ const myPid = () => { try { let p = localStorage.getItem('bc_cpid'); if (!p) { p
 function openLive(cam) {
   if (!LC.cats.length) { if (cam) return openPlain(cam); return openConsole(); }
   const card = shell('AEGIS live streams'); card.classList.add('am-live');
-  let cat = (cam && LC.cats.find(c => c.name === cam.cat)) || LC.cats[0], cur = cam && cat.streams.find(s => s.vid === cam.vid) || cat.streams[0];
+  const all = { name: 'All streams', streams: (() => { const seen = new Set(), out = [];
+    for (const c of LC.cats) for (const s of c.streams) if (!seen.has(s.vid)) { seen.add(s.vid); out.push(s); }
+    return out.sort((a, b) => b.viewers - a.viewers);
+  })() };
+  let cat = (cam && LC.cats.find(c => c.name === cam.cat)) || all;
+  let cur = cam && cat.streams.find(s => s.vid === cam.vid) || cat.streams[0] || all.streams[0];
+  let sortBy = 'viewers';
   const head = E('div', 'am-head'), tl = E('div'), hb = E('b'), hs = E('small'); tl.append(hb, hs);
   const x = E('button', 'am-x', '✕'); x.type = 'button'; x.setAttribute('aria-label', 'Close'); x.onclick = close; head.append(tl, x);
-  const tabs = E('div', 'al-tabs'); tabs.setAttribute('role', 'tablist');
+  const tabs = E('div', 'al-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Stream categories');
+  const tools = E('div', 'al-tools'), search = E('input', 'al-search'), sort = E('select', 'al-sort'), count = E('span', 'al-count');
+  search.type = 'search'; search.placeholder = 'Search streams or channels…'; search.setAttribute('aria-label', 'Search streams or channels'); search.autocomplete = 'off';
+  for (const [value, label] of [['viewers', 'Most viewers'], ['title', 'Title A–Z']]) { const o = E('option'); o.value = value; o.textContent = label; sort.append(o); }
+  sort.setAttribute('aria-label', 'Sort streams'); tools.append(search, sort, count);
   const box = E('div', 'am-video'), body = E('div', 'al-body'), side = E('div', 'al-list'), com = E('div', 'al-com');
   const cl = E('div', 'al-clist'), form = E('form', 'al-form'), inp = E('input'), sb = E('button', null, 'Post'), msg = E('div', 'ac-dim al-msg');
   inp.maxLength = 200; inp.placeholder = 'Say something about this stream (200 max)'; inp.setAttribute('aria-label', 'Comment'); inp.autocomplete = 'off'; sb.type = 'submit'; form.append(inp, sb);
   com.append(E('h4', null, '💬 Comments'), cl, form, msg);
-  // the modal swallows keys for the game, but typing must still reach the input
-  inp.addEventListener('keydown', e => { if (e.key === 'Escape') close(); e.stopPropagation(); }); inp.addEventListener('keyup', e => e.stopPropagation());
-  function renderTabs() { tabs.replaceChildren(); for (const c of LC.cats) { const b = E('button', 'al-tab' + (c === cat ? ' on' : ''), c.name); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', c === cat ? 'true' : 'false');
-    b.onclick = () => { if (c === cat) return; cat = c; renderTabs(); renderList(); play(cat.streams[0]); }; tabs.append(b); } }
-  function renderList() { side.replaceChildren(); cat.streams.forEach((s, i) => { const b = E('button', 'al-item' + (s === cur ? ' on' : '')); b.type = 'button'; const im = E('img'); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.src = s.poster; im.onerror = () => im.remove();
-    const t = E('div'); t.append(E('b', null, (i + 1) + '. ' + s.name), E('small', null, (s.viewers ? '👁 ' + nfmt(s.viewers) + ' watching · ' : '') + (s.region || ''))); b.append(im, t); b.onclick = () => { play(s); renderList(); }; side.append(b); }); }
-  function play(s) { cur = s; box.replaceChildren(); hb.textContent = 'AEGIS LIVE — ' + cat.name; hs.textContent = s.name + (s.viewers ? ' · ' + nfmt(s.viewers) + ' watching' : '');
+  const feedStatus = E('div', 'al-feed-status');
+  feedStatus.setAttribute('role', 'status'); feedStatus.setAttribute('aria-live', 'polite');
+  const incidents = E('section', 'al-incidents');
+  const incidentHead = E('div', 'al-incidents-head');
+  incidentHead.append(E('b', null, '⚠ AEGIS INCIDENTS'), E('small', null, 'Select an incident to find a related feed'));
+  const incidentList = E('div', 'al-incident-list');
+  const incidentNote = E('div', 'ac-dim al-incident-note');
+  incidents.append(incidentHead, incidentList, incidentNote);
+  // The modal swallows game controls; text fields retain normal keyboard behavior.
+  for (const el of [inp, search]) {
+    el.addEventListener('keydown', e => { if (e.key === 'Escape') { if (el === search && search.value) { search.value = ''; renderList(); e.stopPropagation(); } else close(); } e.stopPropagation(); });
+    el.addEventListener('keyup', e => e.stopPropagation());
+  }
+  sort.addEventListener('keydown', e => e.stopPropagation());
+  function feedAge(ms) {
+    if (!ms || ms < 0) return 'not yet received';
+    const mins = Math.floor(ms / 60000);
+    return mins < 1 ? 'less than a minute ago' : mins < 60 ? mins + 'm ago' : Math.floor(mins / 60) + 'h ago';
+  }
+  function updateFeedStatus() {
+    const age = LC.ok ? Date.now() - LC.ok : 0;
+    let state = 'WAITING', detail = 'No successful API refresh recorded yet.';
+    if (LC.ok && age > 20 * 60e3) { state = 'STALE'; detail = 'Last successful API response ' + feedAge(age) + '; retrying in background.'; }
+    else if (LC.fails > 0) { state = 'DEGRADED'; detail = 'Last success ' + feedAge(age) + '; ' + LC.fails + ' refresh failure' + (LC.fails === 1 ? '' : 's') + ' since then.'; }
+    else if (LC.ok) { state = 'CONNECTED'; detail = (LC.source === 'youtube' ? 'YouTube-ranked feed' : 'Curated fallback feed') + ' · API refreshed ' + feedAge(age) + '.'; }
+    feedStatus.replaceChildren();
+    const dot = E('span', 'al-feed-dot ' + state.toLowerCase());
+    const label = E('b', null, 'FEED ' + state);
+    const note = E('span', null, detail);
+    feedStatus.append(dot, label, note);
+  }
+  function renderIncidents() {
+    incidentList.replaceChildren();
+    const list = A.data && Array.isArray(A.data.incidents) ? A.data.incidents : [];
+    if (!list.length) {
+      incidentList.append(E('div', 'ac-dim', A.data ? 'No active incidents reported by the AEGIS city feed.' : 'Incident data is unavailable until the AEGIS feed connects.'));
+      incidentNote.textContent = '';
+      return;
+    }
+    const colors = ['#2fe3ff', '#ffb000', '#ff3b2a'];
+    for (const inc of list.slice(0, 8)) {
+      const b = E('button', 'al-incident');
+      b.type = 'button';
+      const sev = Math.max(0, Math.min(2, +inc.sev || 0));
+      const title = E('b', null, inc.title || 'Unspecified incident');
+      const meta = E('small', null, (inc.cat || 'INCIDENT') + ' · ' + ['NORMAL', 'ELEVATED', 'CRITICAL'][sev]);
+      meta.style.color = colors[sev];
+      const summary = E('span', null, inc.summary || 'No additional details provided.');
+      b.append(title, meta, summary);
+      b.onclick = () => {
+        const words = ((inc.title || '') + ' ' + (inc.cat || '') + ' ' + (inc.summary || '')).toLocaleLowerCase()
+          .split(/[^a-z0-9]+/).filter(w => w.length > 3 && !['with','from','near','that','this','incident','reported','area'].includes(w));
+        let best = null, bestScore = 0;
+        for (const c of LC.cats) for (const s of c.streams) {
+          const hay = (s.name + ' ' + s.region + ' ' + s.cat).toLocaleLowerCase();
+          const score = words.reduce((n, w) => n + (hay.includes(w) ? (w.length > 6 ? 3 : 1) : 0), 0);
+          if (score > bestScore) { best = s; bestScore = score; }
+        }
+        const chosen = best || all.streams.slice().sort((a, b) => b.viewers - a.viewers)[0];
+        if (!chosen) { incidentNote.textContent = 'No available streams to open right now.'; return; }
+        const match = bestScore > 0;
+        cat = LC.cats.find(c => c.name === chosen.cat) || all;
+        search.value = '';
+        renderTabs(); renderList(); play(chosen);
+        incidentNote.textContent = 'Opened ' + chosen.name + (match ? ' · best title/channel match for this incident (not location-verified).' : ' · no keyword match; opened the highest-ranked available feed.');
+      };
+      incidentList.append(b);
+    }
+    incidentNote.textContent = 'Feed matching uses incident text and stream titles/channels; camera location is not verified.';
+  }
+  function renderTabs() {
+    tabs.replaceChildren();
+    for (const c of [all, ...LC.cats]) {
+      const b = E('button', 'al-tab' + (c === cat ? ' on' : ''), c.name + ' · ' + c.streams.length);
+      b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', c === cat ? 'true' : 'false');
+      b.onclick = () => { if (c === cat) return; cat = c; renderTabs(); renderList(); const next = visibleStreams()[0] || c.streams[0]; if (next) play(next); };
+      tabs.append(b);
+    }
+  }
+  function visibleStreams() {
+    const q = search.value.trim().toLocaleLowerCase();
+    return cat.streams.filter(s => !q || (s.name + ' ' + s.region + ' ' + s.cat).toLocaleLowerCase().includes(q))
+      .slice().sort((a, b) => sortBy === 'title' ? a.name.localeCompare(b.name) : b.viewers - a.viewers);
+  }
+  function renderList() {
+    side.replaceChildren(); const list = visibleStreams(); count.textContent = list.length + (list.length === 1 ? ' stream' : ' streams');
+    if (!list.length) { side.append(E('div', 'al-empty', 'No streams match this search. Try another title or category.')); return; }
+    for (const s of list) {
+      const b = E('button', 'al-item' + (s.vid === (cur && cur.vid) ? ' on' : '')); b.type = 'button'; b.setAttribute('aria-pressed', s.vid === (cur && cur.vid) ? 'true' : 'false');
+      const im = E('img'); im.alt = ''; im.loading = 'lazy'; im.referrerPolicy = 'no-referrer'; im.src = s.poster; im.onerror = () => im.remove();
+      const t = E('div', 'al-item-copy'); t.append(E('b', null, s.name), E('small', null, (s.viewers ? '👁 ' + nfmt(s.viewers) + ' watching · ' : '') + (s.region || s.cat || 'Live stream')));
+      b.append(im, t); b.onclick = () => { play(s); renderList(); }; side.append(b);
+    }
+  }
+  function play(s) {
+    if (!s) return; cur = s;
+    // Replacing the player destroys the previous iframe before creating the next: only one live player exists at a time.
+    box.replaceChildren(); hb.textContent = 'AEGIS LIVE'; hs.textContent = (s.cat || cat.name) + ' · ' + s.name + (s.viewers ? ' · ' + nfmt(s.viewers) + ' watching' : '');
     const f = document.createElement('iframe'); f.src = s.embed; f.title = s.name; f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; f.setAttribute('allowfullscreen', ''); f.referrerPolicy = 'strict-origin-when-cross-origin'; box.append(f);
-    A.modalOpen = s.id; loadComments(); }
-  async function loadComments() { const vid = cur.vid; try { const r = await fetch(SRV + '/api/cams/' + vid + '/comments', { cache: 'no-store', credentials: 'omit' }); if (!r.ok) throw 0; const d = await r.json(); if (cur.vid !== vid || !modal) return; renderComments(Array.isArray(d.comments) ? d.comments : []); } catch { if (cur.vid === vid) msg.textContent = 'Comments are offline right now.'; } }
+    A.modalOpen = s.id; loadComments(); renderList();
+  }
+  async function loadComments() {
+    if (!cur) return; const vid = cur.vid;
+    try { const r = await fetch(SRV + '/api/cams/' + vid + '/comments', { cache: 'no-store', credentials: 'omit' }); if (!r.ok) throw 0; const d = await r.json(); if (cur.vid !== vid || !modal) return; renderComments(Array.isArray(d.comments) ? d.comments : []); }
+    catch { if (cur && cur.vid === vid) msg.textContent = 'Comments are offline right now.'; }
+  }
   function renderComments(list) { cl.replaceChildren(); if (!list.length) cl.append(E('div', 'ac-dim', 'No comments yet. Be the first.'));
-    for (const c of list.slice(-50).reverse()) { const r = E('div', 'al-c'); r.append(E('b', null, clean(c.name, 24) || 'guest'), E('span', null, clean(c.text, 200)), E('small', null, new Date(+c.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))); cl.append(r); } }   // textContent only: never innerHTML
-  form.onsubmit = async e => { e.preventDefault(); const text = inp.value.trim(); if (!text) return; sb.disabled = true; msg.textContent = '';
-    try { const r = await fetch(SRV + '/api/cams/' + cur.vid + '/comments', { method: 'POST', credentials: 'omit', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, name: myName(), pid: myPid() }) }); const d = await r.json().catch(() => ({}));
+    for (const c of list.slice(-50).reverse()) { const r = E('div', 'al-c'); r.append(E('b', null, clean(c.name, 24) || 'guest'), E('span', null, clean(c.text, 200)), E('small', null, new Date(+c.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))); cl.append(r); } }
+  form.onsubmit = async e => { e.preventDefault(); const text = inp.value.trim(); if (!text || !cur) return; const submittedVid = cur.vid; sb.disabled = true; msg.textContent = '';
+    try { const r = await fetch(SRV + '/api/cams/' + submittedVid + '/comments', { method: 'POST', credentials: 'omit', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, name: myName(), pid: myPid() }) }); const d = await r.json().catch(() => ({}));
+      // A slow response for a previous stream must not change the new stream's UI.
+      if (!modal || !cur || cur.vid !== submittedVid) return;
       if (r.ok) { inp.value = ''; loadComments(); } else msg.textContent = d.error === 'slow_down' ? 'One comment every 5 seconds, please.' : d.error === 'too_long' ? 'Max 200 characters.' : 'Could not post that.'; }
-    catch { msg.textContent = 'Comments are offline right now.'; } finally { setTimeout(() => sb.disabled = false, 1200); } };
-  const foot = E('div', 'am-foot', `Streams: YouTube live (${LC.source === 'youtube' ? 'ranked by live viewers, refreshed by our server' : 'curated 24/7 cams'}) · plays via YouTube privacy-enhanced mode · comments are public, keep it friendly`);
-  const main = E('div', 'al-main'); main.append(box, com); body.append(main, side);
-  card.append(head, tabs, body, foot); renderTabs(); renderList(); play(cur); comT = setInterval(() => { if (!document.hidden) loadComments(); }, 15e3);
+    catch { if (modal && cur && cur.vid === submittedVid) msg.textContent = 'Comments are offline right now.'; }
+    finally { if (modal && cur && cur.vid === submittedVid) setTimeout(() => { if (modal && cur && cur.vid === submittedVid) sb.disabled = false; }, 1200); } };
+  search.addEventListener('input', renderList); sort.addEventListener('change', () => { sortBy = sort.value; renderList(); });
+  const foot = E('div', 'am-foot', `Streams: YouTube live (${LC.source === 'youtube' ? 'ranked by live viewers, refreshed by our server' : 'curated 24/7 cams'}) · one player at a time · comments are public, keep it friendly`);
+  const main = E('div', 'al-main'); main.append(box, feedStatus, incidents, com); body.append(main, side);
+  card.append(head, tabs, tools, body, foot); renderTabs(); renderList(); updateFeedStatus(); renderIncidents(); play(cur);
+  comT = setInterval(() => { if (!document.hidden) loadComments(); }, 15e3);
+  healthT = setInterval(() => { if (!document.hidden && modal) { updateFeedStatus(); renderIncidents(); } }, 15e3);
   x.focus({ preventScroll: true }); A.liveOpen = true;
 }
 A.openLive = openLive;
@@ -780,12 +904,12 @@ function settings() {
 }
 function css() {
   const st = document.createElement('style'); st.textContent = `
-#aegisModal{position:fixed;inset:0;z-index:120;background:rgba(2,6,12,.8);display:flex;align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+#aegisModal{position:fixed;inset:0;z-index:120;background:rgba(2,6,12,.84);display:flex;align-items:center;justify-content:center;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
 #aegisModal .am-card{width:min(960px,100%);max-height:100%;overflow:auto;background:#06121b;border:1px solid #2fe3ff66;border-radius:14px;box-shadow:0 0 40px #2fe3ff33;color:#dff8ff;font:500 13px system-ui,sans-serif}
 #aegisModal .am-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 10px 8px 14px}
-#aegisModal .am-head b{display:block;font-weight:800;letter-spacing:.04em;font-size:15px}#aegisModal .am-head small{opacity:.75}
+#aegisModal .am-head b{display:block;font-weight:800;letter-spacing:.04em;font-size:15px}#aegisModal .am-head small{display:block;opacity:.75;max-width:70ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #aegisModal .am-x{flex:none;width:44px;height:44px;border-radius:10px;border:1px solid #2fe3ff66;background:#0b2230;color:#fff;font-size:20px;cursor:pointer}
-#aegisModal .am-video{position:relative;width:100%;aspect-ratio:16/9;background:#000}#aegisModal .am-video iframe,#aegisModal .am-video img{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:contain}
+#aegisModal .am-video{position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden}#aegisModal .am-video iframe,#aegisModal .am-video img{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:contain}
 #aegisModal .am-foot{padding:8px 14px 12px;opacity:.8;font-size:12px}
 #aegisModal .am-con{width:min(720px,100%)}
 #aegisModal .ac-thr{margin:0 14px 6px;padding:10px 12px;border-radius:10px;border:1px solid var(--lc);background:linear-gradient(90deg,color-mix(in srgb,var(--lc) 18%,transparent),transparent)}
@@ -800,21 +924,69 @@ function css() {
 #aegisModal .ac-cam img{width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;display:block}#aegisModal .ac-cam b{padding:0 8px;font-size:12px}#aegisModal .ac-cam small{padding:0 8px;opacity:.7;font-size:11px}
 #aegisModal .ac-tk{font-size:12px;opacity:.85;padding:2px 0;border-bottom:1px dashed #2fe3ff22}
 #aegisModal .ac-livebtn{width:100%;padding:10px;margin-bottom:8px;font-weight:800;align-items:center}
-#aegisModal .am-live{width:min(1100px,100%)}
-#aegisModal .al-tabs{display:flex;gap:6px;overflow-x:auto;padding:0 12px 8px;scrollbar-width:none}
-#aegisModal .al-tab{flex:none;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid #2fe3ff55;background:#0b2230;color:#dff8ff;font:700 12px system-ui,sans-serif;cursor:pointer}
+#aegisModal .am-live{width:min(1180px,100%);height:min(900px,100%);display:flex;flex-direction:column;overflow:hidden}
+#aegisModal .am-live .am-head,#aegisModal .am-live .al-tabs,#aegisModal .am-live .al-tools,#aegisModal .am-live .am-foot{flex:none}
+#aegisModal .al-tabs{display:flex;gap:6px;overflow-x:auto;padding:0 12px 8px;scrollbar-width:thin}
+#aegisModal .al-tab{flex:none;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid #2fe3ff55;background:#0b2230;color:#dff8ff;font:700 12px system-ui,sans-serif;cursor:pointer;white-space:nowrap}
 #aegisModal .al-tab.on{background:#2fe3ff;color:#04121a}
-#aegisModal .al-body{display:flex;gap:10px;padding:0 12px}#aegisModal .al-main{flex:1 1 auto;min-width:0}
-#aegisModal .al-list{flex:0 0 300px;max-height:min(560px,62vh);overflow:auto;display:flex;flex-direction:column;gap:6px}
-#aegisModal .al-item{display:flex;gap:8px;align-items:center;min-height:44px;padding:4px;border-radius:9px;border:1px solid #2fe3ff33;background:#0a1a25;color:#e6fbff;text-align:left;cursor:pointer;font:inherit}
-#aegisModal .al-item.on{border-color:#2fe3ff;background:#0f2a3a}#aegisModal .al-item img{width:96px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;flex:none;background:#000}
-#aegisModal .al-item b{display:block;font-size:12px;line-height:1.25;max-height:2.5em;overflow:hidden}#aegisModal .al-item small{opacity:.7;font-size:11px}
+#aegisModal .al-tools{display:flex;align-items:center;gap:8px;padding:0 12px 10px}
+#aegisModal .al-search,#aegisModal .al-sort{min-height:40px;border:1px solid #2fe3ff44;border-radius:9px;background:#04101a;color:#e6fbff;font:500 13px system-ui,sans-serif;padding:0 10px;min-width:0}
+#aegisModal .al-search{flex:1 1 240px}#aegisModal .al-sort{flex:0 0 auto;max-width:145px}
+#aegisModal .al-count{flex:none;opacity:.7;font-size:11px;white-space:nowrap}
+#aegisModal .al-body{display:flex;gap:10px;padding:0 12px;min-height:0;flex:1 1 auto;overflow:hidden}
+#aegisModal .al-main{flex:1 1 auto;min-width:0;min-height:0;overflow:auto;scrollbar-width:thin}
+#aegisModal .al-list{flex:0 0 320px;min-width:0;max-height:100%;overflow:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin;padding:0 2px 4px 0}
+#aegisModal .al-item{display:flex;gap:8px;align-items:center;width:100%;min-width:0;min-height:62px;padding:5px;border-radius:9px;border:1px solid #2fe3ff33;background:#0a1a25;color:#e6fbff;text-align:left;cursor:pointer;font:inherit}
+#aegisModal .al-item.on{border-color:#2fe3ff;background:#0f2a3a;box-shadow:inset 3px 0 #2fe3ff}
+#aegisModal .al-item img{width:104px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;flex:none;background:#000}
+#aegisModal .al-item-copy{min-width:0;overflow:hidden}#aegisModal .al-item b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;line-height:1.3;overflow-wrap:anywhere}
+#aegisModal .al-item small{display:block;opacity:.7;font-size:11px;line-height:1.35;margin-top:4px}
+#aegisModal .al-empty{padding:18px 12px;border:1px dashed #2fe3ff33;border-radius:10px;color:#b8d5df;line-height:1.5}
 #aegisModal .al-com h4{margin:8px 0 4px;font-size:13px;color:#9feaff}#aegisModal .al-clist{max-height:180px;overflow:auto}
 #aegisModal .al-c{padding:4px 0;border-bottom:1px dashed #2fe3ff22;font-size:12px;overflow-wrap:anywhere}#aegisModal .al-c b{color:#ffe08a;margin-right:6px}#aegisModal .al-c small{opacity:.5;margin-left:6px}
 #aegisModal .al-form{display:flex;gap:6px;margin-top:6px}#aegisModal .al-form input{flex:1;min-width:0;min-height:40px;padding:0 10px;border-radius:9px;border:1px solid #2fe3ff55;background:#04101a;color:#fff;font:500 14px system-ui,sans-serif}
 #aegisModal .al-form button{min-height:40px;min-width:64px;border-radius:9px;border:0;background:#2fe3ff;color:#04121a;font-weight:800;cursor:pointer}
+#aegisModal .al-tab:focus-visible,#aegisModal .al-item:focus-visible,#aegisModal .am-x:focus-visible{outline:2px solid #fff;outline-offset:2px}
 body.touch #aegisModal .al-tab,body.touch #aegisModal .al-form button,body.touch #aegisModal .al-form input{min-height:44px}
-@media (max-width:760px){#aegisModal .al-body{flex-direction:column}#aegisModal .al-list{flex:none;max-height:none}}`;
+#aegisModal .al-feed-status{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin:0 0 10px;padding:9px 11px;border:1px solid #2fe3ff33;border-radius:9px;background:#071722;color:#cdebf4;font-size:12px;line-height:1.4}
+#aegisModal .al-feed-status b{white-space:nowrap;color:#bff6ff}
+#aegisModal .al-feed-status span:last-child{opacity:.8;min-width:0;overflow-wrap:anywhere}
+#aegisModal .al-feed-dot{width:8px;height:8px;flex:none;border-radius:50%;margin-top:4px;background:#7b8790}
+#aegisModal .al-feed-dot.connected{background:#43e08a;box-shadow:0 0 8px #43e08a66}
+#aegisModal .al-feed-dot.degraded{background:#ffb000}
+#aegisModal .al-feed-dot.stale{background:#ff3b2a}
+#aegisModal .al-incidents{margin:0 0 12px;padding:10px;border:1px solid #ffb00033;border-radius:10px;background:#080f17}
+#aegisModal .al-incidents-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+#aegisModal .al-incidents-head b{font-size:12px;letter-spacing:.06em;color:#ffdf9a}
+#aegisModal .al-incidents-head small{font-size:10px;opacity:.65}
+#aegisModal .al-incident-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:6px}
+#aegisModal .al-incident{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;min-height:68px;padding:9px;border:1px solid #ffb00033;border-radius:8px;background:#111c26;color:#e6fbff;text-align:left;cursor:pointer;font:inherit}
+#aegisModal .al-incident:hover{border-color:#ffb000aa;background:#172634}
+#aegisModal .al-incident b{font-size:12px;line-height:1.35;overflow-wrap:anywhere}
+#aegisModal .al-incident small{font-size:10px;letter-spacing:.04em}
+#aegisModal .al-incident span{font-size:11px;line-height:1.35;opacity:.75;overflow-wrap:anywhere}
+#aegisModal .al-incident-note{margin-top:7px;font-size:10px;line-height:1.4}
+#aegisModal .al-incident:focus-visible{outline:2px solid #fff;outline-offset:2px}
+@media (max-width:760px){
+ #aegisModal{padding:max(6px,env(safe-area-inset-top)) 6px max(6px,env(safe-area-inset-bottom))}
+ #aegisModal .am-live{width:100%;height:100%;max-height:100%;border-radius:12px}
+ #aegisModal .am-live .am-head{padding:7px 8px 5px 10px}
+ #aegisModal .am-live .am-head b{font-size:13px}
+ #aegisModal .al-tabs{padding:0 8px 7px}
+ #aegisModal .al-tools{padding:0 8px 8px;gap:6px;flex-wrap:wrap}
+ #aegisModal .al-search{flex:1 1 100%;width:100%}
+ #aegisModal .al-sort{flex:1 1 auto;max-width:none}
+ #aegisModal .al-body{flex-direction:column;gap:8px;padding:0 8px;overflow:auto}
+ #aegisModal .al-main{flex:none;overflow:visible}
+ #aegisModal .al-list{flex:none;max-height:26dvh;overflow:auto;gap:5px;padding-bottom:4px}
+ #aegisModal .al-item{min-height:54px}
+ #aegisModal .al-item img{width:92px}
+ #aegisModal .al-com{padding-bottom:4px}
+ #aegisModal .al-clist{max-height:110px}
+ #aegisModal .am-live .am-foot{font-size:10px;padding:6px 10px}
+}
+@media (max-width:420px){#aegisModal .al-count{display:none}#aegisModal .al-sort{font-size:12px}}
+`;
   document.head.append(st);
 }
 

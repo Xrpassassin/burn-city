@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { sampleOceanHeight, updateOceanGeometry } from './ocean.js';
 import * as Trade from './trade.js';
+import * as Boats from './boats.js';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -78,6 +79,9 @@ for(const side of [-1,1]) for(let i=0;i<3;i++){
 }
 ship.position.set(0,0,0);scene.add(ship);
 
+// Three procedural NPC vessels provide visible traffic before combat is enabled.
+const fleet = Boats.createFleet(THREE, scene);
+
 const stars = new THREE.BufferGeometry();
 const starPositions = new Float32Array(700*3);
 for(let i=0;i<700;i++){starPositions[i*3]=(rand()-.5)*1200;starPositions[i*3+1]=60+rand()*260;starPositions[i*3+2]=(rand()-.5)*1200}
@@ -119,6 +123,7 @@ function tick(){
   const dt=Math.min(clock.getDelta(),.1); // Clamp large frame gaps to keep controls stable on slower devices.
   elapsed+=dt;
   updateOceanGeometry(waterGeo,basePositions,elapsed);
+  Boats.updateFleet(fleet,dt,elapsed,sampleOceanHeight,started);
   if(started){
     const atPort=Trade.tick(ship.position);   // docked: helm locked while the port panel is open
     if(atPort)speed=0;
@@ -162,7 +167,7 @@ addEventListener('orientationchange',()=>setTimeout(fitView,250));
 addEventListener('resize',()=>{fitView();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,matchMedia('(pointer:coarse)').matches?1.35:1.8))});
 // Test hook (?bttest or ?debug=1 only): read-only ship/camera/renderer state for smoke tests.
 if(/[?&](bttest|debug=1)/.test(location.search))window.__bt={
-  state:()=>({started,speed,heading,x:ship.position.x,z:ship.position.z,cam:camera.position.toArray(),proj:projectiles.length,shots:lastShot}),
+  state:()=>({started,speed,heading,x:ship.position.x,z:ship.position.z,cam:camera.position.toArray(),proj:projectiles.length,shots:lastShot,boats:fleet.filter(b=>b.alive).map(b=>({id:b.id,kind:b.kind,x:b.group.position.x,z:b.group.position.z,health:b.health}))}),
   trade:Trade.test,
   tp:(x,z,h)=>{ship.position.x=x;ship.position.z=z;if(h!=null)heading=h;speed=0},
   info:()=>({calls:renderer.info.render.calls,tris:renderer.info.render.triangles,geos:renderer.info.memory.geometries,dpr:renderer.getPixelRatio()})

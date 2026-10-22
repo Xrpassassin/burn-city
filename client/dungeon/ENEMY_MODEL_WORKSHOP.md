@@ -26,17 +26,19 @@ The export does not change live game assets. The workshop is isolated from comba
 
 ## Production asset plan
 
-The vendored Three.js copy currently exposes the core build and selected example modules; a GLTFLoader was not confirmed in the inspected loader path. Before importing external glTF/GLB assets, confirm the exact Three.js version and add a matching loader if needed.
+The workshop now vendors the matching Three.js r160 `GLTFLoader`, its `BufferGeometryUtils` dependency, and `SkeletonUtils` for skinned model cloning. It bundles three animated Quaternius models (Slime, Bat, Dragon) from the public Cairnfall asset repository as base64 text payloads under `assets/enemy-models/`; they are decoded and parsed only when selected. The payloads are not yet optimized production binaries.
 
-A strong candidate is Quaternius **Ultimate Monsters** (50 animated monsters, glTF among the listed formats, CC0 on the official pack page): https://quaternius.com/packs/ultimatemonsters.html
+Asset record:
+- **Slime, Bat, Dragon:** Quaternius LowPoly Animated Monsters, CC0 1.0.
+- Source/license: https://quaternius.itch.io/lowpoly-animated-monsters
+- Provenance: `assets/enemy-models/PROVENANCE.txt`; it notes that the public source repository converted the pack's models from FBX to GLB and normalized animation names.
 
-The official pack page is evidence for the pack-level license, not proof that any archive has already been downloaded. Before committing any production model:
-1. Download and inspect the actual archive.
-2. Keep the included license/readme alongside the selected assets.
-3. Choose 2–3 models by silhouette and animation clips; do not import the entire pack by default.
+Before any of these models enter live combat:
+1. Review the imported silhouettes and available animation clips in the workshop.
+2. Convert the base64 payloads to true binary GLB files to avoid text-encoding overhead.
+3. Test model orientation, scale, material tinting, animation playback, load failures and mobile frame rate.
 4. Optimize geometry and textures, lazy-load by zone, and retain sprite fallback for low-end/mobile.
-5. Test scale/orientation, materials, animation playback, load failures and mobile frame rate.
-6. Integrate models into the existing enemy visual path only after review; do not introduce a second combat system.
+5. Integrate models into the existing enemy visual path only after review; do not introduce a second combat system.
 
 ## Verification status
 

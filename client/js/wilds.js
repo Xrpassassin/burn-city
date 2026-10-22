@@ -809,7 +809,7 @@ function disposeTree(o, seen = { geo: new Set(), mat: new Set(), tex: new Set() 
   return seen;
 }
 export function unload() {
-  if (!W.ready) return; W.ready = false; ZONE = null;
+  if (!W.ready) return; if (TEST && W.test.clearPathPreview) W.test.clearPathPreview(); W.ready = false; ZONE = null;
   try { if (W.enc) endEncounter(true); } catch (e) { } W.enc = null; closeModal(); W.inForest = false;
   AUD.dispose();
   const c = C();
@@ -837,6 +837,7 @@ if (TEST) {
     pathDebugLine = null;
   }
   function previewPath(x, z, sp) {
+    if (ZONE) return { reached: false, reason: 'deep-area-preview-not-supported-yet' };
     if (!W.ready || !root || !Number.isFinite(x) || !Number.isFinite(z)) {
       return { reached: false, reason: 'forest-not-ready-or-invalid-target' };
     }

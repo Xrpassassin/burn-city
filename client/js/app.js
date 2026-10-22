@@ -16,6 +16,7 @@ import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {BokehPass} from 'three/addons/postprocessing/BokehPass.js';
+import {getBloomComparisonPreset,isBloomComparisonPreset} from './bloom-comparison-presets.mjs';
 import {Reflector} from 'three/addons/objects/Reflector.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {PlayerState,NetClient} from './net.js';
@@ -1050,6 +1051,11 @@ const sanitize=new ShaderPass({uniforms:{tDiffuse:{value:null}},vertexShader:`va
  void main(){vec4 c=texture2D(tDiffuse,vUv);gl_FragColor=vec4(ok(c.r),ok(c.g),ok(c.b),(c.a>=0.&&c.a<=1.)?c.a:1.);}`});comp.addPass(sanitize);
 
 const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth*LV.bloomScale,innerHeight*LV.bloomScale),.7,.4,.5);comp.addPass(bloom);
+let bloomPresetName='balanced',bloomStrengthScale=1;
+if(Q.has('graphicslab'))window.__graphicsTest={
+ setBloomPreset(name){if(!isBloomComparisonPreset(name))return {ok:false,reason:'unknown-preset',preset:bloomPresetName};const p=getBloomComparisonPreset(name);bloomPresetName=name;bloomStrengthScale=p.strength;bloom.radius=p.radius;bloom.highPassUniforms.luminosityThreshold.value=p.threshold;return {ok:true,preset:name,profile:p}},
+ getBloomPreset(){return {preset:bloomPresetName,profile:getBloomComparisonPreset(bloomPresetName)}}
+};
 if(RT_BYTE){const fix=rt=>{if(rt&&rt.texture&&rt.texture.type!==THREE.UnsignedByteType){rt.texture.type=THREE.UnsignedByteType;rt.dispose()}};[...bloom.renderTargetsHorizontal,...bloom.renderTargetsVertical,bloom.renderTargetBright].forEach(fix)}
 const bokeh=new BokehPass(S,C,{focus:120,aperture:.00015,maxblur:.006});bokeh.enabled=false;comp.addPass(bokeh);
 const haze=new ShaderPass({uniforms:{tDiffuse:{value:null},c:{value:new THREE.Vector2(.5,.5)},k:{value:0},t:{value:0},asp:{value:innerWidth/innerHeight}},
@@ -1530,7 +1536,7 @@ function frame(){requestAnimationFrame(frame);if(perfPendingInputAt){perfInputSa
  if(wMode==='cycle'){const seq=['clear','fog','rain','storm'];wTarget=W[seq[Math.floor(t/30)%4]]}
  for(const k in wCur)wCur[k]+=(wTarget[k]-wCur[k])*Math.min(1,dt*wRate);SKY(dt,t,wCur,+$('tod').value);
  S.fog.density=wCur.fog*.8*(1-day*.6)*Math.min(1,480/Math.max(1,C.position.length()));{const dk=1-.6*wCur.storm;S.fog.color.setRGB((.032+day*.33)*dk,(.034+day*.40)*dk,(.075+day*.52)*dk)}U.wet.value=wCur.wet;U.storm.value=wCur.storm;rain.uniforms.amt.value=Math.min(1,wCur.rain);rain.uniforms.cam.value.copy(C.position);banks(wCur.banks,t);
- hemi.intensity=(.55+day*1.4)*(1-.45*wCur.storm);amb.intensity=.35+day*.6;R.toneMappingExposure=1.05+day*.05;stars.material.__op.value=Math.pow(Math.max(0,1-day/.45),1.5)*(1-wCur.storm*.9)*(1-wCur.fog*.5);placeSky(day,wCur.storm);bloom.strength=.7-day*.35+wCur.wet*.08;
+ hemi.intensity=(.55+day*1.4)*(1-.45*wCur.storm);amb.intensity=.35+day*.6;R.toneMappingExposure=1.05+day*.05;stars.material.__op.value=Math.pow(Math.max(0,1-day/.45),1.5)*(1-wCur.storm*.9)*(1-wCur.fog*.5);placeSky(day,wCur.storm);bloom.strength=(.7-day*.35+wCur.wet*.08)*bloomStrengthScale;
  if(wCur.storm>.5){nextBolt-=dt;if(nextBolt<0){lightning();nextBolt=3+Math.random()*7}}
  if(boltT>0){boltT-=dt;U.flash.value=Math.max(0,boltT*3.3)*(Math.random()<.7?1:.3);flashL.intensity=U.flash.value*3;bolt.material.opacity=Math.min(1,boltT*5)}else{bolt.visible=false;U.flash.value=0;flashL.intensity=0}
  if(aud.rg)aud.rg.gain.value=Math.min(1,wCur.rain)*.35;

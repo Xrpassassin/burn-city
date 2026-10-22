@@ -577,7 +577,7 @@ function interact(id) {
     case 'directory': showDirectory(); break;
     case 'aegis': showAegis(); break;
     case 'elevator': privateElevator(); break;
-    case 'lift': textPanel('HEADQUARTERS LIFT', 'The upper headquarters floors are under construction. Take the stairs to the galleries, the Ember Bar, the lounge and the Aegis Sanctum.'); break;
+    case 'lift': showLiftMenu(); break;
     case 'hidden': toast('Something is behind this stone. Not yet.'); break;
     case 'exit': close(); break;
   }
@@ -586,70 +586,141 @@ function showDirectory() {
   panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-directory';
   Object.assign(panel.style, {
     position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-    width: 'min(560px,calc(100vw - 24px))', maxHeight: 'min(82dvh,760px)',
+    width: 'min(600px,calc(100vw - 24px))', maxHeight: 'min(84dvh,780px)',
     display: 'flex', flexDirection: 'column', overflow: 'hidden',
-    padding: '18px', background: 'linear-gradient(145deg,#141016fa,#08070afa)',
+    padding: '16px', background: 'linear-gradient(145deg,#141016fa,#08070afa)',
     border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a',
     color: '#efe3d2', zIndex: 10, pointerEvents: 'auto'
   });
   const head = document.createElement('div');
-  Object.assign(head.style, { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' });
+  Object.assign(head.style, { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' });
   const title = document.createElement('h2'); title.textContent = 'PYRETHEUM DIRECTORY';
   Object.assign(title.style, { margin: '0', fontSize: '16px', letterSpacing: '.12em', color: '#d7a65e', fontFamily: 'Georgia,serif', fontWeight: '600', flex: '1' });
   const close = btn('CLOSE', true); close.addEventListener('click', () => { panel?.remove(); panel = null; });
   head.append(title, close); panel.appendChild(head);
   const intro = document.createElement('p');
-  intro.textContent = 'A guide to the BURN Tower interior. Status labels distinguish usable interactions from destinations still being built.';
-  Object.assign(intro.style, { margin: '0 0 12px', color: '#cbbcaa', lineHeight: '1.45', fontSize: '13px' });
+  intro.textContent = 'Choose a destination to travel to an existing area, or open a destination’s current interaction. Rooms still under construction are labelled honestly.';
+  Object.assign(intro.style, { margin: '0 0 8px', color: '#cbbcaa', lineHeight: '1.45', fontSize: '12px' });
   panel.appendChild(intro);
   const list = document.createElement('div');
   Object.assign(list.style, { overflowY: 'auto', minHeight: '0', paddingRight: '3px', overscrollBehavior: 'contain' });
   const groups = [
-    { title: 'EMBER HALL · GROUND FLOOR', rows: [
-      ['Ember Hall', 'The main atrium and reactor centerpiece.', 'YOU ARE HERE', '#d7a65e'],
-      ['Headquarters lift', 'Upper headquarters floors are planned; they are not open yet.', 'IN DEVELOPMENT', '#c9a063'],
-      ['Midnightbluff private lift', 'Wallet access is checked by the server. The private floor is not open yet.', 'ACCESS-GATED · NOT OPEN', '#b8a0d8'],
-      ['Concealed destination', 'A hidden architectural clue is present, but the destination is not implemented.', 'UNDISCOVERED', '#c9a063']
+    { title: 'GROUND FLOOR', rows: [
+      ['hall', 'Ember Hall', 'Main atrium and reactor centerpiece.', 'TRAVEL', '#d7a65e'],
+      ['lift-ground', 'Headquarters lift · Ground', 'Return to the lift lobby.', 'TRAVEL', '#d7a65e'],
+      ['midnightbluff', 'Midnightbluff private lift', 'Server-checked wallet access; the private floor is not open yet.', 'CHECK ACCESS', '#b8a0d8'],
+      ['hidden', 'Concealed destination', 'The hidden entrance is a clue only; its destination is not implemented.', 'VIEW STATUS', '#c9a063']
     ]},
     { title: 'MEZZANINE · SOCIAL & INTELLIGENCE', rows: [
-      ['Aegis Sanctum', 'The display is an integration point. The live map is not connected until an approved HTTPS URL is configured.', 'INTEGRATION PENDING', '#9fc2ea'],
-      ['The Ember Bar', 'The bar and seating are built as scenery; service and gameplay are not active yet.', 'SCENERY · FUTURE GAMEPLAY', '#d7a65e'],
-      ['Dionysian Lounge', 'Explore the lounge and use the seating interaction.', 'SEATING AVAILABLE', '#d7a65e']
+      ['mezz', 'Mezzanine', 'Travel to the upper gallery walkway.', 'TRAVEL', '#d7a65e'],
+      ['aegis', 'Aegis Sanctum', 'Visit the display and open the configured live map if available.', 'VISIT', '#9fc2ea'],
+      ['bar', 'The Ember Bar', 'Visit the bar. Service and inventory are not implemented yet.', 'VISIT', '#d7a65e'],
+      ['lounge', 'Dionysian Lounge', 'Visit the lounge and use the seating interaction.', 'VISIT', '#d7a65e']
     ]},
     { title: 'GALLERIES & FUTURE FLOORS', rows: [
-      ['589 Protocol Gallery', 'Collection link is available; the dedicated gallery room is not open yet.', 'ROOM IN DEVELOPMENT', '#d9a15a'],
-      ['Hall of Firekeepers', 'Collection link is available; the dedicated gallery room is not open yet.', 'ROOM IN DEVELOPMENT', '#e0704a'],
-      ['RACC Gallery', 'Collection link is available; the dedicated gallery room is not open yet.', 'ROOM IN DEVELOPMENT', '#b8b4c8'],
-      ['Residences', 'Private penthouse floors are reserved for a later phase.', 'FUTURE PHASE', '#c9a063']
+      ['protocol', '589 Protocol Gallery', 'Dedicated room is not open yet; its collection link is available.', 'COLLECTION', '#d9a15a'],
+      ['firekeepers', 'Hall of Firekeepers', 'Dedicated room is not open yet; its collection link is available.', 'COLLECTION', '#e0704a'],
+      ['racc', 'RACC Gallery', 'Dedicated room is not open yet; its collection link is available.', 'COLLECTION', '#b8b4c8'],
+      ['residences', 'Residences', 'Private penthouse floors are reserved for a later phase.', 'VIEW STATUS', '#c9a063']
     ]}
   ];
+  const actions = {
+    hall: () => travelTo('hall'),
+    'lift-ground': () => travelTo('lift-ground'),
+    mezz: () => travelTo('mezz'),
+    aegis: () => travelTo('aegis'),
+    bar: () => travelTo('bar'),
+    lounge: () => travelTo('lounge'),
+    midnightbluff: () => interact('elevator'),
+    hidden: () => interact('hidden'),
+    protocol: () => interact('protocol'),
+    firekeepers: () => interact('firekeepers'),
+    racc: () => interact('racc'),
+    residences: () => interact('residences')
+  };
   for (const group of groups) {
     const h = document.createElement('h3'); h.textContent = group.title;
-    Object.assign(h.style, { margin: '12px 0 7px', paddingBottom: '6px', borderBottom: '1px solid #493827', fontSize: '11px', letterSpacing: '.12em', color: '#d7a65e' });
+    Object.assign(h.style, { margin: '12px 0 6px', paddingBottom: '6px', borderBottom: '1px solid #493827', fontSize: '10px', letterSpacing: '.12em', color: '#d7a65e' });
     list.appendChild(h);
-    for (const [name, detail, status, color] of group.rows) {
+    for (const [id, name, detail, actionLabel, color] of group.rows) {
       const row = document.createElement('div');
-      Object.assign(row.style, { padding: '9px 0', borderBottom: '1px solid #ffffff12' });
-      const top = document.createElement('div');
-      Object.assign(top.style, { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '5px 10px' });
+      Object.assign(row.style, { display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 0', borderBottom: '1px solid #ffffff12' });
+      const copy = document.createElement('div'); Object.assign(copy.style, { minWidth: '0', flex: '1' });
       const label = document.createElement('strong'); label.textContent = name;
-      Object.assign(label.style, { color: '#f0e3d2', fontSize: '13px' });
-      const badge = document.createElement('span'); badge.textContent = status;
-      Object.assign(badge.style, { color, fontSize: '9px', letterSpacing: '.07em', fontWeight: '700' });
-      top.append(label, badge); row.appendChild(top);
+      Object.assign(label.style, { display: 'block', color: '#f0e3d2', fontSize: '12px' });
       const desc = document.createElement('p'); desc.textContent = detail;
-      Object.assign(desc.style, { margin: '4px 0 0', color: '#bcae9f', fontSize: '12px', lineHeight: '1.45' });
-      row.appendChild(desc); list.appendChild(row);
+      Object.assign(desc.style, { margin: '4px 0 0', color: '#bcae9f', fontSize: '11px', lineHeight: '1.4' });
+      copy.append(label, desc);
+      const action = btn(actionLabel, false);
+      Object.assign(action.style, { flexShrink: '0', padding: '8px 9px', fontSize: '9px', maxWidth: '104px', whiteSpace: 'normal' });
+      action.addEventListener('click', () => {
+        const run = actions[id];
+        if (run) run();
+        if (panel && panel.isConnected) { panel.remove(); panel = null; }
+      });
+      action.setAttribute('aria-label', actionLabel + ': ' + name);
+      action.style.borderColor = color;
+      row.append(copy, action); list.appendChild(row);
     }
   }
   panel.appendChild(list);
-  const actions = document.createElement('div');
-  Object.assign(actions.style, { display: 'flex', flexWrap: 'wrap', gap: '8px', paddingTop: '12px' });
-  const aegis = btn('CHECK AEGIS DISPLAY', false); aegis.addEventListener('click', () => interact('aegis'));
-  const privateLift = btn('CHECK PRIVATE ACCESS', true); privateLift.addEventListener('click', () => interact('elevator'));
-  actions.append(aegis, privateLift); panel.appendChild(actions);
+  const footer = document.createElement('div');
+  Object.assign(footer.style, { display: 'flex', flexWrap: 'wrap', gap: '8px', paddingTop: '10px' });
+  const lift = btn('OPEN LIFT CONTROLS'); lift.addEventListener('click', () => showLiftMenu());
+  const exit = btn('EXIT TO CITY', true); exit.addEventListener('click', close);
+  footer.append(lift, exit); panel.appendChild(footer);
   root.appendChild(panel);
 }
+function showLiftMenu() {
+  panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-lift';
+  Object.assign(panel.style, {
+    position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
+    width: 'min(420px,calc(100vw - 24px))', maxHeight: 'min(80dvh,680px)',
+    overflowY: 'auto', padding: '18px', background: 'linear-gradient(145deg,#141016fa,#08070afa)',
+    border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a',
+    color: '#efe3d2', zIndex: 10, pointerEvents: 'auto'
+  });
+  const h = document.createElement('h2'); h.textContent = 'HEADQUARTERS LIFT';
+  Object.assign(h.style, { margin: '0 0 8px', fontSize: '16px', letterSpacing: '.12em', color: '#d7a65e', fontFamily: 'Georgia,serif' });
+  panel.appendChild(h);
+  const p = document.createElement('p'); p.textContent = 'Select an open destination. Private and unfinished floors remain locked until their actual rooms are implemented.';
+  Object.assign(p.style, { margin: '0 0 12px', color: '#cbbcaa', fontSize: '12px', lineHeight: '1.45' }); panel.appendChild(p);
+  const destinations = [
+    ['GROUND FLOOR · EMBER HALL', 'hall'],
+    ['GROUND FLOOR · LIFT LOBBY', 'lift-ground'],
+    ['MEZZANINE WALKWAY', 'mezz'],
+    ['AEGIS SANCTUM', 'aegis'],
+    ['THE EMBER BAR', 'bar'],
+    ['DIONYSIAN LOUNGE', 'lounge']
+  ];
+  for (const [label, destination] of destinations) {
+    const b = btn(label); Object.assign(b.style, { display: 'block', width: '100%', margin: '7px 0', textAlign: 'left' });
+    b.addEventListener('click', () => travelTo(destination)); panel.appendChild(b);
+  }
+  const privateButton = btn('CHECK MIDNIGHTBLUFF ACCESS', true);
+  Object.assign(privateButton.style, { display: 'block', width: '100%', margin: '7px 0', textAlign: 'left' });
+  privateButton.addEventListener('click', () => interact('elevator')); panel.appendChild(privateButton);
+  const c = btn('CLOSE', true); c.style.marginTop = '8px'; c.addEventListener('click', () => { panel?.remove(); panel = null; }); panel.appendChild(c);
+  root.appendChild(panel);
+}
+function travelTo(destination) {
+  const points = {
+    hall: { x: 0, y: 0, z: 21.5, yaw: 0, message: 'Arrived at Ember Hall.' },
+    'lift-ground': { x: -5, y: 0, z: -22.3, yaw: 0, message: 'Arrived at the ground-floor lift lobby.' },
+    mezz: { x: -5, y: MEZZ, z: -22.3, yaw: 0, message: 'Arrived at the mezzanine walkway.' },
+    aegis: { x: 0, y: MEZZ, z: -30.2, yaw: 0, message: 'Arrived at Aegis Sanctum.' },
+    bar: { x: -13.2, y: MEZZ, z: 13.5, yaw: Math.PI / 2, message: 'Arrived at the Ember Bar.' },
+    lounge: { x: 13.6, y: MEZZ, z: 15.25, yaw: -Math.PI / 2, message: 'Arrived at the Dionysian Lounge.' }
+  };
+  const target = points[destination];
+  if (!target) { toast('That destination is not open yet.'); return; }
+  panel?.remove(); panel = null;
+  P.pos.set(target.x, target.y, target.z); P.vy = 0; P.onGround = true; P.seated = false; P.speed = 0; P.walk = 0; P.bodyYaw = target.yaw;
+  CITY.input.yp.yaw = target.yaw; CITY.input.yp.pitch = 0;
+  camera.position.set(P.pos.x, P.pos.y + EYE, P.pos.z); camera.rotation.set(0, target.yaw, 0);
+  toast(target.message);
+}
+
 function textPanel(title, text, action, buttonLabel) {
   panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel';
   Object.assign(panel.style, { position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(430px,calc(100vw - 32px))', padding: '22px', background: 'linear-gradient(145deg,#141016f5,#08070af5)', border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a', color: '#efe3d2', zIndex: 10, pointerEvents: 'auto' });

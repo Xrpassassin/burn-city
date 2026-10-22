@@ -383,6 +383,7 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
 - Tests: `npm run test:fishing-rules`, `node test/fish-sim.js`; `npm run test:all` runs both plus the server sims.
 - Hooks: `window.__fish.openShop()` / `openLog()` for smoke tests. Touch ghost-click guard (pointerdown + capture-phase click filter) is unchanged.
 - Known gap: not yet in the default `npm test`; iPhone 390x844 smoke is about 5 draw calls above main (~403 vs ~398 in the swiftshader harness).
+- Cast generation guard (sw bc-v72-fishgen): `castAt` bumps `castGen`; the bite timer, the bite-escape timer and the post-`api('cast')` continuation only act if they belong to the current cast. Before, cancelling a cast (Reel in / Esc / too-early hook) and recasting let the old cast's timer fire an early `❗ Bite!` on the new cast (reproduced in Playwright on iPhone 13 and desktop). A used-up bait now falls back to Worm before the cast (the server already did this; the UI said `bait: shrimp` with 0 left).
 
 ## CinderWilds city horizon (sw bc-v55-horizon)
 - client/js/wilds-gate.js `buildForestHorizon()`: visual-only distant forest skyline north of the city (group `wilds-horizon`; 1 ridge mesh + 4 InstancedMesh, 132 trees, about 5 draw calls, no colliders, no forest loading).

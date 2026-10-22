@@ -573,7 +573,7 @@ function interact(id) {
       break; }
     case 'residences': textPanel('RESIDENCES', 'Private penthouse floors for verified holders are planned for a later phase. Nothing here is live yet.'); break;
     case 'bar': showBarMenu(); break;
-    case 'sit': P.seated = true; P.pos.copy(P.seatPos); CITY.input.yp.yaw = Math.PI / 2; CITY.input.yp.pitch = -.05; toast('Seated. Move to stand up.'); break;
+    case 'sit': showLoungeMenu(); break;
     case 'directory': showDirectory(); break;
     case 'aegis': showAegis(); break;
     case 'elevator': privateElevator(); break;
@@ -631,7 +631,7 @@ function showDirectory() {
     mezz: () => travelTo('mezz'),
     aegis: () => travelTo('aegis'),
     bar: () => { travelTo('bar'); showBarMenu(); },
-    lounge: () => travelTo('lounge'),
+    lounge: () => { travelTo('lounge'); showLoungeMenu(); },
     midnightbluff: () => interact('elevator'),
     hidden: () => interact('hidden'),
     protocol: () => interact('protocol'),
@@ -704,6 +704,33 @@ function showLiftMenu() {
   privateButton.addEventListener('click', () => interact('elevator')); panel.appendChild(privateButton);
   const c = btn('CLOSE', true); c.style.marginTop = '8px'; c.addEventListener('click', () => { panel?.remove(); panel = null; }); panel.appendChild(c);
   root.appendChild(panel);
+}
+function takeLoungeSeat() {
+  panel?.remove(); panel = null;
+  P.seated = true; P.pos.copy(P.seatPos);
+  P.vy = 0; P.onGround = true; P.speed = 0; P.walk = 0;
+  CITY.input.yp.yaw = Math.PI / 2; CITY.input.yp.pitch = -.05;
+  camera.position.set(P.pos.x, P.pos.y + EYE, P.pos.z);
+  camera.rotation.set(CITY.input.yp.pitch, CITY.input.yp.yaw, 0);
+  toast('You settle into the Dionysian Lounge. Move to stand up.');
+}
+function showLoungeMenu() {
+  panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-lounge-menu';
+  Object.assign(panel.style, {
+    position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
+    width: 'min(400px,calc(100vw - 24px))', padding: '18px',
+    background: 'linear-gradient(145deg,#141016fa,#08070afa)',
+    border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a',
+    color: '#efe3d2', zIndex: 10, pointerEvents: 'auto'
+  });
+  const h = document.createElement('h2'); h.textContent = 'THE DIONYSIAN LOUNGE';
+  Object.assign(h.style, { margin: '0 0 8px', fontSize: '15px', letterSpacing: '.1em', color: '#d7a65e', fontFamily: 'Georgia,serif' });
+  const p = document.createElement('p'); p.textContent = 'A quiet overlook above the Ember Hall. Take a seat to pause and look across the atrium.';
+  Object.assign(p.style, { margin: '0 0 12px', color: '#cbbcaa', fontSize: '12px', lineHeight: '1.5' });
+  const seat = btn('TAKE A SEAT'); seat.style.width = '100%'; seat.addEventListener('click', takeLoungeSeat);
+  const closeBtn = btn('KEEP EXPLORING', true); Object.assign(closeBtn.style, { width: '100%', marginTop: '8px' });
+  closeBtn.addEventListener('click', () => { panel?.remove(); panel = null; });
+  panel.append(h, p, seat, closeBtn); root.appendChild(panel);
 }
 function showBarMenu() {
   panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-bar-menu';

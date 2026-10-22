@@ -272,7 +272,7 @@ function residentialSpaces() {
     box(x0 + .20, x0 + .27, y0, y1 - .05, mid - 1.18, mid - 1.10, M.gold, false);
     box(x0 + .20, x0 + .27, y0, y1 - .05, mid + 1.10, mid + 1.18, M.gold, false);
     box(x0 + .20, x0 + .27, y1 - .12, y1 - .04, mid - 1.18, mid + 1.18, M.gold, false);
-    plaque(name, sub, (x0 + x1) / 2, y1 - .55, z0 + .25, Math.PI, Math.min(6.2, x1 - x0 - 1), premium ? '#e6bd74' : '#9e8a72');
+    plaque(name, sub, (x0 + x1) / 2, y1 - .55, z0 + .25, 0, Math.min(6.2, x1 - x0 - 1), premium ? '#e6bd74' : '#9e8a72');
     const bx = x1 - (premium ? 5.0 : 4.1), bz = mid;
     box(bx - 1.8, bx + 1.8, y0 + .12, y0 + .34, bz - 2.15, bz + 2.15, M.metal);
     box(bx - 1.65, bx + 1.65, y0 + .34, y0 + .62, bz - 2.0, bz + 2.0, premium ? M.floorB : M.stone);

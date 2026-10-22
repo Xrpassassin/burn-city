@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Eternal Grind — Forest Encounter Lab</title>
+<style>
+:root{color-scheme:dark;--panel:rgba(12,17,20,.9);--line:#38464a;--muted:#a7b6b2;--ember:#d88a50}
+*{box-sizing:border-box}body{margin:0;background:#09110f;color:#e5ece8;font:14px/1.4 system-ui,-apple-system,sans-serif;overflow:hidden}
+#view{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
+.panel{position:fixed;z-index:2;top:12px;left:12px;width:min(340px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;backdrop-filter:blur(12px);box-shadow:0 10px 35px #0008}
+h1{font-size:18px;margin:0 0 3px}p{margin:5px 0 12px;color:var(--muted)}.tag{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ember);font-weight:700}
+label{display:flex;justify-content:space-between;gap:10px;margin:13px 0 4px;font-weight:600}output{color:#e7b98e;font-variant-numeric:tabular-nums}input[type=range]{width:100%;accent-color:var(--ember)}
+.row{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}button,select{background:#202c2c;color:#e5ece8;border:1px solid #52615e;border-radius:8px;padding:8px 10px;font:inherit}button{cursor:pointer}button:active{transform:translateY(1px)}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:13px;font-size:12px;color:#c2ceca}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.status{border-top:1px solid var(--line);margin-top:13px;padding-top:10px;color:var(--muted);font-size:12px}
+#hint{position:fixed;right:12px;bottom:12px;z-index:1;background:#09110fc9;border:1px solid #38464a;border-radius:9px;padding:8px 11px;color:#c6d0cc;font-size:12px}
+@media(max-width:600px){.panel{top:8px;left:8px;width:min(290px,calc(100vw - 16px));padding:11px;max-height:calc(100dvh - 16px)}h1{font-size:16px}label{margin-top:9px}#hint{right:8px;bottom:8px;max-width:calc(100vw - 16px)}}
+</style>
+</head>
+<body>
+<div id="view"></div>
+<section class="panel">
+<div class="tag">Eternal Grind · Isolated prototype</div>
+<h1>Forest Encounter Lab</h1>
+<p>Explore how biome mood, threat, and spawn density affect a dark-fantasy forest. These are visual tuning controls, not live game settings.</p>
+<label for="density">Encounter density <output id="densityVal">55%</output></label><input id="density" type="range" min="10" max="100" value="55">
+<label for="threat">Regional threat <output id="threatVal">2 / 5</output></label><input id="threat" type="range" min="1" max="5" value="2">
+<label for="fog">Mist density <output id="fogVal">55%</output></label><input id="fog" type="range" min="0" max="100" value="55">
+<label for="light">Time of day <output id="lightVal">Dusk</output></label><input id="light" type="range" min="0" max="100" value="34">
+<label for="wind">Canopy wind <output id="windVal">35%</output></label><input id="wind" type="range" min="0" max="100" value="35">
+<div class="row"><button id="regen">Regenerate forest</button><button id="pause">Pause wind</button><button id="reset">Reset view</button></div>
+<div class="legend">
+<div><span class="dot" style="background:#c58a51"></span>Cryptbound · melee</div>
+<div><span class="dot" style="background:#b85d49"></span>Ashen Brute · heavy</div>
+<div><span class="dot" style="background:#92a85f"></span>Plague Ghoul · skirmisher</div>
+<div><span class="dot" style="background:#8b7acb"></span>Gravecaller · ranged</div>
+</div>
+<div class="status" id="status">Generating encounter layout…</div>
+</section>
+<div id="hint">Drag to orbit · Scroll/pinch to zoom · Prototype only</div>
+<script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.min.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const host=document.querySelector('#view');
+const scene=new THREE.Scene();scene.background=new THREE.Color('#17211e');scene.fog=new THREE.FogExp2('#17211e',.027);
+const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,180);camera.position.set(20,18,25);
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;host.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0x9cb9b0,0x25241d,1.35));
+const sun=new THREE.DirectionalLight(0xe5c6a0,2.0);sun.position.set(-12,24,8);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-28;sun.shadow.camera.right=28;sun.shadow.camera.top=28;sun.shadow.camera.bottom=-28;scene.add(sun);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(100,100),new THREE.MeshStandardMaterial({color:0x26372a,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+const grid=new THREE.GridHelper(60,30,0x405544,0x2c4234);grid.position.y=.015;grid.material.transparent=true;grid.material.opacity=.12;scene.add(grid);
+const treeGroup=new THREE.Group(), propGroup=new THREE.Group(), enemyGroup=new THREE.Group(), markerGroup=new THREE.Group();scene.add(treeGroup,propGroup,enemyGroup,markerGroup);
+const mat=(color,roughness=1,emissive=0)=>new THREE.MeshStandardMaterial({color,roughness,emissive,emissiveIntensity:.4});
+const trunkMat=mat(0x443a2c),leafMats=[mat(0x243e31),mat(0x2c4937),mat(0x354c36),mat(0x1e352c)],rockMat=mat(0x4a5047),mossMat=mat(0x536445),woodMat=mat(0x594634);
+const treeGeo=new THREE.CylinderGeometry(.16,.32,2.8,7),crownGeo=new THREE.ConeGeometry(1.3,3.5,7);
+const rockGeo=new THREE.DodecahedronGeometry(1,0),mushGeo=new THREE.CylinderGeometry(.05,.08,.22,6),capGeo=new THREE.SphereGeometry(.22,8,5);
+const enemyMats={crypt:mat(0xc58a51,0.8),brute:mat(0xb85d49,.9),ghoul:mat(0x92a85f,.9),caster:mat(0x8b7acb,.8,0x31215d)};
+const enemyNames=['Cryptbound','Ashen Brute','Plague Ghoul','Gravecaller'];const enemyKeys=['crypt','brute','ghoul','caster'];
+let trees=[], enemies=[], windOn=true, seed=8917, orbit={yaw:.72,pitch:.55,distance:34,target:new THREE.Vector3(0,0,0)},drag=null,last=performance.now();
+function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
+function clearGroup(g){while(g.children.length)g.remove(g.children[g.children.length-1])}
+function makeTree(x,z,scale){const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(scale);const trunk=new THREE.Mesh(treeGeo,trunkMat);trunk.position.y=1.35;trunk.castShadow=true;g.add(trunk);for(let i=0;i<3;i++){const c=new THREE.Mesh(crownGeo,leafMats[Math.floor(rand()*leafMats.length)]);c.position.set((rand()-.5)*.35,2.1+i*.75,(rand()-.5)*.35);c.scale.setScalar(1-i*.16);c.castShadow=true;g.add(c)}g.userData.phase=rand()*6.28;treeGroup.add(g);trees.push(g)}
+function makeEnemy(i,x,z){const key=enemyKeys[i%4],g=new THREE.Group();g.position.set(x,0,z);g.userData={key,phase:rand()*6.28,baseY:0};const body=new THREE.Mesh(new THREE.CapsuleGeometry(key==='brute'?.62:.38,key==='brute'?1.0:.75,4,7),enemyMats[key]);body.position.y=key==='brute'?1.1:.82;body.castShadow=true;g.add(body);const head=new THREE.Mesh(new THREE.SphereGeometry(key==='caster'?.31:.25,8,6),enemyMats[key]);head.position.y=key==='brute'?1.9:1.45;head.castShadow=true;g.add(head);if(key==='crypt'){const blade=new THREE.Mesh(new THREE.BoxGeometry(.12,.85,.18),woodMat);blade.position.set(.52,1.05,0);blade.rotation.z=-.38;g.add(blade)}if(key==='caster'){const orb=new THREE.Mesh(new THREE.SphereGeometry(.16,8,6),new THREE.MeshStandardMaterial({color:0xb7a5ff,emissive:0x7660ff,emissiveIntensity:1.5}));orb.position.set(.48,1.35,0);g.add(orb)}enemyGroup.add(g);enemies.push(g)}
+function makeMarker(x,z,r,color){const m=new THREE.Mesh(new THREE.RingGeometry(r-.035,r,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.62,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,.035,z);markerGroup.add(m)}
+function regenerate(){seed=Number(seed+7919);clearGroup(treeGroup);clearGroup(propGroup);clearGroup(enemyGroup);clearGroup(markerGroup);trees=[];enemies=[];const density=+document.querySelector('#density').value/100,threat=+document.querySelector('#threat').value;for(let i=0;i<105;i++){let x=(rand()-.5)*48,z=(rand()-.5)*48;if(Math.hypot(x,z)<5)continue;makeTree(x,z,.65+rand()*.8)}for(let i=0;i<45;i++){const x=(rand()-.5)*45,z=(rand()-.5)*45;if(Math.hypot(x,z)<4)continue;const rock=new THREE.Mesh(rockGeo,rand()>.5?rockMat:mossMat);rock.position.set(x,.25+rand()*.2,z);rock.scale.set(.25+rand()*.55,.2+rand()*.5,.3+rand()*.5);rock.rotation.set(rand(),rand()*3,rand());rock.castShadow=true;rock.receiveShadow=true;propGroup.add(rock);if(i%3===0){const m=new THREE.Mesh(capGeo,mat(0x987e5d));m.position.set(x+.35,.17,z+.25);m.scale.y=.55;propGroup.add(m);const s=new THREE.Mesh(mushGeo,mat(0xc9b88b));s.position.set(x+.35,.07,z+.25);propGroup.add(s)}}const count=Math.round(3+density*17);for(let i=0;i<count;i++){const angle=rand()*Math.PI*2,r=7+rand()*15,x=Math.cos(angle)*r,z=Math.sin(angle)*r;const archetype=(i+Math.floor(rand()*threat))%4;makeEnemy(archetype,x,z);makeMarker(x,z,archetype===1?1.6:1.15,[0xc58a51,0xb85d49,0x92a85f,0x8b7acb][archetype])}document.querySelector('#status').textContent='Layout: '+trees.length+' trees · '+propGroup.children.length+' forest props · '+enemies.length+' enemy placeholders. Threat '+threat+'/5. Visual prototype; no combat or spawn logic is connected.'}
+function updateSettings(){const density=+document.querySelector('#density').value,threat=+document.querySelector('#threat').value,fog=+document.querySelector('#fog').value,light=+document.querySelector('#light').value,wind=+document.querySelector('#wind').value;document.querySelector('#densityVal').textContent=density+'%';document.querySelector('#threatVal').textContent=threat+' / 5';document.querySelector('#fogVal').textContent=fog+'%';document.querySelector('#windVal').textContent=wind+'%';document.querySelector('#lightVal').textContent=light<20?'Night':light<43?'Dusk':light<70?'Day':'Bright day';scene.fog.density=.006+fog*.00048;const t=light/100;sun.intensity=.35+t*2.1;sun.color.setHSL(.09+t*.04,.35,.55+t*.25);scene.background.setHSL(.55,.18,.035+t*.11);scene.fog.color.copy(scene.background);ground.material.color.setHSL(.31,.2,.12+t*.08);document.querySelector('#status').textContent='Visual controls updated · '+trees.length+' trees · '+enemies.length+' enemies. Density changes apply after regeneration.'}
+for(const id of ['density','threat','fog','light','wind'])document.querySelector('#'+id).addEventListener('input',()=>{updateSettings();if(id==='density'||id==='threat'){}});
+document.querySelector('#regen').addEventListener('click',()=>{regenerate();updateSettings()});document.querySelector('#pause').addEventListener('click',e=>{windOn=!windOn;e.currentTarget.textContent=windOn?'Pause wind':'Resume wind'});document.querySelector('#reset').addEventListener('click',()=>{orbit={yaw:.72,pitch:.55,distance:34,target:new THREE.Vector3(0,0,0)}});host.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY};host.setPointerCapture(e.pointerId)});host.addEventListener('pointermove',e=>{if(!drag)return;orbit.yaw-=(e.clientX-drag.x)*.006;orbit.pitch=Math.max(.12,Math.min(1.2,orbit.pitch+(e.clientY-drag.y)*.005));drag={x:e.clientX,y:e.clientY}});host.addEventListener('pointerup',()=>drag=null);host.addEventListener('pointercancel',()=>drag=null);host.addEventListener('wheel',e=>{orbit.distance=Math.max(12,Math.min(58,orbit.distance+e.deltaY*.025))},{passive:true});addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.7))});
+regenerate();updateSettings();
+function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-last)/1000,.05);last=now;if(windOn){const w=+document.querySelector('#wind').value/100;for(const t of trees){t.rotation.z=Math.sin(now*.0006+t.userData.phase)*.025*w;t.rotation.x=Math.cos(now*.0005+t.userData.phase)*.012*w}for(const e of enemies){e.position.y=.035+Math.sin(now*.0014+e.userData.phase)*.045;e.rotation.y=Math.sin(now*.0007+e.userData.phase)*.12}}camera.position.set(orbit.target.x+Math.sin(orbit.yaw)*Math.cos(orbit.pitch)*orbit.distance,orbit.target.y+Math.sin(orbit.pitch)*orbit.distance,orbit.target.z+Math.cos(orbit.yaw)*Math.cos(orbit.pitch)*orbit.distance);camera.lookAt(orbit.target);renderer.render(scene,camera)}
+requestAnimationFrame(animate);
+</script>
+</body></html>

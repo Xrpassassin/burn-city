@@ -1215,8 +1215,21 @@ if (Q.has('towertest')) window.__towerTest = {
     };
     return Object.entries(points).map(([id, [x, y, z]]) => {
       const floor = groundAt(x, z, y);
-      return { id, floor, expectedFloor: y, hasFloor: floor > -50,
+      const result = { id, floor, expectedFloor: y, hasFloor: floor > -50,
         floorMatches: Math.abs(floor - y) <= STEP, blocked: floor > -50 ? blocked(x, z, floor) : true };
+      if (id === 'rooftop') {
+        // Diagnostic-only collision probes: the glass perimeter must block the player while the inner walkway stays clear.
+        result.perimeterCollision = {
+          north: blocked(0, -24.5, y),
+          south: blocked(0, 24.5, y),
+          west: blocked(-17.2, 0, y),
+          east: blocked(17.2, 0, y)
+        };
+        result.innerWalkwayClear = !blocked(0, -23.7, y) && !blocked(0, 23.7, y)
+          && !blocked(-16.4, 0, y) && !blocked(16.4, 0, y);
+        result.perimeterPasses = Object.values(result.perimeterCollision).every(Boolean) && result.innerWalkwayClear;
+      }
+      return result;
     });
   },
   sim(sec) { for (let i = 0; i < sec * 60; i++) towerFrame(1 / 60, performance.now() / 1000); }

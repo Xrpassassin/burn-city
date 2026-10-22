@@ -24,12 +24,12 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:calc(100d
 </style>
 </head>
 <body>
-<header><div><h1>ETERNAL GRIND / ENEMY MODEL WORKSHOP</h1><p>In-repo 3D silhouettes · adjustable materials · no live combat changes</p></div><div class="grid2"><button id="reset">Reset look</button><button id="export" class="primary">Export look JSON</button></div></header>
+<header><div><h1>ETERNAL GRIND / ENEMY MODEL WORKSHOP</h1><p>Adjustable procedural prototypes + animated CC0 monster models · workshop only</p></div><div class="grid2"><button id="reset">Reset look</button><button id="export" class="primary">Export look JSON</button></div></header>
 <main>
 <div id="stage"><div id="modelTitle">CRYPTBOUND · MELEE</div><div id="hint">Drag to rotate · pinch/scroll to zoom · tap a model or use the selector</div></div>
 <aside id="side">
 <section><h2>Enemy archetype</h2><select id="kind" style="width:100%">
-<option value="cryptbound">Cryptbound — armored melee</option><option value="brute">Ashen Brute — heavy bruiser</option><option value="ghoul">Plague Ghoul — fast skirmisher</option><option value="gravecaller">Gravecaller — ranged caster</option>
+<option value="cryptbound">Cryptbound — armored melee</option><option value="brute">Ashen Brute — heavy bruiser</option><option value="ghoul">Plague Ghoul — fast skirmisher</option><option value="gravecaller">Gravecaller — ranged caster</option><option value="slime">Quaternius Slime — animated</option><option value="bat">Quaternius Bat — animated</option><option value="dragon">Quaternius Dragon — animated</option>
 </select><p id="desc">A weathered undead soldier with a rusted blade and a readable silhouette.</p></section>
 <section><h2>Silhouette</h2>
 <div class="field"><label for="scale">Overall scale</label><output id="scaleOut"></output><input id="scale" type="range" min=".7" max="1.55" step=".05" value="1"></div>
@@ -50,12 +50,14 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:calc(100d
 <label class="check"><input id="ground" type="checkbox" checked> Ground shadow / plinth</label>
 <div class="actions"><button id="pose">Attack pose</button><button id="idle">Idle pose</button></div>
 </section>
-<section class="full"><div id="status"></div><p class="note">These are original procedural mesh prototypes built from Three.js geometry—not imported Quaternius models yet. Use this workshop to lock silhouettes and palettes first. Next, compatible CC0 glTF/GLB assets can be added as replaceable models with a fallback. This page does not change production enemy sprites, combat values, or saves.</p></section>
+<section class="full"><div id="status"></div><p class="note">The first four archetypes are original procedural meshes. Slime, Bat, and Dragon are imported animated Quaternius models (CC0 1.0) with adjustable scale, tint, emissive accent, wireframe, and compatible named-part proportions where available. GLB payloads are bundled locally as base64 text and decoded in the workshop; the vendored Three.js r160 GLTF loader keeps model loading isolated from live combat. This page does not change production enemy sprites, combat values, or saves.</p></section>
 </aside>
 </main>
 <script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.min.js"}}</script>
 <script type="module">
 import * as THREE from 'three';
+import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 const $=id=>document.getElementById(id);
 const stage=$('stage');
 const scene=new THREE.Scene(); scene.fog=new THREE.FogExp2(0x110e14,.035);
@@ -66,7 +68,10 @@ const key=new THREE.DirectionalLight(0xffd5aa,3.1);key.position.set(4,7,4);scene
 const rim=new THREE.DirectionalLight(0x647dff,2.8);rim.position.set(-4,3,-4);scene.add(rim);
 const floor=new THREE.Mesh(new THREE.CircleGeometry(5,64),new THREE.MeshStandardMaterial({color:0x211b23,roughness:.92,metalness:.1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.04;scene.add(floor);
 const ring=new THREE.Mesh(new THREE.TorusGeometry(1.05,.018,8,64),new THREE.MeshStandardMaterial({color:0x80634a,metalness:.7,roughness:.45}));ring.rotation.x=Math.PI/2;ring.position.y=.015;scene.add(ring);
-let root=null,parts={},pose='idle',angle=0,drag=null,zoom=1,models={},last=0;
+let root=null,parts={},pose='idle',angle=0,drag=null,zoom=1,models={},modelPromises={},modelFailures={},importedModel=null,importedMixer=null,importedKind=null,loadGeneration=0,last=0;
+const importedKinds=new Set(['slime','bat','dragon']);
+const modelLabels={slime:'QUATERNIUS SLIME · ANIMATED',bat:'QUATERNIUS BAT · ANIMATED',dragon:'QUATERNIUS DRAGON · ANIMATED'};
+const gltfLoader=new GLTFLoader();
 const palettes={
 cryptbound:{skin:'#77706b',armor:'#393b40',accent:'#d75a27',metal:'#a99a7a'},
 brute:{skin:'#66564f',armor:'#443b3b',accent:'#ef632f',metal:'#8e7663'},
@@ -77,7 +82,10 @@ const desc={
 cryptbound:'Weathered undead soldier. Layered shoulders, dented plates, and a short rusted blade.',
 brute:'Broad, heavy silhouette with oversized arms, thick shoulders, and a brutal cleaver.',
 ghoul:'Lean hunched skirmisher with long forearms, clawed hands, and sickly bioluminescent eyes.',
-gravecaller:'Robe-like silhouette, hooded head, arcane focus, and a readable glowing spell core.'
+gravecaller:'Robe-like silhouette, hooded head, arcane focus, and a readable glowing spell core.',
+slime:'Imported animated Quaternius slime. Inspect the silhouette, tint, emissive accent, and wireframe.',
+bat:'Imported animated Quaternius bat. Inspect the wings, scale, tint, and available animation clips.',
+dragon:'Imported animated Quaternius dragon. Inspect the creature silhouette, palette, glow, and available clips.'
 };
 function mat(color,roughness=.78,metalness=.08,emissive=null,intensity=0){return new THREE.MeshStandardMaterial({color,roughness,metalness,emissive:emissive||0x000000,emissiveIntensity:intensity,wireframe:$('wire').checked});}
 function group(parent,x=0,y=0,z=0){const g=new THREE.Group();g.position.set(x,y,z);parent.add(g);return g;}
@@ -86,7 +94,9 @@ function ball(parent,m,x,y,z,sx,sy,sz){return mesh(parent,new THREE.IcosahedronG
 function limb(parent,a,b,r1,r2,material){const A=new THREE.Vector3(...a),B=new THREE.Vector3(...b),d=B.clone().sub(A);const m=mesh(parent,new THREE.CylinderGeometry(r2,r1,d.length(),7,1),material,...A.clone().add(B).multiplyScalar(.5).toArray());m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());return m;}
 function box(parent,m,x,y,z,sx,sy,sz,rot=0){const o=mesh(parent,new THREE.BoxGeometry(sx,sy,sz),m,x,y,z);o.rotation.z=rot;return o;}
 function build(kind){
- if(root)scene.remove(root);root=group(scene);parts={};const c=state();const skin=mat(c.skin),armor=mat(c.armor,.48,.35),metal=mat(c.metal,.38,.68),glow=mat(c.accent,.28,.2,c.accent,c.glow);
+ const c=state();
+ if(importedKinds.has(kind)){if(modelFailures[kind]){build(kind==='dragon'?'brute':kind==='bat'?'ghoul':'gravecaller');return root;}buildImported(kind,c);return root;}
+ if(root)scene.remove(root);root=group(scene);parts={};importedModel=null;importedMixer=null;importedKind=null;const skin=mat(c.skin),armor=mat(c.armor,.48,.35),metal=mat(c.metal,.38,.68),glow=mat(c.accent,.28,.2,c.accent,c.glow);
  const b=c.bulk,h=c.head,w=c.weapon;const tall=kind==='brute'?1.12:kind==='ghoul'?.92:1;
  parts.body=group(root,0,0,0);
  const torsoY=kind==='gravecaller'?1.27:1.38;
@@ -154,11 +164,21 @@ function build(kind){
  parts.body.userData.kind=kind;root.userData.baseY=baseY;
  return root;
 }
+function buildImported(kind,c){
+ if(importedKind===kind&&importedModel){applyImportedLook(c);return;}
+ const generation=++loadGeneration;
+ if(root)scene.remove(root);root=group(scene);parts={};importedModel=null;importedMixer=null;importedKind=kind;
+ $('status').textContent='Loading '+modelLabels[kind].replace(' · ANIMATED','')+'…';
+ if(!modelPromises[kind])modelPromises[kind]=(async()=>{const response=await fetch('assets/enemy-models/'+kind+'.glb.b64');if(!response.ok)throw new Error('model payload HTTP '+response.status);const encoded=(await response.text()).replace(/\\s/g,'');const bytes=Uint8Array.from(atob(encoded),ch=>ch.charCodeAt(0));return await new Promise((resolve,reject)=>gltfLoader.parse(bytes.buffer,'',resolve,reject));})();
+ modelPromises[kind].then(gltf=>{models[kind]=gltf;if(generation!==loadGeneration)return;const model=cloneSkeleton(gltf.scene);root=group(scene);root.add(model);importedModel=model;importedKind=kind;model.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());model.position.sub(center);model.position.y+=size.y*.5;const maxDim=Math.max(size.x,size.y,size.z)||1;model.scale.setScalar(2.35/maxDim);importedMixer=new THREE.AnimationMixer(model);const idle=gltf.animations.find(clip=>/idle/i.test(clip.name))||gltf.animations[0];if(idle)importedMixer.clipAction(idle).play();pose='idle';applyImportedLook(c);$('status').textContent=modelLabels[kind].replace(' · ANIMATED','')+' loaded · '+gltf.animations.length+' animation clips · CC0';
+ }).catch(error=>{if(generation!==loadGeneration)return;modelFailures[kind]=true;modelPromises[kind]=null;models[kind]=null;importedKind=null;importedModel=null;importedMixer=null;$('status').textContent='Model load failed ('+error.message+'). Using procedural fallback.';build(kind==='dragon'?'brute':kind==='bat'?'ghoul':'gravecaller');});
+}
+function applyImportedLook(c){if(!importedModel)return;root.scale.setScalar(c.scale);const tint=new THREE.Color(c.skin),accent=new THREE.Color(c.accent);importedModel.traverse(o=>{if(o.isMesh){o.userData.__baseScale=o.userData.__baseScale||o.scale.clone();const n=(o.name||'').toLowerCase(),base=o.userData.__baseScale,head=/head|skull|face|eye/.test(n)?c.head:1,weapon=/weapon|sword|staff|axe|blade|club/.test(n)?c.weapon:1,bulk=/body|torso|chest|spine|arm|leg/.test(n)?c.bulk:1;o.scale.set(base.x*bulk*weapon,base.y*bulk*head*weapon,base.z*bulk*weapon);const materials=Array.isArray(o.material)?o.material:[o.material];for(const m of materials){if(!m.userData.__baseColor)m.userData.__baseColor=m.color.clone();m.color.copy(m.userData.__baseColor).lerp(tint,.28);m.emissive.copy(accent);m.emissiveIntensity=c.glow*.22;m.wireframe=$('wire').checked;}}});}
 function state(){return {kind:$('kind').value,scale:+$('scale').value,bulk:+$('bulk').value,head:+$('head').value,weapon:+$('weapon').value,glow:+$('glow').value,skin:$('skin').value,armor:$('armor').value,accent:$('accent').value,metal:$('metal').value};}
-function update(){const c=state();$('scaleOut').value=c.scale.toFixed(2)+'×';$('bulkOut').value=c.bulk.toFixed(2)+'×';$('headOut').value=c.head.toFixed(2)+'×';$('weaponOut').value=c.weapon.toFixed(2)+'×';$('glowOut').value=c.glow.toFixed(1);$('modelTitle').textContent=({cryptbound:'CRYPTBOUND · MELEE',brute:'ASHEN BRUTE · HEAVY',ghoul:'PLAGUE GHOUL · SKIRMISHER',gravecaller:'GRAVECALLER · RANGED'})[c.kind];$('desc').textContent=desc[c.kind];build(c.kind);}
+function update(){const c=state();$('scaleOut').value=c.scale.toFixed(2)+'×';$('bulkOut').value=c.bulk.toFixed(2)+'×';$('headOut').value=c.head.toFixed(2)+'×';$('weaponOut').value=c.weapon.toFixed(2)+'×';$('glowOut').value=c.glow.toFixed(1);$('modelTitle').textContent=({cryptbound:'CRYPTBOUND · MELEE',brute:'ASHEN BRUTE · HEAVY',ghoul:'PLAGUE GHOUL · SKIRMISHER',gravecaller:'GRAVECALLER · RANGED',...modelLabels})[c.kind];$('desc').textContent=desc[c.kind];build(c.kind);}
 function resize(){const r=stage.getBoundingClientRect();renderer.setSize(r.width,r.height,false);camera.aspect=r.width/Math.max(1,r.height);camera.updateProjectionMatrix();}
-function poseAttack(){pose='attack';if(parts['arm1']){parts['arm1'].rotation.z=-.9;parts['arm-1'].rotation.z=.2;parts.weapon.rotation.z=-.35;}}
-function poseIdle(){pose='idle';if(parts['arm1']){parts['arm1'].rotation.z=0;parts['arm-1'].rotation.z=0;parts.weapon.rotation.z=0;}}
+function poseAttack(){pose='attack';if(importedMixer&&importedKind){const clips=models[importedKind]?.animations||[],clip=clips.find(c=>/attack|chop|bite|slash|hit/i.test(c.name));if(clip){importedMixer.stopAllAction();const action=importedMixer.clipAction(clip);action.reset();action.setLoop(THREE.LoopOnce,1);action.clampWhenFinished=true;action.play();}return;}if(parts['arm1']){parts['arm1'].rotation.z=-.9;parts['arm-1'].rotation.z=.2;parts.weapon.rotation.z=-.35;}}
+function poseIdle(){pose='idle';if(importedMixer&&importedKind){const clips=models[importedKind]?.animations||[],clip=clips.find(c=>/idle/i.test(c.name))||clips[0];if(clip){importedMixer.stopAllAction();importedMixer.clipAction(clip).reset().play();}return;}if(parts['arm1']){parts['arm1'].rotation.z=0;parts['arm-1'].rotation.z=0;parts.weapon.rotation.z=0;}}
 for(const id of ['scale','bulk','head','weapon','glow','skin','armor','accent','metal','wire'])$(id).addEventListener('input',update);
 $('kind').addEventListener('change',()=>{update();poseIdle();});
 $('reset').onclick=()=>{const p=palettes[$('kind').value];for(const [k,v]of Object.entries(p))$(k).value=v;for(const [k,v]of Object.entries({scale:1,bulk:1,head:1,weapon:1,glow:.8}))$(k).value=v;$('wire').checked=false;$('spin').checked=true;$('ground').checked=true;update();poseIdle();};
@@ -169,7 +189,7 @@ renderer.domElement.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.cli
 renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;angle+=(e.clientX-drag.x)*.009;camera.position.x=Math.sin(angle)*zoom*8;camera.position.z=Math.cos(angle)*zoom*8;drag.x=e.clientX;drag.y=e.clientY;});
 renderer.domElement.addEventListener('pointerup',()=>drag=null);renderer.domElement.addEventListener('pointercancel',()=>drag=null);
 renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.65,Math.min(1.6,zoom+e.deltaY*.001));camera.position.x=Math.sin(angle)*zoom*8;camera.position.z=Math.cos(angle)*zoom*8;camera.position.y=3.1*zoom;},{passive:false});
-function animate(t){requestAnimationFrame(animate);const dt=Math.min(.05,(t-last)/1000||0);last=t;if($('spin').checked&&!drag){angle+=dt*.22;camera.position.x=Math.sin(angle)*8*zoom;camera.position.z=Math.cos(angle)*8*zoom;}camera.lookAt(0,1.1,0);if(root&&parts.body){const bob=pose==='idle'?Math.sin(t*.002)*.025:0;parts.body.position.y=bob;if(pose==='idle'&&parts['arm1']){parts['arm1'].rotation.z=Math.sin(t*.0014)*.035;parts['arm-1'].rotation.z=-Math.sin(t*.0014)*.035;}}renderer.render(scene,camera);}
+function animate(t){requestAnimationFrame(animate);const dt=Math.min(.05,(t-last)/1000||0);last=t;if(importedMixer)importedMixer.update(dt);if($('spin').checked&&!drag){angle+=dt*.22;camera.position.x=Math.sin(angle)*8*zoom;camera.position.z=Math.cos(angle)*8*zoom;}camera.lookAt(0,1.1,0);if(root&&parts.body){const bob=pose==='idle'?Math.sin(t*.002)*.025:0;parts.body.position.y=bob;if(pose==='idle'&&parts['arm1']){parts['arm1'].rotation.z=Math.sin(t*.0014)*.035;parts['arm-1'].rotation.z=-Math.sin(t*.0014)*.035;}}renderer.render(scene,camera);}
 const observer=new ResizeObserver(resize);observer.observe(stage);window.addEventListener('resize',resize);update();resize();animate(0);
 </script>
 </body></html>

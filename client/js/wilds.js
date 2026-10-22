@@ -20,13 +20,26 @@ import { findWorldPath } from './wilds-pathfinding-world.mjs';
 import { withAmbientSpecies } from './wilds-ambient-species.mjs';
 import { createWildsWanderAgent, updateWildsWanderAgent, disposeWildsWanderAgent } from './wilds-yuka-ai.mjs';
 import { validateWorldRoute } from './wilds-route-validation.mjs';
+import { getWildsGraphicsProfile, isWildsGraphicsProfile } from './wilds-graphics-profiles.mjs';
+import { drawGroundTexture } from './wilds-ground-materials.mjs';
+import { getWildsAtmospherePreset, isWildsAtmospherePreset } from './wilds-atmosphere-presets.mjs';
 import { TEST, FC, RX, RZ, GATE, THRESH, CFG, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
 
 const W = { ready: false, inForest: false, modal: null, creatures: [], test: {} };
+let graphicsPreset = 'balanced';
+let atmospherePresetName = 'balanced';
+let groundMaterialSwap = null;
 // ZONE: the deep area (wilds-deep.js) registers itself here while you're inside it; creatures, encounters, binding, NPC talk,
 // quests, HUD and the companion then run against its world (its root, spawns, keep-in, respawn) instead of Fernway Verge.
 let ZONE = null; const R0 = () => (ZONE ? ZONE.root : root);
-if (TEST) window.__wilds = W;   // test/debug only (?wildstest or ?debug=1)
+if (TEST) {
+  window.__wilds = W;   // test/debug only (?wildstest or ?debug=1)
+  W.test.setGraphicsPreset = name => {
+    if (!isWildsGraphicsProfile(name)) return { ok: false, reason: 'unknown-preset', preset: graphicsPreset };
+    graphicsPreset = name;
+    return { ok: true, preset: graphicsPreset, profile: getWildsGraphicsProfile(graphicsPreset) };
+  };
+}
 const C = () => window.__city;
 // ---------------------------------------------------------------- layout (world metres; the city is south, -z; FC/RX/RZ/GATE live in wilds-gate.js)
 const TRAM = { x: -28, z: 452 }, FIRE = { x: -17, z: 444 }, MARA = { x: -19.5, z: 441.5 }, CLEAR = { x: 30, z: 630 };
@@ -100,6 +113,9 @@ async function buildWorld(progress = () => { }) {
   // --- forest floor: one grid mesh with baked colour (moss / leaf litter / dirt trail / wet creek banks) + detail texture
   const detail = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#c8c8c8'; g.fillRect(0, 0, w, h); for (let i = 0; i < 2600; i++) { const v = 150 + Math.random() * 105 | 0; g.fillStyle = `rgb(${v},${v},${v})`; const s = 1 + Math.random() * 4; g.save(); g.translate(Math.random() * w, Math.random() * h); g.rotate(Math.random() * 6.3); g.fillRect(-s, -s * .4, s * 2, s * .8); g.restore(); } });
   detail.wrapS = detail.wrapT = THREE.RepeatWrapping; detail.colorSpace = THREE.NoColorSpace;
+  // Alternate colored micro-detail exists only in explicit test/debug sessions; production keeps the established texture.
+  const naturalDetail = TEST ? canvasTex(256, 256, (g, w, h) => drawGroundTexture(g, w, h, 'natural')) : null;
+  if (naturalDetail) { naturalDetail.wrapS = naturalDetail.wrapT = THREE.RepeatWrapping; naturalDetail.colorSpace = THREE.SRGBColorSpace; }
   const STEP = tierN(4, 3, 2.5), X0 = -300, X1 = 300, Z0 = 300, Z1 = 880, nx = Math.round((X1 - X0) / STEP) + 1, nz = Math.round((Z1 - Z0) / STEP) + 1;
   const pos = new Float32Array(nx * nz * 3), col = new Float32Array(nx * nz * 3), uv = new Float32Array(nx * nz * 2), keep = new Uint8Array(nx * nz);
   const moss = new THREE.Color(0x24381a), litter = new THREE.Color(0x4a3420), dirt = new THREE.Color(0x6a5238), mud = new THREE.Color(0x2a2418), dark = new THREE.Color(0x0e1410), meadow = new THREE.Color(0x2e4a22), cc = new THREE.Color();
@@ -114,7 +130,14 @@ async function buildWorld(progress = () => { }) {
   }
   const idx = []; for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) { const a = j * nx + i, b = a + 1, d = a + nx, e2 = d + 1; if (keep[a] || keep[b] || keep[d] || keep[e2]) idx.push(a, d, b, b, d, e2); }
   const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); gg.setAttribute('color', new THREE.BufferAttribute(col, 3)); gg.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); gg.setIndex(idx); gg.computeVertexNormals();
-  const floor = new THREE.Mesh(gg, new THREE.MeshStandardMaterial({ vertexColors: true, map: detail, roughness: .95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); floor.renderOrder = -2; root.add(floor);
+  const floorMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, map: detail, roughness: .95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const floor = new THREE.Mesh(gg, floorMaterial); floor.renderOrder = -2; root.add(floor);
+  groundMaterialSwap = TEST ? variant => {
+    if (variant !== 'natural' && variant !== 'current') return { ok: false, reason: 'unknown-material', material: floorMaterial.map === naturalDetail ? 'natural' : 'current' };
+    floorMaterial.map = variant === 'natural' ? naturalDetail : detail;
+    floorMaterial.needsUpdate = true;
+    return { ok: true, material: variant };
+  } : null;
 
   await step(.14, 'Following the creek…');
   // --- creek: animated water ribbon (custom shader with fog) + plank bridges where the trails cross
@@ -718,7 +741,8 @@ let lastT = performance.now(), hudT = 0, regenT = 0;
 const FOGC = new THREE.Color(), FDAY = new THREE.Color(.46, .54, .47), FNIGHT = new THREE.Color(.025, .05, .05);
 function frame_(dt, t) {
   if (!W.ready) return; if (ZONE) return zoneFrame(dt, t); const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen, day = c.U && c.U.day ? c.U.day.value : 0;
-  UNI.uT.value = t; UNI.uPl.value.set(P.pos.x, P.pos.y, P.pos.z); creekMat.uniforms.uT.value = t; creekMat.uniforms.uDay.value = day;
+  const gfx = getWildsGraphicsProfile(TEST ? graphicsPreset : 'balanced'), atmo = getWildsAtmospherePreset(TEST ? atmospherePresetName : 'balanced');
+  UNI.uT.value = t; UNI.uPl.value.set(P.pos.x, P.pos.y, P.pos.z); UNI.uSway.value = gfx.sway; creekMat.uniforms.uT.value = t; creekMat.uniforms.uDay.value = day;
   const camD = Math.hypot((c.C.position.x - FC.x) / RX, (c.C.position.z - FC.z) / RZ); nearGroup.visible = camD < 1.6;
   // zone: the warning on the way in is wilds-gate.js; music/fog swap on the way out
   const e = ell(P.pos.x, P.pos.z);
@@ -730,7 +754,7 @@ function frame_(dt, t) {
   if (fz > 0) { if (W.lights.hemi) W.lights.hemi.intensity += fz * (1 - day) * .9; if (W.lights.amb) W.lights.amb.intensity += fz * (1 - day) * .45; }
   // third-person camera never ends up inside a tree trunk or rock: pull it in along the line to the player
   if (explore && !W.enc && fz > 0 && !P.fp) { const cp = c.C.position, hx = P.pos.x, hz = P.pos.z; let f = 1; for (let k = 1; k <= 8; k++) { const u = k / 8, x = hx + (cp.x - hx) * u, z = hz + (cp.z - hz) * u; const o = blocked(x, z, .45); if (o && o.r > .3) { f = Math.max(.25, (k - 1) / 8); break; } } if (f < 1) { cp.x = hx + (cp.x - hx) * f; cp.z = hz + (cp.z - hz) * f; cp.y = Math.max(cp.y, P.pos.y + 1.6); c.C.lookAt(hx, P.pos.y + 1.4, hz); } }
-  if (fz > 0 && c.S.fog) { FOGC.copy(FNIGHT).lerp(FDAY, day); c.S.fog.density = lerp(c.S.fog.density, .0085 + (1 - day) * .004, fz); c.S.fog.color.lerp(FOGC, fz * .85); }
+  if (fz > 0 && c.S.fog) { FOGC.copy(FNIGHT).lerp(FDAY, day); c.S.fog.density = lerp(c.S.fog.density, (.0085 + (1 - day) * .004) * gfx.fog * atmo.fogDensity, fz); c.S.fog.color.lerp(FOGC, fz * atmo.fogTint); }
   // creatures (respawn empty slots)
   if (camD < 2) { for (const s of SPAWNS) { if (!s.cr) { s.cool = (s.cool || 0) - dt; if (s.cool <= 0 && Math.hypot(P.pos.x - s.x, P.pos.z - s.z) > 25) spawn(s); } }
     for (const cr of W.creatures.slice()) updCreature(cr, dt, t, P, Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z)); }
@@ -755,7 +779,7 @@ function frame_(dt, t) {
   // leaves fall around the camera while you're under the canopy
   { const m4 = _m4, q = _q, inF = camD < 1.02; let i = 0; const cp = c.C.position; for (const l of W.leafData) { if (inF && (l.y < 0 || Math.hypot(l.x - cp.x, l.z - cp.z) > 26)) { const a = Math.random() * 6.3, r = 2 + Math.random() * 20; l.x = cp.x + Math.cos(a) * r; l.z = cp.z + Math.sin(a) * r; l.y = 6 + Math.random() * 8; } l.ph += dt; l.y -= l.vy * dt; l.x += (Math.sin(l.ph * l.sway) * .8 + .3) * dt; l.z += Math.cos(l.ph * .7) * .4 * dt; q.setFromEuler(_eu.set(l.ph * l.spin, l.ph * .7, Math.sin(l.ph * 2) * .8)); m4.compose(_v3.set(l.x, inF ? l.y : -50, l.z), q, _one); leaves.setMatrixAt(i++, m4); } leaves.instanceMatrix.needsUpdate = true; }
   // light shafts by time of day
-  for (const s of shafts.children) { s.children.forEach(p => p.material.opacity = .05 + day * .2 + Math.sin(t * .4 + s.userData.ph) * .03); s.rotation.y = Math.sin(t * .05 + s.userData.ph) * .2; }
+  for (const s of shafts.children) { s.children.forEach(p => p.material.opacity = (.05 + day * .2 + Math.sin(t * .4 + s.userData.ph) * .03) * gfx.shafts * atmo.shafts); s.rotation.y = Math.sin(t * .05 + s.userData.ph) * .2; }
   AUD.update(dt, day);
   regenT += dt; if (regenT > 1 && !W.enc) { game.regen(regenT); regenT = 0; }
   hudT -= dt; if (hudT < 0) { hudT = .25; renderHud(); }
@@ -765,7 +789,7 @@ const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v3 = new THREE.Ve
 // ---------------------------------------------------------------- deep-area zone (wilds-deep.js): the same creatures / encounters / NPC talk, run on its world
 function zoneFrame(dt, t) {
   const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen, Z = ZONE;
-  UNI.uT.value = t; UNI.uPl.value.set(P.pos.x, P.pos.y, P.pos.z);
+  UNI.uT.value = t; UNI.uPl.value.set(P.pos.x, P.pos.y, P.pos.z); UNI.uSway.value = getWildsGraphicsProfile(TEST ? graphicsPreset : 'balanced').sway;
   if (explore && !W.enc && !P.fp) { const cp = c.C.position, hx = P.pos.x, hz = P.pos.z; let f = 1; for (let k = 1; k <= 8; k++) { const u = k / 8, x = hx + (cp.x - hx) * u, z = hz + (cp.z - hz) * u; const o = blocked(x, z, .45); if (o && o.r > .3) { f = Math.max(.25, (k - 1) / 8); break; } } if (f < 1) { cp.x = hx + (cp.x - hx) * f; cp.z = hz + (cp.z - hz) * f; cp.y = Math.max(cp.y, P.pos.y + 1.6); c.C.lookAt(hx, P.pos.y + 1.4, hz); } }
   for (const s of Z.spawns) { if (!s.cr && !(s.when && !s.when())) { s.cool = (s.cool || 0) - dt; if (s.cool <= 0 && Math.hypot(P.pos.x - s.x, P.pos.z - s.z) > 25) spawn(s); } }
   for (const cr of W.creatures.slice()) if (cr.slot.zone === Z) {
@@ -852,7 +876,7 @@ function disposeTree(o, seen = { geo: new Set(), mat: new Set(), tex: new Set() 
   return seen;
 }
 export function unload() {
-  if (!W.ready) return; if (TEST && W.test.clearPathPreview) W.test.clearPathPreview(); W.ready = false; ZONE = null;
+  if (!W.ready) return; if (TEST && W.test.clearPathPreview) W.test.clearPathPreview(); W.ready = false; ZONE = null; groundMaterialSwap = null; atmospherePresetName = 'balanced';
   try { if (W.enc) endEncounter(true); } catch (e) { } W.enc = null; closeModal(); W.inForest = false;
   AUD.dispose();
   const c = C();
@@ -934,6 +958,16 @@ if (TEST) {
   }
   W.test.previewPath = previewPath;
   W.test.clearPathPreview = clearPathPreview;
+  W.test.setGroundMaterial = variant => {
+    if (!W.ready || !groundMaterialSwap) return { ok: false, reason: 'forest-not-ready' };
+    return groundMaterialSwap(variant);
+  };
+  W.test.setAtmospherePreset = name => {
+    if (!W.ready) return { ok: false, reason: 'forest-not-ready' };
+    if (!isWildsAtmospherePreset(name)) return { ok: false, reason: 'unknown-preset', preset: atmospherePresetName };
+    atmospherePresetName = name;
+    return { ok: true, preset: name, profile: getWildsAtmospherePreset(name) };
+  };
 }
 if (TEST) Object.assign(W.test, {
   state: () => ({ ready: W.ready, inForest: W.inForest, modal: W.modal, creatures: W.creatures.map(c => ({ sp: c.sp, lv: c.c.lv, x: +c.x.toFixed(1), z: +c.z.toFixed(1), st: c.st, spd: +c.spd.toFixed(2) })), trees: W.treeCount, save: game && JSON.parse(JSON.stringify(game.state)), comp: compState && { x: compState.x, z: compState.z, spd: compState.spd }, audio: AUD.state(), enc: W.enc && { turn: W.enc.E.turn, over: W.enc.E.over, us: W.enc.E.us.name, usHp: W.enc.E.us.hp, foeHp: W.enc.E.foe.hp, odds: game.bindOdds(W.enc.E).pct, busy: W.enc.busy } }),

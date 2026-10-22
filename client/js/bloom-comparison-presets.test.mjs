@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { BLOOM_COMPARISON_PRESETS, getBloomComparisonPreset, isBloomComparisonPreset } from './bloom-comparison-presets.mjs';
+assert.deepEqual(Object.keys(BLOOM_COMPARISON_PRESETS), ['balanced', 'ember', 'crisp']);
+assert.deepEqual(getBloomComparisonPreset('balanced'), { strength: 1, radius: 0.4, threshold: 0.5 });
+assert.equal(getBloomComparisonPreset('ember').strength, 1.18);
+assert.equal(getBloomComparisonPreset('crisp').threshold, 0.62);
+assert.equal(getBloomComparisonPreset('not-a-preset'), BLOOM_COMPARISON_PRESETS.balanced);
+assert.equal(isBloomComparisonPreset('crisp'), true);
+assert.equal(isBloomComparisonPreset('not-a-preset'), false);
+assert.ok(Object.isFrozen(BLOOM_COMPARISON_PRESETS));
+assert.ok(Object.isFrozen(BLOOM_COMPARISON_PRESETS.ember));
+console.log('bloom-comparison-presets: all tests passed');

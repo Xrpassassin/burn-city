@@ -414,7 +414,7 @@ function barAndLounge() {
   instanced(new THREE.CylinderGeometry(.22, .18, .06, 20), M.gold, [0, 1, 2, 3, 4].map(i => [-14.25, MEZZ + .78, bz0 + 1 + i * 1.7]));
   instanced(new THREE.CylinderGeometry(.04, .04, .75, 8), M.metal, [0, 1, 2, 3, 4].map(i => [-14.25, MEZZ + .38, bz0 + 1 + i * 1.7]));
   for (let i = 0; i < 5; i++) cyl(-14.25, bz0 + 1 + i * 1.7, .25, MEZZ, MEZZ + .8);
-  plaque('THE EMBER BAR', 'POURING SOON', -HX + .06, MEZZ + 4.4, 13.5, Math.PI / 2, 3.2);
+  plaque('THE EMBER BAR', 'HOUSE MENU', -HX + .06, MEZZ + 4.4, 13.5, Math.PI / 2, 3.2);
   station('bar', 'The Ember Bar', -14.2, MEZZ, 13.5, 3.2, [1.2, 1.3, 9]);
   // THE DIONYSIAN LOUNGE (east gallery): low sofas facing the atrium, stone table
   const sofa = (x, z, ry) => { const g = new THREE.Group(); g.position.set(x, MEZZ, z); g.rotation.y = ry;
@@ -572,7 +572,7 @@ function interact(id) {
         () => window.open(mine && MINE.id ? 'https://xrp.cafe/nft/' + MINE.id : LINKS[id], '_blank', 'noopener,noreferrer'), mine ? 'VIEW MY NFT' : 'VIEW COLLECTION');
       break; }
     case 'residences': textPanel('RESIDENCES', 'Private penthouse floors for verified holders are planned for a later phase. Nothing here is live yet.'); break;
-    case 'bar': textPanel('THE EMBER BAR', 'The Ember Bar is pouring soon. Pull up a stool while you wait.'); break;
+    case 'bar': showBarMenu(); break;
     case 'sit': P.seated = true; P.pos.copy(P.seatPos); CITY.input.yp.yaw = Math.PI / 2; CITY.input.yp.pitch = -.05; toast('Seated. Move to stand up.'); break;
     case 'directory': showDirectory(); break;
     case 'aegis': showAegis(); break;
@@ -614,7 +614,8 @@ function showDirectory() {
     { title: 'MEZZANINE · SOCIAL & INTELLIGENCE', rows: [
       ['mezz', 'Mezzanine', 'Travel to the upper gallery walkway.', 'TRAVEL', '#d7a65e'],
       ['aegis', 'Aegis Sanctum', 'Visit the display and open the configured live map if available.', 'VISIT', '#9fc2ea'],
-      ['bar', 'The Ember Bar', 'Visit the bar. Service and inventory are not implemented yet.', 'VISIT', '#d7a65e'],
+      ['bar', 'The Ember Bar', 'Open the roleplay house menu. No currency or inventory is charged.', 'OPEN MENU', '#d7a65e'],
+      ['lounge', 'Dionysian Lounge', 'Visit the lounge and use the seating interaction.', 'VISIT', '#d7a65e'],
       ['lounge', 'Dionysian Lounge', 'Visit the lounge and use the seating interaction.', 'VISIT', '#d7a65e']
     ]},
     { title: 'GALLERIES & FUTURE FLOORS', rows: [
@@ -629,7 +630,7 @@ function showDirectory() {
     'lift-ground': () => travelTo('lift-ground'),
     mezz: () => travelTo('mezz'),
     aegis: () => travelTo('aegis'),
-    bar: () => travelTo('bar'),
+    bar: () => { travelTo('bar'); showBarMenu(); },
     lounge: () => travelTo('lounge'),
     midnightbluff: () => interact('elevator'),
     hidden: () => interact('hidden'),
@@ -703,6 +704,46 @@ function showLiftMenu() {
   privateButton.addEventListener('click', () => interact('elevator')); panel.appendChild(privateButton);
   const c = btn('CLOSE', true); c.style.marginTop = '8px'; c.addEventListener('click', () => { panel?.remove(); panel = null; }); panel.appendChild(c);
   root.appendChild(panel);
+}
+function showBarMenu() {
+  panel?.remove(); panel = document.createElement('div'); panel.className = 'burn-tower-panel burn-tower-bar-menu';
+  Object.assign(panel.style, {
+    position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
+    width: 'min(430px,calc(100vw - 24px))', maxHeight: 'min(82dvh,700px)', overflowY: 'auto',
+    padding: '18px', background: 'linear-gradient(145deg,#141016fa,#08070afa)',
+    border: '1px solid #7a5a34', borderRadius: '14px', boxShadow: '0 20px 60px #000a',
+    color: '#efe3d2', zIndex: 10, pointerEvents: 'auto'
+  });
+  const h = document.createElement('h2'); h.textContent = 'THE EMBER BAR';
+  Object.assign(h.style, { margin: '0 0 6px', fontSize: '16px', letterSpacing: '.12em', color: '#d7a65e', fontFamily: 'Georgia,serif' });
+  panel.appendChild(h);
+  const intro = document.createElement('p');
+  intro.textContent = 'Choose a house special for a small roleplay moment. This is a cosmetic interaction only: it does not spend currency, change inventory, or apply gameplay effects.';
+  Object.assign(intro.style, { margin: '0 0 12px', color: '#cbbcaa', fontSize: '12px', lineHeight: '1.5' });
+  panel.appendChild(intro);
+  const specials = [
+    ['CINDER TEA', 'Smoked black tea, clove, and a slow amber glow.'],
+    ['EMBER FIZZ', 'A bright citrus sparkle with a warm red finish.'],
+    ['BLACKGLASS TONIC', 'Dark berry, cool mint, and a shimmer like volcanic glass.']
+  ];
+  for (const [name, description] of specials) {
+    const card = document.createElement('div');
+    Object.assign(card.style, { padding: '10px', margin: '8px 0', border: '1px solid #493827', borderRadius: '9px', background: '#ffffff05' });
+    const title = document.createElement('strong'); title.textContent = name;
+    Object.assign(title.style, { display: 'block', color: '#f0d2a2', fontSize: '12px', letterSpacing: '.08em' });
+    const detail = document.createElement('p'); detail.textContent = description;
+    Object.assign(detail.style, { margin: '5px 0 10px', color: '#bcae9f', fontSize: '11px', lineHeight: '1.45' });
+    const order = btn('CHOOSE SPECIAL');
+    order.style.width = '100%';
+    order.addEventListener('click', () => {
+      panel?.remove(); panel = null;
+      toast(name + ' selected · roleplay only, no inventory change.');
+    });
+    card.append(title, detail, order); panel.appendChild(card);
+  }
+  const c = btn('CLOSE', true); c.style.marginTop = '8px';
+  c.addEventListener('click', () => { panel?.remove(); panel = null; });
+  panel.appendChild(c); root.appendChild(panel);
 }
 function travelTo(destination) {
   const points = {

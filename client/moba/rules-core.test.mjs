@@ -4,7 +4,7 @@ import { applyIntent, advanceTick, createMatch, getMatchSummary, setSlotControll
 const makeCloseMatch = () => createMatch({
   matchId: "test",
   slotsPerTeam: 1,
-  rules: { heroAttackRange: 50, heroAttackDamage: 600, towerMaxHealth: 600, coreMaxHealth: 600, heroRespawnTicks: 2, heroAttackCooldownTicks: 2 }
+  rules: { heroAttackRange: 50, heroAttackDamage: 600, towerMaxHealth: 1200, coreMaxHealth: 1200, heroRespawnTicks: 2, heroAttackCooldownTicks: 2 }
 });
 
 {

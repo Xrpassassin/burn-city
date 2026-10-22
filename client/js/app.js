@@ -606,9 +606,22 @@ const topAt=(n,o,p)=>{const top=roofTop(n);if(top==null)return n.pos.clone().set
 const arcMid=(a,b,A,B,i,r)=>{const mid=a.clone().add(b).multiplyScalar(.5);mid.y=Math.max(a.y,b.y)+6+a.distanceTo(b)*.06+(i%3)*2;const q=new THREE.Vector3();
  for(let it=0;it<6;it++){let need=0;const c=new THREE.QuadraticBezierCurve3(a,mid,b);for(let k=1;k<24;k++){c.getPoint(k/24,q);for(const n of E.nodes){if(n===A||n===B||!n.group||n.top==null)continue;
   if(Math.hypot(q.x-n.pos.x,q.z-n.pos.z)<n.w*1.15+r+1.5)need=Math.max(need,n.top+3-q.y)}}if(need<=0)break;mid.y+=need*1.2}mid.y=Math.min(mid.y,Math.max(a.y,b.y)+18+a.distanceTo(b)*.22);return mid};   // capped: never a towering loop
+// Rail sync: each major rail ENDS where it meets its tower's swirl helix (same point, radius and height as the helix start, tangent-continuous),
+// instead of running on to the roof near the tower axis. helixAt() is the swirl's own helix (same params, same per-tower order/cap), computed from the
+// plain arc; railSync() rebuilds the rail as two cubics: helix start -> arc midpoint (horizontal, same clearance height) -> other helix start. +0 draws.
+const HXN={},HXCAP=TIER==='low'?3:6,RAILSYNC=!(/[?&]debug=1/.test(location.search)&&Q.get('railsync')==='0');   // ?debug=1&railsync=0 = old roof endpoints (A/B audits only)
+const helixAt=(cu,end,n)=>{if(!n)return null;const k=HXN[n.name]=(HXN[n.name]||0)+1;if(k>HXCAP)return null;const p0=cu.getPoint(end?1:0);if(p0.y<8)return null;const tA=cu.getTangent(end?1:0).clone();if(!end)tA.negate();
+ const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+(k-1)*.35,a0=Math.atan2(dz,dx),dir=(dx*tA.z-dz*tA.x)>0?-1:1,drop=Math.min(22,Math.max(6,p0.y-6)),turns=1.1+.12*k,lead=.22,TT=turns*6.283;
+ const H=(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=R*(1+.06*u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
+ const q=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q).normalize();return {k,H,q,ht,R}};
+const railSync=(c0,hx)=>{if(!hx[0]&&!hx[1])return c0;const P0=hx[0]?hx[0].q.clone():c0.v0.clone(),P3=hx[1]?hx[1].q.clone():c0.v2.clone(),d0=hx[0]?hx[0].ht.clone().negate():c0.getTangent(0),d3=hx[1]?hx[1].ht.clone():c0.getTangent(1);
+ const M=c0.getPoint(.5),T=c0.getTangent(.5),l0=P0.distanceTo(M)*.5,l3=P3.distanceTo(M)*.5,cp=new THREE.CurvePath();
+ cp.add(new THREE.CubicBezierCurve3(P0,P0.clone().addScaledVector(d0,l0),M.clone().addScaledVector(T,-l0),M.clone()));cp.add(new THREE.CubicBezierCurve3(M.clone(),M.clone().addScaledVector(T,l3),P3.clone().addScaledVector(d3,-l3),P3));
+ const gp=THREE.CurvePath.prototype.getPoint;cp.getPoint=(t,o)=>gp.call(cp,Math.min(1-1e-7,Math.max(0,t)),o);   // CurvePath.getPoint(1) can return null (float), clamp
+ cp.v0=P0;cp.v2=P3;return cp};   // v0/v2 kept: garage decks read the end heights
 pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p);
  const mid=arcMid(a,b,A,B,i,.18+2.1*Math.sqrt(p.tvl_xrp/maxT));
- const curve=new THREE.QuadraticBezierCurve3(a,mid,b);const share=Math.sqrt(p.tvl_xrp/maxT),r=.18+2.1*share,L=p.locked_pct/100,minor=p.tvl_xrp<100;const g=new THREE.Group();S.add(g);const b0={rail:1,pulse:0};const lite=TIER==='low'&&rankT.indexOf(p)>=12;
+ const curve0=new THREE.QuadraticBezierCurve3(a,mid,b);const share=Math.sqrt(p.tvl_xrp/maxT),r=.18+2.1*share,L=p.locked_pct/100,minor=p.tvl_xrp<100;const hx=minor||!RAILSYNC?null:[helixAt(curve0,0,A),helixAt(curve0,1,B)],curve=hx?railSync(curve0,hx):curve0;const g=new THREE.Group();S.add(g);const b0={rail:1,pulse:0};const lite=TIER==='low'&&rankT.indexOf(p)>=12;
  const solid=new THREE.Mesh(new THREE.TubeGeometry(curve,64,r,8),new THREE.MeshBasicMaterial({color:new THREE.Color(0x3cf3ff).multiplyScalar(.15+.95*L),transparent:true,opacity:minor?.25:.18+.75*L,depthWrite:false,blending:THREE.AdditiveBlending}));
  solid.userData={kind:'bridge',pool:p};g.add(solid);pick.push(solid);
  const core=new THREE.Mesh(new THREE.TubeGeometry(curve,64,Math.max(.06,r*.28),5),new THREE.MeshBasicMaterial({color:0xe8ffff,transparent:true,opacity:minor?.3:.35+.65*L}));g.add(core);b0.solid=solid;b0.core=core;
@@ -622,7 +635,7 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
  const sc=L>=.7?0x3cf3ff:L>=.3?0xffb000:0xff3b2f;const kiosk=new THREE.Mesh(new THREE.BoxGeometry(.9,2.2,.5),new THREE.MeshStandardMaterial({color:0x0b1222,metalness:.8,roughness:.3,emissive:sc,emissiveIntensity:.12}));kiosk.position.y=1.1;if(!lite)term.add(kiosk);
  const scr=new THREE.Mesh(new THREE.PlaneGeometry(.8,.6),new THREE.MeshBasicMaterial({color:sc}));scr.position.set(0,1.6,.26);if(!lite)term.add(scr);term.lookAt(b.x,0,b.z);S.add(term);
  const th=new THREE.Mesh(new THREE.BoxGeometry(1.4,3,1.4),new THREE.MeshBasicMaterial({visible:false}));th.position.y=1.5;th.userData={kind:'terminal',pool:p};term.add(th);pick.push(th);
- bridges.push(Object.assign(b0,{p,curve,r,L,minor,group:g,term,share,Lv:L}))});
+ bridges.push(Object.assign(b0,{p,curve,r,L,minor,group:g,term,share,Lv:L,hx}))});
 
 // ---------- Forever Rails: metallic rails + gold edge glow along both sides of every bridge; coverage = LP locked in blackholed wallets ----------
 // ONE merged mesh for all bridges (per-vertex bridge index + arc position; shader clips at b.Lv, so live lockFX animates the rails extending).
@@ -675,17 +688,17 @@ const veinW=b=>b.forever?Math.min(.88,Math.max(.28,.28+.6*(Math.log10(Math.max(1
 // flow phase/speed/thickness/colour continue the rail core's so it reads as one stream; tube tapers + fades at the tail.
 {const LOW=TIER==='low',SEGH=LOW?20:MOBILE?32:48,SEGB=LOW?6:MOBILE?8:12,RAD=LOW?4:5,geos=[],paths=[],ranges=[],per={},LOCKC=new THREE.Color(0xffb020),CYC=new THREE.Color(0xbff8ff),GOLD=new THREE.Color(0xffc64a),kAt=(cu,t)=>{const h=1e-3;t=Math.min(1-2*h,Math.max(2*h,t));const a=cu.getPoint(t-h),m=cu.getPoint(t),z=cu.getPoint(t+h),d1=z.clone().sub(a),d2=z.clone().add(a).addScaledVector(m,-2);return 4*d1.clone().cross(d2).length()/Math.max(1e-12,d1.length()**3)},kRail=(cu,end)=>{const h=.002;return kAt(cu,end?1-h:h)},tA=new THREE.Vector3(),cP=new THREE.Vector3();
  bridges.forEach(b=>{if(b.minor||!b.core)return;const Lr=b.curve.getLength(),dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5,cr=Math.max(.06,b.r*.28);
- [0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a];if(!n)return;const k=per[n.name]=(per[n.name]||0)+1;if(k>(LOW?3:6))return;   // busy towers: cap swirls so they never starburst
+ [0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a];if(!n)return;const hs=b.hx&&b.hx[end];if(b.hx&&!hs)return;const k=hs?hs.k:(per[n.name]=(per[n.name]||0)+1);if(k>(LOW?3:6))return;   // busy towers: cap swirls so they never starburst
   const p0=b.curve.getPoint(end?1:0);if(p0.y<8)return;b.curve.getTangent(end?1:0,tA);if(!end)tA.negate();   // rail's travel direction at the tower end
   const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+(k-1)*.35,a0=Math.atan2(dz,dx);
   const dir=(dx*tA.z-dz*tA.x)>0?-1:1,drop=Math.min(22,Math.max(6,p0.y-6)),turns=1.1+.12*k,lead=.22,TT=turns*6.283;   // spin the way the rail is already curving
-  const H=(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=R*(1+.06*u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
+  const H=hs?hs.H:(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=R*(1+.06*u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
   const q1=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q1).normalize(),D=p0.distanceTo(q1),kr=kRail(b.curve,end),hb=D*.42;
    // G2-ish join: pick the first handle so the lead-in starts with the rail's own curvature (no sudden tightening), penalising any sharp bend inside it
-   let bz=null,best=1e9;for(const f of [.3,.4,.5,.6,.75,.9]){const c3=new THREE.CubicBezierCurve3(p0.clone(),p0.clone().addScaledVector(tA,D*f),q1.clone().addScaledVector(ht,-hb),q1.clone());let km=0;for(let j=1;j<6;j++)km=Math.max(km,kAt(c3,j/6));const cost=Math.abs(kAt(c3,0)-kr)+.5*km;if(cost<best){best=cost;bz=c3}}
-  const pts=bz.getPoints(SEGB);for(const p of pts.slice(1)){const ox=p.x-n.pos.x,oz=p.z-n.pos.z,d=Math.hypot(ox,oz);if(d<Rin){p.x=n.pos.x+ox/d*Rin;p.z=n.pos.z+oz/d*Rin}}   // never cut through the tower
+   let bz=null,best=1e9;if(!hs)for(const f of [.3,.4,.5,.6,.75,.9]){const c3=new THREE.CubicBezierCurve3(p0.clone(),p0.clone().addScaledVector(tA,D*f),q1.clone().addScaledVector(ht,-hb),q1.clone());let km=0;for(let j=1;j<6;j++)km=Math.max(km,kAt(c3,j/6));const cost=Math.abs(kAt(c3,0)-kr)+.5*km;if(cost<best){best=cost;bz=c3}}
+  const pts=hs?[hs.q.clone(),hs.H(.01,new THREE.Vector3())]:bz.getPoints(SEGB);if(!hs)for(const p of pts.slice(1)){const ox=p.x-n.pos.x,oz=p.z-n.pos.z,d=Math.hypot(ox,oz);if(d<Rin){p.x=n.pos.x+ox/d*Rin;p.z=n.pos.z+oz/d*Rin}}   // never cut through the tower
   for(let j=1;j<=SEGH;j++)pts.push(H(j/SEGH,new THREE.Vector3()));
-  const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=SEGB+SEGH,lock=b.forever?1:0,UB=SEGB/NS,c=CYC.clone().lerp(LOCKC,lock*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
+  const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=(hs?0:SEGB)+SEGH,lock=b.forever?1:0,UB=(hs?1:SEGB)/NS,c=CYC.clone().lerp(LOCKC,lock*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
   // colour starts cyan (activity colours do not exist yet at build) and is repainted from b.actCol by swirlRecolor(); vein width is packed into fl.y (= sp + 8*round(100*vw))
   const P={cv,b,c:lock?GOLD:c.clone(),sp:lock?sp*.45:sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z},vw=veinW(b);
   const shell=(rad,aMul,core)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*4),fy=sp+8*Math.round(100*vw*cr/rad);

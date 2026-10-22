@@ -96,7 +96,7 @@ function box(parent,m,x,y,z,sx,sy,sz,rot=0){const o=mesh(parent,new THREE.BoxGeo
 function build(kind){
  const c=state();
  if(importedKinds.has(kind)){if(modelFailures[kind]){build(kind==='dragon'?'brute':kind==='bat'?'ghoul':'gravecaller');return root;}buildImported(kind,c);return root;}
- if(root)scene.remove(root);root=group(scene);parts={};importedModel=null;importedMixer=null;importedKind=null;const skin=mat(c.skin),armor=mat(c.armor,.48,.35),metal=mat(c.metal,.38,.68),glow=mat(c.accent,.28,.2,c.accent,c.glow);
+ loadGeneration++;if(root)scene.remove(root);root=group(scene);parts={};importedModel=null;importedMixer=null;importedKind=null;const skin=mat(c.skin),armor=mat(c.armor,.48,.35),metal=mat(c.metal,.38,.68),glow=mat(c.accent,.28,.2,c.accent,c.glow);
  const b=c.bulk,h=c.head,w=c.weapon;const tall=kind==='brute'?1.12:kind==='ghoul'?.92:1;
  parts.body=group(root,0,0,0);
  const torsoY=kind==='gravecaller'?1.27:1.38;
@@ -169,7 +169,7 @@ function buildImported(kind,c){
  const generation=++loadGeneration;
  if(root)scene.remove(root);root=group(scene);parts={};importedModel=null;importedMixer=null;importedKind=kind;
  $('status').textContent='Loading '+modelLabels[kind].replace(' · ANIMATED','')+'…';
- if(!modelPromises[kind])modelPromises[kind]=(async()=>{const response=await fetch('assets/enemy-models/'+kind+'.glb.b64');if(!response.ok)throw new Error('model payload HTTP '+response.status);const encoded=(await response.text()).replace(/\\s/g,'');const bytes=Uint8Array.from(atob(encoded),ch=>ch.charCodeAt(0));return await new Promise((resolve,reject)=>gltfLoader.parse(bytes.buffer,'',resolve,reject));})();
+ if(!modelPromises[kind])modelPromises[kind]=(async()=>{const response=await fetch('assets/enemy-models/'+kind+'.glb.b64');if(!response.ok)throw new Error('model payload HTTP '+response.status);const encoded=(await response.text()).replace(/\s/g,'');const bytes=Uint8Array.from(atob(encoded),ch=>ch.charCodeAt(0));return await new Promise((resolve,reject)=>gltfLoader.parse(bytes.buffer,'',resolve,reject));})();
  modelPromises[kind].then(gltf=>{models[kind]=gltf;if(generation!==loadGeneration)return;const model=cloneSkeleton(gltf.scene);root=group(scene);root.add(model);importedModel=model;importedKind=kind;model.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(model),size=bounds.getSize(new THREE.Vector3()),center=bounds.getCenter(new THREE.Vector3());model.position.sub(center);model.position.y+=size.y*.5;const maxDim=Math.max(size.x,size.y,size.z)||1;model.scale.setScalar(2.35/maxDim);importedMixer=new THREE.AnimationMixer(model);const idle=gltf.animations.find(clip=>/idle/i.test(clip.name))||gltf.animations[0];if(idle)importedMixer.clipAction(idle).play();pose='idle';applyImportedLook(c);$('status').textContent=modelLabels[kind].replace(' · ANIMATED','')+' loaded · '+gltf.animations.length+' animation clips · CC0';
  }).catch(error=>{if(generation!==loadGeneration)return;modelFailures[kind]=true;modelPromises[kind]=null;models[kind]=null;importedKind=null;importedModel=null;importedMixer=null;$('status').textContent='Model load failed ('+error.message+'). Using procedural fallback.';build(kind==='dragon'?'brute':kind==='bat'?'ghoul':'gravecaller');});
 }

@@ -461,7 +461,7 @@ function updCreature(cr, dt, t, P, distP) {
   else {
     if (W.inForest && distP < 9 && cr.cool <= 0 && !W.enc) {
       if (tp.flees && distP < (run ? 7 : 3.2) && !cr.calm) { cr.st = 'flee'; cr.t = 2.5; }
-      else { alert = true; lookYaw = Math.atan2(Math.sin(toP - cr.yaw), Math.cos(toP - cr.yaw)); if ((tp.approach || cr.calm) && distP > 2.6) { steer(cr, dt, P.pos.x, P.pos.z, L.speed * .6); } else steer(cr, dt, cr.x, cr.z, 0); wag = !!cr.calm; }
+      else { alert = true; lookYaw = Math.atan2(Math.sin(toP - cr.yaw), Math.cos(toP - cr.yaw)); if ((tp.approach || cr.calm || (ZONE && cr.slot.hostile)) && distP > 2.6) { steer(cr, dt, P.pos.x, P.pos.z, cr.slot.hostile ? L.speed * .9 : L.speed * .6); } else steer(cr, dt, cr.x, cr.z, 0); wag = !!cr.calm; }
     } else if (cr.st === 'idle') { steer(cr, dt, cr.x, cr.z, 0); sniff = true; if (cr.t < 0) { pickWander(cr); } }
     else if (cr.st === 'wander') { const d = steer(cr, dt, cr.tx, cr.tz, L.speed); if (d < .6 || cr.t < 0) { cr.st = 'idle'; cr.t = 1.5 + Math.random() * 4; } }
   }
@@ -766,9 +766,14 @@ function zoneFrame(dt, t) {
   UNI.uT.value = t; UNI.uPl.value.set(P.pos.x, P.pos.y, P.pos.z);
   if (explore && !W.enc && !P.fp) { const cp = c.C.position, hx = P.pos.x, hz = P.pos.z; let f = 1; for (let k = 1; k <= 8; k++) { const u = k / 8, x = hx + (cp.x - hx) * u, z = hz + (cp.z - hz) * u; const o = blocked(x, z, .45); if (o && o.r > .3) { f = Math.max(.25, (k - 1) / 8); break; } } if (f < 1) { cp.x = hx + (cp.x - hx) * f; cp.z = hz + (cp.z - hz) * f; cp.y = Math.max(cp.y, P.pos.y + 1.6); c.C.lookAt(hx, P.pos.y + 1.4, hz); } }
   for (const s of Z.spawns) { if (!s.cr && !(s.when && !s.when())) { s.cool = (s.cool || 0) - dt; if (s.cool <= 0 && Math.hypot(P.pos.x - s.x, P.pos.z - s.z) > 25) spawn(s); } }
-  for (const cr of W.creatures.slice()) if (cr.slot.zone === Z) updCreature(cr, dt, t, P, Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z));
+  for (const cr of W.creatures.slice()) if (cr.slot.zone === Z) {
+    const d = Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z);
+    updCreature(cr, dt, t, P, d);
+    // Designated hostile spawns initiate combat only during active exploration.
+    if (explore && !W.enc && !W.modal && cr.slot.hostile && cr.cool <= 0 && d < 2.8) { startEncounter(cr); break; }
+  }
   updCompanion(dt, t); if (W.enc) encCamera(dt);
-  for (const cr of W.creatures) { if (cr.slot.zone !== Z) { cr.tag.style.display = 'none'; continue; } const d = Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z); const s = explore && d < 14 && cr.mesh.visible && !W.enc && W.modal !== 'inspect' ? screenOf(cr.x, (cr.mesh.userData.rig.hw || cr.mesh.userData.rig.h) * 2.2 + .5, cr.z) : null; if (s) { cr.tag.style.display = 'block'; cr.tag.style.left = s[0] + 'px'; cr.tag.style.top = s[1] + 'px'; const txt = (cr.slot.qtag ? '⚠ ' : '') + game.SP[cr.sp].name + ' <span class="lv">Lv ' + cr.c.lv + '</span>'; if (cr.tag.__t !== txt) { cr.tag.innerHTML = txt; cr.tag.__t = txt; } } else cr.tag.style.display = 'none'; }
+  for (const cr of W.creatures) { if (cr.slot.zone !== Z) { cr.tag.style.display = 'none'; continue; } const d = Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z); const s = explore && d < 14 && cr.mesh.visible && !W.enc && W.modal !== 'inspect' ? screenOf(cr.x, (cr.mesh.userData.rig.hw || cr.mesh.userData.rig.h) * 2.2 + .5, cr.z) : null; if (s) { cr.tag.style.display = 'block'; cr.tag.style.left = s[0] + 'px'; cr.tag.style.top = s[1] + 'px'; const txt = (cr.slot.hostile ? '⚔ ' : cr.slot.qtag ? '⚠ ' : '') + game.SP[cr.sp].name + ' <span class="lv">Lv ' + cr.c.lv + '</span>'; if (cr.tag.__t !== txt) { cr.tag.innerHTML = txt; cr.tag.__t = txt; } } else cr.tag.style.display = 'none'; }
   if (W.maraTag) W.maraTag.style.display = 'none';
   if (compState && compState.tag) { const comp = game.activeComp(); const d = Math.hypot(compState.x - P.pos.x, compState.z - P.pos.z), s = explore && comp && d < 12 && !W.modal ? screenOf(compState.x, .9, compState.z) : null; compState.tag.style.display = s ? 'block' : 'none'; if (s) { compState.tag.style.left = s[0] + 'px'; compState.tag.style.top = s[1] + 'px'; const txt = '♥ ' + game.SP[comp.sp].name + ' Lv ' + comp.lv; if (compState.tag.textContent !== txt) compState.tag.textContent = txt; } }
   embers.update(dt); AUD.update(dt, c.U && c.U.day ? c.U.day.value : 0);

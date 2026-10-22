@@ -1,11 +1,7 @@
-# CinderWilds live terrain-query profiler (test-only)
+# CinderWilds world-query profiling helper
 
-With the forest loaded in a browser opened using `?wildstest` or `?debug=1`, call:
+Run `node client/js/wilds-query-profiler.test.mjs` and `npm test`.
 
-```js
-window.__wilds.test.profileWorldQueries({ columns: 50, rows: 50 })
-```
+`profileWorldQueries` accepts a bounded list of X/Z points and caller-supplied playable-area and obstacle callbacks. It reports elapsed milliseconds, sample count, outside-area count, blocked count, callback errors, average time per point, and throughput. The helper is isolated and is not wired into the live forest yet.
 
-This samples a deterministic X/Z grid across the base CinderWilds bounds and times the existing playable-area (`ell`) and obstacle-grid (`blocked`) callbacks. It returns elapsed milliseconds, sample count, outside-area count, blocked count, callback errors, average time per sample, and throughput. Grid dimensions are capped to 5,000 samples. The forest must be loaded, and this hook is unavailable in normal play.
-
-This is a diagnostic microbenchmark, not a production movement change. Browser load, device, thermal state, and other tabs affect timing; repeat runs and compare on the same device. It does not measure frame time, GPU work, network/server load, collision clearance, or player capacity. It profiles only the base CinderWilds; deep-area geometry is not included. The callback errors are counted and profiling continues, so any nonzero error count invalidates performance conclusions.
+Hark should connect it to the existing test-only CinderWilds preview callbacks only after reviewing and testing the browser runtime. This helper does not measure frame time, GPU work, networking, or player capacity. Repeat timings on the same device; nonzero callback errors invalidate performance conclusions.

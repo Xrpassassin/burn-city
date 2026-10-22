@@ -20,9 +20,18 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 @media (pointer:coarse){#codhud{bottom:auto;top:calc(58px + env(safe-area-inset-top));font-size:13px}#codhud b{font-size:19px}#prompt{top:auto;bottom:178px;white-space:normal;max-width:70vw;text-align:center}}
 #hurt{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 120px #f00;opacity:0;transition:opacity .2s}#vig{position:fixed;inset:0;pointer-events:none;z-index:1;opacity:0;transition:opacity 1s;background:radial-gradient(ellipse at 50% 55%,transparent 55%,rgba(10,2,0,.55) 100%)}body.zmood #vig{opacity:1}
 /* tapfix */ #signin,#tcteams{min-height:44px}
+
+#bcReturnTransition{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at center,#112a3b,#03060d 72%);color:#f2fbff;text-align:center;font:600 15px system-ui}
+#bcReturnTransition .bc-return-panel{width:min(90vw,540px);padding:28px 20px;border:1px solid #5deaff77;border-radius:18px;background:#06111bef;box-shadow:0 0 42px #22d8ff20}
+#bcReturnTransition .bc-return-icon{display:block;font-size:clamp(58px,12vw,96px);line-height:1.2;margin-bottom:18px;animation:bcReturnMove 1.4s ease-in-out both}
+#bcReturnTransition h2{margin:0 0 9px;font-size:clamp(18px,4vw,26px);letter-spacing:.1em}
+#bcReturnTransition p{margin:0;color:#b8d8e8}
+#bcReturnTransition.neon{background-color:#02040a;background-image:linear-gradient(#36f3ff12 1px,transparent 1px),linear-gradient(90deg,#36f3ff12 1px,transparent 1px),radial-gradient(ellipse at center,#102d4a,#02040a 72%);background-size:32px 32px,32px 32px,auto}
+#bcReturnTransition.neon .bc-return-panel{border-color:#36f3ff99;box-shadow:0 0 48px #36f3ff28}
+@keyframes bcReturnMove{0%{transform:translateX(-38vw) translateY(12px) rotate(-8deg);opacity:.25}35%{opacity:1}100%{transform:translateX(38vw) translateY(-8px) rotate(4deg);opacity:1}}
 </style>
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script></head><body><div id="vig"></div>
-<div id="tbar"></div><button id="exit" hidden style="padding:8px 14px">✕ Menu</button><div id="hud"><span id="me" hidden style="white-space:nowrap;align-self:flex-start;padding:2px 8px;border-radius:6px;border:2px solid;font-weight:700"></span><span id="info"></span><span id="fuel" hidden><i></i></span></div>
+<div id="tbar"></div><button id="returnCity" hidden type="button" style="position:fixed;top:8px;left:8px;z-index:100;padding:9px 12px;min-height:44px;border:1px solid #36f3ff;border-radius:10px;background:#061824ee;color:#bffaff;font:700 13px system-ui;cursor:pointer">↩ Return to City</button><button id="exit" hidden style="padding:8px 14px">✕ Menu</button><div id="hud"><span id="me" hidden style="white-space:nowrap;align-self:flex-start;padding:2px 8px;border-radius:6px;border:2px solid;font-weight:700"></span><span id="info"></span><span id="fuel" hidden><i></i></span></div>
 <div id="menu"><h2>🔥 BURN CITY ARENA</h2><div id="tron" class="small" style="border:1px solid #2ff4;border-radius:10px;padding:8px 12px;max-width:360px"><b>🏍 Light Cycles</b><br><button data-m="tron">Quick Play (free-for-all)</button>
 <div style="margin-top:6px"><b>Create a match</b><br><select id="tcteams"><option value="0">Free-for-all</option><option value="2">2 teams</option><option value="3">3 teams</option><option value="4">4 teams</option></select>
 <label><input id="tcff" type="checkbox" checked> Teammates' trails kill</label> <label><input id="tcbo3" type="checkbox"> Best of 3</label><br>
@@ -37,6 +46,7 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <script type="module">
 import { createHeli } from './heli.js'; import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { sfx as SFX } from './sfx.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { createZombieAudio } from './zaudio.js'; import { createMusic } from './music.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
 const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
+const CITY_RETURN = ['airport', 'aegis-pyramid-plaza'].includes(P.get('from'));
 const $ = s => document.querySelector(s), mobile = matchMedia('(pointer:coarse)').matches;
 const qr = x => $('#qr').innerHTML = `<img src="${x.qr}"><div class=small>Scan with XAMAN</div>`;
 let owned = [];
@@ -149,6 +159,21 @@ function leave(msg) {               // full teardown so the next mode (or the ci
 }
 $('#rkstart').onclick = e => { e.stopPropagation(); net?.ws.readyState === 1 && net.ws.send(JSON.stringify({ t: 'start' })); };
 $('#exit').onclick = e => { e.stopPropagation(); leave(); };
+function returnToCity() {
+ if (document.getElementById('bcReturnTransition')) return;   // repeated taps: one teardown, one overlay
+ const airport=P.get('from')==='airport';
+ leave();
+ const overlay=document.createElement('div'); overlay.id='bcReturnTransition'; overlay.className=airport?'flight':'neon';
+ overlay.setAttribute('role','status'); overlay.setAttribute('aria-live','polite');
+ overlay.innerHTML='<div class="bc-return-panel"><span class="bc-return-icon"></span><h2></h2><p></p></div>';
+ overlay.querySelector('.bc-return-icon').textContent=airport?'✈':'🏍';
+ overlay.querySelector('h2').textContent=airport?'RETURN FLIGHT':'AEGIS TRANSIT';
+ overlay.querySelector('p').textContent=airport?'Extraction secured. Returning to BURN City International…':'Exiting the Neon Grid. Returning to the Aegis Pyramid…';
+ document.body.append(overlay);
+ setTimeout(()=>{ location.href='../'; },1450);
+}
+$('#returnCity').onclick = e => { e.stopPropagation(); returnToCity(); };
+addEventListener('pageshow', e => { if (e.persisted) document.getElementById('bcReturnTransition')?.remove(); });
 document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => start(b.dataset.m));
 $('#dailyBtn').onclick = () => start('zombie', null, '&daily=1');
 if (P.get('daily') === '1') setTimeout(() => start('zombie', null, '&daily=1'), 600);
@@ -327,7 +352,8 @@ const sfx = SFX; sfx.ctx = sfx.unlock;
   rg.oninput = () => { sfx.unlock(); sfx.setVol(+rg.value); if (+rg.value > 0 && sfx.muted) { sfx.setMuted(false); mu.checked = false; } show(); }; rg.onchange = () => sfx.buy();
   mu.onchange = () => { sfx.unlock(); sfx.setMuted(mu.checked); show(); };
   r.append('🔊 Sound ', rg, ' ', v); ml.append(mu, ' Mute all sound'); $('#set').append(r, ml); }
-let groanT = 2; $('#tbar').append($('#gear'), $('#exit'));
+let groanT = 2; $('#tbar').append($('#gear'), $('#exit'), $('#returnCity'));
+$('#returnCity').hidden = !CITY_RETURN;
 // ---- Zombies audio director (positional CC0 samples, heartbeat) + match music ----
 const ZA = createZombieAudio(sfx, { base: new URL('./sfx/', import.meta.url).href, mobile }), MUSIC = createMusic(sfx, { root: new URL('../music/', import.meta.url).href });
 { const ml = document.createElement('label'), mc = document.createElement('input'); mc.type = 'checkbox'; mc.checked = MUSIC.on; mc.onchange = () => { sfx.unlock(); MUSIC.setOn(mc.checked); }; ml.append(mc, ' 🎵 Music (Burn City Lives, then the BURN playlist)'); $('#set').append(ml); }

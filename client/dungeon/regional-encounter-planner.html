@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Eternal Grind — Regional Encounter Planner</title>
+<style>
+:root{color-scheme:dark;--bg:#101613;--panel:#18211c;--line:#3b4b40;--muted:#adbbb0;--accent:#d89a63;--green:#88b28b;--red:#ce7162}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#e5ece5;font:14px/1.45 system-ui,-apple-system,sans-serif}main{max-width:1150px;margin:auto;padding:18px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--accent);font-weight:800}h1{font-size:clamp(23px,4vw,34px);margin:4px 0}h2{font-size:17px;margin:0 0 10px}p{color:var(--muted);margin:5px 0 14px}.layout{display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:14px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}.field{margin:13px 0}.field label{display:flex;justify-content:space-between;gap:8px;font-weight:650;margin-bottom:5px}.field output{color:var(--accent);font-variant-numeric:tabular-nums}input[type=range],select{width:100%;accent-color:var(--accent)}select,button{background:#26332b;border:1px solid #536456;color:#eef2ec;padding:9px;border-radius:8px;font:inherit}button{cursor:pointer}.btns{display:flex;gap:8px;margin-top:12px}.btns button{flex:1}.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}.metric{padding:10px;background:#222d25;border:1px solid #35463a;border-radius:9px}.metric small{display:block;color:var(--muted)}.metric strong{font-size:21px}.map{position:relative;min-height:360px;overflow:hidden;border:1px solid #4a5a48;border-radius:10px;background:radial-gradient(ellipse at 50% 50%,#334b34 0,#203626 42%,#17251c 72%,#121b16 100%)}.map:before{content:"";position:absolute;inset:0;background-image:radial-gradient(#70835a44 1px,transparent 1.5px);background-size:19px 19px;opacity:.8}.ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:1px dashed #9eae7655;border-radius:50%;pointer-events:none}.zone{position:absolute;border:1px solid #a1b68a;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;color:#e6ead8;text-shadow:0 1px 4px #000;background:#2a3b2866}.zone.safe{background:#344b3caa;border-color:#90c0a0}.zone.danger{background:#63382b77;border-color:#d58a64}.pin{position:absolute;transform:translate(-50%,-50%);font-size:20px;filter:drop-shadow(0 2px 3px #000);cursor:default}.maplabel{position:absolute;left:10px;top:8px;font-size:11px;color:#d1dccb;text-shadow:0 1px 4px #000}.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:9px;font-size:12px;color:var(--muted)}.legend span:before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--dot);margin-right:5px}.encounters{display:grid;gap:8px;margin-top:12px}.encounter{border:1px solid var(--line);background:#121a15;border-radius:9px;padding:10px}.enc-head{display:flex;align-items:start;justify-content:space-between;gap:8px}.enc-head strong{font-size:14px}.pill{white-space:nowrap;font-size:11px;padding:3px 7px;border:1px solid #52614f;border-radius:99px;color:#d5e0d0}.encounter p{font-size:12px;margin:5px 0 0}.mix{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.mob{font-size:11px;background:#2a352c;border-radius:5px;padding:4px 6px}.note{font-size:12px;border-left:3px solid var(--accent);padding:8px 10px;background:#252b21;margin-top:12px;color:#d6ddd0}.rules{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.rule{padding:10px;border:1px solid var(--line);border-radius:8px}.rule b{display:block;margin-bottom:4px}.rule small{color:var(--muted)}footer{color:var(--muted);font-size:12px;margin:14px 0}
+@media(max-width:760px){main{padding:10px}.layout{grid-template-columns:1fr}.map{min-height:310px}.summary{gap:5px}.metric{padding:8px}.metric strong{font-size:18px}.rules{grid-template-columns:1fr 1fr}}
+</style></head>
+<body><main>
+<div class="eyebrow">Eternal Grind · World design</div><h1>Regional Encounter Planner</h1>
+<p>Explore how a safe frontier transitions into dangerous territory. Tune a hypothetical zone and inspect its encounter mix before Hark implements anything in production.</p>
+<div class="layout">
+<section class="panel">
+<h2>Region parameters</h2>
+<div class="field"><label for="distance">Distance from safe gate <output id="distanceOut">35%</output></label><input id="distance" type="range" min="0" max="100" value="35"></div>
+<div class="field"><label for="threat">Threat tier <output id="threatOut">2 / 5</output></label><input id="threat" type="range" min="1" max="5" value="2"></div>
+<div class="field"><label for="density">Encounter density <output id="densityOut">45%</output></label><input id="density" type="range" min="10" max="100" value="45"></div>
+<div class="field"><label for="group">Group composition</label><select id="group"><option value="balanced">Balanced patrols</option><option value="ambush">Ambush territory</option><option value="ranged">Ranged support</option><option value="elite">Elite hunting grounds</option></select></div>
+<div class="field"><label for="event">Regional event</label><select id="event"><option value="none">No active event</option><option value="migration">Monster migration</option><option value="corruption">Corruption surge</option><option value="hunt">Elite hunt</option></select></div>
+<div class="btns"><button id="refresh">Rebuild plan</button><button id="reset">Reset</button></div>
+<div class="note">Design sandbox only. These controls do not spawn enemies in the live game or modify character stats.</div>
+</section>
+<section class="panel">
+<div class="summary">
+<div class="metric"><small>Planned groups</small><strong id="groups">—</strong></div>
+<div class="metric"><small>Elite chance</small><strong id="eliteChance">—</strong></div>
+<div class="metric"><small>Safety buffer</small><strong id="buffer">—</strong></div>
+</div>
+<div class="map" id="map"><div class="maplabel">ILLUSTRATIVE ZONE MAP · NOT TO SCALE</div><div class="ring" style="width:24%;height:24%"></div><div class="ring" style="width:48%;height:48%"></div><div class="ring" style="width:72%;height:72%"></div><div class="zone safe" style="width:20%;height:20%;left:7%;top:68%">Safe gate</div><div class="zone" style="width:27%;height:27%;left:29%;top:18%">Outer forest</div><div class="zone danger" style="width:34%;height:34%;left:57%;top:53%">Deep forest</div><div class="pin" style="left:17%;top:57%">🚪</div><div class="pin" style="left:45%;top:36%">🌲</div><div class="pin" style="left:71%;top:62%">☠️</div><div class="pin" style="left:82%;top:30%">⛺</div></div>
+<div class="legend"><span style="--dot:#90c0a0">Safe / protected</span><span style="--dot:#9eae76">Transition region</span><span style="--dot:#d58a64">High threat</span></div>
+<div class="encounters" id="encounters"></div>
+<div class="rules" id="rules"></div>
+</section></div>
+<footer>Planning output is deterministic and illustrative. No live zone, server protocol, combat, loot, saves, or progression is changed.</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const labels={crypt:'Cryptbound melee',brute:'Ashen Brute heavy',ghoul:'Plague Ghoul skirmisher',caster:'Gravecaller ranged',archer:'Bone Archer support',stalker:'Crypt Stalker ambusher',warden:'Grave Warden elite'};
+const descriptions={
+crypt:'Holds the front line and gives players a readable baseline melee opponent.',
+brute:'Slow, high-impact pressure. Telegraph attacks clearly and leave a meaningful recovery window.',
+ghoul:'Fast flank pressure. Keep damage modest and avoid unavoidable chain hits.',
+caster:'Ranged pressure that encourages movement and target prioritization.',
+archer:'Backline support; use clear projectile tells and avoid stacking too many ranged attackers.',
+stalker:'Ambush specialist. Telegraph its presence through audio, tracks, or environmental cues before the strike.',
+warden:'Rare elite with a distinct silhouette and a stronger telegraph; never silently scales into a regular mob.'
+};
+function calculate(){
+const dist=+$('distance').value,threat=+$('threat').value,density=+$('density').value,group=$('group').value,event=$('event').value;
+$('distanceOut').textContent=dist+'%';$('threatOut').textContent=threat+' / 5';$('densityOut').textContent=density+'%';
+const safe=dist<18,deep=dist>68,base=Math.max(1,Math.round((density/18)+(dist/35)+(threat/2)));
+let roster;
+if(group==='ambush')roster=['ghoul','stalker','crypt','stalker'];
+else if(group==='ranged')roster=['crypt','archer','caster','archer'];
+else if(group==='elite')roster=['brute','crypt','warden','caster'];
+else roster=['crypt','ghoul','brute','caster'];
+if(safe)roster=['crypt','ghoul'];
+if(deep&&threat>=4)roster.push('stalker','archer');
+if(event==='migration')roster.push('ghoul','ghoul','brute');
+if(event==='corruption')roster.push('caster','stalker');
+if(event==='hunt')roster.push('warden');
+const count=Math.min(9,Math.max(1,base+(event==='none'?0:1)));
+const chance=safe?0:Math.min(55,Math.round((dist*.22)+(threat*4)+(group==='elite'?14:0)+(event==='hunt'?18:0)));
+$('groups').textContent=count;$('eliteChance').textContent=chance+'%';$('buffer').textContent=safe?'Protected':dist<40?'Moderate':dist<70?'Low':'Minimal';
+const map=$('map');map.querySelectorAll('.generated').forEach(n=>n.remove());
+const nPins=Math.min(8,count+1);for(let i=0;i<nPins;i++){const pin=document.createElement('div');pin.className='pin generated';const x=25+((i*31+dist*2)%66),y=20+((i*23+threat*7)%68);pin.style.left=x+'%';pin.style.top=y+'%';pin.textContent=(i===nPins-1&&chance>25)?'👹':['⚔️','🦴','🕷️','🔮'][i%4];map.appendChild(pin)}
+const container=$('encounters');container.replaceChildren();
+for(let i=0;i<count;i++){
+const type=roster[i%roster.length],size=1+((i+threat)%3),role=type==='warden'?'Rare elite':type==='stalker'?'Ambush':type==='caster'||type==='archer'?'Ranged support':type==='brute'?'Heavy': 'Patrol';
+const card=document.createElement('div');card.className='encounter';
+const head=document.createElement('div');head.className='enc-head';const title=document.createElement('strong');title.textContent='Group '+(i+1)+': '+(labels[type]||type);const pill=document.createElement('span');pill.className='pill';pill.textContent=role;head.append(title,pill);
+const p=document.createElement('p');p.textContent=descriptions[type]||'Encounter role placeholder.';const mix=document.createElement('div');mix.className='mix';const m=document.createElement('span');m.className='mob';m.textContent='Group size: '+(safe?1:size);mix.appendChild(m);const m2=document.createElement('span');m2.className='mob';m2.textContent='Threat: '+threat+'/5';mix.appendChild(m2);if(event!=='none'){const m3=document.createElement('span');m3.className='mob';m3.textContent='Event influenced';mix.appendChild(m3)}card.append(head,p,mix);container.appendChild(card)
+}
+const ruleList=[
+['Protected start',safe?'No elite spawns; keep aggro forgiving.':'Starter protection ends only at a clearly signposted boundary.'],
+['Encounter spacing',density>70?'High density: enforce minimum separation and cap simultaneous aggro.':'Leave recovery and traversal space between groups.'],
+['Difficulty fairness',threat>=4?'Use stronger tells and counterplay; do not rely on inflated HP alone.':'Teach enemy roles before combining them.'],
+['Event handling',event==='none'?'No event modifiers active.':'Events alter composition, not core combat rules; show clear start/end cues.']
+];const rules=$('rules');rules.replaceChildren();for(const [title,body] of ruleList){const div=document.createElement('div');div.className='rule';const b=document.createElement('b');b.textContent=title;const small=document.createElement('small');small.textContent=body;div.append(b,small);rules.appendChild(div)}
+}
+['distance','threat','density','group','event'].forEach(id=>$(id).addEventListener('input',calculate));$('refresh').addEventListener('click',calculate);$('reset').addEventListener('click',()=>{$('distance').value=35;$('threat').value=2;$('density').value=45;$('group').value='balanced';$('event').value='none';calculate()});calculate();
+</script></body></html>

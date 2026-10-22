@@ -383,3 +383,13 @@ Merged 15 Xrpassassin branches from Oct 21 22:08–23:18 (feat/eternal-grind-pro
 ## Pyretheum residences stub (fix/tower-residence-stub, sw bc-v61-residence)
 `/api/tower/residence` (server/server.js, next to `/api/tower/midnightbluff`): 401 without a Xaman token, 429 when rate-limited, otherwise `503 {error:'not_available_yet', residences:[]}`. `client/js/tower-interior.js` shows "Private residences are not open yet…" for that error. Replace with the real XRPL NFT ownership check (Firekeepers / 589 Protocol / RACC → `residences:[{key,unit,kind,name}]`) when it is built.
 Known open items (Oct 22): live cams fall back because the running machine has no `Youtube_API` env (secret set Oct 21 but not applied; needs `fly secrets deploy` or `fly deploy`); Blacktide dock range is client-only (server `/api/bt` trusts the dock claim).
+
+## Blacktide NPC ships, spectral ocean, cannon combat + Play section (integrate/blacktide-npc, sw bc-v62-btnpc)
+Integrates Xrpassassin PRs #96 → #97 → #99 → #101 (stacked; tip #101 merged) and #103.
+- **Ocean** (`client/blacktide/ocean.js`): deterministic 16-component directional spectrum (adapted from DRIFT, MIT; `THIRD_PARTY_NOTICES.md`), analytic normals, wavelengths ≥ 62 so the 64² phone grid doesn't alias. Same `sampleOceanHeight` contract for ships/ports. Also fixes the main bug where `elapsed+=dt` sat inside a comment (waves were frozen).
+- **NPC ships** (`boats.js`, `boat-ai.js`): 3 procedural vessels (2 merchants, 1 patrol) on routes near the three ports; merchants evade, the patrol notices/approaches/engages. ~5 meshes each (≈15 draw calls).
+- **Combat** (`combat.js`, `cannon-ai.js`): player broadside damages/sinks NPCs; the patrol telegraphs (red lamp + message) then fires. **Client-side and cosmetic only**: no gold, loot, XP or server call on hits/sinks; hull 0 just disables the ship (no repair/respawn yet). Trade, `/api/bt`, ports/docking, hold upgrade and saves are unchanged and still server-authoritative. Still no PvP.
+- `?bttest` `__bt.state().boats` lists live NPCs (id, kind, x, z, health).
+- **Play section** (`client/js/play-menu.js`, #103): top-right `▶ Play` button opens a game picker; Blacktide moved out of the pause view menu into it. It calls `window.__launchBlacktide()` (app.js: stores `sessionStorage.bc_ret`, then `blacktide/`), so the `../` return link still restores Explore/Fly at the same spot. Hidden under `body.wl-travel`.
+- Tests: `npm run test:blacktide` (ocean, boat AI, cannon AI; also in `npm test`). CI: `.github/workflows/blacktide-ocean-test.yml`.
+- Gaps: NPC sinkings don't respawn until reload; no repair; cannonballs allocate a small geometry per shot (disposed on expiry).

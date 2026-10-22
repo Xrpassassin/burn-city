@@ -2,6 +2,7 @@
 // Intended for tests and profiling experiments, not production game loops.
 import { planNavigation } from './wilds-navigation-harness.mjs';
 import { updateNavigation } from './wilds-navigation-controller.mjs';
+import { validateWorldRoute } from './wilds-route-validation.mjs';
 
 const validPoint = p => !!p && Number.isFinite(p.x) && Number.isFinite(p.z);
 
@@ -17,9 +18,12 @@ export function simulateNavigation({
   maxTicks = 1000,
   maxStep = 0.5,
   arrivalRadius = 0.25,
+  routeValidationSpacing = 0.75,
+  maxValidationSamples = 5000,
+  isOutsidePlayableArea = () => false,
 } = {}) {
   if (!validPoint(start) || !validPoint(goal) || !bounds ||
-      typeof isBlocked !== 'function' || typeof canMoveTo !== 'function' ||
+      typeof isBlocked !== 'function' || typeof canMoveTo !== 'function' || typeof isOutsidePlayableArea !== 'function' ||
       !Number.isInteger(maxTicks) || maxTicks < 1 ||
       !Number.isFinite(maxStep) || maxStep <= 0) return null;
 
@@ -29,6 +33,24 @@ export function simulateNavigation({
       status: 'unreachable', position: { x: start.x, z: start.z }, ticks: 0,
       distanceTravelled: 0, blockedSteps: 0, routeRequests: 1,
       visited: route?.visited ?? 0, waypointCount: route?.path?.length ?? 0,
+    };
+  }
+
+  const validation = validateWorldRoute({
+    path: route.path,
+    isBlocked,
+    isOutsidePlayableArea,
+    sampleSpacing: routeValidationSpacing,
+    maxSamples: maxValidationSamples,
+  });
+  if (!validation || !validation.valid) {
+    return {
+      status: 'route-invalid',
+      reason: validation?.reason ?? 'invalid-validation-input',
+      validation,
+      position: { x: start.x, z: start.z },
+      ticks: 0, distanceTravelled: 0, blockedSteps: 0, routeRequests: 1,
+      visited: route.visited, waypointCount: route.path.length,
     };
   }
 

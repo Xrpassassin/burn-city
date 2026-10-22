@@ -601,14 +601,20 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
   fv.forEach(b=>{for(const [A,B] of [[N[b.p.a],N[b.p.b]],[N[b.p.b],N[b.p.a]]]){const d=B.pos.clone().sub(A.pos).setY(0).normalize(),tp=A.pos.clone().addScaledVector(d,A.w*2.25);_m.compose(_v.set(tp.x,3.3,tp.z),_q.setFromAxisAngle(UPV,Math.atan2(d.x,d.z)),_s.set(1,1,1));pm.setMatrixAt(k++,_m)}});
   pm.count=k;S.add(pm);anim.push(t=>pm.material.color.setScalar(.5+.08*Math.sin(t*1.6)))}}
 
+// Gold lock vein (gold pools only, b.forever): width as a fraction of the core tube radius, log scale on XRP locked (b.lockedXrp = tvl_xrp x locked share):
+// ~3.2k XRP -> .28 (thin), 1M+ XRP -> .88. Shared by the rail core and the swirl shaders (per-material uniform / packed into the swirl's fl.y), +0 draws.
+const veinW=b=>b.forever?Math.min(.88,Math.max(.28,.28+.6*(Math.log10(Math.max(1,b.lockedXrp||0))-3.5)/2.5)):0;let swirlRecolor=null;   // set by the AMM swirl block, called from actScore()
 // ---------- AMM rails polish: animated liquidity flow along every bridge core + 🔒 LOCKED FOREVER seals ----------
 // Locked = LP tokens held by verified black-holed wallets (server/eco.js isBlackhole: DisableMaster, no usable RegularKey, no SignerList).
 // Phone-light: one shared shader program for the flow, ONE instanced draw for every seal ring/chain link, DOM labels via the existing declutter.
-{const GLB=globalThis.BCGold,FV='varying vec2 vU;void main(){vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-  FF='uniform float t,op,sp;uniform vec3 c,g;uniform float lk;varying vec2 vU;void main(){float s=fract(vU.x*9.-t*sp);float streak=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);vec3 col=mix(c,g,lk*.55)*(.55+1.1*streak);gl_FragColor=vec4(col,op*(.55+.45*streak));}';
+{const GLB=globalThis.BCGold,FV='varying vec2 vU;varying vec3 vN;void main(){vU=uv;vN=normalMatrix*normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  FF='uniform float t,op,sp,vw;uniform vec3 c,g;uniform float lk;varying vec2 vU;varying vec3 vN;void main(){float s=fract(vU.x*9.-t*sp);float streak=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);'+
+  // gold pools: a gold vein down the middle of the core (view-facing band, width vw of the radius) instead of tinting the whole core
+  'vec3 n=normalize(vN);float off=sqrt(max(0.,1.-n.z*n.z));float vein=lk*(1.-smoothstep(vw*.7,vw,off));float pul=.8+.35*sin(t*1.6-vU.x*6.);'+
+  'vec3 col=mix(c*(.55+1.1*streak),g*1.25*pul,vein);gl_FragColor=vec4(col,op*mix(.55+.45*streak,1.,vein));}';
  const LOCKC=new THREE.Color(0xffb020),EMBC=new THREE.Color(0xff5a1a);
  bridges.forEach(b=>{if(!b.core)return;const o=b.core.material,L=b.L;b.core.material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,
-   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)},g:{value:LOCKC},lk:{value:b.forever?1:0}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material,dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v*dim}});{const sm=b.solid.material;let so=sm.opacity;Object.defineProperty(sm,'opacity',{get:()=>so,set:v=>{so=v*dim}});sm.opacity=so}o.dispose()});
+   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)},g:{value:LOCKC},lk:{value:b.forever?1:0},vw:{value:veinW(b)}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material,dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v*dim}});{const sm=b.solid.material;let so=sm.opacity;Object.defineProperty(sm,'opacity',{get:()=>so,set:v=>{so=v*dim}});sm.opacity=so}o.dispose()});
  const lk=bridges.filter(b=>(b.forever||b.L>=.01)&&!b.minor);
  if(lk.length){const links=TIER==='low'?1:3,im=new THREE.InstancedMesh(new THREE.TorusGeometry(1,.09,5,TIER==='low'?14:20),new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false}),lk.length*2*links);let k=0;const tg=new THREE.Vector3(),cc=new THREE.Color(),ZF=new THREE.Vector3(0,0,1),qa=new THREE.Quaternion();
   lk.forEach(b=>{if(b.forever)cc.copy(LOCKC).multiplyScalar(2.2);else cc.copy(EMBC).multiplyScalar(.6+1.0*b.L);/* gold seals only for gold pools; partly locked = ember */for(const u0 of [.07,.93])for(let j=0;j<links;j++){const u=u0+(u0<.5?1:-1)*j*.022,q=b.curve.getPoint(u);b.curve.getTangent(u,tg);
@@ -620,7 +626,7 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
 // ---------- AMM swirls: each rail end flows tangent-continuously into a helix wrapping its tower (ONE merged draw) + drifting sparks on the same path (ONE Points draw) ----------
 // Join: cubic Bezier lead-in leaves the rail end along the rail tangent and lands on the helix along the helix tangent (C1, no kink);
 // flow phase/speed/thickness/colour continue the rail core's so it reads as one stream; tube tapers + fades at the tail.
-{const LOW=TIER==='low',SEGH=LOW?20:MOBILE?32:48,SEGB=LOW?6:MOBILE?8:12,RAD=LOW?4:5,geos=[],paths=[],per={},LOCKC=new THREE.Color(0xffb020),CYC=new THREE.Color(0xbff8ff),GOLD=new THREE.Color(0xffc64a),kAt=(cu,t)=>{const h=1e-3;t=Math.min(1-2*h,Math.max(2*h,t));const a=cu.getPoint(t-h),m=cu.getPoint(t),z=cu.getPoint(t+h),d1=z.clone().sub(a),d2=z.clone().add(a).addScaledVector(m,-2);return 4*d1.clone().cross(d2).length()/Math.max(1e-12,d1.length()**3)},kRail=(cu,end)=>{const h=.002;return kAt(cu,end?1-h:h)},tA=new THREE.Vector3(),cP=new THREE.Vector3();
+{const LOW=TIER==='low',SEGH=LOW?20:MOBILE?32:48,SEGB=LOW?6:MOBILE?8:12,RAD=LOW?4:5,geos=[],paths=[],ranges=[],per={},LOCKC=new THREE.Color(0xffb020),CYC=new THREE.Color(0xbff8ff),GOLD=new THREE.Color(0xffc64a),kAt=(cu,t)=>{const h=1e-3;t=Math.min(1-2*h,Math.max(2*h,t));const a=cu.getPoint(t-h),m=cu.getPoint(t),z=cu.getPoint(t+h),d1=z.clone().sub(a),d2=z.clone().add(a).addScaledVector(m,-2);return 4*d1.clone().cross(d2).length()/Math.max(1e-12,d1.length()**3)},kRail=(cu,end)=>{const h=.002;return kAt(cu,end?1-h:h)},tA=new THREE.Vector3(),cP=new THREE.Vector3();
  bridges.forEach(b=>{if(b.minor||!b.core)return;const Lr=b.curve.getLength(),dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5,cr=Math.max(.06,b.r*.28);
  [0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a];if(!n)return;const k=per[n.name]=(per[n.name]||0)+1;if(k>(LOW?3:6))return;   // busy towers: cap swirls so they never starburst
   const p0=b.curve.getPoint(end?1:0);if(p0.y<8)return;b.curve.getTangent(end?1:0,tA);if(!end)tA.negate();   // rail's travel direction at the tower end
@@ -633,19 +639,25 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
   const pts=bz.getPoints(SEGB);for(const p of pts.slice(1)){const ox=p.x-n.pos.x,oz=p.z-n.pos.z,d=Math.hypot(ox,oz);if(d<Rin){p.x=n.pos.x+ox/d*Rin;p.z=n.pos.z+oz/d*Rin}}   // never cut through the tower
   for(let j=1;j<=SEGH;j++)pts.push(H(j/SEGH,new THREE.Vector3()));
   const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=SEGB+SEGH,lock=b.forever?1:0,UB=SEGB/NS,c=CYC.clone().lerp(LOCKC,lock*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
-  const shell=(rad,aMul)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*4);
+  // colour starts cyan (activity colours do not exist yet at build) and is repainted from b.actCol by swirlRecolor(); vein width is packed into fl.y (= sp + 8*round(100*vw))
+  const P={cv,b,c:lock?GOLD:c.clone(),sp:lock?sp*.45:sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z},vw=veinW(b);
+  const shell=(rad,aMul,core)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*4),fy=sp+8*Math.round(100*vw*cr/rad);
    for(let i=0;i<=NS;i++){const u=i/NS;cv.getPointAt(u,cP);const tap=1-.75*Math.pow(u,1.6),fade=1-THREE.MathUtils.smoothstep(u,.62,1),ph=9*(end?1+u*SL/Lr:-u*SL/Lr);
-    for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,op*aMul*fade],v*4);fl.set([ph,sp,lock*THREE.MathUtils.smoothstep(u,0,UB*1.5),u],v*4)}}
-   tg.setAttribute('sc',new THREE.BufferAttribute(ca,4));tg.setAttribute('fl',new THREE.BufferAttribute(fl,4));tg.deleteAttribute('normal');geos.push(tg)};
-  shell(cr,1);if(!LOW)shell(cr*2.6,.32);   // core matches the rail core exactly; soft glow sheath (same draw) makes it read from a distance
-  paths.push({cv,c:lock?GOLD:c,sp:lock?sp*.45:sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z})})});
+    for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,op*aMul*fade],v*4);fl.set([ph,fy,lock*THREE.MathUtils.smoothstep(u,0,UB*1.5),u],v*4)}}
+   tg.setAttribute('sc',new THREE.BufferAttribute(ca,4));tg.setAttribute('fl',new THREE.BufferAttribute(fl,4));geos.push(tg);   // normal kept: the lock vein needs it (view-facing band)
+   const st0=ranges.length?ranges[ranges.length-1].end:0;ranges.push({P,core,start:st0,end:st0+cnt})};
+  shell(cr,1,1);if(!LOW)shell(cr*2.6,.32,0);   // core matches the rail core exactly; soft glow sheath (same draw) makes it read from a distance
+  paths.push(P)})});
  if(geos.length){const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,uniforms:{t:U.t},
-   vertexShader:'attribute vec4 sc;attribute vec4 fl;varying vec4 vF;varying vec4 vC;varying vec2 vU;void main(){vF=fl;vC=sc;vU=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-   // gold swirls dissolve over their lower half: cells crumble away (moving with the flow) and the edge left behind glows; normal swirls (vF.z=0) unchanged
-   fragmentShader:'uniform float t;varying vec4 vF;varying vec4 vC;varying vec2 vU;void main(){float s=fract(vF.x-t*vF.y);float st=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);float sh=.55+.45*sin(t*1.3-vF.x*.35);st=mix(st,sh,vF.z);vec3 col=mix(vC.rgb,vec3(1.,.78,.29),vF.z);'+
-    'float dz=vF.z*smoothstep(.45,.97,vF.w);float h=fract(sin(dot(floor(vec2(vU.x*150.-t*vF.y*5.,vU.y*7.)),vec2(12.9898,78.233)))*43758.5453);if(h<dz*1.05)discard;float edge=dz*(1.-smoothstep(0.,.18,h-dz));'+
-    'gl_FragColor=vec4(col*(.55+1.1*st)+vec3(1.,.72,.2)*edge*.9,vC.a*(1.+.6*vF.z)*(.55+.45*st)*(1.-.35*dz));}'});   // same streak + speed as the rail core shader
-  const mesh=new THREE.Mesh(mergeGeometries(geos),m);mesh.frustumCulled=false;S.add(mesh);
+   // fl.y unpacked here (vertex = highp): speed + vein width
+   vertexShader:'attribute vec4 sc;attribute vec4 fl;varying vec4 vF;varying vec4 vC;varying vec2 vU;varying vec3 vN;varying float vW;void main(){float k=floor(fl.y/8.);vF=vec4(fl.x,fl.y-8.*k,fl.zw);vW=k/100.;vC=sc;vU=uv;vN=normalMatrix*normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+   // body = pool activity colour (vC) with the rail streak; gold pools (vF.z>0) add a gold vein down the middle (view-facing band, width vW of the radius, thicker = more XRP locked)
+   // that shimmers and dissolves over the lower half: vein cells crumble away (moving with the flow) and the edge left behind glows; normal swirls (vF.z=0) unchanged
+   fragmentShader:'uniform float t;varying vec4 vF;varying vec4 vC;varying vec2 vU;varying vec3 vN;varying float vW;void main(){float s=fract(vF.x-t*vF.y);float st=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);float sh=.55+.45*sin(t*1.3-vF.x*.35);'+
+    'vec3 n=normalize(vN);float off=sqrt(max(0.,1.-n.z*n.z));float vr=vF.z*(1.-smoothstep(vW*.7,vW,off));'+
+    'float dz=vF.z*smoothstep(.45,.97,vF.w);float h=fract(sin(dot(floor(vec2(vU.x*150.-t*vF.y*5.,vU.y*7.)),vec2(12.9898,78.233)))*43758.5453);float keep=step(dz*1.05,h);float vein=vr*keep;float edge=vr*keep*dz*(1.-smoothstep(0.,.18,h-dz));'+
+    'gl_FragColor=vec4(vC.rgb*(.55+1.1*st)*(1.-.85*vein)+vec3(1.,.66,.12)*vein*(.9+.6*sh)+vec3(1.,.72,.2)*edge*.9,vC.a*mix(.55+.45*st,1.25,vein));}'});   // same streak + speed as the rail core shader
+  const merged=mergeGeometries(geos),mesh=new THREE.Mesh(merged,m);mesh.frustumCulled=false;S.add(mesh);let recolor=null;
   // sparks: light, one Points draw on the exact swirl path, moving with the flow; phones ≤150, desktop ≤360 TOTAL (incl. gold dispersal), Low = off
   // gold dispersal (same Points draw, +0 calls): gold swirls shed golden motes over their lower half that drift outward + up with the flow and fade
   const CAP=LOW?0:MOBILE?150:360,gp=paths.filter(P=>P.lock),ND=CAP?Math.min(Math.round(CAP*.5),gp.length*(MOBILE?10:24)):0,NS0=Math.min(CAP-ND,paths.length*(MOBILE?3:5)),NP=NS0+ND;
@@ -660,8 +672,14 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
     if(ND){const off=window.__aq&&!window.__aq.bloom;   // adaptive quality already shed bloom: hide motes too
      for(let j=0;j<ND;j++){const m=ds[j],i=NS0+j;m.age+=d;if(m.age>=m.life)spawn(m,false);m.vy+=.25*d;m.x+=m.vx*d;m.y+=m.vy*d;m.z+=m.vz*d;pp[i*3]=m.x;pp[i*3+1]=m.y;pp[i*3+2]=m.z;
       const k=off?0:Math.sin(Math.PI*Math.min(1,m.age/m.life))*(1-.5*m.age/m.life)*1.3;pc[i*3]=1*k;pc[i*3+1]=.78*k;pc[i*3+2]=.3*k}pg.attributes.color.needsUpdate=true}
-    pg.attributes.position.needsUpdate=true})}
-  window.__swirl={n:paths.length,geos:geos.length,particles:NP,sparks:NS0,disperse:ND,gold:gp.length}}}
+    pg.attributes.position.needsUpdate=true});
+   recolor=()=>{for(let i=0;i<NS0;i++){const c=st[i].P.c;pc[i*3]=c.r;pc[i*3+1]=c.g;pc[i*3+2]=c.b}pg.attributes.color.needsUpdate=true}}
+  // repaint every swirl (and its sparks) from its pool's live activity colour; gold pools keep gold sparks + vein. Called from actScore(), CPU-only, +0 draws.
+  const scA=merged.getAttribute('sc'),sca=scA.array,tc=new THREE.Color();
+  swirlRecolor=()=>{for(const P of paths)if(P.b.actCol&&!P.lock)P.c.copy(P.b.actCol);
+   for(const R of ranges){const ac=R.P.b.actCol;if(!ac)continue;tc.copy(ac);if(R.core)tc.lerp(CYC,.35);for(let v=R.start;v<R.end;v++){sca[v*4]=tc.r;sca[v*4+1]=tc.g;sca[v*4+2]=tc.b}}
+   scA.needsUpdate=true;if(recolor)recolor()};
+  window.__swirl={n:paths.length,geos:geos.length,particles:NP,sparks:NS0,disperse:ND,gold:gp.length,veins:paths.filter(P=>P.lock).map(P=>({pool:P.b.p.a+'/'+P.b.p.b,lockedXrp:Math.round(P.b.lockedXrp),w:+veinW(P.b).toFixed(2)}))};if(/[?&]debug=1/.test(location.search))window.__swirl.paths=paths}}
 
 // ---------- pool traffic basis (activity colour + card): min 24h volume of the pair ----------
 const vol=n=>n.name==='XRP'?null:(n.vol24h??null);
@@ -670,7 +688,7 @@ bridges.forEach(b=>{const vs=[vol(N[b.p.a]),vol(N[b.p.b])].filter(v=>v!=null);co
 const WHITE_C=new THREE.Color(0xffffff);const ACT_STOPS=[[0,new THREE.Color(0x2f7bff)],[.45,new THREE.Color(0x9a4bff)],[.75,new THREE.Color(0xff8a2a)],[1,new THREE.Color(0xff3d14)]];
 function actColor(a,out){for(let i=1;i<ACT_STOPS.length;i++)if(a<=ACT_STOPS[i][0]){const [a0,c0]=ACT_STOPS[i-1],[a1,c1]=ACT_STOPS[i];return out.copy(c0).lerp(c1,(a-a0)/(a1-a0))}return out.copy(ACT_STOPS[3][1])}
 function actScore(){const sc=bridges.map(b=>Math.log10(1+Math.min(b.vol||0,Math.max(1,b.p.tvl_xrp)*3)+(b.liveVol||0)*6));const ord=sc.map((v,i)=>[v,i]).sort((x,y)=>x[0]-y[0]),n=Math.max(1,ord.length-1);
- ord.forEach(([v,i],r)=>{const b=bridges[i];b.act=r/n;b.actCol=actColor(b.act,b.actCol||new THREE.Color());if(b.solid)bridgeLook(b)})}
+ ord.forEach(([v,i],r)=>{const b=bridges[i];b.act=r/n;b.actCol=actColor(b.act,b.actCol||new THREE.Color());if(b.solid)bridgeLook(b)});if(swirlRecolor)swirlRecolor()}
 let actDirty=0;setInterval(()=>{bridges.forEach(b=>{if(b.liveVol)b.liveVol*=.93});if(actDirty){actDirty=0;actScore()}},10000);
 
 const hoverGeo=(()=>{const col=(g,r,gg,b)=>{const n=g.attributes.position.count,c=new Float32Array(n*3);for(let i=0;i<n;i++)c.set([r,gg,b],i*3);g.setAttribute('color',new THREE.BufferAttribute(c,3));return g};

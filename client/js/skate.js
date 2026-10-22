@@ -201,12 +201,17 @@ function step(dt, f, s, ev, pop, grabK, grindK) {
     // Gravity converts height into speed uphill/downhill using the actual local slope.
     fwd -= G * (gx * fx + gz * fz) / Math.sqrt(1 + gx * gx + gz * gz) * dt;
     fwd = Math.max(-MAX_V, Math.min(MAX_V, fwd));
-    // Carving is easier at low speed. Lateral grip bleeds drift naturally instead of snapping.
+    // Apply longitudinal forces along the current nose, then rotate the nose under
+    // the existing world-space velocity. Re-projecting after the turn preserves momentum.
+    v.x = fx * fwd + Math.cos(st.h) * lateral;
+    v.z = fz * fwd - Math.sin(st.h) * lateral;
     const speed = Math.hypot(v.x, v.z);
     const turn = 2.45 / (1 + speed * .075);
     st.h -= s * turn * dt;
-    lateral *= Math.exp(-dt * (2.0 + speed * .10));
     const nfx = -Math.sin(st.h), nfz = -Math.cos(st.h);
+    fwd = v.x * nfx + v.z * nfz;
+    lateral = v.x * Math.cos(st.h) - v.z * Math.sin(st.h);
+    lateral *= Math.exp(-dt * (2.0 + speed * .10));
     v.x = nfx * fwd + Math.cos(st.h) * lateral;
     v.z = nfz * fwd - Math.sin(st.h) * lateral;
     const horizontal = Math.hypot(v.x, v.z);

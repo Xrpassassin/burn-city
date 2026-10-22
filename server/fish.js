@@ -83,4 +83,19 @@ const mask = a => a.slice(0, 4) + '…' + a.slice(-3);
 function weekTop(n = 10) { return db.prepare('SELECT acct, sp, MAX(kg) kg, t FROM fish_catch WHERE t>=? AND kg IS NOT NULL GROUP BY acct ORDER BY kg DESC LIMIT ?').all(weekStart(), n).map(r => ({ who: mask(r.acct), sp: r.sp, kg: r.kg, t: r.t })); }
 function streakTop(n = 10) { return db.prepare('SELECT acct, wbest, wt FROM fish_streak WHERE wk=? AND wbest>=2 ORDER BY wbest DESC, wt ASC LIMIT ?').all(weekStart(), n).map(r => ({ who: mask(r.acct), n: r.wbest })); }
 const today = acct => db.prepare('SELECT COUNT(*) c FROM fish_catch WHERE acct=? AND t>=?').get(acct, dayStart()).c;
-module.exports = { lastLanded: a => landed.get(a), streakTop, streakHit, importGuest, IMP, weekTop, today, weekStart, get, cast, reel, sell, buy, roll, baitAffinity, SPECIES, SHOP, LIM, _casts: casts };
+// Rotating daily board: progress is derived from server-recorded catches, never client claims.
+const DAILY_TARGETS = ['minnow', 'bluegill', 'perch', 'carp', 'shiner', 'dace', 'trout', 'bass', 'pike', 'koi', 'snapper'];
+function challenges(acct, ms = Date.now()) {
+  const start = dayStart(ms), day = new Date(start).toISOString().slice(0, 10);
+  const dayNumber = Math.floor(start / 864e5), target = DAILY_TARGETS[((dayNumber % DAILY_TARGETS.length) + DAILY_TARGETS.length) % DAILY_TARGETS.length];
+  const catches = db.prepare('SELECT sp, kg FROM fish_catch WHERE acct=? AND t>=? AND t<? AND sp IS NOT NULL ORDER BY t').all(acct, start, start + 864e5);
+  const unique = new Set(catches.map(c => c.sp)), bestKg = catches.reduce((best, c) => Math.max(best, Number(c.kg) || 0), 0);
+  const items = [
+    { id: 'daily-three', title: 'Keep the Line Tight', detail: 'Land 3 fish today', progress: Math.min(catches.length, 3), goal: 3 },
+    { id: 'daily-target', title: 'Species Spotlight', detail: 'Catch today’s featured species: ' + target, progress: Math.min(catches.filter(c => c.sp === target).length, 1), goal: 1, species: target },
+    { id: 'daily-variety', title: 'A Varied Creel', detail: 'Land 2 different species today', progress: Math.min(unique.size, 2), goal: 2 },
+    { id: 'daily-heavy', title: 'Heavy Haul', detail: 'Land a fish weighing at least 5 kg today', progress: bestKg >= 5 ? 1 : 0, goal: 1 }
+  ].map(item => ({ ...item, unlocked: item.progress >= item.goal }));
+  return { day, target, catches: catches.length, items };
+}
+module.exports = { lastLanded: a => landed.get(a), streakTop, streakHit, importGuest, IMP, weekTop, today, challenges, weekStart, get, cast, reel, sell, buy, roll, baitAffinity, SPECIES, SHOP, LIM, _casts: casts };

@@ -33,4 +33,11 @@ off += 10e3; const c3 = F.cast(A, {}); off += c3.wait + 25e3; ok(F.reel(A, c3.ci
   ok(r.profile.bait.glow === F.IMP.bait && !('fake' in r.profile.bait), 'import: bait capped, unknown dropped'); ok(r.profile.log.trout && r.profile.log.trout.best <= 4 && !r.profile.log.nope, 'import: species validated, weight capped');
   ok(Object.keys(pre).every(id => r.profile.log[id] && r.profile.log[id].n >= pre[id].n) && r.profile.log.trout.n >= 3, 'import: merged with existing catches'); ok(F.importGuest(G, { coins: 5 }).error === 'already_imported', 'import: only once per wallet');
   const H = 'rFishSimH4444444444444444444'; F.importGuest(H, { coins: 10, rods: ['carbon'] }); const H2 = 'rFishSimH5555555555555555555'; F.importGuest(H2, { coins: 2000, rods: ['carbon'] }); ok(true, 'setup'); }
+
+{ const C = 'rFishChallengeC66666666666666666'; const before = F.challenges(C, Date.UTC(2026, 9, 22)); 
+  ok(before.day === '2026-10-22' && before.items.length === 4 && before.items.every(x => x.progress === 0), 'daily challenges start with zero progress for a new angler');
+  const cast = F.cast(C, {}); off += cast.wait + 100; const landed = F.reel(C, cast.cid, true); 
+  const after = F.challenges(C, Date.UTC(2026, 9, 22)); 
+  ok(landed.fish && after.catches === 1 && after.items.find(x => x.id === 'daily-three').progress === 1, 'server challenge progress updates from an authoritative landed catch');
+  ok(F.challenges(C, Date.UTC(2026, 9, 23)).catches === 0, 'daily challenge progress resets on the next UTC day'); }
 console.log(`\n${pass} passed, ${fail} failed`); process.exit(fail ? 1 : 0);

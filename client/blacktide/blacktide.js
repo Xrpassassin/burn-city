@@ -124,7 +124,7 @@ function tick(){
   const dt=Math.min(clock.getDelta(),.1); // Clamp large frame gaps to keep controls stable on slower devices.
   elapsed+=dt;
   updateOceanGeometry(waterGeo,basePositions,elapsed);
-  Boats.updateFleet(fleet,dt,elapsed,sampleOceanHeight,started);
+  Boats.updateFleet(fleet,dt,elapsed,sampleOceanHeight,started,started?ship.position:null);
   if(started){
     const atPort=Trade.tick(ship.position);   // docked: helm locked while the port panel is open
     if(atPort)speed=0;

@@ -336,3 +336,9 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
 - Tests: `npm run test:fishing-rules`, `node test/fish-sim.js`; `npm run test:all` runs both plus the server sims.
 - Hooks: `window.__fish.openShop()` / `openLog()` for smoke tests. Touch ghost-click guard (pointerdown + capture-phase click filter) is unchanged.
 - Known gap: not yet in the default `npm test`; iPhone 390x844 smoke is about 5 draw calls above main (~403 vs ~398 in the swiftshader harness).
+
+## CinderWilds city horizon (sw bc-v55-horizon)
+- client/js/wilds-gate.js `buildForestHorizon()`: visual-only distant forest skyline north of the city (group `wilds-horizon`; 1 ridge mesh + 4 InstancedMesh, 132 trees, about 5 draw calls, no colliders, no forest loading).
+- It stands inside the playable forest area (z 485-580), so `frame()` shows it only while the Cinderwilds module is unloaded; while the deep area is active, cityOff/cityOn hide and restore it like any other city object.
+- Fixed on integrate: a stray literal `\n` token before the boot block (a module syntax error; `node --check` misses it on ESM, use `node --input-type=module --check < file`).
+- iPhone 390x844 smoke (swiftshader, ?perf=1): city ~402 calls (main ~396-404 in the same harness), forest 278, deep 53.

@@ -252,6 +252,7 @@ function safety() {
 }
 // ---------------------------------------------------------------- per frame (cheap: a few distance checks)
 function frame(dt, t) {
+  if (G.horizon && !CO.off) G.horizon.visible = !loaded();   // skyline stands where the real forest loads: show it only while the Cinderwilds is unloaded (deep cityOff/cityOn owns it while off)
   const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen;
   for (const f of flames) { const k = t * 9 + f.userData.ph; const s = 1 + Math.sin(k) * .08 + Math.sin(k * 2.3) * .05; f.scale.set(s, 1 + Math.sin(k * 1.7) * .14 + Math.sin(k * 3.1) * .06, s); }
   const dGate = Math.hypot(P.pos.x - GATE.x, P.pos.z - GATE.z), e = ell(P.pos.x, P.pos.z);
@@ -277,6 +278,51 @@ function frame(dt, t) {
     const now = performance.now(); if (!far) G.farSince = 0; else if (!G.farSince) G.farSince = now; else if (now - G.farSince > UNLOAD_S * 1000) unload();   // wall-clock (the city clamps dt on slow frames)
   }
 }
+
+// ---------------------------------------------------------------- distant forest skyline (visual-only, no colliders / no forest loading)
+// Gives the city a readable northern frontier while keeping the actual Cinderwilds lazy-loaded.
+// Instancing keeps the horizon to a handful of draw calls, including on phones.
+function buildForestHorizon() {
+  const c = C(), root = new THREE.Group(); root.name = 'wilds-horizon';
+  const ridge = new THREE.Shape();
+  ridge.moveTo(-290, 0); ridge.lineTo(-290, 7);
+  ridge.lineTo(-245, 13); ridge.lineTo(-205, 10); ridge.lineTo(-162, 23);
+  ridge.lineTo(-118, 16); ridge.lineTo(-76, 29); ridge.lineTo(-35, 18);
+  ridge.lineTo(12, 25); ridge.lineTo(54, 14); ridge.lineTo(98, 31);
+  ridge.lineTo(145, 18); ridge.lineTo(184, 25); ridge.lineTo(226, 12);
+  ridge.lineTo(290, 17); ridge.lineTo(290, 0); ridge.closePath();
+  const hill = new THREE.Mesh(new THREE.ShapeGeometry(ridge), new THREE.MeshBasicMaterial({ color: 0x101e18, side: THREE.DoubleSide, fog: true }));
+  hill.position.set(0, 0, 570); root.add(hill);
+  const count = 132;
+  const trunkGeo = new THREE.CylinderGeometry(.12, .22, 1, 5);
+  const canopyGeo = new THREE.ConeGeometry(.5, 1, 5, 1);
+  const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshBasicMaterial({ color: 0x171a15, fog: true }), count);
+  const crownMats = [0x14251b, 0x192c20, 0x203526].map(color => new THREE.MeshBasicMaterial({ color, fog: true }));
+  const crowns = crownMats.map(mat => new THREE.InstancedMesh(canopyGeo, mat, count));
+  const dummy = new THREE.Object3D();
+  let seed = 481516;
+  const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+  for (let i = 0; i < count; i++) {
+    const x = -260 + (i / (count - 1)) * 520 + (rand() - .5) * 7;
+    const z = 485 + rand() * 95;
+    const h = 13 + rand() * 24, w = 3.8 + rand() * 5.5;
+    const y = 1.5 + rand() * 1.2;
+    dummy.position.set(x, y + h * .22, z);
+    dummy.rotation.set(0, rand() * Math.PI, 0);
+    dummy.scale.set(w * .075, h * .72, w * .075); dummy.updateMatrix(); trunk.setMatrixAt(i, dummy.matrix);
+    for (let layer = 0; layer < 3; layer++) {
+      const f = 1 - layer * .23;
+      dummy.position.set(x, y + h * (.42 + layer * .19), z - .15);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(w * f, h * (.52 - layer * .035), w * f);
+      dummy.updateMatrix(); crowns[layer].setMatrixAt(i, dummy.matrix);
+    }
+  }
+  trunk.instanceMatrix.needsUpdate = true;
+  for (const m of crowns) { m.instanceMatrix.needsUpdate = true; root.add(m); }
+  root.add(trunk); c.S.add(root);
+  return root;
+}
 // ---------------------------------------------------------------- boot: draw the gate + register the hooks once
 (function wait() {
   if (Q.has('nowilds')) return;
@@ -284,7 +330,7 @@ function frame(dt, t) {
   if (!(window.__ready && c && c.colliders && c.S)) return setTimeout(wait, 400);
   try {
     const st = document.createElement('style'); st.id = 'wlGateCss'; st.textContent = css; document.head.append(st);
-    G.gate = buildGate();
+    G.gate = buildGate(); G.horizon = buildForestHorizon();
     (window.__preRender = window.__preRender || []).push(() => { try { safety(); } catch (e) { if (!G.serr) { G.serr = String(e && e.stack || e).slice(0, 300); console.warn('wilds safety', e); } } });
     window.__peerRealm = (x, z) => { const c = C(), q = c.getMode() === 'explore' ? c.P.pos : c.C.position; return inDeepRealm(x, z) === inDeepRealm(q.x, q.z); };
     (window.__preRender = window.__preRender || []).push((dt, t) => { try { frame(dt, t); } catch (e) { if (!G.ferr) { G.ferr = String(e && e.stack || e).slice(0, 400); console.warn('wilds frame', e); } } });   // never let the forest break the city's render loop

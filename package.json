@@ -15,6 +15,7 @@
     "test:wilds-pathfinding": "node client/js/wilds-pathfinding-core.test.mjs",
     "test:wilds-waypoint-follower": "node client/js/wilds-waypoint-follower.test.mjs",
     "test:wilds-route-validation": "node client/js/wilds-route-validation.test.mjs && node client/js/wilds-navigation-simulation.test.mjs",
+    "test:wilds-replan-queue": "node client/js/wilds-replan-queue.test.mjs",
     "test:all": "for t in payments security tron shop fish retain hate lobby zombie; do node test/$t-sim.js || exit 1; done"
   },
   "keywords": [],

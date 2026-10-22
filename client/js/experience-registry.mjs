@@ -79,7 +79,7 @@ export function createExperienceRegistry({ onState = () => {} } = {}) {
   });
 }
 
-/** Pre-register the two planned cross-experience destinations without pretending either is live. */
+/** Register both destinations; they stay planned unless real launch adapters are supplied. */
 export function createBurnCityExperienceRegistry({ launchers = {}, ...options } = {}) {
   const registry = createExperienceRegistry(options);
   const zombieLaunch = launchers.zombies;

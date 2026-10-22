@@ -166,7 +166,46 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     for (const side of [-1, 1]) {
       const brace = new THREE.Mesh(braceGeo, towerMat); brace.position.set(side * 2.8, 3.6, -1.8); brace.rotation.z = side * -0.9; launch.add(brace);
     }
+    // Service gantry: cross-bracing, cable trays and small hazard lamps make the rocket read as infrastructure.
+    const cable = new THREE.Mesh(g(new THREE.BoxGeometry(0.16, 6.6, 0.16)), basic(0x252b31)); cable.position.set(-3.25, 3.5, 1.9); launch.add(cable);
+    const ladder = new THREE.Mesh(g(new THREE.BoxGeometry(0.08, 5.6, 0.08)), hazardMat); ladder.position.set(2.95, 3.0, 1.95); launch.add(ladder);
+    for (let y = 1.0; y < 6.0; y += 0.55) { const rung = new THREE.Mesh(g(new THREE.BoxGeometry(0.55, 0.055, 0.08)), hazardMat); rung.position.set(2.72, y, 1.95); launch.add(rung); }
+    // Painted launch-pad hazard arcs and service markings.
+    const ringMat = basic(0xe0a13b, { transparent: true, opacity: 0.75 });
+    for (const radius of [2.45, 3.05]) { const ring = new THREE.Mesh(g(new THREE.TorusGeometry(radius, 0.045, 4, low ? 16 : 32)), ringMat); ring.rotation.x = Math.PI / 2; ring.position.y = 0.24; launch.add(ring); }
+    for (let i = 0; i < 12; i++) { const mark = new THREE.Mesh(g(new THREE.BoxGeometry(0.65, 0.025, 0.13)), hazardMat); const a = i * Math.PI / 6; mark.position.set(Math.cos(a) * 3.25, 0.24, Math.sin(a) * 3.25); mark.rotation.y = -a; launch.add(mark); }
+    // Four high-mounted floodlight poles and red aviation beacons; all unlit meshes to keep mobile rendering cheap.
+    const poleGeo = g(new THREE.CylinderGeometry(0.07, 0.11, 9.5, low ? 4 : 6));
+    for (const [x, z] of [[-6, -4], [6, -4], [-6, 4], [6, 4]]) {
+      const pole = new THREE.Mesh(poleGeo, towerMat); pole.position.set(x, 4.75, z); launch.add(pole);
+      const arm = new THREE.Mesh(g(new THREE.BoxGeometry(1.1, 0.12, 0.12)), towerMat); arm.position.set(x + (x < 0 ? 0.35 : -0.35), 9.1, z); launch.add(arm);
+      const beacon = new THREE.Mesh(g(new THREE.SphereGeometry(0.18, low ? 5 : 8, low ? 4 : 6)), basic(0xe23c34, { transparent: true, opacity: 0.9, blending: add, depthWrite: false })); beacon.position.set(x, 9.2, z); launch.add(beacon);
+    }
+    // Grounded rocket exhaust hardware: four skirt fins and dark engine bells.
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; const fin = new THREE.Mesh(g(new THREE.BoxGeometry(0.16, 1.0, 1.1)), noseMat); fin.position.set(Math.cos(a) * 0.92, 1.25, Math.sin(a) * 0.92); fin.rotation.y = -a; launch.add(fin); }
+    const engine = new THREE.Mesh(g(new THREE.CylinderGeometry(0.34, 0.48, 0.6, low ? 6 : 10)), basic(0x22262b)); engine.position.y = 0.62; launch.add(engine);
     launch.position.set(WX(33), 0, WZ(25)); root.add(launch);
+
+    // Distinctive, low-cost cosmodrome dressing: fuel tanks, pipe runs, warning placards and debris.
+    const yard = new THREE.Group(), tankMat = basic(0x59636b), bandMat = basic(0xc47b37), concreteMat = basic(0x4a4d50), rustMat = basic(0x75412f);
+    const addTank = (x, z, radius, height) => {
+      const tank = new THREE.Mesh(g(new THREE.CylinderGeometry(radius, radius, height, low ? 6 : 10)), tankMat); tank.position.set(x, height / 2, z); yard.add(tank);
+      const cap = new THREE.Mesh(g(new THREE.CylinderGeometry(radius * 1.04, radius * 1.04, 0.14, low ? 6 : 10)), bandMat); cap.position.set(x, height * 0.72, z); yard.add(cap);
+      const foot = new THREE.Mesh(g(new THREE.BoxGeometry(radius * 2.5, 0.22, radius * 2.5)), concreteMat); foot.position.set(x, 0.11, z); yard.add(foot);
+    };
+    addTank(WX(29) - WX(28), WZ(5) - WZ(4), 0.85, 3.8);
+    addTank(WX(37) - WX(28), WZ(5) - WZ(4), 0.85, 3.2);
+    // Pipe rack is intentionally offset from the walkable centerline.
+    for (const z of [-0.8, 0, 0.8]) { const pipe = new THREE.Mesh(g(new THREE.CylinderGeometry(0.09, 0.09, 7.4, low ? 5 : 8)), basic(0x68747b)); pipe.rotation.z = Math.PI / 2; pipe.position.set(0, 2.5 + z * 0.35, 0); yard.add(pipe); }
+    // Warning chevrons at the fuel sector and battered concrete barriers at the yard edge.
+    for (let i = 0; i < 5; i++) { const barrier = new THREE.Mesh(g(new THREE.BoxGeometry(1.2, 0.75, 0.65)), concreteMat); barrier.position.set(-5.2 + i * 2.6, 0.38, 7.4); barrier.rotation.y = (i % 2 ? 0.04 : -0.04); yard.add(barrier); }
+    for (let i = 0; i < 4; i++) { const stripe = new THREE.Mesh(g(new THREE.BoxGeometry(0.75, 0.035, 0.14)), bandMat); stripe.position.set(-3.2 + i * 1.7, 0.79, 7.4); stripe.rotation.y = -0.45; yard.add(stripe); }
+    // Broken crates and a damaged utility cabinet sell abandonment without adding new collision.
+    for (const [x, z, rot] of [[-5.8, 3.4, 0.2], [5.2, 2.8, -0.3], [-4.6, -3.1, 0.7]]) {
+      const crate = new THREE.Mesh(g(new THREE.BoxGeometry(0.9, 0.8, 0.85)), basic(0x42372e)); crate.position.set(x, 0.4, z); crate.rotation.y = rot; yard.add(crate);
+      const slat = new THREE.Mesh(g(new THREE.BoxGeometry(0.98, 0.08, 0.9)), rustMat); slat.position.set(x, 0.77, z); slat.rotation.y = rot; yard.add(slat);
+    }
+    yard.position.set(WX(33), 0, WZ(25)); root.add(yard);
   }
   root.add(frameM, plank); const anim = WN.map(() => Array(NB).fill(1));   // per plank 0..1 (1 = nailed)
   let boards = WN.map(() => NB), flying = [];

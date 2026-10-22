@@ -1,6 +1,7 @@
 // Blacktide NPC vessel prototypes.
 // Small procedural ships avoid external model dependencies and can be replaced
 // by licensed art later without changing fleet/combat contracts.
+import { updateBoatBehavior } from './boat-ai.js';
 
 function material(THREE, color, roughness = 0.82, metalness = 0) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness, flatShading: true });
@@ -45,28 +46,45 @@ export function createFleet(THREE, scene) {
       ...spec, group, health: spec.kind === 'patrol' ? 140 : 80,
       maxHealth: spec.kind === 'patrol' ? 140 : 80,
       radius: spec.kind === 'patrol' ? 4.5 : 4,
-      routeIndex: 1, phase: index * 1.9, alive: true
+      routeIndex: 1, phase: index * 1.9, alive: true, aiState: 'patrol'
     };
   });
 }
 
-// Lightweight local prototype; combat authority and loot belong server-side.
-export function updateFleet(fleet, dt, time, sampleOceanHeight, active = true) {
+// Local encounter AI improves the prototype's feel. Fleet damage, loot and PvP
+// must remain server-authoritative before this can be treated as multiplayer combat.
+export function updateFleet(fleet, dt, time, sampleOceanHeight, active = true, playerPosition = null) {
   for (const boat of fleet) {
     if (!boat.alive) continue;
     const group = boat.group;
     if (active) {
-      const target = boat.route[boat.routeIndex];
-      const dx = target[0] - group.position.x;
-      const dz = target[1] - group.position.z;
-      const distance = Math.hypot(dx, dz);
-      if (distance < 2.5) boat.routeIndex = (boat.routeIndex + 1) % boat.route.length;
-      else {
-        const step = Math.min(distance, boat.speed * dt);
-        group.position.x += dx / distance * step;
-        group.position.z += dz / distance * step;
-        group.rotation.y = Math.atan2(-dx, -dz);
+      const behavior = playerPosition
+        ? updateBoatBehavior(boat, playerPosition, dt)
+        : { mode: 'route', moveX: 0, moveZ: 0, speedScale: 1 };
+      if (behavior.mode === 'route') {
+        const target = boat.route[boat.routeIndex];
+        const dx = target[0] - group.position.x;
+        const dz = target[1] - group.position.z;
+        const distance = Math.hypot(dx, dz);
+        if (distance < 2.5) boat.routeIndex = (boat.routeIndex + 1) % boat.route.length;
+        else {
+          const step = Math.min(distance, boat.speed * dt);
+          group.position.x += dx / distance * step;
+          group.position.z += dz / distance * step;
+          group.rotation.y = Math.atan2(dx, -dz);
+        }
+      } else {
+        const step = boat.speed * behavior.speedScale * Math.min(Math.max(dt, 0), 0.1);
+        group.position.x += behavior.moveX * step;
+        group.position.z += behavior.moveZ * step;
+        if (behavior.mode === 'approach' || behavior.mode === 'engage') {
+          group.rotation.y = Math.atan2(playerPosition.x - group.position.x, -(playerPosition.z - group.position.z));
+        } else {
+          group.rotation.y = Math.atan2(behavior.moveX, -behavior.moveZ);
+        }
       }
+    } else {
+      boat.aiState = 'patrol';
     }
     group.position.y = sampleOceanHeight(group.position.x, group.position.z, time) + Math.sin(time * 1.1 + boat.phase) * 0.045;
     group.rotation.z = Math.sin(time * 0.72 + boat.phase) * 0.018;

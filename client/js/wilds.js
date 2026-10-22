@@ -17,9 +17,11 @@ import { buildCreature, animate, mats, disposeMats } from './wilds-creatures.js'
 import { buildWalker, poseWalker } from './walker.js';
 import * as AUD from './wilds-audio.js';
 import { findWorldPath } from './wilds-pathfinding-world.mjs';
+import { getWildsAtmospherePreset, isWildsAtmospherePreset } from './wilds-atmosphere-presets.mjs';
 import { TEST, FC, RX, RZ, GATE, THRESH, CFG, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
 
 const W = { ready: false, inForest: false, modal: null, creatures: [], test: {} };
+let atmospherePresetName = 'balanced';
 // ZONE: the deep area (wilds-deep.js) registers itself here while you're inside it; creatures, encounters, binding, NPC talk,
 // quests, HUD and the companion then run against its world (its root, spawns, keep-in, respawn) instead of Fernway Verge.
 let ZONE = null; const R0 = () => (ZONE ? ZONE.root : root);
@@ -724,7 +726,7 @@ function frame_(dt, t) {
   if (fz > 0) { if (W.lights.hemi) W.lights.hemi.intensity += fz * (1 - day) * .9; if (W.lights.amb) W.lights.amb.intensity += fz * (1 - day) * .45; }
   // third-person camera never ends up inside a tree trunk or rock: pull it in along the line to the player
   if (explore && !W.enc && fz > 0 && !P.fp) { const cp = c.C.position, hx = P.pos.x, hz = P.pos.z; let f = 1; for (let k = 1; k <= 8; k++) { const u = k / 8, x = hx + (cp.x - hx) * u, z = hz + (cp.z - hz) * u; const o = blocked(x, z, .45); if (o && o.r > .3) { f = Math.max(.25, (k - 1) / 8); break; } } if (f < 1) { cp.x = hx + (cp.x - hx) * f; cp.z = hz + (cp.z - hz) * f; cp.y = Math.max(cp.y, P.pos.y + 1.6); c.C.lookAt(hx, P.pos.y + 1.4, hz); } }
-  if (fz > 0 && c.S.fog) { FOGC.copy(FNIGHT).lerp(FDAY, day); c.S.fog.density = lerp(c.S.fog.density, .0085 + (1 - day) * .004, fz); c.S.fog.color.lerp(FOGC, fz * .85); }
+  if (fz > 0 && c.S.fog) { const atmosphere = getWildsAtmospherePreset(atmospherePresetName); FOGC.copy(FNIGHT).lerp(FDAY, day); c.S.fog.density = lerp(c.S.fog.density, (.0085 + (1 - day) * .004) * atmosphere.fogDensity, fz); c.S.fog.color.lerp(FOGC, fz * atmosphere.fogTint); }
   // creatures (respawn empty slots)
   if (camD < 2) { for (const s of SPAWNS) { if (!s.cr) { s.cool = (s.cool || 0) - dt; if (s.cool <= 0 && Math.hypot(P.pos.x - s.x, P.pos.z - s.z) > 25) spawn(s); } }
     for (const cr of W.creatures.slice()) updCreature(cr, dt, t, P, Math.hypot(cr.x - P.pos.x, cr.z - P.pos.z)); }
@@ -749,7 +751,7 @@ function frame_(dt, t) {
   // leaves fall around the camera while you're under the canopy
   { const m4 = _m4, q = _q, inF = camD < 1.02; let i = 0; const cp = c.C.position; for (const l of W.leafData) { if (inF && (l.y < 0 || Math.hypot(l.x - cp.x, l.z - cp.z) > 26)) { const a = Math.random() * 6.3, r = 2 + Math.random() * 20; l.x = cp.x + Math.cos(a) * r; l.z = cp.z + Math.sin(a) * r; l.y = 6 + Math.random() * 8; } l.ph += dt; l.y -= l.vy * dt; l.x += (Math.sin(l.ph * l.sway) * .8 + .3) * dt; l.z += Math.cos(l.ph * .7) * .4 * dt; q.setFromEuler(_eu.set(l.ph * l.spin, l.ph * .7, Math.sin(l.ph * 2) * .8)); m4.compose(_v3.set(l.x, inF ? l.y : -50, l.z), q, _one); leaves.setMatrixAt(i++, m4); } leaves.instanceMatrix.needsUpdate = true; }
   // light shafts by time of day
-  for (const s of shafts.children) { s.children.forEach(p => p.material.opacity = .05 + day * .2 + Math.sin(t * .4 + s.userData.ph) * .03); s.rotation.y = Math.sin(t * .05 + s.userData.ph) * .2; }
+  { const atmosphere = getWildsAtmospherePreset(atmospherePresetName); for (const s of shafts.children) { s.children.forEach(p => p.material.opacity = (.05 + day * .2 + Math.sin(t * .4 + s.userData.ph) * .03) * atmosphere.shafts); s.rotation.y = Math.sin(t * .05 + s.userData.ph) * .2; } }
   AUD.update(dt, day);
   regenT += dt; if (regenT > 1 && !W.enc) { game.regen(regenT); regenT = 0; }
   hudT -= dt; if (hudT < 0) { hudT = .25; renderHud(); }
@@ -841,7 +843,7 @@ function disposeTree(o, seen = { geo: new Set(), mat: new Set(), tex: new Set() 
   return seen;
 }
 export function unload() {
-  if (!W.ready) return; if (TEST && W.test.clearPathPreview) W.test.clearPathPreview(); W.ready = false; ZONE = null;
+  if (!W.ready) return; if (TEST && W.test.clearPathPreview) W.test.clearPathPreview(); W.ready = false; ZONE = null; atmospherePresetName = 'balanced';
   try { if (W.enc) endEncounter(true); } catch (e) { } W.enc = null; closeModal(); W.inForest = false;
   AUD.dispose();
   const c = C();
@@ -903,6 +905,12 @@ if (TEST) {
   }
   W.test.previewPath = previewPath;
   W.test.clearPathPreview = clearPathPreview;
+  W.test.setAtmospherePreset = name => {
+    if (!W.ready) return { ok: false, reason: 'forest-not-ready' };
+    if (!isWildsAtmospherePreset(name)) return { ok: false, reason: 'unknown-preset', preset: atmospherePresetName };
+    atmospherePresetName = name;
+    return { ok: true, preset: name, profile: getWildsAtmospherePreset(name) };
+  };
 }
 if (TEST) Object.assign(W.test, {
   state: () => ({ ready: W.ready, inForest: W.inForest, modal: W.modal, creatures: W.creatures.map(c => ({ sp: c.sp, lv: c.c.lv, x: +c.x.toFixed(1), z: +c.z.toFixed(1), st: c.st, spd: +c.spd.toFixed(2) })), trees: W.treeCount, save: game && JSON.parse(JSON.stringify(game.state)), comp: compState && { x: compState.x, z: compState.z, spd: compState.spd }, audio: AUD.state(), enc: W.enc && { turn: W.enc.E.turn, over: W.enc.E.over, us: W.enc.E.us.name, usHp: W.enc.E.us.hp, foeHp: W.enc.E.foe.hp, odds: game.bindOdds(W.enc.E).pct, busy: W.enc.busy } }),

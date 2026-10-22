@@ -116,7 +116,8 @@ function fireBroadside(){
 const clock=new THREE.Clock();
 function tick(){
   requestAnimationFrame(tick);
-  const dt=Math.min(clock.getDelta(),.1); // .04 cap made the ship crawl in slow motion below 25 fps (phones)elapsed+=dt;
+  const dt=Math.min(clock.getDelta(),.1); // Clamp large frame gaps to keep controls stable on slower devices.
+  elapsed+=dt;
   updateOceanGeometry(waterGeo,basePositions,elapsed);
   if(started){
     const atPort=Trade.tick(ship.position);   // docked: helm locked while the port panel is open

@@ -234,7 +234,7 @@ function build() {
   // pilasters with gold reveals on the long walls
   for (let z = -HZ + 6; z < HZ - 2; z += 6) for (const s of [-1, 1]) { if (z > -1 && z < 9) continue; const x = s * (HX - .25); box(x - .25, x + .25, 0, CEIL, z - .55, z + .55, M.wall, true); box(x - s * .27 - .01, x - s * .27 + .01, .3, CEIL - .6, z - .02, z + .02, M.gold, false); }
 
-  mezzanine(); columns(); stairs(); reactor(); entrance(); lobby(); sanctum(); portals(); barAndLounge(); concealed(); residentialSpaces();
+  mezzanine(); columns(); stairs(); reactor(); entrance(); lobby(); sanctum(); portals(); barAndLounge(); concealed(); residentialSpaces(); rooftopSkyLounge();
   // floor inlays: brushed gold channels from the dais to each threshold, with a fine amber light line beside them
   for (const [x0, x1, z0, z1] of [[-.06, .06, 6.3, HZ], [-.06, .06, -HZ, -6.3], [6.3, EDGE, -.06, .06], [-EDGE, -6.3, -.06, .06]]) {
     box(x0, x1, 0, .004, z0, z1, M.inlay, false);
@@ -300,6 +300,90 @@ function residentialSpaces() {
     box(x - .08, x + .08, MEZZ + 2.4, MEZZ + 3.2, -6.72, -6.62, M.gold, false);
     box(x - .22, x + .22, MEZZ + 2.3, MEZZ + 2.38, -6.70, -6.6, M.amber, false);
   }
+}
+
+
+function rooftopSkyLounge() {
+  // BURN Tower crown: a rooftop sky lounge directly above the main atrium.
+  // Built from the existing merged-geometry/collision system; no second renderer or downloaded assets.
+  const y = CEIL + 4, xEdge = 17.2, zEdge = 24.5;
+  floorRect(-xEdge, xEdge, -zEdge, zEdge, y);
+  box(-xEdge, xEdge, y - .45, y, -zEdge, zEdge, M.dais, false);
+  box(-xEdge + .3, xEdge - .3, y - .05, y, -zEdge + .3, zEdge - .3, M.floorB, false);
+  // Gold/ember perimeter inlay frames the observation deck.
+  for (const [x0,x1,z0,z1] of [
+    [-xEdge+1,xEdge-1,-zEdge+1,-zEdge+.12],
+    [-xEdge+1,xEdge-1,zEdge-.12,zEdge-1],
+    [-xEdge+.12,xEdge-1,-zEdge+1,zEdge-1],
+    [xEdge-1,xEdge-.12,-zEdge+1,zEdge-1]
+  ]) box(x0,x1,y+.012,y+.035,z0,z1,M.amber,false);
+  // Glass safety wall with dark-metal top rail and regularly spaced supports.
+  for (const [x0,x1,z0,z1] of [
+    [-xEdge,xEdge,-zEdge-.12,-zEdge+.12],
+    [-xEdge,xEdge,zEdge-.12,zEdge+.12],
+    [-xEdge-.12,-xEdge+.12,-zEdge,zEdge],
+    [xEdge-.12,xEdge+.12,-zEdge,zEdge]
+  ]) {
+    box(x0,x1,y,y+1.25,z0,z1,M.glass,true);
+    box(x0,x1,y+1.22,y+1.34,z0,z1,M.metal,false);
+  }
+  for (let x=-15.5;x<=15.5;x+=3.1) for (const z of [-zEdge,zEdge]) {
+    box(x-.055,x+.055,y,y+1.34,z-.09,z+.09,M.gold,false);
+  }
+  for (let z=-22;z<=22;z+=3.1) for (const x of [-xEdge,xEdge]) {
+    box(x-.09,x+.09,y,y+1.34,z-.055,z+.055,M.gold,false);
+  }
+  // Low architectural fins, ember light bands, and a dramatic but safe glass overlook.
+  for (const x of [-12,-6,0,6,12]) {
+    box(x-.07,x+.07,y,y+3.2,-zEdge+1.1,-zEdge+1.3,M.metal,false);
+    box(x-.12,x+.12,y+2.85,y+2.94,-zEdge+1.08,-zEdge+1.32,M.amber,false);
+  }
+  plaque('BURN TOWER', 'PYRETHEUM · SKY LOUNGE', 0, y+3.05, -zEdge+1.38, 0, 5.6, '#e0704a');
+  // Panoramic night skyline: lightweight, low-poly silhouettes beyond the glass, with emissive window grids.
+  const skyline = new THREE.Group();
+  const darks = [0x17131b,0x201820,0x211b21,0x151821];
+  for (let i=0;i<34;i++) {
+    const a = i * 2.399963, radius = 30 + (i%5)*2.7;
+    const sx = Math.cos(a)*radius, sz = Math.sin(a)*radius;
+    const w = 2.1 + (i%4)*.8, d = 2.2 + (i%3)*.9, h = 5 + (i%7)*2.1;
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshStandardMaterial({color:darks[i%darks.length],roughness:.88,metalness:.15}));
+    tower.position.set(sx,y+h/2-1.2,sz); skyline.add(tower);
+    const winMat = new THREE.MeshBasicMaterial({color:i%4===0?0xff6a28:0xc9975c});
+    for (let row=0;row<Math.min(5,Math.floor(h/2));row++) {
+      const win = new THREE.Mesh(new THREE.BoxGeometry(.12,.22,.04),winMat);
+      win.position.set(sx-w*.22+(row%2)*.24,y+1+row*1.35,sz-d/2-.025); skyline.add(win);
+    }
+  }
+  scene.add(skyline);
+  // Social furniture kept in the central circulation zone; all decorative meshes share a few materials.
+  const sofa = (x,z,rot=0) => {
+    const g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(3.4,.38,1.05),M.metal); base.position.y=.35; g.add(base);
+    const cushion = new THREE.Mesh(new THREE.BoxGeometry(3.18,.3,.92),M.fabric); cushion.position.set(0,.68,0); g.add(cushion);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(3.25,.8,.22),M.fabric); back.position.set(0,1.05,-.39); g.add(back);
+    for (const sx of [-1.55,1.55]) { const arm=new THREE.Mesh(new THREE.BoxGeometry(.25,.52,1.02),M.fabric); arm.position.set(sx,.72,0); g.add(arm); }
+    g.position.set(x,y,z); g.rotation.y=rot; scene.add(g);
+  };
+  const table = (x,z) => {
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(.68,.72,.12,12),M.gold); top.position.set(x,y+.82,z); scene.add(top);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.12,.2,.72,8),M.metal); stem.position.set(x,y+.42,z); scene.add(stem);
+    const glow = new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.025,12),M.amber); glow.position.set(x,y+.9,z); scene.add(glow);
+  };
+  sofa(-9,-5,0); sofa(9,-5,Math.PI); sofa(-9,6,0); sofa(9,6,Math.PI);
+  for (const [x,z] of [[-6,-5],[6,-5],[-6,6],[6,6]]) table(x,z);
+  // Rooftop bar: decorative counter plus backlit shelving; menu interaction is roleplay-only.
+  box(-2.8,2.8,y,y+.16,10.5,11.4,M.metal);
+  box(-2.7,2.7,y+.16,y+1.15,10.65,11.35,M.stone);
+  box(-2.9,2.9,y+1.12,y+1.2,10.6,11.4,M.gold,false);
+  box(-2.4,2.4,y+1.35,y+3.0,12.2,12.35,M.metal,false);
+  for (let x=-1.8;x<=1.8;x+=.6) box(x-.025,x+.025,y+1.55,y+2.8,12.14,12.18,M.amber,false);
+  const crownLight = new THREE.PointLight(0xff5422,TOUCH?34:55,38,2);
+  crownLight.position.set(0,y+4,0); scene.add(crownLight); lights.push([crownLight,TOUCH?34:55]);
+  const edgeLight = new THREE.PointLight(0xff7a32,TOUCH?18:28,24,2);
+  edgeLight.position.set(0,y+1.4,-17); scene.add(edgeLight); lights.push([edgeLight,TOUCH?18:28]);
+  station('rooftop-return','Rooftop lift · return to tower',0,y,20.5,2.8,[2.8,2.8,1.3]);
+  station('rooftop-bar','BURN Tower sky bar',0,y,9.2,2.8,[6,2.8,1.6]);
+  station('rooftop-view','Panoramic observation deck',0,y,-16.5,3.8,[5,2.8,1.2]);
 }
 
 function envMap() {   // tiny procedural environment for plausible metal/glass reflections (no HDR download)
@@ -620,6 +704,9 @@ function interact(id) {
       break; }
     case 'residences': openResidences(); break;
     case 'residence-exit': travelTo('lift-ground'); break;
+    case 'rooftop-return': travelTo('lift-ground'); break;
+    case 'rooftop-bar': textPanel('BURN TOWER SKY BAR', 'Welcome to the rooftop bar. Drinks, service, and currency interactions are decorative roleplay only in this phase.'); break;
+    case 'rooftop-view': textPanel('PANORAMIC OBSERVATION DECK', 'Take in the BURN City skyline from the crown of PYRETHEUM. The perimeter is enclosed by glass safety barriers.'); break;
     case 'bar': showBarMenu(); break;
     case 'sit': showLoungeMenu(); break;
     case 'directory': showDirectory(); break;
@@ -684,7 +771,8 @@ function showDirectory() {
     protocol: () => interact('protocol'),
     firekeepers: () => interact('firekeepers'),
     racc: () => interact('racc'),
-    residences: () => interact('residences')
+    residences: () => interact('residences'),
+     rooftop: () => travelTo('rooftop')
   };
   for (const group of groups) {
     const h = document.createElement('h3'); h.textContent = group.title;
@@ -741,7 +829,8 @@ function showLiftMenu() {
     ['AEGIS SANCTUM', 'aegis'],
     ['THE EMBER BAR', 'bar'],
     ['DIONYSIAN LOUNGE', 'lounge'],
-    ['PRIVATE RESIDENCES · CHECK WALLET', 'residences']
+    ['PRIVATE RESIDENCES · CHECK WALLET', 'residences'],
+    ['BURN TOWER · ROOFTOP SKY LOUNGE', 'rooftop']
   ];
   for (const [label, destination] of destinations) {
     const b = btn(label); Object.assign(b.style, { display: 'block', width: '100%', margin: '7px 0', textAlign: 'left' });
@@ -829,7 +918,8 @@ function travelTo(destination) {
     bar: { x: -13.2, y: MEZZ, z: 13.5, yaw: Math.PI / 2, message: 'Arrived at the Ember Bar.' },
     lounge: { x: 13.6, y: MEZZ, z: 15.25, yaw: -Math.PI / 2, message: 'Arrived at the Dionysian Lounge.' },
     penthouse: { x: 34, y: MEZZ, z: 0, yaw: 0, message: 'Welcome home, Firekeeper.' },
-    suite: { x: 57, y: MEZZ, z: 0, yaw: 0, message: 'Welcome to your private members suite.' }
+    suite: { x: 57, y: MEZZ, z: 0, yaw: 0, message: 'Welcome to your private members suite.' },
+    rooftop: { x: 0, y: CEIL + 4, z: 0, yaw: 0, message: 'Welcome to the BURN Tower Sky Lounge.' }
   };
   const target = points[destination];
   if (!target) { toast('That destination is not open yet.'); return; }
@@ -973,7 +1063,7 @@ export async function openBurnTowerInterior() {
 function addHud() {
   hud = document.createElement('div');
   Object.assign(hud.style, { position: 'absolute', left: 'max(12px,env(safe-area-inset-left))', top: 'max(12px,env(safe-area-inset-top))', padding: '10px 12px', background: '#0a080be0', border: '1px solid #4d3b26', borderRadius: '12px', color: '#e9dcc8', zIndex: 3, pointerEvents: 'auto', maxWidth: 'min(330px,calc(100vw - 24px))' });
-  hud.innerHTML = '<div style="font:600 13px Georgia,serif;letter-spacing:.24em;color:#d7a65e">PYRETHEUM</div><div style="margin-top:3px;font-size:12px;color:#a8998a">' + (TOUCH ? 'Joystick to walk · drag to look · USE near signs' : 'WASD to walk · drag to look · E or click to use · Esc to leave') + '</div>';
+  hud.innerHTML = '<div style="font:600 13px Georgia,serif;letter-spacing:.24em;color:#d7a65e">BURN TOWER · PYRETHEUM</div><div style="margin-top:3px;font-size:12px;color:#a8998a">' + (TOUCH ? 'Joystick to walk · drag to look · USE near signs' : 'WASD to walk · drag to look · E or click to use · Esc to leave') + '</div>';
   const ex = btn('← EXIT TO CITY'); ex.style.marginTop = '8px'; ex.style.padding = '8px 11px'; ex.addEventListener('click', close); hud.appendChild(ex); root.appendChild(hud);
 }
 function bindInput() {
@@ -1013,7 +1103,7 @@ if (Q.has('towertest')) window.__towerTest = {
   checkDestinations() {
     const points = {
       hall: [0, 0, 21.5], 'lift-ground': [-5, 0, -22.3], mezz: [-5, MEZZ, -22.3],
-      aegis: [0, MEZZ, -30.2], bar: [-13.2, MEZZ, 13.5], lounge: [13.6, MEZZ, 15.25]
+      aegis: [0, MEZZ, -30.2], bar: [-13.2, MEZZ, 13.5], lounge: [13.6, MEZZ, 15.25], rooftop: [0, CEIL + 4, 0]
     };
     return Object.entries(points).map(([id, [x, y, z]]) => {
       const floor = groundAt(x, z, y);

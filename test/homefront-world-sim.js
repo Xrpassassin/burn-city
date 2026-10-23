@@ -57,9 +57,6 @@ const enemyAfter = world.encounters['acct-a'];
 const distanceAfter = Math.hypot(world.players['acct-a'].x - enemyAfter.x, world.players['acct-a'].z - enemyAfter.z);
 assert.ok(enemyAfter.x !== enemyBefore.x || enemyAfter.z !== enemyBefore.z, 'authoritative movement advances infected AI');
 assert.ok(distanceAfter < distanceBefore + 8, 'infected movement tracks the updated player position');
-console.log('Homefront shared Graveyard world simulation passed.');
-
-
 // Integration contract: player movement and infected pursuit must use the same
 // terrain gate and recover through the pathfinder rather than crossing a blocked ridge.
 const Terrain = require('../server/homefront-terrain');
@@ -133,3 +130,4 @@ try {
   Terrain.canTraverse = originalCanTraverse;
   Terrain.findTerrainPath = originalFindTerrainPath;
 }
+console.log('Homefront shared Graveyard world and terrain-movement integration passed.');

@@ -40,3 +40,5 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - A regression test compares otherwise equivalent high- and low-morale farmers to verify morale has a measurable production effect.
 
 - Intact storage sheds now improve scavenger scrap output during work shifts; damaged or destroyed sheds provide no bonus. Regression coverage compares a plain shift, an intact shed, and a destroyed shed.
+
+- Guard morale now contributes to defensive strength during breach resolution. High-morale guards provide 1.25 guard-strength units, steady guards 1.0, low-morale guards 0.75, and critically demoralized guards 0.5. Ammunition consumption still depends on guard headcount, while combat effectiveness depends on morale. A simulation test checks that high-morale guards preserve more refuge integrity than demoralized guards in the same first breach.

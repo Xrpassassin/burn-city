@@ -70,6 +70,10 @@ assert.match(page, /id="autoFireInfected"/, 'provide a dedicated hold-to-autofir
 assert.match(scene, /raycaster\.intersectObject\(combatGroup, true\)/, 'select an infected using actual 3D mesh ray intersection');
 assert.match(scene, /selectedCombatAimPoint = \{ x: hit\.x, y: hit\.y, z: hit\.z \}/, 'derive aim point from the 3D ray hit rather than a client-chosen hit-zone label');
 assert.match(scene, /const fireLoop = async \(\) =>/, 'repeat authenticated attacks while the autofire control is held');
+assert.match(scene, /return !\(data\.combat\?\.killed\)/, 'stop the held firing loop after a confirmed kill');
+assert.match(scene, /setPointerCapture\(event\.pointerId\)/, 'keep mobile autofire held through pointer movement');
+assert.match(scene, /const aimPoint = selectedCombatAimPoint && activeTarget && targetId === activeTarget\.id/, 'refresh the aim point against the latest target snapshot on each shot');
+assert.match(scene, /fired === false\) \{ stopAutoFire\(\); return; \}/, 'stop repeated requests after a combat error such as empty ammunition');
 assert.match(scene, /pointercancel|pointerup/, 'stop autofire on pointer release or cancellation');
 assert.match(scene, /JSON\.stringify\(targetId \? \{ targetId/, 'include the selected target with combat requests');
 

@@ -377,6 +377,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const id = typeof action.weapon === 'string' ? action.weapon : '';
       const spec = WEAPONS[id];
       if (!spec || id === 'pipe_blade') throw new Error('unknown_weapon');
+      if (id === 'machine_gun' && !s.exploration.discoveredZones.includes('industrial')) throw new Error('weapon_locked');
+      if (id === 'heavy_machine_gun' && !s.exploration.discoveredZones.includes('research_lab')) throw new Error('weapon_locked');
       if (s.weapons.includes(id)) throw new Error('weapon_already_owned');
       if (s.embers < spec.cost.embers) throw new Error('insufficient_embers');
       pay(s, { scrap: spec.cost.scrap });

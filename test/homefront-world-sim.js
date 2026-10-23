@@ -31,6 +31,7 @@ assert.ok(Math.hypot(world.players['acct-a'].x - before.x, world.players['acct-a
 assert.ok(world.players['acct-a'].survival.hunger < needsBeforeMove.hunger, 'accepted travel consumes food reserves');
 assert.ok(world.players['acct-a'].survival.thirst < needsBeforeMove.thirst, 'accepted travel consumes water reserves');
 assert.ok(world.players['acct-a'].survival.stamina < needsBeforeMove.stamina, 'accepted travel consumes stamina');
+assert.equal(world.players['acct-a'].inventory.food,0,'legacy active explorers do not receive duplicated starter rations');
 assert.ok(Math.hypot(world.players['acct-b'].x - world.players['acct-a'].x, world.players['acct-b'].z - world.players['acct-a'].z) < 6, 'leader movement carries party members with the group');
 assert.equal(W.districtAt(0, 0).risk, 5, 'deep city core is high risk');
 assert.equal(W.districtAt(-8, -82).risk, 1, 'outer spawn is low risk');

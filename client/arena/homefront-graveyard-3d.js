@@ -1020,9 +1020,7 @@ function boot(host) {
   const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(260, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
-  // Homefront's master view is third-person by default. V toggles a high tactical overview
-  // without changing authoritative movement or world state.
-  let masterView = 'third-person';
+  // Exploration remains third-person; overhead views are reserved for base construction.
   let cameraYawOffset = 0;
   let cameraPitchOffset = 0;
   let cameraDistance = 6.2;

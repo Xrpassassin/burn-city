@@ -22,6 +22,11 @@ The current authored road grid is spaced at 20 world units, centered at coordina
 - The current landscape is deliberately gentle; the pathfinder is groundwork for future steeper terrain, not a replacement for collision or grounding. Do not simply increase the grade threshold until entities clip through slopes.
 - Keep server position authority, survival distance accounting, party movement, combat range checks, and persistent saves in horizontal world coordinates unless a deliberate schema migration is made.
 
+## Integrated movement regression coverage
+
+- `test/homefront-world-sim.js` now simulates a blocked ridge at the shared terrain-module boundary and verifies that player movement follows a safe detour, infected pursuit follows the same detour, and both actors stop rather than cross when the pathfinder reports no route.
+- These are server-side integration tests with a controlled terrain gate/pathfinder seam; they validate that world/combat code honors the contract, but they do not replace tests against the real generated terrain or browser/device playtesting.
+
 ## Remaining before calling terrain complete
 
 1. Add terrain-aware collision/grounding for movement and interactions rather than relying on horizontal coordinates alone.

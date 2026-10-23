@@ -27,6 +27,21 @@ assert.equal(a.last('flight_depart').map,'refinery');
 assert.equal(b.last('flight_depart').map,'refinery');
 assert.equal(room.departed,true);
 Flight.resetForTests();
+
+// Readiness withdrawal cancels the shared countdown, and a full party must not hide future queues.
+const party=[];
+for(let i=0;i<Flight.MAX_PARTY;i++){const p=new FakeSocket();party.push(p);Flight.attach(p,url('refinery','Passenger'+i));}
+const fullRoom=party[0].flightPlayer.room;
+assert.equal(fullRoom.players.size,Flight.MAX_PARTY,'first party fills to its configured cap');
+const ninth=new FakeSocket();Flight.attach(ninth,url('refinery','Ninth'));
+assert.notEqual(ninth.flightPlayer.room,fullRoom,'an additional passenger is routed to a separate party');
+assert.equal(fullRoom.players.size,Flight.MAX_PARTY,'creating a second party preserves the first party roster');
+party.forEach(p=>p.message({t:'ready',ready:true}));
+assert.ok(fullRoom.countdownAt,'full party starts its own countdown once all members are ready');
+party[0].message({t:'ready',ready:false});
+assert.equal(fullRoom.countdownAt,null,'withdrawing readiness cancels the shared countdown');
+assert.equal(fullRoom.players.size,Flight.MAX_PARTY,'readiness changes do not alter the roster');
+Flight.resetForTests();
 const c=new FakeSocket();Flight.attach(c,url('random','Charlie'));
 assert.equal(c.last('flight_joined').map,'random');
 Flight.resetForTests();

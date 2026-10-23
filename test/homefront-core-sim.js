@@ -212,7 +212,7 @@ console.log('Zombie Homefront settlement core simulation passed.');
 const { buildReturnDebrief } = require('../server/homefront');
 const debrief = buildReturnDebrief(
   { at: 1000, embers: 50, repelledCount: 2, resources: { wood: 40, scrap: 30, food: 24, water: 18, meds: 5, ammo: 18 }, totals: { embersEarned: 50, resourcesCollected: { wood: 12, scrap: 9, food: 0, water: 0, meds: 2, ammo: 4 }, suppliesConsumed: { wood: 0, scrap: 0, food: 3, water: 0, meds: 0, ammo: 2 }, rewardEvents: 2, repels: 2 } },
-  { embers: 83, repelledCount: 4, resources: { wood: 45, scrap: 26, food: 20, water: 17, meds: 6, ammo: 14 } },
+  { embers: 83, repelledCount: 8, resources: { wood: 45, scrap: 26, food: 20, water: 17, meds: 6, ammo: 14 } },
   { stored: { food: 2, scrap: 3, ammo: 1 } },
   2000
 );

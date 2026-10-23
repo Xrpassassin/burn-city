@@ -180,7 +180,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           if (capacity < 1) throw new Error('weapon_does_not_reload');
           const magazine = player.weaponMagazine && player.weaponMagazine.weaponId === weaponId ? player.weaponMagazine : { weaponId, loaded: 0 };
           const inventory = Inventory.normalize(player.inventory);
-          const loaded = Math.min(capacity - magazine.loaded, inventory.ammo);
+          const requestedRounds = Number.isInteger(payload.rounds) ? Math.max(1, Math.min(capacity, payload.rounds)) : capacity;
+          const loaded = Math.min(requestedRounds, capacity - magazine.loaded, inventory.ammo);
           if (loaded <= 0) throw new Error(magazine.loaded >= capacity ? 'magazine_full' : 'no_reserve_ammo');
           inventory.ammo -= loaded;
           player.inventory = inventory;

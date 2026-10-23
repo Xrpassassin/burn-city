@@ -40,9 +40,10 @@ assert.equal(zoneA.damage,zoneB.damage,'hit-zone damage is deterministic for the
 assert.ok(r.killed);assert.ok(r.reward.scrap>0);assert.ok(b.resources.scrap>0);assert.ok(b.revision>0,'combat mutations advance the persistent refuge revision');
 const pursuer={...a.encounters.a,x:10,z:0,lastAiAt:100000,expiresAt:300000};
 const advanced=C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000});
-assert.ok(advanced.a.x<10&&advanced.a.x>2.2,'infected pursues the player without teleporting into contact');
-assert.equal(advanced.a.z,0);
-assert.equal(C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000}).a.x,advanced.a.x,'pursuit is deterministic for the same state and clock');
+assert.ok(advanced.a.members.some((member,i)=>Math.hypot(member.x,member.z)<Math.hypot(pursuer.members[i].x,pursuer.members[i].z)),'at least one infected squad member pursues the player without teleporting into contact');
+assert.ok(advanced.a.members.every(member=>Math.hypot(member.x,member.z)>0.5),'infected squad members do not teleport into contact');
+const advancedAgain=C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000});
+assert.deepEqual(advancedAgain.a.members.map(m=>[m.x,m.z]),advanced.a.members.map(m=>[m.x,m.z]),'squad pursuit is deterministic for the same state and clock');
 const leashed=C.advance({encounters:{a:{...pursuer,x:40,z:0,pursuitRadius:20,lastKnownX:40,lastKnownZ:0,lastKnownAt:100000,investigateUntil:0}},players:{a:{x:0,z:0}},now:101000});
 assert.equal(leashed.a.x,40,'infected stop extending pursuit after the player breaks their leash radius');
 const noiseDrawn=C.advance({encounters:{a:{...pursuer,x:40,z:0,pursuitRadius:20,lastKnownX:40,lastKnownZ:0,lastKnownAt:100000,investigateUntil:0}},players:{a:{x:0,z:0,lastNoiseAt:100500,noiseLevel:95,noiseX:30,noiseZ:0}},now:101000});

@@ -13,7 +13,7 @@ function findRoom(mode, ranked, daily, mapId = null) {   // ranked = match id
   if (daily && mode === 'zombie') { const d = Retain.daily(); let r = rooms.zombie.find(x => x.daily?.day === d.day && !x.full); if (!r) { r = new Room(roomSeq++, 'zombie'); r.daily = d; r.mod = d.mod; r.rng = Retain.rng(d.seed); r.onLife = x => Retain.recordDaily({ ...x, day: d.day }); rooms.zombie.push(r); } return r; }
   if (ranked) { let r = rooms.zombie.find(x => x.ranked?.id === ranked); if (r && r.full) return null; if (!r) { r = new Room(roomSeq++, 'zombie');
     r.ranked = { state: 'lobby', countdown: null, max: Ranked.R.MAX, min: Ranked.R.MIN, cap: 20 * 60, results: new Map(), id: ranked, opened: r.t }; rooms.zombie.push(r); } return r; }
-  const wantedMap = mode === 'zombie' && mapId === 'cosmodrome' ? 'cosmodrome' : null; let r = rooms[mode].find(r => !r.ranked && !r.tl && !r.daily && !r.full && (r.mapId || null) === wantedMap); if (!r) { rooms[mode].push(r = new Room(roomSeq++, mode, wantedMap)); r.onLife = LB.record; } return r; }
+  const wantedMap = mode === 'zombie' && mapId === 'refinery' ? 'refinery' : null; let r = rooms[mode].find(r => !r.ranked && !r.tl && !r.daily && !r.full && (r.mapId || null) === wantedMap); if (!r) { rooms[mode].push(r = new Room(roomSeq++, mode, wantedMap)); r.onLife = LB.record; } return r; }
 
 const adminFails = new Map();
 function adminOk(req, ip) {   // constant-time compare, header only, 10 bad tries / 15 min per IP lock out
@@ -183,7 +183,7 @@ wss.on('connection', (ws, req) => {
   else if (rt) { room = gm === 'tron' ? tronRoom({ id: lob.id, ranked: true, cfg: lob.cfg, creatorAcct: lob.creator }) : findRoom('zombie', lob.id); if (!room) return ws.close(4005, 'match_already_started'); }
   else if (gm === 'tron' && url.searchParams.get('create')) room = tronRoom({ cfg: { teams: +url.searchParams.get('teams') || 0, ff: url.searchParams.get('ff') !== '0', bo3: url.searchParams.get('bo3') === '1' } });
   else if (gm === 'tron' && url.searchParams.get('room')) { room = rooms.tron.find(r => r.tl && !r.tl.ranked && r.tl.id === url.searchParams.get('room')); if (!room || room.full) return ws.close(4005, 'match_already_started_or_full'); }
-  else room = findRoom(gm, null, url.searchParams.get('daily') === '1', url.searchParams.get('map') === 'cosmodrome' ? 'cosmodrome' : null);
+  else room = findRoom(gm, null, url.searchParams.get('daily') === '1', url.searchParams.get('map') === 'refinery' ? 'refinery' : null);
   let p, id;
   if (rsOk) { p = rs.p; id = p.id; const old = p.ws; p.ws = ws; p.away = 0; p.ip = ip; p.msgs = 0; p.win = Date.now(); clearTimeout(p.awayT); p.awayT = null; if (old && old !== ws) { try { old.terminate(); } catch {} } }   // resumed: same player, same points/guns/perks
   else {

@@ -28,7 +28,21 @@ function swarm(room, n, padOnly) { const h = room.heli; let made = 0;
 function seat(h, p) { const i = p.mg; if (i === 0 || i === 1) return [h.x + (i ? 1.7 : -1.7), h.z + 0.2]; const k = [...h.b].indexOf(p.id); return [h.x + (k % 2 ? 0.55 : -0.55), h.z - 0.6 - (k >> 1) * 0.7]; }
 function board(room, p, ev) { const h = room.heli; h.b.add(p.id); p.aboard = 1; p.mg = null; p.inv = 99; p.in.fire = false; ev.push({ e: 'hboard', id: p.id, n: h.b.size }); }
 function depart(room, why, ev) { const h = room.heli; h.st = ST.lift; h.t = LIFT; h.why = why; ev.push({ e: 'heli', s: ST.lift, why }); swarm(room, 8, true); }
+// Free Play (Refinery Map 1 or a random map) advances to the Cosmodrome on a full-team extraction.
+// Ranked, daily and team-lobby rooms keep their fixed layout so leaderboards stay fair.
+function advances(room) { return room.mode === 'zombie' && room.mapId !== 'cosmodrome' && !room.ranked && !room.daily && !room.tl; }
 function finish(room, ps, ev) { const h = room.heli, all = [...room.players.values()].filter(p => !p.spectator);
+  // Successful full-team extraction advances the same live room to Map 2. The room constructor
+  // rejects client-requested Cosmodrome starts; only this server-owned progression sets mapId.
+  const survivors = all.filter(p => p.alive);
+  if (advances(room) && survivors.length && survivors.every(p => h.b.has(p.id))) {
+    const from = room.M?.kind === 'classic' ? 'The BURN Refinery' : 'the outbreak zone';
+    room.mapId = 'cosmodrome';
+    h.st = ST.done;
+    ev.push({ e: 'map_transition', from, to: 'The Ashen Cosmodrome' });
+    room.reset();
+    return;
+  }
   const left = all.filter(p => !h.b.has(p.id)), stat = p => ({ id: p.id, pts: p.pts | 0, kills: p.lifeKills | 0, wave: room.wave, secs: Math.round(room.t - (p.lifeStart || 0)) });
   for (const p of all) if (h.b.has(p.id)) ev.push({ e: 'hres', r: 'x', ...stat(p) });
   ev.push({ e: 'heli', s: ST.left, b: [...h.b] });
@@ -76,4 +90,4 @@ function rider(room, p, dt, ev, A) { const h = room.heli; if (!h) { p.aboard = 0
 // snapshot: [state, secs left, boarded ids, votes, active count, gunner ids, spin x10, x, z, y, departing secs (0 = none)]
 function snap(room) { const h = room.heli; if (!h) return undefined; return [h.st, Math.max(0, Math.ceil(h.t)), [...h.b], h.vn | 0, h.act | 0, h.g.slice(), h.spin.map(v => Math.round(v * 10)), q(h.x), q(h.z), q(h.y), h.dep != null && h.st === ST.board ? Math.max(0, Math.ceil(h.dep)) : 0]; }
 function reset(room) { room.heli = null; for (const p of room.players.values()) { p.aboard = 0; p.mg = null; } }
-module.exports = { DEPART, start, tick, rider, snap, reset, swarm, ST, PAD_R, INBOUND, BOARD };
+module.exports = { advances, DEPART, start, tick, rider, snap, reset, swarm, ST, PAD_R, INBOUND, BOARD };

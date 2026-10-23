@@ -27,14 +27,14 @@ function tick(room, now=Date.now()) {
     room.departed=true;clearCountdown(room);
     const event={e:'flight_depart',map:room.map,roomId:room.id,departedAt:now};
     for(const p of room.players.values())safeSend(p.ws,event);
-    setTimeout(()=>{for(const p of room.players.values()){try{p.ws.close(1000,'flight_departed')}catch{}}rooms.delete(room.key)},2500);
+    setTimeout(()=>{for(const p of room.players.values()){try{p.ws.close(1000,'flight_departed')}catch{}}if(rooms.get(room.key)===room)rooms.delete(room.key)},2500);
     return;
   }
   broadcast(room);
 }
 function remove(room,p) {
   if(!room.players.delete(p.id))return;
-  if(!room.players.size){clearCountdown(room);rooms.delete(room.key);return;}
+  if(!room.players.size){clearCountdown(room);if(rooms.get(room.key)===room)rooms.delete(room.key);return;}
   armCountdown(room);
 }
 function attach(ws,url) {

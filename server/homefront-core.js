@@ -106,6 +106,7 @@ function validateBase(input, ownerId) {
     .map(s => ({
       id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role,
       morale: clampInt(s.morale, 0, 100),
+      stats: normalizeSurvivorStats(s.stats, s.id, owner),
       task: SURVIVOR_TASKS.has(s.task) ? s.task : defaultSurvivorTask(s.role),
       taskTarget: typeof s.taskTarget === 'string' ? s.taskTarget.slice(0, 80) : '',
       taskReason: typeof s.taskReason === 'string' ? s.taskReason.slice(0, 120) : 'Role assignment',

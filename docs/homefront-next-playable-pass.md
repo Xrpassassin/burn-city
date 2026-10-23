@@ -44,11 +44,13 @@ Implemented on the existing draft branch:
 
 This remains a click-to-travel 3D prototype rather than continuous WASD movement; the handling pass improves the existing action loop without replacing the runtime.
 
-### 3. Inventory UI pass
+### Completed: field inventory UI pass
 
-Expose the carried pack clearly during expeditions: item counts, used weight/capacity, stack limits, and quick actions for eat, drink, bandage, and stash on return. Disable actions that cannot succeed, but still validate every action on the server. Make touch targets comfortably sized and preserve readable contrast at narrow widths.
+- Field inventory cards now show per-item counts against stack limits, item weight, and stack fill. The pack header highlights when total weight reaches capacity.
+- Pack actions disable when the refuge lacks the requested quantity or the carried pack cannot fit the whole requested transfer. Stashing disables when the pack is empty.
+- Eat, drink, bandage, rest, cook, and purify controls remain context-gated and server-validated. The existing large touch targets and dark high-contrast layout are preserved.
 
-### 4. Food and water quality
+### Next: food and water quality
 
 Add this only after physical loot claims are stable.
 

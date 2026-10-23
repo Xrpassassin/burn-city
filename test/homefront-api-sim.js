@@ -32,6 +32,9 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(a0.data.base.owner, 'acct-a');
   assert.equal(a0.data.base.structures.length, 0);
   assert.equal(a0.data.base.visibility, 'private');
+  const unownedSkin = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'equip_cosmetic', skin: 'hazard_stripe' } });
+  assert.equal(unownedSkin.status, 400, 'cannot equip a cosmetic that the account does not own');
+  assert.equal(unownedSkin.data.error, 'cosmetic_not_owned');
   const privateVisit = await call('GET', '/api/homefront/visit?owner=acct-a', null);
   assert.equal(privateVisit.status, 404, 'private refuges must not be visitable');
 

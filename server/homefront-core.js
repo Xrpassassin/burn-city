@@ -552,9 +552,15 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       }
       const lost = s.baseHp === 0;
       for (const turret of active.filter(x => x.type === 'turret')) turret.manned = false;
-      const breachText = breached.length ? ' Breach opened: ' + breached.join(', ') + ' destroyed.' : '';
+      const breachText = breached.length ? ' Breach opened: ' + siegeTargets.filter(x => x.hp <= 0 && breached.includes(x.type)).map(x => x.type + ' ' + x.id).join(', ') + ' destroyed.' : '';
+      let targetOutcome = '';
+      if (coverTarget) {
+        const integrity = coverTarget.maxHp > 0 ? Math.round(coverTarget.hp / coverTarget.maxHp * 100) : 0;
+        const condition = coverTarget.hp <= 0 ? 'BREACHED' : integrity <= 25 ? 'CRITICAL' : integrity <= 60 ? 'DAMAGED' : 'HOLDING';
+        targetOutcome = ' Priority target ' + coverTarget.type + ' ' + coverTarget.id + ' is ' + condition + ' (' + integrity + '% integrity).';
+      }
       const guardText = profile.guards + ' guard(s) contributed ' + profile.guardDefenseBonus + ' defense strength' + (breachCover > 0 ? ' and reduced perimeter damage by ' + Math.round(breachCover * 100) + '% while covering damaged ' + coverTarget.type + ' ' + coverTarget.id : '');
-      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach. ' + guardText + '.' : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + guardText + '; ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.' + breachText, now);
+      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach. ' + guardText + '.' + targetOutcome : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + guardText + '; ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.' + targetOutcome + breachText, now);
       break;
     }
     case 'repair': {
@@ -563,9 +569,15 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (action.target !== 'base' && !target) throw new Error('unknown_repair_target');
       if (target && target.hp >= target.maxHp || !target && s.baseHp >= s.baseMaxHp) throw new Error('already_repaired');
       s.resources.wood -= 2; s.resources.scrap -= 1;
-      if (target) target.hp = Math.min(target.maxHp, target.hp + 50);
-      else s.baseHp = Math.min(s.baseMaxHp, s.baseHp + 75);
-      record(s, 'repair', 'Repairs completed.', now);
+      if (target) {
+        const before = target.hp;
+        target.hp = Math.min(target.maxHp, target.hp + 50);
+        record(s, 'repair', 'Repaired ' + target.type + ' ' + target.id + ': +' + (target.hp - before) + ' HP (' + Math.round(target.hp / target.maxHp * 100) + '% integrity).', now);
+      } else {
+        const before = s.baseHp;
+        s.baseHp = Math.min(s.baseMaxHp, s.baseHp + 75);
+        record(s, 'repair', 'Repaired refuge: +' + (s.baseHp - before) + ' HP (' + Math.round(s.baseHp / s.baseMaxHp * 100) + '% integrity).', now);
+      }
       break;
     }
     default: throw new Error('unknown_action');

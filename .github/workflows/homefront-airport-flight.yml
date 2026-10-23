@@ -10,6 +10,10 @@ on:
       - 'server/homefront-inventory.js'
       - 'server/homefront-inventory.test.js'
       - 'server/homefront-world.js'
+      - 'server/homefront-terrain.js'
+      - 'server/homefront-terrain.test.mjs'
+      - 'client/arena/homefront-terrain-generation.mjs'
+      - 'client/arena/homefront-world-generation.mjs'
       - 'server/homefront.js'
       - 'server/game.js'
       - 'server/server.js'
@@ -49,6 +53,7 @@ jobs:
           node --check server/homefront-survival.js
           node --check server/homefront-inventory.js
           node --check server/homefront-world.js
+          node --check server/homefront-terrain.js
           node --check server/homefront.js
           node --check server/game.js
           node --check server/server.js

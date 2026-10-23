@@ -114,7 +114,6 @@ const COSMODROME = { name: 'The Ashen Cosmodrome', kind: 'cosmodrome', env: { to
   },
   quest: null
 };
-const COSMODROME_M = build(COSMODROME, 'cosmodrome');
 if (process.env.ZOMBIE_TEST_PROPS && !process.env.FLY_APP_NAME) { CLASSIC.box.push([17, 22, 1, 0]); CLASSIC.forge = [22, 22, 1, 0]; }   // local screenshot runs only
 const FORGE_COST = +process.env.ZOMBIE_FORGE_COST || 5000;
 function build(def, kind) {
@@ -144,6 +143,7 @@ function build(def, kind) {
     PERKS: PERK_KEYS.map(k => ({ k, ...PERKINFO[k], ...P(def.perks[k]) })) };
 }
 const CLASSIC_M = build(CLASSIC, 'classic');
+const COSMODROME_M = build(COSMODROME, 'cosmodrome');   // built after FORGE_COST/build are initialised (was a TDZ crash at require time)
 let M, GRID, SEE, DOORS, WINDOWS, ZONES, OBST, WALLBUYS, BOX_SPOTS, FORGE, POWER, PERKS, UPG, UPSEE, UH, RAMPAT, RAMPS, ATR;
 function use_(m) { M = m; ({ GRID, SEE, DOORS, WINDOWS, ZONES, OBST, WALLBUYS, BOX_SPOTS, FORGE, POWER, PERKS, UPG, UPSEE, UH, RAMPAT, RAMPS, ATR } = m); }
 use_(CLASSIC_M);

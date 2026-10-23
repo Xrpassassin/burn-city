@@ -262,4 +262,29 @@ assert.equal(fortified.structures.find(x => x.id === turret.id).manned, false, '
 const normalizedFortifications = H.validateBase(fortified, 'fortification-test');
 assert.equal(normalizedFortifications.structures.find(x => x.id === trench.id).trenchLevel, 3, 'trench tier persists through save normalization');
 assert.equal(normalizedFortifications.structures.find(x => x.id === entrance.id).rotation, Math.PI / 2, 'entrance rotation persists through save normalization');
-console.log('Homefront fortification builder simulation passed.');
+
+const farmStart = H.createBase('farm-test', 6000);
+assert.equal(farmStart.resources.seeds, 6, 'new refuge has a small starter seed reserve');
+assert.deepEqual(farmStart.farmPlots, [], 'farm plots start empty; the player must establish the farm');
+farmStart.resources.food = 100;
+const soil = H.applyAction(farmStart, 'farm-test', { type: 'farm_till', x: 4, z: 4 }, 6010);
+const plot = soil.farmPlots[0];
+assert.equal(plot.crop, null, 'tilling only prepares soil; it does not auto-plant');
+assert.throws(() => H.applyAction(soil, 'farm-test', { type: 'assign', survivorId: 'missing', role: 'farmer' }, 6020), /plant_crops_before_recruiting_farmers/, 'farmer assignment is gated until the player plants a crop');
+let planted = H.applyAction(soil, 'farm-test', { type: 'farm_plant', plotId: plot.id, crop: 'potato' }, 6030);
+assert.equal(planted.resources.seeds, 5, 'planting spends a seed');
+assert.throws(() => H.applyAction(planted, 'farm-test', { type: 'farm_harvest', plotId: plot.id }, 6040), /crop_not_ready/);
+for (let day = 0; day < 3; day++) {
+  planted = H.applyAction(planted, 'farm-test', { type: 'farm_water', plotId: plot.id }, 6050 + day * 20);
+  planted = H.applyAction(planted, 'farm-test', { type: 'workday' }, 6060 + day * 20);
+}
+assert.equal(planted.farmPlots[0].growth, H.CROPS.potato.days, 'watered crops advance through the server-authoritative workday clock');
+const foodBeforeHarvest = planted.resources.food;
+planted = H.applyAction(planted, 'farm-test', { type: 'farm_harvest', plotId: plot.id }, 6120);
+assert.equal(planted.resources.food, foodBeforeHarvest + 7, 'watered potato harvest adds the base yield plus watering bonus');
+assert.equal(planted.farmPlots[0].crop, null, 'harvest resets the plot for replanting');
+const savedFarm = H.validateBase(planted, 'farm-test');
+assert.equal(savedFarm.farmPlots.length, 1, 'farm plot persists through save normalization');
+assert.equal(savedFarm.resources.seeds, 5, 'seed inventory persists through save normalization');
+
+console.log('Homefront fortification and farming simulation passed.');

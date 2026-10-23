@@ -83,7 +83,7 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
   // Prefer the direct step; only invoke bounded A* when terrain blocks the pursuit line.
   if(Terrain.canTraverse(e.x,e.z,nextX,nextZ)&&Collision.canTraverse(e.x,e.z,nextX,nextZ,{radius:0.45,bounds:100})){e.x=nextX;e.z=nextZ;}
   else {
-   const route=Collision.findPath(e.x,e.z,targetX,targetZ,{bounds:100,maxExpanded:2600,radius:0.45});
+   const route=Terrain.findTerrainPath(e.x,e.z,targetX,targetZ) || Collision.findPath(e.x,e.z,targetX,targetZ,{bounds:100,maxExpanded:2600,radius:0.45});
    if(route&&route.length){
     const advanced=advanceAlongTerrainPath(e.x,e.z,route,step);
     if(Terrain.canTraverse(e.x,e.z,advanced.x,advanced.z)&&Collision.canTraverse(e.x,e.z,advanced.x,advanced.z,{radius:0.45,bounds:100})){e.x=advanced.x;e.z=advanced.z;}

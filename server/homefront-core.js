@@ -26,7 +26,7 @@ function createBase(ownerId, now = Date.now()) {
   if (!owner) throw new Error('invalid_owner');
   return {
     version: VERSION, owner, revision: 1, createdAt: now, updatedAt: now,
-    level: 1, day: 1, baseHp: 500, baseMaxHp: 500, wave: 0,
+    level: 1, day: 1, baseHp: 500, baseMaxHp: 500, wave: 0, visibility: 'private',
     resources: { wood: 40, scrap: 30, food: 24, meds: 5, ammo: 18 },
     structures: [], survivors: [], expeditionCount: 0, defenseCount: 0,
     log: [{ id: 1, kind: 'welcome', text: 'A refuge is yours. Gather supplies, recruit survivors, and prepare for the first breach.', at: now }]
@@ -64,6 +64,12 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   if (!s) throw new Error('invalid_or_foreign_base');
   if (!action || typeof action.type !== 'string') throw new Error('invalid_action');
   switch (action.type) {
+    case 'visibility': {
+      if (action.value !== 'public' && action.value !== 'private') throw new Error('invalid_visibility');
+      s.visibility = action.value;
+      record(s, 'visibility', action.value === 'public' ? 'Your refuge is open for visitors.' : 'Your refuge is private again.', now);
+      break;
+    }
     case 'build': {
       const spec = BUILDINGS[action.building];
       if (!spec) throw new Error('unknown_building');

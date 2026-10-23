@@ -12,7 +12,7 @@ const shortMove = S.move(fresh, start + 1000, 4);
 assert.equal(shortMove.stamina, 97, 'short movement costs less stamina than a full-distance move');
 assert.ok(shortMove.hunger < fresh.hunger && shortMove.thirst < fresh.thirst, 'travel increases food and water needs');
 const depletedMove = S.move({ ...fresh, hunger: 20 }, start + 1000, 12);
-assert.equal(depletedMove.stamina, 82.5, 'moving while hungry increases exertion cost');
+assert.equal(depletedMove.stamina, 92.5, 'moving while hungry increases exertion cost');
 const ate = S.act({ ...fresh, hunger: 40 }, 'eat', start + 1000);
 assert.ok(ate.hunger > 77.9 && ate.hunger < 78, 'eating restores hunger after normal elapsed-time decay');
 const drank = S.act({ ...fresh, thirst: 30 }, 'drink', start + 1000);

@@ -3,6 +3,7 @@
 const Store = require('./store');
 const Core = require('./homefront-core');
 const World = require('./homefront-world');
+const Combat = require('./homefront-combat');
 
 async function handle(req, res, url, { json, gate, ip, body, who, store = Store }) {
   const publicVisit = url.pathname === '/api/homefront/visit';
@@ -43,6 +44,34 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
+        case '/api/homefront/world/encounter': {
+          if (req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const spawned = Combat.spawn({ encounters: db.encounters, account: user.acct, player, now: Date.now(), seed: Number.isFinite(payload.seed) ? payload.seed : 0 });
+          db.encounters = spawned.encounters;
+          player.lastSeen = Date.now();
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: spawned.encounter, reused: spawned.reused });
+          return true;
+        }
+        case '/api/homefront/world/attack': {
+          if (req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const bases = store.load('homefront.json', {});
+          const savedBase = bases[user.acct] || Core.createBase(user.acct);
+          const base = Core.validateBase(savedBase, user.acct);
+          if (!base) throw new Error('save_invalid');
+          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base, now: Date.now(), weaponPower: Core.weaponPower(base), seed: Number.isFinite(payload.seed) ? payload.seed : 0 });
+          db.encounters = outcome.encounters;
+          player.lastSeen = Date.now();
+          bases[user.acct] = outcome.base;
+          store.save('homefront.json', bases);
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward }, base: outcome.base });
+          return true;
+        }
         case '/api/homefront/world/enter': outcome = World.enter(db, user.acct); break;
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z)); break;
         case '/api/homefront/world/rescue': {
@@ -157,7 +186,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       json(res, 200, { mode: 'homefront-world', ...outcome.result }); return true;
     } catch (e) {
       const message = String(e?.message || 'homefront_world_error');
-      const clientError = /^(not_in_expedition|move_cooldown|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
+      const clientError = /^(not_in_expedition|move_cooldown|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|no_active_encounter|encounter_expired|enemy_out_of_range|attack_cooldown|insufficient_ammo|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
       json(res, clientError ? 400 : 500, { error: message });
       if (!clientError) console.error('[homefront-world]', message);
       return true;

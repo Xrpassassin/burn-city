@@ -89,6 +89,8 @@ function normalizeWorld(input) {
     p.directorState = p.directorState && typeof p.directorState === 'object' ? p.directorState : {};
     p.lastNoiseAt = Number.isFinite(p.lastNoiseAt) ? clamp(p.lastNoiseAt, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.noiseLevel = clamp(p.noiseLevel, 0, 100);
+    p.noiseX = clamp(p.noiseX ?? p.x, -WORLD_SIZE, WORLD_SIZE);
+    p.noiseZ = clamp(p.noiseZ ?? p.z, -WORLD_SIZE, WORLD_SIZE);
     p.aiming = p.aiming === true;
     p.aimStartedAt = p.aiming && Number.isFinite(p.aimStartedAt) ? clamp(p.aimStartedAt, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.lastSprintAt = Number.isFinite(p.lastSprintAt) ? clamp(p.lastSprintAt, 0, Number.MAX_SAFE_INTEGER) : 0;

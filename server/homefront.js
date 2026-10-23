@@ -4,6 +4,7 @@ const Store = require('./store');
 const Core = require('./homefront-core');
 const World = require('./homefront-world');
 const Combat = require('./homefront-combat');
+const Survival = require('./homefront-survival');
 
 async function handle(req, res, url, { json, gate, ip, body, who, store = Store }) {
   const publicVisit = url.pathname === '/api/homefront/visit';
@@ -44,6 +45,33 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
+        case '/api/homefront/world/survival': {
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const action = typeof payload.action === 'string' ? payload.action : '';
+          const bases = store.load('homefront.json', {});
+          const savedBase = bases[user.acct] || Core.createBase(user.acct);
+          const base = Core.validateBase(savedBase, user.acct);
+          if (!base) throw new Error('save_invalid');
+          const costs = { eat: ['food', 1, 'insufficient_food'], drink: ['water', 1, 'insufficient_water'], bandage: ['meds', 1, 'insufficient_meds'] };
+          const cost = costs[action];
+          if (cost && base.resources[cost[0]] < cost[1]) throw new Error(cost[2]);
+          const nextSurvival = Survival.act(player.survival, action, Date.now());
+          if (cost) base.resources[cost[0]] -= cost[1];
+          player.survival = nextSurvival;
+          player.lastSeen = Date.now();
+          if (cost) {
+            base.revision++;
+            base.updatedAt = Date.now();
+            base.log.push({ id: (base.log.at(-1)?.id || 0) + 1, kind: 'survival', text: ({eat:'Consumed one ration in the field.',drink:'Drank one bottle of water in the field.',bandage:'Used a medical supply to treat field injuries.'})[action], at: Date.now() });
+            base.log = base.log.slice(-20);
+            bases[user.acct] = base;
+            store.save('homefront.json', bases);
+          }
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), base, survival: nextSurvival });
+          return true;
+        }
         case '/api/homefront/world/encounter': {
           if (req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
           const player = db.players[user.acct];
@@ -186,7 +214,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       json(res, 200, { mode: 'homefront-world', ...outcome.result }); return true;
     } catch (e) {
       const message = String(e?.message || 'homefront_world_error');
-      const clientError = /^(not_in_expedition|move_cooldown|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|no_active_encounter|encounter_expired|enemy_out_of_range|attack_cooldown|insufficient_ammo|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
+      const clientError = /^(not_in_expedition|move_cooldown|not_hungry|not_thirsty|not_injured|not_exhausted|unknown_survival_action|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|no_active_encounter|encounter_expired|enemy_out_of_range|attack_cooldown|insufficient_ammo|insufficient_water|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
       json(res, clientError ? 400 : 500, { error: message });
       if (!clientError) console.error('[homefront-world]', message);
       return true;

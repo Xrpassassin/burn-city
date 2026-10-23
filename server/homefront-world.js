@@ -146,6 +146,21 @@ function enter(input, acct, now = Date.now()) {
   w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
   return { world: w, result: snapshot(w, acct, now) };
 }
+function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
+  let x = startX, z = startZ, remaining = distanceBudget;
+  for (const waypoint of path) {
+    const dx = waypoint.x - x, dz = waypoint.z - z, distance = Math.hypot(dx, dz);
+    if (distance < 0.001) continue;
+    if (distance <= remaining) {
+      x = waypoint.x; z = waypoint.z; remaining -= distance;
+      if (remaining < 0.001) break;
+    } else {
+      x += dx / distance * remaining; z += dz / distance * remaining;
+      break;
+    }
+  }
+  return { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 };
+}
 function move(input, acct, x, z, now = Date.now()) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   prune(w, now);
@@ -158,8 +173,14 @@ function move(input, acct, x, z, now = Date.now()) {
   const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz);
   const scale = d > MOVE_STEP ? MOVE_STEP / d : 1;
   const oldX = p.x, oldZ = p.z;
-  const nextX = Math.round((p.x + dx * scale) * 10) / 10, nextZ = Math.round((p.z + dz * scale) * 10) / 10;
-  if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ)) throw new Error('terrain_too_steep');
+  let nextX = Math.round((p.x + dx * scale) * 10) / 10, nextZ = Math.round((p.z + dz * scale) * 10) / 10;
+  if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ)) {
+    const route = Terrain.findTerrainPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE });
+    if (!route || !route.length) throw new Error('terrain_path_unreachable');
+    const advanced = advanceAlongTerrainPath(oldX, oldZ, route, MOVE_STEP);
+    nextX = advanced.x; nextZ = advanced.z;
+    if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ)) throw new Error('terrain_path_blocked');
+  }
   p.x = nextX; p.z = nextZ;
   p.lastMove = p.lastSeen = now;
   p.survival = Survival.move(p.survival, now, Math.hypot(p.x - oldX, p.z - oldZ));

@@ -221,8 +221,9 @@ function render(){
   alert.hidden=false;alert.textContent='PERIMETER '+state+' · '+priority.type.replaceAll('_',' ').toUpperCase()+' '+priority.id+' at '+priority.integrity+'% integrity ('+priority.hp+'/'+priority.maxHp+' HP). '+damagedDefenses.length+' defensive structure'+(damagedDefenses.length===1?' needs attention.':'s need attention.');
   alert.style.borderColor=priority.hp<=0||priority.integrity<=25?'#ff5148':priority.integrity<=60?'#d98b45':'#9a5531';
   alert.style.color=priority.hp<=0||priority.integrity<=25?'#ffaaa3':priority.integrity<=60?'#ffd09b':'#f9c99f';
-  priorityButton.hidden=visiting;priorityButton.disabled=busy||base.resources.wood<4||base.resources.scrap<2;
-  const priorityMaterial=priority.material||'wood';const priorityCost=priorityMaterial==='stone'?'2 stone + 2 scrap':priorityMaterial==='steel'?'2 steel + 4 scrap':'4 wood + 2 scrap';priorityButton.textContent='Emergency repair priority · '+priority.type.replaceAll('_',' ')+' · '+priorityCost;
+  const priorityMaterial=priority.material||'wood';const priorityCost=priorityMaterial==='stone'?'2 stone + 2 scrap':priorityMaterial==='steel'?'2 steel + 4 scrap':'4 wood + 2 scrap';const priorityResources=priorityMaterial==='stone'?{stone:2,scrap:2}:priorityMaterial==='steel'?{steel:2,scrap:4}:{wood:4,scrap:2};const priorityAffordable=Object.entries(priorityResources).every(([key,qty])=>(base.resources[key]||0)>=qty);
+  priorityButton.hidden=visiting;priorityButton.disabled=busy||!priorityAffordable;
+  priorityButton.textContent='Emergency repair priority · '+priority.type.replaceAll('_',' ')+' · '+priorityCost;
   priorityButton.onclick=()=>act({type:'emergency_repair',target:priority.id});
  }else{
   alert.hidden=false;alert.textContent='PERIMETER STABLE · All defensive structures are at full integrity.';

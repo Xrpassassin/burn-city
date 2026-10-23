@@ -43,3 +43,7 @@ assert.match(page, /id="cosmeticCollection"/, 'provide the cosmetic skin collect
 assert.match(page, /cosmetic-only|never change combat power/i, 'explain that cosmetic skins do not affect combat power');
 assert.match(page, /homefront-graveyard-3d\.js/, 'load the 3D scene module');
 console.log('Homefront 3D Graveyard integration checks passed.');
+
+assert.match(scene, /homefront:combat-hit/, 'trigger visible weapon feedback only after the server confirms combat');
+assert.match(scene, /weaponSwingUntil/, 'animate the equipped weapon after a confirmed strike');
+assert.match(scene, /explorer\.userData\.weapon\.rotation\.z/, 'animate a visible strike arc in the 3D scene');

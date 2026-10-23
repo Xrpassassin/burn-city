@@ -518,3 +518,6 @@ Two banner tow planes on a shared Unix-time schedule (airport.js poseTowPlane/up
 
 ## feature/lake-waterfront-estates (PR #124, sw bc-v79-estates)
 Lake enlarged (estate.js lakeFrame D 62->78, Wd 175->210; shader divisors match) and the Estates lot rebuilt as Waterfront Estates: 9 tiered homes (trailer/apartment/starter/family/mansion), pocket park, trees, fences, lights, entrance sign; all merged per material (~17 meshes). Visual only: buying/renting/interiors not implemented. Estates card text updated.
+
+## gameplay/zombie-cosmodrome-graybox (PR #120, sw bc-v80-cosmodrome)
+Zombies fixed map 02 The Ashen Cosmodrome: server/cod.js COSMODROME def (7 zones, 7 doors, 10 windows, wallbuys/box/perks/forge/power), chosen by ?map=cosmodrome (arena menu button #cosmoBtn) -> findRoom(mapId) keeps cosmodrome rooms separate; ranked/daily stay on the Refinery. Client landmark/ruin dressing in client/arena/cod.js when L.kind==='cosmodrome' (individual meshes, ~+40 draw calls vs a procedural map on mobile low). test/zombie-cosmodrome-sim.js in test:all. ZOMBIE_MAP=cosmodrome forces it locally (ignored on Fly).

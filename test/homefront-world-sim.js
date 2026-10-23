@@ -24,9 +24,13 @@ assert.throws(() => W.joinParty(world, 'acct-c', 'NOPE00', 1300), /party_not_fou
 
 assert.throws(() => W.move(world, 'acct-b', 0, 0, 2200), /party_leader_controls_movement/);
 const before = world.players['acct-a'];
+const needsBeforeMove = { hunger: before.survival.hunger, thirst: before.survival.thirst, stamina: before.survival.stamina };
 const moved = W.move(world, 'acct-a', -100, -100, 2200);
 world = moved.world;
 assert.ok(Math.hypot(world.players['acct-a'].x - before.x, world.players['acct-a'].z - before.z) <= W.MOVE_STEP + 0.2, 'movement is server-clamped to a short step');
+assert.ok(world.players['acct-a'].survival.hunger < needsBeforeMove.hunger, 'accepted travel consumes food reserves');
+assert.ok(world.players['acct-a'].survival.thirst < needsBeforeMove.thirst, 'accepted travel consumes water reserves');
+assert.ok(world.players['acct-a'].survival.stamina < needsBeforeMove.stamina, 'accepted travel consumes stamina');
 assert.ok(Math.hypot(world.players['acct-b'].x - world.players['acct-a'].x, world.players['acct-b'].z - world.players['acct-a'].z) < 6, 'leader movement carries party members with the group');
 assert.equal(W.districtAt(0, 0).risk, 5, 'deep city core is high risk');
 assert.equal(W.districtAt(-8, -82).risk, 1, 'outer spawn is low risk');

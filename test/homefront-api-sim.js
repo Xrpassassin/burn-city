@@ -71,8 +71,8 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(aReload.data.base.revision, closed.data.base.revision, 'latest privacy change persists across reloads');
   const revisionBeforeConcurrent = aReload.data.base.revision;
   const concurrent = await Promise.all([
-    call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'expedition' } }),
-    call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'expedition' } })
+    call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'visibility', value: 'public' } }),
+    call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'visibility', value: 'public' } })
   ]);
   assert.ok(concurrent.every(x => x.status === 200), 'concurrent valid actions should both succeed');
   const afterConcurrent = await call('GET', '/api/homefront', 'acct-a');
@@ -81,6 +81,9 @@ async function call(method, pathname, acct, payload = {}) {
 
   const malformed = await call('POST', '/api/homefront/action', 'acct-a', { action: [] });
   assert.equal(malformed.status, 400);
+  const bypassTrip = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'expedition', zone: 'research_lab' } });
+  assert.equal(bypassTrip.status, 400, 'direct API calls cannot bypass physical Graveyard exploration');
+  assert.equal(bypassTrip.data.error, 'use_shared_expedition_map');
   const worldA = await call('GET', '/api/homefront/world', 'acct-a');
   assert.equal(worldA.status, 200, 'authenticated player can inspect the shared Graveyard map');
   assert.equal(worldA.data.mode, 'homefront-world');
@@ -103,8 +106,8 @@ async function call(method, pathname, acct, payload = {}) {
 
   const scavenge = await call('POST', '/api/homefront/world/scavenge', 'acct-a');
   assert.equal(scavenge.status, 200, 'a player can scavenge at a nearby shared landmark');
-  assert.ok(scavenge.data.base.expeditionCount >= 3, 'shared-map scavenging advances personal expedition progress');
-  const extraTrip = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'expedition', zone: 'outskirts' } });
+  assert.ok(scavenge.data.base.expeditionCount >= 1, 'shared-map scavenging advances personal expedition progress');
+  const extraTrip = await call('POST', '/api/homefront/world/scavenge', 'acct-a');
   assert.equal(extraTrip.status, 200);
   const sharedWorld = files.get('homefront-world.json');
   sharedWorld.players['acct-a'].x = -32;

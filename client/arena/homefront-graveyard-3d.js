@@ -80,12 +80,13 @@ function boot(host) {
   ground.rotation.x = -Math.PI / 2; ground.position.y = 0; scene.add(ground);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
+  const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group(), tracerGroup = new THREE.Group();
+  const combatTracers = [];
   const worldChunkGroups = new Map();
   const environmentVisuals = new Map();
   const environmentStateCache = new Map();
   let activeChunkSignature = '';
-  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, zombieGroup, combatGroup, impactGroup);
+  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, zombieGroup, combatGroup, impactGroup, tracerGroup);
   const combatStatus = document.getElementById('combatStatus');
   const lootActionButton = document.getElementById('collectLoot');
   const lootStatus = document.getElementById('lootStatus');
@@ -124,6 +125,17 @@ function boot(host) {
   let weaponSwingUntil = 0;
   let weaponSwingStartedAt = 0;
   let weaponSwingWeaponId = 'pipe_blade';
+  function addCombatTracer(target, weaponId, hitZone) {
+    const self = worldData?.self;
+    if (!self || !target || !['pump_shotgun','marksman_rifle','machine_gun','heavy_machine_gun'].includes(weaponId)) return;
+    const from = new THREE.Vector3(self.x + 0.55, terrainElevation(self.x, self.z) + 1.85, self.z + 0.15);
+    const to = target.position.clone();
+    to.y += hitZone === 'head' ? 1.75 : hitZone === 'limb' ? 0.72 : 1.1;
+    const lifetime = weaponId === 'heavy_machine_gun' ? 0.17 : 0.13;
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([from, to]), new THREE.LineBasicMaterial({ color: weaponId === 'heavy_machine_gun' ? 0xfff0a0 : weaponId === 'machine_gun' ? 0xffd27a : 0xffb85c, transparent: true, opacity: 0.98 }));
+    tracerGroup.add(line);
+    combatTracers.push({ line, life: lifetime, maxLife: lifetime });
+  }
   window.addEventListener('homefront:combat-hit', event => {
     const detail = event.detail || {};
     const active = worldData?.selfEncounter || worldData?.encounter || (worldData?.encounters || []).find(item => item.id === detail.encounterId) || null;
@@ -136,11 +148,12 @@ function boot(host) {
     weaponSwingStartedAt = performance.now();
     weaponSwingUntil = weaponSwingStartedAt + 320;
     const detail = event.detail || {};
-    const weaponId = ['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'].includes(detail.weaponId) ? detail.weaponId : 'pipe_blade';
+    const weaponId = ['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','machine_gun','heavy_machine_gun'].includes(detail.weaponId) ? detail.weaponId : 'pipe_blade';
     const style = weaponId === 'shock_maul' ? 'blunt' : weaponId === 'pump_shotgun' || weaponId === 'marksman_rifle' ? 'firearm' : 'sharp';
     weaponSwingWeaponId = weaponId;
     const targetId = detail.encounterId || detail.encounter?.id || detail.combat?.encounterId;
     const target = targetId ? combatActors.get(targetId) : null;
+    if (target) addCombatTracer(target, weaponId, detail.hitZone);
     // Reuse the existing licensed sample bank; a failed fetch must never break combat feedback.
     if (target) {
       const pos = [target.position.x, detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1, target.position.z];
@@ -195,7 +208,7 @@ function boot(host) {
     equippedWeaponSkinColor = parseCosmeticColor(detail.weaponColor, equippedWeaponSkinColor);
     equippedOutfitColor = parseCosmeticColor(detail.outfitColor, equippedOutfitColor);
     equippedBackpackColor = parseCosmeticColor(detail.backpackColor, equippedBackpackColor);
-    if (['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'].includes(detail.weaponId)) equippedWeaponId = detail.weaponId;
+    if (['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','machine_gun','heavy_machine_gun'].includes(detail.weaponId)) equippedWeaponId = detail.weaponId;
   });
   const roadMat = mat(0x343733), buildingMats = [mat(0x41413a), mat(0x4b443a), mat(0x363d3d), mat(0x50483d)];
   const ruinMat = mat(0x292d2a), emberMat = new THREE.MeshStandardMaterial({ color: 0xff7738, emissive: 0x9c2507, emissiveIntensity: 0.8 });
@@ -641,16 +654,25 @@ function boot(host) {
       grip.position.y = -0.2; weapon.add(grip);
       const finish = p.label === 'You' ? equippedWeaponSkinColor : 0x9a7b62;
       const isMelee = weaponId === 'pipe_blade' || weaponId === 'shock_maul';
-      const length = weaponId === 'marksman_rifle' ? 1.02 : weaponId === 'pump_shotgun' ? 0.92 : weaponId === 'shock_maul' ? 0.58 : 0.76;
-      const width = weaponId === 'shock_maul' ? 0.28 : weaponId === 'pipe_blade' ? 0.1 : 0.16;
+      const isMachineGun = weaponId === 'machine_gun' || weaponId === 'heavy_machine_gun';
+      const isHeavyMachineGun = weaponId === 'heavy_machine_gun';
+      const length = isHeavyMachineGun ? 1.08 : weaponId === 'machine_gun' ? 0.98 : weaponId === 'marksman_rifle' ? 1.02 : weaponId === 'pump_shotgun' ? 0.92 : weaponId === 'shock_maul' ? 0.58 : 0.76;
+      const width = isHeavyMachineGun ? 0.24 : isMachineGun ? 0.2 : weaponId === 'shock_maul' ? 0.28 : weaponId === 'pipe_blade' ? 0.1 : 0.16;
       const barrel = new THREE.Mesh(new THREE.BoxGeometry(width, length, weaponId === 'shock_maul' ? 0.22 : 0.19), mat(finish));
       barrel.position.y = 0.12 + length / 2; weapon.add(barrel);
       if (weaponId === 'shock_maul') {
         const head = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.3, 0.32), mat(0x454844));
         head.position.y = 0.12 + length; weapon.add(head);
       } else if (!isMelee) {
-        const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.23), mat(0x373a38));
+        const muzzle = new THREE.Mesh(new THREE.BoxGeometry(isHeavyMachineGun ? 0.28 : isMachineGun ? 0.23 : 0.2, 0.12, 0.23), mat(0x373a38));
         muzzle.position.y = 0.12 + length + 0.04; weapon.add(muzzle);
+        if (isMachineGun) {
+          const receiver = new THREE.Mesh(new THREE.BoxGeometry(isHeavyMachineGun ? 0.38 : 0.3, 0.34, 0.32), mat(0x343936));
+          receiver.position.set(0, 0.38, 0); weapon.add(receiver);
+          const ammoBox = new THREE.Mesh(new THREE.BoxGeometry(isHeavyMachineGun ? 0.32 : 0.25, 0.28, 0.3), mat(0x514936));
+          ammoBox.position.set(0.02, 0.18, -0.22); weapon.add(ammoBox);
+          if (isHeavyMachineGun) { const carryHandle = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.06, 0.07), mat(0x222624)); carryHandle.position.set(0, 0.65, -0.01); weapon.add(carryHandle); }
+        }
       }
       g.add(weapon); g.userData.weapon = weapon; g.userData.isLocalPlayer = p.label === 'You';
       g.userData.avatarParts = [
@@ -931,7 +953,7 @@ function boot(host) {
     if (!active || active.defeated || active.hp <= 0 || selectedCombatTargetId !== active.id || distance > (active.range || 0)) { stopAutoFire(); if (combatStatus) combatStatus.textContent = 'Autofire stopped: target defeated, out of range, or no longer selected.'; return; }
     const fired = await combatAction('attack', selectedCombatTargetId);
     if (!autoFireHeld || fired === false) { stopAutoFire(); return; }
-    const delay = equippedWeaponId === 'marksman_rifle' ? 1350 : equippedWeaponId === 'pump_shotgun' ? 1150 : equippedWeaponId === 'shock_maul' || equippedWeaponId === 'pipe_blade' ? 950 : 1000;
+    const delay = equippedWeaponId === 'heavy_machine_gun' ? 120 : equippedWeaponId === 'machine_gun' ? 180 : equippedWeaponId === 'marksman_rifle' ? 1350 : equippedWeaponId === 'pump_shotgun' ? 1150 : equippedWeaponId === 'shock_maul' || equippedWeaponId === 'pipe_blade' ? 950 : 1000;
     autoFireTimer = setTimeout(fireLoop, delay);
   };
   if (autoFireButton) {
@@ -1053,7 +1075,8 @@ function boot(host) {
   // not a hotkey that can pull the player out of the world during combat.
   const masterView = 'third-person';
   let lastFrame = performance.now();
-  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += Math.sin(now * 0.0003 + i) * dt * 0.12; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) { const travelBlend = 1 - Math.exp(-8 * dt); explorer.position.x += (target.x - explorer.position.x) * travelBlend; explorer.position.y += (target.y - explorer.position.y) * travelBlend; explorer.position.z += (target.z - explorer.position.z) * travelBlend; movingAvatar = Math.hypot(target.x - explorer.position.x, target.z - explorer.position.z) > 0.035; if (movingAvatar) explorer.rotation.y = Math.atan2(target.x - explorer.position.x, target.z - explorer.position.z); } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainElevation(actor.position.x, actor.position.z);
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += Math.sin(now * 0.0003 + i) * dt * 0.12; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) { const travelBlend = 1 - Math.exp(-8 * dt); explorer.position.x += (target.x - explorer.position.x) * travelBlend; explorer.position.y += (target.y - explorer.position.y) * travelBlend; explorer.position.z += (target.z - explorer.position.z) * travelBlend; movingAvatar = Math.hypot(target.x - explorer.position.x, target.z - explorer.position.z) > 0.035; if (movingAvatar) explorer.rotation.y = Math.atan2(target.x - explorer.position.x, target.z - explorer.position.z); } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'machine_gun' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.78 : weaponSwingWeaponId === 'machine_gun' ? 0.66 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (let i = combatTracers.length - 1; i >= 0; i--) { const tracer = combatTracers[i]; tracer.life -= dt; tracer.line.material.opacity = Math.max(0, tracer.life / tracer.maxLife); if (tracer.life <= 0) { tracerGroup.remove(tracer.line); tracer.line.geometry.dispose(); tracer.line.material.dispose(); combatTracers.splice(i, 1); } }
+      for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainElevation(actor.position.x, actor.position.z);
       const impactRemaining = state.impactUntil - now;
       if (impactRemaining > 0) {
         const p = impactRemaining / 300;

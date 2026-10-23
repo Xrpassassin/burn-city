@@ -7,9 +7,9 @@ const DEFAULTS = Object.freeze({ health: 100, hunger: 100, thirst: 100, stamina:
 function normalize(input, now = Date.now()) {
   const s = input && typeof input === 'object' ? input : {};
   return {
-    health: clamp(s.health, 0, 100), hunger: clamp(s.hunger, 0, 100),
-    thirst: clamp(s.thirst, 0, 100), stamina: clamp(s.stamina, 0, 100),
-    infection: clamp(s.infection, 0, 100),
+    health: clamp(s.health ?? DEFAULTS.health, 0, 100), hunger: clamp(s.hunger ?? DEFAULTS.hunger, 0, 100),
+    thirst: clamp(s.thirst ?? DEFAULTS.thirst, 0, 100), stamina: clamp(s.stamina ?? DEFAULTS.stamina, 0, 100),
+    infection: clamp(s.infection ?? DEFAULTS.infection, 0, 100),
     lastTick: clamp(s.lastTick, 0, Number.MAX_SAFE_INTEGER) || now
   };
 }

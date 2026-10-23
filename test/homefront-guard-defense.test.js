@@ -6,8 +6,8 @@ const Core = require('../server/homefront-core');
 const now = 1800000000000;
 const base = Core.createBase('rGuardDefense', now);
 base.survivors = [
-  { id: 'g1', name: 'Mara', role: 'guard', morale: 100 },
-  { id: 'g2', name: 'Rook', role: 'guard', morale: 10 },
+  { id: 'g1', name: 'Mara', role: 'guard', morale: 100, stats: { combat: 5 } },
+  { id: 'g2', name: 'Rook', role: 'guard', morale: 10, stats: { combat: 5 } },
   { id: 'm1', name: 'Tess', role: 'medic', morale: 80 }
 ];
 const profile = Core.threatProfile(base);
@@ -40,7 +40,7 @@ const breachBase = Core.createBase('rGuardBreachCover', now);
 breachBase.resources.ammo = 30;
 breachBase.structures = [{ id: 'b1', type: 'gate', hp: 90, maxHp: 180, x: 8, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
 breachBase.survivors = Array.from({ length: 1 }, (_, i) => ({
-  id: 'breach-guard-' + i, name: 'Guard ' + i, role: 'guard', morale: 100
+  id: 'breach-guard-' + i, name: 'Guard ' + i, role: 'guard', morale: 100, stats: { combat: 5 }
 }));
 const expectedRawDamage = Core.threatProfile(breachBase).projectedStructureDamage;
 const defended = Core.applyAction(breachBase, 'rGuardBreachCover', { type: 'defend' }, now + 2);
@@ -68,7 +68,7 @@ assert.equal(defended.lastSiege.target.integrityAfter, Math.round(defended.struc
    { id: 'outer-wall', type: 'wall', hp: 100, maxHp: 100, x: 9, z: 0, rotation: 0, trenchLevel: 0, manned: false },
    { id: 'inner-gate', type: 'gate', hp: 90, maxHp: 180, x: 8, z: 0, rotation: 0, trenchLevel: 0, manned: false }
  ];
- layeredBase.survivors = [{ id: 'layer-guard', name: 'Guard', role: 'guard', morale: 100 }];
+ layeredBase.survivors = [{ id: 'layer-guard', name: 'Guard', role: 'guard', morale: 100, stats: { combat: 5 } }];
  const layeredRawDamage = Core.threatProfile(layeredBase).projectedStructureDamage;
  const layeredResult = Core.applyAction(layeredBase, 'rGuardLayered', { type: 'defend' }, now + 3);
  const layeredLog = layeredResult.log[layeredResult.log.length - 1].text;

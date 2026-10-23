@@ -187,10 +187,10 @@ assert.equal(scavengerBroken.resources.scrap, scavengerPlain.resources.scrap, 'd
 // Morale changes actual production, so survivor care has a gameplay consequence.
 const rested = H.createBase('rested', 2000);
 rested.resources.food = 100;
-rested.survivors = [{ id: 's1', name: 'Mara', role: 'farmer', morale: 90 }];
+rested.survivors = [{ id: 's1', name: 'Mara', role: 'farmer', morale: 90, stats: { farming: 5 } }];
 const tired = H.createBase('tired', 2000);
 tired.resources.food = 100;
-tired.survivors = [{ id: 's1', name: 'Mara', role: 'farmer', morale: 10 }];
+tired.survivors = [{ id: 's1', name: 'Mara', role: 'farmer', morale: 10, stats: { farming: 5 } }];
 const restedShift = H.applyAction(rested, 'rested', { type: 'workday' });
 const tiredShift = H.applyAction(tired, 'tired', { type: 'workday' });
 assert.ok(restedShift.resources.food > tiredShift.resources.food, 'high-morale workers produce more food than demoralized workers');

@@ -119,21 +119,26 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     }
     case 'workday': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
-      const farmers = s.survivors.filter(x => x.role === 'farmer').length;
-      const scavengers = s.survivors.filter(x => x.role === 'scavenger').length;
-      const mechanics = s.survivors.filter(x => x.role === 'mechanic').length;
-      const medics = s.survivors.filter(x => x.role === 'medic').length;
+      // Morale is operational, not cosmetic: exhausted or demoralized workers produce less.
+      const labor = role => s.survivors.filter(x => x.role === role).reduce((total, x) => {
+        const morale = clampInt(x.morale, 0, 100);
+        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+      }, 0);
+      const farmers = labor('farmer');
+      const scavengers = labor('scavenger');
+      const mechanics = labor('mechanic');
+      const medics = labor('medic');
       const foodCost = Math.max(1, Math.ceil(s.survivors.length / 3));
       if (s.resources.food < foodCost) throw new Error('not_enough_food_for_shift');
       s.resources.food -= foodCost;
       const gardenCount = s.structures.filter(x => x.type === 'garden' && x.hp > 0).length;
       const workshopCount = s.structures.filter(x => x.type === 'workshop' && x.hp > 0).length;
       const infirmaryCount = s.structures.filter(x => x.type === 'infirmary' && x.hp > 0).length;
-      const foodGain = Math.min(999999, farmers * (1 + gardenCount) * 2);
-      const scrapGain = Math.min(999999, scavengers * 2 + mechanics * workshopCount);
+      const foodGain = Math.floor(Math.min(999999, farmers * (1 + gardenCount) * 2));
+      const scrapGain = Math.floor(Math.min(999999, scavengers * 2 + mechanics * workshopCount));
       s.resources.food = Math.min(999999, s.resources.food + foodGain);
       s.resources.scrap = Math.min(999999, s.resources.scrap + scrapGain);
-      s.resources.meds = Math.min(999999, s.resources.meds + Math.min(medics, infirmaryCount));
+      s.resources.meds = Math.min(999999, s.resources.meds + Math.floor(Math.min(medics, infirmaryCount)));
       s.day++; s.level = Math.max(s.level, 1 + Math.floor((s.day - 1) / 5));
       for (const survivor of s.survivors) survivor.morale = clampInt(survivor.morale + (foodGain >= foodCost ? 2 : -8), 0, 100);
       record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + Math.min(medics, infirmaryCount) + ' medicine.', now);

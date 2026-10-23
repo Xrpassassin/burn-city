@@ -117,3 +117,8 @@ assert.match(scene, /equippedOutfitColor/, 'apply the equipped outfit skin to th
 assert.match(scene, /equippedBackpackColor/, 'apply the equipped backpack skin to the visible field pack');
 assert.match(scene, /parseCosmeticColor/, 'accept only valid six-digit cosmetic colors');
 assert.match(scene, /const backpack = new THREE.Mesh/, 'render a visible backpack on explorer avatars');
+
+assert.match(scene, /g\.userData\.lootGlow = \{ mesh: glow, color, available: !!p\.available \}/, 'retain each supply node glow metadata for selection feedback');
+assert.match(scene, /node\.userData\.lootNodeId === selectedLootId/, 'highlight the currently selected physical supply node');
+assert.match(scene, /Math\.sin\(now \* 0\.006\) \* 0\.055/, 'pulse the selected supply ring in the render loop');
+assert.match(scene, /focus\.mesh\.material\.color\.setHex\(selected \? 0xffe08a : focus\.color\)/, 'restore each supply node base glow color when selection changes');

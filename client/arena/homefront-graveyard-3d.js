@@ -41,6 +41,7 @@ function boot(host) {
   const findInfectedButton = document.getElementById('findInfected');
   const attackInfectedButton = document.getElementById('attackInfected');
   const autoFireButton = document.getElementById('autoFireInfected');
+  const reloadWeaponButton = document.getElementById('reloadWeapon');
   let selectedCombatTargetId = null;
   let selectedCombatAimPoint = null;
   let autoFireHeld = false;
@@ -389,7 +390,8 @@ function boot(host) {
       if (combatStatus) combatStatus.textContent = e.message === 'enemy_out_of_range'
         ? 'Too far from the infected. Move closer on the map.'
         : e.message === 'attack_cooldown' ? 'Recovering from your last attack. Try again in a moment.'
-        : e.message === 'insufficient_ammo' || e.message === 'field_supplies_required' ? 'Not enough carried ammunition to fire.'
+        : e.message === 'insufficient_ammo' ? 'Magazine empty or short on rounds. Reload before firing.'
+        : e.message === 'field_supplies_required' ? 'Not enough carried field supplies.'
         : e.message === 'target_mismatch' ? 'That target is not your active encounter. Select your active infected.'
         : e.message === 'invalid_aim_point' ? 'Aim point fell outside the infected hitbox. Select its body again.'
         : 'Combat unavailable: ' + e.message;
@@ -403,6 +405,7 @@ function boot(host) {
         const distance = active && self ? Math.hypot(self.x - active.x, self.z - active.z) : Infinity;
         attackInfectedButton.disabled = !active || active.defeated || active.hp <= 0 || distance > (active.range || 0);
         if (autoFireButton) autoFireButton.disabled = !active || selectedCombatTargetId !== active.id || active.defeated || active.hp <= 0 || distance > (active.range || 0);
+        if (reloadWeaponButton) reloadWeaponButton.disabled = !worldData?.self;
       }
     }
   }
@@ -427,6 +430,27 @@ function boot(host) {
     }
   }
   if (lootActionButton) lootActionButton.addEventListener('click', collectSelectedLoot);
+  async function reloadWeapon() {
+    if (!token() || moving) { if (combatStatus) combatStatus.textContent = 'Sign in and enter an expedition before reloading.'; return; }
+    moving = true;
+    if (reloadWeaponButton) reloadWeaponButton.disabled = true;
+    try {
+      const r = await fetch(API + '/api/homefront/world/reload', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: '{}' });
+      const data = await r.json();
+      if (!r.ok || data.error) throw new Error(data.message || data.error || 'reload_failed');
+      updateWorld(data);
+      if (combatStatus) {
+        const mag = data.selfWeaponMagazine;
+        combatStatus.textContent = 'Reloaded ' + data.reloaded + ' round' + (data.reloaded === 1 ? '' : 's') + '. Magazine: ' + (mag?.loaded ?? 0) + '/' + (mag?.capacity ?? 0) + '; reserve: ' + (data.inventory?.ammo ?? 0) + '.';
+      }
+    } catch (e) {
+      if (combatStatus) combatStatus.textContent = e.message === 'weapon_does_not_reload' ? 'This melee weapon does not use ammunition.' : e.message === 'magazine_full' ? 'Magazine is already full.' : e.message === 'no_reserve_ammo' ? 'No reserve ammunition. Pack or scavenge more ammo.' : 'Reload unavailable: ' + e.message;
+    } finally {
+      moving = false;
+      if (reloadWeaponButton) reloadWeaponButton.disabled = !worldData?.self;
+    }
+  }
+  if (reloadWeaponButton) reloadWeaponButton.addEventListener('click', reloadWeapon);
   if (findInfectedButton) findInfectedButton.addEventListener('click', () => combatAction('encounter'));
   if (attackInfectedButton) attackInfectedButton.addEventListener('click', () => combatAction('attack'));
   const stopAutoFire = () => { autoFireHeld = false; if (autoFireTimer) clearTimeout(autoFireTimer); autoFireTimer = null; if (autoFireButton) autoFireButton.setAttribute('aria-pressed', 'false'); };

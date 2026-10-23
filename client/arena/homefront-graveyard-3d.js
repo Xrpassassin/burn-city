@@ -255,6 +255,8 @@ function boot(host) {
         body.position.y = 1.2; actor.add(body);
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), mat(0xaaa18a));
         head.position.y = 2.15; actor.add(head);
+        body.userData.combatHitbox = true;
+        head.userData.combatHitbox = true;
         const label = labelSprite(e.enemy + ' · ' + e.hp + '/' + e.maxHp, '#ffaaa0');
         label.position.y = 3.5; actor.add(label);
         const threatRing = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xd84b3e, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));

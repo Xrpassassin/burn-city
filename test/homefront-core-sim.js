@@ -38,6 +38,19 @@ expedition = H.applyAction(expedition, 'acct-a', { type: 'build', building: 'gar
 const beforeFood = expedition.resources.food;
 expedition = H.applyAction(expedition, 'acct-a', { type: 'workday' });
 assert.ok(expedition.resources.food >= beforeFood - 1, 'farmer and garden contribute food after upkeep');
+// Zombie breach composition escalates deterministically and introduces a boss every tenth wave.
+const waveOne = H.waveProfile(1);
+assert.equal(waveOne.boss, false);
+assert.deepEqual(waveOne.enemies.map(x => x.type), ['walker']);
+const waveTen = H.waveProfile(10);
+assert.equal(waveTen.boss, true, 'every tenth breach includes a juggernaut');
+assert.ok(waveTen.enemies.some(x => x.type === 'runner'), 'later waves add runners');
+assert.ok(waveTen.enemies.some(x => x.type === 'brute'), 'later waves add armored brutes');
+assert.ok(waveTen.enemies.some(x => x.type === 'screamer'), 'later waves add screamers');
+assert.ok(waveTen.enemies.some(x => x.type === 'bloater'), 'later waves add bloaters');
+assert.ok(waveTen.threatBonus > H.waveProfile(1).threatBonus, 'special enemy mix raises breach pressure');
+assert.deepEqual(H.waveProfile(10), H.waveProfile(10), 'the same wave always produces the same profile');
+
 // A campfire rally trades food for a server-authoritative morale recovery.
 const rallyBase = H.createBase('rally-test', 2040);
 rallyBase.resources.food = 10;

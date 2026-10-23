@@ -250,3 +250,20 @@ assert.ok(facilityShift.resources.stone < 20, 'smelter consumes stone as an indu
 assert.ok(facilityShift.resources.steel > 0, 'smelter produces steel from stored scrap and stone');
 assert.ok(facilityShift.resources.scrap < 30, 'steel production consumes scrap');
 assert.match(facilityShift.log.at(-1).text, /Facilities: \+\d+ stone, \+\d+ steel/, 'workday report includes processed material output');
+
+
+// Repairs consume the material appropriate to the structure's current tier.
+const stoneRepairBase = Core.createBase('rStoneRepair', now);
+stoneRepairBase.resources.stone = 0;
+stoneRepairBase.structures = [{ id: 'stone-repair-wall', type: 'wall', material: 'stone', hp: 100, maxHp: 175, x: 8, z: 0 }];
+assert.throws(() => Core.applyAction(stoneRepairBase, 'rStoneRepair', { type: 'repair', target: 'stone-repair-wall' }, now + 30), /repair_supplies_required/);
+stoneRepairBase.resources.stone = 2;
+const stoneRepaired = Core.applyAction(stoneRepairBase, 'rStoneRepair', { type: 'repair', target: 'stone-repair-wall' }, now + 31);
+assert.equal(stoneRepaired.structures[0].hp, 150, 'stone repair restores HP when stone and scrap are available');
+assert.equal(stoneRepaired.resources.stone, 1, 'stone repair consumes a stone block');
+const steelRepairBase = Core.createBase('rSteelRepair', now);
+steelRepairBase.resources.steel = 1;
+steelRepairBase.structures = [{ id: 'steel-repair-wall', type: 'wall', material: 'steel', hp: 100, maxHp: 280, x: 8, z: 0 }];
+const steelRepaired = Core.applyAction(steelRepairBase, 'rSteelRepair', { type: 'repair', target: 'steel-repair-wall' }, now + 32);
+assert.equal(steelRepaired.resources.steel, 0, 'steel repair consumes steel stock');
+assert.equal(steelRepaired.resources.scrap, 28, 'steel repair consumes extra scrap for reinforcement');

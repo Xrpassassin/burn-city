@@ -65,4 +65,15 @@ const nan = World.move(m, 'rMove', 'abc', null, now + 2000).world.players.rMove;
 assert.ok(Number.isFinite(nan.x) && Number.isFinite(nan.z), 'non-numeric targets never produce NaN positions');
 assert.throws(() => World.move(m, 'rMove', 0, 0, now + 2000, 'yes'), /invalid_movement_mode/);
 
+// 5. Structures must not overlap server-owned farm plots; placement remains authoritative.
+const farmBase = Core.createBase('rBuildCollision', now);
+const tilled = Core.applyAction(farmBase, 'rBuildCollision', { type: 'farm_till', x: 4, z: 4 }, now + 1);
+assert.equal(tilled.farmPlots.length, 1);
+assert.throws(() => Core.applyAction(tilled, 'rBuildCollision', { type: 'build', building: 'garden', x: 4, z: 4 }, now + 2), /placement_occupied/,
+  'a structure cannot be placed directly on a farm plot');
+assert.throws(() => Core.applyAction(tilled, 'rBuildCollision', { type: 'build', building: 'wall', x: 5, z: 4 }, now + 2), /placement_occupied/,
+  'the farm plot keeps a clear physical footprint');
+const builtAway = Core.applyAction(tilled, 'rBuildCollision', { type: 'build', building: 'garden', x: 7, z: 7 }, now + 3);
+assert.equal(builtAway.structures.length, 1, 'valid non-overlapping construction still succeeds');
+
 console.log('Homefront security/authority regressions passed.');

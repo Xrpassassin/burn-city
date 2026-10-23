@@ -268,7 +268,7 @@ assert.match(survivorVisualPage, /kit:'medical'/, 'give medics a visible medical
 assert.match(survivorVisualPage, /function survivorAnimationProfile\(clips,survivor\)/, 'resolve animation clips from the actual source model instead of assuming fixed clip names');
 assert.match(survivorVisualPage, /rolePatterns=\{/, 'map role-specific activity to likely animation names with graceful fallbacks');
 assert.match(survivorVisualPage, /survivorAnimationProfile\(clips,survivor\)/, 'select each survivor animation profile from role and persistent task');
-assert.match(survivorVisualPage, /survivor\.task==='defend_perimeter'\?find\(\[\/aim\/i, \/shoot\/i, \/attack\/i, \/guard\/i, \/idle\/i\]\)/, 'prefer defensive stance or combat clips for guards responding to a siege');
+assert.match(survivorVisualPage, /survivor\.task==='defend_perimeter'\?find\(\[\/aim\/i,\s*\/shoot\/i,\s*\/attack\/i,\s*\/guard\/i,\s*\/idle\/i\]\)/, 'prefer defensive stance or combat clips for guards responding to a siege');
 assert.match(survivorVisualPage, /actor\.task==='take_shelter'/, 'keep sheltering survivors out of work/aim animation transitions');
 
 

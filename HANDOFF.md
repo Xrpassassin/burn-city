@@ -521,3 +521,6 @@ Lake enlarged (estate.js lakeFrame D 62->78, Wd 175->210; shader divisors match)
 
 ## gameplay/zombie-cosmodrome-graybox (PR #120, sw bc-v80-cosmodrome)
 Zombies fixed map 02 The Ashen Cosmodrome: server/cod.js COSMODROME def (7 zones, 7 doors, 10 windows, wallbuys/box/perks/forge/power), chosen by ?map=cosmodrome (arena menu button #cosmoBtn) -> findRoom(mapId) keeps cosmodrome rooms separate; ranked/daily stay on the Refinery. Client landmark/ruin dressing in client/arena/cod.js when L.kind==='cosmodrome' (individual meshes, ~+40 draw calls vs a procedural map on mobile low). test/zombie-cosmodrome-sim.js in test:all. ZOMBIE_MAP=cosmodrome forces it locally (ignored on Fly).
+
+### Zombies map progression (Oct 22, 2026)
+Free Play on the Refinery (Map 1) OR a random map advances the same room to The Ashen Cosmodrome when every living player extracts on the helicopter (`server/heli.js` `advances()`). Ranked, daily and team-lobby rooms never advance. The Cosmodrome cannot be requested directly. Test: `test/zombie-map-progression-sim.js`.

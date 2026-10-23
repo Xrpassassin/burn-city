@@ -269,3 +269,11 @@ assert.match(survivorVisualPage, /rolePatterns=\{/, 'map role-specific activity 
 assert.match(survivorVisualPage, /survivorAnimationProfile\(clips,survivor\)/, 'select each survivor animation profile from role and persistent task');
 assert.match(survivorVisualPage, /survivor\.task==='defend_perimeter'\?find\(\[\/aim\/i, \/shoot\/i, \/attack\/i, \/guard\/i, \/idle\/i\]\)/, 'prefer defensive stance or combat clips for guards responding to a siege');
 assert.match(survivorVisualPage, /actor\.task==='take_shelter'/, 'keep sheltering survivors out of work/aim animation transitions');
+
+
+// Individual survivor stats are visible in the roster and backed by server-persisted skills.
+const survivorStatsPage = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
+assert.match(survivorStatsPage, /const statLabels=\[\['combat','CMB'\],\['scavenging','SCV'\],\['farming','FRM'\],\['medical','MED'\],\['engineering','ENG'\],\['endurance','END'\]\]/,
+  'the survivor roster displays all six individual skill categories');
+assert.match(survivorStatsPage, /Individual survivor skills, each rated 1–10/,
+  'the roster explains the meaning and scale of survivor stats');

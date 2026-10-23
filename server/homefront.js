@@ -8,7 +8,7 @@ const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 
-const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
+const SESSION_RESOURCES = ['wood','scrap','food','rawFood','water','dirtyWater','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
   const stats = player?.homefrontSessionStart?.totals;
   if (!stats) return;
@@ -29,7 +29,7 @@ function initSessionStart(player, base, now = Date.now()) {
 }
 function buildReturnDebrief(start, base, packed, now = Date.now()) {
   const resourceNet = {};
-  for (const id of ['wood','scrap','food','water','meds','ammo']) {
+  for (const id of ['wood','scrap','food','rawFood','water','dirtyWater','meds','ammo']) {
     resourceNet[id] = (base.resources?.[id] || 0) - (Number.isFinite(start?.resources?.[id]) ? start.resources[id] : (base.resources?.[id] || 0));
   }
   return {
@@ -118,8 +118,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           if (action === 'eat') survivalConsumed.food = 1;
           if (action === 'drink') survivalConsumed.water = 1;
           if (action === 'bandage') survivalConsumed.meds = 1;
-          if (action === 'cook_food') { survivalConsumed.food = 1; survivalConsumed.wood = 1; }
-          if (action === 'purify_water') { survivalConsumed.water = 1; survivalConsumed.wood = 1; }
+          if (action === 'cook_food') { survivalConsumed.rawFood = 1; survivalConsumed.wood = 1; }
+          if (action === 'purify_water') { survivalConsumed.dirtyWater = 1; survivalConsumed.wood = 1; }
           if (Object.keys(survivalConsumed).length) addSessionTotals(player, { consumed: survivalConsumed });
           player.inventory = inventory;
           player.survival = survival;
@@ -181,7 +181,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           if (!base) throw new Error('save_invalid');
           const lootResources = {};
           for (const drop of [...found.accepted, ...found.overflow]) {
-            const resourceId = ({ rawFood: 'food', dirtyWater: 'water' })[drop.item] || drop.item;
+            const resourceId = drop.item;
             if (Object.prototype.hasOwnProperty.call(base.resources, resourceId)) {
               lootResources[resourceId] = (lootResources[resourceId] || 0) + drop.amount;
             }

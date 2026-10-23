@@ -150,6 +150,8 @@ function move(input, acct, x, z, now = Date.now()) {
       w.players[member].lastSeen = now;
     }
   }
+  // Advance AI only on an authoritative world action; no client frame loop can move enemies.
+  w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
   return { world: w, result: snapshot(w, acct, now) };
 }
 function createParty(input, acct, now = Date.now()) {

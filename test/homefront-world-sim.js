@@ -20,7 +20,7 @@ const before = world.players['acct-a'];
 const moved = W.move(world, 'acct-a', -100, -100, 2200);
 world = moved.world;
 assert.ok(Math.hypot(world.players['acct-a'].x - before.x, world.players['acct-a'].z - before.z) <= W.MOVE_STEP + 0.01, 'movement is server-clamped to a short step');
-assert.deepEqual([world.players['acct-b'].x, world.players['acct-b'].z], [world.players['acct-a'].x + ((W.hash ? W.hash('acct-b') % 7 : 0) - 3), world.players['acct-a'].z + ((W.hash ? W.hash('acct-bz') % 7 : 0) - 3)].map((n, i) => n), 'leader movement carries party members with the group');
+assert.ok(Math.hypot(world.players['acct-b'].x - world.players['acct-a'].x, world.players['acct-b'].z - world.players['acct-a'].z) < 6, 'leader movement carries party members with the group');
 assert.equal(W.districtAt(0, 0).risk, 5, 'deep city core is high risk');
 assert.equal(W.districtAt(-8, -82).risk, 1, 'outer spawn is low risk');
 

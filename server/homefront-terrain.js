@@ -72,11 +72,12 @@ function canTraverse(x0, z0, x1, z1, { maxRisePer2Units = 0.65, seed = DEFAULT_S
 
 function findTerrainPath(startX, startZ, goalX, goalZ, {
   seed = DEFAULT_SEED, spacing = 4, maxExpanded = 1800, bounds = 100,
-  maxRisePer2Units = 0.65, heightAt = (x, z) => terrainElevation(x, z, seed)
+  maxRisePer2Units = 0.65, heightAt = (x, z) => terrainElevation(x, z, seed),
+  edgeAllowed = () => true
 } = {}) {
   if (![startX, startZ, goalX, goalZ, seed, spacing, maxExpanded, bounds, maxRisePer2Units].every(Number.isFinite)
       || spacing <= 0 || maxExpanded < 1 || bounds <= 0 || maxRisePer2Units <= 0
-      || typeof heightAt !== 'function') throw new TypeError('findTerrainPath expects finite coordinates and valid search options');
+      || typeof heightAt !== 'function' || typeof edgeAllowed !== 'function') throw new TypeError('findTerrainPath expects finite coordinates and valid search options');
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
   startX = clamp(startX, -bounds, bounds); startZ = clamp(startZ, -bounds, bounds);
   goalX = clamp(goalX, -bounds, bounds); goalZ = clamp(goalZ, -bounds, bounds);
@@ -95,7 +96,8 @@ function findTerrainPath(startX, startZ, goalX, goalZ, {
     return true;
   };
   if (Math.hypot(goalX - startX, goalZ - startZ) < 0.01) return [];
-  if (canEdge(startX, startZ, goalX, goalZ)) return [{ x: goalX, z: goalZ }];
+  const edgeIsAllowed = (x0, z0, x1, z1) => canEdge(x0, z0, x1, z1) && edgeAllowed(x0, z0, x1, z1);
+  if (edgeIsAllowed(startX, startZ, goalX, goalZ)) return [{ x: goalX, z: goalZ }];
   const sx = toIndex(startX), sz = toIndex(startZ), gx = toIndex(goalX), gz = toIndex(goalZ);
   const worldSteps = Math.ceil(bounds / spacing);
   const heuristic = (ix, iz) => Math.hypot(coord(ix) - goalX, coord(iz) - goalZ);
@@ -124,7 +126,7 @@ function findTerrainPath(startX, startZ, goalX, goalZ, {
   for (let ix = Math.max(-worldSteps, sx - 1); ix <= Math.min(worldSteps, sx + 1); ix++) {
     for (let iz = Math.max(-worldSteps, sz - 1); iz <= Math.min(worldSteps, sz + 1); iz++) {
       const x = coord(ix), z = coord(iz), k = key(ix, iz);
-      if (canEdge(startX, startZ, x, z)) { gScore.set(k, Math.hypot(x - startX, z - startZ)); parent.set(k, null); push({ ix, iz, f: gScore.get(k) + heuristic(ix, iz) }); }
+      if (edgeIsAllowed(startX, startZ, x, z)) { gScore.set(k, Math.hypot(x - startX, z - startZ)); parent.set(k, null); push({ ix, iz, f: gScore.get(k) + heuristic(ix, iz) }); }
     }
   }
   if (!heap.length) return null;
@@ -136,12 +138,12 @@ function findTerrainPath(startX, startZ, goalX, goalZ, {
     closed.add(ck); expanded++;
     const cx = coord(current.ix), cz = coord(current.iz);
     // Only attach the exact goal from its neighboring grid cells; never shortcut across the search grid.
-    if (Math.abs(current.ix - gx) <= 1 && Math.abs(current.iz - gz) <= 1 && canEdge(cx, cz, goalX, goalZ)) { reached = ck; break; }
+    if (Math.abs(current.ix - gx) <= 1 && Math.abs(current.iz - gz) <= 1 && edgeIsAllowed(cx, cz, goalX, goalZ)) { reached = ck; break; }
     for (const [dx, dz] of neighbors) {
       const ix = current.ix + dx, iz = current.iz + dz;
       if (Math.abs(ix * spacing) > bounds + spacing || Math.abs(iz * spacing) > bounds + spacing) continue;
       const x = coord(ix), z = coord(iz), nk = key(ix, iz);
-      if (closed.has(nk) || !canEdge(cx, cz, x, z)) continue;
+      if (closed.has(nk) || !edgeIsAllowed(cx, cz, x, z)) continue;
       const tentative = gScore.get(ck) + Math.hypot(x - cx, z - cz);
       if (tentative >= (gScore.get(nk) ?? Infinity)) continue;
       gScore.set(nk, tentative); parent.set(nk, ck);

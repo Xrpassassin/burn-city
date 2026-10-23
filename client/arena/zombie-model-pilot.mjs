@@ -69,7 +69,7 @@ export async function createZombieModelPilot(scene) {
     group.add(visual);
     scene.add(group);
     const mixer = new THREE.AnimationMixer(visual);
-    const item = { group, mixer, model, action: null, clipName: '' };
+    const item = { group, visual, mixer, model, action: null, clipName: '' };
     setAnimation(item, animationFor(z, model.clips));
     return item;
   }

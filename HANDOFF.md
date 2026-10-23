@@ -383,6 +383,7 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
 - Tests: `npm run test:fishing-rules`, `node test/fish-sim.js`; `npm run test:all` runs both plus the server sims.
 - Hooks: `window.__fish.openShop()` / `openLog()` for smoke tests. Touch ghost-click guard (pointerdown + capture-phase click filter) is unchanged.
 - Known gap: not yet in the default `npm test`; iPhone 390x844 smoke is about 5 draw calls above main (~403 vs ~398 in the swiftshader harness).
+- Cast generation guard (sw bc-v72-fishgen): `castAt` bumps `castGen`; the bite timer, the bite-escape timer and the post-`api('cast')` continuation only act if they belong to the current cast. Before, cancelling a cast (Reel in / Esc / too-early hook) and recasting let the old cast's timer fire an early `❗ Bite!` on the new cast (reproduced in Playwright on iPhone 13 and desktop). A used-up bait now falls back to Worm before the cast (the server already did this; the UI said `bait: shrimp` with 0 left).
 
 ## CinderWilds city horizon (sw bc-v55-horizon)
 - client/js/wilds-gate.js `buildForestHorizon()`: visual-only distant forest skyline north of the city (group `wilds-horizon`; 1 ridge mesh + 4 InstancedMesh, 132 trees, about 5 draw calls, no colliders, no forest loading).
@@ -494,3 +495,8 @@ Replaces `transport-menu.js` + `play-menu.js` (both deleted; nothing else import
 - Return position uses the existing `sessionStorage.bc_ret` restore (Explore at the kiosk's `returnX/Z`, facing `returnYaw`). The old decorative avenue portal rings are removed.
 - Stabilization (Hark): travel card buttons 44px; `pageshow` (bfcache back) clears a stale boarding overlay / travel card in the city and the return overlay in the arena; repeated Return taps run one teardown.
 - Verified in Playwright (iPhone 13 + desktop, `serviceWorkers:'block'`): kiosk tap → card → Stay (no `bc_ret` left) → Enter (double tap = one launch) → arena free play in the right mode with Return visible, no overlap in portrait/landscape → Return → city Explore at the exact return point. The bfcache path is syntax-only.
+
+## Eternal Grind seeded dungeon layout prototype (PR #131, isolated lab)
+- Files: `client/dungeon/dungeon-layout-core.mjs` (+ `.test.mjs`, in `npm run test:eternal-grind`), `dungeon-layout-lab.html/.mjs` (open `/dungeon/dungeon-layout-lab.html`), `DUNGEON_LAYOUT_PROTOTYPE.md`, `DUNGEON_LAYOUT_LAB.md`. Not imported by the live dungeon (`/dungeon/index.html`), combat, loot or saves; not precached by the SW.
+- Contract: `generateDungeonLayout({ seed, columns=5, rows=5, loopChance=.12 })` → grid rooms + corridors between grid neighbours (spanning tree + loops), `entranceId` 0, `bossId` = farthest room, `mainPathLength`.
+- Stabilization (Hark): the lab had no import map, so `import 'three'` failed in the browser; it now uses the same map as the other dungeon labs (`../vendor/three/build/three.module.min.js`). Checked 70 seed/size/loop combos: deterministic, all rooms reachable, boss is the farthest room, corridors only join neighbours.

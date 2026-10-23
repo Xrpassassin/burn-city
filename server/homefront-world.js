@@ -5,6 +5,7 @@ const Combat = require('./homefront-combat');
 const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
+const Terrain = require('./homefront-terrain');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
@@ -157,7 +158,9 @@ function move(input, acct, x, z, now = Date.now()) {
   const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz);
   const scale = d > MOVE_STEP ? MOVE_STEP / d : 1;
   const oldX = p.x, oldZ = p.z;
-  p.x = Math.round((p.x + dx * scale) * 10) / 10; p.z = Math.round((p.z + dz * scale) * 10) / 10;
+  const nextX = Math.round((p.x + dx * scale) * 10) / 10, nextZ = Math.round((p.z + dz * scale) * 10) / 10;
+  if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ)) throw new Error('terrain_too_steep');
+  p.x = nextX; p.z = nextZ;
   p.lastMove = p.lastSeen = now;
   p.survival = Survival.move(p.survival, now, Math.hypot(p.x - oldX, p.z - oldZ));
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct) {

@@ -281,7 +281,7 @@ function boot(host) {
   const groundHit = new THREE.Mesh(new THREE.PlaneGeometry(204, 204), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
   groundHit.rotation.x = -Math.PI / 2; groundHit.position.y = 0.01; scene.add(groundHit);
   renderer.domElement.addEventListener('pointerdown', e => {
-    if (!worldData?.self || moving || (worldData.party && !worldData.party.leader)) return;
+    if (!worldData?.self || moving) return;
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = (e.clientX - rect.left) / rect.width * 2 - 1;
     pointer.y = -(e.clientY - rect.top) / rect.height * 2 + 1;
@@ -298,6 +298,7 @@ function boot(host) {
         return;
       }
     }
+    if (worldData.party && !worldData.party.leader) return;
     const hits = raycaster.intersectObject(groundHit);
     if (!hits.length) return;
     moveTo(Math.max(-100, Math.min(100, hits[0].point.x)), Math.max(-100, Math.min(100, hits[0].point.z)));

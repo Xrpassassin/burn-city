@@ -73,8 +73,9 @@ function buildObstacles() {
   return out;
 }
 const OBSTACLES = buildObstacles();
-function pointBlocked(x, z, radius = PLAYER_RADIUS) {
+function pointBlocked(x, z, radius = PLAYER_RADIUS, removedObstacleIds = []) {
   for (const o of OBSTACLES) {
+    if (removedObstacleIds.includes(o.id)) continue;
     if (Math.abs(x - o.x) > (o.type === 'rect' ? o.halfX + radius : o.radius + radius) ||
         Math.abs(z - o.z) > (o.type === 'rect' ? o.halfZ + radius : o.radius + radius)) continue;
     if (o.type === 'circle') {
@@ -83,25 +84,25 @@ function pointBlocked(x, z, radius = PLAYER_RADIUS) {
   }
   return null;
 }
-function canTraverse(x0, z0, x1, z1, { radius = PLAYER_RADIUS, bounds = WORLD_SIZE, sampleStep = 0.75 } = {}) {
+function canTraverse(x0, z0, x1, z1, { radius = PLAYER_RADIUS, bounds = WORLD_SIZE, sampleStep = 0.75, removedObstacleIds = [] } = {}) {
   if (![x0,z0,x1,z1,radius,bounds,sampleStep].every(Number.isFinite) || radius < 0 || bounds <= 0 || sampleStep <= 0) {
     throw new TypeError('canTraverse expects finite coordinates and valid collision options');
   }
   const distance = Math.hypot(x1 - x0, z1 - z0), steps = Math.max(1, Math.ceil(distance / sampleStep));
   for (let i = 0; i <= steps; i++) {
     const t = i / steps, x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t;
-    if (Math.abs(x) > bounds || Math.abs(z) > bounds || Math.hypot(x, z) > bounds || pointBlocked(x, z, radius)) return false;
+    if (Math.abs(x) > bounds || Math.abs(z) > bounds || Math.hypot(x, z) > bounds || pointBlocked(x, z, radius, removedObstacleIds)) return false;
   }
   return true;
 }
 function isSafePosition(x, z, options = {}) {
   const bounds = Number.isFinite(options.bounds) ? options.bounds : WORLD_SIZE;
-  return Terrain.isSafePosition(x, z, options) && !pointBlocked(x, z, options.radius ?? PLAYER_RADIUS) &&
-    canTraverse(x, z, x, z, { bounds, radius: options.radius ?? PLAYER_RADIUS });
+  return Terrain.isSafePosition(x, z, options) && !pointBlocked(x, z, options.radius ?? PLAYER_RADIUS, options.removedObstacleIds ?? []) &&
+    canTraverse(x, z, x, z, { bounds, radius: options.radius ?? PLAYER_RADIUS, removedObstacleIds: options.removedObstacleIds ?? [] });
 }
 function findPath(startX, startZ, goalX, goalZ, options = {}) {
   return Terrain.findTerrainPath(startX, startZ, goalX, goalZ, {
-    ...options, edgeAllowed: (x0, z0, x1, z1) => canTraverse(x0, z0, x1, z1, { bounds: options.bounds ?? WORLD_SIZE, radius: options.radius ?? PLAYER_RADIUS })
+    ...options, edgeAllowed: (x0, z0, x1, z1) => canTraverse(x0, z0, x1, z1, { bounds: options.bounds ?? WORLD_SIZE, radius: options.radius ?? PLAYER_RADIUS, removedObstacleIds: options.removedObstacleIds ?? [] })
   });
 }
 function findSafePosition(x, z, { bounds = WORLD_SIZE, maxRadius = 18, step = 2 } = {}) {

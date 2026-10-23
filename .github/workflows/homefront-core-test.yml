@@ -8,9 +8,13 @@ on:
       - 'server/homefront-world.js'
       - 'server/homefront-terrain.js'
       - 'server/homefront-collision.js'
+      - 'server/homefront-environment.js'
+      - 'server/homefront-environment.test.js'
       - 'server/homefront-collision.test.js'
       - 'server/homefront-terrain.test.mjs'
       - 'client/arena/homefront-terrain-generation.mjs'
+      - 'client/arena/homefront-environment-damage.mjs'
+      - 'test/homefront-environment-damage.test.mjs'
       - 'client/arena/homefront-world-generation.mjs'
       - 'server/homefront-survival.js'
       - 'server/homefront-inventory.js'
@@ -61,6 +65,7 @@ jobs:
           node --check server/homefront-world.js
           node --check server/homefront-terrain.js
           node --check server/homefront-collision.js
+          node --check server/homefront-environment.js
           node --check server/homefront-survival.js
           node --check server/homefront-inventory.js
           node --check server/homefront.js
@@ -79,3 +84,7 @@ jobs:
         run: npm run test:flight-lobby
       - name: Run Homefront settlement simulation
         run: npm run test:homefront
+      - name: Run Homefront environment damage and repair tests
+        run: node test/homefront-environment-damage.test.mjs
+      - name: Run authoritative Homefront environment integration tests
+        run: node server/homefront-environment.test.js

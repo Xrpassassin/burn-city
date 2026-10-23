@@ -7,6 +7,7 @@ const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 const Terrain = require('./homefront-terrain');
 const Collision = require('./homefront-collision');
+const Environment = require('./homefront-environment');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
@@ -51,13 +52,14 @@ const POINTS_OF_INTEREST = [
 ];
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : 0));
-const defaultWorld = () => ({ version: 1, players: {}, parties: {}, encounters: {}, lootNodes: {} });
+const defaultWorld = () => ({ version: 1, players: {}, parties: {}, encounters: {}, lootNodes: {}, environmentStructures: {} });
 function normalizeWorld(input) {
   const w = input && input.version === 1 ? input : defaultWorld();
   if (!w.players || typeof w.players !== 'object' || Array.isArray(w.players)) w.players = {};
   if (!w.parties || typeof w.parties !== 'object' || Array.isArray(w.parties)) w.parties = {};
   w.encounters = Combat.normalizeEncounters(w.encounters);
   w.lootNodes = Loot.normalize(w.lootNodes);
+  w.environmentStructures = Environment.normalize(w.environmentStructures);
   if (!w.bosses || typeof w.bosses !== 'object' || Array.isArray(w.bosses)) w.bosses = {};
   if (!w.caches || typeof w.caches !== 'object' || Array.isArray(w.caches)) w.caches = {};
   for (const point of POINTS_OF_INTEREST.filter(p => p.type === 'cache')) {
@@ -166,7 +168,7 @@ function snapshot(input, acct, now = Date.now()) {
   const p = w.players[acct] || null;
   const party = p?.partyCode && w.parties[p.partyCode];
   return {
-    world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
+    world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
     players: Object.entries(w.players).map(([id, player]) => publicPlayer(id, player, acct, now)).filter(v => v.online),
     self: p ? publicPlayer(acct, p, acct, now) : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now)) } : null,
@@ -194,6 +196,7 @@ function enter(input, acct, now = Date.now()) {
   }
   // Refreshes advance bounded pursuit too, so infected do not require player movement to update.
   w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
+  w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
   return { world: w, result: snapshot(w, acct, now) };
 }
 function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
@@ -228,12 +231,13 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   const scale = d > movementBudget ? movementBudget / d : 1;
   const oldX = p.x, oldZ = p.z;
   let nextX = Math.round((p.x + dx * scale) * 10) / 10, nextZ = Math.round((p.z + dz * scale) * 10) / 10;
-  if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE })) {
-    const route = Collision.findPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE, maxExpanded: 2600 });
+  const removedObstacleIds = Object.values(w.environmentStructures).filter(s => s.health <= 0).map(s => s.id);
+  if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE, removedObstacleIds })) {
+    const route = Collision.findPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE, maxExpanded: 2600, removedObstacleIds });
     if (!route || !route.length) throw new Error('terrain_path_unreachable');
     const advanced = advanceAlongTerrainPath(oldX, oldZ, route, movementBudget);
     nextX = advanced.x; nextZ = advanced.z;
-    if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE })) throw new Error('terrain_path_blocked');
+    if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE, removedObstacleIds })) throw new Error('terrain_path_blocked');
   }
   p.x = nextX; p.z = nextZ;
   p.lastMove = p.lastSeen = now;
@@ -251,6 +255,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   }
   // Advance AI only on an authoritative world action; no client frame loop can move enemies.
   w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
+  w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
   return { world: w, result: snapshot(w, acct, now) };
 }
 

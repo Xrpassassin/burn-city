@@ -7,12 +7,19 @@ import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-stream
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { sfx } from './sfx.js';
+import { createZombieAudio } from './zaudio.js';
 
 const host = document.getElementById('graveyard3d');
 if (host) boot(host);
 
 function boot(host) {
   const status = document.getElementById('graveyard3dStatus');
+  const zombieAudio = createZombieAudio(sfx, { base: new URL('./sfx/', import.meta.url).href, mobile: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches });
+  let zombieAudioStarted = false;
+  const startZombieAudio = () => { if (zombieAudioStarted) return; zombieAudioStarted = true; zombieAudio.start(); };
+  window.addEventListener('pointerdown', startZombieAudio, { once: true, passive: true });
+  window.addEventListener('keydown', startZombieAudio, { once: true });
+  window.addEventListener('pagehide', () => zombieAudio.stop(), { once: true });
   const API = new URLSearchParams(location.search).get('api') ||
     (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   const token = () => localStorage.getItem('bcToken') || '';
@@ -20,7 +27,7 @@ function boot(host) {
   scene.background = new THREE.Color(0x111312);
   scene.fog = new THREE.FogExp2(0x171a18, 0.0038);
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 500);
-  camera.position.set(0, 175, 150);
+  camera.position.set(0, 5, -7);
   camera.lookAt(0, 0, 0);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
@@ -104,10 +111,19 @@ function boot(host) {
   const zombieMixers = [];
   // Keep server-owned infected actors between snapshots so movement is presented smoothly.
   const combatActors = new Map();
+  // Interpolate explorer positions between authoritative world snapshots.
+  const explorerPositions = new Map();
   let weaponSwingUntil = 0;
   let weaponSwingStartedAt = 0;
   let weaponSwingWeaponId = 'pipe_blade';
   window.addEventListener('homefront:combat-hit', event => {
+    const detail = event.detail || {};
+    const active = worldData?.selfEncounter || worldData?.encounter || (worldData?.encounters || []).find(item => item.id === detail.encounterId) || null;
+    const target = active ? { id: active.id, x: active.x, y: terrainElevation(active.x, active.z), z: active.z, ty: 0 } : null;
+    zombieAudio.hit({ hs: detail.hitZone === 'head', k: !!detail.killed }, target);
+    if (detail.killed && target) zombieAudio.zdie(target);
+  });
+  window.addEventListener('homefront:combat-hit-feedback', event => {
     weaponSwingStartedAt = performance.now();
     weaponSwingUntil = weaponSwingStartedAt + 320;
     const detail = event.detail || {};
@@ -160,11 +176,17 @@ function boot(host) {
 
   const mat = (color, roughness = 0.94) => new THREE.MeshStandardMaterial({ color, roughness });
   let equippedWeaponSkinColor = 0x9a7b62;
+  let equippedOutfitColor = 0x6d7659;
+  let equippedBackpackColor = 0x78604a;
   let equippedWeaponId = 'pipe_blade';
+  const parseCosmeticColor = (value, fallback) =>
+    typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? Number.parseInt(value.slice(1), 16) : fallback;
   window.addEventListener('homefront:cosmetics', event => {
-    const color = event.detail?.weaponColor;
-    if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) equippedWeaponSkinColor = Number.parseInt(color.slice(1), 16);
-    if (['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'].includes(event.detail?.weaponId)) equippedWeaponId = event.detail.weaponId;
+    const detail = event.detail || {};
+    equippedWeaponSkinColor = parseCosmeticColor(detail.weaponColor, equippedWeaponSkinColor);
+    equippedOutfitColor = parseCosmeticColor(detail.outfitColor, equippedOutfitColor);
+    equippedBackpackColor = parseCosmeticColor(detail.backpackColor, equippedBackpackColor);
+    if (['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'].includes(detail.weaponId)) equippedWeaponId = detail.weaponId;
   });
   const roadMat = mat(0x343733), buildingMats = [mat(0x41413a), mat(0x4b443a), mat(0x363d3d), mat(0x50483d)];
   const ruinMat = mat(0x292d2a), emberMat = new THREE.MeshStandardMaterial({ color: 0xff7738, emissive: 0x9c2507, emissiveIntensity: 0.8 });
@@ -372,6 +394,8 @@ function boot(host) {
     stripe.position.y = 0.76; stripe.userData.lootNodeId = p.id; g.add(stripe);
     const glow = new THREE.Mesh(new THREE.TorusGeometry(1.55,0.07,5,24), new THREE.MeshBasicMaterial({color,transparent:true,opacity:p.available?0.8:0.2}));
     glow.rotation.x = Math.PI/2; glow.position.y = 0.08; glow.userData.lootNodeId = p.id; g.add(glow);
+    // Keep selection presentation attached to the physical node; gameplay availability remains server-owned.
+    g.userData.lootGlow = { mesh: glow, color, available: !!p.available };
     const label = labelSprite(p.label, p.available ? '#ffe0a0' : '#8b8278'); label.position.y = 2.5; g.add(label);
     if (!p.available) { crate.material.color.setHex(0x45423e); stripe.material.emissiveIntensity=0; }
     lootGroup.add(g);
@@ -444,6 +468,11 @@ function boot(host) {
       if (p.type === 'rescue' && data.world?.rescues?.[p.id]?.readyAt > Date.now()) marker.children[0].material.color.setHex(0x77716b);
     }
     for (const node of (data.world?.lootNodes || [])) buildLootNode(node);
+    const previousExplorerPositions = new Map();
+    for (const explorer of playerGroup.children) {
+      const key = explorer.userData.explorerKey;
+      if (key) previousExplorerPositions.set(key, explorer.position.clone());
+    }
     clearGroup(playerGroup);
     const encounters = data.encounters || [];
     const activeEncounterIds = new Set();
@@ -507,15 +536,31 @@ function boot(host) {
     if (combatStatus) combatStatus.textContent = selfEncounter && !selfEncounter.defeated
       ? selfEncounter.enemy + ' · HP ' + selfEncounter.hp + '/' + selfEncounter.maxHp + ' · risk ' + selfEncounter.risk + '/5 · ' + Math.ceil(enemyDistance) + ' units away' + (enemyInReach ? ' · in attack range' : ' · move closer to attack')
       : 'No active encounter. Search for infected to begin a server-authoritative fight.';
+    explorerPositions.clear();
     for (const p of (data.players || [])) {
-      const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z);
+      const key = String(p.id || p.userId || p.accountId || p.label || 'explorer');
+      const targetY = terrainElevation(p.x, p.z);
+      const g = new THREE.Group();
+      const previousPosition = previousExplorerPositions.get(key);
+      g.position.set(previousPosition?.x ?? p.x, previousPosition?.y ?? targetY, previousPosition?.z ?? p.z);
+      g.userData.explorerKey = key;
+      g.userData.targetX = p.x; g.userData.targetZ = p.z; g.userData.targetY = targetY;
+      explorerPositions.set(key, { x: p.x, y: targetY, z: p.z });
       const color = p.label === 'You' ? 0xffdf83 : p.party ? 0x8fd4f4 : 0xd7d1c5;
-      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 1.2, 3, 6), mat(color));
+      const isLocalPlayer = p.label === 'You';
+      const bodyColor = isLocalPlayer ? equippedOutfitColor : color;
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 1.2, 3, 6), mat(bodyColor));
       body.position.y = 1.45; g.add(body);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 8, 6), mat(p.label === 'You' ? 0xffb45c : 0xc5aa8a));
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 8, 6), mat(isLocalPlayer ? 0xffb45c : 0xc5aa8a));
       head.position.y = 2.55; g.add(head);
-      // Visible held weapon silhouette; cosmetic finishes will bind to the authoritative loadout next.
-      const weaponId = p.label === 'You' ? equippedWeaponId : 'pipe_blade';
+      // A readable field pack makes the backpack slot visible in-world without affecting gameplay stats.
+      const packColor = isLocalPlayer ? equippedBackpackColor : 0x78604a;
+      const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.82, 0.34), mat(packColor));
+      backpack.position.set(0, 1.55, -0.48); g.add(backpack);
+      const packStrap = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.1, 0.38), mat(0x29251f));
+      packStrap.position.set(0, 1.62, -0.49); g.add(packStrap);
+      // Visible held weapon silhouette; the local weapon finish and model follow the equipped loadout.
+      const weaponId = isLocalPlayer ? equippedWeaponId : 'pipe_blade';
       const weapon = new THREE.Group(); weapon.position.set(0.62, 1.72, 0.12); weapon.rotation.x = -0.12;
       const grip = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.13), mat(0x49372b));
       grip.position.y = -0.2; weapon.add(grip);
@@ -533,6 +578,12 @@ function boot(host) {
         muzzle.position.y = 0.12 + length + 0.04; weapon.add(muzzle);
       }
       g.add(weapon); g.userData.weapon = weapon; g.userData.isLocalPlayer = p.label === 'You';
+      g.userData.avatarParts = [
+        { object: body, baseY: 1.45, phase: 0 },
+        { object: head, baseY: 2.55, phase: 0.12 },
+        { object: backpack, baseY: 1.55, phase: 0.04 },
+        { object: packStrap, baseY: 1.62, phase: 0.04 }
+      ];
       const name = labelSprite(p.label || 'Explorer', p.label === 'You' ? '#ffe28a' : '#c8d8df'); name.position.y = 4.7; g.add(name);
       playerGroup.add(g);
     }
@@ -543,7 +594,7 @@ function boot(host) {
     if (status) {
       const self = data.self;
       status.textContent = self
-        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.district || 'perimeter').replaceAll('_', ' ') + ' · danger ' + self.risk + '/5 · click the ground to travel'
+        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.district || 'perimeter').replaceAll('_', ' ') + ' · danger ' + self.risk + '/5 · click to travel · V toggles third-person / tactical view'
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
     }
   }
@@ -577,7 +628,9 @@ function boot(host) {
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
       if (data.combat) {
         authoritativeAimStability = Number.isFinite(data.combat.aimStability) ? data.combat.aimStability : null;
-        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: { damage: data.combat.damage, hitZone: data.combat.hitZone, killed: data.combat.killed, weaponId: equippedWeaponId, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 } }));
+        const hitDetail = { damage: data.combat.damage, hitZone: data.combat.hitZone, killed: data.combat.killed, weaponId: equippedWeaponId, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 };
+        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: hitDetail }));
+        window.dispatchEvent(new CustomEvent('homefront:combat-hit-feedback', { detail: hitDetail }));
       }
       updateWorld(data);
       if (data.combat && combatStatus) {
@@ -764,7 +817,7 @@ function boot(host) {
   }
   const groundHit = ground;
   renderer.domElement.addEventListener('pointerdown', e => {
-    if (!worldData?.self || moving) return;
+    if (e.button === 2 || cameraOrbiting || !worldData?.self || moving) return;
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = (e.clientX - rect.left) / rect.width * 2 - 1;
     pointer.y = -(e.clientY - rect.top) / rect.height * 2 + 1;
@@ -827,8 +880,48 @@ function boot(host) {
   const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(260, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
+  // Homefront's master view is third-person by default. V toggles a high tactical overview
+  // without changing authoritative movement or world state.
+  let masterView = 'third-person';
+  let cameraYawOffset = 0;
+  let cameraPitchOffset = 0;
+  let cameraDistance = 6.2;
+  let cameraOrbiting = false;
+  let cameraPointerId = null;
+  renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
+  renderer.domElement.addEventListener('pointerdown', event => {
+    if (event.button !== 2 || masterView !== 'third-person') return;
+    cameraOrbiting = true; cameraPointerId = event.pointerId;
+    try { renderer.domElement.setPointerCapture(event.pointerId); } catch {}
+    event.preventDefault();
+  });
+  renderer.domElement.addEventListener('pointermove', event => {
+    if (!cameraOrbiting || event.pointerId !== cameraPointerId) return;
+    cameraYawOffset += event.movementX * 0.006;
+    cameraPitchOffset = Math.max(-0.25, Math.min(0.45, cameraPitchOffset - event.movementY * 0.004));
+  });
+  const stopCameraOrbit = event => {
+    if (!cameraOrbiting || (event && event.pointerId !== cameraPointerId)) return;
+    cameraOrbiting = false; cameraPointerId = null;
+  };
+  for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) renderer.domElement.addEventListener(eventName, stopCameraOrbit);
+  window.addEventListener('blur', () => stopCameraOrbit());
+  renderer.domElement.addEventListener('wheel', event => {
+    if (masterView !== 'third-person') return;
+    cameraDistance = Math.max(3.5, Math.min(10.5, cameraDistance + Math.sign(event.deltaY) * 0.65));
+    event.preventDefault();
+  }, { passive: false });
+  window.addEventListener('keydown', event => {
+    if (event.key.toLowerCase() !== 'v' || event.repeat || event.altKey || event.ctrlKey || event.metaKey) return;
+    const target = event.target;
+    if (target && (target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(target.tagName))) return;
+    masterView = masterView === 'third-person' ? 'tactical' : 'third-person';
+    if (status) status.textContent = masterView === 'third-person'
+      ? 'Third-person · click ground to travel · right-drag to orbit · scroll to zoom · V for tactical overview.'
+      : 'Tactical overview · click ground to travel · press V for third-person view.';
+  });
   let lastFrame = performance.now();
-  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += Math.sin(now * 0.0003 + i) * dt * 0.12; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainElevation(actor.position.x, actor.position.z);
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += Math.sin(now * 0.0003 + i) * dt * 0.12; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) { const travelBlend = 1 - Math.exp(-8 * dt); explorer.position.x += (target.x - explorer.position.x) * travelBlend; explorer.position.y += (target.y - explorer.position.y) * travelBlend; explorer.position.z += (target.z - explorer.position.z) * travelBlend; movingAvatar = Math.hypot(target.x - explorer.position.x, target.z - explorer.position.z) > 0.035; if (movingAvatar) explorer.rotation.y = Math.atan2(target.x - explorer.position.x, target.z - explorer.position.z); } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainElevation(actor.position.x, actor.position.z);
       const impactRemaining = state.impactUntil - now;
       if (impactRemaining > 0) {
         const p = impactRemaining / 300;
@@ -838,6 +931,29 @@ function boot(host) {
         actor.rotation.z = (state.impactStyle === 'blunt' ? 0.22 : headshot ? 0.28 : 0.12) * hitPulse * state.impactDirection;
         state.body.scale.y = state.impactStyle === 'blunt' ? 1 - 0.18 * hitPulse : headshot ? 1 - 0.1 * hitPulse : 1;
       } else { actor.rotation.z = 0; state.body.scale.y = 1; }
-      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } if (worldData?.self) { const self = worldData.self; updateVisibleChunks(self.x, self.z); const followBlend = 1 - Math.exp(-dt * 2.8); camera.position.x += (self.x - camera.position.x) * followBlend; camera.position.z += (self.z + 150 - camera.position.z) * followBlend; camera.lookAt(self.x, terrainElevation(self.x, self.z) + 1.5, self.z); } renderer.render(scene, camera); requestAnimationFrame(tick); };
+      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } if (worldData?.self) {
+      const self = worldData.self;
+      if (zombieAudioStarted) {
+        const survival = worldData.selfSurvival || {};
+        const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
+        const audioMe = { x: self.x, y: terrainElevation(self.x, self.z), z: self.z, yaw: localActor?.rotation.y || 0, hp: Number.isFinite(survival.health) ? survival.health : 100, max: 100, alive: survival.health !== 0, down: survival.health === 0 };
+        const audioZombies = (worldData.encounters || []).filter(e => !e.defeated && e.hp > 0).map(e => ({ id: e.id, x: e.x, y: terrainElevation(e.x, e.z), z: e.z, ty: /brute|juggernaut|heavy/i.test(e.enemy || '') ? 3 : /crawler|runner/i.test(e.enemy || '') ? 4 : 0, hp: e.hp, out: false }));
+        zombieAudio.tick(dt, audioMe, audioZombies, [], 'homefront-local-player');
+      }
+      updateVisibleChunks(self.x, self.z);
+      const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
+      const heading = (localActor?.rotation.y || 0) + cameraYawOffset;
+      const followBlend = 1 - Math.exp(-dt * (masterView === 'third-person' ? 6.5 : 2.8));
+      const targetY = terrainElevation(self.x, self.z) + 1.45;
+      const distance = masterView === 'third-person' ? cameraDistance : 48;
+      const height = masterView === 'third-person' ? Math.max(1.5, Math.min(6, 3.1 + cameraPitchOffset * 6)) : 30;
+      const desiredX = self.x - Math.sin(heading) * distance;
+      const desiredZ = self.z - Math.cos(heading) * distance;
+      camera.position.x += (desiredX - camera.position.x) * followBlend;
+      camera.position.y += (targetY + height - camera.position.y) * followBlend;
+      camera.position.z += (desiredZ - camera.position.z) * followBlend;
+      camera.lookAt(self.x, targetY + (masterView === 'third-person' ? 0.45 : 0), self.z);
+    }
+    renderer.render(scene, camera); requestAnimationFrame(tick); };
   tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
 }

@@ -41,6 +41,9 @@ assert.equal(expedition.resources.ammo, 17);
 assert.ok(expedition.resources.scrap >= tower.resources.scrap);
 assert.ok(expedition.resources.wood >= tower.resources.wood);
 expedition.resources.food = 1000; expedition.resources.ammo = 1000;
+// Establish the first crop before the survivor-recruitment loop, matching the player-led tutorial gate.
+expedition = H.applyAction(expedition, 'acct-a', { type: 'farm_till', x: 8, z: -8 }, 1201);
+expedition = H.applyAction(expedition, 'acct-a', { type: 'farm_plant', plotId: expedition.farmPlots[0].id, crop: 'potato' }, 1202);
 for (let i = 0; i < 100 && expedition.survivors.length === 0; i++) expedition = H.applyAction(expedition, 'acct-a', { type: 'expedition' });
 assert.ok(expedition.survivors.length > 0, 'seeded expeditions can recruit survivors');
 const survivor = expedition.survivors[0];
@@ -233,3 +236,61 @@ assert.equal(liveSession.homefrontSessionStart.totals.suppliesConsumed.food, 1);
 assert.equal(liveSession.homefrontSessionStart.totals.suppliesConsumed.water, 1);
 assert.equal(liveSession.homefrontSessionStart.totals.rewardEvents, 1);
 console.log('Homefront return debrief accounting passed.');
+
+
+// Customizable fortifications: rotation persists, trench hazards tier up, and manned turrets spend ammunition during defense.
+const fortBase = H.createBase('fortification-test', 5000);
+fortBase.resources = { ...fortBase.resources, wood: 200, scrap: 250, ammo: 80, meds: 30 };
+let fortified = H.applyAction(fortBase, 'fortification-test', { type: 'build', building: 'entrance', x: 8, z: 8, rotation: Math.PI / 2 }, 5010);
+const entrance = fortified.structures.find(x => x.type === 'entrance');
+assert.equal(entrance.rotation, Math.PI / 2, 'placed entrance stores its facing');
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'build', building: 'trench', x: -7, z: 7 }, 5020);
+const trench = fortified.structures.find(x => x.type === 'trench');
+assert.equal(trench.trenchLevel, 0);
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'trench_upgrade', target: trench.id }, 5030);
+assert.equal(fortified.structures.find(x => x.id === trench.id).trenchLevel, 1);
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'trench_upgrade', target: trench.id }, 5040);
+assert.equal(fortified.structures.find(x => x.id === trench.id).trenchLevel, 2);
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'trench_upgrade', target: trench.id }, 5050);
+assert.equal(fortified.structures.find(x => x.id === trench.id).trenchLevel, 3);
+assert.throws(() => H.applyAction(fortified, 'fortification-test', { type: 'trench_upgrade', target: trench.id }, 5060), /trench_max_level/);
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'build', building: 'turret', x: -7, z: -7 }, 5070);
+const turret = fortified.structures.find(x => x.type === 'turret');
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'turret_manning', target: turret.id, manned: true }, 5080);
+assert.equal(fortified.structures.find(x => x.id === turret.id).manned, true);
+const ammoBeforeTurretDefense = fortified.resources.ammo;
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'defend' }, 5090);
+assert.ok(fortified.resources.ammo < ammoBeforeTurretDefense, 'manned turret consumes ammunition during a defense action');
+assert.equal(fortified.structures.find(x => x.id === turret.id).manned, false, 'turret returns to unmanned after its defense burst');
+const normalizedFortifications = H.validateBase(fortified, 'fortification-test');
+assert.equal(normalizedFortifications.structures.find(x => x.id === trench.id).trenchLevel, 3, 'trench tier persists through save normalization');
+assert.equal(normalizedFortifications.structures.find(x => x.id === entrance.id).rotation, Math.PI / 2, 'entrance rotation persists through save normalization');
+
+const farmStart = H.createBase('farm-test', 6000);
+assert.equal(farmStart.resources.seeds, 6, 'new refuge has a small starter seed reserve');
+assert.deepEqual(farmStart.farmPlots, [], 'farm plots start empty; the player must establish the farm');
+farmStart.resources.food = 100;
+const soil = H.applyAction(farmStart, 'farm-test', { type: 'farm_till', x: 4, z: 4 }, 6010);
+const plot = soil.farmPlots[0];
+assert.equal(plot.crop, null, 'tilling only prepares soil; it does not auto-plant');
+assert.throws(() => H.applyAction(soil, 'farm-test', { type: 'assign', survivorId: 'missing', role: 'farmer' }, 6020), /plant_crops_before_recruiting_farmers/, 'farmer assignment is gated until the player plants a crop');
+let planted = H.applyAction(soil, 'farm-test', { type: 'farm_plant', plotId: plot.id, crop: 'potato' }, 6030);
+assert.equal(planted.resources.seeds, 5, 'planting spends a seed');
+assert.throws(() => H.applyAction(planted, 'farm-test', { type: 'farm_harvest', plotId: plot.id }, 6040), /crop_not_ready/);
+for (let day = 0; day < 3; day++) {
+  planted = H.applyAction(planted, 'farm-test', { type: 'farm_water', plotId: plot.id }, 6050 + day * 20);
+  planted = H.applyAction(planted, 'farm-test', { type: 'workday' }, 6060 + day * 20);
+}
+assert.equal(planted.farmPlots[0].growth, H.CROPS.potato.days, 'watered crops advance through the server-authoritative workday clock');
+const foodBeforeHarvest = planted.resources.food;
+planted = H.applyAction(planted, 'farm-test', { type: 'farm_harvest', plotId: plot.id }, 6120);
+assert.equal(planted.resources.food, foodBeforeHarvest + 5, 'mature potato harvest adds its configured food yield');
+assert.equal(planted.farmPlots[0].crop, null, 'harvest resets the plot for replanting');
+assert.equal(planted.resources.seeds, 5 + H.CROPS.potato.seedCost + 1, 'harvest returns the seed cost plus one so farming is self-sustaining');
+{ const legacy = H.createBase('legacy-seeds', 7000); delete legacy.resources.seeds; assert.equal(H.validateBase(legacy, 'legacy-seeds').resources.seeds, 6, 'saves from before farming receive a starter seed stock'); }
+{ const Inv = require('../server/homefront-inventory'); const stocked = H.createBase('seed-pack', 7100); const pulled = Inv.withdraw({}, stocked.resources, 'food', 2, 7101); assert.equal(pulled.resources.seeds, 6, 'packing field supplies keeps refuge seed stock'); }
+const savedFarm = H.validateBase(planted, 'farm-test');
+assert.equal(savedFarm.farmPlots.length, 1, 'farm plot persists through save normalization');
+assert.equal(savedFarm.resources.seeds, planted.resources.seeds, 'seed inventory persists through save normalization');
+
+console.log('Homefront fortification and farming simulation passed.');

@@ -4,6 +4,12 @@ import { readFileSync } from 'node:fs';
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 
+assert.match(scene, /from '\.\/zaudio\.js'/, 'reuse the Zombies sound director in Homefront');
+assert.match(scene, /createZombieAudio\(sfx, \{ base: new URL\('\.\/sfx\/'/, 'reuse the existing positional zombie audio sample bank');
+assert.match(scene, /zombieAudio\.tick\(dt, audioMe, audioZombies/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
+assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play shared hit and headshot audio only after authoritative combat confirmation');
+assert.match(scene, /zombieAudio\.zdie\(target\)/, 'play infected death audio only after server-confirmed kills');
+assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
 assert.match(scene, /from '\.\/vendor\/three\.module\.min\.js'/, 'reuse the vendored Three.js runtime');
 assert.match(scene, /GLTFLoader/, 'reuse the existing GLTF asset loader');
 assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely');
@@ -24,6 +30,11 @@ assert.match(scene, /threatRing/, 'render a proximity danger telegraph for nearb
 assert.match(scene, /threatDistance <= 3/, 'increase infected danger feedback at close combat distance');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(scene, /Visible held weapon silhouette/, 'render a visible weapon prop for each explorer in the 3D world');
+assert.match(scene, /event\.button !== 2 \|\| masterView !== 'third-person'/, 'right mouse drag orbits the third-person camera without hijacking ground travel');
+assert.match(scene, /cameraYawOffset \+= event\.movementX \* 0\.006/, 'camera orbit changes the follow heading');
+assert.match(scene, /cameraPitchOffset = Math\.max\(-0\.25, Math\.min\(0\.45/, 'camera pitch stays within a safe view angle');
+assert.match(scene, /cameraDistance = Math\.max\(3\.5, Math\.min\(10\.5/, 'mouse wheel zoom is clamped to playable third-person distances');
+assert.match(scene, /right-drag to orbit · scroll to zoom/, 'the game explains orbit and zoom controls to the player');
 assert.match(scene, /homefront:cosmetics/, 'receive equipped cosmetic and weapon selection from the Homefront loadout');
 assert.match(scene, /equippedWeaponSkinColor/, 'apply the equipped weapon skin finish to the local 3D weapon');
 assert.match(scene, /weaponId === 'shock_maul'/, 'render a distinct shock maul silhouette');
@@ -112,3 +123,27 @@ assert.match(scene, /\/api\/homefront\/world\/aim/, 'aim stance is confirmed by 
 assert.match(scene, /sprint: sprintTravel/, 'sprint travel is requested explicitly and clamped by the server');
 assert.match(scene, /authoritativeAimStability/, 'display server-calculated weapon stability after combat');
 assert.match(page, /id="sprintTravel"/, 'provide an accessible sprint travel toggle');
+
+assert.match(scene, /equippedOutfitColor/, 'apply the equipped outfit skin to the local survivor avatar');
+assert.match(scene, /equippedBackpackColor/, 'apply the equipped backpack skin to the visible field pack');
+assert.match(scene, /parseCosmeticColor/, 'accept only valid six-digit cosmetic colors');
+assert.match(scene, /const backpack = new THREE.Mesh/, 'render a visible backpack on explorer avatars');
+
+assert.match(scene, /g\.userData\.lootGlow = \{ mesh: glow, color, available: !!p\.available \}/, 'retain each supply node glow metadata for selection feedback');
+assert.match(scene, /node\.userData\.lootNodeId === selectedLootId/, 'highlight the currently selected physical supply node');
+assert.match(scene, /Math\.sin\(now \* 0\.006\) \* 0\.055/, 'pulse the selected supply ring in the render loop');
+assert.match(scene, /focus\.mesh\.material\.color\.setHex\(selected \? 0xffe08a : focus\.color\)/, 'restore each supply node base glow color when selection changes');
+assert.match(scene, /const previousExplorerPositions = new Map\(\)/, 'preserve each explorer position across world snapshots');
+assert.match(scene, /explorerPositions\.set\(key, \{ x: p\.x, y: targetY, z: p\.z \}\)/, 'store authoritative explorer destinations separately from rendered positions');
+assert.match(scene, /const travelBlend = 1 - Math\.exp\(-8 \* dt\)/, 'interpolate explorer motion smoothly per frame instead of snapping on each snapshot');
+assert.match(scene, /explorer\.rotation\.y = Math\.atan2\(target\.x - explorer\.position\.x, target\.z - explorer\.position\.z\)/, 'turn moving explorers toward their travel direction');
+assert.match(scene, /g\.userData\.avatarParts = \[/, 'retain avatar body, head, backpack, and strap references for animation');
+assert.match(scene, /const bob = movingAvatar \? Math\.abs\(Math\.sin\(now \* 0\.014\)\) \* 0\.11/, 'add a lightweight step bob while explorers move');
+assert.match(scene, /part\.object\.position\.y = part\.baseY \+ bob/, 'animate avatar parts without changing authoritative world coordinates');
+
+assert.match(page, /id="tillPlot"/, 'the refuge exposes a player-led farm plot control');
+assert.match(page, /type:'farm_till',x:p\.x,z:p\.z/, 'tilling uses tap-to-place yard coordinates validated by the server');
+assert.match(page, /type:'farm_plant',plotId:p\.id/, 'empty plots can be planted from the refuge panel');
+assert.match(page, /type:'farm_water',plotId:p\.id/, 'growing plots can be watered from the refuge panel');
+assert.match(page, /type:'farm_harvest',plotId:p\.id/, 'mature plots can be harvested from the refuge panel');
+assert.match(page, /drawFarmPlot\(plot\)/, 'farm plots render in the 3D yard');

@@ -3,7 +3,7 @@
 const Store = require('./store');
 const Core = require('./homefront-core');
 
-async function handle(req, res, url, { json, gate, ip, body, who }) {
+async function handle(req, res, url, { json, gate, ip, body, who, store = Store }) {
   if (url.pathname !== '/api/homefront' && url.pathname !== '/api/homefront/action') return false;
   if (req.method !== 'GET' && req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
   const user = who();
@@ -12,12 +12,12 @@ async function handle(req, res, url, { json, gate, ip, body, who }) {
     json(res, 429, { error: 'slow_down' }); return true;
   }
   try {
-    const db = Store.load('homefront.json', {});
+    const db = store.load('homefront.json', {});
     let base = db[user.acct];
     if (!base) {
       base = Core.createBase(user.acct);
       db[user.acct] = base;
-      Store.save('homefront.json', db);
+      store.save('homefront.json', db);
     } else {
       base = Core.validateBase(base, user.acct);
       if (!base) { json(res, 500, { error: 'save_invalid', message: 'The saved refuge could not be validated; it was not overwritten.' }); return true; }

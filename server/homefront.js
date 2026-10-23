@@ -290,7 +290,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             for(const [id,qty] of Object.entries(packed.stored))base.resources[id]=Math.min(999999,(base.resources[id]||0)+qty);
             base.revision++;base.updatedAt=Date.now();bases[user.acct]=base;store.save('homefront.json',bases);
           }
-          outcome=World.leave(db,user.acct);break;
+          outcome=World.leave(db,user.acct);
+          if (player) outcome.result.base = base;
+          break;
         }
         default: json(res, 404, { error: 'world_route_not_found' }); return true;
       }

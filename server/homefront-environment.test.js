@@ -31,6 +31,8 @@ assert.equal(states[wall.id].unoccupiedSince, 60_000);
 states = Environment.tick(states, {}, 105_000);
 assert.equal(states[wall.id].health, 200);
 states = Environment.tick(states, {}, 115_000);
+assert.equal(states[wall.id].health, 220);
+states = Environment.tick(states, {}, 125_000);
 assert.equal(states[wall.id].health, wall.maxHealth);
 assert.equal(states[wall.id].stage, 'intact');
 console.log('Homefront environment authority tests passed');

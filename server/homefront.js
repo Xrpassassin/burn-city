@@ -41,6 +41,41 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z)); break;
+        case '/api/homefront/world/scavenge':
+        case '/api/homefront/world/boss-hunt': {
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const isBoss = url.pathname.endsWith('/boss-hunt');
+          const nearest = World.nearestPoint(player.x, player.z, isBoss ? 'boss' : 'non-boss');
+          if (!nearest || nearest.distance > (isBoss ? 14 : 18)) throw new Error(isBoss ? 'not_at_boss_site' : 'too_far_from_site');
+          if (isBoss && payload.pointId && payload.pointId !== nearest.point.id) throw new Error('not_at_boss_site');
+          const bases = store.load('homefront.json', {});
+          const savedBase = bases[user.acct] || Core.createBase(user.acct);
+          const base = Core.validateBase(savedBase, user.acct);
+          if (!base) throw new Error('save_invalid');
+          const nextBase = Core.applyAction(base, user.acct, { type: 'expedition', zone: nearest.point.zone });
+          let defeated = false;
+          if (isBoss) {
+            const boss = db.bosses[nearest.point.id];
+            if (boss.respawnAt && boss.respawnAt <= Date.now()) { boss.hp = boss.maxHp; boss.respawnAt = 0; }
+            if (boss.respawnAt > Date.now() || boss.hp <= 0) throw new Error('boss_respawning');
+            boss.hp = Math.max(0, boss.hp - (nearest.point.id === 'research_annex' ? 30 : 36));
+            if (boss.hp === 0) {
+              defeated = true; boss.respawnAt = Date.now() + 5 * 60e3;
+              nextBase.resources.scrap = Math.min(999999, nextBase.resources.scrap + 45);
+              nextBase.resources.meds = Math.min(999999, nextBase.resources.meds + 3);
+              nextBase.log.push({ id: (nextBase.log.at(-1)?.id || 0) + 1, kind: 'boss', text: 'Boss defeated at ' + nearest.point.label + '! Recovered 45 bonus scrap and 3 medicine.', at: Date.now() });
+              nextBase.log = nextBase.log.slice(-20);
+            }
+          }
+          bases[user.acct] = nextBase; store.save('homefront.json', bases);
+          player.lastSeen = Date.now();
+          store.save('homefront-world.json', db);
+          const snap = World.snapshot(db, user.acct);
+          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: isBoss ? { id: nearest.point.id, label: nearest.point.label, hp: db.bosses[nearest.point.id].hp, maxHp: db.bosses[nearest.point.id].maxHp, defeated } : { id: nearest.point.id, label: nearest.point.label, scavenged: true } });
+          return true;
+        }
+        case '/api/homefront/world/party/create': outcome = World.createParty(db, user.acct); break;
         case '/api/homefront/world/party/create': outcome = World.createParty(db, user.acct); break;
         case '/api/homefront/world/party/join': outcome = World.joinParty(db, user.acct, payload.code); break;
         case '/api/homefront/world/leave': outcome = World.leave(db, user.acct); break;
@@ -50,7 +85,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       json(res, 200, { mode: 'homefront-world', ...outcome.result }); return true;
     } catch (e) {
       const message = String(e?.message || 'homefront_world_error');
-      const clientError = /^(not_in_expedition|move_cooldown|party_not_found|party_full|already_in_party|invalid_world_action)/.test(message);
+      const clientError = /^(not_in_expedition|move_cooldown|party_not_found|party_full|already_in_party|invalid_world_action|too_far_from_site|not_at_boss_site|boss_respawning|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
       json(res, clientError ? 400 : 500, { error: message });
       if (!clientError) console.error('[homefront-world]', message);
       return true;

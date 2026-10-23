@@ -155,13 +155,14 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const carried = Inventory.normalize(player.inventory);
           if (carried.ammo < 1) throw new Error('field_supplies_required');
           const combatBase = Core.validateBase({ ...base, resources: { ...base.resources, ammo: carried.ammo } }, user.acct);
-          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, now: Date.now(), weaponPower: Core.weaponPower(base) });
+          const combatAt = Date.now();
+          const survivalBeforeAttack = Survival.tick(player.survival, combatAt);
+          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base) });
           carried.ammo = outcome.base.resources.ammo;
           outcome.base.resources.ammo = base.resources.ammo;
           player.inventory = carried;
           db.encounters = outcome.encounters;
-          const combatAt = Date.now();
-          player.survival = Survival.tick(player.survival, combatAt);
+          player.survival = outcome.survival || survivalBeforeAttack;
           if (outcome.enemyDamage > 0) {
             player.survival.health = Math.max(0, player.survival.health - outcome.enemyDamage);
             player.survival.infection = Math.min(100, player.survival.infection + Math.max(1, Math.floor(outcome.enemyDamage / 4)));

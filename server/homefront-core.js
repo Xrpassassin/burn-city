@@ -12,7 +12,7 @@ const CROPS = NP({ potato: { days: 3, yield: 5, seedCost: 1 }, beans: { days: 4,
 const ROLES = new Set(['idle', 'guard', 'scavenger', 'farmer', 'medic', 'mechanic']);
 const SURVIVOR_TASKS = new Set(['rest_at_refuge', 'perimeter_watch', 'defend_perimeter', 'stockpile_supplies', 'tend_crops', 'infirmary_duty', 'triage_standby', 'maintain_structures', 'emergency_repair', 'stand_by_repairs', 'take_shelter']);
 const SURVIVOR_STATS = Object.freeze(['combat', 'scavenging', 'farming', 'medical', 'engineering', 'endurance']);
-const MATERIAL_TIERS = Object.freeze({ wood: { label: 'Wood', hp: 1, defense: 0, next: 'stone' }, stone: { label: 'Stone', hp: 1.75, defense: 2, next: 'steel' }, steel: { label: 'Steel', hp: 2.8, defense: 5, next: null } });
+const MATERIAL_TIERS = Object.freeze({ wood: { label: 'Wood', hp: 1, defense: 0, resistance: 0, next: 'stone' }, stone: { label: 'Stone', hp: 1.75, defense: 2, resistance: 0.18, next: 'steel' }, steel: { label: 'Steel', hp: 2.8, defense: 5, resistance: 0.35, next: null } });
 const MATERIAL_UPGRADE_COSTS = Object.freeze({ stone: { stone: 12, scrap: 6 }, steel: { steel: 18, stone: 10, scrap: 12 } });
 const ROLE_STAT = Object.freeze({ guard: 'combat', scavenger: 'scavenging', farmer: 'farming', medic: 'medical', mechanic: 'engineering', idle: 'endurance' });
 const BUILDINGS = NP({
@@ -28,7 +28,10 @@ const BUILDINGS = NP({
   sandbags:   { cost: { wood: 4, scrap: 6 }, hp: 130, defense: 4, cap: 12 },
   barbed_wire:{ cost: { wood: 2, scrap: 8 }, hp: 65, defense: 5, cap: 10 },
   trench:     { cost: { wood: 6, scrap: 8 }, hp: 160, defense: 3, cap: 6 },
-  turret:     { cost: { wood: 10, scrap: 22, ammo: 2 }, hp: 180, defense: 5, cap: 4 }
+  turret:     { cost: { wood: 10, scrap: 22, ammo: 2 }, hp: 180, defense: 5, cap: 4 },
+  quarry:     { cost: { wood: 18, scrap: 12 }, hp: 140, defense: 0, cap: 2 },
+  smelter:    { cost: { wood: 20, scrap: 18, stone: 10 }, hp: 160, defense: 1, cap: 2 },
+  salvage_yard:{ cost: { wood: 14, scrap: 16 }, hp: 130, defense: 1, cap: 2 }
 });
 const DIFFICULTIES = NP({story:{label:'Story',cost:0.8,reward:0.7,threat:0.75},standard:{label:'Standard',cost:1,reward:1,threat:1},veteran:{label:'Veteran',cost:1.35,reward:1.55,threat:1.4},nightmare:{label:'Nightmare',cost:1.8,reward:2.35,threat:1.9}});
 const TYCOON_UPGRADES = NP({scavenger_rig:{label:'Scavenger Rig',description:'+15% salvage per level',baseCost:100,max:5},ember_press:{label:'Ember Press',description:'+5 embers per successful expedition per level',baseCost:140,max:5},field_armory:{label:'Field Armory',description:'+2 defense strength per level',baseCost:120,max:5},medic_station:{label:'Field Medic Station',description:'+1 bonus medicine on successful trips per level',baseCost:160,max:3}});
@@ -545,13 +548,24 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const workshopCount = s.structures.filter(x => x.type === 'workshop' && x.hp > 0).length;
       const infirmaryCount = s.structures.filter(x => x.type === 'infirmary' && x.hp > 0).length;
       const storageCount = s.structures.filter(x => x.type === 'storage' && x.hp > 0).length;
+      const quarryCount = s.structures.filter(x => x.type === 'quarry' && x.hp > 0).length;
+      const smelterCount = s.structures.filter(x => x.type === 'smelter' && x.hp > 0).length;
+      const salvageYardCount = s.structures.filter(x => x.type === 'salvage_yard' && x.hp > 0).length;
       const foodGain = Math.floor(Math.min(999999, farmers * (1 + gardenCount) * 2));
       // Storage sheds make scavenging trips more efficient, but only while intact.
-      const scrapGain = Math.floor(Math.min(999999, scavengers * (2 + storageCount) + mechanics * workshopCount));
+      const scrapGain = Math.floor(Math.min(999999, scavengers * (2 + storageCount) + mechanics * workshopCount + scavengers * salvageYardCount));
       const medicineGain = Math.floor(Math.min(medics, infirmaryCount));
+      const stoneGain = Math.floor(Math.min(999999, mechanics * quarryCount));
       s.resources.food = Math.min(999999, s.resources.food + foodGain);
       s.resources.scrap = Math.min(999999, s.resources.scrap + scrapGain);
+      s.resources.stone = Math.min(999999, (s.resources.stone || 0) + stoneGain);
       s.resources.meds = Math.min(999999, s.resources.meds + medicineGain);
+      // Smelters turn stored stone and scrap into steel. Mechanics determine throughput;
+      // inputs are consumed server-side so steel is never a free passive reward.
+      const steelGain = Math.floor(Math.min(999999, mechanics * smelterCount, Math.floor(s.resources.scrap / 2), s.resources.stone));
+      s.resources.scrap -= steelGain * 2;
+      s.resources.stone -= steelGain;
+      s.resources.steel = Math.min(999999, (s.resources.steel || 0) + steelGain);
       // Mechanics perform tangible upkeep during the shift. The most damaged structures are
       // stabilized first; this remains deterministic and server-authoritative.
       let repairedHp = 0;
@@ -583,7 +597,9 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.day++; s.level = Math.max(s.level, 1 + Math.floor((s.day - 1) / 5));
       for (const survivor of s.survivors) survivor.morale = clampInt(survivor.morale + (foodGain >= foodCost ? 2 : -8), 0, 100);
       const repairNote = repairedHp ? ' Mechanics repaired ' + repairedHp + ' structure HP.' : '';
-      record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + medicineGain + ' medicine.' + repairNote, now);
+      const facilityNote = (stoneGain || steelGain || salvageYardCount)
+        ? ' Facilities: +' + stoneGain + ' stone, +' + steelGain + ' steel' + (salvageYardCount ? ', salvage yard active' : '') + '.' : '';
+      record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + medicineGain + ' medicine.' + facilityNote + repairNote, now);
       break;
     }
     case 'start_siege': {
@@ -664,15 +680,17 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         return total + moraleFactor * (0.75 + survivorSkill(x, 'guard') / 20);
       }, 0);
       const breachCover = damagedPerimeter ? Math.min(0.25, guardStrength * 0.05) : 0;
-      const damage = Math.max(0, Math.ceil(profile.projectedStructureDamage * (1 - breachCover)));
+      const damage = Math.max(0, breachCover > 0 ? Math.floor(profile.projectedStructureDamage * (1 - breachCover)) : profile.projectedStructureDamage);
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
       let remaining = damage;
       const breached = [];
       for (const structure of siegeTargets) {
         if (remaining <= 0) break;
         const before = structure.hp;
-        const hit = Math.min(structure.hp, remaining);
-        structure.hp -= hit; remaining -= hit;
+        const incoming = Math.min(structure.hp, remaining);
+        const material = MATERIAL_TIERS[structure.material] || MATERIAL_TIERS.wood;
+        const hit = Math.min(structure.hp, Math.ceil(incoming * (1 - material.resistance)));
+        structure.hp -= hit; remaining -= incoming;
         if (before > 0 && structure.hp <= 0) breached.push(structure.type);
       }
       const lost = s.baseHp === 0;

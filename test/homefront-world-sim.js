@@ -73,7 +73,7 @@ assert.ok(enemyAfter.x !== enemyBefore.x || enemyAfter.z !== enemyBefore.z, 'aut
 assert.ok(distanceAfter < distanceBefore + 8, 'infected movement tracks the updated player position');
 // Integration contract: player movement and infected pursuit must use the same
 // terrain gate and recover through the pathfinder rather than crossing a blocked ridge.
-const Terrain = require('../server/homefront-terrain');
+
 const originalCanTraverse = Terrain.canTraverse;
 const originalFindTerrainPath = Terrain.findTerrainPath;
 const blockedRidge = (x0, z0, x1, z1) => {

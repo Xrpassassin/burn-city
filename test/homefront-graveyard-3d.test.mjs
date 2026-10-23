@@ -252,3 +252,20 @@ assert.match(homefrontPage, /targetX:x,targetZ:z,targetYaw:spot\.yaw,speed:1\.1\
 assert.match(homefrontPage, /distance>\.12/, 'survivors stop moving when they reach their assigned destination');
 assert.match(homefrontPage, /actor\.walkAction\.reset\(\)\.fadeIn\(\.15\)\.play\(\)/, 'blend into walk animation while moving between stations when assets provide one');
 assert.match(homefrontPage, /working=!moving&&\['farmer','mechanic','medic','scavenger'\]/, 'role work animations start after survivors arrive at their work location');
+
+
+// Survivor visual pass: keep the CC0 rig, add role-readable equipment silhouettes,
+// and select the closest animation clip available without requiring every clip.
+const survivorVisualPage = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
+assert.match(survivorVisualPage, /const SURVIVOR_GEAR=\{/, 'define distinct survivor gear profiles by settlement role');
+assert.match(survivorVisualPage, /function addSurvivorGear\(model,survivor,index\)/, 'attach equipment to each cloned survivor rather than mutate the shared GLB');
+assert.match(survivorVisualPage, /model\.userData\.homefrontGear=gear/, 'track the per-actor equipment group for future cosmetic customization');
+assert.match(survivorVisualPage, /kit:'helmet'/, 'give guards a recognizable helmet silhouette');
+assert.match(survivorVisualPage, /kit:'hat'/, 'give farmers a distinct hat silhouette');
+assert.match(survivorVisualPage, /kit:'hardhat'/, 'give mechanics a hardhat silhouette');
+assert.match(survivorVisualPage, /kit:'medical'/, 'give medics a visible medical marker');
+assert.match(survivorVisualPage, /function survivorAnimationProfile\(clips,survivor\)/, 'resolve animation clips from the actual source model instead of assuming fixed clip names');
+assert.match(survivorVisualPage, /rolePatterns=\{/, 'map role-specific activity to likely animation names with graceful fallbacks');
+assert.match(survivorVisualPage, /survivorAnimationProfile\(clips,survivor\)/, 'select each survivor animation profile from role and persistent task');
+assert.match(survivorVisualPage, /survivor\.task==='defend_perimeter'\?find\(\[\/aim\/i, \/shoot\/i, \/attack\/i, \/guard\/i, \/idle\/i\]\)/, 'prefer defensive stance or combat clips for guards responding to a siege');
+assert.match(survivorVisualPage, /actor\.task==='take_shelter'/, 'keep sheltering survivors out of work/aim animation transitions');

@@ -10,7 +10,7 @@ const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
 const stats = { tickMs: [], bytesOut: 0, started: Date.now() };
 const resumeIdx = new Map();   // free-play zombie reconnect: resume key -> { p, room } (25s grace after a dropped socket)
 function findRoom(mode, ranked, daily, mapId = null, arrivalSpawn = false) {   // ranked = match id
-  if (daily && mode === 'zombie') { const d = Retain.daily(); let r = rooms.zombie.find(x => x.daily?.day === d.day && !x.full); if (!r) { r = new Room(roomSeq++, 'zombie'); r.mod = d.mod; r.rng = Retain.rng(d.seed); r.onLife = x => Retain.recordDaily({ ...x, day: d.day }); rooms.zombie.push(r); } return r; }
+  if (daily && mode === 'zombie') { const d = Retain.daily(); let r = rooms.zombie.find(x => x.daily?.day === d.day && !x.full); if (!r) { r = new Room(roomSeq++, 'zombie'); r.daily = d; r.mod = d.mod; r.rng = Retain.rng(d.seed); r.onLife = x => Retain.recordDaily({ ...x, day: d.day }); rooms.zombie.push(r); } return r; }
   if (ranked) { let r = rooms.zombie.find(x => x.ranked?.id === ranked); if (r && r.full) return null; if (!r) { r = new Room(roomSeq++, 'zombie');
     r.ranked = { state: 'lobby', countdown: null, max: Ranked.R.MAX, min: Ranked.R.MIN, cap: 20 * 60, results: new Map(), id: ranked, opened: r.t }; rooms.zombie.push(r); } return r; }
   const wantedMap = mode === 'zombie' && mapId === 'refinery' ? 'refinery' : null;

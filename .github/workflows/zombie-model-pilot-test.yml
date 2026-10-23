@@ -1,0 +1,31 @@
+name: Zombie model pilot checks
+
+on:
+  pull_request:
+    paths:
+      - 'client/arena/fx.js'
+      - 'client/arena/zombie-model-pilot.mjs'
+      - 'client/arena/zombie-model-pilot.test.mjs'
+      - 'client/arena/zombie-model-selection.mjs'
+      - 'client/arena/zombie-model-selection.test.mjs'
+      - 'client/arena/assets/zombies/**'
+      - 'package.json'
+      - '.github/workflows/zombie-model-pilot-test.yml'
+
+jobs:
+  zombie-model-pilot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check module syntax
+        run: |
+          node --check client/arena/zombie-model-pilot.mjs
+          node --check client/arena/zombie-model-selection.mjs
+          node --input-type=module --check < client/arena/fx.js
+      - name: Validate bundled GLB and animation contract
+        run: node client/arena/zombie-model-pilot.test.mjs
+      - name: Run graphics regression suite
+        run: npm run test:graphics-labs

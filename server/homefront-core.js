@@ -23,6 +23,7 @@ const WEAPON_MODS = Object.freeze({reinforced_grip:{label:'Reinforced Grip',rari
 const COSMETIC_SKINS = Object.freeze({rusted_pipe:{label:'Rusted Steel',slot:'weapon',rarity:'Common',cost:0,color:'#9a7b62'},field_scavenger:{label:'Field Scavenger',slot:'outfit',rarity:'Common',cost:0,color:'#6d7659'},patched_rucksack:{label:'Patched Rucksack',slot:'backpack',rarity:'Common',cost:0,color:'#78604a'},scrap_banner:{label:'Scrap Banner',slot:'refuge',rarity:'Common',cost:0,color:'#a55c35'},hazard_stripe:{label:'Hazard Stripe',slot:'weapon',rarity:'Rare',cost:75,color:'#e6b83f'},medic_fieldcoat:{label:'Field Medic Coat',slot:'outfit',rarity:'Rare',cost:65,color:'#91b5a0'},rescue_pack:{label:'Rescue Pack',slot:'backpack',rarity:'Rare',cost:55,color:'#b56d42'},ember_lanterns:{label:'Ember Lanterns',slot:'refuge',rarity:'Epic',cost:80,color:'#ff8b3d'}});
 const DEFAULT_COSMETICS = Object.freeze({weapon:'rusted_pipe',outfit:'field_scavenger',backpack:'patched_rucksack',refuge:'scrap_banner'});
 const EXPLORATION_ZONES = Object.freeze({outskirts:{label:'City Outskirts',risk:1,food:2,ammo:1,scrap:3,wood:2,meds:0,recruit:0.44,boss:false},residential:{label:'Residential Ruins',risk:1,food:3,ammo:1,scrap:5,wood:2,meds:0,recruit:0.5,boss:false},commercial:{label:'Market District',risk:2,food:3,ammo:2,scrap:8,wood:1,meds:1,recruit:0.38,boss:false},hospital:{label:'Overrun Hospital',risk:3,food:4,ammo:3,scrap:5,wood:1,meds:3,recruit:0.32,boss:false},industrial:{label:'Industrial Yard',risk:3,food:4,ammo:3,scrap:12,wood:2,meds:0,recruit:0.24,boss:false},subway:{label:'Buried Subway',risk:4,food:5,ammo:4,scrap:10,wood:1,meds:2,recruit:0.28,boss:true},research_lab:{label:'Sealed Research Annex',risk:5,food:6,ammo:5,scrap:16,wood:1,meds:4,recruit:0.2,boss:true}});
+const isBuilding = t => typeof t === 'string' && Object.hasOwn(BUILDINGS, t);
 const clampInt = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, Math.floor(v))) : min;
 const clampNumber = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
 const cleanOwner = id => typeof id === 'string' && id.trim() && id.length <= 180 ? id.trim() : null;
@@ -76,7 +77,7 @@ function validateBase(input, ownerId) {
   out.level = clampInt(out.level, 1, 1000); out.day = clampInt(out.day, 1, 1000000);
   out.wave = clampInt(out.wave, 0, 1000000);
   out.revision = clampInt(out.revision, 1, Number.MAX_SAFE_INTEGER);
-  out.structures = out.structures.filter(s => s && BUILDINGS[s.type] && typeof s.id === 'string')
+  out.structures = out.structures.filter(s => s && isBuilding(s.type) && typeof s.id === 'string')
     .map(s => ({ id: s.id.slice(0, 80), type: s.type, hp: clampInt(s.hp, 0, BUILDINGS[s.type].hp), maxHp: BUILDINGS[s.type].hp, x: clampNumber(s.x, -9.5, 9.5), z: clampNumber(s.z, -9.5, 9.5) }));
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
     .map(s => ({ id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100) }));
@@ -110,7 +111,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       break;
     }
     case 'build': {
-      const spec = BUILDINGS[action.building];
+      const spec = isBuilding(action.building) ? BUILDINGS[action.building] : null;
       if (!spec) throw new Error('unknown_building');
       if (s.structures.length >= MAX_STRUCTURES) throw new Error('structure_limit');
       if (s.structures.filter(x => x.type === action.building).length >= spec.cap) throw new Error('building_cap');

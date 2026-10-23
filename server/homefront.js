@@ -34,7 +34,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       const db = store.load('homefront-world.json', World.defaultWorld());
       let outcome;
       if (req.method === 'GET' && url.pathname === '/api/homefront/world') {
-        if (db.players && db.players[user.acct]) {
+        if (db.players && db.players[user.acct] && Date.now() - db.players[user.acct].lastSeen <= World.PRESENCE_TTL) {
           const joined = World.enter(db, user.acct);
           store.save('homefront-world.json', joined.world);
           json(res, 200, { mode: 'homefront-world', ...joined.result }); return true;

@@ -7,7 +7,12 @@ assert.deepEqual([fresh.health, fresh.hunger, fresh.thirst, fresh.stamina, fresh
 const decayed = S.tick(fresh, start + 10000);
 assert.ok(decayed.hunger < fresh.hunger && decayed.thirst < fresh.thirst, 'hunger and thirst decay during an active expedition');
 const moved = S.move(fresh, start + 1000);
-assert.equal(moved.stamina, 95, 'movement consumes stamina');
+assert.equal(moved.stamina, 95, 'a full-distance move consumes five stamina');
+const shortMove = S.move(fresh, start + 1000, 4);
+assert.equal(shortMove.stamina, 97, 'short movement costs less stamina than a full-distance move');
+assert.ok(shortMove.hunger < fresh.hunger && shortMove.thirst < fresh.thirst, 'travel increases food and water needs');
+const depletedMove = S.move({ ...fresh, hunger: 20 }, start + 1000, 12);
+assert.equal(depletedMove.stamina, 82.5, 'moving while hungry increases exertion cost');
 const ate = S.act({ ...fresh, hunger: 40 }, 'eat', start + 1000);
 assert.ok(ate.hunger > 77.9 && ate.hunger < 78, 'eating restores hunger after normal elapsed-time decay');
 const drank = S.act({ ...fresh, thirst: 30 }, 'drink', start + 1000);

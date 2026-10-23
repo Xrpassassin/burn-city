@@ -212,3 +212,4 @@ assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.
 const homefrontPage = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 assert.match(homefrontPage, /if\(survivor\.role==='farmer'\)\{const plot=base\.farmPlots\?\.find\(item=>item\.crop\)/, 'place farmers beside an actively planted crop when available');
 assert.match(homefrontPage, /if\(survivor\.role==='mechanic'\)\{const damaged=base\.structures\.filter\(item=>item\.hp<item\.maxHp\)/, 'send mechanics toward the most damaged structure before falling back to the workshop');
+assert.match(homefrontPage, /if\(survivor\.role==='guard'\)\{const defensiveTypes=new Set\(\['wall','gate','watchtower','entrance','exit','sandbags','barbed_wire','trench','turret'\]\);const breach=base\.structures\.filter\(item=>defensiveTypes\.has\(item\.type\)&&item\.hp<item\.maxHp\)/, 'redirect guards to damaged perimeter defenses while preserving their patrol fallback');

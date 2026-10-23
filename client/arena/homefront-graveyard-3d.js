@@ -1,6 +1,8 @@
 // Three.js shared XRPL Graveyard scene for Homefront.
 // Uses the existing Homefront world API as authority; this module owns presentation only.
 import * as THREE from './vendor/three.module.min.js';
+import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
+import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 
 const host = document.getElementById('graveyard3d');
 if (host) boot(host);
@@ -29,8 +31,10 @@ function boot(host) {
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.12; scene.add(ground);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const poiGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group();
-  scene.add(cityGroup, poiGroup, playerGroup);
+  const poiGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group();
+  scene.add(cityGroup, poiGroup, playerGroup, zombieGroup);
+  const zombieMixers = [];
+  const infectedSpawns = [[27, 25], [19, 34], [-32, 28], [-43, 36], [-11, 27], [-20, 15], [9, -12], [1, -15]];
 
   const mat = (color, roughness = 0.94) => new THREE.MeshStandardMaterial({ color, roughness });
   const roadMat = mat(0x343733), buildingMats = [mat(0x41413a), mat(0x4b443a), mat(0x363d3d), mat(0x50483d)];
@@ -92,6 +96,43 @@ function boot(host) {
     poiGroup.add(g); markerObjects.set(p.id, g);
   }
   let worldData = null, moving = false;
+  function spawnAmbientInfected(gltf = null) {
+    const positions = infectedSpawns;
+    for (let i = 0; i < positions.length; i++) {
+      const [x, z] = positions[i];
+      if (gltf?.scene) {
+        const actor = SkeletonUtils.clone(gltf.scene);
+        const bounds = new THREE.Box3().setFromObject(actor);
+        const size = bounds.getSize(new THREE.Vector3());
+        actor.scale.setScalar(1.8 / Math.max(0.01, size.y));
+        const fitted = new THREE.Box3().setFromObject(actor);
+        actor.position.set(x, -fitted.min.y, z);
+        actor.rotation.y = Math.atan2(-x, -z);
+        actor.traverse(node => { if (node.isMesh) { node.castShadow = false; node.receiveShadow = false; } });
+        zombieGroup.add(actor);
+        const clips = gltf.animations || [];
+        const clip = clips.find(c => /walk|run|idle/i.test(c.name)) || clips[0];
+        if (clip) { const mixer = new THREE.AnimationMixer(actor); mixer.clipAction(clip).play(); zombieMixers.push(mixer); }
+      } else {
+        const actor = new THREE.Group(); actor.position.set(x, 0, z);
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.72, 3, 6), mat(i % 2 ? 0x526248 : 0x66704b));
+        body.position.y = 0.62; actor.add(body);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), mat(0x8c9972));
+        head.position.y = 1.22; actor.add(head); zombieGroup.add(actor);
+      }
+    }
+  }
+  async function loadInfectedAsset() {
+    try {
+      const loader = new GLTFLoader();
+      const url = new URL('./assets/homefront/zombie.glb', import.meta.url).href;
+      const gltf = await loader.loadAsync(url);
+      spawnAmbientInfected(gltf);
+    } catch (error) {
+      console.warn('[homefront-graveyard] zombie asset unavailable; using procedural infected', error);
+      spawnAmbientInfected();
+    }
+  }
   function clearGroup(group) {
     const disposeMaterial = material => {
       if (!material) return;
@@ -172,6 +213,7 @@ function boot(host) {
   const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(260, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
-  const tick = () => { renderer.render(scene, camera); requestAnimationFrame(tick); };
-  tick(); fetchWorld(); setInterval(fetchWorld, 8000);
+  let lastFrame = performance.now();
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); renderer.render(scene, camera); requestAnimationFrame(tick); };
+  tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
 }

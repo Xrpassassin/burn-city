@@ -14,7 +14,7 @@ const BUILDINGS = Object.freeze({
   storage:    { cost: { wood: 10, scrap: 5 }, hp: 100, defense: 0, cap: 4 },
   gate:       { cost: { wood: 12, scrap: 8 }, hp: 180, defense: 3, cap: 2 }
 });
-const clampInt = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, Math.floor(v))) : min;
+const clampInt = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, Math.floor(v))) : min;\nconst clampNumber = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
 const cleanOwner = id => typeof id === 'string' && id.trim() && id.length <= 180 ? id.trim() : null;
 const clone = v => JSON.parse(JSON.stringify(v));
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
@@ -44,7 +44,7 @@ function validateBase(input, ownerId) {
   out.wave = clampInt(out.wave, 0, 1000000);
   out.revision = clampInt(out.revision, 1, Number.MAX_SAFE_INTEGER);
   out.structures = out.structures.filter(s => s && BUILDINGS[s.type] && typeof s.id === 'string')
-    .map(s => ({ id: s.id.slice(0, 80), type: s.type, hp: clampInt(s.hp, 0, BUILDINGS[s.type].hp), maxHp: BUILDINGS[s.type].hp }));
+    .map(s => ({ id: s.id.slice(0, 80), type: s.type, hp: clampInt(s.hp, 0, BUILDINGS[s.type].hp), maxHp: BUILDINGS[s.type].hp, x: clampNumber(s.x, -12, 12), z: clampNumber(s.z, -12, 12) }));
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
     .map(s => ({ id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100) }));
   out.log = Array.isArray(out.log) ? out.log.slice(-20) : [];

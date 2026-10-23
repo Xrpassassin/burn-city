@@ -7,6 +7,8 @@ on:
       - 'server/homefront-combat.js'
       - 'server/homefront-core.js'
       - 'server/homefront-survival.js'
+      - 'server/homefront-inventory.js'
+      - 'server/homefront-inventory.test.js'
       - 'server/homefront-world.js'
       - 'server/homefront.js'
       - 'server/game.js'
@@ -45,6 +47,7 @@ jobs:
           node --check server/homefront-combat.js
           node --check server/homefront-core.js
           node --check server/homefront-survival.js
+          node --check server/homefront-inventory.js
           node --check server/homefront-world.js
           node --check server/homefront.js
           node --check server/game.js

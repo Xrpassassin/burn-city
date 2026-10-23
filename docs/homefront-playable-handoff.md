@@ -21,6 +21,7 @@ Make Homefront a playable, optional, unranked Zombies survival experience withou
 5. The Graveyard supports persistent player positions, pseudonymous shared presence, perimeter spawns, location risk, POIs, parties of up to four, shared caches/rescues, and shared boss HP.
 6. The player can search for an infected encounter and attack through authenticated, server-authoritative endpoints. Attacks validate range, cooldown, ammo, weapon power, rewards, and retaliation.
 7. Infected pursuit now advances on authoritative movement and world refresh. It is bounded and discrete; it is not yet continuous real-time replication or collision-aware pathfinding.
+9. Attacks now spend 8 field stamina and deal reduced damage below 35 stamina, with a stronger penalty below 15. The API returns updated vitals and the combat HUD displays fatigue feedback. Combat is still tactical, not a finished real-time third-person controller.
 8. Field survival now tracks health, hunger, thirst, stamina, and infection pressure. Needs decay only while active in the Graveyard; movement spends stamina; eating, drinking, bandaging, and catching breath are server-authoritative actions. Clean water is a refuge resource and has a legacy-save migration.
 
 ## Required playability work

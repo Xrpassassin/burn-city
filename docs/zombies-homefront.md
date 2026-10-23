@@ -10,7 +10,7 @@ Homefront is a separate, unranked Zombies experience. It must not award Ranked s
 - `server/homefront.js`: authenticated `GET /api/homefront` and `POST /api/homefront/action` endpoints. The wallet/account identity comes from BURN City's verified bearer token, never a client-supplied owner ID.
 - `server/homefront-core.js`: renderer-independent rules for initial resources, structure construction and repair, expeditions, survivor recruitment and role assignment, work shifts, breach resolution, state normalization, and ownership checks.
 - `server/store.js` persists each account's base in `homefront.json` on the configured persistent data volume, using the existing atomic JSON-store write pattern. No offline base destruction is enabled.
-- The 3D yard uses the project's existing Three.js build plus bundled CC0 models: Quaternius's animated survivor, and Kenney fence, gate, and campfire-stone models. Source URLs and license provenance are stored in `client/arena/assets/homefront/README.md`. No runtime CDN or new package dependency is added.
+- The 3D yard uses the project's existing Three.js build plus bundled CC0 models: Quaternius's animated survivor and zombie models, and Kenney fence, gate, and campfire-stone models. Animated survivor/zombie rigs are capped at eight each, with procedural fallback actors for the remainder to control mobile cost. Source URLs and license provenance are stored in `client/arena/assets/homefront/README.md`. No runtime CDN or new package dependency is added.
 - `test/homefront-core-sim.js` checks progression rules, resource costs, survivor assignment, breach/repair behavior, ownership isolation, placement bounds, and collision guards. `test/homefront-assets.test.mjs` validates the bundled GLB files.
 
 ## Gameplay loop

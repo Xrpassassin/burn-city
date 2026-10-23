@@ -1,6 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const W = require('../server/homefront-world');
+const Combat = require('../server/homefront-combat');
 
 let world = W.defaultWorld();
 const a = W.enter(world, 'acct-a', 1000); world = a.world;
@@ -29,6 +30,17 @@ assert.ok(Math.hypot(world.players['acct-a'].x - before.x, world.players['acct-a
 assert.ok(Math.hypot(world.players['acct-b'].x - world.players['acct-a'].x, world.players['acct-b'].z - world.players['acct-a'].z) < 6, 'leader movement carries party members with the group');
 assert.equal(W.districtAt(0, 0).risk, 5, 'deep city core is high risk');
 assert.equal(W.districtAt(-8, -82).risk, 1, 'outer spawn is low risk');
+
+const threat = Combat.spawn({ encounters: world.encounters, account: 'acct-a', player: world.players['acct-a'], now: 2500 });
+world.encounters = threat.encounters;
+const enemyBefore = world.encounters['acct-a'];
+const distanceBefore = Math.hypot(world.players['acct-a'].x - enemyBefore.x, world.players['acct-a'].z - enemyBefore.z);
+const chased = W.move(world, 'acct-a', world.players['acct-a'].x + 8, world.players['acct-a'].z, 4000);
+world = chased.world;
+const enemyAfter = world.encounters['acct-a'];
+const distanceAfter = Math.hypot(world.players['acct-a'].x - enemyAfter.x, world.players['acct-a'].z - enemyAfter.z);
+assert.ok(enemyAfter.x !== enemyBefore.x || enemyAfter.z !== enemyBefore.z, 'authoritative movement advances infected AI');
+assert.ok(distanceAfter < distanceBefore + 8, 'infected movement tracks the updated player position');
 
 const absent = W.snapshot(world, 'acct-a', 50000);
 assert.equal(absent.players.length, 0, 'stale explorers expire from shared presence');

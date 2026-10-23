@@ -81,7 +81,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           player.lastSeen = Date.now();
           store.save('homefront-world.json', db);
           const snap = World.snapshot(db, user.acct);
-          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: isBoss ? { id: nearest.point.id, label: nearest.point.label, hp: db.bosses[nearest.point.id].hp, maxHp: db.bosses[nearest.point.id].maxHp, defeated, difficulty } : { id: nearest.point.id, label: nearest.point.label, scavenged: true, difficulty } });
+          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: isBoss ? { id: nearest.point.id, label: nearest.point.label, hp: db.bosses[nearest.point.id].hp, maxHp: db.bosses[nearest.point.id].maxHp, defeated, difficulty } : { id: nearest.point.id, label: nearest.point.label, scavenged: true, difficulty, event: nextBase.log.at(-1)?.text } });
           return true;
         }
         case '/api/homefront/world/party/create': outcome = World.createParty(db, user.acct); break;

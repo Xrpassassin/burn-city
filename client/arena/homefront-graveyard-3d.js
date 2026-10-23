@@ -14,7 +14,7 @@ function boot(host) {
   scene.background = new THREE.Color(0x111312);
   scene.fog = new THREE.FogExp2(0x111312, 0.0032);
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 500);
-  camera.position.set(0, 118, 108);
+  camera.position.set(0, 175, 150);
   camera.lookAt(0, 0, 0);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));

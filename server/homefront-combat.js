@@ -110,10 +110,15 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
  return clean;
 }
 function attack({encounters,account,player,base,survival=null,now=Date.now(),weaponPower=1,seed=0,targetId=null,aimPoint=null}){
- const clean=normalizeEncounters(encounters,now),e=clean[account];if(!e||e.defeated||e.hp<=0)throw Error('no_active_encounter');if(now>e.expiresAt)throw Error('encounter_expired');if(targetId!=null&&(typeof targetId!=='string'||targetId!==e.id))throw Error('target_mismatch');
+ const clean=normalizeEncounters(encounters,now),e=clean[account];if(!e||e.defeated||e.hp<=0)throw Error('no_active_encounter');if(now>e.expiresAt)throw Error('encounter_expired');
+ const living=(e.members||[]).filter(m=>!m.defeated&&m.hp>0);
+ if(targetId!=null&&(typeof targetId!=='string'||(targetId!==e.id&&!living.some(m=>m.id===targetId))))throw Error('target_mismatch');
+ let target=targetId&&targetId!==e.id?living.find(m=>m.id===targetId):null;
+ if(!target&&aimPoint&&living.length)target=living.reduce((best,m)=>!best||Math.hypot(m.x-aimPoint.x,m.z-aimPoint.z)<Math.hypot(best.x-aimPoint.x,best.z-aimPoint.z)?m:best,null);
+ if(!target)target=living[0]||e;
  let aimedZone=null;
- if(aimPoint!=null&&(!aimPoint||![aimPoint.x,aimPoint.y,aimPoint.z].every(Number.isFinite)||Math.hypot(aimPoint.x-e.x,aimPoint.z-e.z)>1.05||aimPoint.y<0.05||aimPoint.y>2.7))throw Error('invalid_aim_point');
- if(Math.hypot(player.x-e.x,player.z-e.z)>e.range)throw Error('enemy_out_of_range');
+ if(aimPoint!=null&&(!aimPoint||![aimPoint.x,aimPoint.y,aimPoint.z].every(Number.isFinite)||Math.hypot(aimPoint.x-target.x,aimPoint.z-target.z)>1.75||aimPoint.y<0.05||aimPoint.y>2.7))throw Error('invalid_aim_point');
+ if(Math.hypot(player.x-target.x,player.z-target.z)>e.range)throw Error('enemy_out_of_range');
  const weaponId=typeof base.equippedWeapon==='string'&&WEAPON_FIRE_INTERVAL[base.equippedWeapon]?base.equippedWeapon:'pipe_blade';
  const handling=WEAPON_HANDLING[weaponId]||WEAPON_HANDLING.pipe_blade;
  const aimElapsed=player.aiming===true&&Number.isFinite(player.aimStartedAt)?Math.max(0,now-player.aimStartedAt):0;
@@ -129,18 +134,18 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  if((base.resources?.ammo||0)<ammoCost)throw Error('insufficient_ammo');base.resources.ammo-=ammoCost;base.revision=(Number.isSafeInteger(base.revision)?base.revision:0)+1;
  const power=clamp(Math.floor(weaponPower),1,20);const field=survival&&typeof survival==='object'?{...survival}:null;const staminaBefore=field?clamp(field.stamina,0,100):100;const fatigueScale=staminaBefore<15?0.55:staminaBefore<35?0.75:1;
  // Hit zones are rolled on the server from encounter and attack clock; clients cannot submit a headshot claim.
- const zoneRoll=hash(e.id+':'+now+':'+seed)%100;
+ const zoneRoll=hash(target.id+':'+now+':'+seed)%100;
  const hitZone=aimedZone || (zoneRoll < 8 + Math.floor(aimStability*4) ? 'head' : zoneRoll < 30 + Math.floor(aimStability*8) ? 'limb' : 'torso');
  const zoneMultiplier=hitZone==='head'?1.8:hitZone==='limb'?0.75:1;
  const accuracyScale=aimed?1:0.72+aimStability*0.28;
- const damage=Math.max(5,Math.floor(Math.max(8,12+(power-1)*7+Math.floor(e.risk*1.5))*fatigueScale*zoneMultiplier*accuracyScale));if(field)field.stamina=clamp(staminaBefore-8,0,100);e.hp=Math.max(0,e.hp-damage);e.lastAttackAt=now;
+ const damage=Math.max(5,Math.floor(Math.max(8,12+(power-1)*7+Math.floor(e.risk*1.5))*fatigueScale*zoneMultiplier*accuracyScale));if(field)field.stamina=clamp(staminaBefore-8,0,100);target.hp=Math.max(0,target.hp-damage);target.lastAttackAt=now;if(target.hp===0)target.defeated=true;e.hp=(e.members||[]).reduce((sum,m)=>sum+(m.defeated?0:m.hp),0);e.maxHp=(e.members||[]).reduce((sum,m)=>sum+m.maxHp,0);e.lastAttackAt=now;
  if(e.hp===0){e.defeated=true;const q=hash(e.id+':'+seed)%100,quality=q<2?'Legendary':q<8?'Epic':q<22?'Rare':q<48?'Uncommon':'Common',qi=QUALITY_ORDER.indexOf(quality),scrap=2+e.risk+qi*2,embers=e.risk+qi;
  base.resources.scrap=Math.min(999999,(base.resources.scrap||0)+scrap);base.embers=Math.min(999999999,(base.embers||0)+embers);
- if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Defeated '+e.enemy+' and recovered '+quality.toLowerCase()+'-grade salvage: +'+scrap+' scrap and +'+embers+' Embers.'});base.log=base.log.slice(-20);}
+ if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Cleared '+e.enemy+' squad and recovered '+quality.toLowerCase()+'-grade salvage: +'+scrap+' scrap and +'+embers+' Embers.'});base.log=base.log.slice(-20);}
  return{encounters:clean,encounter:publicEncounter(e),killed:true,damage,hitZone,aimed,aimStability,adsProgress,enemyDamage:0,ammoCost,reward:{quality,scrap,embers},base,survival:field};}
  const guards=Array.isArray(base.survivors)?base.survivors.filter(s=>s.role==='guard').length:0,enemyDamage=Math.max(1,e.damage-Math.min(3,guards));
  if(Array.isArray(base.survivors)&&base.survivors.length){const target=base.survivors.reduce((a,s)=>!a||(s.morale||0)<(a.morale||0)?s:a,null);if(target)target.morale=clamp((target.morale||0)-enemyDamage*2,0,100);}else base.resources.food=Math.max(0,(base.resources.food||0)-Math.max(1,Math.ceil(enemyDamage/3)));
- if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Hit '+e.enemy+' for '+damage+' damage. It retaliated for '+enemyDamage+' pressure.'});base.log=base.log.slice(-20);}
+ if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Hit '+target.role+' in '+e.enemy+' squad for '+damage+' damage. The squad retaliated for '+enemyDamage+' pressure.'});base.log=base.log.slice(-20);}
  return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,aimed,aimStability,adsProgress,enemyDamage,ammoCost,reward:null,base,survival:field};
 }
 module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,WEAPON_FIRE_INTERVAL,WEAPON_MAGAZINE_CAPACITY,WEAPON_HANDLING,STATS,normalizeEncounters,resolveSpawn,publicEncounter,spawn,advance,attack};

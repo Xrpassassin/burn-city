@@ -283,8 +283,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             const base=Core.validateBase(bases[user.acct]||Core.createBase(user.acct),user.acct);
             if(!base)throw new Error('save_invalid');
             const kit={food:Math.min(2,base.resources.food),water:Math.min(2,base.resources.water),meds:Math.min(1,base.resources.meds),ammo:Math.min(4,base.resources.ammo),scrap:0,wood:0};
-            for(const [id,qty] of Object.entries(kit))base.resources[id]=Math.max(0,(base.resources[id]||0)-qty);
-            player.inventory=Inventory.normalize(kit);player.inventoryInitialized=true;
+            let starter=Inventory.normalize({},Date.now());
+            for(const [id,qty] of Object.entries(kit)){if(!qty)continue;const pulled=Inventory.withdraw(starter,base.resources,id,qty,Date.now());starter=pulled.inventory;base.resources=pulled.resources;}
+            player.inventory=starter;player.inventoryInitialized=true;
             base.revision++;base.updatedAt=Date.now();base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'inventory',text:'Packed a starter field kit from refuge stores.',at:Date.now()});base.log=base.log.slice(-20);
             bases[user.acct]=base;store.save('homefront.json',bases);outcome.result=World.snapshot(outcome.world,user.acct);
           }
@@ -355,7 +356,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const grossResources={};
           for(const id of ['wood','scrap','meds'])grossResources[id]=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
           const foodAdjusted=Inventory.reconcileCount(carried,'food',nextBase.resources.food,Date.now());carried.food=foodAdjusted.food;carried.freshness=foodAdjusted.freshness;carried.ammo=nextBase.resources.ammo;
-          nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;
+          nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;nextBase.resources.freshness=base.resources.freshness;
           const scrap = Math.floor((8 + nearest.point.risk * 4) * spec.reward);
           const wood = Math.floor((4 + nearest.point.risk * 2) * spec.reward);
           const ammo = Math.floor((2 + nearest.point.risk * 2) * spec.reward);
@@ -401,12 +402,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const carried=Inventory.normalize(player.inventory);
           if(carried.food<2||carried.ammo<1)throw new Error('field_supplies_required');
           const carriedBefore={...carried};
-          workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
+          workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo,freshness:carried.freshness}},user.acct);
           const nextBase=Core.applyAction(workingBase,user.acct,{type:isBoss?'boss_attack':'expedition',zone:nearest.point.zone,difficulty});
           let grossEmbers=Math.max(0,nextBase.embers-base.embers);
           const grossResources={};
           const foodAdjusted=Inventory.reconcileCount(carried,'food',nextBase.resources.food,Date.now());carried.food=foodAdjusted.food;carried.freshness=foodAdjusted.freshness;carried.ammo=nextBase.resources.ammo;
-          nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;
+          nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;nextBase.resources.freshness=base.resources.freshness;
           let defeated = false;
           if (isBoss) {
             const boss = db.bosses[nearest.point.id];

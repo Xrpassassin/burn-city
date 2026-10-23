@@ -149,7 +149,7 @@ function use_(m) { M = m; ({ GRID, SEE, DOORS, WINDOWS, ZONES, OBST, WALLBUYS, B
 use_(CLASSIC_M);
 // ranked + daily rooms always play the classic Refinery (same layout for everyone on a leaderboard); free play gets a new map per match
 const wantsClassic = room => !!(room.ranked || room.daily || process.env.ZOMBIE_CLASSIC === '1');
-function newMap(room) { if (wantsClassic(room)) return CLASSIC_M; if (room.mapId === 'cosmodrome' || (process.env.ZOMBIE_MAP === 'cosmodrome' && !process.env.FLY_APP_NAME)) return COSMODROME_M; const d = MapGen.gen(room.seedT != null && !process.env.FLY_APP_NAME ? room.seedT : (Math.random() * 2 ** 31) | 0); return d ? build(d, 'proc') : CLASSIC_M; }
+function newMap(room) { if (wantsClassic(room) || room.mapId === 'refinery') return CLASSIC_M; if (room.mapId === 'cosmodrome' || (process.env.ZOMBIE_MAP === 'cosmodrome' && !process.env.FLY_APP_NAME)) return COSMODROME_M; const d = MapGen.gen(room.seedT != null && !process.env.FLY_APP_NAME ? room.seedT : (Math.random() * 2 ** 31) | 0); return d ? build(d, 'proc') : CLASSIC_M; }
 // every entry point that touches the map binds the room's own layout first (rooms run one at a time, so a module-level binding is safe)
 function bind(room) { if (!room) return use_(CLASSIC_M); if (!room.M || (wantsClassic(room) && room.M.kind !== 'classic')) { resetMap(room); return; } if (M !== room.M) use_(room.M); }
 // lv = which floor (0 ground, 1 upper). Maps without an upper level ignore it, so procedural maps behave exactly as before.

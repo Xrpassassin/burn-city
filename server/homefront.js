@@ -7,6 +7,7 @@ const Combat = require('./homefront-combat');
 const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
+const Environment = require('./homefront-environment');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
@@ -303,6 +304,28 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             initSessionStart(player, sessionBase);
           }
           break;
+        }
+        case '/api/homefront/world/environment/damage': {
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const now = Date.now();
+          const structureId = typeof payload.structureId === 'string' ? payload.structureId : '';
+          const structureSpec = Environment.STRUCTURES.find(s => s.id === structureId);
+          if (!structureSpec) throw new Error('unknown_environment_structure');
+          if (Math.hypot(player.x - structureSpec.x, player.z - structureSpec.z) > 8) throw new Error('environment_structure_out_of_range');
+          if (now - (player.lastEnvironmentDamageAt || 0) < 350) throw new Error('environment_damage_cooldown');
+          const bases = store.load('homefront.json', {});
+          const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
+          if (!base) throw new Error('save_invalid');
+          const power = Core.weaponPower(base);
+          const amount = Math.max(8, Math.min(60, 12 + (power - 1) * 10));
+          const damaged = Environment.damage(db.environmentStructures, structureId, amount, now);
+          db.environmentStructures = Environment.tick(damaged.states, db.players, now);
+          player.lastEnvironmentDamageAt = now;
+          player.lastSeen = now;
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), environmentDamage: damaged.structure });
+          return true;
         }
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z), Date.now(), payload.sprint === true); break;
         case '/api/homefront/world/aim': outcome = World.setAiming(db, user.acct, payload.aiming, Date.now()); break;

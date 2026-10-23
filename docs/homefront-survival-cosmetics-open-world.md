@@ -75,8 +75,9 @@ Keep functional item stats separate from cosmetic appearance. A skin must never 
 
 ## Open-world build roadmap
 
-### Phase A — survival foundation (current)
-- Add server-owned vitals, needs decay, stamina costs, recovery actions, clean-water resource, UI bars, and focused unit tests.
+### Phase A — survival foundation (implemented first pass; needs live QA)
+- [x] Add server-owned vitals, needs decay, stamina costs, recovery actions, clean-water resource, UI bars, and focused unit tests.
+- [x] Connect infected retaliation to health loss and infection pressure.
 - Keep field state in Homefront world persistence; never write into main BURN City saves or ranked progression.
 
 ### Phase B — physical interactions and inventory
@@ -92,7 +93,8 @@ Keep functional item stats separate from cosmetic appearance. A skin must never 
 - Add persistence for opened doors, looted containers, rescue outcomes, and world events with reset/cooldown policies.
 
 ### Phase D — cosmetics and character presence
-- Add owned/equipped skin registry and validation to the save schema.
+- [x] Add owned/equipped skin registry and validation to the save schema; add cosmetic collection UI with unlock/equip actions and cosmetic-only stat guard.
+- [ ] Render selected skins on actual survivor avatars, weapon models, backpacks, and refuge assets.
 - Render a real local survivor avatar and remote player avatars with safe, smoothed network updates.
 - Apply weapon skins to the equipped weapon model, clothing/backpack cosmetics to the avatar, and refuge skins to corresponding structure materials.
 - Use existing bundled assets or properly licensed open-source assets; record provenance and licenses. Avoid external runtime CDN dependencies.

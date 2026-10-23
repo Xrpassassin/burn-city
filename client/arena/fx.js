@@ -58,6 +58,11 @@ export function createZombieFX(scene, { low = false } = {}) {
     ['jaw', box(0.3, 0.1, 0.22), skinM], ['shirt', box(0.68, 0.62, 0.42, 0.47), cloth], ['belly', box(0.78, 0.5, 0.56, 0.25), skinM],
     ['arm', box(0.16, 0.72, 0.16, -0.36), skinM], ['leg', box(0.2, 0.78, 0.2, -0.39), pantsM],
     ['eye', box(0.09, 0.06, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff })],
+    // Cosmetic detail pass: chipped scavenged armor, exposed wounds, and a mutant dorsal spike.
+    // Instanced with the rest of the horde to keep draw calls bounded on mobile.
+    ['armor', box(0.34, 0.24, 0.1), new THREE.MeshLambertMaterial({ color: 0xffffff })],
+    ['wound', box(0.13, 0.075, 0.025), new THREE.MeshBasicMaterial({ color: 0xffffff })],
+    ['spike', new THREE.ConeGeometry(0.075, 0.24, 5), new THREE.MeshLambertMaterial({ color: 0xffffff })],
     ['glow', new THREE.PlaneGeometry(0.55, 0.3), new THREE.MeshBasicMaterial({ color: 0xffffff, map: glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })]]);
   const arms2 = rig(scene, MAXZ, [['arm', box(0.16, 0.72, 0.16, -0.36), skinM], ['leg', box(0.2, 0.78, 0.2, -0.39), pantsM], ['eye', box(0.09, 0.06, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff })]]);
   // body variants: 0 walker, 1 runner (lean, hunched forward), 2 brute (huge, belly), 3 crawler-looking (walker id%4==0: bent double, dragging)
@@ -80,6 +85,15 @@ export function createZombieFX(scene, { low = false } = {}) {
     put(Z.body, i, z.x, y0, z.z, yaw, sc, 0, 0, 0, pitch + lurch, lurch * 0.5, skin);
     put(Z.shirt, i, z.x, y0, z.z, yaw, sc, 0, 0, 0, pitch + lurch, lurch * 0.5, shirt);
     put(Z.belly, i, z.x, y0, z.z, yaw, brute ? sc : HID, 0, 0.02, 0.06, pitch + lurch, 0, tmp2.copy(skin).multiplyScalar(0.85));
+    // Armor reads as a scavenged chest plate on brutes/juggernauts; other types retain their silhouette.
+    const plated = z.ty === 2 || z.ty === 3;
+    put(Z.armor, i, z.x, y0, z.z, yaw, plated ? sc : HID, 0.17, 0.47, 0.235, pitch + lurch, -0.06, tint(tmp2, z.ch ? 0x7b2518 : 0x45494b));
+    // A few asymmetric, dark-red wounds break up the repeated procedural skin without extra textures.
+    const wounded = z.id % 3 === 0 || z.ty === 4;
+    put(Z.wound, i, z.x, y0, z.z, yaw, wounded ? sc : HID, z.id % 2 ? -0.18 : 0.18, 0.46, 0.247, pitch + lurch, z.id % 2 ? -0.25 : 0.25, tint(tmp3, burning ? 0xff6a18 : 0x681b1b));
+    // Skitters and juggernauts get a small dorsal mutation so their silhouettes read at a distance.
+    const spined = z.ty === 3 || z.ty === 5;
+    put(Z.spike, i, z.x, y0, z.z, yaw, spined ? sc : HID, 0, 0.65, -0.22, pitch + lurch, 0.35, tint(tmp4, z.ty === 5 ? 0x526d83 : 0x514b48));
     const hp = pitch + 0.1 + lurch, hy = 0.8 * Math.cos(pitch), hz = 0.8 * Math.sin(pitch) + 0.08;
     put(Z.head, i, z.x, y0, z.z, yaw, sc, 0, hy, hz, hp, 0.2 * Math.sin(ph * 0.5) + (crawl ? 0.3 : 0), skin);
     const jawOpen = 0.25 + 0.2 * Math.sin(t * 5 + z.id);

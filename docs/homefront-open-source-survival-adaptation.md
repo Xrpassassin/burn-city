@@ -42,3 +42,11 @@ Homefront now uses its own implementation of distance-weighted travel metabolism
 - Added `server/homefront-loot.js` with eight authored shared-world supply nodes, server-owned weighted item tables, distance validation, persistent shared cooldowns, inventory capacity handling, and overflow reporting. The client renders local 3D supply containers and requires explicit selection plus a Search action.
 - Added focused loot tests for successful collection, unknown IDs, out-of-range attempts, cooldown enforcement, malformed legacy state, and full-pack overflow. These checks are wired into `npm run test:homefront`.
 - Still future work: item spoilage, dirty-water purification, cooking, equipment durability, more physical pickup types, and live desktop/mobile playtesting. Do not treat those as implemented yet.
+
+## Phase 1: expandable world-region foundation
+
+- Added `client/arena/homefront-world-streaming.mjs`, a deterministic 64-unit chunk planner with stable chunk IDs, bounds, visible-neighborhood selection, and a manifest generator. It is presentation infrastructure only; it does not override server-side movement or world limits.
+- The Graveyard renderer now groups generated ruined buildings by spatial chunk and hides structure groups outside the player's neighboring 3×3 chunk neighborhood. Roads and the base terrain remain shared scene geometry for this first pass.
+- Added `client/arena/homefront-world-streaming.test.mjs` and wired it into `npm run test:homefront`.
+- This is the first streaming seam, not a claim that the world is already infinite or seamless. The authoritative world remains bounded at ±100 until a later server/world migration deliberately expands region coordinates, movement validation, spawn selection, persistence, and encounter/loot ownership together.
+- Next: split long road segments and terrain into chunk-owned pieces, add chunk-aware landmark placement, then extend authoritative world coordinates and persistent regional state without breaking existing saves.

@@ -104,6 +104,17 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(partyJoined.data.party.members.length, 2, 'party join synchronizes the shared roster');
   assert.equal(partyJoined.data.self.x, partyJoined.data.party.members[0].x, 'party members enter together');
 
+  const threat = await call('POST', '/api/homefront/world/encounter', 'acct-a');
+  assert.equal(threat.status, 200, 'explorers can initiate a server-authoritative infected encounter');
+  assert.ok(threat.data.encounter.id.startsWith('enc-'));
+  assert.ok(threat.data.selfEncounter || threat.data.encounter, 'active encounter is exposed to the player');
+  const combatBaseBefore = (await call('GET', '/api/homefront', 'acct-a')).data.base;
+  const attack = await call('POST', '/api/homefront/world/attack', 'acct-a');
+  assert.equal(attack.status, 200, 'nearby infected can be attacked through the authoritative combat endpoint');
+  assert.ok(attack.data.combat.damage > 0);
+  assert.ok(attack.data.base.resources.ammo < combatBaseBefore.resources.ammo, 'attacks consume persisted ammunition');
+  assert.ok(attack.data.encounter.hp < threat.data.encounter.hp, 'attacks reduce server-owned enemy health');
+
   const scavenge = await call('POST', '/api/homefront/world/scavenge', 'acct-a');
   assert.equal(scavenge.status, 200, 'a player can scavenge at a nearby shared landmark');
   assert.ok(scavenge.data.base.expeditionCount >= 1, 'shared-map scavenging advances personal expedition progress');

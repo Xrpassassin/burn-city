@@ -2,10 +2,12 @@
 'use strict';
 const Store = require('./store');
 const Core = require('./homefront-core');
+const World = require('./homefront-world');
 
 async function handle(req, res, url, { json, gate, ip, body, who, store = Store }) {
   const publicVisit = url.pathname === '/api/homefront/visit';
-  if (url.pathname !== '/api/homefront' && url.pathname !== '/api/homefront/action' && !publicVisit) return false;
+  const worldRoute = url.pathname === '/api/homefront/world' || url.pathname.startsWith('/api/homefront/world/');
+  if (url.pathname !== '/api/homefront' && url.pathname !== '/api/homefront/action' && !publicVisit && !worldRoute) return false;
   if (req.method !== 'GET' && req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
   if (publicVisit) {
     if (req.method !== 'GET') { json(res, 405, { error: 'method_not_allowed' }); return true; }
@@ -25,6 +27,35 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
   }
   const user = who();
   if (!user?.acct) { json(res, 401, { error: 'sign_in_with_xaman', message: 'Sign in to save your personal refuge.' }); return true; }
+  if (worldRoute) {
+    if (gate('homefront-world:' + user.acct, 120, 60e3) || gate('homefront-world-ip:' + ip, 300, 60e3)) { json(res, 429, { error: 'slow_down' }); return true; }
+    try {
+      const payload = req.method === 'POST' ? await body() : null;
+      const db = store.load('homefront-world.json', World.defaultWorld());
+      let outcome;
+      if (req.method === 'GET' && url.pathname === '/api/homefront/world') {
+        const joined = World.enter(db, user.acct);
+        store.save('homefront-world.json', joined.world);
+        json(res, 200, { mode: 'homefront-world', ...joined.result }); return true;
+      }
+      if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
+      switch (url.pathname) {
+        case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z)); break;
+        case '/api/homefront/world/party/create': outcome = World.createParty(db, user.acct); break;
+        case '/api/homefront/world/party/join': outcome = World.joinParty(db, user.acct, payload.code); break;
+        case '/api/homefront/world/leave': outcome = World.leave(db, user.acct); break;
+        default: json(res, 404, { error: 'world_route_not_found' }); return true;
+      }
+      store.save('homefront-world.json', outcome.world);
+      json(res, 200, { mode: 'homefront-world', ...outcome.result }); return true;
+    } catch (e) {
+      const message = String(e?.message || 'homefront_world_error');
+      const clientError = /^(not_in_expedition|move_cooldown|party_not_found|party_full|already_in_party|invalid_world_action)/.test(message);
+      json(res, clientError ? 400 : 500, { error: message });
+      if (!clientError) console.error('[homefront-world]', message);
+      return true;
+    }
+  }
   if (gate('homefront:' + user.acct, 90, 60e3) || gate('homefront-ip:' + ip, 180, 60e3)) {
     json(res, 429, { error: 'slow_down' }); return true;
   }

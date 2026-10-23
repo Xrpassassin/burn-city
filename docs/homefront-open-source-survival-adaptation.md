@@ -35,6 +35,6 @@ Homefront now uses its own implementation of distance-weighted travel metabolism
 
 - Added `server/homefront-inventory.js` with stack limits, weight capacity, normalization, safe add/remove, refuge withdraw, and stash helpers.
 - New expeditions take a starter kit from persistent refuge stores; inventory persists in the shared world player record while active. Leaving an expedition automatically stashes carried supplies back into the refuge.
-- Eating, drinking, and bandaging consume carried items only. Scavenging consumes carried food/ammo and moves salvage into the pack when capacity permits; overflow remains in refuge stores.
+- Eating, drinking, and bandaging consume carried items only. Scavenging, supply caches, rescue operations, boss trips, and infected combat use carried supplies; scavenge/cache salvage moves into the pack when capacity permits, with overflow left in refuge stores.
 - Inventory actions are authenticated/server-authoritative. The UI exposes carried counts, capacity, packing buttons, and a stash action.
 - Item spoilage, dirty-water purification, cooking, equipment durability, and physical 3D loot pickups remain future work; do not simulate them as implemented.

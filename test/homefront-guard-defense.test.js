@@ -113,6 +113,26 @@ assert.match(emergencyResult.log[emergencyResult.log.length - 1].text, /Emergenc
 assert.throws(() => Core.applyAction({ ...emergencyBase, structures: [{ ...emergencyBase.structures[0], type: 'garden' }] }, 'rGuardEmergencyRepair', { type: 'emergency_repair', target: 'breached-gate' }, now + 7), /not_a_defensive_structure/);
 
 
+const stagedSiege = Core.createBase('rGuardStagedSiege', now);
+stagedSiege.resources.ammo = 30;
+stagedSiege.structures = [{ id: 'staged-gate', type: 'gate', hp: 180, maxHp: 180, x: 9, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
+const initialGateHp = stagedSiege.structures[0].hp;
+const initialRefugeHp = stagedSiege.baseHp;
+const warning = Core.applyAction(stagedSiege, 'rGuardStagedSiege', { type: 'start_siege' }, now + 7);
+assert.equal(warning.lastSiege.status, 'incoming', 'starting a siege creates a pending incident');
+assert.equal(warning.structures[0].hp, initialGateHp, 'the warning phase does not apply attack damage');
+assert.equal(warning.baseHp, initialRefugeHp, 'the warning phase leaves refuge health unchanged');
+assert.deepEqual(warning.lastSiege.phases.map(phase => phase.phase), ['warning', 'guard_response'],
+  'warning and guard response are available before the player resolves the attack');
+assert.throws(() => Core.applyAction(warning, 'rGuardStagedSiege', { type: 'start_siege' }, now + 8), /siege_already_active/,
+  'a second siege cannot overwrite an unresolved incident');
+const resolvedStagedSiege = Core.applyAction(warning, 'rGuardStagedSiege', { type: 'defend' }, now + 9);
+assert.notEqual(resolvedStagedSiege.lastSiege.status, 'incoming', 'defending resolves the pending incident');
+assert.deepEqual(resolvedStagedSiege.lastSiege.phases.map(phase => phase.phase).slice(0, 2), ['warning', 'guard_response'],
+  'resolution preserves the original incident phases');
+assert.equal(resolvedStagedSiege.lastSiege.startedAt, now + 7, 'incident preserves its original warning time');
+assert.equal(resolvedStagedSiege.defenseCount, 1, 'starting and resolving one incident counts as one defense');
+
 const guaranteedBreach = Core.createBase('rGuardIncidentBreach', now);
 guaranteedBreach.resources.ammo = 30;
 guaranteedBreach.structures = [{ id: 'outer-gate', type: 'gate', hp: 1, maxHp: 180, x: 9, z: 0, rotation: 0, trenchLevel: 0, manned: false }];

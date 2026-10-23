@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const Combat = require('./homefront-combat');
 const Survival = require('./homefront-survival');
+const Inventory = require('./homefront-inventory');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
@@ -69,6 +70,8 @@ function normalizeWorld(input) {
     p.spawn = SPAWNS.some(s => s.id === p.spawn) ? p.spawn : SPAWNS[hash(acct) % SPAWNS.length].id;
     p.lastMove = Number.isFinite(p.lastMove) ? p.lastMove : 0;
     p.survival = Survival.normalize(p.survival, p.lastSeen || Date.now());
+    p.inventory = Inventory.normalize(p.inventory);
+    if (typeof p.inventoryInitialized !== 'boolean') p.inventoryInitialized = true;
   }
   for (const [code, party] of Object.entries(w.parties)) {
     if (!party || typeof party !== 'object' || !Array.isArray(party.members)) { delete w.parties[code]; continue; }
@@ -114,7 +117,8 @@ function snapshot(input, acct, now = Date.now()) {
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now)) } : null,
     encounters: Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0).map(Combat.publicEncounter),
     selfEncounter: Combat.publicEncounter(w.encounters?.[acct]),
-    selfSurvival: p ? { ...p.survival } : null
+    selfSurvival: p ? { ...p.survival } : null,
+    selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null
   };
 }
 function enter(input, acct, now = Date.now()) {
@@ -123,7 +127,7 @@ function enter(input, acct, now = Date.now()) {
   let p = w.players[acct];
   if (!p) {
     const spawn = chooseSpawn(w, acct);
-    p = w.players[acct] = { x: spawn.x, z: spawn.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null };
+    p = w.players[acct] = { x: spawn.x, z: spawn.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false };
   }
   p.lastSeen = now;
   p.survival = Survival.tick(p.survival, now);

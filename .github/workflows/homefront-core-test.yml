@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'server/homefront-core.js'
+      - 'server/homefront-combat.js'
+      - 'server/homefront-world.js'
+      - 'server/homefront-survival.js'
       - 'server/homefront.js'
       - 'server/server.js'
       - 'server/game.js'
@@ -20,8 +23,13 @@ on:
       - 'client/arena/index.html'
       - 'test/homefront-core-sim.js'
       - 'test/homefront-api-sim.js'
+      - 'server/homefront-survival.test.js'
+      - 'server/homefront-combat.test.js'
+      - 'test/homefront-world-sim.js'
       - 'test/homefront-assets.test.mjs'
       - 'docs/zombies-homefront.md'
+      - 'docs/homefront-playable-handoff.md'
+      - 'docs/homefront-survival-cosmetics-open-world.md'
       - 'package.json'
       - '.github/workflows/homefront-core-test.yml'
       - '.github/workflows/homefront-airport-flight.yml'

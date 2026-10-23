@@ -350,7 +350,7 @@ function buildForestHorizon() {
     window.__peerRealm = (x, z) => { const c = C(), q = c.getMode() === 'explore' ? c.P.pos : c.C.position; return inDeepRealm(x, z) === inDeepRealm(q.x, q.z); };
     (window.__preRender = window.__preRender || []).push((dt, t) => { try { frame(dt, t); } catch (e) { if (!G.ferr) { G.ferr = String(e && e.stack || e).slice(0, 400); console.warn('wilds frame', e); } } });   // never let the forest break the city's render loop
     (window.__interactors = window.__interactors || []).push(p => loaded() ? mod.interactor(p) : null);
-    const prevLock = window.__exploreLock; window.__exploreLock = () => !!G.modal || (loaded() && mod.locked()) || (prevLock ? prevLock() : false);
+    const prevLock = window.__exploreLock; window.__exploreLock = () => !!G.modal || !!window.__wildsMapOpen || (loaded() && mod.locked()) || (prevLock ? prevLock() : false);
     addEventListener('keydown', e => { if (loaded()) mod.onKey(e); }, true);
     G.state = 'idle'; G.readyAt = performance.now();
   } catch (e) { G.err = String(e && e.stack || e).slice(0, 400); console.warn('wilds gate', e); }

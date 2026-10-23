@@ -27,7 +27,7 @@ const trailS = sample(DD.TRAIL), creekS = sample(DD.CREEK), dTrail = grid(trailS
 const yieldFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
 const FOG_DAY = new THREE.Color(.11, .17, .15), FOG_NIGHT = new THREE.Color(.02, .045, .04), FOGC = new THREE.Color();
 // the zone object wilds.js runs against
-const ZONE = { name: 'glassroot', root: null, spawns: [], wakeMsg: 'You wake by Orrick\'s campfire, rested. Nothing was lost.',
+const ZONE = { name: 'glassroot', root: null, spawns: [], map: { name: 'Glassroot Grove', bounds: { minX: 980, maxX: 1820, minZ: 950, maxZ: 1790 }, trails: [DD.TRAIL], water: [DD.CREEK], places: [{ x: DD.CAMP.x, z: DD.CAMP.z, label: 'Orrick’s camp' }, ...DD.RUINS.map(r => ({ x: r.x, z: r.z, label: r.kind === 'conduit' ? 'Old conduit' : r.kind === 'glass' ? 'Glass tangle' : 'Tram-yard ruins' })), { x: DD.CONFLUENCE.x, z: DD.CONFLUENCE.z, label: 'The Confluence' }] }, wakeMsg: 'You wake by Orrick\'s campfire, rested. Nothing was lost.',
   keep(x, z) { const e = dEll(x, z); return e > .9 ? [(DEEP.x - x) / DEEP.rx * 3, (DEEP.z - z) / DEEP.rz * 3] : null; },
   respawn() { const P = C().P; P.pos.set(DD.CAMP.fire.x + 2.5, 0, DD.CAMP.fire.z + 2); P.vel.set(0, 0, 0); C().input.yp.yaw = Math.atan2(-(DD.CAMP.fire.x - P.pos.x), -(DD.CAMP.fire.z - P.pos.z)); },
   interactor: p => interactor(p) };

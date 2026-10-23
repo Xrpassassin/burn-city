@@ -61,7 +61,7 @@ function boot(host) {
       const pos = [target.position.x, detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1, target.position.z];
       const sound = weaponId === 'pump_shotgun' ? 'shotgun' : weaponId === 'marksman_rifle' ? 'hit' : 'hit';
       sfx.loadBank(new URL('./sfx/', import.meta.url).href)
-        .then(() => sfx.play(sound, { pos, v: weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
+        .then(() => sfx.play(sfx.has(sound) ? sound : 'hit', { pos, v: weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
         .catch(() => {});
       // Weapon-specific, short-lived blood mist. Visual feedback never determines damage.
       const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16) : detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18) : (weaponId === 'pump_shotgun' ? 15 : 9);

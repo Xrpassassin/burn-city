@@ -494,7 +494,8 @@ function boot(host) {
       ? Math.hypot(data.self.x - selfEncounter.x, data.self.z - selfEncounter.z) : Infinity;
     const enemyInReach = !!selfEncounter && enemyDistance <= (selfEncounter.range || 0);
     const targetMatches = !!selfEncounter && selectedCombatTargetId === selfEncounter.id;
-    if (aimWeaponButton) aimWeaponButton.disabled = !data.self || moving || !!reloadState || !targetMatches || !enemyInReach;
+    if (aimWeaponButton) { aimWeaponButton.disabled = !data.self || moving || !!reloadState || !targetMatches || !enemyInReach; aimWeaponButton.setAttribute('aria-pressed', String(aiming)); aimWeaponButton.textContent = aiming ? 'Lower weapon' : 'Aim weapon'; }
+    if (sprintTravelButton) sprintTravelButton.disabled = !data.self || moving || !!reloadState;
     if (!targetMatches || !enemyInReach) { aiming = false; if (aimWeaponButton) { aimWeaponButton.setAttribute('aria-pressed', 'false'); aimWeaponButton.textContent = 'Aim weapon'; } }
     if (attackInfectedButton) attackInfectedButton.disabled = !selfEncounter || selfEncounter.defeated || selfEncounter.hp <= 0 || !enemyInReach;
     if (autoFireButton) autoFireButton.disabled = !targetMatches || selfEncounter.defeated || selfEncounter.hp <= 0 || !enemyInReach || moving;

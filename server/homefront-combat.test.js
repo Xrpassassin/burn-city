@@ -38,7 +38,7 @@ const zoneB=C.attack({encounters:zoneSpawn.encounters,account:'zone-test',player
 assert.equal(zoneA.hitZone,zoneB.hitZone,'hit-zone calculation is deterministic for the same server encounter and attack clock');
 assert.equal(zoneA.damage,zoneB.damage,'hit-zone damage is deterministic for the same authoritative inputs');
 assert.ok(r.killed);assert.ok(r.reward.scrap>0);assert.ok(b.resources.scrap>0);assert.ok(b.revision>0,'combat mutations advance the persistent refuge revision');
-const pursuer={...a.encounters.a,x:10,z:0,members:a.encounters.a.members.map(member=>({...member,x:member.x+10,z:member.z})),lastAiAt:100000,expiresAt:300000};
+const pursuer={...a.encounters.a,x:10,z:0,members:a.encounters.a.members.map((member,i)=>({...member,x:10+i*2,z:0})),lastKnownX:0,lastKnownZ:0,lastKnownAt:100000,investigateUntil:0,lastAiAt:100000,expiresAt:300000};
 const advanced=C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000});
 assert.ok(advanced.a.members.some((member,i)=>Math.hypot(member.x,member.z)<Math.hypot(pursuer.members[i].x,pursuer.members[i].z)),'at least one infected squad member pursues the player without teleporting into contact');
 assert.ok(advanced.a.members.every(member=>Math.hypot(member.x,member.z)>0.5),'infected squad members do not teleport into contact');

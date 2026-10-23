@@ -387,7 +387,9 @@ function boot(host) {
         bush.position.set((i - 1) * 0.32, 0.24 + (i % 2) * 0.1, (i % 2) * 0.18); bush.scale.y = 0.65; g.add(bush);
       }
     }
-    g.userData.environmentId = prop.id;
+    const cell = prop.id.slice(4).split(',');
+    const prefix = prop.type === 'dead_tree' ? 'tree' : prop.type === 'fallen_log' ? 'log' : prop.type === 'abandoned_vehicle' ? 'vehicle' : (prop.type === 'rubble' || prop.type === 'stone_debris') ? 'debris' : null;
+    if (prefix && cell.length === 2) registerEnvironmentVisual(prefix + ':' + cell[0] + ',' + cell[1], g);
     parent.add(g);
   }
   // Existing server bounds are +/-100; four-by-four chunks cover that playable footprint.

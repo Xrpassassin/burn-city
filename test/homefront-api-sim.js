@@ -253,6 +253,14 @@ if (attack.data.combat.enemyDamage > 0) {
   const reloadFull = await call('POST', '/api/homefront/world/reload', 'acct-a');
   assert.equal(reloadFull.status, 400, 'a full magazine cannot be reloaded again');
   assert.equal(reloadFull.data.error, 'magazine_full');
+  const shellSetup = files.get('homefront-world.json');
+  shellSetup.players['acct-a'].inventory.ammo = 3;
+  shellSetup.players['acct-a'].weaponMagazine = { weaponId: 'pump_shotgun', loaded: 2 };
+  files.set('homefront-world.json', shellSetup);
+  const oneShell = await call('POST', '/api/homefront/world/reload', 'acct-a', { rounds: 1 });
+  assert.equal(oneShell.status, 200, 'shotgun can commit a single inserted shell during an interruptible reload');
+  assert.equal(oneShell.data.selfWeaponMagazine.loaded, 3, 'single-shell reload increments the magazine by exactly one');
+  assert.equal(oneShell.data.selfInventory.ammo, 2, 'single-shell reload spends exactly one reserve round');
 
   console.log('Homefront authenticated save API simulation passed.');
 })().catch(e => { console.error(e); process.exitCode = 1; });

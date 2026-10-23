@@ -74,6 +74,9 @@ function normalizeWorld(input) {
     p.survival = Survival.normalize(p.survival, p.lastSeen || Date.now());
     p.inventory = Inventory.normalize(p.inventory);
     if (typeof p.inventoryInitialized !== 'boolean') p.inventoryInitialized = true;
+    const magazine = p.weaponMagazine && typeof p.weaponMagazine === 'object' ? p.weaponMagazine : {};
+    const magazineWeapon = Object.prototype.hasOwnProperty.call(Combat.WEAPON_MAGAZINE_CAPACITY, magazine.weaponId) ? magazine.weaponId : 'pipe_blade';
+    p.weaponMagazine = { weaponId: magazineWeapon, loaded: clamp(magazine.loaded, 0, Combat.WEAPON_MAGAZINE_CAPACITY[magazineWeapon]) };
   }
   for (const [code, party] of Object.entries(w.parties)) {
     if (!party || typeof party !== 'object' || !Array.isArray(party.members)) { delete w.parties[code]; continue; }
@@ -120,7 +123,8 @@ function snapshot(input, acct, now = Date.now()) {
     encounters: Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0).map(Combat.publicEncounter),
     selfEncounter: Combat.publicEncounter(w.encounters?.[acct]),
     selfSurvival: p ? { ...p.survival } : null,
-    selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null
+    selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null,
+    selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null
   };
 }
 function enter(input, acct, now = Date.now()) {
@@ -129,7 +133,7 @@ function enter(input, acct, now = Date.now()) {
   let p = w.players[acct];
   if (!p) {
     const spawn = chooseSpawn(w, acct);
-    p = w.players[acct] = { x: spawn.x, z: spawn.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false };
+    p = w.players[acct] = { x: spawn.x, z: spawn.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 } };
   }
   p.lastSeen = now;
   p.survival = Survival.tick(p.survival, now);

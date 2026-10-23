@@ -43,7 +43,7 @@
     "test:world-objectives": "node client/js/world-objectives-core.test.mjs",
     "test:zombie-cosmodrome": "node test/zombie-cosmodrome-sim.js",
     "test:moba": "node client/moba/rules-core.test.mjs && node client/moba/bot-controller.test.mjs && node client/moba/lane-minions.test.mjs",
-    "test:homefront": "node test/homefront-core-sim.js"
+    "test:homefront": "node test/homefront-core-sim.js && node test/homefront-assets.test.mjs"
   },
   "keywords": [],
   "author": "",

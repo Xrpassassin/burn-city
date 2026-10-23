@@ -14,6 +14,7 @@ const BUILDINGS = Object.freeze({
   storage:    { cost: { wood: 10, scrap: 5 }, hp: 100, defense: 0, cap: 4 },
   gate:       { cost: { wood: 12, scrap: 8 }, hp: 180, defense: 3, cap: 2 }
 });
+const isBuilding = t => typeof t === 'string' && Object.hasOwn(BUILDINGS, t);
 const clampInt = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, Math.floor(v))) : min;
 const clampNumber = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
 const cleanOwner = id => typeof id === 'string' && id.trim() && id.length <= 180 ? id.trim() : null;
@@ -44,7 +45,7 @@ function validateBase(input, ownerId) {
   out.level = clampInt(out.level, 1, 1000); out.day = clampInt(out.day, 1, 1000000);
   out.wave = clampInt(out.wave, 0, 1000000);
   out.revision = clampInt(out.revision, 1, Number.MAX_SAFE_INTEGER);
-  out.structures = out.structures.filter(s => s && BUILDINGS[s.type] && typeof s.id === 'string')
+  out.structures = out.structures.filter(s => s && isBuilding(s.type) && typeof s.id === 'string')
     .map(s => ({ id: s.id.slice(0, 80), type: s.type, hp: clampInt(s.hp, 0, BUILDINGS[s.type].hp), maxHp: BUILDINGS[s.type].hp, x: clampNumber(s.x, -9.5, 9.5), z: clampNumber(s.z, -9.5, 9.5) }));
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
     .map(s => ({ id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100) }));
@@ -65,7 +66,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   if (!action || typeof action.type !== 'string') throw new Error('invalid_action');
   switch (action.type) {
     case 'build': {
-      const spec = BUILDINGS[action.building];
+      const spec = isBuilding(action.building) ? BUILDINGS[action.building] : null;
       if (!spec) throw new Error('unknown_building');
       if (s.structures.length >= MAX_STRUCTURES) throw new Error('structure_limit');
       if (s.structures.filter(x => x.type === action.building).length >= spec.cap) throw new Error('building_cap');

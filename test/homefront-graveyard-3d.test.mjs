@@ -113,11 +113,16 @@ assert.ok(scene.includes("sfx.play(sfx.has(sound) ? sound : 'hit'"), 'fall back 
 assert.ok(scene.includes("const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16)"), 'head hits get distinct blood particle feedback');
 assert.match(scene, /drop\.userData\.blood = true/, 'mark short-lived blood particles for fade-out');
 
-assert.match(scene, /const weaponId = \['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'\]/, 'select only known server-equipped weapon profiles for impact feedback');
+assert.match(scene, /const weaponId = \['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','machine_gun','heavy_machine_gun'\]/, 'select only known server-equipped weapon profiles for impact feedback');
+assert.match(scene, /function addCombatTracer\(target, weaponId, hitZone\)/, 'draw tracers only after authoritative firearm hit confirmation');
+assert.match(scene, /combatTracers\.push\(\{ line, life: lifetime, maxLife: lifetime \}\)/, 'track and dispose short-lived firearm tracers');
+assert.match(scene, /weaponId === 'heavy_machine_gun' \? 0xfff0a0/, 'heavy machine gun has a distinct bright tracer');
+assert.match(scene, /const isHeavyMachineGun = weaponId === 'heavy_machine_gun'/, 'render a larger late-game heavy machine-gun silhouette');
 assert.match(scene, /weaponId === 'pump_shotgun' \? 'shotgun'/, 'shotgun impacts use their dedicated licensed sample when available');
 assert.ok(scene.includes("detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18)"), 'shotgun killing blows produce a wider, stronger impact burst');
 assert.match(scene, /\.catch\(\(\) => \{\}\)/, 'audio asset failures cannot interrupt confirmed combat feedback');
 assert.match(scene, /data\.combat\.encounterId/, 'resolve encounter IDs from the combat response when available');
+assert.match(scene, /weaponId === 'heavy_machine_gun' \? 120 : weaponId === 'machine_gun' \? 180/, 'client autofire cadence matches server-enforced machine-gun intervals');
 
 assert.match(scene, /hitZone: data\.combat\.hitZone/, 'forward the server-calculated hit zone to the scene');
 assert.match(scene, /detail\.hitZone === 'head'/, 'headshots get distinct impact presentation');

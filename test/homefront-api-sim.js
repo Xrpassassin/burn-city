@@ -31,7 +31,18 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(a0.status, 200);
   assert.equal(a0.data.base.owner, 'acct-a');
   assert.equal(a0.data.base.structures.length, 0);
+  assert.equal(a0.data.base.visibility, 'private');
+  const privateVisit = await call('GET', '/api/homefront/visit?owner=acct-a', null);
+  assert.equal(privateVisit.status, 404, 'private refuges must not be visitable');
 
+  const opened = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'visibility', value: 'public' } });
+  assert.equal(opened.status, 200);
+  assert.equal(opened.data.base.visibility, 'public');
+  const publicVisit = await call('GET', '/api/homefront/visit?owner=acct-a', null);
+  assert.equal(publicVisit.status, 200, 'public refuge can be visited without signing in');
+  assert.equal(publicVisit.data.mode, 'homefront-visit');
+  assert.equal(publicVisit.data.base.visibility, 'public');
+  assert.equal(publicVisit.data.base.owner, undefined, 'visitor response does not expose owner field');
   const a1 = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'build', building: 'wall' } });
   assert.equal(a1.status, 200);
   assert.equal(a1.data.base.structures.length, 1);
@@ -48,6 +59,12 @@ async function call(method, pathname, acct, payload = {}) {
   const crossAccount = await call('POST', '/api/homefront/action', 'acct-b', { action: { type: 'assign', survivorId: 's1', role: 'guard' } });
   assert.equal(crossAccount.status, 400);
   assert.equal(crossAccount.data.error, 'unknown_survivor');
+
+  const closed = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'visibility', value: 'private' } });
+  assert.equal(closed.status, 200);
+  assert.equal(closed.data.base.visibility, 'private');
+  const closedVisit = await call('GET', '/api/homefront/visit?owner=acct-a', null);
+  assert.equal(closedVisit.status, 404, 'private setting immediately blocks future visits');
 
   const aReload = await call('GET', '/api/homefront', 'acct-a');
   assert.equal(aReload.data.base.structures.length, 1, 'account base survives a subsequent load');

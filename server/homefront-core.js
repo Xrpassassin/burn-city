@@ -117,6 +117,17 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       record(s, 'assignment', survivor.name + ' assigned to ' + action.role + '.', now);
       break;
     }
+    case 'rally': {
+      if (s.baseHp <= 0) throw new Error('base_destroyed');
+      if (s.survivors.length === 0) throw new Error('no_survivors_to_rally');
+      if (s.resources.food < 4) throw new Error('rally_food_required');
+      const demoralized = s.survivors.filter(x => x.morale < 100);
+      if (demoralized.length === 0) throw new Error('morale_already_max');
+      s.resources.food -= 4;
+      for (const survivor of demoralized) survivor.morale = clampInt(survivor.morale + 15, 0, 100);
+      record(s, 'rally', 'The survivors shared a hot meal by the campfire. Morale rose by up to 15 points.', now);
+      break;
+    }
     case 'workday': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       // Morale is operational, not cosmetic: exhausted or demoralized workers produce less.

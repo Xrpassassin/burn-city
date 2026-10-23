@@ -91,9 +91,20 @@ function showVeil(title = 'THE CINDERWILDS', sub = 'Fernway Verge · Lv 1–5', 
 }
 function veilProgress(p, label) { if (!veil) return; veil.querySelector('.wv-bar>b').style.width = Math.round(Math.max(0, Math.min(1, p)) * 100) + '%'; if (label) veil.querySelector('.wv-l').textContent = label; G.veilP = p; }
 function hideVeil() { const v = veil; veil = null; if (!v) return; v.classList.add('out'); setTimeout(() => v.remove(), 700); }
+function stageEntry() {
+  // The warning is shown just inside the trailhead, but the return barrier used to
+  // consider that same spot an exit. Move new arrivals a short distance up the trail
+  // under the entrance veil so the first step cannot immediately trigger RETURN.
+  const c = C(), P = c.P;
+  if (Math.hypot(P.pos.x - GATE.x, P.pos.z - GATE.z) < 24) {
+    P.pos.set(GATE.x, 0, GATE.z + 16);
+    P.vel.set(0, 0, 0);
+  }
+}
 async function proceed() {
   // inside the PROCEED tap: unlock Web Audio now (iOS), even if the module is still downloading
   if (mod) mod.unlockAudio(); else { try { const AC = window.__wildsAC = window.__wildsAC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume().catch(() => { }); } catch (e) { } }
+  stageEntry();
   { const c = C(), P = c.P; c.input.yp.yaw = Math.atan2(-(FC.x - P.pos.x), -(FC.z - P.pos.z)); }   // face into the forest
   if (loaded()) { mod.enter(); shrink('in'); return; }
   G.modal = 'loading'; G.state = 'loading'; showVeil(); veilProgress(.04, 'Following the trail…'); const t0 = performance.now(); note('load start');
@@ -181,7 +192,7 @@ function exitPrompt() {
 function barrier(P, explore) {   // runs before the forest's own frame, so "e > 1.03 -> leave" never fires while the barrier holds
   const prev = EX.prev; EX.prev = { x: P.pos.x, z: P.pos.z };
   if (!CFG.exitGate || EX.ok || !explore || !loaded() || !mod.inForest() || deepActive()) return;
-  const e = ell(P.pos.x, P.pos.z); if (e <= .985) return;
+  const e = ell(P.pos.x, P.pos.z); if (e <= 1.015) return;  // give the entrance a buffer; only prompt after walking back through the trailhead
   if (prev && Math.hypot(P.pos.x - prev.x, P.pos.z - prev.z) > 8) return;   // a teleport / respawn / fast travel: let it through
   const dx = P.pos.x - FC.x, dz = P.pos.z - FC.z; P.pos.x = FC.x + dx / e * .98; P.pos.z = FC.z + dz / e * .98; P.vel.x = 0; P.vel.z = 0; EX.prev = { x: P.pos.x, z: P.pos.z }; G.blocked = (G.blocked || 0) + 1;
   if (!G.modal && !(mod && mod.locked()) && performance.now() > EX.cool) exitPrompt();

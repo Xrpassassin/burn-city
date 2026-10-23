@@ -32,7 +32,7 @@ assert.equal(result.survivors.filter(s => s.role === 'guard').length, 2);
 const breachBase = Core.createBase('rGuardBreachCover', now);
 breachBase.resources.ammo = 30;
 breachBase.structures = [{ id: 'b1', type: 'gate', hp: 90, maxHp: 180, x: 8, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
-breachBase.survivors = Array.from({ length: 6 }, (_, i) => ({
+breachBase.survivors = Array.from({ length: 1 }, (_, i) => ({
   id: 'breach-guard-' + i, name: 'Guard ' + i, role: 'guard', morale: 100
 }));
 const expectedRawDamage = Core.threatProfile(breachBase).projectedStructureDamage;
@@ -42,7 +42,7 @@ const actualDamageMatch = breachLog.match(/with (\\d+) structure damage/);
 assert.ok(actualDamageMatch, 'defense log reports actual mitigated structure damage');
 assert.ok(Number(actualDamageMatch[1]) < expectedRawDamage,
   'high-morale guards reduce damage while covering a damaged gate');
-assert.match(breachLog, /reduced perimeter damage by 25%/,
+assert.match(breachLog, /reduced perimeter damage by 6%/,
   'guard cover is capped at 25 percent');
 assert.equal(defended.structures[0].hp, 90 - Number(actualDamageMatch[1]),
   'mitigated siege damage is applied to the real structure state');

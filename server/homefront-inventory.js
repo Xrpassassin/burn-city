@@ -27,7 +27,9 @@ function remove(input,id,amount=1){
 }
 function stash(input,resources){
  const inventory=normalize(input),stored={},remaining={...inventory};
- const destination={rawFood:'food',dirtyWater:'water'};
+ // Keep unprocessed supplies distinct in refuge storage. Never silently turn raw food
+ // into a cooked ration or contaminated water into potable water during stash/return.
+ const destination={};
  for(const id of Object.keys(ITEMS)){
   const target=destination[id]||id;
   const current=clamp(resources?.[target],0,999999)+(stored[target]||0);

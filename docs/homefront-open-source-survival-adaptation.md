@@ -60,3 +60,12 @@ Homefront now uses its own implementation of distance-weighted travel metabolism
 - This is the generation core, not yet a visible raised terrain surface. The current ground, pointer hit surface, server movement validator, and collision assumptions are planar. Rendering relief before those systems share a common height/collision contract would create visual floating or inaccessible terrain.
 - Third-party evaluation: THREE.Terrain is an MIT-licensed candidate with richer terrain generators and material/foliage tools, but its documented Three.js compatibility needs to be checked against this repo's vendored runtime before adoption. Keep the initial sampler dependency-free until a compatibility spike proves a benefit.
 - Next integration step: introduce a shared terrain contract for height sampling and walkability, then align the rendered ground, pointer hit testing, server movement validation, roads, and structure placement before enabling meaningful elevation.
+
+
+## Phase 1C: seeded biome and environmental candidate layer
+
+- Added `client/arena/homefront-world-generation.mjs` with coordinate-stable biome classification (ashland, deadwood, urban rubble, marsh), chunk biome summaries, and deterministic environmental prop candidates.
+- Environmental candidates have stable IDs and coordinates derived from chunk/cell coordinates and the world seed. They are scenery suggestions only; they are not authoritative loot, collision, or persisted player-world state.
+- Added `client/arena/homefront-world-generation.test.mjs` covering seed determinism, seed variation, stable IDs, chunk bounds, manifest counts, and invalid inputs; included it in `test:homefront`.
+- This layer is not yet rendered in the 3D scene. Integrate candidate visuals only after the renderer can place and dispose chunk-owned vegetation/debris cleanly; keep loot and interactable objects server-owned to avoid client-created rewards.
+- The current server still clamps the shared Graveyard to ±100. These coordinate-based generation functions can describe neighboring chunks, but they do not expand server movement, saves, encounters, or multiplayer world authority.

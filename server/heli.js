@@ -33,6 +33,7 @@ function finish(room, ps, ev) { const h = room.heli, all = [...room.players.valu
   // rejects client-requested Cosmodrome starts; only this server-owned progression sets mapId.
   if (room.mapId === 'refinery' && all.length && all.every(p => h.b.has(p.id))) {
     room.mapId = 'cosmodrome';
+    h.st = ST.done;
     ev.push({ e: 'map_transition', from: 'The BURN Refinery', to: 'The Ashen Cosmodrome' });
     room.reset();
     return;

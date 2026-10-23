@@ -20,6 +20,32 @@ for (const roadCenter of [-90, -70, -50, -30, -10, 10, 30, 50, 70, 90]) {
 assert.equal(serverTerrain.canTraverse(0, 0, 12, 8), true, 'the current gentle terrain should be traversable');
 assert.equal(serverTerrain.canTraverse(0, 0, 12, 8, { maxRisePer2Units: 1e-10 }), false, 'grade guard must reject a deliberately restrictive threshold');
 assert.throws(() => serverTerrain.canTraverse(0, 0, 1, 1, { maxRisePer2Units: 0 }), TypeError);
+
+// A synthetic ridge forces A* to choose a safe detour rather than rejecting movement outright.
+const ridgeHeight = (x, z) => Math.abs(x) < 0.75 && Math.abs(z) < 8 ? 5 : 0;
+const ridgePath = serverTerrain.findTerrainPath(-12, 0, 12, 0, {
+  bounds: 20, spacing: 2, maxExpanded: 1200, heightAt: ridgeHeight, maxRisePer2Units: 0.65
+});
+assert.ok(Array.isArray(ridgePath) && ridgePath.length > 2, 'pathfinder routes around a steep ridge');
+assert.ok(ridgePath.some(point => Math.abs(point.z) >= 8), 'detour leaves the blocked ridge corridor');
+let previous = { x: -12, z: 0 };
+for (const point of ridgePath) {
+  const distance = Math.hypot(point.x - previous.x, point.z - previous.z);
+  const steps = Math.max(1, Math.ceil(distance / 2));
+  let last = ridgeHeight(previous.x, previous.z);
+  for (let i = 1; i <= steps; i++) {
+    const at = ridgeHeight(previous.x + (point.x - previous.x) * i / steps, previous.z + (point.z - previous.z) * i / steps);
+    assert.ok(Math.abs(at - last) <= 0.65, 'every returned route edge respects the grade limit');
+    last = at;
+  }
+  previous = point;
+}
+assert.deepEqual(ridgePath[ridgePath.length - 1], { x: 12, z: 0 }, 'route reaches the exact requested destination');
+const sealedHeight = (x) => Math.abs(x) < 0.75 ? 5 : 0;
+assert.equal(serverTerrain.findTerrainPath(-8, 0, 8, 0, {
+  bounds: 12, spacing: 2, maxExpanded: 500, heightAt: (x, z) => sealedHeight(x)
+}), null, 'pathfinder reports a sealed barrier as unreachable instead of returning an unsafe route');
+assert.throws(() => serverTerrain.findTerrainPath(0, 0, 1, 1, { spacing: 0 }), TypeError);
 const a = terrainChunkSamples(0, 0, { segments: 8, seed: DEFAULT_TERRAIN_SEED });
 const b = terrainChunkSamples(1, 0, { segments: 8, seed: DEFAULT_TERRAIN_SEED });
 for (let row = 0; row <= 8; row++) assert.equal(a[row * 9 + 8].y, b[row * 9].y, 'chunk seam height must match');

@@ -513,9 +513,44 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + medicineGain + ' medicine.' + repairNote, now);
       break;
     }
+    case 'start_siege': {
+      if (s.baseHp <= 0) throw new Error('base_destroyed');
+      if (s.lastSiege?.status === 'incoming') throw new Error('siege_already_active');
+      const profile = threatProfile(s);
+      const defensiveTypes = new Set(['wall', 'gate', 'entrance', 'exit', 'sandbags', 'barbed_wire', 'trench', 'turret', 'watchtower']);
+      const perimeterPriority = { barbed_wire: 0, gate: 1, entrance: 1, exit: 1, sandbags: 2, trench: 3, wall: 4, turret: 5, watchtower: 6 };
+      const targets = s.structures.filter(x => x.hp > 0).sort((a, b) =>
+        (Math.hypot(b.x, b.z) - Math.hypot(a.x, a.z)) ||
+        ((perimeterPriority[a.type] ?? 10) - (perimeterPriority[b.type] ?? 10)) ||
+        String(a.id).localeCompare(String(b.id)));
+      const target = targets[0] || null;
+      const integrity = target && target.maxHp > 0 ? Math.round(target.hp / target.maxHp * 100) : null;
+      s.defenseCount++;
+      const incidentId = 'siege-' + s.defenseCount;
+      const warningText = target
+        ? 'SIEGE WARNING: infected are pressing ' + target.type + ' ' + target.id + ' (' + integrity + '% integrity). ' + profile.guards + ' guard(s) assigned to the perimeter.'
+        : 'SIEGE WARNING: infected pressure is approaching the refuge; no active defensive structure can intercept the first hit.';
+      const guardText = profile.guards
+        ? profile.guards + ' guard(s) respond to the perimeter. Morale-weighted guard contribution: ' + profile.guardDefenseBonus + '.'
+        : 'No guards are assigned. The perimeter must absorb the attack without survivor guard support.';
+      s.lastSiege = {
+        id: incidentId, status: 'incoming', day: s.day, startedAt: now, resolvedAt: null,
+        target: target ? { id: target.id, type: target.type, integrityBefore: integrity, integrityAfter: integrity } : null,
+        guardCount: profile.guards, guardDefenseBonus: profile.guardDefenseBonus,
+        structureDamage: 0, refugeHpBefore: s.baseHp, refugeHpAfter: s.baseHp, breachedStructures: [],
+        phases: [
+          { phase: 'warning', at: now, text: warningText },
+          { phase: 'guard_response', at: now, text: guardText }
+        ]
+      };
+      record(s, 'siege_warning', warningText, now);
+      record(s, 'guard_response', guardText, now);
+      break;
+    }
     case 'defend': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
-      s.defenseCount++;
+      const pendingIncident = s.lastSiege?.status === 'incoming';
+      if (!pendingIncident) s.defenseCount++;
       const profile = threatProfile(s);
       const active = s.structures.filter(x => x.hp > 0);
       const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(s.survivors.filter(x => x.role === 'guard').length / 2) + 1));
@@ -539,14 +574,16 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const coverTarget = siegeTargets[0];
       const refugeHpBefore = s.baseHp;
       const targetIntegrityBefore = coverTarget && coverTarget.maxHp > 0 ? Math.round(coverTarget.hp / coverTarget.maxHp * 100) : null;
-      const incidentId = 'siege-' + s.defenseCount;
+      const incidentId = pendingIncident ? s.lastSiege.id : 'siege-' + s.defenseCount;
       const warningText = coverTarget
         ? 'SIEGE WARNING: infected are pressing ' + coverTarget.type + ' ' + coverTarget.id + ' (' + targetIntegrityBefore + '% integrity). ' + profile.guards + ' guard(s) assigned to the perimeter.'
         : 'SIEGE WARNING: infected pressure is approaching the refuge; no active defensive structure can intercept the first hit.';
-      record(s, 'siege_warning', warningText, now);
-      record(s, 'guard_response', profile.guards
-        ? profile.guards + ' guard(s) respond to the perimeter. Morale-weighted guard contribution: ' + profile.guardDefenseBonus + '.'
-        : 'No guards are assigned. The perimeter must absorb the attack without survivor guard support.', now);
+      if (!pendingIncident) {
+        record(s, 'siege_warning', warningText, now);
+        record(s, 'guard_response', profile.guards
+          ? profile.guards + ' guard(s) respond to the perimeter. Morale-weighted guard contribution: ' + profile.guardDefenseBonus + '.'
+          : 'No guards are assigned. The perimeter must absorb the attack without survivor guard support.', now);
+      }
       const damagedPerimeter = Boolean(coverTarget && defensiveTypes.has(coverTarget.type) && coverTarget.hp < coverTarget.maxHp);
       const guardStrength = s.survivors.filter(x => x.role === 'guard').reduce((total, x) => {
         const morale = clampInt(x.morale, 0, 100);
@@ -582,16 +619,22 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         : breachedStructures.length
           ? 'AFTER-ACTION REPORT: breach opened at ' + breachedStructures.map(x => x.type + ' ' + x.id).join(', ') + '. ' + damage + ' structure damage; refuge integrity ' + s.baseHp + '/' + s.baseMaxHp + '.'
           : 'AFTER-ACTION REPORT: attack repelled. ' + damage + ' structure damage; refuge integrity ' + s.baseHp + '/' + s.baseMaxHp + '.';
+      const resolvedTarget = coverTarget ? { id: coverTarget.id, type: coverTarget.type,
+        integrityBefore: pendingIncident && s.lastSiege.target?.id === coverTarget.id
+          ? s.lastSiege.target.integrityBefore : targetIntegrityBefore,
+        integrityAfter: finalTargetIntegrity } : null;
+      const outcomePhase = { phase: outcome, at: now, text: outcomeText };
       s.lastSiege = {
-        id: incidentId, status: outcome, day: s.day, startedAt: now, resolvedAt: now,
-        target: coverTarget ? { id: coverTarget.id, type: coverTarget.type, integrityBefore: targetIntegrityBefore, integrityAfter: finalTargetIntegrity } : null,
-        guardCount: profile.guards, guardDefenseBonus: profile.guardDefenseBonus,
-        structureDamage: damage, refugeHpBefore, refugeHpAfter: s.baseHp,
-        breachedStructures, phases: [
+        ...(pendingIncident ? s.lastSiege : {}),
+        id: incidentId, status: outcome, day: s.day,
+        startedAt: pendingIncident ? s.lastSiege.startedAt : now, resolvedAt: now,
+        target: resolvedTarget, guardCount: profile.guards, guardDefenseBonus: profile.guardDefenseBonus,
+        structureDamage: damage, refugeHpBefore: pendingIncident ? s.lastSiege.refugeHpBefore : refugeHpBefore,
+        refugeHpAfter: s.baseHp, breachedStructures,
+        phases: [...(pendingIncident ? s.lastSiege.phases : [
           { phase: 'warning', at: now, text: warningText },
-          { phase: 'guard_response', at: now, text: profile.guards ? 'Guards responded to the threatened perimeter.' : 'No guards available for the response.' },
-          { phase: outcome, at: now, text: outcomeText }
-        ]
+          { phase: 'guard_response', at: now, text: profile.guards ? 'Guards responded to the threatened perimeter.' : 'No guards available for the response.' }
+        ]), outcomePhase]
       };
       record(s, 'siege_outcome', outcomeText, now);
       record(s, 'defense', lost ? 'The refuge fell during a perimeter breach. ' + guardText + '.' + targetOutcome : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + guardText + '; ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.' + targetOutcome + breachText, now);

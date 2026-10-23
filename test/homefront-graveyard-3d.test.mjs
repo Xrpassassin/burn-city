@@ -227,3 +227,8 @@ assert.match(homefrontPage, /incident\.refugeHpAfter\+'\/'+base\.baseMaxHp/, 'sh
 assert.match(homefrontPage, /incident\?\.status==='incoming'\?'Resolve siege defense':'Begin siege warning'/, 'switch the siege control between warning and defense phases');
 assert.match(homefrontPage, /INCOMING SIEGE: inspect the threatened structure and repair if needed/, 'tell players they can assess and repair before resolving the attack');
 assert.match(homefrontPage, /type:base\?\.lastSiege\?\.status==='incoming'\?'defend':'start_siege'/, 'use separate server actions for starting and resolving a siege');
+
+assert.match(homefrontPage, /const assignedTarget=survivor\.taskTarget&&base\.structures\.find\(item=>item\.id===survivor\.taskTarget\)/, 'place responding survivors at their persisted server-assigned siege target');
+assert.match(homefrontPage, /taskLabels\[task\]\|\|labels\[role\]/, 'show the active survivor behavior above the 3D actor');
+assert.match(homefrontPage, /task:survivor\.task/, 'carry persistent behavior into survivor animation actors');
+assert.match(homefrontPage, /taskNote\.textContent='Current task: '/, 'show persistent survivor tasks in the settlement roster');

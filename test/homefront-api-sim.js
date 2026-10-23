@@ -68,7 +68,7 @@ async function call(method, pathname, acct, payload = {}) {
 
   const aReload = await call('GET', '/api/homefront', 'acct-a');
   assert.equal(aReload.data.base.structures.length, 1, 'account base survives a subsequent load');
-  assert.equal(aReload.data.base.revision, a1.data.base.revision);
+  assert.equal(aReload.data.base.revision, closed.data.base.revision, 'latest privacy change persists across reloads');
   const revisionBeforeConcurrent = aReload.data.base.revision;
   const concurrent = await Promise.all([
     call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'expedition' } }),

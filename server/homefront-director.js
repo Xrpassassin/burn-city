@@ -72,4 +72,36 @@ function planEncounter({ zoneId = 'outskirts', risk = 1, playerCount = 1, active
     retreatHealthRatio: boundedRisk >= 4 ? 0.08 : 0
   };
 }
-\nmodule.exports = { ARCHETYPES, QUALITY_ORDER, resolveDirectorLoot, planEncounter };
+\n
+function advanceDirector(state = {}, context = {}) {
+  const now = Number.isFinite(context.now) ? Math.max(0, context.now) : Date.now();
+  const plan = planEncounter(context);
+  const active = Math.max(0, Math.min(100, Math.floor(Number.isFinite(context.activeEncounters) ? context.activeEncounters : 0)));
+  const lastSpawnAt = Math.max(0, Math.min(now, Number.isFinite(state.lastSpawnAt) ? state.lastSpawnAt : 0));
+  const lastNoiseAt = Math.max(0, Math.min(now, Number.isFinite(context.lastNoiseAt) ? context.lastNoiseAt : 0));
+  const noiseRecent = context.noise >= 55 || (lastNoiseAt > 0 && now - lastNoiseAt < 12000);
+  let phase = plan.threat >= 7 || noiseRecent ? 'assault' : plan.threat >= 4 ? 'alert' : active > 0 ? 'engaged' : 'calm';
+  let decision = 'hold';
+  let reason = 'No spawn pressure requires a new infected.';
+  const nextSpawnAt = lastSpawnAt + plan.spawnIntervalMs;
+  if (active >= plan.recommendedMaxAlive) {
+    decision = 'hold';
+    reason = 'Local infected cap reached.';
+  } else if (lastSpawnAt > 0 && now < nextSpawnAt) {
+    decision = 'cooldown';
+    reason = 'Director reinforcement interval has not elapsed.';
+  } else if (phase === 'assault' || phase === 'alert' || active === 0) {
+    decision = 'spawn';
+    reason = noiseRecent ? 'Recent noise drew infected into the area.' : phase === 'assault' ? 'High-risk district pressure triggered an assault.' : phase === 'alert' ? 'Elevated district pressure triggered a reinforcement.' : 'Area is clear; maintain baseline infected presence.';
+  }
+  const nextState = {
+    phase,
+    lastSpawnAt: decision === 'spawn' ? now : lastSpawnAt,
+    lastNoiseAt,
+    activeEncounters: active,
+    nextSpawnAt: decision === 'spawn' ? now + plan.spawnIntervalMs : nextSpawnAt,
+    lastDecision: decision
+  };
+  return { state: nextState, decision, reason, plan };
+}
+\nmodule.exports = { ARCHETYPES, QUALITY_ORDER, resolveDirectorLoot, planEncounter, advanceDirector };

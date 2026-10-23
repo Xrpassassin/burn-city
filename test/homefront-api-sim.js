@@ -128,6 +128,9 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(purified.data.selfInventory.dirtyWater, 1, 'purification consumes dirty water');
   assert.equal(purified.data.selfInventory.water, 1, 'purification creates clean water');
   assert.equal(purified.data.selfInventory.wood, 0, 'purification consumes one wood');
+  const restoreFieldKit = files.get('homefront-world.json');
+  restoreFieldKit.players['acct-a'].inventory = { food: 2, rawFood: 1, water: 1, dirtyWater: 1, meds: 1, ammo: 4, scrap: 0, wood: 0 };
+  files.set('homefront-world.json', restoreFieldKit);
 
   const worldB = await call('GET', '/api/homefront/world', 'acct-b');
   assert.equal(worldB.status, 200);

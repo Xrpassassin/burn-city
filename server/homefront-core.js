@@ -517,7 +517,6 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       if (s.lastSiege?.status === 'incoming') throw new Error('siege_already_active');
       const profile = threatProfile(s);
-      const defensiveTypes = new Set(['wall', 'gate', 'entrance', 'exit', 'sandbags', 'barbed_wire', 'trench', 'turret', 'watchtower']);
       const perimeterPriority = { barbed_wire: 0, gate: 1, entrance: 1, exit: 1, sandbags: 2, trench: 3, wall: 4, turret: 5, watchtower: 6 };
       const targets = s.structures.filter(x => x.hp > 0).sort((a, b) =>
         (Math.hypot(b.x, b.z) - Math.hypot(a.x, a.z)) ||

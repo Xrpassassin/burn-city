@@ -100,6 +100,17 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
     const mx = clamp(member.x + mdx / md * memberStep, -100, 100);
     const mz = clamp(member.z + mdz / md * memberStep, -100, 100);
     if (Terrain.canTraverse(member.x, member.z, mx, mz) && Collision.canTraverse(member.x, member.z, mx, mz, {radius:0.4,bounds:100})) { member.x=mx; member.z=mz; }
+    else {
+     const memberRoute = Terrain.findTerrainPath(member.x, member.z, targetX, targetZ) ||
+      Collision.findPath(member.x, member.z, targetX, targetZ, {bounds:100,maxExpanded:2600,radius:0.4});
+     if (memberRoute && memberRoute.length) {
+      const advanced = advanceAlongTerrainPath(member.x, member.z, memberRoute, memberStep);
+      if (Terrain.canTraverse(member.x, member.z, advanced.x, advanced.z) &&
+          Collision.canTraverse(member.x, member.z, advanced.x, advanced.z, {radius:0.4,bounds:100})) {
+       member.x=advanced.x; member.z=advanced.z;
+      }
+     }
+    }
    }
   }
   const lead = (e.members || []).find(m => !m.defeated && m.hp > 0);

@@ -1,5 +1,6 @@
-import assert from 'node:assert/strict';
-import Environment from '../server/homefront-environment.js';
+'use strict';
+const assert = require('node:assert/strict');
+const Environment = require('./homefront-environment');
 
 const wall = Environment.STRUCTURES.find(s => s.kind === 'building');
 assert.ok(wall, 'deterministic building structures are catalogued');

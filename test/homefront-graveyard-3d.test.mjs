@@ -140,3 +140,10 @@ assert.match(scene, /explorer\.rotation\.y = Math\.atan2\(target\.x - explorer\.
 assert.match(scene, /g\.userData\.avatarParts = \[/, 'retain avatar body, head, backpack, and strap references for animation');
 assert.match(scene, /const bob = movingAvatar \? Math\.abs\(Math\.sin\(now \* 0\.014\)\) \* 0\.11/, 'add a lightweight step bob while explorers move');
 assert.match(scene, /part\.object\.position\.y = part\.baseY \+ bob/, 'animate avatar parts without changing authoritative world coordinates');
+
+assert.match(page, /id="tillPlot"/, 'the refuge exposes a player-led farm plot control');
+assert.match(page, /type:'farm_till',x:p\.x,z:p\.z/, 'tilling uses tap-to-place yard coordinates validated by the server');
+assert.match(page, /type:'farm_plant',plotId:p\.id/, 'empty plots can be planted from the refuge panel');
+assert.match(page, /type:'farm_water',plotId:p\.id/, 'growing plots can be watered from the refuge panel');
+assert.match(page, /type:'farm_harvest',plotId:p\.id/, 'mature plots can be harvested from the refuge panel');
+assert.match(page, /drawFarmPlot\(plot\)/, 'farm plots render in the 3D yard');

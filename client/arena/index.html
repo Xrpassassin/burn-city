@@ -36,7 +36,7 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <div style="margin-top:6px"><b>Create a match</b><br><select id="tcteams"><option value="0">Free-for-all</option><option value="2">2 teams</option><option value="3">3 teams</option><option value="4">4 teams</option></select>
 <label><input id="tcff" type="checkbox" checked> Teammates' trails kill</label> <label><input id="tcbo3" type="checkbox"> Best of 3</label><br>
 <button id="tcfree">Create free match</button> <span id="tcrk"></span></div>
-<div id="tlobbies" style="margin-top:6px"></div><div id="trk" style="margin-top:6px"></div></div><div class="small"><b>🗡 Eternal Grind</b></div><button onclick="location.href='../dungeon/'">Dungeon RPG</button><div class="small"><b>🧟 Zombie Survival</b></div><button id="freePlayBtn">🧟 Free Play · The BURN Refinery (Map 1)</button><button id="dailyBtn">🗓 Daily Challenge</button>
+<div id="tlobbies" style="margin-top:6px"></div><div id="trk" style="margin-top:6px"></div></div><div class="small"><b>🗡 Eternal Grind</b></div><button onclick="location.href='../dungeon/'">Dungeon RPG</button><div class="small"><b>🧟 Zombie Survival</b></div><button id="freePlayBtn">🧟 Free Play · The BURN Refinery (Map 1)</button><button id="homefrontBtn">🏚 Homefront · Build & Defend</button><button id="dailyBtn">🗓 Daily Challenge</button>
 <div id="ranked" class="small" style="border:1px solid #f604;border-radius:10px;padding:8px 12px;max-width:340px"><b>🏆 Ranked Matches</b> <span id="rkstat"></span><br><span id="rkinfo"></span><div id="rkbtn"></div><div id="rklb"></div><a href="rules.html" style="color:#ffb060">Ranked rules</a></div>
 <a href="../" class="small" style="color:#ffb060">← Back to Burn City</a> · <a href="history.html" class="small" style="color:#ffb060">📜 My match history</a><div id="safefoot" class="small" style="margin:6px auto;max-width:420px;opacity:.9"></div><div class="small">Free to play, no sign-in needed. <button id="signin" style="background:none;border:0;padding:0;color:#ffb060;text-decoration:underline;font-size:12px;cursor:pointer">Sign in to save rewards (optional)</button></div>
 <div id="price" class="small"></div><div id="qr"></div><div id="shop" class="small"></div><div id="lb" class="small"></div>
@@ -176,6 +176,7 @@ $('#returnCity').onclick = e => { e.stopPropagation(); returnToCity(); };
 addEventListener('pageshow', e => { if (e.persisted) document.getElementById('bcReturnTransition')?.remove(); });
 document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => start(b.dataset.m));
 $('#freePlayBtn').onclick = () => start('zombie', null, '&map=refinery');
+$('#homefrontBtn').onclick = () => { location.href = './homefront.html'; };
 $('#dailyBtn').onclick = () => start('zombie', null, '&daily=1');
 if (P.get('daily') === '1') setTimeout(() => start('zombie', null, '&daily=1'), 600);
 // pre-game lobby screen (server sends lobby_state about once a second while a match is waiting)

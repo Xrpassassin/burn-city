@@ -1,0 +1,35 @@
+name: Homefront settlement core checks
+
+on:
+  pull_request:
+    paths:
+      - 'server/homefront-core.js'
+      - 'server/homefront.js'
+      - 'server/server.js'
+      - 'client/arena/homefront.html'
+      - 'client/arena/assets/homefront/**'
+      - 'client/arena/index.html'
+      - 'test/homefront-core-sim.js'
+      - 'test/homefront-api-sim.js'
+      - 'test/homefront-assets.test.mjs'
+      - 'docs/zombies-homefront.md'
+      - 'package.json'
+      - '.github/workflows/homefront-core-test.yml'
+
+jobs:
+  homefront-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check server syntax
+        run: |
+          node --check server/homefront-core.js
+          node --check server/homefront.js
+          node --check server/server.js
+      - name: Check Homefront browser module syntax
+        run: node --input-type=module --check < <(node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/homefront.html","utf8");const m=s.split("<script type=\\"module\\">")[1]?.split("</script>")[0];if(!m)process.exit(2);process.stdout.write(m)')
+      - name: Run Homefront settlement simulation
+        run: npm run test:homefront

@@ -524,7 +524,17 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.resources.ammo -= turretAmmo;
       const threat = profile.threat;
       const defense = profile.defense;
-      const damage = profile.projectedStructureDamage;
+      // Guards can actively cover a damaged perimeter during a siege. This is a small,
+      // capped mitigation only while a defensive structure is already damaged; it never
+      // replaces the main threat/defense calculation or prevents all incoming damage.
+      const defensiveTypes = new Set(['wall', 'gate', 'entrance', 'exit', 'sandbags', 'barbed_wire', 'trench', 'turret', 'watchtower']);
+      const damagedPerimeter = active.some(x => defensiveTypes.has(x.type) && x.hp < x.maxHp);
+      const guardStrength = s.survivors.filter(x => x.role === 'guard').reduce((total, x) => {
+        const morale = clampInt(x.morale, 0, 100);
+        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+      }, 0);
+      const breachCover = damagedPerimeter ? Math.min(0.25, guardStrength * 0.05) : 0;
+      const damage = Math.max(0, Math.ceil(profile.projectedStructureDamage * (1 - breachCover)));
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
       // Siege pressure hits the outer defensive ring first, rather than damaging structures
       // in arbitrary creation order. Perimeter obstacles absorb hits before inner production buildings.
@@ -545,7 +555,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const lost = s.baseHp === 0;
       for (const turret of active.filter(x => x.type === 'turret')) turret.manned = false;
       const breachText = breached.length ? ' Breach opened: ' + breached.join(', ') + ' destroyed.' : '';
-      const guardText = profile.guards + ' guard(s) contributed ' + profile.guardDefenseBonus + ' defense strength';
+      const guardText = profile.guards + ' guard(s) contributed ' + profile.guardDefenseBonus + ' defense strength' + (breachCover > 0 ? ' and reduced perimeter damage by ' + Math.round(breachCover * 100) + '% while covering a damaged defense' : '');
       record(s, 'defense', lost ? 'The refuge fell during a perimeter breach. ' + guardText + '.' : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + guardText + '; ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.' + breachText, now);
       break;
     }

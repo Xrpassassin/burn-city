@@ -234,6 +234,60 @@ function boot(host) {
     fadedOrange: mat(0x9b5838), canvas: mat(0x71694e), metal: mat(0x454b49),
     concrete: mat(0x66645a), warning: mat(0xb18a45), dark: mat(0x292d2b)
   };
+  function registerEnvironmentVisual(id, group) {
+    if (!id || !group) return;
+    group.userData.environmentId = id;
+    environmentVisuals.set(id, group);
+  }
+  function applyEnvironmentStateSnapshot(structures) {
+    for (const state of (Array.isArray(structures) ? structures : [])) {
+      if (!state || typeof state.id !== 'string') continue;
+      environmentStateCache.set(state.id, state);
+    }
+    for (const [id, state] of environmentStateCache) {
+      const group = environmentVisuals.get(id);
+      if (!group) continue;
+      const destroyed = state.collisionEnabled === false || state.health <= 0 || state.stage === 'destroyed';
+      group.visible = !destroyed;
+      if (group.userData.damageStage === state.stage && group.userData.damageDestroyed === destroyed) continue;
+      group.userData.damageStage = state.stage;
+      group.userData.damageDestroyed = destroyed;
+      group.traverse(node => {
+        if (!node.isMesh || !node.material) return;
+        const source = Array.isArray(node.material) ? node.material : [node.material];
+        const materials = source.map(material => {
+          if (material.userData?.homefrontDamageMaterial) return material;
+          const copy = material.clone();
+          copy.userData.homefrontDamageMaterial = true;
+          copy.userData.homefrontBaseColor = material.color?.getHex() ?? 0xffffff;
+          copy.userData.homefrontBaseEmissive = material.emissive?.getHex() ?? 0;
+          copy.userData.homefrontBaseEmissiveIntensity = material.emissiveIntensity ?? 0;
+          return copy;
+        });
+        node.material = Array.isArray(node.material) ? materials : materials[0];
+        for (const material of materials) {
+          if (!material.color || !material.emissive) continue;
+          material.color.setHex(material.userData.homefrontBaseColor);
+          material.emissive.setHex(material.userData.homefrontBaseEmissive);
+          material.emissiveIntensity = material.userData.homefrontBaseEmissiveIntensity;
+          if (state.stage === 'critical') {
+            material.color.multiplyScalar(0.58);
+            material.emissive.setHex(0x6f2117);
+            material.emissiveIntensity = 0.38;
+          } else if (state.stage === 'damaged') {
+            material.color.multiplyScalar(0.76);
+            material.emissive.setHex(0x4b281d);
+            material.emissiveIntensity = 0.18;
+          } else if (state.stage === 'scuffed') {
+            material.color.multiplyScalar(0.9);
+            material.emissive.setHex(0x30261d);
+            material.emissiveIntensity = 0.06;
+          }
+          material.needsUpdate = true;
+        }
+      });
+    }
+  }
   function addLandmark(parent, landmark) {
     const g = new THREE.Group();
     g.position.set(landmark.x, terrainElevation(landmark.x, landmark.z), landmark.z);

@@ -222,3 +222,8 @@ assert.match(homefrontPage, /const incident=base\.lastSiege/, 'render the server
 assert.match(homefrontPage, /incident\.phases/, 'render the ordered incident phases');
 assert.match(homefrontPage, /incident\.target\.integrityBefore/, 'show target integrity before and after the siege');
 assert.match(homefrontPage, /incident\.refugeHpAfter\+'\/'+base\.baseMaxHp/, 'show refuge health after the incident');
+
+
+assert.match(homefrontPage, /incident\?\.status==='incoming'\?'Resolve siege defense':'Begin siege warning'/, 'switch the siege control between warning and defense phases');
+assert.match(homefrontPage, /INCOMING SIEGE: inspect the threatened structure and repair if needed/, 'tell players they can assess and repair before resolving the attack');
+assert.match(homefrontPage, /type:base\?\.lastSiege\?\.status==='incoming'\?'defend':'start_siege'/, 'use separate server actions for starting and resolving a siege');

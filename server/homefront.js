@@ -266,6 +266,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const combatAt = Date.now();
           const survivalBeforeAttack = Survival.tick(player.survival, combatAt);
           const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null });
+          // Gunfire and melee combat leave a server-recorded noise signature. The next
+          // authoritative world tick uses it to attract the local infected director.
+          db = World.recordNoise(db, user.acct, weaponId === 'pump_shotgun' ? 95 : weaponId === 'marksman_rifle' ? 82 : 62, combatAt);
           player.weaponMagazine = { weaponId, loaded: outcome.base.resources.ammo };
           outcome.base.resources.ammo = base.resources.ammo;
           player.inventory = carried;

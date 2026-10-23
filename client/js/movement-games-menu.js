@@ -19,7 +19,12 @@ style.textContent = `
 body.wl-travel #bcMoveGamesPanel .bc-mg-lock{display:block}
 body.wl-travel #bcMoveGamesPanel [data-move=orbit],body.wl-travel #bcMoveGamesPanel [data-move=fly],body.wl-travel #bcMoveGamesPanel [data-move=tour],body.wl-travel #bcMoveGamesPanel [data-move=boat],body.wl-travel #bcMoveGamesPanel [data-game]:not([data-game=arena]){display:none!important}
 #bcMoveGamesPanel.no-wilds [data-game=wilds]{display:none}
+#bcMoveGamesPanel .bc-mg-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
+#bcMoveGamesPanel .bc-mg-tab{min-height:44px;border:1px solid #ffffff24;border-radius:10px;background:#ffffff08;color:#c8c0bc;font:800 12px/1.2 var(--f-mono,monospace)}
+#bcMoveGamesPanel .bc-mg-tab[aria-selected=true]{background:#ff7a1a20;border-color:#ff9b4a;color:#ffbd84;box-shadow:inset 0 -2px #ff9b4a}
 #bcMoveGamesPanel .bc-mg-section{margin-top:14px}
+#bcMoveGamesPanel .bc-mg-section[hidden]{display:none!important}
+#btns button[data-m=orbit],#btns button[data-m=explore],#btns .seg{display:none!important}
 #bcMoveGamesPanel .bc-mg-section-title{display:flex;align-items:center;gap:8px;margin:0 0 8px;color:#e7d9d0;font:800 11px/1.2 var(--f-mono,monospace);letter-spacing:.12em;text-transform:uppercase}
 #bcMoveGamesPanel .bc-mg-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 #bcMoveGamesPanel .bc-mg-entry{display:flex;align-items:flex-start;gap:10px;min-height:72px;width:100%;padding:11px;border:1px solid #ffffff1c;border-radius:11px;background:#ffffff08;color:#fff;text-align:left}
@@ -53,7 +58,11 @@ panel.setAttribute('aria-labelledby','bcMoveGamesTitle');
 panel.innerHTML = `
  <section class="bc-mg-card">
   <header class="bc-mg-head"><div><h2 id="bcMoveGamesTitle">MOVEMENT &amp; GAMES</h2><p class="bc-mg-sub">Choose how to travel or what to play. Everything in one place.</p></div><button class="bc-mg-close" type="button" aria-label="Close menu">×</button></header>
-  <section class="bc-mg-section" aria-labelledby="bcMgMovementTitle">
+  <div class="bc-mg-tabs" role="tablist" aria-label="Menu category">
+   <button class="bc-mg-tab" id="bcMgMovementTab" type="button" role="tab" aria-controls="bcMgMovement" aria-selected="true">⌁ Movement</button>
+   <button class="bc-mg-tab" id="bcMgGamesTab" type="button" role="tab" aria-controls="bcMgGames" aria-selected="false">🎮 Games</button>
+  </div>
+  <section class="bc-mg-section" id="bcMgMovement" role="tabpanel" aria-labelledby="bcMgMovementTab">
    <h3 class="bc-mg-section-title" id="bcMgMovementTitle">⌁ Movement &amp; View</h3>
    <div class="bc-mg-list">
     <button class="bc-mg-entry" type="button" data-move="orbit"><span class="bc-mg-icon">◎</span><span><strong>Orbit</strong><small>Rotate around the city overview</small></span></button>
@@ -64,7 +73,7 @@ panel.innerHTML = `
    </div>
   </section>
   <p class="bc-mg-lock" role="note">🌲 You are in the Wilds: travel is on foot only. Walk back out through the gate for Orbit, Flight, Tour, Blacktide and the rest.</p>
-  <section class="bc-mg-section bc-mg-games" aria-labelledby="bcMgGamesTitle">
+  <section class="bc-mg-section bc-mg-games" id="bcMgGames" role="tabpanel" aria-labelledby="bcMgGamesTab" hidden>
    <h3 class="bc-mg-section-title" id="bcMgGamesTitle">🎮 Games &amp; Activities</h3>
    <div class="bc-mg-list">
     <button class="bc-mg-entry" type="button" data-game="blacktide"><span class="bc-mg-icon">⚓</span><span><strong>Blacktide</strong><small>Pirate frontier · sail, trade, and encounter NPC ships</small></span></button>
@@ -73,13 +82,32 @@ panel.innerHTML = `
     <button class="bc-mg-entry" type="button" data-game="wilds"><span class="bc-mg-icon">🌲</span><span><strong>The Wilds</strong><small>Takes you to the forest gate north of town · on foot only inside</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="city"><span class="bc-mg-icon">🔥</span><span><strong>BURN City</strong><small>Return to the live 3D city world</small></span></button>
    </div>
-   <p class="bc-mg-foot">Movement shortcuts remain available on the main screen. This menu is the complete directory for travel and play.</p>
+   <p class="bc-mg-foot">This menu is the complete directory for travel and play.</p>
   </section>
  </section>`;
 const bar=document.getElementById('btns');
 if(bar){const ob=wrap.firstElementChild;bar.insertBefore(ob,bar.querySelector('#playBtn,#moreBtn'));document.body.append(panel)}else document.body.append(wrap,panel);
 const opener=document.getElementById('bcMoveGamesOpen');
 const closeButton=panel.querySelector('.bc-mg-close');
+const movementTab=panel.querySelector('#bcMgMovementTab');
+const gamesTab=panel.querySelector('#bcMgGamesTab');
+const movementPanel=panel.querySelector('#bcMgMovement');
+const gamesPanel=panel.querySelector('#bcMgGames');
+function selectTab(which,focus=false){
+ const games=which==='games';
+ movementTab.setAttribute('aria-selected',String(!games));
+ gamesTab.setAttribute('aria-selected',String(games));
+ movementPanel.hidden=games;
+ gamesPanel.hidden=!games;
+ movementTab.tabIndex=games?-1:0;
+ gamesTab.tabIndex=games?0:-1;
+ if(focus)(games?gamesTab:movementTab).focus();
+}
+movementTab.addEventListener('click',()=>selectTab('movement'));
+gamesTab.addEventListener('click',()=>selectTab('games'));
+[movementTab,gamesTab].forEach((tab,index)=>tab.addEventListener('keydown',e=>{
+ if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();selectTab(index===0?'games':'movement',true)}
+}));
 const Q=new URLSearchParams(location.search);
 if(Q.has('nowilds'))panel.classList.add('no-wilds');
 const touch=()=>window.__city?!!window.__city.MOBILE:matchMedia('(pointer:coarse)').matches;
@@ -107,6 +135,7 @@ async function travel(k){
 }
 const close=(focus=true)=>{panel.classList.remove('on');opener.setAttribute('aria-expanded','false');if(focus)opener.focus()};
 const open=()=>{
+ selectTab('movement');
  const fh=panel.querySelector('.bc-mg-flyhint');if(fh)fh.textContent=touch()?'Free-fly above the city · left stick, drag to look, ▲ / ▼':'Free-fly above the city · WASD, Space up, C down';
  const bh=panel.querySelector('.bc-mg-boathint');if(bh)bh.textContent=touch()?'Takes you to the boat dock · tap 🚤 Board boat':'Takes you to the boat dock · board with E';
  panel.classList.add('on');opener.setAttribute('aria-expanded','true');closeButton.focus()};

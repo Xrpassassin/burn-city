@@ -566,6 +566,20 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       record(s, 'defense', lost ? 'The refuge fell during a perimeter breach. ' + guardText + '.' + targetOutcome : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + guardText + '; ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.' + targetOutcome + breachText, now);
       break;
     }
+    case 'emergency_repair': {
+      const target = s.structures.find(x => x.id === action.target);
+      if (!target) throw new Error('unknown_repair_target');
+      const defensiveTypes = new Set(['wall', 'gate', 'watchtower', 'entrance', 'exit', 'sandbags', 'barbed_wire', 'trench', 'turret']);
+      if (!defensiveTypes.has(target.type)) throw new Error('not_a_defensive_structure');
+      if (target.hp >= target.maxHp) throw new Error('already_repaired');
+      if (s.resources.wood < 4 || s.resources.scrap < 2) throw new Error('emergency_repair_supplies_required');
+      s.resources.wood -= 4;
+      s.resources.scrap -= 2;
+      const before = target.hp;
+      target.hp = Math.min(target.maxHp, target.hp + 100);
+      record(s, 'repair', 'Emergency repair: ' + target.type + ' ' + target.id + ' restored +' + (target.hp - before) + ' HP (' + Math.round(target.hp / target.maxHp * 100) + '% integrity).', now);
+      break;
+    }
     case 'repair': {
       if (s.resources.wood < 2 || s.resources.scrap < 1) throw new Error('repair_supplies_required');
       const target = action.target === 'base' ? null : s.structures.find(x => x.id === action.target);

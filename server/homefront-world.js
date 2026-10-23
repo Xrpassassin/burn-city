@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const Combat = require('./homefront-combat');
 const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
+const Loot = require('./homefront-loot');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
@@ -44,12 +45,13 @@ const POINTS_OF_INTEREST = [
 ];
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : 0));
-const defaultWorld = () => ({ version: 1, players: {}, parties: {}, encounters: {} });
+const defaultWorld = () => ({ version: 1, players: {}, parties: {}, encounters: {}, lootNodes: {} });
 function normalizeWorld(input) {
   const w = input && input.version === 1 ? input : defaultWorld();
   if (!w.players || typeof w.players !== 'object' || Array.isArray(w.players)) w.players = {};
   if (!w.parties || typeof w.parties !== 'object' || Array.isArray(w.parties)) w.parties = {};
   w.encounters = Combat.normalizeEncounters(w.encounters);
+  w.lootNodes = Loot.normalize(w.lootNodes);
   if (!w.bosses || typeof w.bosses !== 'object' || Array.isArray(w.bosses)) w.bosses = {};
   if (!w.caches || typeof w.caches !== 'object' || Array.isArray(w.caches)) w.caches = {};
   for (const point of POINTS_OF_INTEREST.filter(p => p.type === 'cache')) {
@@ -111,7 +113,7 @@ function snapshot(input, acct, now = Date.now()) {
   const p = w.players[acct] || null;
   const party = p?.partyCode && w.parties[p.partyCode];
   return {
-    world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, bosses: w.bosses, caches: w.caches, rescues: w.rescues },
+    world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
     players: Object.entries(w.players).map(([id, player]) => publicPlayer(id, player, acct, now)).filter(v => v.online),
     self: p ? publicPlayer(acct, p, acct, now) : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now)) } : null,

@@ -628,7 +628,9 @@ function boot(host) {
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
       if (data.combat) {
         authoritativeAimStability = Number.isFinite(data.combat.aimStability) ? data.combat.aimStability : null;
-        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: { damage: data.combat.damage, hitZone: data.combat.hitZone, killed: data.combat.killed, weaponId: equippedWeaponId, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 } }));
+        const hitDetail = { damage: data.combat.damage, hitZone: data.combat.hitZone, killed: data.combat.killed, weaponId: equippedWeaponId, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 };
+        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: hitDetail }));
+        window.dispatchEvent(new CustomEvent('homefront:combat-hit-feedback', { detail: hitDetail }));
       }
       updateWorld(data);
       if (data.combat && combatStatus) {

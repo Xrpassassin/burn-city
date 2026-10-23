@@ -242,6 +242,7 @@ facilityBase.survivors = [
 facilityBase.structures = [
   { id: 'q1', type: 'quarry', material: 'wood', hp: 140, maxHp: 140, x: 7, z: 0 },
   { id: 's1', type: 'smelter', material: 'wood', hp: 160, maxHp: 160, x: -7, z: 0 },
+  { id: 's2', type: 'smelter', material: 'wood', hp: 160, maxHp: 160, x: -5, z: 0 },
   { id: 'sy1', type: 'salvage_yard', material: 'wood', hp: 130, maxHp: 130, x: 0, z: 7 }
 ];
 const facilityShift = Core.applyAction(facilityBase, 'rMaterialFacilities', { type: 'workday' }, now + 20);

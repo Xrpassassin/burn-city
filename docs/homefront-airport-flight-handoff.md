@@ -103,3 +103,5 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Opening a nearby cache runs a normal location/difficulty expedition, then adds a location- and difficulty-scaled cache bundle of scrap, wood, ammunition, medicine (higher-risk caches), and Embers.
 - Cache availability is shared world state and persists across requests. A claimed cache enters a five-minute cooldown for every explorer; the server validates location, difficulty, cooldown, resource caps, and payout. The tactical map uses a shared cooldown state so the first explorer to claim it wins the cache.
 - Added world/API regression coverage for cache markers, initial availability, bonus rewards, persisted cooldowns, and cross-player duplicate-claim prevention.
+
+- Generic refuge actions reject direct `expedition` and `boss_attack` requests; scavenging, cache opening, and boss damage must pass through the authenticated shared-world endpoints that validate physical proximity. This prevents API callers from bypassing the map's location progression.

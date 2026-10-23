@@ -42,6 +42,7 @@ function boot(host) {
   const attackInfectedButton = document.getElementById('attackInfected');
   const autoFireButton = document.getElementById('autoFireInfected');
   let selectedCombatTargetId = null;
+  let selectedCombatAimPoint = null;
   let autoFireHeld = false;
   let autoFireTimer = null;
   const zombieMixers = [];
@@ -279,7 +280,7 @@ function boot(host) {
     for (const [id, actor] of combatActors) {
       if (activeEncounterIds.has(id)) continue;
       combatGroup.remove(actor); clearGroup(actor); combatActors.delete(id);
-      if (selectedCombatTargetId === id) { selectedCombatTargetId = null; autoFireHeld = false; if (autoFireTimer) clearTimeout(autoFireTimer); autoFireTimer = null; }
+      if (selectedCombatTargetId === id) { selectedCombatTargetId = null; selectedCombatAimPoint = null; autoFireHeld = false; if (autoFireTimer) clearTimeout(autoFireTimer); autoFireTimer = null; }
     }
     const selfEncounter = data.selfEncounter || data.encounter || null;
     const enemyDistance = selfEncounter && data.self
@@ -354,7 +355,7 @@ function boot(host) {
       const r = await fetch(API + '/api/homefront/world/' + action, {
         method: 'POST',
         headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
-        body: JSON.stringify(targetId ? { targetId } : {})
+        body: JSON.stringify(targetId ? { targetId, ...(selectedCombatAimPoint ? { aimPoint: selectedCombatAimPoint } : {}) } : {})
       });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
@@ -378,6 +379,7 @@ function boot(host) {
         : e.message === 'attack_cooldown' ? 'Recovering from your last attack. Try again in a moment.'
         : e.message === 'insufficient_ammo' || e.message === 'field_supplies_required' ? 'Not enough carried ammunition to fire.'
         : e.message === 'target_mismatch' ? 'That target is not your active encounter. Select your active infected.'
+        : e.message === 'invalid_aim_point' ? 'Aim point fell outside the infected hitbox. Select its body again.'
         : 'Combat unavailable: ' + e.message;
     } finally {
       moving = false;
@@ -387,6 +389,7 @@ function boot(host) {
         const self = worldData?.self || null;
         const distance = active && self ? Math.hypot(self.x - active.x, self.z - active.z) : Infinity;
         attackInfectedButton.disabled = !active || active.defeated || active.hp <= 0 || distance > (active.range || 0);
+        if (autoFireButton) autoFireButton.disabled = !autoFireHeld && (!active || selectedCombatTargetId !== active.id || active.defeated || active.hp <= 0 || distance > (active.range || 0));
       }
     }
   }
@@ -445,9 +448,11 @@ function boot(host) {
       while (target && !target.userData?.encounterId) target = target.parent;
       if (target?.userData?.encounterId) {
         selectedCombatTargetId = target.userData.encounterId;
+        const hit = combatHits[0].point;
+        selectedCombatAimPoint = { x: hit.x, y: hit.y, z: hit.z };
         const active = worldData?.selfEncounter || worldData?.encounter || null;
         if (combatStatus) combatStatus.textContent = active?.id === selectedCombatTargetId
-          ? 'Target locked: ' + (active.enemy || 'infected') + '. Hold autofire to engage.'
+          ? 'Target locked: ' + (active.enemy || 'infected') + ' · aim point set. Hold autofire to engage.'
           : 'Target selected, but only your active encounter can be attacked right now.';
         updateWorld(worldData);
         return;

@@ -53,13 +53,13 @@ assert.ok(scene.includes("if (detail.killed && style === 'sharp' && target)"), '
 assert.match(scene, /homefront:combat-hit/, 'impact response only runs from confirmed combat results');
 
 assert.match(scene, /import \{ sfx \} from '\.\/sfx\.js'/, 'reuse the existing arena sound engine');
-assert.match(scene, /sfx\.play\('hit'/, 'play an existing zombie hit effect on confirmed impacts');
-assert.match(scene, /const count = detail\.killed \? 18 : 9/, 'scale blood particle count for confirmed killing blows');
+assert.ok(scene.includes("sfx.play(sfx.has(sound) ? sound : 'hit'"), 'fall back to a loaded hit sample when a dedicated weapon sound is unavailable');
+assert.ok(scene.includes("const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16)"), 'head hits get distinct blood particle feedback');
 assert.match(scene, /drop\.userData\.blood = true/, 'mark short-lived blood particles for fade-out');
 
 assert.match(scene, /const weaponId = \['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'\]/, 'select only known server-equipped weapon profiles for impact feedback');
 assert.match(scene, /weaponId === 'pump_shotgun' \? 'shotgun'/, 'shotgun impacts use their dedicated licensed sample when available');
-assert.match(scene, /weaponId === 'pump_shotgun' \? 26 : 18/, 'shotgun killing blows produce a wider, stronger impact burst');
+assert.ok(scene.includes("detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18)"), 'shotgun killing blows produce a wider, stronger impact burst');
 assert.match(scene, /\.catch\(\(\) => \{\}\)/, 'audio asset failures cannot interrupt confirmed combat feedback');
 assert.match(scene, /data\.combat\.encounterId/, 'resolve encounter IDs from the combat response when available');
 

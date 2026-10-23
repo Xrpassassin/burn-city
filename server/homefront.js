@@ -165,6 +165,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     if (!payload || !payload.action || typeof payload.action !== 'object' || Array.isArray(payload.action)) {
       json(res, 400, { error: 'invalid_action' }); return true;
     }
+    if (payload.action.type === 'expedition' || payload.action.type === 'boss_attack') throw new Error('use_shared_expedition_map');
     const next = Core.applyAction(base, user.acct, payload.action);
     db[user.acct] = next;
     store.save('homefront.json', db);
@@ -172,7 +173,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     return true;
   } catch (e) {
     const message = String(e?.message || 'homefront_error');
-    const clientError = /^(invalid_|unknown_|insufficient_|placement_|building_cap|structure_limit|survivor_capacity|guard_capacity|expedition_supplies_required|base_destroyed|not_enough_food|repair_supplies_required|already_repaired|upgrade_maxed|resource_capacity)/.test(message);
+    const clientError = /^(invalid_|unknown_|insufficient_|placement_|building_cap|structure_limit|survivor_capacity|guard_capacity|expedition_supplies_required|base_destroyed|not_enough_food|repair_supplies_required|already_repaired|upgrade_maxed|resource_capacity|use_shared_expedition_map)/.test(message);
     json(res, clientError ? 400 : 500, { error: message });
     if (!clientError) console.error('[homefront]', message);
     return true;

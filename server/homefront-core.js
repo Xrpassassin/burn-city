@@ -739,9 +739,10 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const defensiveTypes = new Set(['wall', 'gate', 'watchtower', 'entrance', 'exit', 'sandbags', 'barbed_wire', 'trench', 'turret']);
       if (!defensiveTypes.has(target.type)) throw new Error('not_a_defensive_structure');
       if (target.hp >= target.maxHp) throw new Error('already_repaired');
-      if (s.resources.wood < 4 || s.resources.scrap < 2) throw new Error('emergency_repair_supplies_required');
-      s.resources.wood -= 4;
-      s.resources.scrap -= 2;
+      const material = MATERIAL_TIERS[target.material] ? target.material : 'wood';
+      const repairCost = material === 'stone' ? { stone: 2, scrap: 2 } : material === 'steel' ? { steel: 2, scrap: 4 } : { wood: 4, scrap: 2 };
+      if (Object.entries(repairCost).some(([resource, amount]) => (s.resources[resource] || 0) < amount)) throw new Error('emergency_repair_supplies_required');
+      for (const [resource, amount] of Object.entries(repairCost)) s.resources[resource] -= amount;
       const before = target.hp;
       target.hp = Math.min(target.maxHp, target.hp + 100);
       syncSurvivorBehavior(s, now);

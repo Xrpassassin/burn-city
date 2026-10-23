@@ -188,7 +188,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           }
           addSessionTotals(player, { resources: lootResources });
           for (const drop of found.overflow) {
-            const resourceId = ({ rawFood: 'food', dirtyWater: 'water' })[drop.item] || drop.item;
+            const resourceId = drop.item;
             if (Object.prototype.hasOwnProperty.call(base.resources, resourceId)) {
               base.resources[resourceId] = Math.min(999999, (base.resources[resourceId] || 0) + drop.amount);
             }

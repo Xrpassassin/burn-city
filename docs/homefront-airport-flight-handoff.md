@@ -42,3 +42,9 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Intact storage sheds now improve scavenger scrap output during work shifts; damaged or destroyed sheds provide no bonus. Regression coverage compares a plain shift, an intact shed, and a destroyed shed.
 
 - Guard morale now contributes to defensive strength during breach resolution. High-morale guards provide 1.25 guard-strength units, steady guards 1.0, low-morale guards 0.75, and critically demoralized guards 0.5. Ammunition consumption still depends on guard headcount, while combat effectiveness depends on morale. A simulation test checks that high-morale guards preserve more refuge integrity than demoralized guards in the same first breach.
+
+
+## Survivor morale recovery
+- Owners can spend four food on a campfire rally to raise each survivor below 100 morale by up to 15 points. Morale never exceeds 100, and a rally is rejected if there are no survivors, everyone is already at maximum morale, or food is insufficient.
+- Rallying is a server-authoritative Homefront action, recorded in the settlement log and saved with the base revision. The owner UI disables the action when its prerequisites are not met; visitor mode remains read-only.
+- Regression coverage verifies food cost, morale clamping, no-survivor and insufficient-food failures, and no-op prevention when morale is already full.

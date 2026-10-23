@@ -498,12 +498,6 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const threat = profile.threat;
       const defense = profile.defense;
       const damage = profile.projectedStructureDamage;
-      // A larger, food-producing settlement is noisier and draws heavier infected pressure.
-      // Fortifications still contribute defense above, so growth is risky rather than automatically fatal.
-      const activeFarmPlots = s.farmPlots.filter(plot => plot.crop).length;
-      const settlementPressure = Math.floor(active.length / 3) + Math.floor(activeFarmPlots / 3);
-      const threat = 9 + Math.floor(s.survivors.length / 4) + settlementPressure;
-      const damage = Math.max(0, Math.ceil((threat - defense) * 6));
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
       // Siege pressure hits the outer defensive ring first, rather than damaging structures
       // in arbitrary creation order. Perimeter obstacles absorb hits before inner production buildings.

@@ -58,7 +58,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const base = Core.validateBase(savedBase, user.acct);
           if (!base) throw new Error('save_invalid');
           const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty : 'standard';
-          const nextBase = Core.applyAction(base, user.acct, { type: 'expedition', zone: nearest.point.zone, difficulty });
+          const nextBase = Core.applyAction(base, user.acct, { type: isBoss ? 'boss_attack' : 'expedition', zone: nearest.point.zone, difficulty });
           let defeated = false;
           if (isBoss) {
             const boss = db.bosses[nearest.point.id];

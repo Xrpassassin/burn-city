@@ -526,7 +526,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       if (!base) { json(res, 500, { error: 'save_invalid', message: 'The saved refuge could not be validated; it was not overwritten.' }); return true; }
     }
     if (req.method === 'GET' && url.pathname === '/api/homefront') {
-      json(res, 200, { mode: 'homefront', base });
+      json(res, 200, { mode: 'homefront', base, threatProfile: Core.threatProfile(base) });
       return true;
     }
     if (req.method !== 'POST' || url.pathname !== '/api/homefront/action') {
@@ -550,7 +550,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
     }
     db[user.acct] = next;
     store.save('homefront.json', db);
-    json(res, 200, { mode: 'homefront', base: next });
+    json(res, 200, { mode: 'homefront', base: next, threatProfile: Core.threatProfile(next) });
     return true;
   } catch (e) {
     const message = String(e?.message || 'homefront_error');

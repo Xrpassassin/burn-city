@@ -53,6 +53,20 @@ assert.ok(Math.hypot(world.players['acct-b'].x - world.players['acct-a'].x, worl
 assert.equal(W.districtAt(0, 0).risk, 5, 'deep city core is high risk');
 assert.equal(W.districtAt(-8, -82).risk, 1, 'outer spawn is low risk');
 
+const handlingEntry = W.enter(W.defaultWorld(), 'handling-player', 1000);
+const aimedEntry = W.setAiming(handlingEntry.world, 'handling-player', true, 2000);
+assert.equal(aimedEntry.result.selfWeaponHandling.aiming, true, 'aim stance is persisted and returned by the server');
+const slowMove = W.move(aimedEntry.world, 'handling-player', 100, -82, 3000);
+const slowDistance = Math.hypot(slowMove.result.self.x - aimedEntry.result.self.x, slowMove.result.self.z - aimedEntry.result.self.z);
+assert.ok(slowDistance <= W.MOVE_STEP * W.AIM_MOVE_SCALE.pipe_blade + 0.2, 'aiming applies a server-side movement penalty');
+assert.equal(slowMove.result.selfWeaponHandling.aiming, false, 'accepted movement lowers the weapon server-side');
+const sprintMove = W.move(slowMove.world, 'handling-player', 100, -82, 4000, true);
+const sprintDistance = Math.hypot(sprintMove.result.self.x - slowMove.result.self.x, sprintMove.result.self.z - slowMove.result.self.z);
+assert.ok(sprintDistance <= W.SPRINT_STEP + 0.2, 'sprint movement remains server-clamped to its larger step budget');
+assert.equal(sprintMove.world.players['handling-player'].lastSprintAt, 4000, 'server records sprint timing for accuracy recovery');
+assert.equal(sprintMove.world.players['handling-player'].accuracyRecoverUntil, 4000 + W.SPRINT_RECOVERY_MS, 'sprint creates a bounded post-sprint accuracy recovery window');
+assert.throws(() => W.move(W.setAiming(sprintMove.world, 'handling-player', true, 5000).world, 'handling-player', 100, -82, 6000, true), /lower_weapon_before_sprinting/);
+
 const absent = W.snapshot(world, 'acct-a', 50000);
 assert.equal(absent.players.length, 0, 'stale explorers expire from shared presence');
 

@@ -116,7 +116,8 @@ function move(input, acct, x, z, now = Date.now()) {
   if (!p) throw new Error('not_in_expedition');
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader !== acct) throw new Error('party_leader_controls_movement');
   if (now - p.lastMove < 900) throw new Error('move_cooldown');
-  const nx = clamp(x, -WORLD_SIZE, WORLD_SIZE), nz = clamp(z, -WORLD_SIZE, WORLD_SIZE);
+  let nx = clamp(x, -WORLD_SIZE, WORLD_SIZE), nz = clamp(z, -WORLD_SIZE, WORLD_SIZE);
+  const radius = Math.hypot(nx, nz); if (radius > WORLD_SIZE) { nx = nx / radius * WORLD_SIZE; nz = nz / radius * WORLD_SIZE; }
   const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz);
   const scale = d > MOVE_STEP ? MOVE_STEP / d : 1;
   p.x = Math.round((p.x + dx * scale) * 10) / 10; p.z = Math.round((p.z + dz * scale) * 10) / 10;

@@ -227,3 +227,25 @@ assert.throws(() => Core.applyAction(steelWall, 'rMaterialTiers', { type: 'upgra
 const legacyMaterial = Core.validateBase({ ...materialBase, resources: { ...materialBase.resources, stone: undefined, steel: undefined }, structures: [{ id: 'legacy-wall', type: 'wall', hp: 60, maxHp: 100, x: 8, z: 0, rotation: 0 }] }, 'rMaterialTiers');
 assert.equal(legacyMaterial.resources.stone, 0, 'legacy saves safely gain empty advanced-material inventories');
 assert.equal(legacyMaterial.structures[0].material, 'wood', 'legacy structures default to the original wood tier');
+
+
+// Facilities turn survivor labor into advanced materials through the authoritative workday.
+const facilityBase = Core.createBase('rMaterialFacilities', now);
+facilityBase.resources.food = 100;
+facilityBase.resources.scrap = 30;
+facilityBase.resources.stone = 20;
+facilityBase.resources.steel = 0;
+facilityBase.survivors = [
+  { id: 'facility-mechanic', name: 'Ivo', role: 'mechanic', morale: 100, stats: { engineering: 10 } },
+  { id: 'facility-scavenger', name: 'June', role: 'scavenger', morale: 100, stats: { scavenging: 10 } }
+];
+facilityBase.structures = [
+  { id: 'q1', type: 'quarry', material: 'wood', hp: 140, maxHp: 140, x: 7, z: 0 },
+  { id: 's1', type: 'smelter', material: 'wood', hp: 160, maxHp: 160, x: -7, z: 0 },
+  { id: 'sy1', type: 'salvage_yard', material: 'wood', hp: 130, maxHp: 130, x: 0, z: 7 }
+];
+const facilityShift = Core.applyAction(facilityBase, 'rMaterialFacilities', { type: 'workday' }, now + 20);
+assert.ok(facilityShift.resources.stone < 20, 'smelter consumes stone as an industrial input after quarry production');
+assert.ok(facilityShift.resources.steel > 0, 'smelter produces steel from stored scrap and stone');
+assert.ok(facilityShift.resources.scrap < 30, 'steel production consumes scrap');
+assert.match(facilityShift.log.at(-1).text, /Facilities: \+\d+ stone, \+\d+ steel/, 'workday report includes processed material output');

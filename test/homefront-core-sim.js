@@ -266,6 +266,23 @@ const normalizedFortifications = H.validateBase(fortified, 'fortification-test')
 assert.equal(normalizedFortifications.structures.find(x => x.id === trench.id).trenchLevel, 3, 'trench tier persists through save normalization');
 assert.equal(normalizedFortifications.structures.find(x => x.id === entrance.id).rotation, Math.PI / 2, 'entrance rotation persists through save normalization');
 
+// Threat forecasts are deterministic and use the same model as the defend action.
+const forecastBase = H.createBase('threat-profile-test', 5150);
+const quietForecast = H.threatProfile(forecastBase);
+assert.equal(quietForecast.outlook, 'strained', 'an unfortified starting refuge forecasts a manageable but nonzero threat');
+const forecastExpanded = H.createBase('threat-profile-test', 5150);
+forecastExpanded.structures = Array.from({ length: 6 }, (_, i) => ({
+  id: 'garden-' + i, type: 'garden', hp: 70, maxHp: 70,
+  x: 3 + i, z: 0, rotation: 0, trenchLevel: 0, manned: false
+}));
+forecastExpanded.farmPlots = Array.from({ length: 6 }, (_, i) => ({
+  id: 'plot-' + i, x: i, z: 0, crop: 'potato', growth: 0, watered: false, plantedAt: 0
+}));
+const expandedForecast = H.threatProfile(forecastExpanded);
+assert.ok(expandedForecast.threat > quietForecast.threat, 'settlement and farm expansion raise forecast threat');
+assert.equal(expandedForecast.settlementPressure, 4, 'pressure exposes separate structure and crop contributions');
+assert.equal(expandedForecast.outlook, 'critical', 'an expanded production settlement with no fortifications warns of critical projected damage');
+
 // Settlement growth attracts additional infected pressure: production sprawl is riskier without defenses.
 const quietBase = H.createBase('growth-pressure-test', 5200);
 quietBase.resources.ammo = 20;

@@ -6,6 +6,15 @@ on:
       - 'server/homefront-core.js'
       - 'server/homefront.js'
       - 'server/server.js'
+      - 'server/game.js'
+      - 'server/flight-lobby.js'
+      - 'client/arena/flight-lobby.html'
+      - 'client/js/app.js'
+      - 'client/js/airport.js'
+      - 'client/js/experience-registry.mjs'
+      - 'client/js/experience-registry.test.mjs'
+      - 'test/flight-lobby-sim.js'
+      - 'test/zombie-helicopter-arrival-sim.js'
       - 'client/arena/homefront.html'
       - 'client/arena/assets/homefront/**'
       - 'client/arena/index.html'
@@ -15,6 +24,7 @@ on:
       - 'docs/zombies-homefront.md'
       - 'package.json'
       - '.github/workflows/homefront-core-test.yml'
+      - '.github/workflows/homefront-airport-flight.yml'
 
 jobs:
   homefront-core:
@@ -24,12 +34,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install dependencies
+        run: npm ci
       - name: Check server syntax
         run: |
           node --check server/homefront-core.js
           node --check server/homefront.js
           node --check server/server.js
+          node --check server/game.js
+          node --check server/flight-lobby.js
       - name: Check Homefront browser module syntax
         run: node --input-type=module --check < <(node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/homefront.html","utf8");const m=s.split("<script type=\\"module\\">")[1]?.split("</script>")[0];if(!m)process.exit(2);process.stdout.write(m)')
+      - name: Check flight lobby browser syntax
+        run: node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/flight-lobby.html","utf8");const m=s.match(/<script>([\\s\\S]*?)<\\/script>/);if(!m)throw Error("Missing flight-lobby script");new Function(m[1])'
+      - name: Run airport experience registry tests
+        run: npm run test:experience-registry
+      - name: Run helicopter arrival spawn simulation
+        run: npm run test:zombie-arrival
+      - name: Run shared flight lobby simulation
+        run: npm run test:flight-lobby
       - name: Run Homefront settlement simulation
         run: npm run test:homefront

@@ -13,10 +13,10 @@ assert.ok(ate.hunger > 77.9 && ate.hunger < 78, 'eating restores hunger after no
 const drank = S.act({ ...fresh, thirst: 30 }, 'drink', start + 1000);
 assert.ok(drank.thirst > 74.9 && drank.thirst < 75, 'drinking restores thirst after normal elapsed-time decay');
 const bandaged = S.act({ ...fresh, health: 50, infection: 10 }, 'bandage', start + 1000);
-assert.ok(bandaged.health > 79.9 && bandaged.health < 80, 'bandage restores health after normal elapsed-time recovery');
+assert.equal(bandaged.health, 80, 'bandage restores health');
 assert.equal(bandaged.infection, 2, 'bandage reduces infection pressure');
 const rested = S.act({ ...fresh, stamina: 20 }, 'catch_breath', start + 1000);
-assert.ok(rested.stamina > 64.9 && rested.stamina < 65, 'rest restores stamina after normal elapsed-time decay');
+assert.equal(rested.stamina, 65, 'rest restores stamina');
 assert.throws(() => S.act(fresh, 'eat', start + 1000), /not_hungry/);
 assert.throws(() => S.act(fresh, 'drink', start + 1000), /not_thirsty/);
 assert.throws(() => S.act(fresh, 'bandage', start + 1000), /not_injured/);

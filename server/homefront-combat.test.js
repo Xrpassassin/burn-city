@@ -56,4 +56,24 @@ assert.equal(tired.survival.stamina,2,'each attack consumes eight stamina');
 const restedSpawn=C.spawn({encounters:{},account:'rested',player,now:400000});
 const rested=C.attack({encounters:restedSpawn.encounters,account:'rested',player,base:base(),survival:{stamina:100,health:100},now:401000,weaponPower:1});
 assert.ok(tired.damage<rested.damage,'low stamina reduces attack damage');
-console.log('Homefront authoritative combat tests passed.');
+
+const Director = require('./homefront-director');
+const lowRiskPlan = Director.planEncounter({ zoneId: 'outskirts', risk: 1, seed: 'low-risk-test' });
+const highRiskPlan = Director.planEncounter({ zoneId: 'research_lab', risk: 5, seed: 'high-risk-test' });
+assert.equal(lowRiskPlan.zoneId, 'outskirts');
+assert.equal(highRiskPlan.zoneId, 'research_lab');
+assert.ok(highRiskPlan.threat > lowRiskPlan.threat, 'director threat increases with district risk');
+assert.ok(highRiskPlan.recommendedMaxAlive > lowRiskPlan.recommendedMaxAlive, 'recommended infected cap scales with district risk');
+assert.ok(highRiskPlan.spawnIntervalMs < lowRiskPlan.spawnIntervalMs, 'higher-risk districts recommend faster reinforcements');
+assert.equal(Director.planEncounter({ zoneId: 'research_lab', risk: 5, seed: 'repeatable' }).event,
+  Director.planEncounter({ zoneId: 'research_lab', risk: 5, seed: 'repeatable' }).event,
+  'encounter decisions are deterministic for a fixed seed and context');
+assert.ok(Director.planEncounter({ zoneId: 'outskirts', risk: 1, playerCount: 4, seed: 'group' }).pressure >
+  Director.planEncounter({ zoneId: 'outskirts', risk: 1, playerCount: 1, seed: 'group' }).pressure,
+  'nearby player count contributes to director pressure');
+assert.ok(Director.planEncounter({ zoneId: 'outskirts', risk: 1, noise: 80, seed: 'noise' }).weights.special >
+  Director.planEncounter({ zoneId: 'outskirts', risk: 1, noise: 0, seed: 'noise' }).weights.special,
+  'noise raises special-infected probability');
+assert.equal(Director.planEncounter({ zoneId: 'invalid-zone', risk: 99, seed: 'bounds' }).zoneId, 'outskirts',
+  'invalid districts fall back to safe defaults');
+\nconsole.log('Homefront authoritative combat tests passed.');

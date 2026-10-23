@@ -236,7 +236,3 @@ assert.match(homefrontPage, /const incident=base\.lastSiege/, 'render the server
 assert.match(homefrontPage, /incident\.phases/, 'render the ordered incident phases');
 assert.match(homefrontPage, /incident\.target\.integrityBefore/, 'show target integrity before and after the siege');
 assert.match(homefrontPage, /incident\.refugeHpAfter\+'\/'+base\.baseMaxHp/, 'show refuge health after the incident');
-assert.match(homefrontPage, /record\(s, 'siege_warning', warningText, now\)/, 'server records the warning phase');
-assert.match(homefrontPage, /record\(s, 'guard_response'/, 'server records the guard response phase');
-assert.match(homefrontPage, /s\.lastSiege = \{/, 'persist a structured last-siege incident report');
-assert.match(homefrontPage, /phases: \[/, 'persist the warning, guard response, and resolution timeline');

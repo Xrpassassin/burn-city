@@ -18,6 +18,10 @@ for (const roadCenter of [-90, -70, -50, -30, -10, 10, 30, 50, 70, 90]) {
   }
 }
 assert.equal(serverTerrain.canTraverse(0, 0, 12, 8), true, 'the current gentle terrain should be traversable');
+assert.equal(serverTerrain.isSafePosition(-8, -82), true, 'authored perimeter spawn is grounded on traversable terrain');
+assert.equal(serverTerrain.isSafePosition(100, 100), false, 'placement outside the circular world boundary is rejected');
+assert.equal(serverTerrain.isSafePosition(Number.NaN, 0), false, 'non-finite positions are rejected by placement validation');
+assert.throws(() => serverTerrain.isSafePosition(0, 0, { clearance: 0 }), TypeError);
 assert.equal(serverTerrain.canTraverse(0, 0, 12, 8, { maxRisePer2Units: 1e-10 }), false, 'grade guard must reject a deliberately restrictive threshold');
 assert.throws(() => serverTerrain.canTraverse(0, 0, 1, 1, { maxRisePer2Units: 0 }), TypeError);
 

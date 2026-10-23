@@ -206,3 +206,18 @@ const normalized = H.validateBase(corrupted, 'acct-a');
 assert.equal(normalized.resources.wood, 0);
 assert.equal(normalized.resources.scrap, 0);
 console.log('Zombie Homefront settlement core simulation passed.');
+
+
+// Server-authoritative return debrief accounting.
+const { buildReturnDebrief } = require('../server/homefront');
+const debrief = buildReturnDebrief(
+  { at: 1000, embers: 50, repelledCount: 2, resources: { wood: 40, scrap: 30, food: 24, water: 18, meds: 5, ammo: 18 } },
+  { embers: 83, repelledCount: 4, resources: { wood: 45, scrap: 26, food: 20, water: 17, meds: 6, ammo: 14 } },
+  { stored: { food: 2, scrap: 3, ammo: 1 } },
+  2000
+);
+assert.equal(debrief.embersNet, 33);
+assert.deepEqual(debrief.resourceNet, { wood: 5, scrap: -4, food: -4, water: -1, meds: 1, ammo: -4 });
+assert.equal(debrief.attacksRepelled, 2);
+assert.equal(debrief.fieldSuppliesReturned, 6);
+console.log('Homefront return debrief accounting passed.');

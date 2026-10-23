@@ -482,7 +482,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       let repairedHp = 0;
       const repairBudget = Math.floor(mechanics * 10);
       const damagedStructures = s.structures
-        .filter(x => x.hp > 0 && x.hp < x.maxHp)
+        .filter(x => x.hp < x.maxHp)
         .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp) || a.id.localeCompare(b.id));
       if (repairBudget > 0 && damagedStructures.length && s.resources.wood > 0 && s.resources.scrap > 0) {
         let remainingRepair = Math.min(repairBudget, s.resources.wood * 12, s.resources.scrap * 12);

@@ -38,6 +38,18 @@ expedition = H.applyAction(expedition, 'acct-a', { type: 'build', building: 'gar
 const beforeFood = expedition.resources.food;
 expedition = H.applyAction(expedition, 'acct-a', { type: 'workday' });
 assert.ok(expedition.resources.food >= beforeFood - 1, 'farmer and garden contribute food after upkeep');
+// Morale changes actual production, so survivor care has a gameplay consequence.
+const rested = H.createBase('rested', 2000);
+rested.resources.food = 100;
+rested.survivors = [{ id: 's1', name: 'Mara', role: 'farmer', morale: 90 }];
+const tired = H.createBase('tired', 2000);
+tired.resources.food = 100;
+tired.survivors = [{ id: 's1', name: 'Mara', role: 'farmer', morale: 10 }];
+const restedShift = H.applyAction(rested, 'rested', { type: 'workday' });
+const tiredShift = H.applyAction(tired, 'tired', { type: 'workday' });
+assert.ok(restedShift.resources.food > tiredShift.resources.food, 'high-morale workers produce more food than demoralized workers');
+assert.ok(restedShift.resources.food >= 100 && tiredShift.resources.food >= 100, 'work shift charges upkeep before production');
+
 const damaged = H.applyAction(expedition, 'acct-a', { type: 'defend' });
 assert.equal(damaged.wave, 1);
 assert.ok(damaged.baseHp <= damaged.baseMaxHp);

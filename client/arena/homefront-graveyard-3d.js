@@ -8,6 +8,7 @@ import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
+import { createZombieModelPilot } from './zombie-model-pilot.mjs';
 
 const host = document.getElementById('graveyard3d');
 if (host) boot(host);
@@ -111,6 +112,9 @@ function boot(host) {
   const zombieMixers = [];
   // Keep server-owned infected actors between snapshots so movement is presented smoothly.
   const combatActors = new Map();
+  let zombieModelPilot = null;
+  let zombieModelPilotLoading = false;
+  let zombieModelPilotFailed = false;
   // Interpolate explorer positions between authoritative world snapshots.
   const explorerPositions = new Map();
   let weaponSwingUntil = 0;
@@ -492,10 +496,11 @@ function boot(host) {
         label.position.y = 3.5; actor.add(label);
         const threatRing = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xd84b3e, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));
         threatRing.rotation.x = -Math.PI / 2; threatRing.position.y = 0.045; actor.add(threatRing);
-        actor.userData = { encounterId: e.id, targetX: e.x, targetZ: e.z, hp: e.hp, body, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
+        actor.userData = { encounterId: e.id, enemyType: e.enemy || '', targetX: e.x, targetZ: e.z, hp: e.hp, body, head, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
         combatActors.set(e.id, actor); combatGroup.add(actor);
       } else {
         actor.userData.encounterId = e.id;
+        actor.userData.enemyType = e.enemy || actor.userData.enemyType || '';
         actor.userData.targetX = e.x; actor.userData.targetZ = e.z;
         if (actor.userData.hp !== e.hp) {
           actor.userData.hp = e.hp;
@@ -931,7 +936,29 @@ function boot(host) {
         actor.rotation.z = (state.impactStyle === 'blunt' ? 0.22 : headshot ? 0.28 : 0.12) * hitPulse * state.impactDirection;
         state.body.scale.y = state.impactStyle === 'blunt' ? 1 - 0.18 * hitPulse : headshot ? 1 - 0.1 * hitPulse : 1;
       } else { actor.rotation.z = 0; state.body.scale.y = 1; }
-      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } if (worldData?.self) {
+      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } }
+      // Shared Zombies selector/model pilot: at most eight nearby animated rigs, with procedural fallback.
+      const localForModels = worldData?.self || { x: 0, z: 0 };
+      const modelCandidates = [...combatActors.values()].map(actor => {
+        const state = actor.userData;
+        const distance = Math.hypot(localForModels.x - actor.position.x, localForModels.z - actor.position.z);
+        const name = String(state.enemyType || '').toLowerCase();
+        const crawler = /crawler|crawl/.test(name), runner = /runner|fast/.test(name), heavy = /brute|juggernaut|heavy|boss/.test(name);
+        return { id: state.encounterId, x: actor.position.x, y: terrainElevation(actor.position.x, actor.position.z), z: actor.position.z, yaw: actor.rotation.y || 0, ty: crawler ? 5 : runner ? 1 : heavy ? 3 : 0, cr: crawler, ch: distance <= 2.7, hp: state.hp };
+      });
+      let modeledZombieIds = new Set();
+      if (zombieModelPilot) modeledZombieIds = zombieModelPilot.update(modelCandidates, dt, localForModels);
+      for (const actor of combatActors.values()) {
+        const modeled = modeledZombieIds.has(actor.userData.encounterId);
+        for (const proxy of [actor.userData.body, actor.userData.head]) {
+          if (!proxy) continue;
+          proxy.material.transparent = modeled;
+          proxy.material.opacity = modeled ? 0 : 1;
+          proxy.material.depthWrite = !modeled;
+          proxy.material.needsUpdate = true;
+        }
+      }
+      if (worldData?.self) {
       const self = worldData.self;
       if (zombieAudioStarted) {
         const survival = worldData.selfSurvival || {};
@@ -955,5 +982,16 @@ function boot(host) {
       camera.lookAt(self.x, targetY + (masterView === 'third-person' ? 0.45 : 0), self.z);
     }
     renderer.render(scene, camera); requestAnimationFrame(tick); };
+  // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.
+  zombieModelPilotLoading = true;
+  createZombieModelPilot(scene, { targetHeight: 2.7 }).then(pilot => {
+    zombieModelPilot = pilot;
+    zombieModelPilotLoading = false;
+    if (status) status.textContent = 'Animated infected enabled · nearest eight detailed rigs; procedural fallback remains active at distance.';
+  }).catch(error => {
+    zombieModelPilotFailed = true;
+    zombieModelPilotLoading = false;
+    console.warn('[homefront-graveyard] animated infected unavailable; using procedural infected', error);
+  });
   tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
 }

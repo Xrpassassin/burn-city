@@ -94,7 +94,7 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  const recoveryPenalty=clamp(recoveryRemaining/handling.recoveryMs,0,1)*0.55;
  const adsProgress=clamp(aimElapsed/handling.adsMs,0,1);
  const aimStability=clamp(1-recoveryPenalty+(player.aiming===true?adsProgress*0.18:0),0,1);
- const aimed=aimPoint!=null&&player.aiming===true&&aimElapsed>=handling.adsMs&&aimStability>=0.62;
+ const aimed=aimPoint!=null&&player.aiming===true&&aimElapsed>=handling.adsMs&&aimStability>=0.68;
  if(aimed)aimedZone=aimPoint.y>=1.88?'head':aimPoint.y<=0.68?'limb':'torso';
  const fireInterval=WEAPON_FIRE_INTERVAL[weaponId]||ATTACK_COOLDOWN;
  if(now-e.lastAttackAt<Math.max(ATTACK_COOLDOWN,fireInterval))throw Error('attack_cooldown');

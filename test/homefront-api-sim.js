@@ -96,5 +96,19 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(partyJoined.data.party.members.length, 2, 'party join synchronizes the shared roster');
   assert.equal(partyJoined.data.self.x, partyJoined.data.party.members[0].x, 'party members enter together');
 
+  const scavenge = await call('POST', '/api/homefront/world/scavenge', 'acct-a');
+  assert.equal(scavenge.status, 200, 'a player can scavenge at a nearby shared landmark');
+  assert.ok(scavenge.data.base.expeditionCount >= 3, 'shared-map scavenging advances personal expedition progress');
+  const extraTrip = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'expedition', zone: 'outskirts' } });
+  assert.equal(extraTrip.status, 200);
+  const sharedWorld = files.get('homefront-world.json');
+  sharedWorld.players['acct-a'].x = 6;
+  sharedWorld.players['acct-a'].z = -8;
+  files.set('homefront-world.json', sharedWorld);
+  const bossHit = await call('POST', '/api/homefront/world/boss-hunt', 'acct-a', { pointId: 'buried_subway' });
+  assert.equal(bossHit.status, 200, 'boss hunts resolve at the shared boss landmark');
+  assert.equal(bossHit.data.encounter.hp, 144, 'boss health is shared and server-authoritative');
+  assert.equal(bossHit.data.encounter.maxHp, 180);
+
   console.log('Homefront authenticated save API simulation passed.');
 })().catch(e => { console.error(e); process.exitCode = 1; });

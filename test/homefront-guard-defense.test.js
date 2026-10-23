@@ -207,3 +207,23 @@ const weakGuard = Core.validateBase({ ...statSeed, survivors: [{ id: 'guard-skil
 const strongGuard = Core.validateBase({ ...statSeed, survivors: [{ id: 'guard-skill', name: 'Strong', role: 'guard', morale: 100, stats: { combat: 10 } }] }, 'rSurvivorStats');
 assert.ok(Core.threatProfile(strongGuard).guardDefenseBonus > Core.threatProfile(weakGuard).guardDefenseBonus,
   'combat skill increases server-authoritative guard defense contribution');
+
+
+// Material-tier upgrades are persistent, server-authoritative and preserve current integrity.
+const materialBase = Core.createBase('rMaterialTiers', now);
+materialBase.resources.stone = 40; materialBase.resources.steel = 30;
+materialBase.structures = [{ id: 'material-wall', type: 'wall', material: 'wood', hp: 50, maxHp: 100, x: 8, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
+const stoneWall = Core.applyAction(materialBase, 'rMaterialTiers', { type: 'upgrade_structure_material', target: 'material-wall' }, now + 1);
+assert.equal(stoneWall.structures[0].material, 'stone', 'wood structures can be upgraded to stone');
+assert.equal(stoneWall.structures[0].maxHp, 175, 'stone tier increases maximum structural health');
+assert.equal(stoneWall.structures[0].hp, 88, 'material upgrades preserve approximately the same integrity percentage');
+assert.equal(stoneWall.resources.stone, 28, 'stone upgrade consumes its stone cost');
+assert.equal(stoneWall.resources.scrap, 24, 'stone upgrade consumes its scrap cost');
+const steelWall = Core.applyAction(stoneWall, 'rMaterialTiers', { type: 'upgrade_structure_material', target: 'material-wall' }, now + 2);
+assert.equal(steelWall.structures[0].material, 'steel', 'stone structures can be upgraded to steel');
+assert.equal(steelWall.structures[0].maxHp, 280, 'steel tier has the highest structural health');
+assert.equal(steelWall.resources.steel, 12, 'steel upgrade consumes steel');
+assert.throws(() => Core.applyAction(steelWall, 'rMaterialTiers', { type: 'upgrade_structure_material', target: 'material-wall' }, now + 3), /material_tier_maxed/);
+const legacyMaterial = Core.validateBase({ ...materialBase, resources: { ...materialBase.resources, stone: undefined, steel: undefined }, structures: [{ id: 'legacy-wall', type: 'wall', hp: 60, maxHp: 100, x: 8, z: 0, rotation: 0 }] }, 'rMaterialTiers');
+assert.equal(legacyMaterial.resources.stone, 0, 'legacy saves safely gain empty advanced-material inventories');
+assert.equal(legacyMaterial.structures[0].material, 'wood', 'legacy structures default to the original wood tier');

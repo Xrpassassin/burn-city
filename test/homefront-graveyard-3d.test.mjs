@@ -63,6 +63,9 @@ assert.match(scene, /event\.button !== 2 \|\| masterView !== 'third-person'/, 'r
 assert.match(scene, /cameraYawOffset \+= event\.movementX \* 0\.006/, 'camera orbit changes the follow heading');
 assert.match(scene, /cameraPitchOffset = Math\.max\(-0\.25, Math\.min\(0\.45/, 'camera pitch stays within a safe view angle');
 assert.match(scene, /cameraDistance = Math\.max\(3\.5, Math\.min\(10\.5/, 'mouse wheel zoom is clamped to playable third-person distances');
+assert.match(scene, /const masterView = 'third-person'/, 'exploration camera is locked to third-person');
+assert.doesNotMatch(scene, /masterView = masterView === 'third-person'/, 'tactical overhead is not a general exploration hotkey');
+assert.match(scene, /Overhead view is reserved for base construction/, 'camera guidance reserves overhead view for base construction');
 assert.match(scene, /right-drag to orbit · scroll to zoom/, 'the game explains orbit and zoom controls to the player');
 assert.match(scene, /homefront:cosmetics/, 'receive equipped cosmetic and weapon selection from the Homefront loadout');
 assert.match(scene, /equippedWeaponSkinColor/, 'apply the equipped weapon skin finish to the local 3D weapon');

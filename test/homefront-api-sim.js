@@ -102,7 +102,8 @@ async function call(method, pathname, acct, payload = {}) {
   const drink = await call('POST', '/api/homefront/world/survival', 'acct-a', { action: 'drink' });
   assert.equal(drink.status, 200, 'authenticated explorer can drink water in the field');
   assert.ok(drink.data.selfSurvival.thirst > 40, 'drinking restores thirst on the server');
-  assert.equal(drink.data.base.resources.water, waterBefore - 1, 'field hydration consumes persistent refuge water');
+  assert.equal(drink.data.base.resources.water, waterBefore, 'drinking uses carried water rather than silently pulling from refuge stores');
+  assert.equal(drink.data.selfInventory.water, 1, 'drinking consumes one carried water item');
   const worldB = await call('GET', '/api/homefront/world', 'acct-b');
   assert.equal(worldB.status, 200);
   const enteredB = await call('POST', '/api/homefront/world/enter', 'acct-b');
@@ -134,6 +135,12 @@ if (attack.data.combat.enemyDamage > 0) {
   const scavenge = await call('POST', '/api/homefront/world/scavenge', 'acct-a');
   assert.equal(scavenge.status, 200, 'a player can scavenge at a nearby shared landmark');
   assert.ok(scavenge.data.base.expeditionCount >= 1, 'shared-map scavenging advances personal expedition progress');
+  assert.equal(scavenge.data.selfInventory.food, 0, 'scavenging spends carried food, not refuge food');
+  assert.ok(scavenge.data.selfInventory.scrap > 0 || scavenge.data.selfInventory.wood > 0, 'scavenged materials are packed when capacity permits');
+  const packedFood = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'food', amount: 2 });
+  assert.equal(packedFood.status, 200, 'explorers can pack extra rations from refuge stores');
+  const packedAmmo = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'ammo', amount: 2 });
+  assert.equal(packedAmmo.status, 200, 'explorers can pack extra ammunition from refuge stores');
   const extraTrip = await call('POST', '/api/homefront/world/scavenge', 'acct-a');
   assert.equal(extraTrip.status, 200);
   const sharedWorld = files.get('homefront-world.json');

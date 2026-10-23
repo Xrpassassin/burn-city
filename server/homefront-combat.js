@@ -2,6 +2,7 @@
 // Authoritative, renderer-independent combat for Homefront's shared Graveyard.
 const { ARCHETYPES, QUALITY_ORDER } = require('./homefront-director');
 const Terrain = require('./homefront-terrain');
+const Collision = require('./homefront-collision');
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(n)?n:a));
 const hash=s=>{let h=2166136261;for(const c of String(s))h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0;};
 const ENCOUNTER_TTL=180000, ATTACK_COOLDOWN=900;
@@ -22,7 +23,7 @@ function safeEnemyPosition(x, z, fallbackX, fallbackZ, bounds = 100) {
  candidates.push({x:fallbackX,z:fallbackZ});
  for(const point of candidates){
   const px=clamp(point.x,-bounds,bounds),pz=clamp(point.z,-bounds,bounds);
-  if(Terrain.isSafePosition(px,pz,{bounds}))return{x:Math.round(px*10)/10,z:Math.round(pz*10)/10};
+  if(Collision.isSafePosition(px,pz,{bounds}))return{x:Math.round(px*10)/10,z:Math.round(pz*10)/10};
  }
  throw Error('no_safe_infected_spawn');
 }
@@ -69,12 +70,12 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
   const step=Math.min(distance-stopDistance,speed*elapsed);
   const nextX=clamp(e.x+dx/distance*step,-100,100),nextZ=clamp(e.z+dz/distance*step,-100,100);
   // Prefer the direct step; only invoke bounded A* when terrain blocks the pursuit line.
-  if(Terrain.canTraverse(e.x,e.z,nextX,nextZ)){e.x=nextX;e.z=nextZ;}
+  if(Terrain.canTraverse(e.x,e.z,nextX,nextZ)&&Collision.canTraverse(e.x,e.z,nextX,nextZ,{radius:0.45,bounds:100})){e.x=nextX;e.z=nextZ;}
   else {
-   const route=Terrain.findTerrainPath(e.x,e.z,player.x,player.z,{bounds:100,maxExpanded:1200});
+   const route=Collision.findPath(e.x,e.z,player.x,player.z,{bounds:100,maxExpanded:2600,radius:0.45});
    if(route&&route.length){
     const advanced=advanceAlongTerrainPath(e.x,e.z,route,step);
-    if(Terrain.canTraverse(e.x,e.z,advanced.x,advanced.z)){e.x=advanced.x;e.z=advanced.z;}
+    if(Terrain.canTraverse(e.x,e.z,advanced.x,advanced.z)&&Collision.canTraverse(e.x,e.z,advanced.x,advanced.z,{radius:0.45,bounds:100})){e.x=advanced.x;e.z=advanced.z;}
    }
   }
  }

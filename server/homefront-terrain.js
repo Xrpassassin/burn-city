@@ -116,7 +116,8 @@ function findTerrainPath(startX, startZ, goalX, goalZ, {
     if (closed.has(ck)) continue;
     closed.add(ck); expanded++;
     const cx = coord(current.ix), cz = coord(current.iz);
-    if (canEdge(cx, cz, goalX, goalZ)) { reached = ck; break; }
+    // Only attach the exact goal from its neighboring grid cells; never shortcut across the search grid.
+    if (Math.abs(current.ix - gx) <= 1 && Math.abs(current.iz - gz) <= 1 && canEdge(cx, cz, goalX, goalZ)) { reached = ck; break; }
     for (const [dx, dz] of neighbors) {
       const ix = current.ix + dx, iz = current.iz + dz;
       if (Math.abs(ix * spacing) > bounds + spacing || Math.abs(iz * spacing) > bounds + spacing) continue;

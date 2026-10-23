@@ -122,7 +122,7 @@ assert.match(scene, /weaponId === 'pump_shotgun' \? 'shotgun'/, 'shotgun impacts
 assert.ok(scene.includes("detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18)"), 'shotgun killing blows produce a wider, stronger impact burst');
 assert.match(scene, /\.catch\(\(\) => \{\}\)/, 'audio asset failures cannot interrupt confirmed combat feedback');
 assert.match(scene, /data\.combat\.encounterId/, 'resolve encounter IDs from the combat response when available');
-assert.match(scene, /weaponId === 'heavy_machine_gun' \? 120 : weaponId === 'machine_gun' \? 180/, 'client autofire cadence matches server-enforced machine-gun intervals');
+assert.match(scene, /equippedWeaponId === 'heavy_machine_gun' \? 120 : equippedWeaponId === 'machine_gun' \? 180/, 'client autofire cadence matches server-enforced machine-gun intervals');
 
 assert.match(scene, /hitZone: data\.combat\.hitZone/, 'forward the server-calculated hit zone to the scene');
 assert.match(scene, /detail\.hitZone === 'head'/, 'headshots get distinct impact presentation');

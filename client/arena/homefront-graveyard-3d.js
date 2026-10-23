@@ -4,6 +4,7 @@ import * as THREE from './vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
+import { environmentalCandidates } from './homefront-world-generation.mjs';
 import { sfx } from './sfx.js';
 
 const host = document.getElementById('graveyard3d');
@@ -150,6 +151,62 @@ function boot(host) {
   for (const [radius, color] of [[25, 0x4f885b], [45, 0x88854b], [62, 0x9a683e], [76, 0x984d37], [90, 0x7d3037]]) {
     const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.18, radius + 0.18, 128), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.68, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; scene.add(ring);
+  }
+  // Deterministic environmental dressing is grouped with structures so chunk visibility culls it together.
+  // Props remain presentation-only: they do not grant loot, block movement, or alter server authority.
+  const envMats = {
+    bark: mat(0x39352b), barkLight: mat(0x51483a), leafless: mat(0x48473b),
+    rubble: mat(0x65635a), rubbleDark: mat(0x454740), reed: mat(0x6d7651),
+    water: new THREE.MeshStandardMaterial({ color: 0x354b49, roughness: 0.28, metalness: 0.12, transparent: true, opacity: 0.72 }),
+    vehicle: mat(0x393f3b), vehicleGlass: mat(0x202b2b), shrub: mat(0x343b2d), stone: mat(0x747166)
+  };
+  function addEnvironmentalCandidate(parent, prop) {
+    const g = new THREE.Group();
+    g.position.set(prop.x, 0, prop.z);
+    g.rotation.y = ((prop.id.length * 37 + Math.floor(Math.abs(prop.x * 13 + prop.z * 7))) % 628) / 100;
+    const r = (Math.abs(prop.x * 17 + prop.z * 31) % 1);
+    if (prop.type === 'dead_tree') {
+      addBox(g, 0.28, 2.5 + r * 1.8, 0.3, 0, 0, 0, envMats.bark);
+      for (let i = 0; i < 3; i++) {
+        const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.09, 1.05 + i * 0.12, 5), envMats.barkLight);
+        branch.position.set((i - 1) * 0.28, 1.1 + i * 0.45, 0); branch.rotation.z = (i - 1) * -0.52; g.add(branch);
+      }
+    } else if (prop.type === 'fallen_log') {
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.27, 2.5 + r, 7), envMats.bark);
+      log.rotation.z = Math.PI / 2; log.position.y = 0.25; g.add(log);
+    } else if (prop.type === 'rubble' || prop.type === 'stone_debris') {
+      for (let i = 0; i < 3; i++) {
+        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28 + ((r + i * 0.21) % 0.4), 0), i % 2 ? envMats.rubble : envMats.stone);
+        rock.position.set((i - 1) * 0.38, 0.2 + (i % 2) * 0.16, (i % 2) * 0.32); rock.rotation.set(r * 2, i, r * 3); g.add(rock);
+      }
+    } else if (prop.type === 'abandoned_vehicle') {
+      addBox(g, 1.65, 0.72, 3.1, 0, 0.25, 0, envMats.vehicle);
+      addBox(g, 1.35, 0.55, 1.45, 0, 0.86, -0.12, envMats.vehicleGlass);
+      for (const x of [-0.72, 0.72]) for (const z of [-0.95, 0.95]) {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.16, 8), envMats.rubbleDark);
+        wheel.rotation.z = Math.PI / 2; wheel.position.set(x, 0.27, z); g.add(wheel);
+      }
+    } else if (prop.type === 'dead_reed') {
+      for (let i = 0; i < 4; i++) {
+        const reed = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.045, 0.65 + ((r + i * 0.13) % 0.55), 4), envMats.reed);
+        reed.position.set((i - 1.5) * 0.13, 0.4, (i % 2) * 0.16); reed.rotation.z = (i % 2 ? 1 : -1) * 0.12; g.add(reed);
+      }
+    } else if (prop.type === 'standing_water') {
+      const pool = new THREE.Mesh(new THREE.CircleGeometry(1.1 + r, 9), envMats.water);
+      pool.rotation.x = -Math.PI / 2; pool.position.y = 0.025; pool.scale.set(1.3, 0.7, 1); g.add(pool);
+    } else {
+      for (let i = 0; i < 3; i++) {
+        const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32 + r * 0.18, 0), envMats.shrub);
+        bush.position.set((i - 1) * 0.32, 0.24 + (i % 2) * 0.1, (i % 2) * 0.18); bush.scale.y = 0.65; g.add(bush);
+      }
+    }
+    g.userData.environmentId = prop.id;
+    parent.add(g);
+  }
+  // Existing server bounds are +/-100; four-by-four chunks cover that playable footprint.
+  for (let cz = -2; cz <= 1; cz++) for (let cx = -2; cx <= 1; cx++) {
+    const chunk = cityChunkAt(cx * 64 + 0.01, cz * 64 + 0.01);
+    for (const prop of environmentalCandidates(cx, cz, { density: 0.18 })) addEnvironmentalCandidate(chunk, prop);
   }
   // Deterministic road grid and procedural ruined buildings; no extra engine or dependency.
   for (let n = -90; n <= 90; n += 20) {

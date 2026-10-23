@@ -1,5 +1,5 @@
 // Opt-in animated zombie model pilot. Uses locally vendored Three.js utilities and bundled MIT-licensed GLBs.
-import * as THREE from 'three';
+import * as THREE from './vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 
@@ -24,7 +24,8 @@ function animationFor(z, clips) {
   return 'Walk';
 }
 
-export async function createZombieModelPilot(scene) {
+export async function createZombieModelPilot(scene, options = {}) {
+  const targetHeight = Number.isFinite(options.targetHeight) ? Math.max(0.8, Math.min(3.2, options.targetHeight)) : TARGET_HEIGHT;
   const loader = new GLTFLoader();
   const models = await Promise.all(MODEL_URLS.map(async url => {
     const gltf = await loader.loadAsync(url);
@@ -34,7 +35,7 @@ export async function createZombieModelPilot(scene) {
       gltf,
       clips: new Map(gltf.animations.map(clip => [clip.name, clip])),
       minY: bounds.min.y,
-      scale: TARGET_HEIGHT / Math.max(0.01, bounds.max.y - bounds.min.y)
+      scale: targetHeight / Math.max(0.01, bounds.max.y - bounds.min.y)
     };
   }));
   const active = new Map();

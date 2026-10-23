@@ -106,4 +106,23 @@ function advanceDirector(state = {}, context = {}) {
   return { state: nextState, decision, reason, plan };
 }
 
-module.exports = { ARCHETYPES, QUALITY_ORDER, resolveDirectorLoot, planEncounter, advanceDirector };
+function planHorde({ event = 'wandering_infected', risk = 1, seed = 0 } = {}) {
+  const boundedRisk = Math.max(1, Math.min(5, Math.floor(Number.isFinite(risk) ? risk : 1)));
+  const count = event === 'infected_horde' ? Math.min(5, 2 + Math.floor((boundedRisk - 1) / 2)) : 1;
+  const roles = event === 'special_infected' ? ['leader'] : ['stalker', 'flanker', 'bruiser', 'straggler', 'runner'];
+  const spacing = 2.4 + boundedRisk * 0.15;
+  const members = [];
+  for (let i = 0; i < count; i++) {
+    const angle = ((hash('horde:' + seed + ':' + i) % 360) * Math.PI) / 180;
+    const ring = i === 0 ? 0 : spacing * (1 + Math.floor((i - 1) / 4));
+    const role = roles[i % roles.length];
+    members.push({ slot: i, role, id: 'pack-' + hash(String(seed) + ':' + i).toString(36),
+      offsetX: Math.round(Math.cos(angle) * ring * 10) / 10,
+      offsetZ: Math.round(Math.sin(angle) * ring * 10) / 10,
+      healthScale: role === 'bruiser' ? 1.25 : role === 'runner' ? 0.72 : 1,
+      speedScale: role === 'runner' || role === 'flanker' ? 1.2 : role === 'bruiser' ? 0.78 : 1 });
+  }
+  return { count, cohesionRadius: 10 + boundedRisk * 2, regroupRadius: 16 + boundedRisk * 2, members };
+}
+
+module.exports = { ARCHETYPES, QUALITY_ORDER, resolveDirectorLoot, planEncounter, planHorde, advanceDirector };

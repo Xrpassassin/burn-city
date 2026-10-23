@@ -65,7 +65,7 @@ assert.ok(veteranTrip.embers > standardTrip.embers, 'higher expedition difficult
 assert.ok(veteranTrip.resources.scrap > standardTrip.resources.scrap, 'higher expedition difficulty pays more salvage');
 assert.ok(veteranTrip.resources.food < veteranBase.resources.food, 'higher expedition difficulty costs more supplies');
 assert.throws(() => H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'subway', difficulty: 'impossible' }), /unknown_difficulty/);
-const upgradeBase = H.createBase('tycoon-upgrade', 2310);
+const upgradeBase = H.createBase('tycoon-upgrade', 2310); upgradeBase.embers = 100;
 const upgraded = H.applyAction(upgradeBase, 'tycoon-upgrade', { type: 'buy_upgrade', upgrade: 'scavenger_rig' }, 2311);
 assert.equal(upgraded.embers, 0);
 assert.equal(upgraded.upgrades.scavenger_rig, 1);

@@ -10,6 +10,10 @@ const Collision = require('./homefront-collision');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
+const SPRINT_STEP = 18;
+const AIM_MOVE_SCALE = Object.freeze({ pipe_blade: 0.62, pump_shotgun: 0.52, marksman_rifle: 0.42, shock_maul: 0.56 });
+const AIM_RECOVERY_MS = 700;
+const SPRINT_RECOVERY_MS = 1450;
 const SPAWNS = [
   { id: 'north_gate', label: 'North Gate', x: -8, z: -82 },
   { id: 'river_road', label: 'River Road', x: 76, z: -20 },
@@ -79,6 +83,10 @@ function normalizeWorld(input) {
       p.x = recovered.x; p.z = recovered.z;
     }
     p.lastMove = Number.isFinite(p.lastMove) ? p.lastMove : 0;
+    p.aiming = p.aiming === true;
+    p.aimStartedAt = p.aiming && Number.isFinite(p.aimStartedAt) ? clamp(p.aimStartedAt, 0, Number.MAX_SAFE_INTEGER) : 0;
+    p.lastSprintAt = Number.isFinite(p.lastSprintAt) ? clamp(p.lastSprintAt, 0, Number.MAX_SAFE_INTEGER) : 0;
+    p.accuracyRecoverUntil = Number.isFinite(p.accuracyRecoverUntil) ? clamp(p.accuracyRecoverUntil, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.survival = Survival.normalize(p.survival, p.lastSeen || Date.now());
     p.inventory = Inventory.normalize(p.inventory);
     if (typeof p.inventoryInitialized !== 'boolean') p.inventoryInitialized = true;
@@ -156,7 +164,8 @@ function snapshot(input, acct, now = Date.now()) {
     selfEncounter: Combat.publicEncounter(w.encounters?.[acct]),
     selfSurvival: p ? { ...p.survival } : null,
     selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null,
-    selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null
+    selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null,
+    selfWeaponHandling: p ? { aiming: p.aiming, aimStartedAt: p.aimStartedAt, lastSprintAt: p.lastSprintAt, accuracyRecoverUntil: p.accuracyRecoverUntil } : null
   };
 }
 function enter(input, acct, now = Date.now()) {
@@ -165,7 +174,7 @@ function enter(input, acct, now = Date.now()) {
   let p = w.players[acct];
   if (!p) {
     const safeSpawn = chooseSafeSpawn(w, acct), spawn = safeSpawn.spawn, position = safeSpawn.position;
-    p = w.players[acct] = { x: position.x, z: position.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 } };
+    p = w.players[acct] = { x: position.x, z: position.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }, aiming: false, aimStartedAt: 0, lastSprintAt: 0, accuracyRecoverUntil: 0 };
   }
   p.lastSeen = now;
   p.survival = Survival.tick(p.survival, now);
@@ -192,29 +201,36 @@ function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
   }
   return { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 };
 }
-function move(input, acct, x, z, now = Date.now()) {
+function move(input, acct, x, z, now = Date.now(), sprint = false) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   prune(w, now);
   const p = w.players[acct];
   if (!p) throw new Error('not_in_expedition');
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader !== acct) throw new Error('party_leader_controls_movement');
+  if (typeof sprint !== 'boolean') throw new Error('invalid_movement_mode');
   if (now - p.lastMove < 900) throw new Error('move_cooldown');
+  if (sprint && p.aiming) throw new Error('lower_weapon_before_sprinting');
+  const weaponId = p.weaponMagazine?.weaponId || 'pipe_blade';
+  const movementBudget = p.aiming ? MOVE_STEP * (AIM_MOVE_SCALE[weaponId] || 0.55) : sprint ? SPRINT_STEP : MOVE_STEP;
   let nx = clamp(x, -WORLD_SIZE, WORLD_SIZE), nz = clamp(z, -WORLD_SIZE, WORLD_SIZE);
   const radius = Math.hypot(nx, nz); if (radius > WORLD_SIZE) { nx = nx / radius * WORLD_SIZE; nz = nz / radius * WORLD_SIZE; }
   const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz);
-  const scale = d > MOVE_STEP ? MOVE_STEP / d : 1;
+  const scale = d > movementBudget ? movementBudget / d : 1;
   const oldX = p.x, oldZ = p.z;
   let nextX = Math.round((p.x + dx * scale) * 10) / 10, nextZ = Math.round((p.z + dz * scale) * 10) / 10;
   if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE })) {
     const route = Collision.findPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE, maxExpanded: 2600 });
     if (!route || !route.length) throw new Error('terrain_path_unreachable');
-    const advanced = advanceAlongTerrainPath(oldX, oldZ, route, MOVE_STEP);
+    const advanced = advanceAlongTerrainPath(oldX, oldZ, route, movementBudget);
     nextX = advanced.x; nextZ = advanced.z;
     if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE })) throw new Error('terrain_path_blocked');
   }
   p.x = nextX; p.z = nextZ;
   p.lastMove = p.lastSeen = now;
-  p.survival = Survival.move(p.survival, now, Math.hypot(p.x - oldX, p.z - oldZ));
+  if (sprint) { p.lastSprintAt = now; p.accuracyRecoverUntil = now + SPRINT_RECOVERY_MS; }
+  else p.accuracyRecoverUntil = Math.max(p.accuracyRecoverUntil || 0, now + AIM_RECOVERY_MS);
+  p.aiming = false; p.aimStartedAt = 0;
+  p.survival = Survival.move(p.survival, now, Math.hypot(p.x - oldX, p.z - oldZ) * (sprint ? 1.55 : 1));
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {
       const offset = (hash(member) % 7) - 3;
@@ -225,6 +241,24 @@ function move(input, acct, x, z, now = Date.now()) {
   }
   // Advance AI only on an authoritative world action; no client frame loop can move enemies.
   w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
+  return { world: w, result: snapshot(w, acct, now) };
+}
+
+function setAiming(input, acct, aiming, now = Date.now()) {
+  const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
+  prune(w, now);
+  const p = w.players[acct];
+  if (!p) throw new Error('not_in_expedition');
+  if (typeof aiming !== 'boolean') throw new Error('invalid_aim_state');
+  if (aiming) {
+    if (p.lastMove && now - p.lastMove < 250) throw new Error('aim_recovering_from_movement');
+    p.aiming = true;
+    p.aimStartedAt = now;
+  } else {
+    p.aiming = false;
+    p.aimStartedAt = 0;
+  }
+  p.lastSeen = now;
   return { world: w, result: snapshot(w, acct, now) };
 }
 function createParty(input, acct, now = Date.now()) {
@@ -265,4 +299,4 @@ function leave(input, acct, now = Date.now()) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, createParty, joinParty, leave };
+module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leave };

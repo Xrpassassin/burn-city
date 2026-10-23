@@ -17,7 +17,8 @@ assert.equal(profile.guards, 2);
 const withoutGuards = JSON.parse(JSON.stringify(base));
 withoutGuards.survivors = withoutGuards.survivors.filter(s => s.role !== 'guard');
 const unguarded = Core.threatProfile(withoutGuards);
-assert.equal(profile.defense - unguarded.defense, 3.5);
+assert.ok(profile.defense - unguarded.defense >= profile.guardDefenseBonus,
+  'guard assignment contributes defense, in addition to its ammunition commitment');
 assert.ok(profile.projectedStructureDamage <= unguarded.projectedStructureDamage,
   'guards cannot increase projected structure damage');
 

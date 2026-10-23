@@ -1,6 +1,6 @@
 'use strict';
 // Authoritative, renderer-independent combat for Homefront's shared Graveyard.
-const { ARCHETYPES, QUALITY_ORDER } = require('./homefront-director');
+const { ARCHETYPES, QUALITY_ORDER, planEncounter } = require('./homefront-director');
 const Terrain = require('./homefront-terrain');
 const Collision = require('./homefront-collision');
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(n)?n:a));
@@ -29,9 +29,10 @@ function safeEnemyPosition(x, z, fallbackX, fallbackZ, bounds = 100) {
  throw Error('no_safe_infected_spawn');
 }
 function resolveSpawn({account,x,z,district,risk=1,now=Date.now(),seed=0}){
- risk=clamp(Math.floor(risk),1,5);const roll=hash(account+':'+district+':'+Math.floor(x)+':'+Math.floor(z)+':'+Math.floor(now/30000)+':'+seed)%100;
- const event=roll<13+risk*4?'special_infected':roll<42+risk*5?'infected_horde':'wandering_infected',s=STATS[event],id='enc-'+hash(account+':'+now+':'+x+':'+z).toString(36);
- return {id,owner:account,event,enemy:enemyName(district,event),district,x:clamp(x+(hash(id+':x')%13-6),-100,100),z:clamp(z+(hash(id+':z')%13-6),-100,100),hp:s.hp+risk*7,maxHp:s.hp+risk*7,damage:s.damage+Math.max(0,risk-1),ammoCost:s.ammo,range:s.range,risk,createdAt:now,lastAttackAt:0,lastAiAt:now,expiresAt:now+ENCOUNTER_TTL,defeated:false};
+ risk=clamp(Math.floor(risk),1,5);
+ const directorPlan=planEncounter({zoneId:district,risk,playerCount:1,activeEncounters:0,noise:0,seed:account+':'+Math.floor(x)+':'+Math.floor(z)+':'+Math.floor(now/30000)+':'+seed});
+ const event=directorPlan.event,s=STATS[event],id='enc-'+hash(account+':'+now+':'+x+':'+z).toString(36);
+ return {id,owner:account,event,enemy:directorPlan.enemy,directorPlan,district,x:clamp(x+(hash(id+':x')%13-6),-100,100),z:clamp(z+(hash(id+':z')%13-6),-100,100),hp:s.hp+risk*7,maxHp:s.hp+risk*7,damage:s.damage+Math.max(0,risk-1),ammoCost:s.ammo,range:s.range,risk,createdAt:now,lastAttackAt:0,lastAiAt:now,expiresAt:now+ENCOUNTER_TTL,defeated:false};
 }
 function publicEncounter(e){return e?{id:e.id,event:e.event,enemy:e.enemy,district:e.district,x:e.x,z:e.z,hp:e.hp,maxHp:e.maxHp,risk:e.risk,range:e.range,expiresAt:e.expiresAt,defeated:!!e.defeated}:null;}
 function normalizeEncounters(input,now=Date.now()){

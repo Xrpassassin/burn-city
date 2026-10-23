@@ -8,7 +8,7 @@ const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 
-const SESSION_RESOURCES = ['wood','scrap','food','rawFood','water','dirtyWater','meds','ammo'];
+const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
   const stats = player?.homefrontSessionStart?.totals;
   if (!stats) return;
@@ -29,7 +29,7 @@ function initSessionStart(player, base, now = Date.now()) {
 }
 function buildReturnDebrief(start, base, packed, now = Date.now()) {
   const resourceNet = {};
-  for (const id of ['wood','scrap','food','rawFood','water','dirtyWater','meds','ammo']) {
+  for (const id of ['wood','scrap','food','water','meds','ammo']) {
     resourceNet[id] = (base.resources?.[id] || 0) - (Number.isFinite(start?.resources?.[id]) ? start.resources[id] : (base.resources?.[id] || 0));
   }
   return {

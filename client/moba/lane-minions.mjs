@@ -105,6 +105,7 @@ export function advanceLaneMinions(currentState) {
       const objective = next.entities[`${enemyTeam}-tower`]?.alive
         ? next.entities[`${enemyTeam}-tower`]
         : next.entities[`${enemyTeam}-core`];
+      if (!objective?.alive) continue; // no live objective to march on (malformed or custom state)
       const dx = objective.x - minion.x;
       const dy = objective.y - minion.y;
       const length = Math.hypot(dx, dy) || 1;

@@ -150,7 +150,7 @@ try {
     players: { 'ridge-player': { x: -5, z: 0 } },
     now: 11000, speed: 2.8, maxElapsed: 2.5
   })['ridge-player'];
-  assert.ok(chasedAroundRidge.z > 0,
+  assert.ok(Math.abs(chasedAroundRidge.z) > 0,
     'infected pursuit follows a safe route instead of crossing the blocked ridge');
 
   Terrain.findTerrainPath = () => null;

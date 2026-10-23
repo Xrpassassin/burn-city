@@ -39,12 +39,16 @@ const beforeFood = expedition.resources.food;
 expedition = H.applyAction(expedition, 'acct-a', { type: 'workday' });
 assert.ok(expedition.resources.food >= beforeFood - 1, 'farmer and garden contribute food after upkeep');
 const cityScout = H.createBase('city-scout', 2190);
-assert.throws(() => H.applyAction(cityScout, 'city-scout', { type: 'expedition', zone: 'commercial' }), /zone_not_discovered/);
-const firstTrip = H.applyAction(cityScout, 'city-scout', { type: 'expedition', zone: 'outskirts' }, 2191);
+const firstMarketTrip = H.applyAction(cityScout, 'city-scout', { type: 'expedition', zone: 'commercial' }, 2191);
+assert.ok(firstMarketTrip.exploration.discoveredZones.includes('commercial'), 'district discovery is persistent and based on visiting the site, not prior trip count');
+assert.ok(firstMarketTrip.embers > cityScout.embers, 'first-time district survey pays a discovery bonus');
+const repeatMarketTrip = H.applyAction(firstMarketTrip, 'city-scout', { type: 'expedition', zone: 'commercial' }, 2192);
+assert.ok(repeatMarketTrip.embers - firstMarketTrip.embers < firstMarketTrip.embers - cityScout.embers, 'first-visit bonus is not repeatable');
+const firstTrip = H.applyAction(cityScout, 'city-scout', { type: 'expedition', zone: 'outskirts' }, 2193);
 assert.equal(firstTrip.expeditionCount, 1);
-const secondTrip = H.applyAction(firstTrip, 'city-scout', { type: 'expedition', zone: 'residential' }, 2192);
+const secondTrip = H.applyAction(firstTrip, 'city-scout', { type: 'expedition', zone: 'residential' }, 2194);
 assert.equal(secondTrip.expeditionCount, 2);
-const marketTrip = H.applyAction(secondTrip, 'city-scout', { type: 'expedition', zone: 'commercial' }, 2193);
+const marketTrip = H.applyAction(secondTrip, 'city-scout', { type: 'expedition', zone: 'commercial' }, 2195);
 assert.ok(marketTrip.resources.meds >= secondTrip.resources.meds, 'market exploration can yield medicine');
 
 // Perimeter defense threat is independent of the legacy wave field.
@@ -63,7 +67,7 @@ const standardTrip = H.applyAction(standardBase, 'difficulty-standard', { type: 
 const veteranTrip = H.applyAction(veteranBase, 'difficulty-veteran', { type: 'expedition', zone: 'subway', difficulty: 'veteran' }, 2301);
 assert.ok(veteranTrip.embers > standardTrip.embers, 'higher expedition difficulty pays more embers');
 assert.ok(veteranTrip.resources.scrap > standardTrip.resources.scrap, 'higher expedition difficulty pays more salvage');
-assert.ok(veteranTrip.resources.food < veteranBase.resources.food, 'higher expedition difficulty costs more supplies');
+assert.ok(veteranTrip.resources.food < standardTrip.resources.food, 'higher expedition difficulty costs more supplies than Standard');
 assert.throws(() => H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'subway', difficulty: 'impossible' }), /unknown_difficulty/);
 const upgradeBase = H.createBase('tycoon-upgrade', 2310); upgradeBase.embers = 100;
 const upgraded = H.applyAction(upgradeBase, 'tycoon-upgrade', { type: 'buy_upgrade', upgrade: 'scavenger_rig' }, 2311);

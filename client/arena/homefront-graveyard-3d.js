@@ -270,7 +270,7 @@ function boot(host) {
       updateWorld(data);
       const accepted=(data.loot?.accepted||[]).map(d=>'+'+d.amount+' '+d.item).join(', ');
       const overflow=(data.loot?.overflow||[]).map(d=>d.amount+' '+d.item).join(', ');
-      if (lootStatus) lootStatus.textContent = (accepted ? 'Collected: '+accepted+'. ' : 'Your pack could not accept the supplies. ') + (overflow ? 'Pack full; left behind: '+overflow+'. ' : '') + 'This container will restock after its cooldown.';
+      if (lootStatus) lootStatus.textContent = (accepted ? 'Collected: '+accepted+'. ' : 'Your pack could not accept the supplies. ') + (overflow ? 'Pack full; sent to refuge stores: '+overflow+'. ' : '') + 'This container will restock after its cooldown.';
     } catch (e) {
       if (lootStatus) lootStatus.textContent = e.message === 'too_far_from_loot' ? 'Move closer to the selected supply container.' : e.message === 'loot_node_empty' ? 'Someone has already searched this container. Check back later.' : 'Scavenging unavailable: '+e.message;
     } finally {

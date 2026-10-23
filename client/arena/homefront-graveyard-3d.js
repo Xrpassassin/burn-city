@@ -40,6 +40,8 @@ function boot(host) {
   const findInfectedButton = document.getElementById('findInfected');
   const attackInfectedButton = document.getElementById('attackInfected');
   const zombieMixers = [];
+  // Keep server-owned infected actors between snapshots so movement is presented smoothly.
+  const combatActors = new Map();
   const infectedSpawns = [[27, 25], [19, 34], [-32, 28], [-43, 36], [-11, 27], [-20, 15], [9, -12], [1, -15]];
 
   const mat = (color, roughness = 0.94) => new THREE.MeshStandardMaterial({ color, roughness });
@@ -181,14 +183,40 @@ function boot(host) {
     }
     for (const node of (data.world?.lootNodes || [])) buildLootNode(node);
     clearGroup(playerGroup);
-    clearGroup(combatGroup);
     const encounters = data.encounters || [];
+    const activeEncounterIds = new Set();
     for (const e of encounters) {
-      const actor = new THREE.Group(); actor.position.set(e.x, 0, e.z);
-      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.85, 1.1, 3, 7), mat(0x8e302d)); body.position.y = 1.2; actor.add(body);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), mat(0xaaa18a)); head.position.y = 2.15; actor.add(head);
-      const label = labelSprite(e.enemy + ' · ' + e.hp + '/' + e.maxHp, '#ffaaa0'); label.position.y = 3.5; actor.add(label);
-      combatGroup.add(actor);
+      activeEncounterIds.add(e.id);
+      let actor = combatActors.get(e.id);
+      if (!actor) {
+        actor = new THREE.Group();
+        actor.position.set(e.x, 0, e.z);
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.85, 1.1, 3, 7), mat(0x8e302d));
+        body.position.y = 1.2; actor.add(body);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), mat(0xaaa18a));
+        head.position.y = 2.15; actor.add(head);
+        const label = labelSprite(e.enemy + ' · ' + e.hp + '/' + e.maxHp, '#ffaaa0');
+        label.position.y = 3.5; actor.add(label);
+        actor.userData = { targetX: e.x, targetZ: e.z, hp: e.hp, body, label, hitFlash: 0 };
+        combatActors.set(e.id, actor); combatGroup.add(actor);
+      } else {
+        actor.userData.targetX = e.x; actor.userData.targetZ = e.z;
+        if (actor.userData.hp !== e.hp) {
+          actor.userData.hp = e.hp;
+          actor.userData.hitFlash = 0.38;
+          actor.userData.body.material.emissive?.setHex(0xff3018);
+          actor.userData.body.material.emissiveIntensity = 1.1;
+          const oldLabel = actor.userData.label;
+          actor.remove(oldLabel);
+          oldLabel.material.map?.dispose(); oldLabel.material.dispose();
+          const label = labelSprite(e.enemy + ' · ' + e.hp + '/' + e.maxHp, '#ffaaa0');
+          label.position.y = 3.5; actor.add(label); actor.userData.label = label;
+        }
+      }
+    }
+    for (const [id, actor] of combatActors) {
+      if (activeEncounterIds.has(id)) continue;
+      combatGroup.remove(actor); clearGroup(actor); combatActors.delete(id);
     }
     const selfEncounter = data.selfEncounter || data.encounter || null;
     if (attackInfectedButton) attackInfectedButton.disabled = !selfEncounter || selfEncounter.defeated || selfEncounter.hp <= 0;
@@ -325,6 +353,6 @@ function boot(host) {
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
   let lastFrame = performance.now();
-  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); renderer.render(scene, camera); requestAnimationFrame(tick); };
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } renderer.render(scene, camera); requestAnimationFrame(tick); };
   tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
 }

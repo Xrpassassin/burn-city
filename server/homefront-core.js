@@ -179,6 +179,28 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       record(s, 'armory', 'Equipped ' + WEAPONS[id].label + ' (' + WEAPONS[id].rarity + ').', now);
       break;
     }
+    case 'rescue_survivor': {
+      if (s.baseHp <= 0) throw new Error('base_destroyed');
+      if (s.survivors.length >= MAX_SURVIVORS) throw new Error('survivor_capacity');
+      const zoneId = typeof action.zone === 'string' ? action.zone : '';
+      const zone = EXPLORATION_ZONES[zoneId];
+      const difficultyId = typeof action.difficulty === 'string' ? action.difficulty : 'standard';
+      const difficulty = DIFFICULTIES[difficultyId];
+      if (!zone || zone.boss) throw new Error('unknown_rescue_zone');
+      if (!difficulty) throw new Error('unknown_difficulty');
+      const cost = { food: Math.max(1, Math.ceil(zone.food * difficulty.cost)), ammo: Math.max(1, Math.ceil(zone.ammo * difficulty.cost)) };
+      pay(s, cost);
+      const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol','Dara','Finn','Mika','Ren'];
+      const seed = hash(s.owner + ':' + zoneId + ':' + now + ':' + s.revision);
+      const role = zone.risk >= 3 ? 'medic' : zone.risk === 2 ? 'mechanic' : 'guard';
+      const id = 'rescued-' + seed.toString(36);
+      s.survivors.push({ id, name: names[seed % names.length], role, morale: clampInt(82 - zone.risk * 8 - Math.max(0, difficulty.threat - 1) * 10, 30, 100) });
+      const embers = Math.floor((5 + zone.risk * 3) * difficulty.reward);
+      s.embers = Math.min(999999999, s.embers + embers);
+      s.exploration.lastExpedition = { zone: zoneId, difficulty: difficultyId, risk: zone.risk, at: now, rescue: true };
+      record(s, 'rescue', 'Rescued ' + names[seed % names.length] + ' at ' + zone.label + '. Recruited a ' + role + ' with morale ' + s.survivors.at(-1).morale + ' and earned ' + embers + ' Embers.', now);
+      break;
+    }
     case 'boss_attack': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       const zoneId = typeof action.zone === 'string' ? action.zone : '';

@@ -42,6 +42,11 @@ jobs:
       - name: Check server syntax
         run: |
           node --check server/flight-lobby.js
+          node --check server/homefront-combat.js
+          node --check server/homefront-core.js
+          node --check server/homefront-survival.js
+          node --check server/homefront-world.js
+          node --check server/homefront.js
           node --check server/game.js
           node --check server/server.js
       - name: Check browser JavaScript syntax

@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { DEFAULT_TERRAIN_SEED, terrainHeight, terrainChunkSamples } from '../client/arena/homefront-terrain-generation.mjs';
+import { DEFAULT_TERRAIN_SEED, terrainHeight, terrainElevation, terrainChunkSamples } from '../client/arena/homefront-terrain-generation.mjs';
 const require = createRequire(import.meta.url);
 const serverTerrain = require('./homefront-terrain.js');
 
 for (let x = -100; x <= 100; x += 7.25) {
   for (let z = -100; z <= 100; z += 9.5) {
     assert.equal(serverTerrain.terrainHeight(x, z), terrainHeight(x, z), `client/server terrain mismatch at ${x},${z}`);
-    assert.equal(serverTerrain.terrainElevation(x, z), terrainHeight(x, z) * 0.42);
+    assert.equal(serverTerrain.terrainElevation(x, z), terrainElevation(x, z));
+    assert.equal(serverTerrain.TERRAIN_ELEVATION_SCALE, 0.42);
   }
 }
 for (const roadCenter of [-90, -70, -50, -30, -10, 10, 30, 50, 70, 90]) {

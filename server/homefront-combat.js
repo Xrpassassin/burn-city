@@ -54,7 +54,7 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  const weaponId=typeof base.equippedWeapon==='string'&&WEAPON_FIRE_INTERVAL[base.equippedWeapon]?base.equippedWeapon:'pipe_blade';
  const fireInterval=WEAPON_FIRE_INTERVAL[weaponId]||ATTACK_COOLDOWN;
  if(now-e.lastAttackAt<Math.max(ATTACK_COOLDOWN,fireInterval))throw Error('attack_cooldown');
- const ammoCost=WEAPON_MAGAZINE_CAPACITY[weaponId]>0?e.ammoCost:0;
+ const ammoCost=WEAPON_MAGAZINE_CAPACITY[weaponId]>0?1:0;
  if((base.resources?.ammo||0)<ammoCost)throw Error('insufficient_ammo');base.resources.ammo-=ammoCost;base.revision=(Number.isSafeInteger(base.revision)?base.revision:0)+1;
  const power=clamp(Math.floor(weaponPower),1,20);const field=survival&&typeof survival==='object'?{...survival}:null;const staminaBefore=field?clamp(field.stamina,0,100):100;const fatigueScale=staminaBefore<15?0.55:staminaBefore<35?0.75:1;
  // Hit zones are rolled on the server from encounter and attack clock; clients cannot submit a headshot claim.
@@ -69,6 +69,6 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  const guards=Array.isArray(base.survivors)?base.survivors.filter(s=>s.role==='guard').length:0,enemyDamage=Math.max(1,e.damage-Math.min(3,guards));
  if(Array.isArray(base.survivors)&&base.survivors.length){const target=base.survivors.reduce((a,s)=>!a||(s.morale||0)<(a.morale||0)?s:a,null);if(target)target.morale=clamp((target.morale||0)-enemyDamage*2,0,100);}else base.resources.food=Math.max(0,(base.resources.food||0)-Math.max(1,Math.ceil(enemyDamage/3)));
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Hit '+e.enemy+' for '+damage+' damage. It retaliated for '+enemyDamage+' pressure.'});base.log=base.log.slice(-20);}
- return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,enemyDamage,ammoCost:e.ammoCost,reward:null,base,survival:field};
+ return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,enemyDamage,ammoCost,reward:null,base,survival:field};
 }
 module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,WEAPON_FIRE_INTERVAL,WEAPON_MAGAZINE_CAPACITY,STATS,normalizeEncounters,resolveSpawn,publicEncounter,spawn,advance,attack};

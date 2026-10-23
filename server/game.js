@@ -55,14 +55,15 @@ class Room {
   spawn(p) {
     const a = Math.random() * Math.PI * 2, r = this.mode === 'tron' ? 60 + Math.random() * 40 : 8 * Math.random();
     p.x = Math.cos(a) * r; p.z = Math.sin(a) * r; if (this.mode === 'zombie') { Z.bind(this); let best = null, bd = -1;
-      if (this.arrivalSpawn && Z.QDEF?.pad) {
-        // Arrival flights use the map's authored helicopter pad; spread a party around its centre.
+      if (this.arrivalSpawn && !p.arrivalSpawnUsed && Z.QDEF?.pad) {
+        // Arrival flights use the map's authored helicopter pad once, then normal respawns use the Spawn Bay.
         const pad = Z.QDEF.pad, centre = [Z.WX(pad[0]), Z.WZ(pad[1])], index = Math.max(0, this.players.size - 1), angle = index * 2.399;
         best = [centre[0] + Math.cos(angle) * Math.min(1.5, index * 0.22), centre[1] + Math.sin(angle) * Math.min(1.5, index * 0.22)];
+        p.arrivalSpawnUsed = true;
       } else {
         for (let k = 0; k < 20; k++) { const c = Z.zoneSpawn(), d = Math.min(99, ...[...(this.zombies?.values() || [])].map(z => Math.hypot(z.x - c[0], z.z - c[1]))); if (d > bd) { bd = d; best = c; } if (d > 8) break; }
       }
-      [p.x, p.z] = best; p.inv = Math.max(p.inv || 0, this.arrivalSpawn ? 5 : 2); p.lv = 0; p.y = 0; } p.alive = true; p.in = p.in || { mx: 0, mz: 0, fire: false, turn: 0 };
+      [p.x, p.z] = best; p.inv = Math.max(p.inv || 0, p.arrivalSpawnUsed ? 5 : 2); p.lv = 0; p.y = 0; } p.alive = true; p.in = p.in || { mx: 0, mz: 0, fire: false, turn: 0 };
     if (this.mode === 'tron') {   // grid-aligned heading, pointed roughly inward
       p.dir = Math.abs(p.x) > Math.abs(p.z) ? (p.x > 0 ? 2 : 0) : (p.z > 0 ? 3 : 1);
       p.trail = [[p.x, p.z, this.t]]; p.turnCd = 0; p.deadT = null;

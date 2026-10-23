@@ -71,5 +71,5 @@ assert.match(scene, /raycaster\.intersectObject\(combatGroup, true\)/, 'select a
 assert.match(scene, /selectedCombatAimPoint = \{ x: hit\.x, y: hit\.y, z: hit\.z \}/, 'derive aim point from the 3D ray hit rather than a client-chosen hit-zone label');
 assert.match(scene, /const fireLoop = async \(\) =>/, 'repeat authenticated attacks while the autofire control is held');
 assert.match(scene, /pointercancel|pointerup/, 'stop autofire on pointer release or cancellation');
-assert.match(scene, /targetId, \?\?/, 'include the selected target with combat requests');
+assert.match(scene, /JSON\.stringify\(targetId \? \{ targetId/, 'include the selected target with combat requests');
 

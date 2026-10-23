@@ -14,4 +14,11 @@ assert.equal(C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000}
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
 const noAmmo=C.spawn({encounters:{},account:'b',player,now:200000});assert.throws(()=>C.attack({encounters:noAmmo.encounters,account:'b',player,base:{...base(),resources:{ammo:0}},now:201000}),/insufficient_ammo/);
+const tiredSpawn=C.spawn({encounters:{},account:'tired',player,now:300000});
+const tiredBase=base();
+const tired=C.attack({encounters:tiredSpawn.encounters,account:'tired',player,base:tiredBase,survival:{stamina:10,health:100},now:301000,weaponPower:1});
+assert.equal(tired.survival.stamina,2,'each attack consumes eight stamina');
+const restedSpawn=C.spawn({encounters:{},account:'rested',player,now:400000});
+const rested=C.attack({encounters:restedSpawn.encounters,account:'rested',player,base:base(),survival:{stamina:100,health:100},now:401000,weaponPower:1});
+assert.ok(tired.damage<rested.damage,'low stamina reduces attack damage');
 console.log('Homefront authoritative combat tests passed.');

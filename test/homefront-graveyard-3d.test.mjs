@@ -73,6 +73,8 @@ assert.match(scene, /detail\.hitZone === 'head'/, 'headshots get distinct impact
 assert.match(scene, /HEADSHOT!/, 'show a headshot callout only when the server reports one');
 assert.match(page, /id="autoFireInfected"/, 'provide a dedicated hold-to-autofire control');
 assert.match(page, /id="reloadWeapon"/, 'provide a reload control for firearm magazines');
+assert.match(page, /id="ammoStatus"/, 'show loaded rounds and reserve ammunition in the combat UI');
+assert.match(scene, /Magazine ' \+ magazine\.loaded \+ '\/' \+ magazine\.capacity/, 'keep magazine and reserve counts visible as world snapshots update');
 assert.match(scene, /\/api\/homefront\/world\/reload/, 'reload requests are authenticated and server-authoritative');
 assert.match(scene, /data\.selfWeaponMagazine/, 'display the server-owned magazine state after reload');
 assert.match(scene, /raycaster\.intersectObject\(combatGroup, true\)/, 'select an infected using actual 3D mesh ray intersection');

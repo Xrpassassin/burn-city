@@ -4,6 +4,12 @@ import { readFileSync } from 'node:fs';
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 
+assert.match(scene, /from '\.\/zaudio\.js'/, 'reuse the Zombies sound director in Homefront');
+assert.match(scene, /createZombieAudio\(sfx, \{ base: new URL\('\.\/sfx\/'/, 'reuse the existing positional zombie audio sample bank');
+assert.match(scene, /zombieAudio\.tick\(dt, audioMe, audioZombies/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
+assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play shared hit and headshot audio only after authoritative combat confirmation');
+assert.match(scene, /zombieAudio\.zdie\(target\)/, 'play infected death audio only after server-confirmed kills');
+assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
 assert.match(scene, /from '\.\/vendor\/three\.module\.min\.js'/, 'reuse the vendored Three.js runtime');
 assert.match(scene, /GLTFLoader/, 'reuse the existing GLTF asset loader');
 assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely');

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#100b09"><title>BURN City — Homefront</title>
+<style>
+:root{color-scheme:dark;--ember:#ff8b3d;--line:#9a5531;--panel:#1b1512;--muted:#bca99b;--good:#9fce8a;--bad:#ff7d72}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 0,#4a2418 0,#140e0b 52%,#080707 100%);color:#f5e6d8;font:15px system-ui,-apple-system,sans-serif;min-height:100vh}
+header{padding:calc(14px + env(safe-area-inset-top)) 16px 14px;border-bottom:1px solid #ff8b3d44;background:#0a0807d9;position:sticky;top:0;z-index:5;backdrop-filter:blur(8px)}
+.top{max-width:1050px;margin:auto;display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap}h1{font-size:clamp(22px,4vw,32px);margin:0;color:#ffb06e;letter-spacing:.04em}.eyebrow{font-size:11px;letter-spacing:.18em;color:#c88c67;font-weight:800}.btn{border:1px solid var(--line);border-radius:10px;background:#32190f;color:#ffe0c4;padding:10px 13px;font:inherit;font-weight:700;cursor:pointer;min-height:44px}.btn.primary{background:linear-gradient(120deg,#a63f16,#63250f);border-color:#ff8b3d}.btn:disabled{opacity:.45;cursor:wait}.wrap{max-width:1050px;margin:auto;padding:18px 14px 50px}.intro{color:var(--muted);line-height:1.5;max-width:720px}.status{margin:12px 0;padding:10px 12px;border:1px solid #ff8b3d44;border-radius:10px;background:#160e0be8;color:#f9c99f}.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}.panel{grid-column:span 12;background:linear-gradient(155deg,#251a15f2,#100d0cf2);border:1px solid #a55c354c;border-radius:14px;padding:14px;box-shadow:0 8px 24px #0003}.panel h2{font-size:17px;margin:0 0 12px;color:#ffc18e}.resources{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px}.resource{padding:10px;background:#08070688;border:1px solid #a55c3533;border-radius:10px}.resource b{display:block;font-size:22px;color:#ffe0b8}.resource span{font-size:12px;color:var(--muted)}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px}.card{padding:10px;border:1px solid #a55c354c;background:#0e0b0a;border-radius:10px;min-width:0}.card b{display:block;color:#ffe0c4}.card small{display:block;color:var(--muted);margin:5px 0 9px;line-height:1.4}.card .btn{width:100%;font-size:13px;padding:8px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1}.select{width:100%;background:#100c0a;color:#ffe0c4;border:1px solid #8e5235;border-radius:8px;padding:9px;min-height:42px}.log{display:grid;gap:7px}.logitem{padding:8px 10px;border-left:3px solid #b85d2d;background:#0d0a09;color:#d9c5b5;font-size:13px}.muted{color:var(--muted)}.danger{color:var(--bad)}.ok{color:var(--good)}.qr{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.qr img{width:180px;height:180px;object-fit:contain;background:white;padding:6px;border-radius:8px}.foot{color:#8c7c70;font-size:12px;text-align:center;margin-top:24px}
+@media(min-width:700px){.half{grid-column:span 6}.third{grid-column:span 4}.wide{grid-column:span 8}.side{grid-column:span 4}}
+</style></head><body>
+<header><div class="top"><div><div class="eyebrow">UNRANKED ZOMBIES SURVIVAL</div><h1>🏚 HOMEFRONT</h1></div><div class="row" style="flex:0 1 auto"><button class="btn" id="back">← Arena</button><button class="btn primary" id="signin">Sign in to save</button></div></div></header>
+<main class="wrap">
+<p class="intro">This refuge is yours. Scavenge beyond the walls, bring survivors home, assign them to work, build up the settlement, and hold the line when the dead arrive. Your progress is tied to your signed-in BURN City account.</p>
+<div class="status" id="status" role="status">Connecting to the refuge ledger…</div>
+<div id="qrbox" class="panel" hidden><h2>Sign in with Xaman</h2><p class="muted">Scan the QR code to connect your account and enable server-side saving.</p><div class="qr" id="qr"></div></div>
+<div id="game" hidden>
+<div class="grid">
+<section class="panel"><h2>📦 Settlement stores</h2><div class="resources" id="resources"></div></section>
+<section class="panel half"><h2>🏠 Refuge status</h2><div id="baseStatus"></div><div class="row" style="margin-top:12px"><button class="btn" id="repairBase">Repair refuge · 2 wood + 1 scrap</button><button class="btn primary" id="workday">Run work shift</button></div></section>
+<section class="panel half"><h2>🧟 Breach warning</h2><p class="muted">Trigger a testable server-resolved attack. Guards, towers, walls, and ammunition contribute to defense; damage persists until repaired.</p><button class="btn primary" id="defend">Defend the refuge</button></section>
+<section class="panel wide"><h2>🔨 Build the refuge</h2><p class="muted">Structures are persistent gameplay objects. Visual snap-placement in the 3D world is the next stage; this first management slice lets you establish the settlement economy and defense rules.</p><div class="cards" id="buildings"></div><h2 style="margin-top:18px">Existing structures</h2><div class="cards" id="structures"></div></section>
+<section class="panel side"><h2>🧭 Scavenge beyond the walls</h2><p class="muted">Each expedition costs 2 food and 1 ammunition. Loot and survivor recruitment are decided by the server, never by the browser.</p><button class="btn primary" id="expedition" style="width:100%">Launch expedition</button><h2 style="margin-top:18px">👥 Survivors</h2><div id="survivors" class="cards"></div></section>
+<section class="panel"><h2>📓 Settlement log</h2><div id="log" class="log"></div></section>
+</div></div>
+<div class="foot">Homefront is separate from Ranked and standard Zombies Free Play. No offline base destruction is active.</div>
+</main>
+<script type="module">
+import { signIn } from './net.js';
+const API = new URLSearchParams(location.search).get('api') || (/fly\\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
+const $ = id => document.getElementById(id);
+let base = null, busy = false;
+const BUILDINGS = [
+ ['wall','🧱 Wall','8 wood · 2 scrap','Basic perimeter defense'],
+ ['gate','🚪 Reinforced gate','12 wood · 8 scrap','Stronger breach point'],
+ ['watchtower','🔭 Watchtower','14 wood · 10 scrap','Major defense bonus'],
+ ['garden','🌱 Garden','8 wood · 3 scrap','Boosts farmer production'],
+ ['workshop','🛠 Workshop','12 wood · 14 scrap','Mechanics turn labor into scrap'],
+ ['infirmary','🩹 Infirmary','10 wood · 8 scrap · 2 meds','Medics generate medicine'],
+ ['storage','📦 Storage shed','10 wood · 5 scrap','Settlement expansion marker']
+];
+const labels={wood:['🪵','Wood'],scrap:['🔩','Scrap'],food:['🥫','Food'],meds:['🩹','Medicine'],ammo:['🔫','Ammo']};
+async function request(path, method='GET', payload) {
+ const headers={authorization:'Bearer '+(localStorage.bcToken||'')};
+ if(method==='POST') headers['content-type']='application/json';
+ const response=await fetch(API+path,{method,headers,body:method==='POST'?JSON.stringify(payload||{}):undefined});
+ let data={}; try{data=await response.json()}catch{}
+ if(!response.ok||data.error) throw new Error(data.message||data.error||'request_failed');
+ return data;
+}
+function message(s,kind=''){$('status').textContent=s;$('status').className='status '+kind}
+function button(label,fn,disabled=false,primary=false){const b=document.createElement('button');b.className='btn'+(primary?' primary':'');b.textContent=label;b.disabled=disabled;b.onclick=fn;return b}
+async function act(action){if(busy)return;busy=true;render();try{const v=await request('/api/homefront/action','POST',{action});base=v.base;message('Progress saved to your account.','ok')}catch(e){message(e.message==='sign_in_with_xaman'?'Sign in to continue.':e.message,'danger')}finally{busy=false;render()}}
+function render(){
+ if(!base)return;$('game').hidden=false;$('signin').textContent=localStorage.bcToken?'Signed in · '+(localStorage.bcAcct||'account').slice(0,8)+'…':'Sign in to save';
+ $('resources').replaceChildren(...Object.entries(labels).map(([k,[emoji,label]])=>{const d=document.createElement('div');d.className='resource';const b=document.createElement('b');b.textContent=emoji+' '+base.resources[k];const s=document.createElement('span');s.textContent=label;d.append(b,s);return d}));
+ $('baseStatus').innerHTML='<div class="resources"><div class="resource"><b>'+base.baseHp+' / '+base.baseMaxHp+'</b><span>Refuge integrity</span></div><div class="resource"><b>'+base.level+'</b><span>Settlement level</span></div><div class="resource"><b>'+base.day+'</b><span>Survival day</span></div><div class="resource"><b>'+base.wave+'</b><span>Breaches faced</span></div></div>';
+ $('buildings').replaceChildren(...BUILDINGS.map(([id,name,cost,desc])=>{const d=document.createElement('div');d.className='card';const b=document.createElement('b');b.textContent=name;const sm=document.createElement('small');sm.textContent=desc+' · '+cost;d.append(b,sm,button('Construct',()=>act({type:'build',building:id}),busy||base.structures.length>=60));return d}));
+ $('structures').replaceChildren(...base.structures.map(s=>{const d=document.createElement('div');d.className='card';const b=document.createElement('b');b.textContent=s.type+' · '+s.hp+'/'+s.maxHp;const sm=document.createElement('small');sm.textContent='Structure '+s.id;d.append(b,sm,button('Repair · 2 wood + 1 scrap',()=>act({type:'repair',target:s.id}),busy||s.hp>=s.maxHp));return d}));
+ $('survivors').replaceChildren(...(base.survivors.length?base.survivors.map(s=>{const d=document.createElement('div');d.className='card';const b=document.createElement('b');b.textContent=s.name;const sm=document.createElement('small');sm.textContent='Morale '+s.morale+'%';const select=document.createElement('select');select.className='select';for(const role of ['idle','guard','scavenger','farmer','medic','mechanic']){const o=document.createElement('option');o.value=role;o.textContent=role[0].toUpperCase()+role.slice(1);o.selected=s.role===role;select.append(o)}select.onchange=()=>act({type:'assign',survivorId:s.id,role:select.value});d.append(b,sm,select);return d}):[Object.assign(document.createElement('p'),{className:'muted',textContent:'No survivors yet. Send an expedition to find people.'})]));
+ $('log').replaceChildren(...base.log.slice().reverse().map(item=>{const d=document.createElement('div');d.className='logitem';d.textContent='Day '+base.day+' · '+item.text;return d}));
+ for(const id of ['repairBase','workday','defend','expedition']) $(id).disabled=busy;
+ $('repairBase').disabled=busy||base.baseHp>=base.baseMaxHp;$('workday').disabled=busy||base.baseHp<=0;$('defend').disabled=busy||base.baseHp<=0;$('expedition').disabled=busy||base.baseHp<=0||base.survivors.length>=12;
+}
+async function load(){if(!localStorage.bcToken){message('Sign in to create and save your personal refuge.');$('signin').textContent='Sign in to save';return}try{const v=await request('/api/homefront');base=v.base;message('Refuge loaded · save revision '+base.revision,'ok');render()}catch(e){message(e.message==='sign_in_with_xaman'?'Sign in to save your refuge.':e.message,'danger')}}
+$('signin').onclick=async()=>{try{message('Waiting for Xaman approval…');$('qrbox').hidden=false;const v=await signIn(API,{onQr:x=>{const img=document.createElement('img');img.alt='Xaman sign-in QR';img.src=x.qr;$('qr').replaceChildren(img);if(x.deeplink&&/iPhone|Android/i.test(navigator.userAgent))location.href=x.deeplink}});$('qrbox').hidden=true;message('Account connected. Loading your refuge…','ok');await load()}catch(e){message('Sign-in unavailable: '+e.message,'danger')}};
+$('back').onclick=()=>location.href='./';
+$('expedition').onclick=()=>act({type:'expedition'});$('workday').onclick=()=>act({type:'workday'});$('defend').onclick=()=>act({type:'defend'});$('repairBase').onclick=()=>act({type:'repair',target:'base'});
+load();
+</script></body></html>

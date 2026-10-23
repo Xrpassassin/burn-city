@@ -20,4 +20,17 @@ assert.deepEqual(taken.taken, [{ qty: 2, acquiredAt: start }], 'consumption take
 assert.deepEqual(taken.batches.rawFood, [{ qty: 1, acquiredAt: start }, { qty: 2, acquiredAt: start + hour }]);
 assert.throws(() => F.takeBatches(batches, 'rawFood', 9, { rawFood: 5 }, start), /not_carrying_rawFood/);
 assert.throws(() => F.addBatch(batches, 'water', 1, start), /not_perishable_water/);
+const Core = require('./homefront-core');
+const owner = 'freshness-regression-owner';
+const base = Core.createBase(owner, start);
+const marketBuy = Core.applyAction(base, owner, { type: 'buy_materials', resource: 'food' }, start + hour);
+assert.equal(marketBuy.resources.food, 34);
+assert.deepEqual(marketBuy.resources.freshness.food, [
+  { qty: 24, acquiredAt: start }, { qty: 10, acquiredAt: start + hour }
+], 'new refuge stock receives its own timestamp without refreshing existing food');
+const rallyBase = Core.applyAction({ ...marketBuy, survivors: [{ id: 's1', name: 'Rook', role: 'idle', morale: 50 }] }, owner, { type: 'rally' }, start + 2 * hour);
+assert.equal(rallyBase.resources.food, 30);
+assert.deepEqual(rallyBase.resources.freshness.food, [
+  { qty: 20, acquiredAt: start }, { qty: 10, acquiredAt: start + hour }
+], 'settlement consumption removes oldest food batches first');
 console.log('Homefront freshness batch rules passed.');

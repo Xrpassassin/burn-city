@@ -4,7 +4,8 @@ import * as THREE from './vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
-import { biomeAt, environmentalCandidates } from './homefront-world-generation.mjs';
+import { terrainHeight } from './homefront-terrain-generation.mjs';
+import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { sfx } from './sfx.js';
 
 const host = document.getElementById('graveyard3d');
@@ -36,7 +37,10 @@ function boot(host) {
   const groundColors = new Float32Array(groundPositions.count * 3);
   const groundColor = new THREE.Color();
   for (let i = 0; i < groundPositions.count; i++) {
-    const biome = biomeAt(groundPositions.getX(i), -groundPositions.getY(i));
+    const worldX = groundPositions.getX(i), worldZ = -groundPositions.getY(i);
+    // Shallow broad rises and depressions create visible slopes without yet changing server movement rules.
+    groundPositions.setZ(i, (terrainHeight(worldX, worldZ) * 0.42));
+    const biome = biomeAt(worldX, worldZ);
     groundColor.setHex(biome.ground);
     // Tiny seeded-looking tonal drift from biome fields avoids a completely flat painted appearance.
     const drift = (biome.moisture - 0.5) * 0.045 + (biome.urban - 0.5) * 0.025;
@@ -44,6 +48,8 @@ function boot(host) {
     groundColors[i * 3 + 1] = Math.max(0, Math.min(1, groundColor.g + drift));
     groundColors[i * 3 + 2] = Math.max(0, Math.min(1, groundColor.b + drift));
   }
+  groundGeometry.attributes.position.needsUpdate = true;
+  groundGeometry.computeVertexNormals();
   groundGeometry.setAttribute('color', new THREE.BufferAttribute(groundColors, 3));
   const groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 1 });
   const ground = new THREE.Mesh(groundGeometry, groundMat);
@@ -176,6 +182,69 @@ function boot(host) {
     water: new THREE.MeshStandardMaterial({ color: 0x354b49, roughness: 0.28, metalness: 0.12, transparent: true, opacity: 0.72 }),
     vehicle: mat(0x393f3b), vehicleGlass: mat(0x202b2b), shrub: mat(0x343b2d), stone: mat(0x747166)
   };
+  const landmarkMats = {
+    fadedOrange: mat(0x9b5838), canvas: mat(0x71694e), metal: mat(0x454b49),
+    concrete: mat(0x66645a), warning: mat(0xb18a45), dark: mat(0x292d2b)
+  };
+  function addLandmark(parent, landmark) {
+    const g = new THREE.Group();
+    g.position.set(landmark.x, terrainHeight(landmark.x, landmark.z) * 0.42, landmark.z);
+    g.rotation.y = (Math.abs(landmark.x * 7 + landmark.z * 13) % 628) / 100;
+    if (landmark.type === 'evacuation_checkpoint') {
+      addBox(g, 5.8, 0.18, 0.28, 0, 2.55, 0, landmarkMats.fadedOrange);
+      addBox(g, 0.22, 2.7, 0.22, -2.7, 0, 0, landmarkMats.metal);
+      addBox(g, 0.22, 2.7, 0.22, 2.7, 0, 0, landmarkMats.metal);
+      addBox(g, 4.8, 0.1, 0.14, 0, 2.28, 0.18, landmarkMats.warning);
+      for (const x of [-3.5, 3.5]) {
+        addBox(g, 0.65, 0.75, 0.65, x, 0, 0, landmarkMats.concrete);
+        addBox(g, 0.75, 0.08, 0.75, x, 0.76, 0, landmarkMats.warning);
+      }
+      // Broken lane barricade and an abandoned checkpoint booth.
+      addBox(g, 2.4, 1.3, 1.6, -1.1, 0, -2.2, landmarkMats.concrete);
+      addBox(g, 2.2, 0.12, 1.4, -1.1, 1.3, -2.2, landmarkMats.dark);
+    } else if (landmark.type === 'survivor_camp') {
+      addBox(g, 3.8, 0.12, 3.0, 0, 0.08, 0, landmarkMats.dark);
+      addBox(g, 2.7, 1.75, 2.1, -1.1, 0.15, 0.2, landmarkMats.canvas);
+      const tarp = new THREE.Mesh(new THREE.ConeGeometry(1.75, 1.15, 4), landmarkMats.canvas);
+      tarp.position.set(-1.1, 2.0, 0.2); tarp.rotation.y = Math.PI / 4; g.add(tarp);
+      addBox(g, 1.2, 0.5, 1.1, 1.0, 0.15, 0.2, landmarkMats.concrete);
+      const fire = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 0.18, 8), emberMat);
+      fire.position.set(1.2, 0.22, 1.25); g.add(fire);
+      for (const x of [-2.2, 2.2]) addBox(g, 0.12, 1.5, 0.12, x, 0, -1.25, landmarkMats.metal);
+    } else if (landmark.type === 'radio_tower') {
+      for (const x of [-0.95, 0.95]) for (const z of [-0.95, 0.95]) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.09, 7.5, 5), landmarkMats.metal);
+        leg.position.set(x * 0.55, 3.75, z * 0.55); leg.rotation.z = x * -0.06; g.add(leg);
+      }
+      for (const y of [1.1, 2.7, 4.4, 6.2]) addBox(g, 1.6, 0.08, 1.6, 0, y, 0, landmarkMats.metal);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.06, 2.5, 6), landmarkMats.warning);
+      mast.position.y = 8.1; g.add(mast);
+      for (const z of [-0.55, 0.55]) {
+        const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.4, 5), landmarkMats.metal);
+        antenna.position.set(0, 5.5, z); antenna.rotation.x = z * 0.3; g.add(antenna);
+      }
+    } else if (landmark.type === 'crashed_bus') {
+      const body = addBox(g, 2.35, 2.25, 7.2, 0, 0.25, 0, landmarkMats.fadedOrange);
+      body.rotation.x = -0.04; body.rotation.z = -0.1;
+      addBox(g, 2.1, 1.1, 4.9, 0, 2.35, -0.05, envMats.vehicleGlass);
+      for (const x of [-1.15, 1.15]) for (const z of [-2.35, 2.35]) {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.22, 9), envMats.rubbleDark);
+        wheel.rotation.z = Math.PI / 2; wheel.position.set(x, 0.45, z); g.add(wheel);
+      }
+      addBox(g, 0.8, 0.1, 1.5, 0.35, 0.55, 3.1, landmarkMats.dark);
+    } else {
+      addBox(g, 6.5, 0.28, 5.4, 0, 0.12, 0, landmarkMats.concrete);
+      addBox(g, 5.8, 2.5, 0.35, 0, 0.25, -2.4, buildingMats[2]);
+      addBox(g, 0.3, 3.2, 0.4, -2.5, 0.25, -2.3, landmarkMats.metal);
+      addBox(g, 0.3, 1.7, 0.4, 2.5, 0.25, -2.3, landmarkMats.metal);
+      addBox(g, 2.8, 0.18, 2.3, 0.7, 2.8, -1.0, landmarkMats.concrete);
+      addBox(g, 1.5, 0.2, 1.3, -1.4, 0.15, 1.0, landmarkMats.dark);
+      for (let i = 0; i < 4; i++) addBox(g, 0.18, 0.45, 0.18, -2.5 + i * 1.65, 0.2, -2.75, landmarkMats.warning);
+    }
+    g.userData.landmarkId = landmark.id;
+    g.userData.landmarkType = landmark.type;
+    parent.add(g);
+  }
   function addEnvironmentalCandidate(parent, prop) {
     const g = new THREE.Group();
     g.position.set(prop.x, 0, prop.z);
@@ -223,6 +292,7 @@ function boot(host) {
   for (let cz = -2; cz <= 1; cz++) for (let cx = -2; cx <= 1; cx++) {
     const chunk = cityChunkAt(cx * 64 + 0.01, cz * 64 + 0.01);
     for (const prop of environmentalCandidates(cx, cz, { density: 0.18 })) addEnvironmentalCandidate(chunk, prop);
+    for (const landmark of landmarkCandidates(cx, cz)) addLandmark(chunk, landmark);
   }
   // Deterministic road grid and procedural ruined buildings; no extra engine or dependency.
   for (let n = -90; n <= 90; n += 20) {

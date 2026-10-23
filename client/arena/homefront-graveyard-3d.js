@@ -92,6 +92,8 @@ function boot(host) {
   let selectedLootId = null;
   const findInfectedButton = document.getElementById('findInfected');
   const attackInfectedButton = document.getElementById('attackInfected');
+  const damageEnvironmentButton = document.getElementById('damageEnvironment');
+  let selectedEnvironmentId = null;
   const autoFireButton = document.getElementById('autoFireInfected');
   const reloadWeaponButton = document.getElementById('reloadWeapon');
   const ammoStatus = document.getElementById('ammoStatus');
@@ -525,6 +527,11 @@ function boot(host) {
   function updateWorld(data) {
     worldData = data;
     applyEnvironmentStateSnapshot(data.world?.environmentStructures);
+    const selectedEnvironment = (data.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
+    if (selectedEnvironment && (selectedEnvironment.collisionEnabled === false || selectedEnvironment.health <= 0)) selectedEnvironmentId = null;
+    const selectedEnvironmentState = (data.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
+    const environmentDistance = selectedEnvironmentState && data.self ? Math.hypot(data.self.x - selectedEnvironmentState.x, data.self.z - selectedEnvironmentState.z) : Infinity;
+    if (damageEnvironmentButton) damageEnvironmentButton.disabled = !token() || !selectedEnvironmentState || environmentDistance > 8 || moving;
     if (typeof data.selfWeaponHandling?.aiming === 'boolean') aiming = data.selfWeaponHandling.aiming;
     if (sprintTravelButton) { sprintTravelButton.setAttribute('aria-pressed', String(sprintTravel)); sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF'; }
     clearGroup(poiGroup); clearGroup(lootGroup); markerObjects.clear();
@@ -861,6 +868,33 @@ function boot(host) {
     sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF';
     if (combatStatus) combatStatus.textContent = sprintTravel ? 'Sprint enabled: longer travel steps cost extra stamina and delay weapon accuracy recovery.' : 'Sprint disabled: normal travel pace.';
   });
+  async function damageSelectedEnvironment() {
+    if (!selectedEnvironmentId || moving || !token()) return;
+    const selected = (worldData?.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
+    if (!selected || !worldData?.self || Math.hypot(worldData.self.x - selected.x, worldData.self.z - selected.z) > 8) {
+      if (combatStatus) combatStatus.textContent = 'Move within 8 units of the selected structure before striking it.';
+      return;
+    }
+    moving = true;
+    if (damageEnvironmentButton) damageEnvironmentButton.disabled = true;
+    try {
+      const response = await fetch(API + '/api/homefront/world/environment/damage', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ structureId: selectedEnvironmentId }) });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.message || data.error || 'environment_damage_failed');
+      updateWorld(data);
+      const state = data.environmentDamage;
+      if (combatStatus) combatStatus.textContent = state ? (state.kind || 'Structure') + ' · ' + state.stage + ' · integrity ' + state.health + '/' + state.maxHealth : 'Structure damaged.';
+    } catch (error) {
+      if (combatStatus) combatStatus.textContent = error.message === 'environment_structure_out_of_range' ? 'Too far away. Move within 8 units to strike this structure.' : 'Could not damage structure: ' + error.message;
+    } finally {
+      moving = false;
+      if (damageEnvironmentButton && worldData) {
+        const selected = (worldData.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
+        damageEnvironmentButton.disabled = !selected || !worldData.self || Math.hypot(worldData.self.x - selected.x, worldData.self.z - selected.z) > 8;
+      }
+    }
+  }
+  if (damageEnvironmentButton) damageEnvironmentButton.addEventListener('click', damageSelectedEnvironment);
   if (findInfectedButton) findInfectedButton.addEventListener('click', () => combatAction('encounter'));
   if (attackInfectedButton) attackInfectedButton.addEventListener('click', () => combatAction('attack'));
   const stopAutoFire = () => { autoFireHeld = false; if (autoFireTimer) clearTimeout(autoFireTimer); autoFireTimer = null; if (autoFireButton) autoFireButton.setAttribute('aria-pressed', 'false'); };
@@ -903,6 +937,19 @@ function boot(host) {
         if (combatStatus) combatStatus.textContent = active?.id === selectedCombatTargetId
           ? 'Target locked: ' + (active.enemy || 'infected') + ' · aim point set. Hold autofire to engage.'
           : 'Target selected, but only your active encounter can be attacked right now.';
+        updateWorld(worldData);
+        return;
+      }
+    }
+    const environmentHits = raycaster.intersectObjects([...environmentVisuals.values()].filter(group => group.visible), true);
+    if (environmentHits.length) {
+      let target = environmentHits[0].object;
+      while (target && !target.userData?.environmentId) target = target.parent;
+      if (target?.userData?.environmentId) {
+        selectedEnvironmentId = target.userData.environmentId;
+        const state = (worldData.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
+        const distance = state ? Math.hypot(worldData.self.x - state.x, worldData.self.z - state.z) : Infinity;
+        if (combatStatus) combatStatus.textContent = state ? state.kind + ' selected · ' + state.stage + ' · ' + Math.ceil(distance) + ' units away.' : 'Structure selected. Move closer to interact.';
         updateWorld(worldData);
         return;
       }

@@ -62,8 +62,13 @@ addEventListener('pageshow',e=>{if(!e.persisted)return;document.getElementById('
 const EXPERIENCE_REGISTRY = window.__burnExperienceRegistry = createBurnCityExperienceRegistry({
  launchers: {
   zombies: async ({ returnTo }) => {
-   await showExperienceTransition('flight','✈','BURN CITY INTERNATIONAL','Boarding the Zombie Extermination expedition…');
-   location.href = 'arena/?mode=zombie&from=' + encodeURIComponent(returnTo);
+   await showExperienceTransition('flight','🚁','BURN CITY INTERNATIONAL','Proceeding to the flight staging pad…');
+   location.href = 'arena/flight-lobby.html?from=' + encodeURIComponent(returnTo);
+   return { navigating: true };
+  },
+  homefront: async ({ returnTo }) => {
+   await showExperienceTransition('flight','🏚','HOMEFRONT','Flying to your personal survival refuge…');
+   location.href = 'arena/homefront.html?from=' + encodeURIComponent(returnTo);
    return { navigating: true };
   },
   'light-cycles': async ({ returnTo }) => {
@@ -1227,17 +1232,24 @@ if(u.kind==='experience'){
  const title=document.createElement('h3'); title.textContent=u.label||'Travel destination';
  const detail=document.createElement('p'); detail.textContent=u.description||'Choose whether to enter this experience.';
  detail.style.cssText='margin:8px 0 14px;line-height:1.45';
- const enter=document.createElement('button'); enter.type='button'; enter.textContent=u.experienceId==='zombies'?'✈ Board expedition flight':'⚡ Enter Light Cycles';
+ const enter=document.createElement('button'); enter.type='button'; enter.textContent=u.experienceId==='zombies'?'🚁 Queue for Zombie Survival':u.experienceId==='homefront'?'🏚 Fly to Homefront':'⚡ Enter Light Cycles';
  enter.style.cssText='display:block;width:100%;min-height:44px;margin:8px 0;padding:11px 14px;border-radius:10px;border:1px solid #43eaff;background:#082433;color:#e7fbff;font:700 14px system-ui;cursor:pointer';
- enter.onclick=async e=>{
-  e.stopPropagation(); enter.disabled=true; enter.textContent='Preparing transition…';
+ const launchExperience=async experienceId=>{
+  enter.disabled=true; enter.textContent='Preparing transition…';
   const rx=Number(u.returnX), rz=Number(u.returnZ);
   try{
    sessionStorage.bc_ret=JSON.stringify({m:'explore',p:[rx,groundAt(rx,rz,0),rz],c:[C.position.x,C.position.y,C.position.z],yaw:Number.isFinite(u.returnYaw)?u.returnYaw:yp.yaw});
   }catch(_){}
-  const result=await EXPERIENCE_REGISTRY.enter(u.experienceId,{source:'city-map'});
-  if(!result.ok){document.getElementById('bcExperienceTransition')?.remove();try{sessionStorage.removeItem('bc_ret')}catch(_){}enter.disabled=false;enter.textContent=u.experienceId==='zombies'?'✈ Board expedition flight':'⚡ Enter Light Cycles';detail.textContent='Travel could not start ('+result.reason+'). You are still in BURN City; try again.'}
+  const result=await EXPERIENCE_REGISTRY.enter(experienceId,{source:'airport-terminal'});
+  if(!result.ok){document.getElementById('bcExperienceTransition')?.remove();try{sessionStorage.removeItem('bc_ret')}catch(_){}enter.disabled=false;enter.textContent=u.experienceId==='zombies'?'🚁 Queue for Zombie Survival':u.experienceId==='homefront'?'🏚 Fly to Homefront':'⚡ Enter Light Cycles';detail.textContent='Travel could not start ('+result.reason+'). You are still in BURN City; try again.'}
  };
+ enter.onclick=e=>{e.stopPropagation();launchExperience(u.experienceId)};
+ const homefront=document.createElement('button');
+ homefront.type='button';homefront.textContent='🏚 Fly to Homefront';
+ homefront.style.cssText='display:block;width:100%;min-height:44px;margin:8px 0;padding:11px 14px;border-radius:10px;border:1px solid #e99a52;background:#28170d;color:#ffe0c4;font:700 14px system-ui;cursor:pointer';
+ homefront.onclick=e=>{e.stopPropagation();launchExperience('homefront')};
+ if(u.experienceId==='zombies')panel.append(close,title,detail,homefront,enter);
+ else panel.append(close,title,detail,enter);
  const cancel=document.createElement('button'); cancel.type='button'; cancel.textContent='Stay in BURN City'; cancel.style.cssText='display:block;width:100%;min-height:44px;padding:10px;border-radius:10px;border:1px solid #ffffff35;background:#ffffff0a;color:#fff;font:600 13px system-ui;cursor:pointer'; cancel.onclick=()=>{panel.style.display='none'};
  panel.append(close,title,detail,enter,cancel); panel.style.display='block'; panel.scrollTop=0; return;
 }

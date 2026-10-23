@@ -406,13 +406,15 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(guards.length / 2) + 1));
       s.resources.ammo -= ammoUsed;
       const active = s.structures.filter(x => x.hp > 0);
+      const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
+      const turretAmmo = Math.min(s.resources.ammo, mannedTurrets.length * 3);
+      s.resources.ammo -= turretAmmo;
+      const turretAmmoRatio = mannedTurrets.length ? turretAmmo / (mannedTurrets.length * 3) : 0;
       const structureDefense = active.reduce((n, x) => {
         const trenchBonus = x.type === 'trench' ? x.trenchLevel * 3 : 0;
-        const turretBonus = x.type === 'turret' && x.manned ? 7 : 0;
+        const turretBonus = x.type === 'turret' && x.manned ? 7 * turretAmmoRatio : 0;
         return n + BUILDINGS[x.type].defense + trenchBonus + turretBonus;
       }, 0);
-      const turretAmmo = Math.min(s.resources.ammo, active.filter(x => x.type === 'turret' && x.manned).length * 3);
-      s.resources.ammo -= turretAmmo;
       const defense = guardStrength * 2 + (s.upgrades.field_armory || 0) * 2 + structureDefense + ammoUsed * 0.8 + turretAmmo * 1.5;
       const threat = 9 + Math.floor(s.survivors.length / 4); // Fixed perimeter threat; never scales with breach count.
       const damage = Math.max(0, Math.ceil((threat - defense) * 6));

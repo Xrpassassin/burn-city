@@ -172,3 +172,9 @@ assert.match(scene, /explorer\.rotation\.y = Math\.atan2\(target\.x - explorer\.
 assert.match(scene, /g\.userData\.avatarParts = \[/, 'retain avatar body, head, backpack, and strap references for animation');
 assert.match(scene, /const bob = movingAvatar \? Math\.abs\(Math\.sin\(now \* 0\.014\)\) \* 0\.11/, 'add a lightweight step bob while explorers move');
 assert.match(scene, /part\.object\.position\.y = part\.baseY \+ bob/, 'animate avatar parts without changing authoritative world coordinates');
+
+assert.match(page, /let base = null, threatProfile = null, busy = false, pendingBuilding = null, pendingRotation = 0, constructionPaused = false/, 'track a protected construction pause independently of placement selection');
+assert.match(page, /if\(base\?\.wave>0&&!pendingBuilding&&!constructionPaused\)/, 'freeze hostile base actor movement throughout construction and placement requests');
+assert.match(page, /Protected construction mode: hostile base activity is paused/, 'tell players construction mode is protected');
+assert.match(page, /construction pause remains active until the server confirms the build/, 'keep the pause active while the server validates and saves placement');
+assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=false;/, 'resume base activity after the build request settles');

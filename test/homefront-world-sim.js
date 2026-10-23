@@ -16,6 +16,7 @@ assert.equal(joined.result.party.members.length, 2, 'party roster is shared');
 assert.deepEqual([joined.result.self.x, joined.result.self.z], [joined.result.party.members[0].x, joined.result.party.members[0].z], 'party members spawn together');
 assert.throws(() => W.joinParty(world, 'acct-c', 'NOPE00', 1300), /party_not_found/);
 
+assert.throws(() => W.move(world, 'acct-b', 0, 0, 2200), /party_leader_controls_movement/);
 const before = world.players['acct-a'];
 const moved = W.move(world, 'acct-a', -100, -100, 2200);
 world = moved.world;

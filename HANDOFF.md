@@ -524,3 +524,8 @@ Zombies fixed map 02 The Ashen Cosmodrome: server/cod.js COSMODROME def (7 zones
 
 ### Zombies map progression (Oct 22, 2026)
 Free Play on the Refinery (Map 1) OR a random map advances the same room to The Ashen Cosmodrome when every living player extracts on the helicopter (`server/heli.js` `advances()`). Ranked, daily and team-lobby rooms never advance. The Cosmodrome cannot be requested directly. Test: `test/zombie-map-progression-sim.js`.
+
+## Wilds: Yuka pursuit for Glassroot hostiles (PR #143, sw bc-v82-yukapursuit)
+- `wilds-yuka-ai.mjs` `updateWildsPursuitAgent`: the creature's Yuka agent swaps WanderBehavior → SeekBehavior while a Glassroot (`ZONE`) hostile chases an exploring player (2.6–9 m, no encounter/cooldown, not fleeing) and swaps back on the next wander update. `steer()` still owns obstacles, bounds and movement. Doc: `docs/wilds-yuka-pursuit.md`.
+- Creature inspect range 3.6 m → 5 m; hidden/gone creatures are skipped (fleeing ones are now inspectable).
+- Verified (Playwright, SwiftShader, desktop + iPhone 13, `?wildstest`): hostile Ashfang placed 6 m away switches to `ai.pursuing` and closes distance; Inspect prompt shows; no page errors. Not checked: oscillation near obstacles on real devices.

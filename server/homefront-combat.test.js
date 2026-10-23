@@ -6,9 +6,9 @@ assert.equal(a.encounter.range,C.STATS[a.encounter.event].range,'public encounte
 assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950},'weapon-specific fire cadence is defined on the server');
 const cooldownSpawn=C.spawn({encounters:{},account:'cooldown-test',player,now:700000,seed:3});
 const cooldownBase=weapon=>({...base(),equippedWeapon:weapon});
-assert.doesNotThrow(()=>C.attack({encounters:cooldownSpawn.encounters,account:'cooldown-test',player,base:cooldownBase('pump_shotgun'),now:701000}));
-assert.throws(()=>C.attack({encounters:cooldownSpawn.encounters,account:'cooldown-test',player,base:cooldownBase('pump_shotgun'),now:702000}),/attack_cooldown/,'server rejects shotgun attacks faster than its authoritative fire interval');
-assert.doesNotThrow(()=>C.attack({encounters:cooldownSpawn.encounters,account:'cooldown-test',player,base:cooldownBase('pump_shotgun'),now:702150}),'shotgun becomes available at its server-enforced fire interval');
+const firstShot=C.attack({encounters:cooldownSpawn.encounters,account:'cooldown-test',player,base:cooldownBase('pump_shotgun'),now:701000});
+assert.throws(()=>C.attack({encounters:firstShot.encounters,account:'cooldown-test',player,base:cooldownBase('pump_shotgun'),now:702000}),/attack_cooldown/,'server rejects shotgun attacks faster than its authoritative fire interval');
+assert.doesNotThrow(()=>C.attack({encounters:firstShot.encounters,account:'cooldown-test',player,base:cooldownBase('pump_shotgun'),now:702150}),'shotgun becomes available at its server-enforced fire interval');
 assert.throws(()=>C.attack({encounters:a.encounters,account:'a',player,base:base(),now:101000,targetId:'enc-forged'}),/target_mismatch/,'server rejects client-selected targets that are not the player-owned encounter');
 const aimSpawn=C.spawn({encounters:{},account:'aim-test',player,now:600000,seed:8});
 const aimBase=()=>base();

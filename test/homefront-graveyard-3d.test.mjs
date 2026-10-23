@@ -185,3 +185,8 @@ assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=false;/, 
 assert.match(page, /const constructionView=!!pendingBuilding\|\|constructionPaused/, 'switch to construction camera only while building');
 assert.match(page, /cameraTarget=new THREE\.Vector3\(constructionView\?0:19,constructionView\?29:22,constructionView\?0\.01:24\)/, 'construction camera looks straight down while exploration camera stays third-person');
 assert.match(page, /camera\.position\.lerp\(cameraTarget,1-Math\.exp\(-5\*dt\)\)/, 'blend smoothly between construction and exploration views');
+
+// Homefront refuge role markers must expose each assigned survivor's job in-world.
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /function drawRoleLabel\(x,z,role\)/, 'render role-specific job labels above survivors');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /drawRoleLabel\(x,z,survivor\.role\)/, 'attach job labels to survivor world positions');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /materials\.forEach\(m=>\{if\(m\.map\)m\.map\.dispose\(\);m\.dispose\(\)\}\)/, 'dispose role-label textures when the world is redrawn');

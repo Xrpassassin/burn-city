@@ -9,6 +9,8 @@ Borrow compatible, license-cleared survival-game engineering patterns while keep
 - [meltuhamy/survive](https://github.com/meltuhamy/survive) — an MIT-licensed online survival RPG with hunger, thirst, health, energy, a server-side model, and a rewrite toward Phaser. Its broad needs-loop and authoritative-model concepts are close to Homefront's JavaScript stack. Review the exact files and current LICENSE before copying any source into the repository.
 - [SeloSlav/2d-multiplayer-survival](https://github.com/SeloSlav/2d-multiplayer-survival) — an MIT-licensed React/Vite/SpacetimeDB starter with survival vitals, inventory, resource gathering, cooking, crafting, and persistence. The client/server architecture is not a drop-in fit, but its inventory and interaction boundaries are useful design references.
 - [z3dd4-de/Survival-Game](https://github.com/z3dd4-de/Survival-Game) — a Godot tutorial project with hunger/thirst and consumables. It is engine-specific, so adapt only general mechanic ideas unless an individual asset or code file is separately verified for compatibility.
+- [dwade30/threejs-survival-game](https://github.com/dwade30/threejs-survival-game) — a small Three.js survival prototype with resource gathering and crafting. Its repository license and individual files must be checked before source reuse; use it as a design reference for gatherable objects and interaction flow.
+- [Three.js Raycaster documentation](https://threejs.org/docs/pages/Raycaster.html) — official documentation for pointer-based 3D object selection. Homefront uses its existing vendored Three.js raycaster to select local pickup meshes.
 
 ## Adaptation already applied
 
@@ -37,4 +39,6 @@ Homefront now uses its own implementation of distance-weighted travel metabolism
 - New expeditions take a starter kit from persistent refuge stores; inventory persists in the shared world player record while active. Leaving an expedition automatically stashes carried supplies back into the refuge.
 - Eating, drinking, and bandaging consume carried items only. Scavenging, supply caches, rescue operations, boss trips, and infected combat use carried supplies; scavenge/cache salvage moves into the pack when capacity permits, with overflow left in refuge stores.
 - Inventory actions are authenticated/server-authoritative. The UI exposes carried counts, capacity, packing buttons, and a stash action.
-- Item spoilage, dirty-water purification, cooking, equipment durability, and physical 3D loot pickups remain future work; do not simulate them as implemented.
+- Added `server/homefront-loot.js` with eight authored shared-world supply nodes, server-owned weighted item tables, distance validation, persistent shared cooldowns, inventory capacity handling, and overflow reporting. The client renders local 3D supply containers and requires explicit selection plus a Search action.
+- Added focused loot tests for successful collection, unknown IDs, out-of-range attempts, cooldown enforcement, malformed legacy state, and full-pack overflow. These checks are wired into `npm run test:homefront`.
+- Still future work: item spoilage, dirty-water purification, cooking, equipment durability, more physical pickup types, and live desktop/mobile playtesting. Do not treat those as implemented yet.

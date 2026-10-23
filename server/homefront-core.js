@@ -707,6 +707,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     }
     default: throw new Error('unknown_action');
   }
+  // Reconcile persisted task state after every authoritative action, including workday repairs.
+  syncSurvivorBehavior(s, now);
   const FoodFreshness = require('./homefront-freshness');
   for (const id of ['food', 'rawFood']) {
     const delta = s.resources[id] - foodBefore[id];

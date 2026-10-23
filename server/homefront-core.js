@@ -124,7 +124,8 @@ function defaultSurvivorTask(role) {
 function syncSurvivorBehavior(s, now) {
   const incoming = s.lastSiege?.status === 'incoming';
   const siegeTarget = incoming ? s.lastSiege.target : null;
-  const damaged = s.structures.filter(x => x.hp < x.maxHp)
+  const defensiveTypes = new Set(['wall', 'gate', 'watchtower', 'entrance', 'exit', 'sandbags', 'barbed_wire', 'trench', 'turret']);
+  const damaged = s.structures.filter(x => x.hp < x.maxHp && (!incoming || defensiveTypes.has(x.type)))
     .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp) || a.id.localeCompare(b.id))[0];
   for (const survivor of s.survivors) {
     let task = defaultSurvivorTask(survivor.role), target = '', reason = 'Normal settlement duty';

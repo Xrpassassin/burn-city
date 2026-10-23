@@ -79,3 +79,11 @@ Homefront is ready for Hark's playable review when the full Homefront test scrip
 - Implemented initial field-vitals rules and HUD in `server/homefront-survival.js`, `server/homefront-survival.test.js`, `server/homefront-world.js`, `server/homefront.js`, and `client/arena/homefront.html`.
 - The detailed design contract for inventory, cosmetic skins, diegetic interactions, authored districts, atmosphere, and dynamic events is `docs/homefront-survival-cosmetics-open-world.md`.
 - A real survivor avatar/loadout renderer, applying equipped skins to 3D models, authored interiors, collision-aware navigation, and dynamic weather/events are still roadmap work, not completed features.
+
+## Contextual field-survival controls (2026-10-23)
+
+- `client/arena/homefront.html` now disables field actions when the player is not deployed or the carried inventory lacks the required item/fuel. Cooking requires raw food + wood; purification requires dirty water + wood. Eat, drink, and bandage controls reflect carried rations, clean water, and medicine; rest is available while stamina is below full.
+- The field hint explains how to prepare supplies and surfaces the current condition warning. Refuge-pack buttons are disabled when the refuge lacks the requested stock.
+- `test/homefront-assets.test.mjs` includes source-level regression assertions for these contextual action gates.
+- This is a usability guard, not a security boundary: the server remains authoritative for inventory, ingredient consumption, and action validation.
+- Verification note: the previous Homefront core, airport flight, and Blacktide workflows passed on `a2a0dacafc995d2bfa1ed4c3dadae969f91db66e`. The GitHub connector has not yet surfaced workflow runs/status checks for the latest UI/test commits, so those commits must not be described as CI-verified. Desktop/mobile browser QA remains outstanding.

@@ -4,7 +4,7 @@ const Core = require('../server/homefront-core');
 
 function damagedBase(owner, role = 'mechanic', morale = 100) {
   const base = Core.createBase(owner, 1000);
-  base.survivors.push({ id: 'survivor-1', name: 'Rook', role, morale });
+  base.survivors.push({ id: 'survivor-1', name: 'Rook', role, morale, stats: { engineering: 5, combat: 5 } });
   base.structures.push(
     { id: 'wall-worse', type: 'wall', hp: 30, maxHp: 100, x: 8, z: 0 },
     { id: 'wall-better', type: 'wall', hp: 80, maxHp: 100, x: 6, z: 0 }

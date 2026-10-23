@@ -34,12 +34,16 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       const db = store.load('homefront-world.json', World.defaultWorld());
       let outcome;
       if (req.method === 'GET' && url.pathname === '/api/homefront/world') {
-        const joined = World.enter(db, user.acct);
-        store.save('homefront-world.json', joined.world);
-        json(res, 200, { mode: 'homefront-world', ...joined.result }); return true;
+        if (db.players && db.players[user.acct]) {
+          const joined = World.enter(db, user.acct);
+          store.save('homefront-world.json', joined.world);
+          json(res, 200, { mode: 'homefront-world', ...joined.result }); return true;
+        }
+        json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct) }); return true;
       }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
+        case '/api/homefront/world/enter': outcome = World.enter(db, user.acct); break;
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z)); break;
         case '/api/homefront/world/scavenge':
         case '/api/homefront/world/boss-hunt': {

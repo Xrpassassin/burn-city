@@ -123,6 +123,7 @@ async function call(method, pathname, acct, payload = {}) {
   const duplicateCache = await call('POST', '/api/homefront/world/cache', 'acct-b', { pointId: 'cache_exchange', difficulty: 'standard' });
   assert.equal(duplicateCache.status, 400, 'another explorer cannot claim a cache during its shared cooldown');
   assert.equal(duplicateCache.data.error, 'cache_empty');
+  const survivorsBeforeRescue = cacheOpen.data.base.survivors.length;
   const rescueWorld = files.get('homefront-world.json');
   rescueWorld.players['acct-a'].x = 35;
   rescueWorld.players['acct-a'].z = -42;
@@ -132,7 +133,8 @@ async function call(method, pathname, acct, payload = {}) {
   const rescue = await call('POST', '/api/homefront/world/rescue', 'acct-a', { pointId: 'stranded_bus', difficulty: 'standard' });
   assert.equal(rescue.status, 200, 'explorer can rescue a nearby stranded survivor');
   assert.equal(rescue.data.encounter.rescued, true);
-  assert.ok(rescue.data.base.survivors.length >= 1, 'rescued survivor joins the persistent refuge roster');
+  assert.equal(rescue.data.base.survivors.length, survivorsBeforeRescue + 1, 'rescued survivor joins the persistent refuge roster');
+  assert.ok(rescue.data.encounter.survivor?.id, 'rescue response identifies the newly recruited survivor');
   const duplicateRescue = await call('POST', '/api/homefront/world/rescue', 'acct-b', { pointId: 'stranded_bus', difficulty: 'standard' });
   assert.equal(duplicateRescue.status, 400, 'another explorer cannot claim the same shared rescue during cooldown');
   assert.equal(duplicateRescue.data.error, 'rescue_unavailable');

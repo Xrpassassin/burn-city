@@ -127,6 +127,8 @@ function enter(input, acct, now = Date.now()) {
     const leader = w.players[w.parties[p.partyCode].leader];
     if (leader) { p.x = leader.x; p.z = leader.z; }
   }
+  // Refreshes advance bounded pursuit too, so infected do not require player movement to update.
+  w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
   return { world: w, result: snapshot(w, acct, now) };
 }
 function move(input, acct, x, z, now = Date.now()) {

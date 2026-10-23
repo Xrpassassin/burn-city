@@ -104,7 +104,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     case 'expedition': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       if (s.resources.food < 2 || s.resources.ammo < 1) throw new Error('expedition_supplies_required');
-      const zones = { outskirts: { label: 'City Outskirts', risk: 1, food: 2, ammo: 1, scrap: 3, wood: 2, meds: 0, recruit: 0.44 }, residential: { label: 'Residential Ruins', risk: 1, food: 3, ammo: 1, scrap: 5, wood: 2, meds: 0, recruit: 0.5 }, commercial: { label: 'Market District', risk: 2, food: 3, ammo: 2, scrap: 8, wood: 1, meds: 1, recruit: 0.38 }, hospital: { label: 'Overrun Hospital', risk: 3, food: 4, ammo: 3, scrap: 5, wood: 1, meds: 3, recruit: 0.32 }, industrial: { label: 'Industrial Yard', risk: 3, food: 4, ammo: 3, scrap: 12, wood: 2, meds: 0, recruit: 0.24 }, subway: { label: 'Buried Subway', risk: 4, food: 5, ammo: 4, scrap: 10, wood: 1, meds: 2, recruit: 0.28 }, research_lab: { label: 'Sealed Research Annex', risk: 5, food: 6, ammo: 5, scrap: 16, wood: 1, meds: 4, recruit: 0.2 } };
+      const zones = EXPLORATION_ZONES;
       const zoneId = typeof action.zone === 'string' ? action.zone : 'outskirts';
       const difficultyId = typeof action.difficulty === 'string' ? action.difficulty : 'standard';
       const difficulty = DIFFICULTIES[difficultyId];
@@ -151,6 +151,20 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const eventText = directorEvent === 'special_infected' ? ' A special infected ambushed the team; ammunition was spent and a survivor was shaken.' : directorEvent === 'infected_horde' ? ' An infected horde hit the team; ammunition was spent and morale suffered.' : directorEvent === 'wandering_infected' ? ' Wandering infected were spotted nearby, but the team avoided a full ambush.' : ' The district was quiet enough to search thoroughly.';
       const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + (scrap + discoveryScrap) + ' scrap, and ' + totalEmbers + ' embers' + (firstVisit ? ' including a first-visit survey bonus' : '') + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + eventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
       record(s, 'exploration', result, now);
+      break;
+    }
+    case 'boss_attack': {
+      if (s.baseHp <= 0) throw new Error('base_destroyed');
+      const zoneId = typeof action.zone === 'string' ? action.zone : '';
+      const zone = EXPLORATION_ZONES[zoneId];
+      const difficultyId = typeof action.difficulty === 'string' ? action.difficulty : 'standard';
+      const difficulty = DIFFICULTIES[difficultyId];
+      if (!zone || !zone.boss) throw new Error('unknown_boss_zone');
+      if (!difficulty) throw new Error('unknown_difficulty');
+      const cost = { food: Math.max(1, Math.ceil(zone.food * difficulty.cost)), ammo: Math.max(1, Math.ceil(zone.ammo * difficulty.cost)) };
+      pay(s, cost);
+      s.exploration.lastExpedition = { zone: zoneId, difficulty: difficultyId, risk: zone.risk, at: now, bossAttack: true };
+      record(s, 'boss', 'Engaged the boss territory at ' + zone.label + ' on ' + difficulty.label + '. Spent ' + cost.food + ' food and ' + cost.ammo + ' ammunition; loot is awarded on boss defeat.', now);
       break;
     }
     case 'buy_upgrade': {

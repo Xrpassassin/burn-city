@@ -270,6 +270,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           // authoritative world tick uses it to attract the local infected director.
           player.noiseLevel = Math.max(player.noiseLevel || 0, weaponId === 'pump_shotgun' ? 95 : weaponId === 'marksman_rifle' ? 82 : 62);
           player.lastNoiseAt = combatAt;
+          player.noiseX = player.x;
+          player.noiseZ = player.z;
           player.weaponMagazine = { weaponId, loaded: outcome.base.resources.ammo };
           outcome.base.resources.ammo = base.resources.ammo;
           player.inventory = carried;

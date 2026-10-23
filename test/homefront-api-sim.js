@@ -91,6 +91,15 @@ async function call(method, pathname, acct, payload = {}) {
   assert.ok(worldA.data.world.pointsOfInterest.some(p => p.type === 'boss'), 'shared map advertises boss territories');
   const enteredA = await call('POST', '/api/homefront/world/enter', 'acct-a');
   assert.equal(enteredA.status, 200, 'player can explicitly enter the shared Graveyard');
+  assert.equal(enteredA.data.selfSurvival.health, 100, 'new explorers begin with full field condition');
+  const fieldState = files.get('homefront-world.json');
+  fieldState.players['acct-a'].survival.thirst = 40;
+  files.set('homefront-world.json', fieldState);
+  const waterBefore = (await call('GET', '/api/homefront', 'acct-a')).data.base.resources.water;
+  const drink = await call('POST', '/api/homefront/world/survival', 'acct-a', { action: 'drink' });
+  assert.equal(drink.status, 200, 'authenticated explorer can drink water in the field');
+  assert.ok(drink.data.selfSurvival.thirst > 40, 'drinking restores thirst on the server');
+  assert.equal(drink.data.base.resources.water, waterBefore - 1, 'field hydration consumes persistent refuge water');
   const worldB = await call('GET', '/api/homefront/world', 'acct-b');
   assert.equal(worldB.status, 200);
   const enteredB = await call('POST', '/api/homefront/world/enter', 'acct-b');

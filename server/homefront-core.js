@@ -504,7 +504,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       }
       s.day++; s.level = Math.max(s.level, 1 + Math.floor((s.day - 1) / 5));
       for (const survivor of s.survivors) survivor.morale = clampInt(survivor.morale + (foodGain >= foodCost ? 2 : -8), 0, 100);
-      record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + medicineGain + ' medicine.', now);
+      const repairNote = repairedHp ? ' Mechanics repaired ' + repairedHp + ' structure HP.' : '';
+      record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + medicineGain + ' medicine.' + repairNote, now);
       break;
     }
     case 'defend': {

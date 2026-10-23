@@ -117,6 +117,38 @@ function pay(s, cost) {
   for (const [k, v] of Object.entries(cost)) if ((s.resources[k] || 0) < v) throw new Error('insufficient_' + k);
   for (const [k, v] of Object.entries(cost)) s.resources[k] -= v;
 }
+function threatProfile(input) {
+  const s = input && input.version === VERSION ? input : null;
+  if (!s || !Array.isArray(s.structures) || !Array.isArray(s.survivors)) throw new Error('invalid_base');
+  const active = s.structures.filter(x => x && x.hp > 0 && BUILDINGS[x.type]);
+  const activeFarmPlots = (s.farmPlots || []).filter(plot => plot && plot.crop && CROPS[plot.crop]).length;
+  const guards = s.survivors.filter(x => x && x.role === 'guard');
+  const guardStrength = guards.reduce((total, x) => {
+    const morale = clampInt(x.morale, 0, 100);
+    return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+  }, 0);
+  const ammoUsed = Math.min(s.resources?.ammo || 0, Math.max(1, Math.ceil(guards.length / 2) + 1));
+  const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
+  const turretAmmo = Math.min(Math.max(0, (s.resources?.ammo || 0) - ammoUsed), mannedTurrets.length * 3);
+  const turretAmmoRatio = mannedTurrets.length ? turretAmmo / (mannedTurrets.length * 3) : 0;
+  const structureDefense = active.reduce((total, x) => total + BUILDINGS[x.type].defense +
+    (x.type === 'trench' ? (x.trenchLevel || 0) * 3 : 0) +
+    (x.type === 'turret' && x.manned ? 7 * turretAmmoRatio : 0), 0);
+  const settlementPressure = Math.floor(active.length / 3) + Math.floor(activeFarmPlots / 3);
+  const threat = 9 + Math.floor(s.survivors.length / 4) + settlementPressure;
+  const defense = guardStrength * 2 + (s.upgrades?.field_armory || 0) * 2 +
+    structureDefense + ammoUsed * 0.8 + turretAmmo * 1.5;
+  const projectedStructureDamage = Math.max(0, Math.ceil((threat - defense) * 6));
+  const projectedBaseDamage = Math.ceil(projectedStructureDamage * 0.45);
+  return {
+    threat, defense: Number(defense.toFixed(2)), settlementPressure,
+    activeStructures: active.length, activeFarmPlots, survivors: s.survivors.length,
+    guards: guards.length, ammunitionCommitted: ammoUsed + turretAmmo,
+    projectedStructureDamage, projectedBaseDamage,
+    outlook: projectedStructureDamage === 0 ? 'stable' :
+      projectedStructureDamage >= 30 || projectedBaseDamage >= 15 ? 'critical' : 'strained'
+  };
+}
 function applyAction(input, ownerId, action, now = Date.now()) {
   const s = validateBase(input, ownerId);
   if (!s) throw new Error('invalid_or_foreign_base');
@@ -456,24 +488,16 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     case 'defend': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       s.defenseCount++;
-      const guards = s.survivors.filter(x => x.role === 'guard');
-      const guardStrength = guards.reduce((total, x) => {
-        const morale = clampInt(x.morale, 0, 100);
-        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
-      }, 0);
-      const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(guards.length / 2) + 1));
-      s.resources.ammo -= ammoUsed;
+      const profile = threatProfile(s);
       const active = s.structures.filter(x => x.hp > 0);
+      const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(s.survivors.filter(x => x.role === 'guard').length / 2) + 1));
+      s.resources.ammo -= ammoUsed;
       const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
       const turretAmmo = Math.min(s.resources.ammo, mannedTurrets.length * 3);
       s.resources.ammo -= turretAmmo;
-      const turretAmmoRatio = mannedTurrets.length ? turretAmmo / (mannedTurrets.length * 3) : 0;
-      const structureDefense = active.reduce((n, x) => {
-        const trenchBonus = x.type === 'trench' ? x.trenchLevel * 3 : 0;
-        const turretBonus = x.type === 'turret' && x.manned ? 7 * turretAmmoRatio : 0;
-        return n + BUILDINGS[x.type].defense + trenchBonus + turretBonus;
-      }, 0);
-      const defense = guardStrength * 2 + (s.upgrades.field_armory || 0) * 2 + structureDefense + ammoUsed * 0.8 + turretAmmo * 1.5;
+      const threat = profile.threat;
+      const defense = profile.defense;
+      const damage = profile.projectedStructureDamage;
       // A larger, food-producing settlement is noisier and draws heavier infected pressure.
       // Fortifications still contribute defense above, so growth is risky rather than automatically fatal.
       const activeFarmPlots = s.farmPlots.filter(plot => plot.crop).length;
@@ -527,4 +551,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };

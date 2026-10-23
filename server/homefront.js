@@ -93,7 +93,13 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           if (!base) throw new Error('save_invalid');
           const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base, now: Date.now(), weaponPower: Core.weaponPower(base) });
           db.encounters = outcome.encounters;
-          player.lastSeen = Date.now();
+          const combatAt = Date.now();
+          player.survival = Survival.tick(player.survival, combatAt);
+          if (outcome.enemyDamage > 0) {
+            player.survival.health = Math.max(0, player.survival.health - outcome.enemyDamage);
+            player.survival.infection = Math.min(100, player.survival.infection + Math.max(1, Math.floor(outcome.enemyDamage / 4)));
+          }
+          player.lastSeen = combatAt;
           bases[user.acct] = outcome.base;
           store.save('homefront.json', bases);
           store.save('homefront-world.json', db);

@@ -5,12 +5,22 @@ const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', 
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 
 assert.match(scene, /from '\.\/zaudio\.js'/, 'reuse the Zombies sound director in Homefront');
+assert.match(scene, /from '\.\/zombie-model-pilot\.mjs'/, 'reuse the existing animated Zombies model pilot');
+assert.match(scene, /zombieModelPilot\.update\(modelCandidates, dt, localForModels\)/, 'drive animated infected from authoritative encounter snapshots');
+assert.match(scene, /modeledZombieIds\.has\(actor\.userData\.encounterId\)/, 'bound detailed rigs and retain procedural fallback actors');
+assert.match(scene, /proxy\.material\.opacity = modeled \? 0 : 1/, 'preserve raycast hit proxies under animated models');
+assert.match(scene, /createZombieModelPilot\(scene, \{ targetHeight: 2\.7 \}\)/, 'fit rigs to Homefront combat hitbox scale');
 assert.match(scene, /createZombieAudio\(sfx, \{ base: new URL\('\.\/sfx\/'/, 'reuse the existing positional zombie audio sample bank');
 assert.match(scene, /zombieAudio\.tick\(dt, audioMe, audioZombies/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
 assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play shared hit and headshot audio only after authoritative combat confirmation');
 assert.match(scene, /zombieAudio\.zdie\(target\)/, 'play infected death audio only after server-confirmed kills');
 assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
 assert.match(scene, /from '\.\/vendor\/three\.module\.min\.js'/, 'reuse the vendored Three.js runtime');
+const zombiePilot = readFileSync(new URL('../client/arena/zombie-model-pilot.mjs', import.meta.url), 'utf8');
+assert.match(zombiePilot, /selectZombieModelCandidates/, 'reuse deterministic near-player model selection');
+assert.match(zombiePilot, /targetHeight = Number\.isFinite\(options\.targetHeight\)/, 'configure model scale for Homefront');
+assert.match(zombiePilot, /MAX_MODELS = 8/, 'cap expensive animated rigs');
+assert.match(zombiePilot, /MAX_MODEL_DISTANCE = 28/, 'keep detailed rigs near the player');
 assert.match(scene, /GLTFLoader/, 'reuse the existing GLTF asset loader');
 assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely');
 assert.match(scene, /assets\/homefront\/zombie\.glb/, 'reuse the existing Homefront zombie model');

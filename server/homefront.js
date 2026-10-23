@@ -8,6 +8,21 @@ const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 
+function buildReturnDebrief(start, base, packed, now = Date.now()) {
+  const resourceNet = {};
+  for (const id of ['wood','scrap','food','water','meds','ammo']) {
+    resourceNet[id] = (base.resources?.[id] || 0) - (Number.isFinite(start?.resources?.[id]) ? start.resources[id] : (base.resources?.[id] || 0));
+  }
+  return {
+    startedAt: Number.isFinite(start?.at) ? start.at : null,
+    endedAt: now,
+    embersNet: (base.embers || 0) - (Number.isFinite(start?.embers) ? start.embers : (base.embers || 0)),
+    resourceNet,
+    attacksRepelled: Math.max(0, (base.repelledCount || 0) - (Number.isSafeInteger(start?.repelledCount) ? start.repelledCount : (base.repelledCount || 0))),
+    fieldSuppliesReturned: Object.values(packed?.stored || {}).reduce((n, qty) => n + (Number.isFinite(qty) ? qty : 0), 0)
+  };
+}
+
 async function handle(req, res, url, { json, gate, ip, body, who, store = Store }) {
   const publicVisit = url.pathname === '/api/homefront/visit';
   const worldRoute = url.pathname === '/api/homefront/world' || url.pathname.startsWith('/api/homefront/world/');
@@ -391,19 +406,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             const packed=Inventory.stash(player.inventory,base.resources);
             for(const [id,qty] of Object.entries(packed.stored))base.resources[id]=Math.min(999999,(base.resources[id]||0)+qty);
             base.repelledCount = Number.isSafeInteger(base.repelledCount) ? base.repelledCount : 0;
-            const start = player.homefrontSessionStart;
-            const resourceDelta = {};
-            for (const id of ['wood','scrap','food','water','meds','ammo']) {
-              resourceDelta[id] = (base.resources[id] || 0) - (Number.isFinite(start?.resources?.[id]) ? start.resources[id] : (base.resources[id] || 0));
-            }
-            const debrief = {
-              startedAt: Number.isFinite(start?.at) ? start.at : null,
-              endedAt: Date.now(),
-              embersNet: base.embers - (Number.isFinite(start?.embers) ? start.embers : base.embers),
-              resourceNet: resourceDelta,
-              attacksRepelled: Math.max(0, base.repelledCount - (Number.isSafeInteger(start?.repelledCount) ? start.repelledCount : base.repelledCount)),
-              fieldSuppliesReturned: Object.values(packed.stored).reduce((n, qty) => n + qty, 0)
-            };
+            const debrief = buildReturnDebrief(player.homefrontSessionStart, base, packed);
             base.revision++;base.updatedAt=Date.now();bases[user.acct]=base;store.save('homefront.json',bases);returnedBase=base;
             outcome = World.leave(db,user.acct);
             if (returnedBase) outcome.result.base = returnedBase;
@@ -469,4 +472,4 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     return true;
   }
 }
-module.exports = { handle };
+module.exports = { handle, buildReturnDebrief };

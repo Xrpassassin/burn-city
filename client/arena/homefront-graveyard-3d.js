@@ -52,8 +52,7 @@ function boot(host) {
     // Reuse the game's existing CC0 zombie hit bank and shared volume/mute controls.
     if (target) {
       const pos = [target.position.x, 1.1, target.position.z];
-      sfx.loadBank(new URL('./sfx/', import.meta.url).href);
-      sfx.play('hit', { pos, v: 0.55, ref: 2, max: 18, roll: 1.2 });
+      sfx.loadBank(new URL('./sfx/', import.meta.url).href).then(() => sfx.play('hit', { pos, v: 0.55, ref: 2, max: 18, roll: 1.2 }));
       // Brief stylized blood mist is presentation only; it never affects damage.
       const count = detail.killed ? 18 : 9;
       for (let i = 0; i < count; i++) {

@@ -199,3 +199,8 @@ assert.match(page, /type:'farm_plant',plotId:p\.id/, 'empty plots can be planted
 assert.match(page, /type:'farm_water',plotId:p\.id/, 'growing plots can be watered from the refuge panel');
 assert.match(page, /type:'farm_harvest',plotId:p\.id/, 'mature plots can be harvested from the refuge panel');
 assert.match(page, /drawFarmPlot\(plot\)/, 'farm plots render in the 3D yard');
+
+// Homefront refuge role markers must expose each assigned survivor's job in-world.
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /function drawRoleLabel\(x,z,role\)/, 'render role-specific job labels above survivors');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /drawRoleLabel\(x,z,survivor\.role\)/, 'attach job labels to survivor world positions');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /materials\.forEach\(m=>\{if\(m\.map\)m\.map\.dispose\(\);m\.dispose\(\)\}\)/, 'dispose role-label textures when the world is redrawn');

@@ -3,6 +3,7 @@
 // Keep terrain subtle until authoritative movement and collision consume the same height function.
 const DEFAULT_SEED = 0xB17C17;
 const UINT32_RANGE = 4294967296;
+export const TERRAIN_ELEVATION_SCALE = 0.42;
 
 function hashLattice(x, z, seed) {
   let h = (Math.imul(x | 0, 0x1f123bb5) ^ Math.imul(z | 0, 0x5f356495) ^ (seed | 0)) >>> 0;
@@ -70,6 +71,10 @@ export function terrainChunkSamples(cx, cz, { chunkSize = 64, segments = 16, see
     }
   }
   return samples;
+}
+
+export function terrainElevation(x, z, seed = DEFAULT_SEED) {
+  return terrainHeight(x, z, seed) * TERRAIN_ELEVATION_SCALE;
 }
 
 export const DEFAULT_TERRAIN_SEED = DEFAULT_SEED;

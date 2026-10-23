@@ -76,7 +76,6 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           return true;
         }
         case '/api/homefront/world/party/create': outcome = World.createParty(db, user.acct); break;
-        case '/api/homefront/world/party/create': outcome = World.createParty(db, user.acct); break;
         case '/api/homefront/world/party/join': outcome = World.joinParty(db, user.acct, payload.code); break;
         case '/api/homefront/world/leave': outcome = World.leave(db, user.acct); break;
         default: json(res, 404, { error: 'world_route_not_found' }); return true;

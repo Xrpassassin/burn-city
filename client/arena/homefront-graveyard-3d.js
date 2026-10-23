@@ -941,7 +941,7 @@ function boot(host) {
         return;
       }
     }
-    const environmentHits = raycaster.intersectObjects([...environmentVisuals.values()].filter(group => group.visible), true);
+    const environmentHits = raycaster.intersectObjects([...environmentVisuals.values()].filter(group => group.visible && group.parent?.visible), true);
     if (environmentHits.length) {
       let target = environmentHits[0].object;
       while (target && !target.userData?.environmentId) target = target.parent;

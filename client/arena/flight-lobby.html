@@ -23,12 +23,12 @@ main{width:min(100%,560px);text-align:center}.eyebrow{font-size:11px;letter-spac
 <div id="roster" style="text-align:left;margin:12px 0;display:grid;gap:6px" aria-live="polite"></div>
 <button class="ready" id="ready">✓ JOIN FLIGHT & READY UP</button>
 <button class="secondary" id="cancel">Return to BURN City</button>
-<p style="font-size:12px">This is the first flight-staging pass. The countdown currently runs per client; shared party readiness and synchronized departure are the next multiplayer integration step.</p>
+<p style="font-size:12px">Departure is coordinated by the game server. Everyone in this flight sees the same roster and countdown; joining late or becoming unready resets departure until all connected passengers are ready.</p>
 </main>
 <script>
 const q=new URLSearchParams(location.search),$=id=>document.getElementById(id);
 const socketUrl=(location.hostname==='localhost'||location.hostname==='127.0.0.1')?'ws://localhost:8080':'wss://burn-city-game.fly.dev';
-let socket=null,myId=null,myReady=false,departed=false,countdownAt=null,clock=null;
+let socket=null,myId=null,myReady=false,departed=false,countdownAt=null,clock=null,serverOffset=0,partyMax=8;
 function setStatus(s){$('status').textContent=s}
 function renderRoster(players=[]){
  const host=$('roster');host.replaceChildren();
@@ -39,7 +39,7 @@ function renderRoster(players=[]){
 }
 function updateCountdown(){
  if(!countdownAt){$('count').textContent='—';return}
- const n=Math.max(0,Math.ceil((countdownAt-Date.now())/1000));$('count').textContent=n;
+ const n=Math.max(0,Math.ceil((countdownAt-(Date.now()+serverOffset))/1000));$('count').textContent=n;
  if(n>0)setStatus('Flight is ready. Departure in '+n+' second'+(n===1?'':'s')+'.');
 }
 function connect(){
@@ -49,8 +49,8 @@ function connect(){
  socket.addEventListener('open',()=>{myReady=true;socket.send(JSON.stringify({t:'ready',ready:true}));$('ready').disabled=false;$('ready').textContent='CANCEL READY';setStatus('Connected. Waiting for the flight roster…')});
  socket.addEventListener('message',ev=>{let m;try{m=JSON.parse(ev.data)}catch{return}
   if(m.e==='flight_joined'){myId=m.id;return}
-  if(m.e==='flight_state'){myId=myId??null;countdownAt=m.countdownAt||null;renderRoster(m.players||[]);updateCountdown();
-   if(!countdownAt){const all=(m.players||[]).length>0&&(m.players||[]).every(p=>p.ready);setStatus(all?'All passengers ready. Preparing departure…':'Waiting for every passenger to press Ready.');}
+  if(m.e==='flight_state'){myId=myId??null;serverOffset=(Number(m.serverNow)||Date.now())-Date.now();partyMax=Number(m.max)||8;countdownAt=m.countdownAt||null;renderRoster(m.players||[]);$('roster').setAttribute('aria-label','Flight roster: '+(m.players||[]).length+' of '+partyMax+' passengers');updateCountdown();
+   if(!countdownAt){const all=(m.players||[]).length>0&&(m.players||[]).every(p=>p.ready);setStatus((m.players||[]).length+'/'+partyMax+' passengers · '+(all?'All ready. Departure will begin shortly.':'Waiting for every connected passenger to be ready.'));}
    const me=(m.players||[]).find(p=>p.id===myId);if(me)myReady=me.ready;
    $('ready').textContent=myReady?'CANCEL READY':'✓ READY TO BOARD';$('ready').disabled=false;
   }else if(m.e==='flight_depart'){departed=true;countdownAt=null;if(clock)clearInterval(clock);$('count').textContent='LIFT OFF';setStatus('Flight cleared. Helicopter departing BURN City…');$('ready').disabled=true;$('cancel').disabled=true;$('map').disabled=true;$('flight').classList.add('departing');

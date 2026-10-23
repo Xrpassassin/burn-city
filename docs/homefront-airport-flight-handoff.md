@@ -33,3 +33,8 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Client countdown display now estimates server-clock offset from each authoritative flight-state message, avoiding reliance on synchronized device clocks.
 - The server can now keep multiple parties on the same destination map when one party reaches the eight-player cap; creating a new party no longer overwrites the existing room's lookup entry.
 - Regression simulation covers party-cap routing and readiness withdrawal canceling the shared countdown.
+
+## Survivor morale and labor
+- Work-shift output is now weighted by each worker's morale: 80–100 morale contributes 1.25 labor, 40–79 contributes 1.0, 20–39 contributes 0.75, and 0–19 contributes 0.5.
+- Farmer, scavenger, mechanic, and medic output use the same morale weighting; integer resource gains are rounded down. The server remains authoritative for all output.
+- A regression test compares otherwise equivalent high- and low-morale farmers to verify morale has a measurable production effect.

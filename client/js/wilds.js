@@ -18,7 +18,7 @@ import { buildWalker, poseWalker } from './walker.js';
 import * as AUD from './wilds-audio.js';
 import { findWorldPath } from './wilds-pathfinding-world.mjs';
 import { withAmbientSpecies } from './wilds-ambient-species.mjs';
-import { createWildsWanderAgent, updateWildsWanderAgent, disposeWildsWanderAgent } from './wilds-yuka-ai.mjs';
+import { createWildsWanderAgent, updateWildsWanderAgent, updateWildsPursuitAgent, disposeWildsWanderAgent } from './wilds-yuka-ai.mjs';
 import { validateWorldRoute } from './wilds-route-validation.mjs';
 import { getWildsGraphicsProfile, isWildsGraphicsProfile } from './wilds-graphics-profiles.mjs';
 import { drawGroundTexture } from './wilds-ground-materials.mjs';
@@ -481,14 +481,27 @@ function updCreature(cr, dt, t, P, distP) {
   const def = game.SP[cr.sp], tp = TEMP()[def.temperament] || {}, L = cr.mesh.userData.rig;
   let maxSpd = L.speed, lookYaw = 0, sniff = false, alert = false, wag = false;
   const toP = Math.atan2(P.pos.x - cr.x, P.pos.z - cr.z); const run = C().input.keys.ShiftLeft || C().input.keys.ShiftRight || (C().input.tb && C().input.tb.run);
-  if (cr.st === 'idle' || cr.st === 'wander') cr.wanderHeading = updateWildsWanderAgent(cr.ai, dt, cr.x, cr.z, cr.yaw, L.speed) || cr.wanderHeading;
+  const pursuingHostile = !!(ZONE && cr.slot.hostile && distP < 9 && distP > 2.6 && C().getMode() === 'explore' && !W.enc);
+  if ((cr.st === 'idle' || cr.st === 'wander') && !pursuingHostile) cr.wanderHeading = updateWildsWanderAgent(cr.ai, dt, cr.x, cr.z, cr.yaw, L.speed) || cr.wanderHeading;
   cr.t -= dt; cr.cool = Math.max(0, cr.cool - dt);
   if (cr.st === 'held') { cr.spd *= Math.pow(.02, dt); let dy = Math.atan2(Math.sin(cr.face - cr.yaw), Math.cos(cr.face - cr.yaw)); cr.yaw += dy * Math.min(1, dt * 5); cr.yawRate = dy * 5; alert = true; }
   else if (cr.st === 'flee') { const fx = cr.x - (P.pos.x - cr.x) * 3, fz = cr.z - (P.pos.z - cr.z) * 3; steer(cr, dt, fx, fz, L.speed * 2.2); if (cr.t < 0) { cr.st = 'idle'; cr.t = 2; } if (cr.gone && distP > 30) { despawn(cr, 40); return; } }
   else {
     if (W.inForest && distP < 9 && cr.cool <= 0 && !W.enc) {
       if (tp.flees && distP < (run ? 7 : 3.2) && !cr.calm) { cr.st = 'flee'; cr.t = 2.5; }
-      else { alert = true; lookYaw = Math.atan2(Math.sin(toP - cr.yaw), Math.cos(toP - cr.yaw)); if ((tp.approach || cr.calm || (ZONE && cr.slot.hostile)) && distP > 2.6) { steer(cr, dt, P.pos.x, P.pos.z, cr.slot.hostile ? L.speed * .9 : L.speed * .6); } else steer(cr, dt, cr.x, cr.z, 0); wag = !!cr.calm; }
+      else {
+        alert = true;
+        lookYaw = Math.atan2(Math.sin(toP - cr.yaw), Math.cos(toP - cr.yaw));
+        if ((tp.approach || cr.calm || (ZONE && cr.slot.hostile)) && distP > 2.6) {
+          if (ZONE && cr.slot.hostile) {
+            // Yuka proposes pursuit direction; existing steer() still owns obstacle avoidance,
+            // zone bounds, collision resolution, and final movement.
+            const heading = updateWildsPursuitAgent(cr.ai, dt, cr.x, cr.z, cr.yaw, P.pos.x, P.pos.z, L.speed * .9);
+            steer(cr, dt, heading ? cr.x + heading.x * 5 : P.pos.x, heading ? cr.z + heading.z * 5 : P.pos.z, L.speed * .9);
+          } else steer(cr, dt, P.pos.x, P.pos.z, L.speed * .6);
+        } else steer(cr, dt, cr.x, cr.z, 0);
+        wag = !!cr.calm;
+      }
     } else if (cr.st === 'idle') { steer(cr, dt, cr.x, cr.z, 0); sniff = true; if (cr.t < 0) { pickWander(cr); } }
     else if (cr.st === 'wander') { const d = steer(cr, dt, cr.tx, cr.tz, L.speed); if (d < .6 || cr.t < 0) { cr.st = 'idle'; cr.t = 1.5 + Math.random() * 4; } }
   }

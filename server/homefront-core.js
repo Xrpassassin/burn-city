@@ -477,6 +477,26 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.resources.food = Math.min(999999, s.resources.food + foodGain);
       s.resources.scrap = Math.min(999999, s.resources.scrap + scrapGain);
       s.resources.meds = Math.min(999999, s.resources.meds + medicineGain);
+      // Mechanics perform tangible upkeep during the shift. The most damaged structures are
+      // stabilized first; this remains deterministic and server-authoritative.
+      let repairedHp = 0;
+      const repairBudget = Math.floor(mechanics * 10);
+      const damagedStructures = s.structures
+        .filter(x => x.hp > 0 && x.hp < x.maxHp)
+        .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp) || a.id.localeCompare(b.id));
+      if (repairBudget > 0 && damagedStructures.length && s.resources.wood > 0 && s.resources.scrap > 0) {
+        let remainingRepair = Math.min(repairBudget, s.resources.wood * 12, s.resources.scrap * 12);
+        for (const structure of damagedStructures) {
+          if (remainingRepair <= 0) break;
+          const restored = Math.min(remainingRepair, structure.maxHp - structure.hp);
+          structure.hp += restored;
+          repairedHp += restored;
+          remainingRepair -= restored;
+        }
+        const materialCost = Math.ceil(repairedHp / 12);
+        s.resources.wood -= materialCost;
+        s.resources.scrap -= materialCost;
+      }
       // Crop simulation is server-authoritative and advances with the settlement workday, not client frame rate.
       for (const plot of s.farmPlots) {
         if (!plot.crop) continue;

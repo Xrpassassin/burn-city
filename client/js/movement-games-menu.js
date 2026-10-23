@@ -24,7 +24,7 @@ body.wl-travel #bcMoveGamesPanel [data-move=orbit],body.wl-travel #bcMoveGamesPa
 #bcMoveGamesPanel .bc-mg-tab[aria-selected=true]{background:#ff7a1a20;border-color:#ff9b4a;color:#ffbd84;box-shadow:inset 0 -2px #ff9b4a}
 #bcMoveGamesPanel .bc-mg-section{margin-top:14px}
 #bcMoveGamesPanel .bc-mg-section[hidden]{display:none!important}
-#btns button[data-m=orbit],#btns button[data-m=explore]{display:none!important}
+#btns button[data-m=orbit],#btns button[data-m=explore],#btns .seg{display:none!important}
 #bcMoveGamesPanel .bc-mg-section-title{display:flex;align-items:center;gap:8px;margin:0 0 8px;color:#e7d9d0;font:800 11px/1.2 var(--f-mono,monospace);letter-spacing:.12em;text-transform:uppercase}
 #bcMoveGamesPanel .bc-mg-list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 #bcMoveGamesPanel .bc-mg-entry{display:flex;align-items:flex-start;gap:10px;min-height:72px;width:100%;padding:11px;border:1px solid #ffffff1c;border-radius:11px;background:#ffffff08;color:#fff;text-align:left}
@@ -82,7 +82,7 @@ panel.innerHTML = `
     <button class="bc-mg-entry" type="button" data-game="wilds"><span class="bc-mg-icon">🌲</span><span><strong>The Wilds</strong><small>Takes you to the forest gate north of town · on foot only inside</small></span></button>
     <button class="bc-mg-entry" type="button" data-game="city"><span class="bc-mg-icon">🔥</span><span><strong>BURN City</strong><small>Return to the live 3D city world</small></span></button>
    </div>
-   <p class="bc-mg-foot">Movement shortcuts remain available on the main screen. This menu is the complete directory for travel and play.</p>
+   <p class="bc-mg-foot">This menu is the complete directory for travel and play.</p>
   </section>
  </section>`;
 const bar=document.getElementById('btns');

@@ -42,14 +42,16 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
  }
  return clean;
 }
-function attack({encounters,account,player,base,survival=null,now=Date.now(),weaponPower=1,seed=0,targetId=null}){
+function attack({encounters,account,player,base,survival=null,now=Date.now(),weaponPower=1,seed=0,targetId=null,aimPoint=null}){
  const clean=normalizeEncounters(encounters,now),e=clean[account];if(!e||e.defeated||e.hp<=0)throw Error('no_active_encounter');if(now>e.expiresAt)throw Error('encounter_expired');if(targetId!=null&&(typeof targetId!=='string'||targetId!==e.id))throw Error('target_mismatch');
+ let aimedZone=null;
+ if(aimPoint!=null){if(!aimPoint||![aimPoint.x,aimPoint.y,aimPoint.z].every(Number.isFinite)||Math.hypot(aimPoint.x-e.x,aimPoint.z-e.z)>1.05||aimPoint.y<0.05||aimPoint.y>2.7)throw Error('invalid_aim_point');aimedZone=aimPoint.y>=1.88?'head':aimPoint.y<=0.68?'limb':'torso';}
  if(Math.hypot(player.x-e.x,player.z-e.z)>e.range)throw Error('enemy_out_of_range');if(now-e.lastAttackAt<ATTACK_COOLDOWN)throw Error('attack_cooldown');
  if((base.resources?.ammo||0)<e.ammoCost)throw Error('insufficient_ammo');base.resources.ammo-=e.ammoCost;base.revision=(Number.isSafeInteger(base.revision)?base.revision:0)+1;
  const power=clamp(Math.floor(weaponPower),1,20);const field=survival&&typeof survival==='object'?{...survival}:null;const staminaBefore=field?clamp(field.stamina,0,100):100;const fatigueScale=staminaBefore<15?0.55:staminaBefore<35?0.75:1;
  // Hit zones are rolled on the server from encounter and attack clock; clients cannot submit a headshot claim.
  const zoneRoll=hash(e.id+':'+now+':'+seed)%100;
- const hitZone=zoneRoll<8?'head':zoneRoll<30?'limb':'torso';
+ const hitZone=aimedZone || (zoneRoll<8?'head':zoneRoll<30?'limb':'torso');
  const zoneMultiplier=hitZone==='head'?1.8:hitZone==='limb'?0.75:1;
  const damage=Math.max(5,Math.floor(Math.max(8,12+(power-1)*7+Math.floor(e.risk*1.5))*fatigueScale*zoneMultiplier));if(field)field.stamina=clamp(staminaBefore-8,0,100);e.hp=Math.max(0,e.hp-damage);e.lastAttackAt=now;
  if(e.hp===0){e.defeated=true;const q=hash(e.id+':'+seed)%100,quality=q<2?'Legendary':q<8?'Epic':q<22?'Rare':q<48?'Uncommon':'Common',qi=QUALITY_ORDER.indexOf(quality),scrap=2+e.risk+qi*2,embers=e.risk+qi;

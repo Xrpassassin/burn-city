@@ -48,3 +48,11 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Owners can spend four food on a campfire rally to raise each survivor below 100 morale by up to 15 points. Morale never exceeds 100, and a rally is rejected if there are no survivors, everyone is already at maximum morale, or food is insufficient.
 - Rallying is a server-authoritative Homefront action, recorded in the settlement log and saved with the base revision. The owner UI disables the action when its prerequisites are not met; visitor mode remains read-only.
 - Regression coverage verifies food cost, morale clamping, no-survivor and insufficient-food failures, and no-op prevention when morale is already full.
+
+
+## Zombie breach progression
+- Homefront breach composition is deterministic by wave. Walkers form the baseline; runners join from wave 3, armored brutes from wave 5, screamers from wave 7, and bloaters from wave 9. Every tenth breach includes a juggernaut boss.
+- Special enemy composition adds deterministic threat pressure to the existing server-authoritative defense calculation. Guard morale, active structures, and available ammunition continue to affect defense, while breach damage persists until repaired.
+- The owner UI forecasts the next breach's known enemy types before the player commits to defending, supporting decisions about repairs, work shifts, survivor assignments, and supply use.
+- `waveProfile()` is renderer-independent and covered by simulation tests, so balance and wave composition can be iterated without coupling rules to the 3D UI.
+- Open-source research reference: the MIT-licensed Last Stand project demonstrates deterministic waves and efficient flow-field pathfinding. BURN City is not importing that project's game wholesale; the relevant architectural principle is to keep simulation rules deterministic and testable. Any future direct code or asset reuse must preserve license notices and be reviewed for fit with BURN City's server-authoritative multiplayer design.

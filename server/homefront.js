@@ -35,7 +35,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     }
     const next = Core.applyAction(base, user.acct, payload.action);
     db[user.acct] = next;
-    Store.save('homefront.json', db);
+    store.save('homefront.json', db);
     json(res, 200, { mode: 'homefront', base: next });
     return true;
   } catch (e) {

@@ -214,6 +214,11 @@ function build() {
     g.shadowBlur = 0; g.fillStyle = '#ffffff'; g.font = '700 34px system-ui,sans-serif'; g.fillText(subtitle, 512, 190, 940);
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
   }
+  let bannerMats = null;   // both planes share the two banner textures/materials (2 canvases, not 4)
+  const sharedBannerMat = () => bannerMats || (bannerMats = [
+    new THREE.MeshStandardMaterial({ map: makeBannerFace('ETERNAL GRIND', 'CHOOSE YOUR CLASS · BRAVE THE DEPTHS', ['#161a24', '#8b301c', '#f0c878']), side: THREE.DoubleSide, roughness: .9 }),
+    new THREE.MeshStandardMaterial({ map: makeBannerFace('LIGHT CYCLES', 'RIDE FAST · CUT SHARP', ['#071a36', '#e64d1e', '#42d8ff']), side: THREE.DoubleSide, roughness: .9 })
+  ]);
   function makeTowPlane() {
     const root = new THREE.Group();
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe9e5dc, roughness: .58, metalness: .12 });
@@ -230,10 +235,7 @@ function build() {
     for (let i = 0; i < 2; i++) { const blade = new THREE.Mesh(new THREE.BoxGeometry(.16, 2.4, .28), trimMat); blade.rotation.z = i * Math.PI / 2; prop.add(blade); }
     root.add(prop);
     const rope = new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, 5.8, 5), new THREE.MeshStandardMaterial({ color: 0x292929, roughness: .9 })); rope.rotation.x = Math.PI / 2; rope.position.set(0, -.15, -6.9); root.add(rope);
-    const bannerMat = [
-      new THREE.MeshStandardMaterial({ map: makeBannerFace('ETERNAL GRIND', 'CHOOSE YOUR CLASS · BRAVE THE DEPTHS', ['#161a24', '#8b301c', '#f0c878']), side: THREE.DoubleSide, roughness: .9 }),
-      new THREE.MeshStandardMaterial({ map: makeBannerFace('LIGHT CYCLES', 'RIDE FAST · CUT SHARP', ['#071a36', '#e64d1e', '#42d8ff']), side: THREE.DoubleSide, roughness: .9 })
-    ];
+    const bannerMat = sharedBannerMat();
     const banner = new THREE.Mesh(new THREE.PlaneGeometry(10, 2.5), bannerMat[0]); banner.position.set(0, -.2, -10.1); banner.rotation.y = Math.PI; root.add(banner);
     return { root, prop, banner, bannerMat };
   }

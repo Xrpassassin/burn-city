@@ -150,6 +150,10 @@ if (attack.data.combat.enemyDamage > 0) {
   sharedWorld.players['acct-b'].x = -32;
   sharedWorld.players['acct-b'].z = 24;
   files.set('homefront-world.json', sharedWorld);
+  const cachePackFood = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'food', amount: 3 });
+  assert.equal(cachePackFood.status, 200);
+  const cachePackAmmo = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'ammo', amount: 3 });
+  assert.equal(cachePackAmmo.status, 200);
   const cacheOpen = await call('POST', '/api/homefront/world/cache', 'acct-a', { pointId: 'cache_exchange', difficulty: 'standard' });
   assert.equal(cacheOpen.status, 200, 'player can open a nearby shared supply cache');
   assert.equal(cacheOpen.data.encounter.cacheOpened, true);
@@ -165,6 +169,10 @@ if (attack.data.combat.enemyDamage > 0) {
   rescueWorld.players['acct-b'].x = 35;
   rescueWorld.players['acct-b'].z = -42;
   files.set('homefront-world.json', rescueWorld);
+  const rescuePackFood = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'food', amount: 2 });
+  assert.equal(rescuePackFood.status, 200);
+  const rescuePackAmmo = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'ammo', amount: 1 });
+  assert.equal(rescuePackAmmo.status, 200);
   const rescue = await call('POST', '/api/homefront/world/rescue', 'acct-a', { pointId: 'stranded_bus', difficulty: 'standard' });
   assert.equal(rescue.status, 200, 'explorer can rescue a nearby stranded survivor');
   assert.equal(rescue.data.encounter.rescued, true);

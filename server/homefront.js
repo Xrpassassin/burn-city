@@ -195,7 +195,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           bases[user.acct] = outcome.base;
           store.save('homefront.json', bases);
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, hitZone: outcome.hitZone, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
           return true;
         }
         case '/api/homefront/world/enter': {

@@ -125,6 +125,7 @@ function boot(host) {
     const active = worldData?.selfEncounter || worldData?.encounter || (worldData?.encounters || []).find(item => item.id === detail.encounterId) || null;
     const target = active ? { id: active.id, x: active.x, y: terrainElevation(active.x, active.z), z: active.z, ty: 0 } : null;
     zombieAudio.hit({ hs: detail.hitZone === 'head', k: !!detail.killed }, target);
+    if (active?.id) zombieModelPilot?.react(active.id, detail.killed ? 'Death' : 'HitReact');
     if (detail.killed && target) zombieAudio.zdie(target);
   });
   window.addEventListener('homefront:combat-hit-feedback', event => {

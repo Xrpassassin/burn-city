@@ -17,7 +17,7 @@ const BUILDINGS = Object.freeze({
 });
 const DIFFICULTIES = Object.freeze({story:{label:'Story',cost:0.8,reward:0.7,threat:0.75},standard:{label:'Standard',cost:1,reward:1,threat:1},veteran:{label:'Veteran',cost:1.35,reward:1.55,threat:1.4},nightmare:{label:'Nightmare',cost:1.8,reward:2.35,threat:1.9}});
 const TYCOON_UPGRADES = Object.freeze({scavenger_rig:{label:'Scavenger Rig',description:'+15% salvage per level',baseCost:100,max:5},ember_press:{label:'Ember Press',description:'+5 embers per successful expedition per level',baseCost:140,max:5},field_armory:{label:'Field Armory',description:'+2 defense strength per level',baseCost:120,max:5},medic_station:{label:'Field Medic Station',description:'+1 bonus medicine on successful trips per level',baseCost:160,max:3}});
-const EMBER_MARKET = Object.freeze({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},food:{amount:10,cost:18},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});
+const EMBER_MARKET = Object.freeze({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},food:{amount:10,cost:18},water:{amount:10,cost:14},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});
 const WEAPONS = Object.freeze({pipe_blade:{label:'Pipe Blade',rarity:'Common',power:1,cost:{scrap:0,embers:0}},pump_shotgun:{label:'Pump Shotgun',rarity:'Rare',power:3,cost:{scrap:55,embers:40}},marksman_rifle:{label:'Marksman Rifle',rarity:'Epic',power:4,cost:{scrap:90,embers:75}},shock_maul:{label:'Shock Maul',rarity:'Legendary',power:5,cost:{scrap:120,embers:100}}});
 const WEAPON_MODS = Object.freeze({reinforced_grip:{label:'Reinforced Grip',rarity:'Common',power:1,cost:{scrap:25,embers:20}},salvage_edge:{label:'Salvage Edge',rarity:'Rare',power:1,cost:{scrap:35,embers:25}},shock_coil:{label:'Shock Coil',rarity:'Epic',power:2,cost:{scrap:45,embers:40}}});
 const EXPLORATION_ZONES = Object.freeze({outskirts:{label:'City Outskirts',risk:1,food:2,ammo:1,scrap:3,wood:2,meds:0,recruit:0.44,boss:false},residential:{label:'Residential Ruins',risk:1,food:3,ammo:1,scrap:5,wood:2,meds:0,recruit:0.5,boss:false},commercial:{label:'Market District',risk:2,food:3,ammo:2,scrap:8,wood:1,meds:1,recruit:0.38,boss:false},hospital:{label:'Overrun Hospital',risk:3,food:4,ammo:3,scrap:5,wood:1,meds:3,recruit:0.32,boss:false},industrial:{label:'Industrial Yard',risk:3,food:4,ammo:3,scrap:12,wood:2,meds:0,recruit:0.24,boss:false},subway:{label:'Buried Subway',risk:4,food:5,ammo:4,scrap:10,wood:1,meds:2,recruit:0.28,boss:true},research_lab:{label:'Sealed Research Annex',risk:5,food:6,ammo:5,scrap:16,wood:1,meds:4,recruit:0.2,boss:true}});
@@ -35,7 +35,7 @@ function createBase(ownerId, now = Date.now()) {
     version: VERSION, owner, revision: 1, createdAt: now, updatedAt: now,
     level: 1, day: 1, baseHp: 500, baseMaxHp: 500, wave: 0, visibility: 'private',
     exploration: { discoveredZones: ['outskirts'], lastExpedition: null },
-    resources: { wood: 40, scrap: 30, food: 24, meds: 5, ammo: 18 },
+    resources: { wood: 40, scrap: 30, food: 24, water: 18, meds: 5, ammo: 18 },
     embers: 50, upgrades: { scavenger_rig: 0, ember_press: 0, field_armory: 0, medic_station: 0 },
     weapons: ['pipe_blade'], equippedWeapon: 'pipe_blade', weaponMods: {},
     structures: [], survivors: [], expeditionCount: 0, defenseCount: 0,
@@ -48,7 +48,7 @@ function validateBase(input, ownerId) {
       !input.resources || !Array.isArray(input.structures) || !Array.isArray(input.survivors) ||
       input.structures.length > MAX_STRUCTURES || input.survivors.length > MAX_SURVIVORS) return null;
   const out = clone(input);
-  for (const r of ['wood', 'scrap', 'food', 'meds', 'ammo']) out.resources[r] = clampInt(out.resources[r], 0, 999999);
+  for (const r of ['wood', 'scrap', 'food', 'water', 'meds', 'ammo']) out.resources[r] = clampInt(out.resources[r], 0, 999999);
   out.embers = clampInt(out.embers, 0, 999999999);
   out.exploration = out.exploration && typeof out.exploration === 'object' ? out.exploration : {};
   out.exploration.discoveredZones = Array.isArray(out.exploration.discoveredZones) ? [...new Set(out.exploration.discoveredZones.filter(z => typeof z === 'string' && EXPLORATION_ZONES[z]))] : ['outskirts'];

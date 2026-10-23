@@ -6,6 +6,11 @@ assert.equal(C.spawn({encounters:a.encounters,account:'a',player,now:100100}).en
 assert.throws(()=>C.attack({encounters:a.encounters,account:'a',player:{x:100,z:100},base:base(),now:101000}),/enemy_out_of_range/);
 let state=a.encounters,b=base(),r;for(let i=0;i<20;i++){r=C.attack({encounters:state,account:'a',player,base:b,now:101000+i*1000,weaponPower:5,seed:i});state=r.encounters;b=r.base;if(r.killed)break;}
 assert.ok(r.killed);assert.ok(r.reward.scrap>0);assert.ok(b.resources.scrap>0);assert.ok(b.revision>0,'combat mutations advance the persistent refuge revision');
+const pursuer={...a.encounters.a,x:10,z:0,lastAiAt:100000,expiresAt:300000};
+const advanced=C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000});
+assert.ok(advanced.a.x<10&&advanced.a.x>2.2,'infected pursues the player without teleporting into contact');
+assert.equal(advanced.a.z,0);
+assert.equal(C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000}).a.x,advanced.a.x,'pursuit is deterministic for the same state and clock');
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
 const noAmmo=C.spawn({encounters:{},account:'b',player,now:200000});assert.throws(()=>C.attack({encounters:noAmmo.encounters,account:'b',player,base:{...base(),resources:{ammo:0}},now:201000}),/insufficient_ammo/);

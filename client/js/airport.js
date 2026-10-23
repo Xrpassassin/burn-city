@@ -231,12 +231,85 @@ function build() {
   const tugs = [0, 1, 2].map(i => ({ m: (() => { const m = new THREE.Mesh(tugGeo, mat); grp.add(m); return m; })(), a: i * 2, b: i * 2 + 1, u: Math.random(), d: 1 }));
   function updTugs(dt) { tugs.forEach(tg => { tg.u += tg.d * dt * .05; if (tg.u > 1 || tg.u < 0) { tg.d *= -1; tg.u = Math.max(0, Math.min(1, tg.u)); } const A0 = GATES[tg.a], B0 = GATES[tg.b], z = APRON.z1 - 8; tg.m.position.set(A0.x + 10 + (B0.x - A0.x) * tg.u, .05, z); tg.m.rotation.y = tg.d > 0 ? Math.PI / 2 : -Math.PI / 2; }); }
 
+
+  // ---- shared-clock aerial banner planes (deterministic schedule: every client derives the same pose from Unix time)
+  // Keep this lightweight and dependency-free; replace the procedural banner faces with supplied artwork assets when added to the repo.
+  function makeBannerFace(title, subtitle, palette) {
+    const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 256;
+    const g = cv.getContext('2d'), grad = g.createLinearGradient(0, 0, 1024, 256);
+    grad.addColorStop(0, palette[0]); grad.addColorStop(1, palette[1]); g.fillStyle = grad; g.fillRect(0, 0, 1024, 256);
+    g.fillStyle = 'rgba(0,0,0,.42)'; g.fillRect(0, 0, 1024, 256);
+    g.strokeStyle = palette[2]; g.lineWidth = 10; g.strokeRect(8, 8, 1008, 240);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.shadowColor = palette[2]; g.shadowBlur = 18;
+    g.fillStyle = '#fff1d8'; g.font = '900 92px system-ui,sans-serif'; g.fillText(title, 512, 105, 940);
+    g.shadowBlur = 0; g.fillStyle = '#ffffff'; g.font = '700 34px system-ui,sans-serif'; g.fillText(subtitle, 512, 190, 940);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
+  }
+  let bannerMats = null;   // both planes share the two banner textures/materials (2 canvases, not 4)
+  const sharedBannerMat = () => bannerMats || (bannerMats = [
+    new THREE.MeshStandardMaterial({ map: makeBannerFace('ETERNAL GRIND', 'CHOOSE YOUR CLASS · BRAVE THE DEPTHS', ['#161a24', '#8b301c', '#f0c878']), side: THREE.DoubleSide, roughness: .9 }),
+    new THREE.MeshStandardMaterial({ map: makeBannerFace('LIGHT CYCLES', 'RIDE FAST · CUT SHARP', ['#071a36', '#e64d1e', '#42d8ff']), side: THREE.DoubleSide, roughness: .9 })
+  ]);
+  function makeTowPlane() {
+    const root = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe9e5dc, roughness: .58, metalness: .12 });
+    const trimMat = new THREE.MeshStandardMaterial({ color: 0xff6a1a, roughness: .45, metalness: .15 });
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x162b42, metalness: .35, roughness: .22 });
+    const fus = new THREE.Mesh(new THREE.CylinderGeometry(.72, .9, 8.2, 10).rotateX(Math.PI / 2), bodyMat); fus.position.z = 0; root.add(fus);
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(.72, 10, 8).scale(1, .85, 1.25), bodyMat); nose.position.z = 4.1; root.add(nose);
+    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(.68, 10, 8).scale(1, .6, .9), glassMat); cockpit.position.set(0, .55, 2.25); root.add(cockpit);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(15, .22, 2.1), trimMat); wing.position.set(0, .15, .15); root.add(wing);
+    const tailWing = new THREE.Mesh(new THREE.BoxGeometry(5, .16, 1.05), bodyMat); tailWing.position.set(0, .7, -3.2); root.add(tailWing);
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(.18, 1.6, 1.35), trimMat); fin.position.set(0, 1.25, -3.35); root.add(fin);
+    const prop = new THREE.Group(); prop.position.set(0, 0, 4.75);
+    const hub = new THREE.Mesh(new THREE.SphereGeometry(.22, 8, 6), trimMat); prop.add(hub);
+    for (let i = 0; i < 2; i++) { const blade = new THREE.Mesh(new THREE.BoxGeometry(.16, 2.4, .28), trimMat); blade.rotation.z = i * Math.PI / 2; prop.add(blade); }
+    root.add(prop);
+    const rope = new THREE.Mesh(new THREE.CylinderGeometry(.035, .035, 5.8, 5), new THREE.MeshStandardMaterial({ color: 0x292929, roughness: .9 })); rope.rotation.x = Math.PI / 2; rope.position.set(0, -.15, -6.9); root.add(rope);
+    const bannerMat = sharedBannerMat();
+    const banner = new THREE.Mesh(new THREE.PlaneGeometry(10, 2.5), bannerMat[0]); banner.position.set(0, -.2, -10.1); banner.rotation.y = Math.PI; root.add(banner);
+    return { root, prop, banner, bannerMat };
+  }
+  const towFleet = [makeTowPlane(), makeTowPlane()];
+  towFleet.forEach((p, i) => { p.root.scale.setScalar(.82); p.root.visible = false; grp.add(p.root); });
+  // All clients use the same epoch-based route and phase. No random client-local flight decisions.
+  const FLIGHT_CYCLE = 240, FLIGHT_OFFSET = 1700000000 % FLIGHT_CYCLE;
+  const flightPath = [
+    { t: 0, x: -220, y: 2.5, z: -610, yaw: Math.PI },       // taxi from apron
+    { t: 14, x: -360, y: 2.5, z: -672, yaw: Math.PI },
+    { t: 25, x: -480, y: 2.5, z: -720, yaw: Math.PI / 2 },  // line up on runway
+    { t: 38, x: -170, y: 9, z: -700, yaw: Math.PI / 2 },   // takeoff roll / climb
+    { t: 55, x: 80, y: 42, z: -570, yaw: .95 },
+    { t: 82, x: 260, y: 70, z: -240, yaw: .35 },
+    { t: 112, x: 160, y: 78, z: 160, yaw: -.55 },
+    { t: 140, x: -140, y: 58, z: 330, yaw: -1.4 },
+    { t: 158, x: -520, y: 30, z: 100, yaw: -2.2 },
+    { t: 170, x: -900, y: 4, z: -300, yaw: -2.8 }
+  ];
+  function poseTowPlane(p, now, offset) {
+    const phase = ((now / 1000 + offset + FLIGHT_OFFSET) % FLIGHT_CYCLE + FLIGHT_CYCLE) % FLIGHT_CYCLE;
+    const slot = Math.floor((now / 1000 + offset + FLIGHT_OFFSET) / FLIGHT_CYCLE) % 2;
+    p.root.visible = phase < 171;
+    if (!p.root.visible) return;
+    p.banner.material = p.bannerMat[slot];
+    let a = flightPath[0], b = flightPath[1];
+    for (let i = 0; i < flightPath.length - 1; i++) { if (phase >= flightPath[i].t && phase <= flightPath[i + 1].t) { a = flightPath[i]; b = flightPath[i + 1]; break; } }
+    const u = THREE.MathUtils.clamp((phase - a.t) / Math.max(.001, b.t - a.t), 0, 1), smooth = u * u * (3 - 2 * u);
+    p.root.position.set(THREE.MathUtils.lerp(a.x, b.x, smooth), THREE.MathUtils.lerp(a.y, b.y, smooth), THREE.MathUtils.lerp(a.z, b.z, smooth));
+    let dy = Math.atan2(Math.sin(b.yaw - a.yaw), Math.cos(b.yaw - a.yaw));
+    p.root.rotation.set(0, a.yaw + dy * smooth, 0);
+    p.root.rotation.z = -Math.atan2(b.y - a.y, Math.hypot(b.x - a.x, b.z - a.z)) * .8;
+    p.prop.rotation.z = (now / 1000) * 42;
+    p.banner.rotation.z = Math.sin(now / 1000 * 1.5 + offset) * .035;
+  }
+  function updBannerPlanes() { const now = Date.now(); towFleet.forEach((p, i) => poseTowPlane(p, now, i * 120)); }
+
   const clk = new THREE.Clock();
   function update() {
     const dt = Math.min(clk.getDelta(), .05) * RATE, t = performance.now() / 1000;
     beacon.rotation.y = t * 2.2;
     if (!flight) { opT += dt; if (opT > nextOp) startFlight(); } else updFlight(dt);
-    updCars(dt); updTugs(dt);
+    updCars(dt); updTugs(dt); updBannerPlanes();
   }
   (function tick() { requestAnimationFrame(tick); if (!document.hidden && !window.__cityPaused) update(); })();   // __cityPaused: The Wilds deep area
   A.gates = GATES.length; A.ready = true;

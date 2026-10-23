@@ -500,3 +500,24 @@ Replaces `transport-menu.js` + `play-menu.js` (both deleted; nothing else import
 - Files: `client/dungeon/dungeon-layout-core.mjs` (+ `.test.mjs`, in `npm run test:eternal-grind`), `dungeon-layout-lab.html/.mjs` (open `/dungeon/dungeon-layout-lab.html`), `DUNGEON_LAYOUT_PROTOTYPE.md`, `DUNGEON_LAYOUT_LAB.md`. Not imported by the live dungeon (`/dungeon/index.html`), combat, loot or saves; not precached by the SW.
 - Contract: `generateDungeonLayout({ seed, columns=5, rows=5, loopChance=.12 })` → grid rooms + corridors between grid neighbours (spanning tree + loops), `entranceId` 0, `bossId` = farthest room, `mainPathLength`.
 - Stabilization (Hark): the lab had no import map, so `import 'three'` failed in the browser; it now uses the same map as the other dungeon labs (`../vendor/three/build/three.module.min.js`). Checked 70 seed/size/loop combos: deterministic, all rooms reachable, boss is the farthest room, corridors only join neighbours.
+
+## fix/cinderwilds-entry-exit-spacing (PR #127, sw bc-v74-wildsentry)
+Proceeding into the Cinderwilds stages the player 16 m up the trail (wilds-gate.js stageEntry) and the return barrier only prompts past ell>1.015, so the first step after entry can't trigger RETURN. Verified: arrive z=410, no prompt on first steps, prompt when walking back out (z≈401.6).
+
+## feature/forest-sign-airport-transit-plan (PR #123, sw bc-v75-wildssign)
+City-side THE WILDS direction sign enlarged (4.2x1.25 at y=3.0, wilds-gate.js buildGate) + docs/airport-city-traffic-integration-plan.md (plan only, nothing wired).
+
+## feature/cinderwilds-exploration-map (PR #126, sw bc-v76-wildsmap)
+Fog-of-exploration minimap + full field map in Fernway Verge and Glassroot (client/js/wilds-map.js; created in wilds.js buildDom, updated each frame, disposed in unload; Glassroot map data on wilds-deep.js ZONE.map). M / ⤢ opens, Esc/✕ closes, explore input locked while open (window.__wildsMapOpen in __exploreLock). Explored cells in localStorage bc.wilds.explored.v1 (device-local). Map is north-up with world +x drawn to the left (matches the 3D view). Desktop minimap sits below #wlHud/#wlQuest (top 196px).
+
+## fix/explore-camera-zoom-stability (PR #125, sw bc-v77-camzoom)
+Third-person Explore camera zoom: mouse wheel and two-finger pinch on the canvas (2.5-14 m, app.js exploreCamDistance). Only canvas touches count toward a pinch (camTouches filters out the joystick finger), so joystick + look-drag still looks. yaw/pitch are only re-derived when the mode actually changes; default pitch only on first spawn.
+
+## feature/shared-airborne-banner-planes (PR #122, sw bc-v78-bannerplanes)
+Two banner tow planes on a shared Unix-time schedule (airport.js poseTowPlane/updBannerPlanes; 240 s cycle, banners alternate ETERNAL GRIND / LIGHT CYCLES; canvas placeholder art, both planes share the two textures). Client clock only (no server sync); route crosses the city at 40-78 m.
+
+## feature/lake-waterfront-estates (PR #124, sw bc-v79-estates)
+Lake enlarged (estate.js lakeFrame D 62->78, Wd 175->210; shader divisors match) and the Estates lot rebuilt as Waterfront Estates: 9 tiered homes (trailer/apartment/starter/family/mansion), pocket park, trees, fences, lights, entrance sign; all merged per material (~17 meshes). Visual only: buying/renting/interiors not implemented. Estates card text updated.
+
+## gameplay/zombie-cosmodrome-graybox (PR #120, sw bc-v80-cosmodrome)
+Zombies fixed map 02 The Ashen Cosmodrome: server/cod.js COSMODROME def (7 zones, 7 doors, 10 windows, wallbuys/box/perks/forge/power), chosen by ?map=cosmodrome (arena menu button #cosmoBtn) -> findRoom(mapId) keeps cosmodrome rooms separate; ranked/daily stay on the Refinery. Client landmark/ruin dressing in client/arena/cod.js when L.kind==='cosmodrome' (individual meshes, ~+40 draw calls vs a procedural map on mobile low). test/zombie-cosmodrome-sim.js in test:all. ZOMBIE_MAP=cosmodrome forces it locally (ignored on Fly).

@@ -61,7 +61,7 @@ function normalizeWorld(input) {
 function prune(w, now) {
   for (const [acct, p] of Object.entries(w.players)) if (now - p.lastSeen > PRESENCE_TTL) delete w.players[acct];
   for (const [code, party] of Object.entries(w.parties)) {
-    party.members = party.members.filter(acct => w.players[acct] || party.leader === acct);
+    party.members = party.members.filter(acct => !!w.players[acct]);
     if (!party.members.length) delete w.parties[code];
     else if (!party.members.includes(party.leader)) party.leader = party.members[0];
   }

@@ -868,6 +868,29 @@ function boot(host) {
     sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF';
     if (combatStatus) combatStatus.textContent = sprintTravel ? 'Sprint enabled: longer travel steps cost extra stamina and delay weapon accuracy recovery.' : 'Sprint disabled: normal travel pace.';
   });
+  function spawnEnvironmentImpact(state, previousState = null) {
+    if (!state || !Number.isFinite(state.x) || !Number.isFinite(state.z)) return;
+    const destroyed = state.stage === 'destroyed' || state.health <= 0 || state.collisionEnabled === false;
+    const worsening = !previousState || state.health < previousState.health || state.stage !== previousState.stage;
+    if (!worsening) return;
+    const count = destroyed ? 18 : state.stage === 'critical' ? 12 : state.stage === 'damaged' ? 8 : 5;
+    const originY = terrainElevation(state.x, state.z) + (destroyed ? 1.05 : 0.7);
+    for (let i = 0; i < count; i++) {
+      const spark = i % 4 === 0;
+      const geometry = spark ? new THREE.SphereGeometry(0.055, 5, 4) : new THREE.BoxGeometry(0.12 + Math.random() * 0.12, 0.1 + Math.random() * 0.12, 0.12 + Math.random() * 0.12);
+      const color = spark ? 0xffb35a : (i % 2 ? 0x81776a : 0x4f4942);
+      const material = new THREE.MeshStandardMaterial({ color, emissive: spark ? 0x8b2b0d : 0x160f0a, emissiveIntensity: spark ? 0.8 : 0.08, transparent: true, opacity: 1, roughness: 0.95 });
+      const piece = new THREE.Mesh(geometry, material);
+      piece.position.set(state.x + (Math.random() - 0.5) * 1.1, originY + Math.random() * 0.7, state.z + (Math.random() - 0.5) * 1.1);
+      piece.userData.life = (destroyed ? 1.25 : 0.65) + Math.random() * 0.45;
+      piece.userData.vx = (Math.random() - 0.5) * (destroyed ? 5.2 : 3.2);
+      piece.userData.vy = 1.1 + Math.random() * (destroyed ? 4.2 : 2.4);
+      piece.userData.vz = (Math.random() - 0.5) * (destroyed ? 5.2 : 3.2);
+      piece.userData.environmentDebris = true;
+      piece.userData.blood = false;
+      impactGroup.add(piece);
+    }
+  }
   async function damageSelectedEnvironment() {
     if (!selectedEnvironmentId || moving || !token()) return;
     const selected = (worldData?.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
@@ -881,8 +904,10 @@ function boot(host) {
       const response = await fetch(API + '/api/homefront/world/environment/damage', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ structureId: selectedEnvironmentId }) });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'environment_damage_failed');
-      updateWorld(data);
+      const previousState = selected;
       const state = data.environmentDamage;
+      if (state) spawnEnvironmentImpact({ ...selected, ...state }, previousState);
+      updateWorld(data);
       if (combatStatus) combatStatus.textContent = state ? (state.kind || 'Structure') + ' · ' + state.stage + ' · integrity ' + state.health + '/' + state.maxHealth : 'Structure damaged.';
     } catch (error) {
       if (combatStatus) combatStatus.textContent = error.message === 'environment_structure_out_of_range' ? 'Too far away. Move within 8 units to strike this structure.' : 'Could not damage structure: ' + error.message;

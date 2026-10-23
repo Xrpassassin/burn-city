@@ -17,6 +17,9 @@ assert.match(scene, /Math\.max\(-100, Math\.min\(100/, 'clamp client targets to 
 assert.match(scene, /server-limited/, 'explain that movement is server-limited');
 assert.match(scene, /\/api\/homefront\/world\/' \+ action/, 'combat controls call authenticated server combat endpoints');
 assert.match(scene, /data\.encounters/, 'render active server-owned infected encounters');
+assert.match(scene, /const combatActors = new Map\(\)/, 'retain infected scene actors across authoritative snapshots');
+assert.match(scene, /state\.targetX - actor\.position\.x/, 'interpolate infected movement between server snapshots');
+assert.match(scene, /state\.hitFlash = 0\.38/, 'give confirmed enemy damage a brief visual hit flash');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(page, /id="findInfected"/, 'provide a control to initiate an infected encounter');
 assert.match(page, /id="attackInfected"/, 'provide an attack control for active infected');

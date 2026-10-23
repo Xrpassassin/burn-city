@@ -22,5 +22,9 @@ assert.match(page, /id="findInfected"/, 'provide a control to initiate an infect
 assert.match(page, /id="attackInfected"/, 'provide an attack control for active infected');
 assert.match(page, /id="graveyard3d"/, 'embed the 3D world in Homefront');
 assert.match(page, /id="graveyardMap"/, 'preserve the existing 2D tactical map fallback');
+assert.match(page, /id="survivalVitals"/, 'show server-owned field survival vitals');
+assert.match(page, /id="drinkInField"/, 'provide a hydration action');
+assert.match(page, /id="cosmeticCollection"/, 'provide the cosmetic skin collection UI');
+assert.match(page, /cosmetic-only|never change combat power/i, 'explain that cosmetic skins do not affect combat power');
 assert.match(page, /homefront-graveyard-3d\.js/, 'load the 3D scene module');
 console.log('Homefront 3D Graveyard integration checks passed.');

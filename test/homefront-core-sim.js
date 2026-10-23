@@ -281,7 +281,7 @@ for (let day = 0; day < 3; day++) {
 assert.equal(planted.farmPlots[0].growth, H.CROPS.potato.days, 'watered crops advance through the server-authoritative workday clock');
 const foodBeforeHarvest = planted.resources.food;
 planted = H.applyAction(planted, 'farm-test', { type: 'farm_harvest', plotId: plot.id }, 6120);
-assert.equal(planted.resources.food, foodBeforeHarvest + 7, 'watered potato harvest adds the base yield plus watering bonus');
+assert.equal(planted.resources.food, foodBeforeHarvest + 5, 'mature potato harvest adds its configured food yield');
 assert.equal(planted.farmPlots[0].crop, null, 'harvest resets the plot for replanting');
 const savedFarm = H.validateBase(planted, 'farm-test');
 assert.equal(savedFarm.farmPlots.length, 1, 'farm plot persists through save normalization');

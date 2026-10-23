@@ -68,4 +68,15 @@ assert.equal(defended.structures[0].hp, 90 - Number(actualDamageMatch[1]),
  assert.doesNotMatch(layeredLog, /reduced perimeter damage/,
    'cover is not reported when the actual first target is intact');
 
+
+ // The defense result should expose a useful, deterministic condition for the priority
+ // target so the UI can later render matching damage states without guessing locally.
+ const integrityBase = Core.createBase('rGuardIntegrity', now);
+ integrityBase.resources.ammo = 30;
+ integrityBase.structures = [{ id: 'outer-gate', type: 'gate', hp: 20, maxHp: 180, x: 8, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
+ const integrityResult = Core.applyAction(integrityBase, 'rGuardIntegrity', { type: 'defend' }, now + 4);
+ const integrityLog = integrityResult.log[integrityResult.log.length - 1].text;
+ assert.match(integrityLog, /Priority target gate outer-gate is (CRITICAL|BREACHED) \(\d+% integrity\)/,
+   'defense reports priority-target condition and integrity after siege damage');
+
 console.log('Homefront authoritative guard-defense regressions passed.');

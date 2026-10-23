@@ -114,6 +114,9 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(cooked.data.selfInventory.rawFood, 1, 'cooking consumes one raw food');
   assert.equal(cooked.data.selfInventory.food, 1, 'cooking produces one carried ration');
   assert.equal(cooked.data.selfInventory.wood, 1, 'cooking consumes one wood as fuel');
+  const noFuelState = files.get('homefront-world.json');
+  noFuelState.players['acct-a'].inventory.wood = 0;
+  files.set('homefront-world.json', noFuelState);
   const noFuel = await call('POST', '/api/homefront/world/survival', 'acct-a', { action: 'purify_water' });
   assert.equal(noFuel.status, 400, 'purification cannot happen without fuel');
   assert.equal(noFuel.data.error, 'missing_fuel');

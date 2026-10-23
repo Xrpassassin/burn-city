@@ -183,7 +183,7 @@ wss.on('connection', (ws, req) => {
   else if (rt) { room = gm === 'tron' ? tronRoom({ id: lob.id, ranked: true, cfg: lob.cfg, creatorAcct: lob.creator }) : findRoom('zombie', lob.id); if (!room) return ws.close(4005, 'match_already_started'); }
   else if (gm === 'tron' && url.searchParams.get('create')) room = tronRoom({ cfg: { teams: +url.searchParams.get('teams') || 0, ff: url.searchParams.get('ff') !== '0', bo3: url.searchParams.get('bo3') === '1' } });
   else if (gm === 'tron' && url.searchParams.get('room')) { room = rooms.tron.find(r => r.tl && !r.tl.ranked && r.tl.id === url.searchParams.get('room')); if (!room || room.full) return ws.close(4005, 'match_already_started_or_full'); }
-  else room = findRoom(gm, null, url.searchParams.get('daily') === '1', url.searchParams.get('map') === 'cosmodrome' ? 'cosmodrome' : null);
+  else room = findRoom(gm, null, url.searchParams.get('daily') === '1', url.searchParams.get('map') === 'refinery' ? 'refinery' : null);
   let p, id;
   if (rsOk) { p = rs.p; id = p.id; const old = p.ws; p.ws = ws; p.away = 0; p.ip = ip; p.msgs = 0; p.win = Date.now(); clearTimeout(p.awayT); p.awayT = null; if (old && old !== ws) { try { old.terminate(); } catch {} } }   // resumed: same player, same points/guns/perks
   else {

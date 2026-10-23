@@ -34,8 +34,21 @@ export async function createZombieModelPilot(scene) {
     item.clipName = clip.name;
   }
 
+  const palettes = [0xb6b7a1, 0x91a47c, 0xa77a68, 0x8293a5, 0xaaa38b, 0x758078];
+
   function createInstance(z) {
     const visual = SkeletonUtils.clone(gltf.scene);
+    // Each clone owns its material instances, so per-type tinting never bleeds across zombies.
+    const tint = new THREE.Color(palettes[Math.abs(z.ty || 0) % palettes.length]);
+    visual.traverse(node => {
+      if (!node.isMesh || !node.material) return;
+      node.material = Array.isArray(node.material)
+        ? node.material.map(material => material.clone())
+        : node.material.clone();
+      for (const material of (Array.isArray(node.material) ? node.material : [node.material])) {
+        if (material.color) material.color.lerp(tint, 0.22);
+      }
+    });
     const group = new THREE.Group();
     group.scale.setScalar(scale);
     visual.position.y = -bounds.min.y;

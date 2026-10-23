@@ -26,6 +26,6 @@ The live Arena Zombies renderer in `client/arena/fx.js` builds its horde procedu
 ## Implemented opt-in animated model pilot
 
 - Bundled `assets/zombies/zombie-ash.glb`, an animated zombie character from the MIT-licensed [Storm Apocalypse source repository](https://github.com/mars-tw/storm-apocalypse/blob/main/public/models/custom/zombies/zombie-ash.glb). Its upstream `CREDITS.md` lists the repository's original R8 zombie models separately from third-party Quaternius models.
-- `?zombieModels=1` opts into a small animated-model pilot (up to eight nearest zombies) using the already-vendored Three.js GLTFLoader and SkeletonUtils. The standard renderer remains the default and is used as a fallback if loading fails.
+- `?zombieModels=1` opts into a small animated-model pilot (up to eight nearest zombies) using the already-vendored Three.js GLTFLoader and SkeletonUtils. Per-clone material tinting gives the model several grime/skin palettes without shared-material color bleed. The standard renderer remains the default and is used as a fallback if loading fails.
 - The model experiment does not alter server-side combat, collision, enemy identity, or gameplay state. Validate orientation, animation timing, and mobile frame time before considering the flag for general play.
 - Model attribution and the upstream MIT license are recorded beside the asset in `assets/zombies/README.md`.

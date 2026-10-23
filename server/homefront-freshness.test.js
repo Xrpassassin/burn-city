@@ -8,11 +8,11 @@ assert.deepEqual(legacy.rawFood, [{ qty: 3, acquiredAt: start }], 'legacy counts
 assert.deepEqual(F.normalizeBatches(legacy, { rawFood: 3, food: 2 }, start + hour), legacy, 'later normalization must not refresh migrated stock');
 let batches = F.addBatch(legacy, 'rawFood', 2, start + hour);
 assert.deepEqual(batches.rawFood, [{ qty: 3, acquiredAt: start }, { qty: 2, acquiredAt: start + hour }], 'new supplies get their own batch timestamp');
-const summary = F.summarize(batches, { rawFood: 5, food: 2 }, start + 3 * hour, start);
+const summary = F.summarize(batches, { rawFood: 5, food: 2 }, start + 2 * hour, start);
 assert.equal(summary.rawFood.fresh, 2);
 assert.equal(summary.rawFood.aging, 3);
 assert.equal(summary.rawFood.spoiled, 0);
-const old = F.summarize(batches, { rawFood: 5, food: 2 }, start + 6 * hour, start);
+const old = F.summarize(batches, { rawFood: 5, food: 2 }, start + 4.5 * hour, start);
 assert.equal(old.rawFood.spoiled, 3, 'raw food can become spoiled after its shelf life');
 assert.equal(old.rawFood.count, 5, 'spoilage is reported without silently deleting inventory');
 const taken = F.takeBatches(batches, 'rawFood', 2, { rawFood: 5 }, start);

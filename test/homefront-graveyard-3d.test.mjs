@@ -15,6 +15,11 @@ assert.match(scene, /data\.world\?\.bosses|data\.world\?\.caches/, 'bind interac
 assert.match(scene, /worldData\.party && !worldData\.party\.leader/, 'respect leader-controlled party movement');
 assert.match(scene, /Math\.max\(-100, Math\.min\(100/, 'clamp client targets to the shared map bounds');
 assert.match(scene, /server-limited/, 'explain that movement is server-limited');
+assert.match(scene, /\/api\/homefront\/world\/' \+ action/, 'combat controls call authenticated server combat endpoints');
+assert.match(scene, /data\.encounters/, 'render active server-owned infected encounters');
+assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
+assert.match(page, /id="findInfected"/, 'provide a control to initiate an infected encounter');
+assert.match(page, /id="attackInfected"/, 'provide an attack control for active infected');
 assert.match(page, /id="graveyard3d"/, 'embed the 3D world in Homefront');
 assert.match(page, /id="graveyardMap"/, 'preserve the existing 2D tactical map fallback');
 assert.match(page, /homefront-graveyard-3d\.js/, 'load the 3D scene module');

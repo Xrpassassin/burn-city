@@ -91,6 +91,15 @@ export function createBurnCityExperienceRegistry({ launchers = {}, ...options } 
     launch: zombieLaunch,
     returnTo: 'airport'
   });
+  const homefrontLaunch = launchers.homefront;
+  registry.register({
+    id: 'homefront',
+    label: 'Homefront',
+    description: 'A persistent, personal settlement to build, staff, and defend against the undead.',
+    status: typeof homefrontLaunch === 'function' ? 'available' : 'planned',
+    launch: homefrontLaunch,
+    returnTo: 'airport'
+  });
   const cyclesLaunch = launchers['light-cycles'];
   registry.register({
     id: 'light-cycles',

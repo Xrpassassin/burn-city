@@ -1,0 +1,77 @@
+name: Homefront airport flight checks
+
+on:
+  pull_request:
+    paths:
+      - 'server/flight-lobby.js'
+      - 'server/homefront-combat.js'
+      - 'server/homefront-core.js'
+      - 'server/homefront-survival.js'
+      - 'server/homefront-inventory.js'
+      - 'server/homefront-inventory.test.js'
+      - 'server/homefront-world.js'
+      - 'server/homefront-terrain.js'
+      - 'server/homefront-collision.js'
+      - 'server/homefront-collision.test.js'
+      - 'server/homefront-terrain.test.mjs'
+      - 'client/arena/homefront-terrain-generation.mjs'
+      - 'client/arena/homefront-world-generation.mjs'
+      - 'server/homefront.js'
+      - 'server/game.js'
+      - 'server/server.js'
+      - 'client/arena/flight-lobby.html'
+      - 'client/arena/index.html'
+      - 'client/arena/homefront.html'
+      - 'client/js/app.js'
+      - 'client/js/airport.js'
+      - 'client/js/experience-registry.mjs'
+      - 'client/js/experience-registry.test.mjs'
+      - 'test/flight-lobby-sim.js'
+      - 'test/zombie-helicopter-arrival-sim.js'
+      - 'test/homefront-api-sim.js'
+      - 'test/homefront-core-sim.js'
+      - 'test/homefront-world-sim.js'
+      - 'server/homefront-combat.test.js'
+      - 'server/homefront-survival.test.js'
+      - 'package.json'
+      - '.github/workflows/homefront-airport-flight.yml'
+
+jobs:
+  airport-flight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Check server syntax
+        run: |
+          node --check server/flight-lobby.js
+          node --check server/homefront-combat.js
+          node --check server/homefront-core.js
+          node --check server/homefront-survival.js
+          node --check server/homefront-inventory.js
+          node --check server/homefront-world.js
+          node --check server/homefront-terrain.js
+          node --check server/homefront-collision.js
+          node --check server/homefront.js
+          node --check server/game.js
+          node --check server/server.js
+      - name: Check browser JavaScript syntax
+        run: |
+          node --input-type=module --check < client/js/app.js
+          node --input-type=module --check < client/js/airport.js
+          node --input-type=module --check < client/js/experience-registry.mjs
+          node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/flight-lobby.html","utf8");const m=s.match(/<script>([\s\S]*?)<\/script>/);if(!m)throw Error("Missing flight-lobby script");new Function(m[1])'
+          node --input-type=module --check < <(node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/homefront.html","utf8");const m=s.match(/<script type="module">([\s\S]*?)<\/script>/);if(!m)process.exit(2);process.stdout.write(m[1])')
+      - name: Test airport experience registry
+        run: npm run test:experience-registry
+      - name: Test helicopter arrival spawn
+        run: npm run test:zombie-arrival
+      - name: Test shared flight lobby
+        run: npm run test:flight-lobby
+      - name: Test Homefront settlement
+        run: npm run test:homefront

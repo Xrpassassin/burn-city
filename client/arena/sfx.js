@@ -78,6 +78,8 @@ export const sfx = {
     else noise({ a: 0.02, dec: 0.14, v: 0.09 * k, f: 1800, f1: 900, q: 0.7 }); },              // flamethrower: hiss
   rip(v = 1) { noise({ dec: 0.3, v: 0.25 * v, f: 2400, f1: 300, q: 2 }); tone(140, { dec: 0.15, v: 0.15 * v, f1: 60 }); },
   hammer() { tone(320, { dec: 0.1, v: 0.25, f1: 140 }); noise({ dec: 0.05, v: 0.12, f: 3000, type: 'highpass' }); tone(300, { at: 0.11, dec: 0.1, v: 0.2, f1: 130 }); },
+  // Short, procedural weapon-handling cues: no external sample dependency.
+  reloadWeapon(kind = 'shotgun') { if (kind === 'marksman_rifle') { noise({ dec: 0.08, v: 0.11, f: 2600, f1: 900, q: 1.8, type: 'highpass' }); tone(680, { at: 0.18, type: 'square', dec: 0.055, v: 0.07, f1: 420 }); noise({ at: 0.62, dec: 0.12, v: 0.13, f: 1800, f1: 500, q: 2 }); tone(240, { at: 1.22, dec: 0.09, v: 0.09, f1: 110 }); } else { noise({ dec: 0.07, v: 0.1, f: 2200, f1: 700, q: 1.5, type: 'highpass' }); tone(380, { at: 0.22, type: 'square', dec: 0.06, v: 0.06, f1: 240 }); for (let i = 0; i < 3; i++) noise({ at: 0.48 + i * 0.34, dec: 0.045, v: 0.085, f: 3200, f1: 1300, q: 2, type: 'highpass' }); tone(210, { at: 1.58, dec: 0.1, v: 0.08, f1: 100 }); } },
   box() { notes([[784, 0, 0.2], [988, 0.12, 0.2], [1175, 0.24, 0.2], [1568, 0.36, 0.35], [1319, 0.5, 0.25], [1568, 0.62, 0.5]], 'triangle', 0.14); },
   perk() { tone(300, { type: 'sine', dec: 0.25, v: 0.15, f1: 900 }); notes([[659, 0.2, 0.15], [880, 0.3, 0.3]], 'sine', 0.14); noise({ at: 0.05, dec: 0.25, v: 0.05, f: 6000, type: 'highpass' }); },
   door() { tone(110, { type: 'sawtooth', a: 0.05, dec: 0.5, v: 0.08, f1: 70 }); noise({ a: 0.05, dec: 0.5, v: 0.08, f: 400, f1: 150, type: 'lowpass' }); notes([[523, 0.35, 0.2], [784, 0.45, 0.3]], 'triangle', 0.1); },

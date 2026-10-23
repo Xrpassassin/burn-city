@@ -18,6 +18,11 @@ for (const name of ['survivor.glb','zombie.glb','fence.glb','fence-gate.glb','ca
 const html = fs.readFileSync(path.join(root, '../../homefront.html'), 'utf8');
 assert.ok(html.includes("'../vendor/three/examples/jsm/loaders/GLTFLoader.js'"), 'Homefront GLTFLoader import resolves to the shared vendored Three.js addons');
 assert.ok(html.includes("'../vendor/three/examples/jsm/utils/SkeletonUtils.js'"), 'Homefront SkeletonUtils import resolves to the shared vendored Three.js addons');
+assert.ok(html.includes("['cookFieldFood',canAct&&usableFoodCount(inv,'rawFood')>0&&(inv.wood||0)>0]"), 'cooking requires usable raw food and wood');
+assert.ok(html.includes("['purifyFieldWater',canAct&&(inv.dirtyWater||0)>0&&(inv.wood||0)>0]"), 'water purification is disabled until an expedition has dirty water and wood');
+assert.ok(html.includes("const v=expeditionWorld?.selfSurvival,inv=expeditionWorld?.selfInventory||expeditionWorld?.inventory||{},deployed=!!expeditionWorld?.self"), 'survival UI derives contextual actions from server-returned expedition state');
+assert.ok(html.includes('function foodFreshness(inv,id,now=Date.now())'), 'field and refuge inventory calculate food freshness from batch timestamps');
+assert.ok(html.includes("q.textContent='Fresh '+f.fresh+' · Aging '+f.aging+' · Spoiled '+f.spoiled"), 'refuge stores visibly summarize freshness states');
 for (const rel of ['../vendor/three/examples/jsm/loaders/GLTFLoader.js', '../vendor/three/examples/jsm/utils/SkeletonUtils.js']) {
   assert.ok(fs.existsSync(path.resolve(root, rel.replace('../vendor/', '../../../vendor/'))), 'module exists: ' + rel);
 }

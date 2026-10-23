@@ -427,7 +427,18 @@ let pred = null, pitch = 0, autoFire = localStorage.bcAuto2 !== '0', lookSens = 
 let last = performance.now(), w0, lastHp = 100, overUntil = 0, overInfo = {};
 if (P.has('perf')) window.__perf = () => ({ calls: r.info.render.calls, tris: r.info.render.triangles, progs: r.info.programs?.length });   // ?perf only
 if (P.get('debug')) Object.assign(window, { __id: () => net?.me, __tp: (x, z, lv = 0, hp = 0) => { net?.ws.send(JSON.stringify({ t: 'tp', x, z, lv, hp })); if (pred) { pred.x = x; pred.z = z; pred.lv = lv; } }, __za: ZA, __music: MUSIC, __hb: f => ZA.force(f), __st: () => net?.state(), __pred: () => pred, __world: () => world, __me: () => pred && { x: pred.x, z: pred.z, y: pred.y, lv: pred.lv, yaw, map: net?.buf[net.buf.length-1]?.m, layout: net?.map }, __aim: (y, p = 0) => { yaw = y; pitch = p; }, __use: () => useQ = true, __swap: () => swQ = true, __b: () => net?.buf[net.buf.length-1]?.b });   // local test hook
-if (!P.get('ticket') && ['zombie', 'tron'].includes(P.get('mode'))) setTimeout(() => start(P.get('mode')), 400);   // arena gate: straight into free play as a guest
+function arriveByHelicopter() {
+  const overlay=document.createElement('div'); overlay.id='bcHeliArrival'; overlay.setAttribute('role','status'); overlay.setAttribute('aria-live','polite');
+  overlay.style.cssText='position:fixed;inset:0;z-index:100000;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 60%,#253b45,#05080d 75%);color:#f3f8fb;text-align:center;font:600 15px system-ui;overflow:hidden';
+  overlay.innerHTML='<div style="width:min(90vw,480px);padding:24px;border:1px solid #7bdcff55;border-radius:18px;background:#06111beF"><div id="bcArrivalHeli" style="font-size:68px;transition:transform 2.4s ease-in,opacity 2.4s ease-in">🚁</div><h2 style="letter-spacing:.08em">APPROACHING LANDING ZONE</h2><p id="bcArrivalText" style="color:#b8d8e8">Pilot has visual. Lowering to the pad…</p><div style="height:4px;background:#173346;border-radius:4px;overflow:hidden"><i id="bcArrivalProgress" style="display:block;width:0;height:100%;background:#36f3ff;box-shadow:0 0 12px #36f3ff;transition:width 2.8s linear"></i></div></div>';
+  document.body.append(overlay); requestAnimationFrame(()=>{const h=document.getElementById('bcArrivalHeli'),p=document.getElementById('bcArrivalProgress');if(h){h.style.transform='translateY(80px) scale(.75)';h.style.opacity='.2'}if(p)p.style.width='100%'});
+  setTimeout(()=>{const t=document.getElementById('bcArrivalText');if(t)t.textContent='Touchdown confirmed. Deploying survivors…';},1700);
+  setTimeout(()=>{overlay.remove();start('zombie',null,'&arrival=helicopter'+(P.get('map')==='refinery'?'&map=refinery':'')+(/^[A-Za-z0-9-]{1,40}$/.test(P.get('flight')||'')?'&flight='+P.get('flight'):''));},3000);
+}
+if (!P.get('ticket') && ['zombie', 'tron'].includes(P.get('mode'))) {
+  if (P.get('arrival') === 'helicopter' && P.get('mode') === 'zombie') setTimeout(arriveByHelicopter, 350);
+  else setTimeout(() => start(P.get('mode')), 400);
+}   // airport arrival gets a short cinematic; the server places players on the map's authored pad when one exists
 if (P.get('ticket')) setTimeout(() => start(P.get('game') === 'tron' ? 'tron' : 'zombie', P.get('ticket')), 300);   // resume a paid entry (e.g. back from XAMAN)
 if (P.get('auto')) setTimeout(() => document.querySelector(`[data-m=${P.get('auto')}]`).click(), 300);
 r.setAnimationLoop(() => {

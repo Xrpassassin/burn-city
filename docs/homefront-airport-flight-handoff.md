@@ -22,3 +22,8 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Visitor snapshots omit the owner field and shorten the settlement log. Visitors cannot mutate the save because all changes still require the authenticated owner action endpoint; the UI also hides construction, survivor management, expedition, repair, workday, and defense controls.
 - Public access is currently by owner/account identifier using a shareable visit URL. A discoverable in-game directory, friend-only permissions, visitor presence/guestbook, and explicit guest interaction rules remain future work.
 - Tests cover private-by-default behavior, invalid visibility fail-closed behavior, public read-only visits, and immediate revocation when an owner returns to private.
+
+
+## QA status
+- Added regression coverage in `test/homefront-core-sim.js` and `test/homefront-api-sim.js` for private-by-default saves, visibility validation, public read-only visitor access, and revocation.
+- Automated tests have been authored but have not been executed in a checked-out Node runtime in this session. Treat the branch as unverified until `npm run test:homefront` passes.

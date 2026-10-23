@@ -68,8 +68,8 @@ function buildGate() {
   sign.position.set(0, 4.2, -.32); sign.rotation.y = Math.PI; g.add(sign); const sign2 = sign.clone(); sign2.position.z = .32; sign2.rotation.y = 0; g.add(sign2);   // readable from both sides
   const wbs = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.3), new THREE.MeshBasicMaterial({ map: signTex([['⚠ WARNING', 60, '#ffd23a'], ['PVP AND PVE AREA AHEAD', 38, '#ffffff'], ['Wild creatures roam freely', 28, '#ffc8a0']], 512, 256, '#3a0c08', '#fff', '#ffd23a'), toneMapped: false, side: THREE.DoubleSide }));
   wbs.position.set(0, 1.9, .1).applyMatrix4(wbT); wbs.rotation.y = Math.PI + .35; g.add(wbs);
-  const arrow = new THREE.Mesh(new THREE.PlaneGeometry(2.4, .7), new THREE.MeshBasicMaterial({ map: signTex([['THE WILDS  ↑', 70]], 512, 150, '#24361c', '#e8ffd0', '#8ad05a'), toneMapped: false, side: THREE.DoubleSide }));
-  arrow.position.set(3.5, 2.7, 318 - GATE.z); arrow.rotation.y = Math.PI; g.add(arrow);
+  const arrow = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.25), new THREE.MeshBasicMaterial({ map: signTex([['THE WILDS  ↑', 88]], 768, 228, '#24361c', '#e8ffd0', '#8ad05a'), toneMapped: false, side: THREE.DoubleSide }));
+  arrow.position.set(3.5, 3.0, 318 - GATE.z); arrow.rotation.y = Math.PI; g.add(arrow);
   // permanent colliders (gate pillars, warning board, signpost): tagged wildsGate so the forest's unload never touches them
   for (const [x, z, r, h, nc] of [[GATE.x - 4.6, GATE.z, 1.05, 6, false], [GATE.x + 4.6, GATE.z, 1.05, 6, false], [GATE.x - 6.5, GATE.z - 8, .9, 2.6, true], [3.5, 318, .2, 3.2, true]]) c.colliders.push({ x, z, r, h, nc, wildsGate: 1 });
   return root;

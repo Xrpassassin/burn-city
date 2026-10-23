@@ -503,3 +503,6 @@ Replaces `transport-menu.js` + `play-menu.js` (both deleted; nothing else import
 
 ## fix/cinderwilds-entry-exit-spacing (PR #127, sw bc-v74-wildsentry)
 Proceeding into the Cinderwilds stages the player 16 m up the trail (wilds-gate.js stageEntry) and the return barrier only prompts past ell>1.015, so the first step after entry can't trigger RETURN. Verified: arrive z=410, no prompt on first steps, prompt when walking back out (z≈401.6).
+
+## feature/forest-sign-airport-transit-plan (PR #123, sw bc-v75-wildssign)
+City-side THE WILDS direction sign enlarged (4.2x1.25 at y=3.0, wilds-gate.js buildGate) + docs/airport-city-traffic-integration-plan.md (plan only, nothing wired).

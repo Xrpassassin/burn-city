@@ -3,6 +3,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
+import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { sfx } from './sfx.js';
 
 const host = document.getElementById('graveyard3d');
@@ -33,6 +34,8 @@ function boot(host) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
+  const worldChunkGroups = new Map();
+  let activeChunkSignature = '';
   scene.add(cityGroup, poiGroup, lootGroup, playerGroup, zombieGroup, combatGroup, impactGroup);
   const combatStatus = document.getElementById('combatStatus');
   const lootActionButton = document.getElementById('collectLoot');
@@ -127,6 +130,23 @@ function boot(host) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
     m.position.set(x, y + h / 2, z); parent.add(m); return m;
   };
+  // Ruined structures are grouped by spatial chunk so distant scenery can be culled as the world grows.
+  function cityChunkAt(x, z) {
+    const coords = chunkCoords(x, z);
+    const id = chunkKey(coords.x, coords.z);
+    if (!worldChunkGroups.has(id)) {
+      const group = new THREE.Group(); group.name = id; group.userData.chunkId = id;
+      worldChunkGroups.set(id, group); cityGroup.add(group);
+    }
+    return worldChunkGroups.get(id);
+  }
+  function updateVisibleChunks(x, z) {
+    const visible = visibleChunkSet(x, z, 1);
+    const signature = [...visible].sort().join('|');
+    if (signature === activeChunkSignature) return;
+    activeChunkSignature = signature;
+    for (const [id, group] of worldChunkGroups) group.visible = visible.has(id);
+  }
   for (const [radius, color] of [[25, 0x4f885b], [45, 0x88854b], [62, 0x9a683e], [76, 0x984d37], [90, 0x7d3037]]) {
     const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.18, radius + 0.18, 128), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.68, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; scene.add(ring);
@@ -147,10 +167,11 @@ function boot(host) {
     const bx = x + (rand() - 0.5) * 2.2, bz = z + (rand() - 0.5) * 2.2;
     if (Math.hypot(bx, bz) < 13) continue;
     const w = 3.4 + rand() * 3.4, d = 3.4 + rand() * 3.4, h = 3 + rand() * (Math.hypot(bx, bz) > 65 ? 11 : 6);
-    const building = addBox(cityGroup, w, h, d, bx, 0, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
+    const chunk = cityChunkAt(bx, bz);
+    const building = addBox(chunk, w, h, d, bx, 0, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
     building.rotation.y = (rand() - 0.5) * 0.16;
-    if (rand() > 0.45) addBox(cityGroup, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), h, bz + (rand() - .5), ruinMat);
-    if (rand() > 0.7) addBox(cityGroup, 0.35, 1.2 + rand(), 0.35, bx + w * .4, 0, bz - d * .35, emberMat);
+    if (rand() > 0.45) addBox(chunk, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), h, bz + (rand() - .5), ruinMat);
+    if (rand() > 0.7) addBox(chunk, 0.35, 1.2 + rand(), 0.35, bx + w * .4, 0, bz - d * .35, emberMat);
   }
   const markerObjects = new Map();
   function labelSprite(text, color = '#f6d8b5') {
@@ -616,6 +637,6 @@ function boot(host) {
         actor.rotation.z = (state.impactStyle === 'blunt' ? 0.22 : headshot ? 0.28 : 0.12) * hitPulse * state.impactDirection;
         state.body.scale.y = state.impactStyle === 'blunt' ? 1 - 0.18 * hitPulse : headshot ? 1 - 0.1 * hitPulse : 1;
       } else { actor.rotation.z = 0; state.body.scale.y = 1; }
-      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } renderer.render(scene, camera); requestAnimationFrame(tick); };
+      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } if (worldData?.self) updateVisibleChunks(worldData.self.x, worldData.self.z); renderer.render(scene, camera); requestAnimationFrame(tick); };
   tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
 }

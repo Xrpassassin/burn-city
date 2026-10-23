@@ -477,15 +477,26 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const threat = 9 + Math.floor(s.survivors.length / 4); // Fixed perimeter threat; never scales with breach count.
       const damage = Math.max(0, Math.ceil((threat - defense) * 6));
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
+      // Siege pressure hits the outer defensive ring first, rather than damaging structures
+      // in arbitrary creation order. Perimeter obstacles absorb hits before inner production buildings.
+      const perimeterPriority = { barbed_wire: 0, gate: 1, entrance: 1, exit: 1, sandbags: 2, trench: 3, wall: 4, turret: 5, watchtower: 6 };
+      const siegeTargets = [...active].sort((a, b) =>
+        (Math.hypot(b.x, b.z) - Math.hypot(a.x, a.z)) ||
+        ((perimeterPriority[a.type] ?? 10) - (perimeterPriority[b.type] ?? 10)) ||
+        String(a.id).localeCompare(String(b.id)));
       let remaining = damage;
-      for (const structure of active) {
+      const breached = [];
+      for (const structure of siegeTargets) {
         if (remaining <= 0) break;
+        const before = structure.hp;
         const hit = Math.min(structure.hp, remaining);
         structure.hp -= hit; remaining -= hit;
+        if (before > 0 && structure.hp <= 0) breached.push(structure.type);
       }
       const lost = s.baseHp === 0;
       for (const turret of active.filter(x => x.type === 'turret')) turret.manned = false;
-      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach.' : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.', now);
+      const breachText = breached.length ? ' Breach opened: ' + breached.join(', ') + ' destroyed.' : '';
+      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach.' : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.' + breachText, now);
       break;
     }
     case 'repair': {

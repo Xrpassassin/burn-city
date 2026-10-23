@@ -125,7 +125,8 @@ async function call(method, pathname, acct, payload = {}) {
   const attack = await call('POST', '/api/homefront/world/attack', 'acct-a');
   assert.equal(attack.status, 200, 'nearby infected can be attacked through the authoritative combat endpoint');
   assert.ok(attack.data.combat.damage > 0);
-  assert.ok(attack.data.base.resources.ammo < combatBaseBefore.resources.ammo, 'attacks consume persisted ammunition');
+  assert.equal(attack.data.base.resources.ammo, combatBaseBefore.resources.ammo, 'combat does not silently consume refuge ammunition');
+  assert.ok(attack.data.selfInventory.ammo < threat.data.selfInventory.ammo, 'attacks consume carried ammunition');
   assert.ok(attack.data.encounter.hp < threat.data.encounter.hp, 'attacks reduce server-owned enemy health');
 if (attack.data.combat.enemyDamage > 0) {
   assert.ok(attack.data.selfSurvival.health < 100, 'infected retaliation damages the player through server-owned survival state');
@@ -177,6 +178,10 @@ if (attack.data.combat.enemyDamage > 0) {
   const equippedWeapon = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'equip_weapon', weapon: 'pump_shotgun' } });
   assert.equal(equippedWeapon.status, 200, 'crafted weapons can be equipped');
   assert.equal(equippedWeapon.data.base.equippedWeapon, 'pump_shotgun');
+  const bossPackFood = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'food', amount: 5 });
+  assert.equal(bossPackFood.status, 200, 'boss expeditions require packing field rations');
+  const bossPackAmmo = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'ammo', amount: 4 });
+  assert.equal(bossPackAmmo.status, 200, 'boss expeditions require packing field ammunition');
   const bossWorld = files.get('homefront-world.json');
   bossWorld.players['acct-a'].x = 6;
   bossWorld.players['acct-a'].z = -8;

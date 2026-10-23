@@ -112,3 +112,8 @@ assert.match(scene, /\/api\/homefront\/world\/aim/, 'aim stance is confirmed by 
 assert.match(scene, /sprint: sprintTravel/, 'sprint travel is requested explicitly and clamped by the server');
 assert.match(scene, /authoritativeAimStability/, 'display server-calculated weapon stability after combat');
 assert.match(page, /id="sprintTravel"/, 'provide an accessible sprint travel toggle');
+
+assert.match(scene, /equippedOutfitColor/, 'apply the equipped outfit skin to the local survivor avatar');
+assert.match(scene, /equippedBackpackColor/, 'apply the equipped backpack skin to the visible field pack');
+assert.match(scene, /parseCosmeticColor/, 'accept only valid six-digit cosmetic colors');
+assert.match(scene, /const backpack = new THREE.Mesh/, 'render a visible backpack on explorer avatars');

@@ -1,0 +1,50 @@
+name: Homefront airport flight checks
+
+on:
+  pull_request:
+    paths:
+      - 'server/flight-lobby.js'
+      - 'server/game.js'
+      - 'server/server.js'
+      - 'client/arena/flight-lobby.html'
+      - 'client/arena/index.html'
+      - 'client/arena/homefront.html'
+      - 'client/js/app.js'
+      - 'client/js/airport.js'
+      - 'client/js/experience-registry.mjs'
+      - 'client/js/experience-registry.test.mjs'
+      - 'test/flight-lobby-sim.js'
+      - 'test/zombie-helicopter-arrival-sim.js'
+      - 'package.json'
+      - '.github/workflows/homefront-airport-flight.yml'
+
+jobs:
+  airport-flight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Check server syntax
+        run: |
+          node --check server/flight-lobby.js
+          node --check server/game.js
+          node --check server/server.js
+      - name: Check browser JavaScript syntax
+        run: |
+          node --input-type=module --check < client/js/app.js
+          node --input-type=module --check < client/js/airport.js
+          node --input-type=module --check < client/js/experience-registry.mjs
+          node -e 'const fs=require("fs");for(const p of ["client/arena/flight-lobby.html","client/arena/homefront.html"]){const s=fs.readFileSync(p,"utf8");const m=s.split("<script>")[1]?.split("</script>")[0];if(!m)throw Error("Missing inline script in "+p);new Function(m)}'
+      - name: Test airport experience registry
+        run: npm run test:experience-registry
+      - name: Test helicopter arrival spawn
+        run: npm run test:zombie-arrival
+      - name: Test shared flight lobby
+        run: npm run test:flight-lobby
+      - name: Test Homefront settlement
+        run: npm run test:homefront

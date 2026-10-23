@@ -24,7 +24,7 @@ function initSessionStart(player, base, now = Date.now()) {
   player.homefrontSessionStart = {
     at: now, embers: base.embers, resources: { ...base.resources },
     repelledCount: Number.isSafeInteger(base.repelledCount) ? base.repelledCount : 0,
-    totals: { embersEarned: 0, resourcesCollected: Object.fromEntries(SESSION_RESOURCES.map(id => [id, 0])), suppliesConsumed: Object.fromEntries(SESSION_RESOURCES.map(id => [id, 0])), rewardEvents: 0 }
+    totals: { embersEarned: 0, resourcesCollected: Object.fromEntries(SESSION_RESOURCES.map(id => [id, 0])), suppliesConsumed: Object.fromEntries(SESSION_RESOURCES.map(id => [id, 0])), rewardEvents: 0, repels: 0 }
   };
 }
 function buildReturnDebrief(start, base, packed, now = Date.now()) {
@@ -37,7 +37,7 @@ function buildReturnDebrief(start, base, packed, now = Date.now()) {
     endedAt: now,
     embersNet: (base.embers || 0) - (Number.isFinite(start?.embers) ? start.embers : (base.embers || 0)),
     resourceNet,
-    attacksRepelled: Math.max(0, (base.repelledCount || 0) - (Number.isSafeInteger(start?.repelledCount) ? start.repelledCount : (base.repelledCount || 0))),
+    attacksRepelled: Math.max(0, Number.isSafeInteger(start?.totals?.repels) ? start.totals.repels : (base.repelledCount || 0) - (Number.isSafeInteger(start?.repelledCount) ? start.repelledCount : (base.repelledCount || 0))),
     fieldSuppliesReturned: Object.values(packed?.stored || {}).reduce((n, qty) => n + (Number.isFinite(qty) ? qty : 0), 0),
     grossEmbersEarned: Math.max(0, Number.isFinite(start?.totals?.embersEarned) ? start.totals.embersEarned : 0),
     grossResourcesCollected: Object.fromEntries(SESSION_RESOURCES.map(id => [id, Math.max(0, Number.isFinite(start?.totals?.resourcesCollected?.[id]) ? start.totals.resourcesCollected[id] : 0)])),
@@ -299,9 +299,11 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty : 'standard';
           const carried=Inventory.normalize(player.inventory);
           if(carried.food<2||carried.ammo<1)throw new Error('field_supplies_required');
+          const carriedBefore={...carried};
           const workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
           const nextBase=Core.applyAction(workingBase,user.acct,{type:'rescue_survivor',zone:nearest.point.zone,difficulty},now);
           carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
+          addSessionTotals(player,{embers:Math.max(0,nextBase.embers-base.embers),consumed:{food:Math.max(0,carriedBefore.food-carried.food),ammo:Math.max(0,carriedBefore.ammo-carried.ammo)}});
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;player.inventory=carried;
           rescue.readyAt = now + 8 * 60e3;
           bases[user.acct] = nextBase;
@@ -330,8 +332,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           if (!spec) throw new Error('unknown_difficulty');
           const carried=Inventory.normalize(player.inventory);
           if(carried.food<2||carried.ammo<1)throw new Error('field_supplies_required');
+          const carriedBefore={...carried};
           const workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
           const nextBase=Core.applyAction(workingBase,user.acct,{type:'expedition',zone:nearest.point.zone,difficulty});
+          const expeditionEmbers=Math.max(0,nextBase.embers-base.embers);
+          const grossResources={};
+          for(const id of ['wood','scrap','meds'])grossResources[id]=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
           carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;
           const scrap = Math.floor((8 + nearest.point.risk * 4) * spec.reward);
@@ -351,6 +357,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           nextBase.embers = Math.min(999999999, nextBase.embers + embers);
           nextBase.log.push({ id: (nextBase.log.at(-1)?.id || 0) + 1, kind: 'cache', text: 'Opened ' + nearest.point.label + ' on ' + spec.label + ': bonus cache yielded ' + scrap + ' scrap, ' + wood + ' wood, ' + ammo + ' ammunition, ' + meds + ' medicine, and ' + embers + ' Embers. The shared cache will replenish in five minutes.', at: now });
           nextBase.log = nextBase.log.slice(-20);
+          for(const id of ['scrap','wood','ammo','meds'])grossResources[id]=(grossResources[id]||0)+({scrap,wood,ammo,meds}[id]||0);
+          addSessionTotals(player,{embers:expeditionEmbers+embers,resources:grossResources,consumed:{food:Math.max(0,carriedBefore.food-carried.food),ammo:Math.max(0,carriedBefore.ammo-carried.ammo)}});
           cache.readyAt = now + 5 * 60e3;
           bases[user.acct] = nextBase;
           store.save('homefront.json', bases);
@@ -376,8 +384,11 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           let workingBase=base;
           const carried=Inventory.normalize(player.inventory);
           if(carried.food<2||carried.ammo<1)throw new Error('field_supplies_required');
+          const carriedBefore={...carried};
           workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
           const nextBase=Core.applyAction(workingBase,user.acct,{type:isBoss?'boss_attack':'expedition',zone:nearest.point.zone,difficulty});
+          const grossEmbers=Math.max(0,nextBase.embers-base.embers);
+          const grossResources={};
           carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;
           let defeated = false;
@@ -402,8 +413,10 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           }
           for(const id of ['wood','scrap','meds']){
             const found=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
+            grossResources[id]=found;
             if(found){const packed=Inventory.add(carried,id,found);carried[id]=packed.inventory[id];nextBase.resources[id]=Math.max(0,(nextBase.resources[id]||0)-packed.accepted);}
           }
+          addSessionTotals(player,{embers:grossEmbers,resources:grossResources,consumed:{food:Math.max(0,carriedBefore.food-carried.food),ammo:Math.max(0,carriedBefore.ammo-carried.ammo)}});
           player.inventory=carried;
           bases[user.acct] = nextBase; store.save('homefront.json', bases);
           player.lastSeen = Date.now();
@@ -480,9 +493,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     const repelled = payload.action.type === 'defend' && next.log.at(-1)?.kind === 'defense' && next.log.at(-1)?.text.startsWith('Perimeter breach repelled');
     next.repelledCount = base.repelledCount + (repelled ? 1 : 0);
     if (repelled) {
-      const activePlayer = store.load('homefront-world.json', {})?.players?.[user.acct];
-      if (activePlayer?.homefrontSessionStart?.totals) activePlayer.homefrontSessionStart.totals.repels = (activePlayer.homefrontSessionStart.totals.repels || 0) + 1;
-      if (activePlayer) { const worldDb = store.load('homefront-world.json', {}); if (worldDb.players?.[user.acct]) { worldDb.players[user.acct] = activePlayer; store.save('homefront-world.json', worldDb); } }
+      const worldDb = store.load('homefront-world.json', {});
+      const activePlayer = worldDb.players?.[user.acct];
+      if (activePlayer?.homefrontSessionStart?.totals) {
+        activePlayer.homefrontSessionStart.totals.repels = (activePlayer.homefrontSessionStart.totals.repels || 0) + 1;
+        store.save('homefront-world.json', worldDb);
+      }
     }
     db[user.acct] = next;
     store.save('homefront.json', db);

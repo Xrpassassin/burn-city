@@ -56,6 +56,26 @@ const highCounterResult = H.applyAction(highCounter, 'fixed-threat-b', { type: '
 assert.equal(lowCounterResult.baseHp, highCounterResult.baseHp, 'completed-round counter must not increase defense difficulty');
 assert.equal(lowCounterResult.wave, 0, 'defense incidents do not advance a round counter');
 
+// Embers form the tycoon loop: tougher expeditions pay better, then upgrades and supply packs spend that currency.
+const standardBase = H.createBase('difficulty-standard', 2300);
+const veteranBase = H.createBase('difficulty-veteran', 2300);
+const standardTrip = H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'outskirts', difficulty: 'standard' }, 2301);
+const veteranTrip = H.applyAction(veteranBase, 'difficulty-veteran', { type: 'expedition', zone: 'outskirts', difficulty: 'veteran' }, 2301);
+assert.ok(veteranTrip.embers > standardTrip.embers, 'higher expedition difficulty pays more embers');
+assert.ok(veteranTrip.resources.scrap > standardTrip.resources.scrap, 'higher expedition difficulty pays more salvage');
+assert.ok(veteranTrip.resources.food < veteranBase.resources.food, 'higher expedition difficulty costs more supplies');
+assert.throws(() => H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'outskirts', difficulty: 'impossible' }), /unknown_difficulty/);
+const upgradeBase = H.createBase('tycoon-upgrade', 2310);
+const upgraded = H.applyAction(upgradeBase, 'tycoon-upgrade', { type: 'buy_upgrade', upgrade: 'scavenger_rig' }, 2311);
+assert.equal(upgraded.embers, 0);
+assert.equal(upgraded.upgrades.scavenger_rig, 1);
+assert.throws(() => H.applyAction(upgraded, 'tycoon-upgrade', { type: 'buy_upgrade', upgrade: 'scavenger_rig' }), /insufficient_embers/);
+const marketBase = H.createBase('tycoon-market', 2320);
+const bought = H.applyAction(marketBase, 'tycoon-market', { type: 'buy_materials', resource: 'ammo' }, 2321);
+assert.equal(bought.embers, 15);
+assert.equal(bought.resources.ammo, 28);
+assert.throws(() => H.applyAction(bought, 'tycoon-market', { type: 'buy_materials', resource: 'ammo' }), /insufficient_embers/);
+
 // A campfire rally trades food for a server-authoritative morale recovery.
 const rallyBase = H.createBase('rally-test', 2040);
 rallyBase.resources.food = 10;

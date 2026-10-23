@@ -266,6 +266,19 @@ const normalizedFortifications = H.validateBase(fortified, 'fortification-test')
 assert.equal(normalizedFortifications.structures.find(x => x.id === trench.id).trenchLevel, 3, 'trench tier persists through save normalization');
 assert.equal(normalizedFortifications.structures.find(x => x.id === entrance.id).rotation, Math.PI / 2, 'entrance rotation persists through save normalization');
 
+// Settlement growth attracts additional infected pressure: production sprawl is riskier without defenses.
+const quietBase = H.createBase('growth-pressure-test', 5200);
+quietBase.resources.ammo = 20;
+const quietResult = H.applyAction(quietBase, 'growth-pressure-test', { type: 'defend' }, 5210);
+const expandedBase = H.createBase('growth-pressure-test', 5200);
+expandedBase.resources.ammo = 20;
+expandedBase.structures = Array.from({ length: 6 }, (_, i) => ({
+  id: 'garden-' + i, type: 'garden', hp: 70, maxHp: 70,
+  x: 3 + i * 2, z: 0, rotation: 0, trenchLevel: 0, manned: false
+}));
+const expandedResult = H.applyAction(expandedBase, 'growth-pressure-test', { type: 'defend' }, 5210);
+assert.ok(expandedResult.baseHp < quietResult.baseHp, 'an expanded, undefended settlement takes more base damage as its footprint attracts stronger infected pressure');
+
 // Siege damage advances from the exposed perimeter inward and reports actual breaches.
 const siegeBase = H.createBase('siege-order-test', 5100);
 siegeBase.resources.ammo = 20;

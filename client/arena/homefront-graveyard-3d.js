@@ -416,10 +416,13 @@ function boot(host) {
     const w = 3.4 + rand() * 3.4, d = 3.4 + rand() * 3.4, h = 3 + rand() * (Math.hypot(bx, bz) > 65 ? 11 : 6);
     const chunk = cityChunkAt(bx, bz);
     const baseY = terrainElevation(bx, bz);
-    const building = addBox(chunk, w, h, d, bx, baseY + h / 2, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
+    const structure = new THREE.Group();
+    const building = addBox(structure, w, h, d, bx, baseY + h / 2, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
     building.rotation.y = (rand() - 0.5) * 0.16;
-    if (rand() > 0.45) addBox(chunk, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h + 0.225, bz + (rand() - .5), ruinMat);
-    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(chunk, 0.35, emberHeight, 0.35, bx + w * .4, baseY + emberHeight / 2, bz - d * .35, emberMat); }
+    if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h + 0.225, bz + (rand() - .5), ruinMat);
+    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY + emberHeight / 2, bz - d * .35, emberMat); }
+    chunk.add(structure);
+    registerEnvironmentVisual('building:' + x + ',' + z, structure);
   }
   const markerObjects = new Map();
   function labelSprite(text, color = '#f6d8b5') {

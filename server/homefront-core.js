@@ -7,6 +7,8 @@ const NP = o => Object.freeze(Object.assign(Object.create(null), o));
 const VERSION = 1;
 const MAX_STRUCTURES = 60;
 const MAX_SURVIVORS = 12;
+const MAX_FARM_PLOTS = 24;
+const CROPS = NP({ potato: { days: 3, yield: 5, seedCost: 1 }, beans: { days: 4, yield: 7, seedCost: 1 }, corn: { days: 5, yield: 9, seedCost: 2 } });
 const ROLES = new Set(['idle', 'guard', 'scavenger', 'farmer', 'medic', 'mechanic']);
 const BUILDINGS = NP({
   wall:       { cost: { wood: 8, scrap: 2 }, hp: 100, defense: 2, cap: 30 },
@@ -46,11 +48,11 @@ function createBase(ownerId, now = Date.now()) {
     version: VERSION, owner, revision: 1, createdAt: now, updatedAt: now,
     level: 1, day: 1, baseHp: 500, baseMaxHp: 500, wave: 0, visibility: 'private',
     exploration: { discoveredZones: ['outskirts'], lastExpedition: null },
-    resources: { wood: 40, scrap: 30, food: 24, rawFood: 0, water: 18, dirtyWater: 0, meds: 5, ammo: 18, freshness: { food: [{ qty: 24, acquiredAt: now }], rawFood: [] } },
+    resources: { wood: 40, scrap: 30, food: 24, rawFood: 0, water: 18, dirtyWater: 0, meds: 5, ammo: 18, seeds: 6, freshness: { food: [{ qty: 24, acquiredAt: now }], rawFood: [] } },
     embers: 50, upgrades: { scavenger_rig: 0, ember_press: 0, field_armory: 0, medic_station: 0 },
     weapons: ['pipe_blade'], equippedWeapon: 'pipe_blade', weaponMods: {},
     cosmeticsOwned: Object.keys(DEFAULT_COSMETICS).map(slot => DEFAULT_COSMETICS[slot]), cosmeticsEquipped: { ...DEFAULT_COSMETICS },
-    structures: [], survivors: [], expeditionCount: 0, defenseCount: 0,
+    structures: [], farmPlots: [], survivors: [], expeditionCount: 0, defenseCount: 0,
     log: [{ id: 1, kind: 'welcome', text: 'A refuge is yours. Gather supplies, recruit survivors, and prepare for the first breach.', at: now }]
   };
 }
@@ -58,12 +60,14 @@ function validateBase(input, ownerId) {
   const owner = cleanOwner(ownerId);
   if (!owner || !input || input.version !== VERSION || input.owner !== owner ||
       !input.resources || !Array.isArray(input.structures) || !Array.isArray(input.survivors) ||
-      input.structures.length > MAX_STRUCTURES || input.survivors.length > MAX_SURVIVORS) return null;
+      input.structures.length > MAX_STRUCTURES || input.survivors.length > MAX_SURVIVORS ||
+      (Array.isArray(input.farmPlots) && input.farmPlots.length > MAX_FARM_PLOTS)) return null;
   const out = clone(input);
-  for (const r of ['wood', 'scrap', 'food', 'rawFood', 'water', 'dirtyWater', 'meds', 'ammo']) out.resources[r] = clampInt(r === 'water' && !Number.isFinite(out.resources[r]) ? 18 : out.resources[r], 0, 999999);
+  for (const r of ['wood', 'scrap', 'food', 'rawFood', 'water', 'dirtyWater', 'meds', 'ammo', 'seeds']) out.resources[r] = clampInt(r === 'water' && !Number.isFinite(out.resources[r]) ? 18 : out.resources[r], 0, 999999);
   const FoodFreshness = require('./homefront-freshness');
   out.resources.freshness = FoodFreshness.normalizeBatches(out.resources.freshness, out.resources, Number.isFinite(out.createdAt) ? out.createdAt : Date.now());
   out.embers = clampInt(out.embers, 0, 999999999);
+  out.farmPlots = Array.isArray(out.farmPlots) ? out.farmPlots.slice(0, MAX_FARM_PLOTS).filter(p => p && typeof p.id === 'string' && Number.isFinite(p.x) && Number.isFinite(p.z)).map(p => ({ id: p.id.slice(0, 24), x: clampNumber(p.x, -9.5, 9.5), z: clampNumber(p.z, -9.5, 9.5), crop: CROPS[p.crop] ? p.crop : null, growth: clampInt(p.growth, 0, CROPS[p.crop]?.days || 5), watered: p.watered === true, plantedAt: Number.isFinite(p.plantedAt) ? p.plantedAt : 0 })) : []; 
   out.exploration = out.exploration && typeof out.exploration === 'object' ? out.exploration : {};
   out.exploration.discoveredZones = Array.isArray(out.exploration.discoveredZones) ? [...new Set(out.exploration.discoveredZones.filter(z => typeof z === 'string' && EXPLORATION_ZONES[z]))] : ['outskirts'];
   if (!out.exploration.discoveredZones.includes('outskirts')) out.exploration.discoveredZones.unshift('outskirts');
@@ -228,14 +232,14 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         salvageQuality: directorLoot.quality
       });
       let found = false;
-      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4) }); found = true; }
+      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS && s.farmPlots.some(p => p.crop)) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4) }); found = true; }
       const salvageText = directorLoot.scrap
         ? ' Salvaged ' + directorLoot.quality.toLowerCase() + '-grade infected remains: +' + directorLoot.scrap + ' scrap and +' + directorLoot.embers + ' Embers.'
         : '';
       const eventText = directorEvent === 'special_infected' ? ' A special infected ambushed the team (' + directorLoot.enemy + '); ammunition was spent and a survivor was shaken.' : directorEvent === 'infected_horde' ? ' An infected horde hit the team (' + directorLoot.enemy + '); ammunition was spent and morale suffered.' : directorEvent === 'wandering_infected' ? ' Wandering infected (' + directorLoot.enemy + ') were spotted nearby, but the team avoided a full ambush.' : ' The district was quiet enough to search thoroughly.';
       const finalEventText = eventText + salvageText;
       const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + (scrap + discoveryScrap) + ' scrap, and ' + totalEmbers + ' embers' + (firstVisit ? ' including a first-visit survey bonus' : '') + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + finalEventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
-      record(s, 'exploration', result, now);
+      record(s, 'exploration', result + (s.farmPlots.some(p => p.crop) ? '' : ' No survivor recruitment is available until you personally plant your first crop.'), now);
       break;
     }
     case 'craft_weapon': {
@@ -345,7 +349,53 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       record(s, 'market', 'Traded ' + pack.cost + ' embers for ' + pack.amount + ' ' + resource + '.', now);
       break;
     }
+    case 'farm_till': {
+      if (s.farmPlots.length >= MAX_FARM_PLOTS) throw new Error('farm_plot_limit');
+      const x = Number.isFinite(action.x) ? action.x : NaN;
+      const z = Number.isFinite(action.z) ? action.z : NaN;
+      if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 9.5 || Math.abs(z) > 9.5) throw new Error('farm_plot_out_of_bounds');
+      if (Math.hypot(x, z) < 2.4 || s.structures.some(v => Math.hypot(v.x - x, v.z - z) < 1.0) || s.farmPlots.some(v => Math.hypot(v.x - x, v.z - z) < 0.8)) throw new Error('farm_plot_occupied');
+      const id = 'f' + (s.farmPlots.reduce((n, p) => Math.max(n, Number(p.id.slice(1)) || 0), 0) + 1);
+      s.farmPlots.push({ id, x, z, crop: null, growth: 0, watered: false, plantedAt: 0 });
+      record(s, 'farming', 'Prepared a soil plot. Plant a crop yourself before recruiting survivors.', now);
+      break;
+    }
+    case 'farm_plant': {
+      const plot = s.farmPlots.find(p => p.id === action.plotId);
+      const cropId = typeof action.crop === 'string' ? action.crop : '';
+      const crop = CROPS[cropId];
+      if (!plot) throw new Error('unknown_farm_plot');
+      if (!crop) throw new Error('unknown_crop');
+      if (plot.crop) throw new Error('farm_plot_already_planted');
+      if (s.resources.seeds < crop.seedCost) throw new Error('insufficient_seeds');
+      s.resources.seeds -= crop.seedCost;
+      plot.crop = cropId; plot.growth = 0; plot.watered = false; plot.plantedAt = now;
+      record(s, 'farming', 'Planted ' + cropId + ' in ' + plot.id + '. Keep the soil watered and advance workdays to grow it.', now);
+      break;
+    }
+    case 'farm_water': {
+      const plot = s.farmPlots.find(p => p.id === action.plotId);
+      if (!plot || !plot.crop) throw new Error('empty_farm_plot');
+      if (plot.growth >= CROPS[plot.crop].days) throw new Error('crop_already_mature');
+      if (plot.watered) throw new Error('farm_plot_already_watered');
+      if (s.resources.water < 1) throw new Error('insufficient_water');
+      s.resources.water--; plot.watered = true;
+      record(s, 'farming', 'Watered ' + plot.id + '.', now);
+      break;
+    }
+    case 'farm_harvest': {
+      const plot = s.farmPlots.find(p => p.id === action.plotId);
+      if (!plot || !plot.crop) throw new Error('empty_farm_plot');
+      const crop = CROPS[plot.crop];
+      if (plot.growth < crop.days) throw new Error('crop_not_ready');
+      const yieldQty = crop.yield + (plot.watered ? 2 : 0);
+      s.resources.food = Math.min(999999, s.resources.food + yieldQty);
+      record(s, 'farming', 'Harvested ' + yieldQty + ' food from ' + plot.id + '.', now);
+      plot.crop = null; plot.growth = 0; plot.watered = false; plot.plantedAt = 0;
+      break;
+    }
     case 'assign': {
+      if (action.role === 'farmer' && !s.farmPlots.some(p => p.crop)) throw new Error('plant_crops_before_recruiting_farmers');
       const survivor = s.survivors.find(x => x.id === action.survivorId);
       if (!survivor) throw new Error('unknown_survivor');
       if (!ROLES.has(action.role)) throw new Error('unknown_role');
@@ -390,6 +440,14 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.resources.food = Math.min(999999, s.resources.food + foodGain);
       s.resources.scrap = Math.min(999999, s.resources.scrap + scrapGain);
       s.resources.meds = Math.min(999999, s.resources.meds + medicineGain);
+      // Crop simulation is server-authoritative and advances with the settlement workday, not client frame rate.
+      for (const plot of s.farmPlots) {
+        if (!plot.crop) continue;
+        const crop = CROPS[plot.crop];
+        if (plot.watered) plot.growth = Math.min(crop.days, plot.growth + 1 + Math.floor(farmers / 2));
+        else plot.growth = Math.min(crop.days, plot.growth + (farmers > 0 ? 1 : 0));
+        plot.watered = false;
+      }
       s.day++; s.level = Math.max(s.level, 1 + Math.floor((s.day - 1) / 5));
       for (const survivor of s.survivors) survivor.morale = clampInt(survivor.morale + (foodGain >= foodCost ? 2 : -8), 0, 100);
       record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + medicineGain + ' medicine.', now);
@@ -454,4 +512,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, applyAction };

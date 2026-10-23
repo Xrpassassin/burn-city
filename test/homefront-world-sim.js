@@ -124,7 +124,7 @@ try {
     /terrain_path_unreachable/, 'player movement refuses a blocked crossing when no safe route exists');
   const waitingInfected = Combat.advance({
     encounters: { 'ridge-player': pursuer },
-    players: { 'ridge-player': { x: -2, z: 0 } },
+    players: { 'ridge-player': { x: -5, z: 0 } },
     now: 11000, speed: 2.8, maxElapsed: 2.5
   })['ridge-player'];
   assert.deepEqual([waitingInfected.x, waitingInfected.z], [pursuer.x, pursuer.z],

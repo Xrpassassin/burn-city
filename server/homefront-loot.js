@@ -14,10 +14,10 @@ const NODES = Object.freeze([
 const COOLDOWN_MS = 180000;
 const RADIUS = 9;
 const TABLES = Object.freeze({
- supplies:[['food',2,4,5],['water',1,3,4],['ammo',1,3,3],['scrap',1,2,2]],
- medical:[['meds',1,3,5],['water',1,2,3],['food',1,2,2],['ammo',1,2,1]],
- materials:[['scrap',2,5,5],['wood',1,4,4],['ammo',1,3,2],['food',1,2,1]],
- highrisk:[['scrap',3,6,5],['meds',1,3,4],['ammo',2,5,4],['water',1,3,3],['food',1,3,2],['wood',1,3,1]]
+ supplies:[['food',1,2,3],['rawFood',1,3,4],['water',1,2,2],['dirtyWater',1,3,4],['ammo',1,3,3],['scrap',1,2,2]],
+ medical:[['meds',1,3,5],['water',1,2,2],['dirtyWater',1,2,3],['rawFood',1,2,2],['ammo',1,2,1]],
+ materials:[['scrap',2,5,5],['wood',1,4,4],['rawFood',1,2,2],['dirtyWater',1,2,2],['ammo',1,3,2]],
+ highrisk:[['scrap',3,6,5],['meds',1,3,4],['ammo',2,5,4],['water',1,2,2],['dirtyWater',1,4,4],['rawFood',1,3,3],['wood',1,3,1]]
 });
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number.isFinite(n)?Math.floor(n):min));
 function normalize(input={}) {

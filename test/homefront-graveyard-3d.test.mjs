@@ -204,3 +204,8 @@ assert.match(page, /drawFarmPlot\(plot\)/, 'farm plots render in the 3D yard');
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /function drawRoleLabel\(x,z,role\)/, 'render role-specific job labels above survivors');
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /drawRoleLabel\(x,z,survivor\.role\)/, 'attach job labels to survivor world positions');
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /materials\.forEach\(m=>\{if\(m\.map\)m\.map\.dispose\(\);m\.dispose\(\)\}\)/, 'dispose role-label textures when the world is redrawn');
+
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /survivorActors\.push\(\{object:g,role:survivor\.role,phase:i\*1\.71,baseY:0,leftArm,rightArm,body,head\}\)/, 'track procedural survivor rigs for role-specific activity');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /for\(const actor of survivorActors\)\{actor\.phase\+=dt/, 'animate survivor work activity every world frame');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /actor\.role==='mechanic'/, 'give mechanics a distinct repair-work motion');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /actor\.role==='farmer'/, 'give farmers a distinct tending motion');

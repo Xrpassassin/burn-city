@@ -34,6 +34,12 @@ assert.equal(noMechanic.structures.find(s => s.id === 'wall-worse').hp, 30);
 assert.equal(noMechanic.resources.wood, noMechanicWood);
 assert.equal(noMechanic.resources.scrap, noMechanicScrap);
 
+// Low morale reduces repair output, making settlement morale operationally meaningful.
+let exhausted = damagedBase('exhausted-mechanic', 'mechanic', 10);
+exhausted = Core.applyAction(exhausted, 'exhausted-mechanic', { type: 'workday' }, 2000);
+assert.equal(exhausted.structures.find(s => s.id === 'wall-worse').hp, 35,
+  'a deeply demoralized mechanic restores less structure HP than a motivated mechanic');
+
 // Mechanics cannot repair for free when either required material is unavailable.
 let shortOnWood = damagedBase('short-on-wood');
 shortOnWood.resources.wood = 0;

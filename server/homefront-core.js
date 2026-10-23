@@ -173,7 +173,6 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.resources.ammo -= ammoUsed;
       const active = s.structures.filter(x => x.hp > 0);
       const defense = guardStrength * 2 + active.reduce((n, x) => n + BUILDINGS[x.type].defense, 0) + ammoUsed * 0.8;
-      const profile = waveProfile(s.wave);
       const threat = 9 + Math.floor(s.survivors.length / 4); // Fixed perimeter threat; never scales with breach count.
       const damage = Math.max(0, Math.ceil((threat - defense) * 6));
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));

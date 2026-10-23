@@ -35,6 +35,25 @@ function terrainHeight(x, z, seed = DEFAULT_SEED) {
   return height === 0 ? 0 : height;
 }
 function terrainElevation(x, z, seed = DEFAULT_SEED) { return terrainHeight(x, z, seed) * TERRAIN_ELEVATION_SCALE; }
+
+// A spawn/placement point must be finite, inside the world, and connected to a small
+// walkable footprint around its center. This is terrain grounding, not prop collision.
+function isSafePosition(x, z, { bounds = 100, clearance = 1.5, maxRisePer2Units = 0.65, seed = DEFAULT_SEED } = {}) {
+  if (![x, z, bounds, clearance, maxRisePer2Units, seed].every(Number.isFinite)
+      || bounds <= 0 || clearance <= 0 || maxRisePer2Units <= 0) {
+    throw new TypeError('isSafePosition expects finite coordinates and positive limits');
+  }
+  if (Math.abs(x) > bounds || Math.abs(z) > bounds || Math.hypot(x, z) > bounds) return false;
+  if (!Number.isFinite(terrainElevation(x, z, seed))) return false;
+  const offsets = [[clearance, 0], [-clearance, 0], [0, clearance], [0, -clearance],
+    [clearance * 0.7071, clearance * 0.7071], [-clearance * 0.7071, clearance * 0.7071],
+    [clearance * 0.7071, -clearance * 0.7071], [-clearance * 0.7071, -clearance * 0.7071]];
+  return offsets.every(([dx, dz]) => {
+    const nx = x + dx, nz = z + dz;
+    return Math.abs(nx) <= bounds && Math.abs(nz) <= bounds && Math.hypot(nx, nz) <= bounds
+      && canTraverse(x, z, nx, nz, { maxRisePer2Units, seed });
+  });
+}
 // Sample the proposed traversed segment. The threshold is intentionally permissive for the
 // first gentle hills, but prevents future steeper terrain from silently becoming walkable.
 function canTraverse(x0, z0, x1, z1, { maxRisePer2Units = 0.65, seed = DEFAULT_SEED } = {}) {
@@ -144,4 +163,4 @@ function findTerrainPath(startX, startZ, goalX, goalZ, {
   return route;
 }
 
-module.exports = { DEFAULT_SEED, TERRAIN_ELEVATION_SCALE, valueNoise2D, terrainHeight, terrainElevation, canTraverse, findTerrainPath };
+module.exports = { DEFAULT_SEED, TERRAIN_ELEVATION_SCALE, valueNoise2D, terrainHeight, terrainElevation, canTraverse, isSafePosition, findTerrainPath };

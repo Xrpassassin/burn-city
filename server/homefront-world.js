@@ -207,7 +207,7 @@ function snapshot(input, acct, now = Date.now()) {
     world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
     players: Object.entries(w.players).map(([id, player]) => publicPlayer(id, player, acct, now)).filter(v => v.online),
     self: p ? publicPlayer(acct, p, acct, now) : null,
-    director: p ? { phase: p.directorState?.phase || 'calm', lastDecision: p.directorState?.lastDecision || 'hold', nextSpawnAt: p.directorState?.nextSpawnAt || 0, noise: Math.round(p.noiseLevel || 0) } : null,
+    director: p ? { phase: p.directorState?.phase || 'calm', lastDecision: p.directorState?.lastDecision || 'hold', nextSpawnAt: p.directorState?.nextSpawnAt || 0, noise: Math.round(Math.max(0, (p.noiseLevel || 0) - Math.max(0, now - (p.lastNoiseAt || now)) / 120)) } : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now)) } : null,
     encounters: Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0).map(Combat.publicEncounter),
     selfEncounter: Combat.publicEncounter(w.encounters?.[acct]),

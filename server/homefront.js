@@ -172,6 +172,14 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const bases = store.load('homefront.json', {});
           const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
           if (!base) throw new Error('save_invalid');
+          const lootResources = {};
+          for (const drop of [...found.accepted, ...found.overflow]) {
+            const resourceId = ({ rawFood: 'food', dirtyWater: 'water' })[drop.item] || drop.item;
+            if (Object.prototype.hasOwnProperty.call(base.resources, resourceId)) {
+              lootResources[resourceId] = (lootResources[resourceId] || 0) + drop.amount;
+            }
+          }
+          addSessionTotals(player, { resources: lootResources });
           for (const drop of found.overflow) {
             const resourceId = ({ rawFood: 'food', dirtyWater: 'water' })[drop.item] || drop.item;
             if (Object.prototype.hasOwnProperty.call(base.resources, resourceId)) {

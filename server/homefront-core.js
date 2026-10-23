@@ -60,6 +60,19 @@ function pay(s, cost) {
   for (const [k, v] of Object.entries(cost)) if ((s.resources[k] || 0) < v) throw new Error('insufficient_' + k);
   for (const [k, v] of Object.entries(cost)) s.resources[k] -= v;
 }
+// Deterministic breach profiles keep wave difficulty reproducible for saves and tests.
+function waveProfile(wave) {
+  const n = clampInt(wave, 1, 1000000);
+  const enemies = [{ type: 'walker', count: 6 + n * 2 }];
+  let threatBonus = 0;
+  if (n >= 3) { const count = Math.floor(n / 3); enemies.push({ type: 'runner', count }); threatBonus += count * 0.6; }
+  if (n >= 5) { const count = Math.floor(n / 5); enemies.push({ type: 'brute', count }); threatBonus += count * 1.2; }
+  if (n >= 7) { const count = Math.floor(n / 7); enemies.push({ type: 'screamer', count }); threatBonus += count * 0.8; }
+  if (n >= 9) { const count = Math.floor(n / 9); enemies.push({ type: 'bloater', count }); threatBonus += count * 0.7; }
+  const boss = n % 10 === 0;
+  if (boss) { enemies.push({ type: 'juggernaut', count: 1 }); threatBonus += 8; }
+  return { wave: n, enemies, threatBonus: Math.round(threatBonus * 10) / 10, boss };
+}
 function applyAction(input, ownerId, action, now = Date.now()) {
   const s = validateBase(input, ownerId);
   if (!s) throw new Error('invalid_or_foreign_base');
@@ -170,7 +183,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.resources.ammo -= ammoUsed;
       const active = s.structures.filter(x => x.hp > 0);
       const defense = guardStrength * 2 + active.reduce((n, x) => n + BUILDINGS[x.type].defense, 0) + ammoUsed * 0.8;
-      const threat = 7 + s.wave * 2 + Math.floor(s.survivors.length / 3);
+      const profile = waveProfile(s.wave);
+      const threat = 7 + s.wave * 2 + Math.floor(s.survivors.length / 3) + profile.threatBonus;
       const damage = Math.max(0, Math.ceil((threat - defense) * 6));
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
       let remaining = damage;
@@ -180,7 +194,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         structure.hp -= hit; remaining -= hit;
       }
       const lost = s.baseHp === 0;
-      record(s, 'defense', lost ? 'The refuge fell during breach ' + s.wave + '.' : 'Breach ' + s.wave + ' repelled with ' + damage + ' structure damage.', now);
+      const profileLabel = profile.boss ? ' Juggernaut boss detected.' : profile.enemies.length > 1 ? ' Hostiles: ' + profile.enemies.filter(x => x.type !== 'walker').map(x => x.count + ' ' + x.type).join(', ') + '.' : '';
+      record(s, 'defense', (lost ? 'The refuge fell during breach ' + s.wave + '.' : 'Breach ' + s.wave + ' repelled with ' + damage + ' structure damage.') + profileLabel, now);
       break;
     }
     case 'repair': {
@@ -201,4 +216,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, createBase, validateBase, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, createBase, validateBase, waveProfile, applyAction };

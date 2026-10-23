@@ -952,10 +952,13 @@ function boot(host) {
         const modeled = modeledZombieIds.has(actor.userData.encounterId);
         for (const proxy of [actor.userData.body, actor.userData.head]) {
           if (!proxy) continue;
-          proxy.material.transparent = modeled;
-          proxy.material.opacity = modeled ? 0 : 1;
-          proxy.material.depthWrite = !modeled;
-          proxy.material.needsUpdate = true;
+          const opacity = modeled ? 0 : 1;
+          if (proxy.material.opacity !== opacity || proxy.material.transparent !== modeled) {
+            proxy.material.transparent = modeled;
+            proxy.material.opacity = opacity;
+            proxy.material.depthWrite = !modeled;
+            proxy.material.needsUpdate = true;
+          }
         }
       }
       if (worldData?.self) {
@@ -987,7 +990,7 @@ function boot(host) {
   createZombieModelPilot(scene, { targetHeight: 2.7 }).then(pilot => {
     zombieModelPilot = pilot;
     zombieModelPilotLoading = false;
-    if (status) status.textContent = 'Animated infected enabled · nearest eight detailed rigs; procedural fallback remains active at distance.';
+    console.info('[homefront-graveyard] shared animated infected ready');
   }).catch(error => {
     zombieModelPilotFailed = true;
     zombieModelPilotLoading = false;

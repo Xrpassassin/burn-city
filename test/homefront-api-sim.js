@@ -77,7 +77,7 @@ async function call(method, pathname, acct, payload = {}) {
   assert.ok(concurrent.every(x => x.status === 200), 'concurrent valid actions should both succeed');
   const afterConcurrent = await call('GET', '/api/homefront', 'acct-a');
   assert.equal(afterConcurrent.data.base.revision, revisionBeforeConcurrent + 2, 'concurrent actions must not overwrite each other');
-  assert.ok(afterConcurrent.data.base.resources.food >= 18 && afterConcurrent.data.base.resources.food <= 20, 'both expedition costs are saved, with at most one extra food lost per no-survivor ambush');
+  assert.equal(afterConcurrent.data.base.resources.food, aReload.data.base.resources.food, 'concurrent visibility actions do not mutate expedition supplies');
 
   const malformed = await call('POST', '/api/homefront/action', 'acct-a', { action: [] });
   assert.equal(malformed.status, 400);

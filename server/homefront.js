@@ -163,7 +163,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const base = Core.validateBase(savedBase, user.acct);
           if (!base) throw new Error('save_invalid');
           const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty : 'standard';
-          const nextBase = Core.applyAction(base, user.acct, { type: 'rescue_survivor', zone: nearest.point.zone, difficulty }, now);
+          const carried=Inventory.normalize(player.inventory);
+          if(carried.food<2||carried.ammo<1)throw new Error('field_supplies_required');
+          const workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
+          const nextBase=Core.applyAction(workingBase,user.acct,{type:'rescue_survivor',zone:nearest.point.zone,difficulty},now);
+          carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
+          nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;player.inventory=carried;
           rescue.readyAt = now + 8 * 60e3;
           bases[user.acct] = nextBase;
           store.save('homefront.json', bases);
@@ -189,7 +194,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty : 'standard';
           const spec = Core.DIFFICULTIES[difficulty];
           if (!spec) throw new Error('unknown_difficulty');
-          const nextBase = Core.applyAction(base, user.acct, { type: 'expedition', zone: nearest.point.zone, difficulty });
+          const carried=Inventory.normalize(player.inventory);
+          if(carried.food<2||carried.ammo<1)throw new Error('field_supplies_required');
+          const workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
+          const nextBase=Core.applyAction(workingBase,user.acct,{type:'expedition',zone:nearest.point.zone,difficulty});
+          carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
+          nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;
           const scrap = Math.floor((8 + nearest.point.risk * 4) * spec.reward);
           const wood = Math.floor((4 + nearest.point.risk * 2) * spec.reward);
           const ammo = Math.floor((2 + nearest.point.risk * 2) * spec.reward);
@@ -199,6 +209,11 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           nextBase.resources.wood = Math.min(999999, nextBase.resources.wood + wood);
           nextBase.resources.ammo = Math.min(999999, nextBase.resources.ammo + ammo);
           nextBase.resources.meds = Math.min(999999, nextBase.resources.meds + meds);
+          for(const id of ['scrap','wood','ammo','meds']){
+            const found=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
+            if(found){const packed=Inventory.add(carried,id,found);carried[id]=packed.inventory[id];nextBase.resources[id]=Math.max(0,(nextBase.resources[id]||0)-packed.accepted);}
+          }
+          nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;player.inventory=carried;
           nextBase.embers = Math.min(999999999, nextBase.embers + embers);
           nextBase.log.push({ id: (nextBase.log.at(-1)?.id || 0) + 1, kind: 'cache', text: 'Opened ' + nearest.point.label + ' on ' + spec.label + ': bonus cache yielded ' + scrap + ' scrap, ' + wood + ' wood, ' + ammo + ' ammunition, ' + meds + ' medicine, and ' + embers + ' Embers. The shared cache will replenish in five minutes.', at: now });
           nextBase.log = nextBase.log.slice(-20);

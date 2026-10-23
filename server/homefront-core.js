@@ -18,6 +18,7 @@ const DIFFICULTIES = Object.freeze({story:{label:'Story',cost:0.8,reward:0.7,thr
 const TYCOON_UPGRADES = Object.freeze({scavenger_rig:{label:'Scavenger Rig',description:'+15% salvage per level',baseCost:100,max:5},ember_press:{label:'Ember Press',description:'+5 embers per successful expedition per level',baseCost:140,max:5},field_armory:{label:'Field Armory',description:'+2 defense strength per level',baseCost:120,max:5},medic_station:{label:'Field Medic Station',description:'+1 bonus medicine on successful trips per level',baseCost:160,max:3}});
 const EMBER_MARKET = Object.freeze({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},food:{amount:10,cost:18},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});
 const WEAPONS = Object.freeze({pipe_blade:{label:'Pipe Blade',rarity:'Common',power:1,cost:{scrap:0,embers:0}},pump_shotgun:{label:'Pump Shotgun',rarity:'Rare',power:3,cost:{scrap:55,embers:40}},marksman_rifle:{label:'Marksman Rifle',rarity:'Epic',power:4,cost:{scrap:90,embers:75}},shock_maul:{label:'Shock Maul',rarity:'Legendary',power:5,cost:{scrap:120,embers:100}}});
+const WEAPON_MODS = Object.freeze({reinforced_grip:{label:'Reinforced Grip',rarity:'Common',power:1,cost:{scrap:25,embers:20}},salvage_edge:{label:'Salvage Edge',rarity:'Rare',power:1,cost:{scrap:35,embers:25}},shock_coil:{label:'Shock Coil',rarity:'Epic',power:2,cost:{scrap:45,embers:40}}});
 const EXPLORATION_ZONES = Object.freeze({outskirts:{label:'City Outskirts',risk:1,food:2,ammo:1,scrap:3,wood:2,meds:0,recruit:0.44,boss:false},residential:{label:'Residential Ruins',risk:1,food:3,ammo:1,scrap:5,wood:2,meds:0,recruit:0.5,boss:false},commercial:{label:'Market District',risk:2,food:3,ammo:2,scrap:8,wood:1,meds:1,recruit:0.38,boss:false},hospital:{label:'Overrun Hospital',risk:3,food:4,ammo:3,scrap:5,wood:1,meds:3,recruit:0.32,boss:false},industrial:{label:'Industrial Yard',risk:3,food:4,ammo:3,scrap:12,wood:2,meds:0,recruit:0.24,boss:false},subway:{label:'Buried Subway',risk:4,food:5,ammo:4,scrap:10,wood:1,meds:2,recruit:0.28,boss:true},research_lab:{label:'Sealed Research Annex',risk:5,food:6,ammo:5,scrap:16,wood:1,meds:4,recruit:0.2,boss:true}});
 const clampInt = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, Math.floor(v))) : min;
 const clampNumber = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
@@ -35,7 +36,7 @@ function createBase(ownerId, now = Date.now()) {
     exploration: { discoveredZones: ['outskirts'], lastExpedition: null },
     resources: { wood: 40, scrap: 30, food: 24, meds: 5, ammo: 18 },
     embers: 50, upgrades: { scavenger_rig: 0, ember_press: 0, field_armory: 0, medic_station: 0 },
-    weapons: ['pipe_blade'], equippedWeapon: 'pipe_blade',
+    weapons: ['pipe_blade'], equippedWeapon: 'pipe_blade', weaponMods: {},
     structures: [], survivors: [], expeditionCount: 0, defenseCount: 0,
     log: [{ id: 1, kind: 'welcome', text: 'A refuge is yours. Gather supplies, recruit survivors, and prepare for the first breach.', at: now }]
   };
@@ -56,6 +57,8 @@ function validateBase(input, ownerId) {
   out.weapons = Array.isArray(out.weapons) ? [...new Set(out.weapons.filter(id => typeof id === 'string' && WEAPONS[id]))] : ['pipe_blade'];
   if (!out.weapons.includes('pipe_blade')) out.weapons.unshift('pipe_blade');
   out.equippedWeapon = typeof out.equippedWeapon === 'string' && WEAPONS[out.equippedWeapon] && out.weapons.includes(out.equippedWeapon) ? out.equippedWeapon : 'pipe_blade';
+  out.weaponMods = out.weaponMods && typeof out.weaponMods === 'object' && !Array.isArray(out.weaponMods) ? out.weaponMods : {};
+  for (const [weaponId, modId] of Object.entries(out.weaponMods)) if (!out.weapons.includes(weaponId) || !WEAPON_MODS[modId]) delete out.weaponMods[weaponId];
   for (const [id, spec] of Object.entries(TYCOON_UPGRADES)) out.upgrades[id] = clampInt(out.upgrades[id], 0, spec.max);
   out.visibility = input.visibility === 'public' ? 'public' : 'private';
   out.baseMaxHp = clampInt(out.baseMaxHp, 1, 100000);
@@ -69,6 +72,12 @@ function validateBase(input, ownerId) {
     .map(s => ({ id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100) }));
   out.log = Array.isArray(out.log) ? out.log.slice(-20) : [];
   return out;
+}
+function weaponPower(base) {
+  const id = base?.equippedWeapon;
+  const weapon = WEAPONS[id] || WEAPONS.pipe_blade;
+  const mod = WEAPON_MODS[base?.weaponMods?.[id]];
+  return weapon.power + (mod?.power || 0);
 }
 function record(s, kind, text, now) {
   s.log.push({ id: (s.log.at(-1)?.id || 0) + 1, kind, text, at: now });
@@ -136,9 +145,9 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.embers = Math.min(999999999, s.embers + totalEmbers);
       // A location- and difficulty-aware Director varies expedition pressure without escalating rounds.
       const directorRoll = rand(hash('director:' + seed));
-      const weapon = WEAPONS[s.equippedWeapon] || WEAPONS.pipe_blade;
+      const combatPower = weaponPower(s);
       const pressure = zone.risk * difficulty.threat;
-      const effectivePressure = Math.max(0.5, pressure - weapon.power * 0.3);
+      const effectivePressure = Math.max(0.5, pressure - combatPower * 0.3);
       let directorEvent = 'quiet';
       if (directorRoll < Math.min(0.18, 0.025 * effectivePressure)) directorEvent = 'special_infected';
       else if (directorRoll < Math.min(0.48, 0.09 * effectivePressure)) directorEvent = 'infected_horde';
@@ -146,11 +155,11 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       let ambush = false;
       if (directorEvent === 'special_infected' || directorEvent === 'infected_horde') {
         ambush = true;
-        const ammoLoss = Math.min(s.resources.ammo, Math.max(1, Math.ceil(pressure / 2) - Math.floor(weapon.power / 2)));
+        const ammoLoss = Math.min(s.resources.ammo, Math.max(1, Math.ceil(pressure / 2) - Math.floor(combatPower / 2)));
         s.resources.ammo -= ammoLoss;
         if (s.survivors.length) {
           const injured = s.survivors[hash('injury:' + seed) % s.survivors.length];
-          injured.morale = clampInt(injured.morale - Math.max(2, 8 + zone.risk * 2 - weapon.power), 0, 100);
+          injured.morale = clampInt(injured.morale - Math.max(2, 8 + zone.risk * 2 - combatPower), 0, 100);
         } else s.resources.food = Math.max(0, s.resources.food - 1);
       }
       let found = false;
@@ -170,6 +179,18 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.embers -= spec.cost.embers;
       s.weapons.push(id);
       record(s, 'armory', 'Crafted ' + spec.rarity + ' weapon: ' + spec.label + '.', now);
+      break;
+    }
+    case 'craft_mod': {
+      const id = typeof action.mod === 'string' ? action.mod : '';
+      const spec = WEAPON_MODS[id];
+      if (!spec) throw new Error('unknown_weapon_mod');
+      if (s.weaponMods[s.equippedWeapon]) throw new Error('weapon_mod_slot_used');
+      if (s.embers < spec.cost.embers) throw new Error('insufficient_embers');
+      pay(s, { scrap: spec.cost.scrap });
+      s.embers -= spec.cost.embers;
+      s.weaponMods[s.equippedWeapon] = id;
+      record(s, 'armory', 'Installed ' + spec.rarity + ' mod ' + spec.label + ' on ' + WEAPONS[s.equippedWeapon].label + '.', now);
       break;
     }
     case 'equip_weapon': {
@@ -330,4 +351,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, EXPLORATION_ZONES, createBase, validateBase, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, applyAction };

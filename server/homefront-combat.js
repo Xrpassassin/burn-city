@@ -42,8 +42,8 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
  }
  return clean;
 }
-function attack({encounters,account,player,base,survival=null,now=Date.now(),weaponPower=1,seed=0}){
- const clean=normalizeEncounters(encounters,now),e=clean[account];if(!e||e.defeated||e.hp<=0)throw Error('no_active_encounter');if(now>e.expiresAt)throw Error('encounter_expired');
+function attack({encounters,account,player,base,survival=null,now=Date.now(),weaponPower=1,seed=0,targetId=null}){
+ const clean=normalizeEncounters(encounters,now),e=clean[account];if(!e||e.defeated||e.hp<=0)throw Error('no_active_encounter');if(now>e.expiresAt)throw Error('encounter_expired');if(targetId!=null&&(typeof targetId!=='string'||targetId!==e.id))throw Error('target_mismatch');
  if(Math.hypot(player.x-e.x,player.z-e.z)>e.range)throw Error('enemy_out_of_range');if(now-e.lastAttackAt<ATTACK_COOLDOWN)throw Error('attack_cooldown');
  if((base.resources?.ammo||0)<e.ammoCost)throw Error('insufficient_ammo');base.resources.ammo-=e.ammoCost;base.revision=(Number.isSafeInteger(base.revision)?base.revision:0)+1;
  const power=clamp(Math.floor(weaponPower),1,20);const field=survival&&typeof survival==='object'?{...survival}:null;const staminaBefore=field?clamp(field.stamina,0,100):100;const fatigueScale=staminaBefore<15?0.55:staminaBefore<35?0.75:1;

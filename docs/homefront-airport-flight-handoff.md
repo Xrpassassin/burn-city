@@ -38,3 +38,5 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Work-shift output is now weighted by each worker's morale: 80–100 morale contributes 1.25 labor, 40–79 contributes 1.0, 20–39 contributes 0.75, and 0–19 contributes 0.5.
 - Farmer, scavenger, mechanic, and medic output use the same morale weighting; integer resource gains are rounded down. The server remains authoritative for all output.
 - A regression test compares otherwise equivalent high- and low-morale farmers to verify morale has a measurable production effect.
+
+- Intact storage sheds now improve scavenger scrap output during work shifts; damaged or destroyed sheds provide no bonus. Regression coverage compares a plain shift, an intact shed, and a destroyed shed.

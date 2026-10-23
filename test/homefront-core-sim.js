@@ -69,6 +69,18 @@ assert.ok(veteranTrip.embers > standardTrip.embers, 'higher expedition difficult
 assert.ok(veteranTrip.resources.scrap > standardTrip.resources.scrap, 'higher expedition difficulty pays more salvage');
 assert.ok(veteranTrip.resources.food < standardTrip.resources.food, 'higher expedition difficulty costs more supplies than Standard');
 assert.throws(() => H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'subway', difficulty: 'impossible' }), /unknown_difficulty/);
+const bossCostBase = H.createBase('boss-cost-only', 2305);
+bossCostBase.resources.food = 100; bossCostBase.resources.ammo = 100;
+const bossCostBefore = { scrap: bossCostBase.resources.scrap, wood: bossCostBase.resources.wood, embers: bossCostBase.embers, survivors: bossCostBase.survivors.length, trips: bossCostBase.expeditionCount };
+const bossCostAfter = H.applyAction(bossCostBase, 'boss-cost-only', { type: 'boss_attack', zone: 'subway', difficulty: 'nightmare' }, 2306);
+assert.equal(bossCostAfter.resources.food, 91, 'Nightmare boss attack charges scaled food costs');
+assert.equal(bossCostAfter.resources.ammo, 92, 'Nightmare boss attack charges scaled ammunition costs');
+assert.equal(bossCostAfter.resources.scrap, bossCostBefore.scrap, 'boss attacks do not award normal expedition salvage');
+assert.equal(bossCostAfter.resources.wood, bossCostBefore.wood, 'boss attacks do not award normal expedition wood');
+assert.equal(bossCostAfter.embers, bossCostBefore.embers, 'boss attacks do not pay expedition Embers before the boss is defeated');
+assert.equal(bossCostAfter.survivors.length, bossCostBefore.survivors, 'boss attacks do not trigger free survivor recruitment');
+assert.equal(bossCostAfter.expeditionCount, bossCostBefore.trips, 'boss attacks do not count as scavenging expeditions');
+
 const upgradeBase = H.createBase('tycoon-upgrade', 2310); upgradeBase.embers = 100;
 const upgraded = H.applyAction(upgradeBase, 'tycoon-upgrade', { type: 'buy_upgrade', upgrade: 'scavenger_rig' }, 2311);
 assert.equal(upgraded.embers, 0);

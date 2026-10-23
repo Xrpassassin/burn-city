@@ -36,6 +36,9 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(a1.status, 200);
   assert.equal(a1.data.base.structures.length, 1);
   assert.equal(a1.data.base.resources.wood, 32);
+  const overlap = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'build', building: 'wall', x: a1.data.base.structures[0].x, z: a1.data.base.structures[0].z } });
+  assert.equal(overlap.status, 400, 'invalid placement is a client error, not a server failure');
+  assert.equal(overlap.data.error, 'placement_occupied');
 
   const b0 = await call('GET', '/api/homefront', 'acct-b');
   assert.equal(b0.status, 200);

@@ -21,14 +21,15 @@ Make Homefront a playable, optional, unranked Zombies survival experience withou
 5. The Graveyard supports persistent player positions, pseudonymous shared presence, perimeter spawns, location risk, POIs, parties of up to four, shared caches/rescues, and shared boss HP.
 6. The player can search for an infected encounter and attack through authenticated, server-authoritative endpoints. Attacks validate range, cooldown, ammo, weapon power, rewards, and retaliation.
 7. Infected pursuit now advances on authoritative movement and world refresh. It is bounded and discrete; it is not yet continuous real-time replication or collision-aware pathfinding.
+8. Field survival now tracks health, hunger, thirst, stamina, and infection pressure. Needs decay only while active in the Graveyard; movement spends stamina; eating, drinking, bandaging, and catching breath are server-authoritative actions. Clean water is a refuge resource and has a legacy-save migration.
 
 ## Required playability work
 
 ### P0 — smoke-test and close integration gaps
-- Run `npm run test:homefront` and the airport/registry checks below against the exact PR head.
+- Run `npm run test:homefront` and the airport/registry checks below against the exact PR head; survival unit and API integration coverage has been added but is not yet verified by a fresh CI run.
 - Verify refuge create/load/save, construction, survivor assignment/work, weapon crafting/equipping, and progression survive reloads.
 - Verify enter/leave Graveyard, click-to-move, solo spawn distribution, party create/join/leader movement, rescue/cache cooldowns, boss damage, and combat ammo/rewards.
-- Verify invalid/expired encounters, insufficient ammo, cooldown, range failure, and unauthenticated calls return clean client errors rather than server errors.
+- Verify invalid/expired encounters, insufficient ammo, cooldown, range failure, survival actions without supplies, and unauthenticated calls return clean client errors rather than server errors.
 - Test the 3D scene and its 2D/fallback behavior on desktop and mobile Safari; confirm touch input works and UI controls do not overlap the viewport.
 - Fix visual snapping or confusing movement/combat feedback before calling the loop playable.
 
@@ -71,3 +72,8 @@ The commands are a checklist for Hark to run in the repository environment; do n
 ## Acceptance criteria
 
 Homefront is ready for Hark's playable review when the full Homefront test script passes, two-account multiplayer smoke tests pass, no main-world save/economy changes occur, the 3D/mobile interaction loop is usable, and the runtime-isolation status is described accurately. Do not merge or deploy from this handoff.
+
+## Survival, UI, and open-world roadmap
+- Implemented initial field-vitals rules and HUD in `server/homefront-survival.js`, `server/homefront-survival.test.js`, `server/homefront-world.js`, `server/homefront.js`, and `client/arena/homefront.html`.
+- The detailed design contract for inventory, cosmetic skins, diegetic interactions, authored districts, atmosphere, and dynamic events is `docs/homefront-survival-cosmetics-open-world.md`.
+- Cosmetic skin ownership/equip persistence, a real survivor avatar/loadout renderer, authored interiors, collision-aware navigation, and dynamic weather/events are still roadmap work, not completed features.

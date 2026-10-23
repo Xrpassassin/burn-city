@@ -66,3 +66,10 @@ assert.match(scene, /data\.combat\.encounterId/, 'resolve encounter IDs from the
 assert.match(scene, /hitZone: data\.combat\.hitZone/, 'forward the server-calculated hit zone to the scene');
 assert.match(scene, /detail\.hitZone === 'head'/, 'headshots get distinct impact presentation');
 assert.match(scene, /HEADSHOT!/, 'show a headshot callout only when the server reports one');
+assert.match(page, /id="autoFireInfected"/, 'provide a dedicated hold-to-autofire control');
+assert.match(scene, /raycaster\.intersectObject\(combatGroup, true\)/, 'select an infected using actual 3D mesh ray intersection');
+assert.match(scene, /selectedCombatAimPoint = \{ x: hit\.x, y: hit\.y, z: hit\.z \}/, 'derive aim point from the 3D ray hit rather than a client-chosen hit-zone label');
+assert.match(scene, /const fireLoop = async \(\) =>/, 'repeat authenticated attacks while the autofire control is held');
+assert.match(scene, /pointercancel|pointerup/, 'stop autofire on pointer release or cancellation');
+assert.match(scene, /targetId, \?\?/, 'include the selected target with combat requests');
+

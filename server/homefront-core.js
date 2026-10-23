@@ -17,6 +17,7 @@ const BUILDINGS = Object.freeze({
 const DIFFICULTIES = Object.freeze({story:{label:'Story',cost:0.8,reward:0.7,threat:0.75},standard:{label:'Standard',cost:1,reward:1,threat:1},veteran:{label:'Veteran',cost:1.35,reward:1.55,threat:1.4},nightmare:{label:'Nightmare',cost:1.8,reward:2.35,threat:1.9}});
 const TYCOON_UPGRADES = Object.freeze({scavenger_rig:{label:'Scavenger Rig',description:'+15% salvage per level',baseCost:100,max:5},ember_press:{label:'Ember Press',description:'+5 embers per successful expedition per level',baseCost:140,max:5},field_armory:{label:'Field Armory',description:'+2 defense strength per level',baseCost:120,max:5},medic_station:{label:'Field Medic Station',description:'+1 bonus medicine on successful trips per level',baseCost:160,max:3}});
 const EMBER_MARKET = Object.freeze({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},food:{amount:10,cost:18},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});
+const WEAPONS = Object.freeze({pipe_blade:{label:'Pipe Blade',rarity:'Common',power:1,cost:{scrap:0,embers:0}},pump_shotgun:{label:'Pump Shotgun',rarity:'Rare',power:3,cost:{scrap:55,embers:40}},marksman_rifle:{label:'Marksman Rifle',rarity:'Epic',power:4,cost:{scrap:90,embers:75}},shock_maul:{label:'Shock Maul',rarity:'Legendary',power:5,cost:{scrap:120,embers:100}}});
 const EXPLORATION_ZONES = Object.freeze({outskirts:{label:'City Outskirts',risk:1,food:2,ammo:1,scrap:3,wood:2,meds:0,recruit:0.44,boss:false},residential:{label:'Residential Ruins',risk:1,food:3,ammo:1,scrap:5,wood:2,meds:0,recruit:0.5,boss:false},commercial:{label:'Market District',risk:2,food:3,ammo:2,scrap:8,wood:1,meds:1,recruit:0.38,boss:false},hospital:{label:'Overrun Hospital',risk:3,food:4,ammo:3,scrap:5,wood:1,meds:3,recruit:0.32,boss:false},industrial:{label:'Industrial Yard',risk:3,food:4,ammo:3,scrap:12,wood:2,meds:0,recruit:0.24,boss:false},subway:{label:'Buried Subway',risk:4,food:5,ammo:4,scrap:10,wood:1,meds:2,recruit:0.28,boss:true},research_lab:{label:'Sealed Research Annex',risk:5,food:6,ammo:5,scrap:16,wood:1,meds:4,recruit:0.2,boss:true}});
 const clampInt = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, Math.floor(v))) : min;
 const clampNumber = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
@@ -34,6 +35,7 @@ function createBase(ownerId, now = Date.now()) {
     exploration: { discoveredZones: ['outskirts'], lastExpedition: null },
     resources: { wood: 40, scrap: 30, food: 24, meds: 5, ammo: 18 },
     embers: 50, upgrades: { scavenger_rig: 0, ember_press: 0, field_armory: 0, medic_station: 0 },
+    weapons: ['pipe_blade'], equippedWeapon: 'pipe_blade',
     structures: [], survivors: [], expeditionCount: 0, defenseCount: 0,
     log: [{ id: 1, kind: 'welcome', text: 'A refuge is yours. Gather supplies, recruit survivors, and prepare for the first breach.', at: now }]
   };
@@ -51,6 +53,9 @@ function validateBase(input, ownerId) {
   if (!out.exploration.discoveredZones.includes('outskirts')) out.exploration.discoveredZones.unshift('outskirts');
   out.exploration.lastExpedition = out.exploration.lastExpedition && typeof out.exploration.lastExpedition === 'object' ? out.exploration.lastExpedition : null;
   out.upgrades = out.upgrades && typeof out.upgrades === 'object' ? out.upgrades : {};
+  out.weapons = Array.isArray(out.weapons) ? [...new Set(out.weapons.filter(id => typeof id === 'string' && WEAPONS[id]))] : ['pipe_blade'];
+  if (!out.weapons.includes('pipe_blade')) out.weapons.unshift('pipe_blade');
+  out.equippedWeapon = typeof out.equippedWeapon === 'string' && WEAPONS[out.equippedWeapon] && out.weapons.includes(out.equippedWeapon) ? out.equippedWeapon : 'pipe_blade';
   for (const [id, spec] of Object.entries(TYCOON_UPGRADES)) out.upgrades[id] = clampInt(out.upgrades[id], 0, spec.max);
   out.visibility = input.visibility === 'public' ? 'public' : 'private';
   out.baseMaxHp = clampInt(out.baseMaxHp, 1, 100000);
@@ -131,19 +136,21 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.embers = Math.min(999999999, s.embers + totalEmbers);
       // A location- and difficulty-aware Director varies expedition pressure without escalating rounds.
       const directorRoll = rand(hash('director:' + seed));
+      const weapon = WEAPONS[s.equippedWeapon] || WEAPONS.pipe_blade;
       const pressure = zone.risk * difficulty.threat;
+      const effectivePressure = Math.max(0.5, pressure - weapon.power * 0.3);
       let directorEvent = 'quiet';
-      if (directorRoll < Math.min(0.18, 0.025 * pressure)) directorEvent = 'special_infected';
-      else if (directorRoll < Math.min(0.48, 0.09 * pressure)) directorEvent = 'infected_horde';
-      else if (directorRoll < Math.min(0.78, 0.18 * pressure)) directorEvent = 'wandering_infected';
+      if (directorRoll < Math.min(0.18, 0.025 * effectivePressure)) directorEvent = 'special_infected';
+      else if (directorRoll < Math.min(0.48, 0.09 * effectivePressure)) directorEvent = 'infected_horde';
+      else if (directorRoll < Math.min(0.78, 0.18 * effectivePressure)) directorEvent = 'wandering_infected';
       let ambush = false;
       if (directorEvent === 'special_infected' || directorEvent === 'infected_horde') {
         ambush = true;
-        const ammoLoss = Math.min(s.resources.ammo, Math.max(1, Math.ceil(pressure / 2)));
+        const ammoLoss = Math.min(s.resources.ammo, Math.max(1, Math.ceil(pressure / 2) - Math.floor(weapon.power / 2)));
         s.resources.ammo -= ammoLoss;
         if (s.survivors.length) {
           const injured = s.survivors[hash('injury:' + seed) % s.survivors.length];
-          injured.morale = clampInt(injured.morale - 8 - zone.risk * 2, 0, 100);
+          injured.morale = clampInt(injured.morale - Math.max(2, 8 + zone.risk * 2 - weapon.power), 0, 100);
         } else s.resources.food = Math.max(0, s.resources.food - 1);
       }
       let found = false;
@@ -151,6 +158,25 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const eventText = directorEvent === 'special_infected' ? ' A special infected ambushed the team; ammunition was spent and a survivor was shaken.' : directorEvent === 'infected_horde' ? ' An infected horde hit the team; ammunition was spent and morale suffered.' : directorEvent === 'wandering_infected' ? ' Wandering infected were spotted nearby, but the team avoided a full ambush.' : ' The district was quiet enough to search thoroughly.';
       const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + (scrap + discoveryScrap) + ' scrap, and ' + totalEmbers + ' embers' + (firstVisit ? ' including a first-visit survey bonus' : '') + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + eventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
       record(s, 'exploration', result, now);
+      break;
+    }
+    case 'craft_weapon': {
+      const id = typeof action.weapon === 'string' ? action.weapon : '';
+      const spec = WEAPONS[id];
+      if (!spec || id === 'pipe_blade') throw new Error('unknown_weapon');
+      if (s.weapons.includes(id)) throw new Error('weapon_already_owned');
+      if (s.embers < spec.cost.embers) throw new Error('insufficient_embers');
+      pay(s, { scrap: spec.cost.scrap });
+      s.embers -= spec.cost.embers;
+      s.weapons.push(id);
+      record(s, 'armory', 'Crafted ' + spec.rarity + ' weapon: ' + spec.label + '.', now);
+      break;
+    }
+    case 'equip_weapon': {
+      const id = typeof action.weapon === 'string' ? action.weapon : '';
+      if (!WEAPONS[id] || !s.weapons.includes(id)) throw new Error('weapon_not_owned');
+      s.equippedWeapon = id;
+      record(s, 'armory', 'Equipped ' + WEAPONS[id].label + ' (' + WEAPONS[id].rarity + ').', now);
       break;
     }
     case 'boss_attack': {
@@ -282,4 +308,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, EXPLORATION_ZONES, createBase, validateBase, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, EXPLORATION_ZONES, createBase, validateBase, applyAction };

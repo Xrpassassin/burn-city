@@ -138,6 +138,8 @@ if (attack.data.combat.enemyDamage > 0) {
   assert.ok(scavenge.data.base.expeditionCount >= 1, 'shared-map scavenging advances personal expedition progress');
   assert.equal(scavenge.data.selfInventory.food, 0, 'scavenging spends carried food, not refuge food');
   assert.ok(scavenge.data.selfInventory.scrap > 0 || scavenge.data.selfInventory.wood > 0, 'scavenged materials are packed when capacity permits');
+  const beforeExtraTripStash = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'stash' });
+  assert.equal(beforeExtraTripStash.status, 200);
   const packedFood = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'food', amount: 2 });
   assert.equal(packedFood.status, 200, 'explorers can pack extra rations from refuge stores');
   const packedAmmo = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'ammo', amount: 2 });
@@ -150,6 +152,8 @@ if (attack.data.combat.enemyDamage > 0) {
   sharedWorld.players['acct-b'].x = -32;
   sharedWorld.players['acct-b'].z = 24;
   files.set('homefront-world.json', sharedWorld);
+  const beforeCacheStash = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'stash' });
+  assert.equal(beforeCacheStash.status, 200);
   const cachePackFood = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'food', amount: 3 });
   assert.equal(cachePackFood.status, 200);
   const cachePackAmmo = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'ammo', amount: 3 });
@@ -169,6 +173,8 @@ if (attack.data.combat.enemyDamage > 0) {
   rescueWorld.players['acct-b'].x = 35;
   rescueWorld.players['acct-b'].z = -42;
   files.set('homefront-world.json', rescueWorld);
+  const beforeRescueStash = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'stash' });
+  assert.equal(beforeRescueStash.status, 200);
   const rescuePackFood = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'food', amount: 2 });
   assert.equal(rescuePackFood.status, 200);
   const rescuePackAmmo = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'ammo', amount: 1 });

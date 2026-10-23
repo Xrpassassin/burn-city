@@ -93,11 +93,21 @@ function boot(host) {
   }
   let worldData = null, moving = false;
   function clearGroup(group) {
+    const disposeMaterial = material => {
+      if (!material) return;
+      const materials = Array.isArray(material) ? material : [material];
+      for (const m of materials) {
+        if (m.map) m.map.dispose();
+        m.dispose();
+      }
+    };
     while (group.children.length) {
-      const o = group.children[group.children.length - 1]; group.remove(o);
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) { if (Array.isArray(o.material)) o.material.forEach(m => m.dispose()); else o.material.dispose(); }
-      if (o.children) { for (const c of o.children) { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(m => m.dispose()); else c.material.dispose(); } } }
+      const object = group.children[group.children.length - 1];
+      group.remove(object);
+      object.traverse(node => {
+        if (node.geometry) node.geometry.dispose();
+        disposeMaterial(node.material);
+      });
     }
   }
   function updateWorld(data) {

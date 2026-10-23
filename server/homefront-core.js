@@ -117,9 +117,27 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (medicine) s.resources.meds = Math.min(999999, s.resources.meds + medicine);
       const embersEarned = Math.max(1, Math.floor((8 + zone.risk * 7) * difficulty.reward) + (s.upgrades.ember_press || 0) * 5);
       s.embers = Math.min(999999999, s.embers + embersEarned);
+      // A location- and difficulty-aware Director varies expedition pressure without escalating rounds.
+      const directorRoll = rand(hash('director:' + seed));
+      const pressure = zone.risk * difficulty.threat;
+      let directorEvent = 'quiet';
+      if (directorRoll < Math.min(0.18, 0.025 * pressure)) directorEvent = 'special_infected';
+      else if (directorRoll < Math.min(0.48, 0.09 * pressure)) directorEvent = 'infected_horde';
+      else if (directorRoll < Math.min(0.78, 0.18 * pressure)) directorEvent = 'wandering_infected';
+      let ambush = false;
+      if (directorEvent === 'special_infected' || directorEvent === 'infected_horde') {
+        ambush = true;
+        const ammoLoss = Math.min(s.resources.ammo, Math.max(1, Math.ceil(pressure / 2)));
+        s.resources.ammo -= ammoLoss;
+        if (s.survivors.length) {
+          const injured = s.survivors[hash('injury:' + seed) % s.survivors.length];
+          injured.morale = clampInt(injured.morale - 8 - zone.risk * 2, 0, 100);
+        } else s.resources.food = Math.max(0, s.resources.food - 1);
+      }
       let found = false;
       if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4) }); found = true; }
-      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + scrap + ' scrap, and ' + embersEarned + ' embers' + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
+      const eventText = directorEvent === 'special_infected' ? ' A special infected ambushed the team; ammunition was spent and a survivor was shaken.' : directorEvent === 'infected_horde' ? ' An infected horde hit the team; ammunition was spent and morale suffered.' : directorEvent === 'wandering_infected' ? ' Wandering infected were spotted nearby, but the team avoided a full ambush.' : ' The district was quiet enough to search thoroughly.';
+      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + scrap + ' scrap, and ' + embersEarned + ' embers' + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + eventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
       record(s, 'exploration', result, now);
       break;
     }

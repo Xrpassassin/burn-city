@@ -1,5 +1,4 @@
 // Shared airport departure queue for unranked Zombies. The server owns readiness and countdown.
-const crypto = require('crypto');
 const COUNTDOWN_MS = 10000, MAX_PARTY = 8;
 const rooms = new Map();
 let nextRoom = 1, nextPlayer = 1;

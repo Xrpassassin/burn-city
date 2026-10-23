@@ -297,7 +297,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           }
           break;
         }
-        case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z)); break;
+        case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z), Date.now(), payload.sprint === true); break;
+        case '/api/homefront/world/aim': outcome = World.setAiming(db, user.acct, payload.aiming, Date.now()); break;
         case '/api/homefront/world/rescue': {
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');

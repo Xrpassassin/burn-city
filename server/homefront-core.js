@@ -27,6 +27,7 @@ function createBase(ownerId, now = Date.now()) {
   return {
     version: VERSION, owner, revision: 1, createdAt: now, updatedAt: now,
     level: 1, day: 1, baseHp: 500, baseMaxHp: 500, wave: 0, visibility: 'private',
+    exploration: { discoveredZones: ['outskirts'], lastExpedition: null },
     resources: { wood: 40, scrap: 30, food: 24, meds: 5, ammo: 18 },
     structures: [], survivors: [], expeditionCount: 0, defenseCount: 0,
     log: [{ id: 1, kind: 'welcome', text: 'A refuge is yours. Gather supplies, recruit survivors, and prepare for the first breach.', at: now }]
@@ -184,7 +185,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const active = s.structures.filter(x => x.hp > 0);
       const defense = guardStrength * 2 + active.reduce((n, x) => n + BUILDINGS[x.type].defense, 0) + ammoUsed * 0.8;
       const profile = waveProfile(s.wave);
-      const threat = 7 + s.wave * 2 + Math.floor(s.survivors.length / 3) + profile.threatBonus;
+      const threat = 9 + Math.floor(s.survivors.length / 4); // Fixed perimeter threat; never scales with breach count.
       const damage = Math.max(0, Math.ceil((threat - defense) * 6));
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
       let remaining = damage;
@@ -194,8 +195,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         structure.hp -= hit; remaining -= hit;
       }
       const lost = s.baseHp === 0;
-      const profileLabel = profile.boss ? ' Juggernaut boss detected.' : profile.enemies.length > 1 ? ' Hostiles: ' + profile.enemies.filter(x => x.type !== 'walker').map(x => x.count + ' ' + x.type).join(', ') + '.' : '';
-      record(s, 'defense', (lost ? 'The refuge fell during breach ' + s.wave + '.' : 'Breach ' + s.wave + ' repelled with ' + damage + ' structure damage.') + profileLabel, now);
+      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach.' : 'Perimeter breach repelled with ' + damage + ' structure damage. Threat is independent of breach count.', now);
       break;
     }
     case 'repair': {

@@ -38,6 +38,15 @@ expedition = H.applyAction(expedition, 'acct-a', { type: 'build', building: 'gar
 const beforeFood = expedition.resources.food;
 expedition = H.applyAction(expedition, 'acct-a', { type: 'workday' });
 assert.ok(expedition.resources.food >= beforeFood - 1, 'farmer and garden contribute food after upkeep');
+const cityScout = H.createBase('city-scout', 2190);
+assert.throws(() => H.applyAction(cityScout, 'city-scout', { type: 'expedition', zone: 'commercial' }), /zone_not_discovered/);
+const firstTrip = H.applyAction(cityScout, 'city-scout', { type: 'expedition', zone: 'outskirts' }, 2191);
+assert.equal(firstTrip.expeditionCount, 1);
+const secondTrip = H.applyAction(firstTrip, 'city-scout', { type: 'expedition', zone: 'residential' }, 2192);
+assert.equal(secondTrip.expeditionCount, 2);
+const marketTrip = H.applyAction(secondTrip, 'city-scout', { type: 'expedition', zone: 'commercial' }, 2193);
+assert.ok(marketTrip.resources.meds >= secondTrip.resources.meds, 'market exploration can yield medicine');
+
 // Perimeter defense threat is independent of the legacy wave field.
 const lowCounter = H.createBase('fixed-threat-a', 2200);
 const highCounter = H.createBase('fixed-threat-b', 2200);

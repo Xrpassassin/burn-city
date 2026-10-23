@@ -48,7 +48,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           if (req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');
-          const spawned = Combat.spawn({ encounters: db.encounters, account: user.acct, player, now: Date.now(), seed: Number.isFinite(payload.seed) ? payload.seed : 0 });
+          const spawned = Combat.spawn({ encounters: db.encounters, account: user.acct, player, now: Date.now() });
           db.encounters = spawned.encounters;
           player.lastSeen = Date.now();
           store.save('homefront-world.json', db);
@@ -63,7 +63,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const savedBase = bases[user.acct] || Core.createBase(user.acct);
           const base = Core.validateBase(savedBase, user.acct);
           if (!base) throw new Error('save_invalid');
-          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base, now: Date.now(), weaponPower: Core.weaponPower(base), seed: Number.isFinite(payload.seed) ? payload.seed : 0 });
+          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base, now: Date.now(), weaponPower: Core.weaponPower(base) });
           db.encounters = outcome.encounters;
           player.lastSeen = Date.now();
           bases[user.acct] = outcome.base;

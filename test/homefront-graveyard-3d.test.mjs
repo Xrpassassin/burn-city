@@ -122,3 +122,7 @@ assert.match(scene, /g\.userData\.lootGlow = \{ mesh: glow, color, available: !!
 assert.match(scene, /node\.userData\.lootNodeId === selectedLootId/, 'highlight the currently selected physical supply node');
 assert.match(scene, /Math\.sin\(now \* 0\.006\) \* 0\.055/, 'pulse the selected supply ring in the render loop');
 assert.match(scene, /focus\.mesh\.material\.color\.setHex\(selected \? 0xffe08a : focus\.color\)/, 'restore each supply node base glow color when selection changes');
+assert.match(scene, /const previousExplorerPositions = new Map\(\)/, 'preserve each explorer position across world snapshots');
+assert.match(scene, /explorerPositions\.set\(key, \{ x: p\.x, y: targetY, z: p\.z \}\)/, 'store authoritative explorer destinations separately from rendered positions');
+assert.match(scene, /const travelBlend = 1 - Math\.exp\(-8 \* dt\)/, 'interpolate explorer motion smoothly per frame instead of snapping on each snapshot');
+assert.match(scene, /explorer\.rotation\.y = Math\.atan2\(target\.x - explorer\.position\.x, target\.z - explorer\.position\.z\)/, 'turn moving explorers toward their travel direction');

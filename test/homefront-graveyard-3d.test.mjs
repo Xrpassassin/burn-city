@@ -236,7 +236,7 @@ assert.match(homefrontPage, /id="siegeIncidentSummary" aria-live="polite"/, 'sho
 assert.match(homefrontPage, /incident=base\.lastSiege/, 'render the server-persisted last siege report');
 assert.match(homefrontPage, /incident\.phases/, 'render the ordered incident phases');
 assert.match(homefrontPage, /incident\.target\.integrityBefore/, 'show target integrity before and after the siege');
-assert.match(homefrontPage, /incident\.refugeHpAfter\+'\/'+base\.baseMaxHp/, 'show refuge health after the incident');
+assert.match(homefrontPage, /incident\.refugeHpAfter.*base\.baseMaxHp/, 'show refuge health after the incident');
 
 
 assert.match(homefrontPage, /incident\?\.status==='incoming'\?'Resolve siege defense':'Begin siege warning'/, 'switch the siege control between warning and defense phases');

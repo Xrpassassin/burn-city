@@ -149,7 +149,7 @@ function boot(host) {
     weaponSwingUntil = weaponSwingStartedAt + 320;
     const detail = event.detail || {};
     const weaponId = ['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','machine_gun','heavy_machine_gun'].includes(detail.weaponId) ? detail.weaponId : 'pipe_blade';
-    const style = weaponId === 'shock_maul' ? 'blunt' : weaponId === 'pump_shotgun' || weaponId === 'marksman_rifle' ? 'firearm' : 'sharp';
+    const style = weaponId === 'shock_maul' ? 'blunt' : ['pump_shotgun','marksman_rifle','machine_gun','heavy_machine_gun'].includes(weaponId) ? 'firearm' : 'sharp';
     weaponSwingWeaponId = weaponId;
     const targetId = detail.encounterId || detail.encounter?.id || detail.combat?.encounterId;
     const target = targetId ? combatActors.get(targetId) : null;

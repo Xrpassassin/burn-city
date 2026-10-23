@@ -95,3 +95,9 @@ Homefront is ready for Hark's playable review when the full Homefront test scrip
 - Source-level regression assertions were added to `test/homefront-graveyard-3d.test.mjs`; full test execution and browser QA are still required.
 - Combat controls now receive the server-owned attack range in public encounter snapshots, disable attack while the infected is out of reach, and display approximate distance/in-range guidance. The server still validates range on every attack; this is feedback, not a replacement for validation.
 - CI follow-up: the first run of the smoothing regression test failed because its source assertion referenced the local variable name rather than the actual `actor.userData.hitFlash` implementation. The assertion has been corrected in commit `aa12a15b5c527a5a6f5f8b06b1a9b3c990524aca`; wait for a fresh workflow run before treating this fix as verified.
+
+
+### Combat control follow-up (2026-10-23)
+- Fixed a client-side state regression where the combat request cleanup path could re-enable the attack button even when the infected remained outside its server-defined range. The button now recalculates range from the latest authoritative snapshot after each request.
+- Added a source-level regression assertion to `test/homefront-graveyard-3d.test.mjs` so future UI changes do not silently undo this range gate.
+- The Homefront core, airport flight, and Blacktide workflows passed on the prior code revision `875fb59b20b326cebc3185f9ace8dde0c15e68ea`. This latest client/test change still needs its own fresh CI run; desktop/mobile browser and multiplayer QA remain outstanding.

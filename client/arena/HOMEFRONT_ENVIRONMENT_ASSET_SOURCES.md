@@ -52,3 +52,14 @@ Start with a small locally bundled **wall + doorway + damaged wall + barricade +
 - [ ] Bundle optimized models and license/credit files.
 - [ ] Add an opt-in environment blockout using real imported models.
 - [ ] Measure mobile performance and verify collision/navigation.
+
+## Home-base fortification kit
+
+The first placeable fortification pass uses low-cost procedural Three.js geometry so gameplay can be exercised before committing large model packs. It now covers sandbags, barbed-wire sections, trenches with upgrade tiers, mounted turrets, and rotatable entrance/exit gates. Replace individual procedural pieces with locally bundled assets only after each file's license and runtime cost are verified.
+
+Recommended intake:
+- [Kenney Building Kit](https://kenney-assets.itch.io/building-kit) — official pack page states CC0 1.0 and includes walls, floors, doors and windows. Useful for the shelter shell and modular gate/door pieces, not a complete military fortification set.
+- [Kenney support / license FAQ](https://kenney.nl/support) — confirms CC0 assets may be used commercially without required attribution.
+- [MIT Three.js tower-defense reference](https://github.com/djpav/threejs-tower-defense) — study placement, selection, upgrade and touch interaction patterns; do not copy its game content wholesale.
+
+Do not assume these sources contain sandbags, wire, trenches or functional turrets. Source those models separately, keep the current procedural fallback, and retain each selected pack's own license and attribution file.

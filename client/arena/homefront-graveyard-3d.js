@@ -47,26 +47,33 @@ function boot(host) {
   window.addEventListener('homefront:combat-hit', event => {
     weaponSwingUntil = performance.now() + 320;
     const detail = event.detail || {};
-    const style = detail.weaponId === 'shock_maul' ? 'blunt' : 'sharp';
-    const target = detail.encounterId && combatActors.get(detail.encounterId);
-    // Reuse the game's existing CC0 zombie hit bank and shared volume/mute controls.
+    const weaponId = ['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'].includes(detail.weaponId) ? detail.weaponId : 'pipe_blade';
+    const style = weaponId === 'shock_maul' ? 'blunt' : weaponId === 'pump_shotgun' || weaponId === 'marksman_rifle' ? 'firearm' : 'sharp';
+    const targetId = detail.encounterId || detail.encounter?.id || detail.combat?.encounterId;
+    const target = targetId ? combatActors.get(targetId) : null;
+    // Reuse the existing licensed sample bank; a failed fetch must never break combat feedback.
     if (target) {
       const pos = [target.position.x, 1.1, target.position.z];
-      sfx.loadBank(new URL('./sfx/', import.meta.url).href).then(() => sfx.play('hit', { pos, v: 0.55, ref: 2, max: 18, roll: 1.2 }));
-      // Brief stylized blood mist is presentation only; it never affects damage.
-      const count = detail.killed ? 18 : 9;
+      const sound = weaponId === 'pump_shotgun' ? 'shotgun' : weaponId === 'marksman_rifle' ? 'hit' : 'hit';
+      sfx.loadBank(new URL('./sfx/', import.meta.url).href)
+        .then(() => sfx.play(sound, { pos, v: weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
+        .catch(() => {});
+      // Weapon-specific, short-lived blood mist. Visual feedback never determines damage.
+      const count = detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18) : (weaponId === 'pump_shotgun' ? 15 : 9);
+      const spread = weaponId === 'pump_shotgun' ? 0.95 : weaponId === 'marksman_rifle' ? 0.22 : 0.5;
+      const lift = weaponId === 'shock_maul' ? 1.25 : weaponId === 'pump_shotgun' ? 3.2 : 2.4;
       for (let i = 0; i < count; i++) {
-        const radius = 0.035 + Math.random() * 0.045;
+        const radius = (weaponId === 'pump_shotgun' ? 0.04 : 0.035) + Math.random() * 0.045;
         const drop = new THREE.Mesh(new THREE.SphereGeometry(radius, 5, 4), new THREE.MeshBasicMaterial({ color: i % 4 ? 0x842d2b : 0x4b1719, transparent: true, opacity: 0.88, depthWrite: false }));
-        drop.position.set(pos[0] + (Math.random() - 0.5) * 0.5, pos[1] + Math.random() * 0.7, pos[2] + (Math.random() - 0.5) * 0.45);
+        drop.position.set(pos[0] + (Math.random() - 0.5) * spread, pos[1] + Math.random() * 0.7, pos[2] + (Math.random() - 0.5) * spread);
         drop.userData.life = 0.35 + Math.random() * 0.4;
-        drop.userData.vx = (Math.random() - 0.5) * 2.8;
-        drop.userData.vy = 0.6 + Math.random() * 2.4;
-        drop.userData.vz = (Math.random() - 0.5) * 2.8;
+        drop.userData.vx = (Math.random() - 0.5) * (weaponId === 'pump_shotgun' ? 4.2 : 2.8);
+        drop.userData.vy = weaponId === 'shock_maul' ? 0.3 + Math.random() * 1.3 : 0.6 + Math.random() * lift;
+        drop.userData.vz = (Math.random() - 0.5) * (weaponId === 'pump_shotgun' ? 4.2 : 2.8);
         drop.userData.blood = true;
         impactGroup.add(drop);
       }
-      target.userData.impactUntil = performance.now() + 300;
+      target.userData.impactUntil = performance.now() + (style === 'blunt' ? 420 : 300);
       target.userData.impactStyle = style;
       target.userData.impactDirection = detail.direction || 1;
     }
@@ -340,7 +347,7 @@ function boot(host) {
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
       if (data.combat) {
-        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: { damage: data.combat.damage, killed: data.combat.killed, weaponId: equippedWeaponId, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id, direction: 1 } }));
+        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: { damage: data.combat.damage, killed: data.combat.killed, weaponId: equippedWeaponId, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 } }));
       }
       updateWorld(data);
       if (data.combat && combatStatus) {

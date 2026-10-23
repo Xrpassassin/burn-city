@@ -14,7 +14,8 @@ const BUILDINGS = Object.freeze({
   storage:    { cost: { wood: 10, scrap: 5 }, hp: 100, defense: 0, cap: 4 },
   gate:       { cost: { wood: 12, scrap: 8 }, hp: 180, defense: 3, cap: 2 }
 });
-const clampInt = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, Math.floor(v))) : min;\nconst clampNumber = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
+const clampInt = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, Math.floor(v))) : min;
+const clampNumber = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
 const cleanOwner = id => typeof id === 'string' && id.trim() && id.length <= 180 ? id.trim() : null;
 const clone = v => JSON.parse(JSON.stringify(v));
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };

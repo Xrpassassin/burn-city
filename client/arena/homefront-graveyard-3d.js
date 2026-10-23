@@ -157,10 +157,13 @@ function boot(host) {
     // Reuse the existing licensed sample bank; a failed fetch must never break combat feedback.
     if (target) {
       const pos = [target.position.x, detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1, target.position.z];
-      const sound = weaponId === 'pump_shotgun' ? 'shotgun' : ['machine_gun','heavy_machine_gun'].includes(weaponId) ? 'rifle' : weaponId === 'marksman_rifle' ? 'hit' : 'hit';
-      sfx.loadBank(new URL('./sfx/', import.meta.url).href)
-        .then(() => sfx.play(sfx.has(sound) ? sound : 'hit', { pos, v: weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
-        .catch(() => {});
+      if (weaponId === 'machine_gun' || weaponId === 'heavy_machine_gun') sfx.weaponFire(weaponId);
+      else {
+        const sound = weaponId === 'pump_shotgun' ? 'shotgun' : 'hit';
+        sfx.loadBank(new URL('./sfx/', import.meta.url).href)
+          .then(() => sfx.play(sfx.has(sound) ? sound : 'hit', { pos, v: weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
+          .catch(() => {});
+      }
       // Weapon-specific, short-lived blood mist. Visual feedback never determines damage.
       const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16) : detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18) : (weaponId === 'pump_shotgun' ? 15 : 9);
       const spread = weaponId === 'pump_shotgun' ? 0.95 : weaponId === 'marksman_rifle' ? 0.22 : 0.5;

@@ -749,11 +749,14 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       break;
     }
     case 'repair': {
-      if (s.resources.wood < 2 || s.resources.scrap < 1) throw new Error('repair_supplies_required');
       const target = action.target === 'base' ? null : s.structures.find(x => x.id === action.target);
       if (action.target !== 'base' && !target) throw new Error('unknown_repair_target');
       if (target && target.hp >= target.maxHp || !target && s.baseHp >= s.baseMaxHp) throw new Error('already_repaired');
-      s.resources.wood -= 2; s.resources.scrap -= 1;
+      const material = target && MATERIAL_TIERS[target.material] ? target.material : 'wood';
+      const repairCost = !target || material === 'wood' ? { wood: 2, scrap: 1 } :
+        material === 'stone' ? { stone: 1, scrap: 1 } : { steel: 1, scrap: 2 };
+      if (Object.entries(repairCost).some(([resource, amount]) => (s.resources[resource] || 0) < amount)) throw new Error('repair_supplies_required');
+      for (const [resource, amount] of Object.entries(repairCost)) s.resources[resource] -= amount;
       if (target) {
         const before = target.hp;
         target.hp = Math.min(target.maxHp, target.hp + 50);

@@ -42,6 +42,7 @@ function boot(host) {
   const attackInfectedButton = document.getElementById('attackInfected');
   const autoFireButton = document.getElementById('autoFireInfected');
   const reloadWeaponButton = document.getElementById('reloadWeapon');
+  const ammoStatus = document.getElementById('ammoStatus');
   let selectedCombatTargetId = null;
   let selectedCombatAimPoint = null;
   let autoFireHeld = false;
@@ -290,6 +291,10 @@ function boot(host) {
       combatGroup.remove(actor); clearGroup(actor); combatActors.delete(id);
       if (selectedCombatTargetId === id) { selectedCombatTargetId = null; selectedCombatAimPoint = null; autoFireHeld = false; if (autoFireTimer) clearTimeout(autoFireTimer); autoFireTimer = null; }
     }
+    const magazine = data.selfWeaponMagazine;
+    if (ammoStatus) ammoStatus.textContent = magazine?.capacity > 0
+      ? 'Magazine ' + magazine.loaded + '/' + magazine.capacity + ' · reserve ' + (data.selfInventory?.ammo ?? data.inventory?.ammo ?? 0)
+      : 'Melee weapon · no ammunition';
     const selfEncounter = data.selfEncounter || data.encounter || null;
     const enemyDistance = selfEncounter && data.self
       ? Math.hypot(data.self.x - selfEncounter.x, data.self.z - selfEncounter.z) : Infinity;

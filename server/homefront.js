@@ -128,8 +128,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             if (boss.respawnAt > Date.now() || boss.hp <= 0) throw new Error('boss_respawning');
             const threatScale = Core.DIFFICULTIES[difficulty]?.threat;
             if (!threatScale) throw new Error('unknown_difficulty');
-            const equipped = Core.WEAPONS[nextBase.equippedWeapon] || Core.WEAPONS.pipe_blade;
-            const weaponDamage = Math.max(8, Math.floor(((nearest.point.id === 'research_annex' ? 30 : 36) + (equipped.power - 1) * 4) / threatScale));
+            const combatPower = Core.weaponPower(nextBase);
+            const weaponDamage = Math.max(8, Math.floor(((nearest.point.id === 'research_annex' ? 30 : 36) + (combatPower - 1) * 4) / threatScale));
             boss.hp = Math.max(0, boss.hp - weaponDamage);
             if (boss.hp === 0) {
               defeated = true; boss.respawnAt = Date.now() + 5 * 60e3;

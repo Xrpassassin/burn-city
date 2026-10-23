@@ -68,8 +68,8 @@ function buildGate() {
   sign.position.set(0, 4.2, -.32); sign.rotation.y = Math.PI; g.add(sign); const sign2 = sign.clone(); sign2.position.z = .32; sign2.rotation.y = 0; g.add(sign2);   // readable from both sides
   const wbs = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.3), new THREE.MeshBasicMaterial({ map: signTex([['⚠ WARNING', 60, '#ffd23a'], ['PVP AND PVE AREA AHEAD', 38, '#ffffff'], ['Wild creatures roam freely', 28, '#ffc8a0']], 512, 256, '#3a0c08', '#fff', '#ffd23a'), toneMapped: false, side: THREE.DoubleSide }));
   wbs.position.set(0, 1.9, .1).applyMatrix4(wbT); wbs.rotation.y = Math.PI + .35; g.add(wbs);
-  const arrow = new THREE.Mesh(new THREE.PlaneGeometry(2.4, .7), new THREE.MeshBasicMaterial({ map: signTex([['THE WILDS  ↑', 70]], 512, 150, '#24361c', '#e8ffd0', '#8ad05a'), toneMapped: false, side: THREE.DoubleSide }));
-  arrow.position.set(3.5, 2.7, 318 - GATE.z); arrow.rotation.y = Math.PI; g.add(arrow);
+  const arrow = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.25), new THREE.MeshBasicMaterial({ map: signTex([['THE WILDS  ↑', 88]], 768, 228, '#24361c', '#e8ffd0', '#8ad05a'), toneMapped: false, side: THREE.DoubleSide }));
+  arrow.position.set(3.5, 3.0, 318 - GATE.z); arrow.rotation.y = Math.PI; g.add(arrow);
   // permanent colliders (gate pillars, warning board, signpost): tagged wildsGate so the forest's unload never touches them
   for (const [x, z, r, h, nc] of [[GATE.x - 4.6, GATE.z, 1.05, 6, false], [GATE.x + 4.6, GATE.z, 1.05, 6, false], [GATE.x - 6.5, GATE.z - 8, .9, 2.6, true], [3.5, 318, .2, 3.2, true]]) c.colliders.push({ x, z, r, h, nc, wildsGate: 1 });
   return root;
@@ -91,9 +91,20 @@ function showVeil(title = 'THE CINDERWILDS', sub = 'Fernway Verge · Lv 1–5', 
 }
 function veilProgress(p, label) { if (!veil) return; veil.querySelector('.wv-bar>b').style.width = Math.round(Math.max(0, Math.min(1, p)) * 100) + '%'; if (label) veil.querySelector('.wv-l').textContent = label; G.veilP = p; }
 function hideVeil() { const v = veil; veil = null; if (!v) return; v.classList.add('out'); setTimeout(() => v.remove(), 700); }
+function stageEntry() {
+  // The warning is shown just inside the trailhead, but the return barrier used to
+  // consider that same spot an exit. Move new arrivals a short distance up the trail
+  // under the entrance veil so the first step cannot immediately trigger RETURN.
+  const c = C(), P = c.P;
+  if (Math.hypot(P.pos.x - GATE.x, P.pos.z - GATE.z) < 24) {
+    P.pos.set(GATE.x, 0, GATE.z + 16);
+    P.vel.set(0, 0, 0);
+  }
+}
 async function proceed() {
   // inside the PROCEED tap: unlock Web Audio now (iOS), even if the module is still downloading
   if (mod) mod.unlockAudio(); else { try { const AC = window.__wildsAC = window.__wildsAC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume().catch(() => { }); } catch (e) { } }
+  stageEntry();
   { const c = C(), P = c.P; c.input.yp.yaw = Math.atan2(-(FC.x - P.pos.x), -(FC.z - P.pos.z)); }   // face into the forest
   if (loaded()) { mod.enter(); shrink('in'); return; }
   G.modal = 'loading'; G.state = 'loading'; showVeil(); veilProgress(.04, 'Following the trail…'); const t0 = performance.now(); note('load start');
@@ -181,7 +192,7 @@ function exitPrompt() {
 function barrier(P, explore) {   // runs before the forest's own frame, so "e > 1.03 -> leave" never fires while the barrier holds
   const prev = EX.prev; EX.prev = { x: P.pos.x, z: P.pos.z };
   if (!CFG.exitGate || EX.ok || !explore || !loaded() || !mod.inForest() || deepActive()) return;
-  const e = ell(P.pos.x, P.pos.z); if (e <= .985) return;
+  const e = ell(P.pos.x, P.pos.z); if (e <= 1.015) return;  // give the entrance a buffer; only prompt after walking back through the trailhead
   if (prev && Math.hypot(P.pos.x - prev.x, P.pos.z - prev.z) > 8) return;   // a teleport / respawn / fast travel: let it through
   const dx = P.pos.x - FC.x, dz = P.pos.z - FC.z; P.pos.x = FC.x + dx / e * .98; P.pos.z = FC.z + dz / e * .98; P.vel.x = 0; P.vel.z = 0; EX.prev = { x: P.pos.x, z: P.pos.z }; G.blocked = (G.blocked || 0) + 1;
   if (!G.modal && !(mod && mod.locked()) && performance.now() > EX.cool) exitPrompt();
@@ -339,7 +350,7 @@ function buildForestHorizon() {
     window.__peerRealm = (x, z) => { const c = C(), q = c.getMode() === 'explore' ? c.P.pos : c.C.position; return inDeepRealm(x, z) === inDeepRealm(q.x, q.z); };
     (window.__preRender = window.__preRender || []).push((dt, t) => { try { frame(dt, t); } catch (e) { if (!G.ferr) { G.ferr = String(e && e.stack || e).slice(0, 400); console.warn('wilds frame', e); } } });   // never let the forest break the city's render loop
     (window.__interactors = window.__interactors || []).push(p => loaded() ? mod.interactor(p) : null);
-    const prevLock = window.__exploreLock; window.__exploreLock = () => !!G.modal || (loaded() && mod.locked()) || (prevLock ? prevLock() : false);
+    const prevLock = window.__exploreLock; window.__exploreLock = () => !!G.modal || !!window.__wildsMapOpen || (loaded() && mod.locked()) || (prevLock ? prevLock() : false);
     addEventListener('keydown', e => { if (loaded()) mod.onKey(e); }, true);
     G.state = 'idle'; G.readyAt = performance.now();
   } catch (e) { G.err = String(e && e.stack || e).slice(0, 400); console.warn('wilds gate', e); }

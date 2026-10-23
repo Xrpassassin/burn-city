@@ -22,6 +22,7 @@ import { createWildsWanderAgent, updateWildsWanderAgent, disposeWildsWanderAgent
 import { validateWorldRoute } from './wilds-route-validation.mjs';
 import { getWildsGraphicsProfile, isWildsGraphicsProfile } from './wilds-graphics-profiles.mjs';
 import { drawGroundTexture } from './wilds-ground-materials.mjs';
+import { createWildsMap } from './wilds-map.js';
 import { getWildsAtmospherePreset, isWildsAtmospherePreset } from './wilds-atmosphere-presets.mjs';
 import { TEST, FC, RX, RZ, GATE, THRESH, CFG, ell, colorize, solid, jitter, M, canvasTex, signTex } from './wilds-gate.js';
 
@@ -371,8 +372,9 @@ const css = `
 function el(t, cls, html) { const e = document.createElement(t); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
 const esc = s => String(s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 function tag(text, cls) { const t = el('div', 'wltag ' + (cls || ''), text); document.body.append(t); return t; }
-let hud, qline, banner, toastEl, toastT;
+let hud, qline, banner, toastEl, toastT, mapUI = null;
 function buildDom() {
+  mapUI = createWildsMap();
   const st = el('style'); st.id = 'wlCss'; st.textContent = css; document.head.append(st);
   hud = el('div', null); hud.id = 'wlHud'; hud.setAttribute('role', 'button'); hud.setAttribute('aria-label', 'Open Wilds journal'); document.body.append(hud); hud.onclick = e => { e.stopPropagation(); openJournal(); };
   qline = el('div'); qline.id = 'wlQuest'; document.body.append(qline);
@@ -740,7 +742,9 @@ function travel(x, z, yaw) { const c = C(); if (c.getMode() !== 'explore') windo
 let lastT = performance.now(), hudT = 0, regenT = 0;
 const FOGC = new THREE.Color(), FDAY = new THREE.Color(.46, .54, .47), FNIGHT = new THREE.Color(.025, .05, .05);
 function frame_(dt, t) {
-  if (!W.ready) return; if (ZONE) return zoneFrame(dt, t); const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen, day = c.U && c.U.day ? c.U.day.value : 0;
+  if (!W.ready) return;
+  if (mapUI) { const mc = C(), mp = mc.P, me = mc.getMode() === 'explore' && !window.__burnTowerOpen && !W.modal && !W.enc && (W.inForest || !!ZONE); mapUI.update({ x: mp.pos.x, z: mp.pos.z, active: me, zone: ZONE ? 'glassroot' : 'fernway', mapData: ZONE && ZONE.map }); }
+  if (ZONE) return zoneFrame(dt, t); const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen, day = c.U && c.U.day ? c.U.day.value : 0;
   const gfx = getWildsGraphicsProfile(TEST ? graphicsPreset : 'balanced'), atmo = getWildsAtmospherePreset(TEST ? atmospherePresetName : 'balanced');
   UNI.uT.value = t; UNI.uPl.value.set(P.pos.x, P.pos.y, P.pos.z); UNI.uSway.value = gfx.sway; creekMat.uniforms.uT.value = t; creekMat.uniforms.uDay.value = day;
   const camD = Math.hypot((c.C.position.x - FC.x) / RX, (c.C.position.z - FC.z) / RZ); nearGroup.visible = camD < 1.6;
@@ -888,6 +892,7 @@ export function unload() {
   disposeMats();
   for (let i = c.colliders.length - 1; i >= 0; i--) if (c.colliders[i].wilds) c.colliders.splice(i, 1);
   OB.clear(); flames = []; beams = []; for (const m of MARKERS) { delete m.rune; delete m.beam; delete m.g; }
+  if (mapUI) { mapUI.dispose(); mapUI = null; }
   for (const e of [W.maraTag, hud, qline, banner, toastEl, W.test.pathUi, document.getElementById('wlCss'), ...document.querySelectorAll('.wlfloat,.wltag')]) if (e) e.remove();
   if (TEST) W.test.pathUi = null;
   W.maraTag = hud = qline = banner = toastEl = null; clearTimeout(toastT);

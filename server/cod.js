@@ -61,6 +61,59 @@ const CLASSIC = { name: 'The BURN Refinery', env: null,
   upper: { zone: 7, h: 3.6, atrium: [25, 38, 21, 30], walk: [[25, 38, 21, 22], [25, 38, 29, 30], [25, 26, 23, 28], [37, 38, 23, 28]], walls: [[24, 39, 20, 20], [24, 39, 31, 31], [24, 24, 20, 31], [39, 39, 20, 31]], void: [[27, 36, 23, 28]],
     ramps: [{ c: [29, 30], r: [23, 26], up: 'n' }, { c: [33, 34], r: [25, 28], up: 's' }],
     extra: [{ zone: 8, walk: [[16, 23, 21, 30]], walls: [[15, 24, 20, 20], [15, 24, 31, 31], [15, 15, 20, 31]] }] } };
+// ===== The Ashen Cosmodrome: fixed, handcrafted space-launch zombie map =====
+const COSMODROME = { name: 'The Ashen Cosmodrome', kind: 'cosmodrome', env: { tod: 'night', storm: true },
+  zones: [
+    { n: 'Service Yard', r: [15, 24, 24, 30], col: '#d6a36b' },
+    { n: 'Access Spine', r: [15, 26, 18, 23], col: '#d6a36b' },
+    { n: 'Barracks & Motor Pool', r: [3, 14, 18, 30], col: '#8e9aa6' },
+    { n: 'Containment Laboratory', r: [3, 14, 3, 17], col: '#62c7c8' },
+    { n: 'Launch Control', r: [15, 26, 3, 17], col: '#d7bd79' },
+    { n: 'Fuel & Turbine Hall', r: [27, 38, 3, 17], col: '#e47b48' },
+    { n: 'Launch Gantry', r: [27, 38, 18, 30], col: '#d6a36b' }
+  ],
+  obst: [
+    [17, 18, 26, 27, 1.5, 'crate'], [21, 22, 27, 28, 1.5, 'crate'],
+    [5, 6, 22, 23, 1.1, 'desk'], [10, 11, 25, 26, 1.1, 'desk'],
+    [5, 6, 5, 6, 2.2, 'tank'], [9, 10, 11, 12, 2.2, 'tank'], [6, 8, 14, 14, 2.8, 'pipe'],
+    [17, 18, 5, 6, 1.1, 'desk'], [22, 23, 12, 13, 1.1, 'desk'],
+    [29, 30, 5, 6, 2.6, 'furnace'], [35, 36, 5, 6, 2.6, 'furnace'],
+    [29, 30, 11, 12, 2.6, 'furnace'], [35, 36, 11, 12, 2.6, 'furnace'],
+    [29, 30, 21, 22, 3.6, 'support'], [36, 37, 21, 22, 3.6, 'support'], [33, 33, 25, 25, 1.0, 'support'],
+    [29, 30, 27, 28, 3.6, 'support'], [36, 37, 27, 28, 3.6, 'support'],
+    [32, 33, 22, 22, 1.1, 'rail'], [32, 33, 29, 29, 1.1, 'rail']
+  ],
+  doordef: [
+    [0, 1, [[19, 23], [20, 23]], 500],
+    [1, 2, [[14, 20], [14, 21]], 750],
+    [2, 3, [[8, 17], [9, 17]], 1000],
+    [3, 4, [[14, 8], [14, 9]], 1000],
+    [4, 5, [[26, 8], [26, 9]], 1250],
+    [1, 6, [[25, 20], [26, 20]], 1500],
+    [5, 6, [[32, 18], [33, 18]], 1250]
+  ],
+  // Wall cells plus outward direction; zombie entry points remain authored and repeatable.
+  windef: [
+    [18, 31, 0, 1], [21, 31, 0, 1],
+    [2, 23, -1, 0], [2, 28, -1, 0],
+    [6, 2, 0, -1], [10, 2, 0, -1],
+    [39, 5, 1, 0], [39, 12, 1, 0],
+    [32, 31, 0, 1], [36, 31, 0, 1]
+  ],
+  wallbuys: [
+    { w: 'shotgun', cost: 500, s: [16, 25, -1, 0] },
+    { w: 'dragon', cost: 1000, s: [14, 22, 0, -1] },
+    { w: 'napalm', cost: 1500, s: [38, 25, 1, 0] }
+  ],
+  box: [[19, 28, 0, 1], [7, 25, -1, 0], [20, 5, 0, -1], [35, 25, 1, 0], [8, 7, -1, 0], [30, 12, 1, 0]],
+  forge: [35, 5, 0, -1], power: [23, 8, 1, 0],
+  perks: {
+    jug: [4, 29, -1, 0], quick: [25, 16, 0, -1], speed: [37, 28, 1, 0],
+    revive: [18, 26, 0, 1], dbl: [37, 4, 1, 0], slag: [4, 10, -1, 0],
+    burn: [30, 15, 1, 0], valve: [24, 22, 0, -1], leech: [17, 5, -1, 0]
+  },
+  quest: null
+};
 if (process.env.ZOMBIE_TEST_PROPS && !process.env.FLY_APP_NAME) { CLASSIC.box.push([17, 22, 1, 0]); CLASSIC.forge = [22, 22, 1, 0]; }   // local screenshot runs only
 const FORGE_COST = +process.env.ZOMBIE_FORGE_COST || 5000;
 function build(def, kind) {
@@ -90,12 +143,13 @@ function build(def, kind) {
     PERKS: PERK_KEYS.map(k => ({ k, ...PERKINFO[k], ...P(def.perks[k]) })) };
 }
 const CLASSIC_M = build(CLASSIC, 'classic');
+const COSMODROME_M = build(COSMODROME, 'cosmodrome');   // built after FORGE_COST/build are initialised (was a TDZ crash at require time)
 let M, GRID, SEE, DOORS, WINDOWS, ZONES, OBST, WALLBUYS, BOX_SPOTS, FORGE, POWER, PERKS, UPG, UPSEE, UH, RAMPAT, RAMPS, ATR;
 function use_(m) { M = m; ({ GRID, SEE, DOORS, WINDOWS, ZONES, OBST, WALLBUYS, BOX_SPOTS, FORGE, POWER, PERKS, UPG, UPSEE, UH, RAMPAT, RAMPS, ATR } = m); }
 use_(CLASSIC_M);
 // ranked + daily rooms always play the classic Refinery (same layout for everyone on a leaderboard); free play gets a new map per match
 const wantsClassic = room => !!(room.ranked || room.daily || process.env.ZOMBIE_CLASSIC === '1');
-function newMap(room) { if (wantsClassic(room)) return CLASSIC_M; const d = MapGen.gen(room.seedT != null && !process.env.FLY_APP_NAME ? room.seedT : (Math.random() * 2 ** 31) | 0); return d ? build(d, 'proc') : CLASSIC_M; }
+function newMap(room) { if (wantsClassic(room)) return CLASSIC_M; if (room.mapId === 'cosmodrome' || (process.env.ZOMBIE_MAP === 'cosmodrome' && !process.env.FLY_APP_NAME)) return COSMODROME_M; const d = MapGen.gen(room.seedT != null && !process.env.FLY_APP_NAME ? room.seedT : (Math.random() * 2 ** 31) | 0); return d ? build(d, 'proc') : CLASSIC_M; }
 // every entry point that touches the map binds the room's own layout first (rooms run one at a time, so a module-level binding is safe)
 function bind(room) { if (!room) return use_(CLASSIC_M); if (!room.M || (wantsClassic(room) && room.M.kind !== 'classic')) { resetMap(room); return; } if (M !== room.M) use_(room.M); }
 // lv = which floor (0 ground, 1 upper). Maps without an upper level ignore it, so procedural maps behave exactly as before.

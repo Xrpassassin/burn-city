@@ -23,11 +23,12 @@ Make Homefront a playable, optional, unranked Zombies survival experience withou
 7. Infected pursuit now advances on authoritative movement and world refresh. It is bounded and discrete; it is not yet continuous real-time replication or collision-aware pathfinding.
 9. Attacks now spend 8 field stamina and deal reduced damage below 35 stamina, with a stronger penalty below 15. The API returns updated vitals and the combat HUD displays fatigue feedback. Combat is still tactical, not a finished real-time third-person controller.
 8. Field survival now tracks health, hunger, thirst, stamina, and infection pressure. Needs decay only while active in the Graveyard; movement spends stamina; eating, drinking, bandaging, and catching breath are server-authoritative actions. Clean water is a refuge resource and has a legacy-save migration.
+9. Physical supply crates can roll raw food and dirty water. Field actions cook one raw food into one carried ration or purify one dirty water into clean water, each consuming one carried wood. These recipes are server-authoritative; invalid ingredients, missing fuel, and full-pack output are rejected. Stashing converts leftover raw food/dirty water into refuge food/water stores.
 
 ## Required playability work
 
 ### P0 — smoke-test and close integration gaps
-- Run `npm run test:homefront` and the airport/registry checks below against the exact PR head; survival unit and API integration coverage has been added but is not yet verified by a fresh CI run.
+- Run `npm run test:homefront` and the airport/registry checks below against the exact PR head; cooking, purification, inventory conversion, and survival API regression tests were added and must pass in fresh CI.
 - Verify refuge create/load/save, construction, survivor assignment/work, weapon crafting/equipping, and progression survive reloads.
 - Verify enter/leave Graveyard, click-to-move, solo spawn distribution, party create/join/leader movement, rescue/cache cooldowns, boss damage, and combat ammo/rewards.
 - Verify invalid/expired encounters, insufficient ammo, cooldown, range failure, survival actions without supplies, and unauthenticated calls return clean client errors rather than server errors.

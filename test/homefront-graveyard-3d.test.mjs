@@ -282,3 +282,7 @@ assert.match(homefrontPage, /quarry:0x777a7d,smelter:0x8a4931,salvage_yard:0x777
 
 assert.match(homefrontPage, /Repair · 1 stone \+ 1 scrap/, 'stone structures display their matching repair material cost');
 assert.match(homefrontPage, /Repair · 1 steel \+ 2 scrap/, 'steel structures display their matching repair material cost');
+
+
+assert.match(homefrontPage, /Emergency repair · '\+emergencyText\+' · \+100 HP/, 'emergency repair controls show tier-appropriate materials');
+assert.match(homefrontPage, /priorityMaterial==='steel'\?'2 steel \+ 4 scrap'/, 'live breach alert uses the same steel repair cost');

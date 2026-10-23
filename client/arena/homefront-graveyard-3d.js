@@ -453,12 +453,13 @@ function boot(host) {
     pointer.y = -(e.clientY - rect.top) / rect.height * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
     const combatHits = raycaster.intersectObject(combatGroup, true);
-    if (combatHits.length) {
-      let target = combatHits[0].object;
+    const combatHit = combatHits.find(hit => hit.object.userData?.combatHitbox);
+    if (combatHit) {
+      let target = combatHit.object;
       while (target && !target.userData?.encounterId) target = target.parent;
       if (target?.userData?.encounterId) {
         selectedCombatTargetId = target.userData.encounterId;
-        const hit = combatHits[0].point;
+        const hit = combatHit.point;
         selectedCombatAimPoint = { x: hit.x, y: hit.y, z: hit.z };
         const active = worldData?.selfEncounter || worldData?.encounter || null;
         if (combatStatus) combatStatus.textContent = active?.id === selectedCombatTargetId

@@ -107,20 +107,21 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       if (s.resources.food < 2 || s.resources.ammo < 1) throw new Error('expedition_supplies_required');
       if (s.survivors.length >= MAX_SURVIVORS) throw new Error('survivor_capacity');
-      s.resources.food -= 2; s.resources.ammo -= 1;
-      const n = ++s.expeditionCount, roll = rand(hash(s.owner + ':' + n + ':' + s.revision));
-      const scrap = 3 + Math.floor(roll * 8), wood = 2 + Math.floor(rand(hash('wood:' + s.owner + n)) * 7);
-      s.resources.scrap = Math.min(999999, s.resources.scrap + scrap);
-      s.resources.wood = Math.min(999999, s.resources.wood + wood);
+      const zones = { outskirts: { label: 'City Outskirts', risk: 1, food: 2, ammo: 1, scrap: 3, wood: 2, meds: 0, recruit: 0.44 }, residential: { label: 'Residential Ruins', risk: 1, food: 3, ammo: 1, scrap: 5, wood: 2, meds: 0, recruit: 0.5 }, commercial: { label: 'Market District', risk: 2, food: 3, ammo: 2, scrap: 8, wood: 1, meds: 1, recruit: 0.38 }, hospital: { label: 'Overrun Hospital', risk: 3, food: 4, ammo: 3, scrap: 5, wood: 1, meds: 3, recruit: 0.32 }, industrial: { label: 'Industrial Yard', risk: 3, food: 4, ammo: 3, scrap: 12, wood: 2, meds: 0, recruit: 0.24 }, subway: { label: 'Buried Subway', risk: 4, food: 5, ammo: 4, scrap: 10, wood: 1, meds: 2, recruit: 0.28 }, research_lab: { label: 'Sealed Research Annex', risk: 5, food: 6, ammo: 5, scrap: 16, wood: 1, meds: 4, recruit: 0.2 } };
+      const zoneId = typeof action.zone === 'string' ? action.zone : 'outskirts';
+      const zone = zones[zoneId];
+      if (!zone) throw new Error('unknown_exploration_zone');
+      const gate = { outskirts: 0, residential: 1, commercial: 2, hospital: 3, industrial: 3, subway: 4, research_lab: 5 }[zoneId];
+      if (s.expeditionCount < gate) throw new Error('zone_not_discovered');
+      pay(s, { food: zone.food, ammo: zone.ammo });
+      const n = ++s.expeditionCount, seed = hash(s.owner + ':' + n + ':' + zoneId + ':' + s.revision), roll = rand(seed);
+      const scrap = zone.scrap + Math.floor(rand(hash('scrap:' + seed)) * 5), wood = zone.wood + Math.floor(rand(hash('wood:' + seed)) * 4);
+      s.resources.scrap = Math.min(999999, s.resources.scrap + scrap); s.resources.wood = Math.min(999999, s.resources.wood + wood);
+      if (zone.meds) s.resources.meds = Math.min(999999, s.resources.meds + zone.meds);
       let found = false;
-      if (roll > 0.56 && s.survivors.length < MAX_SURVIVORS) {
-        const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol'];
-        const id = 's' + n;
-        s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: 65 });
-        found = true;
-      }
-      if (roll < 0.12) { s.resources.meds = Math.min(999999, s.resources.meds + 2); }
-      record(s, 'expedition', 'Expedition returned with ' + wood + ' wood and ' + scrap + ' scrap' + (found ? ', plus a survivor.' : '.'), now);
+      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4) }); found = true; }
+      const result = 'Explored ' + zone.label + ': recovered ' + wood + ' wood and ' + scrap + ' scrap' + (zone.meds ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
+      record(s, 'exploration', result, now);
       break;
     }
     case 'assign': {

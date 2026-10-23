@@ -389,7 +389,7 @@ function boot(host) {
         const self = worldData?.self || null;
         const distance = active && self ? Math.hypot(self.x - active.x, self.z - active.z) : Infinity;
         attackInfectedButton.disabled = !active || active.defeated || active.hp <= 0 || distance > (active.range || 0);
-        if (autoFireButton) autoFireButton.disabled = !autoFireHeld && (!active || selectedCombatTargetId !== active.id || active.defeated || active.hp <= 0 || distance > (active.range || 0));
+        if (autoFireButton) autoFireButton.disabled = !active || selectedCombatTargetId !== active.id || active.defeated || active.hp <= 0 || distance > (active.range || 0);
       }
     }
   }
@@ -420,7 +420,9 @@ function boot(host) {
   const fireLoop = async () => {
     if (!autoFireHeld || moving) return;
     const active = worldData?.selfEncounter || worldData?.encounter || null;
-    if (!active || selectedCombatTargetId !== active.id) { stopAutoFire(); if (combatStatus) combatStatus.textContent = 'Autofire stopped: select your active infected target.'; return; }
+    const self = worldData?.self || null;
+    const distance = active && self ? Math.hypot(self.x - active.x, self.z - active.z) : Infinity;
+    if (!active || active.defeated || active.hp <= 0 || selectedCombatTargetId !== active.id || distance > (active.range || 0)) { stopAutoFire(); if (combatStatus) combatStatus.textContent = 'Autofire stopped: target defeated, out of range, or no longer selected.'; return; }
     await combatAction('attack', selectedCombatTargetId);
     if (!autoFireHeld) return;
     const delay = equippedWeaponId === 'marksman_rifle' ? 1350 : equippedWeaponId === 'pump_shotgun' ? 1150 : equippedWeaponId === 'shock_maul' || equippedWeaponId === 'pipe_blade' ? 950 : 1000;

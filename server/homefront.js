@@ -213,7 +213,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             const found=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
             if(found){const packed=Inventory.add(carried,id,found);carried[id]=packed.inventory[id];nextBase.resources[id]=Math.max(0,(nextBase.resources[id]||0)-packed.accepted);}
           }
-          nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;player.inventory=carried;
+          nextBase.resources.food=base.resources.food;player.inventory=carried;
           nextBase.embers = Math.min(999999999, nextBase.embers + embers);
           nextBase.log.push({ id: (nextBase.log.at(-1)?.id || 0) + 1, kind: 'cache', text: 'Opened ' + nearest.point.label + ' on ' + spec.label + ': bonus cache yielded ' + scrap + ' scrap, ' + wood + ' wood, ' + ammo + ' ammunition, ' + meds + ' medicine, and ' + embers + ' Embers. The shared cache will replenish in five minutes.', at: now });
           nextBase.log = nextBase.log.slice(-20);

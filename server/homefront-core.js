@@ -46,6 +46,10 @@ function validateBase(input, ownerId) {
   const out = clone(input);
   for (const r of ['wood', 'scrap', 'food', 'meds', 'ammo']) out.resources[r] = clampInt(out.resources[r], 0, 999999);
   out.embers = clampInt(out.embers, 0, 999999999);
+  out.exploration = out.exploration && typeof out.exploration === 'object' ? out.exploration : {};
+  out.exploration.discoveredZones = Array.isArray(out.exploration.discoveredZones) ? [...new Set(out.exploration.discoveredZones.filter(z => typeof z === 'string' && EXPLORATION_ZONES[z]))] : ['outskirts'];
+  if (!out.exploration.discoveredZones.includes('outskirts')) out.exploration.discoveredZones.unshift('outskirts');
+  out.exploration.lastExpedition = out.exploration.lastExpedition && typeof out.exploration.lastExpedition === 'object' ? out.exploration.lastExpedition : null;
   out.upgrades = out.upgrades && typeof out.upgrades === 'object' ? out.upgrades : {};
   for (const [id, spec] of Object.entries(TYCOON_UPGRADES)) out.upgrades[id] = clampInt(out.upgrades[id], 0, spec.max);
   out.visibility = input.visibility === 'public' ? 'public' : 'private';
@@ -107,16 +111,24 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (!difficulty) throw new Error('unknown_difficulty');
       const zone = zones[zoneId];
       if (!zone) throw new Error('unknown_exploration_zone');
-      const gate = { outskirts: 0, residential: 1, commercial: 2, hospital: 3, industrial: 3, subway: 4, research_lab: 5 }[zoneId];
-      if (s.expeditionCount < gate) throw new Error('zone_not_discovered');
-      pay(s, { food: zone.food, ammo: zone.ammo });
-      const n = ++s.expeditionCount, seed = hash(s.owner + ':' + n + ':' + zoneId + ':' + s.revision), roll = rand(seed);
-      const scrap = zone.scrap + Math.floor(rand(hash('scrap:' + seed)) * 5), wood = zone.wood + Math.floor(rand(hash('wood:' + seed)) * 4);
+      // The shared-map API enforces physical proximity to this site. Do not gate districts by completed expeditions or round counters.
+      const cost = { food: Math.max(1, Math.ceil(zone.food * difficulty.cost)), ammo: Math.max(1, Math.ceil(zone.ammo * difficulty.cost)) };
+      pay(s, cost);
+      const n = ++s.expeditionCount, seed = hash(s.owner + ':' + n + ':' + zoneId + ':' + difficultyId + ':' + s.revision), roll = rand(seed);
+      const lootMultiplier = difficulty.reward * (1 + (s.upgrades.scavenger_rig || 0) * 0.15);
+      const scrap = Math.floor(zone.scrap * lootMultiplier) + Math.floor(rand(hash('scrap:' + seed)) * 5), wood = Math.floor(zone.wood * lootMultiplier) + Math.floor(rand(hash('wood:' + seed)) * 4);
+      const firstVisit = !s.exploration.discoveredZones.includes(zoneId);
+      if (firstVisit) s.exploration.discoveredZones.push(zoneId);
+      s.exploration.lastExpedition = { zone: zoneId, difficulty: difficultyId, risk: zone.risk, at: now, firstVisit };
       s.resources.scrap = Math.min(999999, s.resources.scrap + scrap); s.resources.wood = Math.min(999999, s.resources.wood + wood);
+      const discoveryScrap = firstVisit ? zone.risk * 3 : 0;
+      const discoveryEmbers = firstVisit ? 10 + zone.risk * 5 : 0;
+      if (discoveryScrap) s.resources.scrap = Math.min(999999, s.resources.scrap + discoveryScrap);
       const medicine = Math.floor(zone.meds * difficulty.reward) + (zone.meds > 0 ? (s.upgrades.medic_station || 0) : 0);
       if (medicine) s.resources.meds = Math.min(999999, s.resources.meds + medicine);
       const embersEarned = Math.max(1, Math.floor((8 + zone.risk * 7) * difficulty.reward) + (s.upgrades.ember_press || 0) * 5);
-      s.embers = Math.min(999999999, s.embers + embersEarned);
+      const totalEmbers = embersEarned + discoveryEmbers;
+      s.embers = Math.min(999999999, s.embers + totalEmbers);
       // A location- and difficulty-aware Director varies expedition pressure without escalating rounds.
       const directorRoll = rand(hash('director:' + seed));
       const pressure = zone.risk * difficulty.threat;
@@ -137,7 +149,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       let found = false;
       if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4) }); found = true; }
       const eventText = directorEvent === 'special_infected' ? ' A special infected ambushed the team; ammunition was spent and a survivor was shaken.' : directorEvent === 'infected_horde' ? ' An infected horde hit the team; ammunition was spent and morale suffered.' : directorEvent === 'wandering_infected' ? ' Wandering infected were spotted nearby, but the team avoided a full ambush.' : ' The district was quiet enough to search thoroughly.';
-      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + scrap + ' scrap, and ' + embersEarned + ' embers' + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + eventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
+      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + (scrap + discoveryScrap) + ' scrap, and ' + totalEmbers + ' embers' + (firstVisit ? ' including a first-visit survey bonus' : '') + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + eventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
       record(s, 'exploration', result, now);
       break;
     }

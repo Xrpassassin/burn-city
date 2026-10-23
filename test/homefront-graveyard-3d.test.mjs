@@ -19,6 +19,11 @@ assert.match(scene, /const environmentVisuals = new Map\(\)/, 'index rendered en
 assert.match(scene, /registerEnvironmentVisual\('building:' \+ x \+ ',' \+ z, structure\)/, 'group building meshes so server-confirmed destruction removes the whole structure');
 assert.match(scene, /registerEnvironmentVisual\(prefix \+ ':' \+ cell\[0\] \+ ',' \+ cell\[1\], g\)/, 'map destructible environmental props to the server collision catalog');
 assert.match(scene, /applyEnvironmentStateSnapshot\(data\.world\?\.environmentStructures\)/, 'replicate server-owned structure health and stages into the renderer');
+assert.match(scene, /environment\/damage/, 'send structure damage requests through the authoritative Homefront API');
+assert.match(scene, /JSON\.stringify\(\{ structureId: selectedEnvironmentId \}\)/, 'submit only the selected stable structure ID for server validation');
+assert.match(scene, /raycaster\.intersectObjects\(\[\.\.\.environmentVisuals\.values\(\)\]/, 'allow players to select physical structures in the 3D world');
+assert.match(page, /id="damageEnvironment"/, 'expose a nearby structure interaction control');
+
 assert.match(scene, /group\.visible = !destroyed/, 'hide structures only when authoritative state says collision is destroyed');
 assert.match(scene, /state\.stage === 'critical'/, 'render progressive visual damage stages without changing gameplay authority');
 assert.match(scene, /from '\.\/vendor\/three\.module\.min\.js'/, 'reuse the vendored Three.js runtime');

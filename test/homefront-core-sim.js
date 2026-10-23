@@ -38,6 +38,18 @@ expedition = H.applyAction(expedition, 'acct-a', { type: 'build', building: 'gar
 const beforeFood = expedition.resources.food;
 expedition = H.applyAction(expedition, 'acct-a', { type: 'workday' });
 assert.ok(expedition.resources.food >= beforeFood - 1, 'farmer and garden contribute food after upkeep');
+// Storage sheds improve scavenger output; destroyed sheds do not contribute.
+const scavengerBase = H.createBase('scavenger-test', 2100);
+scavengerBase.resources.food = 100;
+scavengerBase.survivors = [{ id: 's1', name: 'Rook', role: 'scavenger', morale: 60 }];
+const scavengerPlain = H.applyAction(scavengerBase, 'scavenger-test', { type: 'workday' });
+const scavengerWithStorage = { ...scavengerBase, structures: [{ id: 'b1', type: 'storage', hp: 100, maxHp: 100, x: 4, z: 4 }] };
+const scavengerStored = H.applyAction(scavengerWithStorage, 'scavenger-test', { type: 'workday' });
+assert.ok(scavengerStored.resources.scrap > scavengerPlain.resources.scrap, 'an intact storage shed boosts scavenger scrap output');
+const scavengerWithBrokenStorage = { ...scavengerBase, structures: [{ id: 'b1', type: 'storage', hp: 0, maxHp: 100, x: 4, z: 4 }] };
+const scavengerBroken = H.applyAction(scavengerWithBrokenStorage, 'scavenger-test', { type: 'workday' });
+assert.equal(scavengerBroken.resources.scrap, scavengerPlain.resources.scrap, 'destroyed storage gives no scavenging bonus');
+
 // Morale changes actual production, so survivor care has a gameplay consequence.
 const rested = H.createBase('rested', 2000);
 rested.resources.food = 100;

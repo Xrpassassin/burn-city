@@ -4,7 +4,7 @@ import * as THREE from './vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
-import { environmentalCandidates } from './homefront-world-generation.mjs';
+import { biomeAt, environmentalCandidates } from './homefront-world-generation.mjs';
 import { sfx } from './sfx.js';
 
 const host = document.getElementById('graveyard3d');
@@ -29,8 +29,24 @@ function boot(host) {
   const moon = new THREE.DirectionalLight(0xffc18a, 1.4);
   moon.position.set(-50, 100, 35); scene.add(moon);
 
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x252824, roughness: 1 });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(204, 204), groundMat);
+  // Color the continuous ground from the same seeded biome sampler as environmental dressing.
+  // Elevation remains intentionally flat until movement, hit-testing, and server validation share terrain heights.
+  const groundGeometry = new THREE.PlaneGeometry(204, 204, 96, 96);
+  const groundPositions = groundGeometry.attributes.position;
+  const groundColors = new Float32Array(groundPositions.count * 3);
+  const groundColor = new THREE.Color();
+  for (let i = 0; i < groundPositions.count; i++) {
+    const biome = biomeAt(groundPositions.getX(i), -groundPositions.getY(i));
+    groundColor.setHex(biome.ground);
+    // Tiny seeded-looking tonal drift from biome fields avoids a completely flat painted appearance.
+    const drift = (biome.moisture - 0.5) * 0.045 + (biome.urban - 0.5) * 0.025;
+    groundColors[i * 3] = Math.max(0, Math.min(1, groundColor.r + drift));
+    groundColors[i * 3 + 1] = Math.max(0, Math.min(1, groundColor.g + drift));
+    groundColors[i * 3 + 2] = Math.max(0, Math.min(1, groundColor.b + drift));
+  }
+  groundGeometry.setAttribute('color', new THREE.BufferAttribute(groundColors, 3));
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 1 });
+  const ground = new THREE.Mesh(groundGeometry, groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.12; scene.add(ground);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();

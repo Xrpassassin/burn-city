@@ -52,6 +52,16 @@ async function call(method, pathname, acct, payload = {}) {
   const aReload = await call('GET', '/api/homefront', 'acct-a');
   assert.equal(aReload.data.base.structures.length, 1, 'account base survives a subsequent load');
   assert.equal(aReload.data.base.revision, a1.data.base.revision);
+  const revisionBeforeConcurrent = aReload.data.base.revision;
+  const concurrent = await Promise.all([
+    call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'expedition' } }),
+    call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'expedition' } })
+  ]);
+  assert.ok(concurrent.every(x => x.status === 200), 'concurrent valid actions should both succeed');
+  const afterConcurrent = await call('GET', '/api/homefront', 'acct-a');
+  assert.equal(afterConcurrent.data.base.revision, revisionBeforeConcurrent + 2, 'concurrent actions must not overwrite each other');
+  assert.equal(afterConcurrent.data.base.resources.food, 20, 'both expedition costs must be saved');
+
   const malformed = await call('POST', '/api/homefront/action', 'acct-a', { action: [] });
   assert.equal(malformed.status, 400);
   console.log('Homefront authenticated save API simulation passed.');

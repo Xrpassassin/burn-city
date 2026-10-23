@@ -87,3 +87,9 @@ Homefront is ready for Hark's playable review when the full Homefront test scrip
 - `test/homefront-assets.test.mjs` includes source-level regression assertions for these contextual action gates.
 - This is a usability guard, not a security boundary: the server remains authoritative for inventory, ingredient consumption, and action validation.
 - Verification note: the previous Homefront core, airport flight, and Blacktide workflows passed on `a2a0dacafc995d2bfa1ed4c3dadae969f91db66e`. The GitHub connector has not yet surfaced workflow runs/status checks for the latest UI/test commits, so those commits must not be described as CI-verified. Desktop/mobile browser QA remains outstanding.
+
+### Infected presentation smoothing (2026-10-23)
+- The 3D renderer now retains each active server-owned infected actor between world snapshots and interpolates its displayed position toward the latest authoritative coordinates, instead of destroying and rebuilding the enemy every refresh.
+- Infected actors turn toward their latest movement vector; confirmed HP changes trigger a brief visual damage flash and refresh the HP label. When an encounter disappears from the authoritative snapshot, its visual actor is disposed.
+- This improves visual continuity only. It does not invent client-side enemy movement, damage, targeting, or hit outcomes; the server still owns encounter coordinates and combat results. Snapshot cadence and the tactical click-to-move controller remain limitations.
+- Source-level regression assertions were added to `test/homefront-graveyard-3d.test.mjs`; full test execution and browser QA are still required.

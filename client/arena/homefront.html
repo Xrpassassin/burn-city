@@ -32,7 +32,8 @@ import { signIn } from './net.js';
 const API = new URLSearchParams(location.search).get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
 const $ = id => document.getElementById(id);
 let base = null, busy = false, pendingBuilding = null;
-let scene, camera, renderer, ground, structureGroup, survivorGroup, zombieGroup, perimeterGroup, campfireGroup, raycaster, pointer, worldReady = false;\nconst assetModels = {}, survivorMixers = []; let survivorAssetActive = false;
+let scene, camera, renderer, ground, structureGroup, survivorGroup, zombieGroup, perimeterGroup, campfireGroup, raycaster, pointer, worldReady = false;
+const assetModels = {}, survivorMixers = []; let survivorAssetActive = false;
 const BUILDINGS = [
  ['wall','🧱 Wall','8 wood · 2 scrap','Basic perimeter defense'],
  ['gate','🚪 Reinforced gate','12 wood · 8 scrap','Stronger breach point'],

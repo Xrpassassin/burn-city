@@ -70,6 +70,14 @@ export function createZombieFX(scene, { low = false } = {}) {
     { s: 1.9, skin: [0x3c3a40, 0x45403a], eye: 0xff2010, speed: 0.55 }, { s: 1.0, skin: [0xb8b49a, 0xa8a890], eye: 0x9aff40, speed: 1.75 }, { s: 0.62, skin: [0x4a5a78, 0x3e4e66], eye: 0x40e8ff, speed: 1.55 }];   // 3 Juggernaut, 4 Lope (runs on its arms), 5 Skitter
   const CLOTH = [0x5a3a2a, 0x2f3d55, 0x6a6a6a, 0x7a2a22, 0x3e4a2e, 0x8a7a5a, 0x40304a], PANTS = [0x2a2a33, 0x3a3226, 0x23324a, 0x4a3a2a];
   const zs = new Map(), dying = [];   // id -> {x,z,yaw,ph,var,heat}
+  // Animated model pilot is strictly opt-in; normal play stays on the procedural, instanced renderer.
+  let zombieModelPilot = null;
+  if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('zombieModels') === '1') {
+    import('./zombie-model-pilot.mjs')
+      .then(({ createZombieModelPilot }) => createZombieModelPilot(scene))
+      .then(pilot => { zombieModelPilot = pilot; })
+      .catch(() => { zombieModelPilot = null; }); // Missing/invalid assets fall back without breaking Zombies.
+  }
   const hit = new THREE.Color(0xffd0a0), burnC = new THREE.Color(0xff5a10), charC = new THREE.Color(0x1a1410), tmp = new THREE.Color(), tmp2 = new THREE.Color(), tmp3 = new THREE.Color(), tmp4 = new THREE.Color();
   const HID = 0.0001;
   function drawZ(i, z, t, fade, burning) {
@@ -241,7 +249,7 @@ export function createZombieFX(scene, { low = false } = {}) {
       if (e.w === 'napalm' && e.ray) { const x0 = isMe ? meX : e.x, z0 = isMe ? meZ : e.z, ty = e.ty ?? sy; rays.push({ x0, z0, x1: e.tx, z1: e.tz, y0: mzY != null ? mzY - 1.2 : sy, y1: ty, t: 0.2, mz: mzY != null }); burst(e.tx, 1.1 + ty, e.tz, -fx * 0.2, -fz * 0.2, low ? 8 : 16, WP[1] || pr); return; }
       if (e.w === 'napalm' && blobs.length < NB) blobs.push({ x0: isMe ? meX : e.x, z0: isMe ? meZ : e.z, x1: e.tx, z1: e.tz, t: 0 }); },
     zdie(e) { const z = zs.get(e.id); if (z) { dying.push({ ...z, fade: 0 }); zs.delete(e.id); } },
-    clear() { fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
+    clear() { zombieModelPilot?.clear(); fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
     // st: interpolated state; me: predicted self {x,z,yaw,firing}; colorOf(id) -> THREE.Color
     update(dt, st, me, myId, colorOf, flameCol, nftOf, srv) {
       t += dt; const seen = new Set(); nb = 0;
@@ -252,7 +260,16 @@ export function createZombieFX(scene, { low = false } = {}) {
         z.x = s.x; z.z = s.z; z.y = s.y || 0; z.ph += dt * (d / Math.max(dt, 1e-3) * 1.6 * (TY[s.ty]?.speed ? 1 : 1) + 1.5) * 0.9 / (TY[s.ty]?.s || 1); z.ty = s.ty; z.cr = s.cr; z.ch = s.ch;
         if (s.burn && !z.burnT) { z.flash = 1; z.fl = 1; } z.burnT = s.burn ? 0.4 : Math.max(0, z.burnT - dt); z.flash = Math.max(0, z.flash - dt * 5); z.fl = Math.max(0, (z.fl || 0) - dt * 6); }
       for (const id of zs.keys()) if (!seen.has(id)) { const z = zs.get(id); dying.push({ ...z, fade: 0 }); zs.delete(id); }
-      let i = 0; for (const z of zs.values()) { if (i >= MAXZ) break; drawZ(i++, z, t, undefined, z.burnT > 0); }
+      const modeled = zombieModelPilot?.update([...zs.values()], dt, me) || new Set();
+      let i = 0; for (const z of zs.values()) {
+        if (i >= MAXZ) break;
+        if (modeled.has(z.id)) {
+          // Keep instance slots aligned while hiding the procedural copy beneath the animated model.
+          for (const mesh of Object.values(Z)) put(mesh, i, z.x, 0, z.z, 0, HID, 0, 0, 0);
+          for (const mesh of Object.values(arms2)) put(mesh, i, z.x, 0, z.z, 0, HID, 0, 0, 0);
+        } else drawZ(i, z, t, undefined, z.burnT > 0);
+        i++;
+      }
       for (let k = dying.length - 1; k >= 0; k--) { const z = dying[k]; z.fade += dt * 0.8; z.fl = 0; if (z.fade >= 1) { dying.splice(k, 1); continue; } if (i < MAXZ) drawZ(i++, z, t, z.fade, z.fade < 0.5); }
       done(Z, i); done(arms2, i);
       // other players

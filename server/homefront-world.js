@@ -217,8 +217,8 @@ function move(input, acct, x, z, now = Date.now()) {
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {
       const offset = (hash(member) % 7) - 3;
-      w.players[member].x = clamp(p.x + offset, -WORLD_SIZE, WORLD_SIZE);
-      w.players[member].z = clamp(p.z + (hash(member + 'z') % 7) - 3, -WORLD_SIZE, WORLD_SIZE);
+      const follower = findSafePosition(clamp(p.x + offset, -WORLD_SIZE, WORLD_SIZE), clamp(p.z + (hash(member + 'z') % 7) - 3, -WORLD_SIZE, WORLD_SIZE)) || { x: p.x, z: p.z };
+      w.players[member].x = follower.x; w.players[member].z = follower.z;
       w.players[member].lastSeen = now;
     }
   }

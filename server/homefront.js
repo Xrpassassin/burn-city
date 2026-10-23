@@ -262,7 +262,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     return true;
   } catch (e) {
     const message = String(e?.message || 'homefront_error');
-    const clientError = /^(invalid_|unknown_|insufficient_|placement_|building_cap|structure_limit|survivor_capacity|guard_capacity|expedition_supplies_required|base_destroyed|not_enough_food|repair_supplies_required|already_repaired|upgrade_maxed|resource_capacity|use_shared_expedition_map)/.test(message);
+    const clientError = /^(invalid_|unknown_|insufficient_|cosmetic_|placement_|building_cap|structure_limit|survivor_capacity|guard_capacity|expedition_supplies_required|base_destroyed|not_enough_food|repair_supplies_required|already_repaired|upgrade_maxed|resource_capacity|use_shared_expedition_map)/.test(message);
     json(res, clientError ? 400 : 500, { error: message });
     if (!clientError) console.error('[homefront]', message);
     return true;

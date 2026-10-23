@@ -73,8 +73,23 @@ function buildObstacles() {
   return out;
 }
 const OBSTACLES = buildObstacles();
+// Uniform spatial hash over the static obstacle catalog. Each obstacle is filed in every cell its
+// footprint (+ GRID_MARGIN) touches, so a query with radius <= GRID_MARGIN only needs its own cell;
+// larger radii fall back to the full scan. Results are identical to the brute-force loop.
+const GRID_CELL = 6, GRID_MARGIN = 1.5, EMPTY = Object.freeze([]);
+const GRID = new Map();
+for (const o of OBSTACLES) {
+  const hx = (o.type === 'rect' ? o.halfX : o.radius) + GRID_MARGIN, hz = (o.type === 'rect' ? o.halfZ : o.radius) + GRID_MARGIN;
+  for (let cx = Math.floor((o.x - hx) / GRID_CELL); cx <= Math.floor((o.x + hx) / GRID_CELL); cx++)
+    for (let cz = Math.floor((o.z - hz) / GRID_CELL); cz <= Math.floor((o.z + hz) / GRID_CELL); cz++) {
+      const k = cx + ',' + cz; let cell = GRID.get(k); if (!cell) GRID.set(k, cell = []); cell.push(o);
+    }
+}
+function candidatesAt(x, z, radius) {
+  return radius <= GRID_MARGIN ? (GRID.get(Math.floor(x / GRID_CELL) + ',' + Math.floor(z / GRID_CELL)) || EMPTY) : OBSTACLES;
+}
 function pointBlocked(x, z, radius = PLAYER_RADIUS, removedObstacleIds = []) {
-  for (const o of OBSTACLES) {
+  for (const o of candidatesAt(x, z, radius)) {
     if (removedObstacleIds.includes(o.id)) continue;
     if (Math.abs(x - o.x) > (o.type === 'rect' ? o.halfX + radius : o.radius + radius) ||
         Math.abs(z - o.z) > (o.type === 'rect' ? o.halfZ + radius : o.radius + radius)) continue;
@@ -119,4 +134,4 @@ function findSafePosition(x, z, { bounds = WORLD_SIZE, maxRadius = 18, step = 2 
   }
   return null;
 }
-module.exports = { WORLD_SIZE, PLAYER_RADIUS, OBSTACLES, pointBlocked, canTraverse, isSafePosition, findPath, findSafePosition };
+module.exports = { WORLD_SIZE, PLAYER_RADIUS, OBSTACLES, GRID_CELL, GRID_MARGIN, pointBlocked, canTraverse, isSafePosition, findPath, findSafePosition };

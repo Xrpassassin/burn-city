@@ -183,8 +183,15 @@ assert.match(page, /construction pause remains active until the server confirms 
 assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=false;/, 'resume base activity after the build request settles');
 
 assert.match(page, /const constructionView=!!pendingBuilding\|\|constructionPaused/, 'switch to construction camera only while building');
-assert.match(page, /cameraTarget=new THREE\.Vector3\(constructionView\?0:19,constructionView\?29:22,constructionView\?0\.01:24\)/, 'construction camera looks straight down while exploration camera stays third-person');
-assert.match(page, /camera\.position\.lerp\(cameraTarget,1-Math\.exp\(-5\*dt\)\)/, 'blend smoothly between construction and exploration views');
+assert.match(page, /cameraPose\(\{mode:yardView\.mode,building:constructionView/, 'the refuge yard camera is third-/first-person and only goes overhead while building');
+assert.match(page, /camera\.position\.lerp\(new THREE\.Vector3\(pose\.px,pose\.py,pose\.pz\),blend\)/, 'blend smoothly between construction and the previous walking view');
+assert.doesNotMatch(page, /Vector3\(constructionView\?0:19/, 'no fixed elevated yard camera outside construction');
+assert.match(page, /yardView=attachViewControls\(host,\{canLook:\(\)=>!pendingBuilding&&!constructionPaused\}\)/, 'yard look/joystick controls pause during construction');
+assert.match(scene, /attachViewControls\(host, \{ onTap: onWorldTap, wheel: false \}\)/, 'Graveyard taps come from the shared controller so drag-to-look never travels');
+assert.match(scene, /cameraPose\(\{ mode: view\.mode/, 'Graveyard camera follows the remembered first-/third-person mode');
+assert.match(scene, /worldMove\(view\.move\(\), heading\)/, 'joystick / WASD travel is relative to the camera heading');
+assert.match(scene, /if \(view\.visible\) renderer\.render/, 'offscreen Graveyard canvas skips rendering');
+assert.match(page, /if\(yardView\.visible\)renderer\.render/, 'offscreen yard canvas skips rendering');
 
 assert.match(page, /id="tillPlot"/, 'the refuge exposes a player-led farm plot control');
 assert.match(page, /type:'farm_till',x:p\.x,z:p\.z/, 'tilling uses tap-to-place yard coordinates validated by the server');

@@ -33,7 +33,7 @@ const TEAM_COLORS = ['#ff3b30', '#2f8cff', '#2bd96b', '#ffcc00'], TEAM_NAMES = [
 const PALETTE = ['#00f0ff', '#ff2bd6', '#39ff14', '#ffe600', '#ff6a00', '#8a5cff', '#ff1744', '#00ffa3', '#ffffff', '#2979ff', '#ff9ec4', '#b6ff00', '#00b3ff', '#ffb300', '#d500f9', '#76ffde'];
 
 class Room {
-  constructor(id, mode, mapId = null) { this.born = Date.now(); this.id = id; this.mode = mode; this.mapId = mapId; this.players = new Map(); this.t = 0; this.events = []; this.nextId = 1; this.reset(); }
+  constructor(id, mode, mapId = null) { this.born = Date.now(); this.id = id; this.mode = mode; this.mapId = mapId === 'refinery' ? 'refinery' : null; this.players = new Map(); this.t = 0; this.events = []; this.nextId = 1; this.reset(); }
   get full() { if (this.tl) return this.tl.state !== 'lobby' || this.players.size >= (this.tl.max || 8); return this.ranked ? (this.ranked.state !== 'lobby' || this.players.size >= this.ranked.max) : this.players.size >= C.ROOM_SIZE; }
   add(p) { const used = new Set([...this.players.values()].map(o => o.color)); p.color = PALETTE.find(c => !used.has(c)) || PALETTE[this.nextId % PALETTE.length]; p.id = this.nextId++; this.players.set(p.id, p); this.spawn(p); this.events.push({ e: 'spawn', id: p.id, x: q(p.x), z: q(p.z), t: ms(this.t) }); return p.id; }
   roster() { return [...this.players.values()].map(p => [p.id, p.name, p.look || {}, p.color, p.team ?? null]); }

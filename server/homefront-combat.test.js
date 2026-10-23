@@ -62,7 +62,7 @@ const machineShot=C.attack({encounters:machineSpawn.encounters,account:'machine-
 assert.equal(machineShot.ammoCost,1,'each server-confirmed machine-gun shot consumes one loaded round');
 assert.equal(machineShot.base.resources.ammo,89,'machine-gun ammunition is deducted server-side');
 const heavySpawn=C.spawn({encounters:{},account:'heavy-test',player,now:207000,seed:14});
-const heavyShot=C.attack({encounters:heavySpawn.encounters,account:'heavy-test',player,base:{...base(),resources:{ammo:90,scrap:0,food:10},equippedWeapon:'heavy_machine_gun'},now:208000,weaponPower:9,seed:3});
+const heavyShot=C.attack({encounters:machineSpawn.encounters,account:'machine-test',player,base:{...base(),resources:{ammo:90,scrap:0,food:10},equippedWeapon:'heavy_machine_gun'},now:206000,weaponPower:9,seed:3});
 assert.ok(heavyShot.damage>machineShot.damage,'heavy machine gun power produces higher authoritative damage than the standard machine gun under equivalent conditions');
 assert.equal(heavyShot.ammoCost,1,'heavy machine-gun shots consume ammunition server-side');
 const meleeSpawn=C.spawn({encounters:{},account:'melee',player,now:210000});

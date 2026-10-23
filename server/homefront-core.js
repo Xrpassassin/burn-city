@@ -174,7 +174,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     }
     case 'defend': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
-      s.wave++; s.defenseCount++;
+      s.defenseCount++;
       const guards = s.survivors.filter(x => x.role === 'guard');
       const guardStrength = guards.reduce((total, x) => {
         const morale = clampInt(x.morale, 0, 100);

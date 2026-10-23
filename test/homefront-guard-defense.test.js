@@ -176,3 +176,34 @@ assert.equal(Core.validateBase({ ...breachOutcome, lastSiege: undefined }, 'rGua
  assert.equal(oldBehaviorSave.survivors.find(x => x.id === 'bg1').task, 'perimeter_watch', 'legacy saves receive safe default role behavior');
 
 console.log('Homefront authoritative guard-defense regressions passed.');
+
+
+// Recruited survivors receive stable, individual skill profiles that affect authoritative defense.
+const statSeed = Core.createBase('rSurvivorStats', now);
+statSeed.survivors = [
+  { id: 'unique-a', name: 'Mara', role: 'guard', morale: 100 },
+  { id: 'unique-b', name: 'Rook', role: 'guard', morale: 100 }
+];
+const normalizedStats = Core.validateBase(statSeed, 'rSurvivorStats');
+const repeatedStats = Core.validateBase(JSON.parse(JSON.stringify(normalizedStats)), 'rSurvivorStats');
+assert.deepEqual(normalizedStats.survivors.map(s => s.stats), repeatedStats.survivors.map(s => s.stats),
+  'individual skill profiles remain stable across save/load validation');
+for (const survivor of normalizedStats.survivors) {
+  assert.deepEqual(Object.keys(survivor.stats), ['combat', 'scavenging', 'farming', 'medical', 'engineering', 'endurance'],
+    'each survivor has the same six defined skill categories');
+  assert.ok(Object.values(survivor.stats).every(value => Number.isInteger(value) && value >= 1 && value <= 10),
+    'every generated skill stays within the 1–10 range');
+}
+assert.notDeepEqual(normalizedStats.survivors[0].stats, normalizedStats.survivors[1].stats,
+  'different survivor IDs generate different individual profiles');
+const clampedStats = Core.validateBase({
+  ...statSeed,
+  survivors: [{ id: 'bounded', name: 'Cal', role: 'guard', morale: 60, stats: { combat: 99, medical: -4, farming: 6 } }]
+}, 'rSurvivorStats');
+assert.equal(clampedStats.survivors[0].stats.combat, 10, 'saved stats above range are clamped');
+assert.equal(clampedStats.survivors[0].stats.medical, 1, 'saved stats below range are clamped');
+assert.equal(clampedStats.survivors[0].stats.farming, 6, 'valid saved skills are preserved');
+const weakGuard = Core.validateBase({ ...statSeed, survivors: [{ id: 'guard-skill', name: 'Weak', role: 'guard', morale: 100, stats: { combat: 1 } }] }, 'rSurvivorStats');
+const strongGuard = Core.validateBase({ ...statSeed, survivors: [{ id: 'guard-skill', name: 'Strong', role: 'guard', morale: 100, stats: { combat: 10 } }] }, 'rSurvivorStats');
+assert.ok(Core.threatProfile(strongGuard).guardDefenseBonus > Core.threatProfile(weakGuard).guardDefenseBonus,
+  'combat skill increases server-authoritative guard defense contribution');

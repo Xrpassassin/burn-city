@@ -20,6 +20,8 @@ assert.match(scene, /data\.encounters/, 'render active server-owned infected enc
 assert.match(scene, /const combatActors = new Map\(\)/, 'retain infected scene actors across authoritative snapshots');
 assert.match(scene, /state\.targetX - actor\.position\.x/, 'interpolate infected movement between server snapshots');
 assert.match(scene, /actor\.userData\.hitFlash = 0\.38/, 'give confirmed enemy damage a brief visual hit flash');
+assert.match(scene, /threatRing/, 'render a proximity danger telegraph for nearby infected');
+assert.match(scene, /threatDistance <= 3/, 'increase infected danger feedback at close combat distance');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(scene, /Visible held weapon silhouette/, 'render a visible weapon prop for each explorer in the 3D world');
 assert.match(scene, /homefront:cosmetics/, 'receive equipped cosmetic and weapon selection from the Homefront loadout');

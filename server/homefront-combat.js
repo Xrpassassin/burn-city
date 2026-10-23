@@ -44,7 +44,7 @@ function normalizeEncounters(input,now=Date.now()){
 function spawn({encounters,account,player,now=Date.now(),seed=0}){
  const clean=normalizeEncounters(encounters,now),old=clean[account];if(old&&!old.defeated&&old.hp>0)return{encounters:clean,encounter:publicEncounter(old),reused:true};
  const depth=100-Math.hypot(player.x,player.z),risk=depth<25?1:depth<45?1:depth<62?2:depth<76?3:depth<88?4:5,district=risk>=5?'research_lab':risk>=4?'industrial':risk>=3?'commercial':risk===2?'residential':'outskirts';
- const e=resolveSpawn({account,x:player.x,z:player.z,district,risk,now,seed});const safe=safeEnemyPosition(e.x,e.z,player.x,player.z);e.x=safe.x;e.z=safe.z;clean[account]=e;return{encounters:clean,encounter:publicEncounter(e),reused:false};
+ const e=resolveSpawn({account,x:player.x,z:player.z,district,risk,now,seed});e.hp=e.members.reduce((sum,m)=>sum+m.hp,0);e.maxHp=e.members.reduce((sum,m)=>sum+m.maxHp,0);const safe=safeEnemyPosition(e.x,e.z,player.x,player.z);e.x=safe.x;e.z=safe.z;clean[account]=e;return{encounters:clean,encounter:publicEncounter(e),reused:false};
 }
 
 function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {

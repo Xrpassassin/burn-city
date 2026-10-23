@@ -101,7 +101,9 @@ function validateBase(input, ownerId) {
   out.structures = out.structures.filter(s => s && isBuilding(s.type) && typeof s.id === 'string')
     .map(s => {
       const material = MATERIAL_TIERS[s.material] ? s.material : 'wood';
-      const maxHp = Math.round(BUILDINGS[s.type].hp * MATERIAL_TIERS[material].hp);
+      const gateLike = ['gate', 'entrance', 'exit'].includes(s.type);
+      const reinforcementLevel = gateLike ? clampInt(s.reinforcementLevel, 0, 2) : 0;
+      const maxHp = Math.round(BUILDINGS[s.type].hp * MATERIAL_TIERS[material].hp * (1 + reinforcementLevel * 0.25));
       const previousMax = Number.isFinite(s.maxHp) && s.maxHp > 0 ? s.maxHp : BUILDINGS[s.type].hp;
       const integrity = clampNumber(Number.isFinite(s.hp) ? s.hp / previousMax : 1, 0, 1);
       return {
@@ -110,7 +112,7 @@ function validateBase(input, ownerId) {
        x: clampNumber(s.x, -9.5, 9.5), z: clampNumber(s.z, -9.5, 9.5),
        rotation: clampNumber(s.rotation, -Math.PI * 2, Math.PI * 2),
        trenchLevel: s.type === 'trench' ? clampInt(s.trenchLevel, 0, 3) : 0,
-       manned: s.type === 'turret' && s.manned === true
+       reinforcementLevel, manned: s.type === 'turret' && s.manned === true
      };
     });
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
@@ -194,6 +196,7 @@ function threatProfile(input) {
   const turretAmmo = Math.min(Math.max(0, (s.resources?.ammo || 0) - ammoUsed), mannedTurrets.length * 3);
   const turretAmmoRatio = mannedTurrets.length ? turretAmmo / (mannedTurrets.length * 3) : 0;
   const structureDefense = active.reduce((total, x) => total + BUILDINGS[x.type].defense + (MATERIAL_TIERS[x.material]?.defense || 0) +
+    (['gate', 'entrance', 'exit'].includes(x.type) ? (x.reinforcementLevel || 0) * 2 : 0) +
     (x.type === 'trench' ? (x.trenchLevel || 0) * 3 : 0) +
     (x.type === 'turret' && x.manned ? 7 * turretAmmoRatio : 0), 0);
   const settlementPressure = Math.floor(active.length / 3) + Math.floor(activeFarmPlots / 3);
@@ -240,7 +243,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       // Farm plots occupy physical yard space too; keep new structures from burying crops or blocking tending access.
       if (s.farmPlots.some(plot => Math.hypot(plot.x - x, plot.z - z) < 1.65)) throw new Error('placement_occupied');
       const rotation = Number.isFinite(action.rotation) ? clampNumber(action.rotation, -Math.PI * 2, Math.PI * 2) : 0;
-      s.structures.push({ id, type: action.building, material: 'wood', hp: spec.hp, maxHp: spec.hp, x, z, rotation, trenchLevel: 0, manned: false });
+      s.structures.push({ id, type: action.building, material: 'wood', hp: spec.hp, maxHp: spec.hp, x, z, rotation, trenchLevel: 0, reinforcementLevel: 0, manned: false });
       record(s, 'build', 'Constructed ' + action.building + '.', now);
       break;
     }
@@ -253,9 +256,24 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       pay(s, MATERIAL_UPGRADE_COSTS[next]);
       const integrity = target.maxHp > 0 ? target.hp / target.maxHp : 1;
       target.material = next;
-      target.maxHp = Math.round(BUILDINGS[target.type].hp * MATERIAL_TIERS[next].hp);
+      target.maxHp = Math.round(BUILDINGS[target.type].hp * MATERIAL_TIERS[next].hp * (1 + (target.reinforcementLevel || 0) * 0.25));
       target.hp = Math.min(target.maxHp, Math.round(target.maxHp * integrity));
       record(s, 'construction', 'Upgraded ' + target.type + ' ' + target.id + ' to ' + MATERIAL_TIERS[next].label + ' construction (' + target.maxHp + ' max HP, +' + MATERIAL_TIERS[next].defense + ' material defense).', now);
+      break;
+    }
+    case 'reinforce_gate': {
+      const target = s.structures.find(x => x.id === action.target && ['gate', 'entrance', 'exit'].includes(x.type));
+      if (!target) throw new Error('unknown_gate');
+      const current = clampInt(target.reinforcementLevel, 0, 2);
+      if (current >= 2) throw new Error('gate_reinforcement_maxed');
+      const next = current + 1;
+      pay(s, next === 1 ? { steel: 6, scrap: 12 } : { steel: 12, scrap: 20 });
+      const previousMax = target.maxHp;
+      target.reinforcementLevel = next;
+      const material = MATERIAL_TIERS[target.material] ? target.material : 'wood';
+      target.maxHp = Math.round(BUILDINGS[target.type].hp * MATERIAL_TIERS[material].hp * (1 + next * 0.25));
+      target.hp = Math.min(target.maxHp, target.hp + target.maxHp - previousMax);
+      record(s, 'fortification', 'Reinforced ' + target.type + ' ' + target.id + ' with steel plating tier ' + next + '/2. Max integrity increased to ' + target.maxHp + ' HP; perimeter defense +' + (next * 2) + '.', now);
       break;
     }
     case 'trench_upgrade': {
@@ -692,7 +710,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         const before = structure.hp;
         const incoming = Math.min(structure.hp, remaining);
         const material = MATERIAL_TIERS[structure.material] || MATERIAL_TIERS.wood;
-        const hit = Math.min(structure.hp, Math.ceil(incoming * (1 - material.resistance)));
+        const reinforcementResistance = ['gate', 'entrance', 'exit'].includes(structure.type) ? (structure.reinforcementLevel || 0) * 0.08 : 0;
+        const hit = Math.min(structure.hp, Math.ceil(incoming * (1 - Math.min(0.6, material.resistance + reinforcementResistance))));
         structure.hp -= hit; remaining -= incoming;
         if (before > 0 && structure.hp <= 0) breached.push(structure.type);
       }

@@ -42,6 +42,8 @@ function boot(host) {
   const zombieMixers = [];
   // Keep server-owned infected actors between snapshots so movement is presented smoothly.
   const combatActors = new Map();
+  let weaponSwingUntil = 0;
+  window.addEventListener('homefront:combat-hit', () => { weaponSwingUntil = performance.now() + 260; });
   const infectedSpawns = [[27, 25], [19, 34], [-32, 28], [-43, 36], [-11, 27], [-20, 15], [9, -12], [1, -15]];
 
   const mat = (color, roughness = 0.94) => new THREE.MeshStandardMaterial({ color, roughness });
@@ -260,7 +262,7 @@ function boot(host) {
         const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.23), mat(0x373a38));
         muzzle.position.y = 0.12 + length + 0.04; weapon.add(muzzle);
       }
-      g.add(weapon);
+      g.add(weapon); g.userData.weapon = weapon; g.userData.isLocalPlayer = p.label === 'You';
       const name = labelSprite(p.label || 'Explorer', p.label === 'You' ? '#ffe28a' : '#c8d8df'); name.position.y = 4.7; g.add(name);
       playerGroup.add(g);
     }
@@ -300,6 +302,7 @@ function boot(host) {
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
       updateWorld(data);
       if (data.combat && combatStatus) {
+        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: { damage: data.combat.damage, killed: data.combat.killed } }));
         const result = data.combat;
         const stamina = Number.isFinite(data.selfSurvival?.stamina) ? Math.round(data.selfSurvival.stamina) : null;
         const fatigue = stamina !== null ? ' · stamina ' + stamina + '/100' + (stamina < 15 ? ' · exhausted: damage reduced' : stamina < 35 ? ' · tiring: damage reduced' : '') : '';
@@ -389,6 +392,6 @@ function boot(host) {
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
   let lastFrame = performance.now();
-  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } renderer.render(scene, camera); requestAnimationFrame(tick); };
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? 1 - remaining / 260 : 0; explorer.userData.weapon.rotation.x = -0.12 + (remaining > 0 ? Math.sin(progress * Math.PI) * 0.95 : 0); explorer.userData.weapon.rotation.z = remaining > 0 ? Math.sin(progress * Math.PI) * 0.38 : 0; } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } renderer.render(scene, camera); requestAnimationFrame(tick); };
   tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
 }

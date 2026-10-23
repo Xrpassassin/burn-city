@@ -8,7 +8,7 @@ assert.match(scene, /from '\.\/zaudio\.js'/, 'reuse the Zombies sound director i
 assert.match(scene, /from '\.\/zombie-model-pilot\.mjs'/, 'reuse the existing animated Zombies model pilot');
 assert.match(scene, /zombieModelPilot\.update\(modelCandidates, dt, localForModels\)/, 'drive animated infected from authoritative encounter snapshots');
 assert.match(scene, /modeledZombieIds\.has\(actor\.userData\.encounterId\)/, 'bound detailed rigs and retain procedural fallback actors');
-assert.match(scene, /proxy\.material\.opacity = modeled \? 0 : 1/, 'preserve raycast hit proxies under animated models');
+assert.match(scene, /const opacity = modeled \\? 0 : 1/, 'preserve raycast hit proxies under animated models');
 assert.match(scene, /createZombieModelPilot\(scene, \{ targetHeight: 2\.7 \}\)/, 'fit rigs to Homefront combat hitbox scale');
 assert.match(scene, /createZombieAudio\(sfx, \{ base: new URL\('\.\/sfx\/'/, 'reuse the existing positional zombie audio sample bank');
 assert.match(scene, /zombieAudio\.tick\(dt, audioMe, audioZombies/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');

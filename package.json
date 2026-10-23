@@ -46,7 +46,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "sharp": "^0.35.5",
     "ws": "^8.22.0",

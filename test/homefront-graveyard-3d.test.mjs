@@ -62,3 +62,7 @@ assert.match(scene, /weaponId === 'pump_shotgun' \? 'shotgun'/, 'shotgun impacts
 assert.match(scene, /weaponId === 'pump_shotgun' \? 26 : 18/, 'shotgun killing blows produce a wider, stronger impact burst');
 assert.match(scene, /\.catch\(\(\) => \{\}\)/, 'audio asset failures cannot interrupt confirmed combat feedback');
 assert.match(scene, /data\.combat\.encounterId/, 'resolve encounter IDs from the combat response when available');
+
+assert.match(scene, /hitZone: data\.combat\.hitZone/, 'forward the server-calculated hit zone to the scene');
+assert.match(scene, /detail\.hitZone === 'head'/, 'headshots get distinct impact presentation');
+assert.match(scene, /HEADSHOT!/, 'show a headshot callout only when the server reports one');

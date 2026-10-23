@@ -329,3 +329,13 @@ assert.match(page, /\/attack\|bite\|claw\|melee\|punch\/i/, 'use available zombi
 assert.match(page, /attacking=!moving&&actor\.mode==='siege'/, 'infected switch into an attack stance when they reach a living defense');
 assert.match(page, /actor\.attackPhase\+=dt\*7/, 'procedural fallback zombies visibly strike when no attack clip exists');
 assert.match(page, /radius=1\.6\+\(index%4\)\*\.85/, 'breach runners spread into the settlement rather than stacking at its center');
+
+assert.match(page, /function addSiegeTracer\(from,to,color=0xffb45c,lifetime=\.16\)/, 'create short-lived tracer effects for visible defensive fire');
+assert.match(page, /function addSiegeImpact\(point\)/, 'render impact sparks at the structure being attacked');
+assert.match(page, /function updateReactiveSiege\(dt\)/, 'coordinate siege impacts and defensive response visuals');
+assert.match(page, /target=base\.structures\.find\(s=>String\(s\.id\)===String\(actor\.targetId\)&&s\.hp>0\)/, 'tie visible wall impacts to the actual targeted intact structure');
+assert.match(page, /survivor\.role!=='guard'/, 'guards visually return fire during an active wave');
+assert.match(page, /s\.type==='turret'/, 'intact mounted turrets visually fire at nearby infected');
+assert.match(page, /target\.hitReaction=\.18/, 'defensive shots produce a visible infected hit reaction');
+assert.match(page, /if\(!base\?\.wave\|\|pendingBuilding\|\|constructionPaused\)return/, 'construction mode suppresses siege and defensive-fire effects');
+assert.match(page, /function updateSiegeEffects\(dt\)/, 'expire temporary tracer and impact objects cleanly');

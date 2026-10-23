@@ -17,7 +17,7 @@ main{width:min(100%,560px);text-align:center}.eyebrow{font-size:11px;letter-spac
 <h1>🚁 ZOMBIE EXTERMINATION</h1>
 <p>Check in, get ready, and board the expedition helicopter. When the countdown ends, the flight departs BURN City and loads the survival map.</p>
 <div class="hangar"><div class="stars"></div><div class="pad"></div><div class="heli" id="heli" aria-hidden="true"><div class="rotor"></div><div class="body"></div><div class="tail"></div><div class="skid"></div><div class="light"></div></div></div>
-<div class="manifest"><span class="pill">UNRANKED SURVIVAL</span><span class="pill">MAP: REFINERY</span><span class="pill">RETURN FLIGHT AVAILABLE</span></div>
+<div class="manifest"><span class="pill">UNRANKED SURVIVAL</span><label class="pill" for="map">DESTINATION MAP <select id="map" style="margin-left:6px;background:#101b25;color:#fff;border:1px solid #526b7a;border-radius:6px;padding:5px"><option value="refinery">Refinery</option><option value="random">Random map</option></select></label><span class="pill">RETURN FLIGHT AVAILABLE</span></div>
 <div class="count" id="count" aria-live="polite">—</div>
 <div class="status" id="status">Ready when you are. The flight will not depart until you confirm.</div>
 <button class="ready" id="ready">✓ READY TO BOARD</button>
@@ -28,7 +28,7 @@ main{width:min(100%,560px);text-align:center}.eyebrow{font-size:11px;letter-spac
 const q=new URLSearchParams(location.search);let ready=false,timer=null,left=10,departed=false;
 const $=id=>document.getElementById(id);
 function stop(){if(timer)clearInterval(timer);timer=null;left=10;departed=false;$('flight').classList.remove('departing');$('count').textContent='—';$('ready').disabled=false;$('ready').textContent='✓ READY TO BOARD';$('status').textContent='Countdown cancelled. Ready again when you are.'}
-function depart(){if(departed)return;departed=true;clearInterval(timer);timer=null;$('count').textContent='LIFT OFF';$('status').textContent='Helicopter departing BURN City… next stop: the landing zone.';$('ready').disabled=true;$('ready').textContent='FLIGHT IN PROGRESS';$('flight').classList.add('departing');setTimeout(()=>{location.href='./?mode=zombie&map=refinery&from=airport&arrival=helicopter'},2100)}
+function depart(){if(departed)return;departed=true;clearInterval(timer);timer=null;$('count').textContent='LIFT OFF';$('status').textContent='Helicopter departing BURN City… next stop: the landing zone.';$('ready').disabled=true;$('ready').textContent='FLIGHT IN PROGRESS';$('flight').classList.add('departing');setTimeout(()=>{const map=$('map').value;location.href='./?mode=zombie&'+(map==='refinery'?'map=refinery&':'')+'from=airport&arrival=helicopter'},2100)}
 $('ready').onclick=()=>{if(departed)return;if(ready){ready=false;stop();return}ready=true;left=10;$('ready').textContent='CANCEL COUNTDOWN';$('status').textContent='Boarded. Departure in…';$('count').textContent=left;timer=setInterval(()=>{left--;if(left<=0){$('count').textContent='0';depart();return}$('count').textContent=left},1000)};
 $('cancel').onclick=()=>{if(timer)clearInterval(timer);location.href='../'};
 addEventListener('pageshow',()=>{if(departed)return;});

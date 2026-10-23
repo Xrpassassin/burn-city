@@ -138,3 +138,11 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Added 3D map markers for active server-owned encounters plus “Search for infected” and “Attack infected” controls. The controls call the API; the client cannot decide enemy HP, damage, ammo costs, retaliation, or loot. Combat currently uses a lightweight tactical attack action rather than a finished real-time third-person controller.
 - Added unit tests for encounter reuse, range validation, expiry, ammo checks, enemy defeat and rewards, and API integration assertions for server-owned HP/ammo changes. The combat unit tests are part of `test:homefront`.
 - Next work: browser QA, then replace tactical attack actions with movement-aware infected AI and a real-time combat loop while retaining server authority and anti-replay/cooldown protections.
+
+
+## Infected pursuit foundation (latest)
+- Active per-player infected now retain a server-owned AI timestamp and move toward their authenticated owner's world position at a bounded speed (2.8 world units/second, capped simulation delta).
+- Pursuit advances on authoritative player movement and authenticated world refreshes; clients cannot submit enemy coordinates or drive the AI frame-by-frame.
+- The simulation stops short of overlapping the player and keeps positions within Graveyard bounds. Expired encounters are still normalized away; defeated encounters do not pursue.
+- Regression coverage checks deterministic pursuit math and world-movement integration.
+- This is a discrete server simulation foundation, not continuous 20–60 Hz network replication, collision-aware navigation, animated pursuit, or autonomous enemy attacks. Those remain Hark's playability/integration and QA milestones.

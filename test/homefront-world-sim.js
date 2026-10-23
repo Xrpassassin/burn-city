@@ -58,3 +58,78 @@ const distanceAfter = Math.hypot(world.players['acct-a'].x - enemyAfter.x, world
 assert.ok(enemyAfter.x !== enemyBefore.x || enemyAfter.z !== enemyBefore.z, 'authoritative movement advances infected AI');
 assert.ok(distanceAfter < distanceBefore + 8, 'infected movement tracks the updated player position');
 console.log('Homefront shared Graveyard world simulation passed.');
+
+
+// Integration contract: player movement and infected pursuit must use the same
+// terrain gate and recover through the pathfinder rather than crossing a blocked ridge.
+const Terrain = require('../server/homefront-terrain');
+const originalCanTraverse = Terrain.canTraverse;
+const originalFindTerrainPath = Terrain.findTerrainPath;
+const blockedRidge = (x0, z0, x1, z1) => {
+  if (originalCanTraverse(x0, z0, x1, z1)) {
+    // Simulate an additional steep ridge along x=0, with a safe crossing only at |z| >= 8.
+    const crossesRidge = (x0 <= 0 && x1 >= 0) || (x1 <= 0 && x0 >= 0);
+    if (!crossesRidge) return true;
+    const denominator = x1 - x0;
+    const t = Math.abs(denominator) < 1e-9 ? 0 : -x0 / denominator;
+    const crossingZ = z0 + (z1 - z0) * t;
+    return Math.abs(crossingZ) >= 8;
+  }
+  return false;
+};
+try {
+  Terrain.canTraverse = blockedRidge;
+  Terrain.findTerrainPath = (sx, sz, gx, gz) => [
+    { x: sx, z: 8 },
+    { x: gx, z: 8 },
+    { x: gx, z: gz }
+  ];
+
+  const ridgeWorld = W.defaultWorld();
+  ridgeWorld.players['ridge-player'] = {
+    x: -12, z: 0, spawn: W.SPAWNS[0].id, lastSeen: 10000, lastMove: 9000,
+    partyCode: null, survival: require('../server/homefront-survival').normalize(null, 10000),
+    inventory: {}, inventoryInitialized: true,
+    weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }
+  };
+  const ridgeMove = W.move(ridgeWorld, 'ridge-player', 12, 0, 11000);
+  assert.ok(ridgeMove.world.players['ridge-player'].z > 0,
+    'player movement follows a safe route around a blocked direct ridge crossing');
+  assert.ok(blockedRidge(-12, 0, ridgeMove.world.players['ridge-player'].x, ridgeMove.world.players['ridge-player'].z),
+    'accepted player step itself remains terrain-traversable');
+
+  const pursuer = {
+    id: 'ridge-infected', owner: 'ridge-player', event: 'wandering_infected', enemy: 'Stray Runner',
+    district: 'outskirts', x: 2, z: 0, hp: 32, maxHp: 32, damage: 2, ammoCost: 1,
+    range: 18, risk: 1, createdAt: 10000, lastAttackAt: 0, lastAiAt: 10000,
+    expiresAt: 300000, defeated: false
+  };
+  const chasedAroundRidge = Combat.advance({
+    encounters: { 'ridge-player': pursuer },
+    players: { 'ridge-player': { x: -2, z: 0 } },
+    now: 11000, speed: 2.8, maxElapsed: 2.5
+  })['ridge-player'];
+  assert.ok(chasedAroundRidge.z > 0,
+    'infected pursuit follows a safe route instead of crossing the blocked ridge');
+
+  Terrain.findTerrainPath = () => null;
+  const trappedPlayerWorld = W.defaultWorld();
+  trappedPlayerWorld.players['trapped-player'] = {
+    x: -12, z: 0, spawn: W.SPAWNS[0].id, lastSeen: 10000, lastMove: 9000,
+    partyCode: null, survival: require('../server/homefront-survival').normalize(null, 10000),
+    inventory: {}, inventoryInitialized: true,
+    weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }
+  };
+  assert.throws(() => W.move(trappedPlayerWorld, 'trapped-player', 12, 0, 11000),
+    /terrain_path_unreachable/, 'player movement refuses a blocked crossing when no safe route exists');
+  const waitingInfected = Combat.advance({
+    encounters: { 'ridge-player': pursuer },
+    players: { 'ridge-player': { x: -2, z: 0 } },
+    now: 11000, speed: 2.8, maxElapsed: 2.5
+  })['ridge-player'];
+  assert.deepEqual([waitingInfected.x, waitingInfected.z], [pursuer.x, pursuer.z],
+    'infected waits rather than clipping through terrain when no safe route exists');
+} finally {
+  Terrain.canTraverse = originalCanTraverse;
+  Terrain.findTerrainPath = originalFindTerrainPath;
+}

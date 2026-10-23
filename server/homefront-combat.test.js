@@ -4,6 +4,11 @@ const base=()=>({resources:{ammo:50,scrap:0,food:10},embers:0,survivors:[{id:'s1
 const a=C.spawn({encounters:{},account:'a',player,now:100000,seed:4});assert.ok(a.encounter.id.startsWith('enc-'));
 assert.equal(a.encounter.range,C.STATS[a.encounter.event].range,'public encounter exposes server-owned attack range for contextual UI');
 assert.throws(()=>C.attack({encounters:a.encounters,account:'a',player,base:base(),now:101000,targetId:'enc-forged'}),/target_mismatch/,'server rejects client-selected targets that are not the player-owned encounter');
+const aimSpawn=C.spawn({encounters:{},account:'aim-test',player,now:600000,seed:8});
+const aimBase=()=>base();
+const aimedHead=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint:{x:aimSpawn.encounter.x,y:2.3,z:aimSpawn.encounter.z}});
+assert.equal(aimedHead.hitZone,'head','server derives headshots from a bounded 3D aim point');
+assert.throws(()=>C.attack({encounters:aimSpawn.encounters,account:'aim-test',player,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint:{x:aimSpawn.encounter.x+5,y:2.3,z:aimSpawn.encounter.z}}),/invalid_aim_point/,'server rejects aim points outside the target hitbox');
 assert.doesNotThrow(()=>C.attack({encounters:a.encounters,account:'a',player,base:base(),now:101000,targetId:a.encounter.id}),'server accepts the exact active encounter target');
 assert.equal(C.spawn({encounters:a.encounters,account:'a',player,now:100100}).encounter.id,a.encounter.id);
 assert.throws(()=>C.attack({encounters:a.encounters,account:'a',player:{x:100,z:100},base:base(),now:101000}),/enemy_out_of_range/);

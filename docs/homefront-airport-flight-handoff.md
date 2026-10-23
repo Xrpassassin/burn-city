@@ -56,3 +56,11 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - The owner UI forecasts the next breach's known enemy types before the player commits to defending, supporting decisions about repairs, work shifts, survivor assignments, and supply use.
 - `waveProfile()` is renderer-independent and covered by simulation tests, so balance and wave composition can be iterated without coupling rules to the 3D UI.
 - Open-source research reference: the MIT-licensed Last Stand project demonstrates deterministic waves and efficient flow-field pathfinding. BURN City is not importing that project's game wholesale; the relevant architectural principle is to keep simulation rules deterministic and testable. Any future direct code or asset reuse must preserve license notices and be reviewed for fit with BURN City's server-authoritative multiplayer design.
+
+
+## XRPL Graveyard exploration direction
+- Homefront is being steered away from escalating round-based horde survival toward an exploration-driven survival sandbox. Perimeter defense incidents have a fixed threat budget and no longer increment or scale with the legacy wave counter.
+- Expeditions accept a destination identifier and use site-specific supply costs, salvage yields, medical rewards, and survivor recruitment probabilities. Initial destinations include the City Outskirts, Residential Ruins, Market District, Overrun Hospital, Industrial Yard, Buried Subway, and Sealed Research Annex.
+- Higher-risk locations are gated behind completed expeditions, not elapsed time or round count. Subway and research locations are presented as boss-area destinations; future work should make their unique boss encounters and physical city navigation real, rather than treating them as a text-only expedition result.
+- The owner UI now describes perimeter incidents as optional and location-based, shows perimeter incident count instead of a rising wave count, and includes a destination selector for expeditions.
+- Future exploration milestones: persistent district discovery on the save, physical city traversal, loot containers with equipment and weapon condition, rescue/companion events, location-specific enemy archetypes, and explicit boss-area entry/exit rules.

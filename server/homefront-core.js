@@ -134,14 +134,17 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const gardenCount = s.structures.filter(x => x.type === 'garden' && x.hp > 0).length;
       const workshopCount = s.structures.filter(x => x.type === 'workshop' && x.hp > 0).length;
       const infirmaryCount = s.structures.filter(x => x.type === 'infirmary' && x.hp > 0).length;
+      const storageCount = s.structures.filter(x => x.type === 'storage' && x.hp > 0).length;
       const foodGain = Math.floor(Math.min(999999, farmers * (1 + gardenCount) * 2));
-      const scrapGain = Math.floor(Math.min(999999, scavengers * 2 + mechanics * workshopCount));
+      // Storage sheds make scavenging trips more efficient, but only while intact.
+      const scrapGain = Math.floor(Math.min(999999, scavengers * (2 + storageCount) + mechanics * workshopCount));
+      const medicineGain = Math.floor(Math.min(medics, infirmaryCount));
       s.resources.food = Math.min(999999, s.resources.food + foodGain);
       s.resources.scrap = Math.min(999999, s.resources.scrap + scrapGain);
-      s.resources.meds = Math.min(999999, s.resources.meds + Math.floor(Math.min(medics, infirmaryCount)));
+      s.resources.meds = Math.min(999999, s.resources.meds + medicineGain);
       s.day++; s.level = Math.max(s.level, 1 + Math.floor((s.day - 1) / 5));
       for (const survivor of s.survivors) survivor.morale = clampInt(survivor.morale + (foodGain >= foodCost ? 2 : -8), 0, 100);
-      record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + Math.min(medics, infirmaryCount) + ' medicine.', now);
+      record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + medicineGain + ' medicine.', now);
       break;
     }
     case 'defend': {

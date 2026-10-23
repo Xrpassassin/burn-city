@@ -126,3 +126,6 @@ assert.match(scene, /const previousExplorerPositions = new Map\(\)/, 'preserve e
 assert.match(scene, /explorerPositions\.set\(key, \{ x: p\.x, y: targetY, z: p\.z \}\)/, 'store authoritative explorer destinations separately from rendered positions');
 assert.match(scene, /const travelBlend = 1 - Math\.exp\(-8 \* dt\)/, 'interpolate explorer motion smoothly per frame instead of snapping on each snapshot');
 assert.match(scene, /explorer\.rotation\.y = Math\.atan2\(target\.x - explorer\.position\.x, target\.z - explorer\.position\.z\)/, 'turn moving explorers toward their travel direction');
+assert.match(scene, /g\.userData\.avatarParts = \[/, 'retain avatar body, head, backpack, and strap references for animation');
+assert.match(scene, /const bob = movingAvatar \? Math\.abs\(Math\.sin\(now \* 0\.014\)\) \* 0\.11/, 'add a lightweight step bob while explorers move');
+assert.match(scene, /part\.object\.position\.y = part\.baseY \+ bob/, 'animate avatar parts without changing authoritative world coordinates');

@@ -301,3 +301,13 @@ assert.match(homefrontPage, /Repair · 1 steel \+ 2 scrap/, 'steel structures di
 
 assert.match(homefrontPage, /Emergency repair · '\+emergencyText\+' · \+100 HP/, 'emergency repair controls show tier-appropriate materials');
 assert.match(homefrontPage, /priorityMaterial==='steel'\?'2 steel \+ 4 scrap'/, 'live breach alert uses the same steel repair cost');
+
+
+assert.match(homefrontPage, /function structureCondition\(s\)/, 'structure condition is derived from authoritative integrity');
+assert.match(homefrontPage, /function drawMaterialDamage\(g,s\)/, '3D structure rendering adds material-specific damage');
+assert.match(homefrontPage, /if\(s\.material==='wood'\)\{const count=condition==='SCUFFED'\?1:condition==='DAMAGED'\?2:4\}/, 'wood develops increasing splinter damage as integrity falls');
+assert.match(homefrontPage, /const crackCount=condition==='SCUFFED'\?1:condition==='DAMAGED'\?3:5/, 'stone develops progressively denser cracks as integrity falls');
+assert.match(homefrontPage, /const scratches=condition==='SCUFFED'\?1:condition==='DAMAGED'\?3:4/, 'steel shows increasing impact scars as integrity falls');
+assert.match(homefrontPage, /type:'reinforce_gate'/, 'gate controls call the server-authoritative steel reinforcement action');
+assert.match(homefrontPage, /s\.reinforcementLevel>=2/, 'tier-two gate armor has a distinct 3D appearance');
+assert.match(homefrontPage, /steel reinforcement '\+\(s\.reinforcementLevel\|\|0\)\+'\/2/, 'gate cards show persistent armor tier');

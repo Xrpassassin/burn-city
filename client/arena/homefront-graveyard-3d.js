@@ -801,7 +801,7 @@ function boot(host) {
   }
   const groundHit = ground;
   renderer.domElement.addEventListener('pointerdown', e => {
-    if (!worldData?.self || moving) return;
+    if (e.button === 2 || cameraOrbiting || !worldData?.self || moving) return;
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = (e.clientX - rect.left) / rect.width * 2 - 1;
     pointer.y = -(e.clientY - rect.top) / rect.height * 2 + 1;
@@ -868,6 +868,33 @@ function boot(host) {
   // without changing authoritative movement or world state.
   let masterView = 'third-person';
   let cameraYawOffset = 0;
+  let cameraPitchOffset = 0;
+  let cameraDistance = 6.2;
+  let cameraOrbiting = false;
+  let cameraPointerId = null;
+  renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
+  renderer.domElement.addEventListener('pointerdown', event => {
+    if (event.button !== 2 || masterView !== 'third-person') return;
+    cameraOrbiting = true; cameraPointerId = event.pointerId;
+    try { renderer.domElement.setPointerCapture(event.pointerId); } catch {}
+    event.preventDefault();
+  });
+  renderer.domElement.addEventListener('pointermove', event => {
+    if (!cameraOrbiting || event.pointerId !== cameraPointerId) return;
+    cameraYawOffset += event.movementX * 0.006;
+    cameraPitchOffset = Math.max(-0.25, Math.min(0.45, cameraPitchOffset - event.movementY * 0.004));
+  });
+  const stopCameraOrbit = event => {
+    if (!cameraOrbiting || (event && event.pointerId !== cameraPointerId)) return;
+    cameraOrbiting = false; cameraPointerId = null;
+  };
+  for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) renderer.domElement.addEventListener(eventName, stopCameraOrbit);
+  window.addEventListener('blur', () => stopCameraOrbit());
+  renderer.domElement.addEventListener('wheel', event => {
+    if (masterView !== 'third-person') return;
+    cameraDistance = Math.max(3.5, Math.min(10.5, cameraDistance + Math.sign(event.deltaY) * 0.65));
+    event.preventDefault();
+  }, { passive: false });
   window.addEventListener('keydown', event => {
     if (event.key.toLowerCase() !== 'v' || event.repeat || event.altKey || event.ctrlKey || event.metaKey) return;
     const target = event.target;
@@ -895,8 +922,8 @@ function boot(host) {
       const heading = (localActor?.rotation.y || 0) + cameraYawOffset;
       const followBlend = 1 - Math.exp(-dt * (masterView === 'third-person' ? 6.5 : 2.8));
       const targetY = terrainElevation(self.x, self.z) + 1.45;
-      const distance = masterView === 'third-person' ? 6.2 : 48;
-      const height = masterView === 'third-person' ? 3.1 : 30;
+      const distance = masterView === 'third-person' ? cameraDistance : 48;
+      const height = masterView === 'third-person' ? Math.max(1.5, Math.min(6, 3.1 + cameraPitchOffset * 6)) : 30;
       const desiredX = self.x - Math.sin(heading) * distance;
       const desiredZ = self.z - Math.cos(heading) * distance;
       camera.position.x += (desiredX - camera.position.x) * followBlend;

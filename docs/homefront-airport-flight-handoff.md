@@ -14,3 +14,12 @@
 
 ## Validation
 Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node --check client/js/airport.js`, and test the city airport kiosk on desktop and mobile. Verify that Homefront and Zombies can each be selected, cancel returns to the airport, and the travel card cannot start duplicate transitions.
+
+
+## Homefront visit privacy foundation
+- Every newly created refuge defaults to `visibility: "private"`. Existing saves with a missing or unknown visibility value are normalized to private.
+- Owners can switch between **Private** and **Open for visits**. The setting is persisted through the server-authoritative Homefront action API.
+- `GET /api/homefront/visit?owner=<account>` returns a limited, read-only snapshot only when that owner's saved refuge is explicitly public. Private, missing, or invalid saves return a not-found response.
+- Visitor snapshots omit the owner field and shorten the settlement log. Visitors cannot mutate the save because all changes still require the authenticated owner action endpoint; the UI also hides construction, survivor management, expedition, repair, workday, and defense controls.
+- Public access is currently by owner/account identifier using a shareable visit URL. A discoverable in-game directory, friend-only permissions, visitor presence/guestbook, and explicit guest interaction rules remain future work.
+- Tests cover private-by-default behavior, invalid visibility fail-closed behavior, public read-only visits, and immediate revocation when an owner returns to private.

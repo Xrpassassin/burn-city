@@ -3,6 +3,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
+import { sfx } from './sfx.js';
 
 const host = document.getElementById('graveyard3d');
 if (host) boot(host);
@@ -48,7 +49,24 @@ function boot(host) {
     const detail = event.detail || {};
     const style = detail.weaponId === 'shock_maul' ? 'blunt' : 'sharp';
     const target = detail.encounterId && combatActors.get(detail.encounterId);
+    // Reuse the game's existing CC0 zombie hit bank and shared volume/mute controls.
     if (target) {
+      const pos = [target.position.x, 1.1, target.position.z];
+      sfx.loadBank(new URL('./sfx/', import.meta.url).href);
+      sfx.play('hit', { pos, v: 0.55, ref: 2, max: 18, roll: 1.2 });
+      // Brief stylized blood mist is presentation only; it never affects damage.
+      const count = detail.killed ? 18 : 9;
+      for (let i = 0; i < count; i++) {
+        const radius = 0.035 + Math.random() * 0.045;
+        const drop = new THREE.Mesh(new THREE.SphereGeometry(radius, 5, 4), new THREE.MeshBasicMaterial({ color: i % 4 ? 0x842d2b : 0x4b1719, transparent: true, opacity: 0.88, depthWrite: false }));
+        drop.position.set(pos[0] + (Math.random() - 0.5) * 0.5, pos[1] + Math.random() * 0.7, pos[2] + (Math.random() - 0.5) * 0.45);
+        drop.userData.life = 0.35 + Math.random() * 0.4;
+        drop.userData.vx = (Math.random() - 0.5) * 2.8;
+        drop.userData.vy = 0.6 + Math.random() * 2.4;
+        drop.userData.vz = (Math.random() - 0.5) * 2.8;
+        drop.userData.blood = true;
+        impactGroup.add(drop);
+      }
       target.userData.impactUntil = performance.now() + 300;
       target.userData.impactStyle = style;
       target.userData.impactDirection = detail.direction || 1;
@@ -416,7 +434,7 @@ function boot(host) {
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
   let lastFrame = performance.now();
-  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? 1 - remaining / 320 : 0; explorer.userData.weapon.rotation.x = -0.12 + (remaining > 0 ? Math.sin(progress * Math.PI) * 0.95 : 0); explorer.userData.weapon.rotation.z = remaining > 0 ? Math.sin(progress * Math.PI) * 0.38 : 0; } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend;
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? 1 - remaining / 320 : 0; explorer.userData.weapon.rotation.x = -0.12 + (remaining > 0 ? Math.sin(progress * Math.PI) * 0.95 : 0); explorer.userData.weapon.rotation.z = remaining > 0 ? Math.sin(progress * Math.PI) * 0.38 : 0; } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend;
       const impactRemaining = state.impactUntil - now;
       if (impactRemaining > 0) {
         const p = impactRemaining / 300;

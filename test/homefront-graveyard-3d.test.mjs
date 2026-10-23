@@ -272,3 +272,9 @@ assert.match(homefrontPage, /Maximum material tier · steel-reinforced/, 'steel 
 assert.match(homefrontPage, /if\(s\.material==='stone'\)c=0x777a7d;else if\(s\.material==='steel'\)c=0x77838a/, 'stone and steel tiers change the 3D structure palette');
 assert.match(homefrontPage, /if\(s\.material==='stone'\)\{for\(const x of \[-\.72,\.72\]\)/, 'stone structures receive visible masonry reinforcement seams');
 assert.match(homefrontPage, /else if\(s\.material==='steel'\)\{for\(const x of \[-\.76,\.76\]\)/, 'steel structures receive visible metal reinforcement bands');
+
+
+assert.match(homefrontPage, /\['quarry','⛏️ Quarry'/, 'construction menu offers a quarry for stone production');
+assert.match(homefrontPage, /\['smelter','🔥 Smelter'/, 'construction menu offers a smelter for steel production');
+assert.match(homefrontPage, /\['salvage_yard','♻️ Salvage yard'/, 'construction menu offers a salvage yard for scrap production');
+assert.match(homefrontPage, /quarry:0x777a7d,smelter:0x8a4931,salvage_yard:0x77715f/, 'new production facilities have visible 3D color identities');

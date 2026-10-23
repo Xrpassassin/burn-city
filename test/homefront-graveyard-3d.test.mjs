@@ -282,3 +282,7 @@ assert.match(survivorStatsPage, /Individual survivor skills, each rated 1–10/,
 assert.match(homefrontPage, /stone:\['🪨','Stone'\],steel:\['🏗️','Steel'/, 'show advanced construction materials in the resource inventory');
 assert.match(homefrontPage, /upgrade_structure_material/, 'structure cards offer server-authoritative material upgrades');
 assert.match(homefrontPage, /Maximum material tier · steel-reinforced/, 'steel structures clearly show that material progression is capped');
+
+assert.match(homefrontPage, /if\(s\.material==='stone'\)c=0x777a7d;else if\(s\.material==='steel'\)c=0x77838a/, 'stone and steel tiers change the 3D structure palette');
+assert.match(homefrontPage, /if\(s\.material==='stone'\)\{for\(const x of \[-\.72,\.72\]\)/, 'stone structures receive visible masonry reinforcement seams');
+assert.match(homefrontPage, /else if\(s\.material==='steel'\)\{for\(const x of \[-\.76,\.76\]\)/, 'steel structures receive visible metal reinforcement bands');

@@ -536,7 +536,7 @@ function updCompanion(dt, t) {
 }
 
 // ---------------------------------------------------------------- interactions (USE / E / tap the prompt)
-function nearestCreature(p, max = 3.6) { let best = null, bd = max; for (const cr of W.creatures) { if (cr.st === 'flee') continue; const d = Math.hypot(cr.x - p.x, cr.z - p.z); if (d < bd) { bd = d; best = cr; } } return best && { cr: best, d: bd }; }
+function nearestCreature(p, max = 5) { let best = null, bd = max; for (const cr of W.creatures) { if (cr.gone || !cr.mesh || cr.mesh.visible === false) continue; const d = Math.hypot(cr.x - p.x, cr.z - p.z); if (d < bd) { bd = d; best = cr; } } return best && { cr: best, d: bd }; }
 function interactor(p) {
   if (!W.ready || W.modal || C().getMode() !== 'explore') return null;
   if (ZONE) { const n = nearestCreature(p); if (n) return { label: 'Inspect ' + game.SP[n.cr.sp].name + ' (Lv ' + n.cr.c.lv + ')', d: n.d * .5, act: () => inspect(n.cr) }; return ZONE.interactor ? ZONE.interactor(p) : null; }

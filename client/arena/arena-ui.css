@@ -104,3 +104,5 @@ a{color:var(--ember-hi)!important}
   #tron>b:first-child{margin-bottom:2px}
   #tron button[data-m=tron]{margin-top:2px}
 }
+/* phone cleanup (sw bc-v67-hub): lobby checkbox rows are 44px tap targets */
+@media (pointer:coarse){label:has(>input[type=checkbox]){display:inline-flex;align-items:center;gap:6px;min-height:44px}}

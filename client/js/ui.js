@@ -24,7 +24,7 @@ if (btns) {
   const KEY = { tour: '3' };
   const ORDER = ['tour', 'guideBtn', 'musicBtn', 'audio', 'socialBtn', 'bagBtn', 'copyLink', 'installBtn'];
   const compact = matchMedia('(max-width:700px), (max-height:500px) and (orientation:landscape)');
-  const stay = new Set(['moreBtn', 'playBtn']);
+  const stay = new Set(['moreBtn', 'playBtn', 'bcMoveGamesOpen']);   // bcMoveGamesOpen: Movement & Games hub (movement-games-menu.js)
   function adopt(b) {
     if (!b || !b.id || stay.has(b.id) || b.closest('.seg')) return;
     if (b.id === 'tour' && !compact.matches) return; // roomy screens keep Tour on the bar
@@ -46,7 +46,8 @@ if (btns) {
   compact.addEventListener('change', () => { const t = $('tour'); if (!t) return; if (compact.matches) adopt(t); else { delete t.dataset.l; delete t.dataset.k; t.removeAttribute('role'); t.textContent = '▶ Tour'; if (!TOUCH) t.dataset.kbd = '3'; seg.after(t); } });
 
   // 3) Body classes for the current mode (CSS moves the dock, minimap and prompts out of the controls' way)
-  const syncMode = () => { const on = seg.querySelector('.on'); const m = on ? on.dataset.m : 'orbit';
+  const syncMode = () => { const on = seg.querySelector('.on'); const c = window.__city;   // ✈ Fly left the dock (#109), so ask app.js for the mode; the dock alone made Fly read as Orbit (no body.mFly)
+    const m = c && c.getMode ? c.getMode() : on ? on.dataset.m : 'orbit';
     document.body.classList.toggle('mFly', m === 'fly'); document.body.classList.toggle('mExplore', m === 'explore'); };
   new MutationObserver(syncMode).observe(seg, { subtree: true, attributes: true, attributeFilter: ['class'] }); syncMode();
 }

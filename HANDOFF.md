@@ -302,11 +302,58 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   that drift outward + up with the flow and fade, all in the existing sparks Points draw (+0 draw calls). Budget is the sparks cap: phones 150, desktop 360 total
   (dispersal takes up to half when gold pools exist, the rest stays normal sparks), Low quality = off, hidden when adaptive quality has turned bloom off.
   `window.__swirl` = {n, geos, particles, sparks, disperse, gold}.
+- **Swirl colours + gold lock vein** (PR replacing #118): every AMM swirl takes its pool's live activity colour (`b.actCol`, blue → purple → orange → red, same as the bridge tube;
+  the swirl core is that colour lerped 35% toward the rail core's cyan, the glow sheath is the colour itself), and so do its sparks. Repaint is CPU-only: `swirlRecolor()` (set in the
+  swirl block, called at the end of `actScore()`) rewrites the merged mesh's `sc` rgb per vertex range + the spark colours. Still ONE merged swirl draw + ONE Points draw.
+  Gold pools (`b.forever`) are NOT painted gold any more: they keep the activity colour and get a **gold vein** down the middle of the swirl tube and of the rail core
+  (view-facing band from the kept tube normals, `off = sqrt(1 - nView.z²)`; vein where `off < w`). Width `w = veinW(b)` (app.js, above the rails polish block):
+  log10 of `b.lockedXrp` (= tvl_xrp × locked share), ~3.2k XRP → .28 of the core radius, 1M+ XRP → .88, clamped. Swirls pack it into `fl.y` (`sp + 8·round(100·w)`,
+  unpacked in the vertex shader; the sheath gets `w/2.6` so both shells share one vein); the rail core gets a `vw` uniform. The old gold shimmer + lower-half dissolve now
+  act on the vein only (the activity-coloured tube never breaks up); gold dispersal motes and gold sparks are unchanged. LOW tier: same vein, core shell only (no sheath).
+  `window.__swirl.veins` = [{pool, lockedXrp, w}]. Gap: partly locked (non-gold) pools get no vein, by the strict-gold rule; no live pool is gold right now, so check it with `goldtest`.
+- **Lock halo** (see the AMM locked liquidity section below): the vein stays the strict-gold badge; how much LP is locked is the gold chain halo.
+- **Rail sync** (sw bc-v70-railsync): every major rail (TVL >= 100, a tower end that gets a swirl) now ENDS on that tower's swirl helix start instead of running to the roof
+  near the tower axis: `helixAt()` (app.js, above the pool loop) is the swirl's own helix (same radius, height, spin, per-tower order + cap: LOW 3 / else 6), computed from the plain arc;
+  `railSync()` rebuilds the rail as a CurvePath of two cubics: helix start (leaving along the helix tangent) -> the old arc midpoint (same clearance height, horizontal) -> the other helix start.
+  The swirl then starts exactly at the rail end (no Bezier lead-in, `b.hx[end]` reused; one extra spline point so it leaves along the true helix tangent). Rail thickness, activity colours,
+  flow phase and the gold vein are unchanged (same tube radius/shaders). Ends without a swirl (minor pools, capped towers, ends below 8 m) keep the old roof endpoint. `curve.v0/v2` stay the end points
+  (garage decks). CurvePath.getPoint is clamped (three returns null at t=1 from float error). Test: `?debug=1&railsync=0` shows the old endpoints (A/B only). +0 draws.
 - **Visual test hook**: `?debug=1&goldtest=1` (top-2 TVL pools) or `goldtest=XRP/BURN,XRP/IMM` (pairs or AMM accounts) forces gold for those pools (labels say "· test").
 - **Tests/audit**: `test/goldlock-sim.js` (in `npm test`, fixture-based, stubbed fetch: rule edges, signer list/regular key, 94.96% floor, locked pool < 5k not gold,
   unpriced pair). `scripts/lockaudit.js` re-audits every tracked pool against the ledger -> `lock-audit.md`.
 - **Gaps**: gold is decided when the city builds; a pool crossing the line while the page is open turns gold on the next load. Real-phone check of the dispersal
   look/fps is still pending (tested in headless iPhone 14 emulation, SwiftShader).
+
+## AMM locked liquidity halos + black-hole supply singularities (city/amm-lock, sw bc-v69-ammlock)
+- **Files**: `server/amm-lock.js` (verification, cache, `/api/amm-lock`), `client/js/amm-lock.js` (visuals + card sections + `?locktest` fixture), `test/amm-lock-sim.js` (in `npm test`).
+- **Hooks (small)**: `server/server.js` requires it, routes `/api/amm-lock`, calls `AmmLock.start(Eco)` after `Eco.start()` (it reuses `eco.rpc`, so the same ws + HTTP fallback).
+  `client/js/app.js`: `initAmmLock({...})` right after the first `actScore()`; `showInfo` opens `u.kind==='ammlock'` (singularity tap) and appends the lock/burn section
+  to pool + token cards (`window.__ammLock.card`); the pool card's "Locked LP" row and the hover tip read `__ammLock.lpText(p)` ("x% verified" or "x% reported · unverified").
+- **Visual hierarchy** (+3 draw calls total; 2 on LOW tier / reduced motion): bridge body unchanged (thickness = TVL, colour = activity blue→purple→orange→red);
+  **gold chain halo** = ONE InstancedMesh of segmented torus rings at each bridge's arc midpoint: lit gold arc = VERIFIED permanently locked share of LPTokenBalance
+  (ring thickness also grows with it; ≥ 89% gets a slow glint), dim amber dashes = time-locked (Escrow), faint steel = the rest, grey dashes = UNVERIFIED with a reported lock (no gold at all).
+  **Singularity** = ONE InstancedMesh, one per TOKEN (never per pool), black core + violet rim, beside the tower on the side away from the hub at street level
+  (apart from every rail), radius `1.1 + 3.4·sqrt(burn share)`; **particles** = ONE Points draw, motion fully in the vertex shader (no per-frame CPU), phones 14 / desktop 32 per singularity,
+  off on LOW tier and with `prefers-reduced-motion` (halo glint frozen too). Invisible pick spheres (0 draws) make singularities tappable. Matrices re-applied every 2 s (towers rescale with mcap; minor-pool toggle).
+- **Halo vs #121 gold vein**: the vein **stays** for strict gold only (≥ 95% verified AND ≥ 5k XRP, `goldlock.js`) and the halo is the measurement for every pool. They use the same
+  black-hole rule, so a gold pool always also has a (near-)full halo: the halo says *how much*, the vein + Forever Rails say *certified*. Replacing the vein would have removed a protected,
+  liquidity-weighted signal; keeping it as the badge avoids two competing "how much" readings. The legend in the cards says so.
+- **Verification rules** (server): permanent = `account_info` lsfDisableMaster AND (no RegularKey or a `BCGold.BH_KEYS` black-hole key) AND no SignerList AND not an AMM account (`AMMID`).
+  Pool %: LP held by permanent accounts / `amm_info.lp_token` (LPTokenBalance), floored to 0.01. LP holders ≥ 0.1% are classified (max 60), smaller ones are "not checked" and never counted.
+  LP in Escrow objects on the AMM (`account_objects type escrow`) = time-locked. A holder whose account_info fails makes the pool **unverified** (`locked_pct: null`, `locked_pct_min` kept).
+  Token burn: balances of black-hole holders (issuer and AMM accounts excluded; top 30 holders ≥ 0.01% of supply, 25 trustline pages) / **`gateway_balances` obligations** on the issuer
+  (fallback: sum of the issuer's trustline balances when the scan is complete; `supply_src` says which). Incomplete trustline scan = `partial` (lower bound).
+  Master-disabled holders that still have a key or signers = "sent to designated address" (not counted). Issuer black-holed = `issuer_keys_disabled`, shown separately, never burned supply.
+  Old `locked_pct` in `data.js` is shown only as "reported · unverified" until the API has a verified figure. Burn history (`burn_vol`, tokens returned to the issuer) is shown as reported context.
+- **Cache / rate limit**: full refresh every 2 h (first run 90 s after boot, `AMM_LOCK_DELAY_MS`), ≥ 150 ms between calls (single flight), account_info cached 6 h. Anything older than 6 h
+  (server and client check `t_ms`) is served as UNVERIFIED with no %. `AMM_LOCK=0` disables it. A full pass is ~1,000 calls / ~6 min.
+- **API**: `GET /api/amm-lock` → `{ts, t_ms, last_ok, rules, pools: {amm: {status, locked_pct, locked_lp, lp_supply, lp_supply_src, time_locked_pct, held_pct, unchecked_pct, destinations[{acct, pct, cls, reason, source}], reported_pct}},
+  tokens: {name: {status, burned, burned_pct, supply, supply_src, black_holes[...], issuer_keys_disabled, issuer_src, pools[]}}}` (503 `warming_up` before the first pool is read).
+- **Test hooks**: `?locktest` = client fixture on real bridges/towers (partial 90.5%, 100%, keyed holders 10%, failed fetch, escrow 50+20%, 0%, small pool; tokens: multi-pool 15%, 60%,
+  issuer black-holed with no burn, failed fetch, designated address). `?debug=1` or `?locktest` adds `window.__ammLock.view()/apply()/load()`.
+- **Gaps**: halo sits at one point per bridge (midpoint), not along the rail; no pool→singularity link line (left out to keep the 3-draw budget and avoid implying the tokens are in the pool);
+  token scans check only the top 30 holders (a tiny black-hole balance below 0.01% is not counted, so burn is a slight lower bound); RLUSD is not scanned (unverified);
+  Escrow detection depends on IOU escrows being listed on the AMM account (TokenEscrow); real-phone look/fps still pending (headless SwiftShader only).
 
 ## AEGIS Live Cams (feat/live-cams, sw bc-v52-livecams)
 - **Server** `server/cams.js` (hook: one line in `server.js` before `/api/eco/live`, plus `Cams.start()` at boot).
@@ -336,6 +383,7 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
 - Tests: `npm run test:fishing-rules`, `node test/fish-sim.js`; `npm run test:all` runs both plus the server sims.
 - Hooks: `window.__fish.openShop()` / `openLog()` for smoke tests. Touch ghost-click guard (pointerdown + capture-phase click filter) is unchanged.
 - Known gap: not yet in the default `npm test`; iPhone 390x844 smoke is about 5 draw calls above main (~403 vs ~398 in the swiftshader harness).
+- Cast generation guard (sw bc-v72-fishgen): `castAt` bumps `castGen`; the bite timer, the bite-escape timer and the post-`api('cast')` continuation only act if they belong to the current cast. Before, cancelling a cast (Reel in / Esc / too-early hook) and recasting let the old cast's timer fire an early `❗ Bite!` on the new cast (reproduced in Playwright on iPhone 13 and desktop). A used-up bait now falls back to Worm before the cast (the server already did this; the UI said `bait: shrimp` with 0 left).
 
 ## CinderWilds city horizon (sw bc-v55-horizon)
 - client/js/wilds-gate.js `buildForestHorizon()`: visual-only distant forest skyline north of the city (group `wilds-horizon`; 1 ridge mesh + 4 InstancedMesh, 132 trees, about 5 draw calls, no colliders, no forest loading).
@@ -390,19 +438,19 @@ Integrates Xrpassassin PRs #96 → #97 → #99 → #101 (stacked; tip #101 merge
 - **NPC ships** (`boats.js`, `boat-ai.js`): 3 procedural vessels (2 merchants, 1 patrol) on routes near the three ports; merchants evade, the patrol notices/approaches/engages. ~5 meshes each (≈15 draw calls).
 - **Combat** (`combat.js`, `cannon-ai.js`): player broadside damages/sinks NPCs; the patrol telegraphs (red lamp + message) then fires. **Client-side and cosmetic only**: no gold, loot, XP or server call on hits/sinks; hull 0 just disables the ship (no repair/respawn yet). Trade, `/api/bt`, ports/docking, hold upgrade and saves are unchanged and still server-authoritative. Still no PvP.
 - `?bttest` `__bt.state().boats` lists live NPCs (id, kind, x, z, health).
-- **Play section** (`client/js/play-menu.js`, #103): top-right `▶ Play` button opens a game picker; Blacktide moved out of the pause view menu into it. It calls `window.__launchBlacktide()` (app.js: stores `sessionStorage.bc_ret`, then `blacktide/`), so the `../` return link still restores Explore/Fly at the same spot. Hidden under `body.wl-travel`.
+- **Play section** (`client/js/play-menu.js`, #103; *superseded by the Movement & Games hub below, file removed*): top-right `▶ Play` button opens a game picker; Blacktide moved out of the pause view menu into it. It calls `window.__launchBlacktide()` (app.js: stores `sessionStorage.bc_ret`, then `blacktide/`), so the `../` return link still restores Explore/Fly at the same spot. Hidden under `body.wl-travel`.
 - Tests: `npm run test:blacktide` (ocean, boat AI, cannon AI; also in `npm test`). CI: `.github/workflows/blacktide-ocean-test.yml`.
 - Gaps: NPC sinkings don't respawn until reload; no repair; cannonballs allocate a small geometry per shot (disposed on expiry).
 
 ## City transport/fly controls, input-latency HUD, AEGIS live explorer (integrate/city-aegis, sw bc-v63-cityaegis)
 Integrates Xrpassassin PRs #105 → #106 → #107 → #108 → #109 (stacked; tip #109 merged; #103 already landed in #112).
-- **Transport menu** (`client/js/transport-menu.js`): top-right `⇄ Transport` (Flight → `window.__setBurnMode('fly')`; Lake boat → Explore + a hint). `✈ Fly` left the `#btns` mode dock (still in the pause view menu). Phones (≤520px) show the icon only so it sits between `#vExit` and `▶ Play` (the full label overlapped `#vExit` on iPhone 13; fixed on integrate). `setMode` keeps the Wilds travel-lock guard.
+- **Transport menu** (`client/js/transport-menu.js`; *superseded by the Movement & Games hub below, file removed*): top-right `⇄ Transport` (Flight → `window.__setBurnMode('fly')`; Lake boat → Explore + a hint). `✈ Fly` left the `#btns` mode dock (still in the pause view menu). Phones (≤520px) show the icon only so it sits between `#vExit` and `▶ Play` (the full label overlapped `#vExit` on iPhone 13; fixed on integrate). `setMode` keeps the Wilds travel-lock guard.
 - **Fly on desktop** (app.js): no pointer lock on click any more; right-drag looks, left-click inspects (hover tips + `showInfo` work in Fly like Explore).
 - **`?perf=1` HUD**: adds input→next-frame p95 (`__perf.inputP95`, `inputSamples`); the listeners only exist with `?perf`.
 - **AEGIS live explorer** (`client/js/aegis.js` `openLive`): "All streams" tab, search + sort, feed-health line (CONNECTED / DEGRADED / STALE from `LC.ok`/`LC.fails`/`LC.source`), incident cards that open the best title-matched stream (text match only, not location-verified), one iframe at a time, stale comment responses ignored. All text via textContent.
   - `?citysrv=` is now restricted to same-origin, burn-city-game.fly.dev, or localhost (http allowed only for localhost); anything else falls back to the default server.
   - Server untouched: `/api/cams` YouTube search keeps `safeSearch: 'moderate'` (#104) and the YouTube source.
-- Gaps: on phones the Fly help line still mentions WASD/right-click; the Lake boat entry only gives a hint (no auto-route).
+- Gaps (fixed in sw bc-v67-hub): the phone Fly help line now shows touch controls; Lake boat now takes you to the dock.
 
 ## Wilds: Yuka wander steering + Glassroot ambient wildlife/enemies (integrate/wilds-yuka, sw bc-v64-wildsyuka)
 Integrates Xrpassassin PRs #110 → #111 (stacked; tip #111 merged).
@@ -427,3 +475,46 @@ Integrates Xrpassassin PRs #63, #64, #65, #66, #67. All comparison tools are opt
 - **City bloom comparison** (`bloom-comparison-presets.mjs`, #66): `?graphicslab` adds `window.__graphicsTest.setBloomPreset('balanced'|'ember'|'crisp')` (scales the existing UnrealBloomPass strength, sets radius/threshold). Without the flag `bloomStrengthScale` stays 1.
 - **Zombie visual palette** (`client/arena/zombie-visual-presets.mjs` + `docs/zombie-visual-asset-plan.md`, #67): data + plan only, not imported by the arena yet.
 - Tests: `npm run test:graphics-labs` (in `npm test`).
+
+## Movement & Games hub (ui/movement-games-hub, PR #117, sw bc-v67-hub)
+Replaces `transport-menu.js` + `play-menu.js` (both deleted; nothing else imported them) with `client/js/movement-games-menu.js`.
+- **Opener** `#bcMoveGamesOpen` sits inside the `#btns` toolbar before `🎮 Play` / `⋯` (`ui.js` keeps it on the bar via its `stay` set), so it never covers them (the old fixed buttons hid `🎮 Play` and `⋯ More` on every screen). Phones (≤520px wide or ≤500px tall, i.e. portrait and landscape): label `⇄ Play ▾`, and the toolbar's `🎮 Play` is hidden there because there is no room beside `✕ Exit`/`☰ View`; the arena is the hub's **Multiplayer arena** entry instead (it clicks `#playBtn`, so the same handler).
+- **Entries**: Orbit / Explore / Tour / Flight (`window.__setBurnMode`, `#tour`), Lake boat, Blacktide (`window.__launchBlacktide`, so `bc_ret` + the `../` return link still work), Multiplayer arena, Fishing, The Wilds, BURN City (Orbit). Every entry closes the panel first (also when refused). Esc closes it in the capture phase, so it doesn't also open the pause menu; `pageshow` closes a stale one.
+- **Take me there** (app.js hook `window.__walkTo(x, z, face)`): Explore at a real anchor, facing it. Lake boat: `__boatWorld.docks[0].base + dock dir·3` (the spot `boat.js` drops you when you leave a boat; `🚤 Board boat` shows). Fishing: fishing dock `base + dir·16` (within the 6 m cast zone at the tip; `🎣 Fish` shows). Wilds: 16 m south of `GATE` (from `wilds-gate.js`, dynamic import, so `?nowilds` hides the entry), outside the warning ellipse, inside the 60 m prefetch radius. Refuses during the travel lock, in a boat or in the tower; then it falls back to Explore + a hint.
+- **Hints** use city toasts via the app.js hook `window.__bcToast(text)` (text only, escaped), not `#help`, which every mode change rewrites.
+- **Wilds travel lock** (`body.wl-travel`): only Explore and Multiplayer arena show (same as the toolbar, where `🎮 Play` stays in the Wilds) plus a note; JS also refuses the other keys.
+- **Touch text**: Flight shows `left stick, drag to look, ▲ / ▼`, Lake boat `tap 🚤 Board boat`; app.js phone Fly help line: `Left stick fly · drag to look · ▲ up · ▼ down · tap things to inspect` (was WASD/right-click).
+- Desktop Fly (right-drag look, left-click inspect) is unchanged; `✈ Fly` is still in the pause view menu.
+- Test hook: `?debug=1` or `?hubtest` gives `window.__hub` = {open, close, travel, spots, locked}.
+- **City Fly layout fix** (`js/ui.js` `syncMode`): it read the mode from the `#btns` dock, but `✈ Fly` left the dock in #109, so Fly read as Orbit and `body.mFly` was never set: on phones the Orbit/Explore dock stayed up in Fly, `🏁 Race drone` sat on top of it and the ▼ button, the minimap sat on the stick. It now asks `window.__city.getMode()` (falls back to the dock).
+- **Phone UI cleanup (same PR)**, CSS only: Blacktide return link (`.brand`) and TAKE THE HELM are 44px tall on touch; the vessel HUD starts below the notch in portrait (it overlapped the return link); landscape phones now get the touch sailing controls (they were shown only ≤700px wide, so an 844px-wide iPhone in landscape could not steer or fire), a compact HUD and notch-safe sides. Eternal Grind title/character/death screens keep 44px buttons on phones (`body.m .scr button`). Arena lobby checkbox rows (`Teammates' trails kill`, `Best of 3`) are 44px tap rows on touch.
+- Audit harness used (not in git): Playwright Chromium as iPhone 13 portrait (390x844, insets 47/34) + landscape (844x390, insets 47 L/R, 21 bottom) + desktop 1366x800, `serviceWorkers:'block'` (otherwise the city's SW serves the other pages from cache and the inset rewrite never runs), env(safe-area-inset-*) rewritten in the served CSS/JS; flags touch targets <44, controls covered by another control, offscreen and inside-the-safe-area controls.
+
+## Hub travel journeys: airport → Zombies, Aegis Pyramid → Light Cycles (PR #132, sw bc-v71-exptravel)
+- Files: `client/js/experience-registry.mjs` (+ `.test.mjs`, in `npm test`), kiosk/pad + hit volumes in `client/js/airport.js` (airport kiosk at -130,-535) and `client/js/aegis-pyramid.js` (pad at X+20), travel card in `app.js` `showInfo` (`kind:'experience'`), `#returnCity` in `client/arena/index.html` (shown only for `?from=airport|aegis-pyramid-plaza`). Details: `docs/experience-travel-framework-handoff.md`.
+- Return position uses the existing `sessionStorage.bc_ret` restore (Explore at the kiosk's `returnX/Z`, facing `returnYaw`). The old decorative avenue portal rings are removed.
+- Stabilization (Hark): travel card buttons 44px; `pageshow` (bfcache back) clears a stale boarding overlay / travel card in the city and the return overlay in the arena; repeated Return taps run one teardown.
+- Verified in Playwright (iPhone 13 + desktop, `serviceWorkers:'block'`): kiosk tap → card → Stay (no `bc_ret` left) → Enter (double tap = one launch) → arena free play in the right mode with Return visible, no overlap in portrait/landscape → Return → city Explore at the exact return point. The bfcache path is syntax-only.
+
+## Eternal Grind seeded dungeon layout prototype (PR #131, isolated lab)
+- Files: `client/dungeon/dungeon-layout-core.mjs` (+ `.test.mjs`, in `npm run test:eternal-grind`), `dungeon-layout-lab.html/.mjs` (open `/dungeon/dungeon-layout-lab.html`), `DUNGEON_LAYOUT_PROTOTYPE.md`, `DUNGEON_LAYOUT_LAB.md`. Not imported by the live dungeon (`/dungeon/index.html`), combat, loot or saves; not precached by the SW.
+- Contract: `generateDungeonLayout({ seed, columns=5, rows=5, loopChance=.12 })` → grid rooms + corridors between grid neighbours (spanning tree + loops), `entranceId` 0, `bossId` = farthest room, `mainPathLength`.
+- Stabilization (Hark): the lab had no import map, so `import 'three'` failed in the browser; it now uses the same map as the other dungeon labs (`../vendor/three/build/three.module.min.js`). Checked 70 seed/size/loop combos: deterministic, all rooms reachable, boss is the farthest room, corridors only join neighbours.
+
+## fix/cinderwilds-entry-exit-spacing (PR #127, sw bc-v74-wildsentry)
+Proceeding into the Cinderwilds stages the player 16 m up the trail (wilds-gate.js stageEntry) and the return barrier only prompts past ell>1.015, so the first step after entry can't trigger RETURN. Verified: arrive z=410, no prompt on first steps, prompt when walking back out (z≈401.6).
+
+## feature/forest-sign-airport-transit-plan (PR #123, sw bc-v75-wildssign)
+City-side THE WILDS direction sign enlarged (4.2x1.25 at y=3.0, wilds-gate.js buildGate) + docs/airport-city-traffic-integration-plan.md (plan only, nothing wired).
+
+## feature/cinderwilds-exploration-map (PR #126, sw bc-v76-wildsmap)
+Fog-of-exploration minimap + full field map in Fernway Verge and Glassroot (client/js/wilds-map.js; created in wilds.js buildDom, updated each frame, disposed in unload; Glassroot map data on wilds-deep.js ZONE.map). M / ⤢ opens, Esc/✕ closes, explore input locked while open (window.__wildsMapOpen in __exploreLock). Explored cells in localStorage bc.wilds.explored.v1 (device-local). Map is north-up with world +x drawn to the left (matches the 3D view). Desktop minimap sits below #wlHud/#wlQuest (top 196px).
+
+## fix/explore-camera-zoom-stability (PR #125, sw bc-v77-camzoom)
+Third-person Explore camera zoom: mouse wheel and two-finger pinch on the canvas (2.5-14 m, app.js exploreCamDistance). Only canvas touches count toward a pinch (camTouches filters out the joystick finger), so joystick + look-drag still looks. yaw/pitch are only re-derived when the mode actually changes; default pitch only on first spawn.
+
+## feature/shared-airborne-banner-planes (PR #122, sw bc-v78-bannerplanes)
+Two banner tow planes on a shared Unix-time schedule (airport.js poseTowPlane/updBannerPlanes; 240 s cycle, banners alternate ETERNAL GRIND / LIGHT CYCLES; canvas placeholder art, both planes share the two textures). Client clock only (no server sync); route crosses the city at 40-78 m.
+
+## feature/lake-waterfront-estates (PR #124, sw bc-v79-estates)
+Lake enlarged (estate.js lakeFrame D 62->78, Wd 175->210; shader divisors match) and the Estates lot rebuilt as Waterfront Estates: 9 tiered homes (trailer/apartment/starter/family/mansion), pocket park, trees, fences, lights, entrance sign; all merged per material (~17 meshes). Visual only: buying/renting/interiors not implemented. Estates card text updated.

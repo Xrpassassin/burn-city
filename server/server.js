@@ -4,7 +4,8 @@ const Retain = require('./retain'), Fish = require('./fish'), LB = require('./le
 const Nft = require('./nft'), Social = require('./social'), C = require('./config'), Pay = require('./payments'), { Room } = require('./game'), S = require('./store'), City = require('./city'), Eco = require('./eco');
 
 const AegisClips = require('./aegis-clips'), Cams = require('./cams');
-const BT = require('./blacktide');   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
+const BT = require('./blacktide');
+const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
 const stats = { tickMs: [], bytesOut: 0, started: Date.now() };
 const resumeIdx = new Map();   // free-play zombie reconnect: resume key -> { p, room } (25s grace after a dropped socket)
@@ -76,6 +77,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/bt/') && await BT.handle(req, res, url, { json, gate, ip, body, who })) return;   // Blacktide trade/progression (server/blacktide.js)   // AEGIS Pyramid live cams + per-stream comments (server/cams.js)
     if (url.pathname === '/api/eco/live') { if (Eco.serveLive(req, res)) return; return json(res, 503, { error: 'warming_up' }); }
     if (url.pathname === '/api/eco') return json(res, 200, Eco.status());
+    if (url.pathname === '/api/amm-lock' && AmmLock.handle(req, res, url, { json })) return;
     if (url.pathname === '/api/status') return json(res, 200, { signin: !!C.XUMM_KEY, shop: !!(C.XUMM_KEY && C.TREASURY), dryRun: C.DRY_RUN, social: true, ranked: Ranked.status(), payoutsPaused: require('./guard').paused() });
     if (url.pathname.startsWith('/nftimg/')) { if (Nft.image(req, res, url.pathname)) return; }
     // PYRETHEUM (BURN Tower interior) private floor: server-side gate. Allowlist comes only from the MIDNIGHTBLUFF_WALLETS env/Fly secret
@@ -342,4 +344,5 @@ AegisClips.start({ online: () => City.count() });
 Cams.start();   // YouTube live-cam refresh: no-op unless YT_API_KEY / Youtube_API is set   // no-op unless AEGIS_CLIPS=1
 server.listen(C.PORT, () => console.log(`burn-city-game :${C.PORT} free=true shop=on dryRun=${C.DRY_RUN} net=${C.NETWORK}`));
 Eco.start();
+AmmLock.start(Eco);
 module.exports = { server, stats, rooms, tronRoom, tronTick, tronRound, tronFinal };

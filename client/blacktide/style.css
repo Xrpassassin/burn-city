@@ -13,3 +13,7 @@
 .bt-sell{background:linear-gradient(135deg,#21506a,#122c3c);border-color:#7fb6d6}
 .bt-up{width:100%;margin-top:12px;min-height:44px}.bt-close{width:100%;margin-top:8px;min-height:44px;background:#0b2233;border-color:#9eb8c966}
 .bt-note{color:#c9d8e0;font-size:11px;min-height:1.4em;margin:10px 0 0}
+/* phone cleanup (sw bc-v67-hub): 44px return link + helm button, HUD below the notch, touch controls on landscape phones (were ≤700px only), notch-safe sides */
+@media(pointer:coarse){.brand{display:inline-block;line-height:44px;min-height:44px}#begin{min-height:44px}.topbar{padding-left:calc(14px + env(safe-area-inset-left));padding-right:calc(14px + env(safe-area-inset-right))}}
+@media(max-width:700px){.hud{top:calc(65px + env(safe-area-inset-top))}}
+@media(pointer:coarse) and (max-height:500px){.topbar{padding-top:calc(6px + env(safe-area-inset-top));padding-bottom:6px}.hud{top:54px;left:calc(10px + env(safe-area-inset-left));width:210px;padding:9px 12px}.hud-row{font-size:10px;padding:3px 0}.mobile-controls{display:flex;bottom:calc(12px + env(safe-area-inset-bottom));left:calc(12px + env(safe-area-inset-left));right:calc(12px + env(safe-area-inset-right))}.message{bottom:calc(14px + env(safe-area-inset-bottom));max-width:34vw;font-size:11px}footer{display:none}.bt-dock{top:calc(12px + env(safe-area-inset-top))}}

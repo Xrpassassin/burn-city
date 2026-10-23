@@ -15,7 +15,13 @@ const BUILDINGS = NP({
   workshop:   { cost: { wood: 12, scrap: 14 }, hp: 120, defense: 1, cap: 3 },
   infirmary:  { cost: { wood: 10, scrap: 8, meds: 2 }, hp: 100, defense: 0, cap: 2 },
   storage:    { cost: { wood: 10, scrap: 5 }, hp: 100, defense: 0, cap: 4 },
-  gate:       { cost: { wood: 12, scrap: 8 }, hp: 180, defense: 3, cap: 2 }
+  gate:       { cost: { wood: 12, scrap: 8 }, hp: 180, defense: 3, cap: 2 },
+  entrance:   { cost: { wood: 14, scrap: 10 }, hp: 220, defense: 5, cap: 1 },
+  exit:       { cost: { wood: 14, scrap: 10 }, hp: 220, defense: 5, cap: 1 },
+  sandbags:   { cost: { wood: 4, scrap: 6 }, hp: 130, defense: 4, cap: 12 },
+  barbed_wire:{ cost: { wood: 2, scrap: 8 }, hp: 65, defense: 5, cap: 10 },
+  trench:     { cost: { wood: 6, scrap: 8 }, hp: 160, defense: 3, cap: 6 },
+  turret:     { cost: { wood: 10, scrap: 22, ammo: 2 }, hp: 180, defense: 5, cap: 4 }
 });
 const DIFFICULTIES = NP({story:{label:'Story',cost:0.8,reward:0.7,threat:0.75},standard:{label:'Standard',cost:1,reward:1,threat:1},veteran:{label:'Veteran',cost:1.35,reward:1.55,threat:1.4},nightmare:{label:'Nightmare',cost:1.8,reward:2.35,threat:1.9}});
 const TYCOON_UPGRADES = NP({scavenger_rig:{label:'Scavenger Rig',description:'+15% salvage per level',baseCost:100,max:5},ember_press:{label:'Ember Press',description:'+5 embers per successful expedition per level',baseCost:140,max:5},field_armory:{label:'Field Armory',description:'+2 defense strength per level',baseCost:120,max:5},medic_station:{label:'Field Medic Station',description:'+1 bonus medicine on successful trips per level',baseCost:160,max:3}});
@@ -80,7 +86,14 @@ function validateBase(input, ownerId) {
   out.wave = clampInt(out.wave, 0, 1000000);
   out.revision = clampInt(out.revision, 1, Number.MAX_SAFE_INTEGER);
   out.structures = out.structures.filter(s => s && isBuilding(s.type) && typeof s.id === 'string')
-    .map(s => ({ id: s.id.slice(0, 80), type: s.type, hp: clampInt(s.hp, 0, BUILDINGS[s.type].hp), maxHp: BUILDINGS[s.type].hp, x: clampNumber(s.x, -9.5, 9.5), z: clampNumber(s.z, -9.5, 9.5) }));
+    .map(s => ({
+       id: s.id.slice(0, 80), type: s.type,
+       hp: clampInt(s.hp, 0, BUILDINGS[s.type].hp), maxHp: BUILDINGS[s.type].hp,
+       x: clampNumber(s.x, -9.5, 9.5), z: clampNumber(s.z, -9.5, 9.5),
+       rotation: clampNumber(s.rotation, -Math.PI * 2, Math.PI * 2),
+       trenchLevel: s.type === 'trench' ? clampInt(s.trenchLevel, 0, 3) : 0,
+       manned: s.type === 'turret' && s.manned === true
+     }));
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
     .map(s => ({ id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100) }));
   out.log = Array.isArray(out.log) ? out.log.slice(-20) : [];
@@ -124,9 +137,36 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const z = Number.isFinite(action.z) ? action.z : Math.sin(angle) * radius;
       if (Math.abs(x) > 9.5 || Math.abs(z) > 9.5) throw new Error('placement_out_of_bounds');
       if (Math.hypot(x, z) < 2.4) throw new Error('placement_occupied');
-      if (s.structures.some(v => Math.hypot(v.x - x, v.z - z) < 1.65)) throw new Error('placement_occupied');
-      s.structures.push({ id, type: action.building, hp: spec.hp, maxHp: spec.hp, x, z });
+      if (s.structures.some(v => Math.hypot(v.x - x, v.z - z) < (action.building === 'barbed_wire' || v.type === 'barbed_wire' ? 1.0 : 1.65))) throw new Error('placement_occupied');
+      const rotation = Number.isFinite(action.rotation) ? clampNumber(action.rotation, -Math.PI * 2, Math.PI * 2) : 0;
+      s.structures.push({ id, type: action.building, hp: spec.hp, maxHp: spec.hp, x, z, rotation, trenchLevel: 0, manned: false });
       record(s, 'build', 'Constructed ' + action.building + '.', now);
+      break;
+    }
+    case 'trench_upgrade': {
+      const target = s.structures.find(x => x.id === action.target && x.type === 'trench');
+      if (!target) throw new Error('unknown_trench');
+      if (target.trenchLevel >= 3) throw new Error('trench_max_level');
+      const next = target.trenchLevel + 1;
+      const costs = { 1: { scrap: 8, wood: 4 }, 2: { wood: 8, scrap: 10 }, 3: { scrap: 14, ammo: 6, meds: 2 } };
+      pay(s, costs[next]);
+      target.trenchLevel = next;
+      const names = ['open earth', 'reinforced revetment', 'spiked kill trench', 'electrified hazard trench'];
+      record(s, 'fortification', 'Upgraded trench ' + target.id + ' to tier ' + next + ': ' + names[next] + '.', now);
+      break;
+    }
+    case 'turret_manning': {
+      const target = s.structures.find(x => x.id === action.target && x.type === 'turret');
+      if (!target) throw new Error('unknown_turret');
+      target.manned = action.manned === true;
+      record(s, 'fortification', target.manned ? 'Turret ' + target.id + ' is manned and ready for the next defense.' : 'Turret ' + target.id + ' is unmanned.', now);
+      break;
+    }
+    case 'rotate_structure': {
+      const target = s.structures.find(x => x.id === action.target);
+      if (!target) throw new Error('unknown_structure');
+      target.rotation = (clampNumber(target.rotation, -Math.PI * 2, Math.PI * 2) + Math.PI / 4) % (Math.PI * 2);
+      record(s, 'fortification', 'Rotated ' + target.id + ' to face a new approach.', now);
       break;
     }
     case 'expedition': {
@@ -366,7 +406,14 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(guards.length / 2) + 1));
       s.resources.ammo -= ammoUsed;
       const active = s.structures.filter(x => x.hp > 0);
-      const defense = guardStrength * 2 + (s.upgrades.field_armory || 0) * 2 + active.reduce((n, x) => n + BUILDINGS[x.type].defense, 0) + ammoUsed * 0.8;
+      const structureDefense = active.reduce((n, x) => {
+        const trenchBonus = x.type === 'trench' ? x.trenchLevel * 3 : 0;
+        const turretBonus = x.type === 'turret' && x.manned ? 7 : 0;
+        return n + BUILDINGS[x.type].defense + trenchBonus + turretBonus;
+      }, 0);
+      const turretAmmo = Math.min(s.resources.ammo, active.filter(x => x.type === 'turret' && x.manned).length * 3);
+      s.resources.ammo -= turretAmmo;
+      const defense = guardStrength * 2 + (s.upgrades.field_armory || 0) * 2 + structureDefense + ammoUsed * 0.8 + turretAmmo * 1.5;
       const threat = 9 + Math.floor(s.survivors.length / 4); // Fixed perimeter threat; never scales with breach count.
       const damage = Math.max(0, Math.ceil((threat - defense) * 6));
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
@@ -377,7 +424,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         structure.hp -= hit; remaining -= hit;
       }
       const lost = s.baseHp === 0;
-      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach.' : 'Perimeter breach repelled with ' + damage + ' structure damage. Threat is independent of breach count.', now);
+      for (const turret of active.filter(x => x.type === 'turret')) turret.manned = false;
+      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach.' : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.', now);
       break;
     }
     case 'repair': {

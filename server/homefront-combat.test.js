@@ -94,4 +94,14 @@ const noiseDirectorTick = Director.advanceDirector({}, { zoneId: 'outskirts', ri
 assert.equal(noiseDirectorTick.state.phase, 'assault', 'loud player actions can escalate the director phase');
 assert.equal(noiseDirectorTick.decision, 'spawn', 'noise-triggered pressure requests a spawn when under cap');
 
-console.log('Homefront authoritative combat tests passed.');
+
+const squadSpawn = C.spawn({ encounters: {}, account: 'squad-test', player: { x: -40, z: 30 }, now: 880000, seed: 17 });
+assert.ok(Array.isArray(squadSpawn.encounters['squad-test'].members), 'encounters persist independently tracked infected members');
+assert.equal(squadSpawn.encounters['squad-test'].members.length, squadSpawn.encounter.packPlan.count, 'spawned member state matches deterministic squad plan');
+assert.ok(squadSpawn.encounters['squad-test'].members.every(m => m.id && Number.isFinite(m.x) && Number.isFinite(m.z) && m.hp > 0), 'each living member has an identity, position, and health');
+const squadBefore = squadSpawn.encounters['squad-test'].members.map(m => ({ id: m.id, x: m.x, z: m.z }));
+const squadAdvanced = C.advance({ encounters: squadSpawn.encounters, players: { 'squad-test': { x: -35, z: 25 } }, now: 880180 });
+assert.ok(squadAdvanced['squad-test'].members.every(m => Number.isFinite(m.x) && Number.isFinite(m.z)), 'squad members retain valid independent coordinates through simulation');
+assert.ok(squadAdvanced['squad-test'].members.some((m, i) => Math.hypot(m.x - squadBefore[i].x, m.z - squadBefore[i].z) > 0), 'infected members independently advance toward remembered player position');
+assert.equal(C.publicEncounter(squadAdvanced['squad-test']).members.length, squadSpawn.encounter.packPlan.count, 'public world snapshots expose each squad member for client rendering');
+\nconsole.log('Homefront authoritative combat tests passed.');

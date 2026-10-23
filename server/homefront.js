@@ -387,7 +387,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const carriedBefore={...carried};
           workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
           const nextBase=Core.applyAction(workingBase,user.acct,{type:isBoss?'boss_attack':'expedition',zone:nearest.point.zone,difficulty});
-          const grossEmbers=Math.max(0,nextBase.embers-base.embers);
+          let grossEmbers=Math.max(0,nextBase.embers-base.embers);
           const grossResources={};
           carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;
@@ -411,6 +411,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
               nextBase.log = nextBase.log.slice(-20);
             }
           }
+          grossEmbers=Math.max(0,nextBase.embers-base.embers);
           for(const id of ['wood','scrap','meds']){
             const found=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
             grossResources[id]=found;

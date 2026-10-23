@@ -120,3 +120,12 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Tests cover rescue-site map state, survivor recruitment and role, capacity rejection, and prevention of a second player claiming the same rescue during cooldown.
 
 - Added one persistent mod slot per owned weapon: Reinforced Grip (+1 power), Salvage Edge (+1), or Shock Coil (+2). Mods cost scrap and Embers, are installed on the currently equipped weapon, and their bonus affects ambush mitigation and boss damage. Mod-slot enforcement is server-side and regression-tested.
+
+
+### Three-dimensional XRPL Graveyard integration
+- Added `client/arena/homefront-graveyard-3d.js`, a Three.js scene using the project's existing vendored Three.js runtime; no second engine or new dependency was added.
+- Homefront now embeds a procedural 3D ruined-city blockout beside the existing 2D tactical map. The 3D view visualizes district danger bands, streets/buildings, shared POIs, supply caches, rescue sites, boss locations, and pseudonymous player/party markers.
+- The renderer reads `GET /api/homefront/world` and sends clicked destinations through `POST /api/homefront/world/move`. Server-authoritative distance limits and party-leader movement rules remain in force; client geometry is presentation only and cannot grant loot, claim objectives, or alter boss health.
+- The existing 2D tactical map remains available as a fallback. This slice establishes explorable 3D navigation over the existing shared-world coordinate system; it is a procedural blockout, not yet the finished authored city, collision-aware walking controller, or integrated real-time zombie combat.
+- Added `test/homefront-graveyard-3d.test.mjs` to the Homefront test script to verify the renderer uses the shared API, respects party movement, and leaves the tactical map fallback in place.
+- Still required before merge: run `npm run test:homefront`, inspect the page on desktop and mobile Safari, verify click-to-move proximity rules and party behavior against the live API, and profile renderer performance. Keep this PR draft; do not merge or deploy.

@@ -45,6 +45,30 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       switch (url.pathname) {
         case '/api/homefront/world/enter': outcome = World.enter(db, user.acct); break;
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z)); break;
+        case '/api/homefront/world/rescue': {
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const nearest = World.nearestPoint(player.x, player.z, 'rescue');
+          if (!nearest || nearest.distance > 14) throw new Error('too_far_from_rescue');
+          if (payload.pointId && payload.pointId !== nearest.point.id) throw new Error('too_far_from_rescue');
+          const now = Date.now();
+          const rescue = db.rescues[nearest.point.id];
+          if (rescue.readyAt > now) throw new Error('rescue_unavailable');
+          const bases = store.load('homefront.json', {});
+          const savedBase = bases[user.acct] || Core.createBase(user.acct);
+          const base = Core.validateBase(savedBase, user.acct);
+          if (!base) throw new Error('save_invalid');
+          const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty : 'standard';
+          const nextBase = Core.applyAction(base, user.acct, { type: 'rescue_survivor', zone: nearest.point.zone, difficulty }, now);
+          rescue.readyAt = now + 8 * 60e3;
+          bases[user.acct] = nextBase;
+          store.save('homefront.json', bases);
+          player.lastSeen = now;
+          store.save('homefront-world.json', db);
+          const snap = World.snapshot(db, user.acct, now);
+          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: { id: nearest.point.id, label: nearest.point.label, rescued: true, readyAt: rescue.readyAt, difficulty, survivor: nextBase.survivors.at(-1), event: nextBase.log.at(-1)?.text } });
+          return true;
+        }
         case '/api/homefront/world/cache': {
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');
@@ -133,7 +157,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       json(res, 200, { mode: 'homefront-world', ...outcome.result }); return true;
     } catch (e) {
       const message = String(e?.message || 'homefront_world_error');
-      const clientError = /^(not_in_expedition|move_cooldown|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|not_at_boss_site|boss_respawning|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
+      const clientError = /^(not_in_expedition|move_cooldown|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
       json(res, clientError ? 400 : 500, { error: message });
       if (!clientError) console.error('[homefront-world]', message);
       return true;

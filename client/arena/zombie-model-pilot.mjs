@@ -78,6 +78,11 @@ export async function createZombieModelPilot(scene) {
     if (!item) return;
     scene.remove(item.group);
     item.mixer.stopAllAction();
+    item.visual.traverse(node => {
+      if (!node.isMesh || !node.material) return;
+      // Materials are cloned per zombie; textures and geometries remain shared with the cached GLB.
+      for (const material of (Array.isArray(node.material) ? node.material : [node.material])) material.dispose();
+    });
     active.delete(id);
   }
 

@@ -213,3 +213,7 @@ const homefrontPage = readFileSync(new URL('../client/arena/homefront.html', imp
 assert.match(homefrontPage, /if\(survivor\.role==='farmer'\)\{const plot=base\.farmPlots\?\.find\(item=>item\.crop\)/, 'place farmers beside an actively planted crop when available');
 assert.match(homefrontPage, /if\(survivor\.role==='mechanic'\)\{const damaged=base\.structures\.filter\(item=>item\.hp<item\.maxHp\)/, 'send mechanics toward the most damaged structure before falling back to the workshop');
 assert.match(homefrontPage, /if\(survivor\.role==='guard'\)\{const defensiveTypes=new Set\(\['wall','gate','watchtower','entrance','exit','sandbags','barbed_wire','trench','turret'\]\);const breach=base\.structures\.filter\(item=>defensiveTypes\.has\(item\.type\)&&item\.hp<item\.maxHp\)/, 'redirect guards to damaged perimeter defenses while preserving their patrol fallback');
+
+assert.match(homefrontPage, /if\(s\.hp<=0\)\{g\.userData\.breached=true;g\.userData\.structureId=s\.id;/, 'render zero-HP structures as persistent breach wreckage instead of intact defenses');
+assert.match(homefrontPage, /const breachMarker=block\(g,\.78,\.07,\.07,0,\.68,0,0xe34d3e\)/, 'make a destroyed perimeter opening visually identifiable in the 3D refuge');
+assert.match(homefrontPage, /integrity<=\.25\?0xd94a3e:integrity<=\.6\?0xc77a3e/, 'tint critical and damaged structures by server-reported integrity');

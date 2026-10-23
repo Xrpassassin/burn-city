@@ -115,6 +115,7 @@ assert.match(scene, /drop\.userData\.blood = true/, 'mark short-lived blood part
 
 assert.match(scene, /const weaponId = \['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','machine_gun','heavy_machine_gun'\]/, 'select only known server-equipped weapon profiles for impact feedback');
 assert.match(scene, /function addCombatTracer\(target, weaponId, hitZone\)/, 'draw tracers only after authoritative firearm hit confirmation');
+assert.match(scene, /sfx\.weaponFire\(weaponId\)/, 'machine-gun audio fires only alongside confirmed combat-hit feedback');
 assert.match(scene, /combatTracers\.push\(\{ line, life: lifetime, maxLife: lifetime \}\)/, 'track and dispose short-lived firearm tracers');
 assert.match(scene, /weaponId === 'heavy_machine_gun' \? 0xfff0a0/, 'heavy machine gun has a distinct bright tracer');
 assert.match(scene, /const isHeavyMachineGun = weaponId === 'heavy_machine_gun'/, 'render a larger late-game heavy machine-gun silhouette');

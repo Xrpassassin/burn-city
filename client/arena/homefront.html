@@ -79,7 +79,7 @@ function render(){
 }
 async function load(){if(!localStorage.bcToken){message('Sign in to create and save your personal refuge.');$('signin').textContent='Sign in to save';return}try{const v=await request('/api/homefront');base=v.base;message('Refuge loaded · save revision '+base.revision,'ok');render()}catch(e){if(e.message==='sign_in_with_xaman'){localStorage.removeItem('bcToken');localStorage.removeItem('bcAcct');$('signin').textContent='Sign in to save';message('Your sign-in expired. Sign in again to load your refuge.','danger')}else message(e.message,'danger')}}
 $('signin').onclick=async()=>{if(localStorage.bcToken){await load();return}try{message('Waiting for Xaman approval…');$('qrbox').hidden=false;const v=await signIn(API,{onQr:x=>{const img=document.createElement('img');img.alt='Xaman sign-in QR';img.src=x.qr;$('qr').replaceChildren(img);if(x.deeplink&&/iPhone|Android/i.test(navigator.userAgent))location.href=x.deeplink}});$('qrbox').hidden=true;message('Account connected. Loading your refuge…','ok');await load()}catch(e){message('Sign-in unavailable: '+e.message,'danger')}};
-$('back').onclick=()=>location.href='./';
+$('back').onclick=()=>location.href=new URLSearchParams(location.search).get('from')==='airport'?'../':'./';
 $('cancelPlacement').onclick=()=>{pendingBuilding=null;if(placementGhost)placementGhost.visible=false;render()};$('expedition').onclick=()=>act({type:'expedition'});$('workday').onclick=()=>act({type:'workday'});$('defend').onclick=()=>act({type:'defend'});$('repairBase').onclick=()=>act({type:'repair',target:'base'});
 load();
 </script></body></html>

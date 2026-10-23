@@ -108,11 +108,27 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           db.lootNodes = found.state;
           player.lastSeen = now;
           player.survival = Survival.tick(player.survival, now);
+          const bases = store.load('homefront.json', {});
+          const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
+          if (!base) throw new Error('save_invalid');
+          for (const drop of found.overflow) {
+            if (Object.prototype.hasOwnProperty.call(base.resources, drop.item)) {
+              base.resources[drop.item] = Math.min(999999, (base.resources[drop.item] || 0) + drop.amount);
+            }
+          }
+          if (found.overflow.length) {
+            base.revision++; base.updatedAt = now;
+            base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'scavenge',text:'Overflow from a field supply container was transferred to refuge stores.',at:now});
+            base.log=base.log.slice(-20);
+            bases[user.acct]=base;
+            store.save('homefront.json',bases);
+          }
           store.save('homefront-world.json', db);
           json(res, 200, {
             mode: 'homefront-world',
             ...World.snapshot(db, user.acct, now),
-            loot: { node: found.node, accepted: found.accepted, overflow: found.overflow },
+            base,
+            loot: { node: found.node, accepted: found.accepted, overflow: found.overflow, overflowDestination: 'refuge' },
             inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }
           });
           return true;

@@ -8,6 +8,8 @@ const b = W.enter(world, 'acct-b', 1000); world = b.world;
 assert.notDeepEqual([a.result.self.x, a.result.self.z], [b.result.self.x, b.result.self.z], 'solo players spawn at different perimeter locations');
 assert.equal(b.result.players.length, 2, 'both active players appear in the shared map');
 assert.equal(a.result.self.risk, 1, 'perimeter spawn is low risk');
+assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'cache'), 'shared world includes physical supply-cache landmarks');
+assert.ok(Object.values(a.result.world.caches).every(cache => cache.readyAt === 0), 'shared supply caches begin available');
 
 const party = W.createParty(world, 'acct-a', 1100); world = party.world;
 const code = party.result.party.code;

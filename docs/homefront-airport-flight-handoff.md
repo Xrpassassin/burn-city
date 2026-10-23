@@ -118,3 +118,5 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - A successful rescue charges difficulty-scaled food/ammunition costs, adds one persistent survivor to the player's refuge roster, assigns a role based on rescue-site risk (guard/mechanic/medic), and pays difficulty-scaled Embers. It does not advance an expedition or round counter.
 - Rescue availability is shared and persists in the world file. Once a player completes a rescue, the site has an eight-minute global cooldown; the server enforces proximity, roster capacity, and cooldown before saving.
 - Tests cover rescue-site map state, survivor recruitment and role, capacity rejection, and prevention of a second player claiming the same rescue during cooldown.
+
+- Added one persistent mod slot per owned weapon: Reinforced Grip (+1 power), Salvage Edge (+1), or Shock Coil (+2). Mods cost scrap and Embers, are installed on the currently equipped weapon, and their bonus affects ambush mitigation and boss damage. Mod-slot enforcement is server-side and regression-tested.

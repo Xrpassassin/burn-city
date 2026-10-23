@@ -89,6 +89,10 @@ assert.equal(shotgunCrafted.embers, 60);
 const shotgunEquipped = H.applyAction(shotgunCrafted, 'armory-test', { type: 'equip_weapon', weapon: 'pump_shotgun' }, 2306);
 assert.equal(shotgunEquipped.equippedWeapon, 'pump_shotgun', 'equipped weapon persists');
 assert.equal(H.WEAPONS[shotgunEquipped.equippedWeapon].power, 3);
+const moddedShotgun = H.applyAction(shotgunEquipped, 'armory-test', { type: 'craft_mod', mod: 'reinforced_grip' }, 2307);
+assert.equal(moddedShotgun.weaponMods.pump_shotgun, 'reinforced_grip', 'installed weapon mods persist on their target weapon');
+assert.equal(H.weaponPower(moddedShotgun), 4, 'weapon mods increase effective combat power');
+assert.throws(() => H.applyAction(moddedShotgun, 'armory-test', { type: 'craft_mod', mod: 'shock_coil' }), /weapon_mod_slot_used/);
 assert.throws(() => H.applyAction(shotgunEquipped, 'armory-test', { type: 'craft_weapon', weapon: 'pump_shotgun' }), /weapon_already_owned/);
 assert.throws(() => H.applyAction(shotgunEquipped, 'armory-test', { type: 'equip_weapon', weapon: 'shock_maul' }), /weapon_not_owned/);
 

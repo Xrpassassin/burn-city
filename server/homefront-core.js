@@ -100,6 +100,7 @@ function pay(s, cost) {
 function applyAction(input, ownerId, action, now = Date.now()) {
   const s = validateBase(input, ownerId);
   if (!s) throw new Error('invalid_or_foreign_base');
+  const foodBefore = { food: s.resources.food, rawFood: s.resources.rawFood };
   if (!action || typeof action.type !== 'string') throw new Error('invalid_action');
   switch (action.type) {
     case 'visibility': {
@@ -388,6 +389,12 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       break;
     }
     default: throw new Error('unknown_action');
+  }
+  const FoodFreshness = require('./homefront-freshness');
+  for (const id of ['food', 'rawFood']) {
+    const delta = s.resources[id] - foodBefore[id];
+    if (delta > 0) s.resources.freshness = FoodFreshness.addBatch(s.resources.freshness, id, delta, now);
+    else if (delta < 0) s.resources.freshness = FoodFreshness.takeBatches(s.resources.freshness, id, -delta, foodBefore, now).batches;
   }
   s.revision++;
   s.updatedAt = now;

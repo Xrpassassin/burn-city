@@ -146,4 +146,33 @@ assert.match(breachOutcome.lastSiege.phases[2].text, /breach opened at gate oute
 assert.equal(Core.validateBase({ ...breachOutcome, lastSiege: undefined }, 'rGuardIncidentBreach').lastSiege, null,
   'older saves without incident history remain valid');
 
+
+ // Persistent survivor behavior is server-authoritative and saved with each survivor.
+ const behaviorBase = Core.createBase('rSurvivorBehavior', now);
+ behaviorBase.structures = [{ id: 'behavior-gate', type: 'gate', hp: 80, maxHp: 180, x: 9, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
+ behaviorBase.survivors = [
+   { id: 'bg1', name: 'Mara', role: 'guard', morale: 80 },
+   { id: 'bm1', name: 'Tess', role: 'mechanic', morale: 70 },
+   { id: 'bd1', name: 'Ivo', role: 'medic', morale: 60 },
+   { id: 'bf1', name: 'Nia', role: 'farmer', morale: 50 }
+ ];
+ const normalBehavior = Core.validateBase(behaviorBase, 'rSurvivorBehavior');
+ assert.equal(normalBehavior.survivors.find(x => x.id === 'bg1').task, 'perimeter_watch');
+ assert.equal(normalBehavior.survivors.find(x => x.id === 'bm1').task, 'maintain_structures');
+ const behaviorWarning = Core.applyAction(normalBehavior, 'rSurvivorBehavior', { type: 'start_siege' }, now + 20);
+ assert.equal(behaviorWarning.survivors.find(x => x.id === 'bg1').task, 'defend_perimeter');
+ assert.equal(behaviorWarning.survivors.find(x => x.id === 'bg1').taskTarget, 'behavior-gate');
+ assert.equal(behaviorWarning.survivors.find(x => x.id === 'bm1').task, 'emergency_repair');
+ assert.equal(behaviorWarning.survivors.find(x => x.id === 'bm1').taskTarget, 'behavior-gate');
+ assert.equal(behaviorWarning.survivors.find(x => x.id === 'bd1').task, 'triage_standby');
+ assert.equal(behaviorWarning.survivors.find(x => x.id === 'bf1').task, 'take_shelter');
+ const persistedBehavior = Core.validateBase(JSON.parse(JSON.stringify(behaviorWarning)), 'rSurvivorBehavior');
+ assert.equal(persistedBehavior.survivors.find(x => x.id === 'bg1').task, 'defend_perimeter', 'siege response tasks survive save validation');
+ assert.equal(persistedBehavior.survivors.find(x => x.id === 'bm1').taskUpdatedAt, now + 20, 'task change timestamps persist');
+ const behaviorResolved = Core.applyAction(behaviorWarning, 'rSurvivorBehavior', { type: 'defend' }, now + 21);
+ assert.equal(behaviorResolved.survivors.find(x => x.id === 'bg1').task, 'perimeter_watch', 'guards return to normal watch after resolution');
+ assert.equal(behaviorResolved.survivors.find(x => x.id === 'bd1').task, 'infirmary_duty', 'medics return to infirmary duty after resolution');
+ const oldBehaviorSave = Core.validateBase({ ...behaviorResolved, survivors: behaviorResolved.survivors.map(({ task, taskTarget, taskReason, taskUpdatedAt, ...survivor }) => survivor) }, 'rSurvivorBehavior');
+ assert.equal(oldBehaviorSave.survivors.find(x => x.id === 'bg1').task, 'perimeter_watch', 'legacy saves receive safe default role behavior');
+
 console.log('Homefront authoritative guard-defense regressions passed.');

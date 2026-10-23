@@ -75,6 +75,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const x = Number.isFinite(action.x) ? action.x : Math.cos(angle) * radius;
       const z = Number.isFinite(action.z) ? action.z : Math.sin(angle) * radius;
       if (Math.abs(x) > 9.5 || Math.abs(z) > 9.5) throw new Error('placement_out_of_bounds');
+      if (Math.hypot(x, z) < 2.4) throw new Error('placement_occupied');
       if (s.structures.some(v => Math.hypot(v.x - x, v.z - z) < 1.65)) throw new Error('placement_occupied');
       s.structures.push({ id, type: action.building, hp: spec.hp, maxHp: spec.hp, x, z });
       record(s, 'build', 'Constructed ' + action.building + '.', now);

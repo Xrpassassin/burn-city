@@ -307,3 +307,11 @@ assert.match(page, /zombieFindPath\(outer,inner,structures,breach\.id\)/, 'infec
 assert.match(page, /const candidates=structures\.filter\(s=>s\.hp>0\)\.sort\(\(a,b\)=>a\.hp\/Math\.max\(1,a\.maxHp\)-b\.hp\/Math\.max\(1,b\.maxHp\)\)/, 'without a breach, infected pressure the weakest intact perimeter structure');
 assert.match(page, /while\(waypoint&&Math\.hypot\(waypoint\.x-o\.position\.x,waypoint\.z-o\.position\.z\)<\.22\)/, 'infected follow route waypoints with smooth movement');
 assert.match(page, /!pendingBuilding&&!constructionPaused\)\{for\(const actor of zombieActors\)/, 'construction pause still freezes infected movement');
+
+assert.match(page, /function zombiePlanFor\(base,start,index\)/, 'assign infected distinct breach-runner and structure-siege behaviors');
+assert.match(page, /mode:'siege',targetId:target\.id/, 'retain the attacked structure identity for reactive siege presentation');
+assert.match(page, /mode:'breach',targetId:breach\.id/, 'track which breach each runner is exploiting');
+assert.match(page, /\/attack\|bite\|claw\|melee\|punch\/i/, 'use available zombie attack clips when the asset provides them');
+assert.match(page, /attacking=!moving&&actor\.mode==='siege'/, 'infected switch into an attack stance when they reach a living defense');
+assert.match(page, /actor\.attackPhase\+=dt\*7/, 'procedural fallback zombies visibly strike when no attack clip exists');
+assert.match(page, /radius=1\.6\+\(index%4\)\*\.85/, 'breach runners spread into the settlement rather than stacking at its center');

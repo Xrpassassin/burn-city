@@ -11,6 +11,7 @@ Homefront should feel like a persistent survival RPG alongside BURN City, not a 
 - Server-owned field condition: health, hunger, thirst, stamina, infection pressure, and last-tick timestamp.
 - Hunger and thirst decay only while the player is active in the Graveyard; no offline starvation.
 - Movement costs stamina in proportion to actual server-clamped travel distance and consumes a small amount of food/water; low hunger or thirst increases exertion cost. Critical hunger/thirst gradually pressure health.
+- Attacking costs 8 stamina; low stamina reduces outgoing damage (<35 stamina: 25% penalty; <15: 45% penalty). The combat API returns authoritative updated vitals and the HUD explains fatigue.
 - Eat one food ration to restore hunger, drink one clean-water unit to restore thirst, use one medicine to restore health/reduce infection pressure, or catch your breath to restore stamina.
 - Water is a persistent refuge resource and is available from the Ember Exchange.
 - Values are stored with the shared-world player record and returned as selfSurvival; the UI displays readable values and condition bars.

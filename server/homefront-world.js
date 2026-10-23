@@ -170,4 +170,4 @@ function leave(input, acct, now = Date.now()) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { WORLD_SIZE, PRESENCE_TTL, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, createParty, joinParty, leave };
+module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, createParty, joinParty, leave };

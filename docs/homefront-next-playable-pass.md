@@ -15,30 +15,21 @@ Turn the existing shared Graveyard blockout and carried inventory into a readabl
 
 ## Implementation sequence
 
-### 1. World loot nodes
+### Completed: world loot nodes and visible 3D interaction
 
-Add deterministic, authored loot nodes to the shared Graveyard world, keyed by stable IDs and associated with existing districts/POIs. A node should expose only its public identity, position, display name, category, and whether it is available. The server owns the actual loot table, cooldown, and claim result.
+Implemented in this branch:
 
-- Initial categories: food, clean water, medical supplies, ammunition, scrap, and wood.
-- Locations: bus depot, river checkpoint, wrecked depot, rail yard, hospital, market, and ironworks.
-- Higher-risk districts can offer better weighted loot, but never guarantee premium drops.
-- Persist node cooldowns in the existing shared-world save. Normalize malformed/legacy values safely.
-- A successful claim must verify the player is in an expedition and within a small server-calculated interaction radius of the exact node.
-- Resolve claims atomically against the latest world state so two players cannot claim the same shared node.
-- Add a short global cooldown for shared caches and separate per-node/per-player cooldowns only where explicitly designed.
-- Add tests for out-of-range claims, unknown IDs, repeated claims, concurrent/shared claims, inventory-full overflow, cooldown expiry, and account isolation.
+- Eight authored shared-world nodes cover the bus depot, river checkpoint, wrecked depot, rail yard, market, hospital, ironworks, and research annex.
+- The server owns weighted drop tables, node cooldowns, accepted inventory quantities, and overflow. Clients submit only the stable node ID.
+- The API verifies expedition membership and a 9-unit server-side interaction radius. Shared node cooldown state is persisted and malformed/legacy state is normalized.
+- The Graveyard renders clickable procedural supply containers. Selecting one does not move the player; a separate **Search selected container** action collects it.
+- Players receive explicit results for collected supplies, full-pack overflow, out-of-range attempts, and nodes already searched.
+- Added `server/homefront-loot.test.js` for valid claims, unknown IDs, range enforcement, cooldowns, legacy normalization, and capacity overflow. The test is wired into `npm run test:homefront`.
+- The interaction uses Homefront's existing vendored Three.js raycaster and no new runtime dependency. See `docs/homefront-open-source-survival-adaptation.md` for source references and license policy.
 
-### 2. Visible 3D pickup and interaction
+### Next implementation focus
 
-In `client/arena/homefront-graveyard-3d.js`, render simple low-cost pickup props at the authored node coordinates (crates, backpacks, medical cases, water containers, scrap piles). Keep labels legible on mobile and provide a clear selected/nearby interaction state.
-
-- Ground clicks continue to move the player.
-- Clicking a loot prop selects it rather than accidentally issuing a movement command.
-- Show an explicit **Search / Collect** action; do not collect merely by looking at or walking near an item.
-- On collection, call the authenticated server endpoint with the stable node ID only.
-- The server response is the sole source of the item quantities, capacity/overflow result, and node cooldown.
-- Refresh the scene from the returned world snapshot. Show feedback such as “+2 food, +1 water” or “Pack full — remaining supplies left at refuge.”
-- Use procedural meshes as the fallback; do not add an external asset CDN or a new runtime dependency.
+Improve the field inventory interface and complete the end-to-end expedition loop. Keep the current server as the authority for every item action and test on desktop and mobile before Hark reviews the branch.
 
 ### 3. Inventory UI pass
 

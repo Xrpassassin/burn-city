@@ -20,6 +20,8 @@ const TYCOON_UPGRADES = Object.freeze({scavenger_rig:{label:'Scavenger Rig',desc
 const EMBER_MARKET = Object.freeze({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},food:{amount:10,cost:18},water:{amount:10,cost:14},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});
 const WEAPONS = Object.freeze({pipe_blade:{label:'Pipe Blade',rarity:'Common',power:1,cost:{scrap:0,embers:0}},pump_shotgun:{label:'Pump Shotgun',rarity:'Rare',power:3,cost:{scrap:55,embers:40}},marksman_rifle:{label:'Marksman Rifle',rarity:'Epic',power:4,cost:{scrap:90,embers:75}},shock_maul:{label:'Shock Maul',rarity:'Legendary',power:5,cost:{scrap:120,embers:100}}});
 const WEAPON_MODS = Object.freeze({reinforced_grip:{label:'Reinforced Grip',rarity:'Common',power:1,cost:{scrap:25,embers:20}},salvage_edge:{label:'Salvage Edge',rarity:'Rare',power:1,cost:{scrap:35,embers:25}},shock_coil:{label:'Shock Coil',rarity:'Epic',power:2,cost:{scrap:45,embers:40}}});
+const COSMETIC_SKINS = Object.freeze({rusted_pipe:{label:'Rusted Steel',slot:'weapon',rarity:'Common',cost:0,color:'#9a7b62'},field_scavenger:{label:'Field Scavenger',slot:'outfit',rarity:'Common',cost:0,color:'#6d7659'},patched_rucksack:{label:'Patched Rucksack',slot:'backpack',rarity:'Common',cost:0,color:'#78604a'},scrap_banner:{label:'Scrap Banner',slot:'refuge',rarity:'Common',cost:0,color:'#a55c35'},hazard_stripe:{label:'Hazard Stripe',slot:'weapon',rarity:'Rare',cost:75,color:'#e6b83f'},medic_fieldcoat:{label:'Field Medic Coat',slot:'outfit',rarity:'Rare',cost:65,color:'#91b5a0'},rescue_pack:{label:'Rescue Pack',slot:'backpack',rarity:'Rare',cost:55,color:'#b56d42'},ember_lanterns:{label:'Ember Lanterns',slot:'refuge',rarity:'Epic',cost:80,color:'#ff8b3d'}});
+const DEFAULT_COSMETICS = Object.freeze({weapon:'rusted_pipe',outfit:'field_scavenger',backpack:'patched_rucksack',refuge:'scrap_banner'});
 const EXPLORATION_ZONES = Object.freeze({outskirts:{label:'City Outskirts',risk:1,food:2,ammo:1,scrap:3,wood:2,meds:0,recruit:0.44,boss:false},residential:{label:'Residential Ruins',risk:1,food:3,ammo:1,scrap:5,wood:2,meds:0,recruit:0.5,boss:false},commercial:{label:'Market District',risk:2,food:3,ammo:2,scrap:8,wood:1,meds:1,recruit:0.38,boss:false},hospital:{label:'Overrun Hospital',risk:3,food:4,ammo:3,scrap:5,wood:1,meds:3,recruit:0.32,boss:false},industrial:{label:'Industrial Yard',risk:3,food:4,ammo:3,scrap:12,wood:2,meds:0,recruit:0.24,boss:false},subway:{label:'Buried Subway',risk:4,food:5,ammo:4,scrap:10,wood:1,meds:2,recruit:0.28,boss:true},research_lab:{label:'Sealed Research Annex',risk:5,food:6,ammo:5,scrap:16,wood:1,meds:4,recruit:0.2,boss:true}});
 const clampInt = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, Math.floor(v))) : min;
 const clampNumber = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
@@ -38,6 +40,7 @@ function createBase(ownerId, now = Date.now()) {
     resources: { wood: 40, scrap: 30, food: 24, water: 18, meds: 5, ammo: 18 },
     embers: 50, upgrades: { scavenger_rig: 0, ember_press: 0, field_armory: 0, medic_station: 0 },
     weapons: ['pipe_blade'], equippedWeapon: 'pipe_blade', weaponMods: {},
+    cosmeticsOwned: Object.keys(DEFAULT_COSMETICS).map(slot => DEFAULT_COSMETICS[slot]), cosmeticsEquipped: { ...DEFAULT_COSMETICS },
     structures: [], survivors: [], expeditionCount: 0, defenseCount: 0,
     log: [{ id: 1, kind: 'welcome', text: 'A refuge is yours. Gather supplies, recruit survivors, and prepare for the first breach.', at: now }]
   };
@@ -60,6 +63,10 @@ function validateBase(input, ownerId) {
   out.equippedWeapon = typeof out.equippedWeapon === 'string' && WEAPONS[out.equippedWeapon] && out.weapons.includes(out.equippedWeapon) ? out.equippedWeapon : 'pipe_blade';
   out.weaponMods = out.weaponMods && typeof out.weaponMods === 'object' && !Array.isArray(out.weaponMods) ? out.weaponMods : {};
   for (const [weaponId, modId] of Object.entries(out.weaponMods)) if (!out.weapons.includes(weaponId) || !WEAPON_MODS[modId]) delete out.weaponMods[weaponId];
+  out.cosmeticsOwned = Array.isArray(out.cosmeticsOwned) ? [...new Set(out.cosmeticsOwned.filter(id => typeof id === 'string' && COSMETIC_SKINS[id]))] : [];
+  for (const id of Object.values(DEFAULT_COSMETICS)) if (!out.cosmeticsOwned.includes(id)) out.cosmeticsOwned.push(id);
+  out.cosmeticsEquipped = out.cosmeticsEquipped && typeof out.cosmeticsEquipped === 'object' && !Array.isArray(out.cosmeticsEquipped) ? out.cosmeticsEquipped : {};
+  for (const [slot, fallback] of Object.entries(DEFAULT_COSMETICS)) { const id = out.cosmeticsEquipped[slot]; out.cosmeticsEquipped[slot] = COSMETIC_SKINS[id]?.slot === slot && out.cosmeticsOwned.includes(id) ? id : fallback; }
   for (const [id, spec] of Object.entries(TYCOON_UPGRADES)) out.upgrades[id] = clampInt(out.upgrades[id], 0, spec.max);
   out.visibility = input.visibility === 'public' ? 'public' : 'private';
   out.baseMaxHp = clampInt(out.baseMaxHp, 1, 100000);
@@ -252,6 +259,24 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       record(s, 'boss', 'Engaged the boss territory at ' + zone.label + ' on ' + difficulty.label + '. Spent ' + cost.food + ' food and ' + cost.ammo + ' ammunition; loot is awarded on boss defeat.', now);
       break;
     }
+    case 'buy_cosmetic': {
+      const skin = COSMETIC_SKINS[action.skin];
+      if (!skin) throw new Error('unknown_cosmetic');
+      if (s.cosmeticsOwned.includes(action.skin)) throw new Error('cosmetic_already_owned');
+      if (s.embers < skin.cost) throw new Error('insufficient_embers');
+      s.embers -= skin.cost;
+      s.cosmeticsOwned.push(action.skin);
+      record(s, 'cosmetic', 'Unlocked cosmetic: ' + skin.label + '. Appearance never changes combat power.', now);
+      break;
+    }
+    case 'equip_cosmetic': {
+      const skin = COSMETIC_SKINS[action.skin];
+      if (!skin) throw new Error('unknown_cosmetic');
+      if (!s.cosmeticsOwned.includes(action.skin)) throw new Error('cosmetic_not_owned');
+      s.cosmeticsEquipped[skin.slot] = action.skin;
+      record(s, 'cosmetic', 'Equipped ' + skin.label + ' appearance for ' + skin.slot + '.', now);
+      break;
+    }
     case 'buy_upgrade': {
       const id = typeof action.upgrade === 'string' ? action.upgrade : '';
       const spec = TYCOON_UPGRADES[id];
@@ -367,4 +392,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, applyAction };

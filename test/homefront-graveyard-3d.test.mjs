@@ -178,3 +178,7 @@ assert.match(page, /if\(base\?\.wave>0&&!pendingBuilding&&!constructionPaused\)/
 assert.match(page, /Protected construction mode: hostile base activity is paused/, 'tell players construction mode is protected');
 assert.match(page, /construction pause remains active until the server confirms the build/, 'keep the pause active while the server validates and saves placement');
 assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=false;/, 'resume base activity after the build request settles');
+
+assert.match(page, /const constructionView=!!pendingBuilding\|\|constructionPaused/, 'switch to construction camera only while building');
+assert.match(page, /cameraTarget=new THREE\.Vector3\(constructionView\?0:19,constructionView\?29:22,constructionView\?0\.01:24\)/, 'construction camera looks straight down while exploration camera stays third-person');
+assert.match(page, /camera\.position\.lerp\(cameraTarget,1-Math\.exp\(-5\*dt\)\)/, 'blend smoothly between construction and exploration views');

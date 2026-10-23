@@ -11,6 +11,8 @@ on:
       - 'server/homefront-collision.test.js'
       - 'server/homefront-terrain.test.mjs'
       - 'client/arena/homefront-terrain-generation.mjs'
+      - 'client/arena/homefront-environment-damage.mjs'
+      - 'test/homefront-environment-damage.test.mjs'
       - 'client/arena/homefront-world-generation.mjs'
       - 'server/homefront-survival.js'
       - 'server/homefront-inventory.js'
@@ -79,3 +81,5 @@ jobs:
         run: npm run test:flight-lobby
       - name: Run Homefront settlement simulation
         run: npm run test:homefront
+      - name: Run Homefront environment damage and repair tests
+        run: node test/homefront-environment-damage.test.mjs

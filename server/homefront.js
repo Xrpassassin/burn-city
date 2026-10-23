@@ -6,6 +6,7 @@ const World = require('./homefront-world');
 const Combat = require('./homefront-combat');
 const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
+const Loot = require('./homefront-loot');
 
 async function handle(req, res, url, { json, gate, ip, body, who, store = Store }) {
   const publicVisit = url.pathname === '/api/homefront/visit';
@@ -91,6 +92,29 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           base.log=base.log.slice(-20);bases[user.acct]=base;player.inventory=inventory;player.lastSeen=Date.now();
           store.save('homefront.json',bases);store.save('homefront-world.json',db);
           json(res,200,{mode:'homefront-world',...World.snapshot(db,user.acct),base,inventory:{...inventory,used:Inventory.used(inventory),capacity:Inventory.CAPACITY}});
+          return true;
+        }
+        case '/api/homefront/world/loot': {
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const now = Date.now();
+          const found = Loot.claim(db.lootNodes, {
+            account: user.acct,
+            player,
+            nodeId: typeof payload.nodeId === 'string' ? payload.nodeId : '',
+            now,
+            addItem: (inventory, item, amount) => Inventory.add(inventory, item, amount)
+          });
+          db.lootNodes = found.state;
+          player.lastSeen = now;
+          player.survival = Survival.tick(player.survival, now);
+          store.save('homefront-world.json', db);
+          json(res, 200, {
+            mode: 'homefront-world',
+            ...World.snapshot(db, user.acct, now),
+            loot: { node: found.node, accepted: found.accepted, overflow: found.overflow },
+            inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }
+          });
           return true;
         }
         case '/api/homefront/world/encounter': {
@@ -301,7 +325,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       json(res, 200, { mode: 'homefront-world', ...outcome.result }); return true;
     } catch (e) {
       const message = String(e?.message || 'homefront_world_error');
-      const clientError = /^(not_in_expedition|move_cooldown|field_supplies_required|unknown_inventory_action|unknown_item|inventory_full|not_carrying_[a-z]+|not_hungry|not_thirsty|not_injured|not_exhausted|unknown_survival_action|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|no_active_encounter|encounter_expired|enemy_out_of_range|attack_cooldown|insufficient_ammo|insufficient_water|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
+      const clientError = /^(not_in_expedition|move_cooldown|field_supplies_required|unknown_inventory_action|unknown_item|inventory_full|not_carrying_[a-z]+|not_hungry|not_thirsty|not_injured|not_exhausted|unknown_survival_action|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_loot|loot_node_empty|unknown_loot_node|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|no_active_encounter|encounter_expired|enemy_out_of_range|attack_cooldown|insufficient_ammo|insufficient_water|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
       json(res, clientError ? 400 : 500, { error: message });
       if (!clientError) console.error('[homefront-world]', message);
       return true;

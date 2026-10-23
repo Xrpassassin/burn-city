@@ -187,7 +187,6 @@ function tickDirector(w, acct, now = Date.now()) {
     p.directorState.nextSpawnAt = now + tick.plan.spawnIntervalMs;
     p.directorState.lastDecision = 'spawn';
   }
-  p.noiseLevel = noise;
   return { phase: tick.state.phase, decision: tick.decision, reason: tick.reason, threat: tick.plan.threat, pressure: tick.plan.pressure, risk: tick.plan.risk, zoneId: tick.plan.zoneId, recommendedMaxAlive: tick.plan.recommendedMaxAlive, spawnIntervalMs: tick.plan.spawnIntervalMs, nextSpawnAt: p.directorState.nextSpawnAt || 0, noise: Math.round(noise) };
 }
 function recordNoise(input, acct, level = 75, now = Date.now()) {

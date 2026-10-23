@@ -282,16 +282,17 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
         case '/api/homefront/world/party/join': outcome = World.joinParty(db, user.acct, payload.code); break;
         case '/api/homefront/world/leave': {
           const player=db.players[user.acct];
+          let returnedBase=null;
           if(player){
             const bases=store.load('homefront.json',{});
             const base=Core.validateBase(bases[user.acct]||Core.createBase(user.acct),user.acct);
             if(!base)throw new Error('save_invalid');
             const packed=Inventory.stash(player.inventory,base.resources);
             for(const [id,qty] of Object.entries(packed.stored))base.resources[id]=Math.min(999999,(base.resources[id]||0)+qty);
-            base.revision++;base.updatedAt=Date.now();bases[user.acct]=base;store.save('homefront.json',bases);
+            base.revision++;base.updatedAt=Date.now();bases[user.acct]=base;store.save('homefront.json',bases);returnedBase=base;
           }
           outcome=World.leave(db,user.acct);
-          if (player) outcome.result.base = base;
+          if (returnedBase) outcome.result.base = returnedBase;
           break;
         }
         default: json(res, 404, { error: 'world_route_not_found' }); return true;

@@ -26,8 +26,8 @@ header{padding:calc(14px + env(safe-area-inset-top)) 16px 14px;border-bottom:1px
 </main>
 <script type="module">
 import * as THREE from './vendor/three.module.min.js';
-import { GLTFLoader } from './vendor/three/examples/jsm/loaders/GLTFLoader.js';
-import * as SkeletonUtils from './vendor/three/examples/jsm/utils/SkeletonUtils.js';
+import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
+import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { signIn } from './net.js';
 const API = new URLSearchParams(location.search).get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
 const $ = id => document.getElementById(id);

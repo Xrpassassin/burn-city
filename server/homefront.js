@@ -168,6 +168,28 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: spawned.encounter, reused: spawned.reused });
           return true;
         }
+        case '/api/homefront/world/reload': {
+          if (req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const bases = store.load('homefront.json', {});
+          const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
+          if (!base) throw new Error('save_invalid');
+          const weaponId = Object.prototype.hasOwnProperty.call(Combat.WEAPON_MAGAZINE_CAPACITY, base.equippedWeapon) ? base.equippedWeapon : 'pipe_blade';
+          const capacity = Combat.WEAPON_MAGAZINE_CAPACITY[weaponId];
+          if (capacity < 1) throw new Error('weapon_does_not_reload');
+          const magazine = player.weaponMagazine && player.weaponMagazine.weaponId === weaponId ? player.weaponMagazine : { weaponId, loaded: 0 };
+          const inventory = Inventory.normalize(player.inventory);
+          const loaded = Math.min(capacity - magazine.loaded, inventory.ammo);
+          if (loaded <= 0) throw new Error(magazine.loaded >= capacity ? 'magazine_full' : 'no_reserve_ammo');
+          inventory.ammo -= loaded;
+          player.inventory = inventory;
+          player.weaponMagazine = { weaponId, loaded: magazine.loaded + loaded };
+          player.lastSeen = Date.now();
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), inventory: { ...inventory, used: Inventory.used(inventory), capacity: Inventory.CAPACITY }, reloaded: loaded });
+          return true;
+        }
         case '/api/homefront/world/attack': {
           if (req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
           const player = db.players[user.acct];
@@ -177,12 +199,13 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const base = Core.validateBase(savedBase, user.acct);
           if (!base) throw new Error('save_invalid');
           const carried = Inventory.normalize(player.inventory);
-          if (carried.ammo < 1) throw new Error('field_supplies_required');
-          const combatBase = Core.validateBase({ ...base, resources: { ...base.resources, ammo: carried.ammo } }, user.acct);
+          const weaponId = Object.prototype.hasOwnProperty.call(Combat.WEAPON_MAGAZINE_CAPACITY, base.equippedWeapon) ? base.equippedWeapon : 'pipe_blade';
+          const magazine = player.weaponMagazine && player.weaponMagazine.weaponId === weaponId ? player.weaponMagazine : { weaponId, loaded: 0 };
+          const combatBase = Core.validateBase({ ...base, resources: { ...base.resources, ammo: magazine.loaded } }, user.acct);
           const combatAt = Date.now();
           const survivalBeforeAttack = Survival.tick(player.survival, combatAt);
           const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null });
-          carried.ammo = outcome.base.resources.ammo;
+          player.weaponMagazine = { weaponId, loaded: outcome.base.resources.ammo };
           outcome.base.resources.ammo = base.resources.ammo;
           player.inventory = carried;
           db.encounters = outcome.encounters;
@@ -366,7 +389,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       json(res, 200, { mode: 'homefront-world', ...outcome.result }); return true;
     } catch (e) {
       const message = String(e?.message || 'homefront_world_error');
-      const clientError = /^(not_in_expedition|move_cooldown|field_supplies_required|unknown_inventory_action|unknown_item|inventory_full|not_carrying_[a-z]+|not_hungry|not_thirsty|not_injured|not_exhausted|unknown_survival_action|missing_|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_loot|loot_node_empty|unknown_loot_node|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|no_active_encounter|encounter_expired|enemy_out_of_range|attack_cooldown|insufficient_ammo|insufficient_water|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
+      const clientError = /^(not_in_expedition|move_cooldown|field_supplies_required|unknown_inventory_action|unknown_item|inventory_full|not_carrying_[a-z]+|not_hungry|not_thirsty|not_injured|not_exhausted|unknown_survival_action|missing_|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_loot|loot_node_empty|unknown_loot_node|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|no_active_encounter|encounter_expired|enemy_out_of_range|attack_cooldown|insufficient_ammo|weapon_does_not_reload|magazine_full|no_reserve_ammo|insufficient_water|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
       json(res, clientError ? 400 : 500, { error: message });
       if (!clientError) console.error('[homefront-world]', message);
       return true;

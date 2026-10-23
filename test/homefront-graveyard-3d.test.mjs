@@ -278,3 +278,7 @@ assert.match(homefrontPage, /\['quarry','⛏️ Quarry'/, 'construction menu off
 assert.match(homefrontPage, /\['smelter','🔥 Smelter'/, 'construction menu offers a smelter for steel production');
 assert.match(homefrontPage, /\['salvage_yard','♻️ Salvage yard'/, 'construction menu offers a salvage yard for scrap production');
 assert.match(homefrontPage, /quarry:0x777a7d,smelter:0x8a4931,salvage_yard:0x77715f/, 'new production facilities have visible 3D color identities');
+
+
+assert.match(homefrontPage, /Repair · 1 stone \+ 1 scrap/, 'stone structures display their matching repair material cost');
+assert.match(homefrontPage, /Repair · 1 steel \+ 2 scrap/, 'steel structures display their matching repair material cost');

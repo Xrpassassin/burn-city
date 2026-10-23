@@ -1,9 +1,9 @@
 'use strict';
 const Freshness = require('./homefront-freshness');
-const ITEMS = Object.freeze({
+const ITEMS = Object.freeze(Object.assign(Object.create(null), {
  food:{label:'Cooked ration',weight:1,maxStack:8}, rawFood:{label:'Raw food',weight:1,maxStack:8}, water:{label:'Clean water',weight:1,maxStack:8}, dirtyWater:{label:'Dirty water',weight:1,maxStack:8},
  meds:{label:'Medical supplies',weight:1,maxStack:5}, ammo:{label:'Ammunition',weight:1,maxStack:12}, scrap:{label:'Scrap',weight:2,maxStack:8}, wood:{label:'Wood',weight:2,maxStack:8}
-});
+}));
 const PERISHABLE=new Set(['food','rawFood']),CAPACITY=24;
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number.isFinite(n)?Math.floor(n):min));
 function normalize(input,now=Date.now()){const out={};for(const [id,s] of Object.entries(ITEMS))out[id]=clamp(input?.[id],0,s.maxStack);out.freshness=Freshness.normalizeBatches(input?.freshness,out,Number.isFinite(input?.freshnessMigratedAt)?input.freshnessMigratedAt:now);return out;}

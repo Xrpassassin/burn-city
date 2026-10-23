@@ -100,6 +100,16 @@ function normalizeWorld(input) {
     party.leader = party.members.includes(party.leader) ? party.leader : party.members[0];
     if (!party.members.length) delete w.parties[code];
   }
+  // A player's partyCode must point at a party that lists them; otherwise they would be stuck
+  // "following" a party they are not in (movement locked, cannot create or join another).
+  for (const [acct, p] of Object.entries(w.players)) if (p.partyCode && !w.parties[p.partyCode]?.members.includes(acct)) p.partyCode = null;
+  // A member can only sit in one party: keep the first listing, drop later duplicates.
+  const seen = new Set();
+  for (const [code, party] of Object.entries(w.parties)) {
+    party.members = party.members.filter(a => { if (seen.has(a) || (w.players[a] && w.players[a].partyCode !== code)) return false; seen.add(a); return true; });
+    if (!party.members.length) delete w.parties[code];
+    else if (!party.members.includes(party.leader)) party.leader = party.members[0];
+  }
   return w;
 }
 function prune(w, now) {
@@ -267,7 +277,8 @@ function createParty(input, acct, now = Date.now()) {
   const p = w.players[acct];
   if (!p) throw new Error('not_in_expedition');
   if (p.partyCode && w.parties[p.partyCode]) throw new Error('already_in_party');
-  const code = crypto.randomBytes(3).toString('hex').toUpperCase();
+  let code = crypto.randomBytes(3).toString('hex').toUpperCase();
+  while (w.parties[code]) code = crypto.randomBytes(3).toString('hex').toUpperCase();
   w.parties[code] = { leader: acct, members: [acct], createdAt: now };
   p.partyCode = code; p.lastSeen = now;
   return { world: w, result: snapshot(w, acct, now) };
@@ -279,12 +290,26 @@ function joinParty(input, acct, code, now = Date.now()) {
   const party = w.parties[key];
   if (!p) throw new Error('not_in_expedition');
   if (!party) throw new Error('party_not_found');
-  if (party.members.length >= 4) throw new Error('party_full');
   if (p.partyCode && w.parties[p.partyCode]) throw new Error('already_in_party');
+  if (party.members.length >= 4) throw new Error('party_full');
   party.members.push(acct); p.partyCode = key;
   const leader = w.players[party.leader];
   if (leader) { p.x = leader.x; p.z = leader.z; p.spawn = leader.spawn; }
   p.lastSeen = now;
+  return { world: w, result: snapshot(w, acct, now) };
+}
+// Leave the party but stay in the expedition (movement control returns to this player).
+function leaveParty(input, acct, now = Date.now()) {
+  const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
+  prune(w, now);
+  const p = w.players[acct];
+  if (!p) throw new Error('not_in_expedition');
+  const party = p.partyCode && w.parties[p.partyCode];
+  if (!party) throw new Error('not_in_party');
+  party.members = party.members.filter(id => id !== acct);
+  if (!party.members.length) delete w.parties[p.partyCode];
+  else if (party.leader === acct) party.leader = party.members[0];
+  p.partyCode = null; p.lastSeen = now;
   return { world: w, result: snapshot(w, acct, now) };
 }
 function leave(input, acct, now = Date.now()) {
@@ -299,4 +324,4 @@ function leave(input, acct, now = Date.now()) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leave };
+module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leaveParty, leave };

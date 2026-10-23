@@ -25,6 +25,8 @@ assert.equal(room.lastSecond,null,'a fresh shared countdown starts after the ros
 Flight._tick(room,room.countdownAt);
 assert.equal(a.last('flight_depart').map,'refinery');
 assert.equal(b.last('flight_depart').map,'refinery');
+assert.match(a.last('flight_depart').flight,/^flight-\d{1,9}-[0-9a-f]{8}$/,'departure carries a flight token for the Zombies room');
+assert.equal(a.last('flight_depart').flight,b.last('flight_depart').flight,'everyone on the flight gets the same room token');
 assert.equal(room.departed,true);
 Flight.resetForTests();
 

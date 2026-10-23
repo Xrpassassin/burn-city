@@ -9,13 +9,14 @@ const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole s
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
 const stats = { tickMs: [], bytesOut: 0, started: Date.now() };
 const resumeIdx = new Map();   // free-play zombie reconnect: resume key -> { p, room } (25s grace after a dropped socket)
-function findRoom(mode, ranked, daily, mapId = null, arrivalSpawn = false) {   // ranked = match id
+function findRoom(mode, ranked, daily, mapId = null, arrivalSpawn = false, flight = null) {   // ranked = match id; flight = airport departure token (one room per flight)
   if (daily && mode === 'zombie') { const d = Retain.daily(); let r = rooms.zombie.find(x => x.daily?.day === d.day && !x.full); if (!r) { r = new Room(roomSeq++, 'zombie'); r.daily = d; r.mod = d.mod; r.rng = Retain.rng(d.seed); r.onLife = x => Retain.recordDaily({ ...x, day: d.day }); rooms.zombie.push(r); } return r; }
   if (ranked) { let r = rooms.zombie.find(x => x.ranked?.id === ranked); if (r && r.full) return null; if (!r) { r = new Room(roomSeq++, 'zombie');
     r.ranked = { state: 'lobby', countdown: null, max: Ranked.R.MAX, min: Ranked.R.MIN, cap: 20 * 60, results: new Map(), id: ranked, opened: r.t }; rooms.zombie.push(r); } return r; }
   const wantedMap = mode === 'zombie' && mapId === 'refinery' ? 'refinery' : null;
-  let r = rooms[mode].find(r => !r.ranked && !r.tl && !r.daily && !r.full && (r.mapId || null) === wantedMap && !!r.arrivalSpawn === !!arrivalSpawn);
-  if (!r) { r = new Room(roomSeq++, mode, wantedMap); r.arrivalSpawn = !!arrivalSpawn; rooms[mode].push(r); r.onLife = LB.record; }
+  const flightId = mode === 'zombie' && arrivalSpawn && typeof flight === 'string' && /^flight-\d{1,9}-[0-9a-f]{8}$/.test(flight) ? flight : null;
+  let r = rooms[mode].find(r => !r.ranked && !r.tl && !r.daily && !r.full && (r.mapId || null) === wantedMap && !!r.arrivalSpawn === !!arrivalSpawn && (r.flightId || null) === flightId);
+  if (!r) { r = new Room(roomSeq++, mode, wantedMap); r.arrivalSpawn = !!arrivalSpawn; if (flightId) r.flightId = flightId; rooms[mode].push(r); r.onLife = LB.record; }
   return r; }
 
 const adminFails = new Map();
@@ -189,7 +190,7 @@ wss.on('connection', (ws, req) => {
   else if (rt) { room = gm === 'tron' ? tronRoom({ id: lob.id, ranked: true, cfg: lob.cfg, creatorAcct: lob.creator }) : findRoom('zombie', lob.id); if (!room) return ws.close(4005, 'match_already_started'); }
   else if (gm === 'tron' && url.searchParams.get('create')) room = tronRoom({ cfg: { teams: +url.searchParams.get('teams') || 0, ff: url.searchParams.get('ff') !== '0', bo3: url.searchParams.get('bo3') === '1' } });
   else if (gm === 'tron' && url.searchParams.get('room')) { room = rooms.tron.find(r => r.tl && !r.tl.ranked && r.tl.id === url.searchParams.get('room')); if (!room || room.full) return ws.close(4005, 'match_already_started_or_full'); }
-  else room = findRoom(gm, null, url.searchParams.get('daily') === '1', url.searchParams.get('map') === 'refinery' ? 'refinery' : null, gm === 'zombie' && url.searchParams.get('arrival') === 'helicopter');
+  else room = findRoom(gm, null, url.searchParams.get('daily') === '1', url.searchParams.get('map') === 'refinery' ? 'refinery' : null, gm === 'zombie' && url.searchParams.get('arrival') === 'helicopter', url.searchParams.get('flight'));
   let p, id;
   if (rsOk) { p = rs.p; id = p.id; const old = p.ws; p.ws = ws; p.away = 0; p.ip = ip; p.msgs = 0; p.win = Date.now(); clearTimeout(p.awayT); p.awayT = null; if (old && old !== ws) { try { old.terminate(); } catch {} } }   // resumed: same player, same points/guns/perks
   else {
@@ -349,6 +350,8 @@ server.headersTimeout = 15e3; server.requestTimeout = 30e3; server.keepAliveTime
 AegisClips.start({ online: () => City.count() });
 Cams.start();   // YouTube live-cam refresh: no-op unless YT_API_KEY / Youtube_API is set   // no-op unless AEGIS_CLIPS=1
 server.listen(C.PORT, () => console.log(`burn-city-game :${C.PORT} free=true shop=on dryRun=${C.DRY_RUN} net=${C.NETWORK}`));
+// Homefront saves are cached in memory and written on a short timer; write them out before Fly stops the machine (SIGINT on deploy) or on SIGTERM.
+for (const sig of ['SIGTERM', 'SIGINT']) process.once(sig, () => { try { Homefront.flush(); } catch (e) { console.error('[homefront] flush on', sig, 'failed', e?.message); } process.exit(0); });
 Eco.start();
 AmmLock.start(Eco);
 module.exports = { server, stats, rooms, tronRoom, tronTick, tronRound, tronFinal };

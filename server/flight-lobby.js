@@ -24,7 +24,9 @@ function tick(room, now=Date.now()) {
   if(!allReady(room)){clearCountdown(room);broadcast(room);return;}
   if(now>=room.countdownAt){
     room.departed=true;clearCountdown(room);
-    const event={e:'flight_depart',map:room.map,roomId:room.id,departedAt:now};
+    // flight: a one-time token the clients carry into the Zombies URL so the server seats this whole flight in one room.
+    room.flight=room.flight||(room.id+'-'+require('crypto').randomBytes(4).toString('hex'));
+    const event={e:'flight_depart',map:room.map,roomId:room.id,flight:room.flight,departedAt:now};
     for(const p of room.players.values())safeSend(p.ws,event);
     const cleanup=setTimeout(()=>{for(const p of room.players.values()){try{p.ws.close(1000,'flight_departed')}catch{}}rooms.delete(room.key)},2500);cleanup.unref?.();
     return;

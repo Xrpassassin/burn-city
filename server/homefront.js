@@ -1,6 +1,6 @@
 // Authenticated, persistent API for the optional unranked Zombies Homefront mode.
 'use strict';
-const Store = require('./store');
+const HFStore = require('./homefront-store');
 const Core = require('./homefront-core');
 const World = require('./homefront-world');
 const Combat = require('./homefront-combat');
@@ -46,7 +46,13 @@ function buildReturnDebrief(start, base, packed, now = Date.now()) {
   };
 }
 
-async function handle(req, res, url, { json, gate, ip, body, who, store = Store }) {
+// Rule errors are thrown as snake_case codes ('party_full', 'unknown_difficulty', 'big' for an
+// oversized body); those are the caller's fault -> 400. Anything else (a TypeError, a save that
+// fails validation, no safe spawn) is ours -> 500 and logged.
+const SERVER_ERRORS = new Set(['save_invalid', 'no_safe_spawn_location', 'homefront_error', 'homefront_world_error']);
+function isClientError(message) { return /^[a-z][a-z0-9_]{1,63}$/.test(message) && !SERVER_ERRORS.has(message); }
+
+async function handle(req, res, url, { json, gate, ip, body, who, store = HFStore.shared }) {
   const publicVisit = url.pathname === '/api/homefront/visit';
   const worldRoute = url.pathname === '/api/homefront/world' || url.pathname.startsWith('/api/homefront/world/');
   if (url.pathname !== '/api/homefront' && url.pathname !== '/api/homefront/action' && !publicVisit && !worldRoute) return false;
@@ -445,6 +451,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
         }
         case '/api/homefront/world/party/create': outcome = World.createParty(db, user.acct); break;
         case '/api/homefront/world/party/join': outcome = World.joinParty(db, user.acct, payload.code); break;
+        case '/api/homefront/world/party/leave': outcome = World.leaveParty(db, user.acct); break;
         case '/api/homefront/world/leave': {
           const player=db.players[user.acct];
           let returnedBase=null;
@@ -471,8 +478,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       json(res, 200, { mode: 'homefront-world', ...outcome.result }); return true;
     } catch (e) {
       const message = String(e?.message || 'homefront_world_error');
-      const clientError = /^(not_in_expedition|move_cooldown|field_supplies_required|unknown_inventory_action|unknown_item|inventory_full|not_carrying_[a-z]+|not_hungry|not_thirsty|not_injured|not_exhausted|unknown_survival_action|missing_|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_loot|loot_node_empty|unknown_loot_node|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|no_active_encounter|encounter_expired|enemy_out_of_range|attack_cooldown|insufficient_ammo|weapon_does_not_reload|magazine_full|no_reserve_ammo|insufficient_water|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
-      json(res, clientError ? 400 : 500, { error: message });
+      const clientError = isClientError(message);
+      json(res, clientError ? 400 : 500, { error: clientError ? message : 'homefront_world_error' });
       if (!clientError) console.error('[homefront-world]', message);
       return true;
     }
@@ -524,10 +531,10 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     return true;
   } catch (e) {
     const message = String(e?.message || 'homefront_error');
-    const clientError = /^(big$|invalid_|unknown_|insufficient_|cosmetic_|placement_|building_cap|structure_limit|survivor_capacity|guard_capacity|expedition_supplies_required|base_destroyed|not_enough_food|repair_supplies_required|already_repaired|upgrade_maxed|resource_capacity|use_shared_expedition_map)/.test(message);
-    json(res, clientError ? 400 : 500, { error: message });
+    const clientError = isClientError(message);
+    json(res, clientError ? 400 : 500, { error: clientError ? message : 'homefront_error' });
     if (!clientError) console.error('[homefront]', message);
     return true;
   }
 }
-module.exports = { handle, buildReturnDebrief, addSessionTotals, initSessionStart };
+module.exports = { handle, flush: () => HFStore.shared.flush(), isClientError, buildReturnDebrief, addSessionTotals, initSessionStart };

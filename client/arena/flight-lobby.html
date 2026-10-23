@@ -27,7 +27,8 @@ main{width:min(100%,560px);text-align:center}.eyebrow{font-size:11px;letter-spac
 </main>
 <script>
 const q=new URLSearchParams(location.search),$=id=>document.getElementById(id);
-const socketUrl=(location.hostname==='localhost'||location.hostname==='127.0.0.1')?'ws://localhost:8080':'wss://burn-city-game.fly.dev';
+// Same rule as the arena page: talk to the server that served this page (any local port, fly.dev), else production; ?api= overrides.
+const flightParams=new URLSearchParams(location.search),flightApi=flightParams.get('api')||(/fly\.dev$|^localhost$|^127\.0\.0\.1$/.test(location.hostname)?location.origin:'https://burn-city-game.fly.dev'),socketUrl=flightApi.replace(/^http/,'ws');
 let socket=null,myId=null,myReady=false,departed=false,countdownAt=null,clock=null,serverOffset=0,partyMax=8;
 function setStatus(s){$('status').textContent=s}
 function renderRoster(players=[]){
@@ -54,7 +55,7 @@ function connect(){
    const me=(m.players||[]).find(p=>p.id===myId);if(me)myReady=me.ready;
    $('ready').textContent=myReady?'CANCEL READY':'✓ READY TO BOARD';$('ready').disabled=false;
   }else if(m.e==='flight_depart'){departed=true;countdownAt=null;if(clock)clearInterval(clock);$('count').textContent='LIFT OFF';setStatus('Flight cleared. Helicopter departing BURN City…');$('ready').disabled=true;$('cancel').disabled=true;$('map').disabled=true;$('flight').classList.add('departing');
-   setTimeout(()=>{const map=m.map||$('map').value;location.href='./?mode=zombie&'+(map==='refinery'?'map=refinery&':'')+'from=airport&arrival=helicopter'},2100);
+   setTimeout(()=>{const map=m.map||$('map').value;location.href='./?mode=zombie&'+(map==='refinery'?'map=refinery&':'')+'from=airport&arrival=helicopter'+(m.flight?'&flight='+encodeURIComponent(m.flight):'')},2100);
   }
  });
  socket.addEventListener('close',()=>{if(!departed){$('ready').disabled=false;$('map').disabled=false;setStatus('Flight connection closed. Tap Ready to reconnect or return to the city.')}});

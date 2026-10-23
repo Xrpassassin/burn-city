@@ -290,7 +290,12 @@ function boot(host) {
     } finally {
       moving = false;
       if (findInfectedButton) findInfectedButton.disabled = false;
-      if (worldData?.selfEncounter && !worldData.selfEncounter.defeated && attackInfectedButton) attackInfectedButton.disabled = false;
+      if (attackInfectedButton) {
+        const active = worldData?.selfEncounter || worldData?.encounter || null;
+        const self = worldData?.self || null;
+        const distance = active && self ? Math.hypot(self.x - active.x, self.z - active.z) : Infinity;
+        attackInfectedButton.disabled = !active || active.defeated || active.hp <= 0 || distance > (active.range || 0);
+      }
     }
   }
   async function collectSelectedLoot() {

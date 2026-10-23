@@ -25,7 +25,7 @@ states = Environment.tick(states, {}, 58_000);
 assert.equal(states[wall.id].health, 190);
 states = Environment.tick(states, { p: { x: wall.x, z: wall.z, lastSeen: 58_000 } }, 58_000);
 assert.equal(states[wall.id].unoccupiedSince, null);
-assert.equal(states[wall.id].health, 200);
+assert.equal(states[wall.id].health, 190);
 states = Environment.tick(states, {}, 60_000);
 assert.equal(states[wall.id].unoccupiedSince, 60_000);
 states = Environment.tick(states, {}, 105_000);

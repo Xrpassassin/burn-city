@@ -10,6 +10,7 @@ on:
       - 'client/arena/assets/homefront/**'
       - 'client/arena/index.html'
       - 'test/homefront-core-sim.js'
+      - 'test/homefront-api-sim.js'
       - 'test/homefront-assets.test.mjs'
       - 'docs/zombies-homefront.md'
       - 'package.json'

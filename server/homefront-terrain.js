@@ -3,6 +3,7 @@
 // Keep the sampling constants and integer hash operations in lockstep; parity is tested.
 const DEFAULT_SEED = 0xB17C17;
 const UINT32_RANGE = 4294967296;
+const TERRAIN_ELEVATION_SCALE = 0.42;
 function hashLattice(x, z, seed) {
   let h = (Math.imul(x | 0, 0x1f123bb5) ^ Math.imul(z | 0, 0x5f356495) ^ (seed | 0)) >>> 0;
   h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0;
@@ -32,7 +33,7 @@ function terrainHeight(x, z, seed = DEFAULT_SEED) {
   const roadFactor = Math.min(roadBlend(x), roadBlend(z));
   return Math.round((broad + detail + ridge) * roadFactor * 1000) / 1000;
 }
-function terrainElevation(x, z, seed = DEFAULT_SEED) { return terrainHeight(x, z, seed) * 0.42; }
+function terrainElevation(x, z, seed = DEFAULT_SEED) { return terrainHeight(x, z, seed) * TERRAIN_ELEVATION_SCALE; }
 // Sample the proposed traversed segment. The threshold is intentionally permissive for the
 // first gentle hills, but prevents future steeper terrain from silently becoming walkable.
 function canTraverse(x0, z0, x1, z1, { maxRisePer2Units = 0.65, seed = DEFAULT_SEED } = {}) {
@@ -48,4 +49,4 @@ function canTraverse(x0, z0, x1, z1, { maxRisePer2Units = 0.65, seed = DEFAULT_S
   }
   return true;
 }
-module.exports = { DEFAULT_SEED, valueNoise2D, terrainHeight, terrainElevation, canTraverse };
+module.exports = { DEFAULT_SEED, TERRAIN_ELEVATION_SCALE, valueNoise2D, terrainHeight, terrainElevation, canTraverse };

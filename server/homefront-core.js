@@ -11,6 +11,8 @@ const MAX_FARM_PLOTS = 24;
 const CROPS = NP({ potato: { days: 3, yield: 5, seedCost: 1 }, beans: { days: 4, yield: 7, seedCost: 1 }, corn: { days: 5, yield: 9, seedCost: 2 } });
 const ROLES = new Set(['idle', 'guard', 'scavenger', 'farmer', 'medic', 'mechanic']);
 const SURVIVOR_TASKS = new Set(['rest_at_refuge', 'perimeter_watch', 'defend_perimeter', 'stockpile_supplies', 'tend_crops', 'infirmary_duty', 'triage_standby', 'maintain_structures', 'emergency_repair', 'stand_by_repairs', 'take_shelter']);
+const SURVIVOR_STATS = Object.freeze(['combat', 'scavenging', 'farming', 'medical', 'engineering', 'endurance']);
+const ROLE_STAT = Object.freeze({ guard: 'combat', scavenger: 'scavenging', farmer: 'farming', medic: 'medical', mechanic: 'engineering', idle: 'endurance' });
 const BUILDINGS = NP({
   wall:       { cost: { wood: 8, scrap: 2 }, hp: 100, defense: 2, cap: 30 },
   watchtower: { cost: { wood: 14, scrap: 10 }, hp: 150, defense: 8, cap: 6 },
@@ -118,6 +120,20 @@ function weaponPower(base) {
   const mod = WEAPON_MODS[base?.weaponMods?.[id]];
   return weapon.power + (mod?.power || 0);
 }
+function generateSurvivorStats(id, owner) {
+  const stats = {};
+  for (const stat of SURVIVOR_STATS) stats[stat] = 1 + (hash('survivor-stat:' + owner + ':' + id + ':' + stat) % 10);
+  return stats;
+}
+function normalizeSurvivorStats(input, id, owner) {
+  const fallback = generateSurvivorStats(id, owner);
+  const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  return Object.fromEntries(SURVIVOR_STATS.map(stat => [stat, Number.isFinite(source[stat]) ? clampInt(source[stat], 1, 10) : fallback[stat]]));
+}
+function survivorSkill(survivor, role = survivor.role) {
+  const stat = ROLE_STAT[role] || 'endurance';
+  return clampInt(survivor?.stats?.[stat], 1, 10) || 5;
+}
 function defaultSurvivorTask(role) {
   return ({ idle: 'rest_at_refuge', guard: 'perimeter_watch', scavenger: 'stockpile_supplies', farmer: 'tend_crops', medic: 'infirmary_duty', mechanic: 'maintain_structures' })[role] || 'rest_at_refuge';
 }
@@ -157,7 +173,8 @@ function threatProfile(input) {
   const guards = s.survivors.filter(x => x && x.role === 'guard');
   const guardStrength = guards.reduce((total, x) => {
     const morale = clampInt(x.morale, 0, 100);
-    return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+    const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
+    return total + moraleFactor * (0.75 + survivorSkill(x, 'guard') / 20);
   }, 0);
   const ammoUsed = Math.min(s.resources?.ammo || 0, Math.max(1, Math.ceil(guards.length / 2) + 1));
   const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
@@ -299,7 +316,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         salvageQuality: directorLoot.quality
       });
       let found = false;
-      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS && s.farmPlots.some(p => p.crop)) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4) }); found = true; }
+      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS && s.farmPlots.some(p => p.crop)) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4), stats: generateSurvivorStats(id, s.owner) }); found = true; }
       const salvageText = directorLoot.scrap
         ? ' Salvaged ' + directorLoot.quality.toLowerCase() + '-grade infected remains: +' + directorLoot.scrap + ' scrap and +' + directorLoot.embers + ' Embers.'
         : '';
@@ -491,7 +508,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       // Morale is operational, not cosmetic: exhausted or demoralized workers produce less.
       const labor = role => s.survivors.filter(x => x.role === role).reduce((total, x) => {
         const morale = clampInt(x.morale, 0, 100);
-        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+        const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
+        return total + moraleFactor * (0.75 + survivorSkill(x, role) / 20);
       }, 0);
       const farmers = labor('farmer');
       const scavengers = labor('scavenger');
@@ -619,7 +637,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const damagedPerimeter = Boolean(coverTarget && defensiveTypes.has(coverTarget.type) && coverTarget.hp < coverTarget.maxHp);
       const guardStrength = s.survivors.filter(x => x.role === 'guard').reduce((total, x) => {
         const morale = clampInt(x.morale, 0, 100);
-        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+        const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
+        return total + moraleFactor * (0.75 + survivorSkill(x, 'guard') / 20);
       }, 0);
       const breachCover = damagedPerimeter ? Math.min(0.25, guardStrength * 0.05) : 0;
       const damage = Math.max(0, Math.ceil(profile.projectedStructureDamage * (1 - breachCover)));

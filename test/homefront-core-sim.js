@@ -97,6 +97,8 @@ assert.throws(() => H.applyAction(fullRescueBase, 'full-rescue-test', { type: 'r
 
 const armoryBase = H.createBase('armory-test', 2304);
 armoryBase.resources.scrap = 100; armoryBase.embers = 100;
+assert.throws(() => H.applyAction(armoryBase, 'armory-test', { type: 'craft_weapon', weapon: 'smg' }, 2305), /weapon_locked_zone/, 'SMG stays locked until the player reaches the industrial district');
+assert.throws(() => H.applyAction(armoryBase, 'armory-test', { type: 'craft_weapon', weapon: 'heavy_machine_gun' }, 2305), /weapon_locked_zone/, 'heavy machine gun stays locked until the research annex is discovered');
 const shotgunCrafted = H.applyAction(armoryBase, 'armory-test', { type: 'craft_weapon', weapon: 'pump_shotgun' }, 2305);
 assert.ok(shotgunCrafted.weapons.includes('pump_shotgun'), 'crafted weapons persist in the refuge armory');
 assert.equal(shotgunCrafted.resources.scrap, 45);
@@ -110,6 +112,12 @@ assert.equal(H.weaponPower(moddedShotgun), 4, 'weapon mods increase effective co
 assert.throws(() => H.applyAction(moddedShotgun, 'armory-test', { type: 'craft_mod', mod: 'shock_coil' }), /weapon_mod_slot_used/);
 assert.throws(() => H.applyAction(shotgunEquipped, 'armory-test', { type: 'craft_weapon', weapon: 'pump_shotgun' }), /weapon_already_owned/);
 assert.throws(() => H.applyAction(shotgunEquipped, 'armory-test', { type: 'equip_weapon', weapon: 'shock_maul' }), /weapon_not_owned/);
+armoryBase.resources.scrap = 1000; armoryBase.embers = 1000; armoryBase.exploration.discoveredZones.push('industrial');
+const unlockedSmg = H.applyAction(armoryBase, 'armory-test', { type: 'craft_weapon', weapon: 'smg' }, 2308);
+assert.ok(unlockedSmg.weapons.includes('smg'), 'SMG becomes craftable after discovering the industrial district');
+armoryBase.exploration.discoveredZones.push('research_lab');
+const unlockedHeavyGun = H.applyAction(armoryBase, 'armory-test', { type: 'craft_weapon', weapon: 'heavy_machine_gun' }, 2309);
+assert.ok(unlockedHeavyGun.weapons.includes('heavy_machine_gun'), 'heavy machine gun becomes craftable after discovering the research annex');
 
 const bossCostBase = H.createBase('boss-cost-only', 2305);
 bossCostBase.resources.food = 100; bossCostBase.resources.ammo = 100;

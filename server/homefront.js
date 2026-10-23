@@ -528,4 +528,4 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     return true;
   }
 }
-module.exports = { handle, buildReturnDebrief };
+module.exports = { handle, buildReturnDebrief, addSessionTotals, initSessionStart };

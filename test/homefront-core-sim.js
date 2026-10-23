@@ -38,19 +38,14 @@ expedition = H.applyAction(expedition, 'acct-a', { type: 'build', building: 'gar
 const beforeFood = expedition.resources.food;
 expedition = H.applyAction(expedition, 'acct-a', { type: 'workday' });
 assert.ok(expedition.resources.food >= beforeFood - 1, 'farmer and garden contribute food after upkeep');
-// Zombie breach composition escalates deterministically and introduces a boss every tenth wave.
-const waveOne = H.waveProfile(1);
-assert.equal(waveOne.boss, false);
-assert.deepEqual(waveOne.enemies.map(x => x.type), ['walker']);
-const waveTen = H.waveProfile(10);
-assert.equal(waveTen.boss, true, 'every tenth breach includes a juggernaut');
-assert.ok(waveTen.enemies.some(x => x.type === 'runner'), 'later waves add runners');
-assert.ok(waveTen.enemies.some(x => x.type === 'brute'), 'later waves add armored brutes');
-assert.ok(waveTen.enemies.some(x => x.type === 'screamer'), 'later waves add screamers');
-assert.ok(waveTen.enemies.some(x => x.type === 'bloater'), 'later waves add bloaters');
-assert.ok(waveTen.threatBonus > H.waveProfile(1).threatBonus, 'special enemy mix raises breach pressure');
-assert.deepEqual(waveTen.enemies, [{ type: 'walker', count: 26 }, { type: 'runner', count: 3 }, { type: 'brute', count: 2 }, { type: 'screamer', count: 1 }, { type: 'bloater', count: 1 }, { type: 'juggernaut', count: 1 }], 'wave ten has a stable, reproducible composition');
-assert.equal(waveTen.threatBonus, 13.7, 'wave ten applies a predictable special-enemy threat bonus');
+// Perimeter defense threat is independent of the legacy wave field.
+const lowCounter = H.createBase('fixed-threat-a', 2200);
+const highCounter = H.createBase('fixed-threat-b', 2200);
+highCounter.wave = 999;
+const lowCounterResult = H.applyAction(lowCounter, 'fixed-threat-a', { type: 'defend' }, 2201);
+const highCounterResult = H.applyAction(highCounter, 'fixed-threat-b', { type: 'defend' }, 2201);
+assert.equal(lowCounterResult.baseHp, highCounterResult.baseHp, 'completed-round counter must not increase defense difficulty');
+assert.equal(lowCounterResult.wave, 0, 'defense incidents do not advance a round counter');
 
 // A campfire rally trades food for a server-authoritative morale recovery.
 const rallyBase = H.createBase('rally-test', 2040);

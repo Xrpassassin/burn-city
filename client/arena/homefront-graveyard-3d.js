@@ -53,15 +53,15 @@ function boot(host) {
     const target = targetId ? combatActors.get(targetId) : null;
     // Reuse the existing licensed sample bank; a failed fetch must never break combat feedback.
     if (target) {
-      const pos = [target.position.x, 1.1, target.position.z];
+      const pos = [target.position.x, detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1, target.position.z];
       const sound = weaponId === 'pump_shotgun' ? 'shotgun' : weaponId === 'marksman_rifle' ? 'hit' : 'hit';
       sfx.loadBank(new URL('./sfx/', import.meta.url).href)
         .then(() => sfx.play(sound, { pos, v: weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
         .catch(() => {});
       // Weapon-specific, short-lived blood mist. Visual feedback never determines damage.
-      const count = detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18) : (weaponId === 'pump_shotgun' ? 15 : 9);
+      const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16) : detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18) : (weaponId === 'pump_shotgun' ? 15 : 9);
       const spread = weaponId === 'pump_shotgun' ? 0.95 : weaponId === 'marksman_rifle' ? 0.22 : 0.5;
-      const lift = weaponId === 'shock_maul' ? 1.25 : weaponId === 'pump_shotgun' ? 3.2 : 2.4;
+      const lift = detail.hitZone === 'head' ? 3.6 : weaponId === 'shock_maul' ? 1.25 : weaponId === 'pump_shotgun' ? 3.2 : 2.4;
       for (let i = 0; i < count; i++) {
         const radius = (weaponId === 'pump_shotgun' ? 0.04 : 0.035) + Math.random() * 0.045;
         const drop = new THREE.Mesh(new THREE.SphereGeometry(radius, 5, 4), new THREE.MeshBasicMaterial({ color: i % 4 ? 0x842d2b : 0x4b1719, transparent: true, opacity: 0.88, depthWrite: false }));
@@ -74,7 +74,7 @@ function boot(host) {
         impactGroup.add(drop);
       }
       target.userData.impactUntil = performance.now() + (style === 'blunt' ? 420 : 300);
-      target.userData.impactStyle = style;
+      target.userData.impactStyle = detail.hitZone === 'head' ? 'headshot' : style;
       target.userData.impactDirection = detail.direction || 1;
     }
     // Stylized limb-separation feedback is visual-only and requires a server-confirmed sharp-weapon kill.
@@ -347,7 +347,7 @@ function boot(host) {
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
       if (data.combat) {
-        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: { damage: data.combat.damage, killed: data.combat.killed, weaponId: equippedWeaponId, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 } }));
+        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: { damage: data.combat.damage, hitZone: data.combat.hitZone, killed: data.combat.killed, weaponId: equippedWeaponId, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 } }));
       }
       updateWorld(data);
       if (data.combat && combatStatus) {
@@ -356,7 +356,7 @@ function boot(host) {
         const fatigue = stamina !== null ? ' · stamina ' + stamina + '/100' + (stamina < 15 ? ' · exhausted: damage reduced' : stamina < 35 ? ' · tiring: damage reduced' : '') : '';
         combatStatus.textContent = result.killed
           ? 'Defeated the infected! +' + result.reward.scrap + ' scrap, +' + result.reward.embers + ' Embers (' + result.reward.quality + ').' + fatigue
-          : 'Hit for ' + result.damage + '. Retaliation: ' + result.enemyDamage + '. Ammo spent: ' + result.ammoCost + '.' + fatigue;
+          : (result.hitZone === 'head' ? 'HEADSHOT! ' : result.hitZone === 'limb' ? 'Limb hit. ' : '') + 'Hit for ' + result.damage + '. Retaliation: ' + result.enemyDamage + '. Ammo spent: ' + result.ammoCost + '.' + fatigue;
       } else if (combatStatus && data.encounter) {
         combatStatus.textContent = (data.reused ? 'Active threat: ' : 'Threat detected: ') + data.encounter.enemy + ' · HP ' + data.encounter.hp + '/' + data.encounter.maxHp + '. Close distance and attack.';
       }

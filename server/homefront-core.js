@@ -174,6 +174,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (Math.abs(x) > 9.5 || Math.abs(z) > 9.5) throw new Error('placement_out_of_bounds');
       if (Math.hypot(x, z) < 2.4) throw new Error('placement_occupied');
       if (s.structures.some(v => Math.hypot(v.x - x, v.z - z) < (action.building === 'barbed_wire' || v.type === 'barbed_wire' ? 1.0 : 1.65))) throw new Error('placement_occupied');
+      // Farm plots occupy physical yard space too; keep new structures from burying crops or blocking tending access.
+      if (s.farmPlots.some(plot => Math.hypot(plot.x - x, plot.z - z) < 1.65)) throw new Error('placement_occupied');
       const rotation = Number.isFinite(action.rotation) ? clampNumber(action.rotation, -Math.PI * 2, Math.PI * 2) : 0;
       s.structures.push({ id, type: action.building, hp: spec.hp, maxHp: spec.hp, x, z, rotation, trenchLevel: 0, manned: false });
       record(s, 'build', 'Constructed ' + action.building + '.', now);

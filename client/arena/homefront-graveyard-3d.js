@@ -669,7 +669,7 @@ function boot(host) {
     if (status) {
       const self = data.self;
       status.textContent = self
-        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.district || 'perimeter').replaceAll('_', ' ') + ' · danger ' + self.risk + '/5 · click to travel · right-drag to orbit · scroll to zoom'
+        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.district || 'perimeter').replaceAll('_', ' ') + ' · danger ' + self.risk + '/5 · click to travel · right-drag to orbit · scroll to zoom · Overhead view is reserved for base construction'
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
     }
   }
@@ -1114,7 +1114,7 @@ function boot(host) {
     renderer.render(scene, camera); requestAnimationFrame(tick); };
   // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.
   zombieModelPilotLoading = true;
-  createZombieModelPilot(scene, { targetHeight: 2.7 }).then(pilot => {
+  createZombieModelPilot(scene, { targetHeight: 2.7, maxModels: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 4 : 8 }).then(pilot => {
     zombieModelPilot = pilot;
     zombieModelPilotLoading = false;
     console.info('[homefront-graveyard] shared animated infected ready');

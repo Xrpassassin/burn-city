@@ -32,13 +32,13 @@ function resolveSpawn({account,x,z,district,risk=1,now=Date.now(),seed=0}){
  risk=clamp(Math.floor(risk),1,5);
  const directorPlan=planEncounter({zoneId:district,risk,playerCount:1,activeEncounters:0,noise:0,seed:account+':'+Math.floor(x)+':'+Math.floor(z)+':'+Math.floor(now/30000)+':'+seed});
  const event=directorPlan.event,s=STATS[event],id='enc-'+hash(account+':'+now+':'+x+':'+z).toString(36);
- return {id,owner:account,event,enemy:directorPlan.enemy,directorPlan,packPlan:planHorde({event,risk,seed:id}),members:planHorde({event,risk,seed:id}).members.map(m=>({...m,x:clamp(x+m.offsetX,-100,100),z:clamp(z+m.offsetZ,-100,100),hp:Math.max(1,Math.round((s.hp+risk*7)*m.healthScale/Math.max(1,planHorde({event,risk,seed:id}).count))),maxHp:Math.max(1,Math.round((s.hp+risk*7)*m.healthScale)),defeated:false,lastAttackAt:0})),district,x:clamp(x+(hash(id+':x')%13-6),-100,100),z:clamp(z+(hash(id+':z')%13-6),-100,100),hp:s.hp+risk*7,maxHp:s.hp+risk*7,damage:s.damage+Math.max(0,risk-1),ammoCost:s.ammo,range:s.range,risk,pursuitRadius:directorPlan.pursuitRadius,lastKnownX:x,lastKnownZ:z,lastKnownAt:now,investigateUntil:0,createdAt:now,lastAttackAt:0,lastAiAt:now,expiresAt:now+ENCOUNTER_TTL,defeated:false};
+ return {id,owner:account,event,enemy:directorPlan.enemy,directorPlan,packPlan:planHorde({event,risk,seed:id}),members:planHorde({event,risk,seed:id}).members.map(m=>({...m,x:clamp(x+m.offsetX,-100,100),z:clamp(z+m.offsetZ,-100,100),hp:Math.max(1,Math.round((s.hp+risk*7)*m.healthScale/Math.max(1,planHorde({event,risk,seed:id}).count))),maxHp:Math.max(1,Math.round((s.hp+risk*7)*m.healthScale/Math.max(1,planHorde({event,risk,seed:id}).count))),defeated:false,lastAttackAt:0})),district,x:clamp(x+(hash(id+':x')%13-6),-100,100),z:clamp(z+(hash(id+':z')%13-6),-100,100),hp:s.hp+risk*7,maxHp:s.hp+risk*7,damage:s.damage+Math.max(0,risk-1),ammoCost:s.ammo,range:s.range,risk,pursuitRadius:directorPlan.pursuitRadius,lastKnownX:x,lastKnownZ:z,lastKnownAt:now,investigateUntil:0,createdAt:now,lastAttackAt:0,lastAiAt:now,expiresAt:now+ENCOUNTER_TTL,defeated:false};
 }
 function publicEncounter(e){return e?{id:e.id,event:e.event,enemy:e.enemy,district:e.district,x:e.x,z:e.z,hp:e.hp,maxHp:e.maxHp,risk:e.risk,range:e.range,expiresAt:e.expiresAt,defeated:!!e.defeated,packPlan:e.packPlan||planHorde({event:e.event,risk:e.risk,seed:e.id}),members:(e.members||[]).map(m=>({id:m.id,role:m.role,x:m.x,z:m.z,hp:m.hp,maxHp:m.maxHp,defeated:!!m.defeated}))}:null;}
 function normalizeEncounters(input,now=Date.now()){
  const out={};if(!input||typeof input!=='object'||Array.isArray(input))return out;
  for(const [owner,e] of Object.entries(input)){if(!e||typeof e!=='object'||typeof e.id!=='string'||!STATS[e.event]||!Number.isFinite(e.expiresAt)||e.expiresAt<=now)continue;
- out[owner]={id:e.id.slice(0,80),owner,event:e.event,enemy:String(e.enemy||'Stray Runner').slice(0,80),district:String(e.district||'outskirts').slice(0,40),x:clamp(e.x,-100,100),z:clamp(e.z,-100,100),hp:clamp(e.hp,0,10000),maxHp:clamp(e.maxHp,1,10000),damage:clamp(e.damage,1,50),ammoCost:clamp(e.ammoCost,1,5),range:clamp(e.range,1,40),risk:clamp(e.risk,1,5),pursuitRadius:clamp(e.pursuitRadius??26,8,60),lastKnownX:clamp(e.lastKnownX??e.x,-100,100),lastKnownZ:clamp(e.lastKnownZ??e.z,-100,100),lastKnownAt:clamp(e.lastKnownAt??e.createdAt,0,Number.MAX_SAFE_INTEGER),investigateUntil:clamp(e.investigateUntil??0,0,Number.MAX_SAFE_INTEGER),packPlan:planHorde({event:e.event,risk:e.risk,seed:e.id}),members:(Array.isArray(e.members)&&e.members.length?e.members:planHorde({event:e.event,risk:e.risk,seed:e.id}).members.map(m=>({...m,x:e.x+m.offsetX,z:e.z+m.offsetZ,hp:Math.max(1,Math.round(e.maxHp*m.healthScale/Math.max(1,planHorde({event:e.event,risk:e.risk,seed:e.id}).count))),maxHp:Math.max(1,Math.round(e.maxHp*m.healthScale)),defeated:false,lastAttackAt:0}))).map(m=>({id:String(m.id).slice(0,80),slot:clamp(m.slot??0,0,10),role:String(m.role||'stalker').slice(0,20),offsetX:clamp(m.offsetX??0,-20,20),offsetZ:clamp(m.offsetZ??0,-20,20),healthScale:clamp(m.healthScale??1,0.5,2),speedScale:clamp(m.speedScale??1,0.5,1.5),x:clamp(m.x??e.x,-100,100),z:clamp(m.z??e.z,-100,100),hp:clamp(m.hp,0,10000),maxHp:clamp(m.maxHp,1,10000),defeated:!!m.defeated,lastAttackAt:clamp(m.lastAttackAt??0,0,Number.MAX_SAFE_INTEGER)})),createdAt:clamp(e.createdAt,0,Number.MAX_SAFE_INTEGER),lastAttackAt:clamp(e.lastAttackAt,0,Number.MAX_SAFE_INTEGER),lastAiAt:clamp(e.lastAiAt??e.createdAt,0,Number.MAX_SAFE_INTEGER),expiresAt:e.expiresAt,defeated:!!e.defeated};}
+ out[owner]={id:e.id.slice(0,80),owner,event:e.event,enemy:String(e.enemy||'Stray Runner').slice(0,80),district:String(e.district||'outskirts').slice(0,40),x:clamp(e.x,-100,100),z:clamp(e.z,-100,100),hp:clamp(e.hp,0,10000),maxHp:clamp(e.maxHp,1,10000),damage:clamp(e.damage,1,50),ammoCost:clamp(e.ammoCost,1,5),range:clamp(e.range,1,40),risk:clamp(e.risk,1,5),pursuitRadius:clamp(e.pursuitRadius??26,8,60),lastKnownX:clamp(e.lastKnownX??e.x,-100,100),lastKnownZ:clamp(e.lastKnownZ??e.z,-100,100),lastKnownAt:clamp(e.lastKnownAt??e.createdAt,0,Number.MAX_SAFE_INTEGER),investigateUntil:clamp(e.investigateUntil??0,0,Number.MAX_SAFE_INTEGER),packPlan:planHorde({event:e.event,risk:e.risk,seed:e.id}),members:(Array.isArray(e.members)&&e.members.length?e.members:planHorde({event:e.event,risk:e.risk,seed:e.id}).members.map(m=>({...m,x:e.x+m.offsetX,z:e.z+m.offsetZ,hp:Math.max(1,Math.round(e.maxHp*m.healthScale/Math.max(1,planHorde({event:e.event,risk:e.risk,seed:e.id}).count))),maxHp:Math.max(1,Math.round(e.maxHp*m.healthScale/Math.max(1,planHorde({event:e.event,risk:e.risk,seed:e.id}).count))),defeated:false,lastAttackAt:0}))).map(m=>({id:String(m.id).slice(0,80),slot:clamp(m.slot??0,0,10),role:String(m.role||'stalker').slice(0,20),offsetX:clamp(m.offsetX??0,-20,20),offsetZ:clamp(m.offsetZ??0,-20,20),healthScale:clamp(m.healthScale??1,0.5,2),speedScale:clamp(m.speedScale??1,0.5,1.5),x:clamp(m.x??e.x,-100,100),z:clamp(m.z??e.z,-100,100),hp:clamp(m.hp,0,10000),maxHp:clamp(m.maxHp,1,10000),defeated:!!m.defeated,lastAttackAt:clamp(m.lastAttackAt??0,0,Number.MAX_SAFE_INTEGER)})),createdAt:clamp(e.createdAt,0,Number.MAX_SAFE_INTEGER),lastAttackAt:clamp(e.lastAttackAt,0,Number.MAX_SAFE_INTEGER),lastAiAt:clamp(e.lastAiAt??e.createdAt,0,Number.MAX_SAFE_INTEGER),expiresAt:e.expiresAt,defeated:!!e.defeated};}
  return out;
 }
 function spawn({encounters,account,player,now=Date.now(),seed=0}){
@@ -77,7 +77,7 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
   const investigating=distance>e.pursuitRadius||now<e.investigateUntil;
   const targetX=investigating?e.lastKnownX:player.x,targetZ=investigating?e.lastKnownZ:player.z;
   const targetDx=targetX-e.x,targetDz=targetZ-e.z,targetDistance=Math.hypot(targetDx,targetDz);
-  if(targetDistance<=stopDistance)continue;
+  if(targetDistance>stopDistance){
   const step=Math.min(targetDistance-stopDistance,speed*elapsed);
   const nextX=clamp(e.x+targetDx/targetDistance*step,-100,100),nextZ=clamp(e.z+targetDz/targetDistance*step,-100,100);
   // Prefer the direct step; only invoke bounded A* when terrain blocks the pursuit line.
@@ -89,21 +89,21 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
     if(Terrain.canTraverse(e.x,e.z,advanced.x,advanced.z)&&Collision.canTraverse(e.x,e.z,advanced.x,advanced.z,{radius:0.45,bounds:100})){e.x=advanced.x;e.z=advanced.z;}
    }
   }
-  // Simulate squad members independently. The encounter anchor remains the
-  // legacy-compatible lead actor while each member owns its own coordinates.
-  for (const member of e.members || []) {
-   if (member.defeated || member.hp <= 0) continue;
-   const targetX = e.lastKnownX, targetZ = e.lastKnownZ;
-   const mdx = targetX - member.x, mdz = targetZ - member.z, md = Math.hypot(mdx, mdz);
-   if (md > 2.2) {
-    const memberStep = Math.min(md - 2.2, speed * elapsed * member.speedScale);
-    const mx = clamp(member.x + mdx / md * memberStep, -100, 100);
-    const mz = clamp(member.z + mdz / md * memberStep, -100, 100);
-    if (Terrain.canTraverse(member.x, member.z, mx, mz) && Collision.canTraverse(member.x, member.z, mx, mz, {radius:0.4,bounds:100})) { member.x=mx; member.z=mz; }
-   }
   }
-  const lead = (e.members || []).find(m => !m.defeated && m.hp > 0);
-  if (lead) { e.x=lead.x; e.z=lead.z; }
+  // Squad members follow the pathfinding anchor in formation. Only the anchor runs bounded A*,
+  // so cost stays one route per encounter; members take direct steps toward their slot and
+  // regroup onto the anchor's (traversable) position when terrain blocks them far behind.
+  const living = (e.members || []).filter(m => !m.defeated && m.hp > 0);
+  living.forEach((member, i) => {
+   if (i === 0) { member.x = e.x; member.z = e.z; return; }
+   const slotX = clamp(e.x + (member.offsetX || 0), -100, 100), slotZ = clamp(e.z + (member.offsetZ || 0), -100, 100);
+   const mdx = slotX - member.x, mdz = slotZ - member.z, md = Math.hypot(mdx, mdz);
+   if (md <= 0.3) return;
+   const memberStep = Math.min(md, speed * elapsed * (member.speedScale || 1));
+   const mx = clamp(member.x + mdx / md * memberStep, -100, 100), mz = clamp(member.z + mdz / md * memberStep, -100, 100);
+   if (Terrain.canTraverse(member.x, member.z, mx, mz) && Collision.canTraverse(member.x, member.z, mx, mz, {radius:0.4,bounds:100})) { member.x = mx; member.z = mz; }
+   else if (Math.hypot(e.x - member.x, e.z - member.z) > 6) { member.x = e.x; member.z = e.z; }
+  });
   e.hp = (e.members || []).reduce((sum,m)=>sum+(m.defeated?0:m.hp),0);
   e.maxHp = (e.members || []).reduce((sum,m)=>sum+m.maxHp,0);
  }
@@ -138,7 +138,7 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  const hitZone=aimedZone || (zoneRoll < 8 + Math.floor(aimStability*4) ? 'head' : zoneRoll < 30 + Math.floor(aimStability*8) ? 'limb' : 'torso');
  const zoneMultiplier=hitZone==='head'?1.8:hitZone==='limb'?0.75:1;
  const accuracyScale=aimed?1:0.72+aimStability*0.28;
- const damage=Math.max(5,Math.floor(Math.max(8,12+(power-1)*7+Math.floor(e.risk*1.5))*fatigueScale*zoneMultiplier*accuracyScale));if(field)field.stamina=clamp(staminaBefore-8,0,100);target.hp=Math.max(0,target.hp-damage);target.lastAttackAt=now;if(target.hp===0)target.defeated=true;e.hp=(e.members||[]).reduce((sum,m)=>sum+(m.defeated?0:m.hp),0);e.maxHp=(e.members||[]).reduce((sum,m)=>sum+m.maxHp,0);e.lastAttackAt=now;
+ const damage=Math.max(5,Math.floor(Math.max(8,12+(power-1)*7+Math.floor(e.risk*1.5))*fatigueScale*zoneMultiplier*accuracyScale));if(field)field.stamina=clamp(staminaBefore-8,0,100);target.hp=Math.max(0,target.hp-damage);target.lastAttackAt=now;if(target.hp===0){const wasAnchor=living[0]===target;target.defeated=true;const nextLead=living.find(m=>m!==target);if(wasAnchor&&nextLead){e.x=nextLead.x;e.z=nextLead.z;}}e.hp=(e.members||[]).reduce((sum,m)=>sum+(m.defeated?0:m.hp),0);e.maxHp=(e.members||[]).reduce((sum,m)=>sum+m.maxHp,0);e.lastAttackAt=now;
  if(e.hp===0){e.defeated=true;const q=hash(e.id+':'+seed)%100,quality=q<2?'Legendary':q<8?'Epic':q<22?'Rare':q<48?'Uncommon':'Common',qi=QUALITY_ORDER.indexOf(quality),scrap=2+e.risk+qi*2,embers=e.risk+qi;
  base.resources.scrap=Math.min(999999,(base.resources.scrap||0)+scrap);base.embers=Math.min(999999999,(base.embers||0)+embers);
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Cleared '+e.enemy+' squad and recovered '+quality.toLowerCase()+'-grade salvage: +'+scrap+' scrap and +'+embers+' Embers.'});base.log=base.log.slice(-20);}

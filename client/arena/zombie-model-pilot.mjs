@@ -26,6 +26,7 @@ function animationFor(z, clips, moving) {
 }
 
 export async function createZombieModelPilot(scene, options = {}) {
+  const maxModels = Number.isFinite(options.maxModels) ? Math.max(1, Math.min(MAX_MODELS, Math.floor(options.maxModels))) : MAX_MODELS;
   const targetHeight = Number.isFinite(options.targetHeight) ? Math.max(0.8, Math.min(3.2, options.targetHeight)) : TARGET_HEIGHT;
   const loader = new GLTFLoader();
   const models = await Promise.all(MODEL_URLS.map(async url => {
@@ -101,7 +102,7 @@ export async function createZombieModelPilot(scene, options = {}) {
   return {
     update(zombies, dt, me) {
       const now = performance.now();
-      const candidates = selectZombieModelCandidates(zombies, me, MAX_MODELS, MAX_MODEL_DISTANCE);
+      const candidates = selectZombieModelCandidates(zombies, me, maxModels, MAX_MODEL_DISTANCE);
       const candidateIds = new Set(candidates.map(z => z.id));
       const chosen = new Set(candidateIds);
       for (const [id, item] of active) if (item.deadUntil > now) chosen.add(id);

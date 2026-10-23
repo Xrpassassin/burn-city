@@ -107,3 +107,23 @@ assert.ok(squadAdvanced['squad-test'].members.some((m, i) => Math.hypot(m.x - sq
 assert.equal(C.publicEncounter(squadAdvanced['squad-test']).members.length, squadSpawn.encounter.packPlan.count, 'public world snapshots expose each squad member for client rendering');
 
 console.log('Homefront authoritative combat tests passed.');
+
+// Audit fixes (Oct 23): the pathfinding anchor drives the squad, members regroup instead of sticking
+// behind terrain, member maxHp matches its spawned hp, and killing the lead hands the anchor to a survivor.
+{
+  const sq = C.spawn({ encounters: {}, account: 'hp-test', player: { x: -40, z: 30 }, now: 990000, seed: 6 });
+  assert.ok(sq.encounters['hp-test'].members.length > 1, 'fixture is a multi-member horde');
+  const e = sq.encounters['hp-test'];
+  assert.ok(e.members.every(m => m.hp === m.maxHp), 'every squad member spawns at full health');
+  assert.equal(e.hp, e.maxHp, 'encounter health starts full');
+  const lead = e.members[0];
+  const adv = C.advance({ encounters: sq.encounters, players: { 'hp-test': { x: -36, z: 26 } }, now: 990900 })['hp-test'];
+  assert.equal(adv.members.filter(m => !m.defeated)[0].x, adv.x, 'the lead member is the pathfinding anchor');
+  if (e.members.length > 1) {
+    const killLead = { ...adv, members: adv.members.map((m, i) => i === 0 ? { ...m, hp: 1 } : m) };
+    const r = C.attack({ encounters: { 'hp-test': killLead }, account: 'hp-test', player: { x: adv.x + 1, z: adv.z }, base: base(), now: 991500, targetId: killLead.members[0].id });
+    const next = r.encounters['hp-test'].members.find(m => !m.defeated);
+    assert.ok(next && Math.hypot(r.encounters['hp-test'].x - next.x, r.encounters['hp-test'].z - next.z) < 1e-9, 'killing the lead hands the anchor to the next living member without a jump');
+  }
+}
+console.log('Homefront squad anchor audit tests passed.');

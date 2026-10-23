@@ -63,7 +63,7 @@ function validateBase(input, ownerId) {
       input.structures.length > MAX_STRUCTURES || input.survivors.length > MAX_SURVIVORS ||
       (Array.isArray(input.farmPlots) && input.farmPlots.length > MAX_FARM_PLOTS)) return null;
   const out = clone(input);
-  for (const r of ['wood', 'scrap', 'food', 'rawFood', 'water', 'dirtyWater', 'meds', 'ammo', 'seeds']) out.resources[r] = clampInt(r === 'water' && !Number.isFinite(out.resources[r]) ? 18 : out.resources[r], 0, 999999);
+  for (const r of ['wood', 'scrap', 'food', 'rawFood', 'water', 'dirtyWater', 'meds', 'ammo', 'seeds']) out.resources[r] = clampInt(r === 'water' && !Number.isFinite(out.resources[r]) ? 18 : r === 'seeds' && !Number.isFinite(out.resources[r]) ? 6 : out.resources[r], 0, 999999);
   const FoodFreshness = require('./homefront-freshness');
   out.resources.freshness = FoodFreshness.normalizeBatches(out.resources.freshness, out.resources, Number.isFinite(out.createdAt) ? out.createdAt : Date.now());
   out.embers = clampInt(out.embers, 0, 999999999);
@@ -388,7 +388,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const x = Number.isFinite(action.x) ? action.x : NaN;
       const z = Number.isFinite(action.z) ? action.z : NaN;
       if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 9.5 || Math.abs(z) > 9.5) throw new Error('farm_plot_out_of_bounds');
-      if (Math.hypot(x, z) < 2.4 || s.structures.some(v => Math.hypot(v.x - x, v.z - z) < 1.0) || s.farmPlots.some(v => Math.hypot(v.x - x, v.z - z) < 0.8)) throw new Error('farm_plot_occupied');
+      if (Math.hypot(x, z) < 2.4 || s.structures.some(v => Math.hypot(v.x - x, v.z - z) < 1.65) || s.farmPlots.some(v => Math.hypot(v.x - x, v.z - z) < 0.8)) throw new Error('farm_plot_occupied');
       const id = 'f' + (s.farmPlots.reduce((n, p) => Math.max(n, Number(p.id.slice(1)) || 0), 0) + 1);
       s.farmPlots.push({ id, x, z, crop: null, growth: 0, watered: false, plantedAt: 0 });
       record(s, 'farming', 'Prepared a soil plot. Plant a crop yourself before recruiting survivors.', now);
@@ -424,7 +424,10 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (plot.growth < crop.days) throw new Error('crop_not_ready');
       const yieldQty = crop.yield + (plot.watered ? 2 : 0);
       s.resources.food = Math.min(999999, s.resources.food + yieldQty);
-      record(s, 'farming', 'Harvested ' + yieldQty + ' food from ' + plot.id + '.', now);
+      // Harvest returns the seed cost plus one so a tended farm is self-sustaining.
+      const seedReturn = crop.seedCost + 1;
+      s.resources.seeds = Math.min(999999, s.resources.seeds + seedReturn);
+      record(s, 'farming', 'Harvested ' + yieldQty + ' food and ' + seedReturn + ' seeds from ' + plot.id + '.', now);
       plot.crop = null; plot.growth = 0; plot.watered = false; plot.plantedAt = 0;
       break;
     }

@@ -9,7 +9,7 @@ assert.match(scene, /from '\.\/zombie-model-pilot\.mjs'/, 'reuse the existing an
 assert.match(scene, /zombieModelPilot\.update\(modelCandidates, dt, localForModels\)/, 'drive animated infected from authoritative encounter snapshots');
 assert.match(scene, /modeledZombieIds\.has\(actor\.userData\.encounterId\)/, 'bound detailed rigs and retain procedural fallback actors');
 assert.match(scene, /const opacity = modeled \? 0 : 1/, 'preserve raycast hit proxies under animated models');
-assert.match(scene, /createZombieModelPilot\(scene, \{ targetHeight: 2\.7 \}\)/, 'fit rigs to Homefront combat hitbox scale');
+assert.match(scene, /createZombieModelPilot\(scene, \{ targetHeight: 2\.7, maxModels: /, 'fit rigs to Homefront combat hitbox scale with a lower rig cap on touch devices');
 assert.match(scene, /createZombieAudio\(sfx, \{ base: new URL\('\.\/sfx\/'/, 'reuse the existing positional zombie audio sample bank');
 assert.match(scene, /zombieAudio\.tick\(dt, audioMe, audioZombies/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
 assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play shared hit and headshot audio only after authoritative combat confirmation');
@@ -89,9 +89,9 @@ assert.match(page, /id="drinkInField"/, 'provide a hydration action');
 assert.match(page, /id="cosmeticCollection"/, 'provide the cosmetic skin collection UI');
 assert.match(page, /cosmetic-only|never change combat power/i, 'explain that cosmetic skins do not affect combat power');
 assert.match(page, /homefront-graveyard-3d\.js/, 'load the 3D scene module');
-const constructionTick = scene.indexOf('const constructionView=!!pendingBuilding||constructionPaused;if(!constructionView)for(const mixer of zombieMixers)mixer.update(dt)');
+const constructionTick = page.indexOf('const constructionView=!!pendingBuilding||constructionPaused;if(!constructionView)for(const mixer of zombieMixers)mixer.update(dt)');
 assert(constructionTick >= 0, 'freeze infected animation mixers while protected construction mode is active');
-assert.match(scene, /if\(base\?\.wave>0&&!pendingBuilding&&!constructionPaused\)/, 'pause local infected movement during construction and server-confirmed build placement');
+assert.match(page, /if\(base\?\.wave>0&&!pendingBuilding&&!constructionPaused\)/, 'pause local infected movement during construction and server-confirmed build placement');
 console.log('Homefront 3D Graveyard integration checks passed.');
 
 assert.match(scene, /homefront:combat-hit/, 'trigger visible weapon feedback only after the server confirms combat');
@@ -185,3 +185,10 @@ assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=false;/, 
 assert.match(page, /const constructionView=!!pendingBuilding\|\|constructionPaused/, 'switch to construction camera only while building');
 assert.match(page, /cameraTarget=new THREE\.Vector3\(constructionView\?0:19,constructionView\?29:22,constructionView\?0\.01:24\)/, 'construction camera looks straight down while exploration camera stays third-person');
 assert.match(page, /camera\.position\.lerp\(cameraTarget,1-Math\.exp\(-5\*dt\)\)/, 'blend smoothly between construction and exploration views');
+
+assert.match(page, /id="tillPlot"/, 'the refuge exposes a player-led farm plot control');
+assert.match(page, /type:'farm_till',x:p\.x,z:p\.z/, 'tilling uses tap-to-place yard coordinates validated by the server');
+assert.match(page, /type:'farm_plant',plotId:p\.id/, 'empty plots can be planted from the refuge panel');
+assert.match(page, /type:'farm_water',plotId:p\.id/, 'growing plots can be watered from the refuge panel');
+assert.match(page, /type:'farm_harvest',plotId:p\.id/, 'mature plots can be harvested from the refuge panel');
+assert.match(page, /drawFarmPlot\(plot\)/, 'farm plots render in the 3D yard');

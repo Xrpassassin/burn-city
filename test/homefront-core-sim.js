@@ -328,8 +328,19 @@ const foodBeforeHarvest = planted.resources.food;
 planted = H.applyAction(planted, 'farm-test', { type: 'farm_harvest', plotId: plot.id }, 6120);
 assert.equal(planted.resources.food, foodBeforeHarvest + 5, 'mature potato harvest adds its configured food yield');
 assert.equal(planted.farmPlots[0].crop, null, 'harvest resets the plot for replanting');
+assert.equal(planted.resources.seeds, 5 + H.CROPS.potato.seedCost + 1, 'harvest returns the seed cost plus one so farming is self-sustaining');
+{ const legacy = H.createBase('legacy-seeds', 7000); delete legacy.resources.seeds; assert.equal(H.validateBase(legacy, 'legacy-seeds').resources.seeds, 6, 'saves from before farming receive a starter seed stock'); }
+{ const Inv = require('../server/homefront-inventory'); const stocked = H.createBase('seed-pack', 7100); const pulled = Inv.withdraw({}, stocked.resources, 'food', 2, 7101); assert.equal(pulled.resources.seeds, 6, 'packing field supplies keeps refuge seed stock'); }
 const savedFarm = H.validateBase(planted, 'farm-test');
 assert.equal(savedFarm.farmPlots.length, 1, 'farm plot persists through save normalization');
-assert.equal(savedFarm.resources.seeds, 5, 'seed inventory persists through save normalization');
+assert.equal(savedFarm.resources.seeds, planted.resources.seeds, 'seed inventory persists through save normalization');
 
 console.log('Homefront fortification and farming simulation passed.');
+{ // Audit (Oct 23): structure/plot spacing is symmetric, so neither can be placed on top of the other.
+  let yard = H.createBase('spacing-test', 8000);
+  yard = H.applyAction(yard, 'spacing-test', { type: 'build', building: 'wall', x: 6, z: 6 }, 8001);
+  assert.throws(() => H.applyAction(yard, 'spacing-test', { type: 'farm_till', x: 7.2, z: 6 }, 8002), /farm_plot_occupied/, 'tilling right next to a structure is rejected like building next to a plot');
+  yard = H.applyAction(yard, 'spacing-test', { type: 'farm_till', x: 8, z: 6 }, 8003);
+  assert.throws(() => H.applyAction(yard, 'spacing-test', { type: 'build', building: 'wall', x: 8, z: 7.2 }, 8004), /placement_occupied/);
+  console.log('Homefront structure/plot spacing audit passed.');
+}

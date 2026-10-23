@@ -31,6 +31,19 @@ Implemented in this branch:
 
 Improve the field inventory interface and complete the end-to-end expedition loop. Keep the current server as the authority for every item action and test on desktop and mobile before Hark reviews the branch.
 
+### Completed: authoritative combat handling pass
+
+Implemented on the existing draft branch:
+
+- A server-owned aim stance is toggled through the authenticated `/api/homefront/world/aim` endpoint. A client-submitted 3D aim point cannot grant precision damage unless the server confirms the player has held the aim stance through the weapon's ADS time.
+- Weapon-specific handling profiles define ADS duration and recovery behavior for the Pipe Blade, Pump Shotgun, Marksman Rifle, and Shock Maul. The marksman rifle deliberately takes longest to settle.
+- Aiming slows accepted movement using a server-side per-weapon movement budget. Movement lowers the weapon and starts a recovery window.
+- Sprint travel is explicit, remains bounded by server movement/pathfinding, costs additional stamina, and records a longer accuracy-recovery window. Sprinting while the server still considers the weapon raised is rejected until the client lowers it.
+- Combat responses expose server-calculated aim stability, ADS progress, and whether the shot was truly aimed. The UI reports settling/ADS feedback and offers a sprint travel toggle.
+- Added regression coverage for ADS gating, forged aim points, weapon-specific ADS timing, aiming movement penalties, sprint bounds, and post-sprint precision recovery.
+
+This remains a click-to-travel 3D prototype rather than continuous WASD movement; the handling pass improves the existing action loop without replacing the runtime.
+
 ### 3. Inventory UI pass
 
 Expose the carried pack clearly during expeditions: item counts, used weight/capacity, stack limits, and quick actions for eat, drink, bandage, and stash on return. Disable actions that cannot succeed, but still validate every action on the server. Make touch targets comfortably sized and preserve readable contrast at narrow widths.

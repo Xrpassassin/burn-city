@@ -266,6 +266,48 @@ const normalizedFortifications = H.validateBase(fortified, 'fortification-test')
 assert.equal(normalizedFortifications.structures.find(x => x.id === trench.id).trenchLevel, 3, 'trench tier persists through save normalization');
 assert.equal(normalizedFortifications.structures.find(x => x.id === entrance.id).rotation, Math.PI / 2, 'entrance rotation persists through save normalization');
 
+// Threat forecasts are deterministic and use the same model as the defend action.
+const forecastBase = H.createBase('threat-profile-test', 5150);
+const quietForecast = H.threatProfile(forecastBase);
+assert.equal(quietForecast.outlook, 'strained', 'an unfortified starting refuge forecasts a manageable but nonzero threat');
+const forecastExpanded = H.createBase('threat-profile-test', 5150);
+forecastExpanded.structures = Array.from({ length: 6 }, (_, i) => ({
+  id: 'garden-' + i, type: 'garden', hp: 70, maxHp: 70,
+  x: 3 + i, z: 0, rotation: 0, trenchLevel: 0, manned: false
+}));
+forecastExpanded.farmPlots = Array.from({ length: 6 }, (_, i) => ({
+  id: 'plot-' + i, x: i, z: 0, crop: 'potato', growth: 0, watered: false, plantedAt: 0
+}));
+const expandedForecast = H.threatProfile(forecastExpanded);
+assert.ok(expandedForecast.threat > quietForecast.threat, 'settlement and farm expansion raise forecast threat');
+assert.equal(expandedForecast.settlementPressure, 4, 'pressure exposes separate structure and crop contributions');
+assert.equal(expandedForecast.outlook, 'critical', 'an expanded production settlement with no fortifications warns of critical projected damage');
+
+// Settlement growth attracts additional infected pressure: production sprawl is riskier without defenses.
+const quietBase = H.createBase('growth-pressure-test', 5200);
+quietBase.resources.ammo = 20;
+const quietResult = H.applyAction(quietBase, 'growth-pressure-test', { type: 'defend' }, 5210);
+const expandedBase = H.createBase('growth-pressure-test', 5200);
+expandedBase.resources.ammo = 20;
+expandedBase.structures = Array.from({ length: 6 }, (_, i) => ({
+  id: 'garden-' + i, type: 'garden', hp: 70, maxHp: 70,
+  x: 3 + i * 2, z: 0, rotation: 0, trenchLevel: 0, manned: false
+}));
+const expandedResult = H.applyAction(expandedBase, 'growth-pressure-test', { type: 'defend' }, 5210);
+assert.ok(expandedResult.baseHp < quietResult.baseHp, 'an expanded, undefended settlement takes more base damage as its footprint attracts stronger infected pressure');
+
+// Siege damage advances from the exposed perimeter inward and reports actual breaches.
+const siegeBase = H.createBase('siege-order-test', 5100);
+siegeBase.resources.ammo = 20;
+siegeBase.structures = [
+  { id: 'b1', type: 'workshop', hp: 120, maxHp: 120, x: 3, z: 0, rotation: 0, trenchLevel: 0, manned: false },
+  { id: 'b2', type: 'barbed_wire', hp: 5, maxHp: 65, x: 9, z: 0, rotation: 0, trenchLevel: 0, manned: false }
+];
+const siegeResult = H.applyAction(siegeBase, 'siege-order-test', { type: 'defend' }, 5110);
+assert.equal(siegeResult.structures.find(x => x.id === 'b2').hp, 0, 'outer barbed wire absorbs siege damage before inner structures');
+assert.ok(siegeResult.structures.find(x => x.id === 'b1').hp < 120, 'overflow siege damage advances to the next defensive layer');
+assert.match(siegeResult.log.at(-1).text, /Breach opened: barbed_wire destroyed/, 'the defense report calls out a newly opened breach');
+
 const farmStart = H.createBase('farm-test', 6000);
 assert.equal(farmStart.resources.seeds, 6, 'new refuge has a small starter seed reserve');
 assert.deepEqual(farmStart.farmPlots, [], 'farm plots start empty; the player must establish the farm');
@@ -294,3 +336,11 @@ assert.equal(savedFarm.farmPlots.length, 1, 'farm plot persists through save nor
 assert.equal(savedFarm.resources.seeds, planted.resources.seeds, 'seed inventory persists through save normalization');
 
 console.log('Homefront fortification and farming simulation passed.');
+{ // Audit (Oct 23): structure/plot spacing is symmetric, so neither can be placed on top of the other.
+  let yard = H.createBase('spacing-test', 8000);
+  yard = H.applyAction(yard, 'spacing-test', { type: 'build', building: 'wall', x: 6, z: 6 }, 8001);
+  assert.throws(() => H.applyAction(yard, 'spacing-test', { type: 'farm_till', x: 7.2, z: 6 }, 8002), /farm_plot_occupied/, 'tilling right next to a structure is rejected like building next to a plot');
+  yard = H.applyAction(yard, 'spacing-test', { type: 'farm_till', x: 8, z: 6 }, 8003);
+  assert.throws(() => H.applyAction(yard, 'spacing-test', { type: 'build', building: 'wall', x: 8, z: 7.2 }, 8004), /placement_occupied/);
+  console.log('Homefront structure/plot spacing audit passed.');
+}

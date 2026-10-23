@@ -88,3 +88,5 @@ jobs:
         run: node test/homefront-environment-damage.test.mjs
       - name: Run authoritative Homefront environment integration tests
         run: node server/homefront-environment.test.js
+      - name: Run Homefront 3D scene integration assertions
+        run: node test/homefront-graveyard-3d.test.mjs

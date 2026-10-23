@@ -8,6 +8,7 @@ import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
+import { createZombieModelPilot } from './zombie-model-pilot.mjs';
 
 const host = document.getElementById('graveyard3d');
 if (host) boot(host);
@@ -81,6 +82,8 @@ function boot(host) {
   const pointer = new THREE.Vector2();
   const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
   const worldChunkGroups = new Map();
+  const environmentVisuals = new Map();
+  const environmentStateCache = new Map();
   let activeChunkSignature = '';
   scene.add(cityGroup, poiGroup, lootGroup, playerGroup, zombieGroup, combatGroup, impactGroup);
   const combatStatus = document.getElementById('combatStatus');
@@ -89,6 +92,8 @@ function boot(host) {
   let selectedLootId = null;
   const findInfectedButton = document.getElementById('findInfected');
   const attackInfectedButton = document.getElementById('attackInfected');
+  const damageEnvironmentButton = document.getElementById('damageEnvironment');
+  let selectedEnvironmentId = null;
   const autoFireButton = document.getElementById('autoFireInfected');
   const reloadWeaponButton = document.getElementById('reloadWeapon');
   const ammoStatus = document.getElementById('ammoStatus');
@@ -111,6 +116,9 @@ function boot(host) {
   const zombieMixers = [];
   // Keep server-owned infected actors between snapshots so movement is presented smoothly.
   const combatActors = new Map();
+  let zombieModelPilot = null;
+  let zombieModelPilotLoading = false;
+  let zombieModelPilotFailed = false;
   // Interpolate explorer positions between authoritative world snapshots.
   const explorerPositions = new Map();
   let weaponSwingUntil = 0;
@@ -121,6 +129,7 @@ function boot(host) {
     const active = worldData?.selfEncounter || worldData?.encounter || (worldData?.encounters || []).find(item => item.id === detail.encounterId) || null;
     const target = active ? { id: active.id, x: active.x, y: terrainElevation(active.x, active.z), z: active.z, ty: 0 } : null;
     zombieAudio.hit({ hs: detail.hitZone === 'head', k: !!detail.killed }, target);
+    if (active?.id) zombieModelPilot?.react(active.id, detail.killed ? 'Death' : 'HitReact');
     if (detail.killed && target) zombieAudio.zdie(target);
   });
   window.addEventListener('homefront:combat-hit-feedback', event => {
@@ -227,6 +236,60 @@ function boot(host) {
     fadedOrange: mat(0x9b5838), canvas: mat(0x71694e), metal: mat(0x454b49),
     concrete: mat(0x66645a), warning: mat(0xb18a45), dark: mat(0x292d2b)
   };
+  function registerEnvironmentVisual(id, group) {
+    if (!id || !group) return;
+    group.userData.environmentId = id;
+    environmentVisuals.set(id, group);
+  }
+  function applyEnvironmentStateSnapshot(structures) {
+    for (const state of (Array.isArray(structures) ? structures : [])) {
+      if (!state || typeof state.id !== 'string') continue;
+      environmentStateCache.set(state.id, state);
+    }
+    for (const [id, state] of environmentStateCache) {
+      const group = environmentVisuals.get(id);
+      if (!group) continue;
+      const destroyed = state.collisionEnabled === false || state.health <= 0 || state.stage === 'destroyed';
+      group.visible = !destroyed;
+      if (group.userData.damageStage === state.stage && group.userData.damageDestroyed === destroyed) continue;
+      group.userData.damageStage = state.stage;
+      group.userData.damageDestroyed = destroyed;
+      group.traverse(node => {
+        if (!node.isMesh || !node.material) return;
+        const source = Array.isArray(node.material) ? node.material : [node.material];
+        const materials = source.map(material => {
+          if (material.userData?.homefrontDamageMaterial) return material;
+          const copy = material.clone();
+          copy.userData.homefrontDamageMaterial = true;
+          copy.userData.homefrontBaseColor = material.color?.getHex() ?? 0xffffff;
+          copy.userData.homefrontBaseEmissive = material.emissive?.getHex() ?? 0;
+          copy.userData.homefrontBaseEmissiveIntensity = material.emissiveIntensity ?? 0;
+          return copy;
+        });
+        node.material = Array.isArray(node.material) ? materials : materials[0];
+        for (const material of materials) {
+          if (!material.color || !material.emissive) continue;
+          material.color.setHex(material.userData.homefrontBaseColor);
+          material.emissive.setHex(material.userData.homefrontBaseEmissive);
+          material.emissiveIntensity = material.userData.homefrontBaseEmissiveIntensity;
+          if (state.stage === 'critical') {
+            material.color.multiplyScalar(0.58);
+            material.emissive.setHex(0x6f2117);
+            material.emissiveIntensity = 0.38;
+          } else if (state.stage === 'damaged') {
+            material.color.multiplyScalar(0.76);
+            material.emissive.setHex(0x4b281d);
+            material.emissiveIntensity = 0.18;
+          } else if (state.stage === 'scuffed') {
+            material.color.multiplyScalar(0.9);
+            material.emissive.setHex(0x30261d);
+            material.emissiveIntensity = 0.06;
+          }
+          material.needsUpdate = true;
+        }
+      });
+    }
+  }
   function addLandmark(parent, landmark) {
     const g = new THREE.Group();
     g.position.set(landmark.x, terrainElevation(landmark.x, landmark.z), landmark.z);
@@ -326,7 +389,9 @@ function boot(host) {
         bush.position.set((i - 1) * 0.32, 0.24 + (i % 2) * 0.1, (i % 2) * 0.18); bush.scale.y = 0.65; g.add(bush);
       }
     }
-    g.userData.environmentId = prop.id;
+    const cell = prop.id.slice(4).split(',');
+    const prefix = prop.type === 'dead_tree' ? 'tree' : prop.type === 'fallen_log' ? 'log' : prop.type === 'abandoned_vehicle' ? 'vehicle' : (prop.type === 'rubble' || prop.type === 'stone_debris') ? 'debris' : null;
+    if (prefix && cell.length === 2) registerEnvironmentVisual(prefix + ':' + cell[0] + ',' + cell[1], g);
     parent.add(g);
   }
   // Existing server bounds are +/-100; four-by-four chunks cover that playable footprint.
@@ -353,10 +418,13 @@ function boot(host) {
     const w = 3.4 + rand() * 3.4, d = 3.4 + rand() * 3.4, h = 3 + rand() * (Math.hypot(bx, bz) > 65 ? 11 : 6);
     const chunk = cityChunkAt(bx, bz);
     const baseY = terrainElevation(bx, bz);
-    const building = addBox(chunk, w, h, d, bx, baseY + h / 2, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
+    const structure = new THREE.Group();
+    const building = addBox(structure, w, h, d, bx, baseY + h / 2, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
     building.rotation.y = (rand() - 0.5) * 0.16;
-    if (rand() > 0.45) addBox(chunk, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h + 0.225, bz + (rand() - .5), ruinMat);
-    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(chunk, 0.35, emberHeight, 0.35, bx + w * .4, baseY + emberHeight / 2, bz - d * .35, emberMat); }
+    if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h + 0.225, bz + (rand() - .5), ruinMat);
+    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY + emberHeight / 2, bz - d * .35, emberMat); }
+    chunk.add(structure);
+    registerEnvironmentVisual('building:' + x + ',' + z, structure);
   }
   const markerObjects = new Map();
   function labelSprite(text, color = '#f6d8b5') {
@@ -458,6 +526,12 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
+    applyEnvironmentStateSnapshot(data.world?.environmentStructures);
+    const selectedEnvironment = (data.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
+    if (selectedEnvironment && (selectedEnvironment.collisionEnabled === false || selectedEnvironment.health <= 0)) selectedEnvironmentId = null;
+    const selectedEnvironmentState = (data.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
+    const environmentDistance = selectedEnvironmentState && data.self ? Math.hypot(data.self.x - selectedEnvironmentState.x, data.self.z - selectedEnvironmentState.z) : Infinity;
+    if (damageEnvironmentButton) damageEnvironmentButton.disabled = !token() || !selectedEnvironmentState || environmentDistance > 8 || moving;
     if (typeof data.selfWeaponHandling?.aiming === 'boolean') aiming = data.selfWeaponHandling.aiming;
     if (sprintTravelButton) { sprintTravelButton.setAttribute('aria-pressed', String(sprintTravel)); sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF'; }
     clearGroup(poiGroup); clearGroup(lootGroup); markerObjects.clear();
@@ -492,10 +566,11 @@ function boot(host) {
         label.position.y = 3.5; actor.add(label);
         const threatRing = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xd84b3e, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));
         threatRing.rotation.x = -Math.PI / 2; threatRing.position.y = 0.045; actor.add(threatRing);
-        actor.userData = { encounterId: e.id, targetX: e.x, targetZ: e.z, hp: e.hp, body, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
+        actor.userData = { encounterId: e.id, enemyType: e.enemy || '', targetX: e.x, targetZ: e.z, hp: e.hp, body, head, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
         combatActors.set(e.id, actor); combatGroup.add(actor);
       } else {
         actor.userData.encounterId = e.id;
+        actor.userData.enemyType = e.enemy || actor.userData.enemyType || '';
         actor.userData.targetX = e.x; actor.userData.targetZ = e.z;
         if (actor.userData.hp !== e.hp) {
           actor.userData.hp = e.hp;
@@ -594,7 +669,7 @@ function boot(host) {
     if (status) {
       const self = data.self;
       status.textContent = self
-        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.district || 'perimeter').replaceAll('_', ' ') + ' · danger ' + self.risk + '/5 · click to travel · V toggles third-person / tactical view'
+        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.district || 'perimeter').replaceAll('_', ' ') + ' · danger ' + self.risk + '/5 · click to travel · right-drag to orbit · scroll to zoom · Overhead view is reserved for base construction'
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
     }
   }
@@ -793,6 +868,58 @@ function boot(host) {
     sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF';
     if (combatStatus) combatStatus.textContent = sprintTravel ? 'Sprint enabled: longer travel steps cost extra stamina and delay weapon accuracy recovery.' : 'Sprint disabled: normal travel pace.';
   });
+  function spawnEnvironmentImpact(state, previousState = null) {
+    if (!state || !Number.isFinite(state.x) || !Number.isFinite(state.z)) return;
+    const destroyed = state.stage === 'destroyed' || state.health <= 0 || state.collisionEnabled === false;
+    const worsening = !previousState || state.health < previousState.health || state.stage !== previousState.stage;
+    if (!worsening) return;
+    const count = destroyed ? 18 : state.stage === 'critical' ? 12 : state.stage === 'damaged' ? 8 : 5;
+    const originY = terrainElevation(state.x, state.z) + (destroyed ? 1.05 : 0.7);
+    for (let i = 0; i < count; i++) {
+      const spark = i % 4 === 0;
+      const geometry = spark ? new THREE.SphereGeometry(0.055, 5, 4) : new THREE.BoxGeometry(0.12 + Math.random() * 0.12, 0.1 + Math.random() * 0.12, 0.12 + Math.random() * 0.12);
+      const color = spark ? 0xffb35a : (i % 2 ? 0x81776a : 0x4f4942);
+      const material = new THREE.MeshStandardMaterial({ color, emissive: spark ? 0x8b2b0d : 0x160f0a, emissiveIntensity: spark ? 0.8 : 0.08, transparent: true, opacity: 1, roughness: 0.95 });
+      const piece = new THREE.Mesh(geometry, material);
+      piece.position.set(state.x + (Math.random() - 0.5) * 1.1, originY + Math.random() * 0.7, state.z + (Math.random() - 0.5) * 1.1);
+      piece.userData.life = (destroyed ? 1.25 : 0.65) + Math.random() * 0.45;
+      piece.userData.vx = (Math.random() - 0.5) * (destroyed ? 5.2 : 3.2);
+      piece.userData.vy = 1.1 + Math.random() * (destroyed ? 4.2 : 2.4);
+      piece.userData.vz = (Math.random() - 0.5) * (destroyed ? 5.2 : 3.2);
+      piece.userData.environmentDebris = true;
+      piece.userData.blood = false;
+      impactGroup.add(piece);
+    }
+  }
+  async function damageSelectedEnvironment() {
+    if (!selectedEnvironmentId || moving || !token()) return;
+    const selected = (worldData?.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
+    if (!selected || !worldData?.self || Math.hypot(worldData.self.x - selected.x, worldData.self.z - selected.z) > 8) {
+      if (combatStatus) combatStatus.textContent = 'Move within 8 units of the selected structure before striking it.';
+      return;
+    }
+    moving = true;
+    if (damageEnvironmentButton) damageEnvironmentButton.disabled = true;
+    try {
+      const response = await fetch(API + '/api/homefront/world/environment/damage', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ structureId: selectedEnvironmentId }) });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.message || data.error || 'environment_damage_failed');
+      const previousState = selected;
+      const state = data.environmentDamage;
+      if (state) spawnEnvironmentImpact({ ...selected, ...state }, previousState);
+      updateWorld(data);
+      if (combatStatus) combatStatus.textContent = state ? (state.kind || 'Structure') + ' · ' + state.stage + ' · integrity ' + state.health + '/' + state.maxHealth : 'Structure damaged.';
+    } catch (error) {
+      if (combatStatus) combatStatus.textContent = error.message === 'environment_structure_out_of_range' ? 'Too far away. Move within 8 units to strike this structure.' : 'Could not damage structure: ' + error.message;
+    } finally {
+      moving = false;
+      if (damageEnvironmentButton && worldData) {
+        const selected = (worldData.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
+        damageEnvironmentButton.disabled = !selected || !worldData.self || Math.hypot(worldData.self.x - selected.x, worldData.self.z - selected.z) > 8;
+      }
+    }
+  }
+  if (damageEnvironmentButton) damageEnvironmentButton.addEventListener('click', damageSelectedEnvironment);
   if (findInfectedButton) findInfectedButton.addEventListener('click', () => combatAction('encounter'));
   if (attackInfectedButton) attackInfectedButton.addEventListener('click', () => combatAction('attack'));
   const stopAutoFire = () => { autoFireHeld = false; if (autoFireTimer) clearTimeout(autoFireTimer); autoFireTimer = null; if (autoFireButton) autoFireButton.setAttribute('aria-pressed', 'false'); };
@@ -839,6 +966,19 @@ function boot(host) {
         return;
       }
     }
+    const environmentHits = raycaster.intersectObjects([...environmentVisuals.values()].filter(group => group.visible && group.parent?.visible), true);
+    if (environmentHits.length) {
+      let target = environmentHits[0].object;
+      while (target && !target.userData?.environmentId) target = target.parent;
+      if (target?.userData?.environmentId) {
+        selectedEnvironmentId = target.userData.environmentId;
+        const state = (worldData.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
+        const distance = state ? Math.hypot(worldData.self.x - state.x, worldData.self.z - state.z) : Infinity;
+        if (combatStatus) combatStatus.textContent = state ? state.kind + ' selected · ' + state.stage + ' · ' + Math.ceil(distance) + ' units away.' : 'Structure selected. Move closer to interact.';
+        updateWorld(worldData);
+        return;
+      }
+    }
     const lootHits = raycaster.intersectObject(lootGroup, true);
     if (lootHits.length) {
       let target = lootHits[0].object;
@@ -880,9 +1020,7 @@ function boot(host) {
   const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(260, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
-  // Homefront's master view is third-person by default. V toggles a high tactical overview
-  // without changing authoritative movement or world state.
-  let masterView = 'third-person';
+  // Exploration remains third-person; overhead views are reserved for base construction.
   let cameraYawOffset = 0;
   let cameraPitchOffset = 0;
   let cameraDistance = 6.2;
@@ -911,15 +1049,9 @@ function boot(host) {
     cameraDistance = Math.max(3.5, Math.min(10.5, cameraDistance + Math.sign(event.deltaY) * 0.65));
     event.preventDefault();
   }, { passive: false });
-  window.addEventListener('keydown', event => {
-    if (event.key.toLowerCase() !== 'v' || event.repeat || event.altKey || event.ctrlKey || event.metaKey) return;
-    const target = event.target;
-    if (target && (target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(target.tagName))) return;
-    masterView = masterView === 'third-person' ? 'tactical' : 'third-person';
-    if (status) status.textContent = masterView === 'third-person'
-      ? 'Third-person · click ground to travel · right-drag to orbit · scroll to zoom · V for tactical overview.'
-      : 'Tactical overview · click ground to travel · press V for third-person view.';
-  });
+  // Exploration stays third-person. Overhead views belong to base construction UI,
+  // not a hotkey that can pull the player out of the world during combat.
+  const masterView = 'third-person';
   let lastFrame = performance.now();
   const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += Math.sin(now * 0.0003 + i) * dt * 0.12; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) { const travelBlend = 1 - Math.exp(-8 * dt); explorer.position.x += (target.x - explorer.position.x) * travelBlend; explorer.position.y += (target.y - explorer.position.y) * travelBlend; explorer.position.z += (target.z - explorer.position.z) * travelBlend; movingAvatar = Math.hypot(target.x - explorer.position.x, target.z - explorer.position.z) > 0.035; if (movingAvatar) explorer.rotation.y = Math.atan2(target.x - explorer.position.x, target.z - explorer.position.z); } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainElevation(actor.position.x, actor.position.z);
       const impactRemaining = state.impactUntil - now;
@@ -931,7 +1063,32 @@ function boot(host) {
         actor.rotation.z = (state.impactStyle === 'blunt' ? 0.22 : headshot ? 0.28 : 0.12) * hitPulse * state.impactDirection;
         state.body.scale.y = state.impactStyle === 'blunt' ? 1 - 0.18 * hitPulse : headshot ? 1 - 0.1 * hitPulse : 1;
       } else { actor.rotation.z = 0; state.body.scale.y = 1; }
-      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } if (worldData?.self) {
+      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } }
+      // Shared Zombies selector/model pilot: at most eight nearby animated rigs, with procedural fallback.
+      const localForModels = worldData?.self || { x: 0, z: 0 };
+      const modelCandidates = [...combatActors.values()].map(actor => {
+        const state = actor.userData;
+        const distance = Math.hypot(localForModels.x - actor.position.x, localForModels.z - actor.position.z);
+        const name = String(state.enemyType || '').toLowerCase();
+        const crawler = /crawler|crawl/.test(name), runner = /runner|fast/.test(name), heavy = /brute|juggernaut|heavy|boss/.test(name);
+        return { id: state.encounterId, x: actor.position.x, y: terrainElevation(actor.position.x, actor.position.z), z: actor.position.z, yaw: actor.rotation.y || 0, ty: crawler ? 5 : runner ? 1 : heavy ? 3 : 0, cr: crawler, ch: distance <= 2.7, hp: state.hp };
+      });
+      let modeledZombieIds = new Set();
+      if (zombieModelPilot) modeledZombieIds = zombieModelPilot.update(modelCandidates, dt, localForModels);
+      for (const actor of combatActors.values()) {
+        const modeled = modeledZombieIds.has(actor.userData.encounterId);
+        for (const proxy of [actor.userData.body, actor.userData.head]) {
+          if (!proxy) continue;
+          const opacity = modeled ? 0 : 1;
+          if (proxy.material.opacity !== opacity || proxy.material.transparent !== modeled) {
+            proxy.material.transparent = modeled;
+            proxy.material.opacity = opacity;
+            proxy.material.depthWrite = !modeled;
+            proxy.material.needsUpdate = true;
+          }
+        }
+      }
+      if (worldData?.self) {
       const self = worldData.self;
       if (zombieAudioStarted) {
         const survival = worldData.selfSurvival || {};
@@ -945,8 +1102,8 @@ function boot(host) {
       const heading = (localActor?.rotation.y || 0) + cameraYawOffset;
       const followBlend = 1 - Math.exp(-dt * (masterView === 'third-person' ? 6.5 : 2.8));
       const targetY = terrainElevation(self.x, self.z) + 1.45;
-      const distance = masterView === 'third-person' ? cameraDistance : 48;
-      const height = masterView === 'third-person' ? Math.max(1.5, Math.min(6, 3.1 + cameraPitchOffset * 6)) : 30;
+      const distance = cameraDistance;
+      const height = Math.max(1.5, Math.min(6, 3.1 + cameraPitchOffset * 6));
       const desiredX = self.x - Math.sin(heading) * distance;
       const desiredZ = self.z - Math.cos(heading) * distance;
       camera.position.x += (desiredX - camera.position.x) * followBlend;
@@ -955,5 +1112,16 @@ function boot(host) {
       camera.lookAt(self.x, targetY + (masterView === 'third-person' ? 0.45 : 0), self.z);
     }
     renderer.render(scene, camera); requestAnimationFrame(tick); };
+  // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.
+  zombieModelPilotLoading = true;
+  createZombieModelPilot(scene, { targetHeight: 2.7, maxModels: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 4 : 8 }).then(pilot => {
+    zombieModelPilot = pilot;
+    zombieModelPilotLoading = false;
+    console.info('[homefront-graveyard] shared animated infected ready');
+  }).catch(error => {
+    zombieModelPilotFailed = true;
+    zombieModelPilotLoading = false;
+    console.warn('[homefront-graveyard] animated infected unavailable; using procedural infected', error);
+  });
   tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
 }

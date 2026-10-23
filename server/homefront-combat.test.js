@@ -14,7 +14,7 @@ assert.doesNotThrow(()=>C.attack({encounters:firstShot.encounters,account:'coold
 assert.throws(()=>C.attack({encounters:a.encounters,account:'a',player,base:base(),now:101000,targetId:'enc-forged'}),/target_mismatch/,'server rejects client-selected targets that are not the player-owned encounter');
 const aimSpawn=C.spawn({encounters:{},account:'aim-test',player,now:600000,seed:8});
 const aimBase=()=>base();
-const aimPoint={x:aimSpawn.encounter.x,y:2.3,z:aimSpawn.encounter.z};
+const aimTarget=aimSpawn.encounter.members.find(m=>!m.defeated);const aimPoint={x:aimTarget.x,y:2.3,z:aimTarget.z};
 const unaimed=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint});
 assert.equal(unaimed.aimed,false,'a client-supplied aim point cannot grant precision without a server-owned aiming stance');
 const aimedPlayer={...player,aiming:true,aimStartedAt:600000,accuracyRecoverUntil:0};
@@ -26,7 +26,7 @@ assert.ok(C.WEAPON_HANDLING.marksman_rifle.adsMs>C.WEAPON_HANDLING.pump_shotgun.
 const sprintRecovery=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player:{...aimedPlayer,accuracyRecoverUntil:601900},base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint});
 assert.equal(sprintRecovery.aimed,false,'post-sprint recovery blocks immediate precision headshots even while aiming');
 assert.ok(sprintRecovery.aimStability<aimedHead.aimStability,'post-sprint recovery lowers server-calculated stability');
-assert.throws(()=>C.attack({encounters:aimSpawn.encounters,account:'aim-test',player,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint:{x:aimSpawn.encounter.x+5,y:2.3,z:aimSpawn.encounter.z}}),/invalid_aim_point/,'server rejects aim points outside the target hitbox');
+assert.throws(()=>C.attack({encounters:aimSpawn.encounters,account:'aim-test',player,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint:{x:aimTarget.x+5,y:2.3,z:aimTarget.z}}),/invalid_aim_point/,'server rejects aim points outside the target hitbox');
 assert.doesNotThrow(()=>C.attack({encounters:a.encounters,account:'a',player,base:base(),now:101000,targetId:a.encounter.id}),'server accepts the exact active encounter target');
 assert.equal(C.spawn({encounters:a.encounters,account:'a',player,now:100100}).encounter.id,a.encounter.id);
 assert.throws(()=>C.attack({encounters:a.encounters,account:'a',player:{x:100,z:100},base:base(),now:101000}),/enemy_out_of_range/);
@@ -38,11 +38,18 @@ const zoneB=C.attack({encounters:zoneSpawn.encounters,account:'zone-test',player
 assert.equal(zoneA.hitZone,zoneB.hitZone,'hit-zone calculation is deterministic for the same server encounter and attack clock');
 assert.equal(zoneA.damage,zoneB.damage,'hit-zone damage is deterministic for the same authoritative inputs');
 assert.ok(r.killed);assert.ok(r.reward.scrap>0);assert.ok(b.resources.scrap>0);assert.ok(b.revision>0,'combat mutations advance the persistent refuge revision');
-const pursuer={...a.encounters.a,x:10,z:0,lastAiAt:100000,expiresAt:300000};
+const pursuer={...a.encounters.a,x:10,z:0,members:a.encounters.a.members.map((member,i)=>({...member,x:10+i*2,z:0})),lastKnownX:0,lastKnownZ:0,lastKnownAt:100000,investigateUntil:0,lastAiAt:100000,expiresAt:300000};
 const advanced=C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000});
-assert.ok(advanced.a.x<10&&advanced.a.x>2.2,'infected pursues the player without teleporting into contact');
-assert.equal(advanced.a.z,0);
-assert.equal(C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000}).a.x,advanced.a.x,'pursuit is deterministic for the same state and clock');
+assert.ok(advanced.a.members.some((member,i)=>Math.hypot(member.x,member.z)<Math.hypot(pursuer.members[i].x,pursuer.members[i].z)),'at least one infected squad member pursues the player without teleporting into contact');
+assert.ok(advanced.a.members.every(member=>Math.hypot(member.x,member.z)>0.5),'infected squad members do not teleport into contact');
+const advancedAgain=C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000});
+assert.deepEqual(advancedAgain.a.members.map(m=>[m.x,m.z]),advanced.a.members.map(m=>[m.x,m.z]),'squad pursuit is deterministic for the same state and clock');
+const leashed=C.advance({encounters:{a:{...pursuer,x:40,z:0,pursuitRadius:20,lastKnownX:40,lastKnownZ:0,lastKnownAt:100000,investigateUntil:0}},players:{a:{x:0,z:0}},now:101000});
+assert.equal(leashed.a.x,40,'infected stop extending pursuit after the player breaks their leash radius');
+const noiseDrawn=C.advance({encounters:{a:{...pursuer,x:40,z:0,pursuitRadius:20,lastKnownX:40,lastKnownZ:0,lastKnownAt:100000,investigateUntil:0}},players:{a:{x:0,z:0,lastNoiseAt:100500,noiseLevel:95,noiseX:30,noiseZ:0}},now:101000});
+assert.ok(noiseDrawn.a.x<40,'recent gunfire pulls infected toward its recorded sound location rather than the fleeing player');
+assert.equal(noiseDrawn.a.lastKnownX,30,'infected retain the authoritative noise source as their last-known position');
+
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
 const noAmmo=C.spawn({encounters:{},account:'b',player,now:200000});assert.throws(()=>C.attack({encounters:noAmmo.encounters,account:'b',player,base:{...base(),resources:{ammo:0},equippedWeapon:'pump_shotgun'},now:201000}),/insufficient_ammo/);
@@ -56,4 +63,67 @@ assert.equal(tired.survival.stamina,2,'each attack consumes eight stamina');
 const restedSpawn=C.spawn({encounters:{},account:'rested',player,now:400000});
 const rested=C.attack({encounters:restedSpawn.encounters,account:'rested',player,base:base(),survival:{stamina:100,health:100},now:401000,weaponPower:1});
 assert.ok(tired.damage<rested.damage,'low stamina reduces attack damage');
+
+const Director = require('./homefront-director');
+const lowRiskPlan = Director.planEncounter({ zoneId: 'outskirts', risk: 1, seed: 'low-risk-test' });
+const highRiskPlan = Director.planEncounter({ zoneId: 'research_lab', risk: 5, seed: 'high-risk-test' });
+assert.equal(lowRiskPlan.zoneId, 'outskirts');
+assert.equal(highRiskPlan.zoneId, 'research_lab');
+assert.ok(highRiskPlan.threat > lowRiskPlan.threat, 'director threat increases with district risk');
+assert.ok(highRiskPlan.recommendedMaxAlive > lowRiskPlan.recommendedMaxAlive, 'recommended infected cap scales with district risk');
+assert.ok(highRiskPlan.spawnIntervalMs < lowRiskPlan.spawnIntervalMs, 'higher-risk districts recommend faster reinforcements');
+assert.equal(Director.planEncounter({ zoneId: 'research_lab', risk: 5, seed: 'repeatable' }).event,
+  Director.planEncounter({ zoneId: 'research_lab', risk: 5, seed: 'repeatable' }).event,
+  'encounter decisions are deterministic for a fixed seed and context');
+assert.ok(Director.planEncounter({ zoneId: 'outskirts', risk: 1, playerCount: 4, seed: 'group' }).pressure >
+  Director.planEncounter({ zoneId: 'outskirts', risk: 1, playerCount: 1, seed: 'group' }).pressure,
+  'nearby player count contributes to director pressure');
+assert.ok(Director.planEncounter({ zoneId: 'outskirts', risk: 1, noise: 80, seed: 'noise' }).weights.special >
+  Director.planEncounter({ zoneId: 'outskirts', risk: 1, noise: 0, seed: 'noise' }).weights.special,
+  'noise raises special-infected probability');
+assert.equal(Director.planEncounter({ zoneId: 'invalid-zone', risk: 99, seed: 'bounds' }).zoneId, 'outskirts',
+  'invalid districts fall back to safe defaults');
+
+
+const initialDirectorTick = Director.advanceDirector({}, { zoneId: 'outskirts', risk: 1, activeEncounters: 0, now: 100000, seed: 'scheduler' });
+assert.equal(initialDirectorTick.decision, 'spawn', 'director seeds an empty area with baseline infected');
+const cooldownDirectorTick = Director.advanceDirector(initialDirectorTick.state, { zoneId: 'outskirts', risk: 1, activeEncounters: 1, now: 101000, seed: 'scheduler' });
+assert.equal(cooldownDirectorTick.decision, 'cooldown', 'director observes reinforcement cadence');
+const capDirectorTick = Director.advanceDirector(initialDirectorTick.state, { zoneId: 'outskirts', risk: 1, activeEncounters: initialDirectorTick.plan.recommendedMaxAlive, now: 200000, seed: 'scheduler' });
+assert.equal(capDirectorTick.decision, 'hold', 'director never recommends exceeding local infected cap');
+const noiseDirectorTick = Director.advanceDirector({}, { zoneId: 'outskirts', risk: 1, noise: 90, activeEncounters: 0, now: 300000, seed: 'noise-trigger' });
+assert.equal(noiseDirectorTick.state.phase, 'assault', 'loud player actions can escalate the director phase');
+assert.equal(noiseDirectorTick.decision, 'spawn', 'noise-triggered pressure requests a spawn when under cap');
+
+
+const squadSpawn = C.spawn({ encounters: {}, account: 'squad-test', player: { x: -40, z: 30 }, now: 880000, seed: 17 });
+assert.ok(Array.isArray(squadSpawn.encounters['squad-test'].members), 'encounters persist independently tracked infected members');
+assert.equal(squadSpawn.encounters['squad-test'].members.length, squadSpawn.encounter.packPlan.count, 'spawned member state matches deterministic squad plan');
+assert.ok(squadSpawn.encounters['squad-test'].members.every(m => m.id && Number.isFinite(m.x) && Number.isFinite(m.z) && m.hp > 0), 'each living member has an identity, position, and health');
+const squadBefore = squadSpawn.encounters['squad-test'].members.map(m => ({ id: m.id, x: m.x, z: m.z }));
+const squadAdvanced = C.advance({ encounters: squadSpawn.encounters, players: { 'squad-test': { x: -35, z: 25 } }, now: 880180 });
+assert.ok(squadAdvanced['squad-test'].members.every(m => Number.isFinite(m.x) && Number.isFinite(m.z)), 'squad members retain valid independent coordinates through simulation');
+assert.ok(squadAdvanced['squad-test'].members.some((m, i) => Math.hypot(m.x - squadBefore[i].x, m.z - squadBefore[i].z) > 0), 'infected members independently advance toward remembered player position');
+assert.equal(C.publicEncounter(squadAdvanced['squad-test']).members.length, squadSpawn.encounter.packPlan.count, 'public world snapshots expose each squad member for client rendering');
+
 console.log('Homefront authoritative combat tests passed.');
+
+// Audit fixes (Oct 23): the pathfinding anchor drives the squad, members regroup instead of sticking
+// behind terrain, member maxHp matches its spawned hp, and killing the lead hands the anchor to a survivor.
+{
+  const sq = C.spawn({ encounters: {}, account: 'hp-test', player: { x: -40, z: 30 }, now: 990000, seed: 6 });
+  assert.ok(sq.encounters['hp-test'].members.length > 1, 'fixture is a multi-member horde');
+  const e = sq.encounters['hp-test'];
+  assert.ok(e.members.every(m => m.hp === m.maxHp), 'every squad member spawns at full health');
+  assert.equal(e.hp, e.maxHp, 'encounter health starts full');
+  const lead = e.members[0];
+  const adv = C.advance({ encounters: sq.encounters, players: { 'hp-test': { x: -36, z: 26 } }, now: 990900 })['hp-test'];
+  assert.equal(adv.members.filter(m => !m.defeated)[0].x, adv.x, 'the lead member is the pathfinding anchor');
+  if (e.members.length > 1) {
+    const killLead = { ...adv, members: adv.members.map((m, i) => i === 0 ? { ...m, hp: 1 } : m) };
+    const r = C.attack({ encounters: { 'hp-test': killLead }, account: 'hp-test', player: { x: adv.x + 1, z: adv.z }, base: base(), now: 991500, targetId: killLead.members[0].id });
+    const next = r.encounters['hp-test'].members.find(m => !m.defeated);
+    assert.ok(next && Math.hypot(r.encounters['hp-test'].x - next.x, r.encounters['hp-test'].z - next.z) < 1e-9, 'killing the lead hands the anchor to the next living member without a jump');
+  }
+}
+console.log('Homefront squad anchor audit tests passed.');

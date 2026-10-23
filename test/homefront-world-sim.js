@@ -9,6 +9,15 @@ const b = W.enter(world, 'acct-b', 1000); world = b.world;
 assert.notDeepEqual([a.result.self.x, a.result.self.z], [b.result.self.x, b.result.self.z], 'solo players spawn at different perimeter locations');
 assert.equal(b.result.players.length, 2, 'both active players appear in the shared map');
 assert.equal(a.result.self.risk, 1, 'perimeter spawn is low risk');
+assert.ok(a.world.encounters['acct-a'], 'the authoritative director seeds an infected encounter when an explorer enters');
+assert.ok(a.result.director && a.result.director.nextSpawnAt > 1000, 'world snapshot exposes the persisted local director schedule');
+assert.equal(world.players['acct-a'].directorState.lastSpawnAt, 1000, 'director spawn cadence is persisted per player');
+const noisyWorld = W.recordNoise(world, 'acct-a', 95, 1500);
+assert.equal(noisyWorld.players['acct-a'].noiseLevel, 95, 'server records gunfire noise intensity');
+assert.equal(noisyWorld.players['acct-a'].lastNoiseAt, 1500, 'server records the authoritative noise timestamp');
+const noisyTick = W.tickDirector(noisyWorld, 'acct-a', 2000);
+assert.ok(['alert', 'assault', 'engaged', 'calm'].includes(noisyTick.phase), 'director evaluates current local threat phase');
+assert.ok(noisyTick.noise > 0, 'recent gunfire remains audible to the director on the next world tick');
 const Terrain = require('../server/homefront-terrain');
 const Collision = require('../server/homefront-collision');
 assert.equal(Collision.isSafePosition(a.result.self.x, a.result.self.z, { bounds: W.WORLD_SIZE }), true,

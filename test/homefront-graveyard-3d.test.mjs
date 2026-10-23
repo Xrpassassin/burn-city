@@ -5,12 +5,41 @@ const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', 
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 
 assert.match(scene, /from '\.\/zaudio\.js'/, 'reuse the Zombies sound director in Homefront');
+assert.match(scene, /from '\.\/zombie-model-pilot\.mjs'/, 'reuse the existing animated Zombies model pilot');
+assert.match(scene, /zombieModelPilot\.update\(modelCandidates, dt, localForModels\)/, 'drive animated infected from authoritative encounter snapshots');
+assert.match(scene, /modeledZombieIds\.has\(actor\.userData\.encounterId\)/, 'bound detailed rigs and retain procedural fallback actors');
+assert.match(scene, /const opacity = modeled \? 0 : 1/, 'preserve raycast hit proxies under animated models');
+assert.match(scene, /createZombieModelPilot\(scene, \{ targetHeight: 2\.7, maxModels: /, 'fit rigs to Homefront combat hitbox scale with a lower rig cap on touch devices');
 assert.match(scene, /createZombieAudio\(sfx, \{ base: new URL\('\.\/sfx\/'/, 'reuse the existing positional zombie audio sample bank');
 assert.match(scene, /zombieAudio\.tick\(dt, audioMe, audioZombies/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
 assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play shared hit and headshot audio only after authoritative combat confirmation');
 assert.match(scene, /zombieAudio\.zdie\(target\)/, 'play infected death audio only after server-confirmed kills');
 assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
+assert.match(scene, /const environmentVisuals = new Map\(\)/, 'index rendered environment structures by authoritative collision ID');
+assert.match(scene, /registerEnvironmentVisual\('building:' \+ x \+ ',' \+ z, structure\)/, 'group building meshes so server-confirmed destruction removes the whole structure');
+assert.match(scene, /registerEnvironmentVisual\(prefix \+ ':' \+ cell\[0\] \+ ',' \+ cell\[1\], g\)/, 'map destructible environmental props to the server collision catalog');
+assert.match(scene, /applyEnvironmentStateSnapshot\(data\.world\?\.environmentStructures\)/, 'replicate server-owned structure health and stages into the renderer');
+assert.match(scene, /environment\/damage/, 'send structure damage requests through the authoritative Homefront API');
+assert.match(scene, /JSON\.stringify\(\{ structureId: selectedEnvironmentId \}\)/, 'submit only the selected stable structure ID for server validation');
+assert.match(scene, /raycaster\.intersectObjects\(\[\.\.\.environmentVisuals\.values\(\)\]/, 'allow players to select physical structures in the 3D world');
+assert.match(page, /id="damageEnvironment"/, 'expose a nearby structure interaction control');
+
+assert.match(scene, /function spawnEnvironmentImpact\(state, previousState = null\)/, 'spawn transient impact feedback from server-confirmed environment damage');
+assert.match(scene, /piece\.userData\.environmentDebris = true/, 'mark environmental debris for deterministic lifecycle handling');
+assert.match(scene, /if \(state\) spawnEnvironmentImpact\(\{ \.\.\.selected, \.\.\.state \}, previousState\)/, 'spawn debris only after the server accepts structure damage');
+assert.match(scene, /state\.stage === 'destroyed' \|\| state\.health <= 0/, 'increase debris burst when a structure is destroyed');
+assert.match(scene, /group\.visible = !destroyed/, 'hide structures only when authoritative state says collision is destroyed');
+assert.match(scene, /state\.stage === 'critical'/, 'render progressive visual damage stages without changing gameplay authority');
 assert.match(scene, /from '\.\/vendor\/three\.module\.min\.js'/, 'reuse the vendored Three.js runtime');
+const zombiePilot = readFileSync(new URL('../client/arena/zombie-model-pilot.mjs', import.meta.url), 'utf8');
+assert.match(zombiePilot, /selectZombieModelCandidates/, 'reuse deterministic near-player model selection');
+assert.match(zombiePilot, /targetHeight = Number\.isFinite\(options\.targetHeight\)/, 'configure model scale for Homefront');
+assert.match(zombiePilot, /MAX_MODELS = 8/, 'cap expensive animated rigs');
+assert.match(zombiePilot, /MAX_MODEL_DISTANCE = 28/, 'keep detailed rigs near the player');
+assert.match(zombiePilot, /react\(id, kind = 'HitReact'\)/, 'expose authoritative hit and death animation reactions');
+assert.match(zombiePilot, /next\.setLoop\(THREE\.LoopOnce, 1\)/, 'play hit and death clips as one-shot reactions');
+assert.match(zombiePilot, /item\.deadUntil = item\.reactionUntil/, 'retain server-confirmed death animation after encounter removal');
+assert.match(scene, /zombieModelPilot\?\.react\(active\.id, detail\.killed \? 'Death' : 'HitReact'\)/, 'trigger animated reactions only from confirmed combat events');
 assert.match(scene, /GLTFLoader/, 'reuse the existing GLTF asset loader');
 assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely');
 assert.match(scene, /assets\/homefront\/zombie\.glb/, 'reuse the existing Homefront zombie model');
@@ -34,6 +63,9 @@ assert.match(scene, /event\.button !== 2 \|\| masterView !== 'third-person'/, 'r
 assert.match(scene, /cameraYawOffset \+= event\.movementX \* 0\.006/, 'camera orbit changes the follow heading');
 assert.match(scene, /cameraPitchOffset = Math\.max\(-0\.25, Math\.min\(0\.45/, 'camera pitch stays within a safe view angle');
 assert.match(scene, /cameraDistance = Math\.max\(3\.5, Math\.min\(10\.5/, 'mouse wheel zoom is clamped to playable third-person distances');
+assert.match(scene, /const masterView = 'third-person'/, 'exploration camera is locked to third-person');
+assert.doesNotMatch(scene, /masterView = masterView === 'third-person'/, 'tactical overhead is not a general exploration hotkey');
+assert.match(scene, /Overhead view is reserved for base construction/, 'camera guidance reserves overhead view for base construction');
 assert.match(scene, /right-drag to orbit · scroll to zoom/, 'the game explains orbit and zoom controls to the player');
 assert.match(scene, /homefront:cosmetics/, 'receive equipped cosmetic and weapon selection from the Homefront loadout');
 assert.match(scene, /equippedWeaponSkinColor/, 'apply the equipped weapon skin finish to the local 3D weapon');
@@ -57,6 +89,9 @@ assert.match(page, /id="drinkInField"/, 'provide a hydration action');
 assert.match(page, /id="cosmeticCollection"/, 'provide the cosmetic skin collection UI');
 assert.match(page, /cosmetic-only|never change combat power/i, 'explain that cosmetic skins do not affect combat power');
 assert.match(page, /homefront-graveyard-3d\.js/, 'load the 3D scene module');
+const constructionTick = page.indexOf('const constructionView=!!pendingBuilding||constructionPaused;if(!constructionView)for(const mixer of zombieMixers)mixer.update(dt)');
+assert(constructionTick >= 0, 'freeze infected animation mixers while protected construction mode is active');
+assert.match(page, /if\(base\?\.wave>0&&!pendingBuilding&&!constructionPaused\)/, 'pause local infected movement during construction and server-confirmed build placement');
 console.log('Homefront 3D Graveyard integration checks passed.');
 
 assert.match(scene, /homefront:combat-hit/, 'trigger visible weapon feedback only after the server confirms combat');
@@ -140,6 +175,16 @@ assert.match(scene, /explorer\.rotation\.y = Math\.atan2\(target\.x - explorer\.
 assert.match(scene, /g\.userData\.avatarParts = \[/, 'retain avatar body, head, backpack, and strap references for animation');
 assert.match(scene, /const bob = movingAvatar \? Math\.abs\(Math\.sin\(now \* 0\.014\)\) \* 0\.11/, 'add a lightweight step bob while explorers move');
 assert.match(scene, /part\.object\.position\.y = part\.baseY \+ bob/, 'animate avatar parts without changing authoritative world coordinates');
+
+assert.match(page, /let base = null, threatProfile = null, busy = false, pendingBuilding = null, pendingRotation = 0, constructionPaused = false/, 'track a protected construction pause independently of placement selection');
+assert.match(page, /if\(base\?\.wave>0&&!pendingBuilding&&!constructionPaused\)/, 'freeze hostile base actor movement throughout construction and placement requests');
+assert.match(page, /Protected construction mode: hostile base activity is paused/, 'tell players construction mode is protected');
+assert.match(page, /construction pause remains active until the server confirms the build/, 'keep the pause active while the server validates and saves placement');
+assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=false;/, 'resume base activity after the build request settles');
+
+assert.match(page, /const constructionView=!!pendingBuilding\|\|constructionPaused/, 'switch to construction camera only while building');
+assert.match(page, /cameraTarget=new THREE\.Vector3\(constructionView\?0:19,constructionView\?29:22,constructionView\?0\.01:24\)/, 'construction camera looks straight down while exploration camera stays third-person');
+assert.match(page, /camera\.position\.lerp\(cameraTarget,1-Math\.exp\(-5\*dt\)\)/, 'blend smoothly between construction and exploration views');
 
 assert.match(page, /id="tillPlot"/, 'the refuge exposes a player-led farm plot control');
 assert.match(page, /type:'farm_till',x:p\.x,z:p\.z/, 'tilling uses tap-to-place yard coordinates validated by the server');

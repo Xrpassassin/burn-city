@@ -117,6 +117,38 @@ function pay(s, cost) {
   for (const [k, v] of Object.entries(cost)) if ((s.resources[k] || 0) < v) throw new Error('insufficient_' + k);
   for (const [k, v] of Object.entries(cost)) s.resources[k] -= v;
 }
+function threatProfile(input) {
+  const s = input && input.version === VERSION ? input : null;
+  if (!s || !Array.isArray(s.structures) || !Array.isArray(s.survivors)) throw new Error('invalid_base');
+  const active = s.structures.filter(x => x && x.hp > 0 && BUILDINGS[x.type]);
+  const activeFarmPlots = (s.farmPlots || []).filter(plot => plot && plot.crop && CROPS[plot.crop]).length;
+  const guards = s.survivors.filter(x => x && x.role === 'guard');
+  const guardStrength = guards.reduce((total, x) => {
+    const morale = clampInt(x.morale, 0, 100);
+    return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+  }, 0);
+  const ammoUsed = Math.min(s.resources?.ammo || 0, Math.max(1, Math.ceil(guards.length / 2) + 1));
+  const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
+  const turretAmmo = Math.min(Math.max(0, (s.resources?.ammo || 0) - ammoUsed), mannedTurrets.length * 3);
+  const turretAmmoRatio = mannedTurrets.length ? turretAmmo / (mannedTurrets.length * 3) : 0;
+  const structureDefense = active.reduce((total, x) => total + BUILDINGS[x.type].defense +
+    (x.type === 'trench' ? (x.trenchLevel || 0) * 3 : 0) +
+    (x.type === 'turret' && x.manned ? 7 * turretAmmoRatio : 0), 0);
+  const settlementPressure = Math.floor(active.length / 3) + Math.floor(activeFarmPlots / 3);
+  const threat = 9 + Math.floor(s.survivors.length / 4) + settlementPressure;
+  const defense = guardStrength * 2 + (s.upgrades?.field_armory || 0) * 2 +
+    structureDefense + ammoUsed * 0.8 + turretAmmo * 1.5;
+  const projectedStructureDamage = Math.max(0, Math.ceil((threat - defense) * 6));
+  const projectedBaseDamage = Math.ceil(projectedStructureDamage * 0.45);
+  return {
+    threat, defense: Number(defense.toFixed(2)), settlementPressure,
+    activeStructures: active.length, activeFarmPlots, survivors: s.survivors.length,
+    guards: guards.length, ammunitionCommitted: ammoUsed + turretAmmo,
+    projectedStructureDamage, projectedBaseDamage,
+    outlook: projectedStructureDamage === 0 ? 'stable' :
+      projectedStructureDamage >= 60 || projectedBaseDamage >= 25 ? 'critical' : 'strained'
+  };
+}
 function applyAction(input, ownerId, action, now = Date.now()) {
   const s = validateBase(input, ownerId);
   if (!s) throw new Error('invalid_or_foreign_base');
@@ -142,6 +174,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (Math.abs(x) > 9.5 || Math.abs(z) > 9.5) throw new Error('placement_out_of_bounds');
       if (Math.hypot(x, z) < 2.4) throw new Error('placement_occupied');
       if (s.structures.some(v => Math.hypot(v.x - x, v.z - z) < (action.building === 'barbed_wire' || v.type === 'barbed_wire' ? 1.0 : 1.65))) throw new Error('placement_occupied');
+      // Farm plots occupy physical yard space too; keep new structures from burying crops or blocking tending access.
+      if (s.farmPlots.some(plot => Math.hypot(plot.x - x, plot.z - z) < 1.65)) throw new Error('placement_occupied');
       const rotation = Number.isFinite(action.rotation) ? clampNumber(action.rotation, -Math.PI * 2, Math.PI * 2) : 0;
       s.structures.push({ id, type: action.building, hp: spec.hp, maxHp: spec.hp, x, z, rotation, trenchLevel: 0, manned: false });
       record(s, 'build', 'Constructed ' + action.building + '.', now);
@@ -354,7 +388,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const x = Number.isFinite(action.x) ? action.x : NaN;
       const z = Number.isFinite(action.z) ? action.z : NaN;
       if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 9.5 || Math.abs(z) > 9.5) throw new Error('farm_plot_out_of_bounds');
-      if (Math.hypot(x, z) < 2.4 || s.structures.some(v => Math.hypot(v.x - x, v.z - z) < 1.0) || s.farmPlots.some(v => Math.hypot(v.x - x, v.z - z) < 0.8)) throw new Error('farm_plot_occupied');
+      if (Math.hypot(x, z) < 2.4 || s.structures.some(v => Math.hypot(v.x - x, v.z - z) < 1.65) || s.farmPlots.some(v => Math.hypot(v.x - x, v.z - z) < 0.8)) throw new Error('farm_plot_occupied');
       const id = 'f' + (s.farmPlots.reduce((n, p) => Math.max(n, Number(p.id.slice(1)) || 0), 0) + 1);
       s.farmPlots.push({ id, x, z, crop: null, growth: 0, watered: false, plantedAt: 0 });
       record(s, 'farming', 'Prepared a soil plot. Plant a crop yourself before recruiting survivors.', now);
@@ -459,36 +493,37 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     case 'defend': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       s.defenseCount++;
-      const guards = s.survivors.filter(x => x.role === 'guard');
-      const guardStrength = guards.reduce((total, x) => {
-        const morale = clampInt(x.morale, 0, 100);
-        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
-      }, 0);
-      const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(guards.length / 2) + 1));
-      s.resources.ammo -= ammoUsed;
+      const profile = threatProfile(s);
       const active = s.structures.filter(x => x.hp > 0);
+      const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(s.survivors.filter(x => x.role === 'guard').length / 2) + 1));
+      s.resources.ammo -= ammoUsed;
       const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
       const turretAmmo = Math.min(s.resources.ammo, mannedTurrets.length * 3);
       s.resources.ammo -= turretAmmo;
-      const turretAmmoRatio = mannedTurrets.length ? turretAmmo / (mannedTurrets.length * 3) : 0;
-      const structureDefense = active.reduce((n, x) => {
-        const trenchBonus = x.type === 'trench' ? x.trenchLevel * 3 : 0;
-        const turretBonus = x.type === 'turret' && x.manned ? 7 * turretAmmoRatio : 0;
-        return n + BUILDINGS[x.type].defense + trenchBonus + turretBonus;
-      }, 0);
-      const defense = guardStrength * 2 + (s.upgrades.field_armory || 0) * 2 + structureDefense + ammoUsed * 0.8 + turretAmmo * 1.5;
-      const threat = 9 + Math.floor(s.survivors.length / 4); // Fixed perimeter threat; never scales with breach count.
-      const damage = Math.max(0, Math.ceil((threat - defense) * 6));
+      const threat = profile.threat;
+      const defense = profile.defense;
+      const damage = profile.projectedStructureDamage;
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
+      // Siege pressure hits the outer defensive ring first, rather than damaging structures
+      // in arbitrary creation order. Perimeter obstacles absorb hits before inner production buildings.
+      const perimeterPriority = { barbed_wire: 0, gate: 1, entrance: 1, exit: 1, sandbags: 2, trench: 3, wall: 4, turret: 5, watchtower: 6 };
+      const siegeTargets = [...active].sort((a, b) =>
+        (Math.hypot(b.x, b.z) - Math.hypot(a.x, a.z)) ||
+        ((perimeterPriority[a.type] ?? 10) - (perimeterPriority[b.type] ?? 10)) ||
+        String(a.id).localeCompare(String(b.id)));
       let remaining = damage;
-      for (const structure of active) {
+      const breached = [];
+      for (const structure of siegeTargets) {
         if (remaining <= 0) break;
+        const before = structure.hp;
         const hit = Math.min(structure.hp, remaining);
         structure.hp -= hit; remaining -= hit;
+        if (before > 0 && structure.hp <= 0) breached.push(structure.type);
       }
       const lost = s.baseHp === 0;
       for (const turret of active.filter(x => x.type === 'turret')) turret.manned = false;
-      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach.' : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.', now);
+      const breachText = breached.length ? ' Breach opened: ' + breached.join(', ') + ' destroyed.' : '';
+      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach.' : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.' + breachText, now);
       break;
     }
     case 'repair': {
@@ -515,4 +550,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };

@@ -266,6 +266,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const combatAt = Date.now();
           const survivalBeforeAttack = Survival.tick(player.survival, combatAt);
           const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null });
+          // Gunfire and melee combat leave a server-recorded noise signature. The next
+          // authoritative world tick uses it to attract the local infected director.
+          player.noiseLevel = Math.max(player.noiseLevel || 0, weaponId === 'pump_shotgun' ? 95 : weaponId === 'marksman_rifle' ? 82 : 62);
+          player.lastNoiseAt = combatAt;
+          player.noiseX = player.x;
+          player.noiseZ = player.z;
           player.weaponMagazine = { weaponId, loaded: outcome.base.resources.ammo };
           outcome.base.resources.ammo = base.resources.ammo;
           player.inventory = carried;
@@ -526,7 +532,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       if (!base) { json(res, 500, { error: 'save_invalid', message: 'The saved refuge could not be validated; it was not overwritten.' }); return true; }
     }
     if (req.method === 'GET' && url.pathname === '/api/homefront') {
-      json(res, 200, { mode: 'homefront', base });
+      json(res, 200, { mode: 'homefront', base, threatProfile: Core.threatProfile(base) });
       return true;
     }
     if (req.method !== 'POST' || url.pathname !== '/api/homefront/action') {
@@ -550,7 +556,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
     }
     db[user.acct] = next;
     store.save('homefront.json', db);
-    json(res, 200, { mode: 'homefront', base: next });
+    json(res, 200, { mode: 'homefront', base: next, threatProfile: Core.threatProfile(next) });
     return true;
   } catch (e) {
     const message = String(e?.message || 'homefront_error');

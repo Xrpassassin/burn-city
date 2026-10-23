@@ -8,6 +8,7 @@ const Loot = require('./homefront-loot');
 const Terrain = require('./homefront-terrain');
 const Collision = require('./homefront-collision');
 const Environment = require('./homefront-environment');
+const Director = require('./homefront-director');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
@@ -85,6 +86,11 @@ function normalizeWorld(input) {
       p.x = recovered.x; p.z = recovered.z;
     }
     p.lastMove = Number.isFinite(p.lastMove) ? p.lastMove : 0;
+    p.directorState = p.directorState && typeof p.directorState === 'object' ? p.directorState : {};
+    p.lastNoiseAt = Number.isFinite(p.lastNoiseAt) ? clamp(p.lastNoiseAt, 0, Number.MAX_SAFE_INTEGER) : 0;
+    p.noiseLevel = clamp(p.noiseLevel, 0, 100);
+    p.noiseX = clamp(p.noiseX ?? p.x, -WORLD_SIZE, WORLD_SIZE);
+    p.noiseZ = clamp(p.noiseZ ?? p.z, -WORLD_SIZE, WORLD_SIZE);
     p.aiming = p.aiming === true;
     p.aimStartedAt = p.aiming && Number.isFinite(p.aimStartedAt) ? clamp(p.aimStartedAt, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.lastSprintAt = Number.isFinite(p.lastSprintAt) ? clamp(p.lastSprintAt, 0, Number.MAX_SAFE_INTEGER) : 0;
@@ -162,6 +168,38 @@ function publicPlayer(acct, p, me, now) {
   return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, spawn: p.spawn, party: !!p.partyCode, online: now - p.lastSeen <= PRESENCE_TTL };
 }
 function nearestPoint(x, z, type = null) { const points = POINTS_OF_INTEREST.filter(p => !type || (type === 'non-boss' ? p.type !== 'boss' : p.type === type)); let best = null; for (const point of points) { const distance = Math.hypot(point.x - x, point.z - z); if (!best || distance < best.distance) best = { point, distance }; } return best; }
+function tickDirector(w, acct, now = Date.now()) {
+  const p = w.players[acct];
+  if (!p) return null;
+  const district = districtAt(p.x, p.z);
+  const zoneId = district.id === 'graveyard_core' ? 'research_lab' : district.id === 'perimeter' ? 'outskirts' : district.id;
+  const active = Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0 && e.owner === acct).length;
+  const elapsed = Math.max(0, now - (p.lastNoiseAt || now));
+  const noise = Math.max(0, (p.noiseLevel || 0) - elapsed / 120);
+  const tick = Director.advanceDirector(p.directorState, {
+    zoneId, risk: district.risk, playerCount: p.partyCode && w.parties[p.partyCode] ? w.parties[p.partyCode].members.length : 1,
+    activeEncounters: active, noise, lastNoiseAt: p.lastNoiseAt, now,
+    seed: acct + ':' + district.id + ':' + Math.floor(p.x / 12) + ':' + Math.floor(p.z / 12) + ':' + Math.floor(now / 5000)
+  });
+  p.directorState = tick.state;
+  if (tick.decision === 'spawn' && active === 0) {
+    const spawned = Combat.spawn({ encounters: w.encounters, account: acct, player: p, now, seed: tick.plan.threat });
+    w.encounters = spawned.encounters;
+    p.directorState.lastSpawnAt = now;
+    p.directorState.nextSpawnAt = now + tick.plan.spawnIntervalMs;
+    p.directorState.lastDecision = 'spawn';
+  }
+  return { phase: tick.state.phase, decision: tick.decision, reason: tick.reason, threat: tick.plan.threat, pressure: tick.plan.pressure, risk: tick.plan.risk, zoneId: tick.plan.zoneId, recommendedMaxAlive: tick.plan.recommendedMaxAlive, spawnIntervalMs: tick.plan.spawnIntervalMs, nextSpawnAt: p.directorState.nextSpawnAt || 0, noise: Math.round(noise) };
+}
+function recordNoise(input, acct, level = 75, now = Date.now()) {
+  const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
+  const p = w.players[acct];
+  if (!p) throw new Error('not_in_expedition');
+  p.noiseLevel = Math.max(p.noiseLevel || 0, clamp(level, 0, 100));
+  p.lastNoiseAt = now;
+  p.lastSeen = now;
+  return w;
+}
 function snapshot(input, acct, now = Date.now()) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   prune(w, now);
@@ -171,6 +209,7 @@ function snapshot(input, acct, now = Date.now()) {
     world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
     players: Object.entries(w.players).map(([id, player]) => publicPlayer(id, player, acct, now)).filter(v => v.online),
     self: p ? publicPlayer(acct, p, acct, now) : null,
+    director: p ? { phase: p.directorState?.phase || 'calm', lastDecision: p.directorState?.lastDecision || 'hold', nextSpawnAt: p.directorState?.nextSpawnAt || 0, noise: Math.round(Math.max(0, (p.noiseLevel || 0) - Math.max(0, now - (p.lastNoiseAt || now)) / 120)) } : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now)) } : null,
     encounters: Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0).map(Combat.publicEncounter),
     selfEncounter: Combat.publicEncounter(w.encounters?.[acct]),
@@ -196,6 +235,7 @@ function enter(input, acct, now = Date.now()) {
   }
   // Refreshes advance bounded pursuit too, so infected do not require player movement to update.
   w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
+  tickDirector(w, acct, now);
   w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
   return { world: w, result: snapshot(w, acct, now) };
 }
@@ -255,6 +295,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   }
   // Advance AI only on an authoritative world action; no client frame loop can move enemies.
   w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
+  tickDirector(w, acct, now);
   w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
   return { world: w, result: snapshot(w, acct, now) };
 }
@@ -329,4 +370,4 @@ function leave(input, acct, now = Date.now()) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leaveParty, leave };
+module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };

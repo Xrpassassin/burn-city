@@ -21,11 +21,17 @@ const DISTRICTS = [
   { id: 'graveyard_core', label: 'Graveyard Core', radius: 101, risk: 5 }
 ];
 const POINTS_OF_INTEREST = [
-  { id: 'mercy_hospital', label: 'St. Mercy Hospital', type: 'medical', x: 24, z: 30, risk: 3 },
-  { id: 'exchange_market', label: 'Exchange Market', type: 'scavenge', x: -38, z: 32, risk: 2 },
-  { id: 'ironworks', label: 'Ironworks Yard', type: 'industrial', x: -16, z: 22, risk: 4 },
-  { id: 'buried_subway', label: 'Buried Subway', type: 'boss', x: 6, z: -8, risk: 5 },
-  { id: 'research_annex', label: 'Sealed Research Annex', type: 'boss', x: -4, z: 6, risk: 5 }
+  { id: 'north_bus_depot', label: 'North Bus Depot', type: 'scavenge', zone: 'outskirts', x: -8, z: -65, risk: 1 },
+  { id: 'river_checkpoint', label: 'River Checkpoint', type: 'scavenge', zone: 'outskirts', x: 62, z: -20, risk: 1 },
+  { id: 'wrecked_depot', label: 'Wrecked Depot', type: 'scavenge', zone: 'outskirts', x: 14, z: 65, risk: 1 },
+  { id: 'old_rail_yard', label: 'Old Rail Yard', type: 'scavenge', zone: 'outskirts', x: -65, z: 15, risk: 1 },
+  { id: 'west_underpass', label: 'West Underpass', type: 'scavenge', zone: 'outskirts', x: -60, z: -55, risk: 1 },
+  { id: 'east_checkpoint', label: 'East Checkpoint', type: 'scavenge', zone: 'outskirts', x: 55, z: 55, risk: 1 },
+  { id: 'mercy_hospital', label: 'St. Mercy Hospital', type: 'medical', zone: 'hospital', x: 24, z: 30, risk: 3 },
+  { id: 'exchange_market', label: 'Exchange Market', type: 'scavenge', zone: 'commercial', x: -38, z: 32, risk: 3 },
+  { id: 'ironworks', label: 'Ironworks Yard', type: 'industrial', zone: 'industrial', x: -16, z: 22, risk: 4 },
+  { id: 'buried_subway', label: 'Buried Subway', type: 'boss', zone: 'subway', x: 6, z: -8, risk: 5 },
+  { id: 'research_annex', label: 'Sealed Research Annex', type: 'boss', zone: 'research_lab', x: -4, z: 6, risk: 5 }
 ];
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : 0));
@@ -73,6 +79,7 @@ function publicPlayer(acct, p, me, now) {
   const d = districtAt(p.x, p.z);
   return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, spawn: p.spawn, party: !!p.partyCode, online: now - p.lastSeen <= PRESENCE_TTL };
 }
+function nearestPoint(x, z, type = null) { const points = POINTS_OF_INTEREST.filter(p => !type || p.type === type); let best = null; for (const point of points) { const distance = Math.hypot(point.x - x, point.z - z); if (!best || distance < best.distance) best = { point, distance }; } return best; }
 function snapshot(input, acct, now = Date.now()) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   prune(w, now);
@@ -159,4 +166,4 @@ function leave(input, acct, now = Date.now()) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { WORLD_SIZE, PRESENCE_TTL, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, snapshot, enter, move, createParty, joinParty, leave };
+module.exports = { WORLD_SIZE, PRESENCE_TTL, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, createParty, joinParty, leave };

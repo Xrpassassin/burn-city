@@ -266,6 +266,18 @@ const normalizedFortifications = H.validateBase(fortified, 'fortification-test')
 assert.equal(normalizedFortifications.structures.find(x => x.id === trench.id).trenchLevel, 3, 'trench tier persists through save normalization');
 assert.equal(normalizedFortifications.structures.find(x => x.id === entrance.id).rotation, Math.PI / 2, 'entrance rotation persists through save normalization');
 
+// Siege damage advances from the exposed perimeter inward and reports actual breaches.
+const siegeBase = H.createBase('siege-order-test', 5100);
+siegeBase.resources.ammo = 20;
+siegeBase.structures = [
+  { id: 'b1', type: 'workshop', hp: 120, maxHp: 120, x: 3, z: 0, rotation: 0, trenchLevel: 0, manned: false },
+  { id: 'b2', type: 'barbed_wire', hp: 5, maxHp: 65, x: 9, z: 0, rotation: 0, trenchLevel: 0, manned: false }
+];
+const siegeResult = H.applyAction(siegeBase, 'siege-order-test', { type: 'defend' }, 5110);
+assert.equal(siegeResult.structures.find(x => x.id === 'b2').hp, 0, 'outer barbed wire absorbs siege damage before inner structures');
+assert.ok(siegeResult.structures.find(x => x.id === 'b1').hp < 120, 'overflow siege damage advances to the next defensive layer');
+assert.match(siegeResult.log.at(-1).text, /Breach opened: barbed_wire destroyed/, 'the defense report calls out a newly opened breach');
+
 const farmStart = H.createBase('farm-test', 6000);
 assert.equal(farmStart.resources.seeds, 6, 'new refuge has a small starter seed reserve');
 assert.deepEqual(farmStart.farmPlots, [], 'farm plots start empty; the player must establish the farm');

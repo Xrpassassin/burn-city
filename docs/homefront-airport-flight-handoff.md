@@ -96,3 +96,10 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Difficulty now actually scales expedition supply costs (`ceil(base cost × tier cost multiplier`) and base salvage rewards; Scavenger Rig multiplies wood/scrap salvage. Story / Standard / Veteran / Nightmare remain separate from rounds.
 - District access is based on reaching a physical landmark in the shared Graveyard, not on the number of expeditions already completed. Personal `exploration.discoveredZones` persists visited districts; the first visit to each district grants a one-time survey bonus of `risk × 3` scrap and `10 + risk × 5` Embers.
 - Boss attacks use a separate server-authoritative `boss_attack` action. Each attempt charges the selected difficulty's food/ammo cost but does not grant ordinary expedition salvage, Embers, or survivor recruitment; boss completion is the source of the boss bonus. This closes a repeatable loot/recruit exploit from attacking a boss repeatedly.
+
+
+### Shared supply caches
+- Added three physical supply-cache landmarks (Exchange Market, St. Mercy Hospital, and Ironworks Yard). They appear as gold `C` markers on the shared Graveyard map.
+- Opening a nearby cache runs a normal location/difficulty expedition, then adds a location- and difficulty-scaled cache bundle of scrap, wood, ammunition, medicine (higher-risk caches), and Embers.
+- Cache availability is shared world state and persists across requests. A claimed cache enters a five-minute cooldown for every explorer; the server validates location, difficulty, cooldown, resource caps, and payout. The tactical map uses a shared cooldown state so the first explorer to claim it wins the cache.
+- Added world/API regression coverage for cache markers, initial availability, bonus rewards, persisted cooldowns, and cross-player duplicate-claim prevention.

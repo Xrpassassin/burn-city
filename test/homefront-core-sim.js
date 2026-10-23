@@ -8,7 +8,7 @@ assert.throws(() => H.applyAction(a, 'acct-b', { type: 'build', building: 'wall'
 const wall = H.applyAction(a, 'acct-a', { type: 'build', building: 'wall' }, 1100);
 assert.equal(wall.structures.length, 1);
 assert.equal(wall.structures[0].type, 'wall');
-assert.equal(wall.resources.wood, 32);
+assert.equal(wall.resources.wood, 32);\nassert.ok(Number.isFinite(wall.structures[0].x) && Number.isFinite(wall.structures[0].z));\nassert.throws(() => H.applyAction(wall, 'acct-a', { type: 'build', building: 'wall', x: wall.structures[0].x, z: wall.structures[0].z }), /placement_occupied/);\nassert.throws(() => H.applyAction(wall, 'acct-a', { type: 'build', building: 'wall', x: 11, z: 0 }), /placement_out_of_bounds/);
 assert.equal(wall.revision, a.revision + 1);
 assert.throws(() => H.applyAction(wall, 'acct-a', { type: 'build', building: 'not-a-building' }), /unknown_building/);
 const tower = H.applyAction(wall, 'acct-a', { type: 'build', building: 'watchtower' });

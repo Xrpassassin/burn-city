@@ -22,6 +22,10 @@ assert.match(scene, /state\.targetX - actor\.position\.x/, 'interpolate infected
 assert.match(scene, /actor\.userData\.hitFlash = 0\.38/, 'give confirmed enemy damage a brief visual hit flash');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(scene, /Visible held weapon silhouette/, 'render a visible weapon prop for each explorer in the 3D world');
+assert.match(scene, /homefront:cosmetics/, 'receive equipped cosmetic and weapon selection from the Homefront loadout');
+assert.match(scene, /equippedWeaponSkinColor/, 'apply the equipped weapon skin finish to the local 3D weapon');
+assert.match(scene, /weaponId === 'shock_maul'/, 'render a distinct shock maul silhouette');
+assert.match(scene, /weaponId === 'marksman_rifle'/, 'render a distinct marksman rifle silhouette');
 assert.match(scene, /new THREE\.BoxGeometry\(0\.16, 0\.76, 0\.19\)/, 'build the held weapon from lightweight Three.js primitives without new assets');
 assert.match(scene, /attackInfectedButton\.disabled = !active \|\| active\.defeated \|\| active\.hp <= 0 \|\| distance > \(active\.range \|\| 0\)/, 'keep attack disabled after requests when the enemy remains out of range');
 assert.match(page, /id="findInfected"/, 'provide a control to initiate an infected encounter');

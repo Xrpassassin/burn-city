@@ -1,5 +1,6 @@
 // Renderer-independent, server-authoritative rules for the optional Zombies Homefront mode.
 'use strict';
+const { resolveDirectorLoot } = require('./homefront-director');
 
 const VERSION = 1;
 const MAX_STRUCTURES = 60;
@@ -162,10 +163,25 @@ function applyAction(input, ownerId, action, now = Date.now()) {
           injured.morale = clampInt(injured.morale - Math.max(2, 8 + zone.risk * 2 - combatPower), 0, 100);
         } else s.resources.food = Math.max(0, s.resources.food - 1);
       }
+      const directorLoot = resolveDirectorLoot({
+        event: directorEvent, zoneId, risk: zone.risk,
+        rewardMultiplier: difficulty.reward, combatPower, seed
+      });
+      if (directorLoot.scrap) s.resources.scrap = Math.min(999999, s.resources.scrap + directorLoot.scrap);
+      if (directorLoot.embers) s.embers = Math.min(999999999, s.embers + directorLoot.embers);
+      Object.assign(s.exploration.lastExpedition, {
+        director: directorEvent,
+        enemy: directorLoot.enemy,
+        salvageQuality: directorLoot.quality
+      });
       let found = false;
       if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4) }); found = true; }
-      const eventText = directorEvent === 'special_infected' ? ' A special infected ambushed the team; ammunition was spent and a survivor was shaken.' : directorEvent === 'infected_horde' ? ' An infected horde hit the team; ammunition was spent and morale suffered.' : directorEvent === 'wandering_infected' ? ' Wandering infected were spotted nearby, but the team avoided a full ambush.' : ' The district was quiet enough to search thoroughly.';
-      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + (scrap + discoveryScrap) + ' scrap, and ' + totalEmbers + ' embers' + (firstVisit ? ' including a first-visit survey bonus' : '') + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + eventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
+      const salvageText = directorLoot.scrap
+        ? ' Salvaged ' + directorLoot.quality.toLowerCase() + '-grade infected remains: +' + directorLoot.scrap + ' scrap and +' + directorLoot.embers + ' Embers.'
+        : '';
+      const eventText = directorEvent === 'special_infected' ? ' A special infected (' + directorLoot.enemy + ') ambushed the team; ammunition was spent and a survivor was shaken.' : directorEvent === 'infected_horde' ? ' An infected horde (' + directorLoot.enemy + ') hit the team; ammunition was spent and morale suffered.' : directorEvent === 'wandering_infected' ? ' Wandering infected (' + directorLoot.enemy + ') were spotted nearby, but the team avoided a full ambush.' : ' The district was quiet enough to search thoroughly.';
+      const finalEventText = eventText + salvageText;
+      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + (scrap + discoveryScrap) + ' scrap, and ' + totalEmbers + ' embers' + (firstVisit ? ' including a first-visit survey bonus' : '') + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + finalEventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
       record(s, 'exploration', result, now);
       break;
     }

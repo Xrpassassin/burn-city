@@ -64,3 +64,10 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Higher-risk locations are gated behind completed expeditions, not elapsed time or round count. Subway and research locations are presented as boss-area destinations; future work should make their unique boss encounters and physical city navigation real, rather than treating them as a text-only expedition result.
 - The owner UI now describes perimeter incidents as optional and location-based, shows perimeter incident count instead of a rising wave count, and includes a destination selector for expeditions.
 - Future exploration milestones: persistent district discovery on the save, physical city traversal, loot containers with equipment and weapon condition, rescue/companion events, location-specific enemy archetypes, and explicit boss-area entry/exit rules.
+
+
+## XRPL Graveyard exploration-first design
+- Homefront perimeter incidents now use a fixed threat budget and no longer increment the legacy wave counter. The number of previous defenses does not make the next defense stronger or harder; guard morale, structures, and ammunition still influence the outcome.
+- Expeditions now accept a destination identifier and use site-specific supply costs, salvage yields, medical returns, and survivor recruitment odds. Current destinations: City Outskirts, Residential Ruins, Market District, Overrun Hospital, Industrial Yard, Buried Subway, and Sealed Research Annex.
+- District access is gated by completed expeditions, not round count. The owner UI uses a destination selector and describes perimeter incidents as optional. A regression test checks that defense outcomes are independent of the legacy counter and that district unlock gates work.
+- This is the first server-side exploration foundation, not a completed open world. Next work: persist discovered districts explicitly, create physical city routes and points of interest, add loot containers/equipment, rescue encounters, and distinct boss arenas.

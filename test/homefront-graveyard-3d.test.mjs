@@ -302,7 +302,7 @@ assert.match(homefrontPage, /steel reinforcement '\+\(s\.reinforcementLevel\|\|0
 assert.match(page, /const ZOMBIE_BLOCKING_TYPES=new Set\(\['wall','gate','entrance','exit','sandbags','barbed_wire','trench','watchtower','turret'\]\)/, 'infected navigation treats intact perimeter structures as obstacles');
 assert.match(page, /function zombieFindPath\(start,goal,structures,ignoreId=''\)/, 'infected use a grid pathfinder rather than moving in a straight line through defenses');
 assert.match(page, /function zombieRouteFor\(base,start\)/, 'infected routes adapt to the current refuge perimeter');
-assert.match(page, /const breaches=structures\.filter\(s=>s\.hp<=0\)/, 'navigation detects destroyed perimeter structures as breaches');
+assert.match(page, /breaches=structures\.filter\(s=>s\.hp<=0\)/, 'navigation detects destroyed perimeter structures as breaches');
 assert.match(page, /zombieFindPath\(outer,inner,structures,breach\.id\)/, 'infected route through the breached opening before entering the refuge');
 assert.match(page, /const candidates=structures\.filter\(s=>s\.hp>0\)\.sort\(\(a,b\)=>a\.hp\/Math\.max\(1,a\.maxHp\)-b\.hp\/Math\.max\(1,b\.maxHp\)\)/, 'without a breach, infected pressure the weakest intact perimeter structure');
 assert.match(page, /while\(waypoint&&Math\.hypot\(waypoint\.x-o\.position\.x,waypoint\.z-o\.position\.z\)<\.22\)/, 'infected follow route waypoints with smooth movement');

@@ -109,6 +109,8 @@ async function call(method, pathname, acct, payload = {}) {
   const sharedWorld = files.get('homefront-world.json');
   sharedWorld.players['acct-a'].x = -32;
   sharedWorld.players['acct-a'].z = 24;
+  sharedWorld.players['acct-b'].x = -32;
+  sharedWorld.players['acct-b'].z = 24;
   files.set('homefront-world.json', sharedWorld);
   const cacheOpen = await call('POST', '/api/homefront/world/cache', 'acct-a', { pointId: 'cache_exchange', difficulty: 'standard' });
   assert.equal(cacheOpen.status, 200, 'player can open a nearby shared supply cache');

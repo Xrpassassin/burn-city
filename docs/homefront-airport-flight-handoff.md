@@ -105,3 +105,9 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Added world/API regression coverage for cache markers, initial availability, bonus rewards, persisted cooldowns, and cross-player duplicate-claim prevention.
 
 - Generic refuge actions reject direct `expedition` and `boss_attack` requests; scavenging, cache opening, and boss damage must pass through the authenticated shared-world endpoints that validate physical proximity. This prevents API callers from bypassing the map's location progression.
+
+
+### Persistent weapon bench
+- Homefront refuges own a server-validated weapon inventory and equipped weapon. The initial Pipe Blade is free; players can craft Pump Shotgun (Rare), Marksman Rifle (Epic), and Shock Maul (Legendary) using scrap and Embers, then equip any owned weapon.
+- Weapon power has current gameplay effects: it lowers the chance/pressure of Director ambush events, reduces ammunition and survivor-morale losses during ambushes, and increases damage against shared bosses. This is a progression foundation; detailed Dead Island-style durability, weapon mods, elemental effects, and real-time attack animations are still future work.
+- Added core tests for weapon crafting/equipping/duplicate protection and API coverage confirming an equipped shotgun increases shared boss damage.

@@ -28,7 +28,7 @@ assert.match(scene, /homefront:cosmetics/, 'receive equipped cosmetic and weapon
 assert.match(scene, /equippedWeaponSkinColor/, 'apply the equipped weapon skin finish to the local 3D weapon');
 assert.match(scene, /weaponId === 'shock_maul'/, 'render a distinct shock maul silhouette');
 assert.match(scene, /weaponId === 'marksman_rifle'/, 'render a distinct marksman rifle silhouette');
-assert.match(scene, /new THREE\\.BoxGeometry\\(width, length, weaponId === 'shock_maul' \? 0\\.22 : 0\\.19\\)/, 'build weapon silhouettes from lightweight Three.js primitives without new assets');
+assert.ok(scene.includes("new THREE.BoxGeometry(width, length, weaponId === 'shock_maul' ? 0.22 : 0.19)"), 'build weapon silhouettes from lightweight Three.js primitives without new assets');
 assert.match(scene, /attackInfectedButton\.disabled = !active \|\| active\.defeated \|\| active\.hp <= 0 \|\| distance > \(active\.range \|\| 0\)/, 'keep attack disabled after requests when the enemy remains out of range');
 assert.match(page, /id="findInfected"/, 'provide a control to initiate an infected encounter');
 assert.match(page, /id="attackInfected"/, 'provide an attack control for active infected');

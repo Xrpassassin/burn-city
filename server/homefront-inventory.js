@@ -1,48 +1,22 @@
 'use strict';
-// Small server-authoritative carried inventory for Homefront field expeditions.
-// Inspired by common survival-RPG patterns; this implementation is original.
+const Freshness = require('./homefront-freshness');
 const ITEMS = Object.freeze({
-  food:{label:'Cooked ration',weight:1,maxStack:8}, rawFood:{label:'Raw food',weight:1,maxStack:8}, water:{label:'Clean water',weight:1,maxStack:8}, dirtyWater:{label:'Dirty water',weight:1,maxStack:8},
-  meds:{label:'Medical supplies',weight:1,maxStack:5}, ammo:{label:'Ammunition',weight:1,maxStack:12},
-  scrap:{label:'Scrap',weight:2,maxStack:8}, wood:{label:'Wood',weight:2,maxStack:8}
+ food:{label:'Cooked ration',weight:1,maxStack:8}, rawFood:{label:'Raw food',weight:1,maxStack:8}, water:{label:'Clean water',weight:1,maxStack:8}, dirtyWater:{label:'Dirty water',weight:1,maxStack:8},
+ meds:{label:'Medical supplies',weight:1,maxStack:5}, ammo:{label:'Ammunition',weight:1,maxStack:12}, scrap:{label:'Scrap',weight:2,maxStack:8}, wood:{label:'Wood',weight:2,maxStack:8}
 });
-const CAPACITY = 24;
-const clamp = (n,min,max)=>Math.max(min,Math.min(max,Number.isFinite(n)?Math.floor(n):min));
-function normalize(input){
- const out={}; for(const [id,spec] of Object.entries(ITEMS)) out[id]=clamp(input?.[id],0,spec.maxStack);
- return out;
-}
-function used(input){const i=normalize(input);return Object.entries(i).reduce((n,[id,count])=>n+count*ITEMS[id].weight,0);}
-function add(input,id,amount){
- if(!ITEMS[id])throw Error('unknown_item'); const inventory=normalize(input); let left=clamp(amount,0,999999);
- const byStack=Math.min(left,ITEMS[id].maxStack-inventory[id]);
- const byWeight=Math.floor((CAPACITY-used(inventory))/ITEMS[id].weight);
- const accepted=Math.max(0,Math.min(byStack,byWeight));
- inventory[id]+=accepted; return {inventory,accepted,rejected:left-accepted,used:used(inventory),capacity:CAPACITY};
-}
-function remove(input,id,amount=1){
- if(!ITEMS[id])throw Error('unknown_item'); const inventory=normalize(input),qty=clamp(amount,1,ITEMS[id].maxStack);
- if(inventory[id]<qty)throw Error('not_carrying_'+id);
- inventory[id]-=qty;return {inventory,removed:qty,used:used(inventory),capacity:CAPACITY};
-}
-function stash(input,resources){
- const inventory=normalize(input),stored={},remaining={...inventory};
- // Keep unprocessed supplies distinct in refuge storage. Never silently turn raw food
- // into a cooked ration or contaminated water into potable water during stash/return.
- const destination={};
- for(const id of Object.keys(ITEMS)){
-  const target=destination[id]||id;
-  const current=clamp(resources?.[target],0,999999)+(stored[target]||0);
-  const room=Math.max(0,999999-current);
-  const amount=Math.min(inventory[id],room);
-  if(amount){stored[target]=(stored[target]||0)+amount;remaining[id]-=amount;}
- }
- return {inventory:remaining,stored,used:used(remaining),capacity:CAPACITY};
-}
-function withdraw(input,resources,id,amount=1){
- if(!ITEMS[id])throw Error('unknown_item');const qty=clamp(amount,1,ITEMS[id].maxStack);
- if(clamp(resources?.[id],0,999999)<qty)throw Error('insufficient_'+id);
- const result=add(input,id,qty);if(result.accepted!==qty)throw Error('inventory_full');
- return {inventory:result.inventory,resources:{...resources,[id]:clamp(resources[id],0,999999)-qty},taken:qty,used:result.used,capacity:CAPACITY};
-}
-module.exports={ITEMS,CAPACITY,normalize,used,add,remove,stash,withdraw};
+const PERISHABLE=new Set(['food','rawFood']),CAPACITY=24;
+const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number.isFinite(n)?Math.floor(n):min));
+function normalize(input,now=Date.now()){const out={};for(const [id,s] of Object.entries(ITEMS))out[id]=clamp(input?.[id],0,s.maxStack);out.freshness=Freshness.normalizeBatches(input?.freshness,out,Number.isFinite(input?.freshnessMigratedAt)?input.freshnessMigratedAt:now);return out;}
+function normalizeResources(input,now=Date.now()){const out={};for(const id of Object.keys(ITEMS))out[id]=clamp(input?.[id],0,999999);out.freshness=Freshness.normalizeBatches(input?.freshness,out,Number.isFinite(input?.freshnessMigratedAt)?input.freshnessMigratedAt:now);return out;}
+function used(input){const i=normalize(input);return Object.entries(ITEMS).reduce((n,[id,s])=>n+i[id]*s.weight,0);}
+function mergeBatches(existing,incoming,count,now){const all=[...(existing||[]),...(incoming||[])].filter(b=>b&&Number.isFinite(b.qty)&&b.qty>0&&Number.isFinite(b.acquiredAt)).sort((a,b)=>a.acquiredAt-b.acquiredAt);return Freshness.normalizeBatches({food:all,rawFood:[]},{food:count,rawFood:0},now).food;}
+function add(input,id,amount,now=Date.now()){if(!ITEMS[id])throw Error('unknown_item');const inventory=normalize(input,now),left=clamp(amount,0,999999),byStack=Math.min(left,ITEMS[id].maxStack-inventory[id]),byWeight=Math.floor((CAPACITY-used(inventory))/ITEMS[id].weight),accepted=Math.max(0,Math.min(byStack,byWeight));inventory[id]+=accepted;if(accepted&&PERISHABLE.has(id))inventory.freshness=Freshness.addBatch(inventory.freshness,id,accepted,now);return{inventory,accepted,rejected:left-accepted,used:used(inventory),capacity:CAPACITY};}
+function addPreserved(input,id,batches,now=Date.now()){if(!PERISHABLE.has(id))return add(input,id,(batches||[]).reduce((n,b)=>n+(b.qty||0),0),now);const qty=(batches||[]).reduce((n,b)=>n+clamp(b.qty,0,999999),0),result=add(input,id,qty,now);if(result.accepted!==qty)throw Error('inventory_full');result.inventory.freshness[id]=mergeBatches(result.inventory.freshness[id],batches,result.inventory[id],now);return result;}
+function remove(input,id,amount=1,now=Date.now()){if(!ITEMS[id])throw Error('unknown_item');const inventory=normalize(input,now),qty=clamp(amount,1,ITEMS[id].maxStack);if(inventory[id]<qty)throw Error('not_carrying_'+id);if(PERISHABLE.has(id))inventory.freshness=Freshness.takeBatches(inventory.freshness,id,qty,inventory,now).batches;inventory[id]-=qty;return{inventory,removed:qty,used:used(inventory),capacity:CAPACITY};}
+function removeUsable(input,id,amount=1,now=Date.now()){if(!PERISHABLE.has(id))return remove(input,id,amount,now);const inventory=normalize(input,now),qty=clamp(amount,1,ITEMS[id].maxStack);if(inventory[id]<qty)throw Error('not_carrying_'+id);const all=Freshness.normalizeBatches(inventory.freshness,inventory,now);let left=qty;const kept=[];for(const batch of all[id]){if(Freshness.describeBatch(id,batch,now).freshness==='spoiled'){kept.push({...batch});continue;}const n=Math.min(left,batch.qty);left-=n;if(batch.qty>n)kept.push({qty:batch.qty-n,acquiredAt:batch.acquiredAt});}if(left)throw Error(id+'_spoiled');inventory[id]-=qty;inventory.freshness[id]=kept;return{inventory,removed:qty,used:used(inventory),capacity:CAPACITY};}
+function withdraw(input,resources,id,amount=1,now=Date.now()){if(!ITEMS[id])throw Error('unknown_item');const qty=clamp(amount,1,ITEMS[id].maxStack),bag=normalize(input,now),stock=normalizeResources(resources,now);if(stock[id]<qty)throw Error('insufficient_'+id);if(Math.min(qty,ITEMS[id].maxStack-bag[id])!==qty||Math.floor((CAPACITY-used(bag))/ITEMS[id].weight)<qty)throw Error('inventory_full');const nextStock={...stock,[id]:stock[id]-qty};if(PERISHABLE.has(id)){const pulled=Freshness.takeBatches(stock.freshness,id,qty,stock,now);bag[id]+=qty;bag.freshness[id]=mergeBatches(bag.freshness[id],pulled.taken,bag[id],now);nextStock.freshness=pulled.batches;}else bag[id]+=qty;return{inventory:bag,resources:nextStock,taken:qty,used:used(bag),capacity:CAPACITY};}
+function stash(input,resources,now=Date.now()){const inventory=normalize(input,now),stock=normalizeResources(resources,now),stored={},remaining={...inventory};for(const id of Object.keys(ITEMS)){const amount=Math.min(inventory[id],Math.max(0,999999-stock[id]));if(!amount)continue;if(PERISHABLE.has(id)){const pulled=Freshness.takeBatches(inventory.freshness,id,amount,inventory,now);stock.freshness[id]=mergeBatches(stock.freshness[id],pulled.taken,stock[id]+amount,now);inventory.freshness[id]=pulled.batches[id];}stored[id]=amount;stock[id]+=amount;remaining[id]-=amount;}remaining.freshness=inventory.freshness;return{inventory:remaining,stored,resourceFreshness:stock.freshness,used:used(remaining),capacity:CAPACITY};}
+function addToResources(resources,id,amount,now=Date.now(),batches=null){if(!ITEMS[id])throw Error('unknown_item');const stock=normalizeResources(resources,now),requested=clamp(amount,0,999999),qty=Math.min(requested,999999-stock[id]);stock[id]+=qty;if(qty&&PERISHABLE.has(id))stock.freshness[id]=mergeBatches(stock.freshness[id],batches||[{qty,acquiredAt:now}],stock[id],now);return{resources:stock,accepted:qty,rejected:requested-qty};}
+function reconcileCount(input,id,nextCount,now=Date.now()){const inventory=normalize(input,now),next=clamp(nextCount,0,ITEMS[id]?.maxStack??999999),delta=next-inventory[id];if(!PERISHABLE.has(id)){inventory[id]=next;return inventory;}if(delta>0)inventory.freshness=Freshness.addBatch(inventory.freshness,id,delta,now);else if(delta<0)inventory.freshness=Freshness.takeBatches(inventory.freshness,id,-delta,inventory,now).batches;inventory[id]=next;return inventory;}
+function freshnessSummary(input,now=Date.now()){const i=normalize(input,now);return Freshness.summarize(i.freshness,i,now,now);}
+module.exports={ITEMS,PERISHABLE,CAPACITY,normalize,normalizeResources,used,add,addPreserved,remove,removeUsable,stash,withdraw,addToResources,reconcileCount,freshnessSummary};

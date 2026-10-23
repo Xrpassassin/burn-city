@@ -10,7 +10,7 @@ header{padding:calc(14px + env(safe-area-inset-top)) 16px 14px;border-bottom:1px
 </style></head><body>
 <header><div class="top"><div><div class="eyebrow">UNRANKED ZOMBIES SURVIVAL</div><h1>🏚 HOMEFRONT</h1></div><div class="row" style="flex:0 1 auto"><button class="btn" id="back">← Arena</button><button class="btn primary" id="signin">Sign in to save</button></div></div></header>
 <main class="wrap">
-<p class="intro">This refuge is yours. Scavenge beyond the walls, bring survivors home, assign them to work, build up the settlement, and hold the line when the dead arrive. Your progress is tied to your signed-in BURN City account.</p>
+<p class="intro" id="introText">This refuge is yours. Scavenge beyond the walls, bring survivors home, assign them to work, build up the settlement, and hold the line when the dead arrive. Your progress is tied to your signed-in BURN City account.</p>
 <div class="status" id="status" role="status">Connecting to the refuge ledger…</div>
 <div id="qrbox" class="panel" hidden><h2>Sign in with Xaman</h2><p class="muted">Scan the QR code to connect your account and enable server-side saving.</p><div class="qr" id="qr"></div></div>
 <div id="game" hidden>
@@ -72,6 +72,7 @@ async function act(action){if(visiting){message('Visitor mode is read-only.','da
 function render(){
  if(!base)return;$('game').hidden=false;$('signin').hidden=visiting;$('signin').textContent=localStorage.bcToken?'Signed in · '+(localStorage.bcAcct||'account').slice(0,8)+'…':'Sign in to save';
  $('refugeHeading').textContent=visiting?'🏚 Visiting a survivor refuge':'🗺 Your refuge · live 3D view';
+ $('introText').textContent=visiting?'You are visiting a public refuge. Look around the settlement and see its structures, survivor assignments, and status. This visit is read-only; you cannot change the owner’s progress.':'This refuge is yours. Scavenge beyond the walls, bring survivors home, assign them to work, build up the settlement, and hold the line when the dead arrive. Your progress is tied to your signed-in BURN City account.';
  $('privacyPanel').hidden=visiting;
  for(const id of ['repairBase','workday','defend','expedition','cancelPlacement']) $(id).hidden=visiting;
  for(const id of ['buildings','structures','survivors']) $(id).closest('.panel').hidden=visiting && ['buildings','structures','survivors'].includes(id);

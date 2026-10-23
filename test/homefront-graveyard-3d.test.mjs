@@ -49,7 +49,7 @@ assert.match(scene, /weaponSwingUntil/, 'animate the equipped weapon after a con
 assert.match(scene, /explorer\.userData\.weapon\.rotation\.z/, 'animate a visible strike arc in the 3D scene');
 
 assert.match(scene, /impactStyle === 'blunt'/, 'blunt weapons produce a heavier body-bash response');
-assert.match(scene, /detail\\.killed && style === 'sharp'/, 'sharp-weapon separation effect requires a confirmed kill');
+assert.ok(scene.includes("if (detail.killed && style === 'sharp' && target)"), 'sharp-weapon separation effect requires a confirmed kill');
 assert.match(scene, /homefront:combat-hit/, 'impact response only runs from confirmed combat results');
 
 assert.match(scene, /import \{ sfx \} from '\.\/sfx\.js'/, 'reuse the existing arena sound engine');

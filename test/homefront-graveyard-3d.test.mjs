@@ -89,9 +89,9 @@ assert.match(page, /id="drinkInField"/, 'provide a hydration action');
 assert.match(page, /id="cosmeticCollection"/, 'provide the cosmetic skin collection UI');
 assert.match(page, /cosmetic-only|never change combat power/i, 'explain that cosmetic skins do not affect combat power');
 assert.match(page, /homefront-graveyard-3d\.js/, 'load the 3D scene module');
-const constructionTick = scene.indexOf('const constructionView=!!pendingBuilding||constructionPaused;if(!constructionView)for(const mixer of zombieMixers)mixer.update(dt)');
+const constructionTick = page.indexOf('const constructionView=!!pendingBuilding||constructionPaused;if(!constructionView)for(const mixer of zombieMixers)mixer.update(dt)');
 assert(constructionTick >= 0, 'freeze infected animation mixers while protected construction mode is active');
-assert.match(scene, /if\(base\?\.wave>0&&!pendingBuilding&&!constructionPaused\)/, 'pause local infected movement during construction and server-confirmed build placement');
+assert.match(page, /if\(base\?\.wave>0&&!pendingBuilding&&!constructionPaused\)/, 'pause local infected movement during construction and server-confirmed build placement');
 console.log('Homefront 3D Graveyard integration checks passed.');
 
 assert.match(scene, /homefront:combat-hit/, 'trigger visible weapon feedback only after the server confirms combat');

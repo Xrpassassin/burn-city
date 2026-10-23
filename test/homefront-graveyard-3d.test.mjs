@@ -21,6 +21,10 @@ assert.match(zombiePilot, /selectZombieModelCandidates/, 'reuse deterministic ne
 assert.match(zombiePilot, /targetHeight = Number\.isFinite\(options\.targetHeight\)/, 'configure model scale for Homefront');
 assert.match(zombiePilot, /MAX_MODELS = 8/, 'cap expensive animated rigs');
 assert.match(zombiePilot, /MAX_MODEL_DISTANCE = 28/, 'keep detailed rigs near the player');
+assert.match(zombiePilot, /react\(id, kind = 'HitReact'\)/, 'expose authoritative hit and death animation reactions');
+assert.match(zombiePilot, /next\.setLoop\(THREE\.LoopOnce, 1\)/, 'play hit and death clips as one-shot reactions');
+assert.match(zombiePilot, /item\.deadUntil = item\.reactionUntil/, 'retain server-confirmed death animation after encounter removal');
+assert.match(scene, /zombieModelPilot\?\.react\(active\.id, detail\.killed \? 'Death' : 'HitReact'\)/, 'trigger animated reactions only from confirmed combat events');
 assert.match(scene, /GLTFLoader/, 'reuse the existing GLTF asset loader');
 assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely');
 assert.match(scene, /assets\/homefront\/zombie\.glb/, 'reuse the existing Homefront zombie model');

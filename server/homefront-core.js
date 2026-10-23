@@ -14,7 +14,7 @@ const BUILDINGS = Object.freeze({
   storage:    { cost: { wood: 10, scrap: 5 }, hp: 100, defense: 0, cap: 4 },
   gate:       { cost: { wood: 12, scrap: 8 }, hp: 180, defense: 3, cap: 2 }
 });
-const EXPLORATION_ZONES = Object.freeze({outskirts:{label:'City Outskirts',risk:1,food:2,ammo:1,scrap:3,wood:2,meds:0,recruit:0.44,boss:false},residential:{label:'Residential Ruins',risk:1,food:3,ammo:1,scrap:5,wood:2,meds:0,recruit:0.5,boss:false},commercial:{label:'Market District',risk:2,food:3,ammo:2,scrap:8,wood:1,meds:1,recruit:0.38,boss:false},hospital:{label:'Overrun Hospital',risk:3,food:4,ammo:3,scrap:5,wood:1,meds:3,recruit:0.32,boss:false},industrial:{label:'Industrial Yard',risk:3,food:4,ammo:3,scrap:12,wood:2,meds:0,recruit:0.24,boss:false},subway:{label:'Buried Subway',risk:4,food:5,ammo:4,scrap:10,wood:1,meds:2,recruit:0.28,boss:true},research_lab:{label:'Sealed Research Annex',risk:5,food:6,ammo:5,scrap:16,wood:1,meds:4,recruit:0.2,boss:true}});
+const DIFFICULTIES = Object.freeze({story:{label:'Story',cost:0.8,reward:0.7,threat:0.75},standard:{label:'Standard',cost:1,reward:1,threat:1},veteran:{label:'Veteran',cost:1.35,reward:1.55,threat:1.4},nightmare:{label:'Nightmare',cost:1.8,reward:2.35,threat:1.9}});\nconst TYCOON_UPGRADES = Object.freeze({scavenger_rig:{label:'Scavenger Rig',description:'+15% salvage per level',baseCost:100,max:5},ember_press:{label:'Ember Press',description:'+5 embers per successful expedition per level',baseCost:140,max:5},field_armory:{label:'Field Armory',description:'+2 defense strength per level',baseCost:120,max:5},medic_station:{label:'Field Medic Station',description:'+1 bonus medicine on successful trips per level',baseCost:160,max:3}});\nconst EMBER_MARKET = Object.freeze({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},food:{amount:10,cost:18},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});\nconst EXPLORATION_ZONES = Object.freeze({outskirts:{label:'City Outskirts',risk:1,food:2,ammo:1,scrap:3,wood:2,meds:0,recruit:0.44,boss:false},residential:{label:'Residential Ruins',risk:1,food:3,ammo:1,scrap:5,wood:2,meds:0,recruit:0.5,boss:false},commercial:{label:'Market District',risk:2,food:3,ammo:2,scrap:8,wood:1,meds:1,recruit:0.38,boss:false},hospital:{label:'Overrun Hospital',risk:3,food:4,ammo:3,scrap:5,wood:1,meds:3,recruit:0.32,boss:false},industrial:{label:'Industrial Yard',risk:3,food:4,ammo:3,scrap:12,wood:2,meds:0,recruit:0.24,boss:false},subway:{label:'Buried Subway',risk:4,food:5,ammo:4,scrap:10,wood:1,meds:2,recruit:0.28,boss:true},research_lab:{label:'Sealed Research Annex',risk:5,food:6,ammo:5,scrap:16,wood:1,meds:4,recruit:0.2,boss:true}});
 const clampInt = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, Math.floor(v))) : min;
 const clampNumber = (v, min, max) => Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : 0;
 const cleanOwner = id => typeof id === 'string' && id.trim() && id.length <= 180 ? id.trim() : null;
@@ -29,7 +29,7 @@ function createBase(ownerId, now = Date.now()) {
     version: VERSION, owner, revision: 1, createdAt: now, updatedAt: now,
     level: 1, day: 1, baseHp: 500, baseMaxHp: 500, wave: 0, visibility: 'private',
     exploration: { discoveredZones: ['outskirts'], lastExpedition: null },
-    resources: { wood: 40, scrap: 30, food: 24, meds: 5, ammo: 18 },
+    resources: { wood: 40, scrap: 30, food: 24, meds: 5, ammo: 18 },\n    embers: 50, upgrades: { scavenger_rig: 0, ember_press: 0, field_armory: 0, medic_station: 0 },
     structures: [], survivors: [], expeditionCount: 0, defenseCount: 0,
     log: [{ id: 1, kind: 'welcome', text: 'A refuge is yours. Gather supplies, recruit survivors, and prepare for the first breach.', at: now }]
   };
@@ -40,7 +40,7 @@ function validateBase(input, ownerId) {
       !input.resources || !Array.isArray(input.structures) || !Array.isArray(input.survivors) ||
       input.structures.length > MAX_STRUCTURES || input.survivors.length > MAX_SURVIVORS) return null;
   const out = clone(input);
-  for (const r of ['wood', 'scrap', 'food', 'meds', 'ammo']) out.resources[r] = clampInt(out.resources[r], 0, 999999);
+  for (const r of ['wood', 'scrap', 'food', 'meds', 'ammo']) out.resources[r] = clampInt(out.resources[r], 0, 999999);\n  out.embers = clampInt(out.embers, 0, 999999999);\n  out.upgrades = out.upgrades && typeof out.upgrades === 'object' ? out.upgrades : {};\n  for (const [id, spec] of Object.entries(TYCOON_UPGRADES)) out.upgrades[id] = clampInt(out.upgrades[id], 0, spec.max);
   out.visibility = input.visibility === 'public' ? 'public' : 'private';
   out.baseMaxHp = clampInt(out.baseMaxHp, 1, 100000);
   out.baseHp = clampInt(out.baseHp, 0, out.baseMaxHp);
@@ -94,7 +94,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       if (s.resources.food < 2 || s.resources.ammo < 1) throw new Error('expedition_supplies_required');
       const zones = { outskirts: { label: 'City Outskirts', risk: 1, food: 2, ammo: 1, scrap: 3, wood: 2, meds: 0, recruit: 0.44 }, residential: { label: 'Residential Ruins', risk: 1, food: 3, ammo: 1, scrap: 5, wood: 2, meds: 0, recruit: 0.5 }, commercial: { label: 'Market District', risk: 2, food: 3, ammo: 2, scrap: 8, wood: 1, meds: 1, recruit: 0.38 }, hospital: { label: 'Overrun Hospital', risk: 3, food: 4, ammo: 3, scrap: 5, wood: 1, meds: 3, recruit: 0.32 }, industrial: { label: 'Industrial Yard', risk: 3, food: 4, ammo: 3, scrap: 12, wood: 2, meds: 0, recruit: 0.24 }, subway: { label: 'Buried Subway', risk: 4, food: 5, ammo: 4, scrap: 10, wood: 1, meds: 2, recruit: 0.28 }, research_lab: { label: 'Sealed Research Annex', risk: 5, food: 6, ammo: 5, scrap: 16, wood: 1, meds: 4, recruit: 0.2 } };
-      const zoneId = typeof action.zone === 'string' ? action.zone : 'outskirts';
+      const zoneId = typeof action.zone === 'string' ? action.zone : 'outskirts';\n      const difficultyId = typeof action.difficulty === 'string' ? action.difficulty : 'standard';\n      const difficulty = DIFFICULTIES[difficultyId];\n      if (!difficulty) throw new Error('unknown_difficulty');
       const zone = zones[zoneId];
       if (!zone) throw new Error('unknown_exploration_zone');
       const gate = { outskirts: 0, residential: 1, commercial: 2, hospital: 3, industrial: 3, subway: 4, research_lab: 5 }[zoneId];
@@ -103,11 +103,33 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const n = ++s.expeditionCount, seed = hash(s.owner + ':' + n + ':' + zoneId + ':' + s.revision), roll = rand(seed);
       const scrap = zone.scrap + Math.floor(rand(hash('scrap:' + seed)) * 5), wood = zone.wood + Math.floor(rand(hash('wood:' + seed)) * 4);
       s.resources.scrap = Math.min(999999, s.resources.scrap + scrap); s.resources.wood = Math.min(999999, s.resources.wood + wood);
-      if (zone.meds) s.resources.meds = Math.min(999999, s.resources.meds + zone.meds);
+      const medicine = Math.floor(zone.meds * difficulty.reward) + (zone.meds > 0 ? (s.upgrades.medic_station || 0) : 0);\n      if (medicine) s.resources.meds = Math.min(999999, s.resources.meds + medicine);\n      const embersEarned = Math.max(1, Math.floor((8 + zone.risk * 7) * difficulty.reward) + (s.upgrades.ember_press || 0) * 5);\n      s.embers = Math.min(999999999, s.embers + embersEarned);
       let found = false;
       if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4) }); found = true; }
-      const result = 'Explored ' + zone.label + ': recovered ' + wood + ' wood and ' + scrap + ' scrap' + (zone.meds ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
+      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + scrap + ' scrap, and ' + embersEarned + ' embers' + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
       record(s, 'exploration', result, now);
+      break;
+    }
+    case 'buy_upgrade': {
+      const id = typeof action.upgrade === 'string' ? action.upgrade : '';
+      const spec = TYCOON_UPGRADES[id];
+      if (!spec) throw new Error('unknown_upgrade');
+      const level = s.upgrades[id] || 0;
+      if (level >= spec.max) throw new Error('upgrade_maxed');
+      const cost = spec.baseCost * (level + 1);
+      if (s.embers < cost) throw new Error('insufficient_embers');
+      s.embers -= cost; s.upgrades[id] = level + 1;
+      record(s, 'upgrade', spec.label + ' upgraded to level ' + s.upgrades[id] + ' for ' + cost + ' embers.', now);
+      break;
+    }
+    case 'buy_materials': {
+      const resource = typeof action.resource === 'string' ? action.resource : '';
+      const pack = EMBER_MARKET[resource];
+      if (!pack) throw new Error('unknown_market_resource');
+      if (s.embers < pack.cost) throw new Error('insufficient_embers');
+      if (s.resources[resource] + pack.amount > 999999) throw new Error('resource_capacity');
+      s.embers -= pack.cost; s.resources[resource] += pack.amount;
+      record(s, 'market', 'Traded ' + pack.cost + ' embers for ' + pack.amount + ' ' + resource + '.', now);
       break;
     }
     case 'assign': {
@@ -171,7 +193,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(guards.length / 2) + 1));
       s.resources.ammo -= ammoUsed;
       const active = s.structures.filter(x => x.hp > 0);
-      const defense = guardStrength * 2 + active.reduce((n, x) => n + BUILDINGS[x.type].defense, 0) + ammoUsed * 0.8;
+      const defense = guardStrength * 2 + (s.upgrades.field_armory || 0) * 2 + active.reduce((n, x) => n + BUILDINGS[x.type].defense, 0) + ammoUsed * 0.8;
       const threat = 9 + Math.floor(s.survivors.length / 4); // Fixed perimeter threat; never scales with breach count.
       const damage = Math.max(0, Math.ceil((threat - defense) * 6));
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
@@ -203,4 +225,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, EXPLORATION_ZONES, createBase, validateBase, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, EXPLORATION_ZONES, createBase, validateBase, applyAction };

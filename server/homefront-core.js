@@ -48,7 +48,7 @@ function validateBase(input, ownerId) {
       !input.resources || !Array.isArray(input.structures) || !Array.isArray(input.survivors) ||
       input.structures.length > MAX_STRUCTURES || input.survivors.length > MAX_SURVIVORS) return null;
   const out = clone(input);
-  for (const r of ['wood', 'scrap', 'food', 'water', 'meds', 'ammo']) out.resources[r] = clampInt(out.resources[r], 0, 999999);
+  for (const r of ['wood', 'scrap', 'food', 'water', 'meds', 'ammo']) out.resources[r] = clampInt(r === 'water' && !Number.isFinite(out.resources[r]) ? 18 : out.resources[r], 0, 999999);
   out.embers = clampInt(out.embers, 0, 999999999);
   out.exploration = out.exploration && typeof out.exploration === 'object' ? out.exploration : {};
   out.exploration.discoveredZones = Array.isArray(out.exploration.discoveredZones) ? [...new Set(out.exploration.discoveredZones.filter(z => typeof z === 'string' && EXPLORATION_ZONES[z]))] : ['outskirts'];

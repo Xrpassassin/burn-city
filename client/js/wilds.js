@@ -481,7 +481,8 @@ function updCreature(cr, dt, t, P, distP) {
   const def = game.SP[cr.sp], tp = TEMP()[def.temperament] || {}, L = cr.mesh.userData.rig;
   let maxSpd = L.speed, lookYaw = 0, sniff = false, alert = false, wag = false;
   const toP = Math.atan2(P.pos.x - cr.x, P.pos.z - cr.z); const run = C().input.keys.ShiftLeft || C().input.keys.ShiftRight || (C().input.tb && C().input.tb.run);
-  const pursuingHostile = !!(ZONE && cr.slot.hostile && distP < 9 && distP > 2.6 && C().getMode() === 'explore' && !W.enc);
+  const fleeingFromPlayer = !!(tp.flees && distP < (run ? 7 : 3.2) && !cr.calm);
+  const pursuingHostile = !!(ZONE && cr.slot.hostile && W.inForest && distP < 9 && distP > 2.6 && cr.cool <= 0 && !W.enc && C().getMode() === 'explore' && !fleeingFromPlayer);
   if ((cr.st === 'idle' || cr.st === 'wander') && !pursuingHostile) cr.wanderHeading = updateWildsWanderAgent(cr.ai, dt, cr.x, cr.z, cr.yaw, L.speed) || cr.wanderHeading;
   cr.t -= dt; cr.cool = Math.max(0, cr.cool - dt);
   if (cr.st === 'held') { cr.spd *= Math.pow(.02, dt); let dy = Math.atan2(Math.sin(cr.face - cr.yaw), Math.cos(cr.face - cr.yaw)); cr.yaw += dy * Math.min(1, dt * 5); cr.yawRate = dy * 5; alert = true; }

@@ -69,6 +69,18 @@ assert.ok(veteranTrip.embers > standardTrip.embers, 'higher expedition difficult
 assert.ok(veteranTrip.resources.scrap > standardTrip.resources.scrap, 'higher expedition difficulty pays more salvage');
 assert.ok(veteranTrip.resources.food < standardTrip.resources.food, 'higher expedition difficulty costs more supplies than Standard');
 assert.throws(() => H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'subway', difficulty: 'impossible' }), /unknown_difficulty/);
+const armoryBase = H.createBase('armory-test', 2304);
+armoryBase.resources.scrap = 100; armoryBase.embers = 100;
+const shotgunCrafted = H.applyAction(armoryBase, 'armory-test', { type: 'craft_weapon', weapon: 'pump_shotgun' }, 2305);
+assert.ok(shotgunCrafted.weapons.includes('pump_shotgun'), 'crafted weapons persist in the refuge armory');
+assert.equal(shotgunCrafted.resources.scrap, 45);
+assert.equal(shotgunCrafted.embers, 60);
+const shotgunEquipped = H.applyAction(shotgunCrafted, 'armory-test', { type: 'equip_weapon', weapon: 'pump_shotgun' }, 2306);
+assert.equal(shotgunEquipped.equippedWeapon, 'pump_shotgun', 'equipped weapon persists');
+assert.equal(H.WEAPONS[shotgunEquipped.equippedWeapon].power, 3);
+assert.throws(() => H.applyAction(shotgunEquipped, 'armory-test', { type: 'craft_weapon', weapon: 'pump_shotgun' }), /weapon_already_owned/);
+assert.throws(() => H.applyAction(shotgunEquipped, 'armory-test', { type: 'equip_weapon', weapon: 'shock_maul' }), /weapon_not_owned/);
+
 const bossCostBase = H.createBase('boss-cost-only', 2305);
 bossCostBase.resources.food = 100; bossCostBase.resources.ammo = 100;
 const bossCostBefore = { scrap: bossCostBase.resources.scrap, wood: bossCostBase.resources.wood, embers: bossCostBase.embers, survivors: bossCostBase.survivors.length, trips: bossCostBase.expeditionCount };

@@ -26,7 +26,7 @@ function tick(room, now=Date.now()) {
     room.departed=true;clearCountdown(room);
     const event={e:'flight_depart',map:room.map,roomId:room.id,departedAt:now};
     for(const p of room.players.values())safeSend(p.ws,event);
-    const cleanup=setTimeout(()=>{for(const p of room.players.values()){try{p.ws.close(1000,'flight_departed')}catch{}}if(rooms.get(room.key)===room)rooms.delete(room.key)},2500);cleanup.unref?.();
+    const cleanup=setTimeout(()=>{for(const p of room.players.values()){try{p.ws.close(1000,'flight_departed')}catch{}}rooms.delete(room.key)},2500);cleanup.unref?.();
     return;
   }
   const second=Math.ceil((room.countdownAt-now)/1000);
@@ -34,14 +34,14 @@ function tick(room, now=Date.now()) {
 }
 function remove(room,p) {
   if(!room.players.delete(p.id))return;
-  if(!room.players.size){clearCountdown(room);if(rooms.get(room.key)===room)rooms.delete(room.key);return;}
+  if(!room.players.size){clearCountdown(room);rooms.delete(room.key);return;}
   armCountdown(room);
 }
 function attach(ws,url) {
   const map=url.searchParams.get('map')==='refinery'?'refinery':'random';
-  const key=map;
-  let room=rooms.get(key);
-  if(!room||room.departed||room.players.size>=MAX_PARTY){room={id:'flight-'+nextRoom++,key,map,players:new Map(),countdownAt:null,timer:null,departed:false};rooms.set(key,room);}
+  // Keep multiple full parties for the same map instead of overwriting the map's room entry.
+  let room=[...rooms.values()].find(r=>r.map===map&&!r.departed&&r.players.size<MAX_PARTY);
+  if(!room){const id='flight-'+nextRoom++;room={id,key:id,map,players:new Map(),countdownAt:null,timer:null,departed:false};rooms.set(room.key,room);}
   // A late arrival joins the same queue, but departure waits for every connected member to ready again.
   if(room.countdownAt)clearCountdown(room);
   const p={id:nextPlayer++,name:clean(url.searchParams.get('name')),ready:false,ws,room};

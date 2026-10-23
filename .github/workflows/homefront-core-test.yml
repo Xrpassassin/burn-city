@@ -27,6 +27,6 @@ jobs:
           node --check server/homefront.js
           node --check server/server.js
       - name: Check Homefront browser module syntax
-        run: node --input-type=module --check < <(node -e "const fs=require('fs');const s=fs.readFileSync('client/arena/homefront.html','utf8');const m=s.match(/<script type=\"module\">([\\s\\S]*?)<\\/script>/);if(!m)process.exit(2);process.stdout.write(m[1])")
+        run: node --input-type=module --check < <(node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/homefront.html","utf8");const m=s.split("<script type=\\"module\\">")[1]?.split("</script>")[0];if(!m)process.exit(2);process.stdout.write(m)')
       - name: Run Homefront settlement simulation
         run: npm run test:homefront

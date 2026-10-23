@@ -276,3 +276,24 @@ const steelEmergencyResult = Core.applyAction(steelEmergency, 'rSteelEmergency',
 assert.equal(steelEmergencyResult.resources.steel, 0, 'emergency repair of steel defenses consumes steel stock');
 assert.equal(steelEmergencyResult.resources.scrap, 26, 'emergency steel repair consumes four scrap');
 assert.equal(steelEmergencyResult.structures[0].hp, 120, 'emergency repair still restores up to 100 HP');
+
+
+// Steel-plated gates preserve reinforcement through validation and add real siege defense.
+const gateArmor = Core.createBase('gateArmor', now);
+gateArmor.resources.steel = 18;
+gateArmor.resources.scrap = 32;
+gateArmor.structures = [{ id: 'armored-gate', type: 'gate', material: 'wood', hp: 180, maxHp: 180, x: 8, z: 0 }];
+const defenseBeforeGateArmor = Core.threatProfile(gateArmor).defense;
+const gateTierOne = Core.applyAction(gateArmor, 'gateArmor', { type: 'reinforce_gate', target: 'armored-gate' }, now + 50);
+assert.equal(gateTierOne.structures[0].reinforcementLevel, 1, 'first gate reinforcement tier persists');
+assert.equal(gateTierOne.structures[0].maxHp, 225, 'first steel plate tier adds 25% gate HP');
+assert.equal(gateTierOne.structures[0].hp, 225, 'new armor adds integrity rather than leaving the gate damaged');
+assert.ok(Core.threatProfile(gateTierOne).defense >= defenseBeforeGateArmor + 2, 'reinforced gate contributes additional perimeter defense');
+const gateTierTwo = Core.applyAction(gateTierOne, 'gateArmor', { type: 'reinforce_gate', target: 'armored-gate' }, now + 51);
+assert.equal(gateTierTwo.structures[0].reinforcementLevel, 2, 'second gate reinforcement tier persists');
+assert.equal(gateTierTwo.structures[0].maxHp, 270, 'second steel plate tier raises max HP to 150% of the wood gate');
+assert.throws(() => Core.applyAction(gateTierTwo, 'gateArmor', { type: 'reinforce_gate', target: 'armored-gate' }, now + 52), /gate_reinforcement_maxed/);
+assert.throws(() => Core.applyAction(gateArmor, 'gateArmor', { type: 'reinforce_gate', target: 'not-a-gate' }, now + 53), /unknown_gate/);
+const normalizedGateArmor = Core.validateBase(gateTierTwo, 'gateArmor');
+assert.equal(normalizedGateArmor.structures[0].reinforcementLevel, 2, 'reinforcement level survives save normalization');
+assert.equal(normalizedGateArmor.structures[0].maxHp, 270, 'reinforced gate HP survives save normalization');

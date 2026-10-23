@@ -47,4 +47,25 @@ assert.match(breachLog, /reduced perimeter damage by 6%/,
 assert.equal(defended.structures[0].hp, 90 - Number(actualDamageMatch[1]),
   'mitigated siege damage is applied to the real structure state');
 
+
+ // A damaged structure deeper inside the yard must not grant cover if the outermost
+ // siege target is still intact. The server uses the same deterministic target order
+ // for damage and guard cover, rather than treating any damaged defense as cover.
+ const layeredBase = Core.createBase('rGuardLayered', now);
+ layeredBase.resources.ammo = 30;
+ layeredBase.structures = [
+   { id: 'outer-wall', type: 'wall', hp: 100, maxHp: 100, x: 9, z: 0, rotation: 0, trenchLevel: 0, manned: false },
+   { id: 'inner-gate', type: 'gate', hp: 90, maxHp: 180, x: 8, z: 0, rotation: 0, trenchLevel: 0, manned: false }
+ ];
+ layeredBase.survivors = [{ id: 'layer-guard', name: 'Guard', role: 'guard', morale: 100 }];
+ const layeredRawDamage = Core.threatProfile(layeredBase).projectedStructureDamage;
+ const layeredResult = Core.applyAction(layeredBase, 'rGuardLayered', { type: 'defend' }, now + 3);
+ const layeredLog = layeredResult.log[layeredResult.log.length - 1].text;
+ const layeredDamageMatch = layeredLog.match(/with (\d+) structure damage/);
+ assert.ok(layeredDamageMatch, 'layered defense log reports actual structure damage');
+ assert.equal(Number(layeredDamageMatch[1]), layeredRawDamage,
+   'guards do not mitigate damage to an intact outer target because another structure is damaged deeper inside');
+ assert.doesNotMatch(layeredLog, /reduced perimeter damage/,
+   'cover is not reported when the actual first target is intact');
+
 console.log('Homefront authoritative guard-defense regressions passed.');

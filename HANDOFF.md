@@ -311,11 +311,49 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
   unpacked in the vertex shader; the sheath gets `w/2.6` so both shells share one vein); the rail core gets a `vw` uniform. The old gold shimmer + lower-half dissolve now
   act on the vein only (the activity-coloured tube never breaks up); gold dispersal motes and gold sparks are unchanged. LOW tier: same vein, core shell only (no sheath).
   `window.__swirl.veins` = [{pool, lockedXrp, w}]. Gap: partly locked (non-gold) pools get no vein, by the strict-gold rule; no live pool is gold right now, so check it with `goldtest`.
+- **Lock halo** (see the AMM locked liquidity section below): the vein stays the strict-gold badge; how much LP is locked is the gold chain halo.
+- **Rail sync** (sw bc-v70-railsync): every major rail (TVL >= 100, a tower end that gets a swirl) now ENDS on that tower's swirl helix start instead of running to the roof
+  near the tower axis: `helixAt()` (app.js, above the pool loop) is the swirl's own helix (same radius, height, spin, per-tower order + cap: LOW 3 / else 6), computed from the plain arc;
+  `railSync()` rebuilds the rail as a CurvePath of two cubics: helix start (leaving along the helix tangent) -> the old arc midpoint (same clearance height, horizontal) -> the other helix start.
+  The swirl then starts exactly at the rail end (no Bezier lead-in, `b.hx[end]` reused; one extra spline point so it leaves along the true helix tangent). Rail thickness, activity colours,
+  flow phase and the gold vein are unchanged (same tube radius/shaders). Ends without a swirl (minor pools, capped towers, ends below 8 m) keep the old roof endpoint. `curve.v0/v2` stay the end points
+  (garage decks). CurvePath.getPoint is clamped (three returns null at t=1 from float error). Test: `?debug=1&railsync=0` shows the old endpoints (A/B only). +0 draws.
 - **Visual test hook**: `?debug=1&goldtest=1` (top-2 TVL pools) or `goldtest=XRP/BURN,XRP/IMM` (pairs or AMM accounts) forces gold for those pools (labels say "· test").
 - **Tests/audit**: `test/goldlock-sim.js` (in `npm test`, fixture-based, stubbed fetch: rule edges, signer list/regular key, 94.96% floor, locked pool < 5k not gold,
   unpriced pair). `scripts/lockaudit.js` re-audits every tracked pool against the ledger -> `lock-audit.md`.
 - **Gaps**: gold is decided when the city builds; a pool crossing the line while the page is open turns gold on the next load. Real-phone check of the dispersal
   look/fps is still pending (tested in headless iPhone 14 emulation, SwiftShader).
+
+## AMM locked liquidity halos + black-hole supply singularities (city/amm-lock, sw bc-v69-ammlock)
+- **Files**: `server/amm-lock.js` (verification, cache, `/api/amm-lock`), `client/js/amm-lock.js` (visuals + card sections + `?locktest` fixture), `test/amm-lock-sim.js` (in `npm test`).
+- **Hooks (small)**: `server/server.js` requires it, routes `/api/amm-lock`, calls `AmmLock.start(Eco)` after `Eco.start()` (it reuses `eco.rpc`, so the same ws + HTTP fallback).
+  `client/js/app.js`: `initAmmLock({...})` right after the first `actScore()`; `showInfo` opens `u.kind==='ammlock'` (singularity tap) and appends the lock/burn section
+  to pool + token cards (`window.__ammLock.card`); the pool card's "Locked LP" row and the hover tip read `__ammLock.lpText(p)` ("x% verified" or "x% reported · unverified").
+- **Visual hierarchy** (+3 draw calls total; 2 on LOW tier / reduced motion): bridge body unchanged (thickness = TVL, colour = activity blue→purple→orange→red);
+  **gold chain halo** = ONE InstancedMesh of segmented torus rings at each bridge's arc midpoint: lit gold arc = VERIFIED permanently locked share of LPTokenBalance
+  (ring thickness also grows with it; ≥ 89% gets a slow glint), dim amber dashes = time-locked (Escrow), faint steel = the rest, grey dashes = UNVERIFIED with a reported lock (no gold at all).
+  **Singularity** = ONE InstancedMesh, one per TOKEN (never per pool), black core + violet rim, beside the tower on the side away from the hub at street level
+  (apart from every rail), radius `1.1 + 3.4·sqrt(burn share)`; **particles** = ONE Points draw, motion fully in the vertex shader (no per-frame CPU), phones 14 / desktop 32 per singularity,
+  off on LOW tier and with `prefers-reduced-motion` (halo glint frozen too). Invisible pick spheres (0 draws) make singularities tappable. Matrices re-applied every 2 s (towers rescale with mcap; minor-pool toggle).
+- **Halo vs #121 gold vein**: the vein **stays** for strict gold only (≥ 95% verified AND ≥ 5k XRP, `goldlock.js`) and the halo is the measurement for every pool. They use the same
+  black-hole rule, so a gold pool always also has a (near-)full halo: the halo says *how much*, the vein + Forever Rails say *certified*. Replacing the vein would have removed a protected,
+  liquidity-weighted signal; keeping it as the badge avoids two competing "how much" readings. The legend in the cards says so.
+- **Verification rules** (server): permanent = `account_info` lsfDisableMaster AND (no RegularKey or a `BCGold.BH_KEYS` black-hole key) AND no SignerList AND not an AMM account (`AMMID`).
+  Pool %: LP held by permanent accounts / `amm_info.lp_token` (LPTokenBalance), floored to 0.01. LP holders ≥ 0.1% are classified (max 60), smaller ones are "not checked" and never counted.
+  LP in Escrow objects on the AMM (`account_objects type escrow`) = time-locked. A holder whose account_info fails makes the pool **unverified** (`locked_pct: null`, `locked_pct_min` kept).
+  Token burn: balances of black-hole holders (issuer and AMM accounts excluded; top 30 holders ≥ 0.01% of supply, 25 trustline pages) / **`gateway_balances` obligations** on the issuer
+  (fallback: sum of the issuer's trustline balances when the scan is complete; `supply_src` says which). Incomplete trustline scan = `partial` (lower bound).
+  Master-disabled holders that still have a key or signers = "sent to designated address" (not counted). Issuer black-holed = `issuer_keys_disabled`, shown separately, never burned supply.
+  Old `locked_pct` in `data.js` is shown only as "reported · unverified" until the API has a verified figure. Burn history (`burn_vol`, tokens returned to the issuer) is shown as reported context.
+- **Cache / rate limit**: full refresh every 2 h (first run 90 s after boot, `AMM_LOCK_DELAY_MS`), ≥ 150 ms between calls (single flight), account_info cached 6 h. Anything older than 6 h
+  (server and client check `t_ms`) is served as UNVERIFIED with no %. `AMM_LOCK=0` disables it. A full pass is ~1,000 calls / ~6 min.
+- **API**: `GET /api/amm-lock` → `{ts, t_ms, last_ok, rules, pools: {amm: {status, locked_pct, locked_lp, lp_supply, lp_supply_src, time_locked_pct, held_pct, unchecked_pct, destinations[{acct, pct, cls, reason, source}], reported_pct}},
+  tokens: {name: {status, burned, burned_pct, supply, supply_src, black_holes[...], issuer_keys_disabled, issuer_src, pools[]}}}` (503 `warming_up` before the first pool is read).
+- **Test hooks**: `?locktest` = client fixture on real bridges/towers (partial 90.5%, 100%, keyed holders 10%, failed fetch, escrow 50+20%, 0%, small pool; tokens: multi-pool 15%, 60%,
+  issuer black-holed with no burn, failed fetch, designated address). `?debug=1` or `?locktest` adds `window.__ammLock.view()/apply()/load()`.
+- **Gaps**: halo sits at one point per bridge (midpoint), not along the rail; no pool→singularity link line (left out to keep the 3-draw budget and avoid implying the tokens are in the pool);
+  token scans check only the top 30 holders (a tiny black-hole balance below 0.01% is not counted, so burn is a slight lower bound); RLUSD is not scanned (unverified);
+  Escrow detection depends on IOU escrows being listed on the AMM account (TokenEscrow); real-phone look/fps still pending (headless SwiftShader only).
 
 ## AEGIS Live Cams (feat/live-cams, sw bc-v52-livecams)
 - **Server** `server/cams.js` (hook: one line in `server.js` before `/api/eco/live`, plus `Cams.start()` at boot).
@@ -345,6 +383,7 @@ Supersedes the City Watch notes above where they differ: **AEGIS never changes w
 - Tests: `npm run test:fishing-rules`, `node test/fish-sim.js`; `npm run test:all` runs both plus the server sims.
 - Hooks: `window.__fish.openShop()` / `openLog()` for smoke tests. Touch ghost-click guard (pointerdown + capture-phase click filter) is unchanged.
 - Known gap: not yet in the default `npm test`; iPhone 390x844 smoke is about 5 draw calls above main (~403 vs ~398 in the swiftshader harness).
+- Cast generation guard (sw bc-v72-fishgen): `castAt` bumps `castGen`; the bite timer, the bite-escape timer and the post-`api('cast')` continuation only act if they belong to the current cast. Before, cancelling a cast (Reel in / Esc / too-early hook) and recasting let the old cast's timer fire an early `❗ Bite!` on the new cast (reproduced in Playwright on iPhone 13 and desktop). A used-up bait now falls back to Worm before the cast (the server already did this; the UI said `bait: shrimp` with 0 left).
 
 ## CinderWilds city horizon (sw bc-v55-horizon)
 - client/js/wilds-gate.js `buildForestHorizon()`: visual-only distant forest skyline north of the city (group `wilds-horizon`; 1 ridge mesh + 4 InstancedMesh, 132 trees, about 5 draw calls, no colliders, no forest loading).
@@ -450,3 +489,14 @@ Replaces `transport-menu.js` + `play-menu.js` (both deleted; nothing else import
 - **City Fly layout fix** (`js/ui.js` `syncMode`): it read the mode from the `#btns` dock, but `✈ Fly` left the dock in #109, so Fly read as Orbit and `body.mFly` was never set: on phones the Orbit/Explore dock stayed up in Fly, `🏁 Race drone` sat on top of it and the ▼ button, the minimap sat on the stick. It now asks `window.__city.getMode()` (falls back to the dock).
 - **Phone UI cleanup (same PR)**, CSS only: Blacktide return link (`.brand`) and TAKE THE HELM are 44px tall on touch; the vessel HUD starts below the notch in portrait (it overlapped the return link); landscape phones now get the touch sailing controls (they were shown only ≤700px wide, so an 844px-wide iPhone in landscape could not steer or fire), a compact HUD and notch-safe sides. Eternal Grind title/character/death screens keep 44px buttons on phones (`body.m .scr button`). Arena lobby checkbox rows (`Teammates' trails kill`, `Best of 3`) are 44px tap rows on touch.
 - Audit harness used (not in git): Playwright Chromium as iPhone 13 portrait (390x844, insets 47/34) + landscape (844x390, insets 47 L/R, 21 bottom) + desktop 1366x800, `serviceWorkers:'block'` (otherwise the city's SW serves the other pages from cache and the inset rewrite never runs), env(safe-area-inset-*) rewritten in the served CSS/JS; flags touch targets <44, controls covered by another control, offscreen and inside-the-safe-area controls.
+
+## Hub travel journeys: airport → Zombies, Aegis Pyramid → Light Cycles (PR #132, sw bc-v71-exptravel)
+- Files: `client/js/experience-registry.mjs` (+ `.test.mjs`, in `npm test`), kiosk/pad + hit volumes in `client/js/airport.js` (airport kiosk at -130,-535) and `client/js/aegis-pyramid.js` (pad at X+20), travel card in `app.js` `showInfo` (`kind:'experience'`), `#returnCity` in `client/arena/index.html` (shown only for `?from=airport|aegis-pyramid-plaza`). Details: `docs/experience-travel-framework-handoff.md`.
+- Return position uses the existing `sessionStorage.bc_ret` restore (Explore at the kiosk's `returnX/Z`, facing `returnYaw`). The old decorative avenue portal rings are removed.
+- Stabilization (Hark): travel card buttons 44px; `pageshow` (bfcache back) clears a stale boarding overlay / travel card in the city and the return overlay in the arena; repeated Return taps run one teardown.
+- Verified in Playwright (iPhone 13 + desktop, `serviceWorkers:'block'`): kiosk tap → card → Stay (no `bc_ret` left) → Enter (double tap = one launch) → arena free play in the right mode with Return visible, no overlap in portrait/landscape → Return → city Explore at the exact return point. The bfcache path is syntax-only.
+
+## Eternal Grind seeded dungeon layout prototype (PR #131, isolated lab)
+- Files: `client/dungeon/dungeon-layout-core.mjs` (+ `.test.mjs`, in `npm run test:eternal-grind`), `dungeon-layout-lab.html/.mjs` (open `/dungeon/dungeon-layout-lab.html`), `DUNGEON_LAYOUT_PROTOTYPE.md`, `DUNGEON_LAYOUT_LAB.md`. Not imported by the live dungeon (`/dungeon/index.html`), combat, loot or saves; not precached by the SW.
+- Contract: `generateDungeonLayout({ seed, columns=5, rows=5, loopChance=.12 })` → grid rooms + corridors between grid neighbours (spanning tree + loops), `entranceId` 0, `bossId` = farthest room, `mainPathLength`.
+- Stabilization (Hark): the lab had no import map, so `import 'three'` failed in the browser; it now uses the same map as the other dungeon labs (`../vendor/three/build/three.module.min.js`). Checked 70 seed/size/loop combos: deterministic, all rooms reachable, boss is the farthest room, corridors only join neighbours.

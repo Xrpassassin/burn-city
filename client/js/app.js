@@ -8,6 +8,7 @@ import './citylife.js';
 import './streetprops.js';
 import './events.js';
 import './airport.js';
+import { createBurnCityExperienceRegistry } from './experience-registry.mjs';
 import {makeRainbow} from './rainbow.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
@@ -20,10 +21,58 @@ import {getBloomComparisonPreset,isBloomComparisonPreset} from './bloom-comparis
 import {Reflector} from 'three/addons/objects/Reflector.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {PlayerState,NetClient} from './net.js';
+import {initAmmLock} from './amm-lock.js';   // verified LP-lock halos + per-token black-hole singularities (/api/amm-lock, +3 draws)
 import './goldlock.js';   // globalThis.BCGold: the ONE strict gold rule (>=95% LP black-holed AND TVL >= 5000 XRP), shared with server/eco.js
 
 // ---------- config / device ----------
 const Q=new URLSearchParams(location.search);
+function showExperienceTransition(theme, icon, title, subtitle) {
+ return new Promise(resolve => {
+  let style=document.getElementById('bcExperienceTransitionStyle');
+  if(!style){
+   style=document.createElement('style'); style.id='bcExperienceTransitionStyle';
+   style.textContent=`
+    #bcExperienceTransition{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 50% 55%,#112a3b 0%,#03060d 72%);color:#f2fbff;font:600 15px system-ui;text-align:center}
+    #bcExperienceTransition .bc-travel-panel{position:relative;width:min(90vw,560px);padding:28px 20px;border:1px solid #5deaff77;border-radius:18px;background:#06111beF;box-shadow:0 0 42px #22d8ff20}
+    #bcExperienceTransition .bc-travel-icon{font-size:clamp(56px,12vw,94px);line-height:1.2;display:block;margin:0 auto 18px;animation:bcTravelMove 1.55s ease-in-out both}
+    #bcExperienceTransition h2{margin:0 0 9px;font-size:clamp(17px,4vw,25px);letter-spacing:.1em}
+    #bcExperienceTransition p{margin:0;color:#b8d8e8}
+    #bcExperienceTransition .bc-travel-track{height:3px;margin:22px auto 0;max-width:330px;overflow:hidden;background:#173346;border-radius:3px}
+    #bcExperienceTransition .bc-travel-track i{display:block;height:100%;width:36%;background:#36f3ff;box-shadow:0 0 12px #36f3ff;animation:bcTravelProgress 1.5s ease-in-out both}
+    #bcExperienceTransition.neon{background:linear-gradient(#07101c,#02040a);background-image:linear-gradient(#36f3ff12 1px,transparent 1px),linear-gradient(90deg,#36f3ff12 1px,transparent 1px),radial-gradient(ellipse at center,#102d4a,#02040a 72%);background-size:32px 32px,32px 32px,auto}
+    #bcExperienceTransition.neon .bc-travel-panel{border-color:#36f3ff99;box-shadow:0 0 48px #36f3ff28}
+    #bcExperienceTransition.neon .bc-travel-track i{background:#b1a5ff;box-shadow:0 0 12px #36f3ff}
+    @keyframes bcTravelMove{0%{transform:translateX(-42vw) translateY(12px) rotate(-9deg);opacity:.2}35%{opacity:1}100%{transform:translateX(42vw) translateY(-8px) rotate(4deg);opacity:1}}
+    @keyframes bcTravelProgress{0%{transform:translateX(-120%)}100%{transform:translateX(330%)}}
+   `;
+   document.head.append(style);
+  }
+  document.getElementById('bcExperienceTransition')?.remove();
+  const overlay=document.createElement('div'); overlay.id='bcExperienceTransition'; overlay.className=theme; overlay.setAttribute('role','status'); overlay.setAttribute('aria-live','polite');
+  overlay.innerHTML='<div class="bc-travel-panel"><span class="bc-travel-icon"></span><h2></h2><p></p><div class="bc-travel-track"><i></i></div></div>';
+  overlay.querySelector('.bc-travel-icon').textContent=icon;
+  overlay.querySelector('h2').textContent=title;
+  overlay.querySelector('p').textContent=subtitle;
+  document.body.append(overlay);
+  setTimeout(resolve,1600);
+ });
+}
+// Back/forward cache: coming back from the arena must not leave the full-screen boarding overlay or a disabled travel card up.
+addEventListener('pageshow',e=>{if(!e.persisted)return;document.getElementById('bcExperienceTransition')?.remove();const i=document.getElementById('info');if(i&&window.__infoU&&window.__infoU.kind==='experience')i.style.display='none'});
+const EXPERIENCE_REGISTRY = window.__burnExperienceRegistry = createBurnCityExperienceRegistry({
+ launchers: {
+  zombies: async ({ returnTo }) => {
+   await showExperienceTransition('flight','✈','BURN CITY INTERNATIONAL','Boarding the Zombie Extermination expedition…');
+   location.href = 'arena/?mode=zombie&from=' + encodeURIComponent(returnTo);
+   return { navigating: true };
+  },
+  'light-cycles': async ({ returnTo }) => {
+   await showExperienceTransition('neon','🏍','AEGIS TRANSIT','Entering the Light Cycles neon grid…');
+   location.href = 'arena/?mode=tron&from=' + encodeURIComponent(returnTo);
+   return { navigating: true };
+  }
+ }
+});
 const MOBILE=matchMedia('(pointer:coarse)').matches||/Mobi|Android|iPhone|iPad/.test(navigator.userAgent)||Q.has('mobile');
 const TIERS={low:{pr:1,cars:48,rain:600,trees:50,bloomScale:.35,reflect:false,sats:.3,fx:.2,aa:false},medium:{pr:1.25,cars:160,rain:2200,trees:160,bloomScale:.5,reflect:false,sats:.6,fx:.45,aa:false},high:{pr:1.75,cars:480,rain:6500,trees:360,bloomScale:1,reflect:true,sats:1,fx:1,aa:true}};
 const qPref=Q.get('q')||localStorage.getItem('bc_quality')||'auto';
@@ -559,9 +608,22 @@ const topAt=(n,o,p)=>{const top=roofTop(n);if(top==null)return n.pos.clone().set
 const arcMid=(a,b,A,B,i,r)=>{const mid=a.clone().add(b).multiplyScalar(.5);mid.y=Math.max(a.y,b.y)+6+a.distanceTo(b)*.06+(i%3)*2;const q=new THREE.Vector3();
  for(let it=0;it<6;it++){let need=0;const c=new THREE.QuadraticBezierCurve3(a,mid,b);for(let k=1;k<24;k++){c.getPoint(k/24,q);for(const n of E.nodes){if(n===A||n===B||!n.group||n.top==null)continue;
   if(Math.hypot(q.x-n.pos.x,q.z-n.pos.z)<n.w*1.15+r+1.5)need=Math.max(need,n.top+3-q.y)}}if(need<=0)break;mid.y+=need*1.2}mid.y=Math.min(mid.y,Math.max(a.y,b.y)+18+a.distanceTo(b)*.22);return mid};   // capped: never a towering loop
+// Rail sync: each major rail ENDS where it meets its tower's swirl helix (same point, radius and height as the helix start, tangent-continuous),
+// instead of running on to the roof near the tower axis. helixAt() is the swirl's own helix (same params, same per-tower order/cap), computed from the
+// plain arc; railSync() rebuilds the rail as two cubics: helix start -> arc midpoint (horizontal, same clearance height) -> other helix start. +0 draws.
+const HXN={},HXCAP=TIER==='low'?3:6,RAILSYNC=!(/[?&]debug=1/.test(location.search)&&Q.get('railsync')==='0');   // ?debug=1&railsync=0 = old roof endpoints (A/B audits only)
+const helixAt=(cu,end,n)=>{if(!n)return null;const k=HXN[n.name]=(HXN[n.name]||0)+1;if(k>HXCAP)return null;const p0=cu.getPoint(end?1:0);if(p0.y<8)return null;const tA=cu.getTangent(end?1:0).clone();if(!end)tA.negate();
+ const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+(k-1)*.35,a0=Math.atan2(dz,dx),dir=(dx*tA.z-dz*tA.x)>0?-1:1,drop=Math.min(22,Math.max(6,p0.y-6)),turns=1.1+.12*k,lead=.22,TT=turns*6.283;
+ const H=(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=R*(1+.06*u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
+ const q=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q).normalize();return {k,H,q,ht,R}};
+const railSync=(c0,hx)=>{if(!hx[0]&&!hx[1])return c0;const P0=hx[0]?hx[0].q.clone():c0.v0.clone(),P3=hx[1]?hx[1].q.clone():c0.v2.clone(),d0=hx[0]?hx[0].ht.clone().negate():c0.getTangent(0),d3=hx[1]?hx[1].ht.clone():c0.getTangent(1);
+ const M=c0.getPoint(.5),T=c0.getTangent(.5),l0=P0.distanceTo(M)*.5,l3=P3.distanceTo(M)*.5,cp=new THREE.CurvePath();
+ cp.add(new THREE.CubicBezierCurve3(P0,P0.clone().addScaledVector(d0,l0),M.clone().addScaledVector(T,-l0),M.clone()));cp.add(new THREE.CubicBezierCurve3(M.clone(),M.clone().addScaledVector(T,l3),P3.clone().addScaledVector(d3,-l3),P3));
+ const gp=THREE.CurvePath.prototype.getPoint;cp.getPoint=(t,o)=>gp.call(cp,Math.min(1-1e-7,Math.max(0,t)),o);   // CurvePath.getPoint(1) can return null (float), clamp
+ cp.v0=P0;cp.v2=P3;return cp};   // v0/v2 kept: garage decks read the end heights
 pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p);
  const mid=arcMid(a,b,A,B,i,.18+2.1*Math.sqrt(p.tvl_xrp/maxT));
- const curve=new THREE.QuadraticBezierCurve3(a,mid,b);const share=Math.sqrt(p.tvl_xrp/maxT),r=.18+2.1*share,L=p.locked_pct/100,minor=p.tvl_xrp<100;const g=new THREE.Group();S.add(g);const b0={rail:1,pulse:0};const lite=TIER==='low'&&rankT.indexOf(p)>=12;
+ const curve0=new THREE.QuadraticBezierCurve3(a,mid,b);const share=Math.sqrt(p.tvl_xrp/maxT),r=.18+2.1*share,L=p.locked_pct/100,minor=p.tvl_xrp<100;const hx=minor||!RAILSYNC?null:[helixAt(curve0,0,A),helixAt(curve0,1,B)],curve=hx?railSync(curve0,hx):curve0;const g=new THREE.Group();S.add(g);const b0={rail:1,pulse:0};const lite=TIER==='low'&&rankT.indexOf(p)>=12;
  const solid=new THREE.Mesh(new THREE.TubeGeometry(curve,64,r,8),new THREE.MeshBasicMaterial({color:new THREE.Color(0x3cf3ff).multiplyScalar(.15+.95*L),transparent:true,opacity:minor?.25:.18+.75*L,depthWrite:false,blending:THREE.AdditiveBlending}));
  solid.userData={kind:'bridge',pool:p};g.add(solid);pick.push(solid);
  const core=new THREE.Mesh(new THREE.TubeGeometry(curve,64,Math.max(.06,r*.28),5),new THREE.MeshBasicMaterial({color:0xe8ffff,transparent:true,opacity:minor?.3:.35+.65*L}));g.add(core);b0.solid=solid;b0.core=core;
@@ -575,7 +637,7 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
  const sc=L>=.7?0x3cf3ff:L>=.3?0xffb000:0xff3b2f;const kiosk=new THREE.Mesh(new THREE.BoxGeometry(.9,2.2,.5),new THREE.MeshStandardMaterial({color:0x0b1222,metalness:.8,roughness:.3,emissive:sc,emissiveIntensity:.12}));kiosk.position.y=1.1;if(!lite)term.add(kiosk);
  const scr=new THREE.Mesh(new THREE.PlaneGeometry(.8,.6),new THREE.MeshBasicMaterial({color:sc}));scr.position.set(0,1.6,.26);if(!lite)term.add(scr);term.lookAt(b.x,0,b.z);S.add(term);
  const th=new THREE.Mesh(new THREE.BoxGeometry(1.4,3,1.4),new THREE.MeshBasicMaterial({visible:false}));th.position.y=1.5;th.userData={kind:'terminal',pool:p};term.add(th);pick.push(th);
- bridges.push(Object.assign(b0,{p,curve,r,L,minor,group:g,term,share,Lv:L}))});
+ bridges.push(Object.assign(b0,{p,curve,r,L,minor,group:g,term,share,Lv:L,hx}))});
 
 // ---------- Forever Rails: metallic rails + gold edge glow along both sides of every bridge; coverage = LP locked in blackholed wallets ----------
 // ONE merged mesh for all bridges (per-vertex bridge index + arc position; shader clips at b.Lv, so live lockFX animates the rails extending).
@@ -628,17 +690,17 @@ const veinW=b=>b.forever?Math.min(.88,Math.max(.28,.28+.6*(Math.log10(Math.max(1
 // flow phase/speed/thickness/colour continue the rail core's so it reads as one stream; tube tapers + fades at the tail.
 {const LOW=TIER==='low',SEGH=LOW?20:MOBILE?32:48,SEGB=LOW?6:MOBILE?8:12,RAD=LOW?4:5,geos=[],paths=[],ranges=[],per={},LOCKC=new THREE.Color(0xffb020),CYC=new THREE.Color(0xbff8ff),GOLD=new THREE.Color(0xffc64a),kAt=(cu,t)=>{const h=1e-3;t=Math.min(1-2*h,Math.max(2*h,t));const a=cu.getPoint(t-h),m=cu.getPoint(t),z=cu.getPoint(t+h),d1=z.clone().sub(a),d2=z.clone().add(a).addScaledVector(m,-2);return 4*d1.clone().cross(d2).length()/Math.max(1e-12,d1.length()**3)},kRail=(cu,end)=>{const h=.002;return kAt(cu,end?1-h:h)},tA=new THREE.Vector3(),cP=new THREE.Vector3();
  bridges.forEach(b=>{if(b.minor||!b.core)return;const Lr=b.curve.getLength(),dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5,cr=Math.max(.06,b.r*.28);
- [0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a];if(!n)return;const k=per[n.name]=(per[n.name]||0)+1;if(k>(LOW?3:6))return;   // busy towers: cap swirls so they never starburst
+ [0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a];if(!n)return;const hs=b.hx&&b.hx[end];if(b.hx&&!hs)return;const k=hs?hs.k:(per[n.name]=(per[n.name]||0)+1);if(k>(LOW?3:6))return;   // busy towers: cap swirls so they never starburst
   const p0=b.curve.getPoint(end?1:0);if(p0.y<8)return;b.curve.getTangent(end?1:0,tA);if(!end)tA.negate();   // rail's travel direction at the tower end
   const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+(k-1)*.35,a0=Math.atan2(dz,dx);
   const dir=(dx*tA.z-dz*tA.x)>0?-1:1,drop=Math.min(22,Math.max(6,p0.y-6)),turns=1.1+.12*k,lead=.22,TT=turns*6.283;   // spin the way the rail is already curving
-  const H=(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=R*(1+.06*u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
+  const H=hs?hs.H:(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=R*(1+.06*u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
   const q1=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q1).normalize(),D=p0.distanceTo(q1),kr=kRail(b.curve,end),hb=D*.42;
    // G2-ish join: pick the first handle so the lead-in starts with the rail's own curvature (no sudden tightening), penalising any sharp bend inside it
-   let bz=null,best=1e9;for(const f of [.3,.4,.5,.6,.75,.9]){const c3=new THREE.CubicBezierCurve3(p0.clone(),p0.clone().addScaledVector(tA,D*f),q1.clone().addScaledVector(ht,-hb),q1.clone());let km=0;for(let j=1;j<6;j++)km=Math.max(km,kAt(c3,j/6));const cost=Math.abs(kAt(c3,0)-kr)+.5*km;if(cost<best){best=cost;bz=c3}}
-  const pts=bz.getPoints(SEGB);for(const p of pts.slice(1)){const ox=p.x-n.pos.x,oz=p.z-n.pos.z,d=Math.hypot(ox,oz);if(d<Rin){p.x=n.pos.x+ox/d*Rin;p.z=n.pos.z+oz/d*Rin}}   // never cut through the tower
+   let bz=null,best=1e9;if(!hs)for(const f of [.3,.4,.5,.6,.75,.9]){const c3=new THREE.CubicBezierCurve3(p0.clone(),p0.clone().addScaledVector(tA,D*f),q1.clone().addScaledVector(ht,-hb),q1.clone());let km=0;for(let j=1;j<6;j++)km=Math.max(km,kAt(c3,j/6));const cost=Math.abs(kAt(c3,0)-kr)+.5*km;if(cost<best){best=cost;bz=c3}}
+  const pts=hs?[hs.q.clone(),hs.H(.01,new THREE.Vector3())]:bz.getPoints(SEGB);if(!hs)for(const p of pts.slice(1)){const ox=p.x-n.pos.x,oz=p.z-n.pos.z,d=Math.hypot(ox,oz);if(d<Rin){p.x=n.pos.x+ox/d*Rin;p.z=n.pos.z+oz/d*Rin}}   // never cut through the tower
   for(let j=1;j<=SEGH;j++)pts.push(H(j/SEGH,new THREE.Vector3()));
-  const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=SEGB+SEGH,lock=b.forever?1:0,UB=SEGB/NS,c=CYC.clone().lerp(LOCKC,lock*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
+  const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=(hs?0:SEGB)+SEGH,lock=b.forever?1:0,UB=(hs?1:SEGB)/NS,c=CYC.clone().lerp(LOCKC,lock*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
   // colour starts cyan (activity colours do not exist yet at build) and is repainted from b.actCol by swirlRecolor(); vein width is packed into fl.y (= sp + 8*round(100*vw))
   const P={cv,b,c:lock?GOLD:c.clone(),sp:lock?sp*.45:sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z},vw=veinW(b);
   const shell=(rad,aMul,core)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*4),fy=sp+8*Math.round(100*vw*cr/rad);
@@ -843,14 +905,7 @@ let STREETM=null,STREETML=null;const ROADJ=[];{const P=[],UV=[],IX=[],AJ=[],SW=9
    c=mix(c,c*.65+vec3(.02,.03,.05),wet*.5*step(e,0.));
    gl_FragColor=vec4(c,1.);\n${TAIL}\n}`});
  STREETM=mk(-3);STREETML=mk(-4);const sm=new THREE.Mesh(g,STREETM);sm.renderOrder=0;sm.frustumCulled=false;S.add(sm);window.__streets=sm;window.__roadJ=ROADJ}
-// ---------- arena gates: portals to the multiplayer arena, standing on real hub avenues ----------
-{const av=streets.filter(s=>s.type==='line').slice(0,2),AR=[['tron','Light Cycles',0x3cf3ff],['zombie','Zombie Survival',0xff5a1f]];
- av.forEach((s,i)=>{const [m,label,col]=AR[i],p=s.a.clone().lerp(s.b,.5),g=new THREE.Group();g.position.copy(p);g.rotation.y=Math.atan2(s.b.x-s.a.x,s.b.z-s.a.z);
-  const mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.9}),ring=new THREE.Mesh(new THREE.TorusGeometry(3.4,.28,8,40),mat);ring.position.y=3.6;g.add(ring);
-  const core=new THREE.Mesh(new THREE.CircleGeometry(3.1,32),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.18,side:THREE.DoubleSide,depthWrite:false}));core.position.y=3.6;g.add(core);
-  const hitA=new THREE.Mesh(new THREE.BoxGeometry(7,8,3),new THREE.MeshBasicMaterial({visible:false}));hitA.position.y=4;hitA.userData={kind:'arena',arena:m,label};g.add(hitA);pick.push(hitA);
-  anim.push(t=>{ring.rotation.z=t*.8;core.material.opacity=.14+.1*Math.sin(t*3+i)});S.add(g);
-  const el=document.createElement('div');el.className='lbl';el.style.setProperty('--c','#'+new THREE.Color(col).getHexString());el.textContent='🎮 '+label+' Arena';$('labels').appendChild(el);labelEls.push({el,pos:p.clone().setY(9),pri:4e3,minor:false})})}
+// Physical travel entrances are registered through experience-registry.mjs when their destination is genuinely wired.
 const gT=[],SLp=[],SLd=[];streets.forEach(s=>{const len=s.type==='ring'?2*Math.PI*s.r:s.a.distanceTo(s.b);const k=Math.round(len/(MOBILE?12:7));for(let i=0;i<k;i++)gT.push({s,u:Math.random(),d:i%2?1:-1,sp:(6+Math.random()*5)/len});
  const nl=Math.round(len/16);for(let i=0;i<nl;i++){const u=i/nl;const L0=SLp.length;SLp.push(s.type==='ring'?new THREE.Vector3(s.c.x+Math.cos(u*6.283)*(s.r+4.4),0,s.c.z+Math.sin(u*6.283)*(s.r+4.4)):s.a.clone().lerp(s.b,u).add(_v.set(s.b.z-s.a.z,0,s.a.x-s.b.x).setLength(4.4)));const lv=SLp[L0];if(onRoad(lv.x,lv.z,-2.0)){SLp.pop();continue}SLd.push(s.type==='ring'?new THREE.Vector3(s.c.x-lv.x,0,s.c.z-lv.z).normalize():_v.clone().normalize().negate())}});
 // ground traffic v2: real low-poly cars (one instanced draw call) with head/tail lights, right-hand lanes, U-turns at avenue ends
@@ -1115,7 +1170,7 @@ function descNode(n){const iss=issuerOf(n),col='#'+n.col.getHexString(),bu=n.bur
  <details class="more"><summary>More stats &amp; pools</summary>${tbl}</details>
  <div class="attr dim">Trades open on xrpburn.com and are signed in your own wallet; Burn City never holds funds. Prices: <a href="https://xrpl.to" target="_blank" rel="noopener">Data by xrpl.to</a></div>`}
 function descPool(p){const b=bridges.find(x=>x.p===p);return `<button class="x" aria-label="Close">✕</button><h2>${p.a} ⇄ ${p.b}</h2><table><tr><td>Forever Rails</td><td><b style="color:${b&&b.forever?'#ffc64a':'#8fd8ff'}">${fmt(p.tvl_xrp*(p.locked_pct||0)/100)} XRP locked forever</b> (${(p.locked_pct||0).toFixed(1)}% of pool)${b&&b.forever?' ∞':''} <span class="dim">LP in blackholed wallets: can never be withdrawn</span></td></tr><tr><td>Activity <span class="dim">(line colour)</span></td><td>${b&&b.act!=null?`<b style="color:#${b.actCol.getHexString()}">${b.act>=.85?'Very active':b.act>=.6?'Active':b.act>=.3?'Moderate':'Quiet'}</b> · top ${Math.max(1,Math.round((1-b.act)*100))}%`:'—'}</td></tr><tr><td>TVL</td><td>${fmt(p.tvl_xrp)} XRP</td></tr><tr><td>Trading fee</td><td>${p.fee_pct}%</td></tr>
- <tr><td>Locked LP</td><td style="color:${p.locked_pct>=70?'#3cf3ff':p.locked_pct>=30?'#ffb000':'#ff3b2f'}">${p.locked_pct}%</td></tr><tr><td>Insider LP</td><td>${p.insider_pct}% ${p.insider_pct>=50?'⚑':''}</td></tr><tr><td>LP holders</td><td>${p.lp_holders}</td></tr>
+ <tr><td>Locked LP</td><td style="color:${p.locked_pct>=70?'#3cf3ff':p.locked_pct>=30?'#ffb000':'#ff3b2f'}">${window.__ammLock?window.__ammLock.lpText(p):p.locked_pct+'%'}</td></tr><tr><td>Insider LP</td><td>${p.insider_pct}% ${p.insider_pct>=50?'⚑':''}</td></tr><tr><td>LP holders</td><td>${p.lp_holders}</td></tr>
  <tr><td>Traffic basis</td><td>${b&&b.volEst?'est. 2% of TVL':'min 24h vol of pair'} ≈ ${fmt(b&&b.vol)} XRP</td></tr></table>
  <div class="actLeg"><span>Quiet</span><i></i><span>Very active</span></div><div style="margin-top:4px">Top LP:<br>${p.top_lp.map(t=>`${t.acct.slice(0,10)}… ${t.pct}% ${lpTag(t)}`).join('<br>')}</div><div class="dim" style="margin-top:4px;word-break:break-all">AMM ${p.amm}</div>`}
 function descLot(L){return `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb000">🚧 ${L.ticker.replace(/[<&]/g,'')} <small style="opacity:.6">unbonded · Launchpad</small></h2><table><tr><td>Bonding progress</td><td>${L.bond_pct!=null?L.bond_pct.toFixed(1)+'%':'<span class="dim">n/a</span>'}</td></tr><tr><td>Market cap</td><td>${L.mcap!=null?fmt(L.mcap)+' XRP <i class="est" title="bonding-curve price reported by xrpl.fun">est.</i>':'<span class="dim">n/a</span>'}</td></tr><tr><td>Curve liquidity</td><td>${L.liquidity!=null?fmt(L.liquidity)+' XRP <i class="est">est.</i>':'<span class="dim">n/a</span>'}</td></tr><tr><td>Paired with</td><td>${L.base_pair||'—'}</td></tr></table><div class="dim" style="margin-top:4px">No AMM pool yet. When it bonds it rises into a real tower. Data: xrpl.fun, refreshed nightly.</div><div class="cardBtns"><a class="trade" href="${L.url}" target="_blank" rel="noopener">View on xrpl.fun</a>${L.issuer?`<a href="https://livenet.xrpl.org/accounts/${L.issuer}" target="_blank" rel="noopener">Issuer ↗</a>`:''}</div>`}
@@ -1164,7 +1219,29 @@ const ESTATE=buildEstate({S,U,pick,anim,nodes:E.nodes,low:TIER==='low',avoid:[LP
   for(const k of colliders)if(k.r>0&&!k.node&&(onRoad(k.x,k.z,k.r)||hw(k.x,k.z,k.r)))solid++;for(const [x,z,r] of items)if(onRoad(x,z,r)||hw(x,z,r))props++;
   window.__roadAudit={solid,props};if(solid||props)console.warn('[roads] objects on roads:',solid,props)}}
 
-function showInfo(u){window.__infoU=u;if(u.kind==='aegis'){$('info').style.display='none';window.__aegis&&window.__aegis.open(u.cam);return}if(u.kind==='tackle'){window.__fish&&window.__fish.openShop();return}if(u.kind==='estate'){$('info').innerHTML=estateCard();$('info').classList.remove('v2');$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').classList.toggle('v2',!!(u.node&&!u.lot));$('info').style.display='block';if(u.node&&u.node.name==='BURN'&&window.__openBurnTowerInterior&&!u.lot){const eb=document.createElement('button');eb.type='button';eb.textContent='🔥 Enter the PYRETHEUM';eb.style.cssText='display:block;margin:10px 0 2px;padding:9px 14px;border-radius:10px;border:1px solid #ff9d43;background:#29120b;color:#ffd4a0;font:700 13px system-ui;cursor:pointer';eb.onclick=e=>{e.stopPropagation();$('info').style.display='none';window.__openBurnTowerInterior()};$('info').appendChild(eb)}$('info').scrollTop=0;window.__onCard&&window.__onCard($('info'));$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
+function showInfo(u){window.__infoU=u;
+if(u.kind==='experience'){
+ const panel=$('info'); panel.classList.remove('v2'); panel.replaceChildren();
+ const close=document.createElement('button'); close.className='x'; close.type='button'; close.textContent='×'; close.setAttribute('aria-label','Close travel details');
+ close.onclick=()=>{panel.style.display='none'};
+ const title=document.createElement('h3'); title.textContent=u.label||'Travel destination';
+ const detail=document.createElement('p'); detail.textContent=u.description||'Choose whether to enter this experience.';
+ detail.style.cssText='margin:8px 0 14px;line-height:1.45';
+ const enter=document.createElement('button'); enter.type='button'; enter.textContent=u.experienceId==='zombies'?'✈ Board expedition flight':'⚡ Enter Light Cycles';
+ enter.style.cssText='display:block;width:100%;min-height:44px;margin:8px 0;padding:11px 14px;border-radius:10px;border:1px solid #43eaff;background:#082433;color:#e7fbff;font:700 14px system-ui;cursor:pointer';
+ enter.onclick=async e=>{
+  e.stopPropagation(); enter.disabled=true; enter.textContent='Preparing transition…';
+  const rx=Number(u.returnX), rz=Number(u.returnZ);
+  try{
+   sessionStorage.bc_ret=JSON.stringify({m:'explore',p:[rx,groundAt(rx,rz,0),rz],c:[C.position.x,C.position.y,C.position.z],yaw:Number.isFinite(u.returnYaw)?u.returnYaw:yp.yaw});
+  }catch(_){}
+  const result=await EXPERIENCE_REGISTRY.enter(u.experienceId,{source:'city-map'});
+  if(!result.ok){document.getElementById('bcExperienceTransition')?.remove();try{sessionStorage.removeItem('bc_ret')}catch(_){}enter.disabled=false;enter.textContent=u.experienceId==='zombies'?'✈ Board expedition flight':'⚡ Enter Light Cycles';detail.textContent='Travel could not start ('+result.reason+'). You are still in BURN City; try again.'}
+ };
+ const cancel=document.createElement('button'); cancel.type='button'; cancel.textContent='Stay in BURN City'; cancel.style.cssText='display:block;width:100%;min-height:44px;padding:10px;border-radius:10px;border:1px solid #ffffff35;background:#ffffff0a;color:#fff;font:600 13px system-ui;cursor:pointer'; cancel.onclick=()=>{panel.style.display='none'};
+ panel.append(close,title,detail,enter,cancel); panel.style.display='block'; panel.scrollTop=0; return;
+}
+if(u.kind==='ammlock'){window.__ammLock&&window.__ammLock.open(u);return}if(u.kind==='aegis'){$('info').style.display='none';window.__aegis&&window.__aegis.open(u.cam);return}if(u.kind==='tackle'){window.__fish&&window.__fish.openShop();return}if(u.kind==='estate'){$('info').innerHTML=estateCard();$('info').classList.remove('v2');$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').classList.toggle('v2',!!(u.node&&!u.lot));$('info').style.display='block';if(u.node&&u.node.name==='BURN'&&window.__openBurnTowerInterior&&!u.lot){const eb=document.createElement('button');eb.type='button';eb.textContent='🔥 Enter the PYRETHEUM';eb.style.cssText='display:block;margin:10px 0 2px;padding:9px 14px;border-radius:10px;border:1px solid #ff9d43;background:#29120b;color:#ffd4a0;font:700 13px system-ui;cursor:pointer';eb.onclick=e=>{e.stopPropagation();$('info').style.display='none';window.__openBurnTowerInterior()};$('info').appendChild(eb)}window.__ammLock&&window.__ammLock.card($('info'),u);$('info').scrollTop=0;window.__onCard&&window.__onCard($('info'));$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
 
 // ---------- controls: Orbit / Fly / Explore ----------
 const orbit=new OrbitControls(C,R.domElement);orbit.enableDamping=true;orbit.maxPolarAngle=1.5;orbit.target.set(0,30,0);orbit.minDistance=8;orbit.maxDistance=900;orbit.autoRotateSpeed=.35;
@@ -1348,7 +1425,7 @@ $('tour').onclick=()=>{if(tlOn())return;tourBuild();setMode('orbit');orbit.enabl
 const ray=new THREE.Raycaster(),mv2=new THREE.Vector2();
 const hit=e=>{mv2.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mv2,C);return ray.intersectObjects(pick.filter(o=>o.parent.visible!==false),false)[0]};
 R.domElement.addEventListener('pointermove',e=>{if((mode!=='orbit'&&mode!=='explore'&&mode!=='fly')||e.pointerType==='touch'||RLOOK||document.pointerLockElement)return;const h=hit(e),tip=$('tip');if(h){const u=h.object.userData;tip.style.display='block';tip.style.left=e.clientX+14+'px';tip.style.top=e.clientY+14+'px';
- tip.textContent=u.kind==='aegis'?(u.cam?`AEGIS City Watch · ${u.cam.name} · tap for the live feed`:u.label||'AEGIS City Watch'):u.kind==='tackle'?'Tackle & Bait · tap to open':u.kind==='estate'?'Burn City Estates · Coming soon':u.kind==='arena'?`Arena gate · ${u.label} · tap to play (free)`:(u.kind==='ad'||u.ad)?`Sponsored · $${u.ad.ticker}`:u.lot?`Launchpad · ${u.lot.ticker} · ${u.lot.bond_pct!=null?u.lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${u.pool.locked_pct}% locked${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
+ tip.textContent=u.kind==='ammlock'?(window.__ammLock?window.__ammLock.tip(u):'Black hole'):u.kind==='aegis'?(u.cam?`AEGIS City Watch · ${u.cam.name} · tap for the live feed`:u.label||'AEGIS City Watch'):u.kind==='tackle'?'Tackle & Bait · tap to open':u.kind==='estate'?'Burn City Estates · Coming soon':u.kind==='arena'?`Arena gate · ${u.label} · tap to play (free)`:u.kind==='experience'?`${u.label} · tap to travel`:(u.kind==='ad'||u.ad)?`Sponsored · $${u.ad.ticker}`:u.lot?`Launchpad · ${u.lot.ticker} · ${u.lot.bond_pct!=null?u.lot.bond_pct.toFixed(0)+'% bonded':'bonding'}`:u.node?`${u.kind==='billboard'?'Billboard · ':''}${u.node.name} · ${fmt(u.node.tvl)} XRP TVL`:`${u.kind==='terminal'?'Terminal · ':''}${u.pool.a}⇄${u.pool.b} · ${fmt(u.pool.tvl_xrp)} XRP · ${window.__ammLock?window.__ammLock.lpText(u.pool):u.pool.locked_pct+'% locked'}${u.pool.insider_pct>=50?' ⚑':''}`}else tip.style.display='none'});
 let downXY=null;R.domElement.addEventListener('pointerdown',e=>downXY=[e.clientX,e.clientY]);
 R.domElement.addEventListener('pointerup',e=>{if(e.button===2||window.__burnTowerOpen)return;if((mode!=='orbit'&&!(e.pointerType==='touch'&&(mode==='explore'||mode==='fly'))&&!((mode==='explore'||mode==='fly')&&e.pointerType==='mouse'&&!MOBILE))||!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>6)return;{const si=pickShip(e.clientX,e.clientY,e.pointerType==='touch');if(si>=0){showTrade(si);return}}const h=hit(e);tapRing(e,!!h);if(h&&h.object.userData.kind==='arena'){try{sessionStorage.bc_ret=JSON.stringify({m:mode,p:[P.pos.x,P.pos.y,P.pos.z],c:[C.position.x,C.position.y,C.position.z],yaw:yp.yaw})}catch(_){}location.href='arena/?mode='+h.object.userData.arena;return}if(h)showInfo(h.object.userData);else{$('info').style.display='none';if(e.pointerType==='touch'&&mode==='explore'&&(window.__missT=(window.__missT||0)+1)<=3)tipToast('Tap a tower, ship, sign or shop to inspect it')}});
 const _p=new THREE.Vector3();
@@ -1443,6 +1520,7 @@ function lockFX(b,L){b.lock={from:b.Lv,to:Math.max(b.Lv,L),t:0};const f=take(FXP
 function bridgeLook(b){const L=b.Lv,minor=b.minor;// neon is activity-only again (full intensity for every pool); locked share is shown by the gold Forever Rails layer
  if(b.actCol)b.solid.material.color.copy(b.actCol);else b.solid.material.color.set(0x3cf3ff);b.baseOp=minor?.3:.85;b.core.material.opacity=minor?.4:.95;b.solid.material.opacity=b.baseOp;if(b.flk)b.rail=Math.max(0,(1-L)/Math.max(.001,1-b.L))}
 actScore();bridges.forEach(b=>{b.baseOp=b.solid.material.opacity});
+try{initAmmLock({THREE,S,bridges,N,U,anim,TIER,MOBILE,pick})}catch(e){console.warn('amm-lock',e)}
 {let af=0;anim.push(t=>{if(MOBILE&&(af++%3))return;for(const b of bridges){if(b.act==null||!b.group.visible)continue;const k=b.act,sp=.6+4.4*k*k;b.core.material.color.copy(b.actCol).lerp(WHITE_C,.55);b.core.material.opacity=(b.minor?.3:.35+.65*b.Lv)*(.55+.45*(.5+.5*Math.sin(t*sp+b.r*7)))}})}
 
 function updFX(t,dt){

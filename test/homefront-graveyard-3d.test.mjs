@@ -263,3 +263,8 @@ assert.match(survivorStatsPage, /const statLabels=\[\['combat','CMB'\],\['scaven
   'the survivor roster displays all six individual skill categories');
 assert.match(survivorStatsPage, /Individual survivor skills, each rated 1–10/,
   'the roster explains the meaning and scale of survivor stats');
+
+
+assert.match(homefrontPage, /stone:\['🪨','Stone'\],steel:\['🏗️','Steel'/, 'show advanced construction materials in the resource inventory');
+assert.match(homefrontPage, /upgrade_structure_material/, 'structure cards offer server-authoritative material upgrades');
+assert.match(homefrontPage, /Maximum material tier · steel-reinforced/, 'steel structures clearly show that material progression is capped');

@@ -31,8 +31,8 @@ function boot(host) {
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.12; scene.add(ground);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group();
-  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, zombieGroup, combatGroup);
+  const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
+  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, zombieGroup, combatGroup, impactGroup);
   const combatStatus = document.getElementById('combatStatus');
   const lootActionButton = document.getElementById('collectLoot');
   const lootStatus = document.getElementById('lootStatus');
@@ -43,7 +43,29 @@ function boot(host) {
   // Keep server-owned infected actors between snapshots so movement is presented smoothly.
   const combatActors = new Map();
   let weaponSwingUntil = 0;
-  window.addEventListener('homefront:combat-hit', () => { weaponSwingUntil = performance.now() + 260; });
+  window.addEventListener('homefront:combat-hit', event => {
+    weaponSwingUntil = performance.now() + 320;
+    const detail = event.detail || {};
+    const style = detail.weaponId === 'shock_maul' ? 'blunt' : 'sharp';
+    const target = detail.encounterId && combatActors.get(detail.encounterId);
+    if (target) {
+      target.userData.impactUntil = performance.now() + 300;
+      target.userData.impactStyle = style;
+      target.userData.impactDirection = detail.direction || 1;
+    }
+    // Stylized limb-separation feedback is visual-only and requires a server-confirmed sharp-weapon kill.
+    if (detail.killed && style === 'sharp' && target) {
+      const origin = target.position.clone();
+      for (let i = 0; i < 2; i++) {
+        const piece = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.52, 2, 5), mat(0x6e7770));
+        piece.position.set(origin.x + (i ? 0.42 : -0.42), 1.05 + i * 0.25, origin.z);
+        piece.rotation.z = i ? -0.55 : 0.55;
+        piece.userData.life = 0.8; piece.userData.vx = i ? 1.1 : -1.1;
+        piece.userData.vy = 2.0; piece.userData.vz = 0.4;
+        impactGroup.add(piece);
+      }
+    }
+  });
   const infectedSpawns = [[27, 25], [19, 34], [-32, 28], [-43, 36], [-11, 27], [-20, 15], [9, -12], [1, -15]];
 
   const mat = (color, roughness = 0.94) => new THREE.MeshStandardMaterial({ color, roughness });
@@ -208,7 +230,7 @@ function boot(host) {
         label.position.y = 3.5; actor.add(label);
         const threatRing = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xd84b3e, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));
         threatRing.rotation.x = -Math.PI / 2; threatRing.position.y = 0.045; actor.add(threatRing);
-        actor.userData = { targetX: e.x, targetZ: e.z, hp: e.hp, body, label, threatRing, hitFlash: 0 };
+        actor.userData = { targetX: e.x, targetZ: e.z, hp: e.hp, body, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
         combatActors.set(e.id, actor); combatGroup.add(actor);
       } else {
         actor.userData.targetX = e.x; actor.userData.targetZ = e.z;
@@ -394,6 +416,14 @@ function boot(host) {
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
   let lastFrame = performance.now();
-  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? 1 - remaining / 260 : 0; explorer.userData.weapon.rotation.x = -0.12 + (remaining > 0 ? Math.sin(progress * Math.PI) * 0.95 : 0); explorer.userData.weapon.rotation.z = remaining > 0 ? Math.sin(progress * Math.PI) * 0.38 : 0; } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } renderer.render(scene, camera); requestAnimationFrame(tick); };
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? 1 - remaining / 260 : 0; explorer.userData.weapon.rotation.x = -0.12 + (remaining > 0 ? Math.sin(progress * Math.PI) * 0.95 : 0); explorer.userData.weapon.rotation.z = remaining > 0 ? Math.sin(progress * Math.PI) * 0.38 : 0; } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend;
+      const impactRemaining = state.impactUntil - now;
+      if (impactRemaining > 0) {
+        const p = impactRemaining / 300;
+        actor.position.x += state.impactDirection * (state.impactStyle === 'blunt' ? 0.075 : 0.045) * Math.sin(p * Math.PI);
+        actor.rotation.z = (state.impactStyle === 'blunt' ? 0.22 : 0.12) * Math.sin(p * Math.PI) * state.impactDirection;
+        state.body.scale.y = state.impactStyle === 'blunt' ? 1 - 0.18 * Math.sin(p * Math.PI) : 1;
+      } else { actor.rotation.z = 0; state.body.scale.y = 1; }
+      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } renderer.render(scene, camera); requestAnimationFrame(tick); };
   tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
 }

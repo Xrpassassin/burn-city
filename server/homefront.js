@@ -114,6 +114,13 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             survival = Survival.act(player.survival, action, now);
             logText = ({ eat: 'Consumed a cooked ration in the field.', drink: 'Drank carried clean water in the field.', bandage: 'Used carried medical supplies to treat field injuries.', catch_breath: 'Stopped to recover stamina.' })[action];
           }
+          const survivalConsumed = {};
+          if (action === 'eat') survivalConsumed.food = 1;
+          if (action === 'drink') survivalConsumed.water = 1;
+          if (action === 'bandage') survivalConsumed.meds = 1;
+          if (action === 'cook_food') { survivalConsumed.food = 1; survivalConsumed.wood = 1; }
+          if (action === 'purify_water') { survivalConsumed.water = 1; survivalConsumed.wood = 1; }
+          if (Object.keys(survivalConsumed).length) addSessionTotals(player, { consumed: survivalConsumed });
           player.inventory = inventory;
           player.survival = survival;
           player.lastSeen = now;

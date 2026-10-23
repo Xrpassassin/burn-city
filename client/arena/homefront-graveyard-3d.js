@@ -69,7 +69,7 @@ function boot(host) {
   groundGeometry.setAttribute('color', new THREE.BufferAttribute(groundColors, 3));
   const groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 1 });
   const ground = new THREE.Mesh(groundGeometry, groundMat);
-  ground.rotation.x = -Math.PI / 2; ground.position.y = -0.12; scene.add(ground);
+  ground.rotation.x = -Math.PI / 2; ground.position.y = 0; scene.add(ground);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
@@ -360,7 +360,7 @@ function boot(host) {
     poiGroup.add(g); markerObjects.set(p.id, g);
   }
   function buildLootNode(p) {
-    const g = new THREE.Group(); g.position.set(p.x, 0, p.z); g.userData.lootNodeId = p.id;
+    const g = new THREE.Group(); g.position.set(p.x, terrainHeight(p.x, p.z) * 0.42, p.z); g.userData.lootNodeId = p.id;
     const color = p.kind === 'medical' ? 0x9fce8a : p.kind === 'materials' ? 0xc5a36b : p.kind === 'highrisk' ? 0xff5a46 : 0xe1b65b;
     const crate = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.15, 1.45), mat(p.kind === 'medical' ? 0x667d5d : 0x6f5437));
     crate.position.y = 0.68; crate.userData.lootNodeId = p.id; g.add(crate);
@@ -383,7 +383,7 @@ function boot(host) {
         const size = bounds.getSize(new THREE.Vector3());
         actor.scale.setScalar(1.8 / Math.max(0.01, size.y));
         const fitted = new THREE.Box3().setFromObject(actor);
-        actor.position.set(x, -fitted.min.y, z);
+        actor.position.set(x, terrainHeight(x, z) * 0.42 - fitted.min.y, z);
         actor.rotation.y = Math.atan2(-x, -z);
         actor.traverse(node => { if (node.isMesh) { node.castShadow = false; node.receiveShadow = false; } });
         zombieGroup.add(actor);
@@ -391,7 +391,7 @@ function boot(host) {
         const clip = clips.find(c => /walk|run|idle/i.test(c.name)) || clips[0];
         if (clip) { const mixer = new THREE.AnimationMixer(actor); mixer.clipAction(clip).play(); zombieMixers.push(mixer); }
       } else {
-        const actor = new THREE.Group(); actor.position.set(x, 0, z);
+        const actor = new THREE.Group(); actor.position.set(x, terrainHeight(x, z) * 0.42, z);
         const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.72, 3, 6), mat(i % 2 ? 0x526248 : 0x66704b));
         body.position.y = 0.62; actor.add(body);
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), mat(0x8c9972));
@@ -501,7 +501,7 @@ function boot(host) {
       ? selfEncounter.enemy + ' · HP ' + selfEncounter.hp + '/' + selfEncounter.maxHp + ' · risk ' + selfEncounter.risk + '/5 · ' + Math.ceil(enemyDistance) + ' units away' + (enemyInReach ? ' · in attack range' : ' · move closer to attack')
       : 'No active encounter. Search for infected to begin a server-authoritative fight.';
     for (const p of (data.players || [])) {
-      const g = new THREE.Group(); g.position.set(p.x, 0, p.z);
+      const g = new THREE.Group(); g.position.set(p.x, terrainHeight(p.x, p.z) * 0.42, p.z);
       const color = p.label === 'You' ? 0xffdf83 : p.party ? 0x8fd4f4 : 0xd7d1c5;
       const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 1.2, 3, 6), mat(color));
       body.position.y = 1.45; g.add(body);

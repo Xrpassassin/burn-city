@@ -69,6 +69,17 @@ assert.ok(veteranTrip.embers > standardTrip.embers, 'higher expedition difficult
 assert.ok(veteranTrip.resources.scrap > standardTrip.resources.scrap, 'higher expedition difficulty pays more salvage');
 assert.ok(veteranTrip.resources.food < standardTrip.resources.food, 'higher expedition difficulty costs more supplies than Standard');
 assert.throws(() => H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'subway', difficulty: 'impossible' }), /unknown_difficulty/);
+const rescueBase = H.createBase('rescue-test', 2303);
+rescueBase.resources.food = 100; rescueBase.resources.ammo = 100;
+const rescued = H.applyAction(rescueBase, 'rescue-test', { type: 'rescue_survivor', zone: 'hospital', difficulty: 'veteran' }, 2304);
+assert.equal(rescued.survivors.length, 1, 'rescue operation adds a persistent survivor');
+assert.equal(rescued.survivors[0].role, 'medic', 'higher-risk hospital rescue recruits a medic');
+assert.ok(rescued.embers > rescueBase.embers, 'rescue operation pays difficulty-scaled Ember rewards');
+assert.equal(rescued.expeditionCount, rescueBase.expeditionCount, 'rescue objectives do not advance expedition or round counters');
+const fullRescueBase = H.createBase('full-rescue-test', 2304);
+fullRescueBase.survivors = Array.from({length:H.MAX_SURVIVORS}, (_,i)=>({id:'full-'+i,name:'Survivor '+i,role:'guard',morale:70}));
+assert.throws(() => H.applyAction(fullRescueBase, 'full-rescue-test', { type: 'rescue_survivor', zone: 'outskirts' }), /survivor_capacity/);
+
 const armoryBase = H.createBase('armory-test', 2304);
 armoryBase.resources.scrap = 100; armoryBase.embers = 100;
 const shotgunCrafted = H.applyAction(armoryBase, 'armory-test', { type: 'craft_weapon', weapon: 'pump_shotgun' }, 2305);

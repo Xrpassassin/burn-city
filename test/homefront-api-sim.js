@@ -145,6 +145,13 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(partyJoined.data.party.members.length, 2, 'party join synchronizes the shared roster');
   assert.equal(partyJoined.data.self.x, partyJoined.data.party.members[0].x, 'party members enter together');
 
+  const combatSetupWorld = files.get('homefront-world.json');
+  combatSetupWorld.players['acct-a'].weaponMagazine = { weaponId: 'pump_shotgun', loaded: 3 };
+  files.set('homefront-world.json', combatSetupWorld);
+  const combatSetupBases = files.get('homefront.json');
+  combatSetupBases['acct-a'].equippedWeapon = 'pump_shotgun';
+  files.set('homefront.json', combatSetupBases);
+
   const threat = await call('POST', '/api/homefront/world/encounter', 'acct-a');
   assert.equal(threat.status, 200, 'explorers can initiate a server-authoritative infected encounter');
   assert.ok(threat.data.encounter.id.startsWith('enc-'));
@@ -154,7 +161,8 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(attack.status, 200, 'nearby infected can be attacked through the authoritative combat endpoint');
   assert.ok(attack.data.combat.damage > 0);
   assert.equal(attack.data.base.resources.ammo, combatBaseBefore.resources.ammo, 'combat does not silently consume refuge ammunition');
-  assert.ok(attack.data.selfInventory.ammo < threat.data.selfInventory.ammo, 'attacks consume carried ammunition');
+  assert.equal(attack.data.selfInventory.ammo, threat.data.selfInventory.ammo, 'firing consumes loaded magazine rounds, not reserve inventory');
+  assert.ok(attack.data.selfWeaponMagazine.loaded < threat.data.selfWeaponMagazine.loaded, 'firearm attacks consume server-persisted magazine rounds');
   assert.ok(attack.data.encounter.hp < threat.data.encounter.hp, 'attacks reduce server-owned enemy health');
 if (attack.data.combat.enemyDamage > 0) {
   assert.ok(attack.data.selfSurvival.health < 100, 'infected retaliation damages the player through server-owned survival state');

@@ -72,7 +72,8 @@ function planEncounter({ zoneId = 'outskirts', risk = 1, playerCount = 1, active
     retreatHealthRatio: boundedRisk >= 4 ? 0.08 : 0
   };
 }
-\n
+
+
 function advanceDirector(state = {}, context = {}) {
   const now = Number.isFinite(context.now) ? Math.max(0, context.now) : Date.now();
   const plan = planEncounter(context);
@@ -104,4 +105,5 @@ function advanceDirector(state = {}, context = {}) {
   };
   return { state: nextState, decision, reason, plan };
 }
-\nmodule.exports = { ARCHETYPES, QUALITY_ORDER, resolveDirectorLoot, planEncounter, advanceDirector };
+
+module.exports = { ARCHETYPES, QUALITY_ORDER, resolveDirectorLoot, planEncounter, advanceDirector };

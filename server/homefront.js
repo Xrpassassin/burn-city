@@ -57,17 +57,22 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const savedBase = bases[user.acct] || Core.createBase(user.acct);
           const base = Core.validateBase(savedBase, user.acct);
           if (!base) throw new Error('save_invalid');
-          const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty : 'standard';\n          const nextBase = Core.applyAction(base, user.acct, { type: 'expedition', zone: nearest.point.zone, difficulty });
+          const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty : 'standard';
+          const nextBase = Core.applyAction(base, user.acct, { type: 'expedition', zone: nearest.point.zone, difficulty });
           let defeated = false;
           if (isBoss) {
             const boss = db.bosses[nearest.point.id];
             if (boss.respawnAt && boss.respawnAt <= Date.now()) { boss.hp = boss.maxHp; boss.respawnAt = 0; }
             if (boss.respawnAt > Date.now() || boss.hp <= 0) throw new Error('boss_respawning');
-            const threatScale = Core.DIFFICULTIES[difficulty]?.threat;\n            if (!threatScale) throw new Error('unknown_difficulty');\n            boss.hp = Math.max(0, boss.hp - Math.max(8, Math.floor((nearest.point.id === 'research_annex' ? 30 : 36) / threatScale)));
+            const threatScale = Core.DIFFICULTIES[difficulty]?.threat;
+            if (!threatScale) throw new Error('unknown_difficulty');
+            boss.hp = Math.max(0, boss.hp - Math.max(8, Math.floor((nearest.point.id === 'research_annex' ? 30 : 36) / threatScale)));
             if (boss.hp === 0) {
               defeated = true; boss.respawnAt = Date.now() + 5 * 60e3;
               nextBase.resources.scrap = Math.min(999999, nextBase.resources.scrap + 45);
-              nextBase.resources.meds = Math.min(999999, nextBase.resources.meds + 3);\n              const bossEmbers = 80 * Core.DIFFICULTIES[difficulty].reward;\n              nextBase.embers = Math.min(999999999, nextBase.embers + Math.floor(bossEmbers));
+              nextBase.resources.meds = Math.min(999999, nextBase.resources.meds + 3);
+              const bossEmbers = 80 * Core.DIFFICULTIES[difficulty].reward;
+              nextBase.embers = Math.min(999999999, nextBase.embers + Math.floor(bossEmbers));
               nextBase.log.push({ id: (nextBase.log.at(-1)?.id || 0) + 1, kind: 'boss', text: 'Boss defeated at ' + nearest.point.label + '! Recovered 45 bonus scrap, 3 medicine, and bonus embers.', at: Date.now() });
               nextBase.log = nextBase.log.slice(-20);
             }

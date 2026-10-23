@@ -10,7 +10,7 @@ Homefront should feel like a persistent survival RPG alongside BURN City, not a 
 
 - Server-owned field condition: health, hunger, thirst, stamina, infection pressure, and last-tick timestamp.
 - Hunger and thirst decay only while the player is active in the Graveyard; no offline starvation.
-- Movement costs stamina. Critical hunger/thirst gradually pressure health.
+- Movement costs stamina in proportion to actual server-clamped travel distance and consumes a small amount of food/water; low hunger or thirst increases exertion cost. Critical hunger/thirst gradually pressure health.
 - Eat one food ration to restore hunger, drink one clean-water unit to restore thirst, use one medicine to restore health/reduce infection pressure, or catch your breath to restore stamina.
 - Water is a persistent refuge resource and is available from the Ember Exchange.
 - Values are stored with the shared-world player record and returned as selfSurvival; the UI displays readable values and condition bars.
@@ -76,7 +76,7 @@ Keep functional item stats separate from cosmetic appearance. A skin must never 
 ## Open-world build roadmap
 
 ### Phase A — survival foundation (implemented first pass; needs live QA)
-- [x] Add server-owned vitals, needs decay, stamina costs, recovery actions, clean-water resource, UI bars, and focused unit tests.
+- [x] Add server-owned vitals, needs decay, distance-weighted travel metabolism, low-needs exertion penalty, recovery actions, clean-water resource, UI bars, and focused unit tests.
 - [x] Connect infected retaliation to health loss and infection pressure.
 - Keep field state in Homefront world persistence; never write into main BURN City saves or ranked progression.
 

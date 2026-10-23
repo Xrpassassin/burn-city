@@ -209,7 +209,7 @@ console.log('Zombie Homefront settlement core simulation passed.');
 
 
 // Server-authoritative return debrief accounting.
-const { buildReturnDebrief } = require('../server/homefront');
+const { buildReturnDebrief, addSessionTotals } = require('../server/homefront');
 const debrief = buildReturnDebrief(
   { at: 1000, embers: 50, repelledCount: 2, resources: { wood: 40, scrap: 30, food: 24, water: 18, meds: 5, ammo: 18 }, totals: { embersEarned: 50, resourcesCollected: { wood: 12, scrap: 9, food: 0, water: 0, meds: 2, ammo: 4 }, suppliesConsumed: { wood: 0, scrap: 0, food: 3, water: 0, meds: 0, ammo: 2 }, rewardEvents: 2, repels: 2 } },
   { embers: 83, repelledCount: 8, resources: { wood: 45, scrap: 26, food: 20, water: 17, meds: 6, ammo: 14 } },
@@ -224,4 +224,12 @@ assert.equal(debrief.grossEmbersEarned, 50);
 assert.deepEqual(debrief.grossResourcesCollected, { wood: 12, scrap: 9, food: 0, water: 0, meds: 2, ammo: 4 });
 assert.deepEqual(debrief.suppliesConsumed, { wood: 0, scrap: 0, food: 3, water: 0, meds: 0, ammo: 2 });
 assert.equal(debrief.attacksRepelled, 2, 'session-specific repel count takes precedence when available');
+const liveSession = { homefrontSessionStart: { totals: { embersEarned: 0, resourcesCollected: { wood: 0, scrap: 0, food: 0, water: 0, meds: 0, ammo: 0 }, suppliesConsumed: { wood: 0, scrap: 0, food: 0, water: 0, meds: 0, ammo: 0 }, rewardEvents: 0, repels: 0 } } };
+addSessionTotals(liveSession, { embers: 17, resources: { wood: 3, food: 2 }, consumed: { food: 1, water: 1, wood: 1 } });
+assert.equal(liveSession.homefrontSessionStart.totals.embersEarned, 17);
+assert.equal(liveSession.homefrontSessionStart.totals.resourcesCollected.wood, 3);
+assert.equal(liveSession.homefrontSessionStart.totals.resourcesCollected.food, 2);
+assert.equal(liveSession.homefrontSessionStart.totals.suppliesConsumed.food, 1);
+assert.equal(liveSession.homefrontSessionStart.totals.suppliesConsumed.water, 1);
+assert.equal(liveSession.homefrontSessionStart.totals.rewardEvents, 1);
 console.log('Homefront return debrief accounting passed.');

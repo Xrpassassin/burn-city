@@ -10,6 +10,7 @@ assert.notDeepEqual([a.result.self.x, a.result.self.z], [b.result.self.x, b.resu
 assert.equal(b.result.players.length, 2, 'both active players appear in the shared map');
 assert.equal(a.result.self.risk, 1, 'perimeter spawn is low risk');
 const Terrain = require('../server/homefront-terrain');
+const Collision = require('../server/homefront-collision');
 assert.equal(Terrain.isSafePosition(a.result.self.x, a.result.self.z, { bounds: W.WORLD_SIZE }), true,
   'new players spawn on a grounded, traversable footprint');
 const corruptSave = W.defaultWorld();
@@ -76,6 +77,7 @@ assert.ok(distanceAfter < distanceBefore + 8, 'infected movement tracks the upda
 
 const originalCanTraverse = Terrain.canTraverse;
 const originalFindTerrainPath = Terrain.findTerrainPath;
+const originalCollisionCanTraverse = Collision.canTraverse;
 const blockedRidge = (x0, z0, x1, z1) => {
   if (originalCanTraverse(x0, z0, x1, z1)) {
     // Simulate an additional steep ridge along x=0, with a safe crossing only at |z| >= 8.
@@ -90,6 +92,8 @@ const blockedRidge = (x0, z0, x1, z1) => {
 };
 try {
   Terrain.canTraverse = blockedRidge;
+  // Isolate this synthetic ridge contract from the separate authored-object collision layer.
+  Collision.canTraverse = () => true;
   Terrain.findTerrainPath = (sx, sz, gx, gz) => [
     { x: sx, z: 8 },
     { x: gx, z: 8 },
@@ -143,5 +147,6 @@ try {
 } finally {
   Terrain.canTraverse = originalCanTraverse;
   Terrain.findTerrainPath = originalFindTerrainPath;
+  Collision.canTraverse = originalCollisionCanTraverse;
 }
 console.log('Homefront shared Graveyard world and terrain-movement integration passed.');

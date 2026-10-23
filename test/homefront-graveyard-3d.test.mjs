@@ -97,3 +97,10 @@ assert.match(scene, /if \(reloadState\) \{ const phase/, 'animate the held weapo
 assert.match(scene, /pointercancel|pointerup/, 'stop autofire on pointer release or cancellation');
 assert.match(scene, /JSON\.stringify\(targetId \? \{ targetId/, 'include the selected target with combat requests');
 
+
+assert.match(page, /id="aimWeapon"/, 'provide a contextual aim toggle');
+assert.match(page, /id="aimStability"/, 'show weapon stability and recovery feedback');
+assert.match(scene, /let aiming = false/, 'track the explicit aiming stance');
+assert.match(scene, /aimRecoveryUntil = performance\.now\(\) \+ 1250/, 'travel triggers a short aim recovery window');
+assert.match(scene, /targetStability = aiming \? 1 - recovery \* 0\.58/, 'aiming visibly recovers more slowly after movement');
+assert.match(scene, /aimWeaponButton\.setAttribute\('aria-pressed', String\(aiming\)\)/, 'expose aim state accessibly');

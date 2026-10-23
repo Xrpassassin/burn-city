@@ -79,4 +79,13 @@ assert.equal(defended.structures[0].hp, 90 - Number(actualDamageMatch[1]),
  assert.match(integrityLog, /Priority target gate outer-gate is (CRITICAL|BREACHED) \(\d+% integrity\)/,
    'defense reports priority-target condition and integrity after siege damage');
 
+
+ const repairBase = Core.createBase('rGuardRepairReport', now);
+ repairBase.structures = [{ id: 'repair-gate', type: 'gate', hp: 100, maxHp: 180, x: 8, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
+ const repaired = Core.applyAction(repairBase, 'rGuardRepairReport', { type: 'repair', target: 'repair-gate' }, now + 5);
+ const repairLog = repaired.log[repaired.log.length - 1].text;
+ assert.match(repairLog, /Repaired gate repair-gate: \+50 HP \(83% integrity\)/,
+   'repair logs report restored HP and the resulting structure integrity');
+ assert.equal(repaired.structures[0].hp, 150, 'repair outcome is persisted in authoritative structure HP');
+
 console.log('Homefront authoritative guard-defense regressions passed.');

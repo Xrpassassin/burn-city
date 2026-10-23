@@ -112,6 +112,7 @@ export async function createZombieModelPilot(scene, options = {}) {
           try { item = createInstance(z); active.set(z.id, item); }
           catch { continue; }
         }
+        const moving = Math.hypot(z.x - item.group.position.x, z.z - item.group.position.z) > 0.012;
         item.group.position.set(z.x, z.y || 0, z.z);
         item.group.rotation.set(0, z.yaw || 0, 0);
         if (item.deadUntil > now || item.reactionUntil > now) {
@@ -119,7 +120,6 @@ export async function createZombieModelPilot(scene, options = {}) {
           continue;
         }
         item.reactionUntil = 0;
-        const moving = Math.hypot(z.x - item.group.position.x, z.z - item.group.position.z) > 0.012;
         setAnimation(item, animationFor(z, item.model.clips, moving));
         item.mixer.update(Math.min(0.05, Math.max(0, dt)));
       }

@@ -325,3 +325,12 @@ assert.match(page, /s\.type==='turret'/, 'intact mounted turrets visually fire a
 assert.match(page, /target\.hitReaction=\.18/, 'defensive shots produce a visible infected hit reaction');
 assert.match(page, /if\(!base\?\.wave\|\|pendingBuilding\|\|constructionPaused\)return/, 'construction mode suppresses siege and defensive-fire effects');
 assert.match(page, /function updateSiegeEffects\(dt\)/, 'expire temporary tracer and impact objects cleanly');
+
+assert.match(scene, /weaponId === 'heavy_machine_gun' \? 0xffe0a0/, 'heavy machine-gun fire uses a distinct bright tracer color');
+assert.match(scene, /new THREE\.Line\(geometry, new THREE\.LineBasicMaterial/, 'render bullet tracers only after the server confirms a combat hit');
+assert.match(scene, /piece\.userData\.tracer \|\| piece\.userData\.muzzleFlash/, 'expire tracer and muzzle-flash objects without running blood-particle physics on them');
+assert.match(scene, /equippedWeaponId === 'heavy_machine_gun' \? 360 : equippedWeaponId === 'smg' \? 240/, 'client autofire cadence matches server-owned machine-gun fire intervals');
+assert.match(scene, /'smg','heavy_machine_gun'/, 'recognize the unlocked machine guns in the 3D weapon feedback pipeline');
+assert.match(page, /\['smg','Compact SMG','Epic',5,180,130,'industrial'\]/, 'show the SMG as a late-game weapon unlocked by industrial exploration');
+assert.match(page, /\['heavy_machine_gun','Heavy Machine Gun','Mythic',8,320,260,'research_lab'\]/, 'show the heavy machine gun as an endgame weapon unlocked by the research annex');
+assert.match(page, /LOCKED · Reach /, 'explain which district unlocks late-game weapons');

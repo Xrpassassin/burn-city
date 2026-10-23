@@ -97,6 +97,7 @@ assert.throws(() => H.applyAction(fullRescueBase, 'full-rescue-test', { type: 'r
 
 const armoryBase = H.createBase('armory-test', 2304);
 armoryBase.resources.scrap = 100; armoryBase.embers = 100;
+assert.throws(() => H.applyAction(armoryBase, 'armory-test', { type: 'craft_weapon', weapon: 'machine_gun' }, 2305), /weapon_locked/, 'machine gun requires discovery of the Industrial Yard');
 const shotgunCrafted = H.applyAction(armoryBase, 'armory-test', { type: 'craft_weapon', weapon: 'pump_shotgun' }, 2305);
 assert.ok(shotgunCrafted.weapons.includes('pump_shotgun'), 'crafted weapons persist in the refuge armory');
 assert.equal(shotgunCrafted.resources.scrap, 45);

@@ -146,7 +146,7 @@ function threatProfile(input) {
     guards: guards.length, ammunitionCommitted: ammoUsed + turretAmmo,
     projectedStructureDamage, projectedBaseDamage,
     outlook: projectedStructureDamage === 0 ? 'stable' :
-      projectedStructureDamage >= 30 || projectedBaseDamage >= 15 ? 'critical' : 'strained'
+      projectedStructureDamage >= 60 || projectedBaseDamage >= 25 ? 'critical' : 'strained'
   };
 }
 function applyAction(input, ownerId, action, now = Date.now()) {

@@ -4,6 +4,9 @@ const { ARCHETYPES, QUALITY_ORDER } = require('./homefront-director');
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(n)?n:a));
 const hash=s=>{let h=2166136261;for(const c of String(s))h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0;};
 const ENCOUNTER_TTL=180000, ATTACK_COOLDOWN=900;
+// Server-owned cadence keyed to the equipped weapon validated in the saved refuge.
+// These minimum intervals also constrain callers that bypass the client autofire loop.
+const WEAPON_FIRE_INTERVAL=Object.freeze({pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950});
 const STATS=Object.freeze({wandering_infected:{hp:32,damage:2,ammo:1,range:18},infected_horde:{hp:76,damage:5,ammo:2,range:20},special_infected:{hp:105,damage:7,ammo:2,range:22}});
 function enemyName(zone,event){const a=ARCHETYPES[zone]||ARCHETYPES.outskirts;return event==='special_infected'?a.special:event==='infected_horde'?a.horde:a.wanderer;}
 function resolveSpawn({account,x,z,district,risk=1,now=Date.now(),seed=0}){
@@ -46,7 +49,10 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  const clean=normalizeEncounters(encounters,now),e=clean[account];if(!e||e.defeated||e.hp<=0)throw Error('no_active_encounter');if(now>e.expiresAt)throw Error('encounter_expired');if(targetId!=null&&(typeof targetId!=='string'||targetId!==e.id))throw Error('target_mismatch');
  let aimedZone=null;
  if(aimPoint!=null){if(!aimPoint||![aimPoint.x,aimPoint.y,aimPoint.z].every(Number.isFinite)||Math.hypot(aimPoint.x-e.x,aimPoint.z-e.z)>1.05||aimPoint.y<0.05||aimPoint.y>2.7)throw Error('invalid_aim_point');aimedZone=aimPoint.y>=1.88?'head':aimPoint.y<=0.68?'limb':'torso';}
- if(Math.hypot(player.x-e.x,player.z-e.z)>e.range)throw Error('enemy_out_of_range');if(now-e.lastAttackAt<ATTACK_COOLDOWN)throw Error('attack_cooldown');
+ if(Math.hypot(player.x-e.x,player.z-e.z)>e.range)throw Error('enemy_out_of_range');
+ const weaponId=typeof base.equippedWeapon==='string'&&WEAPON_FIRE_INTERVAL[base.equippedWeapon]?base.equippedWeapon:'pipe_blade';
+ const fireInterval=WEAPON_FIRE_INTERVAL[weaponId]||ATTACK_COOLDOWN;
+ if(now-e.lastAttackAt<Math.max(ATTACK_COOLDOWN,fireInterval))throw Error('attack_cooldown');
  if((base.resources?.ammo||0)<e.ammoCost)throw Error('insufficient_ammo');base.resources.ammo-=e.ammoCost;base.revision=(Number.isSafeInteger(base.revision)?base.revision:0)+1;
  const power=clamp(Math.floor(weaponPower),1,20);const field=survival&&typeof survival==='object'?{...survival}:null;const staminaBefore=field?clamp(field.stamina,0,100):100;const fatigueScale=staminaBefore<15?0.55:staminaBefore<35?0.75:1;
  // Hit zones are rolled on the server from encounter and attack clock; clients cannot submit a headshot claim.
@@ -63,4 +69,4 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Hit '+e.enemy+' for '+damage+' damage. It retaliated for '+enemyDamage+' pressure.'});base.log=base.log.slice(-20);}
  return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,enemyDamage,ammoCost:e.ammoCost,reward:null,base,survival:field};
 }
-module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,STATS,normalizeEncounters,resolveSpawn,publicEncounter,spawn,advance,attack};
+module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,WEAPON_FIRE_INTERVAL,STATS,normalizeEncounters,resolveSpawn,publicEncounter,spawn,advance,attack};

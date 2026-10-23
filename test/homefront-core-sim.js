@@ -102,6 +102,13 @@ const shotgunCrafted = H.applyAction(armoryBase, 'armory-test', { type: 'craft_w
 assert.ok(shotgunCrafted.weapons.includes('pump_shotgun'), 'crafted weapons persist in the refuge armory');
 assert.equal(shotgunCrafted.resources.scrap, 45);
 assert.equal(shotgunCrafted.embers, 60);
+const industrialArmory = H.validateBase({ ...armoryBase, resources: { ...armoryBase.resources, scrap: 500 }, embers: 500, exploration: { ...armoryBase.exploration, discoveredZones: [...armoryBase.exploration.discoveredZones, 'industrial'] } }, 'armory-test');
+const machineGunCrafted = H.applyAction(industrialArmory, 'armory-test', { type: 'craft_weapon', weapon: 'machine_gun' }, 2306);
+assert.ok(machineGunCrafted.weapons.includes('machine_gun'), 'machine gun unlocks after Industrial Yard discovery');
+assert.throws(() => H.applyAction(machineGunCrafted, 'armory-test', { type: 'craft_weapon', weapon: 'heavy_machine_gun' }, 2307), /weapon_locked/, 'heavy machine gun remains locked until the research annex is discovered');
+const researchArmory = H.validateBase({ ...machineGunCrafted, resources: { ...machineGunCrafted.resources, scrap: 500 }, embers: 500, exploration: { ...machineGunCrafted.exploration, discoveredZones: [...machineGunCrafted.exploration.discoveredZones, 'research_lab'] } }, 'armory-test');
+const heavyMachineGunCrafted = H.applyAction(researchArmory, 'armory-test', { type: 'craft_weapon', weapon: 'heavy_machine_gun' }, 2308);
+assert.ok(heavyMachineGunCrafted.weapons.includes('heavy_machine_gun'), 'heavy machine gun unlocks after research annex discovery');
 const shotgunEquipped = H.applyAction(shotgunCrafted, 'armory-test', { type: 'equip_weapon', weapon: 'pump_shotgun' }, 2306);
 assert.equal(shotgunEquipped.equippedWeapon, 'pump_shotgun', 'equipped weapon persists');
 assert.equal(H.WEAPONS[shotgunEquipped.equippedWeapon].power, 3);

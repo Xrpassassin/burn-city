@@ -524,3 +524,14 @@ Zombies fixed map 02 The Ashen Cosmodrome: server/cod.js COSMODROME def (7 zones
 
 ### Zombies map progression (Oct 22, 2026)
 Free Play on the Refinery (Map 1) OR a random map advances the same room to The Ashen Cosmodrome when every living player extracts on the helicopter (`server/heli.js` `advances()`). Ranked, daily and team-lobby rooms never advance. The Cosmodrome cannot be requested directly. Test: `test/zombie-map-progression-sim.js`.
+
+## Wilds: Yuka pursuit for Glassroot hostiles (PR #143, sw bc-v82-yukapursuit)
+- `wilds-yuka-ai.mjs` `updateWildsPursuitAgent`: the creature's Yuka agent swaps WanderBehavior → SeekBehavior while a Glassroot (`ZONE`) hostile chases an exploring player (2.6–9 m, no encounter/cooldown, not fleeing) and swaps back on the next wander update. `steer()` still owns obstacles, bounds and movement. Doc: `docs/wilds-yuka-pursuit.md`.
+- Creature inspect range 3.6 m → 5 m; hidden/gone creatures are skipped (fleeing ones are now inspectable).
+- Verified (Playwright, SwiftShader, desktop + iPhone 13, `?wildstest`): hostile Ashfang placed 6 m away switches to `ai.pursuing` and closes distance; Inspect prompt shows; no page errors. Not checked: oscillation near obstacles on real devices.
+
+## Zombies visual detail + opt-in GLB models (PR #146, sw bc-v83-zombiedetail)
+- `client/arena/fx.js`: three more instanced parts in the horde rig (chest armor on brutes/juggernauts, wounds on id%3 / Lope, dorsal spike on juggernaut/skitter). Cosmetic only; server zombies, hitboxes and net state unchanged.
+- `?zombieModels=1` (opt-in): `zombie-model-pilot.mjs` loads 4 skinned GLBs (`client/arena/assets/zombies/`: 3 MIT Storm Apocalypse by mars-tw + 1 CC0 Quaternius; license/README beside them) with the vendored GLTFLoader/SkeletonUtils; up to 8 zombies within 28 m get an animated model, the instanced copy is hidden; load failure falls back to procedural. Selection logic in `zombie-model-selection.mjs`. Tests (in `test:graphics-labs`): selection + GLB contract.
+- Fixed on integrate: `remove()` read `item.visual`, which was never stored (TypeError every frame once a model left the near set); arena CSP `connect-src` gained `blob:` so GLTFLoader's embedded textures load.
+- Verified (Playwright, desktop + iPhone 13): flag on → 4 GLBs 200, textured model visible, waves 1→2 with kills, no page errors; flag off → no GLB requests, no errors. Not checked: real-device frame time with the flag.

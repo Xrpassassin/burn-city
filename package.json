@@ -38,7 +38,7 @@
     "bench:wilds-navigation": "node client/js/run-wilds-navigation-benchmark.mjs",
     "test:wilds-nav": "node client/js/wilds-path-smoothing.test.mjs && node client/js/wilds-waypoint-follower.test.mjs && node client/js/wilds-route-validation.test.mjs && node client/js/wilds-navigation-simulation.test.mjs && node client/js/wilds-navigation-harness.test.mjs && node client/js/wilds-navigation-controller.test.mjs && node client/js/wilds-replan-policy.test.mjs && node client/js/wilds-replan-queue.test.mjs && node client/js/wilds-route-invalidation.test.mjs && node client/js/wilds-replan-orchestrator.test.mjs && node client/js/wilds-replan-worker.test.mjs && node client/js/wilds-replan-pipeline-simulation.test.mjs && node client/js/wilds-navigation-load-test.test.mjs && node client/js/wilds-navigation-benchmark.test.mjs && node client/js/wilds-query-profiler.test.mjs",
     "test:zombie-nav": "node test/zombie-nav-sim.js",
-    "test:graphics-labs": "node client/js/wilds-graphics-profiles.test.mjs && node client/js/wilds-ground-materials.test.mjs && node client/js/wilds-atmosphere-presets.test.mjs && node client/js/bloom-comparison-presets.test.mjs && node client/arena/zombie-visual-presets.test.mjs",
+    "test:graphics-labs": "node client/js/wilds-graphics-profiles.test.mjs && node client/js/wilds-ground-materials.test.mjs && node client/js/wilds-atmosphere-presets.test.mjs && node client/js/bloom-comparison-presets.test.mjs && node client/arena/zombie-visual-presets.test.mjs && node client/arena/zombie-model-selection.test.mjs && node client/arena/zombie-model-pilot.test.mjs",
     "test:experience-registry": "node client/js/experience-registry.test.mjs",
     "test:world-objectives": "node client/js/world-objectives-core.test.mjs",
     "test:zombie-cosmodrome": "node test/zombie-cosmodrome-sim.js",
@@ -47,7 +47,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "sharp": "^0.35.5",
     "ws": "^8.22.0",

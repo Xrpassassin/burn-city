@@ -106,16 +106,13 @@ const originalFindTerrainPath = Terrain.findTerrainPath;
 const originalCollisionCanTraverse = Collision.canTraverse;
 const originalCollisionFindPath = Collision.findPath;
 const blockedRidge = (x0, z0, x1, z1) => {
-  if (originalCanTraverse(x0, z0, x1, z1)) {
-    // Simulate an additional steep ridge along x=0, with a safe crossing only at |z| >= 8.
-    const crossesRidge = (x0 <= 0 && x1 >= 0) || (x1 <= 0 && x0 >= 0);
-    if (!crossesRidge) return true;
-    const denominator = x1 - x0;
-    const t = Math.abs(denominator) < 1e-9 ? 0 : -x0 / denominator;
-    const crossingZ = z0 + (z1 - z0) * t;
-    return Math.abs(crossingZ) >= 8;
-  }
-  return false;
+  // Isolate this synthetic ridge test from unrelated authored terrain blockers.
+  const crossesRidge = (x0 <= 0 && x1 >= 0) || (x1 <= 0 && x0 >= 0);
+  if (!crossesRidge) return true;
+  const denominator = x1 - x0;
+  const t = Math.abs(denominator) < 1e-9 ? 0 : -x0 / denominator;
+  const crossingZ = z0 + (z1 - z0) * t;
+  return Math.abs(crossingZ) >= 8;
 };
 try {
   Terrain.canTraverse = blockedRidge;

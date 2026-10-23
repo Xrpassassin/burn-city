@@ -62,19 +62,6 @@ function pay(s, cost) {
   for (const [k, v] of Object.entries(cost)) if ((s.resources[k] || 0) < v) throw new Error('insufficient_' + k);
   for (const [k, v] of Object.entries(cost)) s.resources[k] -= v;
 }
-// Deterministic breach profiles keep wave difficulty reproducible for saves and tests.
-function waveProfile(wave) {
-  const n = clampInt(wave, 1, 1000000);
-  const enemies = [{ type: 'walker', count: 6 + n * 2 }];
-  let threatBonus = 0;
-  if (n >= 3) { const count = Math.floor(n / 3); enemies.push({ type: 'runner', count }); threatBonus += count * 0.6; }
-  if (n >= 5) { const count = Math.floor(n / 5); enemies.push({ type: 'brute', count }); threatBonus += count * 1.2; }
-  if (n >= 7) { const count = Math.floor(n / 7); enemies.push({ type: 'screamer', count }); threatBonus += count * 0.8; }
-  if (n >= 9) { const count = Math.floor(n / 9); enemies.push({ type: 'bloater', count }); threatBonus += count * 0.7; }
-  const boss = n % 10 === 0;
-  if (boss) { enemies.push({ type: 'juggernaut', count: 1 }); threatBonus += 8; }
-  return { wave: n, enemies, threatBonus: Math.round(threatBonus * 10) / 10, boss };
-}
 function applyAction(input, ownerId, action, now = Date.now()) {
   const s = validateBase(input, ownerId);
   if (!s) throw new Error('invalid_or_foreign_base');

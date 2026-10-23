@@ -46,7 +46,7 @@ jobs:
       - name: Check Homefront browser module syntax
         run: node --input-type=module --check < <(node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/homefront.html","utf8");const m=s.split("<script type=\\"module\\">")[1]?.split("</script>")[0];if(!m)process.exit(2);process.stdout.write(m)')
       - name: Check flight lobby browser syntax
-        run: node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/flight-lobby.html","utf8");const m=s.match(/<script>([\\s\\S]*?)<\\/script>/);if(!m)throw Error("Missing flight-lobby script");new Function(m[1])'
+        run: node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/flight-lobby.html","utf8");const a=s.indexOf("<script>");const b=s.indexOf("</script>",a);if(a<0||b<0)throw Error("Missing flight-lobby script");new Function(s.slice(a+8,b))'
       - name: Run airport experience registry tests
         run: npm run test:experience-registry
       - name: Run helicopter arrival spawn simulation

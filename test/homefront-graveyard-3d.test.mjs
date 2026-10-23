@@ -228,3 +228,15 @@ assert.match(homefrontPage, /id="repairPriorityBreach"/, 'provide a direct prior
 assert.match(homefrontPage, /priorityButton\.onclick=\(\)=>act\(\{type:'emergency_repair',target:priority\.id\}\)/, 'send priority repair through the existing server-authoritative action');
 assert.match(homefrontPage, /priorityButton\.disabled=busy\|\|base\.resources\.wood<4\|\|base\.resources\.scrap<2/, 'disable priority repair when the refuge lacks required materials');
 assert.match(homefrontPage, /PERIMETER STABLE · All defensive structures are at full integrity/, 'show a stable state when no perimeter defense is damaged');
+
+
+// Siege incident lifecycle: warning, guard response, and persisted after-action report.
+assert.match(homefrontPage, /id="siegeIncidentSummary" aria-live="polite"/, 'show a persistent accessible siege incident summary');
+assert.match(homefrontPage, /const incident=base\.lastSiege/, 'render the server-persisted last siege report');
+assert.match(homefrontPage, /incident\.phases/, 'render the ordered incident phases');
+assert.match(homefrontPage, /incident\.target\.integrityBefore/, 'show target integrity before and after the siege');
+assert.match(homefrontPage, /incident\.refugeHpAfter\+'\/'+base\.baseMaxHp/, 'show refuge health after the incident');
+assert.match(homefrontPage, /record\(s, 'siege_warning', warningText, now\)/, 'server records the warning phase');
+assert.match(homefrontPage, /record\(s, 'guard_response'/, 'server records the guard response phase');
+assert.match(homefrontPage, /s\.lastSiege = \{/, 'persist a structured last-siege incident report');
+assert.match(homefrontPage, /phases: \[/, 'persist the warning, guard response, and resolution timeline');

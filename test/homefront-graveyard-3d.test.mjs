@@ -24,6 +24,10 @@ assert.match(scene, /JSON\.stringify\(\{ structureId: selectedEnvironmentId \}\)
 assert.match(scene, /raycaster\.intersectObjects\(\[\.\.\.environmentVisuals\.values\(\)\]/, 'allow players to select physical structures in the 3D world');
 assert.match(page, /id="damageEnvironment"/, 'expose a nearby structure interaction control');
 
+assert.match(scene, /function spawnEnvironmentImpact\(state, previousState = null\)/, 'spawn transient impact feedback from server-confirmed environment damage');
+assert.match(scene, /piece\.userData\.environmentDebris = true/, 'mark environmental debris for deterministic lifecycle handling');
+assert.match(scene, /if \(state\) spawnEnvironmentImpact\(\{ \.\.\.selected, \.\.\.state \}, previousState\)/, 'spawn debris only after the server accepts structure damage');
+assert.match(scene, /state\.stage === 'destroyed' \|\| state\.health <= 0/, 'increase debris burst when a structure is destroyed');
 assert.match(scene, /group\.visible = !destroyed/, 'hide structures only when authoritative state says collision is destroyed');
 assert.match(scene, /state\.stage === 'critical'/, 'render progressive visual damage stages without changing gameplay authority');
 assert.match(scene, /from '\.\/vendor\/three\.module\.min\.js'/, 'reuse the vendored Three.js runtime');

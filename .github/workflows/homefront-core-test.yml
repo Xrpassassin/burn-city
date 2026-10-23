@@ -6,8 +6,9 @@ on:
       - 'server/homefront-core.js'
       - 'server/homefront-combat.js'
       - 'server/homefront-world.js'
-      - 'server/homefront-survival.js
-      - server/homefront-inventory.js'
+      - 'server/homefront-survival.js'
+      - 'server/homefront-inventory.js'
+      - 'server/homefront-inventory.test.js'
       - 'server/homefront.js'
       - 'server/server.js'
       - 'server/game.js'

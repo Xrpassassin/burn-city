@@ -14,7 +14,7 @@ assert.doesNotThrow(()=>C.attack({encounters:firstShot.encounters,account:'coold
 assert.throws(()=>C.attack({encounters:a.encounters,account:'a',player,base:base(),now:101000,targetId:'enc-forged'}),/target_mismatch/,'server rejects client-selected targets that are not the player-owned encounter');
 const aimSpawn=C.spawn({encounters:{},account:'aim-test',player,now:600000,seed:8});
 const aimBase=()=>base();
-const aimPoint={x:aimSpawn.encounter.x,y:2.3,z:aimSpawn.encounter.z};
+const aimTarget=aimSpawn.encounter.members.find(m=>!m.defeated);const aimPoint={x:aimTarget.x,y:2.3,z:aimTarget.z};
 const unaimed=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint});
 assert.equal(unaimed.aimed,false,'a client-supplied aim point cannot grant precision without a server-owned aiming stance');
 const aimedPlayer={...player,aiming:true,aimStartedAt:600000,accuracyRecoverUntil:0};
@@ -26,7 +26,7 @@ assert.ok(C.WEAPON_HANDLING.marksman_rifle.adsMs>C.WEAPON_HANDLING.pump_shotgun.
 const sprintRecovery=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player:{...aimedPlayer,accuracyRecoverUntil:601900},base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint});
 assert.equal(sprintRecovery.aimed,false,'post-sprint recovery blocks immediate precision headshots even while aiming');
 assert.ok(sprintRecovery.aimStability<aimedHead.aimStability,'post-sprint recovery lowers server-calculated stability');
-assert.throws(()=>C.attack({encounters:aimSpawn.encounters,account:'aim-test',player,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint:{x:aimSpawn.encounter.x+5,y:2.3,z:aimSpawn.encounter.z}}),/invalid_aim_point/,'server rejects aim points outside the target hitbox');
+assert.throws(()=>C.attack({encounters:aimSpawn.encounters,account:'aim-test',player,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint:{x:aimTarget.x+5,y:2.3,z:aimTarget.z}}),/invalid_aim_point/,'server rejects aim points outside the target hitbox');
 assert.doesNotThrow(()=>C.attack({encounters:a.encounters,account:'a',player,base:base(),now:101000,targetId:a.encounter.id}),'server accepts the exact active encounter target');
 assert.equal(C.spawn({encounters:a.encounters,account:'a',player,now:100100}).encounter.id,a.encounter.id);
 assert.throws(()=>C.attack({encounters:a.encounters,account:'a',player:{x:100,z:100},base:base(),now:101000}),/enemy_out_of_range/);

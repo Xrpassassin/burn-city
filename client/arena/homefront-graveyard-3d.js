@@ -160,11 +160,17 @@ function boot(host) {
 
   const mat = (color, roughness = 0.94) => new THREE.MeshStandardMaterial({ color, roughness });
   let equippedWeaponSkinColor = 0x9a7b62;
+  let equippedOutfitColor = 0x6d7659;
+  let equippedBackpackColor = 0x78604a;
   let equippedWeaponId = 'pipe_blade';
+  const parseCosmeticColor = (value, fallback) =>
+    typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? Number.parseInt(value.slice(1), 16) : fallback;
   window.addEventListener('homefront:cosmetics', event => {
-    const color = event.detail?.weaponColor;
-    if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) equippedWeaponSkinColor = Number.parseInt(color.slice(1), 16);
-    if (['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'].includes(event.detail?.weaponId)) equippedWeaponId = event.detail.weaponId;
+    const detail = event.detail || {};
+    equippedWeaponSkinColor = parseCosmeticColor(detail.weaponColor, equippedWeaponSkinColor);
+    equippedOutfitColor = parseCosmeticColor(detail.outfitColor, equippedOutfitColor);
+    equippedBackpackColor = parseCosmeticColor(detail.backpackColor, equippedBackpackColor);
+    if (['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'].includes(detail.weaponId)) equippedWeaponId = detail.weaponId;
   });
   const roadMat = mat(0x343733), buildingMats = [mat(0x41413a), mat(0x4b443a), mat(0x363d3d), mat(0x50483d)];
   const ruinMat = mat(0x292d2a), emberMat = new THREE.MeshStandardMaterial({ color: 0xff7738, emissive: 0x9c2507, emissiveIntensity: 0.8 });
@@ -510,12 +516,20 @@ function boot(host) {
     for (const p of (data.players || [])) {
       const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z);
       const color = p.label === 'You' ? 0xffdf83 : p.party ? 0x8fd4f4 : 0xd7d1c5;
-      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 1.2, 3, 6), mat(color));
+      const isLocalPlayer = p.label === 'You';
+      const bodyColor = isLocalPlayer ? equippedOutfitColor : color;
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 1.2, 3, 6), mat(bodyColor));
       body.position.y = 1.45; g.add(body);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 8, 6), mat(p.label === 'You' ? 0xffb45c : 0xc5aa8a));
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 8, 6), mat(isLocalPlayer ? 0xffb45c : 0xc5aa8a));
       head.position.y = 2.55; g.add(head);
-      // Visible held weapon silhouette; cosmetic finishes will bind to the authoritative loadout next.
-      const weaponId = p.label === 'You' ? equippedWeaponId : 'pipe_blade';
+      // A readable field pack makes the backpack slot visible in-world without affecting gameplay stats.
+      const packColor = isLocalPlayer ? equippedBackpackColor : 0x78604a;
+      const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.82, 0.34), mat(packColor));
+      backpack.position.set(0, 1.55, -0.48); g.add(backpack);
+      const packStrap = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.1, 0.38), mat(0x29251f));
+      packStrap.position.set(0, 1.62, -0.49); g.add(packStrap);
+      // Visible held weapon silhouette; the local weapon finish and model follow the equipped loadout.
+      const weaponId = isLocalPlayer ? equippedWeaponId : 'pipe_blade';
       const weapon = new THREE.Group(); weapon.position.set(0.62, 1.72, 0.12); weapon.rotation.x = -0.12;
       const grip = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.13), mat(0x49372b));
       grip.position.y = -0.2; weapon.add(grip);

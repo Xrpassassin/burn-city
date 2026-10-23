@@ -524,6 +524,7 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
+    applyEnvironmentStateSnapshot(data.world?.environmentStructures);
     if (typeof data.selfWeaponHandling?.aiming === 'boolean') aiming = data.selfWeaponHandling.aiming;
     if (sprintTravelButton) { sprintTravelButton.setAttribute('aria-pressed', String(sprintTravel)); sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF'; }
     clearGroup(poiGroup); clearGroup(lootGroup); markerObjects.clear();

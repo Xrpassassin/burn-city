@@ -11,12 +11,12 @@ function publicState(room) {
     countdownAt:room.countdownAt || null, serverNow:Date.now(), max:MAX_PARTY };
 }
 function broadcast(room) { const state=publicState(room); for(const p of room.players.values()) safeSend(p.ws,state); }
-function clearCountdown(room) { room.countdownAt=null; if(room.timer){clearInterval(room.timer);room.timer=null;} }
+function clearCountdown(room) { room.countdownAt=null; room.lastSecond=null; if(room.timer){clearInterval(room.timer);room.timer=null;} }
 function allReady(room) { return room.players.size>0 && [...room.players.values()].every(p=>p.ready); }
 function armCountdown(room) {
   if(room.departed)return;
   if(!allReady(room)){clearCountdown(room);broadcast(room);return;}
-  if(!room.countdownAt) room.countdownAt=Date.now()+COUNTDOWN_MS;
+  if(!room.countdownAt){room.countdownAt=Date.now()+COUNTDOWN_MS;room.lastSecond=null;}
   if(!room.timer) room.timer=setInterval(()=>tick(room),200);
   broadcast(room);
 }
@@ -27,10 +27,11 @@ function tick(room, now=Date.now()) {
     room.departed=true;clearCountdown(room);
     const event={e:'flight_depart',map:room.map,roomId:room.id,departedAt:now};
     for(const p of room.players.values())safeSend(p.ws,event);
-    setTimeout(()=>{for(const p of room.players.values()){try{p.ws.close(1000,'flight_departed')}catch{}}if(rooms.get(room.key)===room)rooms.delete(room.key)},2500);
+    const cleanup=setTimeout(()=>{for(const p of room.players.values()){try{p.ws.close(1000,'flight_departed')}catch{}}if(rooms.get(room.key)===room)rooms.delete(room.key)},2500);cleanup.unref?.();
     return;
   }
-  broadcast(room);
+  const second=Math.ceil((room.countdownAt-now)/1000);
+  if(second!==room.lastSecond){room.lastSecond=second;broadcast(room);}
 }
 function remove(room,p) {
   if(!room.players.delete(p.id))return;

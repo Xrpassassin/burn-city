@@ -21,6 +21,7 @@ assert.match(scene, /const combatActors = new Map\(\)/, 'retain infected scene a
 assert.match(scene, /state\.targetX - actor\.position\.x/, 'interpolate infected movement between server snapshots');
 assert.match(scene, /actor\.userData\.hitFlash = 0\.38/, 'give confirmed enemy damage a brief visual hit flash');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
+assert.match(scene, /attackInfectedButton\.disabled = !active \|\| active\.defeated \|\| active\.hp <= 0 \|\| distance > \(active\.range \|\| 0\)/, 'keep attack disabled after requests when the enemy remains out of range');
 assert.match(page, /id="findInfected"/, 'provide a control to initiate an infected encounter');
 assert.match(page, /id="attackInfected"/, 'provide an attack control for active infected');
 assert.match(page, /id="graveyard3d"/, 'embed the 3D world in Homefront');

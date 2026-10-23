@@ -43,6 +43,12 @@ const advanced=C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:10100
 assert.ok(advanced.a.x<10&&advanced.a.x>2.2,'infected pursues the player without teleporting into contact');
 assert.equal(advanced.a.z,0);
 assert.equal(C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000}).a.x,advanced.a.x,'pursuit is deterministic for the same state and clock');
+const leashed=C.advance({encounters:{a:{...pursuer,x:40,z:0,pursuitRadius:20,lastKnownX:40,lastKnownZ:0,lastKnownAt:100000,investigateUntil:0}},players:{a:{x:0,z:0}},now:101000});
+assert.equal(leashed.a.x,40,'infected stop extending pursuit after the player breaks their leash radius');
+const noiseDrawn=C.advance({encounters:{a:{...pursuer,x:40,z:0,pursuitRadius:20,lastKnownX:40,lastKnownZ:0,lastKnownAt:100000,investigateUntil:0}},players:{a:{x:0,z:0,lastNoiseAt:100500,noiseLevel:95,noiseX:30,noiseZ:0}},now:101000});
+assert.ok(noiseDrawn.a.x<40,'recent gunfire pulls infected toward its recorded sound location rather than the fleeing player');
+assert.equal(noiseDrawn.a.lastKnownX,30,'infected retain the authoritative noise source as their last-known position');
+
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
 const noAmmo=C.spawn({encounters:{},account:'b',player,now:200000});assert.throws(()=>C.attack({encounters:noAmmo.encounters,account:'b',player,base:{...base(),resources:{ammo:0},equippedWeapon:'pump_shotgun'},now:201000}),/insufficient_ammo/);

@@ -70,7 +70,12 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (s.structures.filter(x => x.type === action.building).length >= spec.cap) throw new Error('building_cap');
       pay(s, spec.cost);
       const id = 'b' + (s.structures.reduce((n, x) => Math.max(n, Number(x.id.slice(1)) || 0), 0) + 1);
-      s.structures.push({ id, type: action.building, hp: spec.hp, maxHp: spec.hp });
+      const angle = s.structures.length * 2.399963229728653, radius = 3 + Math.floor(s.structures.length / 8) * 1.8;
+      const x = Number.isFinite(action.x) ? action.x : Math.cos(angle) * radius;
+      const z = Number.isFinite(action.z) ? action.z : Math.sin(angle) * radius;
+      if (Math.abs(x) > 12 || Math.abs(z) > 12) throw new Error('placement_out_of_bounds');
+      if (s.structures.some(v => Math.hypot(v.x - x, v.z - z) < 1.65)) throw new Error('placement_occupied');
+      s.structures.push({ id, type: action.building, hp: spec.hp, maxHp: spec.hp, x, z });
       record(s, 'build', 'Constructed ' + action.building + '.', now);
       break;
     }

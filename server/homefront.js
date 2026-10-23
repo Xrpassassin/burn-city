@@ -5,6 +5,7 @@ const Core = require('./homefront-core');
 const World = require('./homefront-world');
 const Combat = require('./homefront-combat');
 const Survival = require('./homefront-survival');
+const Inventory = require('./homefront-inventory');
 
 async function handle(req, res, url, { json, gate, ip, body, who, store = Store }) {
   const publicVisit = url.pathname === '/api/homefront/visit';
@@ -50,26 +51,46 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           if (!player) throw new Error('not_in_expedition');
           const action = typeof payload.action === 'string' ? payload.action : '';
           const bases = store.load('homefront.json', {});
-          const savedBase = bases[user.acct] || Core.createBase(user.acct);
-          const base = Core.validateBase(savedBase, user.acct);
+          const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
           if (!base) throw new Error('save_invalid');
-          const costs = { eat: ['food', 1, 'insufficient_food'], drink: ['water', 1, 'insufficient_water'], bandage: ['meds', 1, 'insufficient_meds'] };
-          const cost = costs[action];
-          if (cost && base.resources[cost[0]] < cost[1]) throw new Error(cost[2]);
-          const nextSurvival = Survival.act(player.survival, action, Date.now());
-          if (cost) base.resources[cost[0]] -= cost[1];
-          player.survival = nextSurvival;
-          player.lastSeen = Date.now();
-          if (cost) {
-            base.revision++;
-            base.updatedAt = Date.now();
-            base.log.push({ id: (base.log.at(-1)?.id || 0) + 1, kind: 'survival', text: ({eat:'Consumed one ration in the field.',drink:'Drank one bottle of water in the field.',bandage:'Used a medical supply to treat field injuries.'})[action], at: Date.now() });
-            base.log = base.log.slice(-20);
-            bases[user.acct] = base;
-            store.save('homefront.json', bases);
+          const itemFor = { eat: 'food', drink: 'water', bandage: 'meds' }[action];
+          let inventory = Inventory.normalize(player.inventory);
+          if (itemFor) inventory = Inventory.remove(inventory,itemFor,1).inventory;
+          const survival = Survival.act(player.survival, action, Date.now());
+          player.inventory = inventory; player.survival = survival; player.lastSeen = Date.now();
+          if (itemFor) {
+            base.revision++; base.updatedAt = Date.now();
+            base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'survival',text:({eat:'Consumed a carried ration in the field.',drink:'Drank carried clean water in the field.',bandage:'Used carried medical supplies to treat field injuries.'})[action],at:Date.now()});
+            base.log=base.log.slice(-20);bases[user.acct]=base;store.save('homefront.json',bases);
           }
-          store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), base, survival: nextSurvival });
+          store.save('homefront-world.json',db);
+          json(res,200,{mode:'homefront-world',...World.snapshot(db,user.acct),base,survival,inventory:{...inventory,used:Inventory.used(inventory),capacity:Inventory.CAPACITY}});
+          return true;
+        }
+        case '/api/homefront/world/inventory': {
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const bases = store.load('homefront.json', {});
+          const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
+          if (!base) throw new Error('save_invalid');
+          const action = typeof payload.action === 'string' ? payload.action : '';
+          let inventory = Inventory.normalize(player.inventory);
+          if (action === 'take') {
+            const id = typeof payload.item === 'string' ? payload.item : '';
+            const qty = Number.isFinite(payload.amount) ? payload.amount : 1;
+            const taken = Inventory.withdraw(inventory,base.resources,id,qty);
+            inventory=taken.inventory;base.resources=taken.resources;
+            base.revision++;base.updatedAt=Date.now();
+            base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'inventory',text:'Packed '+taken.taken+' '+id+' from refuge stores.',at:Date.now()});
+          } else if (action === 'stash' || action === 'return') {
+            const packed=Inventory.stash(inventory,base.resources);inventory=packed.inventory;
+            for(const [id,qty] of Object.entries(packed.stored))base.resources[id]=Math.min(999999,(base.resources[id]||0)+qty);
+            base.revision++;base.updatedAt=Date.now();
+            base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'inventory',text:'Returned field supplies to refuge stores.',at:Date.now()});
+          } else throw new Error('unknown_inventory_action');
+          base.log=base.log.slice(-20);bases[user.acct]=base;player.inventory=inventory;player.lastSeen=Date.now();
+          store.save('homefront.json',bases);store.save('homefront-world.json',db);
+          json(res,200,{mode:'homefront-world',...World.snapshot(db,user.acct),base,inventory:{...inventory,used:Inventory.used(inventory),capacity:Inventory.CAPACITY}});
           return true;
         }
         case '/api/homefront/world/encounter': {
@@ -106,7 +127,21 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward }, base: outcome.base });
           return true;
         }
-        case '/api/homefront/world/enter': outcome = World.enter(db, user.acct); break;
+        case '/api/homefront/world/enter': {
+          outcome=World.enter(db,user.acct);
+          const player=outcome.world.players[user.acct];
+          if(player&&!player.inventoryInitialized){
+            const bases=store.load('homefront.json',{});
+            const base=Core.validateBase(bases[user.acct]||Core.createBase(user.acct),user.acct);
+            if(!base)throw new Error('save_invalid');
+            const kit={food:Math.min(2,base.resources.food),water:Math.min(2,base.resources.water),meds:Math.min(1,base.resources.meds),ammo:Math.min(4,base.resources.ammo),scrap:0,wood:0};
+            for(const [id,qty] of Object.entries(kit))base.resources[id]=Math.max(0,(base.resources[id]||0)-qty);
+            player.inventory=Inventory.normalize(kit);player.inventoryInitialized=true;
+            base.revision++;base.updatedAt=Date.now();base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'inventory',text:'Packed a starter field kit from refuge stores.',at:Date.now()});base.log=base.log.slice(-20);
+            bases[user.acct]=base;store.save('homefront.json',bases);outcome.result=World.snapshot(outcome.world,user.acct);
+          }
+          break;
+        }
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z)); break;
         case '/api/homefront/world/rescue': {
           const player = db.players[user.acct];
@@ -183,7 +218,21 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const base = Core.validateBase(savedBase, user.acct);
           if (!base) throw new Error('save_invalid');
           const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty : 'standard';
-          const nextBase = Core.applyAction(base, user.acct, { type: isBoss ? 'boss_attack' : 'expedition', zone: nearest.point.zone, difficulty });
+          let workingBase=base;
+          const carried=Inventory.normalize(player.inventory);
+          if(!isBoss){
+            if(carried.food<2||carried.ammo<1)throw new Error('field_supplies_required');
+            workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
+          }
+          const nextBase=Core.applyAction(workingBase,user.acct,{type:isBoss?'boss_attack':'expedition',zone:nearest.point.zone,difficulty});
+          if(!isBoss){
+            carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
+            for(const id of ['wood','scrap','meds']){
+              const found=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
+              if(found){const packed=Inventory.add(carried,id,found);carried[id]=packed.inventory[id];nextBase.resources[id]=Math.max(0,(nextBase.resources[id]||0)-packed.accepted);}
+            }
+            nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;player.inventory=carried;
+          }
           let defeated = false;
           if (isBoss) {
             const boss = db.bosses[nearest.point.id];
@@ -208,19 +257,30 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           player.lastSeen = Date.now();
           store.save('homefront-world.json', db);
           const snap = World.snapshot(db, user.acct);
-          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: isBoss ? { id: nearest.point.id, label: nearest.point.label, hp: db.bosses[nearest.point.id].hp, maxHp: db.bosses[nearest.point.id].maxHp, defeated, difficulty, weapon: nextBase.equippedWeapon } : { id: nearest.point.id, label: nearest.point.label, scavenged: true, difficulty, event: nextBase.log.at(-1)?.text } });
+          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, encounter: isBoss ? { id: nearest.point.id, label: nearest.point.label, hp: db.bosses[nearest.point.id].hp, maxHp: db.bosses[nearest.point.id].maxHp, defeated, difficulty, weapon: nextBase.equippedWeapon } : { id: nearest.point.id, label: nearest.point.label, scavenged: true, difficulty, event: nextBase.log.at(-1)?.text } });
           return true;
         }
         case '/api/homefront/world/party/create': outcome = World.createParty(db, user.acct); break;
         case '/api/homefront/world/party/join': outcome = World.joinParty(db, user.acct, payload.code); break;
-        case '/api/homefront/world/leave': outcome = World.leave(db, user.acct); break;
+        case '/api/homefront/world/leave': {
+          const player=db.players[user.acct];
+          if(player){
+            const bases=store.load('homefront.json',{});
+            const base=Core.validateBase(bases[user.acct]||Core.createBase(user.acct),user.acct);
+            if(!base)throw new Error('save_invalid');
+            const packed=Inventory.stash(player.inventory,base.resources);
+            for(const [id,qty] of Object.entries(packed.stored))base.resources[id]=Math.min(999999,(base.resources[id]||0)+qty);
+            base.revision++;base.updatedAt=Date.now();bases[user.acct]=base;store.save('homefront.json',bases);
+          }
+          outcome=World.leave(db,user.acct);break;
+        }
         default: json(res, 404, { error: 'world_route_not_found' }); return true;
       }
       store.save('homefront-world.json', outcome.world);
       json(res, 200, { mode: 'homefront-world', ...outcome.result }); return true;
     } catch (e) {
       const message = String(e?.message || 'homefront_world_error');
-      const clientError = /^(not_in_expedition|move_cooldown|not_hungry|not_thirsty|not_injured|not_exhausted|unknown_survival_action|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|no_active_encounter|encounter_expired|enemy_out_of_range|attack_cooldown|insufficient_ammo|insufficient_water|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
+      const clientError = /^(not_in_expedition|move_cooldown|field_supplies_required|unknown_inventory_action|unknown_item|inventory_full|not_carrying_[a-z]+|not_hungry|not_thirsty|not_injured|not_exhausted|unknown_survival_action|party_not_found|party_full|already_in_party|invalid_world_action|party_leader_controls_movement|too_far_from_site|too_far_from_cache|cache_empty|too_far_from_rescue|rescue_unavailable|survivor_capacity|unknown_rescue_zone|not_at_boss_site|boss_respawning|no_active_encounter|encounter_expired|enemy_out_of_range|attack_cooldown|insufficient_ammo|insufficient_water|zone_not_discovered|unknown_exploration_zone|expedition_supplies_required|base_destroyed|insufficient_)/.test(message);
       json(res, clientError ? 400 : 500, { error: message });
       if (!clientError) console.error('[homefront-world]', message);
       return true;

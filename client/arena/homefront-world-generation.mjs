@@ -63,3 +63,32 @@ export function biomeManifest(cx, cz, { chunkSize = CHUNK_SIZE, seed = DEFAULT_T
   }
   return { chunkId: cx + ',' + cz, dominantBiome: Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b))[0], counts };
 }
+
+/** One deterministic landmark seed per chunk. These are scenic set pieces only, not server POIs. */
+export function landmarkCandidates(cx, cz, { chunkSize = CHUNK_SIZE, seed = DEFAULT_TERRAIN_SEED } = {}) {
+  if (![cx, cz, chunkSize, seed].every(Number.isFinite) || chunkSize <= 0) {
+    throw new TypeError('landmarkCandidates expects finite chunk coordinates, seed and positive chunk size');
+  }
+  const worldChunkX = Math.floor(cx);
+  const worldChunkZ = Math.floor(cz);
+  const roll = hash01(worldChunkX, worldChunkZ, seed ^ 0x5bd1e995);
+  const x = worldChunkX * chunkSize + chunkSize * (0.3 + hash01(worldChunkX, worldChunkZ, seed ^ 0x31f2a7) * 0.4);
+  const z = worldChunkZ * chunkSize + chunkSize * (0.3 + hash01(worldChunkX, worldChunkZ, seed ^ 0x78b4d3) * 0.4);
+  const biome = biomeAt(x, z, seed);
+  const types = biome.id === 'marsh'
+    ? ['evacuation_checkpoint', 'crashed_bus', 'survivor_camp', 'radio_tower']
+    : biome.id === 'deadwood'
+      ? ['survivor_camp', 'radio_tower', 'crashed_bus', 'evacuation_checkpoint']
+      : biome.id === 'urban-rubble'
+        ? ['warehouse_ruin', 'evacuation_checkpoint', 'crashed_bus', 'radio_tower']
+        : ['evacuation_checkpoint', 'crashed_bus', 'survivor_camp', 'warehouse_ruin'];
+  const type = types[Math.min(types.length - 1, Math.floor(roll * types.length))];
+  return [{
+    id: 'landmark:' + worldChunkX + ',' + worldChunkZ,
+    type,
+    x: Math.round(x * 100) / 100,
+    z: Math.round(z * 100) / 100,
+    y: terrainHeight(x, z, seed),
+    biome: biome.id
+  }];
+}

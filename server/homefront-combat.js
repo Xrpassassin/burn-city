@@ -11,7 +11,7 @@ function resolveSpawn({account,x,z,district,risk=1,now=Date.now(),seed=0}){
  const event=roll<13+risk*4?'special_infected':roll<42+risk*5?'infected_horde':'wandering_infected',s=STATS[event],id='enc-'+hash(account+':'+now+':'+x+':'+z).toString(36);
  return {id,owner:account,event,enemy:enemyName(district,event),district,x:clamp(x+(hash(id+':x')%13-6),-100,100),z:clamp(z+(hash(id+':z')%13-6),-100,100),hp:s.hp+risk*7,maxHp:s.hp+risk*7,damage:s.damage+Math.max(0,risk-1),ammoCost:s.ammo,range:s.range,risk,createdAt:now,lastAttackAt:0,lastAiAt:now,expiresAt:now+ENCOUNTER_TTL,defeated:false};
 }
-function publicEncounter(e){return e?{id:e.id,event:e.event,enemy:e.enemy,district:e.district,x:e.x,z:e.z,hp:e.hp,maxHp:e.maxHp,risk:e.risk,expiresAt:e.expiresAt,defeated:!!e.defeated}:null;}
+function publicEncounter(e){return e?{id:e.id,event:e.event,enemy:e.enemy,district:e.district,x:e.x,z:e.z,hp:e.hp,maxHp:e.maxHp,risk:e.risk,range:e.range,expiresAt:e.expiresAt,defeated:!!e.defeated}:null;}
 function normalizeEncounters(input,now=Date.now()){
  const out={};if(!input||typeof input!=='object'||Array.isArray(input))return out;
  for(const [owner,e] of Object.entries(input)){if(!e||typeof e!=='object'||typeof e.id!=='string'||!STATS[e.event]||!Number.isFinite(e.expiresAt)||e.expiresAt<=now)continue;

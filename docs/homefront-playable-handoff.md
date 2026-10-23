@@ -76,4 +76,4 @@ Homefront is ready for Hark's playable review when the full Homefront test scrip
 ## Survival, UI, and open-world roadmap
 - Implemented initial field-vitals rules and HUD in `server/homefront-survival.js`, `server/homefront-survival.test.js`, `server/homefront-world.js`, `server/homefront.js`, and `client/arena/homefront.html`.
 - The detailed design contract for inventory, cosmetic skins, diegetic interactions, authored districts, atmosphere, and dynamic events is `docs/homefront-survival-cosmetics-open-world.md`.
-- Cosmetic skin ownership/equip persistence, a real survivor avatar/loadout renderer, authored interiors, collision-aware navigation, and dynamic weather/events are still roadmap work, not completed features.
+- A real survivor avatar/loadout renderer, applying equipped skins to 3D models, authored interiors, collision-aware navigation, and dynamic weather/events are still roadmap work, not completed features.

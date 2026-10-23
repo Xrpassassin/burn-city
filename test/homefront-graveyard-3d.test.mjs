@@ -24,6 +24,11 @@ assert.match(scene, /threatRing/, 'render a proximity danger telegraph for nearb
 assert.match(scene, /threatDistance <= 3/, 'increase infected danger feedback at close combat distance');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(scene, /Visible held weapon silhouette/, 'render a visible weapon prop for each explorer in the 3D world');
+assert.match(scene, /event\.button !== 2 \|\| masterView !== 'third-person'/, 'right mouse drag orbits the third-person camera without hijacking ground travel');
+assert.match(scene, /cameraYawOffset \+= event\.movementX \* 0\.006/, 'camera orbit changes the follow heading');
+assert.match(scene, /cameraPitchOffset = Math\.max\(-0\.25, Math\.min\(0\.45/, 'camera pitch stays within a safe view angle');
+assert.match(scene, /cameraDistance = Math\.max\(3\.5, Math\.min\(10\.5/, 'mouse wheel zoom is clamped to playable third-person distances');
+assert.match(scene, /right-drag to orbit · scroll to zoom/, 'the game explains orbit and zoom controls to the player');
 assert.match(scene, /homefront:cosmetics/, 'receive equipped cosmetic and weapon selection from the Homefront loadout');
 assert.match(scene, /equippedWeaponSkinColor/, 'apply the equipped weapon skin finish to the local 3D weapon');
 assert.match(scene, /weaponId === 'shock_maul'/, 'render a distinct shock maul silhouette');

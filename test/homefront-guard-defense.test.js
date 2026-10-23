@@ -28,6 +28,13 @@ assert.equal(defenseLog.kind, 'defense');
 assert.match(defenseLog.text, /2 guard\(s\) contributed 3\.5 defense strength/,
   'the authoritative defense report explains the guards contribution');
 assert.equal(result.survivors.filter(s => s.role === 'guard').length, 2);
+assert.equal(result.lastSiege.status, 'repelled', 'each defense action persists a resolved siege incident');
+assert.deepEqual(result.lastSiege.phases.map(phase => phase.phase), ['warning', 'guard_response', 'repelled'],
+  'incident history records warning, guard response, and resolution in order');
+assert.equal(result.lastSiege.guardCount, 2, 'after-action report captures the responding guard count');
+assert.equal(result.lastSiege.refugeHpAfter, result.baseHp, 'after-action report matches authoritative refuge health');
+assert.ok(result.log.some(item => item.kind === 'siege_warning'), 'the server records the siege warning');
+assert.ok(result.log.some(item => item.kind === 'guard_response'), 'the server records guard response');
 // Guards also cover an already-damaged perimeter during an actual defend action.
 const breachBase = Core.createBase('rGuardBreachCover', now);
 breachBase.resources.ammo = 30;
@@ -46,6 +53,10 @@ assert.match(breachLog, /reduced perimeter damage by 6%/,
   'guard cover is capped at 25 percent');
 assert.equal(defended.structures[0].hp, 90 - Number(actualDamageMatch[1]),
   'mitigated siege damage is applied to the real structure state');
+assert.equal(defended.lastSiege.target.id, 'b1', 'incident records the actual siege priority target');
+assert.equal(defended.lastSiege.target.integrityBefore, 50, 'incident records target integrity before the attack');
+assert.equal(defended.lastSiege.target.integrityAfter, Math.round(defended.structures[0].hp / 180 * 100),
+  'incident records target integrity after the attack');
 
 
  // A damaged structure deeper inside the yard must not grant cover if the outermost
@@ -100,5 +111,19 @@ assert.equal(emergencyResult.resources.scrap, 2, 'emergency repair spends two sc
 assert.match(emergencyResult.log[emergencyResult.log.length - 1].text, /Emergency repair: gate breached-gate restored \+100 HP \(56% integrity\)/,
   'emergency repair reports the restored integrity');
 assert.throws(() => Core.applyAction({ ...emergencyBase, structures: [{ ...emergencyBase.structures[0], type: 'garden' }] }, 'rGuardEmergencyRepair', { type: 'emergency_repair', target: 'breached-gate' }, now + 7), /not_a_defensive_structure/);
+
+
+const guaranteedBreach = Core.createBase('rGuardIncidentBreach', now);
+guaranteedBreach.resources.ammo = 30;
+guaranteedBreach.structures = [{ id: 'outer-gate', type: 'gate', hp: 1, maxHp: 180, x: 9, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
+const breachOutcome = Core.applyAction(guaranteedBreach, 'rGuardIncidentBreach', { type: 'defend' }, now + 8);
+assert.equal(breachOutcome.lastSiege.status, 'breach_opened', 'a destroyed defensive target is recorded as an opened breach');
+assert.equal(breachOutcome.lastSiege.target.integrityAfter, 0, 'breach report records zero target integrity');
+assert.deepEqual(breachOutcome.lastSiege.breachedStructures, [{ id: 'outer-gate', type: 'gate' }],
+  'after-action report identifies the exact structure that was breached');
+assert.match(breachOutcome.lastSiege.phases[2].text, /breach opened at gate outer-gate/,
+  'final incident phase explains the breach outcome');
+assert.equal(Core.validateBase({ ...breachOutcome, lastSiege: undefined }, 'rGuardIncidentBreach').lastSiege, null,
+  'older saves without incident history remain valid');
 
 console.log('Homefront authoritative guard-defense regressions passed.');

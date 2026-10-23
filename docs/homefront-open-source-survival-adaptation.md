@@ -50,3 +50,13 @@ Homefront now uses its own implementation of distance-weighted travel metabolism
 - Added `client/arena/homefront-world-streaming.test.mjs` and wired it into `npm run test:homefront`.
 - This is the first streaming seam, not a claim that the world is already infinite or seamless. The authoritative world remains bounded at ±100 until a later server/world migration deliberately expands region coordinates, movement validation, spawn selection, persistence, and encounter/loot ownership together.
 - Next: split long road segments and terrain into chunk-owned pieces, add chunk-aware landmark placement, then extend authoritative world coordinates and persistent regional state without breaking existing saves.
+
+
+## Phase 1B: deterministic terrain-generation core
+
+- Added `client/arena/homefront-terrain-generation.mjs`, a dependency-free, seeded world-coordinate height sampler. It combines broad and fine smooth value-noise layers into a deliberately shallow first-pass height profile.
+- Added `terrainChunkSamples` to produce repeatable vertex samples for a chunk using absolute world coordinates. Adjacent chunks therefore calculate the same shared-edge heights regardless of generation order.
+- Added `client/arena/homefront-terrain-generation.test.mjs` for deterministic output, seed variation, invalid-input handling, bounded height values, and shared-edge continuity; wired it into `npm run test:homefront`.
+- This is the generation core, not yet a visible raised terrain surface. The current ground, pointer hit surface, server movement validator, and collision assumptions are planar. Rendering relief before those systems share a common height/collision contract would create visual floating or inaccessible terrain.
+- Third-party evaluation: THREE.Terrain is an MIT-licensed candidate with richer terrain generators and material/foliage tools, but its documented Three.js compatibility needs to be checked against this repo's vendored runtime before adoption. Keep the initial sampler dependency-free until a compatibility spike proves a benefit.
+- Next integration step: introduce a shared terrain contract for height sampling and walkability, then align the rendered ground, pointer hit testing, server movement validation, roads, and structure placement before enabling meaningful elevation.

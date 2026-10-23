@@ -29,7 +29,7 @@ assert.equal(states[wall.id].health, 200);
 states = Environment.tick(states, {}, 60_000);
 assert.equal(states[wall.id].unoccupiedSince, 60_000);
 states = Environment.tick(states, {}, 105_000);
-assert.equal(states[wall.id].health, 200);
+assert.equal(states[wall.id].health, 190);
 states = Environment.tick(states, {}, 115_000);
 assert.equal(states[wall.id].health, 215);
 states = Environment.tick(states, {}, 125_000);

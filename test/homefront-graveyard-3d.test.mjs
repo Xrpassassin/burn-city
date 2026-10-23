@@ -87,6 +87,13 @@ assert.match(scene, /return !\(data\.combat\?\.killed\)/, 'stop the held firing 
 assert.match(scene, /setPointerCapture\(event\.pointerId\)/, 'keep mobile autofire held through pointer movement');
 assert.match(scene, /const aimPoint = selectedCombatAimPoint && activeTarget && targetId === activeTarget\.id/, 'refresh the aim point against the latest target snapshot on each shot');
 assert.match(scene, /fired === false\) \{ stopAutoFire\(\); return; \}/, 'stop repeated requests after a combat error such as empty ammunition');
+assert.match(scene, /function cancelReload\(message = 'Reload interrupted\.'/ , 'support cancelling a reload before ammunition transfer');
+assert.match(scene, /Reload interrupted by combat/, 'combat input interrupts an in-progress reload');
+assert.match(scene, /Reload interrupted by movement/, 'movement interrupts an in-progress reload');
+assert.match(scene, /scheduleReloadStep\(state\)/, 'progress shotgun reloads one server-confirmed shell at a time');
+assert.match(scene, /2250/, 'give the marksman rifle a longer reload animation than a shotgun shell insertion');
+assert.match(scene, /sfx\.reloadWeapon\(shotgun \? 'shotgun' : 'marksman_rifle'\)/, 'play weapon-specific reload handling audio');
+assert.match(scene, /if \(reloadState\) \{ const phase/, 'animate the held weapon during the reload action');
 assert.match(scene, /pointercancel|pointerup/, 'stop autofire on pointer release or cancellation');
 assert.match(scene, /JSON\.stringify\(targetId \? \{ targetId/, 'include the selected target with combat requests');
 

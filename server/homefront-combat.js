@@ -1,6 +1,7 @@
 'use strict';
 // Authoritative, renderer-independent combat for Homefront's shared Graveyard.
 const { ARCHETYPES, QUALITY_ORDER } = require('./homefront-director');
+const Terrain = require('./homefront-terrain');
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(n)?n:a));
 const hash=s=>{let h=2166136261;for(const c of String(s))h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0;};
 const ENCOUNTER_TTL=180000, ATTACK_COOLDOWN=900;
@@ -41,8 +42,9 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
   const stopDistance=2.2;
   if(distance<=stopDistance)continue;
   const step=Math.min(distance-stopDistance,speed*elapsed);
-  e.x=clamp(e.x+dx/distance*step,-100,100);
-  e.z=clamp(e.z+dz/distance*step,-100,100);
+  const nextX=clamp(e.x+dx/distance*step,-100,100),nextZ=clamp(e.z+dz/distance*step,-100,100);
+  // Infected use the same grade gate as players; steep terrain will require a pathfinder rather than clipping uphill.
+  if(Terrain.canTraverse(e.x,e.z,nextX,nextZ)){e.x=nextX;e.z=nextZ;}
  }
  return clean;
 }

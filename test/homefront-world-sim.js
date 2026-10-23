@@ -10,6 +10,8 @@ assert.equal(b.result.players.length, 2, 'both active players appear in the shar
 assert.equal(a.result.self.risk, 1, 'perimeter spawn is low risk');
 assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'cache'), 'shared world includes physical supply-cache landmarks');
 assert.ok(Object.values(a.result.world.caches).every(cache => cache.readyAt === 0), 'shared supply caches begin available');
+assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'rescue'), 'shared world includes survivor rescue sites');
+assert.ok(Object.values(a.result.world.rescues).every(site => site.readyAt === 0), 'shared rescue sites begin available');
 
 const party = W.createParty(world, 'acct-a', 1100); world = party.world;
 const code = party.result.party.code;

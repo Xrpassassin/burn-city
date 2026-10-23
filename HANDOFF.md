@@ -515,3 +515,6 @@ Third-person Explore camera zoom: mouse wheel and two-finger pinch on the canvas
 
 ## feature/shared-airborne-banner-planes (PR #122, sw bc-v78-bannerplanes)
 Two banner tow planes on a shared Unix-time schedule (airport.js poseTowPlane/updBannerPlanes; 240 s cycle, banners alternate ETERNAL GRIND / LIGHT CYCLES; canvas placeholder art, both planes share the two textures). Client clock only (no server sync); route crosses the city at 40-78 m.
+
+## feature/lake-waterfront-estates (PR #124, sw bc-v79-estates)
+Lake enlarged (estate.js lakeFrame D 62->78, Wd 175->210; shader divisors match) and the Estates lot rebuilt as Waterfront Estates: 9 tiered homes (trailer/apartment/starter/family/mansion), pocket park, trees, fences, lights, entrance sign; all merged per material (~17 meshes). Visual only: buying/renting/interiors not implemented. Estates card text updated.

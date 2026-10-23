@@ -20,9 +20,6 @@ The live Arena Zombies renderer in `client/arena/fx.js` builds its horde procedu
 5. Gate animated-model experiments behind a query flag until spawn/despawn, animation, memory disposal, and mobile frame time have been reviewed.
 6. Do not import ripped commercial-game models or assume a download is reusable just because it is free.
 
-**Scope note:** this PR adds original procedural visual detail. It documents open-license 3D packs for a subsequent binary-asset intake; it does not claim those external zombie models have been imported yet.
-
-
 ## Implemented opt-in animated model pilot
 
 - Bundled three animated zombie variants—Ash, Frost, and Rust—from the MIT-licensed [Storm Apocalypse source repository](https://github.com/mars-tw/storm-apocalypse/tree/main/public/models/custom/zombies). Its upstream `CREDITS.md` lists these original R8 zombie models separately from third-party Quaternius models.

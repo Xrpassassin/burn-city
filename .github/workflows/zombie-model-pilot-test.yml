@@ -6,6 +6,8 @@ on:
       - 'client/arena/fx.js'
       - 'client/arena/zombie-model-pilot.mjs'
       - 'client/arena/zombie-model-pilot.test.mjs'
+      - 'client/arena/zombie-model-selection.mjs'
+      - 'client/arena/zombie-model-selection.test.mjs'
       - 'client/arena/assets/zombies/**'
       - 'package.json'
       - '.github/workflows/zombie-model-pilot-test.yml'
@@ -21,6 +23,7 @@ jobs:
       - name: Check module syntax
         run: |
           node --check client/arena/zombie-model-pilot.mjs
+          node --check client/arena/zombie-model-selection.mjs
           node --input-type=module --check < client/arena/fx.js
       - name: Validate bundled GLB and animation contract
         run: node client/arena/zombie-model-pilot.test.mjs

@@ -15,6 +15,7 @@ export const BOT_DIFFICULTIES = Object.freeze({
 });
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const healthRatio = (hero) => hero.maxHealth > 0 ? hero.health / hero.maxHealth : 0;
 
 export function chooseBotIntent(state, slotId, difficulty = "normal") {
   const profile = BOT_DIFFICULTIES[difficulty];
@@ -26,6 +27,21 @@ export function chooseBotIntent(state, slotId, difficulty = "normal") {
   const hero = state.entities[slot.heroId];
   if (!hero?.alive) return null;
   const enemyTeam = slot.teamId === "blue" ? "red" : "blue";
+  // A damaged bot disengages toward its own tower instead of blindly feeding.
+  // Difficulty affects the retreat threshold slightly, not combat statistics.
+  const retreatThreshold = difficulty === "easy" ? 0.35 : difficulty === "normal" ? 0.25 : difficulty === "hard" ? 0.2 : 0.15;
+  const ownTower = state.entities[`${slot.teamId}-tower`];
+  if (healthRatio(hero) <= retreatThreshold && ownTower?.alive) {
+    if (distance(hero, ownTower) <= state.config.heroAttackRange && hero.attackCooldown === 0) {
+      const closestThreat = Object.values(state.entities)
+        .filter((entity) => entity.kind === "hero" && entity.teamId === enemyTeam && entity.alive)
+        .sort((a, b) => distance(hero, a) - distance(hero, b) || a.id.localeCompare(b.id))[0];
+      if (closestThreat && distance(hero, closestThreat) <= state.config.heroAttackRange) {
+        return { type: "attack", slotId, targetId: closestThreat.id };
+      }
+    }
+    return { type: "move", slotId, x: ownTower?.x ?? (slot.teamId === "blue" ? -60 : 60), y: ownTower?.y ?? 0 };
+  }
   const enemyHeroes = Object.values(state.entities)
     .filter((entity) => entity.kind === "hero" && entity.teamId === enemyTeam && entity.alive)
     .sort((a, b) => distance(hero, a) - distance(hero, b) || a.id.localeCompare(b.id));

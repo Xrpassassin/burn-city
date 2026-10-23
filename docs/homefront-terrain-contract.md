@@ -13,6 +13,13 @@ This is the first authoritative terrain-integration pass for the Graveyard scene
 
 The current authored road grid is spaced at 20 world units, centered at coordinates congruent to 10 modulo 20. Terrain height smoothly blends to zero at those centerlines so the existing flat road strips do not float above or cut through the ground. Terrain samples are functions of absolute world coordinates, so neighboring chunk edges remain identical regardless of load order.
 
+## Terrain-safe placement
+
+- `Terrain.isSafePosition` rejects non-finite/out-of-bounds coordinates and checks an eight-direction local footprint against the same grade gate used by movement.
+- New explorers are assigned a safe position near a balanced authored perimeter spawn. If a saved coordinate becomes invalid after a terrain change, normalization searches bounded concentric rings near that player's recorded spawn and recovers there rather than retaining an invalid position.
+- Infected encounter spawns validate their deterministic candidate and search nearby safe positions before falling back to the player's safe location. Party followers are also placed through the safe-position search during group movement.
+- This is terrain/grade grounding, not full object collision: static props, building walls, water volumes, and gameplay interaction radii still need authoritative collision/occupancy data.
+
 ## Server movement rules
 
 - Player movement validates the proposed authoritative step with `Terrain.canTraverse`. If that step is blocked, it requests a bounded A* route to the requested destination and advances along the first `MOVE_STEP` units of the route.
@@ -29,9 +36,9 @@ The current authored road grid is spaced at 20 world units, centered at coordina
 
 ## Remaining before calling terrain complete
 
-1. Add terrain-aware collision/grounding for movement and interactions rather than relying on horizontal coordinates alone.
+1. Add authoritative collision/occupancy for building walls, large props, water and interaction volumes; safe-position checks currently cover terrain grade and world bounds only.
 2. Conform road geometry, building footprints, and large props to terrain; road centerlines are currently levelled, but the roads remain flat meshes.
-3. Add integrated movement tests that force a blocked slope through player movement and infected pursuit, plus spawn placement on future steeper terrain.
+3. Expand integrated tests to cover synthetic steep-terrain spawn recovery, building/prop collision, and browser-ground alignment.
 4. Tune grid spacing and search budgets against measured gameplay latency once the browser/server loop can be exercised end-to-end.
 5. Run the complete `npm run test:homefront` suite and browser/device smoke tests before merge or deployment.
 

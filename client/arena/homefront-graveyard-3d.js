@@ -31,9 +31,12 @@ function boot(host) {
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.12; scene.add(ground);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const poiGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group();
-  scene.add(cityGroup, poiGroup, playerGroup, zombieGroup, combatGroup);
+  const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group();
+  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, zombieGroup, combatGroup);
   const combatStatus = document.getElementById('combatStatus');
+  const lootActionButton = document.getElementById('collectLoot');
+  const lootStatus = document.getElementById('lootStatus');
+  let selectedLootId = null;
   const findInfectedButton = document.getElementById('findInfected');
   const attackInfectedButton = document.getElementById('attackInfected');
   const zombieMixers = [];
@@ -98,6 +101,19 @@ function boot(host) {
     if (p.type === 'rescue') { addBox(g, 2.8, 1.7, 2.4, 0, 0.15, 0, mat(0x62584a)); addBox(g, 3, 0.12, 2.6, 0, 1.95, 0, mat(0x9c7449)); }
     poiGroup.add(g); markerObjects.set(p.id, g);
   }
+  function buildLootNode(p) {
+    const g = new THREE.Group(); g.position.set(p.x, 0, p.z); g.userData.lootNodeId = p.id;
+    const color = p.kind === 'medical' ? 0x9fce8a : p.kind === 'materials' ? 0xc5a36b : p.kind === 'highrisk' ? 0xff5a46 : 0xe1b65b;
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.15, 1.45), mat(p.kind === 'medical' ? 0x667d5d : 0x6f5437));
+    crate.position.y = 0.68; crate.userData.lootNodeId = p.id; g.add(crate);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.94, 0.13, 1.48), new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:0.18}));
+    stripe.position.y = 0.76; stripe.userData.lootNodeId = p.id; g.add(stripe);
+    const glow = new THREE.Mesh(new THREE.TorusGeometry(1.55,0.07,5,24), new THREE.MeshBasicMaterial({color,transparent:true,opacity:p.available?0.8:0.2}));
+    glow.rotation.x = Math.PI/2; glow.position.y = 0.08; glow.userData.lootNodeId = p.id; g.add(glow);
+    const label = labelSprite(p.label, p.available ? '#ffe0a0' : '#8b8278'); label.position.y = 2.5; g.add(label);
+    if (!p.available) { crate.material.color.setHex(0x45423e); stripe.material.emissiveIntensity=0; }
+    lootGroup.add(g);
+  }
   let worldData = null, moving = false;
   function spawnAmbientInfected(gltf = null) {
     const positions = infectedSpawns;
@@ -156,13 +172,14 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
-    clearGroup(poiGroup); markerObjects.clear();
+    clearGroup(poiGroup); clearGroup(lootGroup); markerObjects.clear();
     for (const p of (data.world?.pointsOfInterest || [])) {
       buildPOI(p);
       const marker = markerObjects.get(p.id);
       if (p.type === 'cache' && data.world?.caches?.[p.id]?.readyAt > Date.now()) marker.children[0].material.color.setHex(0x77716b);
       if (p.type === 'rescue' && data.world?.rescues?.[p.id]?.readyAt > Date.now()) marker.children[0].material.color.setHex(0x77716b);
     }
+    for (const node of (data.world?.lootNodes || [])) buildLootNode(node);
     clearGroup(playerGroup);
     clearGroup(combatGroup);
     const encounters = data.encounters || [];
@@ -188,6 +205,10 @@ function boot(host) {
       const name = labelSprite(p.label || 'Explorer', p.label === 'You' ? '#ffe28a' : '#c8d8df'); name.position.y = 4.7; g.add(name);
       playerGroup.add(g);
     }
+    const selectedLoot = (data.world?.lootNodes || []).find(n => n.id === selectedLootId);
+    const nearSelected = !!selectedLoot && !!data.self && Math.hypot(data.self.x-selectedLoot.x,data.self.z-selectedLoot.z) <= 9;
+    if (lootActionButton) lootActionButton.disabled = !selectedLoot || !selectedLoot.available || !nearSelected || moving || !data.self;
+    if (lootStatus) lootStatus.textContent = !selectedLoot ? 'Select a physical supply crate in the 3D world to inspect it.' : !selectedLoot.available ? selectedLoot.label + ' has already been searched. It will restock later.' : !nearSelected ? selectedLoot.label + ' selected · move closer to search it.' : selectedLoot.label + ' · within reach. Search the container to collect its supplies.';
     if (status) {
       const self = data.self;
       status.textContent = self
@@ -239,6 +260,22 @@ function boot(host) {
       if (worldData?.selfEncounter && !worldData.selfEncounter.defeated && attackInfectedButton) attackInfectedButton.disabled = false;
     }
   }
+  async function collectSelectedLoot() {
+    if (!selectedLootId || moving || !token()) { if (lootStatus) lootStatus.textContent = 'Sign in and enter an expedition before collecting supplies.'; return; }
+    moving = true; if (lootActionButton) lootActionButton.disabled = true;
+    try {
+      const r = await fetch(API + '/api/homefront/world/loot', {method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:JSON.stringify({nodeId:selectedLootId})});
+      const data = await r.json();
+      if (!r.ok || data.error) throw new Error(data.message || data.error || 'loot_failed');
+      updateWorld(data);
+      const accepted=(data.loot?.accepted||[]).map(d=>'+'+d.amount+' '+d.item).join(', ');
+      const overflow=(data.loot?.overflow||[]).map(d=>d.amount+' '+d.item).join(', ');
+      if (lootStatus) lootStatus.textContent = (accepted ? 'Collected: '+accepted+'. ' : 'Your pack could not accept the supplies. ') + (overflow ? 'Pack full; left behind: '+overflow+'. ' : '') + 'This container will restock after its cooldown.';
+    } catch (e) {
+      if (lootStatus) lootStatus.textContent = e.message === 'too_far_from_loot' ? 'Move closer to the selected supply container.' : e.message === 'loot_node_empty' ? 'Someone has already searched this container. Check back later.' : 'Scavenging unavailable: '+e.message;
+    } finally { moving=false; if(worldData) updateWorld(worldData); }
+  }
+  if (lootActionButton) lootActionButton.addEventListener('click', collectSelectedLoot);
   if (findInfectedButton) findInfectedButton.addEventListener('click', () => combatAction('encounter'));
   if (attackInfectedButton) attackInfectedButton.addEventListener('click', () => combatAction('attack'));
   const groundHit = new THREE.Mesh(new THREE.PlaneGeometry(204, 204), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
@@ -249,6 +286,18 @@ function boot(host) {
     pointer.x = (e.clientX - rect.left) / rect.width * 2 - 1;
     pointer.y = -(e.clientY - rect.top) / rect.height * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
+    const lootHits = raycaster.intersectObject(lootGroup, true);
+    if (lootHits.length) {
+      let target = lootHits[0].object;
+      while (target && !target.userData?.lootNodeId) target = target.parent;
+      if (target?.userData?.lootNodeId) {
+        selectedLootId = target.userData.lootNodeId;
+        const node = (worldData.world?.lootNodes || []).find(n=>n.id===selectedLootId);
+        if (lootStatus) lootStatus.textContent = node ? node.label + ' selected. ' + (node.available ? 'Check distance, then search it.' : 'This container is empty for now.') : 'Supply node unavailable.';
+        updateWorld(worldData);
+        return;
+      }
+    }
     const hits = raycaster.intersectObject(groundHit);
     if (!hits.length) return;
     moveTo(Math.max(-100, Math.min(100, hits[0].point.x)), Math.max(-100, Math.min(100, hits[0].point.z)));

@@ -104,6 +104,28 @@ async function call(method, pathname, acct, payload = {}) {
   assert.ok(drink.data.selfSurvival.thirst > 40, 'drinking restores thirst on the server');
   assert.equal(drink.data.base.resources.water, waterBefore, 'drinking uses carried water rather than silently pulling from refuge stores');
   assert.equal(drink.data.selfInventory.water, 1, 'drinking consumes one carried water item');
+  const supplies = files.get('homefront-world.json');
+  supplies.players['acct-a'].inventory = { food: 0, rawFood: 2, water: 0, dirtyWater: 2, meds: 1, ammo: 4, scrap: 0, wood: 2 };
+  supplies.players['acct-a'].survival.hunger = 20;
+  supplies.players['acct-a'].survival.thirst = 20;
+  files.set('homefront-world.json', supplies);
+  const cooked = await call('POST', '/api/homefront/world/survival', 'acct-a', { action: 'cook_food' });
+  assert.equal(cooked.status, 200, 'field cooking is an authenticated server-side survival action');
+  assert.equal(cooked.data.selfInventory.rawFood, 1, 'cooking consumes one raw food');
+  assert.equal(cooked.data.selfInventory.food, 1, 'cooking produces one carried ration');
+  assert.equal(cooked.data.selfInventory.wood, 1, 'cooking consumes one wood as fuel');
+  const noFuel = await call('POST', '/api/homefront/world/survival', 'acct-a', { action: 'purify_water' });
+  assert.equal(noFuel.status, 400, 'purification cannot happen without fuel');
+  assert.equal(noFuel.data.error, 'missing_fuel');
+  const fuelState = files.get('homefront-world.json');
+  fuelState.players['acct-a'].inventory.wood = 1;
+  files.set('homefront-world.json', fuelState);
+  const purified = await call('POST', '/api/homefront/world/survival', 'acct-a', { action: 'purify_water' });
+  assert.equal(purified.status, 200, 'dirty water can be purified when the player carries fuel');
+  assert.equal(purified.data.selfInventory.dirtyWater, 1, 'purification consumes dirty water');
+  assert.equal(purified.data.selfInventory.water, 1, 'purification creates clean water');
+  assert.equal(purified.data.selfInventory.wood, 0, 'purification consumes one wood');
+
   const worldB = await call('GET', '/api/homefront/world', 'acct-b');
   assert.equal(worldB.status, 200);
   const enteredB = await call('POST', '/api/homefront/world/enter', 'acct-b');

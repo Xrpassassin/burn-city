@@ -93,7 +93,6 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     case 'expedition': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       if (s.resources.food < 2 || s.resources.ammo < 1) throw new Error('expedition_supplies_required');
-      if (s.survivors.length >= MAX_SURVIVORS) throw new Error('survivor_capacity');
       const zones = { outskirts: { label: 'City Outskirts', risk: 1, food: 2, ammo: 1, scrap: 3, wood: 2, meds: 0, recruit: 0.44 }, residential: { label: 'Residential Ruins', risk: 1, food: 3, ammo: 1, scrap: 5, wood: 2, meds: 0, recruit: 0.5 }, commercial: { label: 'Market District', risk: 2, food: 3, ammo: 2, scrap: 8, wood: 1, meds: 1, recruit: 0.38 }, hospital: { label: 'Overrun Hospital', risk: 3, food: 4, ammo: 3, scrap: 5, wood: 1, meds: 3, recruit: 0.32 }, industrial: { label: 'Industrial Yard', risk: 3, food: 4, ammo: 3, scrap: 12, wood: 2, meds: 0, recruit: 0.24 }, subway: { label: 'Buried Subway', risk: 4, food: 5, ammo: 4, scrap: 10, wood: 1, meds: 2, recruit: 0.28 }, research_lab: { label: 'Sealed Research Annex', risk: 5, food: 6, ammo: 5, scrap: 16, wood: 1, meds: 4, recruit: 0.2 } };
       const zoneId = typeof action.zone === 'string' ? action.zone : 'outskirts';
       const zone = zones[zoneId];

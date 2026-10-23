@@ -51,21 +51,44 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');
           const action = typeof payload.action === 'string' ? payload.action : '';
+          const now = Date.now();
           const bases = store.load('homefront.json', {});
           const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
           if (!base) throw new Error('save_invalid');
-          const itemFor = { eat: 'food', drink: 'water', bandage: 'meds' }[action];
           let inventory = Inventory.normalize(player.inventory);
-          if (itemFor) inventory = Inventory.remove(inventory,itemFor,1).inventory;
-          const survival = Survival.act(player.survival, action, Date.now());
-          player.inventory = inventory; player.survival = survival; player.lastSeen = Date.now();
-          if (itemFor) {
-            base.revision++; base.updatedAt = Date.now();
-            base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'survival',text:({eat:'Consumed a carried ration in the field.',drink:'Drank carried clean water in the field.',bandage:'Used carried medical supplies to treat field injuries.'})[action],at:Date.now()});
-            base.log=base.log.slice(-20);bases[user.acct]=base;store.save('homefront.json',bases);
+          let survival;
+          let logText = '';
+          if (action === 'cook_food' || action === 'purify_water') {
+            const recipe = action === 'cook_food'
+              ? { input: 'rawFood', output: 'food', label: 'Cooked raw food at a safe heat source.' }
+              : { input: 'dirtyWater', output: 'water', label: 'Purified dirty water using field fuel.' };
+            if (inventory[recipe.input] < 1) throw new Error('missing_' + recipe.input);
+            if (inventory.wood < 1) throw new Error('missing_fuel');
+            const converted = Inventory.add(inventory, recipe.output, 1);
+            if (converted.accepted !== 1) throw new Error('inventory_full');
+            inventory = Inventory.remove(converted.inventory, recipe.input, 1).inventory;
+            inventory = Inventory.remove(inventory, 'wood', 1).inventory;
+            survival = Survival.tick(player.survival, now);
+            logText = recipe.label;
+          } else {
+            const itemFor = { eat: 'food', drink: 'water', bandage: 'meds' }[action];
+            if (itemFor) inventory = Inventory.remove(inventory, itemFor, 1).inventory;
+            survival = Survival.act(player.survival, action, now);
+            logText = ({ eat: 'Consumed a cooked ration in the field.', drink: 'Drank carried clean water in the field.', bandage: 'Used carried medical supplies to treat field injuries.', catch_breath: 'Stopped to recover stamina.' })[action];
           }
-          store.save('homefront-world.json',db);
-          json(res,200,{mode:'homefront-world',...World.snapshot(db,user.acct),base,survival,inventory:{...inventory,used:Inventory.used(inventory),capacity:Inventory.CAPACITY}});
+          player.inventory = inventory;
+          player.survival = survival;
+          player.lastSeen = now;
+          if (logText && action !== 'catch_breath') {
+            base.revision++;
+            base.updatedAt = now;
+            base.log.push({ id: (base.log.at(-1)?.id || 0) + 1, kind: 'survival', text: logText, at: now });
+            base.log = base.log.slice(-20);
+            bases[user.acct] = base;
+            store.save('homefront.json', bases);
+          }
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), base, survival, inventory: { ...inventory, used: Inventory.used(inventory), capacity: Inventory.CAPACITY } });
           return true;
         }
         case '/api/homefront/world/inventory': {

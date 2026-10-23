@@ -273,7 +273,12 @@ function boot(host) {
       if (lootStatus) lootStatus.textContent = (accepted ? 'Collected: '+accepted+'. ' : 'Your pack could not accept the supplies. ') + (overflow ? 'Pack full; left behind: '+overflow+'. ' : '') + 'This container will restock after its cooldown.';
     } catch (e) {
       if (lootStatus) lootStatus.textContent = e.message === 'too_far_from_loot' ? 'Move closer to the selected supply container.' : e.message === 'loot_node_empty' ? 'Someone has already searched this container. Check back later.' : 'Scavenging unavailable: '+e.message;
-    } finally { moving=false; if(worldData) updateWorld(worldData); }
+    } finally {
+      moving=false;
+      const node=(worldData?.world?.lootNodes||[]).find(n=>n.id===selectedLootId);
+      const near=!!node&&!!worldData?.self&&Math.hypot(worldData.self.x-node.x,worldData.self.z-node.z)<=9;
+      if(lootActionButton) lootActionButton.disabled=!node||!node.available||!near||!worldData?.self;
+    }
   }
   if (lootActionButton) lootActionButton.addEventListener('click', collectSelectedLoot);
   if (findInfectedButton) findInfectedButton.addEventListener('click', () => combatAction('encounter'));

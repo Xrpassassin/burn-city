@@ -29,6 +29,16 @@ function spawn({encounters,account,player,now=Date.now(),seed=0}){
  const e=resolveSpawn({account,x:player.x,z:player.z,district,risk,now,seed});clean[account]=e;return{encounters:clean,encounter:publicEncounter(e),reused:false};
 }
 
+function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
+ let x=startX,z=startZ,remaining=distanceBudget;
+ for(const waypoint of path){
+  const dx=waypoint.x-x,dz=waypoint.z-z,distance=Math.hypot(dx,dz);
+  if(distance<0.001)continue;
+  if(distance<=remaining){x=waypoint.x;z=waypoint.z;remaining-=distance;if(remaining<0.001)break;}
+  else{x+=dx/distance*remaining;z+=dz/distance*remaining;break;}
+ }
+ return{x:Math.round(x*10)/10,z:Math.round(z*10)/10};
+}
 function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
  const clean=normalizeEncounters(encounters,now);
  for(const [account,e] of Object.entries(clean)){
@@ -43,8 +53,15 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
   if(distance<=stopDistance)continue;
   const step=Math.min(distance-stopDistance,speed*elapsed);
   const nextX=clamp(e.x+dx/distance*step,-100,100),nextZ=clamp(e.z+dz/distance*step,-100,100);
-  // Infected use the same grade gate as players; steep terrain will require a pathfinder rather than clipping uphill.
+  // Prefer the direct step; only invoke bounded A* when terrain blocks the pursuit line.
   if(Terrain.canTraverse(e.x,e.z,nextX,nextZ)){e.x=nextX;e.z=nextZ;}
+  else {
+   const route=Terrain.findTerrainPath(e.x,e.z,player.x,player.z,{bounds:100,maxExpanded:1200});
+   if(route&&route.length){
+    const advanced=advanceAlongTerrainPath(e.x,e.z,route,step);
+    if(Terrain.canTraverse(e.x,e.z,advanced.x,advanced.z)){e.x=advanced.x;e.z=advanced.z;}
+   }
+  }
  }
  return clean;
 }

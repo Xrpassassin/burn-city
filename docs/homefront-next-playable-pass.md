@@ -50,16 +50,12 @@ This remains a click-to-travel 3D prototype rather than continuous WASD movement
 - Pack actions disable when the refuge lacks the requested quantity or the carried pack cannot fit the whole requested transfer. Stashing disables when the pack is empty.
 - Eat, drink, bandage, rest, cook, and purify controls remain context-gated and server-validated. The existing large touch targets and dark high-contrast layout are preserved.
 
-### Next: food and water quality
+### Completed: preserve food and water quality across storage
 
-Add this only after physical loot claims are stable.
-
-- Give food and water item variants explicit IDs rather than trusting arbitrary client item strings.
-- Keep clean water usable immediately; dirty water must never be silently treated as clean.
-- Add a refuge purification/cooking interaction with explicit resource/time costs and server-side validation.
-- If spoilage is implemented, store bounded timestamps or freshness values per stack/batch and migrate legacy integer-only inventories without deleting items.
-- Keep initial spoilage gentle and transparent; do not punish offline players with surprise total inventory loss.
-- Add tests for legacy migration, expired food, purification costs, insufficient materials, and duplicate actions.
+- Refuge saves now normalize explicit `rawFood` and `dirtyWater` resource buckets while retaining legacy integer-only saves and their existing clean/cooked counts.
+- Stashing or returning an expedition no longer silently converts raw food into cooked rations or contaminated water into potable water. Quality variants remain distinct in the refuge resource ledger.
+- Existing field cooking and purification routes still require one unit of wood as fuel and consume the appropriate raw input; they create one cooked ration or clean water only after capacity and material checks succeed.
+- Added regression coverage for quality-preserving stash behavior. Freshness/spoilage timers remain a separate follow-up: no offline spoilage is applied yet, so legacy supplies are not unexpectedly destroyed.
 
 ### 5. Test and release gate
 

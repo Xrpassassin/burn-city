@@ -5,6 +5,9 @@ const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', 
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 
 assert.match(scene, /from '\.\/vendor\/three\.module\.min\.js'/, 'reuse the vendored Three.js runtime');
+assert.match(scene, /GLTFLoader/, 'reuse the existing GLTF asset loader');
+assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely');
+assert.match(scene, /assets\/homefront\/zombie\.glb/, 'reuse the existing Homefront zombie model');
 assert.match(scene, /\/api\/homefront\/world/, 'read the shared Homefront world snapshot');
 assert.match(scene, /\/api\/homefront\/world\/move/, 'send movement through the authoritative world API');
 assert.match(scene, /data\.world\?\.pointsOfInterest/, 'render server-authored points of interest');

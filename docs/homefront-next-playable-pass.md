@@ -50,12 +50,13 @@ This remains a click-to-travel 3D prototype rather than continuous WASD movement
 - Pack actions disable when the refuge lacks the requested quantity or the carried pack cannot fit the whole requested transfer. Stashing disables when the pack is empty.
 - Eat, drink, bandage, rest, cook, and purify controls remain context-gated and server-validated. The existing large touch targets and dark high-contrast layout are preserved.
 
-### Completed: preserve food and water quality across storage
+### Completed: preserve food and water quality across storage and packing
 
 - Refuge saves now normalize explicit `rawFood` and `dirtyWater` resource buckets while retaining legacy integer-only saves and their existing clean/cooked counts.
 - Stashing or returning an expedition no longer silently converts raw food into cooked rations or contaminated water into potable water. Quality variants remain distinct in the refuge resource ledger.
+- Added separate field-kit actions for packing raw food and dirty water from refuge stores, with distinct labels and explicit insufficient-stock feedback. The settlement resource ledger now labels cooked rations, raw food, clean water, and dirty water separately.
 - Existing field cooking and purification routes still require one unit of wood as fuel and consume the appropriate raw input; they create one cooked ration or clean water only after capacity and material checks succeed.
-- Added regression coverage for quality-preserving stash behavior. Freshness/spoilage timers remain a separate follow-up: no offline spoilage is applied yet, so legacy supplies are not unexpectedly destroyed.
+- Added regression coverage for quality-preserving stash behavior. Freshness/spoilage timers remain a separate follow-up: no offline spoilage is applied yet, so legacy supplies are not unexpectedly destroyed. Before spoilage is added, inventory mutation helpers must preserve per-batch timestamps and migrate legacy integer-only stacks without refreshing old stock on every request.
 
 ### 5. Test and release gate
 

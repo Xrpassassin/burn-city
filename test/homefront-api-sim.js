@@ -242,6 +242,13 @@ if (attack.data.combat.enemyDamage > 0) {
   assert.equal(bossHit.status, 200, 'boss hunts resolve at the shared boss landmark');
   assert.equal(bossHit.data.encounter.hp, 136, 'equipped weapon increases shared boss damage and health remains server-authoritative');
   assert.equal(bossHit.data.encounter.maxHp, 180);
+  const reloaded = await call('POST', '/api/homefront/world/reload', 'acct-a');
+  assert.equal(reloaded.status, 200, 'firearms reload from carried reserve ammunition through an authenticated endpoint');
+  assert.equal(reloaded.data.selfWeaponMagazine.loaded, 6, 'reload fills the server-persisted magazine to its capacity');
+  assert.equal(reloaded.data.selfInventory.ammo, 0, 'reloading transfers rounds from reserve into the magazine');
+  const reloadFull = await call('POST', '/api/homefront/world/reload', 'acct-a');
+  assert.equal(reloadFull.status, 400, 'a full magazine cannot be reloaded again');
+  assert.equal(reloadFull.data.error, 'magazine_full');
 
   console.log('Homefront authenticated save API simulation passed.');
 })().catch(e => { console.error(e); process.exitCode = 1; });

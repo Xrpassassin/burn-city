@@ -76,6 +76,20 @@ assert.equal(bought.embers, 15);
 assert.equal(bought.resources.ammo, 28);
 assert.throws(() => H.applyAction(bought, 'tycoon-market', { type: 'buy_materials', resource: 'ammo' }), /insufficient_embers/);
 
+// The location-aware Director can produce special-infected / horde pressure on a difficult boss-district trip.
+let directorAmbush = null;
+for (let i = 0; i < 100 && !directorAmbush; i++) {
+  const candidate = H.createBase('director-test-' + i, 2400);
+  candidate.expeditionCount = 5;
+  candidate.resources.food = 100; candidate.resources.ammo = 100;
+  candidate.survivors = [{ id: 's1', name: 'Mara', role: 'guard', morale: 90 }];
+  const result = H.applyAction(candidate, candidate.owner, { type: 'expedition', zone: 'research_lab', difficulty: 'nightmare' }, 2401);
+  if (/special infected ambushed|infected horde hit/.test(result.log.at(-1).text)) directorAmbush = { candidate, result };
+}
+assert.ok(directorAmbush, 'high-risk Nightmare expeditions can trigger a Director ambush');
+assert.ok(directorAmbush.result.resources.ammo < 91, 'an ambush consumes additional ammunition beyond expedition cost');
+assert.ok(directorAmbush.result.survivors[0].morale < 90, 'an ambush affects survivor morale');
+
 // A campfire rally trades food for a server-authoritative morale recovery.
 const rallyBase = H.createBase('rally-test', 2040);
 rallyBase.resources.food = 10;

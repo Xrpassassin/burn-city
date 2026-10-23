@@ -233,6 +233,14 @@ function boot(host) {
       body.position.y = 1.45; g.add(body);
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 8, 6), mat(p.label === 'You' ? 0xffb45c : 0xc5aa8a));
       head.position.y = 2.55; g.add(head);
+      // Visible held weapon silhouette; cosmetic finishes will bind to the authoritative loadout next.
+      const weapon = new THREE.Group(); weapon.position.set(0.62, 1.72, 0.12); weapon.rotation.x = -0.12;
+      const grip = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.13), mat(0x49372b));
+      grip.position.y = -0.2; weapon.add(grip);
+      const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.76, 0.19), mat(0x9a7b62));
+      barrel.position.y = 0.28; weapon.add(barrel);
+      const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.23), mat(0x373a38));
+      muzzle.position.y = 0.68; weapon.add(muzzle); g.add(weapon);
       const name = labelSprite(p.label || 'Explorer', p.label === 'You' ? '#ffe28a' : '#c8d8df'); name.position.y = 4.7; g.add(name);
       playerGroup.add(g);
     }

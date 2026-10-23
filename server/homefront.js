@@ -12,6 +12,10 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     json(res, 429, { error: 'slow_down' }); return true;
   }
   try {
+    // Parse the request body before reading the shared save file. Once the save is
+    // loaded, action validation and the atomic store write contain no await point,
+    // preventing concurrent requests from committing stale snapshots over each other.
+    const payload = req.method === 'POST' ? await body() : null;
     const db = store.load('homefront.json', {});
     let base = db[user.acct];
     if (!base) {
@@ -29,7 +33,6 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     if (req.method !== 'POST' || url.pathname !== '/api/homefront/action') {
       json(res, 405, { error: 'method_not_allowed' }); return true;
     }
-    const payload = await body();
     if (!payload || !payload.action || typeof payload.action !== 'object' || Array.isArray(payload.action)) {
       json(res, 400, { error: 'invalid_action' }); return true;
     }

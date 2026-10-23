@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createWildsWanderAgent, updateWildsWanderAgent, disposeWildsWanderAgent } from './wilds-yuka-ai.mjs';
+import { createWildsWanderAgent, updateWildsWanderAgent, updateWildsPursuitAgent, disposeWildsWanderAgent } from './wilds-yuka-ai.mjs';
 
 const agent = createWildsWanderAgent({ x: 2, z: 3, yaw: 0.5, maxSpeed: 2.2 });
 assert.ok(agent, 'valid creature inputs create a Yuka agent');
@@ -7,6 +7,12 @@ assert.equal(agent.manager.entities.length, 1);
 const heading = updateWildsWanderAgent(agent, 1 / 60, 2, 3, 0.5, 2.2);
 assert.ok(heading && Number.isFinite(heading.x) && Number.isFinite(heading.z), 'Yuka produces a finite roaming heading');
 assert.ok(Math.abs(Math.hypot(heading.x, heading.z) - 1) < 1e-6, 'heading is normalized');
+const pursuit = updateWildsPursuitAgent(agent, 1 / 60, 2, 3, 0.5, 12, 3, 2.2);
+assert.ok(pursuit && Number.isFinite(pursuit.x) && Number.isFinite(pursuit.z), 'Yuka SeekBehavior produces a finite pursuit heading');
+assert.equal(agent.pursuing, true, 'pursuit switches from wander to seek');
+assert.equal(updateWildsPursuitAgent(agent, NaN, 2, 3, 0.5, 12, 3), null, 'invalid pursuit state is rejected');
+updateWildsWanderAgent(agent, 1 / 60, 2, 3, 0.5, 2.2);
+assert.equal(agent.pursuing, false, 'wander mode restores after pursuit');
 assert.equal(updateWildsWanderAgent(agent, NaN, 2, 3, 0.5), null, 'invalid state is rejected');
 assert.equal(createWildsWanderAgent({ x: Infinity }), null, 'invalid spawn is rejected');
 assert.equal(disposeWildsWanderAgent(agent), true);

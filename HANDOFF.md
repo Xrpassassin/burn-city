@@ -512,3 +512,6 @@ Fog-of-exploration minimap + full field map in Fernway Verge and Glassroot (clie
 
 ## fix/explore-camera-zoom-stability (PR #125, sw bc-v77-camzoom)
 Third-person Explore camera zoom: mouse wheel and two-finger pinch on the canvas (2.5-14 m, app.js exploreCamDistance). Only canvas touches count toward a pinch (camTouches filters out the joystick finger), so joystick + look-drag still looks. yaw/pitch are only re-derived when the mode actually changes; default pitch only on first spawn.
+
+## feature/shared-airborne-banner-planes (PR #122, sw bc-v78-bannerplanes)
+Two banner tow planes on a shared Unix-time schedule (airport.js poseTowPlane/updBannerPlanes; 240 s cycle, banners alternate ETERNAL GRIND / LIGHT CYCLES; canvas placeholder art, both planes share the two textures). Client clock only (no server sync); route crosses the city at 40-78 m.

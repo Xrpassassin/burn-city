@@ -203,3 +203,14 @@ assert.match(homefrontPage, /if\(survivor\.role==='guard'\)\{const defensiveType
 assert.match(homefrontPage, /if\(s\.hp<=0\)\{g\.userData\.breached=true;g\.userData\.structureId=s\.id;/, 'render zero-HP structures as persistent breach wreckage instead of intact defenses');
 assert.match(homefrontPage, /const breachMarker=block\(g,\.78,\.07,\.07,0,\.68,0,0xe34d3e\)/, 'make a destroyed perimeter opening visually identifiable in the 3D refuge');
 assert.match(homefrontPage, /integrity<=\.25\?0xd94a3e:integrity<=\.6\?0xc77a3e/, 'tint critical and damaged structures by server-reported integrity');
+
+
+// Live perimeter alerts must reflect the authoritative structure snapshot and prioritize the weakest defense.
+assert.match(homefrontPage, /id="breachAlert" role="alert"/, 'provide an accessible live perimeter integrity alert');
+assert.match(homefrontPage, /const damagedDefenses=base\.structures\.filter\(s=>defensiveTypes\.has\(s\.type\)/, 'derive breach status only from defensive structures');
+assert.match(homefrontPage, /\.sort\(\(a,b\)=>a\.integrity-b\.integrity/, 'prioritize the defensive structure with the lowest integrity');
+assert.match(homefrontPage, /priority\.hp<=0\?'BREACHED':priority\.integrity<=25\?'CRITICAL':priority\.integrity<=60\?'DAMAGED'/, 'label breached, critical, and damaged perimeter states');
+assert.match(homefrontPage, /id="repairPriorityBreach"/, 'provide a direct priority breach repair control');
+assert.match(homefrontPage, /priorityButton\.onclick=\(\)=>act\(\{type:'emergency_repair',target:priority\.id\}\)/, 'send priority repair through the existing server-authoritative action');
+assert.match(homefrontPage, /priorityButton\.disabled=busy\|\|base\.resources\.wood<4\|\|base\.resources\.scrap<2/, 'disable priority repair when the refuge lacks required materials');
+assert.match(homefrontPage, /PERIMETER STABLE · All defensive structures are at full integrity/, 'show a stable state when no perimeter defense is damaged');

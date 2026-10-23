@@ -104,4 +104,5 @@ const squadAdvanced = C.advance({ encounters: squadSpawn.encounters, players: { 
 assert.ok(squadAdvanced['squad-test'].members.every(m => Number.isFinite(m.x) && Number.isFinite(m.z)), 'squad members retain valid independent coordinates through simulation');
 assert.ok(squadAdvanced['squad-test'].members.some((m, i) => Math.hypot(m.x - squadBefore[i].x, m.z - squadBefore[i].z) > 0), 'infected members independently advance toward remembered player position');
 assert.equal(C.publicEncounter(squadAdvanced['squad-test']).members.length, squadSpawn.encounter.packPlan.count, 'public world snapshots expose each squad member for client rendering');
-\nconsole.log('Homefront authoritative combat tests passed.');
+
+console.log('Homefront authoritative combat tests passed.');

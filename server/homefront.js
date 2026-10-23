@@ -104,13 +104,13 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             if (inventory.wood < 1) throw new Error('missing_fuel');
             const converted = Inventory.add(inventory, recipe.output, 1);
             if (converted.accepted !== 1) throw new Error('inventory_full');
-            inventory = Inventory.remove(converted.inventory, recipe.input, 1).inventory;
+            inventory = Inventory.removeUsable(converted.inventory, recipe.input, 1, now).inventory;
             inventory = Inventory.remove(inventory, 'wood', 1).inventory;
             survival = Survival.tick(player.survival, now);
             logText = recipe.label;
           } else {
             const itemFor = { eat: 'food', drink: 'water', bandage: 'meds' }[action];
-            if (itemFor) inventory = Inventory.remove(inventory, itemFor, 1).inventory;
+            if (itemFor) inventory = itemFor === 'food' ? Inventory.removeUsable(inventory, itemFor, 1, now).inventory : Inventory.remove(inventory, itemFor, 1, now).inventory;
             survival = Survival.act(player.survival, action, now);
             logText = ({ eat: 'Consumed a cooked ration in the field.', drink: 'Drank carried clean water in the field.', bandage: 'Used carried medical supplies to treat field injuries.', catch_breath: 'Stopped to recover stamina.' })[action];
           }
@@ -147,13 +147,13 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           if (action === 'take') {
             const id = typeof payload.item === 'string' ? payload.item : '';
             const qty = Number.isFinite(payload.amount) ? payload.amount : 1;
-            const taken = Inventory.withdraw(inventory,base.resources,id,qty);
+            const taken = Inventory.withdraw(inventory,base.resources,id,qty,Date.now());
             inventory=taken.inventory;base.resources=taken.resources;
             base.revision++;base.updatedAt=Date.now();
             base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'inventory',text:'Packed '+taken.taken+' '+id+' from refuge stores.',at:Date.now()});
           } else if (action === 'stash' || action === 'return') {
             const packed=Inventory.stash(inventory,base.resources);inventory=packed.inventory;
-            for(const [id,qty] of Object.entries(packed.stored))base.resources[id]=Math.min(999999,(base.resources[id]||0)+qty);
+            for(const [id,qty] of Object.entries(packed.stored))base.resources[id]=Math.min(999999,(base.resources[id]||0)+qty);base.resources.freshness=packed.resourceFreshness;base.resources.freshness=packed.resourceFreshness;
             base.revision++;base.updatedAt=Date.now();
             base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'inventory',text:'Returned field supplies to refuge stores.',at:Date.now()});
           } else throw new Error('unknown_inventory_action');
@@ -190,7 +190,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           for (const drop of found.overflow) {
             const resourceId = drop.item;
             if (Object.prototype.hasOwnProperty.call(base.resources, resourceId)) {
-              base.resources[resourceId] = Math.min(999999, (base.resources[resourceId] || 0) + drop.amount);
+              if (Inventory.PERISHABLE.has(resourceId)) { const added = Inventory.addToResources(base.resources, resourceId, drop.amount, now); Object.assign(base.resources, added.resources); } else base.resources[resourceId] = Math.min(999999, (base.resources[resourceId] || 0) + drop.amount);
             }
           }
           if (found.overflow.length) {
@@ -316,9 +316,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const carried=Inventory.normalize(player.inventory);
           if(carried.food<2||carried.ammo<1)throw new Error('field_supplies_required');
           const carriedBefore={...carried};
-          const workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
+          const workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo,freshness:carried.freshness}},user.acct);
           const nextBase=Core.applyAction(workingBase,user.acct,{type:'rescue_survivor',zone:nearest.point.zone,difficulty},now);
-          carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
+          const foodAdjusted=Inventory.reconcileCount(carried,'food',nextBase.resources.food,now);carried.food=foodAdjusted.food;carried.freshness=foodAdjusted.freshness;carried.ammo=nextBase.resources.ammo;
           addSessionTotals(player,{embers:Math.max(0,nextBase.embers-base.embers),consumed:{food:Math.max(0,carriedBefore.food-carried.food),ammo:Math.max(0,carriedBefore.ammo-carried.ammo)}});
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;player.inventory=carried;
           rescue.readyAt = now + 8 * 60e3;
@@ -354,7 +354,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const expeditionEmbers=Math.max(0,nextBase.embers-base.embers);
           const grossResources={};
           for(const id of ['wood','scrap','meds'])grossResources[id]=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
-          carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
+          const foodAdjusted=Inventory.reconcileCount(carried,'food',nextBase.resources.food,Date.now());carried.food=foodAdjusted.food;carried.freshness=foodAdjusted.freshness;carried.ammo=nextBase.resources.ammo;
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;
           const scrap = Math.floor((8 + nearest.point.risk * 4) * spec.reward);
           const wood = Math.floor((4 + nearest.point.risk * 2) * spec.reward);
@@ -405,7 +405,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const nextBase=Core.applyAction(workingBase,user.acct,{type:isBoss?'boss_attack':'expedition',zone:nearest.point.zone,difficulty});
           let grossEmbers=Math.max(0,nextBase.embers-base.embers);
           const grossResources={};
-          carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
+          const foodAdjusted=Inventory.reconcileCount(carried,'food',nextBase.resources.food,Date.now());carried.food=foodAdjusted.food;carried.freshness=foodAdjusted.freshness;carried.ammo=nextBase.resources.ammo;
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;
           let defeated = false;
           if (isBoss) {

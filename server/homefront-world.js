@@ -52,8 +52,8 @@ function prune(w, now) {
   }
 }
 function districtAt(x, z) {
-  const d = Math.hypot(x, z);
-  return DISTRICTS.find(v => d <= v.radius) || DISTRICTS[DISTRICTS.length - 1];
+  const depth = WORLD_SIZE - Math.hypot(x, z);
+  return DISTRICTS.find(v => depth <= v.radius) || DISTRICTS[DISTRICTS.length - 1];
 }
 function chooseSpawn(w, acct) {
   const counts = new Map(SPAWNS.map(s => [s.id, 0]));

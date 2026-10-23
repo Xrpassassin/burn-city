@@ -42,18 +42,18 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
  }
  return clean;
 }
-function attack({encounters,account,player,base,now=Date.now(),weaponPower=1,seed=0}){
+function attack({encounters,account,player,base,survival=null,now=Date.now(),weaponPower=1,seed=0}){
  const clean=normalizeEncounters(encounters,now),e=clean[account];if(!e||e.defeated||e.hp<=0)throw Error('no_active_encounter');if(now>e.expiresAt)throw Error('encounter_expired');
  if(Math.hypot(player.x-e.x,player.z-e.z)>e.range)throw Error('enemy_out_of_range');if(now-e.lastAttackAt<ATTACK_COOLDOWN)throw Error('attack_cooldown');
  if((base.resources?.ammo||0)<e.ammoCost)throw Error('insufficient_ammo');base.resources.ammo-=e.ammoCost;base.revision=(Number.isSafeInteger(base.revision)?base.revision:0)+1;
- const power=clamp(Math.floor(weaponPower),1,20),damage=Math.max(8,12+(power-1)*7+Math.floor(e.risk*1.5));e.hp=Math.max(0,e.hp-damage);e.lastAttackAt=now;
+ const power=clamp(Math.floor(weaponPower),1,20);const field=survival&&typeof survival==='object'?{...survival}:null;const staminaBefore=field?clamp(field.stamina,0,100):100;const fatigueScale=staminaBefore<15?0.55:staminaBefore<35?0.75:1;const damage=Math.max(5,Math.floor(Math.max(8,12+(power-1)*7+Math.floor(e.risk*1.5))*fatigueScale));if(field)field.stamina=clamp(staminaBefore-8,0,100);e.hp=Math.max(0,e.hp-damage);e.lastAttackAt=now;
  if(e.hp===0){e.defeated=true;const q=hash(e.id+':'+seed)%100,quality=q<2?'Legendary':q<8?'Epic':q<22?'Rare':q<48?'Uncommon':'Common',qi=QUALITY_ORDER.indexOf(quality),scrap=2+e.risk+qi*2,embers=e.risk+qi;
  base.resources.scrap=Math.min(999999,(base.resources.scrap||0)+scrap);base.embers=Math.min(999999999,(base.embers||0)+embers);
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Defeated '+e.enemy+' and recovered '+quality.toLowerCase()+'-grade salvage: +'+scrap+' scrap and +'+embers+' Embers.'});base.log=base.log.slice(-20);}
- return{encounters:clean,encounter:publicEncounter(e),killed:true,damage,enemyDamage:0,ammoCost:e.ammoCost,reward:{quality,scrap,embers},base};}
+ return{encounters:clean,encounter:publicEncounter(e),killed:true,damage,enemyDamage:0,ammoCost:e.ammoCost,reward:{quality,scrap,embers},base,survival:field};}
  const guards=Array.isArray(base.survivors)?base.survivors.filter(s=>s.role==='guard').length:0,enemyDamage=Math.max(1,e.damage-Math.min(3,guards));
  if(Array.isArray(base.survivors)&&base.survivors.length){const target=base.survivors.reduce((a,s)=>!a||(s.morale||0)<(a.morale||0)?s:a,null);if(target)target.morale=clamp((target.morale||0)-enemyDamage*2,0,100);}else base.resources.food=Math.max(0,(base.resources.food||0)-Math.max(1,Math.ceil(enemyDamage/3)));
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Hit '+e.enemy+' for '+damage+' damage. It retaliated for '+enemyDamage+' pressure.'});base.log=base.log.slice(-20);}
- return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,enemyDamage,ammoCost:e.ammoCost,reward:null,base};
+ return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,enemyDamage,ammoCost:e.ammoCost,reward:null,base,survival:field};
 }
 module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,STATS,normalizeEncounters,resolveSpawn,publicEncounter,spawn,advance,attack};

@@ -2,6 +2,7 @@
 'use strict';
 const crypto = require('crypto');
 const Combat = require('./homefront-combat');
+const Survival = require('./homefront-survival');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
@@ -67,6 +68,7 @@ function normalizeWorld(input) {
     p.partyCode = typeof p.partyCode === 'string' ? p.partyCode : null;
     p.spawn = SPAWNS.some(s => s.id === p.spawn) ? p.spawn : SPAWNS[hash(acct) % SPAWNS.length].id;
     p.lastMove = Number.isFinite(p.lastMove) ? p.lastMove : 0;
+    p.survival = Survival.normalize(p.survival, p.lastSeen || Date.now());
   }
   for (const [code, party] of Object.entries(w.parties)) {
     if (!party || typeof party !== 'object' || !Array.isArray(party.members)) { delete w.parties[code]; continue; }
@@ -111,7 +113,8 @@ function snapshot(input, acct, now = Date.now()) {
     self: p ? publicPlayer(acct, p, acct, now) : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now)) } : null,
     encounters: Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0).map(Combat.publicEncounter),
-    selfEncounter: Combat.publicEncounter(w.encounters?.[acct])
+    selfEncounter: Combat.publicEncounter(w.encounters?.[acct]),
+    selfSurvival: p ? { ...p.survival } : null
   };
 }
 function enter(input, acct, now = Date.now()) {
@@ -123,6 +126,7 @@ function enter(input, acct, now = Date.now()) {
     p = w.players[acct] = { x: spawn.x, z: spawn.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null };
   }
   p.lastSeen = now;
+  p.survival = Survival.tick(p.survival, now);
   if (p.partyCode && w.parties[p.partyCode]) {
     const leader = w.players[w.parties[p.partyCode].leader];
     if (leader) { p.x = leader.x; p.z = leader.z; }
@@ -144,6 +148,7 @@ function move(input, acct, x, z, now = Date.now()) {
   const scale = d > MOVE_STEP ? MOVE_STEP / d : 1;
   p.x = Math.round((p.x + dx * scale) * 10) / 10; p.z = Math.round((p.z + dz * scale) * 10) / 10;
   p.lastMove = p.lastSeen = now;
+  p.survival = Survival.move(p.survival, now);
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {
       const offset = (hash(member) % 7) - 3;

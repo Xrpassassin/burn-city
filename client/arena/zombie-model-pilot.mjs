@@ -3,7 +3,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 
+import { selectZombieModelCandidates, stableZombieHash } from './zombie-model-selection.mjs';
+
 const MAX_MODELS = 8;
+const MAX_MODEL_DISTANCE = 28;
 const TARGET_HEIGHT = 1.72;
 const MODEL_URLS = [
   new URL('./assets/zombies/zombie-ash.glb', import.meta.url).href,
@@ -47,7 +50,7 @@ export async function createZombieModelPilot(scene) {
 
   function createInstance(z) {
     const variant = VARIANT_BY_TYPE[Math.abs(z.ty || 0) % VARIANT_BY_TYPE.length];
-    const model = models[(variant + Math.abs(z.id || 0) % 3) % models.length];
+    const model = models[(variant + stableZombieHash(z.id) % models.length) % models.length];
     const visual = SkeletonUtils.clone(model.gltf.scene);
     const tint = new THREE.Color(PALETTES[Math.abs(z.ty || 0) % PALETTES.length]);
     visual.traverse(node => {
@@ -80,10 +83,7 @@ export async function createZombieModelPilot(scene) {
 
   return {
     update(zombies, dt, me) {
-      const candidates = [...zombies].sort((a, b) =>
-        Math.hypot(a.x - (me?.x || 0), a.z - (me?.z || 0)) -
-        Math.hypot(b.x - (me?.x || 0), b.z - (me?.z || 0))
-      ).slice(0, MAX_MODELS);
+      const candidates = selectZombieModelCandidates(zombies, me, MAX_MODELS, MAX_MODEL_DISTANCE);
       const chosen = new Set(candidates.map(z => z.id));
       for (const id of active.keys()) if (!chosen.has(id)) remove(id);
       for (const z of candidates) {

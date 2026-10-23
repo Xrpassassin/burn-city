@@ -192,8 +192,10 @@ function doCast() {
   ui.innerHTML = `<b>🎯 Aim your cast</b> <span class="nv">tap in the gold band for a Perfect cast</span><div class="bar"><div class="zone" style="left:0;width:100%;background:linear-gradient(90deg,#3dff8a33,#3dff8a99)"></div><div class="zone" style="left:72%;width:14%;background:#ffc64acc"></div><div class="mk" id="fMk"></div></div><button id="fGo" style="width:100%;font-size:18px">🎣 Cast!</button>`;
   ui.querySelector('#fGo').onpointerdown = ev => { ev.preventDefault(); noGhost(); castAt(aimPow()) } }
 const aimPow = () => { const u = ((performance.now() - aimT) / 1300) % 2; return u < 1 ? u : 2 - u };
+let castGen = 0;   // bumps on every cast: timers/awaits from a cancelled cast must not act on the next one
 async function castAt(pow) {
-  if (state !== 'aim') return; const c = W(), e = window.__estate, fw = new THREE.Vector3(); c.C.getWorldDirection(fw); fw.y = 0; fw.normalize();
+  if (state !== 'aim') return; const gen = ++castGen; if (bait !== 'worm' && !(prof.bait[bait] > 0)) bait = 'worm';   // used up: fall back to worms (the server does the same)
+  const c = W(), e = window.__estate, fw = new THREE.Vector3(); c.C.getWorldDirection(fw); fw.y = 0; fw.normalize();
   const from = isDeep() ? window.__boat.pos : c.P.pos, perfect = pow >= .72 && pow <= .86; let dist = 6 + 20 * pow, tgt = from.clone().addScaledVector(fw, dist);
   while (dist > 4 && !e.inLake(tgt.x, tgt.z)) { dist -= 1; tgt = from.clone().addScaledVector(fw, dist) }
   if (!e.inLake(tgt.x, tgt.z)) { tgt = from.clone(); for (let k = 0; k < 40 && !e.inLake(tgt.x, tgt.z); k++) tgt.addScaledVector(e.dir, 1); tgt.addScaledVector(e.dir, 3 + 6 * pow) }
@@ -202,9 +204,9 @@ async function castAt(pow) {
   let nc = null;
   if (tok()) { const r = await api('cast', { bait, deep: isDeep(), weather: weather(), near: FISHOK ? 1 : 0, x: Math.round(from.x), z: Math.round(from.z) }).catch(() => ({ error: 'offline' })); if (r.error) { msg(r.error === 'too_fast' ? 'Easy! Wait a few seconds between casts.' : r.error === 'not_near_water' ? 'Get closer to the water to fish.' : r.error === 'hourly_limit' ? 'The fish need a rest (hourly limit). Try later.' : 'Server busy, try again.'); return } nc = { ...r, srv: true } }
   else { const f = roll(prof.rod, prof.bait[bait] > 0 || bait === 'worm' ? bait : 'worm', { night: night(), deep: isDeep(), weather: weather() }); nc = { fish: f, wait: 2500 + Math.random() * 6000, hits: f.hits, zone: f.zone, r: f.r } }
-  if (state !== 'wait') return; cur = nc; cur.perfect = perfect; if (perfect) cur.zone = Math.min(.6, cur.zone * 1.4);
-  cur.t0 = performance.now(); cur.nib = [.5 + Math.random() * .15, .78 + Math.random() * .1].filter(() => Math.random() < .85).map(k => k * cur.wait); spawnStalker(); setTimeout(bite, cur.wait) }
-function bite() { if (state !== 'wait') return; state = 'bite'; ui.innerHTML = '<b style="font-size:18px">❗ Bite!</b><br><button id="fHook" style="margin-top:8px;font-size:18px">Hook it!</button>'; ui.querySelector('#fHook').onclick = hook; cur.biteT = performance.now(); ripple(bobber.position, 1.4); setTimeout(() => { if (state === 'bite') { msg('It got away… (hook faster)'); land(false) } }, 1600) }
+  if (state !== 'wait' || gen !== castGen) return; cur = nc; cur.perfect = perfect; if (perfect) cur.zone = Math.min(.6, cur.zone * 1.4);
+  cur.t0 = performance.now(); cur.nib = [.5 + Math.random() * .15, .78 + Math.random() * .1].filter(() => Math.random() < .85).map(k => k * cur.wait); spawnStalker(); setTimeout(() => { if (gen === castGen) bite() }, cur.wait) }
+function bite() { if (state !== 'wait') return; state = 'bite'; const gen = castGen; ui.innerHTML = '<b style="font-size:18px">❗ Bite!</b><br><button id="fHook" style="margin-top:8px;font-size:18px">Hook it!</button>'; ui.querySelector('#fHook').onclick = hook; cur.biteT = performance.now(); ripple(bobber.position, 1.4); setTimeout(() => { if (state === 'bite' && gen === castGen) { msg('It got away… (hook faster)'); land(false) } }, 1600) }
 function hook() { if (state === 'wait') { ripple(bobber.position, 1); STK.on = 0; streak = 0; msg(cur ? '💨 Too early! The fish spooked. Wait for the big dip.' : 'Too early!'); return }
   if (state !== 'bite') return; state = 'reel'; cur.hit = 0; cur.miss = 0; cur.tension = 0; cur.rodTier = tier(SHOP.rods, prof.rod); cur.z0 = Math.random() * (1 - cur.zone); cur.spd = 0.7 + 0.35 * cur.r; cur.ph = 0; cur.run = 0; cur.nextRun = performance.now() + 1500 + Math.random() * 1500; drawReel() }
 // the fight: bigger fish make runs; reeling while it runs strains the line (counts as a miss)

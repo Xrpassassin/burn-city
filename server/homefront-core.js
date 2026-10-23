@@ -133,7 +133,8 @@ function normalizeSurvivorStats(input, id, owner) {
 }
 function survivorSkill(survivor, role = survivor.role) {
   const stat = ROLE_STAT[role] || 'endurance';
-  return clampInt(survivor?.stats?.[stat], 1, 10) || 5;
+  const value = survivor?.stats?.[stat];
+  return Number.isFinite(value) ? clampInt(value, 1, 10) : 5;
 }
 function defaultSurvivorTask(role) {
   return ({ idle: 'rest_at_refuge', guard: 'perimeter_watch', scavenger: 'stockpile_supplies', farmer: 'tend_crops', medic: 'infirmary_duty', mechanic: 'maintain_structures' })[role] || 'rest_at_refuge';

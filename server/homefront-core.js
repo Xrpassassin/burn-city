@@ -12,6 +12,8 @@ const CROPS = NP({ potato: { days: 3, yield: 5, seedCost: 1 }, beans: { days: 4,
 const ROLES = new Set(['idle', 'guard', 'scavenger', 'farmer', 'medic', 'mechanic']);
 const SURVIVOR_TASKS = new Set(['rest_at_refuge', 'perimeter_watch', 'defend_perimeter', 'stockpile_supplies', 'tend_crops', 'infirmary_duty', 'triage_standby', 'maintain_structures', 'emergency_repair', 'stand_by_repairs', 'take_shelter']);
 const SURVIVOR_STATS = Object.freeze(['combat', 'scavenging', 'farming', 'medical', 'engineering', 'endurance']);
+const MATERIAL_TIERS = Object.freeze({ wood: { label: 'Wood', hp: 1, defense: 0, next: 'stone' }, stone: { label: 'Stone', hp: 1.75, defense: 2, next: 'steel' }, steel: { label: 'Steel', hp: 2.8, defense: 5, next: null } });
+const MATERIAL_UPGRADE_COSTS = Object.freeze({ stone: { stone: 12, scrap: 6 }, steel: { steel: 18, stone: 10, scrap: 12 } });
 const ROLE_STAT = Object.freeze({ guard: 'combat', scavenger: 'scavenging', farmer: 'farming', medic: 'medical', mechanic: 'engineering', idle: 'endurance' });
 const BUILDINGS = NP({
   wall:       { cost: { wood: 8, scrap: 2 }, hp: 100, defense: 2, cap: 30 },
@@ -30,7 +32,7 @@ const BUILDINGS = NP({
 });
 const DIFFICULTIES = NP({story:{label:'Story',cost:0.8,reward:0.7,threat:0.75},standard:{label:'Standard',cost:1,reward:1,threat:1},veteran:{label:'Veteran',cost:1.35,reward:1.55,threat:1.4},nightmare:{label:'Nightmare',cost:1.8,reward:2.35,threat:1.9}});
 const TYCOON_UPGRADES = NP({scavenger_rig:{label:'Scavenger Rig',description:'+15% salvage per level',baseCost:100,max:5},ember_press:{label:'Ember Press',description:'+5 embers per successful expedition per level',baseCost:140,max:5},field_armory:{label:'Field Armory',description:'+2 defense strength per level',baseCost:120,max:5},medic_station:{label:'Field Medic Station',description:'+1 bonus medicine on successful trips per level',baseCost:160,max:3}});
-const EMBER_MARKET = NP({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},food:{amount:10,cost:18},water:{amount:10,cost:14},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});
+const EMBER_MARKET = NP({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},stone:{amount:8,cost:42},steel:{amount:4,cost:68},food:{amount:10,cost:18},water:{amount:10,cost:14},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});
 const WEAPONS = NP({pipe_blade:{label:'Pipe Blade',rarity:'Common',power:1,cost:{scrap:0,embers:0}},pump_shotgun:{label:'Pump Shotgun',rarity:'Rare',power:3,cost:{scrap:55,embers:40}},marksman_rifle:{label:'Marksman Rifle',rarity:'Epic',power:4,cost:{scrap:90,embers:75}},shock_maul:{label:'Shock Maul',rarity:'Legendary',power:5,cost:{scrap:120,embers:100}}});
 const WEAPON_MODS = NP({reinforced_grip:{label:'Reinforced Grip',rarity:'Common',power:1,cost:{scrap:25,embers:20}},salvage_edge:{label:'Salvage Edge',rarity:'Rare',power:1,cost:{scrap:35,embers:25}},shock_coil:{label:'Shock Coil',rarity:'Epic',power:2,cost:{scrap:45,embers:40}}});
 const COSMETIC_SKINS = NP({rusted_pipe:{label:'Rusted Steel',slot:'weapon',rarity:'Common',cost:0,color:'#9a7b62'},field_scavenger:{label:'Field Scavenger',slot:'outfit',rarity:'Common',cost:0,color:'#6d7659'},patched_rucksack:{label:'Patched Rucksack',slot:'backpack',rarity:'Common',cost:0,color:'#78604a'},scrap_banner:{label:'Scrap Banner',slot:'refuge',rarity:'Common',cost:0,color:'#a55c35'},hazard_stripe:{label:'Hazard Stripe',slot:'weapon',rarity:'Rare',cost:75,color:'#e6b83f'},medic_fieldcoat:{label:'Field Medic Coat',slot:'outfit',rarity:'Rare',cost:65,color:'#91b5a0'},rescue_pack:{label:'Rescue Pack',slot:'backpack',rarity:'Rare',cost:55,color:'#b56d42'},ember_lanterns:{label:'Ember Lanterns',slot:'refuge',rarity:'Epic',cost:80,color:'#ff8b3d'}});
@@ -51,7 +53,7 @@ function createBase(ownerId, now = Date.now()) {
     version: VERSION, owner, revision: 1, createdAt: now, updatedAt: now,
     level: 1, day: 1, baseHp: 500, baseMaxHp: 500, wave: 0, visibility: 'private',
     exploration: { discoveredZones: ['outskirts'], lastExpedition: null },
-    resources: { wood: 40, scrap: 30, food: 24, rawFood: 0, water: 18, dirtyWater: 0, meds: 5, ammo: 18, seeds: 6, freshness: { food: [{ qty: 24, acquiredAt: now }], rawFood: [] } },
+    resources: { wood: 40, scrap: 30, stone: 0, steel: 0, food: 24, rawFood: 0, water: 18, dirtyWater: 0, meds: 5, ammo: 18, seeds: 6, freshness: { food: [{ qty: 24, acquiredAt: now }], rawFood: [] } },
     embers: 50, upgrades: { scavenger_rig: 0, ember_press: 0, field_armory: 0, medic_station: 0 },
     weapons: ['pipe_blade'], equippedWeapon: 'pipe_blade', weaponMods: {},
     cosmeticsOwned: Object.keys(DEFAULT_COSMETICS).map(slot => DEFAULT_COSMETICS[slot]), cosmeticsEquipped: { ...DEFAULT_COSMETICS },
@@ -66,7 +68,7 @@ function validateBase(input, ownerId) {
       input.structures.length > MAX_STRUCTURES || input.survivors.length > MAX_SURVIVORS ||
       (Array.isArray(input.farmPlots) && input.farmPlots.length > MAX_FARM_PLOTS)) return null;
   const out = clone(input);
-  for (const r of ['wood', 'scrap', 'food', 'rawFood', 'water', 'dirtyWater', 'meds', 'ammo', 'seeds']) out.resources[r] = clampInt(r === 'water' && !Number.isFinite(out.resources[r]) ? 18 : r === 'seeds' && !Number.isFinite(out.resources[r]) ? 6 : out.resources[r], 0, 999999);
+  for (const r of ['wood', 'scrap', 'stone', 'steel', 'food', 'rawFood', 'water', 'dirtyWater', 'meds', 'ammo', 'seeds']) out.resources[r] = clampInt(r === 'water' && !Number.isFinite(out.resources[r]) ? 18 : r === 'seeds' && !Number.isFinite(out.resources[r]) ? 6 : out.resources[r], 0, 999999);
   if (!out.lastSiege || typeof out.lastSiege !== 'object' || !Array.isArray(out.lastSiege.phases)) out.lastSiege = null;
   const FoodFreshness = require('./homefront-freshness');
   out.resources.freshness = FoodFreshness.normalizeBatches(out.resources.freshness, out.resources, Number.isFinite(out.createdAt) ? out.createdAt : Date.now());
@@ -94,14 +96,20 @@ function validateBase(input, ownerId) {
   out.wave = clampInt(out.wave, 0, 1000000);
   out.revision = clampInt(out.revision, 1, Number.MAX_SAFE_INTEGER);
   out.structures = out.structures.filter(s => s && isBuilding(s.type) && typeof s.id === 'string')
-    .map(s => ({
-       id: s.id.slice(0, 80), type: s.type,
-       hp: clampInt(s.hp, 0, BUILDINGS[s.type].hp), maxHp: BUILDINGS[s.type].hp,
+    .map(s => {
+      const material = MATERIAL_TIERS[s.material] ? s.material : 'wood';
+      const maxHp = Math.round(BUILDINGS[s.type].hp * MATERIAL_TIERS[material].hp);
+      const previousMax = Number.isFinite(s.maxHp) && s.maxHp > 0 ? s.maxHp : BUILDINGS[s.type].hp;
+      const integrity = clampNumber(Number.isFinite(s.hp) ? s.hp / previousMax : 1, 0, 1);
+      return {
+       id: s.id.slice(0, 80), type: s.type, material,
+       hp: clampInt(Math.round(maxHp * integrity), 0, maxHp), maxHp,
        x: clampNumber(s.x, -9.5, 9.5), z: clampNumber(s.z, -9.5, 9.5),
        rotation: clampNumber(s.rotation, -Math.PI * 2, Math.PI * 2),
        trenchLevel: s.type === 'trench' ? clampInt(s.trenchLevel, 0, 3) : 0,
        manned: s.type === 'turret' && s.manned === true
-     }));
+     };
+    });
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
     .map(s => ({
       id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role,
@@ -182,7 +190,7 @@ function threatProfile(input) {
   const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
   const turretAmmo = Math.min(Math.max(0, (s.resources?.ammo || 0) - ammoUsed), mannedTurrets.length * 3);
   const turretAmmoRatio = mannedTurrets.length ? turretAmmo / (mannedTurrets.length * 3) : 0;
-  const structureDefense = active.reduce((total, x) => total + BUILDINGS[x.type].defense +
+  const structureDefense = active.reduce((total, x) => total + BUILDINGS[x.type].defense + (MATERIAL_TIERS[x.material]?.defense || 0) +
     (x.type === 'trench' ? (x.trenchLevel || 0) * 3 : 0) +
     (x.type === 'turret' && x.manned ? 7 * turretAmmoRatio : 0), 0);
   const settlementPressure = Math.floor(active.length / 3) + Math.floor(activeFarmPlots / 3);
@@ -229,8 +237,22 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       // Farm plots occupy physical yard space too; keep new structures from burying crops or blocking tending access.
       if (s.farmPlots.some(plot => Math.hypot(plot.x - x, plot.z - z) < 1.65)) throw new Error('placement_occupied');
       const rotation = Number.isFinite(action.rotation) ? clampNumber(action.rotation, -Math.PI * 2, Math.PI * 2) : 0;
-      s.structures.push({ id, type: action.building, hp: spec.hp, maxHp: spec.hp, x, z, rotation, trenchLevel: 0, manned: false });
+      s.structures.push({ id, type: action.building, material: 'wood', hp: spec.hp, maxHp: spec.hp, x, z, rotation, trenchLevel: 0, manned: false });
       record(s, 'build', 'Constructed ' + action.building + '.', now);
+      break;
+    }
+    case 'upgrade_structure_material': {
+      const target = s.structures.find(x => x.id === action.target);
+      if (!target) throw new Error('unknown_structure');
+      const current = MATERIAL_TIERS[target.material] ? target.material : 'wood';
+      const next = MATERIAL_TIERS[current].next;
+      if (!next) throw new Error('material_tier_maxed');
+      pay(s, MATERIAL_UPGRADE_COSTS[next]);
+      const integrity = target.maxHp > 0 ? target.hp / target.maxHp : 1;
+      target.material = next;
+      target.maxHp = Math.round(BUILDINGS[target.type].hp * MATERIAL_TIERS[next].hp);
+      target.hp = Math.min(target.maxHp, Math.round(target.maxHp * integrity));
+      record(s, 'construction', 'Upgraded ' + target.type + ' ' + target.id + ' to ' + MATERIAL_TIERS[next].label + ' construction (' + target.maxHp + ' max HP, +' + MATERIAL_TIERS[next].defense + ' material defense).', now);
       break;
     }
     case 'trench_upgrade': {
@@ -275,10 +297,12 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const n = ++s.expeditionCount, seed = hash(s.owner + ':' + n + ':' + zoneId + ':' + difficultyId + ':' + s.revision), roll = rand(seed);
       const lootMultiplier = difficulty.reward * (1 + (s.upgrades.scavenger_rig || 0) * 0.15);
       const scrap = Math.floor(zone.scrap * lootMultiplier) + Math.floor(rand(hash('scrap:' + seed)) * 5), wood = Math.floor(zone.wood * lootMultiplier) + Math.floor(rand(hash('wood:' + seed)) * 4);
+      const stone = Math.max(0, Math.floor(zone.risk * 0.7) + (zoneId === 'residential' ? 1 : 0) + Math.floor(rand(hash('stone:' + seed)) * 2) - 1);
+      const steel = Math.max(0, Math.floor((zone.risk - 2) * 0.8) + (zoneId === 'industrial' || zoneId === 'research_lab' ? 1 : 0) + Math.floor(rand(hash('steel:' + seed)) * 2) - 1);
       const firstVisit = !s.exploration.discoveredZones.includes(zoneId);
       if (firstVisit) s.exploration.discoveredZones.push(zoneId);
       s.exploration.lastExpedition = { zone: zoneId, difficulty: difficultyId, risk: zone.risk, at: now, firstVisit };
-      s.resources.scrap = Math.min(999999, s.resources.scrap + scrap); s.resources.wood = Math.min(999999, s.resources.wood + wood);
+      s.resources.scrap = Math.min(999999, s.resources.scrap + scrap); s.resources.wood = Math.min(999999, s.resources.wood + wood); s.resources.stone = Math.min(999999, s.resources.stone + stone); s.resources.steel = Math.min(999999, s.resources.steel + steel);
       const discoveryScrap = firstVisit ? zone.risk * 3 : 0;
       const discoveryEmbers = firstVisit ? 10 + zone.risk * 5 : 0;
       if (discoveryScrap) s.resources.scrap = Math.min(999999, s.resources.scrap + discoveryScrap);
@@ -324,7 +348,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         : '';
       const eventText = directorEvent === 'special_infected' ? ' A special infected ambushed the team (' + directorLoot.enemy + '); ammunition was spent and a survivor was shaken.' : directorEvent === 'infected_horde' ? ' An infected horde hit the team (' + directorLoot.enemy + '); ammunition was spent and morale suffered.' : directorEvent === 'wandering_infected' ? ' Wandering infected (' + directorLoot.enemy + ') were spotted nearby, but the team avoided a full ambush.' : ' The district was quiet enough to search thoroughly.';
       const finalEventText = eventText + salvageText;
-      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + (scrap + discoveryScrap) + ' scrap, and ' + totalEmbers + ' embers' + (firstVisit ? ' including a first-visit survey bonus' : '') + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + finalEventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
+      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + (scrap + discoveryScrap) + ' scrap, ' + stone + ' stone, ' + steel + ' steel, and ' + totalEmbers + ' embers' + (firstVisit ? ' including a first-visit survey bonus' : '') + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + finalEventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
       record(s, 'exploration', result + (s.farmPlots.some(p => p.crop) ? '' : ' No survivor recruitment is available until you personally plant your first crop.'), now);
       break;
     }
@@ -741,4 +765,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { SURVIVOR_TASKS, VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };
+module.exports = { SURVIVOR_TASKS, VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, MATERIAL_TIERS, MATERIAL_UPGRADE_COSTS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };

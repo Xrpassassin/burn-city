@@ -42,7 +42,7 @@
     "test:experience-registry": "node client/js/experience-registry.test.mjs",
     "test:world-objectives": "node client/js/world-objectives-core.test.mjs",
     "test:zombie-cosmodrome": "node test/zombie-cosmodrome-sim.js",
-    "test:moba": "node client/moba/rules-core.test.mjs && node client/moba/bot-controller.test.mjs"
+    "test:moba": "node client/moba/rules-core.test.mjs && node client/moba/bot-controller.test.mjs && node client/moba/lane-minions.test.mjs"
   },
   "keywords": [],
   "author": "",

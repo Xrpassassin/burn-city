@@ -1,0 +1,46 @@
+import assert from "node:assert/strict";
+import { advanceLaneMinions, spawnMinionWave } from "./lane-minions.mjs";
+import { createMatch } from "./rules-core.mjs";
+
+{
+  const state = createMatch({ slotsPerTeam: 1 });
+  const spawned = spawnMinionWave(state, { waveId: "wave-1", countPerTeam: 3 });
+  assert.equal(spawned.entityIds.length, 6);
+  assert.equal(Object.values(spawned.state.entities).filter((e) => e.kind === "minion").length, 6);
+  assert.equal(Object.values(state.entities).filter((e) => e.kind === "minion").length, 0, "spawn must not mutate input");
+  assert.throws(() => spawnMinionWave(spawned.state, { waveId: "wave-1" }), /already exists/);
+  assert.throws(() => spawnMinionWave(state, { waveId: "bad", countPerTeam: 11 }), /countPerTeam/);
+}
+
+{
+  const state = createMatch({ slotsPerTeam: 1 });
+  const { state: spawned } = spawnMinionWave(state, { waveId: "push", countPerTeam: 1, rules: { spawnOffset: 65, movePerTick: 1 } });
+  const beforeX = spawned.entities["minion-push-blue-1"].x;
+  const advanced = advanceLaneMinions(spawned);
+  assert.ok(advanced.state.entities["minion-push-blue-1"].x > beforeX, "blue minion should advance toward red base");
+  assert.equal(spawned.entities["minion-push-blue-1"].x, beforeX, "advance must not mutate input");
+  assert.ok(advanced.events.some((e) => e.type === "minion-moved"));
+}
+
+{
+  const state = createMatch({ slotsPerTeam: 1, rules: { towerMaxHealth: 70, coreMaxHealth: 70 } });
+  const { state: spawned } = spawnMinionWave(state, {
+    waveId: "siege", countPerTeam: 1, rules: { spawnOffset: 58, movePerTick: 120, damage: 35, attackRange: 20, attackCooldownTicks: 1 }
+  });
+  // Siege is tested unopposed: with both waves spawned next to the red tower they would
+  // (correctly) fight each other first, so remove the defending red minion.
+  delete spawned.entities["minion-siege-red-1"];
+  const approach = advanceLaneMinions(spawned);
+  const first = advanceLaneMinions(approach.state);
+  assert.equal(first.state.entities["red-tower"].health, 35, "minions should damage enemy tower after approaching it");
+  assert.equal(first.state.entities["red-core"].health, 70, "tower should protect core");
+}
+
+{
+  const state = createMatch({ slotsPerTeam: 1 });
+  const { state: spawned } = spawnMinionWave(state, { waveId: "noobj", countPerTeam: 1 });
+  delete spawned.entities["red-tower"]; delete spawned.entities["red-core"];
+  assert.doesNotThrow(() => advanceLaneMinions(spawned), "missing objectives must not crash the tick");
+}
+
+console.log("MOBA lane minions: all assertions passed");

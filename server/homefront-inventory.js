@@ -2,7 +2,7 @@
 // Small server-authoritative carried inventory for Homefront field expeditions.
 // Inspired by common survival-RPG patterns; this implementation is original.
 const ITEMS = Object.freeze({
-  food:{label:'Food ration',weight:1,maxStack:8}, water:{label:'Clean water',weight:1,maxStack:8},
+  food:{label:'Cooked ration',weight:1,maxStack:8}, rawFood:{label:'Raw food',weight:1,maxStack:8}, water:{label:'Clean water',weight:1,maxStack:8}, dirtyWater:{label:'Dirty water',weight:1,maxStack:8},
   meds:{label:'Medical supplies',weight:1,maxStack:5}, ammo:{label:'Ammunition',weight:1,maxStack:12},
   scrap:{label:'Scrap',weight:2,maxStack:8}, wood:{label:'Wood',weight:2,maxStack:8}
 });
@@ -26,8 +26,15 @@ function remove(input,id,amount=1){
  inventory[id]-=qty;return {inventory,removed:qty,used:used(inventory),capacity:CAPACITY};
 }
 function stash(input,resources){
- const inventory=normalize(input),stored={}; for(const id of Object.keys(ITEMS)){const room=Math.max(0,999999-clamp(resources?.[id],0,999999));stored[id]=Math.min(inventory[id],room);}
- const remaining={...inventory};for(const id of Object.keys(ITEMS))remaining[id]-=stored[id];
+ const inventory=normalize(input),stored={},remaining={...inventory};
+ const destination={rawFood:'food',dirtyWater:'water'};
+ for(const id of Object.keys(ITEMS)){
+  const target=destination[id]||id;
+  const current=clamp(resources?.[target],0,999999)+(stored[target]||0);
+  const room=Math.max(0,999999-current);
+  const amount=Math.min(inventory[id],room);
+  if(amount){stored[target]=(stored[target]||0)+amount;remaining[id]-=amount;}
+ }
  return {inventory:remaining,stored,used:used(remaining),capacity:CAPACITY};
 }
 function withdraw(input,resources,id,amount=1){

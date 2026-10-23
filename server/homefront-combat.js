@@ -11,6 +11,21 @@ const WEAPON_FIRE_INTERVAL=Object.freeze({pipe_blade:900,pump_shotgun:1150,marks
 const WEAPON_MAGAZINE_CAPACITY=Object.freeze({pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0});
 const STATS=Object.freeze({wandering_infected:{hp:32,damage:2,ammo:1,range:18},infected_horde:{hp:76,damage:5,ammo:2,range:20},special_infected:{hp:105,damage:7,ammo:2,range:22}});
 function enemyName(zone,event){const a=ARCHETYPES[zone]||ARCHETYPES.outskirts;return event==='special_infected'?a.special:event==='infected_horde'?a.horde:a.wanderer;}
+function safeEnemyPosition(x, z, fallbackX, fallbackZ, bounds = 100) {
+ const candidates=[{x,z}];
+ for(let radius=2;radius<=12;radius+=2){
+  for(let step=-radius;step<=radius;step+=2){
+   candidates.push({x:x+step,z:z-radius},{x:x+step,z:z+radius});
+   if(Math.abs(step)<radius)candidates.push({x:x-radius,z:z+step},{x:x+radius,z:z+step});
+  }
+ }
+ candidates.push({x:fallbackX,z:fallbackZ});
+ for(const point of candidates){
+  const px=clamp(point.x,-bounds,bounds),pz=clamp(point.z,-bounds,bounds);
+  if(Terrain.isSafePosition(px,pz,{bounds}))return{x:Math.round(px*10)/10,z:Math.round(pz*10)/10};
+ }
+ throw Error('no_safe_infected_spawn');
+}
 function resolveSpawn({account,x,z,district,risk=1,now=Date.now(),seed=0}){
  risk=clamp(Math.floor(risk),1,5);const roll=hash(account+':'+district+':'+Math.floor(x)+':'+Math.floor(z)+':'+Math.floor(now/30000)+':'+seed)%100;
  const event=roll<13+risk*4?'special_infected':roll<42+risk*5?'infected_horde':'wandering_infected',s=STATS[event],id='enc-'+hash(account+':'+now+':'+x+':'+z).toString(36);
@@ -26,7 +41,7 @@ function normalizeEncounters(input,now=Date.now()){
 function spawn({encounters,account,player,now=Date.now(),seed=0}){
  const clean=normalizeEncounters(encounters,now),old=clean[account];if(old&&!old.defeated&&old.hp>0)return{encounters:clean,encounter:publicEncounter(old),reused:true};
  const depth=100-Math.hypot(player.x,player.z),risk=depth<25?1:depth<45?1:depth<62?2:depth<76?3:depth<88?4:5,district=risk>=5?'research_lab':risk>=4?'industrial':risk>=3?'commercial':risk===2?'residential':'outskirts';
- const e=resolveSpawn({account,x:player.x,z:player.z,district,risk,now,seed});clean[account]=e;return{encounters:clean,encounter:publicEncounter(e),reused:false};
+ const e=resolveSpawn({account,x:player.x,z:player.z,district,risk,now,seed});const safe=safeEnemyPosition(e.x,e.z,player.x,player.z);e.x=safe.x;e.z=safe.z;clean[account]=e;return{encounters:clean,encounter:publicEncounter(e),reused:false};
 }
 
 function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {

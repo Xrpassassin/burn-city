@@ -39,7 +39,8 @@ jobs:
           node --input-type=module --check < client/js/app.js
           node --input-type=module --check < client/js/airport.js
           node --input-type=module --check < client/js/experience-registry.mjs
-          node -e 'const fs=require("fs");for(const p of ["client/arena/flight-lobby.html","client/arena/homefront.html"]){const s=fs.readFileSync(p,"utf8");const m=s.split("<script>")[1]?.split("</script>")[0];if(!m)throw Error("Missing inline script in "+p);new Function(m)}'
+          node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/flight-lobby.html","utf8");const m=s.match(/<script>([\\s\\S]*?)<\\/script>/);if(!m)throw Error("Missing flight-lobby script");new Function(m[1])'
+          node --input-type=module --check < <(node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/homefront.html","utf8");const m=s.split("<script type=\\\"module\\\">")[1]?.split("</script>")[0];if(!m)process.exit(2);process.stdout.write(m)')
       - name: Test airport experience registry
         run: npm run test:experience-registry
       - name: Test helicopter arrival spawn

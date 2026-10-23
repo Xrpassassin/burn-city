@@ -111,3 +111,10 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 - Homefront refuges own a server-validated weapon inventory and equipped weapon. The initial Pipe Blade is free; players can craft Pump Shotgun (Rare), Marksman Rifle (Epic), and Shock Maul (Legendary) using scrap and Embers, then equip any owned weapon.
 - Weapon power has current gameplay effects: it lowers the chance/pressure of Director ambush events, reduces ammunition and survivor-morale losses during ambushes, and increases damage against shared bosses. This is a progression foundation; detailed Dead Island-style durability, weapon mods, elemental effects, and real-time attack animations are still future work.
 - Added core tests for weapon crafting/equipping/duplicate protection and API coverage confirming an equipped shotgun increases shared boss damage.
+
+
+### Shared survivor rescue objectives
+- Added three shared rescue landmarks: Stranded Bus Survivors, Collapsed Apartments, and Quarantine Shelter. They appear as orange `R` markers; each is physically located in a district with its own risk level.
+- A successful rescue charges difficulty-scaled food/ammunition costs, adds one persistent survivor to the player's refuge roster, assigns a role based on rescue-site risk (guard/mechanic/medic), and pays difficulty-scaled Embers. It does not advance an expedition or round counter.
+- Rescue availability is shared and persists in the world file. Once a player completes a rescue, the site has an eight-minute global cooldown; the server enforces proximity, roster capacity, and cooldown before saving.
+- Tests cover rescue-site map state, survivor recruitment and role, capacity rejection, and prevention of a second player claiming the same rescue during cooldown.

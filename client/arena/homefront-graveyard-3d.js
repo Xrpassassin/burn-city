@@ -4,7 +4,7 @@ import * as THREE from './vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
-import { terrainHeight } from './homefront-terrain-generation.mjs';
+import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { sfx } from './sfx.js';
 
@@ -55,7 +55,7 @@ function boot(host) {
   for (let i = 0; i < groundPositions.count; i++) {
     const worldX = groundPositions.getX(i), worldZ = -groundPositions.getY(i);
     // Shallow broad rises and depressions create visible slopes without yet changing server movement rules.
-    groundPositions.setZ(i, (terrainHeight(worldX, worldZ) * 0.42));
+    groundPositions.setZ(i, (terrainElevation(worldX, worldZ)));
     const biome = biomeAt(worldX, worldZ);
     groundColor.setHex(biome.ground);
     // Tiny seeded-looking tonal drift from biome fields avoids a completely flat painted appearance.
@@ -204,7 +204,7 @@ function boot(host) {
   };
   function addLandmark(parent, landmark) {
     const g = new THREE.Group();
-    g.position.set(landmark.x, terrainHeight(landmark.x, landmark.z) * 0.42, landmark.z);
+    g.position.set(landmark.x, terrainElevation(landmark.x, landmark.z), landmark.z);
     g.rotation.y = (Math.abs(landmark.x * 7 + landmark.z * 13) % 628) / 100;
     if (landmark.type === 'evacuation_checkpoint') {
       addBox(g, 5.8, 0.18, 0.28, 0, 2.55, 0, landmarkMats.fadedOrange);
@@ -263,7 +263,7 @@ function boot(host) {
   }
   function addEnvironmentalCandidate(parent, prop) {
     const g = new THREE.Group();
-    g.position.set(prop.x, terrainHeight(prop.x, prop.z) * 0.42, prop.z);
+    g.position.set(prop.x, terrainElevation(prop.x, prop.z), prop.z);
     g.rotation.y = ((prop.id.length * 37 + Math.floor(Math.abs(prop.x * 13 + prop.z * 7))) % 628) / 100;
     const r = (Math.abs(prop.x * 17 + prop.z * 31) % 1);
     if (prop.type === 'dead_tree') {
@@ -327,7 +327,7 @@ function boot(host) {
     if (Math.hypot(bx, bz) < 13) continue;
     const w = 3.4 + rand() * 3.4, d = 3.4 + rand() * 3.4, h = 3 + rand() * (Math.hypot(bx, bz) > 65 ? 11 : 6);
     const chunk = cityChunkAt(bx, bz);
-    const baseY = terrainHeight(bx, bz) * 0.42;
+    const baseY = terrainElevation(bx, bz);
     const building = addBox(chunk, w, h, d, bx, baseY + h / 2, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
     building.rotation.y = (rand() - 0.5) * 0.16;
     if (rand() > 0.45) addBox(chunk, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h + 0.225, bz + (rand() - .5), ruinMat);
@@ -344,7 +344,7 @@ function boot(host) {
     sprite.scale.set(13, 2.45, 1); return sprite;
   }
   function buildPOI(p) {
-    const g = new THREE.Group(); g.position.set(p.x, terrainHeight(p.x, p.z) * 0.42, p.z);
+    const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z);
     let color = 0x78bfe8;
     if (p.type === 'boss') color = 0xff4545;
     else if (p.type === 'cache') color = 0xf0c45e;
@@ -361,7 +361,7 @@ function boot(host) {
     poiGroup.add(g); markerObjects.set(p.id, g);
   }
   function buildLootNode(p) {
-    const g = new THREE.Group(); g.position.set(p.x, terrainHeight(p.x, p.z) * 0.42, p.z); g.userData.lootNodeId = p.id;
+    const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z); g.userData.lootNodeId = p.id;
     const color = p.kind === 'medical' ? 0x9fce8a : p.kind === 'materials' ? 0xc5a36b : p.kind === 'highrisk' ? 0xff5a46 : 0xe1b65b;
     const crate = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.15, 1.45), mat(p.kind === 'medical' ? 0x667d5d : 0x6f5437));
     crate.position.y = 0.68; crate.userData.lootNodeId = p.id; g.add(crate);
@@ -384,7 +384,7 @@ function boot(host) {
         const size = bounds.getSize(new THREE.Vector3());
         actor.scale.setScalar(1.8 / Math.max(0.01, size.y));
         const fitted = new THREE.Box3().setFromObject(actor);
-        actor.position.set(x, terrainHeight(x, z) * 0.42 - fitted.min.y, z);
+        actor.position.set(x, terrainElevation(x, z) - fitted.min.y, z);
         actor.rotation.y = Math.atan2(-x, -z);
         actor.traverse(node => { if (node.isMesh) { node.castShadow = false; node.receiveShadow = false; } });
         zombieGroup.add(actor);
@@ -392,7 +392,7 @@ function boot(host) {
         const clip = clips.find(c => /walk|run|idle/i.test(c.name)) || clips[0];
         if (clip) { const mixer = new THREE.AnimationMixer(actor); mixer.clipAction(clip).play(); zombieMixers.push(mixer); }
       } else {
-        const actor = new THREE.Group(); actor.position.set(x, terrainHeight(x, z) * 0.42, z);
+        const actor = new THREE.Group(); actor.position.set(x, terrainElevation(x, z), z);
         const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.72, 3, 6), mat(i % 2 ? 0x526248 : 0x66704b));
         body.position.y = 0.62; actor.add(body);
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), mat(0x8c9972));
@@ -447,7 +447,7 @@ function boot(host) {
       let actor = combatActors.get(e.id);
       if (!actor) {
         actor = new THREE.Group();
-        actor.position.set(e.x, terrainHeight(e.x, e.z) * 0.42, e.z);
+        actor.position.set(e.x, terrainElevation(e.x, e.z), e.z);
         const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.85, 1.1, 3, 7), mat(0x8e302d));
         body.position.y = 1.2; actor.add(body);
         const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), mat(0xaaa18a));
@@ -502,7 +502,7 @@ function boot(host) {
       ? selfEncounter.enemy + ' · HP ' + selfEncounter.hp + '/' + selfEncounter.maxHp + ' · risk ' + selfEncounter.risk + '/5 · ' + Math.ceil(enemyDistance) + ' units away' + (enemyInReach ? ' · in attack range' : ' · move closer to attack')
       : 'No active encounter. Search for infected to begin a server-authoritative fight.';
     for (const p of (data.players || [])) {
-      const g = new THREE.Group(); g.position.set(p.x, terrainHeight(p.x, p.z) * 0.42, p.z);
+      const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z);
       const color = p.label === 'You' ? 0xffdf83 : p.party ? 0x8fd4f4 : 0xd7d1c5;
       const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 1.2, 3, 6), mat(color));
       body.position.y = 1.45; g.add(body);
@@ -786,7 +786,7 @@ function boot(host) {
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
   let lastFrame = performance.now();
-  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += Math.sin(now * 0.0003 + i) * dt * 0.12; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round(aimStability * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainHeight(actor.position.x, actor.position.z) * 0.42;
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += Math.sin(now * 0.0003 + i) * dt * 0.12; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round(aimStability * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainElevation(actor.position.x, actor.position.z);
       const impactRemaining = state.impactUntil - now;
       if (impactRemaining > 0) {
         const p = impactRemaining / 300;
@@ -796,6 +796,6 @@ function boot(host) {
         actor.rotation.z = (state.impactStyle === 'blunt' ? 0.22 : headshot ? 0.28 : 0.12) * hitPulse * state.impactDirection;
         state.body.scale.y = state.impactStyle === 'blunt' ? 1 - 0.18 * hitPulse : headshot ? 1 - 0.1 * hitPulse : 1;
       } else { actor.rotation.z = 0; state.body.scale.y = 1; }
-      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } if (worldData?.self) { const self = worldData.self; updateVisibleChunks(self.x, self.z); const followBlend = 1 - Math.exp(-dt * 2.8); camera.position.x += (self.x - camera.position.x) * followBlend; camera.position.z += (self.z + 150 - camera.position.z) * followBlend; camera.lookAt(self.x, terrainHeight(self.x, self.z) * 0.42 + 1.5, self.z); } renderer.render(scene, camera); requestAnimationFrame(tick); };
+      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } if (worldData?.self) { const self = worldData.self; updateVisibleChunks(self.x, self.z); const followBlend = 1 - Math.exp(-dt * 2.8); camera.position.x += (self.x - camera.position.x) * followBlend; camera.position.z += (self.z + 150 - camera.position.z) * followBlend; camera.lookAt(self.x, terrainElevation(self.x, self.z) + 1.5, self.z); } renderer.render(scene, camera); requestAnimationFrame(tick); };
   tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
 }

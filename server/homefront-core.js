@@ -10,6 +10,7 @@ const MAX_SURVIVORS = 12;
 const MAX_FARM_PLOTS = 24;
 const CROPS = NP({ potato: { days: 3, yield: 5, seedCost: 1 }, beans: { days: 4, yield: 7, seedCost: 1 }, corn: { days: 5, yield: 9, seedCost: 2 } });
 const ROLES = new Set(['idle', 'guard', 'scavenger', 'farmer', 'medic', 'mechanic']);
+const SURVIVOR_TASKS = new Set(['rest_at_refuge', 'perimeter_watch', 'defend_perimeter', 'stockpile_supplies', 'tend_crops', 'infirmary_duty', 'triage_standby', 'maintain_structures', 'emergency_repair', 'stand_by_repairs', 'take_shelter']);
 const BUILDINGS = NP({
   wall:       { cost: { wood: 8, scrap: 2 }, hp: 100, defense: 2, cap: 30 },
   watchtower: { cost: { wood: 14, scrap: 10 }, hp: 150, defense: 8, cap: 6 },
@@ -100,7 +101,14 @@ function validateBase(input, ownerId) {
        manned: s.type === 'turret' && s.manned === true
      }));
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
-    .map(s => ({ id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100) }));
+    .map(s => ({
+      id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role,
+      morale: clampInt(s.morale, 0, 100),
+      task: SURVIVOR_TASKS.has(s.task) ? s.task : defaultSurvivorTask(s.role),
+      taskTarget: typeof s.taskTarget === 'string' ? s.taskTarget.slice(0, 80) : '',
+      taskReason: typeof s.taskReason === 'string' ? s.taskReason.slice(0, 120) : 'Role assignment',
+      taskUpdatedAt: Number.isFinite(s.taskUpdatedAt) ? s.taskUpdatedAt : (Number.isFinite(out.createdAt) ? out.createdAt : Date.now())
+    }));
   out.log = Array.isArray(out.log) ? out.log.slice(-20) : [];
   return out;
 }
@@ -109,6 +117,28 @@ function weaponPower(base) {
   const weapon = WEAPONS[id] || WEAPONS.pipe_blade;
   const mod = WEAPON_MODS[base?.weaponMods?.[id]];
   return weapon.power + (mod?.power || 0);
+}
+function defaultSurvivorTask(role) {
+  return ({ idle: 'rest_at_refuge', guard: 'perimeter_watch', scavenger: 'stockpile_supplies', farmer: 'tend_crops', medic: 'infirmary_duty', mechanic: 'maintain_structures' })[role] || 'rest_at_refuge';
+}
+function syncSurvivorBehavior(s, now) {
+  const incoming = s.lastSiege?.status === 'incoming';
+  const siegeTarget = incoming ? s.lastSiege.target : null;
+  const damaged = s.structures.filter(x => x.hp < x.maxHp)
+    .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp) || a.id.localeCompare(b.id))[0];
+  for (const survivor of s.survivors) {
+    let task = defaultSurvivorTask(survivor.role), target = '', reason = 'Normal settlement duty';
+    if (incoming) {
+      if (survivor.role === 'guard') { task = 'defend_perimeter'; target = siegeTarget?.id || ''; reason = 'Responding to incoming siege'; }
+      else if (survivor.role === 'mechanic') { task = damaged ? 'emergency_repair' : 'stand_by_repairs'; target = damaged?.id || siegeTarget?.id || ''; reason = damaged ? 'Prioritize the weakest structure during siege warning' : 'Ready to reinforce the threatened perimeter'; }
+      else if (survivor.role === 'medic') { task = 'triage_standby'; reason = 'Standing by for injuries during the siege'; }
+      else { task = 'take_shelter'; reason = 'Sheltering while guards hold the perimeter'; }
+    } else if (survivor.role === 'mechanic' && damaged) {
+      task = 'maintain_structures'; target = damaged.id; reason = 'Routine maintenance: weakest structure first';
+    }
+    if (survivor.task !== task || survivor.taskTarget !== target || survivor.taskReason !== reason) survivor.taskUpdatedAt = now;
+    survivor.task = task; survivor.taskTarget = target; survivor.taskReason = reason;
+  }
 }
 function record(s, kind, text, now) {
   s.log.push({ id: (s.log.at(-1)?.id || 0) + 1, kind, text, at: now });
@@ -440,6 +470,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (!ROLES.has(action.role)) throw new Error('unknown_role');
       if (action.role === 'guard' && s.survivors.filter(x => x.role === 'guard' && x.id !== survivor.id).length >= 6) throw new Error('guard_capacity');
       survivor.role = action.role;
+      syncSurvivorBehavior(s, now);
       record(s, 'assignment', survivor.name + ' assigned to ' + action.role + '.', now);
       break;
     }
@@ -542,6 +573,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
           { phase: 'guard_response', at: now, text: guardText }
         ]
       };
+      syncSurvivorBehavior(s, now);
       record(s, 'siege_warning', warningText, now);
       record(s, 'guard_response', guardText, now);
       break;
@@ -635,6 +667,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
           { phase: 'guard_response', at: now, text: profile.guards ? 'Guards responded to the threatened perimeter.' : 'No guards available for the response.' }
         ]), outcomePhase]
       };
+      syncSurvivorBehavior(s, now);
       record(s, 'siege_outcome', outcomeText, now);
       record(s, 'defense', lost ? 'The refuge fell during a perimeter breach. ' + guardText + '.' + targetOutcome : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + guardText + '; ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.' + targetOutcome + breachText, now);
       break;
@@ -650,6 +683,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.resources.scrap -= 2;
       const before = target.hp;
       target.hp = Math.min(target.maxHp, target.hp + 100);
+      syncSurvivorBehavior(s, now);
       record(s, 'repair', 'Emergency repair: ' + target.type + ' ' + target.id + ' restored +' + (target.hp - before) + ' HP (' + Math.round(target.hp / target.maxHp * 100) + '% integrity).', now);
       break;
     }
@@ -683,4 +717,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };
+module.exports = { SURVIVOR_TASKS, VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };

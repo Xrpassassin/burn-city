@@ -91,6 +91,8 @@ function boot(host) {
   let selectedCombatTargetId = null;
   const aimWeaponButton = document.getElementById('aimWeapon');
   const aimStabilityStatus = document.getElementById('aimStability');
+  const sprintTravelButton = document.getElementById('sprintTravel');
+  let sprintTravel = false;
   let aiming = false;
   let aimStability = 1;
   let aimRecoveryUntil = 0;
@@ -431,6 +433,8 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
+    if (typeof data.selfWeaponHandling?.aiming === 'boolean') aiming = data.selfWeaponHandling.aiming;
+    if (sprintTravelButton) { sprintTravelButton.setAttribute('aria-pressed', String(sprintTravel)); sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF'; }
     clearGroup(poiGroup); clearGroup(lootGroup); markerObjects.clear();
     for (const p of (data.world?.pointsOfInterest || [])) {
       buildPOI(p);
@@ -695,13 +699,41 @@ function boot(host) {
     scheduleReloadStep(reloadState);
   }
   if (reloadWeaponButton) reloadWeaponButton.addEventListener('click', reloadWeapon);
-  if (aimWeaponButton) aimWeaponButton.addEventListener('click', () => {
-    if (aimWeaponButton.disabled || moving || reloadState) return;
-    aiming = !aiming;
-    if (aiming) aimRecoveryUntil = Math.max(aimRecoveryUntil, performance.now());
-    aimWeaponButton.setAttribute('aria-pressed', String(aiming));
-    aimWeaponButton.textContent = aiming ? 'Lower weapon' : 'Aim weapon';
-    if (combatStatus) combatStatus.textContent = aiming ? 'Aiming: steadier head-level control, slower recovery after travel.' : 'Weapon lowered. Movement and target selection remain available.';
+  async function requestAimState(value) {
+    const r = await fetch(API + '/api/homefront/world/aim', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ aiming: value }) });
+    const data = await r.json();
+    if (!r.ok || data.error) throw new Error(data.message || data.error || 'aim_state_failed');
+    return data;
+  }
+  if (aimWeaponButton) aimWeaponButton.addEventListener('click', async () => {
+    if (aimWeaponButton.disabled || moving || reloadState || !token()) return;
+    const desired = !aiming;
+    moving = true; stopAutoFire();
+    try {
+      const data = await requestAimState(desired);
+      updateWorld(data);
+      aiming = desired;
+      if (aiming) aimRecoveryUntil = Math.max(aimRecoveryUntil, performance.now());
+      if (combatStatus) combatStatus.textContent = aiming ? 'Aiming: server-confirmed ADS is building. Marksman rifle steadies slowest; travel and sprinting disrupt precision.' : 'Weapon lowered. Sprinting and travel are available.';
+    } catch (e) {
+      if (combatStatus) combatStatus.textContent = e.message === 'aim_recovering_from_movement' ? 'Recovering from movement before aiming.' : 'Could not change aim stance: ' + e.message;
+    } finally {
+      moving = false;
+      if (worldData) {
+        const active = worldData.selfEncounter || worldData.encounter || null;
+        const self = worldData.self;
+        const distance = active && self ? Math.hypot(self.x-active.x,self.z-active.z) : Infinity;
+        if (aimWeaponButton) aimWeaponButton.disabled = !self || !active || selectedCombatTargetId !== active.id || distance > (active.range || 0) || !!reloadState;
+        if (autoFireButton) autoFireButton.disabled = !self || !active || selectedCombatTargetId !== active.id || active.defeated || active.hp <= 0 || distance > (active.range || 0);
+      }
+    }
+  });
+  if (sprintTravelButton) sprintTravelButton.addEventListener('click', () => {
+    if (moving || reloadState) return;
+    sprintTravel = !sprintTravel;
+    sprintTravelButton.setAttribute('aria-pressed', String(sprintTravel));
+    sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF';
+    if (combatStatus) combatStatus.textContent = sprintTravel ? 'Sprint enabled: longer travel steps cost extra stamina and delay weapon accuracy recovery.' : 'Sprint disabled: normal travel pace.';
   });
   if (findInfectedButton) findInfectedButton.addEventListener('click', () => combatAction('encounter'));
   if (attackInfectedButton) attackInfectedButton.addEventListener('click', () => combatAction('attack'));
@@ -770,11 +802,16 @@ function boot(host) {
     if (reloadState) cancelReload('Reload interrupted by movement.');
     aiming = false;
     if (aimWeaponButton) { aimWeaponButton.setAttribute('aria-pressed', 'false'); aimWeaponButton.textContent = 'Aim weapon'; }
-    aimRecoveryUntil = performance.now() + 1250;
+    aimRecoveryUntil = performance.now() + (sprintTravel ? 1800 : 900);
     lastTravelAt = performance.now();
     moving = true; if (status) status.textContent = 'Moving through the shared Graveyard…';
     try {
-      const r = await fetch(API + '/api/homefront/world/move', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ x, z }) });
+      if (sprintTravel && worldData?.selfWeaponHandling?.aiming) {
+        const lowered = await requestAimState(false);
+        updateWorld(lowered);
+        aiming = false;
+      }
+      const r = await fetch(API + '/api/homefront/world/move', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ x, z, sprint: sprintTravel }) });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'movement_rejected');
       updateWorld(data);

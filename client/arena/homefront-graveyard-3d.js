@@ -43,6 +43,9 @@ function boot(host) {
   const autoFireButton = document.getElementById('autoFireInfected');
   const reloadWeaponButton = document.getElementById('reloadWeapon');
   const ammoStatus = document.getElementById('ammoStatus');
+  let reloadState = null;
+  let reloadTimer = null;
+  let reloadUiTimer = null;
   let selectedCombatTargetId = null;
   let selectedCombatAimPoint = null;
   let autoFireHeld = false;
@@ -359,6 +362,7 @@ function boot(host) {
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
   async function combatAction(action, targetId = selectedCombatTargetId) {
+    if (reloadState) cancelReload('Reload interrupted by combat.');
     if (!token()) { if (combatStatus) combatStatus.textContent = 'Sign in before fighting in the Graveyard.'; return; }
     if (moving) return;
     moving = true;
@@ -435,25 +439,71 @@ function boot(host) {
     }
   }
   if (lootActionButton) lootActionButton.addEventListener('click', collectSelectedLoot);
-  async function reloadWeapon() {
-    if (!token() || moving) { if (combatStatus) combatStatus.textContent = 'Sign in and enter an expedition before reloading.'; return; }
-    moving = true;
-    if (reloadWeaponButton) reloadWeaponButton.disabled = true;
-    try {
-      const r = await fetch(API + '/api/homefront/world/reload', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: '{}' });
-      const data = await r.json();
-      if (!r.ok || data.error) throw new Error(data.message || data.error || 'reload_failed');
-      updateWorld(data);
-      if (combatStatus) {
-        const mag = data.selfWeaponMagazine;
-        combatStatus.textContent = 'Reloaded ' + data.reloaded + ' round' + (data.reloaded === 1 ? '' : 's') + '. Magazine: ' + (mag?.loaded ?? 0) + '/' + (mag?.capacity ?? 0) + '; reserve: ' + (data.inventory?.ammo ?? 0) + '.';
-      }
-    } catch (e) {
-      if (combatStatus) combatStatus.textContent = e.message === 'weapon_does_not_reload' ? 'This melee weapon does not use ammunition.' : e.message === 'magazine_full' ? 'Magazine is already full.' : e.message === 'no_reserve_ammo' ? 'No reserve ammunition. Pack or scavenge more ammo.' : 'Reload unavailable: ' + e.message;
-    } finally {
-      moving = false;
-      if (reloadWeaponButton) reloadWeaponButton.disabled = !worldData?.self;
-    }
+  function clearReloadTimers() {
+    if (reloadTimer) clearTimeout(reloadTimer);
+    if (reloadUiTimer) clearInterval(reloadUiTimer);
+    reloadTimer = null; reloadUiTimer = null;
+  }
+  function cancelReload(message = 'Reload interrupted.') {
+    if (!reloadState) return;
+    clearReloadTimers(); reloadState = null;
+    if (reloadWeaponButton) { reloadWeaponButton.textContent = 'Reload magazine'; reloadWeaponButton.disabled = !worldData?.self; }
+    for (const explorer of playerGroup.children) if (explorer.userData.isLocalPlayer && explorer.userData.weapon) { explorer.userData.weapon.rotation.x = -0.12; explorer.userData.weapon.rotation.z = 0; }
+    if (combatStatus && message) combatStatus.textContent = message + ' Any shells already inserted remain loaded.';
+  }
+  async function requestReloadRounds(rounds) {
+    const r = await fetch(API + '/api/homefront/world/reload', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ rounds }) });
+    const data = await r.json();
+    if (!r.ok || data.error) throw new Error(data.message || data.error || 'reload_failed');
+    updateWorld(data);
+    return data;
+  }
+  function scheduleReloadStep(state) {
+    if (reloadState !== state) return;
+    const shotgun = state.weaponId === 'pump_shotgun';
+    reloadTimer = setTimeout(async () => {
+      if (reloadState !== state) return;
+      moving = true;
+      try {
+        const data = await requestReloadRounds(shotgun ? 1 : state.capacity);
+        if (reloadState !== state) return;
+        state.loaded += data.reloaded || 0;
+        if (combatStatus) combatStatus.textContent = (shotgun ? 'Inserted shell ' + state.loaded + '. ' : 'Magazine seated. ') + 'Magazine ' + data.selfWeaponMagazine.loaded + '/' + data.selfWeaponMagazine.capacity + ' · reserve ' + data.selfInventory.ammo + '.';
+        if (shotgun && state.loaded < state.capacity && data.selfInventory.ammo > 0 && data.selfWeaponMagazine.loaded < state.capacity) {
+          state.shellStartedAt = performance.now();
+          sfx.reloadWeapon('shotgun');
+          scheduleReloadStep(state);
+        } else {
+          clearReloadTimers(); reloadState = null;
+          if (reloadWeaponButton) { reloadWeaponButton.textContent = 'Reload magazine'; reloadWeaponButton.disabled = !worldData?.self; }
+          if (combatStatus) combatStatus.textContent = 'Reload complete. Magazine ' + data.selfWeaponMagazine.loaded + '/' + data.selfWeaponMagazine.capacity + ' · reserve ' + data.selfInventory.ammo + '.';
+        }
+      } catch (e) {
+        if (reloadState === state) {
+          clearReloadTimers(); reloadState = null;
+          if (reloadWeaponButton) { reloadWeaponButton.textContent = 'Reload magazine'; reloadWeaponButton.disabled = !worldData?.self; }
+          if (combatStatus) combatStatus.textContent = e.message === 'no_reserve_ammo' ? 'Reload stopped: no reserve ammunition. Inserted shells remain loaded.' : 'Reload failed: ' + e.message;
+        }
+      } finally { moving = false; }
+    }, shotgun ? 680 : 2250);
+  }
+  function reloadWeapon() {
+    if (!token() || moving || reloadState) { if (combatStatus && !token()) combatStatus.textContent = 'Sign in and enter an expedition before reloading.'; return; }
+    const magazine = worldData?.selfWeaponMagazine;
+    const weaponId = equippedWeaponId;
+    if (!['pump_shotgun', 'marksman_rifle'].includes(weaponId)) { if (combatStatus) combatStatus.textContent = 'This melee weapon does not use ammunition.'; return; }
+    if (magazine?.loaded >= magazine?.capacity) { if (combatStatus) combatStatus.textContent = 'Magazine is already full.'; return; }
+    if (!(worldData?.selfInventory?.ammo > 0)) { if (combatStatus) combatStatus.textContent = 'No reserve ammunition. Pack or scavenge more ammo.'; return; }
+    const shotgun = weaponId === 'pump_shotgun';
+    reloadState = { weaponId, startedAt: performance.now(), shellStartedAt: performance.now(), capacity: magazine?.capacity || (shotgun ? 6 : 5), loaded: 0 };
+    if (reloadWeaponButton) { reloadWeaponButton.disabled = true; reloadWeaponButton.textContent = shotgun ? 'Loading shells…' : 'Reloading rifle…'; }
+    if (combatStatus) combatStatus.textContent = shotgun ? 'Reloading shotgun one shell at a time. Combat or movement can interrupt.' : 'Reloading marksman rifle. Combat or movement can interrupt.';
+    sfx.reloadWeapon(shotgun ? 'shotgun' : 'marksman_rifle');
+    reloadUiTimer = setInterval(() => {
+      if (!reloadState) return;
+      if (reloadWeaponButton) reloadWeaponButton.textContent = shotgun ? 'Loading shell ' + Math.min(reloadState.capacity, reloadState.loaded + 1) + '/' + reloadState.capacity + '…' : 'Reloading rifle ' + Math.min(99, Math.floor((performance.now() - reloadState.startedAt) / 2250 * 100)) + '%';
+    }, 100);
+    scheduleReloadStep(reloadState);
   }
   if (reloadWeaponButton) reloadWeaponButton.addEventListener('click', reloadWeapon);
   if (findInfectedButton) findInfectedButton.addEventListener('click', () => combatAction('encounter'));
@@ -521,6 +571,7 @@ function boot(host) {
     moveTo(Math.max(-100, Math.min(100, hits[0].point.x)), Math.max(-100, Math.min(100, hits[0].point.z)));
   });
   async function moveTo(x, z) {
+    if (reloadState) cancelReload('Reload interrupted by movement.');
     moving = true; if (status) status.textContent = 'Moving through the shared Graveyard…';
     try {
       const r = await fetch(API + '/api/homefront/world/move', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ x, z }) });
@@ -535,7 +586,7 @@ function boot(host) {
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
   let lastFrame = performance.now();
-  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = -0.12; explorer.userData.weapon.rotation.z = 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend;
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = -0.12; explorer.userData.weapon.rotation.z = 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; piece.position.x += piece.userData.vx * dt; piece.position.y += piece.userData.vy * dt; piece.position.z += piece.userData.vz * dt; piece.userData.vy -= 5.5 * dt; piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend;
       const impactRemaining = state.impactUntil - now;
       if (impactRemaining > 0) {
         const p = impactRemaining / 300;

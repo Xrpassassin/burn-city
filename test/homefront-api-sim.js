@@ -186,6 +186,8 @@ if (attack.data.combat.enemyDamage > 0) {
   const equippedWeapon = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'equip_weapon', weapon: 'pump_shotgun' } });
   assert.equal(equippedWeapon.status, 200, 'crafted weapons can be equipped');
   assert.equal(equippedWeapon.data.base.equippedWeapon, 'pump_shotgun');
+  const returnedPack = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'stash' });
+  assert.equal(returnedPack.status, 200, 'carried supplies can be safely returned to the refuge before a new run');
   const bossPackFood = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'food', amount: 5 });
   assert.equal(bossPackFood.status, 200, 'boss expeditions require packing field rations');
   const bossPackAmmo = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'ammo', amount: 4 });

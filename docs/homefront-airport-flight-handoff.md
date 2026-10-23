@@ -26,4 +26,10 @@ Run `npm run test:experience-registry`, `node --check client/js/app.js`, `node -
 
 ## QA status
 - Added regression coverage in `test/homefront-core-sim.js` and `test/homefront-api-sim.js` for private-by-default saves, visibility validation, public read-only visitor access, and revocation.
-- Automated tests have been authored but have not been executed in a checked-out Node runtime in this session. Treat the branch as unverified until `npm run test:homefront` passes.
+- GitHub Actions passed the Homefront settlement core checks, Homefront airport flight checks, and Blacktide focused tests on commit `25bd2d6504ebcdd8c59222bd8b9ddcf49772e24f`. Later flight-lobby hardening changes add server-clock countdown display and regression tests for full-party routing/readiness withdrawal; those latest changes still need their own CI run.
+
+
+## Flight-lobby hardening
+- Client countdown display now estimates server-clock offset from each authoritative flight-state message, avoiding reliance on synchronized device clocks.
+- The server can now keep multiple parties on the same destination map when one party reaches the eight-player cap; creating a new party no longer overwrites the existing room's lookup entry.
+- Regression simulation covers party-cap routing and readiness withdrawal canceling the shared countdown.

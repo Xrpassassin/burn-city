@@ -84,7 +84,7 @@ function pointBlocked(x, z, radius = PLAYER_RADIUS, removedObstacleIds = []) {
   }
   return null;
 }
-function canTraverse(x0, z0, x1, z1, { radius = PLAYER_RADIUS, bounds = WORLD_SIZE, sampleStep = 0.75, removedObstacleIds = [] } = {})
+function canTraverse(x0, z0, x1, z1, { radius = PLAYER_RADIUS, bounds = WORLD_SIZE, sampleStep = 0.75, removedObstacleIds = [] } = {}) {
   if (![x0,z0,x1,z1,radius,bounds,sampleStep].every(Number.isFinite) || radius < 0 || bounds <= 0 || sampleStep <= 0) {
     throw new TypeError('canTraverse expects finite coordinates and valid collision options');
   }

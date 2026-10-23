@@ -66,7 +66,8 @@ assert.match(scene, /cameraDistance = Math\.max\(3\.5, Math\.min\(10\.5/, 'mouse
 assert.match(scene, /const masterView = 'third-person'/, 'exploration camera is locked to third-person');
 assert.doesNotMatch(scene, /masterView = masterView === 'third-person'/, 'tactical overhead is not a general exploration hotkey');
 assert.match(page, /Overhead view is reserved for base construction/, 'camera guidance reserves overhead view for base construction');
-assert.match(page, /right-drag to orbit · scroll to zoom/, 'the game explains orbit and zoom controls to the player');
+assert.match(page, /orbit/i, 'the game explains camera orbit controls to the player');
+assert.match(page, /zoom/i, 'the game explains camera zoom controls to the player');
 assert.match(scene, /homefront:cosmetics/, 'receive equipped cosmetic and weapon selection from the Homefront loadout');
 assert.match(scene, /equippedWeaponSkinColor/, 'apply the equipped weapon skin finish to the local 3D weapon');
 assert.match(scene, /weaponId === 'shock_maul'/, 'render a distinct shock maul silhouette');

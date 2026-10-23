@@ -15,18 +15,19 @@ The current authored road grid is spaced at 20 world units, centered at coordina
 
 ## Server movement rules
 
-- Player movement validates the proposed authoritative step with `Terrain.canTraverse`.
-- Infected pursuit uses the same grade gate.
-- The current landscape is deliberately gentle; the grade guard is groundwork for steeper terrain, not a substitute for full navigation.
-- If steeper hills are introduced, rejected paths must be handled by a real pathfinder with alternate routes. Do not simply increase the grade threshold until entities clip through slopes.
+- Player movement validates the proposed authoritative step with `Terrain.canTraverse`. If that step is blocked, it requests a bounded A* route to the requested destination and advances along the first `MOVE_STEP` units of the route.
+- Infected pursuit uses the same grade gate and requests bounded A* only when the direct pursuit step is blocked. If no route is found within the search budget, the infected waits rather than clipping through terrain.
+- `Terrain.findTerrainPath` uses an 8-neighbor grid (4-unit spacing by default), checks grade along every edge, keeps the search inside world bounds, and has a hard expansion limit. It returns a list of waypoints, or `null` when no route is found within that limit.
+- Direct movement remains the fast path. A* is a fallback for blocked terrain, not a per-frame pathfinding loop.
+- The current landscape is deliberately gentle; the pathfinder is groundwork for future steeper terrain, not a replacement for collision or grounding. Do not simply increase the grade threshold until entities clip through slopes.
 - Keep server position authority, survival distance accounting, party movement, combat range checks, and persistent saves in horizontal world coordinates unless a deliberate schema migration is made.
 
 ## Remaining before calling terrain complete
 
-1. Add terrain-aware pathfinding around steep slopes for players and infected.
-2. Add collision/grounding for movement and interactions rather than relying on horizontal coordinates alone.
-3. Conform road geometry, building footprints, and large props to terrain; road centerlines are currently levelled, but the roads remain flat meshes.
-4. Add automated movement tests for blocked slopes, alternate routes, spawn placement, and infected pursuit.
+1. Add terrain-aware collision/grounding for movement and interactions rather than relying on horizontal coordinates alone.
+2. Conform road geometry, building footprints, and large props to terrain; road centerlines are currently levelled, but the roads remain flat meshes.
+3. Add integrated movement tests that force a blocked slope through player movement and infected pursuit, plus spawn placement on future steeper terrain.
+4. Tune grid spacing and search budgets against measured gameplay latency once the browser/server loop can be exercised end-to-end.
 5. Run the complete `npm run test:homefront` suite and browser/device smoke tests before merge or deployment.
 
 This branch is intentionally unmerged and undeployed pending Hark's review.

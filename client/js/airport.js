@@ -106,6 +106,37 @@ function build() {
   add(merge([box(TERM.w - 6, 8, .3, TERM.x, 6.5, TERM.z + TERM.d / 2 + .2, 0x9fd8ff), box(TERM.w - 6, 8, .3, TERM.x, 6.5, TERM.z - TERM.d / 2 - .2, 0x9fd8ff), cyl(6.8, 6.8, 5.5, TW_.x, 47.6, TW_.z, 0x9fd8ff, 16), ...GATES.map(gt => box(2.6, 1.2, 15.6, gt.x - 4, 5.6, TERM.z - TERM.d / 2 - 8, 0x9fd8ff))]), glass);
   // terminal sign (shared city atlas)
   if (CL && CL.face) { const sg = CL.face(40, 10, 'sign_term'); sg.translate(TERM.x, 18, TERM.z + TERM.d / 2 + 4.5); grp.add(new THREE.Mesh(sg, CL.signMat)); const s45 = CL.face(.6, .75, 'speed45'); s45.translate(ROAD.x + 7.5, 2.15, ROAD.z0 - 20); grp.add(new THREE.Mesh(s45, CL.signMat)); grp.add(new THREE.Mesh(cyl(.04, .04, 2.5, ROAD.x + 7.5, 1.25, ROAD.z0 - 20.05, 0x8a9098, 6), mat)); }
+  // Player-facing expedition kiosk: this is a real interaction point, not an ambient aircraft.
+  {
+    const desk = new THREE.Group();
+    desk.name = 'airport_zombie_expedition';
+    desk.position.set(-130, 0, -535);
+    grp.add(desk);
+    const dark = new THREE.MeshStandardMaterial({ color: 0x101b2a, metalness: .7, roughness: .3, emissive: 0x071522, emissiveIntensity: .8 });
+    const edge = new THREE.MeshBasicMaterial({ color: 0xff7a1a, toneMapped: false });
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.2, 1.4), dark);
+    plinth.position.y = 1.1; desk.add(plinth);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(4, .16, 1.7), edge);
+    cap.position.y = 2.25; desk.add(cap);
+    const cv = document.createElement('canvas'); cv.width = 640; cv.height = 320;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#07121d'; cx.fillRect(0, 0, cv.width, cv.height);
+    cx.strokeStyle = '#ff7a1a'; cx.lineWidth = 10; cx.strokeRect(8, 8, cv.width - 16, cv.height - 16);
+    cx.fillStyle = '#ff9a42'; cx.font = 'bold 35px system-ui,sans-serif'; cx.textAlign = 'center';
+    cx.fillText('EXPEDITION GATE', 320, 75);
+    cx.fillStyle = '#ffffff'; cx.font = 'bold 43px system-ui,sans-serif'; cx.fillText('ZOMBIE', 320, 145);
+    cx.fillText('EXTERMINATION', 320, 197);
+    cx.fillStyle = '#80eaff'; cx.font = 'bold 24px system-ui,sans-serif'; cx.fillText('TAP TO BOARD  ·  RETURN FLIGHT AVAILABLE', 320, 258);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(4.1, 2.05), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+    screen.position.set(0, 3.7, .76); desk.add(screen);
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(6.5, 6.5, 4.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }));
+    hit.position.set(-130, 3.3, -535);
+    hit.userData = { kind: 'experience', experienceId: 'zombies', label: 'Zombie Extermination Flight', description: 'Board a flight to Zombie Survival. You can return to this airport after leaving the expedition.', returnTo: 'airport', returnX: -136, returnZ: -535, returnYaw: Math.PI };
+    // The picker expects scene-level coordinates, so this hit volume belongs to the airport group.
+    grp.add(hit); c.pick.push(hit);
+    c.colliders.push({ x: -130, z: -535, r: 1.8, h: 1.2 });
+  }
   // tower beacon
   const beacon = new THREE.Mesh(new THREE.BoxGeometry(1.4, .6, .4), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.2, 1.6), toneMapped: false })); beacon.position.set(TW_.x, 56, TW_.z); grp.add(beacon);
   // colliders

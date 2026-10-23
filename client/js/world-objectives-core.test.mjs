@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { createDailyObjectiveBoard, applyObjectiveEvent, summarizeObjectiveBoard, objectiveEventTypes } from './world-objectives-core.mjs';
+const a=createDailyObjectiveBoard('2026-10-22'), b=createDailyObjectiveBoard('2026-10-22');
+assert.deepEqual(a,b,'same UTC date and seed produce same board'); assert.equal(a.schemaVersion,1); assert.equal(a.objectives.length,4); assert.equal(new Set(a.objectives.map(x=>x.id)).size,4);
+assert.notDeepEqual(a,createDailyObjectiveBoard('2026-10-23'),'daily rotation changes across dates'); assert.throws(()=>createDailyObjectiveBoard('not-a-date'),/valid UTC date/); assert.ok(objectiveEventTypes().includes('fish-catch'));
+const fish=a.objectives.find(x=>x.type==='fish-catch'); assert.ok(fish); const before=JSON.stringify(a);
+const first=applyObjectiveEvent(a,{type:'fish-catch',amount:1}); assert.equal(JSON.stringify(a),before,'updates are immutable'); assert.equal(first.board.objectives.find(x=>x.id===fish.id).progress,1); assert.deepEqual(first.completed,[]);
+const maxed=applyObjectiveEvent(first.board,{type:'fish-catch',amount:1000}); const fishAfter=maxed.board.objectives.find(x=>x.id===fish.id); assert.equal(fishAfter.progress,fishAfter.required); assert.equal(fishAfter.completed,true); assert.equal(maxed.completed.length,1); assert.ok(maxed.completed[0].reward.reputation>0);
+assert.deepEqual(applyObjectiveEvent(maxed.board,{type:'fish-catch'}).completed,[],'completion never pays twice'); assert.deepEqual(applyObjectiveEvent(a,{type:'unknown'}).changed,[]); assert.deepEqual(applyObjectiveEvent(a,{type:'fish-catch',amount:-4}).changed,[]);
+const zones={schemaVersion:1,boardId:'test',date:'2026-10-22',objectives:[{id:'zones',type:'visit-zone',target:'*',required:2,progress:0,completed:false,reward:{reputation:1}}]};
+const zone1=applyObjectiveEvent(zones,{type:'visit-zone',zoneId:'cinderwilds'}); const duplicate=applyObjectiveEvent(zone1.board,{type:'visit-zone',zoneId:'cinderwilds'}); assert.equal(duplicate.board.objectives[0].progress,1,'repeat zone visit does not double-count');
+const zone2=applyObjectiveEvent(duplicate.board,{type:'visit-zone',zoneId:'glassroot'}); assert.equal(zone2.board.objectives[0].completed,true); assert.deepEqual(summarizeObjectiveBoard(zone2.board),{total:1,completed:1,progress:2,required:2});
+console.log('World objectives core: assertions passed');

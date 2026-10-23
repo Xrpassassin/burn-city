@@ -39,6 +39,7 @@ function validateBase(input, ownerId) {
       input.structures.length > MAX_STRUCTURES || input.survivors.length > MAX_SURVIVORS) return null;
   const out = clone(input);
   for (const r of ['wood', 'scrap', 'food', 'meds', 'ammo']) out.resources[r] = clampInt(out.resources[r], 0, 999999);
+  out.visibility = input.visibility === 'public' ? 'public' : 'private';
   out.baseMaxHp = clampInt(out.baseMaxHp, 1, 100000);
   out.baseHp = clampInt(out.baseHp, 0, out.baseMaxHp);
   out.level = clampInt(out.level, 1, 1000); out.day = clampInt(out.day, 1, 1000000);

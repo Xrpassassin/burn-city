@@ -41,4 +41,12 @@ shortOnWood = Core.applyAction(shortOnWood, 'short-on-wood', { type: 'workday' }
 assert.equal(shortOnWood.structures.find(s => s.id === 'wall-worse').hp, 30);
 assert.equal(shortOnWood.resources.scrap, 30);
 
+// Mechanics can restore a breached structure from zero HP, reopening a repair path after a siege.
+let breached = damagedBase('breached-repair');
+breached.structures[0].hp = 0;
+breached = Core.applyAction(breached, 'breached-repair', { type: 'workday' }, 2000);
+assert.equal(breached.structures.find(s => s.id === 'wall-worse').hp, 12,
+  'a mechanic begins rebuilding a destroyed structure before topping up healthier defenses');
+assert.equal(breached.structures.find(s => s.id === 'wall-better').hp, 80);
+
 console.log('Homefront mechanic work-shift repair regressions passed.');

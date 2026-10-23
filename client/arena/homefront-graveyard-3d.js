@@ -31,8 +31,11 @@ function boot(host) {
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.12; scene.add(ground);
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const poiGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group();
-  scene.add(cityGroup, poiGroup, playerGroup, zombieGroup);
+  const poiGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group();
+  scene.add(cityGroup, poiGroup, playerGroup, zombieGroup, combatGroup);
+  const combatStatus = document.getElementById('combatStatus');
+  const findInfectedButton = document.getElementById('findInfected');
+  const attackInfectedButton = document.getElementById('attackInfected');
   const zombieMixers = [];
   const infectedSpawns = [[27, 25], [19, 34], [-32, 28], [-43, 36], [-11, 27], [-20, 15], [9, -12], [1, -15]];
 
@@ -161,6 +164,20 @@ function boot(host) {
       if (p.type === 'rescue' && data.world?.rescues?.[p.id]?.readyAt > Date.now()) marker.children[0].material.color.setHex(0x77716b);
     }
     clearGroup(playerGroup);
+    clearGroup(combatGroup);
+    const encounters = data.encounters || [];
+    for (const e of encounters) {
+      const actor = new THREE.Group(); actor.position.set(e.x, 0, e.z);
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.85, 1.1, 3, 7), mat(0x8e302d)); body.position.y = 1.2; actor.add(body);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), mat(0xaaa18a)); head.position.y = 2.15; actor.add(head);
+      const label = labelSprite(e.enemy + ' · ' + e.hp + '/' + e.maxHp, '#ffaaa0'); label.position.y = 3.5; actor.add(label);
+      combatGroup.add(actor);
+    }
+    const selfEncounter = data.selfEncounter || data.encounter || null;
+    if (attackInfectedButton) attackInfectedButton.disabled = !selfEncounter || selfEncounter.defeated || selfEncounter.hp <= 0;
+    if (combatStatus) combatStatus.textContent = selfEncounter && !selfEncounter.defeated
+      ? selfEncounter.enemy + ' · HP ' + selfEncounter.hp + '/' + selfEncounter.maxHp + ' · risk ' + selfEncounter.risk + '/5'
+      : 'No active encounter. Search for infected to begin a server-authoritative fight.';
     for (const p of (data.players || [])) {
       const g = new THREE.Group(); g.position.set(p.x, 0, p.z);
       const color = p.label === 'You' ? 0xffdf83 : p.party ? 0x8fd4f4 : 0xd7d1c5;
@@ -187,6 +204,43 @@ function boot(host) {
       updateWorld(data);
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
+  async function combatAction(action) {
+    if (!token()) { if (combatStatus) combatStatus.textContent = 'Sign in before fighting in the Graveyard.'; return; }
+    if (moving) return;
+    moving = true;
+    if (findInfectedButton) findInfectedButton.disabled = true;
+    if (attackInfectedButton) attackInfectedButton.disabled = true;
+    try {
+      const r = await fetch(API + '/api/homefront/world/' + action, {
+        method: 'POST',
+        headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await r.json();
+      if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
+      updateWorld(data);
+      if (data.combat && combatStatus) {
+        const result = data.combat;
+        combatStatus.textContent = result.killed
+          ? 'Defeated the infected! +' + result.reward.scrap + ' scrap, +' + result.reward.embers + ' Embers (' + result.reward.quality + ').'
+          : 'Hit for ' + result.damage + '. Retaliation: ' + result.enemyDamage + '. Ammo spent: ' + result.ammoCost + '.';
+      } else if (combatStatus && data.encounter) {
+        combatStatus.textContent = (data.reused ? 'Active threat: ' : 'Threat detected: ') + data.encounter.enemy + ' · HP ' + data.encounter.hp + '/' + data.encounter.maxHp + '. Close distance and attack.';
+      }
+    } catch (e) {
+      if (combatStatus) combatStatus.textContent = e.message === 'enemy_out_of_range'
+        ? 'Too far from the infected. Move closer on the map.'
+        : e.message === 'attack_cooldown' ? 'Recovering from your last attack. Try again in a moment.'
+        : e.message === 'insufficient_ammo' ? 'Not enough ammunition to attack.'
+        : 'Combat unavailable: ' + e.message;
+    } finally {
+      moving = false;
+      if (findInfectedButton) findInfectedButton.disabled = false;
+      if (worldData?.selfEncounter && !worldData.selfEncounter.defeated && attackInfectedButton) attackInfectedButton.disabled = false;
+    }
+  }
+  if (findInfectedButton) findInfectedButton.addEventListener('click', () => combatAction('encounter'));
+  if (attackInfectedButton) attackInfectedButton.addEventListener('click', () => combatAction('attack'));
   const groundHit = new THREE.Mesh(new THREE.PlaneGeometry(204, 204), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
   groundHit.rotation.x = -Math.PI / 2; groundHit.position.y = 0.01; scene.add(groundHit);
   renderer.domElement.addEventListener('pointerdown', e => {

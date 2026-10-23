@@ -355,7 +355,11 @@ function boot(host) {
       const r = await fetch(API + '/api/homefront/world/' + action, {
         method: 'POST',
         headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
-        body: JSON.stringify(targetId ? { targetId, ...(selectedCombatAimPoint ? { aimPoint: selectedCombatAimPoint } : {}) } : {})
+        const activeTarget = worldData?.selfEncounter || worldData?.encounter || null;
+        const aimPoint = selectedCombatAimPoint && activeTarget && targetId === activeTarget.id
+          ? { x: activeTarget.x, y: selectedCombatAimPoint.y, z: activeTarget.z }
+          : selectedCombatAimPoint;
+        body: JSON.stringify(targetId ? { targetId, ...(aimPoint ? { aimPoint } : {}) } : {})
       });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
@@ -373,6 +377,7 @@ function boot(host) {
       } else if (combatStatus && data.encounter) {
         combatStatus.textContent = (data.reused ? 'Active threat: ' : 'Threat detected: ') + data.encounter.enemy + ' · HP ' + data.encounter.hp + '/' + data.encounter.maxHp + '. Close distance and attack.';
       }
+      return !(data.combat?.killed);
     } catch (e) {
       if (combatStatus) combatStatus.textContent = e.message === 'enemy_out_of_range'
         ? 'Too far from the infected. Move closer on the map.'
@@ -381,6 +386,7 @@ function boot(host) {
         : e.message === 'target_mismatch' ? 'That target is not your active encounter. Select your active infected.'
         : e.message === 'invalid_aim_point' ? 'Aim point fell outside the infected hitbox. Select its body again.'
         : 'Combat unavailable: ' + e.message;
+      return false;
     } finally {
       moving = false;
       if (findInfectedButton) findInfectedButton.disabled = false;
@@ -423,14 +429,14 @@ function boot(host) {
     const self = worldData?.self || null;
     const distance = active && self ? Math.hypot(self.x - active.x, self.z - active.z) : Infinity;
     if (!active || active.defeated || active.hp <= 0 || selectedCombatTargetId !== active.id || distance > (active.range || 0)) { stopAutoFire(); if (combatStatus) combatStatus.textContent = 'Autofire stopped: target defeated, out of range, or no longer selected.'; return; }
-    await combatAction('attack', selectedCombatTargetId);
-    if (!autoFireHeld) return;
+    const fired = await combatAction('attack', selectedCombatTargetId);
+    if (!autoFireHeld || fired === false) { stopAutoFire(); return; }
     const delay = equippedWeaponId === 'marksman_rifle' ? 1350 : equippedWeaponId === 'pump_shotgun' ? 1150 : equippedWeaponId === 'shock_maul' || equippedWeaponId === 'pipe_blade' ? 950 : 1000;
     autoFireTimer = setTimeout(fireLoop, delay);
   };
   if (autoFireButton) {
-    autoFireButton.addEventListener('pointerdown', event => { if (autoFireButton.disabled) return; event.preventDefault(); stopAutoFire(); autoFireHeld = true; autoFireButton.setAttribute('aria-pressed', 'true'); fireLoop(); });
-    for (const eventName of ['pointerup','pointercancel','pointerleave','lostpointercapture']) autoFireButton.addEventListener(eventName, stopAutoFire);
+    autoFireButton.addEventListener('pointerdown', event => { if (autoFireButton.disabled) return; event.preventDefault(); stopAutoFire(); try { autoFireButton.setPointerCapture(event.pointerId); } catch {} autoFireHeld = true; autoFireButton.setAttribute('aria-pressed', 'true'); fireLoop(); });
+    for (const eventName of ['pointerup','pointercancel','lostpointercapture']) autoFireButton.addEventListener(eventName, stopAutoFire);
     window.addEventListener('pointerup', stopAutoFire);
     window.addEventListener('blur', stopAutoFire);
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopAutoFire(); });

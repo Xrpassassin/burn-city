@@ -12,7 +12,7 @@ assert.equal(full.accepted,0,'full stack/capacity prevents inventory overflow');
 const resources={food:20,water:20,meds:10,ammo:30,scrap:10,wood:10};
 const take=I.withdraw({},resources,'water',3);
 assert.equal(take.inventory.water,3);assert.equal(take.resources.water,17);
-assert.throws(()=>I.withdraw(take.inventory,take.resources,'food',30),/inventory_full|insufficient_food/);
+assert.throws(()=>I.withdraw({food:8,water:8,meds:5,ammo:12,scrap:8,wood:8},resources,'food',1),/inventory_full/);
 const packed=I.stash(take.inventory,take.resources);
 assert.equal(packed.inventory.water,0);assert.equal(packed.stored.water,3);
 console.log('Homefront carried inventory rules passed.');

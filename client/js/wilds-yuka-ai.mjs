@@ -60,7 +60,7 @@ export function updateWildsPursuitAgent(agent, dt, x, z, yaw, targetX, targetZ, 
   agent.target.position.set(targetX, 0, targetZ);
   if (!agent.pursuing) {
     v.steering.remove(agent.wanderBehavior);
-    agent.seekBehavior = new YUKA.SeekBehavior(agent.target);
+    agent.seekBehavior = new YUKA.SeekBehavior(agent.target.position);
     v.steering.add(agent.seekBehavior);
     agent.pursuing = true;
   }

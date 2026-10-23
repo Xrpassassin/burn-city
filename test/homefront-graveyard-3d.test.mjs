@@ -195,3 +195,6 @@ assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /for\(const actor of survivorActors\)\{actor\.phase\+=dt/, 'animate survivor work activity every world frame');
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /actor\.role==='mechanic'/, 'give mechanics a distinct repair-work motion');
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /actor\.role==='farmer'/, 'give farmers a distinct tending motion');
+const homefrontPage = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
+assert.match(homefrontPage, /if\(survivor\.role==='farmer'\)\{const plot=base\.farmPlots\?\.find\(item=>item\.crop\)/, 'place farmers beside an actively planted crop when available');
+assert.match(homefrontPage, /if\(survivor\.role==='mechanic'\)\{const damaged=base\.structures\.filter\(item=>item\.hp<item\.maxHp\)/, 'send mechanics toward the most damaged structure before falling back to the workshop');

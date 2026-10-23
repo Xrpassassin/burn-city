@@ -112,7 +112,13 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const savedBase = bases[user.acct] || Core.createBase(user.acct);
           const base = Core.validateBase(savedBase, user.acct);
           if (!base) throw new Error('save_invalid');
-          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base, now: Date.now(), weaponPower: Core.weaponPower(base) });
+          const carried = Inventory.normalize(player.inventory);
+          if (carried.ammo < 1) throw new Error('field_supplies_required');
+          const combatBase = Core.validateBase({ ...base, resources: { ...base.resources, ammo: carried.ammo } }, user.acct);
+          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, now: Date.now(), weaponPower: Core.weaponPower(base) });
+          carried.ammo = outcome.base.resources.ammo;
+          outcome.base.resources.ammo = base.resources.ammo;
+          player.inventory = carried;
           db.encounters = outcome.encounters;
           const combatAt = Date.now();
           player.survival = Survival.tick(player.survival, combatAt);
@@ -124,7 +130,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           bases[user.acct] = outcome.base;
           store.save('homefront.json', bases);
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward }, base: outcome.base });
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
           return true;
         }
         case '/api/homefront/world/enter': {
@@ -220,19 +226,11 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty : 'standard';
           let workingBase=base;
           const carried=Inventory.normalize(player.inventory);
-          if(!isBoss){
-            if(carried.food<2||carried.ammo<1)throw new Error('field_supplies_required');
-            workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
-          }
+          if(carried.food<2||carried.ammo<1)throw new Error('field_supplies_required');
+          workingBase=Core.validateBase({...base,resources:{...base.resources,food:carried.food,ammo:carried.ammo}},user.acct);
           const nextBase=Core.applyAction(workingBase,user.acct,{type:isBoss?'boss_attack':'expedition',zone:nearest.point.zone,difficulty});
-          if(!isBoss){
-            carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
-            for(const id of ['wood','scrap','meds']){
-              const found=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
-              if(found){const packed=Inventory.add(carried,id,found);carried[id]=packed.inventory[id];nextBase.resources[id]=Math.max(0,(nextBase.resources[id]||0)-packed.accepted);}
-            }
-            nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;player.inventory=carried;
-          }
+          carried.food=nextBase.resources.food;carried.ammo=nextBase.resources.ammo;
+          nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;
           let defeated = false;
           if (isBoss) {
             const boss = db.bosses[nearest.point.id];
@@ -253,6 +251,11 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
               nextBase.log = nextBase.log.slice(-20);
             }
           }
+          for(const id of ['wood','scrap','meds']){
+            const found=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
+            if(found){const packed=Inventory.add(carried,id,found);carried[id]=packed.inventory[id];nextBase.resources[id]=Math.max(0,(nextBase.resources[id]||0)-packed.accepted);}
+          }
+          player.inventory=carried;
           bases[user.acct] = nextBase; store.save('homefront.json', bases);
           player.lastSeen = Date.now();
           store.save('homefront-world.json', db);

@@ -47,3 +47,7 @@ console.log('Homefront 3D Graveyard integration checks passed.');
 assert.match(scene, /homefront:combat-hit/, 'trigger visible weapon feedback only after the server confirms combat');
 assert.match(scene, /weaponSwingUntil/, 'animate the equipped weapon after a confirmed strike');
 assert.match(scene, /explorer\.userData\.weapon\.rotation\.z/, 'animate a visible strike arc in the 3D scene');
+
+assert.match(scene, /impactStyle === 'blunt'/, 'blunt weapons produce a heavier body-bash response');
+assert.match(scene, /detail\.killed && weaponImpactStyle === 'sharp'/, 'sharp-weapon separation effect requires a confirmed kill');
+assert.match(scene, /homefront:combat-hit/, 'impact response only runs from confirmed combat results');

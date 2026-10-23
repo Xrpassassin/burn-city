@@ -25,10 +25,11 @@ import { createMatch } from "./rules-core.mjs";
 {
   const state = createMatch({ slotsPerTeam: 1, rules: { towerMaxHealth: 70, coreMaxHealth: 70 } });
   const { state: spawned } = spawnMinionWave(state, {
-    waveId: "siege", countPerTeam: 1, rules: { spawnOffset: 58, damage: 35, attackRange: 20, attackCooldownTicks: 1 }
+    waveId: "siege", countPerTeam: 1, rules: { spawnOffset: 58, movePerTick: 120, damage: 35, attackRange: 20, attackCooldownTicks: 1 }
   });
-  const first = advanceLaneMinions(spawned);
-  assert.equal(first.state.entities["red-tower"].health, 1165, "minions should attack enemy tower in range");
+  const approach = advanceLaneMinions(spawned);
+  const first = advanceLaneMinions(approach.state);
+  assert.equal(first.state.entities["red-tower"].health, 35, "minions should damage enemy tower after approaching it");
   assert.equal(first.state.entities["red-core"].health, 70, "tower should protect core");
 }
 

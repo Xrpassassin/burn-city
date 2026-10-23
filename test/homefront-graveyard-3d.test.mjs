@@ -56,3 +56,9 @@ assert.match(scene, /import \{ sfx \} from '\.\/sfx\.js'/, 'reuse the existing a
 assert.match(scene, /sfx\.play\('hit'/, 'play an existing zombie hit effect on confirmed impacts');
 assert.match(scene, /const count = detail\.killed \? 18 : 9/, 'scale blood particle count for confirmed killing blows');
 assert.match(scene, /drop\.userData\.blood = true/, 'mark short-lived blood particles for fade-out');
+
+assert.match(scene, /const weaponId = \['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'\]/, 'select only known server-equipped weapon profiles for impact feedback');
+assert.match(scene, /weaponId === 'pump_shotgun' \? 'shotgun'/, 'shotgun impacts use their dedicated licensed sample when available');
+assert.match(scene, /weaponId === 'pump_shotgun' \? 26 : 18/, 'shotgun killing blows produce a wider, stronger impact burst');
+assert.match(scene, /\.catch\(\(\) => \{\}\)/, 'audio asset failures cannot interrupt confirmed combat feedback');
+assert.match(scene, /data\.combat\.encounterId/, 'resolve encounter IDs from the combat response when available');

@@ -38,6 +38,15 @@ expedition = H.applyAction(expedition, 'acct-a', { type: 'build', building: 'gar
 const beforeFood = expedition.resources.food;
 expedition = H.applyAction(expedition, 'acct-a', { type: 'workday' });
 assert.ok(expedition.resources.food >= beforeFood - 1, 'farmer and garden contribute food after upkeep');
+// Guard morale changes defensive strength against the same first breach.
+const steadyGuards = H.createBase('steady-guards', 2050);
+steadyGuards.survivors = [{ id: 'g1', name: 'Rook', role: 'guard', morale: 90 }];
+const shakenGuards = H.createBase('shaken-guards', 2050);
+shakenGuards.survivors = [{ id: 'g1', name: 'Rook', role: 'guard', morale: 10 }];
+const steadyDefense = H.applyAction(steadyGuards, 'steady-guards', { type: 'defend' });
+const shakenDefense = H.applyAction(shakenGuards, 'shaken-guards', { type: 'defend' });
+assert.ok(steadyDefense.baseHp > shakenDefense.baseHp, 'high-morale guards preserve more refuge integrity');
+
 // Storage sheds improve scavenger output; destroyed sheds do not contribute.
 const scavengerBase = H.createBase('scavenger-test', 2100);
 scavengerBase.resources.food = 100;

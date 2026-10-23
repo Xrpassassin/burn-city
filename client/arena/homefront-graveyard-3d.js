@@ -7,12 +7,19 @@ import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-stream
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { sfx } from './sfx.js';
+import { createZombieAudio } from './zaudio.js';
 
 const host = document.getElementById('graveyard3d');
 if (host) boot(host);
 
 function boot(host) {
   const status = document.getElementById('graveyard3dStatus');
+  const zombieAudio = createZombieAudio(sfx, { base: new URL('./sfx/', import.meta.url).href, mobile: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches });
+  let zombieAudioStarted = false;
+  const startZombieAudio = () => { if (zombieAudioStarted) return; zombieAudioStarted = true; zombieAudio.start(); };
+  window.addEventListener('pointerdown', startZombieAudio, { once: true, passive: true });
+  window.addEventListener('keydown', startZombieAudio, { once: true });
+  window.addEventListener('pagehide', () => zombieAudio.stop(), { once: true });
   const API = new URLSearchParams(location.search).get('api') ||
     (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   const token = () => localStorage.getItem('bcToken') || '';
@@ -110,6 +117,13 @@ function boot(host) {
   let weaponSwingStartedAt = 0;
   let weaponSwingWeaponId = 'pipe_blade';
   window.addEventListener('homefront:combat-hit', event => {
+    const detail = event.detail || {};
+    const active = worldData?.selfEncounter || worldData?.encounter || (worldData?.encounters || []).find(item => item.id === detail.encounterId) || null;
+    const target = active ? { id: active.id, x: active.x, y: terrainElevation(active.x, active.z), z: active.z, ty: 0 } : null;
+    zombieAudio.hit({ hs: detail.hitZone === 'head', k: !!detail.killed }, target);
+    if (detail.killed && target) zombieAudio.zdie(target);
+  });
+  window.addEventListener('homefront:combat-hit-feedback', event => {
     weaponSwingStartedAt = performance.now();
     weaponSwingUntil = weaponSwingStartedAt + 320;
     const detail = event.detail || {};
@@ -917,6 +931,13 @@ function boot(host) {
       } else { actor.rotation.z = 0; state.body.scale.y = 1; }
       if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } } if (worldData?.self) {
       const self = worldData.self;
+      if (zombieAudioStarted) {
+        const survival = worldData.selfSurvival || {};
+        const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
+        const audioMe = { x: self.x, y: terrainElevation(self.x, self.z), z: self.z, yaw: localActor?.rotation.y || 0, hp: Number.isFinite(survival.health) ? survival.health : 100, max: 100, alive: survival.health !== 0, down: survival.health === 0 };
+        const audioZombies = (worldData.encounters || []).filter(e => !e.defeated && e.hp > 0).map(e => ({ id: e.id, x: e.x, y: terrainElevation(e.x, e.z), z: e.z, ty: /brute|juggernaut|heavy/i.test(e.enemy || '') ? 3 : /crawler|runner/i.test(e.enemy || '') ? 4 : 0, hp: e.hp, out: false }));
+        zombieAudio.tick(dt, audioMe, audioZombies, [], 'homefront-local-player');
+      }
       updateVisibleChunks(self.x, self.z);
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = (localActor?.rotation.y || 0) + cameraYawOffset;

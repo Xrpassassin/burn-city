@@ -88,4 +88,17 @@ assert.equal(defended.structures[0].hp, 90 - Number(actualDamageMatch[1]),
    'repair logs report restored HP and the resulting structure integrity');
  assert.equal(repaired.structures[0].hp, 150, 'repair outcome is persisted in authoritative structure HP');
 
+
+const emergencyBase = Core.createBase('rGuardEmergencyRepair', now);
+emergencyBase.resources.wood = 8;
+emergencyBase.resources.scrap = 4;
+emergencyBase.structures = [{ id: 'breached-gate', type: 'gate', hp: 0, maxHp: 180, x: 8, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
+const emergencyResult = Core.applyAction(emergencyBase, 'rGuardEmergencyRepair', { type: 'emergency_repair', target: 'breached-gate' }, now + 6);
+assert.equal(emergencyResult.structures[0].hp, 100, 'emergency repair reopens a destroyed gate with 100 HP');
+assert.equal(emergencyResult.resources.wood, 4, 'emergency repair spends four wood');
+assert.equal(emergencyResult.resources.scrap, 2, 'emergency repair spends two scrap');
+assert.match(emergencyResult.log[emergencyResult.log.length - 1].text, /Emergency repair: gate breached-gate restored \+100 HP \(56% integrity\)/,
+  'emergency repair reports the restored integrity');
+assert.throws(() => Core.applyAction({ ...emergencyBase, structures: [{ ...emergencyBase.structures[0], type: 'garden' }] }, 'rGuardEmergencyRepair', { type: 'emergency_repair', target: 'breached-gate' }, now + 7), /not_a_defensive_structure/);
+
 console.log('Homefront authoritative guard-defense regressions passed.');

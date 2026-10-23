@@ -41,6 +41,9 @@ assert.equal(expedition.resources.ammo, 17);
 assert.ok(expedition.resources.scrap >= tower.resources.scrap);
 assert.ok(expedition.resources.wood >= tower.resources.wood);
 expedition.resources.food = 1000; expedition.resources.ammo = 1000;
+// Establish the first crop before the survivor-recruitment loop, matching the player-led tutorial gate.
+expedition = H.applyAction(expedition, 'acct-a', { type: 'farm_till', x: 8, z: -8 }, 1201);
+expedition = H.applyAction(expedition, 'acct-a', { type: 'farm_plant', plotId: expedition.farmPlots[0].id, crop: 'potato' }, 1202);
 for (let i = 0; i < 100 && expedition.survivors.length === 0; i++) expedition = H.applyAction(expedition, 'acct-a', { type: 'expedition' });
 assert.ok(expedition.survivors.length > 0, 'seeded expeditions can recruit survivors');
 const survivor = expedition.survivors[0];

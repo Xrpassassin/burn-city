@@ -29,6 +29,16 @@ function seat(h, p) { const i = p.mg; if (i === 0 || i === 1) return [h.x + (i ?
 function board(room, p, ev) { const h = room.heli; h.b.add(p.id); p.aboard = 1; p.mg = null; p.inv = 99; p.in.fire = false; ev.push({ e: 'hboard', id: p.id, n: h.b.size }); }
 function depart(room, why, ev) { const h = room.heli; h.st = ST.lift; h.t = LIFT; h.why = why; ev.push({ e: 'heli', s: ST.lift, why }); swarm(room, 8, true); }
 function finish(room, ps, ev) { const h = room.heli, all = [...room.players.values()].filter(p => !p.spectator);
+  // Successful full-team extraction advances the same live room to Map 2. The room constructor
+  // rejects client-requested Cosmodrome starts; only this server-owned progression sets mapId.
+  const survivors = all.filter(p => p.alive);
+  if (room.mapId === 'refinery' && survivors.length && survivors.every(p => h.b.has(p.id))) {
+    room.mapId = 'cosmodrome';
+    h.st = ST.done;
+    ev.push({ e: 'map_transition', from: 'The BURN Refinery', to: 'The Ashen Cosmodrome' });
+    room.reset();
+    return;
+  }
   const left = all.filter(p => !h.b.has(p.id)), stat = p => ({ id: p.id, pts: p.pts | 0, kills: p.lifeKills | 0, wave: room.wave, secs: Math.round(room.t - (p.lifeStart || 0)) });
   for (const p of all) if (h.b.has(p.id)) ev.push({ e: 'hres', r: 'x', ...stat(p) });
   ev.push({ e: 'heli', s: ST.left, b: [...h.b] });

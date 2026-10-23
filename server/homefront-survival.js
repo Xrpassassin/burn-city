@@ -24,11 +24,19 @@ function tick(input, now = Date.now()) {
   if (s.health > 0 && s.hunger > 35 && s.thirst > 35 && s.infection === 0) s.health = clamp(s.health + elapsed * 0.015, 0, 100);
   return s;
 }
-function move(input, now = Date.now()) {
+function move(input, now = Date.now(), distance = 12) {
   const s = tick(input, now);
-  s.stamina = clamp(s.stamina - 5, 0, 100);
+  // Travel itself is costly: longer moves use more stamina and gently accelerate metabolism.
+  // The caller supplies only server-measured, already-clamped world displacement.
+  const traveled = clamp(distance, 0, 12);
+  const needPressure = s.hunger <= 25 || s.thirst <= 25;
+  const staminaCost = 2 + traveled * 0.25 + (needPressure ? 2.5 : 0);
+  s.stamina = clamp(s.stamina - staminaCost, 0, 100);
+  s.hunger = clamp(s.hunger - traveled * 0.004, 0, 100);
+  s.thirst = clamp(s.thirst - traveled * 0.007, 0, 100);
   return s;
 }
+
 function act(input, action, now = Date.now()) {
   const s = tick(input, now);
   switch (action) {

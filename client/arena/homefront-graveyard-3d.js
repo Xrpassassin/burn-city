@@ -352,13 +352,13 @@ function boot(host) {
     if (findInfectedButton) findInfectedButton.disabled = true;
     if (attackInfectedButton) attackInfectedButton.disabled = true;
     try {
+      const activeTarget = worldData?.selfEncounter || worldData?.encounter || null;
+      const aimPoint = selectedCombatAimPoint && activeTarget && targetId === activeTarget.id
+        ? { x: activeTarget.x, y: selectedCombatAimPoint.y, z: activeTarget.z }
+        : selectedCombatAimPoint;
       const r = await fetch(API + '/api/homefront/world/' + action, {
         method: 'POST',
         headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
-        const activeTarget = worldData?.selfEncounter || worldData?.encounter || null;
-        const aimPoint = selectedCombatAimPoint && activeTarget && targetId === activeTarget.id
-          ? { x: activeTarget.x, y: selectedCombatAimPoint.y, z: activeTarget.z }
-          : selectedCombatAimPoint;
         body: JSON.stringify(targetId ? { targetId, ...(aimPoint ? { aimPoint } : {}) } : {})
       });
       const data = await r.json();

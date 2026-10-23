@@ -6,6 +6,12 @@ assert.equal(a.encounter.range,C.STATS[a.encounter.event].range,'public encounte
 assert.equal(C.spawn({encounters:a.encounters,account:'a',player,now:100100}).encounter.id,a.encounter.id);
 assert.throws(()=>C.attack({encounters:a.encounters,account:'a',player:{x:100,z:100},base:base(),now:101000}),/enemy_out_of_range/);
 let state=a.encounters,b=base(),r;for(let i=0;i<20;i++){r=C.attack({encounters:state,account:'a',player,base:b,now:101000+i*1000,weaponPower:5,seed:i});state=r.encounters;b=r.base;if(r.killed)break;}
+assert.ok(['head','torso','limb'].includes(r.hitZone),'server returns a calculated hit zone');
+const zoneSpawn=C.spawn({encounters:{},account:'zone-test',player,now:500000,seed:7});
+const zoneA=C.attack({encounters:zoneSpawn.encounters,account:'zone-test',player,base:base(),now:501000,weaponPower:3,seed:9});
+const zoneB=C.attack({encounters:zoneSpawn.encounters,account:'zone-test',player,base:base(),now:501000,weaponPower:3,seed:9});
+assert.equal(zoneA.hitZone,zoneB.hitZone,'hit-zone calculation is deterministic for the same server encounter and attack clock');
+assert.equal(zoneA.damage,zoneB.damage,'hit-zone damage is deterministic for the same authoritative inputs');
 assert.ok(r.killed);assert.ok(r.reward.scrap>0);assert.ok(b.resources.scrap>0);assert.ok(b.revision>0,'combat mutations advance the persistent refuge revision');
 const pursuer={...a.encounters.a,x:10,z:0,lastAiAt:100000,expiresAt:300000};
 const advanced=C.advance({encounters:{a:pursuer},players:{a:{x:0,z:0}},now:101000});

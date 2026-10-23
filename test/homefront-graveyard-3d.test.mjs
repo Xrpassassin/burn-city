@@ -68,6 +68,9 @@ assert.match(scene, /detail\.hitZone === 'head'/, 'headshots get distinct impact
 assert.match(scene, /HEADSHOT!/, 'show a headshot callout only when the server reports one');
 assert.match(page, /id="autoFireInfected"/, 'provide a dedicated hold-to-autofire control');
 assert.match(scene, /raycaster\.intersectObject\(combatGroup, true\)/, 'select an infected using actual 3D mesh ray intersection');
+assert.match(scene, /body\.userData\.combatHitbox = true/, 'use the infected body as a valid aim hitbox');
+assert.match(scene, /head\.userData\.combatHitbox = true/, 'use the infected head as a valid aim hitbox');
+assert.match(scene, /combatHits\.find\(hit => hit\.object\.userData\?\.combatHitbox\)/, 'ignore labels and threat rings when calculating the aim point');
 assert.match(scene, /selectedCombatAimPoint = \{ x: hit\.x, y: hit\.y, z: hit\.z \}/, 'derive aim point from the 3D ray hit rather than a client-chosen hit-zone label');
 assert.match(scene, /const fireLoop = async \(\) =>/, 'repeat authenticated attacks while the autofire control is held');
 assert.match(scene, /return !\(data\.combat\?\.killed\)/, 'stop the held firing loop after a confirmed kill');

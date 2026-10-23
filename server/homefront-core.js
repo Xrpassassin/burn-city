@@ -205,4 +205,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, createBase, validateBase, waveProfile, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, ROLES, BUILDINGS, EXPLORATION_ZONES, createBase, validateBase, applyAction };

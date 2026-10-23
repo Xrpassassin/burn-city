@@ -56,8 +56,8 @@ function setOccupancy(input, players, now = Date.now()) {
   const states = normalize(input);
   const activePlayers = Object.values(players || {}).filter(p => p && Number.isFinite(p.x) && Number.isFinite(p.z) && Number.isFinite(p.lastSeen) && now - p.lastSeen <= 45_000);
   for (const spec of STRUCTURES) {
-    const state = states[spec.id] || (states[spec.id] = initialState(spec));
-    if (state.health >= state.maxHealth) continue;
+    const state = states[spec.id];
+    if (!state || state.health >= state.maxHealth) continue;
     const occupied = activePlayers.some(p => Math.hypot(p.x - spec.x, p.z - spec.z) <= REPAIR.occupancyRadius);
     if (occupied) { state.unoccupiedSince = null; state.repairStartHealth = state.health; }
     else if (state.unoccupiedSince === null) { state.unoccupiedSince = now; state.repairStartHealth = state.health; }

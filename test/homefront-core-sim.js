@@ -57,14 +57,14 @@ assert.equal(lowCounterResult.baseHp, highCounterResult.baseHp, 'completed-round
 assert.equal(lowCounterResult.wave, 0, 'defense incidents do not advance a round counter');
 
 // Embers form the tycoon loop: tougher expeditions pay better, then upgrades and supply packs spend that currency.
-const standardBase = H.createBase('difficulty-standard', 2300);
-const veteranBase = H.createBase('difficulty-veteran', 2300);
-const standardTrip = H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'outskirts', difficulty: 'standard' }, 2301);
-const veteranTrip = H.applyAction(veteranBase, 'difficulty-veteran', { type: 'expedition', zone: 'outskirts', difficulty: 'veteran' }, 2301);
+const standardBase = H.createBase('difficulty-standard', 2300); standardBase.expeditionCount = 4; standardBase.resources.food = 100; standardBase.resources.ammo = 100;
+const veteranBase = H.createBase('difficulty-veteran', 2300); veteranBase.expeditionCount = 4; veteranBase.resources.food = 100; veteranBase.resources.ammo = 100;
+const standardTrip = H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'subway', difficulty: 'standard' }, 2301);
+const veteranTrip = H.applyAction(veteranBase, 'difficulty-veteran', { type: 'expedition', zone: 'subway', difficulty: 'veteran' }, 2301);
 assert.ok(veteranTrip.embers > standardTrip.embers, 'higher expedition difficulty pays more embers');
 assert.ok(veteranTrip.resources.scrap > standardTrip.resources.scrap, 'higher expedition difficulty pays more salvage');
 assert.ok(veteranTrip.resources.food < veteranBase.resources.food, 'higher expedition difficulty costs more supplies');
-assert.throws(() => H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'outskirts', difficulty: 'impossible' }), /unknown_difficulty/);
+assert.throws(() => H.applyAction(standardBase, 'difficulty-standard', { type: 'expedition', zone: 'subway', difficulty: 'impossible' }), /unknown_difficulty/);
 const upgradeBase = H.createBase('tycoon-upgrade', 2310);
 const upgraded = H.applyAction(upgradeBase, 'tycoon-upgrade', { type: 'buy_upgrade', upgrade: 'scavenger_rig' }, 2311);
 assert.equal(upgraded.embers, 0);

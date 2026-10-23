@@ -135,8 +135,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
           if (!base) throw new Error('save_invalid');
           for (const drop of found.overflow) {
-            if (Object.prototype.hasOwnProperty.call(base.resources, drop.item)) {
-              base.resources[drop.item] = Math.min(999999, (base.resources[drop.item] || 0) + drop.amount);
+            const resourceId = ({ rawFood: 'food', dirtyWater: 'water' })[drop.item] || drop.item;
+            if (Object.prototype.hasOwnProperty.call(base.resources, resourceId)) {
+              base.resources[resourceId] = Math.min(999999, (base.resources[resourceId] || 0) + drop.amount);
             }
           }
           if (found.overflow.length) {

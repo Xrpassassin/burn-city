@@ -235,6 +235,18 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             base.revision++;base.updatedAt=Date.now();base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'inventory',text:'Packed a starter field kit from refuge stores.',at:Date.now()});base.log=base.log.slice(-20);
             bases[user.acct]=base;store.save('homefront.json',bases);outcome.result=World.snapshot(outcome.world,user.acct);
           }
+          if (player) {
+            const sessionBases = store.load('homefront.json', {});
+            const sessionBase = Core.validateBase(sessionBases[user.acct] || Core.createBase(user.acct), user.acct);
+            if (!sessionBase) throw new Error('save_invalid');
+            sessionBase.repelledCount = Number.isSafeInteger(sessionBase.repelledCount) ? sessionBase.repelledCount : 0;
+            player.homefrontSessionStart = {
+              at: Date.now(),
+              embers: sessionBase.embers,
+              resources: { ...sessionBase.resources },
+              repelledCount: sessionBase.repelledCount
+            };
+          }
           break;
         }
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z)); break;
@@ -378,10 +390,27 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             if(!base)throw new Error('save_invalid');
             const packed=Inventory.stash(player.inventory,base.resources);
             for(const [id,qty] of Object.entries(packed.stored))base.resources[id]=Math.min(999999,(base.resources[id]||0)+qty);
+            base.repelledCount = Number.isSafeInteger(base.repelledCount) ? base.repelledCount : 0;
+            const start = player.homefrontSessionStart;
+            const resourceDelta = {};
+            for (const id of ['wood','scrap','food','water','meds','ammo']) {
+              resourceDelta[id] = (base.resources[id] || 0) - (Number.isFinite(start?.resources?.[id]) ? start.resources[id] : (base.resources[id] || 0));
+            }
+            const debrief = {
+              startedAt: Number.isFinite(start?.at) ? start.at : null,
+              endedAt: Date.now(),
+              embersNet: base.embers - (Number.isFinite(start?.embers) ? start.embers : base.embers),
+              resourceNet: resourceDelta,
+              attacksRepelled: Math.max(0, base.repelledCount - (Number.isSafeInteger(start?.repelledCount) ? start.repelledCount : base.repelledCount)),
+              fieldSuppliesReturned: Object.values(packed.stored).reduce((n, qty) => n + qty, 0)
+            };
             base.revision++;base.updatedAt=Date.now();bases[user.acct]=base;store.save('homefront.json',bases);returnedBase=base;
+            outcome = World.leave(db,user.acct);
+            if (returnedBase) outcome.result.base = returnedBase;
+            outcome.result.debrief = debrief;
+            break;
           }
           outcome=World.leave(db,user.acct);
-          if (returnedBase) outcome.result.base = returnedBase;
           break;
         }
         default: json(res, 404, { error: 'world_route_not_found' }); return true;
@@ -425,7 +454,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
       json(res, 400, { error: 'invalid_action' }); return true;
     }
     if (payload.action.type === 'expedition' || payload.action.type === 'boss_attack') throw new Error('use_shared_expedition_map');
+    base.repelledCount = Number.isSafeInteger(base.repelledCount) ? base.repelledCount : 0;
     const next = Core.applyAction(base, user.acct, payload.action);
+    next.repelledCount = base.repelledCount + (payload.action.type === 'defend' && next.log.at(-1)?.kind === 'defense' && next.log.at(-1)?.text.startsWith('Perimeter breach repelled') ? 1 : 0);
     db[user.acct] = next;
     store.save('homefront.json', db);
     json(res, 200, { mode: 'homefront', base: next });

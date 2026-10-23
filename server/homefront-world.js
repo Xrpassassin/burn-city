@@ -6,6 +6,7 @@ const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 const Terrain = require('./homefront-terrain');
+const Collision = require('./homefront-collision');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
@@ -71,9 +72,9 @@ function normalizeWorld(input) {
     p.lastSeen = Number.isFinite(p.lastSeen) ? p.lastSeen : 0;
     p.partyCode = typeof p.partyCode === 'string' ? p.partyCode : null;
     p.spawn = SPAWNS.some(s => s.id === p.spawn) ? p.spawn : SPAWNS[hash(acct) % SPAWNS.length].id;
-    if (!Terrain.isSafePosition(p.x, p.z, { bounds: WORLD_SIZE })) {
+    if (!Collision.isSafePosition(p.x, p.z, { bounds: WORLD_SIZE })) {
       const anchor = SPAWNS.find(s => s.id === p.spawn) || chooseSpawn(w, acct);
-      const recovered = findSafePosition(anchor.x, anchor.z) || findSafePosition(0, 0);
+      const recovered = Collision.findSafePosition(anchor.x, anchor.z, { bounds: WORLD_SIZE }) || Collision.findSafePosition(0, 0, { bounds: WORLD_SIZE });
       if (!recovered) throw new Error('no_safe_spawn_location');
       p.x = recovered.x; p.z = recovered.z;
     }
@@ -124,7 +125,7 @@ function chooseSafeSpawn(w, acct) {
   const preferred = chooseSpawn(w, acct);
   const ordered = [preferred, ...SPAWNS.filter(s => s.id !== preferred.id)];
   for (const spawn of ordered) {
-    const position = findSafePosition(spawn.x, spawn.z);
+    const position = Collision.findSafePosition(spawn.x, spawn.z, { bounds: WORLD_SIZE });
     if (position) return { spawn, position };
   }
   throw new Error('no_safe_spawn_location');
@@ -204,12 +205,12 @@ function move(input, acct, x, z, now = Date.now()) {
   const scale = d > MOVE_STEP ? MOVE_STEP / d : 1;
   const oldX = p.x, oldZ = p.z;
   let nextX = Math.round((p.x + dx * scale) * 10) / 10, nextZ = Math.round((p.z + dz * scale) * 10) / 10;
-  if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ)) {
-    const route = Terrain.findTerrainPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE });
+  if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE })) {
+    const route = Collision.findPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE, maxExpanded: 2600 });
     if (!route || !route.length) throw new Error('terrain_path_unreachable');
     const advanced = advanceAlongTerrainPath(oldX, oldZ, route, MOVE_STEP);
     nextX = advanced.x; nextZ = advanced.z;
-    if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ)) throw new Error('terrain_path_blocked');
+    if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE })) throw new Error('terrain_path_blocked');
   }
   p.x = nextX; p.z = nextZ;
   p.lastMove = p.lastSeen = now;
@@ -217,7 +218,7 @@ function move(input, acct, x, z, now = Date.now()) {
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {
       const offset = (hash(member) % 7) - 3;
-      const follower = findSafePosition(clamp(p.x + offset, -WORLD_SIZE, WORLD_SIZE), clamp(p.z + (hash(member + 'z') % 7) - 3, -WORLD_SIZE, WORLD_SIZE)) || { x: p.x, z: p.z };
+      const follower = Collision.findSafePosition(clamp(p.x + offset, -WORLD_SIZE, WORLD_SIZE), clamp(p.z + (hash(member + 'z') % 7) - 3, -WORLD_SIZE, WORLD_SIZE), { bounds: WORLD_SIZE }) || { x: p.x, z: p.z };
       w.players[member].x = follower.x; w.players[member].z = follower.z;
       w.players[member].lastSeen = now;
     }

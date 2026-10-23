@@ -49,7 +49,7 @@ assert.ok(waveTen.enemies.some(x => x.type === 'brute'), 'later waves add armore
 assert.ok(waveTen.enemies.some(x => x.type === 'screamer'), 'later waves add screamers');
 assert.ok(waveTen.enemies.some(x => x.type === 'bloater'), 'later waves add bloaters');
 assert.ok(waveTen.threatBonus > H.waveProfile(1).threatBonus, 'special enemy mix raises breach pressure');
-assert.deepEqual(H.waveProfile(10), H.waveProfile(10), 'the same wave always produces the same profile');
+assert.equal(JSON.stringify(H.waveProfile(10)), JSON.stringify(H.waveProfile(10)), 'the same wave always produces the same profile');
 
 // A campfire rally trades food for a server-authoritative morale recovery.
 const rallyBase = H.createBase('rally-test', 2040);

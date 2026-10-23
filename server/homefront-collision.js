@@ -101,7 +101,7 @@ function isSafePosition(x, z, options = {}) {
 }
 function findPath(startX, startZ, goalX, goalZ, options = {}) {
   return Terrain.findTerrainPath(startX, startZ, goalX, goalZ, {
-    ...options, edgeAllowed: (x0, z0, x1, z1) => canTraverse(x0, z0, x1, z1, { bounds: options.bounds ?? WORLD_SIZE })
+    ...options, edgeAllowed: (x0, z0, x1, z1) => canTraverse(x0, z0, x1, z1, { bounds: options.bounds ?? WORLD_SIZE, radius: options.radius ?? PLAYER_RADIUS })
   });
 }
 function findSafePosition(x, z, { bounds = WORLD_SIZE, maxRadius = 18, step = 2 } = {}) {

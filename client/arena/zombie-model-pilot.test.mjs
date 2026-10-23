@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const variants = ['zombie-ash.glb', 'zombie-frost.glb', 'zombie-rust.glb'];
+const variants = ['zombie-ash.glb', 'zombie-frost.glb', 'zombie-rust.glb', 'quaternius-zombie.glb'];
 for (const filename of variants) {
   const asset = new URL(`./assets/zombies/${filename}`, import.meta.url);
   const bytes = readFileSync(fileURLToPath(asset));

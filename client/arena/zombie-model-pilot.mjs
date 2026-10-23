@@ -11,7 +11,8 @@ const TARGET_HEIGHT = 1.72;
 const MODEL_URLS = [
   new URL('./assets/zombies/zombie-ash.glb', import.meta.url).href,
   new URL('./assets/zombies/zombie-frost.glb', import.meta.url).href,
-  new URL('./assets/zombies/zombie-rust.glb', import.meta.url).href
+  new URL('./assets/zombies/zombie-rust.glb', import.meta.url).href,
+  new URL('./assets/zombies/quaternius-zombie.glb', import.meta.url).href
 ];
 const PALETTES = [0xb6b7a1, 0x91a47c, 0xa77a68, 0x8293a5, 0xaaa38b, 0x758078];
 const VARIANT_BY_TYPE = [0, 2, 0, 1, 2, 1];

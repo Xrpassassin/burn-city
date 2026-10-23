@@ -219,9 +219,12 @@ function boot(host) {
       combatGroup.remove(actor); clearGroup(actor); combatActors.delete(id);
     }
     const selfEncounter = data.selfEncounter || data.encounter || null;
-    if (attackInfectedButton) attackInfectedButton.disabled = !selfEncounter || selfEncounter.defeated || selfEncounter.hp <= 0;
+    const enemyDistance = selfEncounter && data.self
+      ? Math.hypot(data.self.x - selfEncounter.x, data.self.z - selfEncounter.z) : Infinity;
+    const enemyInReach = !!selfEncounter && enemyDistance <= (selfEncounter.range || 0);
+    if (attackInfectedButton) attackInfectedButton.disabled = !selfEncounter || selfEncounter.defeated || selfEncounter.hp <= 0 || !enemyInReach;
     if (combatStatus) combatStatus.textContent = selfEncounter && !selfEncounter.defeated
-      ? selfEncounter.enemy + ' · HP ' + selfEncounter.hp + '/' + selfEncounter.maxHp + ' · risk ' + selfEncounter.risk + '/5'
+      ? selfEncounter.enemy + ' · HP ' + selfEncounter.hp + '/' + selfEncounter.maxHp + ' · risk ' + selfEncounter.risk + '/5 · ' + Math.ceil(enemyDistance) + ' units away' + (enemyInReach ? ' · in attack range' : ' · move closer to attack')
       : 'No active encounter. Search for infected to begin a server-authoritative fight.';
     for (const p of (data.players || [])) {
       const g = new THREE.Group(); g.position.set(p.x, 0, p.z);

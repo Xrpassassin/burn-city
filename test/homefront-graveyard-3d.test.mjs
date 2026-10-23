@@ -291,7 +291,7 @@ assert.match(homefrontPage, /priorityMaterial==='steel'\?'2 steel \+ 4 scrap'/, 
 
 assert.match(homefrontPage, /function structureCondition\(s\)/, 'structure condition is derived from authoritative integrity');
 assert.match(homefrontPage, /function drawMaterialDamage\(g,s\)/, '3D structure rendering adds material-specific damage');
-assert.match(homefrontPage, /if\(s\.material==='wood'\)\{const count=condition==='SCUFFED'\?1:condition==='DAMAGED'\?2:4\}/, 'wood develops increasing splinter damage as integrity falls');
+assert.match(homefrontPage, /if\(s\.material==='wood'\)\{const count=condition==='SCUFFED'\?1:condition==='DAMAGED'\?2:4;/, 'wood develops increasing splinter damage as integrity falls');
 assert.match(homefrontPage, /const crackCount=condition==='SCUFFED'\?1:condition==='DAMAGED'\?3:5/, 'stone develops progressively denser cracks as integrity falls');
 assert.match(homefrontPage, /const scratches=condition==='SCUFFED'\?1:condition==='DAMAGED'\?3:4/, 'steel shows increasing impact scars as integrity falls');
 assert.match(homefrontPage, /type:'reinforce_gate'/, 'gate controls call the server-authoritative steel reinforcement action');

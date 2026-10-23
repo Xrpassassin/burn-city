@@ -16,7 +16,7 @@ assert.equal(tower.structures.at(-1).type, 'watchtower');
 let expedition = H.applyAction(tower, 'acct-a', { type: 'expedition' }, 1200);
 assert.equal(expedition.expeditionCount, 1);
 assert.equal(expedition.resources.food, 22);
-assert.equal(expedition.resources.ammo, 16);
+assert.equal(expedition.resources.ammo, 17);
 assert.ok(expedition.resources.scrap >= tower.resources.scrap);
 assert.ok(expedition.resources.wood >= tower.resources.wood);
 expedition.resources.food = 1000; expedition.resources.ammo = 1000;

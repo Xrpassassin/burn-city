@@ -114,6 +114,7 @@ function move(input, acct, x, z, now = Date.now()) {
   prune(w, now);
   const p = w.players[acct];
   if (!p) throw new Error('not_in_expedition');
+  if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader !== acct) throw new Error('party_leader_controls_movement');
   if (now - p.lastMove < 900) throw new Error('move_cooldown');
   const nx = clamp(x, -WORLD_SIZE, WORLD_SIZE), nz = clamp(z, -WORLD_SIZE, WORLD_SIZE);
   const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz);

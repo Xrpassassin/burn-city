@@ -123,13 +123,18 @@ async function call(method, pathname, acct, payload = {}) {
   const duplicateCache = await call('POST', '/api/homefront/world/cache', 'acct-b', { pointId: 'cache_exchange', difficulty: 'standard' });
   assert.equal(duplicateCache.status, 400, 'another explorer cannot claim a cache during its shared cooldown');
   assert.equal(duplicateCache.data.error, 'cache_empty');
+  const craftedWeapon = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'craft_weapon', weapon: 'pump_shotgun' } });
+  assert.equal(craftedWeapon.status, 200, 'cache earnings can be invested into persistent weapons');
+  const equippedWeapon = await call('POST', '/api/homefront/action', 'acct-a', { action: { type: 'equip_weapon', weapon: 'pump_shotgun' } });
+  assert.equal(equippedWeapon.status, 200, 'crafted weapons can be equipped');
+  assert.equal(equippedWeapon.data.base.equippedWeapon, 'pump_shotgun');
   const bossWorld = files.get('homefront-world.json');
   bossWorld.players['acct-a'].x = 6;
   bossWorld.players['acct-a'].z = -8;
   files.set('homefront-world.json', bossWorld);
   const bossHit = await call('POST', '/api/homefront/world/boss-hunt', 'acct-a', { pointId: 'buried_subway' });
   assert.equal(bossHit.status, 200, 'boss hunts resolve at the shared boss landmark');
-  assert.equal(bossHit.data.encounter.hp, 144, 'boss health is shared and server-authoritative');
+  assert.equal(bossHit.data.encounter.hp, 136, 'equipped weapon increases shared boss damage and health remains server-authoritative');
   assert.equal(bossHit.data.encounter.maxHp, 180);
 
   console.log('Homefront authenticated save API simulation passed.');

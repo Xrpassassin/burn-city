@@ -150,11 +150,15 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     case 'defend': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       s.wave++; s.defenseCount++;
-      const guards = s.survivors.filter(x => x.role === 'guard').length;
-      const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(guards / 2) + 1));
+      const guards = s.survivors.filter(x => x.role === 'guard');
+      const guardStrength = guards.reduce((total, x) => {
+        const morale = clampInt(x.morale, 0, 100);
+        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+      }, 0);
+      const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(guards.length / 2) + 1));
       s.resources.ammo -= ammoUsed;
       const active = s.structures.filter(x => x.hp > 0);
-      const defense = guards * 2 + active.reduce((n, x) => n + BUILDINGS[x.type].defense, 0) + ammoUsed * 0.8;
+      const defense = guardStrength * 2 + active.reduce((n, x) => n + BUILDINGS[x.type].defense, 0) + ammoUsed * 0.8;
       const threat = 7 + s.wave * 2 + Math.floor(s.survivors.length / 3);
       const damage = Math.max(0, Math.ceil((threat - defense) * 6));
       s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));

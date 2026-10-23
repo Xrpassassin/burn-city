@@ -104,7 +104,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             if (boss.respawnAt > Date.now() || boss.hp <= 0) throw new Error('boss_respawning');
             const threatScale = Core.DIFFICULTIES[difficulty]?.threat;
             if (!threatScale) throw new Error('unknown_difficulty');
-            boss.hp = Math.max(0, boss.hp - Math.max(8, Math.floor((nearest.point.id === 'research_annex' ? 30 : 36) / threatScale)));
+            const equipped = Core.WEAPONS[nextBase.equippedWeapon] || Core.WEAPONS.pipe_blade;
+            const weaponDamage = Math.max(8, Math.floor(((nearest.point.id === 'research_annex' ? 30 : 36) + (equipped.power - 1) * 4) / threatScale));
+            boss.hp = Math.max(0, boss.hp - weaponDamage);
             if (boss.hp === 0) {
               defeated = true; boss.respawnAt = Date.now() + 5 * 60e3;
               nextBase.resources.scrap = Math.min(999999, nextBase.resources.scrap + 45);
@@ -119,7 +121,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
           player.lastSeen = Date.now();
           store.save('homefront-world.json', db);
           const snap = World.snapshot(db, user.acct);
-          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: isBoss ? { id: nearest.point.id, label: nearest.point.label, hp: db.bosses[nearest.point.id].hp, maxHp: db.bosses[nearest.point.id].maxHp, defeated, difficulty } : { id: nearest.point.id, label: nearest.point.label, scavenged: true, difficulty, event: nextBase.log.at(-1)?.text } });
+          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: isBoss ? { id: nearest.point.id, label: nearest.point.label, hp: db.bosses[nearest.point.id].hp, maxHp: db.bosses[nearest.point.id].maxHp, defeated, difficulty, weapon: nextBase.equippedWeapon } : { id: nearest.point.id, label: nearest.point.label, scavenged: true, difficulty, event: nextBase.log.at(-1)?.text } });
           return true;
         }
         case '/api/homefront/world/party/create': outcome = World.createParty(db, user.acct); break;

@@ -8,6 +8,25 @@ const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 
+const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
+function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
+  const stats = player?.homefrontSessionStart?.totals;
+  if (!stats) return;
+  stats.embersEarned += Math.max(0, Number.isFinite(embers) ? embers : 0);
+  for (const id of SESSION_RESOURCES) {
+    stats.resourcesCollected[id] += Math.max(0, Number.isFinite(resources[id]) ? resources[id] : 0);
+    stats.suppliesConsumed[id] += Math.max(0, Number.isFinite(consumed[id]) ? consumed[id] : 0);
+  }
+  stats.rewardEvents += 1;
+}
+function initSessionStart(player, base, now = Date.now()) {
+  if (player.homefrontSessionStart && Number.isFinite(player.homefrontSessionStart.at)) return;
+  player.homefrontSessionStart = {
+    at: now, embers: base.embers, resources: { ...base.resources },
+    repelledCount: Number.isSafeInteger(base.repelledCount) ? base.repelledCount : 0,
+    totals: { embersEarned: 0, resourcesCollected: Object.fromEntries(SESSION_RESOURCES.map(id => [id, 0])), suppliesConsumed: Object.fromEntries(SESSION_RESOURCES.map(id => [id, 0])), rewardEvents: 0 }
+  };
+}
 function buildReturnDebrief(start, base, packed, now = Date.now()) {
   const resourceNet = {};
   for (const id of ['wood','scrap','food','water','meds','ammo']) {
@@ -19,7 +38,11 @@ function buildReturnDebrief(start, base, packed, now = Date.now()) {
     embersNet: (base.embers || 0) - (Number.isFinite(start?.embers) ? start.embers : (base.embers || 0)),
     resourceNet,
     attacksRepelled: Math.max(0, (base.repelledCount || 0) - (Number.isSafeInteger(start?.repelledCount) ? start.repelledCount : (base.repelledCount || 0))),
-    fieldSuppliesReturned: Object.values(packed?.stored || {}).reduce((n, qty) => n + (Number.isFinite(qty) ? qty : 0), 0)
+    fieldSuppliesReturned: Object.values(packed?.stored || {}).reduce((n, qty) => n + (Number.isFinite(qty) ? qty : 0), 0),
+    grossEmbersEarned: Math.max(0, Number.isFinite(start?.totals?.embersEarned) ? start.totals.embersEarned : 0),
+    grossResourcesCollected: Object.fromEntries(SESSION_RESOURCES.map(id => [id, Math.max(0, Number.isFinite(start?.totals?.resourcesCollected?.[id]) ? start.totals.resourcesCollected[id] : 0)])),
+    suppliesConsumed: Object.fromEntries(SESSION_RESOURCES.map(id => [id, Math.max(0, Number.isFinite(start?.totals?.suppliesConsumed?.[id]) ? start.totals.suppliesConsumed[id] : 0)])),
+    rewardEvents: Math.max(0, Number.isSafeInteger(start?.totals?.rewardEvents) ? start.totals.rewardEvents : 0)
   };
 }
 
@@ -255,12 +278,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
             const sessionBase = Core.validateBase(sessionBases[user.acct] || Core.createBase(user.acct), user.acct);
             if (!sessionBase) throw new Error('save_invalid');
             sessionBase.repelledCount = Number.isSafeInteger(sessionBase.repelledCount) ? sessionBase.repelledCount : 0;
-            player.homefrontSessionStart = {
-              at: Date.now(),
-              embers: sessionBase.embers,
-              resources: { ...sessionBase.resources },
-              repelledCount: sessionBase.repelledCount
-            };
+            initSessionStart(player, sessionBase);
           }
           break;
         }
@@ -459,7 +477,13 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = Store 
     if (payload.action.type === 'expedition' || payload.action.type === 'boss_attack') throw new Error('use_shared_expedition_map');
     base.repelledCount = Number.isSafeInteger(base.repelledCount) ? base.repelledCount : 0;
     const next = Core.applyAction(base, user.acct, payload.action);
-    next.repelledCount = base.repelledCount + (payload.action.type === 'defend' && next.log.at(-1)?.kind === 'defense' && next.log.at(-1)?.text.startsWith('Perimeter breach repelled') ? 1 : 0);
+    const repelled = payload.action.type === 'defend' && next.log.at(-1)?.kind === 'defense' && next.log.at(-1)?.text.startsWith('Perimeter breach repelled');
+    next.repelledCount = base.repelledCount + (repelled ? 1 : 0);
+    if (repelled) {
+      const activePlayer = store.load('homefront-world.json', {})?.players?.[user.acct];
+      if (activePlayer?.homefrontSessionStart?.totals) activePlayer.homefrontSessionStart.totals.repels = (activePlayer.homefrontSessionStart.totals.repels || 0) + 1;
+      if (activePlayer) { const worldDb = store.load('homefront-world.json', {}); if (worldDb.players?.[user.acct]) { worldDb.players[user.acct] = activePlayer; store.save('homefront-world.json', worldDb); } }
+    }
     db[user.acct] = next;
     store.save('homefront.json', db);
     json(res, 200, { mode: 'homefront', base: next });

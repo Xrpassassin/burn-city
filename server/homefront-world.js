@@ -20,6 +20,13 @@ const DISTRICTS = [
   { id: 'industrial', label: 'Industrial Belt', radius: 88, risk: 4 },
   { id: 'graveyard_core', label: 'Graveyard Core', radius: 101, risk: 5 }
 ];
+const POINTS_OF_INTEREST = [
+  { id: 'mercy_hospital', label: 'St. Mercy Hospital', type: 'medical', x: 24, z: 30, risk: 3 },
+  { id: 'exchange_market', label: 'Exchange Market', type: 'scavenge', x: -38, z: 32, risk: 2 },
+  { id: 'ironworks', label: 'Ironworks Yard', type: 'industrial', x: -16, z: 22, risk: 4 },
+  { id: 'buried_subway', label: 'Buried Subway', type: 'boss', x: 6, z: -8, risk: 5 },
+  { id: 'research_annex', label: 'Sealed Research Annex', type: 'boss', x: -4, z: 6, risk: 5 }
+];
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : 0));
 const defaultWorld = () => ({ version: 1, players: {}, parties: {} });
@@ -72,7 +79,7 @@ function snapshot(input, acct, now = Date.now()) {
   const p = w.players[acct] || null;
   const party = p?.partyCode && w.parties[p.partyCode];
   return {
-    world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS },
+    world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST },
     players: Object.entries(w.players).map(([id, player]) => publicPlayer(id, player, acct, now)).filter(v => v.online),
     self: p ? publicPlayer(acct, p, acct, now) : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now)) } : null
@@ -152,4 +159,4 @@ function leave(input, acct, now = Date.now()) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { WORLD_SIZE, PRESENCE_TTL, SPAWNS, DISTRICTS, defaultWorld, normalizeWorld, districtAt, snapshot, enter, move, createParty, joinParty, leave };
+module.exports = { WORLD_SIZE, PRESENCE_TTL, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, snapshot, enter, move, createParty, joinParty, leave };

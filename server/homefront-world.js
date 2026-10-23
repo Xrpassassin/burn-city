@@ -71,6 +71,12 @@ function normalizeWorld(input) {
     p.lastSeen = Number.isFinite(p.lastSeen) ? p.lastSeen : 0;
     p.partyCode = typeof p.partyCode === 'string' ? p.partyCode : null;
     p.spawn = SPAWNS.some(s => s.id === p.spawn) ? p.spawn : SPAWNS[hash(acct) % SPAWNS.length].id;
+    if (!Terrain.isSafePosition(p.x, p.z, { bounds: WORLD_SIZE })) {
+      const anchor = SPAWNS.find(s => s.id === p.spawn) || chooseSpawn(w, acct);
+      const recovered = findSafePosition(anchor.x, anchor.z) || findSafePosition(0, 0);
+      if (!recovered) throw new Error('no_safe_spawn_location');
+      p.x = recovered.x; p.z = recovered.z;
+    }
     p.lastMove = Number.isFinite(p.lastMove) ? p.lastMove : 0;
     p.survival = Survival.normalize(p.survival, p.lastSeen || Date.now());
     p.inventory = Inventory.normalize(p.inventory);
@@ -98,6 +104,30 @@ function prune(w, now) {
 function districtAt(x, z) {
   const depth = WORLD_SIZE - Math.hypot(x, z);
   return DISTRICTS.find(v => depth <= v.radius) || DISTRICTS[DISTRICTS.length - 1];
+}
+function findSafePosition(x, z) {
+  const candidates = [{ x, z }];
+  // Search concentric, deterministic rings. This keeps recovery predictable and bounded.
+  for (let radius = 2; radius <= 18; radius += 2) {
+    for (let step = -radius; step <= radius; step += 2) {
+      candidates.push({ x: x + step, z: z - radius }, { x: x + step, z: z + radius });
+      if (Math.abs(step) < radius) candidates.push({ x: x - radius, z: z + step }, { x: x + radius, z: z + step });
+    }
+  }
+  for (const point of candidates) {
+    const px = clamp(point.x, -WORLD_SIZE, WORLD_SIZE), pz = clamp(point.z, -WORLD_SIZE, WORLD_SIZE);
+    if (Terrain.isSafePosition(px, pz, { bounds: WORLD_SIZE })) return { x: Math.round(px * 10) / 10, z: Math.round(pz * 10) / 10 };
+  }
+  return null;
+}
+function chooseSafeSpawn(w, acct) {
+  const preferred = chooseSpawn(w, acct);
+  const ordered = [preferred, ...SPAWNS.filter(s => s.id !== preferred.id)];
+  for (const spawn of ordered) {
+    const position = findSafePosition(spawn.x, spawn.z);
+    if (position) return { spawn, position };
+  }
+  throw new Error('no_safe_spawn_location');
 }
 function chooseSpawn(w, acct) {
   const counts = new Map(SPAWNS.map(s => [s.id, 0]));
@@ -133,8 +163,8 @@ function enter(input, acct, now = Date.now()) {
   prune(w, now);
   let p = w.players[acct];
   if (!p) {
-    const spawn = chooseSpawn(w, acct);
-    p = w.players[acct] = { x: spawn.x, z: spawn.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 } };
+    const safeSpawn = chooseSafeSpawn(w, acct), spawn = safeSpawn.spawn, position = safeSpawn.position;
+    p = w.players[acct] = { x: position.x, z: position.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 } };
   }
   p.lastSeen = now;
   p.survival = Survival.tick(p.survival, now);

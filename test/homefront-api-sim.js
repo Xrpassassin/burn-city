@@ -123,6 +123,10 @@ async function call(method, pathname, acct, payload = {}) {
   assert.ok(attack.data.combat.damage > 0);
   assert.ok(attack.data.base.resources.ammo < combatBaseBefore.resources.ammo, 'attacks consume persisted ammunition');
   assert.ok(attack.data.encounter.hp < threat.data.encounter.hp, 'attacks reduce server-owned enemy health');
+if (attack.data.combat.enemyDamage > 0) {
+  assert.ok(attack.data.selfSurvival.health < 100, 'infected retaliation damages the player through server-owned survival state');
+  assert.ok(attack.data.selfSurvival.infection > 0, 'infected retaliation adds treatment pressure');
+}
 
   const scavenge = await call('POST', '/api/homefront/world/scavenge', 'acct-a');
   assert.equal(scavenge.status, 200, 'a player can scavenge at a nearby shared landmark');

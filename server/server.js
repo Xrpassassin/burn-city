@@ -4,7 +4,7 @@ const Retain = require('./retain'), Fish = require('./fish'), LB = require('./le
 const Nft = require('./nft'), Social = require('./social'), C = require('./config'), Pay = require('./payments'), { Room } = require('./game'), S = require('./store'), City = require('./city'), Eco = require('./eco');
 
 const AegisClips = require('./aegis-clips'), Cams = require('./cams');
-const BT = require('./blacktide'), Homefront = require('./homefront');
+const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
 const stats = { tickMs: [], bytesOut: 0, started: Date.now() };
@@ -169,7 +169,9 @@ wss.on('connection', (ws, req) => {
   if (!okOrigin(req.headers.origin) || gate('wsc:' + wip, 30, 60e3) || (wsPerIp.get(wip) || 0) >= 12) return ws.close(1008, 'rejected');
   wsPerIp.set(wip, (wsPerIp.get(wip) || 0) + 1); ws.on('close', () => { const n = (wsPerIp.get(wip) || 1) - 1; n > 0 ? wsPerIp.set(wip, n) : wsPerIp.delete(wip); });
   if ((req.url || '').includes('mode=city')) { const u = new URL(req.url, 'http://x'); return City.attach(ws, u, Pay.checkToken(u.searchParams.get('token')), req.headers['fly-client-ip'] || req.socket.remoteAddress); }   // city presence/chat (server/city.js)
-  const url = new URL(req.url, 'http://x'), mode = url.searchParams.get('mode') === 'zombie' ? 'zombie' : 'tron';
+  const url = new URL(req.url, 'http://x');
+  if (url.searchParams.get('mode') === 'flight') return FlightLobby.attach(ws, url);
+  const mode = url.searchParams.get('mode') === 'zombie' ? 'zombie' : 'tron';
   const pass = Pay.checkToken(url.searchParams.get('token'));   // optional sign-in: free play either way
   const want = (url.searchParams.get('look') || '').split(',').filter(Boolean), own = pass ? Pay.owned(pass.acct) : [], look = {};
   for (const id of want) if (own.includes(id) && items[id]) look[items[id].kind] = id;   // only equip what the account owns

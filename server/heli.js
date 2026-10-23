@@ -31,7 +31,8 @@ function depart(room, why, ev) { const h = room.heli; h.st = ST.lift; h.t = LIFT
 function finish(room, ps, ev) { const h = room.heli, all = [...room.players.values()].filter(p => !p.spectator);
   // Successful full-team extraction advances the same live room to Map 2. The room constructor
   // rejects client-requested Cosmodrome starts; only this server-owned progression sets mapId.
-  if (room.mapId === 'refinery' && all.length && all.every(p => h.b.has(p.id))) {
+  const survivors = all.filter(p => p.alive);
+  if (room.mapId === 'refinery' && survivors.length && survivors.every(p => h.b.has(p.id))) {
     room.mapId = 'cosmodrome';
     h.st = ST.done;
     ev.push({ e: 'map_transition', from: 'The BURN Refinery', to: 'The Ashen Cosmodrome' });

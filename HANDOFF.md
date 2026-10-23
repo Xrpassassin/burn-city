@@ -506,3 +506,6 @@ Proceeding into the Cinderwilds stages the player 16 m up the trail (wilds-gate.
 
 ## feature/forest-sign-airport-transit-plan (PR #123, sw bc-v75-wildssign)
 City-side THE WILDS direction sign enlarged (4.2x1.25 at y=3.0, wilds-gate.js buildGate) + docs/airport-city-traffic-integration-plan.md (plan only, nothing wired).
+
+## feature/cinderwilds-exploration-map (PR #126, sw bc-v76-wildsmap)
+Fog-of-exploration minimap + full field map in Fernway Verge and Glassroot (client/js/wilds-map.js; created in wilds.js buildDom, updated each frame, disposed in unload; Glassroot map data on wilds-deep.js ZONE.map). M / ⤢ opens, Esc/✕ closes, explore input locked while open (window.__wildsMapOpen in __exploreLock). Explored cells in localStorage bc.wilds.explored.v1 (device-local). Map is north-up with world +x drawn to the left (matches the 3D view). Desktop minimap sits below #wlHud/#wlQuest (top 196px).

@@ -76,4 +76,14 @@ assert.ok(Director.planEncounter({ zoneId: 'outskirts', risk: 1, noise: 80, seed
   'noise raises special-infected probability');
 assert.equal(Director.planEncounter({ zoneId: 'invalid-zone', risk: 99, seed: 'bounds' }).zoneId, 'outskirts',
   'invalid districts fall back to safe defaults');
+\n
+const initialDirectorTick = Director.advanceDirector({}, { zoneId: 'outskirts', risk: 1, activeEncounters: 0, now: 100000, seed: 'scheduler' });
+assert.equal(initialDirectorTick.decision, 'spawn', 'director seeds an empty area with baseline infected');
+const cooldownDirectorTick = Director.advanceDirector(initialDirectorTick.state, { zoneId: 'outskirts', risk: 1, activeEncounters: 1, now: 101000, seed: 'scheduler' });
+assert.equal(cooldownDirectorTick.decision, 'cooldown', 'director observes reinforcement cadence');
+const capDirectorTick = Director.advanceDirector(initialDirectorTick.state, { zoneId: 'outskirts', risk: 1, activeEncounters: initialDirectorTick.plan.recommendedMaxAlive, now: 200000, seed: 'scheduler' });
+assert.equal(capDirectorTick.decision, 'hold', 'director never recommends exceeding local infected cap');
+const noiseDirectorTick = Director.advanceDirector({}, { zoneId: 'outskirts', risk: 1, noise: 90, activeEncounters: 0, now: 300000, seed: 'noise-trigger' });
+assert.equal(noiseDirectorTick.state.phase, 'assault', 'loud player actions can escalate the director phase');
+assert.equal(noiseDirectorTick.decision, 'spawn', 'noise-triggered pressure requests a spawn when under cap');
 \nconsole.log('Homefront authoritative combat tests passed.');

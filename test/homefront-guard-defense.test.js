@@ -267,3 +267,12 @@ steelRepairBase.structures = [{ id: 'steel-repair-wall', type: 'wall', material:
 const steelRepaired = Core.applyAction(steelRepairBase, 'rSteelRepair', { type: 'repair', target: 'steel-repair-wall' }, now + 32);
 assert.equal(steelRepaired.resources.steel, 0, 'steel repair consumes steel stock');
 assert.equal(steelRepaired.resources.scrap, 28, 'steel repair consumes extra scrap for reinforcement');
+
+
+const steelEmergency = Core.createBase('rSteelEmergency', now);
+steelEmergency.resources.steel = 2;
+steelEmergency.structures = [{ id: 'steel-gate', type: 'gate', material: 'steel', hp: 20, maxHp: 504, x: 8, z: 0 }];
+const steelEmergencyResult = Core.applyAction(steelEmergency, 'rSteelEmergency', { type: 'emergency_repair', target: 'steel-gate' }, now + 40);
+assert.equal(steelEmergencyResult.resources.steel, 0, 'emergency repair of steel defenses consumes steel stock');
+assert.equal(steelEmergencyResult.resources.scrap, 26, 'emergency steel repair consumes four scrap');
+assert.equal(steelEmergencyResult.structures[0].hp, 120, 'emergency repair still restores up to 100 HP');

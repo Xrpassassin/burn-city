@@ -146,9 +146,10 @@ function move(input, acct, x, z, now = Date.now()) {
   const radius = Math.hypot(nx, nz); if (radius > WORLD_SIZE) { nx = nx / radius * WORLD_SIZE; nz = nz / radius * WORLD_SIZE; }
   const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz);
   const scale = d > MOVE_STEP ? MOVE_STEP / d : 1;
+  const oldX = p.x, oldZ = p.z;
   p.x = Math.round((p.x + dx * scale) * 10) / 10; p.z = Math.round((p.z + dz * scale) * 10) / 10;
   p.lastMove = p.lastSeen = now;
-  p.survival = Survival.move(p.survival, now);
+  p.survival = Survival.move(p.survival, now, Math.hypot(p.x - oldX, p.z - oldZ));
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {
       const offset = (hash(member) % 7) - 3;

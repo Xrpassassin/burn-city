@@ -82,6 +82,8 @@ function boot(host) {
   const pointer = new THREE.Vector2();
   const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
   const worldChunkGroups = new Map();
+  const environmentVisuals = new Map();
+  const environmentStateCache = new Map();
   let activeChunkSignature = '';
   scene.add(cityGroup, poiGroup, lootGroup, playerGroup, zombieGroup, combatGroup, impactGroup);
   const combatStatus = document.getElementById('combatStatus');

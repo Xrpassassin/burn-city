@@ -300,9 +300,11 @@ function boot(host) {
       });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
+      if (data.combat) {
+        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: { damage: data.combat.damage, killed: data.combat.killed, weaponId: equippedWeaponId, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id, direction: 1 } }));
+      }
       updateWorld(data);
       if (data.combat && combatStatus) {
-        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: { damage: data.combat.damage, killed: data.combat.killed } }));
         const result = data.combat;
         const stamina = Number.isFinite(data.selfSurvival?.stamina) ? Math.round(data.selfSurvival.stamina) : null;
         const fatigue = stamina !== null ? ' · stamina ' + stamina + '/100' + (stamina < 15 ? ' · exhausted: damage reduced' : stamina < 35 ? ' · tiring: damage reduced' : '') : '';

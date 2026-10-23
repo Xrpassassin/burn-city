@@ -48,7 +48,12 @@ export function terrainHeight(x, z, seed = DEFAULT_SEED) {
   const broad = valueNoise2D(x, z, 48, seed) * 1.15;
   const detail = valueNoise2D(x, z, 13, seed ^ 0x6d2b79f5) * 0.42;
   const ridge = Math.max(0, valueNoise2D(x + 173.4, z - 91.7, 72, seed ^ 0x45d9f3b) - 0.2) * 0.35;
-  return Math.round((broad + detail + ridge) * 1000) / 1000;
+  // The authored road grid is spaced every 20 units, centered at 10 + 20n.
+  // Blend terrain to zero at road centers so the road mesh and ground cannot disagree.
+  const roadDistance = value => Math.abs((((value - 10) % 20) + 30) % 20 - 10);
+  const roadBlend = value => { const t = Math.max(0, Math.min(1, roadDistance(value) / 4.5)); return t * t * (3 - 2 * t); };
+  const roadFactor = Math.min(roadBlend(x), roadBlend(z));
+  return Math.round((broad + detail + ridge) * roadFactor * 1000) / 1000;
 }
 
 /** Stable chunk sample descriptor; neighboring chunks share the same world-space edge samples. */

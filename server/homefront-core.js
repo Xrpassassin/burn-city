@@ -37,7 +37,7 @@ function createBase(ownerId, now = Date.now()) {
     version: VERSION, owner, revision: 1, createdAt: now, updatedAt: now,
     level: 1, day: 1, baseHp: 500, baseMaxHp: 500, wave: 0, visibility: 'private',
     exploration: { discoveredZones: ['outskirts'], lastExpedition: null },
-    resources: { wood: 40, scrap: 30, food: 24, rawFood: 0, water: 18, dirtyWater: 0, meds: 5, ammo: 18 },
+    resources: { wood: 40, scrap: 30, food: 24, rawFood: 0, water: 18, dirtyWater: 0, meds: 5, ammo: 18, freshness: { food: [{ qty: 24, acquiredAt: now }], rawFood: [] } },
     embers: 50, upgrades: { scavenger_rig: 0, ember_press: 0, field_armory: 0, medic_station: 0 },
     weapons: ['pipe_blade'], equippedWeapon: 'pipe_blade', weaponMods: {},
     cosmeticsOwned: Object.keys(DEFAULT_COSMETICS).map(slot => DEFAULT_COSMETICS[slot]), cosmeticsEquipped: { ...DEFAULT_COSMETICS },
@@ -52,6 +52,8 @@ function validateBase(input, ownerId) {
       input.structures.length > MAX_STRUCTURES || input.survivors.length > MAX_SURVIVORS) return null;
   const out = clone(input);
   for (const r of ['wood', 'scrap', 'food', 'rawFood', 'water', 'dirtyWater', 'meds', 'ammo']) out.resources[r] = clampInt(r === 'water' && !Number.isFinite(out.resources[r]) ? 18 : out.resources[r], 0, 999999);
+  const FoodFreshness = require('./homefront-freshness');
+  out.resources.freshness = FoodFreshness.normalizeBatches(out.resources.freshness, out.resources, Number.isFinite(out.createdAt) ? out.createdAt : Date.now());
   out.embers = clampInt(out.embers, 0, 999999999);
   out.exploration = out.exploration && typeof out.exploration === 'object' ? out.exploration : {};
   out.exploration.discoveredZones = Array.isArray(out.exploration.discoveredZones) ? [...new Set(out.exploration.discoveredZones.filter(z => typeof z === 'string' && EXPLORATION_ZONES[z]))] : ['outskirts'];

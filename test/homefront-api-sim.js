@@ -81,5 +81,20 @@ async function call(method, pathname, acct, payload = {}) {
 
   const malformed = await call('POST', '/api/homefront/action', 'acct-a', { action: [] });
   assert.equal(malformed.status, 400);
+  const worldA = await call('GET', '/api/homefront/world', 'acct-a');
+  assert.equal(worldA.status, 200, 'authenticated player can enter the shared Graveyard');
+  assert.equal(worldA.data.mode, 'homefront-world');
+  assert.ok(worldA.data.world.pointsOfInterest.some(p => p.type === 'boss'), 'shared map advertises boss territories');
+  const worldB = await call('GET', '/api/homefront/world', 'acct-b');
+  assert.equal(worldB.status, 200);
+  assert.equal(worldB.data.players.length, 2, 'active Homefront accounts share one map snapshot');
+  const partyCreated = await call('POST', '/api/homefront/world/party/create', 'acct-a');
+  assert.equal(partyCreated.status, 200);
+  const partyCode = partyCreated.data.party.code;
+  const partyJoined = await call('POST', '/api/homefront/world/party/join', 'acct-b', { code: partyCode });
+  assert.equal(partyJoined.status, 200);
+  assert.equal(partyJoined.data.party.members.length, 2, 'party join synchronizes the shared roster');
+  assert.equal(partyJoined.data.self.x, partyJoined.data.party.members[0].x, 'party members enter together');
+
   console.log('Homefront authenticated save API simulation passed.');
 })().catch(e => { console.error(e); process.exitCode = 1; });

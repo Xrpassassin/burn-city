@@ -233,7 +233,7 @@ assert.match(homefrontPage, /PERIMETER STABLE · All defensive structures are at
 
 // Siege incident lifecycle: warning, guard response, and persisted after-action report.
 assert.match(homefrontPage, /id="siegeIncidentSummary" aria-live="polite"/, 'show a persistent accessible siege incident summary');
-assert.match(homefrontPage, /const incident=base\.lastSiege/, 'render the server-persisted last siege report');
+assert.match(homefrontPage, /incident=base\.lastSiege/, 'render the server-persisted last siege report');
 assert.match(homefrontPage, /incident\.phases/, 'render the ordered incident phases');
 assert.match(homefrontPage, /incident\.target\.integrityBefore/, 'show target integrity before and after the siege');
 assert.match(homefrontPage, /incident\.refugeHpAfter\+'\/'+base\.baseMaxHp/, 'show refuge health after the incident');

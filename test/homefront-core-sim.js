@@ -105,7 +105,7 @@ assert.ok(restedShift.resources.food > tiredShift.resources.food, 'high-morale w
 assert.ok(restedShift.resources.food >= 100 && tiredShift.resources.food >= 100, 'work shift charges upkeep before production');
 
 const damaged = H.applyAction(expedition, 'acct-a', { type: 'defend' });
-assert.equal(damaged.wave, 1);
+assert.equal(damaged.wave, 0, 'perimeter defense no longer advances rounds');
 assert.ok(damaged.baseHp <= damaged.baseMaxHp);
 const damagedBase = { ...damaged, baseHp: 200 };
 const repaired = H.applyAction(damagedBase, 'acct-a', { type: 'repair', target: 'base' });

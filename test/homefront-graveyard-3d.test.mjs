@@ -246,3 +246,9 @@ assert.match(homefrontPage, /const assignedTarget=survivor\.taskTarget&&base\.st
 assert.match(homefrontPage, /taskLabels\[task\]\|\|labels\[role\]/, 'show the active survivor behavior above the 3D actor');
 assert.match(homefrontPage, /task:survivor\.task/, 'carry persistent behavior into survivor animation actors');
 assert.match(homefrontPage, /taskNote\.textContent='Current task: '/, 'show persistent survivor tasks in the settlement roster');
+
+assert.match(homefrontPage, /startX=Math\.cos\(startAngle\)\*2\.2,startZ=Math\.sin\(startAngle\)\*2\.2/, 'survivors begin near the refuge before walking to their assigned stations');
+assert.match(homefrontPage, /targetX:x,targetZ:z,targetYaw:spot\.yaw,speed:1\.1\+\(i%3\)\*\.12/, 'each survivor actor carries a destination and individual movement speed');
+assert.match(homefrontPage, /distance>\.12/, 'survivors stop moving when they reach their assigned destination');
+assert.match(homefrontPage, /actor\.walkAction\.reset\(\)\.fadeIn\(\.15\)\.play\(\)/, 'blend into walk animation while moving between stations when assets provide one');
+assert.match(homefrontPage, /working=!moving&&\['farmer','mechanic','medic','scavenger'\]/, 'role work animations start after survivors arrive at their work location');

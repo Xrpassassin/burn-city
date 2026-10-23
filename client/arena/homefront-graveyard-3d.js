@@ -40,6 +40,10 @@ function boot(host) {
   let selectedLootId = null;
   const findInfectedButton = document.getElementById('findInfected');
   const attackInfectedButton = document.getElementById('attackInfected');
+  const autoFireButton = document.getElementById('autoFireInfected');
+  let selectedCombatTargetId = null;
+  let autoFireHeld = false;
+  let autoFireTimer = null;
   const zombieMixers = [];
   // Keep server-owned infected actors between snapshots so movement is presented smoothly.
   const combatActors = new Map();
@@ -254,9 +258,10 @@ function boot(host) {
         label.position.y = 3.5; actor.add(label);
         const threatRing = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xd84b3e, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));
         threatRing.rotation.x = -Math.PI / 2; threatRing.position.y = 0.045; actor.add(threatRing);
-        actor.userData = { targetX: e.x, targetZ: e.z, hp: e.hp, body, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
+        actor.userData = { encounterId: e.id, targetX: e.x, targetZ: e.z, hp: e.hp, body, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
         combatActors.set(e.id, actor); combatGroup.add(actor);
       } else {
+        actor.userData.encounterId = e.id;
         actor.userData.targetX = e.x; actor.userData.targetZ = e.z;
         if (actor.userData.hp !== e.hp) {
           actor.userData.hp = e.hp;
@@ -274,12 +279,19 @@ function boot(host) {
     for (const [id, actor] of combatActors) {
       if (activeEncounterIds.has(id)) continue;
       combatGroup.remove(actor); clearGroup(actor); combatActors.delete(id);
+      if (selectedCombatTargetId === id) { selectedCombatTargetId = null; autoFireHeld = false; if (autoFireTimer) clearTimeout(autoFireTimer); autoFireTimer = null; }
     }
     const selfEncounter = data.selfEncounter || data.encounter || null;
     const enemyDistance = selfEncounter && data.self
       ? Math.hypot(data.self.x - selfEncounter.x, data.self.z - selfEncounter.z) : Infinity;
     const enemyInReach = !!selfEncounter && enemyDistance <= (selfEncounter.range || 0);
+    const targetMatches = !!selfEncounter && selectedCombatTargetId === selfEncounter.id;
     if (attackInfectedButton) attackInfectedButton.disabled = !selfEncounter || selfEncounter.defeated || selfEncounter.hp <= 0 || !enemyInReach;
+    if (autoFireButton) autoFireButton.disabled = !targetMatches || selfEncounter.defeated || selfEncounter.hp <= 0 || !enemyInReach || moving;
+    for (const [id, actor] of combatActors) {
+      const ring = actor.userData.threatRing;
+      if (ring) { ring.material.color.setHex(id === selectedCombatTargetId ? 0xffc05b : 0xd84b3e); ring.material.opacity = id === selectedCombatTargetId ? 0.72 : 0.08; }
+    }
     if (combatStatus) combatStatus.textContent = selfEncounter && !selfEncounter.defeated
       ? selfEncounter.enemy + ' · HP ' + selfEncounter.hp + '/' + selfEncounter.maxHp + ' · risk ' + selfEncounter.risk + '/5 · ' + Math.ceil(enemyDistance) + ' units away' + (enemyInReach ? ' · in attack range' : ' · move closer to attack')
       : 'No active encounter. Search for infected to begin a server-authoritative fight.';
@@ -332,7 +344,7 @@ function boot(host) {
       updateWorld(data);
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
-  async function combatAction(action) {
+  async function combatAction(action, targetId = selectedCombatTargetId) {
     if (!token()) { if (combatStatus) combatStatus.textContent = 'Sign in before fighting in the Graveyard.'; return; }
     if (moving) return;
     moving = true;
@@ -342,7 +354,7 @@ function boot(host) {
       const r = await fetch(API + '/api/homefront/world/' + action, {
         method: 'POST',
         headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify(targetId ? { targetId } : {})
       });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
@@ -364,7 +376,8 @@ function boot(host) {
       if (combatStatus) combatStatus.textContent = e.message === 'enemy_out_of_range'
         ? 'Too far from the infected. Move closer on the map.'
         : e.message === 'attack_cooldown' ? 'Recovering from your last attack. Try again in a moment.'
-        : e.message === 'insufficient_ammo' ? 'Not enough ammunition to attack.'
+        : e.message === 'insufficient_ammo' || e.message === 'field_supplies_required' ? 'Not enough carried ammunition to fire.'
+        : e.message === 'target_mismatch' ? 'That target is not your active encounter. Select your active infected.'
         : 'Combat unavailable: ' + e.message;
     } finally {
       moving = false;
@@ -400,6 +413,24 @@ function boot(host) {
   if (lootActionButton) lootActionButton.addEventListener('click', collectSelectedLoot);
   if (findInfectedButton) findInfectedButton.addEventListener('click', () => combatAction('encounter'));
   if (attackInfectedButton) attackInfectedButton.addEventListener('click', () => combatAction('attack'));
+  const stopAutoFire = () => { autoFireHeld = false; if (autoFireTimer) clearTimeout(autoFireTimer); autoFireTimer = null; if (autoFireButton) autoFireButton.setAttribute('aria-pressed', 'false'); };
+  const fireLoop = async () => {
+    if (!autoFireHeld || moving) return;
+    const active = worldData?.selfEncounter || worldData?.encounter || null;
+    if (!active || selectedCombatTargetId !== active.id) { stopAutoFire(); if (combatStatus) combatStatus.textContent = 'Autofire stopped: select your active infected target.'; return; }
+    await combatAction('attack', selectedCombatTargetId);
+    if (!autoFireHeld) return;
+    const delay = equippedWeaponId === 'marksman_rifle' ? 1350 : equippedWeaponId === 'pump_shotgun' ? 1150 : equippedWeaponId === 'shock_maul' || equippedWeaponId === 'pipe_blade' ? 950 : 1000;
+    autoFireTimer = setTimeout(fireLoop, delay);
+  };
+  if (autoFireButton) {
+    autoFireButton.addEventListener('pointerdown', event => { if (autoFireButton.disabled) return; event.preventDefault(); stopAutoFire(); autoFireHeld = true; autoFireButton.setAttribute('aria-pressed', 'true'); fireLoop(); });
+    for (const eventName of ['pointerup','pointercancel','pointerleave','lostpointercapture']) autoFireButton.addEventListener(eventName, stopAutoFire);
+    window.addEventListener('pointerup', stopAutoFire);
+    window.addEventListener('blur', stopAutoFire);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopAutoFire(); });
+    autoFireButton.addEventListener('contextmenu', event => event.preventDefault());
+  }
   const groundHit = new THREE.Mesh(new THREE.PlaneGeometry(204, 204), new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }));
   groundHit.rotation.x = -Math.PI / 2; groundHit.position.y = 0.01; scene.add(groundHit);
   renderer.domElement.addEventListener('pointerdown', e => {
@@ -408,6 +439,20 @@ function boot(host) {
     pointer.x = (e.clientX - rect.left) / rect.width * 2 - 1;
     pointer.y = -(e.clientY - rect.top) / rect.height * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
+    const combatHits = raycaster.intersectObject(combatGroup, true);
+    if (combatHits.length) {
+      let target = combatHits[0].object;
+      while (target && !target.userData?.encounterId) target = target.parent;
+      if (target?.userData?.encounterId) {
+        selectedCombatTargetId = target.userData.encounterId;
+        const active = worldData?.selfEncounter || worldData?.encounter || null;
+        if (combatStatus) combatStatus.textContent = active?.id === selectedCombatTargetId
+          ? 'Target locked: ' + (active.enemy || 'infected') + '. Hold autofire to engage.'
+          : 'Target selected, but only your active encounter can be attacked right now.';
+        updateWorld(worldData);
+        return;
+      }
+    }
     const lootHits = raycaster.intersectObject(lootGroup, true);
     if (lootHits.length) {
       let target = lootHits[0].object;

@@ -38,6 +38,21 @@ expedition = H.applyAction(expedition, 'acct-a', { type: 'build', building: 'gar
 const beforeFood = expedition.resources.food;
 expedition = H.applyAction(expedition, 'acct-a', { type: 'workday' });
 assert.ok(expedition.resources.food >= beforeFood - 1, 'farmer and garden contribute food after upkeep');
+// A campfire rally trades food for a server-authoritative morale recovery.
+const rallyBase = H.createBase('rally-test', 2040);
+rallyBase.resources.food = 10;
+rallyBase.survivors = [
+  { id: 's1', name: 'Mara', role: 'guard', morale: 10 },
+  { id: 's2', name: 'Rook', role: 'farmer', morale: 90 },
+  { id: 's3', name: 'Tess', role: 'idle', morale: 100 }
+];
+const rallied = H.applyAction(rallyBase, 'rally-test', { type: 'rally' }, 2041);
+assert.equal(rallied.resources.food, 6, 'rally consumes four food');
+assert.deepEqual(rallied.survivors.map(s => s.morale), [25, 100, 100], 'rally raises morale by up to fifteen without exceeding one hundred');
+assert.throws(() => H.applyAction({ ...rallyBase, resources: { ...rallyBase.resources, food: 3 } }, 'rally-test', { type: 'rally' }), /rally_food_required/);
+assert.throws(() => H.applyAction({ ...rallyBase, survivors: rallyBase.survivors.map(s => ({ ...s, morale: 100 })) }, 'rally-test', { type: 'rally' }), /morale_already_max/);
+assert.throws(() => H.applyAction({ ...rallyBase, survivors: [] }, 'rally-test', { type: 'rally' }), /no_survivors_to_rally/);
+
 // Guard morale changes defensive strength against the same first breach.
 const steadyGuards = H.createBase('steady-guards', 2050);
 steadyGuards.survivors = [{ id: 'g1', name: 'Rook', role: 'guard', morale: 90 }];

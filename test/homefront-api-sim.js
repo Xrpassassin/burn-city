@@ -183,9 +183,9 @@ if (attack.data.combat.enemyDamage > 0) {
   const extraTrip = await call('POST', '/api/homefront/world/scavenge', 'acct-a');
   assert.equal(extraTrip.status, 200);
   const sharedWorld = files.get('homefront-world.json');
-  sharedWorld.players['acct-a'].x = -32;
+  sharedWorld.players['acct-a'].x = -35;
   sharedWorld.players['acct-a'].z = 24;
-  sharedWorld.players['acct-b'].x = -32;
+  sharedWorld.players['acct-b'].x = -35;
   sharedWorld.players['acct-b'].z = 24;
   files.set('homefront-world.json', sharedWorld);
   const beforeCacheStash = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'stash' });
@@ -204,9 +204,9 @@ if (attack.data.combat.enemyDamage > 0) {
   assert.equal(duplicateCache.data.error, 'cache_empty');
   const survivorsBeforeRescue = cacheOpen.data.base.survivors.length;
   const rescueWorld = files.get('homefront-world.json');
-  rescueWorld.players['acct-a'].x = 35;
+  rescueWorld.players['acct-a'].x = 31;
   rescueWorld.players['acct-a'].z = -42;
-  rescueWorld.players['acct-b'].x = 35;
+  rescueWorld.players['acct-b'].x = 31;
   rescueWorld.players['acct-b'].z = -42;
   files.set('homefront-world.json', rescueWorld);
   const beforeRescueStash = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'stash' });

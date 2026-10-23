@@ -62,8 +62,11 @@ world.players['acct-a'].lastSeen = aiNow;
 const threat = Combat.spawn({ encounters: world.encounters, account: 'acct-a', player: world.players['acct-a'], now: aiNow });
 world.encounters = threat.encounters;
 const enemyBefore = world.encounters['acct-a'];
-enemyBefore.x = world.players['acct-a'].x + 10;
-enemyBefore.z = world.players['acct-a'].z;
+const safeEnemyStart = Collision.findSafePosition(world.players['acct-a'].x + 10, world.players['acct-a'].z, { bounds: W.WORLD_SIZE }) ||
+  Collision.findSafePosition(world.players['acct-a'].x - 10, world.players['acct-a'].z, { bounds: W.WORLD_SIZE });
+assert.ok(safeEnemyStart, 'AI regression fixture chooses an unoccupied infected position');
+enemyBefore.x = safeEnemyStart.x;
+enemyBefore.z = safeEnemyStart.z;
 enemyBefore.lastAiAt = aiNow;
 const distanceBefore = Math.hypot(world.players['acct-a'].x - enemyBefore.x, world.players['acct-a'].z - enemyBefore.z);
 const chased = W.move(world, 'acct-a', world.players['acct-a'].x - 8, world.players['acct-a'].z, aiNow + 1500);

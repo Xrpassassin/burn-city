@@ -213,7 +213,7 @@ assert.match(homefrontPage, /\.sort\(\(a,b\)=>a\.integrity-b\.integrity/, 'prior
 assert.match(homefrontPage, /priority\.hp<=0\?'BREACHED':priority\.integrity<=25\?'CRITICAL':priority\.integrity<=60\?'DAMAGED'/, 'label breached, critical, and damaged perimeter states');
 assert.match(homefrontPage, /id="repairPriorityBreach"/, 'provide a direct priority breach repair control');
 assert.match(homefrontPage, /priorityButton\.onclick=\(\)=>act\(\{type:'emergency_repair',target:priority\.id\}\)/, 'send priority repair through the existing server-authoritative action');
-assert.match(homefrontPage, /priorityButton\.disabled=busy\|\|base\.resources\.wood<4\|\|base\.resources\.scrap<2/, 'disable priority repair when the refuge lacks required materials');
+assert.match(homefrontPage, /priorityButton\.disabled=busy\|\|!priorityAffordable/, 'disable priority repair when the refuge lacks required materials');
 assert.match(homefrontPage, /PERIMETER STABLE · All defensive structures are at full integrity/, 'show a stable state when no perimeter defense is damaged');
 
 

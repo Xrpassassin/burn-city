@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict');
+const I=require('./homefront-inventory');
+let bag=I.normalize({food:2,water:2,meds:1,ammo:4});
+assert.equal(I.used(bag),9);
+let add=I.add(bag,'scrap',4);bag=add.inventory;
+assert.equal(add.accepted,4);assert.equal(I.used(bag),17);
+const removed=I.remove(bag,'food',1);assert.equal(removed.inventory.food,1);
+assert.throws(()=>I.remove(bag,'water',9),/not_carrying_water/);
+const full=I.add({food:8,water:8,meds:5,ammo:12,scrap:8,wood:8},'food',1);
+assert.equal(full.accepted,0,'full stack/capacity prevents inventory overflow');
+const resources={food:20,water:20,meds:10,ammo:30,scrap:10,wood:10};
+const take=I.withdraw({},resources,'water',3);
+assert.equal(take.inventory.water,3);assert.equal(take.resources.water,17);
+assert.throws(()=>I.withdraw(take.inventory,take.resources,'food',30),/inventory_full|insufficient_food/);
+const packed=I.stash(take.inventory,take.resources);
+assert.equal(packed.inventory.water,0);assert.equal(packed.stored.water,3);
+console.log('Homefront carried inventory rules passed.');

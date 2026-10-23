@@ -44,7 +44,7 @@ function validateBase(input, ownerId) {
   out.wave = clampInt(out.wave, 0, 1000000);
   out.revision = clampInt(out.revision, 1, Number.MAX_SAFE_INTEGER);
   out.structures = out.structures.filter(s => s && BUILDINGS[s.type] && typeof s.id === 'string')
-    .map(s => ({ id: s.id.slice(0, 80), type: s.type, hp: clampInt(s.hp, 0, BUILDINGS[s.type].hp), maxHp: BUILDINGS[s.type].hp, x: clampNumber(s.x, -12, 12), z: clampNumber(s.z, -12, 12) }));
+    .map(s => ({ id: s.id.slice(0, 80), type: s.type, hp: clampInt(s.hp, 0, BUILDINGS[s.type].hp), maxHp: BUILDINGS[s.type].hp, x: clampNumber(s.x, -9.5, 9.5), z: clampNumber(s.z, -9.5, 9.5) }));
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
     .map(s => ({ id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100) }));
   out.log = Array.isArray(out.log) ? out.log.slice(-20) : [];
@@ -73,7 +73,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const angle = s.structures.length * 2.399963229728653, radius = 3 + Math.floor(s.structures.length / 8) * 1.8;
       const x = Number.isFinite(action.x) ? action.x : Math.cos(angle) * radius;
       const z = Number.isFinite(action.z) ? action.z : Math.sin(angle) * radius;
-      if (Math.abs(x) > 12 || Math.abs(z) > 12) throw new Error('placement_out_of_bounds');
+      if (Math.abs(x) > 9.5 || Math.abs(z) > 9.5) throw new Error('placement_out_of_bounds');
       if (s.structures.some(v => Math.hypot(v.x - x, v.z - z) < 1.65)) throw new Error('placement_occupied');
       s.structures.push({ id, type: action.building, hp: spec.hp, maxHp: spec.hp, x, z });
       record(s, 'build', 'Constructed ' + action.building + '.', now);

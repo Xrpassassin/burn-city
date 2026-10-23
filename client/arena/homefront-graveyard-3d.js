@@ -46,9 +46,11 @@ function boot(host) {
 
   const mat = (color, roughness = 0.94) => new THREE.MeshStandardMaterial({ color, roughness });
   let equippedWeaponSkinColor = 0x9a7b62;
+  let equippedWeaponId = 'pipe_blade';
   window.addEventListener('homefront:cosmetics', event => {
     const color = event.detail?.weaponColor;
     if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) equippedWeaponSkinColor = Number.parseInt(color.slice(1), 16);
+    if (['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'].includes(event.detail?.weaponId)) equippedWeaponId = event.detail.weaponId;
   });
   const roadMat = mat(0x343733), buildingMats = [mat(0x41413a), mat(0x4b443a), mat(0x363d3d), mat(0x50483d)];
   const ruinMat = mat(0x292d2a), emberMat = new THREE.MeshStandardMaterial({ color: 0xff7738, emissive: 0x9c2507, emissiveIntensity: 0.8 });
@@ -239,14 +241,24 @@ function boot(host) {
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.48, 8, 6), mat(p.label === 'You' ? 0xffb45c : 0xc5aa8a));
       head.position.y = 2.55; g.add(head);
       // Visible held weapon silhouette; cosmetic finishes will bind to the authoritative loadout next.
+      const weaponId = p.label === 'You' ? equippedWeaponId : 'pipe_blade';
       const weapon = new THREE.Group(); weapon.position.set(0.62, 1.72, 0.12); weapon.rotation.x = -0.12;
       const grip = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.13), mat(0x49372b));
       grip.position.y = -0.2; weapon.add(grip);
       const finish = p.label === 'You' ? equippedWeaponSkinColor : 0x9a7b62;
-      const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.76, 0.19), mat(finish));
-      barrel.position.y = 0.28; weapon.add(barrel);
-      const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.23), mat(0x373a38));
-      muzzle.position.y = 0.68; weapon.add(muzzle); g.add(weapon);
+      const isMelee = weaponId === 'pipe_blade' || weaponId === 'shock_maul';
+      const length = weaponId === 'marksman_rifle' ? 1.02 : weaponId === 'pump_shotgun' ? 0.92 : weaponId === 'shock_maul' ? 0.58 : 0.76;
+      const width = weaponId === 'shock_maul' ? 0.28 : weaponId === 'pipe_blade' ? 0.1 : 0.16;
+      const barrel = new THREE.Mesh(new THREE.BoxGeometry(width, length, weaponId === 'shock_maul' ? 0.22 : 0.19), mat(finish));
+      barrel.position.y = 0.12 + length / 2; weapon.add(barrel);
+      if (weaponId === 'shock_maul') {
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.3, 0.32), mat(0x454844));
+        head.position.y = 0.12 + length; weapon.add(head);
+      } else if (!isMelee) {
+        const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.23), mat(0x373a38));
+        muzzle.position.y = 0.12 + length + 0.04; weapon.add(muzzle);
+      }
+      g.add(weapon);
       const name = labelSprite(p.label || 'Explorer', p.label === 'You' ? '#ffe28a' : '#c8d8df'); name.position.y = 4.7; g.add(name);
       playerGroup.add(g);
     }

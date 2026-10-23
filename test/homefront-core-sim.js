@@ -233,3 +233,33 @@ assert.equal(liveSession.homefrontSessionStart.totals.suppliesConsumed.food, 1);
 assert.equal(liveSession.homefrontSessionStart.totals.suppliesConsumed.water, 1);
 assert.equal(liveSession.homefrontSessionStart.totals.rewardEvents, 1);
 console.log('Homefront return debrief accounting passed.');
+
+
+// Customizable fortifications: rotation persists, trench hazards tier up, and manned turrets spend ammunition during defense.
+const fortBase = H.createBase('fortification-test', 5000);
+fortBase.resources = { ...fortBase.resources, wood: 200, scrap: 250, ammo: 80, meds: 30 };
+let fortified = H.applyAction(fortBase, 'fortification-test', { type: 'build', building: 'entrance', x: 8, z: 8, rotation: Math.PI / 2 }, 5010);
+const entrance = fortified.structures.find(x => x.type === 'entrance');
+assert.equal(entrance.rotation, Math.PI / 2, 'placed entrance stores its facing');
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'build', building: 'trench', x: -7, z: 7 }, 5020);
+const trench = fortified.structures.find(x => x.type === 'trench');
+assert.equal(trench.trenchLevel, 0);
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'trench_upgrade', target: trench.id }, 5030);
+assert.equal(fortified.structures.find(x => x.id === trench.id).trenchLevel, 1);
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'trench_upgrade', target: trench.id }, 5040);
+assert.equal(fortified.structures.find(x => x.id === trench.id).trenchLevel, 2);
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'trench_upgrade', target: trench.id }, 5050);
+assert.equal(fortified.structures.find(x => x.id === trench.id).trenchLevel, 3);
+assert.throws(() => H.applyAction(fortified, 'fortification-test', { type: 'trench_upgrade', target: trench.id }, 5060), /trench_max_level/);
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'build', building: 'turret', x: -7, z: -7 }, 5070);
+const turret = fortified.structures.find(x => x.type === 'turret');
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'turret_manning', target: turret.id, manned: true }, 5080);
+assert.equal(fortified.structures.find(x => x.id === turret.id).manned, true);
+const ammoBeforeTurretDefense = fortified.resources.ammo;
+fortified = H.applyAction(fortified, 'fortification-test', { type: 'defend' }, 5090);
+assert.ok(fortified.resources.ammo < ammoBeforeTurretDefense, 'manned turret consumes ammunition during a defense action');
+assert.equal(fortified.structures.find(x => x.id === turret.id).manned, false, 'turret returns to unmanned after its defense burst');
+const normalizedFortifications = H.validateBase(fortified, 'fortification-test');
+assert.equal(normalizedFortifications.structures.find(x => x.id === trench.id).trenchLevel, 3, 'trench tier persists through save normalization');
+assert.equal(normalizedFortifications.structures.find(x => x.id === entrance.id).rotation, Math.PI / 2, 'entrance rotation persists through save normalization');
+console.log('Homefront fortification builder simulation passed.');

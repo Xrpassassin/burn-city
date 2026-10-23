@@ -26,7 +26,7 @@ const ridgeHeight = (x, z) => Math.abs(x) < 0.75 && Math.abs(z) < 8 ? 5 : 0;
 const ridgePath = serverTerrain.findTerrainPath(-12, 0, 12, 0, {
   bounds: 20, spacing: 2, maxExpanded: 1200, heightAt: ridgeHeight, maxRisePer2Units: 0.65
 });
-assert.ok(Array.isArray(ridgePath) && ridgePath.length > 2, 'pathfinder routes around a steep ridge');
+assert.ok(Array.isArray(ridgePath) && ridgePath.length > 2, 'pathfinder routes around a steep ridge; returned route=' + JSON.stringify(ridgePath));
 assert.ok(ridgePath.some(point => Math.abs(point.z) >= 8), 'detour leaves the blocked ridge corridor');
 let previous = { x: -12, z: 0 };
 for (const point of ridgePath) {

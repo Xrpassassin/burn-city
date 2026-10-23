@@ -9,6 +9,20 @@ const b = W.enter(world, 'acct-b', 1000); world = b.world;
 assert.notDeepEqual([a.result.self.x, a.result.self.z], [b.result.self.x, b.result.self.z], 'solo players spawn at different perimeter locations');
 assert.equal(b.result.players.length, 2, 'both active players appear in the shared map');
 assert.equal(a.result.self.risk, 1, 'perimeter spawn is low risk');
+const Terrain = require('../server/homefront-terrain');
+assert.equal(Terrain.isSafePosition(a.result.self.x, a.result.self.z, { bounds: W.WORLD_SIZE }), true,
+  'new players spawn on a grounded, traversable footprint');
+const corruptSave = W.defaultWorld();
+corruptSave.players['invalid-save'] = {
+  x: 999, z: 999, spawn: 'north_gate', lastSeen: 1000, lastMove: 1000, partyCode: null,
+  survival: require('../server/homefront-survival').normalize(null, 1000),
+  inventory: {}, inventoryInitialized: true, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }
+};
+const recoveredSave = W.normalizeWorld(corruptSave).players['invalid-save'];
+assert.equal(Terrain.isSafePosition(recoveredSave.x, recoveredSave.z, { bounds: W.WORLD_SIZE }), true,
+  'unsafe legacy/saved coordinates recover to a safe position near the authored spawn');
+assert.ok(Math.hypot(recoveredSave.x - W.SPAWNS[0].x, recoveredSave.z - W.SPAWNS[0].z) <= 20,
+  'save recovery stays near the player\'s recorded spawn instead of teleporting across the map');
 assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'cache'), 'shared world includes physical supply-cache landmarks');
 assert.ok(Object.values(a.result.world.caches).every(cache => cache.readyAt === 0), 'shared supply caches begin available');
 assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'rescue'), 'shared world includes survivor rescue sites');

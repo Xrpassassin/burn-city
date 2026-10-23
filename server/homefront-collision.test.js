@@ -40,3 +40,19 @@ assert.ok(Math.abs(route[0].z - building.z) > 0.1 || route.some(p => Math.abs(p.
   'route bends away from the building footprint');
 assert.throws(() => Collision.canTraverse(0, 0, 1, 1, { radius: -1 }), TypeError);
 console.log('Homefront authoritative collision and occupancy tests passed.');
+
+// Spatial hash must agree exactly with a brute-force scan of the obstacle catalog.
+{
+  const brute = (x, z, r) => Collision.OBSTACLES.some(o => o.type === 'circle' ? Math.hypot(x - o.x, z - o.z) < o.radius + r : Math.abs(x - o.x) < o.halfX + r && Math.abs(z - o.z) < o.halfZ + r);
+  let seed = 12345; const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+  let blocked = 0;
+  for (let i = 0; i < 20000; i++) {
+    const x = rnd() * 200 - 100, z = rnd() * 200 - 100, r = [0, 0.4, 0.45, 1.5, 3][i % 5];
+    const hit = !!Collision.pointBlocked(x, z, r);
+    assert.equal(hit, brute(x, z, r), 'spatial hash agrees with brute force at ' + x.toFixed(2) + ',' + z.toFixed(2) + ' r=' + r);
+    if (hit) blocked++;
+  }
+  assert.ok(blocked > 200, 'sample exercised blocked points');
+  const t0 = process.hrtime.bigint(); for (let i = 0; i < 200000; i++) Collision.pointBlocked((i % 400) / 2 - 100, ((i * 7) % 400) / 2 - 100, 0.45); const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  console.log('Homefront collision spatial hash parity passed (' + blocked + ' blocked samples; 200k queries in ' + ms.toFixed(1) + ' ms).');
+}

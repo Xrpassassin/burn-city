@@ -32,6 +32,8 @@ on:
       - 'test/zombie-helicopter-arrival-sim.js'
       - 'client/arena/homefront.html'
       - 'client/arena/homefront-graveyard-3d.js'
+      - 'client/arena/homefront-view.mjs'
+      - 'client/arena/homefront-view.test.mjs'
       - 'client/arena/assets/homefront/**'
       - 'client/arena/index.html'
       - 'test/homefront-core-sim.js'
@@ -90,3 +92,5 @@ jobs:
         run: node server/homefront-environment.test.js
       - name: Run Homefront 3D scene integration assertions
         run: node test/homefront-graveyard-3d.test.mjs
+      - name: Run Homefront view-mode tests
+        run: node client/arena/homefront-view.test.mjs

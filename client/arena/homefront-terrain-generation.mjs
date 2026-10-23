@@ -54,7 +54,8 @@ export function terrainHeight(x, z, seed = DEFAULT_SEED) {
   const roadDistance = value => Math.abs((((value - 10) % 20) + 30) % 20 - 10);
   const roadBlend = value => { const t = Math.max(0, Math.min(1, roadDistance(value) / 4.5)); return t * t * (3 - 2 * t); };
   const roadFactor = Math.min(roadBlend(x), roadBlend(z));
-  return Math.round((broad + detail + ridge) * roadFactor * 1000) / 1000;
+  const height = Math.round((broad + detail + ridge) * roadFactor * 1000) / 1000;
+  return height === 0 ? 0 : height;
 }
 
 /** Stable chunk sample descriptor; neighboring chunks share the same world-space edge samples. */

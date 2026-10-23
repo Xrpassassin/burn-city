@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),I=require('./homefront-inventory');
-const hour=3600000,now=1000000;
+const hour=3600000,now=100*hour;
 let bag=I.normalize({food:2,water:2,meds:1,ammo:4},now);assert.equal(I.used(bag),9);
 let add=I.add(bag,'scrap',4,now);bag=add.inventory;assert.equal(add.accepted,4);assert.equal(I.used(bag),17);
 assert.equal(I.remove(bag,'food',1,now).inventory.food,1);assert.throws(()=>I.remove(bag,'water',9,now),/not_carrying_water/);

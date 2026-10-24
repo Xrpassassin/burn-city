@@ -3,11 +3,9 @@ const fs = require('node:fs'), os = require('node:os'), path = require('node:pat
 const DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'bcravager-'));
 Object.assign(process.env, { DATA_DIR: DIR, TOKEN_SECRET: 'x', DRY_RUN: 'true', TREASURY_ADDRESS: 'rrrrrrrrrrrrrrrrrrrrrhoLvTp', BURN_JOB_IN_SERVER: 'false' });
 const Z = require('../server/cod'), { Room } = require('../server/game'), assert = require('node:assert/strict');
-const room = new Room(1, 'zombie'); room.mapId = 'cosmodrome'; Z.resetMap(room); Z.bind(room); room.open = 127; room.wave = 1; room.toSpawn = 0; room.waveDelay = 999; room.zombies.clear();
-const p = [...room.players.values()][0]; p.guns = ['ravager']; p.slot = 0; p.fuel = 100; p.yaw = 0; p.pitch = 0; p.inv = 99; p.ravSpin = p.ravHeat = p.ravLock = p.ravTracerT = 0;
-let z, clear = false;
-for (let i = 0; i < 30; i++) { const x = p.x, zz = p.z + 4; if (Z.los(room, x, p.z, x, zz, p.y, 0)) { z = { id: 700, ty: 3, x, z: zz, y: 0, hp: 800, maxhp: 800, armorHp: 1, armorBroken: 0, sp: 0, win: null, ph: 0 }; room.zombies.set(z.id, z); clear = true; break; } p.x += 0.2; }
-assert(clear, 'test found a clear firing lane');
+const room = new Room(1, 'zombie'); room.add({ name: 'ravager-test', ws: { send() {}, readyState: 1 } }); room.mapId = 'cosmodrome'; Z.resetMap(room); Z.bind(room); room.open = 127; room.wave = 1; room.toSpawn = 0; room.waveDelay = 999; room.zombies.clear();
+const p = [...room.players.values()][0]; p.x = Z.WX(20); p.z = Z.WZ(10); p.y = 0; p.lv = 0; p.guns = ['ravager']; p.slot = 0; p.fuel = 100; p.yaw = 0; p.pitch = 0; p.inv = 99; p.ravSpin = p.ravHeat = p.ravLock = p.ravTracerT = 0;
+const z = { id: 700, ty: 3, x: p.x, z: p.z + 4, y: 0, hp: 800, maxhp: 800, armorHp: 1, armorBroken: 0, sp: 0, win: null, ph: 0 }; assert(Z.los(room, p.x, p.z, z.x, z.z, p.y, 0), 'test lane has clear line of sight'); room.zombies.set(z.id, z);
 p.in = { mx: 0, mz: 0, fire: true, turn: 0 }; room.events = [];
 for (let i = 0; i < 24; i++) room.step(0.05);
 assert(p.ravSpin > 0.18, 'server ramps rotary spin while held');

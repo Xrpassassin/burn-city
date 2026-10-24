@@ -66,6 +66,20 @@ export function separationVector(position, neighbors = [], minDistance = 0.68) {
   return { x, z };
 }
 
+
+// Apply movement without allowing local steering, crowd separation, or player bumping to
+// tunnel a survivor through a solid structure. If a diagonal step is blocked, try each
+// axis independently and take the safe step that makes the most progress.
+export function safeMovePosition(position, delta, obstacles = [], actorRadius = 0.28) {
+  const full = { x: position.x + delta.x, z: position.z + delta.z };
+  if (!isPositionBlocked(full.x, full.z, obstacles, actorRadius)) return full;
+  const xOnly = { x: position.x + delta.x, z: position.z };
+  const zOnly = { x: position.x, z: position.z + delta.z };
+  const safe = [xOnly, zOnly].filter(point => !isPositionBlocked(point.x, point.z, obstacles, actorRadius));
+  safe.sort((a, b) => Math.hypot(position.x - b.x, position.z - b.z) - Math.hypot(position.x - a.x, position.z - a.z));
+  return safe[0] || { x: position.x, z: position.z };
+}
+
 // Work animations are driven by the actual assignment, not merely by the survivor's role.
 export function isWorkingTask(role, task) {
   if (task === 'take_shelter' || task === 'rest_at_refuge' || task === 'triage_standby' || task === 'stand_by_repairs') return false;

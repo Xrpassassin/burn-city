@@ -663,6 +663,9 @@ export function buildNftChar(n, opts = {}) {
     } else if (slot === 'identity') {
       status = 'collection-identity';
       reason = 'Used to select the collection-specific character recipe';
+    } else if (/body type|body shape|body build|physique|stature|face shape/i.test(rawType)) {
+      status = 'visualized';
+      reason = 'Mapped to anatomy proportions when the trait value is recognized';
     } else if (geometryNeeded.has(slot) || !renderableSlots.has(slot)) {
       status = 'needs-dedicated-visual';
       reason = geometryNeeded.has(slot) ? 'Current renderer lacks a faithful model for this value' : 'Trait type has no explicit renderer mapping yet';

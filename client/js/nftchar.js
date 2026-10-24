@@ -6,6 +6,7 @@ import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
 import { resolveNftAvatarComponents } from './nft-avatar-components.js';
 import { resolveNftAvatarReconstruction } from './nft-avatar-reconstruction.js';
 const G = new Map(), TX = new Map(), MT = new Map();
+const QA_MARKER_MAT = new THREE.MeshBasicMaterial({color:'#e5bd54',wireframe:true});
 const geo = (k, f) => G.get(k) || (G.set(k, f()), G.get(k));
 const mat = (c, r = .72, m = .05, e = 0) => {
   const color = typeof c === 'number' ? '#' + c.toString(16).padStart(6, '0') : String(c || '#888');
@@ -73,7 +74,7 @@ export function buildNftChar(n, opts = {}) {
   const addBox = (parent, material, pos, size) => add(box(...size),material,pos[0],pos[1],pos[2],parent);
   const addDiagnosticMarker = (parent, slot, pos, scale) => {
     if (!opts.debugUnknownTraits) return null;
-    const marker = add(new THREE.SphereGeometry(1, 10, 8), new THREE.MeshBasicMaterial({color:'#e5bd54',wireframe:true}), pos[0],pos[1],pos[2],parent);
+    const marker = add(geo('nft-diagnostic-marker',()=>new THREE.SphereGeometry(1,10,8)), QA_MARKER_MAT, pos[0],pos[1],pos[2],parent);
     marker.scale.set(...scale); marker.name='nft-unsupported-trait-'+slot; marker.userData.diagnosticOnly=true; return marker;
   };
 

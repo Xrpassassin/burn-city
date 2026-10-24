@@ -150,7 +150,8 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const roadBits = [], paths = [], foundations = [], walls = [], roofs = [], glass = [], trim = [], greenery = [], trunks = [], canopies = [], parkProps = [], shrubs = [], flowerBeds = [], fences = [];
   const facadeTrim = [], doors = [], windowFrames = [], warmWindows = [], roofRidge = [], balconies = [], poolDeck = [], poolWater = [], drivewayDetails = [], porchLights = [], accentPanels = [];
   const addBox = (arr,w,h,d,x,y,z,ry=0) => arr.push(box(w,h,d,x,y,z,ry));
-  const addRoofPanel = (arr,w,h,d,x,y,z,rz) => { const g = new THREE.BoxGeometry(w,h,d); g.rotateZ(rz); g.translate(x,y,z); arr.push(g); };\n  const addTintedBox = (arr,w,h,d,x,y,z,color) => { const g = new THREE.BoxGeometry(w,h,d); const c = new THREE.Color(color), values=[]; for (let i=0;i<g.attributes.position.count;i++) values.push(c.r,c.g,c.b); g.setAttribute('color',new THREE.Float32BufferAttribute(values,3)); g.translate(x,y,z); arr.push(g); };
+  const addRoofPanel = (arr,w,h,d,x,y,z,rz) => { const g = new THREE.BoxGeometry(w,h,d); g.rotateZ(rz); g.translate(x,y,z); arr.push(g); };
+  const addTintedBox = (arr,w,h,d,x,y,z,color) => { const g = new THREE.BoxGeometry(w,h,d); const c = new THREE.Color(color), values=[]; for (let i=0;i<g.attributes.position.count;i++) values.push(c.r,c.g,c.b); g.setAttribute('color',new THREE.Float32BufferAttribute(values,3)); g.translate(x,y,z); arr.push(g); };
   const addGable = (arr,w,rise,x,y,z) => { const s = new THREE.Shape(); s.moveTo(-w/2,0); s.lineTo(w/2,0); s.lineTo(0,rise); s.closePath(); const g = new THREE.ShapeGeometry(s); g.translate(x,y,z); arr.push(g); };
   // A small internal street grid links every driveway to the bridge approach.
   addBox(roadBits, 10, .16, LD-18, 0, .14, 2);
@@ -240,7 +241,8 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
         addBox(windowFrames,ww+.42,3.0,.2,wx,3.0,front+.2);
         addBox(glass,ww,2.55,.13,wx,3.0,front+.32);
         addBox(windowFrames,.12,2.5,.12,wx,3.0,front+.4);
-        addBox(windowFrames,ww,.12,.12,wx,3.0,front+.4);\n        if ((i + Math.round((sx+1)*10)) % 3 === 0) addBox(warmWindows,Math.max(1,ww-.55),2.0,.045,wx,3.0,front+.42);
+        addBox(windowFrames,ww,.12,.12,wx,3.0,front+.4);
+        if ((i + Math.round((sx+1)*10)) % 3 === 0) addBox(warmWindows,Math.max(1,ww-.55),2.0,.045,wx,3.0,front+.42);
         if (!isMansion) {
           addBox(windowFrames,ww+.3,1.3,.2,wx,6.1,front+.2);
           addBox(glass,ww,1.0,.13,wx,6.1,front+.32);
@@ -392,7 +394,8 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   merged(roofs,new THREE.MeshLambertMaterial({color:0x303945}));
   merged(glass,new THREE.MeshBasicMaterial({color:0x79d8ed,transparent:true,opacity:.78}));
   merged(trim,new THREE.MeshLambertMaterial({color:0xffb75b}));
-  merged(facadeTrim,new THREE.MeshLambertMaterial({color:0xc89b62}));\n  merged(accentPanels,new THREE.MeshLambertMaterial({vertexColors:true}));
+  merged(facadeTrim,new THREE.MeshLambertMaterial({color:0xc89b62}));
+  merged(accentPanels,new THREE.MeshLambertMaterial({vertexColors:true}));
   merged(doors,new THREE.MeshLambertMaterial({color:0x263443}));
   merged(windowFrames,new THREE.MeshLambertMaterial({color:0x2c3b4a}));
   merged(warmWindows,new THREE.MeshBasicMaterial({color:0xffc878,transparent:true,opacity:.85}));

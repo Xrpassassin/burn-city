@@ -1,0 +1,39 @@
+name: Estates Island focused checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feat/estates-island-walkable-navigation
+
+permissions:
+  contents: read
+
+jobs:
+  estates-island:
+    name: Estates Island contracts and live wiring
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test experience registry and shared instance pool
+        run: |
+          node client/js/experience-registry.test.mjs
+          node client/js/experience-instance-pool.test.mjs
+      - name: Test Estates entry and scene contracts
+        run: |
+          node client/js/estates-entry-adapter.test.mjs
+          node client/js/estates-island-scene.test.mjs
+          node client/js/estates-island-renderer.test.mjs
+          node client/js/estates-island-runtime.test.mjs
+      - name: Test walkable navigation and third-person controller
+        run: |
+          node client/js/estates-island-navigation.test.mjs
+          node client/js/estates-island-controller.test.mjs
+      - name: Test live app and service-worker wiring
+        run: node client/js/estates-island-live.test.mjs

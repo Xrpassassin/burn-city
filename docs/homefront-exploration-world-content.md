@@ -19,7 +19,8 @@ This is an authored content layer for the existing XRPL Graveyard expedition map
 - Existing point IDs and coordinates must match exactly; content must not create a second source of truth for physical POIs.
 - District risk uses the existing established expedition zones. The high-risk subway and research annex are endgame destinations.
 - Use this as the blueprint for building geometry: landmark archetype, interior-space list, interactables, hazards, soundscape, and route links are explicit rather than inferred from decorative props.
-- Interior searches currently provide inspection feedback only; they do not grant loot. Interior room/door flags are session-local presentation state, not persistent server save state. A reviewed server API is still required before doors, story flags, rescues, and loot become authoritative or persist across sessions.
+- Interior room flags, clue discoveries, used searches, and open-door state are now normalized and persisted in `homefront-world.json` per account. Authenticated endpoints validate proximity and room requirements before accepting enter/action/door/leave requests. Search rewards are granted through the existing server inventory rules; duplicate searches are rejected by persisted state.
+- Server collision now includes authored room-wall segments and closed-door blockers. Inactive interior shells are ignored for normal exterior movement; the active player's shell is enforced during server movement, and door blockers are removed only after the corresponding server-approved door transition. This is an initial collision pass; verify pathfinding through door gaps and exterior entrance alignment in the browser.
 
 ## Open-source and terrain strategy
 

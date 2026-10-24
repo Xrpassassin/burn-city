@@ -362,12 +362,18 @@ export function buildNftChar(n, opts = {}) {
     addBox(g,metal,[0,.88,.242],[.065,.055,.015]);
     addBox(g,trim,[-.12,1.31,.19],[.035,.2,.018]).name='nft-protocol-strap';
     addBox(g,trim,[.12,1.31,.19],[.035,.2,.018]).name='nft-protocol-strap';
-    const emblem=add(geo('nft-protocol-emblem',()=>new THREE.TorusGeometry(.055,.012,5,16)),glow(accentHex),0,1.37,.218);
-    emblem.name='nft-protocol-emblem';
+    // Keep the Protocol insignia above the artwork tabard instead of hiding it behind the image plane.
+    const emblem=add(geo('nft-protocol-emblem',()=>new THREE.TorusGeometry(.055,.012,5,16)),glow(accentHex),0,1.655,.245);
+    emblem.name='nft-protocol-emblem'; emblem.renderOrder=3;
     if(components.outfitStyle==='streetwear') {
       addBox(g,mat('#15171c'),[0,1.18,.218],[.12,.095,.012]).name='nft-protocol-shirt-print';
       add(geo('nft-protocol-shirt-sigil',()=>new THREE.ConeGeometry(.026,.065,3)),glow(accentHex),0,1.18,.23).name='nft-protocol-shirt-sigil';
-      for(const side of [-1,1]) addBox(g,trim,[side*.145,1.19,.205],[.018,.16,.012]).name='nft-protocol-shirt-stitch';
+      // The artwork panel spans the torso center; edge stitching stays outside its frame.
+      for(const side of [-1,1]) {
+        const stitch=addBox(g,trim,[side*.292,1.19,.24],[.012,.16,.012]);
+        stitch.name='nft-protocol-shirt-stitch';
+        stitch.renderOrder=3;
+      }
     }
   }
 

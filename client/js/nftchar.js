@@ -233,7 +233,29 @@ export function buildNftChar(n, opts = {}) {
       addSphere(head,components.eyeStyle === 'glowing' ? glow(eyeHex) : mat(eyeHex),[s*.067,.043,.175],surprisedEyes?[.018,.023,.01]:[.016,.018,.01]);
       addCapsule(head,mat(shade(faceHex,.65)),[s*.067,.092,.155],.012,.035,[1,.6,.6]).rotation.z=s*.15;
     }
-    addSphere(head,mat(shade(faceHex,.76)),[0,-.015,.172],[.025,.04,.03]);
+    // Nose geometry follows an explicit NFT trait when present; otherwise keep a subtle human nose.
+    const noseText=traitValue(/nose|nostril/i).toLowerCase();
+    const noseMat=mat(shade(faceHex,/robot|metal|cyber|chrome/.test(noseText)?.58:.76),.78,.02);
+    if (/robot|metal|cyber|chrome/.test(noseText)) {
+      const bridge=addBox(head,metal,[0,.005,.177],[.035,.075,.025]); bridge.name='nft-nose-bridge';
+      const nose=addBox(head,metal,[0,-.035,.196],[.055,.035,.03]); nose.name='nft-nose-robotic';
+      for(const s of [-1,1]) addSphere(head,mat('#25272b'),[s*.019,-.047,.213],[.006,.006,.004]).name='nft-nostril';
+    } else {
+      const bridge=addSphere(head,noseMat,[0,.002,.174],[.014,.045,.018]); bridge.name='nft-nose-bridge';
+      const noseScale=/broad|wide|flat|button/.test(noseText)?[.035,.022,.027]
+        :/long|prominent|pointed/.test(noseText)?[.022,.043,.027]
+        :/snout|animal|raccoon/.test(noseText)?[.04,.027,.035]
+        :/hook|curved|aquiline/.test(noseText)?[.024,.038,.028]
+        :[.023,.027,.024];
+      const nose=addSphere(head,noseMat,[0,-.027,.193],noseScale);
+      nose.name=/broad|wide|flat/.test(noseText)?'nft-nose-broad'
+        :/button/.test(noseText)?'nft-nose-button'
+        :/long|prominent|pointed/.test(noseText)?'nft-nose-long'
+        :/hook|curved|aquiline/.test(noseText)?'nft-nose-hooked'
+        :/snout|animal|raccoon/.test(noseText)?'nft-nose-snout':'nft-nose';
+      if(/hook|curved|aquiline/.test(noseText)) nose.rotation.x=-.24;
+      for(const s of [-1,1]) addSphere(head,mat(shade(faceHex,.62)),[s*(noseScale[0]*.48),-.039,.211],[.005,.006,.004]).name='nft-nostril';
+    }
     // Human/Protocol masks are distinct wearable geometry; the original NFT art tabard remains intact below.
     if (components.hasMask) {
       const maskColor=traitColor(/mask/i,'#25272d');

@@ -479,20 +479,27 @@ export function buildNftChar(n, opts = {}) {
     if(has(tr,/cape/)) { const cape=addBox(g,darkCloth,[0,1.14,-.18],[.35,.62,.06]); cape.rotation.x=-.12; }
   }
   if(key==='589') {
-    // Protocol silhouette: wider shoulders, a technical chest plate and an unmistakable burn insignia.
-    addBox(g,accent,[0,.88,.22],[.28,.045,.035]).name='nft-protocol-belt-insignia';
-    addBox(g,metal,[0,.88,.242],[.065,.055,.015]);
-    addBox(g,trim,[-.12,1.31,.19],[.035,.2,.018]).name='nft-protocol-strap';
-    addBox(g,trim,[.12,1.31,.19],[.035,.2,.018]).name='nft-protocol-strap';
-    // Keep the Protocol insignia above the artwork tabard instead of hiding it behind the image plane.
-    const emblem=add(geo('nft-protocol-emblem',()=>new THREE.TorusGeometry(.055,.012,5,16)),glow(accentHex),0,1.655,.245);
-    emblem.name='nft-protocol-emblem'; emblem.renderOrder=3;
+    // The Protocol identity mark is a token trait, not a universal decal stamped onto every NFT.
+    const hasProtocolMark=has(tr,/burn|protocol|insignia|logo|emblem/);
+    if(hasProtocolMark) {
+      addBox(g,accent,[0,.88,.22],[.28,.045,.035]).name='nft-protocol-belt-insignia';
+      addBox(g,metal,[0,.88,.242],[.065,.055,.015]);
+      // Keep the trait-backed Protocol insignia above the optional QA artwork panel.
+      const emblem=add(geo('nft-protocol-emblem',()=>new THREE.TorusGeometry(.055,.012,5,16)),glow(accentHex),0,1.655,.245);
+      emblem.name='nft-protocol-emblem'; emblem.renderOrder=3;
+    }
+    // Straps only appear when the token metadata calls for tactical/technical gear.
+    if(has(tr,/strap|harness|tactical|techwear/)) {
+      addBox(g,trim,[-.12,1.31,.19],[.035,.2,.018]).name='nft-protocol-strap';
+      addBox(g,trim,[.12,1.31,.19],[.035,.2,.018]).name='nft-protocol-strap';
+    }
     if(components.outfitStyle==='streetwear') {
-      // Put the small shirt mark below the tabard frame, where the original artwork cannot occlude it.
-      addBox(g,mat('#15171c'),[0,.775,.252],[.12,.055,.012]).name='nft-protocol-shirt-print';
-      const shirtSigil=add(geo('nft-protocol-shirt-sigil',()=>new THREE.ConeGeometry(.022,.045,3)),glow(accentHex),0,.775,.266);
-      shirtSigil.name='nft-protocol-shirt-sigil'; shirtSigil.renderOrder=3;
-      // The artwork panel spans the torso center; edge stitching stays outside its frame.
+      if(hasProtocolMark) {
+        addBox(g,mat('#15171c'),[0,.775,.252],[.12,.055,.012]).name='nft-protocol-shirt-print';
+        const shirtSigil=add(geo('nft-protocol-shirt-sigil',()=>new THREE.ConeGeometry(.022,.045,3)),glow(accentHex),0,.775,.266);
+        shirtSigil.name='nft-protocol-shirt-sigil'; shirtSigil.renderOrder=3;
+      }
+      // Restrained edge stitching supports the streetwear silhouette without inventing a logo.
       for(const side of [-1,1]) {
         const stitch=addBox(g,trim,[side*.292,1.19,.24],[.012,.16,.012]);
         stitch.name='nft-protocol-shirt-stitch';

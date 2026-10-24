@@ -49,6 +49,9 @@ assert.ok(html.includes('const healthRatio=Math.max(0,Math.min(1,(s.hp||0)/(s.ma
 assert.ok(html.includes('Persistent visual wear is derived from server-authoritative HP'), 'damaged structures receive deterministic presentation-only wear');
 assert.ok(html.includes("if(healthRatio<.48){const split=block(g,.035,.2,.04,.29,.36,.23,0x241f1b)"), 'severely damaged structures gain additional visible cracks');
 assert.ok(html.includes('id="refugeWorldPanel"') && html.includes('id="buildPanel"'), 'RPG home and workshop views have dedicated scene/panel boundaries');
+assert.ok(html.includes("ZOMBIE_MODEL_KEYS=['zombie-ash','zombie-frost','zombie-rust','zombie-quaternius']"), 'Homefront shares the existing Zombies animated infected model roster');
+for (const model of ['zombie-ash.glb','zombie-frost.glb','zombie-rust.glb','quaternius-zombie.glb']) assert.ok(html.includes('./assets/zombies/'+model), 'Homefront loads shared Zombies model: '+model);
+assert.ok(html.includes("const zombieKey=ZOMBIE_MODEL_KEYS[i%ZOMBIE_MODEL_KEYS.length],zombieAsset=assetModels[zombieKey]||assetModels.zombie"), 'refuge siege actors rotate across shared animated models with a local fallback');
 assert.ok(!html.includes('}\\n.homefront-modal{'), 'RPG mode stylesheet preserves a real rule boundary before modal styles');
 assert.ok(html.includes('body.rpg-mode-home #game .grid>.panel:not(#refugeWorldPanel)'), 'default RPG mode hides the management dashboard');
 assert.ok(html.includes('body.rpg-mode-workshop #game .grid>.panel:not(#refugeWorldPanel):not(#buildPanel)'), 'Workshop mode keeps the 3D yard and building catalog without the full dashboard');

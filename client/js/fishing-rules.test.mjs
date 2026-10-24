@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard, feedingSpotBonus } from './fishing-rules.mjs';
+
+assert.equal(feedingSpotBonus(0), 1.28, 'a cast directly on a feeding school gets the activity bonus');
+assert.equal(feedingSpotBonus(9), 1.28, 'the hotspot edge is included');
+assert.equal(feedingSpotBonus(9.01), 1, 'casts outside a feeding school receive no bonus');
+assert.equal(feedingSpotBonus(NaN), 1, 'invalid distances cannot manufacture a bonus');
 
 const clean = resolveFightTap({ position: 0.5, zoneStart: 0.4, zoneWidth: 0.2 });
 assert.deepEqual(clean, { hit: true, miss: false, tension: 0, broke: false });
@@ -45,4 +50,4 @@ assert.equal(progressBoard.items.find(a => a.id === 'daily-target').unlocked, tr
 assert.equal(progressBoard.items.find(a => a.id === 'daily-variety').unlocked, true);
 assert.equal(progressBoard.items.find(a => a.id === 'daily-heavy').unlocked, true);
 assert.equal(challengeBoard([], '2026-10-22').target !== challengeTarget, true, 'featured species rotates by UTC day');
-console.log('Fishing rules, journal, and daily challenges: 28 assertions passed');
+console.log('Fishing rules, journal, and daily challenges: 32 assertions passed');

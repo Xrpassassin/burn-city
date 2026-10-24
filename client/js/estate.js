@@ -510,7 +510,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     if (apartment||mansion) interiorLamp(room,0,3.4,0,0x8ddfff);
     const label=new THREE.Mesh(new THREE.BoxGeometry(1.8,.32,.06),new THREE.MeshBasicMaterial({color:0xffb45b}));
     label.position.set(0,2.7,d/2-.25); room.add(label);
-    return {id:h.propertyId,tier:h.tier,group:room,yaw:lot.rotation.y,localSpawn:new THREE.Vector3(0,.5,d/2-3),localExit:new THREE.Vector3(0,.5,d/2+3),exteriorLocal:new THREE.Vector3(h.x,0,h.z+h.d/2+5),halfW:w/2-.6,halfD:d/2-.6};
+    return {id:h.propertyId,tier:h.tier,group:room,yaw:lot.rotation.y,localSpawn:new THREE.Vector3(0,.5,d/2-3),localExit:new THREE.Vector3(0,.5,d/2-1.2),exteriorLocal:new THREE.Vector3(h.x,0,h.z+h.d/2+5),halfW:w/2-.6,halfD:d/2-.6};
   };
   homes.forEach((h,i)=>interiorRooms[h.propertyId]=makeInterior(h,i));
   lot.updateMatrixWorld(true);

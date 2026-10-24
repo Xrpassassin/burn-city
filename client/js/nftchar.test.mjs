@@ -79,7 +79,7 @@ has(avatar, /\(components\.headwearStyle === 'hood' \|\| has\(tr,\/hood\/\)\) &&
 has(avatar, /if \(components\.accessoryStyle === 'relic'\)[\s\S]*nft-firekeeper-sigil/, 'gates the Firekeepers sigil on the individual token accessory trait');
 has(avatar, /if\(url&&opts\.panel===true\)/, 'keeps the artwork tabard opt-in so it does not obscure the in-game 3D reconstruction');
 has(avatar, /nft-protocol-emblem/, 'builds a collection-specific 589 Protocol insignia');
-has(avatar, /reconstruction\};/, 'exposes reconstruction blueprint for visual QA');
+has(avatar, /reconstruction,unsupportedVisualTraits\};/, 'exposes reconstruction blueprint and unsupported trait report for visual QA');
 has(avatar, /nft-robe-outer-layer/, 'renders a distinct Firekeepers robe layer');
 has(avatar, /nft-armor-shoulder/, 'renders armor shoulder plates from outfit traits');
 has(avatar, /nft-relic-accessory/, 'renders collection relic accessories');

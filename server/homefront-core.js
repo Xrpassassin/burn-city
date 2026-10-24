@@ -55,6 +55,11 @@ function survivorRarity(seed) {
   if (roll < 300) return 'uncommon';
   return 'common';
 }
+function survivorRarityMultiplier(survivor) {
+  return ({ common: 1, uncommon: 1.05, rare: 1.10, epic: 1.15, legendary: 1.20 })[
+    Object.hasOwn(SURVIVOR_RARITIES, survivor?.rarity) ? survivor.rarity : 'common'
+  ];
+}
 
 function createBase(ownerId, now = Date.now()) {
   const owner = cleanOwner(ownerId);
@@ -140,7 +145,7 @@ function threatProfile(input) {
   const guards = s.survivors.filter(x => x && x.role === 'guard');
   const guardStrength = guards.reduce((total, x) => {
     const morale = clampInt(x.morale, 0, 100);
-    return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+    return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5) * survivorRarityMultiplier(x);
   }, 0);
   const ammoUsed = Math.min(s.resources?.ammo || 0, Math.max(1, Math.ceil(guards.length / 2) + 1));
   const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
@@ -473,7 +478,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       // Morale is operational, not cosmetic: exhausted or demoralized workers produce less.
       const labor = role => s.survivors.filter(x => x.role === role).reduce((total, x) => {
         const morale = clampInt(x.morale, 0, 100);
-        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5) * survivorRarityMultiplier(x);
       }, 0);
       const farmers = labor('farmer');
       const scavengers = labor('scavenger');

@@ -121,7 +121,7 @@ has(avatar, /nft-protocol-chain-link[\s\S]*renderOrder=3/, 'keeps individual 589
 has(avatar, /nft-protocol-chain-pendant[\s\S]*renderOrder=3/, 'keeps the 589 pendant visible above the artwork panel');
 has(avatar, /armor\|fur\|collar\|cape/, 'maps armor, fur and cape traits');
 has(avatar, /key==='589'/, 'selects the 589 Protocol collection renderer');
-has(avatar, /const hasProtocolMark=hasTrait\(\/outfit\|accessory\|identity\|brand\|logo\|emblem\|insignia\/i,\/burn\|protocol\|insignia\|logo\|emblem\/i\)/, 'gates the 589 brand mark on identity-bearing traits rather than background values');
+has(avatar, /const hasProtocolMark=hasTrait\(\/outfit\|identity\|brand\|logo\|emblem\|insignia\/i,\/burn\|protocol\|insignia\|logo\|emblem\/i\)/, 'gates the 589 brand mark on identity-bearing traits rather than background values');
 has(avatar, /if\(hasTrait\(\/strap\|harness\|gear\|outfit\|armor\/i,\/strap\|harness\|tactical\|techwear\/i\)/, 'gates 589 tactical straps on token-specific gear traits');
 has(avatar, /Keep the trait-backed Protocol insignia above the optional QA artwork panel/, 'documents that the 589 insignia is trait-gated and layered correctly when present');
 has(avatar, /nft-protocol-emblem[\s\S]*1\.655,\.245[\s\S]*renderOrder=3/, 'keeps the 589 emblem above the original artwork panel');

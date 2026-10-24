@@ -7,6 +7,8 @@ const WEAPONS = [
   { id: 'shotgun', name: 'Fire Shotgun', kind: 'burst', range: 8, cos: Math.cos(0.5), dmg: 95, cd: 0.75, use: 14, regen: 16 },
   { id: 'napalm', name: 'Firestorm', kind: 'ray', dmg: 70, range: 26, splash: 1.6, cd: 0.45, use: 12, regen: 14 },   // id kept as 'napalm' so existing owners/slots migrate automatically
   { id: 'beam', name: 'Inferno Beam', kind: 'beam', range: 22, width: 0.9, dps: 130, use: 30, regen: 12 },
+  // Appended only: never renumber existing weapon IDs. Cosmodrome Free Play wall-buy only.
+  { id: 'ravager', name: 'RAVAGER Rotary Heavy', kind: 'rotary', range: 27, width: 0.72, dps: 112, use: 24, regen: 15 },
 ];
 const WI = Object.fromEntries(WEAPONS.map((w, i) => [w.id, i]));
 // Inferno Forge (this map's upgrade machine): reforges the weapon in hand once: +70% damage, +15% range, 30% less fuel, faster cycling
@@ -106,7 +108,8 @@ const COSMODROME = { name: 'The Ashen Cosmodrome', kind: 'cosmodrome', env: { to
   wallbuys: [
     { w: 'shotgun', cost: 500, s: [16, 25, -1, 0] },
     { w: 'dragon', cost: 1000, s: [14, 22, 0, -1] },
-    { w: 'napalm', cost: 1500, s: [38, 25, 1, 0] }
+    { w: 'napalm', cost: 1500, s: [38, 25, 1, 0] },
+    { w: 'ravager', cost: 3500, s: [24, 15, 1, 0] }
   ],
   box: [[19, 28, 0, 1], [7, 25, -1, 0], [20, 5, 0, -1], [35, 25, 1, 0], [8, 7, -1, 0], [30, 12, 1, 0]],
   forge: [35, 5, 0, -1], power: [23, 8, 1, 0],
@@ -208,7 +211,7 @@ function windowSpawn(room) { const ok = WINDOWS.map((w, i) => i).filter(i => win
 function zoneSpawn() {   // player spawn: a free cell in the Spawn Bay
   for (;;) { const z = ZONES[0].r, c = z[0] + Math.floor(Math.random() * (z[1] - z[0] + 1)), r = z[2] + Math.floor(Math.random() * (z[3] - z[2] + 1)); if (GRID[r][c] === 0) return [WX(c) + (Math.random() - .5), WZ(r) + (Math.random() - .5)]; } }
 function initPlayer(p) { p.usedSelf = false; p.pts = START_PTS; p.ptsAcc = 0; p.guns = process.env.ZOMBIE_TEST_GUN && !process.env.FLY_APP_NAME ? ['flamer', process.env.ZOMBIE_TEST_GUN] : ['flamer'];   // test gun: local screenshot runs only
- p.slot = 0; p.perks = 0; p.cd = 0; p.down = 0; p.up = []; p.up2 = []; p.bon = {}; p.draft = null; }
+ p.slot = 0; p.perks = 0; p.cd = 0; p.down = 0; p.up = []; p.up2 = []; p.bon = {}; p.draft = null; p.ravSpin = 0; p.ravHeat = 0; p.ravLock = 0; p.ravTracerT = 0; }
 const wpn = p => { const w = WEAPONS[WI[p.guns[p.slot]] ?? 0]; return p.up2 && p.up2.includes(w.id) ? UP2W[w.id] : p.up && p.up.includes(w.id) ? UPW[w.id] : w; };
 // Bits 0/1 indicate at least Tier I in slots 0/1; bits 2/3 indicate Tier II in slots 0/1.
 const upBits = p => ((p.up && p.up.includes(p.guns[p.slot]) || p.up2 && p.up2.includes(p.guns[p.slot])) ? 1 : 0) | ((p.up && p.guns[1 - p.slot] && p.up.includes(p.guns[1 - p.slot]) || p.up2 && p.guns[1 - p.slot] && p.up2.includes(p.guns[1 - p.slot])) ? 2 : 0) | (p.up2 && p.up2.includes(p.guns[p.slot]) ? 4 : 0) | (p.up2 && p.guns[1 - p.slot] && p.up2.includes(p.guns[1 - p.slot]) ? 8 : 0);

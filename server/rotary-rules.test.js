@@ -1,0 +1,10 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { advance } = require('./rotary-rules');
+let s = { spin: 0, heat: 0, lock: 0, tracer: 0 };
+s = advance(s, 0.1, true); assert(s.spin > 0 && s.heat > 0, 'trigger spins and heats the rotary');
+const cold = advance({ spin: 1, heat: 40, lock: 0, tracer: 0 }, 0.1, false); assert(cold.spin < 1 && cold.heat < 40, 'release cools and spins down');
+let hot = { spin: 1, heat: 99, lock: 0, tracer: 0 }; hot = advance(hot, 0.1, true); assert.equal(hot.heat, 100); assert(hot.lock >= 2 && hot.spin === 0, 'overheat locks and resets spin');
+const locked = advance(hot, 0.1, true); assert.equal(locked.firing, false, 'cannot fire while locked out');
+const empty = advance({ spin: 0, heat: 0, lock: 0, tracer: 0 }, 0.1, true, false); assert.equal(empty.firing, false, 'empty fuel blocks firing');
+console.log('RAVAGER rotary rules: 5 passed, 0 failed');

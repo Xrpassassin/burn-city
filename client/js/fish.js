@@ -18,6 +18,7 @@ function roll(rodId, baitId, ctx) { const rt = tier(SHOP.rods, rodId), bt = tier
   return { id: s[0], name: s[1], r: s[2], kg, val: Math.round(s[4] * (1 + f)), hits: 1 + s[2], zone: +(0.3 - 0.04 * s[2] + 0.05 * rt).toFixed(2) } }
 const night = () => { const h = (new Date().getUTCHours() + 17) % 24; return h >= 19 || h < 6 };
 const weather = () => { const t = ($('wchip')?.textContent || '').toLowerCase(); return /storm|crash/.test(t) ? 'storm' : /green|rainbow|gold/.test(t) ? 'bull' : '' };
+const isAboard = () => !!(window.__boat && window.__boat.active);
 const isDeep = () => { const b = window.__boat, e = window.__estate, boat = boatById(prof.selectedBoat); if (!b?.active || !e || boat.depth < 1) return false; const p = b.pos; return Math.hypot(p.x - e.lakeC.x, p.z - e.lakeC.z) < e.D * .38 };
 let prof = (() => { try { return JSON.parse(LS.bcFish || 'null') } catch (e) { return null } })() || { coins: 0, rod: 'basic', rods: ['basic'], bait: { worm: -1 }, log: {}, creel: [], n: 0, xp: 0, boats: ['skiff'], selectedBoat: 'skiff' };
 prof.boats = [...new Set(['skiff', ...(Array.isArray(prof.boats) ? prof.boats.filter(id => BOATS.some(b => b.id === id)) : [])])];
@@ -206,14 +207,14 @@ let castGen = 0;   // bumps on every cast: timers/awaits from a cancelled cast m
 async function castAt(pow) {
   if (state !== 'aim') return; const gen = ++castGen; if (bait !== 'worm' && !(prof.bait[bait] > 0)) bait = 'worm';   // used up: fall back to worms (the server does the same)
   const c = W(), e = window.__estate, fw = new THREE.Vector3(); c.C.getWorldDirection(fw); fw.y = 0; fw.normalize();
-  const from = isDeep() ? window.__boat.pos : c.P.pos, perfect = pow >= .72 && pow <= .86; let dist = 6 + 20 * pow, tgt = from.clone().addScaledVector(fw, dist);
+  const from = isAboard() ? window.__boat.pos : c.P.pos, perfect = pow >= .72 && pow <= .86; let dist = 6 + 20 * pow, tgt = from.clone().addScaledVector(fw, dist);
   while (dist > 4 && !e.inLake(tgt.x, tgt.z)) { dist -= 1; tgt = from.clone().addScaledVector(fw, dist) }
   if (!e.inLake(tgt.x, tgt.z)) { tgt = from.clone(); for (let k = 0; k < 40 && !e.inLake(tgt.x, tgt.z); k++) tgt.addScaledVector(e.dir, 1); tgt.addScaledVector(e.dir, 3 + 6 * pow) }
   state = 'wait'; rod.swing = 1; rod.tip.getWorldPosition(castFrom); castTo.copy(tgt).setY(0.45); bobber.position.copy(castFrom); bobber.visible = true; FL.t0 = performance.now() / 1000 + .28; FL.dur = .55 + dist / 32; FL.h = 2 + dist * .16; FL.on = 1; ui.style.display = 'block';
   ui.innerHTML = `${perfect ? '<b style="color:#ffc64a">✨ Perfect cast!</b><br>' : ''}🎣 Watch the bobber… <div class="nv">bait: ${bait} · hook too early and it spooks</div><button id="fHook">Hook!</button> <button id="fStop">Reel in</button>`; ui.querySelector('#fStop').onclick = stop; ui.querySelector('#fHook').onclick = hook;
   let nc = null;
   if (tok()) { const r = await api('cast', { bait, deep: isDeep(), onBoat: !!(window.__boat && window.__boat.active), weather: weather(), near: FISHOK ? 1 : 0, x: Math.round(from.x), z: Math.round(from.z) }).catch(() => ({ error: 'offline' })); if (r.error) { msg(r.error === 'too_fast' ? 'Easy! Wait a few seconds between casts.' : r.error === 'not_near_water' ? 'Get closer to the water to fish.' : r.error === 'hourly_limit' ? 'The fish need a rest (hourly limit). Try later.' : 'Server busy, try again.'); return } nc = { ...r, srv: true } }
-  else { const f = roll(prof.rod, prof.bait[bait] > 0 || bait === 'worm' ? bait : 'worm', { night: night(), deep: isDeep(), weather: weather(), boatId: prof.selectedBoat, onBoat: !!(window.__boat && window.__boat.active) }); nc = { fish: f, wait: 2500 + Math.random() * 6000, hits: f.hits, zone: f.zone, r: f.r } }
+  else { const f = roll(prof.rod, prof.bait[bait] > 0 || bait === 'worm' ? bait : 'worm', { night: night(), deep: isDeep(), weather: weather(), boatId: prof.selectedBoat, onBoat: isAboard() }); nc = { fish: f, wait: 2500 + Math.random() * 6000, hits: f.hits, zone: f.zone, r: f.r } }
   if (state !== 'wait' || gen !== castGen) return; cur = nc; cur.perfect = perfect; if (perfect) cur.zone = Math.min(.6, cur.zone * 1.4);
   cur.t0 = performance.now(); cur.nib = [.5 + Math.random() * .15, .78 + Math.random() * .1].filter(() => Math.random() < .85).map(k => k * cur.wait); spawnStalker(); setTimeout(() => { if (gen === castGen) bite() }, cur.wait) }
 function bite() { if (state !== 'wait') return; state = 'bite'; const gen = castGen; ui.innerHTML = '<b style="font-size:18px">❗ Bite!</b><br><button id="fHook" style="margin-top:8px;font-size:18px">Hook it!</button>'; ui.querySelector('#fHook').onclick = hook; cur.biteT = performance.now(); ripple(bobber.position, 1.4); setTimeout(() => { if (state === 'bite' && gen === castGen) { msg('It got away… (hook faster)'); land(false) } }, 1600) }
@@ -330,11 +331,11 @@ async function openChallenges() {
 bar.querySelector('#fCast').onclick = doCast; bar.querySelector('#fShop').onclick = openShop;
 // ---------- per-frame: show buttons when in reach, animate bobber + reel marker ----------
 function tick() { requestAnimationFrame(tick); if (window.__cityPaused) return; const c = W(), e = window.__estate; if (!c || !e || !dock) return; const t = performance.now() / 1000, m = c.getMode();
-  const p = isDeep() ? window.__boat.pos : c.P.pos, walk = m === 'explore';
+  const p = isAboard() ? window.__boat.pos : c.P.pos, walk = m === 'explore';
   const nearDock = p.distanceTo(dock.tip) < 6 || (p.distanceTo(dock.base) < 22 && Math.abs(p.clone().sub(dock.base).dot(dock.side)) < 3), shore = !e.inLake(p.x, p.z) && e.inLake(p.x, p.z, 4);
-  const canFish = walk && (nearDock || shore || isDeep()); FISHOK = canFish; const nearShop = walk && !isDeep() && p.distanceTo(shopPos) < 10;
+  const canFish = walk && (nearDock || shore || isAboard()); FISHOK = canFish; const nearShop = walk && !isAboard() && p.distanceTo(shopPos) < 10;
   bar.style.display = canFish || nearShop ? 'flex' : 'none'; bar.querySelector('#fCast').style.display = canFish ? '' : 'none'; bar.querySelector('#fShop').style.display = nearShop ? '' : 'none';
-  if (!canFish && state !== 'idle' && !isDeep()) stop();
+  if (!canFish && state !== 'idle' && !isAboard()) stop();
   { const show = canFish || state !== 'idle' || rod.lift > 0; rod.rg.visible = show; const lk = ROD_LOOK[prof.rod] || ROD_LOOK.basic; rod.rm.color.setHex(lk[0]); rod.rm.emissive.setHex(lk[1]); rod.rm.emissiveIntensity = lk[1] ? .6 + .3 * Math.sin(t * 3) : 0;
     const dt = Math.min(.05, t - (tick.lt0 || t)); tick.lt0 = t; tick.dtv = dt; rod.swing = Math.max(0, rod.swing - dt * 1.6); rod.pull = Math.max(0, rod.pull - dt * 4);
     const sw = rod.swing > 0 ? (rod.swing > .55 ? -(1 - rod.swing) * 4 : (rod.swing - .55) * 2) : 0; rod.rg.rotation.x = -.9 + sw + rod.pull * .5;

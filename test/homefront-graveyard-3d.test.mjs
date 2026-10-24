@@ -197,7 +197,7 @@ assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=homefront
 
 assert.match(page, /const constructionView=!!pendingBuilding\|\|constructionPaused/, 'switch to construction camera only while building');
 assert.match(page, /cameraPose\(\{mode:yardView\.mode,building:constructionView/, 'the refuge yard camera is third-/first-person and only goes overhead while building');
-assert.match(page, /camera\.position\.lerp\(new THREE\.Vector3\(pose\.px,pose\.py,pose\.pz\),blend\)/, 'blend smoothly between construction and the previous walking view');
+assert.match(page, /camera\.position\.lerp\((?:new THREE\.Vector3|yardCamTarget\.set)\(pose\.px,pose\.py,pose\.pz\),blend\)/, 'blend smoothly between construction and the previous walking view');
 assert.doesNotMatch(page, /Vector3\(constructionView\?0:19/, 'no fixed elevated yard camera outside construction');
 assert.match(page, /yardView=attachViewControls\(host,\{canLook:\(\)=>!pendingBuilding&&!constructionPaused\}\)/, 'yard look/joystick controls pause during construction');
 assert.match(scene, /attachViewControls\(host, \{ onTap: onWorldTap, wheel: false \}\)/, 'Graveyard taps come from the shared controller so drag-to-look never travels');

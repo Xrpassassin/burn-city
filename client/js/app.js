@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {buildEstate,estateCard,estateLake} from './estate.js';
 import {initDrone} from './drone.js';
 import {buildWalker,poseWalker} from './walker.js';
+import {MOTION,speedFor,turnToward} from './player-motion.mjs';   // shared walk/run/jump physics (also used by Homefront)
 import './skate.js';
 import './citylife.js';
 import './streetprops.js';
@@ -1397,13 +1398,13 @@ function webStep(dt,mv){webBtn.style.display=mode==='explore'&&!(window.__boat&&
   if(P.vel.x||P.vel.z)avatar.rotation.y=Math.atan2(-P.vel.x,-P.vel.z);return true}
 window.__web={WEB,webSet,webAnchor,railPts};
 function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=null;$('prompt').style.display='none';P.vel.set(0,0,0);me.set(P.pos,avatar.rotation.y,'idle',P.district);return}   // a modal owns the player (The Wilds: warning / encounter / dialogue)
- const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=run?11:5;
+ const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=speedFor(run);
  const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0)-joy.y,s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+joy.x;
  if(window.__skate&&window.__skate.active){window.__skate.drive(dt,f,s);const dir=dirOf();if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.6);C.lookAt(C.position.clone().add(dir))}else{const want=P.pos.clone().setY(P.pos.y+2.2).addScaledVector(dir,-6.2);want.y=Math.max(want.y,P.pos.y+.8,.6);C.position.lerp(want,1-Math.pow(.0005,dt));C.lookAt(P.pos.clone().setY(P.pos.y+1.3).addScaledVector(dir,4))}P.near=null;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}   // skateboarding rides on top of explore, like the boat
  if(window.__boat&&window.__boat.active){const st=window.__boat.drive(dt,f,s);P.pos.copy(st);P.vel.set(0,0,0);P.onGround=true;P.climb=null;avatar.position.copy(st);avatar.rotation.y=window.__boat.cur.h;avatar.visible=true;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}
  const fw=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw)),rt=new THREE.Vector3(-fw.z,0,fw.x);const mv=fw.multiplyScalar(f).add(rt.multiplyScalar(s));const ml=Math.min(1,mv.length());
- if(ml>.05){mv.normalize().multiplyScalar(sp*ml);const ty=Math.atan2(-mv.x,-mv.z);let dy=ty-avatar.rotation.y;dy=Math.atan2(Math.sin(dy),Math.cos(dy));avatar.rotation.y+=dy*Math.min(1,dt*12)}
- if(!webStep(dt,mv)){ const ox=P.pos.x,oz=P.pos.z,hv=JET.fly?JET.v:mv;P.pos.x+=hv.x*dt;P.pos.z+=hv.z*dt;if(wet(P.pos.x,P.pos.z)){if(!wet(P.pos.x,oz))P.pos.z=oz;else if(!wet(ox,P.pos.z))P.pos.x=ox;else if(!wet(ox,oz)){P.pos.x=ox;P.pos.z=oz}}if(jetStep(dt,mv)){}else if((keys.Space||tb.jump)&&P.onGround){P.vel.y=7.5;P.onGround=false}P.vel.y-=20*dt;P.pos.y+=P.vel.y*dt;if(WEB.mom.lengthSq()>.01){const wx=P.pos.x,wz=P.pos.z;P.pos.x+=WEB.mom.x*dt;P.pos.z+=WEB.mom.z*dt;if(wet(P.pos.x,P.pos.z)){P.pos.x=wx;P.pos.z=wz;WEB.mom.set(0,0,0)}if(P.onGround)WEB.mom.multiplyScalar(Math.pow(.01,dt))}}
+ if(ml>.05){mv.normalize().multiplyScalar(sp*ml);avatar.rotation.y=turnToward(avatar.rotation.y,Math.atan2(-mv.x,-mv.z),dt)}
+ if(!webStep(dt,mv)){ const ox=P.pos.x,oz=P.pos.z,hv=JET.fly?JET.v:mv;P.pos.x+=hv.x*dt;P.pos.z+=hv.z*dt;if(wet(P.pos.x,P.pos.z)){if(!wet(P.pos.x,oz))P.pos.z=oz;else if(!wet(ox,P.pos.z))P.pos.x=ox;else if(!wet(ox,oz)){P.pos.x=ox;P.pos.z=oz}}if(jetStep(dt,mv)){}else if((keys.Space||tb.jump)&&P.onGround){P.vel.y=MOTION.jump;P.onGround=false}P.vel.y-=MOTION.gravity*dt;P.pos.y+=P.vel.y*dt;if(WEB.mom.lengthSq()>.01){const wx=P.pos.x,wz=P.pos.z;P.pos.x+=WEB.mom.x*dt;P.pos.z+=WEB.mom.z*dt;if(wet(P.pos.x,P.pos.z)){P.pos.x=wx;P.pos.z=wz;WEB.mom.set(0,0,0)}if(P.onGround)WEB.mom.multiplyScalar(Math.pow(.01,dt))}}
  const g=groundAt(P.pos.x,P.pos.z,P.pos.y);if(P.pos.y<=g){P.pos.y=g;P.vel.y=0;P.onGround=true}else P.onGround=P.pos.y-g<.05;
  collide(P.pos); if(window.__estateInteriorGuard&&window.__estateInteriorGuard(P.pos,P.vel)){P.onGround=true;P.climb=null;}
  // climbing: push into a tower wall -> climb the face; jump/back off detaches; mantle at the roof edge
@@ -1413,7 +1414,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
    if(P.pos.y>=cw.h-.05){const dx=cw.x-P.pos.x,dz=cw.z-P.pos.z,d=Math.hypot(dx,dz)||1;P.pos.y=cw.h;P.pos.x+=dx/d*1.4;P.pos.z+=dz/d*1.4;P.climb=null;P.onGround=true}}
   else P.climb=null}
  {const XL=window.__exploreLim||900;P.pos.x=Math.max(-XL,Math.min(XL,P.pos.x));P.pos.z=Math.max(-XL,Math.min(XL,P.pos.z))}if(window.__hwGuard&&window.__hwGuard(P.pos,P.vel)){P.onGround=true;P.climb=null}
- P.walk+=dt*ml*(run?14:9);const L=avatar.userData;poseWalker(avatar,P.walk,Math.min(1,ml)*(P.onGround?1:.25),performance.now()/1000);
+ P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);const L=avatar.userData;poseWalker(avatar,P.walk,Math.min(1,ml)*(P.onGround?1:.25),performance.now()/1000);
  if(P.climb){const c2=Math.sin(P.walk*1.4);L.arms[0].rotation.x=-2.6+c2*.5;L.arms[1].rotation.x=-2.6-c2*.5;L.legs[0].rotation.x=.6+c2*.4;L.legs[1].rotation.x=.6-c2*.4}
  avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;webPose();const dir=dirOf();
  if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.7);C.lookAt(C.position.clone().add(dir))}

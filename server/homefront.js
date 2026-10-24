@@ -13,6 +13,8 @@ const Environment = require('./homefront-environment');
 const Siege = require('./homefront-siege');
 const Interiors = require('./homefront-interiors');
 const Exploration = require('./homefront-exploration');
+const Travel = require('./homefront-travel');
+const Collision = require('./homefront-collision');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
@@ -93,6 +95,40 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         if (req.method === 'POST' && (!payload || typeof payload !== 'object' || Array.isArray(payload))) { json(res, 400, { error: 'invalid_world_action' }); return true; }
         const out = Siege.route({ method: req.method, path: url.pathname, query: url.searchParams, payload, acct: user.acct, store, worldDb: db });
         json(res, out.status, out.body); return true;
+      }
+      // RPG travel between the private Homefront instance and the shared world (server/homefront-travel.js).
+      if (url.pathname === '/api/homefront/world/travel') {
+        const now = Date.now();
+        if (req.method === 'POST') {
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
+          const action = typeof payload.action === 'string' ? payload.action : '';
+          let extra = {};
+          if (action === 'party_create') extra.code = Travel.createPartyAtHome(db, user.acct, now);
+          else if (action === 'party_join') extra.code = Travel.joinPartyAtHome(db, user.acct, payload.code, now);
+          else if (action === 'party_leave') Travel.leavePartyAtHome(db, user.acct, now);
+          else if (action === 'visit') { const host = Travel.visitFriend(db, user.acct, typeof payload.member === 'string' ? payload.member : '', now); extra.host = host; }
+          else if (action === 'home') { Travel.visitFriend(db, user.acct, 'self', now); extra.host = user.acct; }
+          else if (action === 'summon') extra.summoned = Travel.summonParty(db, user.acct, now);
+          else throw new Error('unknown_travel_action');
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-travel', travel: Travel.publicState(db, user.acct, now), ...extra }); return true;
+        }
+        if (!db.players[user.acct]) { Travel.touch(db, user.acct, now); store.save('homefront-world.json', db); }
+        json(res, 200, { mode: 'homefront-travel', travel: Travel.publicState(db, user.acct, now) }); return true;
+      }
+      // Read-only refuge for "Join friend's Homefront": owner, party members (world or home) or public refuges.
+      // Anyone else gets the same 404 as /api/homefront/visit, so private refuges stay private.
+      if (req.method === 'GET' && url.pathname === '/api/homefront/world/refuge') {
+        const memberId = String(url.searchParams.get('member') || '');
+        const ownerParam = String(url.searchParams.get('owner') || '').trim();
+        const owner = memberId ? Travel.resolveMember(db, user.acct, memberId) : ownerParam;
+        if (!owner || owner.length > 128) { json(res, 404, { error: 'refuge_private_or_not_found' }); return true; }
+        const bases = store.load('homefront.json', {});
+        const saved = Object.prototype.hasOwnProperty.call(bases, owner) ? bases[owner] : null;
+        if (!Travel.canViewRefuge(db, user.acct, owner, saved)) { json(res, 404, { error: 'refuge_private_or_not_found', message: 'This refuge is private or does not exist.' }); return true; }
+        const base = Core.validateBase(saved, owner);
+        if (!base) { json(res, 404, { error: 'refuge_private_or_not_found' }); return true; }
+        json(res, 200, { mode: 'homefront-visit', party: owner !== user.acct && Travel.sameParty(db, user.acct, owner), owner: owner === user.acct || Travel.sameParty(db, user.acct, owner) ? owner : undefined, base: { ...base, owner: undefined, log: base.log.slice(-8) } }); return true;
       }
       if (req.method === 'GET' && url.pathname === '/api/homefront/world/exploration') {
         const progressDb = Exploration.normalize(store.load('homefront-exploration.json', {}));
@@ -322,7 +358,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           return true;
         }
         case '/api/homefront/world/enter': {
+          // "Travel with party": a leader at home summons members in the same Homefront instance first.
+          if (payload.withParty === true && !db.players[user.acct] && Travel.partyOf(db, user.acct)) Travel.summonParty(db, user.acct);
+          const wasHome = !db.players[user.acct];
           outcome=World.enter(db,user.acct);
+          if (wasHome) Travel.rejoinOnEnter(outcome.world, user.acct, { Collision, bounds: World.WORLD_SIZE });
+          outcome.result = World.snapshot(outcome.world, user.acct);
           const player=outcome.world.players[user.acct];
           if(player&&!player.inventoryInitialized){
             const bases=store.load('homefront.json',{});
@@ -594,12 +635,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             base.repelledCount = Number.isSafeInteger(base.repelledCount) ? base.repelledCount : 0;
             const debrief = buildReturnDebrief(player.homefrontSessionStart, base, packed);
             base.revision++;base.updatedAt=Date.now();bases[user.acct]=base;store.save('homefront.json',bases);returnedBase=base;
-            outcome = World.leave(db,user.acct);
+            outcome = World.leave(db,user.acct,Date.now(),{keepParty:payload.travel===true});
             if (returnedBase) outcome.result.base = returnedBase;
             outcome.result.debrief = debrief;
             break;
           }
-          outcome=World.leave(db,user.acct);
+          outcome=World.leave(db,user.acct,Date.now(),{keepParty:payload.travel===true});
           break;
         }
         default: json(res, 404, { error: 'world_route_not_found' }); return true;

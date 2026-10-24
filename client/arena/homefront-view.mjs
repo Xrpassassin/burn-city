@@ -52,10 +52,15 @@ if (typeof window !== 'undefined') {
     if (typing(e.target) || e.altKey || e.ctrlKey || e.metaKey) return;
     const k = e.key.toLowerCase();
     if (k === 'v' && !e.repeat) { setViewMode(nextViewMode(readViewMode())); return; }
+    // Keys drive the canvas on screen: a hidden view (e.g. the Graveyard while at home) hands over to a visible one.
+    if (activeView && !activeView.visible) { const shown = [...views].find(v => v.visible); if (shown) activeView = shown; }
     if (KEYMAP[k] && activeView) { held.add(k); activeView.keys = keyVector(held); e.preventDefault(); }
+    // Shared Burn City movement keys (client/js/player-motion.mjs): Shift runs, Space jumps.
+    if (k === 'shift' && activeView) activeView.runKey = true;
+    if (k === ' ' && activeView && activeView.visible && !e.repeat) { activeView.jumpQueued = true; e.preventDefault(); }
   });
-  window.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (!held.delete(k)) return; if (activeView) activeView.keys = keyVector(held); });
-  window.addEventListener('blur', () => { held.clear(); for (const v of views) v.keys = { x: 0, y: 0 }; });
+  window.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k === 'shift') for (const v of views) v.runKey = false; if (!held.delete(k)) return; if (activeView) activeView.keys = keyVector(held); });
+  window.addEventListener('blur', () => { held.clear(); for (const v of views) { v.keys = { x: 0, y: 0 }; v.runKey = false; } });
 }
 function keyVector(held) { let x = 0, y = 0; for (const k of held) { x += KEYMAP[k][0]; y += KEYMAP[k][1]; } return { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) }; }
 export function setViewMode(mode) {
@@ -67,7 +72,7 @@ export function setViewMode(mode) {
 // Per-canvas controller: toggle button, touch joystick, drag-to-look, pinch/wheel zoom, keyboard focus,
 // and offscreen detection so a hidden canvas can skip rendering (mobile perf).
 export function attachViewControls(host, { canLook = () => true, onTap = null, joystick = true, wheel = true } = {}) {
-  const state = { mode: readViewMode(), yaw: 0, pitch: 0, distance: 6.2, joy: { x: 0, y: 0 }, keys: { x: 0, y: 0 }, visible: true, dragging: false };
+  const state = { mode: readViewMode(), yaw: 0, pitch: 0, distance: 6.2, joy: { x: 0, y: 0 }, keys: { x: 0, y: 0 }, visible: true, dragging: false, runKey: false, runTouch: false, jumpQueued: false };
   views.add(state); if (!activeView) activeView = state;
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const btn = document.createElement('button');
@@ -92,6 +97,19 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     pad.addEventListener('pointermove', e => { if (e.pointerId === jid) setJoy(e); });
     const endJoy = e => { if (e.pointerId !== jid) return; jid = null; state.joy = { x: 0, y: 0 }; knob.style.transform = ''; };
     for (const n of ['pointerup', 'pointercancel', 'lostpointercapture']) pad.addEventListener(n, endJoy);
+  }
+  // Touch action buttons (Burn City joystick layout): Jump (tap) and Run (hold), bottom-right, thumb-sized.
+  const actionBtns = [];
+  if (joystick && coarse) {
+    const mk = (label, bottom, onDown, onUp) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'hf-act'; b.textContent = label; b.setAttribute('aria-label', label);
+      b.style.cssText = `position:absolute;right:12px;bottom:${bottom}px;width:58px;height:58px;border-radius:50%;border:2px solid #ffb06088;background:#1b1512cc;color:#ffe0c0;font:800 12px system-ui;z-index:3;touch-action:none`;
+      b.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); activeView = state; onDown(); });
+      for (const n of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(n, () => onUp && onUp());
+      host.append(b); actionBtns.push(b); return b;
+    };
+    mk('JUMP', 12, () => { state.jumpQueued = true; });
+    mk('RUN', 78, () => { state.runTouch = true; }, () => { state.runTouch = false; });
   }
   // Drag to look (left mouse or one finger) and pinch/wheel zoom. A press that never moves is a tap.
   const pts = new Map(); let start = null, pinch0 = 0, dist0 = 0;
@@ -120,6 +138,8 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
   if (wheel) host.addEventListener('wheel', e => { if (state.mode !== 'third') return; state.distance = Math.max(3.5, Math.min(10.5, state.distance + Math.sign(e.deltaY) * 0.65)); e.preventDefault(); }, { passive: false });
   if (typeof IntersectionObserver !== 'undefined') new IntersectionObserver(entries => { for (const en of entries) state.visible = en.isIntersecting; }).observe(host);
   state.move = () => { const v = Math.hypot(state.joy.x, state.joy.y) > Math.hypot(state.keys.x, state.keys.y) ? state.joy : state.keys; return v; };
-  state.setControlsHidden = hidden => { btn.hidden = hidden; if (pad) pad.hidden = hidden; };
+  state.setControlsHidden = hidden => { btn.hidden = hidden; if (pad) pad.hidden = hidden; for (const b of actionBtns) b.hidden = hidden; };
+  state.running = () => !!(state.runKey || state.runTouch);
+  state.takeJump = () => { const j = state.jumpQueued; state.jumpQueued = false; return j; };
   return state;
 }

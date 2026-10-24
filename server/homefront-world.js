@@ -10,6 +10,7 @@ const Collision = require('./homefront-collision');
 const Interiors = require('./homefront-interiors');
 const Environment = require('./homefront-environment');
 const Director = require('./homefront-director');
+const Travel = require('./homefront-travel');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
@@ -127,8 +128,10 @@ function normalizeWorld(input) {
 }
 function prune(w, now) {
   for (const [acct, p] of Object.entries(w.players)) if (now - p.lastSeen > PRESENCE_TTL) delete w.players[acct];
+  Travel.prune(w, now);
   for (const [code, party] of Object.entries(w.parties)) {
-    party.members = party.members.filter(acct => !!w.players[acct]);
+    // Members at home in a Homefront instance (fresh presence) stay in the party (server/homefront-travel.js).
+    party.members = party.members.filter(acct => !!w.players[acct] || Travel.fresh(w, acct, now));
     if (!party.members.length) delete w.parties[code];
     else if (!party.members.includes(party.leader)) party.leader = party.members[0];
   }
@@ -290,7 +293,8 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   prune(w, now);
   const p = w.players[acct];
   if (!p) throw new Error('not_in_expedition');
-  if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader !== acct) throw new Error('party_leader_controls_movement');
+  // Followers move with the leader only while the leader is out in the world; a leader at home never freezes them.
+  if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader !== acct && w.players[w.parties[p.partyCode].leader]) throw new Error('party_leader_controls_movement');
   if (typeof sprint !== 'boolean') throw new Error('invalid_movement_mode');
   if (now - p.lastMove < 900) throw new Error('move_cooldown');
   if (sprint && p.aiming) throw new Error('lower_weapon_before_sprinting');
@@ -419,10 +423,17 @@ function leaveParty(input, acct, now = Date.now()) {
   p.partyCode = null; p.lastSeen = now;
   return { world: w, result: snapshot(w, acct, now) };
 }
-function leave(input, acct, now = Date.now()) {
+function leave(input, acct, now = Date.now(), { keepParty = false } = {}) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
   const p = w.players[acct];
+  if (keepParty) {
+    // RPG travel: returning to the Homefront keeps the party (Travel presence holds the seat).
+    const code = p?.partyCode && w.parties[p.partyCode] ? p.partyCode : null;
+    delete w.players[acct];
+    Travel.arriveHome(w, acct, { host: acct, partyCode: code, now });
+    return { world: w, result: snapshot(w, acct, now) };
+  }
   if (p?.partyCode && w.parties[p.partyCode]) {
     const party = w.parties[p.partyCode];
     party.members = party.members.filter(id => id !== acct);

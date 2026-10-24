@@ -16,6 +16,12 @@ on:
       - 'test/homefront-survivor-economy-sim.js'
       - 'test/homefront-interior-route-sim.js'
       - 'test/homefront-explore-multiplayer-sim.js'
+      - 'server/homefront-travel.js'
+      - 'client/arena/homefront-travel.mjs'
+      - 'client/js/player-motion.mjs'
+      - 'client/js/player-motion.test.mjs'
+      - 'client/js/walker.js'
+      - 'test/homefront-travel-sim.js'
       - 'server/homefront-combat.js'
       - 'server/homefront-world.js'
       - 'server/homefront-terrain.js'
@@ -93,6 +99,7 @@ jobs:
           node --check server/homefront-survival.js
           node --check server/homefront-inventory.js
           node --check server/homefront.js
+          node --check server/homefront-travel.js
           node --check server/server.js
           node --check server/game.js
           node --check server/flight-lobby.js

@@ -8,7 +8,7 @@ This draft upgrades the characters seen while exploring BURN City. It uses the e
 
 - Replaced the mostly rectangular NFT mannequin with a smoother articulated character: rounded torso, shoulder/hip transitions, capsule limbs, joints, boots, hands and facial details.
 - RACC gets a dedicated rounded raccoon head, eye mask (including the red-mask trait), muzzle, ears and segmented tail. Human-style Firekeepers/589 variants use facial planes, eyes, ears, hair/beard hints and collection-specific ember/BURN accents.
-- Maps available trait values to headwear, crowns, hoods, horns, eyewear, flames, jewelry, armor, fur and capes.
+- Maps up to 16 supported trait values (expanded from the previous 10-value snapshot) to headwear, crowns, hoods, horns, eyewear, flames, jewelry, armor, fur and capes.
 - Places the NFT's actual image on the character as a circular chest medallion; the floating portrait remains an optional peer identity card. The verified NFT image is still the canonical art, not a generated substitute.
 - The local selected NFT avatar animates while walking; remote NFT avatars use the same articulated walk/idle behavior.
 - Caches shared geometry/materials and image textures. Adds reduced sphere/capsule detail for mobile/low quality, and limits detailed peer NFT avatars to 8 desktop / 4 mobile, within 120 world units. Distant/inactive peers retain the existing lightweight marker/walker fallback.

@@ -84,6 +84,7 @@ function buildWeeklySnapshot(input) {
   const owners = [...ownerMap.values()].sort((a,b) => a.acct.localeCompare(b.acct));
   for (const owner of owners) owner.propertyIds.sort();
   const totalEligibleWeight = owners.reduce((sum, owner) => sum + owner.weight, 0);
+  if (distributableDrops > 0 && totalEligibleWeight === 0) throw new TypeError('no_eligible_owners_for_distribution');
   let assigned = 0;
   for (const owner of owners) {
     const numerator = BigInt(distributableDrops) * BigInt(owner.weight);

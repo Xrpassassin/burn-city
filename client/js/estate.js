@@ -240,7 +240,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
         addBox(windowFrames,ww+.42,3.0,.2,wx,3.0,front+.2);
         addBox(glass,ww,2.55,.13,wx,3.0,front+.32);
         addBox(windowFrames,.12,2.5,.12,wx,3.0,front+.4);
-        addBox(windowFrames,ww,.12,.12,wx,3.0,front+.4);
+        addBox(windowFrames,ww,.12,.12,wx,3.0,front+.4);\n        if ((i + Math.round((sx+1)*10)) % 3 === 0) addBox(warmWindows,Math.max(1,ww-.55),2.0,.045,wx,3.0,front+.42);
         if (!isMansion) {
           addBox(windowFrames,ww+.3,1.3,.2,wx,6.1,front+.2);
           addBox(glass,ww,1.0,.13,wx,6.1,front+.32);

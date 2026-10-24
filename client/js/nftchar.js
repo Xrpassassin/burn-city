@@ -488,7 +488,7 @@ export function buildNftChar(n, opts = {}) {
   if(key==='589') {
     // The Protocol identity mark is a token trait, not a universal decal stamped onto every NFT.
     // A background called "Burn" is not a logo. Brand geometry requires a clothing/accessory/identity trait.
-    const hasProtocolMark=hasTrait(/outfit|accessory|identity|brand|logo|emblem|insignia/i,/burn|protocol|insignia|logo|emblem/i) || has((Array.isArray(n?.t)?n.t:[]).map(String),/burn|protocol|insignia|logo|emblem/i);
+    const hasProtocolMark=hasTrait(/outfit|identity|brand|logo|emblem|insignia/i,/burn|protocol|insignia|logo|emblem/i) || has((Array.isArray(n?.t)?n.t:[]).map(String),/burn|protocol|insignia|logo|emblem/i);
     if(hasProtocolMark) {
       addBox(g,accent,[0,.88,.22],[.28,.045,.035]).name='nft-protocol-belt-insignia';
       addBox(g,metal,[0,.88,.242],[.065,.055,.015]);

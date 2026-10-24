@@ -44,47 +44,92 @@
     {
       "id": "trailer-01",
       "tier": "trailer",
-      "address": "Estates Row 01"
+      "address": "Estates Row 01",
+      "lot": {
+        "x": -4,
+        "z": -5
+      },
+      "district": "north-shore"
     },
     {
       "id": "trailer-02",
       "tier": "trailer",
-      "address": "Estates Row 02"
+      "address": "Estates Row 02",
+      "lot": {
+        "x": -3,
+        "z": -5
+      },
+      "district": "north-shore"
     },
     {
       "id": "apartment-01",
       "tier": "apartment",
-      "address": "Lakeview Apartments"
+      "address": "Lakeview Apartments",
+      "lot": {
+        "x": 5,
+        "z": 0
+      },
+      "district": "east-village"
     },
     {
       "id": "starter-01",
       "tier": "starter",
-      "address": "Starter Lane 01"
+      "address": "Starter Lane 01",
+      "lot": {
+        "x": -4,
+        "z": 2
+      },
+      "district": "west-village"
     },
     {
       "id": "starter-02",
       "tier": "starter",
-      "address": "Starter Lane 02"
+      "address": "Starter Lane 02",
+      "lot": {
+        "x": -2,
+        "z": 2
+      },
+      "district": "west-village"
     },
     {
       "id": "family-01",
       "tier": "family",
-      "address": "Family Crescent 01"
+      "address": "Family Crescent 01",
+      "lot": {
+        "x": -3,
+        "z": 5
+      },
+      "district": "south-neighborhood"
     },
     {
       "id": "family-02",
       "tier": "family",
-      "address": "Family Crescent 02"
+      "address": "Family Crescent 02",
+      "lot": {
+        "x": 3,
+        "z": 5
+      },
+      "district": "south-neighborhood"
     },
     {
       "id": "mansion-01",
       "tier": "mansion",
-      "address": "Lakefront Estate 01"
+      "address": "Lakefront Estate 01",
+      "lot": {
+        "x": -1,
+        "z": -7
+      },
+      "district": "lakefront"
     },
     {
       "id": "mansion-02",
       "tier": "mansion",
-      "address": "Lakefront Estate 02"
+      "address": "Lakefront Estate 02",
+      "lot": {
+        "x": 1,
+        "z": -7
+      },
+      "district": "lakefront"
     },
     {
       "id": "trailer-03",

@@ -55,7 +55,7 @@ class FakeObject3D {
   updateMatrix() { this.matrix = { position: this.position.values, rotation: this.rotation.values, scale: this.scale.values }; }
 }
 class FakeInstancedMesh extends FakeMesh {
-  constructor(geometry, material, count) { super(geometry, material); this.count = count; this.instances = []; this.instanceMatrix = {}; this.instanceColor = null; }
+  constructor(geometry, material, count) { super(geometry, material); this.position.values = [0,0,0]; this.count = count; this.instances = []; this.instanceMatrix = {}; this.instanceColor = null; }
   setMatrixAt(index, matrix) { this.instances[index] = matrix; }
   computeBoundingSphere() {}
 }

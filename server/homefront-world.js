@@ -338,6 +338,13 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
           followerState.x = next.x; followerState.z = next.z;
         }
       }
+      // Regroup: a follower that is still more than two moves behind (joined from another spawn, or
+      // the bounded 900-node search failed) snaps to a safe spot beside the leader, as before #191,
+      // so a party never splits for good. Followers inside an interior are never pulled out.
+      if (!followerInteriorId && Math.hypot(followerState.x - p.x, followerState.z - p.z) > MOVE_STEP * 2) {
+        const regroup = Collision.findSafePosition(targetX, targetZ, { bounds: WORLD_SIZE, removedObstacleIds: followerRemoved });
+        if (regroup) { followerState.x = regroup.x; followerState.z = regroup.z; }
+      }
       followerState.lastSeen = now;
     }
   }

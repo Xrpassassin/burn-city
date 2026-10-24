@@ -21,3 +21,16 @@ const around = World.move(w2, acct, -9.1, -64.6, t + 1000, false).world.players[
 const Collision = require('../server/homefront-collision');
 assert.equal(Collision.pointBlocked(around.x, around.z, 0.35, Collision.interiorRemovedIds('north_bus_depot', [])), null, 'the walker never ends inside a wall');
 console.log('Homefront interior doorway routing passed', JSON.stringify({ through: [p.x, p.z], around: [around.x, around.z] }));
+// A follower who joins from a distant spawn regroups beside the leader instead of trailing forever.
+{
+  const lead = 'rRouteLeader1', fol = 'rRouteFollow2';
+  let pw = World.enter(World.enter(World.defaultWorld(), lead, t).world, fol, t).world;
+  const created = World.createParty(pw, lead, t + 10); pw = created.world;
+  const code = created.result.party.code;
+  pw = World.joinParty(pw, fol, code, t + 20).world;
+  pw.players[lead].x = 0; pw.players[lead].z = -40; pw.players[fol].x = 60; pw.players[fol].z = 60;
+  const after = World.move(pw, lead, 0, -44, t + 2000, false).world;
+  const d = Math.hypot(after.players[fol].x - after.players[lead].x, after.players[fol].z - after.players[lead].z);
+  assert.ok(d <= World.MOVE_STEP, 'a far follower regroups with the leader: ' + d.toFixed(1));
+  console.log('Homefront party regroup passed', d.toFixed(1));
+}

@@ -21,7 +21,7 @@ const source = fs.readFileSync(new URL('../tools/blender/nft_avatar_generator.py
 for (const feature of [
   'trait_color', 'Trait_Crown_Peak_', 'Trait_Eyewear_Lens_', 'Trait_Horn_',
   'Trait_Wing_', 'Trait_Weapon_Blade', 'Trait_Facial_Hair', 'Trait_Tail',
-  'Trait_Necklace', 'trait_snapshot_json'
+  'Trait_Necklace', 'Trait_Hair_Spike_', 'Trait_Expression_Smile', 'Trait_Face_Mask', 'Trait_Face_Marking_', 'Trait_Body_Effect_', 'trait_snapshot_json'
 ]) assert.ok(source.includes(feature), 'GLB generator must support ' + feature);
 assert.ok(source.includes('spec.get("traits", {}).get("normalized", [])'), 'generator consumes normalized per-token traits');
 console.log('NFT avatar token trait geometry: 14 assertions passed');

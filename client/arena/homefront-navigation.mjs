@@ -63,3 +63,14 @@ export function separationVector(position, neighbors = [], minDistance = 0.68) {
   if (magnitude > 1) { x /= magnitude; z /= magnitude; }
   return { x, z };
 }
+
+// Work animations are driven by the actual assignment, not merely by the survivor's role.
+export function isWorkingTask(role, task) {
+  if (task === 'take_shelter' || task === 'rest_at_refuge' || task === 'triage_standby' || task === 'stand_by_repairs') return false;
+  if (role === 'guard') return task === 'perimeter_watch' || task === 'defend_perimeter';
+  if (role === 'farmer') return task === 'tend_crops';
+  if (role === 'mechanic') return task === 'maintain_structures' || task === 'emergency_repair';
+  if (role === 'medic') return task === 'infirmary_duty';
+  if (role === 'scavenger') return task === 'stockpile_supplies';
+  return false;
+}

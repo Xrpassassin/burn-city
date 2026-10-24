@@ -37,7 +37,7 @@ function searchRegistered(prefix, requester) {
   const q = String(prefix || '').trim();
   if (q.length < 4 || q.length > 35 || !/^[r1-9A-HJ-NP-Za-km-z]+$/.test(q)) return [];
   return db.prepare(`SELECT acct FROM registered_wallets
-    WHERE acct LIKE ? AND acct <> ? ORDER BY acct LIMIT 12`).all(q + '%', requester)
+    WHERE substr(acct,1,?) = ? AND acct <> ? ORDER BY acct LIMIT 12`).all(q.length, q, requester)
     .map(x => ({ acct: x.acct, label: x.acct.slice(0, 6) + '…' + x.acct.slice(-5) }));
 }
 function accessFor(acct, propertyId) {

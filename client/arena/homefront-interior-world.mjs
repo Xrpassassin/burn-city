@@ -188,8 +188,8 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   for (const item of interior.interactables) {
     const roomData = interiorRoom(interior, item.roomId);
     const object = new THREE.Group();
-    object.position.set(item.x, 0, item.z);
-    object.userData.interiorTarget = { kind: 'action', landmarkId: interior.landmarkId, actionId: item.id, label: item.label, x: origin.x + item.x, z: origin.z + item.z };
+    object.position.set(roomData.x + item.x, 0, roomData.z + item.z);
+    object.userData.interiorTarget = { kind: 'action', landmarkId: interior.landmarkId, actionId: item.id, label: item.label, x: origin.x + roomData.x + item.x, z: origin.z + roomData.z + item.z };
     const color = item.action === 'power' ? powerMat : item.action === 'clue' ? clueMat : objectMat;
     if (item.action === 'search') {
       box(object, [0.9, 0.65, 0.55], [0, 0.33, 0], objectMat);

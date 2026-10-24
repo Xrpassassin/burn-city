@@ -74,6 +74,6 @@ assert.ok(states.includes('loading'));
 assert.ok(states.includes('joined'));
 assert.ok(states.includes('unloading'));
 assert.ok(states.includes('disposed'));
-assert.throws(() => pool.acquire('Bad Key', 'player-g'), /kebab-case/);
-assert.throws(() => pool.acquire('estates-island', ''), /authenticated player id/);
+await assert.rejects(pool.acquire('Bad Key', 'player-g'), /kebab-case/);
+await assert.rejects(pool.acquire('estates-island', ''), /authenticated player id/);
 console.log('experience-instance-pool: all tests passed');

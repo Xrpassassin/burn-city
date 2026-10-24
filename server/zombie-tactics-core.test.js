@@ -12,6 +12,7 @@ assert.equal(roleTuning('straggler').hearingScale, 1.25, 'straggler detects soun
 assert.deepEqual(roleTuning('unknown'), roleTuning('pursuer'), 'unknown role safely falls back to pursuer tuning');
 assert.equal(assignRole('z2', 'squad-a', 1, 4), assignRole('z2', 'squad-a', 1, 4), 'role assignment is deterministic');
 assert.notEqual(assignRole('z2', 'squad-a', 1, 4), 'pursuer');
+assert.deepEqual(new Set([0, 1, 2, 3, 4].map(i => assignRole('z' + i, 'squad-balanced', i, 5))), new Set(['pursuer', 'flanker', 'bruiser', 'straggler', 'runner']), 'five-member squad deterministically receives each role');
 assert.equal(distance2D({ x: 0, z: 0 }, { x: 3, z: 4 }), 5);
 assert.equal(distance2D(null, { x: 0, z: 0 }), Infinity);
 

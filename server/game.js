@@ -194,11 +194,11 @@ class Room {
         const rot = Rotary.advance({ spin: p.ravSpin, heat: p.ravHeat, lock: p.ravLock, tracer: p.ravTracerT }, dt, p.in.fire && p.fuel > 0, p.fuel > 0);
         p.ravSpin = rot.spin; p.ravHeat = rot.heat; p.ravLock = rot.lock; p.ravTracerT = rot.tracer;
         p.firing = rot.firing; p.fuel = clamp(p.fuel + (p.firing ? -w.use : w.regen * (quick ? 2 : 1)) * dt, 0, 100);
-        if (p.firing) { let hit = null, hd = reachH(p, w.range), endX = p.x + s * hd, endZ = p.z + c * hd;
+        if (p.firing) { let hit = null, hitAlong = 0, hitLat = 0, hd = reachH(p, w.range), endX = p.x + s * hd, endZ = p.z + c * hd;
           for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s), d = Math.hypot(dx, dz);
             if (along > 0 && along < hd && lat < w.width && d > 0 && vAim(p, zb, along, w.width) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) {
-              hurt(zb, w.dps * dt * rot.damageScale * (1 - d / w.range * 0.35), p, lat < HS_LAT && hsV(p, zb, along) ? 1.5 : 0);
-              if (along < hd) { hd = along; hit = zb; endX = zb.x; endZ = zb.z; } } }
+              hd = along; hit = zb; hitAlong = along; hitLat = lat; endX = zb.x; endZ = zb.z; } }
+          if (hit) { const d = Math.hypot(hit.x - p.x, hit.z - p.z); hurt(hit, w.dps * dt * rot.damageScale * (1 - d / w.range * 0.35), p, hitLat < HS_LAT && hsV(p, hit, hitAlong) ? 1.5 : 0); }
           if (p.ravTracerT <= 0) { p.ravTracerT = 0.12; ev.push({ e: 'shot', id: p.id, w: 'ravager', x: q(p.x), z: q(p.z), tx: q(endX), tz: q(endZ), ty: q(hit ? (hit.y || 0) + 0.9 : endY(p, hd)), y: q(p.y || 0), pi: Math.round((p.pitch || 0) * 100) / 100, ray: 1 }); }
         } else if (p.ravHeat < 35 && p.ravSpin < 0.1) p.ravTracerT = 0;
       } else if (w.kind === 'cone' || w.kind === 'beam') {

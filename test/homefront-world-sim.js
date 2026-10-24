@@ -68,6 +68,9 @@ assert.deepEqual([world.players['acct-b'].x, world.players['acct-b'].z], [follow
 assert.equal(Collision.isSafePosition(world.players['acct-b'].x, world.players['acct-b'].z, { bounds: W.WORLD_SIZE }), true,
   'party follower movement ends on a collision-safe terrain footprint');
 assert.equal(W.districtAt(0, 0).risk, 5, 'deep city core is high risk');
+const coreSnapshot = W.snapshot({ ...W.defaultWorld(), players: { coreExplorer: { x: 0, z: 0, spawn: 'north_gate', lastSeen: 1000, partyCode: null, survival: require('../server/homefront-survival').normalize(null, 1000), inventory: {}, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 } } } }, 'coreExplorer', 1000);
+assert.equal(coreSnapshot.self.frontierDepth, 100, 'city core reports maximum frontier depth');
+assert.equal(coreSnapshot.self.frontierBand, 'core approach', 'city core reports the high-risk frontier band');
 assert.equal(W.districtAt(-8, -82).risk, 1, 'outer spawn is low risk');
 assert.ok(a.result.self.frontierDepth < 25, 'outer spawn reports low frontier depth');
 assert.equal(a.result.self.frontierBand, 'perimeter', 'outer spawn identifies the safer perimeter band');

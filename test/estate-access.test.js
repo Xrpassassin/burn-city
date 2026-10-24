@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict'), fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bc-estate-access-'));
 Object.assign(process.env, { DATA_DIR: dir, TOKEN_SECRET: 'estate-access-test-secret', PORT: '0', DRY_RUN: 'true', XRPL_WSS: 'ws://127.0.0.1:1', XUMM_KEY: '', XUMM_SECRET: '' });
-const Pay = require('../server/payments'), A = require('../server/estate-access');
+const Pay = require('../server/payments'); require('../server/estates'); const A = require('../server/estate-access');
 const db = Pay.sdb, now = Date.now();
 const owner = 'r' + 'A'.repeat(25), guest = 'r' + 'B'.repeat(25), stranger = 'r' + 'C'.repeat(25);
 try {

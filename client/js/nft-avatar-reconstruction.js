@@ -23,6 +23,8 @@ export function resolveNftAvatarReconstruction(profile = {}) {
   const valueFor = slot => String(traits.find(([type]) => type === slot)?.[1] ?? '').trim();
   const outfit = valueFor('outfit');
   const headwear = valueFor('headwear');
+  const rawTraits = Array.isArray(profile.rawTraits) ? profile.rawTraits : [];
+  const headwearType = String(rawTraits.find(([type]) => /headwear|head|cowl|hood/i.test(String(type)))?.[0] ?? '');
   const body = valueFor('body effect');
   return {
     ...blueprint,
@@ -30,7 +32,7 @@ export function resolveNftAvatarReconstruction(profile = {}) {
     identitySeed: Number(profile.identitySeed || 0) >>> 0,
     traitOverrides: {
       robe: key === 'fk' || /robe|cloak|mantle/i.test(outfit),
-      hood: /hood|cowl/i.test(headwear),
+      hood: /hood|cowl/i.test(`${headwear} ${headwearType}`),
       fire: /flame on|heating up|about to burn|burning/i.test(body) || key === 'fk',
       originalArtworkRequired: recipe.originalArtworkRequired
     },

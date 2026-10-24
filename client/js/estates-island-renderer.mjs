@@ -61,6 +61,8 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
       case 'bridge':
       case 'dock': {
         const horizontal=item.orientation==='x' || item.kind==='bridge' || item.kind==='dock';
+        // Convention: width is across the route; length is along it.
+        // X-oriented routes put length on X, Z-oriented routes put length on Z.
         const width=d.width??5, length=d.length??d.depth??8, height=d.height??.2;
         made=[box(THREE,root,item.id,p,horizontal?length:width,height,horizontal?width:length,PALETTE[item.material]??0x777777)];
         if(item.kind==='bridge') {

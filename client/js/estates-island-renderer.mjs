@@ -47,7 +47,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
       case 'terrain': {
         const geo=new THREE.CircleGeometry(Math.min(d.width,d.depth)/2,96);
         const mesh=new THREE.Mesh(geo,material(THREE,PALETTE.grass));
-        mesh.name=item.id; place(mesh,p); mesh.rotation.x=-Math.PI/2; mesh.scale.set(d.width/Math.min(d.width,d.depth),1,d.depth/Math.min(d.width,d.depth)); root.add(mesh); made=[mesh]; break;
+        mesh.name=item.id; place(mesh,p); mesh.rotation.x=-Math.PI/2; mesh.scale.set(d.width/Math.min(d.width,d.depth),d.depth/Math.min(d.width,d.depth),1); root.add(mesh); made=[mesh]; break;
       }
       case 'water': {
         const m=new THREE.Mesh(new THREE.RingGeometry(d.width*.32,d.width*.5,128),material(THREE,PALETTE['lake-water'],{roughness:.28,metalness:.08}));

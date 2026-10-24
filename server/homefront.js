@@ -223,7 +223,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           if (req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');
-          const spawned = Combat.spawn({ encounters: db.encounters, account: user.acct, player, now: Date.now() });
+          const spawned = Combat.spawn({ encounters: db.encounters, account: user.acct, player, interiors: db.interiors, now: Date.now() });
           db.encounters = spawned.encounters;
           player.lastSeen = Date.now();
           store.save('homefront-world.json', db);

@@ -1,8 +1,14 @@
 # Zombie Map 02 — The Ashen Cosmodrome
 ## Music-led design brief and implementation plan
-**Status:** Design proposal only. No gameplay or map code changed by this document.
+**Status:** Design proposal with a route-shaping implementation pass on `feat/lake-loop-cosmodrome-flow`; keep isolated pending automated and in-browser QA.
 **Target:** BURN City Zombies, fixed handcrafted layout; the Moon is the planned next map.
 **Working title:** The Ashen Cosmodrome (renameable).
+
+## Implementation update — October 23, 2026
+
+The first playability pass adds server/client-shared cover islands to the existing fixed Cosmodrome layout. These are authored in the map's existing `obst` list, so the server navigation grid and the renderer consume the same footprints. The added barriers create offset approaches through the Access Spine and cover breaks across the Service Yard, interior rooms, Fuel Hall, and Launch Gantry. The existing seven zones, seven unlock doors, map identity, and ranked/daily isolation remain unchanged. The Cosmodrome integration test now asserts the presence of route-shaping cover and still checks connected-zone reachability.
+
+This is a **graybox pacing pass**, not final art or a claim of successful runtime playtesting. Next validation should verify all door approaches, spawn positions, wall-buys/perks, zombie pathing around each new obstacle, and camera readability on mobile.
 
 ## 1. Design intent
 

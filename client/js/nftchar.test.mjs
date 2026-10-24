@@ -176,4 +176,6 @@ has(avatar, /geometry\.computeVertexNormals\(\)/, 'computes normals for the curv
 has(avatar, /positions\.push\(px, v-\.5, \.055\*\(1-Math\.pow\(px\*2,2\)\)\)/, 'curves the artwork toward the viewer at the center and blends its edges toward the torso');
 has(avatar, /artworkIdentity=\{mode:'framed-full-composition',source:url,aspectFit:'contain',cropped:false\}/, 'preserves the original full artwork without cropping while improving panel fit');
 
+has(avatar, /const pal = n\?\.pal \|\| \{\}, key = String\(n\?\.key \|\| '589'\)\.trim\(\)\.toLowerCase\(\)/, 'normalizes collection keys before collection-specific geometry selection');
+
 console.log('NFT avatar architecture: ' + checks + ' assertions passed');

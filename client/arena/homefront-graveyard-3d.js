@@ -7,6 +7,7 @@ import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-stream
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
+import { explorationGuidance } from './homefront-exploration-guidance.mjs';
 import { buildLandmarkSetPiece } from './homefront-landmark-builder.mjs';
 import { INTERIORS, availableInteriorActions, buildInteriorSetPiece, interiorForLandmark, interiorRoom } from './homefront-interior-world.mjs';
 import { sfx } from './sfx.js';
@@ -689,18 +690,28 @@ function boot(host) {
     }
     const objective = document.getElementById('explorationObjective');
     if (objective && data.self) {
-      let nearest = null, nearestDistance = Infinity;
-      for (const landmark of LANDMARKS) {
-        const distance = Math.hypot(data.self.x - landmark.x, data.self.z - landmark.z);
-        if (distance < nearestDistance) { nearest = landmark; nearestDistance = distance; }
+      let discovered = [];
+      try {
+        const saved = JSON.parse(localStorage.getItem('homefrontExplorationDiscoveries') || '[]');
+        if (Array.isArray(saved)) discovered = saved.filter(id => LANDMARKS.some(item => item.id === id));
+      } catch { /* Discovery notes are optional; the expedition remains playable if storage is unavailable. */ }
+      const guidance = explorationGuidance({ x: data.self.x, z: data.self.z }, discovered);
+      const nearest = guidance.nearest;
+      const nearestDistance = guidance.distance;
+      if (guidance.discoveredNow && nearest && !discovered.includes(nearest.id)) {
+        discovered.push(nearest.id);
+        try { localStorage.setItem('homefrontExplorationDiscoveries', JSON.stringify(discovered)); } catch { /* Private browsing may disable storage. */ }
       }
       selectedInteriorLandmarkId = nearest && nearestDistance <= 12 && interiorForLandmark(nearest.id) ? nearest.id : null;
       if (enterInteriorButton) { enterInteriorButton.hidden = !selectedInteriorLandmarkId || !!interiorState; enterInteriorButton.textContent = selectedInteriorLandmarkId ? 'Enter ' + nearest.title : 'Enter nearby building'; }
       if (nearest && nearestDistance <= 20) {
         const district = DISTRICTS[nearest.district];
-        objective.textContent = 'NEARBY · ' + nearest.title + ' — ' + nearest.objective + '  |  ' + district.title + ' · Risk ' + district.risk + '/5';
+        const discoveryLabel = guidance.alreadyDiscovered ? 'KNOWN SITE' : guidance.discoveredNow ? 'LOCATION DISCOVERED' : 'UNMAPPED SITE';
+        const routeHint = guidance.routeLeads.length ? '  |  ROUTE LEADS · ' + guidance.routeLeads.join(' → ') : '';
+        const storyHint = guidance.storyLead ? '  |  FIELD LEAD · ' + guidance.storyLead : '';
+        objective.textContent = discoveryLabel + ' · ' + nearest.title + ' — ' + nearest.objective + '  |  ' + district.title + ' · Risk ' + district.risk + '/5' + routeHint + storyHint;
       } else {
-        objective.textContent = 'EXPEDITION · Risk ' + (data.self.risk || 1) + '/5. Follow the named landmarks for rescue leads, caches, shortcuts, and connected story clues.';
+        objective.textContent = 'EXPEDITION · Risk ' + (data.self.risk || 1) + '/5. Survey the skyline and follow road markings. Discovering landmarks records field notes; clues connect multi-stop stories, while route leads point toward shortcuts, caches, and rescue sites.';
       }
     }
     updateInteriorPanel();

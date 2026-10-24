@@ -86,7 +86,7 @@ function attemptInteriorBreach({ account, enemy, player, interiors, now, elapsed
   if (enemyDistance > 14 || playerDistance > 24) continue;
   const route = Collision.findPath(enemy.x, enemy.z, ax, az, { bounds: 100, maxExpanded: 1800, radius: 0.45, removedObstacleIds: collisionOptions.removedObstacleIds });
   if (!route || !route.length) continue;
-  candidates.push({ room, exit, doorKey, x, z, ax, az, route, enemyDistance, score: enemyDistance + playerDistance * 0.45 });
+  candidates.push({ room, exit, x, z, ax, az, route, enemyDistance, score: enemyDistance + playerDistance * 0.45 });
  }
  candidates.sort((a,b) => a.score - b.score);
  const chosen = candidates[0];

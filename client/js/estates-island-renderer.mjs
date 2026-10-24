@@ -60,7 +60,8 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
       case 'footpath':
       case 'bridge':
       case 'dock': {
-        const horizontal=item.orientation==='x' || item.kind==='bridge' || item.kind==='dock';
+        // Explicit orientation wins. Legacy bridge/dock descriptors without one keep the X-axis default.
+        const horizontal=item.orientation ? item.orientation==='x' : item.kind==='bridge' || item.kind==='dock';
         // Convention: width is across the route; length is along it.
         // X-oriented routes put length on X, Z-oriented routes put length on Z.
         const width=d.width??5, length=d.length??d.depth??8, height=d.height??.2;

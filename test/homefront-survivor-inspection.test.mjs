@@ -74,3 +74,6 @@ assert.match(page, /if\(survivor\.task==='rest_at_refuge'\)\{const cotSpots=/, '
 
 assert.match(page, /updateRouteRecovery\(actor\.routeRecovery,\{x:o\.position\.x,z:o\.position\.z\},\{x:actor\.targetX,z:actor\.targetZ\},now\)/, 'survivors continuously detect route stalls against their current destination');
 assert.match(page, /preferredOffset:actor\.routeRecovery\.preferredOffset/, 'survivor steering applies a temporary alternate approach after repeated stalls');
+
+assert.match(page, /actor\.routePlan=updateRoutePlan\(actor\.routePlan,\{x:o\.position\.x,z:o\.position\.z\},\{x:actor\.targetX,z:actor\.targetZ\},navObstacles,\{actorRadius:\.28\}\)/, 'survivors maintain a stable detour plan against current structure footprints');
+assert.match(page, /const navTarget=actor\.routePlan\.detour\|\|\{x:actor\.targetX,z:actor\.targetZ\}/, 'survivor steering follows a detour waypoint before resuming its assigned destination');

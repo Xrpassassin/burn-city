@@ -207,7 +207,7 @@ const BOARDS = 6, BOARD_PTS = 10, REPAIR_CAP = 500, REPAIR_T = 0.75, TEAR_T = 1.
 const MAX_PERKS = 4, START_PTS = +process.env.ZOMBIE_START_POINTS || 500,   // env override is for local testing only
   USE_R = 3, REVIVE_R = 2.6;
 const PB = Object.fromEntries(PERKS.map((p, i) => [p.k, 1 << i]));
-const layout = () => ({ up: UPG ? { grid: UPG, h: UH, ramps: RAMPS, atrium: ATR, zone: M.UZ, zones: [M.UZ, ...(M.UXZ || [])] } : null, quest: M.QDEF ? 1 : 0, grid: GRID, cell: CELL, gw: GW, gh: GH, obst: OBST, windows: WINDOWS, boards: BOARDS, repairCap: REPAIR_CAP, zones: ZONES, doors: DOORS, wallbuys: WALLBUYS, box: BOX_SPOTS, boxCost: BOX_COST, forge: FORGE, power: POWER, name: M.name, env: M.env, kind: M.kind, perks: PERKS, weapons: WEAPONS.map(w => ({ id: w.id, name: w.name, kind: w.kind, up: UPW[w.id].name, up2: UP2W[w.id].name })), maxPerks: MAX_PERKS });
+const layout = () => ({ up: UPG ? { grid: UPG, h: UH, ramps: RAMPS, atrium: ATR, zone: M.UZ, zones: [M.UZ, ...(M.UXZ || [])] } : null, quest: M.QDEF ? 1 : 0, grid: GRID, cell: CELL, gw: GW, gh: GH, obst: OBST, windows: WINDOWS, boards: BOARDS, repairCap: REPAIR_CAP, zones: ZONES, doors: DOORS, wallbuys: WALLBUYS, box: BOX_SPOTS, boxCost: BOX_COST, forge: FORGE, forge2Cost: FORGE2_COST, power: POWER, name: M.name, env: M.env, kind: M.kind, perks: PERKS, weapons: WEAPONS.map(w => ({ id: w.id, name: w.name, kind: w.kind, up: UPW[w.id].name, up2: UP2W[w.id].name })), maxPerks: MAX_PERKS });
 
 const WIN_MAX = 2, WIN_GAP = 1.3, RUNNER = 1.4;   // runner speed mult (was 1.7)
 const scaleN = n => n <= 1 ? 0.75 : Math.min(1.9, 0.7 + 0.3 * n), hpN = n => n <= 1 ? 0.85 : Math.min(1.5, 0.8 + 0.12 * n), waveGap = n => n <= 1 ? 12 : Math.max(8, 12 - (n - 1));

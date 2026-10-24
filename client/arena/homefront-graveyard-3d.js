@@ -713,7 +713,7 @@ function boot(host) {
       } else {
         const fieldNoteCount = explorationProgress?.discovered?.length || 0;
         const nextStory = explorationProgress?.storyLeads?.find(lead => !lead.complete);
-        const journalHint = nextStory ? '  |  STORY LEAD · ' + nextStory.title + ' → ' + nextStory.nextLandmarkTitle : '';
+        const journalHint = nextStory ? '  |  STORY LEAD · ' + nextStory.title + (nextStory.nextLandmarkTitle ? ' → ' + nextStory.nextLandmarkTitle : ' · route surveyed; inspect local clues') : '';
         const frontier = (data.self.frontierBand || 'perimeter') + ' · ' + (data.self.frontierDepth || 0) + '% inward';
         const threatHint = (data.self.risk || 1) >= 4 ? ' HIGH THREAT: consider turning back before ammunition runs dry.' : (data.self.risk || 1) >= 3 ? ' Threat rising deeper inside; gunfire attracts attention.' : ' Stay alert; the perimeter is safer, not sterile.';
         objective.textContent = 'EXPEDITION · ' + frontier + ' · Risk ' + (data.self.risk || 1) + '/5 ·' + threatHint + ' FIELD NOTES ' + fieldNoteCount + ' sites. Survey the skyline and follow road markings for landmarks, shortcuts, caches, and rescue leads.' + journalHint;

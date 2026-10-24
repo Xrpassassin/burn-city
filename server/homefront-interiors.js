@@ -91,7 +91,7 @@ function action(input, { account, player, actionId, now = Date.now() }) {
   if (!item || ctx.state.used.includes(actionId)) throw new Error('interior_action_unavailable');
   const landmark = LANDMARKS[ctx.landmarkId];
   const room = Catalog.interiorRoom(ctx.catalog, ctx.state.roomId);
-  const targetX = landmark.x + room.x + item.x, targetZ = landmark.z + room.z + item.z;
+  const targetX = landmark.x + item.x, targetZ = landmark.z + item.z;
   if (Math.hypot(player.x - targetX, player.z - targetZ) > INTERACTION_RADIUS) throw new Error('too_far_from_interior_action');
   const result = Catalog.applyInteriorAction(ctx.catalog, ctx.state, actionId);
   if (result.state.noise > ctx.state.noise) {

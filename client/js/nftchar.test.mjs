@@ -32,6 +32,8 @@ const protocolProfile = resolveNftAvatarProfile({ key: '589', traits: [['Loadout
 assert.deepEqual(protocolProfile.renderTraits, [['weapon', 'Rifle'], ['accessory', 'Gold']]); checks++;
 const eyewearProfile = resolveNftAvatarProfile({ key: '589', traits: [['Glasses', 'Round'], ['Visor', 'Cyber']] });
 assert.deepEqual(eyewearProfile.renderTraits, [['eye wear', 'Round'], ['eye wear', 'Cyber']]); checks++;
+const noseProfile = resolveNftAvatarProfile({ key: '589', traits: [['Nose Shape', 'Aquiline'], ['Nostril Detail', 'Defined']] });
+assert.deepEqual(noseProfile.renderTraits, [['nose', 'Aquiline'], ['nose', 'Defined']]); checks++;
 const unknownProfile = resolveNftAvatarProfile({ key: 'future-project', traits: [['Background', 'Rain']] });
 assert.equal(unknownProfile.hasCollectionAdapter, false); checks++;
 assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;
@@ -79,6 +81,8 @@ has(avatar, /nft-racc-cheek-ruff/, 'adds cheek ruffs to widen the RACC face silh
 has(avatar, /ringed tail|tail = new THREE\.Group/, 'adds a segmented raccoon tail');
 has(avatar, /else \{\s*addSphere\(head,skin/, 'uses a separate human face archetype');
 has(avatar, /nft-beard|nft-goatee|nft-moustache/, 'maps facial-hair traits to the human head');
+has(avatar, /noseText[\s\S]*nft-nose-broad[\s\S]*nft-nose-button[\s\S]*nft-nose-long[\s\S]*nft-nose-hooked[\s\S]*nft-nose-snout[\s\S]*nft-nose-robotic/, 'reconstructs explicit nose traits with distinct human and cybernetic geometry');
+has(adapters, /\['nose', \/nose\|nostril\/i\]/, 'normalizes nose and nostril trait names');
 has(avatar, /white hair\|silver hair/, 'maps hair-color traits');
 has(avatar, /helmet/, 'maps helmet traits');
 has(avatar, /crown/, 'maps crown traits');

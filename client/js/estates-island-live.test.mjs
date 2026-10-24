@@ -10,7 +10,7 @@ assert(app.includes('window.__estatesIslandLive.tick(dt,f,s,run)'), 'live contro
 const live = await readFile(new URL('./estates-island-live.mjs', import.meta.url), 'utf8');
 assert(live.includes('exitPressed:edge'), 'keyboard interaction edge reaches the exit-gate controller');
 assert(live.includes('Catalog mapping:'), 'lot inspection labels catalog mapping rather than implying owner assignment');
-assert(live.includes('That record does not prove ownership'), 'catalog membership must never be presented as verified ownership');
+assert(live.includes('That record does not prove ownership'), 'catalog membership must never be presented as verified ownership');\nassert(live.includes('updateLandmarkInteraction(edge,Boolean(result.property))'), 'public landmark interactions are checked in the live exploration loop');\nassert(live.includes('showLandmarkDetails(nearest)'), 'pressing E opens a landmark detail panel');\nassert(live.includes('no ownership or transaction is implied'), 'landmark interactions cannot imply ownership or a live transaction');
 assert(live.includes('if(property.confirmedInteraction){showLotInspection(property);return;}'), 'E-key interaction opens the lot inspection directly');
 assert.equal((live.match(/onPropertyPrompt:property=>\{lastProperty=property;showLotPrompt\(property\);\}/g)||[]).length,2,'initial and recreated island controllers share the same lot prompt behavior');
 assert.equal((live.match(/if\(event\.confirmedInteraction\)\{leaveIsland\(\);return;\}/g) || []).length, 2, 'both initial and recreated controllers honor confirmed keyboard exit');

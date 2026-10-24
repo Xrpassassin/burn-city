@@ -61,7 +61,29 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
     vegetation.push(descriptor('woodland-tree-'+String(i+1).padStart(2,'0'),'tree',point(Math.cos(angle)*radius,0,Math.sin(angle)*radius),
       {width:1.5+random()*1.2,depth:1.5+random()*1.2,height:4+random()*5},random()>0.5?'pine':'deciduous',{collider:true}));
   }
-  const objects=[...terrain,...roads,...access,...lots,...vegetation];
+  const landmarks=[
+    descriptor('welcome-kiosk','landmark',point(0,0.15,101),{width:4.2,depth:2.8,height:2.8},'timber',{
+      style:'kiosk',title:'Estates Welcome Kiosk',interactionRadius:8,
+      message:'Welcome to Estates Island. Follow the public roads to the community plaza, market, lake overlook, and woodland trail. Property records are informational until ownership is verified.'
+    }),
+    descriptor('community-plaza','landmark',point(0,0.12,24),{width:15,depth:13,height:0.18},'stone',{
+      style:'plaza',title:'Community Plaza',interactionRadius:9,
+      message:'This is the public gathering point for Estates Island. The plaza is a social landmark; no purchase, wallet connection, or property ownership is required to visit.'
+    }),
+    descriptor('public-market','landmark',point(77,0.15,25),{width:7,depth:4.5,height:3.1},'timber',{
+      style:'market',title:'Public Market',interactionRadius:8,
+      message:'The public market is reserved as a future social and trading hub. Live listings, payments, and trades are not enabled by this landmark blockout.'
+    }),
+    descriptor('lake-overlook','landmark',point(75,0.18,94),{width:9,depth:6,height:0.25},'weathered-concrete',{
+      style:'overlook',title:'Lake Overlook',interactionRadius:8,
+      message:'Take in the lake from this public viewing deck. The water is currently non-swimmable and boats are disabled in this build.'
+    }),
+    descriptor('woodland-trailhead','landmark',point(-79,0.15,97),{width:2.8,depth:1.2,height:2.4},'timber',{
+      style:'trailhead',title:'Woodland Trailhead',interactionRadius:8,
+      message:'This trailhead marks the public woodland edge. Trees are decorative blockouts for now; gathering, crafting, and wildlife systems are not yet connected here.'
+    })
+  ];
+  const objects=[...terrain,...roads,...access,...lots,...vegetation,...landmarks];
   const ids=objects.map(o=>o.id);
   if(new Set(ids).size!==ids.length) throw new Error('scene object IDs must be unique');
   if(lots.some(l=>Math.abs(l.position.x)>105||Math.abs(l.position.z)>112)) throw new Error('lot outside buildable island bounds');
@@ -70,7 +92,7 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
     topology:{islandSurroundedByContinuousLake:true,lakeRing:true,walkableShoreline:true,waterCollision:true,swimmingEnabled:false,boatsEnabled:false},
     districts:DISTRICTS,spawn:point(0,0.1,123),returnAnchor:'estates-island-entrance',
     bounds:{minX:-145,maxX:145,minZ:-155,maxZ:155},
-    terrain:Object.freeze(terrain),access:Object.freeze(access),roads:Object.freeze(roads),lots:Object.freeze(lots),vegetation:Object.freeze(vegetation),objects:Object.freeze(objects)
+    terrain:Object.freeze(terrain),access:Object.freeze(access),roads:Object.freeze(roads),lots:Object.freeze(lots),vegetation:Object.freeze(vegetation),landmarks:Object.freeze(landmarks),objects:Object.freeze(objects)
   });
 }
 

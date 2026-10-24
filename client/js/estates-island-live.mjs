@@ -74,7 +74,7 @@ export async function installEstatesIslandLive({
   root.position.x = OFFSET_X;
   addBridgeArchitecture(THREE, root);
 
-  let active = false, nearCityGate = false, lastE = false, lastProperty = null, disposed = false;
+  let active = false, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
   const panel = makePanel();
   const showPanel = (heading, message, actions, muted='') => {
     panel.replaceChildren();
@@ -105,6 +105,32 @@ export async function installEstatesIslandLive({
       [{label:'Inspect lot',primary:true,run:()=>showLotInspection(property)},
        {label:'Close',run:hidePanel}],
       'Walk up to a lot to inspect it. Private property access requires server-verified permissions.');
+  };
+  const showLandmarkDetails = landmark => {
+    showPanel(landmark.title,landmark.message,
+      [{label:'Back to exploring',primary:true,run:hidePanel}],
+      'Public landmark · informational interaction only · no ownership or transaction is implied.');
+  };
+  const showLandmarkPrompt = landmark => {
+    showPanel(landmark.title,landmark.message,
+      [{label:'Explore landmark',primary:true,run:()=>showLandmarkDetails(landmark)},
+       {label:'Close',run:hidePanel}],
+      'Press E to read this landmark, or use the button.');
+  };
+  const updateLandmarkInteraction = (edge,propertyNearby=false) => {
+    if(propertyNearby) { lastLandmarkId=null; return; }
+    const x=player.pos.x-OFFSET_X,z=player.pos.z;
+    let nearest=null,nearestDistance=Infinity;
+    for(const landmark of manifest.landmarks??[]) {
+      const distance=Math.hypot(x-landmark.position.x,z-landmark.position.z);
+      if(distance<=landmark.interactionRadius&&distance<nearestDistance) {nearest=landmark;nearestDistance=distance;}
+    }
+    if(!nearest) {
+      if(lastLandmarkId!==null) {lastLandmarkId=null;hidePanel();}
+      return;
+    }
+    if(edge) {lastLandmarkId=nearest.id;showLandmarkDetails(nearest);return;}
+    if(lastLandmarkId!==nearest.id) {lastLandmarkId=nearest.id;showLandmarkPrompt(nearest);}
   };
   const cityDistance = () => Math.hypot(player.pos.x-CITY_GATE.x,player.pos.z-CITY_GATE.z);
   const localActor = {

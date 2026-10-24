@@ -112,7 +112,7 @@ has(visualQa, /collectionRequirements:latestQa\.reconstruction\.visualRequiremen
 has(visualQa, /latestQa\.traitCoverage\.map/, 'copies fidelity counts from the latest render without out-of-scope references');
 has(visualQa, /https:\/\/api\.xrpl\.to\/v1\/nft\//, 'loads source NFT metadata through the documented XRPL.to API');
 has(visualQa, /record\.NFTokenID\|\|record\._id/, 'checks live NFT API response against the exact requested token ID');
-has(visualQa, /record\.Issuer\|\|'rXYdhW4ZHdzt27VuHJgNwbD1aJjcKZJ9M'/, 'rejects live reference tokens that do not match the RACC issuer');
+has(visualQa, /record\.Issuer\|\|''\)!=='rXYdhW4ZHdzt27VuHJgNwbD1aJjcKZJ9M'/, 'rejects live reference tokens that do not match the RACC issuer');
 has(visualQa, /NFTokenTaxon\?\?record\.Taxon/, 'rejects live reference tokens without the expected RACC taxon');
 has(visualQa, /Load real RACC NFT from XRPL\.to API/, 'provides a one-click real RACC reference load path');
 has(visualQa, /Data source: XRPL\.to/, 'credits the XRPL.to NFT data source visibly');

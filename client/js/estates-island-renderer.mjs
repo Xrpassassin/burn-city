@@ -111,7 +111,8 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
         }
         break;
       }
-      case 'tree': made=addTree(THREE,root,item); break;\n      case 'landmark': made=addLandmark(THREE,root,item); break;
+      case 'tree': made=addTree(THREE,root,item); break;
+      case 'landmark': made=addLandmark(THREE,root,item); break;
       case 'entrance-trigger': {
         const mesh=new THREE.Mesh(new THREE.CylinderGeometry(d.radius,d.radius,d.height,24,1,true),material(THREE,PALETTE['interaction-volume'],{transparent:true,opacity:.12}));
         mesh.name=item.id; place(mesh,{x:p.x,y:p.y+d.height/2,z:p.z}); root.add(mesh); made=[mesh];

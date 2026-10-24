@@ -15,12 +15,14 @@ const manifest={objects:[
 {id:'bridge',kind:'bridge',position:{x:0,y:0,z:0},dimensions:{width:8,length:24,height:.8},material:'weathered-concrete'},
 {id:'bridge-z',kind:'bridge',orientation:'z',position:{x:0,y:0,z:0},dimensions:{width:8,length:24,height:.8},material:'weathered-concrete'},
 {id:'lot',kind:'property-lot',position:{x:10,y:0,z:12},dimensions:{width:20,depth:18},material:'lot-boundary',tier:'starter',buildingFootprint:{width:8,depth:7,height:5}},
-{id:'gate',kind:'entrance-trigger',position:{x:0,y:0,z:30},dimensions:{radius:5,height:4},destinationId:'estates-island'},\n{id:'welcome-kiosk',kind:'landmark',style:'kiosk',position:{x:0,y:0,z:40},dimensions:{width:4,depth:3,height:2.5},material:'timber'}
+{id:'gate',kind:'entrance-trigger',position:{x:0,y:0,z:30},dimensions:{radius:5,height:4},destinationId:'estates-island'},
+{id:'welcome-kiosk',kind:'landmark',style:'kiosk',position:{x:0,y:0,z:40},dimensions:{width:4,depth:3,height:2.5},material:'timber'}
 ]};
 let interactions=0;
 const renderer=createEstatesIslandRenderer({THREE,scene,manifest,onInteract:()=>interactions++});
 assert.equal(scene.children.length,1);
-assert.equal(renderer.objectCount,9,'renderer registers every manifest object, including each blockout type');\nassert(renderer.getObject('welcome-kiosk').length>=6,'public kiosk renders a counter, posts, roof, and sign as separate meshes');
+assert.equal(renderer.objectCount,9,'renderer registers every manifest object, including each blockout type');
+assert(renderer.getObject('welcome-kiosk').length>=6,'public kiosk renders a counter, posts, roof, and sign as separate meshes');
 assert.ok(renderer.getObject('lot').length>=3);
 assert.deepEqual(renderer.getObject('road-x')[0].geometry.args,[40,.2,3],'X-oriented road must put length on X and width on Z');
 assert.deepEqual(renderer.getObject('road-z')[0].geometry.args,[4,.2,30],'Z-oriented road must put width on X and length on Z');

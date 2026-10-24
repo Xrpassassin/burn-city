@@ -159,8 +159,8 @@ export async function installEstatesIslandLive({
     },
     cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
     cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
-    onPropertyPrompt:property=>{lastProperty=property;showLotPrompt(property);},
-    onPropertyPromptClear:()=>{lastProperty=null;hidePanel();},
+    onPropertyPrompt:property=>{lastProperty=property;lastLandmarkId=null;showLotPrompt(property);},
+    onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;hidePanel();},
     onExitPrompt:event=>{
       if(!active)return;
       if(event.confirmedInteraction){leaveIsland();return;}
@@ -217,8 +217,8 @@ export async function installEstatesIslandLive({
         }}),
         cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
         cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
-        onPropertyPrompt:property=>{lastProperty=property;showLotPrompt(property);},
-        onPropertyPromptClear:()=>{lastProperty=null;hidePanel();},
+        onPropertyPrompt:property=>{lastProperty=property;lastLandmarkId=null;showLotPrompt(property);},
+        onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;hidePanel();},
         onExitPrompt:event=>{
           if(!active)return;
           if(event.confirmedInteraction){leaveIsland();return;}
@@ -234,6 +234,7 @@ export async function installEstatesIslandLive({
     avatar.position.copy(player.pos);
     const movedX=player.pos.x-beforeX,movedZ=player.pos.z-beforeZ;
     avatar.rotation.y=Math.hypot(movedX,movedZ)>.001?Math.atan2(-movedX,-movedZ):getYaw();
+    updateLandmarkInteraction(edge,Boolean(result.property));
     if(result.property && edge) {
       // The controller callback supplies the explicit inspection action; no property entry is implied.
     }

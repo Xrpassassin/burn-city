@@ -81,6 +81,8 @@ has(avatar, /key==='589'/, 'gives 589 avatars a collection-specific BURN accent'
 has(avatar, /Keep the Protocol insignia above the artwork tabard/, 'documents the visible 589 insignia placement');
 has(avatar, /nft-protocol-emblem[\s\S]*1\.655,\.245[\s\S]*renderOrder=3/, 'keeps the 589 emblem above the original artwork panel');
 has(avatar, /artwork panel spans the torso center[\s\S]*side\*\.292[\s\S]*renderOrder=3/, 'keeps 589 shirt edge stitching visible outside the artwork frame');
+has(avatar, /below the tabard frame[\s\S]*nft-protocol-shirt-print[\s\S]*\.775,\.252/, 'places the 589 shirt print below the artwork frame where it remains visible');
+has(avatar, /nft-protocol-shirt-sigil[\s\S]*\.775,\.266[\s\S]*renderOrder=3/, 'places the 589 shirt sigil below the artwork frame and above the torso');
 has(avatar, /key==='fk'/, 'gives Firekeepers a collection-specific ember treatment');
 has(avatar, /nft-artwork-panel/, 'shows the complete NFT artwork on the walking avatar');
 has(avatar, /nft-body-effect-flame/, 'renders 589 Body fire states as visible geometry');

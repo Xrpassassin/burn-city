@@ -46,7 +46,18 @@ assert.equal(Interiors.publicState(reloaded, account).roomId, 'pharmacy');
 assert(reloaded[account].interiors.mercy_hospital.flags.includes('emergency_power'));
 const left = Interiors.leave(reloaded, { account, player, now: 1700 });
 assert.equal(Interiors.publicState(left.state, account), null);
+
 assert.equal(left.state[account].interiors.mercy_hospital.roomId, 'pharmacy');
+const reentered = Interiors.enter(left.state, { account, player, landmarkId: 'mercy_hospital', now: 1800 });
+state = reentered.state;
+assert.throws(() => Interiors.breachDoor(state, { account, landmarkId: 'mercy_hospital', doorId: 'pharmacy_door', damage: 100, now: 1900 }), /interior_door_secure/);
+for (let i = 0; i < 4; i++) {
+  const breached = Interiors.breachDoor(state, { account, landmarkId: 'mercy_hospital', doorId: 'ward_door', damage: 30, now: 2000 + i });
+  state = breached.state;
+}
+assert(state[account].interiors.mercy_hospital.openedDoors.includes('ward_door'), 'persistent breach progress eventually opens an ordinary door');
+assert.equal(state[account].interiors.mercy_hospital.doorDamage.ward_door, 100);
+
 
 const wall = Collision.OBSTACLES.find(o => o.id === 'interior-wall:mercy_hospital:emergency_lobby:north:0');
 assert(wall, 'interior wall collision is included in the static collision index');

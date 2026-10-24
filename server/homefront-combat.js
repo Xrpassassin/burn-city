@@ -142,6 +142,8 @@ function advance({encounters,players,interiors=null,now=Date.now(),speed=2.8,max
    if(route&&route.length){
     const advanced=advanceAlongTerrainPath(e.x,e.z,route,step);
     if(Terrain.canTraverse(e.x,e.z,advanced.x,advanced.z)&&Collision.canTraverse(e.x,e.z,advanced.x,advanced.z,{radius:0.45,bounds:100,removedObstacleIds:collisionOptions.removedObstacleIds})){e.x=advanced.x;e.z=advanced.z;}
+   } else if(collisionOptions.landmarkId) {
+    attemptInteriorBreach({ account, enemy: e, player, interiors, now, elapsed, collisionOptions, speed });
    }
   }
   }

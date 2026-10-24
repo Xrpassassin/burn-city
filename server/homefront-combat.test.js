@@ -74,6 +74,32 @@ assert(interiorState[interiorAccount].interiors.mercy_hospital.openedDoors.inclu
 assert.equal(interiorState[interiorAccount].interiors.mercy_hospital.doorDamage.ward_door, 100);
 
 
+// Squad followers obey the same active-interior collision map as the anchor. A closed ward
+// door must not cause a follower to snap across the wall to rejoin formation.
+{
+  const followerAccount = 'interior-squad-no-phase';
+  const followerInteriorState = JSON.parse(JSON.stringify(interiorState));
+  followerInteriorState[followerAccount] = JSON.parse(JSON.stringify(followerInteriorState[interiorAccount]));
+  followerInteriorState[followerAccount].activeLandmarkId = 'mercy_hospital';
+  followerInteriorState[followerAccount].interiors.mercy_hospital.openedDoors = [];
+  followerInteriorState[followerAccount].interiors.mercy_hospital.doorDamage = {};
+  followerInteriorState[followerAccount].interiors.mercy_hospital.roomId = 'ward_corridor';
+  const followerStart = { x: hospital.x, z: hospital.z };
+  const followerPlayer = { x: hospital.x + 9.6, z: hospital.z };
+  const followerSpawn = C.spawn({ encounters: {}, account: followerAccount, player: followerPlayer,
+    interiors: followerInteriorState, now: 200000, seed: 73 });
+  const followerEncounter = { ...followerSpawn.encounters[followerAccount], x: followerPlayer.x, z: followerPlayer.z,
+    lastKnownX: followerPlayer.x, lastKnownZ: followerPlayer.z, lastKnownAt: 200000, investigateUntil: 0, lastAiAt: 200000,
+    members: followerSpawn.encounters[followerAccount].members.map((m, i) => ({
+      ...m, x: i === 0 ? followerPlayer.x : followerStart.x, z: hospital.z, offsetX: 0, offsetZ: 0
+    })) };
+  const beforeFollower = followerEncounter.members[1];
+  const afterFollower = C.advance({ encounters: { [followerAccount]: followerEncounter },
+    players: { [followerAccount]: followerPlayer }, interiors: followerInteriorState, now: 201000 })[followerAccount].members[1];
+  assert.ok(Math.hypot(afterFollower.x - beforeFollower.x, afterFollower.z - beforeFollower.z) <= 3.1,
+    'a blocked squad follower advances by a bounded pathfinding step instead of teleporting through a closed interior door');
+}
+
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
 const noAmmo=C.spawn({encounters:{},account:'b',player,now:200000});assert.throws(()=>C.attack({encounters:noAmmo.encounters,account:'b',player,base:{...base(),resources:{ammo:0},equippedWeapon:'pump_shotgun'},now:201000}),/insufficient_ammo/);

@@ -17,6 +17,7 @@ This is an authored content layer for the existing XRPL Graveyard expedition map
 
 - `server/homefront-world.js` remains authoritative for coordinates, movement, encounter state, loot, rescue state, and rewards.
 - This catalog does not grant items or unlock routes. It describes content for the presentation/mission layer to consume after a server-authorized interaction.
+- Discovering all named locations in a story thread marks its route as surveyed, not its story as complete. Narrative completion and rewards must follow explicit clue/objective interactions.
 - Existing point IDs and coordinates must match exactly; content must not create a second source of truth for physical POIs.
 - District risk uses the existing established expedition zones. The high-risk subway and research annex are endgame destinations.
 - Use this as the blueprint for building geometry: landmark archetype, interior-space list, interactables, hazards, soundscape, and route links are explicit rather than inferred from decorative props.

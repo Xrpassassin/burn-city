@@ -4,6 +4,7 @@
 // Leaves when a majority of ACTIVE players vote (away / timed-out / spectators never count), when every active player is aboard, or when the timer ends.
 // Two door miniguns: a boarded player presses USE to man a free one; hits are resolved here with the PR 12 pitch aim.
 const Z = require('./cod');
+const Campaign = require('./zombie-campaign');
 const INBOUND = 20, BOARD = 60, DEPART = 9, LIFT = 6, LEFT = 9, PAD_R = 4.2, MG_CD = 0.055, MG_DMG = 34, MG_RANGE = 46, MG_SPIN = 0.6, MG_LAT = 1.0;
 const ST = { inbound: 1, board: 2, lift: 3, left: 4, done: 5 };
 const q = v => Math.round(v * 10) / 10;
@@ -37,10 +38,12 @@ function finish(room, ps, ev) { const h = room.heli, all = [...room.players.valu
   const survivors = all.filter(p => p.alive);
   if (advances(room) && survivors.length && survivors.every(p => h.b.has(p.id))) {
     const from = room.M?.kind === 'classic' ? 'The BURN Refinery' : 'the outbreak zone';
+    const campaign = Campaign.capture(room.players);
     room.mapId = 'cosmodrome';
     h.st = ST.done;
     ev.push({ e: 'map_transition', from, to: 'The Ashen Cosmodrome' });
     room.reset();
+    Campaign.restore(room.players, campaign);
     return;
   }
   const left = all.filter(p => !h.b.has(p.id)), stat = p => ({ id: p.id, pts: p.pts | 0, kills: p.lifeKills | 0, wave: room.wave, secs: Math.round(room.t - (p.lifeStart || 0)) });

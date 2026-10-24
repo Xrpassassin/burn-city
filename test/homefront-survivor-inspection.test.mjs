@@ -78,6 +78,8 @@ assert.match(page, /preferredOffset:actor\.routeRecovery\.preferredOffset/, 'sur
 assert.match(page, /actor\.routePlan=updateRoutePlan\(actor\.routePlan,\{x:o\.position\.x,z:o\.position\.z\},\{x:actor\.targetX,z:actor\.targetZ\},navObstacles,\{actorRadius:\.28\}\)/, 'survivors maintain a stable detour plan against current structure footprints');
 assert.match(page, /const navTarget=actor\.routePlan\.detour\|\|\{x:actor\.targetX,z:actor\.targetZ\}/, 'survivor steering follows a detour waypoint before resuming its assigned destination');
 
+assert.match(page, /navActor\.routePlan\?\.unreachable\?'Navigation: blocked/, 'survivor inspection explains when a route is blocked');
+assert.match(page, /navActor\.routePlan\?\.detour\?'Navigation: routing around an obstruction/, 'survivor inspection reports active detours');
 assert.match(page, /safeMovePosition\(\{x:o\.position\.x,z:o\.position\.z\},\{x:steering\.x\*step,z:steering\.z\*step\},navObstacles,\.28\)/, 'survivor travel validates movement against solid structure footprints');
 assert.match(page, /moving&&!actor\.routePlan\.unreachable/, 'survivors pause instead of walking into a route with no safe immediate detour');
 assert.match(page, /safePush=safeMovePosition/, 'player proximity nudges cannot push survivors through fortifications');

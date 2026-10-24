@@ -136,7 +136,8 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(worldB.status, 200);
   const enteredB = await call('POST', '/api/homefront/world/enter', 'acct-b');
   assert.equal(enteredB.status, 200);
-  assert.equal(enteredB.data.players.length, 2, 'active explorers share one map snapshot');
+  // RPG interest management (#rpg-b): strangers who spawned far apart are not sent to each other.
+  assert.equal(enteredB.data.players.length, 1, 'far-apart strangers are not broadcast to each other');
   const partyCreated = await call('POST', '/api/homefront/world/party/create', 'acct-a');
   assert.equal(partyCreated.status, 200);
   const partyCode = partyCreated.data.party.code;

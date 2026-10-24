@@ -22,6 +22,8 @@ on:
       - 'client/js/player-motion.test.mjs'
       - 'client/js/walker.js'
       - 'test/homefront-travel-sim.js'
+      - 'server/homefront-pvp.js'
+      - 'test/homefront-pvp-interest-sim.js'
       - 'server/homefront-combat.js'
       - 'server/homefront-world.js'
       - 'server/homefront-terrain.js'
@@ -100,6 +102,7 @@ jobs:
           node --check server/homefront-inventory.js
           node --check server/homefront.js
           node --check server/homefront-travel.js
+          node --check server/homefront-pvp.js
           node --check server/server.js
           node --check server/game.js
           node --check server/flight-lobby.js

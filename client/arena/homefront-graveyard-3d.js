@@ -118,6 +118,26 @@ function boot(host) {
   let selectedLootId = null;
   const findInfectedButton = document.getElementById('findInfected');
   const attackInfectedButton = document.getElementById('attackInfected');
+  // RPG PvP (server/homefront-pvp.js): tap a stranger in range to target them; the server resolves every hit.
+  let pvpTargetId = null, pvpBusy = false, lastPvpHitAt = 0;
+  const pvpButton = document.createElement('button');
+  pvpButton.className = 'btn'; pvpButton.id = 'pvpAttack'; pvpButton.type = 'button'; pvpButton.hidden = true; pvpButton.textContent = '⚔ Attack survivor';
+  attackInfectedButton?.after(pvpButton);
+  const PVP_ERRORS = { friendly_fire_blocked: 'No friendly fire inside your party.', pvp_disabled_in_homefront: 'PvP is off inside Homefronts.', target_not_found: 'That survivor is out of sight.', target_out_of_range: 'Move closer to attack.', pvp_cooldown: 'Weapon cycling…', target_spawn_protected: 'They just arrived (spawn protection).', reload_required: 'Reload first.' };
+  pvpButton.onclick = async () => {
+    const target = (worldData?.players || []).find(p => p.id === pvpTargetId);
+    if (!target || pvpBusy) return;
+    pvpBusy = true; pvpButton.disabled = true;
+    try {
+      const r = await fetch(API + '/api/homefront/world/pvp', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ targetId: target.id, aimPoint: { x: target.x, z: target.z } }) });
+      const data = await r.json();
+      if (!r.ok || data.error) throw new Error(data.error || 'pvp_failed');
+      if (combatStatus) combatStatus.textContent = 'PvP · ' + data.pvp.hits.filter(h => h.hit).length + '/' + data.pvp.rounds + ' hits · ' + data.pvp.damage + ' damage' + (data.pvp.killed ? ' · survivor downed' : '');
+      if (data.pvp.damage > 0 && sfx.has?.('hit')) sfx.play('hit', { v: 0.8 });
+      updateWorld(data);
+    } catch (e) { if (combatStatus) combatStatus.textContent = PVP_ERRORS[e.message] || e.message; }
+    finally { pvpBusy = false; pvpButton.disabled = false; }
+  };
   const damageEnvironmentButton = document.getElementById('damageEnvironment');
   let selectedEnvironmentId = null;
   const autoFireButton = document.getElementById('autoFireInfected');
@@ -868,6 +888,9 @@ function boot(host) {
     if (combatStatus) combatStatus.textContent = selfEncounter && !selfEncounter.defeated
       ? selfEncounter.enemy + ' · HP ' + selfEncounter.hp + '/' + selfEncounter.maxHp + ' · risk ' + selfEncounter.risk + '/5 · ' + Math.ceil(enemyDistance) + ' units away' + (enemyInReach ? ' · in attack range' : ' · move closer to attack')
       : 'No active encounter. Search for infected to begin a server-authoritative fight.';
+    if (pvpTargetId && !(data.players || []).some(p => p.id === pvpTargetId && !p.party)) { pvpTargetId = null; pvpButton.hidden = true; }
+    const lastHit = (data.selfPvp?.recentHits || []).at(-1);
+    if (lastHit && lastHit.at > lastPvpHitAt) { if (lastPvpHitAt && combatStatus) combatStatus.textContent = '⚠ Hit by ' + lastHit.fromId.slice(9, 14) + ' for ' + lastHit.damage + ' (PvP)'; lastPvpHitAt = lastHit.at; }
     explorerPositions.clear();
     for (const p of (data.players || [])) {
       const key = String(p.id || p.userId || p.accountId || p.label || 'explorer');
@@ -885,6 +908,7 @@ function boot(host) {
       walker.rotation.y = Math.PI; walker.scale.setScalar(EXPLORER_SCALE);
       walker.traverse(node => { if (node.isMesh) node.userData.sharedAsset = true; });
       g.add(walker); g.userData.walker = walker;
+      g.userData.pvpTarget = !isLocalPlayer && !p.party;   // strangers in interest range are PvP targets; party members never
       // A readable field pack makes the backpack slot visible in-world without affecting gameplay stats.
       const packColor = isLocalPlayer ? equippedBackpackColor : 0x78604a;
       const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.82, 0.34), mat(packColor));
@@ -1316,6 +1340,11 @@ function boot(host) {
         updateWorld(worldData);
         return;
       }
+    }
+    const explorerHits = raycaster.intersectObject(playerGroup, true);
+    for (const hit of explorerHits) {
+      let node = hit.object; while (node && !node.userData?.explorerKey) node = node.parent;
+      if (node?.userData?.pvpTarget) { pvpTargetId = node.userData.explorerKey; pvpButton.hidden = false; if (combatStatus) combatStatus.textContent = 'Survivor targeted · PvP is on out here. Party members can’t be hurt.'; return; }
     }
     const interiorHits = raycaster.intersectObjects([...interiorSetPieces.values()].filter(group => group.visible && group.parent?.visible), true);
     if (interiorHits.length) {

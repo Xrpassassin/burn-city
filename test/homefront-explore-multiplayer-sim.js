@@ -24,7 +24,7 @@ const place = (acct, x, z) => { const w = files.get('homefront-world.json'); w.p
   assert.equal((await call('GET', W + '/exploration', null)).status, 401, 'journal needs a bearer token');
   assert.equal((await call('POST', W + '/interior/enter', null, { landmarkId: 'north_bus_depot' })).status, 401, 'interiors need a bearer token');
   for (const k of [A, B, C, D]) assert.equal((await call('POST', W + '/enter', k, {})).status, 200);
-  assert.equal((await call('GET', W, A)).data.players.length, 4, 'all four explorers share one world');
+  assert.equal(Object.keys(files.get('homefront-world.json').players).length, 4, 'all four explorers share one world');
   for (const k of [A, B]) place(k, -9.1, -64.6);           // inside the north bus depot dispatch room
   place(C, -4, 6); place(D, 60, 60);
   for (const bad of ['__proto__', 'constructor', 'toString', '']) {

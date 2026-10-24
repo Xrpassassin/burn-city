@@ -74,28 +74,6 @@ assert(interiorState[interiorAccount].interiors.mercy_hospital.openedDoors.inclu
 assert.equal(interiorState[interiorAccount].interiors.mercy_hospital.doorDamage.ward_door, 100);
 
 
-// Interior-aware pursuit must stop at a closed door, batter it, then continue through once breached.
-const InteriorRules = require('./homefront-interiors');
-const interiorAccount = 'interior-ai';
-const hospital = InteriorRules.LANDMARKS.mercy_hospital;
-const interiorPlayer = { x: hospital.x + 5.4, z: hospital.z, lastNoiseAt: 0, noiseX: hospital.x + 5.4, noiseZ: hospital.z };
-const interiorState = { [interiorAccount]: { activeLandmarkId: 'mercy_hospital', interiors: { mercy_hospital: {
-  landmarkId: 'mercy_hospital', roomId: 'ward_corridor', flags: ['emergency_power'], discovered: [], used: [],
-  openedDoors: [], doorDamage: {}, noise: 0, updatedAt: 100000
-} } } };
-const interiorSeed = C.spawn({ encounters: {}, account: interiorAccount, player: { x: hospital.x, z: hospital.z }, interiors: interiorState, now: 100000, seed: 91 });
-let interiorEncounter = { ...interiorSeed.encounters[interiorAccount], x: hospital.x, z: hospital.z,
-  lastKnownX: interiorPlayer.x, lastKnownZ: interiorPlayer.z, lastKnownAt: 100000, investigateUntil: 0, lastAiAt: 100000,
-  members: interiorSeed.encounters[interiorAccount].members.map((m,i)=>({...m,x:hospital.x+i*0.1,z:hospital.z})) };
-let interiorEncounters = { [interiorAccount]: interiorEncounter };
-for (let tick = 1; tick <= 8; tick++) {
-  interiorEncounters = C.advance({ encounters: interiorEncounters, players: { [interiorAccount]: interiorPlayer }, interiors: interiorState, now: 100000 + tick * 1000 });
-}
-assert(interiorState[interiorAccount].interiors.mercy_hospital.openedDoors.includes('ward_door'),
-  'infected spend time breaching a closed ordinary door before opening the persistent route');
-assert.equal(interiorState[interiorAccount].interiors.mercy_hospital.doorDamage.ward_door, 100);
-
-
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
 const noAmmo=C.spawn({encounters:{},account:'b',player,now:200000});assert.throws(()=>C.attack({encounters:noAmmo.encounters,account:'b',player,base:{...base(),resources:{ammo:0},equippedWeapon:'pump_shotgun'},now:201000}),/insufficient_ammo/);

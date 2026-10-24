@@ -199,7 +199,7 @@ class Room {
             if (along > 0 && along < hd && lat < w.width && d > 0 && vAim(p, zb, along, w.width) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) {
               hurt(zb, w.dps * dt * rot.damageScale * (1 - d / w.range * 0.35), p, lat < HS_LAT && hsV(p, zb, along) ? 1.5 : 0);
               if (along < hd) { hd = along; hit = zb; endX = zb.x; endZ = zb.z; } } }
-          if (p.ravTracerT <= 0) { p.ravTracerT = 0.085; ev.push({ e: 'shot', id: p.id, w: 'ravager', x: q(p.x), z: q(p.z), tx: q(endX), tz: q(endZ), ty: q(hit ? (hit.y || 0) + 0.9 : endY(p, hd)), y: q(p.y || 0), pi: Math.round((p.pitch || 0) * 100) / 100, ray: 1 }); }
+          if (p.ravTracerT <= 0) { p.ravTracerT = 0.12; ev.push({ e: 'shot', id: p.id, w: 'ravager', x: q(p.x), z: q(p.z), tx: q(endX), tz: q(endZ), ty: q(hit ? (hit.y || 0) + 0.9 : endY(p, hd)), y: q(p.y || 0), pi: Math.round((p.pitch || 0) * 100) / 100, ray: 1 }); }
         } else if (p.ravHeat < 35 && p.ravSpin < 0.1) p.ravTracerT = 0;
       } else if (w.kind === 'cone' || w.kind === 'beam') {
         p.firing = p.in.fire && p.fuel > 0; p.fuel = clamp(p.fuel + (p.firing ? -w.use : w.regen * (quick ? 2 : 1)) * dt, 0, 100);

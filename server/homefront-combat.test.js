@@ -56,7 +56,7 @@ assert.equal(noiseDrawn.a.lastKnownX,30,'infected retain the authoritative noise
 const InteriorRules = require('./homefront-interiors');
 const interiorAccount = 'interior-ai';
 const hospital = InteriorRules.LANDMARKS.mercy_hospital;
-const interiorPlayer = { x: hospital.x + 5.4, z: hospital.z, lastNoiseAt: 0, noiseX: hospital.x + 5.4, noiseZ: hospital.z };
+const interiorPlayer = { x: hospital.x + 4.8, z: hospital.z, lastNoiseAt: 0, noiseX: hospital.x + 5.4, noiseZ: hospital.z };
 const interiorState = { [interiorAccount]: { activeLandmarkId: 'mercy_hospital', interiors: { mercy_hospital: {
   landmarkId: 'mercy_hospital', roomId: 'ward_corridor', flags: ['emergency_power'], discovered: [], used: [],
   openedDoors: [], doorDamage: {}, noise: 0, updatedAt: 100000

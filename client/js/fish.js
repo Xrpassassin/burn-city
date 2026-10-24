@@ -2,7 +2,7 @@
 // Lake coins are a free in-game score: NO real value, cannot be bought with XRP, cannot be withdrawn.
 // Signed in: server rolls + stores progress (anti-script limits). Guests: same rules locally (localStorage).
 import * as THREE from 'three';
-import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard, feedingSpotBonus } from './fishing-rules.mjs';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const SPECIES = [["minnow","Ledger Minnow",0,[0.05,0.3],3,{}],["bluegill","Bluegill Byte",0,[0.1,0.6],4,{}],["perch","Pond Perch",0,[0.2,1.2],5,{}],["carp","Mud Carp",0,[0.8,6],6,{}],["shiner","River Shiner",0,[0.05,0.4],3,{}],["dace","Silver Dace",0,[0.1,0.5],4,{}],["trout","Neon Trout",1,[0.5,4],12,{}],["bass","Amber Bass",1,[0.6,5],14,{}],["catfish","Glass Catfish",1,[1,9],15,{"night":1}],["pike","Spotted Pike",1,[1,8],16,{}],["eel","Moon Eel",2,[0.8,5],40,{"night":1}],["gar","Storm Gar",2,[2,12],45,{"weather":"storm"}],["koi","Gold Koi",2,[1,7],50,{}],["cod","Deepwater Cod",2,[3,20],48,{"deep":1}],["sturgeon","Phantom Sturgeon",3,[10,60],140,{"night":1,"deep":1}],["snapper","Lava Snapper",3,[2,14],120,{}],["salmon","Aurora Salmon",3,[3,18],130,{"weather":"bull"}],["leviathan","Burn Leviathan",4,[80,300],600,{"deep":1,"night":1}],["marlin","Crystal Marlin",4,[40,180],520,{"deep":1}],["whaleshark","XRP Whale Shark",4,[200,900],750,{"deep":1,"weather":"bull"}]], SHOP = {"rods":[["basic","Basic Rod",0,0],["carbon","Carbon Rod",150,1],["pro","Pro Rod",600,2],["legend","Ember Legend Rod",2000,3]], "baits":[["worm","Worm (free)",0,0],["shrimp","Shrimp",5,1],["glow","Glow Lure",20,2],["burnfly","Burn Fly",60,3]]}, RW = [60, 25, 10, 4, 1], RN = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'], RC = ['#c8d0dc', '#5aff9a', '#4aa8ff', '#c06bff', '#ffb020'];
 const Q = new URLSearchParams(location.search), SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev', LS = localStorage;
@@ -22,7 +22,7 @@ let prof = (() => { try { return JSON.parse(LS.bcFish || 'null') } catch (e) { r
 const saveLocal = () => { LS.bcFish = JSON.stringify(prof) };
 let bait = 'worm';
 // ---------- world: dock + shop on the city shore ----------
-let dock = null, shopPos = null, bobber = null, rod = null;
+let dock = null, shopPos = null, bobber = null, rod = null, feedingSpots = [];
 // ---------- low-poly fish model: shared geometry, one textured material per species ----------
 // look: [back colour, belly colour, pattern: 0 plain | 1 stripes | 2 spots | 3 lateral glow line | 4 patches, accent]
 const LOOK = { minnow: ['#8a9aa8', '#e8eef2', 0], bluegill: ['#2f7f86', '#ff9a3c', 1, '#1d4d5a'], perch: ['#9aa63a', '#f0e6b0', 1, '#3a4a1a'], carp: ['#a8823c', '#f0d890', 0], shiner: ['#c8d4e0', '#ffffff', 0],
@@ -148,6 +148,17 @@ function build() {
   for (let z = -2; z < 22; z += 1.1) P(4.2, 0.18, 0.9, 0, 1.1, z); for (const x of [-1.9, 1.9]) for (let z = 0; z < 22; z += 5) P(0.35, 2.2, 0.35, x, 0.3, z); P(0.15, 0.9, 22, -2.05, 1.6, 10); P(0.15, 0.9, 22, 2.05, 1.6, 10);
   const dm = new THREE.Mesh(mergeGeometries(g), new THREE.MeshLambertMaterial({ color: 0x8a6440 })); dm.position.copy(base).setY(0); dm.rotation.y = yaw; c.S.add(dm);
   dock = { base, tip: base.clone().addScaledVector(dir, 20).setY(1.2), yaw, dir, side };
+  // Moving feeding schools reward anglers who explore the lake rather than casting from one spot.
+  feedingSpots = [];
+  for (const [u, v] of [[-72, -28], [48, 24], [6, 48]]) {
+    const p = lakeC.clone().addScaledVector(side, u).addScaledVector(dir, v);
+    for (let k = 0; k < 45 && !e.inLake(p.x, p.z); k++) p.lerp(lakeC, 0.12);
+    if (!e.inLake(p.x, p.z)) continue;
+    const mat = new THREE.MeshBasicMaterial({ color: 0x71ffd0, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.RingGeometry(2.1, 2.55, 32), mat);
+    mesh.rotation.x = -Math.PI / 2; mesh.position.set(p.x, 0.24, p.z); c.S.add(mesh);
+    feedingSpots.push({ mesh, p: p.clone(), target: p.clone(), moveAt: performance.now() / 1000 + 10 + Math.random() * 12 });
+  }
   // Tackle & Bait shop: small cabin + glowing sign
   shopPos = base.clone().addScaledVector(dir, -14).addScaledVector(side, 9); const sg = [new THREE.BoxGeometry(9, 4.5, 7).translate(0, 2.25, 0), new THREE.BoxGeometry(10, 0.5, 8).translate(0, 4.7, 0)];
   const sh = new THREE.Mesh(mergeGeometries(sg), new THREE.MeshLambertMaterial({ color: 0x5a3a24, emissive: 0x1a0c04 })); sh.position.copy(shopPos).setY(0); sh.rotation.y = yaw; c.S.add(sh);
@@ -199,12 +210,14 @@ async function castAt(pow) {
   const from = isDeep() ? window.__boat.pos : c.P.pos, perfect = pow >= .72 && pow <= .86; let dist = 6 + 20 * pow, tgt = from.clone().addScaledVector(fw, dist);
   while (dist > 4 && !e.inLake(tgt.x, tgt.z)) { dist -= 1; tgt = from.clone().addScaledVector(fw, dist) }
   if (!e.inLake(tgt.x, tgt.z)) { tgt = from.clone(); for (let k = 0; k < 40 && !e.inLake(tgt.x, tgt.z); k++) tgt.addScaledVector(e.dir, 1); tgt.addScaledVector(e.dir, 3 + 6 * pow) }
+  const spotDistance = feedingSpots.reduce((best, s) => Math.min(best, Math.hypot(tgt.x - s.p.x, tgt.z - s.p.z)), Infinity);
+  const activityBonus = feedingSpotBonus(spotDistance, 9), activeFeeding = activityBonus > 1;
   state = 'wait'; rod.swing = 1; rod.tip.getWorldPosition(castFrom); castTo.copy(tgt).setY(0.45); bobber.position.copy(castFrom); bobber.visible = true; FL.t0 = performance.now() / 1000 + .28; FL.dur = .55 + dist / 32; FL.h = 2 + dist * .16; FL.on = 1; ui.style.display = 'block';
-  ui.innerHTML = `${perfect ? '<b style="color:#ffc64a">✨ Perfect cast!</b><br>' : ''}🎣 Watch the bobber… <div class="nv">bait: ${bait} · hook too early and it spooks</div><button id="fHook">Hook!</button> <button id="fStop">Reel in</button>`; ui.querySelector('#fStop').onclick = stop; ui.querySelector('#fHook').onclick = hook;
+  ui.innerHTML = `${perfect ? '<b style="color:#ffc64a">✨ Perfect cast!</b><br>' : ''}${activeFeeding ? '<b style=color:#71ffd0>🐟 Feeding frenzy! Faster bite · wider reel zone</b><br>' : ''}🎣 Watch the bobber… <div class="nv">bait: ${bait} · hook too early and it spooks</div><button id="fHook">Hook!</button> <button id="fStop">Reel in</button>`; ui.querySelector('#fStop').onclick = stop; ui.querySelector('#fHook').onclick = hook;
   let nc = null;
   if (tok()) { const r = await api('cast', { bait, deep: isDeep(), weather: weather(), near: FISHOK ? 1 : 0, x: Math.round(from.x), z: Math.round(from.z) }).catch(() => ({ error: 'offline' })); if (r.error) { msg(r.error === 'too_fast' ? 'Easy! Wait a few seconds between casts.' : r.error === 'not_near_water' ? 'Get closer to the water to fish.' : r.error === 'hourly_limit' ? 'The fish need a rest (hourly limit). Try later.' : 'Server busy, try again.'); return } nc = { ...r, srv: true } }
   else { const f = roll(prof.rod, prof.bait[bait] > 0 || bait === 'worm' ? bait : 'worm', { night: night(), deep: isDeep(), weather: weather() }); nc = { fish: f, wait: 2500 + Math.random() * 6000, hits: f.hits, zone: f.zone, r: f.r } }
-  if (state !== 'wait' || gen !== castGen) return; cur = nc; cur.perfect = perfect; if (perfect) cur.zone = Math.min(.6, cur.zone * 1.4);
+  if (state !== 'wait' || gen !== castGen) return; cur = nc; cur.perfect = perfect; if (perfect) cur.zone = Math.min(.6, cur.zone * 1.4); if (activeFeeding) { cur.zone = Math.min(.6, cur.zone * activityBonus); cur.wait = Math.max(1400, (Number(cur.wait) || 5000) * 0.78); }
   cur.t0 = performance.now(); cur.nib = [.5 + Math.random() * .15, .78 + Math.random() * .1].filter(() => Math.random() < .85).map(k => k * cur.wait); spawnStalker(); setTimeout(() => { if (gen === castGen) bite() }, cur.wait) }
 function bite() { if (state !== 'wait') return; state = 'bite'; const gen = castGen; ui.innerHTML = '<b style="font-size:18px">❗ Bite!</b><br><button id="fHook" style="margin-top:8px;font-size:18px">Hook it!</button>'; ui.querySelector('#fHook').onclick = hook; cur.biteT = performance.now(); ripple(bobber.position, 1.4); setTimeout(() => { if (state === 'bite' && gen === castGen) { msg('It got away… (hook faster)'); land(false) } }, 1600) }
 function hook() { if (state === 'wait') { ripple(bobber.position, 1); STK.on = 0; streak = 0; msg(cur ? '💨 Too early! The fish spooked. Wait for the big dip.' : 'Too early!'); return }
@@ -318,6 +331,21 @@ bar.querySelector('#fCast').onclick = doCast; bar.querySelector('#fShop').onclic
 // ---------- per-frame: show buttons when in reach, animate bobber + reel marker ----------
 function tick() { requestAnimationFrame(tick); if (window.__cityPaused) return; const c = W(), e = window.__estate; if (!c || !e || !dock) return; const t = performance.now() / 1000, m = c.getMode();
   const p = isDeep() ? window.__boat.pos : c.P.pos, walk = m === 'explore';
+  const spotDt = Math.min(0.05, t - (tick.spotT || t)); tick.spotT = t;
+  feedingSpots.forEach((s, i) => {
+    if (t >= s.moveAt) {
+      for (let k = 0; k < 10; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const q = e.lakeC.clone().addScaledVector(e.side, Math.cos(a) * (24 + Math.random() * 105)).addScaledVector(e.dir, Math.sin(a) * (8 + Math.random() * 43));
+        if (e.inLake(q.x, q.z)) { s.target.copy(q); break; }
+      }
+      s.moveAt = t + 14 + Math.random() * 18;
+    }
+    s.p.lerp(s.target, 1 - Math.exp(-spotDt * 0.18));
+    s.mesh.position.set(s.p.x, 0.24, s.p.z);
+    s.mesh.scale.setScalar(0.92 + 0.12 * Math.sin(t * 2.2 + i * 2));
+    s.mesh.material.opacity = 0.18 + 0.12 * (0.5 + 0.5 * Math.sin(t * 2.8 + i));
+  });
   const nearDock = p.distanceTo(dock.tip) < 6 || (p.distanceTo(dock.base) < 22 && Math.abs(p.clone().sub(dock.base).dot(dock.side)) < 3), shore = !e.inLake(p.x, p.z) && e.inLake(p.x, p.z, 4);
   const canFish = walk && (nearDock || shore || isDeep()); FISHOK = canFish; const nearShop = walk && !isDeep() && p.distanceTo(shopPos) < 10;
   bar.style.display = canFish || nearShop ? 'flex' : 'none'; bar.querySelector('#fCast').style.display = canFish ? '' : 'none'; bar.querySelector('#fShop').style.display = nearShop ? '' : 'none';

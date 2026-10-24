@@ -672,24 +672,30 @@ export function buildNftChar(n, opts = {}) {
   const traitCoverage = profile.rawTraits.map(([rawType, value], index) => {
     const slot = String(profile.renderTraits[index]?.[0] || rawType).toLowerCase();
     let status = 'visualized';
-    let reason = 'Mapped to collection-aware 3D traits/materials';
+    let fidelityLevel = 'procedural-approximation';
+    let reason = 'Recognized by the current procedural renderer; not yet approved as a faithful visual match';
     if (slot === 'background' || /background|backdrop|scene/i.test(rawType)) {
       status = 'artwork-only';
-      reason = 'Preserved in original NFT artwork; not converted into wearable geometry';
+      fidelityLevel = 'not-3d';
+      reason = 'Preserved in original artwork; intentionally not converted into wearable geometry';
     } else if (slot === 'identity') {
       status = 'collection-identity';
-      reason = 'Used to select the collection-specific character recipe';
-    } else if (/body type|body shape|body build|physique|stature|face shape/i.test(rawType)) {
-      status = 'visualized';
-      reason = 'Mapped to anatomy proportions when the trait value is recognized';
+      fidelityLevel = 'collection-selection';
+      reason = 'Selects the collection recipe; does not prove this token likeness';
     } else if (geometryNeeded.has(slot) || !renderableSlots.has(slot)) {
       status = 'needs-dedicated-visual';
+      fidelityLevel = 'unsupported';
       reason = geometryNeeded.has(slot) ? 'Current renderer lacks a faithful model for this value' : 'Trait type has no explicit renderer mapping yet';
+    } else if (/body type|body shape|body build|physique|stature|face shape/i.test(rawType)) {
+      reason = 'Recognized anatomy input; resulting proportions remain a procedural approximation pending reference review';
     }
-    return { rawType, slot, value, status, reason };
+    return { rawType, slot, value, status, fidelityLevel, reason, visuallyApproved: false };
   });
   g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter,components,reconstruction,unsupportedVisualTraits};
   g.userData.nftAvatarProfile.traitCoverage = traitCoverage;
+  // No trait mapping or passing unit test can certify likeness without human reference-art review.
+  g.userData.nftAvatarProfile.visualApproval = 'not-reviewed';
+  g.userData.nftAvatarProfile.visualApprovalRequired = true;
   g.userData.nftMedia={animation:n?.animation||'',video:n?.video||'',audio:n?.audio||'',model3d:n?.model3d||'',artwork:n?.artwork||''};
   g.userData.anim=(t,moving,armsUp)=>{
     // Fit the real artwork without cropping once its remote image has decoded.

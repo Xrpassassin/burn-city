@@ -11,10 +11,10 @@ This draft upgrades the characters seen while exploring BURN City. It uses the e
 - Preserves up to 64 typed trait pairs (trait type + value, each bounded) instead of truncating the visual input to 16 untyped values. Names, description, external URL, original artwork URI, animation/video/audio references, optional 3D-model reference and a bounded media-file list are cached with a versioned metadata schema.
 - On-ledger attributes take precedence; marketplace attributes fill in missing trait types. API timeouts/errors fall back to on-ledger metadata and the existing procedural avatar.
 - Cached artwork is resized with `contain` framing instead of `cover` cropping so the NFT's full composition is retained.
-- Trait rendering now uses typed values for skin/fur, clothing, headwear, eyes, masks and background halo; recognized mouth/expression, wings and weapon/gear traits receive additional 3D details. The full typed trait list and discovered media references are retained on the avatar for further collection-specific adapters.
+- Trait rendering now uses typed values for skin/fur, clothing, headwear, eyes and masks; recognized mouth/expression, wings and weapon/gear traits receive additional 3D details. Background/backdrop traits remain exclusively in the original artwork composition and are deliberately not projected onto the 3D body. The full typed trait list and discovered media references are retained on the avatar for further collection-specific adapters.
 - The original NFT image is now a larger, full-composition chest panel on the walking avatar. The image is aspect-fit after decode (no forced square crop), and typed hair/eye/skin/fur color values drive their corresponding 3D materials. Optional floating peer identity cards remain available. Unknown traits are retained rather than discarded; not every arbitrary trait can yet be faithfully converted into geometry without a collection-specific renderer or source model.
 - The picker credits XRPL.to for enriched index data. The client still uses the existing Three.js runtime, no new dependencies.
-- Service-worker cache version is now `bc-v96-nft-art-fidelity`.
+- Service-worker cache version is now `bc-v97-nft-background-separation`.
 
 ## Compatibility and licensing
 

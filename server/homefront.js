@@ -350,9 +350,31 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const now = Date.now();
           const acted = Interiors.action(db.interiors, { account: user.acct, player, actionId: typeof payload.actionId === 'string' ? payload.actionId : '', now });
           db.interiors = acted.state;
+          const bases = store.load('homefront.json', {});
+          const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
+          if (!base) throw new Error('save_invalid');
+          const lootResources = {};
+          let returnedOverflow = false;
+          for (const drop of acted.reward) {
+            const total = Math.max(0, (drop.amount || 0) + (drop.overflow || 0));
+            if (Object.prototype.hasOwnProperty.call(base.resources, drop.item)) lootResources[drop.item] = (lootResources[drop.item] || 0) + total;
+            if (drop.overflow > 0 && Object.prototype.hasOwnProperty.call(base.resources, drop.item)) {
+              if (Inventory.PERISHABLE.has(drop.item)) {
+                const added = Inventory.addToResources(base.resources, drop.item, drop.overflow, now);
+                Object.assign(base.resources, added.resources);
+              } else base.resources[drop.item] = Math.min(999999, (base.resources[drop.item] || 0) + drop.overflow);
+              returnedOverflow = true;
+            }
+          }
+          if (lootResources && Object.keys(lootResources).length) addSessionTotals(player, { resources: lootResources });
+          if (returnedOverflow) {
+            base.revision++; base.updatedAt = now;
+            base.log.push({ id: (base.log.at(-1)?.id || 0) + 1, kind: 'scavenge', text: 'Interior salvage overflow was returned to refuge storage.', at: now });
+            base.log = base.log.slice(-20); bases[user.acct] = base; store.save('homefront.json', bases);
+          }
           if (player) player.lastSeen = now;
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct), interiorMessage: acted.message, interiorReward: acted.reward, inventory: { ...acted.inventory, used: Inventory.used(acted.inventory), capacity: Inventory.CAPACITY }, interiorNoise: acted.noise });
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct), interiorMessage: acted.message, interiorReward: acted.reward, overflowDestination: returnedOverflow ? 'refuge' : null, inventory: { ...acted.inventory, used: Inventory.used(acted.inventory), capacity: Inventory.CAPACITY }, interiorNoise: acted.noise });
           return true;
         }
         case '/api/homefront/world/interior/door': {

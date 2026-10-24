@@ -40,6 +40,8 @@ textarea{min-height:300px;resize:vertical}button{background:#303a49;color:#fff;b
   ],
   "pal": {"face":"#8b7770","body":"#d8b44a","top":"#cf493e","acc":"#cf493e"}
 }</textarea>
+<label for="reviewNotes">Reviewer notes / mismatches</label>
+<textarea id="reviewNotes" rows="4" style="min-height:90px" placeholder="Example: eye mask too narrow; pendant obscures artwork; coat color differs from source."></textarea>
 <label for="artUrl">Original artwork URL (optional)</label>
 <input id="artUrl" type="url" placeholder="https://…/token-image.png">
 <div><button class="primary" id="render">Render / update sample</button><button id="clear">Clear artwork</button><button id="copyReport">Copy QA report</button></div>
@@ -69,10 +71,18 @@ const art = document.querySelector('#art');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#151922');
 const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-const renderer = new THREE.WebGLRenderer({antialias:true, alpha:false, powerPreference:'low-power'});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-stage.appendChild(renderer.domElement);
+let renderer = null;
+let renderError = '';
+try {
+ renderer = new THREE.WebGLRenderer({antialias:true, alpha:false, powerPreference:'low-power'});
+ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+ renderer.outputColorSpace = THREE.SRGBColorSpace;
+ stage.appendChild(renderer.domElement);
+} catch (error) {
+ renderError = 'WebGL preview unavailable: ' + error.message;
+ stage.textContent = '3D preview unavailable in this browser/device. Use a WebGL-enabled browser to inspect geometry.';
+ status.textContent = renderError;
+}
 scene.add(new THREE.HemisphereLight(0xe5edff, 0x4a3a30, 2.0));
 const keyLight = new THREE.DirectionalLight(0xffffff, 2.2); keyLight.position.set(3,5,5); scene.add(keyLight);
 const fillLight = new THREE.DirectionalLight(0x8eaaff, 0.8); fillLight.position.set(-4,2,-3); scene.add(fillLight);
@@ -82,8 +92,8 @@ const views = {
  front: [0,1.6,6], threeQuarter:[3.8,1.7,5.2], side:[6,1.6,0], rear:[0,1.6,-6], reset:[0,1.6,6]
 };
 function setView(name){const v=views[name]||views.front;camera.position.set(...v);camera.lookAt(0,1.05,0);}
-function resize(){const w=Math.max(1,stage.clientWidth),h=Math.max(1,stage.clientHeight);renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
-function loop(){requestAnimationFrame(loop);renderer.render(scene,camera)} loop();
+function resize(){const w=Math.max(1,stage.clientWidth),h=Math.max(1,stage.clientHeight);if(renderer)renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+function loop(){requestAnimationFrame(loop);if(renderer)renderer.render(scene,camera)} loop();
 new ResizeObserver(resize).observe(stage); resize(); setView('front');
 function showArtwork(url){art.replaceChildren();if(!url){const s=document.createElement('span');s.textContent='Provide an artwork URL to compare identity details.';art.append(s);return;}
  const img=document.createElement('img');img.alt='Original NFT artwork reference';img.referrerPolicy='no-referrer';img.src=url;img.onerror=()=>{art.replaceChildren();const s=document.createElement('span');s.textContent='Artwork could not load. Check the URL, permissions, or CORS policy.';art.append(s);};art.append(img);}
@@ -105,7 +115,7 @@ function renderSample(){try{
  }catch(e){status.textContent='Could not render sample: '+e.message;}}
 document.querySelector('#render').addEventListener('click',renderSample);
 document.querySelector('#clear').addEventListener('click',()=>{document.querySelector('#artUrl').value='';showArtwork('');});
-document.querySelector('#copyReport').addEventListener('click',async()=>{try{const nft=JSON.parse(document.querySelector('#sample').value);const report={tool:'BURN City NFT Avatar Visual QA',createdAt:new Date().toISOString(),sample:{key:nft.key||null,id:nft.id||nft.nftId||null,name:nft.name||null,traits:Array.isArray(nft.traits)?nft.traits:[]},artworkUrl:document.querySelector('#artUrl').value.trim()||nft.img||nft.image||null,diagnostics:status.textContent,review:{visualInspectionRequired:true,automatedLikenessScore:null,ownershipVerified:false}};await navigator.clipboard.writeText(JSON.stringify(report,null,2));status.textContent+='\nQA report copied. Include screenshots and reviewer notes when reporting mismatches.';}catch(e){status.textContent='Could not copy report: '+e.message+' (the browser may require HTTPS or clipboard permission).';}});
+document.querySelector('#copyReport').addEventListener('click',async()=>{try{const nft=JSON.parse(document.querySelector('#sample').value);const report={tool:'BURN City NFT Avatar Visual QA',createdAt:new Date().toISOString(),sample:{key:nft.key||null,id:nft.id||nft.nftId||null,name:nft.name||null,traits:Array.isArray(nft.traits)?nft.traits:[]},artworkUrl:document.querySelector('#artUrl').value.trim()||nft.img||nft.image||null,diagnostics:status.textContent,review:{notes:document.querySelector('#reviewNotes').value.trim(),visualInspectionRequired:true,automatedLikenessScore:null,ownershipVerified:false}};await navigator.clipboard.writeText(JSON.stringify(report,null,2));status.textContent+='\nQA report copied. Include screenshots and reviewer notes when reporting mismatches.';}catch(e){status.textContent='Could not copy report: '+e.message+' (the browser may require HTTPS or clipboard permission).';}});
 const samples = {
  racc: {key:'racc',id:'RACC-review-001',name:'RACC — TNT / Striped Sweater / Bee Hive',img:'',traits:[['Armed','TNT'],['Fits','Yellow Striped Sweater'],['Top Gear','Bee Hive'],['Bandit Mask','Crimson'],['Ring Tail','Black and White']],pal:{face:'#8b7770',body:'#d8b44a',top:'#cf493e',acc:'#cf493e'}},
  fk: {key:'fk',id:'FK-review-001',name:'Firekeepers — Blue Flame / Keeper Robes / Cowl',img:'',traits:[['Ember Type','Blue Flame'],['Keeper Robes','Ash'],['Cowl','Ember Cowl'],['Relic','Sun Sigil']],pal:{face:'#c9a27e',body:'#393b4b',top:'#596b8a',acc:'#4bc9ef'}},

@@ -219,6 +219,54 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
     batch.userData.interiorLandmarkId = interior.landmarkId;
     root.add(batch);
   }
+  // Landmark-specific silhouettes make each location readable at a glance without imported assets.
+  // Two instanced batches per interior keep draw-call growth independent of room count.
+  const propProfiles = {
+    north_bus_depot: { label: 'dispatch furniture', size: [1.15, 0.72, 0.52], accent: [0.98, 0.08, 0.42], height: 0.72, color: 0x6b5845 },
+    collapsed_apartments: { label: 'apartment furniture', size: [1.35, 0.58, 0.72], accent: [1.12, 0.10, 0.58], height: 0.58, color: 0x625448 },
+    exchange_market: { label: 'stock shelving', size: [1.05, 1.35, 0.34], accent: [0.96, 0.07, 0.38], height: 1.35, color: 0x77654d },
+    mercy_hospital: { label: 'hospital beds', size: [1.45, 0.30, 0.68], accent: [1.28, 0.08, 0.56], height: 0.30, color: 0x8c9690 },
+    ironworks: { label: 'industrial machinery', size: [0.95, 1.05, 0.82], accent: [0.76, 0.14, 0.66], height: 1.05, color: 0x59615e },
+    buried_subway: { label: 'subway utility cabinets', size: [0.88, 1.08, 0.46], accent: [0.70, 0.07, 0.38], height: 1.08, color: 0x4f5b59 },
+    research_annex: { label: 'research consoles', size: [1.18, 0.92, 0.56], accent: [0.92, 0.08, 0.42], height: 0.92, color: 0x647c7a }
+  };
+  const profile = propProfiles[interior.landmarkId] || propProfiles.north_bus_depot;
+  const furnitureMat = material(profile.color);
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: interior.landmarkId === 'mercy_hospital' ? 0xb6c7be : 0xb58b4f,
+    emissive: interior.landmarkId === 'research_annex' ? 0x1c6b63 : 0x000000,
+    emissiveIntensity: 0.22, roughness: 0.82
+  });
+  const furnitureBatch = new THREE.InstancedMesh(new THREE.BoxGeometry(...profile.size), furnitureMat, detailCount);
+  const furnitureAccentBatch = new THREE.InstancedMesh(new THREE.BoxGeometry(...profile.accent), accentMat, detailCount);
+  let furnitureIndex = 0;
+  for (const r of interior.rooms) {
+    const seed = detailHash(interior.landmarkId + ':' + r.id + ':furniture');
+    // Keep the center lane open for third-person movement and place clutter against room edges.
+    const xOffset = detailRandom(seed, 1) > 0.5 ? 1.22 : -1.22;
+    const zOffset = detailRandom(seed, 2) > 0.5 ? 1.22 : -1.22;
+    const x = r.x + xOffset;
+    const z = r.z + zOffset;
+    dummy.position.set(x, r.elevation + profile.height / 2, z);
+    dummy.rotation.set(0, detailRandom(seed, 3) > 0.5 ? Math.PI / 2 : 0, 0);
+    dummy.scale.setScalar(0.92 + detailRandom(seed, 4) * 0.16);
+    dummy.updateMatrix();
+    furnitureBatch.setMatrixAt(furnitureIndex, dummy.matrix);
+    const accentY = interior.landmarkId === 'exchange_market' ? r.elevation + 0.48 : r.elevation + profile.height + 0.045;
+    dummy.position.set(x, accentY, z);
+    dummy.rotation.set(0, detailRandom(seed, 3) > 0.5 ? Math.PI / 2 : 0, 0);
+    dummy.scale.setScalar(1);
+    dummy.updateMatrix();
+    furnitureAccentBatch.setMatrixAt(furnitureIndex, dummy.matrix);
+    furnitureIndex++;
+  }
+  for (const batch of [furnitureBatch, furnitureAccentBatch]) {
+    batch.instanceMatrix.needsUpdate = true;
+    if (batch.computeBoundingSphere) batch.computeBoundingSphere();
+    batch.userData.interiorLandmarkId = interior.landmarkId;
+    batch.userData.environmentalSetDressing = profile.label;
+    root.add(batch);
+  }
   const renderedDoors = new Set();
   for (const r of interior.rooms) {
     box(root, [r.width, 0.16, r.depth], [r.x, r.elevation - 0.08, r.z], floorMat);

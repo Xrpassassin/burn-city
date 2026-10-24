@@ -10,6 +10,11 @@ const MAX_SURVIVORS = 12;
 const MAX_FARM_PLOTS = 24;
 const CROPS = NP({ potato: { days: 3, yield: 5, seedCost: 1 }, beans: { days: 4, yield: 7, seedCost: 1 }, corn: { days: 5, yield: 9, seedCost: 2 } });
 const ROLES = new Set(['idle', 'guard', 'scavenger', 'farmer', 'medic', 'mechanic']);
+const SURVIVOR_TASKS = new Set(['rest_at_refuge', 'perimeter_watch', 'defend_perimeter', 'stockpile_supplies', 'tend_crops', 'infirmary_duty', 'triage_standby', 'maintain_structures', 'emergency_repair', 'stand_by_repairs', 'take_shelter']);
+const SURVIVOR_STATS = Object.freeze(['combat', 'scavenging', 'farming', 'medical', 'engineering', 'endurance']);
+const MATERIAL_TIERS = Object.freeze({ wood: { label: 'Wood', hp: 1, defense: 0, resistance: 0, next: 'stone' }, stone: { label: 'Stone', hp: 1.75, defense: 2, resistance: 0.18, next: 'steel' }, steel: { label: 'Steel', hp: 2.8, defense: 5, resistance: 0.35, next: null } });
+const MATERIAL_UPGRADE_COSTS = Object.freeze({ stone: { stone: 12, scrap: 6 }, steel: { steel: 18, stone: 10, scrap: 12 } });
+const ROLE_STAT = Object.freeze({ guard: 'combat', scavenger: 'scavenging', farmer: 'farming', medic: 'medical', mechanic: 'engineering', idle: 'endurance' });
 const BUILDINGS = NP({
   wall:       { cost: { wood: 8, scrap: 2 }, hp: 100, defense: 2, cap: 30 },
   watchtower: { cost: { wood: 14, scrap: 10 }, hp: 150, defense: 8, cap: 6 },
@@ -23,11 +28,14 @@ const BUILDINGS = NP({
   sandbags:   { cost: { wood: 4, scrap: 6 }, hp: 130, defense: 4, cap: 12 },
   barbed_wire:{ cost: { wood: 2, scrap: 8 }, hp: 65, defense: 5, cap: 10 },
   trench:     { cost: { wood: 6, scrap: 8 }, hp: 160, defense: 3, cap: 6 },
-  turret:     { cost: { wood: 10, scrap: 22, ammo: 2 }, hp: 180, defense: 5, cap: 4 }
+  turret:     { cost: { wood: 10, scrap: 22, ammo: 2 }, hp: 180, defense: 5, cap: 4 },
+  quarry:     { cost: { wood: 18, scrap: 12 }, hp: 140, defense: 0, cap: 2 },
+  smelter:    { cost: { wood: 20, scrap: 18, stone: 10 }, hp: 160, defense: 1, cap: 2 },
+  salvage_yard:{ cost: { wood: 14, scrap: 16 }, hp: 130, defense: 1, cap: 2 }
 });
 const DIFFICULTIES = NP({story:{label:'Story',cost:0.8,reward:0.7,threat:0.75},standard:{label:'Standard',cost:1,reward:1,threat:1},veteran:{label:'Veteran',cost:1.35,reward:1.55,threat:1.4},nightmare:{label:'Nightmare',cost:1.8,reward:2.35,threat:1.9}});
 const TYCOON_UPGRADES = NP({scavenger_rig:{label:'Scavenger Rig',description:'+15% salvage per level',baseCost:100,max:5},ember_press:{label:'Ember Press',description:'+5 embers per successful expedition per level',baseCost:140,max:5},field_armory:{label:'Field Armory',description:'+2 defense strength per level',baseCost:120,max:5},medic_station:{label:'Field Medic Station',description:'+1 bonus medicine on successful trips per level',baseCost:160,max:3}});
-const EMBER_MARKET = NP({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},food:{amount:10,cost:18},water:{amount:10,cost:14},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});
+const EMBER_MARKET = NP({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},stone:{amount:8,cost:42},steel:{amount:4,cost:68},food:{amount:10,cost:18},water:{amount:10,cost:14},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});
 const WEAPONS = NP({pipe_blade:{label:'Pipe Blade',rarity:'Common',power:1,cost:{scrap:0,embers:0}},pump_shotgun:{label:'Pump Shotgun',rarity:'Rare',power:3,cost:{scrap:55,embers:40}},marksman_rifle:{label:'Marksman Rifle',rarity:'Epic',power:4,cost:{scrap:90,embers:75}},shock_maul:{label:'Shock Maul',rarity:'Legendary',power:5,cost:{scrap:120,embers:100}}});
 const WEAPON_MODS = NP({reinforced_grip:{label:'Reinforced Grip',rarity:'Common',power:1,cost:{scrap:25,embers:20}},salvage_edge:{label:'Salvage Edge',rarity:'Rare',power:1,cost:{scrap:35,embers:25}},shock_coil:{label:'Shock Coil',rarity:'Epic',power:2,cost:{scrap:45,embers:40}}});
 const COSMETIC_SKINS = NP({rusted_pipe:{label:'Rusted Steel',slot:'weapon',rarity:'Common',cost:0,color:'#9a7b62'},field_scavenger:{label:'Field Scavenger',slot:'outfit',rarity:'Common',cost:0,color:'#6d7659'},patched_rucksack:{label:'Patched Rucksack',slot:'backpack',rarity:'Common',cost:0,color:'#78604a'},scrap_banner:{label:'Scrap Banner',slot:'refuge',rarity:'Common',cost:0,color:'#a55c35'},hazard_stripe:{label:'Hazard Stripe',slot:'weapon',rarity:'Rare',cost:75,color:'#e6b83f'},medic_fieldcoat:{label:'Field Medic Coat',slot:'outfit',rarity:'Rare',cost:65,color:'#91b5a0'},rescue_pack:{label:'Rescue Pack',slot:'backpack',rarity:'Rare',cost:55,color:'#b56d42'},ember_lanterns:{label:'Ember Lanterns',slot:'refuge',rarity:'Epic',cost:80,color:'#ff8b3d'}});
@@ -48,11 +56,11 @@ function createBase(ownerId, now = Date.now()) {
     version: VERSION, owner, revision: 1, createdAt: now, updatedAt: now,
     level: 1, day: 1, baseHp: 500, baseMaxHp: 500, wave: 0, visibility: 'private',
     exploration: { discoveredZones: ['outskirts'], lastExpedition: null },
-    resources: { wood: 40, scrap: 30, food: 24, rawFood: 0, water: 18, dirtyWater: 0, meds: 5, ammo: 18, seeds: 6, freshness: { food: [{ qty: 24, acquiredAt: now }], rawFood: [] } },
+    resources: { wood: 40, scrap: 30, stone: 0, steel: 0, food: 24, rawFood: 0, water: 18, dirtyWater: 0, meds: 5, ammo: 18, seeds: 6, freshness: { food: [{ qty: 24, acquiredAt: now }], rawFood: [] } },
     embers: 50, upgrades: { scavenger_rig: 0, ember_press: 0, field_armory: 0, medic_station: 0 },
     weapons: ['pipe_blade'], equippedWeapon: 'pipe_blade', weaponMods: {},
     cosmeticsOwned: Object.keys(DEFAULT_COSMETICS).map(slot => DEFAULT_COSMETICS[slot]), cosmeticsEquipped: { ...DEFAULT_COSMETICS },
-    structures: [], farmPlots: [], survivors: [], expeditionCount: 0, defenseCount: 0,
+    structures: [], farmPlots: [], survivors: [], expeditionCount: 0, defenseCount: 0, lastSiege: null,
     log: [{ id: 1, kind: 'welcome', text: 'A refuge is yours. Gather supplies, recruit survivors, and prepare for the first breach.', at: now }]
   };
 }
@@ -63,7 +71,8 @@ function validateBase(input, ownerId) {
       input.structures.length > MAX_STRUCTURES || input.survivors.length > MAX_SURVIVORS ||
       (Array.isArray(input.farmPlots) && input.farmPlots.length > MAX_FARM_PLOTS)) return null;
   const out = clone(input);
-  for (const r of ['wood', 'scrap', 'food', 'rawFood', 'water', 'dirtyWater', 'meds', 'ammo', 'seeds']) out.resources[r] = clampInt(r === 'water' && !Number.isFinite(out.resources[r]) ? 18 : r === 'seeds' && !Number.isFinite(out.resources[r]) ? 6 : out.resources[r], 0, 999999);
+  for (const r of ['wood', 'scrap', 'stone', 'steel', 'food', 'rawFood', 'water', 'dirtyWater', 'meds', 'ammo', 'seeds']) out.resources[r] = clampInt(r === 'water' && !Number.isFinite(out.resources[r]) ? 18 : r === 'seeds' && !Number.isFinite(out.resources[r]) ? 6 : out.resources[r], 0, 999999);
+  if (!out.lastSiege || typeof out.lastSiege !== 'object' || !Array.isArray(out.lastSiege.phases)) out.lastSiege = null;
   const FoodFreshness = require('./homefront-freshness');
   out.resources.freshness = FoodFreshness.normalizeBatches(out.resources.freshness, out.resources, Number.isFinite(out.createdAt) ? out.createdAt : Date.now());
   out.embers = clampInt(out.embers, 0, 999999999);
@@ -90,16 +99,32 @@ function validateBase(input, ownerId) {
   out.wave = clampInt(out.wave, 0, 1000000);
   out.revision = clampInt(out.revision, 1, Number.MAX_SAFE_INTEGER);
   out.structures = out.structures.filter(s => s && isBuilding(s.type) && typeof s.id === 'string')
-    .map(s => ({
-       id: s.id.slice(0, 80), type: s.type,
-       hp: clampInt(s.hp, 0, BUILDINGS[s.type].hp), maxHp: BUILDINGS[s.type].hp,
+    .map(s => {
+      const material = MATERIAL_TIERS[s.material] ? s.material : 'wood';
+      const gateLike = ['gate', 'entrance', 'exit'].includes(s.type);
+      const reinforcementLevel = gateLike ? clampInt(s.reinforcementLevel, 0, 2) : 0;
+      const maxHp = Math.round(BUILDINGS[s.type].hp * MATERIAL_TIERS[material].hp * (1 + reinforcementLevel * 0.25));
+      const previousMax = Number.isFinite(s.maxHp) && s.maxHp > 0 ? s.maxHp : BUILDINGS[s.type].hp;
+      const integrity = clampNumber(Number.isFinite(s.hp) ? s.hp / previousMax : 1, 0, 1);
+      return {
+       id: s.id.slice(0, 80), type: s.type, material,
+       hp: clampInt(Math.round(maxHp * integrity), 0, maxHp), maxHp,
        x: clampNumber(s.x, -9.5, 9.5), z: clampNumber(s.z, -9.5, 9.5),
        rotation: clampNumber(s.rotation, -Math.PI * 2, Math.PI * 2),
        trenchLevel: s.type === 'trench' ? clampInt(s.trenchLevel, 0, 3) : 0,
-       manned: s.type === 'turret' && s.manned === true
-     }));
+       reinforcementLevel, manned: s.type === 'turret' && s.manned === true
+     };
+    });
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
-    .map(s => ({ id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100) }));
+    .map(s => ({
+      id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role,
+      morale: clampInt(s.morale, 0, 100),
+      stats: normalizeSurvivorStats(s.stats, s.id, owner),
+      task: SURVIVOR_TASKS.has(s.task) ? s.task : defaultSurvivorTask(s.role),
+      taskTarget: typeof s.taskTarget === 'string' ? s.taskTarget.slice(0, 80) : '',
+      taskReason: typeof s.taskReason === 'string' ? s.taskReason.slice(0, 120) : 'Role assignment',
+      taskUpdatedAt: Number.isFinite(s.taskUpdatedAt) ? s.taskUpdatedAt : (Number.isFinite(out.createdAt) ? out.createdAt : Date.now())
+    }));
   out.log = Array.isArray(out.log) ? out.log.slice(-20) : [];
   return out;
 }
@@ -108,6 +133,44 @@ function weaponPower(base) {
   const weapon = WEAPONS[id] || WEAPONS.pipe_blade;
   const mod = WEAPON_MODS[base?.weaponMods?.[id]];
   return weapon.power + (mod?.power || 0);
+}
+function generateSurvivorStats(id, owner) {
+  const stats = {};
+  for (const stat of SURVIVOR_STATS) stats[stat] = 1 + (hash('survivor-stat:' + owner + ':' + id + ':' + stat) % 10);
+  return stats;
+}
+function normalizeSurvivorStats(input, id, owner) {
+  const fallback = generateSurvivorStats(id, owner);
+  const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  return Object.fromEntries(SURVIVOR_STATS.map(stat => [stat, Number.isFinite(source[stat]) ? clampInt(source[stat], 1, 10) : fallback[stat]]));
+}
+function survivorSkill(survivor, role = survivor.role) {
+  const stat = ROLE_STAT[role] || 'endurance';
+  const value = survivor?.stats?.[stat];
+  return Number.isFinite(value) ? clampInt(value, 1, 10) : 5;
+}
+function defaultSurvivorTask(role) {
+  return ({ idle: 'rest_at_refuge', guard: 'perimeter_watch', scavenger: 'stockpile_supplies', farmer: 'tend_crops', medic: 'infirmary_duty', mechanic: 'maintain_structures' })[role] || 'rest_at_refuge';
+}
+function syncSurvivorBehavior(s, now) {
+  const incoming = s.lastSiege?.status === 'incoming';
+  const siegeTarget = incoming ? s.lastSiege.target : null;
+  const defensiveTypes = new Set(['wall', 'gate', 'watchtower', 'entrance', 'exit', 'sandbags', 'barbed_wire', 'trench', 'turret']);
+  const damaged = s.structures.filter(x => x.hp < x.maxHp && (!incoming || defensiveTypes.has(x.type)))
+    .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp) || a.id.localeCompare(b.id))[0];
+  for (const survivor of s.survivors) {
+    let task = defaultSurvivorTask(survivor.role), target = '', reason = 'Normal settlement duty';
+    if (incoming) {
+      if (survivor.role === 'guard') { task = 'defend_perimeter'; target = siegeTarget?.id || ''; reason = 'Responding to incoming siege'; }
+      else if (survivor.role === 'mechanic') { task = damaged ? 'emergency_repair' : 'stand_by_repairs'; target = damaged?.id || siegeTarget?.id || ''; reason = damaged ? 'Prioritize the weakest structure during siege warning' : 'Ready to reinforce the threatened perimeter'; }
+      else if (survivor.role === 'medic') { task = 'triage_standby'; reason = 'Standing by for injuries during the siege'; }
+      else { task = 'take_shelter'; reason = 'Sheltering while guards hold the perimeter'; }
+    } else if (survivor.role === 'mechanic' && damaged) {
+      task = 'maintain_structures'; target = damaged.id; reason = 'Routine maintenance: weakest structure first';
+    }
+    if (survivor.task !== task || survivor.taskTarget !== target || survivor.taskReason !== reason) survivor.taskUpdatedAt = now;
+    survivor.task = task; survivor.taskTarget = target; survivor.taskReason = reason;
+  }
 }
 function record(s, kind, text, now) {
   s.log.push({ id: (s.log.at(-1)?.id || 0) + 1, kind, text, at: now });
@@ -125,23 +188,26 @@ function threatProfile(input) {
   const guards = s.survivors.filter(x => x && x.role === 'guard');
   const guardStrength = guards.reduce((total, x) => {
     const morale = clampInt(x.morale, 0, 100);
-    return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+    const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
+    return total + moraleFactor * (0.75 + survivorSkill(x, 'guard') / 20);
   }, 0);
   const ammoUsed = Math.min(s.resources?.ammo || 0, Math.max(1, Math.ceil(guards.length / 2) + 1));
   const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
   const turretAmmo = Math.min(Math.max(0, (s.resources?.ammo || 0) - ammoUsed), mannedTurrets.length * 3);
   const turretAmmoRatio = mannedTurrets.length ? turretAmmo / (mannedTurrets.length * 3) : 0;
-  const structureDefense = active.reduce((total, x) => total + BUILDINGS[x.type].defense +
+  const structureDefense = active.reduce((total, x) => total + BUILDINGS[x.type].defense + (MATERIAL_TIERS[x.material]?.defense || 0) +
+    (['gate', 'entrance', 'exit'].includes(x.type) ? (x.reinforcementLevel || 0) * 2 : 0) +
     (x.type === 'trench' ? (x.trenchLevel || 0) * 3 : 0) +
     (x.type === 'turret' && x.manned ? 7 * turretAmmoRatio : 0), 0);
   const settlementPressure = Math.floor(active.length / 3) + Math.floor(activeFarmPlots / 3);
   const threat = 9 + Math.floor(s.survivors.length / 4) + settlementPressure;
-  const defense = guardStrength * 2 + (s.upgrades?.field_armory || 0) * 2 +
+  const guardDefenseBonus = Number((guardStrength * 2).toFixed(2));
+  const defense = guardDefenseBonus + (s.upgrades?.field_armory || 0) * 2 +
     structureDefense + ammoUsed * 0.8 + turretAmmo * 1.5;
   const projectedStructureDamage = Math.max(0, Math.ceil((threat - defense) * 6));
   const projectedBaseDamage = Math.ceil(projectedStructureDamage * 0.45);
   return {
-    threat, defense: Number(defense.toFixed(2)), settlementPressure,
+    threat, defense: Number(defense.toFixed(2)), guardDefenseBonus, settlementPressure,
     activeStructures: active.length, activeFarmPlots, survivors: s.survivors.length,
     guards: guards.length, ammunitionCommitted: ammoUsed + turretAmmo,
     projectedStructureDamage, projectedBaseDamage,
@@ -177,8 +243,37 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       // Farm plots occupy physical yard space too; keep new structures from burying crops or blocking tending access.
       if (s.farmPlots.some(plot => Math.hypot(plot.x - x, plot.z - z) < 1.65)) throw new Error('placement_occupied');
       const rotation = Number.isFinite(action.rotation) ? clampNumber(action.rotation, -Math.PI * 2, Math.PI * 2) : 0;
-      s.structures.push({ id, type: action.building, hp: spec.hp, maxHp: spec.hp, x, z, rotation, trenchLevel: 0, manned: false });
+      s.structures.push({ id, type: action.building, material: 'wood', hp: spec.hp, maxHp: spec.hp, x, z, rotation, trenchLevel: 0, reinforcementLevel: 0, manned: false });
       record(s, 'build', 'Constructed ' + action.building + '.', now);
+      break;
+    }
+    case 'upgrade_structure_material': {
+      const target = s.structures.find(x => x.id === action.target);
+      if (!target) throw new Error('unknown_structure');
+      const current = MATERIAL_TIERS[target.material] ? target.material : 'wood';
+      const next = MATERIAL_TIERS[current].next;
+      if (!next) throw new Error('material_tier_maxed');
+      pay(s, MATERIAL_UPGRADE_COSTS[next]);
+      const integrity = target.maxHp > 0 ? target.hp / target.maxHp : 1;
+      target.material = next;
+      target.maxHp = Math.round(BUILDINGS[target.type].hp * MATERIAL_TIERS[next].hp * (1 + (target.reinforcementLevel || 0) * 0.25));
+      target.hp = Math.min(target.maxHp, Math.round(target.maxHp * integrity));
+      record(s, 'construction', 'Upgraded ' + target.type + ' ' + target.id + ' to ' + MATERIAL_TIERS[next].label + ' construction (' + target.maxHp + ' max HP, +' + MATERIAL_TIERS[next].defense + ' material defense).', now);
+      break;
+    }
+    case 'reinforce_gate': {
+      const target = s.structures.find(x => x.id === action.target && ['gate', 'entrance', 'exit'].includes(x.type));
+      if (!target) throw new Error('unknown_gate');
+      const current = clampInt(target.reinforcementLevel, 0, 2);
+      if (current >= 2) throw new Error('gate_reinforcement_maxed');
+      const next = current + 1;
+      pay(s, next === 1 ? { steel: 6, scrap: 12 } : { steel: 12, scrap: 20 });
+      const previousMax = target.maxHp;
+      target.reinforcementLevel = next;
+      const material = MATERIAL_TIERS[target.material] ? target.material : 'wood';
+      target.maxHp = Math.round(BUILDINGS[target.type].hp * MATERIAL_TIERS[material].hp * (1 + next * 0.25));
+      target.hp = Math.min(target.maxHp, target.hp + target.maxHp - previousMax);
+      record(s, 'fortification', 'Reinforced ' + target.type + ' ' + target.id + ' with steel plating tier ' + next + '/2. Max integrity increased to ' + target.maxHp + ' HP; perimeter defense +' + (next * 2) + '.', now);
       break;
     }
     case 'trench_upgrade': {
@@ -223,10 +318,12 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const n = ++s.expeditionCount, seed = hash(s.owner + ':' + n + ':' + zoneId + ':' + difficultyId + ':' + s.revision), roll = rand(seed);
       const lootMultiplier = difficulty.reward * (1 + (s.upgrades.scavenger_rig || 0) * 0.15);
       const scrap = Math.floor(zone.scrap * lootMultiplier) + Math.floor(rand(hash('scrap:' + seed)) * 5), wood = Math.floor(zone.wood * lootMultiplier) + Math.floor(rand(hash('wood:' + seed)) * 4);
+      const stone = Math.max(0, Math.floor(zone.risk * 0.7) + (zoneId === 'residential' ? 1 : 0) + Math.floor(rand(hash('stone:' + seed)) * 2) - 1);
+      const steel = Math.max(0, Math.floor((zone.risk - 2) * 0.8) + (zoneId === 'industrial' || zoneId === 'research_lab' ? 1 : 0) + Math.floor(rand(hash('steel:' + seed)) * 2) - 1);
       const firstVisit = !s.exploration.discoveredZones.includes(zoneId);
       if (firstVisit) s.exploration.discoveredZones.push(zoneId);
       s.exploration.lastExpedition = { zone: zoneId, difficulty: difficultyId, risk: zone.risk, at: now, firstVisit };
-      s.resources.scrap = Math.min(999999, s.resources.scrap + scrap); s.resources.wood = Math.min(999999, s.resources.wood + wood);
+      s.resources.scrap = Math.min(999999, s.resources.scrap + scrap); s.resources.wood = Math.min(999999, s.resources.wood + wood); s.resources.stone = Math.min(999999, s.resources.stone + stone); s.resources.steel = Math.min(999999, s.resources.steel + steel);
       const discoveryScrap = firstVisit ? zone.risk * 3 : 0;
       const discoveryEmbers = firstVisit ? 10 + zone.risk * 5 : 0;
       if (discoveryScrap) s.resources.scrap = Math.min(999999, s.resources.scrap + discoveryScrap);
@@ -266,13 +363,13 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         salvageQuality: directorLoot.quality
       });
       let found = false;
-      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS && s.farmPlots.some(p => p.crop)) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4) }); found = true; }
+      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS && s.farmPlots.some(p => p.crop)) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4), stats: generateSurvivorStats(id, s.owner) }); found = true; }
       const salvageText = directorLoot.scrap
         ? ' Salvaged ' + directorLoot.quality.toLowerCase() + '-grade infected remains: +' + directorLoot.scrap + ' scrap and +' + directorLoot.embers + ' Embers.'
         : '';
       const eventText = directorEvent === 'special_infected' ? ' A special infected ambushed the team (' + directorLoot.enemy + '); ammunition was spent and a survivor was shaken.' : directorEvent === 'infected_horde' ? ' An infected horde hit the team (' + directorLoot.enemy + '); ammunition was spent and morale suffered.' : directorEvent === 'wandering_infected' ? ' Wandering infected (' + directorLoot.enemy + ') were spotted nearby, but the team avoided a full ambush.' : ' The district was quiet enough to search thoroughly.';
       const finalEventText = eventText + salvageText;
-      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + (scrap + discoveryScrap) + ' scrap, and ' + totalEmbers + ' embers' + (firstVisit ? ' including a first-visit survey bonus' : '') + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + finalEventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
+      const result = 'Explored ' + zone.label + ' on ' + difficulty.label + ': recovered ' + wood + ' wood, ' + (scrap + discoveryScrap) + ' scrap, ' + stone + ' stone, ' + steel + ' steel, and ' + totalEmbers + ' embers' + (firstVisit ? ' including a first-visit survey bonus' : '') + (medicine ? ', plus medical supplies' : '') + (found ? ', and rescued a survivor.' : '.') + finalEventText + (zone.risk >= 4 ? ' This is a fixed high-risk location; danger is tied to the site, not completed rounds.' : '');
       record(s, 'exploration', result + (s.farmPlots.some(p => p.crop) ? '' : ' No survivor recruitment is available until you personally plant your first crop.'), now);
       break;
     }
@@ -438,6 +535,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (!ROLES.has(action.role)) throw new Error('unknown_role');
       if (action.role === 'guard' && s.survivors.filter(x => x.role === 'guard' && x.id !== survivor.id).length >= 6) throw new Error('guard_capacity');
       survivor.role = action.role;
+      syncSurvivorBehavior(s, now);
       record(s, 'assignment', survivor.name + ' assigned to ' + action.role + '.', now);
       break;
     }
@@ -457,7 +555,8 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       // Morale is operational, not cosmetic: exhausted or demoralized workers produce less.
       const labor = role => s.survivors.filter(x => x.role === role).reduce((total, x) => {
         const morale = clampInt(x.morale, 0, 100);
-        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5);
+        const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
+        return total + moraleFactor * (0.75 + survivorSkill(x, role) / 20);
       }, 0);
       const farmers = labor('farmer');
       const scavengers = labor('scavenger');
@@ -470,13 +569,44 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const workshopCount = s.structures.filter(x => x.type === 'workshop' && x.hp > 0).length;
       const infirmaryCount = s.structures.filter(x => x.type === 'infirmary' && x.hp > 0).length;
       const storageCount = s.structures.filter(x => x.type === 'storage' && x.hp > 0).length;
+      const quarryCount = s.structures.filter(x => x.type === 'quarry' && x.hp > 0).length;
+      const smelterCount = s.structures.filter(x => x.type === 'smelter' && x.hp > 0).length;
+      const salvageYardCount = s.structures.filter(x => x.type === 'salvage_yard' && x.hp > 0).length;
       const foodGain = Math.floor(Math.min(999999, farmers * (1 + gardenCount) * 2));
       // Storage sheds make scavenging trips more efficient, but only while intact.
-      const scrapGain = Math.floor(Math.min(999999, scavengers * (2 + storageCount) + mechanics * workshopCount));
+      const scrapGain = Math.floor(Math.min(999999, scavengers * (2 + storageCount) + mechanics * workshopCount + scavengers * salvageYardCount));
       const medicineGain = Math.floor(Math.min(medics, infirmaryCount));
+      const stoneGain = Math.floor(Math.min(999999, mechanics * quarryCount));
       s.resources.food = Math.min(999999, s.resources.food + foodGain);
       s.resources.scrap = Math.min(999999, s.resources.scrap + scrapGain);
+      s.resources.stone = Math.min(999999, (s.resources.stone || 0) + stoneGain);
       s.resources.meds = Math.min(999999, s.resources.meds + medicineGain);
+      // Smelters turn stored stone and scrap into steel. Mechanics determine throughput;
+      // inputs are consumed server-side so steel is never a free passive reward.
+      const steelGain = Math.floor(Math.min(999999, mechanics * smelterCount, Math.floor(s.resources.scrap / 2), s.resources.stone));
+      s.resources.scrap -= steelGain * 2;
+      s.resources.stone -= steelGain;
+      s.resources.steel = Math.min(999999, (s.resources.steel || 0) + steelGain);
+      // Mechanics perform tangible upkeep during the shift. The most damaged structures are
+      // stabilized first; this remains deterministic and server-authoritative.
+      let repairedHp = 0;
+      const repairBudget = Math.floor(mechanics * 10);
+      const damagedStructures = s.structures
+        .filter(x => x.hp < x.maxHp)
+        .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp) || a.id.localeCompare(b.id));
+      if (repairBudget > 0 && damagedStructures.length && s.resources.wood > 0 && s.resources.scrap > 0) {
+        let remainingRepair = Math.min(repairBudget, s.resources.wood * 12, s.resources.scrap * 12);
+        for (const structure of damagedStructures) {
+          if (remainingRepair <= 0) break;
+          const restored = Math.min(remainingRepair, structure.maxHp - structure.hp);
+          structure.hp += restored;
+          repairedHp += restored;
+          remainingRepair -= restored;
+        }
+        const materialCost = Math.ceil(repairedHp / 12);
+        s.resources.wood -= materialCost;
+        s.resources.scrap -= materialCost;
+      }
       // Crop simulation is server-authoritative and advances with the settlement workday, not client frame rate.
       for (const plot of s.farmPlots) {
         if (!plot.crop) continue;
@@ -487,12 +617,50 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       }
       s.day++; s.level = Math.max(s.level, 1 + Math.floor((s.day - 1) / 5));
       for (const survivor of s.survivors) survivor.morale = clampInt(survivor.morale + (foodGain >= foodCost ? 2 : -8), 0, 100);
-      record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + medicineGain + ' medicine.', now);
+      const repairNote = repairedHp ? ' Mechanics repaired ' + repairedHp + ' structure HP.' : '';
+      const facilityNote = (stoneGain || steelGain || salvageYardCount)
+        ? ' Facilities: +' + stoneGain + ' stone, +' + steelGain + ' steel' + (salvageYardCount ? ', salvage yard active' : '') + '.' : '';
+      record(s, 'workday', 'Day ' + s.day + ': +' + foodGain + ' food, +' + scrapGain + ' scrap, +' + medicineGain + ' medicine.' + facilityNote + repairNote, now);
+      break;
+    }
+    case 'start_siege': {
+      if (s.baseHp <= 0) throw new Error('base_destroyed');
+      if (s.lastSiege?.status === 'incoming') throw new Error('siege_already_active');
+      const profile = threatProfile(s);
+      const perimeterPriority = { barbed_wire: 0, gate: 1, entrance: 1, exit: 1, sandbags: 2, trench: 3, wall: 4, turret: 5, watchtower: 6 };
+      const targets = s.structures.filter(x => x.hp > 0).sort((a, b) =>
+        (Math.hypot(b.x, b.z) - Math.hypot(a.x, a.z)) ||
+        ((perimeterPriority[a.type] ?? 10) - (perimeterPriority[b.type] ?? 10)) ||
+        String(a.id).localeCompare(String(b.id)));
+      const target = targets[0] || null;
+      const integrity = target && target.maxHp > 0 ? Math.round(target.hp / target.maxHp * 100) : null;
+      s.defenseCount++;
+      const incidentId = 'siege-' + s.defenseCount;
+      const warningText = target
+        ? 'SIEGE WARNING: infected are pressing ' + target.type + ' ' + target.id + ' (' + integrity + '% integrity). ' + profile.guards + ' guard(s) assigned to the perimeter.'
+        : 'SIEGE WARNING: infected pressure is approaching the refuge; no active defensive structure can intercept the first hit.';
+      const guardText = profile.guards
+        ? profile.guards + ' guard(s) respond to the perimeter. Morale-weighted guard contribution: ' + profile.guardDefenseBonus + '.'
+        : 'No guards are assigned. The perimeter must absorb the attack without survivor guard support.';
+      s.lastSiege = {
+        id: incidentId, status: 'incoming', day: s.day, startedAt: now, resolvedAt: null,
+        target: target ? { id: target.id, type: target.type, integrityBefore: integrity, integrityAfter: integrity } : null,
+        guardCount: profile.guards, guardDefenseBonus: profile.guardDefenseBonus,
+        structureDamage: 0, refugeHpBefore: s.baseHp, refugeHpAfter: s.baseHp, breachedStructures: [],
+        phases: [
+          { phase: 'warning', at: now, text: warningText },
+          { phase: 'guard_response', at: now, text: guardText }
+        ]
+      };
+      syncSurvivorBehavior(s, now);
+      record(s, 'siege_warning', warningText, now);
+      record(s, 'guard_response', guardText, now);
       break;
     }
     case 'defend': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
-      s.defenseCount++;
+      const pendingIncident = s.lastSiege?.status === 'incoming';
+      if (!pendingIncident) s.defenseCount++;
       const profile = threatProfile(s);
       const active = s.structures.filter(x => x.hp > 0);
       const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(s.survivors.filter(x => x.role === 'guard').length / 2) + 1));
@@ -502,8 +670,10 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       s.resources.ammo -= turretAmmo;
       const threat = profile.threat;
       const defense = profile.defense;
-      const damage = profile.projectedStructureDamage;
-      s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
+      // Resolve the first structure the siege will hit before calculating cover. Guards
+      // only mitigate damage when that actual target is a damaged defensive structure;
+      // a damaged gate elsewhere in the yard cannot magically protect an unrelated wall.
+      const defensiveTypes = new Set(['wall', 'gate', 'entrance', 'exit', 'sandbags', 'barbed_wire', 'trench', 'turret', 'watchtower']);
       // Siege pressure hits the outer defensive ring first, rather than damaging structures
       // in arbitrary creation order. Perimeter obstacles absorb hits before inner production buildings.
       const perimeterPriority = { barbed_wire: 0, gate: 1, entrance: 1, exit: 1, sandbags: 2, trench: 3, wall: 4, turret: 5, watchtower: 6 };
@@ -511,34 +681,120 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         (Math.hypot(b.x, b.z) - Math.hypot(a.x, a.z)) ||
         ((perimeterPriority[a.type] ?? 10) - (perimeterPriority[b.type] ?? 10)) ||
         String(a.id).localeCompare(String(b.id)));
+      const coverTarget = siegeTargets[0];
+      const refugeHpBefore = s.baseHp;
+      const targetIntegrityBefore = coverTarget && coverTarget.maxHp > 0 ? Math.round(coverTarget.hp / coverTarget.maxHp * 100) : null;
+      const incidentId = pendingIncident ? s.lastSiege.id : 'siege-' + s.defenseCount;
+      const warningText = coverTarget
+        ? 'SIEGE WARNING: infected are pressing ' + coverTarget.type + ' ' + coverTarget.id + ' (' + targetIntegrityBefore + '% integrity). ' + profile.guards + ' guard(s) assigned to the perimeter.'
+        : 'SIEGE WARNING: infected pressure is approaching the refuge; no active defensive structure can intercept the first hit.';
+      if (!pendingIncident) {
+        record(s, 'siege_warning', warningText, now);
+        record(s, 'guard_response', profile.guards
+          ? profile.guards + ' guard(s) respond to the perimeter. Morale-weighted guard contribution: ' + profile.guardDefenseBonus + '.'
+          : 'No guards are assigned. The perimeter must absorb the attack without survivor guard support.', now);
+      }
+      const damagedPerimeter = Boolean(coverTarget && defensiveTypes.has(coverTarget.type) && coverTarget.hp < coverTarget.maxHp);
+      const guardStrength = s.survivors.filter(x => x.role === 'guard').reduce((total, x) => {
+        const morale = clampInt(x.morale, 0, 100);
+        const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
+        return total + moraleFactor * (0.75 + survivorSkill(x, 'guard') / 20);
+      }, 0);
+      const breachCover = damagedPerimeter ? Math.min(0.25, guardStrength * 0.05) : 0;
+      const damage = Math.max(0, breachCover > 0 ? Math.floor(profile.projectedStructureDamage * (1 - breachCover)) : profile.projectedStructureDamage);
+      s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
       let remaining = damage;
       const breached = [];
       for (const structure of siegeTargets) {
         if (remaining <= 0) break;
         const before = structure.hp;
-        const hit = Math.min(structure.hp, remaining);
-        structure.hp -= hit; remaining -= hit;
+        const incoming = Math.min(structure.hp, remaining);
+        const material = MATERIAL_TIERS[structure.material] || MATERIAL_TIERS.wood;
+        const reinforcementResistance = ['gate', 'entrance', 'exit'].includes(structure.type) ? (structure.reinforcementLevel || 0) * 0.08 : 0;
+        const hit = Math.min(structure.hp, Math.ceil(incoming * (1 - Math.min(0.6, material.resistance + reinforcementResistance))));
+        structure.hp -= hit; remaining -= incoming;
         if (before > 0 && structure.hp <= 0) breached.push(structure.type);
       }
       const lost = s.baseHp === 0;
       for (const turret of active.filter(x => x.type === 'turret')) turret.manned = false;
-      const breachText = breached.length ? ' Breach opened: ' + breached.join(', ') + ' destroyed.' : '';
-      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach.' : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.' + breachText, now);
+      const breachText = breached.length ? ' Breach opened: ' + siegeTargets.filter(x => x.hp <= 0 && breached.includes(x.type)).map(x => x.type + ' ' + x.id).join(', ') + ' destroyed.' : '';
+      let targetOutcome = '';
+      if (coverTarget) {
+        const integrity = coverTarget.maxHp > 0 ? Math.round(coverTarget.hp / coverTarget.maxHp * 100) : 0;
+        const condition = coverTarget.hp <= 0 ? 'BREACHED' : integrity <= 25 ? 'CRITICAL' : integrity <= 60 ? 'DAMAGED' : 'HOLDING';
+        targetOutcome = ' Priority target ' + coverTarget.type + ' ' + coverTarget.id + ' is ' + condition + ' (' + integrity + '% integrity).';
+      }
+      const guardText = profile.guards + ' guard(s) contributed ' + profile.guardDefenseBonus + ' defense strength' + (breachCover > 0 ? ' and reduced perimeter damage by ' + Math.round(breachCover * 100) + '% while covering damaged ' + coverTarget.type + ' ' + coverTarget.id : '');
+      const breachedStructures = siegeTargets.filter(x => x.hp <= 0 && breached.includes(x.type)).map(x => ({ id: x.id, type: x.type }));
+      const finalTargetIntegrity = coverTarget && coverTarget.maxHp > 0 ? Math.round(coverTarget.hp / coverTarget.maxHp * 100) : null;
+      const outcome = lost ? 'refuge_fallen' : breachedStructures.length ? 'breach_opened' : 'repelled';
+      const outcomeText = lost
+        ? 'AFTER-ACTION REPORT: refuge fell. ' + damage + ' structure damage; refuge integrity ' + s.baseHp + '/' + s.baseMaxHp + '.'
+        : breachedStructures.length
+          ? 'AFTER-ACTION REPORT: breach opened at ' + breachedStructures.map(x => x.type + ' ' + x.id).join(', ') + '. ' + damage + ' structure damage; refuge integrity ' + s.baseHp + '/' + s.baseMaxHp + '.'
+          : 'AFTER-ACTION REPORT: attack repelled. ' + damage + ' structure damage; refuge integrity ' + s.baseHp + '/' + s.baseMaxHp + '.';
+      const resolvedTarget = coverTarget ? { id: coverTarget.id, type: coverTarget.type,
+        integrityBefore: pendingIncident && s.lastSiege.target?.id === coverTarget.id
+          ? s.lastSiege.target.integrityBefore : targetIntegrityBefore,
+        integrityAfter: finalTargetIntegrity } : null;
+      const outcomePhase = { phase: outcome, at: now, text: outcomeText };
+      s.lastSiege = {
+        ...(pendingIncident ? s.lastSiege : {}),
+        id: incidentId, status: outcome, day: s.day,
+        startedAt: pendingIncident ? s.lastSiege.startedAt : now, resolvedAt: now,
+        target: resolvedTarget, guardCount: profile.guards, guardDefenseBonus: profile.guardDefenseBonus,
+        structureDamage: damage, refugeHpBefore: pendingIncident ? s.lastSiege.refugeHpBefore : refugeHpBefore,
+        refugeHpAfter: s.baseHp, breachedStructures,
+        phases: [...(pendingIncident ? s.lastSiege.phases : [
+          { phase: 'warning', at: now, text: warningText },
+          { phase: 'guard_response', at: now, text: profile.guards ? 'Guards responded to the threatened perimeter.' : 'No guards available for the response.' }
+        ]), outcomePhase]
+      };
+      syncSurvivorBehavior(s, now);
+      record(s, 'siege_outcome', outcomeText, now);
+      record(s, 'defense', lost ? 'The refuge fell during a perimeter breach. ' + guardText + '.' + targetOutcome : 'Perimeter breach repelled with ' + damage + ' structure damage. ' + guardText + '; ' + active.filter(x => x.type === 'trench' && x.trenchLevel > 0).length + ' upgraded trench line(s) and ' + turretAmmo + ' turret ammunition contributed to defense.' + targetOutcome + breachText, now);
+      break;
+    }
+    case 'emergency_repair': {
+      const target = s.structures.find(x => x.id === action.target);
+      if (!target) throw new Error('unknown_repair_target');
+      const defensiveTypes = new Set(['wall', 'gate', 'watchtower', 'entrance', 'exit', 'sandbags', 'barbed_wire', 'trench', 'turret']);
+      if (!defensiveTypes.has(target.type)) throw new Error('not_a_defensive_structure');
+      if (target.hp >= target.maxHp) throw new Error('already_repaired');
+      const material = MATERIAL_TIERS[target.material] ? target.material : 'wood';
+      const repairCost = material === 'stone' ? { stone: 2, scrap: 2 } : material === 'steel' ? { steel: 2, scrap: 4 } : { wood: 4, scrap: 2 };
+      if (Object.entries(repairCost).some(([resource, amount]) => (s.resources[resource] || 0) < amount)) throw new Error('emergency_repair_supplies_required');
+      for (const [resource, amount] of Object.entries(repairCost)) s.resources[resource] -= amount;
+      const before = target.hp;
+      target.hp = Math.min(target.maxHp, target.hp + 100);
+      syncSurvivorBehavior(s, now);
+      record(s, 'repair', 'Emergency repair: ' + target.type + ' ' + target.id + ' restored +' + (target.hp - before) + ' HP (' + Math.round(target.hp / target.maxHp * 100) + '% integrity).', now);
       break;
     }
     case 'repair': {
-      if (s.resources.wood < 2 || s.resources.scrap < 1) throw new Error('repair_supplies_required');
       const target = action.target === 'base' ? null : s.structures.find(x => x.id === action.target);
       if (action.target !== 'base' && !target) throw new Error('unknown_repair_target');
       if (target && target.hp >= target.maxHp || !target && s.baseHp >= s.baseMaxHp) throw new Error('already_repaired');
-      s.resources.wood -= 2; s.resources.scrap -= 1;
-      if (target) target.hp = Math.min(target.maxHp, target.hp + 50);
-      else s.baseHp = Math.min(s.baseMaxHp, s.baseHp + 75);
-      record(s, 'repair', 'Repairs completed.', now);
+      const material = target && MATERIAL_TIERS[target.material] ? target.material : 'wood';
+      const repairCost = !target || material === 'wood' ? { wood: 2, scrap: 1 } :
+        material === 'stone' ? { stone: 1, scrap: 1 } : { steel: 1, scrap: 2 };
+      if (Object.entries(repairCost).some(([resource, amount]) => (s.resources[resource] || 0) < amount)) throw new Error('repair_supplies_required');
+      for (const [resource, amount] of Object.entries(repairCost)) s.resources[resource] -= amount;
+      if (target) {
+        const before = target.hp;
+        target.hp = Math.min(target.maxHp, target.hp + 50);
+        record(s, 'repair', 'Repaired ' + target.type + ' ' + target.id + ': +' + (target.hp - before) + ' HP (' + Math.round(target.hp / target.maxHp * 100) + '% integrity).', now);
+      } else {
+        const before = s.baseHp;
+        s.baseHp = Math.min(s.baseMaxHp, s.baseHp + 75);
+        record(s, 'repair', 'Repaired refuge: +' + (s.baseHp - before) + ' HP (' + Math.round(s.baseHp / s.baseMaxHp * 100) + '% integrity).', now);
+      }
       break;
     }
     default: throw new Error('unknown_action');
   }
+  // Reconcile persisted task state after every authoritative action, including workday repairs.
+  syncSurvivorBehavior(s, now);
   const FoodFreshness = require('./homefront-freshness');
   for (const id of ['food', 'rawFood']) {
     const delta = s.resources[id] - foodBefore[id];
@@ -550,4 +806,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };
+module.exports = { SURVIVOR_TASKS, VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, MATERIAL_TIERS, MATERIAL_UPGRADE_COSTS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };

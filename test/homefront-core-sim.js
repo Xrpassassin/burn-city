@@ -187,10 +187,10 @@ assert.equal(scavengerBroken.resources.scrap, scavengerPlain.resources.scrap, 'd
 // Morale changes actual production, so survivor care has a gameplay consequence.
 const rested = H.createBase('rested', 2000);
 rested.resources.food = 100;
-rested.survivors = [{ id: 's1', name: 'Mara', role: 'farmer', morale: 90 }];
+rested.survivors = [{ id: 's1', name: 'Mara', role: 'farmer', morale: 90, stats: { farming: 5 } }];
 const tired = H.createBase('tired', 2000);
 tired.resources.food = 100;
-tired.survivors = [{ id: 's1', name: 'Mara', role: 'farmer', morale: 10 }];
+tired.survivors = [{ id: 's1', name: 'Mara', role: 'farmer', morale: 10, stats: { farming: 5 } }];
 const restedShift = H.applyAction(rested, 'rested', { type: 'workday' });
 const tiredShift = H.applyAction(tired, 'tired', { type: 'workday' });
 assert.ok(restedShift.resources.food > tiredShift.resources.food, 'high-morale workers produce more food than demoralized workers');
@@ -306,7 +306,7 @@ siegeBase.structures = [
 const siegeResult = H.applyAction(siegeBase, 'siege-order-test', { type: 'defend' }, 5110);
 assert.equal(siegeResult.structures.find(x => x.id === 'b2').hp, 0, 'outer barbed wire absorbs siege damage before inner structures');
 assert.ok(siegeResult.structures.find(x => x.id === 'b1').hp < 120, 'overflow siege damage advances to the next defensive layer');
-assert.match(siegeResult.log.at(-1).text, /Breach opened: barbed_wire destroyed/, 'the defense report calls out a newly opened breach');
+assert.match(siegeResult.log.at(-1).text, /Breach opened: barbed_wire(?: b2)? destroyed/, 'the defense report calls out a newly opened breach');
 
 const farmStart = H.createBase('farm-test', 6000);
 assert.equal(farmStart.resources.seeds, 6, 'new refuge has a small starter seed reserve');

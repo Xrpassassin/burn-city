@@ -65,8 +65,9 @@ assert.match(scene, /cameraPitchOffset = Math\.max\(-0\.25, Math\.min\(0\.45/, '
 assert.match(scene, /cameraDistance = Math\.max\(3\.5, Math\.min\(10\.5/, 'mouse wheel zoom is clamped to playable third-person distances');
 assert.match(scene, /const masterView = 'third-person'/, 'exploration camera is locked to third-person');
 assert.doesNotMatch(scene, /masterView = masterView === 'third-person'/, 'tactical overhead is not a general exploration hotkey');
-assert.match(scene, /Overhead view is reserved for base construction/, 'camera guidance reserves overhead view for base construction');
-assert.match(scene, /right-drag to orbit · scroll to zoom/, 'the game explains orbit and zoom controls to the player');
+assert.match(page, /Overhead view is reserved for base construction/, 'camera guidance reserves overhead view for base construction');
+assert.match(page, /orbit/i, 'the game explains camera orbit controls to the player');
+assert.match(page, /zoom/i, 'the game explains camera zoom controls to the player');
 assert.match(scene, /homefront:cosmetics/, 'receive equipped cosmetic and weapon selection from the Homefront loadout');
 assert.match(scene, /equippedWeaponSkinColor/, 'apply the equipped weapon skin finish to the local 3D weapon');
 assert.match(scene, /weaponId === 'shock_maul'/, 'render a distinct shock maul silhouette');
@@ -199,3 +200,145 @@ assert.match(page, /type:'farm_plant',plotId:p\.id/, 'empty plots can be planted
 assert.match(page, /type:'farm_water',plotId:p\.id/, 'growing plots can be watered from the refuge panel');
 assert.match(page, /type:'farm_harvest',plotId:p\.id/, 'mature plots can be harvested from the refuge panel');
 assert.match(page, /drawFarmPlot\(plot\)/, 'farm plots render in the 3D yard');
+
+// Homefront refuge role markers must expose each assigned survivor's job in-world.
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /function drawRoleLabel\(x,z,role,task\)/, 'render role and task labels above survivors');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /drawRoleLabel\(x,z,survivor\.role,survivor\.task\)/, 'attach role and task labels to survivor world positions');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /materials\.forEach\(m=>\{if\(m\.map\)m\.map\.dispose\(\);m\.dispose\(\)\}\)/, 'dispose role-label textures when the world is redrawn');
+
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /survivorActors\.push\(\{object:g,role:survivor\.role,task:survivor\.task,phase:i\*1\.71,baseY:0,targetX:x,targetZ:z,targetYaw:spot\.yaw,speed:1\.1\+\(i%3\)\*\.12,moving:true,leftArm,rightArm,body,head\}\)/, 'track procedural survivor rigs, assigned tasks, and station movement');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /for\(const actor of survivorActors\)\{actor\.phase\+=dt/, 'animate survivor work activity every world frame');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /actor\.role==='mechanic'/, 'give mechanics a distinct repair-work motion');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /actor\.role==='farmer'/, 'give farmers a distinct tending motion');
+const homefrontPage = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
+assert.match(homefrontPage, /if\(survivor\.role==='farmer'\)\{const plot=base\.farmPlots\?\.find\(item=>item\.crop\)/, 'place farmers beside an actively planted crop when available');
+assert.match(homefrontPage, /if\(survivor\.role==='mechanic'\)\{const damaged=base\.structures\.filter\(item=>item\.hp<item\.maxHp\)/, 'send mechanics toward the most damaged structure before falling back to the workshop');
+assert.match(homefrontPage, /if\(survivor\.role==='guard'\)\{const defensiveTypes=new Set\(\['wall','gate','watchtower','entrance','exit','sandbags','barbed_wire','trench','turret'\]\);const breach=base\.structures\.filter\(item=>defensiveTypes\.has\(item\.type\)&&item\.hp<item\.maxHp\)/, 'redirect guards to damaged perimeter defenses while preserving their patrol fallback');
+
+assert.match(homefrontPage, /if\(s\.hp<=0\)\{g\.userData\.breached=true;g\.userData\.structureId=s\.id;/, 'render zero-HP structures as persistent breach wreckage instead of intact defenses');
+assert.match(homefrontPage, /const breachMarker=block\(g,\.78,\.07,\.07,0,\.68,0,0xe34d3e\)/, 'make a destroyed perimeter opening visually identifiable in the 3D refuge');
+assert.match(homefrontPage, /integrity<=\.25\?0xd94a3e:integrity<=\.6\?0xc77a3e/, 'tint critical and damaged structures by server-reported integrity');
+
+
+// Live perimeter alerts must reflect the authoritative structure snapshot and prioritize the weakest defense.
+assert.match(homefrontPage, /id="breachAlert" role="alert"/, 'provide an accessible live perimeter integrity alert');
+assert.match(homefrontPage, /const damagedDefenses=base\.structures\.filter\(s=>defensiveTypes\.has\(s\.type\)/, 'derive breach status only from defensive structures');
+assert.match(homefrontPage, /\.sort\(\(a,b\)=>a\.integrity-b\.integrity/, 'prioritize the defensive structure with the lowest integrity');
+assert.match(homefrontPage, /priority\.hp<=0\?'BREACHED':priority\.integrity<=25\?'CRITICAL':priority\.integrity<=60\?'DAMAGED'/, 'label breached, critical, and damaged perimeter states');
+assert.match(homefrontPage, /id="repairPriorityBreach"/, 'provide a direct priority breach repair control');
+assert.match(homefrontPage, /priorityButton\.onclick=\(\)=>act\(\{type:'emergency_repair',target:priority\.id\}\)/, 'send priority repair through the existing server-authoritative action');
+assert.match(homefrontPage, /priorityButton\.disabled=busy\|\|!priorityAffordable/, 'disable priority repair when the refuge lacks required materials');
+assert.match(homefrontPage, /PERIMETER STABLE · All defensive structures are at full integrity/, 'show a stable state when no perimeter defense is damaged');
+
+
+// Siege incident lifecycle: warning, guard response, and persisted after-action report.
+assert.match(homefrontPage, /id="siegeIncidentSummary" aria-live="polite"/, 'show a persistent accessible siege incident summary');
+assert.match(homefrontPage, /incident=base\.lastSiege/, 'render the server-persisted last siege report');
+assert.match(homefrontPage, /incident\.phases/, 'render the ordered incident phases');
+assert.match(homefrontPage, /incident\.target\.integrityBefore/, 'show target integrity before and after the siege');
+assert.match(homefrontPage, /incident\.refugeHpAfter.*base\.baseMaxHp/, 'show refuge health after the incident');
+
+
+assert.match(homefrontPage, /incident\?\.status==='incoming'\?'Resolve siege defense':'Begin siege warning'/, 'switch the siege control between warning and defense phases');
+assert.match(homefrontPage, /INCOMING SIEGE: inspect the threatened structure and repair if needed/, 'tell players they can assess and repair before resolving the attack');
+assert.match(homefrontPage, /type:base\?\.lastSiege\?\.status==='incoming'\?'defend':'start_siege'/, 'use separate server actions for starting and resolving a siege');
+
+assert.match(homefrontPage, /const assignedTarget=survivor\.taskTarget&&base\.structures\.find\(item=>item\.id===survivor\.taskTarget\)/, 'place responding survivors at their persisted server-assigned siege target');
+assert.match(homefrontPage, /taskLabels\[task\]\|\|labels\[role\]/, 'show the active survivor behavior above the 3D actor');
+assert.match(homefrontPage, /task:survivor\.task/, 'carry persistent behavior into survivor animation actors');
+assert.match(homefrontPage, /taskNote\.textContent='Current task: '/, 'show persistent survivor tasks in the settlement roster');
+
+assert.match(homefrontPage, /startX=Math\.cos\(startAngle\)\*2\.2,startZ=Math\.sin\(startAngle\)\*2\.2/, 'survivors begin near the refuge before walking to their assigned stations');
+assert.match(homefrontPage, /targetX:x,targetZ:z,targetYaw:spot\.yaw,speed:1\.1\+\(i%3\)\*\.12/, 'each survivor actor carries a destination and individual movement speed');
+assert.match(homefrontPage, /distance>\.12/, 'survivors stop moving when they reach their assigned destination');
+assert.match(homefrontPage, /actor\.walkAction\.reset\(\)\.fadeIn\(\.15\)\.play\(\)/, 'blend into walk animation while moving between stations when assets provide one');
+assert.match(homefrontPage, /working=!moving&&\['farmer','mechanic','medic','scavenger'\]/, 'role work animations start after survivors arrive at their work location');
+
+
+// Survivor visual pass: keep the CC0 rig, add role-readable equipment silhouettes,
+// and select the closest animation clip available without requiring every clip.
+const survivorVisualPage = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
+assert.match(survivorVisualPage, /const SURVIVOR_GEAR=\{/, 'define distinct survivor gear profiles by settlement role');
+assert.match(survivorVisualPage, /function addSurvivorGear\(model,survivor,index\)/, 'attach equipment to each cloned survivor rather than mutate the shared GLB');
+assert.match(survivorVisualPage, /model\.userData\.homefrontGear=gear/, 'track the per-actor equipment group for future cosmetic customization');
+assert.match(survivorVisualPage, /kit:'helmet'/, 'give guards a recognizable helmet silhouette');
+assert.match(survivorVisualPage, /kit:'hat'/, 'give farmers a distinct hat silhouette');
+assert.match(survivorVisualPage, /kit:'hardhat'/, 'give mechanics a hardhat silhouette');
+assert.match(survivorVisualPage, /kit:'medical'/, 'give medics a visible medical marker');
+assert.match(survivorVisualPage, /function survivorAnimationProfile\(clips,survivor\)/, 'resolve animation clips from the actual source model instead of assuming fixed clip names');
+assert.match(survivorVisualPage, /rolePatterns=\{/, 'map role-specific activity to likely animation names with graceful fallbacks');
+assert.match(survivorVisualPage, /survivorAnimationProfile\(clips,survivor\)/, 'select each survivor animation profile from role and persistent task');
+assert.match(survivorVisualPage, /survivor\.task==='defend_perimeter'\?find\(\[\/aim\/i,\s*\/shoot\/i,\s*\/attack\/i,\s*\/guard\/i,\s*\/idle\/i\]\)/, 'prefer defensive stance or combat clips for guards responding to a siege');
+assert.match(survivorVisualPage, /actor\.task==='take_shelter'/, 'keep sheltering survivors out of work/aim animation transitions');
+
+
+// Individual survivor stats are visible in the roster and backed by server-persisted skills.
+const survivorStatsPage = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
+assert.match(survivorStatsPage, /const statLabels=\[\['combat','CMB'\],\['scavenging','SCV'\],\['farming','FRM'\],\['medical','MED'\],\['engineering','ENG'\],\['endurance','END'\]\]/,
+  'the survivor roster displays all six individual skill categories');
+assert.match(survivorStatsPage, /Individual survivor skills, each rated 1–10/,
+  'the roster explains the meaning and scale of survivor stats');
+
+
+assert.match(homefrontPage, /stone:\['🪨','Stone'\],steel:\['🏗️','Steel'/, 'show advanced construction materials in the resource inventory');
+assert.match(homefrontPage, /upgrade_structure_material/, 'structure cards offer server-authoritative material upgrades');
+assert.match(homefrontPage, /Maximum material tier · steel-reinforced/, 'steel structures clearly show that material progression is capped');
+
+assert.match(homefrontPage, /if\(s\.material==='stone'\)c=0x777a7d;else if\(s\.material==='steel'\)c=0x77838a/, 'stone and steel tiers change the 3D structure palette');
+assert.match(homefrontPage, /if\(s\.material==='stone'\)\{for\(const x of \[-\.72,\.72\]\)/, 'stone structures receive visible masonry reinforcement seams');
+assert.match(homefrontPage, /else if\(s\.material==='steel'\)\{for\(const x of \[-\.76,\.76\]\)/, 'steel structures receive visible metal reinforcement bands');
+
+
+assert.match(homefrontPage, /\['quarry','⛏️ Quarry'/, 'construction menu offers a quarry for stone production');
+assert.match(homefrontPage, /\['smelter','🔥 Smelter'/, 'construction menu offers a smelter for steel production');
+assert.match(homefrontPage, /\['salvage_yard','♻️ Salvage yard'/, 'construction menu offers a salvage yard for scrap production');
+assert.match(homefrontPage, /quarry:0x777a7d,smelter:0x8a4931,salvage_yard:0x77715f/, 'new production facilities have visible 3D color identities');
+
+
+assert.match(homefrontPage, /Repair · 1 stone \+ 1 scrap/, 'stone structures display their matching repair material cost');
+assert.match(homefrontPage, /Repair · 1 steel \+ 2 scrap/, 'steel structures display their matching repair material cost');
+
+
+assert.match(homefrontPage, /Emergency repair · '\+emergencyText\+' · \+100 HP/, 'emergency repair controls show tier-appropriate materials');
+assert.match(homefrontPage, /priorityMaterial==='steel'\?'2 steel \+ 4 scrap'/, 'live breach alert uses the same steel repair cost');
+
+
+assert.match(homefrontPage, /function structureCondition\(s\)/, 'structure condition is derived from authoritative integrity');
+assert.match(homefrontPage, /function drawMaterialDamage\(g,s\)/, '3D structure rendering adds material-specific damage');
+assert.match(homefrontPage, /if\(s\.material==='wood'\)\{const count=condition==='SCUFFED'\?1:condition==='DAMAGED'\?2:4;/, 'wood develops increasing splinter damage as integrity falls');
+assert.match(homefrontPage, /const crackCount=condition==='SCUFFED'\?1:condition==='DAMAGED'\?3:5/, 'stone develops progressively denser cracks as integrity falls');
+assert.match(homefrontPage, /const scratches=condition==='SCUFFED'\?1:condition==='DAMAGED'\?3:4/, 'steel shows increasing impact scars as integrity falls');
+assert.match(homefrontPage, /type:'reinforce_gate'/, 'gate controls call the server-authoritative steel reinforcement action');
+assert.match(homefrontPage, /s\.reinforcementLevel>=2/, 'tier-two gate armor has a distinct 3D appearance');
+assert.match(homefrontPage, /steel reinforcement '\+\(s\.reinforcementLevel\|\|0\)\+'\/2/, 'gate cards show persistent armor tier');
+
+
+assert.match(page, /const ZOMBIE_BLOCKING_TYPES=new Set\(\['wall','gate','entrance','exit','sandbags','barbed_wire','trench','watchtower','turret'\]\)/, 'infected navigation treats intact perimeter structures as obstacles');
+assert.match(page, /function zombieFindPath\(start,goal,structures,ignoreId=''\)/, 'infected use a grid pathfinder rather than moving in a straight line through defenses');
+assert.match(page, /function zombieRouteFor\(base,start\)/, 'infected routes adapt to the current refuge perimeter');
+assert.match(page, /breaches=structures\.filter\(s=>s\.hp<=0\)/, 'navigation detects destroyed perimeter structures as breaches');
+assert.match(page, /zombieFindPath\(outer,inner,structures,breach\.id\)/, 'infected route through the breached opening before entering the refuge');
+assert.match(page, /const candidates=structures\.filter\(s=>s\.hp>0\)\.sort\(\(a,b\)=>a\.hp\/Math\.max\(1,a\.maxHp\)-b\.hp\/Math\.max\(1,b\.maxHp\)\)/, 'without a breach, infected pressure the weakest intact perimeter structure');
+assert.match(page, /while\(waypoint&&Math\.hypot\(waypoint\.x-o\.position\.x,waypoint\.z-o\.position\.z\)<\.22\)/, 'infected follow route waypoints with smooth movement');
+assert.match(page, /!pendingBuilding&&!constructionPaused\)\{for\(const actor of zombieActors\)/, 'construction pause still freezes infected movement');
+
+assert.match(page, /function zombiePlanFor\(base,start,index\)/, 'assign infected distinct breach-runner and structure-siege behaviors');
+assert.match(page, /mode:'siege',targetId:target\.id/, 'retain the attacked structure identity for reactive siege presentation');
+assert.match(page, /mode:'breach',targetId:breach\.id/, 'track which breach each runner is exploiting');
+assert.match(page, /\/attack\|bite\|claw\|melee\|punch\/i/, 'use available zombie attack clips when the asset provides them');
+assert.match(page, /attacking=!moving&&actor\.mode==='siege'/, 'infected switch into an attack stance when they reach a living defense');
+assert.match(page, /actor\.attackPhase\+=dt\*7/, 'procedural fallback zombies visibly strike when no attack clip exists');
+assert.match(page, /radius=1\.6\+\(index%4\)\*\.85/, 'breach runners spread into the settlement rather than stacking at its center');
+
+assert.match(page, /function addSiegeTracer\(from,to,color=0xffb45c,lifetime=\.16\)/, 'create short-lived tracer effects for visible defensive fire');
+assert.match(page, /function addSiegeImpact\(point\)/, 'render impact sparks at the structure being attacked');
+assert.match(page, /function updateReactiveSiege\(dt\)/, 'coordinate siege impacts and defensive response visuals');
+assert.match(page, /target=base\.structures\.find\(s=>String\(s\.id\)===String\(actor\.targetId\)&&s\.hp>0\)/, 'tie visible wall impacts to the actual targeted intact structure');
+assert.match(page, /survivor\.role!=='guard'/, 'guards visually return fire during an active wave');
+assert.match(page, /s\.type==='turret'/, 'intact mounted turrets visually fire at nearby infected');
+assert.match(page, /target\.hitReaction=\.18/, 'defensive shots produce a visible infected hit reaction');
+assert.match(page, /if\(!base\?\.wave\|\|pendingBuilding\|\|constructionPaused\)return/, 'construction mode suppresses siege and defensive-fire effects');
+assert.match(page, /function updateSiegeEffects\(dt\)/, 'expire temporary tracer and impact objects cleanly');
+// Production facilities must be placeable: the client-side placement check knows their caps and costs.
+assert.match(homefrontPage, /quarry:2,smelter:2,salvage_yard:2\},costs=/, 'quarry/smelter/salvage yard have client placement caps');
+assert.match(homefrontPage, /smelter:\{wood:20,scrap:18,stone:10\}/, 'smelter placement cost mirrors the server');

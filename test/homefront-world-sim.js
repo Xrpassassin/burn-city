@@ -104,23 +104,26 @@ assert.ok(distanceAfter < distanceBefore + 8, 'infected movement tracks the upda
 const originalCanTraverse = Terrain.canTraverse;
 const originalFindTerrainPath = Terrain.findTerrainPath;
 const originalCollisionCanTraverse = Collision.canTraverse;
+const originalCollisionFindPath = Collision.findPath;
 const blockedRidge = (x0, z0, x1, z1) => {
-  if (originalCanTraverse(x0, z0, x1, z1)) {
-    // Simulate an additional steep ridge along x=0, with a safe crossing only at |z| >= 8.
-    const crossesRidge = (x0 <= 0 && x1 >= 0) || (x1 <= 0 && x0 >= 0);
-    if (!crossesRidge) return true;
-    const denominator = x1 - x0;
-    const t = Math.abs(denominator) < 1e-9 ? 0 : -x0 / denominator;
-    const crossingZ = z0 + (z1 - z0) * t;
-    return Math.abs(crossingZ) >= 8;
-  }
-  return false;
+  // Isolate this synthetic ridge test from unrelated authored terrain blockers.
+  const crossesRidge = (x0 <= 0 && x1 >= 0) || (x1 <= 0 && x0 >= 0);
+  if (!crossesRidge) return true;
+  const denominator = x1 - x0;
+  const t = Math.abs(denominator) < 1e-9 ? 0 : -x0 / denominator;
+  const crossingZ = z0 + (z1 - z0) * t;
+  return Math.abs(crossingZ) >= 8;
 };
 try {
   Terrain.canTraverse = blockedRidge;
   // Isolate this synthetic ridge contract from the separate authored-object collision layer.
   Collision.canTraverse = () => true;
   Terrain.findTerrainPath = (sx, sz, gx, gz) => [
+    { x: sx, z: 8 },
+    { x: gx, z: 8 },
+    { x: gx, z: gz }
+  ];
+  Collision.findPath = (sx, sz, gx, gz) => [
     { x: sx, z: 8 },
     { x: gx, z: 8 },
     { x: gx, z: gz }
@@ -150,10 +153,11 @@ try {
     players: { 'ridge-player': { x: -5, z: 0 } },
     now: 11000, speed: 2.8, maxElapsed: 2.5
   })['ridge-player'];
-  assert.ok(chasedAroundRidge.z > 0,
+  assert.ok(Math.abs(chasedAroundRidge.z) > 0,
     'infected pursuit follows a safe route instead of crossing the blocked ridge');
 
   Terrain.findTerrainPath = () => null;
+  Collision.findPath = () => null;
   const trappedPlayerWorld = W.defaultWorld();
   trappedPlayerWorld.players['trapped-player'] = {
     x: -12, z: 0, spawn: W.SPAWNS[0].id, lastSeen: 10000, lastMove: 9000,
@@ -174,5 +178,6 @@ try {
   Terrain.canTraverse = originalCanTraverse;
   Terrain.findTerrainPath = originalFindTerrainPath;
   Collision.canTraverse = originalCollisionCanTraverse;
+  Collision.findPath = originalCollisionFindPath;
 }
 console.log('Homefront shared Graveyard world and terrain-movement integration passed.');

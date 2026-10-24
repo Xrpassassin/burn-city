@@ -5,7 +5,7 @@ import { createEstatesIslandController } from './estates-island-controller.mjs';
 
 const OFFSET_X = 650;
 const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
-const ISLAND_SPAWN = Object.freeze({ x: -180, y: 0.1, z: 188 });
+const ISLAND_SPAWN = Object.freeze({ x: -195, y: 0.1, z: 188 });
 const finite = n => typeof n === 'number' && Number.isFinite(n);
 
 function makePanel() {
@@ -40,6 +40,8 @@ function addBridgeArchitecture(THREE, root) {
   };
   // A real traversable-looking span connects the city-side gate to the island's north bridge.
   addBox('estates-city-bridge-deck', -105, .12, 188, 210, .34, 10, stone);
+  addBox('estates-island-connector-deck', 0, .16, 173.5, 10, .34, 29, stone);
+  for (const side of [-1,1]) addBox('estates-island-connector-rail-'+side, side*4.7, .72, 173.5, .28, .9, 29, rail);
   for (const side of [-1,1]) {
     addBox('estates-city-bridge-rail-'+side, -105, .72, 188+side*4.7, 210, .9, .28, rail);
     for (let x=-200; x<=-10; x+=20) {

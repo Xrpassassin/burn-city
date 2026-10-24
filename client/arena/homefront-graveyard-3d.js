@@ -137,7 +137,7 @@ function boot(host) {
     weaponSwingUntil = weaponSwingStartedAt + 320;
     const detail = event.detail || {};
     const weaponId = ['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','assault_rifle','heavy_machine_gun'].includes(detail.weaponId) ? detail.weaponId : 'pipe_blade';
-    const style = weaponId === 'shock_maul' ? 'blunt' : weaponId === 'pump_shotgun' || weaponId === 'marksman_rifle' ? 'firearm' : 'sharp';
+    const style = weaponId === 'shock_maul' ? 'blunt' : ['pump_shotgun','marksman_rifle','assault_rifle','heavy_machine_gun'].includes(weaponId) ? 'firearm' : 'sharp';
     weaponSwingWeaponId = weaponId;
     const targetId = detail.encounterId || detail.encounter?.id || detail.combat?.encounterId;
     const target = targetId ? combatActors.get(targetId) : null;
@@ -160,7 +160,7 @@ function boot(host) {
         .catch(() => {});
       // Weapon-specific, short-lived blood mist. Visual feedback never determines damage.
       const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16) : detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18) : (weaponId === 'pump_shotgun' ? 15 : 9);
-      const spread = weaponId === 'pump_shotgun' ? 0.95 : weaponId === 'marksman_rifle' ? 0.22 : 0.5;
+      const spread = weaponId === 'pump_shotgun' ? 0.95 : weaponId === 'marksman_rifle' ? 0.22 : weaponId === 'heavy_machine_gun' ? 0.72 : weaponId === 'assault_rifle' ? 0.4 : 0.5;
       const lift = detail.hitZone === 'head' ? 3.6 : weaponId === 'shock_maul' ? 1.25 : weaponId === 'pump_shotgun' ? 3.2 : 2.4;
       for (let i = 0; i < count; i++) {
         const radius = (weaponId === 'pump_shotgun' ? 0.04 : 0.035) + Math.random() * 0.045;

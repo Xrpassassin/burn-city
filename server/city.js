@@ -5,8 +5,11 @@
 const Fish = require('./fish'), Pay = require('./payments'), { db, clean } = require('./social'), Nft = require('./nft'), Scam = require('./scam'), Hate = require('./hate'), Flair = require('./flair'), Eco = require('./eco');
 Flair.init({ rpc: Eco.rpc, pools: () => (Eco.data() || {}).pools || [] });
 const MAX = 60, CH = 'CITY', OWNER = process.env.OWNER_ACCT || Buffer.from('ck5iUjRHdzlkOUpSTGRrYjRyQWhrV0RjSnlLUmszOUZvQQ==', 'base64').toString();
+// Jetpack allowlist; compared server-side only. Decoded entries: OWNER (Derrik), rpUaH8G4H1o1np8YBDHZMHGYJwyoR6EgST =
+// BURN (Derrik's dad, personal wallet; exemption only, not a burn address), rDtUEMFVDi3K7TUQAQLi6xxa1WCer84dcA = Gnasty.
 const JETSET = new Set([OWNER, ...['cnBVYUg4RzRIMW8xbnA4WUJESFpNSEdZSnd5b1I2RWdTVA==', 'ckR0VUVNRlZEaTNLN1RVUUFRTGk2eHhhMVdDZXI4NGRjQQ=='].map(x => Buffer.from(x, 'base64').toString())]);   // jetpack allowlist; compared server-side only
-const hasJet = a => !!(a && JETSET.has(a));
+// Plus the env exemption list (JETPACK_FREE_CITY) and paid city-jetpack grants (server/jetpack.js).
+const hasJet = a => !!(a && (JETSET.has(a) || require('./jetpack').ownsCity(a)));
 const q = s => db.prepare(s);
 const st = {
   getP: q('SELECT name, banned, created FROM profiles WHERE acct=?'),

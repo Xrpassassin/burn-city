@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import {buildEstate,estateCard,estateLake} from './estate.js';
 import {initDrone} from './drone.js';
 import {buildWalker,poseWalker} from './walker.js';
-import {MOTION,speedFor,turnToward} from './player-motion.mjs';   // shared walk/run/jump physics (also used by Homefront)
+import {MOTION,speedFor,turnToward,JETPACK,jetHorizontal,jetVertical} from './player-motion.mjs';   // shared walk/run/jump physics (also used by Homefront)
 import './skate.js';
 import './citylife.js';
 import './streetprops.js';
@@ -1364,11 +1364,11 @@ function jetStep(dt,mv){const ok=!!window.__jetOK&&mode==='explore'&&!(window.__
   if(MOBILE){const sh=mode==='fly'||(ok&&JET.on)?'':'none';if($('tUp').style.display!==sh){$('tUp').style.display=sh;$('tDown').style.display=sh}}
   // flying = jet on and airborne (or lifting off); on the ground with the jet on you walk normally until you ascend
   JET.fly=JET.on&&(!P.onGround||up);JET.thr=JET.fly;
-  if(JET.fly){const run=keys.ShiftLeft||keys.ShiftRight||tb.run,top=run?26:16,ml=Math.hypot(mv.x,mv.z);
-   // horizontal: steer toward the stick / WASD direction relative to the camera, responsive accel, quick stop when released
-   const tx=ml>.05?mv.x/ml*top*Math.min(1,ml/5):0,tz=ml>.05?mv.z/ml*top*Math.min(1,ml/5):0,k=1-Math.exp(-dt*(ml>.05?4.5:2.5));JET.v.x+=(tx-JET.v.x)*k;JET.v.z+=(tz-JET.v.z)*k;
+  if(JET.fly){const run=keys.ShiftLeft||keys.ShiftRight||tb.run;
+   // horizontal: steer toward the stick / WASD direction relative to the camera, responsive accel, quick stop when released (shared JETPACK physics, client/js/player-motion.mjs)
+   jetHorizontal(JET.v,dt,mv.x,mv.z,run);
    // vertical: hover by default, ascend / descend while held (gravity is cancelled here, it is applied after this call)
-   const vy=up?10:dn?-9:0;P.vel.y+=(vy-P.vel.y)*(1-Math.exp(-dt*5))+20*dt;if(P.pos.y>180&&P.vel.y>0)P.vel.y=Math.min(P.vel.y,20*dt);P.onGround=false;
+   P.vel.y=jetVertical(P.vel.y,dt,up,dn)+MOTION.gravity*dt;if(P.pos.y>JETPACK.ceiling&&P.vel.y>0)P.vel.y=Math.min(P.vel.y,MOTION.gravity*dt);P.onGround=false;
   }else JET.v.multiplyScalar(Math.pow(.02,dt));
   pack.children.forEach((c,i)=>{if(i>1){c.visible=JET.thr;c.scale.y=(up?.9:.55)+Math.random()*.5}});
   if(JET.thr){

@@ -5,6 +5,7 @@ const Nft = require('./nft'), Social = require('./social'), C = require('./confi
 
 const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates = require('./estates'), EstateWallet = require('./estate-wallet');
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
+const Jetpack = require('./jetpack');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
 const stats = { tickMs: [], bytesOut: 0, started: Date.now() };
@@ -78,6 +79,7 @@ const server = http.createServer(async (req, res) => {
     const body = async () => { let b = ''; for await (const c of req) { b += c; if (b.length > 8000) throw new Error('big'); } try { const o = JSON.parse(b || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; } };
     const who = () => Pay.checkToken((req.headers.authorization || '').replace(/^Bearer /, ''));
     if (url.pathname === '/api/homefront' || url.pathname === '/api/homefront/action' || url.pathname === '/api/homefront/visit' || url.pathname === '/api/homefront/world' || url.pathname.startsWith('/api/homefront/world/')) { if (await Homefront.handle(req, res, url, { json, gate, ip, body, who })) return; }
+    if ((url.pathname === '/api/jetpack' || url.pathname.startsWith('/api/jetpack/')) && await Jetpack.handle(req, res, url, { json, gate, ip, body, who })) return;   // jetpacks + real-XRP invoices (server/jetpack.js), off unless JETPACK_PAYMENTS=1
     if (url.pathname.startsWith('/api/cams') && await Cams.handle(req, res, url, { json, gate, ip, body })) return;
     if (url.pathname.startsWith('/api/bt/') && await BT.handle(req, res, url, { json, gate, ip, body, who })) return;   // Blacktide trade/progression (server/blacktide.js)   // AEGIS Pyramid live cams + per-stream comments (server/cams.js)
     if (url.pathname === '/api/eco/live') { if (Eco.serveLive(req, res)) return; return json(res, 503, { error: 'warming_up' }); }

@@ -49,7 +49,7 @@ body.rpg-hud #game section.panel.hf-tab-off{display:none!important}body.rpg-hud.
 `;
 const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); for (const k of kids) n.append(k); return n; };
 
-export function createHud({ request, getWorld, getBase, getMode, setMode, travel, message, signedIn }) {
+export function createHud({ request, getWorld, getBase, getMode, setMode, travel, message, signedIn, jetpack = null }) {
   if (typeof document === 'undefined') return null;
   document.head.append(el('style', { textContent: CSS }));
   document.body.classList.add('rpg-hud');
@@ -92,6 +92,11 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
       for (const slot of rpg.slots) { const id = rpg.equipment[slot], item = rpg.items.find(i => i.id === id); const b = el('button', { type: 'button', textContent: 'Unequip' }); b.hidden = !id; b.onclick = () => rpgAct({ action: 'unequip', slot }); body.append(rowOf(el('span', { textContent: slot[0].toUpperCase() + slot.slice(1) + ' · ' + (item ? item.label : 'empty') }), b)); }
       body.append(el('h3', { textContent: 'Gear' }));
       for (const i of rpg.items) { const b = el('button', { type: 'button', textContent: i.equipped ? 'Equipped' : 'Equip' }); b.disabled = i.equipped; b.onclick = () => rpgAct({ action: 'equip', item: i.id }); body.append(rowOf(el('span', { textContent: i.label + ' · ' + i.slot + (i.armor ? ' · armor ' + i.armor : '') }), b)); }
+      const js = jetpack?.status?.();
+      if (js) {   // Homefront jetpack: owned → how to fly; else a server-priced purchase (only when payments are on)
+        if (js.owned?.homefront) body.append(rowOf(el('span', { textContent: '🚀 Homefront jetpack · fly in your yard' }), el('span', { className: 'hf-muted', textContent: 'J or JET · hold Space/JUMP' })));
+        else if (js.payments) { const b = el('button', { type: 'button', textContent: 'Buy · ' + js.prices.homefront.xrp + ' XRP' }); b.onclick = async () => { hide(); if (await jetpack.buy()) open('inventory'); }; body.append(rowOf(el('span', { textContent: '🚀 Homefront jetpack · flight with fuel' }), b)); }
+      }
       const field = document.getElementById('survivalPanel');
       if (field && getWorld()?.self) { body.append(el('h3', { textContent: 'Field pack' })); const ph = el('span'); field.before(ph); borrowed = { node: field, home: ph }; body.append(field); }
     } else if (tab === 'journal') {

@@ -71,3 +71,6 @@ assert.match(page, /if\(survivor\.task==='tend_crops'\|\|survivor\.role==='farme
 
 assert.match(page, /const cotSpots=\[\[-2\.55,2\.45\],\[2\.55,2\.45\],\[-2\.75,4\],\[2\.75,4\],\[-2\.55,5\.55\],\[2\.55,5\.55\]\]/, 'the refuge includes six visible cot/rest locations');
 assert.match(page, /if\(survivor\.task==='rest_at_refuge'\)\{const cotSpots=/, 'resting survivors navigate to a specific bedroll instead of an arbitrary idle point');
+
+assert.match(page, /updateRouteRecovery\(actor\.routeRecovery,\{x:o\.position\.x,z:o\.position\.z\},\{x:actor\.targetX,z:actor\.targetZ\},now\)/, 'survivors continuously detect route stalls against their current destination');
+assert.match(page, /preferredOffset:actor\.routeRecovery\.preferredOffset/, 'survivor steering applies a temporary alternate approach after repeated stalls');

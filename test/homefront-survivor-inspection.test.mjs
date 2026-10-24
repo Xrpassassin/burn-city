@@ -32,3 +32,5 @@ assert.match(page, /type:'turret_manning',target:structure\.id,manned:!structure
 assert.match(page, /type:'trench_upgrade',target:structure\.id/, 'trench upgrades use the server-authoritative action');
 assert.match(page, /nearbyStructure=best\?\.kind==='structure'/, 'nearby structures participate in proximity prompts');
 assert.match(page, /promptButton\.textContent=best\.kind==='survivor'\?/, 'interaction prompt adapts to survivors, farm plots, and structures');
+assert.match(page, /host\.append\(renderer\.domElement\);renderer\.domElement\.addEventListener\('pointerup',inspectYardSurvivor\);renderer\.domElement\.addEventListener\('pointerup',inspectYardStructure\);/, '3D inspection handlers are registered only after the renderer exists');
+assert.doesNotMatch(page, /\\\\nfunction initWorld/, 'module code uses a real line break before world initialization');

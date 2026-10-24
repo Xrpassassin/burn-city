@@ -108,7 +108,9 @@ has(avatar, /chain\.renderOrder=3/, 'places the necklace in front of the artwork
 has(avatar, /nft-protocol-chain-link[\s\S]*renderOrder=3/, 'keeps individual 589 chain links visible above the artwork panel');
 has(avatar, /nft-protocol-chain-pendant[\s\S]*renderOrder=3/, 'keeps the 589 pendant visible above the artwork panel');
 has(avatar, /armor\|fur\|collar\|cape/, 'maps armor, fur and cape traits');
-has(avatar, /key==='589'/, 'gives 589 avatars a collection-specific BURN accent');
+has(avatar, /key==='589'/, 'selects the 589 Protocol collection renderer');
+has(avatar, /const hasProtocolMark=has\(tr,\/burn\|protocol\|insignia\|logo\|emblem\/\)/, 'gates the 589 brand mark on the individual NFT trait metadata');
+has(avatar, /if\(has\(tr,\/strap\|harness\|tactical\|techwear\/\)\)/, 'gates 589 tactical straps on token-specific gear traits');
 has(avatar, /Keep the Protocol insignia above the artwork tabard/, 'documents the visible 589 insignia placement');
 has(avatar, /nft-protocol-emblem[\s\S]*1\.655,\.245[\s\S]*renderOrder=3/, 'keeps the 589 emblem above the original artwork panel');
 has(avatar, /artwork panel spans the torso center[\s\S]*side\*\.292[\s\S]*renderOrder=3/, 'keeps 589 shirt edge stitching visible outside the artwork frame');

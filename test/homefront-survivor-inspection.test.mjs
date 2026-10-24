@@ -86,6 +86,7 @@ assert.match(page, /updateAwarenessBadge\(actor,awareness\.mode\)/, 'survivors r
 assert.match(page, /actor\.moving!==moving\|\|actor\.working!==working/, 'imported survivor animations switch when threat awareness interrupts work');
 assert.match(page, /awareness\.mode==='threat'/, 'nearby danger changes survivor posture and interrupts work animation');
 assert.match(page, /awareness\.mode==='player'/, 'survivors visibly acknowledge the nearby player');
+assert.match(page, /navActor\?\.awarenessState\?\.mode==='threat'\?\['They are close/, 'survivor dialogue acknowledges nearby danger');
 assert.match(page, /dataset\.awarenessStatus='true'/, 'survivor inspection explains their current awareness state');
 assert.match(page, /Math\.hypot\(zp\.x-o\.position\.x,zp\.z-o\.position\.z\)/, 'awareness responds to nearby zombie distance rather than a global alert alone');
 assert.match(page, /safeMovePosition\(\{x:o\.position\.x,z:o\.position\.z\},\{x:steering\.x\*step,z:steering\.z\*step\},navObstacles,\.28\)/, 'survivor travel validates movement against solid structure footprints');

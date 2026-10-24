@@ -12,7 +12,11 @@
     { "slot": "flame", "aliases": ["Ember Type", "Fire Type", "Flame Effect", "Aura Type"] },
     { "slot": "outfit", "aliases": ["Keeper Robes", "Uniform", "Garment"] },
     { "slot": "headwear", "aliases": ["Cowl", "Circlet", "Flame Crown"] },
-    { "slot": "accessory", "aliases": ["Relic", "Sigil", "Totem"] }
+    { "slot": "accessory", "aliases": ["Relic", "Sigil", "Totem"] },
+    { "slot": "hair style", "aliases": ["Hair Style", "Haircut", "Hair Shape"] },
+    { "slot": "markings", "aliases": ["Face Paint", "Scar", "Freckles", "War Paint"] },
+    { "slot": "body pattern", "aliases": ["Pattern", "Body Pattern", "Camo", "Stripes"] },
+    { "slot": "horns", "aliases": ["Horns", "Antlers"] }
   ],
   "assets": [],
   "qaSamples": [

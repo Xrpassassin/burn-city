@@ -38,7 +38,7 @@ export function createEstatesIslandController({
   if(!finite(cameraSmoothing)||cameraSmoothing<=0) throw new TypeError('cameraSmoothing must be positive');
 
   const navigation=createEstatesIslandNavigation({manifest});
-  let active=true,lastPropertyKey=null,elapsed=0;
+  let active=true,lastPropertyKey=null,lastGate=false,elapsed=0;
   const cameraTarget={x:0,y:0,z:0};
   function actorPosition(){return {x:actor.position.x,y:actor.position.y,z:actor.position.z};}
   function syncCamera(dt,yaw) {
@@ -74,8 +74,9 @@ export function createEstatesIslandController({
     }
     if(interactPressed&&property) onPropertyPrompt({...property,confirmedInteraction:true});
     const nearGate=Math.hypot(moved.position.x,moved.position.z-132)<=7;
-    if(nearGate) onExitPrompt({visible:true,requiresConfirmation:true,action:'return-to-city'});
-    else if(exitPressed) onExitPrompt({visible:false,requiresConfirmation:true,action:'return-to-city'});
+    if(nearGate!==lastGate) onExitPrompt({visible:nearGate,requiresConfirmation:true,action:'return-to-city'});
+    if(exitPressed&&nearGate) onExitPrompt({visible:true,requiresConfirmation:true,action:'return-to-city',confirmedInteraction:true});
+    lastGate=nearGate;
     return Object.freeze({active:true,position:moved.position,blockedX:moved.blockedX,blockedZ:moved.blockedZ,property,nearGate});
   }
   return Object.freeze({

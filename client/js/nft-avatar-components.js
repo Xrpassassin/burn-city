@@ -47,7 +47,8 @@ function wingStyle(value) {
   if (has(value, /dragon|scale/)) return 'scaled';
   return value && !/none|no wing/.test(value) ? 'custom' : 'none';
 }
-function outfitStyle(value) {
+function outfitStyle(value, key) {
+  if (key === 'fk' && value && !/none|no outfit|default/.test(value)) return 'robes';
   if (has(value, /robe|keeper|wizard|monk/)) return 'robes';
   if (has(value, /armor|armour|plate|tactical|combat/)) return 'armor';
   if (has(value, /suit|formal|business/)) return 'tailored';
@@ -104,7 +105,7 @@ export function resolveNftAvatarComponents(profile = {}) {
     flame: flameStyle(flame || (key === 'fk' ? 'ember' : '')),
     tailStyle: tailStyle(tail, key),
     wingStyle: wingStyle(wing),
-    outfitStyle: outfitStyle(outfit),
+    outfitStyle: outfitStyle(outfit, key),
     eyeStyle: eyeStyle(eyes),
     hairStyle: hairStyle(hair),
     patternStyle: patternStyle(pattern),

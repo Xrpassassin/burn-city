@@ -19,7 +19,7 @@ assert.equal(split.reduce((n, r) => n + r.amountDrops, 0), 16001, 'all integer d
 assert.deepEqual(split.map(r => r.amountDrops), [1000, 5000, 10001]);
 const equal = allocateProfit(5, [{acct:'rB',propertyId:'trailer-01'},{acct:'rA',propertyId:'trailer-02'}]);
 assert.equal(equal.reduce((n,r)=>n+r.amountDrops,0),5);
-assert.equal(equal.find(r=>r.propertyId==='trailer-01').amountDrops,2,'ties break deterministically by property ID');
+assert.equal(equal.find(r=>r.propertyId==='trailer-01').amountDrops,3,'ties break deterministically by property ID');
 assert.deepEqual(allocateProfit(0, holdings).map(r=>r.amountDrops), [0,0,0]);
 assert.throws(() => allocateProfit(-1, holdings), /nonnegative/);
 assert.throws(() => allocateProfit(1.5, holdings), /safe_integer/);

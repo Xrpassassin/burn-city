@@ -951,8 +951,8 @@ function boot(host) {
       const r = await fetch(API + '/api/homefront/world', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
-      updateWorld(data);
       await fetchExplorationProgress();
+      updateWorld(data);
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
   async function combatAction(action, targetId = selectedCombatTargetId) {

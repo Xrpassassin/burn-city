@@ -452,7 +452,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           player.lastSeen = now;
           store.save('homefront-world.json', db);
           const snap = World.snapshot(db, user.acct, now);
-          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: { id: nearest.point.id, label: nearest.point.label, rescued: true, readyAt: rescue.readyAt, difficulty, survivor: nextBase.survivors.at(-1), event: nextBase.log.at(-1)?.text } });
+          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: { id: nearest.point.id, label: nearest.point.label, rescued: true, readyAt: rescue.readyAt, difficulty, survivor: nextBase.survivors.at(-1), event: nextBase.log.at(-1)?.text }, tacticalNoise: { level: rescueNoise, durationMs: 12000, cause: 'survivor_rescue' } });
           return true;
         }
         case '/api/homefront/world/cache': {

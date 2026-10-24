@@ -481,6 +481,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           for(const id of ['wood','scrap','meds'])grossResources[id]=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
           const foodAdjusted=Inventory.reconcileCount(carried,'food',nextBase.resources.food,Date.now());carried.food=foodAdjusted.food;carried.freshness=foodAdjusted.freshness;carried.ammo=nextBase.resources.ammo;
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;nextBase.resources.freshness=base.resources.freshness;
+          const cacheNoise = Loot.noiseForRisk(nearest.point.risk);
+          player.noiseLevel = Math.max(player.noiseLevel || 0, cacheNoise.level);
+          player.lastNoiseAt = now; player.noiseX = player.x; player.noiseZ = player.z;
           const scrap = Math.floor((8 + nearest.point.risk * 4) * spec.reward);
           const wood = Math.floor((4 + nearest.point.risk * 2) * spec.reward);
           const ammo = Math.floor((2 + nearest.point.risk * 2) * spec.reward);

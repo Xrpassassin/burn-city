@@ -4,21 +4,259 @@
   "shareWeightsStatus": "proposed_relative_units",
   "currency": null,
   "tiers": [
-    {"id":"trailer","label":"Trailer Home","shareUnits":1,"price":null,"description":"Entry-level manufactured home; smallest proposed pool-share weight."},
-    {"id":"apartment","label":"Apartment Unit","shareUnits":2,"price":null,"description":"Compact urban residence; proposed weight twice a trailer home."},
-    {"id":"starter","label":"Two-Bedroom Starter Home","shareUnits":3,"price":null,"description":"Starter house with a moderate proposed pool-share weight."},
-    {"id":"family","label":"Four-Bedroom Family Home","shareUnits":5,"price":null,"description":"Larger family property with a higher proposed pool-share weight."},
-    {"id":"mansion","label":"Luxury Lakefront Mansion","shareUnits":10,"price":null,"description":"Premium lakefront property with the highest proposed pool-share weight."}
+    {
+      "id": "trailer",
+      "label": "Trailer Home",
+      "shareUnits": 1,
+      "price": null,
+      "description": "Entry-level manufactured home; smallest proposed pool-share weight."
+    },
+    {
+      "id": "apartment",
+      "label": "Apartment Unit",
+      "shareUnits": 2,
+      "price": null,
+      "description": "Compact urban residence; proposed weight twice a trailer home."
+    },
+    {
+      "id": "starter",
+      "label": "Two-Bedroom Starter Home",
+      "shareUnits": 3,
+      "price": null,
+      "description": "Starter house with a moderate proposed pool-share weight."
+    },
+    {
+      "id": "family",
+      "label": "Four-Bedroom Family Home",
+      "shareUnits": 5,
+      "price": null,
+      "description": "Larger family property with a higher proposed pool-share weight."
+    },
+    {
+      "id": "mansion",
+      "label": "Luxury Lakefront Mansion",
+      "shareUnits": 10,
+      "price": null,
+      "description": "Premium lakefront property with the highest proposed pool-share weight."
+    }
   ],
   "properties": [
-    {"id":"trailer-01","tier":"trailer","address":"Estates Row 01"},
-    {"id":"trailer-02","tier":"trailer","address":"Estates Row 02"},
-    {"id":"apartment-01","tier":"apartment","address":"Lakeview Apartments"},
-    {"id":"starter-01","tier":"starter","address":"Starter Lane 01"},
-    {"id":"starter-02","tier":"starter","address":"Starter Lane 02"},
-    {"id":"family-01","tier":"family","address":"Family Crescent 01"},
-    {"id":"family-02","tier":"family","address":"Family Crescent 02"},
-    {"id":"mansion-01","tier":"mansion","address":"Lakefront Estate 01"},
-    {"id":"mansion-02","tier":"mansion","address":"Lakefront Estate 02"}
-  ]
+    {
+      "id": "trailer-01",
+      "tier": "trailer",
+      "address": "Estates Row 01"
+    },
+    {
+      "id": "trailer-02",
+      "tier": "trailer",
+      "address": "Estates Row 02"
+    },
+    {
+      "id": "apartment-01",
+      "tier": "apartment",
+      "address": "Lakeview Apartments"
+    },
+    {
+      "id": "starter-01",
+      "tier": "starter",
+      "address": "Starter Lane 01"
+    },
+    {
+      "id": "starter-02",
+      "tier": "starter",
+      "address": "Starter Lane 02"
+    },
+    {
+      "id": "family-01",
+      "tier": "family",
+      "address": "Family Crescent 01"
+    },
+    {
+      "id": "family-02",
+      "tier": "family",
+      "address": "Family Crescent 02"
+    },
+    {
+      "id": "mansion-01",
+      "tier": "mansion",
+      "address": "Lakefront Estate 01"
+    },
+    {
+      "id": "mansion-02",
+      "tier": "mansion",
+      "address": "Lakefront Estate 02"
+    },
+    {
+      "id": "trailer-03",
+      "tier": "trailer",
+      "address": "Estates Row 03",
+      "district": "north-shore",
+      "lot": {
+        "x": -3,
+        "z": -5
+      }
+    },
+    {
+      "id": "trailer-04",
+      "tier": "trailer",
+      "address": "Estates Row 04",
+      "district": "north-shore",
+      "lot": {
+        "x": -2,
+        "z": -5
+      }
+    },
+    {
+      "id": "apartment-02",
+      "tier": "apartment",
+      "address": "Lakeview Apartments East",
+      "district": "east-village",
+      "lot": {
+        "x": 5,
+        "z": -1
+      }
+    },
+    {
+      "id": "apartment-03",
+      "tier": "apartment",
+      "address": "Lakeview Apartments West",
+      "district": "west-village",
+      "lot": {
+        "x": -5,
+        "z": -1
+      }
+    },
+    {
+      "id": "starter-03",
+      "tier": "starter",
+      "address": "Starter Lane 03",
+      "district": "west-village",
+      "lot": {
+        "x": -4,
+        "z": 2
+      }
+    },
+    {
+      "id": "starter-04",
+      "tier": "starter",
+      "address": "Starter Lane 04",
+      "district": "east-village",
+      "lot": {
+        "x": 4,
+        "z": 2
+      }
+    },
+    {
+      "id": "family-03",
+      "tier": "family",
+      "address": "Family Crescent 03",
+      "district": "south-neighborhood",
+      "lot": {
+        "x": -3,
+        "z": 5
+      }
+    },
+    {
+      "id": "family-04",
+      "tier": "family",
+      "address": "Family Crescent 04",
+      "district": "south-neighborhood",
+      "lot": {
+        "x": 3,
+        "z": 5
+      }
+    },
+    {
+      "id": "mansion-03",
+      "tier": "mansion",
+      "address": "Lakefront Estate 03",
+      "district": "lakefront",
+      "lot": {
+        "x": -1,
+        "z": -7
+      }
+    },
+    {
+      "id": "mansion-04",
+      "tier": "mansion",
+      "address": "Lakefront Estate 04",
+      "district": "lakefront",
+      "lot": {
+        "x": 1,
+        "z": -7
+      }
+    },
+    {
+      "id": "cabin-01",
+      "tier": "starter",
+      "address": "Pinewater Cabin 01",
+      "district": "woodland-edge",
+      "lot": {
+        "x": -7,
+        "z": 1
+      }
+    },
+    {
+      "id": "cabin-02",
+      "tier": "starter",
+      "address": "Pinewater Cabin 02",
+      "district": "woodland-edge",
+      "lot": {
+        "x": 7,
+        "z": 1
+      }
+    }
+  ],
+  "world": {
+    "id": "estates-island-lake",
+    "layoutStatus": "design_spec",
+    "topology": "single_buildable_island_surrounded_by_a_continuous_lake",
+    "lake": {
+      "surroundsIsland": true,
+      "shorelineWalkable": true,
+      "waterCollisionRequired": true,
+      "swimmable": false
+    },
+    "access": {
+      "primaryBridge": true,
+      "secondaryServiceBridge": true,
+      "publicDock": true
+    },
+    "districts": [
+      {
+        "id": "north-shore",
+        "label": "North Shore"
+      },
+      {
+        "id": "east-village",
+        "label": "East Village"
+      },
+      {
+        "id": "west-village",
+        "label": "West Village"
+      },
+      {
+        "id": "south-neighborhood",
+        "label": "South Neighborhood"
+      },
+      {
+        "id": "lakefront",
+        "label": "Lakefront"
+      },
+      {
+        "id": "woodland-edge",
+        "label": "Woodland Edge"
+      }
+    ],
+    "requirements": [
+      "continuous shoreline and lake ring",
+      "terrain height transitions",
+      "walkable roads and footpaths",
+      "bridge and dock access",
+      "lot bounds and property interaction anchors",
+      "water and shoreline collision",
+      "third-person navigation and streaming",
+      "future boat access remains disabled until implemented"
+    ]
+  }
 }

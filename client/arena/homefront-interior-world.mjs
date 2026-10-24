@@ -84,7 +84,7 @@ export function interiorRoom(interior, roomId) {
 export function createInteriorState(landmarkId) {
   const interior = interiorForLandmark(landmarkId);
   if (!interior) return null;
-  return { landmarkId, roomId: interior.entryRoom, flags: [], discovered: [], used: [], noise: 0 };
+  return { landmarkId, roomId: interior.entryRoom, flags: [], discovered: [], used: [], openedDoors: [], noise: 0 };
 }
 export function availableInteriorActions(interior, state) {
   if (!interior || !state || state.landmarkId !== interior.landmarkId) return [];
@@ -94,7 +94,7 @@ export function applyInteriorAction(interior, state, actionId) {
   if (!interior || !state || state.landmarkId !== interior.landmarkId) throw new Error('interior_state_mismatch');
   const item = interior.interactables.find(target => target.id === actionId);
   if (!item || item.roomId !== state.roomId || !item.requires.every(flag => state.flags.includes(flag))) throw new Error('interior_action_unavailable');
-  const next = { ...state, flags: [...state.flags], discovered: [...state.discovered], used: [...state.used] };
+  const next = { ...state, flags: [...state.flags], discovered: [...state.discovered], used: [...state.used], openedDoors: [...(state.openedDoors || [])] };
   if (item.action === 'clue') {
     if (!next.discovered.includes(item.id)) next.discovered.push(item.id);
     if (item.id === 'patient_chart') next.flags.push('incident_clue');
@@ -128,7 +128,7 @@ export function traverseInteriorDoor(interior, state, doorId) {
   if (!exit) throw new Error('interior_door_unavailable');
   if (exit.requires && !exit.requires.every(flag => state.flags.includes(flag))) throw new Error('interior_door_locked');
   if (!interiorRoom(interior, exit.to)) throw new Error('interior_room_missing');
-  return { ...state, roomId: exit.to };
+  return { ...state, roomId: exit.to, openedDoors: [...new Set([...(state.openedDoors || []), doorId])] };
 }
 
 // Open-roof, low-poly room shells let players read the interior layout in third person.
@@ -173,12 +173,14 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
       const doorZ = exit.side === 'north' ? r.z - r.depth / 2 : exit.side === 'south' ? r.z + r.depth / 2 : r.z;
       const doorPosition = exit.side === 'east' ? [doorX, 0, r.z] : exit.side === 'west' ? [doorX, 0, r.z] : [r.x, 0, doorZ];
       door.position.set(...doorPosition);
+      if (exit.side === 'east' || exit.side === 'west') door.rotation.y = Math.PI / 2;
       door.userData.interiorTarget = { kind: 'door', landmarkId: interior.landmarkId, doorId: exit.id, label: exit.label, x: origin.x + doorX, z: origin.z + doorZ };
       box(door, [0.12, 2.1, 0.12], [-0.68, 1.05, 0], trimMat);
       box(door, [0.12, 2.1, 0.12], [0.68, 1.05, 0], trimMat);
       box(door, [1.48, 0.12, 0.12], [0, 2.1, 0], trimMat);
       const slab = box(door, [1.25, 1.95, 0.08], [0, 0.98, 0], glassMat);
       slab.userData.interiorDoorSlab = true;
+      slab.userData.interiorDoorId = exit.id;
       root.add(door);
     }
   }

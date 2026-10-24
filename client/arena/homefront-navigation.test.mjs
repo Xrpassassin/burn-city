@@ -25,7 +25,7 @@ assert.equal(isWorkingTask('scavenger','stockpile_supplies'), true, 'scavengers 
 assert.equal(isWorkingTask('guard','perimeter_watch'), true, 'guards use an alert posture while on watch');
 assert.equal(isWorkingTask('mechanic','stand_by_repairs'), false, 'repair standby does not look like active wrench work');
 
-import { updateRouteRecovery } from './homefront-navigation.mjs';
+import { updateRoutePlan, updateRouteRecovery } from './homefront-navigation.mjs';
 
 let route = updateRouteRecovery({}, { x: 0, z: 0 }, { x: 5, z: 0 }, 0);
 route = updateRouteRecovery(route, { x: 0.01, z: 0 }, { x: 5, z: 0 }, 1500);
@@ -39,3 +39,13 @@ assert.equal(route.preferredOffset, 0, 'real progress clears the temporary route
 const changedTarget = updateRouteRecovery(route, { x: 1, z: 0 }, { x: -5, z: 0 }, 2800);
 assert.equal(changedTarget.retries, 0, 'a changed destination resets stale route recovery state');
 console.log('Homefront survivor route recovery tests passed');
+
+const routeWall = { id: 'route-wall', type: 'wall', hp: 100, x: 0, z: 0 };
+let plan = updateRoutePlan({}, { x: -2, z: 0 }, { x: 2, z: 0 }, [routeWall]);
+assert.ok(plan.detour, 'a route crossing a solid structure receives a detour waypoint');
+assert.equal(isPositionBlocked(plan.detour.x, plan.detour.z, [routeWall]), false, 'detour waypoint is outside the structure footprint');
+const stablePlan = updateRoutePlan(plan, { x: -1.8, z: 0.05 }, { x: 2, z: 0 }, [routeWall]);
+assert.deepEqual(stablePlan.detour, plan.detour, 'detour waypoint remains stable while the survivor approaches it');
+const changedPlan = updateRoutePlan(stablePlan, { x: -1.8, z: 0.05 }, { x: 2, z: 2 }, [routeWall]);
+assert.equal(changedPlan.targetKey, '8/8', 'changed assignments rebuild the route plan');
+console.log('Homefront stable route waypoint tests passed');

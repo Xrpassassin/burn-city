@@ -34,6 +34,8 @@ const COLLECTIONS = {
   racc: {
     name: 'RACC',
     aliases: [
+      // Collection/archetype labels are already represented by the collection key, not wearable geometry.
+      ['identity', /raccoon.?guy|racc.?archetype/i],
       ['mask', /bandit.?mask|eye.?mask|raccoon.?mask/i],
       ['fur color', /pelt|coat.?fur|raccoon.?fur/i],
       ['tail', /ring.?tail|tail.?pattern/i],

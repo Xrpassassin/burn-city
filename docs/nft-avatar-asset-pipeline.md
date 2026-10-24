@@ -16,7 +16,17 @@ An XRPL NFToken references off-ledger data through its URI; the URI itself is no
 - `assets/nft-avatars/collections/fk.json`
 - `assets/nft-avatars/collections/589.json`
 
-These manifests document initial trait mappings and collection-specific QA coverage. Issuer/taxon identities are intentionally unverified placeholders until checked against authoritative ledger data. The asset arrays are empty: no external model or layered artwork is silently treated as licensed.
+These manifests document initial trait mappings and collection-specific QA coverage. Issuer/taxon identities are intentionally unverified placeholders until checked against authoritative ledger data. The runtime now has a separate component-recipe layer in `client/js/nft-avatar-components.js`. The adapters now recognize real collection-specific attribute names such as RACC `Armed`, `Fits`, and `Top Gear`, and 589 Protocol `Body`, `Chain`, `Clothing`, `Eye`, `Head`, and `Mouth`, rather than assuming generic names. Representative public indexed trait pages were used to establish those names; they are trait-schema examples, not an ownership allowlist. It resolves headwear, outfit silhouette, accessory, weapon class, flame color/style, tail pattern, wing style, eye treatment, expression, hairstyle, facial hair, horns/antlers, face markings, and body pattern into deterministic visual instructions. `nftchar.js` consumes those recipes for robe/armor/tailored clothing details, relic/earring/pack accessories, weapon silhouettes, and collection-aware accents. The original NFT composition is now displayed as a larger framed chest tabard, fitted with `contain` so the full artwork remains visible without cropping; trait-driven face masks are also rendered on humanoid avatars. Collection metadata can additionally drive mohawks/spikes, dreadlocks/braids, long hair, afros, buns, goatees/beards/mustaches, scars/freckles/war paint, horns/antlers, clothing patterns, 589 body-fire states and Burn Halo, plus RACC Bee Hive and TNT props. This makes each avatar's actual NFT artwork substantially more prominent, but it is still a hybrid of procedural 3D geometry and a 2D identity surface—not a true 3D reconstruction of the original character. The asset arrays are empty: no external model or layered artwork is silently treated as licensed.
+
+
+### Public trait-schema examples used during adapter work
+
+These indexed NFT records were used to verify attribute names and representative values. They are schema references only; the pipeline does not import their media or treat them as owner-approved model assets.
+
+- [RACC GUY1979](https://xrpl.to/nft/000A271005C6E016B0AB93B24A603594F2A3989BD7503434E206777F05BF49E4): `Armed: TNT`, `Fits: Yellow Striped Sweater`, `Top Gear: RACC Lee Hat`.
+- [RACC GUY390](https://xrpl.to/nft/000A271005C6E016B0AB93B24A603594F2A3989BD75034349D55047C05BF49E1): `Fits: Taxing`, `Eyewear: Lashes`, `Top Gear: Box Cap`.
+- [BURN-589 #00510](https://xrpl.to/nft/00083A98CBA4A5AF2A8012786865E81067D054E55EB87419FFACCF9705B9553F): `Body: Flame On`, `Chain: Burn Chain`, `Clothing: Punk Burner`, `Eye: Fr`, `Head: Burn XRP Fitted`, `Mouth: Hmp`.
+- [BURN-589 #00445](https://xrpl.to/nft/00083A98CBA4A5AF2A8012786865E81067D054E55EB8741916929C9605B95540): `Body: Flame On`, `Eye: Surprised`, `Head: Burn XRP Fitted`, `Mouth: Meh`.
 
 ## Commands
 
@@ -66,6 +76,8 @@ A green manifest validation means the record is structurally complete, **not** t
 
 - [ ] Collection identity is checked against authoritative XRPL data; client-provided collection names are never an ownership allowlist.
 - [ ] Original raw traits and artwork reference remain recoverable.
+- [ ] The full NFT artwork is prominent, framed, and contain-fit without cropping.
+- [ ] Distinctive hairstyle, facial hair, markings, horn/antler, and pattern traits render as visible geometry.
 - [ ] Unknown or malformed traits safely fall back without breaking the avatar.
 - [ ] Every asset has provenance, SHA-256, rights status, license, and attribution.
 - [ ] Model scale, rig, skeleton, dependencies, materials, and performance are measured.
@@ -75,4 +87,4 @@ A green manifest validation means the record is structurally complete, **not** t
 
 ## Current limits
 
-This step creates the manifests, intake rules, and automated structural validation. It does **not** fetch collection images, inspect live holder NFTs, add third-party models, or claim visual parity. Live collection sampling, runtime visual QA, and mobile profiling remain explicit next validation tasks. Commercial XRP invoicing and public self-service onboarding remain outside this client-side asset pipeline.
+This step creates the manifests, intake rules, automated structural validation, a larger artwork-first identity tabard, and metadata-driven hairstyle/marking/pattern/horn geometry. It does **not** fetch collection images, inspect live holder NFTs, add third-party models, or claim exact 3D visual parity. Live collection sampling, runtime visual QA, and mobile profiling remain explicit next validation tasks. Commercial XRP invoicing and public self-service onboarding remain outside this client-side asset pipeline.

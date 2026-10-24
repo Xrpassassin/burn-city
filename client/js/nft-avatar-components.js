@@ -67,7 +67,9 @@ function hairStyle(value) {
   if (has(value, /braid|cornrow/)) return 'braids';
   if (has(value, /afro|curly|coily/)) return 'afro';
   if (has(value, /spiky|spikes/)) return 'spiky';
-  if (has(value, /long|ponytail/)) return 'long';
+  if (has(value, /ponytail|pony tail/)) return 'ponytail';
+  if (has(value, /undercut|side.?shave|high.?fade/)) return 'undercut';
+  if (has(value, /long/)) return 'long';
   if (has(value, /bun|topknot/)) return 'bun';
   if (has(value, /short|crop|fade/)) return 'short';
   return value ? 'custom' : 'default';

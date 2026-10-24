@@ -42,3 +42,12 @@ assert.match(page, /leaf\.rotation\.y=motion\.angle/, 'gate leaf rotates around 
 assert.match(page, /collisionStructures=st\.filter\(item=>!openGateIds\.has\(String\(item\.id\)\)\)/, 'an open gate stops blocking player movement while closed gates remain collidable');
 assert.match(page, /g\.userData\.gateLeaf=leaf/, 'each procedural gate exposes its animated door leaf');
 assert.match(page, /updatePhysicalGates\(dt\)/, 'physical gate state updates inside the third-person simulation loop');
+assert.match(page, /const openGateIds=new Set\(\),gateMotion=new Map\(\),containerMotion=new Map\(\)/, 'physical gates and storage containers maintain per-object motion state');
+assert.match(page, /g\.userData\.containerLid=lid/, 'storage has a hinged lid attached to the physical container');
+assert.match(page, /function updatePhysicalContainers\(dt\)/, 'storage lids animate based on player proximity');
+assert.match(page, /motion\.target=!constructionPaused&&!pendingBuilding&&distance<2\.2\?-.95:0/, 'storage lids open nearby and close after the player leaves');
+assert.match(page, /Settlement supply snapshot/, 'storage inspection shows a clear inventory snapshot label');
+assert.match(page, /These are shared settlement supplies, not a separate container inventory\./, 'storage inspection does not misrepresent shared supplies as separately persisted container contents');
+assert.match(page, /playerDistance<\.82/, 'survivors receive local separation from the player instead of passing through them');
+assert.match(page, /playerDistance<\.68/, 'survivors turn toward the player at close interaction distance');
+assert.match(page, /updatePhysicalContainers\(dt\)/, 'container physics update in the third-person simulation loop');

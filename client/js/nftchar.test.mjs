@@ -70,7 +70,7 @@ has(avatar, /nftAvatarProfile=.*components/, 'exposes resolved visual recipes fo
 has(avatar, /components\.hasMask/, 'renders trait-driven face masks on humanoid avatars');
 has(avatar, /artworkIdentity=.*cropped:false/, 'exposes the original artwork identity mode and no-crop guarantee');
 has(avatar, /artPanel/, 'keeps original NFT composition separate from procedural character geometry');
-has(avatar, /Math\\.min\\(\\.54\/iw,\\.69\/ih\\)/, 'fits the larger complete artwork composition without cropping');
+has(avatar, /Math\.min\(\.54\/iw,\.69\/ih\)/, 'fits the larger complete artwork composition without cropping');
 has(avatar, /eyeHex = traitColor/, 'maps typed eye-color traits to eye materials');
 has(avatar, /hairHex = traitColor/, 'maps typed hair-color traits to hair materials');
 has(avatar, /opts\.card/, 'keeps the floating peer portrait optional');

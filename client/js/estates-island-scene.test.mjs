@@ -21,7 +21,7 @@ assert(a.roads.some(x=>x.orientation==='x')&&a.roads.some(x=>x.orientation==='z'
 const mainCrossRoad=a.roads.find(x=>x.id==='road-main-east-west');
 assert.equal(mainCrossRoad.dimensions.length,150);
 assert.equal(mainCrossRoad.dimensions.width,7,'road width is cross-axis width, not its length');
-assert.throws(()=>buildEstatesIslandScene({catalog:{...catalog,properties:[...catalog.properties,{id:'property-10',tier:'starter'}]},seed:1}),RangeError,'catalog expansion beyond the physical lot count must fail loudly');
+assert.throws(()=>buildEstatesIslandScene({catalog:{...catalog,properties:Array.from({length:22},(_,i)=>({id:'overflow-property-'+(i+1),tier:'starter',address:'Overflow '+i}))},seed:1}),RangeError,'catalog expansion beyond the 21 physical lot anchors must fail loudly');
 assert.throws(()=>buildEstatesIslandScene({catalog:{...catalog,properties:[...catalog.properties,{...catalog.properties[0]}]},seed:1}),/unique/);
 assert.throws(()=>buildEstatesIslandScene({catalog:{...catalog,properties:[{id:'bad-tier',tier:'unknown'}]},seed:1}),/unknown tier/);
 assert.throws(()=>buildEstatesIslandScene({catalog,seed:1.5}),TypeError);

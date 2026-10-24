@@ -233,10 +233,18 @@ export function buildNftChar(n, opts = {}) {
       cheek.name='nft-racc-cheek-ruff';
       addSphere(head,mat('#c9cdd0'),[s*.085,.02,.22],[.055,.05,.025]);
       addSphere(head,components.eyeStyle === 'glowing' ? glow(eyeHex) : mat(eyeHex),[s*.085,.02,.242],[.022,.025,.012]);
-      addSphere(head,mat('#f0e4d0'),[s*.055,-.09,.19],[.075,.052,.052]);
+      // Separate pale muzzle pads give the raccoon a forward-projecting animal profile
+      // instead of reading as a human face with a mask.
+      const muzzlePad=addSphere(head,mat(shade(faceHex,1.28)),[s*.048,-.087,.255],[.058,.043,.066]);
+      muzzlePad.name='nft-racc-muzzle-pad';
     }
-    addSphere(head,mat('#bfc2c5'),[0,-.1,.205],[.11,.075,.07]);
-    addSphere(head,mat('#17181b'),[0,-.075,.267],[.036,.027,.022]);
+    // A tapered bridge widens at the cheeks and narrows toward the nose. It is a
+    // dedicated RACC feature, not a generic human nose scaled up.
+    const muzzle=add(geo('nft-racc-tapered-muzzle',()=>new THREE.CylinderGeometry(.045,.094,.17,12,1)),mat(shade(faceHex,1.22)),0,-.075,.244,head);
+    muzzle.rotation.x=Math.PI/2;
+    muzzle.name='nft-racc-tapered-muzzle';
+    addSphere(head,mat('#f0e4d0'),[0,-.11,.276],[.067,.042,.055]).name='nft-racc-chin';
+    addSphere(head,mat('#17181b'),[0,-.067,.329],[.036,.026,.02]).name='nft-racc-nose';
     if (components.tailStyle !== 'none' && components.tailStyle !== 'custom') {
       const tail = new THREE.Group(); tail.name='nft-racc-tail'; tail.position.set(0,.77,-.17); tail.rotation.x=-.72; g.add(tail);
       for(let i=0;i<6;i++) {

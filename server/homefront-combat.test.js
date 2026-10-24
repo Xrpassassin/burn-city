@@ -4,8 +4,9 @@ const base=()=>({resources:{ammo:50,scrap:0,food:10},embers:0,survivors:[{id:'s1
 const a=C.spawn({encounters:{},account:'a',player,now:100000,seed:4});assert.ok(a.encounter.id.startsWith('enc-'));
 const Terrain=require('./homefront-terrain');assert.equal(Terrain.isSafePosition(a.encounter.x,a.encounter.z,{bounds:100}),true,'infected encounters spawn on a safe terrain footprint');
 assert.equal(a.encounter.range,C.STATS[a.encounter.event].range,'public encounter exposes server-owned attack range for contextual UI');
-assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950},'weapon-specific fire cadence is defined on the server');
-assert.deepEqual(C.WEAPON_MAGAZINE_CAPACITY,{pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0},'only firearms use finite magazines; melee weapons never consume bullets');
+assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950,assault_rifle:220,heavy_machine_gun:140},'weapon-specific fire cadence is defined on the server');
+assert.deepEqual(C.WEAPON_MAGAZINE_CAPACITY,{pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0,assault_rifle:30,heavy_machine_gun:60},'automatic firearms use larger finite magazines while melee weapons consume no bullets');
+assert.ok(C.WEAPON_FIRE_INTERVAL.heavy_machine_gun<C.WEAPON_FIRE_INTERVAL.assault_rifle,'heavy machine gun has the fastest server-enforced fire cadence');
 const cooldownSpawn=C.spawn({encounters:{},account:'cooldown-test',player,now:700000,seed:3});
 const cooldownBase=weapon=>({...base(),equippedWeapon:weapon});
 const firstShot=C.attack({encounters:cooldownSpawn.encounters,account:'cooldown-test',player,base:cooldownBase('pump_shotgun'),now:701000});
@@ -52,6 +53,12 @@ assert.equal(noiseDrawn.a.lastKnownX,30,'infected retain the authoritative noise
 
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
+const autoSpawn=C.spawn({encounters:{},account:'auto-fire-test',player,now:190000});
+const autoBase={...base(),weapons:['pipe_blade','assault_rifle','heavy_machine_gun'],equippedWeapon:'heavy_machine_gun'};
+const autoShot=C.attack({encounters:autoSpawn.encounters,account:'auto-fire-test',player,base:autoBase,now:191000,weaponPower:9});
+assert.equal(autoShot.ammoCost,1,'each authoritative machine-gun shot consumes one round');
+assert.ok(autoShot.damage>zoneA.damage,'heavy machine gun deals substantially more damage per hit than a low-power weapon');
+assert.throws(()=>C.attack({encounters:autoShot.encounters,account:'auto-fire-test',player,base:autoBase,now:191100,weaponPower:9}),/attack_cooldown/,'server enforces the heavy machine gun cadence against rapid request spam');
 const noAmmo=C.spawn({encounters:{},account:'b',player,now:200000});assert.throws(()=>C.attack({encounters:noAmmo.encounters,account:'b',player,base:{...base(),resources:{ammo:0},equippedWeapon:'pump_shotgun'},now:201000}),/insufficient_ammo/);
 const meleeSpawn=C.spawn({encounters:{},account:'melee',player,now:210000});
 const melee=C.attack({encounters:meleeSpawn.encounters,account:'melee',player,base:{...base(),resources:{ammo:0},equippedWeapon:'pipe_blade'},now:211000});

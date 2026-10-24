@@ -107,6 +107,9 @@ has(avatar, /nft-dreadlock|nft-braid/, 'renders metadata-driven locks and braids
 has(avatar, /nft-facial-scar|nft-freckle|nft-face-paint/, 'renders distinct facial markings');
 has(avatar, /nft-antler|nft-horn/, 'renders horn and antler silhouettes');
 has(avatar, /nft-pattern-stripe|nft-pattern-spot|nft-camouflage-patch/, 'renders metadata-driven clothing patterns');
+has(avatar, /components\.patternStyle === 'checkered'[\s\S]*nft-pattern-checker/, 'renders checkered patterns on visible torso edges');
+has(avatar, /components\.headwearStyle === 'custom'[\s\S]*nft-custom-headwear-crest/, 'gives unknown headwear traits a visible fallback silhouette');
+has(avatar, /components\.accessoryStyle === 'custom'[\s\S]*nft-custom-accessory-mount/, 'preserves unknown accessory traits as visible geometry');
 has(avatar, /components\.facialHair/, 'uses normalized facial-hair metadata');
 has(avatar, /nft-artwork-frame/, 'frames the NFT artwork as a prominent identity tabard');
 has(avatar, /nftAvatarProfile=.*components/, 'exposes resolved visual recipes for QA');

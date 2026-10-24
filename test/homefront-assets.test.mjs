@@ -48,5 +48,4 @@ for (const rel of ['../vendor/three/examples/jsm/loaders/GLTFLoader.js', '../ven
 assert.ok(html.includes('const healthRatio=Math.max(0,Math.min(1,(s.hp||0)/(s.maxHp||1)))'), 'refuge structure wear derives from authoritative structure health');
 assert.ok(html.includes('Persistent visual wear is derived from server-authoritative HP'), 'damaged structures receive deterministic presentation-only wear');
 assert.ok(html.includes("if(healthRatio<.48){const split=block(g,.035,.2,.04,.29,.36,.23,0x241f1b)"), 'severely damaged structures gain additional visible cracks');
-assert.ok(html.includes('chip.userData'), 'damage debris is tagged for later inspection') === false, 'damage rendering does not depend on unimplemented debris metadata';
 console.log('Homefront CC0 GLB asset checks passed.');

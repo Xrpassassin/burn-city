@@ -1,5 +1,19 @@
 import assert from 'node:assert/strict';
-import { isPositionBlocked, isWorkingTask, obstacleRadius, safeMovePosition, separationVector, steeringDirection, updateRoutePlan, updateRouteRecovery } from './homefront-navigation.mjs';
+import { isPositionBlocked, isWorkingTask, obstacleRadius, safeMovePosition, separationVector, steeringDirection, updateAwarenessReaction, updateRoutePlan, updateRouteRecovery } from './homefront-navigation.mjs';
+
+
+const calmAwareness = updateAwarenessReaction({}, { playerDistance: 8, threatDistance: 12 }, 100);
+assert.equal(calmAwareness.mode, 'ambient', 'survivors remain in ambient mode when stimuli are distant');
+const playerAwareness = updateAwarenessReaction(calmAwareness, { playerDistance: 3, playerYaw: 1.2, threatDistance: 12 }, 200);
+assert.equal(playerAwareness.mode, 'player', 'survivors notice the player within conversational range');
+assert.equal(playerAwareness.targetYaw, 1.2, 'player awareness supplies a facing direction');
+const hysteresis = updateAwarenessReaction(playerAwareness, { playerDistance: 4.2, playerYaw: 0, threatDistance: 12 }, 300);
+assert.equal(hysteresis.mode, 'player', 'awareness does not flicker while the player crosses the entry radius');
+const threatAwareness = updateAwarenessReaction(hysteresis, { playerDistance: 1, playerYaw: 0, threatDistance: 5, threatYaw: -1 }, 400);
+assert.equal(threatAwareness.mode, 'threat', 'nearby threats take priority over player greeting');
+assert.equal(threatAwareness.targetYaw, -1, 'threat awareness supplies a facing direction');
+const threatClear = updateAwarenessReaction(threatAwareness, { playerDistance: 10, threatDistance: 9.5 }, 500);
+assert.equal(threatClear.mode, 'ambient', 'survivors return to ambient awareness after a threat leaves the exit radius');
 
 const wall = { id: 'w', type: 'wall', hp: 100, x: 0, z: 0 };
 assert.ok(obstacleRadius(wall) > 0.7, 'structures have a conservative physical footprint');

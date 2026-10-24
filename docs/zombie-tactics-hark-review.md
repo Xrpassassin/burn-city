@@ -9,7 +9,8 @@ This branch introduces a dependency-free tactical decision helper and a narrow l
 ## New files
 
 - `server/zombie-tactics-core.js`: deterministic squad-role assignment and tuning, noise hearing checks, pure behavior selection, and bounded coordinated-approach hints.
-- `server/zombie-tactics-core.test.js`: deterministic unit tests for the helper.
+- `server/zombie-tactics-core.test.js`: deterministic unit tests for role tuning, noise checks, behavior selection, and approach hints.
+- `test/zombie-tactics-runtime.test.js`: live `Room` spawn regression for valid role assignment and tactical-state initialization.
 
 ## Live integration added — review carefully
 
@@ -25,7 +26,7 @@ This is an initial integration, not a claim that the behavior is production-prov
 4. Evaluate whether the shared flow field is sufficient for investigating sounds around obstacles. Do not bypass `flow()`, `nextStep()`, `walk()`, `inside()`, or existing collision checks.
 5. `selectApproachTarget()` gives visible-target flankers a stable, per-zombie alternate approach point. The live loop accepts it only when it is on the same floor, walkable, and line-of-sight reachable; normal per-axis collision checks still govern movement. Other role tuning is intentionally small and free-play-only: runners move 12% faster while pursuing, bruisers retain 30% movement speed under stagger instead of 12%, and stragglers hear noise at 1.25× the stimulus radius. These modifiers do not apply in ranked/daily modes or to the excluded special types. Unit tests cover role tuning, deterministic flank side, direct pursuer pressure, visibility gating, hearing-scale validation, and close-range convergence. Remaining review: validate flanking on representative obstacle-heavy maps and verify no navigation regressions.
 6. Run `node server/zombie-tactics-core.test.js`, `node test/zombie-sim.js`, `npm run test:zombie-nav`, and `npm run test:graphics-labs`. Record actual outcomes; do not claim browser/mobile validation unless performed.
-7. `npm run test:zombie-tactics` runs the helper tests, existing zombie simulation, and navigation regression. `.github/workflows/zombie-tactics.yml` runs that suite on relevant PR changes and pushes to this review branch.
+7. `npm run test:zombie-tactics` runs helper tests, live role-assignment regression, existing zombie simulation, and navigation regression. `.github/workflows/zombie-tactics.yml` runs that suite on relevant PR changes and pushes to this review branch.
 
 ## Helper contract
 

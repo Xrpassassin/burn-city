@@ -160,6 +160,8 @@ has(avatar, /artworkIdentity=.*cropped:false/, 'exposes the original artwork ide
 has(avatar, /artPanel/, 'keeps original NFT composition separate from procedural character geometry');
 has(avatar, /Math\.min\(\.54\/iw,\.69\/ih\)/, 'fits the larger complete artwork composition without cropping');
 has(avatar, /eyeHex = traitColor/, 'maps typed eye-color traits to eye materials');
+has(avatar, /\['crimson','#a51f35'\][\s\S]*\['navy','#243a63'\][\s\S]*\['emerald','#26865b'\]/, 'recognizes common NFT palette names beyond basic color words');
+has(avatar, /Prefer a dedicated pattern\/marking trait; use outfit color only as a fallback[\s\S]*traitColor\(\/pattern\|marking\|camo\|stripe\|spot\/i,traitColor\(\/outfit\|armor\/i/, 'prioritizes explicit pattern colors over earlier outfit traits');
 has(avatar, /hairHex = traitColor/, 'maps typed hair-color traits to hair materials');
 has(avatar, /color\(pal\.top,'#201c20'\)/, 'uses the NFT artwork palette when hair color metadata is absent');
 has(avatar, /const eyeMood=traitValue/, 'distinguishes eye appearance traits from eye color');

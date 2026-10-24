@@ -54,6 +54,8 @@ assert(Collision.INTERIOR_OBSTACLE_IDS.includes(wall.id));
 const doorBlocker = Collision.OBSTACLES.find(o => o.id === 'interior-door:mercy_hospital:ward_door:emergency_lobby');
 assert(doorBlocker, 'closed doors block passage');
 assert.equal(Collision.canTraverse(doorBlocker.x, doorBlocker.z, doorBlocker.x, doorBlocker.z), false);
-assert.equal(Collision.canTraverse(doorBlocker.x, doorBlocker.z, doorBlocker.x, doorBlocker.z, { removedObstacleIds: [doorBlocker.id] }), true);
+const doorIds = Collision.INTERIOR_OBSTACLE_IDS.filter(id => id.startsWith('interior-door:mercy_hospital:ward_door:'));
+assert.equal(doorIds.length, 2);
+assert.equal(Collision.canTraverse(doorBlocker.x, doorBlocker.z, doorBlocker.x, doorBlocker.z, { removedObstacleIds: doorIds }), true);
 
 console.log('Homefront server-authoritative interior persistence, loot, and collision tests passed');

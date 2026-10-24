@@ -34,6 +34,9 @@ assert.ok(html.includes("const v=expeditionWorld?.selfSurvival,inv=expeditionWor
 assert.ok(html.includes('function foodFreshness(inv,id,now=Date.now())'), 'field and refuge inventory calculate food freshness from batch timestamps');
 assert.ok(html.includes('if(expeditionWorld.tacticalNoise){const n=expeditionWorld.tacticalNoise.level'), 'objective feedback warns when rescue/cache noise may draw infected');
 assert.ok(html.includes("rarityInfo={common:['Common'"), 'survivor roster displays rarity labels');
+assert.ok(html.includes("traitLabels={optimistic:'Optimistic'"), 'survivor roster displays personality traits');
+assert.ok(html.includes("talentLabels={master_farmer:'Master Farmer'"), 'survivor roster displays specialist talents');
+assert.ok(html.includes("traits.title=(s.traits||[]).map(t=>traitDescriptions[t]||t).join(' ')"), 'trait descriptions are available without unsafe HTML rendering');
 assert.ok(html.includes('Common 70%, Uncommon 20%, Rare 8%, Epic 1.8%, Legendary 0.2%'), 'empty roster explains weighted rarity odds');
 assert.ok(html.includes("q.textContent='Fresh '+f.fresh+' · Aging '+f.aging+' · Spoiled '+f.spoiled"), 'refuge stores visibly summarize freshness states');
 for (const rel of ['../vendor/three/examples/jsm/loaders/GLTFLoader.js', '../vendor/three/examples/jsm/utils/SkeletonUtils.js']) {

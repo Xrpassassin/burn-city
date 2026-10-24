@@ -44,6 +44,10 @@ const raccUnknownTail = tailComponents(resolveNftAvatarProfile({key:'racc',trait
 assert.equal(raccUnknownTail.tailStyle,'custom'); checks++;
 const raccDarkTail = tailComponents(resolveNftAvatarProfile({key:'racc',traits:[['Tail','Black']]}));
 assert.equal(raccDarkTail.tailStyle,'dark-tip'); checks++;
+const ambiguousTail = tailComponents(resolveNftAvatarProfile({key:'racc',traits:[['Tail','Black and White']]}));
+assert.equal(ambiguousTail.tailStyle,'custom'); checks++;
+const defaultRaccTail = tailComponents(resolveNftAvatarProfile({key:'racc',traits:[]}));
+assert.equal(defaultRaccTail.tailStyle,'ringed'); checks++;
 const noTail = tailComponents(resolveNftAvatarProfile({key:'589',traits:[['Tail','None']]}));
 assert.equal(noTail.tailStyle,'none'); checks++;
 const eyewearProfile = resolveNftAvatarProfile({ key: '589', traits: [['Glasses', 'Round'], ['Visor', 'Cyber']] });

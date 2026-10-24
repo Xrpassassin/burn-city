@@ -24,3 +24,18 @@ assert.equal(isWorkingTask('medic','triage_standby'), false, 'medical standby re
 assert.equal(isWorkingTask('scavenger','stockpile_supplies'), true, 'scavengers animate active stockpiling');
 assert.equal(isWorkingTask('guard','perimeter_watch'), true, 'guards use an alert posture while on watch');
 assert.equal(isWorkingTask('mechanic','stand_by_repairs'), false, 'repair standby does not look like active wrench work');
+
+import { updateRouteRecovery } from './homefront-navigation.mjs';
+
+let route = updateRouteRecovery({}, { x: 0, z: 0 }, { x: 5, z: 0 }, 0);
+route = updateRouteRecovery(route, { x: 0.01, z: 0 }, { x: 5, z: 0 }, 1500);
+assert.equal(route.stuck, true, 'route recovery detects a survivor that has stopped making progress');
+assert.notEqual(route.preferredOffset, 0, 'a stalled survivor receives a deterministic alternate approach');
+const firstOffset = route.preferredOffset;
+route = updateRouteRecovery(route, { x: 0.01, z: 0 }, { x: 5, z: 0 }, 2500);
+assert.notEqual(route.preferredOffset, firstOffset, 'repeated stalls cycle to another approach instead of retrying the same side');
+route = updateRouteRecovery(route, { x: 1, z: 0 }, { x: 5, z: 0 }, 2700);
+assert.equal(route.preferredOffset, 0, 'real progress clears the temporary route bias');
+const changedTarget = updateRouteRecovery(route, { x: 1, z: 0 }, { x: -5, z: 0 }, 2800);
+assert.equal(changedTarget.retries, 0, 'a changed destination resets stale route recovery state');
+console.log('Homefront survivor route recovery tests passed');

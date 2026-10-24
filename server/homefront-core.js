@@ -77,6 +77,11 @@ const SURVIVOR_TALENTS = Object.freeze({
   field_medic: { label: 'Field Medic', role: 'medic', description: '+1 medicine when supported by an infirmary.' },
   engineer: { label: 'Engineer', role: 'mechanic', description: '+25% mechanic salvage output.' }
 });
+const SURVIVOR_BACKGROUNDS = Object.freeze([
+  'Former EMT', 'Apartment caretaker', 'Night-shift mechanic', 'Community gardener',
+  'Warehouse picker', 'Volunteer firefighter', 'School cook', 'Transit operator',
+  'Rural hunter', 'Hospital orderly', 'Delivery driver', 'Radio hobbyist'
+]);
 function survivorProfile(seed) {
   const traitIds = Object.keys(SURVIVOR_TRAITS);
   const first = hash(String(seed) + ':trait-a') % traitIds.length;
@@ -86,8 +91,16 @@ function survivorProfile(seed) {
   return {
     rarity: survivorRarity(seed),
     traits: [traitIds[first], traitIds[second]],
-    talent: talentIds[hash(String(seed) + ':talent') % talentIds.length]
+    talent: talentIds[hash(String(seed) + ':talent') % talentIds.length],
+    background: SURVIVOR_BACKGROUNDS[hash(String(seed) + ':background') % SURVIVOR_BACKGROUNDS.length]
   };
+}
+// Pair chemistry is deterministic, so reloads and clients cannot reroll friendships or rivalries.
+function survivorRelationship(a, b) {
+  const ids = [String(a?.id || ''), String(b?.id || '')].sort();
+  if (!ids[0] || !ids[1] || ids[0] === ids[1]) return 'neutral';
+  const roll = hash(ids[0] + ':bond:' + ids[1]) % 10;
+  return roll < 2 ? 'friend' : roll === 2 ? 'rival' : 'neutral';
 }
 function hasSurvivorTrait(survivor, trait) {
   return Array.isArray(survivor?.traits) && survivor.traits.includes(trait);
@@ -161,7 +174,7 @@ function validateBase(input, ownerId) {
        manned: s.type === 'turret' && s.manned === true
      }));
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
-    .map(s => { const profile = survivorProfile(s.id); return { id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100), rarity: Object.hasOwn(SURVIVOR_RARITIES, s.rarity) ? s.rarity : 'common', traits: Array.isArray(s.traits) ? [...new Set(s.traits.filter(t => Object.hasOwn(SURVIVOR_TRAITS, t)))].slice(0, 2) : profile.traits, talent: Object.hasOwn(SURVIVOR_TALENTS, s.talent) ? s.talent : profile.talent }; });
+    .map(s => { const profile = survivorProfile(s.id); return { id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100), rarity: Object.hasOwn(SURVIVOR_RARITIES, s.rarity) ? s.rarity : 'common', traits: Array.isArray(s.traits) ? [...new Set(s.traits.filter(t => Object.hasOwn(SURVIVOR_TRAITS, t)))].slice(0, 2) : profile.traits, talent: Object.hasOwn(SURVIVOR_TALENTS, s.talent) ? s.talent : profile.talent, background: typeof s.background === 'string' && SURVIVOR_BACKGROUNDS.includes(s.background) ? s.background : profile.background }; });
   out.log = Array.isArray(out.log) ? out.log.slice(-20) : [];
   return out;
 }
@@ -519,10 +532,20 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     case 'workday': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       // Morale is operational, not cosmetic: exhausted or demoralized workers produce less.
-      const labor = role => s.survivors.filter(x => x.role === role).reduce((total, x) => {
-        const morale = clampInt(x.morale, 0, 100);
-        return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5) * survivorRarityMultiplier(x) * survivorRoleMultiplier(x, role);
-      }, 0);
+      const labor = role => {
+        const assigned = s.survivors.filter(x => x.role === role);
+        const baseLabor = assigned.reduce((total, x) => {
+          const morale = clampInt(x.morale, 0, 100);
+          return total + (morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5) * survivorRarityMultiplier(x) * survivorRoleMultiplier(x, role);
+        }, 0);
+        let chemistry = 0;
+        for (let i = 0; i < assigned.length; i++) for (let j = i + 1; j < assigned.length; j++) {
+          const relationship = survivorRelationship(assigned[i], assigned[j]);
+          if (relationship === 'friend') chemistry += 0.08;
+          else if (relationship === 'rival') chemistry -= 0.08;
+        }
+        return Math.max(0, baseLabor + chemistry);
+      };
       const farmers = labor('farmer');
       const scavengers = labor('scavenger');
       const mechanics = labor('mechanic');
@@ -614,4 +637,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, SURVIVOR_RARITIES, survivorRarity, survivorRarityMultiplier, SURVIVOR_TRAITS, SURVIVOR_TALENTS, survivorProfile, survivorRoleMultiplier, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, SURVIVOR_RARITIES, survivorRarity, survivorRarityMultiplier, SURVIVOR_TRAITS, SURVIVOR_TALENTS, SURVIVOR_BACKGROUNDS, survivorProfile, survivorRelationship, survivorRoleMultiplier, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };

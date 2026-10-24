@@ -38,3 +38,14 @@ An NFT identifier may seed stable identity metadata, but it must not randomly ch
 ## Color and pattern fidelity
 
 Trait color interpretation now recognizes additional common NFT palette names (including crimson, burgundy, navy, cobalt, emerald, ivory, and charcoal). When a dedicated pattern/marking trait exists, its color takes precedence over a clothing trait; outfit color is only a fallback. This prevents trait order from silently assigning sweater or armor colors to independent markings.
+
+
+## Complete trait-disposition audit
+
+The avatar profile now emits a record for every original NFT trait, preserving the original type and value and assigning a disposition:
+- `visualized`: mapped to the collection-aware 3D renderer/material logic.
+- `artwork-only`: retained in the original artwork rather than falsely treated as wearable geometry (for example, a background scene).
+- `collection-identity`: used to select the correct collection recipe.
+- `needs-dedicated-visual`: the renderer cannot yet represent that trait value faithfully, or its type has no explicit renderer mapping.
+
+The visual QA page prints this trait-by-trait audit so a reviewer can find omissions instead of assuming every trait rendered. This is an audit aid, not proof of visual accuracy; trait classifications and the rendered result still require side-by-side review against the actual NFT.

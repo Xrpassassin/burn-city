@@ -29,7 +29,7 @@ function syncFleetBoat() {
   if (!B.privateDock || B.active) return;
   const profile = fleetProfile(), id = boatById(profile.selectedBoat).id;
   if (B.boats.length === 1 && B.boats[0].id === id) return;
-  for (const b of B.boats) { if (b.m.parent) b.m.parent.remove(b.m); b.m.geometry?.dispose?.(); }
+  for (const b of B.boats) { if (b.m.parent) b.m.parent.remove(b.m); b.m.traverse(o => { if (o.isMesh) { o.geometry?.dispose?.(); for (const m of (Array.isArray(o.material) ? o.material : [o.material])) m?.dispose?.(); } }); }
   B.boats.length = 0; spawnFleetBoat(id);
 }
 function build() {

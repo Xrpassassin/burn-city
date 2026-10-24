@@ -52,3 +52,6 @@ console.log('Homefront stable route waypoint tests passed');
 
 const openedGatePlan = updateRoutePlan(plan, { x: -2, z: 0 }, { x: 2, z: 0 }, []);
 assert.equal(openedGatePlan.detour, null, 'a changed obstacle set, such as an opened gate, clears obsolete detours');
+
+const blockedRoute = updateRoutePlan({}, { x: -2, z: 0 }, { x: 2, z: 0 }, [routeWall, { id: 'north-blocker', type: 'wall', hp: 100, x: 1.26, z: 1.4 }, { id: 'south-blocker', type: 'wall', hp: 100, x: 1.26, z: -1.4 }]);
+assert.equal(blockedRoute.unreachable, true, 'when both safe detour sides are blocked the planner reports the route as unreachable instead of inventing a waypoint');

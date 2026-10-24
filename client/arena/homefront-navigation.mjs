@@ -99,3 +99,41 @@ export function updateRouteRecovery(state = {}, position, target, now, options =
   } else next.stuck = !!state.stuck || now - state.lastProgressAt >= stuckAfter;
   return next;
 }
+
+
+// Return a stable waypoint around the first blocking structure on the direct route.
+// The waypoint is retained until reached, preventing left/right oscillation at walls.
+export function updateRoutePlan(state = {}, position, target, obstacles = [], options = {}) {
+  const actorRadius = options.actorRadius ?? 0.28;
+  const targetKey = `${Math.round(target.x * 4)}/${Math.round(target.z * 4)}`;
+  if (state.targetKey !== targetKey) state = { targetKey, detour: null, blockedId: null };
+  if (state.detour && Math.hypot(position.x - state.detour.x, position.z - state.detour.z) > (options.waypointArrival ?? 0.38)) {
+    return state;
+  }
+  state = { ...state, detour: null, blockedId: null };
+  const dx = target.x - position.x, dz = target.z - position.z, lengthSq = dx * dx + dz * dz;
+  if (lengthSq < 0.01) return state;
+  let first = null;
+  for (const obstacle of obstacles) {
+    if (!obstacle || obstacle.hp === 0) continue;
+    const t = Math.max(0, Math.min(1, ((obstacle.x - position.x) * dx + (obstacle.z - position.z) * dz) / lengthSq));
+    const px = position.x + dx * t, pz = position.z + dz * t;
+    const clearance = Math.hypot(obstacle.x - px, obstacle.z - pz);
+    const radius = obstacleRadius(obstacle) + actorRadius + 0.12;
+    if (clearance < radius && t > 0.035 && t < 0.98 && (!first || t < first.t)) first = { obstacle, t, radius };
+  }
+  if (!first) return state;
+  const obstacle = first.obstacle, length = Math.sqrt(lengthSq), ux = dx / length, uz = dz / length;
+  const sideX = -uz, sideZ = ux, radius = first.radius + 0.18;
+  const candidates = [
+    { x: obstacle.x + sideX * radius, z: obstacle.z + sideZ * radius, side: 1 },
+    { x: obstacle.x - sideX * radius, z: obstacle.z - sideZ * radius, side: -1 }
+  ].filter(point => !isPositionBlocked(point.x, point.z, obstacles, actorRadius));
+  candidates.sort((a, b) => {
+    const costA = Math.hypot(position.x - a.x, position.z - a.z) + Math.hypot(target.x - a.x, target.z - a.z);
+    const costB = Math.hypot(position.x - b.x, position.z - b.z) + Math.hypot(target.x - b.x, target.z - b.z);
+    return costA - costB || b.side - a.side;
+  });
+  if (candidates.length) return { targetKey, detour: { x: candidates[0].x, z: candidates[0].z }, blockedId: String(obstacle.id ?? obstacle.type ?? 'obstacle') };
+  return { targetKey, detour: null, blockedId: String(obstacle.id ?? obstacle.type ?? 'obstacle'), unreachable: true };
+}

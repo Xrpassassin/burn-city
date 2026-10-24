@@ -14,6 +14,7 @@ on:
       - 'client/arena/homefront-ground-detail.mjs'
       - 'test/homefront-survivor-inspection.test.mjs'
       - 'test/homefront-survivor-economy-sim.js'
+      - 'test/homefront-interior-route-sim.js'
       - 'server/homefront-combat.js'
       - 'server/homefront-world.js'
       - 'server/homefront-terrain.js'

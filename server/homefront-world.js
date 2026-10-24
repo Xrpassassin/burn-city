@@ -267,6 +267,20 @@ function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
   }
   return { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 };
 }
+// Validate the walked route leg by leg. Checking only the straight line from the start to the
+// advanced point cut corners through doorways, so a move that turned through an interior door
+// (or around any wall end) was rejected as terrain_path_blocked even though the route was clear.
+function walkedRouteClear(startX, startZ, path, end, removedObstacleIds) {
+  let x = startX, z = startZ;
+  const legClear = (x1, z1) => Terrain.canTraverse(x, z, x1, z1) && Collision.canTraverse(x, z, x1, z1, { bounds: WORLD_SIZE, removedObstacleIds });
+  for (const waypoint of path) {
+    const toEnd = Math.hypot(end.x - x, end.z - z), toWaypoint = Math.hypot(waypoint.x - x, waypoint.z - z);
+    if (toEnd <= toWaypoint + 0.15) return legClear(end.x, end.z);
+    if (!legClear(waypoint.x, waypoint.z)) return false;
+    x = waypoint.x; z = waypoint.z;
+  }
+  return legClear(end.x, end.z);
+}
 function move(input, acct, x, z, now = Date.now(), sprint = false) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   prune(w, now);
@@ -294,7 +308,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
     if (!route || !route.length) throw new Error('terrain_path_unreachable');
     const advanced = advanceAlongTerrainPath(oldX, oldZ, route, movementBudget);
     nextX = advanced.x; nextZ = advanced.z;
-    if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE, removedObstacleIds })) throw new Error('terrain_path_blocked');
+    if (!walkedRouteClear(oldX, oldZ, route, advanced, removedObstacleIds)) throw new Error('terrain_path_blocked');
   }
   p.x = nextX; p.z = nextZ;
   p.lastMove = p.lastSeen = now;
@@ -320,10 +334,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
       if (route?.length) {
         const step = Math.min(Math.hypot(targetX - followerState.x, targetZ - followerState.z), MOVE_STEP);
         const next = advanceAlongTerrainPath(followerState.x, followerState.z, route, step);
-        if (Terrain.canTraverse(followerState.x, followerState.z, next.x, next.z) &&
-            Collision.canTraverse(followerState.x, followerState.z, next.x, next.z, {
-              bounds: WORLD_SIZE, removedObstacleIds: followerRemoved
-            })) {
+        if (walkedRouteClear(followerState.x, followerState.z, route, next, followerRemoved)) {
           followerState.x = next.x; followerState.z = next.z;
         }
       }

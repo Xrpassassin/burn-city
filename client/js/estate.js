@@ -517,7 +517,8 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     } else if (apartment) {
       obstacle(-6,-5,3.25,1.85); obstacle(5,-5,3.0,1.35); obstacle(6,3.5,3.15,.95); obstacle(-1,3.7,1.65,1.25);
     } else {
-      obstacle(-w/2+4,bedZ,bedW/2+.2,2.15); obstacle(0,-.15,2.95,.9); obstacle(0,1.7,1.85,1.25);
+      const collisionBedW=mansion?7:family?6:5.5, collisionBedZ=-d/2+4;
+      obstacle(-w/2+4,collisionBedZ,collisionBedW/2+.2,2.15); obstacle(0,-.15,2.95,.9); obstacle(0,1.7,1.85,1.25);
       obstacle(-w/2+3,d/2-2.5,2.25,.95);
       if (family||mansion) obstacle(-w/2+3,1.3,1.35,.9);
       if (mansion) obstacle(w/2-3,-d/2+2.4,1.8,.8);

@@ -8,9 +8,9 @@ const hash=s=>{let h=2166136261;for(const c of String(s))h=Math.imul(h^c.charCod
 const ENCOUNTER_TTL=180000, ATTACK_COOLDOWN=900;
 // Server-owned cadence keyed to the equipped weapon validated in the saved refuge.
 // These minimum intervals also constrain callers that bypass the client autofire loop.
-const WEAPON_FIRE_INTERVAL=Object.freeze({pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950});
-const WEAPON_MAGAZINE_CAPACITY=Object.freeze({pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0});
-const WEAPON_HANDLING=Object.freeze({pipe_blade:{adsMs:140,recoveryMs:450,aimMoveScale:0.62},pump_shotgun:{adsMs:280,recoveryMs:720,aimMoveScale:0.52},marksman_rifle:{adsMs:520,recoveryMs:1150,aimMoveScale:0.42},shock_maul:{adsMs:220,recoveryMs:560,aimMoveScale:0.56}});
+const WEAPON_FIRE_INTERVAL=Object.freeze({pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950,heavy_machine_gun:280});
+const WEAPON_MAGAZINE_CAPACITY=Object.freeze({pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0,heavy_machine_gun:30});
+const WEAPON_HANDLING=Object.freeze({pipe_blade:{adsMs:140,recoveryMs:450,aimMoveScale:0.62},pump_shotgun:{adsMs:280,recoveryMs:720,aimMoveScale:0.52},marksman_rifle:{adsMs:520,recoveryMs:1150,aimMoveScale:0.42},shock_maul:{adsMs:220,recoveryMs:560,aimMoveScale:0.56},heavy_machine_gun:{adsMs:360,recoveryMs:300,aimMoveScale:0.48}});
 const STATS=Object.freeze({wandering_infected:{hp:32,damage:2,ammo:1,range:18},infected_horde:{hp:76,damage:5,ammo:2,range:20},special_infected:{hp:105,damage:7,ammo:2,range:22}});
 function enemyName(zone,event){const a=ARCHETYPES[zone]||ARCHETYPES.outskirts;return event==='special_infected'?a.special:event==='infected_horde'?a.horde:a.wanderer;}
 function safeEnemyPosition(x, z, fallbackX, fallbackZ, bounds = 100) {
@@ -142,10 +142,10 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  if(e.hp===0){e.defeated=true;const q=hash(e.id+':'+seed)%100,quality=q<2?'Legendary':q<8?'Epic':q<22?'Rare':q<48?'Uncommon':'Common',qi=QUALITY_ORDER.indexOf(quality),scrap=2+e.risk+qi*2,embers=e.risk+qi;
  base.resources.scrap=Math.min(999999,(base.resources.scrap||0)+scrap);base.embers=Math.min(999999999,(base.embers||0)+embers);
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Cleared '+e.enemy+' squad and recovered '+quality.toLowerCase()+'-grade salvage: +'+scrap+' scrap and +'+embers+' Embers.'});base.log=base.log.slice(-20);}
- return{encounters:clean,encounter:publicEncounter(e),killed:true,damage,hitZone,aimed,aimStability,adsProgress,enemyDamage:0,ammoCost,reward:{quality,scrap,embers},base,survival:field};}
+ return{encounters:clean,encounter:publicEncounter(e),killed:true,damage,hitZone,hitTargetId:target.id,aimed,aimStability,adsProgress,enemyDamage:0,ammoCost,reward:{quality,scrap,embers},base,survival:field};}
  const guards=Array.isArray(base.survivors)?base.survivors.filter(s=>s.role==='guard').length:0,enemyDamage=Math.max(1,e.damage-Math.min(3,guards));
  if(Array.isArray(base.survivors)&&base.survivors.length){const target=base.survivors.reduce((a,s)=>!a||(s.morale||0)<(a.morale||0)?s:a,null);if(target)target.morale=clamp((target.morale||0)-enemyDamage*2,0,100);}else base.resources.food=Math.max(0,(base.resources.food||0)-Math.max(1,Math.ceil(enemyDamage/3)));
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Hit '+target.role+' in '+e.enemy+' squad for '+damage+' damage. The squad retaliated for '+enemyDamage+' pressure.'});base.log=base.log.slice(-20);}
- return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,aimed,aimStability,adsProgress,enemyDamage,ammoCost,reward:null,base,survival:field};
+ return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,hitTargetId:target.id,aimed,aimStability,adsProgress,enemyDamage,ammoCost,reward:null,base,survival:field};
 }
 module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,WEAPON_FIRE_INTERVAL,WEAPON_MAGAZINE_CAPACITY,WEAPON_HANDLING,STATS,normalizeEncounters,resolveSpawn,publicEncounter,spawn,advance,attack};

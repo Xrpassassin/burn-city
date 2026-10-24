@@ -19,10 +19,10 @@ const Tactics = require('../server/zombie-tactics-core');
 const room = new Room(1, 'zombie');
 room.add({ name: 'tactics-test', ws: { send() {}, readyState: 1 } });
 
-for (let i = 0; i < 500 && room.zombies.size < 4; i++) room.step(0.05);
+for (let i = 0; i < 500 && room.zombies.size < 5; i++) room.step(0.05);
 
 const zombies = [...room.zombies.values()];
-assert.ok(zombies.length >= 4, 'live room spawned enough zombies for squad-role assignment');
+assert.ok(zombies.length >= 5, 'live room spawned enough zombies for squad-role assignment');
 assert.ok(zombies.every(z => Tactics.ROLES.includes(z.role)), 'every live-spawned zombie receives a valid tactical role');
 assert.equal(zombies[0].role, 'pursuer', 'first member is the squad pursuer');
 assert.ok(zombies.some(z => z.role === 'flanker'), 'live squad includes a flanker when squad size permits');

@@ -70,6 +70,7 @@ const server = http.createServer(async (req, res) => {
       const u = Pay.checkToken((req.headers.authorization || '').replace(/^Bearer /, '')), a = String(url.searchParams.get('acct') || u?.acct || '');
       return json(res, 200, { ...require('./history').forAcct(a, { before: url.searchParams.get('before'), limit: +url.searchParams.get('limit') || 25 }), mine: !!u && u.acct === a }); }
     if (url.pathname === '/health') return json(res, 200, { ok: true, rooms: Object.values(rooms).flat().length, players: Object.values(rooms).flat().reduce((a, r) => a + r.players.size, 0) });
+    if (url.pathname === '/img-burns') { try { return json(res, 200, require('./img-burn').publicLog()); } catch (e) { return json(res, 503, { error: 'unavailable' }); } }   // jetpack IMG buy-and-burn ledger (public)
     if (url.pathname === '/burns') {    // public transparency log of every burn batch
       let lines = []; try { lines = fs.readFileSync(S.file('burns.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse); } catch {}
       return json(res, 200, { dryRun: C.DRY_RUN, owedDrops: S.load('burn_owed.json', { drops: 0 }).drops, burns: lines.slice(-200) });
@@ -357,6 +358,7 @@ setInterval(() => {
   stats.tickMs.push(Number(process.hrtime.bigint() - t0) / 1e6); if (stats.tickMs.length > 3000) stats.tickMs.shift();
 }, 1000 * dt);
 
+try { if (require('./img-burn').start()) console.log('[img-burn] JETPACK_TREASURY_AUTO=1: batched IMG buy-and-burn on'); } catch (e) { console.error('[img-burn] start', e?.message); }
 if (C.BURN_INTERVAL_MS > 0 && process.env.BURN_JOB_IN_SERVER === 'true') setInterval(() => require('./burn').run().catch(e => console.error('burn', e.message)), C.BURN_INTERVAL_MS);
 Nft.start();
 if (!C.DRY_RUN && C.TREASURY) require('./watch').start(Pay.ledger);

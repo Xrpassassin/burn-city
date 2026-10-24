@@ -54,7 +54,8 @@
     "test:estates-entry-adapter": "node client/js/estates-entry-adapter.test.mjs",
     "test:estates-island-scene": "node client/js/estates-island-scene.test.mjs",
     "test:estates-island-renderer": "node client/js/estates-island-renderer.test.mjs",
-    "test:estates-island-runtime": "node client/js/estates-island-runtime.test.mjs"
+    "test:estates-island-runtime": "node client/js/estates-island-runtime.test.mjs",
+    "test:estates-island-navigation": "node client/js/estates-island-navigation.test.mjs"
   },
   "keywords": [],
   "author": "",

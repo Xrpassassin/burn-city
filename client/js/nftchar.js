@@ -53,7 +53,6 @@ export function buildNftChar(n, opts = {}) {
   const topHex = traitColor(/outerwear|coat|jacket|helmet|headwear/i, color(pal.top, bodyHex));
   const accentHex = traitColor(/accent|accessory|flame|fire|aura/i, color(pal.acc, '#ff7a1a'));
   const eyeHex = traitColor(/eye color|iris color|eyes?$|iris$/i, key==='589'||has(tr,/flaming eyes|burn eye|melt|glowing eyes/)?accentHex:'#343039');
-  const backgroundHex = traitColor(/background|backdrop/i, color(pal.bg, shade(bodyHex, .8)));
   const skin = mat(faceHex, .82, .01), cloth = mat(bodyHex, .82, .02), darkCloth = mat(shade(bodyHex,.52),.86,.04);
   const trim = mat(topHex,.6,.12), accent = glow(accentHex), metal = mat('#a8b1ba',.34,.68), bootMat = mat('#191b20',.78,.16);
   const lite = !!opts.lite;
@@ -185,11 +184,8 @@ export function buildNftChar(n, opts = {}) {
     addSphere(g,glow(shade(accentHex,.72)),[0,1.15,-.19],[.07,.12,.035]);
   }
 
-  // Keep background traits visible as a subtle 3D halo rather than silently dropping them.
-  if (traitValue(/background|backdrop/i)) {
-    const halo=add(geo('trait-background-halo',()=>new THREE.TorusGeometry(.43,.012,5,36)),glow(backgroundHex),0,1.22,-.255);
-    halo.rotation.z=.05; halo.renderOrder=-1;
-  }
+  // Background belongs to the original 2D NFT composition, not wearable geometry.
+  // Keep it intact in the artwork panel/portrait; never reinterpret it as a halo around the 3D body.
   const wingTrait=traitValue(/wing/i).toLowerCase();
   if (wingTrait && !/none|no wing/i.test(wingTrait)) for (const side of [-1,1]) {
     const wing=addCapsule(g,mat(traitColor(/wing|feather/i,'#d8d6d0')),[side*.31,1.28,-.13],.075,.3,[1,1.5,.42]);

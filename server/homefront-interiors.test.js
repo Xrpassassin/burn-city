@@ -1,0 +1,59 @@
+'use strict';
+const assert = require('node:assert/strict');
+const Interiors = require('./homefront-interiors');
+const Inventory = require('./homefront-inventory');
+const Collision = require('./homefront-collision');
+
+const account = 'interior-test-account';
+const hospital = Interiors.LANDMARKS.mercy_hospital;
+const player = { x: hospital.x, z: hospital.z, inventory: Inventory.normalize({}) };
+let state = {};
+const entered = Interiors.enter(state, { account, player, landmarkId: 'mercy_hospital', now: 1000 });
+state = entered.state;
+assert.equal(entered.interior.roomId, 'emergency_lobby');
+assert.equal(Interiors.publicState(state, account).landmarkId, 'mercy_hospital');
+assert.throws(() => Interiors.enter(state, { account, player: { ...player, x: -80, z: -80 }, landmarkId: 'mercy_hospital', now: 1001 }), /too_far_from_interior/);
+
+const setPlayerAt = (x, z) => { player.x = hospital.x + x; player.z = hospital.z + z; };
+setPlayerAt(-1.1, 0.7);
+let acted = Interiors.action(state, { account, player, actionId: 'generator_switch', now: 1100 });
+state = acted.state;
+assert(state[account].interiors.mercy_hospital.flags.includes('emergency_power'));
+assert.equal(acted.reward.length, 0);
+setPlayerAt(2.4, 0);
+let traversed = Interiors.traverse(state, { account, player, doorId: 'ward_door', now: 1200 });
+state = traversed.state;
+assert.equal(traversed.interior.roomId, 'ward_corridor');
+setPlayerAt(6.1, 0.8);
+acted = Interiors.action(state, { account, player, actionId: 'patient_chart', now: 1300 });
+state = acted.state;
+assert(state[account].interiors.mercy_hospital.flags.includes('incident_clue'));
+setPlayerAt(7.8, 0);
+traversed = Interiors.traverse(state, { account, player, doorId: 'pharmacy_door', now: 1400 });
+state = traversed.state;
+assert.equal(traversed.interior.roomId, 'pharmacy');
+setPlayerAt(6.1, -6.2);
+const before = player.inventory.meds;
+acted = Interiors.action(state, { account, player, actionId: 'emergency_locker', now: 1500 });
+state = acted.state;
+assert(acted.reward.some(drop => drop.item === 'meds' && drop.amount > 0));
+assert(player.inventory.meds > before);
+assert(state[account].interiors.mercy_hospital.used.includes('emergency_locker'));
+assert.throws(() => Interiors.action(state, { account, player, actionId: 'emergency_locker', now: 1600 }), /interior_action_unavailable/);
+
+const reloaded = Interiors.normalize(JSON.parse(JSON.stringify(state)));
+assert.equal(Interiors.publicState(reloaded, account).roomId, 'pharmacy');
+assert(reloaded[account].interiors.mercy_hospital.flags.includes('emergency_power'));
+const left = Interiors.leave(reloaded, { account, player, now: 1700 });
+assert.equal(Interiors.publicState(left.state, account), null);
+assert.equal(left.state[account].interiors.mercy_hospital.roomId, 'pharmacy');
+
+const wall = Collision.OBSTACLES.find(o => o.id === 'interior-wall:mercy_hospital:emergency_lobby:north:0');
+assert(wall, 'interior wall collision is included in the static collision index');
+assert(Collision.INTERIOR_OBSTACLE_IDS.includes(wall.id));
+const doorBlocker = Collision.OBSTACLES.find(o => o.id === 'interior-door:mercy_hospital:ward_door:emergency_lobby');
+assert(doorBlocker, 'closed doors block passage');
+assert.equal(Collision.canTraverse(doorBlocker.x, doorBlocker.z, doorBlocker.x, doorBlocker.z), false);
+assert.equal(Collision.canTraverse(doorBlocker.x, doorBlocker.z, doorBlocker.x, doorBlocker.z, { removedObstacleIds: [doorBlocker.id] }), true);
+
+console.log('Homefront server-authoritative interior persistence, loot, and collision tests passed');

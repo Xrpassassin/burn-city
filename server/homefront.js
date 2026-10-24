@@ -444,6 +444,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           addSessionTotals(player,{embers:Math.max(0,nextBase.embers-base.embers),consumed:{food:Math.max(0,carriedBefore.food-carried.food),ammo:Math.max(0,carriedBefore.ammo-carried.ammo)}});
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;nextBase.resources.freshness=base.resources.freshness;player.inventory=carried;
           rescue.readyAt = now + 8 * 60e3;
+          const rescueNoise = Math.min(90, 25 + nearest.point.risk * 10);
+          player.noiseLevel = Math.max(player.noiseLevel || 0, rescueNoise);
+          player.lastNoiseAt = now; player.noiseX = player.x; player.noiseZ = player.z;
           bases[user.acct] = nextBase;
           store.save('homefront.json', bases);
           player.lastSeen = now;

@@ -5,6 +5,7 @@ const COMMON = [
   ['background', /background|backdrop|scene$/i],
   ['eye color', /eye.?colou?r|iris.?colou?r/i],
   ['eye appearance', /^eye$/i],
+  ['nose', /nose|nostril/i],
   ['body effect', /^body$/i],
   ['accessory', /^chain$/i],
   ['outfit', /^clothing$|^fits$/i],

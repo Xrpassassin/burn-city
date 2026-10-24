@@ -6,7 +6,7 @@ import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
-import { LANDMARKS } from './homefront-exploration-content.mjs';
+import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
 import { buildLandmarkSetPiece } from './homefront-landmark-builder.mjs';
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
@@ -542,6 +542,20 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
+    const objective = document.getElementById('explorationObjective');
+    if (objective && data.self) {
+      let nearest = null, nearestDistance = Infinity;
+      for (const landmark of LANDMARKS) {
+        const distance = Math.hypot(data.self.x - landmark.x, data.self.z - landmark.z);
+        if (distance < nearestDistance) { nearest = landmark; nearestDistance = distance; }
+      }
+      if (nearest && nearestDistance <= 20) {
+        const district = DISTRICTS[nearest.district];
+        objective.textContent = 'NEARBY · ' + nearest.title + ' — ' + nearest.objective + '  |  ' + district.title + ' · Risk ' + district.risk + '/5';
+      } else {
+        objective.textContent = 'EXPEDITION · Risk ' + (data.self.risk || 1) + '/5. Follow the named landmarks for rescue leads, caches, shortcuts, and connected story clues.';
+      }
+    }
     applyEnvironmentStateSnapshot(data.world?.environmentStructures);
     const selectedEnvironment = (data.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
     if (selectedEnvironment && (selectedEnvironment.collisionEnabled === false || selectedEnvironment.health <= 0)) selectedEnvironmentId = null;

@@ -25,7 +25,7 @@ The helper is not imported by `server/cod.js` in this draft. It does not change 
 6. Preserve weapon damage, firing cadence, hit volumes, enemy IDs, spawn limits, round pacing and all client/server protocol fields.
 7. Add regression tests against the real update loop for lost LOS, wall obstruction, sound TTL/radius, squad role distribution, blocked flank points, window queues, door transitions, and multiplayer target changes.
 8. Run `node server/zombie-tactics-core.test.js`, `node test/zombie-sim.js`, `npm run test:zombie-nav`, and `npm run test:graphics-labs`. Record actual outcomes; do not claim browser/mobile validation unless performed.
-9. Add a package script only if appropriate, and keep this feature behind a server-side flag until the live integration passes tests.
+9. The focused `npm run test:zombie-tactics` command runs the helper tests, existing zombie simulation, and navigation regression. `.github/workflows/zombie-tactics.yml` runs that suite on relevant PR changes and pushes to this review branch. Keep the feature behind a server-side flag until live integration passes tests.
 
 ## Helper contract
 

@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'server/homefront-core.js'
+      - 'server/homefront-interiors.test.js'
+      - 'server/homefront-interiors.js'
       - 'server/homefront-combat.js'
       - 'server/homefront-world.js'
       - 'server/homefront-terrain.js'

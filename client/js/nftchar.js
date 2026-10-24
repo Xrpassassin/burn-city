@@ -328,6 +328,17 @@ export function buildNftChar(n, opts = {}) {
   if(components.accessoryStyle === 'chain' || has(tr,/chain|medallion|necklace|gold pick|grill/)) {
     const chain=add(geo('necklace',()=>new THREE.TorusGeometry(.15,.018,6,24)),glow('#e8b923'),0,1.49,.025);
     chain.rotation.x=1.25;
+    chain.name='nft-chain-base';
+    if(key==='589') {
+      const linkMat=glow(traitColor(/chain|accessory/i,'#e8b923'));
+      for(let i=0;i<10;i++) {
+        const angle=Math.PI*.12+(Math.PI*.76*i/9);
+        const link=add(geo('nft-protocol-chain-link',()=>new THREE.TorusGeometry(.018,.005,4,8)),linkMat,Math.cos(angle)*.16,1.47-Math.sin(angle)*.075,.11);
+        link.rotation.x=1.1; link.rotation.z=angle-Math.PI/2; link.name='nft-protocol-chain-link';
+      }
+      const pendant=add(geo('nft-protocol-chain-pendant',()=>new THREE.OctahedronGeometry(.045,0)),glow(accentHex),0,1.365,.17);
+      pendant.name='nft-protocol-chain-pendant';
+    }
   } else if (components.accessoryStyle === 'relic') {
     const relic = add(geo('nft-relic',()=>new THREE.OctahedronGeometry(.075,0)),glow(accentHex),0,1.28,.235);
     relic.name = 'nft-relic-accessory';

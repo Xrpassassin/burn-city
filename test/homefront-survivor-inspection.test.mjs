@@ -12,3 +12,8 @@ assert.match(page, /Work target:/, 'inspection exposes a survivor\'s current wor
 assert.match(page, /survivor\.taskReason/, 'inspection includes the behavior reason when available');
 assert.match(page, /survivorInspection/, 'inspection panel is accessible and dismissible');
 console.log('Homefront survivor inspection tests passed');
+
+assert.match(page, /Assign survivor role/, 'inspection exposes a direct role assignment control');
+assert.match(page, /act\(\{type:'assign',survivorId:survivor\.id,role\}\)/, 'role orders use the existing server-authoritative action');
+assert.match(page, /if\(!visiting\)\{const orderLabel/, 'read-only visitor mode does not expose assignment controls');
+assert.match(page, /role==='farmer'&&!\(base\.farmPlots\|\|\[\]\)\.some\(plot=>plot\.crop\)/, 'farmer assignment is disabled until crops are planted');

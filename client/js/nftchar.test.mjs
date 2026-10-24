@@ -68,6 +68,7 @@ has(avatar, /nft-artwork-panel/, 'shows the complete NFT artwork on the walking 
 has(avatar, /nft-body-effect-flame/, 'renders 589 Body fire states as visible geometry');
 has(avatar, /nft-burn-halo/, 'renders the 589 Burn Halo head trait');
 has(avatar, /nft-beehive-headwear/, 'renders the RACC Bee Hive Top Gear trait');
+has(avatar, /nft-eyelash/, 'renders the RACC Eyewear: Lashes trait');
 has(avatar, /nft-held-tnt/, 'renders the RACC Armed TNT trait as an explosive prop');
 has(avatar, /surprisedEyes/, 'renders the 589 Surprised eye trait');
 has(avatar, /smirk|sly/, 'renders the 589 Smirk mouth trait');

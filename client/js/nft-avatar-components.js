@@ -110,6 +110,7 @@ export function resolveNftAvatarComponents(profile = {}) {
   const pattern = first(traits, 'body pattern');
   const horns = first(traits, 'horns');
   const facialHair = first(traits, 'facial hair');
+  const eyewear = first(traits, 'eye wear');
   return {
     collectionKey: key,
     headwearStyle: headwearStyle(headwear),
@@ -129,6 +130,7 @@ export function resolveNftAvatarComponents(profile = {}) {
     hasHorns: !!horns && !/none|no horns|no antlers/.test(horns),
     horns,
     facialHair,
+    eyewear,
     hasMask: !!mask && !/none|no mask/.test(mask),
     expression: has(expression, /snarl|scream|fang|angry|open mouth/) ? 'aggressive'
       : has(expression, /smile|grin|happy|smirk|sly/) ? 'friendly'

@@ -20,11 +20,13 @@ export function steeringDirection(position, target, obstacles = [], neighbors = 
   const dx = target.x - position.x, dz = target.z - position.z, distance = Math.hypot(dx, dz);
   if (distance < (options.arrivalRadius ?? 0.12)) return { x: 0, z: 0, arrived: true };
   const desired = Math.atan2(dz, dx), lookAhead = options.lookAhead ?? 1.05;
-  const angles = [0, 0.62, -0.62, 1.12, -1.12, 1.62, -1.62, 2.3, -2.3, Math.PI];
+  const preferredOffset = Number.isFinite(options.preferredOffset) ? options.preferredOffset : 0;
+  const angles = [0, ...(preferredOffset ? [preferredOffset, -preferredOffset] : []), 0.62, -0.62, 1.12, -1.12, 1.62, -1.62, 2.3, -2.3, Math.PI];
   let best = null, bestScore = -Infinity;
   for (let index = 0; index < angles.length; index++) {
     const angle = desired + angles[index], vx = Math.cos(angle), vz = Math.sin(angle);
     let score = vx * (dx / distance) + vz * (dz / distance) + (index === 0 ? 0.035 : 0);
+    if (preferredOffset && (index === 1 || index === 2)) score += index === 1 ? 0.22 : 0.08;
     for (const fraction of [0.45, 0.9, 1.35]) {
       const px = position.x + vx * Math.min(lookAhead, fraction), pz = position.z + vz * Math.min(lookAhead, fraction);
       for (const obstacle of obstacles) {
@@ -73,4 +75,27 @@ export function isWorkingTask(role, task) {
   if (role === 'medic') return task === 'infirmary_duty';
   if (role === 'scavenger') return task === 'stockpile_supplies';
   return false;
+}
+
+
+// Detect stalled movement and cycle deterministic side-approaches instead of repeatedly
+// selecting the same blocked heading. Call with a monotonic clock (performance.now()).
+export function updateRouteRecovery(state = {}, position, target, now, options = {}) {
+  const threshold = options.progressThreshold ?? 0.12;
+  const stuckAfter = options.stuckAfter ?? 1400;
+  const retryAfter = options.retryAfter ?? 950;
+  const distance = Math.hypot(target.x - position.x, target.z - position.z);
+  const targetKey = `${Math.round(target.x * 4)}/${Math.round(target.z * 4)}`;
+  if (state.targetKey !== targetKey || !Number.isFinite(state.lastProgressAt)) {
+    return { targetKey, bestDistance: distance, lastDistance: distance, lastX: position.x, lastZ: position.z, lastProgressAt: now, lastRetryAt: now, retries: 0, preferredOffset: 0, stuck: false, distance };
+  }
+  const improved = distance < (state.bestDistance ?? distance) - threshold;
+  const next = { ...state, lastX: position.x, lastZ: position.z, lastDistance: distance, distance };
+  if (improved) {
+    next.bestDistance = distance; next.lastProgressAt = now; next.preferredOffset = 0; next.stuck = false;
+  } else if (now - state.lastProgressAt >= stuckAfter && now - (state.lastRetryAt ?? 0) >= retryAfter) {
+    const retries = (state.retries ?? 0) + 1, offsets = [1.12, -1.12, 1.62, -1.62, 2.3, -2.3];
+    next.retries = retries; next.preferredOffset = offsets[(retries - 1) % offsets.length]; next.lastRetryAt = now; next.lastProgressAt = now; next.stuck = true;
+  } else next.stuck = !!state.stuck || now - state.lastProgressAt >= stuckAfter;
+  return next;
 }

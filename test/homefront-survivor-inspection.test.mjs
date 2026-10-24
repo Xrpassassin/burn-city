@@ -22,7 +22,7 @@ assert.match(page, /Assign survivor role/, 'inspection exposes a direct role ass
 assert.match(page, /act\(\{type:'assign',survivorId:survivor\.id,role\}\)/, 'role orders use the existing server-authoritative action');
 assert.match(page, /if\(!visiting\)\{const orderLabel/, 'read-only visitor mode does not expose assignment controls');
 assert.match(page, /role==='farmer'&&!\(base\.farmPlots\|\|\[\]\)\.some\(plot=>plot\.crop\)/, 'farmer assignment is disabled until crops are planted');
-console.log('Homefront survivor inspection tests passed');
+console.log('Homefront contextual survivor, structure, and farm interaction tests passed');
 
 assert.match(page, /function inspectYardStructure\(e,directStructure=null\)/, '3D yard supports direct inspection of built structures');
 assert.match(page, /function showStructureInspection\(structure\)/, 'structure inspection exposes integrity and contextual actions');

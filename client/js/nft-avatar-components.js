@@ -67,7 +67,9 @@ function hairStyle(value) {
   if (has(value, /braid|cornrow/)) return 'braids';
   if (has(value, /afro|curly|coily/)) return 'afro';
   if (has(value, /spiky|spikes/)) return 'spiky';
-  if (has(value, /long|ponytail/)) return 'long';
+  if (has(value, /ponytail|pony tail/)) return 'ponytail';
+  if (has(value, /undercut|side.?shave|high.?fade/)) return 'undercut';
+  if (has(value, /long/)) return 'long';
   if (has(value, /bun|topknot/)) return 'bun';
   if (has(value, /short|crop|fade/)) return 'short';
   return value ? 'custom' : 'default';
@@ -110,6 +112,7 @@ export function resolveNftAvatarComponents(profile = {}) {
   const pattern = first(traits, 'body pattern');
   const horns = first(traits, 'horns');
   const facialHair = first(traits, 'facial hair');
+  const eyewear = first(traits, 'eye wear');
   return {
     collectionKey: key,
     headwearStyle: headwearStyle(headwear),
@@ -129,6 +132,7 @@ export function resolveNftAvatarComponents(profile = {}) {
     hasHorns: !!horns && !/none|no horns|no antlers/.test(horns),
     horns,
     facialHair,
+    eyewear,
     hasMask: !!mask && !/none|no mask/.test(mask),
     expression: has(expression, /snarl|scream|fang|angry|open mouth/) ? 'aggressive'
       : has(expression, /smile|grin|happy|smirk|sly/) ? 'friendly'

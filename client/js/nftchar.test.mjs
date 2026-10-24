@@ -2,13 +2,15 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
 
-const [avatar, city, app, sw, picker, nftServer] = await Promise.all([
+const [avatar, city, app, sw, picker, nftServer, visualQa, components] = await Promise.all([
   readFile(new URL('./nftchar.js', import.meta.url), 'utf8'),
   readFile(new URL('./city.js', import.meta.url), 'utf8'),
   readFile(new URL('./app.js', import.meta.url), 'utf8'),
   readFile(new URL('../sw.js', import.meta.url), 'utf8'),
   readFile(new URL('./nftpick.js', import.meta.url), 'utf8'),
-  readFile(new URL('../../server/nft.js', import.meta.url), 'utf8')
+  readFile(new URL('../../server/nft.js', import.meta.url), 'utf8'),
+  readFile(new URL('../nft-avatar-visual-qa.html', import.meta.url), 'utf8'),
+  readFile(new URL('./nft-avatar-components.js', import.meta.url), 'utf8')
 ]);
 let checks = 0;
 function has(source, pattern, message) { assert.match(source, pattern, message); checks++; }
@@ -20,21 +22,36 @@ assert.equal(raccProfile.collectionName, 'RACC'); checks++;
 assert.equal(raccProfile.archetype, 'raccoon'); checks++;
 assert.deepEqual(raccProfile.renderTraits, [['mask', 'Crimson'], ['background', 'Sunset'], ['fur color', 'Silver']]); checks++;
 assert.deepEqual(raccProfile.rawTraits, [['Bandit Mask', 'Crimson'], ['Background', 'Sunset'], ['Fur Color', 'Silver']]); checks++;
+const raccIdentityProfile = resolveNftAvatarProfile({ key: 'racc', traits: [['RACCOON GUY', 'Raccoon Guy']] });
+assert.deepEqual(raccIdentityProfile.renderTraits, [['identity', 'Raccoon Guy']]); checks++;
 assert.equal(raccProfile.identitySeed, resolveNftAvatarProfile({ key: 'racc', id: 'NFT-001' }).identitySeed); checks++;
 assert.notEqual(raccProfile.identitySeed, resolveNftAvatarProfile({ key: 'racc', id: 'NFT-002' }).identitySeed); checks++;
 const firekeeperProfile = resolveNftAvatarProfile({ key: 'fk', traits: [['Ember Type', 'Blue'], ['Keeper Robes', 'Ash']] });
 assert.deepEqual(firekeeperProfile.renderTraits, [['flame', 'Blue'], ['outfit', 'Ash']]); checks++;
 const protocolProfile = resolveNftAvatarProfile({ key: '589', traits: [['Loadout', 'Rifle'], ['Bling', 'Gold']] });
 assert.deepEqual(protocolProfile.renderTraits, [['weapon', 'Rifle'], ['accessory', 'Gold']]); checks++;
+const eyewearProfile = resolveNftAvatarProfile({ key: '589', traits: [['Glasses', 'Round'], ['Visor', 'Cyber']] });
+assert.deepEqual(eyewearProfile.renderTraits, [['eye wear', 'Round'], ['eye wear', 'Cyber']]); checks++;
+const noseProfile = resolveNftAvatarProfile({ key: '589', traits: [['Nose Shape', 'Aquiline'], ['Nostril Detail', 'Defined']] });
+assert.deepEqual(noseProfile.renderTraits, [['nose', 'Aquiline'], ['nose', 'Defined']]); checks++;
 const unknownProfile = resolveNftAvatarProfile({ key: 'future-project', traits: [['Background', 'Rain']] });
 assert.equal(unknownProfile.hasCollectionAdapter, false); checks++;
 assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;
 
+has(visualQa, /handledSlots=new Set\(\['identity'[\s\S]*'eye wear'/, 'does not report collection identity and supported eyewear traits as unmapped');
+has(visualQa, /id="copyReport"/, 'provides a copyable QA report for collection reviews');
+has(visualQa, /navigator\.clipboard\.writeText\(JSON\.stringify\(report,null,2\)\)/, 'copies structured sample metadata and review diagnostics for reproducible bug reports');
+has(visualQa, /id="reviewNotes"/, 'provides a dedicated field for visual mismatch notes');
+has(visualQa, /notes:document\.querySelector\('#reviewNotes'\)\.value\.trim\(\)/, 'includes reviewer notes in the copied report');
+has(visualQa, /try \{[\s\S]*new THREE\.WebGLRenderer/, 'handles WebGL initialization without aborting the entire review page');
+has(visualQa, /if\(renderer\)renderer\.render\(scene,camera\)/, 'keeps the review page stable when WebGL is unavailable');
 has(avatar, /resolveNftAvatarProfile/, 'routes traits through collection-specific adapters');
 has(avatar, /resolveNftAvatarComponents/, 'resolves typed traits into explicit visual component recipes');
 has(avatar, /resolveNftAvatarReconstruction/, 'selects a collection-specific reconstruction blueprint');
 has(avatar, /nft-firekeeper-robe-hem/, 'builds the Firekeepers robe silhouette');
 has(avatar, /nft-firekeeper-cowl/, 'builds the Firekeepers cowl silhouette');
+has(avatar, /nft-firekeeper-robe-panel/, 'builds separate layered Firekeepers robe panels');
+has(avatar, /nft-firekeeper-robe-embroidery/, 'adds collection-specific Firekeepers robe embroidery');
 has(avatar, /nft-firekeeper-sigil/, 'builds a collection-specific Firekeepers sigil');
 has(avatar, /nft-protocol-emblem/, 'builds a collection-specific 589 Protocol insignia');
 has(avatar, /reconstruction\};/, 'exposes reconstruction blueprint for visual QA');
@@ -47,6 +64,8 @@ has(avatar, /originalTraitPairs/, 'retains original NFT traits separately from n
 has(avatar, /nftAvatarProfile=/, 'attaches stable collection and identity metadata to the avatar');
 has(avatar, /Stable, subtle silhouette variation/, 'varies each token silhouette deterministically when explicit body-shape traits are absent');
 has(avatar, /hasBodyShape|hasFaceShape/, 'defers to explicit body or face shape metadata when available');
+has(avatar, /bodyBuild = \/.*broad[\s\S]*bodyScale = bodyBuild === 'broad'[\s\S]*bodyScale\[2\]/, 'translates explicit body-build traits into torso depth and silhouette proportions');
+has(avatar, /faceShapeText[\s\S]*faceScale = \/.*square[\s\S]*head\.scale\.multiply\(new THREE\.Vector3\(\.\.\.faceScale\)\)/, 'translates explicit face-shape traits into head proportions');
 has(avatar, /export function buildNftChar/, 'exports the NFT character builder');
 has(avatar, /new THREE\.SphereGeometry\(1, lite \? 10 : 16, lite \? 8 : 12\)/, 'uses smooth sphere anatomy with mobile geometry scaling');
 has(avatar, /geo\('capsule:'/, 'caches shared rounded limb geometry');
@@ -56,9 +75,13 @@ has(avatar, /const legs = \[-1,1\]\.map/, 'builds two articulated legs');
 has(avatar, /const arms = \[-1,1\]\.map/, 'builds two articulated arms');
 has(avatar, /if \(key === 'racc'\)/, 'selects a dedicated RACC animal archetype');
 has(avatar, /red mask/, 'supports the RACC red-mask trait');
+has(avatar, /nft-racc-ear-tip/, 'builds pointed outer-ear silhouettes for RACC');
+has(avatar, /nft-racc-inner-ear/, 'adds contrasting inner-ear detail for RACC');
+has(avatar, /nft-racc-cheek-ruff/, 'adds cheek ruffs to widen the RACC face silhouette');
 has(avatar, /ringed tail|tail = new THREE\.Group/, 'adds a segmented raccoon tail');
 has(avatar, /else \{\s*addSphere\(head,skin/, 'uses a separate human face archetype');
 has(avatar, /nft-beard|nft-goatee|nft-moustache/, 'maps facial-hair traits to the human head');
+has(avatar, /noseText[\s\S]*nft-nose-robotic[\s\S]*nft-nose-broad[\s\S]*nft-nose-button[\s\S]*nft-nose-long[\s\S]*nft-nose-hooked[\s\S]*nft-nose-snout/, 'reconstructs explicit nose traits with distinct human and cybernetic geometry');
 has(avatar, /white hair\|silver hair/, 'maps hair-color traits');
 has(avatar, /helmet/, 'maps helmet traits');
 has(avatar, /crown/, 'maps crown traits');
@@ -67,14 +90,28 @@ has(avatar, /horn/, 'maps horn traits');
 has(avatar, /sunglass\|frames\|goggle/, 'maps eyewear traits');
 has(avatar, /flame\|fire\|on fire/, 'maps fire traits to visible effects');
 has(avatar, /chain\|medallion\|necklace/, 'maps jewelry traits');
+has(avatar, /Wearable jewelry sits just in front of the full-artwork tabard/, 'documents jewelry layering over the original artwork panel');
+has(avatar, /chain\.renderOrder=3/, 'places the necklace in front of the artwork tabard');
+has(avatar, /nft-protocol-chain-link[\s\S]*renderOrder=3/, 'keeps individual 589 chain links visible above the artwork panel');
+has(avatar, /nft-protocol-chain-pendant[\s\S]*renderOrder=3/, 'keeps the 589 pendant visible above the artwork panel');
 has(avatar, /armor\|fur\|collar\|cape/, 'maps armor, fur and cape traits');
 has(avatar, /key==='589'/, 'gives 589 avatars a collection-specific BURN accent');
+has(avatar, /Keep the Protocol insignia above the artwork tabard/, 'documents the visible 589 insignia placement');
+has(avatar, /nft-protocol-emblem[\s\S]*1\.655,\.245[\s\S]*renderOrder=3/, 'keeps the 589 emblem above the original artwork panel');
+has(avatar, /artwork panel spans the torso center[\s\S]*side\*\.292[\s\S]*renderOrder=3/, 'keeps 589 shirt edge stitching visible outside the artwork frame');
+has(avatar, /addBox\(g,mat\('#15171c'\),\[0,\.775,\.252\],\[\.12,\.055,\.012\]\)\.name='nft-protocol-shirt-print'/, 'places the 589 shirt print below the artwork frame where it remains visible');
+has(avatar, /nft-protocol-shirt-sigil[\s\S]*\.775,\.266[\s\S]*renderOrder=3/, 'places the 589 shirt sigil below the artwork frame and above the torso');
 has(avatar, /key==='fk'/, 'gives Firekeepers a collection-specific ember treatment');
 has(avatar, /nft-artwork-panel/, 'shows the complete NFT artwork on the walking avatar');
 has(avatar, /nft-body-effect-flame/, 'renders 589 Body fire states as visible geometry');
 has(avatar, /nft-burn-halo/, 'renders the 589 Burn Halo head trait');
 has(avatar, /nft-beehive-headwear/, 'renders the RACC Bee Hive Top Gear trait');
 has(avatar, /nft-eyelash/, 'renders the RACC Eyewear: Lashes trait');
+has(components, /const eyewear = first\(traits, 'eye wear'\)[\s\S]*eyewear,/, 'retains typed eyewear descriptions in the component recipe');
+has(components, /ponytail\|pony tail[\s\S]*return 'ponytail'[\s\S]*undercut\|side\.\?shave\|high\.\?fade[\s\S]*return 'undercut'/, 'resolves ponytail and undercut hair traits before broader hairstyle matches');
+has(avatar, /nft-ponytail-tie[\s\S]*nft-ponytail-side-lock[\s\S]*nft-undercut-temple[\s\S]*nft-undercut-swept-top/, 'renders distinct ponytail and undercut silhouettes');
+has(avatar, /nft-beard-stubble[\s\S]*nft-beard-long[\s\S]*nft-beard-braid/, 'renders stubble, long beard, and braided beard variants');
+has(avatar, /nft-eyewear-goggle-rim[\s\S]*nft-eyewear-round-frame[\s\S]*nft-eyewear-visor[\s\S]*nft-eyewear-rect-frame/, 'renders distinct goggle, round, visor, and rectangular eyewear silhouettes');
 has(avatar, /nft-held-tnt/, 'renders the RACC Armed TNT trait as an explosive prop');
 has(avatar, /surprisedEyes/, 'renders the 589 Surprised eye trait');
 has(avatar, /smirk|sly/, 'renders the 589 Smirk mouth trait');
@@ -83,6 +120,9 @@ has(avatar, /nft-dreadlock|nft-braid/, 'renders metadata-driven locks and braids
 has(avatar, /nft-facial-scar|nft-freckle|nft-face-paint/, 'renders distinct facial markings');
 has(avatar, /nft-antler|nft-horn/, 'renders horn and antler silhouettes');
 has(avatar, /nft-pattern-stripe|nft-pattern-spot|nft-camouflage-patch/, 'renders metadata-driven clothing patterns');
+has(avatar, /components\.patternStyle === 'checkered'[\s\S]*nft-pattern-checker/, 'renders checkered patterns on visible torso edges');
+has(avatar, /components\.headwearStyle === 'custom'[\s\S]*nft-custom-headwear-crest/, 'gives unknown headwear traits a visible fallback silhouette');
+has(avatar, /components\.accessoryStyle === 'custom'[\s\S]*nft-custom-accessory-mount/, 'preserves unknown accessory traits as visible geometry');
 has(avatar, /components\.facialHair/, 'uses normalized facial-hair metadata');
 has(avatar, /nft-artwork-frame/, 'frames the NFT artwork as a prominent identity tabard');
 has(avatar, /nftAvatarProfile=.*components/, 'exposes resolved visual recipes for QA');

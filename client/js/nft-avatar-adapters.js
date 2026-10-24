@@ -5,6 +5,7 @@ const COMMON = [
   ['background', /background|backdrop|scene$/i],
   ['eye color', /eye.?colou?r|iris.?colou?r/i],
   ['eye appearance', /^eye$/i],
+  ['nose', /nose|nostril/i],
   ['body effect', /^body$/i],
   ['accessory', /^chain$/i],
   ['outfit', /^clothing$|^fits$/i],
@@ -12,7 +13,7 @@ const COMMON = [
   ['weapon', /^armed$/i],
   ['fur color', /fur.?colou?r|^fur$/i],
   ['hair style', /hair.?style|hairstyle|haircut|hair.?shape/i],
-  ['hair color', /hair.?colou?r/i],
+  ['hair color', /^hair$|hair.?colou?r/i],
   ['skin color', /skin.?tone|skin.?colou?r/i],
   ['outfit', /clothes|outfit|shirt|topwear|bodywear|jacket|robe|clothing/i],
   ['armor', /armou?r|chestplate|plate.?carrier/i],
@@ -27,13 +28,15 @@ const COMMON = [
   ['weapon', /weapon|held.?item|gun|sword|blade|gear/i],
   ['accessory', /accessor(y|ies)|jewel(l)?ery|necklace|chain|medallion|earring/i],
   ['flame', /flame|fire|ember|burn.?effect|aura/i],
-  ['eye wear', /sunglasses|eyewear|goggles|frames/i],
+  ['eye wear', /sunglasses|eyewear|glasses|spectacles|goggles|frames|visor/i],
   ['tail', /tail/i]
 ];
 const COLLECTIONS = {
   racc: {
     name: 'RACC',
     aliases: [
+      // Collection/archetype labels are already represented by the collection key, not wearable geometry.
+      ['identity', /raccoon.?guy|racc.?archetype/i],
       ['mask', /bandit.?mask|eye.?mask|raccoon.?mask/i],
       ['fur color', /pelt|coat.?fur|raccoon.?fur/i],
       ['tail', /ring.?tail|tail.?pattern/i],

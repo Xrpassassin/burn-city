@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BURN City — NFT Avatar Visual QA</title>
+<style>
+:root{color-scheme:dark;font:14px/1.45 system-ui,sans-serif;background:#101216;color:#edf0f5}
+*{box-sizing:border-box}body{margin:0;padding:20px;max-width:1400px;margin-inline:auto}
+h1{font-size:1.5rem;margin:0 0 6px}p{color:#aeb6c5;margin:0 0 16px}
+.layout{display:grid;grid-template-columns:minmax(260px,360px) minmax(0,1fr);gap:16px}
+.panel{background:#191d24;border:1px solid #303744;border-radius:12px;padding:14px;min-width:0}
+label{display:block;font-weight:650;margin:12px 0 5px}textarea,input{width:100%;background:#0e1116;color:#edf0f5;border:1px solid #414958;border-radius:7px;padding:9px;font:12px/1.45 ui-monospace,monospace}
+textarea{min-height:300px;resize:vertical}button{background:#303a49;color:#fff;border:1px solid #566276;border-radius:7px;padding:8px 11px;cursor:pointer;margin:5px 4px 0 0}button.primary{background:#9b4d20;border-color:#e47a3d}.views{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+#stage{width:100%;height:540px;background:radial-gradient(ellipse at 50% 35%,#303746,#111318 70%);border-radius:9px;overflow:hidden}
+#stage canvas{display:block;width:100%;height:100%}.comparison{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.art{display:flex;align-items:center;justify-content:center;min-height:220px;background:#0d1015;border-radius:8px;overflow:hidden}.art img{max-width:100%;max-height:320px;object-fit:contain}.art span{color:#8993a4;padding:18px;text-align:center}
+#status{white-space:pre-wrap;color:#b8d4bf;margin-top:10px;font:12px/1.5 ui-monospace,monospace}.note{font-size:12px;color:#aeb6c5;margin-top:12px}
+@media(max-width:800px){.layout{grid-template-columns:1fr}#stage{height:420px}.comparison{grid-template-columns:1fr}}
+</style>
+<script type="importmap">{"imports":{"three":"../vendor/three/build/three.module.min.js"}}</script>
+</head>
+<body>
+<h1>BURN City NFT Avatar Visual QA</h1>
+<p>Compare the source NFT against its procedural character. This is a developer review tool; it does not verify wallet ownership or publish changes.</p>
+<div class="layout">
+<section class="panel">
+<label for="sample">NFT sample JSON</label>
+<textarea id="sample" spellcheck="false">{
+  "key": "racc",
+  "id": "RACC-visual-review",
+  "name": "RACC sample",
+  "img": "",
+  "traits": [
+    ["Armed", "TNT"],
+    ["Fits", "Yellow Striped Sweater"],
+    ["Top Gear", "Bee Hive"],
+    ["Bandit Mask", "Crimson"],
+    ["Ring Tail", "Black and White"]
+  ],
+  "pal": {"face":"#8b7770","body":"#d8b44a","top":"#cf493e","acc":"#cf493e"}
+}</textarea>
+<label for="reviewNotes">Reviewer notes / mismatches</label>
+<textarea id="reviewNotes" rows="4" style="min-height:90px" placeholder="Example: eye mask too narrow; pendant obscures artwork; coat color differs from source."></textarea>
+<label for="artUrl">Original artwork URL (optional)</label>
+<input id="artUrl" type="url" placeholder="https://…/token-image.png">
+<div><button class="primary" id="render">Render / update sample</button><button id="clear">Clear artwork</button><button id="copyReport">Copy QA report</button></div>
+<div class="views" aria-label="Load collection examples">
+<button data-sample="racc">Load RACC example</button><button data-sample="fk">Load Firekeepers example</button><button data-sample="589">Load 589 example</button>
+</div>
+<div id="status" role="status">Ready. Enter a representative NFT sample and render it.</div>
+<p class="note">Use permitted artwork URLs. Some image hosts block cross-origin embedding; a failed image does not prevent 3D review.</p>
+</section>
+<section class="panel">
+<div class="comparison">
+<div><strong>Original NFT artwork</strong><div class="art" id="art"><span>Provide an artwork URL to compare identity details.</span></div></div>
+<div><strong>Procedural 3D character</strong><div class="art" style="display:block;min-height:0"><div id="stage"></div></div></div>
+</div>
+<div class="views"><button data-view="front">Front</button><button data-view="threeQuarter">3/4</button><button data-view="side">Side</button><button data-view="rear">Rear</button><button data-view="reset">Reset camera</button></div>
+<p class="note">Review silhouette, proportions, face, outfit layers, color/materials, rare accessories and likeness from all angles. Record mismatches in the reviewer-notes field and copy the QA report before approving a collection adapter.</p>
+</section>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { buildNftChar } from './js/nftchar.js';
+import { resolveNftAvatarProfile } from './js/nft-avatar-adapters.js';
+
+const stage = document.querySelector('#stage');
+const status = document.querySelector('#status');
+const art = document.querySelector('#art');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#151922');
+const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+let renderer = null;
+let renderError = '';
+try {
+ renderer = new THREE.WebGLRenderer({antialias:true, alpha:false, powerPreference:'low-power'});
+ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+ renderer.outputColorSpace = THREE.SRGBColorSpace;
+ stage.appendChild(renderer.domElement);
+} catch (error) {
+ renderError = 'WebGL preview unavailable: ' + error.message;
+ stage.textContent = '3D preview unavailable in this browser/device. Use a WebGL-enabled browser to inspect geometry.';
+ status.textContent = renderError;
+}
+scene.add(new THREE.HemisphereLight(0xe5edff, 0x4a3a30, 2.0));
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.2); keyLight.position.set(3,5,5); scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0x8eaaff, 0.8); fillLight.position.set(-4,2,-3); scene.add(fillLight);
+const floor = new THREE.GridHelper(8,16,0x444c5c,0x292f3a); floor.position.y=-0.03; scene.add(floor);
+let avatar = null;
+const views = {
+ front: [0,1.6,6], threeQuarter:[3.8,1.7,5.2], side:[6,1.6,0], rear:[0,1.6,-6], reset:[0,1.6,6]
+};
+function setView(name){const v=views[name]||views.front;camera.position.set(...v);camera.lookAt(0,1.05,0);}
+function resize(){const w=Math.max(1,stage.clientWidth),h=Math.max(1,stage.clientHeight);if(renderer)renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+function loop(){requestAnimationFrame(loop);if(renderer)renderer.render(scene,camera)} loop();
+new ResizeObserver(resize).observe(stage); resize(); setView('front');
+function showArtwork(url){art.replaceChildren();if(!url){const s=document.createElement('span');s.textContent='Provide an artwork URL to compare identity details.';art.append(s);return;}
+ const img=document.createElement('img');img.alt='Original NFT artwork reference';img.referrerPolicy='no-referrer';img.src=url;img.onerror=()=>{art.replaceChildren();const s=document.createElement('span');s.textContent='Artwork could not load. Check the URL, permissions, or CORS policy.';art.append(s);};art.append(img);}
+function renderSample(){try{
+ const nft=JSON.parse(document.querySelector('#sample').value);
+ if(!nft || typeof nft!=='object' || Array.isArray(nft)) throw new Error('Sample must be a JSON object.');
+ if(avatar){scene.remove(avatar); /* Avatar builder caches shared geometry/materials; do not dispose shared resources here. */}
+ avatar=buildNftChar(nft);avatar.position.set(0,0,0);scene.add(avatar);setView('front');
+ const profile=avatar.userData.nftAvatarProfile||{};
+ const recon=profile.reconstruction||{};
+ const components=profile.components||{};
+ const rawTraits=Array.isArray(nft.traits)?nft.traits:[];
+ const normalizedProfile=resolveNftAvatarProfile(nft);
+ const handledSlots=new Set(['identity','background','eye color','eye appearance','eye wear','body effect','accessory','outfit','headwear','weapon','fur color','hair style','hair color','skin color','armor','mask','expression','facial hair','markings','body pattern','horns','wing','flame','tail']);
+ const unmapped=normalizedProfile.renderTraits.map(([slot,value],i)=>({slot,value,rawType:normalizedProfile.rawTraits[i]?.[0]})).filter(item=>!handledSlots.has(item.slot));
+ const unmappedText=unmapped.length?unmapped.map(({rawType,slot,value})=>'  - '+rawType+' → '+slot+': '+value).join('\n'):'  none detected';
+ status.textContent='Rendered: '+(nft.name||nft.id||'unnamed sample')+'\nCollection: '+(profile.collectionName||nft.key||'unknown')+'\nRaw traits: '+rawTraits.length+'\nTrait slots without an explicit renderer mapping: '+unmapped.length+'\n'+unmappedText+'\nArchetype: '+(recon.archetype||profile.archetype||'unknown')+'\nFidelity mode: '+(recon.fidelityMode||'unknown')+'\nExact reconstruction: '+String(!!recon.exactReconstruction)+'\nRecipes: outfit='+components.outfitStyle+', headwear='+components.headwearStyle+', weapon='+components.weaponStyle+', tail='+components.tailStyle+'\nReview status: visual inspection required; no automated likeness score.';
+ const url=document.querySelector('#artUrl').value.trim()||String(nft.img||nft.image||'').trim();showArtwork(url);
+ }catch(e){status.textContent='Could not render sample: '+e.message;}}
+document.querySelector('#render').addEventListener('click',renderSample);
+document.querySelector('#clear').addEventListener('click',()=>{document.querySelector('#artUrl').value='';showArtwork('');});
+document.querySelector('#copyReport').addEventListener('click',async()=>{try{const nft=JSON.parse(document.querySelector('#sample').value);const report={tool:'BURN City NFT Avatar Visual QA',createdAt:new Date().toISOString(),sample:{key:nft.key||null,id:nft.id||nft.nftId||null,name:nft.name||null,traits:Array.isArray(nft.traits)?nft.traits:[]},artworkUrl:document.querySelector('#artUrl').value.trim()||nft.img||nft.image||null,diagnostics:status.textContent,review:{notes:document.querySelector('#reviewNotes').value.trim(),visualInspectionRequired:true,automatedLikenessScore:null,ownershipVerified:false}};await navigator.clipboard.writeText(JSON.stringify(report,null,2));status.textContent+='\nQA report copied. Include screenshots and reviewer notes when reporting mismatches.';}catch(e){status.textContent='Could not copy report: '+e.message+' (the browser may require HTTPS or clipboard permission).';}});
+const samples = {
+ racc: {key:'racc',id:'RACC-review-001',name:'RACC — TNT / Striped Sweater / Bee Hive',img:'',traits:[['Armed','TNT'],['Fits','Yellow Striped Sweater'],['Top Gear','Bee Hive'],['Bandit Mask','Crimson'],['Ring Tail','Black and White']],pal:{face:'#8b7770',body:'#d8b44a',top:'#cf493e',acc:'#cf493e'}},
+ fk: {key:'fk',id:'FK-review-001',name:'Firekeepers — Blue Flame / Keeper Robes / Cowl',img:'',traits:[['Ember Type','Blue Flame'],['Keeper Robes','Ash'],['Cowl','Ember Cowl'],['Relic','Sun Sigil']],pal:{face:'#c9a27e',body:'#393b4b',top:'#596b8a',acc:'#4bc9ef'}},
+ '589': {key:'589',id:'589-review-001',name:'589 Protocol — Flame On / Burn Chain / Red Burn Tee',img:'',traits:[['Background','Burn'],['Body','Flame On'],['Chain','Burn Chain'],['Clothing','Red Burn Tee'],['Eye','Surprised'],['Head','Burn Halo'],['Mouth','Smirk']],pal:{face:'#c9a27e',body:'#b72d32',top:'#202126',acc:'#ff7a1a'}}
+};
+document.querySelectorAll('[data-sample]').forEach(b=>b.addEventListener('click',()=>{
+ document.querySelector('#sample').value=JSON.stringify(samples[b.dataset.sample],null,2);
+ renderSample();
+}));
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+window.addEventListener('keydown',e=>{if(e.key==='1')setView('front');if(e.key==='2')setView('threeQuarter');if(e.key==='3')setView('side');if(e.key==='4')setView('rear');});
+renderSample();
+</script>
+</body>
+</html>

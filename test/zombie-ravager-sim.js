@@ -1,0 +1,21 @@
+'use strict';
+const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
+const DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'bcravager-'));
+Object.assign(process.env, { DATA_DIR: DIR, TOKEN_SECRET: 'x', DRY_RUN: 'true', TREASURY_ADDRESS: 'rrrrrrrrrrrrrrrrrrrrrhoLvTp', BURN_JOB_IN_SERVER: 'false' });
+const Z = require('../server/cod'), { Room } = require('../server/game'), assert = require('node:assert/strict');
+const room = new Room(1, 'zombie'); room.mapId = 'cosmodrome'; Z.resetMap(room); Z.bind(room); room.open = 127; room.wave = 1; room.toSpawn = 0; room.waveDelay = 999; room.zombies.clear();
+const p = [...room.players.values()][0]; p.guns = ['ravager']; p.slot = 0; p.fuel = 100; p.yaw = 0; p.pitch = 0; p.inv = 99; p.ravSpin = p.ravHeat = p.ravLock = p.ravTracerT = 0;
+let z, clear = false;
+for (let i = 0; i < 30; i++) { const x = p.x, zz = p.z + 4; if (Z.los(room, x, p.z, x, zz, p.y, 0)) { z = { id: 700, ty: 3, x, z: zz, y: 0, hp: 800, maxhp: 800, armorHp: 1, armorBroken: 0, sp: 0, win: null, ph: 0 }; room.zombies.set(z.id, z); clear = true; break; } p.x += 0.2; }
+assert(clear, 'test found a clear firing lane');
+p.in = { mx: 0, mz: 0, fire: true, turn: 0 }; room.events = [];
+for (let i = 0; i < 24; i++) room.step(0.05);
+assert(p.ravSpin > 0.18, 'server ramps rotary spin while held');
+assert(p.ravHeat > 0, 'server tracks heat');
+assert(z.hp < 800, 'RAVAGER damage is server-authoritative and hits a clear target');
+assert(room.events.some(e => e.e === 'shot' && e.w === 'ravager' && Number.isFinite(e.tx) && Number.isFinite(e.tz)), 'server emits bounded tracer endpoints');
+assert(room.events.some(e => e.e === 'zarmor' && e.id === z.id) && z.armorBroken === 1, 'armor break event is emitted once when durability is depleted');
+assert(z.stagger > 0, 'hits apply a stagger impulse');
+const snap = room.snapshot(), row = snap.z.find(v => v[0] === z.id); assert(row && row[7] >= 0 && row[8] === 1, 'snapshot exposes stagger and armor-break state');
+p.in.fire = false; for (let i = 0; i < 10; i++) room.step(0.05); assert(p.ravHeat < 100, 'heat cools after release');
+console.log('RAVAGER server simulation: 7 passed, 0 failed');

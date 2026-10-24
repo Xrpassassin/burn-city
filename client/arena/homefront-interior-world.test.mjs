@@ -43,8 +43,23 @@ class FakeMesh {
   constructor(geometry, material) { this.geometry = geometry; this.material = material; this.position = { set: (...v) => { this.position.values = v; } }; this.userData = {}; }
 }
 class FakeBoxGeometry { constructor(...dimensions) { this.dimensions = dimensions; } }
+class FakeDodecahedronGeometry { constructor(...dimensions) { this.dimensions = dimensions; } }
 class FakeMaterial { constructor(options) { this.options = options; } }
-const fakeThree = { Group: FakeGroup, Mesh: FakeMesh, BoxGeometry: FakeBoxGeometry, MeshStandardMaterial: FakeMaterial };
+class FakeObject3D {
+  constructor() {
+    this.position = { set: (...v) => { this.position.values = v; } };
+    this.rotation = { set: (...v) => { this.rotation.values = v; } };
+    this.scale = { set: (...v) => { this.scale.values = v; }, setScalar: v => { this.scale.values = [v,v,v]; } };
+    this.matrix = {};
+  }
+  updateMatrix() { this.matrix = { position: this.position.values, rotation: this.rotation.values, scale: this.scale.values }; }
+}
+class FakeInstancedMesh extends FakeMesh {
+  constructor(geometry, material, count) { super(geometry, material); this.count = count; this.instances = []; this.instanceMatrix = {}; this.instanceColor = null; }
+  setMatrixAt(index, matrix) { this.instances[index] = matrix; }
+  computeBoundingSphere() {}
+}
+const fakeThree = { Group: FakeGroup, Mesh: FakeMesh, BoxGeometry: FakeBoxGeometry, DodecahedronGeometry: FakeDodecahedronGeometry, Object3D: FakeObject3D, InstancedMesh: FakeInstancedMesh, MeshStandardMaterial: FakeMaterial };
 const apartmentsBlueprint = interiorForLandmark('collapsed_apartments');
 const apartmentShell = buildInteriorSetPiece(fakeThree, apartmentsBlueprint, { x: 0, y: 10, z: 0 });
 const shellMeshes = [];
@@ -54,6 +69,10 @@ assert(shellMeshes.some(mesh => mesh.geometry.dimensions[1] === 3.2 && mesh.posi
   'raised interior transitions render ladder rails spanning the authored floor height');
 assert(shellMeshes.some(mesh => Math.abs(mesh.position.values[1] - 3.12) < 0.001),
   'upper apartment floor geometry is placed at its authored elevation');
+assert.equal(apartmentShell.children.filter(child => child instanceof FakeInstancedMesh).length, 3,
+  'interior set pieces batch rubble, wall grime, and emergency lights into three instanced meshes');
+assert(apartmentShell.children.filter(child => child instanceof FakeInstancedMesh).every(batch => batch.count > 0),
+  'each interior detail batch contains generated visual instances');
 
 const hospital = interiorForLandmark('mercy_hospital');
 let state = createInteriorState('mercy_hospital');

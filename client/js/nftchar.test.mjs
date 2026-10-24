@@ -30,6 +30,8 @@ const firekeeperProfile = resolveNftAvatarProfile({ key: 'fk', traits: [['Ember 
 assert.deepEqual(firekeeperProfile.renderTraits, [['flame', 'Blue'], ['outfit', 'Ash']]); checks++;
 const protocolProfile = resolveNftAvatarProfile({ key: '589', traits: [['Loadout', 'Rifle'], ['Bling', 'Gold']] });
 assert.deepEqual(protocolProfile.renderTraits, [['weapon', 'Rifle'], ['accessory', 'Gold']]); checks++;
+const eyewearProfile = resolveNftAvatarProfile({ key: '589', traits: [['Glasses', 'Round'], ['Visor', 'Cyber']] });
+assert.deepEqual(eyewearProfile.renderTraits, [['eye wear', 'Round'], ['eye wear', 'Cyber']]); checks++;
 const unknownProfile = resolveNftAvatarProfile({ key: 'future-project', traits: [['Background', 'Rain']] });
 assert.equal(unknownProfile.hasCollectionAdapter, false); checks++;
 assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;

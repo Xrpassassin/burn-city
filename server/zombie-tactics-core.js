@@ -135,6 +135,21 @@ function flankingHint(target, anchor, side = 1, offset = 3) {
  * This is a hint only; the live simulation must validate floor, LOS and
  * walkability, and continue to use the authoritative movement/collision code.
  */
+/**
+ * Fail-closed guard for alternate routes. Runtime supplies authoritative
+ * floor, walkability, and LOS checks; any missing/throwing check rejects the hint.
+ */
+function validateApproachTarget(input = {}) {
+  const point = input.approach;
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.z)) return null;
+  if (input.sameFloor !== true || typeof input.isWalkable !== 'function' || typeof input.hasLineOfSight !== 'function') return null;
+  try {
+    if (input.isWalkable(point.x, point.z) !== true) return null;
+    if (input.hasLineOfSight(point.x, point.z) !== true) return null;
+  } catch (_) { return null; }
+  return { x: point.x, z: point.z };
+}
+
 function selectApproachTarget(input = {}) {
   const target = input.target;
   const zombie = input.zombie;
@@ -151,4 +166,4 @@ function selectApproachTarget(input = {}) {
   return hint ? { ...hint, role: 'flanker' } : { x: target.x, z: target.z, role: 'flanker' };
 }
 
-module.exports = { ROLES, STATES, ROLE_TUNING, roleTuning, assignRole, distance2D, hearNoise, chooseBehavior, flankingHint, selectApproachTarget };
+module.exports = { ROLES, STATES, ROLE_TUNING, roleTuning, assignRole, distance2D, hearNoise, chooseBehavior, flankingHint, selectApproachTarget, validateApproachTarget };

@@ -8,7 +8,7 @@ This branch introduces a dependency-free tactical decision helper and a narrow l
 
 ## New files
 
-- `server/zombie-tactics-core.js`: deterministic squad-role assignment, noise hearing checks, pure behavior selection, and a bounded flanking-point hint.
+- `server/zombie-tactics-core.js`: deterministic squad-role assignment and tuning, noise hearing checks, pure behavior selection, and bounded coordinated-approach hints.
 - `server/zombie-tactics-core.test.js`: deterministic unit tests for the helper.
 
 ## Live integration added — review carefully
@@ -23,7 +23,7 @@ This is an initial integration, not a claim that the behavior is production-prov
 2. Add runtime-level regression coverage proving that free-play gunfire creates bounded stimuli, hidden zombies investigate only when noise is within radius/TTL, and visible targets take priority over sound.
 3. Add coverage that ranked/daily matches do not use tactical noise, and verify existing weapon cadence, damage, window queues, door transitions, and target selection remain unchanged.
 4. Evaluate whether the shared flow field is sufficient for investigating sounds around obstacles. Do not bypass `flow()`, `nextStep()`, `walk()`, `inside()`, or existing collision checks.
-5. `selectApproachTarget()` now gives visible-target flankers a stable, per-zombie alternate approach point. The live loop accepts it only when it is on the same floor, walkable, and line-of-sight reachable; normal per-axis collision checks still govern movement. Other roles retain the existing direct/flow-field approach. Unit tests cover deterministic side choice, direct pursuer pressure, visibility gating, and close-range convergence. Remaining review: validate flanking on representative obstacle-heavy maps and verify no navigation regressions.
+5. `selectApproachTarget()` gives visible-target flankers a stable, per-zombie alternate approach point. The live loop accepts it only when it is on the same floor, walkable, and line-of-sight reachable; normal per-axis collision checks still govern movement. Other role tuning is intentionally small and free-play-only: runners move 12% faster while pursuing, bruisers retain 30% movement speed under stagger instead of 12%, and stragglers hear noise at 1.25× the stimulus radius. These modifiers do not apply in ranked/daily modes or to the excluded special types. Unit tests cover role tuning, deterministic flank side, direct pursuer pressure, visibility gating, hearing-scale validation, and close-range convergence. Remaining review: validate flanking on representative obstacle-heavy maps and verify no navigation regressions.
 6. Run `node server/zombie-tactics-core.test.js`, `node test/zombie-sim.js`, `npm run test:zombie-nav`, and `npm run test:graphics-labs`. Record actual outcomes; do not claim browser/mobile validation unless performed.
 7. `npm run test:zombie-tactics` runs the helper tests, existing zombie simulation, and navigation regression. `.github/workflows/zombie-tactics.yml` runs that suite on relevant PR changes and pushes to this review branch.
 

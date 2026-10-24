@@ -61,4 +61,4 @@ assert.equal(progressBoard.items.find(a => a.id === 'daily-target').unlocked, tr
 assert.equal(progressBoard.items.find(a => a.id === 'daily-variety').unlocked, true);
 assert.equal(progressBoard.items.find(a => a.id === 'daily-heavy').unlocked, true);
 assert.equal(challengeBoard([], '2026-10-22').target !== challengeTarget, true, 'featured species rotates by UTC day');
-console.log('Fishing rules, angler progression, journal, and daily challenges: 40+ assertions passed');
+console.log('Fishing rules, angler progression, journal, and daily challenges: 42 assertions passed');

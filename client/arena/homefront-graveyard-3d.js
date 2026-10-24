@@ -654,8 +654,8 @@ function boot(host) {
       grip.position.y = -0.2; weapon.add(grip);
       const finish = p.label === 'You' ? equippedWeaponSkinColor : 0x9a7b62;
       const isMelee = weaponId === 'pipe_blade' || weaponId === 'shock_maul';
-      const length = weaponId === 'marksman_rifle' ? 1.02 : weaponId === 'pump_shotgun' ? 0.92 : weaponId === 'shock_maul' ? 0.58 : 0.76;
-      const width = weaponId === 'shock_maul' ? 0.28 : weaponId === 'pipe_blade' ? 0.1 : 0.16;
+      const length = weaponId === 'heavy_machine_gun' ? 1.18 : weaponId === 'marksman_rifle' ? 1.02 : weaponId === 'pump_shotgun' ? 0.92 : weaponId === 'shock_maul' ? 0.58 : 0.76;
+      const width = weaponId === 'heavy_machine_gun' ? 0.24 : weaponId === 'shock_maul' ? 0.28 : weaponId === 'pipe_blade' ? 0.1 : 0.16;
       const barrel = new THREE.Mesh(new THREE.BoxGeometry(width, length, weaponId === 'shock_maul' ? 0.22 : 0.19), mat(finish));
       barrel.position.y = 0.12 + length / 2; weapon.add(barrel);
       if (weaponId === 'shock_maul') {
@@ -664,6 +664,14 @@ function boot(host) {
       } else if (!isMelee) {
         const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.23), mat(0x373a38));
         muzzle.position.y = 0.12 + length + 0.04; weapon.add(muzzle);
+        if (weaponId === 'heavy_machine_gun') {
+          const ammoBox = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.34, 0.28), mat(0x5b5b4c));
+          ammoBox.position.set(-0.17, 0.25, 0.02); weapon.add(ammoBox);
+          const supportGrip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, 0.12), mat(0x292d2b));
+          supportGrip.position.set(0.18, 0.42, 0.04); weapon.add(supportGrip);
+          const barrelTip = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.22, 8), mat(0x171a19));
+          barrelTip.rotation.x = Math.PI / 2; barrelTip.position.y = 0.12 + length + 0.13; weapon.add(barrelTip);
+        }
       }
       g.add(weapon); g.userData.weapon = weapon; g.userData.isLocalPlayer = p.label === 'You';
       g.userData.avatarParts = [

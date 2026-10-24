@@ -6,6 +6,7 @@ import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
+import { groundDetailCandidates } from './homefront-ground-detail.mjs';
 import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
 import { explorationGuidance } from './homefront-exploration-guidance.mjs';
 import { buildLandmarkSetPiece } from './homefront-landmark-builder.mjs';
@@ -41,8 +42,10 @@ function boot(host) {
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 500);
   camera.position.set(0, 5, -7);
   camera.lookAt(0, 0, 0);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  // Favor crisp rendering on desktop while avoiding expensive multisampling and oversized buffers on touch devices.
+  const coarsePointer = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  const renderer = new THREE.WebGLRenderer({ antialias: !coarsePointer, alpha: false, powerPreference: 'low-power' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.15 : 1.6));
   renderer.shadowMap.enabled = false;
   host.appendChild(renderer.domElement);
   scene.add(new THREE.HemisphereLight(0xaec5cc, 0x24251e, 2.0));
@@ -247,6 +250,37 @@ function boot(host) {
     fadedOrange: mat(0x9b5838), canvas: mat(0x71694e), metal: mat(0x454b49),
     concrete: mat(0x66645a), warning: mat(0xb18a45), dark: mat(0x292d2b)
   };
+  // Thousands of tiny scenic details are batched into two draw calls per visible chunk.
+  // They have no collision or gameplay authority and are culled with their parent chunk.
+  const microRockGeometry = new THREE.DodecahedronGeometry(0.28, 0);
+  const microTuftGeometry = new THREE.ConeGeometry(0.12, 0.62, 4);
+  const microRockMaterial = mat(0x77756a);
+  const microTuftMaterial = mat(0x596348);
+  const microTemp = new THREE.Object3D();
+  function addGroundDetailInstances(parent, cx, cz) {
+    const candidates = groundDetailCandidates(cx, cz, { count: 52 });
+    for (const kind of ['rock', 'tuft']) {
+      const items = candidates.filter(item => item.kind === kind);
+      if (!items.length) continue;
+      const mesh = new THREE.InstancedMesh(kind === 'rock' ? microRockGeometry : microTuftGeometry, kind === 'rock' ? microRockMaterial : microTuftMaterial, items.length);
+      mesh.name = 'ground-detail-' + kind + '-' + cx + ',' + cz;
+      mesh.frustumCulled = true;
+      items.forEach((item, index) => {
+        microTemp.position.set(item.x, item.y + (kind === 'rock' ? 0.12 : 0.29 * item.scale), item.z);
+        microTemp.rotation.set(kind === 'rock' ? item.rotation * 0.35 : 0, item.rotation, kind === 'rock' ? item.rotation * 0.7 : (item.rotation % 0.4) - 0.2);
+        microTemp.scale.setScalar(item.scale);
+        microTemp.updateMatrix();
+        mesh.setMatrixAt(index, microTemp.matrix);
+        const color = new THREE.Color(kind === 'rock' ? 0x77756a : item.tint === 'marsh' ? 0x4b5944 : item.tint === 'deadwood' ? 0x4b5b3a : 0x62684a);
+        color.offsetHSL(0, 0, (item.scale - 1) * 0.1);
+        mesh.setColorAt(index, color);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      mesh.computeBoundingSphere();
+      parent.add(mesh);
+    }
+  }
   function registerEnvironmentVisual(id, group) {
     if (!id || !group) return;
     group.userData.environmentId = id;
@@ -408,6 +442,7 @@ function boot(host) {
   // Existing server bounds are +/-100; four-by-four chunks cover that playable footprint.
   for (let cz = -2; cz <= 1; cz++) for (let cx = -2; cx <= 1; cx++) {
     const chunk = cityChunkAt(cx * 64 + 0.01, cz * 64 + 0.01);
+    addGroundDetailInstances(chunk, cx, cz);
     for (const prop of environmentalCandidates(cx, cz, { density: 0.18 })) addEnvironmentalCandidate(chunk, prop);
     for (const landmark of landmarkCandidates(cx, cz)) addLandmark(chunk, landmark);
   }

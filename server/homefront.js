@@ -9,6 +9,7 @@ const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 const Environment = require('./homefront-environment');
 const Interiors = require('./homefront-interiors');
+const Exploration = require('./homefront-exploration');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
@@ -84,6 +85,11 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       const db = World.normalizeWorld(store.load('homefront-world.json', World.defaultWorld()));
       db.interiors = Interiors.normalize(db.interiors);
       let outcome;
+      if (req.method === 'GET' && url.pathname === '/api/homefront/world/exploration') {
+        const progressDb = Exploration.normalize(store.load('homefront-exploration.json', {}));
+        json(res, 200, { mode: 'homefront-exploration', exploration: Exploration.snapshot(progressDb, user.acct) });
+        return true;
+      }
       if (req.method === 'GET' && url.pathname === '/api/homefront/world') {
         if (db.players && db.players[user.acct] && Date.now() - db.players[user.acct].lastSeen <= World.PRESENCE_TTL) {
           const joined = World.enter(db, user.acct);
@@ -94,6 +100,16 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
+        case '/api/homefront/world/exploration/discover': {
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const landmarkId = typeof payload.landmarkId === 'string' ? payload.landmarkId : '';
+          const progressDb = Exploration.normalize(store.load('homefront-exploration.json', {}));
+          const discovered = Exploration.discover(progressDb, { account: user.acct, player, landmarkId, now: Date.now() });
+          if (discovered.newlyDiscovered) store.save('homefront-exploration.json', discovered.state);
+          json(res, 200, { mode: 'homefront-exploration', exploration: discovered.progress, newlyDiscovered: discovered.newlyDiscovered, landmark: discovered.landmark });
+          return true;
+        }
         case '/api/homefront/world/survival': {
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');

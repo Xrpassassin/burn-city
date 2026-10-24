@@ -37,7 +37,7 @@ This is an integration contract, not a claim that the above host variables or pr
 
 ## Behavior
 
-- Resolves horizontal movement against the island boundary, lake, assigned building footprints, and tree collision radii.
+- Resolves horizontal movement against the island boundary, lake, assigned building footprints, tree collision radii, and landmark-specific collision shapes (kiosk/market counters, plaza fixtures, overlook rails, and trailhead sign).
 - Preserves the actor's vertical coordinate; the host remains responsible for jumping, gravity, animation, and floor height.
 - Smoothly follows the actor with the existing camera and points it toward the actor's look target.
 - Emits property inspection prompt changes only when the nearby lot changes; an interaction press marks the property result as confirmed.

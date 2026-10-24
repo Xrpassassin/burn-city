@@ -36,6 +36,14 @@ assert(route.z<120,'bridge route must reach the island side of the approach');
 assert(nav.collisionCount>0);
 assert.equal(nav.buildingColliderCount,2);
 assert.equal(nav.treeColliderCount,42);
+assert.equal(nav.landmarkColliderCount,10,'public landmark counters, benches, signs, and rails contribute collision shapes');
+assert.equal(nav.isWalkable({x:0,y:0,z:101}),false,'welcome kiosk structure blocks player traversal');
+assert.equal(nav.isWalkable({x:77,y:0,z:25}),false,'market counter blocks player traversal');
+assert.equal(nav.isWalkable({x:0,y:0,z:24}),false,'plaza marker has a physical collision');
+assert.equal(nav.isWalkable({x:0,y:0,z:29}),true,'public plaza remains walkable around its marker');
+assert.equal(nav.isWalkable({x:75,y:0,z:94}),true,'the overlook deck remains accessible');
+assert.equal(nav.isWalkable({x:75+4.35,y:0,z:94}),false,'overlook railing prevents walking off the deck');
+assert.equal(nav.isWalkable({x:-79,y:0,z:97}),false,'trailhead signpost has a physical collision');
 
 const start={x:0,y:0,z:0};
 const moved=nav.move(start,{x:3,y:0,z:0});

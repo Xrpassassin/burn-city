@@ -41,6 +41,25 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
     id:t.id,x:t.position.x,z:t.position.z,
     r:Math.max(t.dimensions.width,t.dimensions.depth)*0.28+radius
   }));
+  // Collision geometry follows visible landmark parts. The overlook deck remains walkable;
+  // only its railings block movement.
+  const landmarkBlockers=[];
+  for(const item of manifest.landmarks??[]) {
+    const {x,z}=item.position,d=item.dimensions;
+    const rect=(id,cx,cz,width,depth)=>landmarkBlockers.push({id,x:cx,z:cz,halfW:width/2,halfD:depth/2});
+    if(item.style==='kiosk'||item.style==='market') {
+      rect(item.id+'-counter',x,z,d.width,d.depth);
+    } else if(item.style==='plaza') {
+      rect(item.id+'-marker',x,z,1.4,1.4);
+      for(const side of [-1,1]) rect(item.id+'-bench-'+side,x+side*4,z+2.5,2.8,.75);
+    } else if(item.style==='overlook') {
+      for(const side of [-1,1]) rect(item.id+'-rail-'+side,x+side*(d.width/2-.15),z,.18,d.depth);
+      for(const side of [-1,1]) rect(item.id+'-rail-front-'+side,x+side*d.width*.25,z+d.depth/2-.12,d.width*.5,.18);
+    } else if(item.style==='trailhead') {
+      rect(item.id+'-post',x,z,.28,.28);
+      rect(item.id+'-sign',x,z+.22,d.width,.22);
+    }
+  }
 
   function onWalkableLand(x,z) {
     if (insideEllipse(x,z,rx,rz)) return true;
@@ -54,6 +73,9 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
   function collides(x,z) {
     for (const b of buildings) {
       if (Math.abs(x-b.x)<b.halfW && Math.abs(z-b.z)<b.halfD) return true;
+    }
+    for (const blocker of landmarkBlockers) {
+      if(circleRectOverlap(x,z,radius,blocker)) return true;
     }
     for (const t of trees) {
       const dx=x-t.x,dz=z-t.z;
@@ -102,8 +124,9 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
 
   return Object.freeze({
     move, nearbyProperty, isWalkable,
-    get collisionCount(){return buildings.length+trees.length;},
+    get collisionCount(){return buildings.length+trees.length+landmarkBlockers.length;},
     get buildingColliderCount(){return buildings.length;},
-    get treeColliderCount(){return trees.length;}
+    get treeColliderCount(){return trees.length;},
+    get landmarkColliderCount(){return landmarkBlockers.length;}
   });
 }

@@ -27,8 +27,10 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
   if (!finite(collisionPadding) || collisionPadding<0) throw new TypeError('collisionPadding must be non-negative');
 
   const radius=playerRadius+collisionPadding;
-  const rx=(manifest.bounds.maxX-manifest.bounds.minX)/2-radius-1;
-  const rz=(manifest.bounds.maxZ-manifest.bounds.minZ)/2-radius-1;
+  const ground=manifest.terrain.find(item=>item.id==='island-ground');
+  if(!ground) throw new TypeError('Island ground descriptor is required');
+  const rx=ground.dimensions.width/2-radius-0.5;
+  const rz=ground.dimensions.depth/2-radius-0.5;
   const buildings=manifest.lots.filter(l=>l.buildingFootprint).map(l=>({
     id:l.id, propertyId:l.propertyId, address:l.address, tier:l.tier,
     x:l.position.x,z:l.position.z,

@@ -152,3 +152,31 @@ export function updateRoutePlan(state = {}, position, target, obstacles = [], op
   if (candidates.length) return { targetKey, obstacleKey, detour: { x: candidates[0].x, z: candidates[0].z }, blockedId: String(obstacle.id ?? obstacle.type ?? 'obstacle') };
   return { targetKey, obstacleKey, detour: null, blockedId: String(obstacle.id ?? obstacle.type ?? 'obstacle'), unreachable: true };
 }
+
+
+// Choose a local, presentation-only reaction to nearby player/threat stimuli.
+// Hysteresis prevents awareness states flickering at their exact distance boundary.
+export function updateAwarenessReaction(state = {}, context = {}, now = 0, options = {}) {
+  const playerDistance = Number.isFinite(context.playerDistance) ? context.playerDistance : Infinity;
+  const threatDistance = Number.isFinite(context.threatDistance) ? context.threatDistance : Infinity;
+  const playerEnter = options.playerEnter ?? 3.8;
+  const playerExit = options.playerExit ?? 4.6;
+  const threatEnter = options.threatEnter ?? 7.5;
+  const threatExit = options.threatExit ?? 9;
+  let mode = 'ambient';
+  if (threatDistance <= (state.mode === 'threat' ? threatExit : threatEnter)) mode = 'threat';
+  else if (playerDistance <= (state.mode === 'player' ? playerExit : playerEnter)) mode = 'player';
+  const targetYaw = mode === 'threat' && Number.isFinite(context.threatYaw)
+    ? context.threatYaw
+    : mode === 'player' && Number.isFinite(context.playerYaw)
+      ? context.playerYaw
+      : null;
+  return {
+    mode,
+    targetYaw,
+    changedAt: mode === state.mode ? (state.changedAt ?? now) : now,
+    playerDistance,
+    threatDistance,
+    changed: mode !== state.mode
+  };
+}

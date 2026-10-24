@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { isPositionBlocked, isWorkingTask, obstacleRadius, separationVector, steeringDirection } from './homefront-navigation.mjs';
+import { isPositionBlocked, isWorkingTask, obstacleRadius, separationVector, steeringDirection, updateRoutePlan, updateRouteRecovery } from './homefront-navigation.mjs';
 
 const wall = { id: 'w', type: 'wall', hp: 100, x: 0, z: 0 };
 assert.ok(obstacleRadius(wall) > 0.7, 'structures have a conservative physical footprint');
@@ -25,7 +25,6 @@ assert.equal(isWorkingTask('scavenger','stockpile_supplies'), true, 'scavengers 
 assert.equal(isWorkingTask('guard','perimeter_watch'), true, 'guards use an alert posture while on watch');
 assert.equal(isWorkingTask('mechanic','stand_by_repairs'), false, 'repair standby does not look like active wrench work');
 
-import { updateRoutePlan, updateRouteRecovery } from './homefront-navigation.mjs';
 
 let route = updateRouteRecovery({}, { x: 0, z: 0 }, { x: 5, z: 0 }, 0);
 route = updateRouteRecovery(route, { x: 0.01, z: 0 }, { x: 5, z: 0 }, 1500);

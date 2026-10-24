@@ -106,7 +106,7 @@ async function meta(n) {                            // bounded full metadata + o
     };
     const buf = sharp && image ? await get(image, 'bin') : null;
     if (buf) { try {
-      const base = sharp(buf, { animated: false, limitInputPixels: 64e6 }).rotate().resize(256, 256, { fit: 'cover' }).removeAlpha();
+      const base = sharp(buf, { animated: false, limitInputPixels: 64e6 }).rotate().resize(512, 512, { fit: 'contain', background: { r: 12, g: 9, b: 8, alpha: 1 } }).removeAlpha();
       await base.clone().webp({ quality: 82 }).toFile(path.join(DIR, n.id + '.webp'));
       await base.clone().jpeg({ quality: 80 }).toFile(path.join(DIR, n.id + '.jpg'));
       const px = await base.clone().resize(32, 32, { fit: 'fill' }).raw().toBuffer();

@@ -83,6 +83,7 @@ assert.match(page, /navActor\.routePlan\?\.detour\?'Navigation: routing around a
 
 assert.match(page, /updateAwarenessReaction\(actor\.awarenessState/, 'survivor movement loop evaluates local awareness stimuli');
 assert.match(page, /updateAwarenessBadge\(actor,awareness\.mode\)/, 'survivors receive visible awareness indicators');
+assert.match(page, /actor\.moving!==moving\|\|actor\.working!==working/, 'imported survivor animations switch when threat awareness interrupts work');
 assert.match(page, /awareness\.mode==='threat'/, 'nearby danger changes survivor posture and interrupts work animation');
 assert.match(page, /awareness\.mode==='player'/, 'survivors visibly acknowledge the nearby player');
 assert.match(page, /dataset\.awarenessStatus='true'/, 'survivor inspection explains their current awareness state');

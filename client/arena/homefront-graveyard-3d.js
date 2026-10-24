@@ -511,6 +511,25 @@ function boot(host) {
   const interiorActions = document.getElementById('interiorActions');
   const leaveInteriorButton = document.getElementById('leaveInterior');
   function setInteriorStatus(message) { if (interiorStatus) { interiorStatus.textContent = message; interiorStatus.classList.toggle('breach', String(message).startsWith('BREACH!')); } }
+  function activeInteriorElevation() {
+    const interior = interiorForLandmark(interiorState?.landmarkId);
+    const room = interiorRoom(interior, interiorState?.roomId);
+    return Number.isFinite(room?.elevation) ? room.elevation : 0;
+  }
+  function interiorElevationAt(x, z, fallbackY) {
+    const interior = interiorForLandmark(interiorState?.landmarkId);
+    if (!interior || !worldData?.self) return fallbackY;
+    const landmark = LANDMARKS.find(item => item.id === interior.landmarkId);
+    if (!landmark || Math.hypot(x - landmark.x, z - landmark.z) > 12) return fallbackY;
+    let closest = null, closestDistance = Infinity;
+    for (const room of interior.rooms) {
+      const distance = Math.hypot(x - landmark.x - room.x, z - landmark.z - room.z);
+      if (distance < closestDistance) { closest = room; closestDistance = distance; }
+    }
+    return closest && closestDistance <= 3.5
+      ? terrainElevation(landmark.x, landmark.z) + (Number.isFinite(closest.elevation) ? closest.elevation : 0)
+      : fallbackY;
+  }
   function updateInteriorPanel() {
     if (!interiorPanel) return;
     interiorPanel.hidden = !interiorState;
@@ -770,7 +789,7 @@ function boot(host) {
     explorerPositions.clear();
     for (const p of (data.players || [])) {
       const key = String(p.id || p.userId || p.accountId || p.label || 'explorer');
-      const targetY = terrainElevation(p.x, p.z);
+      const targetY = p.label === 'You' ? terrainElevation(p.x, p.z) + activeInteriorElevation() : interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z));
       const g = new THREE.Group();
       const previousPosition = previousExplorerPositions.get(key);
       g.position.set(previousPosition?.x ?? p.x, previousPosition?.y ?? targetY, previousPosition?.z ?? p.z);
@@ -1275,15 +1294,15 @@ function boot(host) {
       if (zombieAudioStarted) {
         const survival = worldData.selfSurvival || {};
         const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
-        const audioMe = { x: self.x, y: terrainElevation(self.x, self.z), z: self.z, yaw: localActor?.rotation.y || 0, hp: Number.isFinite(survival.health) ? survival.health : 100, max: 100, alive: survival.health !== 0, down: survival.health === 0 };
-        const audioZombies = (worldData.encounters || []).filter(e => !e.defeated && e.hp > 0).map(e => ({ id: e.id, x: e.x, y: terrainElevation(e.x, e.z), z: e.z, ty: /brute|juggernaut|heavy/i.test(e.enemy || '') ? 3 : /crawler|runner/i.test(e.enemy || '') ? 4 : 0, hp: e.hp, out: false }));
+        const audioMe = { x: self.x, y: terrainElevation(self.x, self.z) + activeInteriorElevation(), z: self.z, yaw: localActor?.rotation.y || 0, hp: Number.isFinite(survival.health) ? survival.health : 100, max: 100, alive: survival.health !== 0, down: survival.health === 0 };
+        const audioZombies = (worldData.encounters || []).filter(e => !e.defeated && e.hp > 0).map(e => ({ id: e.id, x: e.x, y: interiorElevationAt(e.x, e.z, terrainElevation(e.x, e.z)), z: e.z, ty: /brute|juggernaut|heavy/i.test(e.enemy || '') ? 3 : /crawler|runner/i.test(e.enemy || '') ? 4 : 0, hp: e.hp, out: false }));
         zombieAudio.tick(dt, audioMe, audioZombies, [], 'homefront-local-player');
       }
       updateVisibleChunks(self.x, self.z);
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = (localActor?.rotation.y || 0) + cameraYawOffset + view.yaw;
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
-      const targetY = terrainElevation(self.x, self.z);
+      const targetY = terrainElevation(self.x, self.z) + activeInteriorElevation();
       const pose = cameraPose({ mode: view.mode, x: self.x, y: targetY, z: self.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
       camera.position.x += (pose.px - camera.position.x) * followBlend;
       camera.position.y += (pose.py - camera.position.y) * followBlend;

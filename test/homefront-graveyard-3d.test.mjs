@@ -270,7 +270,7 @@ assert.match(survivorVisualPage, /function survivorAnimationProfile\(clips,survi
 assert.match(survivorVisualPage, /rolePatterns=\{/, 'map role-specific activity to likely animation names with graceful fallbacks');
 assert.match(survivorVisualPage, /survivorAnimationProfile\(clips,survivor\)/, 'select each survivor animation profile from role and persistent task');
 assert.match(survivorVisualPage, /survivor\.task==='defend_perimeter'\?find\(\[\/aim\/i,\s*\/shoot\/i,\s*\/attack\/i,\s*\/guard\/i,\s*\/idle\/i\]\)/, 'prefer defensive stance or combat clips for guards responding to a siege');
-assert.match(survivorVisualPage, /actor\.task==='take_shelter'/, 'keep sheltering survivors out of work/aim animation transitions');
+assert.match(survivorVisualPage, /const working=!moving&&isWorkingTask\(actor\.role,actor\.task\)/, 'keep sheltering survivors out of work/aim animation transitions through task-specific work-state logic');
 
 
 // Individual survivor stats are visible in the roster and backed by server-persisted skills.

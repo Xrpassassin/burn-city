@@ -351,9 +351,36 @@ export function buildNftChar(n, opts = {}) {
       const lash=addBox(head,mat('#171719'),[side*(.045+i*.019),.072,.181],[.008,.035,.008]);
       lash.rotation.z=side*(.35+i*.16); lash.name='nft-eyelash';
     }
-  } else if(has(tr,/shade|sunglass|frames|goggle|eyewear/)) {
-    addBox(head,mat(has(tr,/gold/)?'#c9a34a':'#14161b',.32,.5),[0,.045,.183],[.34,.052,.025]);
-    addBox(head,metal,[0,.045,.2],[.055,.018,.018]);
+  } else if(components.eyewear && !/none|no eyewear|empty/i.test(components.eyewear) || has(tr,/shade|sunglass|frames|goggle|eyewear/)) {
+    // Use recognizable frame silhouettes rather than a single bar for every eyewear trait.
+    const eyewearText=String(components.eyewear||tr.join(' ')).toLowerCase();
+    const frameMat=mat(/gold|brass/i.test(eyewearText)?'#c9a34a':/silver|chrome|metal/i.test(eyewearText)?'#aeb8c4':'#14161b',.32,.5);
+    const lensMat=mat(/mirror|chrome|silver/i.test(eyewearText)?'#8dabbc':/red/i.test(eyewearText)?'#8b303b':'#27313b',.28,.28);
+    if(/goggle|aviator|pilot/i.test(eyewearText)) {
+      for(const side of [-1,1]) {
+        const lens=addSphere(head,lensMat,[side*.072,.045,.183],[.067,.052,.018]); lens.name='nft-eyewear-goggle-lens';
+        const rim=add(geo('nft-eyewear-goggle-rim',()=>new THREE.TorusGeometry(.058,.009,5,16)),frameMat,side*.072,.045,.198,head);
+        rim.name='nft-eyewear-goggle-rim';
+      }
+      addBox(head,frameMat,[0,.045,.188],[.035,.012,.016]);
+    } else if(/round|circular|john lennon/i.test(eyewearText)) {
+      for(const side of [-1,1]) {
+        const lens=add(geo('nft-eyewear-round-lens',()=>new THREE.CircleGeometry(.047,16)),lensMat,side*.067,.045,.18,head); lens.name='nft-eyewear-round-lens';
+        const rim=add(geo('nft-eyewear-round-frame',()=>new THREE.TorusGeometry(.047,.007,5,18)),frameMat,side*.067,.045,.191,head);
+        rim.name='nft-eyewear-round-frame';
+      }
+      addBox(head,frameMat,[0,.045,.19],[.025,.009,.012]);
+    } else if(/visor|shield|cyber/i.test(eyewearText)) {
+      const visor=addBox(head,lensMat,[0,.045,.184],[.34,.075,.026]); visor.name='nft-eyewear-visor';
+      const brow=addBox(head,frameMat,[0,.086,.201],[.35,.012,.012]); brow.name='nft-eyewear-visor-frame';
+    } else {
+      for(const side of [-1,1]) {
+        const lens=addBox(head,lensMat,[side*.067,.045,.181],[.105,.052,.018]); lens.name='nft-eyewear-rect-lens';
+        const rim=addBox(head,frameMat,[side*.067,.045,.193],[.112,.059,.008]); rim.name='nft-eyewear-rect-frame';
+        const inset=addBox(head,lensMat,[side*.067,.045,.198],[.098,.045,.006]); inset.name='nft-eyewear-rect-lens';
+      }
+      addBox(head,frameMat,[0,.045,.196],[.025,.009,.012]);
+    }
   }
   if(has(tr,/flame|fire|on fire|flaming|ember/)||key==='fk') {
     for(const [x,h] of [[-.12,.24],[-.04,.32],[.055,.27],[.13,.2]]) {

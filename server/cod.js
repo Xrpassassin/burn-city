@@ -213,7 +213,7 @@ const wpn = p => { const w = WEAPONS[WI[p.guns[p.slot]] ?? 0]; return p.up2 && p
 // Bits 0/1 indicate at least Tier I in slots 0/1; bits 2/3 indicate Tier II in slots 0/1.
 const upBits = p => ((p.up && p.up.includes(p.guns[p.slot]) || p.up2 && p.up2.includes(p.guns[p.slot])) ? 1 : 0) | ((p.up && p.guns[1 - p.slot] && p.up.includes(p.guns[1 - p.slot]) || p.up2 && p.guns[1 - p.slot] && p.up2.includes(p.guns[1 - p.slot])) ? 2 : 0) | (p.up2 && p.up2.includes(p.guns[p.slot]) ? 4 : 0) | (p.up2 && p.guns[1 - p.slot] && p.up2.includes(p.guns[1 - p.slot]) ? 8 : 0);
 const has = (p, k) => p.perks & PB[k];
-function give(p, w) { if (p.guns.includes(w)) { p.slot = p.guns.indexOf(w); p.fuel = 100; return; } if (p.guns.length < 2) { p.guns.push(w); p.slot = 1; } else { if (p.up) p.up = p.up.filter(u => u !== p.guns[p.slot]); p.guns[p.slot] = w; } p.fuel = 100; p.cd = 0; }
+function give(p, w) { if (p.guns.includes(w)) { p.slot = p.guns.indexOf(w); p.fuel = 100; return; } if (p.guns.length < 2) { p.guns.push(w); p.slot = 1; } else { if (p.up) p.up = p.up.filter(u => u !== p.guns[p.slot]); if (p.up2) p.up2 = p.up2.filter(u => u !== p.guns[p.slot]); p.guns[p.slot] = w; } p.fuel = 100; p.cd = 0; }
 function spend(p, c) { if (p.pts < c) return false; p.pts -= c; return true; }
 // one "use" press: the nearest interactable in range, validated here
 function use(room, p, ev) {

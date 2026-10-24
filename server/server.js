@@ -126,6 +126,11 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/admin/ranked/approve' && req.method === 'POST') return json(res, 200, await Ranked.approve(String(b.match || '')));
       if (url.pathname === '/admin/ranked/refunded' && req.method === 'POST') return json(res, 200, Ranked.markRefunded(String(b.ticket || '')));
     }
+    if (url.pathname === '/api/estates/tour' && req.method === 'GET') {   // public tour check: unowned interiors are open to anyone (enter/inspect only); owned ones need sign-in + owner/invite
+      if (gate('estates-tour-ip:' + ip, 60, 60e3)) return json(res, 429, { error: 'slow_down' });
+      const u = who(), result = EstateAccess.accessFor(u ? u.acct : '', String(url.searchParams.get('propertyId') || ''));
+      return json(res, result.allowed ? 200 : (result.reason === 'unknown_property' ? 404 : result.reason === 'sign_in_required' ? 401 : 403), result);
+    }
     if (url.pathname === '/api/estates' || url.pathname.startsWith('/api/estates/')) {   // Estates (server/estates.js): bearer auth first; sales/distributions stay disabled
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
@@ -133,7 +138,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/rights' && req.method === 'GET') {   // #235 rights decision (renamed from /access, which #237's owner guest list uses)
         const propertyId = String(url.searchParams.get('propertyId') || '');
         const action = String(url.searchParams.get('action') || 'enter');
-        const decision = EstateRights.resolveEstateRights({ account: u.acct, propertyId, action, estates: Estates });
+        const decision = EstateRights.resolveEstateRights({ account: u.acct, propertyId, action, estates: Estates, access: EstateAccess });
         return json(res, 200, decision);
       }
       if (url.pathname === '/api/estates/access/search' && req.method === 'GET') {
@@ -144,7 +149,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/access/check' && req.method === 'GET') {
         const propertyId = String(url.searchParams.get('propertyId') || '');
         const result = EstateAccess.accessFor(u.acct, propertyId);
-        return json(res, result.allowed ? 200 : (result.reason === 'not_owned' ? 404 : 403), result);
+        return json(res, result.allowed ? 200 : (result.reason === 'unknown_property' ? 404 : 403), result);
       }
       if (url.pathname === '/api/estates/access' && req.method === 'GET') {
         const result = EstateAccess.listForOwner(u.acct, String(url.searchParams.get('propertyId') || ''));

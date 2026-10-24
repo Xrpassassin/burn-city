@@ -629,7 +629,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   // relocated them). The guard must never yank a far-away player back into the room.
   window.__estateAutoExit=()=>{
     const r=interiorRooms[window.__estateInteriorId]; if(r)r.group.visible=false;
-    window.__estateInteriorId=null;
+    window.__estateInteriorId=null;window.__estateAccess=null;window.__estateTourMode=false;
     document.getElementById('estateInteriorHud')?.remove();
   };
   window.__estateInteriorGuard=(pos,vel)=>{

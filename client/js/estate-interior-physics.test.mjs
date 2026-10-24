@@ -16,7 +16,9 @@ assert.match(estate, /for\(const o of r\.obstacles\)/, 'movement guard resolves 
 assert.match(estate, /const inEntryLane=Math\.abs\(p\.x\)<1\.85&&p\.z>r\.halfD-4\.4/, 'entry and exit corridor stays clear of furniture push-out');
 assert.match(estate, /THREE\.MathUtils\.clamp\(p\.x,-r\.halfW,r\.halfW\)/, 'player remains inside the room bounds');
 assert.match(app, /window\.__estateInteriorId=null/, 'exit clears the active interior state');
-assert.match(app, /hud\.textContent='ESTATES · '\+propertyId\.toUpperCase\(\)\+' · E \/ USE TO EXIT'/, 'in-room HUD identifies the active residence and exit control');
+assert.match(app, /hud\.textContent=\(window\.__estateTourMode\?'TOUR · ':''\)\+'ESTATES · '\+propertyId\.toUpperCase\(\)\+' · E \/ USE TO EXIT'/, 'in-room HUD identifies the active residence, tour mode and exit control');
+assert.match(app, /\/api\/estates\/tour\?propertyId=/, 'interior entry asks the server (tour / owner / invite decision)');
+assert.match(app, /window\.__estateManageAccess=async\(propertyId\)=>\{\n if\(window\.__estateTourMode\)/, 'tour visitors cannot open guest access management');
 assert.match(app, /getElementById\('estateInteriorHud'\)\?\.remove\(\)/, 'in-room HUD is removed on exit');
 assert.match(estate, /const interiorRugs = \{[\s\S]*?mansion:new THREE\.MeshStandardMaterial/, 'each property tier has a distinct rug palette');
 assert.match(estate, /const ceilingLight=new THREE\.PointLight\(ceilingColor/, 'interiors receive tier-tuned ambient lighting');

@@ -119,6 +119,36 @@ const ACCTS = ['rPlayerA', 'rPlayerB', 'rPlayerC', 'rPlayerD', 'rPlayerE'];
   ok(r.status === 400 && j.error === 'verification_expired_or_unknown', 'verify/finish with a forged id -> 400');
   ok((await req('/api/estates/wallet/status', { ip: '10.5.0.4', admin: 'estadmintoken' })).status === 401, 'admin token alone (no player sign-in) -> 401');
 
+  console.log('Tours (unowned interiors open to anyone; owned stay owner + invite only)');
+  { const OWN = 'r' + 'T'.repeat(25), GST = 'r' + 'U'.repeat(25), STR = 'r' + 'V'.repeat(25), T = (id, o = {}) => req('/api/estates/tour?propertyId=' + id, { ip: '10.8.0.' + (o.n || 1), token: o.token });
+    let r = await T('mansion-01'); let j = await r.json();
+    ok(r.status === 200 && j.allowed === true && j.role === 'tour' && j.mode === 'tour' && JSON.stringify(j.permissions) === '["enter","inspect"]', 'signed-out visitor: unowned interior -> 200 tour (enter/inspect only)');
+    r = await T('mansion-01', { n: 2, token: tok(STR) }); j = await r.json();
+    ok(r.status === 200 && j.role === 'tour' && !j.permissions.includes('build') && !j.permissions.includes('invite'), 'signed-in visitor: unowned -> tour, no build/invite');
+    r = await req('/api/estates/access/check?propertyId=mansion-01', { ip: '10.8.0.3', token: tok(STR) }); j = await r.json();
+    ok(r.status === 200 && j.role === 'tour', '/access/check agrees: unowned -> tour');
+    ok((await T('no-such-lot', { n: 4 })).status === 404, 'unknown property -> 404');
+    db.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run('trailer-01', OWN, 'tour-sim-tx', 100, 1, Date.now());
+    db.prepare('INSERT INTO estate_property_invites VALUES(?,?,?,?)').run('trailer-01', GST, OWN, Date.now());
+    ok((await T('trailer-01', { n: 5 })).status === 401, 'owned, signed out -> 401');
+    r = await T('trailer-01', { n: 6, token: tok(STR) }); j = await r.json();
+    ok(r.status === 403 && j.allowed === false && j.reason === 'no_access', 'owned, stranger -> 403');
+    r = await T('trailer-01', { n: 7, token: tok(OWN) }); j = await r.json();
+    ok(r.status === 200 && j.role === 'owner' && j.permissions.includes('invite'), 'owned, owner -> 200 owner');
+    r = await T('trailer-01', { n: 8, token: tok(GST) }); j = await r.json();
+    ok(r.status === 200 && j.role === 'guest' && !j.permissions.includes('invite') && !j.permissions.includes('build'), 'owned, invitee -> 200 guest (no build/invite)');
+    r = await req('/api/estates/rights?propertyId=trailer-01&action=enter', { ip: '10.8.0.9', token: tok(GST) }); j = await r.json();
+    ok(r.status === 200 && j.allowed === true && j.role === 'guest', 'island rights: invitee may enter (#237 invite list)');
+    r = await req('/api/estates/rights?propertyId=trailer-01&action=build', { ip: '10.8.0.10', token: tok(GST) }); j = await r.json();
+    ok(j.allowed === false, 'island rights: invitee cannot build');
+    r = await req('/api/estates/access/invite', { method: 'POST', ip: '10.8.0.11', token: tok(STR), body: JSON.stringify({ propertyId: 'mansion-01', guestAcct: 'r' + 'B'.repeat(25) }) }); j = await r.json();
+    ok(r.status === 403 && j.error === 'owner_only', 'tour visitor cannot invite on an unowned property');
+    r = await req('/api/estates/access/invite', { method: 'POST', ip: '10.8.0.12', token: tok(GST), body: JSON.stringify({ propertyId: 'trailer-01', guestAcct: 'r' + 'B'.repeat(25) }) });
+    ok(r.status === 403, 'invited guest cannot invite');
+    ok((await req('/api/estates/access?propertyId=mansion-01', { ip: '10.8.0.13', token: tok(STR) })).status === 403, 'tour visitor cannot read/change rights (guest list)');
+    db.prepare("DELETE FROM estate_property_invites WHERE property_id='trailer-01'").run();
+    db.prepare("DELETE FROM estate_property_ownership WHERE property_id='trailer-01'").run(); }
+
   console.log('Rate limits');
   const rl = { token: tok('rPlayerRL') }; const codes = [];
   for (let i = 0; i < 64; i++) codes.push((await req('/api/estates', { ip: '10.6.0.' + (i % 60 + 1), token: rl.token })).status);

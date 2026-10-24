@@ -4,6 +4,12 @@
 const COMMON = [
   ['background', /background|backdrop|scene$/i],
   ['eye color', /eye.?colou?r|iris.?colou?r/i],
+  ['eye appearance', /^eye$/i],
+  ['body effect', /^body$/i],
+  ['accessory', /^chain$/i],
+  ['outfit', /^clothing$|^fits$/i],
+  ['headwear', /^head$|^top gear$/i],
+  ['weapon', /^armed$/i],
   ['fur color', /fur.?colou?r|^fur$/i],
   ['hair style', /hair.?style|hairstyle|haircut|hair.?shape/i],
   ['hair color', /hair.?colou?r/i],

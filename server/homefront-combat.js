@@ -129,7 +129,7 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  const aimed=aimPoint!=null&&player.aiming===true&&aimElapsed>=handling.adsMs&&aimStability>=0.68;
  if(aimed)aimedZone=aimPoint.y>=1.88?'head':aimPoint.y<=0.68?'limb':'torso';
  const fireInterval=WEAPON_FIRE_INTERVAL[weaponId]||ATTACK_COOLDOWN;
- if(now-e.lastAttackAt<Math.max(ATTACK_COOLDOWN,fireInterval))throw Error('attack_cooldown');
+ if(now-e.lastAttackAt<Math.max(weaponId==='heavy_machine_gun'?250:ATTACK_COOLDOWN,fireInterval))throw Error('attack_cooldown');
  const ammoCost=WEAPON_MAGAZINE_CAPACITY[weaponId]>0?1:0;
  if((base.resources?.ammo||0)<ammoCost)throw Error('insufficient_ammo');base.resources.ammo-=ammoCost;base.revision=(Number.isSafeInteger(base.revision)?base.revision:0)+1;
  const power=clamp(Math.floor(weaponPower),1,20);const field=survival&&typeof survival==='object'?{...survival}:null;const staminaBefore=field?clamp(field.stamina,0,100):100;const fatigueScale=staminaBefore<15?0.55:staminaBefore<35?0.75:1;

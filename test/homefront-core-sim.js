@@ -15,6 +15,14 @@ assert.equal(H.survivorRarityMultiplier({ rarity: 'uncommon' }), 1.05);
 assert.equal(H.survivorRarityMultiplier({ rarity: 'rare' }), 1.1);
 assert.equal(H.survivorRarityMultiplier({ rarity: 'epic' }), 1.15);
 assert.equal(H.survivorRarityMultiplier({ rarity: 'legendary' }), 1.2);
+const compassionBase = H.createBase('compassion-test', 1100);
+compassionBase.survivors = [{ id: 'compassion-medic', name: 'Mercy', role: 'medic', morale: 70, rarity: 'common', traits: ['compassionate','optimistic'], talent: 'field_medic' }];
+compassionBase.structures = [{ id: 'test-infirmary', type: 'infirmary', hp: 100, x: 0, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
+const medsBeforeCompassion = compassionBase.resources.meds;
+const compassionateShift = H.applyAction(compassionBase, 'compassion-test', { type: 'workday' }, 1101);
+assert.equal(compassionateShift.resources.meds - medsBeforeCompassion, 2, 'compassionate Field Medic adds a medicine alongside normal infirmary output');
+assert.equal(compassionateShift.survivors[0].morale, 73, 'Optimistic trait adds morale on a fed workday');
+
 assert.equal(Object.keys(H.SURVIVOR_TRAITS).length, 8, 'survivors draw from the authored personality trait catalog');
 assert.equal(Object.keys(H.SURVIVOR_TALENTS).length, 5, 'survivors draw from the role talent catalog');
 const profileA = H.survivorProfile('profile-test-a');

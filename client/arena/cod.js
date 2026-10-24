@@ -305,6 +305,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   // fire FX: flickering additive flame tongues + rising embers (shared by the box and the Inferno Forge)
   const flameG = g(new THREE.ConeGeometry(0.16, 1, 6, 1, true).translate(0, 0.5, 0)), flameM = basic(0xff7a1a, { transparent: true, opacity: 0.85, blending: add, depthWrite: false, side: THREE.DoubleSide }), flameC = basic(0xffe08a, { transparent: true, opacity: 0.9, blending: add, depthWrite: false, side: THREE.DoubleSide });
   const fires = [];
+  const enemyTracers = [];
   function flames(parent, pts, sz = 1) { pts.forEach(([x, y, z], i) => { const o = new THREE.Mesh(flameG, flameM), c = new THREE.Mesh(flameG, flameC); c.scale.set(0.45, 0.6, 0.45); o.add(c); o.position.set(x, y, z); o.userData = { ph: i * 1.7 + Math.random() * 3, k: 7 + Math.random() * 6, s: sz * (0.75 + Math.random() * 0.5) }; parent.add(o); fires.push(o); });
     if (low) return; const n = 26, eg = g(new THREE.BufferGeometry()), ep = new Float32Array(n * 3), seed = [];
     for (let i = 0; i < n; i++) { const b = pts[i % pts.length]; seed.push([b[0] + (Math.random() - .5) * .5, b[1], b[2] + (Math.random() - .5) * .5, Math.random(), 0.6 + Math.random() * 0.8]); }
@@ -417,13 +418,14 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   return {
     wname,
     forged() { forgeFlash = 1.5; },
+    enemyShot(e) { if (!e || enemyTracers.length >= (low ? 6 : 14)) return; const geo = g(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(e.x, e.y + 1.2, e.z), new THREE.Vector3(e.tx, e.ty, e.tz)])), mat = new THREE.LineBasicMaterial({ color: 0xd66bff, transparent: true, opacity: 0.9, depthWrite: false }); const line = new THREE.Line(geo, mat); root.add(line); enemyTracers.push({ line, left: 0.14 }); } ,
     applyEnv() { if (!SKY) return; if (!scene.background) scene.background = new THREE.Color(); scene.background.setHex(SKY[0]); scene.fog.color.setHex(SKY[1]); scene.fog.near = SKY[2]; scene.fog.far = SKY[3]; },
     title: () => `${L.name || 'Zombies'}${ENV ? ' · ' + ENV.tod + (ENV.storm ? ' · storm' : '') : ''}`,
     rolling(e) { roll = { until: performance.now() + 2500, w: e.w }; },
     rip(e) { const w = WN[e.i]; if (w) flying.push({ w, k: e.n, t: 0 }); },
     board(e) { if (anim[e.i]) anim[e.i][e.n - 1] = 0; },
     quest(q, myId) { qState = q || null; myIdQ = myId; },
-    update(dt, m, b) { t += dt; if (b) boards = b; tickQuest(dt); tickFires(dt); tickEnv(dt); envTick(dt); tickAtmos(dt, m ? m[0] : 1); if (F) { forgeFlash = Math.max(0, forgeFlash - dt); forgeCore.color.setRGB(1, 0.33 + 0.12 * Math.sin(t * 7) + forgeFlash * 0.4, 0.06 + forgeFlash * 0.3); if (forge.userData.h) { forge.userData.h.material.opacity = 0.3 + 0.12 * Math.sin(t * 5) + forgeFlash * 0.3; forge.userData.h.quaternion.copy(scene.userData.camQ || forge.userData.h.quaternion); } } for (let k = 0; k < DN; k++) { const j = k * 3; dpos[j + 1] += dsp[k] * dt * 0.6; dpos[j] += Math.sin(t * 0.3 + k) * dt * 0.08; if (dpos[j + 1] > H) dpos[j + 1] = 0; } dg.attributes.position.needsUpdate = true;
+    update(dt, m, b) { t += dt; for (let i = enemyTracers.length - 1; i >= 0; i--) { const tr = enemyTracers[i]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.14) * 0.9; if (tr.left <= 0) { root.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); enemyTracers.splice(i, 1); } } if (b) boards = b; tickQuest(dt); tickFires(dt); tickEnv(dt); envTick(dt); tickAtmos(dt, m ? m[0] : 1); if (F) { forgeFlash = Math.max(0, forgeFlash - dt); forgeCore.color.setRGB(1, 0.33 + 0.12 * Math.sin(t * 7) + forgeFlash * 0.4, 0.06 + forgeFlash * 0.3); if (forge.userData.h) { forge.userData.h.material.opacity = 0.3 + 0.12 * Math.sin(t * 5) + forgeFlash * 0.3; forge.userData.h.quaternion.copy(scene.userData.camQ || forge.userData.h.quaternion); } } for (let k = 0; k < DN; k++) { const j = k * 3; dpos[j + 1] += dsp[k] * dt * 0.6; dpos[j] += Math.sin(t * 0.3 + k) * dt * 0.08; if (dpos[j + 1] > H) dpos[j + 1] = 0; } dg.attributes.position.needsUpdate = true;
       let pi = 0; WN.forEach((w, i) => { for (let k = 0; k < NB; k++) { const on = k < boards[i]; let a = anim[i][k]; if (on && a < 1) a = anim[i][k] = Math.min(1, a + dt * 5);
         const y = 0.75 + k * 0.27 + (w.lv ? UH : 0), tilt = ((k * 7 + i) % 5 - 2) * 0.09, off = on ? (1 - a) * 1.2 : 0;
         Q.setFromEuler(E.set(w.ax === 'z' ? tilt : 0, 0, w.ax === 'x' ? tilt : 0)); const ox = w.ix - w.x, oz = w.iz - w.z, l = Math.hypot(ox, oz) || 1;
@@ -471,6 +473,6 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       let n = 0; for (let v = perkBits; v; v >>= 1) n += v & 1;
       for (let i = 0; i < L.perks.length; i++) { const k = L.perks[i]; if (near(me, k.x, k.z, 3, k.lv || 0)) return perkBits & (1 << i) ? { t: `${k.name} (owned)`, c: 0, no: 1 } : n >= L.maxPerks ? { t: `Max ${L.maxPerks} perks`, c: 0, no: 1 } : { t: `${k.name}: ${k.desc}`, c: k.cost }; }
       return null; },
-    dispose() { if (SKY) scene.background.setHex(0x050208); mm.remove(); scene.remove(root); root.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); for (const x of mats) x.dispose(); for (const x of geos) x.dispose(); },
+    dispose() { for (const tr of enemyTracers) { tr.line.geometry.dispose(); tr.line.material.dispose(); } enemyTracers.length = 0; if (SKY) scene.background.setHex(0x050208); mm.remove(); scene.remove(root); root.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); for (const x of mats) x.dispose(); for (const x of geos) x.dispose(); },
   };
 }

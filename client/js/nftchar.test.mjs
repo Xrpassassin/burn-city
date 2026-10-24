@@ -33,6 +33,8 @@ assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;
 has(avatar, /resolveNftAvatarProfile/, 'routes traits through collection-specific adapters');
 has(avatar, /originalTraitPairs/, 'retains original NFT traits separately from normalized render traits');
 has(avatar, /nftAvatarProfile=/, 'attaches stable collection and identity metadata to the avatar');
+has(avatar, /Stable, subtle silhouette variation/, 'varies each token silhouette deterministically when explicit body-shape traits are absent');
+has(avatar, /hasBodyShape|hasFaceShape/, 'defers to explicit body or face shape metadata when available');
 has(avatar, /export function buildNftChar/, 'exports the NFT character builder');
 has(avatar, /new THREE\.SphereGeometry\(1, lite \? 10 : 16, lite \? 8 : 12\)/, 'uses smooth sphere anatomy with mobile geometry scaling');
 has(avatar, /geo\('capsule:'/, 'caches shared rounded limb geometry');
@@ -74,7 +76,7 @@ has(city, /activeNftModels>=nftModelCap\(\)/, 'enforces the detailed peer model 
 has(city, /activeNftModels=Math\.max\(0,activeNftModels-1\)/, 'releases model budget when peers leave or go out of range');
 has(city, /if\(p\.boat\)\{W\(\)\.S\.remove\(p\.boat\)/, 'preserves boat cleanup from current main');
 has(app, /L\.nftCharacter&&L\.nftCharacter\.userData\.anim/, 'animates the selected local NFT character');
-has(sw, /bc-v97-nft-background-separation/, 'bumps service-worker cache version for background separation');
+has(sw, /bc-v98-collection-avatar-adapters/, 'bumps service-worker cache version for background separation');
 has(picker, /metaVersion: 2/, 'refreshes previously selected local NFTs to the expanded metadata schema');
 has(picker, /slice\(0, 64\)/, 'persists up to 64 typed NFT attributes and values');
 has(picker, /https:\/\/xrpl\.to/, 'credits the marketplace metadata enrichment source');

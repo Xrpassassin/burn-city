@@ -47,7 +47,9 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
     // Keep the two designed bridge corridors walkable while blocking the lake ring.
     const primary=Math.abs(x)<=6.2 && z>=128 && z<=188;
     const service=Math.abs(x+91)<=3.9 && z>=91 && z<=135;
-    return primary || service;
+    // Public cross-city bridge joins the island's north approach to the city-side gate.
+    const cityBridge=x>=-220 && x<=0 && z>=183 && z<=193;
+    return primary || service || cityBridge;
   }
   function collides(x,z) {
     for (const b of buildings) {

@@ -448,7 +448,26 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const interiorFabric = new THREE.MeshStandardMaterial({color:0x456b78, roughness:.95});
   const interiorWarm = new THREE.MeshStandardMaterial({color:0xffc878, emissive:0x9c4a12, emissiveIntensity:.45, roughness:.4});
   const interiorGlass = new THREE.MeshStandardMaterial({color:0x79d8ed, emissive:0x174454, emissiveIntensity:.35, roughness:.22, metalness:.15});
+  const interiorGold = new THREE.MeshStandardMaterial({color:0xc49a5a,metalness:.55,roughness:.38});
+  const interiorGreen = new THREE.MeshStandardMaterial({color:0x426c4c,roughness:.88});
+  const interiorLeaf = new THREE.MeshStandardMaterial({color:0x6f9b62,roughness:.82});
+  const interiorRugs = {
+    trailer:new THREE.MeshStandardMaterial({color:0x765447,roughness:1}),
+    apartment:new THREE.MeshStandardMaterial({color:0x3d6672,roughness:1}),
+    starter:new THREE.MeshStandardMaterial({color:0x9a7048,roughness:1}),
+    family:new THREE.MeshStandardMaterial({color:0x5b7654,roughness:1}),
+    mansion:new THREE.MeshStandardMaterial({color:0x6f3e43,roughness:.96})
+  };
   const interiorBox = (parent, mat, w,h,d,x,y,z, ry=0) => { const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.position.set(x,y,z); m.rotation.y=ry; parent.add(m); return m; };
+  const interiorPlant = (parent,x,z,scale=1) => {
+    interiorBox(parent,interiorWood,.48*scale,.32*scale,.48*scale,x,.48*scale,z);
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.055*scale,.08*scale,.72*scale,6),interiorGreen);
+    stem.position.set(x,.99*scale,z); parent.add(stem);
+    for(let i=0;i<5;i++){
+      const a=i*Math.PI*2/5,leaf=new THREE.Mesh(new THREE.SphereGeometry(.22*scale,7,5),interiorLeaf);
+      leaf.scale.set(.7,1.15,.55);leaf.position.set(x+Math.cos(a)*.19*scale,1.12*scale+(i%2)*.12*scale,z+Math.sin(a)*.19*scale);parent.add(leaf);
+    }
+  };
   const interiorLamp = (parent,x,y,z,color=0xffb76b) => { const m=new THREE.Mesh(new THREE.SphereGeometry(.13,8,6),new THREE.MeshBasicMaterial({color})); m.position.set(x,y,z); parent.add(m); const l=new THREE.PointLight(color,1.25,11,2); l.position.set(x,y-.25,z); parent.add(l); };
   const makeInterior = (h,index) => {
     const apartment=h.tier==='apartment', trailer=h.tier==='trailer', family=h.tier==='family', mansion=h.tier==='mansion';
@@ -501,6 +520,57 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
         interiorBox(room,interiorFabric,2.2,.75,1.0,0,1.05,d/2-2.2);
       }
     }
+    // Tier-specific finishing pass: layered rugs, framed art, wall-mounted media/storage,
+    // greenery and distinct ceiling fixtures give every residence its own visual identity.
+    const rugW=trailer?4.8:apartment?7.2:family?7.8:mansion?9:6.2;
+    const rugD=trailer?3.1:apartment?4.2:family?4.6:mansion?5.4:3.8;
+    const rugY=.385;
+    interiorBox(room,interiorRugs[h.tier]||interiorRugs.starter,rugW,.035,rugD,0,rugY,.15);
+    interiorBox(room,interiorGold,rugW*.82,.018,.045,0,rugY+.025,.15-rugD*.39);
+    interiorBox(room,interiorGold,rugW*.82,.018,.045,0,rugY+.025,.15+rugD*.39);
+    // Art panels flank the back window, avoiding the central glazing.
+    for(const side of [-1,1]){
+      const ax=side*(w*.29), artW=mansion?2.8:2.15, artZ=-d/2+.245;
+      interiorBox(room,interiorGold,artW+.16,1.48,.09,ax,2.45,artZ);
+      interiorBox(room,interiorGlass,artW,1.32,.055,ax,2.45,artZ+.055);
+      interiorBox(room,interiorWarm,artW*.58,.055,.035,ax,2.45,artZ+.09);
+    }
+    if(trailer){
+      // Compact, practical details: overhead storage and a small wall clock.
+      interiorBox(room,interiorWood,3.1,.42,.55,4.5,2.65,-d/2+.65);
+      interiorBox(room,interiorGold,.42,.42,.08,1.2,2.45,-d/2+.26);
+      interiorPlant(room,w/2-1.35,-d/2+1.45,.72);
+    }else if(apartment){
+      interiorBox(room,interiorDark,3.6,1.35,.24,0,1.35,d/2-.55);
+      interiorBox(room,interiorGlass,3.1,.88,.08,0,1.48,d/2-.39);
+      interiorBox(room,interiorWood,4.4,.2,.7,-w/2+2.5,1.2,-d/2+1.15);
+      for(let i=0;i<4;i++)interiorBox(room,interiorGold,.06,.34,.52,-w/2+1.1+i*.82,1.48,-d/2+1.15);
+      interiorPlant(room,w/2-1.35,d/2-1.5,.9);
+    }else if(mansion){
+      interiorBox(room,interiorGold,5.6,.12,1.2,0,ht-.38,0);
+      for(let i=0;i<3;i++)interiorBox(room,interiorWarm,.1,.62,.1,-.65+i*.65,ht-.75,0);
+      interiorPlant(room,-w/2+1.4,-d/2+1.45,1.25);
+      interiorPlant(room,w/2-1.4,d/2-1.5,1.15);
+      interiorBox(room,interiorGold,4.8,.18,.55,0,.72,d/2-2.35);
+      interiorBox(room,interiorDark,4.3,.82,.16,0,1.18,d/2-2.42);
+    }else if(family){
+      interiorBox(room,interiorWood,2.6,.7,.45,w/2-1.8,-0+1.1,0);
+      interiorBox(room,interiorFabric,1.9,.12,.52,w/2-1.8,1.5,0);
+      interiorBox(room,interiorGold,.55,.12,.55,w/2-1.8,1.62,0);
+      interiorPlant(room,w/2-1.35,-d/2+1.45,.85);
+    }else{
+      // Starter home gets a practical study nook rather than luxury accents.
+      interiorBox(room,interiorWood,3.2,.18,1.05,w/2-2.2,1.05,-d/2+1.15);
+      interiorBox(room,interiorDark,2.9,.8,.12,w/2-2.2,1.52,-d/2+1.25);
+      interiorBox(room,interiorGold,.8,.08,.08,w/2-2.2,1.18,-d/2+.58);
+      interiorPlant(room,w/2-1.35,d/2-1.35,.8);
+    }
+    // One tier-tuned ceiling bounce light; only the active room is visible at runtime.
+    const ceilingColor=trailer?0xffb36a:apartment?0x9edcff:family?0xffd29b:mansion?0xffe0ae:0xffc27b;
+    const ceilingGlow=new THREE.Mesh(new THREE.SphereGeometry(mansion?.24:.17,8,6),new THREE.MeshBasicMaterial({color:ceilingColor}));
+    ceilingGlow.position.set(0,ht-.2,0);room.add(ceilingGlow);
+    const ceilingLight=new THREE.PointLight(ceilingColor,mansion?1.45:apartment?1.1:.85,mansion?18:13,2);
+    ceilingLight.position.set(0,ht-.45,0);room.add(ceilingLight);
     // A real hinged door makes the threshold readable. It animates with the active residence
     // and is kept outside the walking lane when open; no external model is required.
     const doorPivot = new THREE.Group();

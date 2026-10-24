@@ -3,7 +3,7 @@ const http = require('http'), fs = require('fs'), path = require('path'), { WebS
 const Retain = require('./retain'), Fish = require('./fish'), LB = require('./leaderboard'), Ranked = require('./ranked'), { items } = require('./shop');
 const Nft = require('./nft'), Social = require('./social'), C = require('./config'), Pay = require('./payments'), { Room } = require('./game'), S = require('./store'), City = require('./city'), Eco = require('./eco');
 
-const AegisClips = require('./aegis-clips'), Cams = require('./cams');
+const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates = require('./estates'), EstateWallet = require('./estate-wallet');
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
@@ -120,6 +120,20 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/admin/ranked/review' && req.method === 'POST') return json(res, 200, Ranked.review(String(b.match || ''), String(b.acct || ''), !!b.accept));
       if (url.pathname === '/admin/ranked/approve' && req.method === 'POST') return json(res, 200, await Ranked.approve(String(b.match || '')));
       if (url.pathname === '/admin/ranked/refunded' && req.method === 'POST') return json(res, 200, Ranked.markRefunded(String(b.ticket || '')));
+    }
+    if (url.pathname === '/api/estates' || url.pathname.startsWith('/api/estates/')) {   // Estates (server/estates.js): bearer auth first; sales/distributions stay disabled
+      const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
+      if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
+      if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, Estates.getState(u.acct));
+      if (url.pathname === '/api/estates/buy' && req.method === 'POST') return json(res, 409, { error: 'sales_not_configured', status: 'wallet_integration_pending', message: 'Property sales are disabled until the designated wallet, verified payment settlement, property pricing, and final share weights are configured and audited.' });   // never reads the body: no client amount is ever used
+      // Owner-wallet identity check (Xaman SignIn payload, no ledger transaction): admin token only.
+      if (url.pathname.startsWith('/api/estates/wallet/')) {
+        if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });
+        if (url.pathname === '/api/estates/wallet/status' && req.method === 'GET') return json(res, 200, EstateWallet.status());
+        if (url.pathname === '/api/estates/wallet/verify/start' && req.method === 'POST') { if (gate('estate-wallet-start:' + ip, 5, 10 * 60e3)) return json(res, 429, { error: 'slow_down' }); const result = await EstateWallet.startVerification(); return json(res, result.ok ? 200 : 503, result); }
+        if (url.pathname === '/api/estates/wallet/verify/finish' && req.method === 'POST') { const b = await body(); const result = await EstateWallet.finishVerification(b.verificationId); return json(res, result.ok ? 200 : result.pending ? 202 : 400, result); }
+      }
+      return json(res, 404, { error: 'not_found' });
     }
     if (url.pathname === '/api/fish/top') { if (gate('fishtop:' + (req.headers['fly-client-ip'] || req.socket.remoteAddress), 30, 60e3)) return json(res, 429, { error: 'slow_down' }); return json(res, 200, { week: Fish.weekStart(), top: Fish.weekTop(10), streaks: Fish.streakTop(10) }); }
     if (url.pathname.startsWith('/api/fish/')) { const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' }); if (gate('fish:' + u.acct, 40, 60e3)) return json(res, 429, { error: 'slow_down' });

@@ -1,5 +1,5 @@
 // Burn City Estates: lake + shoreline, highway + bridge with instanced car lights, and a fenced "COMING SOON" construction lot.
-// Cheap by design: one shader water disc (no reflection render target), merged/instanced geometry, ~14 draw calls total.
+// Performance-minded procedural architecture: merged geometry and one shader water surface; no external model or texture downloads.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const box = (w, h, d, x, y, z, ry = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); return g.translate(x, y, z); };
@@ -148,7 +148,11 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const dirt = new THREE.Mesh(new THREE.PlaneGeometry(LW, LD), new THREE.MeshLambertMaterial({ color: 0x394536 }));
   dirt.rotation.x = -Math.PI / 2; dirt.position.y = 0.06; lot.add(dirt);
   const roadBits = [], paths = [], foundations = [], walls = [], roofs = [], glass = [], trim = [], greenery = [], trunks = [], canopies = [], parkProps = [], shrubs = [], flowerBeds = [], fences = [];
+  const facadeTrim = [], doors = [], windowFrames = [], warmWindows = [], roofRidge = [], balconies = [], poolDeck = [], poolWater = [], drivewayDetails = [], porchLights = [], accentPanels = [];
   const addBox = (arr,w,h,d,x,y,z,ry=0) => arr.push(box(w,h,d,x,y,z,ry));
+  const addRoofPanel = (arr,w,h,d,x,y,z,rz) => { const g = new THREE.BoxGeometry(w,h,d); g.rotateZ(rz); g.translate(x,y,z); arr.push(g); };
+  const addTintedBox = (arr,w,h,d,x,y,z,color) => { const g = new THREE.BoxGeometry(w,h,d); const c = new THREE.Color(color), values=[]; for (let i=0;i<g.attributes.position.count;i++) values.push(c.r,c.g,c.b); g.setAttribute('color',new THREE.Float32BufferAttribute(values,3)); g.translate(x,y,z); arr.push(g); };
+  const addGable = (arr,w,rise,x,y,z) => { const s = new THREE.Shape(); s.moveTo(-w/2,0); s.lineTo(w/2,0); s.lineTo(0,rise); s.closePath(); const g = new THREE.ShapeGeometry(s); g.translate(x,y,z); arr.push(g); };
   // A small internal street grid links every driveway to the bridge approach.
   addBox(roadBits, 10, .16, LD-18, 0, .14, 2);
   addBox(roadBits, LW-18, .16, 8, 0, .14, -35);
@@ -161,15 +165,15 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   // Five visible housing tiers, ordered from the city-facing entrance toward the lake.
   // These are environmental models only; purchasing, rent, interiors, and ownership need a separate economy/player-system integration.
   const homes = [
-    {tier:'trailer',x:-82,z:-57,w:24,d:12,h:3.4,roof:0x303b4c,wall:0xb7a58c},
-    {tier:'trailer',x:-50,z:-57,w:24,d:12,h:3.4,roof:0x3d4147,wall:0xc7c1b4},
-    {tier:'apartment',x:31,z:-57,w:40,d:27,h:14,roof:0x303945,wall:0xb8bec0},
-    {tier:'starter',x:-72,z:-10,w:27,d:20,h:7,roof:0x26394a,wall:0xc6d0d0},
-    {tier:'starter',x:72,z:-10,w:27,d:20,h:7,roof:0x4a3d34,wall:0xd9d0c1},
-    {tier:'family',x:-72,z:30,w:34,d:24,h:9,roof:0x303b4c,wall:0xc8c7bd},
-    {tier:'family',x:72,z:30,w:34,d:24,h:9,roof:0x3d4147,wall:0xd8c7ac},
-    {tier:'mansion',x:-65,z:66,w:43,d:27,h:12,roof:0x26394a,wall:0xc6d0d0},
-    {tier:'mansion',x:65,z:66,w:43,d:27,h:12,roof:0x4a3d34,wall:0xd9d0c1}
+    {propertyId:'trailer-01',tier:'trailer',x:-82,z:-57,w:24,d:12,h:3.4,roof:0x303b4c,wall:0xb7a58c},
+    {propertyId:'trailer-02',tier:'trailer',x:-50,z:-57,w:24,d:12,h:3.4,roof:0x3d4147,wall:0xc7c1b4},
+    {propertyId:'apartment-01',tier:'apartment',x:31,z:-57,w:40,d:27,h:14,roof:0x303945,wall:0xb8bec0},
+    {propertyId:'starter-01',tier:'starter',x:-72,z:-10,w:27,d:20,h:7,roof:0x26394a,wall:0xc6d0d0},
+    {propertyId:'starter-02',tier:'starter',x:72,z:-10,w:27,d:20,h:7,roof:0x4a3d34,wall:0xd9d0c1},
+    {propertyId:'family-01',tier:'family',x:-72,z:30,w:34,d:24,h:9,roof:0x303b4c,wall:0xc8c7bd},
+    {propertyId:'family-02',tier:'family',x:72,z:30,w:34,d:24,h:9,roof:0x3d4147,wall:0xd8c7ac},
+    {propertyId:'mansion-01',tier:'mansion',x:-65,z:66,w:43,d:27,h:12,roof:0x26394a,wall:0xc6d0d0},
+    {propertyId:'mansion-02',tier:'mansion',x:65,z:66,w:43,d:27,h:12,roof:0x4a3d34,wall:0xd9d0c1}
   ];
   for (let i=0;i<homes.length;i++) {
     const h=homes[i], front=h.z+h.d/2;
@@ -178,6 +182,10 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     const yardPad=isTrailer?2:isApartment?3:isMansion?9:5;
     addBox(foundations,h.w+yardPad*2,.4,h.d+yardPad*2,h.x,.3,h.z);
     addBox(walls,h.w,h.h,h.d,h.x,h.h/2+.5,h.z);
+    const tierAccent = isTrailer ? 0x6d7e8b : isApartment ? 0x3b6578 : h.tier === 'starter' ? 0x6b8a91 : h.tier === 'family' ? 0x9a7655 : 0x4b777b;
+    // Coloured architectural belt-lines and corner pilasters differentiate the housing tiers without texture assets.
+    addTintedBox(accentPanels,h.w-.8,.34,.16,h.x,.92,front+.09,tierAccent);
+    for (const edge of [-1,1]) addTintedBox(accentPanels,.28,h.h-.5,.16,h.x+edge*(h.w/2-.3),h.h/2+.5,front+.09,tierAccent);
     // Trailer roofs are low and pitched-looking; other tiers use clean flat roof silhouettes.
     if (isTrailer) {
       addBox(roofs,h.w+1,.45,h.d+1,h.x,h.h+.45,h.z);
@@ -197,25 +205,102 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
         const wy=2.7+floor*3.7;
         for (let col=0;col<5;col++) {
           const wx=h.x-h.w*.38+col*h.w*.19;
-          addBox(glass,4.2,2.0,.16,wx,wy,front+.12);
+          addBox(windowFrames,4.65,2.35,.18,wx,wy,front+.18);
+          addBox(glass,4.2,2.0,.13,wx,wy,front+.3);
+          addBox(windowFrames,.12,1.95,.12,wx,wy,front+.39);
           addBox(trim,4.7,.16,.3,wx,wy-1.2,front+.22);
+          if ((floor + col) % 3 === 0) addBox(warmWindows,3.7,1.55,.05,wx,wy,front+.39);
         }
       }
       addBox(glass,5,3,.18,h.x,2.1,front+.14);
       addBox(trim,h.w*.72,.35,.4,h.x,10.2,front+.22);
     } else {
-      addBox(roofs,h.w+(isMansion?3:1.8),isMansion?1.5:1.0,h.d+(isMansion?3:1.8),h.x,h.h+1.0,h.z);
+      // Distinct pitched roof silhouettes for houses; the apartment keeps its clean flat modern roof.
+      if (isMansion || h.tier === 'family' || h.tier === 'starter') {
+        const rise = isMansion ? 4.1 : h.tier === 'family' ? 3.4 : 2.7;
+        const half = (h.w + (isMansion ? 3 : 1.8)) / 2, run = h.d/2 + (isMansion ? 2 : 1.4);
+        const angle = Math.atan2(rise, half), panelW = Math.hypot(half, rise);
+        addRoofPanel(roofs,panelW,.75,h.d+(isMansion?4:2.8),h.x-half/2,h.h+rise/2+.6,h.z,angle);
+        addRoofPanel(roofs,panelW,.75,h.d+(isMansion?4:2.8),h.x+half/2,h.h+rise/2+.6,h.z,-angle);
+        addBox(roofRidge,.55,.55,h.d+(isMansion?4:2.8),h.x,h.h+rise+.6,h.z);
+        addGable(walls,h.w,rise*.76,h.x,h.h+.48,front+.1);
+        addGable(walls,h.w,rise*.76,h.x,h.h+.48,h.z-h.d/2-.11);
+        // Warm fascia and deep eaves make the roof read as a finished architectural feature.
+        addBox(facadeTrim,h.w+2,.28,.32,h.x,h.h+.52,front+.08);
+      } else {
+        addBox(roofs,h.w+1.8,1.0,h.d+1.8,h.x,h.h+1.0,h.z);
+      }
       // Mansion wings and a raised central roofline distinguish premium lakefront architecture.
       if (isMansion) {
         addBox(walls,h.w*.34,h.h*.62,h.d*.48,h.x,h.h*.31+h.h+.25,h.z-h.d*.08);
         addBox(roofs,h.w*.39,.9,h.d*.54,h.x,h.h*.62+h.h+.75,h.z-h.d*.08);
       }
       for (const sx of [-.34,-.12,.12,.34]) {
-        addBox(glass,h.w*.15,2.6,.16,h.x+h.w*sx,3.0,front+.12);
-        addBox(glass,h.w*.15,1.0,.16,h.x+h.w*sx,6.1,front+.12);
+        const wx=h.x+h.w*sx, ww=h.w*.15;
+        // Front elevation: recessed dark glazing, blue glass, bronze frames and a slim central mullion.
+        addBox(windowFrames,ww+.42,3.0,.2,wx,3.0,front+.2);
+        addBox(glass,ww,2.55,.13,wx,3.0,front+.32);
+        addBox(windowFrames,.12,2.5,.12,wx,3.0,front+.4);
+        addBox(windowFrames,ww,.12,.12,wx,3.0,front+.4);
+        if ((i + Math.round((sx+1)*10)) % 3 === 0) addBox(warmWindows,Math.max(1,ww-.55),2.0,.045,wx,3.0,front+.42);
+        if (!isMansion) {
+          addBox(windowFrames,ww+.3,1.3,.2,wx,6.1,front+.2);
+          addBox(glass,ww,1.0,.13,wx,6.1,front+.32);
+        } else {
+          addBox(windowFrames,ww+.3,1.15,.2,wx,6.3,front+.2);
+          addBox(glass,ww,0.9,.13,wx,6.3,front+.32);
+        }
       }
-      addBox(glass,isMansion?8:5.5,isMansion?4:3.2,.18,h.x+h.w*.22,2.5,front+.14);
-      addBox(trim,h.w*(isMansion?.62:.48),.28,.35,h.x,5.0,front+.25);
+      // An asymmetrical, designed entry and a garage give houses a readable human scale.
+      const doorX=h.x-h.w*.23, doorH=isMansion?4.4:3.3, doorW=isMansion?2.8:2.2;
+      addBox(doors,doorW,doorH,.24,doorX,doorH/2+.52,front+.3);
+      addBox(facadeTrim,doorW+.42,.22,.3,doorX,doorH+.55,front+.32);
+      addBox(trim,.18,.18,.12,doorX+doorW*.28,doorH/2+.5,front+.46);
+      addBox(facadeTrim,isMansion?10:7,.28,.35,h.x+h.w*.25,4.4,front+.27);
+      addBox(glass,isMansion?9:6.2,3.0,.15,h.x+h.w*.25,2.7,front+.28);
+      addBox(windowFrames,.14,3.0,.12,h.x+h.w*.25,2.7,front+.38);
+      addBox(trim,h.w*(isMansion?.72:.56),.3,.38,h.x,5.0,front+.45);
+      // Porch deck, two broad steps, and square columns; mansion receives a deeper arrival terrace.
+      const porchD=isMansion?7:4.2, porchW=isMansion?15:9;
+      addBox(paths,porchW,.35,porchD,h.x, .48,front+porchD/2-0.4);
+      addBox(paths,porchW*.72,.18,1.2,h.x,.25,front+porchD+.2);
+      for (const px of [-porchW*.42,porchW*.42]) {
+        addBox(facadeTrim,.34,isMansion?4.8:3.5,.34,h.x+px,doorH/2+1.0,front+porchD*.55);
+        addBox(facadeTrim,.55,.22,.55,h.x+px,doorH+1.0,front+porchD*.55);
+      }
+      // Recessed garage door, horizontal panel seams, and a narrow side service door.
+      if (!isMansion) {
+        const gx=h.x+h.w*.27, gw=isApartment?9:8.2, gh=isApartment?3.1:3.0;
+        addBox(doors,gw,gh,.22,gx,gh/2+.52,front+.25);
+        for (let yy=1;yy<=2;yy++) addBox(facadeTrim,gw-.5,.08,.08,gx,.52+yy*.82,front+.39);
+        addBox(doors,1.5,2.6,.2,h.x+h.w*.43,1.85,front+.28);
+      }
+      if (isMansion) {
+        // Lakefront terrace and infinity-edge pool: a high-value silhouette visible from the lake.
+        const poolZ=front+18, poolDepth=8.5;
+        addBox(poolDeck,h.w+8,.3,14,h.x,.42,poolZ);
+        addBox(poolWater,h.w*.66,.12,poolDepth,h.x,.62,poolZ);
+        addBox(facadeTrim,h.w*.66,.16,.2,h.x,.72,poolZ+poolDepth/2);
+        // Low coping, sun loungers and warm bollard lights around the pool deck.
+        for (const px of [-h.w*.43,h.w*.43]) {
+          addBox(porchLights,.3,1.3,.3,h.x+px,1.05,front+7);
+          addBox(facadeTrim,2.5,.35,1.0,h.x+px*.7,.78,poolZ-poolDepth/2-2.2);
+          addBox(facadeTrim,2.5,.12,1.0,h.x+px*.7,1.0,poolZ-poolDepth/2-2.2);
+        }
+      }
+    }
+    if (isApartment) {
+      // Stacked balcony slabs and fine railings break the apartment facade into individual homes.
+      for (let floor=0;floor<3;floor++) for (let col=0;col<4;col++) {
+        const bx=h.x-h.w*.36+col*h.w*.24, by=3.9+floor*3.7, bw=5.2;
+        addBox(balconies,bw,.22,1.25,bx,by,front+.8);
+        addBox(facadeTrim,bw,.12,.12,bx,by+.68,front+1.34);
+        for (let rail=-2;rail<=2;rail++) addBox(facadeTrim,.08,.65,.08,bx+rail*.95,by+.34,front+1.34);
+      }
+      // A glass-and-metal lobby canopy and an address tower cap the entrance.
+      addBox(facadeTrim,12,.24,3.0,h.x,4.0,front+1.25);
+      addBox(doors,5,3.6,.2,h.x,2.35,front+.24);
+      addBox(facadeTrim,7,.22,.25,h.x,4.05,front+.2);
     }
     // Driveway paths lead from each home toward the internal street grid.
     const drivewayLength=isTrailer?8:isApartment?10:isMansion?8:11;
@@ -230,6 +315,15 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
         const crown=new THREE.ConeGeometry(isMansion?3.2:2.7,isMansion?7:6,5); crown.translate(tx,isMansion?7.2:6.8,tz); canopies.push(crown);
       }
     }
+  }
+  // Each residence gets its own raycast target so players can inspect individual plots instead of the district as one generic object.
+  const tierShareUnits = { trailer:1, apartment:2, starter:3, family:5, mansion:10 };
+  const tierLabels = { trailer:'Trailer Home', apartment:'Apartment Unit', starter:'Two-Bedroom Starter Home', family:'Four-Bedroom Family Home', mansion:'Luxury Lakefront Mansion' };
+  for (const h of homes) {
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(h.w+4,h.h+5,h.d+4),new THREE.MeshBasicMaterial({visible:false}));
+    hit.position.set(h.x,h.h/2+.5,h.z);
+    hit.userData = { kind:'estate-property', propertyId:h.propertyId, tier:h.tier, label:tierLabels[h.tier], shareUnits:tierShareUnits[h.tier] };
+    lot.add(hit); pick.push(hit);
   }
   // ---------- neighborhood life: pocket park, street trees, gardens and public furniture ----------
   // Compact procedural meshes keep this asset-free and batch most repeated scenery into a few draw calls.
@@ -296,10 +390,24 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   merged(roadBits,new THREE.MeshLambertMaterial({color:0x252a32}));
   merged(paths,new THREE.MeshLambertMaterial({color:0xaaa99f}));
   merged(foundations,new THREE.MeshLambertMaterial({color:0x777b7b}));
-  merged(walls,new THREE.MeshLambertMaterial({color:0xbab9b1}));
+  merged(walls,new THREE.MeshLambertMaterial({color:0xbab9b1,side:THREE.DoubleSide}));
   merged(roofs,new THREE.MeshLambertMaterial({color:0x303945}));
   merged(glass,new THREE.MeshBasicMaterial({color:0x79d8ed,transparent:true,opacity:.78}));
   merged(trim,new THREE.MeshLambertMaterial({color:0xffb75b}));
+  merged(facadeTrim,new THREE.MeshLambertMaterial({color:0xc89b62}));
+  merged(accentPanels,new THREE.MeshLambertMaterial({vertexColors:true}));
+  merged(doors,new THREE.MeshLambertMaterial({color:0x263443}));
+  merged(windowFrames,new THREE.MeshLambertMaterial({color:0x2c3b4a}));
+  merged(warmWindows,new THREE.MeshBasicMaterial({color:0xffc878,transparent:true,opacity:.85}));
+  merged(roofRidge,new THREE.MeshLambertMaterial({color:0x171f2a}));
+  merged(balconies,new THREE.MeshLambertMaterial({color:0x4e6673}));
+  merged(poolDeck,new THREE.MeshLambertMaterial({color:0xd0c2a3}));
+  merged(poolWater,new THREE.MeshBasicMaterial({color:0x22c7e8,transparent:true,opacity:.76}));
+  merged(drivewayDetails,new THREE.MeshLambertMaterial({color:0x59616b}));
+  const porchGlowGeo=new THREE.BufferGeometry(), porchGlowPts=[];
+  for (const h of homes) if (h.tier==='mansion') { porchGlowPts.push(h.x-h.w*.43,1.2,h.z+h.d*.5+5,h.x+h.w*.43,1.2,h.z+h.d*.5+5); }
+  porchGlowGeo.setAttribute('position',new THREE.Float32BufferAttribute(porchGlowPts,3));
+  lot.add(new THREE.Points(porchGlowGeo,new THREE.PointsMaterial({color:0xffbf70,size:3.2,transparent:true,opacity:.95,depthWrite:false,blending:THREE.AdditiveBlending})));
   merged(greenery,new THREE.MeshLambertMaterial({color:0x385d3c}));
   merged(flowerBeds,new THREE.MeshLambertMaterial({color:0x5d5547}));
   merged(parkProps,new THREE.MeshLambertMaterial({color:0x786f62}));
@@ -326,9 +434,236 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const signM=new THREE.MeshBasicMaterial({map:tex,fog:false,toneMapped:false,side:THREE.DoubleSide});
   const sign=new THREE.Mesh(new THREE.PlaneGeometry(74,28),signM); sign.position.set(0,17,-LD/2+8); sign.rotation.y=Math.PI; lot.add(sign);
   merged([box(1.4,18,1.4,-27,9,-LD/2+8),box(1.4,18,1.4,27,9,-LD/2+8)],new THREE.MeshLambertMaterial({color:0x303640}));
-  const hitM=new THREE.Mesh(new THREE.BoxGeometry(LW,24,LD),new THREE.MeshBasicMaterial({visible:false}));
-  hitM.position.y=12; hitM.userData={kind:'estate',label:'Burn City Estates'}; lot.add(hitM); pick.push(hitM);
+  const hitM=new THREE.Mesh(new THREE.BoxGeometry(76,22,3),new THREE.MeshBasicMaterial({visible:false}));
+  hitM.position.set(0,11,-LD/2+8); hitM.userData={kind:'estate',label:'Burn City Estates'}; lot.add(hitM); pick.push(hitM);
   anim.push(t=>{signM.color.setScalar(.9+.1*Math.sin(t*1.2))});
+  // ---------- enterable, furnished residence interiors ----------
+  // Interiors are lightweight procedural rooms staged just beyond the visible district.
+  // They remain hidden until entered, preserving draw calls during normal city traversal.
+  const interiorRooms = {};
+  const interiorWood = new THREE.MeshStandardMaterial({color:0x604735, roughness:.78});
+  const interiorFloor = new THREE.MeshStandardMaterial({color:0x9b8a72, roughness:.9});
+  const interiorWall = new THREE.MeshStandardMaterial({color:0xd7d0c1, roughness:.92});
+  const interiorDark = new THREE.MeshStandardMaterial({color:0x273442, metalness:.35, roughness:.5});
+  const interiorFabric = new THREE.MeshStandardMaterial({color:0x456b78, roughness:.95});
+  const interiorWarm = new THREE.MeshStandardMaterial({color:0xffc878, emissive:0x9c4a12, emissiveIntensity:.45, roughness:.4});
+  const interiorGlass = new THREE.MeshStandardMaterial({color:0x79d8ed, emissive:0x174454, emissiveIntensity:.35, roughness:.22, metalness:.15});
+  const interiorGold = new THREE.MeshStandardMaterial({color:0xc49a5a,metalness:.55,roughness:.38});
+  const interiorGreen = new THREE.MeshStandardMaterial({color:0x426c4c,roughness:.88});
+  const interiorLeaf = new THREE.MeshStandardMaterial({color:0x6f9b62,roughness:.82});
+  const interiorRugs = {
+    trailer:new THREE.MeshStandardMaterial({color:0x765447,roughness:1}),
+    apartment:new THREE.MeshStandardMaterial({color:0x3d6672,roughness:1}),
+    starter:new THREE.MeshStandardMaterial({color:0x9a7048,roughness:1}),
+    family:new THREE.MeshStandardMaterial({color:0x5b7654,roughness:1}),
+    mansion:new THREE.MeshStandardMaterial({color:0x6f3e43,roughness:.96})
+  };
+  const interiorBox = (parent, mat, w,h,d,x,y,z, ry=0) => { const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.position.set(x,y,z); m.rotation.y=ry; parent.add(m); return m; };
+  const interiorPlant = (parent,x,z,scale=1) => {
+    interiorBox(parent,interiorWood,.48*scale,.32*scale,.48*scale,x,.16*scale,z);
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.055*scale,.08*scale,.72*scale,6),interiorGreen);
+    stem.position.set(x,.68*scale,z); parent.add(stem);
+    for(let i=0;i<5;i++){
+      const a=i*Math.PI*2/5,leaf=new THREE.Mesh(new THREE.SphereGeometry(.22*scale,7,5),interiorLeaf);
+      leaf.scale.set(.7,1.15,.55);leaf.position.set(x+Math.cos(a)*.19*scale,1.12*scale+(i%2)*.12*scale,z+Math.sin(a)*.19*scale);parent.add(leaf);
+    }
+  };
+  const interiorLamp = (parent,x,y,z,color=0xffb76b) => { const m=new THREE.Mesh(new THREE.SphereGeometry(.13,8,6),new THREE.MeshBasicMaterial({color})); m.position.set(x,y,z); parent.add(m); const l=new THREE.PointLight(color,1.25,11,2); l.position.set(x,y-.25,z); parent.add(l); };
+  const makeInterior = (h,index) => {
+    const apartment=h.tier==='apartment', trailer=h.tier==='trailer', family=h.tier==='family', mansion=h.tier==='mansion';
+    const w=apartment?24:mansion?28:20, d=apartment?20:mansion?21:15, ht=apartment?5.5:4.2;
+    const col=index%3,row=Math.floor(index/3), cx=270+col*34, cz=-48+row*32;
+    const room=new THREE.Group(); room.position.set(cx,0,cz); room.visible=false; lot.add(room);
+    interiorBox(room,interiorFloor,w,.35,d,0,.18,0);
+    // Wall segments leave a centered, navigable front doorway.
+    interiorBox(room,interiorWall,w,ht,.35,0,ht/2+.18,-d/2);
+    interiorBox(room,interiorWall,.35,ht,d, -w/2,ht/2+.18,0);
+    interiorBox(room,interiorWall,.35,ht,d, w/2,ht/2+.18,0);
+    interiorBox(room,interiorWall,(w-3.2)/2,ht,.35,-(w+3.2)/4,ht/2+.18,d/2);
+    interiorBox(room,interiorWall,(w-3.2)/2,ht,.35,(w+3.2)/4,ht/2+.18,d/2);
+    interiorBox(room,interiorDark,w,.25,d,0,ht+.3,0);
+    // Framed window and glowing panes on the back wall.
+    interiorBox(room,interiorDark,Math.min(7,w*.42),2,.22,0,2.45,-d/2+.23);
+    interiorBox(room,interiorGlass,Math.min(6.5,w*.39),1.55,.08,0,2.5,-d/2+.36);
+    // Tier-specific furniture: bed, sofa, table, kitchenette, wardrobes and premium lounge details.
+    if (trailer) {
+      interiorBox(room,interiorDark,5.2,.55,2.7,-5,.55,-3.7);
+      interiorBox(room,interiorFabric,5,.22,2.5,-5,.94,-3.7);
+      interiorBox(room,interiorWall,2.4,1.8,.65,6,1.05,-5.2);
+      interiorBox(room,interiorDark,5.5,1.05,1.4,4,.72,3.2);
+      interiorBox(room,interiorWood,2.4,.25,1.6,-1,.7,3.1);
+    } else if (apartment) {
+      interiorBox(room,interiorDark,6.2,.45,3.3,-6,.5,-5);
+      interiorBox(room,interiorFabric,6,.2,3.1,-6,.82,-5);
+      interiorBox(room,interiorWood,5.5,.25,2.2,5,.65,-5);
+      interiorBox(room,interiorWall,5,1.1,.65,5,1.3,-5.7);
+      interiorBox(room,interiorDark,6,1.05,1.5,6,.7,3.5);
+      interiorBox(room,interiorWood,3,.2,2.3,-1,.7,3.7);
+    } else {
+      const bedW=mansion?7:family?6:5.5, bedZ=-d/2+4;
+      interiorBox(room,interiorDark,bedW,.5,4,-w/2+4,.55,bedZ);
+      interiorBox(room,interiorFabric,bedW-.25,.2,3.7,-w/2+4,.91,bedZ);
+      interiorBox(room,interiorWall,bedW*.48,.7,.25,-w/2+4,1.2,bedZ-1.55);
+      interiorBox(room,interiorWood,mansion?8:6,.28,2,w/2-4,.72,d/2-3.4);
+      interiorBox(room,interiorFabric,mansion?8.2:6.2,1.0,1.25,w/2-4,1.22,d/2-3.4);
+      interiorBox(room,interiorWood,3.2,.25,2.2,0,.72,1.7);
+      interiorBox(room,interiorDark,5.5,1.05,1.4,0,.75,-.15);
+      interiorBox(room,interiorWood,4.2,.18,1.6,-w/2+3,.85,d/2-2.5);
+      interiorBox(room,interiorWall,4.2,1.2,.22,-w/2+3,1.5,d/2-3.3);
+      if (family||mansion) {
+        interiorBox(room,interiorWood,2.3,.24,1.8,-w/2+3,.7,1.3);
+        interiorBox(room,interiorDark,2.4,1.1,.35,-w/2+3,1.25,.25);
+      }
+      if (mansion) {
+        interiorBox(room,interiorDark,3.2,.18,1.2,w/2-3,1.35,-d/2+2.4);
+        interiorBox(room,interiorGlass,2.8,.08,.8,w/2-3,1.48,-d/2+2.4);
+        interiorBox(room,interiorFabric,2.2,.75,1.0,0,1.05,d/2-2.2);
+      }
+    }
+    // Tier-specific finishing pass: layered rugs, framed art, wall-mounted media/storage,
+    // greenery and distinct ceiling fixtures give every residence its own visual identity.
+    const rugW=trailer?4.8:apartment?7.2:family?7.8:mansion?9:6.2;
+    const rugD=trailer?3.1:apartment?4.2:family?4.6:mansion?5.4:3.8;
+    const rugY=.385;
+    interiorBox(room,interiorRugs[h.tier]||interiorRugs.starter,rugW,.035,rugD,0,rugY,.15);
+    interiorBox(room,interiorGold,rugW*.82,.018,.045,0,rugY+.025,.15-rugD*.39);
+    interiorBox(room,interiorGold,rugW*.82,.018,.045,0,rugY+.025,.15+rugD*.39);
+    // Art panels flank the back window, avoiding the central glazing.
+    for(const side of [-1,1]){
+      const ax=side*(w*.29), artW=mansion?2.8:2.15, artZ=-d/2+.245;
+      interiorBox(room,interiorGold,artW+.16,1.48,.09,ax,2.45,artZ);
+      interiorBox(room,interiorGlass,artW,1.32,.055,ax,2.45,artZ+.055);
+      interiorBox(room,interiorWarm,artW*.58,.055,.035,ax,2.45,artZ+.09);
+    }
+    if(trailer){
+      // Compact, practical details: overhead storage and a small wall clock.
+      interiorBox(room,interiorWood,3.1,.42,.55,4.5,2.65,-d/2+.65);
+      interiorBox(room,interiorGold,.42,.42,.08,1.2,2.45,-d/2+.26);
+      interiorPlant(room,w/2-1.35,-d/2+1.45,.72);
+    }else if(apartment){
+      interiorBox(room,interiorDark,3.6,1.35,.24,0,1.35,d/2-.55);
+      interiorBox(room,interiorGlass,3.1,.88,.08,0,1.48,d/2-.39);
+      interiorBox(room,interiorWood,4.4,.2,.7,-w/2+2.5,1.2,-d/2+1.15);
+      for(let i=0;i<4;i++)interiorBox(room,interiorGold,.06,.34,.52,-w/2+1.1+i*.82,1.48,-d/2+1.15);
+      interiorPlant(room,w/2-1.35,d/2-1.5,.9);
+    }else if(mansion){
+      interiorBox(room,interiorGold,5.6,.12,1.2,0,ht-.38,0);
+      for(let i=0;i<3;i++)interiorBox(room,interiorWarm,.1,.62,.1,-.65+i*.65,ht-.75,0);
+      interiorPlant(room,-w/2+1.4,-d/2+1.45,1.25);
+      interiorPlant(room,w/2-1.4,d/2-1.5,1.15);
+      interiorBox(room,interiorGold,4.8,.18,.55,0,.72,d/2-2.35);
+      interiorBox(room,interiorDark,4.3,.82,.16,0,1.18,d/2-2.42);
+    }else if(family){
+      interiorBox(room,interiorWood,2.6,.7,.45,w/2-1.8,1.1,0);
+      interiorBox(room,interiorFabric,1.9,.12,.52,w/2-1.8,1.5,0);
+      interiorBox(room,interiorGold,.55,.12,.55,w/2-1.8,1.62,0);
+      interiorPlant(room,w/2-1.35,-d/2+1.45,.85);
+    }else{
+      // Starter home gets a practical study nook rather than luxury accents.
+      interiorBox(room,interiorWood,3.2,.18,1.05,w/2-2.2,1.05,-d/2+1.15);
+      interiorBox(room,interiorDark,2.9,.8,.12,w/2-2.2,1.52,-d/2+1.25);
+      interiorBox(room,interiorGold,.8,.08,.08,w/2-2.2,1.18,-d/2+.58);
+      interiorPlant(room,w/2-1.35,d/2-1.35,.8);
+    }
+    // One tier-tuned ceiling bounce light; only the active room is visible at runtime.
+    const ceilingColor=trailer?0xffb36a:apartment?0x9edcff:family?0xffd29b:mansion?0xffe0ae:0xffc27b;
+    const ceilingGlow=new THREE.Mesh(new THREE.SphereGeometry(mansion ? .24 : .17,8,6),new THREE.MeshBasicMaterial({color:ceilingColor}));
+    ceilingGlow.position.set(0,ht-.2,0);room.add(ceilingGlow);
+    const ceilingLight=new THREE.PointLight(ceilingColor,mansion?1.45:apartment?1.1:.85,mansion?18:13,2);
+    ceilingLight.position.set(0,ht-.45,0);room.add(ceilingLight);
+    // A real hinged door makes the threshold readable. It animates with the active residence
+    // and is kept outside the walking lane when open; no external model is required.
+    const doorPivot = new THREE.Group();
+    doorPivot.position.set(-1.55, .18, d/2-.12);
+    room.add(doorPivot);
+    const doorLeaf = interiorBox(doorPivot, interiorWood, 3.1, 2.65, .14, 1.55, 1.325, 0);
+    doorLeaf.castShadow = true;
+    interiorBox(doorPivot, interiorWarm, .07, .07, .18, .18, 2.36, .02);
+    // Local furniture footprints used by the interior movement guard (X/Z half-extents).
+    const obstacles = [];
+    const obstacle = (x,z,hw,hd) => obstacles.push({x,z,hw,hd});
+    if (trailer) {
+      obstacle(-5,-3.7,2.85,1.55); obstacle(4,3.2,2.95,.9); obstacle(-1,3.1,1.35,1.05);
+    } else if (apartment) {
+      obstacle(-6,-5,3.25,1.85); obstacle(5,-5,3.0,1.35); obstacle(6,3.5,3.15,.95); obstacle(-1,3.7,1.65,1.25);
+    } else {
+      const collisionBedW=mansion?7:family?6:5.5, collisionBedZ=-d/2+4;
+      obstacle(-w/2+4,collisionBedZ,collisionBedW/2+.2,2.15); obstacle(0,-.15,2.95,.9); obstacle(0,1.7,1.85,1.25);
+      obstacle(-w/2+3,d/2-2.5,2.25,.95);
+      if (family||mansion) obstacle(-w/2+3,1.3,1.35,.9);
+      if (mansion) obstacle(w/2-3,-d/2+2.4,1.8,.8);
+    }
+    // Practical lamps and a small entry mat make the threshold legible.
+    interiorBox(room,interiorWood,3.1,.08,1.25,0,.42,d/2-1.2);
+    interiorBox(room,interiorDark,.22,2.8,.18,-1.55,1.65,d/2-.25);
+    interiorBox(room,interiorDark,.22,2.8,.18,1.55,1.65,d/2-.25);
+    interiorLamp(room,-w*.32,3.3,-d*.22);
+    interiorLamp(room,w*.30,3.3,d*.18,mansion?0xffd7a0:0xffb76b);
+    if (apartment||mansion) interiorLamp(room,0,3.4,0,0x8ddfff);
+    const label=new THREE.Mesh(new THREE.BoxGeometry(1.8,.32,.06),new THREE.MeshBasicMaterial({color:0xffb45b}));
+    label.position.set(0,2.7,d/2-.25); room.add(label);
+    return {id:h.propertyId,tier:h.tier,group:room,yaw:lot.rotation.y,doorPivot,obstacles,localSpawn:new THREE.Vector3(0,.5,d/2-3),localExit:new THREE.Vector3(0,.5,d/2-1.2),exteriorLocal:new THREE.Vector3(h.x,0,h.z+h.d/2+5),halfW:w/2-.6,halfD:d/2-.6,halfH:ht};
+  };
+  homes.forEach((h,i)=>interiorRooms[h.propertyId]=makeInterior(h,i));
+  lot.updateMatrixWorld(true);
+  for (const room of Object.values(interiorRooms)) {
+    room.spawn=room.group.localToWorld(room.localSpawn.clone());
+    room.exit=room.group.localToWorld(room.localExit.clone());
+    room.exterior=lot.localToWorld(room.exteriorLocal.clone());
+    room.yaw=lot.rotation.y;
+  }
+  window.__estateRooms=interiorRooms;
+  // Smoothly swing the active residence door open and close it after exit.
+  anim.push((t,dt=1/60)=>{const active=window.__estateInteriorId;for(const r of Object.values(interiorRooms)){const target=active===r.id?1.35:0;r.doorPivot.rotation.y+=(target-r.doorPivot.rotation.y)*Math.min(1,dt*8)}});
+  // Keep the third-person camera inside the active room so it cannot clip through
+  // exterior walls or show the world outside the interior while turning in tight spaces.
+  window.__estateCameraGuard=(cameraPos)=>{
+    const r=interiorRooms[window.__estateInteriorId]; if(!r)return cameraPos;
+    const p=r.group.worldToLocal(cameraPos.clone());
+    p.x=THREE.MathUtils.clamp(p.x,-r.halfW+.35,r.halfW-.35);
+    p.z=THREE.MathUtils.clamp(p.z,-r.halfD+.45,r.halfD-.45);
+    p.y=THREE.MathUtils.clamp(p.y,.9,r.halfH-.35);
+    return r.group.localToWorld(p);
+  };
+  // Leave the active residence without moving the player (fly/orbit/travel/tour/respawn
+  // relocated them). The guard must never yank a far-away player back into the room.
+  window.__estateAutoExit=()=>{
+    const r=interiorRooms[window.__estateInteriorId]; if(r)r.group.visible=false;
+    window.__estateInteriorId=null;
+    document.getElementById('estateInteriorHud')?.remove();
+  };
+  window.__estateInteriorGuard=(pos,vel)=>{
+    const id=window.__estateInteriorId, r=interiorRooms[id]; if(!r)return false;
+    const p=r.group.worldToLocal(pos.clone());
+    if(Math.abs(p.x)>r.halfW+3||Math.abs(p.z)>r.halfD+3||p.y>r.halfH+6){window.__estateAutoExit();return false;}
+    p.x=THREE.MathUtils.clamp(p.x,-r.halfW,r.halfW);
+    p.z=THREE.MathUtils.clamp(p.z,-r.halfD,r.halfD);
+    // Preserve a clear central lane from spawn to the front door/exit. Furniture
+    // footprints must never push the player sideways into a wall at the threshold.
+    const inEntryLane=Math.abs(p.x)<1.85&&p.z>r.halfD-4.4;
+    if(!inEntryLane)for(const o of r.obstacles){const dx=p.x-o.x,dz=p.z-o.z,ox=o.hw+.38-Math.abs(dx),oz=o.hd+.38-Math.abs(dz);if(ox>0&&oz>0){if(ox<oz)p.x=o.x+Math.sign(dx||1)*(o.hw+.38);else p.z=o.z+Math.sign(dz||1)*(o.hd+.38);}}
+    p.x=THREE.MathUtils.clamp(p.x,-r.halfW,r.halfW);p.z=THREE.MathUtils.clamp(p.z,-r.halfD,r.halfD);
+    p.y=Math.max(.45,p.y);
+    pos.copy(r.group.localToWorld(p)); if(vel&&pos.y<=.46)vel.y=0; return true;
+  };
+  window.__interactors=window.__interactors||[];
+  window.__interactors.push(p=>{
+    const active=window.__estateInteriorId;
+    if(active&&interiorRooms[active]){
+      const r=interiorRooms[active],d=Math.hypot(p.x-r.exit.x,p.z-r.exit.z);
+      if(d<4.5)return {d,label:'Exit residence',act:()=>window.__estateExit&&window.__estateExit()};
+      return null;
+    }
+    let best=null;
+    for(const r of Object.values(interiorRooms)){const d=Math.hypot(p.x-r.exterior.x,p.z-r.exterior.z);if(d<4.5&&(!best||d<best.d))best={d,label:'Enter '+ESTATE_TIER_INFO[r.tier].label,act:()=>window.__estateEnter&&window.__estateEnter(r.id)}}
+    return best;
+  });
   return { lakeC, lotC, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
 }
-export const estateCard = () => `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏡 Burn City Estates</h2><p><b>Residential district in development.</b></p><p>Planned housing tiers: trailer homes, apartments, two-bedroom starter houses, four-bedroom family homes, and luxury lakefront mansions.</p><p>Homes are currently environmental models; purchasing, renting, interiors, and ownership progression are not implemented yet.</p>`;
+const ESTATE_TIER_INFO = { trailer:{label:'Trailer Home',units:1}, apartment:{label:'Apartment Unit',units:2}, starter:{label:'Two-Bedroom Starter Home',units:3}, family:{label:'Four-Bedroom Family Home',units:5}, mansion:{label:'Luxury Lakefront Mansion',units:10} };
+const ESTATE_PLOTS = [{id:'trailer-01',tier:'trailer',address:'Estates Row 01'},{id:'trailer-02',tier:'trailer',address:'Estates Row 02'},{id:'apartment-01',tier:'apartment',address:'Lakeview Apartments'},{id:'starter-01',tier:'starter',address:'Starter Lane 01'},{id:'starter-02',tier:'starter',address:'Starter Lane 02'},{id:'family-01',tier:'family',address:'Family Crescent 01'},{id:'family-02',tier:'family',address:'Family Crescent 02'},{id:'mansion-01',tier:'mansion',address:'Lakefront Estate 01'},{id:'mansion-02',tier:'mansion',address:'Lakefront Estate 02'}];
+export const estateCard = (propertyId = '') => {
+  const p = ESTATE_PLOTS.find(x => x.id === propertyId);
+  if (p) { const t = ESTATE_TIER_INFO[p.tier]; return `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏡 ${t.label}</h2><p><b>${p.address}</b></p><p>Property ID: <code>${p.id}</code></p><p>Proposed relative pool-share weight: <b>${t.units} unit${t.units===1?'':'s'}</b></p><p style="color:#ffcf85"><b>Not a finalized percentage.</b> The final share depends on the approved weights and all eligible properties in the pool.</p><button type="button" class="estate-enter" style="display:block;width:100%;margin:12px 0;padding:12px;border:1px solid #ffb45b;border-radius:9px;background:#332014;color:#ffe0b1;font:700 14px system-ui;cursor:pointer">🚪 Enter this residence</button><p style="color:#b7dce5">Explore the furnished interior; press E near the entry to leave.</p><hr><p><b>Purchases are not open yet.</b> Property prices, payment token, and wallet settlement integration are not configured.</p><p>Weekly distributions are not active. They will be based on verified, realized distributable profits—not promised or guaranteed returns.</p>`; }
+  return `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏡 BURN CITY ESTATES</h2><p><b>Nine individually identified properties are mapped into the district.</b> Select a home or apartment to inspect its property ID and proposed share weight.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${Object.values(ESTATE_TIER_INFO).map(t=>`<div style="padding:8px;border:1px solid #ffffff24;border-radius:8px"><b>${t.label}</b><br><span>${t.units} proposed share unit${t.units===1?'':'s'}</span></div>`).join('')}</div><p style="color:#ffcf85">These relative weights are a starting proposal only. They are not percentages or a finalized payout schedule.</p><p><b>Sale status:</b> pending external wallet/payment integration, approved property prices, and finalized share rules.</p><p><b>Distribution status:</b> disabled. No weekly profit has been promised or transferred by this game framework.</p>`;
+};

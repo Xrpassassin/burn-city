@@ -644,7 +644,21 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
-    if (Object.prototype.hasOwnProperty.call(data, 'interior')) interiorState = data.interior ? { ...data.interior } : null;
+    if (Object.prototype.hasOwnProperty.call(data, 'interior')) {
+      const previousInterior = interiorState;
+      const nextInterior = data.interior ? { ...data.interior } : null;
+      if (previousInterior && nextInterior && previousInterior.landmarkId === nextInterior.landmarkId) {
+        const wasOpen = new Set(previousInterior.openedDoors || []);
+        for (const doorId of nextInterior.openedDoors || []) {
+          if (!wasOpen.has(doorId) && nextInterior.doorDamage?.[doorId] >= 100) {
+            const detail = { landmarkId: nextInterior.landmarkId, doorId };
+            window.dispatchEvent(new CustomEvent('homefront:interior-breach', { detail }));
+            setInteriorStatus('BREACH! Infected forced open ' + doorId.replaceAll('_', ' ') + '. Expect pursuit.');
+          }
+        }
+      }
+      interiorState = nextInterior;
+    }
     const objective = document.getElementById('explorationObjective');
     if (objective && data.self) {
       let nearest = null, nearestDistance = Infinity;

@@ -171,7 +171,10 @@ function chooseSpawn(w, acct) {
 }
 function publicPlayer(acct, p, me, now) {
   const d = districtAt(p.x, p.z);
-  return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, spawn: p.spawn, party: !!p.partyCode, online: now - p.lastSeen <= PRESENCE_TTL };
+  // The safe perimeter lies around the outer edge; depth measures inward expansion.
+  const frontierDepth = Math.round(clamp(WORLD_SIZE - Math.hypot(p.x, p.z), 0, WORLD_SIZE));
+  const frontierBand = frontierDepth < 25 ? 'perimeter' : frontierDepth < 45 ? 'outer ring' : frontierDepth < 63 ? 'inner blocks' : frontierDepth < 80 ? 'deep city' : 'core approach';
+  return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, frontierDepth, frontierBand, spawn: p.spawn, party: !!p.partyCode, online: now - p.lastSeen <= PRESENCE_TTL };
 }
 function nearestPoint(x, z, type = null) { const points = POINTS_OF_INTEREST.filter(p => !type || (type === 'non-boss' ? p.type !== 'boss' : p.type === type)); let best = null; for (const point of points) { const distance = Math.hypot(point.x - x, point.z - z); if (!best || distance < best.distance) best = { point, distance }; } return best; }
 function tickDirector(w, acct, now = Date.now()) {
@@ -179,11 +182,12 @@ function tickDirector(w, acct, now = Date.now()) {
   if (!p) return null;
   const district = districtAt(p.x, p.z);
   const zoneId = district.id === 'graveyard_core' ? 'research_lab' : district.id === 'perimeter' ? 'outskirts' : district.id;
+  const frontierDepth = clamp(WORLD_SIZE - Math.hypot(p.x, p.z), 0, WORLD_SIZE);
   const active = Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0 && e.owner === acct).length;
   const elapsed = Math.max(0, now - (p.lastNoiseAt || now));
   const noise = Math.max(0, (p.noiseLevel || 0) - elapsed / 120);
   const tick = Director.advanceDirector(p.directorState, {
-    zoneId, risk: district.risk, playerCount: p.partyCode && w.parties[p.partyCode] ? w.parties[p.partyCode].members.length : 1,
+    zoneId, risk: district.risk, frontierDepth, playerCount: p.partyCode && w.parties[p.partyCode] ? w.parties[p.partyCode].members.length : 1,
     activeEncounters: active, noise, lastNoiseAt: p.lastNoiseAt, now,
     seed: acct + ':' + district.id + ':' + Math.floor(p.x / 12) + ':' + Math.floor(p.z / 12) + ':' + Math.floor(now / 5000)
   });

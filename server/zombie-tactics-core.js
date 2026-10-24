@@ -43,17 +43,18 @@ function distance2D(a, b) {
  * Classify a recent noise event for a zombie.
  * Noise is a stimulus, never proof that a player is visible.
  */
-function hearNoise(zombiePosition, noise, nowMs) {
+function hearNoise(zombiePosition, noise, nowMs, radiusScale = 1) {
   if (!noise || !Number.isFinite(noise.x) || !Number.isFinite(noise.z)) return null;
   if (!Number.isFinite(noise.atMs) || !Number.isFinite(nowMs) || nowMs < noise.atMs) return null;
   const ageMs = nowMs - noise.atMs;
   const ttlMs = Number(noise.ttlMs ?? 8000);
   const radius = Number(noise.radius ?? 0);
   const rawIntensity = Number(noise.intensity ?? 1);
-  if (![ttlMs, radius, rawIntensity].every(Number.isFinite) || ttlMs < 0 || radius < 0) return null;
+  const scale = Number(radiusScale);
+  if (![ttlMs, radius, rawIntensity, scale].every(Number.isFinite) || ttlMs < 0 || radius < 0 || scale < 0) return null;
   if (ageMs > ttlMs) return null;
   const distance = distance2D(zombiePosition, noise);
-  if (distance > radius) return null;
+  if (distance > radius * scale) return null;
   const intensity = Math.max(0, Math.min(1, rawIntensity));
   return { x: noise.x, z: noise.z, distance, intensity, ageMs };
 }

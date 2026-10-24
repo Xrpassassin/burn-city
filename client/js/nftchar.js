@@ -2,6 +2,7 @@
 // The NFT artwork remains the visual ground truth: a full-composition chest tabard plus optional floating peer card.
 // Typed metadata adds a best-effort 3D interpretation. Geometry/materials are cached for phone performance.
 import * as THREE from 'three';
+import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
 const G = new Map(), TX = new Map(), MT = new Map();
 const geo = (k, f) => G.get(k) || (G.set(k, f()), G.get(k));
 const mat = (c, r = .72, m = .05, e = 0) => {
@@ -29,7 +30,9 @@ const color = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || '')) ?
 // Typed NFT attributes are retained separately so identical values from different traits are not conflated.
 export function buildNftChar(n, opts = {}) {
   const pal = n?.pal || {}, key = n?.key || '589';
-  const traitPairs = (Array.isArray(n?.traits) ? n.traits : []).filter(a => Array.isArray(a) && a.length > 1).slice(0, 64);
+  const profile = resolveNftAvatarProfile(n);
+  const originalTraitPairs = profile.rawTraits;
+  const traitPairs = profile.renderTraits;
   const traitText = traitPairs.map(([type, value]) => String(type) + ' ' + String(value));
   const tr = [...traitText, ...(Array.isArray(n?.t) ? n.t : [])].map(v => String(v).toLowerCase());
   const traitValue = re => String(traitPairs.find(([type]) => re.test(String(type)))?.[1] || '');
@@ -219,7 +222,8 @@ export function buildNftChar(n, opts = {}) {
     const fr=new THREE.Sprite(new THREE.SpriteMaterial({color:accentHex,depthWrite:false})); fr.scale.set(.7,.7,1); fr.position.set(0,2.55,-.01); fr.renderOrder=-1; g.add(fr); g.userData.frame=fr;
   }
   g.userData.legs=legs; g.userData.arms=arms; g.userData.head=head; g.userData.nftId=n?.id;
-  g.userData.nftTraits=traitPairs.map(([type,value])=>[String(type),String(value)]);
+  g.userData.nftTraits=originalTraitPairs.map(([type,value])=>[String(type),String(value)]);
+  g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter};
   g.userData.nftMedia={animation:n?.animation||'',video:n?.video||'',audio:n?.audio||'',model3d:n?.model3d||'',artwork:n?.artwork||''};
   g.userData.anim=(t,moving,armsUp)=>{
     // Fit the real artwork without cropping once its remote image has decoded.

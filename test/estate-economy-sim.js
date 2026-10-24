@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const { CATALOG, propertyWeight, allocateProfit, buildWeeklySnapshot } = require('../server/estate-economy');
 assert.equal(CATALOG.properties.length, 21);
-assert.equal(new Set(CATALOG.properties.map(p => p.id)).size, 9);
+assert.equal(new Set(CATALOG.properties.map(p => p.id)).size, CATALOG.properties.length, 'catalog property IDs are unique');
 assert.equal(propertyWeight('trailer-01'), 1);
 assert.equal(propertyWeight('apartment-01'), 2);
 assert.equal(propertyWeight('starter-01'), 3);

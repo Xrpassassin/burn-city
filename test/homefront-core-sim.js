@@ -111,6 +111,18 @@ assert.throws(() => H.applyAction(moddedShotgun, 'armory-test', { type: 'craft_m
 assert.throws(() => H.applyAction(shotgunEquipped, 'armory-test', { type: 'craft_weapon', weapon: 'pump_shotgun' }), /weapon_already_owned/);
 assert.throws(() => H.applyAction(shotgunEquipped, 'armory-test', { type: 'equip_weapon', weapon: 'shock_maul' }), /weapon_not_owned/);
 
+const lockedArmory = H.createBase('locked-armory-test', 2304);
+lockedArmory.resources.scrap = 1000; lockedArmory.embers = 1000;
+assert.throws(() => H.applyAction(lockedArmory, 'locked-armory-test', { type: 'craft_weapon', weapon: 'assault_rifle' }, 2305), /weapon_level_locked/, 'automatic rifle is gated behind refuge progression');
+lockedArmory.level = 2;
+const assaultCrafted = H.applyAction(lockedArmory, 'locked-armory-test', { type: 'craft_weapon', weapon: 'assault_rifle' }, 2306);
+assert.ok(assaultCrafted.weapons.includes('assault_rifle'), 'level 2 unlocks the automatic rifle');
+assert.throws(() => H.applyAction(assaultCrafted, 'locked-armory-test', { type: 'craft_weapon', weapon: 'heavy_machine_gun' }, 2307), /weapon_level_locked/, 'heavy machine gun stays locked until higher refuge progression');
+assaultCrafted.level = 4;
+const heavyCrafted = H.applyAction(assaultCrafted, 'locked-armory-test', { type: 'craft_weapon', weapon: 'heavy_machine_gun' }, 2308);
+assert.ok(heavyCrafted.weapons.includes('heavy_machine_gun'), 'level 4 unlocks the heavy machine gun');
+assert.ok(H.WEAPONS.heavy_machine_gun.power > H.WEAPONS.assault_rifle.power, 'heavy machine gun has greater base combat power');
+
 const bossCostBase = H.createBase('boss-cost-only', 2305);
 bossCostBase.resources.food = 100; bossCostBase.resources.ammo = 100;
 const bossCostBefore = { scrap: bossCostBase.resources.scrap, wood: bossCostBase.resources.wood, embers: bossCostBase.embers, survivors: bossCostBase.survivors.length, trips: bossCostBase.expeditionCount };

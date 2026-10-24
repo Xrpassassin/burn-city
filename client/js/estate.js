@@ -544,7 +544,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   }
   window.__estateRooms=interiorRooms;
   // Smoothly swing the active residence door open and close it after exit.
-  anim.push((t,dt=1/60)=>{const active=window.__estateInteriorId;for(const r of Object.values(interiorRooms)){const target=active===r.id?-1.35:0;r.doorPivot.rotation.y+=(target-r.doorPivot.rotation.y)*Math.min(1,dt*8)}});
+  anim.push((t,dt=1/60)=>{const active=window.__estateInteriorId;for(const r of Object.values(interiorRooms)){const target=active===r.id?1.35:0;r.doorPivot.rotation.y+=(target-r.doorPivot.rotation.y)*Math.min(1,dt*8)}});
   window.__estateInteriorGuard=(pos,vel)=>{
     const id=window.__estateInteriorId, r=interiorRooms[id]; if(!r)return false;
     const p=r.group.worldToLocal(pos.clone());

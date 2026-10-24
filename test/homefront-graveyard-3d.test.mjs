@@ -339,3 +339,6 @@ assert.match(page, /s\.type==='turret'/, 'intact mounted turrets visually fire a
 assert.match(page, /target\.hitReaction=\.18/, 'defensive shots produce a visible infected hit reaction');
 assert.match(page, /if\(!base\?\.wave\|\|pendingBuilding\|\|constructionPaused\)return/, 'construction mode suppresses siege and defensive-fire effects');
 assert.match(page, /function updateSiegeEffects\(dt\)/, 'expire temporary tracer and impact objects cleanly');
+// Production facilities must be placeable: the client-side placement check knows their caps and costs.
+assert.match(homefrontPage, /quarry:2,smelter:2,salvage_yard:2\},costs=/, 'quarry/smelter/salvage yard have client placement caps');
+assert.match(homefrontPage, /smelter:\{wood:20,scrap:18,stone:10\}/, 'smelter placement cost mirrors the server');

@@ -366,8 +366,10 @@ export function buildNftChar(n, opts = {}) {
     const emblem=add(geo('nft-protocol-emblem',()=>new THREE.TorusGeometry(.055,.012,5,16)),glow(accentHex),0,1.655,.245);
     emblem.name='nft-protocol-emblem'; emblem.renderOrder=3;
     if(components.outfitStyle==='streetwear') {
-      addBox(g,mat('#15171c'),[0,1.18,.218],[.12,.095,.012]).name='nft-protocol-shirt-print';
-      add(geo('nft-protocol-shirt-sigil',()=>new THREE.ConeGeometry(.026,.065,3)),glow(accentHex),0,1.18,.23).name='nft-protocol-shirt-sigil';
+      // Put the small shirt mark below the tabard frame, where the original artwork cannot occlude it.
+      addBox(g,mat('#15171c'),[0,.775,.252],[.12,.055,.012]).name='nft-protocol-shirt-print';
+      const shirtSigil=add(geo('nft-protocol-shirt-sigil',()=>new THREE.ConeGeometry(.022,.045,3)),glow(accentHex),0,.775,.266);
+      shirtSigil.name='nft-protocol-shirt-sigil'; shirtSigil.renderOrder=3;
       // The artwork panel spans the torso center; edge stitching stays outside its frame.
       for(const side of [-1,1]) {
         const stitch=addBox(g,trim,[side*.292,1.19,.24],[.012,.16,.012]);

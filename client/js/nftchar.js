@@ -237,13 +237,18 @@ export function buildNftChar(n, opts = {}) {
     }
     addSphere(head,mat('#bfc2c5'),[0,-.1,.205],[.11,.075,.07]);
     addSphere(head,mat('#17181b'),[0,-.075,.267],[.036,.027,.022]);
-    const tail = new THREE.Group(); tail.position.set(0,.77,-.17); tail.rotation.x=-.72; g.add(tail);
-    for(let i=0;i<6;i++) {
-      const segmentColor = components.tailStyle === 'dark-tip' && i > 3 ? '#202126'
-        : components.tailStyle === 'light-tip' && i > 3 ? '#e0ded8'
-        : components.tailStyle === 'ringed' ? (i%2 ? '#292b30' : '#969ba2')
-        : (i%2 ? shade(faceHex,.72) : faceHex);
-      addSphere(tail,mat(segmentColor),[0,0,-.12*i],[.095-i*.008,.09-i*.007,.11]);
+    if (components.tailStyle !== 'none' && components.tailStyle !== 'custom') {
+      const tail = new THREE.Group(); tail.name='nft-racc-tail'; tail.position.set(0,.77,-.17); tail.rotation.x=-.72; g.add(tail);
+      for(let i=0;i<6;i++) {
+        const segmentColor = components.tailStyle === 'dark-tip' && i > 3 ? '#202126'
+          : components.tailStyle === 'light-tip' && i > 3 ? '#e0ded8'
+          : components.tailStyle === 'ringed' ? (i%2 ? '#292b30' : '#969ba2')
+          : (i%2 ? shade(faceHex,.72) : faceHex);
+        addSphere(tail,mat(segmentColor),[0,0,-.12*i],[.095-i*.008,.09-i*.007,.11]);
+      }
+    } else if (components.tailStyle === 'custom') {
+      // Do not display the generic segmented tail as if it faithfully represents a custom design.
+      addDiagnosticMarker(g,'tail',[0,.88,-.48],[.14,.2,.14]);
     }
   } else {
     addSphere(head,skin,[0,.015,0],[.19,.235,.18]);

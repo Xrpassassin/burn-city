@@ -49,3 +49,9 @@ assert.throws(() => buildWeeklySnapshot({ weekStart:'2026-10-19', sourceWallet:'
 assert.equal(buildWeeklySnapshot({ weekStart:'2026-10-19', sourceWallet:'rT', sourceLedgerIndex:1, realizedProfitDrops:0, feesDrops:0, realizedLossesDrops:0, reserveDrops:0, verificationRef:'x', holdings:[] }).distributableDrops, 0);
 assert.throws(() => buildWeeklySnapshot({ weekStart:'2026-10-19', sourceWallet:'rT', sourceLedgerIndex:1, realizedProfitDrops:-1, feesDrops:0, realizedLossesDrops:0, reserveDrops:0, verificationRef:'x', holdings:[] }), /nonnegative/);
 assert.throws(() => buildWeeklySnapshot({ weekStart:'2026-10-19', sourceWallet:'rT', sourceLedgerIndex:1, realizedProfitDrops:1, feesDrops:0, realizedLossesDrops:0, reserveDrops:0, verificationRef:'', holdings:[] }), /verification_ref/);
+
+assert.equal(new Set(CATALOG.properties.map(p => p.id)).size, CATALOG.properties.length, 'catalog property IDs are unique');
+assert.equal(CATALOG.world.id, 'estates-island-lake');
+assert.equal(CATALOG.world.topology, 'single_buildable_island_surrounded_by_a_continuous_lake');
+assert.equal(CATALOG.world.lake.surroundsIsland, true);
+assert(CATALOG.properties.every(p => p.lot && Number.isFinite(p.lot.x) && Number.isFinite(p.lot.z)), 'all catalog lots have deterministic layout coordinates');

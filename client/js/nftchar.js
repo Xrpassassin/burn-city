@@ -76,10 +76,23 @@ export function buildNftChar(n, opts = {}) {
   // Stable, subtle silhouette variation gives each token an individual baseline when metadata has no body-build trait.
   const silhouetteVariants = [.94,.97,1,1.03,1.06];
   const silhouette = silhouetteVariants[profile.identitySeed % silhouetteVariants.length];
-  const hasBodyShape = profile.rawTraits.some(([type]) => /body type|body shape|body build|physique|stature/i.test(type));
+  const bodyShapeTrait = profile.rawTraits.find(([type]) => /body type|body shape|body build|physique|stature/i.test(type))?.[1] || '';
+  const bodyShapeText = String(bodyShapeTrait).toLowerCase();
+  const hasBodyShape = !!bodyShapeTrait;
+  const bodyBuild = /bulky|heavy|large|muscular|buff|stocky|broad/.test(bodyShapeText) ? 'broad'
+    : /slim|thin|lean|narrow|skinny/.test(bodyShapeText) ? 'slim'
+    : /tall|lanky|elongated/.test(bodyShapeText) ? 'tall'
+    : /short|compact|small|stout/.test(bodyShapeText) ? 'compact'
+    : /athletic|fit|toned/.test(bodyShapeText) ? 'athletic' : 'default';
+  const bodyScale = bodyBuild === 'broad' ? [1.16,.98,1.08]
+    : bodyBuild === 'slim' ? [.84,1.04,.92]
+    : bodyBuild === 'tall' ? [.96,1.16,.96]
+    : bodyBuild === 'compact' ? [1.02,.86,1.02]
+    : bodyBuild === 'athletic' ? [1.07,1.04,1] : [1,1,1];
   if (!hasBodyShape) { torso.scale.x *= silhouette; torso.scale.y *= 2 - silhouette; }
-  torso.scale.x *= reconstruction.torsoWidth;
-  torso.scale.y *= reconstruction.torsoHeight;
+  torso.scale.x *= reconstruction.torsoWidth * bodyScale[0];
+  torso.scale.y *= reconstruction.torsoHeight * bodyScale[1];
+  torso.scale.z *= bodyScale[2];
   torso.name = 'avatar-torso-' + reconstruction.signature;
   addSphere(g,trim,[-.205,1.43,0],[.18,.15,.75]);
   addSphere(g,trim,[.205,1.43,0],[.18,.15,.75]);
@@ -149,7 +162,7 @@ export function buildNftChar(n, opts = {}) {
   }
 
   const legs = [-1,1].map(s => {
-    const hip = new THREE.Group(); hip.position.set(s*reconstruction.hipSpan,.84,0); hip.scale.y = reconstruction.legScale; g.add(hip);
+    const hip = new THREE.Group(); hip.position.set(s*reconstruction.hipSpan*bodyScale[0],.84,0); hip.scale.set(bodyScale[0]===1?1:Math.sqrt(bodyScale[0]), reconstruction.legScale*bodyScale[1], bodyScale[2]); g.add(hip);
     addSphere(hip,darkCloth,[0,-.04,0],[.135,.16,.13]);
     addCapsule(hip,cloth,[0,-.245,0],.09,.31,[1.08,1,.96]);
     const knee = new THREE.Group(); knee.position.set(0,-.43,0); hip.add(knee);
@@ -160,7 +173,7 @@ export function buildNftChar(n, opts = {}) {
     hip.userData.knee = knee; return hip;
   });
   const arms = [-1,1].map(s => {
-    const shoulder = new THREE.Group(); shoulder.position.set(s*reconstruction.shoulderSpan,1.42,0); shoulder.scale.y = reconstruction.armScale; g.add(shoulder);
+    const shoulder = new THREE.Group(); shoulder.position.set(s*reconstruction.shoulderSpan*bodyScale[0],1.42,0); shoulder.scale.set(Math.sqrt(bodyScale[0]), reconstruction.armScale*bodyScale[1], bodyScale[2]); g.add(shoulder);
     addSphere(shoulder,trim,[0,0,0],[.105,.115,.11]);
     addCapsule(shoulder,cloth,[0,-.17,0],.072,.22,[1,1,1]);
     const elbow = new THREE.Group(); elbow.position.set(0,-.3,0); shoulder.add(elbow);
@@ -172,9 +185,17 @@ export function buildNftChar(n, opts = {}) {
   });
 
   const head = new THREE.Group(); head.position.set(0,reconstruction.headY,0); head.name='nft-head-' + reconstruction.signature; g.add(head);
-  const hasFaceShape = profile.rawTraits.some(([type]) => /head shape|face shape|skull shape/i.test(type));
+  const faceShapeTrait = profile.rawTraits.find(([type]) => /head shape|face shape|skull shape/i.test(type))?.[1] || '';
+  const faceShapeText = String(faceShapeTrait).toLowerCase();
+  const hasFaceShape = !!faceShapeTrait;
+  const faceScale = /square|angular|blocky|wide jaw/.test(faceShapeText) ? [1.12,.94,1]
+    : /long|oblong|elongated/.test(faceShapeText) ? [.92,1.14,1]
+    : /round|circular|soft/.test(faceShapeText) ? [1.08,1.04,1.04]
+    : /narrow|thin|slim/.test(faceShapeText) ? [.86,1,1]
+    : [1,1,1];
   if (!hasFaceShape) head.scale.x = silhouetteVariants[(profile.identitySeed >>> 3) % silhouetteVariants.length];
   head.scale.multiply(new THREE.Vector3(...reconstruction.headScale));
+  head.scale.multiply(new THREE.Vector3(...faceScale));
   if (key === 'racc') {
     // RACC gets an unmistakable rounded raccoon skull, eye mask, muzzle, ears and ringed tail.
     addSphere(head,skin,[0,.02,0],[.235,.255,.22]);

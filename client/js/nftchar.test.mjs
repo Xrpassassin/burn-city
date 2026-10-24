@@ -56,6 +56,11 @@ has(visualQa, /notes:document\.querySelector\('#reviewNotes'\)\.value\.trim\(\)/
 has(visualQa, /try \{[\s\S]*new THREE\.WebGLRenderer/, 'handles WebGL initialization without aborting the entire review page');
 has(visualQa, /if\(renderer\)renderer\.render\(scene,camera\)/, 'keeps the review page stable when WebGL is unavailable');
 has(avatar, /resolveNftAvatarProfile/, 'routes traits through collection-specific adapters');
+has(avatar, /\['flame-on','heating-up','about-to-burn'\]\.includes\(components\.bodyEffect\)/, 'does not turn arbitrary custom body effects into flames');
+has(avatar, /\/mantle\|layer\|ceremonial\/i\.test\(traitValue\(\/outfit\|armor\/i\)\)/, 'does not infer a Firekeepers mantle from the generic word keeper');
+has(avatar, /components\.weaponStyle === 'firearm'[\s\S]*else if \(components\.weaponStyle === 'custom'\)/, 'does not turn an unrecognized NFT weapon into a generic gun');
+has(avatar, /unsupportedVisualTraits/, 'exposes traits that still need dedicated collection-specific geometry');
+has(visualQa, /debugUnknownTraits:true/, 'renders diagnostic-only markers in the visual QA page without shipping them in-game');
 has(avatar, /const hasTrait = \(typeRe, valueRe = \/\.\+\/\)/, 'separates trait names from trait values to avoid cross-slot false positives');
 has(avatar, /if \(hasHairTrait && components\.hairStyle !== 'bald'/, 'does not invent default hair when the NFT has no hair trait');
 has(avatar, /hasTrait\(\/body effect\|flame\|aura\/i,\/flame\|fire\|on fire\|flaming\|ember\|inferno\|heating up\|smolder\/i\)/, 'only renders head flames for actual flame/body-effect traits');
@@ -143,8 +148,8 @@ has(avatar, /nft-facial-scar|nft-freckle|nft-face-paint/, 'renders distinct faci
 has(avatar, /nft-antler|nft-horn/, 'renders horn and antler silhouettes');
 has(avatar, /nft-pattern-stripe|nft-pattern-spot|nft-camouflage-patch/, 'renders metadata-driven clothing patterns');
 has(avatar, /components\.patternStyle === 'checkered'[\s\S]*nft-pattern-checker/, 'renders checkered patterns on visible torso edges');
-has(avatar, /components\.headwearStyle === 'custom'[\s\S]*nft-custom-headwear-crest/, 'gives unknown headwear traits a visible fallback silhouette');
-has(avatar, /components\.accessoryStyle === 'custom'[\s\S]*nft-custom-accessory-mount/, 'preserves unknown accessory traits as visible geometry');
+has(avatar, /components\.headwearStyle === 'custom'[\s\S]*addDiagnosticMarker\(head,'headwear'/, 'flags unknown headwear only in QA instead of inventing a generic hat');
+has(avatar, /components\.accessoryStyle === 'custom'[\s\S]*addDiagnosticMarker\(g,'accessory'/, 'flags unknown accessories only in QA instead of inventing a pendant');
 has(avatar, /components\.facialHair/, 'uses normalized facial-hair metadata');
 has(avatar, /nft-artwork-frame/, 'frames the NFT artwork as a prominent identity tabard');
 has(avatar, /nftAvatarProfile=.*components/, 'exposes resolved visual recipes for QA');

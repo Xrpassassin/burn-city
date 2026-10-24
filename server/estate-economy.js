@@ -43,7 +43,7 @@ function allocateProfit(distributableDrops, holdings) {
 const crypto = require('node:crypto');
 function weekStartUtc(value) {
   const s = String(value || '');
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(s)) throw new TypeError('invalid_week_start');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new TypeError('invalid_week_start');
   const d = new Date(s + 'T00:00:00.000Z');
   if (!Number.isFinite(d.getTime()) || d.toISOString().slice(0,10) !== s || d.getUTCDay() !== 1) throw new TypeError('week_start_must_be_monday_utc');
   return s;

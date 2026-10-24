@@ -23,10 +23,14 @@ function createWeeklySnapshot(input) {
   const snapshot = buildWeeklySnapshot({ ...input, holdings });
   const insertSnapshot = db.prepare("INSERT INTO estate_weekly_snapshots (week_start, source_wallet, source_ledger_index, realized_profit_drops, fees_drops, realized_losses_drops, reserve_drops, distributable_drops, total_eligible_weight, ownership_count, ownership_hash, verification_ref, status, created_at) VALUES (@weekStart, @sourceWallet, @sourceLedgerIndex, @realizedProfitDrops, @feesDrops, @realizedLossesDrops, @reserveDrops, @distributableDrops, @totalEligibleWeight, @ownershipCount, @ownershipHash, @verificationRef, 'draft', @createdAt)");
   const insertOwner = db.prepare("INSERT INTO estate_weekly_owner_allocations (week_start, acct, property_ids_json, combined_weight, amount_drops, payout_status) VALUES (?, ?, ?, ?, ?, 'not_queued')");
-  const persist = db.transaction(() => {
+  const persist = () => {   // node:sqlite has no db.transaction(): explicit BEGIN/COMMIT, rollback on any error
+    db.exec('BEGIN IMMEDIATE');
+    try {
     insertSnapshot.run({ weekStart:snapshot.weekStart, sourceWallet:snapshot.sourceWallet, sourceLedgerIndex:snapshot.sourceLedgerIndex, realizedProfitDrops:snapshot.realizedProfitDrops, feesDrops:snapshot.feesDrops, realizedLossesDrops:snapshot.realizedLossesDrops, reserveDrops:snapshot.reserveDrops, distributableDrops:snapshot.distributableDrops, totalEligibleWeight:snapshot.totalEligibleWeight, ownershipCount:snapshot.ownershipCount, ownershipHash:snapshot.ownershipHash, verificationRef:snapshot.verificationRef, createdAt:snapshot.createdAt });
     for (const owner of snapshot.allocations) insertOwner.run(snapshot.weekStart, owner.acct, JSON.stringify(owner.propertyIds), owner.weight, owner.amountDrops);
-  });
+      db.exec('COMMIT');
+    } catch (e) { try { db.exec('ROLLBACK'); } catch {} throw e; }
+  };
   persist(); // week_start primary key prevents rewriting a finalized period
   return getWeeklySnapshot(snapshot.weekStart);
 }

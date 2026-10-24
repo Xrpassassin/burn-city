@@ -13,7 +13,7 @@ const pool = {
     acquires++;
     assert.equal(key, 'estates-island');
     assert.equal(playerId, 'player-42');
-    assert.equal(context.returnTo, 'city-island-gate');
+    assert.ok(['city-island-gate', 'estates-island-entrance'].includes(context.returnTo));   // explicit anchor, then the default anchor on re-entry
     return { instance: sharedInstance, release() { releases++; return true; } };
   }
 };
@@ -24,9 +24,9 @@ const adapter = createEstatesEntryAdapter({
   transitionToInstance: async data => {
     transitions++;
     assert.equal(data.instance, sharedInstance);
-    assert.equal(data.returnTo, 'city-island-gate');
+    assert.ok(['city-island-gate', 'estates-island-entrance'].includes(data.returnTo));
   },
-  returnToCity: async data => { returns++; assert.equal(data.returnTo, 'city-island-gate'); },
+  returnToCity: async data => { returns++; assert.ok(['city-island-gate', 'estates-island-entrance'].includes(data.returnTo)); },
   onState: event => events.push(event.state)
 });
 

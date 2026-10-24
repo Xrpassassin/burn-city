@@ -154,8 +154,23 @@ function advance({encounters,players,interiors=null,now=Date.now(),speed=2.8,max
    if (md <= 0.3) return;
    const memberStep = Math.min(md, speed * elapsed * (member.speedScale || 1));
    const mx = clamp(member.x + mdx / md * memberStep, -100, 100), mz = clamp(member.z + mdz / md * memberStep, -100, 100);
-   if (Terrain.canTraverse(member.x, member.z, mx, mz) && Collision.canTraverse(member.x, member.z, mx, mz, {radius:0.4,bounds:100})) { member.x = mx; member.z = mz; }
-   else if (Math.hypot(e.x - member.x, e.z - member.z) > 6) { member.x = e.x; member.z = e.z; }
+   const memberCollisionOptions = { radius: 0.4, bounds: 100, removedObstacleIds: collisionOptions.removedObstacleIds };
+   if (Terrain.canTraverse(member.x, member.z, mx, mz) && Collision.canTraverse(member.x, member.z, mx, mz, memberCollisionOptions)) {
+    member.x = mx; member.z = mz;
+   } else if (md > 0.3) {
+    // Followers must not teleport through a closed interior door or solid exterior obstacle.
+    // Replan only when their direct formation step is blocked; keep the search bounded.
+    const route = Collision.findPath(member.x, member.z, slotX, slotZ, {
+     bounds: 100, maxExpanded: 900, radius: 0.4, removedObstacleIds: collisionOptions.removedObstacleIds
+    });
+    if (route && route.length) {
+     const advanced = advanceAlongTerrainPath(member.x, member.z, route, memberStep);
+     if (Terrain.canTraverse(member.x, member.z, advanced.x, advanced.z) &&
+         Collision.canTraverse(member.x, member.z, advanced.x, advanced.z, memberCollisionOptions)) {
+      member.x = advanced.x; member.z = advanced.z;
+     }
+    }
+   }
   });
   e.hp = (e.members || []).reduce((sum,m)=>sum+(m.defeated?0:m.hp),0);
   e.maxHp = (e.members || []).reduce((sum,m)=>sum+m.maxHp,0);

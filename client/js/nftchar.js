@@ -375,7 +375,7 @@ export function buildNftChar(n, opts = {}) {
   } else if (components.headwearStyle === 'crown' || has(tr,/crown/)) {
     add(geo('crown-band',()=>new THREE.TorusGeometry(.15,.025,6,20)),glow('#ffcc33'),0,.21,0,head);
     for(const s of [-1,0,1]) add(geo('crown-point',()=>new THREE.ConeGeometry(.035,.13,7)),glow(traitColor(/crown|headwear/i,'#ffcc33')),s*.105,.3,0,head);
-  } else if (components.headwearStyle === 'hood' || has(tr,/hood/)) {
+  } else if ((components.headwearStyle === 'hood' || has(tr,/hood/)) && key !== 'fk') {
     const hood=addSphere(head,mat(shade(bodyHex,.78)),[0,.045,-.035],[.245,.27,.21]); hood.renderOrder=0;
   } else if (['hat','beanie','band'].includes(components.headwearStyle) || has(tr,/hat|cap|fitted|beanie|visor|sweatband|headband/)) {
     addSphere(head,hatColor,[0,.15,-.01],[.22,.105,.2]);

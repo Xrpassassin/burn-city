@@ -11,10 +11,10 @@ This draft upgrades the characters seen while exploring BURN City. It uses the e
 - Preserves up to 64 typed trait pairs (trait type + value, each bounded) instead of truncating the visual input to 16 untyped values. Names, description, external URL, original artwork URI, animation/video/audio references, optional 3D-model reference and a bounded media-file list are cached with a versioned metadata schema.
 - On-ledger attributes take precedence; marketplace attributes fill in missing trait types. API timeouts/errors fall back to on-ledger metadata and the existing procedural avatar.
 - Cached artwork is resized with `contain` framing instead of `cover` cropping so the NFT's full composition is retained.
-- Trait rendering now uses typed values for skin/fur, clothing, headwear, eyes and masks; recognized mouth/expression, wings and weapon/gear traits receive additional 3D details. Background/backdrop traits remain exclusively in the original artwork composition and are deliberately not projected onto the 3D body. The full typed trait list and discovered media references are retained on the avatar for further collection-specific adapters.
+- Trait rendering now uses typed values for skin/fur, clothing, headwear, eyes and masks; recognized mouth/expression, wings and weapon/gear traits receive additional 3D details. Background/backdrop traits remain exclusively in the original artwork composition and are deliberately not projected onto the 3D body. The raw typed trait list and discovered media references are retained on the avatar. A separate collection-aware adapter layer normalizes project-specific aliases into render slots while preserving the original trait labels and values.
 - The original NFT image is now a larger, full-composition chest panel on the walking avatar. The image is aspect-fit after decode (no forced square crop), and typed hair/eye/skin/fur color values drive their corresponding 3D materials. Optional floating peer identity cards remain available. Unknown traits are retained rather than discarded; not every arbitrary trait can yet be faithfully converted into geometry without a collection-specific renderer or source model.
-- The picker credits XRPL.to for enriched index data. The client still uses the existing Three.js runtime, no new dependencies.
-- Service-worker cache version is now `bc-v97-nft-background-separation`.
+- A new collection-aware adapter module maps RACC, Firekeepers and 589 Protocol trait vocabularies into common render slots without rewriting raw metadata. It exposes a stable token-derived identity seed for deterministic per-NFT presentation. The picker credits XRPL.to for enriched index data. The client still uses the existing Three.js runtime, no new dependencies.
+- Service-worker cache version is now `bc-v98-collection-avatar-adapters`.
 
 ## Compatibility and licensing
 
@@ -24,6 +24,6 @@ This draft upgrades the characters seen while exploring BURN City. It uses the e
 
 ## Validation
 
-- Expands client/js/nftchar.test.mjs with source-level checks for exact-ID marketplace enrichment, metadata bounds/schema, full-artwork contain-fit framing, typed hair/eye/skin/fur color mapping, and media retention; it remains wired into npm test and npm run test:all.
+- Expands client/js/nftchar.test.mjs with source-level checks for exact-ID marketplace enrichment, metadata bounds/schema, full-artwork contain-fit framing, typed hair/eye/skin/fur color mapping, collection-specific trait normalization, stable token identity seeds, and media retention; it remains wired into npm test and npm run test:all.
 - The native Node test and full suites have not been run in this environment. Existing unrelated GitHub Actions checks are not a substitute for the NFT regression test.
 - Browser/WebGL visual review, live API/IPFS retrieval, original-model validation and mobile frame-time checks remain required. Source-level checks do not prove that remote media loads or that every collection's trait vocabulary is faithfully reconstructed.

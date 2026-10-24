@@ -11,6 +11,32 @@ const PREFERRED_BAIT = {
   salmon: 3, leviathan: 2, marlin: 2, whaleshark: 2
 };
 
+// Catch XP is deterministic so guest and signed-in anglers see the same progression.
+// Weight XP is capped so one enormous catch cannot skip the entire progression ladder.
+export function xpForCatch(fish = {}) {
+  const rarity = Math.max(0, Math.min(4, Math.floor(Number(fish.r) || 0)));
+  const kg = Math.max(0, Math.min(30, Number(fish.kg) || 0));
+  return Math.round(10 + rarity * 12 + kg);
+}
+
+const ANGLER_XP_THRESHOLDS = [0, 100, 250, 450, 700, 1000, 1400, 1850, 2400, 3050];
+export function anglerProgress(xp = 0) {
+  const total = Math.max(0, Math.floor(Number(xp) || 0));
+  let level = 1;
+  for (let i = 1; i < ANGLER_XP_THRESHOLDS.length; i++) {
+    if (total < ANGLER_XP_THRESHOLDS[i]) break;
+    level = i + 1;
+  }
+  const current = ANGLER_XP_THRESHOLDS[level - 1];
+  const next = ANGLER_XP_THRESHOLDS[level] ?? null;
+  return { level, xp: total, currentLevelXp: total - current, nextLevelXp: next === null ? 0 : next - current, nextLevelAt: next, progress: next === null ? 1 : Math.max(0, Math.min(1, (total - current) / (next - current))) };
+}
+
+const ROD_LEVELS = { basic: 1, carbon: 2, pro: 5, legend: 10 };
+export function rodUnlockLevel(rodId) {
+  return ROD_LEVELS[rodId] ?? 1;
+}
+
 export function baitAffinity(speciesId, baitTier) {
   const tier = Math.max(0, Math.min(3, Number.isFinite(+baitTier) ? +baitTier : 0));
   const preferred = PREFERRED_BAIT[speciesId];

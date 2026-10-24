@@ -20,12 +20,18 @@ async function api(srv, path, body) {
   const r = await fetch(srv + path, { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   if (r.status === 401) { set(null); return { error: 'signin' }; } return r.json();
 }
-const look = n => n && { id: n.id, key: n.key, name: n.name, num: n.num, img: n.img, pal: n.pal, t: (n.traits || []).filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 16) };
+const look = n => n && {
+  metaVersion: 2, id: n.id, key: n.key, col: n.col, name: n.name, num: n.num, img: n.img, pal: n.pal,
+  traits: (n.traits || []).slice(0, 64),
+  t: (n.traits || []).filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 64),
+  description: n.description, externalUrl: n.externalUrl, artwork: n.artwork,
+  animation: n.animation, video: n.video, audio: n.audio, model3d: n.model3d, mediaFiles: n.mediaFiles
+};
 export async function refresh(srv) {        // re-verify ownership; drops the character if it was transferred
   if (!tok()) { if (get()) set(null); return null; }
   const d = await api(srv, '/api/nft/mine'); if (d.error) return d.error === 'signin' ? null : last; last = d;
   const cur = get(), sel = d.selected && d.nfts.find(n => n.id === d.selected);
-  if (!sel || sel.pending) { if (cur && !d.selected) set(null); } else if (!cur || cur.id !== sel.id || !cur.pal) set(look(sel));
+  if (!sel || sel.pending) { if (cur && !d.selected) set(null); } else if (!cur || cur.id !== sel.id || !cur.pal || cur.metaVersion !== 2) set(look(sel));
   return d;
 }
 export const current = get;

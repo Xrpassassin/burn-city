@@ -144,7 +144,7 @@ class Room {
       const wi = Z.windowSpawn(this), wn = Z.WINDOWS[wi], [sx, sz] = wn ? [wn.ox + (wn.ox - wn.x) * 3 + (Math.random() - .5) * 3, wn.oz + (wn.oz - wn.z) * 3 + (Math.random() - .5) * 3] : Z.zoneSpawn(this); this.toSpawn--; this.spawned++;
       const roll = Math.random(), sr = this.ranked ? 1 : Math.random(), wv = this.wave;   // specials (not in ranked): 3 Juggernaut, 4 Lope (runs on its arms), 5 Skitter
       const ty = wv >= 5 && sr < 0.035 ? 3 : wv >= 4 && sr < 0.11 ? 4 : wv >= 6 && sr < 0.17 ? 5 : wv >= 2 && roll < 0.18 ? 1 : wv >= 3 && roll > 0.9 ? 2 : 0;   // 1 runner (fast, frail), 2 brute (slow, tanky)
-      const base = (60 + this.wave * 15) * (this.mod?.hp || 1) * Z.hpN(Math.max(1, ps.filter(p => !p.spectator).length)), sp = (2.2 + Math.min(this.wave * 0.25, 2.5) + Math.random()) * (this.mod?.sp || 1);
+      const base = (60 + this.wave * 15) * (cosmo ? 1.25 : 1) * (this.mod?.hp || 1) * Z.hpN(Math.max(1, ps.filter(p => !p.spectator).length)), sp = (2.2 + Math.min(this.wave * 0.25, 2.5) + Math.random()) * (this.mod?.sp || 1);
       this.zombies.set(this.zid, { id: this.zid++, ty, x: sx, z: sz, lv: wn?.lv || 0, y: (wn?.lv || 0) * Z.UH, hp: base * HPM[ty], maxhp: base * HPM[ty], sp: sp * (ty === 1 ? Z.RUNNER : SPM[ty]), win: wn ? wi : null, ph: 0 });
     }
     if (this.spawnT < 0) this.spawnT = 0;   // no banked burst while the alive cap is full

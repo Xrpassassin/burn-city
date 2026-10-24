@@ -1100,18 +1100,6 @@ function boot(host) {
         return;
       }
     }
-    const interiorHits = raycaster.intersectObjects([...interiorSetPieces.values()].filter(group => group.visible && group.parent?.visible), true);
-    if (interiorHits.length) {
-      let node = interiorHits[0].object;
-      while (node && !node.userData?.interiorTarget) node = node.parent;
-      const target = node?.userData?.interiorTarget;
-      if (target) {
-        if (!interiorState || interiorState.landmarkId !== target.landmarkId) { setInteriorStatus('Move close to the landmark and use its Enter button before interacting with the rooms.'); return; }
-        if (target.kind === 'door') void interactInteriorDoor(target.doorId);
-        else if (target.kind === 'action') void performInteriorAction(target.actionId);
-        return;
-      }
-    }
     const environmentHits = raycaster.intersectObjects([...environmentVisuals.values()].filter(group => group.visible && group.parent?.visible), true);
     if (environmentHits.length) {
       let target = environmentHits[0].object;

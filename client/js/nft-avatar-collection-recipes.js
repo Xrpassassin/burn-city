@@ -15,9 +15,9 @@ const RECIPES = {
   fk: {
     key: 'fk', displayName: 'Firekeepers', archetype: 'firekeeper', rig: 'humanoid-robed',
     proportions: { torsoWidth: .98, torsoHeight: 1.04, headScale: [1, 1.03, 1], shoulderSpan: .30, hipSpan: .12, headY: 1.79, legScale: 1, armScale: .98 },
-    silhouetteTags: ['layered-robe', 'cowl', 'ember-mantle', 'sigil'],
+    silhouetteTags: ['layered-robe', 'trait-gated-cowl', 'trait-gated-mantle', 'trait-gated-relic-sigil'],
     signature: 'firekeeper',
-    visualRequirements: ['layered robe silhouette with hem separation', 'collection-specific hood or cowl', 'ember/flame identity without obscuring face', 'visible relic or sigil when present'],
+    visualRequirements: ['layered robe silhouette with hem separation', 'hood/cowl only when the token trait specifies it', 'mantle only when the token outfit metadata specifies it', 'relic/sigil only when the token accessory metadata specifies it', 'ember/flame identity without obscuring face'],
     traitSlots: { 'Ember Type': 'flame', 'Keeper Robes': 'outfit', 'Cowl': 'headwear', 'Relic': 'accessory' },
     materialHints: { skin: 'character-skin', outfit: 'layered-matte-cloth', signature: 'emissive-ember-and-sigil' },
     budgets: { targetTriangles: 22000, maxTextureBytes: 6291456, maxDrawCalls: 28 },

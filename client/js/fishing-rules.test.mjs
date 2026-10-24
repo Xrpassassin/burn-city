@@ -1,5 +1,21 @@
 import assert from 'node:assert/strict';
-import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard, xpForCatch, anglerProgress, rodUnlockLevel } from './fishing-rules.mjs';
+
+const starterXp = xpForCatch({ r: 0, kg: 0.2 });
+assert.equal(starterXp, 10, 'common catches grant a modest base XP amount');
+assert.equal(xpForCatch({ r: 4, kg: 900 }), 88, 'legendary catch XP is capped against extreme weights');
+assert.equal(anglerProgress(0).level, 1);
+assert.equal(anglerProgress(99).level, 1);
+assert.equal(anglerProgress(100).level, 2);
+assert.equal(anglerProgress(700).level, 5);
+assert.equal(anglerProgress(3050).level, 10);
+assert.equal(anglerProgress(-10).xp, 0, 'negative XP is clamped');
+assert.equal(anglerProgress(100).progress, 0, 'level progress resets at the threshold');
+assert.equal(rodUnlockLevel('basic'), 1);
+assert.equal(rodUnlockLevel('carbon'), 2);
+assert.equal(rodUnlockLevel('pro'), 5);
+assert.equal(rodUnlockLevel('legend'), 10);
+assert.equal(rodUnlockLevel('unknown'), 1, 'unknown rod IDs fail safely');
 
 const clean = resolveFightTap({ position: 0.5, zoneStart: 0.4, zoneWidth: 0.2 });
 assert.deepEqual(clean, { hit: true, miss: false, tension: 0, broke: false });
@@ -45,4 +61,4 @@ assert.equal(progressBoard.items.find(a => a.id === 'daily-target').unlocked, tr
 assert.equal(progressBoard.items.find(a => a.id === 'daily-variety').unlocked, true);
 assert.equal(progressBoard.items.find(a => a.id === 'daily-heavy').unlocked, true);
 assert.equal(challengeBoard([], '2026-10-22').target !== challengeTarget, true, 'featured species rotates by UTC day');
-console.log('Fishing rules, journal, and daily challenges: 28 assertions passed');
+console.log('Fishing rules, angler progression, journal, and daily challenges: 40+ assertions passed');

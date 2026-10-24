@@ -31,13 +31,19 @@ const BUILDINGS = NP({
   turret:     { cost: { wood: 10, scrap: 22, ammo: 2 }, hp: 180, defense: 5, cap: 4 },
   quarry:     { cost: { wood: 18, scrap: 12 }, hp: 140, defense: 0, cap: 2 },
   smelter:    { cost: { wood: 20, scrap: 18, stone: 10 }, hp: 160, defense: 1, cap: 2 },
-  salvage_yard:{ cost: { wood: 14, scrap: 16 }, hp: 130, defense: 1, cap: 2 }
+  salvage_yard:{ cost: { wood: 14, scrap: 16 }, hp: 130, defense: 1, cap: 2 },
+  // Siege emplacements (server/homefront-siege.js): an elevated deck with stairs that gives
+  // defenders and guards range + line of sight over the walls, and a mortar pit (refuge level 5)
+  // for indirect fire at hordes on the approach.
+  gun_platform:{ cost: { wood: 18, scrap: 12 }, hp: 200, defense: 3, cap: 4 },
+  mortar_pit: { cost: { wood: 8, scrap: 20, steel: 4 }, hp: 150, defense: 2, cap: 2, level: 5 }
 });
 const DIFFICULTIES = NP({story:{label:'Story',cost:0.8,reward:0.7,threat:0.75},standard:{label:'Standard',cost:1,reward:1,threat:1},veteran:{label:'Veteran',cost:1.35,reward:1.55,threat:1.4},nightmare:{label:'Nightmare',cost:1.8,reward:2.35,threat:1.9}});
 const TYCOON_UPGRADES = NP({scavenger_rig:{label:'Scavenger Rig',description:'+15% salvage per level',baseCost:100,max:5},ember_press:{label:'Ember Press',description:'+5 embers per successful expedition per level',baseCost:140,max:5},field_armory:{label:'Field Armory',description:'+2 defense strength per level',baseCost:120,max:5},medic_station:{label:'Field Medic Station',description:'+1 bonus medicine on successful trips per level',baseCost:160,max:3}});
 const EMBER_MARKET = NP({wood:{amount:10,cost:22},scrap:{amount:10,cost:30},stone:{amount:8,cost:42},steel:{amount:4,cost:68},food:{amount:10,cost:18},water:{amount:10,cost:14},meds:{amount:3,cost:45},ammo:{amount:10,cost:35}});
 // Automatic firearm tiers unlock with settlement development (see homefront-firearms.js).
 const Firearms = require('./homefront-firearms');
+const Platforms = require('./homefront-platforms');
 const WEAPONS = NP(Object.assign({pipe_blade:{label:'Pipe Blade',rarity:'Common',power:1,cost:{scrap:0,embers:0}},pump_shotgun:{label:'Pump Shotgun',rarity:'Rare',power:3,cost:{scrap:55,embers:40}},marksman_rifle:{label:'Marksman Rifle',rarity:'Epic',power:4,cost:{scrap:90,embers:75}},shock_maul:{label:'Shock Maul',rarity:'Legendary',power:5,cost:{scrap:120,embers:100}}}, Object.fromEntries(Object.entries(Firearms.FIREARM_TIERS).map(([id, t]) => [id, { label: t.label, rarity: t.rarity, power: t.power, cost: { ...t.cost }, tier: t.tier, unlockLevel: t.level, unlockZone: t.zone }]))));
 const WEAPON_MODS = NP({reinforced_grip:{label:'Reinforced Grip',rarity:'Common',power:1,cost:{scrap:25,embers:20}},salvage_edge:{label:'Salvage Edge',rarity:'Rare',power:1,cost:{scrap:35,embers:25}},shock_coil:{label:'Shock Coil',rarity:'Epic',power:2,cost:{scrap:45,embers:40}}});
 const COSMETIC_SKINS = NP({rusted_pipe:{label:'Rusted Steel',slot:'weapon',rarity:'Common',cost:0,color:'#9a7b62'},field_scavenger:{label:'Field Scavenger',slot:'outfit',rarity:'Common',cost:0,color:'#6d7659'},patched_rucksack:{label:'Patched Rucksack',slot:'backpack',rarity:'Common',cost:0,color:'#78604a'},scrap_banner:{label:'Scrap Banner',slot:'refuge',rarity:'Common',cost:0,color:'#a55c35'},hazard_stripe:{label:'Hazard Stripe',slot:'weapon',rarity:'Rare',cost:75,color:'#e6b83f'},medic_fieldcoat:{label:'Field Medic Coat',slot:'outfit',rarity:'Rare',cost:65,color:'#91b5a0'},rescue_pack:{label:'Rescue Pack',slot:'backpack',rarity:'Rare',cost:55,color:'#b56d42'},ember_lanterns:{label:'Ember Lanterns',slot:'refuge',rarity:'Epic',cost:80,color:'#ff8b3d'}});
@@ -234,6 +240,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       if (!spec) throw new Error('unknown_building');
       if (s.structures.length >= MAX_STRUCTURES) throw new Error('structure_limit');
       if (s.structures.filter(x => x.type === action.building).length >= spec.cap) throw new Error('building_cap');
+      if (spec.level && Firearms.developmentLevel(s) < spec.level) throw new Error('structure_requires_refuge_level_' + spec.level);
       pay(s, spec.cost);
       const id = 'b' + (s.structures.reduce((n, x) => Math.max(n, Number(x.id.slice(1)) || 0), 0) + 1);
       const angle = s.structures.length * 2.399963229728653, radius = 3 + Math.floor(s.structures.length / 8) * 1.8;
@@ -241,10 +248,11 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const z = Number.isFinite(action.z) ? action.z : Math.sin(angle) * radius;
       if (Math.abs(x) > 9.5 || Math.abs(z) > 9.5) throw new Error('placement_out_of_bounds');
       if (Math.hypot(x, z) < 2.4) throw new Error('placement_occupied');
-      if (s.structures.some(v => Math.hypot(v.x - x, v.z - z) < (action.building === 'barbed_wire' || v.type === 'barbed_wire' ? 1.0 : 1.65))) throw new Error('placement_occupied');
+      if (s.structures.some(v => Math.hypot(v.x - x, v.z - z) < Platforms.structureGap(action.building, v.type))) throw new Error('placement_occupied');
       // Farm plots occupy physical yard space too; keep new structures from burying crops or blocking tending access.
-      if (s.farmPlots.some(plot => Math.hypot(plot.x - x, plot.z - z) < 1.65)) throw new Error('placement_occupied');
+      if (s.farmPlots.some(plot => Math.hypot(plot.x - x, plot.z - z) < Math.max(1.65, Platforms.structureGap(action.building, 'farm_plot')))) throw new Error('placement_occupied');
       const rotation = Number.isFinite(action.rotation) ? clampNumber(action.rotation, -Math.PI * 2, Math.PI * 2) : 0;
+      if (!Platforms.footprintInBounds(action.building, x, z, rotation)) throw new Error('placement_out_of_bounds');
       s.structures.push({ id, type: action.building, material: 'wood', hp: spec.hp, maxHp: spec.hp, x, z, rotation, trenchLevel: 0, reinforcementLevel: 0, manned: false });
       record(s, 'build', 'Constructed ' + action.building + '.', now);
       break;
@@ -300,7 +308,9 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     case 'rotate_structure': {
       const target = s.structures.find(x => x.id === action.target);
       if (!target) throw new Error('unknown_structure');
-      target.rotation = (clampNumber(target.rotation, -Math.PI * 2, Math.PI * 2) + Math.PI / 4) % (Math.PI * 2);
+      const nextRotation = (clampNumber(target.rotation, -Math.PI * 2, Math.PI * 2) + Math.PI / 4) % (Math.PI * 2);
+      if (!Platforms.footprintInBounds(target.type, target.x, target.z, nextRotation)) throw new Error('placement_out_of_bounds');
+      target.rotation = nextRotation;
       record(s, 'fortification', 'Rotated ' + target.id + ' to face a new approach.', now);
       break;
     }
@@ -810,4 +820,43 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { SURVIVOR_TASKS, VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, MATERIAL_TIERS, MATERIAL_UPGRADE_COSTS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };
+// Live refuge siege outcome (server/homefront-siege.js). Not an applyAction type: only the
+// server's siege resolver calls this, with values it computed itself, so clients cannot submit it.
+function applyLiveSiegeResult(input, ownerId, result, now = Date.now()) {
+  const s = validateBase(input, ownerId);
+  if (!s) throw new Error('invalid_or_foreign_base');
+  const damage = clampInt(result?.structureDamage, 0, 5000);
+  const kills = clampInt(result?.kills, 0, 500), total = clampInt(result?.total, 0, 500);
+  const perimeterPriority = { barbed_wire: 0, gate: 1, entrance: 1, exit: 1, sandbags: 2, trench: 3, wall: 4, turret: 5, watchtower: 6 };
+  const targets = s.structures.filter(x => x.hp > 0).sort((a, b) =>
+    (Math.hypot(b.x, b.z) - Math.hypot(a.x, a.z)) || ((perimeterPriority[a.type] ?? 10) - (perimeterPriority[b.type] ?? 10)) || String(a.id).localeCompare(String(b.id)));
+  const refugeHpBefore = s.baseHp;
+  let remaining = damage; const breached = [];
+  for (const structure of targets) {
+    if (remaining <= 0) break;
+    const incoming = Math.min(structure.hp, remaining);
+    const material = MATERIAL_TIERS[structure.material] || MATERIAL_TIERS.wood;
+    const hit = Math.min(structure.hp, Math.ceil(incoming * (1 - Math.min(0.6, material.resistance))));
+    structure.hp -= hit; remaining -= incoming;
+    if (structure.hp <= 0) breached.push({ id: structure.id, type: structure.type });
+  }
+  s.baseHp = Math.max(0, s.baseHp - Math.ceil(damage * 0.45));
+  const repelled = result?.status === 'repelled';
+  const embers = repelled ? 8 + Math.min(24, Math.floor(kills / 3)) : 0;
+  s.embers = Math.min(999999999, s.embers + embers);
+  s.defenseCount = clampInt((s.defenseCount || 0) + 1, 0, 1e9);
+  const outcome = s.baseHp === 0 ? 'refuge_fallen' : breached.length ? 'breach_opened' : 'repelled';
+  const text = 'LIVE SIEGE: ' + kills + '/' + total + ' infected killed by ' + clampInt(result?.defenders, 1, 4) + ' defender(s)' +
+    (damage ? '; ' + damage + ' wall damage' : '; the walls held untouched') + (breached.length ? '; breach at ' + breached.map(b => b.type + ' ' + b.id).join(', ') : '') +
+    (embers ? '. +' + embers + ' Embers.' : '.');
+  s.lastSiege = { id: 'live-' + s.defenseCount, status: outcome, live: true, day: s.day, startedAt: Number.isFinite(result?.startedAt) ? result.startedAt : now, resolvedAt: now,
+    target: breached[0] ? { id: breached[0].id, type: breached[0].type, integrityBefore: null, integrityAfter: 0 } : null,
+    guardCount: s.survivors.filter(x => x.role === 'guard').length, guardDefenseBonus: 0, structureDamage: damage,
+    refugeHpBefore, refugeHpAfter: s.baseHp, breachedStructures: breached, phases: [{ phase: outcome, at: now, text }] };
+  record(s, 'defense', (outcome === 'repelled' ? 'Perimeter breach repelled. ' : '') + text, now);
+  syncSurvivorBehavior(s, now);
+  s.revision++; s.updatedAt = now;
+  return { base: s, embers, outcome };
+}
+
+module.exports = { applyLiveSiegeResult, SURVIVOR_TASKS, VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, MATERIAL_TIERS, MATERIAL_UPGRADE_COSTS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };

@@ -17,6 +17,14 @@ on:
       - 'client/arena/homefront-terrain-generation.mjs'
       - 'client/arena/homefront-world-generation.mjs'
       - 'server/homefront.js'
+      - 'server/homefront-siege.js'
+      - 'server/homefront-platforms.js'
+      - 'server/homefront-firearms.js'
+      - 'client/arena/homefront-siege.mjs'
+      - 'client/arena/homefront-platforms.mjs'
+      - 'test/homefront-siege-sim.js'
+      - 'test/homefront-platforms.test.mjs'
+      - 'test/homefront-siege-view.test.mjs'
       - 'server/game.js'
       - 'server/server.js'
       - 'client/arena/flight-lobby.html'
@@ -58,6 +66,10 @@ jobs:
           node --check server/homefront-terrain.js
           node --check server/homefront-collision.js
           node --check server/homefront.js
+          node --check server/homefront-siege.js
+          node --check server/homefront-platforms.js
+          node --check client/arena/homefront-siege.mjs
+          node --check client/arena/homefront-platforms.mjs
           node --check server/game.js
           node --check server/server.js
       - name: Check browser JavaScript syntax

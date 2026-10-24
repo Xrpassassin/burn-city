@@ -10,6 +10,7 @@ const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 const Environment = require('./homefront-environment');
+const Siege = require('./homefront-siege');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
@@ -84,6 +85,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       const payload = req.method === 'POST' ? await body() : null;
       const db = World.normalizeWorld(store.load('homefront-world.json', World.defaultWorld()));
       let outcome;
+      // Live refuge siege (server/homefront-siege.js): hordes, gun platforms, mortars.
+      if (url.pathname === '/api/homefront/world/siege' || url.pathname.startsWith('/api/homefront/world/siege/')) {
+        if (req.method === 'POST' && (!payload || typeof payload !== 'object' || Array.isArray(payload))) { json(res, 400, { error: 'invalid_world_action' }); return true; }
+        const out = Siege.route({ method: req.method, path: url.pathname, query: url.searchParams, payload, acct: user.acct, store, worldDb: db });
+        json(res, out.status, out.body); return true;
+      }
       if (req.method === 'GET' && url.pathname === '/api/homefront/world') {
         if (db.players && db.players[user.acct] && Date.now() - db.players[user.acct].lastSeen <= World.PRESENCE_TTL) {
           const joined = World.enter(db, user.acct);

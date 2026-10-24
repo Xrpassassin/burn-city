@@ -38,7 +38,7 @@ breachBase.survivors = Array.from({ length: 1 }, (_, i) => ({
 const expectedRawDamage = Core.threatProfile(breachBase).projectedStructureDamage;
 const defended = Core.applyAction(breachBase, 'rGuardBreachCover', { type: 'defend' }, now + 2);
 const breachLog = defended.log[defended.log.length - 1].text;
-const actualDamageMatch = breachLog.match(/with (\\d+) structure damage/);
+const actualDamageMatch = breachLog.match(/with (\d+) structure damage/);
 assert.ok(actualDamageMatch, 'defense log reports actual mitigated structure damage');
 assert.ok(Number(actualDamageMatch[1]) < expectedRawDamage,
   'high-morale guards reduce damage while covering a damaged gate');

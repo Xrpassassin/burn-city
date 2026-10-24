@@ -138,6 +138,9 @@ function districtAt(x, z) {
   const depth = WORLD_SIZE - Math.hypot(x, z);
   return DISTRICTS.find(v => depth <= v.radius) || DISTRICTS[DISTRICTS.length - 1];
 }
+function frontierDepthAt(x, z) {
+  return Math.round(clamp(WORLD_SIZE - Math.hypot(x, z), 0, WORLD_SIZE));
+}
 function findSafePosition(x, z) {
   const candidates = [{ x, z }];
   // Search concentric, deterministic rings. This keeps recovery predictable and bounded.
@@ -172,7 +175,7 @@ function chooseSpawn(w, acct) {
 function publicPlayer(acct, p, me, now) {
   const d = districtAt(p.x, p.z);
   // The safe perimeter lies around the outer edge; depth measures inward expansion.
-  const frontierDepth = Math.round(clamp(WORLD_SIZE - Math.hypot(p.x, p.z), 0, WORLD_SIZE));
+  const frontierDepth = frontierDepthAt(p.x, p.z);
   const frontierBand = frontierDepth < 25 ? 'perimeter' : frontierDepth < 45 ? 'outer ring' : frontierDepth < 63 ? 'inner blocks' : frontierDepth < 80 ? 'deep city' : 'core approach';
   return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, frontierDepth, frontierBand, spawn: p.spawn, party: !!p.partyCode, online: now - p.lastSeen <= PRESENCE_TTL };
 }
@@ -182,7 +185,7 @@ function tickDirector(w, acct, now = Date.now()) {
   if (!p) return null;
   const district = districtAt(p.x, p.z);
   const zoneId = district.id === 'graveyard_core' ? 'research_lab' : district.id === 'perimeter' ? 'outskirts' : district.id;
-  const frontierDepth = clamp(WORLD_SIZE - Math.hypot(p.x, p.z), 0, WORLD_SIZE);
+  const frontierDepth = frontierDepthAt(p.x, p.z);
   const active = Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0 && e.owner === acct).length;
   const elapsed = Math.max(0, now - (p.lastNoiseAt || now));
   const noise = Math.max(0, (p.noiseLevel || 0) - elapsed / 120);
@@ -410,4 +413,4 @@ function leave(input, acct, now = Date.now()) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };
+module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };

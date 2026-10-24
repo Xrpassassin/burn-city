@@ -8,6 +8,8 @@ assert.match(page, /raycaster\.intersectObject\(survivorGroup,true\)/, 'inspecti
 assert.match(page, /model\.userData\.survivorId=String\(survivor\.id\|\|i\)/, 'animated survivor actors carry a stable inspection id');
 assert.match(page, /g\.userData\.survivorId=String\(survivor\.id\|\|i\)/, 'procedural survivor actors carry a stable inspection id');
 assert.match(page, /Current activity:/, 'inspection explains the survivor\'s current job');
+assert.match(page, /data-survivor-dialogue/, 'talk interaction provides contextual survivor dialogue');
+assert.match(page, /const lines=hp<40\?/, 'dialogue reflects survivor health, morale, and role');
 assert.match(page, /Work target:/, 'inspection exposes a survivor\'s current work target');
 assert.match(page, /survivor\.taskReason/, 'inspection includes the behavior reason when available');
 assert.match(page, /survivorInspection/, 'inspection panel is accessible and dismissible');

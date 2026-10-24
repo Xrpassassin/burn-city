@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [avatar, city, app, sw] = await Promise.all([
+const [avatar, city, app, sw, picker, nftServer] = await Promise.all([
   readFile(new URL('./nftchar.js', import.meta.url), 'utf8'),
   readFile(new URL('./city.js', import.meta.url), 'utf8'),
   readFile(new URL('./app.js', import.meta.url), 'utf8'),
-  readFile(new URL('../sw.js', import.meta.url), 'utf8')
+  readFile(new URL('../sw.js', import.meta.url), 'utf8'),
+  readFile(new URL('./nftpick.js', import.meta.url), 'utf8'),
+  readFile(new URL('../../server/nft.js', import.meta.url), 'utf8')
 ]);
 let checks = 0;
 function has(source, pattern, message) { assert.match(source, pattern, message); checks++; }
@@ -50,4 +52,6 @@ has(city, /activeNftModels=Math\.max\(0,activeNftModels-1\)/, 'releases model bu
 has(city, /if\(p\.boat\)\{W\(\)\.S\.remove\(p\.boat\)/, 'preserves boat cleanup from current main');
 has(app, /L\.nftCharacter&&L\.nftCharacter\.userData\.anim/, 'animates the selected local NFT character');
 has(sw, /bc-v94-nftavatars/, 'bumps service-worker cache version for avatar assets');
+has(picker, /slice\(0, 16\)/, 'preserves up to 16 supported traits from the selected NFT');
+has(nftServer, /slice\(0, 16\)/, 'shares the supported trait set through the verified server character snapshot');
 console.log('NFT avatar architecture: ' + checks + ' assertions passed');

@@ -31,7 +31,7 @@ async function finishSignIn(sid) {
   const s = sessions.get(sid); if (!s || s.kind !== 'signin' || !s.uuid) return { ok: false, reason: 'unknown_session' };
   const p = await sdk().payload.get(s.uuid);
   if (!p?.meta?.signed || !p.response?.account) return { ok: false, reason: 'not_signed' };
-  sessions.delete(sid); return { ok: true, account: p.response.account, token: sign({ acct: p.response.account, exp: Date.now() + C.LOGIN_TTL_MS }) };
+  sessions.delete(sid); try { require('./estate-access').markRegistered(p.response.account); } catch (e) { console.error('wallet registry', e.message); return { ok: false, reason: 'registration_unavailable' }; } return { ok: true, account: p.response.account, token: sign({ acct: p.response.account, exp: Date.now() + C.LOGIN_TTL_MS }) };
 }
 // ---- purchases ----
 function newPurchase(account, itemId) {

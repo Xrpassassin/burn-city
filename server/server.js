@@ -5,6 +5,7 @@ const Nft = require('./nft'), Social = require('./social'), C = require('./confi
 
 const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates = require('./estates'), EstateWallet = require('./estate-wallet');
 const EstateRights = require('./estates-rights');
+const EstateAccess = require('./estate-access');
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const Jetpack = require('./jetpack');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
@@ -129,11 +130,33 @@ const server = http.createServer(async (req, res) => {
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
       if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, Estates.getState(u.acct));
-      if (url.pathname === '/api/estates/access' && req.method === 'GET') {
+      if (url.pathname === '/api/estates/rights' && req.method === 'GET') {   // #235 rights decision (renamed from /access, which #237's owner guest list uses)
         const propertyId = String(url.searchParams.get('propertyId') || '');
         const action = String(url.searchParams.get('action') || 'enter');
         const decision = EstateRights.resolveEstateRights({ account: u.acct, propertyId, action, estates: Estates });
         return json(res, 200, decision);
+      if (url.pathname === '/api/estates/access/search' && req.method === 'GET') {
+        const q = String(url.searchParams.get('q') || '');
+        if (q.length < 4) return json(res, 200, { wallets: [] });
+        return json(res, 200, { wallets: EstateAccess.searchRegistered(q, u.acct) });
+      }
+      if (url.pathname === '/api/estates/access/check' && req.method === 'GET') {
+        const propertyId = String(url.searchParams.get('propertyId') || '');
+        const result = EstateAccess.accessFor(u.acct, propertyId);
+        return json(res, result.allowed ? 200 : (result.reason === 'not_owned' ? 404 : 403), result);
+      }
+      if (url.pathname === '/api/estates/access' && req.method === 'GET') {
+        const result = EstateAccess.listForOwner(u.acct, String(url.searchParams.get('propertyId') || ''));
+        return json(res, result.ok ? 200 : (result.error === 'unknown_property' ? 404 : 403), result);
+      }
+      if (url.pathname === '/api/estates/access/invite' && req.method === 'POST') {
+        const b = await body(), result = EstateAccess.invite(u.acct, String(b.propertyId || ''), String(b.guestAcct || ''));
+        const code = result.ok ? 200 : ({ unknown_property:404, invalid_wallet:400, cannot_invite_self:400, owner_only:403, wallet_not_registered:404, invite_limit:409 }[result.error] || 400);
+        return json(res, code, result);
+      }
+      if (url.pathname === '/api/estates/access/revoke' && req.method === 'POST') {
+        const b = await body(), result = EstateAccess.revoke(u.acct, String(b.propertyId || ''), String(b.guestAcct || ''));
+        return json(res, result.ok ? 200 : (result.error === 'unknown_property' ? 404 : 403), result);
       }
       if (url.pathname === '/api/estates/buy' && req.method === 'POST') return json(res, 409, { error: 'sales_not_configured', status: 'wallet_integration_pending', message: 'Property sales are disabled until the designated wallet, verified payment settlement, property pricing, and final share weights are configured and audited.' });   // never reads the body: no client amount is ever used
       // Owner-wallet identity check (Xaman SignIn payload, no ledger transaction): admin token only.

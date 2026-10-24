@@ -126,8 +126,8 @@ export function updateRoutePlan(state = {}, position, target, obstacles = [], op
   const obstacle = first.obstacle, length = Math.sqrt(lengthSq), ux = dx / length, uz = dz / length;
   const sideX = -uz, sideZ = ux, radius = first.radius + 0.18;
   const candidates = [
-    { x: obstacle.x + sideX * radius, z: obstacle.z + sideZ * radius, side: 1 },
-    { x: obstacle.x - sideX * radius, z: obstacle.z - sideZ * radius, side: -1 }
+    { x: obstacle.x + ux * radius * 0.9 + sideX * radius, z: obstacle.z + uz * radius * 0.9 + sideZ * radius, side: 1 },
+    { x: obstacle.x + ux * radius * 0.9 - sideX * radius, z: obstacle.z + uz * radius * 0.9 - sideZ * radius, side: -1 }
   ].filter(point => !isPositionBlocked(point.x, point.z, obstacles, actorRadius));
   candidates.sort((a, b) => {
     const costA = Math.hypot(position.x - a.x, position.z - a.z) + Math.hypot(target.x - a.x, target.z - a.z);

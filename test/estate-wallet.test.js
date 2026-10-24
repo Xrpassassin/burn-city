@@ -8,7 +8,7 @@ let signedAccount = address;
 const config = { ESTATE_TREASURY: address, XUMM_KEY: 'test-key', XUMM_SECRET: 'test-secret', NETWORK: 'mainnet' };
 const pay = {
   async startSignIn() { return { sid: 'SI-test', xaman: { uuid: 'uuid-test', deeplink: 'https://example.invalid/payload' } }; },
-  async finishSignIn(id) { assert.equal(id, 'SI-test'); return { ...signInResult, account: signedAccount }; }
+  async finishSignIn(id) { assert.equal(id, 'SI-test'); return { ok: true, account: signedAccount }; }
 };
 const wallet = createEstateWallet({ config, pay, now: () => clock });
 

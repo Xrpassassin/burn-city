@@ -15,7 +15,7 @@ eq(generic.wingStyle,'mechanical','supports mechanical wing style'); eq(generic.
 const detailProfile = resolveNftAvatarProfile({ key:'589', id:'detail-test', traits:[['Hair Style','Mohawk'],['Facial Hair','Goatee'],['Face Paint','War Paint'],['Body Pattern','Camouflage'],['Horns','Antlers']] });
 const detail = resolveNftAvatarComponents(detailProfile);
 eq(detail.hairStyle,'mohawk','maps mohawk hairstyle');
-eq(detail.facialHair,'Goatee','preserves typed facial-hair style');
+eq(detail.facialHair,'goatee','normalizes typed facial-hair style for rendering');
 eq(detail.hasMarkings,true,'maps face paint to markings');
 eq(detail.patternStyle,'camouflage','maps camouflage body pattern');
 eq(detail.hasHorns,true,'maps antler traits');

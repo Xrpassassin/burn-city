@@ -19,6 +19,13 @@ function lacks(source, pattern, message) { assert.doesNotMatch(source, pattern, 
 
 const raccProfile = resolveNftAvatarProfile({ key: 'racc', id: 'NFT-001', traits: [['Bandit Mask', 'Crimson'], ['Background', 'Sunset'], ['Fur Color', 'Silver']] });
 assert.equal(raccProfile.collectionName, 'RACC'); checks++;
+const normalizedRaccProfile = resolveNftAvatarProfile({ key: ' RACC ', traits: [['Bandit Mask', 'Crimson']] });
+assert.equal(normalizedRaccProfile.collectionKey, 'racc'); checks++;
+assert.equal(normalizedRaccProfile.collectionName, 'RACC'); checks++;
+assert.deepEqual(normalizedRaccProfile.renderTraits, [['mask', 'Crimson']]); checks++;
+const normalizedFirekeeperProfile = resolveNftAvatarProfile({ key: ' FK ', traits: [['Ember Type', 'Blue']] });
+assert.equal(normalizedFirekeeperProfile.collectionKey, 'fk'); checks++;
+assert.deepEqual(normalizedFirekeeperProfile.renderTraits, [['flame', 'Blue']]); checks++;
 assert.equal(raccProfile.archetype, 'raccoon'); checks++;
 assert.deepEqual(raccProfile.renderTraits, [['mask', 'Crimson'], ['background', 'Sunset'], ['fur color', 'Silver']]); checks++;
 assert.deepEqual(raccProfile.rawTraits, [['Bandit Mask', 'Crimson'], ['Background', 'Sunset'], ['Fur Color', 'Silver']]); checks++;

@@ -11,7 +11,13 @@ for (const interior of INTERIORS) {
   assert(interior.rooms.length >= 2, interior.landmarkId + ' must have connected rooms');
   for (const room of interior.rooms) {
     assert(room.width >= 4 && room.depth >= 4);
+    assert(Number.isFinite(room.elevation), interior.landmarkId + '/' + room.id + ' must define a finite floor elevation');
     for (const exit of room.exits) {
+      const destination = interiorRoom(interior, exit.to);
+      assert(Number.isFinite(destination.elevation), interior.landmarkId + '/' + exit.to + ' must define a finite floor elevation');
+      if (Math.abs(room.elevation - destination.elevation) >= 0.75) {
+        assert(/ladder|escape|stairs|stair/i.test(exit.label), 'vertical floor transitions must be explicitly identified as climbable routes');
+      }
       assert(interiorRoom(interior, exit.to), interior.landmarkId + '/' + room.id + ' points to missing room');
       assert(interior.rooms.find(other => other.id === exit.to).exits.some(reverse => reverse.id === exit.id && reverse.to === room.id), 'door must connect both rooms');
     }

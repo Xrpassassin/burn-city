@@ -4,6 +4,8 @@ Object.assign(process.env, { DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'bc
 const F = require('../server/fish'); let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? '  PASS ' : '  FAIL ') + m); };
 const realNow = Date.now; let off = 0; Date.now = () => realNow() + off; const A = 'rFishSim11111111111111111111';
 ok(F.SPECIES.length === 20 && new Set(F.SPECIES.map(s => s[2])).size === 5, '20 species across 5 rarities');
+ok(F.anglerLevel(0) === 1 && F.anglerLevel(100) === 2 && F.anglerLevel(700) === 5 && F.anglerLevel(3050) === 10, 'server angler level thresholds match client progression');
+ok(F.xpForCatch({ r: 0, kg: 0.2 }) === 10 && F.xpForCatch({ r: 4, kg: 900 }) === 88, 'server catch XP is deterministic and weight-capped');
 ok(F.baitAffinity('minnow', 0) === 1.25 && F.baitAffinity('minnow', 3) === 0.9, 'preferred bait boosts odds and mismatched bait modestly lowers them');
 ok(F.baitAffinity('unknown-species', 2) === 1, 'unknown species retain neutral bait affinity');
 ok(F.baitAffinity('leviathan', 99) === 0.9, 'bait tier is clamped safely');
@@ -15,8 +17,10 @@ const c = F.cast(A, {}); ok(c.cid && c.wait >= 2500 && !c.id, 'cast hides specie
 ok(F.cast(A, {}).error === 'too_fast', 'second cast within 5 s rejected');
 ok(F.reel(A, c.cid, true).error === 'timing', 'reeling before the bite is rejected');
 off += 10e3; const c2 = F.cast(A, {}); off += c2.wait + 100; const r = F.reel(A, c2.cid, true); ok(r.fish && r.profile.creel.length === 1, 'landed fish goes to creel');
+ok(r.profile.xp === F.xpForCatch(r.fish) && F.get(A).xp === r.profile.xp, 'server awards and persists XP only for landed catches');
 ok(F.get(A).coins === 0, 'no coins until sold'); const s = F.sell(A); ok(s.sold > 0 && F.get(A).coins === s.sold, 'selling gives coins');
 ok(F.buy(A, 'rod', 'legend').error === 'not_enough_coins', 'cannot buy what you cannot afford');
+{ const L = 'rFishLevelLock88888888888888888'; F.importGuest(L, { coins: 2000 }); const blocked = F.buy(L, 'rod', 'carbon'); ok(blocked.error === 'level_locked' && blocked.requiredLevel === 2, 'server blocks a rod purchase before its angler level unlock'); }
 while (F.get(A).coins < 5) { off += 10e3; const k = F.cast(A, {}); off += k.wait + 50; F.reel(A, k.cid, true); F.sell(A); }
 ok(F.buy(A, 'bait', 'shrimp', 1).profile.bait.shrimp === 1, 'bait purchase with coins');
 off += 10e3; const c3 = F.cast(A, {}); off += c3.wait + 25e3; ok(F.reel(A, c3.cid, true).error === 'timing', 'stale reel (bot left it) rejected');

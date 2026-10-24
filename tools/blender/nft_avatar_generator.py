@@ -270,6 +270,7 @@ def main():
     anchor["collection_key"]=key
     anchor["token_id"]=str(spec["identity"].get("tokenId",""))
     anchor["blockout_only"]=True
+    anchor["trait_snapshot_json"]=json.dumps(trait_rows, sort_keys=True, ensure_ascii=False)
     for obj in bpy.context.scene.objects:
         if obj.type == "MESH":
             obj["burncity_asset_stage"]="procedural-blockout"

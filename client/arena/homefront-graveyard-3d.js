@@ -578,8 +578,8 @@ function boot(host) {
     const interior = interiorForLandmark(interiorState?.landmarkId), room = interiorRoom(interior, interiorState?.roomId);
     const exit = room?.exits.find(item => item.id === doorId), landmark = LANDMARKS.find(item => item.id === interior?.landmarkId);
     if (!interior || !exit || !landmark || !worldData?.self) return;
-    const targetX = landmark.x + room.x + (exit.side === 'east' ? room.width / 2 : exit.side === 'west' ? -room.width / 2 : 0);
-    const targetZ = landmark.z + room.z + (exit.side === 'south' ? room.depth / 2 : exit.side === 'north' ? -room.depth / 2 : 0);
+    const targetX = landmark.x + room.x + (exit.side === 'east' ? room.width / 2 - 0.9 : exit.side === 'west' ? -room.width / 2 + 0.9 : 0);
+    const targetZ = landmark.z + room.z + (exit.side === 'south' ? room.depth / 2 - 0.9 : exit.side === 'north' ? -room.depth / 2 + 0.9 : 0);
     if (Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) {
       await moveTo(targetX, targetZ);
       if (!worldData?.self || Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) { setInteriorStatus('Approach the doorway and select it again. The route is not traversed until you reach the threshold.'); return; }

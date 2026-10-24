@@ -29,7 +29,19 @@ function roll(rodId, baitId, ctx, rnd = Math.random) {
   const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(rnd(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +(s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
   return { id: s[0], name: s[1], r: s[2], kg, val: Math.round(s[4] * (1 + f)), hits: 1 + s[2], zone: +(0.3 - 0.04 * s[2] + 0.05 * rt).toFixed(2) };
 }
-const get = acct => { const r = db.prepare('SELECT * FROM fish_prof WHERE acct=?').get(acct); return r ? { coins: r.coins, rod: r.rod, rods: JSON.parse(r.rods), bait: JSON.parse(r.bait), log: JSON.parse(r.log), creel: JSON.parse(r.creel), n: r.n, xp: Math.max(0, Number(r.xp) || 0) } : { coins: 0, rod: 'basic', rods: ['basic'], bait: { worm: -1 }, log: {}, creel: [], n: 0, xp: 0 }; };
+const get = acct => {
+  const r = db.prepare('SELECT * FROM fish_prof WHERE acct=?').get(acct);
+  if (!r) return { coins: 0, rod: 'basic', rods: ['basic'], bait: { worm: -1 }, log: {}, creel: [], n: 0, xp: 0 };
+  let xp = Math.max(0, Number(r.xp) || 0);
+  // Backfill XP for pre-progression signed-in anglers from server-recorded catch rows only.
+  if (!xp && Number(r.n) > 0) {
+    const rows = db.prepare('SELECT sp, kg FROM fish_catch WHERE acct=? AND sp IS NOT NULL AND kg IS NOT NULL').all(acct);
+    const rarity = new Map(SPECIES.map(s => [s[0], s[2]]));
+    xp = rows.reduce((sum, row) => sum + (rarity.has(row.sp) ? xpForCatch({ r: rarity.get(row.sp), kg: row.kg }) : 0), 0);
+    if (xp > 0) db.prepare('UPDATE fish_prof SET xp=? WHERE acct=? AND xp=0').run(xp, acct);
+  }
+  return { coins: r.coins, rod: r.rod, rods: JSON.parse(r.rods), bait: JSON.parse(r.bait), log: JSON.parse(r.log), creel: JSON.parse(r.creel), n: r.n, xp };
+};
 const put = (acct, p) => db.prepare('INSERT OR REPLACE INTO fish_prof(acct,coins,rod,rods,bait,log,creel,n,xp) VALUES(?,?,?,?,?,?,?,?,?)').run(acct, p.coins, p.rod, JSON.stringify(p.rods), JSON.stringify(p.bait), JSON.stringify(p.log), JSON.stringify(p.creel.slice(-60)), p.n, Math.max(0, Math.floor(Number(p.xp) || 0)));
 db.exec('CREATE TABLE IF NOT EXISTS fish_streak(acct TEXT PRIMARY KEY, cur INTEGER, wk INTEGER, wbest INTEGER, wt INTEGER, best INTEGER)');
 // server-observed catch streak: consecutive landed fish. Escapes, timeouts and abandoned/spooked casts reset it.

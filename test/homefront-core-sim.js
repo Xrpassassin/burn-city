@@ -27,6 +27,9 @@ assert.equal(Object.keys(H.SURVIVOR_TRAITS).length, 8, 'survivors draw from the 
 assert.equal(Object.keys(H.SURVIVOR_TALENTS).length, 5, 'survivors draw from the role talent catalog');
 const profileA = H.survivorProfile('profile-test-a');
 const profileB = H.survivorProfile('profile-test-b');
+assert.ok(H.SURVIVOR_BACKGROUNDS.includes(profileA.background), 'every survivor receives a deterministic personal background');
+assert.equal(H.survivorRelationship({id:'bond-a'}, {id:'bond-b'}), H.survivorRelationship({id:'bond-b'}, {id:'bond-a'}), 'pair chemistry is symmetric and stable across reloads');
+assert.equal(H.survivorRelationship({id:'bond-a'}, {id:'bond-a'}), 'neutral', 'a survivor cannot form a relationship with themselves');
 assert.equal(profileA.traits.length, 2, 'each survivor receives two personality traits');
 assert.equal(new Set(profileA.traits).size, 2, 'a survivor cannot roll the same trait twice');
 assert.ok(Object.hasOwn(H.SURVIVOR_RARITIES, profileA.rarity) && Object.hasOwn(H.SURVIVOR_TALENTS, profileA.talent));

@@ -8,9 +8,15 @@ const hash=s=>{let h=2166136261;for(const c of String(s))h=Math.imul(h^c.charCod
 const ENCOUNTER_TTL=180000, ATTACK_COOLDOWN=900;
 // Server-owned cadence keyed to the equipped weapon validated in the saved refuge.
 // These minimum intervals also constrain callers that bypass the client autofire loop.
-const WEAPON_FIRE_INTERVAL=Object.freeze({pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950});
-const WEAPON_MAGAZINE_CAPACITY=Object.freeze({pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0});
-const WEAPON_HANDLING=Object.freeze({pipe_blade:{adsMs:140,recoveryMs:450,aimMoveScale:0.62},pump_shotgun:{adsMs:280,recoveryMs:720,aimMoveScale:0.52},marksman_rifle:{adsMs:520,recoveryMs:1150,aimMoveScale:0.42},shock_maul:{adsMs:220,recoveryMs:560,aimMoveScale:0.56}});
+const Firearms=require('./homefront-firearms');
+const BASE_FIRE_INTERVAL={pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950};
+const BASE_MAGAZINE={pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0};
+const BASE_HANDLING={pipe_blade:{adsMs:140,recoveryMs:450,aimMoveScale:0.62},pump_shotgun:{adsMs:280,recoveryMs:720,aimMoveScale:0.52},marksman_rifle:{adsMs:520,recoveryMs:1150,aimMoveScale:0.42},shock_maul:{adsMs:220,recoveryMs:560,aimMoveScale:0.56}};
+// Automatic firearm tiers (SMG → assault rifle → machine gun → heavy machine gun) come from one table.
+for(const [id,t] of Object.entries(Firearms.FIREARM_TIERS)){BASE_FIRE_INTERVAL[id]=t.interval;BASE_MAGAZINE[id]=t.magazine;BASE_HANDLING[id]={...t.handling};}
+const WEAPON_FIRE_INTERVAL=Object.freeze(BASE_FIRE_INTERVAL);
+const WEAPON_MAGAZINE_CAPACITY=Object.freeze(BASE_MAGAZINE);
+const WEAPON_HANDLING=Object.freeze(BASE_HANDLING);
 const STATS=Object.freeze({wandering_infected:{hp:32,damage:2,ammo:1,range:18},infected_horde:{hp:76,damage:5,ammo:2,range:20},special_infected:{hp:105,damage:7,ammo:2,range:22}});
 function enemyName(zone,event){const a=ARCHETYPES[zone]||ARCHETYPES.outskirts;return event==='special_infected'?a.special:event==='infected_horde'?a.horde:a.wanderer;}
 function safeEnemyPosition(x, z, fallbackX, fallbackZ, bounds = 100) {
@@ -119,7 +125,9 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  let aimedZone=null;
  if(aimPoint!=null&&(!aimPoint||![aimPoint.x,aimPoint.y,aimPoint.z].every(Number.isFinite)||Math.hypot(aimPoint.x-target.x,aimPoint.z-target.z)>1.75||aimPoint.y<0.05||aimPoint.y>2.7))throw Error('invalid_aim_point');
  if(Math.hypot(player.x-target.x,player.z-target.z)>e.range)throw Error('enemy_out_of_range');
- const weaponId=typeof base.equippedWeapon==='string'&&WEAPON_FIRE_INTERVAL[base.equippedWeapon]?base.equippedWeapon:'pipe_blade';
+ const weaponId=typeof base.equippedWeapon==='string'&&Object.prototype.hasOwnProperty.call(WEAPON_FIRE_INTERVAL,base.equippedWeapon)&&(!Array.isArray(base.weapons)||base.weapons.includes(base.equippedWeapon))?base.equippedWeapon:'pipe_blade';
+ const tier=Firearms.isFirearmTier(weaponId)?Firearms.FIREARM_TIERS[weaponId]:null;
+ if(tier){const u=Firearms.unlockStatus(base,weaponId);if(!u.unlocked)throw Error('weapon_locked');}
  const handling=WEAPON_HANDLING[weaponId]||WEAPON_HANDLING.pipe_blade;
  const aimElapsed=player.aiming===true&&Number.isFinite(player.aimStartedAt)?Math.max(0,now-player.aimStartedAt):0;
  const recoveryRemaining=Number.isFinite(player.accuracyRecoverUntil)?Math.max(0,player.accuracyRecoverUntil-now):0;
@@ -130,22 +138,25 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  if(aimed)aimedZone=aimPoint.y>=1.88?'head':aimPoint.y<=0.68?'limb':'torso';
  const fireInterval=WEAPON_FIRE_INTERVAL[weaponId]||ATTACK_COOLDOWN;
  if(now-e.lastAttackAt<Math.max(ATTACK_COOLDOWN,fireInterval))throw Error('attack_cooldown');
- const ammoCost=WEAPON_MAGAZINE_CAPACITY[weaponId]>0?1:0;
- if((base.resources?.ammo||0)<ammoCost)throw Error('insufficient_ammo');base.resources.ammo-=ammoCost;base.revision=(Number.isSafeInteger(base.revision)?base.revision:0)+1;
+ // Automatic tiers fire a short server-resolved burst per request; the server decides how many rounds leave the magazine.
+ const loadedAmmo=Math.max(0,Math.floor(base.resources?.ammo||0));
+ const rounds=tier?Math.min(tier.rounds,loadedAmmo):1;
+ const ammoCost=WEAPON_MAGAZINE_CAPACITY[weaponId]>0?Math.max(1,rounds):0;
+ if(loadedAmmo<ammoCost)throw Error('insufficient_ammo');base.resources.ammo-=ammoCost;base.revision=(Number.isSafeInteger(base.revision)?base.revision:0)+1;
  const power=clamp(Math.floor(weaponPower),1,20);const field=survival&&typeof survival==='object'?{...survival}:null;const staminaBefore=field?clamp(field.stamina,0,100):100;const fatigueScale=staminaBefore<15?0.55:staminaBefore<35?0.75:1;
  // Hit zones are rolled on the server from encounter and attack clock; clients cannot submit a headshot claim.
  const zoneRoll=hash(target.id+':'+now+':'+seed)%100;
  const hitZone=aimedZone || (zoneRoll < 8 + Math.floor(aimStability*4) ? 'head' : zoneRoll < 30 + Math.floor(aimStability*8) ? 'limb' : 'torso');
  const zoneMultiplier=hitZone==='head'?1.8:hitZone==='limb'?0.75:1;
  const accuracyScale=aimed?1:0.72+aimStability*0.28;
- const damage=Math.max(5,Math.floor(Math.max(8,12+(power-1)*7+Math.floor(e.risk*1.5))*fatigueScale*zoneMultiplier*accuracyScale));if(field)field.stamina=clamp(staminaBefore-8,0,100);target.hp=Math.max(0,target.hp-damage);target.lastAttackAt=now;if(target.hp===0){const wasAnchor=living[0]===target;target.defeated=true;const nextLead=living.find(m=>m!==target);if(wasAnchor&&nextLead){e.x=nextLead.x;e.z=nextLead.z;}}e.hp=(e.members||[]).reduce((sum,m)=>sum+(m.defeated?0:m.hp),0);e.maxHp=(e.members||[]).reduce((sum,m)=>sum+m.maxHp,0);e.lastAttackAt=now;
+ const baseDamage=Math.max(8,12+(power-1)*7+Math.floor(e.risk*1.5))*fatigueScale*accuracyScale;const hits=[];let damage=0,current=target;for(let r=0;r<(tier?rounds:1);r++){if(!current||current.defeated||current.hp<=0){const anchor=current||target;let next=null,best=Infinity;for(const m of living){if(m.defeated||m.hp<=0)continue;const d=Math.hypot(m.x-anchor.x,m.z-anchor.z);if(d<=(tier?tier.spread:0)&&d<best&&Math.hypot(player.x-m.x,player.z-m.z)<=e.range){best=d;next=m;}}if(!next)break;current=next;}const roll=r===0?zoneRoll:hash(current.id+':'+now+':'+seed+':'+r)%100;const zone=r===0?hitZone:(roll<6?'head':roll<30?'limb':'torso');const mult=zone==='head'?1.8:zone==='limb'?0.75:1;const roundDamage=Math.max(5,Math.floor(baseDamage*mult*(tier?Math.pow(tier.falloff,r):1)));const before=current.hp;current.hp=Math.max(0,current.hp-roundDamage);current.lastAttackAt=now;damage+=before-current.hp;let killedMember=false;if(current.hp===0&&current!==e){const wasAnchor=living.find(m=>!m.defeated&&m.hp>0||m===current)===current;current.defeated=true;killedMember=true;const nextLead=living.find(m=>!m.defeated&&m.hp>0);if(wasAnchor&&nextLead){e.x=nextLead.x;e.z=nextLead.z;}}hits.push({targetId:current.id,damage:before-current.hp,hitZone:zone,killed:killedMember});if(current===e)break;}if(field)field.stamina=clamp(staminaBefore-8,0,100);e.hp=(e.members||[]).reduce((sum,m)=>sum+(m.defeated?0:m.hp),0);e.maxHp=(e.members||[]).reduce((sum,m)=>sum+m.maxHp,0);e.lastAttackAt=now;
  if(e.hp===0){e.defeated=true;const q=hash(e.id+':'+seed)%100,quality=q<2?'Legendary':q<8?'Epic':q<22?'Rare':q<48?'Uncommon':'Common',qi=QUALITY_ORDER.indexOf(quality),scrap=2+e.risk+qi*2,embers=e.risk+qi;
  base.resources.scrap=Math.min(999999,(base.resources.scrap||0)+scrap);base.embers=Math.min(999999999,(base.embers||0)+embers);
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Cleared '+e.enemy+' squad and recovered '+quality.toLowerCase()+'-grade salvage: +'+scrap+' scrap and +'+embers+' Embers.'});base.log=base.log.slice(-20);}
- return{encounters:clean,encounter:publicEncounter(e),killed:true,damage,hitZone,aimed,aimStability,adsProgress,enemyDamage:0,ammoCost,reward:{quality,scrap,embers},base,survival:field};}
+ return{encounters:clean,encounter:publicEncounter(e),killed:true,damage,hitZone,hitTargetId:target.id,hits,rounds:ammoCost||hits.length,aimed,aimStability,adsProgress,enemyDamage:0,ammoCost,reward:{quality,scrap,embers},base,survival:field};}
  const guards=Array.isArray(base.survivors)?base.survivors.filter(s=>s.role==='guard').length:0,enemyDamage=Math.max(1,e.damage-Math.min(3,guards));
  if(Array.isArray(base.survivors)&&base.survivors.length){const target=base.survivors.reduce((a,s)=>!a||(s.morale||0)<(a.morale||0)?s:a,null);if(target)target.morale=clamp((target.morale||0)-enemyDamage*2,0,100);}else base.resources.food=Math.max(0,(base.resources.food||0)-Math.max(1,Math.ceil(enemyDamage/3)));
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Hit '+target.role+' in '+e.enemy+' squad for '+damage+' damage. The squad retaliated for '+enemyDamage+' pressure.'});base.log=base.log.slice(-20);}
- return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,aimed,aimStability,adsProgress,enemyDamage,ammoCost,reward:null,base,survival:field};
+ return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,hitTargetId:target.id,hits,rounds:ammoCost||hits.length,aimed,aimStability,adsProgress,enemyDamage,ammoCost,reward:null,base,survival:field};
 }
 module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,WEAPON_FIRE_INTERVAL,WEAPON_MAGAZINE_CAPACITY,WEAPON_HANDLING,STATS,normalizeEncounters,resolveSpawn,publicEncounter,spawn,advance,attack};

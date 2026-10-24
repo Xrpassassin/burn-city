@@ -70,6 +70,7 @@ export const sfx = {
   // d = distance in metres; quieter and duller with distance, nothing beyond 35 m (synth fallback when the bank isn't loaded)
   groan(d = 5, pan = 0) { if (d > 35) return; const k = 1 / (1 + d / 6), f = 70 + Math.random() * 50; tone(f, { type: 'sawtooth', a: 0.15, dec: 0.6 + Math.random() * 0.4, v: 0.12 * k, f1: f * 0.7, pan });
     noise({ a: 0.12, dec: 0.6, v: 0.05 * k, f: 300 + 600 * k, q: 4, pan }); },
+  weaponFire(kind = 'machine_gun', mine = true) { const k = mine ? 1 : 0.45; if (kind === 'heavy_machine_gun') { noise({ a: 0.002, dec: 0.12, v: 0.24 * k, f: 1200, f1: 220, type: 'lowpass' }); tone(74, { a: 0.002, dec: 0.11, v: 0.18 * k, f1: 38 }); noise({ at: 0.015, a: 0.002, dec: 0.055, v: 0.12 * k, f: 4600, f1: 1800, q: 0.7, type: 'highpass' }); } else { noise({ a: 0.002, dec: 0.075, v: 0.16 * k, f: 1700, f1: 500, type: 'lowpass' }); tone(115, { a: 0.002, dec: 0.065, v: 0.1 * k, f1: 55 }); noise({ at: 0.008, a: 0.002, dec: 0.04, v: 0.08 * k, f: 4200, f1: 2100, q: 0.7, type: 'highpass' }); } },
   shot(w, mine = true) { const n = performance.now(); if (n - lastShot < (w === 2 || w === 3 ? 0 : 90)) return; lastShot = n; const k = mine ? 1 : 0.4;
     if (w === 2) { noise({ dec: 0.25, v: 0.35 * k, f: 900, f1: 200, type: 'lowpass' }); tone(90, { dec: 0.18, v: 0.25 * k, f1: 45 }); }          // shotgun-style burst: boom
     else if (w === 3) { tone(220, { dec: 0.25, v: 0.15 * k, f1: 80 }); noise({ at: 0.05, dec: 0.3, v: 0.12 * k, f: 500, type: 'lowpass' }); }   // napalm lob: thoop

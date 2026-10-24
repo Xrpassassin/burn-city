@@ -113,8 +113,8 @@ assert.ok(scene.includes("sfx.play(sfx.has(sound) ? sound : 'hit'"), 'fall back 
 assert.ok(scene.includes("const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16)"), 'head hits get distinct blood particle feedback');
 assert.match(scene, /drop\.userData\.blood = true/, 'mark short-lived blood particles for fade-out');
 
-assert.match(scene, /const weaponId = \['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'\]/, 'select only known server-equipped weapon profiles for impact feedback');
-assert.match(scene, /weaponId === 'pump_shotgun' \? 'shotgun'/, 'shotgun impacts use their dedicated licensed sample when available');
+assert.match(scene, /const weaponId = WEAPON_IDS\.includes\(detail\.weaponId\)/, 'select only known server-equipped weapon profiles for impact feedback');
+assert.match(scene, /weaponId === 'pump_shotgun' \|\| isAuto \? 'shotgun'/, 'shotgun and automatic tiers reuse the licensed firearm sample');
 assert.ok(scene.includes("detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18)"), 'shotgun killing blows produce a wider, stronger impact burst');
 assert.match(scene, /\.catch\(\(\) => \{\}\)/, 'audio asset failures cannot interrupt confirmed combat feedback');
 assert.match(scene, /data\.combat\.encounterId/, 'resolve encounter IDs from the combat response when available');
@@ -339,6 +339,21 @@ assert.match(page, /s\.type==='turret'/, 'intact mounted turrets visually fire a
 assert.match(page, /target\.hitReaction=\.18/, 'defensive shots produce a visible infected hit reaction');
 assert.match(page, /if\(!base\?\.wave\|\|pendingBuilding\|\|constructionPaused\)return/, 'construction mode suppresses siege and defensive-fire effects');
 assert.match(page, /function updateSiegeEffects\(dt\)/, 'expire temporary tracer and impact objects cleanly');
+
+
+// Confirmed firearms get visible tracer feedback, and the heavy machine gun is wired through the client weapon handling.
+assert.match(scene, /tracerPool\.emit\(/, 'confirmed firearm hits draw pooled tracers (no per-shot geometry)');
+assert.match(scene, /detail\.hits\.slice\(0, 6\)/, 'one tracer per server-resolved round, capped');
+assert.doesNotMatch(scene, /new THREE\.Line\(new THREE\.BufferGeometry\(\)\.setFromPoints\(\[from, to\]\)/, 'no per-shot Line allocation in the Graveyard');
+assert.match(scene, /heavy_machine_gun/, 'recognize the late-game heavy machine gun in client feedback and cadence');
+assert.match(page, /\.\.\.firearmTiers\]\.map\(/, 'weapon bench lists the server firearm tiers');
+assert.match(page, /Unlocks at refuge level '\+t\.level/, 'locked tiers explain the settlement level they need');
+assert.match(page, /'Survey '\+t\.zoneLabel\+' to unlock'/, 'district requirement for the top tiers is explained');
+assert.match(scene, /weaponId === 'heavy_machine_gun' \? 1\.18/, 'render a visibly longer heavy-machine-gun silhouette');
+assert.match(scene, /const ammoBox = new THREE\.Mesh/, 'add a visible ammunition box to the heavy machine gun');
 // Production facilities must be placeable: the client-side placement check knows their caps and costs.
 assert.match(homefrontPage, /quarry:2,smelter:2,salvage_yard:2\},costs=/, 'quarry/smelter/salvage yard have client placement caps');
 assert.match(homefrontPage, /smelter:\{wood:20,scrap:18,stone:10\}/, 'smelter placement cost mirrors the server');
+
+assert.match(scene, /WEAPON_DELAY\[equippedWeaponId\]/, 'autofire cadence mirrors the server tier table');
+for (const id of ['smg','assault_rifle','machine_gun','heavy_machine_gun']) assert.match(scene, new RegExp("'" + id + "'"), id + ' is wired into Graveyard feedback');

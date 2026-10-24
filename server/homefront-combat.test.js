@@ -4,8 +4,48 @@ const base=()=>({resources:{ammo:50,scrap:0,food:10},embers:0,survivors:[{id:'s1
 const a=C.spawn({encounters:{},account:'a',player,now:100000,seed:4});assert.ok(a.encounter.id.startsWith('enc-'));
 const Terrain=require('./homefront-terrain');assert.equal(Terrain.isSafePosition(a.encounter.x,a.encounter.z,{bounds:100}),true,'infected encounters spawn on a safe terrain footprint');
 assert.equal(a.encounter.range,C.STATS[a.encounter.event].range,'public encounter exposes server-owned attack range for contextual UI');
-assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950},'weapon-specific fire cadence is defined on the server');
-assert.deepEqual(C.WEAPON_MAGAZINE_CAPACITY,{pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0},'only firearms use finite magazines; melee weapons never consume bullets');
+// Firearm tier ladder (#185–#188 combined): cadence/magazines come from one server table.
+const F=require('./homefront-firearms');
+assert.deepEqual(Object.keys(F.FIREARM_TIERS),['smg','assault_rifle','machine_gun','heavy_machine_gun'],'four automatic tiers in order');
+assert.deepEqual(Object.values(F.FIREARM_TIERS).map(t=>t.tier),[1,2,3,4]);
+assert.ok(Object.values(F.FIREARM_TIERS).every((t,i,a)=>i===0||(t.level>=a[i-1].level&&t.power>a[i-1].power&&t.rounds>=a[i-1].rounds)),'each tier needs more settlement development and hits harder');
+assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950,smg:950,assault_rifle:950,machine_gun:1000,heavy_machine_gun:1050},'weapon-specific fire cadence is defined on the server');
+assert.ok(Object.values(C.WEAPON_FIRE_INTERVAL).every(ms=>ms>=900),'no weapon can be fired faster than the 120/min world rate limit allows');
+assert.deepEqual(C.WEAPON_MAGAZINE_CAPACITY,{pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0,smg:30,assault_rifle:30,machine_gun:45,heavy_machine_gun:60},'firearms use finite magazines; melee weapons never consume bullets');
+const Core=require('./homefront-core');
+// Unlock checks are server-side on craft, equip and fire.
+const armory=Core.createBase('armory-test',1000);armory.resources.scrap=5000;armory.embers=5000;
+assert.throws(()=>Core.applyAction(armory,'armory-test',{type:'craft_weapon',weapon:'smg'},1001),/weapon_requires_refuge_level_2/,'SMG needs refuge level 2');
+const lvl3=Core.validateBase({...armory,level:3},'armory-test');
+const withSmg=Core.applyAction(lvl3,'armory-test',{type:'craft_weapon',weapon:'smg'},1002);assert.ok(withSmg.weapons.includes('smg'));
+const withAr=Core.applyAction(withSmg,'armory-test',{type:'craft_weapon',weapon:'assault_rifle'},1003);assert.ok(withAr.weapons.includes('assault_rifle'));
+assert.throws(()=>Core.applyAction(withAr,'armory-test',{type:'craft_weapon',weapon:'machine_gun'},1004),/weapon_requires_refuge_level_4/);
+const lvl5=Core.validateBase({...withAr,level:5},'armory-test');
+assert.throws(()=>Core.applyAction(lvl5,'armory-test',{type:'craft_weapon',weapon:'machine_gun'},1005),/weapon_requires_zone_industrial/,'machine gun also needs the Industrial Yard surveyed');
+const surveyed=Core.validateBase({...lvl5,exploration:{...lvl5.exploration,discoveredZones:['outskirts','industrial','research_lab']}},'armory-test');
+const withMg=Core.applyAction(surveyed,'armory-test',{type:'craft_weapon',weapon:'machine_gun'},1006);
+const withHmg=Core.applyAction(withMg,'armory-test',{type:'craft_weapon',weapon:'heavy_machine_gun'},1007);assert.ok(withHmg.weapons.includes('heavy_machine_gun'));
+// A save that somehow owns a gun above its development cannot equip or fire it.
+const forgedOwner=Core.validateBase({...armory,weapons:['pipe_blade','heavy_machine_gun']},'armory-test');
+assert.throws(()=>Core.applyAction(forgedOwner,'armory-test',{type:'equip_weapon',weapon:'heavy_machine_gun'},1008),/weapon_requires_refuge_level_5/);
+const tierSpawn=()=>{const sp=C.spawn({encounters:{},account:'mg-test',player,now:800000,seed:11,risk:3});for(const m of sp.encounters['mg-test'].members){m.hp=400;m.maxHp=400;m.x=player.x+3;m.z=player.z+(m.offsetZ||0)*0.2;}sp.encounters['mg-test'].hp=sp.encounters['mg-test'].members.reduce((a,m)=>a+m.hp,0);return sp;};
+assert.throws(()=>C.attack({encounters:tierSpawn().encounters,account:'mg-test',player,base:{...base(),level:1,weapons:['pipe_blade','heavy_machine_gun'],equippedWeapon:'heavy_machine_gun'},now:801000,weaponPower:9}),/weapon_locked/,'combat refuses an above-tier gun even if the save lists it');
+const fire=(id,lvl,ammo=90)=>C.attack({encounters:tierSpawn().encounters,account:'mg-test',player,base:{...base(),level:lvl,exploration:{discoveredZones:['outskirts','industrial','research_lab']},weapons:['pipe_blade',id],equippedWeapon:id,resources:{...base().resources,ammo}},now:801000,weaponPower:Core.WEAPONS[id].power,seed:4});
+const shots=Object.fromEntries(['smg','assault_rifle','machine_gun','heavy_machine_gun'].map(id=>[id,fire(id,5)]));
+assert.equal(shots.smg.ammoCost,3);assert.equal(shots.heavy_machine_gun.ammoCost,5,'server decides the burst and spends that many rounds');
+assert.equal(shots.heavy_machine_gun.base.resources.ammo,85,'ammo deducted server-side');
+assert.equal(shots.heavy_machine_gun.hits.length,5,'every round in the burst is a server-resolved hit');
+assert.ok(shots.heavy_machine_gun.damage>shots.machine_gun.damage&&shots.machine_gun.damage>shots.assault_rifle.damage&&shots.assault_rifle.damage>shots.smg.damage,'each tier tears through more of the horde per burst');
+const shortMag=fire('heavy_machine_gun',5,2);assert.equal(shortMag.ammoCost,2,'a burst never spends rounds that are not loaded');assert.equal(shortMag.hits.length,2);
+assert.throws(()=>fire('heavy_machine_gun',5,0),/insufficient_ammo/);
+const rifleShot=C.attack({encounters:tierSpawn().encounters,account:'mg-test',player,base:{...base(),equippedWeapon:'marksman_rifle'},now:801000,weaponPower:4,seed:4});
+assert.equal(rifleShot.hits.length,1,'single-shot weapons resolve one round');
+const firstBurst=fire('smg',5);assert.throws(()=>C.attack({encounters:firstBurst.encounters,account:'mg-test',player,base:{...base(),level:5,weapons:['pipe_blade','smg'],equippedWeapon:'smg'},now:801500,weaponPower:5}),/attack_cooldown/,'server cadence rejects burst spam');
+// Bursts walk onto other squad members when the first target drops (tear through the squad).
+const weak=C.spawn({encounters:{},account:'mg-walk',player,now:800000,seed:11});const wm=weak.encounters['mg-walk'].members;for(const m of wm){m.hp=10;m.maxHp=10;m.x=player.x+3;m.z=player.z;}weak.encounters['mg-walk'].hp=wm.length*10;
+const walk=C.attack({encounters:weak.encounters,account:'mg-walk',player,base:{...base(),level:5,exploration:{discoveredZones:['industrial','research_lab']},weapons:['pipe_blade','heavy_machine_gun'],equippedWeapon:'heavy_machine_gun',resources:{...base().resources,ammo:60}},now:801000,weaponPower:9,seed:2});
+assert.ok(new Set(walk.hits.map(h=>h.targetId)).size===Math.min(wm.length,5),'each round after a kill moves to the next living member');
+assert.ok(walk.hitTargetId,'server returns the actual hit target');
 const cooldownSpawn=C.spawn({encounters:{},account:'cooldown-test',player,now:700000,seed:3});
 const cooldownBase=weapon=>({...base(),equippedWeapon:weapon});
 const firstShot=C.attack({encounters:cooldownSpawn.encounters,account:'cooldown-test',player,base:cooldownBase('pump_shotgun'),now:701000});
@@ -21,7 +61,7 @@ const aimedPlayer={...player,aiming:true,aimStartedAt:600000,accuracyRecoverUnti
 const aimedHead=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player:aimedPlayer,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint});
 assert.equal(aimedHead.aimed,true,'server confirms aim only after the weapon-specific ADS time');
 assert.equal(aimedHead.hitZone,'head','a stable server-confirmed aim point can produce a headshot');
-assert.deepEqual(Object.keys(C.WEAPON_HANDLING),['pipe_blade','pump_shotgun','marksman_rifle','shock_maul']);
+assert.deepEqual(Object.keys(C.WEAPON_HANDLING),['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','smg','assault_rifle','machine_gun','heavy_machine_gun']);
 assert.ok(C.WEAPON_HANDLING.marksman_rifle.adsMs>C.WEAPON_HANDLING.pump_shotgun.adsMs,'marksman rifle takes longer to aim down sights than shotgun');
 const sprintRecovery=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player:{...aimedPlayer,accuracyRecoverUntil:601900},base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint});
 assert.equal(sprintRecovery.aimed,false,'post-sprint recovery blocks immediate precision headshots even while aiming');

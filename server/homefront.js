@@ -3,6 +3,8 @@
 const HFStore = require('./homefront-store');
 const Core = require('./homefront-core');
 const World = require('./homefront-world');
+const Firearms = require('./homefront-firearms');
+const FIREARM_TIERS_PUBLIC = Firearms.publicTiers();
 const Combat = require('./homefront-combat');
 const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
@@ -268,7 +270,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null });
           // Gunfire and melee combat leave a server-recorded noise signature. The next
           // authoritative world tick uses it to attract the local infected director.
-          player.noiseLevel = Math.max(player.noiseLevel || 0, weaponId === 'pump_shotgun' ? 95 : weaponId === 'marksman_rifle' ? 82 : 62);
+          player.noiseLevel = Math.max(player.noiseLevel || 0, Firearms.isFirearmTier(weaponId) ? Firearms.FIREARM_TIERS[weaponId].noise : weaponId === 'pump_shotgun' ? 95 : weaponId === 'marksman_rifle' ? 82 : 62);
           player.lastNoiseAt = combatAt;
           player.noiseX = player.x;
           player.noiseZ = player.z;
@@ -285,7 +287,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           bases[user.acct] = outcome.base;
           store.save('homefront.json', bases);
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, hitZone: outcome.hitZone, aimed: outcome.aimed, aimStability: outcome.aimStability, adsProgress: outcome.adsProgress, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, hitZone: outcome.hitZone, aimed: outcome.aimed, aimStability: outcome.aimStability, adsProgress: outcome.adsProgress, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward, weaponId, hitTargetId: outcome.hitTargetId, rounds: outcome.rounds, hits: outcome.hits }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
           return true;
         }
         case '/api/homefront/world/enter': {
@@ -532,7 +534,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       if (!base) { json(res, 500, { error: 'save_invalid', message: 'The saved refuge could not be validated; it was not overwritten.' }); return true; }
     }
     if (req.method === 'GET' && url.pathname === '/api/homefront') {
-      json(res, 200, { mode: 'homefront', base, threatProfile: Core.threatProfile(base) });
+      json(res, 200, { mode: 'homefront', base, threatProfile: Core.threatProfile(base), firearmTiers: FIREARM_TIERS_PUBLIC });
       return true;
     }
     if (req.method !== 'POST' || url.pathname !== '/api/homefront/action') {
@@ -556,7 +558,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
     }
     db[user.acct] = next;
     store.save('homefront.json', db);
-    json(res, 200, { mode: 'homefront', base: next, threatProfile: Core.threatProfile(next) });
+    json(res, 200, { mode: 'homefront', base: next, threatProfile: Core.threatProfile(next), firearmTiers: FIREARM_TIERS_PUBLIC });
     return true;
   } catch (e) {
     const message = String(e?.message || 'homefront_error');

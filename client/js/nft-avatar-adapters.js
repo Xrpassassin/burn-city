@@ -12,7 +12,7 @@ const COMMON = [
   ['weapon', /^armed$/i],
   ['fur color', /fur.?colou?r|^fur$/i],
   ['hair style', /hair.?style|hairstyle|haircut|hair.?shape/i],
-  ['hair color', /hair.?colou?r/i],
+  ['hair color', /^hair$|hair.?colou?r/i],
   ['skin color', /skin.?tone|skin.?colou?r/i],
   ['outfit', /clothes|outfit|shirt|topwear|bodywear|jacket|robe|clothing/i],
   ['armor', /armou?r|chestplate|plate.?carrier/i],

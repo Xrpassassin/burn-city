@@ -38,12 +38,15 @@ function flameStyle(value) {
   if (has(value, /black|shadow|dark/)) return { style: 'shadow', color: '#5b4b79' };
   return { style: value && !/none|no flame|off/.test(value) ? 'ember' : 'default', color: '#ff7a1a' };
 }
-function tailStyle(value, key) {
+function tailStyle(value, key, sourceType = '') {
+  // A RACC identity is not enough to infer a ringed tail: the source trait must say so.
+  // The collection schema label "Ring Tail" is meaningful even when its value is only a color.
+  if (has(sourceType, /ring.?tail|tail.?pattern/)) return 'ringed';
   if (has(value, /ring|banded|striped|raccoon/)) return 'ringed';
-  if (key === 'racc' && value && !/none|no tail/.test(value)) return 'ringed';
   if (has(value, /black|dark/)) return 'dark-tip';
   if (has(value, /white|silver|pale/)) return 'light-tip';
-  return value && !/none|no tail/.test(value) ? 'custom' : 'ringed';
+  if (value && !/none|no tail/.test(value)) return 'custom';
+  return 'none';
 }
 function wingStyle(value) {
   if (has(value, /mechanical|metal|cyber/)) return 'mechanical';
@@ -121,7 +124,7 @@ export function resolveNftAvatarComponents(profile = {}) {
     flame: flameStyle(flame || (key === 'fk' ? 'ember' : '')),
     bodyEffect: bodyEffect(body),
     eyeAppearance,
-    tailStyle: tailStyle(tail, key),
+    tailStyle: tailStyle(tail, key, String((Array.isArray(profile.rawTraits) ? profile.rawTraits : []).find(([type]) => /tail/i.test(String(type)))?.[0] || '')),
     wingStyle: wingStyle(wing),
     outfitStyle: outfitStyle(outfit, key),
     eyeStyle: eyeStyle(eyes),

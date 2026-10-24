@@ -126,6 +126,15 @@ export function buildNftChar(n, opts = {}) {
       const patch=addSphere(g,mat(i%2?patternColor:shade(patternColor,.68)),[side*(.17+((i*3)%3)*.018),y,z],[.025+(i%3)*.008,.018+(i%2)*.009,.009]);
       patch.name=components.patternStyle==='spots'?'nft-pattern-spot':'nft-camouflage-patch';
     }
+  } else if (components.patternStyle === 'checkered') {
+    // Keep the pattern on the torso's exposed edges so it remains visible beside the full NFT artwork panel.
+    for (const side of [-1,1]) for (let row=0;row<4;row++) for (let col=0;col<2;col++) {
+      if ((row+col)%2===0) {
+        const tile=addBox(g,mat(col===0?patternColor:shade(patternColor,.58)),
+          [side*(.275+col*.018),1.015+row*.07,.194],[.018,.035,.009]);
+        tile.name='nft-pattern-checker';
+      }
+    }
   }
 
   if (components.bodyEffect !== 'none') {
@@ -298,6 +307,13 @@ export function buildNftChar(n, opts = {}) {
   } else if (['hat','beanie','band'].includes(components.headwearStyle) || has(tr,/hat|cap|fitted|beanie|visor|sweatband|headband/)) {
     addSphere(head,hatColor,[0,.15,-.01],[.22,.105,.2]);
     if (!has(tr,/beanie/)) addBox(head,hatColor,[0,.105,.18],[.25,.025,.12]);
+  } else if (components.headwearStyle === 'custom') {
+    // Unknown named headwear still gets a bounded, legible silhouette instead of disappearing.
+    const crown=addSphere(head,hatColor,[0,.16,-.015],[.205,.095,.18]);
+    crown.name='nft-custom-headwear';
+    addBox(head,hatColor,[0,.105,.16],[.235,.022,.085]).name='nft-custom-headwear-brim';
+    const crest=add(geo('nft-custom-headwear-crest',()=>new THREE.ConeGeometry(.035,.09,6)),glow(accentHex),0,.245,-.005,head);
+    crest.name='nft-custom-headwear-crest';
   }
   if(components.hasHorns || has(tr,/horn|antler|tusk/)) {
     const hornText=String(components.horns||traitValue(/horn|antler|tusk/i)).toLowerCase();
@@ -351,6 +367,12 @@ export function buildNftChar(n, opts = {}) {
   } else if (components.accessoryStyle === 'pack') {
     addBox(g,darkCloth,[0,1.18,-.2],[.25,.32,.13]);
     for (const side of [-1,1]) addBox(g,trim,[side*.12,1.28,-.12],[.035,.22,.025]);
+  } else if (components.accessoryStyle === 'custom') {
+    // Preserve the existence of unfamiliar collection accessories as visible, deterministic geometry.
+    const charm=add(geo('nft-custom-accessory',()=>new THREE.DodecahedronGeometry(.055,0)),glow(traitColor(/accessory|jewel|chain/i,accentHex)),.205,1.24,.235);
+    charm.name='nft-custom-accessory';
+    const mount=add(geo('nft-custom-accessory-mount',()=>new THREE.TorusGeometry(.067,.009,5,14)),metal,.205,1.24,.226);
+    mount.name='nft-custom-accessory-mount';
   }
   if(has(tr,/armor|fur|collar|cape/)) {
     for(const s of [-1,1]) addSphere(g,has(tr,/fur/)?mat('#b8a68a'):trim,[s*.28,1.43,-.005],[.13,.1,.13]);

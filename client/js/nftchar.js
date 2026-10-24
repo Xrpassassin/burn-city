@@ -276,6 +276,18 @@ export function buildNftChar(n, opts = {}) {
         }
       } else if (components.hairStyle === 'long') {
         for(const side of [-1,1]) { const lock=addCapsule(head,hairMat,[side*.155,-.07,-.025],.027,.23,[1,1,1]); lock.rotation.z=side*.08; lock.name='nft-long-hair'; }
+      } else if (components.hairStyle === 'ponytail') {
+        // Tie gathered hair behind the skull; unlike long hair, the silhouette projects backward.
+        const tie=addSphere(head,mat('#c5a35b'),[0,.095,-.17],[.035,.035,.025]); tie.name='nft-ponytail-tie';
+        const tail=addCapsule(head,hairMat,[0,.055,-.245],.034,.22,[1,1,1]); tail.rotation.x=-.18; tail.rotation.z=-.08; tail.name='nft-ponytail';
+        for(const side of [-1,1]) { const lock=addCapsule(head,hairMat,[side*.15,-.035,-.035],.022,.15,[1,1,1]); lock.rotation.z=side*.08; lock.name='nft-ponytail-side-lock'; }
+      } else if (components.hairStyle === 'undercut') {
+        // Preserve the top cap but add close-cut temple panels to make the side-shaved profile legible.
+        for(const side of [-1,1]) {
+          const panel=addSphere(head,mat(shade(hairColor,.62),.95,.01),[side*.174,.055,.005],[.035,.095,.11]);
+          panel.name='nft-undercut-temple';
+        }
+        const sweep=addCapsule(head,hairMat,[.045,.16,.005],.035,.12,[1.1,1,.8]); sweep.rotation.z=-.35; sweep.name='nft-undercut-swept-top';
       } else if (components.hairStyle === 'bun') {
         addSphere(head,hairMat,[0,.19,-.12],[.085,.075,.08]).name='nft-hair-bun';
       }
@@ -295,10 +307,21 @@ export function buildNftChar(n, opts = {}) {
     }
     if (components.facialHair && !/none|clean.?shaven|no facial hair/i.test(components.facialHair)) {
       const beardColor=traitColor(/facial hair|beard|mustache/i,'#332821');
-      if (/mustache|moustache/.test(components.facialHair.toLowerCase())) {
+      const facialHairText=components.facialHair.toLowerCase();
+      if (/mustache|moustache/.test(facialHairText)) {
         for(const side of [-1,1]) addSphere(head,mat(beardColor),[side*.045,-.055,.176],[.05,.018,.018]).name='nft-moustache';
-      } else if (/goatee|chin/.test(components.facialHair.toLowerCase())) {
+      } else if (/goatee|chin/.test(facialHairText)) {
         addSphere(head,mat(beardColor),[0,-.105,.153],[.055,.045,.035]).name='nft-goatee';
+      } else if (/stubble|five.?o.?clock|short beard/.test(facialHairText)) {
+        for(let i=0;i<13;i++) {
+          const x=((i%5)-2)*.035, y=-.07-Math.floor(i/5)*.025;
+          addSphere(head,mat(shade(beardColor,.72)),[x,y,.177],[.009,.009,.006]).name='nft-beard-stubble';
+        }
+      } else if (/long|wizard|braided|viking/.test(facialHairText)) {
+        const beard=addSphere(head,mat(beardColor),[0,-.12,.145],[.085,.09,.052]); beard.name='nft-beard-long';
+        if(/braid|viking/.test(facialHairText)) {
+          const braid=addCapsule(head,mat(beardColor),[0,-.22,.16],.018,.1,[1,1,1]); braid.name='nft-beard-braid';
+        }
       } else {
         addSphere(head,mat(beardColor),[0,-.105,.145],[.105,.075,.055]).name='nft-beard';
       }

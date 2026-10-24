@@ -31,7 +31,7 @@ const has = (t, re) => t.some(v => re.test(v));
 const color = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : fallback;
 // Typed NFT attributes are retained separately so identical values from different traits are not conflated.
 export function buildNftChar(n, opts = {}) {
-  const pal = n?.pal || {}, key = n?.key || '589';
+  const pal = n?.pal || {}, key = String(n?.key || '589').trim().toLowerCase();
   const profile = resolveNftAvatarProfile(n);
   const components = resolveNftAvatarComponents(profile);
   const reconstruction = resolveNftAvatarReconstruction(profile);

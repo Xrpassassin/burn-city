@@ -11,7 +11,7 @@
     "burn": "node server/burn.js",
     "bots": "node test/bots.js ws://localhost:8080 8 30",
     "test:testnet": "node test/testnet-payments.js",
-    "test": "node test/payments-sim.js && node test/security-sim.js && node test/flair-sim.js && node test/goldlock-sim.js && node test/amm-lock-sim.js && node test/cams-sim.js && node test/bt-sim.js && node client/js/wilds-pathfinding-core.test.mjs && node client/js/skate-physics-core.test.mjs && npm run -s test:eternal-grind && npm run -s test:blacktide && npm run -s test:wilds && npm run -s test:graphics-labs && npm run -s test:experience-registry && npm run -s test:world-objectives && npm run -s test:moba && npm run -s test:zombie-arrival && npm run -s test:flight-lobby && npm run -s test:homefront && npm run -s test:estates",
+    "test": "node test/payments-sim.js && node test/security-sim.js && node test/flair-sim.js && node test/goldlock-sim.js && node test/amm-lock-sim.js && node test/cams-sim.js && node test/bt-sim.js && node client/js/wilds-pathfinding-core.test.mjs && node client/js/skate-physics-core.test.mjs && npm run -s test:eternal-grind && npm run -s test:blacktide && npm run -s test:wilds && npm run -s test:graphics-labs && npm run -s test:experience-registry && npm run -s test:world-objectives && npm run -s test:moba && npm run -s test:zombie-arrival && npm run -s test:flight-lobby && npm run -s test:homefront && npm run -s test:estates && npm run -s test:estates-wallet",
     "test:wilds-pathfinding": "node client/js/wilds-pathfinding-core.test.mjs",
     "test:skate": "node client/js/skate-physics-core.test.mjs",
     "test:fishing-rules": "node client/js/fishing-rules.test.mjs",
@@ -46,7 +46,8 @@
     "test:homefront": "node client/arena/homefront-world-generation.test.mjs && node client/arena/homefront-terrain-generation.test.mjs && node server/homefront-terrain.test.mjs && node server/homefront-collision.test.js && node server/homefront-loot.test.js && node server/homefront-director.test.js && node server/homefront-inventory.test.js && node server/homefront-freshness.test.js && node server/homefront-survival.test.js && node server/homefront-combat.test.js && node server/homefront-environment.test.js && node test/homefront-environment-damage.test.mjs && node test/homefront-core-sim.js && node test/homefront-debrief-sim.js && node test/homefront-api-sim.js && node test/homefront-world-sim.js && node test/homefront-store-sim.js && node test/homefront-security-sim.js && node test/homefront-assets.test.mjs && node test/homefront-graveyard-3d.test.mjs && node client/arena/homefront-view.test.mjs && node client/arena/homefront-world-streaming.test.mjs && node test/homefront-mechanic-repair.test.js && node test/homefront-guard-defense.test.js && node client/arena/homefront-tracers.test.mjs && node test/homefront-platforms.test.mjs && node test/homefront-siege-sim.js && node test/homefront-siege-view.test.mjs",
     "test:zombie-arrival": "node test/zombie-helicopter-arrival-sim.js",
     "test:flight-lobby": "node test/flight-lobby-sim.js",
-    "test:estates": "node test/estate-economy-sim.js"
+    "test:estates": "node test/estate-economy-sim.js",
+    "test:estates-wallet": "node test/estate-wallet.test.js"
   },
   "keywords": [],
   "author": "",

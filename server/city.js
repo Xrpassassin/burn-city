@@ -41,7 +41,7 @@ function attach(ws, url, pass, ip) {
   ws.on('message', d => {
     const n = Date.now(); if (n - c.win > 1000) { c.win = n; c.msgs = 0; } if (++c.msgs > 6) return;
     let m; try { m = JSON.parse(d); } catch { return; } if (!m || typeof m !== 'object') return;
-    if (m.t === 'p') { c.x = num(m.x); c.y = num(m.y); c.z = num(m.z); c.r = Math.round((+m.r || 0) * 100) / 100; c.b = m.b ? 1 : 0; c.md = ['w', 'f', 'b'].includes(m.md) ? m.md : 'f'; c.j = (hasJet(acct) && m.j) ? 1 : 0; if (m.k && c.k === undefined) { try { c.k = !!(c.acct && Pay.owned(c.acct).includes('drone_burncoin')); } catch (e) { c.k = false; } } else if (!m.k) c.k = undefined; c.seen = true; dirty = true; }
+    if (m.t === 'p') { c.x = num(m.x); c.y = num(m.y); c.z = num(m.z); c.r = Math.round((+m.r || 0) * 100) / 100; c.b = m.b ? 1 : 0; c.bt = Fish.BOATS.some(v => v.id === m.bt) ? m.bt : 'skiff'; c.md = ['w', 'f', 'b'].includes(m.md) ? m.md : 'f'; c.j = (hasJet(acct) && m.j) ? 1 : 0; if (m.k && c.k === undefined) { try { c.k = !!(c.acct && Pay.owned(c.acct).includes('drone_burncoin')); } catch (e) { c.k = false; } } else if (!m.k) c.k = undefined; c.seen = true; dirty = true; }
     else if (m.t === 'fs') {   // fishing pose others can see: 0 off | 1 waiting | 2 bite | 3 reeling, bobber spot, rod look
       if (rate('fs:' + c.id, 12, 10e3)) return; const s = [0, 1, 2, 3].includes(m.s) ? m.s : 0; c.fs = s ? [s, num(m.x), num(m.z), Math.max(0, Math.min(3, m.rd | 0))] : 0; dirty = true; }
     else if (m.t === 'fc') {   // a catch: signed-in players show the server-landed fish; guests a generic one
@@ -72,7 +72,7 @@ function attach(ws, url, pass, ip) {
 }
 setInterval(() => {
   if (!dirty) return; dirty = false;
-  const p = [...clients.values()].filter(c => c.seen).map(c => [c.id, c.name, c.guest ? 1 : 0, c.x, c.y, c.z, c.r, c.b ? 1 : 0, c.k ? 1 : 0, c.md || 'f', c.j ? 1 : 0, c.fs || 0, (c.fl || 0) | (c.og ? 4 : 0)]);
+  const p = [...clients.values()].filter(c => c.seen).map(c => [c.id, c.name, c.guest ? 1 : 0, c.x, c.y, c.z, c.r, c.b ? 1 : 0, c.k ? 1 : 0, c.md || 'f', c.j ? 1 : 0, c.fs || 0, (c.fl || 0) | (c.og ? 4 : 0), c.bt || 'skiff']);
   bcast({ t: 's', n: clients.size, p });
 }, 333).unref();
 setInterval(() => { for (const c of clients.values()) if (c.acct) { const v = Flair.tier(c.acct, t => { c.fl = t; dirty = true; }); if (v !== c.fl) { c.fl = v; dirty = true; } } }, 120e3).unref();   // holder flair re-check (cache 10 min)

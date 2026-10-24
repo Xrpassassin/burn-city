@@ -2,37 +2,42 @@
 // Lake coins are a free in-game score: NO real value, cannot be bought with XRP, cannot be withdrawn.
 // Signed in: server rolls + stores progress (anti-script limits). Guests: same rules locally (localStorage).
 import * as THREE from 'three';
-import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard, xpForCatch, anglerProgress, rodUnlockLevel, BOATS as BOAT_CATALOG, feedingSpotBonus } from './fishing-rules.mjs';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-const SPECIES = [["minnow","Ledger Minnow",0,[0.05,0.3],3,{}],["bluegill","Bluegill Byte",0,[0.1,0.6],4,{}],["perch","Pond Perch",0,[0.2,1.2],5,{}],["carp","Mud Carp",0,[0.8,6],6,{}],["shiner","River Shiner",0,[0.05,0.4],3,{}],["dace","Silver Dace",0,[0.1,0.5],4,{}],["trout","Neon Trout",1,[0.5,4],12,{}],["bass","Amber Bass",1,[0.6,5],14,{}],["catfish","Glass Catfish",1,[1,9],15,{"night":1}],["pike","Spotted Pike",1,[1,8],16,{}],["eel","Moon Eel",2,[0.8,5],40,{"night":1}],["gar","Storm Gar",2,[2,12],45,{"weather":"storm"}],["koi","Gold Koi",2,[1,7],50,{}],["cod","Deepwater Cod",2,[3,20],48,{"deep":1}],["sturgeon","Phantom Sturgeon",3,[10,60],140,{"night":1,"deep":1}],["snapper","Lava Snapper",3,[2,14],120,{}],["salmon","Aurora Salmon",3,[3,18],130,{"weather":"bull"}],["leviathan","Burn Leviathan",4,[80,300],600,{"deep":1,"night":1}],["marlin","Crystal Marlin",4,[40,180],520,{"deep":1}],["whaleshark","XRP Whale Shark",4,[200,900],750,{"deep":1,"weather":"bull"}]], SHOP = {"rods":[["basic","Basic Rod",0,0],["carbon","Carbon Rod",150,1],["pro","Pro Rod",600,2],["legend","Ember Legend Rod",2000,3]], "baits":[["worm","Worm (free)",0,0],["shrimp","Shrimp",5,1],["glow","Glow Lure",20,2],["burnfly","Burn Fly",60,3]]}, RW = [60, 25, 10, 4, 1], RN = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'], RC = ['#c8d0dc', '#5aff9a', '#4aa8ff', '#c06bff', '#ffb020'];
+const SPECIES = [["minnow","Ledger Minnow",0,[0.05,0.3],3,{}],["bluegill","Bluegill Byte",0,[0.1,0.6],4,{}],["perch","Pond Perch",0,[0.2,1.2],5,{}],["carp","Mud Carp",0,[0.8,6],6,{}],["shiner","River Shiner",0,[0.05,0.4],3,{}],["dace","Silver Dace",0,[0.1,0.5],4,{}],["trout","Neon Trout",1,[0.5,4],12,{}],["bass","Amber Bass",1,[0.6,5],14,{}],["catfish","Glass Catfish",1,[1,9],15,{"night":1}],["pike","Spotted Pike",1,[1,8],16,{}],["eel","Moon Eel",2,[0.8,5],40,{"night":1}],["gar","Storm Gar",2,[2,12],45,{"weather":"storm"}],["koi","Gold Koi",2,[1,7],50,{}],["cod","Deepwater Cod",2,[3,20],48,{"deep":1,"boat":2}],["sturgeon","Phantom Sturgeon",3,[10,60],140,{"night":1,"deep":1,"boat":3}],["snapper","Lava Snapper",3,[2,14],120,{}],["salmon","Aurora Salmon",3,[3,18],130,{"weather":"bull"}],["leviathan","Burn Leviathan",4,[80,300],600,{"deep":1,"night":1,"boat":4}],["marlin","Crystal Marlin",4,[40,180],520,{"deep":1,"boat":3}],["whaleshark","XRP Whale Shark",4,[200,900],750,{"deep":1,"weather":"bull","boat":4}],["sunfish","Copper Sunfish",0,[0.1,0.8],5,{}],["goldentrout","Gilded Trout",2,[1,7],65,{"night":1,"boat":2}],["swordfish","Bluewater Swordfish",3,[30,120],220,{"deep":1,"boat":3}],["anglerfish","Abyssal Lanternfish",4,[5,80],700,{"deep":1,"night":1,"boat":4}]], SHOP = {"rods":[["basic","Basic Rod",0,0],["carbon","Carbon Rod",150,1],["pro","Pro Rod",600,2],["legend","Ember Legend Rod",2000,3]], "baits":[["worm","Worm (free)",0,0],["shrimp","Shrimp",5,1],["glow","Glow Lure",20,2],["burnfly","Burn Fly",60,3]]}, RW = [60, 25, 10, 4, 1], RN = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'], RC = ['#c8d0dc', '#5aff9a', '#4aa8ff', '#c06bff', '#ffb020'];
 const Q = new URLSearchParams(location.search), SRV = Q.get('citysrv') || 'https://burn-city-game.fly.dev', LS = localStorage;
 const tok = () => { try { return LS.bcToken || '' } catch (e) { return '' } };
 const api = (p, b) => fetch(SRV + '/api/fish/' + p, { method: b ? 'POST' : 'GET', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok() }, body: b ? JSON.stringify(b) : undefined }).then(r => r.json());
 const W = () => window.__city, $ = id => document.getElementById(id);
 const tier = (list, id) => (list.find(x => x[0] === id) || [0, 0, 0, 0])[3];
 function roll(rodId, baitId, ctx) { const rt = tier(SHOP.rods, rodId), bt = tier(SHOP.baits, baitId), luck = rt * 0.5 + bt;
-  const ok = SPECIES.filter(s => (!s[5].night || ctx.night) && (!s[5].deep || ctx.deep) && (!s[5].weather || s[5].weather === ctx.weather) && !(s[2] === 4 && bt < 2) && !(s[2] === 3 && bt < 1 && rt < 1));
+  const boat = boatById(ctx.boatId || 'skiff'), capacity = ctx.onBoat ? boat.capacityKg : 9;
+  const ok = SPECIES.filter(s => (!s[5].night || ctx.night) && (!s[5].deep || (ctx.deep && boat.depth >= 1)) && (!s[5].weather || s[5].weather === ctx.weather) && (Number(s[5].boat) || 0) <= (ctx.onBoat ? boat.tier : 0) && s[3][0] <= capacity && !(s[2] === 4 && bt < 2) && !(s[2] === 3 && bt < 1 && rt < 1));
   const w = ok.map(s => RW[s[2]] * Math.pow(1 + luck, s[2] * 0.6) * baitAffinity(s[0], bt)); let x = Math.random() * w.reduce((a, b) => a + b, 0), i = 0; while (x > w[i]) x -= w[i++];
-  const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(Math.random(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +(s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
+  const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(Math.random(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +Math.min(capacity, s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
   return { id: s[0], name: s[1], r: s[2], kg, val: Math.round(s[4] * (1 + f)), hits: 1 + s[2], zone: +(0.3 - 0.04 * s[2] + 0.05 * rt).toFixed(2) } }
 const night = () => { const h = (new Date().getUTCHours() + 17) % 24; return h >= 19 || h < 6 };
 const weather = () => { const t = ($('wchip')?.textContent || '').toLowerCase(); return /storm|crash/.test(t) ? 'storm' : /green|rainbow|gold/.test(t) ? 'bull' : '' };
-const isDeep = () => !!(window.__boat && window.__boat.active);
-let prof = (() => { try { return JSON.parse(LS.bcFish || 'null') } catch (e) { return null } })() || { coins: 0, rod: 'basic', rods: ['basic'], bait: { worm: -1 }, log: {}, creel: [], n: 0 };
+const isAboard = () => !!(window.__boat && window.__boat.active);
+const isDeep = () => { const b = window.__boat, e = window.__estate, boat = boatById(prof.selectedBoat); if (!b?.active || !e || boat.depth < 1) return false; const p = b.pos; return Math.hypot(p.x - e.lakeC.x, p.z - e.lakeC.z) < e.D * .38 };
+let prof = (() => { try { return JSON.parse(LS.bcFish || 'null') } catch (e) { return null } })() || { coins: 0, rod: 'basic', rods: ['basic'], bait: { worm: -1 }, log: {}, creel: [], n: 0, xp: 0, boats: ['skiff'], selectedBoat: 'skiff' };
+prof.boats = [...new Set(['skiff', ...(Array.isArray(prof.boats) ? prof.boats.filter(id => BOATS.some(b => b.id === id)) : [])])];
+if (!prof.boats.includes(prof.selectedBoat)) prof.selectedBoat = 'skiff';
+prof.xp = Math.max(0, Math.floor(Number(prof.xp) || 0));
 const saveLocal = () => { LS.bcFish = JSON.stringify(prof) };
 let bait = 'worm';
 // ---------- world: dock + shop on the city shore ----------
-let dock = null, shopPos = null, bobber = null, rod = null;
+let dock = null, shopPos = null, bobber = null, rod = null, feedingSpots = [];
 // ---------- low-poly fish model: shared geometry, one textured material per species ----------
 // look: [back colour, belly colour, pattern: 0 plain | 1 stripes | 2 spots | 3 lateral glow line | 4 patches, accent]
-const LOOK = { minnow: ['#8a9aa8', '#e8eef2', 0], bluegill: ['#2f7f86', '#ff9a3c', 1, '#1d4d5a'], perch: ['#9aa63a', '#f0e6b0', 1, '#3a4a1a'], carp: ['#a8823c', '#f0d890', 0], shiner: ['#c8d4e0', '#ffffff', 0],
+const LOOK = { sunfish: ['#f2a43a', '#fff0b8', 4, '#d94b2b'], goldentrout: ['#b68c20', '#f7e7ad', 2, '#fff4a3'], swordfish: ['#163c79', '#d8f1ff', 1, '#43d5ff'], anglerfish: ['#20163c', '#7764a6', 3, '#aaff55'], minnow: ['#8a9aa8', '#e8eef2', 0], bluegill: ['#2f7f86', '#ff9a3c', 1, '#1d4d5a'], perch: ['#9aa63a', '#f0e6b0', 1, '#3a4a1a'], carp: ['#a8823c', '#f0d890', 0], shiner: ['#c8d4e0', '#ffffff', 0],
   dace: ['#7a8a96', '#dfe6ea', 0], trout: ['#3a9a6a', '#f4e8d0', 3, '#ff4fd8'], bass: ['#3c6a2c', '#e8e4c0', 1, '#1e3a14'], catfish: ['#4a4a52', '#c8c0b0', 0], pike: ['#4a6a2a', '#e8e4a8', 2, '#d8e090'],
   eel: ['#3a3a2a', '#8a8a5a', 0], gar: ['#6a7a5a', '#dad8b8', 2, '#2a3020'], koi: ['#ffffff', '#ffffff', 4, '#ff8a10'], cod: ['#8a7a5a', '#efe8d8', 2, '#5a4a30'], sturgeon: ['#5a5a62', '#c8c8c8', 0],
   snapper: ['#e0402a', '#ffc0a8', 0], salmon: ['#8a9aa8', '#ff9a80', 2, '#2a3040'], leviathan: ['#2a1a5a', '#7a5aff', 3, '#ff3a00'], marlin: ['#1a3a8a', '#e8f0ff', 1, '#5ad8ff'], whaleshark: ['#3a4a5a', '#e0e4e8', 2, '#f0f4f8'] };
 // ---------- fish models: per-species body shape, fins and hand-painted skin (shared geometry + material per species) ----------
 // shape: L length, H height, W width, pk where the body is deepest (0 nose..1 tail), nz nose bluntness, tl tail type, d dorsal style, plus extras
 const SHAPE = {
-  minnow: { L: 1, H: .22, W: .14, pk: .38, nz: .7, tl: 'fork', d: 'one' }, shiner: { L: 1, H: .24, W: .12, pk: .4, nz: .7, tl: 'fork', d: 'one' }, dace: { L: 1, H: .22, W: .13, pk: .38, nz: .75, tl: 'fork', d: 'one' },
+  sunfish: { L: .75, H: .48, W: .2, pk: .42, nz: .4, tl: 'round', d: 'spiny' }, goldentrout: { L: 1.15, H: .28, W: .16, pk: .4, nz: .7, tl: 'fork', d: 'one', ad: 1 }, swordfish: { L: 1.9, H: .24, W: .2, pk: .35, nz: .9, tl: 'lunate', d: 'sail', bill: .9 }, anglerfish: { L: 1.15, H: .42, W: .28, pk: .35, nz: .3, tl: 'deep', d: 'ridge', teeth: 1 }, minnow: { L: 1, H: .22, W: .14, pk: .38, nz: .7, tl: 'fork', d: 'one' }, shiner: { L: 1, H: .24, W: .12, pk: .4, nz: .7, tl: 'fork', d: 'one' }, dace: { L: 1, H: .22, W: .13, pk: .38, nz: .75, tl: 'fork', d: 'one' },
   bluegill: { L: .8, H: .42, W: .13, pk: .42, nz: .45, tl: 'square', d: 'spiny' }, perch: { L: 1, H: .3, W: .16, pk: .38, nz: .6, tl: 'square', d: 'two' }, carp: { L: 1.05, H: .34, W: .2, pk: .4, nz: .5, tl: 'fork', d: 'long', bar: 2 },
   trout: { L: 1.1, H: .26, W: .16, pk: .4, nz: .65, tl: 'square', d: 'one', ad: 1 }, bass: { L: 1.05, H: .32, W: .19, pk: .38, nz: .55, tl: 'square', d: 'two', mouth: 1 },
   catfish: { L: 1.15, H: .24, W: .24, pk: .25, nz: .35, tl: 'round', d: 'small', bar: 8, ad: 1, flat: 1 }, pike: { L: 1.35, H: .2, W: .15, pk: .55, nz: 1.15, tl: 'fork', d: 'rear', duck: 1 },
@@ -48,6 +53,10 @@ const dots = (x, n, col, y0, y1, r0, r1, x0 = 0, x1 = 256) => { x.fillStyle = co
 const bars = (x, n, col, x0, x1, top, bot, w) => { x.fillStyle = col; for (let i = 0; i < n; i++) { const cx = x0 + (x1 - x0) * (i + .5) / n; x.beginPath(); x.moveTo(cx - w, top); x.lineTo(cx + w, top); x.lineTo(cx + w * .3, bot); x.lineTo(cx - w * .3, bot); x.fill() } };
 const band = (x, col, y, h, x0 = 20, x1 = 250) => { x.fillStyle = col; x.fillRect(x0, y - h / 2, x1 - x0, h) };
 const SKIN = {
+  sunfish: x => { grad(x, ['#9a4e18', '#f2a43a', '#ffd67a', '#fff0b8']); bars(x, 6, 'rgba(120,35,20,.55)', 45, 220, 2, 55, 10); dots(x, 10, '#f7e8a8', 8, 42, 2, 4) },
+  goldentrout: x => { grad(x, ['#74500e', '#b68c20', '#e7c85d', '#fff2bd']); dots(x, 100, '#fff4a3', 2, 38, 1, 2.6); band(x, '#e85c3c', 30, 5, 30, 245) },
+  swordfish: x => { grad(x, ['#0a2858', '#163c79', '#6aa4c9', '#d8f1ff']); band(x, '#43d5ff', 30, 3); bars(x, 5, 'rgba(8,24,60,.6)', 40, 200, 0, 28, 5) },
+  anglerfish: x => { grad(x, ['#100c25', '#20163c', '#4a3b70', '#7764a6']); dots(x, 80, '#aaff55', 4, 38, 1, 2.8); band(x, '#aaff55', 27, 2, 30, 245) },
   minnow: x => { grad(x, ['#5d6440', '#8b9070', '#c9ccbf', '#eceee6']); band(x, '#3a3d2a', 30, 4) },
   shiner: x => { grad(x, ['#5f7f74', '#a8c0c0', '#e8eef2', '#ffffff']); band(x, '#f2c8d8', 30, 3); band(x, '#7a9aa0', 26, 1.5) },
   dace: x => { grad(x, ['#3e4a52', '#7d8b94', '#d4dade', '#f2f4f5']); band(x, '#2c3238', 28, 2) },
@@ -70,8 +79,8 @@ const SKIN = {
   whaleshark: x => { grad(x, ['#1e2a38', '#34485a', '#4a5e70', '#e8ecee']); x.strokeStyle = 'rgba(230,240,245,.5)'; x.lineWidth = 1; for (let i = 0; i < 16; i++) { x.beginPath(); x.moveTo(30 + i * 14, 0); x.lineTo(30 + i * 14, 44); x.stroke() } dots(x, 160, '#eef2f4', 0, 44, 1, 2.3) } };
 const GLOW = { trout: x => band(x, '#ff4fa0', 30, 6, 30, 245), leviathan: x => { x.strokeStyle = '#ff4a10'; x.lineWidth = 2.2; for (let i = 0; i < 9; i++) { x.beginPath(); x.moveTo(30 + i * 24, 4); x.bezierCurveTo(40 + i * 24, 20, 20 + i * 24, 30, 36 + i * 24, 48); x.stroke() } band(x, '#ff6a20', 30, 2) },
   snapper: x => { x.strokeStyle = '#ff7a10'; x.lineWidth = 1.2; for (let i = 0; i < 14; i++) { x.beginPath(); x.moveTo(rnd(20, 240), rnd(5, 45)); x.lineTo(rnd(20, 240), rnd(5, 45)); x.stroke() } },
-  marlin: x => { x.fillStyle = '#5ad8ff'; for (let i = 0; i < 14; i++) x.fillRect(50 + i * 13, 16, 2, 26) }, salmon: x => band(x, '#7affc0', 28, 3) };
-const FIN = { minnow: '#7a7d60', shiner: '#c8d0d0', dace: '#6a747a', bluegill: '#3a5a3a', perch: '#e0782a', carp: '#a8743a', trout: '#7a7050', bass: '#5a6a2a', catfish: '#4a5868', pike: '#c86a2a', eel: '#3a3a28', gar: '#6a6a40', koi: '#ffffff', cod: '#7a6a44', sturgeon: '#6a7078', snapper: '#ff5a3a', salmon: '#5a6a7a', leviathan: '#ff3a00', marlin: '#1a3a8a', whaleshark: '#2a3a4a' };
+  marlin: x => { x.fillStyle = '#5ad8ff'; for (let i = 0; i < 14; i++) x.fillRect(50 + i * 13, 16, 2, 26) }, salmon: x => band(x, '#7affc0', 28, 3), goldentrout: x => { x.fillStyle = '#fff4a3'; for (let i = 0; i < 50; i++) { x.beginPath(); x.arc(20 + i * 4.2, 10 + (i % 4) * 10, 1.2, 0, 7); x.fill() } }, anglerfish: x => { x.strokeStyle = '#aaff55'; x.lineWidth = 3; x.beginPath(); x.moveTo(130, 8); x.quadraticCurveTo(160, -8, 174, 14); x.stroke(); x.fillStyle = '#aaff55'; x.beginPath(); x.arc(174, 14, 5, 0, 7); x.fill() } };
+const FIN = { sunfish: '#f28b32', goldentrout: '#d4a82c', swordfish: '#1a4c8a', anglerfish: '#8b70bb', minnow: '#7a7d60', shiner: '#c8d0d0', dace: '#6a747a', bluegill: '#3a5a3a', perch: '#e0782a', carp: '#a8743a', trout: '#7a7050', bass: '#5a6a2a', catfish: '#4a5868', pike: '#c86a2a', eel: '#3a3a28', gar: '#6a6a40', koi: '#ffffff', cod: '#7a6a44', sturgeon: '#6a7078', snapper: '#ff5a3a', salmon: '#5a6a7a', leviathan: '#ff3a00', marlin: '#1a3a8a', whaleshark: '#2a3a4a' };
 const SCALY = { eel: 0, catfish: 0, sturgeon: 0, whaleshark: 0, leviathan: .5, marlin: .3 };
 let FG = {}; const FM = {};
 function finShape(pts) { const s = new THREE.Shape(); s.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1]); return new THREE.ShapeGeometry(s).rotateY(-Math.PI / 2) }   // shape x -> +z (toward tail), y up
@@ -141,6 +150,8 @@ function mkRod(look) { const rg = new THREE.Group(), rm = new THREE.MeshStandard
 // progressive bend: each segment curls a bit more toward the tip, like a real blank under load
 const bendRod = (seg, b) => seg.forEach((g, i) => { if (i) g.rotation.x = b * (.25 + .3 * i) });
 const ROD_IDX = ['basic', 'carbon', 'pro', 'legend'];
+const BOATS = BOAT_CATALOG;
+const boatById = id => BOATS.find(b => b.id === id) || BOATS[0];
 function build() {
   const c = W(), e = window.__estate; if (!e) return; const { lakeC, dir, side } = e;
   const shoreAt = u => { const p = lakeC.clone().addScaledVector(side, u).addScaledVector(dir, -e.D * 2); for (let k = 0; k < 300; k++) { if (e.inLake(p.x, p.z)) return p; p.addScaledVector(dir, 1) } return p };
@@ -148,6 +159,17 @@ function build() {
   for (let z = -2; z < 22; z += 1.1) P(4.2, 0.18, 0.9, 0, 1.1, z); for (const x of [-1.9, 1.9]) for (let z = 0; z < 22; z += 5) P(0.35, 2.2, 0.35, x, 0.3, z); P(0.15, 0.9, 22, -2.05, 1.6, 10); P(0.15, 0.9, 22, 2.05, 1.6, 10);
   const dm = new THREE.Mesh(mergeGeometries(g), new THREE.MeshLambertMaterial({ color: 0x8a6440 })); dm.position.copy(base).setY(0); dm.rotation.y = yaw; c.S.add(dm);
   dock = { base, tip: base.clone().addScaledVector(dir, 20).setY(1.2), yaw, dir, side };
+  // Moving feeding schools reward anglers who explore the lake rather than casting from one spot.
+  feedingSpots = [];
+  for (const [u, v] of [[-72, -28], [48, 24], [6, 48]]) {
+    const p = lakeC.clone().addScaledVector(side, u).addScaledVector(dir, v);
+    for (let k = 0; k < 45 && !e.inLake(p.x, p.z); k++) p.lerp(lakeC, 0.12);
+    if (!e.inLake(p.x, p.z)) continue;
+    const mat = new THREE.MeshBasicMaterial({ color: 0x71ffd0, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.RingGeometry(2.1, 2.55, 32), mat);
+    mesh.rotation.x = -Math.PI / 2; mesh.position.set(p.x, 0.24, p.z); c.S.add(mesh);
+    feedingSpots.push({ mesh, p: p.clone(), target: p.clone(), moveAt: performance.now() / 1000 + 10 + Math.random() * 12 });
+  }
   // Tackle & Bait shop: small cabin + glowing sign
   shopPos = base.clone().addScaledVector(dir, -14).addScaledVector(side, 9); const sg = [new THREE.BoxGeometry(9, 4.5, 7).translate(0, 2.25, 0), new THREE.BoxGeometry(10, 0.5, 8).translate(0, 4.7, 0)];
   const sh = new THREE.Mesh(mergeGeometries(sg), new THREE.MeshLambertMaterial({ color: 0x5a3a24, emissive: 0x1a0c04 })); sh.position.copy(shopPos).setY(0); sh.rotation.y = yaw; c.S.add(sh);
@@ -196,15 +218,17 @@ let castGen = 0;   // bumps on every cast: timers/awaits from a cancelled cast m
 async function castAt(pow) {
   if (state !== 'aim') return; const gen = ++castGen; if (bait !== 'worm' && !(prof.bait[bait] > 0)) bait = 'worm';   // used up: fall back to worms (the server does the same)
   const c = W(), e = window.__estate, fw = new THREE.Vector3(); c.C.getWorldDirection(fw); fw.y = 0; fw.normalize();
-  const from = isDeep() ? window.__boat.pos : c.P.pos, perfect = pow >= .72 && pow <= .86; let dist = 6 + 20 * pow, tgt = from.clone().addScaledVector(fw, dist);
+  const from = isAboard() ? window.__boat.pos : c.P.pos, perfect = pow >= .72 && pow <= .86; let dist = 6 + 20 * pow, tgt = from.clone().addScaledVector(fw, dist);
   while (dist > 4 && !e.inLake(tgt.x, tgt.z)) { dist -= 1; tgt = from.clone().addScaledVector(fw, dist) }
   if (!e.inLake(tgt.x, tgt.z)) { tgt = from.clone(); for (let k = 0; k < 40 && !e.inLake(tgt.x, tgt.z); k++) tgt.addScaledVector(e.dir, 1); tgt.addScaledVector(e.dir, 3 + 6 * pow) }
+  const spotDistance = feedingSpots.reduce((best, s) => Math.min(best, Math.hypot(tgt.x - s.p.x, tgt.z - s.p.z)), Infinity);
+  const activityBonus = feedingSpotBonus(spotDistance, 9), activeFeeding = activityBonus > 1;
   state = 'wait'; rod.swing = 1; rod.tip.getWorldPosition(castFrom); castTo.copy(tgt).setY(0.45); bobber.position.copy(castFrom); bobber.visible = true; FL.t0 = performance.now() / 1000 + .28; FL.dur = .55 + dist / 32; FL.h = 2 + dist * .16; FL.on = 1; ui.style.display = 'block';
-  ui.innerHTML = `${perfect ? '<b style="color:#ffc64a">✨ Perfect cast!</b><br>' : ''}🎣 Watch the bobber… <div class="nv">bait: ${bait} · hook too early and it spooks</div><button id="fHook">Hook!</button> <button id="fStop">Reel in</button>`; ui.querySelector('#fStop').onclick = stop; ui.querySelector('#fHook').onclick = hook;
+  ui.innerHTML = `${perfect ? '<b style="color:#ffc64a">✨ Perfect cast!</b><br>' : ''}${activeFeeding ? '<b style=color:#71ffd0>🐟 Feeding frenzy! Faster bite · wider reel zone</b><br>' : ''}🎣 Watch the bobber… <div class="nv">bait: ${bait} · hook too early and it spooks</div><button id="fHook">Hook!</button> <button id="fStop">Reel in</button>`; ui.querySelector('#fStop').onclick = stop; ui.querySelector('#fHook').onclick = hook;
   let nc = null;
-  if (tok()) { const r = await api('cast', { bait, deep: isDeep(), weather: weather(), near: FISHOK ? 1 : 0, x: Math.round(from.x), z: Math.round(from.z) }).catch(() => ({ error: 'offline' })); if (r.error) { msg(r.error === 'too_fast' ? 'Easy! Wait a few seconds between casts.' : r.error === 'not_near_water' ? 'Get closer to the water to fish.' : r.error === 'hourly_limit' ? 'The fish need a rest (hourly limit). Try later.' : 'Server busy, try again.'); return } nc = { ...r, srv: true } }
-  else { const f = roll(prof.rod, prof.bait[bait] > 0 || bait === 'worm' ? bait : 'worm', { night: night(), deep: isDeep(), weather: weather() }); nc = { fish: f, wait: 2500 + Math.random() * 6000, hits: f.hits, zone: f.zone, r: f.r } }
-  if (state !== 'wait' || gen !== castGen) return; cur = nc; cur.perfect = perfect; if (perfect) cur.zone = Math.min(.6, cur.zone * 1.4);
+  if (tok()) { const r = await api('cast', { bait, deep: isDeep(), onBoat: !!(window.__boat && window.__boat.active), weather: weather(), near: FISHOK ? 1 : 0, x: Math.round(from.x), z: Math.round(from.z) }).catch(() => ({ error: 'offline' })); if (r.error) { msg(r.error === 'too_fast' ? 'Easy! Wait a few seconds between casts.' : r.error === 'not_near_water' ? 'Get closer to the water to fish.' : r.error === 'hourly_limit' ? 'The fish need a rest (hourly limit). Try later.' : 'Server busy, try again.'); return } nc = { ...r, srv: true } }
+  else { const f = roll(prof.rod, prof.bait[bait] > 0 || bait === 'worm' ? bait : 'worm', { night: night(), deep: isDeep(), weather: weather(), boatId: prof.selectedBoat, onBoat: isAboard() }); nc = { fish: f, wait: 2500 + Math.random() * 6000, hits: f.hits, zone: f.zone, r: f.r } }
+  if (state !== 'wait' || gen !== castGen) return; cur = nc; cur.perfect = perfect; if (perfect) cur.zone = Math.min(.6, cur.zone * 1.4); if (activeFeeding) { cur.zone = Math.min(.6, cur.zone * activityBonus); cur.wait = Math.max(1400, (Number(cur.wait) || 5000) * 0.78); }
   cur.t0 = performance.now(); cur.nib = [.5 + Math.random() * .15, .78 + Math.random() * .1].filter(() => Math.random() < .85).map(k => k * cur.wait); spawnStalker(); setTimeout(() => { if (gen === castGen) bite() }, cur.wait) }
 function bite() { if (state !== 'wait') return; state = 'bite'; const gen = castGen; ui.innerHTML = '<b style="font-size:18px">❗ Bite!</b><br><button id="fHook" style="margin-top:8px;font-size:18px">Hook it!</button>'; ui.querySelector('#fHook').onclick = hook; cur.biteT = performance.now(); ripple(bobber.position, 1.4); setTimeout(() => { if (state === 'bite' && gen === castGen) { msg('It got away… (hook faster)'); land(false) } }, 1600) }
 function hook() { if (state === 'wait') { ripple(bobber.position, 1); STK.on = 0; streak = 0; msg(cur ? '💨 Too early! The fish spooked. Wait for the big dip.' : 'Too early!'); return }
@@ -256,7 +280,7 @@ function leaps(t) { const dt = Math.min(.05, t - (leaps.lt || t)); leaps.lt = t;
     if (f && f.w > 0) { const sp = ['minnow', 'bluegill', 'perch', 'shiner', 'trout'][Math.floor(Math.random() * 5)]; leapFish(f.x, f.z, sp, sp === 'trout' ? 1 : 0, .4) } } }
 async function land(ok) { const was = cur; was.bob = bobber.position.clone(); state = 'idle'; bobber.visible = false;
   let f = null; if (was.srv) { const r = await api('reel', { cid: was.cid, ok }).catch(() => ({})); if (r.fish) { f = r.fish; prof = r.profile; W()._ft = r.today; if (r.streak) { streak = r.streak.cur - 1; srvBest = r.streak.wbest } } else if (ok) return msg(r.error === 'timing' ? 'Too slow, it slipped off.' : 'Server busy.') }
-  else { if (bait !== 'worm' && prof.bait[bait] > 0) prof.bait[bait]--; if (ok) { f = was.fish; const L = prof.log[f.id] || { n: 0, best: 0 }; L.n++; L.best = Math.max(L.best, f.kg); prof.log[f.id] = L; prof.creel.push([f.id, f.kg, f.val]); prof.n++ } saveLocal() }
+  else { if (bait !== 'worm' && prof.bait[bait] > 0) prof.bait[bait]--; if (ok) { f = was.fish; const L = prof.log[f.id] || { n: 0, best: 0 }; L.n++; L.best = Math.max(L.best, f.kg); prof.log[f.id] = L; prof.creel.push([f.id, f.kg, f.val]); prof.n++; prof.xp += xpForCatch(f) } saveLocal() }
   if (!ok) { streak = 0; return } if (!was.srv) { const saved = guestDailyCatches(); saved.catches.push({ sp: f.id, kg: f.kg }); try { LS.bcFishChallengeLog = JSON.stringify({ day: saved.day, catches: saved.catches }) } catch (e) { } } streak++; rod.lift = 1; rod.r = f.r; if (rod.fm) W().S.remove(rod.fm); rod.fm = buildFish(f.id, f.r, f.kg); W().S.add(rod.fm); rod.from.copy(was.bob || bobber.position).setY(.3); rod.fm.position.copy(rod.from); splash(rod.from); window.__citySend && window.__citySend({ t: 'fc' }); dispatchEvent(new CustomEvent('bc-fish-catch', { detail: { today: (was.srv && W()._ft) || 0 } })); ui.style.display = 'none'; await new Promise(r => setTimeout(r, 1100)); ui.style.display = 'block'; ui.innerHTML = `<div style="color:${RC[f.r]};font-weight:800">${RN[f.r]}</div><div style="font-size:20px;font-weight:800">🐟 ${f.name}</div>${f.kg} kg · worth ${f.val} 🪙<div class="nv">✓ added to your creel & fish log</div>${STKS()}`; clearTimeout(land.k); land.k = setTimeout(() => { if (state === 'idle') ui.style.display = 'none' }, 2600) }
 function splash(p) { const a = rod.drops.geometry.attributes.position, v = rod.dv, n = rod.r < 0 ? 6 : 10 + rod.r * 4; for (let i = 0; i < a.count; i++) { const on = i < n, ang = Math.random() * 6.283, sp = 1 + Math.random() * 2.5; a.setXYZ(i, p.x, on ? .3 : -50, p.z); v[i * 3] = Math.cos(ang) * sp; v[i * 3 + 1] = on ? 3 + Math.random() * 4 : 0; v[i * 3 + 2] = Math.sin(ang) * sp } a.needsUpdate = true; rod.drops.visible = true;
   ripple(p, 1.7); rod.ring.position.copy(p).setY(.3); rod.ring.scale.setScalar(.5); rod.ring.material.opacity = .8; rod.ring.visible = true }
@@ -271,19 +295,22 @@ const SN = id => (SPECIES.find(s => s[0] === id) || [0, id])[1];
 async function topHtml() { try { const r = await fetch(SRV + '/api/fish/top').then(r => r.json()); const t = r.top || [];
   return '<h4 style="margin:10px 0 4px">🏆 Biggest catch this week</h4>' + (t.length ? t.map((e, i) => `<div class="c" style="margin:3px 0">${i + 1}. ${e.who} · <b>${e.kg} kg</b> ${SN(e.sp)}</div>`).join('') : '<div class="nv">No signed-in catches yet this week. Be the first!</div>') + '<h4 style="margin:10px 0 4px">🔥 Longest catch streak this week</h4>' + ((r.streaks || []).length ? r.streaks.map((e, i) => `<div class="c" style="margin:3px 0">${i + 1}. ${e.who} · <b>${e.n} in a row</b></div>`).join('') : '<div class="nv">No streaks yet. Land 2+ fish in a row without one getting away!</div>') + '<div class="nv">Signed-in anglers only · resets Monday (UTC)</div>' } catch (e) { return '' } }
 const putTop = () => topHtml().then(h => { const e = panel.querySelector('#fTop'); if (e) e.innerHTML = h });
-async function openShop() { await refresh(); const v = prof.creel.reduce((a, f) => a + f[2], 0);
-  panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3 style="margin:0 0 6px">🎣 Tackle & Bait</h3>${NV}<p>🪙 <b>${prof.coins}</b> lake coins · creel: ${prof.creel.length} fish (${v} 🪙)</p><button class="b" id="fSell">Sell all fish (+${v} 🪙)</button>
-   <h4>Rods</h4>${SHOP.rods.map(r => `<button class="b" data-rod="${r[0]}">${prof.rod === r[0] ? '✓ ' : ''}${r[1]} · ${prof.rods.includes(r[0]) ? (prof.rod === r[0] ? 'equipped' : 'equip') : r[2] + ' 🪙'}</button>`).join('')}
-   <h4>Bait <span class="nv">(using: ${bait})</span></h4><div class="nv" style="margin:4px 0 8px">Bait tips: Worms favor common small fish · Shrimp favors bottom-feeders · Glow Lures favor select rare fish · Burn Fly favors predators.</div>${SHOP.baits.map(b => { if (b[0] === 'worm') return `<button class="b" data-use="worm">${bait === 'worm' ? '✓ ' : ''}${b[1]} · free</button>`; const mx = Math.min(50, Math.floor(prof.coins / b[2])), have = prof.bait[b[0]] || 0;
+async function openShop() { await refresh(); const v = prof.creel.reduce((a, f) => a + f[2], 0), angler = anglerProgress(prof.xp);
+  const levelText = `<p style="margin:8px 0 4px">🎣 <b>Angler Level ${angler.level}</b> · ${angler.xp} XP${angler.nextLevelAt === null ? ' · MAX LEVEL' : ` · ${angler.nextLevelAt - angler.xp} XP to Level ${angler.level + 1}`}</p>`;
+  const levelBar = `<div class="bar" aria-label="Angler experience progress"><div style="height:100%;width:${Math.round(angler.progress * 100)}%;background:linear-gradient(90deg,#31b8ff,#ffb020)"></div></div>`;
+  const boatHtml = `<h4>🚤 Private Dock · Your Fleet</h4><div class="nv">Choose which owned boat spawns at your personal dock. Larger boats reach deeper water and support heavier catches.</div>${BOATS.map(b => { const owned = prof.boats.includes(b.id), selected = prof.selectedBoat === b.id; return `<div class="c" style="margin:5px 0;border-color:${selected ? '#7dffb0aa' : '#ffffff22'}"><b>${selected ? '✓ ' : ''}${b.name}</b> · ${b.price ? `${b.price} 🪙` : 'starter boat'}<br><span class="nv">${b.description}</span><br>${owned ? `<button class="b" data-boat="${b.id}">${selected ? 'Spawned at dock' : 'Select & spawn'}</button>` : `<button class="b" data-buy-boat="${b.id}" ${prof.coins < b.price ? 'disabled' : ''}>Buy · ${b.price} 🪙</button>`}</div>` }).join('')}`;
+  panel.innerHTML = `<button class="x" aria-label="Close">✕</button><h3 style="margin:0 0 6px">🎣 Tackle & Bait</h3>${NV}<p>🪙 <b>${prof.coins}</b> lake coins · creel: ${prof.creel.length} fish (${v} 🪙)</p>${levelText}${levelBar}<button class="b" id="fSell">Sell all fish (+${v} 🪙)</button>
+   <h4>Rods</h4>${SHOP.rods.map(r => { const req = rodUnlockLevel(r[0]), locked = !prof.rods.includes(r[0]) && angler.level < req; return `<button class="b" data-rod="${r[0]}" ${locked ? 'disabled' : ''}>${prof.rod === r[0] ? '✓ ' : ''}${r[1]} · ${prof.rods.includes(r[0]) ? (prof.rod === r[0] ? 'equipped' : 'equip') : locked ? `🔒 Angler Lv. ${req}` : r[2] + ' 🪙'}</button>` }).join('')}
+   ${boatHtml}<h4>Bait <span class="nv">(using: ${bait})</span></h4><div class="nv" style="margin:4px 0 8px">Bait tips: Worms favor common small fish · Shrimp favors bottom-feeders · Glow Lures favor select rare fish · Burn Fly favors predators.</div>${SHOP.baits.map(b => { if (b[0] === 'worm') return `<button class="b" data-use="worm">${bait === 'worm' ? '✓ ' : ''}${b[1]} · free</button>`; const mx = Math.min(50, Math.floor(prof.coins / b[2])), have = prof.bait[b[0]] || 0;
      return `<div class="c" style="margin:4px 0"><b>${b[1]}</b> · ${b[2]} 🪙 each · have ${have}${have ? ` <button class="b" style="width:auto;padding:4px 10px" data-use="${b[0]}">${bait === b[0] ? '✓ using' : 'use'}</button>` : ''}<br>${mx >= 1 ? `<input type="range" min="1" max="${mx}" value="1" data-q="${b[0]}" style="width:60%;vertical-align:middle"> <button class="b" style="width:auto;padding:6px 10px" data-bait="${b[0]}">Buy 1 · ${b[2]} 🪙</button>` : '<span class="nv">Not enough lake coins yet</span>'}</div>` }).join('')}
    <button class="b" id="fLog2">📖 Fish Journal</button><button class="b" id="fChallenges">🎯 Daily Challenges</button><div id="fTop"></div>`;
   panel.style.display = 'block'; panel.querySelector('.x').onclick = () => panel.style.display = 'none'; panel.querySelector('#fLog2').onclick = openLog; panel.querySelector('#fChallenges').onclick = openChallenges; putTop();
   panel.querySelector('#fSell').onclick = async () => { if (tok()) { const r = await api('sell', {}); if (r.profile) prof = r.profile } else { prof.coins += v; prof.creel = []; saveLocal() } openShop() };
-  panel.querySelectorAll('[data-rod]').forEach(b => b.onclick = () => buy('rod', b.dataset.rod)); panel.querySelectorAll('[data-use]').forEach(b => b.onclick = () => { bait = b.dataset.use; openShop() });
+  panel.querySelectorAll('[data-rod]').forEach(b => b.onclick = () => buy('rod', b.dataset.rod)); panel.querySelectorAll('[data-boat]').forEach(b => b.onclick = () => buy('boat', b.dataset.boat)); panel.querySelectorAll('[data-buy-boat]').forEach(b => b.onclick = () => buy('boat', b.dataset.buyBoat)); panel.querySelectorAll('[data-use]').forEach(b => b.onclick = () => { bait = b.dataset.use; openShop() });
   panel.querySelectorAll('[data-q]').forEach(r => { const id = r.dataset.q, it = SHOP.baits.find(x => x[0] === id), btn = panel.querySelector(`[data-bait="${id}"]`); r.oninput = () => btn.textContent = `Buy ${r.value} · ${r.value * it[2]} 🪙` });
   panel.querySelectorAll('[data-bait]').forEach(b => b.onclick = () => { const r = panel.querySelector(`[data-q="${b.dataset.bait}"]`); buy('bait', b.dataset.bait, r ? +r.value : 1) }) }
-async function buy(kind, id, qty = 1) { qty = Math.max(1, Math.min(50, qty | 0)); if (tok()) { const r = await api('buy', { kind, id, qty: kind === 'bait' ? qty : 1 }); if (r.error) return alert(r.error === 'not_enough_coins' ? 'Not enough lake coins.' : 'Could not buy.'); prof = r.profile }
-  else { const it = (kind === 'rod' ? SHOP.rods : SHOP.baits).find(x => x[0] === id); if (kind === 'rod' && prof.rods.includes(id)) prof.rod = id; else { const cost = kind === 'rod' ? it[2] : it[2] * qty; if (prof.coins < cost) return alert('Not enough lake coins.'); prof.coins -= cost; if (kind === 'rod') { prof.rods.push(id); prof.rod = id } else prof.bait[id] = (prof.bait[id] || 0) + qty } saveLocal() }
+async function buy(kind, id, qty = 1) { qty = Math.max(1, Math.min(50, qty | 0)); if (kind === 'rod' && !prof.rods.includes(id) && anglerProgress(prof.xp).level < rodUnlockLevel(id)) return alert(`Reach Angler Level ${rodUnlockLevel(id)} to unlock this rod.`); if (tok()) { const r = await api('buy', { kind, id, qty: kind === 'bait' ? qty : 1 }); if (r.error) return alert(r.error === 'not_enough_coins' ? 'Not enough lake coins.' : r.error === 'level_locked' ? `Reach Angler Level ${r.requiredLevel} to unlock this rod.` : 'Could not buy.'); prof = r.profile }
+  else { const it = kind === 'boat' ? BOATS.find(x => x.id === id) : (kind === 'rod' ? SHOP.rods : SHOP.baits).find(x => x[0] === id); if (!it) return; if (kind === 'rod' && prof.rods.includes(id)) prof.rod = id; else if (kind === 'boat' && prof.boats.includes(id)) prof.selectedBoat = id; else { const cost = kind === 'rod' ? it[2] : kind === 'boat' ? it.price : it[2] * qty; if (prof.coins < cost) return alert('Not enough lake coins.'); prof.coins -= cost; if (kind === 'rod') { prof.rods.push(id); prof.rod = id } else if (kind === 'boat') { prof.boats = [...new Set([...prof.boats, id])]; prof.selectedBoat = id } else prof.bait[id] = (prof.bait[id] || 0) + qty } saveLocal() }
   if (kind === 'bait') bait = id; openShop() }
 function openLog() { const got = Object.keys(prof.log).filter(id => SPECIES.some(s => s[0] === id)).length;
   const achievements = journalAchievements(prof.log, SPECIES);
@@ -317,11 +344,26 @@ async function openChallenges() {
 bar.querySelector('#fCast').onclick = doCast; bar.querySelector('#fShop').onclick = openShop;
 // ---------- per-frame: show buttons when in reach, animate bobber + reel marker ----------
 function tick() { requestAnimationFrame(tick); if (window.__cityPaused) return; const c = W(), e = window.__estate; if (!c || !e || !dock) return; const t = performance.now() / 1000, m = c.getMode();
-  const p = isDeep() ? window.__boat.pos : c.P.pos, walk = m === 'explore';
+  const p = isAboard() ? window.__boat.pos : c.P.pos, walk = m === 'explore';
+  const spotDt = Math.min(0.05, t - (tick.spotT || t)); tick.spotT = t;
+  feedingSpots.forEach((s, i) => {
+    if (t >= s.moveAt) {
+      for (let k = 0; k < 10; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const q = e.lakeC.clone().addScaledVector(e.side, Math.cos(a) * (24 + Math.random() * 105)).addScaledVector(e.dir, Math.sin(a) * (8 + Math.random() * 43));
+        if (e.inLake(q.x, q.z)) { s.target.copy(q); break; }
+      }
+      s.moveAt = t + 14 + Math.random() * 18;
+    }
+    s.p.lerp(s.target, 1 - Math.exp(-spotDt * 0.18));
+    s.mesh.position.set(s.p.x, 0.24, s.p.z);
+    s.mesh.scale.setScalar(0.92 + 0.12 * Math.sin(t * 2.2 + i * 2));
+    s.mesh.material.opacity = 0.18 + 0.12 * (0.5 + 0.5 * Math.sin(t * 2.8 + i));
+  });
   const nearDock = p.distanceTo(dock.tip) < 6 || (p.distanceTo(dock.base) < 22 && Math.abs(p.clone().sub(dock.base).dot(dock.side)) < 3), shore = !e.inLake(p.x, p.z) && e.inLake(p.x, p.z, 4);
-  const canFish = walk && (nearDock || shore || isDeep()); FISHOK = canFish; const nearShop = walk && !isDeep() && p.distanceTo(shopPos) < 10;
+  const canFish = walk && (nearDock || shore || isAboard()); FISHOK = canFish; const nearShop = walk && !isAboard() && p.distanceTo(shopPos) < 10;
   bar.style.display = canFish || nearShop ? 'flex' : 'none'; bar.querySelector('#fCast').style.display = canFish ? '' : 'none'; bar.querySelector('#fShop').style.display = nearShop ? '' : 'none';
-  if (!canFish && state !== 'idle' && !isDeep()) stop();
+  if (!canFish && state !== 'idle' && !isAboard()) stop();
   { const show = canFish || state !== 'idle' || rod.lift > 0; rod.rg.visible = show; const lk = ROD_LOOK[prof.rod] || ROD_LOOK.basic; rod.rm.color.setHex(lk[0]); rod.rm.emissive.setHex(lk[1]); rod.rm.emissiveIntensity = lk[1] ? .6 + .3 * Math.sin(t * 3) : 0;
     const dt = Math.min(.05, t - (tick.lt0 || t)); tick.lt0 = t; tick.dtv = dt; rod.swing = Math.max(0, rod.swing - dt * 1.6); rod.pull = Math.max(0, rod.pull - dt * 4);
     const sw = rod.swing > 0 ? (rod.swing > .55 ? -(1 - rod.swing) * 4 : (rod.swing - .55) * 2) : 0; rod.rg.rotation.x = -.9 + sw + rod.pull * .5;
@@ -385,7 +427,7 @@ function remotes(t, dt) { const P = window.__peers; if (!P) return; const cam = 
     const end = g.lift > 0 && g.fm ? g.fm.position : g.bob.visible ? g.bob.position : null; g.line.visible = g.hold.visible && !!end;
     if (end) setLine(g.lg, _tp, end, g.lift > 0 ? 0 : s === 1 && !g.fl ? Math.min(2.2, .06 * _tp.distanceTo(end) + .25) : s === 1 ? .3 : s === 2 ? .12 : 0, s === 3 ? .02 : 0, t) }
   for (const id of [...RG.keys()]) if (!live.has(id)) dropGear(id) }
-window.__fish = { rg: () => RG.size, openShop, openLog, doCast, prof: () => prof, roll, buildFish };
+window.__fish = { rg: () => RG.size, openShop, openLog, doCast, prof: () => prof, roll, buildFish, boats: BOATS, boatById };
 (function boot() { if (!window.__ready || !W() || !window.__estate) return setTimeout(boot, 500); build(); refresh(); requestAnimationFrame(tick) })();
 
 // ---------- keyboard fishing (PC): F starts a cast at the water; Space/F then casts, hooks, reels and dismisses; Esc reels in ----------

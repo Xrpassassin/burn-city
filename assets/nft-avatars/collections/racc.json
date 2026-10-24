@@ -10,6 +10,11 @@
   },
   "traitMappings": [
     { "slot": "mask", "aliases": ["Bandit Mask", "Eye Mask", "Raccoon Mask"] },
+    { "slot": "weapon", "aliases": ["Armed"] },
+    { "slot": "outfit", "aliases": ["Fits"] },
+    { "slot": "headwear", "aliases": ["Top Gear"] },
+    { "slot": "eye wear", "aliases": ["Eyewear"] },
+    { "slot": "expression", "aliases": ["Mouth"] },
     { "slot": "fur color", "aliases": ["Fur Color", "Pelt", "Coat Fur", "Raccoon Fur"] },
     { "slot": "tail", "aliases": ["Ring Tail", "Tail Pattern"] },
     { "slot": "headwear", "aliases": ["Head Accessory", "Head Item"] },

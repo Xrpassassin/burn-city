@@ -14,7 +14,7 @@ const fireRange = p => p.down ? (p.up && p.up.length ? LS_RANGE_HOT : LS_RANGE) 
 function offerDraft(p, ev) { const ks = Object.keys(DRAFT).filter(k => bon(p, k) < DRAFT[k][2]); for (let i = ks.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ks[i], ks[j]] = [ks[j], ks[i]]; }
   p.draft = ks.slice(0, 3); if (p.draft.length) ev.push({ e: 'draft', id: p.id, o: p.draft.map(k => [k, DRAFT[k][0], DRAFT[k][1], bon(p, k), DRAFT[k][3]]) }); else p.draft = null; }
 function takeDraft(p, i, ev) { const k = p.draft?.[i]; if (!k) return; p.bon ||= {}; p.bon[k] = bon(p, k) + 1; p.draft = null; if (k === 'hp') p.hp += 20; ev.push({ e: 'drafted', id: p.id, k, n: DRAFT[k][0], lv: p.bon[k], ic: DRAFT[k][3] }); }
-const HPM = [1, 0.5, 3, 7, 0.6, 0.35, 0.9, 1.15], SPM = [1, 1, 0.6, 0.55, 1.75, 1.55, 1.25, 0.72], ZPTS = [60, 80, 130, 350, 110, 90, 180, 210], ZHIT = [12, 12, 22, 30, 12, 8, 14, 8];
+const HPM = [1, 0.5, 3, 7, 0.6, 0.35, 0.9, 1.15, 8], SPM = [1, 1, 0.6, 0.55, 1.75, 1.55, 1.25, 0.72, 0.68], ZPTS = [60, 80, 130, 350, 110, 90, 180, 210, 1200], ZHIT = [12, 12, 22, 30, 12, 8, 14, 8, 26];
 // 3D aim (pitch): eye height, max pitch (~80°) and a vertical hit test. The aim line from the eye, pitched, must pass within a zombie's
 // height band at its horizontal distance (forgiving band grows a little with distance, so flat aim still hits crawlers like before).
 const EYE = 1.6, PMAX = 1.4, zTop = zb => (zb.cr || zb.ty === 4 || zb.ty === 5) ? 0.9 : zb.ty === 3 ? 2.3 : zb.ty === 6 ? 1.6 : 1.9;
@@ -144,7 +144,9 @@ class Room {
       const wi = Z.windowSpawn(this), wn = Z.WINDOWS[wi]; let [sx, sz] = wn ? [wn.ox + (wn.ox - wn.x) * 3 + (Math.random() - .5) * 3, wn.oz + (wn.oz - wn.z) * 3 + (Math.random() - .5) * 3] : Z.zoneSpawn(this); this.toSpawn--; this.spawned++;
       const roll = Math.random(), sr = this.ranked ? 1 : Math.random(), wv = this.wave, cosmo = this.mapId === 'cosmodrome';
       // Map 2 introduces an airborne hunter (6) and a ranged shooter (7); neither appears in ranked/daily balance.
-      const ty = cosmo && wv >= 4 && sr < 0.07 ? 7 : cosmo && wv >= 3 && sr < 0.14 ? 6 : wv >= 5 && sr < 0.035 ? 3 : wv >= 4 && sr < 0.11 ? 4 : wv >= 6 && sr < 0.17 ? 5 : wv >= 2 && roll < 0.18 ? 1 : wv >= 3 && roll > 0.9 ? 2 : 0;
+      // The Ashen Warden is a named-feeling elite encounter: first spawn on waves 8, 12, 16…; standard modes are untouched.
+      const boss = cosmo && wv >= 8 && wv % 4 === 0 && this.spawned === 1;
+      const ty = boss ? 8 : cosmo && wv >= 4 && sr < 0.07 ? 7 : cosmo && wv >= 3 && sr < 0.14 ? 6 : wv >= 5 && sr < 0.035 ? 3 : wv >= 4 && sr < 0.11 ? 4 : wv >= 6 && sr < 0.17 ? 5 : wv >= 2 && roll < 0.18 ? 1 : wv >= 3 && roll > 0.9 ? 2 : 0;
       if (ty >= 6) [sx, sz] = Z.zoneSpawn(this);
       const base = (60 + this.wave * 15) * (cosmo ? 1.25 : 1) * (this.mod?.hp || 1) * Z.hpN(Math.max(1, ps.filter(p => !p.spectator).length)), sp = (2.2 + Math.min(this.wave * 0.25, 2.5) + Math.random()) * (this.mod?.sp || 1);
       this.zombies.set(this.zid, { id: this.zid++, ty, x: sx, z: sz, lv: ty === 6 ? 0 : wn?.lv || 0, y: ty === 6 ? 2.4 : (wn?.lv || 0) * Z.UH, hp: base * HPM[ty], maxhp: base * HPM[ty], sp: sp * (ty === 1 ? Z.RUNNER : SPM[ty]), win: ty >= 6 ? null : wn ? wi : null, ph: 0, ...(ty === 7 ? { shotT: 2.2 + Math.random() * 1.2 } : {}) });
@@ -225,15 +227,15 @@ class Room {
       if (zb.ty === 7 && sameLv && bd > 5 && bd < 18 && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) {
         zb.shotT -= dt;
         if (zb.shotT <= 0) { zb.shotT = 2.1 + Math.random() * 0.8; ev.push({ e: 'zshot', id: zb.id, by: best.id, x: q(zb.x), z: q(zb.z), y: q(zb.y || 0), tx: q(best.x), tz: q(best.z), ty: q((best.y || 0) + 1) });
-          if (!(best.inv > 0)) { best.inv = IFRAME; best.hurtT = this.t; best.hp -= (TEST_GOD ? 0 : 10 * (1 - 0.1 * bon(best, 'armor'))) * Math.max(IFRAME, 0.05);
+          if (!(best.inv > 0)) { best.inv = IFRAME; best.hurtT = this.t; best.hp -= TEST_GOD ? 0 : 10 * (1 - 0.1 * bon(best, 'armor'));
             if (best.hp <= 0) { const others = ps.some(o => o !== best && o.alive && !o.down), phoenix = Z.has(best, 'revive'); best.hp = 0; best.prevPerks = best.perks; best.perks = phoenix && !others ? best.perks & ~Z.PB.revive : 0;
               if (phoenix && !others && !best.usedSelf) { best.down = 1; best.selfRev = 3; best.usedSelf = true; ev.push({ e: 'downed', id: best.id, self: 1 }); } else if (others) { best.down = 1; best.bleed = 30; best.revT = 0; ev.push({ e: 'downed', id: best.id }); } else { best.alive = false; this.life(best); ev.push({ e: 'down', id: best.id }); } }
           }
         }
       } else if (bd > 1.1 || !sameLv) {   // follow the flow field; go straight only when close with a clear line
         let tx = best.x, tz = best.z; const st = Z.nextStep(this, zb.x, zb.z, zb.lv); if (zb.ty !== 6 && st && !(bd < 3 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y))) { tx = st[0]; tz = st[1]; }
-        if (zb.ty === 3) { zb.chT = (zb.chT ?? 5) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < 14 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = 7 + Math.random() * 3; zb.charge = 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
-        const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1, mv = zb.sp * (zb.charge > 0 ? 3.2 : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
+        if (zb.ty === 3 || zb.ty === 8) { zb.chT = (zb.chT ?? (zb.ty === 8 ? 6 : 5)) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < (zb.ty === 8 ? 12 : 14) && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = (zb.ty === 8 ? 8 + Math.random() * 2 : 7 + Math.random() * 3); zb.charge = zb.ty === 8 ? 1.05 : 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
+        const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1, mv = zb.sp * (zb.charge > 0 ? (zb.ty === 8 ? 2.6 : 3.2) : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
         if (zb.ty === 6) { zb.x = nx; zb.z = nz; zb.y = 2.4 + Math.sin(this.t * 3.5 + zb.id) * 0.3; zb.lv = 0; }
         else { if (Z.inside(this, nx, zb.z, 0.32, zb.lv)) zb.x = nx; if (Z.inside(this, zb.x, nz, 0.32, zb.lv)) zb.z = nz;
           if (!Z.inside(this, zb.x, zb.z, 0.32, zb.lv) && st) { zb.x += (st[0] - zb.x) * Math.min(1, dt * 4); zb.z += (st[1] - zb.z) * Math.min(1, dt * 4); }   // never wedge into a corner
@@ -241,7 +243,7 @@ class Room {
         zb.mv = (zb.mv || 0) + Math.hypot(zb.x - (zb.lx ?? zb.x), zb.z - (zb.lz ?? zb.z)); zb.lx = zb.x; zb.lz = zb.z;
         if ((zb.stT = (zb.stT || 0) + dt) > 4) { if (zb.mv < 0.6) { const wi = Z.windowSpawn(this), w = Z.WINDOWS[wi]; if (w) { zb.x = w.ox; zb.z = w.oz; zb.lv = w.lv || 0; zb.y = zb.lv * Z.UH; zb.win = wi; zb.ph = 0; this.stuckN = (this.stuckN || 0) + 1; } } zb.stT = 0; zb.mv = 0; }   // stuck safety net: re-enter via a window
       }
-      else if (!(best.inv > 0) && (ev.push({ e: 'phit', id: best.id, x: q(zb.x), z: q(zb.z), ty: zb.ty }), best.inv = IFRAME, best.hurtT = this.t, Z.has(best, 'slag') && (hurt(zb, 120 + 20 * this.wave, best), ev.push({ e: 'slag', id: best.id, zid: zb.id })), (best.hp -= (TEST_GOD ? 0 : (ZHIT[zb.ty] ?? 12) * (zb.charge > 0 ? 1.5 : 1) * (1 - 0.1 * bon(best, 'armor'))) * Math.max(IFRAME, 0.05)) <= 0)) {   // discrete hit + i-frames (same avg DPS); Slag Skin burns the attacker
+      else if (!(best.inv > 0) && (ev.push({ e: 'phit', id: best.id, x: q(zb.x), z: q(zb.z), ty: zb.ty }), best.inv = IFRAME, best.hurtT = this.t, Z.has(best, 'slag') && (hurt(zb, 120 + 20 * this.wave, best), ev.push({ e: 'slag', id: best.id, zid: zb.id })), (best.hp -= (TEST_GOD ? 0 : (ZHIT[zb.ty] ?? 12) * (zb.charge > 0 ? 1.5 : 1) * (1 - 0.1 * bon(best, 'armor')))) <= 0)) {   // discrete hit + i-frames (same avg DPS); Slag Skin burns the attacker
         const others = ps.some(o => o !== best && o.alive && !o.down), phoenix = Z.has(best, 'revive');
         best.hp = 0; best.prevPerks = best.perks; best.perks = phoenix && !others ? best.perks & ~Z.PB.revive : 0;   // going down costs your perks (Phoenix is used up on a solo self-revive)
         if (phoenix && !others && !best.usedSelf) { best.down = 1; best.selfRev = 3; best.usedSelf = true; ev.push({ e: 'downed', id: best.id, self: 1 }); }

@@ -67,7 +67,7 @@ export function createZombieFX(scene, { low = false } = {}) {
   const arms2 = rig(scene, MAXZ, [['arm', box(0.16, 0.72, 0.16, -0.36), skinM], ['leg', box(0.2, 0.78, 0.2, -0.39), pantsM], ['eye', box(0.09, 0.06, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff })]]);
   // body variants: 0 walker, 1 runner (lean, hunched forward), 2 brute (huge, belly), 3 crawler-looking (walker id%4==0: bent double, dragging)
   const TY = [{ s: 1, skin: [0x6f9a4a, 0x7c8d55, 0x5d8a62, 0x8a9a6a], eye: 0xfff26a, speed: 1 }, { s: 0.85, skin: [0xa3b86a, 0x9fae7a, 0xb0a888], eye: 0xff3b2f, speed: 2 }, { s: 1.45, skin: [0x55704a, 0x4a5f52, 0x6a6a50], eye: 0xff8a00, speed: 0.6 },
-    { s: 1.9, skin: [0x3c3a40, 0x45403a], eye: 0xff2010, speed: 0.55 }, { s: 1.0, skin: [0xb8b49a, 0xa8a890], eye: 0x9aff40, speed: 1.75 }, { s: 0.62, skin: [0x4a5a78, 0x3e4e66], eye: 0x40e8ff, speed: 1.55 }];   // 3 Juggernaut, 4 Lope (runs on its arms), 5 Skitter
+    { s: 1.9, skin: [0x3c3a40, 0x45403a], eye: 0xff2010, speed: 0.55 }, { s: 1.0, skin: [0xb8b49a, 0xa8a890], eye: 0x9aff40, speed: 1.75 }, { s: 0.62, skin: [0x4a5a78, 0x3e4e66], eye: 0x40e8ff, speed: 1.55 }, { s: 0.9, skin: [0x387f99, 0x295b70], eye: 0x58eaff, speed: 1.25 }, { s: 1.05, skin: [0x87629c, 0x59416b], eye: 0xc18aff, speed: 0.72 }, { s: 1.55, skin: [0x3c3538, 0x5d342c], eye: 0xff7b42, speed: 0.68 }];   // 3 Juggernaut, 4 Lope (runs on its arms), 5 Skitter
   const CLOTH = [0x5a3a2a, 0x2f3d55, 0x6a6a6a, 0x7a2a22, 0x3e4a2e, 0x8a7a5a, 0x40304a], PANTS = [0x2a2a33, 0x3a3226, 0x23324a, 0x4a3a2a];
   const zs = new Map(), dying = [];   // id -> {x,z,yaw,ph,var,heat}
   // Animated model pilot is strictly opt-in; normal play stays on the procedural, instanced renderer.

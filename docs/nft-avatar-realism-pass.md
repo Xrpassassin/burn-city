@@ -20,7 +20,7 @@ This draft upgrades the characters seen while exploring BURN City. It uses the e
 
 - Preserves the existing NFT picker, verified ownership path, wallet selection and supported collection IDs.
 - No new dependencies or third-party model files were added. The optional XRPL.to API lookup is metadata-only; arbitrary 3D files are not executed or loaded as player rigs. The avatar uses the project's existing Three.js runtime and procedural geometry, avoiding an unverified asset license.
-- This is a more detailed stylized game character, not yet a photorealistic scan or a one-to-one 3D reconstruction of every PFP. Trait metadata is incomplete/inconsistent across NFT sets, so the image medallion preserves exact artwork while trait matches provide a best-effort 3D representation.
+- This is a more detailed stylized game character, not yet a photorealistic scan or a one-to-one 3D reconstruction of every PFP. Trait metadata is incomplete/inconsistent across NFT sets, so the full-composition artwork panel preserves exact artwork while trait matches provide a best-effort 3D representation.
 
 ## Validation
 

@@ -1,6 +1,6 @@
 // BURN City NFT avatars: smoother, articulated characters driven by verified RACC / Firekeepers / 589 traits.
-// The NFT artwork remains the source of identity (portrait medallion + optional floating peer card); palette and
-// metadata traits shape the 3D head, clothing, and accessories. Geometry/materials are cached for phone performance.
+// The NFT artwork remains the visual ground truth: a full-composition chest tabard plus optional floating peer card.
+// Typed metadata adds a best-effort 3D interpretation. Geometry/materials are cached for phone performance.
 import * as THREE from 'three';
 const G = new Map(), TX = new Map(), MT = new Map();
 const geo = (k, f) => G.get(k) || (G.set(k, f()), G.get(k));
@@ -48,7 +48,9 @@ export function buildNftChar(n, opts = {}) {
     const mesh = new THREE.Mesh(geometry, material); mesh.position.set(x,y,z); mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
   };
   const bodyHex = traitColor(/clothes|outfit|shirt|top|body|armor|jacket|robe/i, color(pal.body, '#424957'));
-  const faceHex = key === 'racc' ? traitColor(/fur|skin|face/i, '#858a91') : traitColor(/skin|face/i, color(pal.face, '#c9a27e'));
+  const faceHex = key === 'racc' ? traitColor(/fur color|fur|skin|face/i, '#858a91') : traitColor(/skin tone|skin color|skin|face/i, color(pal.face, '#c9a27e'));
+  const eyeHex = traitColor(/eye color|iris|eye/i, key==='589'||has(tr,/flaming eyes|burn eye|melt|glowing eyes/)?accentHex:'#343039');
+  const hairHex = traitColor(/hair color|hair|fur color/i, has(tr,/white hair|silver hair/)?'#bfc3ca':has(tr,/red hair/)?'#7b2c24':has(tr,/blond|blonde/)?'#c8a05b':has(tr,/blue hair/)?'#344f9a':'#201c20');
   const topHex = traitColor(/outerwear|coat|jacket|helmet|headwear/i, color(pal.top, bodyHex));
   const accentHex = traitColor(/accent|accessory|flame|fire|aura/i, color(pal.acc, '#ff7a1a'));
   const backgroundHex = traitColor(/background|backdrop/i, color(pal.bg, shade(bodyHex, .8)));
@@ -107,7 +109,7 @@ export function buildNftChar(n, opts = {}) {
     for (const s of [-1,1]) {
       addSphere(head,mat('#686d75'),[s*.19,.205,-.005],[.085,.095,.065]);
       addSphere(head,mat('#c9cdd0'),[s*.085,.02,.22],[.055,.05,.025]);
-      addSphere(head,mat(traitColor(/eye|iris/i,'#111319')),[s*.085,.02,.242],[.022,.025,.012]);
+      addSphere(head,mat(eyeHex),[s*.085,.02,.242],[.022,.025,.012]);
       addSphere(head,mat('#f0e4d0'),[s*.055,-.09,.19],[.075,.052,.052]);
     }
     addSphere(head,mat('#bfc2c5'),[0,-.1,.205],[.11,.075,.07]);
@@ -120,7 +122,7 @@ export function buildNftChar(n, opts = {}) {
     for (const s of [-1,1]) {
       addSphere(head,skin,[s*.19,.01,0],[.04,.065,.045]);
       addSphere(head,mat('#f0e7d9'),[s*.067,.045,.158],[.035,.025,.018]);
-      addSphere(head,mat(traitColor(/eye|iris/i,key==='589'||has(tr,/flaming eyes|burn eye|melt|glowing eyes/)?accentHex:'#343039')),[s*.067,.043,.175],[.016,.018,.01]);
+      addSphere(head,mat(eyeHex),[s*.067,.043,.175],[.016,.018,.01]);
       addCapsule(head,mat(shade(faceHex,.65)),[s*.067,.092,.155],.012,.035,[1,.6,.6]).rotation.z=s*.15;
     }
     addSphere(head,mat(shade(faceHex,.76)),[0,-.015,.172],[.025,.04,.03]);
@@ -132,8 +134,8 @@ export function buildNftChar(n, opts = {}) {
     } else if (/smile|grin|happy/.test(mouthTrait)) {
       add(geo('smile',()=>new THREE.TorusGeometry(.035,.008,5,14,Math.PI)),mat('#5a2c2b'),0,-.105,.176,head).rotation.z=Math.PI;
     }
-    const hairColor = has(tr,/white hair|silver hair/)?'#bfc3ca':has(tr,/red hair/)?'#7b2c24':has(tr,/blond|blonde/)?'#c8a05b':has(tr,/blue hair/)?'#344f9a':'#201c20';
-    if (!has(tr,/bald|shaved/)) {
+    const hairColor = hairHex;
+    if (!has(tr,/bald|shaved|no hair/)) {
       const hair=add(geo('hair-cap',()=>new THREE.SphereGeometry(1,16,10,0,Math.PI*2,0,Math.PI*.48)),mat(hairColor,.9,.01),0,.09,-.005,head);
       hair.scale.set(.202,.19,.19);
       if (has(tr,/dreads|braids/)) for(let i=0;i<5;i++) addCapsule(head,mat(hairColor),[-.15+i*.075,.0,-.06],.025,.14,[1,1,1]).rotation.z=-.2;
@@ -204,14 +206,17 @@ export function buildNftChar(n, opts = {}) {
     }
   }
 
-  // NFT artwork itself becomes a medallion on the chest, rather than replacing the entire body with a flat image.
+  // Preserve the actual NFT composition on the walking avatar. Unlike a tiny circular crop, this image panel
+  // uses contain-fit sizing once the image dimensions are available, so square, portrait and landscape art survive.
   const url=opts.srv?nftImg(opts.srv,n):'';
   if(url&&opts.panel!==false) {
-    const frame=add(geo('portrait-frame',()=>new THREE.TorusGeometry(.105,.018,7,28)),metal,0,1.18,.206);
-    frame.rotation.z=0;
-    const portrait=add(geo('portrait-face',()=>new THREE.CircleGeometry(.102,28)),new THREE.MeshBasicMaterial({map:tex(url),toneMapped:false}),0,1.18,.218);
-    portrait.name='nft-artwork-medallion'; portrait.castShadow=false;
-    addSphere(g,mat('#11161d',.4,.4),[0,1.18,.187],[.12,.12,.018]);
+    addBox(g,mat('#15191f',.45,.28),[0,1.18,.207],[.375,.49,.025]);
+    const artTexture=tex(url);
+    const artMaterial=new THREE.MeshBasicMaterial({map:artTexture,transparent:true,side:THREE.DoubleSide,depthWrite:false,toneMapped:false});
+    const artPanel=add(geo('nft-artwork-panel',()=>new THREE.PlaneGeometry(1,1)),artMaterial,0,1.18,.224);
+    artPanel.name='nft-artwork-panel'; artPanel.castShadow=false; artPanel.receiveShadow=false;
+    artPanel.scale.set(.35,.46,1);
+    g.userData.artPanel=artPanel; g.userData.artTexture=artTexture;
   }
   if(url&&opts.card) {
     const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex(url),depthWrite:false})); sp.scale.set(.62,.62,1); sp.position.set(0,2.55,0); g.add(sp); g.userData.card=sp;
@@ -221,6 +226,16 @@ export function buildNftChar(n, opts = {}) {
   g.userData.nftTraits=traitPairs.map(([type,value])=>[String(type),String(value)]);
   g.userData.nftMedia={animation:n?.animation||'',video:n?.video||'',audio:n?.audio||'',model3d:n?.model3d||'',artwork:n?.artwork||''};
   g.userData.anim=(t,moving,armsUp)=>{
+    // Fit the real artwork without cropping once its remote image has decoded.
+    const panel=g.userData.artPanel, image=g.userData.artTexture?.image;
+    if(panel&&image&&!panel.userData.artFitDone) {
+      const iw=Number(image.naturalWidth||image.videoWidth||image.width)||0;
+      const ih=Number(image.naturalHeight||image.videoHeight||image.height)||0;
+      if(iw>0&&ih>0) {
+        const fit=Math.min(.35/iw,.46/ih);
+        panel.scale.set(iw*fit,ih*fit,1); panel.userData.artFitDone=true;
+      }
+    }
     const sw=moving?Math.sin(t*9)*.62:Math.sin(t*2)*.025;
     legs[0].rotation.x=sw; legs[1].rotation.x=-sw;
     legs.forEach((hip)=>{if(hip.userData.knee)hip.userData.knee.rotation.x=Math.max(0,Math.cos(t*9))*.55*(moving?1:0)});

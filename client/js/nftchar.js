@@ -326,18 +326,21 @@ export function buildNftChar(n, opts = {}) {
     addSphere(head,glow(shade(accentHex,.6)),[0,-.01,.14],[.2,.055,.03]);
   }
   if(components.accessoryStyle === 'chain' || has(tr,/chain|medallion|necklace|gold pick|grill/)) {
-    const chain=add(geo('necklace',()=>new THREE.TorusGeometry(.15,.018,6,24)),glow('#e8b923'),0,1.49,.025);
+    // Wearable jewelry sits just in front of the full-artwork tabard, never behind it.
+    // This preserves the complete NFT composition while keeping a token's chain legible in-world.
+    const chain=add(geo('necklace',()=>new THREE.TorusGeometry(.15,.018,6,24)),glow(traitColor(/chain|accessory/i,'#e8b923')),0,1.49,.255);
     chain.rotation.x=1.25;
     chain.name='nft-chain-base';
+    chain.renderOrder=3;
     if(key==='589') {
       const linkMat=glow(traitColor(/chain|accessory/i,'#e8b923'));
       for(let i=0;i<10;i++) {
         const angle=Math.PI*.12+(Math.PI*.76*i/9);
-        const link=add(geo('nft-protocol-chain-link',()=>new THREE.TorusGeometry(.018,.005,4,8)),linkMat,Math.cos(angle)*.16,1.47-Math.sin(angle)*.075,.11);
-        link.rotation.x=1.1; link.rotation.z=angle-Math.PI/2; link.name='nft-protocol-chain-link';
+        const link=add(geo('nft-protocol-chain-link',()=>new THREE.TorusGeometry(.018,.005,4,8)),linkMat,Math.cos(angle)*.16,1.47-Math.sin(angle)*.075,.268);
+        link.rotation.x=1.1; link.rotation.z=angle-Math.PI/2; link.name='nft-protocol-chain-link'; link.renderOrder=3;
       }
-      const pendant=add(geo('nft-protocol-chain-pendant',()=>new THREE.OctahedronGeometry(.045,0)),glow(accentHex),0,1.365,.17);
-      pendant.name='nft-protocol-chain-pendant';
+      const pendant=add(geo('nft-protocol-chain-pendant',()=>new THREE.OctahedronGeometry(.045,0)),glow(accentHex),0,1.365,.285);
+      pendant.name='nft-protocol-chain-pendant'; pendant.renderOrder=3;
     }
   } else if (components.accessoryStyle === 'relic') {
     const relic = add(geo('nft-relic',()=>new THREE.OctahedronGeometry(.075,0)),glow(accentHex),0,1.28,.235);

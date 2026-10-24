@@ -224,6 +224,8 @@ if (attack.data.combat.enemyDamage > 0) {
   assert.ok(files.get('homefront-world.json').players['acct-a'].lastNoiseAt > 0, 'rescue records noise in authoritative world state');
   assert.equal(rescue.data.base.survivors.length, survivorsBeforeRescue + 1, 'rescued survivor joins the persistent refuge roster');
   assert.ok(rescue.data.encounter.survivor?.id, 'rescue response identifies the newly recruited survivor');
+  assert.ok(['common','uncommon','rare','epic','legendary'].includes(rescue.data.encounter.survivor?.rarity), 'server returns the recruited survivor rarity');
+  assert.ok(rescue.data.base.survivors.some(s => s.id === rescue.data.encounter.survivor.id && s.rarity === rescue.data.encounter.survivor.rarity), 'rarity persists in the saved roster');
   const duplicateRescue = await call('POST', '/api/homefront/world/rescue', 'acct-b', { pointId: 'stranded_bus', difficulty: 'standard' });
   assert.equal(duplicateRescue.status, 400, 'another explorer cannot claim the same shared rescue during cooldown');
   assert.equal(duplicateRescue.data.error, 'rescue_unavailable');

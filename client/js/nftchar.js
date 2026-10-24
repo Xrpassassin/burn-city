@@ -356,6 +356,13 @@ export function buildNftChar(n, opts = {}) {
     // Firekeepers have a collection-specific robe silhouette and ember mantle, even with sparse metadata.
     const hem=add(geo('nft-firekeeper-robe-hem',()=>new THREE.CylinderGeometry(.235,.34,.52,12)),darkCloth,0,.79,-.015);
     hem.name='nft-firekeeper-robe-hem';
+    // Split outer panels create layered fabric rather than a single cylindrical robe.
+    for (const side of [-1,1]) {
+      const panel=add(geo('nft-firekeeper-robe-panel',()=>new THREE.CapsuleGeometry(.065,.36,3,8)),trim,[side*.19,.91,.105][0],[side*.19,.91,.105][1],[side*.19,.91,.105][2]);
+      panel.scale.set(.8,1,.36); panel.rotation.z=side*-.035; panel.name='nft-firekeeper-robe-panel';
+      const stitch=addBox(g,glow(shade(accentHex,.78)),[side*.105,.98,.197],[.012,.3,.012]);
+      stitch.name='nft-firekeeper-robe-embroidery';
+    }
     const mantle=add(geo('nft-firekeeper-mantle',()=>new THREE.TorusGeometry(.255,.045,6,20)),trim,0,1.405,-.005);
     mantle.rotation.x=Math.PI/2; mantle.name='nft-firekeeper-mantle';
     const sigil=add(geo('nft-firekeeper-sigil',()=>new THREE.OctahedronGeometry(.052,0)),glow(accentHex),0,1.22,.22);

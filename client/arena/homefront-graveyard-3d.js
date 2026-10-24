@@ -8,6 +8,7 @@ import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
 import { buildLandmarkSetPiece } from './homefront-landmark-builder.mjs';
+import { INTERIORS, applyInteriorAction, availableInteriorActions, buildInteriorSetPiece, createInteriorState, interiorForLandmark, interiorRoom, traverseInteriorDoor } from './homefront-interior-world.mjs';
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
@@ -442,6 +443,15 @@ function boot(host) {
     cityChunkAt(visualX, visualZ).add(piece);
     landmarkSetPieces.set(landmark.id, piece);
   }
+  // Authored open-roof room shells are part of the walkable 3D district, not a separate flat menu map.
+  const interiorSetPieces = new Map();
+  for (const interior of INTERIORS) {
+    const landmark = LANDMARKS.find(item => item.id === interior.landmarkId);
+    if (!landmark) continue;
+    const piece = buildInteriorSetPiece(THREE, interior, { x: landmark.x, y: terrainElevation(landmark.x, landmark.z), z: landmark.z });
+    cityChunkAt(landmark.x, landmark.z).add(piece);
+    interiorSetPieces.set(interior.landmarkId, piece);
+  }
   const markerObjects = new Map();
   function labelSprite(text, color = '#f6d8b5') {
     const c = document.createElement('canvas'); c.width = 512; c.height = 96;
@@ -485,6 +495,84 @@ function boot(host) {
     lootGroup.add(g);
   }
   let worldData = null, moving = false;
+  let interiorState = null;
+  let selectedInteriorLandmarkId = null;
+  const enterInteriorButton = document.getElementById('enterInterior');
+  const interiorPanel = document.getElementById('interiorPanel');
+  const interiorTitle = document.getElementById('interiorTitle');
+  const interiorRoomDescription = document.getElementById('interiorRoomDescription');
+  const interiorStatus = document.getElementById('interiorStatus');
+  const interiorActions = document.getElementById('interiorActions');
+  const leaveInteriorButton = document.getElementById('leaveInterior');
+  function setInteriorStatus(message) { if (interiorStatus) interiorStatus.textContent = message; }
+  function updateInteriorPanel() {
+    if (!interiorPanel) return;
+    interiorPanel.hidden = !interiorState;
+    if (!interiorState) { if (enterInteriorButton) enterInteriorButton.hidden = !selectedInteriorLandmarkId; return; }
+    const interior = interiorForLandmark(interiorState.landmarkId);
+    const room = interiorRoom(interior, interiorState.roomId);
+    if (!interior || !room) return;
+    if (enterInteriorButton) enterInteriorButton.hidden = true;
+    if (interiorTitle) interiorTitle.textContent = interior.title + ' · ' + room.title;
+    if (interiorRoomDescription) interiorRoomDescription.textContent = room.description + ' Inventory and mission rewards remain server-authoritative.';
+    if (interiorActions) {
+      interiorActions.replaceChildren();
+      for (const item of availableInteriorActions(interior, interiorState)) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'btn'; button.textContent = item.label;
+        button.addEventListener('click', () => { void performInteriorAction(item.id); }); interiorActions.append(button);
+      }
+      for (const exit of room.exits) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'btn primary';
+        button.textContent = exit.label + ' → ' + (interiorRoom(interior, exit.to)?.title || exit.to);
+        button.addEventListener('click', () => { void interactInteriorDoor(exit.id); }); interiorActions.append(button);
+      }
+      if (!interiorActions.children.length) { const empty = document.createElement('span'); empty.className = 'muted'; empty.textContent = 'Nothing else to interact with in this room.'; interiorActions.append(empty); }
+    }
+    for (const [landmarkId, root] of interiorSetPieces) root.traverse(node => {
+      if (node.userData?.interiorDoorSlab) node.visible = !(interiorState.landmarkId === landmarkId && interiorState.openedDoors?.includes(node.userData.interiorDoorId));
+    });
+  }
+  function enterInterior(landmarkId) {
+    const interior = interiorForLandmark(landmarkId); if (!interior) return;
+    interiorState = createInteriorState(landmarkId);
+    setInteriorStatus('Interior entered. Inspect clues, operate switches, and traverse connected doorways. Searches are currently inspection-only.');
+    updateInteriorPanel();
+  }
+  function leaveInterior() {
+    interiorState = null; setInteriorStatus('You returned to the street. This building can be entered again.'); updateInteriorPanel();
+  }
+  async function performInteriorAction(actionId) {
+    const interior = interiorForLandmark(interiorState?.landmarkId);
+    if (!interior || !worldData?.self) return;
+    const item = interior.interactables.find(target => target.id === actionId && target.roomId === interiorState.roomId);
+    if (!item) { setInteriorStatus('That object is not reachable from this room. Use a connected doorway.'); return; }
+    const landmark = LANDMARKS.find(target => target.id === interior.landmarkId);
+    const targetX = landmark.x + item.x, targetZ = landmark.z + item.z;
+    if (Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) {
+      await moveTo(targetX, targetZ);
+      if (!worldData?.self || Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) { setInteriorStatus('Move closer to ' + item.label + ', then select it again. Movement remains server-limited.'); return; }
+    }
+    try {
+      const result = applyInteriorAction(interior, interiorState, actionId); interiorState = result.state;
+      setInteriorStatus(result.message + (result.serverRewardRequired ? ' Inspection recorded locally; no inventory reward is granted until a server endpoint handles the search.' : ''));
+      updateInteriorPanel();
+    } catch (error) { setInteriorStatus('Cannot use that object: ' + error.message); }
+  }
+  async function interactInteriorDoor(doorId) {
+    const interior = interiorForLandmark(interiorState?.landmarkId), room = interiorRoom(interior, interiorState?.roomId);
+    const exit = room?.exits.find(item => item.id === doorId), landmark = LANDMARKS.find(item => item.id === interior?.landmarkId);
+    if (!interior || !exit || !landmark || !worldData?.self) return;
+    const targetX = landmark.x + room.x + (exit.side === 'east' ? room.width / 2 : exit.side === 'west' ? -room.width / 2 : 0);
+    const targetZ = landmark.z + room.z + (exit.side === 'south' ? room.depth / 2 : exit.side === 'north' ? -room.depth / 2 : 0);
+    if (Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) {
+      await moveTo(targetX, targetZ);
+      if (!worldData?.self || Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) { setInteriorStatus('Approach the doorway and select it again. The route is not traversed until you reach the threshold.'); return; }
+    }
+    try { interiorState = traverseInteriorDoor(interior, interiorState, doorId); setInteriorStatus('Door opened. You entered ' + interiorRoom(interior, interiorState.roomId).title + '.'); updateInteriorPanel(); }
+    catch (error) { setInteriorStatus(error.message === 'interior_door_locked' ? 'Locked. Find the required clue or restore local power first.' : 'Door unavailable: ' + error.message); }
+  }
+  if (enterInteriorButton) enterInteriorButton.addEventListener('click', () => enterInterior(selectedInteriorLandmarkId));
+  if (leaveInteriorButton) leaveInteriorButton.addEventListener('click', leaveInterior);
   function spawnAmbientInfected(gltf = null) {
     const positions = infectedSpawns;
     for (let i = 0; i < positions.length; i++) {
@@ -549,6 +637,8 @@ function boot(host) {
         const distance = Math.hypot(data.self.x - landmark.x, data.self.z - landmark.z);
         if (distance < nearestDistance) { nearest = landmark; nearestDistance = distance; }
       }
+      selectedInteriorLandmarkId = nearest && nearestDistance <= 12 && interiorForLandmark(nearest.id) ? nearest.id : null;
+      if (enterInteriorButton) { enterInteriorButton.hidden = !selectedInteriorLandmarkId || !!interiorState; enterInteriorButton.textContent = selectedInteriorLandmarkId ? 'Enter ' + nearest.title : 'Enter nearby building'; }
       if (nearest && nearestDistance <= 20) {
         const district = DISTRICTS[nearest.district];
         objective.textContent = 'NEARBY · ' + nearest.title + ' — ' + nearest.objective + '  |  ' + district.title + ' · Risk ' + district.risk + '/5';
@@ -556,6 +646,7 @@ function boot(host) {
         objective.textContent = 'EXPEDITION · Risk ' + (data.self.risk || 1) + '/5. Follow the named landmarks for rescue leads, caches, shortcuts, and connected story clues.';
       }
     }
+    updateInteriorPanel();
     applyEnvironmentStateSnapshot(data.world?.environmentStructures);
     const selectedEnvironment = (data.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
     if (selectedEnvironment && (selectedEnvironment.collisionEnabled === false || selectedEnvironment.health <= 0)) selectedEnvironmentId = null;
@@ -710,6 +801,7 @@ function boot(host) {
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
       updateWorld(data);
+      return true;
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
   async function combatAction(action, targetId = selectedCombatTargetId) {
@@ -997,6 +1089,18 @@ function boot(host) {
         return;
       }
     }
+    const interiorHits = raycaster.intersectObjects([...interiorSetPieces.values()].filter(group => group.visible && group.parent?.visible), true);
+    if (interiorHits.length) {
+      let node = interiorHits[0].object;
+      while (node && !node.userData?.interiorTarget) node = node.parent;
+      const target = node?.userData?.interiorTarget;
+      if (target) {
+        if (!interiorState || interiorState.landmarkId !== target.landmarkId) { setInteriorStatus('Move close to the landmark and use its Enter button before interacting with the rooms.'); return; }
+        if (target.kind === 'door') void interactInteriorDoor(target.doorId);
+        else if (target.kind === 'action') void performInteriorAction(target.actionId);
+        return;
+      }
+    }
     const environmentHits = raycaster.intersectObjects([...environmentVisuals.values()].filter(group => group.visible && group.parent?.visible), true);
     if (environmentHits.length) {
       let target = environmentHits[0].object;
@@ -1046,6 +1150,7 @@ function boot(host) {
       updateWorld(data);
     } catch (e) {
       if (status) status.textContent = e.message === 'party_leader_controls_movement' ? 'Your party leader controls group movement.' : e.message === 'movement_too_far' ? 'That destination is too far away. Click closer; movement is server-limited.' : 'Movement failed: ' + e.message;
+      return false;
     } finally { moving = false; }
   }
   const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(260, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };

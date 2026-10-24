@@ -148,7 +148,10 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const dirt = new THREE.Mesh(new THREE.PlaneGeometry(LW, LD), new THREE.MeshLambertMaterial({ color: 0x394536 }));
   dirt.rotation.x = -Math.PI / 2; dirt.position.y = 0.06; lot.add(dirt);
   const roadBits = [], paths = [], foundations = [], walls = [], roofs = [], glass = [], trim = [], greenery = [], trunks = [], canopies = [], parkProps = [], shrubs = [], flowerBeds = [], fences = [];
+  const facadeTrim = [], doors = [], windowFrames = [], warmWindows = [], roofRidge = [], balconies = [], poolDeck = [], poolWater = [], drivewayDetails = [], porchLights = [];
   const addBox = (arr,w,h,d,x,y,z,ry=0) => arr.push(box(w,h,d,x,y,z,ry));
+  const addRoofPanel = (arr,w,h,d,x,y,z,rz) => { const g = new THREE.BoxGeometry(w,h,d); g.rotateZ(rz); g.translate(x,y,z); arr.push(g); };
+  const addGable = (arr,w,rise,x,y,z) => { const s = new THREE.Shape(); s.moveTo(-w/2,0); s.lineTo(w/2,0); s.lineTo(0,rise); s.closePath(); const g = new THREE.ShapeGeometry(s); g.translate(x,y,z); arr.push(g); };
   // A small internal street grid links every driveway to the bridge approach.
   addBox(roadBits, 10, .16, LD-18, 0, .14, 2);
   addBox(roadBits, LW-18, .16, 8, 0, .14, -35);
@@ -204,18 +207,87 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
       addBox(glass,5,3,.18,h.x,2.1,front+.14);
       addBox(trim,h.w*.72,.35,.4,h.x,10.2,front+.22);
     } else {
-      addBox(roofs,h.w+(isMansion?3:1.8),isMansion?1.5:1.0,h.d+(isMansion?3:1.8),h.x,h.h+1.0,h.z);
+      // Distinct pitched roof silhouettes for houses; the apartment keeps its clean flat modern roof.
+      if (isMansion || h.tier === 'family' || h.tier === 'starter') {
+        const rise = isMansion ? 4.1 : h.tier === 'family' ? 3.4 : 2.7;
+        const half = (h.w + (isMansion ? 3 : 1.8)) / 2, run = h.d/2 + (isMansion ? 2 : 1.4);
+        const angle = Math.atan2(rise, half), panelW = Math.hypot(half, rise);
+        addRoofPanel(roofs,panelW,.75,h.d+(isMansion?4:2.8),h.x-half/2,h.h+rise/2+.6,h.z,angle);
+        addRoofPanel(roofs,panelW,.75,h.d+(isMansion?4:2.8),h.x+half/2,h.h+rise/2+.6,h.z,-angle);
+        addBox(roofRidge,.55,.55,h.d+(isMansion?4:2.8),h.x,h.h+rise+.6,h.z);
+        addGable(walls,h.w,rise*.76,h.x,h.h+.48,front+.1);
+        addGable(walls,h.w,rise*.76,h.x,h.h+.48,h.z-h.d/2-.11);
+        // Warm fascia and deep eaves make the roof read as a finished architectural feature.
+        addBox(facadeTrim,h.w+2,.28,.32,h.x,h.h+.52,front+.08);
+      } else {
+        addBox(roofs,h.w+1.8,1.0,h.d+1.8,h.x,h.h+1.0,h.z);
+      }
       // Mansion wings and a raised central roofline distinguish premium lakefront architecture.
       if (isMansion) {
         addBox(walls,h.w*.34,h.h*.62,h.d*.48,h.x,h.h*.31+h.h+.25,h.z-h.d*.08);
         addBox(roofs,h.w*.39,.9,h.d*.54,h.x,h.h*.62+h.h+.75,h.z-h.d*.08);
       }
       for (const sx of [-.34,-.12,.12,.34]) {
-        addBox(glass,h.w*.15,2.6,.16,h.x+h.w*sx,3.0,front+.12);
-        addBox(glass,h.w*.15,1.0,.16,h.x+h.w*sx,6.1,front+.12);
+        const wx=h.x+h.w*sx, ww=h.w*.15;
+        // Front elevation: recessed dark glazing, blue glass, bronze frames and a slim central mullion.
+        addBox(windowFrames,ww+.42,3.0,.2,wx,3.0,front+.2);
+        addBox(glass,ww,2.55,.13,wx,3.0,front+.32);
+        addBox(windowFrames,.12,2.5,.12,wx,3.0,front+.4);
+        addBox(windowFrames,ww,.12,.12,wx,3.0,front+.4);
+        if (!isMansion) {
+          addBox(windowFrames,ww+.3,1.3,.2,wx,6.1,front+.2);
+          addBox(glass,ww,1.0,.13,wx,6.1,front+.32);
+        } else {
+          addBox(windowFrames,ww+.3,1.15,.2,wx,6.3,front+.2);
+          addBox(glass,ww,0.9,.13,wx,6.3,front+.32);
+        }
       }
-      addBox(glass,isMansion?8:5.5,isMansion?4:3.2,.18,h.x+h.w*.22,2.5,front+.14);
-      addBox(trim,h.w*(isMansion?.62:.48),.28,.35,h.x,5.0,front+.25);
+      // An asymmetrical, designed entry and a garage give houses a readable human scale.
+      const doorX=h.x-h.w*.23, doorH=isMansion?4.4:3.3, doorW=isMansion?2.8:2.2;
+      addBox(doors,doorW,doorH,.24,doorX,doorH/2+.52,front+.3);
+      addBox(facadeTrim,doorW+.42,.22,.3,doorX,doorH+.55,front+.32);
+      addBox(trim,.18,.18,.12,doorX+doorW*.28,doorH/2+.5,front+.46);
+      addBox(facadeTrim,isMansion?10:7,.28,.35,h.x+h.w*.25,4.4,front+.27);
+      addBox(glass,isMansion?9:6.2,3.0,.15,h.x+h.w*.25,2.7,front+.28);
+      addBox(windowFrames,.14,3.0,.12,h.x+h.w*.25,2.7,front+.38);
+      addBox(trim,h.w*(isMansion?.72:.56),.3,.38,h.x,5.0,front+.45);
+      // Porch deck, two broad steps, and square columns; mansion receives a deeper arrival terrace.
+      const porchD=isMansion?7:4.2, porchW=isMansion?15:9;
+      addBox(paths,porchW,.35,porchD,h.x, .48,front+porchD/2-0.4);
+      addBox(paths,porchW*.72,.18,1.2,h.x,.25,front+porchD+.2);
+      for (const px of [-porchW*.42,porchW*.42]) {
+        addBox(facadeTrim,.34,isMansion?4.8:3.5,.34,h.x+px,doorH/2+1.0,front+porchD*.55);
+        addBox(facadeTrim,.55,.22,.55,h.x+px,doorH+1.0,front+porchD*.55);
+      }
+      // Recessed garage door, horizontal panel seams, and a narrow side service door.
+      if (!isMansion) {
+        const gx=h.x+h.w*.27, gw=isApartment?9:8.2, gh=isApartment?3.1:3.0;
+        addBox(doors,gw,gh,.22,gx,gh/2+.52,front+.25);
+        for (let yy=1;yy<=2;yy++) addBox(facadeTrim,gw-.5,.08,.08,gx,.52+yy*.82,front+.39);
+        addBox(doors,1.5,2.6,.2,h.x+h.w*.43,1.85,front+.28);
+      }
+      if (isMansion) {
+        // Lakefront terrace and infinity-edge pool: a high-value silhouette visible from the lake.
+        addBox(poolDeck,h.w+8,.3,h.d*.5+13,h.x,h.h*.06+.42,h.z+h.d*.15);
+        addBox(poolWater,h.w*.66,.12,h.d*.25+7,h.x,h.h*.06+.62,h.z+h.d*.17);
+        addBox(facadeTrim,h.w*.7,.14,.18,h.x,h.h*.06+.72,h.z+h.d*.17+(h.d*.25+7)/2);
+        for (const px of [-h.w*.43,h.w*.43]) {
+          addBox(porchLights,.3,1.3,.3,h.x+px,1.05,h.z+h.d*.5+5);
+        }
+      }
+    }
+    if (isApartment) {
+      // Stacked balcony slabs and fine railings break the apartment facade into individual homes.
+      for (let floor=0;floor<3;floor++) for (let col=0;col<4;col++) {
+        const bx=h.x-h.w*.36+col*h.w*.24, by=3.9+floor*3.7, bw=5.2;
+        addBox(balconies,bw,.22,1.25,bx,by,front+.8);
+        addBox(facadeTrim,bw,.12,.12,bx,by+.68,front+1.34);
+        for (let rail=-2;rail<=2;rail++) addBox(facadeTrim,.08,.65,.08,bx+rail*.95,by+.34,front+1.34);
+      }
+      // A glass-and-metal lobby canopy and an address tower cap the entrance.
+      addBox(facadeTrim,12,.24,3.0,h.x,4.0,front+1.25);
+      addBox(doors,5,3.6,.2,h.x,2.35,front+.24);
+      addBox(facadeTrim,7,.22,.25,h.x,4.05,front+.2);
     }
     // Driveway paths lead from each home toward the internal street grid.
     const drivewayLength=isTrailer?8:isApartment?10:isMansion?8:11;
@@ -309,6 +381,19 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   merged(roofs,new THREE.MeshLambertMaterial({color:0x303945}));
   merged(glass,new THREE.MeshBasicMaterial({color:0x79d8ed,transparent:true,opacity:.78}));
   merged(trim,new THREE.MeshLambertMaterial({color:0xffb75b}));
+  merged(facadeTrim,new THREE.MeshLambertMaterial({color:0xc89b62}));
+  merged(doors,new THREE.MeshLambertMaterial({color:0x263443}));
+  merged(windowFrames,new THREE.MeshLambertMaterial({color:0x2c3b4a}));
+  merged(warmWindows,new THREE.MeshBasicMaterial({color:0xffc878,transparent:true,opacity:.85}));
+  merged(roofRidge,new THREE.MeshLambertMaterial({color:0x171f2a}));
+  merged(balconies,new THREE.MeshLambertMaterial({color:0x4e6673}));
+  merged(poolDeck,new THREE.MeshLambertMaterial({color:0xd0c2a3}));
+  merged(poolWater,new THREE.MeshBasicMaterial({color:0x22c7e8,transparent:true,opacity:.76}));
+  merged(drivewayDetails,new THREE.MeshLambertMaterial({color:0x59616b}));
+  const porchGlowGeo=new THREE.BufferGeometry(), porchGlowPts=[];
+  for (const h of homes) if (h.tier==='mansion') { porchGlowPts.push(h.x-h.w*.43,1.2,h.z+h.d*.5+5,h.x+h.w*.43,1.2,h.z+h.d*.5+5); }
+  porchGlowGeo.setAttribute('position',new THREE.Float32BufferAttribute(porchGlowPts,3));
+  lot.add(new THREE.Points(porchGlowGeo,new THREE.PointsMaterial({color:0xffbf70,size:3.2,transparent:true,opacity:.95,depthWrite:false,blending:THREE.AdditiveBlending})));
   merged(greenery,new THREE.MeshLambertMaterial({color:0x385d3c}));
   merged(flowerBeds,new THREE.MeshLambertMaterial({color:0x5d5547}));
   merged(parkProps,new THREE.MeshLambertMaterial({color:0x786f62}));

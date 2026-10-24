@@ -64,6 +64,19 @@ for (let i = 0; i < 4; i++) {
 assert(state[account].interiors.north_bus_depot.openedDoors.includes('office_door'), 'persistent breach progress eventually opens an ordinary door');
 assert.equal(state[account].interiors.north_bus_depot.doorDamage.office_door, 100);
 
+const apartments = Interiors.LANDMARKS.collapsed_apartments;
+player.x = apartments.x; player.z = apartments.z;
+state = Interiors.enter(state, { account, player, landmarkId: 'collapsed_apartments', now: 2100 }).state;
+assert.equal(Interiors.publicState(state, account).room.elevation, 0, 'ground-floor rooms have an explicit zero elevation');
+player.x = apartments.x; player.z = apartments.z - 2.4;
+const climbed = Interiors.traverse(state, { account, player, doorId: 'fire_escape', now: 2200 });
+state = climbed.state;
+assert.equal(climbed.interior.roomId, 'upper_flat');
+assert.equal(climbed.room.elevation, 3.2, 'fire-escape transition resolves to the authored upper-floor elevation');
+const ironworks = require('../client/arena/homefront-interior-world.mjs');
+assert.equal(ironworks.interiorRoom(ironworks.interiorForLandmark('ironworks'), 'gantry_catwalk').elevation, 4.2,
+  'industrial catwalk has a raised authored elevation');
+
 
 const wall = Collision.OBSTACLES.find(o => o.id === 'interior-wall:mercy_hospital:emergency_lobby:north:0');
 assert(wall, 'interior wall collision is included in the static collision index');

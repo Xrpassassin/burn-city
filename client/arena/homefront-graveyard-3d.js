@@ -510,7 +510,7 @@ function boot(host) {
   const interiorStatus = document.getElementById('interiorStatus');
   const interiorActions = document.getElementById('interiorActions');
   const leaveInteriorButton = document.getElementById('leaveInterior');
-  function setInteriorStatus(message) { if (interiorStatus) interiorStatus.textContent = message; }
+  function setInteriorStatus(message) { if (interiorStatus) { interiorStatus.textContent = message; interiorStatus.classList.toggle('breach', String(message).startsWith('BREACH!')); } }
   function updateInteriorPanel() {
     if (!interiorPanel) return;
     interiorPanel.hidden = !interiorState;

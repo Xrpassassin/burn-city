@@ -42,6 +42,7 @@ function normalize(input) {
         used: [...new Set((Array.isArray(state.used) ? state.used : []).filter(v => blueprint.interactables.some(item => item.id === v)))].slice(0, 64),
         openedDoors: [...new Set((Array.isArray(state.openedDoors) ? state.openedDoors : []).filter(v => blueprint.rooms.some(room => room.exits.some(exit => exit.id === v))))].slice(0, 64),
         noise: clampInt(state.noise, 0, 100),
+        doorDamage: Object.fromEntries(Object.entries(state.doorDamage || {}).filter(([doorId]) => blueprint.rooms.some(room => room.exits.some(exit => exit.id === doorId))).map(([doorId, value]) => [doorId, clampInt(value, 0, 100)])),
         updatedAt: clampInt(state.updatedAt, 0, Number.MAX_SAFE_INTEGER)
       };
     }
@@ -65,7 +66,7 @@ function enter(input, { account, player, landmarkId, now = Date.now() }) {
   const stateMap = normalizeMutable(input);
   if (!stateMap[account]) stateMap[account] = { activeLandmarkId: null, interiors: {} };
   if (!stateMap[account].interiors[landmarkId]) stateMap[account].interiors[landmarkId] = {
-    ...Catalog.createInteriorState(landmarkId), updatedAt: now
+    ...Catalog.createInteriorState(landmarkId), doorDamage: {}, updatedAt: now
   };
   stateMap[account].activeLandmarkId = landmarkId;
   stateMap[account].interiors[landmarkId].updatedAt = now;
@@ -93,6 +94,10 @@ function action(input, { account, player, actionId, now = Date.now() }) {
   const targetX = landmark.x + room.x + item.x, targetZ = landmark.z + room.z + item.z;
   if (Math.hypot(player.x - targetX, player.z - targetZ) > INTERACTION_RADIUS) throw new Error('too_far_from_interior_action');
   const result = Catalog.applyInteriorAction(ctx.catalog, ctx.state, actionId);
+  if (result.state.noise > ctx.state.noise) {
+    player.noiseLevel = Math.max(player.noiseLevel || 0, result.state.noise);
+    player.lastNoiseAt = now; player.noiseX = player.x; player.noiseZ = player.z;
+  }
   let reward = [];
   if (item.action === 'search') {
     const table = REWARDS[actionId] || [['scrap', 1, 2], ['food', 1, 1]];
@@ -124,6 +129,26 @@ function traverse(input, { account, player, doorId, now = Date.now() }) {
   ctx.owner.interiors[ctx.landmarkId] = { ...next, updatedAt: now };
   return { state: ctx.stateMap, interior: copy(ctx.owner.interiors[ctx.landmarkId]), room: Catalog.interiorRoom(ctx.catalog, next.roomId) };
 }
+function breachDoor(input, { account, landmarkId, doorId, damage, now = Date.now() }) {
+  const stateMap = normalize(input);
+  const owner = stateMap[account];
+  if (!owner || owner.activeLandmarkId !== landmarkId) throw new Error('interior_not_active');
+  const blueprint = Catalog.interiorForLandmark(landmarkId);
+  const state = owner.interiors?.[landmarkId];
+  if (!blueprint || !state) throw new Error('interior_state_missing');
+  const exits = blueprint.rooms.flatMap(room => room.exits.filter(exit => exit.id === doorId).map(exit => ({ room, exit })));
+  if (!exits.length) throw new Error('interior_door_unavailable');
+  if (exits.some(({ exit }) => exit.requires?.length)) throw new Error('interior_door_secure');
+  if (state.openedDoors.includes(doorId)) return { state: stateMap, broken: true, progress: 100 };
+  state.doorDamage = state.doorDamage || {};
+  const progress = Math.min(100, (state.doorDamage[doorId] || 0) + Math.max(0, Number.isFinite(damage) ? damage : 0));
+  state.doorDamage[doorId] = progress;
+  state.updatedAt = now;
+  const broken = progress >= 100;
+  if (broken) state.openedDoors = [...new Set([...state.openedDoors, doorId])];
+  owner.interiors[landmarkId] = state;
+  return { state: stateMap, broken, progress };
+}
 function leave(input, { account, player, now = Date.now() }) {
   const ctx = requireActive(input, account, player, now);
   ctx.owner.activeLandmarkId = null;
@@ -138,4 +163,4 @@ function publicState(input, account) {
   const state = owner.interiors?.[landmarkId];
   return blueprint && state ? { ...copy(state), title: blueprint.title, room: Catalog.interiorRoom(blueprint, state.roomId), actions: Catalog.availableInteriorActions(blueprint, state) } : null;
 }
-module.exports = { LANDMARKS, ENTRY_RADIUS, INTERACTION_RADIUS, REWARDS, normalize, enter, action, traverse, leave, publicState };
+module.exports = { LANDMARKS, ENTRY_RADIUS, INTERACTION_RADIUS, REWARDS, normalize, enter, action, traverse, breachDoor, leave, publicState };

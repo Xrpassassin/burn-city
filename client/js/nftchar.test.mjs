@@ -64,7 +64,7 @@ has(visualQa, /debugUnknownTraits:true/, 'renders diagnostic-only markers in the
 has(avatar, /const hasTrait = \(typeRe, valueRe = \/\.\+\/\)/, 'separates trait names from trait values to avoid cross-slot false positives');
 has(avatar, /if \(hasHairTrait && components\.hairStyle !== 'bald'/, 'does not invent default hair when the NFT has no hair trait');
 has(avatar, /hasTrait\(\/body effect\|flame\|aura\/i,\/flame\|fire\|on fire\|flaming\|ember\|inferno\|heating up\|smolder\/i\)/, 'only renders head flames for actual flame/body-effect traits');
-has(avatar, /const hasProtocolMark=hasTrait\(\/outfit\|accessory\|identity\|brand\|logo\|emblem\|insignia\/i/, 'does not treat a background named Burn as a 589 logo');
+has(avatar, /const hasProtocolMark=hasTrait\(\/outfit\|identity\|brand\|logo\|emblem\|insignia\/i/, 'does not treat a background or accessory named Burn as a 589 shirt logo');
 has(avatar, /const directArtwork = String\(opts\.artworkUrl \|\| n\?\.image \|\| n\?\.img \|\| ''\)/, 'accepts direct source artwork URLs in the visual QA harness');
 has(visualQa, /buildNftChar\(nft,\{panel:document\.querySelector\('#showTabard'\)\.checked,artworkUrl,debugUnknownTraits:true\}\)/, 'passes the source image and diagnostic-only trait markers into the artwork tabard renderer');
 has(avatar, /resolveNftAvatarComponents/, 'resolves typed traits into explicit visual component recipes');

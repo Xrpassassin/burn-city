@@ -24,6 +24,7 @@ ok(Math.abs(1 - Z.RUNNER / 1.7 - 0.176) < 0.02, `runners ${((1 - Z.RUNNER / 1.7)
   shot = r.events.find(e => e.e === 'shot'); hm = r.events.find(e => e.e === 'hm'); if (shot && Math.hypot(shot.tx - shot.x, shot.tz - shot.z) > 1.9) break; }
   ok(Z.WEAPONS.find(w => w.id === 'napalm').name === 'Firestorm' && shot && shot.ray, 'Firestorm (id napalm, owners migrate) fires a ray');
   ok(hm && hm.k === 1 && hm.id === p.id, 'server hit marker, kill flag on kill');
+  ok(Array.isArray(r.tacNoise) && r.tacNoise.some(n => Math.abs(n.x - p.x) < 1 && Math.abs(n.z - p.z) < 1), 'free-play gunfire emits a bounded tactical noise stimulus');
   ok(!r.zombies.has(600) || r.zombies.get(600).hp <= 0, 'ray hit first zombie'); ok(r.zombies.get(601)?.hp < 500, 'small splash hit neighbour'); }
 // 3D aim: pitch is clamped server-side; aiming straight at the floor misses a zombie 2 m ahead, level aim still hits it.
 { const r0 = mk(1), p0 = [...r0.players.values()][0]; r0.input(p0, { mx: 0, mz: 0, yaw: 0, pi: 9 }); ok(Math.abs((p0.pitch ?? 0) - 1.4) < 1e-9, 'aim pitch clamped to 1.4 rad (got ' + p0.pitch + ')');

@@ -1,6 +1,6 @@
 // Authoritative simulation for both modes. Clients only send inputs; server owns all state,
 // collisions and damage. Numbers are quantized in snapshots to keep bandwidth small.
-const Heli = require('./heli'), Rotary = require('./rotary-rules');   // helicopter finale (Night Shift ch. 4)
+const Heli = require('./heli'), Rotary = require('./rotary-rules'), Tactics = require('./zombie-tactics-core');   // helicopter finale (Night Shift ch. 4)
 const C = require('./config'), Z = require('./cod'), Quest = require('./quest'), IFRAME = +(process.env.ZOMBIE_IFRAME || 1), SPAWN_GAP = +(process.env.ZOMBIE_SPAWN_GAP || 1.8), REGEN_DELAY = +(process.env.ZOMBIE_REGEN_DELAY || 3.5), REGEN_RATE = +(process.env.ZOMBIE_REGEN_RATE || 22), HS_LAT = 0.3, HS_BONUS = 40, TEST_GOD = process.env.ZOMBIE_TEST_GOD === '1' && !process.env.FLY_APP_NAME;   // local screenshot runs only
 // between-round upgrade draft (Mortuus-style): after each cleared wave every standing player picks 1 of 3 stacking boons
 const DRAFT = { dmg: ['Searing Fuel', '+12% damage', 5, '🔥'], fuel: ['Deep Tanks', '+25% fuel refill', 4, '⛽'], armor: ['Slag Plating', '-10% damage taken', 3, '🛡️'], hp: ['Thick Skin', '+20 max health', 5, '❤️'],
@@ -149,7 +149,7 @@ class Room {
       const ty = boss ? 8 : cosmo && wv >= 4 && sr < 0.07 ? 7 : cosmo && wv >= 3 && sr < 0.14 ? 6 : wv >= 5 && sr < 0.035 ? 3 : wv >= 4 && sr < 0.11 ? 4 : wv >= 6 && sr < 0.17 ? 5 : wv >= 2 && roll < 0.18 ? 1 : wv >= 3 && roll > 0.9 ? 2 : 0;
       if (ty >= 6) [sx, sz] = Z.zoneSpawn(this);
       const base = (60 + this.wave * 15) * (cosmo ? 1.25 : 1) * (this.mod?.hp || 1) * Z.hpN(Math.max(1, ps.filter(p => !p.spectator).length)), sp = (2.2 + Math.min(this.wave * 0.25, 2.5) + Math.random()) * (this.mod?.sp || 1);
-      this.zombies.set(this.zid, { id: this.zid++, ty, x: sx, z: sz, lv: ty === 6 ? 0 : wn?.lv || 0, y: ty === 6 ? 2.4 : (wn?.lv || 0) * Z.UH, hp: base * HPM[ty], maxhp: base * HPM[ty], sp: sp * (ty === 1 ? Z.RUNNER : SPM[ty]), win: ty >= 6 ? null : wn ? wi : null, ph: 0, armorHp: ty === 2 || ty === 3 || ty === 8 ? base * (ty === 8 ? 0.38 : 0.28) : 0, armorBroken: 0, ...(ty === 7 ? { shotT: 2.2 + Math.random() * 1.2 } : {}) });
+      this.zombies.set(this.zid, { id: this.zid++, ty, x: sx, z: sz, lv: ty === 6 ? 0 : wn?.lv || 0, y: ty === 6 ? 2.4 : (wn?.lv || 0) * Z.UH, hp: base * HPM[ty], maxhp: base * HPM[ty], sp: sp * (ty === 1 ? Z.RUNNER : SPM[ty]), win: ty >= 6 ? null : wn ? wi : null, ph: 0, role: Tactics.assignRole(this.zid - 1, `${this.id}:${this.wave}`, this.zombies.size, capZ), tacState: 'wander', armorHp: ty === 2 || ty === 3 || ty === 8 ? base * (ty === 8 ? 0.38 : 0.28) : 0, armorBroken: 0, ...(ty === 7 ? { shotT: 2.2 + Math.random() * 1.2 } : {}) });
     }
     if (this.spawnT < 0) this.spawnT = 0;   // no banked burst while the alive cap is full
     const hurt = (zb, amt, p, hs = 0, dot = false) => { let d = amt * (Z.has(p, 'dbl') ? 2 : 1) * (hs ? hs * (1 + 0.25 * bon(p, 'hs')) : 1) * (1 + 0.12 * bon(p, 'dmg'));
@@ -167,7 +167,12 @@ class Room {
       let ex = p.x + s * hd, ez = p.z + c * hd; if (!hit) { let d2 = missD(p, reachH(p, range)); while (d2 > 1 && !Z.los(this, p.x, p.z, p.x + s * d2, p.z + c * d2, p.y)) d2 -= 0.7; ex = p.x + s * d2; ez = p.z + c * d2; }
       if (hit) for (const zb of this.zombies.values()) { if (zb === hit) hurt(zb, dmg, p, hit._lat < HS_LAT && hit._hv ? 2 : 0); else if (splash && Math.hypot(zb.x - ex, zb.z - ez) < splash) hurt(zb, dmg * 0.4, p); }
       ev.push({ e: 'shot', id: p.id, w: 'napalm', x: q(p.x), z: q(p.z), tx: q(ex), tz: q(ez), ty: hit ? q(hit.y || 0) : q(endY(p, Math.hypot(ex - p.x, ez - p.z))), ray: 1, ls: hot ? 2 : 1 }); };
-    if ((this.flowT = (this.flowT || 0) - dt) <= 0) { this.flowT = 0.25; Z.flow(this, up); }   // refresh the zombie flow field 4x/s
+    if ((this.flowT = (this.flowT || 0) - dt) <= 0) { this.flowT = 0.25;
+      const nowMs = this.t * 1000;
+      this.tacNoise = (this.tacNoise || []).filter(n => nowMs - n.atMs <= n.ttlMs);
+      const soundTargets = !this.ranked && !this.daily ? this.tacNoise.map(n => ({ x: n.x, z: n.z, lv: n.lv || 0 })) : [];
+      Z.flow(this, up.concat(soundTargets));
+    }   // refresh the zombie flow field 4x/s; free-play gunfire can also seed investigation routes
     for (const p of ps) if (p.alive) {
       if (p.down) {   // downed: bleed out unless revived (teammate stands close) or Phoenix self-revive (solo)
         p.firing = false; p.in.use = false; p.in.pk = null; const helper = up.find(o => Math.hypot(o.x - p.x, o.z - p.z) < Z.REVIVE_R && Math.abs((o.y || 0) - (p.y || 0)) < 1.3);
@@ -219,6 +224,17 @@ class Room {
             ev.push({ e: 'shot', id: p.id, w: w.id, x: q(p.x), z: q(p.z), tx: q(tx), tz: q(tz) }); } }
       }
     }
+    if (!this.ranked && !this.daily) {
+      const nowMs = this.t * 1000;
+      for (const shot of ev) if (shot.e === 'shot' && Number.isFinite(shot.x) && Number.isFinite(shot.z)) {
+        const shooter = this.players.get(shot.id);
+        this.tacNoise ||= [];
+        this.tacNoise.push({ x: shot.x, z: shot.z, lv: shooter?.lv || 0, atMs: nowMs, ttlMs: 7000,
+          radius: shot.w === 'ravager' ? 30 : shot.w === 'beam' ? 24 : 18,
+          intensity: shot.w === 'ravager' ? 1 : shot.w === 'beam' ? 0.85 : 0.7 });
+      }
+      if (this.tacNoise?.length > 24) this.tacNoise.splice(0, this.tacNoise.length - 24);
+    }
     for (let i = this.proj.length - 1; i >= 0; i--) { const pr = this.proj[i]; if ((pr.t -= dt) > 0) continue; this.proj.splice(i, 1); const p = this.players.get(pr.by);
       if (p) for (const zb of this.zombies.values()) { const d = Math.hypot(zb.x - pr.x, zb.z - pr.z); if (d < pr.w.splash) hurt(zb, pr.w.dmg * (1 - d / pr.w.splash * 0.5), p); }
       this.pools.push({ x: pr.x, z: pr.z, t: pr.w.pool, by: pr.by, w: pr.w }); }
@@ -236,6 +252,22 @@ class Room {
       let best = null, bd = 1e9; for (const p of ps) if (p.alive && !p.down && !p.aboard) { const d = Math.hypot(p.x - zb.x, p.z - zb.z) + (zb.ty !== 6 && Math.abs((p.y || 0) - (zb.y || 0)) > 1.3 ? 6 : 0); if (d < bd) { bd = d; best = p; } }   // another floor counts as further away
       if (!best) continue;
       const sameLv = zb.ty === 6 || Math.abs((best.y || 0) - (zb.y || 0)) < 1.3;
+      let tactical = null;
+      if (!this.ranked && !this.daily && zb.ty !== 6 && zb.ty !== 7 && zb.ty !== 8) {
+        const visible = sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y);
+        if (visible) zb.lastKnownTarget = { x: best.x, z: best.z, untilMs: this.t * 1000 + 2500, lv: best.lv || 0 };
+        let heard = null, heardDistance = Infinity;
+        for (const noise of this.tacNoise || []) {
+          // Sound does not teleport perception through floors: the sound stimulus
+          // must originate on this zombie's floor before its radius is evaluated.
+          if (Math.abs((noise.lv || 0) - (zb.lv || 0)) > 0) continue;
+          const stimulus = Tactics.hearNoise(zb, noise, this.t * 1000, Tactics.roleTuning(zb.role).hearingScale);
+          if (stimulus && stimulus.distance < heardDistance) { heard = noise; heardDistance = stimulus.distance; }
+        }
+        tactical = Tactics.chooseBehavior({ zombie: zb, nowMs: this.t * 1000, target: best, targetVisible: visible,
+          noise: heard, lastKnownTarget: zb.lastKnownTarget });
+        zb.tacState = tactical.state;
+      }
       if (zb.ty === 7 && sameLv && bd > 5 && bd < 18 && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) {
         zb.shotT -= dt;
         if (zb.shotT <= 0) { zb.shotT = 2.1 + Math.random() * 0.8; ev.push({ e: 'zshot', id: zb.id, by: best.id, x: q(zb.x), z: q(zb.z), y: q(zb.y || 0), tx: q(best.x), tz: q(best.z), ty: q((best.y || 0) + 1) });
@@ -244,10 +276,31 @@ class Room {
               if (phoenix && !others && !best.usedSelf) { best.down = 1; best.selfRev = 3; best.usedSelf = true; ev.push({ e: 'downed', id: best.id, self: 1 }); } else if (others) { best.down = 1; best.bleed = 30; best.revT = 0; ev.push({ e: 'downed', id: best.id }); } else { best.alive = false; this.life(best); ev.push({ e: 'down', id: best.id }); } }
           }
         }
-      } else if (bd > 1.1 || !sameLv) {   // follow the flow field; go straight only when close with a clear line
-        let tx = best.x, tz = best.z; const st = Z.nextStep(this, zb.x, zb.z, zb.lv); if (zb.ty !== 6 && st && !(bd < 3 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y))) { tx = st[0]; tz = st[1]; }
-        if (zb.ty === 3 || zb.ty === 8) { zb.chT = (zb.chT ?? (zb.ty === 8 ? 6 : 5)) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < (zb.ty === 8 ? 12 : 14) && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = (zb.ty === 8 ? 8 + Math.random() * 2 : 7 + Math.random() * 3); zb.charge = zb.ty === 8 ? 1.05 : 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
-        const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1, mv = zb.sp * (!this.ranked && !this.daily && zb.stagger > 0 ? 0.12 : 1) * (zb.charge > 0 ? (zb.ty === 8 ? 2.6 : 3.2) : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
+      } else if (tactical?.state === 'investigate' || bd > 1.1 || !sameLv) {   // investigate recent gunfire when no player is visible; otherwise follow the existing flow field
+        let tx = best.x, tz = best.z; const st = Z.nextStep(this, zb.x, zb.z, zb.lv);
+        const investigatingVisibleNoise = tactical?.state === 'investigate' && tactical.target && Z.los(this, zb.x, zb.z, tactical.target.x, tactical.target.z, zb.y, zb.y);
+        if (investigatingVisibleNoise) { tx = tactical.target.x; tz = tactical.target.z; }
+        else if (zb.ty !== 6 && st && !(bd < 3 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y))) { tx = st[0]; tz = st[1]; }
+        // Squad coordination: only a visible-target flanker may request an alternate
+        // approach. Validate same-floor walkability and LOS before overriding the
+        // ordinary flow-field waypoint; normal axis collision checks still govern motion.
+        if (tactical?.state === 'pursue' && zb.role === 'flanker' && sameLv && bd > 3) {
+          const approach = Tactics.selectApproachTarget({ role: zb.role, zombie: zb, target: best, targetVisible: true, offset: 4 });
+          const validatedApproach = Tactics.validateApproachTarget({
+            approach, sameFloor: sameLv && Math.abs((best.lv || 0) - (zb.lv || 0)) === 0,
+            isWalkable: (x, z) => Z.inside(this, x, z, 0.32, zb.lv),
+            hasLineOfSight: (x, z) => Z.los(this, zb.x, zb.z, x, z, zb.y, zb.y)
+          });
+          if (validatedApproach) { tx = validatedApproach.x; tz = validatedApproach.z; }
+        }
+        if (tactical?.state !== 'investigate' && (zb.ty === 3 || zb.ty === 8)) { zb.chT = (zb.chT ?? (zb.ty === 8 ? 6 : 5)) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < (zb.ty === 8 ? 12 : 14) && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = (zb.ty === 8 ? 8 + Math.random() * 2 : 7 + Math.random() * 3); zb.charge = zb.ty === 8 ? 1.05 : 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
+        const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1;
+        const tacticalRoleEligible = !this.ranked && !this.daily && zb.ty !== 6 && zb.ty !== 7 && zb.ty !== 8;
+        const roleProfile = Tactics.roleTuning(zb.role);
+        const roleSpeed = tacticalRoleEligible ? roleProfile.pursuitSpeed : 1;
+        const staggerSpeed = !this.ranked && !this.daily && zb.stagger > 0
+          ? (tacticalRoleEligible ? roleProfile.staggerFactor : 0.12) : 1;
+        const mv = zb.sp * roleSpeed * staggerSpeed * (zb.charge > 0 ? (zb.ty === 8 ? 2.6 : 3.2) : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
         if (zb.ty === 6) { zb.x = nx; zb.z = nz; zb.y = 2.4 + Math.sin(this.t * 3.5 + zb.id) * 0.3; zb.lv = 0; }
         else { if (Z.inside(this, nx, zb.z, 0.32, zb.lv)) zb.x = nx; if (Z.inside(this, zb.x, nz, 0.32, zb.lv)) zb.z = nz;
           if (!Z.inside(this, zb.x, zb.z, 0.32, zb.lv) && st) { zb.x += (st[0] - zb.x) * Math.min(1, dt * 4); zb.z += (st[1] - zb.z) * Math.min(1, dt * 4); }   // never wedge into a corner

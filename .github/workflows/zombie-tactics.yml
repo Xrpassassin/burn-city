@@ -1,0 +1,33 @@
+name: Zombie tactics regression
+
+on:
+  pull_request:
+    paths:
+      - 'server/zombie-tactics-core.js'
+      - 'server/zombie-tactics-core.test.js'
+      - 'server/cod.js'
+      - 'test/zombie-sim.js'
+      - 'test/zombie-nav-sim.js'
+      - 'package.json'
+      - '.github/workflows/zombie-tactics.yml'
+  push:
+    branches:
+      - 'hark/zombie-tactics-review'
+
+permissions:
+  contents: read
+
+jobs:
+  zombie-tactics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run zombie tactics and navigation regressions
+        run: npm run test:zombie-tactics

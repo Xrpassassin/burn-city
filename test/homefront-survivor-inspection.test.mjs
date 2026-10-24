@@ -57,3 +57,8 @@ assert.match(page, /function updatePhysicalWorkshops\(dt\)/, 'workshop machinery
 assert.match(page, /distance<3\.2/, 'workshop machinery activates when the player approaches the work area');
 assert.match(page, /gear\.rotation\.z=motion\.angle/, 'workshop wheel visibly rotates while active');
 assert.match(page, /updatePhysicalWorkshops\(dt\)/, 'workshop interaction updates in the third-person simulation loop');
+
+assert.match(page, /steeringDirection\(/, 'survivors use obstacle-aware steering instead of walking through structures');
+assert.match(page, /separationVector\(/, 'survivors avoid crowding each other with separation steering');
+assert.match(page, /isPositionBlocked\(nx,nz,collisionStructures,\.32\)/, 'third-person player movement respects solid structure footprints');
+assert.match(page, /navObstacles=\(base\?\.structures\|\|\[\]\)\.filter\(item=>item\.hp>0&&!openGateIds\.has\(String\(item\.id\)\)\)/, 'open gates remain navigable while solid structures steer survivor movement');

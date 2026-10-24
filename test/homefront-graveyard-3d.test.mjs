@@ -339,6 +339,14 @@ assert.match(page, /s\.type==='turret'/, 'intact mounted turrets visually fire a
 assert.match(page, /target\.hitReaction=\.18/, 'defensive shots produce a visible infected hit reaction');
 assert.match(page, /if\(!base\?\.wave\|\|pendingBuilding\|\|constructionPaused\)return/, 'construction mode suppresses siege and defensive-fire effects');
 assert.match(page, /function updateSiegeEffects\(dt\)/, 'expire temporary tracer and impact objects cleanly');
+
+
+// Confirmed firearms get visible tracer feedback, and the heavy machine gun is wired through the client weapon handling.
+assert.match(scene, /const tracer = new THREE\.Line\(new THREE\.BufferGeometry\(\)\.setFromPoints\(\[from, to\]\)/, 'render a real 3D tracer line for confirmed firearm hits');
+assert.match(scene, /tracer\.userData\.tracer = true/, 'mark tracers for short-lived opacity and resource cleanup');
+assert.match(scene, /heavy_machine_gun/, 'recognize the late-game heavy machine gun in client feedback and cadence');
+assert.match(page, /heavy_machine_gun.*Heavy Machine Gun.*Legendary · late unlock.*8,260,240/, 'show heavy machine gun as a high-power, high-cost weapon-bench unlock');
+assert.match(page, /survey Industrial Yard or Research Annex/, 'explain the heavy machine gun district-unlock requirement');
 // Production facilities must be placeable: the client-side placement check knows their caps and costs.
 assert.match(homefrontPage, /quarry:2,smelter:2,salvage_yard:2\},costs=/, 'quarry/smelter/salvage yard have client placement caps');
 assert.match(homefrontPage, /smelter:\{wood:20,scrap:18,stone:10\}/, 'smelter placement cost mirrors the server');

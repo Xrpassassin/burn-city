@@ -34,6 +34,7 @@ assert.equal(unknownProfile.hasCollectionAdapter, false); checks++;
 assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;
 
 has(visualQa, /handledSlots=new Set\(\['identity'[\s\S]*'eye wear'/, 'does not report collection identity and supported eyewear traits as unmapped');
+has(visualQa, /id="copyReport"/, 'provides a copyable QA report for collection reviews');
 has(avatar, /resolveNftAvatarProfile/, 'routes traits through collection-specific adapters');
 has(avatar, /resolveNftAvatarComponents/, 'resolves typed traits into explicit visual component recipes');
 has(avatar, /resolveNftAvatarReconstruction/, 'selects a collection-specific reconstruction blueprint');

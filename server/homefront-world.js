@@ -300,10 +300,33 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   p.survival = Survival.move(p.survival, now, Math.hypot(p.x - oldX, p.z - oldZ) * (sprint ? 1.55 : 1));
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {
-      const offset = (hash(member) % 7) - 3;
-      const follower = Collision.findSafePosition(clamp(p.x + offset, -WORLD_SIZE, WORLD_SIZE), clamp(p.z + (hash(member + 'z') % 7) - 3, -WORLD_SIZE, WORLD_SIZE), { bounds: WORLD_SIZE }) || { x: p.x, z: p.z };
-      w.players[member].x = follower.x; w.players[member].z = follower.z;
-      w.players[member].lastSeen = now;
+      const offsetX = (hash(member) % 7) - 3;
+      const offsetZ = (hash(member + 'z') % 7) - 3;
+      const followerState = w.players[member];
+      const targetX = clamp(p.x + offsetX, -WORLD_SIZE, WORLD_SIZE);
+      const targetZ = clamp(p.z + offsetZ, -WORLD_SIZE, WORLD_SIZE);
+      const followerRemoved = Object.values(w.environmentStructures).filter(s => s.health <= 0).map(s => s.id);
+      const followerInteriorOwner = w.interiors?.[member];
+      const followerInteriorId = followerInteriorOwner?.activeLandmarkId || null;
+      const followerInteriorState = followerInteriorId ? followerInteriorOwner.interiors?.[followerInteriorId] : null;
+      followerRemoved.push(...Collision.INTERIOR_OBSTACLE_IDS.filter(id =>
+        !followerInteriorId || id.split(':')[1] !== followerInteriorId ||
+        (id.startsWith('interior-door:') && followerInteriorState?.openedDoors?.includes(id.split(':')[2]))));
+      if (followerInteriorId) followerRemoved.push(...(Collision.INTERIOR_CARVE_IDS[followerInteriorId] || []));
+      const route = Collision.findPath(followerState.x, followerState.z, targetX, targetZ, {
+        bounds: WORLD_SIZE, maxExpanded: 900, removedObstacleIds: followerRemoved
+      });
+      if (route?.length) {
+        const step = Math.min(Math.hypot(targetX - followerState.x, targetZ - followerState.z), MOVE_STEP);
+        const next = advanceAlongTerrainPath(followerState.x, followerState.z, route, step);
+        if (Terrain.canTraverse(followerState.x, followerState.z, next.x, next.z) &&
+            Collision.canTraverse(followerState.x, followerState.z, next.x, next.z, {
+              bounds: WORLD_SIZE, removedObstacleIds: followerRemoved
+            })) {
+          followerState.x = next.x; followerState.z = next.z;
+        }
+      }
+      followerState.lastSeen = now;
     }
   }
   // Advance AI only on an authoritative world action; no client frame loop can move enemies.

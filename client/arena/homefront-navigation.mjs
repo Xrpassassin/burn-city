@@ -106,7 +106,8 @@ export function updateRouteRecovery(state = {}, position, target, now, options =
 export function updateRoutePlan(state = {}, position, target, obstacles = [], options = {}) {
   const actorRadius = options.actorRadius ?? 0.28;
   const targetKey = `${Math.round(target.x * 4)}/${Math.round(target.z * 4)}`;
-  if (state.targetKey !== targetKey) state = { targetKey, detour: null, blockedId: null };
+  const obstacleKey = obstacles.filter(item => item && item.hp !== 0).map(item => `${item.id ?? item.type}:${Math.round(item.x * 4)}:${Math.round(item.z * 4)}`).sort().join('|');
+  if (state.targetKey !== targetKey || state.obstacleKey !== obstacleKey) state = { targetKey, obstacleKey, detour: null, blockedId: null };
   if (state.detour && Math.hypot(position.x - state.detour.x, position.z - state.detour.z) > (options.waypointArrival ?? 0.38)) {
     return state;
   }
@@ -122,7 +123,7 @@ export function updateRoutePlan(state = {}, position, target, obstacles = [], op
     const radius = obstacleRadius(obstacle) + actorRadius + 0.12;
     if (clearance < radius && t > 0.035 && t < 0.98 && (!first || t < first.t)) first = { obstacle, t, radius };
   }
-  if (!first) return state;
+  if (!first) return { ...state, obstacleKey };
   const obstacle = first.obstacle, length = Math.sqrt(lengthSq), ux = dx / length, uz = dz / length;
   const sideX = -uz, sideZ = ux, radius = first.radius + 0.18;
   const candidates = [
@@ -134,6 +135,6 @@ export function updateRoutePlan(state = {}, position, target, obstacles = [], op
     const costB = Math.hypot(position.x - b.x, position.z - b.z) + Math.hypot(target.x - b.x, target.z - b.z);
     return costA - costB || b.side - a.side;
   });
-  if (candidates.length) return { targetKey, detour: { x: candidates[0].x, z: candidates[0].z }, blockedId: String(obstacle.id ?? obstacle.type ?? 'obstacle') };
-  return { targetKey, detour: null, blockedId: String(obstacle.id ?? obstacle.type ?? 'obstacle'), unreachable: true };
+  if (candidates.length) return { targetKey, obstacleKey, detour: { x: candidates[0].x, z: candidates[0].z }, blockedId: String(obstacle.id ?? obstacle.type ?? 'obstacle') };
+  return { targetKey, obstacleKey, detour: null, blockedId: String(obstacle.id ?? obstacle.type ?? 'obstacle'), unreachable: true };
 }

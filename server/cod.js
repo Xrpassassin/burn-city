@@ -90,7 +90,7 @@ const COSMODROME = { name: 'The Ashen Cosmodrome', kind: 'cosmodrome', env: { to
     [18, 19, 12, 13, 1.2, 'crate'], [23, 24, 5, 6, 1.2, 'crate'],
     [31, 32, 8, 9, 1.4, 'crate'], [34, 35, 14, 15, 1.4, 'crate'],
     [27, 28, 24, 25, 1.4, 'crate'], [30, 31, 26, 27, 1.4, 'crate'],
-    [34, 35, 23, 24, 1.4, 'crate'], [31, 32, 28, 29, 1.4, 'crate'],
+    [37, 38, 24, 25, 1.4, 'crate'], [31, 32, 28, 29, 1.4, 'crate'],
     [28, 29, 20, 21, 1.2, 'rail'], [35, 36, 25, 26, 1.2, 'rail']
   ],
   doordef: [

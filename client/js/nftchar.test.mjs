@@ -147,7 +147,7 @@ has(city, /activeNftModels>=nftModelCap\(\)/, 'enforces the detailed peer model 
 has(city, /activeNftModels=Math\.max\(0,activeNftModels-1\)/, 'releases model budget when peers leave or go out of range');
 has(city, /if\(p\.boat\)\{W\(\)\.S\.remove\(p\.boat\)/, 'preserves boat cleanup from current main');
 has(app, /L\.nftCharacter&&L\.nftCharacter\.userData\.anim/, 'animates the selected local NFT character');
-has(sw, /bc-v101-nft-collection-reconstruction/, 'bumps service-worker cache version for NFT identity geometry');
+has(sw, /const VERSION = 'bc-v\d+-/, 'service-worker cache version is set (number moves with every merge)');
 has(picker, /metaVersion: 2/, 'refreshes previously selected local NFTs to the expanded metadata schema');
 has(picker, /slice\(0, 64\)/, 'persists up to 64 typed NFT attributes and values');
 has(picker, /https:\/\/xrpl\.to/, 'credits the marketplace metadata enrichment source');

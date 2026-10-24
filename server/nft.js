@@ -145,7 +145,7 @@ function charFor(acct) {
   const m = metaMem.get(sel[acct]); return m ? {
     id: m.id, key: m.key, col: m.col, name: m.name, num: m.num, img: m.img, pal: m.pal,
     traits: m.traits, t: m.traits.filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 64),
-    artwork: m.artwork, animation: m.animation, video: m.video, audio: m.audio, model3d: m.model3d, mediaFiles: m.mediaFiles
+    artwork: m.artwork, animation: m.animation, video: m.video, audio: m.audio, model3d: m.model3d   // mediaFiles stays on the picker (pub) only: presence broadcasts go to every city client
   } : null;
 }
 let ledgerFn = null, mainnet = null;   // own read-only mainnet client (NFTs live on mainnet even when payments run on testnet)

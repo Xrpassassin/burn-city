@@ -951,7 +951,7 @@ function boot(host) {
     if (!active || active.defeated || active.hp <= 0 || selectedCombatTargetId !== active.id || distance > (active.range || 0)) { stopAutoFire(); if (combatStatus) combatStatus.textContent = 'Autofire stopped: target defeated, out of range, or no longer selected.'; return; }
     const fired = await combatAction('attack', selectedCombatTargetId);
     if (!autoFireHeld || fired === false) { stopAutoFire(); return; }
-    const delay = equippedWeaponId === 'heavy_machine_gun' ? 280 : equippedWeaponId === 'marksman_rifle' ? 1350 : equippedWeaponId === 'pump_shotgun' ? 1150 : equippedWeaponId === 'shock_maul' || equippedWeaponId === 'pipe_blade' ? 950 : 1000;
+    const delay = equippedWeaponId === 'heavy_machine_gun' ? 500 : equippedWeaponId === 'marksman_rifle' ? 1350 : equippedWeaponId === 'pump_shotgun' ? 1150 : equippedWeaponId === 'shock_maul' || equippedWeaponId === 'pipe_blade' ? 950 : 1000;
     autoFireTimer = setTimeout(fireLoop, delay);
   };
   if (autoFireButton) {

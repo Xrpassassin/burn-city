@@ -1,9 +1,9 @@
 // Deterministic, coordinate-based terrain sampling for Homefront.
 // Pure math only: safe to share between client generation and future server validation.
-// Keep terrain subtle until authoritative movement and collision consume the same height function.
+// The server mirrors this height field for traversal checks; keep both scale constants in lockstep.
 const DEFAULT_SEED = 0xB17C17;
 const UINT32_RANGE = 4294967296;
-export const TERRAIN_ELEVATION_SCALE = 0.42;
+export const TERRAIN_ELEVATION_SCALE = 1.15;
 
 function hashLattice(x, z, seed) {
   let h = (Math.imul(x | 0, 0x1f123bb5) ^ Math.imul(z | 0, 0x5f356495) ^ (seed | 0)) >>> 0;
@@ -38,9 +38,8 @@ export function valueNoise2D(x, z, scale = 32, seed = DEFAULT_SEED) {
 }
 
 /**
- * Conservative first-pass height profile in world units. Output is intentionally
- * shallow (roughly -1.8..1.8) so existing structures remain readable while
- * server movement/collision are still planar.
+ * Deterministic height profile in world units. Elevation is amplified for readable
+ * hills and shallow gullies; the server samples the same function for traversability.
  */
 export function terrainHeight(x, z, seed = DEFAULT_SEED) {
   if (![x, z, seed].every(Number.isFinite)) {

@@ -41,23 +41,27 @@ function resolveDirectorLoot({ event, zoneId, risk, rewardMultiplier = 1, combat
 
 // Server-authoritative encounter planning. This decides what a spawn request should
 // create; it does not itself create entities or run a per-frame AI loop.
-function planEncounter({ zoneId = 'outskirts', risk = 1, playerCount = 1, activeEncounters = 0, noise = 0, seed = 0 } = {}) {
+function planEncounter({ zoneId = 'outskirts', risk = 1, playerCount = 1, activeEncounters = 0, noise = 0, frontierDepth = 0, seed = 0 } = {}) {
   const names = ARCHETYPES[zoneId] || ARCHETYPES.outskirts;
   const boundedRisk = Math.max(1, Math.min(5, Math.floor(Number.isFinite(risk) ? risk : 1)));
   const players = Math.max(1, Math.min(8, Math.floor(Number.isFinite(playerCount) ? playerCount : 1)));
   const active = Math.max(0, Math.min(20, Math.floor(Number.isFinite(activeEncounters) ? activeEncounters : 0)));
   const noiseLevel = Math.max(0, Math.min(100, Number.isFinite(noise) ? noise : 0));
-  const pressureBonus = Math.min(0.12, Math.max(0, (players - 1) * 0.025 + noiseLevel / 200 - active * 0.02));
-  const specialWeight = Math.min(0.38, 0.09 + boundedRisk * 0.04 + pressureBonus * 0.35);
+  // Risk bands describe the district, while frontierDepth provides a gradual ramp
+  // as players push inward from the perimeter. It never overrides the local cap.
+  const depthFactor = Math.max(0, Math.min(1, Number.isFinite(frontierDepth) ? frontierDepth / 100 : 0));
+  const pressureBonus = Math.min(0.16, Math.max(0, (players - 1) * 0.025 + noiseLevel / 200 + depthFactor * 0.04 - active * 0.02));
+  const specialWeight = Math.min(0.38, 0.09 + boundedRisk * 0.04 + pressureBonus * 0.35 + depthFactor * 0.015);
   const hostileWeight = Math.min(0.78, 0.37 + boundedRisk * 0.05 + pressureBonus);
   const hordeWeight = Math.max(0, hostileWeight - specialWeight);
-  const roll = rand(hash('encounter:' + seed + ':' + zoneId + ':' + boundedRisk + ':' + players + ':' + active + ':' + noiseLevel));
+  const roll = rand(hash('encounter:' + seed + ':' + zoneId + ':' + boundedRisk + ':' + players + ':' + active + ':' + noiseLevel + ':' + Math.round(depthFactor * 100)));
   const event = roll < specialWeight ? 'special_infected' : roll < hostileWeight ? 'infected_horde' : 'wandering_infected';
-  const threat = Math.min(10, Math.max(1, Math.round(boundedRisk + (players - 1) * 0.5 + noiseLevel / 40 - active * 0.35)));
+  const threat = Math.min(10, Math.max(1, Math.round(boundedRisk + depthFactor * 0.65 + (players - 1) * 0.5 + noiseLevel / 40 - active * 0.35)));
   return {
     zoneId: ARCHETYPES[zoneId] ? zoneId : 'outskirts',
     risk: boundedRisk,
-    pressure: Number((boundedRisk + (players - 1) * 0.5 + noiseLevel / 40).toFixed(2)),
+    frontierDepth: Math.round(depthFactor * 100),
+    pressure: Number((boundedRisk + depthFactor * 0.65 + (players - 1) * 0.5 + noiseLevel / 40).toFixed(2)),
     event,
     enemy: event === 'special_infected' ? names.special : event === 'infected_horde' ? names.horde : names.wanderer,
     weights: {
@@ -67,7 +71,7 @@ function planEncounter({ zoneId = 'outskirts', risk = 1, playerCount = 1, active
     },
     threat,
     recommendedMaxAlive: Math.min(18, 2 + boundedRisk * 2 + (players - 1) * 2),
-    spawnIntervalMs: Math.max(4500, 18000 - boundedRisk * 2200 - (players - 1) * 900),
+    spawnIntervalMs: Math.max(4500, 18000 - boundedRisk * 2200 - (players - 1) * 900 - Math.round(depthFactor * 900)),
     pursuitRadius: 16 + boundedRisk * 5,
     retreatHealthRatio: boundedRisk >= 4 ? 0.08 : 0
   };

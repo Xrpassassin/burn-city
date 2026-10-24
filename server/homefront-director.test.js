@@ -21,7 +21,13 @@ assert.deepEqual(
 );
 console.log('Homefront Director archetypes and salvage tests passed.');
 
-const { planHorde } = require('./homefront-director');
+const { planEncounter, planHorde } = require('./homefront-director');
+const perimeterPlan = planEncounter({ zoneId: 'outskirts', risk: 1, frontierDepth: 5, seed: 'same-route' });
+const deepPlan = planEncounter({ zoneId: 'outskirts', risk: 1, frontierDepth: 95, seed: 'same-route' });
+assert.ok(deepPlan.pressure > perimeterPlan.pressure, 'frontier pressure rises gradually even within the same district risk band');
+assert.ok(deepPlan.spawnIntervalMs < perimeterPlan.spawnIntervalMs, 'deeper expansion shortens reinforcement intervals modestly');
+assert.equal(planEncounter({ zoneId: 'outskirts', risk: 1, frontierDepth: -500 }).frontierDepth, 0, 'frontier depth clamps below the map edge');
+assert.equal(planEncounter({ zoneId: 'outskirts', risk: 1, frontierDepth: 500 }).frontierDepth, 100, 'frontier depth clamps to the map core');
 const quietPack = planHorde({ event: 'wandering_infected', risk: 4, seed: 'quiet' });
 assert.equal(quietPack.count, 1, 'wandering infected remain a solo encounter');
 const specialPack = planHorde({ event: 'special_infected', risk: 5, seed: 'boss' });

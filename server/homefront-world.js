@@ -7,6 +7,7 @@ const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 const Terrain = require('./homefront-terrain');
 const Collision = require('./homefront-collision');
+const Interiors = require('./homefront-interiors');
 const Environment = require('./homefront-environment');
 const Director = require('./homefront-director');
 const WORLD_SIZE = 100;
@@ -79,7 +80,11 @@ function normalizeWorld(input) {
     p.lastSeen = Number.isFinite(p.lastSeen) ? p.lastSeen : 0;
     p.partyCode = typeof p.partyCode === 'string' ? p.partyCode : null;
     p.spawn = SPAWNS.some(s => s.id === p.spawn) ? p.spawn : SPAWNS[hash(acct) % SPAWNS.length].id;
-    if (!Collision.isSafePosition(p.x, p.z, { bounds: WORLD_SIZE })) {
+    const savedInterior = w.interiors?.[acct];
+    const activeInteriorId = savedInterior?.activeLandmarkId || null;
+    const activeInteriorState = activeInteriorId ? savedInterior.interiors?.[activeInteriorId] : null;
+    const interiorRemoved = Collision.interiorRemovedIds(activeInteriorId, activeInteriorState?.openedDoors);
+    if (!Collision.isSafePosition(p.x, p.z, { bounds: WORLD_SIZE, removedObstacleIds: interiorRemoved })) {
       const anchor = SPAWNS.find(s => s.id === p.spawn) || chooseSpawn(w, acct);
       const recovered = Collision.findSafePosition(anchor.x, anchor.z, { bounds: WORLD_SIZE }) || Collision.findSafePosition(0, 0, { bounds: WORLD_SIZE });
       if (!recovered) throw new Error('no_safe_spawn_location');
@@ -132,6 +137,9 @@ function districtAt(x, z) {
   const depth = WORLD_SIZE - Math.hypot(x, z);
   return DISTRICTS.find(v => depth <= v.radius) || DISTRICTS[DISTRICTS.length - 1];
 }
+function frontierDepthAt(x, z) {
+  return Math.round(clamp(WORLD_SIZE - Math.hypot(x, z), 0, WORLD_SIZE));
+}
 function findSafePosition(x, z) {
   const candidates = [{ x, z }];
   // Search concentric, deterministic rings. This keeps recovery predictable and bounded.
@@ -165,7 +173,10 @@ function chooseSpawn(w, acct) {
 }
 function publicPlayer(acct, p, me, now) {
   const d = districtAt(p.x, p.z);
-  return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, spawn: p.spawn, party: !!p.partyCode, online: now - p.lastSeen <= PRESENCE_TTL };
+  // The safe perimeter lies around the outer edge; depth measures inward expansion.
+  const frontierDepth = frontierDepthAt(p.x, p.z);
+  const frontierBand = frontierDepth < 25 ? 'perimeter' : frontierDepth < 45 ? 'outer ring' : frontierDepth < 63 ? 'inner blocks' : frontierDepth < 76 ? 'commercial edge' : frontierDepth < 89 ? 'industrial belt' : 'core approach';
+  return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, frontierDepth, frontierBand, spawn: p.spawn, party: !!p.partyCode, online: now - p.lastSeen <= PRESENCE_TTL };
 }
 function nearestPoint(x, z, type = null) { const points = POINTS_OF_INTEREST.filter(p => !type || (type === 'non-boss' ? p.type !== 'boss' : p.type === type)); let best = null; for (const point of points) { const distance = Math.hypot(point.x - x, point.z - z); if (!best || distance < best.distance) best = { point, distance }; } return best; }
 function tickDirector(w, acct, now = Date.now()) {
@@ -173,11 +184,12 @@ function tickDirector(w, acct, now = Date.now()) {
   if (!p) return null;
   const district = districtAt(p.x, p.z);
   const zoneId = district.id === 'graveyard_core' ? 'research_lab' : district.id === 'perimeter' ? 'outskirts' : district.id;
+  const frontierDepth = frontierDepthAt(p.x, p.z);
   const active = Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0 && e.owner === acct).length;
   const elapsed = Math.max(0, now - (p.lastNoiseAt || now));
   const noise = Math.max(0, (p.noiseLevel || 0) - elapsed / 120);
   const tick = Director.advanceDirector(p.directorState, {
-    zoneId, risk: district.risk, playerCount: p.partyCode && w.parties[p.partyCode] ? w.parties[p.partyCode].members.length : 1,
+    zoneId, risk: district.risk, frontierDepth, playerCount: p.partyCode && w.parties[p.partyCode] ? w.parties[p.partyCode].members.length : 1,
     activeEncounters: active, noise, lastNoiseAt: p.lastNoiseAt, now,
     seed: acct + ':' + district.id + ':' + Math.floor(p.x / 12) + ':' + Math.floor(p.z / 12) + ':' + Math.floor(now / 5000)
   });
@@ -216,7 +228,8 @@ function snapshot(input, acct, now = Date.now()) {
     selfSurvival: p ? { ...p.survival } : null,
     selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null,
     selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null,
-    selfWeaponHandling: p ? { aiming: p.aiming, aimStartedAt: p.aimStartedAt, lastSprintAt: p.lastSprintAt, accuracyRecoverUntil: p.accuracyRecoverUntil } : null
+    selfWeaponHandling: p ? { aiming: p.aiming, aimStartedAt: p.aimStartedAt, lastSprintAt: p.lastSprintAt, accuracyRecoverUntil: p.accuracyRecoverUntil } : null,
+    interior: p ? Interiors.publicState(w.interiors, acct) : null
   };
 }
 function enter(input, acct, now = Date.now()) {
@@ -224,17 +237,17 @@ function enter(input, acct, now = Date.now()) {
   prune(w, now);
   let p = w.players[acct];
   if (!p) {
+    if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
     const safeSpawn = chooseSafeSpawn(w, acct), spawn = safeSpawn.spawn, position = safeSpawn.position;
     p = w.players[acct] = { x: position.x, z: position.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }, aiming: false, aimStartedAt: 0, lastSprintAt: 0, accuracyRecoverUntil: 0 };
   }
   p.lastSeen = now;
   p.survival = Survival.tick(p.survival, now);
-  if (p.partyCode && w.parties[p.partyCode]) {
-    const leader = w.players[w.parties[p.partyCode].leader];
-    if (leader) { p.x = leader.x; p.z = leader.z; }
-  }
+  // Party joins establish formation in joinParty(). Presence refreshes must not snap
+  // followers to the leader: their position is advanced by bounded, collision-aware
+  // movement in move(), not by polling this endpoint.
   // Refreshes advance bounded pursuit too, so infected do not require player movement to update.
-  w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
+  w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, interiors: w.interiors, now });
   tickDirector(w, acct, now);
   w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
   return { world: w, result: snapshot(w, acct, now) };
@@ -254,6 +267,24 @@ function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
   }
   return { x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 };
 }
+// Validate the walked route leg by leg. Checking only the straight line from the start to the
+// advanced point cut corners through doorways, so a move that turned through an interior door
+// (or around any wall end) was rejected as terrain_path_blocked even though the route was clear.
+function walkedRouteClear(startX, startZ, path, end, budget, removedObstacleIds) {
+  // Replays advanceAlongTerrainPath: every full leg it walked is checked, then the last partial
+  // leg from the final reached waypoint to the (rounded) advanced point.
+  let x = startX, z = startZ, remaining = budget;
+  const legClear = (x1, z1) => Terrain.canTraverse(x, z, x1, z1) && Collision.canTraverse(x, z, x1, z1, { bounds: WORLD_SIZE, removedObstacleIds });
+  for (const waypoint of path) {
+    const distance = Math.hypot(waypoint.x - x, waypoint.z - z);
+    if (distance < 0.001) continue;
+    if (distance > remaining) break;
+    if (!legClear(waypoint.x, waypoint.z)) return false;
+    x = waypoint.x; z = waypoint.z; remaining -= distance;
+    if (remaining < 0.001) break;
+  }
+  return legClear(end.x, end.z);
+}
 function move(input, acct, x, z, now = Date.now(), sprint = false) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   prune(w, now);
@@ -272,12 +303,16 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   const oldX = p.x, oldZ = p.z;
   let nextX = Math.round((p.x + dx * scale) * 10) / 10, nextZ = Math.round((p.z + dz * scale) * 10) / 10;
   const removedObstacleIds = Object.values(w.environmentStructures).filter(s => s.health <= 0).map(s => s.id);
+  const activeInteriorOwner = w.interiors?.[acct];
+  const activeInteriorId = activeInteriorOwner?.activeLandmarkId || null;
+  const activeInteriorState = activeInteriorId ? activeInteriorOwner.interiors?.[activeInteriorId] : null;
+  removedObstacleIds.push(...Collision.interiorRemovedIds(activeInteriorId, activeInteriorState?.openedDoors));
   if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE, removedObstacleIds })) {
     const route = Collision.findPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE, maxExpanded: 2600, removedObstacleIds });
     if (!route || !route.length) throw new Error('terrain_path_unreachable');
     const advanced = advanceAlongTerrainPath(oldX, oldZ, route, movementBudget);
     nextX = advanced.x; nextZ = advanced.z;
-    if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE, removedObstacleIds })) throw new Error('terrain_path_blocked');
+    if (!walkedRouteClear(oldX, oldZ, route, advanced, movementBudget, removedObstacleIds)) throw new Error('terrain_path_blocked');
   }
   p.x = nextX; p.z = nextZ;
   p.lastMove = p.lastSeen = now;
@@ -287,14 +322,40 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   p.survival = Survival.move(p.survival, now, Math.hypot(p.x - oldX, p.z - oldZ) * (sprint ? 1.55 : 1));
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {
-      const offset = (hash(member) % 7) - 3;
-      const follower = Collision.findSafePosition(clamp(p.x + offset, -WORLD_SIZE, WORLD_SIZE), clamp(p.z + (hash(member + 'z') % 7) - 3, -WORLD_SIZE, WORLD_SIZE), { bounds: WORLD_SIZE }) || { x: p.x, z: p.z };
-      w.players[member].x = follower.x; w.players[member].z = follower.z;
-      w.players[member].lastSeen = now;
+      const offsetX = (hash(member) % 7) - 3;
+      const offsetZ = (hash(member + 'z') % 7) - 3;
+      const followerState = w.players[member];
+      const targetX = clamp(p.x + offsetX, -WORLD_SIZE, WORLD_SIZE);
+      const targetZ = clamp(p.z + offsetZ, -WORLD_SIZE, WORLD_SIZE);
+      const followerRemoved = Object.values(w.environmentStructures).filter(s => s.health <= 0).map(s => s.id);
+      const followerInteriorOwner = w.interiors?.[member];
+      const followerInteriorId = followerInteriorOwner?.activeLandmarkId || null;
+      const followerInteriorState = followerInteriorId ? followerInteriorOwner.interiors?.[followerInteriorId] : null;
+      followerRemoved.push(...Collision.interiorRemovedIds(followerInteriorId, followerInteriorState?.openedDoors));
+      const route = Collision.findPath(followerState.x, followerState.z, targetX, targetZ, {
+        bounds: WORLD_SIZE, maxExpanded: 900, removedObstacleIds: followerRemoved
+      });
+      let walked = false;
+      if (route?.length) {
+        const step = Math.min(Math.hypot(targetX - followerState.x, targetZ - followerState.z), MOVE_STEP);
+        const next = advanceAlongTerrainPath(followerState.x, followerState.z, route, step);
+        if (walkedRouteClear(followerState.x, followerState.z, route, next, step, followerRemoved)) {
+          followerState.x = next.x; followerState.z = next.z; walked = true;
+        }
+      }
+      // Regroup: a follower that is more than two moves behind (joined from another spawn), or that
+      // could not walk this step and is out of formation (the bounded 900-node search failed), snaps to a safe spot beside the leader, as before #191,
+      // so a party never splits for good. Followers inside an interior are never pulled out.
+      const behind = Math.hypot(followerState.x - p.x, followerState.z - p.z);
+      if (!followerInteriorId && (behind > MOVE_STEP * 2 || (!walked && behind > 8.5))) {
+        const regroup = Collision.findSafePosition(targetX, targetZ, { bounds: WORLD_SIZE, removedObstacleIds: followerRemoved });
+        if (regroup) { followerState.x = regroup.x; followerState.z = regroup.z; }
+      }
+      followerState.lastSeen = now;
     }
   }
   // Advance AI only on an authoritative world action; no client frame loop can move enemies.
-  w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
+  w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, interiors: w.interiors, now });
   tickDirector(w, acct, now);
   w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
   return { world: w, result: snapshot(w, acct, now) };
@@ -360,6 +421,7 @@ function leaveParty(input, acct, now = Date.now()) {
 }
 function leave(input, acct, now = Date.now()) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
+  if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
   const p = w.players[acct];
   if (p?.partyCode && w.parties[p.partyCode]) {
     const party = w.parties[p.partyCode];
@@ -370,4 +432,4 @@ function leave(input, acct, now = Date.now()) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };
+module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };

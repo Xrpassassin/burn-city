@@ -14,6 +14,8 @@ assert.equal(distance2D(null, { x: 0, z: 0 }), Infinity);
 const noise = { x: 4, z: 2, atMs: 1000, ttlMs: 5000, radius: 12, intensity: 0.8 };
 assert.equal(hearNoise({ x: 0, z: 0 }, noise, 2000).intensity, 0.8);
 assert.equal(hearNoise({ x: 0, z: 0 }, { ...noise, radius: 1 }, 2000), null);
+assert.ok(hearNoise({ x: 0, z: 0 }, { ...noise, radius: 4 }, 2000, 1.5), 'expanded hearing radius supports role-specific hearing');
+assert.equal(hearNoise({ x: 0, z: 0 }, noise, 2000, -1), null, 'negative hearing scale is rejected');
 assert.equal(hearNoise({ x: 0, z: 0 }, noise, 7001), null);
 assert.equal(hearNoise({ x: 0, z: 0 }, { ...noise, radius: 'not-a-number' }, 2000), null);
 assert.equal(hearNoise({ x: 0, z: 0 }, { ...noise, ttlMs: -1 }, 2000), null);

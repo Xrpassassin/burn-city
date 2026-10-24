@@ -16,6 +16,9 @@ assert.equal(L.name, 'The Ashen Cosmodrome');
 assert.equal(L.zones.length, 7, 'all authored areas are present');
 assert.equal(L.doors.length, 7, 'all authored connections are present');
 assert.ok(L.windows.length >= 8, 'outer-wall zombie entry windows are present');
+assert.ok(L.obst.length >= 35, 'the Cosmodrome has enough authored cover to break up open square sightlines');
+assert.ok(L.obst.some(o => o[0] === 17 && o[2] === 19), 'access spine has offset cover to shape the route');
+assert.ok(L.obst.some(o => o[0] === 30 && o[2] === 26), 'launch gantry has a second cover island');
 assert.equal(L.grid.length, Z.GH);
 assert.ok(L.grid.every(row => row.length === Z.GW), 'grid dimensions match the server navigation contract');
 

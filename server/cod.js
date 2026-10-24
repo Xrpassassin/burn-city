@@ -7,11 +7,16 @@ const WEAPONS = [
   { id: 'shotgun', name: 'Fire Shotgun', kind: 'burst', range: 8, cos: Math.cos(0.5), dmg: 95, cd: 0.75, use: 14, regen: 16 },
   { id: 'napalm', name: 'Firestorm', kind: 'ray', dmg: 70, range: 26, splash: 1.6, cd: 0.45, use: 12, regen: 14 },   // id kept as 'napalm' so existing owners/slots migrate automatically
   { id: 'beam', name: 'Inferno Beam', kind: 'beam', range: 22, width: 0.9, dps: 130, use: 30, regen: 12 },
+  // Appended only: never renumber existing weapon IDs. Cosmodrome Free Play wall-buy only.
+  { id: 'ravager', name: 'RAVAGER Rotary Heavy', kind: 'rotary', range: 27, width: 0.72, dps: 112, use: 24, regen: 15 },
 ];
 const WI = Object.fromEntries(WEAPONS.map((w, i) => [w.id, i]));
 // Inferno Forge (this map's upgrade machine): reforges the weapon in hand once: +70% damage, +15% range, 30% less fuel, faster cycling
 const UPNAME = { flamer: 'Hellfire Torch', dragon: "Wyrm's Fury", shotgun: 'Magma Scattergun', napalm: 'Supernova', beam: 'Solar Lance' };
 const UPW = Object.fromEntries(WEAPONS.map(w => [w.id, { ...w, name: UPNAME[w.id] || 'Forged ' + w.name, up: 1, dps: w.dps && w.dps * 1.7, dmg: w.dmg && w.dmg * 1.7, range: w.range * 1.15, use: w.use * 0.7, cd: w.cd && w.cd * 0.8, splash: w.splash && w.splash * 1.3 }]));
+const UP2NAME = { flamer: 'Apocalypse Engine', dragon: 'Star-Eater', shotgun: 'Cataclysm', napalm: 'Solar Cataclysm', beam: 'Event Horizon' };
+// Tier II stacks on the existing forge: 1.55x Tier-I damage, improved range, fuel economy, and cycle rate.
+const UP2W = Object.fromEntries(WEAPONS.map(w => { const u = UPW[w.id]; return [w.id, { ...u, name: UP2NAME[w.id] || 'Ascended ' + u.name, up: 2, dps: u.dps && u.dps * 1.55, dmg: u.dmg && u.dmg * 1.55, range: u.range * 1.1, use: u.use * 0.75, cd: u.cd && u.cd * 0.8, splash: u.splash && u.splash * 1.25 }]; }));
 // ===== The BURN Refinery: hand-built indoor map on a 2 m grid (40 x 32 cells = 80 x 64 m) =====
 // cell codes: -1 wall/obstacle, 0..6 floor of that room, 100+d door d (walkable once open)
 const CELL = 2, GW = 40, GH = 32, MapGen = require('./mapgen');
@@ -81,7 +86,17 @@ const COSMODROME = { name: 'The Ashen Cosmodrome', kind: 'cosmodrome', env: { to
     [29, 30, 11, 12, 2.6, 'furnace'], [35, 36, 11, 12, 2.6, 'furnace'],
     [29, 30, 21, 22, 3.6, 'support'], [36, 37, 21, 22, 3.6, 'support'], [33, 33, 25, 25, 1.0, 'support'],
     [29, 30, 27, 28, 3.6, 'support'], [36, 37, 27, 28, 3.6, 'support'],
-    [32, 33, 22, 22, 1.1, 'rail'], [32, 33, 29, 29, 1.1, 'rail']
+    [32, 33, 22, 22, 1.1, 'rail'], [32, 33, 29, 29, 1.1, 'rail'],
+    // Cover islands and offset barricades break up long square sightlines while preserving connected lanes.
+    [15, 16, 26, 27, 1.4, 'crate'], [23, 24, 28, 29, 1.4, 'crate'],
+    [17, 18, 19, 20, 1.2, 'crate'], [22, 23, 21, 22, 1.2, 'crate'],
+    [5, 6, 19, 20, 1.1, 'bench'], [10, 11, 28, 29, 1.1, 'crate'],
+    [3, 4, 11, 12, 1.1, 'desk'], [11, 12, 7, 8, 1.1, 'desk'],
+    [18, 19, 12, 13, 1.2, 'crate'], [23, 24, 5, 6, 1.2, 'crate'],
+    [31, 32, 8, 9, 1.4, 'crate'], [34, 35, 14, 15, 1.4, 'crate'],
+    [27, 28, 24, 25, 1.4, 'crate'], [30, 31, 26, 27, 1.4, 'crate'],
+    [37, 38, 24, 25, 1.4, 'crate'], [31, 32, 28, 29, 1.4, 'crate'],
+    [28, 29, 20, 21, 1.2, 'rail'], [35, 36, 25, 26, 1.2, 'rail']
   ],
   doordef: [
     [0, 1, [[19, 23], [20, 23]], 500],
@@ -103,7 +118,8 @@ const COSMODROME = { name: 'The Ashen Cosmodrome', kind: 'cosmodrome', env: { to
   wallbuys: [
     { w: 'shotgun', cost: 500, s: [16, 25, -1, 0] },
     { w: 'dragon', cost: 1000, s: [14, 22, 0, -1] },
-    { w: 'napalm', cost: 1500, s: [38, 25, 1, 0] }
+    { w: 'napalm', cost: 1500, s: [38, 25, 1, 0] },
+    { w: 'ravager', cost: 3500, s: [24, 15, 1, 0] }
   ],
   box: [[19, 28, 0, 1], [7, 25, -1, 0], [20, 5, 0, -1], [35, 25, 1, 0], [8, 7, -1, 0], [30, 12, 1, 0]],
   forge: [35, 5, 0, -1], power: [23, 8, 1, 0],
@@ -115,7 +131,7 @@ const COSMODROME = { name: 'The Ashen Cosmodrome', kind: 'cosmodrome', env: { to
   quest: null
 };
 if (process.env.ZOMBIE_TEST_PROPS && !process.env.FLY_APP_NAME) { CLASSIC.box.push([17, 22, 1, 0]); CLASSIC.forge = [22, 22, 1, 0]; }   // local screenshot runs only
-const FORGE_COST = +process.env.ZOMBIE_FORGE_COST || 5000;
+const FORGE_COST = +process.env.ZOMBIE_FORGE_COST || 5000, FORGE2_COST = 10000;
 function build(def, kind) {
   const GRID = def.grid ? def.grid.map(r => r.slice()) : (() => { const G = []; for (let r = 0; r < GH; r++) G.push(new Array(GW).fill(-1));
     def.zones.forEach((z, i) => { if (z.lv) return; for (let r = z.r[2]; r <= z.r[3]; r++) for (let c = z.r[0]; c <= z.r[1]; c++) G[r][c] = i; });
@@ -139,7 +155,7 @@ function build(def, kind) {
   const P = s => ({ ...at(...s), ...(s[4] ? { lv: 1 } : {}) });
   return { kind, name: def.name, env: def.env, seed: def.seed, GRID, SEE, DOORS, WINDOWS, ZONES: def.zones, OBST: def.obst, UPG, UPSEE, UH, RAMPAT, RAMPS, ATR: U ? U.atrium : null, UZ: U ? U.zone : -1, UXZ: U ? (U.extra || []).map(e => e.zone) : [], QDEF: def.quest || null,
     WALLBUYS: def.wallbuys.map(w => ({ w: w.w, cost: w.cost, ...P(w.s) })), BOX_SPOTS: def.box.map(s => { const p = P(s); return [p.x, p.z, p.face]; }),
-    FORGE: { ...P(def.forge), cost: FORGE_COST, name: 'Inferno Forge' }, POWER: def.power ? { ...P(def.power), name: 'Power Switch' } : null,
+    FORGE: { ...P(def.forge), cost: FORGE_COST, name: 'Inferno Forge' }, forge2Cost: FORGE2_COST, POWER: def.power ? { ...P(def.power), name: 'Power Switch' } : null,
     PERKS: PERK_KEYS.map(k => ({ k, ...PERKINFO[k], ...P(def.perks[k]) })) };
 }
 const CLASSIC_M = build(CLASSIC, 'classic');
@@ -191,7 +207,7 @@ const BOARDS = 6, BOARD_PTS = 10, REPAIR_CAP = 500, REPAIR_T = 0.75, TEAR_T = 1.
 const MAX_PERKS = 4, START_PTS = +process.env.ZOMBIE_START_POINTS || 500,   // env override is for local testing only
   USE_R = 3, REVIVE_R = 2.6;
 const PB = Object.fromEntries(PERKS.map((p, i) => [p.k, 1 << i]));
-const layout = () => ({ up: UPG ? { grid: UPG, h: UH, ramps: RAMPS, atrium: ATR, zone: M.UZ, zones: [M.UZ, ...(M.UXZ || [])] } : null, quest: M.QDEF ? 1 : 0, grid: GRID, cell: CELL, gw: GW, gh: GH, obst: OBST, windows: WINDOWS, boards: BOARDS, repairCap: REPAIR_CAP, zones: ZONES, doors: DOORS, wallbuys: WALLBUYS, box: BOX_SPOTS, boxCost: BOX_COST, forge: FORGE, power: POWER, name: M.name, env: M.env, kind: M.kind, perks: PERKS, weapons: WEAPONS.map(w => ({ id: w.id, name: w.name, kind: w.kind, up: UPW[w.id].name })), maxPerks: MAX_PERKS });
+const layout = () => ({ up: UPG ? { grid: UPG, h: UH, ramps: RAMPS, atrium: ATR, zone: M.UZ, zones: [M.UZ, ...(M.UXZ || [])] } : null, quest: M.QDEF ? 1 : 0, grid: GRID, cell: CELL, gw: GW, gh: GH, obst: OBST, windows: WINDOWS, boards: BOARDS, repairCap: REPAIR_CAP, zones: ZONES, doors: DOORS, wallbuys: WALLBUYS, box: BOX_SPOTS, boxCost: BOX_COST, forge: FORGE, forge2Cost: FORGE2_COST, power: POWER, name: M.name, env: M.env, kind: M.kind, perks: PERKS, weapons: WEAPONS.map(w => ({ id: w.id, name: w.name, kind: w.kind, up: UPW[w.id].name, up2: UP2W[w.id].name })), maxPerks: MAX_PERKS });
 
 const WIN_MAX = 2, WIN_GAP = 1.3, RUNNER = 1.4;   // runner speed mult (was 1.7)
 const scaleN = n => n <= 1 ? 0.75 : Math.min(1.9, 0.7 + 0.3 * n), hpN = n => n <= 1 ? 0.85 : Math.min(1.5, 0.8 + 0.12 * n), waveGap = n => n <= 1 ? 12 : Math.max(8, 12 - (n - 1));
@@ -205,11 +221,12 @@ function windowSpawn(room) { const ok = WINDOWS.map((w, i) => i).filter(i => win
 function zoneSpawn() {   // player spawn: a free cell in the Spawn Bay
   for (;;) { const z = ZONES[0].r, c = z[0] + Math.floor(Math.random() * (z[1] - z[0] + 1)), r = z[2] + Math.floor(Math.random() * (z[3] - z[2] + 1)); if (GRID[r][c] === 0) return [WX(c) + (Math.random() - .5), WZ(r) + (Math.random() - .5)]; } }
 function initPlayer(p) { p.usedSelf = false; p.pts = START_PTS; p.ptsAcc = 0; p.guns = process.env.ZOMBIE_TEST_GUN && !process.env.FLY_APP_NAME ? ['flamer', process.env.ZOMBIE_TEST_GUN] : ['flamer'];   // test gun: local screenshot runs only
- p.slot = 0; p.perks = 0; p.cd = 0; p.down = 0; p.up = []; p.bon = {}; p.draft = null; }
-const wpn = p => { const w = WEAPONS[WI[p.guns[p.slot]] ?? 0]; return p.up && p.up.includes(w.id) ? UPW[w.id] : w; };
-const upBits = p => (p.up && p.up.includes(p.guns[p.slot]) ? 1 : 0) | (p.up && p.guns[1 - p.slot] && p.up.includes(p.guns[1 - p.slot]) ? 2 : 0);
+ p.slot = 0; p.perks = 0; p.cd = 0; p.down = 0; p.up = []; p.up2 = []; p.bon = {}; p.draft = null; p.ravSpin = 0; p.ravHeat = 0; p.ravLock = 0; p.ravTracerT = 0; }
+const wpn = p => { const w = WEAPONS[WI[p.guns[p.slot]] ?? 0]; return p.up2 && p.up2.includes(w.id) ? UP2W[w.id] : p.up && p.up.includes(w.id) ? UPW[w.id] : w; };
+// Bits 0/1 indicate at least Tier I in slots 0/1; bits 2/3 indicate Tier II in slots 0/1.
+const upBits = p => ((p.up && p.up.includes(p.guns[p.slot]) || p.up2 && p.up2.includes(p.guns[p.slot])) ? 1 : 0) | ((p.up && p.guns[1 - p.slot] && p.up.includes(p.guns[1 - p.slot]) || p.up2 && p.guns[1 - p.slot] && p.up2.includes(p.guns[1 - p.slot])) ? 2 : 0) | (p.up2 && p.up2.includes(p.guns[p.slot]) ? 4 : 0) | (p.up2 && p.guns[1 - p.slot] && p.up2.includes(p.guns[1 - p.slot]) ? 8 : 0);
 const has = (p, k) => p.perks & PB[k];
-function give(p, w) { if (p.guns.includes(w)) { p.slot = p.guns.indexOf(w); p.fuel = 100; return; } if (p.guns.length < 2) { p.guns.push(w); p.slot = 1; } else { if (p.up) p.up = p.up.filter(u => u !== p.guns[p.slot]); p.guns[p.slot] = w; } p.fuel = 100; p.cd = 0; }
+function give(p, w) { if (p.guns.includes(w)) { p.slot = p.guns.indexOf(w); p.fuel = 100; return; } if (p.guns.length < 2) { p.guns.push(w); p.slot = 1; } else { if (p.up) p.up = p.up.filter(u => u !== p.guns[p.slot]); if (p.up2) p.up2 = p.up2.filter(u => u !== p.guns[p.slot]); p.guns[p.slot] = w; } p.fuel = 100; p.cd = 0; }
 function spend(p, c) { if (p.pts < c) return false; p.pts -= c; return true; }
 // one "use" press: the nearest interactable in range, validated here
 function use(room, p, ev) {
@@ -225,8 +242,11 @@ function use(room, p, ev) {
     const pool = BOX_POOL.filter(w => !p.guns.includes(w)), w = pool[Math.floor(Math.random() * pool.length)] || 'dragon';
     b.state = 1; b.t = 2.5; b.by = p.id; b.w = w; return ev.push({ e: 'box_roll', id: p.id, w, spot: b.spot }); }
   if (POWER && near(POWER.x, POWER.z)) { if (room.power) return; room.power = 1; return ev.push({ e: 'power', id: p.id }); }
-  if (near(FORGE.x, FORGE.z)) { if (!room.power) return ev.push({ e: 'nopower', id: p.id }); const w = p.guns[p.slot]; p.up ||= []; if (p.up.includes(w)) return ev.push({ e: 'forge_have', id: p.id });
-    if (!spend(p, FORGE.cost)) return ev.push({ e: 'nopts', id: p.id }); p.up.push(w); p.fuel = 100; p.cd = 0; return ev.push({ e: 'forge', id: p.id, w }); }
+  if (near(FORGE.x, FORGE.z)) { if (!room.power) return ev.push({ e: 'nopower', id: p.id }); const w = p.guns[p.slot]; p.up ||= []; p.up2 ||= [];
+    if (p.up2.includes(w)) return ev.push({ e: 'forge_have', id: p.id, tier: 2 });
+    const tier = p.up.includes(w) ? 2 : 1, cost = tier === 2 ? FORGE2_COST : FORGE.cost;
+    if (!spend(p, cost)) return ev.push({ e: 'nopts', id: p.id });
+    (tier === 2 ? p.up2 : p.up).push(w); p.fuel = 100; p.cd = 0; return ev.push({ e: 'forge', id: p.id, w, tier }); }
   for (const k of PERKS) if (near(k.x, k.z, USE_R, k.lv || 0)) { if (has(p, k.k)) return; if (!room.power) return ev.push({ e: 'nopower', id: p.id }); let n = 0; for (let v = p.perks; v; v >>= 1) n += v & 1; if (n >= MAX_PERKS) return ev.push({ e: 'perkmax', id: p.id });
     if (!spend(p, k.cost)) return ev.push({ e: 'nopts', id: p.id }); p.perks |= PB[k.k]; if (k.k === 'jug') p.hp = Math.min(250, p.hp + 150); return ev.push({ e: 'perk', id: p.id, k: k.k }); }
 }

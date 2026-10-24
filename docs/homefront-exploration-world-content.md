@@ -21,6 +21,12 @@ This is an authored content layer for the existing XRPL Graveyard expedition map
 - Use this as the blueprint for building geometry: landmark archetype, interior-space list, interactables, hazards, soundscape, and route links are explicit rather than inferred from decorative props.
 - Interior searches currently provide inspection feedback only; they do not grant loot. Interior room/door flags are session-local presentation state, not persistent server save state. A reviewed server API is still required before doors, story flags, rescues, and loot become authoritative or persist across sessions.
 
+## Open-source and terrain strategy
+
+- The interior shell builder uses the repository's already-bundled Three.js runtime; it adds no CDN or package dependency.
+- Two MIT-licensed projects were evaluated as possible accelerators: [threejs-procedural-dungeon](https://github.com/majidmanzarpour/threejs-procedural-dungeon) for seeded room graphs and room semantics, and [THREE.Terrain](https://github.com/IceCreamYou/THREE.Terrain) for terrain generation.
+- The first interior pass stays authored and data-driven to preserve mission readability. The terrain height field remains deterministic and mirrored in `server/homefront-terrain.js`; importing a client-only terrain runtime without porting its sampler into server traversal would create visual/collision disagreement. A later pass can selectively adapt compatible MIT algorithms after dependency and attribution review.
+
 ## Current content
 
 Seven districts are authored: Ash Ring, Hollow Blocks, Exchange Market, St. Mercy Quarantine, Ironworks Belt, The Buried Line, and Blackglass Annex. All existing server points receive a purpose-built objective and narrative hook. Three multi-location story threads connect evacuation clues, the hospital transfer order, and the Ironworks power puzzle. Route metadata marks the outer-ring road, freight cut-through, market service passage, hospital link, and buried line.

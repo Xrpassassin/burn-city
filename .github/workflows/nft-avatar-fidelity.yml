@@ -1,0 +1,67 @@
+name: NFT avatar fidelity checks
+
+on:
+  pull_request:
+    paths:
+      - 'client/js/nftchar.js'
+      - 'client/js/nft-avatar-adapters.js'
+      - 'client/js/nft-avatar-components.js'
+      - 'client/js/nft-avatar-reconstruction.js'
+      - 'client/js/nft-avatar-reconstruction.test.mjs'
+      - 'client/js/nft-avatar-collection-recipes.js'
+      - 'client/js/nft-avatar-collection-recipes.test.mjs'
+      - 'client/js/nft-avatar-runtime-adapter.js'
+      - 'client/js/nft-avatar-runtime-adapter.test.mjs'
+      - 'docs/NFT_AVATAR_SHARED_RUNTIME_ADAPTER.md'
+      - 'docs/NFT_AVATAR_COLLECTION_RECIPES.md'
+      - 'client/js/nftchar.test.mjs'
+      - 'client/js/nft-avatar-components.test.mjs'
+      - 'scripts/nft-avatar-asset-pipeline.mjs'
+      - 'scripts/nft-avatar-asset-pipeline.test.mjs'
+      - 'scripts/nft-avatar-model-factory.mjs'
+      - 'scripts/nft-avatar-model-factory.test.mjs'
+      - 'scripts/nft-avatar-build-spec.mjs'
+      - 'scripts/nft-avatar-build-spec.test.mjs'
+      - 'scripts/nft-avatar-build-pipeline.mjs'
+      - 'scripts/nft-avatar-build-pipeline.test.mjs'
+      - 'tools/blender/nft_avatar_generator.py'
+      - 'docs/NFT_AVATAR_GLB_BUILD_PIPELINE.md'
+      - 'docs/NFT_AVATAR_BUILD_SPEC_COMPILER.md'
+      - 'assets/nft-avatars/model-factory.schema.json'
+      - 'docs/NFT_AVATAR_MODEL_FACTORY.md'
+      - 'assets/nft-avatars/collections/**'
+      - 'docs/nft-avatar-asset-pipeline.md'
+      - 'package.json'
+      - '.github/workflows/nft-avatar-fidelity.yml'
+  push:
+    branches:
+      - 'feat/nft-avatar-trait-components'
+    paths:
+      - 'client/js/nftchar.js'
+      - 'client/js/nft-avatar-adapters.js'
+      - 'client/js/nft-avatar-components.js'
+      - 'client/js/nftchar.test.mjs'
+      - 'client/js/nft-avatar-components.test.mjs'
+      - 'scripts/nft-avatar-asset-pipeline.mjs'
+      - 'scripts/nft-avatar-asset-pipeline.test.mjs'
+      - 'assets/nft-avatars/collections/**'
+      - 'docs/nft-avatar-asset-pipeline.md'
+      - 'package.json'
+      - '.github/workflows/nft-avatar-fidelity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  nft-avatar:
+    name: NFT avatar regression suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Run NFT avatar and asset-manifest tests
+        run: npm run test:nft-avatar

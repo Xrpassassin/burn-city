@@ -48,7 +48,7 @@ function inst(){if(IB)return IB;const C=W(),g=droneGeo();const mk=(geo,mat)=>{co
   IB={body:mk(g.body,new THREE.MeshBasicMaterial({color:0xffffff})),rot:mk(g.rot,new THREE.MeshBasicMaterial({color:0xaab0c0,transparent:true,opacity:.6})),
    glow:mk(new THREE.CircleGeometry(1.8,14).rotateX(-Math.PI/2).translate(0,-.3,0),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}))};return IB}
 // remote walker: simple figure in the visitor's colour (verified NFT holders show their NFT character instead)
-function walkLook(p){const walk=p.md==='w'||p.md==='b';if(walk&&!p.nc&&!p.wk){const c=p.g.userData.color,k=(p.name||p.id||'').toString().split('').reduce((a,ch)=>a+ch.charCodeAt(0),0),g=buildWalker({suit:new THREE.Color(0x1a2030).lerp(c,.35).getHex(),accent:c.getHex(),skin:k%5,lite:!!(W()&&(W().MOBILE||W().TIER==='low'))});p.g.add(g);p.wk=g;p.wph=Math.random()*6}
+function walkLook(p){const walk=p.md==='w'||p.md==='b';if(walk&&!p.nc&&nfts.has(p.id)&&W().C.position.distanceToSquared(p.g.position)<85*85)setNft(p);if(p.nc&&(!walk||W().C.position.distanceToSquared(p.g.position)>120*120))setNft(p);if(walk&&!p.nc&&!p.wk){const c=p.g.userData.color,k=(p.name||p.id||'').toString().split('').reduce((a,ch)=>a+ch.charCodeAt(0),0),g=buildWalker({suit:new THREE.Color(0x1a2030).lerp(c,.35).getHex(),accent:c.getHex(),skin:k%5,lite:!!(W()&&(W().MOBILE||W().TIER==='low'))});p.g.add(g);p.wk=g;p.wph=Math.random()*6}
   if(p.wk){p.wk.visible=walk&&!p.nc;if(p.wk.visible){const dx=p.tx-p.g.position.x,dz=p.tz-p.g.position.z,mv=Math.abs(dx)+Math.abs(dz)>.05;p.mv=mv;if(mv)p.wk.rotation.y=Math.atan2(-dx,-dz);const now=performance.now();p.wph+=mv?(now-(p.wl||now))/1000*9:0;p.wl=now;poseWalker(p.wk,p.wph,mv?.8:0,now/1000);p.wk.position.y=p.md==='b'?.3:0}}
   if(p.nc)p.nc.visible=walk;}
 function mkMarker(color){const g=new THREE.Group();g.userData.peer=1;g.userData.color=new THREE.Color(color);g.userData.core=new THREE.Object3D();W().S.add(g);return g}
@@ -70,9 +70,9 @@ function upsert(id,name,guest,x,y,z,r){if(id===myId||!W()||!W().S)return;let p=p
   if(Math.hypot(x-p.tx,z-p.tz)>60)p.g.position.set(x,y,z);   // teleport (The Wilds deep gate): snap instead of gliding across the map
   p.tx=x;p.ty=y;p.tz=z;p.r=r;p.seen=Date.now()}
 const nfts=new Map();   // peer id -> verified NFT character look (server only sends it for the wallet that owns it)
-function setNft(p){const n=nfts.get(p.id)||null;if((p.nc&&p.nc.userData.nftId)===(n&&n.id))return;if(p.nc){disposeNftChar(p.nc);p.nc=null}
-  p.g.userData.core.visible=!n;if(!n)return;try{p.nc=buildNftChar(n,{srv:SRV,card:true});p.nc.scale.setScalar(.9);p.g.add(p.nc)}catch(e){p.nc=null;p.g.userData.core.visible=true}}
-function drop(id){nfts.delete(id);const p=peers.get(id);if(!p)return;if(p.nc)disposeNftChar(p.nc);if(p.boat){W().S.remove(p.boat);p.boat.traverse(o=>{if(o.isMesh){o.geometry?.dispose?.();for(const m of (Array.isArray(o.material)?o.material:[o.material]))m?.dispose?.()}})}W().S.remove(p.g);p.tag.remove();peers.delete(id)}
+let activeNftModels=0;const nftModelCap=()=>W()&&(W().MOBILE||W().TIER==='low')?4:8;
+function setNft(p){const n=nfts.get(p.id)||null,c=W(),active=(p.md==='w'||p.md==='b')&&c.C.position.distanceToSquared(p.g.position)<120*120;if(!n||!active){if(p.nc){disposeNftChar(p.nc);p.nc=null;activeNftModels=Math.max(0,activeNftModels-1)}p.g.userData.core.visible=true;return}if((p.nc&&p.nc.userData.nftId)===n.id)return;if(p.nc){disposeNftChar(p.nc);p.nc=null;activeNftModels=Math.max(0,activeNftModels-1)}if(activeNftModels>=nftModelCap()){p.nftDeferred=true;p.g.userData.core.visible=true;return}p.nftDeferred=false;p.g.userData.core.visible=false;try{p.nc=buildNftChar(n,{srv:SRV,card:true,lite:!!(c&&(c.MOBILE||c.TIER==='low'))});p.nc.scale.setScalar(.9);p.g.add(p.nc);activeNftModels++}catch(e){p.nc=null;p.g.userData.core.visible=true}}
+function drop(id){nfts.delete(id);const p=peers.get(id);if(!p)return;if(p.nc){disposeNftChar(p.nc);activeNftModels=Math.max(0,activeNftModels-1)}if(p.boat){W().S.remove(p.boat);p.boat.traverse(o=>{if(o.isMesh){o.geometry?.dispose?.();for(const m of (Array.isArray(o.material)?o.material:[o.material]))m?.dispose?.()}})}W().S.remove(p.g);p.tag.remove();peers.delete(id)}
 const cut=t=>t.length>80?t.slice(0,79)+'…':t;let selfBub=null,selfT=0;
 function bubble(pid,text){if(pid===myId){if(!selfBub){selfBub=el('div','pbub pself');document.body.append(selfBub)}selfBub.textContent=cut(text);selfBub.classList.remove('out');selfBub.style.display='';selfT=Date.now()+5000;return}
   const p=peers.get(pid);if(!p)return;if(!p.bub){p.bub=el('div','pbub');p.tag.prepend(p.bub)}p.bub.textContent=cut(text);p.bub.classList.remove('out');p.bubT=Date.now()+5000}
@@ -142,8 +142,8 @@ NftPick.mount(SRV,{button:pickBtn});
 let myNft=null;
 function applyMine(){const c=W(),av=c&&c.avatar;if(!av)return setTimeout(applyMine,800);const n=NftPick.current();
   if(!av.userData.orig)av.userData.orig={legs:av.userData.legs,arms:av.userData.arms,kids:[...av.children]};
-  if(myNft){disposeNftChar(myNft);myNft=null}const o=av.userData.orig;
-  if(n){try{myNft=buildNftChar(n,{srv:SRV});myNft.rotation.y=Math.PI;myNft.scale.setScalar(.9);av.add(myNft);o.kids.forEach(k=>{if(!k.isLight)k.visible=false});av.userData.legs=myNft.userData.legs;av.userData.arms=myNft.userData.arms;return}catch(e){}}
+  if(myNft){disposeNftChar(myNft);myNft=null}av.userData.nftCharacter=null;const o=av.userData.orig;
+  if(n){try{myNft=buildNftChar(n,{srv:SRV,lite:!!(c&&(c.MOBILE||c.TIER==='low'))});myNft.rotation.y=Math.PI;myNft.scale.setScalar(.9);av.add(myNft);o.kids.forEach(k=>{if(!k.isLight)k.visible=false});av.userData.legs=myNft.userData.legs;av.userData.arms=myNft.userData.arms;av.userData.nftCharacter=myNft;return}catch(e){}}
   o.kids.forEach(k=>k.visible=true);av.userData.legs=o.legs;av.userData.arms=o.arms}
 addEventListener('bc-nft',()=>{applyMine();if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'nft'}))});
 (function waitAv(){if(!window.__ready||!W())return setTimeout(waitAv,600);applyMine()})();

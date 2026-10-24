@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "collectionKey": "fk",
+  "collectionName": "Firekeepers",
+  "collectionIdentity": {
+    "issuer": null,
+    "taxon": null,
+    "verified": false,
+    "note": "Populate only after checking the collection's authoritative XRPL issuer/taxon identity."
+  },
+  "traitMappings": [
+    { "slot": "flame", "aliases": ["Ember Type", "Fire Type", "Flame Effect", "Aura Type"] },
+    { "slot": "outfit", "aliases": ["Keeper Robes", "Uniform", "Garment"] },
+    { "slot": "headwear", "aliases": ["Cowl", "Circlet", "Flame Crown"] },
+    { "slot": "accessory", "aliases": ["Relic", "Sigil", "Totem"] },
+    { "slot": "hair style", "aliases": ["Hair Style", "Haircut", "Hair Shape"] },
+    { "slot": "markings", "aliases": ["Face Paint", "Scar", "Freckles", "War Paint"] },
+    { "slot": "body pattern", "aliases": ["Pattern", "Body Pattern", "Camo", "Stripes"] },
+    { "slot": "horns", "aliases": ["Horns", "Antlers"] }
+  ],
+  "assets": [],
+  "qaSamples": [
+    { "tokenReference": "pending-owner-approved-sample", "coverage": ["robe/cowl silhouettes", "flame color and intensity", "relic placement", "full artwork fallback", "mobile effect budget"] }
+  ],
+  "notes": "No third-party assets are approved by this placeholder manifest. Prefer authored flame variants over expensive unbounded particle emitters."
+}

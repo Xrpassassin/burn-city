@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
+import { resolveNftAvatarComponents } from './nft-avatar-components.js';
+let checks = 0;
+function eq(actual, expected, message) { assert.deepEqual(actual, expected, message); checks++; }
+function yes(value, message) { assert.ok(value, message); checks++; }
+const racc = resolveNftAvatarComponents(resolveNftAvatarProfile({ key:'racc', id:'racc-test', traits:[['Ring Tail','Black and White'],['Bandit Mask','Crimson'],['Fur Color','Silver']] }));
+eq(racc.collectionKey,'racc','retains collection key'); eq(racc.tailStyle,'ringed','recognizes ring-tail variants'); eq(racc.hasMask,true,'recognizes collection mask'); eq(racc.rawTraitCount,3,'retains raw trait count');
+const fire = resolveNftAvatarComponents(resolveNftAvatarProfile({ key:'fk', id:'fk-test', traits:[['Ember Type','Blue Flame'],['Keeper Robes','Ash'],['Cowl','Ember Cowl'],['Relic','Sun Sigil']] }));
+eq(fire.flame.style,'blue','maps blue flame variant'); eq(fire.flame.color,'#4bc9ef','maps explicit flame color'); eq(fire.outfitStyle,'robes','maps robes to robe recipe'); eq(fire.headwearStyle,'hood','maps cowl to hood recipe'); eq(fire.accessoryStyle,'relic','maps relic to relic recipe');
+const protocol = resolveNftAvatarComponents(resolveNftAvatarProfile({ key:'589', id:'589-test', traits:[['Suit Type','Tailored Suit'],['Headgear Type','Cyber Helmet'],['Loadout','Rifle'],['Bling','Gold Chain'],['Eye Color','Neon Blue']] }));
+eq(protocol.outfitStyle,'tailored','maps suit to tailored recipe'); eq(protocol.headwearStyle,'helmet','maps headgear to helmet recipe'); eq(protocol.weaponStyle,'firearm','maps loadout to firearm prop'); eq(protocol.accessoryStyle,'chain','maps bling to chain'); eq(protocol.eyeStyle,'glowing','maps neon eyes to glowing style');
+const generic = resolveNftAvatarComponents(resolveNftAvatarProfile({ key:'unknown', traits:[['Wings','Mechanical'],['Weapon','Katana'],['Expression','Smile']] }));
+eq(generic.wingStyle,'mechanical','supports mechanical wing style'); eq(generic.weaponStyle,'blade','supports blade props'); eq(generic.expression,'friendly','maps friendly expression');
+const detailProfile = resolveNftAvatarProfile({ key:'589', id:'detail-test', traits:[['Hair Style','Mohawk'],['Facial Hair','Goatee'],['Face Paint','War Paint'],['Body Pattern','Camouflage'],['Horns','Antlers']] });
+const detail = resolveNftAvatarComponents(detailProfile);
+eq(detail.hairStyle,'mohawk','maps mohawk hairstyle');
+eq(detail.facialHair,'goatee','normalizes typed facial-hair style for rendering');
+eq(detail.hasMarkings,true,'maps face paint to markings');
+eq(detail.patternStyle,'camouflage','maps camouflage body pattern');
+eq(detail.hasHorns,true,'maps antler traits');
+const hairColorProfile = resolveNftAvatarProfile({ key:'589', traits:[['Hair','Silver']] });
+eq(hairColorProfile.renderTraits[0][0],'hair color','normalizes bare Hair as a color slot without treating it as a hairstyle');
+const real589 = resolveNftAvatarComponents(resolveNftAvatarProfile({ key:'589', id:'real-589', traits:[['Background','Burn'],['Body','Flame On'],['Chain','Burn Chain'],['Clothing','Red Burn Tee'],['Eye','Surprised'],['Head','Burn Halo'],['Mouth','Smirk']] }));
+eq(real589.bodyEffect,'flame-on','maps the real 589 Body: Flame On trait');
+eq(real589.accessoryStyle,'chain','maps the real 589 Chain trait');
+eq(real589.outfitStyle,'streetwear','maps the real 589 Clothing: Red Burn Tee trait');
+eq(real589.eyeAppearance,'surprised','retains the real 589 Eye: Surprised trait');
+eq(real589.headwearStyle,'halo','maps the real 589 Head: Burn Halo trait');
+eq(real589.expression,'friendly','maps the real 589 Mouth: Smirk trait');
+const realRacc = resolveNftAvatarComponents(resolveNftAvatarProfile({ key:'racc', id:'real-racc', traits:[['Background','Gray'],['Armed','TNT'],['RACCOON GUY','Raccoon Guy'],['Fits','Yellow Striped Sweater'],['Top Gear','Bee Hive']] }));
+eq(realRacc.weaponStyle,'explosive','maps the real RACC Armed: TNT trait to an explosive prop');
+eq(realRacc.outfitStyle,'streetwear','maps the real RACC Fits: Yellow Striped Sweater trait');
+eq(realRacc.patternStyle,'stripes','recognizes the sweater stripe treatment');
+eq(realRacc.headwearStyle,'beehive','maps the real RACC Top Gear: Bee Hive trait');
+const empty = resolveNftAvatarComponents({}); eq(empty.headwearStyle,'none','handles missing profile'); eq(empty.weaponStyle,'none','does not invent weapon'); yes(!empty.hasMask,'empty profile has no mask');
+console.log('NFT avatar component recipes: '+checks+' assertions passed');

@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { validateBuildInputs, buildCandidateRecord } from './nft-avatar-build-pipeline.mjs';
+let checks=0; const ok=(v,m)=>{assert.ok(v,m);checks++;};
+const spec={specVersion:1,identity:{collectionKey:'racc',tokenId:'RACC-42',displayName:'Sample',artworkReference:'https://example.invalid/a.png'},reconstruction:{archetype:'anthropomorphic-raccoon'}};
+assert.deepEqual(validateBuildInputs(spec,'out.glb'),[]);checks++;
+ok(validateBuildInputs({...spec,specVersion:9},'out.glb').some(x=>x.includes('specVersion')),'rejects unknown spec versions');
+ok(validateBuildInputs({...spec,identity:{...spec.identity,tokenId:'../escape'}},'out.glb').some(x=>x.includes('tokenId')),'rejects unsafe token IDs');
+ok(validateBuildInputs(spec,'out.obj').some(x=>x.includes('.glb')),'requires GLB output');
+ok(validateBuildInputs({...spec,reconstruction:null},'out.glb').some(x=>x.includes('reconstruction')),'requires reconstruction instructions');
+const record=buildCandidateRecord(spec,'assets/nft-avatars/generated/racc/RACC-42.glb',1024,'a'.repeat(64),'2026-01-01T00:00:00.000Z');
+assert.equal(record.stage,'procedural-blockout');checks++;
+assert.equal(record.runtimeApproved,false);checks++;
+assert.equal(record.output.sha256,'a'.repeat(64));checks++;
+assert.equal(record.review.visualQa,'not-reviewed');checks++;
+ok(record.warnings.some(x=>/not a faithful reconstruction/i.test(x)),'does not overclaim NFT likeness');
+console.log('NFT avatar GLB build pipeline: '+checks+' assertions passed');

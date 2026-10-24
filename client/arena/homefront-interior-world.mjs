@@ -15,7 +15,7 @@ const blueprint = (landmarkId, title, rooms, interactables, entryRoom = rooms[0]
 export const INTERIORS = Object.freeze([
   blueprint('north_bus_depot', 'North Bus Depot — Dispatch Office', [
     room('dispatch', 'Dispatch Office', 0, 0, 'A smashed desk, route boards, and the last shift log.', [{ id: 'office_door', to: 'bus_bays', side: 'east', label: 'Bus-bay door' }]),
-    room('bus_bays', 'Bus Bays', 5.4, 0, 'Two stranded coaches block the service lane.', [{ id: 'office_door', to: 'dispatch', side: 'west', label: 'Dispatch door' }])
+    room('bus_bays', 'Bus Bays', 4.8, 0, 'Two stranded coaches block the service lane.', [{ id: 'office_door', to: 'dispatch', side: 'west', label: 'Dispatch door' }])
   ], [
     target('dispatch_drawer', 'Dispatch drawer', 'dispatch', -1.1, -0.7, 'search', 'The drawer is jammed; a pry tool would make this faster.'),
     target('route_board', 'Evacuation route board', 'dispatch', 1.15, -1.1, 'clue', 'A hand-drawn route marks the River Checkpoint and a convoy turnoff.'),
@@ -23,15 +23,15 @@ export const INTERIORS = Object.freeze([
   ]),
   blueprint('collapsed_apartments', 'Collapsed Apartments — Upper Flat', [
     room('lobby', 'Ground-floor Lobby', 0, 0, 'The stairwell has pancaked; a fire escape is the only route up.', [{ id: 'fire_escape', to: 'upper_flat', side: 'north', label: 'Fire escape' }]),
-    room('upper_flat', 'Upper Apartment', 0, -5.4, 'A distress light flashes through a cracked bedroom door.', [{ id: 'fire_escape', to: 'lobby', side: 'south', label: 'Fire escape ladder' }])
+    room('upper_flat', 'Upper Apartment', 0, -4.8, 'A distress light flashes through a cracked bedroom door.', [{ id: 'fire_escape', to: 'lobby', side: 'south', label: 'Fire escape ladder' }])
   ], [
     target('rubble_gap', 'Collapsed stairwell', 'lobby', -1.1, 0.9, 'inspect', 'Fresh scrape marks show that someone climbed through the rubble recently.'),
     target('distress_light', 'Distress light', 'upper_flat', 1.1, -6.1, 'clue', 'Three short flashes repeat: a survivor is signaling, not a random light.')
   ]),
   blueprint('exchange_market', 'Exchange Market — Staff Passage', [
     room('market_floor', 'Market Floor', 0, 0, 'Shelves are stripped bare; a security shutter rattles in the draft.', [{ id: 'stockroom_door', to: 'stockroom', side: 'east', label: 'Stockroom door' }]),
-    room('stockroom', 'Stockroom', 5.4, 0, 'Boxes are stacked around a locked staff cabinet.', [{ id: 'stockroom_door', to: 'market_floor', side: 'west', label: 'Market floor door' }, { id: 'loading_dock', to: 'loading_dock', side: 'north', label: 'Loading-dock latch' }]),
-    room('loading_dock', 'Loading Dock', 5.4, -5.4, 'A narrow service passage slips behind the market toward the cache office.', [{ id: 'loading_dock', to: 'stockroom', side: 'south', label: 'Stockroom latch' }])
+    room('stockroom', 'Stockroom', 4.8, 0, 'Boxes are stacked around a locked staff cabinet.', [{ id: 'stockroom_door', to: 'market_floor', side: 'west', label: 'Market floor door' }, { id: 'loading_dock', to: 'loading_dock', side: 'north', label: 'Loading-dock latch' }]),
+    room('loading_dock', 'Loading Dock', 4.8, -4.8, 'A narrow service passage slips behind the market toward the cache office.', [{ id: 'loading_dock', to: 'stockroom', side: 'south', label: 'Stockroom latch' }])
   ], [
     target('rolling_shutter', 'Rolling shutter control', 'market_floor', -1.1, 0.7, 'toggle', 'The shutter motor grinds loudly; noise here could draw infected.'),
     target('stockroom_shelves', 'Stockroom shelves', 'stockroom', 6.2, 0.8, 'search', 'The shelves have been picked over, but a sealed case remains.'),
@@ -39,8 +39,8 @@ export const INTERIORS = Object.freeze([
   ]),
   blueprint('mercy_hospital', 'St. Mercy — Emergency Wing', [
     room('emergency_lobby', 'Emergency Lobby', 0, 0, 'Triage signs point toward a dark ward and a manual generator switch.', [{ id: 'ward_door', to: 'ward_corridor', side: 'east', label: 'Ward door' }]),
-    room('ward_corridor', 'Ward Corridor', 5.4, 0, 'Beds and oxygen bottles choke the corridor.', [{ id: 'ward_door', to: 'emergency_lobby', side: 'west', label: 'Lobby door' }, { id: 'pharmacy_door', to: 'pharmacy', side: 'north', label: 'Pharmacy door', requires: ['emergency_power'] }]),
-    room('pharmacy', 'Pharmacy', 5.4, -5.4, 'A reinforced medicine cabinet sits behind a dead keypad.', [{ id: 'pharmacy_door', to: 'ward_corridor', side: 'south', label: 'Pharmacy door' }])
+    room('ward_corridor', 'Ward Corridor', 4.8, 0, 'Beds and oxygen bottles choke the corridor.', [{ id: 'ward_door', to: 'emergency_lobby', side: 'west', label: 'Lobby door' }, { id: 'pharmacy_door', to: 'pharmacy', side: 'north', label: 'Pharmacy door', requires: ['emergency_power'] }]),
+    room('pharmacy', 'Pharmacy', 4.8, -4.8, 'A reinforced medicine cabinet sits behind a dead keypad.', [{ id: 'pharmacy_door', to: 'ward_corridor', side: 'south', label: 'Pharmacy door' }])
   ], [
     target('generator_switch', 'Emergency generator switch', 'emergency_lobby', -1.1, 0.7, 'power', 'The generator can restore power to the ward and pharmacy access controls.'),
     target('patient_chart', 'Patient transfer chart', 'ward_corridor', 6.1, 0.8, 'clue', 'The chart records a transfer to Blackglass Annex after the evacuation order.'),
@@ -48,8 +48,8 @@ export const INTERIORS = Object.freeze([
   ]),
   blueprint('ironworks', 'Ironworks — Maintenance Gantry', [
     room('yard_floor', 'Yard Floor', 0, 0, 'A gantry ladder climbs above a noisy conveyor line.', [{ id: 'gantry_ladder', to: 'gantry_catwalk', side: 'north', label: 'Gantry ladder' }]),
-    room('gantry_catwalk', 'Gantry Catwalk', 0, -5.4, 'A narrow catwalk overlooks the tool cage and the live power bus.', [{ id: 'gantry_ladder', to: 'yard_floor', side: 'south', label: 'Gantry ladder' }, { id: 'tool_cage', to: 'maintenance_shed', side: 'east', label: 'Tool-cage gate', requires: ['power_cut'] }]),
-    room('maintenance_shed', 'Maintenance Shed', 5.4, -5.4, 'A locked tool cage and a maintenance log are tucked behind the breaker cabinet.', [{ id: 'tool_cage', to: 'gantry_catwalk', side: 'west', label: 'Tool-cage gate' }])
+    room('gantry_catwalk', 'Gantry Catwalk', 0, -4.8, 'A narrow catwalk overlooks the tool cage and the live power bus.', [{ id: 'gantry_ladder', to: 'yard_floor', side: 'south', label: 'Gantry ladder' }, { id: 'tool_cage', to: 'maintenance_shed', side: 'east', label: 'Tool-cage gate', requires: ['power_cut'] }]),
+    room('maintenance_shed', 'Maintenance Shed', 4.8, -4.8, 'A locked tool cage and a maintenance log are tucked behind the breaker cabinet.', [{ id: 'tool_cage', to: 'gantry_catwalk', side: 'west', label: 'Tool-cage gate' }])
   ], [
     target('power_isolator', 'Power isolator', 'yard_floor', -1.1, 0.7, 'power', 'Cutting the feed quiets the conveyor and releases the tool-cage lock.'),
     target('gantry_console', 'Gantry console', 'gantry_catwalk', 1.1, -6.2, 'clue', 'The maintenance log lists a second power cell moved to Blackglass.'),
@@ -57,8 +57,8 @@ export const INTERIORS = Object.freeze([
   ]),
   blueprint('buried_subway', 'Buried Subway — Signal Rooms', [
     room('ticket_hall', 'Ticket Hall', 0, 0, 'Floodwater covers the turnstiles; a maintenance hatch opens toward the platform.', [{ id: 'platform_gate', to: 'platform', side: 'east', label: 'Platform gate' }]),
-    room('platform', 'Buried Platform', 5.4, 0, 'A stalled train blocks half the platform and hides the far end.', [{ id: 'platform_gate', to: 'ticket_hall', side: 'west', label: 'Ticket-hall gate' }, { id: 'signal_door', to: 'signal_room', side: 'north', label: 'Signal-room door' }]),
-    room('signal_room', 'Signal Room', 5.4, -5.4, 'A battery-backed console repeats the same platform number as the hospital transfer chart.', [{ id: 'signal_door', to: 'platform', side: 'south', label: 'Platform door' }])
+    room('platform', 'Buried Platform', 4.8, 0, 'A stalled train blocks half the platform and hides the far end.', [{ id: 'platform_gate', to: 'ticket_hall', side: 'west', label: 'Ticket-hall gate' }, { id: 'signal_door', to: 'signal_room', side: 'north', label: 'Signal-room door' }]),
+    room('signal_room', 'Signal Room', 4.8, -4.8, 'A battery-backed console repeats the same platform number as the hospital transfer chart.', [{ id: 'signal_door', to: 'platform', side: 'south', label: 'Platform door' }])
   ], [
     target('ticket_gate', 'Turnstile release', 'ticket_hall', -1.1, 0.7, 'unlock', 'The emergency release lever bypasses the jammed turnstiles.'),
     target('signal_panel', 'Signal panel', 'signal_room', 6.1, -6.2, 'clue', 'The signal log confirms a sealed transfer route into Blackglass Annex.'),
@@ -66,8 +66,8 @@ export const INTERIORS = Object.freeze([
   ]),
   blueprint('research_annex', 'Blackglass Annex — Containment', [
     room('decon_lock', 'Decontamination Lock', 0, 0, 'The airlock is sealed; the emergency bus feeds the inner doors.', [{ id: 'containment_door', to: 'containment_hall', side: 'east', label: 'Containment door', requires: ['blackglass_power'] }]),
-    room('containment_hall', 'Containment Hall', 5.4, 0, 'Reinforced glass is spiderwebbed from impacts on the other side.', [{ id: 'containment_door', to: 'decon_lock', side: 'west', label: 'Airlock door' }, { id: 'archive_door', to: 'archive_vault', side: 'north', label: 'Archive vault', requires: ['incident_clue'] }]),
-    room('archive_vault', 'Archive Vault', 5.4, -5.4, 'The incident record is stored on a terminal behind a manual archive lock.', [{ id: 'archive_door', to: 'containment_hall', side: 'south', label: 'Archive door' }])
+    room('containment_hall', 'Containment Hall', 4.8, 0, 'Reinforced glass is spiderwebbed from impacts on the other side.', [{ id: 'containment_door', to: 'decon_lock', side: 'west', label: 'Airlock door' }, { id: 'archive_door', to: 'archive_vault', side: 'north', label: 'Archive vault', requires: ['incident_clue'] }]),
+    room('archive_vault', 'Archive Vault', 4.8, -4.8, 'The incident record is stored on a terminal behind a manual archive lock.', [{ id: 'archive_door', to: 'containment_hall', side: 'south', label: 'Archive door' }])
   ], [
     target('power_bus', 'Emergency power bus', 'decon_lock', -1.1, 0.7, 'power', 'A manual bypass restores power to the inner containment doors.'),
     target('containment_lock', 'Containment control', 'containment_hall', 6.1, 0.8, 'inspect', 'Something hit the glass from inside; the control log shows a manual override.'),
@@ -158,7 +158,7 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
     const base = alongX ? room.x : room.z;
     const wallPosition = (offset, segment) => alongX ? [base + offset, h / 2, fixed] : [fixed, h / 2, base + offset];
     if (!gap) { box(parent, alongX ? [length, h, t] : [t, h, length], wallPosition(0), wallMat); return; }
-    const gapWidth = 1.35, segment = (length - gapWidth) / 2;
+    const gapWidth = 1.8, segment = (length - gapWidth) / 2;
     box(parent, alongX ? [segment, h, t] : [t, h, segment], wallPosition(-(gapWidth + segment) / 2), wallMat);
     box(parent, alongX ? [segment, h, t] : [t, h, segment], wallPosition((gapWidth + segment) / 2), wallMat);
   };

@@ -4,8 +4,8 @@ import { readFile } from 'node:fs/promises';
 const page = await readFile(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 
 assert.match(page, /function inspectYardSurvivor\(e,directSurvivor=null\)/, '3D refuge supports direct survivor inspection');
-assert.match(page, /function updateNearbyInteraction\(constructionView\)/, 'nearby survivors create a proximity-based interaction prompt');
-assert.match(page, /closestDistance=2\.5/, 'survivor interaction requires close physical proximity');
+assert.match(page, /function updateNearbyInteraction\(constructionView\)/, 'survivors, structures, and farm plots create a contextual proximity prompt');
+assert.match(page, /closestDistance=2\.7/, 'interaction requires close physical proximity');
 assert.match(page, /e\.key==='e'\|\|e\.key==='E'/, 'keyboard users can interact with a nearby survivor');
 assert.match(page, /Talk \/ inspect · E/, 'interaction prompt explains the contextual action and key');
 assert.match(page, /function inspectNearbySurvivor\(survivor\)/, 'touch prompt opens the same survivor inspection panel');

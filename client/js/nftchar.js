@@ -57,7 +57,7 @@ export function buildNftChar(n, opts = {}) {
   const add = (geometry, material, x=0, y=0, z=0, parent=g) => {
     const mesh = new THREE.Mesh(geometry, material); mesh.position.set(x,y,z); mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
   };
-  const bodyHex = traitColor(/clothes|outfit|shirt|top|body|armor|jacket|robe/i, color(pal.body, '#424957'));
+  const bodyHex = traitColor(/outfit|armor/i, color(pal.body, '#424957'));
   const faceHex = key === 'racc' ? traitColor(/fur color|fur|skin|face/i, '#858a91') : traitColor(/skin tone|skin color|skin$|face$/i, color(pal.face, '#c9a27e'));
   const hairHex = traitColor(/hair color|hair$/i, has(tr,/white hair|silver hair/)?'#bfc3ca':has(tr,/red hair/)?'#7b2c24':has(tr,/blond|blonde/)?'#c8a05b':has(tr,/blue hair/)?'#344f9a':color(pal.top,'#201c20'));
   const topHex = traitColor(/outerwear|coat|jacket|helmet|headwear/i, color(pal.top, bodyHex));
@@ -459,8 +459,11 @@ export function buildNftChar(n, opts = {}) {
         const link=add(geo('nft-protocol-chain-link',()=>new THREE.TorusGeometry(.018,.005,4,8)),linkMat,Math.cos(angle)*.16,1.47-Math.sin(angle)*.075,.268);
         link.rotation.x=1.1; link.rotation.z=angle-Math.PI/2; link.name='nft-protocol-chain-link'; link.renderOrder=3;
       }
-      const pendant=add(geo('nft-protocol-chain-pendant',()=>new THREE.OctahedronGeometry(.045,0)),glow(accentHex),0,1.365,.285);
-      pendant.name='nft-protocol-chain-pendant'; pendant.renderOrder=3;
+      // A BURN pendant is only valid when the actual chain/accessory trait identifies it.
+      if(/burn|protocol|logo|emblem/i.test(traitValue(/^accessory$/i))) {
+        const pendant=add(geo('nft-protocol-chain-pendant',()=>new THREE.OctahedronGeometry(.045,0)),glow(accentHex),0,1.365,.285);
+        pendant.name='nft-protocol-chain-pendant'; pendant.renderOrder=3;
+      }
     }
   } else if (components.accessoryStyle === 'relic') {
     const relic = add(geo('nft-relic',()=>new THREE.OctahedronGeometry(.075,0)),glow(accentHex),0,1.28,.235);
@@ -478,9 +481,9 @@ export function buildNftChar(n, opts = {}) {
     const mount=add(geo('nft-custom-accessory-mount',()=>new THREE.TorusGeometry(.067,.009,5,14)),metal,.205,1.24,.226);
     mount.name='nft-custom-accessory-mount';
   }
-  const hasFurCollar = hasTrait(/armor|fur|collar|cape/i) || has(tr,/armor|fur|collar|cape/);
+  const hasFurCollar = hasTrait(/^(?:armor|fur|collar|cape|outerwear)$/i) || has(tr,/armor|fur collar|cape/);
   if(hasFurCollar) {
-    const furCollar = hasTrait(/fur|collar/i) || has(tr,/fur|collar/);
+    const furCollar = hasTrait(/^(?:fur|collar)$/i) || has(tr,/fur collar|fur trim/);
     for(const s of [-1,1]) addSphere(g,furCollar?mat('#b8a68a'):trim,[s*.28,1.43,-.005],[.13,.1,.13]);
     if(hasTrait(/cape/i) || has(tr,/cape/)) { const cape=addBox(g,darkCloth,[0,1.14,-.18],[.35,.62,.06]); cape.rotation.x=-.12; cape.name='nft-trait-cape'; }
   }

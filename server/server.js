@@ -135,6 +135,7 @@ const server = http.createServer(async (req, res) => {
         const action = String(url.searchParams.get('action') || 'enter');
         const decision = EstateRights.resolveEstateRights({ account: u.acct, propertyId, action, estates: Estates });
         return json(res, 200, decision);
+      }
       if (url.pathname === '/api/estates/access/search' && req.method === 'GET') {
         const q = String(url.searchParams.get('q') || '');
         if (q.length < 4) return json(res, 200, { wallets: [] });

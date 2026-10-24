@@ -42,6 +42,10 @@ textarea{min-height:300px;resize:vertical}button{background:#303a49;color:#fff;b
 }</textarea>
 <label for="reviewNotes">Reviewer notes / mismatches</label>
 <textarea id="reviewNotes" rows="4" style="min-height:90px" placeholder="Example: eye mask too narrow; pendant obscures artwork; coat color differs from source."></textarea>
+<label for="tokenId">Live XRPL NFT ID (64 hex characters)</label>
+<input id="tokenId" value="000A271005C6E016B0AB93B24A603594F2A3989BD7503434E206777F05BF49E4" spellcheck="false">
+<div><button id="loadLiveNft">Load real RACC NFT from XRPL.to API</button></div>
+<p class="note">Metadata is fetched from the documented XRPL.to API; this tool links back to XRPL.to and does not verify ownership. <a href="https://xrpl.to" target="_blank" rel="noopener noreferrer">Data source: XRPL.to</a></p>
 <label for="artUrl">Original artwork URL (optional)</label>
 <input id="artUrl" type="url" placeholder="https://…/token-image.png">
 <div><button class="primary" id="render">Render / update sample</button><button id="clear">Clear artwork</button><button id="copyReport">Copy QA report</button></div>
@@ -98,6 +102,36 @@ function setView(name){const v=views[name]||views.front;camera.position.set(...v
 function resize(){const w=Math.max(1,stage.clientWidth),h=Math.max(1,stage.clientHeight);if(renderer)renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 function loop(){requestAnimationFrame(loop);if(renderer)renderer.render(scene,camera)} loop();
 new ResizeObserver(resize).observe(stage); resize(); setView('front');
+function normalizeArtworkUrl(url){
+ if(!url)return '';
+ const value=String(url).trim();
+ if(value.startsWith('ipfs://'))return 'https://gateway.pinata.cloud/ipfs/'+value.slice(7).replace(/^ipfs\//,'').split('/').map(part=>encodeURIComponent(decodeURIComponent(part))).join('/');
+ if(value.startsWith('https://')||value.startsWith('http://'))return value;
+ return '';
+}
+async function loadLiveNft(){
+ const id=document.querySelector('#tokenId').value.trim().toUpperCase();
+ if(!/^[0-9A-F]{64}$/.test(id)){status.textContent='Enter a valid 64-character hexadecimal NFTokenID.';return;}
+ const button=document.querySelector('#loadLiveNft');button.disabled=true;status.textContent='Loading NFT metadata from the documented XRPL.to API…';
+ try{
+  const response=await fetch('https://api.xrpl.to/v1/nft/'+encodeURIComponent(id),{headers:{accept:'application/json'}});
+  if(!response.ok)throw new Error('API returned HTTP '+response.status);
+  const record=await response.json();
+  if(String(record.NFTokenID||record._id||'').toUpperCase()!==id)throw new Error('API response did not match the requested NFTokenID.');
+  const meta=record.meta&&typeof record.meta==='object'?record.meta:{};
+  const rawTraits=Array.isArray(meta.attributes)?meta.attributes:(Array.isArray(record.props)?record.props.map(item=>({trait_type:item.type,value:item.value})):[]);
+  const traits=rawTraits.slice(0,64).map(item=>[String(item.trait_type||item.type||'').trim(),String(item.value??'').trim()]).filter(item=>item[0]);
+  const files=Array.isArray(record.files)?record.files:[];
+  const imageUrl=normalizeArtworkUrl(meta.image||files.find(item=>/image/i.test(String(item.type||item.parsedType||'')))?.parsedUrl||files.find(item=>/\.(png|jpe?g|webp)(\?|$)/i.test(String(item.parsedUrl||item.url||'')))?.parsedUrl||'');
+  if(!traits.length)throw new Error('The API returned no usable traits for this NFT.');
+  const nft={key:'racc',id,name:String(meta.name||record.name||'RACC reference NFT'),img:imageUrl,traits,pal:{}};
+  document.querySelector('#sample').value=JSON.stringify(nft,null,2);
+  document.querySelector('#artUrl').value=imageUrl;
+  renderSample();
+  status.textContent+='\nLoaded actual on-ledger NFT metadata. Compare with artwork overlay hidden and inspect all four angles. Source: https://xrpl.to/nft/'+id;
+ }catch(error){status.textContent='Could not load live NFT: '+error.message+'\nYou can still paste source artwork URL and metadata manually.';}
+ finally{button.disabled=false;}
+}
 function showArtwork(url){art.replaceChildren();if(!url){const s=document.createElement('span');s.textContent='Provide an artwork URL to compare identity details.';art.append(s);return;}
  const img=document.createElement('img');img.alt='Original NFT artwork reference';img.referrerPolicy='no-referrer';img.src=url;img.onerror=()=>{art.replaceChildren();const s=document.createElement('span');s.textContent='Artwork could not load. Check the URL, permissions, or CORS policy.';art.append(s);};art.append(img);}
 function renderSample(){try{
@@ -113,6 +147,7 @@ function renderSample(){try{
  const normalizedProfile=resolveNftAvatarProfile(nft);
  const traitCoverage=Array.isArray(profile.traitCoverage)?profile.traitCoverage:[];
  latestQa = { reconstruction: recon, traitCoverage };
+ latestQa = { reconstruction: recon, traitCoverage };
  const traitCoverageText=traitCoverage.length
    ? traitCoverage.map(item=>'  - ['+item.status+' / '+(item.fidelityLevel||'unclassified')+'] '+item.rawType+' → '+item.slot+': '+item.value+' — '+item.reason).join('\n')
    : '  no source traits found';
@@ -125,6 +160,7 @@ function renderSample(){try{
  status.textContent='Rendered: '+(nft.name||nft.id||'unnamed sample')+'\nCollection: '+(profile.collectionName||nft.key||'unknown')+'\nRaw traits: '+rawTraits.length+'\nTrait slots without an explicit renderer mapping: '+unmapped.length+'\n'+unmappedText+'\nArchetype: '+(recon.archetype||profile.archetype||'unknown')+'\nFidelity mode: '+(recon.fidelityMode||'unknown')+'\nExact reconstruction: '+String(!!recon.exactReconstruction)+'\nRecipes: outfit='+components.outfitStyle+', headwear='+components.headwearStyle+', weapon='+components.weaponStyle+', tail='+components.tailStyle+'\nArtwork tabard: '+(document.querySelector('#showTabard').checked?(artworkUrl?'visible':'enabled, but no source artwork URL was supplied'):'hidden for geometry review')+'\nTrait-by-trait coverage ('+traitCoverage.length+'):\n'+traitCoverageText+'\nFidelity-level counts: '+fidelitySummary+'\nVisual approval: '+visualApproval+' (human reference-art review required)\nCollection-specific review requirements:\n'+((recon.visualRequirements||[]).map(item=>'  - '+item).join('\n')||'  No collection-specific requirements available')+'\nTraits needing dedicated geometry: '+((profile.unsupportedVisualTraits||[]).map(x=>x.slot+' = '+x.value).join(', ')||'none detected')+'\nReview status: procedural mappings are not approved likeness; inspect source and model at all four angles.';
  showArtwork(artworkUrl);
  }catch(e){status.textContent='Could not render sample: '+e.message;}}
+document.querySelector('#loadLiveNft').addEventListener('click',loadLiveNft);
 document.querySelector('#render').addEventListener('click',renderSample);
 document.querySelector('#showTabard').addEventListener('change',renderSample);
 document.querySelector('#clear').addEventListener('click',()=>{document.querySelector('#artUrl').value='';showArtwork('');renderSample();});

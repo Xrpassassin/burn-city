@@ -51,6 +51,13 @@ This is an authored content layer for the existing XRPL Graveyard expedition map
 - Two MIT-licensed projects were evaluated as possible accelerators: [threejs-procedural-dungeon](https://github.com/majidmanzarpour/threejs-procedural-dungeon) for seeded room graphs and room semantics, and [THREE.Terrain](https://github.com/IceCreamYou/THREE.Terrain) for terrain generation.
 - The first interior pass stays authored and data-driven to preserve mission readability. The terrain height field remains deterministic and mirrored in `server/homefront-terrain.js`; importing a client-only terrain runtime without porting its sampler into server traversal would create visual/collision disagreement. A later pass can selectively adapt compatible MIT algorithms after dependency and attribution review.
 
+## Shared Zombies character assets
+
+- The Homefront refuge now loads the existing animated infected GLBs from `client/arena/assets/zombies/`: Ash, Frost, Rust, and the Quaternius variant. Nearby refuge siege actors rotate through these models instead of all using a single refuge-only zombie mesh.
+- The existing `./assets/homefront/zombie.glb` and procedural geometry remain fallbacks if a shared model fails to load. The existing model pilot in the Graveyard remains responsible for distance-limited animated infected and hit/death reactions there; server-owned encounter health and hit resolution are unchanged by this presentation reuse.
+- Existing survivor GLB and role-based idle/work animation selection remain separate because infected rigs are not appropriate substitutes for survivor characters. Shared character assets are loaded from the repository; no new dependencies or remote runtime asset requests were added.
+- Regression checks verify all four model paths, variant selection, and fallback behavior. Actual GLB loading and animation quality still require browser playtesting.
+
 ## RPG-first Homefront flow
 
 - Homefront now opens into an immersive RPG-first mode: the 3D refuge is the primary view, while the full settlement-management dashboard is hidden until the player explicitly opens Management.

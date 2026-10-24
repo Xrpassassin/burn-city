@@ -9,8 +9,12 @@
     "note": "Populate only after checking the collection's authoritative XRPL issuer/taxon identity."
   },
   "traitMappings": [
-    { "slot": "outfit", "aliases": ["Suit Type", "Streetwear", "Clothing Type"] },
-    { "slot": "headwear", "aliases": ["Helmet Type", "Headgear Type", "Hat Type"] },
+    { "slot": "body effect", "aliases": ["Body"] },
+    { "slot": "accessory", "aliases": ["Chain"] },
+    { "slot": "outfit", "aliases": ["Clothing", "Suit Type", "Streetwear", "Clothing Type"] },
+    { "slot": "eye appearance", "aliases": ["Eye"] },
+    { "slot": "expression", "aliases": ["Mouth"] },
+    { "slot": "headwear", "aliases": ["Head", "Helmet Type", "Headgear Type", "Hat Type"] },
     { "slot": "accessory", "aliases": ["Chain Type", "Jewelry Type", "Bling"] },
     { "slot": "weapon", "aliases": ["Weapon Type", "Loadout"] },
     { "slot": "hair style", "aliases": ["Hair Style", "Haircut", "Hair Shape"] },

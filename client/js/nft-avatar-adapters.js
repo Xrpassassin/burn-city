@@ -4,9 +4,9 @@
 const COMMON = [
   ['background', /background|backdrop|scene$/i],
   ['eye color', /eye.?colou?r|iris.?colou?r/i],
-  ['hair color', /hair.?colou?r|fur.?colou?r/i],
+  ['fur color', /fur.?colou?r|^fur$/i],
+  ['hair color', /hair.?colou?r/i],
   ['skin color', /skin.?tone|skin.?colou?r/i],
-  ['fur color', /^fur$/i],
   ['outfit', /clothes|outfit|shirt|topwear|bodywear|jacket|robe|clothing/i],
   ['armor', /armou?r|chestplate|plate.?carrier/i],
   ['headwear', /headwear|hat|helmet|crown|cap|beanie|hood|head.?gear/i],

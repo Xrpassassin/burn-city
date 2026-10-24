@@ -224,13 +224,13 @@ assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /materials\.forEach\(m=>\{if\(m\.map\)m\.map\.dispose\(\);m\.dispose\(\)\}\)/, 'dispose role-label textures when the world is redrawn');
 
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /survivorActors\.push\(\{object:g,role:survivor\.role,task:survivor\.task,phase:i\*1\.71,baseY:0,targetX:x,targetZ:z,targetYaw:spot\.yaw,speed:1\.1\+\(i%3\)\*\.12,moving:true,leftArm,rightArm,body,head\}\)/, 'track procedural survivor rigs, assigned tasks, and station movement');
-assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /for\(const actor of survivorActors\)\{actor\.phase\+=dt/, 'animate survivor work activity every world frame');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /for\(let actorIndex=0;actorIndex<survivorActors\.length;actorIndex\+\+\)\{const actor=survivorActors\[actorIndex\];actor\.phase\+=dt/, 'animate survivor work activity every world frame with neighbor-aware navigation');
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /actor\.role==='mechanic'/, 'give mechanics a distinct repair-work motion');
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /actor\.role==='farmer'/, 'give farmers a distinct tending motion');
 const homefrontPage = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
-assert.match(homefrontPage, /if\(survivor\.role==='farmer'\)\{const plot=base\.farmPlots\?\.find\(item=>item\.crop\)/, 'place farmers beside an actively planted crop when available');
-assert.match(homefrontPage, /if\(survivor\.role==='mechanic'\)\{const damaged=base\.structures\.filter\(item=>item\.hp<item\.maxHp\)/, 'send mechanics toward the most damaged structure before falling back to the workshop');
-assert.match(homefrontPage, /if\(survivor\.role==='guard'\)\{const defensiveTypes=new Set\(\['wall','gate','watchtower','entrance','exit','sandbags','barbed_wire','trench','turret'\]\);const breach=base\.structures\.filter\(item=>defensiveTypes\.has\(item\.type\)&&item\.hp<item\.maxHp\)/, 'redirect guards to damaged perimeter defenses while preserving their patrol fallback');
+assert.match(homefrontPage, /if\(survivor\.task==='tend_crops'\|\|survivor\.role==='farmer'\)/, 'route farmers toward planted crop plots with a garden fallback');
+assert.match(homefrontPage, /if\(survivor\.task==='emergency_repair'\|\|survivor\.task==='maintain_structures'\|\|survivor\.task==='stand_by_repairs'\|\|survivor\.role==='mechanic'\)/, 'send mechanics toward damaged structures before the workshop fallback');
+assert.match(homefrontPage, /if\(survivor\.task==='perimeter_watch'\|\|survivor\.role==='guard'\)/, 'guards patrol the perimeter and prioritize damaged defenses');
 
 assert.match(homefrontPage, /if\(s\.hp<=0\)\{g\.userData\.breached=true;g\.userData\.structureId=s\.id;/, 'render zero-HP structures as persistent breach wreckage instead of intact defenses');
 assert.match(homefrontPage, /const breachMarker=block\(g,\.78,\.07,\.07,0,\.68,0,0xe34d3e\)/, 'make a destroyed perimeter opening visually identifiable in the 3D refuge');
@@ -260,7 +260,8 @@ assert.match(homefrontPage, /incident\?\.status==='incoming'\?'Resolve siege def
 assert.match(homefrontPage, /INCOMING SIEGE: inspect the threatened structure and repair if needed/, 'tell players they can assess and repair before resolving the attack');
 assert.match(homefrontPage, /type:base\?\.lastSiege\?\.status==='incoming'\?'defend':'start_siege'/, 'use separate server actions for starting and resolving a siege');
 
-assert.match(homefrontPage, /const assignedTarget=survivor\.taskTarget&&base\.structures\.find\(item=>item\.id===survivor\.taskTarget\)/, 'place responding survivors at their persisted server-assigned siege target');
+assert.match(homefrontPage, /const byId=id=>id\?structures\.find\(item=>String\(item\.id\)===String\(id\)\):null;[\s\S]*?const target=byId\(survivor\.taskTarget\)/, 'resolve persisted survivor task targets consistently across ID types');
+assert.match(homefrontPage, /if\(survivor\.task==='defend_perimeter'&&target\)return workSpot\(target,index,1\.45\)/, 'place responding survivors in a reachable work position at their persisted siege target');
 assert.match(homefrontPage, /taskLabels\[task\]\|\|labels\[role\]/, 'show the active survivor behavior above the 3D actor');
 assert.match(homefrontPage, /task:survivor\.task/, 'carry persistent behavior into survivor animation actors');
 assert.match(homefrontPage, /taskNote\.textContent='Current task: '/, 'show persistent survivor tasks in the settlement roster');
@@ -269,7 +270,7 @@ assert.match(homefrontPage, /startX=Math\.cos\(startAngle\)\*2\.2,startZ=Math\.s
 assert.match(homefrontPage, /targetX:x,targetZ:z,targetYaw:spot\.yaw,speed:1\.1\+\(i%3\)\*\.12/, 'each survivor actor carries a destination and individual movement speed');
 assert.match(homefrontPage, /distance>\.12/, 'survivors stop moving when they reach their assigned destination');
 assert.match(homefrontPage, /actor\.walkAction\.reset\(\)\.fadeIn\(\.15\)\.play\(\)/, 'blend into walk animation while moving between stations when assets provide one');
-assert.match(homefrontPage, /working=!moving&&\['farmer','mechanic','medic','scavenger'\]/, 'role work animations start after survivors arrive at their work location');
+assert.match(homefrontPage, /const working=!moving&&isWorkingTask\(actor\.role,actor\.task\)/, 'task-specific work animations start only after survivors arrive at their work location');
 
 
 // Survivor visual pass: keep the CC0 rig, add role-readable equipment silhouettes,
@@ -286,7 +287,7 @@ assert.match(survivorVisualPage, /function survivorAnimationProfile\(clips,survi
 assert.match(survivorVisualPage, /rolePatterns=\{/, 'map role-specific activity to likely animation names with graceful fallbacks');
 assert.match(survivorVisualPage, /survivorAnimationProfile\(clips,survivor\)/, 'select each survivor animation profile from role and persistent task');
 assert.match(survivorVisualPage, /survivor\.task==='defend_perimeter'\?find\(\[\/aim\/i,\s*\/shoot\/i,\s*\/attack\/i,\s*\/guard\/i,\s*\/idle\/i\]\)/, 'prefer defensive stance or combat clips for guards responding to a siege');
-assert.match(survivorVisualPage, /actor\.task==='take_shelter'/, 'keep sheltering survivors out of work/aim animation transitions');
+assert.match(survivorVisualPage, /const working=!moving&&isWorkingTask\(actor\.role,actor\.task\)/, 'keep sheltering survivors out of work/aim animation transitions through task-specific work-state logic');
 
 
 // Individual survivor stats are visible in the roster and backed by server-persisted skills.

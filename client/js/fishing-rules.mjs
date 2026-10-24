@@ -32,6 +32,24 @@ export function anglerProgress(xp = 0) {
   return { level, xp: total, currentLevelXp: total - current, nextLevelXp: next === null ? 0 : next - current, nextLevelAt: next, progress: next === null ? 1 : Math.max(0, Math.min(1, (total - current) / (next - current))) };
 }
 
+export const BOATS = [
+  { id: 'skiff', name: 'Harbor Skiff', price: 0, tier: 1, capacityKg: 12, depth: 0, speed: 1, color: 0x2a9d8f, description: 'Starter boat for sheltered water and smaller catches.' },
+  { id: 'bass', name: 'Bass Runner', price: 1200, tier: 2, capacityKg: 60, depth: 1, speed: 1.2, color: 0x2878b8, description: 'A faster fishing boat for larger lake species.' },
+  { id: 'offshore', name: 'Offshore Cruiser', price: 5000, tier: 3, capacityKg: 200, depth: 2, speed: 1.35, color: 0xd97732, description: 'Reaches deep water and supports heavy game fish.' },
+  { id: 'abyss', name: 'Abyssal Hunter', price: 14000, tier: 4, capacityKg: 900, depth: 3, speed: 1.5, color: 0x7657d5, description: 'Deep-water specialist built for legendary catches.' }
+];
+export function boatById(id) {
+  return BOATS.find(boat => boat.id === id) || BOATS[0];
+}
+export function canBoatCatch(boatId, fish = {}, deepWater = false) {
+  const boat = boatById(boatId);
+  const meta = fish.meta || fish[5] || {};
+  if ((Number(fish.kg) || 0) > boat.capacityKg) return false;
+  if (meta.deep && (!deepWater || boat.depth < 1)) return false;
+  if ((Number(meta.boat) || 1) > boat.tier) return false;
+  return true;
+}
+
 const ROD_LEVELS = { basic: 1, carbon: 2, pro: 5, legend: 10 };
 export function rodUnlockLevel(rodId) {
   return ROD_LEVELS[rodId] ?? 1;

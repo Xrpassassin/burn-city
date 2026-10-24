@@ -537,7 +537,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const foodGain = Math.floor(Math.min(999999, farmers * (1 + gardenCount) * 2));
       // Storage sheds make scavenging trips more efficient, but only while intact.
       const scrapGain = Math.floor(Math.min(999999, scavengers * (2 + storageCount) + mechanics * workshopCount));
-      const medicineGain = Math.floor(Math.min(medics, infirmaryCount)) + (infirmaryCount > 0 ? s.survivors.filter(x => x.role === 'medic' && x.talent === 'field_medic').length : 0);
+      const medicineGain = Math.floor(Math.min(medics, infirmaryCount)) + (infirmaryCount > 0 ? s.survivors.filter(x => x.role === 'medic' && (x.talent === 'field_medic' || hasSurvivorTrait(x, 'compassionate'))).length : 0);
       s.resources.food = Math.min(999999, s.resources.food + foodGain);
       s.resources.scrap = Math.min(999999, s.resources.scrap + scrapGain);
       s.resources.meds = Math.min(999999, s.resources.meds + medicineGain);

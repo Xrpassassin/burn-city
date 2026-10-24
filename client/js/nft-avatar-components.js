@@ -33,8 +33,9 @@ function flameStyle(value) {
   if (has(value, /black|shadow|dark/)) return { style: 'shadow', color: '#5b4b79' };
   return { style: value && !/none|no flame|off/.test(value) ? 'ember' : 'default', color: '#ff7a1a' };
 }
-function tailStyle(value) {
+function tailStyle(value, key) {
   if (has(value, /ring|banded|striped|raccoon/)) return 'ringed';
+  if (key === 'racc' && value && !/none|no tail/.test(value)) return 'ringed';
   if (has(value, /black|dark/)) return 'dark-tip';
   if (has(value, /white|silver|pale/)) return 'light-tip';
   return value && !/none|no tail/.test(value) ? 'custom' : 'ringed';
@@ -77,7 +78,7 @@ export function resolveNftAvatarComponents(profile = {}) {
     accessoryStyle: accessoryStyle(accessory),
     weaponStyle: weaponStyle(weapon),
     flame: flameStyle(flame || (key === 'fk' ? 'ember' : '')),
-    tailStyle: tailStyle(tail),
+    tailStyle: tailStyle(tail, key),
     wingStyle: wingStyle(wing),
     outfitStyle: outfitStyle(outfit),
     eyeStyle: eyeStyle(eyes),

@@ -12,7 +12,11 @@
     { "slot": "mask", "aliases": ["Bandit Mask", "Eye Mask", "Raccoon Mask"] },
     { "slot": "fur color", "aliases": ["Fur Color", "Pelt", "Coat Fur", "Raccoon Fur"] },
     { "slot": "tail", "aliases": ["Ring Tail", "Tail Pattern"] },
-    { "slot": "headwear", "aliases": ["Head Accessory", "Head Item"] }
+    { "slot": "headwear", "aliases": ["Head Accessory", "Head Item"] },
+    { "slot": "hair style", "aliases": ["Hair Style", "Haircut", "Hair Shape"] },
+    { "slot": "markings", "aliases": ["Face Paint", "Scar", "Freckles", "War Paint"] },
+    { "slot": "body pattern", "aliases": ["Pattern", "Body Pattern", "Spots", "Stripes"] },
+    { "slot": "horns", "aliases": ["Horns", "Antlers"] }
   ],
   "assets": [],
   "qaSamples": [

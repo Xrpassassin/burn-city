@@ -6,12 +6,12 @@ const Terrain=require('./homefront-terrain');assert.equal(Terrain.isSafePosition
 assert.equal(a.encounter.range,C.STATS[a.encounter.event].range,'public encounter exposes server-owned attack range for contextual UI');
 // Firearm tier ladder (#185–#188 combined): cadence/magazines come from one server table.
 const F=require('./homefront-firearms');
-assert.deepEqual(Object.keys(F.FIREARM_TIERS),['smg','assault_rifle','machine_gun','heavy_machine_gun'],'four automatic tiers in order');
-assert.deepEqual(Object.values(F.FIREARM_TIERS).map(t=>t.tier),[1,2,3,4]);
+assert.deepEqual(Object.keys(F.FIREARM_TIERS),['smg','assault_rifle','machine_gun','heavy_machine_gun','fifty_cal'],'five automatic tiers in order');
+assert.deepEqual(Object.values(F.FIREARM_TIERS).map(t=>t.tier),[1,2,3,4,5]);
 assert.ok(Object.values(F.FIREARM_TIERS).every((t,i,a)=>i===0||(t.level>=a[i-1].level&&t.power>a[i-1].power&&t.rounds>=a[i-1].rounds)),'each tier needs more settlement development and hits harder');
-assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950,smg:950,assault_rifle:950,machine_gun:1000,heavy_machine_gun:1050},'weapon-specific fire cadence is defined on the server');
+assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950,smg:950,assault_rifle:950,machine_gun:1000,heavy_machine_gun:1050,fifty_cal:1150},'weapon-specific fire cadence is defined on the server');
 assert.ok(Object.values(C.WEAPON_FIRE_INTERVAL).every(ms=>ms>=900),'no weapon can be fired faster than the 120/min world rate limit allows');
-assert.deepEqual(C.WEAPON_MAGAZINE_CAPACITY,{pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0,smg:30,assault_rifle:30,machine_gun:45,heavy_machine_gun:60},'firearms use finite magazines; melee weapons never consume bullets');
+assert.deepEqual(C.WEAPON_MAGAZINE_CAPACITY,{pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0,smg:30,assault_rifle:30,machine_gun:45,heavy_machine_gun:60,fifty_cal:100},'firearms use finite magazines; melee weapons never consume bullets');
 const Core=require('./homefront-core');
 // Unlock checks are server-side on craft, equip and fire.
 const armory=Core.createBase('armory-test',1000);armory.resources.scrap=5000;armory.embers=5000;
@@ -61,7 +61,7 @@ const aimedPlayer={...player,aiming:true,aimStartedAt:600000,accuracyRecoverUnti
 const aimedHead=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player:aimedPlayer,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint});
 assert.equal(aimedHead.aimed,true,'server confirms aim only after the weapon-specific ADS time');
 assert.equal(aimedHead.hitZone,'head','a stable server-confirmed aim point can produce a headshot');
-assert.deepEqual(Object.keys(C.WEAPON_HANDLING),['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','smg','assault_rifle','machine_gun','heavy_machine_gun']);
+assert.deepEqual(Object.keys(C.WEAPON_HANDLING),['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','smg','assault_rifle','machine_gun','heavy_machine_gun','fifty_cal']);
 assert.ok(C.WEAPON_HANDLING.marksman_rifle.adsMs>C.WEAPON_HANDLING.pump_shotgun.adsMs,'marksman rifle takes longer to aim down sights than shotgun');
 const sprintRecovery=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player:{...aimedPlayer,accuracyRecoverUntil:601900},base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint});
 assert.equal(sprintRecovery.aimed,false,'post-sprint recovery blocks immediate precision headshots even while aiming');
@@ -167,3 +167,11 @@ console.log('Homefront authoritative combat tests passed.');
   }
 }
 console.log('Homefront squad anchor audit tests passed.');
+
+// Tier 5 .50 cal: refuge level 6, pierces in live sieges, still >= 900 ms between requests.
+{const T5=F.FIREARM_TIERS.fifty_cal;assert.equal(T5.level,6);assert.ok(T5.interval>=900&&T5.pierce===3);
+ const l5=Core.validateBase({...Core.createBase('t5-test',1),level:5,resources:{...Core.createBase('t5-test',1).resources,scrap:9999},embers:9999},'t5-test');
+ assert.throws(()=>Core.applyAction(l5,'t5-test',{type:'craft_weapon',weapon:'fifty_cal'},2),/weapon_requires_refuge_level_6/);
+ const l6=Core.applyAction({...l5,level:6},'t5-test',{type:'craft_weapon',weapon:'fifty_cal'},3);assert.ok(l6.weapons.includes('fifty_cal'));
+ assert.equal(F.publicTiers().find(t=>t.id==='fifty_cal').pierce,3);}
+console.log('fifty cal tier ok');

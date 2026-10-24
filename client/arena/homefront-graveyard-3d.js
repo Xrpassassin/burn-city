@@ -12,10 +12,10 @@ import { createZombieModelPilot } from './zombie-model-pilot.mjs';
 import { attachViewControls, cameraPose, worldMove } from './homefront-view.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 // Firearm tiers (server table in server/homefront-firearms.js); cadence mirrors the server so autofire never trips attack_cooldown.
-const FIREARM_IDS = ['smg', 'assault_rifle', 'machine_gun', 'heavy_machine_gun'];
+const FIREARM_IDS = ['smg', 'assault_rifle', 'machine_gun', 'heavy_machine_gun', 'fifty_cal'];
 const WEAPON_IDS = ['pipe_blade', 'pump_shotgun', 'marksman_rifle', 'shock_maul', ...FIREARM_IDS];
-const WEAPON_DELAY = { pipe_blade: 950, shock_maul: 950, pump_shotgun: 1150, marksman_rifle: 1350, smg: 950, assault_rifle: 950, machine_gun: 1000, heavy_machine_gun: 1050 };
-const TRACER_COLOR = { pump_shotgun: 0xffb45c, marksman_rifle: 0xd9f5ff, smg: 0xff9b4a, assault_rifle: 0xffe7a1, machine_gun: 0xffd27a, heavy_machine_gun: 0xffe6a0 };
+const WEAPON_DELAY = { pipe_blade: 950, shock_maul: 950, pump_shotgun: 1150, marksman_rifle: 1350, smg: 950, assault_rifle: 950, machine_gun: 1000, heavy_machine_gun: 1050, fifty_cal: 1150 };
+const TRACER_COLOR = { pump_shotgun: 0xffb45c, marksman_rifle: 0xd9f5ff, smg: 0xff9b4a, assault_rifle: 0xffe7a1, machine_gun: 0xffd27a, heavy_machine_gun: 0xffe6a0, fifty_cal: 0xfff2c4 };
 
 const host = document.getElementById('graveyard3d');
 if (host) boot(host);
@@ -169,7 +169,7 @@ function boot(host) {
       const pos = [target.position.x, detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1, target.position.z];
       const sound = weaponId === 'pump_shotgun' || isAuto ? 'shotgun' : 'hit';
       sfx.loadBank(new URL('./sfx/', import.meta.url).href)
-        .then(() => sfx.play(sfx.has(sound) ? sound : 'hit', { pos, v: isAuto ? (weaponId === 'heavy_machine_gun' ? 0.42 : 0.32) : weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
+        .then(() => sfx.play(sfx.has(sound) ? sound : 'hit', { pos, v: isAuto ? (weaponId === 'heavy_machine_gun' || weaponId === 'fifty_cal' ? 0.42 : 0.32) : weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
         .catch(() => {});
       // Weapon-specific, short-lived blood mist. Visual feedback never determines damage.
       const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16) : detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18) : (weaponId === 'pump_shotgun' ? 15 : 9);
@@ -665,8 +665,8 @@ function boot(host) {
       const finish = p.label === 'You' ? equippedWeaponSkinColor : 0x9a7b62;
       const isMelee = weaponId === 'pipe_blade' || weaponId === 'shock_maul';
       const isAutoGun = FIREARM_IDS.includes(weaponId);
-      const length = weaponId === 'heavy_machine_gun' ? 1.18 : weaponId === 'machine_gun' ? 1.06 : weaponId === 'assault_rifle' ? 0.98 : weaponId === 'smg' ? 0.7 : weaponId === 'marksman_rifle' ? 1.02 : weaponId === 'pump_shotgun' ? 0.92 : weaponId === 'shock_maul' ? 0.58 : 0.76;
-      const width = weaponId === 'heavy_machine_gun' ? 0.24 : weaponId === 'machine_gun' ? 0.2 : isAutoGun ? 0.17 : weaponId === 'shock_maul' ? 0.28 : weaponId === 'pipe_blade' ? 0.1 : 0.16;
+      const length = weaponId === 'fifty_cal' ? 1.3 : weaponId === 'heavy_machine_gun' ? 1.18 : weaponId === 'machine_gun' ? 1.06 : weaponId === 'assault_rifle' ? 0.98 : weaponId === 'smg' ? 0.7 : weaponId === 'marksman_rifle' ? 1.02 : weaponId === 'pump_shotgun' ? 0.92 : weaponId === 'shock_maul' ? 0.58 : 0.76;
+      const width = weaponId === 'fifty_cal' ? 0.27 : weaponId === 'heavy_machine_gun' ? 0.24 : weaponId === 'machine_gun' ? 0.2 : isAutoGun ? 0.17 : weaponId === 'shock_maul' ? 0.28 : weaponId === 'pipe_blade' ? 0.1 : 0.16;
       const barrel = new THREE.Mesh(new THREE.BoxGeometry(width, length, weaponId === 'shock_maul' ? 0.22 : 0.19), mat(finish));
       barrel.position.y = 0.12 + length / 2; weapon.add(barrel);
       if (weaponId === 'shock_maul') {
@@ -676,7 +676,7 @@ function boot(host) {
         const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.23), mat(0x373a38));
         muzzle.position.y = 0.12 + length + 0.04; weapon.add(muzzle);
         if (weaponId === 'smg' || weaponId === 'assault_rifle') { const mag = new THREE.Mesh(new THREE.BoxGeometry(0.12, weaponId === 'smg' ? 0.28 : 0.34, 0.13), mat(0x343934)); mag.position.set(-0.08, 0.04, 0); weapon.add(mag); }
-        if (weaponId === 'machine_gun' || weaponId === 'heavy_machine_gun') {
+        if (weaponId === 'machine_gun' || weaponId === 'heavy_machine_gun' || weaponId === 'fifty_cal') {
           const ammoBox = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.34, 0.28), mat(0x5b5b4c));
           ammoBox.position.set(-0.17, 0.25, 0.02); weapon.add(ammoBox);
           const supportGrip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, 0.12), mat(0x292d2b));

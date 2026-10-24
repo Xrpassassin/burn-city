@@ -352,7 +352,11 @@ assert.match(page, /'Survey '\+t\.zoneLabel\+' to unlock'/, 'district requiremen
 assert.match(scene, /weaponId === 'heavy_machine_gun' \? 1\.18/, 'render a visibly longer heavy-machine-gun silhouette');
 assert.match(scene, /const ammoBox = new THREE\.Mesh/, 'add a visible ammunition box to the heavy machine gun');
 // Production facilities must be placeable: the client-side placement check knows their caps and costs.
-assert.match(homefrontPage, /quarry:2,smelter:2,salvage_yard:2\},costs=/, 'quarry/smelter/salvage yard have client placement caps');
+assert.match(homefrontPage, /quarry:2,smelter:2,salvage_yard:2[,}].*?costs=/, 'quarry/smelter/salvage yard have client placement caps');
+assert.match(homefrontPage, /gun_platform:4,mortar_pit:2\},costs=/, 'gun platform / mortar pit have client placement caps');
+assert.match(homefrontPage, /gun_platform:\{wood:18,scrap:12\},mortar_pit:\{wood:8,scrap:20,steel:4\}/, 'gun platform / mortar pit have client costs matching the server');
+assert.match(homefrontPage, /\['gun_platform','🗼 Gun platform'/, 'gun platform is in the build list');
+assert.match(homefrontPage, /\['mortar_pit','💥 Mortar pit'/, 'mortar pit is in the build list');
 assert.match(homefrontPage, /smelter:\{wood:20,scrap:18,stone:10\}/, 'smelter placement cost mirrors the server');
 
 assert.match(scene, /WEAPON_DELAY\[equippedWeaponId\]/, 'autofire cadence mirrors the server tier table');

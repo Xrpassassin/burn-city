@@ -88,3 +88,15 @@ A green manifest validation means the record is structurally complete, **not** t
 ## Current limits
 
 This step creates the manifests, intake rules, automated structural validation, a larger artwork-first identity tabard, and metadata-driven hairstyle/marking/pattern/horn geometry. It does **not** fetch collection images, inspect live holder NFTs, add third-party models, or claim exact 3D visual parity. Live collection sampling, runtime visual QA, and mobile profiling remain explicit next validation tasks. Commercial XRP invoicing and public self-service onboarding remain outside this client-side asset pipeline.
+
+
+## Collection-specific procedural reconstruction (current implementation)
+
+The avatar builder now resolves a dedicated reconstruction blueprint per supported collection before assembling its Three.js meshes:
+
+- **RACC:** anthropomorphic raccoon anatomy, broader rounded torso, raccoon skull/mask/muzzle, ringed tail, and a slightly more compact limb silhouette.
+- **Firekeepers:** taller, layered robe silhouette with a tapered robe hem, ember mantle, cowl, and front sigil. Ember identity remains visible when trait metadata is sparse.
+- **589 Protocol:** broader humanoid shoulders, streetwear-oriented silhouette, paired technical straps, and a BURN insignia/emblem.
+- **Unmapped collections:** safe generic humanoid blueprint; original artwork remains the identity source.
+
+The reconstruction blueprint is attached to avatar user data for inspection and future collection-specific rig/asset QA. It records the current mode as `procedural-collection-specific` and deliberately does not claim exact 1:1 reconstruction. Typed traits continue to override relevant visual details where available. These authored procedural meshes are a first reconstruction pass; representative sample review and browser/WebGL visual validation are still required before judging likeness or performance.

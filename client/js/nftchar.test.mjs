@@ -32,6 +32,12 @@ assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;
 
 has(avatar, /resolveNftAvatarProfile/, 'routes traits through collection-specific adapters');
 has(avatar, /resolveNftAvatarComponents/, 'resolves typed traits into explicit visual component recipes');
+has(avatar, /resolveNftAvatarReconstruction/, 'selects a collection-specific reconstruction blueprint');
+has(avatar, /nft-firekeeper-robe-hem/, 'builds the Firekeepers robe silhouette');
+has(avatar, /nft-firekeeper-cowl/, 'builds the Firekeepers cowl silhouette');
+has(avatar, /nft-firekeeper-sigil/, 'builds a collection-specific Firekeepers sigil');
+has(avatar, /nft-protocol-emblem/, 'builds a collection-specific 589 Protocol insignia');
+has(avatar, /reconstruction\};/, 'exposes reconstruction blueprint for visual QA');
 has(avatar, /nft-robe-outer-layer/, 'renders a distinct Firekeepers robe layer');
 has(avatar, /nft-armor-shoulder/, 'renders armor shoulder plates from outfit traits');
 has(avatar, /nft-relic-accessory/, 'renders collection relic accessories');
@@ -101,7 +107,7 @@ has(city, /activeNftModels>=nftModelCap\(\)/, 'enforces the detailed peer model 
 has(city, /activeNftModels=Math\.max\(0,activeNftModels-1\)/, 'releases model budget when peers leave or go out of range');
 has(city, /if\(p\.boat\)\{W\(\)\.S\.remove\(p\.boat\)/, 'preserves boat cleanup from current main');
 has(app, /L\.nftCharacter&&L\.nftCharacter\.userData\.anim/, 'animates the selected local NFT character');
-has(sw, /bc-v100-nft-identity-fidelity/, 'bumps service-worker cache version for NFT identity geometry');
+has(sw, /bc-v101-nft-collection-reconstruction/, 'bumps service-worker cache version for NFT identity geometry');
 has(picker, /metaVersion: 2/, 'refreshes previously selected local NFTs to the expanded metadata schema');
 has(picker, /slice\(0, 64\)/, 'persists up to 64 typed NFT attributes and values');
 has(picker, /https:\/\/xrpl\.to/, 'credits the marketplace metadata enrichment source');

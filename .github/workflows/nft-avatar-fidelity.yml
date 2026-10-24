@@ -6,6 +6,8 @@ on:
       - 'client/js/nftchar.js'
       - 'client/js/nft-avatar-adapters.js'
       - 'client/js/nft-avatar-components.js'
+      - 'client/js/nft-avatar-reconstruction.js'
+      - 'client/js/nft-avatar-reconstruction.test.mjs'
       - 'client/js/nftchar.test.mjs'
       - 'client/js/nft-avatar-components.test.mjs'
       - 'scripts/nft-avatar-asset-pipeline.mjs'

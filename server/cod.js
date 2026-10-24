@@ -81,7 +81,17 @@ const COSMODROME = { name: 'The Ashen Cosmodrome', kind: 'cosmodrome', env: { to
     [29, 30, 11, 12, 2.6, 'furnace'], [35, 36, 11, 12, 2.6, 'furnace'],
     [29, 30, 21, 22, 3.6, 'support'], [36, 37, 21, 22, 3.6, 'support'], [33, 33, 25, 25, 1.0, 'support'],
     [29, 30, 27, 28, 3.6, 'support'], [36, 37, 27, 28, 3.6, 'support'],
-    [32, 33, 22, 22, 1.1, 'rail'], [32, 33, 29, 29, 1.1, 'rail']
+    [32, 33, 22, 22, 1.1, 'rail'], [32, 33, 29, 29, 1.1, 'rail'],
+    // Cover islands and offset barricades break up long square sightlines while preserving connected lanes.
+    [15, 16, 26, 27, 1.4, 'crate'], [23, 24, 28, 29, 1.4, 'crate'],
+    [17, 18, 19, 20, 1.2, 'crate'], [22, 23, 21, 22, 1.2, 'crate'],
+    [5, 6, 19, 20, 1.1, 'bench'], [10, 11, 28, 29, 1.1, 'crate'],
+    [3, 4, 11, 12, 1.1, 'desk'], [11, 12, 7, 8, 1.1, 'desk'],
+    [18, 19, 12, 13, 1.2, 'crate'], [23, 24, 5, 6, 1.2, 'crate'],
+    [31, 32, 8, 9, 1.4, 'crate'], [34, 35, 14, 15, 1.4, 'crate'],
+    [27, 28, 24, 25, 1.4, 'crate'], [30, 31, 26, 27, 1.4, 'crate'],
+    [37, 38, 24, 25, 1.4, 'crate'], [31, 32, 28, 29, 1.4, 'crate'],
+    [28, 29, 20, 21, 1.2, 'rail'], [35, 36, 25, 26, 1.2, 'rail']
   ],
   doordef: [
     [0, 1, [[19, 23], [20, 23]], 500],

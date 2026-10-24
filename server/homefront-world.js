@@ -7,6 +7,7 @@ const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 const Terrain = require('./homefront-terrain');
 const Collision = require('./homefront-collision');
+const Interiors = require('./homefront-interiors');
 const Environment = require('./homefront-environment');
 const Director = require('./homefront-director');
 const WORLD_SIZE = 100;
@@ -220,7 +221,8 @@ function snapshot(input, acct, now = Date.now()) {
     selfSurvival: p ? { ...p.survival } : null,
     selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null,
     selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null,
-    selfWeaponHandling: p ? { aiming: p.aiming, aimStartedAt: p.aimStartedAt, lastSprintAt: p.lastSprintAt, accuracyRecoverUntil: p.accuracyRecoverUntil } : null
+    selfWeaponHandling: p ? { aiming: p.aiming, aimStartedAt: p.aimStartedAt, lastSprintAt: p.lastSprintAt, accuracyRecoverUntil: p.accuracyRecoverUntil } : null,
+    interior: Interiors.publicState(w.interiors, acct)
   };
 }
 function enter(input, acct, now = Date.now()) {

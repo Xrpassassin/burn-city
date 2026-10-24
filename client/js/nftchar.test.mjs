@@ -89,6 +89,9 @@ has(avatar, /originalTraitPairs/, 'retains original NFT traits separately from n
 has(avatar, /nftAvatarProfile=/, 'attaches stable collection and identity metadata to the avatar');
 has(avatar, /const traitCoverage = profile\.rawTraits\.map/, 'creates a trait-by-trait visualization coverage record for every source trait');
 has(avatar, /needs-dedicated-visual/, 'flags traits without a faithful renderer instead of silently dropping them');
+has(avatar, /components\.tailStyle === 'custom'.*slot:'tail'/, 'flags custom tail designs instead of passing off the generic segmented tail as faithful');
+has(avatar, /components\.hairStyle === 'custom'.*slot:'hair style'/, 'flags unrecognized hairstyles instead of treating the generic hair cap as a faithful match');
+has(avatar, /components\.expression === 'custom'.*slot:'expression'/, 'flags unsupported expressions instead of silently using the neutral face');
 has(avatar, /artwork-only/, 'preserves backgrounds as original NFT artwork rather than inventing wearable geometry');
 has(avatar, /Never fabricate anatomy from a token ID hash/, 'does not invent anatomy from an NFT identifier when body traits are absent');
 has(avatar, /With no face-shape trait, keep the collection-specific head proportions unchanged/, 'keeps neutral collection head proportions when face-shape metadata is absent');

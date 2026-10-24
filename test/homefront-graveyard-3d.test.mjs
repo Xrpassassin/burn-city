@@ -270,7 +270,7 @@ assert.match(homefrontPage, /startX=Math\.cos\(startAngle\)\*2\.2,startZ=Math\.s
 assert.match(homefrontPage, /targetX:x,targetZ:z,targetYaw:spot\.yaw,speed:1\.1\+\(i%3\)\*\.12/, 'each survivor actor carries a destination and individual movement speed');
 assert.match(homefrontPage, /distance>\.12/, 'survivors stop moving when they reach their assigned destination');
 assert.match(homefrontPage, /actor\.walkAction\.reset\(\)\.fadeIn\(\.15\)\.play\(\)/, 'blend into walk animation while moving between stations when assets provide one');
-assert.match(homefrontPage, /const working=!moving&&isWorkingTask\(actor\.role,actor\.task\)/, 'task-specific work animations start only after survivors arrive at their work location');
+assert.match(homefrontPage, /const working=!moving&&(?:awareness\.mode!=='threat'&&)?isWorkingTask\(actor\.role,actor\.task\)/, 'task-specific work animations start only after survivors arrive at their work location');
 
 
 // Survivor visual pass: keep the CC0 rig, add role-readable equipment silhouettes,
@@ -287,7 +287,7 @@ assert.match(survivorVisualPage, /function survivorAnimationProfile\(clips,survi
 assert.match(survivorVisualPage, /rolePatterns=\{/, 'map role-specific activity to likely animation names with graceful fallbacks');
 assert.match(survivorVisualPage, /survivorAnimationProfile\(clips,survivor\)/, 'select each survivor animation profile from role and persistent task');
 assert.match(survivorVisualPage, /survivor\.task==='defend_perimeter'\?find\(\[\/aim\/i,\s*\/shoot\/i,\s*\/attack\/i,\s*\/guard\/i,\s*\/idle\/i\]\)/, 'prefer defensive stance or combat clips for guards responding to a siege');
-assert.match(survivorVisualPage, /const working=!moving&&isWorkingTask\(actor\.role,actor\.task\)/, 'keep sheltering survivors out of work/aim animation transitions through task-specific work-state logic');
+assert.match(survivorVisualPage, /const working=!moving&&(?:awareness\.mode!=='threat'&&)?isWorkingTask\(actor\.role,actor\.task\)/, 'keep sheltering survivors out of work/aim animation transitions through task-specific work-state logic');
 
 
 // Individual survivor stats are visible in the roster and backed by server-persisted skills.

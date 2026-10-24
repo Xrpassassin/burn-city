@@ -109,7 +109,8 @@ export function updateRouteRecovery(state = {}, position, target, now, options =
     next.bestDistance = distance; next.lastProgressAt = now; next.preferredOffset = 0; next.stuck = false;
   } else if (now - state.lastProgressAt >= stuckAfter && now - (state.lastRetryAt ?? 0) >= retryAfter) {
     const retries = (state.retries ?? 0) + 1, offsets = [1.12, -1.12, 1.62, -1.62, 2.3, -2.3];
-    next.retries = retries; next.preferredOffset = offsets[(retries - 1) % offsets.length]; next.lastRetryAt = now; next.lastProgressAt = now; next.stuck = true;
+    // Keep lastProgressAt: a still-stalled survivor cycles to the next approach every retryAfter ms.
+    next.retries = retries; next.preferredOffset = offsets[(retries - 1) % offsets.length]; next.lastRetryAt = now; next.stuck = true;
   } else next.stuck = !!state.stuck || now - state.lastProgressAt >= stuckAfter;
   return next;
 }

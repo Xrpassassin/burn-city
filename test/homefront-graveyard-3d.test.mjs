@@ -11,6 +11,10 @@ assert.match(scene, /modeledZombieIds\.has\(actor\.userData\.encounterId\)/, 'bo
 assert.match(scene, /const opacity = modeled \? 0 : 1/, 'preserve raycast hit proxies under animated models');
 assert.match(scene, /createZombieModelPilot\(scene, \{ targetHeight: 2\.7, maxModels: /, 'fit rigs to Homefront combat hitbox scale with a lower rig cap on touch devices');
 assert.match(scene, /createZombieAudio\(sfx, \{ base: new URL\('\.\/sfx\/'/, 'reuse the existing positional zombie audio sample bank');
+assert.match(scene, /from '\.\/homefront-ground-detail\.mjs'/, 'load deterministic lightweight ground dressing');
+assert.match(scene, /new THREE\.InstancedMesh\(/, 'batch micro-props to avoid one draw call per piece of scenery');
+assert.match(scene, /addGroundDetailInstances\(chunk, cx, cz\)/, 'cull ground details with their spatial chunk');
+assert.match(scene, /coarsePointer \? 1\.15 : 1\.6/, 'cap mobile render resolution to preserve frame time while allowing sharper desktop output');
 assert.match(scene, /zombieAudio\.tick\(dt, audioMe, audioZombies/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
 assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play shared hit and headshot audio only after authoritative combat confirmation');
 assert.match(scene, /zombieAudio\.zdie\(target\)/, 'play infected death audio only after server-confirmed kills');
@@ -45,6 +49,10 @@ assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely')
 assert.match(scene, /assets\/homefront\/zombie\.glb/, 'reuse the existing Homefront zombie model');
 assert.match(scene, /\/api\/homefront\/world/, 'read the shared Homefront world snapshot');
 assert.match(scene, /\/api\/homefront\/world\/move/, 'send movement through the authoritative world API');
+assert.match(scene, /\/api\/homefront\/world\/exploration/, 'load account-persisted exploration notes');
+assert.match(scene, /\/api\/homefront\/world\/exploration\/discover/, 'submit landmark discoveries for server-side distance validation');
+assert.match(scene, /function renderExplorationJournal\(\)/, 'render persistent story leads and field notes in the in-game journal');
+assert.match(page, /id="explorationJournalContent"/, 'provide a field journal panel in the expedition UI');
 assert.match(scene, /data\.world\?\.pointsOfInterest/, 'render server-authored points of interest');
 assert.match(scene, /data\.world\?\.bosses|data\.world\?\.caches/, 'bind interactive landmark visuals to shared encounter state');
 assert.match(scene, /worldData\.party && !worldData\.party\.leader/, 'respect leader-controlled party movement');
@@ -57,6 +65,10 @@ assert.match(scene, /state\.targetX - actor\.position\.x/, 'interpolate infected
 assert.match(scene, /actor\.userData\.hitFlash = 0\.38/, 'give confirmed enemy damage a brief visual hit flash');
 assert.match(scene, /threatRing/, 'render a proximity danger telegraph for nearby infected');
 assert.match(scene, /threatDistance <= 3/, 'increase infected danger feedback at close combat distance');
+assert.match(scene, /frontierBand/, 'show the current expansion band in the expedition HUD');
+assert.match(scene, /frontierDepth/, 'show inward frontier depth and rising danger context');
+assert.match(scene, /gunfire attracts attention/, 'warn players that noise escalates danger beyond the perimeter');
+assert.match(scene, /route surveyed; inspect local clues/, 'surveying a route points players toward evidence rather than implying completion');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(scene, /Visible held weapon silhouette/, 'render a visible weapon prop for each explorer in the 3D world');
 assert.match(scene, /event\.button !== 2 \|\| masterView !== 'third-person'/, 'right mouse drag orbits the third-person camera without hijacking ground travel');
@@ -181,7 +193,7 @@ assert.match(page, /let base = null, threatProfile = null, busy = false, pending
 assert.match(page, /if\(base\?\.wave>0&&!pendingBuilding&&!constructionPaused\)/, 'freeze hostile base actor movement throughout construction and placement requests');
 assert.match(page, /Protected construction mode: hostile base activity is paused/, 'tell players construction mode is protected');
 assert.match(page, /construction pause remains active until the server confirms the build/, 'keep the pause active while the server validates and saves placement');
-assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=false;/, 'resume base activity after the build request settles');
+assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=homefrontMode==='workshop';/, 'keep Workshop pause active after a successful placement while resuming normal activity outside Workshop');
 
 assert.match(page, /const constructionView=!!pendingBuilding\|\|constructionPaused/, 'switch to construction camera only while building');
 assert.match(page, /cameraPose\(\{mode:yardView\.mode,building:constructionView/, 'the refuge yard camera is third-/first-person and only goes overhead while building');
@@ -191,8 +203,13 @@ assert.match(page, /yardView=attachViewControls\(host,\{canLook:\(\)=>!pendingBu
 assert.match(scene, /attachViewControls\(host, \{ onTap: onWorldTap, wheel: false \}\)/, 'Graveyard taps come from the shared controller so drag-to-look never travels');
 assert.match(scene, /cameraPose\(\{ mode: view\.mode/, 'Graveyard camera follows the remembered first-/third-person mode');
 assert.match(scene, /worldMove\(view\.move\(\), heading\)/, 'joystick / WASD travel is relative to the camera heading');
+assert.match(scene, /noiseWarning=noiseLevel>=55\?' Loud container! Noise '/, 'loot UI warns when a noisy container can attract infected');
 assert.match(scene, /if \(view\.visible\) renderer\.render/, 'offscreen Graveyard canvas skips rendering');
-assert.match(page, /if\(yardView\.visible\)renderer\.render/, 'offscreen yard canvas skips rendering');
+assert.match(page, /if\(yardView\.visible&&homefrontMode!=='expedition'\)renderer\.render/, 'hidden refuge scene skips rendering during expeditions');
+assert.match(page, /vertexColors:true/, 'refuge yard ground uses subtle vertex-color variation instead of a flat slab');
+assert.match(page, /yard-edge-/, 'refuge yard uses named batched edge dressing meshes');
+assert.match(page, /coarsePointer\?1:1\.5/, 'refuge rendering lowers pixel ratio on touch devices');
+assert.match(page, /renderer\.shadowMap\.enabled=!coarsePointer/, 'expensive yard shadows are disabled on touch devices for smoother play');
 
 assert.match(page, /id="tillPlot"/, 'the refuge exposes a player-led farm plot control');
 assert.match(page, /type:'farm_till',x:p\.x,z:p\.z/, 'tilling uses tap-to-place yard coordinates validated by the server');

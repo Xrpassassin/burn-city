@@ -58,9 +58,21 @@ assert.ok(world.players['acct-a'].survival.hunger < needsBeforeMove.hunger, 'acc
 assert.ok(world.players['acct-a'].survival.thirst < needsBeforeMove.thirst, 'accepted travel consumes water reserves');
 assert.ok(world.players['acct-a'].survival.stamina < needsBeforeMove.stamina, 'accepted travel consumes stamina');
 assert.equal(world.players['acct-a'].inventory.food,0,'legacy active explorers do not receive duplicated starter rations');
-assert.ok(Math.hypot(world.players['acct-b'].x - world.players['acct-a'].x, world.players['acct-b'].z - world.players['acct-a'].z) < 6, 'leader movement carries party members with the group');
+assert.ok(Math.hypot(world.players['acct-b'].x - joined.result.self.x, world.players['acct-b'].z - joined.result.self.z) <= W.MOVE_STEP + 0.2,
+  'party followers advance within a bounded movement budget instead of teleporting to the leader');
+const followerBeforeRefresh = { x: world.players['acct-b'].x, z: world.players['acct-b'].z };
+const followerRefresh = W.enter(world, 'acct-b', 2300);
+world = followerRefresh.world;
+assert.deepEqual([world.players['acct-b'].x, world.players['acct-b'].z], [followerBeforeRefresh.x, followerBeforeRefresh.z],
+  'presence refresh preserves the follower position instead of snapping them to the leader');
+assert.equal(Collision.isSafePosition(world.players['acct-b'].x, world.players['acct-b'].z, { bounds: W.WORLD_SIZE }), true,
+  'party follower movement ends on a collision-safe terrain footprint');
 assert.equal(W.districtAt(0, 0).risk, 5, 'deep city core is high risk');
+assert.equal(W.frontierDepthAt(0, 0), 100, 'city core reports maximum frontier depth');
+assert.equal(W.frontierDepthAt(-8, -82), 18, 'outer spawn reports shallow frontier depth');
 assert.equal(W.districtAt(-8, -82).risk, 1, 'outer spawn is low risk');
+assert.ok(a.result.self.frontierDepth < 25, 'outer spawn reports low frontier depth');
+assert.equal(a.result.self.frontierBand, 'perimeter', 'outer spawn identifies the safer perimeter band');
 
 const handlingEntry = W.enter(W.defaultWorld(), 'handling-player', 1000);
 const aimedEntry = W.setAiming(handlingEntry.world, 'handling-player', true, 2000);

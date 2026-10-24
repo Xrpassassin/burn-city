@@ -83,6 +83,10 @@ jobs:
           node --check server/flight-lobby.js
       - name: Check Homefront browser module syntax
         run: node --input-type=module --check < <(node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/homefront.html","utf8");const m=s.match(/<script type="module">([\s\S]*?)<\/script>/);if(!m)throw Error("Missing Homefront module script");process.stdout.write(m[1])')
+      - name: Check Homefront scene and interior module syntax
+        run: |
+          node --input-type=module --check < client/arena/homefront-graveyard-3d.js
+          node --input-type=module --check < client/arena/homefront-interior-world.mjs
       - name: Check flight lobby browser syntax
         run: node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/flight-lobby.html","utf8");const a=s.indexOf("<script>");const b=s.indexOf("</script>",a);if(a<0||b<0)throw Error("Missing flight-lobby script");new Function(s.slice(a+8,b))'
       - name: Run airport experience registry tests

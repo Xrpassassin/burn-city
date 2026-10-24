@@ -74,7 +74,7 @@ assert.match(scene, /weaponId === 'shock_maul'/, 'render a distinct shock maul s
 assert.match(scene, /weaponId === 'marksman_rifle'/, 'render a distinct marksman rifle silhouette');
 assert.match(scene, /weaponId === 'heavy_machine_gun'/, 'render a heavier machine-gun silhouette');
 assert.match(scene, /Server-confirmed firearm hits draw a short-lived tracer/, 'render bullet tracers only from confirmed combat results');
-assert.match(scene, /equippedWeaponId === 'assault_rifle' \? 220 :/, 'autofire cadence reflects the automatic rifle profile');
+assert.match(scene, /equippedWeaponId === 'assault_rifle' \? 800 :/, 'autofire cadence reflects the automatic rifle profile');
 assert.ok(scene.includes("new THREE.BoxGeometry(width, length, weaponId === 'shock_maul' ? 0.22 : 0.19)"), 'build weapon silhouettes from lightweight Three.js primitives without new assets');
 assert.match(scene, /attackInfectedButton\.disabled = !active \|\| active\.defeated \|\| active\.hp <= 0 \|\| distance > \(active\.range \|\| 0\)/, 'keep attack disabled after requests when the enemy remains out of range');
 assert.match(page, /id="findInfected"/, 'provide a control to initiate an infected encounter');

@@ -89,6 +89,8 @@ const keyLight = new THREE.DirectionalLight(0xffffff, 2.2); keyLight.position.se
 const fillLight = new THREE.DirectionalLight(0x8eaaff, 0.8); fillLight.position.set(-4,2,-3); scene.add(fillLight);
 const floor = new THREE.GridHelper(8,16,0x444c5c,0x292f3a); floor.position.y=-0.03; scene.add(floor);
 let avatar = null;
+// Retain latest diagnostics for report-copy action outside renderSample().
+let latestQa = { reconstruction: {}, traitCoverage: [] };
 const views = {
  front: [0,1.6,6], threeQuarter:[3.8,1.7,5.2], side:[6,1.6,0], rear:[0,1.6,-6], reset:[0,1.6,6]
 };
@@ -110,6 +112,7 @@ function renderSample(){try{
  const rawTraits=Array.isArray(nft.traits)?nft.traits:[];
  const normalizedProfile=resolveNftAvatarProfile(nft);
  const traitCoverage=Array.isArray(profile.traitCoverage)?profile.traitCoverage:[];
+ latestQa = { reconstruction: recon, traitCoverage };
  const traitCoverageText=traitCoverage.length
    ? traitCoverage.map(item=>'  - ['+item.status+' / '+(item.fidelityLevel||'unclassified')+'] '+item.rawType+' → '+item.slot+': '+item.value+' — '+item.reason).join('\n')
    : '  no source traits found';
@@ -125,7 +128,7 @@ function renderSample(){try{
 document.querySelector('#render').addEventListener('click',renderSample);
 document.querySelector('#showTabard').addEventListener('change',renderSample);
 document.querySelector('#clear').addEventListener('click',()=>{document.querySelector('#artUrl').value='';showArtwork('');renderSample();});
-document.querySelector('#copyReport').addEventListener('click',async()=>{try{const nft=JSON.parse(document.querySelector('#sample').value);const report={tool:'BURN City NFT Avatar Visual QA',createdAt:new Date().toISOString(),sample:{key:nft.key||null,id:nft.id||nft.nftId||null,name:nft.name||null,traits:Array.isArray(nft.traits)?nft.traits:[]},artworkUrl:document.querySelector('#artUrl').value.trim()||nft.img||nft.image||null,diagnostics:status.textContent,collectionRequirements:recon.visualRequirements||[],review:{notes:document.querySelector('#reviewNotes').value.trim(),visualInspectionRequired:true,visualApproval:'not-reviewed',fidelityCounts:Object.fromEntries(traitCoverage.map(item=>[item.fidelityLevel||'unclassified',(traitCoverage.filter(x=>(x.fidelityLevel||'unclassified')===(item.fidelityLevel||'unclassified')).length)])),automatedLikenessScore:null,ownershipVerified:false}};await navigator.clipboard.writeText(JSON.stringify(report,null,2));status.textContent+='\nQA report copied. Include screenshots and reviewer notes when reporting mismatches.';}catch(e){status.textContent='Could not copy report: '+e.message+' (the browser may require HTTPS or clipboard permission).';}});
+document.querySelector('#copyReport').addEventListener('click',async()=>{try{const nft=JSON.parse(document.querySelector('#sample').value);const report={tool:'BURN City NFT Avatar Visual QA',createdAt:new Date().toISOString(),sample:{key:nft.key||null,id:nft.id||nft.nftId||null,name:nft.name||null,traits:Array.isArray(nft.traits)?nft.traits:[]},artworkUrl:document.querySelector('#artUrl').value.trim()||nft.img||nft.image||null,diagnostics:status.textContent,collectionRequirements:latestQa.reconstruction.visualRequirements||[],review:{notes:document.querySelector('#reviewNotes').value.trim(),visualInspectionRequired:true,visualApproval:'not-reviewed',fidelityCounts:Object.fromEntries(latestQa.traitCoverage.map(item=>[item.fidelityLevel||'unclassified',(latestQa.traitCoverage.filter(x=>(x.fidelityLevel||'unclassified')===(item.fidelityLevel||'unclassified')).length)])),automatedLikenessScore:null,ownershipVerified:false}};await navigator.clipboard.writeText(JSON.stringify(report,null,2));status.textContent+='\nQA report copied. Include screenshots and reviewer notes when reporting mismatches.';}catch(e){status.textContent='Could not copy report: '+e.message+' (the browser may require HTTPS or clipboard permission).';}});
 const samples = {
  racc: {key:'racc',id:'RACC-review-001',name:'RACC — TNT / Striped Sweater / Bee Hive',img:'',traits:[['Armed','TNT'],['Fits','Yellow Striped Sweater'],['Top Gear','Bee Hive'],['Bandit Mask','Crimson'],['Ring Tail','Black and White']],pal:{face:'#8b7770',body:'#d8b44a',top:'#cf493e',acc:'#cf493e'}},
  fk: {key:'fk',id:'FK-review-001',name:'Firekeepers — Blue Flame / Keeper Robes / Cowl',img:'',traits:[['Ember Type','Blue Flame'],['Keeper Robes','Ash'],['Cowl','Ember Cowl'],['Relic','Sun Sigil']],pal:{face:'#c9a27e',body:'#393b4b',top:'#596b8a',acc:'#4bc9ef'}},

@@ -51,6 +51,15 @@ This is an authored content layer for the existing XRPL Graveyard expedition map
 - Two MIT-licensed projects were evaluated as possible accelerators: [threejs-procedural-dungeon](https://github.com/majidmanzarpour/threejs-procedural-dungeon) for seeded room graphs and room semantics, and [THREE.Terrain](https://github.com/IceCreamYou/THREE.Terrain) for terrain generation.
 - The first interior pass stays authored and data-driven to preserve mission readability. The terrain height field remains deterministic and mirrored in `server/homefront-terrain.js`; importing a client-only terrain runtime without porting its sampler into server traversal would create visual/collision disagreement. A later pass can selectively adapt compatible MIT algorithms after dependency and attribution review.
 
+## RPG-first Homefront flow
+
+- Homefront now opens into an immersive RPG-first mode: the 3D refuge is the primary view, while the full settlement-management dashboard is hidden until the player explicitly opens Management.
+- Workshop is a distinct 3D build mode. It pauses local base simulation, shows the construction catalog beside the yard, and remains open after a successful placement so the player can continue building without re-entering the mode.
+- The gate action is proximity-gated against the physical gate position; the player must walk to the gate before entering the shared Graveyard expedition. The expedition view replaces the refuge view rather than showing both gameplay spaces as simultaneous panels. Returning through the gate restores the Homefront mode.
+- Survivors expose a proximity-based Talk action in the yard. The interaction presents their personal history, rarity, morale, traits, and talent, and can jump into Management at that survivor's assignment card.
+- The management dashboard remains available on demand for deeper settlement controls, inventory, stores, work shifts, defense, upgrades, and field logistics. This is a transition layer: the shared Graveyard itself is still a separate rendered expedition scene, so a seamless streamed doorway transition and fully physical NPC dialogue remain future integration work.
+- Regression assertions cover the mode boundaries, proximity-gated gate, survivor talk affordance, and Workshop pause persistence. Browser QA is still needed for touch movement, gate approach distance, hidden-scene rendering, and camera framing.
+
 ## Environmental identity and damage readability
 
 - Seven authored interiors now use landmark-specific, instanced silhouettes: dispatch furniture at the bus depot, apartment furniture, market shelving, hospital beds, industrial machinery, subway utility cabinets, and research consoles.

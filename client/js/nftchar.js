@@ -3,6 +3,7 @@
 // Typed metadata adds a best-effort 3D interpretation. Geometry/materials are cached for phone performance.
 import * as THREE from 'three';
 import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
+import { resolveNftAvatarComponents } from './nft-avatar-components.js';
 const G = new Map(), TX = new Map(), MT = new Map();
 const geo = (k, f) => G.get(k) || (G.set(k, f()), G.get(k));
 const mat = (c, r = .72, m = .05, e = 0) => {
@@ -31,6 +32,7 @@ const color = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || '')) ?
 export function buildNftChar(n, opts = {}) {
   const pal = n?.pal || {}, key = n?.key || '589';
   const profile = resolveNftAvatarProfile(n);
+  const components = resolveNftAvatarComponents(profile);
   const originalTraitPairs = profile.rawTraits;
   const traitPairs = profile.renderTraits;
   const traitText = traitPairs.map(([type, value]) => String(type) + ' ' + String(value));
@@ -54,7 +56,7 @@ export function buildNftChar(n, opts = {}) {
   const faceHex = key === 'racc' ? traitColor(/fur color|fur|skin|face/i, '#858a91') : traitColor(/skin tone|skin color|skin$|face$/i, color(pal.face, '#c9a27e'));
   const hairHex = traitColor(/hair color|hair$/i, has(tr,/white hair|silver hair/)?'#bfc3ca':has(tr,/red hair/)?'#7b2c24':has(tr,/blond|blonde/)?'#c8a05b':has(tr,/blue hair/)?'#344f9a':'#201c20');
   const topHex = traitColor(/outerwear|coat|jacket|helmet|headwear/i, color(pal.top, bodyHex));
-  const accentHex = traitColor(/accent|accessory|flame|fire|aura/i, color(pal.acc, '#ff7a1a'));
+  const accentHex = profile.collectionKey === 'fk' ? components.flame.color : traitColor(/accent|accessory|flame|fire|aura/i, color(pal.acc, '#ff7a1a'));
   const eyeHex = traitColor(/eye color|iris color|eyes?$|iris$/i, key==='589'||has(tr,/flaming eyes|burn eye|melt|glowing eyes/)?accentHex:'#343039');
   const skin = mat(faceHex, .82, .01), cloth = mat(bodyHex, .82, .02), darkCloth = mat(shade(bodyHex,.52),.86,.04);
   const trim = mat(topHex,.6,.12), accent = glow(accentHex), metal = mat('#a8b1ba',.34,.68), bootMat = mat('#191b20',.78,.16);
@@ -84,6 +86,26 @@ export function buildNftChar(n, opts = {}) {
   }
   const belt = add(cylinder(.235,.235,.065,16),accent,0,.88,0); belt.scale.set(1,.55,.77);
   addBox(g,metal,[0,.88,.184],[.09,.052,.025]);
+  // Trait recipes change readable silhouette details without changing gameplay or NFT ownership.
+  if (components.outfitStyle === 'robes') {
+    const robe = addCapsule(g, darkCloth, [0, .99, -.015], .22, .23, [1.18, 1.25, .82]);
+    robe.name = 'nft-robe-outer-layer';
+    addBox(g, trim, [0, 1.06, .205], [.035, .35, .018]);
+  } else if (components.outfitStyle === 'armor') {
+    for (const side of [-1, 1]) {
+      const plate = addSphere(g, metal, [side * .22, 1.38, .055], [.145, .105, .13]);
+      plate.name = 'nft-armor-shoulder';
+      addBox(g, accent, [side * .22, 1.38, .17], [.07, .018, .012]);
+    }
+    addBox(g, metal, [0, 1.18, .207], [.22, .25, .025]);
+  } else if (components.outfitStyle === 'tailored') {
+    for (const side of [-1, 1]) {
+      const lapel = addBox(g, trim, [side * .07, 1.28, .198], [.055, .19, .016]);
+      lapel.rotation.z = side * -.22;
+    }
+  } else if (components.outfitStyle === 'streetwear') {
+    addCapsule(g, darkCloth, [0, 1.43, -.025], .115, .12, [1.2, .8, .9]);
+  }
 
   const legs = [-1,1].map(s => {
     const hip = new THREE.Group(); hip.position.set(s*.125,.84,0); g.add(hip);
@@ -118,20 +140,26 @@ export function buildNftChar(n, opts = {}) {
     for (const s of [-1,1]) {
       addSphere(head,mat('#686d75'),[s*.19,.205,-.005],[.085,.095,.065]);
       addSphere(head,mat('#c9cdd0'),[s*.085,.02,.22],[.055,.05,.025]);
-      addSphere(head,mat(eyeHex),[s*.085,.02,.242],[.022,.025,.012]);
+      addSphere(head,components.eyeStyle === 'glowing' ? glow(eyeHex) : mat(eyeHex),[s*.085,.02,.242],[.022,.025,.012]);
       addSphere(head,mat('#f0e4d0'),[s*.055,-.09,.19],[.075,.052,.052]);
     }
     addSphere(head,mat('#bfc2c5'),[0,-.1,.205],[.11,.075,.07]);
     addSphere(head,mat('#17181b'),[0,-.075,.267],[.036,.027,.022]);
     const tail = new THREE.Group(); tail.position.set(0,.77,-.17); tail.rotation.x=-.72; g.add(tail);
-    for(let i=0;i<6;i++) addSphere(tail,mat(i%2?'#292b30':'#969ba2'),[0,0,-.12*i],[.095-i*.008,.09-i*.007,.11]);
+    for(let i=0;i<6;i++) {
+      const segmentColor = components.tailStyle === 'dark-tip' && i > 3 ? '#202126'
+        : components.tailStyle === 'light-tip' && i > 3 ? '#e0ded8'
+        : components.tailStyle === 'ringed' ? (i%2 ? '#292b30' : '#969ba2')
+        : (i%2 ? shade(faceHex,.72) : faceHex);
+      addSphere(tail,mat(segmentColor),[0,0,-.12*i],[.095-i*.008,.09-i*.007,.11]);
+    }
   } else {
     addSphere(head,skin,[0,.015,0],[.19,.235,.18]);
     // Facial planes, eyes, brows, nose and ears create a less toy-like human face.
     for (const s of [-1,1]) {
       addSphere(head,skin,[s*.19,.01,0],[.04,.065,.045]);
       addSphere(head,mat('#f0e7d9'),[s*.067,.045,.158],[.035,.025,.018]);
-      addSphere(head,mat(eyeHex),[s*.067,.043,.175],[.016,.018,.01]);
+      addSphere(head,components.eyeStyle === 'glowing' ? glow(eyeHex) : mat(eyeHex),[s*.067,.043,.175],[.016,.018,.01]);
       addCapsule(head,mat(shade(faceHex,.65)),[s*.067,.092,.155],.012,.035,[1,.6,.6]).rotation.z=s*.15;
     }
     addSphere(head,mat(shade(faceHex,.76)),[0,-.015,.172],[.025,.04,.03]);
@@ -153,15 +181,15 @@ export function buildNftChar(n, opts = {}) {
 
   // Trait-driven identity: headwear, eyewear, horns, fire, jewelry, fur/capes and armor accents.
   const hatColor = mat(topHex,.65,.12);
-  if (has(tr,/helmet/)) {
+  if (components.headwearStyle === 'helmet' || has(tr,/helmet/)) {
     addSphere(head,metal,[0,.17,-.015],[.225,.105,.205]);
     addBox(head,accent,[0,.11,.17],[.24,.035,.035]);
-  } else if (has(tr,/crown/)) {
+  } else if (components.headwearStyle === 'crown' || has(tr,/crown/)) {
     add(geo('crown-band',()=>new THREE.TorusGeometry(.15,.025,6,20)),glow('#ffcc33'),0,.21,0,head);
     for(const s of [-1,0,1]) add(geo('crown-point',()=>new THREE.ConeGeometry(.035,.13,7)),glow(traitColor(/crown|headwear/i,'#ffcc33')),s*.105,.3,0,head);
-  } else if (has(tr,/hood/)) {
+  } else if (components.headwearStyle === 'hood' || has(tr,/hood/)) {
     const hood=addSphere(head,mat(shade(bodyHex,.78)),[0,.045,-.035],[.245,.27,.21]); hood.renderOrder=0;
-  } else if (has(tr,/hat|cap|fitted|beanie|visor|sweatband|headband/)) {
+  } else if (['hat','beanie','band'].includes(components.headwearStyle) || has(tr,/hat|cap|fitted|beanie|visor|sweatband|headband/)) {
     addSphere(head,hatColor,[0,.15,-.01],[.22,.105,.2]);
     if (!has(tr,/beanie/)) addBox(head,hatColor,[0,.105,.18],[.25,.025,.12]);
   }
@@ -177,7 +205,7 @@ export function buildNftChar(n, opts = {}) {
     }
     addSphere(head,glow(shade(accentHex,.6)),[0,-.01,.14],[.2,.055,.03]);
   }
-  if(has(tr,/chain|medallion|necklace|gold pick|grill/)) {
+  if(components.accessoryStyle === 'chain' || has(tr,/chain|medallion|necklace|gold pick|grill/)) {
     const chain=add(geo('necklace',()=>new THREE.TorusGeometry(.15,.018,6,24)),glow('#e8b923'),0,1.49,.025);
     chain.rotation.x=1.25;
   }
@@ -197,9 +225,14 @@ export function buildNftChar(n, opts = {}) {
   // Background belongs to the original 2D NFT composition, not wearable geometry.
   // Keep it intact in the artwork panel/portrait; never reinterpret it as a halo around the 3D body.
   const wingTrait=traitValue(/wing/i).toLowerCase();
-  if (wingTrait && !/none|no wing/i.test(wingTrait)) for (const side of [-1,1]) {
-    const wing=addCapsule(g,mat(traitColor(/wing|feather/i,'#d8d6d0')),[side*.31,1.28,-.13],.075,.3,[1,1.5,.42]);
+  if (components.wingStyle !== 'none' && wingTrait && !/none|no wing/i.test(wingTrait)) for (const side of [-1,1]) {
+    const wingColor = components.wingStyle === 'mechanical' ? '#aeb9c8' : traitColor(/wing|feather/i,'#d8d6d0');
+    const wing=addCapsule(g,mat(wingColor),[side*.31,1.28,-.13],.075,.3,[1,1.5,.42]);
     wing.rotation.z=side*-.55;
+    if (components.wingStyle === 'mechanical') for (let plate=0; plate<3; plate++) {
+      const feather=addBox(g,metal,[side*(.31+.055*plate),1.34-.075*plate,-.085],[.09,.025,.025]);
+      feather.rotation.z=side*-.55;
+    }
   }
   const weaponTrait=traitValue(/weapon|held item|gear/i).toLowerCase();
   if (weaponTrait && !/none|empty|no weapon|nothing/i.test(weaponTrait)) {
@@ -230,7 +263,7 @@ export function buildNftChar(n, opts = {}) {
   }
   g.userData.legs=legs; g.userData.arms=arms; g.userData.head=head; g.userData.nftId=n?.id;
   g.userData.nftTraits=originalTraitPairs.map(([type,value])=>[String(type),String(value)]);
-  g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter};
+  g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter,components};
   g.userData.nftMedia={animation:n?.animation||'',video:n?.video||'',audio:n?.audio||'',model3d:n?.model3d||'',artwork:n?.artwork||''};
   g.userData.anim=(t,moving,armsUp)=>{
     // Fit the real artwork without cropping once its remote image has decoded.

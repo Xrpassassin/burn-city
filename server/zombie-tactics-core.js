@@ -47,12 +47,14 @@ function hearNoise(zombiePosition, noise, nowMs) {
   if (!noise || !Number.isFinite(noise.x) || !Number.isFinite(noise.z)) return null;
   if (!Number.isFinite(noise.atMs) || !Number.isFinite(nowMs) || nowMs < noise.atMs) return null;
   const ageMs = nowMs - noise.atMs;
-  const ttlMs = Math.max(0, Number(noise.ttlMs ?? 8000));
+  const ttlMs = Number(noise.ttlMs ?? 8000);
+  const radius = Number(noise.radius ?? 0);
+  const rawIntensity = Number(noise.intensity ?? 1);
+  if (![ttlMs, radius, rawIntensity].every(Number.isFinite) || ttlMs < 0 || radius < 0) return null;
   if (ageMs > ttlMs) return null;
   const distance = distance2D(zombiePosition, noise);
-  const radius = Math.max(0, Number(noise.radius ?? 0));
   if (distance > radius) return null;
-  const intensity = Math.max(0, Math.min(1, Number(noise.intensity ?? 1)));
+  const intensity = Math.max(0, Math.min(1, rawIntensity));
   return { x: noise.x, z: noise.z, distance, intensity, ageMs };
 }
 
@@ -66,13 +68,14 @@ function chooseBehavior(input = {}) {
   const zombie = input.zombie || {};
   const target = input.target || null;
   const visible = input.targetVisible === true;
-  const alive = zombie.alive !== false && zombie.hp !== 0;
+  const alive = zombie.alive !== false && !(Number.isFinite(zombie.hp) && zombie.hp <= 0);
   if (!alive || zombie.dead === true) return { state: 'dead', reason: 'dead' };
   if (input.staggered === true) return { state: 'stagger', reason: 'hit-reaction' };
   if (input.recovering === true) return { state: 'recover', reason: 'recovering' };
 
-  const attackRange = Math.max(0, Number(input.attackRange ?? 1.6));
-  if (visible && target) {
+  const rawAttackRange = Number(input.attackRange ?? 1.6);
+  const attackRange = Number.isFinite(rawAttackRange) ? Math.max(0, rawAttackRange) : 1.6;
+  if (visible && target && Number.isFinite(target.x) && Number.isFinite(target.z)) {
     const distance = distance2D(zombie, target);
     if (distance <= attackRange) return { state: 'attack', reason: 'visible-target', target: { x: target.x, z: target.z } };
     return { state: 'pursue', reason: 'visible-target', target: { x: target.x, z: target.z } };

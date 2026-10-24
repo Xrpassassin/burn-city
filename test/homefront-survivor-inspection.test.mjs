@@ -51,3 +51,9 @@ assert.match(page, /These are shared settlement supplies, not a separate contain
 assert.match(page, /playerDistance<\.82/, 'survivors receive local separation from the player instead of passing through them');
 assert.match(page, /playerDistance<\.68/, 'survivors turn toward the player at close interaction distance');
 assert.match(page, /updatePhysicalContainers\(dt\)/, 'container physics update in the third-person simulation loop');
+assert.match(page, /const openGateIds=new Set\(\),gateMotion=new Map\(\),containerMotion=new Map\(\),workshopMotion=new Map\(\)/, 'gate, container, and workshop physical state is tracked per object');
+assert.match(page, /g\.userData\.workshopGear=gear/, 'workshop machinery is a physical animated scene object');
+assert.match(page, /function updatePhysicalWorkshops\(dt\)/, 'workshop machinery responds to player proximity');
+assert.match(page, /distance<3\.2/, 'workshop machinery activates when the player approaches the work area');
+assert.match(page, /gear\.rotation\.z=motion\.angle/, 'workshop wheel visibly rotates while active');
+assert.match(page, /updatePhysicalWorkshops\(dt\)/, 'workshop interaction updates in the third-person simulation loop');

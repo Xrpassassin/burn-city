@@ -45,5 +45,5 @@ has(city, /av\.userData\.nftCharacter=myNft/, 'attaches the selected NFT model t
 has(city, /buildNftChar\(n,\{srv:SRV,card:true,lite:/, 'uses low-cost geometry on mobile peers');
 has(city, /distanceToSquared\(p\.g\.position\)<85\*85/, 'streams detailed peer avatars only near the camera');
 has(app, /L\.nftCharacter&&L\.nftCharacter\.userData\.anim/, 'animates the selected local NFT character');
-has(sw, /bc-v93-nftavatars/, 'bumps service-worker cache version for avatar assets');
+has(sw, /bc-v94-nftavatars/, 'bumps service-worker cache version for avatar assets');
 console.log('NFT avatar architecture: ' + checks + ' assertions passed');

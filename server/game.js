@@ -290,7 +290,7 @@ class Room {
     if (this.ranked) s.rk = [this.ranked.state, this.ranked.countdown === null ? 0 : Math.ceil(this.ranked.countdown), this.players.size, this.ranked.id];
     if (this.tl) { const k = this.tl, cr = k.ranked ? [...this.players.values()].find(p => p.acct === k.creatorAcct)?.id : k.creatorId;
       s.tl = [k.state, k.countdown == null ? 0 : Math.ceil(k.countdown), k.id, cr ?? 0, k.cfg.teams, k.cfg.ff ? 1 : 0, k.cfg.bo3 ? 1 : 0, k.round || 0, k.ranked ? 1 : 0, k.wins || {}]; }
-    if (this.mode === 'zombie') { s.m = [this.open, this.box.spot, this.box.state, this.power ?? 1]; s.b = this.boards; s.z = [...this.zombies.values()].map(z => [z.id, q(z.x), q(z.z), z.burn > 0 || z.dot > 0 ? 1 : 0, z.ty, (z.cr ? 1 : 0) | (z.charge > 0 ? 2 : 0) | (z.win != null ? 4 : 0), q(z.y || 0), q(z.stagger || 0), z.armorBroken ? 1 : 0, z.armorHp > 0 ? 1 : 0, z.maxhp > 0 ? Math.max(0, Math.min(1, z.hp / z.maxhp)) : 1]); s.w = this.wave; s.sc = this.score; if (this.quest) s.q = Quest.snap(this); if (this.heli) s.h = Heli.snap(this); }
+    if (this.mode === 'zombie') { s.m = [this.open, this.box.spot, this.box.state, this.power ?? 1]; s.b = this.boards; s.z = [...this.zombies.values()].map(z => [z.id, q(z.x), q(z.z), z.burn > 0 || z.dot > 0 ? 1 : 0, z.ty, (z.cr ? 1 : 0) | (z.charge > 0 ? 2 : 0) | (z.win != null ? 4 : 0), q(z.y || 0), Math.round((z.stagger || 0) * 100) / 100, z.armorBroken ? 1 : 0, z.armorHp > 0 ? 1 : 0, z.maxhp > 0 ? Math.max(0, Math.min(1, z.hp / z.maxhp)) : 1]); s.w = this.wave; s.sc = this.score; if (this.quest) s.q = Quest.snap(this); if (this.heli) s.h = Heli.snap(this); }
     if (this.events.length) { s.ev = this.events; this.events = []; }
     return s;
   }

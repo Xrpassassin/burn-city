@@ -629,23 +629,34 @@ export function buildNftChar(n, opts = {}) {
   g.userData.legs=legs; g.userData.arms=arms; g.userData.head=head; g.userData.nftId=n?.id;
   g.userData.nftTraits=originalTraitPairs.map(([type,value])=>[String(type),String(value)]);
   const unsupportedVisualTraits = [
+    components.outfitStyle === 'custom' ? {slot:'outfit',value:traitValue(/^(?:outfit|armor)$/i)} : null,
     components.headwearStyle === 'custom' ? {slot:'headwear',value:traitValue(/^headwear$/i)} : null,
+    components.hairStyle === 'custom' ? {slot:'hair style',value:traitValue(/^hair style$/i) || traitValue(/^headwear$/i)} : null,
     components.accessoryStyle === 'custom' ? {slot:'accessory',value:traitValue(/^accessory$/i)} : null,
     components.weaponStyle === 'custom' ? {slot:'weapon',value:traitValue(/^weapon$/i)} : null,
     components.wingStyle === 'custom' ? {slot:'wing',value:traitValue(/^wing$/i)} : null,
-    components.patternStyle === 'custom' ? {slot:'body pattern',value:traitValue(/body pattern/i)} : null,
-    components.bodyEffect === 'custom' ? {slot:'body effect',value:traitValue(/^body effect$/i)} : null
+    components.tailStyle === 'custom' ? {slot:'tail',value:traitValue(/^tail$/i)} : null,
+    components.patternStyle === 'custom' ? {slot:'body pattern',value:traitValue(/body pattern/i) || traitValue(/outfit|armor/i)} : null,
+    components.bodyEffect === 'custom' ? {slot:'body effect',value:traitValue(/^body effect$/i)} : null,
+    components.expression === 'custom' ? {slot:'expression',value:traitValue(/^expression$/i)} : null,
+    components.hasMarkings && !/scar|freckle|spot|paint|tattoo|war paint/i.test(components.markings) ? {slot:'markings',value:components.markings} : null,
+    components.eyeAppearance && !/surprised|wide|open|flame|burn|melt|glow|neon|angry|sleep|closed/i.test(components.eyeAppearance) ? {slot:'eye appearance',value:components.eyeAppearance} : null
   ].filter(item => item && item.value);
   // Every source trait gets a clear disposition: 3D, artwork-only, or flagged for review.
   const geometryNeeded = new Set(unsupportedVisualTraits.map(item => String(item.slot || '').toLowerCase()));
   const unsupportedStyleSlots = [
     components.outfitStyle === 'custom' ? 'outfit' : null,
     components.headwearStyle === 'custom' ? 'headwear' : null,
+    components.hairStyle === 'custom' ? 'hair style' : null,
     components.accessoryStyle === 'custom' ? 'accessory' : null,
     components.weaponStyle === 'custom' ? 'weapon' : null,
     components.wingStyle === 'custom' ? 'wing' : null,
+    components.tailStyle === 'custom' ? 'tail' : null,
     components.patternStyle === 'custom' ? 'body pattern' : null,
-    components.bodyEffect === 'custom' ? 'body effect' : null
+    components.bodyEffect === 'custom' ? 'body effect' : null,
+    components.expression === 'custom' ? 'expression' : null,
+    components.hasMarkings && !/scar|freckle|spot|paint|tattoo|war paint/i.test(components.markings) ? 'markings' : null,
+    components.eyeAppearance && !/surprised|wide|open|flame|burn|melt|glow|neon|angry|sleep|closed/i.test(components.eyeAppearance) ? 'eye appearance' : null
   ].filter(Boolean);
   for (const slot of unsupportedStyleSlots) geometryNeeded.add(slot);
   const renderableSlots = new Set([

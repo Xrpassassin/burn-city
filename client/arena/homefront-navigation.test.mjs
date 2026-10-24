@@ -62,3 +62,5 @@ assert.equal(openedGatePlan.detour, null, 'a changed obstacle set, such as an op
 
 const blockedRoute = updateRoutePlan({}, { x: -2, z: 0 }, { x: 2, z: 0 }, [routeWall, { id: 'north-blocker', type: 'wall', hp: 100, x: 1.26, z: 1.4 }, { id: 'south-blocker', type: 'wall', hp: 100, x: 1.26, z: -1.4 }]);
 assert.equal(blockedRoute.unreachable, true, 'when both safe detour sides are blocked the planner reports the route as unreachable instead of inventing a waypoint');
+const recoveredRoute = updateRoutePlan(blockedRoute, { x: 2, z: 0 }, { x: 2, z: 0 }, [routeWall, { id: 'north-blocker', type: 'wall', hp: 100, x: 1.26, z: 1.4 }, { id: 'south-blocker', type: 'wall', hp: 100, x: 1.26, z: -1.4 }]);
+assert.equal(recoveredRoute.unreachable, false, 'a new position at the destination clears stale blocked-route status');

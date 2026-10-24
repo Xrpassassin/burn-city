@@ -118,6 +118,7 @@ async function loadLiveNft(){
   if(!response.ok)throw new Error('API returned HTTP '+response.status);
   const record=await response.json();
   if(String(record.NFTokenID||record._id||'').toUpperCase()!==id)throw new Error('API response did not match the requested NFTokenID.');
+  if(String(record.Issuer||'')!=='rXYdhW4ZHdzt27VuHJgNwbD1aJjcKZJ9M'||Number(record.NFTokenTaxon??record.Taxon)!==0)throw new Error('The requested token is not verified as a RACC collection NFT (issuer/taxon mismatch or missing fields).');
   const meta=record.meta&&typeof record.meta==='object'?record.meta:{};
   const rawTraits=Array.isArray(meta.attributes)?meta.attributes:(Array.isArray(record.props)?record.props.map(item=>({trait_type:item.type,value:item.value})):[]);
   const traits=rawTraits.slice(0,64).map(item=>[String(item.trait_type||item.type||'').trim(),String(item.value??'').trim()]).filter(item=>item[0]);

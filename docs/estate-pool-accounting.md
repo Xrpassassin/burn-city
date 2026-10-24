@@ -70,6 +70,17 @@ Xaman integration notes: use the official Xaman SDK or documented backend API fo
 
 Until these facts are available and reviewed, this branch must keep purchases and payouts disabled. The game should never claim it is connected to or managing that wallet before an actual, tested integration exists.
 
+## Xaman treasury identity verification (implementation step)
+
+The Estates branch now exposes a fail-closed wallet identity verification flow:
+- `GET /api/estates/wallet/status` reports the expected address, whether Xaman API credentials are configured, and whether this process has verified control.
+- `POST /api/estates/wallet/verify/start` creates a Xaman SignIn request when server-side Xaman API credentials are configured.
+- `POST /api/estates/wallet/verify/finish` polls the SignIn result and compares the signed-in account to the expected Estates treasury address.
+- The start endpoint is rate-limited; verification requests expire after ten minutes. The verification status is in-memory and resets on process restart, so it is not yet a durable governance record.
+- The verification module is dependency-injected for unit tests; tests cover successful address match, mismatch, expiry, missing credentials, invalid configured address, and the invariant that sales/distributions remain disabled.
+
+The expected public address defaults to the owner-supplied value and can be overridden with `ESTATE_TREASURY_ADDRESS`. Xaman API key/secret must be set as server-side environment secrets (`XAMAN_API_KEY` and `XAMAN_API_SECRET`, or the legacy `XUMM_*` equivalents). Never put the secret in client code. This flow does not use or require Grok credentials, and it does not make or authorize a payment.
+
 ## API and persistence status
 
 - `GET /api/estates` returns the property catalog and, when authenticated, the caller's recorded ownership.

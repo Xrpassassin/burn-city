@@ -86,7 +86,7 @@ function showArtwork(url){art.replaceChildren();if(!url){const s=document.create
 function renderSample(){try{
  const nft=JSON.parse(document.querySelector('#sample').value);
  if(!nft || typeof nft!=='object' || Array.isArray(nft)) throw new Error('Sample must be a JSON object.');
- if(avatar){scene.remove(avatar);avatar.traverse(o=>{if(o.geometry && o.geometry.dispose)o.geometry.dispose();});}
+ if(avatar){scene.remove(avatar); /* Avatar builder caches shared geometry/materials; do not dispose shared resources here. */}
  avatar=buildNftChar(nft);avatar.position.set(0,0,0);scene.add(avatar);setView('front');
  const profile=avatar.userData.nftAvatarProfile||{};
  const recon=profile.reconstruction||{};

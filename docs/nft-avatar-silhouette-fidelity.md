@@ -49,3 +49,8 @@ The avatar profile now emits a record for every original NFT trait, preserving t
 - `needs-dedicated-visual`: the renderer cannot yet represent that trait value faithfully, or its type has no explicit renderer mapping.
 
 The visual QA page prints this trait-by-trait audit so a reviewer can find omissions instead of assuming every trait rendered. This is an audit aid, not proof of visual accuracy; trait classifications and the rendered result still require side-by-side review against the actual NFT.
+
+
+## Stricter value-level trait fidelity audit
+
+The trait audit now flags unsupported values in addition to unknown trait names. Custom tail and hair styles, unknown expressions, unfamiliar markings, and unrecognized eye-appearance values are marked for dedicated modeling rather than counted as faithfully represented simply because a broad slot exists. A supported slot is not proof that every possible value has been reconstructed; the audit must remain honest about value-level gaps.

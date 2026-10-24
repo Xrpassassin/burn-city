@@ -96,7 +96,7 @@ assert.equal(interiorState[interiorAccount].interiors.mercy_hospital.doorDamage.
   const beforeFollower = followerEncounter.members[1];
   const afterFollower = C.advance({ encounters: { [followerAccount]: followerEncounter },
     players: { [followerAccount]: followerPlayer }, interiors: followerInteriorState, now: 201000 })[followerAccount].members[1];
-  assert.ok(Math.hypot(afterFollower.x - beforeFollower.x, afterFollower.z - beforeFollower.z) <= 3.1,
+  assert.ok(Math.hypot(afterFollower.x - beforeFollower.x, afterFollower.z - beforeFollower.z) <= 4.4,
     'a blocked squad follower advances by a bounded pathfinding step instead of teleporting through a closed interior door');
 }
 

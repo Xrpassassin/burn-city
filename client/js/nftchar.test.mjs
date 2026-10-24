@@ -64,6 +64,7 @@ has(avatar, /nft-firekeeper-robe-panel/, 'builds separate layered Firekeepers ro
 has(avatar, /nft-firekeeper-robe-embroidery/, 'adds collection-specific Firekeepers robe embroidery');
 has(avatar, /nft-firekeeper-sigil/, 'supports a collection-specific Firekeepers sigil when a relic trait exists');
 has(avatar, /if \(components\.headwearStyle === 'hood'\)[\s\S]*nft-firekeeper-cowl/, 'gates the Firekeepers cowl on the individual token headwear trait');
+has(avatar, /\(components\.headwearStyle === 'hood' \|\| has\(tr,\/hood\/\)\) && key !== 'fk'/, 'avoids double-rendering a generic hood over the Firekeepers-specific cowl');
 has(avatar, /if \(components\.accessoryStyle === 'relic'\)[\s\S]*nft-firekeeper-sigil/, 'gates the Firekeepers sigil on the individual token accessory trait');
 has(avatar, /if\(url&&opts\.panel===true\)/, 'keeps the artwork tabard opt-in so it does not obscure the in-game 3D reconstruction');
 has(avatar, /nft-protocol-emblem/, 'builds a collection-specific 589 Protocol insignia');

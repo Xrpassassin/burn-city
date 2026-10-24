@@ -56,7 +56,7 @@ The current `assign` action sets the role and synchronizes behavior. The inspect
 
 ## Focused regression harness status
 
-`test/homefront-survivor-economy-sim.js` is a separate proposed harness on the documentation branch. It currently covers deterministic workdays, facility-dependent output, no mutation after a rejected workday, assignment validation, and resource/morale bounds. It has **not** been executed in this session, is not wired into `package.json` or CI, and is not evidence of passing behavior yet. Keep it separate until it is checked against the final reconciled core schema; then wire it into the focused Homefront test command and workflow in the integration branch.
+`test/homefront-survivor-economy-sim.js` is a separate proposed harness on the documentation branch. It currently covers deterministic workdays, facility-dependent output, no mutation after a rejected workday, assignment validation, resource/morale bounds, survivor save/load round-trip, and owner isolation. It has **not** been executed in this session, is not wired into `package.json` or CI, and is not evidence of passing behavior yet. Keep it separate until it is checked against the final reconciled core schema; then wire it into the focused Homefront test command and workflow in the integration branch.
 
 ## Release blockers
 

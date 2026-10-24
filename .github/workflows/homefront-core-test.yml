@@ -37,6 +37,8 @@ on:
       - 'client/arena/homefront-graveyard-3d.js'
       - 'client/arena/homefront-landmark-builder.mjs'
       - 'client/arena/homefront-landmark-builder.test.mjs'
+      - 'client/arena/homefront-interior-world.mjs'
+      - 'client/arena/homefront-interior-world.test.mjs'
       - 'client/arena/homefront-view.mjs'
       - 'client/arena/homefront-view.test.mjs'
       - 'client/arena/assets/homefront/**'

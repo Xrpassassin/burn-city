@@ -136,7 +136,7 @@ function boot(host) {
     weaponSwingStartedAt = performance.now();
     weaponSwingUntil = weaponSwingStartedAt + 320;
     const detail = event.detail || {};
-    const weaponId = ['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'].includes(detail.weaponId) ? detail.weaponId : 'pipe_blade';
+    const weaponId = ['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','assault_rifle','heavy_machine_gun'].includes(detail.weaponId) ? detail.weaponId : 'pipe_blade';
     const style = weaponId === 'shock_maul' ? 'blunt' : weaponId === 'pump_shotgun' || weaponId === 'marksman_rifle' ? 'firearm' : 'sharp';
     weaponSwingWeaponId = weaponId;
     const targetId = detail.encounterId || detail.encounter?.id || detail.combat?.encounterId;
@@ -195,7 +195,7 @@ function boot(host) {
     equippedWeaponSkinColor = parseCosmeticColor(detail.weaponColor, equippedWeaponSkinColor);
     equippedOutfitColor = parseCosmeticColor(detail.outfitColor, equippedOutfitColor);
     equippedBackpackColor = parseCosmeticColor(detail.backpackColor, equippedBackpackColor);
-    if (['pipe_blade','pump_shotgun','marksman_rifle','shock_maul'].includes(detail.weaponId)) equippedWeaponId = detail.weaponId;
+    if (['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','assault_rifle','heavy_machine_gun'].includes(detail.weaponId)) equippedWeaponId = detail.weaponId;
   });
   const roadMat = mat(0x343733), buildingMats = [mat(0x41413a), mat(0x4b443a), mat(0x363d3d), mat(0x50483d)];
   const ruinMat = mat(0x292d2a), emberMat = new THREE.MeshStandardMaterial({ color: 0xff7738, emissive: 0x9c2507, emissiveIntensity: 0.8 });
@@ -641,16 +641,18 @@ function boot(host) {
       grip.position.y = -0.2; weapon.add(grip);
       const finish = p.label === 'You' ? equippedWeaponSkinColor : 0x9a7b62;
       const isMelee = weaponId === 'pipe_blade' || weaponId === 'shock_maul';
-      const length = weaponId === 'marksman_rifle' ? 1.02 : weaponId === 'pump_shotgun' ? 0.92 : weaponId === 'shock_maul' ? 0.58 : 0.76;
-      const width = weaponId === 'shock_maul' ? 0.28 : weaponId === 'pipe_blade' ? 0.1 : 0.16;
+      const length = weaponId === 'heavy_machine_gun' ? 1.18 : weaponId === 'assault_rifle' ? 0.98 : weaponId === 'marksman_rifle' ? 1.02 : weaponId === 'pump_shotgun' ? 0.92 : weaponId === 'shock_maul' ? 0.58 : 0.76;
+      const width = weaponId === 'heavy_machine_gun' ? 0.24 : weaponId === 'shock_maul' ? 0.28 : weaponId === 'pipe_blade' ? 0.1 : 0.16;
       const barrel = new THREE.Mesh(new THREE.BoxGeometry(width, length, weaponId === 'shock_maul' ? 0.22 : 0.19), mat(finish));
       barrel.position.y = 0.12 + length / 2; weapon.add(barrel);
       if (weaponId === 'shock_maul') {
         const head = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.3, 0.32), mat(0x454844));
         head.position.y = 0.12 + length; weapon.add(head);
       } else if (!isMelee) {
-        const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.23), mat(0x373a38));
+        const muzzle = new THREE.Mesh(new THREE.BoxGeometry(weaponId === 'heavy_machine_gun' ? 0.28 : 0.2, 0.12, 0.23), mat(0x373a38));
         muzzle.position.y = 0.12 + length + 0.04; weapon.add(muzzle);
+        if (weaponId === 'heavy_machine_gun') { const stock = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.26, 0.24), mat(0x373a38)); stock.position.y = -0.18; weapon.add(stock); const feed = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.34, 0.25), mat(0x8b7757)); feed.position.set(0.18, 0.12 + length * 0.45, 0); weapon.add(feed); }
+        if (weaponId === 'assault_rifle') { const mag = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.34, 0.13), mat(0x343934)); mag.position.set(-0.08, 0.02, 0); weapon.add(mag); }
       }
       g.add(weapon); g.userData.weapon = weapon; g.userData.isLocalPlayer = p.label === 'You';
       g.userData.avatarParts = [
@@ -931,7 +933,7 @@ function boot(host) {
     if (!active || active.defeated || active.hp <= 0 || selectedCombatTargetId !== active.id || distance > (active.range || 0)) { stopAutoFire(); if (combatStatus) combatStatus.textContent = 'Autofire stopped: target defeated, out of range, or no longer selected.'; return; }
     const fired = await combatAction('attack', selectedCombatTargetId);
     if (!autoFireHeld || fired === false) { stopAutoFire(); return; }
-    const delay = equippedWeaponId === 'marksman_rifle' ? 1350 : equippedWeaponId === 'pump_shotgun' ? 1150 : equippedWeaponId === 'shock_maul' || equippedWeaponId === 'pipe_blade' ? 950 : 1000;
+    const delay = equippedWeaponId === 'heavy_machine_gun' ? 140 : equippedWeaponId === 'assault_rifle' ? 220 : equippedWeaponId === 'marksman_rifle' ? 1350 : equippedWeaponId === 'pump_shotgun' ? 1150 : equippedWeaponId === 'shock_maul' || equippedWeaponId === 'pipe_blade' ? 950 : 1000;
     autoFireTimer = setTimeout(fireLoop, delay);
   };
   if (autoFireButton) {

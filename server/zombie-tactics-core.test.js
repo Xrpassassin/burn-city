@@ -2,10 +2,14 @@
 
 const assert = require('node:assert/strict');
 const {
-  assignRole, distance2D, hearNoise, chooseBehavior, flankingHint, selectApproachTarget
+  assignRole, distance2D, hearNoise, chooseBehavior, flankingHint, selectApproachTarget, roleTuning
 } = require('./zombie-tactics-core');
 
 assert.equal(assignRole('z1', 'squad-a', 0, 4), 'pursuer');
+assert.equal(roleTuning('runner').pursuitSpeed, 1.12, 'runner closes distance faster');
+assert.equal(roleTuning('bruiser').staggerFactor, 0.3, 'bruiser recovers movement better under stagger');
+assert.equal(roleTuning('straggler').hearingScale, 1.25, 'straggler detects sounds at extended range');
+assert.deepEqual(roleTuning('unknown'), roleTuning('pursuer'), 'unknown role safely falls back to pursuer tuning');
 assert.equal(assignRole('z2', 'squad-a', 1, 4), assignRole('z2', 'squad-a', 1, 4), 'role assignment is deterministic');
 assert.notEqual(assignRole('z2', 'squad-a', 1, 4), 'pursuer');
 assert.equal(distance2D({ x: 0, z: 0 }, { x: 3, z: 4 }), 5);

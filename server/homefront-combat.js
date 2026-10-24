@@ -130,7 +130,7 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  let aimedZone=null;
  if(aimPoint!=null&&(!aimPoint||![aimPoint.x,aimPoint.y,aimPoint.z].every(Number.isFinite)||Math.hypot(aimPoint.x-target.x,aimPoint.z-target.z)>1.75||aimPoint.y<0.05||aimPoint.y>2.7))throw Error('invalid_aim_point');
  if(Math.hypot(player.x-target.x,player.z-target.z)>e.range)throw Error('enemy_out_of_range');
- const weaponId=typeof base.equippedWeapon==='string'&&WEAPON_FIRE_INTERVAL[base.equippedWeapon]&&base.weapons?.includes(base.equippedWeapon)?base.equippedWeapon:'pipe_blade';
+ const weaponId=typeof base.equippedWeapon==='string'&&WEAPON_FIRE_INTERVAL[base.equippedWeapon]&&(!Array.isArray(base.weapons)||base.weapons.includes(base.equippedWeapon))?base.equippedWeapon:'pipe_blade';
  const handling=WEAPON_HANDLING[weaponId]||WEAPON_HANDLING.pipe_blade;
  const aimElapsed=player.aiming===true&&Number.isFinite(player.aimStartedAt)?Math.max(0,now-player.aimStartedAt):0;
  const recoveryRemaining=Number.isFinite(player.accuracyRecoverUntil)?Math.max(0,player.accuracyRecoverUntil-now):0;

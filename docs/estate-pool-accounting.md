@@ -48,6 +48,13 @@ Never accept a client-supplied transaction hash, wallet balance, profit figure, 
 
 ## Required wallet ownership decision: use the user's existing Grok-connected wallet
 
+**Provider identified by owner:** Xaman (formerly Xumm).  
+**Owner-supplied public XRPL account:** `rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb`  
+**Verification status:** owner-supplied; not yet independently verified against the intended XRPL network or confirmed by a Xaman SignIn flow.
+
+This address is a configuration candidate only. Do not enable sales, label it as a verified treasury, or initiate payments until the address is confirmed on-ledger and the owner proves control through Xaman's documented authentication/signing flow. Do not infer that Grok's connection grants this game access to the account.
+
+
 The intended treasury/payment wallet is the existing wallet the project owner has connected to Grok. Do not silently generate, substitute, or deploy a second treasury wallet. Treat that existing wallet as the intended destination for property-sale proceeds and the source account for AMM activity and weekly distributions, subject to confirmation of its exact public address, XRPL network, supported signing/approval interface, and permissions.
 
 Important integration boundary: connecting a wallet to Grok does not by itself give this game server, this coding session, or the BURN City runtime access to the wallet or its private keys. The implementation must integrate only through a documented, authorized wallet interface or a deliberately approved transaction-signing workflow. Never ask the owner to paste a seed phrase or secret key into chat, source code, browser storage, or server logs. Use public addresses for identification and verify all relevant transactions directly against the XRPL ledger.

@@ -113,7 +113,7 @@ has(avatar, /const hasProtocolMark=has\(tr,\/burn\|protocol\|insignia\|logo\|emb
 has(avatar, /if\(has\(tr,\/strap\|harness\|tactical\|techwear\/\)\)/, 'gates 589 tactical straps on token-specific gear traits');
 has(avatar, /Keep the trait-backed Protocol insignia above the optional QA artwork panel/, 'documents that the 589 insignia is trait-gated and layered correctly when present');
 has(avatar, /nft-protocol-emblem[\s\S]*1\.655,\.245[\s\S]*renderOrder=3/, 'keeps the 589 emblem above the original artwork panel');
-has(avatar, /artwork panel spans the torso center[\s\S]*side\*\.292[\s\S]*renderOrder=3/, 'keeps 589 shirt edge stitching visible outside the artwork frame');
+has(avatar, /Restrained edge stitching supports the streetwear silhouette[\s\S]*side\*\.292[\s\S]*renderOrder=3/, 'keeps restrained 589 shirt edge stitching visible outside the artwork frame');
 has(avatar, /addBox\(g,mat\('#15171c'\),\[0,\.775,\.252\],\[\.12,\.055,\.012\]\)\.name='nft-protocol-shirt-print'/, 'places the 589 shirt print below the artwork frame where it remains visible');
 has(avatar, /nft-protocol-shirt-sigil[\s\S]*\.775,\.266[\s\S]*renderOrder=3/, 'places the 589 shirt sigil below the artwork frame and above the torso');
 has(avatar, /key==='fk'/, 'gives Firekeepers a collection-specific ember treatment');

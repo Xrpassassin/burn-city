@@ -163,6 +163,13 @@ export function buildNftChar(n, opts = {}) {
       addCapsule(head,mat(shade(faceHex,.65)),[s*.067,.092,.155],.012,.035,[1,.6,.6]).rotation.z=s*.15;
     }
     addSphere(head,mat(shade(faceHex,.76)),[0,-.015,.172],[.025,.04,.03]);
+    // Human/Protocol masks are distinct wearable geometry; the original NFT art tabard remains intact below.
+    if (components.hasMask) {
+      const maskColor=traitColor(/mask/i,'#25272d');
+      const mask=addSphere(head,mat(maskColor,.62,.12),[0,-.075,.19],[.145,.078,.045]);
+      mask.name='nft-trait-face-mask';
+      addBox(head,mat(shade(maskColor,.72)),[0,-.025,.205],[.025,.035,.025]);
+    }
     const mouthTrait = traitValue(/mouth|expression|emotion/i).toLowerCase();
     if (has(tr,/beard|goatee|mustache|moustache/)) addSphere(head,mat('#332821'),[0,-.095,.145],[.105,.075,.055]);
     if (/fang|teeth|snarl|open mouth|scream/.test(mouthTrait)) {
@@ -257,17 +264,21 @@ export function buildNftChar(n, opts = {}) {
     }
   }
 
-  // Preserve the actual NFT composition on the walking avatar. Unlike a tiny circular crop, this image panel
-  // uses contain-fit sizing once the image dimensions are available, so square, portrait and landscape art survive.
+  // The original NFT is the per-token visual source of truth. Give it a prominent, framed chest tabard
+  // instead of a tiny badge; preserve the complete composition and its original aspect ratio (never crop).
   const url=opts.srv?nftImg(opts.srv,n):'';
   if(url&&opts.panel!==false) {
-    addBox(g,mat('#15191f',.45,.28),[0,1.18,.207],[.375,.49,.025]);
+    const artFrame=addBox(g,mat('#15191f',.42,.34),[0,1.24,.207],[.57,.73,.026]);
+    artFrame.name='nft-artwork-frame';
+    addBox(g,metal,[0,1.61,.223],[.59,.018,.018]).name='nft-artwork-frame-top';
+    addBox(g,metal,[0,.87,.223],[.59,.018,.018]).name='nft-artwork-frame-bottom';
     const artTexture=tex(url);
     const artMaterial=new THREE.MeshBasicMaterial({map:artTexture,transparent:true,side:THREE.DoubleSide,depthWrite:false,toneMapped:false});
-    const artPanel=add(geo('nft-artwork-panel',()=>new THREE.PlaneGeometry(1,1)),artMaterial,0,1.18,.224);
-    artPanel.name='nft-artwork-panel'; artPanel.castShadow=false; artPanel.receiveShadow=false;
-    artPanel.scale.set(.35,.46,1);
+    const artPanel=add(geo('nft-artwork-panel',()=>new THREE.PlaneGeometry(1,1)),artMaterial,0,1.24,.226);
+    artPanel.name='nft-artwork-panel'; artPanel.castShadow=false; artPanel.receiveShadow=false; artPanel.renderOrder=2;
+    artPanel.scale.set(.54,.69,1);
     g.userData.artPanel=artPanel; g.userData.artTexture=artTexture;
+    g.userData.artworkIdentity={mode:'framed-full-composition',source:url,aspectFit:'contain',cropped:false};
   }
   if(url&&opts.card) {
     const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex(url),depthWrite:false})); sp.scale.set(.62,.62,1); sp.position.set(0,2.55,0); g.add(sp); g.userData.card=sp;
@@ -284,7 +295,7 @@ export function buildNftChar(n, opts = {}) {
       const iw=Number(image.naturalWidth||image.videoWidth||image.width)||0;
       const ih=Number(image.naturalHeight||image.videoHeight||image.height)||0;
       if(iw>0&&ih>0) {
-        const fit=Math.min(.35/iw,.46/ih);
+        const fit=Math.min(.54/iw,.69/ih);
         panel.scale.set(iw*fit,ih*fit,1); panel.userData.artFitDone=true;
       }
     }

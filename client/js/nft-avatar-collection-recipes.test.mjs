@@ -5,7 +5,7 @@ import { resolveNftAvatarReconstruction } from './nft-avatar-reconstruction.js';
 let checks = 0;
 function ok(value, message) { assert.ok(value, message); checks++; }
 function equal(a,b,message) { assert.deepEqual(a,b,message); checks++; }
-equal(NFT_AVATAR_COLLECTION_RECIPES, ['racc','fk','589','generic'], 'recipe registry has stable collection order');
+equal(NFT_AVATAR_COLLECTION_RECIPES, ['589','racc','fk','generic'], 'recipe registry has stable collection order');
 for (const key of NFT_AVATAR_COLLECTION_RECIPES) {
   const recipe = getNftAvatarCollectionRecipe(key);
   equal(validateNftAvatarCollectionRecipe(recipe), [], key+' recipe validates');

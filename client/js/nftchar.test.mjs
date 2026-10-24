@@ -85,6 +85,8 @@ has(avatar, /artPanel/, 'keeps original NFT composition separate from procedural
 has(avatar, /Math\.min\(\.54\/iw,\.69\/ih\)/, 'fits the larger complete artwork composition without cropping');
 has(avatar, /eyeHex = traitColor/, 'maps typed eye-color traits to eye materials');
 has(avatar, /hairHex = traitColor/, 'maps typed hair-color traits to hair materials');
+has(avatar, /color\(pal\.top,'#201c20'\)/, 'uses the NFT artwork palette when hair color metadata is absent');
+has(avatar, /const eyeMood=traitValue/, 'distinguishes eye appearance traits from eye color');
 has(avatar, /opts\.card/, 'keeps the floating peer portrait optional');
 has(avatar, /g\.userData\.anim=/, 'exposes a compatible walking animation');
 has(avatar, /o\.material\.dispose\(\)/, 'disposes per-avatar mapped materials without destroying shared textures');

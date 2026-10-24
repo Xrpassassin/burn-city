@@ -21,6 +21,7 @@ ok(r.profile.xp === F.xpForCatch(r.fish) && F.get(A).xp === r.profile.xp, 'serve
 ok(F.get(A).coins === 0, 'no coins until sold'); const s = F.sell(A); ok(s.sold > 0 && F.get(A).coins === s.sold, 'selling gives coins');
 ok(F.buy(A, 'rod', 'legend').error === 'not_enough_coins', 'cannot buy what you cannot afford');
 { const L = 'rFishLevelLock88888888888888888'; F.importGuest(L, { coins: 2000 }); const blocked = F.buy(L, 'rod', 'carbon'); ok(blocked.error === 'level_locked' && blocked.requiredLevel === 2, 'server blocks a rod purchase before its angler level unlock'); }
+{ const M = 'rFishMigration77777777777777777'; F.importGuest(M, { n: 1 }); require('../server/payments').sdb.prepare('INSERT INTO fish_catch(acct,t,kg,sp) VALUES(?,?,?,?)').run(M, Date.now(), 0.2, 'minnow'); ok(F.get(M).xp === 10, 'legacy signed-in catches backfill XP from authoritative catch rows'); }
 while (F.get(A).coins < 5) { off += 10e3; const k = F.cast(A, {}); off += k.wait + 50; F.reel(A, k.cid, true); F.sell(A); }
 ok(F.buy(A, 'bait', 'shrimp', 1).profile.bait.shrimp === 1, 'bait purchase with coins');
 off += 10e3; const c3 = F.cast(A, {}); off += c3.wait + 25e3; ok(F.reel(A, c3.cid, true).error === 'timing', 'stale reel (bot left it) rejected');

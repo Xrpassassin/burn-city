@@ -82,9 +82,8 @@ export function buildNftChar(n, opts = {}) {
   addCapsule(g,darkCloth,[0,.82,0],.19,.14,[1.03,.72,.76]);
   const torso = addCapsule(g,cloth,[0,1.17,0],.245,.39,[1.16,1.04,.76]);
   torso.name = 'avatar-torso';
-  // Stable, subtle silhouette variation gives each token an individual baseline when metadata has no body-build trait.
-  const silhouetteVariants = [.94,.97,1,1.03,1.06];
-  const silhouette = silhouetteVariants[profile.identitySeed % silhouetteVariants.length];
+  // Never fabricate anatomy from a token ID hash: absent an explicit body-build trait,
+  // collection proportions stay neutral and stable. Identity must come from source traits/art.
   const bodyShapeTrait = profile.rawTraits.find(([type]) => /body type|body shape|body build|physique|stature/i.test(type))?.[1] || '';
   const bodyShapeText = String(bodyShapeTrait).toLowerCase();
   const hasBodyShape = !!bodyShapeTrait;
@@ -98,7 +97,7 @@ export function buildNftChar(n, opts = {}) {
     : bodyBuild === 'tall' ? [.96,1.16,.96]
     : bodyBuild === 'compact' ? [1.02,.86,1.02]
     : bodyBuild === 'athletic' ? [1.07,1.04,1] : [1,1,1];
-  if (!hasBodyShape) { torso.scale.x *= silhouette; torso.scale.y *= 2 - silhouette; }
+  // With no body-build trait, keep the collection baseline instead of randomizing proportions.
   torso.scale.x *= reconstruction.torsoWidth * bodyScale[0];
   torso.scale.y *= reconstruction.torsoHeight * bodyScale[1];
   torso.scale.z *= bodyScale[2];
@@ -209,7 +208,7 @@ export function buildNftChar(n, opts = {}) {
     : /round|circular|soft/.test(faceShapeText) ? [1.08,1.04,1.04]
     : /narrow|thin|slim/.test(faceShapeText) ? [.86,1,1]
     : [1,1,1];
-  if (!hasFaceShape) head.scale.x = silhouetteVariants[(profile.identitySeed >>> 3) % silhouetteVariants.length];
+  // With no face-shape trait, keep the collection-specific head proportions unchanged.
   head.scale.multiply(new THREE.Vector3(...reconstruction.headScale));
   head.scale.multiply(new THREE.Vector3(...faceScale));
   if (key === 'racc') {

@@ -278,6 +278,16 @@ class Room {
         const investigatingVisibleNoise = tactical?.state === 'investigate' && tactical.target && Z.los(this, zb.x, zb.z, tactical.target.x, tactical.target.z, zb.y, zb.y);
         if (investigatingVisibleNoise) { tx = tactical.target.x; tz = tactical.target.z; }
         else if (zb.ty !== 6 && st && !(bd < 3 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y))) { tx = st[0]; tz = st[1]; }
+        // Squad coordination: only a visible-target flanker may request an alternate
+        // approach. Validate same-floor walkability and LOS before overriding the
+        // ordinary flow-field waypoint; normal axis collision checks still govern motion.
+        if (tactical?.state === 'pursue' && zb.role === 'flanker' && sameLv && bd > 3) {
+          const approach = Tactics.selectApproachTarget({ role: zb.role, zombie: zb, target: best, targetVisible: true, offset: 4 });
+          if (approach && Z.inside(this, approach.x, approach.z, 0.32, zb.lv) &&
+              Z.los(this, zb.x, zb.z, approach.x, approach.z, zb.y, zb.y)) {
+            tx = approach.x; tz = approach.z;
+          }
+        }
         if (tactical?.state !== 'investigate' && (zb.ty === 3 || zb.ty === 8)) { zb.chT = (zb.chT ?? (zb.ty === 8 ? 6 : 5)) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < (zb.ty === 8 ? 12 : 14) && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = (zb.ty === 8 ? 8 + Math.random() * 2 : 7 + Math.random() * 3); zb.charge = zb.ty === 8 ? 1.05 : 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
         const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1, mv = zb.sp * (!this.ranked && !this.daily && zb.stagger > 0 ? 0.12 : 1) * (zb.charge > 0 ? (zb.ty === 8 ? 2.6 : 3.2) : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
         if (zb.ty === 6) { zb.x = nx; zb.z = nz; zb.y = 2.4 + Math.sin(this.t * 3.5 + zb.id) * 0.3; zb.lv = 0; }

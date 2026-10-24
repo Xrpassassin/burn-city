@@ -1,5 +1,5 @@
 // Burn City Estates: lake + shoreline, highway + bridge with instanced car lights, and a fenced "COMING SOON" construction lot.
-// Cheap by design: one shader water disc (no reflection render target), merged/instanced geometry, ~14 draw calls total.
+// Performance-minded procedural architecture: merged geometry and one shader water surface; no external model or texture downloads.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const box = (w, h, d, x, y, z, ry = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); return g.translate(x, y, z); };
@@ -148,9 +148,9 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const dirt = new THREE.Mesh(new THREE.PlaneGeometry(LW, LD), new THREE.MeshLambertMaterial({ color: 0x394536 }));
   dirt.rotation.x = -Math.PI / 2; dirt.position.y = 0.06; lot.add(dirt);
   const roadBits = [], paths = [], foundations = [], walls = [], roofs = [], glass = [], trim = [], greenery = [], trunks = [], canopies = [], parkProps = [], shrubs = [], flowerBeds = [], fences = [];
-  const facadeTrim = [], doors = [], windowFrames = [], warmWindows = [], roofRidge = [], balconies = [], poolDeck = [], poolWater = [], drivewayDetails = [], porchLights = [];
+  const facadeTrim = [], doors = [], windowFrames = [], warmWindows = [], roofRidge = [], balconies = [], poolDeck = [], poolWater = [], drivewayDetails = [], porchLights = [], accentPanels = [];
   const addBox = (arr,w,h,d,x,y,z,ry=0) => arr.push(box(w,h,d,x,y,z,ry));
-  const addRoofPanel = (arr,w,h,d,x,y,z,rz) => { const g = new THREE.BoxGeometry(w,h,d); g.rotateZ(rz); g.translate(x,y,z); arr.push(g); };
+  const addRoofPanel = (arr,w,h,d,x,y,z,rz) => { const g = new THREE.BoxGeometry(w,h,d); g.rotateZ(rz); g.translate(x,y,z); arr.push(g); };\n  const addTintedBox = (arr,w,h,d,x,y,z,color) => { const g = new THREE.BoxGeometry(w,h,d); const c = new THREE.Color(color), values=[]; for (let i=0;i<g.attributes.position.count;i++) values.push(c.r,c.g,c.b); g.setAttribute('color',new THREE.Float32BufferAttribute(values,3)); g.translate(x,y,z); arr.push(g); };
   const addGable = (arr,w,rise,x,y,z) => { const s = new THREE.Shape(); s.moveTo(-w/2,0); s.lineTo(w/2,0); s.lineTo(0,rise); s.closePath(); const g = new THREE.ShapeGeometry(s); g.translate(x,y,z); arr.push(g); };
   // A small internal street grid links every driveway to the bridge approach.
   addBox(roadBits, 10, .16, LD-18, 0, .14, 2);
@@ -181,6 +181,10 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     const yardPad=isTrailer?2:isApartment?3:isMansion?9:5;
     addBox(foundations,h.w+yardPad*2,.4,h.d+yardPad*2,h.x,.3,h.z);
     addBox(walls,h.w,h.h,h.d,h.x,h.h/2+.5,h.z);
+    const tierAccent = isTrailer ? 0x6d7e8b : isApartment ? 0x3b6578 : h.tier === 'starter' ? 0x6b8a91 : h.tier === 'family' ? 0x9a7655 : 0x4b777b;
+    // Coloured architectural belt-lines and corner pilasters differentiate the housing tiers without texture assets.
+    addTintedBox(accentPanels,h.w-.8,.34,.16,h.x,.92,front+.09,tierAccent);
+    for (const edge of [-1,1]) addTintedBox(accentPanels,.28,h.h-.5,.16,h.x+edge*(h.w/2-.3),h.h/2+.5,front+.09,tierAccent);
     // Trailer roofs are low and pitched-looking; other tiers use clean flat roof silhouettes.
     if (isTrailer) {
       addBox(roofs,h.w+1,.45,h.d+1,h.x,h.h+.45,h.z);
@@ -384,11 +388,11 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   merged(roadBits,new THREE.MeshLambertMaterial({color:0x252a32}));
   merged(paths,new THREE.MeshLambertMaterial({color:0xaaa99f}));
   merged(foundations,new THREE.MeshLambertMaterial({color:0x777b7b}));
-  merged(walls,new THREE.MeshLambertMaterial({color:0xbab9b1}));
+  merged(walls,new THREE.MeshLambertMaterial({color:0xbab9b1,side:THREE.DoubleSide}));
   merged(roofs,new THREE.MeshLambertMaterial({color:0x303945}));
   merged(glass,new THREE.MeshBasicMaterial({color:0x79d8ed,transparent:true,opacity:.78}));
   merged(trim,new THREE.MeshLambertMaterial({color:0xffb75b}));
-  merged(facadeTrim,new THREE.MeshLambertMaterial({color:0xc89b62}));
+  merged(facadeTrim,new THREE.MeshLambertMaterial({color:0xc89b62}));\n  merged(accentPanels,new THREE.MeshLambertMaterial({vertexColors:true}));
   merged(doors,new THREE.MeshLambertMaterial({color:0x263443}));
   merged(windowFrames,new THREE.MeshLambertMaterial({color:0x2c3b4a}));
   merged(warmWindows,new THREE.MeshBasicMaterial({color:0xffc878,transparent:true,opacity:.85}));

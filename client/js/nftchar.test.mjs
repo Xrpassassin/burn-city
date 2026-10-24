@@ -52,7 +52,7 @@ has(avatar, /if \(key === 'racc'\)/, 'selects a dedicated RACC animal archetype'
 has(avatar, /red mask/, 'supports the RACC red-mask trait');
 has(avatar, /ringed tail|tail = new THREE\.Group/, 'adds a segmented raccoon tail');
 has(avatar, /else \{\s*addSphere\(head,skin/, 'uses a separate human face archetype');
-has(avatar, /beard\|goatee\|mustache/, 'maps facial-hair traits to the human head');
+has(avatar, /nft-beard|nft-goatee|nft-moustache/, 'maps facial-hair traits to the human head');
 has(avatar, /white hair\|silver hair/, 'maps hair-color traits');
 has(avatar, /helmet/, 'maps helmet traits');
 has(avatar, /crown/, 'maps crown traits');

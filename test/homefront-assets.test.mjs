@@ -55,4 +55,5 @@ assert.ok(html.includes('function nearGate()') && html.includes("$('rpgGate').di
 assert.ok(html.includes('function nearbySurvivor()') && html.includes('function showNearbySurvivor()'), 'survivors can be approached and spoken to from the third-person yard');
 assert.ok(html.includes("$('rpgTalk').onclick=showNearbySurvivor"), 'the contextual talk action opens survivor interaction');
 assert.ok(html.includes("constructionPaused=homefrontMode==='workshop'"), 'placing a structure does not unexpectedly exit Workshop mode');
+assert.ok(html.includes('Walk up to a survivor and choose Talk') && html.includes('Walk to the gate to enter the Graveyard'), 'first-visit tutorial teaches the RPG interaction loop');
 console.log('Homefront CC0 GLB asset checks passed.');

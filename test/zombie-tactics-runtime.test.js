@@ -28,4 +28,38 @@ assert.equal(zombies[0].role, 'pursuer', 'first member is the squad pursuer');
 assert.ok(zombies.some(z => z.role === 'flanker'), 'live squad includes a flanker when squad size permits');
 assert.ok(zombies.every(z => typeof z.tacState === 'string'), 'live zombies carry a tactical state');
 
-console.log('zombie-tactics-runtime: live spawn role integration passed');
+
+const Z = require('../server/cod');
+Z.bind(room);
+const map = Z.layout();
+const cell = map.cell, gw = map.gw, gh = map.gh;
+const openCells = [];
+for (let row = 0; row < gh; row++) for (let col = 0; col < gw; col++) {
+  const x = (col - gw / 2 + 0.5) * cell;
+  const z = (row - gh / 2 + 0.5) * cell;
+  if (Z.inside(room, x, z, 0.32, 0)) openCells.push({ x, z });
+}
+let wallBlockedPair = null, clearPair = null;
+for (let i = 0; i < openCells.length && (!wallBlockedPair || !clearPair); i++) {
+  for (let j = i + 1; j < openCells.length; j++) {
+    const a = openCells[i], b = openCells[j], d = Math.hypot(a.x - b.x, a.z - b.z);
+    if (d < 4 || d > 12) continue;
+    if (!clearPair && Z.los(room, a.x, a.z, b.x, b.z, 0, 0)) clearPair = [a, b];
+    if (!wallBlockedPair && !Z.los(room, a.x, a.z, b.x, b.z, 0, 0)) wallBlockedPair = [a, b];
+    if (wallBlockedPair && clearPair) break;
+  }
+}
+assert.ok(clearPair, 'generated map provides a walkable, visible same-floor route sample');
+assert.ok(wallBlockedPair, 'generated map provides a wall/door-blocked route sample');
+assert.ok(Tactics.validateApproachTarget({
+  approach: clearPair[1], sameFloor: true,
+  isWalkable: (x, z) => Z.inside(room, x, z, 0.32, 0),
+  hasLineOfSight: (x, z) => Z.los(room, clearPair[0].x, clearPair[0].z, x, z, 0, 0)
+}), 'real map walkability and LOS accept a clear approach');
+assert.equal(Tactics.validateApproachTarget({
+  approach: wallBlockedPair[1], sameFloor: true,
+  isWalkable: (x, z) => Z.inside(room, x, z, 0.32, 0),
+  hasLineOfSight: (x, z) => Z.los(room, wallBlockedPair[0].x, wallBlockedPair[0].z, x, z, 0, 0)
+}), null, 'real map LOS rejects a flank destination behind a wall or closed door');
+
+console.log('zombie-tactics-runtime: live role and obstacle-aware route integration passed');

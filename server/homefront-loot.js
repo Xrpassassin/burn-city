@@ -20,6 +20,11 @@ const TABLES = Object.freeze({
  highrisk:[['scrap',3,6,5],['meds',1,3,4],['ammo',2,5,4],['water',1,2,2],['dirtyWater',1,4,4],['rawFood',1,3,3],['wood',1,3,1]]
 });
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number.isFinite(n)?Math.floor(n):min));
+// Opening a physical container is a tactical trade-off: deeper sites are louder.
+// Noise is returned as data so the world API can record it on the authoritative player.
+function noiseForRisk(risk) {
+ return { level:clamp(25+Math.max(1,Math.min(5,Math.floor(Number.isFinite(risk)?risk:1)))*11,0,100), durationMs:12000 };
+}
 function normalize(input={}) {
  const out={};
  for(const node of NODES) {
@@ -61,6 +66,6 @@ function claim(input,{account,player,nodeId,now=Date.now(),addItem}) {
   if(result.rejected)overflow.push({item:drop.item,amount:result.rejected});
  }
  state[node.id]={readyAt:now+COOLDOWN_MS,claimedBy:String(account).slice(0,24)};
- return {state,node:{id:node.id,label:node.label,readyAt:state[node.id].readyAt},accepted,overflow,inventory:player.inventory};
+ return {state,node:{id:node.id,label:node.label,readyAt:state[node.id].readyAt},noise:noiseForRisk(node.risk),accepted,overflow,inventory:player.inventory};
 }
-module.exports={NODES,COOLDOWN_MS,RADIUS,normalize,publicNodes,claim};
+module.exports={NODES,COOLDOWN_MS,RADIUS,normalize,publicNodes,noiseForRisk,claim};

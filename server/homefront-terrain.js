@@ -3,7 +3,7 @@
 // Keep the sampling constants and integer hash operations in lockstep; parity is tested.
 const DEFAULT_SEED = 0xB17C17;
 const UINT32_RANGE = 4294967296;
-const TERRAIN_ELEVATION_SCALE = 0.42;
+const TERRAIN_ELEVATION_SCALE = 1.15;
 function hashLattice(x, z, seed) {
   let h = (Math.imul(x | 0, 0x1f123bb5) ^ Math.imul(z | 0, 0x5f356495) ^ (seed | 0)) >>> 0;
   h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0;

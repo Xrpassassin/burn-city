@@ -32,8 +32,32 @@ assert.ok(html.includes("['cookFieldFood',canAct&&usableFoodCount(inv,'rawFood')
 assert.ok(html.includes("['purifyFieldWater',canAct&&(inv.dirtyWater||0)>0&&(inv.wood||0)>0]"), 'water purification is disabled until an expedition has dirty water and wood');
 assert.ok(html.includes("const v=expeditionWorld?.selfSurvival,inv=expeditionWorld?.selfInventory||expeditionWorld?.inventory||{},deployed=!!expeditionWorld?.self"), 'survival UI derives contextual actions from server-returned expedition state');
 assert.ok(html.includes('function foodFreshness(inv,id,now=Date.now())'), 'field and refuge inventory calculate food freshness from batch timestamps');
+assert.ok(html.includes('if(expeditionWorld.tacticalNoise){const n=expeditionWorld.tacticalNoise.level'), 'objective feedback warns when rescue/cache noise may draw infected');
+assert.ok(html.includes("rarityInfo={common:['Common'"), 'survivor roster displays rarity labels');
+assert.ok(html.includes("traitLabels={optimistic:'Optimistic'"), 'survivor roster displays personality traits');
+assert.ok(html.includes("talentLabels={master_farmer:'Master Farmer'"), 'survivor roster displays specialist talents');
+assert.ok(html.includes("background.textContent='Before the fall: '+(s.background||'Unknown past')"), 'survivor roster displays personal history backgrounds');
+assert.ok(html.includes("function survivorBond(a,b)"), 'survivor roster exposes deterministic bond and rivalry status');
+assert.ok(html.includes("Team tension: clashes with '+teammate.name"), 'survivor roster surfaces work-team rivalries');
+assert.ok(html.includes("traits.title=(s.traits||[]).map(t=>traitDescriptions[t]||t).join(' ')"), 'trait descriptions are available without unsafe HTML rendering');
+assert.ok(html.includes('Common 70%, Uncommon 20%, Rare 8%, Epic 1.8%, Legendary 0.2%'), 'empty roster explains weighted rarity odds');
 assert.ok(html.includes("q.textContent='Fresh '+f.fresh+' · Aging '+f.aging+' · Spoiled '+f.spoiled"), 'refuge stores visibly summarize freshness states');
 for (const rel of ['../vendor/three/examples/jsm/loaders/GLTFLoader.js', '../vendor/three/examples/jsm/utils/SkeletonUtils.js']) {
   assert.ok(fs.existsSync(path.resolve(root, rel.replace('../vendor/', '../../../vendor/'))), 'module exists: ' + rel);
 }
+assert.ok(html.includes('const healthRatio=Math.max(0,Math.min(1,(s.hp||0)/(s.maxHp||1)))'), 'refuge structure wear derives from authoritative structure health');
+assert.ok(html.includes('Persistent visual wear is derived from server-authoritative HP'), 'damaged structures receive deterministic presentation-only wear');
+assert.ok(html.includes("if(healthRatio<.48){const split=block(g,.035,.2,.04,.29,.36,.23,0x241f1b)"), 'severely damaged structures gain additional visible cracks');
+assert.ok(html.includes('id="refugeWorldPanel"') && html.includes('id="buildPanel"'), 'RPG home and workshop views have dedicated scene/panel boundaries');
+assert.ok(html.includes("ZOMBIE_MODEL_KEYS=['zombie-ash','zombie-frost','zombie-rust','zombie-quaternius']"), 'Homefront shares the existing Zombies animated infected model roster');
+for (const model of ['zombie-ash.glb','zombie-frost.glb','zombie-rust.glb','quaternius-zombie.glb']) assert.ok(html.includes('./assets/zombies/'+model), 'Homefront loads shared Zombies model: '+model);
+assert.ok(html.includes("const zombieKey=ZOMBIE_MODEL_KEYS[i%ZOMBIE_MODEL_KEYS.length],zombieAsset=assetModels[zombieKey]||assetModels.zombie"), 'refuge siege actors rotate across shared animated models with a local fallback');
+assert.ok(!html.includes('}\\n.homefront-modal{'), 'RPG mode stylesheet preserves a real rule boundary before modal styles');
+assert.ok(html.includes('body.rpg-mode-home #game .grid>.panel:not(#refugeWorldPanel)'), 'default RPG mode hides the management dashboard');
+assert.ok(html.includes('body.rpg-mode-workshop #game .grid>.panel:not(#refugeWorldPanel):not(#buildPanel)'), 'Workshop mode keeps the 3D yard and building catalog without the full dashboard');
+assert.ok(html.includes('function nearGate()') && html.includes("$('rpgGate').disabled=!deployed&&!atGate"), 'the gate interaction requires physical proximity in the refuge');
+assert.ok(html.includes('function nearbySurvivor()') && html.includes('function showNearbySurvivor()'), 'survivors can be approached and spoken to from the third-person yard');
+assert.ok(html.includes("$('rpgTalk').onclick=showNearbySurvivor"), 'the contextual talk action opens survivor interaction');
+assert.ok(html.includes("constructionPaused=homefrontMode==='workshop'"), 'placing a structure does not unexpectedly exit Workshop mode');
+assert.ok(html.includes('Walk up to a survivor and choose Talk') && html.includes('Walk to the gate to enter the Graveyard'), 'first-visit tutorial teaches the RPG interaction loop');
 console.log('Homefront CC0 GLB asset checks passed.');

@@ -88,7 +88,57 @@ const leashed=C.advance({encounters:{a:{...pursuer,x:40,z:0,pursuitRadius:20,las
 assert.equal(leashed.a.x,40,'infected stop extending pursuit after the player breaks their leash radius');
 const noiseDrawn=C.advance({encounters:{a:{...pursuer,x:40,z:0,pursuitRadius:20,lastKnownX:40,lastKnownZ:0,lastKnownAt:100000,investigateUntil:0}},players:{a:{x:0,z:0,lastNoiseAt:100500,noiseLevel:95,noiseX:30,noiseZ:0}},now:101000});
 assert.ok(noiseDrawn.a.x<40,'recent gunfire pulls infected toward its recorded sound location rather than the fleeing player');
+
+
 assert.equal(noiseDrawn.a.lastKnownX,30,'infected retain the authoritative noise source as their last-known position');
+
+// Interior-aware pursuit must batter a closed ordinary door instead of phasing through it.
+const InteriorRules = require('./homefront-interiors');
+const interiorAccount = 'interior-ai';
+const hospital = InteriorRules.LANDMARKS.mercy_hospital;
+const interiorPlayer = { x: hospital.x + 4.8, z: hospital.z, lastNoiseAt: 0, noiseX: hospital.x + 5.4, noiseZ: hospital.z };
+const interiorState = { [interiorAccount]: { activeLandmarkId: 'mercy_hospital', interiors: { mercy_hospital: {
+  landmarkId: 'mercy_hospital', roomId: 'ward_corridor', flags: ['emergency_power'], discovered: [], used: [],
+  openedDoors: [], doorDamage: {}, noise: 0, updatedAt: 100000
+} } } };
+const interiorSeed = C.spawn({ encounters: {}, account: interiorAccount, player: { x: hospital.x, z: hospital.z }, interiors: interiorState, now: 100000, seed: 91 });
+let interiorEncounter = { ...interiorSeed.encounters[interiorAccount], x: hospital.x, z: hospital.z,
+  lastKnownX: interiorPlayer.x, lastKnownZ: interiorPlayer.z, lastKnownAt: 100000, investigateUntil: 0, lastAiAt: 100000,
+  members: interiorSeed.encounters[interiorAccount].members.map((m,i)=>({...m,x:hospital.x+i*0.1,z:hospital.z})) };
+let interiorEncounters = { [interiorAccount]: interiorEncounter };
+for (let tick = 1; tick <= 8; tick++) {
+  interiorEncounters = C.advance({ encounters: interiorEncounters, players: { [interiorAccount]: interiorPlayer }, interiors: interiorState, now: 100000 + tick * 1000 });
+}
+assert(interiorState[interiorAccount].interiors.mercy_hospital.openedDoors.includes('ward_door'),
+  'infected spend time breaching a closed ordinary door before opening the persistent route');
+assert.equal(interiorState[interiorAccount].interiors.mercy_hospital.doorDamage.ward_door, 100);
+
+
+// Squad followers obey the same active-interior collision map as the anchor. A closed ward
+// door must not cause a follower to snap across the wall to rejoin formation.
+{
+  const followerAccount = 'interior-squad-no-phase';
+  const followerInteriorState = JSON.parse(JSON.stringify(interiorState));
+  followerInteriorState[followerAccount] = JSON.parse(JSON.stringify(followerInteriorState[interiorAccount]));
+  followerInteriorState[followerAccount].activeLandmarkId = 'mercy_hospital';
+  followerInteriorState[followerAccount].interiors.mercy_hospital.openedDoors = [];
+  followerInteriorState[followerAccount].interiors.mercy_hospital.doorDamage = {};
+  followerInteriorState[followerAccount].interiors.mercy_hospital.roomId = 'ward_corridor';
+  const followerStart = { x: hospital.x, z: hospital.z };
+  const followerPlayer = { x: hospital.x + 9.6, z: hospital.z };
+  const followerSpawn = C.spawn({ encounters: {}, account: followerAccount, player: followerPlayer,
+    interiors: followerInteriorState, now: 200000, seed: 73 });
+  const followerEncounter = { ...followerSpawn.encounters[followerAccount], x: followerPlayer.x, z: followerPlayer.z,
+    lastKnownX: followerPlayer.x, lastKnownZ: followerPlayer.z, lastKnownAt: 200000, investigateUntil: 0, lastAiAt: 200000,
+    members: followerSpawn.encounters[followerAccount].members.map((m, i) => ({
+      ...m, x: i === 0 ? followerPlayer.x : followerStart.x, z: hospital.z, offsetX: 0, offsetZ: 0
+    })) };
+  const beforeFollower = followerEncounter.members[1];
+  const afterFollower = C.advance({ encounters: { [followerAccount]: followerEncounter },
+    players: { [followerAccount]: followerPlayer }, interiors: followerInteriorState, now: 201000 })[followerAccount].members[1];
+  assert.ok(Math.hypot(afterFollower.x - beforeFollower.x, afterFollower.z - beforeFollower.z) <= 4.4,
+    'a blocked squad follower advances by a bounded pathfinding step instead of teleporting through a closed interior door');
+}
 
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
@@ -151,7 +201,7 @@ console.log('Homefront authoritative combat tests passed.');
 // Audit fixes (Oct 23): the pathfinding anchor drives the squad, members regroup instead of sticking
 // behind terrain, member maxHp matches its spawned hp, and killing the lead hands the anchor to a survivor.
 {
-  const sq = C.spawn({ encounters: {}, account: 'hp-test', player: { x: -40, z: 30 }, now: 990000, seed: 6 });
+  const sq = C.spawn({ encounters: {}, account: 'hp-test', player: { x: -40, z: 30 }, now: 990000, seed: 0 });
   assert.ok(sq.encounters['hp-test'].members.length > 1, 'fixture is a multi-member horde');
   const e = sq.encounters['hp-test'];
   assert.ok(e.members.every(m => m.hp === m.maxHp), 'every squad member spawns at full health');

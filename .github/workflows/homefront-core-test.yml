@@ -4,6 +4,18 @@ on:
   pull_request:
     paths:
       - 'server/homefront-core.js'
+      - 'server/homefront-interiors.test.js'
+      - 'server/homefront-interiors.js'
+      - 'server/homefront-exploration.js'
+      - 'server/homefront-exploration.test.js'
+      - 'client/arena/homefront-navigation.mjs'
+      - 'client/arena/homefront-navigation.test.mjs'
+      - 'client/arena/homefront-exploration-guidance.mjs'
+      - 'client/arena/homefront-ground-detail.mjs'
+      - 'test/homefront-survivor-inspection.test.mjs'
+      - 'test/homefront-survivor-economy-sim.js'
+      - 'test/homefront-interior-route-sim.js'
+      - 'test/homefront-explore-multiplayer-sim.js'
       - 'server/homefront-combat.js'
       - 'server/homefront-world.js'
       - 'server/homefront-terrain.js'
@@ -16,6 +28,9 @@ on:
       - 'client/arena/homefront-environment-damage.mjs'
       - 'test/homefront-environment-damage.test.mjs'
       - 'client/arena/homefront-world-generation.mjs'
+      - 'client/arena/homefront-exploration-content.mjs'
+      - 'client/arena/homefront-exploration-content.test.mjs'
+      - 'docs/homefront-exploration-world-content.md'
       - 'server/homefront-survival.js'
       - 'server/homefront-inventory.js'
       - 'server/homefront-inventory.test.js'
@@ -32,6 +47,10 @@ on:
       - 'test/zombie-helicopter-arrival-sim.js'
       - 'client/arena/homefront.html'
       - 'client/arena/homefront-graveyard-3d.js'
+      - 'client/arena/homefront-landmark-builder.mjs'
+      - 'client/arena/homefront-landmark-builder.test.mjs'
+      - 'client/arena/homefront-interior-world.mjs'
+      - 'client/arena/homefront-interior-world.test.mjs'
       - 'client/arena/homefront-view.mjs'
       - 'client/arena/homefront-view.test.mjs'
       - 'client/arena/assets/homefront/**'
@@ -67,6 +86,9 @@ jobs:
           node --check server/homefront-world.js
           node --check server/homefront-terrain.js
           node --check server/homefront-collision.js
+          node --check server/homefront-interiors.js
+          node --check server/homefront-exploration.js
+          node --check server/homefront-interiors.test.js
           node --check server/homefront-environment.js
           node --check server/homefront-survival.js
           node --check server/homefront-inventory.js
@@ -76,6 +98,10 @@ jobs:
           node --check server/flight-lobby.js
       - name: Check Homefront browser module syntax
         run: node --input-type=module --check < <(node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/homefront.html","utf8");const m=s.match(/<script type="module">([\s\S]*?)<\/script>/);if(!m)throw Error("Missing Homefront module script");process.stdout.write(m[1])')
+      - name: Check Homefront scene and interior module syntax
+        run: |
+          node --input-type=module --check < client/arena/homefront-graveyard-3d.js
+          node --input-type=module --check < client/arena/homefront-interior-world.mjs
       - name: Check flight lobby browser syntax
         run: node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/flight-lobby.html","utf8");const a=s.indexOf("<script>");const b=s.indexOf("</script>",a);if(a<0||b<0)throw Error("Missing flight-lobby script");new Function(s.slice(a+8,b))'
       - name: Run airport experience registry tests
@@ -84,6 +110,10 @@ jobs:
         run: npm run test:zombie-arrival
       - name: Run shared flight lobby simulation
         run: npm run test:flight-lobby
+      - name: Run Homefront navigation steering regression
+        run: node client/arena/homefront-navigation.test.mjs
+      - name: Run Homefront survivor interaction assertions
+        run: node test/homefront-survivor-inspection.test.mjs
       - name: Run Homefront settlement simulation
         run: npm run test:homefront
       - name: Run Homefront environment damage and repair tests

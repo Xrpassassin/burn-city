@@ -507,6 +507,8 @@ function boot(host) {
   let explorationProgress = null;
   const explorationDiscoveryPending = new Set();
   const explorationDiscoveryAttempted = new Set();
+  const explorationJournalCount = document.getElementById('explorationJournalCount');
+  const explorationJournalContent = document.getElementById('explorationJournalContent');
   const enterInteriorButton = document.getElementById('enterInterior');
   const interiorPanel = document.getElementById('interiorPanel');
   const interiorTitle = document.getElementById('interiorTitle');
@@ -861,13 +863,66 @@ function boot(host) {
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
     }
   }
+  function renderExplorationJournal() {
+    if (!explorationJournalContent) return;
+    const progress = explorationProgress || {};
+    const discovered = Array.isArray(progress.discovered) ? progress.discovered : [];
+    const intel = Array.isArray(progress.intel) ? progress.intel : [];
+    const storyLeads = Array.isArray(progress.storyLeads) ? progress.storyLeads : [];
+    const routeLeads = Array.isArray(progress.routeLeads) ? progress.routeLeads : [];
+    if (explorationJournalCount) explorationJournalCount.textContent = discovered.length + (discovered.length === 1 ? ' site recorded' : ' sites recorded');
+    explorationJournalContent.replaceChildren();
+    const heading = text => {
+      const node = document.createElement('p');
+      node.className = 'journal-heading';
+      node.textContent = text;
+      explorationJournalContent.appendChild(node);
+    };
+    const entry = (title, description, meta = '') => {
+      const node = document.createElement('p');
+      node.className = 'journal-entry';
+      node.textContent = title;
+      if (description) {
+        const detail = document.createElement('span');
+        detail.textContent = description;
+        node.appendChild(document.createElement('br'));
+        node.appendChild(detail);
+      }
+      if (meta) {
+        const small = document.createElement('small');
+        small.textContent = meta;
+        node.appendChild(small);
+      }
+      explorationJournalContent.appendChild(node);
+    };
+    if (!discovered.length) {
+      entry('No field notes yet', 'Approach a named landmark to record its location and reveal connected leads.');
+      return;
+    }
+    const activeStories = storyLeads.filter(lead => !lead.complete);
+    if (activeStories.length) {
+      heading('Active story leads');
+      for (const lead of activeStories.slice(0, 4)) entry(lead.title, lead.nextLandmarkTitle ? 'Investigate: ' + lead.nextLandmarkTitle : 'All route sites surveyed; inspect local clues to advance the story.', lead.discoveredCount + '/' + lead.totalStops + ' sites surveyed');
+    }
+    if (routeLeads.length) {
+      heading('Connected routes');
+      for (const lead of routeLeads.slice(0, 6)) entry(lead.title, 'Route lead from ' + lead.fromTitle);
+    }
+    if (intel.length) {
+      heading('Recent field notes');
+      for (const note of intel.slice(-8).reverse()) {
+        const site = discovered.find(item => item.id === note.landmarkId);
+        entry(site?.title || note.landmarkId, note.text);
+      }
+    }
+  }
   async function fetchExplorationProgress() {
     if (!token()) return;
     try {
       const response = await fetch(API + '/api/homefront/world/exploration', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'exploration_progress_unavailable');
-      if (data.exploration) explorationProgress = data.exploration;
+      if (data.exploration) { explorationProgress = data.exploration; renderExplorationJournal(); }
     } catch { /* Exploration guidance still works offline; server progress retries on the next world load. */ }
   }
   async function discoverExplorationLandmark(landmarkId) {
@@ -881,7 +936,7 @@ function boot(host) {
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'landmark_discovery_failed');
-      if (data.exploration) explorationProgress = data.exploration;
+      if (data.exploration) { explorationProgress = data.exploration; renderExplorationJournal(); }
       if (data.newlyDiscovered && data.landmark) setInteriorStatus('FIELD NOTES UPDATED · ' + data.landmark.title + ' discovered. New route and story leads recorded.');
     } catch (error) {
       // Permit retry on a later world update if this was a transient network/server error.

@@ -370,6 +370,7 @@ function route({ method, path, query, payload, acct, store, worldDb, now = Date.
     siege.result.embers = applied.embers; siege.result.outcome = applied.outcome;
     for (const [a, d] of Object.entries(siege.defenders)) if (a !== owner) grantDefenderEmbers(bases, a, d.kills, now);
     siege.rewarded = true; dirtyBases = true;
+    if (applied.outcome === 'repelled' && siege.result.status === 'repelled') for (const a of new Set([owner, ...Object.keys(siege.defenders)])) require('./homefront-rpg').award(store, a, 'siege_repelled', { now });   // RPG XP for every defender
   }
   if (dirtyBases) {
     if (fire && fire.weaponId === 'mortar') { hostBase.revision++; hostBase.updatedAt = now; }

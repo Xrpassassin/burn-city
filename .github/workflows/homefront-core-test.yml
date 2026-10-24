@@ -24,6 +24,11 @@ on:
       - 'test/homefront-travel-sim.js'
       - 'server/homefront-pvp.js'
       - 'test/homefront-pvp-interest-sim.js'
+      - 'server/homefront-rpg.js'
+      - 'test/homefront-rpg-sim.js'
+      - 'client/arena/homefront-hud.mjs'
+      - 'client/arena/homefront-hud.test.mjs'
+      - 'server/homefront-siege.js'
       - 'server/homefront-combat.js'
       - 'server/homefront-world.js'
       - 'server/homefront-terrain.js'
@@ -103,6 +108,7 @@ jobs:
           node --check server/homefront.js
           node --check server/homefront-travel.js
           node --check server/homefront-pvp.js
+          node --check server/homefront-rpg.js
           node --check server/server.js
           node --check server/game.js
           node --check server/flight-lobby.js
@@ -112,6 +118,7 @@ jobs:
         run: |
           node --input-type=module --check < client/arena/homefront-graveyard-3d.js
           node --input-type=module --check < client/arena/homefront-interior-world.mjs
+          node --input-type=module --check < client/arena/homefront-hud.mjs
       - name: Check flight lobby browser syntax
         run: node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/flight-lobby.html","utf8");const a=s.indexOf("<script>");const b=s.indexOf("</script>",a);if(a<0||b<0)throw Error("Missing flight-lobby script");new Function(s.slice(a+8,b))'
       - name: Run airport experience registry tests

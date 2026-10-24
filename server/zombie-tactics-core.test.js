@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const {
-  assignRole, distance2D, hearNoise, chooseBehavior, flankingHint, selectApproachTarget, roleTuning
+  assignRole, distance2D, hearNoise, chooseBehavior, flankingHint, selectApproachTarget, validateApproachTarget, roleTuning
 } = require('./zombie-tactics-core');
 
 assert.equal(assignRole('z1', 'squad-a', 0, 4), 'pursuer');
@@ -46,5 +46,11 @@ assert.ok(flankA && Math.hypot(flankA.x - 10, flankA.z) >= 3.9, 'flanker chooses
 assert.deepEqual(selectApproachTarget({ role: 'pursuer', zombie: { id: 21, x: 0, z: 0 }, target: { x: 10, z: 2 }, targetVisible: true }), { x: 10, z: 2, role: 'pursuer' }, 'pursuer keeps direct pressure');
 assert.equal(selectApproachTarget({ role: 'flanker', zombie: { id: 20, x: 0, z: 0 }, target: { x: 10, z: 0 }, targetVisible: false }), null, 'flanker never invents a target without visibility');
 assert.deepEqual(selectApproachTarget({ role: 'flanker', zombie: { id: 20, x: 7, z: 0 }, target: { x: 10, z: 0 }, targetVisible: true }), { x: 10, z: 0, role: 'flanker' }, 'close flanker rejoins the direct approach');
+assert.deepEqual(validateApproachTarget({ approach: flankA, sameFloor: true, isWalkable: () => true, hasLineOfSight: () => true }), { x: flankA.x, z: flankA.z }, 'valid open-space flank is accepted');
+assert.equal(validateApproachTarget({ approach: flankA, sameFloor: true, isWalkable: () => false, hasLineOfSight: () => true }), null, 'blocked flank point is rejected');
+assert.equal(validateApproachTarget({ approach: flankA, sameFloor: true, isWalkable: () => true, hasLineOfSight: () => false }), null, 'wall-blocked flank route is rejected');
+assert.equal(validateApproachTarget({ approach: flankA, sameFloor: false, isWalkable: () => true, hasLineOfSight: () => true }), null, 'cross-floor flank is rejected');
+assert.equal(validateApproachTarget({ approach: flankA, sameFloor: true, isWalkable: () => { throw new Error('bad map'); }, hasLineOfSight: () => true }), null, 'navigation errors fail closed');
+assert.equal(validateApproachTarget({ approach: flankA, sameFloor: true }), null, 'missing route validators fail closed');
 
 console.log('zombie-tactics-core: all tests passed');

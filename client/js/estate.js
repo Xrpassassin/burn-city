@@ -161,15 +161,15 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   // Five visible housing tiers, ordered from the city-facing entrance toward the lake.
   // These are environmental models only; purchasing, rent, interiors, and ownership need a separate economy/player-system integration.
   const homes = [
-    {tier:'trailer',x:-82,z:-57,w:24,d:12,h:3.4,roof:0x303b4c,wall:0xb7a58c},
-    {tier:'trailer',x:-50,z:-57,w:24,d:12,h:3.4,roof:0x3d4147,wall:0xc7c1b4},
-    {tier:'apartment',x:31,z:-57,w:40,d:27,h:14,roof:0x303945,wall:0xb8bec0},
-    {tier:'starter',x:-72,z:-10,w:27,d:20,h:7,roof:0x26394a,wall:0xc6d0d0},
-    {tier:'starter',x:72,z:-10,w:27,d:20,h:7,roof:0x4a3d34,wall:0xd9d0c1},
-    {tier:'family',x:-72,z:30,w:34,d:24,h:9,roof:0x303b4c,wall:0xc8c7bd},
-    {tier:'family',x:72,z:30,w:34,d:24,h:9,roof:0x3d4147,wall:0xd8c7ac},
-    {tier:'mansion',x:-65,z:66,w:43,d:27,h:12,roof:0x26394a,wall:0xc6d0d0},
-    {tier:'mansion',x:65,z:66,w:43,d:27,h:12,roof:0x4a3d34,wall:0xd9d0c1}
+    {propertyId:'trailer-01',tier:'trailer',x:-82,z:-57,w:24,d:12,h:3.4,roof:0x303b4c,wall:0xb7a58c},
+    {propertyId:'trailer-02',tier:'trailer',x:-50,z:-57,w:24,d:12,h:3.4,roof:0x3d4147,wall:0xc7c1b4},
+    {propertyId:'apartment-01',tier:'apartment',x:31,z:-57,w:40,d:27,h:14,roof:0x303945,wall:0xb8bec0},
+    {propertyId:'starter-01',tier:'starter',x:-72,z:-10,w:27,d:20,h:7,roof:0x26394a,wall:0xc6d0d0},
+    {propertyId:'starter-02',tier:'starter',x:72,z:-10,w:27,d:20,h:7,roof:0x4a3d34,wall:0xd9d0c1},
+    {propertyId:'family-01',tier:'family',x:-72,z:30,w:34,d:24,h:9,roof:0x303b4c,wall:0xc8c7bd},
+    {propertyId:'family-02',tier:'family',x:72,z:30,w:34,d:24,h:9,roof:0x3d4147,wall:0xd8c7ac},
+    {propertyId:'mansion-01',tier:'mansion',x:-65,z:66,w:43,d:27,h:12,roof:0x26394a,wall:0xc6d0d0},
+    {propertyId:'mansion-02',tier:'mansion',x:65,z:66,w:43,d:27,h:12,roof:0x4a3d34,wall:0xd9d0c1}
   ];
   for (let i=0;i<homes.length;i++) {
     const h=homes[i], front=h.z+h.d/2;
@@ -230,6 +230,15 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
         const crown=new THREE.ConeGeometry(isMansion?3.2:2.7,isMansion?7:6,5); crown.translate(tx,isMansion?7.2:6.8,tz); canopies.push(crown);
       }
     }
+  }
+  // Each residence gets its own raycast target so players can inspect individual plots instead of the district as one generic object.
+  const tierShareUnits = { trailer:1, apartment:2, starter:3, family:5, mansion:10 };
+  const tierLabels = { trailer:'Trailer Home', apartment:'Apartment Unit', starter:'Two-Bedroom Starter Home', family:'Four-Bedroom Family Home', mansion:'Luxury Lakefront Mansion' };
+  for (const h of homes) {
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(h.w+4,h.h+5,h.d+4),new THREE.MeshBasicMaterial({visible:false}));
+    hit.position.set(h.x,h.h/2+.5,h.z);
+    hit.userData = { kind:'estate-property', propertyId:h.propertyId, tier:h.tier, label:tierLabels[h.tier], shareUnits:tierShareUnits[h.tier] };
+    lot.add(hit); pick.push(hit);
   }
   // ---------- neighborhood life: pocket park, street trees, gardens and public furniture ----------
   // Compact procedural meshes keep this asset-free and batch most repeated scenery into a few draw calls.
@@ -326,9 +335,15 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const signM=new THREE.MeshBasicMaterial({map:tex,fog:false,toneMapped:false,side:THREE.DoubleSide});
   const sign=new THREE.Mesh(new THREE.PlaneGeometry(74,28),signM); sign.position.set(0,17,-LD/2+8); sign.rotation.y=Math.PI; lot.add(sign);
   merged([box(1.4,18,1.4,-27,9,-LD/2+8),box(1.4,18,1.4,27,9,-LD/2+8)],new THREE.MeshLambertMaterial({color:0x303640}));
-  const hitM=new THREE.Mesh(new THREE.BoxGeometry(LW,24,LD),new THREE.MeshBasicMaterial({visible:false}));
-  hitM.position.y=12; hitM.userData={kind:'estate',label:'Burn City Estates'}; lot.add(hitM); pick.push(hitM);
+  const hitM=new THREE.Mesh(new THREE.BoxGeometry(76,22,3),new THREE.MeshBasicMaterial({visible:false}));
+  hitM.position.set(0,11,-LD/2+8); hitM.userData={kind:'estate',label:'Burn City Estates'}; lot.add(hitM); pick.push(hitM);
   anim.push(t=>{signM.color.setScalar(.9+.1*Math.sin(t*1.2))});
   return { lakeC, lotC, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
 }
-export const estateCard = () => `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏡 Burn City Estates</h2><p><b>Residential district in development.</b></p><p>Planned housing tiers: trailer homes, apartments, two-bedroom starter houses, four-bedroom family homes, and luxury lakefront mansions.</p><p>Homes are currently environmental models; purchasing, renting, interiors, and ownership progression are not implemented yet.</p>`;
+const ESTATE_TIER_INFO = { trailer:{label:'Trailer Home',units:1}, apartment:{label:'Apartment Unit',units:2}, starter:{label:'Two-Bedroom Starter Home',units:3}, family:{label:'Four-Bedroom Family Home',units:5}, mansion:{label:'Luxury Lakefront Mansion',units:10} };
+const ESTATE_PLOTS = [{id:'trailer-01',tier:'trailer',address:'Estates Row 01'},{id:'trailer-02',tier:'trailer',address:'Estates Row 02'},{id:'apartment-01',tier:'apartment',address:'Lakeview Apartments'},{id:'starter-01',tier:'starter',address:'Starter Lane 01'},{id:'starter-02',tier:'starter',address:'Starter Lane 02'},{id:'family-01',tier:'family',address:'Family Crescent 01'},{id:'family-02',tier:'family',address:'Family Crescent 02'},{id:'mansion-01',tier:'mansion',address:'Lakefront Estate 01'},{id:'mansion-02',tier:'mansion',address:'Lakefront Estate 02'}];
+export const estateCard = (propertyId = '') => {
+  const p = ESTATE_PLOTS.find(x => x.id === propertyId);
+  if (p) { const t = ESTATE_TIER_INFO[p.tier]; return `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏡 ${t.label}</h2><p><b>${p.address}</b></p><p>Property ID: <code>${p.id}</code></p><p>Proposed relative pool-share weight: <b>${t.units} unit${t.units===1?'':'s'}</b></p><p style="color:#ffcf85"><b>Not a finalized percentage.</b> The final share depends on the approved weights and all eligible properties in the pool.</p><hr><p><b>Purchases are not open yet.</b> Property prices, payment token, and wallet settlement integration are not configured.</p><p>Weekly distributions are not active. They will be based on verified, realized distributable profits—not promised or guaranteed returns.</p>`; }
+  return `<button class="x" aria-label="Close">✕</button><h2 style="color:#ffb040">🏡 BURN CITY ESTATES</h2><p><b>Nine individually identified properties are mapped into the district.</b> Select a home or apartment to inspect its property ID and proposed share weight.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${Object.values(ESTATE_TIER_INFO).map(t=>`<div style="padding:8px;border:1px solid #ffffff24;border-radius:8px"><b>${t.label}</b><br><span>${t.units} proposed share unit${t.units===1?'':'s'}</span></div>`).join('')}</div><p style="color:#ffcf85">These relative weights are a starting proposal only. They are not percentages or a finalized payout schedule.</p><p><b>Sale status:</b> pending external wallet/payment integration, approved property prices, and finalized share rules.</p><p><b>Distribution status:</b> disabled. No weekly profit has been promised or transferred by this game framework.</p>`;
+};

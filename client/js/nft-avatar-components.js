@@ -54,6 +54,25 @@ function outfitStyle(value) {
   if (has(value, /streetwear|hoodie|urban|casual/)) return 'streetwear';
   return value && !/none|default/.test(value) ? 'custom' : 'default';
 }
+function hairStyle(value) {
+  if (has(value, /bald|shaved|no hair/)) return 'bald';
+  if (has(value, /mohawk|hawk/)) return 'mohawk';
+  if (has(value, /dread/)) return 'dreadlocks';
+  if (has(value, /braid|cornrow/)) return 'braids';
+  if (has(value, /afro|curly|coily/)) return 'afro';
+  if (has(value, /spiky|spikes/)) return 'spiky';
+  if (has(value, /long|ponytail/)) return 'long';
+  if (has(value, /bun|topknot/)) return 'bun';
+  if (has(value, /short|crop|fade/)) return 'short';
+  return value ? 'custom' : 'default';
+}
+function patternStyle(value) {
+  if (has(value, /camo|camouflage/)) return 'camouflage';
+  if (has(value, /stripe|striped|banded/)) return 'stripes';
+  if (has(value, /spot|spotted|freckle/)) return 'spots';
+  if (has(value, /check|plaid|grid/)) return 'checkered';
+  return value && !/none|solid|plain|default/.test(value) ? 'custom' : 'none';
+}
 function eyeStyle(value) {
   if (has(value, /glow|flame|burn|laser|neon/)) return 'glowing';
   if (has(value, /robot|cyber|mechanical/)) return 'cyber';
@@ -72,6 +91,11 @@ export function resolveNftAvatarComponents(profile = {}) {
   const eyes = first(traits, 'eye color');
   const mask = first(traits, 'mask');
   const expression = first(traits, 'expression');
+  const hair = first(traits, 'hair style');
+  const markings = first(traits, 'markings');
+  const pattern = first(traits, 'body pattern');
+  const horns = first(traits, 'horns');
+  const facialHair = first(traits, 'facial hair');
   return {
     collectionKey: key,
     headwearStyle: headwearStyle(headwear),
@@ -82,6 +106,13 @@ export function resolveNftAvatarComponents(profile = {}) {
     wingStyle: wingStyle(wing),
     outfitStyle: outfitStyle(outfit),
     eyeStyle: eyeStyle(eyes),
+    hairStyle: hairStyle(hair),
+    patternStyle: patternStyle(pattern),
+    hasMarkings: !!markings && !/none|no markings|clear/.test(markings),
+    markings,
+    hasHorns: !!horns && !/none|no horns|no antlers/.test(horns),
+    horns,
+    facialHair,
     hasMask: !!mask && !/none|no mask/.test(mask),
     expression: has(expression, /snarl|scream|fang|angry|open mouth/) ? 'aggressive'
       : has(expression, /smile|grin|happy/) ? 'friendly'

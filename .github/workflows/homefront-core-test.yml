@@ -28,6 +28,11 @@ on:
       - 'test/homefront-rpg-sim.js'
       - 'client/arena/homefront-hud.mjs'
       - 'client/arena/homefront-hud.test.mjs'
+      - 'client/arena/homefront-jetpack.mjs'
+      - 'client/arena/homefront-jetpack.test.mjs'
+      - 'server/jetpack.js'
+      - 'test/jetpack-pay-sim.js'
+      - 'client/js/jetpack-shop.mjs'
       - 'server/homefront-siege.js'
       - 'server/homefront-combat.js'
       - 'server/homefront-world.js'
@@ -109,6 +114,7 @@ jobs:
           node --check server/homefront-travel.js
           node --check server/homefront-pvp.js
           node --check server/homefront-rpg.js
+          node --check server/jetpack.js
           node --check server/server.js
           node --check server/game.js
           node --check server/flight-lobby.js
@@ -119,6 +125,8 @@ jobs:
           node --input-type=module --check < client/arena/homefront-graveyard-3d.js
           node --input-type=module --check < client/arena/homefront-interior-world.mjs
           node --input-type=module --check < client/arena/homefront-hud.mjs
+          node --input-type=module --check < client/arena/homefront-jetpack.mjs
+          node --input-type=module --check < client/js/jetpack-shop.mjs
       - name: Check flight lobby browser syntax
         run: node -e 'const fs=require("fs");const s=fs.readFileSync("client/arena/flight-lobby.html","utf8");const a=s.indexOf("<script>");const b=s.indexOf("</script>",a);if(a<0||b<0)throw Error("Missing flight-lobby script");new Function(s.slice(a+8,b))'
       - name: Run airport experience registry tests

@@ -43,3 +43,34 @@ export function turnToward(current, target, dt) {
 }
 
 export const createMotion = (y = 0) => ({ y, vy: 0, onGround: true, phase: 0, amp: 0 });
+
+// Jetpack flight (the city jetpack's numbers; Homefront's yard jetpack uses them at a smaller `scale`).
+// Horizontal: steer toward the stick at cruise/boost speed, quick stop when released.
+// Vertical: hover by default, climb/dive while held. Callers add their own gravity after jetVertical
+// (the city adds MOTION.gravity·dt back, so hovering cancels gravity exactly as before).
+export const JETPACK = Object.freeze({
+  cruise: 16, boost: 26,       // m/s horizontal (Shift / Run = boost)
+  steer: 4.5, brake: 2.5,      // horizontal blend rates (1/s) with / without stick input
+  climb: 10, dive: -9,         // m/s vertical target while up / down is held (0 = hover)
+  lift: 5,                     // vertical blend rate (1/s)
+  ceiling: 180,                // city flight ceiling (m)
+  fuelSeconds: 6,              // Homefront jetpack: seconds of thrust on a full tank (the city jetpack is infinite)
+  refuel: 0.5                  // Homefront jetpack: tank fraction regained per second on the ground
+});
+// v = {x, z} horizontal velocity, mutated. mx/mz = desired move (any length; ≥ 5 counts as full stick, as in the city).
+export function jetHorizontal(v, dt, mx, mz, boost, scale = 1, fullStick = 5) {
+  const top = (boost ? JETPACK.boost : JETPACK.cruise) * scale, ml = Math.hypot(mx, mz);
+  const tx = ml > .05 ? mx / ml * top * Math.min(1, ml / fullStick) : 0, tz = ml > .05 ? mz / ml * top * Math.min(1, ml / fullStick) : 0;
+  const k = 1 - Math.exp(-dt * (ml > .05 ? JETPACK.steer : JETPACK.brake));
+  v.x += (tx - v.x) * k; v.z += (tz - v.z) * k; return v;
+}
+// Returns the new vertical velocity before gravity (hover = blend toward 0).
+export function jetVertical(vy, dt, up, down, scale = 1) {
+  const target = (up ? JETPACK.climb : down ? JETPACK.dive : 0) * scale;
+  return vy + (target - vy) * (1 - Math.exp(-dt * JETPACK.lift));
+}
+// Homefront fuel: tank 0..1. Thrusting drains 1/fuelSeconds per second; grounded refuels.
+export function stepFuel(fuel, dt, thrusting, onGround) {
+  if (thrusting) return Math.max(0, fuel - dt / JETPACK.fuelSeconds);
+  return onGround ? Math.min(1, fuel + dt * JETPACK.refuel) : fuel;
+}

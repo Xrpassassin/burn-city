@@ -55,12 +55,12 @@ function addBridgeArchitecture(THREE, root) {
 }
 
 export async function installEstatesIslandLive({
-  THREE, scene, player, avatar, camera, getYaw, getMode, setMode,
+  THREE, scene, player, avatar, camera, getYaw, setYaw, getMode, setMode,
   isInteractPressed = () => false,
   onStatus = () => {}
 } = {}) {
   if (!THREE || !scene || !player?.pos || !avatar || !camera || typeof getYaw !== 'function' ||
-      typeof getMode !== 'function' || typeof setMode !== 'function') {
+      typeof getMode !== 'function' || typeof setMode !== 'function' || typeof setYaw !== 'function') {
     throw new TypeError('Live Estates Island host dependencies are incomplete');
   }
   const response = await fetch('./data/estate-catalog.json', { cache: 'no-cache' });
@@ -142,6 +142,7 @@ export async function installEstatesIslandLive({
     active=true; nearCityGate=false; hidePanel();
     if(getMode()!=='explore') setMode('explore');
     player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);
+    setYaw(-Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
     avatar.position.copy(player.pos);
     onStatus({state:'entered-public-island',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
@@ -150,6 +151,7 @@ export async function installEstatesIslandLive({
     if(disposed||!active)return;
     active=false; hidePanel(); controller.dispose();
     player.pos.set(CITY_GATE.x,CITY_GATE.y,CITY_GATE.z);
+    setYaw(Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
     avatar.position.copy(player.pos);
     onStatus({state:'returned-to-city'});
@@ -210,7 +212,6 @@ export async function installEstatesIslandLive({
     }
     return true;
   }
-  const gate = new THREE.Group(); gate.name='estates-city-side-gate'; gate.position.set(OFFSET_X-205,0,188); root.add(gate);
   // Public island is rendered at the city offset, with a continuous bridge; the city-side interaction is explicit.
   const api = Object.freeze({
     tick,

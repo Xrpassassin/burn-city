@@ -132,6 +132,8 @@ export function traverseInteriorDoor(interior, state, doorId) {
   return { ...state, roomId: exit.to, openedDoors: [...new Set([...(state.openedDoors || []), doorId])] };
 }
 
+const alongDoorAxis = (side, x, z, offset) => side === 'east' || side === 'west' ? ({ x, z: z + offset }) : ({ x: x + offset, z });
+
 // Open-roof, low-poly room shells let players read the interior layout in third person.
 // Each room has a real floor, low walls, door gaps, and visible door/interactable props.
 export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z: 0 }) {
@@ -186,6 +188,24 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
       slab.userData.interiorDoorSlab = true;
       slab.userData.interiorDoorId = exit.id;
       root.add(door);
+      const destinationRoom = interiorRoom(interior, exit.to);
+      const destinationElevation = Number.isFinite(destinationRoom?.elevation) ? destinationRoom.elevation : 0;
+      const rise = destinationElevation - (Number.isFinite(r.elevation) ? r.elevation : 0);
+      if (Math.abs(rise) >= 0.75) {
+        // A real, readable ladder connects the two authored floor heights at this transition.
+        const lowY = Math.min(r.elevation || 0, destinationElevation);
+        const height = Math.abs(rise);
+        const railOffset = 0.48;
+        const railA = alongDoorAxis(exit.side, doorX, doorZ, -railOffset);
+        const railB = alongDoorAxis(exit.side, doorX, doorZ, railOffset);
+        box(root, [0.1, height, 0.1], [railA.x, lowY + height / 2, railA.z], trimMat);
+        box(root, [0.1, height, 0.1], [railB.x, lowY + height / 2, railB.z], trimMat);
+        for (let rung = 1; rung <= Math.floor(height / 0.42); rung++) {
+          const y = lowY + rung * height / (Math.floor(height / 0.42) + 1);
+          box(root, exit.side === 'east' || exit.side === 'west' ? [0.1, 0.09, 0.96] : [0.96, 0.09, 0.1],
+            [doorX, y, doorZ], trimMat);
+        }
+      }
     }
   }
   for (const item of interior.interactables) {

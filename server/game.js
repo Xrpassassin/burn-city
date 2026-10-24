@@ -258,7 +258,7 @@ class Room {
         if (visible) zb.lastKnownTarget = { x: best.x, z: best.z, untilMs: this.t * 1000 + 2500, lv: best.lv || 0 };
         let heard = null, heardDistance = Infinity;
         for (const noise of this.tacNoise || []) {
-          const stimulus = Tactics.hearNoise(zb, noise, this.t * 1000);
+          const stimulus = Tactics.hearNoise(zb, noise, this.t * 1000, zb.role === 'straggler' ? 1.25 : 1);
           if (stimulus && stimulus.distance < heardDistance) { heard = noise; heardDistance = stimulus.distance; }
         }
         tactical = Tactics.chooseBehavior({ zombie: zb, nowMs: this.t * 1000, target: best, targetVisible: visible,
@@ -289,7 +289,12 @@ class Room {
           }
         }
         if (tactical?.state !== 'investigate' && (zb.ty === 3 || zb.ty === 8)) { zb.chT = (zb.chT ?? (zb.ty === 8 ? 6 : 5)) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < (zb.ty === 8 ? 12 : 14) && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = (zb.ty === 8 ? 8 + Math.random() * 2 : 7 + Math.random() * 3); zb.charge = zb.ty === 8 ? 1.05 : 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
-        const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1, mv = zb.sp * (!this.ranked && !this.daily && zb.stagger > 0 ? 0.12 : 1) * (zb.charge > 0 ? (zb.ty === 8 ? 2.6 : 3.2) : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
+        const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1;
+        const tacticalRoleEligible = !this.ranked && !this.daily && zb.ty !== 6 && zb.ty !== 7 && zb.ty !== 8;
+        const roleSpeed = tacticalRoleEligible && zb.role === 'runner' ? 1.12 : 1;
+        const staggerSpeed = !this.ranked && !this.daily && zb.stagger > 0
+          ? (tacticalRoleEligible && zb.role === 'bruiser' ? 0.3 : 0.12) : 1;
+        const mv = zb.sp * roleSpeed * staggerSpeed * (zb.charge > 0 ? (zb.ty === 8 ? 2.6 : 3.2) : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
         if (zb.ty === 6) { zb.x = nx; zb.z = nz; zb.y = 2.4 + Math.sin(this.t * 3.5 + zb.id) * 0.3; zb.lv = 0; }
         else { if (Z.inside(this, nx, zb.z, 0.32, zb.lv)) zb.x = nx; if (Z.inside(this, zb.x, nz, 0.32, zb.lv)) zb.z = nz;
           if (!Z.inside(this, zb.x, zb.z, 0.32, zb.lv) && st) { zb.x += (st[0] - zb.x) * Math.min(1, dt * 4); zb.z += (st[1] - zb.z) * Math.min(1, dt * 4); }   // never wedge into a corner

@@ -625,9 +625,17 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     p.y=THREE.MathUtils.clamp(p.y,.9,r.halfH-.35);
     return r.group.localToWorld(p);
   };
+  // Leave the active residence without moving the player (fly/orbit/travel/tour/respawn
+  // relocated them). The guard must never yank a far-away player back into the room.
+  window.__estateAutoExit=()=>{
+    const r=interiorRooms[window.__estateInteriorId]; if(r)r.group.visible=false;
+    window.__estateInteriorId=null;
+    document.getElementById('estateInteriorHud')?.remove();
+  };
   window.__estateInteriorGuard=(pos,vel)=>{
     const id=window.__estateInteriorId, r=interiorRooms[id]; if(!r)return false;
     const p=r.group.worldToLocal(pos.clone());
+    if(Math.abs(p.x)>r.halfW+3||Math.abs(p.z)>r.halfD+3||p.y>r.halfH+6){window.__estateAutoExit();return false;}
     p.x=THREE.MathUtils.clamp(p.x,-r.halfW,r.halfW);
     p.z=THREE.MathUtils.clamp(p.z,-r.halfD,r.halfD);
     // Preserve a clear central lane from spawn to the front door/exit. Furniture

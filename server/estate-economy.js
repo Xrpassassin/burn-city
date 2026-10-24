@@ -24,7 +24,7 @@ function allocateProfit(distributableDrops, holdings) {
   });
   if (new Set(rows.map(r => r.propertyId)).size !== rows.length) throw new TypeError('duplicate_property_holding');
   const totalWeight = rows.reduce((n, r) => n + r.weight, 0);
-  if (!totalWeight || !amount) return rows.map(r => ({ ...r, amountDrops: 0, totalWeight }));
+  if (!totalWeight || !amount) return rows.map(r => ({ ...r, amountDrops: 0, totalWeight })).sort((a, b) => a.propertyId.localeCompare(b.propertyId));   // same order as the non-zero path
   const amountBig = BigInt(amount), totalWeightBig = BigInt(totalWeight);
   let assigned = 0n;
   const out = rows.map(r => {

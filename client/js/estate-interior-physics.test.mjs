@@ -21,4 +21,6 @@ assert.match(estate, /const interiorRugs = \{[\s\S]*?mansion:new THREE\.MeshStan
 assert.match(estate, /const ceilingLight=new THREE\.PointLight\(ceilingColor/, 'interiors receive tier-tuned ambient lighting');
 assert.match(estate, /window\.__estateCameraGuard=\(cameraPos\)=>/, 'third-person camera gets an interior-boundary guard');
 assert.match(app, /window\.__estateCameraGuard&&window\.__estateCameraGuard\(want\)/, 'third-person camera applies the interior guard');
-console.log('Estates interior regression checks: 16 assertions passed');
+assert.match(estate, /if\(Math\.abs\(p\.x\)>r\.halfW\+3\|\|Math\.abs\(p\.z\)>r\.halfD\+3\|\|p\.y>r\.halfH\+6\)\{window\.__estateAutoExit\(\);return false;\}/, 'a player far from the active room auto-exits instead of being teleported back');
+assert.doesNotMatch(estate.match(/window\.__estateAutoExit=\(\)=>\{[\s\S]*?\n  \};/)[0], /pos\.copy|P\.pos/, 'auto-exit never moves the player');
+console.log('Estates interior regression checks: 18 assertions passed');

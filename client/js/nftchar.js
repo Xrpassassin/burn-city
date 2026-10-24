@@ -502,24 +502,32 @@ export function buildNftChar(n, opts = {}) {
   }
 
   if(key==='fk') {
-    // Firekeepers have a collection-specific robe silhouette and ember mantle, even with sparse metadata.
+    // The collection establishes a layered robe silhouette, but optional wearable details must
+    // follow this token's metadata instead of being stamped onto every Firekeeper.
     const hem=add(geo('nft-firekeeper-robe-hem',()=>new THREE.CylinderGeometry(.235,.34,.52,12)),darkCloth,0,.79,-.015);
     hem.name='nft-firekeeper-robe-hem';
-    // Split outer panels create layered fabric rather than a single cylindrical robe.
     for (const side of [-1,1]) {
       const panel=add(geo('nft-firekeeper-robe-panel',()=>new THREE.CapsuleGeometry(.065,.36,3,8)),trim,side*.19,.91,.105);
       panel.scale.set(.8,1,.36); panel.rotation.z=side*-.035; panel.name='nft-firekeeper-robe-panel';
       const stitch=addBox(g,glow(shade(accentHex,.78)),[side*.105,.98,.197],[.012,.3,.012]);
       stitch.name='nft-firekeeper-robe-embroidery';
     }
-    const mantle=add(geo('nft-firekeeper-mantle',()=>new THREE.TorusGeometry(.255,.045,6,20)),trim,0,1.405,-.005);
-    mantle.rotation.x=Math.PI/2; mantle.name='nft-firekeeper-mantle';
-    const sigil=add(geo('nft-firekeeper-sigil',()=>new THREE.OctahedronGeometry(.052,0)),glow(accentHex),0,1.22,.22);
-    sigil.name='nft-firekeeper-sigil';
-    // A rear cowl silhouette makes Firekeepers readable from profile; facial features stay unobscured.
-    const cowl=addSphere(head,trim,[0,.055,-.085],[.245,.265,.15]);
-    cowl.name='nft-firekeeper-cowl';
-    addSphere(g,glow(shade(accentHex,.72)),[0,1.15,-.19],[.07,.12,.035]);
+    if (components.outfitStyle === 'robes' && /mantle|layer|ceremonial|keeper/i.test(traitValue(/outfit|armor/i))) {
+      const mantle=add(geo('nft-firekeeper-mantle',()=>new THREE.TorusGeometry(.255,.045,6,20)),trim,0,1.405,-.005);
+      mantle.rotation.x=Math.PI/2; mantle.name='nft-firekeeper-mantle';
+    }
+    if (components.accessoryStyle === 'relic') {
+      const sigil=add(geo('nft-firekeeper-sigil',()=>new THREE.OctahedronGeometry(.052,0)),glow(accentHex),0,1.22,.22);
+      sigil.name='nft-firekeeper-sigil';
+    }
+    if (components.headwearStyle === 'hood') {
+      // Only tokens whose Head/Cowl trait calls for it receive the rear cowl silhouette.
+      const cowl=addSphere(head,trim,[0,.055,-.085],[.245,.265,.15]);
+      cowl.name='nft-firekeeper-cowl';
+    }
+    if (components.flame.style !== 'default') {
+      addSphere(g,glow(shade(components.flame.color || accentHex,.72)),[0,1.15,-.19],[.07,.12,.035]).name='nft-firekeeper-rear-ember';
+    }
   }
 
   // Background belongs to the original 2D NFT composition, not wearable geometry.
@@ -554,10 +562,10 @@ export function buildNftChar(n, opts = {}) {
     }
   }
 
-  // The original NFT is the per-token visual source of truth. Give it a prominent, framed chest tabard
-  // instead of a tiny badge; preserve the complete composition and its original aspect ratio (never crop).
+  // Keep original art as a reference portrait, not a billboard covering the reconstructed body.
+  // The torso tabard is opt-in for QA only; the in-game avatar should be judged on its own geometry.
   const url=opts.srv?nftImg(opts.srv,n):'';
-  if(url&&opts.panel!==false) {
+  if(url&&opts.panel===true) {
     // A thin curved backing follows the torso instead of presenting the NFT like a rigid
     // cardboard sign. The source artwork remains complete and aspect-fitted on the curved surface.
     const artFrame=addBox(g,mat('#171a20',.62,.12),[0,1.24,.205],[.57,.73,.008]);

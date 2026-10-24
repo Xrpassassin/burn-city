@@ -110,6 +110,10 @@ has(visualQa, /visualApproval:'not-reviewed'/, 'includes fail-closed visual appr
 has(visualQa, /let latestQa = \{ reconstruction: \{\}, traitCoverage: \[\] \}/, 'retains latest render QA data for the report-copy handler');
 has(visualQa, /collectionRequirements:latestQa\.reconstruction\.visualRequirements/, 'copies collection review requirements from the latest render');
 has(visualQa, /latestQa\.traitCoverage\.map/, 'copies fidelity counts from the latest render without out-of-scope references');
+has(visualQa, /https:\/\/api\.xrpl\.to\/v1\/nft\//, 'loads source NFT metadata through the documented XRPL.to API');
+has(visualQa, /record\.NFTokenID\|\|record\._id/, 'checks live NFT API response against the exact requested token ID');
+has(visualQa, /Load real RACC NFT from XRPL\.to API/, 'provides a one-click real RACC reference load path');
+has(visualQa, /Data source: XRPL\.to/, 'credits the XRPL.to NFT data source visibly');
 has(visualQa, /Collection-specific review requirements:/, 'shows collection recipe acceptance criteria beside each NFT reconstruction');
 has(visualQa, /collectionRequirements:recon\.visualRequirements\|\|\[\]/, 'preserves collection-specific visual requirements in the copied QA report');
 has(avatar, /needs-dedicated-visual/, 'flags traits without a faithful renderer instead of silently dropping them');

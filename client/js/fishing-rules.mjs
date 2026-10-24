@@ -11,12 +11,6 @@ const PREFERRED_BAIT = {
   salmon: 3, leviathan: 2, marlin: 2, whaleshark: 2
 };
 
-// Casts inside a visible feeding school receive a modest, deterministic bite/fight bonus.
-export function feedingSpotBonus(distance, radius = 9) {
-  const d = Number(distance), r = clamp(radius, 0, 100);
-  return Number.isFinite(d) && d >= 0 && d <= r ? 1.28 : 1;
-}
-
 export function baitAffinity(speciesId, baitTier) {
   const tier = Math.max(0, Math.min(3, Number.isFinite(+baitTier) ? +baitTier : 0));
   const preferred = PREFERRED_BAIT[speciesId];

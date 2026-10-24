@@ -39,7 +39,9 @@ function storyLeads(discoveredIds) {
       const next = LANDMARKS.get(nextId);
       leads.push({ threadId: thread.id, title: thread.title, discoveredCount: found.length, totalStops: sequence.length, nextLandmarkId: nextId, nextLandmarkTitle: next?.title || nextId, rewardIntent: thread.rewardIntent });
     } else if (found.length === sequence.length) {
-      leads.push({ threadId: thread.id, title: thread.title, discoveredCount: found.length, totalStops: sequence.length, complete: true, rewardIntent: thread.rewardIntent });
+      // Visiting every location only surveys the route. Story completion must wait for
+      // explicit clue/objective interactions, so never infer a narrative payoff here.
+      leads.push({ threadId: thread.id, title: thread.title, discoveredCount: found.length, totalStops: sequence.length, status: 'route_surveyed', rewardIntent: thread.rewardIntent });
     }
   }
   return leads;

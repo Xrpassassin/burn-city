@@ -15,6 +15,7 @@ const Interiors = require('./homefront-interiors');
 const Exploration = require('./homefront-exploration');
 const Travel = require('./homefront-travel');
 const PvP = require('./homefront-pvp');
+const Rpg = require('./homefront-rpg');
 const Collision = require('./homefront-collision');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
@@ -117,6 +118,17 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         if (!db.players[user.acct]) { Travel.touch(db, user.acct, now); store.save('homefront-world.json', db); }
         json(res, 200, { mode: 'homefront-travel', travel: Travel.publicState(db, user.acct, now) }); return true;
       }
+      // RPG character sheet (server/homefront-rpg.js): GET the sheet; POST learn/equip/unequip/track only.
+      if (url.pathname === '/api/homefront/world/rpg') {
+        const bases = store.load('homefront.json', {});
+        const base = Object.prototype.hasOwnProperty.call(bases, user.acct) ? Core.validateBase(bases[user.acct], user.acct) : null;
+        if (req.method === 'POST') {
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_rpg_action' }); return true; }
+          const profile = Rpg.act(store, user.acct, payload, base);
+          json(res, 200, { mode: 'homefront-rpg', sheet: Rpg.sheet(profile, base) }); return true;
+        }
+        json(res, 200, { mode: 'homefront-rpg', sheet: Rpg.sheet(Rpg.get(store, user.acct, base), base) }); return true;
+      }
       // Read-only refuge for "Join friend's Homefront": owner, party members (world or home) or public refuges.
       // Anyone else gets the same 404 as /api/homefront/visit, so private refuges stay private.
       if (req.method === 'GET' && url.pathname === '/api/homefront/world/refuge') {
@@ -152,7 +164,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const landmarkId = typeof payload.landmarkId === 'string' ? payload.landmarkId : '';
           const progressDb = Exploration.normalize(store.load('homefront-exploration.json', {}));
           const discovered = Exploration.discover(progressDb, { account: user.acct, player, landmarkId, now: Date.now() });
-          if (discovered.newlyDiscovered) store.save('homefront-exploration.json', discovered.state);
+          if (discovered.newlyDiscovered) { store.save('homefront-exploration.json', discovered.state); Rpg.award(store, user.acct, 'discover'); }
           json(res, 200, { mode: 'homefront-exploration', exploration: discovered.progress, newlyDiscovered: discovered.newlyDiscovered, landmark: discovered.landmark });
           return true;
         }
@@ -278,10 +290,11 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             store.save('homefront.json',bases);
           }
           store.save('homefront-world.json', db);
+          const rpgAward = Rpg.award(store, user.acct, 'loot', { lootKey: found.node?.id || null, base, now });   // RPG loot-pickup hook
           json(res, 200, {
             mode: 'homefront-world',
             ...World.snapshot(db, user.acct, now),
-            base,
+            base, rpgAward,
             loot: { node: found.node, accepted: found.accepted, overflow: found.overflow, overflowDestination: 'refuge', noise: { level: found.noise.level, durationMs: found.noise.durationMs } },
             inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }
           });
@@ -355,7 +368,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           bases[user.acct] = outcome.base;
           store.save('homefront.json', bases);
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, hitZone: outcome.hitZone, aimed: outcome.aimed, aimStability: outcome.aimStability, adsProgress: outcome.adsProgress, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward, weaponId, hitTargetId: outcome.hitTargetId, rounds: outcome.rounds, hits: outcome.hits }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
+          const rpgAward = outcome.killed ? Rpg.award(store, user.acct, 'kill_infected', { base, now: combatAt }) : null;
+          json(res, 200, { mode: 'homefront-world', rpgAward, ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, hitZone: outcome.hitZone, aimed: outcome.aimed, aimStability: outcome.aimStability, adsProgress: outcome.adsProgress, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward, weaponId, hitTargetId: outcome.hitTargetId, rounds: outcome.rounds, hits: outcome.hits }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
           return true;
         }
         case '/api/homefront/world/enter': {
@@ -363,7 +377,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           if (payload.withParty === true && !db.players[user.acct] && Travel.partyOf(db, user.acct)) Travel.summonParty(db, user.acct);
           const wasHome = !db.players[user.acct];
           outcome=World.enter(db,user.acct);
-          if (wasHome) Travel.rejoinOnEnter(outcome.world, user.acct, { Collision, bounds: World.WORLD_SIZE });
+          if (wasHome) { Travel.rejoinOnEnter(outcome.world, user.acct, { Collision, bounds: World.WORLD_SIZE }); Rpg.award(store, user.acct, 'enter_world'); }
           outcome.result = World.snapshot(outcome.world, user.acct);
           const player=outcome.world.players[user.acct];
           if(player&&!player.inventoryInitialized){
@@ -477,6 +491,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           if (!base) throw new Error('save_invalid');
           const now = Date.now();
           const pvp = PvP.attack(db, user.acct, { targetId: payload.targetId, aimPoint: payload.aimPoint, base, now, farSpawn: World.chooseSafeSpawn, visibleAccounts: World.visibleAccounts });
+          if (pvp.killed) pvp.rpgAward = Rpg.award(store, user.acct, 'pvp_kill', { base, now });
           store.save('homefront-world.json', db);
           json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), pvp });
           return true;
@@ -514,6 +529,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           player.lastSeen = now;
           store.save('homefront-world.json', db);
           const snap = World.snapshot(db, user.acct, now);
+          Rpg.award(store, user.acct, 'rescue', { base: nextBase });
           json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: { id: nearest.point.id, label: nearest.point.label, rescued: true, readyAt: rescue.readyAt, difficulty, survivor: nextBase.survivors.at(-1), event: nextBase.log.at(-1)?.text }, tacticalNoise: { level: rescueNoise, durationMs: 12000, cause: 'survivor_rescue' } });
           return true;
         }
@@ -608,7 +624,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             const weaponDamage = Math.max(8, Math.floor(((nearest.point.id === 'research_annex' ? 30 : 36) + (combatPower - 1) * 4) / threatScale));
             boss.hp = Math.max(0, boss.hp - weaponDamage);
             if (boss.hp === 0) {
-              defeated = true; boss.respawnAt = Date.now() + 5 * 60e3;
+              defeated = true; boss.respawnAt = Date.now() + 5 * 60e3; Rpg.award(store, user.acct, 'boss');
               nextBase.resources.scrap = Math.min(999999, nextBase.resources.scrap + 45);
               nextBase.resources.meds = Math.min(999999, nextBase.resources.meds + 3);
               const bossEmbers = 80 * Core.DIFFICULTIES[difficulty].reward;
@@ -710,7 +726,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
     }
     db[user.acct] = next;
     store.save('homefront.json', db);
-    json(res, 200, { mode: 'homefront', base: next, threatProfile: Core.threatProfile(next), firearmTiers: FIREARM_TIERS_PUBLIC });
+    // RPG progression hooks (server-side only): a worked day and a repelled siege grant XP.
+    const rpgAward = payload.action.type === 'workday' && next.day > base.day ? Rpg.award(store, user.acct, 'workday', { base }) : repelled ? Rpg.award(store, user.acct, 'siege_repelled', { base }) : null;   // back-fill from the pre-action refuge so this day isn't counted twice
+    json(res, 200, { mode: 'homefront', rpgAward, base: next, threatProfile: Core.threatProfile(next), firearmTiers: FIREARM_TIERS_PUBLIC });
     return true;
   } catch (e) {
     const message = String(e?.message || 'homefront_error');

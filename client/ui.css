@@ -577,3 +577,45 @@ body.touch{--bottom:calc(var(--sa-b) + max(var(--edge-y),10px));--ctl:var(--tap)
   body.touch.mExplore #toasts,body.touch.mFly #toasts,#toasts{top:calc(var(--top) + var(--tap) + 8px)!important}
 }
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* [8] overlap fixes (fix/ui-overlaps, audit: scripts/ui-overlap-audit.mjs) */
+/* the daily recap is an Orbit card: it steps aside in Explore / Fly and while an estate interior banner is up (it covered the minimap column, chips, prompt and HUD) */
+body.mExplore #recap,body.mFly #recap,body:has(#estateInteriorHud) #recap{display:none!important}
+/* estate interior banner (TOUR · / ESTATES ·): on touch it takes the status-chip row while you are inside (it sat on the top row, View/Play and the Market chip); the chips come back on exit */
+body.touch #estateInteriorHud{top:var(--row2)!important;left:var(--left)!important;right:var(--right)!important;transform:none!important;max-width:none!important;max-height:40px;overflow:hidden;box-sizing:border-box;font-size:11px!important;letter-spacing:.02em!important;padding:4px 8px!important;display:flex;align-items:center;justify-content:center}
+body.touch:has(#estateInteriorHud) #status{visibility:hidden}
+/* one-shot tips step aside inside a residence (the prompt + banner already say how to exit) */
+body:has(#estateInteriorHud) #vHint,body:has(#estateInteriorHud) #tapTip{display:none!important}
+/* desktop hint line stays clear of the minimap + Keys button */
+#help{width:max-content!important;max-width:calc(100vw - 2*var(--left) - 600px)}
+/* PWA install hint: bottom edge in Orbit (it sat over the minimap/streak chip column and the prompt) */
+#iosHint{width:max-content;max-width:calc(100vw - 2*var(--edge-x));box-sizing:border-box;bottom:var(--bottom)!important}
+/* the one-line control hint steps aside while the install hint is up (they share the bottom edge) */
+body:has(#iosHint) #help{visibility:hidden}
+/* touch: between the minimap (left) and City chat (right) on the bottom row */
+body.touch #iosHint{left:calc(var(--left) + 106px)!important;right:calc(var(--right) + 54px)!important;transform:none!important;width:auto;max-width:none;text-align:center}
+@media (max-width:520px){
+  /* status chips stay on one row (a wrapped 2nd row ran under the minimap and recap); the live chip truncates */
+  body.touch #status{flex-wrap:nowrap;max-width:calc(100vw - 2*var(--edge-x))}
+  body.touch #status #live{display:block!important;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:calc(var(--tap) - 2px)}
+  body.touch #status #live i{display:inline-block;vertical-align:middle;margin:-2px 7px 0 0}
+  body.touch #status #wchip{flex:0 0 auto}
+  /* hints/tips sit between the minimap column and the gear column in Explore / Fly */
+  body.touch.mExplore #vHint,body.touch.mFly #vHint,body.touch.mExplore #tapTip,body.touch.mFly #tapTip{max-width:calc(100vw - 2*var(--left) - 220px)!important;white-space:normal;text-align:center;box-sizing:border-box}
+}
+/* short phones (iPhone SE): the recap ends above the streak chip + minimap column and scrolls */
+@media (max-width:520px) and (max-height:600px){
+  body.touch #recap{max-height:calc(100dvh - var(--row2) - 52px - var(--bottom) - 248px)!important;overflow:auto}
+}
+/* 320px phones (iPhone SE 1st gen): the brand text gives way to the flame mark so ☰ View fits */
+@media (max-width:340px){
+  #hud:not(.open) .hdr .brand{font-size:0}
+}
+/* iPhone SE / mini: the top row (BURN CITY, ☰ View, ⇄ Play, ⋯) did not fit around the centred View button */
+@media (max-width:380px){
+  #bcMoveGamesOpen .bc-mg-short{display:none!important}
+  body.touch #vExit{left:auto!important;right:calc(var(--right) + 118px)!important;transform:none!important;padding:0 10px!important}
+  #bcMoveGamesOpen .bc-mg-mark{margin-right:0!important}
+}
+@media (max-height:500px) and (orientation:landscape){
+  body.touch #estateInteriorHud{top:calc(var(--top) + var(--tap) + 8px)!important;left:calc(var(--left) + 106px)!important;right:calc(var(--right) + 160px)!important}
+}

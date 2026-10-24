@@ -10,6 +10,7 @@ const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform
 if (ios && !standalone && !localStorage.getItem('bc_ios_hint')) {
   const show = () => {
     const gd = document.getElementById('guide'); if (gd && !gd.hidden) return setTimeout(show, 2000);
+    if (/\bm(Explore|Fly)\b/.test(document.body.className)) return setTimeout(show, 3000); // shown in Orbit only: in Explore/Fly the bottom edge belongs to the touch controls
     const h = document.createElement('div'); h.id = 'iosHint'; h.setAttribute('role', 'status');
     h.innerHTML = 'Install Burn City: tap <b>Share</b> <span aria-hidden="true">⎋</span> then <b>Add to Home Screen</b> <button aria-label="Dismiss">✕</button>';
     h.querySelector('button').onclick = () => h.remove();

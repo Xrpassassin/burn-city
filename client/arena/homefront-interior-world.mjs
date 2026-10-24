@@ -146,6 +146,11 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   const material = color => new THREE.MeshStandardMaterial({ color, roughness: 0.95 });
   const floorMat = material(0x4b4940), wallMat = material(0x5b554b), trimMat = material(0x7a5c42);
   const objectMat = material(0x393b37), clueMat = material(0x9e7944), powerMat = material(0x647d70), glassMat = material(0x405357);
+  const rubbleMat = material(0x62594e);
+  const grimeMat = new THREE.MeshStandardMaterial({ color: 0x282b29, roughness: 1, transparent: true, opacity: 0.32, depthWrite: false });
+  const lampMat = new THREE.MeshStandardMaterial({ color: 0xffbd78, emissive: 0xff742e, emissiveIntensity: 0.65, roughness: 0.7 });
+  const detailHash = value => { let h = 2166136261; for (const ch of value) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
+  const detailRandom = (seed, lane) => { const n = Math.sin(seed * 12.9898 + lane * 78.233) * 43758.5453; return n - Math.floor(n); };
   const box = (parent, size, position, mat) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), mat);
     mesh.position.set(...position); mesh.userData.interiorLandmarkId = interior.landmarkId; parent.add(mesh); return mesh;
@@ -165,6 +170,55 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
     box(parent, alongX ? [segment, h, t] : [t, h, segment], wallPosition((gapWidth + segment) / 2), wallMat);
   };
   const hasExit = (r, side) => r.exits.some(exit => exit.side === side);
+  // Open-roof rooms get small batches of floor rubble, wall grime, and emergency lamps.
+  // Instancing keeps the added environmental storytelling inexpensive across all seven interiors.
+  const detailCount = interior.rooms.length;
+  const rubbleGeometry = new THREE.DodecahedronGeometry(0.22, 0);
+  const grimeGeometry = new THREE.BoxGeometry(0.36, 0.62, 0.025);
+  const lampGeometry = new THREE.BoxGeometry(0.58, 0.065, 0.06);
+  const rubbleBatch = new THREE.InstancedMesh(rubbleGeometry, rubbleMat, detailCount * 4);
+  const grimeBatch = new THREE.InstancedMesh(grimeGeometry, grimeMat, detailCount * 2);
+  const lampBatch = new THREE.InstancedMesh(lampGeometry, lampMat, detailCount);
+  const dummy = new THREE.Object3D();
+  let rubbleIndex = 0, grimeIndex = 0, lampIndex = 0;
+  for (const r of interior.rooms) {
+    const seed = detailHash(interior.landmarkId + ':' + r.id);
+    for (let i = 0; i < 4; i++) {
+      const xOffset = (detailRandom(seed, i) - 0.5) * (r.width - 1.0);
+      let zOffset = (detailRandom(seed, i + 11) - 0.5) * (r.depth - 1.0);
+      if (Math.hypot(xOffset, zOffset) < 1.15) zOffset = (zOffset < 0 ? -1 : 1) * (r.depth * 0.36);
+      const scale = 0.45 + detailRandom(seed, i + 21) * 0.85;
+      dummy.position.set(r.x + xOffset, r.elevation + 0.11, r.z + zOffset);
+      dummy.rotation.set(detailRandom(seed, i + 31), detailRandom(seed, i + 41) * Math.PI, detailRandom(seed, i + 51));
+      dummy.scale.set(scale, scale * 0.55, scale);
+      dummy.updateMatrix();
+      rubbleBatch.setMatrixAt(rubbleIndex, dummy.matrix);
+      if (rubbleBatch.setColorAt) {
+        const tint = new THREE.Color(detailRandom(seed, i + 61) > 0.5 ? 0x62594e : 0x4d4b44);
+        rubbleBatch.setColorAt(rubbleIndex, tint);
+      }
+      rubbleIndex++;
+    }
+    for (let i = 0; i < 2; i++) {
+      dummy.position.set(r.x + (i ? 1.35 : -1.25), r.elevation + 0.85 + detailRandom(seed, i + 71) * 0.55, r.z + r.depth / 2 - 0.09);
+      dummy.rotation.set(0, (detailRandom(seed, i + 81) - 0.5) * 0.12, (detailRandom(seed, i + 91) - 0.5) * 0.12);
+      dummy.scale.setScalar(0.7 + detailRandom(seed, i + 101) * 0.8);
+      dummy.updateMatrix();
+      grimeBatch.setMatrixAt(grimeIndex++, dummy.matrix);
+    }
+    dummy.position.set(r.x - r.width * 0.32, r.elevation + 1.83, r.z - r.depth / 2 + 0.105);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.setScalar(1);
+    dummy.updateMatrix();
+    lampBatch.setMatrixAt(lampIndex++, dummy.matrix);
+  }
+  for (const batch of [rubbleBatch, grimeBatch, lampBatch]) {
+    batch.instanceMatrix.needsUpdate = true;
+    if (batch.instanceColor) batch.instanceColor.needsUpdate = true;
+    if (batch.computeBoundingSphere) batch.computeBoundingSphere();
+    batch.userData.interiorLandmarkId = interior.landmarkId;
+    root.add(batch);
+  }
   const renderedDoors = new Set();
   for (const r of interior.rooms) {
     box(root, [r.width, 0.16, r.depth], [r.x, r.elevation - 0.08, r.z], floorMat);

@@ -6,7 +6,10 @@ const { authorizeEstateAction } = require('./estates-access-policy');
 
 const PRIVATE_PERMISSIONS = Object.freeze(['enter', 'inspect', 'build']);
 
-function resolveEstateRights({ account, propertyId, action = 'enter', estates, now = Date.now } = {}) {
+const GUEST_PERMISSIONS = Object.freeze(['enter', 'inspect']);
+
+// `access` (optional) is server/estate-access.js: wallets the owner invited (#237) get enter/inspect only.
+function resolveEstateRights({ account, propertyId, action = 'enter', estates, access, now = Date.now } = {}) {
   if (typeof account !== 'string' || !/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(account)) {
     return Object.freeze({ allowed: false, reason: 'authenticated-account-required', propertyId: null, permissions: [] });
   }
@@ -25,7 +28,15 @@ function resolveEstateRights({ account, propertyId, action = 'enter', estates, n
     return Object.freeze({ allowed: false, reason: 'ownership-service-unavailable', propertyId, permissions: [] });
   }
   const row = owned.find(item => item && item.propertyId === propertyId && item.acct === account);
-  if (!row) {
+  let permissions = row ? [...PRIVATE_PERMISSIONS] : null, role = row ? 'owner' : null;
+  if (!row && access && typeof access.accessFor === 'function') {
+    let a = null;
+    try { a = access.accessFor(account, propertyId); } catch {
+      return Object.freeze({ allowed: false, reason: 'ownership-service-unavailable', propertyId, permissions: [] });
+    }
+    if (a && a.allowed === true && a.role === 'guest') { permissions = [...GUEST_PERMISSIONS]; role = 'guest'; }
+  }
+  if (!permissions) {
     return Object.freeze({ allowed: false, reason: 'verified-property-rights-not-found', propertyId, permissions: [] });
   }
 
@@ -39,7 +50,7 @@ function resolveEstateRights({ account, propertyId, action = 'enter', estates, n
     subjectId: account,
     propertyId,
     expiresAt: timestamp + 30_000,
-    permissions: [...PRIVATE_PERMISSIONS]
+    permissions
   };
   const decision = authorizeEstateAction({
     area: 'private', action, principal: { authenticated: true, subjectId: account },
@@ -48,6 +59,7 @@ function resolveEstateRights({ account, propertyId, action = 'enter', estates, n
   return Object.freeze({
     ...decision,
     propertyId,
+    role: decision.allowed ? role : null,
     permissions: decision.allowed ? [...grant.permissions] : [],
     expiresAt: decision.allowed ? grant.expiresAt : null
   });

@@ -1279,7 +1279,9 @@ function setMode(m){if(tlOn()&&m!=='explore')return;const prev=mode;mode=m;tour=
  $('prompt').style.display='none';
  $('help').textContent=m==='orbit'?'Drag orbit · scroll/pinch zoom · click a tower, road, billboard or terminal for live stats':m==='fly'?(MOBILE?'Left stick fly · drag to look · ▲ up · ▼ down · tap things to inspect':'WASD move · right-click drag to look · left-click objects to inspect · Space up · C down · Shift fast'):MOBILE?'Left stick walk · drag to look · tap things to inspect · USE talks to what\'s next to you':'WASD walk · Shift run · Space jump · hold right-click to look · left-click to select · E interact · V 1st/3rd person'+(NET?' · Enter chat':'')}
 window.__setBurnMode=setMode;
+window.__estateCan=(action)=>{const a=window.__estateAccess;return !!(a&&a.propertyId===window.__estateInteriorId&&a.permissions.includes(action))};   // gate any interior ownership action (furniture edits, invites, rights); the server re-checks
 window.__estateManageAccess=async(propertyId)=>{
+ if(window.__estateTourMode){alert('You are touring this residence. Tour visitors cannot invite guests or change rights.');return;}
  const token=localStorage.getItem('bcToken')||'';
  if(!token){alert('Sign in with Xaman to manage property access.');return;}
  const API='https://burn-city-game.fly.dev/api/estates/access', headers={authorization:'Bearer '+token,'content-type':'application/json'};
@@ -1305,12 +1307,14 @@ window.__estateManageAccess=async(propertyId)=>{
 };
 window.__estateEnter=async(propertyId)=>{
  const r=window.__estateRooms&&window.__estateRooms[propertyId]; if(!r||!r.group)return;
- const accessToken=localStorage.getItem('bcToken')||'';
- if(!accessToken){alert('Sign in with Xaman to enter an owned residence. Only its owner and invited wallets may enter.');return;}
+ const accessToken=localStorage.getItem('bcToken')||'',ESRV=new URLSearchParams(location.search).get('citysrv')||'https://burn-city-game.fly.dev';
+ // Server decides: unowned → tour (anyone, enter/inspect only); owned → owner or invited wallet only (#237).
  let access;
- try { const ar=await fetch('https://burn-city-game.fly.dev/api/estates/access/check?propertyId='+encodeURIComponent(propertyId),{headers:{authorization:'Bearer '+accessToken}}); access=await ar.json(); }
+ try { const ar=await fetch(ESRV+'/api/estates/tour?propertyId='+encodeURIComponent(propertyId),{headers:accessToken?{authorization:'Bearer '+accessToken}:{}}); access=await ar.json(); }
  catch { alert('Could not verify property access. Please try again.'); return; }
- if(!access.allowed){alert(access.reason==='not_owned'?'This residence has not been purchased yet.':'Access denied. The owner must invite your wallet.');return;}
+ if(!access||!access.allowed){alert(access&&access.reason==='sign_in_required'?'This residence is privately owned. Sign in with Xaman; only its owner and invited wallets may enter.':access&&access.reason==='slow_down'?'Too many requests. Please wait a moment.':'Access denied. The owner must invite your wallet.');return;}
+ window.__estateAccess={propertyId,role:access.role,mode:access.mode||access.role,permissions:Array.isArray(access.permissions)?access.permissions.slice():[]};
+ window.__estateTourMode=access.role==='tour';
  if(mode!=='explore')setMode('explore');
  document.getElementById('info').style.display='none';
  window.__estateInteriorId=propertyId;
@@ -1320,13 +1324,14 @@ window.__estateEnter=async(propertyId)=>{
  // Persistent in-room orientation cue: show the exact residence ID and a clear exit prompt.
  let hud=document.getElementById('estateInteriorHud');
  if(!hud){hud=document.createElement('div');hud.id='estateInteriorHud';hud.style.cssText='position:fixed;top:68px;left:50%;transform:translateX(-50%);z-index:35;max-width:92vw;padding:8px 12px;border:1px solid #ffb45b99;border-radius:10px;background:#101923e8;color:#ffe0b1;font:700 12px/1.4 system-ui,sans-serif;letter-spacing:.04em;text-align:center;pointer-events:none;box-shadow:0 4px 18px #0005';document.body.appendChild(hud)}
- hud.textContent='ESTATES · '+propertyId.toUpperCase()+' · E / USE TO EXIT';
+ hud.textContent=(window.__estateTourMode?'TOUR · ':'')+'ESTATES · '+propertyId.toUpperCase()+' · E / USE TO EXIT';
+ hud.dataset.mode=window.__estateAccess.mode;
  hud.setAttribute('aria-label','Current residence '+propertyId+'. Press E or Use to exit.');
 };
 window.__estateExit=()=>{
  const id=window.__estateInteriorId,r=window.__estateRooms&&window.__estateRooms[id]; if(!r)return;
  P.pos.copy(r.exterior); P.pos.y=.5; P.vel.set(0,0,0); P.onGround=true; P.climb=null;
- r.group.visible=false; window.__estateInteriorId=null;
+ r.group.visible=false; window.__estateInteriorId=null; window.__estateAccess=null; window.__estateTourMode=false;
  document.getElementById('estateInteriorHud')?.remove();
  yp.yaw=r.yaw; yp.pitch=0; avatar.rotation.y=yp.yaw;
 };

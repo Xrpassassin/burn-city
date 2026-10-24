@@ -22,4 +22,13 @@ assert.equal(resolveEstateRights({ account: acct, propertyId: 'starter-01', esta
 // A client-provided owner field or grant is not an input to this API and cannot grant access.
 assert.equal(resolveEstateRights({ account: other, propertyId: 'starter-01', owner: acct, grant: { verifiedBy: 'estate-authorization-service' }, estates, now: fixedNow }).allowed, false);
 assert.equal(resolveEstateRights({ account: acct, propertyId: 'starter-01', estates: { getState: () => ({ owned: [{ propertyId: 'starter-01', acct: other }] }) }, now: fixedNow }).allowed, false);
+// #237 invite list: an invited wallet gets enter/inspect, never build/invite/trade; tour/no-access roles grant nothing here.
+const access = { accessFor: (a, p) => a === other && p === 'starter-01' ? { allowed: true, role: 'guest' } : p === 'mansion-01' ? { allowed: true, role: 'tour' } : { allowed: false, reason: 'no_access' } };
+assert.deepEqual(resolveEstateRights({ account: other, propertyId: 'starter-01', estates, access, now: fixedNow }).permissions, ['enter', 'inspect']);
+assert.equal(resolveEstateRights({ account: other, propertyId: 'starter-01', estates, access, now: fixedNow }).role, 'guest');
+assert.equal(resolveEstateRights({ account: other, propertyId: 'starter-01', action: 'build', estates, access, now: fixedNow }).reason, 'permission-not-granted');
+assert.equal(resolveEstateRights({ account: other, propertyId: 'starter-01', action: 'invite', estates, access, now: fixedNow }).allowed, false);
+assert.equal(resolveEstateRights({ account: other, propertyId: 'mansion-01', estates, access, now: fixedNow }).allowed, false);
+assert.equal(resolveEstateRights({ account: other, propertyId: 'starter-01', estates, access: { accessFor() { throw Error('db'); } }, now: fixedNow }).reason, 'ownership-service-unavailable');
+assert.deepEqual(resolveEstateRights({ account: acct, propertyId: 'starter-01', estates, access, now: fixedNow }).permissions, ['enter', 'inspect', 'build']);
 console.log('estates-rights: verified property rights tests passed');

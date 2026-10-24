@@ -40,14 +40,24 @@ function searchRegistered(prefix, requester) {
     WHERE substr(acct,1,?) = ? AND acct <> ? ORDER BY acct LIMIT 12`).all(q.length, q, requester)
     .map(x => ({ acct: x.acct, label: x.acct.slice(0, 6) + '…' + x.acct.slice(-5) }));
 }
+// Who may enter a residence interior (server-authoritative; the browser never supplies owner or role).
+// Unowned (sales disabled, nobody holds it): anyone may tour it, signed in or not, with enter/inspect only.
+// Owned (#237 rule): only the owner and wallets the owner invited; everyone else is denied.
+const TOUR_PERMISSIONS = Object.freeze(['enter', 'inspect']);
+const GUEST_PERMISSIONS = Object.freeze(['enter', 'inspect']);
+const OWNER_PERMISSIONS = Object.freeze(['enter', 'inspect', 'build', 'invite']);
 function accessFor(acct, propertyId) {
-  if (!PROPERTY_BY_ID.has(String(propertyId || ''))) return { allowed: false, reason: 'unknown_property' };
+  if (!PROPERTY_BY_ID.has(String(propertyId || ''))) return { allowed: false, reason: 'unknown_property', permissions: [] };
   const owner = db.prepare('SELECT acct FROM estate_property_ownership WHERE property_id=?').get(propertyId);
-  if (!owner) return { allowed: false, reason: 'not_owned' };
-  if (owner.acct === acct) return { allowed: true, role: 'owner', owner: owner.acct };
+  if (!owner) return { allowed: true, role: 'tour', mode: 'tour', reason: 'unowned_tour', permissions: [...TOUR_PERMISSIONS] };
+  const signedIn = typeof acct === 'string' && acct.length > 0;   // acct comes only from a server-signed token
+  if (!signedIn) return { allowed: false, reason: 'sign_in_required', permissions: [] };
+  if (owner.acct === acct) return { allowed: true, role: 'owner', mode: 'owner', owner: owner.acct, permissions: [...OWNER_PERMISSIONS] };
   const invited = db.prepare('SELECT 1 FROM estate_property_invites WHERE property_id=? AND guest_acct=?').get(propertyId, acct);
-  return invited ? { allowed: true, role: 'guest', owner: owner.acct } : { allowed: false, reason: 'no_access' };
+  return invited ? { allowed: true, role: 'guest', mode: 'guest', owner: owner.acct, permissions: [...GUEST_PERMISSIONS] } : { allowed: false, reason: 'no_access', permissions: [] };
 }
+// Ownership actions (furniture/build edits, invites, rights changes) need the matching permission from accessFor.
+const canAct = (acct, propertyId, action) => { const a = accessFor(acct, propertyId); return !!(a.allowed && a.permissions.includes(action)); };
 function listForOwner(acct, propertyId) {
   if (!PROPERTY_BY_ID.has(String(propertyId || ''))) return { error: 'unknown_property' };
   const own = db.prepare('SELECT acct FROM estate_property_ownership WHERE property_id=?').get(propertyId);
@@ -80,4 +90,4 @@ function revoke(acct, propertyId, guestAcct) {
   db.prepare('DELETE FROM estate_property_invites WHERE property_id=? AND guest_acct=?').run(propertyId, guestAcct);
   return listForOwner(acct, propertyId);
 }
-module.exports = { markRegistered, searchRegistered, accessFor, listForOwner, invite, revoke, ADDRESS_RE };
+module.exports = { markRegistered, searchRegistered, accessFor, canAct, listForOwner, invite, revoke, ADDRESS_RE };

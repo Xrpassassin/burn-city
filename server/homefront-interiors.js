@@ -26,11 +26,12 @@ const REWARDS = Object.freeze({
 const clampInt = (n, min, max) => Number.isFinite(n) ? Math.max(min, Math.min(max, Math.floor(n))) : min;
 const copy = value => JSON.parse(JSON.stringify(value));
 function normalize(input) {
-  const out = {};
+  // Null-prototype maps: saved keys such as "__proto__" or "constructor" stay inert data.
+  const out = Object.create(null);
   if (!input || typeof input !== 'object' || Array.isArray(input)) return out;
   for (const [account, saved] of Object.entries(input)) {
     if (!saved || typeof saved !== 'object' || Array.isArray(saved)) continue;
-    const interiors = {};
+    const interiors = Object.create(null);
     for (const [landmarkId, state] of Object.entries(saved.interiors || {})) {
       const blueprint = Catalog.interiorForLandmark(landmarkId);
       if (!blueprint || !state || typeof state !== 'object') continue;
@@ -42,7 +43,7 @@ function normalize(input) {
         used: [...new Set((Array.isArray(state.used) ? state.used : []).filter(v => blueprint.interactables.some(item => item.id === v)))].slice(0, 64),
         openedDoors: [...new Set((Array.isArray(state.openedDoors) ? state.openedDoors : []).filter(v => blueprint.rooms.some(room => room.exits.some(exit => exit.id === v))))].slice(0, 64),
         noise: clampInt(state.noise, 0, 100),
-        doorDamage: Object.fromEntries(Object.entries(state.doorDamage || {}).filter(([doorId]) => blueprint.rooms.some(room => room.exits.some(exit => exit.id === doorId))).map(([doorId, value]) => [doorId, clampInt(value, 0, 100)])),
+        doorDamage: Object.assign(Object.create(null), Object.fromEntries(Object.entries(state.doorDamage && typeof state.doorDamage === 'object' ? state.doorDamage : {}).filter(([doorId]) => blueprint.rooms.some(room => room.exits.some(exit => exit.id === doorId))).map(([doorId, value]) => [doorId, clampInt(value, 0, 100)]))),
         updatedAt: clampInt(state.updatedAt, 0, Number.MAX_SAFE_INTEGER)
       };
     }
@@ -64,7 +65,7 @@ function enter(input, { account, player, landmarkId, now = Date.now() }) {
   if (!player) throw new Error('not_in_expedition');
   if (!near(player, landmarkId, ENTRY_RADIUS)) throw new Error('too_far_from_interior');
   const stateMap = normalizeMutable(input);
-  if (!stateMap[account]) stateMap[account] = { activeLandmarkId: null, interiors: {} };
+  if (!stateMap[account]) stateMap[account] = { activeLandmarkId: null, interiors: Object.create(null) };
   if (!stateMap[account].interiors[landmarkId]) stateMap[account].interiors[landmarkId] = {
     ...Catalog.createInteriorState(landmarkId), doorDamage: {}, updatedAt: now
   };

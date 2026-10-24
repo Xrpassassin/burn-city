@@ -83,8 +83,7 @@ function normalizeWorld(input) {
     const savedInterior = w.interiors?.[acct];
     const activeInteriorId = savedInterior?.activeLandmarkId || null;
     const activeInteriorState = activeInteriorId ? savedInterior.interiors?.[activeInteriorId] : null;
-    const interiorRemoved = Collision.INTERIOR_OBSTACLE_IDS.filter(id => !activeInteriorId || id.split(':')[1] !== activeInteriorId || (id.startsWith('interior-door:') && activeInteriorState?.openedDoors?.includes(id.split(':')[2])));
-    if (activeInteriorId) interiorRemoved.push(...(Collision.INTERIOR_CARVE_IDS[activeInteriorId] || []));
+    const interiorRemoved = Collision.interiorRemovedIds(activeInteriorId, activeInteriorState?.openedDoors);
     if (!Collision.isSafePosition(p.x, p.z, { bounds: WORLD_SIZE, removedObstacleIds: interiorRemoved })) {
       const anchor = SPAWNS.find(s => s.id === p.spawn) || chooseSpawn(w, acct);
       const recovered = Collision.findSafePosition(anchor.x, anchor.z, { bounds: WORLD_SIZE }) || Collision.findSafePosition(0, 0, { bounds: WORLD_SIZE });
@@ -289,8 +288,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   const activeInteriorOwner = w.interiors?.[acct];
   const activeInteriorId = activeInteriorOwner?.activeLandmarkId || null;
   const activeInteriorState = activeInteriorId ? activeInteriorOwner.interiors?.[activeInteriorId] : null;
-  removedObstacleIds.push(...Collision.INTERIOR_OBSTACLE_IDS.filter(id => !activeInteriorId || id.split(':')[1] !== activeInteriorId || (id.startsWith('interior-door:') && activeInteriorState?.openedDoors?.includes(id.split(':')[2]))));
-  if (activeInteriorId) removedObstacleIds.push(...(Collision.INTERIOR_CARVE_IDS[activeInteriorId] || []));
+  removedObstacleIds.push(...Collision.interiorRemovedIds(activeInteriorId, activeInteriorState?.openedDoors));
   if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE, removedObstacleIds })) {
     const route = Collision.findPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE, maxExpanded: 2600, removedObstacleIds });
     if (!route || !route.length) throw new Error('terrain_path_unreachable');
@@ -315,10 +313,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
       const followerInteriorOwner = w.interiors?.[member];
       const followerInteriorId = followerInteriorOwner?.activeLandmarkId || null;
       const followerInteriorState = followerInteriorId ? followerInteriorOwner.interiors?.[followerInteriorId] : null;
-      followerRemoved.push(...Collision.INTERIOR_OBSTACLE_IDS.filter(id =>
-        !followerInteriorId || id.split(':')[1] !== followerInteriorId ||
-        (id.startsWith('interior-door:') && followerInteriorState?.openedDoors?.includes(id.split(':')[2]))));
-      if (followerInteriorId) followerRemoved.push(...(Collision.INTERIOR_CARVE_IDS[followerInteriorId] || []));
+      followerRemoved.push(...Collision.interiorRemovedIds(followerInteriorId, followerInteriorState?.openedDoors));
       const route = Collision.findPath(followerState.x, followerState.z, targetX, targetZ, {
         bounds: WORLD_SIZE, maxExpanded: 900, removedObstacleIds: followerRemoved
       });

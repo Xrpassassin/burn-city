@@ -116,12 +116,24 @@ export function updateRouteRecovery(state = {}, position, target, now, options =
 }
 
 
+// The page builds one obstacle array per frame and shares it across every survivor, so the
+// signature string is computed once per array instead of once per survivor per frame.
+const OBSTACLE_KEYS = new WeakMap();
+function obstacleKeyFor(obstacles) {
+  let key = OBSTACLE_KEYS.get(obstacles);
+  if (key === undefined) {
+    key = obstacles.filter(item => item && item.hp !== 0).map(item => `${item.id ?? item.type}:${Math.round(item.x * 4)}:${Math.round(item.z * 4)}`).sort().join('|');
+    if (obstacles && typeof obstacles === 'object') OBSTACLE_KEYS.set(obstacles, key);
+  }
+  return key;
+}
+
 // Return a stable waypoint around the first blocking structure on the direct route.
 // The waypoint is retained until reached, preventing left/right oscillation at walls.
 export function updateRoutePlan(state = {}, position, target, obstacles = [], options = {}) {
   const actorRadius = options.actorRadius ?? 0.28;
   const targetKey = `${Math.round(target.x * 4)}/${Math.round(target.z * 4)}`;
-  const obstacleKey = obstacles.filter(item => item && item.hp !== 0).map(item => `${item.id ?? item.type}:${Math.round(item.x * 4)}:${Math.round(item.z * 4)}`).sort().join('|');
+  const obstacleKey = obstacleKeyFor(obstacles);
   if (state.targetKey !== targetKey || state.obstacleKey !== obstacleKey) state = { targetKey, obstacleKey, detour: null, blockedId: null };
   if (state.detour && Math.hypot(position.x - state.detour.x, position.z - state.detour.z) > (options.waypointArrival ?? 0.38)) {
     return state;

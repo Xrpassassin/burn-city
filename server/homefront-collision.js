@@ -146,11 +146,41 @@ for (const o of OBSTACLES) {
 function candidatesAt(x, z, radius) {
   return radius <= GRID_MARGIN ? (GRID.get(Math.floor(x / GRID_CELL) + ',' + Math.floor(z / GRID_CELL)) || EMPTY) : OBSTACLES;
 }
+// removedObstacleIds lists grow to 130+ ids (every inactive interior shell), so look them up through a
+// Set cached per list instead of Array.includes on every candidate of every sample.
+const REMOVED_SETS = new WeakMap();
+function removedSet(list) {
+  if (!list || !list.length) return null;
+  if (list instanceof Set) return list;
+  let hit = REMOVED_SETS.get(list);
+  // Callers only ever append to these lists, so a length change is the staleness signal.
+  if (!hit || hit.length !== list.length) { hit = { length: list.length, set: new Set(list) }; REMOVED_SETS.set(list, hit); }
+  return hit.set;
+}
+// Interior collision profile for one account: every interior wall/door id is removed except the
+// active building's walls and its still-closed doors, plus the exterior clutter carved out of that
+// building. Memoized by (landmark, opened doors); callers must not mutate the returned array.
+const INTERIOR_REMOVED_CACHE = new Map();
+function interiorRemovedIds(activeLandmarkId, openedDoors) {
+  const landmarkId = typeof activeLandmarkId === 'string' && INTERIOR_CARVE_IDS[activeLandmarkId] ? activeLandmarkId : null;
+  const opened = landmarkId && Array.isArray(openedDoors) ? openedDoors.filter(v => typeof v === 'string').sort() : [];
+  const key = (landmarkId || '') + '|' + opened.join(',');
+  let ids = INTERIOR_REMOVED_CACHE.get(key);
+  if (ids) return ids;
+  ids = INTERIOR_OBSTACLE_IDS.filter(id => !landmarkId || id.split(':')[1] !== landmarkId ||
+    (id.startsWith('interior-door:') && opened.includes(id.split(':')[2])));
+  if (landmarkId) ids.push(...INTERIOR_CARVE_IDS[landmarkId]);
+  Object.freeze(ids);
+  if (INTERIOR_REMOVED_CACHE.size > 256) INTERIOR_REMOVED_CACHE.clear();
+  INTERIOR_REMOVED_CACHE.set(key, ids);
+  return ids;
+}
 function pointBlocked(x, z, radius = PLAYER_RADIUS, removedObstacleIds = []) {
+  const removed = removedSet(removedObstacleIds);
   for (const o of candidatesAt(x, z, radius)) {
-    if (removedObstacleIds.includes(o.id)) continue;
     if (Math.abs(x - o.x) > (o.type === 'rect' ? o.halfX + radius : o.radius + radius) ||
         Math.abs(z - o.z) > (o.type === 'rect' ? o.halfZ + radius : o.radius + radius)) continue;
+    if (removed && removed.has(o.id)) continue;
     if (o.type === 'circle') {
       if (Math.hypot(x - o.x, z - o.z) < o.radius + radius) return o;
     } else if (Math.abs(x - o.x) < o.halfX + radius && Math.abs(z - o.z) < o.halfZ + radius) return o;
@@ -192,4 +222,4 @@ function findSafePosition(x, z, { bounds = WORLD_SIZE, maxRadius = 18, step = 2,
   }
   return null;
 }
-module.exports = { WORLD_SIZE, PLAYER_RADIUS, OBSTACLES, INTERIOR_OBSTACLE_IDS, INTERIOR_CARVE_IDS, GRID_CELL, GRID_MARGIN, pointBlocked, canTraverse, isSafePosition, findPath, findSafePosition };
+module.exports = { WORLD_SIZE, PLAYER_RADIUS, OBSTACLES, INTERIOR_OBSTACLE_IDS, INTERIOR_CARVE_IDS, interiorRemovedIds, GRID_CELL, GRID_MARGIN, pointBlocked, canTraverse, isSafePosition, findPath, findSafePosition };

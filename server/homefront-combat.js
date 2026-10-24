@@ -68,10 +68,7 @@ function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
 function interiorCollisionOptions(interiors, account) {
  const owner = interiors?.[account], landmarkId = owner?.activeLandmarkId || null;
  const state = landmarkId ? owner.interiors?.[landmarkId] : null;
- const removedObstacleIds = Collision.INTERIOR_OBSTACLE_IDS.filter(id =>
-  !landmarkId || id.split(':')[1] !== landmarkId ||
-  (id.startsWith('interior-door:') && state?.openedDoors?.includes(id.split(':')[2])));
- if (landmarkId) removedObstacleIds.push(...(Collision.INTERIOR_CARVE_IDS[landmarkId] || []));
+ const removedObstacleIds = Collision.interiorRemovedIds(landmarkId, state?.openedDoors);
  return { removedObstacleIds, landmarkId, state };
 }
 function attemptInteriorBreach({ account, enemy, player, interiors, now, elapsed, collisionOptions, speed }) {

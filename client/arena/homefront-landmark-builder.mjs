@@ -29,6 +29,21 @@ const RECIPES = Object.freeze({
 
 export const LANDMARK_ARCHETYPES = Object.freeze(Object.keys(RECIPES));
 
+// One shared material per palette entry (per Three.js namespace) instead of one per mesh:
+// 17 landmarks x ~7 pieces would otherwise compile ~120 identical-looking materials on phones.
+const SHARED_MATERIALS = new WeakMap();
+function sharedMaterial(THREE, materialName) {
+  let cache = SHARED_MATERIALS.get(THREE);
+  if (!cache) { cache = new Map(); SHARED_MATERIALS.set(THREE, cache); }
+  const key = Object.hasOwn(MAT, materialName) ? materialName : 'concrete';
+  let material = cache.get(key);
+  if (!material) {
+    material = new THREE.MeshStandardMaterial({ color: MAT[key], roughness: 0.92, metalness: key === 'metal' || key === 'rust' ? 0.32 : 0.04 });
+    cache.set(key, material);
+  }
+  return material;
+}
+
 export function buildLandmarkSetPiece(THREE, landmark, terrainY = 0) {
   if (!THREE || typeof THREE.Group !== 'function' || typeof THREE.Mesh !== 'function') throw new TypeError('Three.js namespace is required');
   if (!landmark || typeof landmark.id !== 'string' || !Number.isFinite(landmark.x) || !Number.isFinite(landmark.z)) throw new TypeError('valid landmark descriptor is required');
@@ -44,7 +59,7 @@ export function buildLandmarkSetPiece(THREE, landmark, terrainY = 0) {
     const geometry = shape === 'cylinder'
       ? new THREE.CylinderGeometry(a, a, b, 8)
       : new THREE.BoxGeometry(a, b, c);
-    const material = new THREE.MeshStandardMaterial({ color: MAT[materialName] ?? MAT.concrete, roughness: 0.92, metalness: materialName === 'metal' || materialName === 'rust' ? 0.32 : 0.04 });
+    const material = sharedMaterial(THREE, materialName);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(position[0], position[1], position[2]);
     mesh.castShadow = false;

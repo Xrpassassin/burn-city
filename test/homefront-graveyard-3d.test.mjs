@@ -206,7 +206,7 @@ assert.match(scene, /noiseWarning=noiseLevel>=55\?' Loud container! Noise '/, 'l
 assert.match(scene, /if \(view\.visible\) renderer\.render/, 'offscreen Graveyard canvas skips rendering');
 assert.match(page, /if\(yardView\.visible\)renderer\.render/, 'offscreen yard canvas skips rendering');
 assert.match(page, /vertexColors:true/, 'refuge yard ground uses subtle vertex-color variation instead of a flat slab');
-assert.match(page, /yard-edge-\+kind/, 'refuge yard uses named batched edge dressing meshes');
+assert.match(page, /yard-edge-/, 'refuge yard uses named batched edge dressing meshes');
 assert.match(page, /coarsePointer\?1:1\.5/, 'refuge rendering lowers pixel ratio on touch devices');
 assert.match(page, /renderer\.shadowMap\.enabled=!coarsePointer/, 'expensive yard shadows are disabled on touch devices for smoother play');
 

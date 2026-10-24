@@ -111,7 +111,7 @@ has(avatar, /armor\|fur\|collar\|cape/, 'maps armor, fur and cape traits');
 has(avatar, /key==='589'/, 'selects the 589 Protocol collection renderer');
 has(avatar, /const hasProtocolMark=has\(tr,\/burn\|protocol\|insignia\|logo\|emblem\/\)/, 'gates the 589 brand mark on the individual NFT trait metadata');
 has(avatar, /if\(has\(tr,\/strap\|harness\|tactical\|techwear\/\)\)/, 'gates 589 tactical straps on token-specific gear traits');
-has(avatar, /Keep the Protocol insignia above the artwork tabard/, 'documents the visible 589 insignia placement');
+has(avatar, /Keep the trait-backed Protocol insignia above the optional QA artwork panel/, 'documents that the 589 insignia is trait-gated and layered correctly when present');
 has(avatar, /nft-protocol-emblem[\s\S]*1\.655,\.245[\s\S]*renderOrder=3/, 'keeps the 589 emblem above the original artwork panel');
 has(avatar, /artwork panel spans the torso center[\s\S]*side\*\.292[\s\S]*renderOrder=3/, 'keeps 589 shirt edge stitching visible outside the artwork frame');
 has(avatar, /addBox\(g,mat\('#15171c'\),\[0,\.775,\.252\],\[\.12,\.055,\.012\]\)\.name='nft-protocol-shirt-print'/, 'places the 589 shirt print below the artwork frame where it remains visible');

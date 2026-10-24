@@ -160,7 +160,7 @@ function findPath(startX, startZ, goalX, goalZ, options = {}) {
     ...options, edgeAllowed: (x0, z0, x1, z1) => canTraverse(x0, z0, x1, z1, { bounds: options.bounds ?? WORLD_SIZE, radius: options.radius ?? PLAYER_RADIUS, removedObstacleIds: options.removedObstacleIds ?? [] })
   });
 }
-function findSafePosition(x, z, { bounds = WORLD_SIZE, maxRadius = 18, step = 2 } = {}) {
+function findSafePosition(x, z, { bounds = WORLD_SIZE, maxRadius = 18, step = 2, removedObstacleIds = INTERIOR_OBSTACLE_IDS } = {}) {
   const candidates = [{ x, z }];
   for (let radius = step; radius <= maxRadius; radius += step) {
     for (let offset = -radius; offset <= radius; offset += step) {
@@ -170,7 +170,7 @@ function findSafePosition(x, z, { bounds = WORLD_SIZE, maxRadius = 18, step = 2 
   }
   for (const p of candidates) {
     const px = clamp(p.x, -bounds, bounds), pz = clamp(p.z, -bounds, bounds);
-    if (isSafePosition(px, pz, { bounds })) return { x: Math.round(px * 10) / 10, z: Math.round(pz * 10) / 10 };
+    if (isSafePosition(px, pz, { bounds, removedObstacleIds })) return { x: Math.round(px * 10) / 10, z: Math.round(pz * 10) / 10 };
   }
   return null;
 }

@@ -25,4 +25,4 @@ assert.throws(() => allocateProfit(-1, holdings), /nonnegative/);
 assert.throws(() => allocateProfit(1.5, holdings), /safe_integer/);
 assert.throws(() => allocateProfit(1, [{acct:'rA',propertyId:'not-a-property'}]), /invalid_property/);
 assert.throws(() => allocateProfit(1, [{acct:'rA',propertyId:'trailer-01'},{acct:'rB',propertyId:'trailer-01'}]), /duplicate/);
-console.log('Estates share-weight and weekly allocation simulation: 16 assertions passed');
+console.log('Estates share-weight and weekly allocation simulation: 17 assertions passed');

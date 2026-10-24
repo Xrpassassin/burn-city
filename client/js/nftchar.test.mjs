@@ -35,6 +35,8 @@ has(avatar, /resolveNftAvatarComponents/, 'resolves typed traits into explicit v
 has(avatar, /resolveNftAvatarReconstruction/, 'selects a collection-specific reconstruction blueprint');
 has(avatar, /nft-firekeeper-robe-hem/, 'builds the Firekeepers robe silhouette');
 has(avatar, /nft-firekeeper-cowl/, 'builds the Firekeepers cowl silhouette');
+has(avatar, /nft-firekeeper-robe-panel/, 'builds separate layered Firekeepers robe panels');
+has(avatar, /nft-firekeeper-robe-embroidery/, 'adds collection-specific Firekeepers robe embroidery');
 has(avatar, /nft-firekeeper-sigil/, 'builds a collection-specific Firekeepers sigil');
 has(avatar, /nft-protocol-emblem/, 'builds a collection-specific 589 Protocol insignia');
 has(avatar, /reconstruction\};/, 'exposes reconstruction blueprint for visual QA');

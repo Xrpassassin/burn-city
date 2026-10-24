@@ -16,4 +16,6 @@ assert(room.events.some(e => e.e === 'zarmor' && e.id === z.id) && z.armorBroken
 assert(z.stagger > 0, 'hits apply a stagger impulse');
 const snap = room.snapshot(), row = snap.z.find(v => v[0] === z.id); assert(row && row[7] >= 0 && row[8] === 1, 'snapshot exposes stagger and armor-break state');
 p.in.fire = false; for (let i = 0; i < 10; i++) room.step(0.05); assert(p.ravHeat < 100, 'heat cools after release');
-console.log('RAVAGER server simulation: 7 passed, 0 failed');
+assert.deepEqual(Z.WEAPONS.slice(0, 5).map(w => w.id), ['flamer', 'dragon', 'shotgun', 'napalm', 'beam'], 'legacy weapon indices remain stable'); assert.equal(Z.WEAPONS[5].id, 'ravager', 'RAVAGER is appended rather than renumbering old weapons');
+const rankedRoom = new Room(2, 'zombie'); rankedRoom.ranked = { state: 'live' }; rankedRoom.mapId = 'cosmodrome'; Z.resetMap(rankedRoom); assert(!Z.layout().wallbuys.some(w => w.w === 'ravager'), 'ranked map does not expose RAVAGER wall-buy');
+console.log('RAVAGER server simulation: 10 assertions passed');

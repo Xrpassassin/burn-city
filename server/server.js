@@ -132,7 +132,8 @@ const server = http.createServer(async (req, res) => {
       if (op === 'reel' && req.method === 'POST') return json(res, 200, Fish.reel(u.acct, String(b.cid || ''), !!b.ok));
       if (op === 'import' && req.method === 'POST') return json(res, 200, Fish.importGuest(u.acct, b.guest));
       if (op === 'sell' && req.method === 'POST') return json(res, 200, Fish.sell(u.acct));
-      if (op === 'buy' && req.method === 'POST') return json(res, 200, Fish.buy(u.acct, b.kind === 'rod' ? 'rod' : 'bait', String(b.id || ''), +b.qty || 1));
+      if (op === 'buy' && req.method === 'POST') return json(res, 200, Fish.buy(u.acct, ['rod', 'boat'].includes(b.kind) ? b.kind : 'bait', String(b.id || ''), +b.qty || 1));
+      if (op === 'boat-select' && req.method === 'POST') return json(res, 200, Fish.selectBoat(u.acct, String(b.id || '')));
       return json(res, 404, { error: 'not_found' }); }
     if (url.pathname === '/api/daily') { const d = Retain.daily(); return json(res, 200, { day: d.day, mod: d.mod, top: Retain.dailyTop(d.day) }); }
     if (url.pathname === '/api/streak' && req.method === 'POST') { const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' }); return json(res, 200, { ...Retain.streak(u.acct), hunt: Retain.huntGot(u.acct), week: LB.week() }); }

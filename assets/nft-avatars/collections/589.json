@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "collectionKey": "589",
+  "collectionName": "589 Protocol",
+  "collectionIdentity": {
+    "issuer": null,
+    "taxon": null,
+    "verified": false,
+    "note": "Populate only after checking the collection's authoritative XRPL issuer/taxon identity."
+  },
+  "traitMappings": [
+    { "slot": "outfit", "aliases": ["Suit Type", "Streetwear", "Clothing Type"] },
+    { "slot": "headwear", "aliases": ["Helmet Type", "Headgear Type", "Hat Type"] },
+    { "slot": "accessory", "aliases": ["Chain Type", "Jewelry Type", "Bling"] },
+    { "slot": "weapon", "aliases": ["Weapon Type", "Loadout"] }
+  ],
+  "assets": [],
+  "qaSamples": [
+    { "tokenReference": "pending-owner-approved-sample", "coverage": ["suit/loadout combinations", "headgear and chain silhouette", "weapon prop scale", "full artwork fallback", "mobile geometry budget"] }
+  ],
+  "notes": "No third-party assets are approved by this placeholder manifest. Validate weapon props as non-interactive visual assets and do not infer gameplay balance from NFT rarity."
+}

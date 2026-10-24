@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "collectionKey": "racc",
+  "collectionName": "RACC",
+  "collectionIdentity": {
+    "issuer": null,
+    "taxon": null,
+    "verified": false,
+    "note": "Populate only after checking the collection's authoritative XRPL issuer/taxon identity."
+  },
+  "traitMappings": [
+    { "slot": "mask", "aliases": ["Bandit Mask", "Eye Mask", "Raccoon Mask"] },
+    { "slot": "fur color", "aliases": ["Fur Color", "Pelt", "Coat Fur", "Raccoon Fur"] },
+    { "slot": "tail", "aliases": ["Ring Tail", "Tail Pattern"] },
+    { "slot": "headwear", "aliases": ["Head Accessory", "Head Item"] }
+  ],
+  "assets": [],
+  "qaSamples": [
+    { "tokenReference": "pending-owner-approved-sample", "coverage": ["common raccoon traits", "mask/pelt combinations", "tail visibility", "full artwork fallback", "mobile geometry budget"] }
+  ],
+  "notes": "No third-party assets are approved by this placeholder manifest. Keep original NFT art as the fidelity reference until rights-cleared layers or models are reviewed."
+}

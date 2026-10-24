@@ -20,7 +20,7 @@ eq(detail.hasMarkings,true,'maps face paint to markings');
 eq(detail.patternStyle,'camouflage','maps camouflage body pattern');
 eq(detail.hasHorns,true,'maps antler traits');
 const hairColorProfile = resolveNftAvatarProfile({ key:'589', traits:[['Hair','Silver']] });
-eq(hairColorProfile.renderTraits[0][0],'hair','does not misclassify ambiguous Hair as a hairstyle');
+eq(hairColorProfile.renderTraits[0][0],'hair color','normalizes bare Hair as a color slot without treating it as a hairstyle');
 const real589 = resolveNftAvatarComponents(resolveNftAvatarProfile({ key:'589', id:'real-589', traits:[['Background','Burn'],['Body','Flame On'],['Chain','Burn Chain'],['Clothing','Red Burn Tee'],['Eye','Surprised'],['Head','Burn Halo'],['Mouth','Smirk']] }));
 eq(real589.bodyEffect,'flame-on','maps the real 589 Body: Flame On trait');
 eq(real589.accessoryStyle,'chain','maps the real 589 Chain trait');

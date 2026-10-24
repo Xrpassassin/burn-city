@@ -167,7 +167,7 @@ export async function installEstatesIslandLive({
           [{label:'Enter Estates Island',primary:true,run:enterIsland},{label:'Not now',run:hidePanel}],
           'Explicit entry · public paths · private lots remain permission-controlled.');
       } else if(!near&&nearCityGate) { nearCityGate=false; hidePanel(); }
-      if(edge&&near) enterIsland();
+      if(edge&&near) { enterIsland(); return true; }
       return false;
     }
     // Rebuild controller after its previous instance was disposed on exit.

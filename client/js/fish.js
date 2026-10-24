@@ -12,7 +12,7 @@ const W = () => window.__city, $ = id => document.getElementById(id);
 const tier = (list, id) => (list.find(x => x[0] === id) || [0, 0, 0, 0])[3];
 function roll(rodId, baitId, ctx) { const rt = tier(SHOP.rods, rodId), bt = tier(SHOP.baits, baitId), luck = rt * 0.5 + bt;
   const boat = boatById(ctx.boatId || 'skiff'), capacity = ctx.onBoat ? boat.capacityKg : 9;
-  const ok = SPECIES.filter(s => (!s[5].night || ctx.night) && (!s[5].deep || (ctx.deep && boat.depth >= 1)) && (!s[5].weather || s[5].weather === ctx.weather) && (Number(s[5].boat) || 1) <= (ctx.onBoat ? boat.tier : 0) && s[3][0] <= capacity && !(s[2] === 4 && bt < 2) && !(s[2] === 3 && bt < 1 && rt < 1));
+  const ok = SPECIES.filter(s => (!s[5].night || ctx.night) && (!s[5].deep || (ctx.deep && boat.depth >= 1)) && (!s[5].weather || s[5].weather === ctx.weather) && (Number(s[5].boat) || 0) <= (ctx.onBoat ? boat.tier : 0) && s[3][0] <= capacity && !(s[2] === 4 && bt < 2) && !(s[2] === 3 && bt < 1 && rt < 1));
   const w = ok.map(s => RW[s[2]] * Math.pow(1 + luck, s[2] * 0.6) * baitAffinity(s[0], bt)); let x = Math.random() * w.reduce((a, b) => a + b, 0), i = 0; while (x > w[i]) x -= w[i++];
   const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(Math.random(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +Math.min(capacity, s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
   return { id: s[0], name: s[1], r: s[2], kg, val: Math.round(s[4] * (1 + f)), hits: 1 + s[2], zone: +(0.3 - 0.04 * s[2] + 0.05 * rt).toFixed(2) } }

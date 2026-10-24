@@ -19,4 +19,15 @@ const normalized = Exploration.normalize(polluted);
 assert.deepEqual(normalized['explorer-b'].discovered, ['north_bus_depot']);
 assert.equal(Exploration.snapshot(normalized, 'explorer-b').intel.length, 1);
 assert.deepEqual(Exploration.snapshot({}, 'new-account').discoveredIds, []);
+
+// Surveying every location is not the same as completing the narrative objective.
+const content = require('../client/arena/homefront-exploration-content.mjs');
+for (const thread of content.STORY_THREADS) {
+  const surveyed = Exploration.storyLeads([thread.startAt, ...thread.clues, thread.payoffAt]);
+  const lead = surveyed.find(item => item.threadId === thread.id);
+  assert(lead, 'fully surveyed story route should remain visible in the journal');
+  assert.equal(lead.status, 'route_surveyed');
+  assert.notEqual(lead.complete, true, 'location visits alone must not award story completion');
+  assert.equal(lead.nextLandmarkId, undefined, 'all surveyed stops should direct players toward clue interactions, not another location');
+}
 console.log('Homefront server-authoritative exploration tests passed.');

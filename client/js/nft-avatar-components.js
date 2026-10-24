@@ -6,6 +6,8 @@ const has = (value, pattern) => pattern.test(value);
 function headwearStyle(value) {
   if (has(value, /mohawk|hawk/)) return 'none';
   if (has(value, /halo|aureole/)) return 'halo';
+  if (has(value, /bee hive|beehive/)) return 'beehive';
+  if (has(value, /rock head|stone head/)) return 'rock';
   if (has(value, /crown|circlet|tiara|diadem/)) return 'crown';
   if (has(value, /hood|cowl/)) return 'hood';
   if (has(value, /helmet|visor|headgear/)) return 'helmet';
@@ -55,7 +57,7 @@ function outfitStyle(value, key) {
   if (has(value, /robe|keeper|wizard|monk/)) return 'robes';
   if (has(value, /armor|armour|plate|tactical|combat/)) return 'armor';
   if (has(value, /suit|formal|business/)) return 'tailored';
-  if (has(value, /streetwear|hoodie|urban|casual/)) return 'streetwear';
+  if (has(value, /streetwear|hoodie|urban|casual|sweater|tee|t shirt|shirt|jog fit|punk burner/)) return 'streetwear';
   return value && !/none|default/.test(value) ? 'custom' : 'default';
 }
 function hairStyle(value) {
@@ -129,7 +131,7 @@ export function resolveNftAvatarComponents(profile = {}) {
     facialHair,
     hasMask: !!mask && !/none|no mask/.test(mask),
     expression: has(expression, /snarl|scream|fang|angry|open mouth/) ? 'aggressive'
-      : has(expression, /smile|grin|happy/) ? 'friendly'
+      : has(expression, /smile|grin|happy|smirk|sly/) ? 'friendly'
       : expression ? 'custom' : 'neutral',
     rawTraitCount: Array.isArray(profile.rawTraits) ? profile.rawTraits.length : 0
   };

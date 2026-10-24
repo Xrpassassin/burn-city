@@ -80,6 +80,13 @@ assert.match(page, /const navTarget=actor\.routePlan\.detour\|\|\{x:actor\.targe
 
 assert.match(page, /navActor\.routePlan\?\.unreachable\?'Navigation: blocked/, 'survivor inspection explains when a route is blocked');
 assert.match(page, /navActor\.routePlan\?\.detour\?'Navigation: routing around an obstruction/, 'survivor inspection reports active detours');
+
+assert.match(page, /updateAwarenessReaction\(actor\.awarenessState/, 'survivor movement loop evaluates local awareness stimuli');
+assert.match(page, /updateAwarenessBadge\(actor,awareness\.mode\)/, 'survivors receive visible awareness indicators');
+assert.match(page, /awareness\.mode==='threat'/, 'nearby danger changes survivor posture and interrupts work animation');
+assert.match(page, /awareness\.mode==='player'/, 'survivors visibly acknowledge the nearby player');
+assert.match(page, /dataset\.awarenessStatus='true'/, 'survivor inspection explains their current awareness state');
+assert.match(page, /Math\.hypot\(zp\.x-o\.position\.x,zp\.z-o\.position\.z\)/, 'awareness responds to nearby zombie distance rather than a global alert alone');
 assert.match(page, /safeMovePosition\(\{x:o\.position\.x,z:o\.position\.z\},\{x:steering\.x\*step,z:steering\.z\*step\},navObstacles,\.28\)/, 'survivor travel validates movement against solid structure footprints');
 assert.match(page, /moving&&!actor\.routePlan\.unreachable/, 'survivors pause instead of walking into a route with no safe immediate detour');
 assert.match(page, /safePush=safeMovePosition/, 'player proximity nudges cannot push survivors through fortifications');

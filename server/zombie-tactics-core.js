@@ -144,8 +144,8 @@ function validateApproachTarget(input = {}) {
   if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.z)) return null;
   if (input.sameFloor !== true || typeof input.isWalkable !== 'function' || typeof input.hasLineOfSight !== 'function') return null;
   try {
-    if (input.isWalkable(point.x, point.z) !== true) return null;
-    if (input.hasLineOfSight(point.x, point.z) !== true) return null;
+    if (!input.isWalkable(point.x, point.z)) return null;
+    if (!input.hasLineOfSight(point.x, point.z)) return null;
   } catch (_) { return null; }
   return { x: point.x, z: point.z };
 }

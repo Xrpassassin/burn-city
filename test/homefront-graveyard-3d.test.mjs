@@ -192,7 +192,7 @@ assert.match(page, /let base = null, threatProfile = null, busy = false, pending
 assert.match(page, /if\(base\?\.wave>0&&!pendingBuilding&&!constructionPaused\)/, 'freeze hostile base actor movement throughout construction and placement requests');
 assert.match(page, /Protected construction mode: hostile base activity is paused/, 'tell players construction mode is protected');
 assert.match(page, /construction pause remains active until the server confirms the build/, 'keep the pause active while the server validates and saves placement');
-assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=false;/, 'resume base activity after the build request settles');
+assert.match(page, /if\(action\?\.type==='build'\)\{constructionPaused=homefrontMode==='workshop';/, 'keep Workshop pause active after a successful placement while resuming normal activity outside Workshop');
 
 assert.match(page, /const constructionView=!!pendingBuilding\|\|constructionPaused/, 'switch to construction camera only while building');
 assert.match(page, /cameraPose\(\{mode:yardView\.mode,building:constructionView/, 'the refuge yard camera is third-/first-person and only goes overhead while building');

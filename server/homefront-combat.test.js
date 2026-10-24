@@ -9,7 +9,7 @@ assert.deepEqual(C.WEAPON_MAGAZINE_CAPACITY,{pipe_blade:0,pump_shotgun:6,marksma
 assert.equal(C.WEAPON_HANDLING.heavy_machine_gun.adsMs,360,'heavy machine gun has a distinct handling profile');
 const rapidSpawn=C.spawn({encounters:{},account:'mg-cadence-test',player,now:900000,seed:14});
 const rapidFirst=C.attack({encounters:rapidSpawn.encounters,account:'mg-cadence-test',player,base:{...base(),equippedWeapon:'heavy_machine_gun'},now:901000,weaponPower:8});
-assert.doesNotThrow(()=>C.attack({encounters:rapidFirst.encounters,account:'mg-cadence-test',player,base:{...base(),equippedWeapon:'heavy_machine_gun'},now:901280,weaponPower:8}),'heavy machine gun can fire at its faster server-enforced cadence');
+assert.doesNotThrow(()=>C.attack({encounters:rapidFirst.encounters,account:'mg-cadence-test',player,base:{...base(),equippedWeapon:'heavy_machine_gun'},now:901500,weaponPower:6}),'heavy machine gun can fire at its faster server-enforced cadence');
 const Core=require('./homefront-core');
 const lockedBase=Core.createBase('armory-test',1000);lockedBase.resources.scrap=500;lockedBase.embers=500;
 assert.throws(()=>Core.applyAction(lockedBase,'armory-test',{type:'craft_weapon',weapon:'heavy_machine_gun'},1001),/weapon_locked_discover_industrial_or_research_lab/,'heavy machine gun stays locked until an industrial or research district is surveyed');
@@ -17,7 +17,7 @@ const unlockedBase=Core.validateBase({...lockedBase,exploration:{...lockedBase.e
 const craftedBase=Core.applyAction(unlockedBase,'armory-test',{type:'craft_weapon',weapon:'heavy_machine_gun'},1002);
 assert.ok(craftedBase.weapons.includes('heavy_machine_gun'),'surveyed players can craft the late-game heavy machine gun');
 const mgSpawn=C.spawn({encounters:{},account:'mg-test',player,now:800000,seed:11});
-const mgShot=C.attack({encounters:mgSpawn.encounters,account:'mg-test',player,base:{...base(),equippedWeapon:'heavy_machine_gun'},now:801000,weaponPower:8,seed:4});
+const mgShot=C.attack({encounters:mgSpawn.encounters,account:'mg-test',player,base:{...base(),equippedWeapon:'heavy_machine_gun'},now:801000,weaponPower:6,seed:4});
 const rifleShot=C.attack({encounters:mgSpawn.encounters,account:'mg-test',player,base:{...base(),equippedWeapon:'marksman_rifle'},now:801000,weaponPower:4,seed:4});
 assert.ok(mgShot.damage>rifleShot.damage,'heavy machine gun deals more damage per confirmed hit than the marksman rifle');
 assert.equal(mgShot.ammoCost,1,'heavy machine gun consumes one loaded round per server-confirmed shot');

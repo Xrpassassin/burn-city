@@ -71,6 +71,11 @@ export function buildNftChar(n, opts = {}) {
   const addSphere = (parent, material, pos, scale, geometry=S) => { const m=add(geometry,material,pos[0],pos[1],pos[2],parent); m.scale.set(scale[0],scale[1],scale[2]); return m; };
   const addCapsule = (parent, material, pos, radius, length, scale=[1,1,1]) => { const m=add(capsule(radius,length,lite?8:10,lite?3:4),material,pos[0],pos[1],pos[2],parent); m.scale.set(...scale); return m; };
   const addBox = (parent, material, pos, size) => add(box(...size),material,pos[0],pos[1],pos[2],parent);
+  const addDiagnosticMarker = (parent, slot, pos, scale) => {
+    if (!opts.debugUnknownTraits) return null;
+    const marker = add(new THREE.SphereGeometry(1, 10, 8), new THREE.MeshBasicMaterial({color:'#e5bd54',wireframe:true}), pos[0],pos[1],pos[2],parent);
+    marker.scale.set(...scale); marker.name='nft-unsupported-trait-'+slot; marker.userData.diagnosticOnly=true; return marker;
+  };
 
   // Natural silhouette: rounded torso, shoulder/hip transitions, articulated forearms and shins (not block limbs).
   addCapsule(g,darkCloth,[0,.82,0],.19,.14,[1.03,.72,.76]);
@@ -160,7 +165,7 @@ export function buildNftChar(n, opts = {}) {
     }
   }
 
-  if (components.bodyEffect !== 'none') {
+  if (['flame-on','heating-up','about-to-burn'].includes(components.bodyEffect)) {
     const bodyFlameColor=components.flame.color || accentHex;
     const flameCount=components.bodyEffect==='flame-on'?6:components.bodyEffect==='heating-up'?3:2;
     for(let i=0;i<flameCount;i++) {
@@ -384,12 +389,8 @@ export function buildNftChar(n, opts = {}) {
     addSphere(head,hatColor,[0,.15,-.01],[.22,.105,.2]);
     if (!has(tr,/beanie/)) addBox(head,hatColor,[0,.105,.18],[.25,.025,.12]);
   } else if (components.headwearStyle === 'custom') {
-    // Unknown named headwear still gets a bounded, legible silhouette instead of disappearing.
-    const crown=addSphere(head,hatColor,[0,.16,-.015],[.205,.095,.18]);
-    crown.name='nft-custom-headwear';
-    addBox(head,hatColor,[0,.105,.16],[.235,.022,.085]).name='nft-custom-headwear-brim';
-    const crest=add(geo('nft-custom-headwear-crest',()=>new THREE.ConeGeometry(.035,.09,6)),glow(accentHex),0,.245,-.005,head);
-    crest.name='nft-custom-headwear-crest';
+    // Unknown named headwear is flagged in visual QA instead of being misrepresented as a generic hat.
+    addDiagnosticMarker(head,'headwear',[0,.16,-.015],[.19,.12,.17]);
   }
   if(components.hasHorns || has(tr,/horn|antler|tusk/)) {
     const hornText=String(components.horns||traitValue(/horn|antler|tusk/i)).toLowerCase();
@@ -475,11 +476,8 @@ export function buildNftChar(n, opts = {}) {
     addBox(g,darkCloth,[0,1.18,-.2],[.25,.32,.13]);
     for (const side of [-1,1]) addBox(g,trim,[side*.12,1.28,-.12],[.035,.22,.025]);
   } else if (components.accessoryStyle === 'custom') {
-    // Preserve the existence of unfamiliar collection accessories as visible, deterministic geometry.
-    const charm=add(geo('nft-custom-accessory',()=>new THREE.DodecahedronGeometry(.055,0)),glow(traitColor(/accessory|jewel|chain/i,accentHex)),.205,1.24,.235);
-    charm.name='nft-custom-accessory';
-    const mount=add(geo('nft-custom-accessory-mount',()=>new THREE.TorusGeometry(.067,.009,5,14)),metal,.205,1.24,.226);
-    mount.name='nft-custom-accessory-mount';
+    // Unknown accessories are surfaced as QA-only markers; do not invent a pendant shape in-game.
+    addDiagnosticMarker(g,'accessory',[.205,1.24,.235],[.055,.055,.055]);
   }
   const hasFurCollar = hasTrait(/^(?:armor|fur|collar|cape|outerwear)$/i) || has(tr,/armor|fur collar|cape/);
   if(hasFurCollar) {
@@ -529,7 +527,7 @@ export function buildNftChar(n, opts = {}) {
       const stitch=addBox(g,glow(shade(accentHex,.78)),[side*.105,.98,.197],[.012,.3,.012]);
       stitch.name='nft-firekeeper-robe-embroidery';
     }
-    if (components.outfitStyle === 'robes' && /mantle|layer|ceremonial|keeper/i.test(traitValue(/outfit|armor/i))) {
+    if (components.outfitStyle === 'robes' && /mantle|layer|ceremonial/i.test(traitValue(/outfit|armor/i))) {
       const mantle=add(geo('nft-firekeeper-mantle',()=>new THREE.TorusGeometry(.255,.045,6,20)),trim,0,1.405,-.005);
       mantle.rotation.x=Math.PI/2; mantle.name='nft-firekeeper-mantle';
     }
@@ -574,8 +572,10 @@ export function buildNftChar(n, opts = {}) {
     } else if (components.weaponStyle === 'melee') {
       const staff=addCapsule(g,weaponMat,[.31,1.08,-.13],.022,.43,[1,1,1]); staff.rotation.z=-.16;
       addSphere(g,glow(accentHex),[.31,1.32,-.13],[.055,.055,.055]);
-    } else {
+    } else if (components.weaponStyle === 'firearm') {
       const gun=addCapsule(g,weaponMat,[.31,1.1,-.13],.035,.34,[.8,1,.8]); gun.rotation.z=-.25;
+    } else if (components.weaponStyle === 'custom') {
+      addDiagnosticMarker(g,'weapon',[.31,1.08,-.13],[.09,.14,.06]);
     }
   }
 
@@ -621,7 +621,15 @@ export function buildNftChar(n, opts = {}) {
   }
   g.userData.legs=legs; g.userData.arms=arms; g.userData.head=head; g.userData.nftId=n?.id;
   g.userData.nftTraits=originalTraitPairs.map(([type,value])=>[String(type),String(value)]);
-  g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter,components,reconstruction};
+  const unsupportedVisualTraits = [
+    components.headwearStyle === 'custom' ? {slot:'headwear',value:traitValue(/^headwear$/i)} : null,
+    components.accessoryStyle === 'custom' ? {slot:'accessory',value:traitValue(/^accessory$/i)} : null,
+    components.weaponStyle === 'custom' ? {slot:'weapon',value:traitValue(/^weapon$/i)} : null,
+    components.wingStyle === 'custom' ? {slot:'wing',value:traitValue(/^wing$/i)} : null,
+    components.patternStyle === 'custom' ? {slot:'body pattern',value:traitValue(/body pattern/i)} : null,
+    components.bodyEffect === 'custom' ? {slot:'body effect',value:traitValue(/^body effect$/i)} : null
+  ].filter(item => item && item.value);
+  g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter,components,reconstruction,unsupportedVisualTraits};
   g.userData.nftMedia={animation:n?.animation||'',video:n?.video||'',audio:n?.audio||'',model3d:n?.model3d||'',artwork:n?.artwork||''};
   g.userData.anim=(t,moving,armsUp)=>{
     // Fit the real artwork without cropping once its remote image has decoded.

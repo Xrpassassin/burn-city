@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
 
 const [avatar, city, app, sw, picker, nftServer] = await Promise.all([
   readFile(new URL('./nftchar.js', import.meta.url), 'utf8'),
@@ -13,6 +14,27 @@ let checks = 0;
 function has(source, pattern, message) { assert.match(source, pattern, message); checks++; }
 function lacks(source, pattern, message) { assert.doesNotMatch(source, pattern, message); checks++; }
 
+
+const raccProfile = resolveNftAvatarProfile({ key: 'racc', id: 'NFT-001', traits: [['Bandit Mask', 'Crimson'], ['Background', 'Sunset'], ['Fur Color', 'Silver']] });
+assert.equal(raccProfile.collectionName, 'RACC'); checks++;
+assert.equal(raccProfile.archetype, 'raccoon'); checks++;
+assert.deepEqual(raccProfile.renderTraits, [['mask', 'Crimson'], ['background', 'Sunset'], ['fur color', 'Silver']]); checks++;
+assert.deepEqual(raccProfile.rawTraits, [['Bandit Mask', 'Crimson'], ['Background', 'Sunset'], ['Fur Color', 'Silver']]); checks++;
+assert.equal(raccProfile.identitySeed, resolveNftAvatarProfile({ key: 'racc', id: 'NFT-001' }).identitySeed); checks++;
+assert.notEqual(raccProfile.identitySeed, resolveNftAvatarProfile({ key: 'racc', id: 'NFT-002' }).identitySeed); checks++;
+const firekeeperProfile = resolveNftAvatarProfile({ key: 'fk', traits: [['Ember Type', 'Blue'], ['Keeper Robes', 'Ash']] });
+assert.deepEqual(firekeeperProfile.renderTraits, [['flame', 'Blue'], ['outfit', 'Ash']]); checks++;
+const protocolProfile = resolveNftAvatarProfile({ key: '589', traits: [['Loadout', 'Rifle'], ['Bling', 'Gold']] });
+assert.deepEqual(protocolProfile.renderTraits, [['weapon', 'Rifle'], ['accessory', 'Gold']]); checks++;
+const unknownProfile = resolveNftAvatarProfile({ key: 'future-project', traits: [['Background', 'Rain']] });
+assert.equal(unknownProfile.hasCollectionAdapter, false); checks++;
+assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;
+
+has(avatar, /resolveNftAvatarProfile/, 'routes traits through collection-specific adapters');
+has(avatar, /originalTraitPairs/, 'retains original NFT traits separately from normalized render traits');
+has(avatar, /nftAvatarProfile=/, 'attaches stable collection and identity metadata to the avatar');
+has(avatar, /Stable, subtle silhouette variation/, 'varies each token silhouette deterministically when explicit body-shape traits are absent');
+has(avatar, /hasBodyShape|hasFaceShape/, 'defers to explicit body or face shape metadata when available');
 has(avatar, /export function buildNftChar/, 'exports the NFT character builder');
 has(avatar, /new THREE\.SphereGeometry\(1, lite \? 10 : 16, lite \? 8 : 12\)/, 'uses smooth sphere anatomy with mobile geometry scaling');
 has(avatar, /geo\('capsule:'/, 'caches shared rounded limb geometry');
@@ -36,8 +58,11 @@ has(avatar, /chain\|medallion\|necklace/, 'maps jewelry traits');
 has(avatar, /armor\|fur\|collar\|cape/, 'maps armor, fur and cape traits');
 has(avatar, /key==='589'/, 'gives 589 avatars a collection-specific BURN accent');
 has(avatar, /key==='fk'/, 'gives Firekeepers a collection-specific ember treatment');
-has(avatar, /nft-artwork-medallion/, 'overlays the actual NFT art on the character');
-has(avatar, /new THREE\.CircleGeometry\(\.102,28\)/, 'uses a circular image medallion instead of a square chest slab');
+has(avatar, /nft-artwork-panel/, 'shows the complete NFT artwork on the walking avatar');
+has(avatar, /artPanel/, 'keeps original NFT composition separate from procedural character geometry');
+has(avatar, /Math\.min\(\.35\/iw,\.46\/ih\)/, 'fits the complete artwork composition without cropping');
+has(avatar, /eyeHex = traitColor/, 'maps typed eye-color traits to eye materials');
+has(avatar, /hairHex = traitColor/, 'maps typed hair-color traits to hair materials');
 has(avatar, /opts\.card/, 'keeps the floating peer portrait optional');
 has(avatar, /g\.userData\.anim=/, 'exposes a compatible walking animation');
 has(avatar, /o\.material\.dispose\(\)/, 'disposes per-avatar mapped materials without destroying shared textures');
@@ -51,7 +76,7 @@ has(city, /activeNftModels>=nftModelCap\(\)/, 'enforces the detailed peer model 
 has(city, /activeNftModels=Math\.max\(0,activeNftModels-1\)/, 'releases model budget when peers leave or go out of range');
 has(city, /if\(p\.boat\)\{W\(\)\.S\.remove\(p\.boat\)/, 'preserves boat cleanup from current main');
 has(app, /L\.nftCharacter&&L\.nftCharacter\.userData\.anim/, 'animates the selected local NFT character');
-has(sw, /bc-v95-nft-traits/, 'bumps service-worker cache version for avatar assets');
+has(sw, /bc-v98-collection-avatar-adapters/, 'bumps service-worker cache version for background separation');
 has(picker, /metaVersion: 2/, 'refreshes previously selected local NFTs to the expanded metadata schema');
 has(picker, /slice\(0, 64\)/, 'persists up to 64 typed NFT attributes and values');
 has(picker, /https:\/\/xrpl\.to/, 'credits the marketplace metadata enrichment source');
@@ -64,7 +89,8 @@ has(nftServer, /mediaFiles:/, 'retains bounded original media-file references');
 has(nftServer, /fit: 'contain'/, 'keeps the full artwork composition instead of cropping');
 has(avatar, /const traitPairs =/, 'uses typed traits instead of only untyped values');
 has(avatar, /traitColor =/, 'maps trait-specific colors');
-has(avatar, /trait-background-halo/, 'represents background traits in the 3D scene');
+lacks(avatar, /trait-background-halo|backgroundHex/, 'does not merge the NFT background into 3D geometry');
+has(avatar, /Background belongs to the original 2D NFT composition/, 'keeps backgrounds attached to the original artwork composition');
 has(avatar, /const mouthTrait =/, 'maps mouth and expression traits');
 has(avatar, /const wingTrait=/, 'maps wing traits');
 has(avatar, /const weaponTrait=/, 'maps weapon and gear traits');

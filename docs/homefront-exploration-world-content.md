@@ -35,8 +35,10 @@ This is an authored content layer for the existing XRPL Graveyard expedition map
 - The 3D expedition view now reports a landmark as unmapped, newly discovered, or known as the player approaches it. Discovery is triggered within 8 world units; nearby context is available within 20 units.
 - A discovered site surfaces up to two connected, not-yet-discovered route leads. This makes POIs act as navigational choices rather than isolated map pins.
 - Existing story-thread metadata powers contextual breadcrumbs. For example, finding the North Bus Depot points toward the next clue in **The Last Convoy**; hospital and Ironworks leads guide players through multi-stop story chains toward Blackglass.
-- Discovery notes are stored locally in the current browser under `homefrontExplorationDiscoveries`. They are guidance only, not account-synced progression, and never grant loot or alter server-authoritative state. Server-backed quest flags and rewards remain a separate follow-up.
-- Regression coverage: run `node client/arena/homefront-exploration-guidance.test.mjs` alongside the existing exploration catalog test.
+- Discovery progress is account-persisted in `homefront-exploration.json` through authenticated `GET /api/homefront/world/exploration` and `POST /api/homefront/world/exploration/discover`. The server validates the active expedition player's distance (8 world units) and landmark ID before recording a discovery.
+- Each first discovery creates a persistent field note, reveals unexplored connected route leads, and advances the relevant multi-stop story breadcrumb. Duplicate requests are idempotent. This progression layer grants no inventory items; all item rewards remain under existing server-authoritative loot/interior systems.
+- The 3D client loads account progress and submits discovery requests as players approach sites. The UI may still show generic exploration guidance if the network is unavailable; it cannot locally grant a discovery or reward.
+- Regression coverage: `node server/homefront-exploration.test.js` and `node client/arena/homefront-exploration-guidance.test.mjs` run at the start of the focused `test:homefront` suite.
 
 ## Current content
 

@@ -9,7 +9,37 @@ const COLS = {   // sources: xrpl.to collection API + xrpburn.com "Sovereign NFT
   'rXYdhW4ZHdzt27VuHJgNwbD1aJjcKZJ9M:0': { key: 'racc', name: 'RACC' },                // xrp.cafe/collection/left-hand-savag3 ("Raccoon Guy 123", $RACC)
 };
 const GW = ['https://gateway.pinata.cloud/ipfs/', 'https://ipfs.filebase.io/ipfs/', 'https://ipfs.io/ipfs/'];
+const MARKET_API = 'https://api.xrpl.to/v1/nft/';
 const DIR = S.file('nft'); fs.mkdirSync(DIR, { recursive: true });
+const META_SCHEMA = 2;
+async function marketplaceMeta(id) {
+  // Optional marketplace index enriches the canonical on-ledger URI; it never proves ownership.
+  try {
+    const r = await fetch(MARKET_API + encodeURIComponent(id), { signal: AbortSignal.timeout(4500), headers: { accept: 'application/json' } });
+    if (!r.ok) return null;
+    const text = await r.text(); if (text.length > 300e3) return null;
+    const x = JSON.parse(text);
+    if (String(x.NFTokenID || x._id || '').toUpperCase() !== id) return null;
+    const meta = x.meta && typeof x.meta === 'object' ? x.meta : {};
+    const attrs = Array.isArray(meta.attributes) ? meta.attributes : (Array.isArray(x.props) ? x.props.map(a => ({ trait_type: a.type, value: a.value })) : []);
+    const files = Array.isArray(x.files) ? x.files.filter(a => a && typeof a === 'object').slice(0, 24).map(a => ({
+      type: String(a.type || a.parsedType || '').slice(0, 32),
+      uri: String(a.parsedUrl || a.url || '').slice(0, 1024)
+    })) : [];
+    const fileOf = re => files.find(a => re.test(a.type) || re.test(a.uri));
+    return {
+      name: typeof meta.name === 'string' ? meta.name.slice(0, 128) : '',
+      description: typeof meta.description === 'string' ? meta.description.slice(0, 1200) : '',
+      externalUrl: typeof meta.external_url === 'string' ? meta.external_url.slice(0, 1024) : '',
+      image: typeof meta.image === 'string' ? meta.image.slice(0, 1024) : '',
+      animation: String(meta.animation_url || x.animation || fileOf(/animation|video/i)?.uri || '').slice(0, 1024),
+      video: String(x.video || fileOf(/video/i)?.uri || '').slice(0, 1024),
+      audio: String(x.audio || fileOf(/audio/i)?.uri || '').slice(0, 1024),
+      model3d: String(x['3d_model'] || meta['3d_model'] || meta.model || fileOf(/model|gltf|glb|3d/i)?.uri || '').slice(0, 1024),
+      files, traits: attrs.slice(0, 64).map(a => [String(a.trait_type || a.type || '').trim().slice(0, 64), String(a.value ?? '').trim().slice(0, 128)]).filter(a => a[0])
+    };
+  } catch { return null; }
+}
 const ACCT = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/, NID = /^[0-9A-F]{64}$/;
 let sel = S.load('nft_sel.json', {});              // acct -> NFTokenID (selected character)
 const owned = new Map();                           // acct -> { t, list:[{id,key}] }
@@ -43,29 +73,55 @@ function accent(px, y0, y1) {            // most saturated bright pixel in the c
   let best = 0, c = [255, 120, 40]; for (let y = y0; y < y1; y++) for (let x = 6; x < 26; x++) { const i = (y * 32 + x) * 3, R = px[i], G = px[i + 1], B = px[i + 2], mx = Math.max(R, G, B), mn = Math.min(R, G, B), sc = (mx - mn) * mx;
     if (sc > best) { best = sc; c = [R, G, B]; } } return hex(c);
 }
-async function meta(n) {                            // {name,num,col,traits,img,pal} cached forever per NFTokenID (metadata is immutable on IPFS)
+async function meta(n) {                            // bounded full metadata + optional XRPL.to media enrichment, cached per NFTokenID
   if (metaMem.has(n.id)) return metaMem.get(n.id);
-  const f = path.join(DIR, n.id + '.json'); try { const m = JSON.parse(fs.readFileSync(f, 'utf8')); metaMem.set(n.id, m); return m; } catch { }
+  const f = path.join(DIR, n.id + '.json');
+  try { const m = JSON.parse(fs.readFileSync(f, 'utf8')); if (m.schema === META_SCHEMA) { metaMem.set(n.id, m); return m; } } catch { }
   if (inflight.has(n.id)) return inflight.get(n.id);
   const job = (async () => {
-    const uri = Buffer.from(n.uri, 'hex').toString('utf8'); let j = /\.(png|jpe?g|gif|webp)$/i.test(uri) ? { image: uri } : await get(uri, 'json');
-    if (!j) return null;
-    const traits = (Array.isArray(j.attributes) ? j.attributes : []).slice(0, 16).map(a => [String(a.trait_type || '').trim().slice(0, 32), String(a.value ?? '').trim().slice(0, 48)]).filter(a => a[0]);
-    const name = String(j.name || '').slice(0, 64), num = (name.match(/(\d+)\s*$/) || [, n.key === 'fk' ? '1/1' : ''])[1].replace(/^0+(?=\d)/, '');
-    const m = { id: n.id, key: n.key, col: Object.values(COLS).find(c => c.key === n.key).name, name: name || ('#' + num), num: String(num ?? ''), traits, img: null, pal: null };
-    const buf = sharp ? await get(j.image || j.image_url, 'bin') : null;
+    const uri = Buffer.from(n.uri, 'hex').toString('utf8');
+    const [j0, market] = await Promise.all([
+      /\.(png|jpe?g|gif|webp)$/i.test(uri) ? Promise.resolve({ image: uri }) : get(uri, 'json'),
+      marketplaceMeta(n.id)
+    ]);
+    const j = j0 || {};
+    if (!j0 && !market) return null;
+    // On-ledger URI metadata wins; the marketplace index only fills absent values or contributes media-file references.
+    const rawTraits = Array.isArray(j.attributes) ? j.attributes : [];
+    const traitsIn = rawTraits.length ? rawTraits : (market?.traits || []);
+    const traits = traitsIn.slice(0, 64).map(a => [String(a.trait_type || a.type || '').trim().slice(0, 64), String(a.value ?? '').trim().slice(0, 128)]).filter(a => a[0]);
+    const mergedTraits = [...traits];
+    for (const a of (market?.traits || [])) if (a[0] && !mergedTraits.some(b => b[0].toLowerCase() === a[0].toLowerCase())) mergedTraits.push(a);
+    const name = String(j.name || market?.name || '').slice(0, 128), num = (name.match(/(\d+)\s*$/) || [, n.key === 'fk' ? '1/1' : ''])[1].replace(/^0+(?=\d)/, '');
+    const image = String(j.image || j.image_url || market?.image || '').slice(0, 1024);
+    const m = {
+      schema: META_SCHEMA, id: n.id, key: n.key, col: Object.values(COLS).find(c => c.key === n.key).name,
+      name: name || ('#' + num), num: String(num ?? ''), traits: mergedTraits.slice(0, 64), img: null, pal: null,
+      description: String(j.description || market?.description || '').slice(0, 1200),
+      externalUrl: String(j.external_url || market?.externalUrl || '').slice(0, 1024),
+      artwork: image, animation: String(j.animation_url || j.animation || market?.animation || '').slice(0, 1024),
+      video: String(j.video || market?.video || '').slice(0, 1024), audio: String(j.audio || market?.audio || '').slice(0, 1024),
+      model3d: String(j['3d_model'] || j.model || market?.model3d || '').slice(0, 1024),
+      mediaFiles: (market?.files || []).slice(0, 24)
+    };
+    const buf = sharp && image ? await get(image, 'bin') : null;
     if (buf) { try {
-      const base = sharp(buf, { animated: false, limitInputPixels: 64e6 }).rotate().resize(256, 256, { fit: 'cover' }).removeAlpha();
+      const base = sharp(buf, { animated: false, limitInputPixels: 64e6 }).rotate().resize(512, 512, { fit: 'contain', background: { r: 12, g: 9, b: 8, alpha: 1 } }).removeAlpha();
       await base.clone().webp({ quality: 82 }).toFile(path.join(DIR, n.id + '.webp'));
-      await base.clone().jpeg({ quality: 80 }).toFile(path.join(DIR, n.id + '.jpg'));   // fallback for very old Safari
+      await base.clone().jpeg({ quality: 80 }).toFile(path.join(DIR, n.id + '.jpg'));
       const px = await base.clone().resize(32, 32, { fit: 'fill' }).raw().toBuffer();
       m.pal = { bg: region(px, 0, 0, 5, 5), top: region(px, 11, 3, 21, 9), face: region(px, 12, 11, 20, 18), body: region(px, 8, 26, 24, 32), acc: accent(px, 4, 30) };
-      m.img = '/nftimg/' + n.id + '.webp'; } catch (e) { console.error('nft img', n.id.slice(-8), e.message); } }
+      m.img = '/nftimg/' + n.id + '.webp';
+    } catch (e) { console.error('nft img', n.id.slice(-8), e.message); } }
     fs.writeFileSync(f, JSON.stringify(m)); metaMem.set(n.id, m); return m;
   })().finally(() => inflight.delete(n.id));
   inflight.set(n.id, job); return job;
 }
-const pub = m => m && ({ id: m.id, key: m.key, col: m.col, name: m.name, num: m.num, img: m.img, pal: m.pal, traits: m.traits });
+const pub = m => m && ({
+  id: m.id, key: m.key, col: m.col, name: m.name, num: m.num, img: m.img, pal: m.pal, traits: m.traits,
+  description: m.description, externalUrl: m.externalUrl, artwork: m.artwork,
+  animation: m.animation, video: m.video, audio: m.audio, model3d: m.model3d, mediaFiles: m.mediaFiles
+});
 async function mine(acct, ledger) {                 // sign-in / picker: fresh ownership check + metadata
   const list = await holdings(acct, ledger, true);
   if (sel[acct] && !list.some(n => n.id === sel[acct])) { delete sel[acct]; S.save('nft_sel.json', sel); }
@@ -86,7 +142,11 @@ async function select(acct, id, ledger) {
 function charFor(acct) {
   if (!acct || !sel[acct]) return null; const o = owned.get(acct);
   if (!o || Date.now() - o.t > 3 * TTL || !o.list.some(n => n.id === sel[acct])) return null;
-  const m = metaMem.get(sel[acct]); return m ? { id: m.id, key: m.key, name: m.name, num: m.num, img: m.img, pal: m.pal, t: m.traits.filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 10) } : null;
+  const m = metaMem.get(sel[acct]); return m ? {
+    id: m.id, key: m.key, col: m.col, name: m.name, num: m.num, img: m.img, pal: m.pal,
+    traits: m.traits, t: m.traits.filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 64),
+    artwork: m.artwork, animation: m.animation, video: m.video, audio: m.audio, model3d: m.model3d, mediaFiles: m.mediaFiles
+  } : null;
 }
 let ledgerFn = null, mainnet = null;   // own read-only mainnet client (NFTs live on mainnet even when payments run on testnet)
 const xrpl = require('xrpl');

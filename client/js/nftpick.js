@@ -20,12 +20,18 @@ async function api(srv, path, body) {
   const r = await fetch(srv + path, { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   if (r.status === 401) { set(null); return { error: 'signin' }; } return r.json();
 }
-const look = n => n && { id: n.id, key: n.key, name: n.name, num: n.num, img: n.img, pal: n.pal, t: (n.traits || []).filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 10) };
+const look = n => n && {
+  metaVersion: 2, id: n.id, key: n.key, col: n.col, name: n.name, num: n.num, img: n.img, pal: n.pal,
+  traits: (n.traits || []).slice(0, 64),
+  t: (n.traits || []).filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 64),
+  description: n.description, externalUrl: n.externalUrl, artwork: n.artwork,
+  animation: n.animation, video: n.video, audio: n.audio, model3d: n.model3d, mediaFiles: n.mediaFiles
+};
 export async function refresh(srv) {        // re-verify ownership; drops the character if it was transferred
   if (!tok()) { if (get()) set(null); return null; }
   const d = await api(srv, '/api/nft/mine'); if (d.error) return d.error === 'signin' ? null : last; last = d;
   const cur = get(), sel = d.selected && d.nfts.find(n => n.id === d.selected);
-  if (!sel || sel.pending) { if (cur && !d.selected) set(null); } else if (!cur || cur.id !== sel.id || !cur.pal) set(look(sel));
+  if (!sel || sel.pending) { if (cur && !d.selected) set(null); } else if (!cur || cur.id !== sel.id || !cur.pal || cur.metaVersion !== 2) set(look(sel));
   return d;
 }
 export const current = get;
@@ -58,7 +64,7 @@ export async function open(srv) {
         else ft.firstChild.textContent = r.error === 'not_owner' ? 'That NFT is no longer in your wallet.' : 'Could not select it right now, try again.'; };
       grid.append(b); }
   };
-  ft.innerHTML = '<span>Only NFTs your signed-in wallet holds are shown. Checked on the XRPL ledger.</span>';
+  ft.innerHTML = '<span>Ownership is verified on the XRPL ledger. NFT attributes and media may be enriched from <a href="https://xrpl.to" target="_blank" rel="noopener noreferrer">XRPL.to</a> (XRP.cafe-origin records).</span>';
   const def = document.createElement('button'); def.textContent = 'Use default character'; def.onclick = async () => { await api(srv, '/api/nft/select', { id: null }); set(null); draw(last); }; ft.append(def);
   let d = await refresh(srv); draw(d);
   for (let i = 0; i < 12 && d && d.pending && w.isConnected; i++) { await new Promise(r => setTimeout(r, 5000)); d = await refresh(srv); if (w.isConnected) draw(d); }

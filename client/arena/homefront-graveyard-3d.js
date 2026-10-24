@@ -6,6 +6,8 @@ import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
+import { LANDMARKS } from './homefront-exploration-content.mjs';
+import { buildLandmarkSetPiece } from './homefront-landmark-builder.mjs';
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
@@ -426,6 +428,19 @@ function boot(host) {
     if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY + emberHeight / 2, bz - d * .35, emberMat); }
     chunk.add(structure);
     registerEnvironmentVisual('building:' + x + ',' + z, structure);
+  }
+  // Authored landmarks are distinct low-poly set pieces; server POIs remain the interaction authority.
+  const landmarkSetPieces = new Map();
+  for (const landmark of LANDMARKS) {
+    // Offset the structure slightly from the server marker so its interaction beacon remains readable.
+    const hash = [...landmark.id].reduce((sum, char) => (Math.imul(sum ^ char.charCodeAt(0), 16777619) >>> 0), 2166136261);
+    const angle = (hash % 8) * Math.PI / 4;
+    const visualX = Math.max(-96, Math.min(96, landmark.x + Math.cos(angle) * 4.2));
+    const visualZ = Math.max(-96, Math.min(96, landmark.z + Math.sin(angle) * 4.2));
+    const piece = buildLandmarkSetPiece(THREE, { ...landmark, x: visualX, z: visualZ }, terrainElevation(visualX, visualZ));
+    piece.userData.interactionPointId = landmark.id;
+    cityChunkAt(visualX, visualZ).add(piece);
+    landmarkSetPieces.set(landmark.id, piece);
   }
   const markerObjects = new Map();
   function labelSprite(text, color = '#f6d8b5') {

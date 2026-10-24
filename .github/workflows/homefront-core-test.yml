@@ -84,6 +84,8 @@ jobs:
         run: npm run test:zombie-arrival
       - name: Run shared flight lobby simulation
         run: npm run test:flight-lobby
+      - name: Run Homefront navigation steering regression
+        run: node client/arena/homefront-navigation.test.mjs
       - name: Run Homefront settlement simulation
         run: npm run test:homefront
       - name: Run Homefront environment damage and repair tests

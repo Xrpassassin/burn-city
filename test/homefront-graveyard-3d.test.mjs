@@ -61,6 +61,9 @@ assert.match(scene, /state\.targetX - actor\.position\.x/, 'interpolate infected
 assert.match(scene, /actor\.userData\.hitFlash = 0\.38/, 'give confirmed enemy damage a brief visual hit flash');
 assert.match(scene, /threatRing/, 'render a proximity danger telegraph for nearby infected');
 assert.match(scene, /threatDistance <= 3/, 'increase infected danger feedback at close combat distance');
+assert.match(scene, /frontierBand/, 'show the current expansion band in the expedition HUD');
+assert.match(scene, /frontierDepth/, 'show inward frontier depth and rising danger context');
+assert.match(scene, /gunfire attracts attention/, 'warn players that noise escalates danger beyond the perimeter');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(scene, /Visible held weapon silhouette/, 'render a visible weapon prop for each explorer in the 3D world');
 assert.match(scene, /event\.button !== 2 \|\| masterView !== 'third-person'/, 'right mouse drag orbits the third-person camera without hijacking ground travel');

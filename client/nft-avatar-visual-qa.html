@@ -101,8 +101,9 @@ function showArtwork(url){art.replaceChildren();if(!url){const s=document.create
 function renderSample(){try{
  const nft=JSON.parse(document.querySelector('#sample').value);
  if(!nft || typeof nft!=='object' || Array.isArray(nft)) throw new Error('Sample must be a JSON object.');
+ const artworkUrl=document.querySelector('#artUrl').value.trim()||String(nft.img||nft.image||'').trim();
  if(avatar){scene.remove(avatar); /* Avatar builder caches shared geometry/materials; do not dispose shared resources here. */}
- avatar=buildNftChar(nft,{panel:document.querySelector('#showTabard').checked});avatar.position.set(0,0,0);scene.add(avatar);setView('front');
+ avatar=buildNftChar(nft,{panel:document.querySelector('#showTabard').checked,artworkUrl});avatar.position.set(0,0,0);scene.add(avatar);setView('front');
  const profile=avatar.userData.nftAvatarProfile||{};
  const recon=profile.reconstruction||{};
  const components=profile.components||{};
@@ -112,7 +113,7 @@ function renderSample(){try{
  const unmapped=normalizedProfile.renderTraits.map(([slot,value],i)=>({slot,value,rawType:normalizedProfile.rawTraits[i]?.[0]})).filter(item=>!handledSlots.has(item.slot));
  const unmappedText=unmapped.length?unmapped.map(({rawType,slot,value})=>'  - '+rawType+' → '+slot+': '+value).join('\n'):'  none detected';
  status.textContent='Rendered: '+(nft.name||nft.id||'unnamed sample')+'\nCollection: '+(profile.collectionName||nft.key||'unknown')+'\nRaw traits: '+rawTraits.length+'\nTrait slots without an explicit renderer mapping: '+unmapped.length+'\n'+unmappedText+'\nArchetype: '+(recon.archetype||profile.archetype||'unknown')+'\nFidelity mode: '+(recon.fidelityMode||'unknown')+'\nExact reconstruction: '+String(!!recon.exactReconstruction)+'\nRecipes: outfit='+components.outfitStyle+', headwear='+components.headwearStyle+', weapon='+components.weaponStyle+', tail='+components.tailStyle+'\nArtwork tabard: '+(document.querySelector('#showTabard').checked?'visible':'hidden for geometry review')+'\nReview status: visual inspection required; no automated likeness score.';
- const url=document.querySelector('#artUrl').value.trim()||String(nft.img||nft.image||'').trim();showArtwork(url);
+ showArtwork(artworkUrl);
  }catch(e){status.textContent='Could not render sample: '+e.message;}}
 document.querySelector('#render').addEventListener('click',renderSample);
 document.querySelector('#showTabard').addEventListener('change',renderSample);

@@ -7,6 +7,9 @@ assert.equal(a.encounter.range,C.STATS[a.encounter.event].range,'public encounte
 assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950,heavy_machine_gun:280},'weapon-specific fire cadence is defined on the server');
 assert.deepEqual(C.WEAPON_MAGAZINE_CAPACITY,{pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0,heavy_machine_gun:30},'firearms use finite magazines, including a large heavy-machine-gun belt; melee weapons never consume bullets');
 assert.equal(C.WEAPON_HANDLING.heavy_machine_gun.adsMs,360,'heavy machine gun has a distinct handling profile');
+const rapidSpawn=C.spawn({encounters:{},account:'mg-cadence-test',player,now:900000,seed:14});
+const rapidFirst=C.attack({encounters:rapidSpawn.encounters,account:'mg-cadence-test',player,base:{...base(),equippedWeapon:'heavy_machine_gun'},now:901000,weaponPower:8});
+assert.doesNotThrow(()=>C.attack({encounters:rapidFirst.encounters,account:'mg-cadence-test',player,base:{...base(),equippedWeapon:'heavy_machine_gun'},now:901280,weaponPower:8}),'heavy machine gun can fire at its faster server-enforced cadence');
 const Core=require('./homefront-core');
 const lockedBase=Core.createBase('armory-test',1000);lockedBase.resources.scrap=500;lockedBase.embers=500;
 assert.throws(()=>Core.applyAction(lockedBase,'armory-test',{type:'craft_weapon',weapon:'heavy_machine_gun'},1001),/weapon_locked_discover_industrial_or_research_lab/,'heavy machine gun stays locked until an industrial or research district is surveyed');

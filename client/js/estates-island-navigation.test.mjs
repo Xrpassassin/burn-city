@@ -15,6 +15,8 @@ assert(nav.isWalkable({x:0,y:0,z:0}));
 assert.equal(nav.isWalkable({x:0,y:0,z:220}),false,'lake and outside island are not walkable');
 assert.equal(nav.isWalkable({x:0,y:0,z:159}),true,'primary bridge corridor is walkable');
 assert.equal(nav.isWalkable({x:30,y:0,z:159}),false,'off-bridge water is blocked');
+assert.equal(nav.isWalkable({x:-200,y:0,z:188}),true,'city bridge corridor is walkable');
+assert.equal(nav.isWalkable({x:-230,y:0,z:188}),false,'outside the city bridge is blocked');
 assert(nav.collisionCount>0);
 assert.equal(nav.buildingColliderCount,2);
 assert.equal(nav.treeColliderCount,42);

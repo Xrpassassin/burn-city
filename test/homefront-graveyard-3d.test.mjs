@@ -114,7 +114,7 @@ assert.ok(scene.includes("const count = detail.hitZone === 'head' ? (detail.kill
 assert.match(scene, /drop\.userData\.blood = true/, 'mark short-lived blood particles for fade-out');
 
 assert.match(scene, /const weaponId = \['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','heavy_machine_gun'\]/, 'select only known server-equipped weapon profiles for impact feedback');
-assert.match(scene, /weaponId === 'pump_shotgun' \? 'shotgun'/, 'shotgun impacts use their dedicated licensed sample when available');
+assert.match(scene, /weaponId === 'pump_shotgun' \|\| weaponId === 'heavy_machine_gun' \? 'shotgun'/, 'shotgun and heavy machine gun reuse the licensed firearm sample');
 assert.ok(scene.includes("detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18)"), 'shotgun killing blows produce a wider, stronger impact burst');
 assert.match(scene, /\.catch\(\(\) => \{\}\)/, 'audio asset failures cannot interrupt confirmed combat feedback');
 assert.match(scene, /data\.combat\.encounterId/, 'resolve encounter IDs from the combat response when available');

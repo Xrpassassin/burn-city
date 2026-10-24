@@ -47,10 +47,15 @@ export function buildNftChar(n, opts = {}) {
   const traitColor = (re, fallback) => {
     const v = traitValue(re).toLowerCase().trim();
     if (/^#[0-9a-f]{6}$/i.test(v)) return v;
-    const palette = [['rainbow','#a86bff'],['gold','#d6ad45'],['silver','#b9c4cf'],['black','#202126'],['white','#e6e4df'],
-      ['gray','#858a91'],['grey','#858a91'],['red','#b72d32'],['orange','#e87927'],['yellow','#e0c34a'],['green','#43845a'],
-      ['blue','#426db0'],['purple','#7952a1'],['pink','#d879a8'],['brown','#78513c'],['tan','#bd9a73'],['cyan','#4bbcc4'],
-      ['teal','#328f8a'],['cream','#e4d4b5']];
+    const palette = [
+      ['rainbow','#a86bff'],['gold','#d6ad45'],['silver','#b9c4cf'],['charcoal','#353941'],['black','#202126'],
+      ['white','#e6e4df'],['ivory','#eee5d2'],['cream','#e4d4b5'],['beige','#c8b99c'],['gray','#858a91'],['grey','#858a91'],
+      ['crimson','#a51f35'],['scarlet','#b51f2d'],['burgundy','#6e1c35'],['maroon','#702b32'],['red','#b72d32'],
+      ['orange','#e87927'],['yellow','#e0c34a'],['lime','#86b93d'],['olive','#737a32'],['emerald','#26865b'],
+      ['forest','#28513a'],['green','#43845a'],['navy','#243a63'],['cobalt','#2854a6'],['azure','#3c8ed6'],
+      ['royal','#355ca8'],['blue','#426db0'],['purple','#7952a1'],['magenta','#b833a6'],['fuchsia','#d43bb8'],
+      ['pink','#d879a8'],['brown','#78513c'],['tan','#bd9a73'],['bronze','#9a6b3c'],['cyan','#4bbcc4'],['teal','#328f8a']
+    ];
     const found = palette.find(([word]) => v.includes(word));
     return found ? found[1] : fallback;
   };
@@ -141,7 +146,9 @@ export function buildNftChar(n, opts = {}) {
     addCapsule(g, darkCloth, [0, 1.43, -.025], .115, .12, [1.2, .8, .9]);
   }
   // Surface patterns are driven by actual metadata and remain visible around the artwork tabard.
-  const patternColor=traitColor(/pattern|marking|camo|stripe|spot|outfit/i,'#b8b3a7');
+  // Prefer a dedicated pattern/marking trait; use outfit color only as a fallback.
+  // Including "outfit" in the primary matcher made an earlier clothing trait mask a later pattern trait.
+  const patternColor=traitColor(/pattern|marking|camo|stripe|spot/i,traitColor(/outfit|armor/i,'#b8b3a7'));
   if (components.patternStyle === 'stripes') {
     for (const side of [-1,1]) for (let i=0;i<3;i++) {
       const stripe=addBox(g,mat(patternColor),[side*(.205+i*.012),1.13+i*.075,.177],[.012,.052,.012]);

@@ -155,7 +155,7 @@ class Room {
     const hurt = (zb, amt, p, hs = 0, dot = false) => { let d = amt * (Z.has(p, 'dbl') ? 2 : 1) * (hs ? hs * (1 + 0.25 * bon(p, 'hs')) : 1) * (1 + 0.12 * bon(p, 'dmg'));
       if (!dot && bon(p, 'crit') && Math.random() < 0.07 * bon(p, 'crit')) { d *= 2.5; p._cr = 1; }   // Flashpoint boon
       if (!dot && Z.has(p, 'burn') && zb.hp > 0) { zb.dot = Math.min((zb.dot || 0) + d * 0.35, zb.maxhp || 1e9); zb.dotBy = p.id; }   // Afterburn perk: 35% extra as burn over ~2 s
-      zb.hs = hs ? 1 : 0; if (hs) p._hs = 1; if (zb.armorHp > 0) { zb.armorHp = Math.max(0, zb.armorHp - d); if (!zb.armorHp && !zb.armorBroken) { zb.armorBroken = 1; ev.push({ e: 'zarmor', id: zb.id, x: q(zb.x), z: q(zb.z), ty: zb.ty }); } } zb.stagger = Math.max(zb.stagger || 0, Math.min(0.34, 0.08 + d / Math.max(100, zb.maxhp || 100) * 0.4)); const real = Math.min(d, Math.max(0, zb.hp)); zb.hp -= d; if (!this.ranked && !zb.crR && zb.hp > 0 && zb.maxhp && zb.hp < zb.maxhp * 0.4 && zb.ty <= 1) { zb.crR = 1; if (Math.random() < 0.3) { zb.cr = 1; zb.sp *= 0.45; } } zb.burn = 1; zb.by = p.id; if (real > 0) p._hm = Math.max(p._hm || 0, zb.hp <= 0 ? 2 : 1);
+      zb.hs = hs ? 1 : 0; if (hs) p._hs = 1; if (!this.ranked && !this.daily) { if (zb.armorHp > 0) { zb.armorHp = Math.max(0, zb.armorHp - d); if (!zb.armorHp && !zb.armorBroken) { zb.armorBroken = 1; ev.push({ e: 'zarmor', id: zb.id, x: q(zb.x), z: q(zb.z), ty: zb.ty }); } } zb.stagger = Math.max(zb.stagger || 0, Math.min(0.34, 0.08 + d / Math.max(100, zb.maxhp || 100) * 0.4)); } const real = Math.min(d, Math.max(0, zb.hp)); zb.hp -= d; if (!this.ranked && !zb.crR && zb.hp > 0 && zb.maxhp && zb.hp < zb.maxhp * 0.4 && zb.ty <= 1) { zb.crR = 1; if (Math.random() < 0.3) { zb.cr = 1; zb.sp *= 0.45; } } zb.burn = 1; zb.by = p.id; if (real > 0) p._hm = Math.max(p._hm || 0, zb.hp <= 0 ? 2 : 1);
       p.ptsAcc += real * 0.2; if (p.ptsAcc >= 1) { const k = Math.floor(p.ptsAcc); p.pts += k; p.ptsAcc -= k; } };   // points per hit (by damage dealt)
     const up = ps.filter(p => p.alive && !p.down && !p.aboard), AIM = { vAim, hsV, reachH, missD, endY, hurt };
     // Last stand: downed players crawl and fire a BURN pistol (hotter if they own any Forged gun)
@@ -229,7 +229,7 @@ class Room {
     Quest.tick(this, ps, ev); if (Heli.tick(this, ps, dt, ev)) return;
     this.zt = (this.zt || 0) + dt; if (!this.winLast) this.winLast = Z.WINDOWS.map(() => -99);
     for (const zb of this.zombies.values()) {
-      zb.stagger = Math.max(0, (zb.stagger || 0) - dt);
+      zb.stagger = this.ranked || this.daily ? 0 : Math.max(0, (zb.stagger || 0) - dt);
       if (zb.dot > 0 && zb.hp > 0) { const k = this.players.get(zb.dotBy), a = Math.min(zb.dot, Math.max(12, zb.dot * 0.6) * dt); zb.dot -= a; if (k) hurt(zb, a / ((Z.has(k, 'dbl') ? 2 : 1) * (1 + 0.12 * bon(k, 'dmg'))), k, 0, true); else zb.dot = 0; }   // Afterburn tick (already scaled when banked)
       if (zb.hp <= 0) { this.zombies.delete(zb.id); this.score += 10; const k = this.players.get(zb.by); if (k && Z.has(k, 'leech') && k.alive && !k.down) k.hp = Math.min(maxHp(k), k.hp + 8); if (k) { k.lifeKills++; k.pts += Math.round(((ZPTS[zb.ty] ?? 60) + (zb.hs ? HS_BONUS : 0)) * (1 + 0.15 * bon(k, 'pts'))); if (zb.hs) k.lifeHs = (k.lifeHs || 0) + 1; } ev.push({ e: 'zdie', id: zb.id, x: q(zb.x), z: q(zb.z), ty: zb.ty, hs: zb.hs ? 1 : 0 }); continue; }
       if (Z.atWindow(this, zb, dt, ev)) { zb.burn = Math.max(0, (zb.burn || 0) - dt); continue; }
@@ -247,7 +247,7 @@ class Room {
       } else if (bd > 1.1 || !sameLv) {   // follow the flow field; go straight only when close with a clear line
         let tx = best.x, tz = best.z; const st = Z.nextStep(this, zb.x, zb.z, zb.lv); if (zb.ty !== 6 && st && !(bd < 3 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y))) { tx = st[0]; tz = st[1]; }
         if (zb.ty === 3 || zb.ty === 8) { zb.chT = (zb.chT ?? (zb.ty === 8 ? 6 : 5)) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < (zb.ty === 8 ? 12 : 14) && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = (zb.ty === 8 ? 8 + Math.random() * 2 : 7 + Math.random() * 3); zb.charge = zb.ty === 8 ? 1.05 : 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
-        const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1, mv = zb.sp * (zb.stagger > 0 ? 0.12 : 1) * (zb.charge > 0 ? (zb.ty === 8 ? 2.6 : 3.2) : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
+        const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1, mv = zb.sp * (!this.ranked && !this.daily && zb.stagger > 0 ? 0.12 : 1) * (zb.charge > 0 ? (zb.ty === 8 ? 2.6 : 3.2) : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
         if (zb.ty === 6) { zb.x = nx; zb.z = nz; zb.y = 2.4 + Math.sin(this.t * 3.5 + zb.id) * 0.3; zb.lv = 0; }
         else { if (Z.inside(this, nx, zb.z, 0.32, zb.lv)) zb.x = nx; if (Z.inside(this, zb.x, nz, 0.32, zb.lv)) zb.z = nz;
           if (!Z.inside(this, zb.x, zb.z, 0.32, zb.lv) && st) { zb.x += (st[0] - zb.x) * Math.min(1, dt * 4); zb.z += (st[1] - zb.z) * Math.min(1, dt * 4); }   // never wedge into a corner

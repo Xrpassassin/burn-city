@@ -132,6 +132,7 @@ export async function installEstatesIslandLive({
     onPropertyPromptClear:()=>{lastProperty=null;hidePanel();},
     onExitPrompt:event=>{
       if(!active)return;
+      if(event.confirmedInteraction){leaveIsland();return;}
       if(event.visible) showPanel('RETURN TO BURN CITY','You are at the city-side bridge gate. Return to the public city without losing your location.',
         [{label:'Return to city',primary:true,run:leaveIsland},{label:'Stay on island',run:hidePanel}],
         'Press E while this prompt is visible, or use the button.');
@@ -200,6 +201,7 @@ export async function installEstatesIslandLive({
         onPropertyPromptClear:()=>{lastProperty=null;hidePanel();},
         onExitPrompt:event=>{
           if(!active)return;
+          if(event.confirmedInteraction){leaveIsland();return;}
           if(event.visible)showPanel('RETURN TO BURN CITY','Return through the bridge gate?',
             [{label:'Return to city',primary:true,run:leaveIsland},{label:'Stay',run:hidePanel}]);
           else hidePanel();
@@ -208,7 +210,7 @@ export async function installEstatesIslandLive({
     }
     runSpeed=running?7.2:4.5;
     const beforeX=player.pos.x,beforeZ=player.pos.z;
-    const result=controllerRef.update({dt,yaw:getYaw(),moveX:moveForward,moveZ:moveSide,interactPressed:edge});
+    const result=controllerRef.update({dt,yaw:getYaw(),moveX:moveForward,moveZ:moveSide,interactPressed:edge,exitPressed:edge});
     avatar.position.copy(player.pos);
     const movedX=player.pos.x-beforeX,movedZ=player.pos.z-beforeZ;
     avatar.rotation.y=Math.hypot(movedX,movedZ)>.001?Math.atan2(-movedX,-movedZ):getYaw();

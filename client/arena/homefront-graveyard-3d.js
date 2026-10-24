@@ -553,7 +553,7 @@ function boot(host) {
       else if (action === 'leave') setInteriorStatus('Returned to the street. Interior progress is saved.');
       else if (action === 'action') {
         const rewardText = (data.interiorReward || []).filter(drop => drop.amount > 0).map(drop => '+' + drop.amount + ' ' + drop.item).join(', ');
-        setInteriorStatus((data.interiorMessage || 'Interaction complete.') + (rewardText ? ' Found: ' + rewardText + '.' : '') + (data.interiorNoise ? ' Noise ' + data.interiorNoise + '/100.' : ''));
+        setInteriorStatus((data.interiorMessage || 'Interaction complete.') + (rewardText ? ' Found: ' + rewardText + '.' : '') + (data.overflowDestination === 'refuge' ? ' Overflow returned to refuge storage.' : '') + (data.interiorNoise ? ' Noise ' + data.interiorNoise + '/100.' : ''));
       } else if (action === 'door') setInteriorStatus('Door traversed. Room progress saved.');
       return data;
     } catch (error) { setInteriorStatus('Interior action failed: ' + error.message); return null; }

@@ -90,6 +90,22 @@ export async function installEstatesIslandLive({
     panel.appendChild(row); panel.style.display='block';
   };
   const hidePanel = () => { panel.style.display='none'; panel.replaceChildren(); };
+  const showLotInspection = property => {
+    const catalogued=Boolean(property.propertyId);
+    showPanel('LOT INSPECTION · '+property.lotId,
+      'Address: '+property.address+' · Tier: '+property.tier+' · Catalog mapping: '+(catalogued?'mapped':'unmapped'),
+      [{label:'Close',primary:true,run:hidePanel}],
+      'Read-only inspection. A catalog mapping is not proof of ownership; private access and building require server-verified permissions.');
+  };
+  const showLotPrompt = property => {
+    const catalogued=Boolean(property.propertyId);
+    if(property.confirmedInteraction){showLotInspection(property);return;}
+    showPanel('ESTATES · '+property.address,
+      catalogued?'This lot maps to a property record in the current catalog. That record does not prove ownership; private access and build controls require server-verified permissions.':'This lot has no property record mapped in the current catalog. No ownership is inferred.',
+      [{label:'Inspect lot',primary:true,run:()=>showLotInspection(property)},
+       {label:'Close',run:hidePanel}],
+      'Walk up to a lot to inspect it. Private property access requires server-verified permissions.');
+  };
   const cityDistance = () => Math.hypot(player.pos.x-CITY_GATE.x,player.pos.z-CITY_GATE.z);
   const localActor = {
     get position() {
@@ -117,18 +133,7 @@ export async function installEstatesIslandLive({
     },
     cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
     cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
-    onPropertyPrompt:property=>{
-      lastProperty=property;
-      const catalogued=Boolean(property.propertyId);
-      showPanel('ESTATES · '+property.address,
-        catalogued?'This lot maps to a property record in the current catalog. That record does not prove ownership; private access and build controls require server-verified permissions.':'This lot has no property record mapped in the current catalog. No ownership is inferred.',
-        [{label:'Inspect lot',primary:true,run:()=>showPanel('LOT INSPECTION · '+property.lotId,
-          'Address: '+property.address+' · Tier: '+property.tier+' · Catalog mapping: '+(catalogued?'mapped':'unmapped'),
-          [{label:'Close',primary:true,run:hidePanel}],
-          'Public island inspection only; ownership, sale and building writes are not enabled.')},
-         {label:'Close',run:hidePanel}],
-        'Walk up to a lot to inspect it. Private property access requires server-verified permissions.');
-    },
+    onPropertyPrompt:property=>{lastProperty=property;showLotPrompt(property);},
     onPropertyPromptClear:()=>{lastProperty=null;hidePanel();},
     onExitPrompt:event=>{
       if(!active)return;
@@ -186,18 +191,7 @@ export async function installEstatesIslandLive({
         }}),
         cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
         cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
-        onPropertyPrompt:property=>{
-          lastProperty=property;
-          const catalogued=Boolean(property.propertyId);
-          showPanel('ESTATES · '+property.address,
-            catalogued?'This lot maps to a property record in the current catalog. That is not proof of ownership; private access requires server-verified permissions.':'This lot has no property record mapped in the current catalog.',
-            [{label:'Inspect lot',primary:true,run:()=>showPanel('LOT INSPECTION · '+property.lotId,
-              'Address: '+property.address+' · Tier: '+property.tier+' · Catalog mapping: '+(catalogued?'mapped':'unmapped'),
-              [{label:'Close',primary:true,run:hidePanel}],
-              'Inspection is read-only; property access and building writes are not enabled.')},
-             {label:'Close',run:hidePanel}],
-            'Public island inspection only.');
-        },
+        onPropertyPrompt:property=>{lastProperty=property;showLotPrompt(property);},
         onPropertyPromptClear:()=>{lastProperty=null;hidePanel();},
         onExitPrompt:event=>{
           if(!active)return;

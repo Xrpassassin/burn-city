@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard, xpForCatch, anglerProgress, rodUnlockLevel, BOATS, boatById, canBoatCatch } from './fishing-rules.mjs';
+import { resolveFightTap, baitAffinity, journalAchievements, challengeBoard, feedingSpotBonus, xpForCatch, anglerProgress, rodUnlockLevel, BOATS, boatById, canBoatCatch } from './fishing-rules.mjs';
 
 const starterXp = xpForCatch({ r: 0, kg: 0.2 });
 assert.equal(starterXp, 10, 'common catches grant a modest base XP amount');
@@ -28,6 +28,11 @@ assert.equal(canBoatCatch('bass', { kg: 100, meta: { deep: 1 } }, true), false, 
 assert.equal(canBoatCatch('abyss', { kg: 800, meta: { deep: 1, boat: 4 } }, true), true);
 assert.equal(canBoatCatch('offshore', { kg: 10, meta: { boat: 4 } }, true), false, 'species boat-tier requirement is respected');
 
+
+assert.equal(feedingSpotBonus(0), 1.28, 'a cast directly on a feeding school gets the activity bonus');
+assert.equal(feedingSpotBonus(9), 1.28, 'the hotspot edge is included');
+assert.equal(feedingSpotBonus(9.01), 1, 'casts outside a feeding school receive no bonus');
+assert.equal(feedingSpotBonus(NaN), 1, 'invalid distances cannot manufacture a bonus');
 
 const clean = resolveFightTap({ position: 0.5, zoneStart: 0.4, zoneWidth: 0.2 });
 assert.deepEqual(clean, { hit: true, miss: false, tension: 0, broke: false });

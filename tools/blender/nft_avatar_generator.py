@@ -246,6 +246,57 @@ def main():
         beard_scale = (0.12,0.055,0.12) if "stubble" in facial_hair else (0.14,0.07,0.19)
         uv_sphere("Trait_Facial_Hair", (0,-0.205,head_y-0.14), beard_scale, dark)
 
+    # Face, hair, markings and body effects are per-token identity cues too.
+    hair = trait_map.get("hair style", "").lower()
+    hair_color = trait_color(trait_map.get("hair color", ""), (0.12,0.065,0.035))
+    if hair and key != "racc":
+        hair_mat = material("Trait_Hair", hair_color)
+        if any(w in hair for w in ("mohawk","spike","spiky")):
+            for idx in range(5):
+                x = (idx-2)*0.065
+                cone("Trait_Hair_Spike_%02d" % idx, (x,0.005,head_y+0.20), 0.055, 0.004, 0.20, hair_mat)
+        elif any(w in hair for w in ("afro","curly","coil")):
+            for idx, pos in enumerate([(-0.12,0,0.12),(-0.06,-0.02,0.17),(0,-0.025,0.18),(0.07,-0.01,0.16),(0.13,0,0.11)]):
+                uv_sphere("Trait_Hair_Curl_%02d" % idx, (pos[0],pos[1],head_y+pos[2]), (0.09,0.085,0.09), hair_mat, 12, 8)
+        elif any(w in hair for w in ("long","braid","dread","ponytail")):
+            uv_sphere("Trait_Hair_Cap", (0,0.015,head_y+0.13), (0.22,0.20,0.13), hair_mat)
+            for side in (-1,1):
+                make_curve("Trait_Hair_Lock_%s" % side, [(side*0.17,0.02,head_y+0.12),(side*0.20,0.03,head_y-0.03),(side*0.18,0.04,head_y-0.23)], hair_mat, 0.035)
+        else:
+            uv_sphere("Trait_Hair_Cap", (0,0.015,head_y+0.13), (0.22,0.20,0.11), hair_mat)
+
+    expression = trait_map.get("expression", "").lower()
+    if expression:
+        mouth_mat = accent if any(w in expression for w in ("fire","glow","laser")) else dark
+        if any(w in expression for w in ("smile","grin","smirk","happy")):
+            make_curve("Trait_Expression_Smile",[(-0.065,-0.227,head_y-0.12),(0,-0.238,head_y-0.145),(0.065,-0.227,head_y-0.12)],mouth_mat,0.012)
+        elif any(w in expression for w in ("angry","snarl","frown","sad")):
+            make_curve("Trait_Expression_Frown",[(-0.065,-0.227,head_y-0.145),(0,-0.238,head_y-0.12),(0.065,-0.227,head_y-0.145)],mouth_mat,0.012)
+        elif any(w in expression for w in ("open","surpris","scream")):
+            uv_sphere("Trait_Expression_Open_Mouth",(0,-0.23,head_y-0.14),(0.045,0.018,0.06),dark,12,8)
+
+    mask = trait_map.get("mask", "").lower()
+    if mask and key != "racc":
+        mask_mat = metal if any(w in mask for w in ("metal","gold","silver","cyber")) else dark
+        uv_sphere("Trait_Face_Mask",(0,-0.205,head_y-0.045),(0.19,0.025,0.095),mask_mat)
+        if any(w in mask for w in ("respirator","gas","tech","cyber")):
+            for side in (-1,1):
+                cylinder("Trait_Mask_Filter_%s" % side,(side*0.13,-0.24,head_y-0.08),0.035,0.035,metal,rotation=(1.5708,0,0))
+
+    markings = trait_map.get("markings", "").lower()
+    if markings:
+        for idx, side in enumerate((-1,1)):
+            if any(w in markings for w in ("scar","war paint","paint","tattoo")):
+                make_curve("Trait_Face_Marking_%s" % side,
+                           [(side*0.12,-0.224,head_y+0.02),(side*0.15,-0.226,head_y-0.015),(side*0.11,-0.224,head_y-0.05)],
+                           accent,0.009)
+
+    body_effect = trait_map.get("body effect", "").lower()
+    if body_effect and any(w in body_effect for w in ("fire","flame","burn","glow","energy","electric","ice","smoke")):
+        effect_mat = material("Trait_Body_Effect", trait_color(body_effect,(0.95,0.16,0.025)),0.15,0.35,1.8)
+        for side in (-1,1):
+            cone("Trait_Body_Effect_%s" % side,(side*0.30,0.04,1.22),0.09,0.01,0.34,effect_mat,rotation=(0,side*0.28,side*0.18))
+
     tail = trait_map.get("tail", "").lower()
     if tail and key != "racc":
         tail_pts = [(0.15,0.12,0.78),(0.32,0.20,0.72),(0.48,0.21,0.84),(0.60,0.18,1.02)]

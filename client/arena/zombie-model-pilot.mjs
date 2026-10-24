@@ -14,8 +14,8 @@ const MODEL_URLS = [
   new URL('./assets/zombies/zombie-rust.glb', import.meta.url).href,
   new URL('./assets/zombies/quaternius-zombie.glb', import.meta.url).href
 ];
-const PALETTES = [0xb6b7a1, 0x91a47c, 0xa77a68, 0x8293a5, 0xaaa38b, 0x758078, 0x48dfff, 0xb76aff];
-const VARIANT_BY_TYPE = [0, 2, 0, 1, 2, 1, 3, 2];
+const PALETTES = [0xb6b7a1, 0x91a47c, 0xa77a68, 0x8293a5, 0xaaa38b, 0x758078, 0x48dfff, 0xb76aff, 0xff6848];
+const VARIANT_BY_TYPE = [0, 2, 0, 1, 2, 1, 3, 2, 1];
 
 function animationFor(z, clips, moving) {
   if (z.ch && clips.has('Idle_Attack')) return 'Idle_Attack';
@@ -77,7 +77,7 @@ export async function createZombieModelPilot(scene, options = {}) {
       }
     });
     const group = new THREE.Group();
-    group.scale.setScalar(model.scale);
+    group.scale.setScalar(model.scale * (z.ty === 8 ? 1.55 : 1));
     visual.position.y = -model.minY;
     group.add(visual);
     scene.add(group);

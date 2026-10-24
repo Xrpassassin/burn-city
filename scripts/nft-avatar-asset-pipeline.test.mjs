@@ -10,8 +10,7 @@ let checks = 0;
 function check(condition, message) { assert.ok(condition, message); checks++; }
 
 const files = (await readdir(collectionDir)).filter(file => file.endsWith('.json')).sort();
-assert.deepEqual(files, ['589.json', 'fk.json', 'racc.json']);
-checks++;
+for (const required of ['589.json', 'fk.json', 'racc.json']) check(files.includes(required), 'includes initial collection manifest ' + required);
 for (const file of files) {
   const manifest = JSON.parse(await readFile(path.join(collectionDir, file), 'utf8'));
   assert.deepEqual(validateManifest(manifest, file), [], file + ' should pass manifest validation');

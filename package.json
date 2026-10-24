@@ -49,6 +49,7 @@
     "test:flight-lobby": "node test/flight-lobby-sim.js",
     "test:estates": "node test/estate-economy-sim.js && node test/estates-money-sim.js && node client/js/estate-interior-physics.test.mjs",
     "test:jetpack": "node test/jetpack-pay-sim.js && node test/img-burn-sim.js && node client/arena/homefront-jetpack.test.mjs",
+    "test:estate-access": "node test/estate-access.test.js",
     "test:estates-wallet": "node test/estate-wallet.test.js"
   },
   "keywords": [],

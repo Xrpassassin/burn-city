@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
 import { resolveNftAvatarComponents } from './nft-avatar-components.js';
+import { resolveNftAvatarReconstruction } from './nft-avatar-reconstruction.js';
 const G = new Map(), TX = new Map(), MT = new Map();
 const geo = (k, f) => G.get(k) || (G.set(k, f()), G.get(k));
 const mat = (c, r = .72, m = .05, e = 0) => {
@@ -33,6 +34,7 @@ export function buildNftChar(n, opts = {}) {
   const pal = n?.pal || {}, key = n?.key || '589';
   const profile = resolveNftAvatarProfile(n);
   const components = resolveNftAvatarComponents(profile);
+  const reconstruction = resolveNftAvatarReconstruction(profile);
   const originalTraitPairs = profile.rawTraits;
   const traitPairs = profile.renderTraits;
   const traitText = traitPairs.map(([type, value]) => String(type) + ' ' + String(value));
@@ -76,6 +78,9 @@ export function buildNftChar(n, opts = {}) {
   const silhouette = silhouetteVariants[profile.identitySeed % silhouetteVariants.length];
   const hasBodyShape = profile.rawTraits.some(([type]) => /body type|body shape|body build|physique|stature/i.test(type));
   if (!hasBodyShape) { torso.scale.x *= silhouette; torso.scale.y *= 2 - silhouette; }
+  torso.scale.x *= reconstruction.torsoWidth;
+  torso.scale.y *= reconstruction.torsoHeight;
+  torso.name = 'avatar-torso-' + reconstruction.signature;
   addSphere(g,trim,[-.205,1.43,0],[.18,.15,.75]);
   addSphere(g,trim,[.205,1.43,0],[.18,.15,.75]);
   add(geo('neck',()=>new THREE.CylinderGeometry(.075,.09,.15,12)),skin,0,1.55,0);
@@ -135,7 +140,7 @@ export function buildNftChar(n, opts = {}) {
   }
 
   const legs = [-1,1].map(s => {
-    const hip = new THREE.Group(); hip.position.set(s*.125,.84,0); g.add(hip);
+    const hip = new THREE.Group(); hip.position.set(s*reconstruction.hipSpan,.84,0); hip.scale.y = reconstruction.legScale; g.add(hip);
     addSphere(hip,darkCloth,[0,-.04,0],[.135,.16,.13]);
     addCapsule(hip,cloth,[0,-.245,0],.09,.31,[1.08,1,.96]);
     const knee = new THREE.Group(); knee.position.set(0,-.43,0); hip.add(knee);
@@ -146,7 +151,7 @@ export function buildNftChar(n, opts = {}) {
     hip.userData.knee = knee; return hip;
   });
   const arms = [-1,1].map(s => {
-    const shoulder = new THREE.Group(); shoulder.position.set(s*.32,1.42,0); g.add(shoulder);
+    const shoulder = new THREE.Group(); shoulder.position.set(s*reconstruction.shoulderSpan,1.42,0); shoulder.scale.y = reconstruction.armScale; g.add(shoulder);
     addSphere(shoulder,trim,[0,0,0],[.105,.115,.11]);
     addCapsule(shoulder,cloth,[0,-.17,0],.072,.22,[1,1,1]);
     const elbow = new THREE.Group(); elbow.position.set(0,-.3,0); shoulder.add(elbow);
@@ -157,9 +162,10 @@ export function buildNftChar(n, opts = {}) {
     shoulder.userData.elbow=elbow; return shoulder;
   });
 
-  const head = new THREE.Group(); head.position.set(0,1.77,0); head.name='nft-head'; g.add(head);
+  const head = new THREE.Group(); head.position.set(0,reconstruction.headY,0); head.name='nft-head-' + reconstruction.signature; g.add(head);
   const hasFaceShape = profile.rawTraits.some(([type]) => /head shape|face shape|skull shape/i.test(type));
   if (!hasFaceShape) head.scale.x = silhouetteVariants[(profile.identitySeed >>> 3) % silhouetteVariants.length];
+  head.scale.multiply(new THREE.Vector3(...reconstruction.headScale));
   if (key === 'racc') {
     // RACC gets an unmistakable rounded raccoon skull, eye mask, muzzle, ears and ringed tail.
     addSphere(head,skin,[0,.02,0],[.235,.255,.22]);
@@ -330,11 +336,26 @@ export function buildNftChar(n, opts = {}) {
     if(has(tr,/cape/)) { const cape=addBox(g,darkCloth,[0,1.14,-.18],[.35,.62,.06]); cape.rotation.x=-.12; }
   }
   if(key==='589') {
-    addBox(g,accent,[0,.88,.22],[.28,.045,.035]);
+    // Protocol silhouette: wider shoulders, a technical chest plate and an unmistakable burn insignia.
+    addBox(g,accent,[0,.88,.22],[.28,.045,.035]).name='nft-protocol-belt-insignia';
     addBox(g,metal,[0,.88,.242],[.065,.055,.015]);
+    addBox(g,trim,[-.12,1.31,.19],[.035,.2,.018]).name='nft-protocol-strap';
+    addBox(g,trim,[.12,1.31,.19],[.035,.2,.018]).name='nft-protocol-strap';
+    const emblem=add(geo('nft-protocol-emblem',()=>new THREE.TorusGeometry(.055,.012,5,16)),glow(accentHex),0,1.37,.218);
+    emblem.name='nft-protocol-emblem';
   }
+
   if(key==='fk') {
-    // Firekeepers keep a visible ember identity even when no literal flame trait exists.
+    // Firekeepers have a collection-specific robe silhouette and ember mantle, even with sparse metadata.
+    const hem=add(geo('nft-firekeeper-robe-hem',()=>new THREE.CylinderGeometry(.235,.34,.52,12)),darkCloth,0,.79,-.015);
+    hem.name='nft-firekeeper-robe-hem';
+    const mantle=add(geo('nft-firekeeper-mantle',()=>new THREE.TorusGeometry(.255,.045,6,20)),trim,0,1.405,-.005);
+    mantle.rotation.x=Math.PI/2; mantle.name='nft-firekeeper-mantle';
+    const sigil=add(geo('nft-firekeeper-sigil',()=>new THREE.OctahedronGeometry(.052,0)),glow(accentHex),0,1.22,.22);
+    sigil.name='nft-firekeeper-sigil';
+    // A rear cowl silhouette makes Firekeepers readable from profile; facial features stay unobscured.
+    const cowl=addSphere(head,trim,[0,.055,-.085],[.245,.265,.15]);
+    cowl.name='nft-firekeeper-cowl';
     addSphere(g,glow(shade(accentHex,.72)),[0,1.15,-.19],[.07,.12,.035]);
   }
 
@@ -392,7 +413,7 @@ export function buildNftChar(n, opts = {}) {
   }
   g.userData.legs=legs; g.userData.arms=arms; g.userData.head=head; g.userData.nftId=n?.id;
   g.userData.nftTraits=originalTraitPairs.map(([type,value])=>[String(type),String(value)]);
-  g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter,components};
+  g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter,components,reconstruction};
   g.userData.nftMedia={animation:n?.animation||'',video:n?.video||'',audio:n?.audio||'',model3d:n?.model3d||'',artwork:n?.artwork||''};
   g.userData.anim=(t,moving,armsUp)=>{
     // Fit the real artwork without cropping once its remote image has decoded.

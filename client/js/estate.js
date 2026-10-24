@@ -550,8 +550,10 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     const p=r.group.worldToLocal(pos.clone());
     p.x=THREE.MathUtils.clamp(p.x,-r.halfW,r.halfW);
     p.z=THREE.MathUtils.clamp(p.z,-r.halfD,r.halfD);
-    // Resolve overlaps against furniture footprints by pushing to the nearest edge.
-    for(const o of r.obstacles){const dx=p.x-o.x,dz=p.z-o.z,ox=o.hw+.38-Math.abs(dx),oz=o.hd+.38-Math.abs(dz);if(ox>0&&oz>0){if(ox<oz)p.x=o.x+Math.sign(dx||1)*(o.hw+.38);else p.z=o.z+Math.sign(dz||1)*(o.hd+.38);}}
+    // Preserve a clear central lane from spawn to the front door/exit. Furniture
+    // footprints must never push the player sideways into a wall at the threshold.
+    const inEntryLane=Math.abs(p.x)<1.85&&p.z>r.halfD-4.4;
+    if(!inEntryLane)for(const o of r.obstacles){const dx=p.x-o.x,dz=p.z-o.z,ox=o.hw+.38-Math.abs(dx),oz=o.hd+.38-Math.abs(dz);if(ox>0&&oz>0){if(ox<oz)p.x=o.x+Math.sign(dx||1)*(o.hw+.38);else p.z=o.z+Math.sign(dz||1)*(o.hd+.38);}}
     p.x=THREE.MathUtils.clamp(p.x,-r.halfW,r.halfW);p.z=THREE.MathUtils.clamp(p.z,-r.halfD,r.halfD);
     p.y=Math.max(.45,p.y);
     pos.copy(r.group.localToWorld(p)); if(vel&&pos.y<=.46)vel.y=0; return true;

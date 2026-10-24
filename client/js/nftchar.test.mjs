@@ -166,4 +166,14 @@ has(avatar, /const mouthTrait =/, 'maps mouth and expression traits');
 has(avatar, /const wingTrait=/, 'maps wing traits');
 has(avatar, /const weaponTrait=/, 'maps weapon and gear traits');
 has(avatar, /nftMedia=/, 'retains discovered NFT media references on the avatar');
+// Visual-fidelity regression: the base humanoid must not wear generic sci-fi armor by default.
+has(avatar, /nft-natural-shoulder/, 'uses garment-colored natural shoulder volume in the base silhouette');
+has(avatar, /nft-garment-center-seam/, 'uses a subtle garment seam instead of a universal chest plate');
+has(avatar, /nft-neutral-belt/, 'uses a neutral belt rather than a universal emissive belt');
+lacks(avatar, /addSphere\(g,trim,\[-\.205,1\.43,0\]/, 'does not add universal oversized metallic shoulder pads');
+has(avatar, /nft-artwork-curved-panel/, 'wraps the original NFT artwork onto a curved torso-following surface');
+has(avatar, /geometry\.computeVertexNormals\(\)/, 'computes normals for the curved artwork surface');
+has(avatar, /positions\.push\(px, v-\.5, \.055\*\(1-Math\.pow\(px\*2,2\)\)\)/, 'curves the artwork toward the viewer at the center and blends its edges toward the torso');
+has(avatar, /artworkIdentity=\{mode:'framed-full-composition',source:url,aspectFit:'contain',cropped:false\}/, 'preserves the original full artwork without cropping while improving panel fit');
+
 console.log('NFT avatar architecture: ' + checks + ' assertions passed');

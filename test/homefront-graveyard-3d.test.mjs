@@ -207,7 +207,7 @@ assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /materials\.forEach\(m=>\{if\(m\.map\)m\.map\.dispose\(\);m\.dispose\(\)\}\)/, 'dispose role-label textures when the world is redrawn');
 
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /survivorActors\.push\(\{object:g,role:survivor\.role,task:survivor\.task,phase:i\*1\.71,baseY:0,targetX:x,targetZ:z,targetYaw:spot\.yaw,speed:1\.1\+\(i%3\)\*\.12,moving:true,leftArm,rightArm,body,head\}\)/, 'track procedural survivor rigs, assigned tasks, and station movement');
-assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /for\(const actor of survivorActors\)\{actor\.phase\+=dt/, 'animate survivor work activity every world frame');
+assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /for\(let actorIndex=0;actorIndex<survivorActors\.length;actorIndex\+\+\)\{const actor=survivorActors\[actorIndex\];actor\.phase\+=dt/, 'animate survivor work activity every world frame with neighbor-aware navigation');
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /actor\.role==='mechanic'/, 'give mechanics a distinct repair-work motion');
 assert.match(readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8'), /actor\.role==='farmer'/, 'give farmers a distinct tending motion');
 const homefrontPage = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');

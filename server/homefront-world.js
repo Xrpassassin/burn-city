@@ -222,7 +222,7 @@ function snapshot(input, acct, now = Date.now()) {
     selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null,
     selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null,
     selfWeaponHandling: p ? { aiming: p.aiming, aimStartedAt: p.aimStartedAt, lastSprintAt: p.lastSprintAt, accuracyRecoverUntil: p.accuracyRecoverUntil } : null,
-    interior: Interiors.publicState(w.interiors, acct)
+    interior: p ? Interiors.publicState(w.interiors, acct) : null
   };
 }
 function enter(input, acct, now = Date.now()) {
@@ -230,6 +230,7 @@ function enter(input, acct, now = Date.now()) {
   prune(w, now);
   let p = w.players[acct];
   if (!p) {
+    if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
     const safeSpawn = chooseSafeSpawn(w, acct), spawn = safeSpawn.spawn, position = safeSpawn.position;
     p = w.players[acct] = { x: position.x, z: position.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }, aiming: false, aimStartedAt: 0, lastSprintAt: 0, accuracyRecoverUntil: 0 };
   }
@@ -370,6 +371,7 @@ function leaveParty(input, acct, now = Date.now()) {
 }
 function leave(input, acct, now = Date.now()) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
+  if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
   const p = w.players[acct];
   if (p?.partyCode && w.parties[p.partyCode]) {
     const party = w.parties[p.partyCode];

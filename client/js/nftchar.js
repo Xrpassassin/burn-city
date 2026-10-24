@@ -208,6 +208,15 @@ export function buildNftChar(n, opts = {}) {
   if(components.accessoryStyle === 'chain' || has(tr,/chain|medallion|necklace|gold pick|grill/)) {
     const chain=add(geo('necklace',()=>new THREE.TorusGeometry(.15,.018,6,24)),glow('#e8b923'),0,1.49,.025);
     chain.rotation.x=1.25;
+  } else if (components.accessoryStyle === 'relic') {
+    const relic = add(geo('nft-relic',()=>new THREE.OctahedronGeometry(.075,0)),glow(accentHex),0,1.28,.235);
+    relic.name = 'nft-relic-accessory';
+    add(geo('relic-setting',()=>new THREE.TorusGeometry(.09,.012,5,16)),metal,0,1.28,.225).rotation.x=.3;
+  } else if (components.accessoryStyle === 'earring') {
+    for (const side of [-1,1]) add(geo('nft-earring',()=>new THREE.TorusGeometry(.025,.007,5,10)),glow('#e8b923'),side*.205,1.78,.055,head);
+  } else if (components.accessoryStyle === 'pack') {
+    addBox(g,darkCloth,[0,1.18,-.2],[.25,.32,.13]);
+    for (const side of [-1,1]) addBox(g,trim,[side*.12,1.28,-.12],[.035,.22,.025]);
   }
   if(has(tr,/armor|fur|collar|cape/)) {
     for(const s of [-1,1]) addSphere(g,has(tr,/fur/)?mat('#b8a68a'):trim,[s*.28,1.43,-.005],[.13,.1,.13]);
@@ -237,9 +246,12 @@ export function buildNftChar(n, opts = {}) {
   const weaponTrait=traitValue(/weapon|held item|gear/i).toLowerCase();
   if (weaponTrait && !/none|empty|no weapon|nothing/i.test(weaponTrait)) {
     const weaponMat=mat(/gold|legendary/i.test(weaponTrait)?'#d6ad45':'#353942',.48,.4);
-    if (/sword|blade|katana|knife/i.test(weaponTrait)) {
+    if (components.weaponStyle === 'blade' || /sword|blade|katana|knife/i.test(weaponTrait)) {
       const blade=addBox(g,metal,[.31,1.05,-.13],[.035,.48,.025]); blade.rotation.z=-.12;
       addBox(g,weaponMat,[.31,.8,-.13],[.12,.035,.04]);
+    } else if (components.weaponStyle === 'melee') {
+      const staff=addCapsule(g,weaponMat,[.31,1.08,-.13],.022,.43,[1,1,1]); staff.rotation.z=-.16;
+      addSphere(g,glow(accentHex),[.31,1.32,-.13],[.055,.055,.055]);
     } else {
       const gun=addCapsule(g,weaponMat,[.31,1.1,-.13],.035,.34,[.8,1,.8]); gun.rotation.z=-.25;
     }

@@ -37,7 +37,7 @@ const aimedPlayer={...player,aiming:true,aimStartedAt:600000,accuracyRecoverUnti
 const aimedHead=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player:aimedPlayer,base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint});
 assert.equal(aimedHead.aimed,true,'server confirms aim only after the weapon-specific ADS time');
 assert.equal(aimedHead.hitZone,'head','a stable server-confirmed aim point can produce a headshot');
-assert.deepEqual(Object.keys(C.WEAPON_HANDLING),['pipe_blade','pump_shotgun','marksman_rifle','shock_maul']);
+assert.deepEqual(Object.keys(C.WEAPON_HANDLING),['pipe_blade','pump_shotgun','marksman_rifle','shock_maul','heavy_machine_gun']);
 assert.ok(C.WEAPON_HANDLING.marksman_rifle.adsMs>C.WEAPON_HANDLING.pump_shotgun.adsMs,'marksman rifle takes longer to aim down sights than shotgun');
 const sprintRecovery=C.attack({encounters:aimSpawn.encounters,account:'aim-test',player:{...aimedPlayer,accuracyRecoverUntil:601900},base:aimBase(),now:601000,targetId:aimSpawn.encounter.id,aimPoint});
 assert.equal(sprintRecovery.aimed,false,'post-sprint recovery blocks immediate precision headshots even while aiming');

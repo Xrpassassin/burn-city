@@ -19,5 +19,5 @@ assert.equal((live.match(/onPropertyPrompt:property=>\{lastProperty=property;las
 assert.equal((live.match(/if\(event\.confirmedInteraction\)\{leaveIsland\(\);return;\}/g) || []).length, 2, 'both initial and recreated controllers honor confirmed keyboard exit');
 assert(app.includes('installEstatesIslandLive({THREE,scene:S,player:P,avatar,camera:C'), 'integration receives real host objects');
 assert(sw.includes("'js/estates-island-live.mjs'"), 'service worker precaches live integration');
-assert(sw.includes('bc-v107-estates-island-live'), 'service worker cache version is refreshed');
+assert(sw.includes('bc-v108-estates-island-landmarks'), 'service worker cache version is refreshed');
 console.log('estates-island-live: host wiring smoke tests passed');

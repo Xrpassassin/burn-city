@@ -514,7 +514,10 @@ function boot(host) {
   function activeInteriorElevation() {
     const interior = interiorForLandmark(interiorState?.landmarkId);
     const room = interiorRoom(interior, interiorState?.roomId);
-    return Number.isFinite(room?.elevation) ? room.elevation : 0;
+    const landmark = LANDMARKS.find(item => item.id === interior?.landmarkId);
+    if (!room || !landmark || !worldData?.self) return 0;
+    const floorY = terrainElevation(landmark.x, landmark.z) + (Number.isFinite(room.elevation) ? room.elevation : 0);
+    return floorY - terrainElevation(worldData.self.x, worldData.self.z);
   }
   function interiorElevationAt(x, z, fallbackY) {
     const interior = interiorForLandmark(interiorState?.landmarkId);

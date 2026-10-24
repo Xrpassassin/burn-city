@@ -272,6 +272,15 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   const oldX = p.x, oldZ = p.z;
   let nextX = Math.round((p.x + dx * scale) * 10) / 10, nextZ = Math.round((p.z + dz * scale) * 10) / 10;
   const removedObstacleIds = Object.values(w.environmentStructures).filter(s => s.health <= 0).map(s => s.id);
+  const activeInteriorOwner = w.interiors?.[acct];
+  const activeInteriorId = activeInteriorOwner?.activeLandmarkId || null;
+  const activeInteriorState = activeInteriorId ? activeInteriorOwner.interiors?.[activeInteriorId] : null;
+  for (const obstacleId of Collision.INTERIOR_OBSTACLE_IDS) {
+    if (!activeInteriorId) { removedObstacleIds.push(obstacleId); continue; }
+    const parts = obstacleId.split(':');
+    if (parts[1] !== activeInteriorId) { removedObstacleIds.push(obstacleId); continue; }
+    if (parts[0] === 'interior-door' && activeInteriorState?.openedDoors?.includes(parts[2])) removedObstacleIds.push(obstacleId);
+  }
   if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE, removedObstacleIds })) {
     const route = Collision.findPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE, maxExpanded: 2600, removedObstacleIds });
     if (!route || !route.length) throw new Error('terrain_path_unreachable');

@@ -8,7 +8,7 @@ import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
 import { buildLandmarkSetPiece } from './homefront-landmark-builder.mjs';
-import { INTERIORS, applyInteriorAction, availableInteriorActions, buildInteriorSetPiece, createInteriorState, interiorForLandmark, interiorRoom, traverseInteriorDoor } from './homefront-interior-world.mjs';
+import { INTERIORS, availableInteriorActions, buildInteriorSetPiece, interiorForLandmark, interiorRoom } from './homefront-interior-world.mjs';
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';

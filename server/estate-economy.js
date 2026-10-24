@@ -25,15 +25,16 @@ function allocateProfit(distributableDrops, holdings) {
   if (new Set(rows.map(r => r.propertyId)).size !== rows.length) throw new TypeError('duplicate_property_holding');
   const totalWeight = rows.reduce((n, r) => n + r.weight, 0);
   if (!totalWeight || !amount) return rows.map(r => ({ ...r, amountDrops: 0, totalWeight }));
-  let assigned = 0;
+  const amountBig = BigInt(amount), totalWeightBig = BigInt(totalWeight);
+  let assigned = 0n;
   const out = rows.map(r => {
-    const exact = amount * r.weight / totalWeight;
-    const base = Math.floor(exact);
+    const numerator = amountBig * BigInt(r.weight), base = numerator / totalWeightBig, remainder = numerator % totalWeightBig;
     assigned += base;
-    return { ...r, amountDrops: base, remainder: exact - base, totalWeight };
+    return { ...r, amountDrops: Number(base), remainder, totalWeight };
   });
-  out.sort((a, b) => b.remainder - a.remainder || a.propertyId.localeCompare(b.propertyId));
-  for (let i = 0; i < amount - assigned; i++) out[i % out.length].amountDrops++;
+  out.sort((a, b) => (a.remainder === b.remainder ? a.propertyId.localeCompare(b.propertyId) : a.remainder > b.remainder ? -1 : 1));
+  const leftover = Number(amountBig - assigned);
+  for (let i = 0; i < leftover; i++) out[i].amountDrops++;
   return out.map(({ remainder, ...r }) => r).sort((a, b) => a.propertyId.localeCompare(b.propertyId));
 }
 module.exports = { CATALOG, TIER_BY_ID, PROPERTY_BY_ID, propertyWeight, allocateProfit };

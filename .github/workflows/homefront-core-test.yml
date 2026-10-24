@@ -76,6 +76,8 @@ jobs:
           node --check server/homefront-world.js
           node --check server/homefront-terrain.js
           node --check server/homefront-collision.js
+          node --check server/homefront-interiors.js
+          node --check server/homefront-interiors.test.js
           node --check server/homefront-environment.js
           node --check server/homefront-survival.js
           node --check server/homefront-inventory.js

@@ -48,6 +48,7 @@ const left = Interiors.leave(reloaded, { account, player, now: 1700 });
 assert.equal(Interiors.publicState(left.state, account), null);
 
 assert.equal(left.state[account].interiors.mercy_hospital.roomId, 'pharmacy');
+player.x = hospital.x; player.z = hospital.z;
 const reentered = Interiors.enter(left.state, { account, player, landmarkId: 'mercy_hospital', now: 1800 });
 state = reentered.state;
 assert.throws(() => Interiors.breachDoor(state, { account, landmarkId: 'mercy_hospital', doorId: 'pharmacy_door', damage: 100, now: 1900 }), /interior_door_secure/);

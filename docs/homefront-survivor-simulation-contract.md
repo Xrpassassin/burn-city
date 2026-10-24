@@ -88,6 +88,10 @@ Add deterministic regression tests for:
 9. Two accounts cannot read or mutate one another's private refuge.
 10. Existing settlement, combat, airport/experience-registry, inventory, survival, and visitor-mode tests remain green.
 
+## Standalone regression harness
+
+A focused Node.js regression script now exists at `test/homefront-survivor-economy-sim.js`. It exercises deterministic workday outcomes, intact-versus-destroyed production facilities, failed-shift immutability, assignment validation, and bounded resource/morale values across repeated shifts. Run it with `node test/homefront-survivor-economy-sim.js` from the repository root after checking out this branch. It is intentionally not yet wired into `package.json` or CI because the active survivor branches modify the same package and core files; Hark should wire it into `test:homefront` after branch reconciliation. This script has not been executed in this session, so it must not be treated as a passing CI result.
+
 ## Implementation order
 
 1. Review and reconcile the current survivor-skill, work-target, routines/movement, and character-variant branches before editing overlapping code.

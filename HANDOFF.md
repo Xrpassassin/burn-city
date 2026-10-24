@@ -698,3 +698,7 @@ Derrik's vision: an open-world RPG. Each player owns a **private Homefront insta
 - Server: `server/cod.js` (cosmodrome cover islands, Forge tier II at `FORGE2_COST`=10000, now also sent in `layout().forge2Cost`), `server/game.js` (cosmodrome-only types 6 airborne hunter, 7 ranged shooter, 8 Ashen Warden boss on waves 8/12/16…; armor/stagger feedback skipped in ranked + daily), `server/rotary-rules.js` (RAVAGER spin-up/heat/lock), `server/zombie-campaign.js` (carryover). Ranked/daily keep the classic Refinery, so leaderboard balance is unchanged.
 - Client: `client/arena/cod.js` Forge II prompt, `fx.js` rotary tracers, `net.js` extra snapshot fields.
 - Tests: `test/zombie-campaign-carryover-sim.js`, `zombie-forge-tier-sim.js`, `zombie-cosmodrome-enemies-sim.js`, `npm run test:zombie-ravager` (all in `test:all`).
+
+## Fishing: moving lake feeding schools (PR #201, sw bc-v103-fishschools)
+- `client/js/fish.js` builds 3 glowing rings (`feedingSpots`) on the lake that drift every 14–32 s; a cast landing within 9 m gets `feedingSpotBonus` (`client/js/fishing-rules.mjs`): wider reel zone + shorter bite wait, client-side only. Catch rolls stay server-side for signed-in anglers (server/fish.js unchanged); lake coins have no real value.
+- Only #201's own 5 commits were cherry-picked; its first 29 commits were #196, already on main as c7b1e63 with Hark's fixes.

@@ -10,6 +10,15 @@ const rarityCounts = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
 for (let i = 0; i < 10000; i++) rarityCounts[H.survivorRarity('rarity-test-' + i)]++;
 assert.ok(rarityCounts.common > rarityCounts.uncommon && rarityCounts.uncommon > rarityCounts.rare && rarityCounts.rare > rarityCounts.epic && rarityCounts.epic > rarityCounts.legendary, 'rarer survivor tiers are consistently less frequent');
 assert.ok(rarityCounts.legendary < 60 && rarityCounts.epic < 300, 'top-tier survivors remain exceptionally scarce in a seeded sample');
+assert.equal(H.survivorRarityMultiplier({ rarity: 'common' }), 1);
+assert.equal(H.survivorRarityMultiplier({ rarity: 'uncommon' }), 1.05);
+assert.equal(H.survivorRarityMultiplier({ rarity: 'rare' }), 1.1);
+assert.equal(H.survivorRarityMultiplier({ rarity: 'epic' }), 1.15);
+assert.equal(H.survivorRarityMultiplier({ rarity: 'legendary' }), 1.2);
+const commonGuard = H.threatProfile({ ...a, survivors: [{ id: 'common-guard', name: 'Common', role: 'guard', morale: 70, rarity: 'common' }] });
+const legendaryGuard = H.threatProfile({ ...a, survivors: [{ id: 'legendary-guard', name: 'Legendary', role: 'guard', morale: 70, rarity: 'legendary' }] });
+assert.ok(legendaryGuard.defense > commonGuard.defense, 'higher-rarity guards contribute more settlement defense');
+
 const legacyRoster = H.validateBase({ ...a, survivors: [{ id: 'legacy-survivor', name: 'Legacy', role: 'guard', morale: 70 }] }, 'acct-a');
 assert.equal(legacyRoster.survivors[0].rarity, 'common', 'old saved survivors safely migrate to common rarity');
 

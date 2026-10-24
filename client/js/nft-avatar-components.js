@@ -4,11 +4,13 @@ const text = value => String(value ?? '').trim().toLowerCase();
 const first = (traits, slot) => text(traits.find(([type]) => type === slot)?.[1]);
 const has = (value, pattern) => pattern.test(value);
 function headwearStyle(value) {
+  if (has(value, /mohawk|hawk/)) return 'none';
+  if (has(value, /halo|aureole/)) return 'halo';
   if (has(value, /crown|circlet|tiara|diadem/)) return 'crown';
   if (has(value, /hood|cowl/)) return 'hood';
   if (has(value, /helmet|visor|headgear/)) return 'helmet';
   if (has(value, /beanie|knit cap/)) return 'beanie';
-  if (has(value, /hat|cap|fedora|cowboy/)) return 'hat';
+  if (has(value, /hat|cap|fedora|cowboy|fitted/)) return 'hat';
   if (has(value, /headband|bandana/)) return 'band';
   return value && !/none|no headwear|bald|bare/.test(value) ? 'custom' : 'none';
 }
@@ -20,6 +22,7 @@ function accessoryStyle(value) {
   return value && !/none|no accessory|empty/.test(value) ? 'custom' : 'none';
 }
 function weaponStyle(value) {
+  if (has(value, /tnt|dynamite|bomb|grenade|explosive/)) return 'explosive';
   if (has(value, /rifle|shotgun|smg|pistol|gun|firearm|blaster/)) return 'firearm';
   if (has(value, /sword|blade|katana|knife|dagger/)) return 'blade';
   if (has(value, /staff|wand|spear|axe|hammer/)) return 'melee';
@@ -74,6 +77,12 @@ function patternStyle(value) {
   if (has(value, /check|plaid|grid/)) return 'checkered';
   return value && !/none|solid|plain|default/.test(value) ? 'custom' : 'none';
 }
+function bodyEffect(value) {
+  if (has(value, /flame on|on fire|burning|inferno/)) return 'flame-on';
+  if (has(value, /heating up|heated|warm/)) return 'heating-up';
+  if (has(value, /about to burn|smolder|ember/)) return 'about-to-burn';
+  return value && !/none|normal|off|default/.test(value) ? 'custom' : 'none';
+}
 function eyeStyle(value) {
   if (has(value, /glow|flame|burn|laser|neon/)) return 'glowing';
   if (has(value, /robot|cyber|mechanical/)) return 'cyber';
@@ -90,9 +99,11 @@ export function resolveNftAvatarComponents(profile = {}) {
   const wing = first(traits, 'wing');
   const outfit = first(traits, 'outfit') || first(traits, 'armor');
   const eyes = first(traits, 'eye color');
+  const eyeAppearance = first(traits, 'eye appearance');
+  const body = first(traits, 'body effect');
   const mask = first(traits, 'mask');
   const expression = first(traits, 'expression');
-  const hair = first(traits, 'hair style');
+  const hair = first(traits, 'hair style') || (has(headwear, /mohawk|hawk/) ? headwear : '');
   const markings = first(traits, 'markings');
   const pattern = first(traits, 'body pattern');
   const horns = first(traits, 'horns');
@@ -103,12 +114,14 @@ export function resolveNftAvatarComponents(profile = {}) {
     accessoryStyle: accessoryStyle(accessory),
     weaponStyle: weaponStyle(weapon),
     flame: flameStyle(flame || (key === 'fk' ? 'ember' : '')),
+    bodyEffect: bodyEffect(body),
+    eyeAppearance,
     tailStyle: tailStyle(tail, key),
     wingStyle: wingStyle(wing),
     outfitStyle: outfitStyle(outfit, key),
     eyeStyle: eyeStyle(eyes),
     hairStyle: hairStyle(hair),
-    patternStyle: patternStyle(pattern),
+    patternStyle: patternStyle(pattern || outfit),
     hasMarkings: !!markings && !/none|no markings|clear/.test(markings),
     markings,
     hasHorns: !!horns && !/none|no horns|no antlers/.test(horns),

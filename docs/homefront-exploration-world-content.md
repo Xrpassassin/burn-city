@@ -8,6 +8,7 @@ This is an authored content layer for the existing XRPL Graveyard expedition map
 
 - `client/arena/homefront-exploration-content.mjs`: browser-safe static content catalog; no runtime dependencies.
 - `client/arena/homefront-exploration-content.test.mjs`: checks catalog integrity against the server's authoritative `POINTS_OF_INTEREST`.
+- `client/arena/homefront-exploration-guidance.mjs` and its test: computes contextual route/story breadcrumbs; the 3D client renders account-saved field notes in the Field Journal.
 - `client/arena/homefront-interior-world.mjs`: seven authored, connected room networks with inspect/search/power/door interactions and open-roof Three.js room shells.
 - `client/arena/homefront-interior-world.test.mjs`: validates room links, interaction requirements, door gating, and state transitions.
 - `client/arena/homefront-terrain-generation.mjs` and `server/homefront-terrain.js`: share the amplified deterministic height field so the visible relief and server traversal checks remain aligned.

@@ -19,6 +19,8 @@ setPlayerAt(-1.1, 0.7);
 let acted = Interiors.action(state, { account, player, actionId: 'generator_switch', now: 1100 });
 state = acted.state;
 assert(state[account].interiors.mercy_hospital.flags.includes('emergency_power'));
+assert.equal(player.lastNoiseAt, 1100, 'noisy interior power actions publish a server-owned sound source');
+assert(player.noiseLevel >= 8);
 assert.equal(acted.reward.length, 0);
 setPlayerAt(2.4, 0);
 let traversed = Interiors.traverse(state, { account, player, doorId: 'ward_door', now: 1200 });

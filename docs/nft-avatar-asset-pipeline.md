@@ -16,7 +16,7 @@ An XRPL NFToken references off-ledger data through its URI; the URI itself is no
 - `assets/nft-avatars/collections/fk.json`
 - `assets/nft-avatars/collections/589.json`
 
-These manifests document initial trait mappings and collection-specific QA coverage. Issuer/taxon identities are intentionally unverified placeholders until checked against authoritative ledger data. The asset arrays are empty: no external model or layered artwork is silently treated as licensed.
+These manifests document initial trait mappings and collection-specific QA coverage. Issuer/taxon identities are intentionally unverified placeholders until checked against authoritative ledger data. The runtime now has a separate component-recipe layer in `client/js/nft-avatar-components.js`: it resolves headwear, outfit silhouette, accessory, weapon class, flame color/style, tail pattern, wing style, eye treatment, and expression into deterministic visual instructions. `nftchar.js` consumes those recipes for robe/armor/tailored clothing details, relic/earring/pack accessories, weapon silhouettes, and collection-aware accents. This is still a procedural interpretation layer, not an exact reconstruction of the original artist's layered files. The asset arrays are empty: no external model or layered artwork is silently treated as licensed.
 
 ## Commands
 

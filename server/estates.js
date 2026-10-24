@@ -24,7 +24,7 @@ function createWeeklySnapshot(input) {
   const insertSnapshot = db.prepare("INSERT INTO estate_weekly_snapshots (week_start, source_wallet, source_ledger_index, realized_profit_drops, fees_drops, realized_losses_drops, reserve_drops, distributable_drops, total_eligible_weight, ownership_count, ownership_hash, verification_ref, status, created_at) VALUES (@weekStart, @sourceWallet, @sourceLedgerIndex, @realizedProfitDrops, @feesDrops, @realizedLossesDrops, @reserveDrops, @distributableDrops, @totalEligibleWeight, @ownershipCount, @ownershipHash, @verificationRef, 'draft', @createdAt)");
   const insertOwner = db.prepare("INSERT INTO estate_weekly_owner_allocations (week_start, acct, property_ids_json, combined_weight, amount_drops, payout_status) VALUES (?, ?, ?, ?, ?, 'not_queued')");
   const persist = db.transaction(() => {
-    insertSnapshot.run(snapshot);
+    insertSnapshot.run({ weekStart:snapshot.weekStart, sourceWallet:snapshot.sourceWallet, sourceLedgerIndex:snapshot.sourceLedgerIndex, realizedProfitDrops:snapshot.realizedProfitDrops, feesDrops:snapshot.feesDrops, realizedLossesDrops:snapshot.realizedLossesDrops, reserveDrops:snapshot.reserveDrops, distributableDrops:snapshot.distributableDrops, totalEligibleWeight:snapshot.totalEligibleWeight, ownershipCount:snapshot.ownershipCount, ownershipHash:snapshot.ownershipHash, verificationRef:snapshot.verificationRef, createdAt:snapshot.createdAt });
     for (const owner of snapshot.allocations) insertOwner.run(snapshot.weekStart, owner.acct, JSON.stringify(owner.propertyIds), owner.weight, owner.amountDrops);
   });
   persist(); // week_start primary key prevents rewriting a finalized period
@@ -40,6 +40,13 @@ function getWeeklySnapshot(weekStart) {
 function transitionWeeklySnapshot(weekStart, expectedStatus, nextStatus, at = Date.now()) {
   const allowed = { draft:'verified', verified:'approved', approved:'settled' };
   if (allowed[expectedStatus] !== nextStatus) throw new TypeError('invalid_snapshot_status_transition');
+  if (nextStatus === 'settled') {
+    const snap = getWeeklySnapshot(weekStart);
+    if (!snap || snap.status !== 'approved') throw new Error('snapshot_not_approved');
+    const paid = snap.allocations.reduce((sum, row) => sum + row.amountDrops, 0);
+    if (paid !== snap.distributable_drops) throw new Error('payout_total_does_not_reconcile');
+    if (snap.distributable_drops > 0 && snap.allocations.some(row => row.payoutStatus !== 'validated' || !row.payoutTxHash)) throw new Error('payouts_not_validated');
+  }
   const stamp = Number(at);
   if (!Number.isSafeInteger(stamp) || stamp < 1) throw new TypeError('invalid_transition_timestamp');
   const column = { verified:'verified_at', approved:'approved_at', settled:'settled_at' }[nextStatus];
@@ -48,4 +55,22 @@ function transitionWeeklySnapshot(weekStart, expectedStatus, nextStatus, at = Da
   return getWeeklySnapshot(weekStart);
 }
 
-module.exports = { CATALOG, getState, propertyWeight, previewWeeklyAllocation, createWeeklySnapshot, getWeeklySnapshot, transitionWeeklySnapshot };
+
+function recordWeeklyPayoutStatus(weekStart, acct, nextStatus, txHash = null) {
+  const transitions = { not_queued:['queued'], queued:['submitted','failed'], submitted:['validated','failed'], failed:['queued'], validated:[] };
+  const owner = String(acct || '');
+  if (!owner) throw new TypeError('owner_account_required');
+  if (!['not_queued','queued','submitted','validated','failed'].includes(nextStatus)) throw new TypeError('invalid_payout_status');
+  const current = db.prepare('SELECT payout_status AS payoutStatus, amount_drops AS amountDrops FROM estate_weekly_owner_allocations WHERE week_start=? AND acct=?').get(String(weekStart), owner);
+  if (!current) throw new Error('weekly_owner_allocation_not_found');
+  if (!transitions[current.payoutStatus].includes(nextStatus)) throw new TypeError('invalid_payout_status_transition');
+  let hash = txHash == null ? null : String(txHash).trim();
+  if (nextStatus === 'submitted' || nextStatus === 'validated') {
+    if (!hash || !/^[A-Fa-f0-9]{64}$/.test(hash)) throw new TypeError('xrpl_transaction_hash_required');
+  } else if (hash && !/^[A-Fa-f0-9]{64}$/.test(hash)) throw new TypeError('invalid_xrpl_transaction_hash');
+  if (nextStatus === 'validated' && current.payoutStatus !== 'submitted') throw new TypeError('payout_must_be_submitted_before_validation');
+  db.prepare('UPDATE estate_weekly_owner_allocations SET payout_status=?, payout_tx_hash=COALESCE(?,payout_tx_hash) WHERE week_start=? AND acct=?').run(nextStatus, hash, String(weekStart), owner);
+  return getWeeklySnapshot(weekStart);
+}
+
+module.exports = { CATALOG, getState, propertyWeight, previewWeeklyAllocation, createWeeklySnapshot, getWeeklySnapshot, transitionWeeklySnapshot, recordWeeklyPayoutStatus };

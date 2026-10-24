@@ -16,7 +16,7 @@
     "test:skate": "node client/js/skate-physics-core.test.mjs",
     "test:fishing-rules": "node client/js/fishing-rules.test.mjs",
     "test:eternal-grind": "node client/dungeon/progression-core.test.mjs && node client/dungeon/character-migration-preview.test.mjs && node client/dungeon/migration-plan.test.mjs && node client/dungeon/migration-staged-writer.test.mjs && node client/dungeon/dungeon-layout-core.test.mjs",
-    "test:all": "node client/js/fishing-rules.test.mjs || exit 1; for t in payments security tron shop fish retain hate lobby zombie; do node test/$t-sim.js || exit 1; done; node test/zombie-nav-sim.js && node test/zombie-cosmodrome-sim.js && node test/zombie-map-progression-sim.js && node test/zombie-campaign-carryover-sim.js && node test/zombie-helicopter-arrival-sim.js && node test/flight-lobby-sim.js && node test/homefront-core-sim.js",
+    "test:all": "node client/js/fishing-rules.test.mjs || exit 1; for t in payments security tron shop fish retain hate lobby zombie; do node test/$t-sim.js || exit 1; done; node test/zombie-nav-sim.js && node test/zombie-cosmodrome-sim.js && node test/zombie-map-progression-sim.js && node test/zombie-campaign-carryover-sim.js && node test/zombie-forge-tier-sim.js && node test/zombie-helicopter-arrival-sim.js && node test/flight-lobby-sim.js && node test/homefront-core-sim.js",
     "test:blacktide-ocean": "node client/blacktide/ocean.test.mjs",
     "test:blacktide-ai": "node client/blacktide/boat-ai.test.mjs",
     "test:blacktide-cannons": "node client/blacktide/cannon-ai.test.mjs",

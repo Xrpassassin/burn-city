@@ -28,3 +28,8 @@ Open `client/nft-avatar-visual-qa.html` in a WebGL-enabled browser. Load the exa
 - 589 Protocol: streetwear, chain, actual headwear, expression and body-effect state.
 - At least one rare accessory and one non-square source image.
 Record mismatches and verify that every unsupported trait is surfaced rather than silently replaced with a generic object. Do not call the models production-ready until a human reviewer confirms the rendered result in-game and mobile performance is profiled.
+
+
+## Trait-grounded proportion rule
+
+An NFT identifier may seed stable identity metadata, but it must not randomly change the character's anatomy. When body-build or face-shape traits are absent, the renderer now uses the collection's authored baseline proportions. Only explicit token metadata or reviewed collection-specific reconstruction rules may change those proportions. This avoids making two visually identical source NFTs look different for an arbitrary hash-based reason. It improves consistency, but does not establish exact likeness without reference-art review.

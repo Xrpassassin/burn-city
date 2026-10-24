@@ -423,10 +423,10 @@ function boot(host) {
     const chunk = cityChunkAt(bx, bz);
     const baseY = terrainElevation(bx, bz);
     const structure = new THREE.Group();
-    const building = addBox(structure, w, h, d, bx, baseY + h / 2, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
+    const building = addBox(structure, w, h, d, bx, baseY, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
     building.rotation.y = (rand() - 0.5) * 0.16;
-    if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h + 0.225, bz + (rand() - .5), ruinMat);
-    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY + emberHeight / 2, bz - d * .35, emberMat); }
+    if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h, bz + (rand() - .5), ruinMat);
+    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat); }
     chunk.add(structure);
     registerEnvironmentVisual('building:' + x + ',' + z, structure);
   }
@@ -1094,7 +1094,14 @@ function boot(host) {
       while (node && !node.userData?.interiorTarget) node = node.parent;
       const target = node?.userData?.interiorTarget;
       if (target) {
-        if (!interiorState || interiorState.landmarkId !== target.landmarkId) { setInteriorStatus('Move close to the landmark and use its Enter button before interacting with the rooms.'); return; }
+        if (!interiorState) {
+          const landmark = LANDMARKS.find(item => item.id === target.landmarkId);
+          const distance = landmark && worldData?.self ? Math.hypot(worldData.self.x - landmark.x, worldData.self.z - landmark.z) : Infinity;
+          if (distance <= 12) { enterInterior(target.landmarkId); setInteriorStatus('Interior opened. Select the object or doorway again to interact.'); }
+          else setInteriorStatus('Move close to the landmark and use its Enter button before interacting with the rooms.');
+          return;
+        }
+        if (interiorState.landmarkId !== target.landmarkId) { setInteriorStatus('Leave the current building before entering another interior.'); return; }
         if (target.kind === 'door') void interactInteriorDoor(target.doorId);
         else if (target.kind === 'action') void performInteriorAction(target.actionId);
         return;

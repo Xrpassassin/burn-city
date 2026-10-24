@@ -636,7 +636,39 @@ export function buildNftChar(n, opts = {}) {
     components.patternStyle === 'custom' ? {slot:'body pattern',value:traitValue(/body pattern/i)} : null,
     components.bodyEffect === 'custom' ? {slot:'body effect',value:traitValue(/^body effect$/i)} : null
   ].filter(item => item && item.value);
-  g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter,components,reconstruction,unsupportedVisualTraits};
+  // Every source trait gets a clear disposition: 3D, artwork-only, or flagged for review.
+  const geometryNeeded = new Set(unsupportedVisualTraits.map(item => String(item.slot || '').toLowerCase()));
+  const unsupportedStyleSlot =
+    (components.outfitStyle === 'custom' && 'outfit') ||
+    (components.headwearStyle === 'custom' && 'headwear') ||
+    (components.accessoryStyle === 'custom' && 'accessory') ||
+    (components.weaponStyle === 'custom' && 'weapon') ||
+    (components.wingStyle === 'custom' && 'wing') ||
+    (components.patternStyle === 'custom' && 'body pattern') ||
+    (components.bodyEffect === 'custom' && 'body effect');
+  if (unsupportedStyleSlot) geometryNeeded.add(unsupportedStyleSlot);
+  const renderableSlots = new Set([
+    'eye color','eye appearance','eye wear','body effect','accessory','outfit','headwear','weapon',
+    'fur color','hair style','hair color','skin color','armor','mask','expression','facial hair',
+    'markings','body pattern','horns','wing','flame','tail','nose'
+  ]);
+  const traitCoverage = profile.rawTraits.map(([rawType, value], index) => {
+    const slot = String(profile.renderTraits[index]?.[0] || rawType).toLowerCase();
+    let status = 'visualized';
+    let reason = 'Mapped to collection-aware 3D traits/materials';
+    if (slot === 'background' || /background|backdrop|scene/i.test(rawType)) {
+      status = 'artwork-only';
+      reason = 'Preserved in original NFT artwork; not converted into wearable geometry';
+    } else if (slot === 'identity') {
+      status = 'collection-identity';
+      reason = 'Used to select the collection-specific character recipe';
+    } else if (geometryNeeded.has(slot) || !renderableSlots.has(slot)) {
+      status = 'needs-dedicated-visual';
+      reason = geometryNeeded.has(slot) ? 'Current renderer lacks a faithful model for this value' : 'Trait type has no explicit renderer mapping yet';
+    }
+    return { rawType, slot, value, status, reason };
+  });
+  g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter,components,reconstruction,unsupportedVisualTraits,traitCoverage};
   g.userData.nftMedia={animation:n?.animation||'',video:n?.video||'',audio:n?.audio||'',model3d:n?.model3d||'',artwork:n?.artwork||''};
   g.userData.anim=(t,moving,armsUp)=>{
     // Fit the real artwork without cropping once its remote image has decoded.

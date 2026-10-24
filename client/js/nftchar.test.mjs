@@ -59,6 +59,8 @@ has(avatar, /originalTraitPairs/, 'retains original NFT traits separately from n
 has(avatar, /nftAvatarProfile=/, 'attaches stable collection and identity metadata to the avatar');
 has(avatar, /Stable, subtle silhouette variation/, 'varies each token silhouette deterministically when explicit body-shape traits are absent');
 has(avatar, /hasBodyShape|hasFaceShape/, 'defers to explicit body or face shape metadata when available');
+has(avatar, /bodyBuild = \/.*broad[\s\S]*bodyScale = bodyBuild === 'broad'[\s\S]*bodyScale\[2\]/, 'translates explicit body-build traits into torso depth and silhouette proportions');
+has(avatar, /faceShapeText[\s\S]*faceScale = \/.*square[\s\S]*head\.scale\.multiply\(new THREE\.Vector3\(\.\.\.faceScale\)\)/, 'translates explicit face-shape traits into head proportions');
 has(avatar, /export function buildNftChar/, 'exports the NFT character builder');
 has(avatar, /new THREE\.SphereGeometry\(1, lite \? 10 : 16, lite \? 8 : 12\)/, 'uses smooth sphere anatomy with mobile geometry scaling');
 has(avatar, /geo\('capsule:'/, 'caches shared rounded limb geometry');

@@ -16,7 +16,7 @@ assert.equal(H.survivorRarityMultiplier({ rarity: 'rare' }), 1.1);
 assert.equal(H.survivorRarityMultiplier({ rarity: 'epic' }), 1.15);
 assert.equal(H.survivorRarityMultiplier({ rarity: 'legendary' }), 1.2);
 const compassionBase = H.createBase('compassion-test', 1100);
-compassionBase.survivors = [{ id: 'compassion-medic', name: 'Mercy', role: 'medic', morale: 70, rarity: 'common', traits: ['compassionate','optimistic'], talent: 'field_medic' }];
+compassionBase.survivors = [{ id: 'compassion-medic', name: 'Mercy', role: 'medic', morale: 70, rarity: 'common', traits: ['compassionate','optimistic'], talent: 'field_medic' }, { id: 'optimistic-farmer', name: 'Fern', role: 'farmer', morale: 70, rarity: 'common', traits: ['green_thumb','optimistic'], talent: 'master_farmer' }];
 compassionBase.structures = [{ id: 'test-infirmary', type: 'infirmary', hp: 100, x: 0, z: 0, rotation: 0, trenchLevel: 0, manned: false }];
 const medsBeforeCompassion = compassionBase.resources.meds;
 const compassionateShift = H.applyAction(compassionBase, 'compassion-test', { type: 'workday' }, 1101);

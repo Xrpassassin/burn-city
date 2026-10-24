@@ -64,6 +64,7 @@ assert.match(scene, /threatDistance <= 3/, 'increase infected danger feedback at
 assert.match(scene, /frontierBand/, 'show the current expansion band in the expedition HUD');
 assert.match(scene, /frontierDepth/, 'show inward frontier depth and rising danger context');
 assert.match(scene, /gunfire attracts attention/, 'warn players that noise escalates danger beyond the perimeter');
+assert.match(scene, /route surveyed; inspect local clues/, 'surveying a route points players toward evidence rather than implying completion');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(scene, /Visible held weapon silhouette/, 'render a visible weapon prop for each explorer in the 3D world');
 assert.match(scene, /event\.button !== 2 \|\| masterView !== 'third-person'/, 'right mouse drag orbits the third-person camera without hijacking ground travel');

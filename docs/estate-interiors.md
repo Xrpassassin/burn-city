@@ -20,6 +20,6 @@ Rooms use procedural Three.js geometry and built-in materials; no external model
 ## Boundaries / limitations
 - This is a local visual/gameplay prototype, not yet a persistent home customization system.
 - Entry is not ownership-gated; purchases and wallet settlement remain disabled pending approved prices, payment integration, and finalized share rules.
-- Furniture is static; doors do not animate and room collision is a simple movement clamp, not a full physics/navmesh implementation.
-- Interior transforms, door reach, mobile controls, performance, and browser rendering still need hands-on visual QA. JavaScript syntax parsing passed after this change; that is not a substitute for browser testing.
+- Hinged doors are procedural and ease open while their interior is active, then close after exit. Interior movement resolves against tier-specific furniture footprints as well as room bounds; this remains a lightweight X/Z push-out guard, not a full rigid-body physics engine or navmesh.
+- Interior transforms, door swing/clearance, furniture snagging, mobile controls, performance, and browser rendering still need hands-on visual QA. The new source-level regression assertions have been added to `npm run test:estates`; CI and browser testing have not yet been confirmed.
 - No merge or deployment is performed by this change.

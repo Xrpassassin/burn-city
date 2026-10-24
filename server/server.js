@@ -3,7 +3,7 @@ const http = require('http'), fs = require('fs'), path = require('path'), { WebS
 const Retain = require('./retain'), Fish = require('./fish'), LB = require('./leaderboard'), Ranked = require('./ranked'), { items } = require('./shop');
 const Nft = require('./nft'), Social = require('./social'), C = require('./config'), Pay = require('./payments'), { Room } = require('./game'), S = require('./store'), City = require('./city'), Eco = require('./eco');
 
-const AegisClips = require('./aegis-clips'), Cams = require('./cams');
+const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates = require('./estates');
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
@@ -121,6 +121,8 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/admin/ranked/approve' && req.method === 'POST') return json(res, 200, await Ranked.approve(String(b.match || '')));
       if (url.pathname === '/admin/ranked/refunded' && req.method === 'POST') return json(res, 200, Ranked.markRefunded(String(b.ticket || '')));
     }
+    if (url.pathname === '/api/estates' && req.method === 'GET') { if (gate('estates:' + (req.headers['fly-client-ip'] || req.socket.remoteAddress), 60, 60e3)) return json(res, 429, { error: 'slow_down' }); const u = who(); return json(res, 200, Estates.getState(u?.acct || '')); }
+    if (url.pathname === '/api/estates/buy' && req.method === 'POST') return json(res, 409, { error: 'sales_not_configured', status: 'wallet_integration_pending', message: 'Property sales are disabled until the designated wallet, verified payment settlement, property pricing, and final share weights are configured and audited.' });
     if (url.pathname === '/api/fish/top') { if (gate('fishtop:' + (req.headers['fly-client-ip'] || req.socket.remoteAddress), 30, 60e3)) return json(res, 429, { error: 'slow_down' }); return json(res, 200, { week: Fish.weekStart(), top: Fish.weekTop(10), streaks: Fish.streakTop(10) }); }
     if (url.pathname.startsWith('/api/fish/')) { const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' }); if (gate('fish:' + u.acct, 40, 60e3)) return json(res, 429, { error: 'slow_down' });
       const b = req.method === 'POST' ? await body() : {}, op = url.pathname.slice(10);

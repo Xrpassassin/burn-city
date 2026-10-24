@@ -94,17 +94,24 @@ export function buildNftChar(n, opts = {}) {
   torso.scale.y *= reconstruction.torsoHeight * bodyScale[1];
   torso.scale.z *= bodyScale[2];
   torso.name = 'avatar-torso-' + reconstruction.signature;
-  addSphere(g,trim,[-.205,1.43,0],[.18,.15,.75]);
-  addSphere(g,trim,[.205,1.43,0],[.18,.15,.75]);
-  add(geo('neck',()=>new THREE.CylinderGeometry(.075,.09,.15,12)),skin,0,1.55,0);
-  // Clothing details read as stitching/zipper/pockets instead of square torso plates.
-  addBox(g,metal,[0,1.18,.188],[.018,.37,.012]);
-  for (const s of [-1,1]) {
-    addBox(g,trim,[s*.105,1.03,.188],[.105,.105,.018]);
-    addBox(g,darkCloth,[s*.105,1.03,.2],[.077,.073,.012]);
+  // Shoulder volume follows the garment color; armor plates are added only when the
+  // token actually has an armor trait.
+  for (const side of [-1,1]) {
+    const shoulder=addSphere(g,cloth,[side*.205,1.405,-.002],[.115,.105,.105]);
+    shoulder.name='nft-natural-shoulder';
   }
-  const belt = add(cylinder(.235,.235,.065,16),accent,0,.88,0); belt.scale.set(1,.55,.77);
-  addBox(g,metal,[0,.88,.184],[.09,.052,.025]);
+  add(geo('neck',()=>new THREE.CylinderGeometry(.075,.09,.15,12)),skin,0,1.55,0);
+  // Keep the base body intentionally quiet: collection identity should come from the NFT's
+  // actual traits, not a universal sci-fi chest plate, bright belt, and oversized pockets.
+  const seamMat = mat(shade(bodyHex,.72),.9,.01);
+  addBox(g,seamMat,[0,1.2,.187],[.009,.22,.006]).name='nft-garment-center-seam';
+  for (const side of [-1,1]) {
+    const seam=addBox(g,seamMat,[side*.155,1.2,.162],[.006,.24,.006]);
+    seam.name='nft-garment-side-seam';
+  }
+  const beltMat=mat(shade(bodyHex,.48),.9,.02);
+  const belt = add(cylinder(.218,.218,.035,20),beltMat,0,.88,0);
+  belt.scale.set(1,.52,.75); belt.name='nft-neutral-belt';
   // Trait recipes change readable silhouette details without changing gameplay or NFT ownership.
   if (components.outfitStyle === 'robes') {
     const robe = addCapsule(g, darkCloth, [0, .99, -.015], .22, .23, [1.18, 1.25, .82]);
@@ -551,13 +558,32 @@ export function buildNftChar(n, opts = {}) {
   // instead of a tiny badge; preserve the complete composition and its original aspect ratio (never crop).
   const url=opts.srv?nftImg(opts.srv,n):'';
   if(url&&opts.panel!==false) {
-    const artFrame=addBox(g,mat('#15191f',.42,.34),[0,1.24,.207],[.57,.73,.026]);
+    // A thin curved backing follows the torso instead of presenting the NFT like a rigid
+    // cardboard sign. The source artwork remains complete and aspect-fitted on the curved surface.
+    const artFrame=addBox(g,mat('#171a20',.62,.12),[0,1.24,.205],[.57,.73,.008]);
     artFrame.name='nft-artwork-frame';
-    addBox(g,metal,[0,1.61,.223],[.59,.018,.018]).name='nft-artwork-frame-top';
-    addBox(g,metal,[0,.87,.223],[.59,.018,.018]).name='nft-artwork-frame-bottom';
+    const frameTrim=mat('#6e7885',.58,.22);
+    addBox(g,frameTrim,[0,1.61,.211],[.57,.009,.009]).name='nft-artwork-frame-top';
+    addBox(g,frameTrim,[0,.87,.211],[.57,.009,.009]).name='nft-artwork-frame-bottom';
     const artTexture=tex(url);
     const artMaterial=new THREE.MeshBasicMaterial({map:artTexture,transparent:true,side:THREE.DoubleSide,depthWrite:false,toneMapped:false});
-    const artPanel=add(geo('nft-artwork-panel',()=>new THREE.PlaneGeometry(1,1)),artMaterial,0,1.24,.226);
+    const artPanel=add(geo('nft-artwork-curved-panel',()=>{
+      const geometry=new THREE.BufferGeometry();
+      const positions=[],uvs=[],indices=[];
+      const cols=20,rows=2;
+      for(let y=0;y<=rows;y++) for(let x=0;x<=cols;x++){
+        const u=x/cols, v=y/rows, px=u-.5;
+        positions.push(px, v-.5, .055*(1-Math.pow(px*2,2)));
+        uvs.push(u,v);
+      }
+      for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
+        const a=y*(cols+1)+x,b=a+1,c=a+cols+1,d=c+1;
+        indices.push(a,b,c,b,d,c);
+      }
+      geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+      geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+      geometry.setIndex(indices); geometry.computeVertexNormals(); return geometry;
+    }),artMaterial,0,1.24,.216);
     artPanel.name='nft-artwork-panel'; artPanel.castShadow=false; artPanel.receiveShadow=false; artPanel.renderOrder=2;
     artPanel.scale.set(.54,.69,1);
     g.userData.artPanel=artPanel; g.userData.artTexture=artTexture;

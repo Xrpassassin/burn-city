@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
-import { isPositionBlocked, isWorkingTask, obstacleRadius, separationVector, steeringDirection, updateRoutePlan, updateRouteRecovery } from './homefront-navigation.mjs';
+import { isPositionBlocked, isWorkingTask, obstacleRadius, safeMovePosition, separationVector, steeringDirection, updateRoutePlan, updateRouteRecovery } from './homefront-navigation.mjs';
 
 const wall = { id: 'w', type: 'wall', hp: 100, x: 0, z: 0 };
 assert.ok(obstacleRadius(wall) > 0.7, 'structures have a conservative physical footprint');
 assert.equal(isPositionBlocked(0, 0, [wall]), true, 'actors cannot occupy the centre of a solid structure');
 assert.equal(isPositionBlocked(2, 0, [wall]), false, 'clear ground remains traversable');
 assert.equal(isPositionBlocked(0, 0, [{ ...wall, hp: 0 }]), false, 'destroyed structures stop blocking');
+
+
+const safeStep = safeMovePosition({ x: -1, z: 0 }, { x: 1, z: 0 }, [wall]);
+assert.equal(isPositionBlocked(safeStep.x, safeStep.z, [wall]), false, 'safe movement never ends inside a structure');
+assert.ok(safeStep.x < 0 || Math.abs(safeStep.z) > 0, 'blocked diagonal movement slides along a clear axis when possible');
+const sealedStep = safeMovePosition({ x: -1, z: 0 }, { x: 1, z: 0 }, [wall, { id: 'left-block', type: 'wall', hp: 100, x: -1, z: 0 }, { id: 'north-block', type: 'wall', hp: 100, x: -1, z: 1 }]);
+assert.equal(isPositionBlocked(sealedStep.x, sealedStep.z, [wall]), false, 'failed safe movement preserves the original clear position');
 
 const steer = steeringDirection({ x: -2, z: 0 }, { x: 2, z: 0 }, [wall]);
 assert.ok(steer.x > 0, 'steering still makes forward progress around an obstacle');

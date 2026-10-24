@@ -2,7 +2,7 @@
 // The recipe registry is the single source of truth for proportions and visual QA requirements.
 import { getNftAvatarCollectionRecipe, NFT_AVATAR_COLLECTION_RECIPES } from './nft-avatar-collection-recipes.js';
 
-const clone = value => ({ ...value, headScale: [...value.headScale], silhouetteTags: [...value.silhouetteTags] });
+const clone = value => ({ ...value, headScale: [...value.headScale] });
 
 export function resolveNftAvatarReconstruction(profile = {}) {
   const key = String(profile.collectionKey || 'generic').toLowerCase();

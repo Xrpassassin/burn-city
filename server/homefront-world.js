@@ -270,14 +270,18 @@ function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
 // Validate the walked route leg by leg. Checking only the straight line from the start to the
 // advanced point cut corners through doorways, so a move that turned through an interior door
 // (or around any wall end) was rejected as terrain_path_blocked even though the route was clear.
-function walkedRouteClear(startX, startZ, path, end, removedObstacleIds) {
-  let x = startX, z = startZ;
+function walkedRouteClear(startX, startZ, path, end, budget, removedObstacleIds) {
+  // Replays advanceAlongTerrainPath: every full leg it walked is checked, then the last partial
+  // leg from the final reached waypoint to the (rounded) advanced point.
+  let x = startX, z = startZ, remaining = budget;
   const legClear = (x1, z1) => Terrain.canTraverse(x, z, x1, z1) && Collision.canTraverse(x, z, x1, z1, { bounds: WORLD_SIZE, removedObstacleIds });
   for (const waypoint of path) {
-    const toEnd = Math.hypot(end.x - x, end.z - z), toWaypoint = Math.hypot(waypoint.x - x, waypoint.z - z);
-    if (toEnd <= toWaypoint + 0.15) return legClear(end.x, end.z);
+    const distance = Math.hypot(waypoint.x - x, waypoint.z - z);
+    if (distance < 0.001) continue;
+    if (distance > remaining) break;
     if (!legClear(waypoint.x, waypoint.z)) return false;
-    x = waypoint.x; z = waypoint.z;
+    x = waypoint.x; z = waypoint.z; remaining -= distance;
+    if (remaining < 0.001) break;
   }
   return legClear(end.x, end.z);
 }
@@ -308,7 +312,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
     if (!route || !route.length) throw new Error('terrain_path_unreachable');
     const advanced = advanceAlongTerrainPath(oldX, oldZ, route, movementBudget);
     nextX = advanced.x; nextZ = advanced.z;
-    if (!walkedRouteClear(oldX, oldZ, route, advanced, removedObstacleIds)) throw new Error('terrain_path_blocked');
+    if (!walkedRouteClear(oldX, oldZ, route, advanced, movementBudget, removedObstacleIds)) throw new Error('terrain_path_blocked');
   }
   p.x = nextX; p.z = nextZ;
   p.lastMove = p.lastSeen = now;
@@ -331,17 +335,19 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
       const route = Collision.findPath(followerState.x, followerState.z, targetX, targetZ, {
         bounds: WORLD_SIZE, maxExpanded: 900, removedObstacleIds: followerRemoved
       });
+      let walked = false;
       if (route?.length) {
         const step = Math.min(Math.hypot(targetX - followerState.x, targetZ - followerState.z), MOVE_STEP);
         const next = advanceAlongTerrainPath(followerState.x, followerState.z, route, step);
-        if (walkedRouteClear(followerState.x, followerState.z, route, next, followerRemoved)) {
-          followerState.x = next.x; followerState.z = next.z;
+        if (walkedRouteClear(followerState.x, followerState.z, route, next, step, followerRemoved)) {
+          followerState.x = next.x; followerState.z = next.z; walked = true;
         }
       }
-      // Regroup: a follower that is still more than two moves behind (joined from another spawn, or
-      // the bounded 900-node search failed) snaps to a safe spot beside the leader, as before #191,
+      // Regroup: a follower that is more than two moves behind (joined from another spawn), or that
+      // could not walk this step and is out of formation (the bounded 900-node search failed), snaps to a safe spot beside the leader, as before #191,
       // so a party never splits for good. Followers inside an interior are never pulled out.
-      if (!followerInteriorId && Math.hypot(followerState.x - p.x, followerState.z - p.z) > MOVE_STEP * 2) {
+      const behind = Math.hypot(followerState.x - p.x, followerState.z - p.z);
+      if (!followerInteriorId && (behind > MOVE_STEP * 2 || (!walked && behind > 8.5))) {
         const regroup = Collision.findSafePosition(targetX, targetZ, { bounds: WORLD_SIZE, removedObstacleIds: followerRemoved });
         if (regroup) { followerState.x = regroup.x; followerState.z = regroup.z; }
       }

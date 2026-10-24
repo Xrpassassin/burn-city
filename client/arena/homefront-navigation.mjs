@@ -125,7 +125,7 @@ export function updateRoutePlan(state = {}, position, target, obstacles = [], op
   if (state.detour && Math.hypot(position.x - state.detour.x, position.z - state.detour.z) > (options.waypointArrival ?? 0.38)) {
     return state;
   }
-  state = { ...state, detour: null, blockedId: null };
+  state = { ...state, detour: null, blockedId: null, unreachable: false };
   const dx = target.x - position.x, dz = target.z - position.z, lengthSq = dx * dx + dz * dz;
   if (lengthSq < 0.01) return state;
   let first = null;

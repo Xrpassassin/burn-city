@@ -144,6 +144,176 @@ def main():
         cube("BURN_Mark_Crossbar",(0,-0.228,1.13),(0.10,0.012,0.025),accent,0.004)
         make_curve("Protocol_Chain",[(-0.12,-0.24,1.34),(-0.10,-0.255,1.18),(0,-0.26,1.10),(0.10,-0.255,1.18),(0.12,-0.24,1.34)],metal,0.012)
         cube("Streetwear_Collar",(0,-0.02,1.42),(0.26,0.22,0.09),dark,0.02)
+    # Per-token trait pass: collection archetype establishes the silhouette; individual NFT
+    # traits then alter visible materials and add token-specific geometry. This is still a
+    # procedural blockout and must pass human likeness/rights QA before runtime approval.
+    trait_rows = spec.get("traits", {}).get("normalized", [])
+    trait_map = {}
+    for row in trait_rows:
+        if not isinstance(row, dict):
+            continue
+        slot = str(row.get("renderSlot", "")).strip().lower()
+        value = str(row.get("sourceValue", "")).strip()
+        if slot and value and slot not in trait_map:
+            trait_map[slot] = value
+
+    def trait_color(value, fallback):
+        v = str(value or "").lower()
+        colors = {
+            "black": (0.025,0.025,0.03), "white": (0.88,0.86,0.81),
+            "red": (0.72,0.035,0.045), "crimson": (0.52,0.015,0.055),
+            "orange": (0.95,0.20,0.025), "gold": (0.95,0.58,0.08),
+            "yellow": (0.95,0.78,0.06), "green": (0.06,0.42,0.18),
+            "blue": (0.035,0.20,0.78), "navy": (0.025,0.06,0.20),
+            "purple": (0.38,0.08,0.62), "pink": (0.90,0.20,0.48),
+            "cyan": (0.03,0.72,0.78), "teal": (0.02,0.42,0.42),
+            "silver": (0.62,0.67,0.72), "gray": (0.32,0.33,0.35),
+            "grey": (0.32,0.33,0.35), "brown": (0.26,0.12,0.065),
+            "tan": (0.62,0.43,0.27), "beige": (0.72,0.62,0.47),
+            "blonde": (0.82,0.65,0.25), "blond": (0.82,0.65,0.25),
+            "ginger": (0.62,0.20,0.055), "rainbow": (0.60,0.12,0.52)
+        }
+        for name, rgb in colors.items():
+            if name in v:
+                return rgb
+        return fallback
+
+    def tint(mat, rgb):
+        mat.diffuse_color = (*rgb, 1.0)
+        if mat.use_nodes:
+            bsdf = mat.node_tree.nodes.get("Principled BSDF")
+            if bsdf:
+                bsdf.inputs["Base Color"].default_value = (*rgb, 1.0)
+
+    # Trait colors should visibly influence the model rather than live only in metadata.
+    for slot, target, fallback in [
+        ("outfit", outfit, (0.20,0.20,0.22)),
+        ("fur color", fur, (0.35,0.25,0.18)),
+        ("skin color", fur, (0.48,0.34,0.28)),
+        ("hair color", accent, (0.18,0.10,0.06)),
+        ("eye color", accent, (0.18,0.45,0.70))
+    ]:
+        if slot in trait_map:
+            tint(target, trait_color(trait_map[slot], fallback))
+
+    # Distinct named accessory meshes are useful both visually and to the QA harness.
+    headwear = trait_map.get("headwear", "").lower()
+    if headwear and key != "fk":
+        if any(word in headwear for word in ("crown", "tiara")):
+            for side in (-1, 0, 1):
+                cone("Trait_Crown_Peak_%s" % side, (side*0.105,0,head_y+0.245), 0.045, 0.008, 0.13, metal)
+            cylinder("Trait_Crown_Band", (0,0,head_y+0.19), 0.205, 0.045, metal)
+        elif any(word in headwear for word in ("helmet", "armor", "armour")):
+            uv_sphere("Trait_Helmet_Shell", (0,0,head_y+0.075), (0.245,0.225,0.19), metal)
+            cube("Trait_Helmet_Brow", (0,-0.20,head_y+0.025), (0.32,0.035,0.045), accent, 0.01)
+        elif any(word in headwear for word in ("hat", "cap", "beanie", "top gear")):
+            uv_sphere("Trait_Headwear_Crown", (0,0,head_y+0.19), (0.23,0.20,0.12), outfit)
+            cube("Trait_Headwear_Brim", (0,-0.10,head_y+0.13), (0.32,0.27,0.045), outfit, 0.02)
+
+    eyewear = trait_map.get("eye wear", "").lower()
+    if eyewear:
+        frame = metal if any(w in eyewear for w in ("gold", "silver", "metal")) else dark
+        for side in (-1, 1):
+            uv_sphere("Trait_Eyewear_Lens_%s" % side, (side*0.082,-0.216,head_y+0.035), (0.065,0.018,0.048), accent, 12, 8)
+            cube("Trait_Eyewear_Frame_%s" % side, (side*0.082,-0.232,head_y+0.035), (0.135,0.018,0.018), frame, 0.006)
+        cube("Trait_Eyewear_Bridge", (0,-0.235,head_y+0.035), (0.04,0.018,0.018), frame, 0.005)
+
+    horns = trait_map.get("horns", "").lower()
+    if horns:
+        for side in (-1, 1):
+            cone("Trait_Horn_%s" % side, (side*0.16,0,head_y+0.25), 0.07, 0.008, 0.25, accent, rotation=(0,side*0.25,side*0.12))
+
+    if trait_map.get("wing"):
+        for side in (-1, 1):
+            uv_sphere("Trait_Wing_%s" % side, (side*0.37,0.10,1.32), (0.20,0.055,0.32), accent)
+            for feather in range(3):
+                cone("Trait_Wing_Feather_%s_%s" % (side,feather),
+                     (side*(0.34+feather*0.065),0.08,1.16+feather*0.12),
+                     0.045,0.006,0.20,light,rotation=(0,side*0.45,side*0.22))
+
+    if trait_map.get("weapon"):
+        weapon = trait_map["weapon"].lower()
+        weapon_mat = metal if any(w in weapon for w in ("sword","blade","knife")) else dark
+        cylinder("Trait_Weapon_Grip", (0.48,-0.08,0.80), 0.035, 0.22, dark, rotation=(0,0.1,0.15))
+        if any(w in weapon for w in ("sword","blade","knife")):
+            cone("Trait_Weapon_Blade", (0.48,-0.08,0.57), 0.075, 0.006, 0.42, weapon_mat, rotation=(0,0.1,0.15))
+        elif any(w in weapon for w in ("gun","rifle","pistol","armed")):
+            cube("Trait_Weapon_Firearm", (0.48,-0.08,0.69), (0.10,0.30,0.10), weapon_mat, 0.015)
+            cylinder("Trait_Weapon_Barrel", (0.48,-0.24,0.69), 0.025, 0.18, metal, rotation=(1.5708,0,0))
+
+    facial_hair = trait_map.get("facial hair", "").lower()
+    if facial_hair and key != "racc":
+        beard_scale = (0.12,0.055,0.12) if "stubble" in facial_hair else (0.14,0.07,0.19)
+        uv_sphere("Trait_Facial_Hair", (0,-0.205,head_y-0.14), beard_scale, dark)
+
+    # Face, hair, markings and body effects are per-token identity cues too.
+    hair = trait_map.get("hair style", "").lower()
+    hair_color = trait_color(trait_map.get("hair color", ""), (0.12,0.065,0.035))
+    if hair and key != "racc":
+        hair_mat = material("Trait_Hair", hair_color)
+        if any(w in hair for w in ("mohawk","spike","spiky")):
+            for idx in range(5):
+                x = (idx-2)*0.065
+                cone("Trait_Hair_Spike_%02d" % idx, (x,0.005,head_y+0.20), 0.055, 0.004, 0.20, hair_mat)
+        elif any(w in hair for w in ("afro","curly","coil")):
+            for idx, pos in enumerate([(-0.12,0,0.12),(-0.06,-0.02,0.17),(0,-0.025,0.18),(0.07,-0.01,0.16),(0.13,0,0.11)]):
+                uv_sphere("Trait_Hair_Curl_%02d" % idx, (pos[0],pos[1],head_y+pos[2]), (0.09,0.085,0.09), hair_mat, 12, 8)
+        elif any(w in hair for w in ("long","braid","dread","ponytail")):
+            uv_sphere("Trait_Hair_Cap", (0,0.015,head_y+0.13), (0.22,0.20,0.13), hair_mat)
+            for side in (-1,1):
+                make_curve("Trait_Hair_Lock_%s" % side, [(side*0.17,0.02,head_y+0.12),(side*0.20,0.03,head_y-0.03),(side*0.18,0.04,head_y-0.23)], hair_mat, 0.035)
+        else:
+            uv_sphere("Trait_Hair_Cap", (0,0.015,head_y+0.13), (0.22,0.20,0.11), hair_mat)
+
+    expression = trait_map.get("expression", "").lower()
+    if expression:
+        mouth_mat = accent if any(w in expression for w in ("fire","glow","laser")) else dark
+        if any(w in expression for w in ("smile","grin","smirk","happy")):
+            make_curve("Trait_Expression_Smile",[(-0.065,-0.227,head_y-0.12),(0,-0.238,head_y-0.145),(0.065,-0.227,head_y-0.12)],mouth_mat,0.012)
+        elif any(w in expression for w in ("angry","snarl","frown","sad")):
+            make_curve("Trait_Expression_Frown",[(-0.065,-0.227,head_y-0.145),(0,-0.238,head_y-0.12),(0.065,-0.227,head_y-0.145)],mouth_mat,0.012)
+        elif any(w in expression for w in ("open","surpris","scream")):
+            uv_sphere("Trait_Expression_Open_Mouth",(0,-0.23,head_y-0.14),(0.045,0.018,0.06),dark,12,8)
+
+    mask = trait_map.get("mask", "").lower()
+    if mask and key != "racc":
+        mask_mat = metal if any(w in mask for w in ("metal","gold","silver","cyber")) else dark
+        uv_sphere("Trait_Face_Mask",(0,-0.205,head_y-0.045),(0.19,0.025,0.095),mask_mat)
+        if any(w in mask for w in ("respirator","gas","tech","cyber")):
+            for side in (-1,1):
+                cylinder("Trait_Mask_Filter_%s" % side,(side*0.13,-0.24,head_y-0.08),0.035,0.035,metal,rotation=(1.5708,0,0))
+
+    markings = trait_map.get("markings", "").lower()
+    if markings:
+        for idx, side in enumerate((-1,1)):
+            if any(w in markings for w in ("scar","war paint","paint","tattoo")):
+                make_curve("Trait_Face_Marking_%s" % side,
+                           [(side*0.12,-0.224,head_y+0.02),(side*0.15,-0.226,head_y-0.015),(side*0.11,-0.224,head_y-0.05)],
+                           accent,0.009)
+
+    body_effect = trait_map.get("body effect", "").lower()
+    if body_effect and any(w in body_effect for w in ("fire","flame","burn","glow","energy","electric","ice","smoke")):
+        effect_mat = material("Trait_Body_Effect", trait_color(body_effect,(0.95,0.16,0.025)),0.15,0.35,1.8)
+        for side in (-1,1):
+            cone("Trait_Body_Effect_%s" % side,(side*0.30,0.04,1.22),0.09,0.01,0.34,effect_mat,rotation=(0,side*0.28,side*0.18))
+
+    tail = trait_map.get("tail", "").lower()
+    if tail and key != "racc":
+        tail_pts = [(0.15,0.12,0.78),(0.32,0.20,0.72),(0.48,0.21,0.84),(0.60,0.18,1.02)]
+        make_curve("Trait_Tail", tail_pts, accent, 0.075)
+
+    accessory = trait_map.get("accessory", "").lower()
+    if accessory:
+        if any(w in accessory for w in ("chain","necklace","jewel","pendant")):
+            make_curve("Trait_Necklace",[(-0.16,-0.20,1.38),(-0.11,-0.235,1.22),(0,-0.245,1.17),(0.11,-0.235,1.22),(0.16,-0.20,1.38)],metal,0.014)
+            uv_sphere("Trait_Pendant",(0,-0.255,1.16),(0.055,0.025,0.065),accent,12,8)
+        elif any(w in accessory for w in ("backpack","pack")):
+            cube("Trait_Backpack",(0,0.19,1.05),(0.28,0.18,0.32),outfit,0.025)
+        elif any(w in accessory for w in ("shield","relic","totem")):
+            cube("Trait_Relic",(0.40,-0.05,1.08),(0.18,0.07,0.24),metal,0.02)
+
+    # Store normalized token traits as GLB metadata for QA. This does not make the asset
+    # runtime-approved; visual likeness, rigging, rights and performance review remain required.
     # Generic accessory anchor and consistent metadata for downstream inspection.
     anchor = bpy.data.objects.new("NFT_Accessory_Anchor", None)
     bpy.context.collection.objects.link(anchor)
@@ -151,6 +321,7 @@ def main():
     anchor["collection_key"]=key
     anchor["token_id"]=str(spec["identity"].get("tokenId",""))
     anchor["blockout_only"]=True
+    anchor["trait_snapshot_json"]=json.dumps(trait_rows, sort_keys=True, ensure_ascii=False)
     for obj in bpy.context.scene.objects:
         if obj.type == "MESH":
             obj["burncity_asset_stage"]="procedural-blockout"

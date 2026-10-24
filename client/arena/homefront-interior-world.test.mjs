@@ -69,10 +69,18 @@ assert(shellMeshes.some(mesh => mesh.geometry.dimensions[1] === 3.2 && mesh.posi
   'raised interior transitions render ladder rails spanning the authored floor height');
 assert(shellMeshes.some(mesh => Math.abs(mesh.position.values[1] - 3.12) < 0.001),
   'upper apartment floor geometry is placed at its authored elevation');
-assert.equal(apartmentShell.children.filter(child => child instanceof FakeInstancedMesh).length, 3,
-  'interior set pieces batch rubble, wall grime, and emergency lights into three instanced meshes');
+assert.equal(apartmentShell.children.filter(child => child instanceof FakeInstancedMesh).length, 5,
+  'interior set pieces batch rubble, grime, emergency lights, and two landmark-specific set-dressing layers');
 assert(apartmentShell.children.filter(child => child instanceof FakeInstancedMesh).every(batch => batch.count > 0),
-  'each interior detail batch contains generated visual instances');
+  'each interior detail and furniture batch contains generated visual instances');
+assert(apartmentShell.children.filter(child => child instanceof FakeInstancedMesh).some(batch => batch.userData.environmentalSetDressing === 'apartment furniture'),
+  'apartment interiors receive a distinct furniture profile');
+const hospitalShell = buildInteriorSetPiece(fakeThree, interiorForLandmark('mercy_hospital'), { x: 0, y: 0, z: 0 });
+assert(hospitalShell.children.some(child => child instanceof FakeInstancedMesh && child.userData.environmentalSetDressing === 'hospital beds'),
+  'hospital interiors use bed silhouettes rather than generic crates');
+const labShell = buildInteriorSetPiece(fakeThree, interiorForLandmark('research_annex'), { x: 0, y: 0, z: 0 });
+assert(labShell.children.some(child => child instanceof FakeInstancedMesh && child.userData.environmentalSetDressing === 'research consoles'),
+  'research interiors use distinct console silhouettes');
 
 const hospital = interiorForLandmark('mercy_hospital');
 let state = createInteriorState('mercy_hospital');

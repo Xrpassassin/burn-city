@@ -11,7 +11,7 @@ const fixedNow = () => 1000;
 
 assert.equal(resolveEstateRights({ account: acct, propertyId: 'starter-01', estates, now: fixedNow }).allowed, true);
 assert.deepEqual(resolveEstateRights({ account: acct, propertyId: 'starter-01', estates, now: fixedNow }).permissions, ['enter', 'inspect', 'build']);
-assert.equal(resolveEstateRights({ account: acct, propertyId: 'starter-01', action: 'trade', estates, now: fixedNow }).reason, 'unknown-action');
+assert.equal(resolveEstateRights({ account: acct, propertyId: 'starter-01', action: 'trade', estates, now: fixedNow }).reason, 'permission-not-granted');
 assert.equal(resolveEstateRights({ account: other, propertyId: 'starter-01', estates, now: fixedNow }).reason, 'verified-property-rights-not-found');
 assert.equal(resolveEstateRights({ account: acct, propertyId: 'mansion-01', estates, now: fixedNow }).allowed, false);
 assert.equal(resolveEstateRights({ account: 'attacker', propertyId: 'starter-01', estates, now: fixedNow }).reason, 'authenticated-account-required');

@@ -460,9 +460,9 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   };
   const interiorBox = (parent, mat, w,h,d,x,y,z, ry=0) => { const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.position.set(x,y,z); m.rotation.y=ry; parent.add(m); return m; };
   const interiorPlant = (parent,x,z,scale=1) => {
-    interiorBox(parent,interiorWood,.48*scale,.32*scale,.48*scale,x,.48*scale,z);
+    interiorBox(parent,interiorWood,.48*scale,.32*scale,.48*scale,x,.16*scale,z);
     const stem=new THREE.Mesh(new THREE.CylinderGeometry(.055*scale,.08*scale,.72*scale,6),interiorGreen);
-    stem.position.set(x,.99*scale,z); parent.add(stem);
+    stem.position.set(x,.68*scale,z); parent.add(stem);
     for(let i=0;i<5;i++){
       const a=i*Math.PI*2/5,leaf=new THREE.Mesh(new THREE.SphereGeometry(.22*scale,7,5),interiorLeaf);
       leaf.scale.set(.7,1.15,.55);leaf.position.set(x+Math.cos(a)*.19*scale,1.12*scale+(i%2)*.12*scale,z+Math.sin(a)*.19*scale);parent.add(leaf);
@@ -554,7 +554,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
       interiorBox(room,interiorGold,4.8,.18,.55,0,.72,d/2-2.35);
       interiorBox(room,interiorDark,4.3,.82,.16,0,1.18,d/2-2.42);
     }else if(family){
-      interiorBox(room,interiorWood,2.6,.7,.45,w/2-1.8,-0+1.1,0);
+      interiorBox(room,interiorWood,2.6,.7,.45,w/2-1.8,1.1,0);
       interiorBox(room,interiorFabric,1.9,.12,.52,w/2-1.8,1.5,0);
       interiorBox(room,interiorGold,.55,.12,.55,w/2-1.8,1.62,0);
       interiorPlant(room,w/2-1.35,-d/2+1.45,.85);
@@ -567,7 +567,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     }
     // One tier-tuned ceiling bounce light; only the active room is visible at runtime.
     const ceilingColor=trailer?0xffb36a:apartment?0x9edcff:family?0xffd29b:mansion?0xffe0ae:0xffc27b;
-    const ceilingGlow=new THREE.Mesh(new THREE.SphereGeometry(mansion?.24:.17,8,6),new THREE.MeshBasicMaterial({color:ceilingColor}));
+    const ceilingGlow=new THREE.Mesh(new THREE.SphereGeometry(mansion ? .24 : .17,8,6),new THREE.MeshBasicMaterial({color:ceilingColor}));
     ceilingGlow.position.set(0,ht-.2,0);room.add(ceilingGlow);
     const ceilingLight=new THREE.PointLight(ceilingColor,mansion?1.45:apartment?1.1:.85,mansion?18:13,2);
     ceilingLight.position.set(0,ht-.45,0);room.add(ceilingLight);

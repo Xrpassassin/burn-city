@@ -30,7 +30,7 @@ export function resolveNftAvatarReconstruction(profile = {}) {
     identitySeed: Number(profile.identitySeed || 0) >>> 0,
     traitOverrides: {
       robe: key === 'fk' || /robe|cloak|mantle/i.test(outfit),
-      hood: /hood|cowl/i.test(headwear) || key === 'fk',
+      hood: /hood|cowl/i.test(headwear),
       fire: /flame on|heating up|about to burn|burning/i.test(body) || key === 'fk',
       originalArtworkRequired: recipe.originalArtworkRequired
     },

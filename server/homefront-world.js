@@ -238,7 +238,7 @@ function enter(input, acct, now = Date.now()) {
     if (leader) { p.x = leader.x; p.z = leader.z; }
   }
   // Refreshes advance bounded pursuit too, so infected do not require player movement to update.
-  w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, now });
+  w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, interiors: w.interiors, now });
   tickDirector(w, acct, now);
   w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
   return { world: w, result: snapshot(w, acct, now) };

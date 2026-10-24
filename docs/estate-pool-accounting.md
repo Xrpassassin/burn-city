@@ -46,6 +46,20 @@ The external wallet implementation should provide a narrow adapter with:
 
 Never accept a client-supplied transaction hash, wallet balance, profit figure, or property owner as proof by itself. Do not store or expose a wallet seed/private key in game code, browser storage, logs, or the database. Any signer should be isolated from the public game server; use the wallet provider's supported signing flow and appropriate multi-approval controls.
 
+## Required wallet ownership decision: use the user's existing Grok-connected wallet
+
+The intended treasury/payment wallet is the existing wallet the project owner has connected to Grok. Do not silently generate, substitute, or deploy a second treasury wallet. Treat that existing wallet as the intended destination for property-sale proceeds and the source account for AMM activity and weekly distributions, subject to confirmation of its exact public address, XRPL network, supported signing/approval interface, and permissions.
+
+Important integration boundary: connecting a wallet to Grok does not by itself give this game server, this coding session, or the BURN City runtime access to the wallet or its private keys. The implementation must integrate only through a documented, authorized wallet interface or a deliberately approved transaction-signing workflow. Never ask the owner to paste a seed phrase or secret key into chat, source code, browser storage, or server logs. Use public addresses for identification and verify all relevant transactions directly against the XRPL ledger.
+
+Before enabling sales, confirm:
+- the exact public XRPL address of the existing Grok-connected wallet;
+- whether it is a self-custody wallet or a provider-managed account, and which documented API/connector Grok uses;
+- whether it supports receiving purchase payments, viewing validated ledger transactions, interacting with AMM positions, and approving/signing outbound payouts;
+- whether the wallet's owner intends to keep control of every outgoing transaction or authorize a narrowly scoped, audited payout mechanism.
+
+Until these facts are available and reviewed, this branch must keep purchases and payouts disabled. The game should never claim it is connected to or managing that wallet before an actual, tested integration exists.
+
 ## API and persistence status
 
 - `GET /api/estates` returns the property catalog and, when authenticated, the caller's recorded ownership.

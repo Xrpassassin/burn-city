@@ -49,3 +49,6 @@ assert.deepEqual(stablePlan.detour, plan.detour, 'detour waypoint remains stable
 const changedPlan = updateRoutePlan(stablePlan, { x: -1.8, z: 0.05 }, { x: 2, z: 2 }, [routeWall]);
 assert.equal(changedPlan.targetKey, '8/8', 'changed assignments rebuild the route plan');
 console.log('Homefront stable route waypoint tests passed');
+
+const openedGatePlan = updateRoutePlan(plan, { x: -2, z: 0 }, { x: 2, z: 0 }, []);
+assert.equal(openedGatePlan.detour, null, 'a changed obstacle set, such as an opened gate, clears obsolete detours');

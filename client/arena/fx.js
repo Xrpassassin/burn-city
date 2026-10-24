@@ -213,6 +213,9 @@ export function createZombieFX(scene, { low = false } = {}) {
   const cA = new THREE.Color(0xffc060), cB = new THREE.Color(0xff6a10), cC = new THREE.Color(0x401005), cc = new THREE.Color();
   // per-weapon flame profiles: speed, spread, particle life, emit rate, colour (null = player's flame colour / default orange)
   const WP = [{ sp: 9, spr: 0.18, life: 0.75, rate: 1 }, { sp: 10, spr: 0.34, life: 0.85, rate: 1.5, col: new THREE.Color(0xff2a00) }, { sp: 16, spr: 0.45, life: 0.35, rate: 0 }, { sp: 0, spr: 0, life: 0.6, rate: 0, col: new THREE.Color(0xff8a00) }, { sp: 30, spr: 0.015, life: 0.55, rate: 1.3, col: new THREE.Color(0xfff0b0) }];
+  // Tier-II skins have weapon-specific heat colors so the upgrade is visible in the held model and firing particles.
+  const TIER2_SKIN = [0xff5c36, 0xffb52f, 0xf0e8c8, 0xffdf45, 0x43e8ff];
+  const WP2 = WP.map((p, i) => ({ ...p, col: new THREE.Color(TIER2_SKIN[i]) }));
   function emit(k, ox, oy, oz, dx, dz, sp, life, col) { pos[k * 3] = ox; pos[k * 3 + 1] = oy; pos[k * 3 + 2] = oz; age[k] = 0; lifeA[k] = life; pcol[k] = col; vel[k * 3] = dx * sp; vel[k * 3 + 1] = (Math.random() - 0.3) * 1.2; vel[k * 3 + 2] = dz * sp; }
   function burst(ox, oy, oz, fx, fz, n, pr) { for (let i = 0; i < n; i++) { const k = next = (next + 1) % NP; emit(k, ox, oy, oz, fx + (Math.random() - 0.5) * pr.spr * 2, fz + (Math.random() - 0.5) * pr.spr * 2, pr.sp * (0.7 + Math.random() * 0.6), pr.life, pr.col || null); } }
   function particles(dt, firing, ox, oy, oz, fx, fz, flameCol, rate = 1, stepIt = true, pr = WP[0], fy = 0) {   // fy: vertical aim component (sin pitch)
@@ -237,8 +240,8 @@ export function createZombieFX(scene, { low = false } = {}) {
   let nb = 0; const EB = new THREE.Euler(); const beamAt = (x, y, z, yaw, len, pt = 0) => { if (nb >= NBM) return; Q.setFromEuler(EB.set(pt, yaw, 0, 'YXZ')); M.compose(V.set(x, y, z), Q, S.set(1 + Math.random() * 0.4, 1 + Math.random() * 0.4, len)); beamM.setMatrixAt(nb++, M); };
   // first-person weapon look per weapon: barrel colour, length, thickness
   const LOOKW = [[0xa8aeb8, 1, 1], [0xb02010, 1.25, 1.1], [0x6a4a2a, 0.6, 2.2], [0x3a4a2a, 0.85, 2.8], [0x9af0ff, 1.15, 0.8]];
-  let curW = -1, curAc = null; const setW = w => { if (w === curW) return; curW = w; const [c, l, th] = LOOKW[w] || LOOKW[0]; barrel.material.color.setHex(c).lerp(new THREE.Color(0xffffff), 0.35); barrel.scale.set(th, th, l); barrel.position.z = -0.38 * l; nozzle.position.z = -0.78 * l; hot.position.z = -0.74 * l; pilot.position.z = -0.8 * l;
-    shield.scale.set(Math.max(1, th * 0.9), Math.max(1, th * 0.9), l); shield.position.z = -0.3 * l; const sk = WSKIN[w] || WSKIN[0]; shield.material.color.setHex(sk.sh); for (const m of [body, top, grip, fgrip]) m.material = sk.body; tank.material = sk.tank; tank.material.map.needsUpdate = true; curAc = sk.ac; };
+  let curW = -1, curTier = -1, curAc = null; const setW = (w, tier = 0) => { if (w === curW && tier === curTier) return; curW = w; curTier = tier; const [c, l, th] = LOOKW[w] || LOOKW[0]; barrel.material.color.setHex(c).lerp(new THREE.Color(0xffffff), 0.35); barrel.scale.set(th, th, l); barrel.position.z = -0.38 * l; nozzle.position.z = -0.78 * l; hot.position.z = -0.74 * l; pilot.position.z = -0.8 * l;
+    shield.scale.set(Math.max(1, th * 0.9), Math.max(1, th * 0.9), l); shield.position.z = -0.3 * l; const sk = WSKIN[w] || WSKIN[0]; const heatSkin = tier >= 2 ? (TIER2_SKIN[w] || TIER2_SKIN[0]) : null; shield.material.color.setHex(heatSkin ?? sk.sh); for (const m of [body, top, grip, fgrip]) { m.material = sk.body; m.material.color.setHex(heatSkin ?? 0xffffff); } tank.material = sk.tank; tank.material.color.setHex(heatSkin ?? 0xffffff); tank.material.map.needsUpdate = true; if (heatSkin != null) barrel.material.color.setHex(heatSkin); curAc = heatSkin ?? sk.ac; };
   let t = 0;
   return {
     gun, zs, ps,
@@ -276,7 +279,7 @@ export function createZombieFX(scene, { low = false } = {}) {
       let j = 0; for (const p of st.players) { if (p.id === myId || !p.alive || j >= MAXP) continue; let q = ps.get(p.id);
         if (!q) ps.set(p.id, q = { x: p.x, z: p.z, y: p.y || 0, yaw: p.yaw || 0, ph: 0, spd: 0 });
         const d = Math.hypot(p.x - q.x, p.z - q.z); q.spd += (d / Math.max(dt, 1e-3) - q.spd) * Math.min(1, dt * 8); q.x = p.x; q.z = p.z; q.y = p.y || 0; q.yaw = p.r ?? q.yaw; q.pi = p.pi || 0; q.ph += dt * (q.spd > 0.5 ? 9 : 4);
-        if (p.firing && (p.w === 0 || p.w === 1 || p.w === 4)) particles(dt, true, q.x + Math.sin(q.yaw) * 1.1, 1.25 + q.y, q.z + Math.cos(q.yaw) * 1.1, Math.sin(q.yaw), Math.cos(q.yaw), flameCol, 0.5, false, WP[p.w], Math.sin(q.pi || 0));   // others' flames (emit only)
+        if (p.firing && (p.w === 0 || p.w === 1 || p.w === 4)) particles(dt, true, q.x + Math.sin(q.yaw) * 1.1, 1.25 + q.y, q.z + Math.cos(q.yaw) * 1.1, Math.sin(q.yaw), Math.cos(q.yaw), flameCol, 0.5, false, (p.up & 4) ? WP2[p.w] : WP[p.w], Math.sin(q.pi || 0));   // others' flames (emit only)
         if (p.firing && p.w === 4) beamAt(q.x + Math.sin(q.yaw) * 1.1, 1.25 + q.y, q.z + Math.cos(q.yaw) * 1.1, q.yaw, 22);
         const n = nftOf && nftOf(p.id);   // verified NFT holder: their own character instead of the stock pyro
         if (!n && q.nc) { disposeNftChar(q.nc); q.nc = null; }   // ownership lapsed -> back to the stock pyro
@@ -287,13 +290,13 @@ export function createZombieFX(scene, { low = false } = {}) {
       fpTorso.visible = false; fpBody.update(dt, me);   // local player: no world-space torso/legs (sleeves + gloves live on the view-model gun)   // own body seen when looking down
       done(PL, j); done(PL2, j);
       // first-person weapon + flames
-      gun.visible = !!me; if (me) { setW(me.w || 0); if (curAc != null) accent.material.color.setHex(curAc); else accent.material.color.copy(colorOf(myId)); heatV += ((me.firing ? 1 : 0) - heatV) * Math.min(1, dt * (me.firing ? 0.9 : 0.5)); hot.material.color.setRGB(0.19 + heatV * 0.81, 0.06 + heatV * 0.45, 0.03 + heatV * 0.1); pilot.scale.setScalar(0.8 + Math.random() * 0.5);
+      gun.visible = !!me; if (me) { const tier2 = !!(me.up & 4); setW(me.w || 0, tier2 ? 2 : 0); if (curAc != null) accent.material.color.setHex(curAc); else accent.material.color.copy(colorOf(myId)); heatV += ((me.firing ? 1 : 0) - heatV) * Math.min(1, dt * (me.firing ? 0.9 : 0.5)); if (tier2) hot.material.color.setHex(TIER2_SKIN[me.w || 0] || TIER2_SKIN[0]); else hot.material.color.setRGB(0.19 + heatV * 0.81, 0.06 + heatV * 0.45, 0.03 + heatV * 0.1); pilot.scale.setScalar(0.8 + Math.random() * 0.5);
         if (me.firing) kick = Math.max(kick, 0.22); kick = Math.max(0, kick - dt * 7); swayT += dt;   // recoil settles back; idle aim sway
         gun.position.set(0.2 + Math.sin(swayT * 1.1) * 0.004, -0.18 + Math.sin(t * (me.moving ? 9 : 2)) * (me.moving ? 0.012 : 0.004) + Math.sin(swayT * 1.7) * 0.003 + kick * 0.012 + (me.firing ? (Math.random() - 0.5) * 0.006 : 0), -0.34 + kick * 0.06);
         gun.rotation.set(kick * 0.14, 0.04, 0); flash.visible = kick > 0.55 || (me.firing && (me.w === 3 || me.w === 2) && kick > 0.4); if (flash.visible) { flash.rotation.z = Math.random() * 6.28; flash.scale.setScalar(0.7 + Math.random() * 0.6); }
         const fx = Math.sin(me.yaw), fz = Math.cos(me.yaw), rx = -Math.cos(me.yaw), rz = Math.sin(me.yaw);
         const ox = me.x + fx * 1.5 + rx * 0.2, oz = me.z + fz * 1.5 + rz * 0.2;
-        const my = me.y || 0, pr = WP[me.w || 0]; particles(dt, me.firing && (me.w === 0 || me.w === 1 || me.w === 4 || !me.w), ox, 1.38 + my + Math.sin(me.pitch || 0) * 1.5, oz, fx, fz, flameCol, 1, true, pr, Math.sin(me.pitch || 0)); if (me.firing && me.w === 4) beamAt(ox, 1.36 + my, oz, me.yaw, 22);
+        const my = me.y || 0, pr = tier2 ? WP2[me.w || 0] : WP[me.w || 0]; particles(dt, me.firing && (me.w === 0 || me.w === 1 || me.w === 4 || !me.w), ox, 1.38 + my + Math.sin(me.pitch || 0) * 1.5, oz, fx, fz, flameCol, 1, true, pr, Math.sin(me.pitch || 0)); if (me.firing && me.w === 4) beamAt(ox, 1.36 + my, oz, me.yaw, 22);
         if (heat) { heat.position.set(me.x + fx * 3, 1.4 + my, me.z + fz * 3); heat.intensity += ((me.firing ? 18 + Math.random() * 8 : 0) - heat.intensity) * Math.min(1, dt * 12); } }
       else particles(dt, false, 0, 0, 0, 0, 1);
       // napalm arcs -> pools (pools emit a few embers)

@@ -17,4 +17,8 @@ assert.match(estate, /THREE\.MathUtils\.clamp\(p\.x,-r\.halfW,r\.halfW\)/, 'play
 assert.match(app, /window\.__estateInteriorId=null/, 'exit clears the active interior state');
 assert.match(app, /hud\.textContent='ESTATES · '\+propertyId\.toUpperCase\(\)\+' · E \/ USE TO EXIT'/, 'in-room HUD identifies the active residence and exit control');
 assert.match(app, /getElementById\('estateInteriorHud'\)\?\.remove\(\)/, 'in-room HUD is removed on exit');
-console.log('Estates interior physics checks: 11 assertions passed');
+assert.match(estate, /const interiorRugs = \{[\s\S]*?mansion:new THREE\.MeshStandardMaterial/, 'each property tier has a distinct rug palette');
+assert.match(estate, /const ceilingLight=new THREE\.PointLight\(ceilingColor/, 'interiors receive tier-tuned ambient lighting');
+assert.match(estate, /window\.__estateCameraGuard=\(cameraPos\)=>/, 'third-person camera gets an interior-boundary guard');
+assert.match(app, /window\.__estateCameraGuard&&window\.__estateCameraGuard\(want\)/, 'third-person camera applies the interior guard');
+console.log('Estates interior regression checks: 16 assertions passed');

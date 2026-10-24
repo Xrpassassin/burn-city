@@ -37,6 +37,15 @@ const firekeeperProfile = resolveNftAvatarProfile({ key: 'fk', traits: [['Ember 
 assert.deepEqual(firekeeperProfile.renderTraits, [['flame', 'Blue'], ['outfit', 'Ash']]); checks++;
 const protocolProfile = resolveNftAvatarProfile({ key: '589', traits: [['Loadout', 'Rifle'], ['Bling', 'Gold']] });
 assert.deepEqual(protocolProfile.renderTraits, [['weapon', 'Rifle'], ['accessory', 'Gold']]); checks++;
+const tailComponents = (await import('./nft-avatar-components.js')).resolveNftAvatarComponents;
+const raccRingTail = tailComponents(resolveNftAvatarProfile({key:'racc',traits:[['Ring Tail','Black and White']]}));
+assert.equal(raccRingTail.tailStyle,'ringed'); checks++;
+const raccUnknownTail = tailComponents(resolveNftAvatarProfile({key:'racc',traits:[['Tail','Feathered plume']]}));
+assert.equal(raccUnknownTail.tailStyle,'custom'); checks++;
+const raccDarkTail = tailComponents(resolveNftAvatarProfile({key:'racc',traits:[['Tail','Black']]}));
+assert.equal(raccDarkTail.tailStyle,'dark-tip'); checks++;
+const noTail = tailComponents(resolveNftAvatarProfile({key:'589',traits:[['Tail','None']]}));
+assert.equal(noTail.tailStyle,'none'); checks++;
 const eyewearProfile = resolveNftAvatarProfile({ key: '589', traits: [['Glasses', 'Round'], ['Visor', 'Cyber']] });
 assert.deepEqual(eyewearProfile.renderTraits, [['eye wear', 'Round'], ['eye wear', 'Cyber']]); checks++;
 const noseProfile = resolveNftAvatarProfile({ key: '589', traits: [['Nose Shape', 'Aquiline'], ['Nostril Detail', 'Defined']] });

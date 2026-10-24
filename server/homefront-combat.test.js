@@ -4,7 +4,7 @@ const base=()=>({resources:{ammo:50,scrap:0,food:10},embers:0,survivors:[{id:'s1
 const a=C.spawn({encounters:{},account:'a',player,now:100000,seed:4});assert.ok(a.encounter.id.startsWith('enc-'));
 const Terrain=require('./homefront-terrain');assert.equal(Terrain.isSafePosition(a.encounter.x,a.encounter.z,{bounds:100}),true,'infected encounters spawn on a safe terrain footprint');
 assert.equal(a.encounter.range,C.STATS[a.encounter.event].range,'public encounter exposes server-owned attack range for contextual UI');
-assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950,assault_rifle:220,heavy_machine_gun:140},'weapon-specific fire cadence is defined on the server');
+assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950,assault_rifle:800,heavy_machine_gun:600},'weapon-specific fire cadence is defined on the server');
 assert.deepEqual(C.WEAPON_MAGAZINE_CAPACITY,{pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0,assault_rifle:30,heavy_machine_gun:60},'automatic firearms use larger finite magazines while melee weapons consume no bullets');
 assert.ok(C.WEAPON_FIRE_INTERVAL.heavy_machine_gun<C.WEAPON_FIRE_INTERVAL.assault_rifle,'heavy machine gun has the fastest server-enforced fire cadence');
 const cooldownSpawn=C.spawn({encounters:{},account:'cooldown-test',player,now:700000,seed:3});

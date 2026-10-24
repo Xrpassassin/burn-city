@@ -198,6 +198,7 @@ assert.match(page, /yardView=attachViewControls\(host,\{canLook:\(\)=>!pendingBu
 assert.match(scene, /attachViewControls\(host, \{ onTap: onWorldTap, wheel: false \}\)/, 'Graveyard taps come from the shared controller so drag-to-look never travels');
 assert.match(scene, /cameraPose\(\{ mode: view\.mode/, 'Graveyard camera follows the remembered first-/third-person mode');
 assert.match(scene, /worldMove\(view\.move\(\), heading\)/, 'joystick / WASD travel is relative to the camera heading');
+assert.match(scene, /noiseWarning=noiseLevel>=55\?' Loud container! Noise '/, 'loot UI warns when a noisy container can attract infected');
 assert.match(scene, /if \(view\.visible\) renderer\.render/, 'offscreen Graveyard canvas skips rendering');
 assert.match(page, /if\(yardView\.visible\)renderer\.render/, 'offscreen yard canvas skips rendering');
 

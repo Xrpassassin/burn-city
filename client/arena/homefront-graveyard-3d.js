@@ -564,8 +564,7 @@ function boot(host) {
     const item = interior.interactables.find(target => target.id === actionId && target.roomId === interiorState.roomId);
     if (!item) { setInteriorStatus('That object is not reachable from this room. Use a connected doorway.'); return; }
     const landmark = LANDMARKS.find(target => target.id === interior.landmarkId);
-    const room = interiorRoom(interior, interiorState.roomId);
-    const targetX = landmark.x + room.x + item.x, targetZ = landmark.z + room.z + item.z;
+    const targetX = landmark.x + item.x, targetZ = landmark.z + item.z;
     if (Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) {
       await moveTo(targetX, targetZ);
       if (!worldData?.self || Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) { setInteriorStatus('Move closer to ' + item.label + ', then select it again. Movement remains server-limited.'); return; }

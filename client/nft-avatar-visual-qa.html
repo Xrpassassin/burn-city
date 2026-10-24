@@ -38,11 +38,14 @@ textarea{min-height:300px;resize:vertical}button{background:#303a49;color:#fff;b
     ["Bandit Mask", "Crimson"],
     ["Ring Tail", "Black and White"]
   ],
-  "pal": {"skin":"#8b7770","cloth":"#d8b44a","accent":"#cf493e"}
+  "pal": {"face":"#8b7770","body":"#d8b44a","top":"#cf493e","acc":"#cf493e"}
 }</textarea>
 <label for="artUrl">Original artwork URL (optional)</label>
 <input id="artUrl" type="url" placeholder="https://…/token-image.png">
 <div><button class="primary" id="render">Render / update sample</button><button id="clear">Clear artwork</button></div>
+<div class="views" aria-label="Load collection examples">
+<button data-sample="racc">Load RACC example</button><button data-sample="fk">Load Firekeepers example</button><button data-sample="589">Load 589 example</button>
+</div>
 <div id="status" role="status">Ready. Enter a representative NFT sample and render it.</div>
 <p class="note">Use permitted artwork URLs. Some image hosts block cross-origin embedding; a failed image does not prevent 3D review.</p>
 </section>
@@ -97,6 +100,15 @@ function renderSample(){try{
  }catch(e){status.textContent='Could not render sample: '+e.message;}}
 document.querySelector('#render').addEventListener('click',renderSample);
 document.querySelector('#clear').addEventListener('click',()=>{document.querySelector('#artUrl').value='';showArtwork('');});
+const samples = {
+ racc: {key:'racc',id:'RACC-review-001',name:'RACC — TNT / Striped Sweater / Bee Hive',img:'',traits:[['Armed','TNT'],['Fits','Yellow Striped Sweater'],['Top Gear','Bee Hive'],['Bandit Mask','Crimson'],['Ring Tail','Black and White']],pal:{face:'#8b7770',body:'#d8b44a',top:'#cf493e',acc:'#cf493e'}},
+ fk: {key:'fk',id:'FK-review-001',name:'Firekeepers — Blue Flame / Keeper Robes / Cowl',img:'',traits:[['Ember Type','Blue Flame'],['Keeper Robes','Ash'],['Cowl','Ember Cowl'],['Relic','Sun Sigil']],pal:{face:'#c9a27e',body:'#393b4b',top:'#596b8a',acc:'#4bc9ef'}},
+ '589': {key:'589',id:'589-review-001',name:'589 Protocol — Flame On / Burn Chain / Red Burn Tee',img:'',traits:[['Background','Burn'],['Body','Flame On'],['Chain','Burn Chain'],['Clothing','Red Burn Tee'],['Eye','Surprised'],['Head','Burn Halo'],['Mouth','Smirk']],pal:{face:'#c9a27e',body:'#b72d32',top:'#202126',acc:'#ff7a1a'}}
+};
+document.querySelectorAll('[data-sample]').forEach(b=>b.addEventListener('click',()=>{
+ document.querySelector('#sample').value=JSON.stringify(samples[b.dataset.sample],null,2);
+ renderSample();
+}));
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 window.addEventListener('keydown',e=>{if(e.key==='1')setView('front');if(e.key==='2')setView('threeQuarter');if(e.key==='3')setView('side');if(e.key==='4')setView('rear');});
 renderSample();

@@ -107,6 +107,8 @@ has(avatar, /visualApproval = 'not-reviewed'/, 'keeps visual approval fail-close
 has(visualQa, /fidelityCounts=traitCoverage\.reduce/, 'summarizes approximation and unsupported-trait counts in visual QA');
 has(visualQa, /Visual approval: '\+visualApproval\+' \(human reference-art review required\)/, 'makes the manual likeness approval gate visible in the QA report');
 has(visualQa, /visualApproval:'not-reviewed'/, 'includes fail-closed visual approval state in copied QA reports');
+has(visualQa, /Collection-specific review requirements:/, 'shows collection recipe acceptance criteria beside each NFT reconstruction');
+has(visualQa, /collectionRequirements:recon\.visualRequirements\|\|\[\]/, 'preserves collection-specific visual requirements in the copied QA report');
 has(avatar, /needs-dedicated-visual/, 'flags traits without a faithful renderer instead of silently dropping them');
 has(avatar, /components\.tailStyle === 'custom'.*slot:'tail'/, 'flags custom tail designs instead of passing off the generic segmented tail as faithful');
 has(avatar, /components\.hairStyle === 'custom'.*slot:'hair style'/, 'flags unrecognized hairstyles instead of treating the generic hair cap as a faithful match');

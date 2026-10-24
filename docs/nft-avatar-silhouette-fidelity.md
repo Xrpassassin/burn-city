@@ -33,3 +33,8 @@ Record mismatches and verify that every unsupported trait is surfaced rather tha
 ## Trait-grounded proportion rule
 
 An NFT identifier may seed stable identity metadata, but it must not randomly change the character's anatomy. When body-build or face-shape traits are absent, the renderer now uses the collection's authored baseline proportions. Only explicit token metadata or reviewed collection-specific reconstruction rules may change those proportions. This avoids making two visually identical source NFTs look different for an arbitrary hash-based reason. It improves consistency, but does not establish exact likeness without reference-art review.
+
+
+## Color and pattern fidelity
+
+Trait color interpretation now recognizes additional common NFT palette names (including crimson, burgundy, navy, cobalt, emerald, ivory, and charcoal). When a dedicated pattern/marking trait exists, its color takes precedence over a clothing trait; outfit color is only a fallback. This prevents trait order from silently assigning sweater or armor colors to independent markings.

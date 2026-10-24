@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const {
-  assignRole, distance2D, hearNoise, chooseBehavior, flankingHint
+  assignRole, distance2D, hearNoise, chooseBehavior, flankingHint, selectApproachTarget
 } = require('./zombie-tactics-core');
 
 assert.equal(assignRole('z1', 'squad-a', 0, 4), 'pursuer');
@@ -32,5 +32,12 @@ assert.equal(chooseBehavior({ zombie, nowMs: 3000, lastKnownTarget: { x: 3, z: 4
 const hint = flankingHint({ x: 10, z: 0 }, { x: 0, z: 0 }, 1, 3);
 assert.ok(hint && Number.isFinite(hint.x) && Number.isFinite(hint.z));
 assert.equal(flankingHint({ x: 0, z: 0 }, { x: 0, z: 0 }), null);
+const flankA = selectApproachTarget({ role: 'flanker', zombie: { id: 20, x: 0, z: 0 }, target: { x: 10, z: 0 }, targetVisible: true });
+const flankB = selectApproachTarget({ role: 'flanker', zombie: { id: 20, x: 0, z: 0 }, target: { x: 10, z: 0 }, targetVisible: true });
+assert.deepEqual(flankA, flankB, 'flanking side is deterministic');
+assert.ok(flankA && Math.hypot(flankA.x - 10, flankA.z) >= 3.9, 'flanker chooses an offset approach point');
+assert.deepEqual(selectApproachTarget({ role: 'pursuer', zombie: { id: 21, x: 0, z: 0 }, target: { x: 10, z: 2 }, targetVisible: true }), { x: 10, z: 2, role: 'pursuer' }, 'pursuer keeps direct pressure');
+assert.equal(selectApproachTarget({ role: 'flanker', zombie: { id: 20, x: 0, z: 0 }, target: { x: 10, z: 0 }, targetVisible: false }), null, 'flanker never invents a target without visibility');
+assert.deepEqual(selectApproachTarget({ role: 'flanker', zombie: { id: 20, x: 7, z: 0 }, target: { x: 10, z: 0 }, targetVisible: true }), { x: 10, z: 0, role: 'flanker' }, 'close flanker rejoins the direct approach');
 
 console.log('zombie-tactics-core: all tests passed');

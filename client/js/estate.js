@@ -501,6 +501,27 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
         interiorBox(room,interiorFabric,2.2,.75,1.0,0,1.05,d/2-2.2);
       }
     }
+    // A real hinged door makes the threshold readable. It animates with the active residence
+    // and is kept outside the walking lane when open; no external model is required.
+    const doorPivot = new THREE.Group();
+    doorPivot.position.set(-1.55, .18, d/2-.12);
+    room.add(doorPivot);
+    const doorLeaf = interiorBox(doorPivot, interiorWood, 3.1, 2.65, .14, 1.55, 1.325, 0);
+    doorLeaf.castShadow = true;
+    interiorBox(doorPivot, interiorWarm, .07, .07, .18, .18, 2.36, .02);
+    // Local furniture footprints used by the interior movement guard (X/Z half-extents).
+    const obstacles = [];
+    const obstacle = (x,z,hw,hd) => obstacles.push({x,z,hw,hd});
+    if (trailer) {
+      obstacle(-5,-3.7,2.85,1.55); obstacle(4,3.2,2.95,.9); obstacle(-1,3.1,1.35,1.05);
+    } else if (apartment) {
+      obstacle(-6,-5,3.25,1.85); obstacle(5,-5,3.0,1.35); obstacle(6,3.5,3.15,.95); obstacle(-1,3.7,1.65,1.25);
+    } else {
+      obstacle(-w/2+4,bedZ,bedW/2+.2,2.15); obstacle(0,-.15,2.95,.9); obstacle(0,1.7,1.85,1.25);
+      obstacle(-w/2+3,d/2-2.5,2.25,.95);
+      if (family||mansion) obstacle(-w/2+3,1.3,1.35,.9);
+      if (mansion) obstacle(w/2-3,-d/2+2.4,1.8,.8);
+    }
     // Practical lamps and a small entry mat make the threshold legible.
     interiorBox(room,interiorWood,3.1,.08,1.25,0,.42,d/2-1.2);
     interiorBox(room,interiorDark,.22,2.8,.18,-1.55,1.65,d/2-.25);
@@ -510,7 +531,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     if (apartment||mansion) interiorLamp(room,0,3.4,0,0x8ddfff);
     const label=new THREE.Mesh(new THREE.BoxGeometry(1.8,.32,.06),new THREE.MeshBasicMaterial({color:0xffb45b}));
     label.position.set(0,2.7,d/2-.25); room.add(label);
-    return {id:h.propertyId,tier:h.tier,group:room,yaw:lot.rotation.y,localSpawn:new THREE.Vector3(0,.5,d/2-3),localExit:new THREE.Vector3(0,.5,d/2-1.2),exteriorLocal:new THREE.Vector3(h.x,0,h.z+h.d/2+5),halfW:w/2-.6,halfD:d/2-.6};
+    return {id:h.propertyId,tier:h.tier,group:room,yaw:lot.rotation.y,doorPivot,obstacles,localSpawn:new THREE.Vector3(0,.5,d/2-3),localExit:new THREE.Vector3(0,.5,d/2-1.2),exteriorLocal:new THREE.Vector3(h.x,0,h.z+h.d/2+5),halfW:w/2-.6,halfD:d/2-.6};
   };
   homes.forEach((h,i)=>interiorRooms[h.propertyId]=makeInterior(h,i));
   lot.updateMatrixWorld(true);
@@ -521,11 +542,16 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     room.yaw=lot.rotation.y;
   }
   window.__estateRooms=interiorRooms;
+  // Smoothly swing the active residence door open and close it after exit.
+  anim.push((t,dt=1/60)=>{const active=window.__estateInteriorId;for(const r of Object.values(interiorRooms)){const target=active===r.id?-1.35:0;r.doorPivot.rotation.y+=(target-r.doorPivot.rotation.y)*Math.min(1,dt*8)}});
   window.__estateInteriorGuard=(pos,vel)=>{
     const id=window.__estateInteriorId, r=interiorRooms[id]; if(!r)return false;
     const p=r.group.worldToLocal(pos.clone());
     p.x=THREE.MathUtils.clamp(p.x,-r.halfW,r.halfW);
     p.z=THREE.MathUtils.clamp(p.z,-r.halfD,r.halfD);
+    // Resolve overlaps against furniture footprints by pushing to the nearest edge.
+    for(const o of r.obstacles){const dx=p.x-o.x,dz=p.z-o.z,ox=o.hw+.38-Math.abs(dx),oz=o.hd+.38-Math.abs(dz);if(ox>0&&oz>0){if(ox<oz)p.x=o.x+Math.sign(dx||1)*(o.hw+.38);else p.z=o.z+Math.sign(dz||1)*(o.hd+.38);}}
+    p.x=THREE.MathUtils.clamp(p.x,-r.halfW,r.halfW);p.z=THREE.MathUtils.clamp(p.z,-r.halfD,r.halfD);
     p.y=Math.max(.45,p.y);
     pos.copy(r.group.localToWorld(p)); if(vel&&pos.y<=.46)vel.y=0; return true;
   };

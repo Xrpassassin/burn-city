@@ -16,7 +16,7 @@ An XRPL NFToken references off-ledger data through its URI; the URI itself is no
 - `assets/nft-avatars/collections/fk.json`
 - `assets/nft-avatars/collections/589.json`
 
-These manifests document initial trait mappings and collection-specific QA coverage. Issuer/taxon identities are intentionally unverified placeholders until checked against authoritative ledger data. The runtime now has a separate component-recipe layer in `client/js/nft-avatar-components.js`: it resolves headwear, outfit silhouette, accessory, weapon class, flame color/style, tail pattern, wing style, eye treatment, and expression into deterministic visual instructions. `nftchar.js` consumes those recipes for robe/armor/tailored clothing details, relic/earring/pack accessories, weapon silhouettes, and collection-aware accents. This is still a procedural interpretation layer, not an exact reconstruction of the original artist's layered files. The asset arrays are empty: no external model or layered artwork is silently treated as licensed.
+These manifests document initial trait mappings and collection-specific QA coverage. Issuer/taxon identities are intentionally unverified placeholders until checked against authoritative ledger data. The runtime now has a separate component-recipe layer in `client/js/nft-avatar-components.js`: it resolves headwear, outfit silhouette, accessory, weapon class, flame color/style, tail pattern, wing style, eye treatment, and expression into deterministic visual instructions. `nftchar.js` consumes those recipes for robe/armor/tailored clothing details, relic/earring/pack accessories, weapon silhouettes, and collection-aware accents. The original NFT composition is now displayed as a larger framed chest tabard, fitted with `contain` so the full artwork remains visible without cropping; trait-driven face masks are also rendered on humanoid avatars. This makes each avatar's actual NFT artwork substantially more prominent, but it is still a hybrid of procedural 3D geometry and a 2D identity surface—not a true 3D reconstruction of the original character. The asset arrays are empty: no external model or layered artwork is silently treated as licensed.
 
 ## Commands
 
@@ -66,6 +66,7 @@ A green manifest validation means the record is structurally complete, **not** t
 
 - [ ] Collection identity is checked against authoritative XRPL data; client-provided collection names are never an ownership allowlist.
 - [ ] Original raw traits and artwork reference remain recoverable.
+- [ ] The full NFT artwork is prominent, framed, and contain-fit without cropping.
 - [ ] Unknown or malformed traits safely fall back without breaking the avatar.
 - [ ] Every asset has provenance, SHA-256, rights status, license, and attribution.
 - [ ] Model scale, rig, skeleton, dependencies, materials, and performance are measured.
@@ -75,4 +76,4 @@ A green manifest validation means the record is structurally complete, **not** t
 
 ## Current limits
 
-This step creates the manifests, intake rules, and automated structural validation. It does **not** fetch collection images, inspect live holder NFTs, add third-party models, or claim visual parity. Live collection sampling, runtime visual QA, and mobile profiling remain explicit next validation tasks. Commercial XRP invoicing and public self-service onboarding remain outside this client-side asset pipeline.
+This step creates the manifests, intake rules, automated structural validation, and a larger artwork-first identity tabard. It does **not** fetch collection images, inspect live holder NFTs, add third-party models, or claim exact 3D visual parity. Live collection sampling, runtime visual QA, and mobile profiling remain explicit next validation tasks. Commercial XRP invoicing and public self-service onboarding remain outside this client-side asset pipeline.

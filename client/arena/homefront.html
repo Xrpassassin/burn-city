@@ -202,7 +202,7 @@ function survivorSpot(survivor,index){
  if(survivor.task==='defend_perimeter'&&target)return workSpot(target,index,1.45);
  if(survivor.task==='emergency_repair'&&target)return workSpot(target,index,1.05);
  if(survivor.task==='take_shelter')return{x:Math.cos(angle)*2.4,z:Math.sin(angle)*2.4,yaw:-angle};
- if(survivor.task==='rest_at_refuge'){const cotSpots=[[-2.55,2.45],[2.55,2.45],[-2.75,4],[2.75,4],[-2.55,5.55],[2.55,5.55]],cot=cotSpots[index%cotSpots.length];return{x:cot[0],z:cot[1]+.72,yaw:Math.atan2(-.72,0)}}
+ if(survivor.task==='rest_at_refuge'){const cotSpots=[[-2.55,2.45],[2.55,2.45],[-2.75,4],[2.75,4],[-2.55,5.55],[2.55,5.55]],cot=cotSpots[index%cotSpots.length];return{x:cot[0],z:cot[1]+.72,yaw:Math.atan2(0,-.72)}}
  if(survivor.task==='perimeter_watch'||survivor.role==='guard'){
   const defensiveTypes=new Set(['wall','gate','watchtower','entrance','exit','sandbags','barbed_wire','trench','turret']);
   const breach=structures.filter(item=>defensiveTypes.has(item.type)&&item.hp>0&&item.hp<item.maxHp).sort((a,b)=>a.hp/Math.max(1,a.maxHp)-b.hp/Math.max(1,b.maxHp)||String(a.id).localeCompare(String(b.id)))[0];

@@ -638,15 +638,16 @@ export function buildNftChar(n, opts = {}) {
   ].filter(item => item && item.value);
   // Every source trait gets a clear disposition: 3D, artwork-only, or flagged for review.
   const geometryNeeded = new Set(unsupportedVisualTraits.map(item => String(item.slot || '').toLowerCase()));
-  const unsupportedStyleSlot =
-    (components.outfitStyle === 'custom' && 'outfit') ||
-    (components.headwearStyle === 'custom' && 'headwear') ||
-    (components.accessoryStyle === 'custom' && 'accessory') ||
-    (components.weaponStyle === 'custom' && 'weapon') ||
-    (components.wingStyle === 'custom' && 'wing') ||
-    (components.patternStyle === 'custom' && 'body pattern') ||
-    (components.bodyEffect === 'custom' && 'body effect');
-  if (unsupportedStyleSlot) geometryNeeded.add(unsupportedStyleSlot);
+  const unsupportedStyleSlots = [
+    components.outfitStyle === 'custom' ? 'outfit' : null,
+    components.headwearStyle === 'custom' ? 'headwear' : null,
+    components.accessoryStyle === 'custom' ? 'accessory' : null,
+    components.weaponStyle === 'custom' ? 'weapon' : null,
+    components.wingStyle === 'custom' ? 'wing' : null,
+    components.patternStyle === 'custom' ? 'body pattern' : null,
+    components.bodyEffect === 'custom' ? 'body effect' : null
+  ].filter(Boolean);
+  for (const slot of unsupportedStyleSlots) geometryNeeded.add(slot);
   const renderableSlots = new Set([
     'eye color','eye appearance','eye wear','body effect','accessory','outfit','headwear','weapon',
     'fur color','hair style','hair color','skin color','armor','mask','expression','facial hair',

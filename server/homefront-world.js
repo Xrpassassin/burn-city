@@ -237,10 +237,9 @@ function enter(input, acct, now = Date.now()) {
   }
   p.lastSeen = now;
   p.survival = Survival.tick(p.survival, now);
-  if (p.partyCode && w.parties[p.partyCode]) {
-    const leader = w.players[w.parties[p.partyCode].leader];
-    if (leader) { p.x = leader.x; p.z = leader.z; }
-  }
+  // Party joins establish formation in joinParty(). Presence refreshes must not snap
+  // followers to the leader: their position is advanced by bounded, collision-aware
+  // movement in move(), not by polling this endpoint.
   // Refreshes advance bounded pursuit too, so infected do not require player movement to update.
   w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, interiors: w.interiors, now });
   tickDirector(w, acct, now);

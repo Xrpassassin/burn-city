@@ -163,12 +163,15 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
     box(parent, alongX ? [segment, h, t] : [t, h, segment], wallPosition((gapWidth + segment) / 2), wallMat);
   };
   const hasExit = (r, side) => r.exits.some(exit => exit.side === side);
+  const renderedDoors = new Set();
   for (const r of interior.rooms) {
     box(root, [r.width, 0.16, r.depth], [r.x, -0.08, r.z], floorMat);
     for (const side of ['north','south','east','west']) wall(root, r, side, hasExit(r, side) || (r.id === interior.entryRoom && side === 'south'));
     // A small wall-mounted emergency light gives the roofless floorplan readable depth.
     box(root, [0.28, 0.12, 0.12], [r.x - r.width * 0.32, 1.75, r.z - r.depth / 2 + 0.16], clueMat);
     for (const exit of r.exits) {
+      if (renderedDoors.has(exit.id)) continue;
+      renderedDoors.add(exit.id);
       const door = new THREE.Group();
       const doorX = exit.side === 'east' ? r.x + r.width / 2 : exit.side === 'west' ? r.x - r.width / 2 : r.x;
       const doorZ = exit.side === 'north' ? r.z - r.depth / 2 : exit.side === 'south' ? r.z + r.depth / 2 : r.z;

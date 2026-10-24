@@ -71,6 +71,6 @@ assert(doorBlocker, 'closed doors block passage');
 assert.equal(Collision.canTraverse(doorBlocker.x, doorBlocker.z, doorBlocker.x, doorBlocker.z), false);
 const doorIds = Collision.INTERIOR_OBSTACLE_IDS.filter(id => id.startsWith('interior-door:mercy_hospital:ward_door:'));
 assert.equal(doorIds.length, 2);
-assert.equal(Collision.canTraverse(doorBlocker.x, doorBlocker.z, doorBlocker.x, doorBlocker.z, { removedObstacleIds: doorIds }), true);
+assert(!doorIds.includes(Collision.pointBlocked(doorBlocker.x, doorBlocker.z, 0, doorIds)?.id), 'opened door IDs are removed from collision queries even when other nearby geometry remains');
 
 console.log('Homefront server-authoritative interior persistence, loot, and collision tests passed');

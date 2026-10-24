@@ -1251,7 +1251,7 @@ if(u.kind==='experience'){
  const cancel=document.createElement('button'); cancel.type='button'; cancel.textContent='Stay in BURN City'; cancel.style.cssText='display:block;width:100%;min-height:44px;padding:10px;border-radius:10px;border:1px solid #ffffff35;background:#ffffff0a;color:#fff;font:600 13px system-ui;cursor:pointer'; cancel.onclick=()=>{panel.style.display='none'};
  panel.replaceChildren(close,title,detail,...(u.experienceId==='zombies'?[homefront,enter]:[enter]),cancel); panel.style.display='block'; panel.scrollTop=0; return;
 }
-if(u.kind==='ammlock'){window.__ammLock&&window.__ammLock.open(u);return}if(u.kind==='aegis'){$('info').style.display='none';window.__aegis&&window.__aegis.open(u.cam);return}if(u.kind==='tackle'){window.__fish&&window.__fish.openShop();return}if(u.kind==='estate-property'||u.kind==='estate'){$('info').innerHTML=estateCard(u.kind==='estate-property'?u.propertyId:'');$('info').classList.remove('v2');$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';$('info').scrollTop=0;return}const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').classList.toggle('v2',!!(u.node&&!u.lot));$('info').style.display='block';if(u.node&&u.node.name==='BURN'&&window.__openBurnTowerInterior&&!u.lot){const eb=document.createElement('button');eb.type='button';eb.textContent='🔥 Enter the PYRETHEUM';eb.style.cssText='display:block;margin:10px 0 2px;padding:9px 14px;border-radius:10px;border:1px solid #ff9d43;background:#29120b;color:#ffd4a0;font:700 13px system-ui;cursor:pointer';eb.onclick=e=>{e.stopPropagation();$('info').style.display='none';window.__openBurnTowerInterior()};$('info').appendChild(eb)}window.__ammLock&&window.__ammLock.card($('info'),u);$('info').scrollTop=0;window.__onCard&&window.__onCard($('info'));$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
+if(u.kind==='ammlock'){window.__ammLock&&window.__ammLock.open(u);return}if(u.kind==='aegis'){$('info').style.display='none';window.__aegis&&window.__aegis.open(u.cam);return}if(u.kind==='tackle'){window.__fish&&window.__fish.openShop();return}if(u.kind==='estate-property'||u.kind==='estate'){$('info').innerHTML=estateCard(u.kind==='estate-property'?u.propertyId:'');$('info').classList.remove('v2');$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';const enterEstate=$('info').querySelector('.estate-enter');if(enterEstate)enterEstate.onclick=()=>window.__estateEnter&&window.__estateEnter(u.propertyId);$('info').scrollTop=0;return}const ih=document.getElementById('iosHint');ih&&ih.remove();if(u.kind==='ad'||u.ad){$('info').innerHTML=descAd(u.ad);$('info').style.display='block';$('info').querySelector('.x').onclick=()=>$('info').style.display='none';return}$('info').innerHTML=u.lot?descLot(u.lot):u.node?descNode(u.node):descPool(u.pool);$('info').classList.toggle('v2',!!(u.node&&!u.lot));$('info').style.display='block';if(u.node&&u.node.name==='BURN'&&window.__openBurnTowerInterior&&!u.lot){const eb=document.createElement('button');eb.type='button';eb.textContent='🔥 Enter the PYRETHEUM';eb.style.cssText='display:block;margin:10px 0 2px;padding:9px 14px;border-radius:10px;border:1px solid #ff9d43;background:#29120b;color:#ffd4a0;font:700 13px system-ui;cursor:pointer';eb.onclick=e=>{e.stopPropagation();$('info').style.display='none';window.__openBurnTowerInterior()};$('info').appendChild(eb)}window.__ammLock&&window.__ammLock.card($('info'),u);$('info').scrollTop=0;window.__onCard&&window.__onCard($('info'));$('info').querySelector('.x').onclick=()=>$('info').style.display='none'}
 
 // ---------- controls: Orbit / Fly / Explore ----------
 const orbit=new OrbitControls(C,R.domElement);orbit.enableDamping=true;orbit.maxPolarAngle=1.5;orbit.target.set(0,30,0);orbit.minDistance=8;orbit.maxDistance=900;orbit.autoRotateSpeed=.35;
@@ -1277,6 +1277,22 @@ function setMode(m){if(tlOn()&&m!=='explore')return;const prev=mode;mode=m;tour=
  $('prompt').style.display='none';
  $('help').textContent=m==='orbit'?'Drag orbit · scroll/pinch zoom · click a tower, road, billboard or terminal for live stats':m==='fly'?(MOBILE?'Left stick fly · drag to look · ▲ up · ▼ down · tap things to inspect':'WASD move · right-click drag to look · left-click objects to inspect · Space up · C down · Shift fast'):MOBILE?'Left stick walk · drag to look · tap things to inspect · USE talks to what\'s next to you':'WASD walk · Shift run · Space jump · hold right-click to look · left-click to select · E interact · V 1st/3rd person'+(NET?' · Enter chat':'')}
 window.__setBurnMode=setMode;
+window.__estateEnter=(propertyId)=>{
+ const r=window.__estateRooms&&window.__estateRooms[propertyId]; if(!r||!r.group)return;
+ if(mode!=='explore')setMode('explore');
+ document.getElementById('info').style.display='none';
+ window.__estateInteriorId=propertyId;
+ for(const q of Object.values(window.__estateRooms))q.group.visible=q.id===propertyId;
+ P.pos.copy(r.spawn); P.vel.set(0,0,0); P.onGround=true; P.climb=null; P.spawned=1;
+ yp.yaw=r.yaw+Math.PI; yp.pitch=0; avatar.rotation.y=yp.yaw;
+};
+window.__estateExit=()=>{
+ const id=window.__estateInteriorId,r=window.__estateRooms&&window.__estateRooms[id]; if(!r)return;
+ P.pos.copy(r.exterior); P.pos.y=.5; P.vel.set(0,0,0); P.onGround=true; P.climb=null;
+ r.group.visible=false; window.__estateInteriorId=null;
+ yp.yaw=r.yaw; yp.pitch=0; avatar.rotation.y=yp.yaw;
+};
+
 document.querySelectorAll('#btns [data-m]').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
 addEventListener('keydown',e=>{if(document.activeElement===$('chatIn'))return;keys[e.code]=1;if(mode==='explore'){if(e.code==='KeyE')interact();if(e.code==='KeyV'){P.fp=!P.fp}}if(e.code==='Enter'&&NET){$('chatIn').focus();e.preventDefault()}});
 addEventListener('keyup',e=>keys[e.code]=0);
@@ -1383,7 +1399,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
  if(ml>.05){mv.normalize().multiplyScalar(sp*ml);const ty=Math.atan2(-mv.x,-mv.z);let dy=ty-avatar.rotation.y;dy=Math.atan2(Math.sin(dy),Math.cos(dy));avatar.rotation.y+=dy*Math.min(1,dt*12)}
  if(!webStep(dt,mv)){ const ox=P.pos.x,oz=P.pos.z,hv=JET.fly?JET.v:mv;P.pos.x+=hv.x*dt;P.pos.z+=hv.z*dt;if(wet(P.pos.x,P.pos.z)){if(!wet(P.pos.x,oz))P.pos.z=oz;else if(!wet(ox,P.pos.z))P.pos.x=ox;else if(!wet(ox,oz)){P.pos.x=ox;P.pos.z=oz}}if(jetStep(dt,mv)){}else if((keys.Space||tb.jump)&&P.onGround){P.vel.y=7.5;P.onGround=false}P.vel.y-=20*dt;P.pos.y+=P.vel.y*dt;if(WEB.mom.lengthSq()>.01){const wx=P.pos.x,wz=P.pos.z;P.pos.x+=WEB.mom.x*dt;P.pos.z+=WEB.mom.z*dt;if(wet(P.pos.x,P.pos.z)){P.pos.x=wx;P.pos.z=wz;WEB.mom.set(0,0,0)}if(P.onGround)WEB.mom.multiplyScalar(Math.pow(.01,dt))}}
  const g=groundAt(P.pos.x,P.pos.z,P.pos.y);if(P.pos.y<=g){P.pos.y=g;P.vel.y=0;P.onGround=true}else P.onGround=P.pos.y-g<.05;
- collide(P.pos);
+ collide(P.pos); if(window.__estateInteriorGuard&&window.__estateInteriorGuard(P.pos,P.vel)){P.onGround=true;P.climb=null;}
  // climbing: push into a tower wall -> climb the face; jump/back off detaches; mantle at the roof edge
  {let cw=null;const fv=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw));if(f>.3)for(const c of colliders){if(!c.r||c.nc||P.pos.y>=c.h-.05)continue;const dx=c.x-P.pos.x,dz=c.z-P.pos.z,d=Math.hypot(dx,dz);if(d<c.r+.6&&(dx*fv.x+dz*fv.z)/(d||1)>.3){cw=c;break}}
   if(cw&&(keys.Space||tb.jump)&&P.climb){P.climb=null;P.vel.y=5;const dx=P.pos.x-cw.x,dz=P.pos.z-cw.z,d=Math.hypot(dx,dz)||1;P.pos.x+=dx/d*1.2;P.pos.z+=dz/d*1.2;cw=null}

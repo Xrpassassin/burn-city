@@ -4,6 +4,7 @@ const Retain = require('./retain'), Fish = require('./fish'), LB = require('./le
 const Nft = require('./nft'), Social = require('./social'), C = require('./config'), Pay = require('./payments'), { Room } = require('./game'), S = require('./store'), City = require('./city'), Eco = require('./eco');
 
 const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates = require('./estates'), EstateWallet = require('./estate-wallet');
+const EstateRights = require('./estates-rights');
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const Jetpack = require('./jetpack');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
@@ -128,6 +129,12 @@ const server = http.createServer(async (req, res) => {
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
       if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, Estates.getState(u.acct));
+      if (url.pathname === '/api/estates/access' && req.method === 'GET') {
+        const propertyId = String(url.searchParams.get('propertyId') || '');
+        const action = String(url.searchParams.get('action') || 'enter');
+        const decision = EstateRights.resolveEstateRights({ account: u.acct, propertyId, action, estates: Estates });
+        return json(res, 200, decision);
+      }
       if (url.pathname === '/api/estates/buy' && req.method === 'POST') return json(res, 409, { error: 'sales_not_configured', status: 'wallet_integration_pending', message: 'Property sales are disabled until the designated wallet, verified payment settlement, property pricing, and final share weights are configured and audited.' });   // never reads the body: no client amount is ever used
       // Owner-wallet identity check (Xaman SignIn payload, no ledger transaction): admin token only.
       if (url.pathname.startsWith('/api/estates/wallet/')) {

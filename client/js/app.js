@@ -10,6 +10,7 @@ import './streetprops.js';
 import './events.js';
 import './airport.js';
 import { createBurnCityExperienceRegistry } from './experience-registry.mjs';
+import { installEstatesIslandLive } from './estates-island-live.mjs';
 import {makeRainbow} from './rainbow.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
@@ -1400,6 +1401,7 @@ window.__web={WEB,webSet,webAnchor,railPts};
 function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=null;$('prompt').style.display='none';P.vel.set(0,0,0);me.set(P.pos,avatar.rotation.y,'idle',P.district);return}   // a modal owns the player (The Wilds: warning / encounter / dialogue)
  const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=speedFor(run);
  const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0)-joy.y,s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+joy.x;
+ if(window.__estatesIslandLive&&window.__estatesIslandLive.tick(dt,f,s,run)){const ml=Math.min(1,Math.hypot(f,s));P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);poseWalker(avatar,P.walk,ml,performance.now()/1000);avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml;avatar.visible=!P.fp;P.near=null;$('prompt').style.display='none';$('tUse')&&$('tUse').classList.remove('hot');me.set(P.pos,avatar.rotation.y,ml>.05?(run?'run':'walk'):'idle',P.district);return;}
  if(window.__skate&&window.__skate.active){window.__skate.drive(dt,f,s);const dir=dirOf();if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.6);C.lookAt(C.position.clone().add(dir))}else{const want=P.pos.clone().setY(P.pos.y+2.2).addScaledVector(dir,-6.2);want.y=Math.max(want.y,P.pos.y+.8,.6);C.position.lerp(want,1-Math.pow(.0005,dt));C.lookAt(P.pos.clone().setY(P.pos.y+1.3).addScaledVector(dir,4))}P.near=null;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}   // skateboarding rides on top of explore, like the boat
  if(window.__boat&&window.__boat.active){const st=window.__boat.drive(dt,f,s);P.pos.copy(st);P.vel.set(0,0,0);P.onGround=true;P.climb=null;avatar.position.copy(st);avatar.rotation.y=window.__boat.cur.h;avatar.visible=true;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}
  const fw=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw)),rt=new THREE.Vector3(-fw.z,0,fw.x);const mv=fw.multiplyScalar(f).add(rt.multiplyScalar(s));const ml=Math.min(1,mv.length());
@@ -1720,6 +1722,9 @@ const mn=document.createElement('div');mn.id='vMenu';mn.innerHTML='<div><b>Pause
 // Movement & Games hub (movement-games-menu.js): city toasts + "take me there" (Explore at a known world spot, facing `face`). Refuses during the Wilds travel lock, in a boat or the tower.
 window.__bcToast=(text,col)=>{const d=document.createElement('span');d.textContent=String(text);toast(d.innerHTML,col)};
 window.__walkTo=(x,z,face)=>{if(tlOn()||window.__burnTowerOpen||(window.__boat&&window.__boat.active)||!isFinite(x)||!isFinite(z))return false;if(mode!=='explore')setMode('explore');if(mode!=='explore')return false;P.pos.set(x,groundAt(x,z,99),z);P.vel.set(0,0,0);P.spawned=1;if(face&&isFinite(face.x)&&isFinite(face.z)){yp.yaw=Math.atan2(face.x-x,-(face.z-z));avatar.rotation.y=yp.yaw}return true};
+// Estates Island live public traversal: renderer + bridge + existing third-person frame loop.
+void installEstatesIslandLive({THREE,scene:S,player:P,avatar,camera:C,getYaw:()=>yp.yaw,setYaw:y=>{yp.yaw=y;avatar.rotation.y=y},getMode:()=>mode,setMode,isInteractPressed:()=>Boolean(keys.KeyE),onStatus:event=>{if(event.state==='ready')window.__bcToast?.('Estates Island ready · public paths, permission-gated properties','#ffbd68');else if(event.state==='error')window.__bcToast?.('Estates Island could not load: '+event.message,'#ff7755')}}).catch(error=>{console.error('[Estates Island] live integration failed',error);window.__bcToast?.('Estates Island unavailable; see console for details','#ff7755')});
+
 window.__launchBlacktide=()=>{if(document.body.classList.contains('wl-travel'))return false;try{sessionStorage.bc_ret=JSON.stringify({m:mode,p:[P.pos.x,P.pos.y,P.pos.z],c:[C.position.x,C.position.y,C.position.z],yaw:yp.yaw})}catch(_){}location.href='blacktide/';return true};
 let tw=null;const menuOn=()=>mn.classList.contains('on'),hide=()=>mn.classList.remove('on');
 const show=()=>{if(document.pointerLockElement)document.exitPointerLock();mn.classList.add('on')};

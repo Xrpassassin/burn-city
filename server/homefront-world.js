@@ -26,6 +26,18 @@ const SPAWNS = [
   { id: 'east_checkpoint', label: 'East Checkpoint', x: 58, z: 58 },
   { id: 'west_underpass', label: 'West Underpass', x: -58, z: -55 }
 ];
+// Expanded frontier: 16 rim spawn points between the authored perimeter spawns. Used when every authored
+// spawn is within MIN_SPAWN_DISTANCE of another (non-party) explorer, so players still start far apart.
+const FRONTIER_SPAWNS = Object.freeze(Array.from({ length: 16 }, (_, i) => {
+  const a = (i / 16) * Math.PI * 2 + Math.PI / 16;
+  return Object.freeze({ id: 'frontier_' + i, label: 'Frontier Rim ' + (i + 1), x: Math.round(Math.cos(a) * 86), z: Math.round(Math.sin(a) * 86) });
+}));
+const ALL_SPAWNS = Object.freeze([...SPAWNS, ...FRONTIER_SPAWNS]);
+const MIN_SPAWN_DISTANCE = 60;
+// Interest management: strangers are only sent to a client inside this radius (render range).
+// Party members are always sent (they are the only explorers on the map). Never broadcast everyone.
+const INTEREST_RADIUS = 40;
+const INTEREST_CELL = 20;
 const DISTRICTS = [
   { id: 'perimeter', label: 'Safe Perimeter', radius: 25, risk: 1 },
   { id: 'outskirts', label: 'City Outskirts', radius: 45, risk: 1 },
@@ -80,13 +92,13 @@ function normalizeWorld(input) {
     p.x = clamp(p.x, -WORLD_SIZE, WORLD_SIZE); p.z = clamp(p.z, -WORLD_SIZE, WORLD_SIZE);
     p.lastSeen = Number.isFinite(p.lastSeen) ? p.lastSeen : 0;
     p.partyCode = typeof p.partyCode === 'string' ? p.partyCode : null;
-    p.spawn = SPAWNS.some(s => s.id === p.spawn) ? p.spawn : SPAWNS[hash(acct) % SPAWNS.length].id;
+    p.spawn = ALL_SPAWNS.some(s => s.id === p.spawn) ? p.spawn : SPAWNS[hash(acct) % SPAWNS.length].id;
     const savedInterior = w.interiors?.[acct];
     const activeInteriorId = savedInterior?.activeLandmarkId || null;
     const activeInteriorState = activeInteriorId ? savedInterior.interiors?.[activeInteriorId] : null;
     const interiorRemoved = Collision.interiorRemovedIds(activeInteriorId, activeInteriorState?.openedDoors);
     if (!Collision.isSafePosition(p.x, p.z, { bounds: WORLD_SIZE, removedObstacleIds: interiorRemoved })) {
-      const anchor = SPAWNS.find(s => s.id === p.spawn) || chooseSpawn(w, acct);
+      const anchor = ALL_SPAWNS.find(s => s.id === p.spawn) || chooseSpawn(w, acct);
       const recovered = Collision.findSafePosition(anchor.x, anchor.z, { bounds: WORLD_SIZE }) || Collision.findSafePosition(0, 0, { bounds: WORLD_SIZE });
       if (!recovered) throw new Error('no_safe_spawn_location');
       p.x = recovered.x; p.z = recovered.z;
@@ -102,6 +114,9 @@ function normalizeWorld(input) {
     p.lastSprintAt = Number.isFinite(p.lastSprintAt) ? clamp(p.lastSprintAt, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.accuracyRecoverUntil = Number.isFinite(p.accuracyRecoverUntil) ? clamp(p.accuracyRecoverUntil, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.survival = Survival.normalize(p.survival, p.lastSeen || Date.now());
+    p.pvpHits = Array.isArray(p.pvpHits) ? p.pvpHits.filter(h => h && Number.isFinite(h.at) && Number.isFinite(h.damage) && typeof h.fromId === 'string').slice(-5) : [];
+    p.pvpKills = Number.isSafeInteger(p.pvpKills) && p.pvpKills > 0 ? p.pvpKills : 0;
+    p.spawnedAt = Number.isFinite(p.spawnedAt) ? p.spawnedAt : 0;
     p.inventory = Inventory.normalize(p.inventory);
     if (typeof p.inventoryInitialized !== 'boolean') p.inventoryInitialized = true;
     const magazine = p.weaponMagazine && typeof p.weaponMagazine === 'object' ? p.weaponMagazine : {};
@@ -158,14 +173,59 @@ function findSafePosition(x, z) {
   }
   return null;
 }
+const safeSpawnCache = new Map();   // static collision only: a spawn's safe footprint never changes
+function safeSpawnPosition(spawn) {
+  if (!safeSpawnCache.has(spawn.id)) safeSpawnCache.set(spawn.id, Collision.findSafePosition(spawn.x, spawn.z, { bounds: WORLD_SIZE }));
+  const p = safeSpawnCache.get(spawn.id); return p ? { x: p.x, z: p.z } : null;
+}
+// Server-picked spawn far from everyone else: the authored spawns in their usual order, taking the first one
+// at least MIN_SPAWN_DISTANCE from every other explorer (party members excluded: they regroup anyway);
+// failing that, any spawn incl. the frontier rim that maximises the distance to the nearest explorer.
 function chooseSafeSpawn(w, acct) {
   const preferred = chooseSpawn(w, acct);
-  const ordered = [preferred, ...SPAWNS.filter(s => s.id !== preferred.id)];
+  const ordered = [preferred, ...SPAWNS.filter(s => s.id !== preferred.id), ...FRONTIER_SPAWNS];
+  const myParty = Travel.partyOf(w, acct);
+  const others = Object.entries(w.players).filter(([id, p]) => id !== acct && !(myParty && p.partyCode === myParty)).map(([, p]) => p);
+  const nearest = pos => others.reduce((m, p) => Math.min(m, Math.hypot(p.x - pos.x, p.z - pos.z)), Infinity);
+  let best = null;
   for (const spawn of ordered) {
-    const position = Collision.findSafePosition(spawn.x, spawn.z, { bounds: WORLD_SIZE });
-    if (position) return { spawn, position };
+    const position = safeSpawnPosition(spawn);
+    if (!position) continue;
+    const d = nearest(position);
+    if (d >= MIN_SPAWN_DISTANCE) return { spawn, position, nearest: d };
+    if (!best || d > best.nearest) best = { spawn, position, nearest: d };
   }
+  if (best) return best;
   throw new Error('no_safe_spawn_location');
+}
+// Uniform-grid spatial hash over the explorers in the world (built once per snapshot, O(n)).
+function buildInterestGrid(players) {
+  const grid = new Map();
+  for (const [acct, p] of Object.entries(players)) {
+    const k = Math.floor(p.x / INTEREST_CELL) + ',' + Math.floor(p.z / INTEREST_CELL);
+    let cell = grid.get(k); if (!cell) grid.set(k, cell = []); cell.push(acct);
+  }
+  return grid;
+}
+function nearbyAccounts(grid, players, x, z, radius = INTEREST_RADIUS) {
+  const out = [], r = Math.ceil(radius / INTEREST_CELL), cx = Math.floor(x / INTEREST_CELL), cz = Math.floor(z / INTEREST_CELL);
+  for (let i = cx - r; i <= cx + r; i++) for (let j = cz - r; j <= cz + r; j++) {
+    const cell = grid.get(i + ',' + j); if (!cell) continue;
+    for (const acct of cell) { const p = players[acct]; if (Math.hypot(p.x - x, p.z - z) <= radius) out.push(acct); }
+  }
+  return out;
+}
+// The accounts a viewer may receive positions for: themselves, their party (anywhere), strangers within radius.
+function visibleAccounts(w, viewer, now = Date.now()) {
+  const me = w.players[viewer];
+  const seen = new Set();
+  if (!me) return seen;
+  seen.add(viewer);
+  const code = me.partyCode && w.parties[me.partyCode] ? me.partyCode : null;
+  if (code) for (const m of w.parties[code].members) if (w.players[m]) seen.add(m);
+  const grid = buildInterestGrid(w.players);
+  for (const acct of nearbyAccounts(grid, w.players, me.x, me.z)) if (now - w.players[acct].lastSeen <= PRESENCE_TTL) seen.add(acct);
+  return seen;
 }
 function chooseSpawn(w, acct) {
   const counts = new Map(SPAWNS.map(s => [s.id, 0]));
@@ -174,12 +234,12 @@ function chooseSpawn(w, acct) {
   const candidates = SPAWNS.filter(s => counts.get(s.id) === min);
   return candidates[hash(acct) % candidates.length];
 }
-function publicPlayer(acct, p, me, now) {
+function publicPlayer(acct, p, me, now, viewerParty = null) {
   const d = districtAt(p.x, p.z);
   // The safe perimeter lies around the outer edge; depth measures inward expansion.
   const frontierDepth = frontierDepthAt(p.x, p.z);
   const frontierBand = frontierDepth < 25 ? 'perimeter' : frontierDepth < 45 ? 'outer ring' : frontierDepth < 63 ? 'inner blocks' : frontierDepth < 76 ? 'commercial edge' : frontierDepth < 89 ? 'industrial belt' : 'core approach';
-  return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, frontierDepth, frontierBand, spawn: p.spawn, party: !!p.partyCode, online: now - p.lastSeen <= PRESENCE_TTL };
+  return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, frontierDepth, frontierBand, spawn: acct === me ? p.spawn : undefined, party: acct !== me && !!viewerParty && p.partyCode === viewerParty, online: now - p.lastSeen <= PRESENCE_TTL };
 }
 function nearestPoint(x, z, type = null) { const points = POINTS_OF_INTEREST.filter(p => !type || (type === 'non-boss' ? p.type !== 'boss' : p.type === type)); let best = null; for (const point of points) { const distance = Math.hypot(point.x - x, point.z - z); if (!best || distance < best.distance) best = { point, distance }; } return best; }
 function tickDirector(w, acct, now = Date.now()) {
@@ -220,15 +280,21 @@ function snapshot(input, acct, now = Date.now()) {
   prune(w, now);
   const p = w.players[acct] || null;
   const party = p?.partyCode && w.parties[p.partyCode];
+  const viewerParty = party ? p.partyCode : null;
+  // Interest management: only self, party members and strangers within INTEREST_RADIUS ever leave the server.
+  const visible = visibleAccounts(w, acct, now);
+  const nearEncounter = e => !!p && (e.owner === acct || Math.hypot(e.x - p.x, e.z - p.z) <= INTEREST_RADIUS + 10);
   return {
     world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
-    players: Object.entries(w.players).map(([id, player]) => publicPlayer(id, player, acct, now)).filter(v => v.online),
-    self: p ? publicPlayer(acct, p, acct, now) : null,
+    players: [...visible].map(id => publicPlayer(id, w.players[id], acct, now, viewerParty)).filter(v => v.online),
+    interest: { radius: INTEREST_RADIUS, mapShows: 'party' },
+    self: p ? publicPlayer(acct, p, acct, now, viewerParty) : null,
     director: p ? { phase: p.directorState?.phase || 'calm', lastDecision: p.directorState?.lastDecision || 'hold', nextSpawnAt: p.directorState?.nextSpawnAt || 0, noise: Math.round(Math.max(0, (p.noiseLevel || 0) - Math.max(0, now - (p.lastNoiseAt || now)) / 120)) } : null,
-    party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now)) } : null,
-    encounters: Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0).map(Combat.publicEncounter),
+    party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now, viewerParty)) } : null,
+    encounters: Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0 && nearEncounter(e)).map(Combat.publicEncounter),
     selfEncounter: Combat.publicEncounter(w.encounters?.[acct]),
     selfSurvival: p ? { ...p.survival } : null,
+    selfPvp: p ? { recentHits: p.pvpHits || [], kills: p.pvpKills || 0, downedAt: p.downedAt || 0, protectedUntil: (p.spawnedAt || 0) + 10_000 } : null,
     selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null,
     selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null,
     selfWeaponHandling: p ? { aiming: p.aiming, aimStartedAt: p.aimStartedAt, lastSprintAt: p.lastSprintAt, accuracyRecoverUntil: p.accuracyRecoverUntil } : null,
@@ -242,7 +308,7 @@ function enter(input, acct, now = Date.now()) {
   if (!p) {
     if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
     const safeSpawn = chooseSafeSpawn(w, acct), spawn = safeSpawn.spawn, position = safeSpawn.position;
-    p = w.players[acct] = { x: position.x, z: position.z, spawn: spawn.id, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }, aiming: false, aimStartedAt: 0, lastSprintAt: 0, accuracyRecoverUntil: 0 };
+    p = w.players[acct] = { x: position.x, z: position.z, spawn: spawn.id, spawnedAt: now, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }, aiming: false, aimStartedAt: 0, lastSprintAt: 0, accuracyRecoverUntil: 0 };
   }
   p.lastSeen = now;
   p.survival = Survival.tick(p.survival, now);
@@ -443,4 +509,4 @@ function leave(input, acct, now = Date.now(), { keepParty = false } = {}) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };
+module.exports = { FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };

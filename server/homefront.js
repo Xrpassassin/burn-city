@@ -14,6 +14,7 @@ const Siege = require('./homefront-siege');
 const Interiors = require('./homefront-interiors');
 const Exploration = require('./homefront-exploration');
 const Travel = require('./homefront-travel');
+const PvP = require('./homefront-pvp');
 const Collision = require('./homefront-collision');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
@@ -467,6 +468,17 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           if (player) player.lastSeen = now;
           store.save('homefront-world.json', db);
           json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: null });
+          return true;
+        }
+        case '/api/homefront/world/pvp': {
+          // Player-versus-player in the shared world (server/homefront-pvp.js). Clients send only targetId + aimPoint.
+          const bases = store.load('homefront.json', {});
+          const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
+          if (!base) throw new Error('save_invalid');
+          const now = Date.now();
+          const pvp = PvP.attack(db, user.acct, { targetId: payload.targetId, aimPoint: payload.aimPoint, base, now, farSpawn: World.chooseSafeSpawn, visibleAccounts: World.visibleAccounts });
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), pvp });
           return true;
         }
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z), Date.now(), payload.sprint === true); break;

@@ -296,7 +296,12 @@ export function buildNftChar(n, opts = {}) {
       if(antler) { const tine=add(geo('nft-antler-tine',()=>new THREE.ConeGeometry(.018,.13,6)),mat(hornColor),side*.19,.34,-.01,head); tine.rotation.z=side*.3; }
     }
   }
-  if(has(tr,/shade|sunglass|frames|goggle/)) {
+  if(has(tr,/lash|eyelash/)) {
+    for(const side of [-1,1]) for(let i=0;i<3;i++) {
+      const lash=addBox(head,mat('#171719'),[side*(.045+i*.019),.072,.181],[.008,.035,.008]);
+      lash.rotation.z=side*(.35+i*.16); lash.name='nft-eyelash';
+    }
+  } else if(has(tr,/shade|sunglass|frames|goggle|eyewear/)) {
     addBox(head,mat(has(tr,/gold/)?'#c9a34a':'#14161b',.32,.5),[0,.045,.183],[.34,.052,.025]);
     addBox(head,metal,[0,.045,.2],[.055,.018,.018]);
   }

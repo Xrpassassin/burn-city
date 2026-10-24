@@ -101,6 +101,12 @@ has(avatar, /nftAvatarProfile=.*components/, 'exposes resolved visual recipes fo
 has(avatar, /originalTraitPairs/, 'retains original NFT traits separately from normalized render traits');
 has(avatar, /nftAvatarProfile=/, 'attaches stable collection and identity metadata to the avatar');
 has(avatar, /const traitCoverage = profile\.rawTraits\.map/, 'creates a trait-by-trait visualization coverage record for every source trait');
+has(avatar, /fidelityLevel = 'procedural-approximation'/, 'does not label procedural trait mappings as approved visual matches');
+has(avatar, /visuallyApproved: false/, 'requires human approval before any trait can be considered visually faithful');
+has(avatar, /visualApproval = 'not-reviewed'/, 'keeps visual approval fail-closed until reference-art review');
+has(visualQa, /fidelityCounts=traitCoverage\.reduce/, 'summarizes approximation and unsupported-trait counts in visual QA');
+has(visualQa, /Visual approval: '\+visualApproval\+' \(human reference-art review required\)/, 'makes the manual likeness approval gate visible in the QA report');
+has(visualQa, /visualApproval:'not-reviewed'/, 'includes fail-closed visual approval state in copied QA reports');
 has(avatar, /needs-dedicated-visual/, 'flags traits without a faithful renderer instead of silently dropping them');
 has(avatar, /components\.tailStyle === 'custom'.*slot:'tail'/, 'flags custom tail designs instead of passing off the generic segmented tail as faithful');
 has(avatar, /components\.hairStyle === 'custom'.*slot:'hair style'/, 'flags unrecognized hairstyles instead of treating the generic hair cap as a faithful match');

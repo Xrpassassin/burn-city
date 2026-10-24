@@ -74,13 +74,12 @@ function attemptInteriorBreach({ account, enemy, player, interiors, now, elapsed
  const catalog = InteriorCatalog.interiorForLandmark(landmarkId), landmark = InteriorRules.LANDMARKS[landmarkId];
  if (!catalog || !landmark) return false;
  const opened = new Set(state.openedDoors || []), candidates = [];
- const seen = new Set();
+ const secureDoorIds = new Set(catalog.rooms.flatMap(room => room.exits.filter(exit => exit.requires?.length).map(exit => exit.id)));
  for (const room of catalog.rooms) for (const exit of room.exits) {
-  if (seen.has(exit.id) || opened.has(exit.id) || exit.requires?.length) continue;
-  seen.add(exit.id);
+  if (opened.has(exit.id) || secureDoorIds.has(exit.id)) continue;
  }
  for (const room of catalog.rooms) for (const exit of room.exits) {
-  if (opened.has(exit.id) || exit.requires?.length) continue;
+  if (opened.has(exit.id) || secureDoorIds.has(exit.id)) continue;
   const doorKey = exit.id + ':' + room.id;
   const x = landmark.x + room.x + (exit.side === 'east' ? room.width / 2 : exit.side === 'west' ? -room.width / 2 : 0);
   const z = landmark.z + room.z + (exit.side === 'south' ? room.depth / 2 : exit.side === 'north' ? -room.depth / 2 : 0);

@@ -6,13 +6,15 @@ This draft upgrades the characters seen while exploring BURN City. It uses the e
 
 ## Changes
 
-- Replaced the mostly rectangular NFT mannequin with a smoother articulated character: rounded torso, shoulder/hip transitions, capsule limbs, joints, boots, hands and facial details.
-- RACC gets a dedicated rounded raccoon head, eye mask (including the red-mask trait), muzzle, ears and segmented tail. Human-style Firekeepers/589 variants use facial planes, eyes, ears, hair/beard hints and collection-specific ember/BURN accents.
-- Maps up to 16 supported trait values (expanded from the previous 10-value snapshot) to headwear, crowns, hoods, horns, eyewear, flames, jewelry, armor, fur and capes.
-- Places the NFT's actual image on the character as a circular chest medallion; the floating portrait remains an optional peer identity card. The verified NFT image is still the canonical art, not a generated substitute.
-- The local selected NFT avatar animates while walking; remote NFT avatars use the same articulated walk/idle behavior.
-- Caches shared geometry/materials and image textures. Adds reduced sphere/capsule detail for mobile/low quality, and limits detailed peer NFT avatars to 8 desktop / 4 mobile, within 120 world units. Distant/inactive peers retain the existing lightweight marker/walker fallback.
-- Bumps the service-worker cache version to bc-v94-nftavatars.
+- Replaced the mostly rectangular NFT mannequin with a smoother articulated character and collection-specific RACC raccoon anatomy.
+- Uses the XRPL.to documented NFT-by-NFTokenID API as an **optional metadata/media enrichment source** for marketplace-origin records, while the XRPL ledger and on-ledger URI remain authoritative for ownership and primary metadata. Metadata records are matched by exact NFTokenID; marketplace data never grants ownership.
+- Preserves up to 64 typed trait pairs (trait type + value, each bounded) instead of truncating the visual input to 16 untyped values. Names, description, external URL, original artwork URI, animation/video/audio references, optional 3D-model reference and a bounded media-file list are cached with a versioned metadata schema.
+- On-ledger attributes take precedence; marketplace attributes fill in missing trait types. API timeouts/errors fall back to on-ledger metadata and the existing procedural avatar.
+- Cached artwork is resized with `contain` framing instead of `cover` cropping so the NFT's full composition is retained.
+- Trait rendering now uses typed values for skin/fur, clothing, headwear, eyes, masks and background halo; recognized mouth/expression, wings and weapon/gear traits receive additional 3D details. The full typed trait list and discovered media references are retained on the avatar for further collection-specific adapters.
+- Original artwork remains visible on the character as a portrait medallion, with optional floating identity card. Unknown traits are retained rather than discarded; not every arbitrary trait can yet be faithfully converted into geometry without a collection-specific renderer or source model.
+- The picker credits XRPL.to for enriched index data. The client still uses the existing Three.js runtime, no new dependencies.
+- Service-worker cache version is now `bc-v95-nft-traits`.
 
 ## Compatibility and licensing
 

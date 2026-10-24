@@ -47,7 +47,7 @@ assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;
 
 has(visualQa, /handledSlots=new Set\(\['identity'[\s\S]*'eye wear'/, 'does not report collection identity and supported eyewear traits as unmapped');
 has(visualQa, /id="showTabard" type="checkbox" checked/, 'allows reviewers to hide the artwork tabard and inspect the underlying 3D trait geometry');
-has(visualQa, /buildNftChar\(nft,\{panel:document\.querySelector\('#showTabard'\)\.checked,artworkUrl\}\)/, 'passes the tabard visibility toggle and original artwork URL into the avatar builder');
+has(visualQa, /buildNftChar\(nft,\{panel:document\.querySelector\('#showTabard'\)\.checked,artworkUrl,debugUnknownTraits:true\}\)/, 'passes source artwork and QA-only diagnostics into the avatar builder');
 has(visualQa, /showTabard.*addEventListener\('change',renderSample\)/, 'rerenders the avatar when tabard visibility changes');
 has(visualQa, /id="copyReport"/, 'provides a copyable QA report for collection reviews');
 has(visualQa, /navigator\.clipboard\.writeText\(JSON\.stringify\(report,null,2\)\)/, 'copies structured sample metadata and review diagnostics for reproducible bug reports');

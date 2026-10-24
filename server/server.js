@@ -128,7 +128,7 @@ const server = http.createServer(async (req, res) => {
       if (op === 'challenges' && req.method === 'GET') return json(res, 200, Fish.challenges(u.acct));
       if (op === 'challenges' && req.method === 'GET') return json(res, 200, Fish.challenges(u.acct));
       if (op === 'cast' && req.method === 'POST' && (!b.near || !Number.isFinite(+b.x) || !Number.isFinite(+b.z) || Math.abs(+b.x) > 900 || Math.abs(+b.z) > 900)) return json(res, 200, { error: 'not_near_water' });
-      if (op === 'cast' && req.method === 'POST') return json(res, 200, Fish.cast(u.acct, { bait: String(b.bait || 'worm'), deep: !!b.deep, weather: String(b.weather || '') }));
+      if (op === 'cast' && req.method === 'POST') return json(res, 200, Fish.cast(u.acct, { bait: String(b.bait || 'worm'), deep: !!b.deep, onBoat: !!b.onBoat, weather: String(b.weather || '') }));
       if (op === 'reel' && req.method === 'POST') return json(res, 200, Fish.reel(u.acct, String(b.cid || ''), !!b.ok));
       if (op === 'import' && req.method === 'POST') return json(res, 200, Fish.importGuest(u.acct, b.guest));
       if (op === 'sell' && req.method === 'POST') return json(res, 200, Fish.sell(u.acct));

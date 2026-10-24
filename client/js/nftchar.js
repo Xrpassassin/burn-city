@@ -171,7 +171,14 @@ export function buildNftChar(n, opts = {}) {
     addSphere(head,skin,[0,.02,0],[.235,.255,.22]);
     addSphere(head,mat(traitColor(/mask/i,has(tr,/red mask/)?'#c4161c':'#282a30')),[0,.005,.165],[.207,.105,.07]);
     for (const s of [-1,1]) {
+      // Layered ears: rounded outer fur, a tapered silhouette, and a contrasting inner ear.
       addSphere(head,mat('#686d75'),[s*.19,.205,-.005],[.085,.095,.065]);
+      const earTip=add(geo('nft-racc-ear-tip',()=>new THREE.ConeGeometry(.068,.19,8)),mat('#686d75'),s*.19,.285,-.004,head);
+      earTip.rotation.z=-s*.22; earTip.name='nft-racc-ear-tip';
+      addSphere(head,mat(traitColor(/fur color|fur/i,'#b77e82')),[s*.19,.215,.052],[.043,.058,.018]).name='nft-racc-inner-ear';
+      // Pale cheek ruffs widen the unmistakable raccoon face silhouette.
+      const cheek=addSphere(head,mat(shade(faceHex,1.22)),[s*.145,-.065,.155],[.082,.072,.047]);
+      cheek.name='nft-racc-cheek-ruff';
       addSphere(head,mat('#c9cdd0'),[s*.085,.02,.22],[.055,.05,.025]);
       addSphere(head,components.eyeStyle === 'glowing' ? glow(eyeHex) : mat(eyeHex),[s*.085,.02,.242],[.022,.025,.012]);
       addSphere(head,mat('#f0e4d0'),[s*.055,-.09,.19],[.075,.052,.052]);

@@ -16,6 +16,8 @@ assert.equal(a.lots.filter(x=>!x.propertyId).length,12);
 assert.deepEqual(a.lots.filter(x=>x.propertyId).map(x=>x.propertyId).sort(),catalog.properties.map(x=>x.id).sort(),'every catalog property must appear exactly once');
 assert(a.lots.every(x=>Math.abs(x.position.x)<=105&&Math.abs(x.position.z)<=112));
 assert(a.access.some(x=>x.kind==='bridge'&&x.vehicleAccess));
+assert.equal(a.access.find(x=>x.id==='primary-bridge').orientation,'z','primary bridge must align with the north-south walkable corridor');
+assert.equal(a.access.find(x=>x.id==='service-bridge').orientation,'z','service bridge must align with its north-south navigation corridor');
 assert(a.access.some(x=>x.kind==='dock'&&x.boatsEnabled===false));
 assert(a.roads.some(x=>x.orientation==='x')&&a.roads.some(x=>x.orientation==='z'));
 const mainCrossRoad=a.roads.find(x=>x.id==='road-main-east-west');

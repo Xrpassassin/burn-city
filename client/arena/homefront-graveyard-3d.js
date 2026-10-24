@@ -504,6 +504,9 @@ function boot(host) {
   let worldData = null, moving = false;
   let interiorState = null;
   let selectedInteriorLandmarkId = null;
+  let explorationProgress = null;
+  const explorationDiscoveryPending = new Set();
+  const explorationDiscoveryAttempted = new Set();
   const enterInteriorButton = document.getElementById('enterInterior');
   const interiorPanel = document.getElementById('interiorPanel');
   const interiorTitle = document.getElementById('interiorTitle');
@@ -690,18 +693,11 @@ function boot(host) {
     }
     const objective = document.getElementById('explorationObjective');
     if (objective && data.self) {
-      let discovered = [];
-      try {
-        const saved = JSON.parse(localStorage.getItem('homefrontExplorationDiscoveries') || '[]');
-        if (Array.isArray(saved)) discovered = saved.filter(id => LANDMARKS.some(item => item.id === id));
-      } catch { /* Discovery notes are optional; the expedition remains playable if storage is unavailable. */ }
+      const discovered = Array.isArray(explorationProgress?.discoveredIds) ? explorationProgress.discoveredIds : [];
       const guidance = explorationGuidance({ x: data.self.x, z: data.self.z }, discovered);
       const nearest = guidance.nearest;
       const nearestDistance = guidance.distance;
-      if (guidance.discoveredNow && nearest && !discovered.includes(nearest.id)) {
-        discovered.push(nearest.id);
-        try { localStorage.setItem('homefrontExplorationDiscoveries', JSON.stringify(discovered)); } catch { /* Private browsing may disable storage. */ }
-      }
+      if (guidance.discoveredNow && nearest && !discovered.includes(nearest.id)) void discoverExplorationLandmark(nearest.id);
       selectedInteriorLandmarkId = nearest && nearestDistance <= 12 && interiorForLandmark(nearest.id) ? nearest.id : null;
       if (enterInteriorButton) { enterInteriorButton.hidden = !selectedInteriorLandmarkId || !!interiorState; enterInteriorButton.textContent = selectedInteriorLandmarkId ? 'Enter ' + nearest.title : 'Enter nearby building'; }
       if (nearest && nearestDistance <= 20) {
@@ -862,6 +858,35 @@ function boot(host) {
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
     }
   }
+  async function fetchExplorationProgress() {
+    if (!token()) return;
+    try {
+      const response = await fetch(API + '/api/homefront/world/exploration', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.message || data.error || 'exploration_progress_unavailable');
+      if (data.exploration) explorationProgress = data.exploration;
+    } catch { /* Exploration guidance still works offline; server progress retries on the next world load. */ }
+  }
+  async function discoverExplorationLandmark(landmarkId) {
+    if (!token() || explorationDiscoveryPending.has(landmarkId) || explorationDiscoveryAttempted.has(landmarkId)) return;
+    explorationDiscoveryPending.add(landmarkId);
+    explorationDiscoveryAttempted.add(landmarkId);
+    try {
+      const response = await fetch(API + '/api/homefront/world/exploration/discover', {
+        method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
+        body: JSON.stringify({ landmarkId })
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.message || data.error || 'landmark_discovery_failed');
+      if (data.exploration) explorationProgress = data.exploration;
+      if (data.newlyDiscovered && data.landmark) setInteriorStatus('FIELD NOTES UPDATED · ' + data.landmark.title + ' discovered. New route and story leads recorded.');
+    } catch (error) {
+      // Permit retry on a later world update if this was a transient network/server error.
+      explorationDiscoveryAttempted.delete(landmarkId);
+    } finally {
+      explorationDiscoveryPending.delete(landmarkId);
+    }
+  }
   async function fetchWorld() {
     if (!token() || moving) { if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.'; return; }
     try {
@@ -869,6 +894,7 @@ function boot(host) {
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
       updateWorld(data);
+      await fetchExplorationProgress();
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
   async function combatAction(action, targetId = selectedCombatTargetId) {

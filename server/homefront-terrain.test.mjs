@@ -8,7 +8,7 @@ for (let x = -100; x <= 100; x += 7.25) {
   for (let z = -100; z <= 100; z += 9.5) {
     assert.equal(serverTerrain.terrainHeight(x, z), terrainHeight(x, z), `client/server terrain mismatch at ${x},${z}`);
     assert.equal(serverTerrain.terrainElevation(x, z), terrainElevation(x, z));
-    assert.equal(serverTerrain.TERRAIN_ELEVATION_SCALE, 0.42);
+    assert.equal(serverTerrain.TERRAIN_ELEVATION_SCALE, 1.15);
   }
 }
 for (const roadCenter of [-90, -70, -50, -30, -10, 10, 30, 50, 70, 90]) {

@@ -2,6 +2,8 @@
 // Deterministic server-side occupancy mirror for Homefront's Graveyard scene.
 // Keep generation constants aligned with client/arena/homefront-graveyard-3d.js.
 const Terrain = require('./homefront-terrain');
+const InteriorRules = require('./homefront-interiors');
+const InteriorCatalog = require('../client/arena/homefront-interior-world.mjs');
 const WORLD_SIZE = 100;
 const PLAYER_RADIUS = 0.55;
 const ENVIRONMENT_SEED = 8675309;
@@ -70,9 +72,47 @@ function buildObstacles() {
     { id: 'quarantine_shelter', x: 36, z: 38, type: 'rect', halfX: 1.75, halfZ: 1.5 }
   ];
   out.push(...poiProps.map(p => ({ ...p, halfX: p.halfX + 0.25, halfZ: p.halfZ + 0.25 })));
+  // Interior room walls share the authored client floorplan. These obstacles are activated only
+  // for the account currently inside that building; closed doors have removable blockers.
+  for (const interior of InteriorCatalog.INTERIORS) {
+    const landmark = InteriorRules.LANDMARKS[interior.landmarkId];
+    if (!landmark) continue;
+    for (const room of interior.rooms) {
+      for (const side of ['north','south','east','west']) {
+        const alongX = side === 'north' || side === 'south';
+        const length = alongX ? room.width : room.depth;
+        const wallThickness = 0.16, wallHalfHeight = 1.225;
+        const fixedX = landmark.x + room.x + (side === 'west' ? -room.width / 2 : side === 'east' ? room.width / 2 : 0);
+        const fixedZ = landmark.z + room.z + (side === 'north' ? -room.depth / 2 : side === 'south' ? room.depth / 2 : 0);
+        const exit = room.exits.find(item => item.side === side);
+        const isExteriorEntry = room.id === interior.entryRoom && side === 'south';
+        const hasOpening = !!exit || isExteriorEntry;
+        const addWall = (segmentIndex, offset, segmentLength) => {
+          const centerX = landmark.x + room.x + (alongX ? offset : (side === 'west' ? -room.width / 2 : room.width / 2));
+          const centerZ = landmark.z + room.z + (alongX ? (side === 'north' ? -room.depth / 2 : room.depth / 2) : offset);
+          out.push({ id: 'interior-wall:' + interior.landmarkId + ':' + room.id + ':' + side + ':' + segmentIndex,
+            type: 'rect', x: centerX, z: centerZ,
+            halfX: alongX ? segmentLength / 2 : wallThickness / 2,
+            halfZ: alongX ? wallThickness / 2 : segmentLength / 2 });
+        };
+        if (hasOpening) {
+          const gapWidth = 1.8, segment = (length - gapWidth) / 2;
+          addWall(0, -(gapWidth + segment) / 2, segment);
+          addWall(1, (gapWidth + segment) / 2, segment);
+          if (exit) {
+            out.push({ id: 'interior-door:' + interior.landmarkId + ':' + exit.id + ':' + room.id,
+              type: 'rect', x: alongX ? landmark.x + room.x : fixedX,
+              z: alongX ? fixedZ : landmark.z + room.z,
+              halfX: alongX ? gapWidth / 2 : 0.22, halfZ: alongX ? 0.22 : gapWidth / 2 });
+          }
+        } else addWall(0, 0, length);
+      }
+    }
+  }
   return out;
 }
 const OBSTACLES = buildObstacles();
+const INTERIOR_OBSTACLE_IDS = OBSTACLES.filter(o => o.id.startsWith('interior-wall:') || o.id.startsWith('interior-door:')).map(o => o.id);
 // Uniform spatial hash over the static obstacle catalog. Each obstacle is filed in every cell its
 // footprint (+ GRID_MARGIN) touches, so a query with radius <= GRID_MARGIN only needs its own cell;
 // larger radii fall back to the full scan. Results are identical to the brute-force loop.
@@ -134,4 +174,4 @@ function findSafePosition(x, z, { bounds = WORLD_SIZE, maxRadius = 18, step = 2 
   }
   return null;
 }
-module.exports = { WORLD_SIZE, PLAYER_RADIUS, OBSTACLES, GRID_CELL, GRID_MARGIN, pointBlocked, canTraverse, isSafePosition, findPath, findSafePosition };
+module.exports = { WORLD_SIZE, PLAYER_RADIUS, OBSTACLES, INTERIOR_OBSTACLE_IDS, GRID_CELL, GRID_MARGIN, pointBlocked, canTraverse, isSafePosition, findPath, findSafePosition };

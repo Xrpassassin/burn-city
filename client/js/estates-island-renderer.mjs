@@ -4,7 +4,7 @@ const PALETTE = {
   grass:0x526d3b, asphalt:0x292b2b, stone:0x9b9588, 'weathered-concrete':0x77766e,
   'steel-concrete':0x525d61, timber:0x765034, 'lake-water':0x164f70, 'rock-and-reeds':0x77765b,
   'lot-boundary':0xe5b45d, 'interaction-volume':0x34d7ff, pine:0x31563a, deciduous:0x4d7544,
-  trailer:0x8e8a80, apartment:0xc2b5a1, starter:0xb59a76, family:0x9e8466, mansion:0xd1c3a2
+  trailer:0x8e8a80, apartment:0xc2b5a1, starter:0xb59a76, family:0x9e8466, mansion:0xd1c3a2, plaza:0x8e9b9a
 };
 function assertThree(THREE) {
   for (const name of ['Group','Mesh','MeshStandardMaterial','BoxGeometry','CylinderGeometry','ConeGeometry','CircleGeometry','RingGeometry','EdgesGeometry','LineBasicMaterial','LineSegments']) {
@@ -22,6 +22,34 @@ function box(THREE,parent,id,p,w,h,d,color,options={}) {
 function ring(THREE,parent,id,p,inner,outer,color) {
   const mesh=new THREE.Mesh(new THREE.RingGeometry(inner,outer,96),material(THREE,color));
   mesh.name=id; place(mesh,p); mesh.rotation.x=-Math.PI/2; parent.add(mesh); return mesh;
+}
+function addLandmark(THREE,parent,item) {
+  const {x,y,z}=item.position,d=item.dimensions,style=item.style;
+  const made=[];
+  if(style==='kiosk'||style==='market') {
+    made.push(box(THREE,parent,item.id+'-counter',{x,y:y+.55,z},d.width,.25,d.depth,0x755238));
+    const postColor=style==='kiosk'?0x354750:0x4d4030;
+    for(const sx of [-1,1]) for(const sz of [-1,1]) made.push(box(THREE,parent,item.id+'-post-'+sx+'-'+sz,{x:x+sx*(d.width/2-.2),y:y+d.height/2,z:z+sz*(d.depth/2-.2)},.22,d.height,.22,postColor));
+    made.push(box(THREE,parent,item.id+'-roof',{x,y:y+d.height,z},d.width+.65,.28,d.depth+.65,style==='kiosk'?0x2a7d8b:0x9b6a32));
+    if(style==='kiosk') made.push(box(THREE,parent,item.id+'-sign',{x,y:y+d.height+.32,z:z-d.depth/2+.2},d.width*.72,.55,.16,0x29dfff));
+    if(style==='market') for(let i=-1;i<=1;i++) made.push(box(THREE,parent,item.id+'-stall-'+i,{x:x+i*d.width*.23,y:y+1.05,z},.12,.9,d.depth*.65,0xc98a48));
+  } else if(style==='plaza') {
+    const slab=new THREE.Mesh(new THREE.CircleGeometry(Math.min(d.width,d.depth)/2,48),material(THREE,0x8e9b9a));
+    slab.name=item.id+'-paving';place(slab,{x,y:y+.03,z});slab.rotation.x=-Math.PI/2;parent.add(slab);made.push(slab);
+    made.push(box(THREE,parent,item.id+'-plaza-marker',{x,y:y+.42,z},1.4,.65,1.4,0x354750));
+    for(const sx of [-1,1]) made.push(box(THREE,parent,item.id+'-bench-'+sx,{x:x+sx*4,y:y+.32,z:z+2.5},2.8,.35,.75,0x765034));
+  } else if(style==='overlook') {
+    made.push(box(THREE,parent,item.id+'-deck',{x,y:y+.1,z},d.width,d.height,d.depth,0x77766e));
+    for(const side of [-1,1]) {
+      made.push(box(THREE,parent,item.id+'-rail-'+side,{x:x+side*(d.width/2-.15),y:y+1.0,z},.18,1.5,d.depth,0x52636a));
+      made.push(box(THREE,parent,item.id+'-rail-front-'+side,{x:x+side*d.width*.25,y:y+1.0,z:z+d.depth/2-.12},d.width*.5,.12,.18,0x52636a));
+    }
+  } else if(style==='trailhead') {
+    made.push(box(THREE,parent,item.id+'-post',{x,y:y+d.height/2,z},.28,d.height,.28,0x59412b));
+    made.push(box(THREE,parent,item.id+'-sign',{x,y:y+d.height*.72,z:z+.22},d.width,.65,.22,0xb58b4c));
+    made.push(box(THREE,parent,item.id+'-base',{x,y:y+.12,z},1.5,.24,.9,0x77765b));
+  }
+  return made;
 }
 function addTree(THREE,parent,item) {
   const {x,y,z}=item.position, d=item.dimensions, color=PALETTE[item.material]??PALETTE.deciduous;
@@ -60,7 +88,8 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
       case 'footpath':
       case 'bridge':
       case 'dock': {
-        const horizontal=item.orientation==='x' || item.kind==='bridge' || item.kind==='dock';
+        // Explicit orientation wins. Legacy bridge/dock descriptors without one keep the X-axis default.
+        const horizontal=item.orientation ? item.orientation==='x' : item.kind==='bridge' || item.kind==='dock';
         // Convention: width is across the route; length is along it.
         // X-oriented routes put length on X, Z-oriented routes put length on Z.
         const width=d.width??5, length=d.length??d.depth??8, height=d.height??.2;
@@ -83,6 +112,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
         break;
       }
       case 'tree': made=addTree(THREE,root,item); break;
+      case 'landmark': made=addLandmark(THREE,root,item); break;
       case 'entrance-trigger': {
         const mesh=new THREE.Mesh(new THREE.CylinderGeometry(d.radius,d.radius,d.height,24,1,true),material(THREE,PALETTE['interaction-volume'],{transparent:true,opacity:.12}));
         mesh.name=item.id; place(mesh,{x:p.x,y:p.y+d.height/2,z:p.z}); root.add(mesh); made=[mesh];

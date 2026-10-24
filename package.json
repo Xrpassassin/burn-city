@@ -11,7 +11,7 @@
     "burn": "node server/burn.js",
     "bots": "node test/bots.js ws://localhost:8080 8 30",
     "test:testnet": "node test/testnet-payments.js",
-    "test": "node test/payments-sim.js && node test/security-sim.js && node test/flair-sim.js && node test/goldlock-sim.js && node test/amm-lock-sim.js && node test/cams-sim.js && node test/bt-sim.js && node client/js/wilds-pathfinding-core.test.mjs && node client/js/skate-physics-core.test.mjs && npm run -s test:eternal-grind && npm run -s test:blacktide && npm run -s test:wilds && npm run -s test:graphics-labs && npm run -s test:experience-registry && npm run -s test:experience-instance-pool && npm run -s test:estates-entry-adapter && npm run -s test:estates-island-scene && npm run -s test:estates-island-renderer && npm run -s test:estates-island-runtime && npm run -s test:world-objectives && npm run -s test:moba && npm run -s test:zombie-arrival && npm run -s test:flight-lobby && npm run -s test:homefront && npm run -s test:estates && npm run -s test:estates-wallet",
+    "test": "node test/payments-sim.js && node test/security-sim.js && node test/flair-sim.js && node test/goldlock-sim.js && node test/amm-lock-sim.js && node test/cams-sim.js && node test/bt-sim.js && node client/js/wilds-pathfinding-core.test.mjs && node client/js/skate-physics-core.test.mjs && npm run -s test:eternal-grind && npm run -s test:blacktide && npm run -s test:wilds && npm run -s test:graphics-labs && npm run -s test:experience-registry && npm run -s test:experience-instance-pool && npm run -s test:estates-entry-adapter && npm run -s test:estates-island-scene && npm run -s test:estates-island-renderer && npm run -s test:estates-island-runtime && npm run -s test:estates-island-navigation && npm run -s test:estates-island-controller && npm run -s test:estates-island-live && npm run -s test:world-objectives && npm run -s test:moba && npm run -s test:zombie-arrival && npm run -s test:flight-lobby && npm run -s test:homefront && npm run -s test:estates && npm run -s test:estates-wallet",
     "test:wilds-pathfinding": "node client/js/wilds-pathfinding-core.test.mjs",
     "test:skate": "node client/js/skate-physics-core.test.mjs",
     "test:fishing-rules": "node client/js/fishing-rules.test.mjs",
@@ -54,7 +54,10 @@
     "test:estates-entry-adapter": "node client/js/estates-entry-adapter.test.mjs",
     "test:estates-island-scene": "node client/js/estates-island-scene.test.mjs",
     "test:estates-island-renderer": "node client/js/estates-island-renderer.test.mjs",
-    "test:estates-island-runtime": "node client/js/estates-island-runtime.test.mjs"
+    "test:estates-island-runtime": "node client/js/estates-island-runtime.test.mjs",
+    "test:estates-island-navigation": "node client/js/estates-island-navigation.test.mjs",
+    "test:estates-island-controller": "node client/js/estates-island-controller.test.mjs",
+    "test:estates-island-live": "node client/js/estates-island-live.test.mjs"
   },
   "keywords": [],
   "author": "",

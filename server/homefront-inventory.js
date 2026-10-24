@@ -8,7 +8,7 @@ const PERISHABLE=new Set(['food','rawFood']),CAPACITY=24;
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,Number.isFinite(n)?Math.floor(n):min));
 function normalize(input,now=Date.now()){const out={};for(const [id,s] of Object.entries(ITEMS))out[id]=clamp(input?.[id],0,s.maxStack);out.freshness=Freshness.normalizeBatches(input?.freshness,out,Number.isFinite(input?.freshnessMigratedAt)?input.freshnessMigratedAt:now);return out;}
 // Refuge-only stocks that never go in the field pack (e.g. farm seeds) must survive pack/stash round trips.
-const REFUGE_ONLY=['seeds'];
+const REFUGE_ONLY=['seeds','stone','steel'];// refuge-only stock that field packing must carry through untouched
 function normalizeResources(input,now=Date.now()){const out={};for(const id of Object.keys(ITEMS))out[id]=clamp(input?.[id],0,999999);for(const id of REFUGE_ONLY)if(Number.isFinite(input?.[id]))out[id]=clamp(input[id],0,999999);out.freshness=Freshness.normalizeBatches(input?.freshness,out,Number.isFinite(input?.freshnessMigratedAt)?input.freshnessMigratedAt:now);return out;}
 function used(input){const i=normalize(input);return Object.entries(ITEMS).reduce((n,[id,s])=>n+i[id]*s.weight,0);}
 function mergeBatches(existing,incoming,count,now){const all=[...(existing||[]),...(incoming||[])].filter(b=>b&&Number.isFinite(b.qty)&&b.qty>0&&Number.isFinite(b.acquiredAt)).sort((a,b)=>a.acquiredAt-b.acquiredAt);return Freshness.normalizeBatches({food:all,rawFood:[]},{food:count,rawFood:0},now).food;}

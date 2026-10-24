@@ -22,3 +22,7 @@ assert.throws(()=>I.removeUsable(expired,'food',1,now),/food_spoiled/);
 const mixed=I.normalize({food:2,freshness:{food:[{qty:1,acquiredAt:now-25*hour},{qty:1,acquiredAt:now-hour}],rawFood:[]}},now);
 const edible=I.removeUsable(mixed,'food',1,now);assert.equal(edible.inventory.food,1);assert.equal(edible.inventory.freshness.food[0].acquiredAt,now-25*hour);
 console.log('Homefront carried inventory freshness rules passed.');
+// Refuge-only construction materials survive field packing (withdraw/stash replace base.resources).
+{const stock=I.normalizeResources({food:5,water:5,seeds:4,stone:12,steel:7},now);if(stock.stone!==12||stock.steel!==7||stock.seeds!==4)throw new Error('normalizeResources dropped refuge-only materials');
+ const w=I.withdraw(I.normalize({},now),{food:5,water:5,stone:12,steel:7},'food',1,now);if(w.resources.stone!==12||w.resources.steel!==7)throw new Error('withdraw dropped stone/steel');
+ const old=I.normalizeResources({food:5},now);if('stone' in old&&old.stone!==0)throw new Error('old saves get no phantom stone');console.log('refuge-only materials survive packing');}

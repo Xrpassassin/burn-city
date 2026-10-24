@@ -8,7 +8,8 @@ const PREFERRED_BAIT = {
   minnow: 0, bluegill: 0, perch: 0, shiner: 0, dace: 0,
   carp: 1, catfish: 1, eel: 2, gar: 2, koi: 2, cod: 1,
   sturgeon: 1, snapper: 3, trout: 3, bass: 3, pike: 3,
-  salmon: 3, leviathan: 2, marlin: 2, whaleshark: 2
+  salmon: 3, leviathan: 2, marlin: 2, whaleshark: 2,
+  sunfish: 0, goldentrout: 2, swordfish: 2, anglerfish: 2
 };
 
 // Catch XP is deterministic so guest and signed-in anglers see the same progression.

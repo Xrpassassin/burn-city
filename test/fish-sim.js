@@ -3,7 +3,7 @@ const fs = require('fs'), path = require('path'), os = require('os');
 Object.assign(process.env, { DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'bcfish-')), TOKEN_SECRET: 'sim' });
 const F = require('../server/fish'); let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? '  PASS ' : '  FAIL ') + m); };
 const realNow = Date.now; let off = 0; Date.now = () => realNow() + off; const A = 'rFishSim11111111111111111111';
-ok(F.SPECIES.length === 24 && new Set(F.SPECIES.map(s => s[2])).size === 5, '20 species across 5 rarities');
+ok(F.SPECIES.length === 24 && new Set(F.SPECIES.map(s => s[2])).size === 5, '24 species across 5 rarities');
 ok(F.anglerLevel(0) === 1 && F.anglerLevel(100) === 2 && F.anglerLevel(700) === 5 && F.anglerLevel(3050) === 10, 'server angler level thresholds match client progression');
 ok(F.xpForCatch({ r: 0, kg: 0.2 }) === 10 && F.xpForCatch({ r: 4, kg: 900 }) === 88, 'server catch XP is deterministic and weight-capped');
 ok(F.baitAffinity('minnow', 0) === 1.25 && F.baitAffinity('minnow', 3) === 0.9, 'preferred bait boosts odds and mismatched bait modestly lowers them');

@@ -39,12 +39,14 @@ function roll(rodId, baitId, ctx, rnd = Math.random) {
   const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(rnd(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +Math.min(capacity, s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
   return { id: s[0], name: s[1], r: s[2], kg, val: Math.round(s[4] * (1 + f)), hits: 1 + s[2], zone: +(0.3 - 0.04 * s[2] + 0.05 * rt).toFixed(2) };
 }
+const xpBackfilled = new Set();
 const get = acct => {
   const r = db.prepare('SELECT * FROM fish_prof WHERE acct=?').get(acct);
   if (!r) return { coins: 0, rod: 'basic', rods: ['basic'], bait: { worm: -1 }, log: {}, creel: [], n: 0, xp: 0, boats: ['skiff'], selectedBoat: 'skiff' };
   let xp = Math.max(0, Number(r.xp) || 0);
   // Backfill XP for pre-progression signed-in anglers from server-recorded catch rows only.
-  if (!xp && Number(r.n) > 0) {
+  if (!xp && Number(r.n) > 0 && !xpBackfilled.has(acct)) {
+    xpBackfilled.add(acct);   // scan the catch history once per process, not on every profile read
     const rows = db.prepare('SELECT sp, kg FROM fish_catch WHERE acct=? AND sp IS NOT NULL AND kg IS NOT NULL').all(acct);
     const rarity = new Map(SPECIES.map(s => [s[0], s[2]]));
     xp = rows.reduce((sum, row) => sum + (rarity.has(row.sp) ? xpForCatch({ r: rarity.get(row.sp), kg: row.kg }) : 0), 0);
@@ -91,7 +93,7 @@ function sell(acct) { const p = get(acct), v = p.creel.reduce((a, f) => a + f[2]
 function buy(acct, kind, id, qty = 1) {
   const p = get(acct), list = kind === 'rod' ? SHOP.rods : kind === 'boat' ? BOATS.map(b => [b.id, b.name, b.price, b.tier]) : SHOP.baits, it = list.find(x => x[0] === id); if (!it) return { error: 'unknown' };
   if (kind === 'boat' && p.boats.includes(id)) { p.selectedBoat = id; put(acct, p); return { profile: get(acct) }; }
-  qty = Math.max(1, Math.min(50, qty | 0)); const cost = kind === 'rod' ? it[2] : it[2] * qty;
+  qty = Math.max(1, Math.min(50, qty | 0)); const cost = kind === 'bait' ? it[2] * qty : it[2];   // rods and boats are single items: never multiply their price by a client qty
   if (kind === 'rod' && p.rods.includes(id)) { p.rod = id; put(acct, p); return { profile: p }; }
   if (p.coins < cost) return { error: 'not_enough_coins' };
   if (kind === 'rod' && anglerLevel(p.xp) < (ROD_LEVELS[id] || 1)) return { error: 'level_locked', level: anglerLevel(p.xp), requiredLevel: ROD_LEVELS[id] || 1 };

@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
 
-const [avatar, city, app, sw, picker, nftServer] = await Promise.all([
+const [avatar, city, app, sw, picker, nftServer, visualQa] = await Promise.all([
   readFile(new URL('./nftchar.js', import.meta.url), 'utf8'),
   readFile(new URL('./city.js', import.meta.url), 'utf8'),
   readFile(new URL('./app.js', import.meta.url), 'utf8'),
   readFile(new URL('../sw.js', import.meta.url), 'utf8'),
   readFile(new URL('./nftpick.js', import.meta.url), 'utf8'),
-  readFile(new URL('../../server/nft.js', import.meta.url), 'utf8')
+  readFile(new URL('../../server/nft.js', import.meta.url), 'utf8'),
+  readFile(new URL('../nft-avatar-visual-qa.html', import.meta.url), 'utf8')
 ]);
 let checks = 0;
 function has(source, pattern, message) { assert.match(source, pattern, message); checks++; }
@@ -20,6 +21,8 @@ assert.equal(raccProfile.collectionName, 'RACC'); checks++;
 assert.equal(raccProfile.archetype, 'raccoon'); checks++;
 assert.deepEqual(raccProfile.renderTraits, [['mask', 'Crimson'], ['background', 'Sunset'], ['fur color', 'Silver']]); checks++;
 assert.deepEqual(raccProfile.rawTraits, [['Bandit Mask', 'Crimson'], ['Background', 'Sunset'], ['Fur Color', 'Silver']]); checks++;
+const raccIdentityProfile = resolveNftAvatarProfile({ key: 'racc', traits: [['RACCOON GUY', 'Raccoon Guy']] });
+assert.deepEqual(raccIdentityProfile.renderTraits, [['identity', 'Raccoon Guy']]); checks++;
 assert.equal(raccProfile.identitySeed, resolveNftAvatarProfile({ key: 'racc', id: 'NFT-001' }).identitySeed); checks++;
 assert.notEqual(raccProfile.identitySeed, resolveNftAvatarProfile({ key: 'racc', id: 'NFT-002' }).identitySeed); checks++;
 const firekeeperProfile = resolveNftAvatarProfile({ key: 'fk', traits: [['Ember Type', 'Blue'], ['Keeper Robes', 'Ash']] });
@@ -30,6 +33,7 @@ const unknownProfile = resolveNftAvatarProfile({ key: 'future-project', traits: 
 assert.equal(unknownProfile.hasCollectionAdapter, false); checks++;
 assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;
 
+has(visualQa, /handledSlots=new Set\(\['identity'[\s\S]*'eye wear'/, 'does not report collection identity and supported eyewear traits as unmapped');
 has(avatar, /resolveNftAvatarProfile/, 'routes traits through collection-specific adapters');
 has(avatar, /resolveNftAvatarComponents/, 'resolves typed traits into explicit visual component recipes');
 has(avatar, /resolveNftAvatarReconstruction/, 'selects a collection-specific reconstruction blueprint');

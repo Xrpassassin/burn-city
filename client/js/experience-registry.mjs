@@ -109,5 +109,14 @@ export function createBurnCityExperienceRegistry({ launchers = {}, ...options } 
     launch: cyclesLaunch,
     returnTo: 'aegis-pyramid-plaza'
   });
+  const estatesLaunch = launchers['estates-island'];
+  registry.register({
+    id: 'estates-island',
+    label: 'Estates Island',
+    description: 'Shared island neighborhood; enter only after explicit confirmation at the city-side entrance.',
+    status: typeof estatesLaunch === 'function' ? 'available' : 'planned',
+    launch: estatesLaunch,
+    returnTo: 'estates-island-entrance'
+  });
   return registry;
 }

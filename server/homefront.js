@@ -8,6 +8,7 @@ const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 const Environment = require('./homefront-environment');
+const Interiors = require('./homefront-interiors');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
@@ -81,14 +82,15 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
     try {
       const payload = req.method === 'POST' ? await body() : null;
       const db = World.normalizeWorld(store.load('homefront-world.json', World.defaultWorld()));
+      db.interiors = Interiors.normalize(db.interiors);
       let outcome;
       if (req.method === 'GET' && url.pathname === '/api/homefront/world') {
         if (db.players && db.players[user.acct] && Date.now() - db.players[user.acct].lastSeen <= World.PRESENCE_TTL) {
           const joined = World.enter(db, user.acct);
           store.save('homefront-world.json', joined.world);
-          json(res, 200, { mode: 'homefront-world', ...joined.result }); return true;
+          json(res, 200, { mode: 'homefront-world', ...joined.result, interior: Interiors.publicState(db.interiors, user.acct) }); return true;
         }
-        json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct) }); return true;
+        json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), interior: Interiors.publicState(db.interiors, user.acct) }); return true;
       }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
@@ -331,6 +333,46 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           player.lastSeen = now;
           store.save('homefront-world.json', db);
           json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), environmentDamage: damaged.structure });
+          return true;
+        }
+        case '/api/homefront/world/interior/enter': {
+          const player = db.players[user.acct];
+          const now = Date.now();
+          const entered = Interiors.enter(db.interiors, { account: user.acct, player, landmarkId: typeof payload.landmarkId === 'string' ? payload.landmarkId : '', now });
+          db.interiors = entered.state;
+          if (player) player.lastSeen = now;
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct) });
+          return true;
+        }
+        case '/api/homefront/world/interior/action': {
+          const player = db.players[user.acct];
+          const now = Date.now();
+          const acted = Interiors.action(db.interiors, { account: user.acct, player, actionId: typeof payload.actionId === 'string' ? payload.actionId : '', now });
+          db.interiors = acted.state;
+          if (player) player.lastSeen = now;
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct), interiorMessage: acted.message, interiorReward: acted.reward, inventory: { ...acted.inventory, used: Inventory.used(acted.inventory), capacity: Inventory.CAPACITY }, interiorNoise: acted.noise });
+          return true;
+        }
+        case '/api/homefront/world/interior/door': {
+          const player = db.players[user.acct];
+          const now = Date.now();
+          const traversed = Interiors.traverse(db.interiors, { account: user.acct, player, doorId: typeof payload.doorId === 'string' ? payload.doorId : '', now });
+          db.interiors = traversed.state;
+          if (player) player.lastSeen = now;
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct) });
+          return true;
+        }
+        case '/api/homefront/world/interior/leave': {
+          const player = db.players[user.acct];
+          const now = Date.now();
+          const left = Interiors.leave(db.interiors, { account: user.acct, player, now });
+          db.interiors = left.state;
+          if (player) player.lastSeen = now;
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: null });
           return true;
         }
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z), Date.now(), payload.sprint === true); break;

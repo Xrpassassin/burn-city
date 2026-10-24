@@ -12,7 +12,7 @@ This draft upgrades the characters seen while exploring BURN City. It uses the e
 - Places the NFT's actual image on the character as a circular chest medallion; the floating portrait remains an optional peer identity card. The verified NFT image is still the canonical art, not a generated substitute.
 - The local selected NFT avatar animates while walking; remote NFT avatars use the same articulated walk/idle behavior.
 - Caches shared geometry/materials and image textures. Adds reduced sphere/capsule detail for mobile/low quality, and limits detailed peer NFT avatars to 8 desktop / 4 mobile, within 120 world units. Distant/inactive peers retain the existing lightweight marker/walker fallback.
-- Bumps the service-worker cache version to bc-v93-nftavatars.
+- Bumps the service-worker cache version to bc-v94-nftavatars.
 
 ## Compatibility and licensing
 

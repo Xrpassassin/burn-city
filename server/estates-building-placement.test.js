@@ -33,7 +33,7 @@ assert.equal(planEstatePlacement({ ...base, existingPlacements: [{ placementId: 
 assert.equal(planEstatePlacement({ ...base, existingPlacements: [{ placementId: 'build-1', propertyId: 'estate-101', x: 8, z: 8, width: 1, depth: 1 }] }).reason, 'duplicate-placement-id');
 assert.equal(planEstatePlacement({ ...base, existingPlacements: [{ placementId: 'bad', propertyId: 'estate-101', x: NaN, z: 0, width: 1, depth: 1 }] }).reason, 'invalid-saved-placement');
 assert.equal(planEstatePlacement({ ...base, lot: { ...lot, propertyId: '' } }).reason, 'mapped-property-required');
-const rotated = planEstatePlacement({ ...base, buildingType: 'barricade', rotationY: Math.PI / 2, placementId: 'build-rotated', position: { x: 9.5, z: 0 } });
+const rotated = planEstatePlacement({ ...base, buildingType: 'barricade', rotationY: Math.PI / 2, placementId: 'build-rotated', position: { x: 9.9, z: 0 } });
 assert.equal(rotated.reason, 'outside-lot-boundary');
 const otherPropertyOverlap = planEstatePlacement({ ...base, existingPlacements: [{ placementId: 'build-other', propertyId: 'estate-202', x: 0, z: 0, width: 8, depth: 8 }] });
 assert.equal(otherPropertyOverlap.ok, true, 'placements belonging to another lot do not block this lot');

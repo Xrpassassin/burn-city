@@ -6,7 +6,7 @@ let checks = 0;
 function equal(actual, expected, message) { assert.deepEqual(actual, expected, message); checks++; }
 function ok(value, message) { assert.ok(value, message); checks++; }
 
-equal(NFT_AVATAR_RECONSTRUCTION_COLLECTIONS, ['racc', 'fk', '589', 'generic'], 'exposes supported blueprint keys in stable order');
+equal(NFT_AVATAR_RECONSTRUCTION_COLLECTIONS, ['589', 'racc', 'fk', 'generic'], 'exposes supported blueprint keys in stable order');
 const racc = resolveNftAvatarReconstruction(resolveNftAvatarProfile({key:'racc',id:'RACC-001',traits:[['Armed','TNT'],['Fits','Sweater']]}));
 equal(racc.archetype,'anthropomorphic-raccoon','RACC gets an animal-specific reconstruction');
 equal(racc.silhouetteTags,['rounded-raccoon-skull','eye-mask','muzzle','ringed-tail'],'RACC silhouette includes its defining anatomy');

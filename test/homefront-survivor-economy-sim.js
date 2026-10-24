@@ -114,4 +114,22 @@ function baseWithSurvivors(owner, survivors, resources = {}) {
   }
 }
 
+
+// Save/load normalization preserves survivor identity, role, and morale; owner isolation is enforced.
+{
+  const original = baseWithSurvivors('survivor-save-roundtrip', [
+    { id: 'persist-guard', name: 'Mara', role: 'guard', morale: 83 },
+    { id: 'persist-medic', name: 'Ivo', role: 'medic', morale: 46 }
+  ]);
+  const serialized = JSON.parse(JSON.stringify(original));
+  const restored = H.validateBase(serialized, 'survivor-save-roundtrip');
+  assert.ok(restored, 'valid saved refuge restores successfully');
+  assert.deepEqual(
+    restored.survivors.map(({ id, name, role, morale }) => ({ id, name, role, morale })),
+    original.survivors.map(({ id, name, role, morale }) => ({ id, name, role, morale })),
+    'survivor roster identity and assignment survive save/load normalization'
+  );
+  assert.equal(H.validateBase(serialized, 'different-account'), null, 'a different account cannot restore another owner\'s refuge');
+}
+
 console.log('Homefront survivor economy checks passed.');

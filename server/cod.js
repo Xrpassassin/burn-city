@@ -7,6 +7,8 @@ const WEAPONS = [
   { id: 'shotgun', name: 'Fire Shotgun', kind: 'burst', range: 8, cos: Math.cos(0.5), dmg: 95, cd: 0.75, use: 14, regen: 16 },
   { id: 'napalm', name: 'Firestorm', kind: 'ray', dmg: 70, range: 26, splash: 1.6, cd: 0.45, use: 12, regen: 14 },   // id kept as 'napalm' so existing owners/slots migrate automatically
   { id: 'beam', name: 'Inferno Beam', kind: 'beam', range: 22, width: 0.9, dps: 130, use: 30, regen: 12 },
+  // Appended only: never renumber existing weapon IDs. Cosmodrome Free Play wall-buy only.
+  { id: 'ravager', name: 'RAVAGER Rotary Heavy', kind: 'rotary', range: 27, width: 0.72, dps: 112, use: 24, regen: 15 },
 ];
 const WI = Object.fromEntries(WEAPONS.map((w, i) => [w.id, i]));
 // Inferno Forge (this map's upgrade machine): reforges the weapon in hand once: +70% damage, +15% range, 30% less fuel, faster cycling
@@ -106,7 +108,8 @@ const COSMODROME = { name: 'The Ashen Cosmodrome', kind: 'cosmodrome', env: { to
   wallbuys: [
     { w: 'shotgun', cost: 500, s: [16, 25, -1, 0] },
     { w: 'dragon', cost: 1000, s: [14, 22, 0, -1] },
-    { w: 'napalm', cost: 1500, s: [38, 25, 1, 0] }
+    { w: 'napalm', cost: 1500, s: [38, 25, 1, 0] },
+    { w: 'ravager', cost: 3500, s: [24, 15, 1, 0] }
   ],
   box: [[19, 28, 0, 1], [7, 25, -1, 0], [20, 5, 0, -1], [35, 25, 1, 0], [8, 7, -1, 0], [30, 12, 1, 0]],
   forge: [35, 5, 0, -1], power: [23, 8, 1, 0],

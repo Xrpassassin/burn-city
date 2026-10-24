@@ -15,12 +15,24 @@ assert.equal(H.survivorRarityMultiplier({ rarity: 'uncommon' }), 1.05);
 assert.equal(H.survivorRarityMultiplier({ rarity: 'rare' }), 1.1);
 assert.equal(H.survivorRarityMultiplier({ rarity: 'epic' }), 1.15);
 assert.equal(H.survivorRarityMultiplier({ rarity: 'legendary' }), 1.2);
+assert.equal(Object.keys(H.SURVIVOR_TRAITS).length, 8, 'survivors draw from the authored personality trait catalog');
+assert.equal(Object.keys(H.SURVIVOR_TALENTS).length, 5, 'survivors draw from the role talent catalog');
+const profileA = H.survivorProfile('profile-test-a');
+const profileB = H.survivorProfile('profile-test-b');
+assert.equal(profileA.traits.length, 2, 'each survivor receives two personality traits');
+assert.equal(new Set(profileA.traits).size, 2, 'a survivor cannot roll the same trait twice');
+assert.ok(Object.hasOwn(H.SURVIVOR_RARITIES, profileA.rarity) && Object.hasOwn(H.SURVIVOR_TALENTS, profileA.talent));
+assert.ok(H.survivorRoleMultiplier({ traits: ['green_thumb'], talent: 'master_farmer' }, 'farmer') > 1.3, 'matching traits and talent improve role output');
+assert.equal(H.survivorRoleMultiplier({ traits: [], talent: 'master_farmer' }, 'guard'), 1, 'specialist talent does not boost an unrelated assignment');
+
 const commonGuard = H.threatProfile({ ...a, survivors: [{ id: 'common-guard', name: 'Common', role: 'guard', morale: 70, rarity: 'common' }] });
 const legendaryGuard = H.threatProfile({ ...a, survivors: [{ id: 'legendary-guard', name: 'Legendary', role: 'guard', morale: 70, rarity: 'legendary' }] });
 assert.ok(legendaryGuard.defense > commonGuard.defense, 'higher-rarity guards contribute more settlement defense');
 
 const legacyRoster = H.validateBase({ ...a, survivors: [{ id: 'legacy-survivor', name: 'Legacy', role: 'guard', morale: 70 }] }, 'acct-a');
 assert.equal(legacyRoster.survivors[0].rarity, 'common', 'old saved survivors safely migrate to common rarity');
+assert.equal(legacyRoster.survivors[0].traits.length, 2, 'legacy survivors receive deterministic personality traits');
+assert.ok(Object.hasOwn(H.SURVIVOR_TALENTS, legacyRoster.survivors[0].talent), 'legacy survivors receive a deterministic talent');
 
 assert.ok(a.cosmeticsOwned.includes('rusted_pipe'), 'new refuges receive a default cosmetic loadout');
 const cosmeticPower = H.weaponPower(a);

@@ -200,8 +200,11 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
         const wy=2.7+floor*3.7;
         for (let col=0;col<5;col++) {
           const wx=h.x-h.w*.38+col*h.w*.19;
-          addBox(glass,4.2,2.0,.16,wx,wy,front+.12);
+          addBox(windowFrames,4.65,2.35,.18,wx,wy,front+.18);
+          addBox(glass,4.2,2.0,.13,wx,wy,front+.3);
+          addBox(windowFrames,.12,1.95,.12,wx,wy,front+.39);
           addBox(trim,4.7,.16,.3,wx,wy-1.2,front+.22);
+          if ((floor + col) % 3 === 0) addBox(warmWindows,3.7,1.55,.05,wx,wy,front+.39);
         }
       }
       addBox(glass,5,3,.18,h.x,2.1,front+.14);
@@ -268,11 +271,15 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
       }
       if (isMansion) {
         // Lakefront terrace and infinity-edge pool: a high-value silhouette visible from the lake.
-        addBox(poolDeck,h.w+8,.3,h.d*.5+13,h.x,h.h*.06+.42,h.z+h.d*.15);
-        addBox(poolWater,h.w*.66,.12,h.d*.25+7,h.x,h.h*.06+.62,h.z+h.d*.17);
-        addBox(facadeTrim,h.w*.7,.14,.18,h.x,h.h*.06+.72,h.z+h.d*.17+(h.d*.25+7)/2);
+        const poolZ=front+18, poolDepth=8.5;
+        addBox(poolDeck,h.w+8,.3,14,h.x,.42,poolZ);
+        addBox(poolWater,h.w*.66,.12,poolDepth,h.x,.62,poolZ);
+        addBox(facadeTrim,h.w*.66,.16,.2,h.x,.72,poolZ+poolDepth/2);
+        // Low coping, sun loungers and warm bollard lights around the pool deck.
         for (const px of [-h.w*.43,h.w*.43]) {
-          addBox(porchLights,.3,1.3,.3,h.x+px,1.05,h.z+h.d*.5+5);
+          addBox(porchLights,.3,1.3,.3,h.x+px,1.05,front+7);
+          addBox(facadeTrim,2.5,.35,1.0,h.x+px*.7,.78,poolZ-poolDepth/2-2.2);
+          addBox(facadeTrim,2.5,.12,1.0,h.x+px*.7,1.0,poolZ-poolDepth/2-2.2);
         }
       }
     }

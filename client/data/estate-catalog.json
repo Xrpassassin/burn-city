@@ -137,7 +137,7 @@
       "address": "Estates Row 03",
       "district": "north-shore",
       "lot": {
-        "x": -3,
+        "x": -1,
         "z": -5
       }
     },
@@ -147,7 +147,7 @@
       "address": "Estates Row 04",
       "district": "north-shore",
       "lot": {
-        "x": -2,
+        "x": 0,
         "z": -5
       }
     },
@@ -178,7 +178,7 @@
       "district": "west-village",
       "lot": {
         "x": -4,
-        "z": 2
+        "z": 3
       }
     },
     {
@@ -188,7 +188,7 @@
       "district": "east-village",
       "lot": {
         "x": 4,
-        "z": 2
+        "z": 3
       }
     },
     {
@@ -197,7 +197,7 @@
       "address": "Family Crescent 03",
       "district": "south-neighborhood",
       "lot": {
-        "x": -3,
+        "x": -4,
         "z": 5
       }
     },
@@ -207,7 +207,7 @@
       "address": "Family Crescent 04",
       "district": "south-neighborhood",
       "lot": {
-        "x": 3,
+        "x": 4,
         "z": 5
       }
     },
@@ -217,7 +217,7 @@
       "address": "Lakefront Estate 03",
       "district": "lakefront",
       "lot": {
-        "x": -1,
+        "x": -2,
         "z": -7
       }
     },
@@ -227,7 +227,7 @@
       "address": "Lakefront Estate 04",
       "district": "lakefront",
       "lot": {
-        "x": 1,
+        "x": 2,
         "z": -7
       }
     },

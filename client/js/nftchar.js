@@ -106,6 +106,21 @@ export function buildNftChar(n, opts = {}) {
   } else if (components.outfitStyle === 'streetwear') {
     addCapsule(g, darkCloth, [0, 1.43, -.025], .115, .12, [1.2, .8, .9]);
   }
+  // Surface patterns are driven by actual metadata and remain visible around the artwork tabard.
+  const patternColor=traitColor(/pattern|marking|camo|stripe|spot/i,'#b8b3a7');
+  if (components.patternStyle === 'stripes') {
+    for (const side of [-1,1]) for (let i=0;i<3;i++) {
+      const stripe=addBox(g,mat(patternColor),[side*(.205+i*.012),1.13+i*.075,.177],[.012,.052,.012]);
+      stripe.rotation.z=side*.12;
+      stripe.name='nft-pattern-stripe';
+    }
+  } else if (components.patternStyle === 'spots' || components.patternStyle === 'camouflage') {
+    for (let i=0;i<6;i++) {
+      const side=i%2?1:-1, y=1.0+((i*7)%5)*.075, z=.175;
+      const patch=addSphere(g,mat(i%2?patternColor:shade(patternColor,.68)),[side*(.17+((i*3)%3)*.018),y,z],[.025+(i%3)*.008,.018+(i%2)*.009,.009]);
+      patch.name=components.patternStyle==='spots'?'nft-pattern-spot':'nft-camouflage-patch';
+    }
+  }
 
   const legs = [-1,1].map(s => {
     const hip = new THREE.Group(); hip.position.set(s*.125,.84,0); g.add(hip);
@@ -171,7 +186,7 @@ export function buildNftChar(n, opts = {}) {
       addBox(head,mat(shade(maskColor,.72)),[0,-.025,.205],[.025,.035,.025]);
     }
     const mouthTrait = traitValue(/mouth|expression|emotion/i).toLowerCase();
-    if (has(tr,/beard|goatee|mustache|moustache/)) addSphere(head,mat('#332821'),[0,-.095,.145],[.105,.075,.055]);
+    // Facial hair is rendered from the typed trait recipe below, not from untyped token words.
     if (/fang|teeth|snarl|open mouth|scream/.test(mouthTrait)) {
       addSphere(head,mat('#2a1517'),[0,-.105,.177],[.07,.035,.025]);
       for (const s of [-1,1]) add(geo('tooth',()=>new THREE.ConeGeometry(.012,.035,6)),mat('#f2e7ce'),s*.026,-.095,.199,head);
@@ -179,10 +194,55 @@ export function buildNftChar(n, opts = {}) {
       add(geo('smile',()=>new THREE.TorusGeometry(.035,.008,5,14,Math.PI)),mat('#5a2c2b'),0,-.105,.176,head).rotation.z=Math.PI;
     }
     const hairColor = hairHex;
-    if (!has(tr,/bald|shaved|no hair/)) {
-      const hair=add(geo('hair-cap',()=>new THREE.SphereGeometry(1,16,10,0,Math.PI*2,0,Math.PI*.48)),mat(hairColor,.9,.01),0,.09,-.005,head);
-      hair.scale.set(.202,.19,.19);
-      if (has(tr,/dreads|braids/)) for(let i=0;i<5;i++) addCapsule(head,mat(hairColor),[-.15+i*.075,.0,-.06],.025,.14,[1,1,1]).rotation.z=-.2;
+    if (components.hairStyle !== 'bald' && !has(tr,/bald|shaved|no hair/)) {
+      const hairMat=mat(hairColor,.9,.01);
+      const hair=add(geo('hair-cap',()=>new THREE.SphereGeometry(1,16,10,0,Math.PI*2,0,Math.PI*.48)),hairMat,0,.09,-.005,head);
+      hair.name='nft-hair-cap'; hair.scale.set(.202,.19,.19);
+      if (components.hairStyle === 'afro') {
+        hair.scale.set(.235,.22,.21);
+        for(let i=0;i<9;i++){const a=i*Math.PI*2/9;addSphere(head,hairMat,[Math.cos(a)*.14,.13,Math.sin(a)*.12],[.065,.065,.06]);}
+      } else if (components.hairStyle === 'mohawk' || components.hairStyle === 'spiky') {
+        const count=components.hairStyle==='mohawk'?5:7;
+        for(let i=0;i<count;i++){
+          const x=(i-(count-1)/2)*.045, h=components.hairStyle==='mohawk'?.16+(i%2)*.025:.11+(i%3)*.025;
+          const spike=add(geo('nft-hair-spike:'+count,()=>new THREE.ConeGeometry(.035,.16,7)),hairMat,x,.205+h*.28,-.005,head);
+          spike.scale.y=h/.16; spike.rotation.z=(i-(count-1)/2)*-.07; spike.name='nft-hair-spike';
+        }
+      } else if (components.hairStyle === 'dreadlocks' || components.hairStyle === 'braids') {
+        const count=components.hairStyle==='dreadlocks'?6:4;
+        for(let i=0;i<count;i++){
+          const x=(i-(count-1)/2)*.052, len=components.hairStyle==='dreadlocks'?.19:.15;
+          const lock=addCapsule(head,hairMat,[x,.005,-.045],components.hairStyle==='dreadlocks'?.025:.014,len,[1,1,1]);
+          lock.rotation.z=(i-(count-1)/2)*-.12; lock.name=components.hairStyle==='dreadlocks'?'nft-dreadlock':'nft-braid';
+        }
+      } else if (components.hairStyle === 'long') {
+        for(const side of [-1,1]) { const lock=addCapsule(head,hairMat,[side*.155,-.07,-.025],.027,.23,[1,1,1]); lock.rotation.z=side*.08; lock.name='nft-long-hair'; }
+      } else if (components.hairStyle === 'bun') {
+        addSphere(head,hairMat,[0,.19,-.12],[.085,.075,.08]).name='nft-hair-bun';
+      }
+    }
+    if (components.hasMarkings) {
+      const markText=String(components.markings||'').toLowerCase();
+      const markHex=traitColor(/markings|face paint|tattoo|scar|freckles|war paint/i,'#b42d3b');
+      if (/scar/.test(markText)) {
+        const scar=addBox(head,mat(markHex),[.07,.005,.177],[.012,.105,.009]); scar.rotation.z=-.35; scar.name='nft-facial-scar';
+      } else if (/freckle|spot/.test(markText)) {
+        for(let i=0;i<6;i++) addSphere(head,mat(markHex),[.045+(i%3)*.025,-.005-Math.floor(i/3)*.025,.178],[.008,.008,.006]).name='nft-freckle';
+      } else {
+        for(const side of [-1,1]) {
+          const mark=addBox(head,mat(markHex),[side*.075,-.005,.178],[.025,.055,.009]); mark.rotation.z=side*.35; mark.name='nft-face-paint';
+        }
+      }
+    }
+    if (components.facialHair && !/none|clean.?shaven|no facial hair/i.test(components.facialHair)) {
+      const beardColor=traitColor(/facial hair|beard|mustache/i,'#332821');
+      if (/mustache|moustache/.test(components.facialHair.toLowerCase())) {
+        for(const side of [-1,1]) addSphere(head,mat(beardColor),[side*.045,-.055,.176],[.05,.018,.018]).name='nft-moustache';
+      } else if (/goatee|chin/.test(components.facialHair.toLowerCase())) {
+        addSphere(head,mat(beardColor),[0,-.105,.153],[.055,.045,.035]).name='nft-goatee';
+      } else {
+        addSphere(head,mat(beardColor),[0,-.105,.145],[.105,.075,.055]).name='nft-beard';
+      }
     }
   }
 
@@ -200,7 +260,16 @@ export function buildNftChar(n, opts = {}) {
     addSphere(head,hatColor,[0,.15,-.01],[.22,.105,.2]);
     if (!has(tr,/beanie/)) addBox(head,hatColor,[0,.105,.18],[.25,.025,.12]);
   }
-  if(has(tr,/horn/)) for(const s of [-1,1]) { const h=add(geo('horn',()=>new THREE.ConeGeometry(.045,.22,8)),mat('#ded5c6'),s*.16,.24,-.01,head); h.rotation.z=-s*.55; }
+  if(components.hasHorns || has(tr,/horn|antler|tusk/)) {
+    const hornText=String(components.horns||traitValue(/horn|antler|tusk/i)).toLowerCase();
+    const hornColor=traitColor(/horn|antler|tusk/i,/gold|metal|bronze/.test(hornText)?'#bca56b':'#ded5c6');
+    for(const side of [-1,1]) {
+      const antler=/antler|branch/.test(hornText);
+      const h=add(geo(antler?'nft-antler':'nft-horn',()=>new THREE.ConeGeometry(antler?.035:.045,antler?.28:.22,8)),mat(hornColor),side*.15,.24,-.01,head);
+      h.rotation.z=-side*(antler?.32:.55); h.name=antler?'nft-antler':'nft-horn';
+      if(antler) { const tine=add(geo('nft-antler-tine',()=>new THREE.ConeGeometry(.018,.13,6)),mat(hornColor),side*.19,.34,-.01,head); tine.rotation.z=side*.3; }
+    }
+  }
   if(has(tr,/shade|sunglass|frames|goggle/)) {
     addBox(head,mat(has(tr,/gold/)?'#c9a34a':'#14161b',.32,.5),[0,.045,.183],[.34,.052,.025]);
     addBox(head,metal,[0,.045,.2],[.055,.018,.018]);

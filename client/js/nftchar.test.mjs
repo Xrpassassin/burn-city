@@ -2,14 +2,15 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
 
-const [avatar, city, app, sw, picker, nftServer, visualQa] = await Promise.all([
+const [avatar, city, app, sw, picker, nftServer, visualQa, components] = await Promise.all([
   readFile(new URL('./nftchar.js', import.meta.url), 'utf8'),
   readFile(new URL('./city.js', import.meta.url), 'utf8'),
   readFile(new URL('./app.js', import.meta.url), 'utf8'),
   readFile(new URL('../sw.js', import.meta.url), 'utf8'),
   readFile(new URL('./nftpick.js', import.meta.url), 'utf8'),
   readFile(new URL('../../server/nft.js', import.meta.url), 'utf8'),
-  readFile(new URL('../nft-avatar-visual-qa.html', import.meta.url), 'utf8')
+  readFile(new URL('../nft-avatar-visual-qa.html', import.meta.url), 'utf8'),
+  readFile(new URL('./nft-avatar-components.js', import.meta.url), 'utf8')
 ]);
 let checks = 0;
 function has(source, pattern, message) { assert.match(source, pattern, message); checks++; }
@@ -101,6 +102,8 @@ has(avatar, /nft-body-effect-flame/, 'renders 589 Body fire states as visible ge
 has(avatar, /nft-burn-halo/, 'renders the 589 Burn Halo head trait');
 has(avatar, /nft-beehive-headwear/, 'renders the RACC Bee Hive Top Gear trait');
 has(avatar, /nft-eyelash/, 'renders the RACC Eyewear: Lashes trait');
+has(components, /const eyewear = first\(traits, 'eye wear'\)[\s\S]*eyewear,/, 'retains typed eyewear descriptions in the component recipe');
+has(avatar, /nft-eyewear-goggle-rim[\s\S]*nft-eyewear-round-frame[\s\S]*nft-eyewear-visor[\s\S]*nft-eyewear-rect-frame/, 'renders distinct goggle, round, visor, and rectangular eyewear silhouettes');
 has(avatar, /nft-held-tnt/, 'renders the RACC Armed TNT trait as an explosive prop');
 has(avatar, /surprisedEyes/, 'renders the 589 Surprised eye trait');
 has(avatar, /smirk|sly/, 'renders the 589 Smirk mouth trait');

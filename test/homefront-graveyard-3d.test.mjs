@@ -243,7 +243,7 @@ assert.match(homefrontPage, /incident\?\.status==='incoming'\?'Resolve siege def
 assert.match(homefrontPage, /INCOMING SIEGE: inspect the threatened structure and repair if needed/, 'tell players they can assess and repair before resolving the attack');
 assert.match(homefrontPage, /type:base\?\.lastSiege\?\.status==='incoming'\?'defend':'start_siege'/, 'use separate server actions for starting and resolving a siege');
 
-assert.match(homefrontPage, /const byId=id=>id\?structures\.find\(item=>String\(item\.id\)===String\(id\)\):null;\s*const target=byId\(survivor\.taskTarget\)/, 'resolve persisted survivor task targets consistently across ID types');
+assert.match(homefrontPage, /const byId=id=>id\?structures\.find\(item=>String\(item\.id\)===String\(id\)\):null;[\s\S]*?const target=byId\(survivor\.taskTarget\)/, 'resolve persisted survivor task targets consistently across ID types');
 assert.match(homefrontPage, /if\(survivor\.task==='defend_perimeter'&&target\)return workSpot\(target,index,1\.45\)/, 'place responding survivors in a reachable work position at their persisted siege target');
 assert.match(homefrontPage, /taskLabels\[task\]\|\|labels\[role\]/, 'show the active survivor behavior above the 3D actor');
 assert.match(homefrontPage, /task:survivor\.task/, 'carry persistent behavior into survivor animation actors');

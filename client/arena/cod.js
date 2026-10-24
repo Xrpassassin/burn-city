@@ -463,7 +463,11 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       const bs = L.box[spot]; if (st === 0 && bs && near(me, bs[0], bs[1])) return { t: 'Mystery Box: random weapon', c: L.boxCost };
       const pw = m[3] ?? 1; if (PW && near(me, PW.x, PW.z)) return pw ? { t: 'Power is on', c: 0, no: 1 } : { t: 'Power Switch: turn on the power', c: 0 };
       if (!pw && ((F && near(me, F.x, F.z)) || L.perks.some(k => near(me, k.x, k.z, 3, k.lv || 0)))) return { t: 'No power. Find the Power Switch first', c: 0, no: 1 };
-      if (F && near(me, F.x, F.z)) return upBits & 1 ? { t: `${F.name}: ${L.weapons.find(w => w.id === guns[0])?.up || 'weapon'} already forged`, c: 0, no: 1 } : { t: `${F.name}: forge ${wname(guns[0])} into ${L.weapons.find(w => w.id === guns[0])?.up || 'something deadlier'}`, c: F.cost };
+      if (F && near(me, F.x, F.z)) { const weapon = L.weapons.find(w => w.id === guns[0]), tier2 = !!(upBits & 4), tier1 = !!(upBits & 1);
+        if (tier2) return { t: `${F.name}: ${weapon?.up2 || 'weapon'} fully upgraded`, c: 0, no: 1 };
+        if (tier1) return { t: `${F.name} II: upgrade ${wname(guns[0])} into ${weapon?.up2 || 'an ascended weapon'}`, c: L.forge2Cost || 10000 };
+        return { t: `${F.name}: forge ${wname(guns[0])} into ${weapon?.up || 'something deadlier'}`, c: F.cost };
+      }
       let n = 0; for (let v = perkBits; v; v >>= 1) n += v & 1;
       for (let i = 0; i < L.perks.length; i++) { const k = L.perks[i]; if (near(me, k.x, k.z, 3, k.lv || 0)) return perkBits & (1 << i) ? { t: `${k.name} (owned)`, c: 0, no: 1 } : n >= L.maxPerks ? { t: `Max ${L.maxPerks} perks`, c: 0, no: 1 } : { t: `${k.name}: ${k.desc}`, c: k.cost }; }
       return null; },

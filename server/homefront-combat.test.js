@@ -54,8 +54,12 @@ assert.equal(noiseDrawn.a.lastKnownX,30,'infected retain the authoritative noise
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
 const autoSpawn=C.spawn({encounters:{},account:'auto-fire-test',player,now:190000});
+for(const member of autoSpawn.encounters['auto-fire-test'].members){member.hp=10000;member.maxHp=10000;member.defeated=false;}
+autoSpawn.encounters['auto-fire-test'].hp=autoSpawn.encounters['auto-fire-test'].members.length*10000;
+autoSpawn.encounters['auto-fire-test'].maxHp=autoSpawn.encounters['auto-fire-test'].hp;
 const autoBase={...base(),weapons:['pipe_blade','assault_rifle','heavy_machine_gun'],equippedWeapon:'heavy_machine_gun'};
-const autoShot=C.attack({encounters:autoSpawn.encounters,account:'auto-fire-test',player,base:autoBase,now:191000,weaponPower:9});
+const autoMember=autoSpawn.encounters['auto-fire-test'].members[0];
+const autoShot=C.attack({encounters:autoSpawn.encounters,account:'auto-fire-test',player:{...player,aiming:true,aimStartedAt:190000,accuracyRecoverUntil:0},base:autoBase,now:191000,weaponPower:9,targetId:autoMember.id,aimPoint:{x:autoMember.x,y:2.3,z:autoMember.z}});
 assert.equal(autoShot.ammoCost,1,'each authoritative machine-gun shot consumes one round');
 assert.ok(autoShot.damage>zoneA.damage,'heavy machine gun deals substantially more damage per hit than a low-power weapon');
 assert.throws(()=>C.attack({encounters:autoShot.encounters,account:'auto-fire-test',player,base:autoBase,now:191100,weaponPower:9}),/attack_cooldown/,'server enforces the heavy machine gun cadence against rapid request spam');

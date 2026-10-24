@@ -6,6 +6,14 @@
 
 const ROLES = Object.freeze(['pursuer', 'flanker', 'bruiser', 'straggler', 'runner']);
 const STATES = Object.freeze(['wander', 'investigate', 'pursue', 'search', 'attack', 'stagger', 'recover', 'dead']);
+const ROLE_TUNING = Object.freeze({
+  pursuer: Object.freeze({ hearingScale: 1, pursuitSpeed: 1, staggerFactor: 0.12 }),
+  flanker: Object.freeze({ hearingScale: 1, pursuitSpeed: 1, staggerFactor: 0.12 }),
+  bruiser: Object.freeze({ hearingScale: 1, pursuitSpeed: 1, staggerFactor: 0.3 }),
+  straggler: Object.freeze({ hearingScale: 1.25, pursuitSpeed: 1, staggerFactor: 0.12 }),
+  runner: Object.freeze({ hearingScale: 1, pursuitSpeed: 1.12, staggerFactor: 0.12 })
+});
+function roleTuning(role) { return ROLE_TUNING[role] || ROLE_TUNING.pursuer; }
 
 function hashId(value) {
   const s = String(value ?? '');
@@ -143,4 +151,4 @@ function selectApproachTarget(input = {}) {
   return hint ? { ...hint, role: 'flanker' } : { x: target.x, z: target.z, role: 'flanker' };
 }
 
-module.exports = { ROLES, STATES, assignRole, distance2D, hearNoise, chooseBehavior, flankingHint, selectApproachTarget };
+module.exports = { ROLES, STATES, ROLE_TUNING, roleTuning, assignRole, distance2D, hearNoise, chooseBehavior, flankingHint, selectApproachTarget };

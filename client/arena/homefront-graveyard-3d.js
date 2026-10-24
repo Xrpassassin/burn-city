@@ -707,7 +707,10 @@ function boot(host) {
         const storyHint = guidance.storyLead ? '  |  FIELD LEAD · ' + guidance.storyLead : '';
         objective.textContent = discoveryLabel + ' · ' + nearest.title + ' — ' + nearest.objective + '  |  ' + district.title + ' · Risk ' + district.risk + '/5' + routeHint + storyHint;
       } else {
-        objective.textContent = 'EXPEDITION · Risk ' + (data.self.risk || 1) + '/5. Survey the skyline and follow road markings. Discovering landmarks records field notes; clues connect multi-stop stories, while route leads point toward shortcuts, caches, and rescue sites.';
+        const fieldNoteCount = explorationProgress?.discovered?.length || 0;
+        const nextStory = explorationProgress?.storyLeads?.find(lead => !lead.complete);
+        const journalHint = nextStory ? '  |  STORY LEAD · ' + nextStory.title + ' → ' + nextStory.nextLandmarkTitle : '';
+        objective.textContent = 'EXPEDITION · Risk ' + (data.self.risk || 1) + '/5 · FIELD NOTES ' + fieldNoteCount + ' sites. Survey the skyline and follow road markings for new landmarks, shortcuts, caches, and rescue leads.' + journalHint;
       }
     }
     updateInteriorPanel();

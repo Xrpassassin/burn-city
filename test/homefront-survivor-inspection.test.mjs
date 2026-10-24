@@ -34,3 +34,11 @@ assert.match(page, /nearbyStructure=best\?\.kind==='structure'/, 'nearby structu
 assert.match(page, /promptButton\.textContent=best\.kind==='survivor'\?/, 'interaction prompt adapts to survivors, farm plots, and structures');
 assert.match(page, /host\.append\(renderer\.domElement\);renderer\.domElement\.addEventListener\('pointerup',inspectYardSurvivor\);renderer\.domElement\.addEventListener\('pointerup',inspectYardStructure\);/, '3D inspection handlers are registered only after the renderer exists');
 assert.doesNotMatch(page, /\\\\nfunction initWorld/, 'module code uses a real line break before world initialization');
+assert.match(page, /const openGateIds=new Set\(\),gateMotion=new Map\(\)/, 'gate motion and traversable-open state are tracked per physical gate');
+assert.match(page, /function updatePhysicalGates\(dt\)/, 'nearby gates animate open and close with frame-based motion');
+assert.match(page, /distance<2\.25/, 'gate begins opening before the player reaches its collision boundary');
+assert.match(page, /distance>3\.1/, 'gate waits until the player has cleared the doorway before closing');
+assert.match(page, /leaf\.rotation\.y=motion\.angle/, 'gate leaf rotates around a hinge instead of disappearing');
+assert.match(page, /collisionStructures=st\.filter\(item=>!openGateIds\.has\(String\(item\.id\)\)\)/, 'an open gate stops blocking player movement while closed gates remain collidable');
+assert.match(page, /g\.userData\.gateLeaf=leaf/, 'each procedural gate exposes its animated door leaf');
+assert.match(page, /updatePhysicalGates\(dt\)/, 'physical gate state updates inside the third-person simulation loop');

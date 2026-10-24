@@ -1,12 +1,15 @@
 'use strict';
 
 // Property sale commitment confirmation and durable notification outbox.
-// This module records intent only; it does not list, transfer, or pay for a property.
+// Uses Node's built-in node:sqlite DatabaseSync API. This module records intent only;
+// it does not list, transfer, or pay for a property.
 function createEstateSaleConfirmation(db, { now = Date.now } = {}) {
-  if (!db || typeof db.exec !== 'function' || typeof db.prepare !== 'function' || typeof db.transaction !== 'function') {
+  if (!db || typeof db.exec !== 'function' || typeof db.prepare !== 'function') {
     throw new TypeError('sqlite_database_required');
   }
+
   db.exec(`
+    PRAGMA foreign_keys = ON;
     CREATE TABLE IF NOT EXISTS estate_sale_intents (
       intent_id TEXT PRIMARY KEY,
       property_id TEXT NOT NULL,
@@ -32,13 +35,28 @@ function createEstateSaleConfirmation(db, { now = Date.now } = {}) {
     );
     CREATE INDEX IF NOT EXISTS estate_owner_notifications_owner_idx ON estate_owner_notifications(owner_acct, created_at);
   `);
+
+  // DatabaseSync does not expose better-sqlite3's db.transaction() helper.
+  // Keep state changes and their outbox notifications atomic on the actual runtime API.
+  function inTransaction(fn) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const value = fn();
+      db.exec('COMMIT');
+      return value;
+    } catch (error) {
+      try { db.exec('ROLLBACK'); } catch {}
+      throw error;
+    }
+  }
+
   const insertIntent = db.prepare(`INSERT INTO estate_sale_intents
     (intent_id, property_id, owner_acct, sale_terms_json, terms_hash, status, created_at, expires_at)
     VALUES (?, ?, ?, ?, ?, 'awaiting_confirmation', ?, ?)`);
   const insertNotification = db.prepare(`INSERT INTO estate_owner_notifications
     (notification_id, owner_acct, event_type, intent_id, payload_json, channel_status, created_at)
     VALUES (?, ?, ?, ?, ?, 'pending', ?)`);
-  const tx = db.transaction(fn => fn());
+
   function createIntent(input) {
     const propertyId = String(input?.propertyId || '').trim();
     const ownerAcct = String(input?.ownerAcct || '').trim();
@@ -68,42 +86,69 @@ function createEstateSaleConfirmation(db, { now = Date.now } = {}) {
       propertyId, salePriceDrops: terms.salePriceDrops, marketplaceFeeBps: terms.marketplaceFeeBps,
       termsHash, expiresAt, requiresExplicitConfirmation: true
     };
-    tx(() => {
+    inTransaction(() => {
       insertIntent.run(intentId, propertyId, ownerAcct, canonical, termsHash, timestamp, expiresAt);
       insertNotification.run('sale-confirmation:' + intentId, ownerAcct, 'estate_sale_confirmation_required', intentId, JSON.stringify(notice), timestamp);
     });
     return { intentId, status: 'awaiting_confirmation', termsHash, expiresAt, notification: notice };
   }
+
   function confirmIntent({ intentId, ownerAcct, termsHash, now: suppliedNow } = {}) {
     const id = String(intentId || '').trim(), acct = String(ownerAcct || '').trim(), hash = String(termsHash || '').trim();
     const timestamp = Number(suppliedNow ?? now());
     if (!id || !acct || !hash) throw new TypeError('intent_owner_and_terms_hash_required');
-    const intent = db.prepare('SELECT * FROM estate_sale_intents WHERE intent_id=?').get(id);
-    if (!intent || intent.owner_acct !== acct) throw new Error('sale_intent_not_found_for_owner');
-    if (intent.status !== 'awaiting_confirmation') throw new Error('sale_intent_not_awaiting_confirmation');
-    if (timestamp >= intent.expires_at) {
-      db.prepare("UPDATE estate_sale_intents SET status='expired' WHERE intent_id=? AND status='awaiting_confirmation'").run(id);
-      throw new Error('sale_confirmation_expired');
-    }
-    if (hash !== intent.terms_hash) throw new Error('sale_terms_changed_review_again');
-    const changed = db.prepare("UPDATE estate_sale_intents SET status='confirmed', confirmed_at=? WHERE intent_id=? AND owner_acct=? AND status='awaiting_confirmation'").run(timestamp, id, acct);
-    if (changed.changes !== 1) throw new Error('sale_intent_state_changed');
-    const payload = { title: 'Property sale commitment confirmed', message: 'Your explicit confirmation has been recorded. This confirms your commitment to the sale process; it does not itself complete a transfer or guarantee a buyer.', propertyId: intent.property_id, intentId: id, termsHash: hash, confirmedAt: timestamp };
-    insertNotification.run('sale-confirmed:' + id, acct, 'estate_sale_commitment_confirmed', id, JSON.stringify(payload), timestamp);
-    return { intentId: id, status: 'confirmed', confirmedAt: timestamp, notification: payload };
+    if (!Number.isSafeInteger(timestamp) || timestamp < 1) throw new TypeError('invalid_timestamp');
+
+    const outcome = inTransaction(() => {
+      const intent = db.prepare('SELECT * FROM estate_sale_intents WHERE intent_id=?').get(id);
+      if (!intent || intent.owner_acct !== acct) throw new Error('sale_intent_not_found_for_owner');
+      if (intent.status !== 'awaiting_confirmation') throw new Error('sale_intent_not_awaiting_confirmation');
+      if (timestamp >= intent.expires_at) {
+        db.prepare("UPDATE estate_sale_intents SET status='expired' WHERE intent_id=? AND status='awaiting_confirmation'").run(id);
+        return { expired: true };
+      }
+      if (hash !== intent.terms_hash) throw new Error('sale_terms_changed_review_again');
+      const changed = db.prepare("UPDATE estate_sale_intents SET status='confirmed', confirmed_at=? WHERE intent_id=? AND owner_acct=? AND status='awaiting_confirmation'").run(timestamp, id, acct);
+      if (changed.changes !== 1) throw new Error('sale_intent_state_changed');
+      const payload = {
+        title: 'Property sale commitment confirmed',
+        message: 'Your explicit confirmation has been recorded. This confirms your commitment to the sale process; it does not itself complete a transfer or guarantee a buyer.',
+        propertyId: intent.property_id, intentId: id, termsHash: hash, confirmedAt: timestamp
+      };
+      insertNotification.run('sale-confirmed:' + id, acct, 'estate_sale_commitment_confirmed', id, JSON.stringify(payload), timestamp);
+      return { intentId: id, status: 'confirmed', confirmedAt: timestamp, notification: payload };
+    });
+    if (outcome.expired) throw new Error('sale_confirmation_expired');
+    return outcome;
   }
+
   function cancelIntent({ intentId, ownerAcct, now: suppliedNow } = {}) {
-    const id = String(intentId || '').trim(), acct = String(ownerAcct || '').trim(), timestamp = Number(suppliedNow ?? now());
-    const result = db.prepare("UPDATE estate_sale_intents SET status='cancelled' WHERE intent_id=? AND owner_acct=? AND status='awaiting_confirmation'").run(id, acct);
-    if (result.changes !== 1) throw new Error('sale_intent_not_cancellable');
+    const id = String(intentId || '').trim(), acct = String(ownerAcct || '').trim();
+    const timestamp = Number(suppliedNow ?? now());
+    if (!id || !acct) throw new TypeError('intent_and_owner_required');
+    if (!Number.isSafeInteger(timestamp) || timestamp < 1) throw new TypeError('invalid_timestamp');
+    const result = inTransaction(() => {
+      const intent = db.prepare('SELECT status, expires_at FROM estate_sale_intents WHERE intent_id=? AND owner_acct=?').get(id, acct);
+      if (!intent || intent.status !== 'awaiting_confirmation') throw new Error('sale_intent_not_cancellable');
+      if (timestamp >= intent.expires_at) {
+        db.prepare("UPDATE estate_sale_intents SET status='expired' WHERE intent_id=? AND status='awaiting_confirmation'").run(id);
+        return 'expired';
+      }
+      const changed = db.prepare("UPDATE estate_sale_intents SET status='cancelled' WHERE intent_id=? AND owner_acct=? AND status='awaiting_confirmation'").run(id, acct);
+      if (changed.changes !== 1) throw new Error('sale_intent_not_cancellable');
+      return 'cancelled';
+    });
+    if (result === 'expired') throw new Error('sale_confirmation_expired');
     return { intentId: id, status: 'cancelled', cancelledAt: timestamp };
   }
+
   function listNotifications(ownerAcct, limit = 50) {
     const acct = String(ownerAcct || '').trim();
     const n = Number(limit);
     if (!acct || !Number.isSafeInteger(n) || n < 1 || n > 200) throw new TypeError('invalid_notification_query');
-    return db.prepare('SELECT notification_id AS notificationId, event_type AS eventType, intent_id AS intentId, payload_json AS payloadJson, channel_status AS channelStatus, created_at AS createdAt, sent_at AS sentAt FROM estate_owner_notifications WHERE owner_acct=? ORDER BY created_at DESC LIMIT ?').all(acct, n).map(row => ({ ...row, payload: JSON.parse(row.payloadJson) }));
+    return db.prepare('SELECT notification_id AS notificationId, event_type AS eventType, intent_id AS intentId, payload_json AS payloadJson, channel_status AS channelStatus, created_at AS createdAt, sent_at AS sentAt FROM estate_owner_notifications WHERE owner_acct=? ORDER BY created_at DESC, notification_id DESC LIMIT ?').all(acct, n).map(row => ({ ...row, payload: JSON.parse(row.payloadJson) }));
   }
+
   function markNotification(notificationId, status, sentAt = now()) {
     if (!['sent','failed'].includes(status)) throw new TypeError('invalid_notification_status');
     const timestamp = Number(sentAt);
@@ -112,6 +157,8 @@ function createEstateSaleConfirmation(db, { now = Date.now } = {}) {
     if (result.changes !== 1) throw new Error('notification_missing_or_already_processed');
     return { notificationId, status, sentAt: timestamp };
   }
+
   return { createIntent, confirmIntent, cancelIntent, listNotifications, markNotification };
 }
+
 module.exports = { createEstateSaleConfirmation };

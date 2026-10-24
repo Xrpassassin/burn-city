@@ -199,11 +199,14 @@ export function buildNftChar(n, opts = {}) {
     }
     const mouthTrait = traitValue(/mouth|expression|emotion/i).toLowerCase();
     // Facial hair is rendered from the typed trait recipe below, not from untyped token words.
-    if (/fang|teeth|snarl|open mouth|scream/.test(mouthTrait)) {
+    if (/fang|teeth|snarl|open mouth|scream|grrr|angry|rage/.test(mouthTrait)) {
       addSphere(head,mat('#2a1517'),[0,-.105,.177],[.07,.035,.025]);
       for (const s of [-1,1]) add(geo('tooth',()=>new THREE.ConeGeometry(.012,.035,6)),mat('#f2e7ce'),s*.026,-.095,.199,head);
-    } else if (/smile|grin|happy/.test(mouthTrait)) {
-      add(geo('smile',()=>new THREE.TorusGeometry(.035,.008,5,14,Math.PI)),mat('#5a2c2b'),0,-.105,.176,head).rotation.z=Math.PI;
+    } else if (/smile|grin|happy|smirk|sly/.test(mouthTrait)) {
+      const smile=add(geo('smile',()=>new THREE.TorusGeometry(.035,.008,5,14,Math.PI)),mat('#5a2c2b'),0,-.105,.176,head); smile.rotation.z=Math.PI;
+      if(/smirk|sly/.test(mouthTrait)) smile.rotation.z=Math.PI+.28;
+    } else if (/meh|hmp|hmm/.test(mouthTrait)) {
+      addBox(head,mat('#5a2c2b'),[0,-.105,.176],[.055,.008,.008]).name='nft-neutral-mouth';
     }
     const hairColor = hairHex;
     if (components.hairStyle !== 'bald' && !has(tr,/bald|shaved|no hair/)) {

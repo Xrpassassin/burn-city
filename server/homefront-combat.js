@@ -117,6 +117,7 @@ function advance({encounters,players,interiors=null,now=Date.now(),speed=2.8,max
  for(const [account,e] of Object.entries(clean)){
   if(e.defeated||e.hp<=0)continue;
   const player=players?.[account];
+  const collisionOptions=interiorCollisionOptions(interiors,account);
   if(!player||!Number.isFinite(player.x)||!Number.isFinite(player.z)){e.lastAiAt=now;continue;}
   const elapsed=clamp((now-e.lastAiAt)/1000,0,maxElapsed);
   e.lastAiAt=now;

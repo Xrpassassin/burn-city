@@ -101,7 +101,7 @@ console.log('Homefront 3D Graveyard integration checks passed.');
 assert.match(scene, /homefront:combat-hit/, 'trigger visible weapon feedback only after the server confirms combat');
 assert.match(scene, /weaponSwingUntil/, 'animate the equipped weapon after a confirmed strike');
 assert.match(scene, /explorer\.userData\.weapon\.rotation\.z/, 'animate a visible strike arc in the 3D scene');
-assert.match(scene, /weaponSwingWeaponId === 'marksman_rifle' \? 0\.62 : 0\.46/, 'firearms use weapon-specific recoil strength');
+assert.match(scene, /weaponSwingWeaponId === 'heavy_machine_gun' \? 0\.38 : 0\.42/, 'automatic firearms use weapon-specific recoil strength');
 assert.match(scene, /weaponSwingWeaponId === 'shock_maul'/, 'shock maul uses a heavier dedicated swing animation');
 assert.match(scene, /const kick = progress < 0\.2 \? progress \/ 0\.2/, 'firearm recoil kicks back quickly and recovers during the animation');
 assert.match(scene, /const headshot = state\.impactStyle === 'headshot'/, 'confirmed headshots trigger a stronger infected flinch');

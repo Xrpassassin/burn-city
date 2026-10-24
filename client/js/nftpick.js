@@ -64,7 +64,7 @@ export async function open(srv) {
         else ft.firstChild.textContent = r.error === 'not_owner' ? 'That NFT is no longer in your wallet.' : 'Could not select it right now, try again.'; };
       grid.append(b); }
   };
-  ft.innerHTML = '<span>Only NFTs your signed-in wallet holds are shown. Checked on the XRPL ledger.</span>';
+  ft.innerHTML = '<span>Ownership is verified on the XRPL ledger. NFT attributes and media may be enriched from <a href="https://xrpl.to" target="_blank" rel="noopener noreferrer">XRPL.to</a> (XRP.cafe-origin records).</span>';
   const def = document.createElement('button'); def.textContent = 'Use default character'; def.onclick = async () => { await api(srv, '/api/nft/select', { id: null }); set(null); draw(last); }; ft.append(def);
   let d = await refresh(srv); draw(d);
   for (let i = 0; i < 12 && d && d.pending && w.isConnected; i++) { await new Promise(r => setTimeout(r, 5000)); d = await refresh(srv); if (w.isConnected) draw(d); }

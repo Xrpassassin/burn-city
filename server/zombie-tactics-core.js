@@ -27,14 +27,14 @@ function hashId(value) {
 
 /**
  * Assign stable squad roles. Role distribution is deterministic for a given
- * squad ID/member ID and does not depend on update order or Math.random().
+ * squad ID and spawn index and does not depend on update order or Math.random().
  */
 function assignRole(memberId, squadId = 'solo', memberIndex = 0, squadSize = 1) {
   const size = Math.max(1, Math.floor(Number(squadSize) || 1));
   const index = Math.max(0, Math.floor(Number(memberIndex) || 0));
   if (index === 0) return 'pursuer';
   if (size === 1) return 'pursuer';
-  const h = hashId(String(squadId) + ':' + String(memberId));
+  const h = hashId(String(squadId));
   const pool = size >= 4
     ? ['flanker', 'bruiser', 'straggler', 'runner']
     : ['flanker', 'straggler', 'runner'];

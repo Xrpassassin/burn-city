@@ -358,7 +358,7 @@ export function buildNftChar(n, opts = {}) {
     hem.name='nft-firekeeper-robe-hem';
     // Split outer panels create layered fabric rather than a single cylindrical robe.
     for (const side of [-1,1]) {
-      const panel=add(geo('nft-firekeeper-robe-panel',()=>new THREE.CapsuleGeometry(.065,.36,3,8)),trim,[side*.19,.91,.105][0],[side*.19,.91,.105][1],[side*.19,.91,.105][2]);
+      const panel=add(geo('nft-firekeeper-robe-panel',()=>new THREE.CapsuleGeometry(.065,.36,3,8)),trim,side*.19,.91,.105);
       panel.scale.set(.8,1,.36); panel.rotation.z=side*-.035; panel.name='nft-firekeeper-robe-panel';
       const stitch=addBox(g,glow(shade(accentHex,.78)),[side*.105,.98,.197],[.012,.3,.012]);
       stitch.name='nft-firekeeper-robe-embroidery';

@@ -68,6 +68,11 @@ export function buildNftChar(n, opts = {}) {
   addCapsule(g,darkCloth,[0,.82,0],.19,.14,[1.03,.72,.76]);
   const torso = addCapsule(g,cloth,[0,1.17,0],.245,.39,[1.16,1.04,.76]);
   torso.name = 'avatar-torso';
+  // Stable, subtle silhouette variation gives each token an individual baseline when metadata has no body-build trait.
+  const silhouetteVariants = [.94,.97,1,1.03,1.06];
+  const silhouette = silhouetteVariants[profile.identitySeed % silhouetteVariants.length];
+  const hasBodyShape = profile.rawTraits.some(([type]) => /body type|body shape|body build|physique|stature/i.test(type));
+  if (!hasBodyShape) { torso.scale.x *= silhouette; torso.scale.y *= 2 - silhouette; }
   addSphere(g,trim,[-.205,1.43,0],[.18,.15,.75]);
   addSphere(g,trim,[.205,1.43,0],[.18,.15,.75]);
   add(geo('neck',()=>new THREE.CylinderGeometry(.075,.09,.15,12)),skin,0,1.55,0);
@@ -104,6 +109,8 @@ export function buildNftChar(n, opts = {}) {
   });
 
   const head = new THREE.Group(); head.position.set(0,1.77,0); head.name='nft-head'; g.add(head);
+  const hasFaceShape = profile.rawTraits.some(([type]) => /head shape|face shape|skull shape/i.test(type));
+  if (!hasFaceShape) head.scale.x = silhouetteVariants[(profile.identitySeed >>> 3) % silhouetteVariants.length];
   if (key === 'racc') {
     // RACC gets an unmistakable rounded raccoon skull, eye mask, muzzle, ears and ringed tail.
     addSphere(head,skin,[0,.02,0],[.235,.255,.22]);

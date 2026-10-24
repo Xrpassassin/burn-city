@@ -23,7 +23,7 @@ r=controller.update({dt:.016,interactPressed:true});
 assert.equal(r.property.propertyId,'starter-01');
 assert(prompts.some(p=>p.propertyId==='starter-01'));
 assert(prompts.some(p=>p.confirmedInteraction===true));
-actor.position.x=0;actor.position.z=132;
+actor.position.x=-205;actor.position.z=188;
 r=controller.update({dt:.016});
 assert.equal(r.nearGate,true);
 assert(exits.some(e=>e.visible===true&&e.requiresConfirmation));

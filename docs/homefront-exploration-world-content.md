@@ -51,6 +51,15 @@ This is an authored content layer for the existing XRPL Graveyard expedition map
 - Two MIT-licensed projects were evaluated as possible accelerators: [threejs-procedural-dungeon](https://github.com/majidmanzarpour/threejs-procedural-dungeon) for seeded room graphs and room semantics, and [THREE.Terrain](https://github.com/IceCreamYou/THREE.Terrain) for terrain generation.
 - The first interior pass stays authored and data-driven to preserve mission readability. The terrain height field remains deterministic and mirrored in `server/homefront-terrain.js`; importing a client-only terrain runtime without porting its sampler into server traversal would create visual/collision disagreement. A later pass can selectively adapt compatible MIT algorithms after dependency and attribution review.
 
+## Environmental identity and damage readability
+
+- Seven authored interiors now use landmark-specific, instanced silhouettes: dispatch furniture at the bus depot, apartment furniture, market shelving, hospital beds, industrial machinery, subway utility cabinets, and research consoles.
+- The interior set-dressing batches are presentation-only and deterministically seeded from landmark and room IDs. They add no network assets and preserve the authored room graph, interactables, and center movement lanes.
+- Refuge structures now express damage visually from the server-returned HP ratio: scuffs appear as health falls, wall/building cracks deepen at lower health, and small debris appears on severely damaged structures. The existing health bar remains available for precise readability.
+- Damage meshes are generated only for structures below the wear threshold; intact structures do not pay that extra geometry cost. No per-frame damage simulation was added.
+- Regression checks in `client/arena/homefront-interior-world.test.mjs` verify landmark-specific instanced batches; `test/homefront-assets.test.mjs` checks the refuge wear rendering path.
+- CI checks are not a substitute for browser playtesting or FPS profiling on target mobile devices. Review collision clearance, silhouette readability, and frame pacing before release.
+
 ## Exploration loop and field notes
 
 - The 3D expedition view now reports a landmark as unmapped, newly discovered, or known as the player approaches it. Discovery is triggered within 8 world units; nearby context is available within 20 units.

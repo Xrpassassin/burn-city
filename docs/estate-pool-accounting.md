@@ -50,7 +50,8 @@ Never accept a client-supplied transaction hash, wallet balance, profit figure, 
 
 **Provider identified by owner:** Xaman (formerly Xumm).  
 **Owner-supplied public XRPL account:** `rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb`  
-**Verification status:** owner-supplied; not yet independently verified against the intended XRPL network or confirmed by a Xaman SignIn flow.
+**Network status:** owner confirms this is a live XRPL Mainnet wallet.  
+**Verification status:** address and network are owner-reported; the app has not yet independently checked the account or completed a Xaman SignIn flow.
 
 This address is a configuration candidate only. Do not enable sales, label it as a verified treasury, or initiate payments until the address is confirmed on-ledger and the owner proves control through Xaman's documented authentication/signing flow. Do not infer that Grok's connection grants this game access to the account.
 
@@ -60,10 +61,12 @@ The intended treasury/payment wallet is the existing wallet the project owner ha
 Important integration boundary: connecting a wallet to Grok does not by itself give this game server, this coding session, or the BURN City runtime access to the wallet or its private keys. The implementation must integrate only through a documented, authorized wallet interface or a deliberately approved transaction-signing workflow. Never ask the owner to paste a seed phrase or secret key into chat, source code, browser storage, or server logs. Use public addresses for identification and verify all relevant transactions directly against the XRPL ledger.
 
 Before enabling sales, confirm:
-- the exact public XRPL address of the existing Grok-connected wallet;
-- whether it is a self-custody wallet or a provider-managed account, and which documented API/connector Grok uses;
+- the owner-supplied address is active on XRPL Mainnet and a Xaman SignIn proves control of that same address;
+- which documented Xaman API/SDK integration is used (Grok's existing connection is separate and does not automatically authorize BURN City);
 - whether it supports receiving purchase payments, viewing validated ledger transactions, interacting with AMM positions, and approving/signing outbound payouts;
 - whether the wallet's owner intends to keep control of every outgoing transaction or authorize a narrowly scoped, audited payout mechanism.
+
+Xaman integration notes: use the official Xaman SDK or documented backend API for SignIn and sign requests. Backend API credentials belong only in server-side environment secrets; never expose an API secret in browser/client code. A SignIn payload identifies the user's account without submitting a financial transaction. Any purchase or payout must be a separate, human-reviewed transaction request with the destination, asset, and amount plainly displayed.
 
 Until these facts are available and reviewed, this branch must keep purchases and payouts disabled. The game should never claim it is connected to or managing that wallet before an actual, tested integration exists.
 

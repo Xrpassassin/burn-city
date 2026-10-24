@@ -62,8 +62,8 @@ export class GameNet {
     for (let i = this.buf.length - 1; i >= 0; i--) if (this.buf[i].ts <= rt) { a = this.buf[i]; b = this.buf[i + 1] || a; break; }
     const k = b === a ? 0 : Math.min(1, (rt - a.ts) / (b.ts - a.ts)), lerp = (x, y) => x + (y - x) * k;
     const mapB = new Map(b.p.map(p => [p[0], p]));
-    const players = a.p.map(p => { const q = mapB.get(p[0]) || p; return { id: p[0], x: lerp(p[1], q[1]), z: lerp(p[2], q[2]), r: p[3], alive: q[4], hp: q[5], fuel: q[6], firing: q[7], pts: q[8], w: q[9] || 0, perks: q[10] || 0, down: q[11] || 0, w2: q[12] ?? -1, inv: q[13] || 0, up: q[14] || 0, bleed: q[15] || 0, rev: q[16] || 0, lsHot: q[17] || 0, y: lerp(p[18] || 0, q[18] || 0), carry: q[19] || 0, pi: q[20] || 0, ar: q[21] || 0 }; });
-    let zombies; if (a.z) { const zb = new Map(b.z.map(z => [z[0], z])); zombies = a.z.map(z => { const q = zb.get(z[0]) || z; return { id: z[0], x: lerp(z[1], q[1]), z: lerp(z[2], q[2]), burn: q[3], ty: z[4] || 0, cr: (q[5] || 0) & 1, ch: (q[5] || 0) & 2, out: (q[5] || 0) & 4, y: lerp(z[6] || 0, q[6] || 0) }; }); }
+    const players = a.p.map(p => { const q = mapB.get(p[0]) || p; return { id: p[0], x: lerp(p[1], q[1]), z: lerp(p[2], q[2]), r: p[3], alive: q[4], hp: q[5], fuel: q[6], firing: q[7], pts: q[8], w: q[9] || 0, perks: q[10] || 0, down: q[11] || 0, w2: q[12] ?? -1, inv: q[13] || 0, up: q[14] || 0, bleed: q[15] || 0, rev: q[16] || 0, lsHot: q[17] || 0, y: lerp(p[18] || 0, q[18] || 0), carry: q[19] || 0, pi: q[20] || 0, ar: q[21] || 0, heat: q[22] || 0, spin: q[23] || 0 }; });
+    let zombies; if (a.z) { const zb = new Map(b.z.map(z => [z[0], z])); zombies = a.z.map(z => { const q = zb.get(z[0]) || z; return { id: z[0], x: lerp(z[1], q[1]), z: lerp(z[2], q[2]), burn: q[3], ty: z[4] || 0, cr: (q[5] || 0) & 1, ch: (q[5] || 0) & 2, out: (q[5] || 0) & 4, y: lerp(z[6] || 0, q[6] || 0), stagger: q[7] || 0, armorBroken: q[8] || 0, armored: q[9] || 0, hpFrac: q[10] ?? 1 }; }); }
     return { players, zombies, wave: b.w, score: b.sc, map: b.m, quest: b.q, heli: b.h };
   }
   get now() { return performance.now() - this.offset - this.delay; }   // server-time we are rendering at

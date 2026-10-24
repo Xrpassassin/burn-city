@@ -19,11 +19,11 @@ This draft upgrades the characters seen while exploring BURN City. It uses the e
 ## Compatibility and licensing
 
 - Preserves the existing NFT picker, verified ownership path, wallet selection and supported collection IDs.
-- No new dependencies, runtime CDN model requests, or third-party model files were added. The avatar uses the project's existing Three.js runtime and procedural geometry, avoiding an unverified asset license.
+- No new dependencies or third-party model files were added. The optional XRPL.to API lookup is metadata-only; arbitrary 3D files are not executed or loaded as player rigs. The avatar uses the project's existing Three.js runtime and procedural geometry, avoiding an unverified asset license.
 - This is a more detailed stylized game character, not yet a photorealistic scan or a one-to-one 3D reconstruction of every PFP. Trait metadata is incomplete/inconsistent across NFT sets, so the image medallion preserves exact artwork while trait matches provide a best-effort 3D representation.
 
 ## Validation
 
-- Adds client/js/nftchar.test.mjs, a dependency-free architecture/regression test for geometry, collection-specific variants, trait mapping, artwork overlay, animation, mobile detail and cache version.
-- Adds the test to npm test and npm run test:all.
-- Browser/WebGL visual review and mobile frame-time checks remain required. The test does not prove that all remote image URLs load or that every collection's trait vocabulary is fully represented.
+- Expands client/js/nftchar.test.mjs with source-level checks for exact-ID marketplace enrichment, metadata bounds/schema, full-artwork framing, typed trait mapping and media retention; it remains wired into npm test and npm run test:all.
+- The native Node test and full suites have not been run in this environment. Existing unrelated GitHub Actions checks are not a substitute for the NFT regression test.
+- Browser/WebGL visual review, live API/IPFS retrieval, original-model validation and mobile frame-time checks remain required. Source-level checks do not prove that remote media loads or that every collection's trait vocabulary is faithfully reconstructed.

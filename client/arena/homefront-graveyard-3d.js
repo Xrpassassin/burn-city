@@ -707,12 +707,16 @@ function boot(host) {
         const discoveryLabel = guidance.alreadyDiscovered ? 'KNOWN SITE' : guidance.discoveredNow ? 'LOCATION DISCOVERED' : 'UNMAPPED SITE';
         const routeHint = guidance.routeLeads.length ? '  |  ROUTE LEADS · ' + guidance.routeLeads.join(' → ') : '';
         const storyHint = guidance.storyLead ? '  |  FIELD LEAD · ' + guidance.storyLead : '';
-        objective.textContent = discoveryLabel + ' · ' + nearest.title + ' — ' + nearest.objective + '  |  ' + district.title + ' · Risk ' + district.risk + '/5' + routeHint + storyHint;
+        const frontier = 'FRONTIER · ' + (data.self.frontierBand || 'perimeter') + ' · ' + (data.self.frontierDepth || 0) + '% inward';
+        const threatHint = (data.self.risk || 1) >= 4 ? '  |  HIGH THREAT · Heavy infected likely; keep an extraction route.' : (data.self.risk || 1) >= 3 ? '  |  DANGER RISING · Noise can pull infected from nearby blocks.' : '  |  PERIMETER PATROL · Noise still carries.';
+        objective.textContent = discoveryLabel + ' · ' + nearest.title + ' — ' + nearest.objective + '  |  ' + district.title + ' · Site risk ' + district.risk + '/5 · ' + frontier + threatHint + routeHint + storyHint;
       } else {
         const fieldNoteCount = explorationProgress?.discovered?.length || 0;
         const nextStory = explorationProgress?.storyLeads?.find(lead => !lead.complete);
         const journalHint = nextStory ? '  |  STORY LEAD · ' + nextStory.title + ' → ' + nextStory.nextLandmarkTitle : '';
-        objective.textContent = 'EXPEDITION · Risk ' + (data.self.risk || 1) + '/5 · FIELD NOTES ' + fieldNoteCount + ' sites. Survey the skyline and follow road markings for new landmarks, shortcuts, caches, and rescue leads.' + journalHint;
+        const frontier = (data.self.frontierBand || 'perimeter') + ' · ' + (data.self.frontierDepth || 0) + '% inward';
+        const threatHint = (data.self.risk || 1) >= 4 ? ' HIGH THREAT: consider turning back before ammunition runs dry.' : (data.self.risk || 1) >= 3 ? ' Threat rising deeper inside; gunfire attracts attention.' : ' Stay alert; the perimeter is safer, not sterile.';
+        objective.textContent = 'EXPEDITION · ' + frontier + ' · Risk ' + (data.self.risk || 1) + '/5 ·' + threatHint + ' FIELD NOTES ' + fieldNoteCount + ' sites. Survey the skyline and follow road markings for landmarks, shortcuts, caches, and rescue leads.' + journalHint;
       }
     }
     updateInteriorPanel();
@@ -859,7 +863,7 @@ function boot(host) {
     if (status) {
       const self = data.self;
       status.textContent = self
-        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.district || 'perimeter').replaceAll('_', ' ') + ' · danger ' + self.risk + '/5 · tap to travel · drag to look · WASD/joystick to move · right-drag to orbit · scroll to zoom · V or 👁 switches first-/third-person · Overhead view is reserved for base construction'
+        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.frontierBand || self.district || 'perimeter') + ' · ' + (self.frontierDepth || 0) + '% frontier depth · danger ' + self.risk + '/5 · deeper routes raise infected pressure; gunfire draws attention · tap to travel · drag to look · WASD/joystick to move · right-drag to orbit · scroll to zoom · V or 👁 switches first-/third-person · Overhead view is reserved for base construction'
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
     }
   }

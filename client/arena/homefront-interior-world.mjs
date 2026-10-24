@@ -117,6 +117,7 @@ export function applyInteriorAction(interior, state, actionId) {
     next.noise = Math.min(100, next.noise + 5);
   } else if (item.action === 'inspect') {
     next.used.push(item.id);
+    if (item.id === 'containment_lock') next.flags.push('incident_clue');
   }
   next.flags = [...new Set(next.flags)];
   return { state: next, item, message: item.text, serverRewardRequired: item.action === 'search' };
@@ -151,7 +152,7 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
     const { width: w, depth: d } = room, t = 0.16, h = 2.45;
     const alongX = side === 'north' || side === 'south';
     const length = alongX ? w : d;
-    const z = side === 'north' ? -d / 2 : side === 'south' ? d / 2 : room.z;
+    const z = side === 'north' ? room.z - d / 2 : side === 'south' ? room.z + d / 2 : room.z;
     const x = side === 'west' ? room.x - w / 2 : side === 'east' ? room.x + w / 2 : room.x;
     const fixed = alongX ? z : x;
     const base = alongX ? room.x : room.z;

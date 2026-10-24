@@ -40,6 +40,21 @@ const cleanOwner = id => typeof id === 'string' && id.trim() && id.length <= 180
 const clone = v => JSON.parse(JSON.stringify(v));
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const rand = seed => { let x = seed >>> 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 4294967296; };
+const SURVIVOR_RARITIES = Object.freeze({
+  common: { label: 'Common', weight: 700 },
+  uncommon: { label: 'Uncommon', weight: 200 },
+  rare: { label: 'Rare', weight: 80 },
+  epic: { label: 'Epic', weight: 18 },
+  legendary: { label: 'Legendary', weight: 2 }
+});
+function survivorRarity(seed) {
+  const roll = hash(String(seed) + ':survivor-rarity') % 1000;
+  if (roll < 2) return 'legendary';
+  if (roll < 20) return 'epic';
+  if (roll < 100) return 'rare';
+  if (roll < 300) return 'uncommon';
+  return 'common';
+}
 
 function createBase(ownerId, now = Date.now()) {
   const owner = cleanOwner(ownerId);
@@ -99,7 +114,7 @@ function validateBase(input, ownerId) {
        manned: s.type === 'turret' && s.manned === true
      }));
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
-    .map(s => ({ id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100) }));
+    .map(s => ({ id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role, morale: clampInt(s.morale, 0, 100), rarity: Object.hasOwn(SURVIVOR_RARITIES, s.rarity) ? s.rarity : 'common' }));
   out.log = Array.isArray(out.log) ? out.log.slice(-20) : [];
   return out;
 }
@@ -266,7 +281,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         salvageQuality: directorLoot.quality
       });
       let found = false;
-      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS && s.farmPlots.some(p => p.crop)) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4) }); found = true; }
+      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS && s.farmPlots.some(p => p.crop)) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4), rarity: survivorRarity(id + s.owner) }); found = true; }
       const salvageText = directorLoot.scrap
         ? ' Salvaged ' + directorLoot.quality.toLowerCase() + '-grade infected remains: +' + directorLoot.scrap + ' scrap and +' + directorLoot.embers + ' Embers.'
         : '';
@@ -322,11 +337,12 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const seed = hash(s.owner + ':' + zoneId + ':' + now + ':' + s.revision);
       const role = zone.risk >= 3 ? 'medic' : zone.risk === 2 ? 'mechanic' : 'guard';
       const id = 'rescued-' + seed.toString(36);
-      s.survivors.push({ id, name: names[seed % names.length], role, morale: clampInt(82 - zone.risk * 8 - Math.max(0, difficulty.threat - 1) * 10, 30, 100) });
+      const rarity = survivorRarity(seed);
+      s.survivors.push({ id, name: names[seed % names.length], role, morale: clampInt(82 - zone.risk * 8 - Math.max(0, difficulty.threat - 1) * 10, 30, 100), rarity });
       const embers = Math.floor((5 + zone.risk * 3) * difficulty.reward);
       s.embers = Math.min(999999999, s.embers + embers);
       s.exploration.lastExpedition = { zone: zoneId, difficulty: difficultyId, risk: zone.risk, at: now, rescue: true };
-      record(s, 'rescue', 'Rescued ' + names[seed % names.length] + ' at ' + zone.label + '. Recruited a ' + role + ' with morale ' + s.survivors.at(-1).morale + ' and earned ' + embers + ' Embers.', now);
+      record(s, 'rescue', 'Rescued ' + names[seed % names.length] + ' at ' + zone.label + '. Recruited a ' + SURVIVOR_RARITIES[rarity].label + ' ' + role + ' with morale ' + s.survivors.at(-1).morale + ' and earned ' + embers + ' Embers.', now);
       break;
     }
     case 'boss_attack': {
@@ -550,4 +566,4 @@ function applyAction(input, ownerId, action, now = Date.now()) {
   return s;
 }
 
-module.exports = { VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };
+module.exports = { VERSION, MAX_STRUCTURES, SURVIVOR_RARITIES, survivorRarity, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };

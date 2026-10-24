@@ -10,6 +10,9 @@ const scene=new Group();
 const manifest={objects:[
 {id:'ground',kind:'terrain',position:{x:0,y:0,z:0},dimensions:{width:100,depth:120},material:'grass'},
 {id:'lake',kind:'water',position:{x:0,y:-1,z:0},dimensions:{width:200,depth:220},material:'lake-water'},
+{id:'road-x',kind:'road',orientation:'x',position:{x:0,y:0,z:0},dimensions:{width:3,length:40,height:.2},material:'asphalt'},
+{id:'road-z',kind:'road',orientation:'z',position:{x:0,y:0,z:0},dimensions:{width:4,length:30,height:.2},material:'asphalt'},
+{id:'bridge',kind:'bridge',position:{x:0,y:0,z:0},dimensions:{width:8,length:24,height:.8},material:'weathered-concrete'},
 {id:'lot',kind:'property-lot',position:{x:10,y:0,z:12},dimensions:{width:20,depth:18},material:'lot-boundary',tier:'starter',buildingFootprint:{width:8,depth:7,height:5}},
 {id:'gate',kind:'entrance-trigger',position:{x:0,y:0,z:30},dimensions:{radius:5,height:4},destinationId:'estates-island'}
 ]};
@@ -18,6 +21,9 @@ const renderer=createEstatesIslandRenderer({THREE,scene,manifest,onInteract:()=>
 assert.equal(scene.children.length,1);
 assert.equal(renderer.objectCount,4);
 assert.ok(renderer.getObject('lot').length>=3);
+assert.deepEqual(renderer.getObject('road-x')[0].geometry.args,[40,.2,3],'X-oriented road must put length on X and width on Z');
+assert.deepEqual(renderer.getObject('road-z')[0].geometry.args,[4,.2,30],'Z-oriented road must put width on X and length on Z');
+assert.deepEqual(renderer.getObject('bridge')[0].geometry.args,[24,.8,8],'bridge length must run along X');
 const gate=renderer.getObject('gate')[0];
 gate.userData.interact();assert.equal(interactions,1);
 assert.equal(renderer.dispose(),true);

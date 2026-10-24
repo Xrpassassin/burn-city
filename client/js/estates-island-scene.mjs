@@ -16,11 +16,15 @@ function descriptor(id,kind,position,dimensions,material,extra={}) { return Obje
 
 export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
   if (!catalog || !Array.isArray(catalog.properties) || !Array.isArray(catalog.tiers)) throw new TypeError('Estate catalog with properties and tiers is required');
+  if (catalog.properties.length > SLOT_LAYOUT.length) throw new RangeError('Estate catalog exceeds available island lot anchors; expand the island before adding more properties');
   if (!Number.isSafeInteger(seed)) throw new TypeError('seed must be a safe integer');
   const tierById = new Map(catalog.tiers.map(t=>[t.id,t]));
+  const propertyIds=catalog.properties.map(p=>p.id);
+  if (propertyIds.some(id=>typeof id!=='string'||!id.trim()) || new Set(propertyIds).size!==propertyIds.length) throw new TypeError('Estate property IDs must be non-empty and unique');
   const lots = SLOT_LAYOUT.map(([x,z],i)=>{
     const property=catalog.properties[i]??null;
     const tier=property?tierById.get(property.tier):null;
+    if(property&&!tier) throw new TypeError('Estate property references unknown tier: '+property.tier);
     const district=i<4?'north-shore':i<10?'east-village':i<16?'west-village':i<19?'south-neighborhood':'lakefront';
     const footprint=tier ? (tier.id==='mansion'?{width:13,depth:11,height:8}:tier.id==='family'?{width:10,depth:9,height:6}:tier.id==='starter'?{width:8,depth:7,height:5}:tier.id==='apartment'?{width:7,depth:8,height:10}:{width:6,depth:5,height:3}) : null;
     return descriptor('estate-lot-'+String(i+1).padStart(2,'0'),'property-lot',point(x,0.15,z),{...LOT_SIZE,height:0.3},'lot-boundary',{
@@ -28,9 +32,11 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
       tier:tier?.id??'unassigned',buildingFootprint:footprint,district
     });
   });
+  const mappedIds=lots.filter(l=>l.propertyId).map(l=>l.propertyId);
+  if(mappedIds.length!==catalog.properties.length || propertyIds.some(id=>mappedIds.filter(mapped=>mapped===id).length!==1)) throw new Error('Every catalog property must map to exactly one island lot');
   const roads=[
     descriptor('road-main-north-south','road',point(0,0.08,0),{width:8,length:180,height:0.16},'asphalt',{orientation:'z'}),
-    descriptor('road-main-east-west','road',point(0,0.09,8),{width:150,length:7,height:0.18},'asphalt',{orientation:'x'}),
+    descriptor('road-main-east-west','road',point(0,0.09,8),{width:7,length:150,height:0.18},'asphalt',{orientation:'x'}),
     descriptor('road-east-loop','road',point(56,0.08,8),{width:6,length:94,height:0.16},'asphalt',{orientation:'z'}),
     descriptor('road-west-loop','road',point(-56,0.08,8),{width:6,length:94,height:0.16},'asphalt',{orientation:'z'}),
     descriptor('path-shore-north','footpath',point(0,0.12,-123),{width:3,length:112,height:0.12},'stone',{orientation:'x'}),

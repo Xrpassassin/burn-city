@@ -52,7 +52,7 @@ export function buildNftChar(n, opts = {}) {
   };
   const bodyHex = traitColor(/clothes|outfit|shirt|top|body|armor|jacket|robe/i, color(pal.body, '#424957'));
   const faceHex = key === 'racc' ? traitColor(/fur color|fur|skin|face/i, '#858a91') : traitColor(/skin tone|skin color|skin$|face$/i, color(pal.face, '#c9a27e'));
-  const hairHex = traitColor(/hair color|fur color|hair$/i, has(tr,/white hair|silver hair/)?'#bfc3ca':has(tr,/red hair/)?'#7b2c24':has(tr,/blond|blonde/)?'#c8a05b':has(tr,/blue hair/)?'#344f9a':'#201c20');
+  const hairHex = traitColor(/hair color|hair$/i, has(tr,/white hair|silver hair/)?'#bfc3ca':has(tr,/red hair/)?'#7b2c24':has(tr,/blond|blonde/)?'#c8a05b':has(tr,/blue hair/)?'#344f9a':'#201c20');
   const topHex = traitColor(/outerwear|coat|jacket|helmet|headwear/i, color(pal.top, bodyHex));
   const accentHex = traitColor(/accent|accessory|flame|fire|aura/i, color(pal.acc, '#ff7a1a'));
   const eyeHex = traitColor(/eye color|iris color|eyes?$|iris$/i, key==='589'||has(tr,/flaming eyes|burn eye|melt|glowing eyes/)?accentHex:'#343039');

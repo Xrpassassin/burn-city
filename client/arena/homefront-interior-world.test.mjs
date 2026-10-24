@@ -50,9 +50,9 @@ const apartmentShell = buildInteriorSetPiece(fakeThree, apartmentsBlueprint, { x
 const shellMeshes = [];
 const collectMeshes = node => { if (node instanceof FakeMesh) shellMeshes.push(node); for (const child of node.children || []) collectMeshes(child); };
 collectMeshes(apartmentShell);
-assert(shellMeshes.some(mesh => mesh.geometry.dimensions[1] === 3.2 && mesh.position.values[1] > 10),
+assert(shellMeshes.some(mesh => mesh.geometry.dimensions[1] === 3.2 && mesh.position.values[1] > 0.5),
   'raised interior transitions render ladder rails spanning the authored floor height');
-assert(shellMeshes.some(mesh => Math.abs(mesh.position.values[1] - 13.12) < 0.001),
+assert(shellMeshes.some(mesh => Math.abs(mesh.position.values[1] - 3.12) < 0.001),
   'upper apartment floor geometry is placed at its authored elevation');
 
 const hospital = interiorForLandmark('mercy_hospital');

@@ -8,11 +8,12 @@ assert.equal(isPositionBlocked(2, 0, [wall]), false, 'clear ground remains trave
 assert.equal(isPositionBlocked(0, 0, [{ ...wall, hp: 0 }]), false, 'destroyed structures stop blocking');
 
 
-const safeStep = safeMovePosition({ x: -1, z: 0 }, { x: 1, z: 0 }, [wall]);
+const safeStep = safeMovePosition({ x: -1.3, z: 0 }, { x: 1, z: 0 }, [wall]);
 assert.equal(isPositionBlocked(safeStep.x, safeStep.z, [wall]), false, 'safe movement never ends inside a structure');
-assert.ok(safeStep.x < 0 || Math.abs(safeStep.z) > 0, 'blocked diagonal movement slides along a clear axis when possible');
-const sealedStep = safeMovePosition({ x: -1, z: 0 }, { x: 1, z: 0 }, [wall, { id: 'left-block', type: 'wall', hp: 100, x: -1, z: 0 }, { id: 'north-block', type: 'wall', hp: 100, x: -1, z: 1 }]);
-assert.equal(isPositionBlocked(sealedStep.x, sealedStep.z, [wall]), false, 'failed safe movement preserves the original clear position');
+assert.ok(safeStep.z !== 0, 'blocked forward movement slides along a clear axis when possible');
+const sealedStep = safeMovePosition({ x: -1.3, z: 0 }, { x: 1, z: 1 }, [wall, { id: 'north-block', type: 'wall', radius: 0.2, hp: 100, x: -1.3, z: 1 }]);
+assert.deepEqual(sealedStep, { x: -1.3, z: 0 }, 'when all candidate steps are blocked the actor remains at its clear position');
+assert.equal(isPositionBlocked(sealedStep.x, sealedStep.z, [wall, { id: 'north-block', type: 'wall', radius: 0.2, hp: 100, x: -1.3, z: 1 }]), false, 'a rejected move never tunnels through the structure');
 
 const steer = steeringDirection({ x: -2, z: 0 }, { x: 2, z: 0 }, [wall]);
 assert.ok(steer.x > 0, 'steering still makes forward progress around an obstacle');

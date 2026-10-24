@@ -199,6 +199,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             addItem: (inventory, item, amount) => Inventory.add(inventory, item, amount)
           });
           db.lootNodes = found.state;
+          // Loot containers are quick to open but never silent. Deeper caches emit a
+          // stronger signature, recorded server-side at the container's location.
+          player.noiseLevel = Math.max(player.noiseLevel || 0, found.noise.level);
+          player.lastNoiseAt = now;
+          player.noiseX = player.x;
+          player.noiseZ = player.z;
           player.lastSeen = now;
           player.survival = Survival.tick(player.survival, now);
           const bases = store.load('homefront.json', {});
@@ -230,7 +236,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             mode: 'homefront-world',
             ...World.snapshot(db, user.acct, now),
             base,
-            loot: { node: found.node, accepted: found.accepted, overflow: found.overflow, overflowDestination: 'refuge' },
+            loot: { node: found.node, accepted: found.accepted, overflow: found.overflow, overflowDestination: 'refuge', noise: { level: found.noise.level, durationMs: found.noise.durationMs } },
             inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }
           });
           return true;

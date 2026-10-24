@@ -62,3 +62,9 @@ assert.match(page, /steeringDirection\(/, 'survivors use obstacle-aware steering
 assert.match(page, /separationVector\(/, 'survivors avoid crowding each other with separation steering');
 assert.match(page, /isPositionBlocked\(nx,nz,collisionStructures,\.32\)/, 'third-person player movement respects solid structure footprints');
 assert.match(page, /navObstacles=\(base\?\.structures\|\|\[\]\)\.filter\(item=>item\.hp>0&&!openGateIds\.has\(String\(item\.id\)\)\)/, 'open gates remain navigable while solid structures steer survivor movement');
+
+assert.match(page, /function survivorSpot\(survivor,index\)/, 'survivors receive a role/task-aware homefront destination');
+assert.match(page, /const taskStation=\{stockpile_supplies:'storage',infirmary_duty:'infirmary',triage_standby:'infirmary',maintain_structures:'workshop',stand_by_repairs:'workshop'\}/, 'survivor work assignments route to the matching station');
+assert.match(page, /if\(survivor\.task==='take_shelter'\)return/, 'survivors assigned to shelter move into the refuge interior');
+assert.match(page, /const workSpot=\(item,slot=index,radius=1\.35\)/, 'work destinations are spaced around the target structure instead of inside it');
+assert.match(page, /if\(survivor\.task==='tend_crops'\|\|survivor\.role==='farmer'\)/, 'farmers route to actual planted crop plots');

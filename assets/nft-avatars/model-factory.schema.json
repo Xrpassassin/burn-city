@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BURN City NFT Avatar Model Factory Manifest",
+  "type": "object",
+  "required": ["schemaVersion", "collection", "identity", "source", "rights", "build", "review"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "collection": {
+      "type": "object", "required": ["key", "displayName"],
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "displayName": { "type": "string", "minLength": 1 },
+        "network": { "type": "string", "default": "XRPL" },
+        "issuer": { "type": ["string", "null"] },
+        "taxon": { "type": ["integer", "null"], "minimum": 0 }
+      }, "additionalProperties": false
+    },
+    "identity": {
+      "type": "object", "required": ["tokenId", "artworkReference", "traitSnapshot"],
+      "properties": {
+        "tokenId": { "type": "string", "minLength": 1 },
+        "artworkReference": { "type": ["string", "null"] },
+        "traitSnapshot": { "type": "object" },
+        "artworkSha256": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{64}$" }
+      }, "additionalProperties": false
+    },
+    "source": {
+      "type": "object", "required": ["kind", "format", "units"],
+      "properties": {
+        "kind": { "enum": ["authored", "generated", "third-party", "procedural"] },
+        "format": { "enum": ["glb", "gltf", "fbx", "blend", "obj", "procedural"] },
+        "uri": { "type": ["string", "null"] },
+        "sha256": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{64}$" },
+        "units": { "enum": ["meters", "centimeters", "millimeters", "unknown"] },
+        "polygonCount": { "type": ["integer", "null"], "minimum": 0 },
+        "skeleton": { "type": ["string", "null"] },
+        "notes": { "type": "string" }
+      }, "additionalProperties": false
+    },
+    "rights": {
+      "type": "object", "required": ["license", "author", "redistribution", "reviewStatus"],
+      "properties": {
+        "license": { "type": "string", "minLength": 1 },
+        "author": { "type": "string", "minLength": 1 },
+        "attribution": { "type": "string" },
+        "sourceUrl": { "type": ["string", "null"] },
+        "redistribution": { "enum": ["allowed", "not-allowed", "unknown"] },
+        "reviewStatus": { "enum": ["approved", "pending", "rejected"] },
+        "reviewedBy": { "type": ["string", "null"] },
+        "reviewedAt": { "type": ["string", "null"], "format": "date-time" }
+      }, "additionalProperties": false
+    },
+    "build": {
+      "type": "object", "required": ["pipelineVersion", "status"],
+      "properties": {
+        "pipelineVersion": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["planned", "source-ready", "processing", "built", "failed"] },
+        "toolchain": { "type": "array", "items": { "type": "string" } },
+        "outputUri": { "type": ["string", "null"] },
+        "outputSha256": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{64}$" },
+        "outputBytes": { "type": ["integer", "null"], "minimum": 0 },
+        "textureBudgetBytes": { "type": ["integer", "null"], "minimum": 0 },
+        "targetPolyCount": { "type": ["integer", "null"], "minimum": 0 },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }, "additionalProperties": false
+    },
+    "review": {
+      "type": "object", "required": ["visualQa", "mobilePerf", "approvedForRuntime"],
+      "properties": {
+        "visualQa": { "enum": ["not-run", "pass", "fail"] },
+        "mobilePerf": { "enum": ["not-run", "pass", "fail"] },
+        "approvedForRuntime": { "type": "boolean" },
+        "reviewer": { "type": ["string", "null"] },
+        "notes": { "type": "string" }
+      }, "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

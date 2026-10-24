@@ -1446,7 +1446,7 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
    if(P.pos.y>=cw.h-.05){const dx=cw.x-P.pos.x,dz=cw.z-P.pos.z,d=Math.hypot(dx,dz)||1;P.pos.y=cw.h;P.pos.x+=dx/d*1.4;P.pos.z+=dz/d*1.4;P.climb=null;P.onGround=true}}
   else P.climb=null}
  {const XL=window.__exploreLim||900;P.pos.x=Math.max(-XL,Math.min(XL,P.pos.x));P.pos.z=Math.max(-XL,Math.min(XL,P.pos.z))}if(window.__hwGuard&&window.__hwGuard(P.pos,P.vel)){P.onGround=true;P.climb=null}
- P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);const L=avatar.userData;poseWalker(avatar,P.walk,Math.min(1,ml)*(P.onGround?1:.25),performance.now()/1000);
+ P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);const L=avatar.userData;const avatarTime=performance.now()/1000;poseWalker(avatar,P.walk,Math.min(1,ml)*(P.onGround?1:.25),avatarTime);if(L.nftCharacter&&L.nftCharacter.userData.anim)L.nftCharacter.userData.anim(avatarTime,ml>.05,!!P.climb);
  if(P.climb){const c2=Math.sin(P.walk*1.4);L.arms[0].rotation.x=-2.6+c2*.5;L.arms[1].rotation.x=-2.6-c2*.5;L.legs[0].rotation.x=.6+c2*.4;L.legs[1].rotation.x=.6-c2*.4}
  avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml+(P.climb?Math.sin(P.walk*1.4)*.05:0);avatar.visible=!P.fp;webPose();const dir=dirOf();
  if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.7);C.lookAt(C.position.clone().add(dir))}

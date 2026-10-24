@@ -189,7 +189,7 @@ class Room {
       let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
       const nx = clamp(p.x + vx * SP * dt, -W, W), nz = clamp(p.z + vz * SP * dt, -W, W);   // stay inside unlocked zones (doors = barriers)
       if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
-      const w0 = Z.wpn(p), ro = bon(p, 'rof'), w = bon(p, 'range') || bon(p, 'fuel') || ro ? { ...w0, range: fireRange(p), regen: w0.regen * (1 + 0.25 * bon(p, 'fuel')), use: w0.use * (1 - 0.08 * ro), cd: w0.cd && w0.cd * (1 - 0.08 * ro) } : w0, quick = Z.has(p, 'quick'); p.cd = Math.max(0, p.cd - dt);
+      const w0 = Z.wpn(p), ro = bon(p, 'rof'), w = bon(p, 'range') || bon(p, 'fuel') || ro ? { ...w0, range: fireRange(p), regen: w0.regen * (1 + 0.25 * bon(p, 'fuel')), use: w0.use * (1 - 0.08 * ro), cd: w0.cd && w0.cd * (1 - 0.08 * ro) } : w0, quick = Z.has(p, 'quick'); p.cd = Math.max(0, p.cd - dt); if (w0.kind !== 'rotary' && p.ravHeat > 0) { p.ravHeat = Math.max(0, p.ravHeat - dt * (p.ravLock > 0 ? 34 : 19)); p.ravSpin = Math.max(0, (p.ravSpin || 0) - dt * 1.1); p.ravLock = Math.max(0, (p.ravLock || 0) - dt); }
       if (w.kind === 'rotary') {
         const rot = Rotary.advance({ spin: p.ravSpin, heat: p.ravHeat, lock: p.ravLock, tracer: p.ravTracerT }, dt, p.in.fire && p.fuel > 0, p.fuel > 0);
         p.ravSpin = rot.spin; p.ravHeat = rot.heat; p.ravLock = rot.lock; p.ravTracerT = rot.tracer;
@@ -285,7 +285,7 @@ class Room {
   snapshot() {
     const P = [...this.players.values()].map(p => this.mode === 'tron'
       ? [p.id, q(p.x), q(p.z), p.dir, p.alive ? 1 : 0]
-      : [p.id, q(p.x), q(p.z), Math.round(p.yaw * 100) / 100, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.fuel), p.firing ? 1 : 0, p.pts | 0, Z.WI[p.guns[p.slot]] ?? 0, p.perks, p.down ? (p.revT > 0 || p.selfRev ? 2 : 1) : 0, p.guns[1 - p.slot] ? Z.WI[p.guns[1 - p.slot]] : -1, p.inv > 0 && !p.aboard ? 1 : 0, Z.upBits(p), p.down && p.bleed > 0 ? Math.ceil(p.bleed) : 0, p.down && p.revT > 0 && p.revNeed ? Math.round(p.revT / p.revNeed * 100) : 0, p.down && p.up && p.up.length ? 1 : 0, q(p.y || 0), this.quest?.it?.by === p.id ? this.quest.it.kind : 0, Math.round((p.pitch || 0) * 100) / 100, q(fireRange(p))]);
+      : [p.id, q(p.x), q(p.z), Math.round(p.yaw * 100) / 100, p.alive ? 1 : 0, Math.round(p.hp), Math.round(p.fuel), p.firing ? 1 : 0, p.pts | 0, Z.WI[p.guns[p.slot]] ?? 0, p.perks, p.down ? (p.revT > 0 || p.selfRev ? 2 : 1) : 0, p.guns[1 - p.slot] ? Z.WI[p.guns[1 - p.slot]] : -1, p.inv > 0 && !p.aboard ? 1 : 0, Z.upBits(p), p.down && p.bleed > 0 ? Math.ceil(p.bleed) : 0, p.down && p.revT > 0 && p.revNeed ? Math.round(p.revT / p.revNeed * 100) : 0, p.down && p.up && p.up.length ? 1 : 0, q(p.y || 0), this.quest?.it?.by === p.id ? this.quest.it.kind : 0, Math.round((p.pitch || 0) * 100) / 100, q(fireRange(p)), Math.round(p.ravHeat || 0), q(p.ravSpin || 0)]);
     const s = { t: 's', ts: ms(this.t), p: P };
     if (this.ranked) s.rk = [this.ranked.state, this.ranked.countdown === null ? 0 : Math.ceil(this.ranked.countdown), this.players.size, this.ranked.id];
     if (this.tl) { const k = this.tl, cr = k.ranked ? [...this.players.values()].find(p => p.acct === k.creatorAcct)?.id : k.creatorId;

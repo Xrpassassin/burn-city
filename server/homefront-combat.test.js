@@ -161,7 +161,7 @@ console.log('Homefront authoritative combat tests passed.');
 // Audit fixes (Oct 23): the pathfinding anchor drives the squad, members regroup instead of sticking
 // behind terrain, member maxHp matches its spawned hp, and killing the lead hands the anchor to a survivor.
 {
-  const sq = C.spawn({ encounters: {}, account: 'hp-test', player: { x: -40, z: 30 }, now: 990000, seed: 6 });
+  const sq = C.spawn({ encounters: {}, account: 'hp-test', player: { x: -40, z: 30 }, now: 990000, seed: 0 });
   assert.ok(sq.encounters['hp-test'].members.length > 1, 'fixture is a multi-member horde');
   const e = sq.encounters['hp-test'];
   assert.ok(e.members.every(m => m.hp === m.maxHp), 'every squad member spawns at full health');

@@ -4,7 +4,7 @@ const base=()=>({resources:{ammo:50,scrap:0,food:10},embers:0,survivors:[{id:'s1
 const a=C.spawn({encounters:{},account:'a',player,now:100000,seed:4});assert.ok(a.encounter.id.startsWith('enc-'));
 const Terrain=require('./homefront-terrain');assert.equal(Terrain.isSafePosition(a.encounter.x,a.encounter.z,{bounds:100}),true,'infected encounters spawn on a safe terrain footprint');
 assert.equal(a.encounter.range,C.STATS[a.encounter.event].range,'public encounter exposes server-owned attack range for contextual UI');
-assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950,heavy_machine_gun:280},'weapon-specific fire cadence is defined on the server');
+assert.deepEqual(C.WEAPON_FIRE_INTERVAL,{pipe_blade:900,pump_shotgun:1150,marksman_rifle:1350,shock_maul:950,heavy_machine_gun:500},'weapon-specific fire cadence is defined on the server');
 assert.deepEqual(C.WEAPON_MAGAZINE_CAPACITY,{pipe_blade:0,pump_shotgun:6,marksman_rifle:5,shock_maul:0,heavy_machine_gun:30},'firearms use finite magazines, including a large heavy-machine-gun belt; melee weapons never consume bullets');
 assert.equal(C.WEAPON_HANDLING.heavy_machine_gun.adsMs,360,'heavy machine gun has a distinct handling profile');
 const rapidSpawn=C.spawn({encounters:{},account:'mg-cadence-test',player,now:900000,seed:14});

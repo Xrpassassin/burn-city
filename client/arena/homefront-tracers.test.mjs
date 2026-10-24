@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import * as THREE from './vendor/three.module.min.js';
+import { createTracerPool } from './homefront-tracers.mjs';
+const scene = new THREE.Scene();
+const pool = createTracerPool(THREE, scene, { max: 4 });
+assert.equal(scene.children.length, 2, 'one LineSegments + one flash, created once');
+const geo = pool.object.geometry, pos = geo.attributes.position.array;
+for (let i = 0; i < 10; i++) pool.emit({ x: 0, y: 1, z: 0 }, { x: i, y: 1, z: 5 }, 0xffffff, 0.1);
+assert.equal(pool.object.geometry, geo, 'no new geometry per tracer');
+assert.equal(geo.attributes.position.array, pos, 'buffers are reused');
+assert.equal(scene.children.length, 2, 'emitting never adds scene objects');
+assert.ok(pool.live <= 4, 'live tracers never exceed the pool capacity');
+pool.update(0.05); assert.ok(pool.live > 0);
+pool.update(0.2); assert.equal(pool.live, 0, 'tracers expire'); assert.equal(geo.drawRange.count, 0, 'nothing drawn once expired');
+assert.equal(pool.flash.visible, false, 'muzzle flash hides after its short life');
+console.log('Homefront pooled tracer tests passed.');

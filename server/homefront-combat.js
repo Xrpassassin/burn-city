@@ -65,6 +65,7 @@ function interiorCollisionOptions(interiors, account) {
  const removedObstacleIds = Collision.INTERIOR_OBSTACLE_IDS.filter(id =>
   !landmarkId || id.split(':')[1] !== landmarkId ||
   (id.startsWith('interior-door:') && state?.openedDoors?.includes(id.split(':')[2])));
+ if (landmarkId) removedObstacleIds.push(...(Collision.INTERIOR_CARVE_IDS[landmarkId] || []));
  return { removedObstacleIds, landmarkId, state };
 }
 function attemptInteriorBreach({ account, enemy, player, interiors, now, elapsed, collisionOptions, speed }) {

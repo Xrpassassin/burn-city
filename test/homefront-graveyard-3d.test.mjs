@@ -45,6 +45,10 @@ assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely')
 assert.match(scene, /assets\/homefront\/zombie\.glb/, 'reuse the existing Homefront zombie model');
 assert.match(scene, /\/api\/homefront\/world/, 'read the shared Homefront world snapshot');
 assert.match(scene, /\/api\/homefront\/world\/move/, 'send movement through the authoritative world API');
+assert.match(scene, /\/api\/homefront\/world\/exploration/, 'load account-persisted exploration notes');
+assert.match(scene, /\/api\/homefront\/world\/exploration\/discover/, 'submit landmark discoveries for server-side distance validation');
+assert.match(scene, /function renderExplorationJournal\(\)/, 'render persistent story leads and field notes in the in-game journal');
+assert.match(page, /id="explorationJournalContent"/, 'provide a field journal panel in the expedition UI');
 assert.match(scene, /data\.world\?\.pointsOfInterest/, 'render server-authored points of interest');
 assert.match(scene, /data\.world\?\.bosses|data\.world\?\.caches/, 'bind interactive landmark visuals to shared encounter state');
 assert.match(scene, /worldData\.party && !worldData\.party\.leader/, 'respect leader-controlled party movement');

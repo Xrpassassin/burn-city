@@ -30,6 +30,14 @@ This is an authored content layer for the existing XRPL Graveyard expedition map
 - Two MIT-licensed projects were evaluated as possible accelerators: [threejs-procedural-dungeon](https://github.com/majidmanzarpour/threejs-procedural-dungeon) for seeded room graphs and room semantics, and [THREE.Terrain](https://github.com/IceCreamYou/THREE.Terrain) for terrain generation.
 - The first interior pass stays authored and data-driven to preserve mission readability. The terrain height field remains deterministic and mirrored in `server/homefront-terrain.js`; importing a client-only terrain runtime without porting its sampler into server traversal would create visual/collision disagreement. A later pass can selectively adapt compatible MIT algorithms after dependency and attribution review.
 
+## Exploration loop and field notes
+
+- The 3D expedition view now reports a landmark as unmapped, newly discovered, or known as the player approaches it. Discovery is triggered within 8 world units; nearby context is available within 20 units.
+- A discovered site surfaces up to two connected, not-yet-discovered route leads. This makes POIs act as navigational choices rather than isolated map pins.
+- Existing story-thread metadata powers contextual breadcrumbs. For example, finding the North Bus Depot points toward the next clue in **The Last Convoy**; hospital and Ironworks leads guide players through multi-stop story chains toward Blackglass.
+- Discovery notes are stored locally in the current browser under `homefrontExplorationDiscoveries`. They are guidance only, not account-synced progression, and never grant loot or alter server-authoritative state. Server-backed quest flags and rewards remain a separate follow-up.
+- Regression coverage: run `node client/arena/homefront-exploration-guidance.test.mjs` alongside the existing exploration catalog test.
+
 ## Current content
 
 Seven districts are authored: Ash Ring, Hollow Blocks, Exchange Market, St. Mercy Quarantine, Ironworks Belt, The Buried Line, and Blackglass Annex. All existing server points receive a purpose-built objective and narrative hook. Three multi-location story threads connect evacuation clues, the hospital transfer order, and the Ironworks power puzzle. Route metadata marks the outer-ring road, freight cut-through, market service passage, hospital link, and buried line.

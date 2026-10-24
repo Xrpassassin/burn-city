@@ -274,7 +274,10 @@ class Room {
           }
         }
       } else if (tactical?.state === 'investigate' || bd > 1.1 || !sameLv) {   // investigate recent gunfire when no player is visible; otherwise follow the existing flow field
-        let tx = best.x, tz = best.z; const st = Z.nextStep(this, zb.x, zb.z, zb.lv); if (zb.ty !== 6 && st && !(bd < 3 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y))) { tx = st[0]; tz = st[1]; }
+        let tx = best.x, tz = best.z; const st = Z.nextStep(this, zb.x, zb.z, zb.lv);
+        const investigatingVisibleNoise = tactical?.state === 'investigate' && tactical.target && Z.los(this, zb.x, zb.z, tactical.target.x, tactical.target.z, zb.y, zb.y);
+        if (investigatingVisibleNoise) { tx = tactical.target.x; tz = tactical.target.z; }
+        else if (zb.ty !== 6 && st && !(bd < 3 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y))) { tx = st[0]; tz = st[1]; }
         if (tactical?.state !== 'investigate' && (zb.ty === 3 || zb.ty === 8)) { zb.chT = (zb.chT ?? (zb.ty === 8 ? 6 : 5)) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < (zb.ty === 8 ? 12 : 14) && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = (zb.ty === 8 ? 8 + Math.random() * 2 : 7 + Math.random() * 3); zb.charge = zb.ty === 8 ? 1.05 : 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
         const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1, mv = zb.sp * (!this.ranked && !this.daily && zb.stagger > 0 ? 0.12 : 1) * (zb.charge > 0 ? (zb.ty === 8 ? 2.6 : 3.2) : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;
         if (zb.ty === 6) { zb.x = nx; zb.z = nz; zb.y = 2.4 + Math.sin(this.t * 3.5 + zb.id) * 0.3; zb.lv = 0; }

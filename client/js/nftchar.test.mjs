@@ -62,7 +62,10 @@ has(avatar, /nft-firekeeper-robe-hem/, 'builds the Firekeepers robe silhouette')
 has(avatar, /nft-firekeeper-cowl/, 'builds the Firekeepers cowl silhouette');
 has(avatar, /nft-firekeeper-robe-panel/, 'builds separate layered Firekeepers robe panels');
 has(avatar, /nft-firekeeper-robe-embroidery/, 'adds collection-specific Firekeepers robe embroidery');
-has(avatar, /nft-firekeeper-sigil/, 'builds a collection-specific Firekeepers sigil');
+has(avatar, /nft-firekeeper-sigil/, 'supports a collection-specific Firekeepers sigil when a relic trait exists');
+has(avatar, /if \(components\.headwearStyle === 'hood'\)[\s\S]*nft-firekeeper-cowl/, 'gates the Firekeepers cowl on the individual token headwear trait');
+has(avatar, /if \(components\.accessoryStyle === 'relic'\)[\s\S]*nft-firekeeper-sigil/, 'gates the Firekeepers sigil on the individual token accessory trait');
+has(avatar, /if\(url&&opts\.panel===true\)/, 'keeps the artwork tabard opt-in so it does not obscure the in-game 3D reconstruction');
 has(avatar, /nft-protocol-emblem/, 'builds a collection-specific 589 Protocol insignia');
 has(avatar, /reconstruction\};/, 'exposes reconstruction blueprint for visual QA');
 has(avatar, /nft-robe-outer-layer/, 'renders a distinct Firekeepers robe layer');
@@ -112,7 +115,7 @@ has(avatar, /artwork panel spans the torso center[\s\S]*side\*\.292[\s\S]*render
 has(avatar, /addBox\(g,mat\('#15171c'\),\[0,\.775,\.252\],\[\.12,\.055,\.012\]\)\.name='nft-protocol-shirt-print'/, 'places the 589 shirt print below the artwork frame where it remains visible');
 has(avatar, /nft-protocol-shirt-sigil[\s\S]*\.775,\.266[\s\S]*renderOrder=3/, 'places the 589 shirt sigil below the artwork frame and above the torso');
 has(avatar, /key==='fk'/, 'gives Firekeepers a collection-specific ember treatment');
-has(avatar, /nft-artwork-panel/, 'shows the complete NFT artwork on the walking avatar');
+has(avatar, /nft-artwork-panel/, 'supports the complete NFT artwork as an optional QA tabard');
 has(avatar, /nft-body-effect-flame/, 'renders 589 Body fire states as visible geometry');
 has(avatar, /nft-burn-halo/, 'renders the 589 Burn Halo head trait');
 has(avatar, /nft-beehive-headwear/, 'renders the RACC Bee Hive Top Gear trait');

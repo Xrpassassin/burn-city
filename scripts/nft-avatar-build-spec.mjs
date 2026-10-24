@@ -93,7 +93,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(im
     try {
       const nft = JSON.parse(fs.readFileSync(input, 'utf8'));
       const spec = compileNftAvatarBuildSpec(nft);
-      const serialized = JSON.stringify(spec, null, 2) + '\\n';
+      const serialized = JSON.stringify(spec, null, 2) + '\n';
       if (output) fs.writeFileSync(output, serialized, { flag: 'wx' });
       else process.stdout.write(serialized);
     } catch (error) {

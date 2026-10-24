@@ -333,3 +333,5 @@ assert.match(scene, /tracer\.userData\.tracer = true/, 'mark tracers for short-l
 assert.match(scene, /heavy_machine_gun/, 'recognize the late-game heavy machine gun in client feedback and cadence');
 assert.match(page, /heavy_machine_gun.*Heavy Machine Gun.*Legendary · late unlock.*8,260,240/, 'show heavy machine gun as a high-power, high-cost weapon-bench unlock');
 assert.match(page, /survey Industrial Yard or Research Annex/, 'explain the heavy machine gun district-unlock requirement');
+assert.match(scene, /weaponId === 'heavy_machine_gun' \? 1\.18/, 'render a visibly longer heavy-machine-gun silhouette');
+assert.match(scene, /const ammoBox = new THREE\.Mesh/, 'add a visible ammunition box to the heavy machine gun');

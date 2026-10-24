@@ -86,7 +86,7 @@ async function select(acct, id, ledger) {
 function charFor(acct) {
   if (!acct || !sel[acct]) return null; const o = owned.get(acct);
   if (!o || Date.now() - o.t > 3 * TTL || !o.list.some(n => n.id === sel[acct])) return null;
-  const m = metaMem.get(sel[acct]); return m ? { id: m.id, key: m.key, name: m.name, num: m.num, img: m.img, pal: m.pal, t: m.traits.filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 10) } : null;
+  const m = metaMem.get(sel[acct]); return m ? { id: m.id, key: m.key, name: m.name, num: m.num, img: m.img, pal: m.pal, t: m.traits.filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 16) } : null;
 }
 let ledgerFn = null, mainnet = null;   // own read-only mainnet client (NFTs live on mainnet even when payments run on testnet)
 const xrpl = require('xrpl');

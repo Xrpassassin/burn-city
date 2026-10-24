@@ -258,6 +258,9 @@ class Room {
         if (visible) zb.lastKnownTarget = { x: best.x, z: best.z, untilMs: this.t * 1000 + 2500, lv: best.lv || 0 };
         let heard = null, heardDistance = Infinity;
         for (const noise of this.tacNoise || []) {
+          // Sound does not teleport perception through floors: the sound stimulus
+          // must originate on this zombie's floor before its radius is evaluated.
+          if (Math.abs((noise.lv || 0) - (zb.lv || 0)) > 0) continue;
           const stimulus = Tactics.hearNoise(zb, noise, this.t * 1000, Tactics.roleTuning(zb.role).hearingScale);
           if (stimulus && stimulus.distance < heardDistance) { heard = noise; heardDistance = stimulus.distance; }
         }
@@ -283,10 +286,12 @@ class Room {
         // ordinary flow-field waypoint; normal axis collision checks still govern motion.
         if (tactical?.state === 'pursue' && zb.role === 'flanker' && sameLv && bd > 3) {
           const approach = Tactics.selectApproachTarget({ role: zb.role, zombie: zb, target: best, targetVisible: true, offset: 4 });
-          if (approach && Z.inside(this, approach.x, approach.z, 0.32, zb.lv) &&
-              Z.los(this, zb.x, zb.z, approach.x, approach.z, zb.y, zb.y)) {
-            tx = approach.x; tz = approach.z;
-          }
+          const validatedApproach = Tactics.validateApproachTarget({
+            approach, sameFloor: sameLv && Math.abs((best.lv || 0) - (zb.lv || 0)) === 0,
+            isWalkable: (x, z) => Z.inside(this, x, z, 0.32, zb.lv),
+            hasLineOfSight: (x, z) => Z.los(this, zb.x, zb.z, x, z, zb.y, zb.y)
+          });
+          if (validatedApproach) { tx = validatedApproach.x; tz = validatedApproach.z; }
         }
         if (tactical?.state !== 'investigate' && (zb.ty === 3 || zb.ty === 8)) { zb.chT = (zb.chT ?? (zb.ty === 8 ? 6 : 5)) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < (zb.ty === 8 ? 12 : 14) && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = (zb.ty === 8 ? 8 + Math.random() * 2 : 7 + Math.random() * 3); zb.charge = zb.ty === 8 ? 1.05 : 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
         const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1;

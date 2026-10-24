@@ -106,7 +106,7 @@ export function createZombieFX(scene, { low = false } = {}) {
     put(Z.head, i, z.x, y0, z.z, yaw, sc, 0, hy, hz, hp, 0.2 * Math.sin(ph * 0.5) + (crawl ? 0.3 : 0), skin);
     const jawOpen = 0.25 + 0.2 * Math.sin(t * 5 + z.id);
     put(Z.jaw, i, z.x, y0, z.z, yaw, sc, 0, hy + 0.03 - Math.sin(hp) * 0.05, hz + 0.18 + Math.cos(hp) * 0.04, hp + jawOpen, 0, tmp2.copy(skin).multiplyScalar(0.7));
-    const eyeC = dead ? tmp4.setHex(0x000000) : tmp4.setHex(ty.eye), ey = hy + 0.25 * Math.cos(hp), ez = hz + 0.22 + 0.25 * Math.sin(hp);
+    const eyeC = dead ? tmp4.setHex(0x000000) : burning ? tmp4.setHex(0xff5a10) : tmp4.setHex(ty.eye), ey = hy + 0.25 * Math.cos(hp), ez = hz + 0.22 + 0.25 * Math.sin(hp);
     put(Z.eye, i, z.x, y0, z.z, yaw, sc, 0.1, ey, ez, hp, 0, eyeC); put(arms2.eye, i, z.x, y0, z.z, yaw, sc, -0.1, ey, ez, hp, 0, eyeC);
     put(Z.glow, i, z.x, y0, z.z, yaw, dead || low ? HID : sc, 0, ey, ez + 0.03, hp, 0, eyeC);
     const reach = quad ? -1.45 + sw * 0.9 : crawl ? -1.6 : runner ? -0.6 - sw * 0.5 : -1.35, ay = 0.7 * Math.cos(pitch), az = 0.7 * Math.sin(pitch) + 0.05;

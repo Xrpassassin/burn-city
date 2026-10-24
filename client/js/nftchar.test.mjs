@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
 
 const [avatar, city, app, sw, picker, nftServer] = await Promise.all([
   readFile(new URL('./nftchar.js', import.meta.url), 'utf8'),
@@ -13,6 +14,25 @@ let checks = 0;
 function has(source, pattern, message) { assert.match(source, pattern, message); checks++; }
 function lacks(source, pattern, message) { assert.doesNotMatch(source, pattern, message); checks++; }
 
+
+const raccProfile = resolveNftAvatarProfile({ key: 'racc', id: 'NFT-001', traits: [['Bandit Mask', 'Crimson'], ['Background', 'Sunset'], ['Fur Color', 'Silver']] });
+assert.equal(raccProfile.collectionName, 'RACC'); checks++;
+assert.equal(raccProfile.archetype, 'raccoon'); checks++;
+assert.deepEqual(raccProfile.renderTraits, [['mask', 'Crimson'], ['background', 'Sunset'], ['fur color', 'Silver']]); checks++;
+assert.deepEqual(raccProfile.rawTraits, [['Bandit Mask', 'Crimson'], ['Background', 'Sunset'], ['Fur Color', 'Silver']]); checks++;
+assert.equal(raccProfile.identitySeed, resolveNftAvatarProfile({ key: 'racc', id: 'NFT-001' }).identitySeed); checks++;
+assert.notEqual(raccProfile.identitySeed, resolveNftAvatarProfile({ key: 'racc', id: 'NFT-002' }).identitySeed); checks++;
+const firekeeperProfile = resolveNftAvatarProfile({ key: 'fk', traits: [['Ember Type', 'Blue'], ['Keeper Robes', 'Ash']] });
+assert.deepEqual(firekeeperProfile.renderTraits, [['flame', 'Blue'], ['outfit', 'Ash']]); checks++;
+const protocolProfile = resolveNftAvatarProfile({ key: '589', traits: [['Loadout', 'Rifle'], ['Bling', 'Gold']] });
+assert.deepEqual(protocolProfile.renderTraits, [['weapon', 'Rifle'], ['accessory', 'Gold']]); checks++;
+const unknownProfile = resolveNftAvatarProfile({ key: 'future-project', traits: [['Background', 'Rain']] });
+assert.equal(unknownProfile.hasCollectionAdapter, false); checks++;
+assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;
+
+has(avatar, /resolveNftAvatarProfile/, 'routes traits through collection-specific adapters');
+has(avatar, /originalTraitPairs/, 'retains original NFT traits separately from normalized render traits');
+has(avatar, /nftAvatarProfile=/, 'attaches stable collection and identity metadata to the avatar');
 has(avatar, /export function buildNftChar/, 'exports the NFT character builder');
 has(avatar, /new THREE\.SphereGeometry\(1, lite \? 10 : 16, lite \? 8 : 12\)/, 'uses smooth sphere anatomy with mobile geometry scaling');
 has(avatar, /geo\('capsule:'/, 'caches shared rounded limb geometry');

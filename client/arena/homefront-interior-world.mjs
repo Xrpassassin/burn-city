@@ -2,8 +2,8 @@
 // Geometry is presentation-only; room search rewards must be granted by the server in a later API integration.
 export const INTERIOR_VERSION = 1;
 
-const room = (id, title, x, z, description, exits = []) => Object.freeze({
-  id, title, x, z, width: 4.8, depth: 4.8, description, exits: Object.freeze(exits)
+const room = (id, title, x, z, description, exits = [], elevation = 0) => Object.freeze({
+  id, title, x, z, elevation, width: 4.8, depth: 4.8, description, exits: Object.freeze(exits)
 });
 const target = (id, label, roomId, x, z, action, text, requires = []) => Object.freeze({
   id, label, roomId, x, z, action, text, requires: Object.freeze(requires)
@@ -23,7 +23,7 @@ export const INTERIORS = Object.freeze([
   ]),
   blueprint('collapsed_apartments', 'Collapsed Apartments — Upper Flat', [
     room('lobby', 'Ground-floor Lobby', 0, 0, 'The stairwell has pancaked; a fire escape is the only route up.', [{ id: 'fire_escape', to: 'upper_flat', side: 'north', label: 'Fire escape' }]),
-    room('upper_flat', 'Upper Apartment', 0, -4.8, 'A distress light flashes through a cracked bedroom door.', [{ id: 'fire_escape', to: 'lobby', side: 'south', label: 'Fire escape ladder' }])
+    room('upper_flat', 'Upper Apartment', 0, -4.8, 'A distress light flashes through a cracked bedroom door.', [{ id: 'fire_escape', to: 'lobby', side: 'south', label: 'Fire escape ladder' }], 3.2)
   ], [
     target('rubble_gap', 'Collapsed stairwell', 'lobby', -1.1, 0.9, 'inspect', 'Fresh scrape marks show that someone climbed through the rubble recently.'),
     target('distress_light', 'Distress light', 'upper_flat', 1.1, -6.1, 'clue', 'Three short flashes repeat: a survivor is signaling, not a random light.')
@@ -48,8 +48,8 @@ export const INTERIORS = Object.freeze([
   ]),
   blueprint('ironworks', 'Ironworks — Maintenance Gantry', [
     room('yard_floor', 'Yard Floor', 0, 0, 'A gantry ladder climbs above a noisy conveyor line.', [{ id: 'gantry_ladder', to: 'gantry_catwalk', side: 'north', label: 'Gantry ladder' }]),
-    room('gantry_catwalk', 'Gantry Catwalk', 0, -4.8, 'A narrow catwalk overlooks the tool cage and the live power bus.', [{ id: 'gantry_ladder', to: 'yard_floor', side: 'south', label: 'Gantry ladder' }, { id: 'tool_cage', to: 'maintenance_shed', side: 'east', label: 'Tool-cage gate', requires: ['power_cut'] }]),
-    room('maintenance_shed', 'Maintenance Shed', 4.8, -4.8, 'A locked tool cage and a maintenance log are tucked behind the breaker cabinet.', [{ id: 'tool_cage', to: 'gantry_catwalk', side: 'west', label: 'Tool-cage gate' }])
+    room('gantry_catwalk', 'Gantry Catwalk', 0, -4.8, 'A narrow catwalk overlooks the tool cage and the live power bus.', [{ id: 'gantry_ladder', to: 'yard_floor', side: 'south', label: 'Gantry ladder' }, { id: 'tool_cage', to: 'maintenance_shed', side: 'east', label: 'Tool-cage gate', requires: ['power_cut'] }], 4.2),
+    room('maintenance_shed', 'Maintenance Shed', 4.8, -4.8, 'A locked tool cage and a maintenance log are tucked behind the breaker cabinet.', [{ id: 'tool_cage', to: 'gantry_catwalk', side: 'west', label: 'Tool-cage gate' }], 4.2)
   ], [
     target('power_isolator', 'Power isolator', 'yard_floor', -1.1, 0.7, 'power', 'Cutting the feed quiets the conveyor and releases the tool-cage lock.'),
     target('gantry_console', 'Gantry console', 'gantry_catwalk', 1.1, -6.2, 'clue', 'The maintenance log lists a second power cell moved to Blackglass.'),
@@ -156,7 +156,7 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
     const x = side === 'west' ? room.x - w / 2 : side === 'east' ? room.x + w / 2 : room.x;
     const fixed = alongX ? z : x;
     const base = alongX ? room.x : room.z;
-    const wallPosition = (offset, segment) => alongX ? [base + offset, h / 2, fixed] : [fixed, h / 2, base + offset];
+    const wallPosition = (offset, segment) => alongX ? [base + offset, room.elevation + h / 2, fixed] : [fixed, room.elevation + h / 2, base + offset];
     if (!gap) { box(parent, alongX ? [length, h, t] : [t, h, length], wallPosition(0), wallMat); return; }
     const gapWidth = 1.8, segment = (length - gapWidth) / 2;
     box(parent, alongX ? [segment, h, t] : [t, h, segment], wallPosition(-(gapWidth + segment) / 2), wallMat);
@@ -165,17 +165,17 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   const hasExit = (r, side) => r.exits.some(exit => exit.side === side);
   const renderedDoors = new Set();
   for (const r of interior.rooms) {
-    box(root, [r.width, 0.16, r.depth], [r.x, -0.08, r.z], floorMat);
+    box(root, [r.width, 0.16, r.depth], [r.x, r.elevation - 0.08, r.z], floorMat);
     for (const side of ['north','south','east','west']) wall(root, r, side, hasExit(r, side) || (r.id === interior.entryRoom && side === 'south'));
     // A small wall-mounted emergency light gives the roofless floorplan readable depth.
-    box(root, [0.28, 0.12, 0.12], [r.x - r.width * 0.32, 1.75, r.z - r.depth / 2 + 0.16], clueMat);
+    box(root, [0.28, 0.12, 0.12], [r.x - r.width * 0.32, r.elevation + 1.75, r.z - r.depth / 2 + 0.16], clueMat);
     for (const exit of r.exits) {
       if (renderedDoors.has(exit.id)) continue;
       renderedDoors.add(exit.id);
       const door = new THREE.Group();
       const doorX = exit.side === 'east' ? r.x + r.width / 2 : exit.side === 'west' ? r.x - r.width / 2 : r.x;
       const doorZ = exit.side === 'north' ? r.z - r.depth / 2 : exit.side === 'south' ? r.z + r.depth / 2 : r.z;
-      const doorPosition = exit.side === 'east' ? [doorX, 0, r.z] : exit.side === 'west' ? [doorX, 0, r.z] : [r.x, 0, doorZ];
+      const doorPosition = exit.side === 'east' ? [doorX, r.elevation, r.z] : exit.side === 'west' ? [doorX, r.elevation, r.z] : [r.x, r.elevation, doorZ];
       door.position.set(...doorPosition);
       if (exit.side === 'east' || exit.side === 'west') door.rotation.y = Math.PI / 2;
       door.userData.interiorTarget = { kind: 'door', landmarkId: interior.landmarkId, doorId: exit.id, label: exit.label, x: origin.x + doorX, z: origin.z + doorZ };
@@ -191,7 +191,7 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   for (const item of interior.interactables) {
     const roomData = interiorRoom(interior, item.roomId);
     const object = new THREE.Group();
-    object.position.set(item.x, 0, item.z);
+    object.position.set(item.x, roomData.elevation, item.z);
     object.userData.interiorTarget = { kind: 'action', landmarkId: interior.landmarkId, actionId: item.id, label: item.label, x: origin.x + item.x, z: origin.z + item.z };
     const color = item.action === 'power' ? powerMat : item.action === 'clue' ? clueMat : objectMat;
     if (item.action === 'search') {

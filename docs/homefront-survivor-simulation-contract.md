@@ -16,6 +16,19 @@ The simulation must preserve these rules:
 - Do not introduce offline starvation, survivor death, or base destruction. Offline progression requires an explicit product decision and player warning first.
 - Keep simulation bounded for mobile and multi-account server workloads. Do not create one timer per survivor or unbounded background loops.
 
+
+
+### Branch reconciliation finding (checked 2026-10-23)
+
+The four survivor branches are not independent feature branches. GitHub compare results show a likely linear sequence:
+
+1. `feature/homefront-survivor-job-signage`
+2. `feature/homefront-survivor-work-targets` (2 commits ahead of job-signage)
+3. `feature/homefront-survivor-routines-movement` (42 commits ahead of work-targets)
+4. `feature/homefront-survivor-character-variants` (5 commits ahead of routines-movement)
+
+Each branch also diverges from current `main` by three commits, so do not open or merge all four as independent PRs. Review the latest branch's complete diff and its five commits beyond routines/movement, resolve the three-commit mainline divergence, and validate the cumulative survivor work as one integration candidate. These are compare results, not a guarantee that the latest branch is conflict-free or CI-green. Recheck branch tips before acting because they can change.
+
 ## Recommended survivor record
 
 Extend the existing normalized survivor record only after checking the current survivor-skills, character-variant, work-target, and routine branches.

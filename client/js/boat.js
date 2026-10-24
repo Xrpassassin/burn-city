@@ -12,7 +12,17 @@ function hull(col) {   // pointed bow, rounded stern, cabin + glass windshield, 
   const m = new THREE.Mesh(mergeGeometries(parts.map(x => { const n = x.toNonIndexed(); n.deleteAttribute('uv'); return n })), new THREE.MeshLambertMaterial({ color: col, emissive: col, emissiveIntensity: 0.15 }));
   const gl = new THREE.Mesh(new THREE.PlaneGeometry(1.4, .55).rotateX(-.9).translate(0, 1.6, -.15), new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: .55, side: 2, depthWrite: false }));
   const st = new THREE.Mesh(ex(.1, .5, 1.03), new THREE.MeshBasicMaterial({ color: 0x7dffb0, toneMapped: false })); const o = new THREE.Group(); o.add(m, gl, st); return o }
-function peer(p) { const c = W(); if (p.b && !p.boat) { p.boat = hull(0x3a6aa8); c.S.add(p.boat) } if (p.boat) { p.boat.visible = !!p.b; if (p.b) { p.boat.position.set(p.g.position.x, 0.1, p.g.position.z); p.boat.rotation.y = (p.r || 0) + Math.PI } } }
+function peer(p) {
+  const c = W(), spec = boatById(p.bt || 'skiff');
+  if (p.b && (!p.boat || p.boatType !== spec.id)) {
+    if (p.boat) { c.S.remove(p.boat); p.boat.traverse(o => { if (o.isMesh) { o.geometry?.dispose?.(); for (const m of (Array.isArray(o.material) ? o.material : [o.material])) m?.dispose?.(); } }); }
+    p.boat = hull(spec.color); p.boat.scale.setScalar(.76 + spec.tier * .13); p.boatType = spec.id; c.S.add(p.boat);
+  }
+  if (p.boat) {
+    p.boat.visible = !!p.b;
+    if (p.b) { p.boat.position.set(p.g.position.x, 0.1, p.g.position.z); p.boat.rotation.y = (p.r || 0) + Math.PI; }
+  }
+}
 function fleetProfile() {
   try { return window.__fish?.prof?.() || JSON.parse(localStorage.getItem('bcFish') || '{}') } catch (e) { return {} }
 }

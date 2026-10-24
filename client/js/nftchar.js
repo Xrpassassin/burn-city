@@ -1,5 +1,5 @@
 // BURN City NFT avatars: smoother, articulated characters driven by verified RACC / Firekeepers / 589 traits.
-// The NFT artwork remains the visual ground truth: a full-composition chest tabard plus optional floating peer card.
+// Original NFT artwork remains available as a reference portrait and optional QA tabard; token traits drive the 3D body.
 // Typed metadata adds a best-effort 3D interpretation. Geometry/materials are cached for phone performance.
 import * as THREE from 'three';
 import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';

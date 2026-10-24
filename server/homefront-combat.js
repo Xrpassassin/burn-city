@@ -3,6 +3,8 @@
 const { ARCHETYPES, QUALITY_ORDER, planEncounter, planHorde } = require('./homefront-director');
 const Terrain = require('./homefront-terrain');
 const Collision = require('./homefront-collision');
+const InteriorRules = require('./homefront-interiors');
+const InteriorCatalog = require('../client/arena/homefront-interior-world.mjs');
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(n)?n:a));
 const hash=s=>{let h=2166136261;for(const c of String(s))h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0;};
 const ENCOUNTER_TTL=180000, ATTACK_COOLDOWN=900;
@@ -13,7 +15,7 @@ const WEAPON_MAGAZINE_CAPACITY=Object.freeze({pipe_blade:0,pump_shotgun:6,marksm
 const WEAPON_HANDLING=Object.freeze({pipe_blade:{adsMs:140,recoveryMs:450,aimMoveScale:0.62},pump_shotgun:{adsMs:280,recoveryMs:720,aimMoveScale:0.52},marksman_rifle:{adsMs:520,recoveryMs:1150,aimMoveScale:0.42},shock_maul:{adsMs:220,recoveryMs:560,aimMoveScale:0.56}});
 const STATS=Object.freeze({wandering_infected:{hp:32,damage:2,ammo:1,range:18},infected_horde:{hp:76,damage:5,ammo:2,range:20},special_infected:{hp:105,damage:7,ammo:2,range:22}});
 function enemyName(zone,event){const a=ARCHETYPES[zone]||ARCHETYPES.outskirts;return event==='special_infected'?a.special:event==='infected_horde'?a.horde:a.wanderer;}
-function safeEnemyPosition(x, z, fallbackX, fallbackZ, bounds = 100) {
+function safeEnemyPosition(x, z, fallbackX, fallbackZ, bounds = 100, removedObstacleIds = Collision.INTERIOR_OBSTACLE_IDS) {
  const candidates=[{x,z}];
  for(let radius=2;radius<=12;radius+=2){
   for(let step=-radius;step<=radius;step+=2){
@@ -24,7 +26,7 @@ function safeEnemyPosition(x, z, fallbackX, fallbackZ, bounds = 100) {
  candidates.push({x:fallbackX,z:fallbackZ});
  for(const point of candidates){
   const px=clamp(point.x,-bounds,bounds),pz=clamp(point.z,-bounds,bounds);
-  if(Collision.isSafePosition(px,pz,{bounds}))return{x:Math.round(px*10)/10,z:Math.round(pz*10)/10};
+  if(Collision.isSafePosition(px,pz,{bounds,removedObstacleIds}))return{x:Math.round(px*10)/10,z:Math.round(pz*10)/10};
  }
  throw Error('no_safe_infected_spawn');
 }
@@ -41,10 +43,10 @@ function normalizeEncounters(input,now=Date.now()){
  out[owner]={id:e.id.slice(0,80),owner,event:e.event,enemy:String(e.enemy||'Stray Runner').slice(0,80),district:String(e.district||'outskirts').slice(0,40),x:clamp(e.x,-100,100),z:clamp(e.z,-100,100),hp:clamp(e.hp,0,10000),maxHp:clamp(e.maxHp,1,10000),damage:clamp(e.damage,1,50),ammoCost:clamp(e.ammoCost,1,5),range:clamp(e.range,1,40),risk:clamp(e.risk,1,5),pursuitRadius:clamp(e.pursuitRadius??26,8,60),lastKnownX:clamp(e.lastKnownX??e.x,-100,100),lastKnownZ:clamp(e.lastKnownZ??e.z,-100,100),lastKnownAt:clamp(e.lastKnownAt??e.createdAt,0,Number.MAX_SAFE_INTEGER),investigateUntil:clamp(e.investigateUntil??0,0,Number.MAX_SAFE_INTEGER),packPlan:planHorde({event:e.event,risk:e.risk,seed:e.id}),members:(Array.isArray(e.members)&&e.members.length?e.members:planHorde({event:e.event,risk:e.risk,seed:e.id}).members.map(m=>({...m,x:e.x+m.offsetX,z:e.z+m.offsetZ,hp:Math.max(1,Math.round(e.maxHp*m.healthScale/Math.max(1,planHorde({event:e.event,risk:e.risk,seed:e.id}).count))),maxHp:Math.max(1,Math.round(e.maxHp*m.healthScale/Math.max(1,planHorde({event:e.event,risk:e.risk,seed:e.id}).count))),defeated:false,lastAttackAt:0}))).map(m=>({id:String(m.id).slice(0,80),slot:clamp(m.slot??0,0,10),role:String(m.role||'stalker').slice(0,20),offsetX:clamp(m.offsetX??0,-20,20),offsetZ:clamp(m.offsetZ??0,-20,20),healthScale:clamp(m.healthScale??1,0.5,2),speedScale:clamp(m.speedScale??1,0.5,1.5),x:clamp(m.x??e.x,-100,100),z:clamp(m.z??e.z,-100,100),hp:clamp(m.hp,0,10000),maxHp:clamp(m.maxHp,1,10000),defeated:!!m.defeated,lastAttackAt:clamp(m.lastAttackAt??0,0,Number.MAX_SAFE_INTEGER)})),createdAt:clamp(e.createdAt,0,Number.MAX_SAFE_INTEGER),lastAttackAt:clamp(e.lastAttackAt,0,Number.MAX_SAFE_INTEGER),lastAiAt:clamp(e.lastAiAt??e.createdAt,0,Number.MAX_SAFE_INTEGER),expiresAt:e.expiresAt,defeated:!!e.defeated};}
  return out;
 }
-function spawn({encounters,account,player,now=Date.now(),seed=0}){
+function spawn({encounters,account,player,interiors=null,now=Date.now(),seed=0}){
  const clean=normalizeEncounters(encounters,now),old=clean[account];if(old&&!old.defeated&&old.hp>0)return{encounters:clean,encounter:publicEncounter(old),reused:true};
  const depth=100-Math.hypot(player.x,player.z),risk=depth<25?1:depth<45?1:depth<62?2:depth<76?3:depth<88?4:5,district=risk>=5?'research_lab':risk>=4?'industrial':risk>=3?'commercial':risk===2?'residential':'outskirts';
- const e=resolveSpawn({account,x:player.x,z:player.z,district,risk,now,seed});e.hp=e.members.reduce((sum,m)=>sum+m.hp,0);e.maxHp=e.members.reduce((sum,m)=>sum+m.maxHp,0);const safe=safeEnemyPosition(e.x,e.z,player.x,player.z);const shiftX=safe.x-e.x,shiftZ=safe.z-e.z;e.x=safe.x;e.z=safe.z;for(const m of e.members){m.x=clamp(m.x+shiftX,-100,100);m.z=clamp(m.z+shiftZ,-100,100);}clean[account]=e;return{encounters:clean,encounter:publicEncounter(e),reused:false};
+ const e=resolveSpawn({account,x:player.x,z:player.z,district,risk,now,seed});e.hp=e.members.reduce((sum,m)=>sum+m.hp,0);e.maxHp=e.members.reduce((sum,m)=>sum+m.maxHp,0);const collisionOptions=interiorCollisionOptions(interiors,account);const safe=safeEnemyPosition(e.x,e.z,player.x,player.z,100,collisionOptions.removedObstacleIds);const shiftX=safe.x-e.x,shiftZ=safe.z-e.z;e.x=safe.x;e.z=safe.z;for(const m of e.members){m.x=clamp(m.x+shiftX,-100,100);m.z=clamp(m.z+shiftZ,-100,100);}clean[account]=e;return{encounters:clean,encounter:publicEncounter(e),reused:false};
 }
 
 function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
@@ -57,7 +59,60 @@ function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
  }
  return{x:Math.round(x*10)/10,z:Math.round(z*10)/10};
 }
-function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
+function interiorCollisionOptions(interiors, account) {
+ const owner = interiors?.[account], landmarkId = owner?.activeLandmarkId || null;
+ const state = landmarkId ? owner.interiors?.[landmarkId] : null;
+ const removedObstacleIds = Collision.INTERIOR_OBSTACLE_IDS.filter(id =>
+  !landmarkId || id.split(':')[1] !== landmarkId ||
+  (id.startsWith('interior-door:') && state?.openedDoors?.includes(id.split(':')[2])));
+ return { removedObstacleIds, landmarkId, state };
+}
+function attemptInteriorBreach({ account, enemy, player, interiors, now, elapsed, collisionOptions, speed }) {
+ const { landmarkId, state } = collisionOptions;
+ if (!landmarkId || !state || !interiors) return false;
+ const catalog = InteriorCatalog.interiorForLandmark(landmarkId), landmark = InteriorRules.LANDMARKS[landmarkId];
+ if (!catalog || !landmark) return false;
+ const opened = new Set(state.openedDoors || []), candidates = [];
+ const seen = new Set();
+ for (const room of catalog.rooms) for (const exit of room.exits) {
+  if (seen.has(exit.id) || opened.has(exit.id) || exit.requires?.length) continue;
+  seen.add(exit.id);
+ }
+ for (const room of catalog.rooms) for (const exit of room.exits) {
+  if (opened.has(exit.id) || exit.requires?.length) continue;
+  const doorKey = exit.id + ':' + room.id;
+  const x = landmark.x + room.x + (exit.side === 'east' ? room.width / 2 : exit.side === 'west' ? -room.width / 2 : 0);
+  const z = landmark.z + room.z + (exit.side === 'south' ? room.depth / 2 : exit.side === 'north' ? -room.depth / 2 : 0);
+  const ax = landmark.x + room.x + (exit.side === 'east' ? room.width / 2 - 0.85 : exit.side === 'west' ? -room.width / 2 + 0.85 : 0);
+  const az = landmark.z + room.z + (exit.side === 'south' ? room.depth / 2 - 0.85 : exit.side === 'north' ? -room.depth / 2 + 0.85 : 0);
+  const enemyDistance = Math.hypot(enemy.x - ax, enemy.z - az);
+  const playerDistance = Math.hypot(player.x - x, player.z - z);
+  if (enemyDistance > 14 || playerDistance > 24) continue;
+  const route = Collision.findPath(enemy.x, enemy.z, ax, az, { bounds: 100, maxExpanded: 1800, radius: 0.45, removedObstacleIds: collisionOptions.removedObstacleIds });
+  if (!route || !route.length) continue;
+  candidates.push({ room, exit, doorKey, x, z, ax, az, route, enemyDistance, score: enemyDistance + playerDistance * 0.45 });
+ }
+ candidates.sort((a,b) => a.score - b.score);
+ const chosen = candidates[0];
+ if (!chosen) return false;
+ const distance = Math.hypot(chosen.ax - enemy.x, chosen.az - enemy.z);
+ if (distance <= 1.25) {
+  try {
+   const result = InteriorRules.breachDoor(interiors, { account, landmarkId, doorId: chosen.exit.id, damage: elapsed * 30, now });
+   for (const key of Object.keys(interiors)) delete interiors[key];
+   Object.assign(interiors, result.state);
+   return true;
+  } catch { return false; }
+ }
+ const step = Math.min(distance, speed * elapsed);
+ const next = advanceAlongTerrainPath(enemy.x, enemy.z, chosen.route, step);
+ if (Terrain.canTraverse(enemy.x, enemy.z, next.x, next.z) &&
+     Collision.canTraverse(enemy.x, enemy.z, next.x, next.z, { radius: 0.45, bounds: 100, removedObstacleIds: collisionOptions.removedObstacleIds })) {
+  enemy.x = next.x; enemy.z = next.z; return true;
+ }
+ return false;
+}
+function advance({encounters,players,interiors=null,now=Date.now(),speed=2.8,maxElapsed=2.5}){
  const clean=normalizeEncounters(encounters,now);
  for(const [account,e] of Object.entries(clean)){
   if(e.defeated||e.hp<=0)continue;
@@ -81,12 +136,12 @@ function advance({encounters,players,now=Date.now(),speed=2.8,maxElapsed=2.5}){
   const step=Math.min(targetDistance-stopDistance,speed*elapsed);
   const nextX=clamp(e.x+targetDx/targetDistance*step,-100,100),nextZ=clamp(e.z+targetDz/targetDistance*step,-100,100);
   // Prefer the direct step; only invoke bounded A* when terrain blocks the pursuit line.
-  if(Terrain.canTraverse(e.x,e.z,nextX,nextZ)&&Collision.canTraverse(e.x,e.z,nextX,nextZ,{radius:0.45,bounds:100})){e.x=nextX;e.z=nextZ;}
+  if(Terrain.canTraverse(e.x,e.z,nextX,nextZ)&&Collision.canTraverse(e.x,e.z,nextX,nextZ,{radius:0.45,bounds:100,removedObstacleIds:collisionOptions.removedObstacleIds})){e.x=nextX;e.z=nextZ;}
   else {
-   const route=Collision.findPath(e.x,e.z,targetX,targetZ,{bounds:100,maxExpanded:2600,radius:0.45});
+   const route=Collision.findPath(e.x,e.z,targetX,targetZ,{bounds:100,maxExpanded:2600,radius:0.45,removedObstacleIds:collisionOptions.removedObstacleIds});
    if(route&&route.length){
     const advanced=advanceAlongTerrainPath(e.x,e.z,route,step);
-    if(Terrain.canTraverse(e.x,e.z,advanced.x,advanced.z)&&Collision.canTraverse(e.x,e.z,advanced.x,advanced.z,{radius:0.45,bounds:100})){e.x=advanced.x;e.z=advanced.z;}
+    if(Terrain.canTraverse(e.x,e.z,advanced.x,advanced.z)&&Collision.canTraverse(e.x,e.z,advanced.x,advanced.z,{radius:0.45,bounds:100,removedObstacleIds:collisionOptions.removedObstacleIds})){e.x=advanced.x;e.z=advanced.z;}
    }
   }
   }

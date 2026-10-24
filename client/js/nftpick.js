@@ -20,7 +20,7 @@ async function api(srv, path, body) {
   const r = await fetch(srv + path, { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   if (r.status === 401) { set(null); return { error: 'signin' }; } return r.json();
 }
-const look = n => n && { id: n.id, key: n.key, name: n.name, num: n.num, img: n.img, pal: n.pal, t: (n.traits || []).filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 10) };
+const look = n => n && { id: n.id, key: n.key, name: n.name, num: n.num, img: n.img, pal: n.pal, t: (n.traits || []).filter(a => !/background/i.test(a[0])).map(a => a[1]).slice(0, 16) };
 export async function refresh(srv) {        // re-verify ownership; drops the character if it was transferred
   if (!tok()) { if (get()) set(null); return null; }
   const d = await api(srv, '/api/nft/mine'); if (d.error) return d.error === 'signin' ? null : last; last = d;

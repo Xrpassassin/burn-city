@@ -122,7 +122,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     const bs = L.box[boxSpot]; if (bs) { const [x, y] = P(bs[0], bs[1]); mx.fillStyle = '#9af0ff'; mx.fillRect(x - 2, y - 2, 4, 4); }
     if (q && q[1] && !q[5]) { const [x, y] = P(q[2], q[3]); mx.fillStyle = (performance.now() / 300 | 0) % 2 ? '#7affff' : '#ffffff'; mx.beginPath(); mx.arc(x, y, 2.6, 0, 7); mx.fill(); }   // radio quest item
     if (q && q[0] && q[0] < 6) { const [x, y] = P(q[6], q[7]); mx.strokeStyle = '#7affff'; mx.strokeRect(x - 2.5, y - 2.5, 5, 5); }
-    if (zombies) for (const z of zombies) { const [x, y] = P(z.x, z.z), r = z.ty === 3 ? 3.2 : z.ty === 2 ? 2.4 : z.ty === 5 ? 1.2 : 1.6, other = UP && Math.abs((z.y || 0) - myY) > 1.8; mx.fillStyle = '#000a'; mx.fillRect(x - r - 0.6, y - r - 0.6, 2 * r + 1.2, 2 * r + 1.2); mx.fillStyle = other ? '#7a1010' : '#ff1e1e'; mx.fillRect(x - r, y - r, 2 * r, 2 * r); }   // zombies: red dots (brutes bigger; dim = other floor)
+    if (zombies) for (const z of zombies) { const [x, y] = P(z.x, z.z), r = z.ty === 8 ? 4.2 : z.ty === 3 ? 3.2 : z.ty === 2 ? 2.4 : z.ty === 5 ? 1.2 : 1.6, other = UP && Math.abs((z.y || 0) - myY) > 1.8; mx.fillStyle = '#000a'; mx.fillRect(x - r - 0.6, y - r - 0.6, 2 * r + 1.2, 2 * r + 1.2); mx.fillStyle = other ? '#7a1010' : z.ty === 8 ? '#ffb23f' : z.ty === 7 ? '#b76aff' : z.ty === 6 ? '#48dfff' : '#ff1e1e'; mx.fillRect(x - r, y - r, 2 * r, 2 * r); }   // zombies: red dots (brutes bigger; dim = other floor)
     for (const p of players) { if (!p.alive) continue; const [x, y] = P(p.x, p.z); mx.fillStyle = p.id === myId ? '#fff' : '#ffb060'; mx.beginPath(); mx.arc(x, y, p.id === myId ? 3 : 2, 0, 7); mx.fill(); } }
   // wall-buys: chalk-outline pillars
   const wname = id => L.weapons.find(w => w.id === id)?.name || id;
@@ -305,6 +305,7 @@ export function createCodWorld(scene, L, { low = false } = {}) {
   // fire FX: flickering additive flame tongues + rising embers (shared by the box and the Inferno Forge)
   const flameG = g(new THREE.ConeGeometry(0.16, 1, 6, 1, true).translate(0, 0.5, 0)), flameM = basic(0xff7a1a, { transparent: true, opacity: 0.85, blending: add, depthWrite: false, side: THREE.DoubleSide }), flameC = basic(0xffe08a, { transparent: true, opacity: 0.9, blending: add, depthWrite: false, side: THREE.DoubleSide });
   const fires = [];
+  const enemyTracers = [];
   function flames(parent, pts, sz = 1) { pts.forEach(([x, y, z], i) => { const o = new THREE.Mesh(flameG, flameM), c = new THREE.Mesh(flameG, flameC); c.scale.set(0.45, 0.6, 0.45); o.add(c); o.position.set(x, y, z); o.userData = { ph: i * 1.7 + Math.random() * 3, k: 7 + Math.random() * 6, s: sz * (0.75 + Math.random() * 0.5) }; parent.add(o); fires.push(o); });
     if (low) return; const n = 26, eg = g(new THREE.BufferGeometry()), ep = new Float32Array(n * 3), seed = [];
     for (let i = 0; i < n; i++) { const b = pts[i % pts.length]; seed.push([b[0] + (Math.random() - .5) * .5, b[1], b[2] + (Math.random() - .5) * .5, Math.random(), 0.6 + Math.random() * 0.8]); }
@@ -410,20 +411,21 @@ export function createCodWorld(scene, L, { low = false } = {}) {
     const fitted = q[0] >= 6 ? 3 : Math.floor(q[0] / 2); qCon.userData.slots.forEach((m, i) => m.material.color.setHex(i < fitted ? QITEM[i + 1].c : 0x301010)); qCon.userData.screen.material.color.setHex(q[1] && q[5] === myIdQ ? (Math.sin(t * 8) > 0 ? 0x2affff : 0x0a5a5a) : 0x0a3a3a);
     const show = q[1] && !q[5]; qItem.visible = !!show; if (show) { const it = QITEM[q[1]]; qGlow.color.setHex(it.c); qBeamM.color.setHex(it.c); qBeamM.opacity = 0.18 + 0.1 * Math.sin(t * 3); qItem.position.set(q[2], q[4] ? UH : 0, q[3]); qItem.userData.spin.rotation.y = t * 2; qItem.userData.spin.position.y = 0.9 + Math.sin(t * 2.5) * 0.12; }
     if (q[0] >= 6 && !qCon.userData.flare) { const fl = new THREE.Group(); flames(fl, [[0, 3.6, 0], [0.3, 3.9, 0.2], [-0.3, 3.8, -0.2], [0, 4.4, 0]], 2.4); fl.position.set(0.7, 0, -0.25); qCon.add(fl); qCon.userData.flare = fl; } }
-  let forgeFlash = 0;
+  let forgeFlash = 0, forgeTier = 1;
   let roll = null, rollTag = null;
   const near = (me, x, z, r = 3, lv = 0) => Math.hypot(me.x - x, me.z - z) <= r && Math.abs((me.y || 0) - lv * UH) < 1.6;
   let t = 0;
   return {
     wname,
-    forged() { forgeFlash = 1.5; },
+    forged(tier = 1) { forgeFlash = 1.5; forgeTier = tier === 2 ? 2 : 1; },
+    enemyShot(e) { if (!e || enemyTracers.length >= (low ? 6 : 14)) return; const geo = g(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(e.x, e.y + 1.2, e.z), new THREE.Vector3(e.tx, e.ty, e.tz)])), mat = new THREE.LineBasicMaterial({ color: 0xd66bff, transparent: true, opacity: 0.9, depthWrite: false }); const line = new THREE.Line(geo, mat); root.add(line); enemyTracers.push({ line, left: 0.14 }); } ,
     applyEnv() { if (!SKY) return; if (!scene.background) scene.background = new THREE.Color(); scene.background.setHex(SKY[0]); scene.fog.color.setHex(SKY[1]); scene.fog.near = SKY[2]; scene.fog.far = SKY[3]; },
     title: () => `${L.name || 'Zombies'}${ENV ? ' · ' + ENV.tod + (ENV.storm ? ' · storm' : '') : ''}`,
     rolling(e) { roll = { until: performance.now() + 2500, w: e.w }; },
     rip(e) { const w = WN[e.i]; if (w) flying.push({ w, k: e.n, t: 0 }); },
     board(e) { if (anim[e.i]) anim[e.i][e.n - 1] = 0; },
     quest(q, myId) { qState = q || null; myIdQ = myId; },
-    update(dt, m, b) { t += dt; if (b) boards = b; tickQuest(dt); tickFires(dt); tickEnv(dt); envTick(dt); tickAtmos(dt, m ? m[0] : 1); if (F) { forgeFlash = Math.max(0, forgeFlash - dt); forgeCore.color.setRGB(1, 0.33 + 0.12 * Math.sin(t * 7) + forgeFlash * 0.4, 0.06 + forgeFlash * 0.3); if (forge.userData.h) { forge.userData.h.material.opacity = 0.3 + 0.12 * Math.sin(t * 5) + forgeFlash * 0.3; forge.userData.h.quaternion.copy(scene.userData.camQ || forge.userData.h.quaternion); } } for (let k = 0; k < DN; k++) { const j = k * 3; dpos[j + 1] += dsp[k] * dt * 0.6; dpos[j] += Math.sin(t * 0.3 + k) * dt * 0.08; if (dpos[j + 1] > H) dpos[j + 1] = 0; } dg.attributes.position.needsUpdate = true;
+    update(dt, m, b) { t += dt; for (let i = enemyTracers.length - 1; i >= 0; i--) { const tr = enemyTracers[i]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.14) * 0.9; if (tr.left <= 0) { root.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); enemyTracers.splice(i, 1); } } if (b) boards = b; tickQuest(dt); tickFires(dt); tickEnv(dt); envTick(dt); tickAtmos(dt, m ? m[0] : 1); if (F) { forgeFlash = Math.max(0, forgeFlash - dt); forgeCore.color.setHex(forgeTier === 2 ? 0x55ddff : 0xff5a10).multiplyScalar(1 + 0.12 * Math.sin(t * 7) + forgeFlash * 0.4); if (forge.userData.h) { forge.userData.h.material.opacity = 0.3 + 0.12 * Math.sin(t * 5) + forgeFlash * 0.3; forge.userData.h.quaternion.copy(scene.userData.camQ || forge.userData.h.quaternion); } } for (let k = 0; k < DN; k++) { const j = k * 3; dpos[j + 1] += dsp[k] * dt * 0.6; dpos[j] += Math.sin(t * 0.3 + k) * dt * 0.08; if (dpos[j + 1] > H) dpos[j + 1] = 0; } dg.attributes.position.needsUpdate = true;
       let pi = 0; WN.forEach((w, i) => { for (let k = 0; k < NB; k++) { const on = k < boards[i]; let a = anim[i][k]; if (on && a < 1) a = anim[i][k] = Math.min(1, a + dt * 5);
         const y = 0.75 + k * 0.27 + (w.lv ? UH : 0), tilt = ((k * 7 + i) % 5 - 2) * 0.09, off = on ? (1 - a) * 1.2 : 0;
         Q.setFromEuler(E.set(w.ax === 'z' ? tilt : 0, 0, w.ax === 'x' ? tilt : 0)); const ox = w.ix - w.x, oz = w.iz - w.z, l = Math.hypot(ox, oz) || 1;
@@ -463,10 +465,14 @@ export function createCodWorld(scene, L, { low = false } = {}) {
       const bs = L.box[spot]; if (st === 0 && bs && near(me, bs[0], bs[1])) return { t: 'Mystery Box: random weapon', c: L.boxCost };
       const pw = m[3] ?? 1; if (PW && near(me, PW.x, PW.z)) return pw ? { t: 'Power is on', c: 0, no: 1 } : { t: 'Power Switch: turn on the power', c: 0 };
       if (!pw && ((F && near(me, F.x, F.z)) || L.perks.some(k => near(me, k.x, k.z, 3, k.lv || 0)))) return { t: 'No power. Find the Power Switch first', c: 0, no: 1 };
-      if (F && near(me, F.x, F.z)) return upBits & 1 ? { t: `${F.name}: ${L.weapons.find(w => w.id === guns[0])?.up || 'weapon'} already forged`, c: 0, no: 1 } : { t: `${F.name}: forge ${wname(guns[0])} into ${L.weapons.find(w => w.id === guns[0])?.up || 'something deadlier'}`, c: F.cost };
+      if (F && near(me, F.x, F.z)) { const weapon = L.weapons.find(w => w.id === guns[0]), tier2 = !!(upBits & 4), tier1 = !!(upBits & 1);
+        if (tier2) return { t: `${F.name}: ${weapon?.up2 || 'weapon'} fully upgraded`, c: 0, no: 1 };
+        if (tier1) return { t: `${F.name} II: upgrade ${wname(guns[0])} into ${weapon?.up2 || 'an ascended weapon'}`, c: L.forge2Cost || 10000 };
+        return { t: `${F.name}: forge ${wname(guns[0])} into ${weapon?.up || 'something deadlier'}`, c: F.cost };
+      }
       let n = 0; for (let v = perkBits; v; v >>= 1) n += v & 1;
       for (let i = 0; i < L.perks.length; i++) { const k = L.perks[i]; if (near(me, k.x, k.z, 3, k.lv || 0)) return perkBits & (1 << i) ? { t: `${k.name} (owned)`, c: 0, no: 1 } : n >= L.maxPerks ? { t: `Max ${L.maxPerks} perks`, c: 0, no: 1 } : { t: `${k.name}: ${k.desc}`, c: k.cost }; }
       return null; },
-    dispose() { if (SKY) scene.background.setHex(0x050208); mm.remove(); scene.remove(root); root.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); for (const x of mats) x.dispose(); for (const x of geos) x.dispose(); },
+    dispose() { for (const tr of enemyTracers) { tr.line.geometry.dispose(); tr.line.material.dispose(); } enemyTracers.length = 0; if (SKY) scene.background.setHex(0x050208); mm.remove(); scene.remove(root); root.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); for (const x of mats) x.dispose(); for (const x of geos) x.dispose(); },
   };
 }

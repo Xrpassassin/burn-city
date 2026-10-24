@@ -56,6 +56,12 @@ has(visualQa, /notes:document\.querySelector\('#reviewNotes'\)\.value\.trim\(\)/
 has(visualQa, /try \{[\s\S]*new THREE\.WebGLRenderer/, 'handles WebGL initialization without aborting the entire review page');
 has(visualQa, /if\(renderer\)renderer\.render\(scene,camera\)/, 'keeps the review page stable when WebGL is unavailable');
 has(avatar, /resolveNftAvatarProfile/, 'routes traits through collection-specific adapters');
+has(avatar, /const hasTrait = \(typeRe, valueRe = \/\.\+\/\)/, 'separates trait names from trait values to avoid cross-slot false positives');
+has(avatar, /if \(hasHairTrait && components\.hairStyle !== 'bald'/, 'does not invent default hair when the NFT has no hair trait');
+has(avatar, /hasTrait\(\/body effect\|flame\|aura\/i,\/flame\|fire\|on fire\|flaming\|ember\|inferno\|heating up\|smolder\/i\)/, 'only renders head flames for actual flame/body-effect traits');
+has(avatar, /const hasProtocolMark=hasTrait\(\/outfit\|accessory\|identity\|brand\|logo\|emblem\|insignia\/i/, 'does not treat a background named Burn as a 589 logo');
+has(avatar, /const directArtwork = String\(opts\.artworkUrl \|\| n\?\.image \|\| n\?\.img \|\| ''\)/, 'accepts direct source artwork URLs in the visual QA harness');
+has(visualQa, /buildNftChar\(nft,\{panel:document\.querySelector\('#showTabard'\)\.checked,artworkUrl\}\)/, 'passes the source image into the artwork tabard renderer');
 has(avatar, /resolveNftAvatarComponents/, 'resolves typed traits into explicit visual component recipes');
 has(avatar, /resolveNftAvatarReconstruction/, 'selects a collection-specific reconstruction blueprint');
 has(avatar, /nft-firekeeper-robe-hem/, 'builds the Firekeepers robe silhouette');

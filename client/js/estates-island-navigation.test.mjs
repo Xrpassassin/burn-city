@@ -22,12 +22,15 @@ assert.equal(nav.isWalkable({x:-230,y:0,z:188}),false,'outside the city bridge i
 let route={x:-195,y:0,z:188};
 assert(nav.isWalkable(route),'city-side spawn must be on the bridge deck');
 for(const waypoint of [{x:-8,z:188},{x:0,z:188},{x:0,z:159},{x:0,z:118}]) {
-  while(Math.hypot(waypoint.x-route.x,waypoint.z-route.z)>.01) {
+  for(let i=0;i<1000&&Math.hypot(waypoint.x-route.x,waypoint.z-route.z)>.01;i++) {
+    const before=Math.hypot(waypoint.x-route.x,waypoint.z-route.z);
     const dx=waypoint.x-route.x,dz=waypoint.z-route.z,d=Math.hypot(dx,dz),step=Math.min(.5,d);
     const next=nav.move(route,{x:dx/d*step,y:0,z:dz/d*step});
     route={...next.position};
     assert(nav.isWalkable(route),'continuous bridge route must not strand the player at '+JSON.stringify(route));
+    assert(Math.hypot(waypoint.x-route.x,waypoint.z-route.z)<before,'movement must progress toward each bridge waypoint');
   }
+  assert(Math.hypot(waypoint.x-route.x,waypoint.z-route.z)<=.01,'waypoint must be reachable: '+JSON.stringify(waypoint));
 }
 assert(route.z<120,'bridge route must reach the island side of the approach');
 assert(nav.collisionCount>0);

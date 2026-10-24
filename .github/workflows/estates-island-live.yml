@@ -37,6 +37,7 @@ jobs:
       - name: Test server-side access and building placement contracts
         run: |
           node server/estates-access-policy.test.js
+          node server/estates-rights.test.js
           node server/estates-building-placement.test.js
       - name: Test live app and service-worker wiring
         run: node client/js/estates-island-live.test.mjs

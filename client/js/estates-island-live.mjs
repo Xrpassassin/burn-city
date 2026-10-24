@@ -142,6 +142,7 @@ export async function installEstatesIslandLive({
     active=true; nearCityGate=false; hidePanel();
     if(getMode()!=='explore') setMode('explore');
     player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);
+    player.fp=false;
     setYaw(-Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
     avatar.position.copy(player.pos);
@@ -204,9 +205,11 @@ export async function installEstatesIslandLive({
       });
     }
     runSpeed=running?7.2:4.5;
+    const beforeX=player.pos.x,beforeZ=player.pos.z;
     const result=controllerRef.update({dt,yaw:getYaw(),moveX:moveForward,moveZ:moveSide,interactPressed:edge});
     avatar.position.copy(player.pos);
-    avatar.rotation.y=getYaw();
+    const movedX=player.pos.x-beforeX,movedZ=player.pos.z-beforeZ;
+    avatar.rotation.y=Math.hypot(movedX,movedZ)>.001?Math.atan2(-movedX,-movedZ):getYaw();
     if(result.property && edge) {
       // The controller callback supplies the explicit inspection action; no property entry is implied.
     }

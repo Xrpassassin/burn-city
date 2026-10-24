@@ -437,6 +437,110 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const hitM=new THREE.Mesh(new THREE.BoxGeometry(76,22,3),new THREE.MeshBasicMaterial({visible:false}));
   hitM.position.set(0,11,-LD/2+8); hitM.userData={kind:'estate',label:'Burn City Estates'}; lot.add(hitM); pick.push(hitM);
   anim.push(t=>{signM.color.setScalar(.9+.1*Math.sin(t*1.2))});
+  // ---------- enterable, furnished residence interiors ----------
+  // Interiors are lightweight procedural rooms staged just beyond the visible district.
+  // They remain hidden until entered, preserving draw calls during normal city traversal.
+  const interiorRooms = {};
+  const interiorWood = new THREE.MeshStandardMaterial({color:0x604735, roughness:.78});
+  const interiorFloor = new THREE.MeshStandardMaterial({color:0x9b8a72, roughness:.9});
+  const interiorWall = new THREE.MeshStandardMaterial({color:0xd7d0c1, roughness:.92});
+  const interiorDark = new THREE.MeshStandardMaterial({color:0x273442, metalness:.35, roughness:.5});
+  const interiorFabric = new THREE.MeshStandardMaterial({color:0x456b78, roughness:.95});
+  const interiorWarm = new THREE.MeshStandardMaterial({color:0xffc878, emissive:0x9c4a12, emissiveIntensity:.45, roughness:.4});
+  const interiorGlass = new THREE.MeshStandardMaterial({color:0x79d8ed, emissive:0x174454, emissiveIntensity:.35, roughness:.22, metalness:.15});
+  const interiorBox = (parent, mat, w,h,d,x,y,z, ry=0) => { const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.position.set(x,y,z); m.rotation.y=ry; parent.add(m); return m; };
+  const interiorLamp = (parent,x,y,z,color=0xffb76b) => { const m=new THREE.Mesh(new THREE.SphereGeometry(.13,8,6),new THREE.MeshBasicMaterial({color})); m.position.set(x,y,z); parent.add(m); const l=new THREE.PointLight(color,1.25,11,2); l.position.set(x,y-.25,z); parent.add(l); };
+  const makeInterior = (h,index) => {
+    const apartment=h.tier==='apartment', trailer=h.tier==='trailer', family=h.tier==='family', mansion=h.tier==='mansion';
+    const w=apartment?24:mansion?28:20, d=apartment?20:mansion?21:15, ht=apartment?5.5:4.2;
+    const col=index%3,row=Math.floor(index/3), cx=270+col*34, cz=-48+row*32;
+    const room=new THREE.Group(); room.position.set(cx,0,cz); room.visible=false; lot.add(room);
+    interiorBox(room,interiorFloor,w,.35,d,0,.18,0);
+    // Wall segments leave a centered, navigable front doorway.
+    interiorBox(room,interiorWall,w,ht,.35,0,ht/2+.18,-d/2);
+    interiorBox(room,interiorWall,.35,ht,d, -w/2,ht/2+.18,0);
+    interiorBox(room,interiorWall,.35,ht,d, w/2,ht/2+.18,0);
+    interiorBox(room,interiorWall,(w-3.2)/2,ht,.35,-(w+3.2)/4,ht/2+.18,d/2);
+    interiorBox(room,interiorWall,(w-3.2)/2,ht,.35,(w+3.2)/4,ht/2+.18,d/2);
+    interiorBox(room,interiorDark,w,.25,d,0,ht+.3,0);
+    // Framed window and glowing panes on the back wall.
+    interiorBox(room,interiorDark,Math.min(7,w*.42),2,.22,0,2.45,-d/2+.23);
+    interiorBox(room,interiorGlass,Math.min(6.5,w*.39),1.55,.08,0,2.5,-d/2+.36);
+    // Tier-specific furniture: bed, sofa, table, kitchenette, wardrobes and premium lounge details.
+    if (trailer) {
+      interiorBox(room,interiorDark,5.2,.55,2.7,-5,.55,-3.7);
+      interiorBox(room,interiorFabric,5,.22,2.5,-5,.94,-3.7);
+      interiorBox(room,interiorWall,2.4,1.8,.65,6,1.05,-5.2);
+      interiorBox(room,interiorDark,5.5,1.05,1.4,4,.72,3.2);
+      interiorBox(room,interiorWood,2.4,.25,1.6,-1,.7,3.1);
+    } else if (apartment) {
+      interiorBox(room,interiorDark,6.2,.45,3.3,-6,.5,-5);
+      interiorBox(room,interiorFabric,6,.2,3.1,-6,.82,-5);
+      interiorBox(room,interiorWood,5.5,.25,2.2,5,.65,-5);
+      interiorBox(room,interiorWall,5,1.1,.65,5,1.3,-5.7);
+      interiorBox(room,interiorDark,6,1.05,1.5,6,.7,3.5);
+      interiorBox(room,interiorWood,3,.2,2.3,-1,.7,3.7);
+    } else {
+      const bedW=mansion?7:family?6:5.5, bedZ=-d/2+4;
+      interiorBox(room,interiorDark,bedW,.5,4,-w/2+4,.55,bedZ);
+      interiorBox(room,interiorFabric,bedW-.25,.2,3.7,-w/2+4,.91,bedZ);
+      interiorBox(room,interiorWall,bedW*.48,.7,.25,-w/2+4,1.2,bedZ-1.55);
+      interiorBox(room,interiorWood,mansion?8:6,.28,2,w/2-4,.72,d/2-3.4);
+      interiorBox(room,interiorFabric,mansion?8.2:6.2,1.0,1.25,w/2-4,1.22,d/2-3.4);
+      interiorBox(room,interiorWood,3.2,.25,2.2,0,.72,1.7);
+      interiorBox(room,interiorDark,5.5,1.05,1.4,0,.75,-.15);
+      interiorBox(room,interiorWood,4.2,.18,1.6,-w/2+3,.85,d/2-2.5);
+      interiorBox(room,interiorWall,4.2,1.2,.22,-w/2+3,1.5,d/2-3.3);
+      if (family||mansion) {
+        interiorBox(room,interiorWood,2.3,.24,1.8,-w/2+3,.7,1.3);
+        interiorBox(room,interiorDark,2.4,1.1,.35,-w/2+3,1.25,.25);
+      }
+      if (mansion) {
+        interiorBox(room,interiorDark,3.2,.18,1.2,w/2-3,1.35,-d/2+2.4);
+        interiorBox(room,interiorGlass,2.8,.08,.8,w/2-3,1.48,-d/2+2.4);
+        interiorBox(room,interiorFabric,2.2,.75,1.0,0,1.05,d/2-2.2);
+      }
+    }
+    // Practical lamps and a small entry mat make the threshold legible.
+    interiorBox(room,interiorWood,3.1,.08,1.25,0,.42,d/2-1.2);
+    interiorBox(room,interiorDark,.22,2.8,.18,-1.55,1.65,d/2-.25);
+    interiorBox(room,interiorDark,.22,2.8,.18,1.55,1.65,d/2-.25);
+    interiorLamp(room,-w*.32,3.3,-d*.22);
+    interiorLamp(room,w*.30,3.3,d*.18,mansion?0xffd7a0:0xffb76b);
+    if (apartment||mansion) interiorLamp(room,0,3.4,0,0x8ddfff);
+    const label=new THREE.Mesh(new THREE.BoxGeometry(1.8,.32,.06),new THREE.MeshBasicMaterial({color:0xffb45b}));
+    label.position.set(0,2.7,d/2-.25); room.add(label);
+    return {id:h.propertyId,tier:h.tier,group:room,yaw:lot.rotation.y,localSpawn:new THREE.Vector3(0,.5,d/2-3),localExit:new THREE.Vector3(0,.5,d/2+3),exteriorLocal:new THREE.Vector3(h.x,0,h.z+h.d/2+5),halfW:w/2-.6,halfD:d/2-.6};
+  };
+  homes.forEach((h,i)=>interiorRooms[h.propertyId]=makeInterior(h,i));
+  lot.updateMatrixWorld(true);
+  for (const room of Object.values(interiorRooms)) {
+    room.spawn=room.group.localToWorld(room.localSpawn.clone());
+    room.exit=room.group.localToWorld(room.localExit.clone());
+    room.exterior=lot.localToWorld(room.exteriorLocal.clone());
+    room.yaw=lot.rotation.y;
+  }
+  window.__estateRooms=interiorRooms;
+  window.__estateInteriorGuard=(pos,vel)=>{
+    const id=window.__estateInteriorId, r=interiorRooms[id]; if(!r)return false;
+    const p=r.group.worldToLocal(pos.clone());
+    p.x=THREE.MathUtils.clamp(p.x,-r.halfW,r.halfW);
+    p.z=THREE.MathUtils.clamp(p.z,-r.halfD,r.halfD);
+    p.y=Math.max(.45,p.y);
+    pos.copy(r.group.localToWorld(p)); if(vel&&pos.y<=.46)vel.y=0; return true;
+  };
+  window.__interactors=window.__interactors||[];
+  window.__interactors.push(p=>{
+    const active=window.__estateInteriorId;
+    if(active&&interiorRooms[active]){
+      const r=interiorRooms[active],d=Math.hypot(p.x-r.exit.x,p.z-r.exit.z);
+      if(d<4.5)return {d,label:'Exit residence',act:()=>window.__estateExit&&window.__estateExit()};
+      return null;
+    }
+    let best=null;
+    for(const r of Object.values(interiorRooms)){const d=Math.hypot(p.x-r.exterior.x,p.z-r.exterior.z);if(d<4.5&&(!best||d<best.d))best={d,label:'Enter '+ESTATE_TIER_INFO[r.tier].label,act:()=>window.__estateEnter&&window.__estateEnter(r.id)}}
+    return best;
+  });
   return { lakeC, lotC, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
 }
 const ESTATE_TIER_INFO = { trailer:{label:'Trailer Home',units:1}, apartment:{label:'Apartment Unit',units:2}, starter:{label:'Two-Bedroom Starter Home',units:3}, family:{label:'Four-Bedroom Family Home',units:5}, mansion:{label:'Luxury Lakefront Mansion',units:10} };

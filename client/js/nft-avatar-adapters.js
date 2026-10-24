@@ -27,7 +27,7 @@ const COMMON = [
   ['weapon', /weapon|held.?item|gun|sword|blade|gear/i],
   ['accessory', /accessor(y|ies)|jewel(l)?ery|necklace|chain|medallion|earring/i],
   ['flame', /flame|fire|ember|burn.?effect|aura/i],
-  ['eye wear', /sunglasses|eyewear|goggles|frames/i],
+  ['eye wear', /sunglasses|eyewear|glasses|spectacles|goggles|frames|visor/i],
   ['tail', /tail/i]
 ];
 const COLLECTIONS = {

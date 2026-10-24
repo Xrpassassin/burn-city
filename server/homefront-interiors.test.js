@@ -52,12 +52,15 @@ player.x = hospital.x; player.z = hospital.z;
 const reentered = Interiors.enter(left.state, { account, player, landmarkId: 'mercy_hospital', now: 1800 });
 state = reentered.state;
 assert.throws(() => Interiors.breachDoor(state, { account, landmarkId: 'mercy_hospital', doorId: 'pharmacy_door', damage: 100, now: 1900 }), /interior_door_secure/);
+const depot = Interiors.LANDMARKS.north_bus_depot;
+player.x = depot.x; player.z = depot.z;
+state = Interiors.enter(state, { account, player, landmarkId: 'north_bus_depot', now: 1950 }).state;
 for (let i = 0; i < 4; i++) {
-  const breached = Interiors.breachDoor(state, { account, landmarkId: 'mercy_hospital', doorId: 'ward_door', damage: 30, now: 2000 + i });
+  const breached = Interiors.breachDoor(state, { account, landmarkId: 'north_bus_depot', doorId: 'office_door', damage: 30, now: 2000 + i });
   state = breached.state;
 }
-assert(state[account].interiors.mercy_hospital.openedDoors.includes('ward_door'), 'persistent breach progress eventually opens an ordinary door');
-assert.equal(state[account].interiors.mercy_hospital.doorDamage.ward_door, 100);
+assert(state[account].interiors.north_bus_depot.openedDoors.includes('office_door'), 'persistent breach progress eventually opens an ordinary door');
+assert.equal(state[account].interiors.north_bus_depot.doorDamage.office_door, 100);
 
 
 const wall = Collision.OBSTACLES.find(o => o.id === 'interior-wall:mercy_hospital:emergency_lobby:north:0');

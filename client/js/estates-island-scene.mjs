@@ -43,8 +43,8 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
     descriptor('path-shore-south','footpath',point(0,0.12,111),{width:3,length:100,height:0.12},'stone',{orientation:'x'})
   ];
   const access=[
-    descriptor('primary-bridge','bridge',point(0,0.4,159),{width:12,length:52,height:0.8},'weathered-concrete',{connects:['city-side-entrance','island-gate'],walkable:true,vehicleAccess:true}),
-    descriptor('service-bridge','bridge',point(-91,0.35,113),{width:7,length:40,height:0.7},'steel-concrete',{connects:['service-road','woodland-edge'],walkable:true,vehicleAccess:false}),
+    descriptor('primary-bridge','bridge',point(0,0.4,159),{width:12,length:52,height:0.8},'weathered-concrete',{orientation:'z',connects:['city-side-entrance','island-gate'],walkable:true,vehicleAccess:true}),
+    descriptor('service-bridge','bridge',point(-91,0.35,113),{width:7,length:40,height:0.7},'steel-concrete',{orientation:'z',connects:['service-road','woodland-edge'],walkable:true,vehicleAccess:false}),
     descriptor('public-dock','dock',point(75,0.2,112),{width:18,length:8,height:0.4},'timber',{walkable:true,boatsEnabled:false}),
     descriptor('island-gate','entrance-trigger',point(0,0,132),{radius:5,height:4},'interaction-volume',{prompt:'Enter Estates Island',requiresExplicitConfirmation:true,destinationId:'estates-island',returnAnchor:'estates-island-entrance'})
   ];

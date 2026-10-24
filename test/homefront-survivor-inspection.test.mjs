@@ -68,3 +68,6 @@ assert.match(page, /const taskStation=\{stockpile_supplies:'storage',infirmary_d
 assert.match(page, /if\(survivor\.task==='take_shelter'\)return/, 'survivors assigned to shelter move into the refuge interior');
 assert.match(page, /const workSpot=\(item,slot=index,radius=1\.35\)/, 'work destinations are spaced around the target structure instead of inside it');
 assert.match(page, /if\(survivor\.task==='tend_crops'\|\|survivor\.role==='farmer'\)/, 'farmers route to actual planted crop plots');
+
+assert.match(page, /const cotSpots=\[\[-2\.55,2\.45\],\[2\.55,2\.45\],\[-2\.75,4\],\[2\.75,4\],\[-2\.55,5\.55\],\[2\.55,5\.55\]\]/, 'the refuge includes six visible cot/rest locations');
+assert.match(page, /if\(survivor\.task==='rest_at_refuge'\)\{const cotSpots=/, 'resting survivors navigate to a specific bedroll instead of an arbitrary idle point');

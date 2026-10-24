@@ -197,6 +197,8 @@ if (attack.data.combat.enemyDamage > 0) {
   const cacheOpen = await call('POST', '/api/homefront/world/cache', 'acct-a', { pointId: 'cache_exchange', difficulty: 'standard' });
   assert.equal(cacheOpen.status, 200, 'player can open a nearby shared supply cache');
   assert.equal(cacheOpen.data.encounter.cacheOpened, true);
+  assert.ok(cacheOpen.data.tacticalNoise?.level >= 25, 'secure cache returns a server-calculated tactical noise warning');
+  assert.ok(files.get('homefront-world.json').players['acct-a'].lastNoiseAt > 0, 'cache opening records noise in authoritative world state');
   assert.ok(cacheOpen.data.encounter.bonus.embers > 0, 'supply cache awards difficulty-scaled bonus Embers');
   assert.ok(cacheOpen.data.world.caches.cache_exchange.readyAt > Date.now(), 'opening a cache persists a shared respawn timer');
   const duplicateCache = await call('POST', '/api/homefront/world/cache', 'acct-b', { pointId: 'cache_exchange', difficulty: 'standard' });
@@ -218,6 +220,8 @@ if (attack.data.combat.enemyDamage > 0) {
   const rescue = await call('POST', '/api/homefront/world/rescue', 'acct-a', { pointId: 'stranded_bus', difficulty: 'standard' });
   assert.equal(rescue.status, 200, 'explorer can rescue a nearby stranded survivor');
   assert.equal(rescue.data.encounter.rescued, true);
+  assert.ok(rescue.data.tacticalNoise?.level >= 25, 'rescue returns a tactical noise warning');
+  assert.ok(files.get('homefront-world.json').players['acct-a'].lastNoiseAt > 0, 'rescue records noise in authoritative world state');
   assert.equal(rescue.data.base.survivors.length, survivorsBeforeRescue + 1, 'rescued survivor joins the persistent refuge roster');
   assert.ok(rescue.data.encounter.survivor?.id, 'rescue response identifies the newly recruited survivor');
   const duplicateRescue = await call('POST', '/api/homefront/world/rescue', 'acct-b', { pointId: 'stranded_bus', difficulty: 'standard' });

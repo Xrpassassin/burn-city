@@ -58,7 +58,7 @@
     "test:estates-island-navigation": "node client/js/estates-island-navigation.test.mjs",
     "test:estates-island-controller": "node client/js/estates-island-controller.test.mjs",
     "test:estates-island-live": "node client/js/estates-island-live.test.mjs",
-    "test:estates-island-navigation": "node client/js/estates-island-navigation.test.mjs"
+    
   },
   "keywords": [],
   "author": "",

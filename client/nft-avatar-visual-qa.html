@@ -98,8 +98,8 @@ function renderSample(){try{
  const rawTraits=Array.isArray(nft.traits)?nft.traits:[];
  const normalizedProfile=resolveNftAvatarProfile(nft);
  const handledSlots=new Set(['background','eye color','eye appearance','body effect','accessory','outfit','headwear','weapon','fur color','hair style','hair color','skin color','armor','mask','expression','facial hair','markings','body pattern','horns','wing','flame','tail']);
- const unmapped=normalizedProfile.renderTraits.filter(([slot])=>!handledSlots.has(slot));
- const unmappedText=unmapped.length?unmapped.map(([slot,value],i)=>'  - '+normalizedProfile.rawTraits[i]?.[0]+' → '+slot+': '+value).join('\n'):'  none detected';
+ const unmapped=normalizedProfile.renderTraits.map(([slot,value],i)=>({slot,value,rawType:normalizedProfile.rawTraits[i]?.[0]})).filter(item=>!handledSlots.has(item.slot));
+ const unmappedText=unmapped.length?unmapped.map(({rawType,slot,value})=>'  - '+rawType+' → '+slot+': '+value).join('\n'):'  none detected';
  status.textContent='Rendered: '+(nft.name||nft.id||'unnamed sample')+'\nCollection: '+(profile.collectionName||nft.key||'unknown')+'\nRaw traits: '+rawTraits.length+'\nTrait slots without an explicit renderer mapping: '+unmapped.length+'\n'+unmappedText+'\nArchetype: '+(recon.archetype||profile.archetype||'unknown')+'\nFidelity mode: '+(recon.fidelityMode||'unknown')+'\nExact reconstruction: '+String(!!recon.exactReconstruction)+'\nRecipes: outfit='+components.outfitStyle+', headwear='+components.headwearStyle+', weapon='+components.weaponStyle+', tail='+components.tailStyle+'\nReview status: visual inspection required; no automated likeness score.';
  const url=document.querySelector('#artUrl').value.trim()||String(nft.img||nft.image||'').trim();showArtwork(url);
  }catch(e){status.textContent='Could not render sample: '+e.message;}}

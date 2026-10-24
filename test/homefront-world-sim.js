@@ -69,6 +69,8 @@ assert.equal(Collision.isSafePosition(world.players['acct-b'].x, world.players['
   'party follower movement ends on a collision-safe terrain footprint');
 assert.equal(W.districtAt(0, 0).risk, 5, 'deep city core is high risk');
 assert.equal(W.districtAt(-8, -82).risk, 1, 'outer spawn is low risk');
+assert.ok(a.result.self.frontierDepth < 25, 'outer spawn reports low frontier depth');
+assert.equal(a.result.self.frontierBand, 'perimeter', 'outer spawn identifies the safer perimeter band');
 
 const handlingEntry = W.enter(W.defaultWorld(), 'handling-player', 1000);
 const aimedEntry = W.setAiming(handlingEntry.world, 'handling-player', true, 2000);

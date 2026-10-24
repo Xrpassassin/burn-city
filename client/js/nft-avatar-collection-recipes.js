@@ -6,7 +6,7 @@ const RECIPES = {
     proportions: { torsoWidth: 1.08, torsoHeight: .94, headScale: [1.08, 1.06, 1.02], shoulderSpan: .29, hipSpan: .13, headY: 1.75, legScale: .91, armScale: .97 },
     silhouetteTags: ['rounded-raccoon-skull', 'eye-mask', 'muzzle', 'ringed-tail'],
     signature: 'raccoon',
-    visualRequirements: ['raccoon muzzle and cheek volume', 'dark eye-mask markings', 'clearly visible ringed tail', 'artwork-matched fur and outfit colors'],
+    visualRequirements: ['forward-projecting tapered raccoon muzzle with paired muzzle pads and a distinct nose', 'dark eye-mask markings shaped to the token reference', 'rounded skull and pointed ears with readable cheek volume', 'clearly visible ringed tail when specified or collection-defaulted', 'artwork-matched fur and outfit colors'],
     traitSlots: { 'Bandit Mask': 'mask', 'Ring Tail': 'tail', 'Fits': 'outfit', 'Armed': 'weapon', 'Top Gear': 'headwear' },
     materialHints: { skin: 'fur', outfit: 'trait-driven-fabric', signature: 'high-contrast-eye-mask-and-ringed-tail' },
     budgets: { targetTriangles: 18000, maxTextureBytes: 4194304, maxDrawCalls: 24 },

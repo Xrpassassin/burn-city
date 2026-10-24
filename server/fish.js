@@ -1,11 +1,20 @@
 // Lake fishing: server-authoritative rolls + sanity limits. Coins are a free in-game score: no real value, never sold for XRP, not withdrawable.
 const Pay = require('./payments'), db = Pay.sdb;
-db.exec(`CREATE TABLE IF NOT EXISTS fish_prof(acct TEXT PRIMARY KEY, coins INTEGER, rod TEXT, rods TEXT, bait TEXT, log TEXT, creel TEXT, n INTEGER, xp INTEGER NOT NULL DEFAULT 0);
+db.exec(`CREATE TABLE IF NOT EXISTS fish_prof(acct TEXT PRIMARY KEY, coins INTEGER, rod TEXT, rods TEXT, bait TEXT, log TEXT, creel TEXT, n INTEGER, xp INTEGER NOT NULL DEFAULT 0, boats TEXT NOT NULL DEFAULT '[\"skiff\"]', selectedBoat TEXT NOT NULL DEFAULT 'skiff');
 CREATE TABLE IF NOT EXISTS fish_catch(acct TEXT, t INTEGER);`);
 try { db.exec('ALTER TABLE fish_prof ADD COLUMN xp INTEGER NOT NULL DEFAULT 0'); } catch (e) { }
+try { db.exec(`ALTER TABLE fish_prof ADD COLUMN boats TEXT NOT NULL DEFAULT '[\"skiff\"]'`); } catch (e) { }
+try { db.exec(`ALTER TABLE fish_prof ADD COLUMN selectedBoat TEXT NOT NULL DEFAULT 'skiff'`); } catch (e) { }
 for (const c of ['kg REAL', 'sp TEXT']) try { db.exec('ALTER TABLE fish_catch ADD COLUMN ' + c); } catch (e) { }
 const SPECIES = [["minnow","Ledger Minnow",0,[0.05,0.3],3,{}],["bluegill","Bluegill Byte",0,[0.1,0.6],4,{}],["perch","Pond Perch",0,[0.2,1.2],5,{}],["carp","Mud Carp",0,[0.8,6],6,{}],["shiner","River Shiner",0,[0.05,0.4],3,{}],["dace","Silver Dace",0,[0.1,0.5],4,{}],["trout","Neon Trout",1,[0.5,4],12,{}],["bass","Amber Bass",1,[0.6,5],14,{}],["catfish","Glass Catfish",1,[1,9],15,{"night":1}],["pike","Spotted Pike",1,[1,8],16,{}],["eel","Moon Eel",2,[0.8,5],40,{"night":1}],["gar","Storm Gar",2,[2,12],45,{"weather":"storm"}],["koi","Gold Koi",2,[1,7],50,{}],["cod","Deepwater Cod",2,[3,20],48,{"deep":1}],["sturgeon","Phantom Sturgeon",3,[10,60],140,{"night":1,"deep":1}],["snapper","Lava Snapper",3,[2,14],120,{}],["salmon","Aurora Salmon",3,[3,18],130,{"weather":"bull"}],["leviathan","Burn Leviathan",4,[80,300],600,{"deep":1,"night":1}],["marlin","Crystal Marlin",4,[40,180],520,{"deep":1}],["whaleshark","XRP Whale Shark",4,[200,900],750,{"deep":1,"weather":"bull"}]], SHOP = {"rods":[["basic","Basic Rod",0,0],["carbon","Carbon Rod",150,1],["pro","Pro Rod",600,2],["legend","Ember Legend Rod",2000,3]], "baits":[["worm","Worm (free)",0,0],["shrimp","Shrimp",5,1],["glow","Glow Lure",20,2],["burnfly","Burn Fly",60,3]]};
 const RW = [60, 25, 10, 4, 1];
+const BOATS = [
+  { id: 'skiff', name: 'Harbor Skiff', price: 0, tier: 1, capacityKg: 12, depth: 0, speed: 1, color: 0x2a9d8f, description: 'Starter boat for sheltered water and smaller catches.' },
+  { id: 'bass', name: 'Bass Runner', price: 1200, tier: 2, capacityKg: 60, depth: 1, speed: 1.2, color: 0x2878b8, description: 'A faster fishing boat for larger lake species.' },
+  { id: 'offshore', name: 'Offshore Cruiser', price: 5000, tier: 3, capacityKg: 200, depth: 2, speed: 1.35, color: 0xd97732, description: 'Reaches deep water and supports heavy game fish.' },
+  { id: 'abyss', name: 'Abyssal Hunter', price: 14000, tier: 4, capacityKg: 900, depth: 3, speed: 1.5, color: 0x7657d5, description: 'Deep-water specialist built for legendary catches.' }
+];
+const boatById = id => BOATS.find(b => b.id === id) || BOATS[0];
 const ROD_LEVELS = { basic: 1, carbon: 2, pro: 5, legend: 10 };
 const XP_THRESHOLDS = [0, 100, 250, 450, 700, 1000, 1400, 1850, 2400, 3050];
 function anglerLevel(xp = 0) {
@@ -24,14 +33,15 @@ const PREFERRED_BAIT = { minnow: 0, bluegill: 0, perch: 0, shiner: 0, dace: 0, c
 function baitAffinity(speciesId, baitTier) { const preferred = PREFERRED_BAIT[speciesId]; if (preferred === undefined) return 1; return Math.max(0, Math.min(3, +baitTier || 0)) === preferred ? 1.25 : 0.9; }
 function roll(rodId, baitId, ctx, rnd = Math.random) {
   const rt = tier(SHOP.rods, rodId), bt = tier(SHOP.baits, baitId), luck = rt * 0.5 + bt;
-  const ok = SPECIES.filter(s => (!s[5].night || ctx.night) && (!s[5].deep || ctx.deep) && (!s[5].weather || s[5].weather === ctx.weather) && !(s[2] === 4 && bt < 2) && !(s[2] === 3 && bt < 1 && rt < 1));
+  const boat = boatById(ctx.boatId || 'skiff'), capacity = ctx.onBoat ? boat.capacityKg : 9;
+  const ok = SPECIES.filter(s => (!s[5].night || ctx.night) && (!s[5].deep || (ctx.deep && boat.depth >= 1)) && (!s[5].weather || s[5].weather === ctx.weather) && (Number(s[5].boat) || 1) <= (ctx.onBoat ? boat.tier : 0) && s[3][0] <= capacity && !(s[2] === 4 && bt < 2) && !(s[2] === 3 && bt < 1 && rt < 1));
   const w = ok.map(s => RW[s[2]] * Math.pow(1 + luck, s[2] * 0.6) * baitAffinity(s[0], bt)); let x = rnd() * w.reduce((a, b) => a + b, 0), i = 0; while (x > w[i]) x -= w[i++];
-  const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(rnd(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +(s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
+  const s = ok[Math.min(i, ok.length - 1)], f = Math.pow(rnd(), Math.max(0.6, 1.6 - 0.25 * rt)), kg = +Math.min(capacity, s[3][0] + (s[3][1] - s[3][0]) * f).toFixed(2);
   return { id: s[0], name: s[1], r: s[2], kg, val: Math.round(s[4] * (1 + f)), hits: 1 + s[2], zone: +(0.3 - 0.04 * s[2] + 0.05 * rt).toFixed(2) };
 }
 const get = acct => {
   const r = db.prepare('SELECT * FROM fish_prof WHERE acct=?').get(acct);
-  if (!r) return { coins: 0, rod: 'basic', rods: ['basic'], bait: { worm: -1 }, log: {}, creel: [], n: 0, xp: 0 };
+  if (!r) return { coins: 0, rod: 'basic', rods: ['basic'], bait: { worm: -1 }, log: {}, creel: [], n: 0, xp: 0, boats: ['skiff'], selectedBoat: 'skiff' };
   let xp = Math.max(0, Number(r.xp) || 0);
   // Backfill XP for pre-progression signed-in anglers from server-recorded catch rows only.
   if (!xp && Number(r.n) > 0) {
@@ -40,9 +50,12 @@ const get = acct => {
     xp = rows.reduce((sum, row) => sum + (rarity.has(row.sp) ? xpForCatch({ r: rarity.get(row.sp), kg: row.kg }) : 0), 0);
     if (xp > 0) db.prepare('UPDATE fish_prof SET xp=? WHERE acct=? AND xp=0').run(xp, acct);
   }
-  return { coins: r.coins, rod: r.rod, rods: JSON.parse(r.rods), bait: JSON.parse(r.bait), log: JSON.parse(r.log), creel: JSON.parse(r.creel), n: r.n, xp };
+  let boats = []; try { boats = JSON.parse(r.boats || '[\"skiff\"]') } catch (e) { boats = ['skiff'] };
+  boats = [...new Set(['skiff', ...boats.filter(id => BOATS.some(b => b.id === id))])];
+  const selectedBoat = boats.includes(r.selectedBoat) ? r.selectedBoat : 'skiff';
+  return { coins: r.coins, rod: r.rod, rods: JSON.parse(r.rods), bait: JSON.parse(r.bait), log: JSON.parse(r.log), creel: JSON.parse(r.creel), n: r.n, xp, boats, selectedBoat, boat: boatById(selectedBoat) };
 };
-const put = (acct, p) => db.prepare('INSERT OR REPLACE INTO fish_prof(acct,coins,rod,rods,bait,log,creel,n,xp) VALUES(?,?,?,?,?,?,?,?,?)').run(acct, p.coins, p.rod, JSON.stringify(p.rods), JSON.stringify(p.bait), JSON.stringify(p.log), JSON.stringify(p.creel.slice(-60)), p.n, Math.max(0, Math.floor(Number(p.xp) || 0)));
+const put = (acct, p) => db.prepare('INSERT OR REPLACE INTO fish_prof(acct,coins,rod,rods,bait,log,creel,n,xp,boats,selectedBoat) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(acct, p.coins, p.rod, JSON.stringify(p.rods), JSON.stringify(p.bait), JSON.stringify(p.log), JSON.stringify(p.creel.slice(-60)), p.n, Math.max(0, Math.floor(Number(p.xp) || 0)), JSON.stringify([...new Set(['skiff', ...(p.boats || []).filter(id => BOATS.some(b => b.id === id))])]), (p.boats || []).includes(p.selectedBoat) ? p.selectedBoat : 'skiff');
 db.exec('CREATE TABLE IF NOT EXISTS fish_streak(acct TEXT PRIMARY KEY, cur INTEGER, wk INTEGER, wbest INTEGER, wt INTEGER, best INTEGER)');
 // server-observed catch streak: consecutive landed fish. Escapes, timeouts and abandoned/spooked casts reset it.
 function streakHit(acct, ok) { const ws = weekStart(), r = db.prepare('SELECT * FROM fish_streak WHERE acct=?').get(acct) || { cur: 0, wk: ws, wbest: 0, wt: 0, best: 0 };
@@ -58,7 +71,8 @@ function cast(acct, { bait = 'worm', deep = false, weather = '' } = {}) {
   if (db.prepare('SELECT COUNT(*) c FROM fish_catch WHERE acct=? AND t>?').get(acct, now - 3600e3).c >= LIM.maxPerHour) return { error: 'hourly_limit' };
   if (last && now > last.ready) streakHit(acct, false);   // a bite was left unreeled (spooked / walked away)
   const p = get(acct); if (bait !== 'worm' && !(p.bait[bait] > 0)) bait = 'worm';
-  const fish = roll(p.rod, bait, { night: phxNight(), deep: !!deep, weather: ['bull', 'storm'].includes(weather) ? weather : '' });
+  const selectedBoat = boatById(p.selectedBoat), onBoat = !!deep && selectedBoat.depth >= 0;
+  const fish = roll(p.rod, bait, { night: phxNight(), deep: !!deep && selectedBoat.depth >= 1, weather: ['bull', 'storm'].includes(weather) ? weather : '', boatId: selectedBoat.id, onBoat });
   const wait = 2500 + Math.floor(Math.random() * 6000), cid = Math.random().toString(36).slice(2, 10);
   casts.set(acct, { cid, fish, t: now, ready: now + wait, bait });
   return { cid, wait, hits: fish.hits, zone: fish.zone, r: fish.r };   // species stays secret until landed
@@ -72,16 +86,18 @@ function reel(acct, cid, ok) {
   landed.set(acct, { id: f.id, kg: f.kg, r: f.r, t: now });
   put(acct, p); db.prepare('INSERT INTO fish_catch(acct,t,kg,sp) VALUES(?,?,?,?)').run(acct, now, f.kg, f.id); return { fish: f, profile: p, today: today(acct), streak: streakHit(acct, true) };
 }
+function selectBoat(acct, id) { const p = get(acct); if (!p.boats.includes(id)) return { error: 'boat_not_owned' }; p.selectedBoat = id; put(acct, p); return { profile: get(acct) }; }
 function sell(acct) { const p = get(acct), v = p.creel.reduce((a, f) => a + f[2], 0); p.coins += v; p.creel = []; put(acct, p); return { sold: v, profile: p }; }
 function buy(acct, kind, id, qty = 1) {
-  const p = get(acct), list = kind === 'rod' ? SHOP.rods : SHOP.baits, it = list.find(x => x[0] === id); if (!it) return { error: 'unknown' };
+  const p = get(acct), list = kind === 'rod' ? SHOP.rods : kind === 'boat' ? BOATS.map(b => [b.id, b.name, b.price, b.tier]) : SHOP.baits, it = list.find(x => x[0] === id); if (!it) return { error: 'unknown' };
+  if (kind === 'boat' && p.boats.includes(id)) { p.selectedBoat = id; put(acct, p); return { profile: get(acct) }; }
   qty = Math.max(1, Math.min(50, qty | 0)); const cost = kind === 'rod' ? it[2] : it[2] * qty;
   if (kind === 'rod' && p.rods.includes(id)) { p.rod = id; put(acct, p); return { profile: p }; }
   if (p.coins < cost) return { error: 'not_enough_coins' };
   if (kind === 'rod' && anglerLevel(p.xp) < (ROD_LEVELS[id] || 1)) return { error: 'level_locked', level: anglerLevel(p.xp), requiredLevel: ROD_LEVELS[id] || 1 };
   p.coins -= cost;
-  if (kind === 'rod') { p.rods.push(id); p.rod = id; } else if (id !== 'worm') p.bait[id] = (p.bait[id] || 0) + qty;
-  put(acct, p); return { profile: p };
+  if (kind === 'rod') { p.rods.push(id); p.rod = id; } else if (kind === 'boat') { p.boats = [...new Set([...(p.boats || ['skiff']), id])]; p.selectedBoat = id; } else if (id !== 'worm') p.bait[id] = (p.bait[id] || 0) + qty;
+  put(acct, p); return { profile: get(acct) };
 }
 // one-time import of a guest's browser progress into the wallet profile (unverifiable client data -> strict caps, once per wallet, logged)
 db.exec('CREATE TABLE IF NOT EXISTS fish_import(acct TEXT PRIMARY KEY, t INTEGER, summary TEXT)');
@@ -125,4 +141,4 @@ function challenges(acct, ms = Date.now()) {
   ].map(item => ({ ...item, unlocked: item.progress >= item.goal }));
   return { day, target, catches: catches.length, items };
 }
-module.exports = { lastLanded: a => landed.get(a), streakTop, streakHit, importGuest, IMP, weekTop, today, challenges, weekStart, get, cast, reel, sell, buy, roll, baitAffinity, anglerLevel, xpForCatch, ROD_LEVELS, SPECIES, SHOP, LIM, _casts: casts };
+module.exports = { lastLanded: a => landed.get(a), streakTop, streakHit, importGuest, IMP, weekTop, today, challenges, weekStart, get, cast, reel, sell, buy, selectBoat, roll, baitAffinity, anglerLevel, xpForCatch, ROD_LEVELS, BOATS, boatById, SPECIES, SHOP, LIM, _casts: casts };

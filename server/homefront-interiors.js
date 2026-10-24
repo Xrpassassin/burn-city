@@ -87,7 +87,7 @@ function requireActive(input, account, player, now) {
 function action(input, { account, player, actionId, now = Date.now() }) {
   const ctx = requireActive(input, account, player, now);
   const item = ctx.catalog.interactables.find(target => target.id === actionId && target.roomId === ctx.state.roomId);
-  if (!item) throw new Error('interior_action_unavailable');
+  if (!item || ctx.state.used.includes(actionId)) throw new Error('interior_action_unavailable');
   const landmark = LANDMARKS[ctx.landmarkId];
   const room = Catalog.interiorRoom(ctx.catalog, ctx.state.roomId);
   const targetX = landmark.x + room.x + item.x, targetZ = landmark.z + room.z + item.z;

@@ -27,6 +27,8 @@ actor.position.x=-205;actor.position.z=188;
 r=controller.update({dt:.016});
 assert.equal(r.nearGate,true);
 assert(exits.some(e=>e.visible===true&&e.requiresConfirmation));
+r=controller.update({dt:.016,exitPressed:true});
+assert(exits.some(e=>e.confirmedInteraction===true&&e.action==='return-to-city'),'E-key interaction at the city gate must emit an actionable return event');
 assert.equal(controller.dispose(),true);
 assert.equal(controller.dispose(),false);
 assert.equal(controller.isActive,false);

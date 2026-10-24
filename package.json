@@ -41,6 +41,7 @@
     "test:zombie-nav": "node test/zombie-nav-sim.js",
     "test:graphics-labs": "node client/js/wilds-graphics-profiles.test.mjs && node client/js/wilds-ground-materials.test.mjs && node client/js/wilds-atmosphere-presets.test.mjs && node client/js/bloom-comparison-presets.test.mjs && node client/arena/zombie-visual-presets.test.mjs && node client/arena/zombie-model-selection.test.mjs && node client/arena/zombie-model-pilot.test.mjs",
     "test:experience-registry": "node client/js/experience-registry.test.mjs",
+    "test:experience-instance-pool": "node client/js/experience-instance-pool.test.mjs",
     "test:world-objectives": "node client/js/world-objectives-core.test.mjs",
     "test:zombie-cosmodrome": "node test/zombie-cosmodrome-sim.js",
     "test:moba": "node client/moba/rules-core.test.mjs && node client/moba/bot-controller.test.mjs && node client/moba/lane-minions.test.mjs",

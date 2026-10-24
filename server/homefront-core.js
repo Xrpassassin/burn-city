@@ -56,6 +56,81 @@ const cleanOwner = id => typeof id === 'string' && id.trim() && id.length <= 180
 const clone = v => JSON.parse(JSON.stringify(v));
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const rand = seed => { let x = seed >>> 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 4294967296; };
+const SURVIVOR_RARITIES = Object.freeze({
+  common: { label: 'Common', weight: 700 },
+  uncommon: { label: 'Uncommon', weight: 200 },
+  rare: { label: 'Rare', weight: 80 },
+  epic: { label: 'Epic', weight: 18 },
+  legendary: { label: 'Legendary', weight: 2 }
+});
+function survivorRarity(seed) {
+  const roll = hash(String(seed) + ':survivor-rarity') % 1000;
+  if (roll < 2) return 'legendary';
+  if (roll < 20) return 'epic';
+  if (roll < 100) return 'rare';
+  if (roll < 300) return 'uncommon';
+  return 'common';
+}
+function survivorRarityMultiplier(survivor) {
+  return ({ common: 1, uncommon: 1.05, rare: 1.10, epic: 1.15, legendary: 1.20 })[
+    Object.hasOwn(SURVIVOR_RARITIES, survivor?.rarity) ? survivor.rarity : 'common'
+  ];
+}
+const SURVIVOR_TRAITS = Object.freeze({
+  optimistic: { label: 'Optimistic', description: 'Recovers morale faster after a fed workday.' },
+  resilient: { label: 'Resilient', description: 'Loses less morale when the refuge cannot feed everyone.' },
+  keen_eyed: { label: 'Keen-Eyed', description: 'Produces more salvage when assigned to scavenging.' },
+  green_thumb: { label: 'Green Thumb', description: 'Produces more food when assigned to farming.' },
+  steady_hands: { label: 'Steady Hands', description: 'Works more efficiently as a mechanic.' },
+  compassionate: { label: 'Compassionate', description: 'Provides an extra medicine when working in an infirmary.' },
+  vigilant: { label: 'Vigilant', description: 'Contributes more to settlement defense when assigned as a guard.' },
+  resourceful: { label: 'Resourceful', description: 'Reduces the impact of a bad workday on morale.' }
+});
+const SURVIVOR_TALENTS = Object.freeze({
+  master_farmer: { label: 'Master Farmer', role: 'farmer', description: '+25% farming output.' },
+  scavenger_ace: { label: 'Scavenger Ace', role: 'scavenger', description: '+25% scavenging output.' },
+  combat_veteran: { label: 'Combat Veteran', role: 'guard', description: '+25% guard strength.' },
+  field_medic: { label: 'Field Medic', role: 'medic', description: '+1 medicine when supported by an infirmary.' },
+  engineer: { label: 'Engineer', role: 'mechanic', description: '+25% mechanic salvage output.' }
+});
+const SURVIVOR_BACKGROUNDS = Object.freeze([
+  'Former EMT', 'Apartment caretaker', 'Night-shift mechanic', 'Community gardener',
+  'Warehouse picker', 'Volunteer firefighter', 'School cook', 'Transit operator',
+  'Rural hunter', 'Hospital orderly', 'Delivery driver', 'Radio hobbyist'
+]);
+function survivorProfile(seed) {
+  const traitIds = Object.keys(SURVIVOR_TRAITS);
+  const first = hash(String(seed) + ':trait-a') % traitIds.length;
+  let second = hash(String(seed) + ':trait-b') % (traitIds.length - 1);
+  if (second >= first) second++;
+  const talentIds = Object.keys(SURVIVOR_TALENTS);
+  return {
+    rarity: survivorRarity(seed),
+    traits: [traitIds[first], traitIds[second]],
+    talent: talentIds[hash(String(seed) + ':talent') % talentIds.length],
+    background: SURVIVOR_BACKGROUNDS[hash(String(seed) + ':background') % SURVIVOR_BACKGROUNDS.length]
+  };
+}
+// Pair chemistry is deterministic, so reloads and clients cannot reroll friendships or rivalries.
+function survivorRelationship(a, b) {
+  const ids = [String(a?.id || ''), String(b?.id || '')].sort();
+  if (!ids[0] || !ids[1] || ids[0] === ids[1]) return 'neutral';
+  const roll = hash(ids[0] + ':bond:' + ids[1]) % 10;
+  return roll < 2 ? 'friend' : roll === 2 ? 'rival' : 'neutral';
+}
+function hasSurvivorTrait(survivor, trait) {
+  return Array.isArray(survivor?.traits) && survivor.traits.includes(trait);
+}
+function survivorRoleMultiplier(survivor, role) {
+  let multiplier = 1;
+  if (role === 'farmer' && hasSurvivorTrait(survivor, 'green_thumb')) multiplier *= 1.10;
+  if (role === 'scavenger' && hasSurvivorTrait(survivor, 'keen_eyed')) multiplier *= 1.10;
+  if (role === 'mechanic' && hasSurvivorTrait(survivor, 'steady_hands')) multiplier *= 1.10;
+  if (role === 'guard' && hasSurvivorTrait(survivor, 'vigilant')) multiplier *= 1.10;
+  const talent = SURVIVOR_TALENTS[survivor?.talent];
+  if (talent?.role === role && ['farmer','scavenger','mechanic','guard'].includes(role)) multiplier *= 1.25;
+  return multiplier;
+}
 
 function createBase(ownerId, now = Date.now()) {
   const owner = cleanOwner(ownerId);
@@ -124,15 +199,22 @@ function validateBase(input, ownerId) {
      };
     });
   out.survivors = out.survivors.filter(s => s && typeof s.id === 'string' && ROLES.has(s.role))
-    .map(s => ({
-      id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role,
-      morale: clampInt(s.morale, 0, 100),
-      stats: normalizeSurvivorStats(s.stats, s.id, owner),
-      task: SURVIVOR_TASKS.has(s.task) ? s.task : defaultSurvivorTask(s.role),
-      taskTarget: typeof s.taskTarget === 'string' ? s.taskTarget.slice(0, 80) : '',
-      taskReason: typeof s.taskReason === 'string' ? s.taskReason.slice(0, 120) : 'Role assignment',
-      taskUpdatedAt: Number.isFinite(s.taskUpdatedAt) ? s.taskUpdatedAt : (Number.isFinite(out.createdAt) ? out.createdAt : Date.now())
-    }));
+    .map(s => {
+      const profile = survivorProfile(s.id);
+      return {
+        id: s.id.slice(0, 80), name: String(s.name || 'Survivor').slice(0, 40), role: s.role,
+        morale: clampInt(s.morale, 0, 100),
+        stats: normalizeSurvivorStats(s.stats, s.id, owner),
+        task: SURVIVOR_TASKS.has(s.task) ? s.task : defaultSurvivorTask(s.role),
+        taskTarget: typeof s.taskTarget === 'string' ? s.taskTarget.slice(0, 80) : '',
+        taskReason: typeof s.taskReason === 'string' ? s.taskReason.slice(0, 120) : 'Role assignment',
+        taskUpdatedAt: Number.isFinite(s.taskUpdatedAt) ? s.taskUpdatedAt : (Number.isFinite(out.createdAt) ? out.createdAt : Date.now()),
+        rarity: Object.hasOwn(SURVIVOR_RARITIES, s.rarity) ? s.rarity : 'common',
+        traits: Array.isArray(s.traits) ? [...new Set(s.traits.filter(t => typeof t === 'string' && Object.hasOwn(SURVIVOR_TRAITS, t)))].slice(0, 2) : profile.traits,
+        talent: typeof s.talent === 'string' && Object.hasOwn(SURVIVOR_TALENTS, s.talent) ? s.talent : profile.talent,
+        background: typeof s.background === 'string' && SURVIVOR_BACKGROUNDS.includes(s.background) ? s.background : profile.background
+      };
+    });
   out.log = Array.isArray(out.log) ? out.log.slice(-20) : [];
   return out;
 }
@@ -197,7 +279,7 @@ function threatProfile(input) {
   const guardStrength = guards.reduce((total, x) => {
     const morale = clampInt(x.morale, 0, 100);
     const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
-    return total + moraleFactor * (0.75 + survivorSkill(x, 'guard') / 20);
+    return total + moraleFactor * (0.75 + survivorSkill(x, 'guard') / 20) * survivorRarityMultiplier(x) * survivorRoleMultiplier(x, 'guard');
   }, 0);
   const ammoUsed = Math.min(s.resources?.ammo || 0, Math.max(1, Math.ceil(guards.length / 2) + 1));
   const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
@@ -375,7 +457,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         salvageQuality: directorLoot.quality
       });
       let found = false;
-      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS && s.farmPlots.some(p => p.crop)) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4), stats: generateSurvivorStats(id, s.owner) }); found = true; }
+      if (roll > 1 - zone.recruit && s.survivors.length < MAX_SURVIVORS && s.farmPlots.some(p => p.crop)) { const names = ['Mara','Jules','Rook','Tess','Cal','Niko','June','Ash','Vale','Beck','Iris','Sol']; const id = 's' + n; s.survivors.push({ id, name: names[hash(id + s.owner) % names.length], role: 'idle', morale: Math.max(35, 65 - zone.risk * 4), stats: generateSurvivorStats(id, s.owner), ...survivorProfile(id + s.owner) }); found = true; }
       const salvageText = directorLoot.scrap
         ? ' Salvaged ' + directorLoot.quality.toLowerCase() + '-grade infected remains: +' + directorLoot.scrap + ' scrap and +' + directorLoot.embers + ' Embers.'
         : '';
@@ -433,11 +515,13 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const seed = hash(s.owner + ':' + zoneId + ':' + now + ':' + s.revision);
       const role = zone.risk >= 3 ? 'medic' : zone.risk === 2 ? 'mechanic' : 'guard';
       const id = 'rescued-' + seed.toString(36);
-      s.survivors.push({ id, name: names[seed % names.length], role, morale: clampInt(82 - zone.risk * 8 - Math.max(0, difficulty.threat - 1) * 10, 30, 100) });
+      const profile = survivorProfile(seed);
+      const rarity = profile.rarity;
+      s.survivors.push({ id, name: names[seed % names.length], role, morale: clampInt(82 - zone.risk * 8 - Math.max(0, difficulty.threat - 1) * 10, 30, 100), ...profile });
       const embers = Math.floor((5 + zone.risk * 3) * difficulty.reward);
       s.embers = Math.min(999999999, s.embers + embers);
       s.exploration.lastExpedition = { zone: zoneId, difficulty: difficultyId, risk: zone.risk, at: now, rescue: true };
-      record(s, 'rescue', 'Rescued ' + names[seed % names.length] + ' at ' + zone.label + '. Recruited a ' + role + ' with morale ' + s.survivors.at(-1).morale + ' and earned ' + embers + ' Embers.', now);
+      record(s, 'rescue', 'Rescued ' + names[seed % names.length] + ' at ' + zone.label + '. Recruited a ' + SURVIVOR_RARITIES[rarity].label + ' ' + role + ' with morale ' + s.survivors.at(-1).morale + ' and earned ' + embers + ' Embers.', now);
       break;
     }
     case 'boss_attack': {
@@ -567,11 +651,21 @@ function applyAction(input, ownerId, action, now = Date.now()) {
     case 'workday': {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       // Morale is operational, not cosmetic: exhausted or demoralized workers produce less.
-      const labor = role => s.survivors.filter(x => x.role === role).reduce((total, x) => {
-        const morale = clampInt(x.morale, 0, 100);
-        const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
-        return total + moraleFactor * (0.75 + survivorSkill(x, role) / 20);
-      }, 0);
+      const labor = role => {
+        const assigned = s.survivors.filter(x => x.role === role);
+        const baseLabor = assigned.reduce((total, x) => {
+          const morale = clampInt(x.morale, 0, 100);
+          const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
+          return total + moraleFactor * (0.75 + survivorSkill(x, role) / 20) * survivorRarityMultiplier(x) * survivorRoleMultiplier(x, role);
+        }, 0);
+        let chemistry = 0;
+        for (let i = 0; i < assigned.length; i++) for (let j = i + 1; j < assigned.length; j++) {
+          const relationship = survivorRelationship(assigned[i], assigned[j]);
+          if (relationship === 'friend') chemistry += 0.08;
+          else if (relationship === 'rival') chemistry -= 0.08;
+        }
+        return Math.max(0, baseLabor + chemistry);
+      };
       const farmers = labor('farmer');
       const scavengers = labor('scavenger');
       const mechanics = labor('mechanic');
@@ -589,7 +683,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       const foodGain = Math.floor(Math.min(999999, farmers * (1 + gardenCount) * 2));
       // Storage sheds make scavenging trips more efficient, but only while intact.
       const scrapGain = Math.floor(Math.min(999999, scavengers * (2 + storageCount) + mechanics * workshopCount + scavengers * salvageYardCount));
-      const medicineGain = Math.floor(Math.min(medics, infirmaryCount));
+      const medicineGain = Math.floor(Math.min(medics, infirmaryCount)) + (infirmaryCount > 0 ? s.survivors.filter(x => x.role === 'medic' && (x.talent === 'field_medic' || hasSurvivorTrait(x, 'compassionate'))).length : 0);
       const stoneGain = Math.floor(Math.min(999999, mechanics * quarryCount));
       s.resources.food = Math.min(999999, s.resources.food + foodGain);
       s.resources.scrap = Math.min(999999, s.resources.scrap + scrapGain);
@@ -630,7 +724,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
         plot.watered = false;
       }
       s.day++; s.level = Math.max(s.level, 1 + Math.floor((s.day - 1) / 5));
-      for (const survivor of s.survivors) survivor.morale = clampInt(survivor.morale + (foodGain >= foodCost ? 2 : -8), 0, 100);
+      for (const survivor of s.survivors) { const fed = foodGain >= foodCost; const moraleDelta = fed ? 2 + (hasSurvivorTrait(survivor, 'optimistic') ? 1 : 0) : -(8 - (hasSurvivorTrait(survivor, 'resilient') ? 3 : 0) - (hasSurvivorTrait(survivor, 'resourceful') ? 1 : 0)); survivor.morale = clampInt(survivor.morale + moraleDelta, 0, 100); }
       const repairNote = repairedHp ? ' Mechanics repaired ' + repairedHp + ' structure HP.' : '';
       const facilityNote = (stoneGain || steelGain || salvageYardCount)
         ? ' Facilities: +' + stoneGain + ' stone, +' + steelGain + ' steel' + (salvageYardCount ? ', salvage yard active' : '') + '.' : '';
@@ -859,4 +953,4 @@ function applyLiveSiegeResult(input, ownerId, result, now = Date.now()) {
   return { base: s, embers, outcome };
 }
 
-module.exports = { applyLiveSiegeResult, SURVIVOR_TASKS, VERSION, MAX_STRUCTURES, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, MATERIAL_TIERS, MATERIAL_UPGRADE_COSTS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };
+module.exports = { applyLiveSiegeResult, SURVIVOR_TASKS, VERSION, MAX_STRUCTURES, SURVIVOR_RARITIES, survivorRarity, survivorRarityMultiplier, SURVIVOR_TRAITS, SURVIVOR_TALENTS, SURVIVOR_BACKGROUNDS, survivorProfile, survivorRelationship, survivorRoleMultiplier, MAX_SURVIVORS, MAX_FARM_PLOTS, CROPS, ROLES, BUILDINGS, MATERIAL_TIERS, MATERIAL_UPGRADE_COSTS, DIFFICULTIES, TYCOON_UPGRADES, EMBER_MARKET, WEAPONS, WEAPON_MODS, COSMETIC_SKINS, DEFAULT_COSMETICS, EXPLORATION_ZONES, createBase, validateBase, weaponPower, threatProfile, applyAction };

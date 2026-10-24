@@ -6,6 +6,11 @@ import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
+import { groundDetailCandidates } from './homefront-ground-detail.mjs';
+import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
+import { explorationGuidance } from './homefront-exploration-guidance.mjs';
+import { buildLandmarkSetPiece } from './homefront-landmark-builder.mjs';
+import { INTERIORS, availableInteriorActions, buildInteriorSetPiece, interiorForLandmark, interiorRoom } from './homefront-interior-world.mjs';
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
@@ -27,6 +32,12 @@ function boot(host) {
   const startZombieAudio = () => { if (zombieAudioStarted) return; zombieAudioStarted = true; zombieAudio.start(); };
   window.addEventListener('pointerdown', startZombieAudio, { once: true, passive: true });
   window.addEventListener('keydown', startZombieAudio, { once: true });
+  window.addEventListener('homefront:interior-breach', event => {
+    const landmark = LANDMARKS.find(item => item.id === event.detail?.landmarkId);
+    if (!landmark) return;
+    startZombieAudio();
+    if (sfx.has('attack')) sfx.play('attack', { pos: [landmark.x, terrainElevation(landmark.x, landmark.z) + 1.1, landmark.z], v: 1.1, ref: 4, max: 36, roll: 1.2 });
+  });
   window.addEventListener('pagehide', () => zombieAudio.stop(), { once: true });
   const API = new URLSearchParams(location.search).get('api') ||
     (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
@@ -37,8 +48,10 @@ function boot(host) {
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 500);
   camera.position.set(0, 5, -7);
   camera.lookAt(0, 0, 0);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  // Favor crisp rendering on desktop while avoiding expensive multisampling and oversized buffers on touch devices.
+  const coarsePointer = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  const renderer = new THREE.WebGLRenderer({ antialias: !coarsePointer, alpha: false, powerPreference: 'low-power' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.15 : 1.6));
   renderer.shadowMap.enabled = false;
   host.appendChild(renderer.domElement);
   scene.add(new THREE.HemisphereLight(0xaec5cc, 0x24251e, 2.0));
@@ -259,6 +272,37 @@ function boot(host) {
     fadedOrange: mat(0x9b5838), canvas: mat(0x71694e), metal: mat(0x454b49),
     concrete: mat(0x66645a), warning: mat(0xb18a45), dark: mat(0x292d2b)
   };
+  // Thousands of tiny scenic details are batched into two draw calls per visible chunk.
+  // They have no collision or gameplay authority and are culled with their parent chunk.
+  const microRockGeometry = new THREE.DodecahedronGeometry(0.28, 0);
+  const microTuftGeometry = new THREE.ConeGeometry(0.12, 0.62, 4);
+  const microRockMaterial = mat(0x77756a);
+  const microTuftMaterial = mat(0x596348);
+  const microTemp = new THREE.Object3D();
+  function addGroundDetailInstances(parent, cx, cz) {
+    const candidates = groundDetailCandidates(cx, cz, { count: 52 });
+    for (const kind of ['rock', 'tuft']) {
+      const items = candidates.filter(item => item.kind === kind);
+      if (!items.length) continue;
+      const mesh = new THREE.InstancedMesh(kind === 'rock' ? microRockGeometry : microTuftGeometry, kind === 'rock' ? microRockMaterial : microTuftMaterial, items.length);
+      mesh.name = 'ground-detail-' + kind + '-' + cx + ',' + cz;
+      mesh.frustumCulled = true;
+      items.forEach((item, index) => {
+        microTemp.position.set(item.x, item.y + (kind === 'rock' ? 0.12 : 0.29 * item.scale), item.z);
+        microTemp.rotation.set(kind === 'rock' ? item.rotation * 0.35 : 0, item.rotation, kind === 'rock' ? item.rotation * 0.7 : (item.rotation % 0.4) - 0.2);
+        microTemp.scale.setScalar(item.scale);
+        microTemp.updateMatrix();
+        mesh.setMatrixAt(index, microTemp.matrix);
+        const color = new THREE.Color(kind === 'rock' ? 0x77756a : item.tint === 'marsh' ? 0x4b5944 : item.tint === 'deadwood' ? 0x4b5b3a : 0x62684a);
+        color.offsetHSL(0, 0, (item.scale - 1) * 0.1);
+        mesh.setColorAt(index, color);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      mesh.computeBoundingSphere();
+      parent.add(mesh);
+    }
+  }
   function registerEnvironmentVisual(id, group) {
     if (!id || !group) return;
     group.userData.environmentId = id;
@@ -420,6 +464,7 @@ function boot(host) {
   // Existing server bounds are +/-100; four-by-four chunks cover that playable footprint.
   for (let cz = -2; cz <= 1; cz++) for (let cx = -2; cx <= 1; cx++) {
     const chunk = cityChunkAt(cx * 64 + 0.01, cz * 64 + 0.01);
+    addGroundDetailInstances(chunk, cx, cz);
     for (const prop of environmentalCandidates(cx, cz, { density: 0.18 })) addEnvironmentalCandidate(chunk, prop);
     for (const landmark of landmarkCandidates(cx, cz)) addLandmark(chunk, landmark);
   }
@@ -442,12 +487,34 @@ function boot(host) {
     const chunk = cityChunkAt(bx, bz);
     const baseY = terrainElevation(bx, bz);
     const structure = new THREE.Group();
-    const building = addBox(structure, w, h, d, bx, baseY + h / 2, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
+    const building = addBox(structure, w, h, d, bx, baseY, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
     building.rotation.y = (rand() - 0.5) * 0.16;
-    if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h + 0.225, bz + (rand() - .5), ruinMat);
-    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY + emberHeight / 2, bz - d * .35, emberMat); }
+    if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h, bz + (rand() - .5), ruinMat);
+    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat); }
     chunk.add(structure);
     registerEnvironmentVisual('building:' + x + ',' + z, structure);
+  }
+  // Authored landmarks are distinct low-poly set pieces; server POIs remain the interaction authority.
+  const landmarkSetPieces = new Map();
+  for (const landmark of LANDMARKS) {
+    // Offset the structure slightly from the server marker so its interaction beacon remains readable.
+    const hash = [...landmark.id].reduce((sum, char) => (Math.imul(sum ^ char.charCodeAt(0), 16777619) >>> 0), 2166136261);
+    const angle = (hash % 8) * Math.PI / 4;
+    const visualX = Math.max(-96, Math.min(96, landmark.x + Math.cos(angle) * 4.2));
+    const visualZ = Math.max(-96, Math.min(96, landmark.z + Math.sin(angle) * 4.2));
+    const piece = buildLandmarkSetPiece(THREE, { ...landmark, x: visualX, z: visualZ }, terrainElevation(visualX, visualZ));
+    piece.userData.interactionPointId = landmark.id;
+    cityChunkAt(visualX, visualZ).add(piece);
+    landmarkSetPieces.set(landmark.id, piece);
+  }
+  // Authored open-roof room shells are part of the walkable 3D district, not a separate flat menu map.
+  const interiorSetPieces = new Map();
+  for (const interior of INTERIORS) {
+    const landmark = LANDMARKS.find(item => item.id === interior.landmarkId);
+    if (!landmark) continue;
+    const piece = buildInteriorSetPiece(THREE, interior, { x: landmark.x, y: terrainElevation(landmark.x, landmark.z), z: landmark.z });
+    cityChunkAt(landmark.x, landmark.z).add(piece);
+    interiorSetPieces.set(interior.landmarkId, piece);
   }
   const markerObjects = new Map();
   function labelSprite(text, color = '#f6d8b5') {
@@ -492,6 +559,125 @@ function boot(host) {
     lootGroup.add(g);
   }
   let worldData = null, moving = false;
+  let interiorState = null;
+  let selectedInteriorLandmarkId = null;
+  let explorationProgress = null;
+  const explorationDiscoveryPending = new Set();
+  const explorationDiscoveryAttempted = new Set();
+  const explorationJournalCount = document.getElementById('explorationJournalCount');
+  const explorationJournalContent = document.getElementById('explorationJournalContent');
+  const enterInteriorButton = document.getElementById('enterInterior');
+  const interiorPanel = document.getElementById('interiorPanel');
+  const interiorTitle = document.getElementById('interiorTitle');
+  const interiorRoomDescription = document.getElementById('interiorRoomDescription');
+  const interiorStatus = document.getElementById('interiorStatus');
+  const interiorActions = document.getElementById('interiorActions');
+  const leaveInteriorButton = document.getElementById('leaveInterior');
+  function setInteriorStatus(message) { if (interiorStatus) { interiorStatus.textContent = message; interiorStatus.classList.toggle('breach', String(message).startsWith('BREACH!')); } }
+  function activeInteriorElevation() {
+    const interior = interiorForLandmark(interiorState?.landmarkId);
+    const room = interiorRoom(interior, interiorState?.roomId);
+    const landmark = LANDMARKS.find(item => item.id === interior?.landmarkId);
+    if (!room || !landmark || !worldData?.self) return 0;
+    const floorY = terrainElevation(landmark.x, landmark.z) + (Number.isFinite(room.elevation) ? room.elevation : 0);
+    return floorY - terrainElevation(worldData.self.x, worldData.self.z);
+  }
+  function interiorElevationAt(x, z, fallbackY) {
+    const interior = interiorForLandmark(interiorState?.landmarkId);
+    if (!interior || !worldData?.self) return fallbackY;
+    const landmark = LANDMARKS.find(item => item.id === interior.landmarkId);
+    if (!landmark || Math.hypot(x - landmark.x, z - landmark.z) > 12) return fallbackY;
+    let closest = null, closestDistance = Infinity;
+    for (const room of interior.rooms) {
+      const distance = Math.hypot(x - landmark.x - room.x, z - landmark.z - room.z);
+      if (distance < closestDistance) { closest = room; closestDistance = distance; }
+    }
+    return closest && closestDistance <= 3.5
+      ? terrainElevation(landmark.x, landmark.z) + (Number.isFinite(closest.elevation) ? closest.elevation : 0)
+      : fallbackY;
+  }
+  function updateInteriorPanel() {
+    if (!interiorPanel) return;
+    interiorPanel.hidden = !interiorState;
+    if (!interiorState) { if (enterInteriorButton) enterInteriorButton.hidden = !selectedInteriorLandmarkId; return; }
+    const interior = interiorForLandmark(interiorState.landmarkId);
+    const room = interiorRoom(interior, interiorState.roomId);
+    if (!interior || !room) return;
+    if (enterInteriorButton) enterInteriorButton.hidden = true;
+    if (interiorTitle) interiorTitle.textContent = interior.title + ' · ' + room.title;
+    if (interiorRoomDescription) interiorRoomDescription.textContent = room.description + ' Inventory and mission rewards remain server-authoritative.';
+    if (interiorActions) {
+      interiorActions.replaceChildren();
+      for (const item of availableInteriorActions(interior, interiorState)) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'btn'; button.textContent = item.label;
+        button.addEventListener('click', () => { void performInteriorAction(item.id); }); interiorActions.append(button);
+      }
+      for (const exit of room.exits) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'btn primary';
+        button.textContent = exit.label + ' → ' + (interiorRoom(interior, exit.to)?.title || exit.to);
+        button.addEventListener('click', () => { void interactInteriorDoor(exit.id); }); interiorActions.append(button);
+      }
+      if (!interiorActions.children.length) { const empty = document.createElement('span'); empty.className = 'muted'; empty.textContent = 'Nothing else to interact with in this room.'; interiorActions.append(empty); }
+    }
+    for (const [landmarkId, root] of interiorSetPieces) root.traverse(node => {
+      if (node.userData?.interiorDoorSlab) node.visible = !(interiorState.landmarkId === landmarkId && interiorState.openedDoors?.includes(node.userData.interiorDoorId));
+    });
+  }
+  function enterInterior(landmarkId) {
+    const interior = interiorForLandmark(landmarkId); if (!interior) return;
+    void postInteriorAction('enter', { landmarkId });
+  }
+  function leaveInterior() {
+    void postInteriorAction('leave', {});
+  }
+  async function postInteriorAction(action, payload) {
+    if (!token()) { setInteriorStatus('Sign in before exploring interiors.'); return null; }
+    try {
+      const response = await fetch(API + '/api/homefront/world/interior/' + action, {
+        method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
+        body: JSON.stringify(payload || {})
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.message || data.error || 'interior_action_failed');
+      updateWorld(data);
+      if (action === 'enter') setInteriorStatus('Interior entered. Room state is saved on the server.');
+      else if (action === 'leave') setInteriorStatus('Returned to the street. Interior progress is saved.');
+      else if (action === 'action') {
+        const rewardText = (data.interiorReward || []).filter(drop => drop.amount > 0).map(drop => '+' + drop.amount + ' ' + drop.item).join(', ');
+        setInteriorStatus((data.interiorMessage || 'Interaction complete.') + (rewardText ? ' Found: ' + rewardText + '.' : '') + (data.overflowDestination === 'refuge' ? ' Overflow returned to refuge storage.' : '') + (data.interiorNoise ? ' Noise ' + data.interiorNoise + '/100.' : ''));
+      } else if (action === 'door') setInteriorStatus('Door traversed. Room progress saved.');
+      return data;
+    } catch (error) { setInteriorStatus('Interior action failed: ' + error.message); return null; }
+  }
+  async function performInteriorAction(actionId) {
+    const interior = interiorForLandmark(interiorState?.landmarkId);
+    if (!interior || !worldData?.self) return;
+    const item = interior.interactables.find(target => target.id === actionId && target.roomId === interiorState.roomId);
+    if (!item) { setInteriorStatus('That object is not reachable from this room. Use a connected doorway.'); return; }
+    const landmark = LANDMARKS.find(target => target.id === interior.landmarkId);
+    const targetX = landmark.x + item.x, targetZ = landmark.z + item.z;
+    if (Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) {
+      await moveTo(targetX, targetZ);
+      if (!worldData?.self || Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) { setInteriorStatus('Move closer to ' + item.label + ', then select it again. Movement remains server-limited.'); return; }
+    }
+    try {
+      await postInteriorAction('action', { actionId });
+    } catch (error) { setInteriorStatus('Cannot use that object: ' + error.message); }
+  }
+  async function interactInteriorDoor(doorId) {
+    const interior = interiorForLandmark(interiorState?.landmarkId), room = interiorRoom(interior, interiorState?.roomId);
+    const exit = room?.exits.find(item => item.id === doorId), landmark = LANDMARKS.find(item => item.id === interior?.landmarkId);
+    if (!interior || !exit || !landmark || !worldData?.self) return;
+    const targetX = landmark.x + room.x + (exit.side === 'east' ? room.width / 2 - 0.9 : exit.side === 'west' ? -room.width / 2 + 0.9 : 0);
+    const targetZ = landmark.z + room.z + (exit.side === 'south' ? room.depth / 2 - 0.9 : exit.side === 'north' ? -room.depth / 2 + 0.9 : 0);
+    if (Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) {
+      await moveTo(targetX, targetZ);
+      if (!worldData?.self || Math.hypot(worldData.self.x - targetX, worldData.self.z - targetZ) > 3) { setInteriorStatus('Approach the doorway and select it again. The route is not traversed until you reach the threshold.'); return; }
+    }
+    await postInteriorAction('door', { doorId });
+  }
+  if (enterInteriorButton) enterInteriorButton.addEventListener('click', () => enterInterior(selectedInteriorLandmarkId));
+  if (leaveInteriorButton) leaveInteriorButton.addEventListener('click', leaveInterior);
   function spawnAmbientInfected(gltf = null) {
     const positions = infectedSpawns;
     for (let i = 0; i < positions.length; i++) {
@@ -549,6 +735,48 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
+    if (Object.prototype.hasOwnProperty.call(data, 'interior')) {
+      const previousInterior = interiorState;
+      const nextInterior = data.interior ? { ...data.interior } : null;
+      if (previousInterior && nextInterior && previousInterior.landmarkId === nextInterior.landmarkId) {
+        const wasOpen = new Set(previousInterior.openedDoors || []);
+        for (const doorId of nextInterior.openedDoors || []) {
+          if (!wasOpen.has(doorId) && nextInterior.doorDamage?.[doorId] >= 100) {
+            const detail = { landmarkId: nextInterior.landmarkId, doorId };
+            window.dispatchEvent(new CustomEvent('homefront:interior-breach', { detail }));
+            setInteriorStatus('BREACH! Infected forced open ' + doorId.replaceAll('_', ' ') + '. Expect pursuit.');
+          }
+        }
+      }
+      interiorState = nextInterior;
+    }
+    const objective = document.getElementById('explorationObjective');
+    if (objective && data.self) {
+      const discovered = Array.isArray(explorationProgress?.discoveredIds) ? explorationProgress.discoveredIds : [];
+      const guidance = explorationGuidance({ x: data.self.x, z: data.self.z }, discovered);
+      const nearest = guidance.nearest;
+      const nearestDistance = guidance.distance;
+      if (guidance.discoveredNow && nearest && !discovered.includes(nearest.id)) void discoverExplorationLandmark(nearest.id);
+      selectedInteriorLandmarkId = nearest && nearestDistance <= 12 && interiorForLandmark(nearest.id) ? nearest.id : null;
+      if (enterInteriorButton) { enterInteriorButton.hidden = !selectedInteriorLandmarkId || !!interiorState; enterInteriorButton.textContent = selectedInteriorLandmarkId ? 'Enter ' + nearest.title : 'Enter nearby building'; }
+      if (nearest && nearestDistance <= 20) {
+        const district = DISTRICTS[nearest.district];
+        const discoveryLabel = guidance.alreadyDiscovered ? 'KNOWN SITE' : guidance.discoveredNow ? 'LOCATION DISCOVERED' : 'UNMAPPED SITE';
+        const routeHint = guidance.routeLeads.length ? '  |  ROUTE LEADS · ' + guidance.routeLeads.join(' → ') : '';
+        const storyHint = guidance.storyLead ? '  |  FIELD LEAD · ' + guidance.storyLead : '';
+        const frontier = 'FRONTIER · ' + (data.self.frontierBand || 'perimeter') + ' · ' + (data.self.frontierDepth || 0) + '% inward';
+        const threatHint = (data.self.risk || 1) >= 4 ? '  |  HIGH THREAT · Heavy infected likely; keep an extraction route.' : (data.self.risk || 1) >= 3 ? '  |  DANGER RISING · Noise can pull infected from nearby blocks.' : '  |  PERIMETER PATROL · Noise still carries.';
+        objective.textContent = discoveryLabel + ' · ' + nearest.title + ' — ' + nearest.objective + '  |  ' + district.title + ' · Site risk ' + district.risk + '/5 · ' + frontier + threatHint + routeHint + storyHint;
+      } else {
+        const fieldNoteCount = explorationProgress?.discovered?.length || 0;
+        const nextStory = explorationProgress?.storyLeads?.find(lead => !lead.complete);
+        const journalHint = nextStory ? '  |  STORY LEAD · ' + nextStory.title + (nextStory.nextLandmarkTitle ? ' → ' + nextStory.nextLandmarkTitle : ' · route surveyed; inspect local clues') : '';
+        const frontier = (data.self.frontierBand || 'perimeter') + ' · ' + (data.self.frontierDepth || 0) + '% inward';
+        const threatHint = (data.self.risk || 1) >= 4 ? ' HIGH THREAT: consider turning back before ammunition runs dry.' : (data.self.risk || 1) >= 3 ? ' Threat rising deeper inside; gunfire attracts attention.' : ' Stay alert; the perimeter is safer, not sterile.';
+        objective.textContent = 'EXPEDITION · ' + frontier + ' · Risk ' + (data.self.risk || 1) + '/5 ·' + threatHint + ' FIELD NOTES ' + fieldNoteCount + ' sites. Survey the skyline and follow road markings for landmarks, shortcuts, caches, and rescue leads.' + journalHint;
+      }
+    }
+    updateInteriorPanel();
     applyEnvironmentStateSnapshot(data.world?.environmentStructures);
     const selectedEnvironment = (data.world?.environmentStructures || []).find(item => item.id === selectedEnvironmentId);
     if (selectedEnvironment && (selectedEnvironment.collisionEnabled === false || selectedEnvironment.health <= 0)) selectedEnvironmentId = null;
@@ -637,7 +865,7 @@ function boot(host) {
     explorerPositions.clear();
     for (const p of (data.players || [])) {
       const key = String(p.id || p.userId || p.accountId || p.label || 'explorer');
-      const targetY = terrainElevation(p.x, p.z);
+      const targetY = p.label === 'You' ? terrainElevation(p.x, p.z) + activeInteriorElevation() : interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z));
       const g = new THREE.Group();
       const previousPosition = previousExplorerPositions.get(key);
       g.position.set(previousPosition?.x ?? p.x, previousPosition?.y ?? targetY, previousPosition?.z ?? p.z);
@@ -702,8 +930,90 @@ function boot(host) {
     if (status) {
       const self = data.self;
       status.textContent = self
-        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.district || 'perimeter').replaceAll('_', ' ') + ' · danger ' + self.risk + '/5 · tap to travel · drag to look · WASD/joystick to move · right-drag to orbit · scroll to zoom · V or 👁 switches first-/third-person · Overhead view is reserved for base construction'
+        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.frontierBand || self.district || 'perimeter') + ' · ' + (self.frontierDepth || 0) + '% frontier depth · danger ' + self.risk + '/5 · deeper routes raise infected pressure; gunfire draws attention · tap to travel · drag to look · WASD/joystick to move · right-drag to orbit · scroll to zoom · V or 👁 switches first-/third-person · Overhead view is reserved for base construction'
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
+    }
+  }
+  function renderExplorationJournal() {
+    if (!explorationJournalContent) return;
+    const progress = explorationProgress || {};
+    const discovered = Array.isArray(progress.discovered) ? progress.discovered : [];
+    const intel = Array.isArray(progress.intel) ? progress.intel : [];
+    const storyLeads = Array.isArray(progress.storyLeads) ? progress.storyLeads : [];
+    const routeLeads = Array.isArray(progress.routeLeads) ? progress.routeLeads : [];
+    if (explorationJournalCount) explorationJournalCount.textContent = discovered.length + (discovered.length === 1 ? ' site recorded' : ' sites recorded');
+    explorationJournalContent.replaceChildren();
+    const heading = text => {
+      const node = document.createElement('p');
+      node.className = 'journal-heading';
+      node.textContent = text;
+      explorationJournalContent.appendChild(node);
+    };
+    const entry = (title, description, meta = '') => {
+      const node = document.createElement('p');
+      node.className = 'journal-entry';
+      node.textContent = title;
+      if (description) {
+        const detail = document.createElement('span');
+        detail.textContent = description;
+        node.appendChild(document.createElement('br'));
+        node.appendChild(detail);
+      }
+      if (meta) {
+        const small = document.createElement('small');
+        small.textContent = meta;
+        node.appendChild(small);
+      }
+      explorationJournalContent.appendChild(node);
+    };
+    if (!discovered.length) {
+      entry('No field notes yet', 'Approach a named landmark to record its location and reveal connected leads.');
+      return;
+    }
+    const activeStories = storyLeads.filter(lead => !lead.complete);
+    if (activeStories.length) {
+      heading('Active story leads');
+      for (const lead of activeStories.slice(0, 4)) entry(lead.title, lead.nextLandmarkTitle ? 'Investigate: ' + lead.nextLandmarkTitle : 'All route sites surveyed; inspect local clues to advance the story.', lead.discoveredCount + '/' + lead.totalStops + ' sites surveyed');
+    }
+    if (routeLeads.length) {
+      heading('Connected routes');
+      for (const lead of routeLeads.slice(0, 6)) entry(lead.title, 'Route lead from ' + lead.fromTitle);
+    }
+    if (intel.length) {
+      heading('Recent field notes');
+      for (const note of intel.slice(-8).reverse()) {
+        const site = discovered.find(item => item.id === note.landmarkId);
+        entry(site?.title || note.landmarkId, note.text);
+      }
+    }
+  }
+  async function fetchExplorationProgress() {
+    if (!token()) return;
+    try {
+      const response = await fetch(API + '/api/homefront/world/exploration', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.message || data.error || 'exploration_progress_unavailable');
+      if (data.exploration) { explorationProgress = data.exploration; renderExplorationJournal(); }
+    } catch { /* Exploration guidance still works offline; server progress retries on the next world load. */ }
+  }
+  async function discoverExplorationLandmark(landmarkId) {
+    if (!token() || explorationDiscoveryPending.has(landmarkId) || explorationDiscoveryAttempted.has(landmarkId)) return;
+    explorationDiscoveryPending.add(landmarkId);
+    explorationDiscoveryAttempted.add(landmarkId);
+    try {
+      const response = await fetch(API + '/api/homefront/world/exploration/discover', {
+        method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
+        body: JSON.stringify({ landmarkId })
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.message || data.error || 'landmark_discovery_failed');
+      if (data.exploration) { explorationProgress = data.exploration; renderExplorationJournal(); }
+      if (data.newlyDiscovered && data.landmark) setInteriorStatus('FIELD NOTES UPDATED · ' + data.landmark.title + ' discovered. New route and story leads recorded.');
+    } catch (error) {
+      // Permit retry on a later world update if this was a transient network/server error.
+      explorationDiscoveryAttempted.delete(landmarkId);
+    } finally {
+      explorationDiscoveryPending.delete(landmarkId);
     }
   }
   async function fetchWorld() {
@@ -712,6 +1022,7 @@ function boot(host) {
       const r = await fetch(API + '/api/homefront/world', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
+      await fetchExplorationProgress();
       updateWorld(data);
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
@@ -786,7 +1097,9 @@ function boot(host) {
       updateWorld(data);
       const accepted=(data.loot?.accepted||[]).map(d=>'+'+d.amount+' '+d.item).join(', ');
       const overflow=(data.loot?.overflow||[]).map(d=>d.amount+' '+d.item).join(', ');
-      if (lootStatus) lootStatus.textContent = (accepted ? 'Collected: '+accepted+'. ' : 'Your pack could not accept the supplies. ') + (overflow ? 'Pack full; sent to refuge stores: '+overflow+'. ' : '') + 'This container will restock after its cooldown.';
+      const noiseLevel=Number(data.loot?.noise?.level)||0;
+      const noiseWarning=noiseLevel>=55?' Loud container! Noise '+noiseLevel+'/100 may pull infected into this block. ':' The container made noise; stay alert for nearby infected. ';
+      if (lootStatus) lootStatus.textContent = (accepted ? 'Collected: '+accepted+'. ' : 'Your pack could not accept the supplies. ') + (overflow ? 'Pack full; sent to refuge stores: '+overflow+'. ' : '') + noiseWarning + 'This container will restock after its cooldown.';
     } catch (e) {
       if (lootStatus) lootStatus.textContent = e.message === 'too_far_from_loot' ? 'Move closer to the selected supply container.' : e.message === 'loot_node_empty' ? 'Someone has already searched this container. Check back later.' : 'Scavenging unavailable: '+e.message;
     } finally {
@@ -1000,6 +1313,25 @@ function boot(host) {
         return;
       }
     }
+    const interiorHits = raycaster.intersectObjects([...interiorSetPieces.values()].filter(group => group.visible && group.parent?.visible), true);
+    if (interiorHits.length) {
+      let node = interiorHits[0].object;
+      while (node && !node.userData?.interiorTarget) node = node.parent;
+      const target = node?.userData?.interiorTarget;
+      if (target) {
+        if (!interiorState) {
+          const landmark = LANDMARKS.find(item => item.id === target.landmarkId);
+          const distance = landmark && worldData?.self ? Math.hypot(worldData.self.x - landmark.x, worldData.self.z - landmark.z) : Infinity;
+          if (distance <= 12) { enterInterior(target.landmarkId); setInteriorStatus('Interior opened. Select the object or doorway again to interact.'); }
+          else setInteriorStatus('Move close to the landmark and use its Enter button before interacting with the rooms.');
+          return;
+        }
+        if (interiorState.landmarkId !== target.landmarkId) { setInteriorStatus('Leave the current building before entering another interior.'); return; }
+        if (target.kind === 'door') void interactInteriorDoor(target.doorId);
+        else if (target.kind === 'action') void performInteriorAction(target.actionId);
+        return;
+      }
+    }
     const environmentHits = raycaster.intersectObjects([...environmentVisuals.values()].filter(group => group.visible && group.parent?.visible), true);
     if (environmentHits.length) {
       let target = environmentHits[0].object;
@@ -1047,8 +1379,10 @@ function boot(host) {
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'movement_rejected');
       updateWorld(data);
+      return true;
     } catch (e) {
       if (status) status.textContent = e.message === 'party_leader_controls_movement' ? 'Your party leader controls group movement.' : e.message === 'movement_too_far' ? 'That destination is too far away. Click closer; movement is server-limited.' : 'Movement failed: ' + e.message;
+      return false;
     } finally { moving = false; }
   }
   const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(260, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };
@@ -1131,15 +1465,15 @@ function boot(host) {
       if (zombieAudioStarted) {
         const survival = worldData.selfSurvival || {};
         const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
-        const audioMe = { x: self.x, y: terrainElevation(self.x, self.z), z: self.z, yaw: localActor?.rotation.y || 0, hp: Number.isFinite(survival.health) ? survival.health : 100, max: 100, alive: survival.health !== 0, down: survival.health === 0 };
-        const audioZombies = (worldData.encounters || []).filter(e => !e.defeated && e.hp > 0).map(e => ({ id: e.id, x: e.x, y: terrainElevation(e.x, e.z), z: e.z, ty: /brute|juggernaut|heavy/i.test(e.enemy || '') ? 3 : /crawler|runner/i.test(e.enemy || '') ? 4 : 0, hp: e.hp, out: false }));
+        const audioMe = { x: self.x, y: terrainElevation(self.x, self.z) + activeInteriorElevation(), z: self.z, yaw: localActor?.rotation.y || 0, hp: Number.isFinite(survival.health) ? survival.health : 100, max: 100, alive: survival.health !== 0, down: survival.health === 0 };
+        const audioZombies = (worldData.encounters || []).filter(e => !e.defeated && e.hp > 0).map(e => ({ id: e.id, x: e.x, y: interiorElevationAt(e.x, e.z, terrainElevation(e.x, e.z)), z: e.z, ty: /brute|juggernaut|heavy/i.test(e.enemy || '') ? 3 : /crawler|runner/i.test(e.enemy || '') ? 4 : 0, hp: e.hp, out: false }));
         zombieAudio.tick(dt, audioMe, audioZombies, [], 'homefront-local-player');
       }
       updateVisibleChunks(self.x, self.z);
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = (localActor?.rotation.y || 0) + cameraYawOffset + view.yaw;
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
-      const targetY = terrainElevation(self.x, self.z);
+      const targetY = terrainElevation(self.x, self.z) + activeInteriorElevation();
       const pose = cameraPose({ mode: view.mode, x: self.x, y: targetY, z: self.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
       camera.position.x += (pose.px - camera.position.x) * followBlend;
       camera.position.y += (pose.py - camera.position.y) * followBlend;

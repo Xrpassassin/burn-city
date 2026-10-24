@@ -11,6 +11,8 @@ const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 const Environment = require('./homefront-environment');
 const Siege = require('./homefront-siege');
+const Interiors = require('./homefront-interiors');
+const Exploration = require('./homefront-exploration');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
@@ -84,6 +86,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
     try {
       const payload = req.method === 'POST' ? await body() : null;
       const db = World.normalizeWorld(store.load('homefront-world.json', World.defaultWorld()));
+      db.interiors = Interiors.normalize(db.interiors);
       let outcome;
       // Live refuge siege (server/homefront-siege.js): hordes, gun platforms, mortars.
       if (url.pathname === '/api/homefront/world/siege' || url.pathname.startsWith('/api/homefront/world/siege/')) {
@@ -91,16 +94,31 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         const out = Siege.route({ method: req.method, path: url.pathname, query: url.searchParams, payload, acct: user.acct, store, worldDb: db });
         json(res, out.status, out.body); return true;
       }
+      if (req.method === 'GET' && url.pathname === '/api/homefront/world/exploration') {
+        const progressDb = Exploration.normalize(store.load('homefront-exploration.json', {}));
+        json(res, 200, { mode: 'homefront-exploration', exploration: Exploration.snapshot(progressDb, user.acct) });
+        return true;
+      }
       if (req.method === 'GET' && url.pathname === '/api/homefront/world') {
         if (db.players && db.players[user.acct] && Date.now() - db.players[user.acct].lastSeen <= World.PRESENCE_TTL) {
           const joined = World.enter(db, user.acct);
           store.save('homefront-world.json', joined.world);
-          json(res, 200, { mode: 'homefront-world', ...joined.result }); return true;
+          json(res, 200, { mode: 'homefront-world', ...joined.result, interior: Interiors.publicState(db.interiors, user.acct) }); return true;
         }
-        json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct) }); return true;
+        json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), interior: Interiors.publicState(db.interiors, user.acct) }); return true;
       }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
+        case '/api/homefront/world/exploration/discover': {
+          const player = db.players[user.acct];
+          if (!player) throw new Error('not_in_expedition');
+          const landmarkId = typeof payload.landmarkId === 'string' ? payload.landmarkId : '';
+          const progressDb = Exploration.normalize(store.load('homefront-exploration.json', {}));
+          const discovered = Exploration.discover(progressDb, { account: user.acct, player, landmarkId, now: Date.now() });
+          if (discovered.newlyDiscovered) store.save('homefront-exploration.json', discovered.state);
+          json(res, 200, { mode: 'homefront-exploration', exploration: discovered.progress, newlyDiscovered: discovered.newlyDiscovered, landmark: discovered.landmark });
+          return true;
+        }
         case '/api/homefront/world/survival': {
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');
@@ -190,6 +208,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             addItem: (inventory, item, amount) => Inventory.add(inventory, item, amount)
           });
           db.lootNodes = found.state;
+          // Loot containers are quick to open but never silent. Deeper caches emit a
+          // stronger signature, recorded server-side at the container's location.
+          player.noiseLevel = Math.max(player.noiseLevel || 0, found.noise.level);
+          player.lastNoiseAt = now;
+          player.noiseX = player.x;
+          player.noiseZ = player.z;
           player.lastSeen = now;
           player.survival = Survival.tick(player.survival, now);
           const bases = store.load('homefront.json', {});
@@ -221,7 +245,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             mode: 'homefront-world',
             ...World.snapshot(db, user.acct, now),
             base,
-            loot: { node: found.node, accepted: found.accepted, overflow: found.overflow, overflowDestination: 'refuge' },
+            loot: { node: found.node, accepted: found.accepted, overflow: found.overflow, overflowDestination: 'refuge', noise: { level: found.noise.level, durationMs: found.noise.durationMs } },
             inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }
           });
           return true;
@@ -230,7 +254,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           if (req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');
-          const spawned = Combat.spawn({ encounters: db.encounters, account: user.acct, player, now: Date.now() });
+          const spawned = Combat.spawn({ encounters: db.encounters, account: user.acct, player, interiors: db.interiors, now: Date.now() });
           db.encounters = spawned.encounters;
           player.lastSeen = Date.now();
           store.save('homefront-world.json', db);
@@ -342,6 +366,68 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), environmentDamage: damaged.structure });
           return true;
         }
+        case '/api/homefront/world/interior/enter': {
+          const player = db.players[user.acct];
+          const now = Date.now();
+          const entered = Interiors.enter(db.interiors, { account: user.acct, player, landmarkId: typeof payload.landmarkId === 'string' ? payload.landmarkId : '', now });
+          db.interiors = entered.state;
+          if (player) player.lastSeen = now;
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct) });
+          return true;
+        }
+        case '/api/homefront/world/interior/action': {
+          const player = db.players[user.acct];
+          const now = Date.now();
+          const acted = Interiors.action(db.interiors, { account: user.acct, player, actionId: typeof payload.actionId === 'string' ? payload.actionId : '', now });
+          db.interiors = acted.state;
+          const bases = store.load('homefront.json', {});
+          const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
+          if (!base) throw new Error('save_invalid');
+          const lootResources = {};
+          let returnedOverflow = false;
+          for (const drop of acted.reward) {
+            const total = Math.max(0, (drop.amount || 0) + (drop.overflow || 0));
+            if (Object.prototype.hasOwnProperty.call(base.resources, drop.item)) lootResources[drop.item] = (lootResources[drop.item] || 0) + total;
+            if (drop.overflow > 0 && Object.prototype.hasOwnProperty.call(base.resources, drop.item)) {
+              if (Inventory.PERISHABLE.has(drop.item)) {
+                const added = Inventory.addToResources(base.resources, drop.item, drop.overflow, now);
+                Object.assign(base.resources, added.resources);
+              } else base.resources[drop.item] = Math.min(999999, (base.resources[drop.item] || 0) + drop.overflow);
+              returnedOverflow = true;
+            }
+          }
+          if (lootResources && Object.keys(lootResources).length) addSessionTotals(player, { resources: lootResources });
+          if (returnedOverflow) {
+            base.revision++; base.updatedAt = now;
+            base.log.push({ id: (base.log.at(-1)?.id || 0) + 1, kind: 'scavenge', text: 'Interior salvage overflow was returned to refuge storage.', at: now });
+            base.log = base.log.slice(-20); bases[user.acct] = base; store.save('homefront.json', bases);
+          }
+          if (player) player.lastSeen = now;
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct), interiorMessage: acted.message, interiorReward: acted.reward, overflowDestination: returnedOverflow ? 'refuge' : null, inventory: { ...acted.inventory, used: Inventory.used(acted.inventory), capacity: Inventory.CAPACITY }, interiorNoise: acted.noise });
+          return true;
+        }
+        case '/api/homefront/world/interior/door': {
+          const player = db.players[user.acct];
+          const now = Date.now();
+          const traversed = Interiors.traverse(db.interiors, { account: user.acct, player, doorId: typeof payload.doorId === 'string' ? payload.doorId : '', now });
+          db.interiors = traversed.state;
+          if (player) player.lastSeen = now;
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct) });
+          return true;
+        }
+        case '/api/homefront/world/interior/leave': {
+          const player = db.players[user.acct];
+          const now = Date.now();
+          const left = Interiors.leave(db.interiors, { account: user.acct, player, now });
+          db.interiors = left.state;
+          if (player) player.lastSeen = now;
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: null });
+          return true;
+        }
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z), Date.now(), payload.sprint === true); break;
         case '/api/homefront/world/aim': outcome = World.setAiming(db, user.acct, payload.aiming, Date.now()); break;
         case '/api/homefront/world/rescue': {
@@ -367,12 +453,15 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           addSessionTotals(player,{embers:Math.max(0,nextBase.embers-base.embers),consumed:{food:Math.max(0,carriedBefore.food-carried.food),ammo:Math.max(0,carriedBefore.ammo-carried.ammo)}});
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;nextBase.resources.freshness=base.resources.freshness;player.inventory=carried;
           rescue.readyAt = now + 8 * 60e3;
+          const rescueNoise = Math.min(90, 25 + nearest.point.risk * 10);
+          player.noiseLevel = Math.max(player.noiseLevel || 0, rescueNoise);
+          player.lastNoiseAt = now; player.noiseX = player.x; player.noiseZ = player.z;
           bases[user.acct] = nextBase;
           store.save('homefront.json', bases);
           player.lastSeen = now;
           store.save('homefront-world.json', db);
           const snap = World.snapshot(db, user.acct, now);
-          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: { id: nearest.point.id, label: nearest.point.label, rescued: true, readyAt: rescue.readyAt, difficulty, survivor: nextBase.survivors.at(-1), event: nextBase.log.at(-1)?.text } });
+          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: { id: nearest.point.id, label: nearest.point.label, rescued: true, readyAt: rescue.readyAt, difficulty, survivor: nextBase.survivors.at(-1), event: nextBase.log.at(-1)?.text }, tacticalNoise: { level: rescueNoise, durationMs: 12000, cause: 'survivor_rescue' } });
           return true;
         }
         case '/api/homefront/world/cache': {
@@ -401,6 +490,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           for(const id of ['wood','scrap','meds'])grossResources[id]=Math.max(0,(nextBase.resources[id]||0)-(base.resources[id]||0));
           const foodAdjusted=Inventory.reconcileCount(carried,'food',nextBase.resources.food,Date.now());carried.food=foodAdjusted.food;carried.freshness=foodAdjusted.freshness;carried.ammo=nextBase.resources.ammo;
           nextBase.resources.food=base.resources.food;nextBase.resources.ammo=base.resources.ammo;nextBase.resources.freshness=base.resources.freshness;
+          const cacheNoise = Loot.noiseForRisk(nearest.point.risk);
+          player.noiseLevel = Math.max(player.noiseLevel || 0, cacheNoise.level);
+          player.lastNoiseAt = now; player.noiseX = player.x; player.noiseZ = player.z;
           const scrap = Math.floor((8 + nearest.point.risk * 4) * spec.reward);
           const wood = Math.floor((4 + nearest.point.risk * 2) * spec.reward);
           const ammo = Math.floor((2 + nearest.point.risk * 2) * spec.reward);
@@ -426,7 +518,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           player.lastSeen = now;
           store.save('homefront-world.json', db);
           const snap = World.snapshot(db, user.acct, now);
-          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: { id: nearest.point.id, label: nearest.point.label, cacheOpened: true, readyAt: cache.readyAt, bonus: { scrap, wood, ammo, meds, embers }, difficulty, event: nextBase.log.at(-1)?.text } });
+          json(res, 200, { mode: 'homefront-world', ...snap, base: nextBase, encounter: { id: nearest.point.id, label: nearest.point.label, cacheOpened: true, readyAt: cache.readyAt, bonus: { scrap, wood, ammo, meds, embers }, difficulty, event: nextBase.log.at(-1)?.text }, tacticalNoise: { level: cacheNoise.level, durationMs: cacheNoise.durationMs, cause: 'secure_cache' } });
           return true;
         }
         case '/api/homefront/world/scavenge':

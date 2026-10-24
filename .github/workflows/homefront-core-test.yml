@@ -15,6 +15,7 @@ on:
       - 'test/homefront-survivor-inspection.test.mjs'
       - 'test/homefront-survivor-economy-sim.js'
       - 'test/homefront-interior-route-sim.js'
+      - 'test/homefront-explore-multiplayer-sim.js'
       - 'server/homefront-combat.js'
       - 'server/homefront-world.js'
       - 'server/homefront-terrain.js'

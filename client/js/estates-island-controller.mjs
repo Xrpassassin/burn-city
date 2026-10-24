@@ -73,7 +73,7 @@ export function createEstatesIslandController({
       lastPropertyKey=propertyKey;
     }
     if(interactPressed&&property) onPropertyPrompt({...property,confirmedInteraction:true});
-    const nearGate=Math.hypot(moved.position.x,moved.position.z-132)<=7;
+    const nearGate=Math.hypot(moved.position.x+205,moved.position.z-188)<=7;
     if(nearGate!==lastGate) onExitPrompt({visible:nearGate,requiresConfirmation:true,action:'return-to-city'});
     if(exitPressed&&nearGate) onExitPrompt({visible:true,requiresConfirmation:true,action:'return-to-city',confirmedInteraction:true});
     lastGate=nearGate;

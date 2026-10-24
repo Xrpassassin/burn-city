@@ -3,20 +3,28 @@ const fs = require('fs'), path = require('path'), os = require('os');
 Object.assign(process.env, { DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'bcfish-')), TOKEN_SECRET: 'sim' });
 const F = require('../server/fish'); let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log((c ? '  PASS ' : '  FAIL ') + m); };
 const realNow = Date.now; let off = 0; Date.now = () => realNow() + off; const A = 'rFishSim11111111111111111111';
-ok(F.SPECIES.length === 20 && new Set(F.SPECIES.map(s => s[2])).size === 5, '20 species across 5 rarities');
+ok(F.SPECIES.length === 24 && new Set(F.SPECIES.map(s => s[2])).size === 5, '24 species across 5 rarities');
+ok(F.anglerLevel(0) === 1 && F.anglerLevel(100) === 2 && F.anglerLevel(700) === 5 && F.anglerLevel(3050) === 10, 'server angler level thresholds match client progression');
+ok(F.xpForCatch({ r: 0, kg: 0.2 }) === 10 && F.xpForCatch({ r: 4, kg: 900 }) === 88, 'server catch XP is deterministic and weight-capped');
 ok(F.baitAffinity('minnow', 0) === 1.25 && F.baitAffinity('minnow', 3) === 0.9, 'preferred bait boosts odds and mismatched bait modestly lowers them');
 ok(F.baitAffinity('unknown-species', 2) === 1, 'unknown species retain neutral bait affinity');
 ok(F.baitAffinity('leviathan', 99) === 0.9, 'bait tier is clamped safely');
-ok(F.SPECIES.every(s => [1.25, 0.9].includes(F.baitAffinity(s[0], 0))), 'all 20 defined species have an explicit preferred bait');
+ok(F.SPECIES.every(s => [1.25, 0.9].includes(F.baitAffinity(s[0], 0))), 'all 24 defined species have an explicit preferred bait');
+ok(F.BOATS.length === 4 && F.get('rFishNoProfile888888888888').selectedBoat === 'skiff', 'new anglers receive a starter boat');
+{ const V = 'rFishBoatBuy8888888888888888888'; F.importGuest(V, { coins: 2000 }); const bought = F.buy(V, 'boat', 'bass'); ok(bought.profile.boats.includes('bass') && bought.profile.selectedBoat === 'bass' && bought.profile.coins === 800, 'boat purchase spends lake coins and selects the owned boat'); ok(F.selectBoat(V, 'skiff').profile.selectedBoat === 'skiff', 'angler can switch back to an owned boat'); ok(F.selectBoat(V, 'abyss').error === 'boat_not_owned', 'server rejects selecting an unowned boat'); }
+{ const shore = F.roll('legend', 'burnfly', { night: true, deep: true, onBoat: false }); ok(shore.kg <= 9 && !['cod','sturgeon','leviathan','marlin','whaleshark','swordfish','anglerfish'].includes(shore.id), 'shore casts cannot access boat-gated deep species'); const small = F.roll('legend', 'burnfly', { night: true, deep: true, onBoat: true, boatId: 'skiff' }); ok(small.kg <= 12 && !['cod','sturgeon','leviathan','marlin','whaleshark','swordfish','anglerfish'].includes(small.id), 'starter skiff remains shallow-water and capacity-limited'); const abyss = F.roll('legend', 'burnfly', { night: true, deep: true, onBoat: true, boatId: 'abyss', weather: 'bull' }); ok(abyss.kg <= 900, 'abyssal boat catch weight never exceeds vessel capacity'); }
 let deepOnly = 0, leg = 0; for (let i = 0; i < 4000; i++) { const f = F.roll('basic', 'worm', { night: false, deep: false }); if (['cod', 'marlin', 'leviathan', 'whaleshark', 'sturgeon'].includes(f.id)) deepOnly++; if (f.r === 4) leg++; }
 ok(deepOnly === 0, 'deep-water fish never from shore'); ok(leg === 0, 'no legendary on worm bait');
-let legB = 0; for (let i = 0; i < 4000; i++) if (F.roll('legend', 'burnfly', { night: true, deep: true }).r === 4) legB++; ok(legB > 20, 'legendary possible from boat with good gear (' + legB + '/4000)');
+let legB = 0; for (let i = 0; i < 4000; i++) if (F.roll('legend', 'burnfly', { night: true, deep: true, onBoat: true, boatId: 'abyss' }).r === 4) legB++; ok(legB > 20, 'legendary possible from boat with good gear (' + legB + '/4000)');
 const c = F.cast(A, {}); ok(c.cid && c.wait >= 2500 && !c.id, 'cast hides species until landed');
 ok(F.cast(A, {}).error === 'too_fast', 'second cast within 5 s rejected');
 ok(F.reel(A, c.cid, true).error === 'timing', 'reeling before the bite is rejected');
 off += 10e3; const c2 = F.cast(A, {}); off += c2.wait + 100; const r = F.reel(A, c2.cid, true); ok(r.fish && r.profile.creel.length === 1, 'landed fish goes to creel');
+ok(r.profile.xp === F.xpForCatch(r.fish) && F.get(A).xp === r.profile.xp, 'server awards and persists XP only for landed catches');
 ok(F.get(A).coins === 0, 'no coins until sold'); const s = F.sell(A); ok(s.sold > 0 && F.get(A).coins === s.sold, 'selling gives coins');
 ok(F.buy(A, 'rod', 'legend').error === 'not_enough_coins', 'cannot buy what you cannot afford');
+{ const L = 'rFishLevelLock88888888888888888'; F.importGuest(L, { coins: 2000 }); const blocked = F.buy(L, 'rod', 'carbon'); ok(blocked.error === 'level_locked' && blocked.requiredLevel === 2, 'server blocks a rod purchase before its angler level unlock'); }
+{ const M = 'rFishMigration77777777777777777'; F.importGuest(M, { n: 1 }); require('../server/payments').sdb.prepare('INSERT INTO fish_catch(acct,t,kg,sp) VALUES(?,?,?,?)').run(M, Date.now(), 0.2, 'minnow'); ok(F.get(M).xp === 10, 'legacy signed-in catches backfill XP from authoritative catch rows'); }
 while (F.get(A).coins < 5) { off += 10e3; const k = F.cast(A, {}); off += k.wait + 50; F.reel(A, k.cid, true); F.sell(A); }
 ok(F.buy(A, 'bait', 'shrimp', 1).profile.bait.shrimp === 1, 'bait purchase with coins');
 off += 10e3; const c3 = F.cast(A, {}); off += c3.wait + 25e3; ok(F.reel(A, c3.cid, true).error === 'timing', 'stale reel (bot left it) rejected');

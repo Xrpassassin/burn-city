@@ -119,11 +119,11 @@ export async function installEstatesIslandLive({
     cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
     onPropertyPrompt:property=>{
       lastProperty=property;
-      const assigned=property.assigned;
+      const catalogued=Boolean(property.propertyId);
       showPanel('ESTATES · '+property.address,
-        assigned?'This lot is assigned in the current catalog. Its private interior and build controls stay locked until verified ownership permissions are connected.':'This lot is currently unassigned in the catalog. No ownership is inferred.',
+        catalogued?'This lot maps to a property record in the current catalog. That record does not prove ownership; private access and build controls require server-verified permissions.':'This lot has no property record mapped in the current catalog. No ownership is inferred.',
         [{label:'Inspect lot',primary:true,run:()=>showPanel('LOT INSPECTION · '+property.lotId,
-          'Address: '+property.address+' · Tier: '+property.tier+' · Status: '+(assigned?'assigned':'unassigned'),
+          'Address: '+property.address+' · Tier: '+property.tier+' · Catalog mapping: '+(catalogued?'mapped':'unmapped'),
           [{label:'Close',primary:true,run:hidePanel}],
           'Public island inspection only; ownership, sale and building writes are not enabled.')},
          {label:'Close',run:hidePanel}],
@@ -188,11 +188,11 @@ export async function installEstatesIslandLive({
         cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
         onPropertyPrompt:property=>{
           lastProperty=property;
-          const assigned=property.assigned;
+          const catalogued=Boolean(property.propertyId);
           showPanel('ESTATES · '+property.address,
-            assigned?'This lot is assigned in the current catalog. Private access requires verified ownership permissions.':'This lot is currently unassigned in the catalog.',
+            catalogued?'This lot maps to a property record in the current catalog. That is not proof of ownership; private access requires server-verified permissions.':'This lot has no property record mapped in the current catalog.',
             [{label:'Inspect lot',primary:true,run:()=>showPanel('LOT INSPECTION · '+property.lotId,
-              'Address: '+property.address+' · Tier: '+property.tier+' · Status: '+(assigned?'assigned':'unassigned'),
+              'Address: '+property.address+' · Tier: '+property.tier+' · Catalog mapping: '+(catalogued?'mapped':'unmapped'),
               [{label:'Close',primary:true,run:hidePanel}],
               'Inspection is read-only; property access and building writes are not enabled.')},
              {label:'Close',run:hidePanel}],

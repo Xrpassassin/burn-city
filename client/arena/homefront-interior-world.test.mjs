@@ -32,7 +32,9 @@ assert.equal(createInteriorState('unknown'), null);
 const hospital = interiorForLandmark('mercy_hospital');
 let state = createInteriorState('mercy_hospital');
 assert(availableInteriorActions(hospital, state).some(item => item.id === 'generator_switch'));
+state = traverseInteriorDoor(hospital, state, 'ward_door');
 assert.throws(() => traverseInteriorDoor(hospital, state, 'pharmacy_door'), /interior_door_locked/);
+state = traverseInteriorDoor(hospital, state, 'ward_door');
 state = applyInteriorAction(hospital, state, 'generator_switch').state;
 assert(state.flags.includes('emergency_power'));
 state = traverseInteriorDoor(hospital, state, 'ward_door');
@@ -46,6 +48,15 @@ const search = applyInteriorAction(hospital, state, 'emergency_locker');
 assert.equal(search.serverRewardRequired, true);
 assert(search.state.used.includes('emergency_locker'));
 assert.throws(() => applyInteriorAction(hospital, state, 'generator_switch'), /interior_action_unavailable/);
+
+const blackglass = interiorForLandmark('research_annex');
+let blackglassState = createInteriorState('research_annex');
+blackglassState = applyInteriorAction(blackglass, blackglassState, 'power_bus').state;
+blackglassState = traverseInteriorDoor(blackglass, blackglassState, 'containment_door');
+assert.throws(() => traverseInteriorDoor(blackglass, blackglassState, 'archive_door'), /interior_door_locked/);
+blackglassState = applyInteriorAction(blackglass, blackglassState, 'containment_lock').state;
+blackglassState = traverseInteriorDoor(blackglass, blackglassState, 'archive_door');
+assert.equal(blackglassState.roomId, 'archive_vault');
 
 const foundry = interiorForLandmark('ironworks');
 let foundryState = createInteriorState('ironworks');

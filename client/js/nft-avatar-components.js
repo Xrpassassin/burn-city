@@ -38,12 +38,16 @@ function flameStyle(value) {
   if (has(value, /black|shadow|dark/)) return { style: 'shadow', color: '#5b4b79' };
   return { style: value && !/none|no flame|off/.test(value) ? 'ember' : 'default', color: '#ff7a1a' };
 }
-function tailStyle(value, key) {
-  if (has(value, /ring|banded|striped|raccoon/)) return 'ringed';
-  if (key === 'racc' && value && !/none|no tail/.test(value)) return 'ringed';
-  if (has(value, /black|dark/)) return 'dark-tip';
-  if (has(value, /white|silver|pale/)) return 'light-tip';
-  return value && !/none|no tail/.test(value) ? 'custom' : 'ringed';
+function tailStyle(value, key, sourceType = '') {
+  const source = text(sourceType), v = text(value);
+  // A RACC identity supplies a natural fallback only when metadata has no tail field.
+  // An explicit value must be interpreted on its own; color words alone do not prove a ring pattern.
+  if (/none|no tail|absent/.test(v)) return 'none';
+  if (/ring.?tail|tail.?pattern/.test(source) || has(v, /ring|banded|striped|raccoon/)) return 'ringed';
+  if (v && /black|dark/.test(v) && !/white|silver|pale|multi|mixed/.test(v)) return 'dark-tip';
+  if (v && /white|silver|pale/.test(v) && !/black|dark|multi|mixed/.test(v)) return 'light-tip';
+  if (v) return 'custom';
+  return key === 'racc' ? 'ringed' : 'none';
 }
 function wingStyle(value) {
   if (has(value, /mechanical|metal|cyber/)) return 'mechanical';
@@ -121,7 +125,7 @@ export function resolveNftAvatarComponents(profile = {}) {
     flame: flameStyle(flame || (key === 'fk' ? 'ember' : '')),
     bodyEffect: bodyEffect(body),
     eyeAppearance,
-    tailStyle: tailStyle(tail, key),
+    tailStyle: tailStyle(tail, key, String((Array.isArray(profile.rawTraits) ? profile.rawTraits : []).find(([type]) => /tail/i.test(String(type)))?.[0] || '')),
     wingStyle: wingStyle(wing),
     outfitStyle: outfitStyle(outfit, key),
     eyeStyle: eyeStyle(eyes),

@@ -47,10 +47,15 @@ export function buildNftChar(n, opts = {}) {
   const traitColor = (re, fallback) => {
     const v = traitValue(re).toLowerCase().trim();
     if (/^#[0-9a-f]{6}$/i.test(v)) return v;
-    const palette = [['rainbow','#a86bff'],['gold','#d6ad45'],['silver','#b9c4cf'],['black','#202126'],['white','#e6e4df'],
-      ['gray','#858a91'],['grey','#858a91'],['red','#b72d32'],['orange','#e87927'],['yellow','#e0c34a'],['green','#43845a'],
-      ['blue','#426db0'],['purple','#7952a1'],['pink','#d879a8'],['brown','#78513c'],['tan','#bd9a73'],['cyan','#4bbcc4'],
-      ['teal','#328f8a'],['cream','#e4d4b5']];
+    const palette = [
+      ['rainbow','#a86bff'],['gold','#d6ad45'],['silver','#b9c4cf'],['charcoal','#353941'],['black','#202126'],
+      ['white','#e6e4df'],['ivory','#eee5d2'],['cream','#e4d4b5'],['beige','#c8b99c'],['gray','#858a91'],['grey','#858a91'],
+      ['crimson','#a51f35'],['scarlet','#b51f2d'],['burgundy','#6e1c35'],['maroon','#702b32'],['red','#b72d32'],
+      ['orange','#e87927'],['yellow','#e0c34a'],['lime','#86b93d'],['olive','#737a32'],['emerald','#26865b'],
+      ['forest','#28513a'],['green','#43845a'],['navy','#243a63'],['cobalt','#2854a6'],['azure','#3c8ed6'],
+      ['royal','#355ca8'],['blue','#426db0'],['purple','#7952a1'],['magenta','#b833a6'],['fuchsia','#d43bb8'],
+      ['pink','#d879a8'],['brown','#78513c'],['tan','#bd9a73'],['bronze','#9a6b3c'],['cyan','#4bbcc4'],['teal','#328f8a']
+    ];
     const found = palette.find(([word]) => v.includes(word));
     return found ? found[1] : fallback;
   };
@@ -82,9 +87,8 @@ export function buildNftChar(n, opts = {}) {
   addCapsule(g,darkCloth,[0,.82,0],.19,.14,[1.03,.72,.76]);
   const torso = addCapsule(g,cloth,[0,1.17,0],.245,.39,[1.16,1.04,.76]);
   torso.name = 'avatar-torso';
-  // Stable, subtle silhouette variation gives each token an individual baseline when metadata has no body-build trait.
-  const silhouetteVariants = [.94,.97,1,1.03,1.06];
-  const silhouette = silhouetteVariants[profile.identitySeed % silhouetteVariants.length];
+  // Never fabricate anatomy from a token ID hash: absent an explicit body-build trait,
+  // collection proportions stay neutral and stable. Identity must come from source traits/art.
   const bodyShapeTrait = profile.rawTraits.find(([type]) => /body type|body shape|body build|physique|stature/i.test(type))?.[1] || '';
   const bodyShapeText = String(bodyShapeTrait).toLowerCase();
   const hasBodyShape = !!bodyShapeTrait;
@@ -98,7 +102,7 @@ export function buildNftChar(n, opts = {}) {
     : bodyBuild === 'tall' ? [.96,1.16,.96]
     : bodyBuild === 'compact' ? [1.02,.86,1.02]
     : bodyBuild === 'athletic' ? [1.07,1.04,1] : [1,1,1];
-  if (!hasBodyShape) { torso.scale.x *= silhouette; torso.scale.y *= 2 - silhouette; }
+  // With no body-build trait, keep the collection baseline instead of randomizing proportions.
   torso.scale.x *= reconstruction.torsoWidth * bodyScale[0];
   torso.scale.y *= reconstruction.torsoHeight * bodyScale[1];
   torso.scale.z *= bodyScale[2];
@@ -142,7 +146,9 @@ export function buildNftChar(n, opts = {}) {
     addCapsule(g, darkCloth, [0, 1.43, -.025], .115, .12, [1.2, .8, .9]);
   }
   // Surface patterns are driven by actual metadata and remain visible around the artwork tabard.
-  const patternColor=traitColor(/pattern|marking|camo|stripe|spot|outfit/i,'#b8b3a7');
+  // Prefer a dedicated pattern/marking trait; use outfit color only as a fallback.
+  // Including "outfit" in the primary matcher made an earlier clothing trait mask a later pattern trait.
+  const patternColor=traitColor(/pattern|marking|camo|stripe|spot/i,traitColor(/outfit|armor/i,'#b8b3a7'));
   if (components.patternStyle === 'stripes') {
     for (const side of [-1,1]) for (let i=0;i<3;i++) {
       const stripe=addBox(g,mat(patternColor),[side*(.205+i*.012),1.13+i*.075,.177],[.012,.052,.012]);
@@ -209,7 +215,7 @@ export function buildNftChar(n, opts = {}) {
     : /round|circular|soft/.test(faceShapeText) ? [1.08,1.04,1.04]
     : /narrow|thin|slim/.test(faceShapeText) ? [.86,1,1]
     : [1,1,1];
-  if (!hasFaceShape) head.scale.x = silhouetteVariants[(profile.identitySeed >>> 3) % silhouetteVariants.length];
+  // With no face-shape trait, keep the collection-specific head proportions unchanged.
   head.scale.multiply(new THREE.Vector3(...reconstruction.headScale));
   head.scale.multiply(new THREE.Vector3(...faceScale));
   if (key === 'racc') {
@@ -227,17 +233,30 @@ export function buildNftChar(n, opts = {}) {
       cheek.name='nft-racc-cheek-ruff';
       addSphere(head,mat('#c9cdd0'),[s*.085,.02,.22],[.055,.05,.025]);
       addSphere(head,components.eyeStyle === 'glowing' ? glow(eyeHex) : mat(eyeHex),[s*.085,.02,.242],[.022,.025,.012]);
-      addSphere(head,mat('#f0e4d0'),[s*.055,-.09,.19],[.075,.052,.052]);
+      // Separate pale muzzle pads give the raccoon a forward-projecting animal profile
+      // instead of reading as a human face with a mask.
+      const muzzlePad=addSphere(head,mat(shade(faceHex,1.28)),[s*.048,-.087,.255],[.058,.043,.066]);
+      muzzlePad.name='nft-racc-muzzle-pad';
     }
-    addSphere(head,mat('#bfc2c5'),[0,-.1,.205],[.11,.075,.07]);
-    addSphere(head,mat('#17181b'),[0,-.075,.267],[.036,.027,.022]);
-    const tail = new THREE.Group(); tail.position.set(0,.77,-.17); tail.rotation.x=-.72; g.add(tail);
-    for(let i=0;i<6;i++) {
-      const segmentColor = components.tailStyle === 'dark-tip' && i > 3 ? '#202126'
-        : components.tailStyle === 'light-tip' && i > 3 ? '#e0ded8'
-        : components.tailStyle === 'ringed' ? (i%2 ? '#292b30' : '#969ba2')
-        : (i%2 ? shade(faceHex,.72) : faceHex);
-      addSphere(tail,mat(segmentColor),[0,0,-.12*i],[.095-i*.008,.09-i*.007,.11]);
+    // A tapered bridge widens at the cheeks and narrows toward the nose. It is a
+    // dedicated RACC feature, not a generic human nose scaled up.
+    const muzzle=add(geo('nft-racc-tapered-muzzle',()=>new THREE.CylinderGeometry(.045,.094,.17,12,1)),mat(shade(faceHex,1.22)),0,-.075,.244,head);
+    muzzle.rotation.x=Math.PI/2;
+    muzzle.name='nft-racc-tapered-muzzle';
+    addSphere(head,mat('#f0e4d0'),[0,-.11,.276],[.067,.042,.055]).name='nft-racc-chin';
+    addSphere(head,mat('#17181b'),[0,-.067,.329],[.036,.026,.02]).name='nft-racc-nose';
+    if (components.tailStyle !== 'none' && components.tailStyle !== 'custom') {
+      const tail = new THREE.Group(); tail.name='nft-racc-tail'; tail.position.set(0,.77,-.17); tail.rotation.x=-.72; g.add(tail);
+      for(let i=0;i<6;i++) {
+        const segmentColor = components.tailStyle === 'dark-tip' && i > 3 ? '#202126'
+          : components.tailStyle === 'light-tip' && i > 3 ? '#e0ded8'
+          : components.tailStyle === 'ringed' ? (i%2 ? '#292b30' : '#969ba2')
+          : (i%2 ? shade(faceHex,.72) : faceHex);
+        addSphere(tail,mat(segmentColor),[0,0,-.12*i],[.095-i*.008,.09-i*.007,.11]);
+      }
+    } else if (components.tailStyle === 'custom') {
+      // Do not display the generic segmented tail as if it faithfully represents a custom design.
+      addDiagnosticMarker(g,'tail',[0,.88,-.48],[.14,.2,.14]);
     }
   } else {
     addSphere(head,skin,[0,.015,0],[.19,.235,.18]);
@@ -623,14 +642,68 @@ export function buildNftChar(n, opts = {}) {
   g.userData.legs=legs; g.userData.arms=arms; g.userData.head=head; g.userData.nftId=n?.id;
   g.userData.nftTraits=originalTraitPairs.map(([type,value])=>[String(type),String(value)]);
   const unsupportedVisualTraits = [
+    components.outfitStyle === 'custom' ? {slot:'outfit',value:traitValue(/^(?:outfit|armor)$/i)} : null,
     components.headwearStyle === 'custom' ? {slot:'headwear',value:traitValue(/^headwear$/i)} : null,
+    components.hairStyle === 'custom' ? {slot:'hair style',value:traitValue(/^hair style$/i) || traitValue(/^headwear$/i)} : null,
     components.accessoryStyle === 'custom' ? {slot:'accessory',value:traitValue(/^accessory$/i)} : null,
     components.weaponStyle === 'custom' ? {slot:'weapon',value:traitValue(/^weapon$/i)} : null,
     components.wingStyle === 'custom' ? {slot:'wing',value:traitValue(/^wing$/i)} : null,
-    components.patternStyle === 'custom' ? {slot:'body pattern',value:traitValue(/body pattern/i)} : null,
-    components.bodyEffect === 'custom' ? {slot:'body effect',value:traitValue(/^body effect$/i)} : null
+    components.tailStyle === 'custom' ? {slot:'tail',value:traitValue(/^tail$/i)} : null,
+    components.patternStyle === 'custom' ? {slot:'body pattern',value:traitValue(/body pattern/i) || traitValue(/outfit|armor/i)} : null,
+    components.bodyEffect === 'custom' ? {slot:'body effect',value:traitValue(/^body effect$/i)} : null,
+    components.expression === 'custom' ? {slot:'expression',value:traitValue(/^expression$/i)} : null,
+    components.hasMarkings && !/scar|freckle|spot|paint|tattoo|war paint/i.test(components.markings) ? {slot:'markings',value:components.markings} : null,
+    components.eyeAppearance && !/surprised|wide|open|flame|burn|melt|glow|neon|angry|sleep|closed/i.test(components.eyeAppearance) ? {slot:'eye appearance',value:components.eyeAppearance} : null
   ].filter(item => item && item.value);
+  // Every source trait gets a clear disposition: 3D, artwork-only, or flagged for review.
+  const geometryNeeded = new Set(unsupportedVisualTraits.map(item => String(item.slot || '').toLowerCase()));
+  const unsupportedStyleSlots = [
+    components.outfitStyle === 'custom' ? 'outfit' : null,
+    components.headwearStyle === 'custom' ? 'headwear' : null,
+    components.hairStyle === 'custom' ? 'hair style' : null,
+    components.accessoryStyle === 'custom' ? 'accessory' : null,
+    components.weaponStyle === 'custom' ? 'weapon' : null,
+    components.wingStyle === 'custom' ? 'wing' : null,
+    components.tailStyle === 'custom' ? 'tail' : null,
+    components.patternStyle === 'custom' ? 'body pattern' : null,
+    components.bodyEffect === 'custom' ? 'body effect' : null,
+    components.expression === 'custom' ? 'expression' : null,
+    components.hasMarkings && !/scar|freckle|spot|paint|tattoo|war paint/i.test(components.markings) ? 'markings' : null,
+    components.eyeAppearance && !/surprised|wide|open|flame|burn|melt|glow|neon|angry|sleep|closed/i.test(components.eyeAppearance) ? 'eye appearance' : null
+  ].filter(Boolean);
+  for (const slot of unsupportedStyleSlots) geometryNeeded.add(slot);
+  const renderableSlots = new Set([
+    'eye color','eye appearance','eye wear','body effect','accessory','outfit','headwear','weapon',
+    'fur color','hair style','hair color','skin color','armor','mask','expression','facial hair',
+    'markings','body pattern','horns','wing','flame','tail','nose'
+  ]);
+  const traitCoverage = profile.rawTraits.map(([rawType, value], index) => {
+    const slot = String(profile.renderTraits[index]?.[0] || rawType).toLowerCase();
+    let status = 'visualized';
+    let fidelityLevel = 'procedural-approximation';
+    let reason = 'Recognized by the current procedural renderer; not yet approved as a faithful visual match';
+    if (slot === 'background' || /background|backdrop|scene/i.test(rawType)) {
+      status = 'artwork-only';
+      fidelityLevel = 'not-3d';
+      reason = 'Preserved in original artwork; intentionally not converted into wearable geometry';
+    } else if (slot === 'identity') {
+      status = 'collection-identity';
+      fidelityLevel = 'collection-selection';
+      reason = 'Selects the collection recipe; does not prove this token likeness';
+    } else if (geometryNeeded.has(slot) || !renderableSlots.has(slot)) {
+      status = 'needs-dedicated-visual';
+      fidelityLevel = 'unsupported';
+      reason = geometryNeeded.has(slot) ? 'Current renderer lacks a faithful model for this value' : 'Trait type has no explicit renderer mapping yet';
+    } else if (/body type|body shape|body build|physique|stature|face shape/i.test(rawType)) {
+      reason = 'Recognized anatomy input; resulting proportions remain a procedural approximation pending reference review';
+    }
+    return { rawType, slot, value, status, fidelityLevel, reason, visuallyApproved: false };
+  });
   g.userData.nftAvatarProfile={collectionKey:profile.collectionKey,collectionName:profile.collectionName,archetype:profile.archetype,identitySeed:profile.identitySeed,hasCollectionAdapter:profile.hasCollectionAdapter,components,reconstruction,unsupportedVisualTraits};
+  g.userData.nftAvatarProfile.traitCoverage = traitCoverage;
+  // No trait mapping or passing unit test can certify likeness without human reference-art review.
+  g.userData.nftAvatarProfile.visualApproval = 'not-reviewed';
+  g.userData.nftAvatarProfile.visualApprovalRequired = true;
   g.userData.nftMedia={animation:n?.animation||'',video:n?.video||'',audio:n?.audio||'',model3d:n?.model3d||'',artwork:n?.artwork||''};
   g.userData.anim=(t,moving,armsUp)=>{
     // Fit the real artwork without cropping once its remote image has decoded.

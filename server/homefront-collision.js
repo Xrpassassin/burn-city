@@ -113,6 +113,24 @@ function buildObstacles() {
 }
 const OBSTACLES = buildObstacles();
 const INTERIOR_OBSTACLE_IDS = OBSTACLES.filter(o => o.id.startsWith('interior-wall:') || o.id.startsWith('interior-door:')).map(o => o.id);
+// Carve generated exterior clutter/building footprints out of authored interior footprints while a
+// player is inside. Otherwise a procedural building generated at the same X/Z can seal a room.
+const INTERIOR_CARVE_IDS = Object.create(null);
+for (const interior of InteriorCatalog.INTERIORS) {
+  const landmark = InteriorRules.LANDMARKS[interior.landmarkId];
+  const carve = new Set();
+  for (const room of interior.rooms) {
+    const minX = landmark.x + room.x - room.width / 2, maxX = landmark.x + room.x + room.width / 2;
+    const minZ = landmark.z + room.z - room.depth / 2, maxZ = landmark.z + room.z + room.depth / 2;
+    for (const obstacle of OBSTACLES) {
+      if (obstacle.id.startsWith('interior-wall:') || obstacle.id.startsWith('interior-door:')) continue;
+      const hx = obstacle.type === 'rect' ? obstacle.halfX : obstacle.radius;
+      const hz = obstacle.type === 'rect' ? obstacle.halfZ : obstacle.radius;
+      if (obstacle.x + hx > minX && obstacle.x - hx < maxX && obstacle.z + hz > minZ && obstacle.z - hz < maxZ) carve.add(obstacle.id);
+    }
+  }
+  INTERIOR_CARVE_IDS[interior.landmarkId] = [...carve];
+}
 // Uniform spatial hash over the static obstacle catalog. Each obstacle is filed in every cell its
 // footprint (+ GRID_MARGIN) touches, so a query with radius <= GRID_MARGIN only needs its own cell;
 // larger radii fall back to the full scan. Results are identical to the brute-force loop.
@@ -174,4 +192,4 @@ function findSafePosition(x, z, { bounds = WORLD_SIZE, maxRadius = 18, step = 2,
   }
   return null;
 }
-module.exports = { WORLD_SIZE, PLAYER_RADIUS, OBSTACLES, INTERIOR_OBSTACLE_IDS, GRID_CELL, GRID_MARGIN, pointBlocked, canTraverse, isSafePosition, findPath, findSafePosition };
+module.exports = { WORLD_SIZE, PLAYER_RADIUS, OBSTACLES, INTERIOR_OBSTACLE_IDS, INTERIOR_CARVE_IDS, GRID_CELL, GRID_MARGIN, pointBlocked, canTraverse, isSafePosition, findPath, findSafePosition };

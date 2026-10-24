@@ -121,4 +121,25 @@ function flankingHint(target, anchor, side = 1, offset = 3) {
   return { x: target.x + sign * (-dz / length) * d, z: target.z + sign * (dx / length) * d };
 }
 
-module.exports = { ROLES, STATES, assignRole, distance2D, hearNoise, chooseBehavior, flankingHint };
+/**
+ * Select a desired approach point for a coordinated squad member.
+ * This is a hint only; the live simulation must validate floor, LOS and
+ * walkability, and continue to use the authoritative movement/collision code.
+ */
+function selectApproachTarget(input = {}) {
+  const target = input.target;
+  const zombie = input.zombie;
+  if (!target || !zombie || ![target.x, target.z, zombie.x, zombie.z].every(Number.isFinite)) return null;
+  if (input.targetVisible !== true) return null;
+  if (input.role !== 'flanker') return { x: target.x, z: target.z, role: input.role || 'pursuer' };
+  const distance = distance2D(zombie, target);
+  const minDistance = Number.isFinite(input.minFlankDistance) ? Math.max(2, input.minFlankDistance) : 4;
+  if (distance < minDistance) return { x: target.x, z: target.z, role: 'flanker' };
+  // Stable per-zombie side choice avoids frame-to-frame oscillation and lets
+  // squadmates approach from different angles without shared mutable state.
+  const side = hashId(zombie.id ?? input.memberId ?? '') % 2 === 0 ? -1 : 1;
+  const hint = flankingHint(target, zombie, side, input.offset ?? 4);
+  return hint ? { ...hint, role: 'flanker' } : { x: target.x, z: target.z, role: 'flanker' };
+}
+
+module.exports = { ROLES, STATES, assignRole, distance2D, hearNoise, chooseBehavior, flankingHint, selectApproachTarget };

@@ -1285,11 +1285,17 @@ window.__estateEnter=(propertyId)=>{
  for(const q of Object.values(window.__estateRooms))q.group.visible=q.id===propertyId;
  P.pos.copy(r.spawn); P.vel.set(0,0,0); P.onGround=true; P.climb=null; P.spawned=1;
  yp.yaw=r.yaw+Math.PI; yp.pitch=0; avatar.rotation.y=yp.yaw;
+ // Persistent in-room orientation cue: show the exact residence ID and a clear exit prompt.
+ let hud=document.getElementById('estateInteriorHud');
+ if(!hud){hud=document.createElement('div');hud.id='estateInteriorHud';hud.style.cssText='position:fixed;top:68px;left:50%;transform:translateX(-50%);z-index:35;max-width:92vw;padding:8px 12px;border:1px solid #ffb45b99;border-radius:10px;background:#101923e8;color:#ffe0b1;font:700 12px/1.4 system-ui,sans-serif;letter-spacing:.04em;text-align:center;pointer-events:none;box-shadow:0 4px 18px #0005';document.body.appendChild(hud)}
+ hud.textContent='ESTATES · '+propertyId.toUpperCase()+' · E / USE TO EXIT';
+ hud.setAttribute('aria-label','Current residence '+propertyId+'. Press E or Use to exit.');
 };
 window.__estateExit=()=>{
  const id=window.__estateInteriorId,r=window.__estateRooms&&window.__estateRooms[id]; if(!r)return;
  P.pos.copy(r.exterior); P.pos.y=.5; P.vel.set(0,0,0); P.onGround=true; P.climb=null;
  r.group.visible=false; window.__estateInteriorId=null;
+ document.getElementById('estateInteriorHud')?.remove();
  yp.yaw=r.yaw; yp.pitch=0; avatar.rotation.y=yp.yaw;
 };
 

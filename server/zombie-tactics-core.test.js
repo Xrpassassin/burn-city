@@ -15,12 +15,16 @@ const noise = { x: 4, z: 2, atMs: 1000, ttlMs: 5000, radius: 12, intensity: 0.8 
 assert.equal(hearNoise({ x: 0, z: 0 }, noise, 2000).intensity, 0.8);
 assert.equal(hearNoise({ x: 0, z: 0 }, { ...noise, radius: 1 }, 2000), null);
 assert.equal(hearNoise({ x: 0, z: 0 }, noise, 7001), null);
+assert.equal(hearNoise({ x: 0, z: 0 }, { ...noise, radius: 'not-a-number' }, 2000), null);
+assert.equal(hearNoise({ x: 0, z: 0 }, { ...noise, ttlMs: -1 }, 2000), null);
 
 const zombie = { id: 'z1', x: 0, z: 0, hp: 10, alive: true };
 assert.equal(chooseBehavior({ zombie, nowMs: 2000, target: { x: 5, z: 0 }, targetVisible: true }).state, 'pursue');
 assert.equal(chooseBehavior({ zombie, nowMs: 2000, target: { x: 1, z: 0 }, targetVisible: true }).state, 'attack');
 assert.equal(chooseBehavior({ zombie, nowMs: 2000, target: { x: 1, z: 0 }, targetVisible: true, staggered: true }).state, 'stagger');
 assert.equal(chooseBehavior({ zombie: { ...zombie, hp: 0 }, nowMs: 2000 }).state, 'dead');
+assert.equal(chooseBehavior({ zombie: { ...zombie, hp: -1 }, nowMs: 2000 }).state, 'dead');
+assert.equal(chooseBehavior({ zombie, nowMs: 2000, target: { x: NaN, z: 0 }, targetVisible: true }).state, 'wander');
 assert.equal(chooseBehavior({ zombie, nowMs: 2000, noise }).state, 'investigate');
 assert.equal(chooseBehavior({ zombie, nowMs: 2000, lastKnownTarget: { x: 3, z: 4, untilMs: 2500 } }).state, 'search');
 assert.equal(chooseBehavior({ zombie, nowMs: 3000, lastKnownTarget: { x: 3, z: 4, untilMs: 2500 } }).state, 'wander');

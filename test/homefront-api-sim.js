@@ -262,5 +262,68 @@ if (attack.data.combat.enemyDamage > 0) {
   assert.equal(oneShell.data.selfWeaponMagazine.loaded, 3, 'single-shell reload increments the magazine by exactly one');
   assert.equal(oneShell.data.selfInventory.ammo, 2, 'single-shell reload spends exactly one reserve round');
 
+  // Interior actions are authenticated, persistent, proximity-checked, and inventory-authoritative.
+  const interiorWorld = files.get('homefront-world.json');
+  interiorWorld.players['acct-a'].x = 24; interiorWorld.players['acct-a'].z = 30;
+  files.set('homefront-world.json', interiorWorld);
+  const interiorEnter = await call('POST', '/api/homefront/world/interior/enter', 'acct-a', { landmarkId: 'mercy_hospital' });
+  assert.equal(interiorEnter.status, 200, 'nearby player can enter a server-authored interior');
+  assert.equal(interiorEnter.data.interior.roomId, 'emergency_lobby');
+  assert.equal(interiorEnter.data.interior.landmarkId, 'mercy_hospital');
+  const generator = await call('POST', '/api/homefront/world/interior/action', 'acct-a', { actionId: 'generator_switch' });
+  assert.equal(generator.status, 200, 'power switches are processed by the authenticated server');
+  assert(generator.data.interior.flags.includes('emergency_power'));
+  const duplicateGenerator = await call('POST', '/api/homefront/world/interior/action', 'acct-a', { actionId: 'generator_switch' });
+  assert.equal(duplicateGenerator.status, 400, 'one-use interior controls cannot be replayed');
+  const wrongRoom = await call('POST', '/api/homefront/world/interior/action', 'acct-a', { actionId: 'patient_chart' });
+  assert.equal(wrongRoom.status, 400, 'server rejects actions from a different room');
+  const wardDoor = await call('POST', '/api/homefront/world/interior/door', 'acct-a', { doorId: 'ward_door' });
+  assert.equal(wardDoor.status, 200, 'server authorizes traversal through a connected doorway');
+  assert.equal(wardDoor.data.interior.roomId, 'ward_corridor');
+  const chartWorld = files.get('homefront-world.json');
+  chartWorld.players['acct-a'].x = 30.1; chartWorld.players['acct-a'].z = 30.8;
+  files.set('homefront-world.json', chartWorld);
+  const chart = await call('POST', '/api/homefront/world/interior/action', 'acct-a', { actionId: 'patient_chart' });
+  assert.equal(chart.status, 200);
+  assert(chart.data.interior.flags.includes('incident_clue'), 'story clues persist on the server');
+  const pharmacyDoor = await call('POST', '/api/homefront/world/interior/door', 'acct-a', { doorId: 'pharmacy_door' });
+  assert.equal(pharmacyDoor.status, 200, 'power and clue gates allow entry to the pharmacy');
+  assert.equal(pharmacyDoor.data.interior.roomId, 'pharmacy');
+  const pharmacyWorld = files.get('homefront-world.json');
+  pharmacyWorld.players['acct-a'].x = 30.1; pharmacyWorld.players['acct-a'].z = 23.8;
+  files.set('homefront-world.json', pharmacyWorld);
+  const medsBeforeInterior = pharmacyWorld.players['acct-a'].inventory.meds || 0;
+  const searchedLocker = await call('POST', '/api/homefront/world/interior/action', 'acct-a', { actionId: 'emergency_locker' });
+  assert.equal(searchedLocker.status, 200);
+  assert(searchedLocker.data.interiorReward.some(drop => drop.item === 'meds' && drop.amount > 0), 'interior searches grant real carried loot');
+  assert(searchedLocker.data.selfInventory.meds > medsBeforeInterior);
+  assert(searchedLocker.data.interior.used.includes('emergency_locker'), 'searched containers are saved to prevent duplication');
+  const duplicateLocker = await call('POST', '/api/homefront/world/interior/action', 'acct-a', { actionId: 'emergency_locker' });
+  assert.equal(duplicateLocker.status, 400, 'a searched container cannot pay out twice');
+  const leftHospital = await call('POST', '/api/homefront/world/interior/leave', 'acct-a');
+  assert.equal(leftHospital.status, 200);
+  assert.equal(leftHospital.data.interior, null);
+  const persistentInterior = files.get('homefront-world.json').interiors['acct-a'].interiors.mercy_hospital;
+  assert(persistentInterior.flags.includes('emergency_power') && persistentInterior.used.includes('emergency_locker'), 'interior state persists after leaving the building');
+
+  // A full pack sends search overflow back to refuge stores rather than deleting the salvage.
+  const depotWorld = files.get('homefront-world.json');
+  depotWorld.players['acct-a'].x = -8; depotWorld.players['acct-a'].z = -65;
+  depotWorld.players['acct-a'].inventory = { food: 8, rawFood: 8, water: 8, dirtyWater: 0, meds: 0, ammo: 0, scrap: 0, wood: 0 };
+  files.set('homefront-world.json', depotWorld);
+  const depotEnter = await call('POST', '/api/homefront/world/interior/enter', 'acct-a', { landmarkId: 'north_bus_depot' });
+  assert.equal(depotEnter.status, 200);
+  const depotPosition = files.get('homefront-world.json');
+  depotPosition.players['acct-a'].x = -9.1; depotPosition.players['acct-a'].z = -65.7;
+  files.set('homefront-world.json', depotPosition);
+  const baseBeforeOverflow = (await call('GET', '/api/homefront', 'acct-a')).data.base;
+  const depotSearch = await call('POST', '/api/homefront/world/interior/action', 'acct-a', { actionId: 'dispatch_drawer' });
+  assert.equal(depotSearch.status, 200);
+  assert.equal(depotSearch.data.overflowDestination, 'refuge', 'overflow has an explicit, persistent destination');
+  const baseAfterOverflow = (await call('GET', '/api/homefront', 'acct-a')).data.base;
+  assert(baseAfterOverflow.resources.scrap > baseBeforeOverflow.resources.scrap || baseAfterOverflow.resources.ammo > baseBeforeOverflow.resources.ammo, 'full-pack salvage overflow is deposited into refuge resources');
+  const leftDepot = await call('POST', '/api/homefront/world/interior/leave', 'acct-a');
+  assert.equal(leftDepot.status, 200);
+
   console.log('Homefront authenticated save API simulation passed.');
 })().catch(e => { console.error(e); process.exitCode = 1; });

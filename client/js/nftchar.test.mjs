@@ -81,7 +81,7 @@ has(avatar, /nft-racc-cheek-ruff/, 'adds cheek ruffs to widen the RACC face silh
 has(avatar, /ringed tail|tail = new THREE\.Group/, 'adds a segmented raccoon tail');
 has(avatar, /else \{\s*addSphere\(head,skin/, 'uses a separate human face archetype');
 has(avatar, /nft-beard|nft-goatee|nft-moustache/, 'maps facial-hair traits to the human head');
-has(avatar, /noseText[\s\S]*nft-nose-broad[\s\S]*nft-nose-button[\s\S]*nft-nose-long[\s\S]*nft-nose-hooked[\s\S]*nft-nose-snout[\s\S]*nft-nose-robotic/, 'reconstructs explicit nose traits with distinct human and cybernetic geometry');
+has(avatar, /noseText[\s\S]*nft-nose-robotic[\s\S]*nft-nose-broad[\s\S]*nft-nose-button[\s\S]*nft-nose-long[\s\S]*nft-nose-hooked[\s\S]*nft-nose-snout/, 'reconstructs explicit nose traits with distinct human and cybernetic geometry');
 has(adapters, /\['nose', \/nose\|nostril\/i\]/, 'normalizes nose and nostril trait names');
 has(avatar, /white hair\|silver hair/, 'maps hair-color traits');
 has(avatar, /helmet/, 'maps helmet traits');

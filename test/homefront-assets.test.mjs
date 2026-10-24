@@ -48,4 +48,11 @@ for (const rel of ['../vendor/three/examples/jsm/loaders/GLTFLoader.js', '../ven
 assert.ok(html.includes('const healthRatio=Math.max(0,Math.min(1,(s.hp||0)/(s.maxHp||1)))'), 'refuge structure wear derives from authoritative structure health');
 assert.ok(html.includes('Persistent visual wear is derived from server-authoritative HP'), 'damaged structures receive deterministic presentation-only wear');
 assert.ok(html.includes("if(healthRatio<.48){const split=block(g,.035,.2,.04,.29,.36,.23,0x241f1b)"), 'severely damaged structures gain additional visible cracks');
+assert.ok(html.includes('id="refugeWorldPanel"') && html.includes('id="buildPanel"'), 'RPG home and workshop views have dedicated scene/panel boundaries');
+assert.ok(html.includes('body.rpg-mode-home #game .grid>.panel:not(#refugeWorldPanel)'), 'default RPG mode hides the management dashboard');
+assert.ok(html.includes('body.rpg-mode-workshop #game .grid>.panel:not(#refugeWorldPanel):not(#buildPanel)'), 'Workshop mode keeps the 3D yard and building catalog without the full dashboard');
+assert.ok(html.includes('function nearGate()') && html.includes("$('rpgGate').disabled=!deployed&&!atGate"), 'the gate interaction requires physical proximity in the refuge');
+assert.ok(html.includes('function nearbySurvivor()') && html.includes('function showNearbySurvivor()'), 'survivors can be approached and spoken to from the third-person yard');
+assert.ok(html.includes("$('rpgTalk').onclick=showNearbySurvivor"), 'the contextual talk action opens survivor interaction');
+assert.ok(html.includes("constructionPaused=homefrontMode==='workshop'"), 'placing a structure does not unexpectedly exit Workshop mode');
 console.log('Homefront CC0 GLB asset checks passed.');

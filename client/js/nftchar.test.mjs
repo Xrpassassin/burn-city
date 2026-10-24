@@ -32,6 +32,12 @@ assert.deepEqual(unknownProfile.rawTraits, [['Background', 'Rain']]); checks++;
 
 has(avatar, /resolveNftAvatarProfile/, 'routes traits through collection-specific adapters');
 has(avatar, /resolveNftAvatarComponents/, 'resolves typed traits into explicit visual component recipes');
+has(avatar, /resolveNftAvatarReconstruction/, 'selects a collection-specific reconstruction blueprint');
+has(avatar, /nft-firekeeper-robe-hem/, 'builds the Firekeepers robe silhouette');
+has(avatar, /nft-firekeeper-cowl/, 'builds the Firekeepers cowl silhouette');
+has(avatar, /nft-firekeeper-sigil/, 'builds a collection-specific Firekeepers sigil');
+has(avatar, /nft-protocol-emblem/, 'builds a collection-specific 589 Protocol insignia');
+has(avatar, /reconstruction\};/, 'exposes reconstruction blueprint for visual QA');
 has(avatar, /nft-robe-outer-layer/, 'renders a distinct Firekeepers robe layer');
 has(avatar, /nft-armor-shoulder/, 'renders armor shoulder plates from outfit traits');
 has(avatar, /nft-relic-accessory/, 'renders collection relic accessories');

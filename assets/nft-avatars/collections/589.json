@@ -12,7 +12,12 @@
     { "slot": "outfit", "aliases": ["Suit Type", "Streetwear", "Clothing Type"] },
     { "slot": "headwear", "aliases": ["Helmet Type", "Headgear Type", "Hat Type"] },
     { "slot": "accessory", "aliases": ["Chain Type", "Jewelry Type", "Bling"] },
-    { "slot": "weapon", "aliases": ["Weapon Type", "Loadout"] }
+    { "slot": "weapon", "aliases": ["Weapon Type", "Loadout"] },
+    { "slot": "hair style", "aliases": ["Hair Style", "Haircut", "Hair Shape"] },
+    { "slot": "facial hair", "aliases": ["Facial Hair", "Beard", "Goatee", "Mustache"] },
+    { "slot": "markings", "aliases": ["Face Paint", "Scar", "Freckles", "Tattoo"] },
+    { "slot": "body pattern", "aliases": ["Pattern", "Body Pattern", "Camo", "Stripes"] },
+    { "slot": "horns", "aliases": ["Horns", "Antlers"] }
   ],
   "assets": [],
   "qaSamples": [

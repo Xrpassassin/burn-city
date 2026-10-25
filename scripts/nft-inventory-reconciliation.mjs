@@ -5,6 +5,12 @@
 const list = value => Array.isArray(value) ? value : [];
 const text = value => String(value ?? '').trim();
 const tokenIdOf = row => text(row?.NFTokenID ?? row?.tokenId ?? row?._id).toUpperCase();
+const integerTaxon = value => {
+  if (typeof value === 'number') return Number.isInteger(value) ? value : null;
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+};
 
 export function reconcileNftInventory({
   candidate = {},
@@ -41,7 +47,7 @@ export function reconcileNftInventory({
     }
 
     const issuer = text(row?.issuer);
-    const taxon = Number.isInteger(Number(row?.taxon)) ? Number(row.taxon) : null;
+    const taxon = integerTaxon(row?.taxon);
     if (expectedIssuer && issuer !== expectedIssuer) {
       issuerMismatches++;
       issues.push({ code: 'ISSUER_MISMATCH', tokenId, expected: expectedIssuer, observed: issuer || null });

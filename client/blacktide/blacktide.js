@@ -11,6 +11,7 @@ import { createCrewAnimator } from './nft-crew-animator.mjs';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { buildCinderCove } from './cinder-cove.mjs';
 import { createShoreWalk } from './shore-walk.mjs';
+import { createMaraInteraction } from './cove-npc-interaction.mjs';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -164,6 +165,7 @@ Trade.onDockChange({
   depart:(_port,departure)=>{if(departure){ship.position.x=departure.x;ship.position.z=departure.z;}speed=0;ship.visible=true;}
 });
 const shoreWalk=createShoreWalk({THREE,scene,camera,game,ship,trade:Trade});
+const maraInteraction=createMaraInteraction({THREE,scene,game});
 const clock=new THREE.Clock();
 function tick(){
   requestAnimationFrame(tick);
@@ -206,6 +208,7 @@ function tick(){
   if(started){
     const atPort=Trade.tick(ship.position);   // docked: helm locked while the port panel is open
     const walking=shoreWalk.update(dt,keys);
+    maraInteraction.update(shoreWalk.ashore,shoreWalk.position);
     if(atPort)speed=0;
     const forward=!walking&&!atPort&&hullHealth>0&&(keys.has('w')||keys.has('arrowup')||controls.forward);
     const back=!walking&&!atPort&&hullHealth>0&&(keys.has('s')||keys.has('arrowdown')||controls.back);

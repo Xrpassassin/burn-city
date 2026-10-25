@@ -27,6 +27,7 @@ export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   return {
     get ashore(){return ashore;},
+    get position(){return avatar.position;},
     update(dt,keys) {
       const atCove=trade.test.state().docked==='cinder-cove';
       if(!atCove&&ashore){ashore=false;avatar.visible=false;trade.setShoreMode(false);}

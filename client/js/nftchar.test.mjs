@@ -149,6 +149,8 @@ has(avatar, /nft-racc-cheek-ruff/, 'adds cheek ruffs to widen the RACC face silh
 has(avatar, /nft-racc-tapered-muzzle/, 'builds a dedicated tapered RACC muzzle that projects beyond the face plane');
 has(avatar, /nft-racc-muzzle-pad/, 'builds paired muzzle pads for a readable animal snout');
 has(avatar, /nft-racc-nose/, 'places the RACC nose at the forward end of the muzzle');
+has(avatar, /nft-racc-nostril/, 'adds subtle nostrils to the RACC nose');
+has(avatar, /nft-racc-mouth-seam/, 'defines a separate curved mouth seam beneath the muzzle');
 has(avatar, /ringed tail|tail = new THREE\.Group/, 'adds a segmented raccoon tail');
 has(avatar, /else \{\s*addSphere\(head,skin/, 'uses a separate human face archetype');
 has(avatar, /nft-beard|nft-goatee|nft-moustache/, 'maps facial-hair traits to the human head');

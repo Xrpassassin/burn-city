@@ -5,7 +5,7 @@ Requires Blender and its glTF importer. Uses neutral studio lighting and orthogr
 cameras to expose silhouette, clipping, and facial readability. Does not approve art.
 """
 import bpy
-import math
+import json
 import os
 import sys
 from mathutils import Vector
@@ -48,7 +48,7 @@ def main():
     area("Fill",(center.x+3,center.y-1,center.z+2),350,3)
     area("Rim",(center.x+1,center.y+3,center.z+3),750,3)
     scene=bpy.context.scene
-    scene.render.engine="BLENDER_EEVEE_NEXT" if hasattr(scene,"eevee") else "BLENDER_EEVEE"
+    available={item.identifier for item in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items}\n    scene.render.engine="BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in available else ("BLENDER_EEVEE" if "BLENDER_EEVEE" in available else "BLENDER_WORKBENCH")
     scene.render.resolution_x=512
     scene.render.resolution_y=512
     scene.render.resolution_percentage=100
@@ -64,13 +64,12 @@ def main():
     directions=[(0,-1,0),(1,-1,0),(1,0,0),(0,1,0)]
     root,_=os.path.splitext(destination)
     os.makedirs(os.path.dirname(destination),exist_ok=True)
-    for label,(x,y,z) in zip(["front","three-quarter","side","rear"],directions):
+    outputs={}\n    for label,(x,y,z) in zip(["front","three-quarter","side","rear"],directions):
         direction=Vector((x,y,z)).normalized()
         camera.location=center+direction*max(extent*2,3)
         camera.rotation_euler=(center-camera.location).to_track_quat("-Z","Y").to_euler()
         scene.render.filepath=root+"-"+label+".png"
-        bpy.ops.render.render(write_still=True)
-    print("Four QA previews saved with prefix:",root,"(not a runtime approval)")
+        bpy.ops.render.render(write_still=True)\n        if not os.path.isfile(scene.render.filepath) or os.path.getsize(scene.render.filepath)==0:\n            raise RuntimeError("Preview missing: "+scene.render.filepath)\n        outputs[label]=scene.render.filepath\n    manifest={"source":source,"views":outputs,"meshCount":len(meshes),"bounds":{"min":list(low),"max":list(high)},"runtimeApproved":False}\n    with open(root+"-qa.json","w",encoding="utf8") as output:\n        json.dump(manifest,output,indent=2)\n    print("Four QA previews and manifest saved with prefix:",root,"(not a runtime approval)")
 
 if __name__=="__main__":
     main()

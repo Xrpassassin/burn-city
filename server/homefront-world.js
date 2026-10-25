@@ -362,10 +362,13 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   // Followers move with the leader only while the leader is out in the world; a leader at home never freezes them.
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader !== acct && w.players[w.parties[p.partyCode].leader]) throw new Error('party_leader_controls_movement');
   if (typeof sprint !== 'boolean') throw new Error('invalid_movement_mode');
-  if (now - p.lastMove < 900) throw new Error('move_cooldown');
+  const elapsedMoveMs = now - p.lastMove;
+  // Accept smaller, more frequent movement commands without increasing travel speed.
+  if (elapsedMoveMs < 250) throw new Error('move_cooldown');
   if (sprint && p.aiming) throw new Error('lower_weapon_before_sprinting');
   const weaponId = p.weaponMagazine?.weaponId || 'pipe_blade';
-  const movementBudget = p.aiming ? MOVE_STEP * (AIM_MOVE_SCALE[weaponId] || 0.55) : sprint ? SPRINT_STEP : MOVE_STEP;
+  const nominalBudget = p.aiming ? MOVE_STEP * (AIM_MOVE_SCALE[weaponId] || 0.55) : sprint ? SPRINT_STEP : MOVE_STEP;
+  const movementBudget = nominalBudget * Math.min(1, Math.max(0, elapsedMoveMs) / 900);
   let nx = clamp(x, -WORLD_SIZE, WORLD_SIZE), nz = clamp(z, -WORLD_SIZE, WORLD_SIZE);
   const radius = Math.hypot(nx, nz); if (radius > WORLD_SIZE) { nx = nx / radius * WORLD_SIZE; nz = nz / radius * WORLD_SIZE; }
   const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz);

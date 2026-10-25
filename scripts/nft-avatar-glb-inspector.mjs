@@ -29,7 +29,7 @@ export function inspectGlbBuffer(buffer) {
   if (magic !== GLB_MAGIC) fail('BAD_MAGIC','file does not start with the glTF binary magic');
   if (version !== 2) fail('UNSUPPORTED_VERSION','GLB version must be 2');
   if (declaredLength !== buffer.length) fail('LENGTH_MISMATCH','header length ' + declaredLength + ' does not match file length ' + buffer.length);
-  let offset = 12, json = null, binaryChunks = 0, jsonChunks = 0;
+  let offset = 12, json = null, binaryChunks = 0, binaryChunkLength = 0, jsonChunks = 0;
   while (offset + 8 <= buffer.length) {
     const length = buffer.readUInt32LE(offset), type = buffer.readUInt32LE(offset + 4);
     offset += 8;
@@ -41,7 +41,7 @@ export function inspectGlbBuffer(buffer) {
       if (jsonChunks > 1) fail('MULTIPLE_JSON_CHUNKS','GLB must contain exactly one JSON chunk');
       try { json = JSON.parse(chunk.toString('utf8').replace(/[\\u0000\\u0020]+$/g,'')); }
       catch { fail('INVALID_JSON_CHUNK','JSON chunk is not valid JSON'); }
-    } else if (type === BIN_CHUNK) binaryChunks++;
+    } else if (type === BIN_CHUNK) { binaryChunks++; binaryChunkLength = length; }
     else warn('UNKNOWN_CHUNK','unrecognized GLB chunk type ' + type);
     offset += length;
   }
@@ -120,9 +120,18 @@ export function inspectGlbBuffer(buffer) {
       if (required > view.byteLength) fail('ACCESSOR_OUT_OF_BOUNDS','accessor ' + i + ' exceeds its bufferView');
     }
   }
+  if (binaryChunks > 1) fail('MULTIPLE_BIN_CHUNKS','GLB may contain at most one BIN chunk');
+  const embeddedBuffers = buffers.filter(bufferDef => typeof bufferDef.uri !== 'string');
+  if (embeddedBuffers.length > 1) fail('MULTIPLE_EMBEDDED_BUFFERS','GLB may have at most one embedded buffer');
+  if (embeddedBuffers.length && binaryChunks !== 1) fail('MISSING_BIN_CHUNK','buffer without a URI requires exactly one GLB BIN chunk');
+  if (!embeddedBuffers.length && binaryChunks) warn('UNREFERENCED_BIN_CHUNK','BIN chunk exists but no buffer references it');
   for (const [i,bufferDef] of buffers.entries()) {
     if (typeof bufferDef.uri === 'string') externalUris.push({kind:'buffer',index:i,uri:bufferDef.uri});
     if (!Number.isInteger(bufferDef.byteLength) || bufferDef.byteLength < 0) fail('BUFFER_LENGTH','buffer ' + i + ' has invalid byteLength');
+    else if (typeof bufferDef.uri !== 'string' && binaryChunks === 1) {
+      if (bufferDef.byteLength > binaryChunkLength) fail('BUFFER_BIN_LENGTH','embedded buffer byteLength exceeds BIN chunk length');
+      if (binaryChunkLength - bufferDef.byteLength > 3) fail('BIN_PADDING_LENGTH','BIN chunk may exceed embedded buffer byteLength by at most 3 padding bytes');
+    }
   }
   for (const [i,imageDef] of images.entries()) if (typeof imageDef.uri === 'string') externalUris.push({kind:'image',index:i,uri:imageDef.uri});
   for (const uri of externalUris) warn('EXTERNAL_RESOURCE','external ' + uri.kind + ' URI requires packaging/provenance review: ' + uri.uri);

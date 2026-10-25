@@ -8,6 +8,8 @@ const sw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 assert(app.includes("import { installEstatesIslandLive } from './estates-island-live.mjs';"), 'app imports live integration');
 assert(app.includes('window.__estatesIslandLive.tick(dt,f,s,run)'), 'live controller is called from explore frame loop');
 const live = await readFile(new URL('./estates-island-live.mjs', import.meta.url), 'utf8');
+const server = await readFile(new URL('../../server/server.js', import.meta.url), 'utf8');
+assert(server.indexOf("if (url.pathname === '/api/estates/layouts/public'") < server.indexOf("if (url.pathname === '/api/estates' || url.pathname.startsWith('/api/estates/'))"), 'public exterior layout endpoint is routed before the authenticated private Estates API gate');
 assert(live.includes('exitPressed:edge'), 'keyboard interaction edge reaches the exit-gate controller');
 assert(live.includes('Catalog mapping:'), 'lot inspection labels catalog mapping rather than implying owner assignment');
 assert(live.includes('That record does not prove ownership'), 'catalog membership must never be presented as verified ownership');

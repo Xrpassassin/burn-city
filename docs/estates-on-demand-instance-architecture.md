@@ -3,6 +3,12 @@
 ## Decision
 Estates is a physical island/entrance in the BURN City overworld, but its detailed environment is a separate runtime instance loaded only after the player explicitly confirms entry. The default target is a **shared social instance**, not a fresh private copy for every visitor. Player-owned lots remain individually owned and persisted inside that shared world.
 
+## Exterior presentation and entry boundary
+
+The live city view should show a compact scenic island silhouette with a visible water ring and a few recognizable rooflines. The detailed neighborhood—full roads, all lot anchors, landmarks, vegetation, and building blockouts—is revealed only after the player explicitly selects **Enter Estates Island**. The bridge and gate remain visible from the city side, and canceling or walking away must not enter the community.
+
+The current client integration implements this as a presentation boundary: a lightweight exterior preview is shown before entry and the detailed community is revealed after confirmation. This does **not yet** constitute a server-isolated multiplayer instance or on-demand renderer allocation. The next integration step is to acquire the shared `estates-island` instance lease only after server-side session/access validation, restore the player's return anchor on exit, and persist property/build state outside transient renderer memory.
+
 ## Lifecycle
 1. The city renderer shows the island landmark and bridge/entrance. A proximity trigger offers an interaction prompt; proximity alone never teleports or loads the destination.
 2. The player confirms. The server validates the authenticated player, destination, access rules, and current world/session state.

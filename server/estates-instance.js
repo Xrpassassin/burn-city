@@ -1,23 +1,41 @@
 // Public Estates Island admission lifecycle. This is a server-side shared lease registry,
-// not movement replication or durable world persistence; those remain separate systems.
+// not movement replication or durable world persistence.
 'use strict';
 const { randomBytes } = require('node:crypto');
 
 function createEstatesInstanceManager({
   idleMs = 30_000,
+  leaseMs = 90_000,
   setTimer = (fn, ms) => setTimeout(fn, ms),
   clearTimer = timer => clearTimeout(timer),
   onState = () => {}
 } = {}) {
   if (!Number.isSafeInteger(idleMs) || idleMs < 0) throw new TypeError('idleMs must be a non-negative safe integer');
+  if (!Number.isSafeInteger(leaseMs) || leaseMs < 1000) throw new TypeError('leaseMs must be at least 1000 ms');
   if (typeof setTimer !== 'function' || typeof clearTimer !== 'function') throw new TypeError('timer adapters must be functions');
   const leases = new Map();
-  let byClient = new Map();
-  let instanceId = null;
-  let generation = 0;
-  let idleTimer = null;
+  const byClient = new Map();
+  const leaseTimers = new Map();
+  let instanceId = null, generation = 0, idleTimer = null;
   const notify = event => { try { onState(Object.freeze({ ...event })); } catch { /* observers cannot break lifecycle */ } };
   const cancelIdle = () => { if (idleTimer !== null) { clearTimer(idleTimer); idleTimer = null; } };
+  const cancelLeaseTimer = token => {
+    const timer = leaseTimers.get(token);
+    if (timer !== undefined) { clearTimer(timer); leaseTimers.delete(token); }
+  };
+  const scheduleLeaseExpiry = token => {
+    cancelLeaseTimer(token);
+    const timer = setTimer(() => {
+      leaseTimers.delete(token);
+      const lease = leases.get(token);
+      if (!lease) return;
+      leases.delete(token);
+      if (byClient.get(lease.clientId) === token) byClient.delete(lease.clientId);
+      notify({ state: 'lease-expired', instanceId, leaseCount: leases.size });
+      scheduleIdle();
+    }, leaseMs);
+    leaseTimers.set(token, timer);
+  };
   const ensureInstance = () => {
     cancelIdle();
     if (!instanceId) {
@@ -35,33 +53,41 @@ function createEstatesInstanceManager({
       if (leases.size || !instanceId) return;
       const old = instanceId;
       instanceId = null;
-      byClient = new Map();
       notify({ state: 'disposed', instanceId: old, leaseCount: 0 });
     }, idleMs);
   };
 
   function enter(clientId) {
-    if (typeof clientId !== 'string' || !/^[A-Za-z0-9_-]{16,100}$/.test(clientId)) {
-      return { ok: false, error: 'invalid_client_session' };
-    }
+    if (typeof clientId !== 'string' || !/^[A-Za-z0-9_-]{16,100}$/.test(clientId)) return { ok: false, error: 'invalid_client_session' };
     const existingToken = byClient.get(clientId);
     if (existingToken && leases.has(existingToken)) {
-      return { ok: true, instanceId: ensureInstance(), leaseToken: existingToken, activeVisitors: leases.size, reused: true };
+      const id = ensureInstance();
+      scheduleLeaseExpiry(existingToken);
+      return { ok: true, instanceId: id, leaseToken: existingToken, activeVisitors: leases.size, leaseMs, reused: true };
     }
     const id = ensureInstance();
     const leaseToken = randomBytes(24).toString('hex');
-    leases.set(leaseToken, clientId);
+    leases.set(leaseToken, { clientId });
     byClient.set(clientId, leaseToken);
+    scheduleLeaseExpiry(leaseToken);
     notify({ state: 'joined', instanceId: id, leaseCount: leases.size });
-    return { ok: true, instanceId: id, leaseToken, activeVisitors: leases.size, reused: false };
+    return { ok: true, instanceId: id, leaseToken, activeVisitors: leases.size, leaseMs, reused: false };
+  }
+
+  function heartbeat(leaseToken) {
+    if (typeof leaseToken !== 'string' || !/^[a-f0-9]{48}$/.test(leaseToken)) return { ok: false, error: 'invalid_lease' };
+    if (!leases.has(leaseToken)) return { ok: false, error: 'lease_expired' };
+    scheduleLeaseExpiry(leaseToken);
+    return { ok: true, instanceId, activeVisitors: leases.size, leaseMs };
   }
 
   function leave(leaseToken) {
     if (typeof leaseToken !== 'string' || !/^[a-f0-9]{48}$/.test(leaseToken)) return { ok: false, error: 'invalid_lease' };
-    const clientId = leases.get(leaseToken);
-    if (!clientId) return { ok: true, released: false, activeVisitors: leases.size };
+    const lease = leases.get(leaseToken);
+    if (!lease) return { ok: true, released: false, activeVisitors: leases.size };
+    cancelLeaseTimer(leaseToken);
     leases.delete(leaseToken);
-    if (byClient.get(clientId) === leaseToken) byClient.delete(clientId);
+    if (byClient.get(lease.clientId) === leaseToken) byClient.delete(lease.clientId);
     notify({ state: 'left', instanceId, leaseCount: leases.size });
     scheduleIdle();
     return { ok: true, released: true, activeVisitors: leases.size };
@@ -71,7 +97,7 @@ function createEstatesInstanceManager({
     return Object.freeze({ instanceId, activeVisitors: leases.size, state: !instanceId ? 'absent' : leases.size ? 'active' : 'idle' });
   }
 
-  return Object.freeze({ enter, leave, snapshot });
+  return Object.freeze({ enter, heartbeat, leave, snapshot });
 }
 
 module.exports = { createEstatesInstanceManager };

@@ -3,7 +3,7 @@
 // Durable, owner-authorized Estates building placements. Geometry is derived from the
 // same catalog ordering and slot layout used by the client island scene; request bodies
 // never supply lot bounds, owner identity, existing placements, or permission grants.
-const { CATALOG, PROPERTY_BY_ID } = require('./estate-economy');
+const { CATALOG } = require('./estate-economy');
 const { BUILDINGS, planEstatePlacement } = require('./estates-building-placement');
 
 const SLOT_LAYOUT = Object.freeze([
@@ -32,7 +32,7 @@ function createEstatesLayoutStore({ db, access, now = Date.now, catalog = CATALO
     CREATE TABLE IF NOT EXISTS estate_build_placements (
       property_id TEXT NOT NULL,
       placement_id TEXT NOT NULL,
-      owner_acct TEXT NOT NULL,
+      created_by_acct TEXT NOT NULL,
       building_type TEXT NOT NULL,
       x REAL NOT NULL,
       z REAL NOT NULL,
@@ -48,17 +48,17 @@ function createEstatesLayoutStore({ db, access, now = Date.now, catalog = CATALO
       ON estate_build_placements(property_id, created_at, placement_id);
   `);
   const selectRows = db.prepare(`SELECT placement_id AS placementId, property_id AS propertyId,
-    owner_acct AS ownerAcct, building_type AS buildingType, x, z, width, depth,
+    created_by_acct AS createdByAcct, building_type AS buildingType, x, z, width, depth,
     rotation_y AS rotationY, height, created_at AS createdAt, updated_at AS updatedAt
     FROM estate_build_placements WHERE property_id=? ORDER BY created_at, placement_id`);
   const insertRow = db.prepare(`INSERT INTO estate_build_placements
-    (property_id,placement_id,owner_acct,building_type,x,z,width,depth,rotation_y,height,created_at,updated_at)
+    (property_id,placement_id,created_by_acct,building_type,x,z,width,depth,rotation_y,height,created_at,updated_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`);
   const deleteRow = db.prepare('DELETE FROM estate_build_placements WHERE property_id=? AND placement_id=?');
 
   function resolveLot(propertyId) {
     const property = propertyById.get(propertyId);
-    if (!property || !PROPERTY_BY_ID.has(propertyId)) return null;
+    if (!property) return null;
     const index = catalog.properties.findIndex(p => p.id === propertyId);
     const slot = SLOT_LAYOUT[index];
     const tier = tierById.get(property.tier);

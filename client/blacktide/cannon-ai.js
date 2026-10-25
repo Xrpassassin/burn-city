@@ -62,6 +62,8 @@ export function updateNpcCannons(fleet, player, dt) {
 
 export function stepNpcProjectile(projectile, dt) {
   const step = finite(dt) ? Math.max(0, Math.min(dt, 0.1)) : 0;
+  projectile.previousX = projectile.x;
+  projectile.previousZ = projectile.z;
   projectile.x += projectile.vx * step;
   projectile.z += projectile.vz * step;
   projectile.life -= step;
@@ -70,7 +72,13 @@ export function stepNpcProjectile(projectile, dt) {
 
 export function projectileHitsPlayer(projectile, player, radius = 3.2) {
   if (!projectile || !player || ![projectile.x, projectile.z, player.x, player.z, radius].every(finite)) return false;
-  const dx = projectile.x - player.x;
-  const dz = projectile.z - player.z;
-  return dx * dx + dz * dz <= radius * radius;
+  if (radius < 0) return false;
+  const ax = finite(projectile.previousX) ? projectile.previousX : projectile.x;
+  const az = finite(projectile.previousZ) ? projectile.previousZ : projectile.z;
+  const dx = projectile.x - ax, dz = projectile.z - az;
+  const lengthSquared = dx * dx + dz * dz;
+  const fraction = lengthSquared ? Math.max(0, Math.min(1, ((player.x - ax) * dx + (player.z - az) * dz) / lengthSquared)) : 0;
+  const ex = ax + fraction * dx - player.x;
+  const ez = az + fraction * dz - player.z;
+  return ex * ex + ez * ez <= radius * radius;
 }

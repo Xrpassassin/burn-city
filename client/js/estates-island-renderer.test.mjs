@@ -44,6 +44,7 @@ assert.equal(renderer.setSavedPlacements([{propertyId:'starter-01',placementId:'
 assert.throws(()=>renderer.setSavedPlacements({}),/array/,'malformed layout payloads are rejected');
 assert.equal(renderer.dispose(),true);
 assert.equal(renderer.dispose(),false);
+assert.equal(renderer.savedPlacementCount,0,'disposal releases saved placement group references');
 assert.equal(scene.children.length,0);
 assert.throws(()=>createEstatesIslandRenderer({scene,manifest}),/Three.js constructor required/);
 console.log('estates-island-renderer: all tests passed');

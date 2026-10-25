@@ -10,7 +10,14 @@ class FakeSocket extends EventEmitter {
   close(code, reason) { this.closeInfo = { code, reason }; this.readyState = 3; this.emit('close'); }
   message(value) { this.emit('message', Buffer.from(JSON.stringify(value))); }
 }
-const manager = createEstatesInstanceManager({ idleMs: 10_000 });
+let nextTimer = 0;
+const fakeTimers = new Map();
+const manager = createEstatesInstanceManager({
+  idleMs: 10_000,
+  leaseMs: 90_000,
+  setTimer(fn, ms) { const id = ++nextTimer; fakeTimers.set(id, {fn,ms}); return id; },
+  clearTimer(id) { fakeTimers.delete(id); }
+});
 const oneLease = manager.enter('presence_client_session_01');
 const twoLease = manager.enter('presence_client_session_02');
 assert.equal(oneLease.instanceId, twoLease.instanceId);

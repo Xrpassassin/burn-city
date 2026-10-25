@@ -6,6 +6,7 @@ import * as Combat from './combat.js';
 import * as CannonAI from './cannon-ai.js';
 import { mountApprovedCrew } from './nft-crew-mount.mjs';
 import { bootstrapApprovedCrew } from './nft-crew-bootstrap.mjs';
+import { createCrewLifecycle } from './nft-crew-lifecycle.mjs';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 
 const $ = id => document.getElementById(id);
@@ -94,6 +95,14 @@ export function attachPlayerNftCrew(loadedModel, approvedAvatarRuntime) {
 // No client-provided ownership list or query string is accepted as proof.
 export async function loadPlayerNftCrew(approvedAvatarRuntime) {
   return bootstrapApprovedCrew({ runtime: approvedAvatarRuntime, loader: new GLTFLoader(), attach: attachPlayerNftCrew });
+}
+
+const playerCrewLifecycle = createCrewLifecycle({ ship, load: loadPlayerNftCrew });
+export function replacePlayerNftCrew(approvedAvatarRuntime) {
+  return playerCrewLifecycle.replace(approvedAvatarRuntime);
+}
+export function clearPlayerNftCrew() {
+  playerCrewLifecycle.clear();
 }
 
 // Three procedural NPC vessels provide visible traffic before combat is enabled.

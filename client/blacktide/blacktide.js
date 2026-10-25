@@ -143,7 +143,7 @@ document.querySelectorAll('[data-control]').forEach(button=>{
 function fireBroadside(){
   if(!started||hullHealth<=0||performance.now()-lastShot<650)return;
   lastShot=performance.now();
-  const direction=new THREE.Vector3(Math.sin(heading),0,-Math.cos(heading));
+  const direction=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
   for(const side of [-1,1]){
     const p=new THREE.Mesh(new THREE.SphereGeometry(.19,8,6),new THREE.MeshBasicMaterial({color:0xffa15c}));
     const lateral=new THREE.Vector3(Math.cos(heading)*side*2,0,Math.sin(heading)*side*2);
@@ -206,7 +206,7 @@ function tick(){
     if(left)heading+=dt*(.65+Math.abs(speed)*.035);
     if(right)heading-=dt*(.65+Math.abs(speed)*.035);
     ship.rotation.y=heading;
-    ship.position.x+=Math.sin(heading)*speed*dt;
+    ship.position.x-=Math.sin(heading)*speed*dt;
     ship.position.z-=Math.cos(heading)*speed*dt;
     ship.position.y=sampleOceanHeight(ship.position.x,ship.position.z,elapsed)+.08;
     sail.rotation.y=Math.sin(elapsed*.7)*.035;

@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {walkingIntent,locomotionState} from './walking-input.mjs';
+assert.deepEqual(walkingIntent(),{x:0,z:0,moving:false,run:false});
+assert.deepEqual(walkingIntent(new Set(['w','d'])).moving,true);
+assert.ok(Math.abs(Math.hypot(walkingIntent(new Set(['w','d'])).x,walkingIntent(new Set(['w','d'])).z)-1)<1e-9);
+assert.equal(walkingIntent(new Set(),{x:0,z:.7}).z,.7);
+assert.equal(locomotionState(walkingIntent(new Set(['w']))),'walk');
+assert.equal(locomotionState(walkingIntent(new Set(['w']),{},true)),'run');
+assert.equal(locomotionState(walkingIntent(),false),'jump');
+console.log('Shared walking input tests passed');

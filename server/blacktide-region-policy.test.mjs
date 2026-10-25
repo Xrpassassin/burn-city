@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { REGIONS, canEnterRegion, enterRegion, setPvpOptIn, canPlayersFight } from './region-policy.js';
+import policy from './blacktide-region-policy.js';
+const { REGIONS, canEnterRegion, enterRegion, setPvpOptIn, canPlayersFight } = policy;
 const a={playerId:'a',regionId:'haven',instanceId:'1',safeHarbor:false,pvpEnabled:false};
 const b={playerId:'b',regionId:'haven',instanceId:'1',safeHarbor:false,pvpEnabled:false};
 assert.equal(setPvpOptIn(a,true,100000),false,'starter zone protected');

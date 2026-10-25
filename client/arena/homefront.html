@@ -40,6 +40,28 @@ body:has(#game:not([hidden])) #refugeWorldPanel>.row{position:fixed;top:calc(110
 body:has(#game:not([hidden])) #refugeWorldPanel>.row .btn{font-size:12px}
 body:has(#game:not([hidden])) #graveyardPanel .graveyard3d{max-width:none!important}
 body:has(#game:not([hidden])) #homefrontModal{z-index:60}
+
+/* Expedition HUD: keep objectives and critical feedback visible without restoring the dashboard. */
+body:has(#game:not([hidden])).rpg-mode-expedition #graveyard3dStatus,
+body:has(#game:not([hidden])).rpg-mode-expedition #explorationObjective{
+ display:block!important;position:fixed;left:12px;z-index:36;width:min(360px,calc(100vw - 24px));max-width:none;
+ margin:0;padding:7px 10px;border:1px solid #b77a5466;border-radius:9px;background:#100d0bd9;
+ color:#f3dfcb;font-size:12px;line-height:1.35;pointer-events:none
+}
+body:has(#game:not([hidden])).rpg-mode-expedition #graveyard3dStatus{top:calc(112px + env(safe-area-inset-top))}
+body:has(#game:not([hidden])).rpg-mode-expedition #explorationObjective{top:calc(166px + env(safe-area-inset-top));max-height:72px;overflow:hidden}
+body:has(#game:not([hidden])).rpg-mode-expedition #explorationJournal{position:fixed;right:12px;top:calc(115px + env(safe-area-inset-top));z-index:36;width:min(340px,calc(100vw - 24px));max-height:55dvh;overflow:auto;background:#120e0ce8;border:1px solid #b77a5477;border-radius:10px;padding:8px}
+body:has(#game:not([hidden])).rpg-mode-expedition #graveyardPanel>.row{position:fixed;top:calc(175px + env(safe-area-inset-top));right:12px;z-index:37;width:auto!important;margin:0!important}
+body:has(#game:not([hidden])).rpg-mode-expedition #graveyardPanel>.row .btn{font-size:12px}
+body:has(#game:not([hidden])).rpg-mode-expedition #interiorPanel{position:fixed;right:12px;top:calc(230px + env(safe-area-inset-top));bottom:calc(12px + env(safe-area-inset-bottom));width:min(400px,calc(100vw - 24px));overflow:auto;z-index:37;background:#140e0ce8;border-radius:12px;padding:12px}
+body:has(#game:not([hidden])) #explorationJournal[hidden],body:has(#game:not([hidden])) #interiorPanel[hidden]{display:none!important}
+@media(max-width:700px){
+ body:has(#game:not([hidden])).rpg-mode-expedition #graveyard3dStatus{top:calc(60px + env(safe-area-inset-top));max-width:calc(100vw - 24px)}
+ body:has(#game:not([hidden])).rpg-mode-expedition #explorationObjective{top:calc(104px + env(safe-area-inset-top));max-width:calc(100vw - 24px)}
+ body:has(#game:not([hidden])).rpg-mode-expedition #explorationJournal{top:calc(165px + env(safe-area-inset-top));right:8px;width:min(220px,55vw)}
+ body:has(#game:not([hidden])).rpg-mode-expedition #graveyardPanel>.row{top:calc(210px + env(safe-area-inset-top));right:8px}
+ body:has(#game:not([hidden])).rpg-mode-expedition #interiorPanel{top:calc(240px + env(safe-area-inset-top));bottom:calc(72px + env(safe-area-inset-bottom));right:8px}
+}
 </style></head><body>
 <header><div class="top"><div><div class="eyebrow">UNRANKED ZOMBIES SURVIVAL</div><h1>🏚 HOMEFRONT</h1></div><div class="row" style="flex:0 1 auto"><button class="btn" id="back">← Arena</button><button class="btn primary" id="signin">Sign in to save</button></div></div></header>
 <main class="wrap">

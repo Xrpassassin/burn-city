@@ -142,7 +142,8 @@ export async function installEstatesIslandLive({
   };
   setDetailedCommunityVisible(false);
 
-  let active = false, entering = false, instanceLeaseToken = null, activeInstanceId = null, activeVisitors = null, instanceHeartbeatTimer = null, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
+  let active = false, entering = false, instanceLeaseToken = null, activeInstanceId = null, activeVisitors = null, instanceHeartbeatTimer = null, presenceSocket = null, presenceSendTimer = null, presenceReconnectTimer = null, presenceStopped = true, presenceRetry = 0, lastPresenceSent = 0, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
+  const remotePeers = new Map();
   const panel = makePanel();
   const showPanel = (heading, message, actions, muted='') => {
     panel.replaceChildren();
@@ -258,6 +259,7 @@ export async function installEstatesIslandLive({
       instanceLeaseToken = admission.leaseToken;
       activeInstanceId = admission.instanceId;
       startInstanceLeaseHeartbeat();
+      connectEstatesPresence(instanceLeaseToken);
       activeVisitors = Number.isSafeInteger(admission.activeVisitors) ? admission.activeVisitors : null;
       active=true; nearCityGate=false;
       setDetailedCommunityVisible(true);
@@ -281,6 +283,7 @@ export async function installEstatesIslandLive({
     if(disposed||!active)return;
     active=false; hidePanel(); controllerRef.dispose();
     if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; }
+    stopPresence();
     setDetailedCommunityVisible(false);
     const leaseToken=instanceLeaseToken;
     instanceLeaseToken=null; activeInstanceId=null; activeVisitors=null;
@@ -293,6 +296,119 @@ export async function installEstatesIslandLive({
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
     avatar.position.copy(player.pos);
     onStatus({state:'returned-to-city'});
+  }
+  function removeRemotePeer(id) {
+    const peer = remotePeers.get(id);
+    if (!peer) return;
+    root.remove(peer.mesh);
+    peer.mesh.traverse?.(node => {
+      node.geometry?.dispose?.();
+      if (Array.isArray(node.material)) node.material.forEach(m=>m?.dispose?.()); else node.material?.dispose?.();
+    });
+    remotePeers.delete(id);
+  }
+  function setRemotePeer(id, position) {
+    if (!Number.isSafeInteger(Number(id)) || !position || ![position.x,position.y,position.z,position.r].every(finite)) return;
+    const peerId = Number(id);
+    let peer = remotePeers.get(peerId);
+    if (!peer) {
+      const mesh = new THREE.Group();
+      mesh.name = 'estates-remote-player-' + peerId;
+      const bodyMaterial = new THREE.MeshStandardMaterial({color:0x9d5bff,roughness:.72});
+      const headMaterial = new THREE.MeshStandardMaterial({color:0xffd3a2,roughness:.8});
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(.28,.72,4,8),bodyMaterial);
+      body.position.y=.78; body.castShadow=true;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(.2,10,8),headMaterial);
+      head.position.y=1.42; head.castShadow=true;
+      mesh.add(body,head); root.add(mesh);
+      peer = {mesh,target:{x:0,y:0,z:0,r:0}};
+      remotePeers.set(peerId,peer);
+    }
+    peer.target = {x:position.x,y:position.y,z:position.z,r:position.r};
+    if (remotePeers.size > 40) removeRemotePeer(remotePeers.keys().next().value);
+  }
+  function clearRemotePeers() {
+    for (const id of [...remotePeers.keys()]) removeRemotePeer(id);
+  }
+  function stopPresence() {
+    presenceStopped = true;
+    if (presenceSendTimer !== null) { clearInterval(presenceSendTimer); presenceSendTimer = null; }
+    if (presenceReconnectTimer !== null) { clearTimeout(presenceReconnectTimer); presenceReconnectTimer = null; }
+    const socket = presenceSocket; presenceSocket = null;
+    if (socket && socket.readyState < 2) { socket.onclose = null; try { socket.close(1000,'left_estates'); } catch {} }
+    clearRemotePeers();
+  }
+  function connectEstatesPresence(leaseToken) {
+    stopPresence();
+    presenceStopped = false;
+    presenceRetry = 0;
+    const connect = () => {
+      if (presenceStopped || disposed || !active || instanceLeaseToken !== leaseToken) return;
+      try {
+        const base = new URL(estatesServerBase());
+        base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+        base.pathname = '/';
+        base.search = '';
+        base.searchParams.set('mode','estates');
+        base.searchParams.set('lease',leaseToken);
+        const socket = new WebSocket(base.toString());
+        presenceSocket = socket;
+        socket.onopen = () => {
+          if (presenceSocket !== socket || presenceStopped) { socket.close(); return; }
+          presenceRetry = 0;
+          if (presenceSendTimer !== null) clearInterval(presenceSendTimer);
+          presenceSendTimer = setInterval(() => {
+            if (socket.readyState !== WebSocket.OPEN || !active || presenceSocket !== socket) return;
+            const now = performance.now();
+            if (now - lastPresenceSent < 90) return;
+            lastPresenceSent = now;
+            socket.send(JSON.stringify({t:'p',x:player.pos.x-OFFSET_X,y:player.pos.y,z:player.pos.z,r:getYaw()}));
+          },100);
+          onStatus({state:'presence-connected',instanceId:activeInstanceId});
+        };
+        socket.onmessage = event => {
+          let message; try { message = JSON.parse(event.data); } catch { return; }
+          if (!message || typeof message !== 'object') return;
+          if (message.t === 'w' && message.instanceId === activeInstanceId && Array.isArray(message.peers)) {
+            clearRemotePeers();
+            for (const peer of message.peers) setRemotePeer(peer.id,peer);
+          } else if ((message.t === 'j' || message.t === 'p') && Number.isSafeInteger(message.id)) {
+            setRemotePeer(message.id,message);
+          } else if (message.t === 'l') removeRemotePeer(message.id);
+          else if (message.t === 'e') onStatus({state:'presence-rejected',message:message.e});
+        };
+        socket.onerror = () => {};
+        socket.onclose = event => {
+          if (presenceSocket === socket) presenceSocket = null;
+          if (presenceSendTimer !== null) { clearInterval(presenceSendTimer); presenceSendTimer = null; }
+          clearRemotePeers();
+          if (presenceStopped || disposed || !active || instanceLeaseToken !== leaseToken) return;
+          if (event.code === 1008) { onStatus({state:'presence-rejected',message:'invalid_or_expired_lease'}); return; }
+          presenceRetry += 1;
+          const delay = Math.min(8000, 750 * (2 ** Math.min(4,presenceRetry-1)));
+          presenceReconnectTimer = setTimeout(connect,delay);
+          onStatus({state:'presence-reconnecting',delay});
+        };
+      } catch (error) {
+        if (!presenceStopped && active && instanceLeaseToken === leaseToken) {
+          presenceReconnectTimer = setTimeout(connect,2000);
+          onStatus({state:'presence-error',message:String(error?.message||error)});
+        }
+      }
+    };
+    connect();
+  }
+  function updateRemotePeerMeshes(dt) {
+    const alpha = 1 - Math.exp(-Math.max(0,Math.min(.1,dt)) * 12);
+    for (const peer of remotePeers.values()) {
+      peer.mesh.position.x += (peer.target.x-peer.mesh.position.x)*alpha;
+      peer.mesh.position.y += (peer.target.y-peer.mesh.position.y)*alpha;
+      peer.mesh.position.z += (peer.target.z-peer.mesh.position.z)*alpha;
+      let delta = peer.target.r - peer.mesh.rotation.y;
+      while (delta > Math.PI) delta -= Math.PI*2;
+      while (delta < -Math.PI) delta += Math.PI*2;
+      peer.mesh.rotation.y += delta*alpha;
+    }
   }
   function startInstanceLeaseHeartbeat() {
     if (instanceHeartbeatTimer !== null) clearInterval(instanceHeartbeatTimer);
@@ -327,6 +443,7 @@ export async function installEstatesIslandLive({
       if(edge&&near) { enterIsland(); return true; }
       return false;
     }
+    updateRemotePeerMeshes(dt);
     // Rebuild controller after its previous instance was disposed on exit.
     if(!controllerRef.isActive) {
       controllerRef=createEstatesIslandController({
@@ -364,7 +481,7 @@ export async function installEstatesIslandLive({
   const api = Object.freeze({
     tick,
     dispose(){
-      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; } void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose(); exterior.dispose();
+      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; } stopPresence(); void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose(); exterior.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },

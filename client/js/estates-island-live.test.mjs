@@ -23,6 +23,12 @@ assert(live.includes('exterior.dispose();'), 'preview geometry/materials are dis
 assert(live.includes('/api/estates/instance/enter'), 'explicit entry acquires a server-side shared-instance lease');
 assert(live.includes('/api/estates/instance/leave'), 'returning to city releases the shared-instance lease');
 assert(live.includes('/api/estates/instance/heartbeat'), 'active Estates leases are renewed to prevent stale-session leaks');
+assert(live.includes("base.searchParams.set('mode','estates')"), 'the active lease opens the dedicated Estates presence WebSocket');
+assert(live.includes("socket.send(JSON.stringify({t:'p'"), 'the client sends bounded presence snapshots while inside Estates');
+assert(live.includes("message.t === 'w'"), 'the client hydrates other visitors from the initial presence snapshot');
+assert(live.includes("message.t === 'j' || message.t === 'p'"), 'the client creates and updates remote player avatars');
+assert(live.includes("function updateRemotePeerMeshes(dt)"), 'remote avatars interpolate toward server snapshots');
+assert(live.includes("function stopPresence()"), 'returning to the city closes presence and disposes remote avatars');
 assert(live.includes('sessionStorage.removeItem(\'bcEstatesIslandSession\')'), 're-entry uses a fresh client session after release');
 assert(live.includes('instanceLifecycle:\'server-leased\''), 'ready status identifies server lease lifecycle without claiming movement replication');
 assert(live.includes('if (disposed) { void releaseEstatesInstanceLease(admission.leaseToken); return; }'), 'late admission is released if host disposes during entry');

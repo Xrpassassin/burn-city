@@ -261,7 +261,28 @@ export function buildNftChar(n, opts = {}) {
     muzzle.rotation.x=Math.PI/2;
     muzzle.name='nft-racc-tapered-muzzle';
     addSphere(head,mat('#f0e4d0'),[0,-.11,.276],[.067,.042,.055]).name='nft-racc-chin';
-    addSphere(head,mat('#17181b'),[0,-.067,.329],[.036,.026,.02]).name='nft-racc-nose';
+    // A softly flattened triangular nose and two tiny nostrils read better in profile than a sphere alone.
+    const nose=add(geo('nft-racc-nose-shape',()=>new THREE.SphereGeometry(1,12,8)),mat('#17181b'),0,-.061,.327,head);
+    nose.scale.set(.038,.026,.019); nose.name='nft-racc-nose';
+    for(const s of [-1,1]) {
+      addSphere(head,mat('#090a0c'),[s*.016,-.065,.343],[.006,.004,.003]).name='nft-racc-nostril';
+    }
+    // A restrained mouth seam anchors the muzzle pads and chin without imposing an expression trait.
+    const mouthCurve=new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0,-.079,.329),
+      new THREE.Vector3(0,-.105,.326),
+      new THREE.Vector3(-.035,-.119,.313),
+      new THREE.Vector3(-.052,-.11,.307)
+    ]);
+    const mouth=add(geo('nft-racc-mouth-seam',()=>new THREE.TubeGeometry(mouthCurve,.16,.0035,5,false)),mat('#4b3935'),0,0,0,head);
+    mouth.name='nft-racc-mouth-seam';
+    const mouthMirror=add(geo('nft-racc-mouth-seam-mirror',()=>new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0,-.079,.329),
+      new THREE.Vector3(0,-.105,.326),
+      new THREE.Vector3(.035,-.119,.313),
+      new THREE.Vector3(.052,-.11,.307)
+    ]),.16,.0035,5,false)),mat('#4b3935'),0,0,0,head);
+    mouthMirror.name='nft-racc-mouth-seam';
     if (components.tailStyle !== 'none' && components.tailStyle !== 'custom') {
       const tail = new THREE.Group(); tail.name='nft-racc-tail'; tail.position.set(0,.77,-.17); tail.rotation.x=-.72; g.add(tail);
       for(let i=0;i<6;i++) {

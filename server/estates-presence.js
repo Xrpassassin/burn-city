@@ -47,7 +47,12 @@ function attach(ws, url, instanceManager) {
     for (const other of room.values()) if (other !== peer) send(other.ws, { t: 'p', id: peer.id, ...position });
   });
 
+  const leaseWatch = setInterval(() => {
+    if (!instanceManager.inspectLease(token)) { try { ws.close(1008, 'invalid_estates_lease'); } catch {} }
+  }, 15_000);
+  leaseWatch.unref?.();
   const remove = () => {
+    clearInterval(leaseWatch);
     if (room.get(peer.id) !== peer) return;
     room.delete(peer.id);
     for (const other of room.values()) send(other.ws, { t: 'l', id: peer.id });

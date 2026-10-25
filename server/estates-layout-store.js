@@ -51,6 +51,10 @@ function createEstatesLayoutStore({ db, access, now = Date.now, catalog = CATALO
     created_by_acct AS createdByAcct, building_type AS buildingType, x, z, width, depth,
     rotation_y AS rotationY, height, created_at AS createdAt, updated_at AS updatedAt
     FROM estate_build_placements WHERE property_id=? ORDER BY created_at, placement_id`);
+  const selectPublicRows = db.prepare(`SELECT placement_id AS placementId, property_id AS propertyId,
+    building_type AS buildingType, x, z, width, depth, rotation_y AS rotationY, height,
+    created_at AS createdAt, updated_at AS updatedAt
+    FROM estate_build_placements ORDER BY property_id, created_at, placement_id`);
   const insertRow = db.prepare(`INSERT INTO estate_build_placements
     (property_id,placement_id,created_by_acct,building_type,x,z,width,depth,rotation_y,height,created_at,updated_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`);
@@ -81,6 +85,11 @@ function createEstatesLayoutStore({ db, access, now = Date.now, catalog = CATALO
     if (auth.error) return fail(auth.error);
     return Object.freeze({ ok:true, propertyId, role:auth.decision.role || 'tour',
       placements:selectRows.all(propertyId).map(row => ({ ...row })) });
+  }
+
+  function publicPlacements() {
+    // Exterior geometry is public in the shared island; never expose creator wallet/account data.
+    return Object.freeze({ ok:true, placements:selectPublicRows.all().map(row => ({ ...row })) });
   }
 
   function savePlacement(account, input = {}) {
@@ -136,7 +145,7 @@ function createEstatesLayoutStore({ db, access, now = Date.now, catalog = CATALO
     return result.changes ? { ok:true, removed:true, propertyId, placementId } : fail('placement-not-found');
   }
 
-  return Object.freeze({ list, savePlacement, removePlacement, resolveLot });
+  return Object.freeze({ list, publicPlacements, savePlacement, removePlacement, resolveLot });
 }
 
 module.exports = { SLOT_LAYOUT, LOT_WIDTH, LOT_DEPTH, FOOTPRINTS, createEstatesLayoutStore };

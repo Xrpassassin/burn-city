@@ -14,6 +14,7 @@ import { createShoreWalk } from './shore-walk.mjs';
 import { createMaraInteraction } from './cove-npc-interaction.mjs';
 import { createClueTrail } from './cove-clue-trail.mjs';
 import { createCoveAmbience } from './cove-ambience.mjs';
+import { createTavernVisit } from './tavern-visit.mjs';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -170,6 +171,7 @@ const shoreWalk=createShoreWalk({THREE,scene,camera,game,ship,trade:Trade});
 const maraInteraction=createMaraInteraction({THREE,scene,game});
 const clueTrail=createClueTrail({THREE,scene,game});
 const coveAmbience=createCoveAmbience({THREE,scene});
+const tavernVisit=createTavernVisit({THREE,scene,camera,game});
 const clock=new THREE.Clock();
 function tick(){
   requestAnimationFrame(tick);
@@ -211,10 +213,11 @@ function tick(){
   }
   if(started){
     const atPort=Trade.tick(ship.position);   // docked: helm locked while the port panel is open
-    const walking=shoreWalk.update(dt,keys);
+    const walking=shoreWalk.update(dt,tavernVisit.inside?new Set():keys);
     maraInteraction.update(shoreWalk.ashore,shoreWalk.position);
     clueTrail.update(shoreWalk.ashore,shoreWalk.position);
-    coveAmbience.update(shoreWalk.ashore,elapsed);
+    coveAmbience.update(shoreWalk.ashore&&!tavernVisit.inside,elapsed);
+    tavernVisit.update(shoreWalk.ashore,shoreWalk.position);
     if(atPort)speed=0;
     const forward=!walking&&!atPort&&hullHealth>0&&(keys.has('w')||keys.has('arrowup')||controls.forward);
     const back=!walking&&!atPort&&hullHealth>0&&(keys.has('s')||keys.has('arrowdown')||controls.back);

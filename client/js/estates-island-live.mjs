@@ -175,6 +175,7 @@ export async function installEstatesIslandLive({
   setDetailedCommunityVisible(false);
 
   let active = false, entering = false, instanceLeaseToken = null, activeInstanceId = null, activeVisitors = null, instanceHeartbeatTimer = null, returnAnchorTimer = null, presenceSocket = null, presenceSendTimer = null, presenceReconnectTimer = null, presenceStopped = true, presenceRetry = 0, lastPresenceSent = 0, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
+  let layoutLoadEpoch = 0;
   const remotePeers = new Map();
   const panel = makePanel();
   const showPanel = (heading, message, actions, muted='') => {
@@ -191,6 +192,35 @@ export async function installEstatesIslandLive({
     panel.appendChild(row); panel.style.display='block';
   };
   const hidePanel = () => { panel.style.display='none'; panel.replaceChildren(); };
+  async function refreshSavedPlacements() {
+    const epoch = ++layoutLoadEpoch;
+    const token = estateBearerToken();
+    if (!token || typeof renderer.setSavedPlacements !== 'function') {
+      renderer.setSavedPlacements?.([]);
+      return 0;
+    }
+    const propertyIds = [...new Set((catalog.properties || []).map(p => p.id).filter(id => typeof id === 'string' && id))];
+    const placements = [];
+    // Keep requests bounded; the server filters each result through its own owner/invite access policy.
+    for (let i = 0; i < propertyIds.length; i += 4) {
+      if (disposed || !active || epoch !== layoutLoadEpoch) return 0;
+      const batch = propertyIds.slice(i, i + 4);
+      const results = await Promise.all(batch.map(async propertyId => {
+        try {
+          const response = await fetch(estatesServerBase() + '/api/estates/layout?propertyId=' + encodeURIComponent(propertyId), {
+            headers: { authorization: 'Bearer ' + token }, cache: 'no-store'
+          });
+          if (!response.ok) return [];
+          const payload = await response.json();
+          if (!payload?.ok || payload.propertyId !== propertyId || !Array.isArray(payload.placements)) return [];
+          return payload.placements.filter(p => p && p.propertyId === propertyId);
+        } catch { return []; }
+      }));
+      placements.push(...results.flat());
+    }
+    if (disposed || !active || epoch !== layoutLoadEpoch) return 0;
+    return renderer.setSavedPlacements(placements);
+  }
   const showLotInspection = property => {
     const catalogued=Boolean(property.propertyId);
     showPanel('LOT INSPECTION · '+property.lotId,
@@ -294,6 +324,7 @@ export async function installEstatesIslandLive({
       if (disposed) { instanceLeaseToken = null; activeInstanceId = null; await releaseEstatesInstanceLease(admission.leaseToken); return; }
       activeVisitors = Number.isSafeInteger(admission.activeVisitors) ? admission.activeVisitors : null;
       active=true; nearCityGate=false;
+      void refreshSavedPlacements();
       startInstanceLeaseHeartbeat();
       if (returnAnchorTimer !== null) clearInterval(returnAnchorTimer);
       returnAnchorTimer = setInterval(() => {
@@ -322,7 +353,7 @@ export async function installEstatesIslandLive({
   function leaveIsland() {
     if(disposed||!active)return;
     void saveReturnAnchor({ x: player.pos.x - OFFSET_X, y: player.pos.y, z: player.pos.z, r: getYaw() }, controllerRef.navigation);
-    active=false; hidePanel(); controllerRef.dispose();
+    active=false; layoutLoadEpoch++; renderer.setSavedPlacements?.([]); hidePanel(); controllerRef.dispose();
     if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; }
     if (returnAnchorTimer !== null) { clearInterval(returnAnchorTimer); returnAnchorTimer = null; }
     stopPresence();
@@ -525,7 +556,7 @@ export async function installEstatesIslandLive({
     dispose(){
       if(disposed)return false;
       if(active) void saveReturnAnchor({ x: player.pos.x - OFFSET_X, y: player.pos.y, z: player.pos.z, r: getYaw() }, controllerRef.navigation);
-      disposed=true; hidePanel(); controllerRef.dispose();
+      disposed=true; layoutLoadEpoch++; renderer.setSavedPlacements?.([]); hidePanel(); controllerRef.dispose();
       if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; }
       if (returnAnchorTimer !== null) { clearInterval(returnAnchorTimer); returnAnchorTimer = null; }
       stopPresence(); void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose(); exterior.dispose();

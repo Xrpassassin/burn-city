@@ -21,6 +21,31 @@ def add_base_details(key, head_y, materials, sphere, cube, cone, cylinder, curve
         sphere("Base_RACC_Muzzle_L",(-.065,-.238,head_y-.09),(.09,.061,.065),light,16,10)
         sphere("Base_RACC_Muzzle_R",(.065,-.238,head_y-.09),(.09,.061,.065),light,16,10)
         sphere("Base_RACC_TailTip",(.75,.18,1.06),(.105,.103,.105),dark,16,10)
+        # Broad raccoon skull and cheek ruffs create a species-specific profile.
+        sphere("Base_RACC_Cranium",(0,.035,head_y+.055),(.245,.217,.245),fur,24,16)
+        sphere("Base_RACC_WhiteMuzzleBib",(0,-.206,head_y-.145),(.154,.071,.109),light,20,12)
+        sphere("Base_RACC_WhiskerPad_L",(-.094,-.267,head_y-.096),(.079,.036,.051),light,16,10)
+        sphere("Base_RACC_WhiskerPad_R",(.094,-.267,head_y-.096),(.079,.036,.051),light,16,10)
+        # Distinct lower jaw and throat, visible from side and three-quarter views.
+        sphere("Base_RACC_LowerJaw",(0,-.160,head_y-.218),(.137,.110,.077),fur,18,12)
+        sphere("Base_RACC_Throat",(0,-.072,head_y-.312),(.128,.115,.126),light,18,12)
+        # Broad paw-like feet with separated dark toes; not generic humanoid boots.
+        for side,tag in [(-1,"L"),(1,"R")]:
+            sphere("Base_RACC_HindPaw_"+tag,(side*.13,-.125,.117),(.112,.160,.075),fur,18,12)
+            for digit in range(3):
+                sphere("Base_RACC_HindToe_%s_%d"%(tag,digit),
+                       (side*.13+(digit-1)*.063,-.253,.095),(.032,.058,.034),dark,12,8)
+        # Tapering haunch and shoulder ruff soften the humanoid blockout.
+        for side,tag in [(-1,"L"),(1,"R")]:
+            sphere("Base_RACC_ShoulderRuff_"+tag,(side*.284,-.015,1.314),(.145,.164,.165),fur,18,12)
+            sphere("Base_RACC_Haunch_"+tag,(side*.157,.027,.695),(.152,.170,.200),fur,18,12)
+        # Whiskers are restrained, low-cost curves rather than dense hair cards.
+        for side,tag in [(-1,"L"),(1,"R")]:
+            for idx in range(2):
+                z=head_y-.105-idx*.043
+                curve("Base_RACC_Whisker_%s_%d"%(tag,idx),
+                      [(side*.11,-.276,z),(side*.20,-.289,z+.016),(side*.28,-.265,z+.035)],dark,.004)
+
     elif key == "fk":
         # Robe layers and cowl must read at distance, independent of NFT traits.
         cone("Base_Keeper_UnderRobe",(0,0,.69),.35,.23,.87,dark)

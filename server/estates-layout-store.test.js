@@ -38,6 +38,12 @@ assert.equal(placed.placement.x, -35);
 assert.equal(placed.placement.z, -91);
 assert.equal(placed.placement.status, 'persisted');
 assert.equal(placed.placement.createdAt, 1000);
+const publicLayout = store.publicPlacements();
+assert.equal(publicLayout.ok, true);
+assert.equal(publicLayout.placements.length, 1);
+assert.equal(publicLayout.placements[0].propertyId, 'trailer-01');
+assert.equal(publicLayout.placements[0].placementId, 'garden-001');
+assert.equal(Object.hasOwn(publicLayout.placements[0], 'createdByAcct'), false, 'public exterior snapshot omits creator wallet');
 assert.equal(store.list(guest, 'trailer-01').placements.length, 1, 'invited guests can inspect saved placements');
 assert.equal(store.savePlacement(owner, {
   propertyId:'trailer-01', placementId:'garden-002', buildingType:'garden',

@@ -78,7 +78,7 @@ async function inspectCandidate(item) {
   }
   const d = detail?.collection ?? detail;
   const detailIssuer = String(d?.issuer ?? d?.account ?? '');
-  const detailTaxon = Number.isInteger(Number(d?.taxon)) ? Number(d.taxon) : null;
+  const detailTaxon = typeof d?.taxon === 'number' ? (Number.isInteger(d.taxon) ? d.taxon : null) : (typeof d?.taxon === 'string' && d.taxon.trim() !== '' && Number.isInteger(Number(d.taxon)) ? Number(d.taxon) : null);
   const detailMatches = Boolean(detail && detailIssuer === c.issuer && detailTaxon === c.taxon);
   if (detail && !detailMatches) {
     errors.push({ code: 'DISCOVERY_DETAIL_MISMATCH', candidateIssuer: c.issuer, detailIssuer: detailIssuer || null, candidateTaxon: c.taxon, detailTaxon });

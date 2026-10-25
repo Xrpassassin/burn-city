@@ -82,6 +82,31 @@ function addEstateFacade(THREE,parent,item) {
   }
   return made;
 }
+// Small decorative landscaping details; no gameplay collision or ownership effects.
+function addEstateLandscaping(THREE,parent,item) {
+  const f=item.buildingFootprint;
+  if(!f) return [];
+  const {x,y,z}=item.position, made=[];
+  const front=z-f.depth/2;
+  // Planting beds stay close to the facade, clear of the public road.
+  for(const side of [-1,1]) {
+    const bx=x+side*Math.min(f.width*.38,4.4);
+    made.push(box(THREE,parent,item.id+'-planter-'+side,{x:bx,y:y+.14,z:front-.55},1.25,.28,.85,0x685447));
+    const shrub=new THREE.Mesh(new THREE.ConeGeometry(.48,.9,7),material(THREE,0x426d40));
+    shrub.name=item.id+'-shrub-'+side;
+    place(shrub,{x:bx,y:y+.72,z:front-.55});parent.add(shrub);made.push(shrub);
+  }
+  // Footpath terminates at the porch and does not cross into the public road.
+  made.push(box(THREE,parent,item.id+'-front-path',{x,y:y+.025,z:front-2.45},
+    Math.min(1.65,f.width*.3),.08,2.2,0xa59b87));
+  if(item.tier==='mansion') {
+    for(const side of [-1,1]) {
+      made.push(box(THREE,parent,item.id+'-garden-wall-'+side,
+        {x:x+side*(f.width/2+1.0),y:y+.38,z:front-.9},.28,.75,3.5,0x988d7d));
+    }
+  }
+  return made;
+}
 function addTree(THREE,parent,item) {
   const {x,y,z}=item.position, d=item.dimensions, color=PALETTE[item.material]??PALETTE.deciduous;
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.34,d.height*.38,7),material(THREE,0x59412b));
@@ -140,6 +165,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
           const roof=box(THREE,root,item.id+'-roof-blockout',{x:p.x,y:p.y+f.height+.12,z:p.z},f.width+.35,.24,f.depth+.35,0x49352a);
           made.push(roof);
           made.push(...addEstateFacade(THREE,root,item));
+          made.push(...addEstateLandscaping(THREE,root,item));
         }
         break;
       }

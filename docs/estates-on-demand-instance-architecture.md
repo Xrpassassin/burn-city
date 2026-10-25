@@ -27,7 +27,8 @@ The current client integration implements this as a presentation boundary: a lig
 
 The live city entrance now calls the server's public instance admission endpoints only after the player confirms entry:
 - `POST /api/estates/instance/enter` accepts a per-tab opaque client session identifier and returns a server-generated lease token, an ephemeral shared logical instance ID, and an active lease count.
-- `POST /api/estates/instance/leave` releases that lease. Repeated entry for the same session is idempotent; repeated release is safe.
+- `POST /api/estates/instance/heartbeat` renews an active lease; the browser sends it every 25 seconds and the server expires stale leases after 90 seconds without a heartbeat.
+- `POST /api/estates/instance/leave` releases that lease. Repeated entry for the same session is idempotent; repeated release is safe. The client rotates its session key after exit to avoid a rapid re-entry/release race.
 - The server keeps one `estates-island` logical instance generation while leases exist, reuses it during the idle grace period, then retires that generation after the last lease leaves.
 - If admission fails, the player remains in BURN City and can retry. A late admission response is released if the live host is disposed before entry completes.
 

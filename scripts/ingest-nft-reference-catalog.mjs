@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodeNftUri, safeUrl } from './nft-uri-utils.mjs';
 import { validateIngestPlan } from './nft-ingest-plan-validator.mjs';
+import { reconcileNftInventory } from './nft-inventory-reconciliation.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configPath = path.join(root, 'client/js/nft-collection-ingest-plan.json');
@@ -92,6 +93,7 @@ async function main() {
   let hadErrors = false;
   for (const c of configured) {
     const records = new Map();
+    const observedRows = [];
     const errors = [];
     let expected = c.expectedCount;
     console.log('Importing', c.displayName, 'from', c.slug, 'expected', expected);
@@ -124,6 +126,7 @@ async function main() {
           hadErrors = true; break;
         }
         for (const row of rows) {
+          observedRows.push(row);
           const tokenId = String(row?.NFTokenID ?? row?._id ?? '').toUpperCase();
           if (String(row?.issuer ?? '') !== c.issuer || Number(row?.taxon) !== c.taxon) {
             errors.push({ code: 'TOKEN_IDENTITY_MISMATCH', tokenId, issuer: row?.issuer, taxon: row?.taxon });
@@ -139,12 +142,20 @@ async function main() {
       errors.push({ code: 'COLLECTION_VALIDATION_FAILED', message: String(error.message ?? error) });
       hadErrors = true;
     }
-    const inventoryComplete = errors.length === 0 && records.size === expected;
+    const reconciliation = reconcileNftInventory({
+      candidate: { name: c.displayName, slug: c.slug, issuer: c.issuer, taxon: c.taxon, expectedCount: expected },
+      verifiedIdentity: { slug: c.slug, issuer: c.issuer, taxon: c.taxon },
+      expectedCount: expected,
+      tokens: observedRows,
+      pageErrors: errors
+    });
+    const inventoryComplete = errors.length === 0 && records.size === expected && reconciliation.inventoryComplete;
     if (!inventoryComplete) hadErrors = true;
     const report = {
       schemaVersion: 1, source: 'https://xrpl.to', sourceMarketplace: 'https://xrp.cafe',
       collection: { key: c.key, name: c.displayName, slug: c.slug, issuer: c.issuer, taxon: c.taxon },
       expectedCount: expected, observedUniqueCount: records.size, inventoryComplete,
+      reconciliation,
       errors, records: [...records.values()].sort((a, b) => a.tokenId.localeCompare(b.tokenId)),
       attribution: 'NFT catalog data provided via documented XRPL.to API; link to https://xrpl.to wherever this data is displayed. Artwork rights/license remain subject to each NFT metadata and rights review.'
     };

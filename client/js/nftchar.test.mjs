@@ -261,6 +261,12 @@ has(avatar, /Concentric weave rows lie flat across the hat's horizontal cross-se
 lacks(avatar, /ring\.rotation\.x=Math\.PI\/2/, 'does not rotate concentric straw-hat weave into vertical hoops');
 has(avatar, /nft-straw-hat-weave-row-/, 'adds raised weave rows to improve material readability');
 has(avatar, /nft-straw-hat-band/, 'renders a separate hat band rather than flattening all details into color');
+has(avatar, /nft-racc-striped-sweater/, 'reconstructs the named RACC yellow-striped sweater only when its source trait is present');
+has(avatar, /nft-racc-sweater-stripe/, 'adds segmented horizontal yellow sweater stripes to the torso surface');
+has(avatar, /nft-racc-sweater-collar/, 'adds the sweater collar as separate geometry');
+has(avatar, /nft-tnt-paper-band/, 'adds paper bands to the cylindrical TNT stick');
+has(avatar, /nft-tnt-spark-core/, 'layers a hot spark core and embers onto the TNT fuse');
+lacks(avatar, /nft-racc-striped-sweater[\\s\\S]*?if \(key !== 'racc'\)/, 'does not make the RACC sweater recipe unconditional');
 
 has(avatar, /const pal = n\?\.pal \|\| \{\}, key = String\(n\?\.key \|\| '589'\)\.trim\(\)\.toLowerCase\(\)/, 'normalizes collection keys before collection-specific geometry selection');
 

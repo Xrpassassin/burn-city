@@ -8,6 +8,8 @@ const EstateRights = require('./estates-rights');
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
+const KimiReview = require('./kimi-review');
+const kimiReviewer = KimiReview.createKimiReviewer();
 const estatesInstance = createEstatesInstanceManager();
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const Jetpack = require('./jetpack');
@@ -120,6 +122,14 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/ranked/payout') return json(res, 200, Ranked.payoutStatus(String(url.searchParams.get('match') || '')));
     if (url.pathname === '/api/ranked/mine') { const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' }); return json(res, 200, { payouts: Ranked.Q.forAcct(u.acct) }); }
     if (url.pathname === '/admin/chat/reports' && req.method === 'GET') { if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' }); return json(res, 200, { reports: require('./hate').reports(+url.searchParams.get('n') || 100) }); }
+    if (url.pathname === '/admin/kimi/review') {
+      if (req.method !== 'POST') return json(res, 405, { error: 'method_not_allowed' });
+      if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });
+      if (gate('kimi-review:' + ip, 5, 60e3)) return json(res, 429, { error: 'slow_down' });
+      const b = await body();
+      const result = await kimiReviewer.review(typeof b.context === 'string' ? b.context : '');
+      return json(res, result.ok ? 200 : result.status, result.ok ? { review: result.review, model: result.model } : { error: result.error, ...(result.maxChars ? { maxChars: result.maxChars } : {}) });
+    }
     if (url.pathname === '/admin/unpause' && req.method === 'POST') { if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' }); return json(res, 200, require('./watch').unpause()); }
     if (url.pathname.startsWith('/admin/ranked')) {   // manual approval only
       if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });

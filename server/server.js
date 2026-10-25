@@ -133,6 +133,11 @@ const server = http.createServer(async (req, res) => {
       const b = await body(), result = estatesInstance.enter(String(b.clientId || ''));
       return json(res, result.ok ? 200 : 400, result);
     }
+    if (url.pathname === '/api/estates/instance/heartbeat' && req.method === 'POST') {
+      if (gate('estates-instance-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
+      const b = await body(), result = estatesInstance.heartbeat(String(b.leaseToken || ''));
+      return json(res, result.ok ? 200 : 410, result);
+    }
     if (url.pathname === '/api/estates/instance/leave' && req.method === 'POST') {
       if (gate('estates-instance-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
       const b = await body(), result = estatesInstance.leave(String(b.leaseToken || ''));

@@ -36,7 +36,7 @@ function addBridgeArchitecture(THREE, root) {
   const glow = new THREE.MeshStandardMaterial({ color: 0x29dfff, emissive: 0x087eaa, emissiveIntensity: 1.6, metalness: .25, roughness: .3 });
   const addBox = (name, x, y, z, w, h, d, mat) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
-    mesh.name = name; mesh.position.set(x,y,z); root.add(mesh); return mesh;
+    mesh.name = name; mesh.position.set(x,y,z); mesh.userData.estatesExteriorVisible = true; root.add(mesh); return mesh;
   };
   // A real traversable-looking span connects the city-side gate to the island's north bridge.
   addBox('estates-city-bridge-deck', -105, .12, 188, 210, .34, 10, stone);
@@ -73,6 +73,49 @@ export async function installEstatesIslandLive({
   const root = renderer.root;
   root.position.x = OFFSET_X;
   addBridgeArchitecture(THREE, root);
+
+  // Keep a compact scenic silhouette in the city view. The detailed shared community
+  // is revealed only after explicit entry; the bridge/gate remain visible outside.
+  function makeExteriorPreview() {
+    const preview = new THREE.Group();
+    preview.name = 'estates-exterior-preview';
+    preview.position.set(OFFSET_X, 0, 75);
+    const mat = (color, options={}) => new THREE.MeshStandardMaterial({ color, roughness: options.roughness ?? .9, metalness: options.metalness ?? 0, transparent: options.transparent ?? false, opacity: options.opacity ?? 1, side: THREE.DoubleSide });
+    const water = new THREE.Mesh(new THREE.RingGeometry(42, 68, 96), mat(0x164f70, { roughness: .28, metalness: .08 }));
+    water.name = 'estates-exterior-lake-ring'; water.rotation.x = -Math.PI/2; water.position.y = -.1; preview.add(water);
+    const island = new THREE.Mesh(new THREE.CircleGeometry(41, 96), mat(0x526d3b));
+    island.name = 'estates-exterior-island'; island.rotation.x = -Math.PI/2; island.position.y = .02; preview.add(island);
+    const add = (name, x, y, z, w, h, d, color) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat(color));
+      mesh.name = name; mesh.position.set(x,y,z); preview.add(mesh); return mesh;
+    };
+    // Tiny, recognizable roofline silhouettes communicate a lived-in neighborhood without
+    // exposing full lot/building detail until the player enters the Estates instance.
+    add('estates-preview-community-hall', 0, 1.1, 2, 5.5, 2.2, 4.5, 0xd1c3a2);
+    add('estates-preview-hall-roof', 0, 2.45, 2, 6, .45, 5, 0x49352a);
+    add('estates-preview-lakeside-home', -14, .8, -9, 3.2, 1.6, 3, 0xb59a76);
+    add('estates-preview-lakeside-roof', -14, 1.8, -9, 3.6, .35, 3.4, 0x49352a);
+    add('estates-preview-east-home', 14, .75, 10, 3, 1.5, 3, 0x9e8466);
+    add('estates-preview-east-roof', 14, 1.65, 10, 3.4, .3, 3.4, 0x49352a);
+    for (const [i,x,z] of [[1,-25,-18],[2,25,-15],[3,-24,19],[4,25,22]]) {
+      const tree = new THREE.Mesh(new THREE.ConeGeometry(2.4, 7, 7), mat(0x31563a));
+      tree.name = 'estates-preview-tree-'+i; tree.position.set(x,3.5,z); preview.add(tree);
+    }
+    scene.add(preview);
+    return { preview, dispose() {
+      scene.remove(preview);
+      preview.traverse?.(node => {
+        node.geometry?.dispose?.();
+        if (Array.isArray(node.material)) node.material.forEach(m=>m?.dispose?.()); else node.material?.dispose?.();
+      });
+    }};
+  }
+  const exterior = makeExteriorPreview();
+  const setDetailedCommunityVisible = visible => {
+    for (const child of root.children) child.visible = visible || Boolean(child.userData?.estatesExteriorVisible);
+    exterior.preview.visible = !visible;
+  };
+  setDetailedCommunityVisible(false);
 
   let active = false, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
   const panel = makePanel();
@@ -174,6 +217,7 @@ export async function installEstatesIslandLive({
   function enterIsland() {
     if (disposed || active) return;
     active=true; nearCityGate=false; hidePanel();
+    setDetailedCommunityVisible(true);
     if(getMode()!=='explore') setMode('explore');
     player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);
     player.fp=false;
@@ -185,6 +229,7 @@ export async function installEstatesIslandLive({
   function leaveIsland() {
     if(disposed||!active)return;
     active=false; hidePanel(); controller.dispose();
+    setDetailedCommunityVisible(false);
     player.pos.set(CITY_GATE.x,CITY_GATE.y,CITY_GATE.z);
     setYaw(Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;

@@ -63,7 +63,7 @@
     "test:estates-island-controller": "node client/js/estates-island-controller.test.mjs",
     "test:estates-island-live": "node client/js/estates-island-live.test.mjs",
     "test:estate-access": "node test/estate-access.test.js",
-    "test:nft-avatar": "node client/js/nftchar.test.mjs && node client/js/nft-avatar-components.test.mjs && node client/js/nft-avatar-reconstruction.test.mjs && node client/js/nft-avatar-collection-recipes.test.mjs && node client/js/nft-avatar-runtime-adapter.test.mjs && node scripts/nft-avatar-build-spec.test.mjs && node scripts/nft-avatar-build-pipeline.test.mjs && node scripts/nft-avatar-asset-pipeline.test.mjs && npm run -s test:nft-avatar-model-factory && node scripts/nft-avatar-token-trait-geometry.test.mjs && node scripts/nft-avatar-model-candidates.test.mjs",
+    "test:nft-avatar": "node client/js/nftchar.test.mjs && node client/js/nft-avatar-components.test.mjs && node client/js/nft-avatar-reconstruction.test.mjs && node client/js/nft-avatar-collection-recipes.test.mjs && node client/js/nft-avatar-runtime-adapter.test.mjs && node scripts/nft-avatar-build-spec.test.mjs && node scripts/nft-avatar-build-pipeline.test.mjs && node scripts/nft-avatar-asset-pipeline.test.mjs && npm run -s test:nft-avatar-model-factory && node scripts/nft-avatar-token-trait-geometry.test.mjs && node scripts/nft-avatar-model-candidates.test.mjs && node client/js/nft-avatar-candidate-adapter.test.mjs",
     "test:nft-avatar-runtime-adapter": "node client/js/nft-avatar-runtime-adapter.test.mjs",
     "test:nft-avatar-model-factory": "node scripts/nft-avatar-model-factory.test.mjs",
     "test:nft-avatar-collection-recipes": "node client/js/nft-avatar-collection-recipes.test.mjs",
@@ -75,7 +75,8 @@
     "test:nft-discovery": "node scripts/discover-nft-collections.test.mjs",
     "test:nft-reconciliation": "node scripts/nft-inventory-reconciliation.test.mjs",
     "test:nft-discovery-reconciliation": "node scripts/reconcile-nft-discovery.test.mjs",
-    "test:nft-avatar-model-candidates": "node scripts/nft-avatar-model-candidates.test.mjs"
+    "test:nft-avatar-model-candidates": "node scripts/nft-avatar-model-candidates.test.mjs",
+    "test:nft-avatar-candidate-adapter": "node client/js/nft-avatar-candidate-adapter.test.mjs"
   },
   "keywords": [],
   "author": "",

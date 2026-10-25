@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { inspectGlbBuffer } from './nft-avatar-glb-inspector.mjs';
 
-function makeGlb(json) {
+function makeGlb(json, binary = null) {
   const jsonBytes=Buffer.from(JSON.stringify(json));
   const paddedLength=(jsonBytes.length+3)&~3;
   const padded=Buffer.alloc(paddedLength,0x20);
   jsonBytes.copy(padded);
-  const total=12+8+paddedLength;
+  const binBytes = binary == null ? null : Buffer.concat([binary,Buffer.alloc((4-(binary.length%4))%4)]);
+  const total=12+8+paddedLength+(binBytes ? 8+binBytes.length : 0);
   const header=Buffer.alloc(12);
   header.writeUInt32LE(0x46546c67,0);
   header.writeUInt32LE(2,4);
@@ -14,7 +15,14 @@ function makeGlb(json) {
   const chunkHeader=Buffer.alloc(8);
   chunkHeader.writeUInt32LE(paddedLength,0);
   chunkHeader.writeUInt32LE(0x4e4f534a,4);
-  return Buffer.concat([header,chunkHeader,padded]);
+  const chunks=[header,chunkHeader,padded];
+  if (binBytes) {
+    const binHeader=Buffer.alloc(8);
+    binHeader.writeUInt32LE(binBytes.length,0);
+    binHeader.writeUInt32LE(0x004e4942,4);
+    chunks.push(binHeader,binBytes);
+  }
+  return Buffer.concat(chunks);
 }
 const valid={
  asset:{version:'2.0',generator:'unit-test'},
@@ -47,6 +55,17 @@ const badAnimation=structuredClone(valid); badAnimation.animations[0].channels[0
 assert.ok(inspectGlbBuffer(makeGlb(badAnimation)).errors.some(e=>e.code==='ANIMATION_PATH'));
 const external=structuredClone(valid); external.images=[{uri:'textures/albedo.png'}];
 assert.ok(inspectGlbBuffer(makeGlb(external)).warnings.some(w=>w.code==='EXTERNAL_RESOURCE'));
+const embedded=structuredClone(valid);
+embedded.buffers=[{byteLength:8}];
+embedded.bufferViews=[{buffer:0,byteOffset:0,byteLength:8}];
+const embeddedGood=inspectGlbBuffer(makeGlb(embedded,Buffer.alloc(8)));
+assert.equal(embeddedGood.ok,true,'embedded buffer with matching BIN chunk is accepted');
+const missingBin=inspectGlbBuffer(makeGlb(embedded));
+assert.ok(missingBin.errors.some(e=>e.code==='MISSING_BIN_CHUNK'));
+const oversizedEmbedded=structuredClone(embedded);
+oversizedEmbedded.buffers[0].byteLength=12;
+const oversized=inspectGlbBuffer(makeGlb(oversizedEmbedded,Buffer.alloc(8)));
+assert.ok(oversized.errors.some(e=>e.code==='BUFFER_BIN_LENGTH'));
 const truncated=makeGlb(valid).subarray(0,15);
 assert.equal(inspectGlbBuffer(truncated).ok,false);
-console.log('NFT avatar GLB inspector: 8 assertions passed');
+console.log('NFT avatar GLB inspector: 11 assertions passed');

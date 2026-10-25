@@ -1,4 +1,4 @@
-"""Render a repeatable four-view QA contact sheet of a collection base GLB.
+"""Render four repeatable QA views of a collection base GLB.
 
 Run: blender -b --python tools/blender/nft_avatar_base_preview.py -- input.glb output.png
 Requires Blender and its glTF importer. Uses neutral studio lighting and orthographic
@@ -62,29 +62,15 @@ def main():
     scene.camera=camera
     # Model faces -Y. Four diagnostic views: front, 3/4, side, rear.
     directions=[(0,-1,0),(1,-1,0),(1,0,0),(0,1,0)]
-    from pathlib import Path
-    from tempfile import TemporaryDirectory
-    from PIL import Image,ImageDraw
-    with TemporaryDirectory() as temp:
-        images=[]
-        for idx,(x,y,z) in enumerate(directions):
-            direction=Vector((x,y,z)).normalized()
-            camera.location=center+direction*max(extent*2,3)
-            camera.rotation_euler=(center-camera.location).to_track_quat("-Z","Y").to_euler()
-            scene.render.filepath=os.path.join(temp,str(idx)+".png")
-            bpy.ops.render.render(write_still=True)
-            images.append(Image.open(scene.render.filepath).convert("RGB"))
-        sheet=Image.new("RGB",(1024,1024),(35,35,35))
-        draw=ImageDraw.Draw(sheet)
-        for i,(label,im) in enumerate(zip(["FRONT","THREE-QUARTER","SIDE","REAR"],images)):
-            x=(i%2)*512
-            y=(i//2)*512
-            sheet.paste(im,(x,y))
-            draw.rectangle((x+8,y+8,x+158,y+36),fill=(20,20,20))
-            draw.text((x+16,y+16),label,fill=(255,255,255))
-        os.makedirs(os.path.dirname(destination),exist_ok=True)
-        sheet.save(destination)
-    print("QA preview saved:",destination,"(not a runtime approval)")
+    root,_=os.path.splitext(destination)
+    os.makedirs(os.path.dirname(destination),exist_ok=True)
+    for label,(x,y,z) in zip(["front","three-quarter","side","rear"],directions):
+        direction=Vector((x,y,z)).normalized()
+        camera.location=center+direction*max(extent*2,3)
+        camera.rotation_euler=(center-camera.location).to_track_quat("-Z","Y").to_euler()
+        scene.render.filepath=root+"-"+label+".png"
+        bpy.ops.render.render(write_still=True)
+    print("Four QA previews saved with prefix:",root,"(not a runtime approval)")
 
 if __name__=="__main__":
     main()

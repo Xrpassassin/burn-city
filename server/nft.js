@@ -45,6 +45,26 @@ let sel = S.load('nft_sel.json', {});              // acct -> NFTokenID (selecte
 const owned = new Map();                           // acct -> { t, list:[{id,key}] }
 const metaMem = new Map(), inflight = new Map();
 const TTL = 5 * 60e3;
+// Production intake stores token identities only, never player accounts or auth tokens.
+// The verified scan below is the only source; marketplace metadata cannot add holdings.
+const HOLDER_QUEUE_FILE = 'nft_holder_avatar_intake.json';
+const HOLDER_QUEUE_LIMIT = 12000;
+function recordVerifiedHolderTokens(list, now = Date.now()) {
+  if (!Array.isArray(list) || !list.length) return;
+  const allowed = new Set(['racc', 'fk', '589']);
+  const current = S.load(HOLDER_QUEUE_FILE, { version: 1, tokens: {} });
+  if (!current || typeof current.tokens !== 'object' || Array.isArray(current.tokens)) return;
+  let changed = false;
+  for (const nft of list) {
+    if (!nft || !allowed.has(nft.key) || !NID.test(nft.id)) continue;
+    const id = nft.id.toUpperCase();
+    const previous = current.tokens[id];
+    if (!previous && Object.keys(current.tokens).length >= HOLDER_QUEUE_LIMIT) break;
+    if (!previous) { current.tokens[id] = { id, key: nft.key, firstVerifiedAt: now, lastVerifiedAt: now }; changed = true; }
+    else if (previous.key === nft.key) { previous.lastVerifiedAt = now; changed = true; }
+  }
+  if (changed) S.save(HOLDER_QUEUE_FILE, current);
+}
 
 function ipfs(u) { u = String(u || '').trim(); if (u.startsWith('ipfs://')) return u.slice(7).replace(/^ipfs\//, ''); const m = u.match(/\/ipfs\/(.+)$/); return m ? m[1] : null; }
 async function get(u, type) {
@@ -60,7 +80,9 @@ async function scan(acct, ledger) {                 // every collection NFT the 
   for (let i = 0; i < 20; i++) { const r = (await cl.request({ command: 'account_nfts', account: acct, limit: 400, marker })).result;
     for (const n of r.account_nfts) { const c = COLS[n.Issuer + ':' + n.NFTokenTaxon]; if (c) list.push({ id: n.NFTokenID.toUpperCase(), key: c.key, uri: n.URI || '', serial: n.nft_serial }); }
     if (!(marker = r.marker)) break; }
-  owned.set(acct, { t: Date.now(), list }); return list;
+  owned.set(acct, { t: Date.now(), list });
+  try { recordVerifiedHolderTokens(list); } catch (e) { console.error('nft holder intake:', e.message); }
+  return list;
 }
 async function holdings(acct, ledger, fresh) { const o = owned.get(acct); if (!fresh && o && Date.now() - o.t < TTL) return o.list; return scan(acct, ledger); }
 

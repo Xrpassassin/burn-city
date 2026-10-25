@@ -114,6 +114,9 @@ export function canEquipTrait(asset, character = {}) {
   if (!asset) return { ok: false, reason: 'trait-asset-not-found' };
   if (asset.visualApproval !== 'approved') return { ok: false, reason: 'trait-visual-not-approved' };
   if (asset.rightsStatus !== 'approved') return { ok: false, reason: 'trait-rights-not-approved' };
+  const assetCollection = text(asset.collection).toLowerCase();
+  const characterCollection = text(character.collection).toLowerCase();
+  if (!assetCollection || !characterCollection || assetCollection !== characterCollection) return { ok: false, reason: 'collection-mismatch' };
   const rig = text(character.rigFamily).toLowerCase();
   if (asset.rigFamilies.length && (!rig || !asset.rigFamilies.includes(rig))) return { ok: false, reason: 'incompatible-rig' };
   const slots = list(character.supportedSlots).map(v => text(v).toLowerCase());
@@ -132,4 +135,28 @@ export function validateCollectionInventory({ collection, expectedCount, tokens 
   if (unique.size !== validIds.length) errors.push({ code: 'DUPLICATE_TOKEN_IDS', duplicates: validIds.length - unique.size });
   if (Number.isInteger(expectedCount) && expectedCount !== unique.size) errors.push({ code: 'INVENTORY_COUNT_MISMATCH', expected: expectedCount, observed: unique.size });
   return Object.freeze({ collection: text(collection), expectedCount: Number.isInteger(expectedCount) ? expectedCount : null, observedCount: unique.size, complete: errors.length === 0 && Number.isInteger(expectedCount), errors: Object.freeze(errors) });
+}
+
+/** Resolve each source trait only against its own collection's canonical asset key.
+ * Missing/unreviewed/incompatible traits stay visible in the manifest for QA; they are never
+ * silently borrowed from another collection or replaced with a guessed visual.
+ */
+export function buildTraitAssemblyManifest({ collection, traits = [], registry, character = {} } = {}) {
+  const collectionKey = text(collection).toLowerCase();
+  if (!collectionKey) throw new TypeError('collection is required');
+  if (!registry || typeof registry.get !== 'function') throw new TypeError('trait asset registry is required');
+  const target = { ...character, collection: collectionKey };
+  const entries = list(traits).map((trait, index) => {
+    const type = text(trait?.type ?? trait?.trait_type ?? trait?.traitType);
+    const value = text(trait?.value);
+    if (!type || !value) return { index, type, value, status: 'invalid-source-trait', reason: 'trait-type-and-value-required', assetId: null, slot: '' };
+    let asset;
+    try { asset = registry.get({ collection: collectionKey, type, value, variant: text(trait?.variant) || 'default' }); }
+    catch { asset = null; }
+    if (!asset) return { index, type, value, status: 'missing-asset', reason: 'trait-asset-not-found-in-collection', assetId: null, slot: '' };
+    const eligibility = canEquipTrait(asset, target);
+    return { index, type, value, status: eligibility.ok ? 'ready' : 'blocked', reason: eligibility.reason, assetId: asset.id, slot: asset.slot, modelRef: eligibility.ok ? asset.modelRef : '', materialRef: eligibility.ok ? asset.materialRef : '', textureRefs: eligibility.ok ? [...asset.textureRefs] : [] };
+  });
+  const ready = entries.filter(entry => entry.status === 'ready').length;
+  return Object.freeze({ collection: collectionKey, totalTraits: entries.length, readyTraits: ready, blockedTraits: entries.length - ready, complete: entries.length > 0 && ready === entries.length, entries: Object.freeze(entries) });
 }

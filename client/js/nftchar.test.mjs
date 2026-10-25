@@ -245,6 +245,10 @@ has(avatar, /nft-artwork-curved-panel/, 'wraps the original NFT artwork onto a c
 has(avatar, /geometry\.computeVertexNormals\(\)/, 'computes normals for the curved artwork surface');
 has(avatar, /positions\.push\(px, v-\.5, \.055\*\(1-Math\.pow\(px\*2,2\)\)\)/, 'curves the artwork toward the viewer at the center and blends its edges toward the torso');
 has(avatar, /artworkIdentity=\{mode:'framed-full-composition',source:url,aspectFit:'contain',cropped:false\}/, 'preserves the original full artwork without cropping while improving panel fit');
+has(avatar, /nft-straw-hat-brim/, 'renders a broad brim for source-specific woven hats');
+has(avatar, /nft-straw-hat-crown/, 'renders a tapered three-dimensional hat crown');
+has(avatar, /nft-straw-hat-weave-row-/, 'adds raised weave rows to improve material readability');
+has(avatar, /nft-straw-hat-band/, 'renders a separate hat band rather than flattening all details into color');
 
 has(avatar, /const pal = n\?\.pal \|\| \{\}, key = String\(n\?\.key \|\| '589'\)\.trim\(\)\.toLowerCase\(\)/, 'normalizes collection keys before collection-specific geometry selection');
 

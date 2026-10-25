@@ -23,6 +23,16 @@ The current client integration implements this as a presentation boundary: a lig
 - `client/js/experience-instance-pool.test.mjs` covers concurrent arrivals, shared identity, idempotent release, idle timer cancellation, disposal, independent shard keys, and creation retry after failure.
 - This module does not create the 3D scene, authenticate players, save property state, or deploy a server. Hark should connect the lifecycle primitive to the actual destination adapter only after the server-side identity and access checks are in place.
 
+## Live gate-to-server lease integration
+
+The live city entrance now calls the server's public instance admission endpoints only after the player confirms entry:
+- `POST /api/estates/instance/enter` accepts a per-tab opaque client session identifier and returns a server-generated lease token, an ephemeral shared logical instance ID, and an active lease count.
+- `POST /api/estates/instance/leave` releases that lease. Repeated entry for the same session is idempotent; repeated release is safe.
+- The server keeps one `estates-island` logical instance generation while leases exist, reuses it during the idle grace period, then retires that generation after the last lease leaves.
+- If admission fails, the player remains in BURN City and can retry. A late admission response is released if the live host is disposed before entry completes.
+
+**Important boundary:** this implements server-side shared admission and lease lifecycle, not yet networked player presence/movement, server-authoritative collision/game simulation, or persistent property layout saves. The browser currently renders its local copy of the same deterministic island scene. The returned `activeVisitors` count is lease telemetry, not proof that other avatars are visible in the scene. Property ownership and build actions must continue to use their separate authenticated server checks.
+
 ## Boundaries and security
 - Never trust a client-supplied `playerId` as authentication. Pass the server-verified account/session identity to the lifecycle adapter.
 - The client may request a transition, but the server decides whether it is allowed and which instance/shard it joins.

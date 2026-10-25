@@ -9,6 +9,7 @@ import { bootstrapApprovedCrew } from './nft-crew-bootstrap.mjs';
 import { createCrewLifecycle } from './nft-crew-lifecycle.mjs';
 import { createCrewAnimator } from './nft-crew-animator.mjs';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
+import { buildCinderCove } from './cinder-cove.mjs';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -64,7 +65,9 @@ function makeIsland(x,z,scale=1){
   }
   group.position.set(x,0,z);scene.add(group);return group;
 }
-makeIsland(-56,-84,1.6); makeIsland(68,-142,2.1); makeIsland(120,40,1.2); makeIsland(-135,115,1.8); makeIsland(18,-260,2.5);
+const cinderIsland = makeIsland(-56,-84,1.6);
+cinderIsland.add(buildCinderCove(THREE));
+makeIsland(68,-142,2.1); makeIsland(120,40,1.2); makeIsland(-135,115,1.8); makeIsland(18,-260,2.5);
 
 function mat(color,roughness=.75,metalness=0){return new THREE.MeshStandardMaterial({color,roughness,metalness,flatShading:true})}
 const ship = new THREE.Group();

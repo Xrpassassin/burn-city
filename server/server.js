@@ -173,6 +173,10 @@ const server = http.createServer(async (req, res) => {
       const u = who(), result = EstateAccess.accessFor(u ? u.acct : '', String(url.searchParams.get('propertyId') || ''));
       return json(res, result.allowed ? 200 : (result.reason === 'unknown_property' ? 404 : result.reason === 'sign_in_required' ? 401 : 403), result);
     }
+    if (url.pathname === '/api/estates/layouts/public' && req.method === 'GET') {
+      if (gate('estates-layout-public-ip:' + ip, 60, 60e3)) return json(res, 429, { error:'slow_down' });
+      return json(res, 200, estateLayouts.publicPlacements());
+    }
     if (url.pathname === '/api/estates' || url.pathname.startsWith('/api/estates/')) {   // Estates (server/estates.js): bearer auth first; sales/distributions stay disabled
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });

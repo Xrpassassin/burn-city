@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { createCrewLifecycle } from './nft-crew-lifecycle.mjs';
+const removed=[],ship={remove:x=>removed.push(x)};
+const a={name:'a'},b={name:'b'};
+const life=createCrewLifecycle({ship,load:async r=>({ok:true,model:r})});
+assert.equal((await life.replace(a)).ok,true);
+assert.equal((await life.replace(b)).ok,true);
+assert.equal(life.model,b);assert.deepEqual(removed,[a]);
+life.clear();assert.equal(life.model,null);assert.deepEqual(removed,[a,b]);
+let finish;const pending=new Promise(resolve=>finish=resolve);
+const race=createCrewLifecycle({ship,load:async()=>pending});
+const p=race.replace(a);race.clear();finish({ok:true,model:a});
+assert.equal((await p).reason,'superseded');
+race.dispose();assert.equal((await race.replace(a)).reason,'disposed');
+console.log('BlackTide NFT crew lifecycle tests passed');

@@ -28,9 +28,10 @@ def main():
     source=Path(args.input).resolve()
     if not source.is_file() or source.suffix.lower()!=".glb":
         parser.error("--input must point to an existing .glb file")
+    scripts=Path(__file__).resolve().parent
+    run([sys.executable,str(scripts/"racc_glb_preflight.py"),str(source)])
     out=Path(args.out).resolve()
     out.mkdir(parents=True,exist_ok=True)
-    scripts=Path(__file__).resolve().parent
     scene=out/"racc-fused.blend"
     review=out/"racc-fused-review.glb"
     preview=out/"racc-preview.png"

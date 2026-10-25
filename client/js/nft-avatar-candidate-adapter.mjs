@@ -43,6 +43,7 @@ export function createCandidateBuildPlan(catalog, candidateId, collectionKey) {
 }
 
 export function candidatePlanCanShip(plan) {
-  if (!plan || plan.status !== 'research-plan' || plan.runtimeEligible !== false) return false;
-  return Object.values(plan.gates || {}).every(value => value === true);
+  // Research plans are never shippable, even if a caller mutates gate booleans.
+  // Shipping requires a separate, provenance-backed approval record and runtime adapter.
+  return false;
 }

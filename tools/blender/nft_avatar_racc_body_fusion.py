@@ -1,6 +1,6 @@
 """Experimental RACC organic body fusion for Blender authoring.
 
-Usage: blender -b racc-blockout.blend --python tools/blender/nft_avatar_racc_body_fusion.py -- output.blend
+Usage: blender -b --python tools/blender/nft_avatar_racc_body_fusion.py -- input.glb output.blend
 
 Creates one continuous *body blockout* from selected overlapping organic shapes.
 This is NOT production retopology, skinning, or a visually approved character.
@@ -17,7 +17,6 @@ BODY_NAMES = (
     "Base_RACC_Haunch_L", "Base_RACC_Haunch_R",
 )
 VOXEL_SIZE = 0.025
-MAX_VOXELS_AXIS = 256
 
 def fuse_racc_body(voxel_size=VOXEL_SIZE):
     if not (0.01 <= voxel_size <= 0.06):
@@ -40,9 +39,10 @@ def fuse_racc_body(voxel_size=VOXEL_SIZE):
         bpy.data.objects.remove(obj,do_unlink=True)
     # Move backup objects to a collection that is hidden from export and viewport.
     backups.hide_render=True
-    backups.hide_viewport=True
+    backups.hide_viewport=False
     for obj in duplicates:
         obj.hide_render=True
+        obj.hide_set(True)
     # Recreate temporary working geometry from source backups in scene root.
     working=[]
     for obj in duplicates:
@@ -50,6 +50,7 @@ def fuse_racc_body(voxel_size=VOXEL_SIZE):
         temp.data=obj.data.copy()
         bpy.context.scene.collection.objects.link(temp)
         temp.hide_render=False
+        temp.hide_set(False)
         temp.hide_viewport=False
         working.append(temp)
     bpy.ops.object.select_all(action="DESELECT")
@@ -80,10 +81,19 @@ def fuse_racc_body(voxel_size=VOXEL_SIZE):
 
 def main():
     args=sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
-    if len(args)!=1:
-        raise SystemExit("Usage: blender -b source.blend --python nft_avatar_racc_body_fusion.py -- output.blend")
+    if len(args)!=2:
+        raise SystemExit("Usage: blender -b --python nft_avatar_racc_body_fusion.py -- input.glb output.blend")
+    source,destination=args
+    import os
+    if not source.lower().endswith(".glb") or not destination.lower().endswith(".blend"):
+        raise SystemExit("Expected input.glb and output.blend")
+    if not os.path.isfile(source):
+        raise SystemExit("Missing GLB: "+source)
+    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.object.delete(use_global=False)
+    bpy.ops.import_scene.gltf(filepath=os.path.abspath(source))
     fused=fuse_racc_body()
-    bpy.ops.wm.save_as_mainfile(filepath=args[0])
+    bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(destination))
     print("RACC fused blockout:",fused.name,len(fused.data.polygons),"faces; retopology required")
 
 if __name__=="__main__":

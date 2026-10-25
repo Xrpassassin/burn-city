@@ -41,6 +41,13 @@ The live city entrance now calls the server's public instance admission endpoint
 - Position snapshots are rate-limited and clamped to the island's local coordinate envelope. The client interpolates remote capsule-style avatars toward received snapshots and closes presence when leaving or disposing the host.
 - Client snapshots are presentation data only. They do not authorize property access, enforce world collision geometry, or drive authoritative gameplay. Lease expiry invalidates subsequent socket messages; client heartbeat continues separately.
 
+## Durable return-anchor API
+
+- `server/estates-return-anchor.js` stores one last-safe Estates Island position per authenticated XRPL account in the existing SQLite database on the persistent data volume.
+- `GET /api/estates/anchor` reads the signed-in account's anchor; `POST /api/estates/anchor` saves bounded numeric `x/y/z/heading` coordinates. The account is taken from the bearer token, never from the request body.
+- The store rejects malformed accounts, non-finite coordinates, and values outside a broad island-local envelope. It grants no property rights and cannot write building layouts.
+- **Integration boundary:** the live island client does not yet restore/save this anchor automatically, and these broad bounds do not prove a coordinate is walkable. Client restoration must validate against the island navigation/collision surface before teleporting. Do not treat this API alone as safe-spawn or authoritative movement validation.
+
 ## Remaining work
 
 1. Server-authoritative movement/collision validation and robust reconnection/reconciliation.

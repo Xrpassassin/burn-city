@@ -16,6 +16,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { decodeNftUri, safeUrl } from './nft-uri-utils.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configPath = path.join(root, 'client/js/nft-collection-ingest-plan.json');
@@ -28,26 +29,6 @@ const argSet = new Set(process.argv.slice(2));
 const dryRun = argSet.has('--dry-run');
 
 function validTokenId(value) { return /^[0-9A-F]{64}$/i.test(String(value ?? '')); }
-function safeUrl(value) {
-  const raw = String(value ?? '').trim();
-  if (/^ipfs:\/\//i.test(raw)) return raw;
-  try {
-    const u = new URL(raw);
-    return ['https:', 'http:'].includes(u.protocol) ? u.toString() : '';
-  } catch { return ''; }
-}
-
-// XRPL NFToken URI fields are commonly hex-encoded UTF-8 bytes. Decode only
-// well-formed even-length hex; otherwise preserve the original for URL validation.
-function decodeNftUri(value) {
-  const raw = String(value ?? '').trim();
-  if (!raw || raw.startsWith('ipfs://') || /^https?:\/\//i.test(raw)) return raw;
-  if (!/^(?:[0-9a-f]{2})+$/i.test(raw)) return raw;
-  try {
-    const decoded = Buffer.from(raw, 'hex').toString('utf8');
-    return decoded && !decoded.includes('\uFFFD') ? decoded.trim() : raw;
-  } catch { return raw; }
-}
 function parseNft(row, collectionKey) {
   const tokenId = String(row?.NFTokenID ?? row?._id ?? '').toUpperCase();
   const meta = row?.meta ?? {};

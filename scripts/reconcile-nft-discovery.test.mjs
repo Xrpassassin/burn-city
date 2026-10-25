@@ -27,6 +27,13 @@ assert.equal(candidateOnly.identityVerified, false);
 assert.equal(candidateOnly.approved, false);
 assert.equal(candidateOnly.ingestionEnabled, false);
 assert.equal(candidateOnly.inventoryComplete, false);
+const mechanicallyMatched = reconcileNftInventory({
+  candidate, expectedCount: 0,
+  expectedIdentity: { slug: 'racc-guy', issuer: 'rIssuer', taxon: 0 },
+  tokens: []
+});
+assert.equal(mechanicallyMatched.identityVerified, false);
+assert.equal(mechanicallyMatched.inventoryComplete, false);
 
 const badCount = reconcileNftInventory({
   candidate, expectedCount: 2,

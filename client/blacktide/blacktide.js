@@ -217,7 +217,7 @@ function tick(){
     maraInteraction.update(shoreWalk.ashore,shoreWalk.position);
     clueTrail.update(shoreWalk.ashore,shoreWalk.position);
     coveAmbience.update(shoreWalk.ashore&&!tavernVisit.inside,elapsed);
-    tavernVisit.update(shoreWalk.ashore,shoreWalk.position);
+    tavernVisit.update(shoreWalk.ashore,shoreWalk.position,dt,keys);
     if(atPort)speed=0;
     const forward=!walking&&!atPort&&hullHealth>0&&(keys.has('w')||keys.has('arrowup')||controls.forward);
     const back=!walking&&!atPort&&hullHealth>0&&(keys.has('s')||keys.has('arrowdown')||controls.back);

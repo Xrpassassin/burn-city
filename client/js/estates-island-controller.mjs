@@ -65,8 +65,8 @@ export function createEstatesIslandController({
     syncCamera(dt,yaw);
     elapsed+=dt;
 
-    const property=navigation.nearbyProperty(moved.position,interactionRadius);
-    const propertyKey=property?property.lotId+':'+(property.propertyId??'unassigned') : null;
+    const property=navigation.nearbyEntrance(moved.position) || navigation.nearbyProperty(moved.position,interactionRadius);
+    const propertyKey=property?property.lotId+':'+(property.propertyId??'unassigned')+':'+property.interaction : null;
     if(propertyKey!==lastPropertyKey) {
       if(property) onPropertyPrompt(property);
       else if(lastPropertyKey!==null) onPropertyPromptClear();

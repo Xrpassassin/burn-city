@@ -81,3 +81,15 @@ assert.equal(restartedStore.list(owner, 'trailer-01').placements.length, 0);
 assert.equal(restartedStore.removePlacement(owner, 'trailer-01', 'garden-001').reason, 'placement-not-found');
 db.close();
 console.log('estates-layout-store: all tests passed');
+
+// Drift guard: the server's CommonJS lot authorization data must match the browser's canonical ESM layout.
+(async () => {
+  const { SLOT_LAYOUT: clientSlots, LOT_WIDTH: clientWidth, LOT_DEPTH: clientDepth, FOOTPRINTS: clientFootprints } = await import('../client/js/estates-lot-geometry.mjs');
+  const { SLOT_LAYOUT: serverSlots, LOT_WIDTH: serverWidth, LOT_DEPTH: serverDepth, FOOTPRINTS: serverFootprints } = require('./estates-layout-store');
+  assert.deepEqual(serverSlots, clientSlots, 'server and client lot positions must match');
+  assert.equal(serverWidth, clientWidth);
+  assert.equal(serverDepth, clientDepth);
+  for (const [tier, dims] of Object.entries(serverFootprints)) {
+    assert.deepEqual(dims, { width:clientFootprints[tier].width, depth:clientFootprints[tier].depth }, 'tier footprint drift: '+tier);
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });

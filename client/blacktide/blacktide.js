@@ -210,7 +210,7 @@ function tick(){
     ship.position.z-=Math.cos(heading)*speed*dt;
     ship.position.y=sampleOceanHeight(ship.position.x,ship.position.z,elapsed)+.08;
     sail.rotation.y=Math.sin(elapsed*.7)*.035;
-    const forwardVec=new THREE.Vector3(Math.sin(heading),0,-Math.cos(heading));
+    const forwardVec=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
     const camTarget=ship.position.clone().add(new THREE.Vector3(0,5,0)).add(forwardVec.clone().multiplyScalar(-20));
     camera.position.lerp(camTarget,1-Math.pow(.001,dt));
     camera.lookAt(ship.position.clone().add(forwardVec.clone().multiplyScalar(7)).add(new THREE.Vector3(0,3,0)));

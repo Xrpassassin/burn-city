@@ -232,7 +232,19 @@ export function buildNftChar(n, opts = {}) {
     maskShape.lineTo(.055,-.025); maskShape.lineTo(0,-.012);
     maskShape.lineTo(-.055,-.025); maskShape.lineTo(-.105,-.055);
     maskShape.lineTo(-.17,-.015); maskShape.closePath();
-    const maskMesh=add(new THREE.ExtrudeGeometry(maskShape,{depth:.018,bevelEnabled:true,bevelSegments:1,steps:1,bevelSize:.004,bevelThickness:.003}),
+    const maskGeometry=new THREE.ExtrudeGeometry(maskShape,{depth:.018,bevelEnabled:true,bevelSegments:1,steps:1,bevelSize:.004,bevelThickness:.003});
+    // Bend the mask over the ellipsoidal skull so the temples do not float like a flat visor.
+    // Keep the original extrusion as a small raised rim, while seating each vertex on the face.
+    const maskPositions=maskGeometry.attributes.position;
+    for(let i=0;i<maskPositions.count;i++){
+      const x=maskPositions.getX(i), y=maskPositions.getY(i)+.005;
+      const nx=x/.235, ny=(y-.02)/.255;
+      const faceZ=.22*Math.sqrt(Math.max(0,1-nx*nx-ny*ny));
+      maskPositions.setZ(i,faceZ-.204+.004+maskPositions.getZ(i)*.2);
+    }
+    maskPositions.needsUpdate=true;
+    maskGeometry.computeVertexNormals();
+    const maskMesh=add(maskGeometry,
       mat(traitColor(/mask/i,has(tr,/red mask/)?'#c4161c':'#282a30')),-0,.005,.204,head);
     maskMesh.name='nft-racc-angular-eye-mask';
     for (const s of [-1,1]) {

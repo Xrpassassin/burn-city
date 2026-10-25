@@ -8,9 +8,11 @@ const EstateRights = require('./estates-rights');
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
+const { createEstatesReturnAnchorStore } = require('./estates-return-anchor');
 const KimiReview = require('./kimi-review');
 const kimiReviewer = KimiReview.createKimiReviewer();
 const estatesInstance = createEstatesInstanceManager();
+const estatesReturnAnchors = createEstatesReturnAnchorStore({ db: Pay.sdb });
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const Jetpack = require('./jetpack');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
@@ -163,6 +165,15 @@ const server = http.createServer(async (req, res) => {
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
       if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, Estates.getState(u.acct));
+      if (url.pathname === '/api/estates/anchor' && req.method === 'GET') {
+        const result = estatesReturnAnchors.get(u.acct);
+        return json(res, result.ok ? 200 : 400, result);
+      }
+      if (url.pathname === '/api/estates/anchor' && req.method === 'POST') {
+        const b = await body();
+        const result = estatesReturnAnchors.save(u.acct, { x: b.x, y: b.y, z: b.z, r: b.r });
+        return json(res, result.ok ? 200 : 400, result);
+      }
       if (url.pathname === '/api/estates/rights' && req.method === 'GET') {   // #235 rights decision (renamed from /access, which #237's owner guest list uses)
         const propertyId = String(url.searchParams.get('propertyId') || '');
         const action = String(url.searchParams.get('action') || 'enter');

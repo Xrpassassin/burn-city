@@ -22,6 +22,13 @@ assert.equal(zombies.runtime.animationProfile, "zombies-combat");
 assert.equal(homefront.runtime.animationProfile, "homefront-survival");
 assert.equal(runtime.compareRuntimeIdentity(zombies, homefront), true);
 
+for (const mode of ["city", "blacktide", "estates-island", "fishing", "cinder-wilds", "light-cycles"]) {
+  const result = runtime.resolveAvatarRuntime(candidate, mode);
+  assert.equal(result.ok, true, mode + " accepts approved shared asset");
+  assert.equal(runtime.compareRuntimeIdentity(zombies, result), true);
+}
+assert.throws(() => runtime.resolveAvatarRuntime(candidate, "eternal-grind"), /Unknown game mode/);
+
 const unapproved = runtime.resolveAvatarRuntime({ ...candidate, runtimeApproved: false }, "homefront");
 assert.equal(unapproved.ok, false);
 assert.ok(unapproved.errors.some((e) => e.includes("runtime-approved")));

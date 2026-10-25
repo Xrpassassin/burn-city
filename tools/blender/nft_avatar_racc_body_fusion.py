@@ -76,6 +76,7 @@ def fuse_racc_body(voxel_size=VOXEL_SIZE):
     joined["runtime_approved"]=False
     joined["source_mesh_count"]=len(BODY_NAMES)
     joined["voxel_size_m"]=voxel_size
+    joined["originals_preserved_in"]="RACC_Source_Body_Backup"
     return joined
 
 def main():
@@ -93,7 +94,22 @@ def main():
     bpy.ops.import_scene.gltf(filepath=os.path.abspath(source))
     fused=fuse_racc_body()
     bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(destination))
-    print("RACC fused blockout:",fused.name,len(fused.data.polygons),"faces; retopology required")
+    # Export a standalone review GLB without the hidden source backup collection.
+    # Explicit selection avoids exporting backup geometry or duplicate anatomical parts.
+    bpy.ops.object.select_all(action="DESELECT")
+    export_objects=[obj for obj in bpy.context.scene.objects
+                    if obj.type=="MESH" and not obj.name.startswith("Source_")
+                    and not any(coll.name=="RACC_Source_Body_Backup" for coll in obj.users_collection)]
+    for obj in export_objects:
+        obj.hide_set(False)
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active=fused
+    review_glb=os.path.splitext(os.path.abspath(destination))[0]+"-review.glb"
+    bpy.ops.export_scene.gltf(filepath=review_glb,export_format="GLB",use_selection=True)
+    if not os.path.isfile(review_glb) or os.path.getsize(review_glb)<100:
+        raise RuntimeError("Review GLB export failed")
+    print("RACC fused blockout:",fused.name,len(fused.data.polygons),
+          "faces; review GLB:",review_glb,"; retopology required")
 
 if __name__=="__main__":
     main()

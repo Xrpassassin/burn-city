@@ -100,11 +100,11 @@ export async function installEstatesIslandLive({
   const showLotPrompt = property => {
     const catalogued=Boolean(property.propertyId);
     if(property.confirmedInteraction){showLotInspection(property);return;}
-    showPanel('ESTATES · '+property.address,
+    showPanel((property.interaction==='inspect-entrance'?'FRONT ENTRANCE · ':'ESTATES · ')+property.address,
       catalogued?'This lot maps to a property record in the current catalog. That record does not prove ownership; private access and build controls require server-verified permissions.':'This lot has no property record mapped in the current catalog. No ownership is inferred.',
       [{label:'Inspect lot',primary:true,run:()=>showLotInspection(property)},
        {label:'Close',run:hidePanel}],
-      'Walk up to a lot to inspect it. Private property access requires server-verified permissions.');
+      (property.interaction==='inspect-entrance'?'Front entrance · inspection only. ':'Walk up to a lot to inspect it. ')+'Private property access requires server-verified permissions.');
   };
   const showLandmarkDetails = landmark => {
     showPanel(landmark.title,landmark.message,

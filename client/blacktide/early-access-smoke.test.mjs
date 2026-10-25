@@ -7,10 +7,10 @@ const root=path.resolve(import.meta.dirname,'../..');
 const page=fs.readFileSync(path.join(root,'client/blacktide/index.html'),'utf8');
 const js=fs.readFileSync(path.join(root,'client/blacktide/blacktide.js'),'utf8');
 for(const id of ['game','intro','begin','message','speed','heading','hull']) {
-  assert.match(page,new RegExp('id=["\\\']'+id+'["\\\']'), 'Missing UI element: '+id);
+  assert.match(page,new RegExp('id="'+id+'"'), 'Missing UI element: '+id);
 }
 for(const action of ['left','right','forward','back','fire']) {
-  assert.match(page,new RegExp('data-control=["\\\']'+action+'["\\\']'), 'Missing touch control: '+action);
+  assert.match(page,new RegExp('data-control="'+action+'"'), 'Missing touch control: '+action);
 }
 assert.match(page,/type="module" src="\.\/blacktide\.js"/);
 assert.match(page,/"three":"\.\.\/vendor\/three\/build\/three\.module\.min\.js"/);

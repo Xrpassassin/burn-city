@@ -10,6 +10,7 @@ import { createCrewLifecycle } from './nft-crew-lifecycle.mjs';
 import { createCrewAnimator } from './nft-crew-animator.mjs';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { buildCinderCove } from './cinder-cove.mjs';
+import { createShoreWalk } from './shore-walk.mjs';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -157,6 +158,7 @@ function fireBroadside(){
   $('message').textContent='Broadside away! The guns will need a moment to reload.';
 }
 
+const shoreWalk=createShoreWalk({THREE,scene,camera,game,ship,trade:Trade});
 const clock=new THREE.Clock();
 function tick(){
   requestAnimationFrame(tick);
@@ -198,11 +200,12 @@ function tick(){
   }
   if(started){
     const atPort=Trade.tick(ship.position);   // docked: helm locked while the port panel is open
+    const walking=shoreWalk.update(dt,keys);
     if(atPort)speed=0;
-    const forward=!atPort&&hullHealth>0&&(keys.has('w')||keys.has('arrowup')||controls.forward);
-    const back=!atPort&&hullHealth>0&&(keys.has('s')||keys.has('arrowdown')||controls.back);
-    const left=!atPort&&hullHealth>0&&(keys.has('a')||keys.has('arrowleft')||controls.left);
-    const right=!atPort&&hullHealth>0&&(keys.has('d')||keys.has('arrowright')||controls.right);
+    const forward=!walking&&!atPort&&hullHealth>0&&(keys.has('w')||keys.has('arrowup')||controls.forward);
+    const back=!walking&&!atPort&&hullHealth>0&&(keys.has('s')||keys.has('arrowdown')||controls.back);
+    const left=!walking&&!atPort&&hullHealth>0&&(keys.has('a')||keys.has('arrowleft')||controls.left);
+    const right=!walking&&!atPort&&hullHealth>0&&(keys.has('d')||keys.has('arrowright')||controls.right);
     if(forward)speed=Math.min(20,speed+dt*4.6);
     else if(back)speed=Math.max(-4,speed-dt*6);
     else speed*=Math.pow(.985,dt*60);
@@ -215,8 +218,10 @@ function tick(){
     sail.rotation.y=Math.sin(elapsed*.7)*.035;
     const forwardVec=new THREE.Vector3(-Math.sin(heading),0,-Math.cos(heading));
     const camTarget=ship.position.clone().add(new THREE.Vector3(0,5,0)).add(forwardVec.clone().multiplyScalar(-20));
-    camera.position.lerp(camTarget,1-Math.pow(.001,dt));
-    camera.lookAt(ship.position.clone().add(forwardVec.clone().multiplyScalar(7)).add(new THREE.Vector3(0,3,0)));
+    if(!walking){
+      camera.position.lerp(camTarget,1-Math.pow(.001,dt));
+      camera.lookAt(ship.position.clone().add(forwardVec.clone().multiplyScalar(7)).add(new THREE.Vector3(0,3,0)));
+    }
     $('speed').textContent=Math.round(Math.abs(speed)*2.1)+' knots';
     $('heading').textContent=String((Math.round((heading*180/Math.PI%360+360)%360))).padStart(3,'0')+'°';
     if(Math.abs(ship.position.x)>870||Math.abs(ship.position.z)>870){ship.position.x=THREE.MathUtils.clamp(ship.position.x,-870,870);ship.position.z=THREE.MathUtils.clamp(ship.position.z,-870,870);speed*=.4;$('message').textContent='The charts end here. Turn back toward known waters.'}

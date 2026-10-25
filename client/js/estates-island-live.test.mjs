@@ -23,10 +23,10 @@ assert(live.includes('exterior.dispose();'), 'preview geometry/materials are dis
 assert(live.includes('/api/estates/instance/enter'), 'explicit entry acquires a server-side shared-instance lease');
 assert(live.includes('/api/estates/instance/leave'), 'returning to city releases the shared-instance lease');
 assert(live.includes('/api/estates/anchor'), 'return anchors use the authenticated durable API');
-assert(live.includes('/api/estates/layout?propertyId='), 'entry hydrates saved layouts only through the authenticated access-filtered API');
+assert(live.includes('/api/estates/layouts/public'), 'entry hydrates shared exterior layout metadata through the public-safe endpoint');
 assert(live.includes('renderer.setSavedPlacements(placements)'), 'authorized persisted placements are rendered in the shared island scene');
 assert(live.includes('layoutLoadEpoch++'), 'late layout responses are invalidated on exit and disposal');
-assert(live.includes('payload.propertyId !== propertyId'), 'layout response property IDs are checked before rendering');
+assert(live.includes('catalogPropertyIds.has(p.propertyId)'), 'layout response property IDs are checked against the catalog before rendering');
 assert(live.includes('readSavedReturnAnchor(controllerRef.navigation)'), 're-entry attempts to restore the saved return anchor');
 assert(live.includes('navigation.isWalkable(anchor)'), 'saved anchors are checked against local walkable geometry before use');
 assert(live.includes('clearInterval(returnAnchorTimer)'), 'return-anchor autosave timer is cleared on exit and disposal');

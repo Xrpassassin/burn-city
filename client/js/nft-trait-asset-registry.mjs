@@ -186,3 +186,41 @@ export function normalizeCollectionTraits({ collectionManifest, traits = [] } = 
     return Object.freeze({ index, collection, type, value, slot, mapped: !!slot, valid: !!type && !!value });
   }));
 }
+
+
+/** One collection-scoped entry point: normalize raw NFT traits, resolve exact assets,
+ * and preserve unmapped source traits as explicit blockers instead of guessing a slot.
+ */
+export function buildCollectionAvatarPlan({ collectionManifest, traits = [], registry, character = {} } = {}) {
+  if (!collectionManifest || typeof collectionManifest !== 'object') throw new TypeError('collection manifest is required');
+  const collection = text(collectionManifest.collectionKey).toLowerCase();
+  if (!collection) throw new TypeError('collection manifest collectionKey is required');
+  const normalized = normalizeCollectionTraits({ collectionManifest, traits });
+  const assembly = buildTraitAssemblyManifest({ collection, traits, registry, character });
+  const entries = assembly.entries.map((entry, index) => {
+    const trait = normalized[index];
+    if (!trait.mapped) return {
+      ...entry,
+      status: trait.valid ? 'unmapped-trait' : 'invalid-source-trait',
+      reason: trait.valid ? 'trait-type-not-mapped-for-collection' : 'trait-type-and-value-required',
+      slot: '',
+      assetId: null,
+      modelRef: '',
+      materialRef: '',
+      textureRefs: []
+    };
+    return { ...entry, slot: entry.slot || trait.slot, mappedSlot: trait.slot };
+  });
+  const readyTraits = entries.filter(entry => entry.status === 'ready').length;
+  const blockedTraits = entries.length - readyTraits;
+  return Object.freeze({
+    collection,
+    tokenId: text(traits?.tokenId ?? ''),
+    totalTraits: entries.length,
+    readyTraits,
+    blockedTraits,
+    complete: entries.length > 0 && readyTraits === entries.length,
+    entries: Object.freeze(entries),
+    normalizedTraits: normalized
+  });
+}

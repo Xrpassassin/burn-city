@@ -69,6 +69,29 @@ def make_curve(name, points, mat, radius=0.065):
     bpy.context.collection.objects.link(obj)
     return assign(obj, mat)
 
+def add_attachment_anchors(spec):
+    """Place named Blender Z-up empties from Three.js Y-up attachment coordinates."""
+    rig = spec.get("attachmentRig") or {}
+    if not rig:
+        return
+    if rig.get("coordinateSystem") != "threejs-y-up-forward-negative-z":
+        raise ValueError("Unsupported attachment coordinate system")
+    anchors = rig.get("anchors") or {}
+    for name, coords in anchors.items():
+        if not isinstance(name, str) or not name.replace("_", "").isalnum():
+            raise ValueError("Unsafe attachment anchor name")
+        if not isinstance(coords, list) or len(coords) != 3 or not all(isinstance(n, (int, float)) and math.isfinite(n) for n in coords):
+            raise ValueError("Invalid attachment coordinates: " + name)
+        x, y, z = coords
+        marker = bpy.data.objects.new("NFT_Anchor_" + name, None)
+        marker.empty_display_type = "PLAIN_AXES"
+        marker.empty_display_size = 0.06
+        marker.location = (x, z, y)
+        bpy.context.collection.objects.link(marker)
+    for row in rig.get("attachments", []):
+        if row.get("anchor") is not None and row["anchor"] not in anchors:
+            raise ValueError("Trait references missing attachment anchor")
+
 def main():
     args = args_after_separator()
     if len(args) != 2:
@@ -419,6 +442,7 @@ def main():
             obj["source_collection_key"]=key
     bpy.ops.object.select_all(action="SELECT")
     bpy.context.view_layer.objects.active=bpy.context.selected_objects[0] if bpy.context.selected_objects else None
+    add_attachment_anchors(spec)
     bpy.ops.export_scene.gltf(filepath=output_path, export_format="GLB", use_selection=False, export_apply=True)
     if not os.path.isfile(output_path) or os.path.getsize(output_path)<100:
         raise SystemExit("GLB export did not produce a usable output file")

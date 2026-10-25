@@ -86,7 +86,8 @@ def add_attachment_anchors(spec):
         marker = bpy.data.objects.new("NFT_Anchor_" + name, None)
         marker.empty_display_type = "PLAIN_AXES"
         marker.empty_display_size = 0.06
-        marker.location = (x, z, y)
+        marker.location = (x, -z, y)
+        marker["burncity_anchor"] = name
         bpy.context.collection.objects.link(marker)
     for row in rig.get("attachments", []):
         if row.get("anchor") is not None and row["anchor"] not in anchors:

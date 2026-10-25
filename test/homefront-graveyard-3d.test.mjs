@@ -168,7 +168,7 @@ assert.match(scene, /aimRecoveryUntil = performance\.now\(\) \+ \(sprint \? 1800
 assert.match(scene, /targetStability = aiming \? 1 - recovery \* 0\.58/, 'aiming visibly recovers more slowly after movement');
 assert.match(scene, /aimWeaponButton\.setAttribute\('aria-pressed', String\(aiming\)\)/, 'expose aim state accessibly');
 assert.match(scene, /\/api\/homefront\/world\/aim/, 'aim stance is confirmed by the server rather than trusted locally');
-assert.match(scene, /sprint: sprintTravel/, 'sprint travel is requested explicitly and clamped by the server');
+assert.match(scene, /JSON\\.stringify\\(\\{ x, z, sprint \\}\\)/, 'sprint travel is requested explicitly and clamped by the server');
 assert.match(scene, /authoritativeAimStability/, 'display server-calculated weapon stability after combat');
 assert.match(page, /id="sprintTravel"/, 'provide an accessible sprint travel toggle');
 

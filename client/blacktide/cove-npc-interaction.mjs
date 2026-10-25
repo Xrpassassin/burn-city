@@ -1,3 +1,4 @@
+import { MARA_CHOICES } from './mara-dialogue.mjs';
 export const MARA_INTERACTION_RANGE = 3.5;
 export function canTalkToMara(ashore, player, npc) {
   return !!ashore && !!player && !!npc && Number.isFinite(player.x) && Number.isFinite(player.z) && Math.hypot(player.x-npc.x,player.z-npc.z) <= MARA_INTERACTION_RANGE;
@@ -22,10 +23,17 @@ export function createMaraInteraction({THREE,scene,game}) {
   panel.hidden=true;
   const heading=document.createElement('h2');heading.textContent='Mara Vale · Harbormaster';
   const dialogue=document.createElement('p');dialogue.textContent='Welcome to Cinder Cove, captain. The Crown has eyes on every sail. Speak quietly, and you may find work here.';
+  const choices=document.createElement('div');
+  for(const choice of MARA_CHOICES){
+    const option=document.createElement('button');option.type='button';option.textContent=choice.label;
+    option.style.cssText='display:block;width:100%;margin:8px 0;padding:9px;text-align:left';
+    option.addEventListener('click',()=>{dialogue.textContent=choice.reply;choices.hidden=true;});
+    choices.append(option);
+  }
   const mission=document.createElement('p');mission.textContent='First Landfall: Speak with the harbormaster and visit the tavern. Quest acceptance and rewards are not yet active.';
   const close=document.createElement('button');close.type='button';close.textContent='Close';close.addEventListener('click',()=>{panel.hidden=true;});
-  panel.append(heading,dialogue,mission,close);game.append(panel);
-  button.addEventListener('click',()=>{if(!button.hidden)panel.hidden=false;});
+  panel.append(heading,dialogue,choices,mission,close);game.append(panel);
+  button.addEventListener('click',()=>{if(!button.hidden){panel.hidden=false;choices.hidden=false;dialogue.textContent='Three ships vanished beyond the reef. The Crown insists they were never here. What brings you to Cinder Cove, captain?';}});
   return {
     update(ashore,position){
       const nearby=canTalkToMara(ashore,position,npc.position);

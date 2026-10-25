@@ -70,7 +70,8 @@
     "test:nft-avatar-build-spec": "node scripts/nft-avatar-build-spec.test.mjs",
     "test:nft-avatar-build-pipeline": "node scripts/nft-avatar-build-pipeline.test.mjs",
     "test:estates-instance": "node server/estates-instance.test.js",
-    "test:estates-presence": "node server/estates-presence.test.js"
+    "test:estates-presence": "node server/estates-presence.test.js",
+    "test:kimi-review": "node server/kimi-review.test.js"
   },
   "keywords": [],
   "author": "",

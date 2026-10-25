@@ -191,10 +191,12 @@ export function normalizeCollectionTraits({ collectionManifest, traits = [] } = 
 /** One collection-scoped entry point: normalize raw NFT traits, resolve exact assets,
  * and preserve unmapped source traits as explicit blockers instead of guessing a slot.
  */
-export function buildCollectionAvatarPlan({ collectionManifest, traits = [], registry, character = {} } = {}) {
+export function buildCollectionAvatarPlan({ collectionManifest, traits = [], registry, character = {}, tokenId = '' } = {}) {
   if (!collectionManifest || typeof collectionManifest !== 'object') throw new TypeError('collection manifest is required');
   const collection = text(collectionManifest.collectionKey).toLowerCase();
   if (!collection) throw new TypeError('collection manifest collectionKey is required');
+  const sourceTokenId = text(tokenId || traits?.tokenId || '').toUpperCase();
+  if (sourceTokenId && !/^[0-9A-F]{64}$/.test(sourceTokenId)) throw new TypeError('tokenId must be a 64-hex NFTokenID when provided');
   const normalized = normalizeCollectionTraits({ collectionManifest, traits });
   const assembly = buildTraitAssemblyManifest({ collection, traits, registry, character });
   const entries = assembly.entries.map((entry, index) => {
@@ -215,7 +217,7 @@ export function buildCollectionAvatarPlan({ collectionManifest, traits = [], reg
   const blockedTraits = entries.length - readyTraits;
   return Object.freeze({
     collection,
-    tokenId: text(traits?.tokenId ?? ''),
+    tokenId: sourceTokenId,
     totalTraits: entries.length,
     readyTraits,
     blockedTraits,

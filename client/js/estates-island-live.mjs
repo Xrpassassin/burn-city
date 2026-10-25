@@ -10,6 +10,10 @@ const finite = n => typeof n === 'number' && Number.isFinite(n);
 const estatesServerBase = () => new URLSearchParams(location.search).get('citysrv') ||
   (/localhost|127\.0\.0\.1/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
 let localEstateSessionId = null;
+function estateBearerToken() {
+  try { const token = localStorage.bcToken; return typeof token === 'string' && token ? token : null; }
+  catch { return null; }
+}
 function estateClientSessionId() {
   try {
     let id = sessionStorage.getItem('bcEstatesIslandSession');
@@ -22,6 +26,34 @@ function estateClientSessionId() {
     if (!localEstateSessionId) localEstateSessionId = globalThis.crypto?.randomUUID?.() || ('estate_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2) + '_' + Math.random().toString(36).slice(2));
     return localEstateSessionId;
   }
+}
+async function readSavedReturnAnchor(navigation) {
+  const token = estateBearerToken();
+  if (!token || typeof navigation?.isWalkable !== 'function') return null;
+  try {
+    const response = await fetch(estatesServerBase() + '/api/estates/anchor', {
+      headers: { authorization: 'Bearer ' + token }, cache: 'no-store'
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const anchor = payload?.ok ? payload.anchor : null;
+    if (!anchor || ![anchor.x, anchor.y, anchor.z, anchor.r].every(finite)) return null;
+    // Never trust stored coordinates as a spawn point: the local navigation mesh must accept them.
+    return navigation.isWalkable(anchor) ? anchor : null;
+  } catch { return null; }
+}
+async function saveReturnAnchor(position, navigation) {
+  const token = estateBearerToken();
+  if (!token || !position || typeof navigation?.isWalkable !== 'function' || !navigation.isWalkable(position)) return false;
+  try {
+    const response = await fetch(estatesServerBase() + '/api/estates/anchor', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+      body: JSON.stringify({ x: position.x, y: position.y, z: position.z, r: position.r }),
+      keepalive: true
+    });
+    return response.ok;
+  } catch { return false; }
 }
 async function releaseEstatesInstanceLease(leaseToken) {
   if (!leaseToken) return;
@@ -142,7 +174,7 @@ export async function installEstatesIslandLive({
   };
   setDetailedCommunityVisible(false);
 
-  let active = false, entering = false, instanceLeaseToken = null, activeInstanceId = null, activeVisitors = null, instanceHeartbeatTimer = null, presenceSocket = null, presenceSendTimer = null, presenceReconnectTimer = null, presenceStopped = true, presenceRetry = 0, lastPresenceSent = 0, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
+  let active = false, entering = false, instanceLeaseToken = null, activeInstanceId = null, activeVisitors = null, instanceHeartbeatTimer = null, returnAnchorTimer = null, presenceSocket = null, presenceSendTimer = null, presenceReconnectTimer = null, presenceStopped = true, presenceRetry = 0, lastPresenceSent = 0, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
   const remotePeers = new Map();
   const panel = makePanel();
   const showPanel = (heading, message, actions, muted='') => {
@@ -258,15 +290,23 @@ export async function installEstatesIslandLive({
       if (disposed) { void releaseEstatesInstanceLease(admission.leaseToken); return; }
       instanceLeaseToken = admission.leaseToken;
       activeInstanceId = admission.instanceId;
+      const savedAnchor = await readSavedReturnAnchor(controllerRef.navigation);
+      if (disposed) { instanceLeaseToken = null; activeInstanceId = null; await releaseEstatesInstanceLease(admission.leaseToken); return; }
       activeVisitors = Number.isSafeInteger(admission.activeVisitors) ? admission.activeVisitors : null;
       active=true; nearCityGate=false;
       startInstanceLeaseHeartbeat();
+      if (returnAnchorTimer !== null) clearInterval(returnAnchorTimer);
+      returnAnchorTimer = setInterval(() => {
+        if (!active || disposed) return;
+        void saveReturnAnchor({ x: player.pos.x - OFFSET_X, y: player.pos.y, z: player.pos.z, r: getYaw() }, controllerRef.navigation);
+      }, 15_000);
       connectEstatesPresence(instanceLeaseToken);
       setDetailedCommunityVisible(true);
       if(getMode()!=='explore') setMode('explore');
-      player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);
+      const spawn = savedAnchor || ISLAND_SPAWN;
+      player.pos.set(OFFSET_X+spawn.x,spawn.y,spawn.z);
       player.fp=false;
-      setYaw(-Math.PI/2);
+      setYaw(savedAnchor ? savedAnchor.r : -Math.PI/2);
       player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
       avatar.position.copy(player.pos);
       onStatus({state:'entered-public-island',instanceId:activeInstanceId,activeVisitors,catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
@@ -281,8 +321,10 @@ export async function installEstatesIslandLive({
   }
   function leaveIsland() {
     if(disposed||!active)return;
+    void saveReturnAnchor({ x: player.pos.x - OFFSET_X, y: player.pos.y, z: player.pos.z, r: getYaw() }, controllerRef.navigation);
     active=false; hidePanel(); controllerRef.dispose();
     if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; }
+    if (returnAnchorTimer !== null) { clearInterval(returnAnchorTimer); returnAnchorTimer = null; }
     stopPresence();
     setDetailedCommunityVisible(false);
     const leaseToken=instanceLeaseToken;

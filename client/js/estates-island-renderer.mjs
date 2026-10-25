@@ -77,6 +77,23 @@ function addEstateFacade(THREE,parent,item) {
       {x:x+side*Math.min(f.width*.3,2.2),y:y+1.5,z:front-2.25},.3,2.8,.3,trim));
     made.push(box(THREE,parent,item.id+'-porch-canopy',{x,y:y+2.92,z:front-1.25},Math.min(f.width*.7,5.6),.22,2.6,0x51463d));
   }
+  // Tier-specific roofline accents add recognizable silhouettes without extra asset downloads.
+  const roofY=y+f.height+.38;
+  if(item.tier==='starter'||item.tier==='family'||mansion) {
+    for(const side of [-1,1]) {
+      const trimX=x+side*(f.width/2+.12);
+      made.push(box(THREE,parent,item.id+'-roof-edge-'+side,{x:trimX,y:roofY,z},.18,.35,f.depth+.7,0x655045));
+    }
+    made.push(box(THREE,parent,item.id+'-ridge',{x,y:roofY+.3,z},f.width*.72,.26,.34,0x574036));
+  }
+  if(apartment) {
+    made.push(box(THREE,parent,item.id+'-roof-parapet-front',{x,y:roofY+.38,z:front},f.width+.45,.9,.28,0xa79b8a));
+    for(const side of [-1,1]) made.push(box(THREE,parent,item.id+'-roof-parapet-'+side,
+      {x:x+side*f.width/2,y:roofY+.38,z},.24,.9,f.depth+.35,0xa79b8a));
+  }
+  if(item.tier==='trailer') {
+    made.push(box(THREE,parent,item.id+'-awning',{x,y:y+2.55,z:front-.8},f.width*.62,.14,1.65,0x596c72));
+  }
   if(mansion) {
     made.push(box(THREE,parent,item.id+'-roof-pavilion',{x,y:y+f.height+.65,z},f.width*.48,1.1,f.depth*.42,0x655444));
   }

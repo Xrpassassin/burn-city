@@ -159,6 +159,7 @@ function tick(){
   requestAnimationFrame(tick);
   const dt=Math.min(clock.getDelta(),.1); // Clamp large frame gaps to keep controls stable on slower devices.
   elapsed+=dt;
+  if (crewAnimator?.ok) crewAnimator.update(dt);
   updateOceanGeometry(waterGeo,basePositions,elapsed);
   Boats.updateFleet(fleet,dt,elapsed,sampleOceanHeight,started,started?ship.position:null);
   if (started) {

@@ -107,6 +107,25 @@ function addEstateLandscaping(THREE,parent,item) {
   }
   return made;
 }
+// Low-cost roadside fixtures. Emissive caps avoid adding real-time lights per post.
+function addRoadFixtures(THREE,parent,item) {
+  const {x,y,z}=item.position,d=item.dimensions;
+  const horizontal=item.orientation==='x';
+  const length=d.length??d.depth??8, width=d.width??5;
+  const made=[], spacing=32, count=Math.max(1,Math.floor(length/spacing));
+  for(let i=0;i<=count;i++) {
+    const along=-length/2+6+(length-12)*i/count;
+    for(const side of [-1,1]) {
+      const offset=side*(width/2+2.5);
+      const px=x+(horizontal?along:offset), pz=z+(horizontal?offset:along);
+      const key=item.id+'-lamp-'+i+'-'+side;
+      made.push(box(THREE,parent,key+'-post',{x:px,y:y+2.25,z:pz},.17,4.5,.17,0x40494e,{metalness:.45}));
+      made.push(box(THREE,parent,key+'-arm',{x:px+side*.5,y:y+4.45,z:pz},1.1,.12,.15,0x40494e,{metalness:.45}));
+      made.push(box(THREE,parent,key+'-lantern',{x:px+side*.95,y:y+4.31,z:pz},.48,.16,.43,0xffd7a0,{roughness:.35}));
+    }
+  }
+  return made;
+}
 function addTree(THREE,parent,item) {
   const {x,y,z}=item.position, d=item.dimensions, color=PALETTE[item.material]??PALETTE.deciduous;
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.34,d.height*.38,7),material(THREE,0x59412b));
@@ -150,6 +169,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
         // X-oriented routes put length on X, Z-oriented routes put length on Z.
         const width=d.width??5, length=d.length??d.depth??8, height=d.height??.2;
         made=[box(THREE,root,item.id,p,horizontal?length:width,height,horizontal?width:length,PALETTE[item.material]??0x777777)];
+        if(item.kind==='road' && length>=40) made.push(...addRoadFixtures(THREE,root,item));
         if(item.kind==='bridge') {
           for (const side of [-1,1]) made.push(box(THREE,root,item.id+'-rail-'+side,{x:p.x+(horizontal?0:side*(width/2-.25)),y:p.y+height/2+.45,z:p.z+(horizontal?side*(width/2-.25):0)},horizontal?length:.35,.8,horizontal?.35:length,0x4c4d4d));
         }

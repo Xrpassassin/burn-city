@@ -51,6 +51,37 @@ function addLandmark(THREE,parent,item) {
   }
   return made;
 }
+// Decorative, deterministic estate facades; geometry is visual only and grants no access.
+function addEstateFacade(THREE,parent,item) {
+  const {x,y,z}=item.position, f=item.buildingFootprint;
+  if(!f) return [];
+  const made=[], mansion=item.tier==='mansion', apartment=item.tier==='apartment';
+  const floors=apartment?3:mansion?2:item.tier==='family'?2:1;
+  const wall=PALETTE[item.tier]??0x9c927e;
+  const trim=mansion?0xe2d2b2:0xe1d9c9;
+  const glass=0x3b6573;
+  const front=z-f.depth/2-.08;
+  // Windows are mounted just outside the front face; no real interior is implied.
+  for(let level=0;level<floors;level++) {
+    const h=y+Math.min(f.height-1,1.5+level*(f.height-1)/floors);
+    for(const side of [-1,1]) {
+      const wx=x+side*f.width*.28;
+      made.push(box(THREE,parent,item.id+'-window-'+level+'-'+side,{x:wx,y:h,z:front},Math.min(1.5,f.width*.2),1.15,.13,glass,{roughness:.18,metalness:.12}));
+      made.push(box(THREE,parent,item.id+'-sill-'+level+'-'+side,{x:wx,y:h-.65,z:front-.06},Math.min(1.85,f.width*.24),.13,.25,trim));
+    }
+  }
+  made.push(box(THREE,parent,item.id+'-door',{x,y:y+1.12,z:front-.04},1.35,2.2,.18,0x453326));
+  made.push(box(THREE,parent,item.id+'-porch',{x,y:y+.12,z:front-1.3},Math.min(f.width*.65,5),.24,2.3,0x8d8274));
+  if(mansion||item.tier==='family') {
+    for(const side of [-1,1]) made.push(box(THREE,parent,item.id+'-porch-column-'+side,
+      {x:x+side*Math.min(f.width*.3,2.2),y:y+1.5,z:front-2.25},.3,2.8,.3,trim));
+    made.push(box(THREE,parent,item.id+'-porch-canopy',{x,y:y+2.92,z:front-1.25},Math.min(f.width*.7,5.6),.22,2.6,0x51463d));
+  }
+  if(mansion) {
+    made.push(box(THREE,parent,item.id+'-roof-pavilion',{x,y:y+f.height+.65,z},f.width*.48,1.1,f.depth*.42,0x655444));
+  }
+  return made;
+}
 function addTree(THREE,parent,item) {
   const {x,y,z}=item.position, d=item.dimensions, color=PALETTE[item.material]??PALETTE.deciduous;
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.34,d.height*.38,7),material(THREE,0x59412b));
@@ -108,6 +139,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
           made.push(box(THREE,root,item.id+'-building-blockout',{x:p.x,y:p.y+f.height/2,z:p.z},f.width,f.height,f.depth,color));
           const roof=box(THREE,root,item.id+'-roof-blockout',{x:p.x,y:p.y+f.height+.12,z:p.z},f.width+.35,.24,f.depth+.35,0x49352a);
           made.push(roof);
+          made.push(...addEstateFacade(THREE,root,item));
         }
         break;
       }

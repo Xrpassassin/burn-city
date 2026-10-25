@@ -49,10 +49,17 @@ The live city entrance now calls the server's public instance admission endpoint
 - The live island client reads the anchor on re-entry and autosaves the last safe point every 15 seconds, plus on exit, for signed-in players. Unsigned players continue with the standard spawn and no durable account anchor.
 - Before restoration, the client validates the stored point against the island navigation/collision surface. Server bounds are only a coarse input guard, not proof of walkability or authoritative movement validation.
 
+## Persistent property-layout API
+
+- `server/estates-layout-store.js` stores building placements in the same persistent SQLite database. Layout reads require an authenticated account with property access; writes and removals require the server-side `build` permission (owner-only under the current access policy).
+- `GET /api/estates/layout?propertyId=...` loads a property's saved placements. `POST /api/estates/layout/place` validates and stores one placement. `POST /api/estates/layout/remove` removes a saved placement.
+- The server derives lot positions, dimensions, and the existing house footprint from its catalog/scene slot contract; the browser cannot supply trusted lot bounds or existing placements. Placement validation snaps to the build grid, enforces quarter-turn rotations, rejects lot-boundary violations, and blocks overlap with the base building or saved placements.
+- The store is durable across instance disposal/recreation and server restarts. This is the persistence/API foundation, not a finished construction UI: the live island client does not yet render saved placements or expose workshop placement controls. Resource costs are returned as metadata by the placement rules but are not charged/deducted by this slice. Property sales remain disabled, so private build writes remain unavailable until a property is actually owned.
+
 ## Remaining work
 
 1. Server-authoritative movement/collision validation and robust reconnection/reconciliation.
-2. Persistent lot/building layout save/load and authoritative placement persistence.
+2. Wire saved placements into the island renderer and workshop/build mode; reconcile build costs with an authoritative inventory/economy.
 3. Integration of authenticated account identity and invite/owner checks for every private-property mutation.
 4. Visual QA on desktop/mobile, including saved-anchor restore, two-client presence, reconnect, exit, and lease-expiry scenarios.
 

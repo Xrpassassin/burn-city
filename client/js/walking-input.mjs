@@ -1,15 +1,20 @@
-// Shared keyboard/touch locomotion intent contract for on-foot experiences.
-// No renderer, physics, camera or avatar dependency; adapters supply input sources.
-export function walkingIntent(keys=new Set(), touch={x:0,z:0}, run=false){
- const pressed=k=>keys?.has?.(k)===true;
- const x=Number(pressed('d')||pressed('arrowright'))-Number(pressed('a')||pressed('arrowleft'))+(Number.isFinite(touch?.x)?touch.x:0);
- const z=Number(pressed('w')||pressed('arrowup'))-Number(pressed('s')||pressed('arrowdown'))+(Number.isFinite(touch?.z)?touch.z:0);
- const magnitude=Math.hypot(x,z);
- const scale=magnitude>1?1/magnitude:1;
- return {x:x*scale,z:z*scale,moving:magnitude>.01,run:!!run};
+// Renderer-independent, normalized on-foot movement intent.
+// x = right, z = forward. Consumers own physics, collisions, camera and animation.
+const finite = value => Number.isFinite(value) ? value : 0;
+export function walkingIntent(keys = new Set(), touch = {x:0,z:0}, run = false) {
+  const pressed = key => keys?.has?.(key) === true;
+  const keyboardX = Number(pressed('d') || pressed('arrowright')) - Number(pressed('a') || pressed('arrowleft'));
+  const keyboardZ = Number(pressed('w') || pressed('arrowup')) - Number(pressed('s') || pressed('arrowdown'));
+  // Keyboard takes priority when active; don't accidentally amplify two devices.
+  const x = keyboardX || keyboardZ ? keyboardX : finite(touch?.x);
+  const z = keyboardX || keyboardZ ? keyboardZ : finite(touch?.z);
+  const length = Math.hypot(x,z);
+  const scale = length > 1 ? 1 / length : 1;
+  const nx = x * scale, nz = z * scale;
+  return {x:nx,z:nz,moving:Math.hypot(nx,nz) > .01,run:!!run};
 }
-export function locomotionState(intent,grounded=true){
- if(!grounded)return 'jump';
- if(!intent?.moving)return 'idle';
- return intent.run?'run':'walk';
+export function locomotionState(intent, grounded = true) {
+  if (!grounded) return 'jump';
+  if (!intent?.moving) return 'idle';
+  return intent.run ? 'run' : 'walk';
 }

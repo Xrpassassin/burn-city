@@ -97,7 +97,11 @@ async function main() {
         errors.push({ code: 'EXPECTED_COUNT_CHANGED', configured: expected, api: Number(d.items) });
         expected = Number(d.items);
       }
-      for (let offset = 0; offset < expected; offset += PAGE_SIZE) {
+      // Advance by the number actually returned, not the requested page size.
+      // Some APIs cap page size below the requested limit; breaking on a short
+      // non-empty page would silently leave the inventory incomplete.
+      let offset = 0;
+      while (offset < expected) {
         const url = new URL(API + '/nft');
         url.searchParams.set('issuer', c.issuer);
         url.searchParams.set('taxon', String(c.taxon));
@@ -120,8 +124,8 @@ async function main() {
           if (!validTokenId(tokenId)) { errors.push({ code: 'INVALID_TOKEN_ID', tokenId }); continue; }
           if (!records.has(tokenId)) records.set(tokenId, parseNft(row, c.key));
         }
+        if (rows.length > 0) offset += rows.length;
         await sleep(DELAY_MS);
-        if (rows.length < PAGE_SIZE) break;
       }
     } catch (error) {
       errors.push({ code: 'COLLECTION_VALIDATION_FAILED', message: String(error.message ?? error) });

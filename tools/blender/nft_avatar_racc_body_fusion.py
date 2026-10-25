@@ -115,11 +115,29 @@ def main():
         for edge in poly.edge_keys:
             key=tuple(sorted(edge))
             edge_uses[key]=edge_uses.get(key,0)+1
+    # Count disconnected mesh islands; voxel remesh can leave detached shapes.
+    parent=list(range(len(fused.data.vertices)))
+    def root(index):
+        while parent[index]!=index:
+            parent[index]=parent[parent[index]]
+            index=parent[index]
+        return index
+    def union(a,b):
+        ra,rb=root(a),root(b)
+        if ra!=rb:
+            parent[rb]=ra
+    for edge in fused.data.edges:
+        union(edge.vertices[0],edge.vertices[1])
+    connected_components=len({root(i) for i in range(len(parent))})
+    # A fused body must be connected before deformation work begins.
+    # Report the failure without incorrectly approving or hiding the model.
     report={
         "collection":"racc",
         "stage":"fused-blockout-needs-retopology",
         "runtimeApproved":False,
         "fusedVertices":len(fused.data.vertices),
+        "connectedComponents":connected_components,
+        "continuousBodyPass":connected_components==1,
         "fusedFaces":len(fused.data.polygons),
         "fusedTriangles":sum(max(0,len(poly.vertices)-2) for poly in fused.data.polygons),
         "nonManifoldEdges":sum(1 for n in edge_uses.values() if n!=2),
@@ -130,6 +148,8 @@ def main():
     }
     with open(os.path.splitext(os.path.abspath(destination))[0]+"-fusion-qa.json","w",encoding="utf8") as handle:
         json.dump(report,handle,indent=2)
+    if connected_components!=1:
+        print("WARNING: fused body has",connected_components,"disconnected islands; manual mesh cleanup required")
     print("RACC fused blockout:",fused.name,len(fused.data.polygons),
           "faces; review GLB:",review_glb,"; retopology required")
 

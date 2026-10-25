@@ -24,6 +24,20 @@ on:
       - 'scripts/nft-avatar-build-spec.test.mjs'
       - 'scripts/nft-avatar-build-pipeline.mjs'
       - 'scripts/nft-avatar-build-pipeline.test.mjs'
+      - 'client/js/nft-trait-asset-registry.mjs'
+      - 'client/js/nft-trait-asset-registry.test.mjs'
+      - 'scripts/nft-uri-utils.mjs'
+      - 'scripts/ingest-nft-reference-catalog.mjs'
+      - 'scripts/ingest-nft-reference-catalog.test.mjs'
+      - 'scripts/nft-ingest-plan-validator.mjs'
+      - 'scripts/nft-ingest-plan-validator.test.mjs'
+      - 'scripts/discover-nft-collections.mjs'
+      - 'scripts/discover-nft-collections.test.mjs'
+      - 'scripts/nft-inventory-reconciliation.mjs'
+      - 'scripts/nft-inventory-reconciliation.test.mjs'
+      - 'scripts/reconcile-nft-discovery.mjs'
+      - 'scripts/reconcile-nft-discovery.test.mjs'
+      - 'client/js/nft-collection-ingest-plan.json'
       - 'tools/blender/nft_avatar_generator.py'
       - 'docs/NFT_AVATAR_GLB_BUILD_PIPELINE.md'
       - 'docs/NFT_AVATAR_BUILD_SPEC_COMPILER.md'
@@ -65,3 +79,11 @@ jobs:
           node-version: '22.16.0'
       - name: Run NFT avatar and asset-manifest tests
         run: npm run test:nft-avatar
+      - name: Run NFT source identity and ingestion safety tests
+        run: |
+          npm run -s test:nft-catalog-uri
+          npm run -s test:nft-trait-registry
+          npm run -s test:nft-ingest-plan
+          npm run -s test:nft-discovery
+          npm run -s test:nft-reconciliation
+          npm run -s test:nft-discovery-reconciliation

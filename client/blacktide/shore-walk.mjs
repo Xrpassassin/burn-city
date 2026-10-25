@@ -1,4 +1,5 @@
 import {walkingIntent} from '../js/walking-input.mjs';
+import {createWalkingPad} from '../js/walking-pad.mjs';
 // First playable Cinder Cove shore walk. Client visuals only; never grants quests/rewards.
 export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
   const island={x:-56,z:-84};
@@ -18,23 +19,27 @@ export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
   button.type='button';button.textContent='DISEMBARK · CINDER COVE';
   button.style.cssText='position:absolute;bottom:110px;left:50%;transform:translateX(-50%);z-index:25;padding:12px 18px;border:1px solid #b98a4e;border-radius:8px;background:#17202b;color:#fff;font-weight:700;cursor:pointer';
   button.hidden=true;game.append(button);
+  const pad=createWalkingPad(game,{label:'Cinder Cove movement'});
+  pad.setVisible(false);
   let ashore=false,angle=0;
   button.addEventListener('click',()=>{
     ashore=!ashore;avatar.visible=ashore;
     if(ashore){avatar.position.set(island.x,2.4,island.z-7);angle=0;}
     button.textContent=ashore?'RETURN TO SHIP':'DISEMBARK · CINDER COVE';
     trade.setShoreMode(ashore);
+    pad.setVisible(ashore);
   });
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   return {
+    dispose(){pad.dispose();button.remove();scene.remove(avatar);},
     get ashore(){return ashore;},
     get position(){return avatar.position;},
     update(dt,keys) {
       const atCove=trade.test.state().docked==='cinder-cove';
-      if(!atCove&&ashore){ashore=false;avatar.visible=false;trade.setShoreMode(false);}
+      if(!atCove&&ashore){ashore=false;avatar.visible=false;trade.setShoreMode(false);pad.setVisible(false);}
       button.hidden=!atCove;
       if(!ashore)return false;
-      const {x:side,z:f}=walkingIntent(keys);
+      const {x:side,z:f}=walkingIntent(keys,pad.vector);
       const len=Math.hypot(f,side);
       if(len>0){
         const dx=side/len,dz=-f/len;

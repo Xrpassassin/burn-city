@@ -45,7 +45,7 @@ function attach(ws, url, instanceManager) {
   const peer = { id: nextPeerId++, ws, leaseToken: token, position: { x: 0, y: 0, z: 0, r: 0 }, updatedAt: Date.now(), lastUpdate: 0, hasPosition: false };
   room.set(peer.id, peer);
   send(ws, { t: 'w', id: peer.id, instanceId, peers: [...room.values()].filter(p => p !== peer && p.hasPosition).map(p => ({ id: p.id, ...p.position })) });
-  for (const other of room.values()) if (other !== peer) send(other.ws, { t: 'j', id: peer.id, ...peer.position });
+  // Announce a peer only after its first valid position; otherwise clients render a ghost at (0,0,0).
 
   ws.on('message', raw => {
     if (!instanceManager.inspectLease(token)) { try { ws.close(1008, 'invalid_estates_lease'); } catch {} return; }
@@ -58,10 +58,11 @@ function attach(ws, url, instanceManager) {
     const position = cleanPosition(message);
     if (!position) return;
     if (peer.hasPosition && !isPlausibleStep(peer.position, position, now-peer.updatedAt)) return;
+    const initial = !peer.hasPosition;
     peer.position = position;
     peer.hasPosition = true;
     peer.updatedAt = now;
-    for (const other of room.values()) if (other !== peer) send(other.ws, { t: 'p', id: peer.id, ...position });
+    for (const other of room.values()) if (other !== peer) send(other.ws, { t: initial ? 'j' : 'p', id: peer.id, ...position });
   });
 
   const leaseWatch = setInterval(() => {

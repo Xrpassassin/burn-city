@@ -448,18 +448,19 @@ export function buildNftChar(n, opts = {}) {
   } else if (components.headwearStyle === 'straw-hat') {
     // A woven/conical hat has a broad brim and tapered crown; do not collapse it into the generic cap recipe.
     const strawColor = mat(traitColor(/headwear/i, '#c8ad72'), .94, .01);
-    const brim = add(geo('nft-straw-hat-brim',()=>new THREE.CylinderGeometry(.29,.29,.025,24)),strawColor,0,.16,-.005,head);
+    const brim = add(geo('nft-straw-hat-brim',()=>new THREE.CylinderGeometry(.32,.305,.024,32)),strawColor,0,.16,-.005,head);
     brim.name='nft-straw-hat-brim';
-    const crown = add(geo('nft-straw-hat-crown',()=>new THREE.CylinderGeometry(.035,.16,.24,16)),strawColor,0,.285,-.005,head);
+    // The source RACC hat has a tall, sharply tapered woven crown, not a flat-topped bucket.
+    const crown = add(geo('nft-straw-hat-crown',()=>new THREE.ConeGeometry(.158,.285,20,3)),strawColor,0,.31,-.005,head);
     crown.name='nft-straw-hat-crown';
     const weaveDark = mat(traitColor(/headwear/i, '#8a6841'), .96, .01);
-    // Fine raised concentric rows suggest woven straw at normal gameplay camera distance.
-    for (const [row, radius] of [[0,.148],[1,.126],[2,.104],[3,.082],[4,.061],[5,.043]]) {
-      const ring = add(geo('nft-straw-hat-weave-row-'+row,()=>new THREE.TorusGeometry(radius,.0035,4,24)),row%2 ? strawColor : weaveDark,0,.19+row*.036,-.005,head);
-      ring.rotation.x=Math.PI/2;
+    // Concentric weave rows lie flat across the hat's horizontal cross-sections.
+    // Keep each row in the XY plane (the torus default) so it encircles the crown rather than forming vertical hoops.
+    for (const [row, radius, y] of [[0,.285,.174],[1,.245,.205],[2,.205,.238],[3,.165,.271],[4,.125,.304],[5,.085,.337],[6,.045,.368]]) {
+      const ring = add(geo('nft-straw-hat-weave-row-'+row,()=>new THREE.TorusGeometry(radius,.0035,4,32)),row%2 ? strawColor : weaveDark,0,y,-.005,head);
       ring.name='nft-straw-hat-weave-row-'+row;
     }
-    const band = add(geo('nft-straw-hat-band',()=>new THREE.TorusGeometry(.135,.012,5,20)),weaveDark,0,.235,-.005,head);
+    const band = add(geo('nft-straw-hat-band',()=>new THREE.TorusGeometry(.145,.012,5,24)),weaveDark,0,.205,-.005,head);
     band.name='nft-straw-hat-band';
   } else if (components.headwearStyle === 'rock') {
     const rock=addSphere(head,mat(traitColor(/headwear/i,'#777a80')),[0,.16,-.01],[.22,.17,.2]); rock.name='nft-rock-headwear';

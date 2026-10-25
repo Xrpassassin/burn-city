@@ -7,11 +7,11 @@ Estates is a physical island/entrance in the BURN City overworld, but its detail
 
 The live city view should show a compact scenic island silhouette with a visible water ring and a few recognizable rooflines. The detailed neighborhood—full roads, all lot anchors, landmarks, vegetation, and building blockouts—is revealed only after the player explicitly selects **Enter Estates Island**. The bridge and gate remain visible from the city side, and canceling or walking away must not enter the community.
 
-The current client integration implements this as a presentation boundary: a lightweight exterior preview is shown before entry and the detailed community is revealed after confirmation. This does **not yet** constitute a server-isolated multiplayer instance or on-demand renderer allocation. The next integration step is to acquire the shared `estates-island` instance lease only after server-side session/access validation, restore the player's return anchor on exit, and persist property/build state outside transient renderer memory.
+The current client integration implements this as a presentation boundary: a lightweight exterior preview is shown before entry and the detailed community is revealed after confirmation. The server now manages shared logical instance leases and relays lease-authorized peer presence. The full island renderer is still a local client scene, not a server-hosted simulation; return-anchor persistence and property/build saves remain future work.
 
 ## Lifecycle
 1. The city renderer shows the island landmark and bridge/entrance. A proximity trigger offers an interaction prompt; proximity alone never teleports or loads the destination.
-2. The player confirms. The server validates the authenticated player, destination, access rules, and current world/session state.
+2. The player confirms. The server issues a short-lived lease for this public destination; private lot and build actions still require their own authenticated server-side rights checks.
 3. The destination adapter acquires a lease for a stable instance key (initially `estates-island`). Concurrent arrivals for the same key await one creation and join the same instance.
 4. The scene loads the island, lake, roads, bridges, dock, lots, and saved property layouts. The instance key is a runtime identity, not an ownership identifier.
 5. On exit/disconnect, release the player's lease. When the last lease leaves, start an idle grace period. A new arrival cancels that timer and reuses the live instance.
@@ -33,6 +33,20 @@ The live city entrance now calls the server's public instance admission endpoint
 - If admission fails, the player remains in BURN City and can retry. A late admission response is released if the live host is disposed before entry completes.
 
 **Important boundary:** this implements server-side shared admission and lease lifecycle, not yet networked player presence/movement, server-authoritative collision/game simulation, or persistent property layout saves. The browser currently renders its local copy of the same deterministic island scene. The returned `activeVisitors` count is lease telemetry, not proof that other avatars are visible in the scene. Property ownership and build actions must continue to use their separate authenticated server checks.
+
+## Shared peer presence relay
+
+- `server/estates-presence.js` accepts WebSocket connections only when their short-lived lease token is still valid. Duplicate sockets for the same lease replace the previous connection.
+- The server assigns peer IDs, returns a current peer snapshot, and broadcasts join, bounded position/heading updates, and leave events only to sockets in the same instance generation.
+- Position snapshots are rate-limited and clamped to the island's local coordinate envelope. The client interpolates remote capsule-style avatars toward received snapshots and closes presence when leaving or disposing the host.
+- Client snapshots are presentation data only. They do not authorize property access, validate movement against collisions, or drive authoritative gameplay. Lease expiry invalidates subsequent socket messages; client heartbeat continues separately.
+
+## Remaining work
+
+1. Server-authoritative movement/collision validation and robust reconnection/reconciliation.
+2. Durable player return anchors and persistent lot/building layouts.
+3. Integration of authenticated account identity and invite/owner checks for every private-property mutation.
+4. Visual QA on desktop/mobile, including two-client presence, reconnect, exit, and lease-expiry scenarios.
 
 ## Boundaries and security
 - Never trust a client-supplied `playerId` as authentication. Pass the server-verified account/session identity to the lifecycle adapter.

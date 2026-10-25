@@ -4,7 +4,7 @@
 // same catalog ordering and slot layout used by the client island scene; request bodies
 // never supply lot bounds, owner identity, existing placements, or permission grants.
 const { CATALOG } = require('./estate-economy');
-const { BUILDINGS, planEstatePlacement } = require('./estates-building-placement');
+const { planEstatePlacement } = require('./estates-building-placement');
 
 const SLOT_LAYOUT = Object.freeze([
   [-42,-91],[-14,-99],[14,-99],[42,-91],[-76,-54],[-48,-47],[-20,-53],[20,-53],[48,-47],[76,-54],
@@ -119,7 +119,7 @@ function createEstatesLayoutStore({ db, access, now = Date.now, catalog = CATALO
       return fail('layout-storage-unavailable');
     }
     return Object.freeze({ ok:true, placement:Object.freeze({
-      placementId, propertyId, ownerAcct:account, buildingType:p.buildingType,
+      placementId, propertyId, createdByAcct:account, buildingType:p.buildingType,
       x:p.x, y:p.y, z:p.z, width:p.width, depth:p.depth, height:p.height,
       rotationY:p.rotationY, createdAt:timestamp, updatedAt:timestamp, status:'persisted'
     }) });

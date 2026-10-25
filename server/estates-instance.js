@@ -93,11 +93,18 @@ function createEstatesInstanceManager({
     return { ok: true, released: true, activeVisitors: leases.size };
   }
 
+  function inspectLease(leaseToken) {
+    if (typeof leaseToken !== 'string' || !/^[a-f0-9]{48}$/.test(leaseToken)) return null;
+    const lease = leases.get(leaseToken);
+    if (!lease || !instanceId) return null;
+    return Object.freeze({ clientId: lease.clientId, instanceId });
+  }
+
   function snapshot() {
     return Object.freeze({ instanceId, activeVisitors: leases.size, state: !instanceId ? 'absent' : leases.size ? 'active' : 'idle' });
   }
 
-  return Object.freeze({ enter, heartbeat, leave, snapshot });
+  return Object.freeze({ enter, heartbeat, leave, inspectLease, snapshot });
 }
 
 module.exports = { createEstatesInstanceManager };

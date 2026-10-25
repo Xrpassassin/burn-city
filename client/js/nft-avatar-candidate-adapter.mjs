@@ -6,6 +6,8 @@ export function createCandidateBuildPlan(catalog, candidateId, collectionKey) {
   if (!catalog || catalog.status !== 'research-only' || !Array.isArray(catalog.candidates)) {
     throw new TypeError('A research-only model candidate catalog is required');
   }
+  const collectionAllowed = ['racc', '589', 'fk'].includes(collectionKey);
+  if (!collectionAllowed) throw new RangeError('Unknown target collection: ' + String(collectionKey));
   const candidate = catalog.candidates.find(item => item.id === candidateId);
   if (!candidate) throw new RangeError('Unknown model candidate: ' + String(candidateId));
   if (candidate.intendedCollection !== collectionKey && candidate.intendedCollection !== 'shared-technical') {
@@ -18,8 +20,6 @@ export function createCandidateBuildPlan(catalog, candidateId, collectionKey) {
       message: 'Candidate is scoped to ' + candidate.intendedCollection + ', not ' + collectionKey
     };
   }
-  const collectionAllowed = ['racc', '589', 'fk'].includes(collectionKey);
-  if (!collectionAllowed) throw new RangeError('Unknown target collection: ' + String(collectionKey));
   return {
     ok: true,
     status: 'research-plan',

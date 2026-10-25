@@ -40,6 +40,10 @@ jobs:
           node --check server/estates-presence.js
           node server/estates-instance.test.js
           node server/estates-presence.test.js
+      - name: Test Kimi review integration
+        run: |
+          node --check server/kimi-review.js
+          node server/kimi-review.test.js
       - name: Test server-side access and building placement contracts
         run: |
           node server/estates-access-policy.test.js

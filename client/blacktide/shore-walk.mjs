@@ -1,3 +1,4 @@
+import {walkingIntent} from '../js/walking-input.mjs';
 // First playable Cinder Cove shore walk. Client visuals only; never grants quests/rewards.
 export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
   const island={x:-56,z:-84};
@@ -33,8 +34,7 @@ export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
       if(!atCove&&ashore){ashore=false;avatar.visible=false;trade.setShoreMode(false);}
       button.hidden=!atCove;
       if(!ashore)return false;
-      const f=Number(keys.has('w')||keys.has('arrowup'))-Number(keys.has('s')||keys.has('arrowdown'));
-      const side=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'));
+      const {x:side,z:f}=walkingIntent(keys);
       const len=Math.hypot(f,side);
       if(len>0){
         const dx=side/len,dz=-f/len;

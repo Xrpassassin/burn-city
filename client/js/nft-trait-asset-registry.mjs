@@ -160,3 +160,29 @@ export function buildTraitAssemblyManifest({ collection, traits = [], registry, 
   const ready = entries.filter(entry => entry.status === 'ready').length;
   return Object.freeze({ collection: collectionKey, totalTraits: entries.length, readyTraits: ready, blockedTraits: entries.length - ready, complete: entries.length > 0 && ready === entries.length, entries: Object.freeze(entries) });
 }
+
+/** Map source trait types to collection-local semantic slots without rewriting their source identity.
+ * Exact type/value remain intact for asset lookup; aliases from other collections are never consulted.
+ */
+export function normalizeCollectionTraits({ collectionManifest, traits = [] } = {}) {
+  if (!collectionManifest || typeof collectionManifest !== 'object') throw new TypeError('collection manifest is required');
+  const collection = text(collectionManifest.collectionKey).toLowerCase();
+  if (!collection) throw new TypeError('collection manifest collectionKey is required');
+  const mappings = list(collectionManifest.traitMappings);
+  const aliases = new Map();
+  for (const mapping of mappings) {
+    const slot = text(mapping?.slot).toLowerCase();
+    for (const alias of list(mapping?.aliases)) {
+      const key = text(alias).toLowerCase();
+      if (!slot || !key) continue;
+      if (aliases.has(key) && aliases.get(key) !== slot) throw new TypeError('ambiguous trait alias in collection manifest: ' + key);
+      aliases.set(key, slot);
+    }
+  }
+  return Object.freeze(list(traits).map((trait, index) => {
+    const type = text(trait?.type ?? trait?.trait_type ?? trait?.traitType);
+    const value = text(trait?.value);
+    const slot = aliases.get(type.toLowerCase()) || '';
+    return Object.freeze({ index, collection, type, value, slot, mapped: !!slot, valid: !!type && !!value });
+  }));
+}

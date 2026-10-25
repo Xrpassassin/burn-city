@@ -33,4 +33,12 @@ assert.equal(controller.dispose(),true);
 assert.equal(controller.dispose(),false);
 assert.equal(controller.isActive,false);
 assert.throws(()=>createEstatesIslandController({manifest,actor,camera}),/input callback/);
+
+const entrance={x:lot.position.x,y:0,z:lot.position.z-lot.buildingFootprint.depth/2-2.5};
+actor.position.x=entrance.x;actor.position.z=entrance.z;
+r=controller.update({dt:.016,interactPressed:true});
+assert.equal(r.property?.interaction,'inspect-entrance');
+assert.equal(r.property?.lotId,lot.id);
+assert(prompts.some(p=>p.interaction==='inspect-entrance'&&p.confirmedInteraction===true));
+
 console.log('estates-island-controller: all tests passed');

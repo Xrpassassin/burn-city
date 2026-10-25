@@ -27,9 +27,9 @@ attach(first, new URL('ws://local/?mode=estates&lease='+oneLease.leaseToken), ma
 attach(second, new URL('ws://local/?mode=estates&lease='+twoLease.leaseToken), manager);
 assert.equal(first.sent[0].t, 'w');
 assert.equal(second.sent[0].peers.length, 0, 'new visitor does not receive an uninitialized peer at the origin');
-assert.equal(first.sent.at(-1).t, 'j', 'existing visitors are told when a peer joins');
+assert.equal(first.sent.at(-1).t, 'w', 'uninitialized peers are not announced at the origin');
 second.message({t:'p',x:7,y:0,z:-11,r:1.25});
-assert.deepEqual(first.sent.at(-1), {t:'p',id:2,x:7,y:0,z:-11,r:1.25});
+assert.deepEqual(first.sent.at(-1), {t:'j',id:2,x:7,y:0,z:-11,r:1.25}, 'first valid position announces the peer');
 second.message({t:'p',x:1e99,y:0,z:0,r:0});
 assert.equal(first.sent.at(-1).x, 7, 'non-finite position payload is ignored');
 assert.equal(cleanPosition({x:239,y:0,z:-239,r:9}).r, Math.PI, 'heading is normalized to the supported range');

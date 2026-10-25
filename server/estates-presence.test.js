@@ -26,6 +26,7 @@ assert.deepEqual(first.sent.at(-1), {t:'p',id:2,x:7,y:0,z:-11,r:1.25});
 second.message({t:'p',x:1e99,y:0,z:0,r:0});
 assert.equal(first.sent.at(-1).x, 7, 'non-finite position payload is ignored');
 assert.deepEqual(cleanPosition({x:999,y:-20,z:-999,r:9}), {x:240,y:-2,z:-240,r:Math.PI});
+assert.equal(cleanPosition({x:NaN,y:0,z:0,r:0}), null, 'non-finite client coordinates are rejected');
 second.close(1000,'done');
 assert.deepEqual(first.sent.at(-1), {t:'l',id:2}, 'departing visitor is removed from peers');
 const invalid = new FakeSocket();

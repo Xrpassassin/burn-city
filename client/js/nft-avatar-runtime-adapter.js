@@ -16,6 +16,12 @@
       animationProfile: "zombies-combat",
       equipmentProfile: "combat-loadout"
     }),
+    blacktide: Object.freeze({ key: "blacktide", features: Object.freeze(["thirdPersonTraversal", "shipBoarding", "portInteraction", "multiplayer"]), animationProfile: "blacktide-adventure", equipmentProfile: "pirate-loadout" }),
+    "estates-island": Object.freeze({ key: "estates-island", features: Object.freeze(["thirdPersonTraversal", "propertyInteraction", "multiplayer"]), animationProfile: "city-traversal", equipmentProfile: "city-cosmetic" }),
+    city: Object.freeze({ key: "city", features: Object.freeze(["thirdPersonTraversal", "multiplayer"]), animationProfile: "city-traversal", equipmentProfile: "city-cosmetic" }),
+    fishing: Object.freeze({ key: "fishing", features: Object.freeze(["thirdPersonTraversal", "boatInteraction"]), animationProfile: "fishing", equipmentProfile: "fishing-gear" }),
+    "cinder-wilds": Object.freeze({ key: "cinder-wilds", features: Object.freeze(["thirdPersonTraversal", "creatureInteraction"]), animationProfile: "forest-adventure", equipmentProfile: "forest-loadout" }),
+    "light-cycles": Object.freeze({ key: "light-cycles", features: Object.freeze(["vehicleRiding", "multiplayer"]), animationProfile: "cycle-rider", equipmentProfile: "cycle-cosmetic" }),
     homefront: Object.freeze({
       key: "homefront",
       features: Object.freeze(["thirdPersonTraversal", "survivorInteraction", "baseActivities", "workshopPreview", "weaponSockets", "hitReactions"]),

@@ -71,6 +71,7 @@
     "test:nft-avatar-build-pipeline": "node scripts/nft-avatar-build-pipeline.test.mjs",
     "test:estates-instance": "node server/estates-instance.test.js",
     "test:estates-presence": "node server/estates-presence.test.js",
+    "test:estates-return-anchor": "node server/estates-return-anchor.test.js",
     "test:kimi-review": "node server/kimi-review.test.js"
   },
   "keywords": [],

@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { planHolderBuilds, runHolderBuilds } from './nft-holder-avatar-build.mjs';
+const id = 'A'.repeat(64);
+const spec = { specVersion: 1, identity: { collectionKey: 'racc', tokenId: id }, reconstruction: {} };
+const queue = { queue: [{ collection: 'racc', tokenId: id, status: 'needs_art_review', spec }] };
+const jobs = planHolderBuilds(queue, '/tmp/burn-city-nft-holder-test');
+assert.equal(jobs.length, 1);
+assert.ok(jobs[0].outputPath.endsWith(id + '.glb'));
+const result = await runHolderBuilds(queue, '/tmp/burn-city-nft-holder-test', { dryRun: true });
+assert.equal(result.built, 0);
+assert.equal(result.results[0].status, 'planned');
+assert.throws(() => planHolderBuilds({ queue: [...queue.queue, ...queue.queue] }, '/tmp'), /Duplicate/);
+assert.throws(() => planHolderBuilds({ queue: [{ ...queue.queue[0], collection: 'other' }] }, '/tmp'), /Invalid/);
+assert.throws(() => planHolderBuilds({ queue: [{ ...queue.queue[0], tokenId: '../escape' }] }, '/tmp'), /Invalid/);
+assert.throws(() => planHolderBuilds({ queue: [{ ...queue.queue[0], status: 'approved' }] }, '/tmp'), /Invalid/);
+console.log('NFT holder batch-build planning tests passed.');

@@ -142,7 +142,7 @@ export async function installEstatesIslandLive({
   };
   setDetailedCommunityVisible(false);
 
-  let active = false, entering = false, instanceLeaseToken = null, activeInstanceId = null, activeVisitors = null, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
+  let active = false, entering = false, instanceLeaseToken = null, activeInstanceId = null, activeVisitors = null, instanceHeartbeatTimer = null, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
   const panel = makePanel();
   const showPanel = (heading, message, actions, muted='') => {
     panel.replaceChildren();
@@ -257,6 +257,7 @@ export async function installEstatesIslandLive({
       if (disposed) { void releaseEstatesInstanceLease(admission.leaseToken); return; }
       instanceLeaseToken = admission.leaseToken;
       activeInstanceId = admission.instanceId;
+      startInstanceLeaseHeartbeat();
       activeVisitors = Number.isSafeInteger(admission.activeVisitors) ? admission.activeVisitors : null;
       active=true; nearCityGate=false;
       setDetailedCommunityVisible(true);
@@ -279,6 +280,7 @@ export async function installEstatesIslandLive({
   function leaveIsland() {
     if(disposed||!active)return;
     active=false; hidePanel(); controllerRef.dispose();
+    if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; }
     setDetailedCommunityVisible(false);
     const leaseToken=instanceLeaseToken;
     instanceLeaseToken=null; activeInstanceId=null; activeVisitors=null;
@@ -288,6 +290,23 @@ export async function installEstatesIslandLive({
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
     avatar.position.copy(player.pos);
     onStatus({state:'returned-to-city'});
+  }
+  function startInstanceLeaseHeartbeat() {
+    if (instanceHeartbeatTimer !== null) clearInterval(instanceHeartbeatTimer);
+    instanceHeartbeatTimer = setInterval(async () => {
+      const leaseToken = instanceLeaseToken;
+      if (!leaseToken || !active || disposed) return;
+      try {
+        const response = await fetch(estatesServerBase() + '/api/estates/instance/heartbeat', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ leaseToken })
+        });
+        if (response.status === 410 && active && instanceLeaseToken === leaseToken) {
+          onStatus({state:'instance-lease-expired',instanceId:activeInstanceId});
+          leaveIsland();
+        }
+      } catch { /* The server expires stale leases; the next heartbeat retries. */ }
+    }, 25_000);
   }
   // A fresh controller is required after returning because dispose is intentionally final.
   let controllerRef=controller;
@@ -342,7 +361,7 @@ export async function installEstatesIslandLive({
   const api = Object.freeze({
     tick,
     dispose(){
-      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose();
+      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; } void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },

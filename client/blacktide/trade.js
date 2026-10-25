@@ -1,6 +1,7 @@
 // Blacktide ports + cargo trade (client). Every number shown here comes from the server (/api/bt/*, server/blacktide.js):
 // gold doubloons, prices, cargo and capacity are never decided in the browser. Doubloons are a Blacktide-only game currency.
 import * as THREE from 'three';
+import { portInRange, departurePosition } from './port-docking.mjs';
 
 const API = '/api/bt/';
 const tok = () => { try { return localStorage.bcToken || ''; } catch (e) { return ''; } };
@@ -13,6 +14,8 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 
 let world = null, me = null, near = null, docked = null, busy = false, msg = null, signedIn = false;
 const ui = {};
+let dockHooks = null;
+export function onDockChange(hooks) { dockHooks = hooks; }
 
 function buildUi() {
   ui.dock = el('button', 'bt-dock'); ui.dock.type = 'button'; ui.dock.hidden = true;
@@ -84,8 +87,11 @@ async function act(op, body) {
   busy = false; render();
 }
 
-function open(p) { docked = p; ui.dock.hidden = true; ui.panel.hidden = false; msg = null; render(); refresh().then(render); }
-function close() { docked = null; ui.panel.hidden = true; msg = null; }
+function open(p) { if (!near || near.id !== p.id || docked) return; docked = p;
+  dockHooks?.dock?.(p); ui.dock.hidden = true; ui.panel.hidden = false; msg = null; render(); refresh().then(render); }
+function close() { if (!docked) return;
+  const leaving = docked; dockHooks?.depart?.(leaving, departurePosition(leaving, dockHooks?.position?.() || {x:leaving.x,z:leaving.z}));
+  docked = null; ui.panel.hidden = true; msg = null; }
 
 export async function init(scene) {
   buildUi();
@@ -101,7 +107,7 @@ export function tick(pos) {
   if (!world || !world.ports) return false;
   if (docked) return true;
   let best = null, bd = 1e9;
-  for (const p of world.ports) { const d = Math.hypot(pos.x - p.x, pos.z - p.z); if (d < p.r && d < bd) { bd = d; best = p; } }
+  for (const p of world.ports) { const d = Math.hypot(pos.x - p.x, pos.z - p.z); if (portInRange(pos,p) && d < bd) { bd = d; best = p; } }
   if (best !== near) { near = best; ui.dock.hidden = !near; if (near) ui.dock.textContent = `⚓ DOCK · ${near.name}`; }
   return false;
 }

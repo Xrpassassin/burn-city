@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {portInRange,departurePosition} from './port-docking.mjs';
+const port={id:'cinder-cove',x:-56,z:-84,r:30};
+assert.equal(portInRange({x:-56,z:-84},port),true);
+assert.equal(portInRange({x:-26,z:-84},port),false);
+assert.equal(portInRange({x:NaN,z:0},port),false);
+const out=departurePosition(port,{x:-46,z:-84});
+assert.deepEqual(out,{x:-18,z:-84});
+assert.equal(portInRange(out,port),false);
+assert.equal(departurePosition(port,{x:0,z:0}),null);
+console.log('BlackTide independent zone docking tests passed');

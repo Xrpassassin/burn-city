@@ -188,7 +188,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
         node.geometry?.dispose?.();
         if(Array.isArray(node.material)) node.material.forEach(m=>m?.dispose?.()); else node.material?.dispose?.();
       });
-      objects.clear(); return true;
+      objects.clear(); savedPlacementGroups.clear(); return true;
     }
   });
 }

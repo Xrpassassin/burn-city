@@ -116,9 +116,9 @@ async function inspectCandidate(item) {
   }
   const reconciliation = reconcileNftInventory({
     candidate: c,
-    // Discovery details are cross-checked against the candidate, but still not human-verified.
-    // Passing a verifiedIdentity here allows mechanical consistency reporting only; approval stays false.
-    verifiedIdentity: detailMatches ? { slug: c.slug, issuer: c.issuer, taxon: c.taxon } : null,
+    // Discovery candidates are never treated as human-verified identities.
+    // expectedIdentity enables mismatch diagnostics without satisfying the verification gate.
+    expectedIdentity: detailMatches ? { slug: c.slug, issuer: c.issuer, taxon: c.taxon } : null,
     expectedCount: expected,
     tokens: rows,
     pageErrors: errors

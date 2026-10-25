@@ -194,33 +194,21 @@ export async function installEstatesIslandLive({
   const hidePanel = () => { panel.style.display='none'; panel.replaceChildren(); };
   async function refreshSavedPlacements() {
     const epoch = ++layoutLoadEpoch;
-    const token = estateBearerToken();
-    if (!token || typeof renderer.setSavedPlacements !== 'function') {
-      renderer.setSavedPlacements?.([]);
+    try {
+      const response = await fetch(estatesServerBase() + '/api/estates/layouts/public', { cache:'no-store' });
+      if (!response.ok) { if (!disposed && active && epoch === layoutLoadEpoch) renderer.setSavedPlacements?.([]); return 0; }
+      const payload = await response.json();
+      if (!payload?.ok || !Array.isArray(payload.placements)) throw new Error('invalid_public_estates_layout');
+      const catalogPropertyIds = new Set((catalog.properties || []).map(p => p.id).filter(id => typeof id === 'string'));
+      const placements = payload.placements.filter(p => p && catalogPropertyIds.has(p.propertyId));
+      if (disposed || !active || epoch !== layoutLoadEpoch) return 0;
+      return renderer.setSavedPlacements(placements);
+    } catch {
+      if (!disposed && active && epoch === layoutLoadEpoch) renderer.setSavedPlacements?.([]);
       return 0;
     }
-    const propertyIds = [...new Set((catalog.properties || []).map(p => p.id).filter(id => typeof id === 'string' && id))];
-    const placements = [];
-    // Keep requests bounded; the server filters each result through its own owner/invite access policy.
-    for (let i = 0; i < propertyIds.length; i += 4) {
-      if (disposed || !active || epoch !== layoutLoadEpoch) return 0;
-      const batch = propertyIds.slice(i, i + 4);
-      const results = await Promise.all(batch.map(async propertyId => {
-        try {
-          const response = await fetch(estatesServerBase() + '/api/estates/layout?propertyId=' + encodeURIComponent(propertyId), {
-            headers: { authorization: 'Bearer ' + token }, cache: 'no-store'
-          });
-          if (!response.ok) return [];
-          const payload = await response.json();
-          if (!payload?.ok || payload.propertyId !== propertyId || !Array.isArray(payload.placements)) return [];
-          return payload.placements.filter(p => p && p.propertyId === propertyId);
-        } catch { return []; }
-      }));
-      placements.push(...results.flat());
-    }
-    if (disposed || !active || epoch !== layoutLoadEpoch) return 0;
-    return renderer.setSavedPlacements(placements);
   }
+
   const showLotInspection = property => {
     const catalogued=Boolean(property.propertyId);
     showPanel('LOT INSPECTION · '+property.lotId,

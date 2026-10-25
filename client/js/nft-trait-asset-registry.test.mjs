@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { canonicalTraitKey, normalizeTraitSource, safeSourceUrl, resolveSourceUrl, createTraitAssetRegistry, canEquipTrait, validateCollectionInventory, buildTraitAssemblyManifest, normalizeCollectionTraits } from './nft-trait-asset-registry.mjs';
+import { canonicalTraitKey, normalizeTraitSource, safeSourceUrl, resolveSourceUrl, createTraitAssetRegistry, canEquipTrait, validateCollectionInventory, buildTraitAssemblyManifest, normalizeCollectionTraits, buildCollectionAvatarPlan } from './nft-trait-asset-registry.mjs';
 const a = 'A'.repeat(64), b = 'B'.repeat(64);
 assert.equal(canonicalTraitKey({collection:'RACC',type:'Top Gear',value:'Straw Hat'}), canonicalTraitKey({collection:'racc',type:'top gear',value:'straw hat'}));
 assert.throws(() => normalizeTraitSource({collection:'RACC',tokenId:'bad',type:'hat',value:'straw'}));
@@ -39,4 +39,27 @@ assert.deepEqual(raccNormalized.map(t=>t.slot),['headwear','weapon','outfit','']
 assert.equal(raccNormalized[0].type,'Top Gear');
 assert.equal(raccNormalized[3].mapped,false,'does not borrow a 589-only alias into RACC');
 assert.throws(()=>normalizeCollectionTraits({collectionManifest:{collectionKey:'racc',traitMappings:[{slot:'headwear',aliases:['Head']},{slot:'weapon',aliases:['head']}]},traits:[]}),/ambiguous trait alias/);
+
+
+const integratedPlan = buildCollectionAvatarPlan({
+ collectionManifest: raccManifest,
+ traits: [
+  {type:'Top Gear',value:'Straw Hat'},
+  {type:'Armed',value:'TNT'},
+  {type:'Suit Type',value:'Streetwear'}
+ ],
+ registry,
+ character: char
+});
+assert.equal(integratedPlan.collection,'racc');
+assert.equal(integratedPlan.totalTraits,3);
+assert.equal(integratedPlan.entries[0].mappedSlot,'headwear');
+assert.equal(integratedPlan.entries[0].status,'ready');
+assert.equal(integratedPlan.entries[1].mappedSlot,'weapon');
+assert.equal(integratedPlan.entries[1].status,'missing-asset');
+assert.equal(integratedPlan.entries[2].status,'unmapped-trait');
+assert.equal(integratedPlan.complete,false,'missing and unmapped traits block a complete avatar plan');
+assert.equal(integratedPlan.readyTraits,1);
+assert.equal(integratedPlan.blockedTraits,2);
+
 console.log('NFT trait asset registry and assembly manifest tests passed');

@@ -24,6 +24,7 @@ assert(live.includes('/api/estates/instance/enter'), 'explicit entry acquires a 
 assert(live.includes('/api/estates/instance/leave'), 'returning to city releases the shared-instance lease');
 assert(live.includes('/api/estates/instance/heartbeat'), 'active Estates leases are renewed to prevent stale-session leaks');
 assert(live.includes("base.searchParams.set('mode','estates')"), 'the active lease opens the dedicated Estates presence WebSocket');
+assert(live.indexOf('active=true; nearCityGate=false;') < live.indexOf('connectEstatesPresence(instanceLeaseToken);'), 'presence starts only after entry has activated the island');
 assert(live.includes("socket.send(JSON.stringify({t:'p'"), 'the client sends bounded presence snapshots while inside Estates');
 assert(live.includes("message.t === 'w'"), 'the client hydrates other visitors from the initial presence snapshot');
 assert(live.includes("message.t === 'j' || message.t === 'p'"), 'the client creates and updates remote player avatars');

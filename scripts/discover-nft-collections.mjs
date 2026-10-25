@@ -43,7 +43,7 @@ export function normalizeCandidate(collection) {
   const issuer = String(collection?.issuer ?? collection?.account ?? collection?.owner ?? '');
   const taxonValue = collection?.taxon;
   const countValue = collection?.items ?? collection?.count ?? collection?.nfts;
-  const count = typeof countValue === 'number' ? countValue : Number(countValue);
+  const count = countValue === null || countValue === undefined || countValue === '' ? null : (typeof countValue === 'number' ? countValue : Number(countValue));
   return {
     name: String(collection?.name ?? collection?.collection ?? collection?.displayName ?? ''),
     slug: String(collection?.slug ?? collection?.id ?? ''),
@@ -52,7 +52,7 @@ export function normalizeCandidate(collection) {
     expectedCount: Number.isInteger(count) && count >= 0 ? count : null,
     marketplaceUrl: String(collection?.url ?? collection?.link ?? ''),
     source: API + '/nft/collections?origin=xrp.cafe&limit=200&lightweight=true',
-    identityReadyForReview: Boolean(collection?.slug && issuer && taxonValue !== undefined && taxonValue !== null && countValue !== undefined)
+    identityReadyForReview: Boolean(collection?.slug && issuer && taxonValue !== undefined && taxonValue !== null && countValue !== undefined && countValue !== null && count !== null)
   };
 }
 

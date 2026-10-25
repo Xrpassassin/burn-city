@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import {walkingIntent,locomotionState} from './walking-input.mjs';
 assert.deepEqual(walkingIntent(),{x:0,z:0,moving:false,run:false});
-assert.deepEqual(walkingIntent(new Set(['w','d'])).moving,true);
-assert.ok(Math.abs(Math.hypot(walkingIntent(new Set(['w','d'])).x,walkingIntent(new Set(['w','d'])).z)-1)<1e-9);
+const diagonal=walkingIntent(new Set(['w','d']));
+assert.ok(Math.abs(Math.hypot(diagonal.x,diagonal.z)-1)<1e-9);
 assert.equal(walkingIntent(new Set(),{x:0,z:.7}).z,.7);
+assert.deepEqual(walkingIntent(new Set(['w']),{x:1,z:0}),{x:0,z:1,moving:true,run:false});
+assert.equal(walkingIntent(new Set(),{x:Infinity,z:NaN}).moving,false);
+assert.equal(walkingIntent(new Set(),{x:3,z:4}).moving,true);
+assert.ok(Math.abs(Math.hypot(walkingIntent(new Set(),{x:3,z:4}).x,walkingIntent(new Set(),{x:3,z:4}).z)-1)<1e-9);
 assert.equal(locomotionState(walkingIntent(new Set(['w']))),'walk');
 assert.equal(locomotionState(walkingIntent(new Set(['w']),{},true)),'run');
 assert.equal(locomotionState(walkingIntent(),false),'jump');

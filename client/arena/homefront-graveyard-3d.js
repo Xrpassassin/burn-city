@@ -1392,20 +1392,20 @@ function boot(host) {
     // Ground taps never issue movement commands. Travel is controlled by WASD/joystick.
     // Preserve tap selection of infected, survivors, loot and interactive structures above.
   };
-  async function moveTo(x, z) {
+  async function moveTo(x, z, sprint = sprintTravel) {
     if (reloadState) cancelReload('Reload interrupted by movement.');
     aiming = false;
     if (aimWeaponButton) { aimWeaponButton.setAttribute('aria-pressed', 'false'); aimWeaponButton.textContent = 'Aim weapon'; }
-    aimRecoveryUntil = performance.now() + (sprintTravel ? 1800 : 900);
+    aimRecoveryUntil = performance.now() + (sprint ? 1800 : 900);
     lastTravelAt = performance.now();
     moving = true; if (status) status.textContent = 'Moving through the shared Graveyard…';
     try {
-      if (sprintTravel && worldData?.selfWeaponHandling?.aiming) {
+      if (sprint && worldData?.selfWeaponHandling?.aiming) {
         const lowered = await requestAimState(false);
         updateWorld(lowered);
         aiming = false;
       }
-      const r = await fetch(API + '/api/homefront/world/move', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ x, z, sprint: sprintTravel }) });
+      const r = await fetch(API + '/api/homefront/world/move', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ x, z, sprint }) });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'movement_rejected');
       updateWorld(data);
@@ -1513,7 +1513,12 @@ function boot(host) {
       if (localActor) localActor.visible = view.mode !== 'first';
       // Joystick / WASD travel: one server-clamped step toward the stick direction per move cooldown.
       const stick = worldMove(view.move(), heading);
-      if (stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) { lastStickMoveAt = now; moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10))); }
+      // Use the same hold-to-run control as the refuge; do not require a separate travel toggle.
+      const running = view.running() || sprintTravel;
+      if (stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) {
+        lastStickMoveAt = now;
+        moveTo(Math.max(-100, Math.min(100, self.x + stick.x * (running ? 18 : 10))), Math.max(-100, Math.min(100, self.z + stick.z * (running ? 18 : 10))), running);
+      }
     }
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };
   // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.

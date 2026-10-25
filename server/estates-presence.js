@@ -25,13 +25,15 @@ function attach(ws, url, instanceManager) {
   const instanceId = lease.instanceId;
   let room = rooms.get(instanceId);
   if (!room) { room = new Map(); rooms.set(instanceId, room); }
+  for (const existing of room.values()) if (existing.leaseToken === token) { try { existing.ws.close(4001, 'presence_replaced'); } catch {} }
   if (room.size >= 40) { send(ws, { t: 'e', e: 'estates_instance_full' }); ws.close(1013, 'estates_instance_full'); return; }
-  const peer = { id: nextPeerId++, ws, position: { x: 0, y: 0, z: 0, r: 0 }, updatedAt: Date.now(), lastUpdate: 0 };
+  const peer = { id: nextPeerId++, ws, leaseToken: token, position: { x: 0, y: 0, z: 0, r: 0 }, updatedAt: Date.now(), lastUpdate: 0 };
   room.set(peer.id, peer);
   send(ws, { t: 'w', id: peer.id, instanceId, peers: [...room.values()].filter(p => p !== peer).map(p => ({ id: p.id, ...p.position })) });
   for (const other of room.values()) if (other !== peer) send(other.ws, { t: 'j', id: peer.id, ...peer.position });
 
   ws.on('message', raw => {
+    if (!instanceManager.inspectLease(token)) { try { ws.close(1008, 'invalid_estates_lease'); } catch {} return; }
     const now = Date.now();
     if (now - peer.lastUpdate < 90) return;
     peer.lastUpdate = now;

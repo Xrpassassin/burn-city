@@ -316,7 +316,7 @@ export async function installEstatesIslandLive({
       mesh.name = 'estates-remote-player-' + peerId;
       const bodyMaterial = new THREE.MeshStandardMaterial({color:0x9d5bff,roughness:.72});
       const headMaterial = new THREE.MeshStandardMaterial({color:0xffd3a2,roughness:.8});
-      const body = new THREE.Mesh(new THREE.CapsuleGeometry(.28,.72,4,8),bodyMaterial);
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(.28,.34,.9,8),bodyMaterial);
       body.position.y=.78; body.castShadow=true;
       const head = new THREE.Mesh(new THREE.SphereGeometry(.2,10,8),headMaterial);
       head.position.y=1.42; head.castShadow=true;

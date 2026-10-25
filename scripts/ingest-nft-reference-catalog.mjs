@@ -17,6 +17,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodeNftUri, safeUrl } from './nft-uri-utils.mjs';
+import { validateIngestPlan } from './nft-ingest-plan-validator.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configPath = path.join(root, 'client/js/nft-collection-ingest-plan.json');
@@ -73,7 +74,14 @@ async function fetchJson(url, attempts = 4) {
 }
 async function main() {
   const config = JSON.parse(await readFile(configPath, 'utf8'));
-  const configured = config.collections.filter(c => c.slug && c.issuer && Number.isInteger(c.taxon) && Number.isInteger(c.expectedCount));
+  const plan = validateIngestPlan(config.collections);
+  if (plan.errors.length) {
+    console.error('Invalid NFT ingestion plan; no collection will be imported.');
+    for (const error of plan.errors) console.error(JSON.stringify(error));
+    process.exitCode = 2;
+    return;
+  }
+  const configured = plan.configured;
   if (!configured.length) {
     console.error('No collection is enabled: verify slug, issuer, taxon and expectedCount in ' + path.relative(root, configPath));
     console.error('Discovery endpoint: ' + API + '/nft/collections?origin=xrp.cafe&limit=200&lightweight=true');

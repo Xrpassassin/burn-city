@@ -105,4 +105,5 @@ export function tick(pos) {
   if (best !== near) { near = best; ui.dock.hidden = !near; if (near) ui.dock.textContent = `⚓ DOCK · ${near.name}`; }
   return false;
 }
+export function setShoreMode(ashore) { if (ui.panel && docked) ui.panel.hidden = !!ashore; }
 export const test = { state: () => ({ near: near && near.id, docked: docked && docked.id, me, signedIn, world: !!world, busy, msg }), ports: () => world && world.ports, refresh };

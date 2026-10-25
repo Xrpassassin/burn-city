@@ -11,6 +11,13 @@ const send = (ws, value) => {
     try { ws.send(JSON.stringify(value)); } catch {}
   }
 };
+function isPlausibleStep(previous, next, elapsedMs) {
+  if (!previous || !next || ![previous.x,previous.y,previous.z,next.x,next.y,next.z,elapsedMs].every(Number.isFinite)) return false;
+  const dx = next.x-previous.x, dy = next.y-previous.y, dz = next.z-previous.z;
+  const distance = Math.hypot(dx,dy,dz);
+  const allowance = Math.max(2, Math.max(0,elapsedMs)/1000*10 + .75);
+  return distance <= allowance;
+}
 const cleanPosition = value => {
   if (!value || typeof value !== 'object') return null;
   const nums = [value.x, value.y, value.z, value.r].map(Number);
@@ -27,7 +34,7 @@ function attach(ws, url, instanceManager) {
   if (!room) { room = new Map(); rooms.set(instanceId, room); }
   for (const existing of room.values()) if (existing.leaseToken === token) { try { existing.ws.close(4001, 'presence_replaced'); } catch {} }
   if (room.size >= 40) { send(ws, { t: 'e', e: 'estates_instance_full' }); ws.close(1013, 'estates_instance_full'); return; }
-  const peer = { id: nextPeerId++, ws, leaseToken: token, position: { x: 0, y: 0, z: 0, r: 0 }, updatedAt: Date.now(), lastUpdate: 0 };
+  const peer = { id: nextPeerId++, ws, leaseToken: token, position: { x: 0, y: 0, z: 0, r: 0 }, updatedAt: Date.now(), lastUpdate: 0, hasPosition: false };
   room.set(peer.id, peer);
   send(ws, { t: 'w', id: peer.id, instanceId, peers: [...room.values()].filter(p => p !== peer).map(p => ({ id: p.id, ...p.position })) });
   for (const other of room.values()) if (other !== peer) send(other.ws, { t: 'j', id: peer.id, ...peer.position });
@@ -42,7 +49,9 @@ function attach(ws, url, instanceManager) {
     if (!message || message.t !== 'p') return;
     const position = cleanPosition(message);
     if (!position) return;
+    if (peer.hasPosition && !isPlausibleStep(peer.position, position, now-peer.updatedAt)) return;
     peer.position = position;
+    peer.hasPosition = true;
     peer.updatedAt = now;
     for (const other of room.values()) if (other !== peer) send(other.ws, { t: 'p', id: peer.id, ...position });
   });
@@ -62,4 +71,4 @@ function attach(ws, url, instanceManager) {
   ws.on('error', remove);
 }
 
-module.exports = { attach, cleanPosition };
+module.exports = { attach, cleanPosition, isPlausibleStep };

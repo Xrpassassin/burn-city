@@ -1316,8 +1316,7 @@ function boot(host) {
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopAutoFire(); });
     autoFireButton.addEventListener('contextmenu', event => event.preventDefault());
   }
-  const groundHit = ground;
-  // Taps arrive from the shared view controller on release, so a drag-to-look never travels.
+  // Taps select nearby objects; they do not initiate click-to-move travel.
   const onWorldTap = e => {
     if (e.button === 2 || cameraOrbiting || !worldData?.self || moving) return;
     const rect = renderer.domElement.getBoundingClientRect();
@@ -1390,10 +1389,8 @@ function boot(host) {
         return;
       }
     }
-    if (worldData.party && !worldData.party.leader) return;
-    const hits = raycaster.intersectObject(groundHit, false);
-    if (!hits.length) return;
-    moveTo(Math.max(-100, Math.min(100, hits[0].point.x)), Math.max(-100, Math.min(100, hits[0].point.z)));
+    // Ground taps never issue movement commands. Travel is controlled by WASD/joystick.
+    // Preserve tap selection of infected, survivors, loot and interactive structures above.
   };
   async function moveTo(x, z) {
     if (reloadState) cancelReload('Reload interrupted by movement.');

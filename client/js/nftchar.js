@@ -220,8 +220,21 @@ export function buildNftChar(n, opts = {}) {
   head.scale.multiply(new THREE.Vector3(...faceScale));
   if (key === 'racc') {
     // RACC gets an unmistakable rounded raccoon skull, eye mask, muzzle, ears and ringed tail.
-    addSphere(head,skin,[0,.02,0],[.235,.255,.22]);
-    addSphere(head,mat(traitColor(/mask/i,has(tr,/red mask/)?'#c4161c':'#282a30')),[0,.005,.165],[.207,.105,.07]);
+    addSphere(head,skin,[0,.02,0],[.235,.255,.22]).name='nft-racc-skull';
+    // Sculpt the classic raccoon mask as a tapered, angular band instead of a flat oval.
+    // The stepped contour leaves room for the eye patches and follows the brow/temple silhouette.
+    const maskShape = new THREE.Shape();
+    maskShape.moveTo(-.218,.055);
+    maskShape.lineTo(-.16,.09); maskShape.lineTo(-.085,.072);
+    maskShape.lineTo(0,.038); maskShape.lineTo(.085,.072);
+    maskShape.lineTo(.16,.09); maskShape.lineTo(.218,.055);
+    maskShape.lineTo(.17,-.015); maskShape.lineTo(.105,-.055);
+    maskShape.lineTo(.055,-.025); maskShape.lineTo(0,-.012);
+    maskShape.lineTo(-.055,-.025); maskShape.lineTo(-.105,-.055);
+    maskShape.lineTo(-.17,-.015); maskShape.closePath();
+    const maskMesh=add(new THREE.ExtrudeGeometry(maskShape,{depth:.018,bevelEnabled:true,bevelSegments:1,steps:1,bevelSize:.004,bevelThickness:.003}),
+      mat(traitColor(/mask/i,has(tr,/red mask/)?'#c4161c':'#282a30')),-0,.005,.204,head);
+    maskMesh.name='nft-racc-angular-eye-mask';
     for (const s of [-1,1]) {
       // Layered ears: rounded outer fur, a tapered silhouette, and a contrasting inner ear.
       addSphere(head,mat('#686d75'),[s*.19,.205,-.005],[.085,.095,.065]);
@@ -231,8 +244,12 @@ export function buildNftChar(n, opts = {}) {
       // Pale cheek ruffs widen the unmistakable raccoon face silhouette.
       const cheek=addSphere(head,mat(shade(faceHex,1.22)),[s*.145,-.065,.155],[.082,.072,.047]);
       cheek.name='nft-racc-cheek-ruff';
-      addSphere(head,mat('#c9cdd0'),[s*.085,.02,.22],[.055,.05,.025]);
-      addSphere(head,components.eyeStyle === 'glowing' ? glow(eyeHex) : mat(eyeHex),[s*.085,.02,.242],[.022,.025,.012]);
+      addSphere(head,mat('#d8d9d6'),[s*.085,.02,.222],[.052,.047,.022]).name='nft-racc-eye-patch';
+      // RACC source art commonly uses vivid blue irises; explicit token eye traits still override this default.
+      const raccEyeHex = traitValue(/eye color|iris color|eyes?$|iris$/i) ? eyeHex : '#287ed1';
+      addSphere(head,components.eyeStyle === 'glowing' ? glow(raccEyeHex) : mat(raccEyeHex),[s*.085,.02,.244],[.024,.027,.013]).name='nft-racc-eye';
+      addSphere(head,mat('#11151b'),[s*.085,.02,.255],[.009,.016,.006]).name='nft-racc-pupil';
+      addSphere(head,mat('#ffffff'),[s*.078,.03,.261],[.005,.006,.003]).name='nft-racc-eye-glint';
       // Separate pale muzzle pads give the raccoon a forward-projecting animal profile
       // instead of reading as a human face with a mask.
       const muzzlePad=addSphere(head,mat(shade(faceHex,1.28)),[s*.048,-.087,.255],[.058,.043,.066]);

@@ -285,6 +285,9 @@ export async function installEstatesIslandLive({
     const leaseToken=instanceLeaseToken;
     instanceLeaseToken=null; activeInstanceId=null; activeVisitors=null;
     void releaseEstatesInstanceLease(leaseToken);
+    // Rotate the per-tab session key after exit so a fast re-entry cannot race the release.
+    localEstateSessionId = null;
+    try { sessionStorage.removeItem('bcEstatesIslandSession'); } catch {}
     player.pos.set(CITY_GATE.x,CITY_GATE.y,CITY_GATE.z);
     setYaw(Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;

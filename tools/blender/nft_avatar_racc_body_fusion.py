@@ -61,6 +61,19 @@ def fuse_racc_body(voxel_size=VOXEL_SIZE):
     bpy.ops.object.join()
     joined=bpy.context.view_layer.objects.active
     joined.name="RACC_ContinuousBody_Blockout"
+    # Voxel remesh operates in object-local space. Apply the joined transform
+    # so voxel size is consistent regardless of the imported GLB node transform.
+    bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+    # Multiple source materials cannot be preserved reliably through voxel
+    # remeshing. Use a single neutral fur material for the fused base and
+    # retain original materials on the hidden source meshes for reconstruction.
+    source_materials=[mat.name for mat in joined.data.materials if mat]
+    fur=bpy.data.materials.get("RACC_Fur")
+    if fur is None:
+        fur=bpy.data.materials.new("RACC_Fur")
+        fur.diffuse_color=(0.24,0.19,0.16,1.0)
+    joined.data.materials.clear()
+    joined.data.materials.append(fur)
     # Voxel remesh joins intersecting volumes into one connected outer surface.
     # Preserve original multi-material geometry in the backup for manual retopo.
     joined.data.remesh_voxel_size=voxel_size
@@ -78,6 +91,7 @@ def fuse_racc_body(voxel_size=VOXEL_SIZE):
     joined["source_mesh_count"]=len(BODY_NAMES)
     joined["voxel_size_m"]=voxel_size
     joined["originals_preserved_in"]="RACC_Source_Body_Backup"
+    joined["material_rebuild_required"]=True
     return joined
 
 def main():
@@ -133,6 +147,8 @@ def main():
     # Report the failure without incorrectly approving or hiding the model.
     report={
         "collection":"racc",
+        "fusedBodyMaterial":"RACC_Fur",
+        "materialRebuildRequired":True,
         "stage":"fused-blockout-needs-retopology",
         "runtimeApproved":False,
         "fusedVertices":len(fused.data.vertices),

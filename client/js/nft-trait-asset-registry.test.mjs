@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { canonicalTraitKey, normalizeTraitSource, safeSourceUrl, resolveSourceUrl, createTraitAssetRegistry, canEquipTrait, validateCollectionInventory } from './nft-trait-asset-registry.mjs';
+import { canonicalTraitKey, normalizeTraitSource, safeSourceUrl, resolveSourceUrl, createTraitAssetRegistry, canEquipTrait, validateCollectionInventory, buildTraitAssemblyManifest } from './nft-trait-asset-registry.mjs';
 const a = 'A'.repeat(64), b = 'B'.repeat(64);
 assert.equal(canonicalTraitKey({collection:'RACC',type:'Top Gear',value:'Straw Hat'}), canonicalTraitKey({collection:'racc',type:'top gear',value:'straw hat'}));
 assert.throws(() => normalizeTraitSource({collection:'RACC',tokenId:'bad',type:'hat',value:'straw'}));
@@ -17,10 +17,19 @@ assert.equal(registry.getSources({collection:'racc',type:'top gear',value:'straw
 assert.equal(registry.issues.some(i => i.code === 'UNAPPROVED_SOURCE_COLLECTION'),true);
 const char = {rigFamily:'anthropomorphic-raccoon',collection:'racc',supportedSlots:['headwear']};
 assert.equal(canEquipTrait(hat,char).ok,true);
-assert.equal(canEquipTrait(hat,{...char,rigFamily:'humanoid-robed',collection:'firekeepers'}).reason,'incompatible-rig');
+assert.equal(canEquipTrait(hat,{...char,rigFamily:'humanoid-robed',collection:'firekeepers'}).reason,'collection-mismatch');
+assert.equal(canEquipTrait({...hat,compatibility:[]},{...char,collection:'589'}).reason,'collection-mismatch');
+const manifest = buildTraitAssemblyManifest({collection:'racc',traits:[{type:'Top Gear',value:'Straw Hat'},{type:'Armed',value:'TNT'},{type:'Fits',value:'Yellow Striped Sweater'}],registry,character:char});
+assert.equal(manifest.totalTraits,3);
+assert.equal(manifest.readyTraits,1);
+assert.equal(manifest.entries[0].status,'ready');
+assert.equal(manifest.entries[1].reason,'trait-asset-not-found-in-collection');
+assert.equal(manifest.entries[2].status,'missing-asset');
+const wrongCollectionManifest = buildTraitAssemblyManifest({collection:'589',traits:[{type:'Top Gear',value:'Straw Hat'}],registry,character:{rigFamily:'humanoid',supportedSlots:['headwear']}});
+assert.equal(wrongCollectionManifest.entries[0].status,'missing-asset');
 assert.equal(canEquipTrait({...hat,visualApproval:'not-reviewed'},char).reason,'trait-visual-not-approved');
 assert.equal(canEquipTrait({...hat,rightsStatus:'unverified'},char).reason,'trait-rights-not-approved');
 assert.equal(validateCollectionInventory({collection:'racc',expectedCount:2,tokens:[{NFTokenID:a},{NFTokenID:b}]}).complete,true);
 assert.equal(validateCollectionInventory({collection:'racc',expectedCount:3,tokens:[{NFTokenID:a},{NFTokenID:a}]}).complete,false);
 assert.equal(validateCollectionInventory({collection:'racc',expectedCount:1,tokens:[{NFTokenID:a}],pageErrors:[{code:'api-failure'}]}).complete,false);
-console.log('NFT trait asset registry tests passed');
+console.log('NFT trait asset registry and assembly manifest tests passed');

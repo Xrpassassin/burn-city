@@ -158,6 +158,11 @@ function fireBroadside(){
   $('message').textContent='Broadside away! The guns will need a moment to reload.';
 }
 
+Trade.onDockChange({
+  position:()=>ship.position,
+  dock:()=>{speed=0;ship.visible=false;},
+  depart:(_port,departure)=>{if(departure){ship.position.x=departure.x;ship.position.z=departure.z;}speed=0;ship.visible=true;}
+});
 const shoreWalk=createShoreWalk({THREE,scene,camera,game,ship,trade:Trade});
 const clock=new THREE.Clock();
 function tick(){

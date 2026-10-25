@@ -9,6 +9,7 @@ const tokenIdOf = row => text(row?.NFTokenID ?? row?.tokenId ?? row?._id).toUppe
 export function reconcileNftInventory({
   candidate = {},
   verifiedIdentity = null,
+  expectedIdentity = null,
   expectedCount = candidate.expectedCount,
   tokens = [],
   pageErrors = []
@@ -24,9 +25,10 @@ export function reconcileNftInventory({
   let issuerMismatches = 0;
   let taxonMismatches = 0;
 
-  const expectedIssuer = text(verifiedIdentity?.issuer);
-  const expectedTaxon = Number.isInteger(verifiedIdentity?.taxon) ? verifiedIdentity.taxon : null;
-  const identityVerified = Boolean(expectedIssuer && expectedTaxon !== null && text(verifiedIdentity?.slug));
+  const comparisonIdentity = verifiedIdentity ?? expectedIdentity;
+  const expectedIssuer = text(comparisonIdentity?.issuer);
+  const expectedTaxon = Number.isInteger(comparisonIdentity?.taxon) ? comparisonIdentity.taxon : null;
+  const identityVerified = Boolean(verifiedIdentity && expectedIssuer && expectedTaxon !== null && text(verifiedIdentity?.slug));
 
   for (const row of rows) {
     const tokenId = tokenIdOf(row);

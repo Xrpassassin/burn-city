@@ -1503,8 +1503,12 @@ function boot(host) {
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = (localActor?.rotation.y || 0) + cameraYawOffset + view.yaw;
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
-      const targetY = terrainElevation(self.x, self.z) + activeInteriorElevation();
-      const pose = cameraPose({ mode: view.mode, x: self.x, y: targetY, z: self.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
+      // Follow the interpolated character, not the latest discrete server waypoint.
+      // The server remains authoritative; this only smooths the camera and terrain height.
+      const followX = localActor ? localActor.position.x : self.x;
+      const followZ = localActor ? localActor.position.z : self.z;
+      const targetY = terrainElevation(followX, followZ) + activeInteriorElevation();
+      const pose = cameraPose({ mode: view.mode, x: followX, y: targetY, z: followZ, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
       camera.position.x += (pose.px - camera.position.x) * followBlend;
       camera.position.y += (pose.py - camera.position.y) * followBlend;
       camera.position.z += (pose.pz - camera.position.z) * followBlend;

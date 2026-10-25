@@ -362,6 +362,8 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   // Followers move with the leader only while the leader is out in the world; a leader at home never freezes them.
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader !== acct && w.players[w.parties[p.partyCode].leader]) throw new Error('party_leader_controls_movement');
   if (typeof sprint !== 'boolean') throw new Error('invalid_movement_mode');
+  // Never accept non-finite or non-numeric destinations: NaN can bypass distance clamps.
+  if (typeof x !== 'number' || typeof z !== 'number' || !Number.isFinite(x) || !Number.isFinite(z)) throw new Error('invalid_movement_destination');
   const elapsedMoveMs = now - p.lastMove;
   // Reject non-monotonic timestamps and rapid retries; cap accumulated movement credit.
   // This prevents clock anomalies from generating a negative or unbounded travel allowance.

@@ -21,7 +21,7 @@
     "test:all": "node client/js/fishing-rules.test.mjs || exit 1; for t in payments security tron shop fish retain hate lobby zombie; do node test/$t-sim.js || exit 1; done; node test/zombie-nav-sim.js && node test/zombie-cosmodrome-sim.js && node test/zombie-map-progression-sim.js && node test/zombie-helicopter-arrival-sim.js && node test/flight-lobby-sim.js && node test/homefront-core-sim.js && node test/fish-fleet-mp-sim.js && node test/jetpack-pay-sim.js && node test/img-burn-sim.js && node test/zombie-campaign-carryover-sim.js && node test/zombie-forge-tier-sim.js && node test/zombie-cosmodrome-enemies-sim.js && npm run -s test:zombie-ravager && npm run -s test:nft-avatar || exit 1",
     "test:blacktide-ocean": "node client/blacktide/ocean.test.mjs",
     "test:blacktide-ai": "node client/blacktide/boat-ai.test.mjs",
-    "test:blacktide-cannons": "node client/blacktide/cannon-ai.test.mjs && node client/blacktide/nft-crew-mount.test.mjs && node client/blacktide/approved-avatar-loader.test.mjs",
+    "test:blacktide-cannons": "node client/blacktide/cannon-ai.test.mjs && node client/blacktide/nft-crew-mount.test.mjs && node client/blacktide/approved-avatar-loader.test.mjs && node client/blacktide/nft-crew-bootstrap.test.mjs",
     "test:blacktide": "npm run test:blacktide-ocean && npm run test:blacktide-ai && npm run test:blacktide-cannons",
     "test:wilds-navmesh-adapter": "node client/js/wilds-navmesh-adapter.test.mjs",
     "test:wilds-ambient-spawns": "node client/js/wilds-ambient-spawns.test.mjs",

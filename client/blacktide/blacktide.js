@@ -5,6 +5,8 @@ import * as Boats from './boats.js';
 import * as Combat from './combat.js';
 import * as CannonAI from './cannon-ai.js';
 import { mountApprovedCrew } from './nft-crew-mount.mjs';
+import { bootstrapApprovedCrew } from './nft-crew-bootstrap.mjs';
+import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -86,6 +88,12 @@ ship.position.set(0,0,0);scene.add(ship);
 // BlackTide does not load an unverified NFT URI or invent a player identity.
 export function attachPlayerNftCrew(loadedModel, approvedAvatarRuntime) {
   return mountApprovedCrew({ ship, model: loadedModel, avatarRuntime: approvedAvatarRuntime });
+}
+
+// Caller must obtain the approved runtime record from an authenticated server endpoint.
+// No client-provided ownership list or query string is accepted as proof.
+export async function loadPlayerNftCrew(approvedAvatarRuntime) {
+  return bootstrapApprovedCrew({ runtime: approvedAvatarRuntime, loader: new GLTFLoader(), attach: attachPlayerNftCrew });
 }
 
 // Three procedural NPC vessels provide visible traffic before combat is enabled.

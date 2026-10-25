@@ -145,6 +145,30 @@ export function buildNftChar(n, opts = {}) {
   } else if (components.outfitStyle === 'streetwear') {
     addCapsule(g, darkCloth, [0, 1.43, -.025], .115, .12, [1.2, .8, .9]);
   }
+  // RACC source-specific garment reconstruction: only apply when the NFT metadata names
+  // the recognizable yellow-striped sweater, avoiding invented stripes on other tokens.
+  const raccFitText = traitValue(/fits|outfit|clothing|sweater|shirt/i).toLowerCase();
+  if (key === 'racc' && /yellow striped sweater/.test(raccFitText)) {
+    const sweater = addCapsule(g, mat('#35383c', .94, .01), [0,1.17,.002], .249,.395,[1.16,1.04,.78]);
+    sweater.name='nft-racc-striped-sweater';
+    const yellow = mat('#e2bd32',.9,.01);
+    // Segmented horizontal bands follow the torso's curved front; gaps at the sides
+    // prevent the stripes from reading as flat rectangles wrapped through the body.
+    for(let row=0;row<5;row++) {
+      const y=1.035+row*.067;
+      for(let segment=-2;segment<=2;segment++) {
+        const x=segment*.078;
+        const z=.002+.188*Math.sqrt(Math.max(.12,1-(x/.285)**2));
+        const stripe=addBox(g,yellow,[x,y,z],[.039,.009,.006]);
+        stripe.name='nft-racc-sweater-stripe';
+        stripe.rotation.z=-x*.22;
+      }
+    }
+    const collar=add(geo('nft-racc-sweater-collar',()=>new THREE.TorusGeometry(.078,.012,6,20)),yellow,0,1.405,.01,g);
+    collar.rotation.x=Math.PI/2;
+    collar.name='nft-racc-sweater-collar';
+    addBox(g,mat('#e2bd32'),[0,1.385,.075],[.105,.014,.009]).name='nft-racc-sweater-neckline';
+  }
   // Surface patterns are driven by actual metadata and remain visible around the artwork tabard.
   // Prefer a dedicated pattern/marking trait; use outfit color only as a fallback.
   // Including "outfit" in the primary matcher made an earlier clothing trait mask a later pattern trait.
@@ -648,11 +672,24 @@ export function buildNftChar(n, opts = {}) {
   if (weaponTrait && !/none|empty|no weapon|nothing/i.test(weaponTrait)) {
     const weaponMat=mat(/gold|legendary/i.test(weaponTrait)?'#d6ad45':'#353942',.48,.4);
     if (components.weaponStyle === 'explosive') {
-      const charge=addBox(g,mat('#a72b27',.62,.08),[.31,1.04,-.13],[.13,.16,.09]);
+      // A short red dynamite/TNT stick is more legible than a featureless rectangular charge.
+      const charge=add(geo('nft-held-tnt',()=>new THREE.CylinderGeometry(.043,.043,.22,12)),mat('#b52c2b',.58,.06),.31,1.045,-.13,g);
       charge.name='nft-held-tnt';
-      addBox(g,mat('#d7c5a0'),[.31,1.04,-.08],[.09,.045,.012]).name='nft-tnt-label';
-      const fuse=addCapsule(g,mat('#d8b76d'),[.31,1.145,-.13],.012,.055,[1,1,1]); fuse.rotation.z=-.25; fuse.name='nft-tnt-fuse';
-      addSphere(g,glow('#ff8b2c'),[.31,1.18,-.13],[.018,.018,.018]).name='nft-tnt-spark';
+      for(const y of [1.0,1.09]) {
+        const band=add(geo('nft-tnt-paper-band',()=>new THREE.TorusGeometry(.043,.004,5,12)),mat('#e0d4b6'),.31,y,-.13,g);
+        band.rotation.x=Math.PI/2;
+        band.name='nft-tnt-paper-band';
+      }
+      addBox(g,mat('#e7d7b4'),[.31,1.045,-.085],[.066,.038,.009]).name='nft-tnt-label';
+      addBox(g,mat('#292b30'),[.31,1.045,-.074],[.038,.009,.004]).name='nft-tnt-label-mark';
+      const fuse=addCapsule(g,mat('#c5a36d'),[.31,1.167,-.13],.009,.052,[1,1,1]); fuse.rotation.z=-.25; fuse.name='nft-tnt-fuse';
+      const sparkCore=addSphere(g,glow('#fff0a1'),[.31,1.2,-.13],[.009,.009,.009]); sparkCore.name='nft-tnt-spark-core';
+      addSphere(g,glow('#ff7b24'),[.31,1.2,-.13],[.02,.02,.02]).name='nft-tnt-spark';
+      for(let i=0;i<4;i++) {
+        const a=i*Math.PI/2;
+        const ember=addSphere(g,glow('#ffb34d'),[.31+Math.cos(a)*.027,1.2+Math.sin(a)*.027,-.13],[.004,.004,.004]);
+        ember.name='nft-tnt-ember';
+      }
     } else if (components.weaponStyle === 'blade' || /sword|blade|katana|knife/i.test(weaponTrait)) {
       const blade=addBox(g,metal,[.31,1.05,-.13],[.035,.48,.025]); blade.rotation.z=-.12;
       addBox(g,weaponMat,[.31,.8,-.13],[.12,.035,.04]);

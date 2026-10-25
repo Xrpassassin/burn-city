@@ -7,7 +7,7 @@ Estates is a physical island/entrance in the BURN City overworld, but its detail
 
 The live city view should show a compact scenic island silhouette with a visible water ring and a few recognizable rooflines. The detailed neighborhood—full roads, all lot anchors, landmarks, vegetation, and building blockouts—is revealed only after the player explicitly selects **Enter Estates Island**. The bridge and gate remain visible from the city side, and canceling or walking away must not enter the community.
 
-The current client integration implements this as a presentation boundary: a lightweight exterior preview is shown before entry and the detailed community is revealed after confirmation. The server now manages shared logical instance leases and relays lease-authorized peer presence. The full island renderer is still a local client scene, not a server-hosted simulation; return-anchor persistence and property/build saves remain future work.
+The current client integration implements this as a presentation boundary: a lightweight exterior preview is shown before entry and the detailed community is revealed after confirmation. The server now manages shared logical instance leases and relays lease-authorized peer presence. The full island renderer is still a local client scene, not a server-hosted simulation. Authenticated return anchors now persist in SQLite and are restored only when the local navigation geometry marks the saved point walkable; property/build saves remain future work.
 
 ## Lifecycle
 1. The city renderer shows the island landmark and bridge/entrance. A proximity trigger offers an interaction prompt; proximity alone never teleports or loads the destination.
@@ -46,14 +46,15 @@ The live city entrance now calls the server's public instance admission endpoint
 - `server/estates-return-anchor.js` stores one last-safe Estates Island position per authenticated XRPL account in the existing SQLite database on the persistent data volume.
 - `GET /api/estates/anchor` reads the signed-in account's anchor; `POST /api/estates/anchor` saves bounded numeric `x/y/z/heading` coordinates. The account is taken from the bearer token, never from the request body.
 - The store rejects malformed accounts, non-finite coordinates, and values outside a broad island-local envelope. It grants no property rights and cannot write building layouts.
-- **Integration boundary:** the live island client does not yet restore/save this anchor automatically, and these broad bounds do not prove a coordinate is walkable. Client restoration must validate against the island navigation/collision surface before teleporting. Do not treat this API alone as safe-spawn or authoritative movement validation.
+- The live island client reads the anchor on re-entry and autosaves the last safe point every 15 seconds, plus on exit, for signed-in players. Unsigned players continue with the standard spawn and no durable account anchor.
+- Before restoration, the client validates the stored point against the island navigation/collision surface. Server bounds are only a coarse input guard, not proof of walkability or authoritative movement validation.
 
 ## Remaining work
 
 1. Server-authoritative movement/collision validation and robust reconnection/reconciliation.
-2. Durable player return anchors and persistent lot/building layouts.
+2. Persistent lot/building layout save/load and authoritative placement persistence.
 3. Integration of authenticated account identity and invite/owner checks for every private-property mutation.
-4. Visual QA on desktop/mobile, including two-client presence, reconnect, exit, and lease-expiry scenarios.
+4. Visual QA on desktop/mobile, including saved-anchor restore, two-client presence, reconnect, exit, and lease-expiry scenarios.
 
 ## Boundaries and security
 - Never trust a client-supplied `playerId` as authentication. Pass the server-verified account/session identity to the lifecycle adapter.

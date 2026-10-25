@@ -1515,13 +1515,13 @@ function boot(host) {
       lookTarget.x += (pose.lx - lookTarget.x) * followBlend; lookTarget.y += (pose.ly - lookTarget.y) * followBlend; lookTarget.z += (pose.lz - lookTarget.z) * followBlend;
       camera.lookAt(lookTarget);
       if (localActor) localActor.visible = view.mode !== 'first';
-      // Joystick / WASD travel: one server-clamped step toward the stick direction per move cooldown.
+      // Joystick / WASD travel: frequent small authoritative steps; server scales distance by elapsed time.
       const stick = worldMove(view.move(), heading);
       // Use the same hold-to-run control as the refuge; do not require a separate travel toggle.
       const running = view.running() || sprintTravel;
-      if (stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) {
+      if (stick && !moving && now - lastStickMoveAt > 300 && !(worldData.party && !worldData.party.leader)) {
         lastStickMoveAt = now;
-        moveTo(Math.max(-100, Math.min(100, self.x + stick.x * (running ? 18 : 10))), Math.max(-100, Math.min(100, self.z + stick.z * (running ? 18 : 10))), running);
+        moveTo(Math.max(-100, Math.min(100, self.x + stick.x * (running ? 6 : 3.3))), Math.max(-100, Math.min(100, self.z + stick.z * (running ? 6 : 3.3))), running);
       }
     }
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };

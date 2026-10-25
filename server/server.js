@@ -47,7 +47,7 @@ function serveStatic(req, res, url) {   // static site files: served before the 
     const decodedPath = decodeURIComponent(url.pathname);
     // Reject dotfiles, traversal, backslashes and NULs before filesystem access.
     const segments = decodedPath.split('/');
-    if (decodedPath.includes('\\\\') || decodedPath.includes('\\0') || segments.some(segment => segment === '..' || segment.startsWith('.'))) return false;
+    if (decodedPath.includes(String.fromCharCode(92)) || decodedPath.includes(String.fromCharCode(0)) || segments.some(segment => segment === '..' || segment.startsWith('.'))) return false;
     let f = path.resolve(clientRoot, '.' + decodedPath);
     const insideClient = candidate => { const relative = path.relative(clientRoot, candidate); return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative)); };
     if (!insideClient(f)) return false;

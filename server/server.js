@@ -6,6 +6,15 @@ const Nft = require('./nft'), Social = require('./social'), C = require('./confi
 const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates = require('./estates'), EstateWallet = require('./estate-wallet');
 const EstateRights = require('./estates-rights');
 const EstateAccess = require('./estate-access');
+const { createEstatesInstanceManager } = require('./estates-instance');
+const EstatesPresence = require('./estates-presence');
+const { createEstatesReturnAnchorStore } = require('./estates-return-anchor');
+const { createEstatesLayoutStore } = require('./estates-layout-store');
+const KimiReview = require('./kimi-review');
+const kimiReviewer = KimiReview.createKimiReviewer();
+const estatesInstance = createEstatesInstanceManager();
+const estatesReturnAnchors = createEstatesReturnAnchorStore({ db: Pay.sdb });
+const estateLayouts = createEstatesLayoutStore({ db: Pay.sdb, access: EstateAccess });
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const Jetpack = require('./jetpack');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
@@ -23,6 +32,16 @@ function findRoom(mode, ranked, daily, mapId = null, arrivalSpawn = false, fligh
   return r; }
 
 const adminFails = new Map();
+function estateLayoutHttpStatus(result) {
+  if (result?.ok) return 200;
+  const reason = String(result?.reason || '');
+  if (reason === 'unknown-property' || reason === 'placement-not-found') return 404;
+  if (reason === 'authenticated-account-required') return 401;
+  if (reason === 'access-service-unavailable' || reason === 'layout-storage-unavailable') return 503;
+  if (reason === 'build-permission-required' || reason === 'property-access-denied' || reason === 'no_access' || reason === 'sign_in_required') return 403;
+  if (/conflict|duplicate|overlaps/.test(reason)) return 409;
+  return 400;
+}
 function adminOk(req, ip) {   // constant-time compare, header only, 10 bad tries / 15 min per IP lock out
   const f = adminFails.get(ip) || { n: 0, t: Date.now() }; if (Date.now() - f.t > 15 * 60e3) { f.n = 0; f.t = Date.now(); } if (f.n >= 10) return false;
   const a = Buffer.from(String(req.headers['x-admin-token'] || '')), b = Buffer.from(C.ADMIN_TOKEN || '');
@@ -117,6 +136,14 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/ranked/payout') return json(res, 200, Ranked.payoutStatus(String(url.searchParams.get('match') || '')));
     if (url.pathname === '/api/ranked/mine') { const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' }); return json(res, 200, { payouts: Ranked.Q.forAcct(u.acct) }); }
     if (url.pathname === '/admin/chat/reports' && req.method === 'GET') { if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' }); return json(res, 200, { reports: require('./hate').reports(+url.searchParams.get('n') || 100) }); }
+    if (url.pathname === '/admin/kimi/review') {
+      if (req.method !== 'POST') return json(res, 405, { error: 'method_not_allowed' });
+      if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });
+      if (gate('kimi-review:' + ip, 5, 60e3)) return json(res, 429, { error: 'slow_down' });
+      const b = await body();
+      const result = await kimiReviewer.review(typeof b.context === 'string' ? b.context : '');
+      return json(res, result.ok ? 200 : result.status, result.ok ? { review: result.review, model: result.model } : { error: result.error, ...(result.maxChars ? { maxChars: result.maxChars } : {}) });
+    }
     if (url.pathname === '/admin/unpause' && req.method === 'POST') { if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' }); return json(res, 200, require('./watch').unpause()); }
     if (url.pathname.startsWith('/admin/ranked')) {   // manual approval only
       if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });
@@ -126,15 +153,56 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/admin/ranked/approve' && req.method === 'POST') return json(res, 200, await Ranked.approve(String(b.match || '')));
       if (url.pathname === '/admin/ranked/refunded' && req.method === 'POST') return json(res, 200, Ranked.markRefunded(String(b.ticket || '')));
     }
+    if (url.pathname === '/api/estates/instance/enter' && req.method === 'POST') {
+      if (gate('estates-instance-ip:' + ip, 60, 60e3)) return json(res, 429, { error: 'slow_down' });
+      const b = await body(), result = estatesInstance.enter(String(b.clientId || ''));
+      return json(res, result.ok ? 200 : 400, result);
+    }
+    if (url.pathname === '/api/estates/instance/heartbeat' && req.method === 'POST') {
+      if (gate('estates-instance-ip:' + ip, 300, 60e3)) return json(res, 429, { error: 'slow_down' });
+      const b = await body(), result = estatesInstance.heartbeat(String(b.leaseToken || ''));
+      return json(res, result.ok ? 200 : 410, result);
+    }
+    if (url.pathname === '/api/estates/instance/leave' && req.method === 'POST') {
+      if (gate('estates-instance-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
+      const b = await body(), result = estatesInstance.leave(String(b.leaseToken || ''));
+      return json(res, result.ok ? 200 : 400, result);
+    }
     if (url.pathname === '/api/estates/tour' && req.method === 'GET') {   // public tour check: unowned interiors are open to anyone (enter/inspect only); owned ones need sign-in + owner/invite
       if (gate('estates-tour-ip:' + ip, 60, 60e3)) return json(res, 429, { error: 'slow_down' });
       const u = who(), result = EstateAccess.accessFor(u ? u.acct : '', String(url.searchParams.get('propertyId') || ''));
       return json(res, result.allowed ? 200 : (result.reason === 'unknown_property' ? 404 : result.reason === 'sign_in_required' ? 401 : 403), result);
     }
+    if (url.pathname === '/api/estates/layouts/public' && req.method === 'GET') {
+      if (gate('estates-layout-public-ip:' + ip, 60, 60e3)) return json(res, 429, { error:'slow_down' });
+      return json(res, 200, estateLayouts.publicPlacements());
+    }
     if (url.pathname === '/api/estates' || url.pathname.startsWith('/api/estates/')) {   // Estates (server/estates.js): bearer auth first; sales/distributions stay disabled
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
       if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, Estates.getState(u.acct));
+      if (url.pathname === '/api/estates/anchor' && req.method === 'GET') {
+        const result = estatesReturnAnchors.get(u.acct);
+        return json(res, result.ok ? 200 : 400, result);
+      }
+      if (url.pathname === '/api/estates/anchor' && req.method === 'POST') {
+        const b = await body();
+        const result = estatesReturnAnchors.save(u.acct, { x: b.x, y: b.y, z: b.z, r: b.r });
+        return json(res, result.ok ? 200 : 400, result);
+      }
+      if (url.pathname === '/api/estates/layout' && req.method === 'GET') {
+        const result = estateLayouts.list(u.acct, String(url.searchParams.get('propertyId') || ''));
+        return json(res, estateLayoutHttpStatus(result), result);
+      }
+      if (url.pathname === '/api/estates/layout/place' && req.method === 'POST') {
+        const result = estateLayouts.savePlacement(u.acct, await body());
+        return json(res, estateLayoutHttpStatus(result), result);
+      }
+      if (url.pathname === '/api/estates/layout/remove' && req.method === 'POST') {
+        const b = await body();
+        const result = estateLayouts.removePlacement(u.acct, String(b.propertyId || ''), String(b.placementId || ''));
+        return json(res, estateLayoutHttpStatus(result), result);
+      }
       if (url.pathname === '/api/estates/rights' && req.method === 'GET') {   // #235 rights decision (renamed from /access, which #237's owner guest list uses)
         const propertyId = String(url.searchParams.get('propertyId') || '');
         const action = String(url.searchParams.get('action') || 'enter');
@@ -223,6 +291,7 @@ wss.on('connection', (ws, req) => {
   const wip = req.headers['fly-client-ip'] || req.socket.remoteAddress;
   if (!okOrigin(req.headers.origin) || gate('wsc:' + wip, 30, 60e3) || (wsPerIp.get(wip) || 0) >= 12) return ws.close(1008, 'rejected');
   wsPerIp.set(wip, (wsPerIp.get(wip) || 0) + 1); ws.on('close', () => { const n = (wsPerIp.get(wip) || 1) - 1; n > 0 ? wsPerIp.set(wip, n) : wsPerIp.delete(wip); });
+  if ((req.url || '').includes('mode=estates')) { const u = new URL(req.url, 'http://x'); return EstatesPresence.attach(ws, u, estatesInstance); }
   if ((req.url || '').includes('mode=city')) { const u = new URL(req.url, 'http://x'); return City.attach(ws, u, Pay.checkToken(u.searchParams.get('token')), req.headers['fly-client-ip'] || req.socket.remoteAddress); }   // city presence/chat (server/city.js)
   const url = new URL(req.url, 'http://x');
   if (url.searchParams.get('mode') === 'flight') return FlightLobby.attach(ws, url);

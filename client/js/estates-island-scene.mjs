@@ -1,3 +1,4 @@
+import { SLOT_LAYOUT, LOT_WIDTH, LOT_DEPTH, FOOTPRINTS } from './estates-lot-geometry.mjs';
 // Renderer-agnostic 3D scene manifest for the shared Estates island.
 // A renderer converts descriptors to engine-specific meshes, colliders, and materials.
 const DISTRICTS = [
@@ -8,8 +9,7 @@ const DISTRICTS = [
   { id:'lakefront', label:'Lakefront', x:0, z:-2 },
   { id:'woodland-edge', label:'Woodland Edge', x:-6, z:108 }
 ];
-const SLOT_LAYOUT = [[-42,-91],[-14,-99],[14,-99],[42,-91],[-76,-54],[-48,-47],[-20,-53],[20,-53],[48,-47],[76,-54],[-91,-12],[-63,-6],[-35,-12],[35,-12],[63,-6],[91,-12],[-72,38],[-42,52],[-14,62],[14,62],[48,48]];
-const LOT_SIZE = Object.freeze({ width:20, depth:18 });
+const LOT_SIZE = Object.freeze({ width:LOT_WIDTH, depth:LOT_DEPTH });
 const finite = n => typeof n === 'number' && Number.isFinite(n);
 function point(x,y,z) { return Object.freeze({x,y,z}); }
 function descriptor(id,kind,position,dimensions,material,extra={}) { return Object.freeze({id,kind,position,dimensions,material,...extra}); }
@@ -26,7 +26,7 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
     const tier=property?tierById.get(property.tier):null;
     if(property&&!tier) throw new TypeError('Estate property references unknown tier: '+property.tier);
     const district=i<4?'north-shore':i<10?'east-village':i<16?'west-village':i<19?'south-neighborhood':'lakefront';
-    const footprint=tier ? (tier.id==='mansion'?{width:13,depth:11,height:8}:tier.id==='family'?{width:10,depth:9,height:6}:tier.id==='starter'?{width:8,depth:7,height:5}:tier.id==='apartment'?{width:7,depth:8,height:10}:{width:6,depth:5,height:3}) : null;
+    const footprint=tier ? FOOTPRINTS[tier.id] : null;
     return descriptor('estate-lot-'+String(i+1).padStart(2,'0'),'property-lot',point(x,0.15,z),{...LOT_SIZE,height:0.3},'lot-boundary',{
       propertyId:property?.id??null,address:property?.address??'Unassigned lot '+String(i+1).padStart(2,'0'),
       tier:tier?.id??'unassigned',buildingFootprint:footprint,district

@@ -5,6 +5,11 @@ const a=buildEstatesIslandScene({catalog,seed:123}),b=buildEstatesIslandScene({c
 assert.equal(a.id,'estates-island');
 assert.equal(a.status,'renderer-adapter-required');
 assert.equal(a.topology.islandSurroundedByContinuousLake,true);
+const islandTerrain=a.terrain.find(x=>x.id==='island-ground');
+const lakeRing=a.terrain.find(x=>x.id==='lake-water');
+const shoreline=a.terrain.find(x=>x.id==='shoreline-rocks');
+assert(lakeRing.dimensions.width>islandTerrain.dimensions.width && lakeRing.dimensions.depth>islandTerrain.dimensions.depth,'lake footprint extends beyond the complete island footprint');
+assert(shoreline.dimensions.innerRadius<shoreline.dimensions.outerRadius,'shoreline is a continuous band rather than a single edge');
 assert.equal(a.topology.waterCollision,true);
 assert.equal(a.topology.swimmingEnabled,false);
 assert.equal(a.access.find(x=>x.id==='island-gate').requiresExplicitConfirmation,true);

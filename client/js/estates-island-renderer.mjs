@@ -124,10 +124,62 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     objects.set(item.id,made);
   }
   scene.add(root);
+  const savedPlacementGroups = new Map();
+  const savedBuildingStyle = Object.freeze({
+    barricade: { width:2, depth:.5, color:0x80634a, roof:0x49352a, trim:0xc99a5d },
+    garden: { width:2, depth:2, color:0x426d3d, roof:0x31552d, trim:0x7ea85b },
+    generator: { width:2.5, depth:2, color:0x4d5d62, roof:0x30383d, trim:0x29dfff },
+    storage_shed: { width:3, depth:2.5, color:0x94704b, roof:0x49352a, trim:0xc99a5d },
+    workshop: { width:5, depth:4, color:0x777b7b, roof:0x343b42, trim:0x29dfff }
+  });
+  function clearSavedPlacementGroup(key) {
+    const group=savedPlacementGroups.get(key);
+    if(!group)return false;
+    root.remove(group);
+    group.traverse?.(node=>{
+      node.geometry?.dispose?.();
+      if(Array.isArray(node.material))node.material.forEach(m=>m?.dispose?.());else node.material?.dispose?.();
+    });
+    savedPlacementGroups.delete(key);
+    return true;
+  }
+  function setSavedPlacements(placements) {
+    if(!Array.isArray(placements))throw new TypeError('saved placements must be an array');
+    for(const key of [...savedPlacementGroups.keys()])clearSavedPlacementGroup(key);
+    let count=0;
+    const seen=new Set();
+    for(const p of placements) {
+      if(!p||typeof p.propertyId!=='string'||typeof p.placementId!=='string'||
+        !savedBuildingStyle[p.buildingType]||
+        ![p.x,p.z,p.width,p.depth,p.height,p.rotationY].every(n=>typeof n==='number'&&Number.isFinite(n))||
+        Math.abs(p.x)>120||Math.abs(p.z)>130||p.width<=0||p.width>12||p.depth<=0||p.depth>12||
+        p.height<=0||p.height>5||Math.abs(p.rotationY/(Math.PI/2)-Math.round(p.rotationY/(Math.PI/2)))>1e-6)continue;
+      const key=p.propertyId+'::'+p.placementId;
+      if(seen.has(key))continue;
+      seen.add(key);
+      const style=savedBuildingStyle[p.buildingType];
+      const group=new THREE.Group();
+      group.name='estates-saved-placement-'+key.replace(/[^A-Za-z0-9_-]/g,'_');
+      group.position.set(p.x,0.15,p.z);
+      group.rotation.y=p.rotationY;
+      const body=new THREE.Mesh(new THREE.BoxGeometry(style.width,p.height,style.depth),material(THREE,style.color));
+      body.name=group.name+'-body';body.position.y=p.height/2;group.add(body);
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(style.width+.22,.18,style.depth+.22),material(THREE,style.roof));
+      roof.name=group.name+'-roof';roof.position.y=p.height+.09;group.add(roof);
+      const trim=new THREE.Mesh(new THREE.BoxGeometry(Math.min(.16,style.width*.12),Math.max(.18,p.height*.5),.08),material(THREE,style.trim,{metalness: (p.buildingType==='generator'||p.buildingType==='workshop') ? 0.35 : 0}));
+      trim.name=group.name+'-trim';trim.position.set(0,p.height*.52,style.depth/2+.045);group.add(trim);
+      group.userData={savedPlacement:true,propertyId:p.propertyId,placementId:p.placementId,buildingType:p.buildingType};
+      root.add(group);savedPlacementGroups.set(key,group);count++;
+    }
+    return count;
+  }
   let disposed=false;
   return Object.freeze({
     root,
     getObject(id){return objects.get(id)??null;},
+    setSavedPlacements,
+    get savedPlacementCount(){return savedPlacementGroups.size;},
+    clearSavedPlacements(){for(const key of [...savedPlacementGroups.keys()])clearSavedPlacementGroup(key);return true;},
     get objectCount(){return objects.size;},
     dispose(){
       if(disposed)return false;
@@ -136,7 +188,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
         node.geometry?.dispose?.();
         if(Array.isArray(node.material)) node.material.forEach(m=>m?.dispose?.()); else node.material?.dispose?.();
       });
-      objects.clear(); return true;
+      objects.clear(); savedPlacementGroups.clear(); return true;
     }
   });
 }

@@ -7,6 +7,63 @@ const OFFSET_X = 650;
 const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
 const ISLAND_SPAWN = Object.freeze({ x: -195, y: 0.1, z: 188 });
 const finite = n => typeof n === 'number' && Number.isFinite(n);
+const estatesServerBase = () => new URLSearchParams(location.search).get('citysrv') ||
+  (/localhost|127\.0\.0\.1/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
+let localEstateSessionId = null;
+function estateBearerToken() {
+  try { const token = localStorage.bcToken; return typeof token === 'string' && token ? token : null; }
+  catch { return null; }
+}
+function estateClientSessionId() {
+  try {
+    let id = sessionStorage.getItem('bcEstatesIslandSession');
+    if (!id) {
+      id = globalThis.crypto?.randomUUID?.() || ('estate_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2) + '_' + Math.random().toString(36).slice(2));
+      sessionStorage.setItem('bcEstatesIslandSession', id);
+    }
+    return id;
+  } catch {
+    if (!localEstateSessionId) localEstateSessionId = globalThis.crypto?.randomUUID?.() || ('estate_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2) + '_' + Math.random().toString(36).slice(2));
+    return localEstateSessionId;
+  }
+}
+async function readSavedReturnAnchor(navigation) {
+  const token = estateBearerToken();
+  if (!token || typeof navigation?.isWalkable !== 'function') return null;
+  try {
+    const response = await fetch(estatesServerBase() + '/api/estates/anchor', {
+      headers: { authorization: 'Bearer ' + token }, cache: 'no-store'
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const anchor = payload?.ok ? payload.anchor : null;
+    if (!anchor || ![anchor.x, anchor.y, anchor.z, anchor.r].every(finite)) return null;
+    // Never trust stored coordinates as a spawn point: the local navigation mesh must accept them.
+    return navigation.isWalkable(anchor) ? anchor : null;
+  } catch { return null; }
+}
+async function saveReturnAnchor(position, navigation) {
+  const token = estateBearerToken();
+  if (!token || !position || typeof navigation?.isWalkable !== 'function' || !navigation.isWalkable(position)) return false;
+  try {
+    const response = await fetch(estatesServerBase() + '/api/estates/anchor', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+      body: JSON.stringify({ x: position.x, y: position.y, z: position.z, r: position.r }),
+      keepalive: true
+    });
+    return response.ok;
+  } catch { return false; }
+}
+async function releaseEstatesInstanceLease(leaseToken) {
+  if (!leaseToken) return;
+  try {
+    await fetch(estatesServerBase() + '/api/estates/instance/leave', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ leaseToken }), keepalive: true
+    });
+  } catch { /* Server idle cleanup remains the fallback for a dropped client. */ }
+}
 
 function makePanel() {
   let panel = document.getElementById('bcEstatesLivePrompt');
@@ -36,7 +93,7 @@ function addBridgeArchitecture(THREE, root) {
   const glow = new THREE.MeshStandardMaterial({ color: 0x29dfff, emissive: 0x087eaa, emissiveIntensity: 1.6, metalness: .25, roughness: .3 });
   const addBox = (name, x, y, z, w, h, d, mat) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
-    mesh.name = name; mesh.position.set(x,y,z); root.add(mesh); return mesh;
+    mesh.name = name; mesh.position.set(x,y,z); mesh.userData.estatesExteriorVisible = true; root.add(mesh); return mesh;
   };
   // A real traversable-looking span connects the city-side gate to the island's north bridge.
   addBox('estates-city-bridge-deck', -105, .12, 188, 210, .34, 10, stone);
@@ -74,7 +131,52 @@ export async function installEstatesIslandLive({
   root.position.x = OFFSET_X;
   addBridgeArchitecture(THREE, root);
 
-  let active = false, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
+  // Keep a compact scenic silhouette in the city view. The detailed shared community
+  // is revealed only after explicit entry; the bridge/gate remain visible outside.
+  function makeExteriorPreview() {
+    const preview = new THREE.Group();
+    preview.name = 'estates-exterior-preview';
+    preview.position.set(OFFSET_X, 0, 75);
+    const mat = (color, options={}) => new THREE.MeshStandardMaterial({ color, roughness: options.roughness ?? .9, metalness: options.metalness ?? 0, transparent: options.transparent ?? false, opacity: options.opacity ?? 1, side: THREE.DoubleSide });
+    const water = new THREE.Mesh(new THREE.RingGeometry(42, 68, 96), mat(0x164f70, { roughness: .28, metalness: .08 }));
+    water.name = 'estates-exterior-lake-ring'; water.rotation.x = -Math.PI/2; water.position.y = -.1; preview.add(water);
+    const island = new THREE.Mesh(new THREE.CircleGeometry(41, 96), mat(0x526d3b));
+    island.name = 'estates-exterior-island'; island.rotation.x = -Math.PI/2; island.position.y = .02; preview.add(island);
+    const add = (name, x, y, z, w, h, d, color) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat(color));
+      mesh.name = name; mesh.position.set(x,y,z); preview.add(mesh); return mesh;
+    };
+    // Tiny, recognizable roofline silhouettes communicate a lived-in neighborhood without
+    // exposing full lot/building detail until the player enters the Estates instance.
+    add('estates-preview-community-hall', 0, 1.1, 2, 5.5, 2.2, 4.5, 0xd1c3a2);
+    add('estates-preview-hall-roof', 0, 2.45, 2, 6, .45, 5, 0x49352a);
+    add('estates-preview-lakeside-home', -14, .8, -9, 3.2, 1.6, 3, 0xb59a76);
+    add('estates-preview-lakeside-roof', -14, 1.8, -9, 3.6, .35, 3.4, 0x49352a);
+    add('estates-preview-east-home', 14, .75, 10, 3, 1.5, 3, 0x9e8466);
+    add('estates-preview-east-roof', 14, 1.65, 10, 3.4, .3, 3.4, 0x49352a);
+    for (const [i,x,z] of [[1,-25,-18],[2,25,-15],[3,-24,19],[4,25,22]]) {
+      const tree = new THREE.Mesh(new THREE.ConeGeometry(2.4, 7, 7), mat(0x31563a));
+      tree.name = 'estates-preview-tree-'+i; tree.position.set(x,3.5,z); preview.add(tree);
+    }
+    scene.add(preview);
+    return { preview, dispose() {
+      scene.remove(preview);
+      preview.traverse?.(node => {
+        node.geometry?.dispose?.();
+        if (Array.isArray(node.material)) node.material.forEach(m=>m?.dispose?.()); else node.material?.dispose?.();
+      });
+    }};
+  }
+  const exterior = makeExteriorPreview();
+  const setDetailedCommunityVisible = visible => {
+    for (const child of root.children) child.visible = visible || Boolean(child.userData?.estatesExteriorVisible);
+    exterior.preview.visible = !visible;
+  };
+  setDetailedCommunityVisible(false);
+
+  let active = false, entering = false, instanceLeaseToken = null, activeInstanceId = null, activeVisitors = null, instanceHeartbeatTimer = null, returnAnchorTimer = null, presenceSocket = null, presenceSendTimer = null, presenceReconnectTimer = null, presenceStopped = true, presenceRetry = 0, lastPresenceSent = 0, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
+  let layoutLoadEpoch = 0;
+  const remotePeers = new Map();
   const panel = makePanel();
   const showPanel = (heading, message, actions, muted='') => {
     panel.replaceChildren();
@@ -90,6 +192,23 @@ export async function installEstatesIslandLive({
     panel.appendChild(row); panel.style.display='block';
   };
   const hidePanel = () => { panel.style.display='none'; panel.replaceChildren(); };
+  async function refreshSavedPlacements() {
+    const epoch = ++layoutLoadEpoch;
+    try {
+      const response = await fetch(estatesServerBase() + '/api/estates/layouts/public', { cache:'no-store' });
+      if (!response.ok) { if (!disposed && active && epoch === layoutLoadEpoch) renderer.setSavedPlacements?.([]); return 0; }
+      const payload = await response.json();
+      if (!payload?.ok || !Array.isArray(payload.placements)) throw new Error('invalid_public_estates_layout');
+      const catalogPropertyIds = new Set((catalog.properties || []).map(p => p.id).filter(id => typeof id === 'string'));
+      const placements = payload.placements.filter(p => p && catalogPropertyIds.has(p.propertyId));
+      if (disposed || !active || epoch !== layoutLoadEpoch) return 0;
+      return renderer.setSavedPlacements(placements);
+    } catch {
+      if (!disposed && active && epoch === layoutLoadEpoch) renderer.setSavedPlacements?.([]);
+      return 0;
+    }
+  }
+
   const showLotInspection = property => {
     const catalogued=Boolean(property.propertyId);
     showPanel('LOT INSPECTION · '+property.lotId,
@@ -171,25 +290,203 @@ export async function installEstatesIslandLive({
     }
   });
 
-  function enterIsland() {
-    if (disposed || active) return;
-    active=true; nearCityGate=false; hidePanel();
-    if(getMode()!=='explore') setMode('explore');
-    player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);
-    player.fp=false;
-    setYaw(-Math.PI/2);
-    player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
-    avatar.position.copy(player.pos);
-    onStatus({state:'entered-public-island',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
+  async function enterIsland() {
+    if (disposed || active || entering) return;
+    entering = true;
+    hidePanel();
+    try {
+      const response = await fetch(estatesServerBase() + '/api/estates/instance/enter', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ clientId: estateClientSessionId(), entranceId: 'estates-island-entrance' })
+      });
+      let admission = null;
+      try { admission = await response.json(); } catch {}
+      if (!response.ok || !admission?.ok || typeof admission.leaseToken !== 'string' || typeof admission.instanceId !== 'string') {
+        throw new Error(admission?.error || 'instance_admission_failed');
+      }
+      if (disposed) { void releaseEstatesInstanceLease(admission.leaseToken); return; }
+      instanceLeaseToken = admission.leaseToken;
+      activeInstanceId = admission.instanceId;
+      const savedAnchor = await readSavedReturnAnchor(controllerRef.navigation);
+      if (disposed) { instanceLeaseToken = null; activeInstanceId = null; await releaseEstatesInstanceLease(admission.leaseToken); return; }
+      activeVisitors = Number.isSafeInteger(admission.activeVisitors) ? admission.activeVisitors : null;
+      active=true; nearCityGate=false;
+      void refreshSavedPlacements();
+      startInstanceLeaseHeartbeat();
+      if (returnAnchorTimer !== null) clearInterval(returnAnchorTimer);
+      returnAnchorTimer = setInterval(() => {
+        if (!active || disposed) return;
+        void saveReturnAnchor({ x: player.pos.x - OFFSET_X, y: player.pos.y, z: player.pos.z, r: getYaw() }, controllerRef.navigation);
+      }, 15_000);
+      connectEstatesPresence(instanceLeaseToken);
+      setDetailedCommunityVisible(true);
+      if(getMode()!=='explore') setMode('explore');
+      const spawn = savedAnchor || ISLAND_SPAWN;
+      player.pos.set(OFFSET_X+spawn.x,spawn.y,spawn.z);
+      player.fp=false;
+      setYaw(savedAnchor ? savedAnchor.r : -Math.PI/2);
+      player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
+      avatar.position.copy(player.pos);
+      onStatus({state:'entered-public-island',instanceId:activeInstanceId,activeVisitors,catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
+    } catch (error) {
+      showPanel('ESTATES CONNECTION FAILED','The shared island could not be reached. Your city position has not changed.',
+        [{label:'Retry entry',primary:true,run:enterIsland},{label:'Not now',run:hidePanel}],
+        'The entry lease is requested from the server before the community is revealed.');
+      onStatus({state:'entry-failed',message:String(error?.message||error)});
+    } finally {
+      entering = false;
+    }
   }
   function leaveIsland() {
     if(disposed||!active)return;
-    active=false; hidePanel(); controller.dispose();
+    void saveReturnAnchor({ x: player.pos.x - OFFSET_X, y: player.pos.y, z: player.pos.z, r: getYaw() }, controllerRef.navigation);
+    active=false; layoutLoadEpoch++; renderer.setSavedPlacements?.([]); hidePanel(); controllerRef.dispose();
+    if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; }
+    if (returnAnchorTimer !== null) { clearInterval(returnAnchorTimer); returnAnchorTimer = null; }
+    stopPresence();
+    setDetailedCommunityVisible(false);
+    const leaseToken=instanceLeaseToken;
+    instanceLeaseToken=null; activeInstanceId=null; activeVisitors=null;
+    void releaseEstatesInstanceLease(leaseToken);
+    // Rotate the per-tab session key after exit so a fast re-entry cannot race the release.
+    localEstateSessionId = null;
+    try { sessionStorage.removeItem('bcEstatesIslandSession'); } catch {}
     player.pos.set(CITY_GATE.x,CITY_GATE.y,CITY_GATE.z);
     setYaw(Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
     avatar.position.copy(player.pos);
     onStatus({state:'returned-to-city'});
+  }
+  function removeRemotePeer(id) {
+    const peer = remotePeers.get(id);
+    if (!peer) return;
+    root.remove(peer.mesh);
+    peer.mesh.traverse?.(node => {
+      node.geometry?.dispose?.();
+      if (Array.isArray(node.material)) node.material.forEach(m=>m?.dispose?.()); else node.material?.dispose?.();
+    });
+    remotePeers.delete(id);
+  }
+  function setRemotePeer(id, position) {
+    if (!Number.isSafeInteger(Number(id)) || !position || ![position.x,position.y,position.z,position.r].every(finite)) return;
+    const peerId = Number(id);
+    let peer = remotePeers.get(peerId);
+    if (!peer) {
+      const mesh = new THREE.Group();
+      mesh.name = 'estates-remote-player-' + peerId;
+      const bodyMaterial = new THREE.MeshStandardMaterial({color:0x9d5bff,roughness:.72});
+      const headMaterial = new THREE.MeshStandardMaterial({color:0xffd3a2,roughness:.8});
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(.28,.34,.9,8),bodyMaterial);
+      body.position.y=.78; body.castShadow=true;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(.2,10,8),headMaterial);
+      head.position.y=1.42; head.castShadow=true;
+      mesh.add(body,head); root.add(mesh);
+      peer = {mesh,target:{x:0,y:0,z:0,r:0}};
+      remotePeers.set(peerId,peer);
+    }
+    peer.target = {x:position.x,y:position.y,z:position.z,r:position.r};
+    if (remotePeers.size > 40) removeRemotePeer(remotePeers.keys().next().value);
+  }
+  function clearRemotePeers() {
+    for (const id of [...remotePeers.keys()]) removeRemotePeer(id);
+  }
+  function stopPresence() {
+    presenceStopped = true;
+    if (presenceSendTimer !== null) { clearInterval(presenceSendTimer); presenceSendTimer = null; }
+    if (presenceReconnectTimer !== null) { clearTimeout(presenceReconnectTimer); presenceReconnectTimer = null; }
+    const socket = presenceSocket; presenceSocket = null;
+    if (socket && socket.readyState < 2) { socket.onclose = null; try { socket.close(1000,'left_estates'); } catch {} }
+    clearRemotePeers();
+  }
+  function connectEstatesPresence(leaseToken) {
+    stopPresence();
+    presenceStopped = false;
+    presenceRetry = 0;
+    const connect = () => {
+      if (presenceStopped || disposed || !active || instanceLeaseToken !== leaseToken) return;
+      try {
+        const base = new URL(estatesServerBase());
+        base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
+        base.pathname = '/';
+        base.search = '';
+        base.searchParams.set('mode','estates');
+        base.searchParams.set('lease',leaseToken);
+        const socket = new WebSocket(base.toString());
+        presenceSocket = socket;
+        socket.onopen = () => {
+          if (presenceSocket !== socket || presenceStopped) { socket.close(); return; }
+          presenceRetry = 0;
+          if (presenceSendTimer !== null) clearInterval(presenceSendTimer);
+          presenceSendTimer = setInterval(() => {
+            if (socket.readyState !== WebSocket.OPEN || !active || presenceSocket !== socket) return;
+            const now = performance.now();
+            if (now - lastPresenceSent < 90) return;
+            lastPresenceSent = now;
+            socket.send(JSON.stringify({t:'p',x:player.pos.x-OFFSET_X,y:player.pos.y,z:player.pos.z,r:getYaw()}));
+          },100);
+          onStatus({state:'presence-connected',instanceId:activeInstanceId});
+        };
+        socket.onmessage = event => {
+          let message; try { message = JSON.parse(event.data); } catch { return; }
+          if (!message || typeof message !== 'object') return;
+          if (message.t === 'w' && message.instanceId === activeInstanceId && Array.isArray(message.peers)) {
+            clearRemotePeers();
+            for (const peer of message.peers) setRemotePeer(peer.id,peer);
+          } else if ((message.t === 'j' || message.t === 'p') && Number.isSafeInteger(message.id)) {
+            setRemotePeer(message.id,message);
+          } else if (message.t === 'l') removeRemotePeer(message.id);
+          else if (message.t === 'e') onStatus({state:'presence-rejected',message:message.e});
+        };
+        socket.onerror = () => {};
+        socket.onclose = event => {
+          if (presenceSocket === socket) presenceSocket = null;
+          if (presenceSendTimer !== null) { clearInterval(presenceSendTimer); presenceSendTimer = null; }
+          clearRemotePeers();
+          if (presenceStopped || disposed || !active || instanceLeaseToken !== leaseToken) return;
+          if (event.code === 1008) { onStatus({state:'presence-rejected',message:'invalid_or_expired_lease'}); return; }
+          presenceRetry += 1;
+          const delay = Math.min(8000, 750 * (2 ** Math.min(4,presenceRetry-1)));
+          presenceReconnectTimer = setTimeout(connect,delay);
+          onStatus({state:'presence-reconnecting',delay});
+        };
+      } catch (error) {
+        if (!presenceStopped && active && instanceLeaseToken === leaseToken) {
+          presenceReconnectTimer = setTimeout(connect,2000);
+          onStatus({state:'presence-error',message:String(error?.message||error)});
+        }
+      }
+    };
+    connect();
+  }
+  function updateRemotePeerMeshes(dt) {
+    const alpha = 1 - Math.exp(-Math.max(0,Math.min(.1,dt)) * 12);
+    for (const peer of remotePeers.values()) {
+      peer.mesh.position.x += (peer.target.x-peer.mesh.position.x)*alpha;
+      peer.mesh.position.y += (peer.target.y-peer.mesh.position.y)*alpha;
+      peer.mesh.position.z += (peer.target.z-peer.mesh.position.z)*alpha;
+      let delta = peer.target.r - peer.mesh.rotation.y;
+      while (delta > Math.PI) delta -= Math.PI*2;
+      while (delta < -Math.PI) delta += Math.PI*2;
+      peer.mesh.rotation.y += delta*alpha;
+    }
+  }
+  function startInstanceLeaseHeartbeat() {
+    if (instanceHeartbeatTimer !== null) clearInterval(instanceHeartbeatTimer);
+    instanceHeartbeatTimer = setInterval(async () => {
+      const leaseToken = instanceLeaseToken;
+      if (!leaseToken || !active || disposed) return;
+      try {
+        const response = await fetch(estatesServerBase() + '/api/estates/instance/heartbeat', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ leaseToken })
+        });
+        if (response.status === 410 && active && instanceLeaseToken === leaseToken) {
+          onStatus({state:'instance-lease-expired',instanceId:activeInstanceId});
+          leaveIsland();
+        }
+      } catch { /* The server expires stale leases; the next heartbeat retries. */ }
+    }, 25_000);
   }
   // A fresh controller is required after returning because dispose is intentionally final.
   let controllerRef=controller;
@@ -207,6 +504,7 @@ export async function installEstatesIslandLive({
       if(edge&&near) { enterIsland(); return true; }
       return false;
     }
+    updateRemotePeerMeshes(dt);
     // Rebuild controller after its previous instance was disposed on exit.
     if(!controllerRef.isActive) {
       controllerRef=createEstatesIslandController({
@@ -244,7 +542,12 @@ export async function installEstatesIslandLive({
   const api = Object.freeze({
     tick,
     dispose(){
-      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false;
+      if(active) void saveReturnAnchor({ x: player.pos.x - OFFSET_X, y: player.pos.y, z: player.pos.z, r: getYaw() }, controllerRef.navigation);
+      disposed=true; layoutLoadEpoch++; renderer.setSavedPlacements?.([]); hidePanel(); controllerRef.dispose();
+      if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; }
+      if (returnAnchorTimer !== null) { clearInterval(returnAnchorTimer); returnAnchorTimer = null; }
+      stopPresence(); void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose(); exterior.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },
@@ -252,6 +555,6 @@ export async function installEstatesIslandLive({
     get manifest(){return manifest;}
   });
   window.__estatesIslandLive=api;
-  onStatus({state:'ready',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length,publicTraversal:true,privateAccess:'permission-gated'});
+  onStatus({state:'ready',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length,publicTraversal:true,privateAccess:'permission-gated',instanceLifecycle:'server-leased',instanceId:'assigned-on-entry'});
   return api;
 }

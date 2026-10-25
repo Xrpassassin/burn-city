@@ -25,7 +25,7 @@ export function compileNftAvatarBuildSpec(nft = {}) {
     const slot = profile.renderTraits[index]?.[0] || 'unknown';
     return { sourceType: type, sourceValue: value, renderSlot: slot, mapped: KNOWN_SLOTS.has(slot), recipeHint: recipe.traitSlots[type] || null };
   });
-  const artworkReference = shaSafe(nft.artworkReference || nft.img || nft.image || nft.imageUrl) || null;
+  const artworkReference = shaSafe(nft.artworkReference || nft.artwork || nft.img || nft.image || nft.imageUrl) || null;
   return {
     specVersion: 1,
     pipeline: 'burn-city-nft-avatar',

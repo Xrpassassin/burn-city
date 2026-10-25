@@ -258,10 +258,10 @@ export async function installEstatesIslandLive({
       if (disposed) { void releaseEstatesInstanceLease(admission.leaseToken); return; }
       instanceLeaseToken = admission.leaseToken;
       activeInstanceId = admission.instanceId;
-      startInstanceLeaseHeartbeat();
-      connectEstatesPresence(instanceLeaseToken);
       activeVisitors = Number.isSafeInteger(admission.activeVisitors) ? admission.activeVisitors : null;
       active=true; nearCityGate=false;
+      startInstanceLeaseHeartbeat();
+      connectEstatesPresence(instanceLeaseToken);
       setDetailedCommunityVisible(true);
       if(getMode()!=='explore') setMode('explore');
       player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);

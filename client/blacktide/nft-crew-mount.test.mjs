@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { mountApprovedCrew } from './nft-crew-mount.mjs';
+const children=[];
+const ship={add:model=>children.push(model)};
+const model={position:{set(...values){this.values=values;}},userData:{}};
+const approved={ok:true,mode:'blacktide',asset:{uri:'/avatars/1.glb'},identity:{collectionKey:'racc',tokenId:'1'},runtime:{sharedAsset:true}};
+assert.equal(mountApprovedCrew({ship,model,avatarRuntime:approved}).ok,true);
+assert.deepEqual(model.position.values,[0,1.1,1.2]);
+assert.deepEqual(model.userData.nftCrewIdentity,{collectionKey:'racc',tokenId:'1'});
+assert.equal(children.length,1);
+assert.equal(mountApprovedCrew({ship,model,avatarRuntime:{...approved,mode:'eternal-grind'}}).ok,false);
+assert.equal(mountApprovedCrew({ship,model,avatarRuntime:{...approved,ok:false}}).ok,false);
+assert.equal(mountApprovedCrew({ship,model,avatarRuntime:approved,position:{x:Infinity,y:0,z:0}}).ok,false);
+assert.equal(children.length,1);
+console.log('BlackTide NFT crew mount tests passed');

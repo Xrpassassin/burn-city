@@ -22,6 +22,8 @@ assert(live.includes('exterior.preview.visible = !visible;'), 'entry swaps the s
 assert(live.includes('exterior.dispose();'), 'preview geometry/materials are disposed with the live experience');
 assert(live.includes('/api/estates/instance/enter'), 'explicit entry acquires a server-side shared-instance lease');
 assert(live.includes('/api/estates/instance/leave'), 'returning to city releases the shared-instance lease');
+assert(live.includes('/api/estates/instance/heartbeat'), 'active Estates leases are renewed to prevent stale-session leaks');
+assert(live.includes('sessionStorage.removeItem(\'bcEstatesIslandSession\')'), 're-entry uses a fresh client session after release');
 assert(live.includes('instanceLifecycle:\'server-leased\''), 'ready status identifies server lease lifecycle without claiming movement replication');
 assert(live.includes('if (disposed) { void releaseEstatesInstanceLease(admission.leaseToken); return; }'), 'late admission is released if host disposes during entry');
 assert(live.includes('activeInstanceId'), 'entry status includes the server-assigned logical instance id');

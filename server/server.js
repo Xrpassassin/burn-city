@@ -6,6 +6,8 @@ const Nft = require('./nft'), Social = require('./social'), C = require('./confi
 const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates = require('./estates'), EstateWallet = require('./estate-wallet');
 const EstateRights = require('./estates-rights');
 const EstateAccess = require('./estate-access');
+const { createEstatesInstanceManager } = require('./estates-instance');
+const estatesInstance = createEstatesInstanceManager();
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const Jetpack = require('./jetpack');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
@@ -125,6 +127,16 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/admin/ranked/review' && req.method === 'POST') return json(res, 200, Ranked.review(String(b.match || ''), String(b.acct || ''), !!b.accept));
       if (url.pathname === '/admin/ranked/approve' && req.method === 'POST') return json(res, 200, await Ranked.approve(String(b.match || '')));
       if (url.pathname === '/admin/ranked/refunded' && req.method === 'POST') return json(res, 200, Ranked.markRefunded(String(b.ticket || '')));
+    }
+    if (url.pathname === '/api/estates/instance/enter' && req.method === 'POST') {
+      if (gate('estates-instance-ip:' + ip, 60, 60e3)) return json(res, 429, { error: 'slow_down' });
+      const b = await body(), result = estatesInstance.enter(String(b.clientId || ''));
+      return json(res, result.ok ? 200 : 400, result);
+    }
+    if (url.pathname === '/api/estates/instance/leave' && req.method === 'POST') {
+      if (gate('estates-instance-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
+      const b = await body(), result = estatesInstance.leave(String(b.leaseToken || ''));
+      return json(res, result.ok ? 200 : 400, result);
     }
     if (url.pathname === '/api/estates/tour' && req.method === 'GET') {   // public tour check: unowned interiors are open to anyone (enter/inspect only); owned ones need sign-in + owner/invite
       if (gate('estates-tour-ip:' + ip, 60, 60e3)) return json(res, 429, { error: 'slow_down' });

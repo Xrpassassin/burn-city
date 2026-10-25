@@ -9,7 +9,11 @@
       "sourceUrl": "https://quaternius.com/packs/universalbasecharacters.html",
       "intendedCollection": "589",
       "purpose": "humanoid-base-rig-prototype",
-      "formats": ["glTF", "FBX", "OBJ"],
+      "formats": [
+        "glTF",
+        "FBX",
+        "OBJ"
+      ],
       "reportedLicense": "CC0",
       "rightsStatus": "pending-review",
       "visualStatus": "not-reviewed",
@@ -22,7 +26,11 @@
       "sourceUrl": "https://quaternius.com/packs/universalanimationlibrary.html",
       "intendedCollection": "shared-technical",
       "purpose": "humanoid-animation-retargeting-prototype",
-      "formats": ["GLB", "FBX", "Blend"],
+      "formats": [
+        "GLB",
+        "FBX",
+        "Blend"
+      ],
       "reportedLicense": "CC0",
       "rightsStatus": "pending-review",
       "visualStatus": "not-reviewed",
@@ -33,9 +41,13 @@
       "id": "quaternius-modular-character-outfits-fantasy",
       "publisher": "Quaternius",
       "sourceUrl": "https://quaternius.com/packs/modularcharacteroutfitsfantasy.html",
-      "intendedCollection": "firekeepers",
+      "intendedCollection": "fk",
       "purpose": "layered-clothing-attachment-prototype",
-      "formats": ["glTF", "FBX", "OBJ"],
+      "formats": [
+        "glTF",
+        "FBX",
+        "OBJ"
+      ],
       "reportedLicense": "CC0",
       "rightsStatus": "pending-review",
       "visualStatus": "not-reviewed",
@@ -48,7 +60,12 @@
       "sourceUrl": "https://quaternius.com/packs/ultimatemodularcharacters.html",
       "intendedCollection": "589",
       "purpose": "alternate-humanoid-modularity-benchmark",
-      "formats": ["glTF", "FBX", "OBJ", "Blend"],
+      "formats": [
+        "glTF",
+        "FBX",
+        "OBJ",
+        "Blend"
+      ],
       "reportedLicense": "CC0",
       "rightsStatus": "pending-review",
       "visualStatus": "not-reviewed",

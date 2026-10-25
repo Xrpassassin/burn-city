@@ -1411,7 +1411,7 @@ function boot(host) {
       updateWorld(data);
       return true;
     } catch (e) {
-      if (status) status.textContent = e.message === 'party_leader_controls_movement' ? 'Your party leader controls group movement.' : e.message === 'movement_too_far' ? 'That destination is too far away. Click closer; movement is server-limited.' : 'Movement failed: ' + e.message;
+      if (status && e.message !== 'move_cooldown') status.textContent = e.message === 'party_leader_controls_movement' ? 'Your party leader controls group movement.' : e.message === 'movement_too_far' ? 'Movement exceeds the server travel limit.' : 'Movement failed: ' + e.message;
       return false;
     } finally { moving = false; }
   }

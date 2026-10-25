@@ -166,7 +166,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
       body.name=group.name+'-body';body.position.y=p.height/2;group.add(body);
       const roof=new THREE.Mesh(new THREE.BoxGeometry(p.width+.22,.18,p.depth+.22),material(THREE,style.roof));
       roof.name=group.name+'-roof';roof.position.y=p.height+.09;group.add(roof);
-      const trim=new THREE.Mesh(new THREE.BoxGeometry(Math.min(.16,p.width*.12),Math.max(.18,p.height*.5),.08),material(THREE,style.trim,{metalness:p.buildingType==='generator'||p.buildingType==='workshop'?.35:0}));
+      const trim=new THREE.Mesh(new THREE.BoxGeometry(Math.min(.16,p.width*.12),Math.max(.18,p.height*.5),.08),material(THREE,style.trim,{metalness:(p.buildingType==='generator'||p.buildingType==='workshop')?.35:0}));
       trim.name=group.name+'-trim';trim.position.set(0,p.height*.52,p.depth/2+.045);group.add(trim);
       group.userData={savedPlacement:true,propertyId:p.propertyId,placementId:p.placementId,buildingType:p.buildingType};
       root.add(group);savedPlacementGroups.set(key,group);count++;

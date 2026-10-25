@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { TRACKS, rankForXp, progressionView } from './rpg-progression.mjs';
+assert.equal(Object.keys(TRACKS).length,4);
+for(const [xp,expected] of [[-1,0],[0,0],[99,0],[100,1],[350,2],[900,3],[10000,3]]) assert.equal(rankForXp(xp),expected);
+const view=progressionView({sailing:360,trade:100,combat:-5,exploration:Infinity});
+assert.equal(view.sailing.title,'Storm Reader');
+assert.equal(view.sailing.nextRankXp,900);
+assert.equal(view.trade.rank,1);
+assert.equal(view.combat.xp,0);
+assert.equal(view.exploration.rank,0);
+console.log('BlackTide RPG progression rules passed');

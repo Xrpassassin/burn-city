@@ -36,6 +36,18 @@ function safeUrl(value) {
     return ['https:', 'http:'].includes(u.protocol) ? u.toString() : '';
   } catch { return ''; }
 }
+
+// XRPL NFToken URI fields are commonly hex-encoded UTF-8 bytes. Decode only
+// well-formed even-length hex; otherwise preserve the original for URL validation.
+function decodeNftUri(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw.startsWith('ipfs://') || /^https?:\/\//i.test(raw)) return raw;
+  if (!/^(?:[0-9a-f]{2})+$/i.test(raw)) return raw;
+  try {
+    const decoded = Buffer.from(raw, 'hex').toString('utf8');
+    return decoded && !decoded.includes('\uFFFD') ? decoded.trim() : raw;
+  } catch { return raw; }
+}
 function parseNft(row, collectionKey) {
   const tokenId = String(row?.NFTokenID ?? row?._id ?? '').toUpperCase();
   const meta = row?.meta ?? {};
@@ -54,7 +66,7 @@ function parseNft(row, collectionKey) {
     issuer: String(row?.issuer ?? ''),
     taxon: Number.isInteger(Number(row?.taxon)) ? Number(row.taxon) : null,
     canonicalSourceUrl: validTokenId(tokenId) ? 'https://xrp.cafe/nft/' + tokenId : '',
-    metadataUrl: safeUrl(row?.url) || safeUrl(row?.URI),
+    metadataUrl: safeUrl(row?.url) || safeUrl(decodeNftUri(row?.URI)),
     artworkUrl: image,
     rawTraits: traits,
     rawMeta: meta,

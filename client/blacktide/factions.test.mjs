@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {FACTIONS,reputationTier,factionStanding,previewFactionChange} from './factions.mjs';
+assert.equal(Object.keys(FACTIONS).length,5);
+assert.equal(reputationTier(-80),'hunted');
+assert.equal(reputationTier(-40),'hostile');
+assert.equal(reputationTier(0),'neutral');
+assert.equal(reputationTier(40),'trusted');
+assert.equal(reputationTier(80),'allied');
+assert.equal(factionStanding({'iron-crown':999})['iron-crown'].score,100);
+assert.equal(previewFactionChange({'freewater':95},'freewater',20).after,100);
+assert.equal(previewFactionChange({},'iron-crown',-20).tier,'hostile');
+assert.equal(previewFactionChange({},'__proto__',10),null);
+assert.equal(previewFactionChange({},'iron-crown',1000),null);
+console.log('BlackTide faction reputation tests passed');

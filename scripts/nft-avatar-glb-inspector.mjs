@@ -39,7 +39,7 @@ export function inspectGlbBuffer(buffer) {
     if (type === JSON_CHUNK) {
       jsonChunks++;
       if (jsonChunks > 1) fail('MULTIPLE_JSON_CHUNKS','GLB must contain exactly one JSON chunk');
-      try { json = JSON.parse(chunk.toString('utf8').replace(/[\\u0000\\u0020]+$/g,'')); }
+      try { json = JSON.parse(chunk.toString('utf8').replace(/[\u0000\u0020]+$/g,'')); }
       catch { fail('INVALID_JSON_CHUNK','JSON chunk is not valid JSON'); }
     } else if (type === BIN_CHUNK) { binaryChunks++; binaryChunkLength = length; }
     else warn('UNKNOWN_CHUNK','unrecognized GLB chunk type ' + type);
@@ -109,15 +109,26 @@ export function inspectGlbBuffer(buffer) {
   for (const [i,view] of views.entries()) {
     if (!validIndex(view.buffer,buffers)) fail('BUFFERVIEW_BUFFER_INDEX','bufferView ' + i + ' references invalid buffer');
     if (!Number.isInteger(view.byteLength) || view.byteLength < 0) fail('BUFFERVIEW_LENGTH','bufferView ' + i + ' has invalid byteLength');
-    if ((view.byteOffset || 0) < 0) fail('BUFFERVIEW_OFFSET','bufferView ' + i + ' has invalid byteOffset');
+    if (!Number.isInteger(view.byteOffset ?? 0) || (view.byteOffset ?? 0) < 0) fail('BUFFERVIEW_OFFSET','bufferView ' + i + ' has invalid byteOffset');
+    if (validIndex(view.buffer,buffers) && Number.isInteger(view.byteLength) && view.byteLength >= 0 && Number.isInteger(view.byteOffset ?? 0) && (view.byteOffset ?? 0) >= 0) {
+      const end=(view.byteOffset ?? 0)+view.byteLength;
+      if (end > buffers[view.buffer].byteLength) fail('BUFFERVIEW_OUT_OF_BOUNDS','bufferView ' + i + ' exceeds declared buffer byteLength');
+    }
   }
   for (const [i,acc] of accessors.entries()) {
     if (!COMPONENT_BYTES.has(acc.componentType) || !TYPE_COMPONENTS.has(acc.type) || !Number.isInteger(acc.count) || acc.count < 0) fail('ACCESSOR_LAYOUT','accessor ' + i + ' has invalid component type, shape, or count');
     if (acc.bufferView != null && !validIndex(acc.bufferView,views)) fail('ACCESSOR_BUFFERVIEW_INDEX','accessor ' + i + ' references invalid bufferView');
     if (acc.bufferView != null && validIndex(acc.bufferView,views) && COMPONENT_BYTES.has(acc.componentType) && TYPE_COMPONENTS.has(acc.type)) {
-      const view=views[acc.bufferView], offset=acc.byteOffset || 0;
-      const required=offset + Math.max(0,acc.count-1)*((view.byteStride || COMPONENT_BYTES.get(acc.componentType)*TYPE_COMPONENTS.get(acc.type))) + COMPONENT_BYTES.get(acc.componentType)*TYPE_COMPONENTS.get(acc.type);
-      if (required > view.byteLength) fail('ACCESSOR_OUT_OF_BOUNDS','accessor ' + i + ' exceeds its bufferView');
+      const view=views[acc.bufferView], offset=acc.byteOffset ?? 0, componentBytes=COMPONENT_BYTES.get(acc.componentType);
+      if (!Number.isInteger(offset) || offset < 0) fail('ACCESSOR_OFFSET','accessor ' + i + ' has invalid byteOffset');
+      else {
+        if (offset % componentBytes !== 0) fail('ACCESSOR_ALIGNMENT','accessor ' + i + ' byteOffset is not component-aligned');
+        const elementBytes=componentBytes*TYPE_COMPONENTS.get(acc.type);
+        const stride=view.byteStride ?? elementBytes;
+        if (view.byteStride != null && (!Number.isInteger(view.byteStride) || view.byteStride < elementBytes || view.byteStride > 252 || view.byteStride % 4 !== 0)) fail('BUFFERVIEW_STRIDE','bufferView ' + acc.bufferView + ' has invalid byteStride');
+        const required=offset + Math.max(0,acc.count-1)*stride + elementBytes;
+        if (required > view.byteLength) fail('ACCESSOR_OUT_OF_BOUNDS','accessor ' + i + ' exceeds its bufferView');
+      }
     }
   }
   if (binaryChunks > 1) fail('MULTIPLE_BIN_CHUNKS','GLB may contain at most one BIN chunk');

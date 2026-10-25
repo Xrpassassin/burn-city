@@ -21,6 +21,7 @@ def add_base_details(key, head_y, materials, sphere, cube, cone, cylinder, curve
         sphere("Base_RACC_Muzzle_L",(-.065,-.238,head_y-.09),(.09,.061,.065),light,16,10)
         sphere("Base_RACC_Muzzle_R",(.065,-.238,head_y-.09),(.09,.061,.065),light,16,10)
         sphere("Base_RACC_TailTip",(.75,.18,1.06),(.105,.103,.105),dark,16,10)
+        # Species geometry is part of the shared base, not token-specific art.
         # Broad raccoon skull and cheek ruffs create a species-specific profile.
         sphere("Base_RACC_Cranium",(0,.035,head_y+.055),(.245,.217,.245),fur,24,16)
         sphere("Base_RACC_WhiteMuzzleBib",(0,-.206,head_y-.145),(.154,.071,.109),light,20,12)

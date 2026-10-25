@@ -395,6 +395,15 @@ export function buildNftChar(n, opts = {}) {
     const hive=add(geo('nft-beehive',()=>new THREE.ConeGeometry(.15,.27,9)),mat(traitColor(/headwear/i,'#d5a83f')) ,0,.22,-.005,head);
     hive.name='nft-beehive-headwear';
     add(geo('nft-beehive-band',()=>new THREE.TorusGeometry(.12,.012,5,16)),metal,0,.17,-.005,head);
+  } else if (components.headwearStyle === 'straw-hat') {
+    // A woven/conical hat has a broad brim and tapered crown; do not collapse it into the generic cap recipe.
+    const strawColor = mat(traitColor(/headwear/i, '#c8ad72'), .94, .01);
+    const brim = add(geo('nft-straw-hat-brim',()=>new THREE.CylinderGeometry(.29,.29,.025,24)),strawColor,0,.16,-.005,head);
+    brim.name='nft-straw-hat-brim';
+    const crown = add(geo('nft-straw-hat-crown',()=>new THREE.CylinderGeometry(.035,.16,.24,16)),strawColor,0,.285,-.005,head);
+    crown.name='nft-straw-hat-crown';
+    const band = add(geo('nft-straw-hat-band',()=>new THREE.TorusGeometry(.135,.012,5,20)),mat(traitColor(/headwear/i, '#8a6841'),.9,.01),0,.235,-.005,head);
+    band.name='nft-straw-hat-band';
   } else if (components.headwearStyle === 'rock') {
     const rock=addSphere(head,mat(traitColor(/headwear/i,'#777a80')),[0,.16,-.01],[.22,.17,.2]); rock.name='nft-rock-headwear';
   } else if (components.headwearStyle === 'helmet' || has(tr,/helmet/)) {

@@ -1,3 +1,4 @@
+import {createWalkingPad} from '../js/walking-pad.mjs';
 // First playable Cinder Cove shore walk. Client visuals only; never grants quests/rewards.
 export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
   const island={x:-56,z:-84};
@@ -18,11 +19,13 @@ export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
   button.style.cssText='position:absolute;bottom:110px;left:50%;transform:translateX(-50%);z-index:25;padding:12px 18px;border:1px solid #b98a4e;border-radius:8px;background:#17202b;color:#fff;font-weight:700;cursor:pointer';
   button.hidden=true;game.append(button);
   let ashore=false,angle=0;
+  const pad=createWalkingPad({parent:game});
   button.addEventListener('click',()=>{
     ashore=!ashore;avatar.visible=ashore;
     if(ashore){avatar.position.set(island.x,2.4,island.z-7);angle=0;}
     button.textContent=ashore?'RETURN TO SHIP':'DISEMBARK · CINDER COVE';
     trade.setShoreMode(ashore);
+    pad.setVisible(ashore);
   });
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   return {
@@ -30,11 +33,11 @@ export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
     get position(){return avatar.position;},
     update(dt,keys) {
       const atCove=trade.test.state().docked==='cinder-cove';
-      if(!atCove&&ashore){ashore=false;avatar.visible=false;trade.setShoreMode(false);}
+      if(!atCove&&ashore){ashore=false;avatar.visible=false;trade.setShoreMode(false);pad.setVisible(false);}
       button.hidden=!atCove;
       if(!ashore)return false;
-      const f=Number(keys.has('w')||keys.has('arrowup'))-Number(keys.has('s')||keys.has('arrowdown'));
-      const side=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'));
+      const f=Number(keys.has('w')||keys.has('arrowup')||pad.keys.has('w'))-Number(keys.has('s')||keys.has('arrowdown')||pad.keys.has('s'));
+      const side=Number(keys.has('d')||keys.has('arrowright')||pad.keys.has('d'))-Number(keys.has('a')||keys.has('arrowleft')||pad.keys.has('a'));
       const len=Math.hypot(f,side);
       if(len>0){
         const dx=side/len,dz=-f/len;

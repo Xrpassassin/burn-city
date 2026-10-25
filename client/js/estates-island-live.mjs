@@ -364,7 +364,7 @@ export async function installEstatesIslandLive({
   const api = Object.freeze({
     tick,
     dispose(){
-      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; } void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose();
+      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; } void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose(); exterior.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },

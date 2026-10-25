@@ -40,6 +40,7 @@ jobs:
           node --check server/estates-presence.js
           node server/estates-instance.test.js
           node server/estates-presence.test.js
+          node server/estates-return-anchor.test.js
       - name: Test Kimi review integration
         run: |
           node --check server/kimi-review.js

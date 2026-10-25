@@ -50,10 +50,11 @@ export function reconcileNftInventory({
     }
 
     const metadata = row?.meta ?? row?.metadata ?? null;
+    const hasMetadata = Boolean(metadata && typeof metadata === 'object' && Object.keys(metadata).length) || Boolean(text(row?.metadataUrl ?? row?.URI ?? row?.url));
     const artwork = row?.artworkUrl ?? row?.image ?? metadata?.image ?? row?.files?.find?.(f => /image/i.test(String(f?.type ?? f?.parsedType ?? '')))?.parsedUrl;
     const traits = Array.isArray(row?.rawTraits) ? row.rawTraits : Array.isArray(metadata?.attributes) ? metadata.attributes : Array.isArray(row?.props) ? row.props : [];
     if (!text(artwork)) missingArtwork++;
-    if (!metadata && !text(row?.metadataUrl ?? row?.URI ?? row?.url)) missingMetadata++;
+    if (!hasMetadata) missingMetadata++;
     if (!traits.length) missingTraits++;
   }
 

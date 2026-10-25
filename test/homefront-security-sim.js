@@ -61,8 +61,10 @@ const start = { ...m.players.rMove };
 const moved = World.move(m, 'rMove', 1e9, -1e9, now + 2000).world.players.rMove;
 assert.ok(Math.hypot(moved.x - start.x, moved.z - start.z) <= World.MOVE_STEP + 0.2, 'one move never exceeds MOVE_STEP');
 assert.throws(() => World.move(m, 'rMove', start.x + 1, start.z, now + 100), /move_cooldown/);
-const nan = World.move(m, 'rMove', 'abc', null, now + 2000).world.players.rMove;
-assert.ok(Number.isFinite(nan.x) && Number.isFinite(nan.z), 'non-numeric targets never produce NaN positions');
+for (const [x, z] of [['abc', null], [NaN, 0], [Infinity, 0], [0, -Infinity], [undefined, 0]]) {
+  assert.throws(() => World.move(m, 'rMove', x, z, now + 2000), /invalid_movement_destination/, 'invalid targets must be rejected before movement');
+}
+assert.ok(Number.isFinite(m.players.rMove.x) && Number.isFinite(m.players.rMove.z), 'invalid attempts do not mutate world coordinates');
 assert.throws(() => World.move(m, 'rMove', 0, 0, now + 2000, 'yes'), /invalid_movement_mode/);
 
 // 5. Structures must not overlap server-owned farm plots; placement remains authoritative.

@@ -14,6 +14,12 @@ assert(live.includes('That record does not prove ownership'), 'catalog membershi
 assert(live.includes('updateLandmarkInteraction(edge,Boolean(result.property))'), 'public landmark interactions are checked in the live exploration loop');
 assert(live.includes('showLandmarkDetails(nearest)'), 'pressing E opens a landmark detail panel');
 assert(live.includes('no ownership or transaction is implied'), 'landmark interactions cannot imply ownership or a live transaction');
+assert(live.includes("preview.name = 'estates-exterior-preview'"), 'city view uses a compact scenic Estates preview');
+assert(live.includes("new THREE.RingGeometry(42, 68, 96)"), 'exterior preview visibly shows lake surrounding the island');
+assert(live.includes('setDetailedCommunityVisible(false);'), 'detailed community stays hidden before entry');
+assert(live.includes('setDetailedCommunityVisible(true);'), 'explicit entry reveals the full community');
+assert(live.includes('exterior.preview.visible = !visible;'), 'entry swaps the scenic exterior for the full island');
+assert(live.includes('exterior.dispose();'), 'preview geometry/materials are disposed with the live experience');
 assert(live.includes('if(property.confirmedInteraction){showLotInspection(property);return;}'), 'E-key interaction opens the lot inspection directly');
 assert.equal((live.match(/onPropertyPrompt:property=>\{lastProperty=property;lastLandmarkId=null;showLotPrompt\(property\);\}/g)||[]).length,2,'initial and recreated island controllers share the same lot prompt behavior');
 assert.equal((live.match(/if\(event\.confirmedInteraction\)\{leaveIsland\(\);return;\}/g) || []).length, 2, 'both initial and recreated controllers honor confirmed keyboard exit');

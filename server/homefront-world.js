@@ -363,8 +363,9 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader !== acct && w.players[w.parties[p.partyCode].leader]) throw new Error('party_leader_controls_movement');
   if (typeof sprint !== 'boolean') throw new Error('invalid_movement_mode');
   const elapsedMoveMs = now - p.lastMove;
-  // Accept smaller, more frequent movement commands without increasing travel speed.
-  if (elapsedMoveMs < 250) throw new Error('move_cooldown');
+  // Reject non-monotonic timestamps and rapid retries; cap accumulated movement credit.
+  // This prevents clock anomalies from generating a negative or unbounded travel allowance.
+  if (!Number.isFinite(elapsedMoveMs) || elapsedMoveMs < 250) throw new Error('move_cooldown');
   if (sprint && p.aiming) throw new Error('lower_weapon_before_sprinting');
   const weaponId = p.weaponMagazine?.weaponId || 'pipe_blade';
   const nominalBudget = p.aiming ? MOVE_STEP * (AIM_MOVE_SCALE[weaponId] || 0.55) : sprint ? SPRINT_STEP : MOVE_STEP;

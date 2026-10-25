@@ -254,6 +254,7 @@ export async function installEstatesIslandLive({
       if (!response.ok || !admission?.ok || typeof admission.leaseToken !== 'string' || typeof admission.instanceId !== 'string') {
         throw new Error(admission?.error || 'instance_admission_failed');
       }
+      if (disposed) { void releaseEstatesInstanceLease(admission.leaseToken); return; }
       instanceLeaseToken = admission.leaseToken;
       activeInstanceId = admission.instanceId;
       activeVisitors = Number.isSafeInteger(admission.activeVisitors) ? admission.activeVisitors : null;

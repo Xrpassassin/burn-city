@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { canonicalTraitKey, normalizeTraitSource, safeSourceUrl, resolveSourceUrl, createTraitAssetRegistry, canEquipTrait, validateCollectionInventory, buildTraitAssemblyManifest } from './nft-trait-asset-registry.mjs';
+import { canonicalTraitKey, normalizeTraitSource, safeSourceUrl, resolveSourceUrl, createTraitAssetRegistry, canEquipTrait, validateCollectionInventory, buildTraitAssemblyManifest, normalizeCollectionTraits } from './nft-trait-asset-registry.mjs';
 const a = 'A'.repeat(64), b = 'B'.repeat(64);
 assert.equal(canonicalTraitKey({collection:'RACC',type:'Top Gear',value:'Straw Hat'}), canonicalTraitKey({collection:'racc',type:'top gear',value:'straw hat'}));
 assert.throws(() => normalizeTraitSource({collection:'RACC',tokenId:'bad',type:'hat',value:'straw'}));
@@ -32,4 +32,11 @@ assert.equal(canEquipTrait({...hat,rightsStatus:'unverified'},char).reason,'trai
 assert.equal(validateCollectionInventory({collection:'racc',expectedCount:2,tokens:[{NFTokenID:a},{NFTokenID:b}]}).complete,true);
 assert.equal(validateCollectionInventory({collection:'racc',expectedCount:3,tokens:[{NFTokenID:a},{NFTokenID:a}]}).complete,false);
 assert.equal(validateCollectionInventory({collection:'racc',expectedCount:1,tokens:[{NFTokenID:a}],pageErrors:[{code:'api-failure'}]}).complete,false);
+
+const raccManifest = { collectionKey:'racc', traitMappings:[{slot:'headwear',aliases:['Top Gear']},{slot:'weapon',aliases:['Armed']},{slot:'outfit',aliases:['Fits']}] };
+const raccNormalized = normalizeCollectionTraits({collectionManifest:raccManifest,traits:[{type:'Top Gear',value:'RACC Lee Hat'},{trait_type:'Armed',value:'TNT'},{type:'Fits',value:'Yellow Striped Sweater'},{type:'Suit Type',value:'Streetwear'}]});
+assert.deepEqual(raccNormalized.map(t=>t.slot),['headwear','weapon','outfit','']);
+assert.equal(raccNormalized[0].type,'Top Gear');
+assert.equal(raccNormalized[3].mapped,false,'does not borrow a 589-only alias into RACC');
+assert.throws(()=>normalizeCollectionTraits({collectionManifest:{collectionKey:'racc',traitMappings:[{slot:'headwear',aliases:['Head']},{slot:'weapon',aliases:['head']}]},traits:[]}),/ambiguous trait alias/);
 console.log('NFT trait asset registry and assembly manifest tests passed');

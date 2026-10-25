@@ -8,7 +8,7 @@ const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
 const ISLAND_SPAWN = Object.freeze({ x: -195, y: 0.1, z: 188 });
 const finite = n => typeof n === 'number' && Number.isFinite(n);
 const estatesServerBase = () => new URLSearchParams(location.search).get('citysrv') ||
-  (/localhost|127\\.0\\.0\\.1/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
+  (/localhost|127\.0\.0\.1/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
 let localEstateSessionId = null;
 function estateClientSessionId() {
   try {

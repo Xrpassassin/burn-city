@@ -62,11 +62,10 @@ def fuse_racc_body(voxel_size=VOXEL_SIZE):
     joined.name="RACC_ContinuousBody_Blockout"
     # Voxel remesh joins intersecting volumes into one connected outer surface.
     # Preserve original multi-material geometry in the backup for manual retopo.
-    modifier=joined.modifiers.new("Body voxel fusion","REMESH")
-    modifier.mode="VOXEL"
-    modifier.voxel_size=voxel_size
-    modifier.use_smooth_shade=True
-    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    joined.data.remesh_voxel_size=voxel_size
+    bpy.ops.object.voxel_remesh()
+    if not joined.data.polygons:
+        raise RuntimeError("Voxel remesh produced an empty mesh")
     smooth=joined.modifiers.new("Subtle surface relaxation","SMOOTH")
     smooth.factor=0.7
     smooth.iterations=2

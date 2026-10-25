@@ -9,10 +9,12 @@ const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
 const { createEstatesReturnAnchorStore } = require('./estates-return-anchor');
+const { createEstatesLayoutStore } = require('./estates-layout-store');
 const KimiReview = require('./kimi-review');
 const kimiReviewer = KimiReview.createKimiReviewer();
 const estatesInstance = createEstatesInstanceManager();
 const estatesReturnAnchors = createEstatesReturnAnchorStore({ db: Pay.sdb });
+const estateLayouts = createEstatesLayoutStore({ db: Pay.sdb, access: EstateAccess });
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const Jetpack = require('./jetpack');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
@@ -30,6 +32,16 @@ function findRoom(mode, ranked, daily, mapId = null, arrivalSpawn = false, fligh
   return r; }
 
 const adminFails = new Map();
+function estateLayoutHttpStatus(result) {
+  if (result?.ok) return 200;
+  const reason = String(result?.reason || '');
+  if (reason === 'unknown-property' || reason === 'placement-not-found') return 404;
+  if (reason === 'authenticated-account-required') return 401;
+  if (reason === 'access-service-unavailable' || reason === 'layout-storage-unavailable') return 503;
+  if (reason === 'build-permission-required' || reason === 'property-access-denied' || reason === 'no_access' || reason === 'sign_in_required') return 403;
+  if (/conflict|duplicate|overlaps/.test(reason)) return 409;
+  return 400;
+}
 function adminOk(req, ip) {   // constant-time compare, header only, 10 bad tries / 15 min per IP lock out
   const f = adminFails.get(ip) || { n: 0, t: Date.now() }; if (Date.now() - f.t > 15 * 60e3) { f.n = 0; f.t = Date.now(); } if (f.n >= 10) return false;
   const a = Buffer.from(String(req.headers['x-admin-token'] || '')), b = Buffer.from(C.ADMIN_TOKEN || '');
@@ -173,6 +185,19 @@ const server = http.createServer(async (req, res) => {
         const b = await body();
         const result = estatesReturnAnchors.save(u.acct, { x: b.x, y: b.y, z: b.z, r: b.r });
         return json(res, result.ok ? 200 : 400, result);
+      }
+      if (url.pathname === '/api/estates/layout' && req.method === 'GET') {
+        const result = estateLayouts.list(u.acct, String(url.searchParams.get('propertyId') || ''));
+        return json(res, estateLayoutHttpStatus(result), result);
+      }
+      if (url.pathname === '/api/estates/layout/place' && req.method === 'POST') {
+        const result = estateLayouts.savePlacement(u.acct, await body());
+        return json(res, estateLayoutHttpStatus(result), result);
+      }
+      if (url.pathname === '/api/estates/layout/remove' && req.method === 'POST') {
+        const b = await body();
+        const result = estateLayouts.removePlacement(u.acct, String(b.propertyId || ''), String(b.placementId || ''));
+        return json(res, estateLayoutHttpStatus(result), result);
       }
       if (url.pathname === '/api/estates/rights' && req.method === 'GET') {   // #235 rights decision (renamed from /access, which #237's owner guest list uses)
         const propertyId = String(url.searchParams.get('propertyId') || '');

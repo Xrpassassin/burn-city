@@ -312,6 +312,96 @@ def main():
         elif any(w in accessory for w in ("shield","relic","totem")):
             cube("Trait_Relic",(0.40,-0.05,1.08),(0.18,0.07,0.24),metal,0.02)
 
+    # Collection-specific identity details. Raw names are preserved because each NFT
+    # project uses its own vocabulary; generic render slots alone lose distinctions.
+    source_traits = {}
+    for row in trait_rows:
+        if isinstance(row, dict):
+            name = str(row.get("sourceType", "")).strip().lower()
+            value = str(row.get("sourceValue", "")).strip()
+            if name and value:
+                source_traits[name] = value
+
+    if key == "racc":
+        # RACC "Fits" clothing, "Top Gear" hats, and "Armed" props must not
+        # collapse into the same generic silhouette.
+        fits = source_traits.get("fits", "").lower()
+        if any(word in fits for word in ("striped", "stripe", "sweater")):
+            stripe_mat = material("RACC_Trait_Sweater_Stripes",
+                                 trait_color(fits, (0.91, 0.72, 0.12)))
+            for idx in range(4):
+                cube("RACC_Fits_Stripe_%02d" % idx,
+                     (0, -0.207, 0.94 + idx * 0.095),
+                     (0.53 * torso_w, 0.025, 0.033), stripe_mat, 0.008)
+        if any(word in fits for word in ("hoodie", "hood", "jacket")):
+            uv_sphere("RACC_Fits_Hood", (0, 0.085, head_y - 0.12),
+                      (0.25, 0.18, 0.21), outfit)
+            make_curve("RACC_Fits_Jacket_Zipper",
+                       [(0, -0.212, 1.37), (0, -0.218, 0.90)], metal, 0.009)
+        gear = source_traits.get("top gear", "").lower()
+        if gear and not headwear:
+            uv_sphere("RACC_TopGear_Cap", (0, 0, head_y + 0.18),
+                      (0.23, 0.20, 0.11), outfit)
+            cube("RACC_TopGear_Brim", (0, -0.13, head_y + 0.135),
+                 (0.32, 0.24, 0.035), outfit, 0.012)
+        armed = source_traits.get("armed", "").lower()
+        if "tnt" in armed:
+            explosive = material("RACC_TNT_Red", (0.77, 0.045, 0.035))
+            for idx in range(3):
+                cylinder("RACC_Armed_TNT_%02d" % idx,
+                         (0.40 + idx * 0.07, -0.09, 0.82), 0.034, 0.23, explosive)
+            make_curve("RACC_TNT_Fuse",
+                       [(0.47, -0.09, 0.95), (0.47, -0.09, 1.03)], dark, 0.012)
+        elif "hive" in armed or "bee" in armed:
+            hive_mat = material("RACC_Hive_Honey", (0.75, 0.43, 0.06))
+            uv_sphere("RACC_Armed_BeeHive", (0.44, -0.08, 0.85),
+                      (0.15, 0.13, 0.19), hive_mat)
+            for idx in range(3):
+                make_curve("RACC_Hive_Ridge_%02d" % idx,
+                           [(0.32, -0.15, 0.77 + idx * 0.07),
+                            (0.44, -0.20, 0.77 + idx * 0.07),
+                            (0.56, -0.15, 0.77 + idx * 0.07)], metal, 0.008)
+
+    if key == "589":
+        clothing = source_traits.get("clothing", "").lower()
+        if any(word in clothing for word in ("punk", "leather", "biker")):
+            for side in (-1, 1):
+                for idx in range(3):
+                    cone("Protocol_Punk_Shoulder_Stud_%s_%s" % (side, idx),
+                         (side * (0.30 + idx * 0.04), -0.035, 1.36),
+                         0.026, 0.004, 0.075, metal)
+        head = source_traits.get("head", "").lower()
+        if any(word in head for word in ("fitted", "cap", "hat")) and not headwear:
+            uv_sphere("Protocol_Head_Fitted", (0, 0, head_y + 0.18),
+                      (0.235, 0.21, 0.115), outfit)
+            cube("Protocol_Fitted_Brim", (0, -0.14, head_y + 0.135),
+                 (0.30, 0.23, 0.033), outfit, 0.01)
+        mouth = source_traits.get("mouth", "").lower()
+        if mouth and not expression:
+            if any(word in mouth for word in ("surpris", "open", "scream")):
+                uv_sphere("Protocol_Mouth_Open", (0, -0.234, head_y - 0.14),
+                          (0.045, 0.02, 0.055), dark, 12, 8)
+            elif any(word in mouth for word in ("meh", "hmp", "neutral")):
+                make_curve("Protocol_Mouth_Neutral",
+                           [(-0.05, -0.232, head_y - 0.14),
+                            (0.05, -0.232, head_y - 0.14)], dark, 0.01)
+        eye = source_traits.get("eye", "").lower()
+        if any(word in eye for word in ("angry", "furious")):
+            for side in (-1, 1):
+                make_curve("Protocol_Angry_Brow_%s" % side,
+                           [(side * 0.035, -0.215, head_y + 0.095),
+                            (side * 0.145, -0.198, head_y + 0.065)], dark, 0.014)
+
+    if key == "fk":
+        # Firekeepers retain a distinct ceremonial silhouette; the actual
+        # source motifs still require reference-art QA and manual modeling.
+        relic = source_traits.get("relic", "") or source_traits.get("artifact", "")
+        if relic:
+            cylinder("Keeper_Trait_Relic_Staff", (0.43, -0.05, 0.95),
+                     0.025, 1.35, metal)
+            uv_sphere("Keeper_Trait_Relic_Ember", (0.43, -0.05, 1.66),
+                      (0.085, 0.085, 0.11), accent, 12, 8)
+
     # Store normalized token traits as GLB metadata for QA. This does not make the asset
     # runtime-approved; visual likeness, rigging, rights and performance review remain required.
     # Generic accessory anchor and consistent metadata for downstream inspection.

@@ -7,6 +7,31 @@ const OFFSET_X = 650;
 const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
 const ISLAND_SPAWN = Object.freeze({ x: -195, y: 0.1, z: 188 });
 const finite = n => typeof n === 'number' && Number.isFinite(n);
+const estatesServerBase = () => new URLSearchParams(location.search).get('citysrv') ||
+  (/localhost|127\\.0\\.0\\.1/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
+let localEstateSessionId = null;
+function estateClientSessionId() {
+  try {
+    let id = sessionStorage.getItem('bcEstatesIslandSession');
+    if (!id) {
+      id = globalThis.crypto?.randomUUID?.() || ('estate_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2) + '_' + Math.random().toString(36).slice(2));
+      sessionStorage.setItem('bcEstatesIslandSession', id);
+    }
+    return id;
+  } catch {
+    if (!localEstateSessionId) localEstateSessionId = globalThis.crypto?.randomUUID?.() || ('estate_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2) + '_' + Math.random().toString(36).slice(2));
+    return localEstateSessionId;
+  }
+}
+async function releaseEstatesInstanceLease(leaseToken) {
+  if (!leaseToken) return;
+  try {
+    await fetch(estatesServerBase() + '/api/estates/instance/leave', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ leaseToken }), keepalive: true
+    });
+  } catch { /* Server idle cleanup remains the fallback for a dropped client. */ }
+}
 
 function makePanel() {
   let panel = document.getElementById('bcEstatesLivePrompt');
@@ -117,7 +142,7 @@ export async function installEstatesIslandLive({
   };
   setDetailedCommunityVisible(false);
 
-  let active = false, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
+  let active = false, entering = false, instanceLeaseToken = null, activeInstanceId = null, activeVisitors = null, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
   const panel = makePanel();
   const showPanel = (heading, message, actions, muted='') => {
     panel.replaceChildren();
@@ -214,22 +239,49 @@ export async function installEstatesIslandLive({
     }
   });
 
-  function enterIsland() {
-    if (disposed || active) return;
-    active=true; nearCityGate=false; hidePanel();
-    setDetailedCommunityVisible(true);
-    if(getMode()!=='explore') setMode('explore');
-    player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);
-    player.fp=false;
-    setYaw(-Math.PI/2);
-    player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
-    avatar.position.copy(player.pos);
-    onStatus({state:'entered-public-island',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
+  async function enterIsland() {
+    if (disposed || active || entering) return;
+    entering = true;
+    hidePanel();
+    try {
+      const response = await fetch(estatesServerBase() + '/api/estates/instance/enter', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ clientId: estateClientSessionId(), entranceId: 'estates-island-entrance' })
+      });
+      let admission = null;
+      try { admission = await response.json(); } catch {}
+      if (!response.ok || !admission?.ok || typeof admission.leaseToken !== 'string' || typeof admission.instanceId !== 'string') {
+        throw new Error(admission?.error || 'instance_admission_failed');
+      }
+      instanceLeaseToken = admission.leaseToken;
+      activeInstanceId = admission.instanceId;
+      activeVisitors = Number.isSafeInteger(admission.activeVisitors) ? admission.activeVisitors : null;
+      active=true; nearCityGate=false;
+      setDetailedCommunityVisible(true);
+      if(getMode()!=='explore') setMode('explore');
+      player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);
+      player.fp=false;
+      setYaw(-Math.PI/2);
+      player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
+      avatar.position.copy(player.pos);
+      onStatus({state:'entered-public-island',instanceId:activeInstanceId,activeVisitors,catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
+    } catch (error) {
+      showPanel('ESTATES CONNECTION FAILED','The shared island could not be reached. Your city position has not changed.',
+        [{label:'Retry entry',primary:true,run:enterIsland},{label:'Not now',run:hidePanel}],
+        'The entry lease is requested from the server before the community is revealed.');
+      onStatus({state:'entry-failed',message:String(error?.message||error)});
+    } finally {
+      entering = false;
+    }
   }
   function leaveIsland() {
     if(disposed||!active)return;
-    active=false; hidePanel(); controller.dispose();
+    active=false; hidePanel(); controllerRef.dispose();
     setDetailedCommunityVisible(false);
+    const leaseToken=instanceLeaseToken;
+    instanceLeaseToken=null; activeInstanceId=null; activeVisitors=null;
+    void releaseEstatesInstanceLease(leaseToken);
     player.pos.set(CITY_GATE.x,CITY_GATE.y,CITY_GATE.z);
     setYaw(Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
@@ -289,7 +341,7 @@ export async function installEstatesIslandLive({
   const api = Object.freeze({
     tick,
     dispose(){
-      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },
@@ -297,6 +349,6 @@ export async function installEstatesIslandLive({
     get manifest(){return manifest;}
   });
   window.__estatesIslandLive=api;
-  onStatus({state:'ready',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length,publicTraversal:true,privateAccess:'permission-gated'});
+  onStatus({state:'ready',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length,publicTraversal:true,privateAccess:'permission-gated',instanceLifecycle:'server-leased',instanceId:'assigned-on-entry'});
   return api;
 }

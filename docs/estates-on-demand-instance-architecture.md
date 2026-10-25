@@ -37,9 +37,9 @@ The live city entrance now calls the server's public instance admission endpoint
 ## Shared peer presence relay
 
 - `server/estates-presence.js` accepts WebSocket connections only when their short-lived lease token is still valid. Duplicate sockets for the same lease replace the previous connection.
-- The server assigns peer IDs, returns a current peer snapshot, and broadcasts join, bounded position/heading updates, and leave events only to sockets in the same instance generation.
+- The server assigns peer IDs, returns a current peer snapshot, and broadcasts join, bounded position/heading updates, and leave events only to sockets in the same instance generation. Updates are rate-limited and movement deltas that exceed a generous speed envelope are ignored to reduce teleport/spoofing; this is not full collision or server-authoritative simulation.
 - Position snapshots are rate-limited and clamped to the island's local coordinate envelope. The client interpolates remote capsule-style avatars toward received snapshots and closes presence when leaving or disposing the host.
-- Client snapshots are presentation data only. They do not authorize property access, validate movement against collisions, or drive authoritative gameplay. Lease expiry invalidates subsequent socket messages; client heartbeat continues separately.
+- Client snapshots are presentation data only. They do not authorize property access, enforce world collision geometry, or drive authoritative gameplay. Lease expiry invalidates subsequent socket messages; client heartbeat continues separately.
 
 ## Remaining work
 

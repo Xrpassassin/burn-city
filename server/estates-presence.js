@@ -18,7 +18,6 @@ const send = (ws, value) => {
 function isPlausibleStep(previous, next, elapsedMs) {
   if (!previous || !next || ![previous.x,previous.y,previous.z,next.x,next.y,next.z,elapsedMs].every(Number.isFinite)) return false;
   const dx = next.x-previous.x, dy = next.y-previous.y, dz = next.z-previous.z;
-  const distance = Math.hypot(dx,dy,dz);
   const elapsed = Math.max(0, elapsedMs) / 1000;
   const horizontal = Math.hypot(dx, dz);
   const horizontalAllowance = Math.max(1.1, elapsed * MAX_HORIZONTAL_SPEED + .45);
@@ -27,8 +26,9 @@ function isPlausibleStep(previous, next, elapsedMs) {
 }
 const cleanPosition = value => {
   if (!value || typeof value !== 'object') return null;
-  const nums = [value.x, value.y, value.z, value.r].map(Number);
-  if (!nums.every(Number.isFinite)) return null;
+  // Reject strings, booleans and null instead of coercing them into coordinates.
+  const nums = [value.x, value.y, value.z, value.r];
+  if (!nums.every(n => typeof n === 'number' && Number.isFinite(n))) return null;
   if (Math.abs(nums[0]) > MAX_POSITION || nums[1] < MIN_Y || nums[1] > MAX_Y || Math.abs(nums[2]) > MAX_POSITION) return null;
   return { x: nums[0], y: nums[1], z: nums[2], r: clamp(nums[3], -Math.PI, Math.PI) };
 };
@@ -49,15 +49,17 @@ function attach(ws, url, instanceManager) {
 
   ws.on('message', raw => {
     if (!instanceManager.inspectLease(token)) { try { ws.close(1008, 'invalid_estates_lease'); } catch {} return; }
+    // Bound parsing work and apply the update throttle only to accepted snapshots.
+    if (raw.length > 1024) return;
     const now = Date.now();
     if (now - peer.lastUpdate < 90) return;
-    peer.lastUpdate = now;
     let message;
     try { message = JSON.parse(raw); } catch { return; }
     if (!message || message.t !== 'p') return;
     const position = cleanPosition(message);
     if (!position) return;
     if (peer.hasPosition && !isPlausibleStep(peer.position, position, now-peer.updatedAt)) return;
+    peer.lastUpdate = now;
     const initial = !peer.hasPosition;
     peer.position = position;
     peer.hasPosition = true;
@@ -73,7 +75,7 @@ function attach(ws, url, instanceManager) {
     clearInterval(leaseWatch);
     if (room.get(peer.id) !== peer) return;
     room.delete(peer.id);
-    for (const other of room.values()) send(other.ws, { t: 'l', id: peer.id });
+    if (peer.hasPosition) for (const other of room.values()) send(other.ws, { t: 'l', id: peer.id });
     if (room.size === 0) rooms.delete(instanceId);
   };
   ws.on('close', remove);

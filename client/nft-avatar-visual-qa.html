@@ -42,6 +42,18 @@ textarea{min-height:300px;resize:vertical}button{background:#303a49;color:#fff;b
 }</textarea>
 <label for="reviewNotes">Reviewer notes / mismatches</label>
 <textarea id="reviewNotes" rows="4" style="min-height:90px" placeholder="Example: eye mask too narrow; pendant obscures artwork; coat color differs from source."></textarea>
+<label>Source-fidelity review gates</label>
+<div id="fidelityGates" class="panel" style="padding:10px;background:#11151b">
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="identity" style="width:auto;margin-top:4px"> Exact token identity and collection issuer/taxon verified</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="traits" style="width:auto;margin-top:4px"> Every source trait represented or recorded as unresolved</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="silhouette" style="width:auto;margin-top:4px"> Silhouette and defining accessories match at all four angles</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="materials" style="width:auto;margin-top:4px"> Colors, markings, patterns, and material response match</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="geometry" style="width:auto;margin-top:4px"> Defining features use real 3D geometry, not only a 2D overlay</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="attachments" style="width:auto;margin-top:4px"> Accessories attach correctly; no major clipping or floating</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="sourceArt" style="width:auto;margin-top:4px"> Original artwork visible and source URL/provenance recorded</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="rights" style="width:auto;margin-top:4px"> Asset-use rights reviewed for intended distribution</label>
+</div>
+<p class="note">These are human attestations, not automatic likeness detection. All gates must be checked to report “review checklist complete”; this tool does not grant production approval or rights.</p>
 <label for="tokenId">Live XRPL NFT ID (64 hex characters)</label>
 <input id="tokenId" value="000A271005C6E016B0AB93B24A603594F2A3989BD7503434E206777F05BF49E4" spellcheck="false">
 <div><button id="loadLiveNft">Load real RACC NFT from XRPL.to API</button></div>
@@ -133,6 +145,10 @@ async function loadLiveNft(){
  }catch(error){status.textContent='Could not load live NFT: '+error.message+'\nYou can still paste source artwork URL and metadata manually.';}
  finally{button.disabled=false;}
 }
+function getFidelityGateReport(){
+ const gates=[...document.querySelectorAll('#fidelityGates [data-gate]')].map(input=>({key:input.dataset.gate,checked:input.checked}));
+ return {gates,passed:gates.filter(g=>g.checked).length,total:gates.length,complete:gates.length>0&&gates.every(g=>g.checked),status:gates.length>0&&gates.every(g=>g.checked)?'checklist-complete-reviewer-attestation':'incomplete'};
+}
 function showArtwork(url){art.replaceChildren();if(!url){const s=document.createElement('span');s.textContent='Provide an artwork URL to compare identity details.';art.append(s);return;}
  const img=document.createElement('img');img.alt='Original NFT artwork reference';img.referrerPolicy='no-referrer';img.src=url;img.onerror=()=>{art.replaceChildren();const s=document.createElement('span');s.textContent='Artwork could not load. Check the URL, permissions, or CORS policy.';art.append(s);};art.append(img);}
 function renderSample(){try{
@@ -165,7 +181,7 @@ document.querySelector('#loadLiveNft').addEventListener('click',loadLiveNft);
 document.querySelector('#render').addEventListener('click',renderSample);
 document.querySelector('#showTabard').addEventListener('change',renderSample);
 document.querySelector('#clear').addEventListener('click',()=>{document.querySelector('#artUrl').value='';showArtwork('');renderSample();});
-document.querySelector('#copyReport').addEventListener('click',async()=>{try{const nft=JSON.parse(document.querySelector('#sample').value);const report={tool:'BURN City NFT Avatar Visual QA',createdAt:new Date().toISOString(),sample:{key:nft.key||null,id:nft.id||nft.nftId||null,name:nft.name||null,traits:Array.isArray(nft.traits)?nft.traits:[]},artworkUrl:document.querySelector('#artUrl').value.trim()||nft.img||nft.image||null,diagnostics:status.textContent,collectionRequirements:latestQa.reconstruction.visualRequirements||[],review:{notes:document.querySelector('#reviewNotes').value.trim(),visualInspectionRequired:true,visualApproval:'not-reviewed',fidelityCounts:Object.fromEntries(latestQa.traitCoverage.map(item=>[item.fidelityLevel||'unclassified',(latestQa.traitCoverage.filter(x=>(x.fidelityLevel||'unclassified')===(item.fidelityLevel||'unclassified')).length)])),automatedLikenessScore:null,ownershipVerified:false}};await navigator.clipboard.writeText(JSON.stringify(report,null,2));status.textContent+='\nQA report copied. Include screenshots and reviewer notes when reporting mismatches.';}catch(e){status.textContent='Could not copy report: '+e.message+' (the browser may require HTTPS or clipboard permission).';}});
+document.querySelector('#copyReport').addEventListener('click',async()=>{try{const nft=JSON.parse(document.querySelector('#sample').value);const fidelityGateReport=getFidelityGateReport();const report={tool:'BURN City NFT Avatar Visual QA',createdAt:new Date().toISOString(),fidelityGateReport,sample:{key:nft.key||null,id:nft.id||nft.nftId||null,name:nft.name||null,traits:Array.isArray(nft.traits)?nft.traits:[]},artworkUrl:document.querySelector('#artUrl').value.trim()||nft.img||nft.image||null,diagnostics:status.textContent,collectionRequirements:latestQa.reconstruction.visualRequirements||[],review:{notes:document.querySelector('#reviewNotes').value.trim(),visualInspectionRequired:true,visualApproval:'not-reviewed',fidelityGateReport,fidelityCounts:Object.fromEntries(latestQa.traitCoverage.map(item=>[item.fidelityLevel||'unclassified',(latestQa.traitCoverage.filter(x=>(x.fidelityLevel||'unclassified')===(item.fidelityLevel||'unclassified')).length)])),automatedLikenessScore:null,ownershipVerified:false}};await navigator.clipboard.writeText(JSON.stringify(report,null,2));status.textContent+='\nQA report copied. Checklist: '+fidelityGateReport.passed+'/'+fidelityGateReport.total+'; '+fidelityGateReport.status+'. Include screenshots and reviewer notes when reporting mismatches.';}catch(e){status.textContent='Could not copy report: '+e.message+' (the browser may require HTTPS or clipboard permission).';}});
 const samples = {
  racc: {key:'racc',id:'RACC-review-001',name:'RACC — TNT / Striped Sweater / Bee Hive',img:'',traits:[['Armed','TNT'],['Fits','Yellow Striped Sweater'],['Top Gear','Bee Hive'],['Bandit Mask','Crimson'],['Ring Tail','Black and White']],pal:{face:'#8b7770',body:'#d8b44a',top:'#cf493e',acc:'#cf493e'}},
  fk: {key:'fk',id:'FK-review-001',name:'Firekeepers — Blue Flame / Keeper Robes / Cowl',img:'',traits:[['Ember Type','Blue Flame'],['Keeper Robes','Ash'],['Cowl','Ember Cowl'],['Relic','Sun Sigil']],pal:{face:'#c9a27e',body:'#393b4b',top:'#596b8a',acc:'#4bc9ef'}},

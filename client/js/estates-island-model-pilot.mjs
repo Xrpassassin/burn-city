@@ -18,12 +18,13 @@ export function validateEstateModelRegistry(registry) {
 }
 
 export async function installEstateModelPilot({THREE,root,manifest,loader,registry={},onStatus=()=>{}}={}) {
-  if (!THREE?.Box3 || !THREE?.Vector3 || !root?.add || !Array.isArray(manifest?.lots) || typeof loader?.loadAsync !== 'function') {
+  if (!THREE?.Box3 || !THREE?.Vector3 || !root?.add || !root?.remove || !root?.getObjectByName || !Array.isArray(manifest?.lots) || typeof loader?.loadAsync !== 'function' || typeof onStatus !== 'function') {
     throw new TypeError('Estate model pilot requires Three.js, island root, lots and GLTFLoader');
   }
   const models=validateEstateModelRegistry(registry);
   const installed=[];
   let disposed=false;
+  const report = status => { try { onStatus(status); } catch (_) { /* status UI must not break model installation */ } };
   for(const lot of manifest.lots) {
     const entry=models[lot.tier];
     if(!entry || !lot.buildingFootprint) continue;
@@ -42,17 +43,21 @@ export async function installEstateModelPilot({THREE,root,manifest,loader,regist
       const center=fitted.getCenter(new THREE.Vector3());
       model.position.set(lot.position.x-center.x,lot.position.y-fitted.min.y,lot.position.z-center.z);
       model.name=lot.id+'-reviewed-model';
-      // Hide only the original structural blockout. Retain landscaping, doors and lot markers
-      // until the approved model's silhouette and attachment compatibility are reviewed.
-      const blockout=root.getObjectByName(lot.id+'-building-blockout');
-      const roof=root.getObjectByName(lot.id+'-roof-blockout');
-      const previous=[blockout,roof].filter(Boolean).map(mesh=>({mesh,visible:mesh.visible}));
+      // A complete reviewed GLB replaces the old facade as well as its structural blockout.
+      // Keep lot boundaries, paths and landscaping. Restore all visibility on dispose.
+      const previous=[];
+      root.traverse(node => {
+        if(typeof node.name !== 'string' || !node.name.startsWith(lot.id+'-')) return;
+        const suffix=node.name.slice(lot.id.length+1);
+        if(suffix==='boundary' || suffix.startsWith('planter-') || suffix.startsWith('shrub-') || suffix==='front-path' || suffix.startsWith('garden-wall-')) return;
+        previous.push({mesh:node,visible:node.visible});
+      });
       for(const p of previous)p.mesh.visible=false;
       root.add(model);
       installed.push({model,previous});
-      onStatus({lotId:lot.id,state:'model-loaded',url:entry.url});
+      report({lotId:lot.id,state:'model-loaded',url:entry.url});
     } catch(error) {
-      onStatus({lotId:lot.id,state:'fallback-blockout',reason:String(error?.message||error)});
+      report({lotId:lot.id,state:'fallback-blockout',reason:String(error?.message||error)});
     }
   }
   return Object.freeze({

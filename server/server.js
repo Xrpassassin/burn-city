@@ -7,6 +7,7 @@ const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates =
 const EstateRights = require('./estates-rights');
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
+const EstatesPresence = require('./estates-presence');
 const estatesInstance = createEstatesInstanceManager();
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const Jetpack = require('./jetpack');
@@ -240,6 +241,7 @@ wss.on('connection', (ws, req) => {
   const wip = req.headers['fly-client-ip'] || req.socket.remoteAddress;
   if (!okOrigin(req.headers.origin) || gate('wsc:' + wip, 30, 60e3) || (wsPerIp.get(wip) || 0) >= 12) return ws.close(1008, 'rejected');
   wsPerIp.set(wip, (wsPerIp.get(wip) || 0) + 1); ws.on('close', () => { const n = (wsPerIp.get(wip) || 1) - 1; n > 0 ? wsPerIp.set(wip, n) : wsPerIp.delete(wip); });
+  if ((req.url || '').includes('mode=estates')) { const u = new URL(req.url, 'http://x'); return EstatesPresence.attach(ws, u, estatesInstance); }
   if ((req.url || '').includes('mode=city')) { const u = new URL(req.url, 'http://x'); return City.attach(ws, u, Pay.checkToken(u.searchParams.get('token')), req.headers['fly-client-ip'] || req.socket.remoteAddress); }   // city presence/chat (server/city.js)
   const url = new URL(req.url, 'http://x');
   if (url.searchParams.get('mode') === 'flight') return FlightLobby.attach(ws, url);

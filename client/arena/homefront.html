@@ -31,6 +31,15 @@ body:has(#game:not([hidden])) #rpgModeStatus{display:none}
 body:has(#game:not([hidden])) #game>.grid>section:not(#refugeWorldPanel):not(#graveyardPanel){position:fixed;inset:110px 12px 12px;width:min(760px,calc(100vw - 24px));overflow:auto;z-index:25;display:none}
 body.rpg-mode-workshop #buildPanel,body.rpg-mode-management #game>.grid>section:not(#refugeWorldPanel):not(#graveyardPanel):not([hidden]){display:block!important}
 @media(max-width:700px){body:has(#game:not([hidden])) .rpg-nav{top:auto;bottom:calc(8px + env(safe-area-inset-bottom));right:8px;left:8px}body:has(#game:not([hidden])) #game>.grid>section:not(#refugeWorldPanel):not(#graveyardPanel){inset:100px 8px 66px;width:calc(100vw - 16px)}}
+
+/* Explicit mode rules must override legacy dashboard hiding and avoid covering gameplay controls. */
+body:has(#game:not([hidden])).rpg-mode-home #game #refugeWorldPanel,body:has(#game:not([hidden])).rpg-mode-workshop #game #refugeWorldPanel,body:has(#game:not([hidden])).rpg-mode-expedition #game #graveyardPanel{display:block!important}
+body:has(#game:not([hidden])).rpg-mode-workshop #game #buildPanel{display:block!important}
+body:has(#game:not([hidden])).rpg-mode-management #game #refugeWorldPanel{display:block!important}
+body:has(#game:not([hidden])) #refugeWorldPanel>.row{position:fixed;top:calc(110px + env(safe-area-inset-top));right:12px;z-index:35;width:auto}
+body:has(#game:not([hidden])) #refugeWorldPanel>.row .btn{font-size:12px}
+body:has(#game:not([hidden])) #graveyardPanel .graveyard3d{max-width:none!important}
+body:has(#game:not([hidden])) #homefrontModal{z-index:60}
 </style></head><body>
 <header><div class="top"><div><div class="eyebrow">UNRANKED ZOMBIES SURVIVAL</div><h1>🏚 HOMEFRONT</h1></div><div class="row" style="flex:0 1 auto"><button class="btn" id="back">← Arena</button><button class="btn primary" id="signin">Sign in to save</button></div></div></header>
 <main class="wrap">

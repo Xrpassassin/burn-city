@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { approvedLocalAvatarPath, loadApprovedAvatar } from './approved-avatar-loader.mjs';
+const runtime={ok:true,mode:'blacktide',runtime:{sharedAsset:true},asset:{uri:'/assets/avatars/racc/42.glb'}};
+assert.equal(approvedLocalAvatarPath(runtime),'/assets/avatars/racc/42.glb');
+assert.equal(approvedLocalAvatarPath({...runtime,asset:{uri:'https://example.com/a.glb'}}),null);
+assert.equal(approvedLocalAvatarPath({...runtime,asset:{uri:'/assets/avatars/../secret.glb'}}),null);
+assert.equal(approvedLocalAvatarPath({...runtime,mode:'eternal-grind'}),null);
+const model={};
+const loaded=await loadApprovedAvatar(runtime,{loadAsync:async()=>({scene:model,animations:[]})});
+assert.equal(loaded.ok,true);assert.equal(loaded.model,model);
+assert.equal((await loadApprovedAvatar(runtime,{loadAsync:async()=>{throw Error('network');}})).reason,'asset-load-failed');
+console.log('BlackTide approved avatar loader tests passed');

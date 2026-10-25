@@ -20,7 +20,12 @@ export function resolveNftAvatarReconstruction(profile = {}) {
     traitSlots: { ...recipe.traitSlots }
   };
   const traits = Array.isArray(profile.renderTraits) ? profile.renderTraits : [];
-  const valueFor = slot => String(traits.find(([type]) => type === slot)?.[1] ?? '').trim();
+  const valueFor = slot => String(traits.find(entry => Array.isArray(entry) && entry[0] === slot)?.[1] ?? '').trim();
+  // Preserve every normalized trait for collection-specific asset matching and visual QA.
+  const traitManifest = traits.filter(entry => Array.isArray(entry) && entry.length >= 2)
+    .map(([slot, value]) => ({ slot: String(slot), value: String(value) }));
+  const mappedSlots = new Set(Object.values(recipe.traitSlots));
+  const unmappedTraits = traitManifest.filter(trait => !mappedSlots.has(trait.slot));
   const outfit = valueFor('outfit');
   const headwear = valueFor('headwear');
   const body = valueFor('body effect');
@@ -28,6 +33,8 @@ export function resolveNftAvatarReconstruction(profile = {}) {
     ...blueprint,
     collectionName: String(profile.collectionName || recipe.displayName || 'Unmapped collection'),
     identitySeed: Number(profile.identitySeed || 0) >>> 0,
+    traitManifest,
+    unmappedTraits,
     traitOverrides: {
       robe: key === 'fk' || /robe|cloak|mantle/i.test(outfit),
       hood: /hood|cowl/i.test(headwear) || key === 'fk',

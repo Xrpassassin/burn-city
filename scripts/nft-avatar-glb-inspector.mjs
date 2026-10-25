@@ -59,7 +59,6 @@ export function inspectGlbBuffer(buffer) {
   if (!nodes.length) fail('NO_NODES','model has no nodes');
   if (!meshes.length) warn('NO_MESHES','model has no meshes');
   if (!materials.length) warn('NO_MATERIALS','model has no materials');
-  if (!arr(json.scene).length && json.scene != null) fail('INVALID_DEFAULT_SCENE','scene index must be an integer');
   if (json.scene != null && !validIndex(json.scene, scenes)) fail('INVALID_DEFAULT_SCENE','default scene index is out of range');
   let primitives=0, triangles=0, skinnedMeshNodes=0, nodeMeshRefs=0, nodeSkinRefs=0, animationChannels=0, externalUris=[];
   for (const [i, scene] of scenes.entries()) {

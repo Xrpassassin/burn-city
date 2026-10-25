@@ -37,7 +37,9 @@ jobs:
       - name: Test server-side instance lease lifecycle
         run: |
           node --check server/server.js
+          node --check server/estates-presence.js
           node server/estates-instance.test.js
+          node server/estates-presence.test.js
       - name: Test server-side access and building placement contracts
         run: |
           node server/estates-access-policy.test.js

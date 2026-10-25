@@ -1,3 +1,4 @@
+import { avatarPolicyFor } from './experience-avatar-policy.mjs';
 // Small, dependency-free registry for real BURN City cross-experience transitions.
 // This module deliberately does not invent routes or make planned destinations look playable.
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -22,7 +23,7 @@ export function createExperienceRegistry({ onState = () => {} } = {}) {
     if (status === 'planned' && launch != null && typeof launch !== 'function') {
       throw new TypeError('Launch adapter must be a function when supplied');
     }
-    const entry = Object.freeze({ id, label: label.trim(), description: String(description), status, launch, returnTo });
+    const entry = Object.freeze({ id, label: label.trim(), description: String(description), status, launch, returnTo, avatarPolicy: avatarPolicyFor(id) });
     entries.set(id, entry);
     return publicEntry(entry);
   }
@@ -34,7 +35,8 @@ export function createExperienceRegistry({ onState = () => {} } = {}) {
       description: entry.description,
       status: entry.status,
       available: entry.status === 'available',
-      returnTo: entry.returnTo
+      returnTo: entry.returnTo,
+      avatarPolicy: entry.avatarPolicy
     });
   }
 
@@ -58,7 +60,7 @@ export function createExperienceRegistry({ onState = () => {} } = {}) {
     pendingId = id;
     notify({ state: 'loading', destinationId: id });
     try {
-      const result = await entry.launch({ ...context, destinationId: id, returnTo: entry.returnTo });
+      const result = await entry.launch({ ...context, destinationId: id, returnTo: entry.returnTo, avatarPolicy: entry.avatarPolicy });
       activeId = id;
       return { ok: true, destinationId: id, result };
     } catch (error) {

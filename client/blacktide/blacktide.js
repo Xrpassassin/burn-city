@@ -4,6 +4,7 @@ import * as Trade from './trade.js';
 import * as Boats from './boats.js';
 import * as Combat from './combat.js';
 import * as CannonAI from './cannon-ai.js';
+import { mountApprovedCrew } from './nft-crew-mount.mjs';
 
 const $ = id => document.getElementById(id);
 const game = $('game');
@@ -80,6 +81,12 @@ for(const side of [-1,1]) for(let i=0;i<3;i++){
   cannon.rotation.z=Math.PI/2;cannon.position.set(side*1.55,.75,1.5-i*1.7);ship.add(cannon);
 }
 ship.position.set(0,0,0);scene.add(ship);
+
+// Game bootstrap may call this after verifying ownership, approving the GLB and loading its model.
+// BlackTide does not load an unverified NFT URI or invent a player identity.
+export function attachPlayerNftCrew(loadedModel, approvedAvatarRuntime) {
+  return mountApprovedCrew({ ship, model: loadedModel, avatarRuntime: approvedAvatarRuntime });
+}
 
 // Three procedural NPC vessels provide visible traffic before combat is enabled.
 const fleet = Boats.createFleet(THREE, scene);

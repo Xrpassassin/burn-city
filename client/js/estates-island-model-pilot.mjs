@@ -23,14 +23,18 @@ export async function installEstateModelPilot({THREE,root,manifest,loader,regist
   }
   const models=validateEstateModelRegistry(registry);
   const installed=[];
+  const loadedByUrl=new Map();
   let disposed=false;
   const report = status => { try { onStatus(status); } catch (_) { /* status UI must not break model installation */ } };
   for(const lot of manifest.lots) {
     const entry=models[lot.tier];
     if(!entry || !lot.buildingFootprint) continue;
     try {
-      const gltf=await loader.loadAsync(entry.url);
-      const model=gltf?.scene;
+      if(!loadedByUrl.has(entry.url)) loadedByUrl.set(entry.url,Promise.resolve().then(()=>loader.loadAsync(entry.url)));
+      const gltf=await loadedByUrl.get(entry.url);
+      // GLTFLoader may return the same scene for repeated lots; each lot needs its own object tree.
+      const model=typeof gltf?.scene?.clone==='function' ? gltf.scene.clone(true) : gltf?.scene;
+      if(model?.parent) throw new Error('Estate model instance is already parented; loader must support cloning for repeated lots');
       if(!model?.traverse || !model?.scale || !model?.position) throw new Error('GLB has no usable scene');
       if(disposed) break;
       const bounds=new THREE.Box3().setFromObject(model);

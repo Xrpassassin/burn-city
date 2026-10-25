@@ -8,6 +8,7 @@ The originals remain in a hidden backup collection for reversible iteration.
 """
 import bpy
 import sys
+import json
 
 BODY_NAMES = (
     "Body_Torso", "Body_Pelvis", "Head_Base", "Base_RACC_Cranium",
@@ -93,6 +94,7 @@ def main():
     bpy.ops.object.delete(use_global=False)
     bpy.ops.import_scene.gltf(filepath=os.path.abspath(source))
     fused=fuse_racc_body()
+    os.makedirs(os.path.dirname(os.path.abspath(destination)),exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(destination))
     # Export a standalone review GLB without the hidden source backup collection.
     # Explicit selection avoids exporting backup geometry or duplicate anatomical parts.
@@ -108,6 +110,26 @@ def main():
     bpy.ops.export_scene.gltf(filepath=review_glb,export_format="GLB",use_selection=True)
     if not os.path.isfile(review_glb) or os.path.getsize(review_glb)<100:
         raise RuntimeError("Review GLB export failed")
+    edge_uses={}
+    for poly in fused.data.polygons:
+        for edge in poly.edge_keys:
+            key=tuple(sorted(edge))
+            edge_uses[key]=edge_uses.get(key,0)+1
+    report={
+        "collection":"racc",
+        "stage":"fused-blockout-needs-retopology",
+        "runtimeApproved":False,
+        "fusedVertices":len(fused.data.vertices),
+        "fusedFaces":len(fused.data.polygons),
+        "fusedTriangles":sum(max(0,len(poly.vertices)-2) for poly in fused.data.polygons),
+        "nonManifoldEdges":sum(1 for n in edge_uses.values() if n!=2),
+        "degenerateFaces":sum(1 for p in fused.data.polygons if p.area<1e-10),
+        "exportMeshCount":len(export_objects),
+        "reviewGLB":review_glb,
+        "pending":["visual review","retopology","skinning","animation","mobile testing"]
+    }
+    with open(os.path.splitext(os.path.abspath(destination))[0]+"-fusion-qa.json","w",encoding="utf8") as handle:
+        json.dump(report,handle,indent=2)
     print("RACC fused blockout:",fused.name,len(fused.data.polygons),
           "faces; review GLB:",review_glb,"; retopology required")
 

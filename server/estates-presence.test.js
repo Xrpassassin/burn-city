@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { createEstatesInstanceManager } = require('./estates-instance');
-const { attach, cleanPosition } = require('./estates-presence');
+const { attach, cleanPosition, isPlausibleStep } = require('./estates-presence');
 
 class FakeSocket extends EventEmitter {
   constructor() { super(); this.readyState = 1; this.bufferedAmount = 0; this.sent = []; this.closeInfo = null; }
@@ -27,6 +27,8 @@ second.message({t:'p',x:1e99,y:0,z:0,r:0});
 assert.equal(first.sent.at(-1).x, 7, 'non-finite position payload is ignored');
 assert.deepEqual(cleanPosition({x:999,y:-20,z:-999,r:9}), {x:240,y:-2,z:-240,r:Math.PI});
 assert.equal(cleanPosition({x:NaN,y:0,z:0,r:0}), null, 'non-finite client coordinates are rejected');
+assert.equal(isPlausibleStep({x:0,y:0,z:0},{x:5,y:0,z:0},100), false, 'large position jumps are rejected');
+assert.equal(isPlausibleStep({x:0,y:0,z:0},{x:5,y:0,z:0},500), true, 'normal movement during a delayed update is tolerated');
 second.close(1000,'done');
 assert.deepEqual(first.sent.at(-1), {t:'l',id:2}, 'departing visitor is removed from peers');
 const invalid = new FakeSocket();

@@ -29,4 +29,13 @@ assert.equal(updateBoatBehavior(merchant, { x: 0, z: 0 }, 0.016).state, 'patrol'
 const invalid = updateBoatBehavior(boat('patrol', NaN, 0), { x: 0, z: 0 }, 0.016);
 assert.equal(invalid.mode, 'route');
 assert.ok(BOAT_AI_THRESHOLDS.patrolNotice < BOAT_AI_THRESHOLDS.patrolDisengage);
+const clockwise = boat('patrol',20,0);
+clockwise.aiState = 'engage';
+clockwise.orbitSign = 1;
+const counterclockwise = boat('patrol',20,0);
+counterclockwise.aiState = 'engage';
+counterclockwise.orbitSign = -1;
+const clockwiseMove = updateBoatBehavior(clockwise,{x:0,z:0},0.016);
+const counterMove = updateBoatBehavior(counterclockwise,{x:0,z:0},0.016);
+assert.ok(clockwiseMove.moveZ * counterMove.moveZ < 0,'opposite orbit directions flank from opposite sides');
 console.log('Blacktide boat AI tests passed');

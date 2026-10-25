@@ -25,6 +25,8 @@ assert(live.includes('/api/estates/instance/leave'), 'returning to city releases
 assert(live.includes('/api/estates/anchor'), 'return anchors use the authenticated durable API');
 assert(live.includes('readSavedReturnAnchor(controllerRef.navigation)'), 're-entry attempts to restore the saved return anchor');
 assert(live.includes('navigation.isWalkable(anchor)'), 'saved anchors are checked against local walkable geometry before use');
+assert(live.includes('clearInterval(returnAnchorTimer)'), 'return-anchor autosave timer is cleared on exit and disposal');
+assert(live.includes('if(active) void saveReturnAnchor'), 'disposal attempts to persist the final safe anchor');
 assert(live.includes('returnAnchorTimer = setInterval'), 'active island sessions periodically persist their last-safe anchor');
 assert(live.includes("authorization: 'Bearer ' + token"), 'anchor API requests use the signed-in bearer token');
 assert(live.includes('/api/estates/instance/heartbeat'), 'active Estates leases are renewed to prevent stale-session leaks');

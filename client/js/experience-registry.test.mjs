@@ -18,6 +18,8 @@ const wired = createBurnCityExperienceRegistry({
   }
 });
 assert.equal(wired.get('zombies').available, true);
+assert.equal(wired.get('zombies').avatarPolicy, 'shared-nft');
+assert.equal(wired.get('homefront').avatarPolicy, 'shared-nft');
 assert.equal(wired.get('homefront').available, true);
 assert.equal(wired.get('light-cycles').available, true);
 assert.equal(wired.get('estates-island').available, true);
@@ -46,6 +48,7 @@ registry.register({
   launch: async context => {
     assert.equal(context.destinationId, 'light-cycles');
     assert.equal(context.returnTo, 'aegis-pyramid-plaza');
+    assert.equal(context.avatarPolicy, 'shared-nft');
     await launchPromise;
     return 'launched';
   }

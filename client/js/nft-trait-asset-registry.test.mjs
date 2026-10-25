@@ -62,4 +62,16 @@ assert.equal(integratedPlan.complete,false,'missing and unmapped traits block a 
 assert.equal(integratedPlan.readyTraits,1);
 assert.equal(integratedPlan.blockedTraits,2);
 
+const tokenBoundPlan = buildCollectionAvatarPlan({
+ collectionManifest: raccManifest,
+ traits: [{type:'Top Gear',value:'Straw Hat'}],
+ registry,
+ character: char,
+ tokenId: a.toLowerCase()
+});
+assert.equal(tokenBoundPlan.tokenId, a, 'explicit token identity is normalized to uppercase');
+assert.throws(() => buildCollectionAvatarPlan({
+ collectionManifest: raccManifest, traits: [], registry, character: char, tokenId: 'not-an-nft-id'
+}), /64-hex NFTokenID/, 'invalid explicit token identity fails closed');
+
 console.log('NFT trait asset registry and assembly manifest tests passed');

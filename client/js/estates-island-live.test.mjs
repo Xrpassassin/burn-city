@@ -20,6 +20,11 @@ assert(live.includes('setDetailedCommunityVisible(false);'), 'detailed community
 assert(live.includes('setDetailedCommunityVisible(true);'), 'explicit entry reveals the full community');
 assert(live.includes('exterior.preview.visible = !visible;'), 'entry swaps the scenic exterior for the full island');
 assert(live.includes('exterior.dispose();'), 'preview geometry/materials are disposed with the live experience');
+assert(live.includes('/api/estates/instance/enter'), 'explicit entry acquires a server-side shared-instance lease');
+assert(live.includes('/api/estates/instance/leave'), 'returning to city releases the shared-instance lease');
+assert(live.includes('instanceLifecycle:\'server-leased\''), 'ready status identifies server lease lifecycle without claiming movement replication');
+assert(live.includes('if (disposed) { void releaseEstatesInstanceLease(admission.leaseToken); return; }'), 'late admission is released if host disposes during entry');
+assert(live.includes('activeInstanceId'), 'entry status includes the server-assigned logical instance id');
 assert(live.includes('if(property.confirmedInteraction){showLotInspection(property);return;}'), 'E-key interaction opens the lot inspection directly');
 assert.equal((live.match(/onPropertyPrompt:property=>\{lastProperty=property;lastLandmarkId=null;showLotPrompt\(property\);\}/g)||[]).length,2,'initial and recreated island controllers share the same lot prompt behavior');
 assert.equal((live.match(/if\(event\.confirmedInteraction\)\{leaveIsland\(\);return;\}/g) || []).length, 2, 'both initial and recreated controllers honor confirmed keyboard exit');

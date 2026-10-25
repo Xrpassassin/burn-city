@@ -22,6 +22,11 @@ assert(live.includes('exterior.preview.visible = !visible;'), 'entry swaps the s
 assert(live.includes('exterior.dispose();'), 'preview geometry/materials are disposed with the live experience');
 assert(live.includes('/api/estates/instance/enter'), 'explicit entry acquires a server-side shared-instance lease');
 assert(live.includes('/api/estates/instance/leave'), 'returning to city releases the shared-instance lease');
+assert(live.includes('/api/estates/anchor'), 'return anchors use the authenticated durable API');
+assert(live.includes('readSavedReturnAnchor(controllerRef.navigation)'), 're-entry attempts to restore the saved return anchor');
+assert(live.includes('navigation.isWalkable(anchor)'), 'saved anchors are checked against local walkable geometry before use');
+assert(live.includes('returnAnchorTimer = setInterval'), 'active island sessions periodically persist their last-safe anchor');
+assert(live.includes("authorization: 'Bearer ' + token"), 'anchor API requests use the signed-in bearer token');
 assert(live.includes('/api/estates/instance/heartbeat'), 'active Estates leases are renewed to prevent stale-session leaks');
 assert(live.includes("base.searchParams.set('mode','estates')"), 'the active lease opens the dedicated Estates presence WebSocket');
 assert(live.indexOf('active=true; nearCityGate=false;') < live.indexOf('connectEstatesPresence(instanceLeaseToken);'), 'presence starts only after entry has activated the island');

@@ -184,7 +184,7 @@ export async function installEstatesIslandLive({
   }
   function leaveIsland() {
     if(disposed||!active)return;
-    active=false; hidePanel(); controller.dispose();
+    active=false; hidePanel(); controllerRef.dispose();
     player.pos.set(CITY_GATE.x,CITY_GATE.y,CITY_GATE.z);
     setYaw(Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;

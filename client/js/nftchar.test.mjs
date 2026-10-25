@@ -139,6 +139,8 @@ has(avatar, /const arms = \[-1,1\]\.map/, 'builds two articulated arms');
 has(avatar, /if \(key === 'racc'\)/, 'selects a dedicated RACC animal archetype');
 has(avatar, /red mask/, 'supports the RACC red-mask trait');
 has(avatar, /nft-racc-angular-eye-mask/, 'uses a sculpted angular RACC mask instead of a flat oval');
+has(avatar, /maskPositions\.setZ\(i,faceZ-\.204\+\.004\+maskPositions\.getZ\(i\)\*\.2\)/, 'curves the RACC mask to the skull surface to avoid a floating flat visor');
+has(avatar, /maskGeometry\.computeVertexNormals\(\)/, 'recomputes normals after conforming the RACC mask to the face');
 has(avatar, /nft-racc-eye-patch/, 'adds pale eye surrounds that contrast with the dark mask');
 has(avatar, /raccEyeHex[\s\S]*#287ed1/, 'uses the vivid blue RACC eye default while respecting explicit eye-color traits');
 has(avatar, /nft-racc-pupil[\s\S]*nft-racc-eye-glint/, 'adds pupils and catchlights for a more expressive RACC face');

@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {shoreTransition,intoxicationEffects} from './shore-exploration.mjs';
+const dock={atPort:true,speed:0};
+assert.deepEqual(shoreTransition('aboard','dock',dock),{ok:true,state:'docked'});
+assert.equal(shoreTransition('docked','disembark',dock).state,'ashore');
+assert.equal(shoreTransition('ashore','embark',dock).state,'docked');
+assert.equal(shoreTransition('docked','depart',dock).state,'aboard');
+assert.equal(shoreTransition('aboard','disembark',dock).ok,false);
+assert.equal(shoreTransition('aboard','dock',{atPort:true,speed:8}).ok,false);
+assert.equal(shoreTransition('docked','disembark',{atPort:false,speed:0}).ok,false);
+assert.equal(intoxicationEffects(0).sober,true);
+assert.ok(intoxicationEffects(4).cameraSway>0);
+assert.equal(intoxicationEffects(12,144).intensity,0);
+assert.equal(intoxicationEffects(Number.NaN).intensity,0);
+console.log('BlackTide shore exploration state checks passed');

@@ -30,6 +30,18 @@ assert.deepEqual(renderer.getObject('bridge')[0].geometry.args,[24,.8,8],'bridge
 assert.deepEqual(renderer.getObject('bridge-z')[0].geometry.args,[8,.8,24],'explicit Z-oriented bridge must put its length along Z');
 const gate=renderer.getObject('gate')[0];
 gate.userData.interact();assert.equal(interactions,1);
+const savedCount=renderer.setSavedPlacements([
+ {propertyId:'starter-01',placementId:'workshop-1',buildingType:'workshop',x:-4,z:2,width:5,depth:4,height:3.2,rotationY:0},
+ {propertyId:'starter-01',placementId:'bad-size',buildingType:'workshop',x:0,z:0,width:99,depth:4,height:3.2,rotationY:0},
+ {propertyId:'starter-01',placementId:'unknown',buildingType:'spaceship',x:0,z:0,width:2,depth:2,height:2,rotationY:0},
+ {propertyId:'starter-01',placementId:'workshop-1',buildingType:'workshop',x:-4,z:2,width:5,depth:4,height:3.2,rotationY:0}
+]);
+assert.equal(savedCount,1,'only valid unique server placements render');
+assert.equal(renderer.savedPlacementCount,1);
+assert.equal(renderer.setSavedPlacements([]),0,'refresh clears stale saved placements');
+assert.equal(renderer.savedPlacementCount,0);
+assert.equal(renderer.setSavedPlacements([{propertyId:'starter-01',placementId:'workshop-2',buildingType:'workshop',x:-4,z:2,width:5,depth:4,height:3.2,rotationY:Math.PI/2}]),1,'quarter-turn placements render');
+assert.throws(()=>renderer.setSavedPlacements({}),/array/,'malformed layout payloads are rejected');
 assert.equal(renderer.dispose(),true);
 assert.equal(renderer.dispose(),false);
 assert.equal(scene.children.length,0);

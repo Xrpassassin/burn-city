@@ -42,6 +42,18 @@ assert.equal(mismatch.issuerMismatches, 1);
 assert.equal(mismatch.taxonMismatches, 1);
 assert.equal(mismatch.inventoryComplete, false);
 
+// Missing, null, and empty taxon values must not be coerced to taxon 0.
+for (const missingTaxon of [undefined, null, '']) {
+  const missing = reconcileNftInventory({
+    candidate, expectedIdentity: { issuer: 'rIssuer', taxon: 0 },
+    expectedCount: 1,
+    tokens: [{ NFTokenID: idA, issuer: 'rIssuer', ...(missingTaxon === undefined ? {} : { taxon: missingTaxon }) }]
+  });
+  assert.equal(missing.taxonMismatches, 1, `missing taxon should mismatch expected 0: ${String(missingTaxon)}`);
+  assert.ok(missing.issues.some(issue => issue.code === 'TAXON_MISMATCH' && issue.observed === null));
+  assert.equal(missing.inventoryComplete, false);
+}
+
 const incomplete = reconcileNftInventory({
   candidate, verifiedIdentity: identity, expectedCount: 2,
   tokens: [{ NFTokenID: 'not-an-id', issuer: 'rIssuer', taxon: 7 }],

@@ -523,7 +523,12 @@ export async function installEstatesIslandLive({
   const api = Object.freeze({
     tick,
     dispose(){
-      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; } stopPresence(); void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose(); exterior.dispose();
+      if(disposed)return false;
+      if(active) void saveReturnAnchor({ x: player.pos.x - OFFSET_X, y: player.pos.y, z: player.pos.z, r: getYaw() }, controllerRef.navigation);
+      disposed=true; hidePanel(); controllerRef.dispose();
+      if (instanceHeartbeatTimer !== null) { clearInterval(instanceHeartbeatTimer); instanceHeartbeatTimer = null; }
+      if (returnAnchorTimer !== null) { clearInterval(returnAnchorTimer); returnAnchorTimer = null; }
+      stopPresence(); void releaseEstatesInstanceLease(instanceLeaseToken); instanceLeaseToken=null; renderer.dispose(); exterior.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },

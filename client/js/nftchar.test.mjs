@@ -256,6 +256,9 @@ has(avatar, /positions\.push\(px, v-\.5, \.055\*\(1-Math\.pow\(px\*2,2\)\)\)/, '
 has(avatar, /artworkIdentity=\{mode:'framed-full-composition',source:url,aspectFit:'contain',cropped:false\}/, 'preserves the original full artwork without cropping while improving panel fit');
 has(avatar, /nft-straw-hat-brim/, 'renders a broad brim for source-specific woven hats');
 has(avatar, /nft-straw-hat-crown/, 'renders a tapered three-dimensional hat crown');
+has(avatar, /new THREE\.ConeGeometry\(\.158,\.285,20,3\)/, 'gives straw hats a sharply tapered crown rather than a flat-topped cylinder');
+has(avatar, /nft-straw-hat-weave-row-.*Concentric weave rows/s, 'documents the horizontal woven-straw row orientation');
+lacks(avatar, /ring\.rotation\.x=Math\.PI\/2/, 'does not rotate concentric straw-hat weave into vertical hoops');
 has(avatar, /nft-straw-hat-weave-row-/, 'adds raised weave rows to improve material readability');
 has(avatar, /nft-straw-hat-band/, 'renders a separate hat band rather than flattening all details into color');
 

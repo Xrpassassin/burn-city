@@ -1,7 +1,7 @@
 // Low-poly tavern interior staged within the Cinder Cove house nearest the dock.
 // Shared materials and simple geometry; no external assets or audio licenses.
 export function buildCoveTavern(THREE) {
- const room=new THREE.Group();room.position.set(-61,2,-81);room.name='cinder-cove-tavern';
+ const room=new THREE.Group();room.position.set(500,2,500);room.name='cinder-cove-tavern';
  const timber=new THREE.MeshStandardMaterial({color:0x56351f,roughness:1});
  const floorMat=new THREE.MeshStandardMaterial({color:0x86613b,roughness:1});
  const amber=new THREE.MeshStandardMaterial({color:0xffb75b,emissive:0xb95c17,emissiveIntensity:.55});

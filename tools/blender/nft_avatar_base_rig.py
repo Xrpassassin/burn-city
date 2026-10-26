@@ -109,6 +109,41 @@ def bind_racc_tail_segments(rig):
     rig["racc_rigid_tail_segment_count"]=len(bound)
     return bound
 
+def bind_racc_facial_details(rig):
+    """Rigidly bind facial accents to the head bone for initial pose previews.
+
+    Preserves contrasting mask and muzzle materials. This is not facial rigging.
+    """
+    if rig.get("burncity_collection") != "racc":
+        raise ValueError("RACC facial binding requires RACC rig")
+    names=["Base_RACC_Nose","Base_RACC_ChinWhite",
+           "Base_RACC_Muzzle_L","Base_RACC_Muzzle_R",
+           "Base_RACC_WhiteMuzzleBib","Base_RACC_WhiskerPad_L",
+           "Base_RACC_WhiskerPad_R","Base_RACC_EarRim_L",
+           "Base_RACC_EarRim_R","Base_RACC_EarInterior_L",
+           "Base_RACC_EarInterior_R","Base_RACC_MaskPatch_L",
+           "Base_RACC_MaskPatch_R","Base_RACC_EyeHighlight_L",
+           "Base_RACC_EyeHighlight_R"]
+    missing=[name for name in names if bpy.data.objects.get(name) is None]
+    if missing:
+        raise ValueError("Missing RACC facial objects: "+", ".join(missing))
+    for name in names:
+        obj=bpy.data.objects[name]
+        if obj.type!="MESH" or not obj.data.vertices:
+            raise ValueError("Invalid RACC facial mesh: "+name)
+        group=obj.vertex_groups.get("head") or obj.vertex_groups.new(name="head")
+        group.add([v.index for v in obj.data.vertices],1.0,"REPLACE")
+        modifier=obj.modifiers.get("BURN_RACC_FaceArmature")
+        if modifier is None:
+            modifier=obj.modifiers.new("BURN_RACC_FaceArmature","ARMATURE")
+        if modifier.type!="ARMATURE":
+            raise ValueError("Conflicting face modifier: "+name)
+        modifier.object=rig
+        obj["burncity_skinning_stage"]="rigid-face-preview"
+        obj["runtime_approved"]=False
+    rig["racc_rigid_face_mesh_count"]=len(names)
+    return names
+
 def main():
     args=sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
     if len(args)!=2:
@@ -119,6 +154,8 @@ def main():
         present=[bpy.data.objects.get("Base_RACC_TailRing_%02d"%i) for i in range(6)]
         if any(present):
             bind_racc_tail_segments(rig)
+        if bpy.data.objects.get("Base_RACC_MaskPatch_L"):
+            bind_racc_facial_details(rig)
     bpy.ops.wm.save_as_mainfile(filepath=output)
     print("Created authoring armature:",rig.name,"(mesh skinning and review still required)")
 

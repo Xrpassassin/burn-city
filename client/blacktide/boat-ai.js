@@ -27,6 +27,8 @@ export function updateBoatBehavior(boat, player, dt) {
   const dz = pz - z;
   const distance = Math.hypot(dx, dz);
   const patrol = boat.kind === 'patrol';
+  // Keep orbit direction stable per vessel so nearby NPCs do not all turn identically.
+  const orbitSign = boat.orbitSign === -1 ? -1 : 1;
   let state = boat.aiState || 'patrol';
 
   if (patrol) {
@@ -59,7 +61,7 @@ export function updateBoatBehavior(boat, player, dt) {
 
   // Patrol vessels circle at broadside range instead of ramming the player.
   const radial = distance > 31 ? 0.7 : distance < 19 ? -0.7 : 0;
-  const tangent = 0.72;
+  const tangent = 0.72 * orbitSign;
   let moveX = nx * radial - nz * tangent;
   let moveZ = nz * radial + nx * tangent;
   const length = Math.hypot(moveX, moveZ) || 1;

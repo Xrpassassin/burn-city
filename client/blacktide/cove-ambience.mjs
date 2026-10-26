@@ -1,3 +1,4 @@
+import { HARBOR_ROUTES, samplePatrol } from './harbor-patrol.mjs';
 // Cinder Cove lightweight ambience. No extra dependencies or gameplay authority.
 export function createCoveAmbience({THREE,scene}) {
  const group=new THREE.Group();group.position.set(-56,0,-84);scene.add(group);
@@ -28,11 +29,10 @@ export function createCoveAmbience({THREE,scene}) {
  group.visible=false;
  return {update(active,time){
    group.visible=!!active;if(!active)return;
-   for(const {actor,x,z,phase} of actors) {
-    const t=time*.35+phase;
-    actor.position.x=x+Math.sin(t)*1.1;
-    actor.position.z=z+Math.cos(t)*.7;
-    actor.rotation.y=-t;
+   for(let i=0;i<actors.length;i++) {
+    const {actor,phase}=actors[i];
+    const point=samplePatrol(HARBOR_ROUTES[i],time*.75+phase);
+    if(point){actor.position.x=point.x;actor.position.z=point.z;actor.rotation.y=point.heading;}
    }
    for(let i=0;i<lanterns.length;i++)lanterns[i].scale.setScalar(1+.12*Math.sin(time*3+i*1.7));
    for(let i=0;i<pennants.length;i++)pennants[i].rotation.y=.3*Math.sin(time*1.7+i);

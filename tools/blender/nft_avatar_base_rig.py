@@ -78,12 +78,47 @@ def create_base_armature(collection):
     rig["runtime_approved"]=False
     return rig
 
+def bind_racc_tail_segments(rig):
+    """Bind segmented tail blockout to matching bones with rigid starter weights.
+
+    This is an authoring preview, not smooth skinning or production deformation.
+    Other body parts are intentionally untouched.
+    """
+    if rig.get("burncity_collection") != "racc":
+        raise ValueError("RACC tail binding requires a RACC armature")
+    bound=[]
+    for index in range(6):
+        name="Base_RACC_TailRing_%02d" % index
+        obj=bpy.data.objects.get(name)
+        if obj is None or obj.type!="MESH":
+            raise ValueError("Missing tail segment: "+name)
+        bone=("tail_01","tail_01","tail_02","tail_02","tail_03","tail_03")[index]
+        if not obj.data.vertices:
+            raise ValueError("Empty tail segment: "+name)
+        group=obj.vertex_groups.get(bone) or obj.vertex_groups.new(name=bone)
+        group.add([vertex.index for vertex in obj.data.vertices],1.0,"REPLACE")
+        modifier=obj.modifiers.get("BURN_RACC_TailArmature")
+        if modifier is None:
+            modifier=obj.modifiers.new("BURN_RACC_TailArmature","ARMATURE")
+        if modifier.type!="ARMATURE":
+            raise ValueError("Conflicting tail modifier on "+name)
+        modifier.object=rig
+        obj["burncity_skinning_stage"]="rigid-tail-preview"
+        obj["runtime_approved"]=False
+        bound.append(name)
+    rig["racc_rigid_tail_segment_count"]=len(bound)
+    return bound
+
 def main():
     args=sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
     if len(args)!=2:
         raise SystemExit("Usage: blender -b base.blend --python nft_avatar_base_rig.py -- <racc|fk|589> output.blend")
     collection, output=args
     rig=create_base_armature(collection)
+    if collection=="racc":
+        present=[bpy.data.objects.get("Base_RACC_TailRing_%02d"%i) for i in range(6)]
+        if any(present):
+            bind_racc_tail_segments(rig)
     bpy.ops.wm.save_as_mainfile(filepath=output)
     print("Created authoring armature:",rig.name,"(mesh skinning and review still required)")
 

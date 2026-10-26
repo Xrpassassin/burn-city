@@ -70,7 +70,8 @@
     "test:nft-avatar-collection-recipes": "node client/js/nft-avatar-collection-recipes.test.mjs",
     "test:nft-avatar-build-spec": "node scripts/nft-avatar-build-spec.test.mjs",
     "test:nft-avatar-build-pipeline": "node scripts/nft-avatar-build-pipeline.test.mjs",
-    "audit:external": "node scripts/audit-external-code.mjs"
+    "audit:external": "node scripts/audit-external-code.mjs",
+    "test:static-security": "node server/static-path-policy.test.js"
   },
   "keywords": [],
   "author": "",

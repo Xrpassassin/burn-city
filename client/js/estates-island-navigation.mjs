@@ -84,6 +84,20 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
     return false;
   }
   function isBlocked(x,z) { return !onWalkableLand(x,z) || collides(x,z); }
+  // Keep public destinations discoverable without promising that arbitrary straight lines
+  // are traversable. A destination's accessible perimeter is sampled deterministically.
+  function accessibleApproach({x,z},clearance=3) {
+    if(!finite(x)||!finite(z)||!finite(clearance)||clearance<=0) throw new TypeError('invalid approach target');
+    if(!isBlocked(x,z)) return Object.freeze({x,y:0,z});
+    for(let ring=clearance;ring<=clearance+12;ring+=1) {
+      for(let i=0;i<32;i++) {
+        const angle=i*Math.PI/16;
+        const px=x+Math.cos(angle)*ring,pz=z+Math.sin(angle)*ring;
+        if(!isBlocked(px,pz)) return Object.freeze({x:px,y:0,z:pz});
+      }
+    }
+    return null;
+  }
 
   function move(position, delta) {
     validPoint(position,'position'); validPoint(delta,'delta');
@@ -128,7 +142,7 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
   }
 
   return Object.freeze({
-    move, nearbyProperty, isWalkable,
+    move, nearbyProperty, isWalkable, accessibleApproach,
     get collisionCount(){return buildings.length+trees.length+landmarkBlockers.length;},
     get buildingColliderCount(){return buildings.length;},
     get treeColliderCount(){return trees.length;},

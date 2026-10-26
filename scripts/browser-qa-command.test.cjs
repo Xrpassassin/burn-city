@@ -36,7 +36,7 @@ fs.appendFileSync(${JSON.stringify(log)},JSON.stringify({args:process.argv.slice
  const env={...process.env,CI:'false',BURN_QA_BROWSER_BIN:mock,BURN_QA_SECRET:'must-not-leak'};
  const result=spawnSync(process.execPath,[runner,'http://127.0.0.1:8080'],{env,encoding:'utf8',timeout:15000});
  assert.equal(result.status,0,result.stderr);
- const calls=fs.readFileSync(log,'utf8').trim().split('\\n').map(JSON.parse);
+ const calls=fs.readFileSync(log,'utf8').trim().split('\n').map(JSON.parse);
  assert.deepEqual(calls.map(c=>c.args[0]),['open','set','screenshot','snapshot','set','screenshot','errors','close']);
  for(const c of calls){assert.equal(c.secret,undefined);assert.equal(c.allow,'127.0.0.1');}
  console.log('Browser QA command sequence and environment isolation fixture passed');

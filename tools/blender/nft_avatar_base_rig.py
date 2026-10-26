@@ -193,6 +193,7 @@ def bind_racc_fused_body(rig):
     obj["burncity_skinning_stage"]="provisional-distance-weights"
     obj["runtime_approved"]=False
     rig["racc_provisional_body_vertex_count"]=len(obj.data.vertices)
+    rig["racc_body_weight_algorithm"]="nearest-four-bone-segments-v1"
     return obj
 
 def main():

@@ -1,8 +1,16 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { installEstatesIslandLive } from './estates-island-live.mjs';
+import { installEstatesIslandLive, islandMoveDelta } from './estates-island-live.mjs';
 
 assert.equal(typeof installEstatesIslandLive, 'function');
+const straight=islandMoveDelta({dt:1/60,yaw:0,moveX:1,moveZ:0},4.5);
+const diagonal=islandMoveDelta({dt:1/60,yaw:0,moveX:1,moveZ:1},4.5);
+assert(Math.abs(Math.hypot(straight.x,straight.z)-Math.hypot(diagonal.x,diagonal.z))<1e-10,'diagonal travel must not be faster');
+const resume=islandMoveDelta({dt:5,yaw:0,moveX:1,moveZ:0},7.2);
+assert(Math.hypot(resume.x,resume.z)<=0.720000001,'resume after a background pause must not jump across island');
+const idle=islandMoveDelta({dt:1,yaw:0,moveX:0,moveZ:0},7.2);
+assert.equal(Math.hypot(idle.x,idle.z),0,'idle input must not drift');
+
 const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 assert(app.includes("import { installEstatesIslandLive } from './estates-island-live.mjs';"), 'app imports live integration');

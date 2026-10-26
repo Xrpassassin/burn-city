@@ -3,6 +3,8 @@
 // Usage: node scripts/browser-qa-command.cjs http://127.0.0.1:8080
 const {URL}=require('node:url');
 const {spawnSync}=require('node:child_process');
+const fs=require('node:fs');
+const path=require('node:path');
 const target=process.argv[2]||'http://127.0.0.1:8080';
 let u;
 try{u=new URL(target);}catch{console.error('Invalid QA URL');process.exit(2);}
@@ -17,6 +19,10 @@ const env={};
 // Do not inherit wallet, deployment, cloud, or AI provider credentials from the shell.
 for(const k of ['PATH','HOME','TMPDIR','TEMP','TMP','SYSTEMROOT','WINDIR','USERPROFILE','LOCALAPPDATA'])if(process.env[k])env[k]=process.env[k];
 Object.assign(env,{AGENT_BROWSER_ALLOWED_DOMAINS:allowed,AGENT_BROWSER_CONTENT_BOUNDARIES:'1',AGENT_BROWSER_MAX_OUTPUT:'12000',AGENT_BROWSER_CONFIRM_ACTIONS:'eval,download,upload',AGENT_BROWSER_CONFIRM_INTERACTIVE:'1',AGENT_BROWSER_RESTORE_SAVE:'never'});
+const browserBin=process.env.BURN_QA_BROWSER_BIN;
+if(!browserBin||!path.isAbsolute(browserBin)||!fs.existsSync(browserBin)||!fs.statSync(browserBin).isFile()){
+ console.error('Set BURN_QA_BROWSER_BIN to the audited absolute path of the QA browser executable');process.exit(2);
+}
 const commands=[
  ['open',u.href],
  ['set','viewport','390','844'],
@@ -28,7 +34,7 @@ const commands=[
  ['close']
 ];
 for(const args of commands){
- const r=spawnSync('agent-browser',[...base,...args],{env,stdio:'inherit',timeout:60000,shell:false});
+ const r=spawnSync(browserBin,[...base,...args],{env,stdio:'inherit',timeout:60000,shell:false});
  if(r.error||r.status!==0){console.error('QA command failed:',args[0],r.error?.message||r.status);process.exit(1);}
 }
 console.log('Browser smoke run completed. Review screenshots and logs manually; this is not a gameplay pass.');

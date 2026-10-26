@@ -21,3 +21,23 @@ const ci=spawnSync(process.execPath,[runner,'http://127.0.0.1:8080'],{
 assert.equal(ci.status,2);
 assert.match(ci.stderr,/explicit CI opt-in/);
 console.log('Browser QA launcher rejection tests passed');
+
+const fs=require('node:fs');
+const os=require('node:os');
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'burn-qa-fixture-'));
+try{
+ const log=path.join(tmp,'invocations.jsonl');
+ const mock=path.join(tmp,'fake-browser');
+ fs.writeFileSync(mock,`#!/usr/bin/env node
+const fs=require('node:fs');
+fs.appendFileSync(process.env.BURN_QA_TEST_LOG,JSON.stringify({args:process.argv.slice(2),secret:process.env.BURN_QA_SECRET,allow:process.env.AGENT_BROWSER_ALLOWED_DOMAINS})+'\\n');
+`);
+ fs.chmodSync(mock,0o755);
+ const env={...process.env,CI:'false',BURN_QA_BROWSER_BIN:mock,BURN_QA_TEST_LOG:log,BURN_QA_SECRET:'must-not-leak'};
+ const result=spawnSync(process.execPath,[runner,'http://127.0.0.1:8080'],{env,encoding:'utf8',timeout:15000});
+ assert.equal(result.status,0,result.stderr);
+ const calls=fs.readFileSync(log,'utf8').trim().split('\\n').map(JSON.parse);
+ assert.deepEqual(calls.map(c=>c.args[0]),['open','set','screenshot','snapshot','set','screenshot','errors','close']);
+ for(const c of calls){assert.equal(c.secret,undefined);assert.equal(c.allow,'127.0.0.1');}
+ console.log('Browser QA command sequence and environment isolation fixture passed');
+}finally{fs.rmSync(tmp,{recursive:true,force:true});}

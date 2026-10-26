@@ -85,7 +85,7 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
     })
   ];
   const fishingSpots=buildEstatesLakeFishingSpots({lots});
-  const fishingAccess=fishingSpots.filter(spot=>spot.kind==='public-dock').map(spot=>
+  const fishingAccess=fishingSpots.filter(spot=>spot.kind==='public-dock'&&spot.id!=='estates-public-dock').map(spot=>
     descriptor(spot.id,'dock',point(spot.position.x,0.24,spot.position.z),
       {width:7,length:13,height:0.4},'timber',
       {orientation:Math.abs(spot.position.x)>Math.abs(spot.position.z)?'x':'z',

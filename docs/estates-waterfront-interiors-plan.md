@@ -44,3 +44,15 @@ Keep every existing estate exterior at ordinary neighborhood scale. Do not enlar
 - **Tests**: small exterior versus large interior dimensions, unique property instance keys, enter/exit anchor fidelity, invitation denial/revocation, two-player synchronization, reconnect recovery, and mobile asset cleanup.
 
 Acceptance: walking along the island still looks like a conventional neighborhood; entering an ordinary house reveals an independently sized, immersive property world. Neither the public island nor its fishable shoreline depends on the interior instance being loaded.
+
+## Corrected primary world boundary — Estates Island is the expanded instance
+**Product requirement superseding earlier per-house emphasis:** The small-looking Estates entrance/neighborhood frontage in the BURN City main world is the gateway. Crossing it transports the player into **one separate, much larger Estates Island world**, including all estate properties, streets, landscaping, shoreline, surrounding water, docks and fishing. The island's dimensions are deliberately independent of the visual footprint of its gateway in the city. This is the main TARDIS illusion.
+
+- Main BURN City: keep the compact, believable Estates frontage/entrance. Do not render the full island at city-world scale or require spatially continuous lake geometry between worlds.
+- Gateway: explicit enter/exit trigger with transition/loading veil, return anchor, authenticated player handoff and reconnection recovery. No property ownership required for access to public island.
+- Estates Island instance: shared destination world for all visitors, with independent world coordinates, terrain, full neighborhood and fishable surrounding water. All property exteriors exist inside this same island world.
+- Individual houses: **do not require per-house instances for this milestone**. Ordinary property interactions and optional interiors can be developed later. Do not gate island completion on private interiors.
+- Fishing: the island's own water geometry and valid casting points feed into existing server-authoritative fishing/inventory systems; never award catches from local-only geometry checks.
+- Acceptance: a small city gateway leads to a significantly larger navigable island; multiple players arrive in the same intended island world, can visit its public waterfront, and return to the city entrance. The city does not need to contain the island's actual geographic footprint.
+
+Earlier discussion of oversized individual property interiors is a possible *future feature*, not the defining requirement for this build. Prioritize island scale, water and fishing, island navigation and seamless transitions.

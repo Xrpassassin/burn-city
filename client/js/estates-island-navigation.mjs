@@ -106,7 +106,12 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
     if(!finite(interactionRadius)||interactionRadius<=0) throw new TypeError('interactionRadius must be positive');
     let best=null,bestD=interactionRadius;
     for(const lot of manifest.lots) {
-      const d=Math.hypot(position.x-lot.position.x,position.z-lot.position.z);
+      // Interact from the accessible edge of the building, not its blocked centre.
+      // Large mansions must be inspectable without walking through their colliders.
+      const footprint=lot.buildingFootprint;
+      const dx=Math.max(0,Math.abs(position.x-lot.position.x)-(footprint?.width??0)/2);
+      const dz=Math.max(0,Math.abs(position.z-lot.position.z)-(footprint?.depth??0)/2);
+      const d=Math.hypot(dx,dz);
       if(d<=bestD){best=lot;bestD=d;}
     }
     if(!best)return null;

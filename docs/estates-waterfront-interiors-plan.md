@@ -31,3 +31,16 @@ The new `estates-waterfront-contract.mjs` supplies coarse spatial checks for UI/
 - Unauthorized users cannot enter a private estate via forged client messages.
 - Two players see consistent catches, occupancy and return locations.
 - No runtime integration or deployment is claimed by this contract-only PR.
+
+## Exterior-to-expanded-world illusion (confirmed design)
+Keep every existing estate exterior at ordinary neighborhood scale. Do not enlarge the island or exterior meshes to fit an interior. A property entrance is a spatial transition gateway: walking to the front door shows an interaction prompt, the host requests server-verified entry rights, then loads a property-scoped interior world whose coordinates, dimensions, lighting, terrain and scene streaming are independent of the exterior. The entry animation/loading veil should hide the scene swap. This is the same broad separate-region pattern used for Cinderwilds, not physically impossible geometry inside a single Three.js scene.
+
+- **Exterior**: public shared neighborhood, visible realistic homes, address and door anchor; do not expose interior geometry or occupants through exterior walls.
+- **Interior**: one persistent property identity with its own scene and instance/session; spacious rooms, multiple floors, and later private gardens or expansions. Template and capacity are tier-specific, but interior dimensions need not correspond to house footprint.
+- **Return**: save the property door's exterior return anchor before transition; exiting, disconnect recovery and invalidated access must restore a safe exterior position, not strand a player inside.
+- **Visitors**: invitations are server-verified and revocable; multiple authorized players entering the same estate should share the intended instance and synchronized state, rather than each seeing unrelated copies.
+- **Safety**: client-selected propertyId/interiorId/authorized booleans never grant access. Validate property membership, capacity, invitation expiry, and instance binding on the server; enforce movement/collision bounds in the loaded world.
+- **Performance**: load the interior on demand, unload exterior-heavy assets while inside when appropriate, and clean up controls/audio/physics when switching. Use a lightweight transition screen to prevent visible pop-in.
+- **Tests**: small exterior versus large interior dimensions, unique property instance keys, enter/exit anchor fidelity, invitation denial/revocation, two-player synchronization, reconnect recovery, and mobile asset cleanup.
+
+Acceptance: walking along the island still looks like a conventional neighborhood; entering an ordinary house reveals an independently sized, immersive property world. Neither the public island nor its fishable shoreline depends on the interior instance being loaded.

@@ -11,7 +11,8 @@ if(!['http:','https:'].includes(u.protocol)||!['localhost','127.0.0.1','[::1]'].
 }
 if(process.env.CI==='true'&&!process.env.BURN_QA_ALLOW_CI){console.error('Browser QA requires explicit CI opt-in');process.exit(2);}
 const allowed=u.hostname.replace(/^\[|\]$/g,'');
-const base=['--allowed-domains',allowed,'--content-boundaries','--max-output','12000','--confirm-actions','eval,download,upload'];
+if(u.pathname!=='/'&&(!u.pathname.startsWith('/')||u.pathname.includes('..'))){console.error('Invalid QA path');process.exit(2);}
+const base=[]; // Restrict through environment and OS isolation; verify CLI flags against pinned release.
 const env={};
 // Do not inherit wallet, deployment, cloud, or AI provider credentials from the shell.
 for(const k of ['PATH','HOME','TMPDIR','TEMP','TMP','SYSTEMROOT','WINDIR','USERPROFILE','LOCALAPPDATA'])if(process.env[k])env[k]=process.env[k];

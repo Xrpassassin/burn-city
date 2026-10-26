@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {ESTATES_WATERFRONT,classifyEstatesWaterfront,estatesFishingAccess,estateInteriorDestination} from './estates-waterfront-contract.mjs';
+assert.equal(classifyEstatesWaterfront({x:0,z:0}),'inland');
+assert.equal(classifyEstatesWaterfront({x:140,z:0}),'shore');
+assert.equal(classifyEstatesWaterfront({x:160,z:0}),'water');
+assert.equal(classifyEstatesWaterfront({x:250,z:0}),'outside');
+assert.equal(classifyEstatesWaterfront({x:NaN,z:0}),'invalid');
+assert.equal(estatesFishingAccess({playerPosition:{x:145,z:0},castPosition:{x:160,z:0}}).allowed,true);
+assert.equal(estatesFishingAccess({playerPosition:{x:0,z:0},castPosition:{x:160,z:0}}).allowed,false);
+assert.equal(estatesFishingAccess({playerPosition:{x:145,z:0},castPosition:{x:120,z:0}}).reason,'cast-not-in-water');
+assert.equal(estatesFishingAccess({playerPosition:{x:145,z:0},castPosition:{x:200,z:0}}).reason,'out-of-range');
+assert.equal(estatesFishingAccess({playerPosition:{x:145,z:0},castPosition:{x:160,z:0},maxCastDistance:0}).allowed,false);
+assert.equal(estateInteriorDestination({propertyId:'p1',interiorId:'loft'}).ok,false);
+assert.deepEqual(estateInteriorDestination({propertyId:'p1',interiorId:'loft',authorized:true}),{ok:true,instanceKey:'estate-interior:p1',interiorId:'loft',returnAnchor:'estate-exterior:p1'});
+assert.equal(ESTATES_WATERFRONT.fishingSpotIds.length,5);
+console.log('Estates waterfront and interior contracts passed');

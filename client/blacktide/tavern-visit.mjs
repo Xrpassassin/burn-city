@@ -14,6 +14,19 @@ export function createTavernVisit({THREE,scene,camera,game}) {
  const enter=document.createElement('button');enter.type='button';enter.textContent='ENTER · THE SALT LANTERN';
  enter.style.cssText='position:absolute;bottom:260px;left:50%;transform:translateX(-50%);z-index:35;padding:12px;background:#291b15;color:#ffdda4;border:1px solid #c48c50;border-radius:8px';
  enter.hidden=true;game.append(enter);
+ const controls=document.createElement('div');
+ controls.style.cssText='position:absolute;left:12px;bottom:16px;z-index:37;display:grid;grid-template-columns:repeat(3,48px);gap:5px;touch-action:none';
+ const held=new Set();
+ for(const [label,key,column,row] of [['▲','w',2,1],['◀','a',1,2],['▼','s',2,2],['▶','d',3,2]]){
+   const b=document.createElement('button');b.type='button';b.textContent=label;
+   b.setAttribute('aria-label','Move '+key);
+   b.style.cssText='grid-column:'+column+';grid-row:'+row+';width:48px;height:48px;background:#34251ddf;color:white;border:1px solid #d9a05a;border-radius:8px;touch-action:none';
+   b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);held.add(key);});
+   const release=()=>held.delete(key);
+   b.addEventListener('pointerup',release);b.addEventListener('pointercancel',release);b.addEventListener('lostpointercapture',release);
+   controls.append(b);
+ }
+ controls.hidden=true;game.append(controls);
  const panel=document.createElement('section');panel.hidden=true;
  panel.style.cssText='position:absolute;bottom:14%;left:50%;transform:translateX(-50%);z-index:36;width:min(400px,92vw);padding:15px;background:#231911eb;color:#ffe6b7;border:1px solid #c48c50;border-radius:8px';
  const title=document.createElement('h2');title.textContent='The Salt Lantern · Silas Reed';
@@ -21,16 +34,16 @@ export function createTavernVisit({THREE,scene,camera,game}) {
  const talk=document.createElement('button');talk.type='button';talk.textContent='TALK · SILAS REED';talk.hidden=true;
  talk.addEventListener('click',()=>{if(!talk.hidden)panel.hidden=false;});game.append(talk);
  const leave=document.createElement('button');leave.type='button';leave.textContent='RETURN TO HARBOR';
- leave.addEventListener('click',()=>{inside=false;room.visible=false;panel.hidden=true;talk.hidden=true;});
+ leave.addEventListener('click',()=>{inside=false;room.visible=false;panel.hidden=true;talk.hidden=true;controls.hidden=true;held.clear();});
  panel.append(title,words,leave);game.append(panel);
  let inside=false;
- enter.addEventListener('click',()=>{if(enter.hidden)return;inside=true;room.visible=true;panel.hidden=true;walker.position.set(0,0,-3);enter.hidden=true;});
+ enter.addEventListener('click',()=>{if(enter.hidden)return;inside=true;room.visible=true;panel.hidden=true;walker.position.set(0,0,-3);enter.hidden=true;controls.hidden=false;});
  return {update(ashore,pos,dt=0,keys=new Set()) {
-   if(!ashore){inside=false;room.visible=false;panel.hidden=true;}
+   if(!ashore){inside=false;room.visible=false;panel.hidden=true;controls.hidden=true;held.clear();}
    enter.hidden=inside||!canEnterTavern(ashore,pos);
    if(inside){
-     const forward=Number(keys.has('w')||keys.has('arrowup'))-Number(keys.has('s')||keys.has('arrowdown'));
-     const side=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'));
+     const forward=Number(keys.has('w')||keys.has('arrowup')||held.has('w'))-Number(keys.has('s')||keys.has('arrowdown')||held.has('s'));
+     const side=Number(keys.has('d')||keys.has('arrowright')||held.has('d'))-Number(keys.has('a')||keys.has('arrowleft')||held.has('a'));
      const p=nextTavernPosition(walker.position,side,forward,dt);
      if(p.x!==walker.position.x||p.z!==walker.position.z){walker.rotation.y=Math.atan2(side,forward);walker.position.x=p.x;walker.position.z=p.z;}
      talk.hidden=!nearSilas(walker.position);

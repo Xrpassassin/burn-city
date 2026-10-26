@@ -58,9 +58,13 @@ def create_base_armature(collection):
     ]:
         add_bone(b,name,point,(point[0],point[1],point[2]+.06),parent,deform=False)
     if profile["tail"]:
-        add_bone(b,"tail_01",(0,.18,.83),(0,.43,.72),"pelvis")
-        add_bone(b,"tail_02",(0,.43,.72),(0,.68,.84),"tail_01")
-        add_bone(b,"attach_tail",(0,.18,.83),(0,.18,.89),"tail_01",deform=False)
+        # Match the procedural RACC tail: it sweeps toward +X and +Y,
+        # rising from the right rear hip. The previous straight +Y chain
+        # could not deform the visible tail segments correctly.
+        add_bone(b,"tail_01",(.24,.14,.89),(.44,.225,.96),"pelvis")
+        add_bone(b,"tail_02",(.44,.225,.96),(.64,.276,1.075),"tail_01")
+        add_bone(b,"tail_03",(.64,.276,1.075),(.80,.285,1.21),"tail_02")
+        add_bone(b,"attach_tail",(.24,.14,.89),(.24,.14,.95),"pelvis",deform=False)
     if profile["robe"]:
         for side,prefix in [(-1,"L"),(1,"R")]:
             add_bone(b,prefix+"_robe",(side*.20,0,.87),(side*.32,0,.26),"pelvis")

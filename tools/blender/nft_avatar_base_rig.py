@@ -31,6 +31,7 @@ def create_base_armature(collection):
     arm = bpy.data.armatures.new("BURN_" + collection + "_Armature")
     rig = bpy.data.objects.new("BURN_" + collection + "_Rig", arm)
     bpy.context.collection.objects.link(rig)
+    bpy.ops.object.select_all(action="DESELECT")
     bpy.context.view_layer.objects.active = rig
     rig.select_set(True)
     bpy.ops.object.mode_set(mode="EDIT")

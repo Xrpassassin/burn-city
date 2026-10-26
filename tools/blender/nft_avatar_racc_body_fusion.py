@@ -58,6 +58,26 @@ def fuse_racc_body(voxel_size=VOXEL_SIZE):
     for obj in working:
         obj.select_set(True)
     bpy.context.view_layer.objects.active=working[0]
+    # Add a tapered neck bridge between torso and cranium before remeshing.
+    # This closes a common silhouette gap in the procedural blockout without
+    # changing the original source meshes or adding NFT-specific traits.
+    torso=next(obj for obj in working if obj.name.startswith("Body_Torso"))
+    head=next(obj for obj in working if obj.name.startswith("Head_Base"))
+    from mathutils import Vector
+    torso_center=torso.matrix_world @ Vector((0,0,0))
+    head_center=head.matrix_world @ Vector((0,0,0))
+    bridge_center=(torso_center+head_center)*0.5
+    bridge_height=max(0.15,abs(head_center.z-torso_center.z)*0.8)
+    bpy.ops.mesh.primitive_cone_add(vertices=24,radius1=0.155,radius2=0.12,
+                                    depth=bridge_height,location=bridge_center)
+    neck=bpy.context.object
+    neck.name="RACC_NeckBridge_Blockout"
+    # Ensure the new neck participates in the selected fusion set.
+    working.append(neck)
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in working:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active=working[0]
     bpy.ops.object.join()
     joined=bpy.context.view_layer.objects.active
     joined.name="RACC_ContinuousBody_Blockout"
@@ -89,6 +109,7 @@ def fuse_racc_body(voxel_size=VOXEL_SIZE):
     joined["burncity_asset_stage"]="fused-blockout-needs-retopology"
     joined["runtime_approved"]=False
     joined["source_mesh_count"]=len(BODY_NAMES)
+    joined["procedural_neck_bridge"]=True
     joined["voxel_size_m"]=voxel_size
     joined["originals_preserved_in"]="RACC_Source_Body_Backup"
     joined["material_rebuild_required"]=True

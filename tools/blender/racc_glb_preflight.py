@@ -31,14 +31,23 @@ def inspect(path):
         chunk_length,chunk_type=struct.unpack("<I4s",chunk_header)
         if chunk_type!=b"JSON" or chunk_length>length-20:
             raise ValueError("Invalid GLB JSON chunk")
-        document=json.loads(handle.read(chunk_length).decode("utf-8"))
+        raw=handle.read(chunk_length)
+        if len(raw)!=chunk_length:
+            raise ValueError("Truncated GLB JSON chunk")
+        document=json.loads(raw.decode("utf-8"))
     meshes=document.get("meshes",[])
     nodes=document.get("nodes",[])
     names={node.get("name","") for node in nodes
-           if isinstance(node.get("mesh"),int) and 0<=node["mesh"]<len(meshes)}
+           if isinstance(node,dict) and type(node.get("mesh")) is int
+           and 0<=node["mesh"]<len(meshes)}
     missing=sorted(REQUIRED-names)
+    duplicate_names=sorted(name for name in REQUIRED
+                           if sum(1 for node in nodes if isinstance(node,dict)
+                                  and node.get("name")==name
+                                  and type(node.get("mesh")) is int)>1)
     return {"meshNodeCount":len(names),"requiredBodyNodeCount":len(REQUIRED),
-            "missingBodyNodes":missing,"pass":not missing,
+            "missingBodyNodes":missing,"duplicateBodyNodes":duplicate_names,
+            "pass":not missing and not duplicate_names,
             "note":"Node-name preflight only; Blender may rename objects on import."}
 
 def main():

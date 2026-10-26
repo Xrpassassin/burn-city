@@ -56,3 +56,17 @@ Acceptance: walking along the island still looks like a conventional neighborhoo
 - Acceptance: a small city gateway leads to a significantly larger navigable island; multiple players arrive in the same intended island world, can visit its public waterfront, and return to the city entrance. The city does not need to contain the island's actual geographic footprint.
 
 Earlier discussion of oversized individual property interiors is a possible *future feature*, not the defining requirement for this build. Prioritize island scale, water and fishing, island navigation and seamless transitions.
+
+## Elastic Estates world — capacity expansion
+The gateway in BURN City is a stable, compact visual facade; its footprint never constrains the separate Estates Island world. Estates Island may eventually be geographically larger than the main city. Expansion is driven by confirmed demand/capacity planning, not by trusting a browser purchase event.
+
+- Partition the shared island world into stable district IDs and terrain chunks. Maintain a persistent central district for gateway arrival, public roads, fishing shoreline and amenities.
+- Reserve adjacent district connections (roads, bridges, ferries, shoreline paths) so added land does not invalidate existing addresses, property boundaries, spawn points or purchased lots.
+- Allocate lots from a versioned, server-owned registry with property IDs, tier, district, parcel bounds, access rules and immutable ownership history. Prevent double allocation; validate wallet settlement on the server before activating a purchased parcel.
+- Larger estate tiers can consume larger parcels; demand thresholds can trigger server-approved new districts. Do not promise an infinite world or automatically mint new property supply on a client signal.
+- Stream chunks near players and use distance LOD, instancing, pooled assets, collision activation and interest-managed multiplayer updates. Do not keep every property and all occupants rendered or simulated for each client.
+- Extend terrain and fishable water with a shared coastline/water mask, valid casting geometry and server-authoritative fishing. New districts must not leave dry-land casts, water seams, or inaccessible shorelines.
+- Preserve the single shared Estates destination and recognizable city gateway. Capacity-based server shards are a future operational option only if a single instance cannot scale, with deliberate social continuity rules.
+- Test district additions against saved player return anchors, existing lot coordinates, shore geometry, fishing, navigation, mobile performance, and two-player visibility.
+
+Milestones: fixed initial island -> chunk registry and reserved expansion edges -> first additional residential district -> demand-driven parcel activation -> optional secondary islands. No production expansion is claimed by this plan.

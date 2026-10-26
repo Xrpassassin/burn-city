@@ -144,6 +144,57 @@ def bind_racc_facial_details(rig):
     rig["racc_rigid_face_mesh_count"]=len(names)
     return names
 
+def bind_racc_fused_body(rig):
+    """Generate provisional normalized body weights using nearest bone segments.
+
+    For posing and QA only. Requires topology review and manual weight painting.
+    """
+    if rig.get("burncity_collection")!="racc":
+        raise ValueError("Expected RACC armature")
+    obj=bpy.data.objects.get("RACC_ContinuousBody_Blockout")
+    if obj is None or obj.type!="MESH" or not obj.data.vertices:
+        raise ValueError("Missing nonempty RACC fused body mesh")
+    if obj.get("burncity_skinning_stage"):
+        raise ValueError("Fused body already has skinning; refusing overwrite")
+    # Avoid assigning the face to the spine: limit the candidates to actual
+    # deforming torso, head and limb bones (tail is separately rigged).
+    bone_names=("pelvis","spine","chest","neck","head",
+                "L_upper_arm","L_forearm","L_hand",
+                "R_upper_arm","R_forearm","R_hand",
+                "L_thigh","L_shin","L_foot",
+                "R_thigh","R_shin","R_foot")
+    from mathutils import Vector
+    from math import sqrt
+    segments=[]
+    for name in bone_names:
+        bone=rig.data.bones.get(name)
+        if bone is None:
+            raise ValueError("Missing deform bone: "+name)
+        segments.append((name,rig.matrix_world @ bone.head_local,
+                         rig.matrix_world @ bone.tail_local))
+    groups={name:obj.vertex_groups.new(name=name) for name in bone_names}
+    matrix=obj.matrix_world
+    for vertex in obj.data.vertices:
+        point=matrix @ vertex.co
+        distances=[]
+        for name,a,b in segments:
+            ab=b-a
+            t=max(0.0,min(1.0,(point-a).dot(ab)/max(ab.length_squared,1e-12)))
+            distance=(point-(a+ab*t)).length
+            distances.append((distance,name))
+        nearest=sorted(distances)[:4]
+        # Smooth bounded falloff, normalized to exactly one per vertex.
+        raw=[1.0/max(distance,0.035)**4 for distance,_ in nearest]
+        total=sum(raw)
+        for weight,(_,name) in zip(raw,nearest):
+            groups[name].add([vertex.index],weight/total,"REPLACE")
+    modifier=obj.modifiers.new("BURN_RACC_BodyArmature","ARMATURE")
+    modifier.object=rig
+    obj["burncity_skinning_stage"]="provisional-distance-weights"
+    obj["runtime_approved"]=False
+    rig["racc_provisional_body_vertex_count"]=len(obj.data.vertices)
+    return obj
+
 def main():
     args=sys.argv[sys.argv.index("--")+1:] if "--" in sys.argv else []
     if len(args)!=2:
@@ -156,6 +207,8 @@ def main():
             bind_racc_tail_segments(rig)
         if bpy.data.objects.get("Base_RACC_MaskPatch_L"):
             bind_racc_facial_details(rig)
+        if bpy.data.objects.get("RACC_ContinuousBody_Blockout"):
+            bind_racc_fused_body(rig)
     bpy.ops.wm.save_as_mainfile(filepath=output)
     print("Created authoring armature:",rig.name,"(mesh skinning and review still required)")
 

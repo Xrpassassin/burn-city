@@ -7,6 +7,14 @@ const OFFSET_X = 650;
 const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
 const ISLAND_SPAWN = Object.freeze({ x: -195, y: 0.1, z: 188 });
 const finite = n => typeof n === 'number' && Number.isFinite(n);
+// Keep keyboard and mobile diagonal speed equal to straight-line movement.
+// Bound a single frame's movement so a background-tab resume cannot jump through terrain.
+function islandMoveDelta({dt,yaw,moveX,moveZ},speed){
+  const length=Math.hypot(moveX,moveZ);
+  const scale=length>1?1/length:1;
+  const f=moveX*scale, side=moveZ*scale, step=speed*Math.min(Math.max(dt,0),0.1);
+  return {x:(-Math.sin(yaw)*f+Math.cos(yaw)*side)*step,y:0,z:(-Math.cos(yaw)*f-Math.sin(yaw)*side)*step};
+}
 
 function makePanel() {
   let panel = document.getElementById('bcEstatesLivePrompt');
@@ -150,12 +158,7 @@ export async function installEstatesIslandLive({
   const controller = createEstatesIslandController({
     manifest, actor:localActor, camera:localCamera,
     input:({dt,yaw,moveX,moveZ}) => {
-      const f=moveX,s=moveZ, speed=runSpeed;
-      return { delta:{
-        x:(-Math.sin(yaw)*f+Math.cos(yaw)*s)*speed*dt,
-        y:0,
-        z:(-Math.cos(yaw)*f-Math.sin(yaw)*s)*speed*dt
-      }};
+      return {delta:islandMoveDelta({dt,yaw,moveX,moveZ},runSpeed)};
     },
     cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
     cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
@@ -211,10 +214,7 @@ export async function installEstatesIslandLive({
     if(!controllerRef.isActive) {
       controllerRef=createEstatesIslandController({
         manifest,actor:localActor,camera:localCamera,
-        input:({dt,yaw,moveX,moveZ})=>({delta:{
-          x:(-Math.sin(yaw)*moveX+Math.cos(yaw)*moveZ)*runSpeed*dt,
-          y:0,z:(-Math.cos(yaw)*moveX-Math.sin(yaw)*moveZ)*runSpeed*dt
-        }}),
+        input:({dt,yaw,moveX,moveZ})=>({delta:islandMoveDelta({dt,yaw,moveX,moveZ},runSpeed)}),
         cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
         cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
         onPropertyPrompt:property=>{lastProperty=property;lastLandmarkId=null;showLotPrompt(property);},

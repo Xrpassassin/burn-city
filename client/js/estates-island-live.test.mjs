@@ -9,6 +9,8 @@ assert(app.includes("import { installEstatesIslandLive } from './estates-island-
 assert(app.includes('window.__estatesIslandLive.tick(dt,f,s,run)'), 'live controller is called from explore frame loop');
 const live = await readFile(new URL('./estates-island-live.mjs', import.meta.url), 'utf8');
 assert(live.includes('exitPressed:edge'), 'keyboard interaction edge reaches the exit-gate controller');
+assert(live.includes('active=false; hidePanel(); controllerRef.dispose();'), 'exit disposes the current controller, not the original one');
+assert(!live.includes('active=false; hidePanel(); controller.dispose();'), 'stale controller disposal regression');
 assert(live.includes('Catalog mapping:'), 'lot inspection labels catalog mapping rather than implying owner assignment');
 assert(live.includes('That record does not prove ownership'), 'catalog membership must never be presented as verified ownership');
 assert(live.includes('updateLandmarkInteraction(edge,Boolean(result.property))'), 'public landmark interactions are checked in the live exploration loop');

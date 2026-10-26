@@ -76,3 +76,16 @@ def audit_base(key, mesh_names, bone_names, available_clips=()):
         "visuallyApproved":False,
         "runtimeApproved":False,
     }
+
+def audit_blender_scene(key, scene=None):
+    """Audit live Blender objects; imported lazily so CI needs no bpy."""
+    import bpy
+    scene=scene or bpy.context.scene
+    mesh_names=[obj.name for obj in scene.objects if obj.type=="MESH"]
+    rig=bpy.data.objects.get("BURN_"+key+"_Rig")
+    bone_names=[bone.name for bone in rig.data.bones] if rig and rig.type=="ARMATURE" else []
+    clips=[action.name for action in bpy.data.actions
+           if action.name in contract_for(key).locomotion_clips]
+    result=audit_base(key,mesh_names,bone_names,clips)
+    result["armatureFound"]=bool(rig and rig.type=="ARMATURE")
+    return result

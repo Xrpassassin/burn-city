@@ -12,13 +12,10 @@ if(!['http:','https:'].includes(u.protocol)||!['localhost','127.0.0.1','[::1]'].
 if(process.env.CI==='true'&&!process.env.BURN_QA_ALLOW_CI){console.error('Browser QA requires explicit CI opt-in');process.exit(2);}
 const allowed=u.hostname.replace(/^\[|\]$/g,'');
 const base=['--allowed-domains',allowed,'--content-boundaries','--max-output','12000','--confirm-actions','eval,download,upload'];
-const env={...process.env,AGENT_BROWSER_ALLOWED_DOMAINS:allowed,AGENT_BROWSER_CONTENT_BOUNDARIES:'1',AGENT_BROWSER_MAX_OUTPUT:'12000',AGENT_BROWSER_CONFIRM_ACTIONS:'eval,download,upload',AGENT_BROWSER_CONFIRM_INTERACTIVE:'1',AGENT_BROWSER_RESTORE_SAVE:'never'};
-delete env.AGENT_BROWSER_PLUGINS;
-delete env.AGENT_BROWSER_CDP;
-delete env.AGENT_BROWSER_AUTO_CONNECT;
-delete env.AGENT_BROWSER_PROFILE;
-delete env.AGENT_BROWSER_STATE;
-delete env.AGENT_BROWSER_CONFIG;
+const env={};
+// Do not inherit wallet, deployment, cloud, or AI provider credentials from the shell.
+for(const k of ['PATH','HOME','TMPDIR','TEMP','TMP','SYSTEMROOT','WINDIR','USERPROFILE','LOCALAPPDATA'])if(process.env[k])env[k]=process.env[k];
+Object.assign(env,{AGENT_BROWSER_ALLOWED_DOMAINS:allowed,AGENT_BROWSER_CONTENT_BOUNDARIES:'1',AGENT_BROWSER_MAX_OUTPUT:'12000',AGENT_BROWSER_CONFIRM_ACTIONS:'eval,download,upload',AGENT_BROWSER_CONFIRM_INTERACTIVE:'1',AGENT_BROWSER_RESTORE_SAVE:'never'});
 const commands=[
  ['open',u.href],
  ['set','viewport','390','844'],

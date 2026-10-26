@@ -22,10 +22,10 @@ delete env.AGENT_BROWSER_CONFIG;
 const commands=[
  ['open',u.href],
  ['set','viewport','390','844'],
- ['screenshot','--filename','burn-city-mobile.png'],
+ ['screenshot','burn-city-mobile.png'],
  ['snapshot'],
  ['set','viewport','1440','900'],
- ['screenshot','--filename','burn-city-desktop.png'],
+ ['screenshot','burn-city-desktop.png'],
  ['errors'],
  ['close']
 ];

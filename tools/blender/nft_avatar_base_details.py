@@ -27,6 +27,35 @@ def add_base_details(key, head_y, materials, sphere, cube, cone, cylinder, curve
         sphere("Base_RACC_WhiteMuzzleBib",(0,-.206,head_y-.145),(.154,.071,.109),light,20,12)
         sphere("Base_RACC_WhiskerPad_L",(-.094,-.267,head_y-.096),(.079,.036,.051),light,16,10)
         sphere("Base_RACC_WhiskerPad_R",(.094,-.267,head_y-.096),(.079,.036,.051),light,16,10)
+        # Raccoon identity must survive without clothes or NFT traits:
+        # symmetrical dark facial mask, light eyebrow break, black nose,
+        # pointed ears, and striped bushy tail. Keep these separate from
+        # the organic fusion so their contrasting materials survive remesh.
+        for side,tag in [(-1,"L"),(1,"R")]:
+            sphere("Base_RACC_MaskPatch_"+tag,
+                   (side*.116,-.206,head_y+.037),(.126,.035,.091),dark,24,14)
+            sphere("Base_RACC_EyeHighlight_"+tag,
+                   (side*.107,-.239,head_y+.057),(.021,.012,.025),light,12,8)
+            sphere("Base_RACC_EarRim_"+tag,
+                   (side*.177,-.024,head_y+.265),(.091,.062,.119),fur,18,12)
+            sphere("Base_RACC_EarInterior_"+tag,
+                   (side*.177,-.081,head_y+.274),(.058,.018,.079),dark,16,10)
+        sphere("Base_RACC_Nose",(0,-.307,head_y-.073),
+               (.069,.052,.043),dark,20,12)
+        sphere("Base_RACC_ChinWhite",(0,-.261,head_y-.183),
+               (.103,.032,.044),light,16,10)
+        # Segmented tapered tail creates legible dark/light rings at game
+        # distance. Coordinates form a curved tail behind the character.
+        tail_segments=[
+            ((.34,.185,.92),(.125,.115,.135),fur),
+            ((.44,.225,.96),(.145,.131,.139),dark),
+            ((.54,.258,1.015),(.155,.139,.139),fur),
+            ((.64,.276,1.075),(.154,.143,.140),dark),
+            ((.73,.285,1.145),(.139,.134,.135),fur),
+            ((.80,.285,1.210),(.119,.114,.121),dark),
+        ]
+        for idx,(center,scale,material) in enumerate(tail_segments):
+            sphere("Base_RACC_TailRing_%02d"%idx,center,scale,material,20,12)
         # Distinct lower jaw and throat, visible from side and three-quarter views.
         sphere("Base_RACC_LowerJaw",(0,-.160,head_y-.218),(.137,.110,.077),fur,18,12)
         sphere("Base_RACC_Throat",(0,-.072,head_y-.312),(.128,.115,.126),light,18,12)

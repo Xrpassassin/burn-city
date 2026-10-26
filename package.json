@@ -60,7 +60,7 @@
     "test:estates-island-scene": "node client/js/estates-island-scene.test.mjs",
     "test:estates-island-renderer": "node client/js/estates-island-renderer.test.mjs",
     "test:estates-island-runtime": "node client/js/estates-island-runtime.test.mjs",
-    "test:estates-island-navigation": "node client/js/estates-island-navigation.test.mjs && node client/js/estates-island-property-reach.test.mjs && node client/js/estates-island-landmark-access.test.mjs",
+    "test:estates-island-navigation": "node client/js/estates-island-navigation.test.mjs && node client/js/estates-island-property-reach.test.mjs && node client/js/estates-island-landmark-access.test.mjs && node client/js/estates-lake-fishing.test.mjs",
     "test:estates-island-controller": "node client/js/estates-island-controller.test.mjs",
     "test:estates-island-live": "node client/js/estates-island-live.test.mjs",
     "test:estate-access": "node test/estate-access.test.js",

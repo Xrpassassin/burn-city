@@ -43,9 +43,16 @@ function serveStatic(req, res, url) {   // static site files: served before the 
   if (url.pathname === '/data.js' && Eco.serve(req, res)) return true;
   try {
     // serve the demo client for local testing
-    let f = path.join(__dirname, '..', 'client', decodeURIComponent(url.pathname).slice(1));
-    if (f.startsWith(path.join(__dirname, '..', 'client')) && fs.existsSync(f) && fs.statSync(f).isDirectory()) { if (!url.pathname.endsWith('/')) { res.writeHead(301, { location: url.pathname + '/' + url.search }); res.end(); return true; } f = path.join(f, 'index.html'); }
-    if (f.startsWith(path.join(__dirname, '..', 'client')) && fs.existsSync(f) && fs.statSync(f).isFile()) {
+    const clientRoot = path.resolve(__dirname, '..', 'client');
+    const decodedPath = decodeURIComponent(url.pathname);
+    // Reject dotfiles, traversal, backslashes and NULs before filesystem access.
+    const segments = decodedPath.split('/');
+    if (decodedPath.includes(String.fromCharCode(92)) || decodedPath.includes(String.fromCharCode(0)) || segments.some(segment => segment === '..' || segment.startsWith('.'))) return false;
+    let f = path.resolve(clientRoot, '.' + decodedPath);
+    const insideClient = candidate => { const relative = path.relative(clientRoot, candidate); return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative)); };
+    if (!insideClient(f)) return false;
+    if (fs.existsSync(f) && fs.statSync(f).isDirectory()) { if (!url.pathname.endsWith('/')) { res.writeHead(301, { location: url.pathname + '/' + url.search }); res.end(); return true; } f = path.join(f, 'index.html'); }
+    if (insideClient(f) && fs.existsSync(f) && fs.statSync(f).isFile()) {
       const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.glb': 'model/gltf-binary', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
       // app code/html/css/json always revalidate (ETag -> cheap 304) so a deploy reaches every player on their next load; vendor libs, images and audio cache for a day
       const st = fs.statSync(f), etag = `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`, ext = path.extname(f).toLowerCase(), fresh = /\/vendor\//.test(f) || /^\.(png|jpe?g|webp|gif|svg|ico|mp3|m4a|ogg|woff2?)$/.test(ext);

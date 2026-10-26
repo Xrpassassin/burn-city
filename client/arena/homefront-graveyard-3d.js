@@ -1316,8 +1316,7 @@ function boot(host) {
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopAutoFire(); });
     autoFireButton.addEventListener('contextmenu', event => event.preventDefault());
   }
-  const groundHit = ground;
-  // Taps arrive from the shared view controller on release, so a drag-to-look never travels.
+  // Taps select nearby objects; they do not initiate click-to-move travel.
   const onWorldTap = e => {
     if (e.button === 2 || cameraOrbiting || !worldData?.self || moving) return;
     const rect = renderer.domElement.getBoundingClientRect();
@@ -1390,31 +1389,29 @@ function boot(host) {
         return;
       }
     }
-    if (worldData.party && !worldData.party.leader) return;
-    const hits = raycaster.intersectObject(groundHit, false);
-    if (!hits.length) return;
-    moveTo(Math.max(-100, Math.min(100, hits[0].point.x)), Math.max(-100, Math.min(100, hits[0].point.z)));
+    // Ground taps never issue movement commands. Travel is controlled by WASD/joystick.
+    // Preserve tap selection of infected, survivors, loot and interactive structures above.
   };
-  async function moveTo(x, z) {
+  async function moveTo(x, z, sprint = sprintTravel) {
     if (reloadState) cancelReload('Reload interrupted by movement.');
     aiming = false;
     if (aimWeaponButton) { aimWeaponButton.setAttribute('aria-pressed', 'false'); aimWeaponButton.textContent = 'Aim weapon'; }
-    aimRecoveryUntil = performance.now() + (sprintTravel ? 1800 : 900);
+    aimRecoveryUntil = performance.now() + (sprint ? 1800 : 900);
     lastTravelAt = performance.now();
     moving = true; if (status) status.textContent = 'Moving through the shared Graveyard…';
     try {
-      if (sprintTravel && worldData?.selfWeaponHandling?.aiming) {
+      if (sprint && worldData?.selfWeaponHandling?.aiming) {
         const lowered = await requestAimState(false);
         updateWorld(lowered);
         aiming = false;
       }
-      const r = await fetch(API + '/api/homefront/world/move', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ x, z, sprint: sprintTravel }) });
+      const r = await fetch(API + '/api/homefront/world/move', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ x, z, sprint }) });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'movement_rejected');
       updateWorld(data);
       return true;
     } catch (e) {
-      if (status) status.textContent = e.message === 'party_leader_controls_movement' ? 'Your party leader controls group movement.' : e.message === 'movement_too_far' ? 'That destination is too far away. Click closer; movement is server-limited.' : 'Movement failed: ' + e.message;
+      if (status && e.message !== 'move_cooldown') status.textContent = e.message === 'party_leader_controls_movement' ? 'Your party leader controls group movement.' : e.message === 'movement_too_far' ? 'Movement exceeds the server travel limit.' : 'Movement failed: ' + e.message;
       return false;
     } finally { moving = false; }
   }
@@ -1506,17 +1503,28 @@ function boot(host) {
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = (localActor?.rotation.y || 0) + cameraYawOffset + view.yaw;
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
-      const targetY = terrainElevation(self.x, self.z) + activeInteriorElevation();
-      const pose = cameraPose({ mode: view.mode, x: self.x, y: targetY, z: self.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
+      // Follow the interpolated character, not the latest discrete server waypoint.
+      // The server remains authoritative; this only smooths the camera and terrain height.
+      const followX = localActor ? localActor.position.x : self.x;
+      const followZ = localActor ? localActor.position.z : self.z;
+      const targetY = terrainElevation(followX, followZ) + activeInteriorElevation();
+      const pose = cameraPose({ mode: view.mode, x: followX, y: targetY, z: followZ, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
       camera.position.x += (pose.px - camera.position.x) * followBlend;
       camera.position.y += (pose.py - camera.position.y) * followBlend;
       camera.position.z += (pose.pz - camera.position.z) * followBlend;
       lookTarget.x += (pose.lx - lookTarget.x) * followBlend; lookTarget.y += (pose.ly - lookTarget.y) * followBlend; lookTarget.z += (pose.lz - lookTarget.z) * followBlend;
       camera.lookAt(lookTarget);
       if (localActor) localActor.visible = view.mode !== 'first';
-      // Joystick / WASD travel: one server-clamped step toward the stick direction per move cooldown.
+      // Joystick / WASD travel: frequent small authoritative steps; server scales distance by elapsed time.
       const stick = worldMove(view.move(), heading);
-      if (stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) { lastStickMoveAt = now; moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10))); }
+      // Don't buffer movement while menus, the page, or the canvas are inactive.
+      const canDrive = document.visibilityState === 'visible' && view.visible && !document.body.classList.contains('rpg-mode-management') && !document.body.classList.contains('rpg-mode-workshop');
+      // Use the same hold-to-run control as the refuge; do not require a separate travel toggle.
+      const running = view.running() || sprintTravel;
+      if (canDrive && stick && !moving && now - lastStickMoveAt > 300 && !(worldData.party && !worldData.party.leader)) {
+        lastStickMoveAt = now;
+        moveTo(Math.max(-100, Math.min(100, self.x + stick.x * (running ? 6 : 3.3))), Math.max(-100, Math.min(100, self.z + stick.z * (running ? 6 : 3.3))), running);
+      }
     }
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };
   // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.

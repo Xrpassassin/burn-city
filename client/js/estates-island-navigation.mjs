@@ -117,13 +117,35 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
     });
   }
 
+  // Door-facing interaction point is outside the building collider and aligned with the facade.
+  // This is a public inspection affordance, never a property-access authorization.
+  function nearbyEntrance(position, interactionRadius=3.5) {
+    validPoint(position);
+    if(!finite(interactionRadius)||interactionRadius<=0) throw new TypeError('interactionRadius must be positive');
+    let best=null, bestD=interactionRadius;
+    for(const lot of manifest.lots) {
+      const f=lot.buildingFootprint;
+      if(!f) continue;
+      const entrance={x:lot.position.x,y:lot.position.y,z:lot.position.z-f.depth/2-2.5};
+      const d=Math.hypot(position.x-entrance.x,position.z-entrance.z);
+      if(d<=bestD) {best={lot,entrance};bestD=d;}
+    }
+    if(!best)return null;
+    const {lot,entrance}=best;
+    return Object.freeze({
+      lotId:lot.id,propertyId:lot.propertyId??null,address:lot.address,
+      tier:lot.tier,assigned:Boolean(lot.propertyId),distance:bestD,
+      entrance:Object.freeze(entrance),interaction:'inspect-entrance'
+    });
+  }
+
   function isWalkable(position) {
     validPoint(position);
     return onWalkableLand(position.x,position.z)&&!collides(position.x,position.z);
   }
 
   return Object.freeze({
-    move, nearbyProperty, isWalkable,
+    move, nearbyProperty, nearbyEntrance, isWalkable,
     get collisionCount(){return buildings.length+trees.length+landmarkBlockers.length;},
     get buildingColliderCount(){return buildings.length;},
     get treeColliderCount(){return trees.length;},

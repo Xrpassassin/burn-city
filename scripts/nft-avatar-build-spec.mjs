@@ -6,6 +6,7 @@ import path from 'node:path';
 import { resolveNftAvatarProfile } from '../client/js/nft-avatar-adapters.js';
 import { resolveNftAvatarReconstruction } from '../client/js/nft-avatar-reconstruction.js';
 import { getNftAvatarCollectionRecipe } from '../client/js/nft-avatar-collection-recipes.js';
+import { planNftTraitAttachments } from '../client/js/nft-avatar-attachment-rig.mjs';
 
 const KNOWN_SLOTS = new Set(['background','eye color','eye appearance','nose','body effect','accessory','outfit','headwear','weapon','fur color','hair style','hair color','skin color','armor','mask','expression','facial hair','markings','body pattern','horns','wing','flame','eye wear','tail','identity']);
 const shaSafe = value => String(value ?? '').trim();
@@ -25,7 +26,8 @@ export function compileNftAvatarBuildSpec(nft = {}) {
     const slot = profile.renderTraits[index]?.[0] || 'unknown';
     return { sourceType: type, sourceValue: value, renderSlot: slot, mapped: KNOWN_SLOTS.has(slot), recipeHint: recipe.traitSlots[type] || null };
   });
-  const artworkReference = shaSafe(nft.artworkReference || nft.img || nft.image || nft.imageUrl) || null;
+  const artworkReference = shaSafe(nft.artworkReference || nft.artwork || nft.img || nft.image || nft.imageUrl) || null;
+  const attachmentPlan = planNftTraitAttachments({identity:{collectionKey:recipe.key},normalizedTraits});
   return {
     specVersion: 1,
     pipeline: 'burn-city-nft-avatar',
@@ -60,6 +62,15 @@ export function compileNftAvatarBuildSpec(nft = {}) {
       exactReconstruction: false
     },
     traits: { normalized: normalizedTraits, unmapped: normalizedTraits.filter(t => !t.mapped) },
+    attachmentRig: {
+      schemaVersion: attachmentPlan.rig.schemaVersion,
+      coordinateSystem: 'threejs-y-up-forward-negative-z',
+      anchors: attachmentPlan.rig.anchors,
+      slotAnchors: attachmentPlan.rig.slotAnchors,
+      attachments: attachmentPlan.attachments,
+      unresolvedCount: attachmentPlan.unresolvedCount,
+      runtimeApproved: false
+    },
     production: {
       targetBudgets: recipe.budgets,
       visualAcceptanceCriteria: recipe.visualRequirements,

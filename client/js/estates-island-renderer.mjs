@@ -51,6 +51,98 @@ function addLandmark(THREE,parent,item) {
   }
   return made;
 }
+// Decorative, deterministic estate facades; geometry is visual only and grants no access.
+function addEstateFacade(THREE,parent,item) {
+  const {x,y,z}=item.position, f=item.buildingFootprint;
+  if(!f) return [];
+  const made=[], mansion=item.tier==='mansion', apartment=item.tier==='apartment';
+  const floors=apartment?3:mansion?2:item.tier==='family'?2:1;
+  const wall=PALETTE[item.tier]??0x9c927e;
+  const trim=mansion?0xe2d2b2:0xe1d9c9;
+  const glass=0x3b6573;
+  const front=z-f.depth/2-.08;
+  // Windows are mounted just outside the front face; no real interior is implied.
+  for(let level=0;level<floors;level++) {
+    const h=y+Math.min(f.height-1,1.5+level*(f.height-1)/floors);
+    for(const side of [-1,1]) {
+      const wx=x+side*f.width*.28;
+      made.push(box(THREE,parent,item.id+'-window-'+level+'-'+side,{x:wx,y:h,z:front},Math.min(1.5,f.width*.2),1.15,.13,glass,{roughness:.18,metalness:.12}));
+      made.push(box(THREE,parent,item.id+'-sill-'+level+'-'+side,{x:wx,y:h-.65,z:front-.06},Math.min(1.85,f.width*.24),.13,.25,trim));
+    }
+  }
+  made.push(box(THREE,parent,item.id+'-door',{x,y:y+1.12,z:front-.04},1.35,2.2,.18,0x453326));
+  made.push(box(THREE,parent,item.id+'-porch',{x,y:y+.12,z:front-1.3},Math.min(f.width*.65,5),.24,2.3,0x8d8274));
+  if(mansion||item.tier==='family') {
+    for(const side of [-1,1]) made.push(box(THREE,parent,item.id+'-porch-column-'+side,
+      {x:x+side*Math.min(f.width*.3,2.2),y:y+1.5,z:front-2.25},.3,2.8,.3,trim));
+    made.push(box(THREE,parent,item.id+'-porch-canopy',{x,y:y+2.92,z:front-1.25},Math.min(f.width*.7,5.6),.22,2.6,0x51463d));
+  }
+  // Tier-specific roofline accents add recognizable silhouettes without extra asset downloads.
+  const roofY=y+f.height+.38;
+  if(item.tier==='starter'||item.tier==='family'||mansion) {
+    for(const side of [-1,1]) {
+      const trimX=x+side*(f.width/2+.12);
+      made.push(box(THREE,parent,item.id+'-roof-edge-'+side,{x:trimX,y:roofY,z},.18,.35,f.depth+.7,0x655045));
+    }
+    made.push(box(THREE,parent,item.id+'-ridge',{x,y:roofY+.3,z},f.width*.72,.26,.34,0x574036));
+  }
+  if(apartment) {
+    made.push(box(THREE,parent,item.id+'-roof-parapet-front',{x,y:roofY+.38,z:front},f.width+.45,.9,.28,0xa79b8a));
+    for(const side of [-1,1]) made.push(box(THREE,parent,item.id+'-roof-parapet-'+side,
+      {x:x+side*f.width/2,y:roofY+.38,z},.24,.9,f.depth+.35,0xa79b8a));
+  }
+  if(item.tier==='trailer') {
+    made.push(box(THREE,parent,item.id+'-awning',{x,y:y+2.55,z:front-.8},f.width*.62,.14,1.65,0x596c72));
+  }
+  if(mansion) {
+    made.push(box(THREE,parent,item.id+'-roof-pavilion',{x,y:y+f.height+.65,z},f.width*.48,1.1,f.depth*.42,0x655444));
+  }
+  return made;
+}
+// Small decorative landscaping details; no gameplay collision or ownership effects.
+function addEstateLandscaping(THREE,parent,item) {
+  const f=item.buildingFootprint;
+  if(!f) return [];
+  const {x,y,z}=item.position, made=[];
+  const front=z-f.depth/2;
+  // Planting beds stay close to the facade, clear of the public road.
+  for(const side of [-1,1]) {
+    const bx=x+side*Math.min(f.width*.38,4.4);
+    made.push(box(THREE,parent,item.id+'-planter-'+side,{x:bx,y:y+.14,z:front-.55},1.25,.28,.85,0x685447));
+    const shrub=new THREE.Mesh(new THREE.ConeGeometry(.48,.9,7),material(THREE,0x426d40));
+    shrub.name=item.id+'-shrub-'+side;
+    place(shrub,{x:bx,y:y+.72,z:front-.55});parent.add(shrub);made.push(shrub);
+  }
+  // Footpath terminates at the porch and does not cross into the public road.
+  made.push(box(THREE,parent,item.id+'-front-path',{x,y:y+.025,z:front-2.45},
+    Math.min(1.65,f.width*.3),.08,2.2,0xa59b87));
+  if(item.tier==='mansion') {
+    for(const side of [-1,1]) {
+      made.push(box(THREE,parent,item.id+'-garden-wall-'+side,
+        {x:x+side*(f.width/2+1.0),y:y+.38,z:front-.9},.28,.75,3.5,0x988d7d));
+    }
+  }
+  return made;
+}
+// Low-cost roadside fixtures. Emissive caps avoid adding real-time lights per post.
+function addRoadFixtures(THREE,parent,item) {
+  const {x,y,z}=item.position,d=item.dimensions;
+  const horizontal=item.orientation==='x';
+  const length=d.length??d.depth??8, width=d.width??5;
+  const made=[], spacing=32, count=Math.max(1,Math.floor(length/spacing));
+  for(let i=0;i<=count;i++) {
+    const along=-length/2+6+(length-12)*i/count;
+    for(const side of [-1,1]) {
+      const offset=side*(width/2+2.5);
+      const px=x+(horizontal?along:offset), pz=z+(horizontal?offset:along);
+      const key=item.id+'-lamp-'+i+'-'+side;
+      made.push(box(THREE,parent,key+'-post',{x:px,y:y+2.25,z:pz},.17,4.5,.17,0x40494e,{metalness:.45}));
+      made.push(box(THREE,parent,key+'-arm',{x:px+side*.5,y:y+4.45,z:pz},1.1,.12,.15,0x40494e,{metalness:.45}));
+      made.push(box(THREE,parent,key+'-lantern',{x:px+side*.95,y:y+4.31,z:pz},.48,.16,.43,0xffd7a0,{roughness:.35}));
+    }
+  }
+  return made;
+}
 function addTree(THREE,parent,item) {
   const {x,y,z}=item.position, d=item.dimensions, color=PALETTE[item.material]??PALETTE.deciduous;
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.34,d.height*.38,7),material(THREE,0x59412b));
@@ -94,6 +186,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
         // X-oriented routes put length on X, Z-oriented routes put length on Z.
         const width=d.width??5, length=d.length??d.depth??8, height=d.height??.2;
         made=[box(THREE,root,item.id,p,horizontal?length:width,height,horizontal?width:length,PALETTE[item.material]??0x777777)];
+        if(item.kind==='road' && length>=40) made.push(...addRoadFixtures(THREE,root,item));
         if(item.kind==='bridge') {
           for (const side of [-1,1]) made.push(box(THREE,root,item.id+'-rail-'+side,{x:p.x+(horizontal?0:side*(width/2-.25)),y:p.y+height/2+.45,z:p.z+(horizontal?side*(width/2-.25):0)},horizontal?length:.35,.8,horizontal?.35:length,0x4c4d4d));
         }
@@ -108,6 +201,8 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
           made.push(box(THREE,root,item.id+'-building-blockout',{x:p.x,y:p.y+f.height/2,z:p.z},f.width,f.height,f.depth,color));
           const roof=box(THREE,root,item.id+'-roof-blockout',{x:p.x,y:p.y+f.height+.12,z:p.z},f.width+.35,.24,f.depth+.35,0x49352a);
           made.push(roof);
+          made.push(...addEstateFacade(THREE,root,item));
+          made.push(...addEstateLandscaping(THREE,root,item));
         }
         break;
       }

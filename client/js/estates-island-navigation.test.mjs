@@ -66,4 +66,17 @@ assert.equal(unassigned.assigned,false);
 assert.equal(unassigned.propertyId,null);
 assert.throws(()=>nav.move({x:NaN,y:0,z:0},{x:1,y:0,z:0}),TypeError);
 assert.throws(()=>createEstatesIslandNavigation({manifest,playerRadius:0}),/playerRadius/);
+
+// Front doors sit outside their own colliders and resolve to the correct lot.
+for(const lot of manifest.lots.filter(l=>l.buildingFootprint)) {
+ const entrance={x:lot.position.x,y:0,z:lot.position.z-lot.buildingFootprint.depth/2-2.5};
+ assert(nav.isWalkable(entrance),'front entrance approach must be walkable: '+lot.id);
+ const found=nav.nearbyEntrance(entrance);
+ assert.equal(found?.lotId,lot.id);
+ assert.equal(found.interaction,'inspect-entrance');
+ assert.equal(found.assigned,Boolean(lot.propertyId));
+}
+assert.equal(nav.nearbyEntrance({x:0,y:0,z:0},1),null);
+assert.throws(()=>nav.nearbyEntrance({x:0,y:0,z:0},0),/interactionRadius/);
+
 console.log('estates-island-navigation: all tests passed');

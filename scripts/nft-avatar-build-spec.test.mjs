@@ -14,8 +14,14 @@ equal(racc.production.originalArtworkRequired,true,'artwork comparison is mandat
 ok(racc.traits.normalized.some(t=>t.sourceType==='Ring Tail' && t.renderSlot==='tail'),'trait is normalized to renderer slot');
 ok(racc.traits.unmapped.some(t=>t.sourceType==='Mystery Rune'),'unknown trait is surfaced for authoring');
 ok(racc.production.tasks.some(t=>t.includes('SHA-256')),'build checklist requires output provenance');
+equal(racc.attachmentRig.coordinateSystem,'threejs-y-up-forward-negative-z','attachment coordinate contract is explicit');
+equal(racc.attachmentRig.slotAnchors.tail,'tailRoot','RACC tail attaches to collection tail root');
+ok(racc.attachmentRig.attachments.some(t=>t.sourceType==='Ring Tail'&&t.anchor==='tailRoot'),'tail attachment is planned');
+ok(racc.attachmentRig.attachments.some(t=>t.sourceType==='Mystery Rune'&&t.requiresAuthoring),'unmapped traits require authoring');
+equal(racc.attachmentRig.runtimeApproved,false,'attachment markers cannot approve a runtime asset');
 const fk = compileNftAvatarBuildSpec({key:'fk',tokenId:'FK-2',traits:[['Cowl','Ash'],['Relic','Sun Sigil']]});
 equal(fk.reconstruction.archetype,'firekeeper','Firekeepers recipe resolves');
+equal(fk.attachmentRig.slotAnchors.flame,'emberMantle','Firekeeper flame anchor is collection-specific');
 ok(fk.production.targetBudgets.targetTriangles>0,'mobile target budget is present');
 const unknown = compileNftAvatarBuildSpec({key:'collection-not-yet-supported',id:'X-1',traits:[]});
 equal(unknown.identity.collectionKey,'generic','unsupported collection uses generic safe recipe');

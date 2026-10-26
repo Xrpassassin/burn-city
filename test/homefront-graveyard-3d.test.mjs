@@ -164,11 +164,11 @@ assert.match(scene, /JSON\.stringify\(targetId \? \{ targetId/, 'include the sel
 assert.match(page, /id="aimWeapon"/, 'provide a contextual aim toggle');
 assert.match(page, /id="aimStability"/, 'show weapon stability and recovery feedback');
 assert.match(scene, /let aiming = false/, 'track the explicit aiming stance');
-assert.match(scene, /aimRecoveryUntil = performance\.now\(\) \+ \(sprintTravel \? 1800 : 900\)/, 'travel and sprinting trigger different local aim recovery windows');
+assert.match(scene, /aimRecoveryUntil = performance\.now\(\) \+ \(sprint \? 1800 : 900\)/, 'travel and sprinting trigger different local aim recovery windows');
 assert.match(scene, /targetStability = aiming \? 1 - recovery \* 0\.58/, 'aiming visibly recovers more slowly after movement');
 assert.match(scene, /aimWeaponButton\.setAttribute\('aria-pressed', String\(aiming\)\)/, 'expose aim state accessibly');
 assert.match(scene, /\/api\/homefront\/world\/aim/, 'aim stance is confirmed by the server rather than trusted locally');
-assert.match(scene, /sprint: sprintTravel/, 'sprint travel is requested explicitly and clamped by the server');
+assert.ok(scene.includes('JSON.stringify({ x, z, sprint })'), 'sprint travel is requested explicitly and clamped by the server');
 assert.match(scene, /authoritativeAimStability/, 'display server-calculated weapon stability after combat');
 assert.match(page, /id="sprintTravel"/, 'provide an accessible sprint travel toggle');
 

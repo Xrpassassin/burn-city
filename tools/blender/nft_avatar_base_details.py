@@ -1,0 +1,100 @@
+"""Collection-specific base silhouette refinement for Blender blockout candidates.
+
+This module adds only collection identity features; no token traits, licensing
+claims, rig weights or runtime approvals. Coordinates are Blender Z-up, facing -Y.
+"""
+import bpy
+from mathutils import Vector
+
+def add_base_details(key, head_y, materials, sphere, cube, cone, cylinder, curve):
+    fur, light, dark, outfit, accent, metal = materials
+    if key == "racc":
+        # Distinct cheek mass, inner ears, brow ridge, paws and layered tail volume.
+        for side, tag in [(-1,"L"),(1,"R")]:
+            sphere("Base_RACC_Cheek_"+tag,(side*.164,-.126,head_y-.075),(.112,.105,.095),fur,20,12)
+            sphere("Base_RACC_InnerEar_"+tag,(side*.151,-.046,head_y+.249),(.047,.021,.071),light,12,8)
+            sphere("Base_RACC_Brow_"+tag,(side*.098,-.190,head_y+.102),(.088,.035,.034),dark,12,8)
+            sphere("Base_RACC_Paw_"+tag,(side*.40,-.01,.88),(.084,.080,.075),fur,16,10)
+            for digit in range(3):
+                sphere("Base_RACC_PawDigit_%s_%d"%(tag,digit),
+                       (side*(.35+digit*.04),-.082,.855),(.021,.032,.029),dark,10,8)
+        sphere("Base_RACC_Muzzle_L",(-.065,-.238,head_y-.09),(.09,.061,.065),light,16,10)
+        sphere("Base_RACC_Muzzle_R",(.065,-.238,head_y-.09),(.09,.061,.065),light,16,10)
+        sphere("Base_RACC_TailTip",(.75,.18,1.06),(.105,.103,.105),dark,16,10)
+        # Species geometry is part of the shared base, not token-specific art.
+        # Broad raccoon skull and cheek ruffs create a species-specific profile.
+        sphere("Base_RACC_Cranium",(0,.035,head_y+.055),(.245,.217,.245),fur,24,16)
+        sphere("Base_RACC_WhiteMuzzleBib",(0,-.206,head_y-.145),(.154,.071,.109),light,20,12)
+        sphere("Base_RACC_WhiskerPad_L",(-.094,-.267,head_y-.096),(.079,.036,.051),light,16,10)
+        sphere("Base_RACC_WhiskerPad_R",(.094,-.267,head_y-.096),(.079,.036,.051),light,16,10)
+        # Raccoon identity must survive without clothes or NFT traits:
+        # symmetrical dark facial mask, light eyebrow break, black nose,
+        # pointed ears, and striped bushy tail. Keep these separate from
+        # the organic fusion so their contrasting materials survive remesh.
+        for side,tag in [(-1,"L"),(1,"R")]:
+            sphere("Base_RACC_MaskPatch_"+tag,
+                   (side*.116,-.206,head_y+.037),(.126,.035,.091),dark,24,14)
+            sphere("Base_RACC_EyeHighlight_"+tag,
+                   (side*.107,-.239,head_y+.057),(.021,.012,.025),light,12,8)
+            sphere("Base_RACC_EarRim_"+tag,
+                   (side*.177,-.024,head_y+.265),(.091,.062,.119),fur,18,12)
+            sphere("Base_RACC_EarInterior_"+tag,
+                   (side*.177,-.081,head_y+.274),(.058,.018,.079),dark,16,10)
+        sphere("Base_RACC_Nose",(0,-.307,head_y-.073),
+               (.069,.052,.043),dark,20,12)
+        sphere("Base_RACC_ChinWhite",(0,-.261,head_y-.183),
+               (.103,.032,.044),light,16,10)
+        # Segmented tapered tail creates legible dark/light rings at game
+        # distance. Coordinates form a curved tail behind the character.
+        tail_segments=[
+            ((.34,.185,.92),(.125,.115,.135),fur),
+            ((.44,.225,.96),(.145,.131,.139),dark),
+            ((.54,.258,1.015),(.155,.139,.139),fur),
+            ((.64,.276,1.075),(.154,.143,.140),dark),
+            ((.73,.285,1.145),(.139,.134,.135),fur),
+            ((.80,.285,1.210),(.119,.114,.121),dark),
+        ]
+        for idx,(center,scale,material) in enumerate(tail_segments):
+            sphere("Base_RACC_TailRing_%02d"%idx,center,scale,material,20,12)
+        # Distinct lower jaw and throat, visible from side and three-quarter views.
+        sphere("Base_RACC_LowerJaw",(0,-.160,head_y-.218),(.137,.110,.077),fur,18,12)
+        sphere("Base_RACC_Throat",(0,-.072,head_y-.312),(.128,.115,.126),light,18,12)
+        # Broad paw-like feet with separated dark toes; not generic humanoid boots.
+        for side,tag in [(-1,"L"),(1,"R")]:
+            sphere("Base_RACC_HindPaw_"+tag,(side*.13,-.125,.117),(.112,.160,.075),fur,18,12)
+            for digit in range(3):
+                sphere("Base_RACC_HindToe_%s_%d"%(tag,digit),
+                       (side*.13+(digit-1)*.063,-.253,.095),(.032,.058,.034),dark,12,8)
+        # Tapering haunch and shoulder ruff soften the humanoid blockout.
+        for side,tag in [(-1,"L"),(1,"R")]:
+            sphere("Base_RACC_ShoulderRuff_"+tag,(side*.284,-.015,1.314),(.145,.164,.165),fur,18,12)
+            sphere("Base_RACC_Haunch_"+tag,(side*.157,.027,.695),(.152,.170,.200),fur,18,12)
+        # Whiskers are restrained, low-cost curves rather than dense hair cards.
+        for side,tag in [(-1,"L"),(1,"R")]:
+            for idx in range(2):
+                z=head_y-.105-idx*.043
+                curve("Base_RACC_Whisker_%s_%d"%(tag,idx),
+                      [(side*.11,-.276,z),(side*.20,-.289,z+.016),(side*.28,-.265,z+.035)],dark,.004)
+
+    elif key == "fk":
+        # Robe layers and cowl must read at distance, independent of NFT traits.
+        cone("Base_Keeper_UnderRobe",(0,0,.69),.35,.23,.87,dark)
+        cone("Base_Keeper_OuterRobe",(0,.015,.78),.41,.26,.78,outfit)
+        cube("Base_Keeper_ShoulderMantle",(0,.015,1.40),(.68,.46,.16),outfit,.10)
+        sphere("Base_Keeper_HoodVolume",(0,.058,head_y+.015),(.305,.265,.29),dark,20,14)
+        sphere("Base_Keeper_FaceOpening",(0,-.207,head_y-.015),(.206,.067,.214),fur,20,12)
+        for side,tag in [(-1,"L"),(1,"R")]:
+            curve("Base_Keeper_RobeSeam_"+tag,[(side*.26,-.25,1.22),(side*.31,-.29,.89),(side*.34,-.27,.41)],light,.014)
+            cube("Base_Keeper_Cuff_"+tag,(side*.40,-.015,.91),(.18,.21,.12),light,.025)
+        cylinder("Base_Keeper_CollarClasp",(0,-.235,1.42),.055,.025,metal,rotation=(1.5708,0,0))
+    elif key == "589":
+        # Streetwear layers, fitted silhouette and hardware, without token traits.
+        cube("Base_Protocol_Jacket",(0,.015,1.16),(.64,.43,.59),outfit,.095)
+        cube("Base_Protocol_InnerShirt",(0,-.226,1.17),(.29,.032,.42),dark,.018)
+        for side,tag in [(-1,"L"),(1,"R")]:
+            cube("Base_Protocol_JacketLapel_"+tag,(side*.15,-.235,1.39),(.13,.035,.25),light,.025)
+            cube("Base_Protocol_Cuff_"+tag,(side*.40,0,.91),(.17,.20,.11),dark,.025)
+            cube("Base_Protocol_Pocket_"+tag,(side*.175,-.237,1.08),(.15,.024,.12),dark,.018)
+            cube("Base_Protocol_KneePanel_"+tag,(side*.13,-.098,.42),(.18,.035,.16),outfit,.024)
+        cube("Base_Protocol_Belt",(0,-.01,.81),(.49,.38,.075),dark,.02)
+        cube("Base_Protocol_Buckle",(0,-.216,.81),(.085,.022,.062),metal,.012)

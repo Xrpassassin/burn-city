@@ -9,7 +9,7 @@ const ISLAND_SPAWN = Object.freeze({ x: -195, y: 0.1, z: 188 });
 const finite = n => typeof n === 'number' && Number.isFinite(n);
 // Keep keyboard and mobile diagonal speed equal to straight-line movement.
 // Bound a single frame's movement so a background-tab resume cannot jump through terrain.
-function islandMoveDelta({dt,yaw,moveX,moveZ},speed){
+export function islandMoveDelta({dt,yaw,moveX,moveZ},speed){
   const length=Math.hypot(moveX,moveZ);
   const scale=length>1?1/length:1;
   const f=moveX*scale, side=moveZ*scale, step=speed*Math.min(Math.max(dt,0),0.1);

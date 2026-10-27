@@ -181,9 +181,46 @@ export async function installEstatesIslandLive({
     }
   });
 
-  let returnPosition = null;
-  function enterIsland() {
-    if (disposed || active) return;
+  let returnPosition = null, entering = false, leaseToken = null, heartbeatTimer = null;
+  const apiBase = new URLSearchParams(location.search).get('citysrv') ||
+    (/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
+  async function leaseRequest(action, payload, keepalive=false) {
+    const response=await fetch(apiBase+'/api/estates/instance/'+action, {
+      method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload),keepalive,
+      signal:AbortSignal.timeout(8000)
+    });
+    const result=await response.json();
+    if(!response.ok || !result.ok) throw new Error(result.error || 'instance_unavailable');
+    return result;
+  }
+  function releaseLease() {
+    if(heartbeatTimer!==null){clearInterval(heartbeatTimer);heartbeatTimer=null;}
+    const token=leaseToken;leaseToken=null;
+    if(token) void leaseRequest('leave',{leaseToken:token},true).catch(()=>{});
+  }
+  async function enterIsland() {
+    if (disposed || active || entering) return;
+    entering=true; hidePanel();
+    let admission;
+    try {
+      const bytes=crypto.getRandomValues(new Uint8Array(16));
+      const clientId=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+      admission=await leaseRequest('enter',{clientId});
+      if(typeof admission.leaseToken!=='string'||typeof admission.instanceId!=='string') throw new Error('invalid_admission');
+      if(disposed){void leaseRequest('leave',{leaseToken:admission.leaseToken},true).catch(()=>{});return;}
+    } catch(error) {
+      if(!disposed) showPanel('ESTATES CONNECTION FAILED','The island could not be reached. You are still in BURN City.',
+        [{label:'Retry entry',primary:true,run:enterIsland},{label:'Not now',run:hidePanel}]);
+      onStatus({state:'entry-failed',message:String(error?.message||error)});
+      return;
+    } finally { entering=false; }
+    leaseToken=admission.leaseToken;
+    heartbeatTimer=setInterval(()=>{
+      const token=leaseToken;if(!token||!active)return;
+      void leaseRequest('heartbeat',{leaseToken:token}).catch(error=>{
+        if(leaseToken===token&&error.message==='lease_expired') {leaveIsland();onStatus({state:'entry-failed',message:'Island session expired'});}
+      });
+    },30000);
     returnPosition = {x:player.pos.x,y:player.pos.y,z:player.pos.z};
     active=true; root.visible=true; nearCityGate=false; hidePanel();
     if(getMode()!=='explore') setMode('explore');
@@ -192,11 +229,12 @@ export async function installEstatesIslandLive({
     setYaw(-Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
     avatar.position.copy(player.pos);
-    onStatus({state:'entered-public-island',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
+    onStatus({state:'entered-public-island',instanceId:admission.instanceId,catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
   }
   function leaveIsland() {
     if(disposed||!active)return;
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();
+    releaseLease();
     const destination=returnPosition??gate;
     player.pos.set(destination.x,destination.y,destination.z);
     returnPosition=null;
@@ -254,9 +292,9 @@ export async function installEstatesIslandLive({
   // Public island is rendered at the city offset, with a continuous bridge; the city-side interaction is explicit.
   const api = Object.freeze({
     tick,
-    enterFromCity(){if(disposed||active)return false;enterIsland();return true;},
+    enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
-      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false; disposed=true; releaseLease(); hidePanel(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },

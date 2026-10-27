@@ -33,6 +33,10 @@ assert(estate.includes('lotC.clone().addScaledVector(dir, -LD/2+8)'), 'entry fol
 const live = await readFile(new URL('./estates-island-live.mjs', import.meta.url), 'utf8');
 assert(live.includes('exitPressed:edge'), 'keyboard interaction edge reaches the exit-gate controller');
 assert(live.includes('Math.hypot(player.pos.x-gate.x,player.pos.z-gate.z)'), 'entry proximity follows the configured sign');
+assert(live.includes("await leaseRequest('enter',{clientId})"), 'island activation requests server admission');
+assert(live.includes("leaseRequest('heartbeat',{leaseToken:token})"), 'active admission is refreshed');
+assert(live.includes("leaseRequest('leave',{leaseToken:token},true)"), 'exit releases the admission');
+assert(live.indexOf("await leaseRequest('enter',{clientId})") < live.indexOf('active=true; root.visible=true'), 'the island is revealed only after admission');
 assert(live.includes('active=false; root.visible=false; hidePanel(); controllerRef.dispose();'), 'exit hides island and disposes active controller');
 assert(live.includes('root.visible = false'), 'island should be hidden in city');
 assert(live.includes('active=true; root.visible=true'), 'entering island must reveal scene');

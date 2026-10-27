@@ -19,5 +19,9 @@ const page = (transactions, marker) => ({ validated: true, ledger_index_min: 10,
   assert.equal(r.status, 'unverified');
   r = await scanIssuerReturns({ ...opts, rpc: async () => page([tx('a', '1'), tx('a', '1')]) });
   assert.equal(r.burned, '1');
+  r = await scanIssuerReturns({ ...opts, rpc: async () => page([{ ...tx('wrapped', '2'), tx: { ...tx('wrapped', '2').tx, ledger_index: undefined }, ledger_index: 10 }]) });
+  assert.equal(r.burned, '2');
+  r = await scanIssuerReturns({ ...opts, rpc: async () => page([{ ...tx('unvalidated', '2'), validated: false }]) });
+  assert.equal(r.status, 'unverified');
   console.log('issuer-return-scanner: all tests passed');
 })().catch(e => { console.error(e); process.exitCode = 1; });

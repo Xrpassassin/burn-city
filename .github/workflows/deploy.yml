@@ -31,7 +31,7 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          if [ -z "$FLY_API_TOKEN" ]; then echo "FLY_API_TOKEN secret not set; skipping restart"; exit 0; fi
+          if [ -z "$FLY_API_TOKEN" ]; then echo "::error::FLY_API_TOKEN secret is missing; Fly machine was NOT restarted"; exit 1; fi
           curl -fsS -X POST -H "Authorization: Bearer $FLY_API_TOKEN" \
             https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/restart
           sleep 25

@@ -130,9 +130,17 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   sx.fillStyle='#101b24';sx.fillRect(0,0,1024,256);sx.textAlign='center';sx.fillStyle='#ffe0a2';sx.font='900 76px system-ui,sans-serif';sx.fillText('ESTATES ISLAND',512,105);sx.font='700 48px system-ui,sans-serif';sx.fillText('ENTER HERE',512,185);
   const gateSign=new THREE.Mesh(new THREE.PlaneGeometry(12,3),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(signCanvas),side:THREE.DoubleSide,toneMapped:false}));gateSign.position.set(0,8,0);gateway.add(gateSign);
   const gateHit=new THREE.Mesh(new THREE.BoxGeometry(12,8,2),new THREE.MeshBasicMaterial({visible:false}));gateHit.position.set(0,4,0);gateHit.userData={kind:'estate',label:'Enter Estates Island'};gateway.add(gateHit);pick.push(gateHit);
-  const proxyBridge=new THREE.Mesh(new THREE.BoxGeometry(5,.35,bridgeLength),postMat);proxyBridge.position.set(0,.55,0);gateway.add(proxyBridge);
+  const proxyBridge=new THREE.Mesh(new THREE.BoxGeometry(8,.5,bridgeLength),postMat);proxyBridge.position.set(0,.55,0);gateway.add(proxyBridge);
+  const railMat=new THREE.MeshStandardMaterial({color:0x83969b,metalness:.65,roughness:.35});
+  for(const sideSign of [-1,1]) {
+    const rail=new THREE.Mesh(new THREE.BoxGeometry(.22,.24,bridgeLength),railMat);rail.position.set(sideSign*3.65,1.65,0);gateway.add(rail);
+    for(let z=-bridgeLength/2+3;z<bridgeLength/2;z+=8){
+      const post=new THREE.Mesh(new THREE.BoxGeometry(.35,1.8,.35),railMat);post.position.set(sideSign*3.65,1.25,z);gateway.add(post);
+      const lamp=new THREE.Mesh(new THREE.BoxGeometry(.5,.18,.5),lightMat);lamp.position.set(sideSign*3.65,2.2,z);gateway.add(lamp);
+    }
+  }
   // Walk to the halfway gateway; the remainder is a visual bridge only.
-  (window.__decks=window.__decks||[]).push({base:bridgeStart,dir,side,v0:-2,v1:bridgeLength/2+5,hw:2.4,h:.73});
+  (window.__decks=window.__decks||[]).push({base:bridgeStart,dir,side,v0:-2,v1:bridgeLength/2+5,hw:3.8,h:.8});
   // ---------- highway + bridge (one merged mesh) + guide-light strip ----------
   const bridgeH = 3, RL = 16, seg = [];   // road along +z in local space; constant height, gentle ramps only at the bridge
   const roadLen = lotC.clone().sub(roadO).dot(dir) - 70, Y0 = streetMat ? -0.05 : 0.2; let w0 = -1, w1 = -1; for (let z = 0; z < roadLen; z += 1) { const q = roadO.clone().addScaledVector(dir, z); if (inside(q.x, q.z, lakeC, 0)) { if (w0 < 0) w0 = z; w1 = z; } }
@@ -151,7 +159,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     for (let z = 2.5; z <= roadLen; z += 2) pts.push(W(z).setY(ys(z) + 0.02)); STRIP(pts, false, 9.6, P, UVs, IX);
     if (HW_OFF) { const e0 = W(roadLen - 4.8), lp = []; for (let x = 2.5; x <= HW_OFF + 4; x += 2) lp.push(e0.clone().addScaledVector(side, -x).setY(0.1)); STRIP(lp, false, 9.6, P, UVs, IX); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UVs, 2)); g.setIndex(IX);
-    const hm = new THREE.Mesh(g, streetMat); hm.frustumCulled = false; G.add(hm);
+    const hm = new THREE.Mesh(g, streetMat); hm.frustumCulled = false; hm.visible=false; G.add(hm);
     // bridge guard (explore mode): invisible side walls on the raised deck/ramps + safety respawn at the nearest bridge end if the walker ends up below the deck / in the water
     let onB = false;
     window.__hwGuard = (Pp, vel) => { const dx = Pp.x - roadO.x, dz = Pp.z - roadO.z, al = dx * dir.x + dz * dir.z, lt = dx * side.x + dz * side.z, zone = al > toLake0 - RL - 1 && al < toLake1 + RL + 1, dy = ys(al) + 0.15;
@@ -161,15 +169,16 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
         onB = false; const end = al < (toLake0 + toLake1) / 2 ? toLake0 - RL - 3 : toLake1 + RL + 3; Pp.set(roadO.x + dir.x * end, 0.1, roadO.z + dir.z * end); if (vel) vel.set(0, 0, 0); return true }
       if (onB && !(zone && dy > 1)) onB = false; return false };
     window.__hwDeck = (x, z) => { const dx = x - roadO.x, dz = z - roadO.z, al = dx * dir.x + dz * dir.z, lat = Math.abs(dx * side.x + dz * side.z); return al > toLake0 - RL && al < toLake1 + RL && lat < 7 ? ys(al) + 0.15 : null }; }
-  const road = new THREE.Mesh(mergeGeometries(seg), new THREE.MeshLambertMaterial({ color: 0x2a2d38 })); road.position.copy(roadO); road.rotation.y = yaw; G.add(road);
+  window.__hwGuard=null; window.__hwDeck=null;
+  const road = new THREE.Mesh(mergeGeometries(seg), new THREE.MeshLambertMaterial({ color: 0x2a2d38 })); road.position.copy(roadO); road.rotation.y = yaw; road.visible=false; G.add(road);
   // lamp posts as glowing dots along both rails
   const lamps = []; for (let z = 4; z < roadLen; z += 16) for (const x of [-7.4, 7.4]) lamps.push(x, ys(z) + 3.2, z);
   const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lamps, 3));
-  const lampP = new THREE.Points(lg, new THREE.PointsMaterial({ color: 0xffc070, size: 2.2, sizeAttenuation: true, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending })); lampP.position.copy(roadO); lampP.rotation.y = yaw; G.add(lampP);
+  const lampP = new THREE.Points(lg, new THREE.PointsMaterial({ color: 0xffc070, size: 2.2, sizeAttenuation: true, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending })); lampP.position.copy(roadO); lampP.rotation.y = yaw; lampP.visible=false; G.add(lampP);
   // cars: two instanced point-pairs (white heads toward the lot, red tails going back to the city)
   const NC = low ? 18 : 40, cars = []; for (let i = 0; i < NC; i++) cars.push({ u: Math.random(), sp: 0.035 + Math.random() * 0.03, lane: i % 2 });
   const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.45, 6, 4), new THREE.MeshBasicMaterial({ color: 0xfff2d0, fog: false }), NC * 2), tail = new THREE.InstancedMesh(new THREE.SphereGeometry(0.4, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff2a1a }), NC * 2);
-  head.frustumCulled = tail.frustumCulled = false; const carG = new THREE.Group(); carG.position.copy(roadO); carG.rotation.y = yaw; carG.add(head, tail); G.add(carG);
+  head.frustumCulled = tail.frustumCulled = false; const carG = new THREE.Group(); carG.position.copy(roadO); carG.rotation.y = yaw; carG.add(head, tail); carG.visible=false; G.add(carG);
   const M = new THREE.Matrix4();
   anim.push((t, dt = 1 / 60) => { let hi = 0, ti = 0; for (const c of cars) { c.u = (c.u + c.sp * dt * 0.6) % 1; const out = c.lane === 0, z = (out ? c.u : 1 - c.u) * roadLen, x = out ? 3.5 : -3.5, y = ys(z) + 0.4, f = out ? 1 : -1;
       // a car facing +z shows white heads in front (+z) and red tails behind; cars going back show the opposite

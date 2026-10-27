@@ -45,6 +45,14 @@ assert.equal(Object.isFrozen(result.camera),true);
 assert.equal(Object.isFrozen(w.__BURN_QA__),true);
 assert.equal(Object.getOwnPropertyDescriptor(w,'__BURN_QA__').writable,false);
 assert.equal(boot({host:'127.0.0.1'}).w.__BURN_QA__.version,1);
+assert.equal(boot({host:'[::1]'}).w.__BURN_QA__.version,1);
+assert.equal(boot({search:'?qa=0'}).w.__BURN_QA__,undefined);
+assert.equal(boot({search:'?qa=1&qa=0'}).w.__BURN_QA__.version,1);
+const empty=boot();
+assert.equal(empty.w.__BURN_QA__.status().canvas.present,false);
+assert.equal(empty.w.__BURN_QA__.status().camera.present,false);
+assert.equal(empty.w.__BURN_QA__.status().render.calls,null);
+
 console.log('City QA adapter unit tests passed');
 
 // Integration guard: the City entry page must load the QA module before app boot.

@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { verifiedBurnFraction } from './verified-burn-visual.mjs';
+const now=10000000, key='issuer-currency';
+const good={status:'verified',method:'issuer_returns_v1',token_key:key,coverage:{complete:true,from_ledger:1,to_ledger:100},evidence:{issuer_verified:true,launch_supply_verified:true,rejected_records:0},t_ms:now,burned_pct:96.5};
+assert.equal(verifiedBurnFraction(good,key,now),0.965);
+assert.equal(verifiedBurnFraction({...good,burned_pct:25},key,now),0.25);
+assert.equal(verifiedBurnFraction({...good,burned_pct:101},key,now),null);
+assert.equal(verifiedBurnFraction({...good,method:'live_supply'},key,now),null);
+assert.equal(verifiedBurnFraction({...good,evidence:{...good.evidence,launch_supply_verified:false}},key,now),null);
+assert.equal(verifiedBurnFraction({...good,t_ms:now-21600001},key,now),null);
+assert.equal(verifiedBurnFraction(good,'different-token',now),null);
+console.log('verified-burn-visual: all tests passed');

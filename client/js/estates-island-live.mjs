@@ -11,6 +11,7 @@ const finite = n => typeof n === 'number' && Number.isFinite(n);
 // Bound a single frame's movement so a background-tab resume cannot jump through terrain.
 export function islandMoveDelta({dt,yaw,moveX,moveZ},speed){
   if (![dt,yaw,moveX,moveZ,speed].every(finite) || speed<0) return {x:0,y:0,z:0};
+  if (Math.abs(moveX)>1 || Math.abs(moveZ)>1) return {x:0,y:0,z:0};
   const length=Math.hypot(moveX,moveZ);
   if (!Number.isFinite(length)) return {x:0,y:0,z:0};
   const scale=length>1?1/length:1;

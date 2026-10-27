@@ -4,10 +4,10 @@ const { CATALOG, propertyWeight, allocateProfit, buildWeeklySnapshot } = require
 assert.equal(CATALOG.properties.length, 21);
 assert.equal(new Set(CATALOG.properties.map(p => p.id)).size, CATALOG.properties.length, 'catalog property IDs are unique');
 assert.equal(propertyWeight('trailer-01'), 1);
-assert.equal(propertyWeight('apartment-01'), 2);
-assert.equal(propertyWeight('starter-01'), 3);
-assert.equal(propertyWeight('family-01'), 5);
-assert.equal(propertyWeight('mansion-01'), 10);
+assert.equal(propertyWeight('apartment-01'), 5);
+assert.equal(propertyWeight('starter-01'), 25);
+assert.equal(propertyWeight('family-01'), 50);
+assert.equal(propertyWeight('mansion-01'), 100);
 assert.equal(propertyWeight('not-a-property'), 0);
 const holdings = [
   { acct: 'rA', propertyId: 'trailer-01' },
@@ -16,7 +16,7 @@ const holdings = [
 ];
 const split = allocateProfit(16001, holdings);
 assert.equal(split.reduce((n, r) => n + r.amountDrops, 0), 16001, 'all integer drops are allocated exactly once');
-assert.deepEqual(split.map(r => r.amountDrops), [5000, 10001, 1000]);
+assert.deepEqual(split.map(r => r.amountDrops), [106, 5298, 10597]);
 const equal = allocateProfit(5, [{acct:'rB',propertyId:'trailer-01'},{acct:'rA',propertyId:'trailer-02'}]);
 assert.equal(equal.reduce((n,r)=>n+r.amountDrops,0),5);
 assert.equal(equal.find(r=>r.propertyId==='trailer-01').amountDrops,3,'ties break deterministically by property ID');
@@ -40,7 +40,7 @@ const weekly = buildWeeklySnapshot({
 });
 assert.equal(weekly.distributableDrops, 600000);
 assert.equal(weekly.status, 'draft');
-assert.equal(weekly.allocations.find(x => x.acct === 'rOwnerA').weight, 4, 'multiple properties combine into one owner weight');
+assert.equal(weekly.allocations.find(x => x.acct === 'rOwnerA').weight, 26, 'multiple properties combine into one owner weight');
 assert.equal(weekly.allocations.reduce((n, x) => n + x.amountDrops, 0), 600000, 'weekly allocations reconcile exactly');
 assert.equal(weekly.ownershipCount, 4);
 assert.equal(weekly.ownershipHash.length, 64);

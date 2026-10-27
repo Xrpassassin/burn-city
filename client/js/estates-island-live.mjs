@@ -76,15 +76,15 @@ function addDistantCityVista(THREE, root) {
   const seedHeights=[23,38,17,54,31,46,22,63,28,40,19,35,57,25,42,30];
   const geometry=new THREE.BoxGeometry(1,1,1);
   for(let i=0;i<seedHeights.length;i++){
-    const height=seedHeights[i], x=-275+i*26;
+    const height=seedHeights[i], z=-195+i*26;
     const tower=new THREE.Mesh(geometry,material);
     tower.name='city-skyline-'+i;
-    tower.position.set(x,height/2-1,-390);
+    tower.position.set(-390,height/2-1,z);
     tower.scale.set(15+(i%3)*5,height,13);
     vista.add(tower);
     if(i%3===0){
       const beacon=new THREE.Mesh(geometry,windowMat);
-      beacon.position.set(x,height+1,-390); beacon.scale.set(1.5,2,1.5);
+      beacon.position.set(-390,height+1,z); beacon.scale.set(1.5,2,1.5);
       vista.add(beacon);
     }
   }

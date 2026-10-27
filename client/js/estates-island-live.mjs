@@ -68,13 +68,14 @@ function addBridgeArchitecture(THREE, root) {
 }
 
 export async function installEstatesIslandLive({
-  THREE, scene, player, avatar, camera, getYaw, setYaw, getMode, setMode,
+  THREE, scene, player, avatar, camera, getYaw, setYaw, getMode, setMode, buildWalker, poseWalker,
   isInteractPressed = () => false,
   cityGate = CITY_GATE,
   onStatus = () => {}
 } = {}) {
   if (!THREE || !scene || !player?.pos || !avatar || !camera || typeof getYaw !== 'function' ||
-      typeof getMode !== 'function' || typeof setMode !== 'function' || typeof setYaw !== 'function') {
+      typeof getMode !== 'function' || typeof setMode !== 'function' || typeof setYaw !== 'function' ||
+      typeof buildWalker !== 'function' || typeof poseWalker !== 'function') {
     throw new TypeError('Live Estates Island host dependencies are incomplete');
   }
   if (![cityGate?.x,cityGate?.z].every(finite)) throw new TypeError('Estates city entrance must have finite coordinates');
@@ -182,6 +183,8 @@ export async function installEstatesIslandLive({
   });
 
   let returnPosition = null, entering = false, leaseToken = null, heartbeatTimer = null;
+  let presenceSocket=null, presenceTimer=null, reconnectTimer=null, presenceStopped=true;
+  const remotePeers=new Map();
   const apiBase = new URLSearchParams(location.search).get('citysrv') ||
     (/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   async function leaseRequest(action, payload, keepalive=false) {
@@ -193,7 +196,51 @@ export async function installEstatesIslandLive({
     if(!response.ok || !result.ok) throw new Error(result.error || 'instance_unavailable');
     return result;
   }
+  function clearPeers(){for(const peer of remotePeers.values())root.remove(peer.mesh);remotePeers.clear();}
+  function stopPresence(){
+    presenceStopped=true;
+    if(presenceTimer!==null)clearInterval(presenceTimer);presenceTimer=null;
+    if(reconnectTimer!==null)clearTimeout(reconnectTimer);reconnectTimer=null;
+    const socket=presenceSocket;presenceSocket=null;
+    if(socket&&socket.readyState<2){socket.onclose=null;socket.close();}
+    clearPeers();
+  }
+  function updatePeer(id,p){
+    if(!Number.isSafeInteger(id)||!p||![p.x,p.y,p.z,p.r].every(finite))return;
+    let peer=remotePeers.get(id);
+    if(!peer){const mesh=buildWalker({lite:!!window.__city?.MOBILE});root.add(mesh);peer={mesh,x:p.x,y:p.y,z:p.z,r:p.r,phase:0};mesh.position.set(p.x,p.y,p.z);remotePeers.set(id,peer);}
+    Object.assign(peer,{x:p.x,y:p.y,z:p.z,r:p.r});
+  }
+  function connectPresence(token,instanceId){
+    stopPresence();presenceStopped=false;
+    const connect=()=>{
+      if(presenceStopped||disposed||!active||leaseToken!==token)return;
+      const url=new URL(apiBase);url.protocol=url.protocol==='https:'?'wss:':'ws:';url.pathname='/';url.search='';
+      url.searchParams.set('mode','estates');url.searchParams.set('lease',token);
+      let socket;try{socket=new WebSocket(url.toString());}catch{reconnectTimer=setTimeout(connect,2000);return;}
+      presenceSocket=socket;
+      socket.onopen=()=>{if(presenceSocket!==socket||presenceStopped){socket.close();return;}
+        presenceTimer=setInterval(()=>{if(socket.readyState===WebSocket.OPEN&&active)socket.send(JSON.stringify({t:'p',x:player.pos.x-OFFSET_X,y:player.pos.y,z:player.pos.z,r:avatar.rotation.y}));},125);
+      };
+      socket.onmessage=event=>{let msg;try{msg=JSON.parse(event.data);}catch{return;}
+        if(msg.t==='w'&&msg.instanceId===instanceId&&Array.isArray(msg.peers)){clearPeers();for(const peer of msg.peers)updatePeer(peer.id,peer);}
+        else if(msg.t==='j'||msg.t==='p')updatePeer(msg.id,msg);
+        else if(msg.t==='l'){const peer=remotePeers.get(msg.id);if(peer){root.remove(peer.mesh);remotePeers.delete(msg.id);}}
+      };
+      socket.onclose=event=>{if(presenceSocket!==socket)return;presenceSocket=null;if(presenceTimer!==null)clearInterval(presenceTimer);presenceTimer=null;clearPeers();
+        if(!presenceStopped&&active&&leaseToken===token&&event.code!==1008)reconnectTimer=setTimeout(connect,2000);
+      };
+      socket.onerror=()=>{};
+    };connect();
+  }
+  function animatePeers(dt){for(const peer of remotePeers.values()){
+    const alpha=1-Math.exp(-Math.min(.1,Math.max(0,dt))*12),p=peer.mesh.position;
+    const dx=peer.x-p.x,dz=peer.z-p.z,moving=Math.hypot(dx,dz)>.04;
+    p.x+=dx*alpha;p.y+=(peer.y-p.y)*alpha;p.z+=dz*alpha;peer.mesh.rotation.y=peer.r;
+    if(moving)peer.phase+=dt*9;poseWalker(peer.mesh,peer.phase,moving?.8:0,performance.now()/1000);
+  }}
   function releaseLease() {
+    stopPresence();
     if(heartbeatTimer!==null){clearInterval(heartbeatTimer);heartbeatTimer=null;}
     const token=leaseToken;leaseToken=null;
     if(token) void leaseRequest('leave',{leaseToken:token},true).catch(()=>{});
@@ -223,12 +270,14 @@ export async function installEstatesIslandLive({
     },30000);
     returnPosition = {x:player.pos.x,y:player.pos.y,z:player.pos.z};
     active=true; root.visible=true; nearCityGate=false; hidePanel();
+    window.__estatesCityPresencePaused=true;window.__cityNet?.setPaused(true);
     if(getMode()!=='explore') setMode('explore');
     player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);
     player.fp=false;
     setYaw(-Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
     avatar.position.copy(player.pos);
+    connectPresence(leaseToken,admission.instanceId);
     onStatus({state:'entered-public-island',instanceId:admission.instanceId,catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
   }
   function leaveIsland() {
@@ -241,6 +290,7 @@ export async function installEstatesIslandLive({
     setYaw(Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
     avatar.position.copy(player.pos);
+    window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false);
     onStatus({state:'returned-to-city'});
   }
   // A fresh controller is required after returning because dispose is intentionally final.
@@ -259,6 +309,7 @@ export async function installEstatesIslandLive({
       if(edge&&near) { enterIsland(); return true; }
       return false;
     }
+    animatePeers(dt);
     // Rebuild controller after its previous instance was disposed on exit.
     if(!controllerRef.isActive) {
       controllerRef=createEstatesIslandController({
@@ -294,7 +345,7 @@ export async function installEstatesIslandLive({
     tick,
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
-      if(disposed)return false; disposed=true; releaseLease(); hidePanel(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false; disposed=true; releaseLease(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },

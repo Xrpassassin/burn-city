@@ -11,6 +11,17 @@ assert(Math.hypot(resume.x,resume.z)<=0.720000001,'resume after a background pau
 const idle=islandMoveDelta({dt:1,yaw:0,moveX:0,moveZ:0},7.2);
 assert.equal(Math.hypot(idle.x,idle.z),0,'idle input must not drift');
 
+for (const bad of [
+  {dt:NaN,yaw:0,moveX:1,moveZ:0},
+  {dt:Infinity,yaw:0,moveX:1,moveZ:0},
+  {dt:1/60,yaw:NaN,moveX:1,moveZ:0},
+  {dt:1/60,yaw:0,moveX:Infinity,moveZ:0},
+  {dt:1/60,yaw:0,moveX:1e308,moveZ:1e308}
+]) {
+  assert.deepEqual(islandMoveDelta(bad,4.5),{x:0,y:0,z:0},'invalid input must not move avatar');
+}
+assert.deepEqual(islandMoveDelta({dt:1/60,yaw:0,moveX:1,moveZ:0},-1),{x:0,y:0,z:0},'negative speed must not move avatar');
+
 const app = await readFile(new URL('./app.js', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 assert(app.includes("import { installEstatesIslandLive } from './estates-island-live.mjs';"), 'app imports live integration');

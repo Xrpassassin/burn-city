@@ -26,7 +26,7 @@ async function scanIssuerReturns({ rpc, issuer, currency, launchSupply, fromLedg
         const ledgerIndex = tx?.ledger_index ?? item?.ledger_index;
         if (!tx || !isLedger(ledgerIndex) || ledgerIndex < fromLedger || ledgerIndex > toLedger)
           throw Error('transaction missing or outside pinned ledger range');
-        transactions.push({ ...item, validated: item.validated === true && r.validated === true, tx: { ...tx, ledger_index: ledgerIndex } });
+        transactions.push({ ...item, validated: item.validated === true && r.validated === true, tx: { ...tx, hash: tx.hash || item.hash, ledger_index: ledgerIndex } });
       }
       pages++;
       const next = r.marker;

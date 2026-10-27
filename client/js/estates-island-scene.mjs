@@ -1,3 +1,4 @@
+import {buildEstatesLakeFishingSpots} from './estates-lake-fishing.mjs';
 // Renderer-agnostic 3D scene manifest for the shared Estates island.
 // A renderer converts descriptors to engine-specific meshes, colliders, and materials.
 const DISTRICTS = [
@@ -83,7 +84,13 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
       message:'This trailhead marks the public woodland edge. Trees are decorative blockouts for now; gathering, crafting, and wildlife systems are not yet connected here.'
     })
   ];
-  const objects=[...terrain,...roads,...access,...lots,...vegetation,...landmarks];
+  const fishingSpots=buildEstatesLakeFishingSpots({lots});
+  const fishingAccess=fishingSpots.filter(spot=>spot.kind==='public-dock'&&spot.id!=='estates-public-dock').map(spot=>
+    descriptor(spot.id,'dock',point(spot.position.x,0.24,spot.position.z),
+      {width:7,length:13,height:0.4},'timber',
+      {orientation:Math.abs(spot.position.x)>Math.abs(spot.position.z)?'x':'z',
+       fishingSpotId:spot.id,shore:spot.shore,access:spot.access,walkable:true,boatsEnabled:false}));
+  const objects=[...terrain,...roads,...access,...fishingAccess,...lots,...vegetation,...landmarks];
   const ids=objects.map(o=>o.id);
   if(new Set(ids).size!==ids.length) throw new Error('scene object IDs must be unique');
   if(lots.some(l=>Math.abs(l.position.x)>105||Math.abs(l.position.z)>112)) throw new Error('lot outside buildable island bounds');
@@ -92,7 +99,7 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
     topology:{islandSurroundedByContinuousLake:true,lakeRing:true,walkableShoreline:true,waterCollision:true,swimmingEnabled:false,boatsEnabled:false},
     districts:DISTRICTS,spawn:point(0,0.1,123),returnAnchor:'estates-island-entrance',
     bounds:{minX:-145,maxX:145,minZ:-155,maxZ:155},
-    terrain:Object.freeze(terrain),access:Object.freeze(access),roads:Object.freeze(roads),lots:Object.freeze(lots),vegetation:Object.freeze(vegetation),landmarks:Object.freeze(landmarks),objects:Object.freeze(objects)
+    fishingSpots,terrain:Object.freeze(terrain),access:Object.freeze([...access,...fishingAccess]),roads:Object.freeze(roads),lots:Object.freeze(lots),vegetation:Object.freeze(vegetation),landmarks:Object.freeze(landmarks),objects:Object.freeze(objects)
   });
 }
 

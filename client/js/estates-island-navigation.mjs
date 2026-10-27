@@ -84,6 +84,20 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
     return false;
   }
   function isBlocked(x,z) { return !onWalkableLand(x,z) || collides(x,z); }
+  // Keep public destinations discoverable without promising that arbitrary straight lines
+  // are traversable. A destination's accessible perimeter is sampled deterministically.
+  function accessibleApproach({x,z},clearance=3) {
+    if(!finite(x)||!finite(z)||!finite(clearance)||clearance<=0) throw new TypeError('invalid approach target');
+    if(!isBlocked(x,z)) return Object.freeze({x,y:0,z});
+    for(let ring=clearance;ring<=clearance+12;ring+=1) {
+      for(let i=0;i<32;i++) {
+        const angle=i*Math.PI/16;
+        const px=x+Math.cos(angle)*ring,pz=z+Math.sin(angle)*ring;
+        if(!isBlocked(px,pz)) return Object.freeze({x:px,y:0,z:pz});
+      }
+    }
+    return null;
+  }
 
   function move(position, delta) {
     validPoint(position,'position'); validPoint(delta,'delta');
@@ -106,7 +120,12 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
     if(!finite(interactionRadius)||interactionRadius<=0) throw new TypeError('interactionRadius must be positive');
     let best=null,bestD=interactionRadius;
     for(const lot of manifest.lots) {
-      const d=Math.hypot(position.x-lot.position.x,position.z-lot.position.z);
+      // Interact from the accessible edge of the building, not its blocked centre.
+      // Large mansions must be inspectable without walking through their colliders.
+      const footprint=lot.buildingFootprint;
+      const dx=Math.max(0,Math.abs(position.x-lot.position.x)-(footprint?.width??0)/2);
+      const dz=Math.max(0,Math.abs(position.z-lot.position.z)-(footprint?.depth??0)/2);
+      const d=Math.hypot(dx,dz);
       if(d<=bestD){best=lot;bestD=d;}
     }
     if(!best)return null;
@@ -123,7 +142,7 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
   }
 
   return Object.freeze({
-    move, nearbyProperty, isWalkable,
+    move, nearbyProperty, isWalkable, accessibleApproach,
     get collisionCount(){return buildings.length+trees.length+landmarkBlockers.length;},
     get buildingColliderCount(){return buildings.length;},
     get treeColliderCount(){return trees.length;},

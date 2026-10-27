@@ -1,3 +1,5 @@
+import {resolveLakeCast,estatesLakeWaterAt} from './lake-casting-geometry.mjs';
+import {nearbyEstatesFishingSpot} from './estates-lake-fishing-adapter.mjs';
 // Lake fishing: dock + Tackle & Bait shop, cast / bobber / bite / reel minigame, fish log.
 // Lake coins are a free in-game score: NO real value, cannot be bought with XRP, cannot be withdrawn.
 // Signed in: server rolls + stores progress (anti-script limits). Guests: same rules locally (localStorage).
@@ -220,8 +222,15 @@ async function castAt(pow) {
   if (state !== 'aim') return; const gen = ++castGen; if (bait !== 'worm' && !(prof.bait[bait] > 0)) bait = 'worm';   // used up: fall back to worms (the server does the same)
   const c = W(), e = window.__estate, fw = new THREE.Vector3(); c.C.getWorldDirection(fw); fw.y = 0; fw.normalize();
   const from = isAboard() ? window.__boat.pos : c.P.pos, perfect = pow >= .72 && pow <= .86; let dist = 6 + 20 * pow, tgt = from.clone().addScaledVector(fw, dist);
-  while (dist > 4 && !e.inLake(tgt.x, tgt.z)) { dist -= 1; tgt = from.clone().addScaledVector(fw, dist) }
-  if (!e.inLake(tgt.x, tgt.z)) { tgt = from.clone(); for (let k = 0; k < 40 && !e.inLake(tgt.x, tgt.z); k++) tgt.addScaledVector(e.dir, 1); tgt.addScaledVector(e.dir, 3 + 6 * pow) }
+  const estatesActive=Boolean(window.__estatesIslandLive?.active);
+  if(estatesActive){
+    const target=resolveLakeCast({origin:from,direction:fw,power:pow,inWater:(x,z)=>estatesLakeWaterAt({x,z})});
+    if(!target){state='idle';ui.style.display='none';return;}
+    dist=target.distance;tgt.set(target.x,from.y,target.z);
+  } else {
+    while (dist > 4 && !e.inLake(tgt.x, tgt.z)) { dist -= 1; tgt = from.clone().addScaledVector(fw, dist) }
+    if (!e.inLake(tgt.x, tgt.z)) { tgt = from.clone(); for (let k = 0; k < 40 && !e.inLake(tgt.x, tgt.z); k++) tgt.addScaledVector(e.dir, 1); tgt.addScaledVector(e.dir, 3 + 6 * pow) }
+  }
   const spotDistance = feedingSpots.reduce((best, s) => Math.min(best, Math.hypot(tgt.x - s.p.x, tgt.z - s.p.z)), Infinity);
   const activityBonus = feedingSpotBonus(spotDistance, 9), activeFeeding = activityBonus > 1;
   state = 'wait'; rod.swing = 1; rod.tip.getWorldPosition(castFrom); castTo.copy(tgt).setY(0.45); bobber.position.copy(castFrom); bobber.visible = true; FL.t0 = performance.now() / 1000 + .28; FL.dur = .55 + dist / 32; FL.h = 2 + dist * .16; FL.on = 1; ui.style.display = 'block';
@@ -362,7 +371,11 @@ function tick() { requestAnimationFrame(tick); if (window.__cityPaused) return; 
     s.mesh.material.opacity = 0.18 + 0.12 * (0.5 + 0.5 * Math.sin(t * 2.8 + i));
   });
   const nearDock = p.distanceTo(dock.tip) < 6 || (p.distanceTo(dock.base) < 22 && Math.abs(p.clone().sub(dock.base).dot(dock.side)) < 3), shore = !e.inLake(p.x, p.z) && e.inLake(p.x, p.z, 4);
-  const canFish = walk && (nearDock || shore || isAboard()); FISHOK = canFish; const nearShop = walk && !isAboard() && p.distanceTo(shopPos) < 10;
+  const island=window.__estatesIslandLive;
+  const estateSpot=island?.active?nearbyEstatesFishingSpot({
+    spots:island.manifest.fishingSpots??[],position:{x:p.x-650,z:p.z},activeIsland:true
+  }):null;
+  const canFish = walk && (island?.active ? Boolean(estateSpot) : (nearDock || shore || isAboard())); FISHOK = canFish; const nearShop = walk && !isAboard() && p.distanceTo(shopPos) < 10;
   bar.style.display = canFish || nearShop ? 'flex' : 'none'; bar.querySelector('#fCast').style.display = canFish ? '' : 'none'; bar.querySelector('#fShop').style.display = nearShop ? '' : 'none';
   if (!canFish && state !== 'idle' && !isAboard()) stop();
   { const show = canFish || state !== 'idle' || rod.lift > 0; rod.rg.visible = show; const lk = ROD_LOOK[prof.rod] || ROD_LOOK.basic; rod.rm.color.setHex(lk[0]); rod.rm.emissive.setHex(lk[1]); rod.rm.emissiveIntensity = lk[1] ? .6 + .3 * Math.sin(t * 3) : 0;

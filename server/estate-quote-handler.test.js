@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {handleEstateQuote}=require('./estate-quote-handler');
+assert.deepEqual(handleEstateQuote({wallet:'',propertyId:'trailer-01'}),{status:401,body:{error:'sign_in_with_xaman'}});
+assert.deepEqual(handleEstateQuote({wallet:'rA',propertyId:'not-real'}),{status:404,body:{error:'unknown_property'}});
+const q=handleEstateQuote({wallet:'rA',propertyId:'starter-01',ownedPropertyIds:['starter-02'],reservedPropertyIds:['starter-03','starter-04','cabin-01','cabin-02']});
+assert.equal(q.status,200);
+assert.equal(q.body.priceDrops,75000000);
+assert.equal(q.body.allocationUnits,25);
+assert.equal(q.body.capacity.used,5);
+assert.equal(q.body.capacity.remaining,0);
+assert.equal(q.body.capacity.eligible,false);
+assert.equal(q.body.canPurchase,false);
+assert.equal(q.body.reason,'sales_not_configured');
+const open=handleEstateQuote({wallet:'rB',propertyId:'mansion-01'});
+assert.equal(open.body.capacity.remaining,5);
+assert.equal(open.body.canPurchase,false);
+console.log('Estate quote handler tests passed');

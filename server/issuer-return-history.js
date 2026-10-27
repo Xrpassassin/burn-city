@@ -55,6 +55,12 @@ function summarizeIssuerReturns({ issuer, currency, launchSupply, transactions, 
           currencyMatches(tx.DeliverMax.currency, currency))) &&
         (meta.delivered_amount == null && meta.DeliveredAmount == null ||
          meta.delivered_amount === 'unavailable')) { bad++; continue; }
+    const delivered = meta?.delivered_amount ?? meta?.DeliveredAmount;
+    if (tx.TransactionType === 'Payment' && tx.Destination === issuer &&
+        meta?.TransactionResult === 'tesSUCCESS' && delivered &&
+        typeof delivered === 'object' && delivered.issuer === issuer &&
+        currencyMatches(delivered.currency, currency) &&
+        decimalUnits(delivered.value) === null) { bad++; continue; }
     if (!isIssuerReturn(tx, meta, issuer, currency)) continue;
     sum += decimalUnits((meta.delivered_amount ?? meta.DeliveredAmount).value).units;
     count++;

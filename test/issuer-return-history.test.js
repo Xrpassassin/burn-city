@@ -20,4 +20,5 @@ assert.equal(calc([{ ...tx('a', '1'), validated: false }]).status, 'unverified')
 assert.equal(calc([{ ...tx('a', '1'), meta: { TransactionResult: 'tecPATH_DRY' } }]).burned, '0');
 assert.equal(calc([tx('a', '1000000000000001')]).status, 'unverified');
 assert.equal(calc([tx('a', '0.000000000000001')]).burned, '0.000000000000001');
+assert.equal(calc([{ ...tx('missing', '1'), tx: { ...tx('missing', '1').tx, Amount: { issuer, currency, value: '1' } }, meta: { TransactionResult: 'tesSUCCESS' } }]).status, 'unverified');
 console.log('issuer-return-history: all tests passed');

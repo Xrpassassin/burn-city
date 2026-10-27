@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {ESTATES_CITY_MARINE_GATE,mapEstatesDepartureToCity,mapCityReturnToEstates} from './estates-marine-gateway.mjs';
+import {onLake} from './estates-lake-boating.mjs';
+const boat={boatId:'boat-1',heading:Math.PI/2,speed:4,passengerIds:['wallet-a','wallet-b']};
+const out=mapEstatesDepartureToCity(boat),back=mapCityReturnToEstates(boat);
+assert.equal(out.destination,'burn-city');
+assert.equal(back.destination,'estates-island');
+assert(onLake(back.arrival.x,back.arrival.z));
+assert.equal(out.heading,boat.heading);
+assert.equal(back.speed,boat.speed);
+assert.deepEqual(out.passengerIds,boat.passengerIds);
+assert.equal(ESTATES_CITY_MARINE_GATE.id,out.gatewayId);
+assert.equal(mapEstatesDepartureToCity({...boat,speed:-1}),null);
+console.log('Paired Estates maritime gateway contract passed');

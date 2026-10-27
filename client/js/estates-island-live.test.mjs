@@ -37,6 +37,10 @@ assert(live.includes("await leaseRequest('enter',{clientId})"), 'island activati
 assert(live.includes("leaseRequest('heartbeat',{leaseToken:token})"), 'active admission is refreshed');
 assert(live.includes("leaseRequest('leave',{leaseToken:token},true)"), 'exit releases the admission');
 assert(live.indexOf("await leaseRequest('enter',{clientId})") < live.indexOf('active=true; root.visible=true'), 'the island is revealed only after admission');
+assert(live.includes('window.__cityNet?.setPaused(true)'), 'entry pauses city presence');
+assert(live.includes('window.__cityNet?.setPaused(false)'), 'exit resumes city presence');
+assert(live.includes('connectPresence(leaseToken,admission.instanceId)'), 'admitted visitors connect to island presence');
+assert(live.includes('stopPresence();'), 'island presence is closed on release');
 assert(live.includes('active=false; root.visible=false; hidePanel(); controllerRef.dispose();'), 'exit hides island and disposes active controller');
 assert(live.includes('root.visible = false'), 'island should be hidden in city');
 assert(live.includes('active=true; root.visible=true'), 'entering island must reveal scene');

@@ -39,6 +39,11 @@ function fixture(bridges, N) {
   return { v: 1, ts: now, fixture: true, pools: P, tokens: T };
 }
 
+// A fixed-size BURN marker signals a verified inaccessible issuer; it is not a
+// burn percentage. A complete issuer-return history is still required for that.
+export function burnIssuerMarker(key, issuerVerified, fresh) {
+  return key === 'rwgNTwrsZKPe7xYCy4emjFAYpgnuioHSkd-4255524E00000000000000000000000000000000' && issuerVerified === true && fresh === true;
+}
 export function initAmmLock(c) {
   const { THREE, S, bridges, N, U, anim, TIER, MOBILE, pick } = c, Q = new URLSearchParams(location.search), TEST = Q.has('locktest'), DBG = /[?&]debug=1/.test(location.search);
   const LOW = TIER === 'low', RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -73,7 +78,7 @@ export function initAmmLock(c) {
   const pickMat = new THREE.MeshBasicMaterial({ visible: false }), pickGeo = new THREE.SphereGeometry(1, 8, 6), pickers = {};
   // city centre for the outward offset (singularities sit on the far side of each tower from the hub, at street level: apart from every rail)
   const cx = tokNames.reduce((s, k) => s + N[k].pos.x, 0) / Math.max(1, tokNames.length), cz = tokNames.reduce((s, k) => s + N[k].pos.z, 0) / Math.max(1, tokNames.length);
-  const singPos = (n, R, out) => { const dx = n.pos.x - cx, dz = n.pos.z - cz, l = Math.hypot(dx, dz) || 1, d = (n.w || 4) * 1.5 + R + 2.5; return out.set(n.pos.x + dx / l * d, R + 4.5, n.pos.z + dz / l * d); };
+  const singPos = (n, R, out) => out.set(n.pos.x, (n.top || n.h || 0) + R + 12, n.pos.z);
   const singR = f => 1.1 + 3.4 * Math.sqrt(Math.min(1, f));
 
   // ---- 3) particles: one Points draw, shader-driven ----
@@ -92,7 +97,11 @@ export function initAmmLock(c) {
   const poolOf = b => st.data && st.data.pools ? st.data.pools[b.p.amm] : null;
   const fresh = o => o && (st.data && st.data.fixture || Date.now() - (o.t_ms != null ? o.t_ms : Date.parse(o.ts)) <= STALE_MS);
   const poolView = b => { const o = poolOf(b); if (!o || !fresh(o) || o.status === 'unverified') return { st: 'unverified', o, perm: 0, tl: 0 }; return { st: 'verified', o, perm: (o.locked_pct || 0) / 100, tl: (o.time_locked_pct || 0) / 100 }; };
-  const tokOf = k => { const o = st.data && st.data.tokens ? st.data.tokens[k] : null; if (!o || !fresh(o) || o.status === 'unverified' || o.burned_pct == null) return { st: 'unverified', o, f: 0 }; return { st: o.status, o, f: o.burned_pct / 100 }; };
+  const tokOf = k => { const o = st.data && st.data.tokens ? st.data.tokens[k] : null;
+    if(st.data?.fixture){if(!o||!fresh(o)||o.status==='unverified'||o.burned_pct==null)return {st:'unverified',o,f:0};return {st:o.status,o,f:o.burned_pct/100};}
+    if(burnIssuerMarker(N[k]?.key,o?.issuer_keys_disabled,!!fresh(o)))return {st:'history_pending',o,f:0.08};
+    return {st:'unverified',o,f:0};
+  };
 
   function apply() {
     bridges.forEach((b, i) => { const v = poolView(b), M = mids[i], vis = b.group.visible;
@@ -137,6 +146,11 @@ export function initAmmLock(c) {
   }
   function tokHTML(k) {
     const v = tokOf(k), o = v.o, stale = o && !fresh(o), n = N[k]; const rows = [['Burn status', badge(v.st, stale)]];
+    if(!st.data?.fixture){
+      const issuer=o&&fresh(o)&&o.issuer_keys_disabled===true?'Verified inaccessible issuer':'Issuer not verified';
+      const baseline=n?.key==='rwgNTwrsZKPe7xYCy4emjFAYpgnuioHSkd-4255524E00000000000000000000000000000000'?'1,000,000,000,000,000 BURN (project-reported launch supply)':'Not established';
+      return `<div class="amml"><h3>🕳 Issuer return history</h3><p>${issuer}. Launch supply: ${baseline}.</p><p>Complete issuer-return history has not been verified. The fixed-size marker does not represent a percentage. Tokens in other black-holed wallets are not included.</p></div>`;
+    }
     if (o && v.st !== 'unverified') rows.push(['Burned / inaccessible', `<b style="color:#b98cff">${fmtN(o.burned)} ${esc(k)}</b> · ${pctS(o.burned_pct)} of total supply${v.st === 'partial' ? ' <span class="dim">(at least)</span>' : ''}`]);
     else rows.push(['Burned / inaccessible', '<b>not verified</b>' + (o && o.burned_min > 0 ? ` · at least ${fmtN(o.burned_min)}` : '')]);
     if (o && o.supply != null) rows.push(['Total supply (denominator)', `${fmtN(o.supply)} <span class="dim">${esc(o.supply_src)}</span>`]);
@@ -152,7 +166,7 @@ export function initAmmLock(c) {
     lpText(p) { const b = bridges.find(x => x.p === p); const v = b ? poolView(b) : null; return v && v.st === 'verified' ? pctS(v.o.locked_pct) + ' verified' : pctS(+p.locked_pct || 0) + ' reported · unverified'; },
     card(box, u) { if (!box || !u) return; let h = ''; if (u.pool && !u.node) h = poolHTML(u.pool); else if (u.node && !u.lot && tokNames.includes(u.node.name)) h = tokHTML(u.node.name); if (h) box.insertAdjacentHTML('beforeend', h); },
     open(u) { const box = document.getElementById('info'); if (!box || !u.token) return; box.innerHTML = `<button class="x" aria-label="Close">✕</button><h2>${esc(u.token)} · black hole</h2>` + tokHTML(u.token); box.classList.remove('v2'); box.style.display = 'block'; box.scrollTop = 0; box.querySelector('.x').onclick = () => box.style.display = 'none'; },
-    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + ' of supply burned'} · tap for details`; },
+    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.st === 'history_pending' ? 'issuer verified; return history pending' : v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + ' of supply burned'} · tap for details`; },
     view: (DBG || TEST) ? () => ({ pools: bridges.map((b, i) => { const v = poolView(b); return { pair: b.p.a + '/' + b.p.b, amm: b.p.amm, st: v.st, perm: v.perm, tl: v.tl, shown: halos.instanceMatrix.array[i * 16] !== 0 || halos.instanceMatrix.array[i * 16 + 1] !== 0, mid: mids[i].p.toArray(), R: mids[i].R }; }),
       tokens: tokNames.map((k, i) => { const v = tokOf(k); return { token: k, st: v.st, f: v.f, pos: pickers[k] && v.f > 0 ? pickers[k].position.toArray() : null }; }) }) : undefined,
     objs: (DBG || TEST) ? [halos, sing, pts].filter(Boolean) : undefined,

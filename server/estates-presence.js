@@ -5,10 +5,10 @@
 const rooms = new Map();
 let nextPeerId = 1;
 const MAX_POSITION = 240;
-const MAX_Y = 20;
+const MAX_Y = 185; // City jetpack ceiling is 180 m.
 const MIN_Y = -2;
-const MAX_HORIZONTAL_SPEED = 8.5; // metres/second; includes the current sprint speed plus modest jitter
-const MAX_VERTICAL_STEP = 1.25;
+const MAX_HORIZONTAL_SPEED = 28; // Includes the existing jetpack boost speed.
+const MAX_VERTICAL_STEP = 2.5;
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const send = (ws, value) => {
   if (ws.readyState === 1 && ws.bufferedAmount < 32 * 1024) {
@@ -22,7 +22,7 @@ function isPlausibleStep(previous, next, elapsedMs) {
   const horizontal = Math.hypot(dx, dz);
   const horizontalAllowance = Math.max(1.1, elapsed * MAX_HORIZONTAL_SPEED + .45);
   // Estates traversal is grounded: reject vertical position spoofing rather than relaying it.
-  return horizontal <= horizontalAllowance && Math.abs(dy) <= Math.min(MAX_VERTICAL_STEP, Math.max(.35, elapsed * 4 + .15));
+  return horizontal <= horizontalAllowance && Math.abs(dy) <= Math.min(MAX_VERTICAL_STEP, Math.max(.35, elapsed * 11 + .15));
 }
 const cleanPosition = value => {
   if (!value || typeof value !== 'object') return null;

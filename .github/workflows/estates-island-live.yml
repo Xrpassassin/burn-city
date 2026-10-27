@@ -27,6 +27,9 @@ jobs:
           node client/js/experience-instance-pool.test.mjs
       - name: Test Estates entry and scene contracts
         run: |
+          node server/estates-instance.test.js
+          node client/js/estates-city-lake-geometry.test.mjs
+          node client/js/lake-casting-geometry.test.mjs
           node client/js/estates-island-scene.test.mjs
           node client/js/estates-island-renderer.test.mjs
           node client/js/estates-island-runtime.test.mjs

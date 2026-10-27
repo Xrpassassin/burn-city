@@ -103,7 +103,7 @@ function renderFoot(){foot.replaceChildren();
   else{const a=el('a','csign','Sign in with XAMAN to chat');a.href='social/';foot.append(a,el('div','dim cnote','Guests can watch. Be kind: messages are moderated.'))}}
 renderFoot();
 
-function connect(){if(ws||document.hidden)return;/* new session: ids restart after a server restart, so forget every old id->NFT mapping and marker */for(const id of [...peers.keys()])drop(id);nfts.clear();const t=token();try{ws=new WebSocket(WS+(t?'&token='+encodeURIComponent(t):''))}catch(e){return later()}
+function connect(){if(ws||document.hidden||window.__estatesCityPresencePaused)return;/* new session: ids restart after a server restart, so forget every old id->NFT mapping and marker */for(const id of [...peers.keys()])drop(id);nfts.clear();const t=token();try{ws=new WebSocket(WS+(t?'&token='+encodeURIComponent(t):''))}catch(e){return later()}
   ws.onopen=()=>{retry=0;panel.classList.add('on')};
   ws.onmessage=onMsg=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
     if(m.t==='w'){myId=m.id;canChat=m.canChat;window.__myName=m.name||'';window.__jetOK=!!m.jet;if(m.name){window.__myColor=colOf(m.name);dispatchEvent(new CustomEvent('bc-mycolor',{detail:window.__myColor}))}log.replaceChildren();(m.msgs||[]).forEach(x=>addMsg({...x},false));renderFoot();log.scrollTop=log.scrollHeight}
@@ -135,7 +135,11 @@ let fr=0;function loop(now){requestAnimationFrame(loop);const c=W();if(!c||!peer
     p.tag.style.transform=`translate3d(${((_v.x+1)/2*w).toFixed(1)}px,${((1-_v.y)/2*h).toFixed(1)}px,0) translate(-50%,-100%) scale(${Math.max(.75,Math.min(1,160/dist)).toFixed(2)})`}}
 if(/[?&]debug=1/.test(location.search))window.__cityChat={bubble,upsert,peers,me:()=>myId};
 (function boot(){if(!window.__ready||!W())return setTimeout(boot,500);setTimeout(()=>{connect();requestAnimationFrame(loop)},MOB?1500:400)})();
-window.__cityNet={peers,get ws(){return ws},open:setOpen};
+window.__cityNet={peers,get ws(){return ws},open:setOpen,setPaused(paused){
+  window.__estatesCityPresencePaused=Boolean(paused);
+  if(paused){if(ws){ws.onopen=null;ws.onclose=null;ws.onmessage=null;ws.close();ws=null;}online=0;badge();for(const id of [...peers.keys()])drop(id);if(IB)for(const k in IB)IB[k].count=0;}
+  else {lastPos='';lastSend=0;connect();}
+}};
 // ---------- NFT characters (RACC / Firekeepers / 589 Protocol holders) ----------
 const pickBtn=el('button','cnft','🎭 Play as my NFT');pickBtn.hidden=true;pickBtn.type='button';
 NftPick.mount(SRV,{button:pickBtn});

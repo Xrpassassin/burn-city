@@ -50,8 +50,8 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
     descriptor('island-gate','entrance-trigger',point(0,0,132),{radius:5,height:4},'interaction-volume',{prompt:'Enter Estates Island',requiresExplicitConfirmation:true,destinationId:'estates-island',returnAnchor:'estates-island-entrance'})
   ];
   const terrain=[
-    descriptor('island-ground','terrain',point(0,-0.6,0),{width:280,depth:300,height:1.2},'grass',{shape:'rounded-island',walkable:true,collision:true}),
-    descriptor('lake-water','water',point(0,-1.1,0),{width:460,depth:470,height:0.1},'lake-water',{continuousRing:true,shorelineInnerRadius:148,shorelineOuterRadius:234,collision:true,swimmingEnabled:false}),
+    descriptor('island-ground','terrain',point(0,0,0),{width:280,depth:300,height:1.2},'grass',{shape:'rounded-island',walkable:true,collision:true}),
+    descriptor('lake-water','water',point(0,0.05,0),{width:460,depth:470,height:0.1},'lake-water',{continuousRing:true,shorelineInnerRadius:148,shorelineOuterRadius:234,collision:true,swimmingEnabled:false}),
     descriptor('shoreline-rocks','shoreline',point(0,0,0),{innerRadius:139,outerRadius:153,segments:96,height:1.2},'rock-and-reeds',{continuous:true,walkable:true})
   ];
   const vegetation=[];

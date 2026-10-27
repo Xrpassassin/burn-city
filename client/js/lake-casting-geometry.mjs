@@ -12,10 +12,22 @@ export function resolveLakeCast({origin,direction,power=0.5,inWater,maxDistance=
  }
  return null;
 }
-export function estatesLakeWaterAt({x,z,offsetX=650,innerX=140,innerZ=150,outerX=230,outerZ=235}={}){
+// Match the island renderer's RingGeometry (inner = width * .32, outer = width * .5)
+// and its depth/width scale; keeping these in sync avoids casting onto dry ground.
+export function estatesLakeWaterAt({x,z,offsetX=650,innerX=147.2,innerZ=150.4,outerX=230,outerZ=235}={}){
  if(![x,z,offsetX,innerX,innerZ,outerX,outerZ].every(finite))return false;
  const dx=x-offsetX;
  const inner=(dx/innerX)**2+(z/innerZ)**2;
  const outer=(dx/outerX)**2+(z/outerZ)**2;
  return inner>1&&outer<1;
+}
+// Any reachable public shoreline can support fishing, not just named fishing spots.
+export function nearEstatesLakeShore({x,z,offsetX=650,distance=12}={}) {
+ if (![x,z,offsetX,distance].every(finite)||distance<=0) return false;
+ if (estatesLakeWaterAt({x,z,offsetX})) return false;
+ for(let radius=2;radius<=distance;radius+=2) for(let i=0;i<32;i++) {
+  const a=i*Math.PI/16;
+  if(estatesLakeWaterAt({x:x+Math.cos(a)*radius,z:z+Math.sin(a)*radius,offsetX})) return true;
+ }
+ return false;
 }

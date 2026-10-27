@@ -2,6 +2,7 @@
 // Performance-minded procedural architecture: merged geometry and one shader water surface; no external model or texture downloads.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { createEstatesCityLakeGeometry } from './estates-city-lake-geometry.mjs';
 const box = (w, h, d, x, y, z, ry = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); return g.translate(x, y, z); };
 // lake frame: depends only on the district nodes (+ avoid points), so the city layout can test it before the Estates are built
 function lakeFrame(nodes, avoid = []) {
@@ -26,6 +27,10 @@ function lakeFrame(nodes, avoid = []) {
 export function estateLake(nodes, avoid = []) { const f = lakeFrame(nodes, avoid); return (x, z, pad = 0) => f.inside(x, z, f.lakeC, pad); }
 export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], colliders = [], streetMat = null, STRIP = null }) {
   const { best, maxR, dir, side, yaw, hub, cityEdge, D, Wd, rho, loc, inside, k0, lakeC, nearV, farV } = lakeFrame(nodes, avoid);
+  // The small city-view island is a visual proxy. The playable community is reached
+  // only through the separate Estates entry; its footprint is excluded from water.
+  const cityIsland = createEstatesCityLakeGeometry({islandRadiusX:40,islandRadiusZ:22,waterWidth:20});
+  const inCityIsland = (x,z) => {const [u,v]=loc(x,z,lakeC);return cityIsland.isIsland(u,v);};
   const toNear = k0 + D - nearV, toFar = k0 + D + farV, lotC = cityEdge.clone().addScaledVector(dir, toFar + 26 + 65), WW = toFar - toNear, LR = Wd;
   // highway origin: shifted sideways (away from the docks) so it clears the hub district by >= 20 m, then traced back to the nearest ring street
   let HW_OFF = 0, roadO = cityEdge.clone(), hwJoin = null;
@@ -96,10 +101,33 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const NS = low ? 64 : 120, ring = (k, sc = 1) => { const pts = []; for (let i = 0; i < NS; i++) { const a = i / NS * Math.PI * 2, rr = rho(a) * sc; pts.push(new THREE.Vector2(Math.cos(a) * Wd * rr + Math.sign(Math.cos(a)) * k, Math.sin(a) * D * rr + Math.sign(Math.sin(a)) * k)); } return pts; };
   const toWorld = g => { const P = g.attributes.position; for (let i = 0; i < P.count; i++) { const u = P.getX(i), v = P.getY(i); P.setXYZ(i, lakeC.x + side.x * u + dir.x * v, 0, lakeC.z + side.z * u + dir.z * v); } g.computeBoundingSphere(); return g; };
   const lakeShape = new THREE.Shape(ring(0)), shoreShape = new THREE.Shape(ring(11)), edgeShape = new THREE.Shape(ring(1.2)); edgeShape.holes.push(new THREE.Path(ring(-0.6)));
+  const islandHole=[];for(let i=0;i<96;i++){const a=-i/96*Math.PI*2;islandHole.push(new THREE.Vector2(Math.cos(a)*cityIsland.islandRadiusX,Math.sin(a)*cityIsland.islandRadiusZ));}
+  lakeShape.holes.push(new THREE.Path(islandHole));
   const lake = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(lakeShape)), water); lake.position.y = 0.22; lake.renderOrder = 2; G.add(lake);
   const shore = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(shoreShape)), new THREE.MeshBasicMaterial({ color: 0x4a3e2c, side: THREE.DoubleSide, fog: false, transparent: true, depthWrite: false })); shore.position.y = 0.18; shore.renderOrder = 1; G.add(shore);
   const edge = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(edgeShape)), new THREE.MeshBasicMaterial({ color: 0x6fe8ff, transparent: true, opacity: 0.75, fog: false, side: THREE.DoubleSide })); edge.position.y = 0.26; G.add(edge);
   lake.material.side = THREE.DoubleSide;
+  // A compact neighborhood silhouette makes the gateway visible from the city.
+  const proxy=new THREE.Group();proxy.position.copy(lakeC);proxy.rotation.y=yaw;G.add(proxy);
+  const islandGround=new THREE.Mesh(new THREE.CircleGeometry(1,96),new THREE.MeshLambertMaterial({color:0x526d3b}));
+  islandGround.rotation.x=-Math.PI/2;islandGround.scale.set(cityIsland.islandRadiusX,cityIsland.islandRadiusZ,1);islandGround.position.y=.3;proxy.add(islandGround);
+  const proxyWall=new THREE.MeshLambertMaterial({color:0xb4ad98}),proxyRoof=new THREE.MeshLambertMaterial({color:0x50423a});
+  for(const [x,z,w,h,d] of [[-20,-3,9,5,7],[0,4,11,7,8],[19,-2,9,5,7],[-8,-10,6,4,5],[12,10,6,4,5]]){
+    const house=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),proxyWall);house.position.set(x,h/2+.3,z);proxy.add(house);
+    const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*.7,2.1,4),proxyRoof);roof.rotation.y=Math.PI/4;roof.position.set(x,h+1.3,z);proxy.add(roof);
+  }
+  // City-side gateway and a visible bridge indicate that entry is a transition,
+  // not a walkable route onto the small proxy island.
+  const gateOffset=nearV+9,islandEntrance=lakeC.clone().addScaledVector(dir,-gateOffset);
+  const gateway=new THREE.Group();gateway.position.copy(islandEntrance);gateway.rotation.y=yaw;G.add(gateway);
+  const postMat=new THREE.MeshLambertMaterial({color:0x38434b}),lightMat=new THREE.MeshBasicMaterial({color:0xffb45b});
+  for(const x of [-4.5,4.5]){const post=new THREE.Mesh(new THREE.BoxGeometry(.7,6,.7),postMat);post.position.set(x,3,0);gateway.add(post);}
+  const beam=new THREE.Mesh(new THREE.BoxGeometry(9.7,.65,.8),lightMat);beam.position.y=6;gateway.add(beam);
+  const signCanvas=document.createElement('canvas');signCanvas.width=1024;signCanvas.height=256;const sx=signCanvas.getContext('2d');
+  sx.fillStyle='#101b24';sx.fillRect(0,0,1024,256);sx.textAlign='center';sx.fillStyle='#ffe0a2';sx.font='900 76px system-ui,sans-serif';sx.fillText('ESTATES ISLAND',512,105);sx.font='700 48px system-ui,sans-serif';sx.fillText('ENTER HERE',512,185);
+  const gateSign=new THREE.Mesh(new THREE.PlaneGeometry(12,3),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(signCanvas),side:THREE.DoubleSide,toneMapped:false}));gateSign.position.set(0,8,0);gateway.add(gateSign);
+  const gateHit=new THREE.Mesh(new THREE.BoxGeometry(12,8,2),new THREE.MeshBasicMaterial({visible:false}));gateHit.position.set(0,4,0);gateHit.userData={kind:'estate',label:'Enter Estates Island'};gateway.add(gateHit);pick.push(gateHit);
+  const proxyBridge=new THREE.Mesh(new THREE.BoxGeometry(5,.35,Math.max(1,gateOffset-cityIsland.islandRadiusZ)),postMat);proxyBridge.position.set(0,.55,(gateOffset-cityIsland.islandRadiusZ)/2);gateway.add(proxyBridge);
   // ---------- highway + bridge (one merged mesh) + guide-light strip ----------
   const bridgeH = 3, RL = 16, seg = [];   // road along +z in local space; constant height, gentle ramps only at the bridge
   const roadLen = lotC.clone().sub(roadO).dot(dir) - 70, Y0 = streetMat ? -0.05 : 0.2; let w0 = -1, w1 = -1; for (let z = 0; z < roadLen; z += 1) { const q = roadO.clone().addScaledVector(dir, z); if (inside(q.x, q.z, lakeC, 0)) { if (w0 < 0) w0 = z; w1 = z; } }
@@ -435,7 +463,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const sign=new THREE.Mesh(new THREE.PlaneGeometry(74,28),signM); sign.position.set(0,17,-LD/2+8); sign.rotation.y=Math.PI; lot.add(sign);
   merged([box(1.4,18,1.4,-27,9,-LD/2+8),box(1.4,18,1.4,27,9,-LD/2+8)],new THREE.MeshLambertMaterial({color:0x303640}));
   const hitM=new THREE.Mesh(new THREE.BoxGeometry(76,22,3),new THREE.MeshBasicMaterial({visible:false}));
-  hitM.position.set(0,11,-LD/2+8); hitM.userData={kind:'estate',label:'Burn City Estates'}; lot.add(hitM); pick.push(hitM);
+  hitM.position.set(0,11,-LD/2+8); hitM.userData={kind:'estate-legacy',label:'Lakefront Residences'}; lot.add(hitM);
   anim.push(t=>{signM.color.setScalar(.9+.1*Math.sin(t*1.2))});
   // ---------- enterable, furnished residence interiors ----------
   // Interiors are lightweight procedural rooms staged just beyond the visible district.
@@ -658,7 +686,8 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     for(const r of Object.values(interiorRooms)){const d=Math.hypot(p.x-r.exterior.x,p.z-r.exterior.z);if(d<4.5&&(!best||d<best.d))best={d,label:'Enter '+ESTATE_TIER_INFO[r.tier].label,act:()=>window.__estateEnter&&window.__estateEnter(r.id)}}
     return best;
   });
-  return { lakeC, lotC, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
+  const deepC=lakeC.clone().addScaledVector(side,90);
+  return { lakeC, deepC, lotC, islandEntrance, inCityIsland, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad) && !inCityIsland(x,z), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
 }
 const ESTATE_TIER_INFO = { trailer:{label:'Trailer Home',units:1}, apartment:{label:'Apartment Unit',units:2}, starter:{label:'Two-Bedroom Starter Home',units:3}, family:{label:'Four-Bedroom Family Home',units:5}, mansion:{label:'Luxury Lakefront Mansion',units:10} };
 const ESTATE_PLOTS = [{id:'trailer-01',tier:'trailer',address:'Estates Row 01'},{id:'trailer-02',tier:'trailer',address:'Estates Row 02'},{id:'apartment-01',tier:'apartment',address:'Lakeview Apartments'},{id:'starter-01',tier:'starter',address:'Starter Lane 01'},{id:'starter-02',tier:'starter',address:'Starter Lane 02'},{id:'family-01',tier:'family',address:'Family Crescent 01'},{id:'family-02',tier:'family',address:'Family Crescent 02'},{id:'mansion-01',tier:'mansion',address:'Lakefront Estate 01'},{id:'mansion-02',tier:'mansion',address:'Lakefront Estate 02'}];

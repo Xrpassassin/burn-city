@@ -1,4 +1,4 @@
-import {resolveLakeCast,estatesLakeWaterAt} from './lake-casting-geometry.mjs';
+import {resolveLakeCast,estatesLakeWaterAt,nearEstatesLakeShore} from './lake-casting-geometry.mjs';
 import {nearbyEstatesFishingSpot} from './estates-lake-fishing-adapter.mjs';
 // Lake fishing: dock + Tackle & Bait shop, cast / bobber / bite / reel minigame, fish log.
 // Lake coins are a free in-game score: NO real value, cannot be bought with XRP, cannot be withdrawn.
@@ -24,7 +24,7 @@ function roll(rodId, baitId, ctx) { const rt = tier(SHOP.rods, rodId), bt = tier
 const night = () => { const h = (new Date().getUTCHours() + 17) % 24; return h >= 19 || h < 6 };
 const weather = () => { const t = ($('wchip')?.textContent || '').toLowerCase(); return /storm|crash/.test(t) ? 'storm' : /green|rainbow|gold/.test(t) ? 'bull' : '' };
 const isAboard = () => !!(window.__boat && window.__boat.active);
-const isDeep = () => { const b = window.__boat, e = window.__estate, boat = boatById(prof.selectedBoat); if (!b?.active || !e || boat.depth < 1) return false; const p = b.pos; return Math.hypot(p.x - e.lakeC.x, p.z - e.lakeC.z) < e.D * .38 };
+const isDeep = () => { const b = window.__boat, e = window.__estate, boat = boatById(prof.selectedBoat); if (!b?.active || !e || boat.depth < 1) return false; const p = b.pos, center=e.deepC||e.lakeC; return Math.hypot(p.x - center.x, p.z - center.z) < e.D * .38 };
 let prof = (() => { try { return JSON.parse(LS.bcFish || 'null') } catch (e) { return null } })() || { coins: 0, rod: 'basic', rods: ['basic'], bait: { worm: -1 }, log: {}, creel: [], n: 0, xp: 0, boats: ['skiff'], selectedBoat: 'skiff' };
 prof.boats = [...new Set(['skiff', ...(Array.isArray(prof.boats) ? prof.boats.filter(id => BOATS.some(b => b.id === id)) : [])])];
 if (!prof.boats.includes(prof.selectedBoat)) prof.selectedBoat = 'skiff';
@@ -185,6 +185,7 @@ function build() {
   const fm = new THREE.Mesh(new THREE.SphereGeometry(.35, 10, 8).scale(1, .55, 2.1), new THREE.MeshStandardMaterial({ color: 0xc8d0dc, emissive: 0x222222, metalness: .6, roughness: .3 })); fm.visible = false; c.S.add(fm);
   const NDp = 28, dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NDp * 3), 3)); const drops = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xcfefff, size: .22, transparent: true, opacity: .9, depthWrite: false })); drops.frustumCulled = false; drops.visible = false; c.S.add(drops);
   const ring = new THREE.Mesh(new THREE.RingGeometry(.8, 1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xdff6ff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })); ring.visible = false; c.S.add(ring);
+  for(const object of [bobber,line,fm,drops,ring]) object.userData.estatesKeep=true;
   rod = { rg, rm, seg, tip, line, lg, fm, swing: 0, lift: 0, pull: 0, drops, dv: new Float32Array(NDp * 3), ring, from: new THREE.Vector3(), r: 0 };
   window.__fishWorld = { dock, shopPos, shoreAt };
   const decks = window.__decks = window.__decks || []; decks.push({ base, dir, side, v0: -3, v1: 21.6, hw: 2.1, h: 1.2 });
@@ -223,14 +224,9 @@ async function castAt(pow) {
   const c = W(), e = window.__estate, fw = new THREE.Vector3(); c.C.getWorldDirection(fw); fw.y = 0; fw.normalize();
   const from = isAboard() ? window.__boat.pos : c.P.pos, perfect = pow >= .72 && pow <= .86; let dist = 6 + 20 * pow, tgt = from.clone().addScaledVector(fw, dist);
   const estatesActive=Boolean(window.__estatesIslandLive?.active);
-  if(estatesActive){
-    const target=resolveLakeCast({origin:from,direction:fw,power:pow,inWater:(x,z)=>estatesLakeWaterAt({x,z})});
-    if(!target){state='idle';ui.style.display='none';return;}
-    dist=target.distance;tgt.set(target.x,from.y,target.z);
-  } else {
-    while (dist > 4 && !e.inLake(tgt.x, tgt.z)) { dist -= 1; tgt = from.clone().addScaledVector(fw, dist) }
-    if (!e.inLake(tgt.x, tgt.z)) { tgt = from.clone(); for (let k = 0; k < 40 && !e.inLake(tgt.x, tgt.z); k++) tgt.addScaledVector(e.dir, 1); tgt.addScaledVector(e.dir, 3 + 6 * pow) }
-  }
+  const target=resolveLakeCast({origin:from,direction:fw,power:pow,inWater:estatesActive?(x,z)=>estatesLakeWaterAt({x,z}):(x,z)=>e.inLake(x,z)});
+  if(!target){state='idle';ui.style.display='none';msg('Aim toward open water to cast.');return;}
+  dist=target.distance;tgt.set(target.x,from.y,target.z);
   const spotDistance = feedingSpots.reduce((best, s) => Math.min(best, Math.hypot(tgt.x - s.p.x, tgt.z - s.p.z)), Infinity);
   const activityBonus = feedingSpotBonus(spotDistance, 9), activeFeeding = activityBonus > 1;
   state = 'wait'; rod.swing = 1; rod.tip.getWorldPosition(castFrom); castTo.copy(tgt).setY(0.45); bobber.position.copy(castFrom); bobber.visible = true; FL.t0 = performance.now() / 1000 + .28; FL.dur = .55 + dist / 32; FL.h = 2 + dist * .16; FL.on = 1; ui.style.display = 'block';
@@ -375,7 +371,8 @@ function tick() { requestAnimationFrame(tick); if (window.__cityPaused) return; 
   const estateSpot=island?.active?nearbyEstatesFishingSpot({
     spots:island.manifest.fishingSpots??[],position:{x:p.x-650,z:p.z},activeIsland:true
   }):null;
-  const canFish = walk && (island?.active ? Boolean(estateSpot) : (nearDock || shore || isAboard())); FISHOK = canFish; const nearShop = walk && !isAboard() && p.distanceTo(shopPos) < 10;
+  const estateShore=island?.active && nearEstatesLakeShore({x:p.x,z:p.z});
+  const canFish = walk && (island?.active ? Boolean(estateSpot || estateShore) : (nearDock || shore || isAboard())); FISHOK = canFish; const nearShop = walk && !isAboard() && p.distanceTo(shopPos) < 10;
   bar.style.display = canFish || nearShop ? 'flex' : 'none'; bar.querySelector('#fCast').style.display = canFish ? '' : 'none'; bar.querySelector('#fShop').style.display = nearShop ? '' : 'none';
   if (!canFish && state !== 'idle' && !isAboard()) stop();
   { const show = canFish || state !== 'idle' || rod.lift > 0; rod.rg.visible = show; const lk = ROD_LOOK[prof.rod] || ROD_LOOK.basic; rod.rm.color.setHex(lk[0]); rod.rm.emissive.setHex(lk[1]); rod.rm.emissiveIntensity = lk[1] ? .6 + .3 * Math.sin(t * 3) : 0;

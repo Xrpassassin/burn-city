@@ -1,0 +1,16 @@
+name: Issuer return API contract
+on:
+  pull_request:
+    paths:
+      - server/issuer-return-api-contract.js
+      - test/issuer-return-api-contract.test.js
+      - .github/workflows/issuer-return-contract.yml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node test/issuer-return-api-contract.test.js

@@ -261,6 +261,8 @@ export async function installEstatesIslandLive({
     get manifest(){return manifest;}
   });
   window.__estatesIslandLive=api;
+  // Read-only browser diagnostic to distinguish missing deploys from failed scene activation.
+  window.__estatesIslandDiagnostics=Object.freeze({build:'estates-entry-20261026-pr300',scene:'burn-city-estates-island',lake:'continuous-ring',get loaded(){return !disposed},get active(){return active},get visible(){return root.visible}});
   onStatus({state:'ready',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length,publicTraversal:true,privateAccess:'permission-gated'});
   return api;
 }

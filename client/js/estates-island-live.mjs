@@ -89,9 +89,24 @@ export async function installEstatesIslandLive({
   root.position.x = OFFSET_X;
   root.visible = false; // Do not expose the full island inside the city proxy.
   addBridgeArchitecture(THREE, root);
+  // A distant, inexpensive city silhouette gives the separate island a horizon.
+  const skyline=new THREE.Group();skyline.name='estates-city-horizon';root.add(skyline);
+  const towerMaterial=new THREE.MeshStandardMaterial({color:0x334a58,roughness:.8});
+  const lightMaterial=new THREE.MeshBasicMaterial({color:0xffa344});
+  for(let i=0;i<15;i++){
+    const h=18+(i*37%47),z=-175+i*25;
+    const tower=new THREE.Mesh(new THREE.BoxGeometry(14+(i%3)*3,h,15),towerMaterial);tower.position.set(-335,h/2,z);skyline.add(tower);
+    if(i%3===0){const crown=new THREE.Mesh(new THREE.BoxGeometry(9,.7,10),lightMaterial);crown.position.set(-335,h+.4,z);skyline.add(crown);}
+  }
+  const cityTower=new THREE.Mesh(new THREE.BoxGeometry(24,90,24),towerMaterial);cityTower.position.set(-330,45,0);skyline.add(cityTower);
+  const cityBeacon=new THREE.Mesh(new THREE.BoxGeometry(20,2,20),lightMaterial);cityBeacon.position.set(-330,91,0);skyline.add(cityBeacon);
 
   let active = false, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
   const panel = makePanel();
+  const exitButton=document.createElement('button');exitButton.id='bcEstatesExit';exitButton.type='button';exitButton.textContent='↩ Return to BURN City';
+  exitButton.setAttribute('aria-label','Return to BURN City');
+  exitButton.style.cssText='display:none;position:fixed;left:50%;top:calc(116px + env(safe-area-inset-top));transform:translateX(-50%);z-index:90;min-height:44px;padding:8px 14px;border:1px solid #ffb45b;border-radius:9px;background:#17151af0;color:#ffe4bd;font:700 13px system-ui;cursor:pointer';
+  document.body.appendChild(exitButton);exitButton.addEventListener('click',()=>leaveIsland());
   const showPanel = (heading, message, actions, muted='') => {
     panel.replaceChildren();
     const h = document.createElement('h3'); h.textContent = heading; panel.appendChild(h);
@@ -182,7 +197,7 @@ export async function installEstatesIslandLive({
     }
   });
 
-  let returnPosition = null, entering = false, leaseToken = null, heartbeatTimer = null;
+  let returnPosition = null, returnCamera = null, entering = false, leaseToken = null, heartbeatTimer = null;
   let presenceSocket=null, presenceTimer=null, reconnectTimer=null, presenceStopped=true;
   const remotePeers=new Map();
   const hiddenCityObjects=new Map();
@@ -278,7 +293,9 @@ export async function installEstatesIslandLive({
       });
     },30000);
     returnPosition = {x:player.pos.x,y:player.pos.y,z:player.pos.z};
+    returnCamera = {position:camera.position.clone(),quaternion:camera.quaternion.clone()};
     active=true; root.visible=true; nearCityGate=false; hidePanel();
+    exitButton.style.display='block';
     hideCityScene();
     window.__estatesCityPresencePaused=true;window.__cityNet?.setPaused(true);
     if(getMode()!=='explore') setMode('explore');
@@ -286,6 +303,7 @@ export async function installEstatesIslandLive({
     player.fp=false;
     setYaw(-Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
+    if(window.__skate?.active)window.__skate.state.pos.copy(player.pos);
     avatar.position.copy(player.pos);
     connectPresence(leaseToken,admission.instanceId);
     onStatus({state:'entered-public-island',instanceId:admission.instanceId,catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
@@ -293,10 +311,13 @@ export async function installEstatesIslandLive({
   function leaveIsland() {
     if(disposed||!active)return;
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();
+    exitButton.style.display='none';
     releaseLease();
     restoreCityScene();
     const destination=returnPosition??gate;
+    if(window.__skate?.active)window.__skate.toggle(false);
     player.pos.set(destination.x,destination.y,destination.z);
+    if(returnCamera){camera.position.copy(returnCamera.position);camera.quaternion.copy(returnCamera.quaternion);returnCamera=null;}
     returnPosition=null;
     setYaw(Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
@@ -306,7 +327,7 @@ export async function installEstatesIslandLive({
   }
   // A fresh controller is required after returning because dispose is intentionally final.
   let controllerRef=controller;
-  function tick(dt, moveForward, moveSide, running) {
+  function tick(dt, moveForward, moveSide, running, desiredDelta=null) {
     if(disposed || getMode()!=='explore') return false;
     const pressed=Boolean(isInteractPressed()), edge=pressed&&!lastE; lastE=pressed;
     if(!active) {
@@ -341,7 +362,12 @@ export async function installEstatesIslandLive({
     }
     runSpeed=running?7.2:4.5;
     const beforeX=player.pos.x,beforeZ=player.pos.z;
-    const result=controllerRef.update({dt,yaw:getYaw(),moveX:moveForward,moveZ:moveSide,interactPressed:edge,exitPressed:edge});
+    const result=controllerRef.update({dt,yaw:getYaw(),moveX:moveForward,moveZ:moveSide,interactPressed:edge,exitPressed:edge,desiredDelta});
+    if(desiredDelta&&window.__skate?.active){
+      const board=window.__skate;board.state.pos.copy(player.pos);
+      if(result.blockedX)board.state.vel.x=0;if(result.blockedZ)board.state.vel.z=0;
+      if(board.board){board.board.position.x=player.pos.x;board.board.position.z=player.pos.z;}
+    }
     avatar.position.copy(player.pos);
     const movedX=player.pos.x-beforeX,movedZ=player.pos.z-beforeZ;
     avatar.rotation.y=Math.hypot(movedX,movedZ)>.001?Math.atan2(-movedX,-movedZ):getYaw();
@@ -356,7 +382,7 @@ export async function installEstatesIslandLive({
     tick,
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
-      if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },

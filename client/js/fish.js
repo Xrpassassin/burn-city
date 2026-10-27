@@ -1,4 +1,4 @@
-import {resolveLakeCast,estatesLakeWaterAt} from './lake-casting-geometry.mjs';
+import {resolveLakeCast,estatesLakeWaterAt,nearEstatesLakeShore} from './lake-casting-geometry.mjs';
 import {nearbyEstatesFishingSpot} from './estates-lake-fishing-adapter.mjs';
 // Lake fishing: dock + Tackle & Bait shop, cast / bobber / bite / reel minigame, fish log.
 // Lake coins are a free in-game score: NO real value, cannot be bought with XRP, cannot be withdrawn.
@@ -375,7 +375,8 @@ function tick() { requestAnimationFrame(tick); if (window.__cityPaused) return; 
   const estateSpot=island?.active?nearbyEstatesFishingSpot({
     spots:island.manifest.fishingSpots??[],position:{x:p.x-650,z:p.z},activeIsland:true
   }):null;
-  const canFish = walk && (island?.active ? Boolean(estateSpot) : (nearDock || shore || isAboard())); FISHOK = canFish; const nearShop = walk && !isAboard() && p.distanceTo(shopPos) < 10;
+  const estateShore=island?.active && nearEstatesLakeShore({x:p.x,z:p.z});
+  const canFish = walk && (island?.active ? Boolean(estateSpot || estateShore) : (nearDock || shore || isAboard())); FISHOK = canFish; const nearShop = walk && !isAboard() && p.distanceTo(shopPos) < 10;
   bar.style.display = canFish || nearShop ? 'flex' : 'none'; bar.querySelector('#fCast').style.display = canFish ? '' : 'none'; bar.querySelector('#fShop').style.display = nearShop ? '' : 'none';
   if (!canFish && state !== 'idle' && !isAboard()) stop();
   { const show = canFish || state !== 'idle' || rod.lift > 0; rod.rg.visible = show; const lk = ROD_LOOK[prof.rod] || ROD_LOOK.basic; rod.rm.color.setHex(lk[0]); rod.rm.emissive.setHex(lk[1]); rod.rm.emissiveIntensity = lk[1] ? .6 + .3 * Math.sin(t * 3) : 0;

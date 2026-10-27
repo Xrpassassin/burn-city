@@ -185,6 +185,15 @@ export async function installEstatesIslandLive({
   let returnPosition = null, entering = false, leaseToken = null, heartbeatTimer = null;
   let presenceSocket=null, presenceTimer=null, reconnectTimer=null, presenceStopped=true;
   const remotePeers=new Map();
+  const hiddenCityObjects=new Map();
+  function hideCityScene(){
+    for(const object of scene.children){
+      if(object===root||object===avatar||object===camera||object.isLight||object.isCamera||object.userData?.estatesKeep)continue;
+      if(!hiddenCityObjects.has(object))hiddenCityObjects.set(object,object.visible);
+      object.visible=false;
+    }
+  }
+  function restoreCityScene(){for(const [object,visible] of hiddenCityObjects)if(object.parent===scene)object.visible=visible;hiddenCityObjects.clear();}
   const apiBase = new URLSearchParams(location.search).get('citysrv') ||
     (/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   async function leaseRequest(action, payload, keepalive=false) {
@@ -270,6 +279,7 @@ export async function installEstatesIslandLive({
     },30000);
     returnPosition = {x:player.pos.x,y:player.pos.y,z:player.pos.z};
     active=true; root.visible=true; nearCityGate=false; hidePanel();
+    hideCityScene();
     window.__estatesCityPresencePaused=true;window.__cityNet?.setPaused(true);
     if(getMode()!=='explore') setMode('explore');
     player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);
@@ -284,6 +294,7 @@ export async function installEstatesIslandLive({
     if(disposed||!active)return;
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();
     releaseLease();
+    restoreCityScene();
     const destination=returnPosition??gate;
     player.pos.set(destination.x,destination.y,destination.z);
     returnPosition=null;
@@ -309,7 +320,7 @@ export async function installEstatesIslandLive({
       if(edge&&near) { enterIsland(); return true; }
       return false;
     }
-    animatePeers(dt);
+    hideCityScene();animatePeers(dt);
     // Rebuild controller after its previous instance was disposed on exit.
     if(!controllerRef.isActive) {
       controllerRef=createEstatesIslandController({
@@ -345,7 +356,7 @@ export async function installEstatesIslandLive({
     tick,
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
-      if(disposed)return false; disposed=true; releaseLease(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },

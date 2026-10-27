@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { towerHonorPositions } from '../client/js/tower-burn-honors-layout.mjs';
+const entries = Array.from({length: 12}, (_, i) => ({rank:i+1,wallet:'r'+i}));
+const a = towerHonorPositions(entries, {x:100,z:50,facing:0});
+assert.equal(a.length,10);
+assert.equal(a[0].position.x,96);
+assert.equal(a[1].position.x,104);
+assert.equal(a[0].position.z,70);
+assert.equal(a[0].placementVerified,false);
+assert.notDeepEqual(a[0].position,a[1].position);
+assert.throws(()=>towerHonorPositions(entries, {x:NaN,z:0}),/required/);
+assert.throws(()=>towerHonorPositions(entries, {x:0,z:0},{spacing:1}),/unsafe/);
+console.log('tower-burn-honors-layout: all tests passed');

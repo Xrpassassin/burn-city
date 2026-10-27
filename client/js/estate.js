@@ -119,7 +119,9 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   }
   // City-side gateway and a visible bridge indicate that entry is a transition,
   // not a walkable route onto the small proxy island.
-  const gateOffset=nearV+9,islandEntrance=lakeC.clone().addScaledVector(dir,-gateOffset);
+  const gateOffset=nearV+9,bridgeLength=Math.max(1,gateOffset-cityIsland.islandRadiusZ);
+  const bridgeStart=lakeC.clone().addScaledVector(dir,-gateOffset);
+  const islandEntrance=bridgeStart.clone().addScaledVector(dir,bridgeLength/2);
   const gateway=new THREE.Group();gateway.position.copy(islandEntrance);gateway.rotation.y=yaw;G.add(gateway);
   const postMat=new THREE.MeshLambertMaterial({color:0x38434b}),lightMat=new THREE.MeshBasicMaterial({color:0xffb45b});
   for(const x of [-4.5,4.5]){const post=new THREE.Mesh(new THREE.BoxGeometry(.7,6,.7),postMat);post.position.set(x,3,0);gateway.add(post);}
@@ -128,7 +130,9 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   sx.fillStyle='#101b24';sx.fillRect(0,0,1024,256);sx.textAlign='center';sx.fillStyle='#ffe0a2';sx.font='900 76px system-ui,sans-serif';sx.fillText('ESTATES ISLAND',512,105);sx.font='700 48px system-ui,sans-serif';sx.fillText('ENTER HERE',512,185);
   const gateSign=new THREE.Mesh(new THREE.PlaneGeometry(12,3),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(signCanvas),side:THREE.DoubleSide,toneMapped:false}));gateSign.position.set(0,8,0);gateway.add(gateSign);
   const gateHit=new THREE.Mesh(new THREE.BoxGeometry(12,8,2),new THREE.MeshBasicMaterial({visible:false}));gateHit.position.set(0,4,0);gateHit.userData={kind:'estate',label:'Enter Estates Island'};gateway.add(gateHit);pick.push(gateHit);
-  const proxyBridge=new THREE.Mesh(new THREE.BoxGeometry(5,.35,Math.max(1,gateOffset-cityIsland.islandRadiusZ)),postMat);proxyBridge.position.set(0,.55,(gateOffset-cityIsland.islandRadiusZ)/2);gateway.add(proxyBridge);
+  const proxyBridge=new THREE.Mesh(new THREE.BoxGeometry(5,.35,bridgeLength),postMat);proxyBridge.position.set(0,.55,0);gateway.add(proxyBridge);
+  // Walk to the halfway gateway; the remainder is a visual bridge only.
+  (window.__decks=window.__decks||[]).push({base:bridgeStart,dir,side,v0:-2,v1:bridgeLength/2+5,hw:2.4,h:.73});
   // ---------- highway + bridge (one merged mesh) + guide-light strip ----------
   const bridgeH = 3, RL = 16, seg = [];   // road along +z in local space; constant height, gentle ramps only at the bridge
   const roadLen = lotC.clone().sub(roadO).dot(dir) - 70, Y0 = streetMat ? -0.05 : 0.2; let w0 = -1, w1 = -1; for (let z = 0; z < roadLen; z += 1) { const q = roadO.clone().addScaledVector(dir, z); if (inside(q.x, q.z, lakeC, 0)) { if (w0 < 0) w0 = z; w1 = z; } }

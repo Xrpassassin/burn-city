@@ -24,7 +24,7 @@ if(!browserBin||!path.isAbsolute(browserBin)||!fs.existsSync(browserBin)||!fs.st
  console.error('Set BURN_QA_BROWSER_BIN to the audited absolute path of the QA browser executable');process.exit(2);
 }
 const commands=[
- ['open',u.href],
+ ['open',u.origin + u.pathname + '?qa=1'],
  ['set','viewport','390','844'],
  ['screenshot','burn-city-mobile.png'],
  ['snapshot'],

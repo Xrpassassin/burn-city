@@ -1,6 +1,7 @@
 // Shared geometry for a city-side Estates island proxy. Coordinates are local:
 // x runs across the lake and z points from the city toward the island.
 // This module does not place meshes or grant access to the island instance.
+export const CITY_LAKE_DIMENSIONS=Object.freeze({depthRadius:130,widthRadius:330,islandRadiusX:90,islandRadiusZ:48,deepOffset:160});
 export function createEstatesCityLakeGeometry({islandX=0,islandZ=0,islandRadiusX=95,islandRadiusZ=70,waterWidth=45}={}) {
   if (![islandX,islandZ,islandRadiusX,islandRadiusZ,waterWidth].every(Number.isFinite) || islandRadiusX<=0 || islandRadiusZ<=0 || waterWidth<=0) throw new TypeError('invalid Estates lake geometry');
   const rx=islandRadiusX, rz=islandRadiusZ, outerX=rx+waterWidth, outerZ=rz+waterWidth;

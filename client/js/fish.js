@@ -164,7 +164,7 @@ function build() {
   dock = { base, tip: base.clone().addScaledVector(dir, 20).setY(1.2), yaw, dir, side };
   // Moving feeding schools reward anglers who explore the lake rather than casting from one spot.
   feedingSpots = [];
-  for (const [u, v] of [[-72, -28], [48, 24], [6, 48]]) {
+  for (const [u, v] of [[-150, -40], [150, 35], [0, 95]]) {
     const p = lakeC.clone().addScaledVector(side, u).addScaledVector(dir, v);
     for (let k = 0; k < 45 && !e.inLake(p.x, p.z); k++) p.lerp(lakeC, 0.12);
     if (!e.inLake(p.x, p.z)) continue;

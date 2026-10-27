@@ -1519,7 +1519,7 @@ function updLabels(){const placed=[],W2=innerWidth,H2=innerHeight;labelEls.sort(
 labelEls.forEach(l=>{l.el.style.left='0';l.el.style.top='0'});
 const mm=$('minimap').getContext('2d');
 let MMX=null;function mmExtras(){const e=window.__estate;if(!e)return null;if(MMX)return MMX;const P2=(u,v,c=e.lakeC)=>[c.x+e.side.x*u+e.dir.x*v,c.z+e.side.z*u+e.dir.z*v],lake=[];for(let i=0;i<96;i++){const a=i/96*6.2832,r=e.rho(a);lake.push(P2(e.Wd*r*Math.cos(a),e.D*r*Math.sin(a)))}
- const lot=[[-65,-65],[65,-65],[65,65],[-65,65]].map(([u,v])=>P2(u,v,e.lotC)),R=Math.max(375,...lot.map(([x,z])=>Math.hypot(x,z)+30));return MMX={lake,lot,R,road:[[(e.roadO||e.cityEdge).x,(e.roadO||e.cityEdge).z],[(e.roadO||e.cityEdge).x+e.dir.x*e.roadLen,(e.roadO||e.cityEdge).z+e.dir.z*e.roadLen]],lab:[e.lotC.x,e.lotC.z]}}
+ const lot=Array.from({length:48},(_,i)=>{const a=i/48*Math.PI*2;return P2(e.cityIsland.islandRadiusX*Math.cos(a),e.cityIsland.islandRadiusZ*Math.sin(a))}),R=Math.max(375,...lake.map(([x,z])=>Math.hypot(x,z)+30));return MMX={lake,lot,R,road:[[(e.roadO||e.cityEdge).x,(e.roadO||e.cityEdge).z],[(e.roadO||e.cityEdge).x+e.dir.x*e.roadLen,(e.roadO||e.cityEdge).z+e.dir.z*e.roadLen]],lab:[e.lakeC.x,e.lakeC.z]}}
 function updMinimap(){const X=mmExtras(),cw=mm.canvas.width,sc=cw/2/(X?X.R:375);mm.clearRect(0,0,cw,cw);mm.save();mm.translate(cw/2,cw/2);
  if(X){const poly=(pts,close)=>{mm.beginPath();pts.forEach(([x,z],i)=>i?mm.lineTo(x*sc,z*sc):mm.moveTo(x*sc,z*sc));if(close)mm.closePath()};
   poly(X.lake,1);mm.fillStyle='rgba(40,140,230,.55)';mm.fill();mm.strokeStyle='#6fe8ff';mm.lineWidth=1;mm.stroke();

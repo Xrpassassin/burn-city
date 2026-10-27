@@ -53,10 +53,10 @@ function build() {
   if (e?.lakeC && e?.D) {
     const radius = e.D * .38;
     const basin = new THREE.Mesh(new THREE.CircleGeometry(radius, 96).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x06284a, transparent: true, opacity: .13, depthWrite: false }));
-    basin.position.set(e.lakeC.x, .035, e.lakeC.z); c.S.add(basin);
+    const deepC=e.deepC||e.lakeC;basin.position.set(deepC.x, .035, deepC.z); c.S.add(basin);
     const edge = new THREE.Mesh(new THREE.RingGeometry(radius - .45, radius, 96).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x4ac9ff, transparent: true, opacity: .32, depthWrite: false, side: THREE.DoubleSide }));
-    edge.position.set(e.lakeC.x, .055, e.lakeC.z); c.S.add(edge);
-    B.deepZone = { x: e.lakeC.x, z: e.lakeC.z, radius };
+    edge.position.set(deepC.x, .055, deepC.z); c.S.add(edge);
+    B.deepZone = { x: deepC.x, z: deepC.z, radius };
   }
   (window.__decks = window.__decks || []).push({ base, dir, side, v0: -3, v1: 15.6, hw: 1.8, h: 1.2 });
   barEl = document.createElement('div'); barEl.id = 'bBar'; barEl.style.cssText = 'position:fixed;right:12px;bottom:calc(330px + env(safe-area-inset-bottom));z-index:31;display:none'; barEl.innerHTML = '<button style="font:700 15px system-ui;padding:11px 16px;border-radius:12px;border:1px solid #2ad0ff88;background:#071822e6;color:#dff6ff"></button>'; document.body.append(barEl);

@@ -28,7 +28,11 @@ assert(app.includes("import { installEstatesIslandLive } from './estates-island-
 assert(app.includes('window.__estatesIslandLive.tick(dt,f,s,run)'), 'live controller is called from explore frame loop');
 const live = await readFile(new URL('./estates-island-live.mjs', import.meta.url), 'utf8');
 assert(live.includes('exitPressed:edge'), 'keyboard interaction edge reaches the exit-gate controller');
-assert(live.includes('active=false; hidePanel(); controllerRef.dispose();'), 'exit disposes the current controller, not the original one');
+assert(live.includes('active=false; root.visible=false; hidePanel(); controllerRef.dispose();'), 'exit hides island and disposes active controller');
+assert(live.includes('root.visible = false'), 'island should be hidden in city');
+assert(live.includes('active=true; root.visible=true'), 'entering island must reveal scene');
+assert(live.includes('enterFromCity(){'), 'city landmark must expose entry action');
+assert(app.includes("if(u.kind==='estate' && window.__estatesIslandLive?.enterFromCity)"), 'city Estates landmark routes to island');
 assert(!live.includes('active=false; hidePanel(); controller.dispose();'), 'stale controller disposal regression');
 assert(live.includes('Catalog mapping:'), 'lot inspection labels catalog mapping rather than implying owner assignment');
 assert(live.includes('That record does not prove ownership'), 'catalog membership must never be presented as verified ownership');

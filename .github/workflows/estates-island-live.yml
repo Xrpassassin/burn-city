@@ -28,6 +28,7 @@ jobs:
       - name: Test Estates entry and scene contracts
         run: |
           node server/estates-instance.test.js
+          node server/estates-presence.test.js
           node client/js/estates-city-lake-geometry.test.mjs
           node client/js/lake-casting-geometry.test.mjs
           node client/js/estates-island-scene.test.mjs

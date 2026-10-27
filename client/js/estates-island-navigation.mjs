@@ -115,6 +115,27 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
     return Object.freeze({position:Object.freeze({x,y:finite(position.y)?position.y:0,z}),blockedX,blockedZ,moved:Math.hypot(x-position.x,z-position.z)>1e-6});
   }
 
+  function propertyApproach(propertyId, clearance=3) {
+    if(typeof propertyId!=='string'||!propertyId) throw new TypeError('invalid property id');
+    if(!finite(clearance)||clearance<=0) throw new TypeError('invalid clearance');
+    const lot=manifest.lots.find(l=>l.propertyId===propertyId);
+    if(!lot) return null;
+    const footprint=lot.buildingFootprint;
+    if(!footprint) return accessibleApproach(lot.position,clearance);
+    // Sample the exterior perimeter, not the inaccessible building centre.
+    const offsetX=footprint.width/2+radius+clearance;
+    const offsetZ=footprint.depth/2+radius+clearance;
+    const candidates=[
+      [0,offsetZ],[offsetX,0],[0,-offsetZ],[-offsetX,0],
+      [offsetX,offsetZ],[-offsetX,offsetZ],[offsetX,-offsetZ],[-offsetX,-offsetZ]
+    ];
+    for(const [dx,dz] of candidates) {
+      const x=lot.position.x+dx,z=lot.position.z+dz;
+      if(!isBlocked(x,z)) return Object.freeze({x,y:0,z});
+    }
+    return accessibleApproach(lot.position,clearance);
+  }
+
   function nearbyProperty(position, interactionRadius=8) {
     validPoint(position);
     if(!finite(interactionRadius)||interactionRadius<=0) throw new TypeError('interactionRadius must be positive');
@@ -142,7 +163,7 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
   }
 
   return Object.freeze({
-    move, nearbyProperty, isWalkable, accessibleApproach,
+    move, nearbyProperty, isWalkable, accessibleApproach, propertyApproach,
     get collisionCount(){return buildings.length+trees.length+landmarkBlockers.length;},
     get buildingColliderCount(){return buildings.length;},
     get treeColliderCount(){return trees.length;},

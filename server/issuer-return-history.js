@@ -10,7 +10,7 @@ function decimalUnits(value) {
   // Parse the decimal significand/exponent as integers; never round through a float.
   if (typeof value !== 'string') return null;
   const s = value.trim();
-  const m = /^(0|[1-9]\\d*)(?:\\.(\\d+))?(?:[eE]([+-]?\\d{1,3}))?$/.exec(s);
+  const m = /^(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d{1,3}))?$/.exec(s);
   if (!m) return null;
   const whole = m[1], fraction = m[2] || '', exponent = Number(m[3] || 0);
   if (!Number.isSafeInteger(exponent) || exponent < -100 || exponent > 100) return null;

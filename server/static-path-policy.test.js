@@ -16,6 +16,11 @@ try{
  assert.equal(resolvePublicFile(root,'/%2e%2e/client-secret/secret.txt'),null);
  assert.equal(resolvePublicFile(root,'/../client-secret/secret.txt'),null);
  assert.equal(resolvePublicFile(root,'/not-found'),null);
+ assert.equal(resolvePublicFile(root,'/%00index.html'),null);
+ assert.equal(resolvePublicFile(root,'/%5cindex.html'),null);
+ assert.equal(resolvePublicFile(root,'/%2e%2e%2fclient-secret%2fsecret.txt'),null);
+ assert.equal(resolvePublicFile(root,'/index.html%00.js'),null);
+ assert.equal(resolvePublicFile(root,'/index.html?qa=1'),null);
  assert.equal(insideRoot(root,path.join(sibling,'secret.txt')),false);
  fs.symlinkSync(sibling,path.join(root,'outside'),'dir');
  assert.equal(resolvePublicFile(root,'/outside/secret.txt'),null);

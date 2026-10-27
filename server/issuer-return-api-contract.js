@@ -18,7 +18,7 @@ function attachIssuerReturnHistory(tokens, audits, now = Date.now()) {
       typeof audit.burned_pct === 'number' &&
       Number.isFinite(audit.burned_pct) &&
       audit.burned_pct >= 0 && audit.burned_pct <= 100 &&
-      Number.isFinite(audit.checkedAtMs) && audit.checkedAtMs <= now &&
+      Number.isFinite(audit.checkedAtMs) && audit.checkedAtMs > 0 && audit.checkedAtMs <= now &&
       now - audit.checkedAtMs <= 6 * 3600e3;
     out[name] = { ...token };
     if (approved) {

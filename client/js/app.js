@@ -1369,7 +1369,7 @@ $('tUse').addEventListener('touchstart',e=>{interact();e.preventDefault()},{pass
 // ---------- explore: physics, collisions, districts, interaction ----------
 function groundAt(x,z,y){let g=0;for(const c of colliders){if(c.h<=y+.35&&c.h>g&&Math.hypot(x-c.x,z-c.z)<c.r)g=c.h}if(window.__deckAt){const dk=window.__deckAt(x,z);if(dk!=null&&dk<=y+1.4&&dk>g)g=dk}if(window.__hwDeck){const hd=window.__hwDeck(x,z);if(hd!=null&&hd<=y+1.4&&hd>g)g=hd}return g}
 // walkers stay out of the water except on docks and the lake bridge
-function wet(x,z){const es=window.__estate;if(!es)return false;if(es.inCityIsland?.(x,z))return true;if(!es.inLake(x,z))return false;if(window.__deckAt&&window.__deckAt(x,z)!=null)return false;const ce=es.roadO||es.cityEdge,dr=es.dir;if(ce&&dr&&Math.abs((x-ce.x)*dr.z-(z-ce.z)*dr.x)<7.5)return false;return true}
+function wet(x,z){const es=window.__estate;if(!es)return false;if(es.inCityIsland?.(x,z))return true;if(!es.inLake(x,z))return false;if(window.__deckAt&&window.__deckAt(x,z)!=null)return false;return true}
 function collide(p){for(const c of colliders){if(p.y>=c.h-.05)continue;const dx=p.x-c.x,dz=p.z-c.z,m=c.r+.38;if(Math.abs(dx)>m||Math.abs(dz)>m)continue;const d=Math.hypot(dx,dz);if(d<m){const k=(m-d)/(d||1);p.x+=dx*k;p.z+=dz*k}}}
 const dirOf=()=>_t.set(-Math.sin(yp.yaw)*Math.cos(yp.pitch),Math.sin(yp.pitch),-Math.cos(yp.yaw)*Math.cos(yp.pitch)).clone();
 // ---------- web shooters: Web mode on -> HOLD jump = attach to the best anchor ahead & above and swing; release = let go, keep momentum ----------
@@ -1530,7 +1530,7 @@ function updLabels(){const placed=[],W2=innerWidth,H2=innerHeight;labelEls.sort(
 labelEls.forEach(l=>{l.el.style.left='0';l.el.style.top='0'});
 const mm=$('minimap').getContext('2d');
 let MMX=null;function mmExtras(){const e=window.__estate;if(!e)return null;if(MMX)return MMX;const P2=(u,v,c=e.lakeC)=>[c.x+e.side.x*u+e.dir.x*v,c.z+e.side.z*u+e.dir.z*v],lake=[];for(let i=0;i<96;i++){const a=i/96*6.2832,r=e.rho(a);lake.push(P2(e.Wd*r*Math.cos(a),e.D*r*Math.sin(a)))}
- const lot=Array.from({length:48},(_,i)=>{const a=i/48*Math.PI*2;return P2(e.cityIsland.islandRadiusX*Math.cos(a),e.cityIsland.islandRadiusZ*Math.sin(a))}),R=Math.max(375,...lake.map(([x,z])=>Math.hypot(x,z)+30));return MMX={lake,lot,R,road:[[(e.roadO||e.cityEdge).x,(e.roadO||e.cityEdge).z],[(e.roadO||e.cityEdge).x+e.dir.x*e.roadLen,(e.roadO||e.cityEdge).z+e.dir.z*e.roadLen]],lab:[e.lakeC.x,e.lakeC.z]}}
+ const lot=Array.from({length:48},(_,i)=>{const a=i/48*Math.PI*2;return P2(e.cityIsland.islandRadiusX*Math.cos(a),e.cityIsland.islandRadiusZ*Math.sin(a))}),R=Math.max(375,...lake.map(([x,z])=>Math.hypot(x,z)+30));return MMX={lake,lot,R,road:[[e.bridgeStart.x,e.bridgeStart.z],[e.bridgeStart.x+e.dir.x*e.bridgeLength,e.bridgeStart.z+e.dir.z*e.bridgeLength]],lab:[e.lakeC.x,e.lakeC.z]}}
 function updMinimap(){const X=mmExtras(),cw=mm.canvas.width,sc=cw/2/(X?X.R:375);mm.clearRect(0,0,cw,cw);mm.save();mm.translate(cw/2,cw/2);
  if(X){const poly=(pts,close)=>{mm.beginPath();pts.forEach(([x,z],i)=>i?mm.lineTo(x*sc,z*sc):mm.moveTo(x*sc,z*sc));if(close)mm.closePath()};
   poly(X.lake,1);mm.fillStyle='rgba(40,140,230,.55)';mm.fill();mm.strokeStyle='#6fe8ff';mm.lineWidth=1;mm.stroke();

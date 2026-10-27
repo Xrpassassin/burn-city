@@ -28,8 +28,10 @@ assert(app.includes("import { installEstatesIslandLive } from './estates-island-
 assert(app.includes('window.__estatesIslandLive.tick(dt,f,s,run)'), 'live controller is called from explore frame loop');
 assert(app.includes('cityGate:ESTATE.islandEntrance'), 'walk-up entry uses the actual Estates sign');
 const estate = await readFile(new URL('./estate.js', import.meta.url), 'utf8');
-assert(estate.includes('ENTER ISLAND HERE'), 'the city sign identifies the island entrance');
-assert(estate.includes('lotC.clone().addScaledVector(dir, -LD/2+8)'), 'entry follows the sign position in the generated district');
+assert(estate.includes("sx.fillText('ENTER HERE'"), 'the city gateway identifies the island entrance');
+assert(estate.includes('lakeC.clone().addScaledVector(dir,-gateOffset)'), 'entry follows the city-facing lake gateway');
+assert(app.includes('if(es.inCityIsland?.(x,z))return true'), 'the city-view island blocks physical walking entry');
+assert(app.includes('if(es&&es.inCityIsland?.(x,z))'), 'switching from flight cannot land on the city-view island');
 const live = await readFile(new URL('./estates-island-live.mjs', import.meta.url), 'utf8');
 assert(live.includes('exitPressed:edge'), 'keyboard interaction edge reaches the exit-gate controller');
 assert(live.includes('Math.hypot(player.pos.x-gate.x,player.pos.z-gate.z)'), 'entry proximity follows the configured sign');

@@ -24,5 +24,7 @@ jobs:
         run: node test/issuer-return-history.test.js
       - name: XRPL scanner
         run: node test/issuer-return-scanner.test.js
+      - name: Archive ledger coverage
+        run: node test/issuer-return-ledger-coverage.test.js
       - name: Read-only audit
         run: node test/audit-issuer-returns.test.js

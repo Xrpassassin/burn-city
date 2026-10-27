@@ -6,6 +6,7 @@
 const { scanIssuerReturns } = require('../server/issuer-return-scanner');
 const { BURN_ISSUER, BURN_CURRENCY, BURN_LAUNCH_SUPPLY } = require('../server/issuer-return-history');
 const G = require('../client/js/goldlock');
+const { assessServerLedgerCoverage } = require('../server/issuer-return-ledger-coverage');
 const URLS = [
   'https://s2.ripple.com:51234/',
   'https://s1.ripple.com:51234/'
@@ -29,6 +30,8 @@ async function rpc(method, params, endpoint = URLS[0]) {
   return data.result;
 }
 async function audit({ fromLedger, toLedger, maxPages = 10, request = rpc }) {
+  const serverInfo = await request('server_info', {});
+  const ledgerCoverage = assessServerLedgerCoverage(serverInfo, fromLedger, toLedger);
   const issuerInfo = await request('account_info', {
     account: BURN_ISSUER, ledger_index: 'validated', signer_lists: true
   });
@@ -40,7 +43,7 @@ async function audit({ fromLedger, toLedger, maxPages = 10, request = rpc }) {
     launchSupply: BURN_LAUNCH_SUPPLY, fromLedger, toLedger, maxPages,
     issuerVerified, launchLedgerVerified: false
   });
-  return { ...result, issuer_key_status: issuerVerified ? 'blackholed' : 'unverified',
+  return { ...result, server_ledger_coverage: ledgerCoverage, issuer_key_status: issuerVerified ? 'blackholed' : 'unverified',
     launch_supply_source: 'project-reported; independent on-ledger verification pending',
     notice: 'Read-only partial evidence; NOT a verified historical burned percentage.' };
 }

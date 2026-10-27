@@ -7,6 +7,7 @@
 // Anything else is "held" (keys exist), "time-locked" (LP in an Escrow), "unaccounted" or UNVERIFIED (fetch failed / stale). Never assumed 0% or 100%.
 'use strict';
 const G = require('../client/js/goldlock.js');
+const { attachIssuerReturnHistory } = require('./issuer-return-api-contract');
 
 const REFRESH_MS = 2 * 3600e3;        // full re-verification every 2 h
 const STALE_MS = 6 * 3600e3;          // anything older than 6 h is served as UNVERIFIED (stale)
@@ -104,6 +105,8 @@ function servable(o, now = Date.now()) {
 
 // ---------- XRPL fetch layer (rate-limited, cached) ----------
 function create(opts = {}) {
+  // Trusted, server-populated audit map only; no client-submitted claims.
+  const audits = opts.issuerReturnAudits instanceof Map ? opts.issuerReturnAudits : new Map();
   const rpc0 = opts.rpc, now = opts.now || (() => Date.now()), gap = opts.gap != null ? opts.gap : MIN_GAP_MS;
   const S = { pools: {}, tokens: {}, run: null, last_ok: null, last_err: null, calls: 0, started: null }, acct = new Map();
   let lastCall = 0; const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -156,7 +159,7 @@ function create(opts = {}) {
         lock_pct: 'LP held by permanent accounts / amm_info.lp_token (LPTokenBalance); holders < 0.1% not checked (counted as not locked)',
         burn_pct: 'token balance held by black-hole accounts (issuer excluded) / gateway_balances obligations (or sum of issuer trustlines)',
         issuer_keys_disabled: 'separate fact; never counted as burned supply', unverified: 'fetch failed or older than ' + STALE_MS / 3600e3 + ' h: no % is shown' },
-      pools: P, tokens: T }; }
+      pools: P, tokens: attachIssuerReturnHistory(T, audits, t) }; }
   return { refresh, snapshot, _state: S };
 }
 

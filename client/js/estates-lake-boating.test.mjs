@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {onLake,steerBoat,canBoatFish} from './estates-lake-boating.mjs';
+assert(onLake(180,0));
+assert(!onLake(0,0));
+assert(!onLake(240,0));
+assert(!onLake(Infinity,0));
+const moving=steerBoat({x:180,z:0,heading:0,throttle:1,turn:0,dt:1/60});
+assert(moving&&moving.z<0&&!moving.blocked);
+assert.equal(steerBoat({x:180,z:0,heading:0,throttle:Infinity,turn:0,dt:1}),null);
+const shore=steerBoat({x:156.1,z:0,heading:-Math.PI/2,throttle:1,turn:0,dt:1});
+assert(shore.blocked);
+assert(onLake(shore.x,shore.z));
+assert(canBoatFish({x:180,z:0,anchored:true}));
+assert(!canBoatFish({x:180,z:0,anchored:false}));
+assert(!canBoatFish({x:0,z:0,anchored:true}));
+console.log('Estates lake boat navigation tests passed');

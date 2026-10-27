@@ -40,6 +40,8 @@ assert.equal(cleanPosition({x:'7',y:0,z:0,r:0}), null, 'string coordinates are r
 assert.equal(cleanPosition({x:null,y:0,z:0,r:0}), null, 'null coordinates are rejected rather than coerced');
 assert.equal(isPlausibleStep({x:0,y:0,z:0},{x:5,y:0,z:0},100), false, 'large position jumps are rejected');
 assert.equal(isPlausibleStep({x:0,y:0,z:0},{x:5,y:0,z:0},600), true, 'normal movement during a delayed update is tolerated');
+assert.equal(isPlausibleStep({x:0,y:0,z:0},{x:2.6,y:1,z:0},100), true, 'jetpack and board speeds can be relayed');
+assert.equal(cleanPosition({x:0,y:180,z:0,r:0}).y,180,'jetpack altitude remains within presence bounds');
 assert.equal(isPlausibleStep({x:0,y:0,z:0},{x:0,y:3,z:0},1000), false, 'grounded movement cannot spoof a vertical climb');
 const thirdLease = manager.enter('presence_client_session_03');
 const third = new FakeSocket();

@@ -33,5 +33,16 @@ eq(realRacc.weaponStyle,'explosive','maps the real RACC Armed: TNT trait to an e
 eq(realRacc.outfitStyle,'streetwear','maps the real RACC Fits: Yellow Striped Sweater trait');
 eq(realRacc.patternStyle,'stripes','recognizes the sweater stripe treatment');
 eq(realRacc.headwearStyle,'beehive','maps the real RACC Top Gear: Bee Hive trait');
+
+const backgroundBurnOnly = resolveNftAvatarComponents(resolveNftAvatarProfile({key:'589',id:'background-burn-only',traits:[['Background','Burn']]}));
+eq(backgroundBurnOnly.bodyEffect,'none','a Burn background does not become a body flame effect');
+eq(backgroundBurnOnly.headwearStyle,'none','a Burn background does not invent headwear');
+eq(backgroundBurnOnly.hairStyle,'default','a background trait does not imply a hairstyle');
+const customBodyEffect = resolveNftAvatarComponents(resolveNftAvatarProfile({key:'589',id:'custom-body-effect',traits:[['Body','Chrome Plating']]}));
+eq(customBodyEffect.bodyEffect,'custom','unrecognized body effects remain explicit for QA instead of being relabeled as fire');
+const noHairTrait = resolveNftAvatarComponents(resolveNftAvatarProfile({key:'589',id:'no-hair-trait',traits:[['Head','Burn Halo']]}));
+eq(noHairTrait.headwearStyle,'halo','halo is correctly interpreted as headwear');
+eq(noHairTrait.hairStyle,'default','halo is not misinterpreted as a hairstyle');
+
 const empty = resolveNftAvatarComponents({}); eq(empty.headwearStyle,'none','handles missing profile'); eq(empty.weaponStyle,'none','does not invent weapon'); yes(!empty.hasMask,'empty profile has no mask');
 console.log('NFT avatar component recipes: '+checks+' assertions passed');

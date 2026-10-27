@@ -16,12 +16,14 @@ equal(racc.exactReconstruction,false,'does not overclaim exact reconstruction');
 const fk = resolveNftAvatarReconstruction(resolveNftAvatarProfile({key:'fk',id:'FK-001',traits:[['Keeper Robes','Ash']]}));
 equal(fk.archetype,'firekeeper','Firekeepers get their own reconstruction archetype');
 equal(fk.traitOverrides.robe,true,'Firekeepers receive layered robe silhouette');
-equal(fk.traitOverrides.hood,true,'Firekeepers receive a collection-specific cowl silhouette');
+equal(fk.traitOverrides.hood,false,'Firekeepers without a cowl trait do not receive invented headwear');
+const fkWithCowl = resolveNftAvatarReconstruction(resolveNftAvatarProfile({key:'fk',id:'FK-002',traits:[['Cowl','Ash']]}));
+equal(fkWithCowl.traitOverrides.hood,true,'Firekeepers receive a cowl when the individual NFT trait specifies one');
 equal(fk.traitOverrides.fire,true,'Firekeepers retain ember identity with sparse metadata');
 
 const protocol = resolveNftAvatarReconstruction(resolveNftAvatarProfile({key:'589',id:'589-001',traits:[['Clothing','Punk Burner']]}));
 equal(protocol.archetype,'burn-protocol-humanoid','589 Protocol gets a distinct humanoid blueprint');
-equal(protocol.silhouetteTags,['streetwear','burn-insignia','chain','tech-gear'],'589 signature kit is explicit');
+equal(protocol.silhouetteTags,['streetwear','trait-gated-burn-insignia','trait-gated-chain','trait-gated-tech-gear'],'589 optional signature details are explicitly trait-gated');
 ok(protocol.shoulderSpan > racc.shoulderSpan,'589 silhouette is broader at the shoulders than RACC');
 ok(protocol.fidelityMode === 'procedural-collection-specific','labels current fidelity level accurately');
 

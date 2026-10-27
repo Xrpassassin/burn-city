@@ -15,9 +15,9 @@ const RECIPES = {
   fk: {
     key: 'fk', displayName: 'Firekeepers', archetype: 'firekeeper', rig: 'humanoid-robed',
     proportions: { torsoWidth: .98, torsoHeight: 1.04, headScale: [1, 1.03, 1], shoulderSpan: .30, hipSpan: .12, headY: 1.79, legScale: 1, armScale: .98 },
-    silhouetteTags: ['layered-robe', 'cowl', 'ember-mantle', 'sigil'],
+    silhouetteTags: ['layered-robe', 'trait-gated-cowl', 'trait-gated-mantle', 'trait-gated-relic-sigil'],
     signature: 'firekeeper',
-    visualRequirements: ['layered robe silhouette with hem separation', 'collection-specific hood or cowl', 'ember/flame identity without obscuring face', 'visible relic or sigil when present'],
+    visualRequirements: ['layered robe silhouette with hem separation', 'hood/cowl only when the token trait specifies it', 'mantle only when the token outfit metadata specifies it', 'relic/sigil only when the token accessory metadata specifies it', 'ember/flame identity without obscuring face'],
     traitSlots: { 'Ember Type': 'flame', 'Keeper Robes': 'outfit', 'Cowl': 'headwear', 'Relic': 'accessory' },
     materialHints: { skin: 'character-skin', outfit: 'layered-matte-cloth', signature: 'emissive-ember-and-sigil' },
     budgets: { targetTriangles: 22000, maxTextureBytes: 6291456, maxDrawCalls: 28 },
@@ -26,11 +26,11 @@ const RECIPES = {
   '589': {
     key: '589', displayName: '589 Protocol', archetype: 'burn-protocol-humanoid', rig: 'humanoid-techwear',
     proportions: { torsoWidth: 1.06, torsoHeight: 1, headScale: [1.02, 1, 1], shoulderSpan: .34, hipSpan: .13, headY: 1.78, legScale: 1, armScale: 1.02 },
-    silhouetteTags: ['streetwear', 'burn-insignia', 'chain', 'tech-gear'],
+    silhouetteTags: ['streetwear', 'trait-gated-burn-insignia', 'trait-gated-chain', 'trait-gated-tech-gear'],
     signature: 'protocol',
     visualRequirements: ['streetwear silhouette distinct from robe and RACC rigs', 'visible BURN insignia when present', 'chain and tech accessories preserve source placement', 'face expression and headwear follow token traits'],
     traitSlots: { 'Body': 'body effect', 'Clothing': 'outfit', 'Chain': 'accessory', 'Head': 'headwear', 'Eye': 'eye appearance', 'Mouth': 'expression' },
-    materialHints: { skin: 'character-skin', outfit: 'streetwear-fabric', signature: 'burn-insignia-and-metal-accessories' },
+    materialHints: { skin: 'character-skin', outfit: 'streetwear-fabric', signature: 'trait-gated-branding-and-metal-accessories' },
     budgets: { targetTriangles: 20000, maxTextureBytes: 6291456, maxDrawCalls: 26 },
     originalArtworkRequired: true
   },

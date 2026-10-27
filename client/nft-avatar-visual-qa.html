@@ -45,6 +45,7 @@ textarea{min-height:300px;resize:vertical}button{background:#303a49;color:#fff;b
 <label for="artUrl">Original artwork URL (optional)</label>
 <input id="artUrl" type="url" placeholder="https://…/token-image.png">
 <div><button class="primary" id="render">Render / update sample</button><button id="clear">Clear artwork</button><button id="copyReport">Copy QA report</button></div>
+<label style="display:flex;align-items:center;gap:8px;font-weight:500"><input id="showTabard" type="checkbox" checked style="width:auto"> Show original artwork tabard on 3D character</label>
 <div class="views" aria-label="Load collection examples">
 <button data-sample="racc">Load RACC example</button><button data-sample="fk">Load Firekeepers example</button><button data-sample="589">Load 589 example</button>
 </div>
@@ -100,8 +101,9 @@ function showArtwork(url){art.replaceChildren();if(!url){const s=document.create
 function renderSample(){try{
  const nft=JSON.parse(document.querySelector('#sample').value);
  if(!nft || typeof nft!=='object' || Array.isArray(nft)) throw new Error('Sample must be a JSON object.');
+ const artworkUrl=document.querySelector('#artUrl').value.trim()||String(nft.img||nft.image||'').trim();
  if(avatar){scene.remove(avatar); /* Avatar builder caches shared geometry/materials; do not dispose shared resources here. */}
- avatar=buildNftChar(nft);avatar.position.set(0,0,0);scene.add(avatar);setView('front');
+ avatar=buildNftChar(nft,{panel:document.querySelector('#showTabard').checked,artworkUrl,debugUnknownTraits:true});avatar.position.set(0,0,0);scene.add(avatar);setView('front');
  const profile=avatar.userData.nftAvatarProfile||{};
  const recon=profile.reconstruction||{};
  const components=profile.components||{};
@@ -110,11 +112,12 @@ function renderSample(){try{
  const handledSlots=new Set(['identity','background','eye color','eye appearance','eye wear','body effect','accessory','outfit','headwear','weapon','fur color','hair style','hair color','skin color','armor','mask','expression','facial hair','markings','body pattern','horns','wing','flame','tail']);
  const unmapped=normalizedProfile.renderTraits.map(([slot,value],i)=>({slot,value,rawType:normalizedProfile.rawTraits[i]?.[0]})).filter(item=>!handledSlots.has(item.slot));
  const unmappedText=unmapped.length?unmapped.map(({rawType,slot,value})=>'  - '+rawType+' → '+slot+': '+value).join('\n'):'  none detected';
- status.textContent='Rendered: '+(nft.name||nft.id||'unnamed sample')+'\nCollection: '+(profile.collectionName||nft.key||'unknown')+'\nRaw traits: '+rawTraits.length+'\nTrait slots without an explicit renderer mapping: '+unmapped.length+'\n'+unmappedText+'\nArchetype: '+(recon.archetype||profile.archetype||'unknown')+'\nFidelity mode: '+(recon.fidelityMode||'unknown')+'\nExact reconstruction: '+String(!!recon.exactReconstruction)+'\nRecipes: outfit='+components.outfitStyle+', headwear='+components.headwearStyle+', weapon='+components.weaponStyle+', tail='+components.tailStyle+'\nReview status: visual inspection required; no automated likeness score.';
- const url=document.querySelector('#artUrl').value.trim()||String(nft.img||nft.image||'').trim();showArtwork(url);
+ status.textContent='Rendered: '+(nft.name||nft.id||'unnamed sample')+'\nCollection: '+(profile.collectionName||nft.key||'unknown')+'\nRaw traits: '+rawTraits.length+'\nTrait slots without an explicit renderer mapping: '+unmapped.length+'\n'+unmappedText+'\nArchetype: '+(recon.archetype||profile.archetype||'unknown')+'\nFidelity mode: '+(recon.fidelityMode||'unknown')+'\nExact reconstruction: '+String(!!recon.exactReconstruction)+'\nRecipes: outfit='+components.outfitStyle+', headwear='+components.headwearStyle+', weapon='+components.weaponStyle+', tail='+components.tailStyle+'\nArtwork tabard: '+(document.querySelector('#showTabard').checked?(artworkUrl?'visible':'enabled, but no source artwork URL was supplied'):'hidden for geometry review')+'\nTraits needing dedicated geometry: '+((profile.unsupportedVisualTraits||[]).map(x=>x.slot+' = '+x.value).join(', ')||'none detected')+'\nReview status: visual inspection required; no automated likeness score.';
+ showArtwork(artworkUrl);
  }catch(e){status.textContent='Could not render sample: '+e.message;}}
 document.querySelector('#render').addEventListener('click',renderSample);
-document.querySelector('#clear').addEventListener('click',()=>{document.querySelector('#artUrl').value='';showArtwork('');});
+document.querySelector('#showTabard').addEventListener('change',renderSample);
+document.querySelector('#clear').addEventListener('click',()=>{document.querySelector('#artUrl').value='';showArtwork('');renderSample();});
 document.querySelector('#copyReport').addEventListener('click',async()=>{try{const nft=JSON.parse(document.querySelector('#sample').value);const report={tool:'BURN City NFT Avatar Visual QA',createdAt:new Date().toISOString(),sample:{key:nft.key||null,id:nft.id||nft.nftId||null,name:nft.name||null,traits:Array.isArray(nft.traits)?nft.traits:[]},artworkUrl:document.querySelector('#artUrl').value.trim()||nft.img||nft.image||null,diagnostics:status.textContent,review:{notes:document.querySelector('#reviewNotes').value.trim(),visualInspectionRequired:true,automatedLikenessScore:null,ownershipVerified:false}};await navigator.clipboard.writeText(JSON.stringify(report,null,2));status.textContent+='\nQA report copied. Include screenshots and reviewer notes when reporting mismatches.';}catch(e){status.textContent='Could not copy report: '+e.message+' (the browser may require HTTPS or clipboard permission).';}});
 const samples = {
  racc: {key:'racc',id:'RACC-review-001',name:'RACC — TNT / Striped Sweater / Bee Hive',img:'',traits:[['Armed','TNT'],['Fits','Yellow Striped Sweater'],['Top Gear','Bee Hive'],['Bandit Mask','Crimson'],['Ring Tail','Black and White']],pal:{face:'#8b7770',body:'#d8b44a',top:'#cf493e',acc:'#cf493e'}},

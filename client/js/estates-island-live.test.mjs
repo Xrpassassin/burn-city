@@ -29,6 +29,9 @@ assert(app.includes('window.__estatesIslandLive.tick(dt,f,s,run)'), 'live contro
 const live = await readFile(new URL('./estates-island-live.mjs', import.meta.url), 'utf8');
 assert(live.includes('exitPressed:edge'), 'keyboard interaction edge reaches the exit-gate controller');
 assert(live.includes('active=false; root.visible=false; hidePanel(); controllerRef.dispose();'), 'exit hides island and disposes active controller');
+assert(app.includes('cityGate:{x:ESTATE.lotC.x,y:0.1,z:ESTATE.lotC.z}'), 'city walking entrance follows actual Estates district');
+assert(live.includes('Math.hypot(player.pos.x-gate.x,player.pos.z-gate.z)'), 'city proximity uses configured Estates entrance');
+assert(live.includes('returnPosition??gate'), 'exit fallback uses configured city gate');
 assert(live.includes('root.visible = false'), 'island should be hidden in city');
 assert(live.includes('active=true; root.visible=true'), 'entering island must reveal scene');
 assert(live.includes('enterFromCity(){'), 'city landmark must expose entry action');

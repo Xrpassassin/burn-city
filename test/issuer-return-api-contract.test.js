@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const { attachIssuerReturnHistory } = require('../server/issuer-return-api-contract');
-const now=10000000, token={issuer:'rIssuer',currency:'4255524E'};
+const now=100000000, token={issuer:'rIssuer',currency:'4255524E'};
 const verified={status:'verified',issuer:token.issuer,currency:token.currency,
  burned:'965000000000000',burned_pct:96.5,launchSupplyVerified:true,checkedAtMs:now,
  coverage:{complete:true,from_ledger:1,to_ledger:20},

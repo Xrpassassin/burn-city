@@ -2,6 +2,7 @@
 // Bounded, read-only account_tx history scanner. Never asserts completeness for capped pages,
 // missing metadata, inconsistent pagination, or ledger-range errors.
 const { summarizeIssuerReturns } = require('./issuer-return-history');
+const { rankBurnSenders } = require('./issuer-return-leaderboard');
 function isLedger(n) { return Number.isSafeInteger(n) && n >= 0; }
 async function scanIssuerReturns({ rpc, issuer, currency, launchSupply, fromLedger, toLedger, issuerVerified = false,
   launchLedgerVerified = false, maxPages = 20, limit = 200 }) {
@@ -44,7 +45,9 @@ async function scanIssuerReturns({ rpc, issuer, currency, launchSupply, fromLedg
     coverage: { fromLedger, toLedger, launchLedgerVerified,
       complete: complete && !error, noGaps: complete && !error }
   });
-  return { ...summary, scan: { pages, fetched_transactions: transactions.length,
+  const leaderboard = rankBurnSenders({ transactions, issuer, currency,
+    complete: complete && !error && launchLedgerVerified === true });
+  return { ...summary, leaderboard, scan: { pages, fetched_transactions: transactions.length,
     page_limit: limit, max_pages: maxPages, next_marker: complete ? null : marker || null,
     error, capped: !complete && !error } };
 }

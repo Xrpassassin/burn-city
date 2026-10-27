@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { audit } = require('../scripts/audit-issuer-returns');
 const { BURN_ISSUER: issuer, BURN_CURRENCY: currency } = require('../server/issuer-return-history');
 const request = async (method) => {
+ if (method === 'server_info') return { info: { complete_ledgers: '10-20' } };
  if (method === 'account_info') return { account_data: { Flags: 0x00100000 }, signer_lists: [] };
  if (method === 'account_tx') return { validated: true, ledger_index_min: 10, ledger_index_max: 20,
    transactions: [{ validated: true, ledger_index: 11,
@@ -16,5 +17,6 @@ audit({ fromLedger: 10, toLedger: 20, request }).then(r => {
  assert.equal(r.burned_pct, null);
  assert.equal(r.status, 'unverified');
  assert.equal(r.scan.pages, 1);
+ assert.equal(r.server_ledger_coverage.available, true);
  console.log('audit-issuer-returns: all tests passed');
 }).catch(e => { console.error(e); process.exitCode = 1; });

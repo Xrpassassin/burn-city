@@ -1,0 +1,27 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { scanIssuerReturns } = require('../server/issuer-return-scanner');
+const { BURN_ISSUER: issuer, BURN_CURRENCY: currency, BURN_LAUNCH_SUPPLY: launchSupply } = require('../server/issuer-return-history');
+const tx = (hash, value, ledger_index = 10) => ({ validated: true, tx: { hash, ledger_index, TransactionType: 'Payment', Account: 'rSender', Destination: issuer }, meta: { TransactionResult: 'tesSUCCESS', delivered_amount: { issuer, currency, value } } });
+const opts = { issuer, currency, launchSupply, fromLedger: 10, toLedger: 20, issuerVerified: true, launchLedgerVerified: true };
+const page = (transactions, marker) => ({ validated: true, ledger_index_min: 10, ledger_index_max: 20, transactions, ...(marker ? { marker } : {}) });
+(async () => {
+  let calls = 0;
+  let r = await scanIssuerReturns({ ...opts, rpc: async (_, p) => { calls++; assert.equal(p.forward, true); return page(calls === 1 ? [tx('a', '100000000000000')] : [tx('b', '50000000000000')], calls === 1 ? 'next' : null); } });
+  assert.equal(r.status, 'verified'); assert.equal(r.burned_pct, 15); assert.equal(r.scan.pages, 2);
+  r = await scanIssuerReturns({ ...opts, maxPages: 1, rpc: async () => page([tx('a', '1')], 'next') });
+  assert.equal(r.burned_pct, null); assert.equal(r.scan.capped, true);
+  r = await scanIssuerReturns({ ...opts, rpc: async () => ({ ...page([tx('a', '1')]), validated: false }) });
+  assert.equal(r.status, 'unverified'); assert.match(r.scan.error, /validated/);
+  r = await scanIssuerReturns({ ...opts, rpc: async () => page([tx('a', '1', 9)]) });
+  assert.equal(r.status, 'unverified'); assert.match(r.scan.error, /range/);
+  r = await scanIssuerReturns({ ...opts, launchLedgerVerified: false, rpc: async () => page([tx('a', '1')]) });
+  assert.equal(r.status, 'unverified');
+  r = await scanIssuerReturns({ ...opts, rpc: async () => page([tx('a', '1'), tx('a', '1')]) });
+  assert.equal(r.burned, '1');
+  r = await scanIssuerReturns({ ...opts, rpc: async () => page([{ ...tx('wrapped', '2'), tx: { ...tx('wrapped', '2').tx, ledger_index: undefined }, ledger_index: 10 }]) });
+  assert.equal(r.burned, '2');
+  r = await scanIssuerReturns({ ...opts, rpc: async () => page([{ ...tx('unvalidated', '2'), validated: false }]) });
+  assert.equal(r.status, 'unverified');
+  console.log('issuer-return-scanner: all tests passed');
+})().catch(e => { console.error(e); process.exitCode = 1; });

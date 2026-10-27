@@ -23,9 +23,10 @@ async function scanIssuerReturns({ rpc, issuer, currency, launchSupply, fromLedg
         throw Error('server returned a different ledger range');
       for (const item of r.transactions) {
         const tx = item?.tx || item?.tx_json || item?.transaction;
-        if (!tx || !isLedger(tx.ledger_index) || tx.ledger_index < fromLedger || tx.ledger_index > toLedger)
+        const ledgerIndex = tx?.ledger_index ?? item?.ledger_index;
+        if (!tx || !isLedger(ledgerIndex) || ledgerIndex < fromLedger || ledgerIndex > toLedger)
           throw Error('transaction missing or outside pinned ledger range');
-        transactions.push(item);
+        transactions.push({ ...item, validated: item.validated === true && r.validated === true, tx: { ...tx, ledger_index: ledgerIndex } });
       }
       pages++;
       const next = r.marker;
@@ -36,6 +37,8 @@ async function scanIssuerReturns({ rpc, issuer, currency, launchSupply, fromLedg
       marker = next;
     }
   } catch (e) { error = e.message || String(e); }
+  // A caller's launch-ledger assertion is never established by this scanner alone.
+  // Supply provenance and a complete archival ledger range must be verified externally.
   const summary = summarizeIssuerReturns({
     issuer, currency, launchSupply, transactions, issuerVerified,
     coverage: { fromLedger, toLedger, launchLedgerVerified,

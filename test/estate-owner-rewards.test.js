@@ -10,9 +10,9 @@ const holdings = [
 ];
 const result = allocateOwnerProfit(1000000, holdings); // 1 XRP in drops
 assert.deepEqual(result.map(r => [r.acct, r.weight, r.amountDrops]), [
-  ['rOwnerA', 4, 210526],
-  ['rOwnerB', 5, 263158],
-  ['rOwnerC', 10, 526316]
+  ['rOwnerA', 26, 147727],
+  ['rOwnerB', 50, 284091],
+  ['rOwnerC', 100, 568182]
 ]);
 assert.equal(result.reduce((sum, row) => sum + row.amountDrops, 0), 1000000);
 assert.deepEqual(result[0].propertyIds, ['starter-01', 'trailer-01']);

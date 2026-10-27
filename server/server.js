@@ -71,6 +71,15 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/history') { if (gate('hist:' + ip, 20, 60e3)) return json(res, 429, { error: 'slow_down' });
       const u = Pay.checkToken((req.headers.authorization || '').replace(/^Bearer /, '')), a = String(url.searchParams.get('acct') || u?.acct || '');
       return json(res, 200, { ...require('./history').forAcct(a, { before: url.searchParams.get('before'), limit: +url.searchParams.get('limit') || 25 }), mine: !!u && u.acct === a }); }
+    if (url.pathname === '/api/deploy-version' && req.method === 'GET') {
+      const active = path.resolve(__dirname, '..');
+      const liveDir = path.resolve(C.DATA_DIR || '/data', 'gh/cur');
+      let commit = null;
+      if (active === liveDir) {
+        try { const sha = fs.readFileSync(path.join(C.DATA_DIR || '/data', 'gh/SHA'), 'utf8').trim(); if (/^[0-9a-f]{40}$/.test(sha)) commit = sha; } catch {}
+      }
+      return json(res, 200, { source: active === liveDir ? 'github-volume' : 'image-or-override', commit });
+    }
     if (url.pathname === '/health') return json(res, 200, { ok: true, rooms: Object.values(rooms).flat().length, players: Object.values(rooms).flat().reduce((a, r) => a + r.players.size, 0) });
     if (url.pathname === '/img-burns') { try { return json(res, 200, require('./img-burn').publicLog()); } catch (e) { return json(res, 503, { error: 'unavailable' }); } }   // jetpack IMG buy-and-burn ledger (public)
     if (url.pathname === '/burns') {    // public transparency log of every burn batch

@@ -66,11 +66,12 @@ function pieceH(p, x, z) {
   return null;
 }
 function heightAt(x, z, y) {
-  const c = C(); let g = c.groundAt(x, z, y);
+  const c = C(); let g = window.__estatesIslandLive?.active ? 0 : c.groundAt(x, z, y);
   for (const p of piecesAt(x, z)) { const h = pieceH(p, x, z); if (h != null && h <= y + STEP_UP && h > g) g = h; }
   return g;
 }
 function solidAbove(x, z, y, ox, oz) {   // a wall: some surface here rises more than a step above the board
+  if(!window.__estatesIslandLive?.active&&window.__estate?.inCityIsland?.(x,z))return true;
   for (const p of piecesAt(x, z)) {
     const h = pieceH(p, x, z); if (h == null || h <= y + STEP_UP) continue;
     // ramps and quarter pipes are only walls from the sides or the back; from the front you ride up them
@@ -79,7 +80,7 @@ function solidAbove(x, z, y, ox, oz) {   // a wall: some surface here rises more
     }
     return true;
   }
-  for (const o of C().colliders) { if (o.r > 0 && o.h > y + STEP_UP && Math.hypot(x - o.x, z - o.z) < o.r + .3) return true; }
+  if(!window.__estatesIslandLive?.active)for (const o of C().colliders) { if (o.r > 0 && o.h > y + STEP_UP && Math.hypot(x - o.x, z - o.z) < o.r + .3) return true; }
   return false;
 }
 
@@ -296,7 +297,7 @@ function moveXZ(dt) {
   const nx = p.x + v.x * dt; if (solidAbove(nx, p.z, p.y, p.x, p.z)) { v.x *= -.15; SK.test.walls = (SK.test.walls || 0) + 1; } else p.x = nx;
   const nz = p.z + v.z * dt; if (solidAbove(p.x, nz, p.y, p.x, p.z)) { v.z *= -.15; SK.test.walls = (SK.test.walls || 0) + 1; } else p.z = nz;
   // round city colliders (buildings) push the rider out, like walking
-  C().colliders.length && pushOut(p);
+  if(!window.__estatesIslandLive?.active&&C().colliders.length)pushOut(p);
 }
 function pushOut(p) {
   for (const o of C().colliders) {
@@ -429,7 +430,7 @@ function build() {
   addEventListener('keydown', e => { if (SK.active && e.code === 'KeyG' && !e.repeat && !/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { GEAR.ui() ? GEAR.close() : GEAR.open(); } });
   // board
   // board: socketed parts from the gear registry (deck, trucks, wheels), all inside deckG so flips/grinds move them together
-  board = new THREE.Group(); const deckG = new THREE.Group(); board.add(deckG);
+  board = new THREE.Group(); board.userData.estatesKeep=true; const deckG = new THREE.Group(); board.add(deckG);
   GEAR.build(deckG, GEAR.loadout, PIVOT); deckG.position.y = PIVOT;
   GEAR.onChange = l => { GEAR.build(deckG, l, PIVOT); SK.loadout = { ...l }; };
   SK.loadout = { ...GEAR.loadout }; SK.board = board;

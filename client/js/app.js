@@ -174,7 +174,7 @@ c=mix(c,dayc,day);
 float se=smoothstep(-.05,.03,sd.y)*(1.-storm*.9);vec3 sc=mix(vec3(1.,.42,.12),vec3(1.,.95,.82),smoothstep(.15,.6,day));
 c+=sc*(smoothstep(.9993,.9996,sdt)*1.6*(1.-cmk*.6)+pow(sdt,400.)*.45+pow(sdt,30.)*.06)*se*(1.-day*.5);c+=vec3(1.,.48,.22)*pow(1.-y,5.)*gh*.5*(1.-storm);
 float cl=fbm(p*.9+vec2(t*.02,t*.01));c=mix(c,mix(vec3(.04,.045,.06),vec3(.45,.47,.5),day)*(.6+cl*.6),storm*smoothstep(.3,.7,cl+.2));
-c+=vec3(.6,.65,1.)*flash*(.4+cl);c+=vec3(.25,.1,.05)*pow(max(0.,1.-y),8.)*(1.-day);gl_FragColor=vec4(c,1.);}`}));S.add(sky);
+c+=vec3(.6,.65,1.)*flash*(.4+cl);c+=vec3(.25,.1,.05)*pow(max(0.,1.-y),8.)*(1.-day);gl_FragColor=vec4(c,1.);}`}));sky.userData.estatesKeep=true;S.add(sky);
 const moonTexOld=0&&(()=>{const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');const g=x.createRadialGradient(128,128,40,128,128,128);g.addColorStop(0,'rgba(220,230,255,1)');g.addColorStop(.42,'rgba(200,215,255,.95)');g.addColorStop(.47,'rgba(150,170,255,.25)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,256,256);
  x.globalAlpha=.12;x.fillStyle='#4a5a8a';for(let i=0;i<14;i++){x.beginPath();x.arc(90+rnd()*80,90+rnd()*80,4+rnd()*14,0,7);x.fill()}return new THREE.CanvasTexture(c)})();
 // moon: real lunar phase (synodic 29.53 d from the 2000-01-06 new moon), soft crater mottling, separate additive glow
@@ -1402,7 +1402,7 @@ jetBtn.onclick=e=>{if(e)e.stopPropagation();JET.on=!JET.on;if(JET.on&&WEB.on)web
 const pack=new THREE.Group();{const m=new THREE.MeshStandardMaterial({color:0x8a93a6,metalness:.8,roughness:.35});for(const s of[-1,1]){const t=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.42,8),m);t.position.set(s*.11,1.25,.24);pack.add(t)}
  const fl=new THREE.Mesh(new THREE.ConeGeometry(.09,.55,8).translate(0,-.27,0).rotateX(Math.PI),new THREE.MeshBasicMaterial({color:0xff8a2a,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));fl.rotation.x=Math.PI;
  for(const s of[-1,1]){const f=fl.clone();f.position.set(s*.11,1.02,.24);f.visible=false;pack.add(f)}}pack.visible=false;avatar.add(pack);
-const SMN=40,smG=new THREE.BufferGeometry(),smP=new Float32Array(SMN*3),smV=new Float32Array(SMN*4);smG.setAttribute('position',new THREE.BufferAttribute(smP,3));const smoke=new THREE.Points(smG,new THREE.PointsMaterial({color:0xb0a8a0,size:.45,transparent:true,opacity:.55,depthWrite:false}));smoke.frustumCulled=false;S.add(smoke);let smI=0;
+const SMN=40,smG=new THREE.BufferGeometry(),smP=new Float32Array(SMN*3),smV=new Float32Array(SMN*4);smG.setAttribute('position',new THREE.BufferAttribute(smP,3));const smoke=new THREE.Points(smG,new THREE.PointsMaterial({color:0xb0a8a0,size:.45,transparent:true,opacity:.55,depthWrite:false}));smoke.frustumCulled=false;smoke.userData.estatesKeep=true;S.add(smoke);let smI=0;
 function jetStep(dt,mv){const ok=!!window.__jetOK&&mode==='explore'&&!(window.__boat&&window.__boat.active);jetBtn.style.display=ok?'':'none';jetBar.style.display='none';pack.visible=ok&&JET.on;
   if(!ok)JET.on=false;JET.f=1;   // infinite fuel: no drain, no fuel bar
   const up=!!(keys.Space||tb.jump||tb.up),dn=!!(keys.KeyC||keys.ControlLeft||tb.down);
@@ -1445,7 +1445,18 @@ window.__web={WEB,webSet,webAnchor,railPts};
 function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=null;$('prompt').style.display='none';P.vel.set(0,0,0);me.set(P.pos,avatar.rotation.y,'idle',P.district);return}   // a modal owns the player (The Wilds: warning / encounter / dialogue)
  const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=speedFor(run);
  const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0)-joy.y,s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+joy.x;
- if(window.__estatesIslandLive&&window.__estatesIslandLive.tick(dt,f,s,run)){const ml=Math.min(1,Math.hypot(f,s));P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);poseWalker(avatar,P.walk,ml,performance.now()/1000);avatar.position.copy(P.pos);avatar.position.y+=Math.abs(Math.sin(P.walk))*.06*ml;avatar.visible=!P.fp;P.near=null;$('prompt').style.display='none';$('tUse')&&$('tUse').classList.remove('hot');me.set(P.pos,avatar.rotation.y,ml>.05?(run?'run':'walk'):'idle',P.district);return;}
+ if(window.__estatesIslandLive?.active){
+  const island=window.__estatesIslandLive,board=window.__skate,ml=Math.min(1,Math.hypot(f,s));let desiredDelta=null,boardHeading=null;
+  if(board?.active){const oldX=P.pos.x,oldZ=P.pos.z;board.drive(dt,f,s);desiredDelta={x:P.pos.x-oldX,z:P.pos.z-oldZ};P.pos.x=oldX;P.pos.z=oldZ;boardHeading=avatar.rotation.y;}
+  else {const fw=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw)),rt=new THREE.Vector3(-fw.z,0,fw.x),mv=fw.multiplyScalar(f).add(rt.multiplyScalar(s));if(ml>.05)mv.normalize().multiplyScalar(sp*ml);
+   if(jetStep(dt,mv))desiredDelta={x:JET.v.x*dt,z:JET.v.z*dt};else if((keys.Space||tb.jump)&&P.onGround){P.vel.y=MOTION.jump;P.onGround=false;}
+   P.vel.y-=MOTION.gravity*dt;P.pos.y+=P.vel.y*dt;if(P.pos.y<=0){P.pos.y=0;P.vel.y=0;P.onGround=true;}else P.onGround=false;
+  }
+  island.tick(dt,f,s,run,desiredDelta);if(boardHeading!==null)avatar.rotation.y=boardHeading;
+  else{P.walk+=dt*ml*(run?MOTION.runCadence:MOTION.walkCadence);poseWalker(avatar,P.walk,ml,performance.now()/1000);}
+  avatar.position.copy(P.pos);avatar.visible=!P.fp;P.near=null;$('prompt').style.display='none';$('tUse')&&$('tUse').classList.remove('hot');me.set(P.pos,avatar.rotation.y,ml>.05?(run?'run':'walk'):'idle',P.district);return;
+ }
+ if(window.__estatesIslandLive&&window.__estatesIslandLive.tick(dt,f,s,run))return;
  if(window.__skate&&window.__skate.active){window.__skate.drive(dt,f,s);const dir=dirOf();if(P.fp){C.position.copy(P.pos).setY(P.pos.y+1.6);C.lookAt(C.position.clone().add(dir))}else{const want=P.pos.clone().setY(P.pos.y+2.2).addScaledVector(dir,-6.2);want.y=Math.max(want.y,P.pos.y+.8,.6);C.position.lerp(want,1-Math.pow(.0005,dt));C.lookAt(P.pos.clone().setY(P.pos.y+1.3).addScaledVector(dir,4))}P.near=null;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}   // skateboarding rides on top of explore, like the boat
  if(window.__boat&&window.__boat.active){const st=window.__boat.drive(dt,f,s);P.pos.copy(st);P.vel.set(0,0,0);P.onGround=true;P.climb=null;avatar.position.copy(st);avatar.rotation.y=window.__boat.cur.h;avatar.visible=true;$('prompt').style.display='none';me.set(P.pos,avatar.rotation.y,'idle',P.district);return}
  const fw=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw)),rt=new THREE.Vector3(-fw.z,0,fw.x);const mv=fw.multiplyScalar(f).add(rt.multiplyScalar(s));const ml=Math.min(1,mv.length());

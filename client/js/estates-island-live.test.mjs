@@ -29,7 +29,9 @@ assert(app.includes('window.__estatesIslandLive.tick(dt,f,s,run)'), 'live contro
 assert(app.includes('cityGate:ESTATE.islandEntrance'), 'walk-up entry uses the actual Estates sign');
 const estate = await readFile(new URL('./estate.js', import.meta.url), 'utf8');
 assert(estate.includes("sx.fillText('ENTER HERE'"), 'the city gateway identifies the island entrance');
-assert(estate.includes('lakeC.clone().addScaledVector(dir,-gateOffset)'), 'entry follows the city-facing lake gateway');
+assert(estate.includes('bridgeStart.clone().addScaledVector(dir,bridgeLength/2)'), 'entry is halfway across the city bridge');
+assert(estate.includes('v1:bridgeLength/2+5'), 'city-side walkway reaches the halfway entrance');
+assert(app.includes('sky.userData.estatesKeep=true'), 'city sky remains visible in Estates');
 assert(app.includes('if(es.inCityIsland?.(x,z))return true'), 'the city-view island blocks physical walking entry');
 assert(app.includes('if(es&&es.inCityIsland?.(x,z))'), 'switching from flight cannot land on the city-view island');
 const live = await readFile(new URL('./estates-island-live.mjs', import.meta.url), 'utf8');
@@ -42,6 +44,8 @@ assert(live.indexOf("await leaseRequest('enter',{clientId})") < live.indexOf('ac
 assert(live.includes('window.__cityNet?.setPaused(true)'), 'entry pauses city presence');
 assert(live.includes('window.__cityNet?.setPaused(false)'), 'exit resumes city presence');
 assert(live.includes('connectPresence(leaseToken,admission.instanceId)'), 'admitted visitors connect to island presence');
+assert(live.includes("exitButton.addEventListener('click',()=>leaveIsland())"), 'return button exits the island');
+assert(live.includes("skyline.name='estates-city-horizon'"), 'island has a city-facing horizon');
 assert(live.includes('stopPresence();'), 'island presence is closed on release');
 assert(live.includes('active=false; root.visible=false; hidePanel(); controllerRef.dispose();'), 'exit hides island and disposes active controller');
 assert(live.includes('root.visible = false'), 'island should be hidden in city');

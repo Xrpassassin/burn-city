@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {resolve,dirname} from 'node:path';
 import {runInNewContext} from 'node:vm';
 const source=readFileSync(new URL('./city-qa-adapter.mjs',import.meta.url),'utf8');
 function boot({host='localhost',search='?qa=1',ready=false}={}){
@@ -44,3 +46,13 @@ assert.equal(Object.isFrozen(w.__BURN_QA__),true);
 assert.equal(Object.getOwnPropertyDescriptor(w,'__BURN_QA__').writable,false);
 assert.equal(boot({host:'127.0.0.1'}).w.__BURN_QA__.version,1);
 console.log('City QA adapter unit tests passed');
+
+// Integration guard: the City entry page must load the QA module before app boot.
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+const html=readFileSync(resolve(root,'index.html'),'utf8');
+const qaScript='<script type="module" src="js/city-qa-adapter.mjs"></script>';
+const appScript='<script type="module" src="js/app.js"></script>';
+assert.equal(html.split(qaScript).length-1,1,'QA adapter should load exactly once');
+assert.ok(html.indexOf(qaScript)<html.indexOf(appScript),'QA adapter must load before app');
+assert.ok(html.includes('id="hud"')&&html.includes('id="btns"')&&html.includes('id="touch"'));
+console.log('City QA HTML integration guard passed');

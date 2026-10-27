@@ -429,7 +429,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   cx.fillStyle='#101b24'; cx.fillRect(0,0,1024,384); cx.strokeStyle='#ffb45b'; cx.lineWidth=12; cx.strokeRect(9,9,1006,366);
   cx.textAlign='center'; cx.shadowColor='#ff9a36'; cx.shadowBlur=22; cx.fillStyle='#ffe0a2';
   cx.font='900 106px system-ui,-apple-system,sans-serif'; cx.fillText('BURN CITY ESTATES',512,170);
-  cx.shadowBlur=8; cx.fillStyle='#c5f2ff'; cx.font='700 48px system-ui,-apple-system,sans-serif'; cx.fillText('LAKEFRONT RESIDENCES',512,258);
+  cx.shadowBlur=8; cx.fillStyle='#c5f2ff'; cx.font='700 48px system-ui,-apple-system,sans-serif'; cx.fillText('ENTER ISLAND HERE',512,258);
   const tex=new THREE.CanvasTexture(cv); tex.anisotropy=4;
   const signM=new THREE.MeshBasicMaterial({map:tex,fog:false,toneMapped:false,side:THREE.DoubleSide});
   const sign=new THREE.Mesh(new THREE.PlaneGeometry(74,28),signM); sign.position.set(0,17,-LD/2+8); sign.rotation.y=Math.PI; lot.add(sign);
@@ -658,7 +658,8 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     for(const r of Object.values(interiorRooms)){const d=Math.hypot(p.x-r.exterior.x,p.z-r.exterior.z);if(d<4.5&&(!best||d<best.d))best={d,label:'Enter '+ESTATE_TIER_INFO[r.tier].label,act:()=>window.__estateEnter&&window.__estateEnter(r.id)}}
     return best;
   });
-  return { lakeC, lotC, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
+  const islandEntrance = lotC.clone().addScaledVector(dir, -LD/2+8);
+  return { lakeC, lotC, islandEntrance, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
 }
 const ESTATE_TIER_INFO = { trailer:{label:'Trailer Home',units:1}, apartment:{label:'Apartment Unit',units:2}, starter:{label:'Two-Bedroom Starter Home',units:3}, family:{label:'Four-Bedroom Family Home',units:5}, mansion:{label:'Luxury Lakefront Mansion',units:10} };
 const ESTATE_PLOTS = [{id:'trailer-01',tier:'trailer',address:'Estates Row 01'},{id:'trailer-02',tier:'trailer',address:'Estates Row 02'},{id:'apartment-01',tier:'apartment',address:'Lakeview Apartments'},{id:'starter-01',tier:'starter',address:'Starter Lane 01'},{id:'starter-02',tier:'starter',address:'Starter Lane 02'},{id:'family-01',tier:'family',address:'Family Crescent 01'},{id:'family-02',tier:'family',address:'Family Crescent 02'},{id:'mansion-01',tier:'mansion',address:'Lakefront Estate 01'},{id:'mansion-02',tier:'mansion',address:'Lakefront Estate 02'}];

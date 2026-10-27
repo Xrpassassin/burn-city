@@ -69,7 +69,12 @@
     "test:nft-avatar-model-factory": "node scripts/nft-avatar-model-factory.test.mjs",
     "test:nft-avatar-collection-recipes": "node client/js/nft-avatar-collection-recipes.test.mjs",
     "test:nft-avatar-build-spec": "node scripts/nft-avatar-build-spec.test.mjs",
-    "test:nft-avatar-build-pipeline": "node scripts/nft-avatar-build-pipeline.test.mjs"
+    "test:nft-avatar-build-pipeline": "node scripts/nft-avatar-build-pipeline.test.mjs",
+    "audit:external": "node scripts/audit-external-code.mjs",
+    "test:static-security": "node server/static-path-policy.test.js",
+    "test:security-gates": "npm run -s test:static-security && node scripts/browser-qa-command.test.cjs && npm run -s test:city-qa",
+    "qa:browser:local": "node scripts/browser-qa-command.cjs",
+    "test:city-qa": "node client/js/city-qa-adapter.test.mjs"
   },
   "keywords": [],
   "author": "",

@@ -1,0 +1,25 @@
+name: QA foundation checks
+on:
+  pull_request:
+    paths:
+      - 'client/index.html'
+      - 'client/js/city-qa-adapter*'
+      - 'scripts/browser-qa-command*'
+      - 'server/static-path-policy*'
+      - 'server/server.js'
+      - 'package.json'
+      - '.github/workflows/qa-foundation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run QA foundation tests
+        run: npm run test:security-gates

@@ -6,6 +6,7 @@ const Nft = require('./nft'), Social = require('./social'), C = require('./confi
 const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates = require('./estates'), EstateWallet = require('./estate-wallet');
 const EstateRights = require('./estates-rights');
 const EstateAccess = require('./estate-access');
+const {resolvePublicFile}=require('./static-path-policy');
 const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
 const Jetpack = require('./jetpack');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
@@ -43,9 +44,11 @@ function serveStatic(req, res, url) {   // static site files: served before the 
   if (url.pathname === '/data.js' && Eco.serve(req, res)) return true;
   try {
     // serve the demo client for local testing
-    let f = path.join(__dirname, '..', 'client', decodeURIComponent(url.pathname).slice(1));
-    if (f.startsWith(path.join(__dirname, '..', 'client')) && fs.existsSync(f) && fs.statSync(f).isDirectory()) { if (!url.pathname.endsWith('/')) { res.writeHead(301, { location: url.pathname + '/' + url.search }); res.end(); return true; } f = path.join(f, 'index.html'); }
-    if (f.startsWith(path.join(__dirname, '..', 'client')) && fs.existsSync(f) && fs.statSync(f).isFile()) {
+    const staticRoot = path.resolve(__dirname, '..', 'client');
+    let f = resolvePublicFile(staticRoot, url.pathname);
+    if (!f) return false;
+    if (fs.existsSync(f) && fs.statSync(f).isDirectory()) { if (!url.pathname.endsWith('/')) { res.writeHead(301, { location: url.pathname + '/' + url.search }); res.end(); return true; } f = path.join(f, 'index.html'); }
+    if (resolvePublicFile(staticRoot, url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname) && fs.existsSync(f) && fs.statSync(f).isFile()) {
       const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.glb': 'model/gltf-binary', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
       // app code/html/css/json always revalidate (ETag -> cheap 304) so a deploy reaches every player on their next load; vendor libs, images and audio cache for a day
       const st = fs.statSync(f), etag = `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`, ext = path.extname(f).toLowerCase(), fresh = /\/vendor\//.test(f) || /^\.(png|jpe?g|webp|gif|svg|ico|mp3|m4a|ogg|woff2?)$/.test(ext);

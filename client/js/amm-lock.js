@@ -1,3 +1,4 @@
+import { verifiedBurnFraction } from './verified-burn-visual.mjs';
 // AMM lock + burn visuals (server truth: GET /api/amm-lock, server/amm-lock.js). +3 draw calls total, all instanced/merged:
 //   1) ONE InstancedMesh: gold segmented chain halo around every pool bridge (at the arc's midpoint). Lit arc = VERIFIED permanently locked
 //      share of the LP token supply; dim amber dashes = time-locked (Escrow); faint steel = the rest; grey dashes = UNVERIFIED (nothing gold).
@@ -99,6 +100,8 @@ export function initAmmLock(c) {
   const poolView = b => { const o = poolOf(b); if (!o || !fresh(o) || o.status === 'unverified') return { st: 'unverified', o, perm: 0, tl: 0 }; return { st: 'verified', o, perm: (o.locked_pct || 0) / 100, tl: (o.time_locked_pct || 0) / 100 }; };
   const tokOf = k => { const o = st.data && st.data.tokens ? st.data.tokens[k] : null;
     if(st.data?.fixture){if(!o||!fresh(o)||o.status==='unverified'||o.burned_pct==null)return {st:'unverified',o,f:0};return {st:o.status,o,f:o.burned_pct/100};}
+    const historical = verifiedBurnFraction(o?.issuer_return_history, N[k]?.key);
+    if(historical !== null && fresh(o))return {st:'verified',o:{...o,burned_pct:historical*100},f:historical};
     if(burnIssuerMarker(N[k]?.key,o?.issuer_keys_disabled,!!fresh(o)))return {st:'history_pending',o,f:0.08};
     return {st:'unverified',o,f:0};
   };

@@ -52,13 +52,13 @@ export function createEstatesIslandController({
     if(typeof cameraLookAt==='function') cameraLookAt(cameraTarget);
     else if(typeof camera.lookAt==='function') camera.lookAt(cameraTarget.x,cameraTarget.y,cameraTarget.z);
   }
-  function update({dt=0,yaw=0,moveX=0,moveZ=0,interactPressed=false,exitPressed=false}={}) {
+  function update({dt=0,yaw=0,moveX=0,moveZ=0,interactPressed=false,exitPressed=false,desiredDelta=null}={}) {
     if(!active) return Object.freeze({active:false});
     if(!finite(dt)||dt<0||!finite(moveX)||!finite(moveZ)||!finite(yaw)) throw new TypeError('dt, yaw, and movement must be finite');
     point(actorPosition(),'actor position');
     const command=input({dt,yaw,moveX,moveZ,elapsed});
     // Input is an adapter contract: the host can supply world-space desired delta in metres.
-    const dx=command?.delta?.x??moveX*dt,dz=command?.delta?.z??moveZ*dt;
+    const dx=desiredDelta?.x??command?.delta?.x??moveX*dt,dz=desiredDelta?.z??command?.delta?.z??moveZ*dt;
     if(!finite(dx)||!finite(dz)) throw new TypeError('input delta must be finite');
     const moved=navigation.move(actorPosition(),{x:dx,y:0,z:dz});
     setVector(actor.position,moved.position);

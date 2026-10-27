@@ -38,6 +38,14 @@ function summarizeIssuerReturns({ issuer, currency, launchSupply, transactions, 
     if (!tx || !tx.hash || !item?.validated) { bad++; continue; }
     if (seen.has(tx.hash)) continue;
     seen.add(tx.hash);
+    if (tx.TransactionType === 'Payment' && tx.Destination === issuer && tx.Account !== issuer &&
+        meta?.TransactionResult === 'tesSUCCESS' &&
+        ((tx.Amount && typeof tx.Amount === 'object' && tx.Amount.issuer === issuer &&
+          currencyMatches(tx.Amount.currency, currency)) ||
+         (tx.DeliverMax && typeof tx.DeliverMax === 'object' && tx.DeliverMax.issuer === issuer &&
+          currencyMatches(tx.DeliverMax.currency, currency))) &&
+        (meta.delivered_amount == null && meta.DeliveredAmount == null ||
+         meta.delivered_amount === 'unavailable')) { bad++; continue; }
     if (!isIssuerReturn(tx, meta, issuer, currency)) continue;
     sum += decimalUnits((meta.delivered_amount ?? meta.DeliveredAmount).value).units;
     count++;

@@ -265,6 +265,7 @@ function safety() {
 }
 // ---------------------------------------------------------------- per frame (cheap: a few distance checks)
 function frame(dt, t) {
+  if(window.__estatesIslandLive?.active)return;
   if (G.horizon && !CO.off) G.horizon.visible = !loaded();   // skyline stands where the real forest loads: show it only while the Cinderwilds is unloaded (deep cityOff/cityOn owns it while off)
   const c = C(), P = c.P, explore = c.getMode() === 'explore' && !window.__burnTowerOpen;
   for (const f of flames) { const k = t * 9 + f.userData.ph; const s = 1 + Math.sin(k) * .08 + Math.sin(k * 2.3) * .05; f.scale.set(s, 1 + Math.sin(k * 1.7) * .14 + Math.sin(k * 3.1) * .06, s); }

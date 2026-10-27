@@ -12,3 +12,13 @@ export function steerBoat({x,z,heading,throttle,turn,dt}){
  return {x,z,heading:angle,blocked:false};
 }
 export function canBoatFish({x,z,anchored}){return anchored===true&&onLake(x,z);}
+
+export function estatesMarineExit({x,z,heading,throttle}){
+ if(![x,z,heading,throttle].every(ok)||throttle<=0||!onLake(x,z))return null;
+ // A marked eastern water passage; the remaining perimeter is collision-limited.
+ const radial=Math.hypot(x,z);
+ if(x<0||Math.abs(z)>32||radial<lakeBounds.outer-3)return null;
+ const outward=(x*Math.sin(heading)-z*Math.cos(heading))/radial;
+ if(outward<0.45)return null;
+ return Object.freeze({destination:'burn-city',gateway:'estates-east-channel',boatPosition:Object.freeze({x,z}),heading});
+}

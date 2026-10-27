@@ -6,12 +6,21 @@ const BURN_ISSUER = 'rwgNTwrsZKPe7xYCy4emjFAYpgnuioHSkd';
 const BURN_CURRENCY = '4255524E00000000000000000000000000000000';
 const BURN_LAUNCH_SUPPLY = '1000000000000000';
 function decimalUnits(value) {
-  if (typeof value !== 'string' && typeof value !== 'number') return null;
-  const s = String(value);
-  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(s)) return null;
-  const [whole, fraction = ''] = s.split('.');
-  if (fraction.length > 15) return null;
-  return { units: BigInt(whole + fraction.padEnd(15, '0')), scale: 10n ** 15n };
+  // XRPL issued-currency values may be canonical scientific notation (e.g. 1.25e+6).
+  // Parse the decimal significand/exponent as integers; never round through a float.
+  if (typeof value !== 'string') return null;
+  const s = value.trim();
+  const m = /^(0|[1-9]\\d*)(?:\\.(\\d+))?(?:[eE]([+-]?\\d{1,3}))?$/.exec(s);
+  if (!m) return null;
+  const whole = m[1], fraction = m[2] || '', exponent = Number(m[3] || 0);
+  if (!Number.isSafeInteger(exponent) || exponent < -100 || exponent > 100) return null;
+  const digits = whole + fraction;
+  const shift = 15 + exponent - fraction.length;
+  if (shift >= 0) return { units: BigInt(digits) * 10n ** BigInt(shift), scale: 10n ** 15n };
+  const divisor = 10n ** BigInt(-shift), unscaled = BigInt(digits);
+  // Reject precision we cannot represent exactly; no silent rounding.
+  if (unscaled % divisor !== 0n) return null;
+  return { units: unscaled / divisor, scale: 10n ** 15n };
 }
 function display(units) {
   const q = units / 10n ** 15n, r = units % (10n ** 15n);

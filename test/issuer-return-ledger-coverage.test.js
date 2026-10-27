@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {parseLedgerRanges,coversLedgerRange,assessServerLedgerCoverage}=require('../server/issuer-return-ledger-coverage');
+assert.deepEqual(parseLedgerRanges('1-100,110-120'),[[1,100],[110,120]]);
+assert.equal(coversLedgerRange(parseLedgerRanges('1-100,101-200'),5,180),true);
+assert.equal(coversLedgerRange(parseLedgerRanges('1-100,110-200'),5,180),false);
+assert.equal(coversLedgerRange(parseLedgerRanges('1-100'),0,100),false);
+assert.equal(assessServerLedgerCoverage({info:{complete_ledgers:'500-1000'}},500,999).available,true);
+assert.equal(assessServerLedgerCoverage({info:{complete_ledgers:'500-1000'}},1,999).available,false);
+assert.equal(assessServerLedgerCoverage({info:{complete_ledgers:'empty'}},500,999).available,false);
+console.log('issuer-return-ledger-coverage: all tests passed');

@@ -67,6 +67,31 @@ function addBridgeArchitecture(THREE, root) {
   root.userData.estatesBridgeMaterials = [stone,rail,glow];
 }
 
+// Lightweight skyline proxy, following Cinderwilds' distant-horizon approach.
+// Visual only: no city collision, player replication or duplicate world simulation.
+function addDistantCityVista(THREE, root) {
+  const vista=new THREE.Group(); vista.name='estates-distant-city-vista';
+  const material=new THREE.MeshBasicMaterial({color:0x253644,fog:true});
+  const windowMat=new THREE.MeshBasicMaterial({color:0x6e8790,fog:true});
+  const seedHeights=[23,38,17,54,31,46,22,63,28,40,19,35,57,25,42,30];
+  const geometry=new THREE.BoxGeometry(1,1,1);
+  for(let i=0;i<seedHeights.length;i++){
+    const height=seedHeights[i], x=-275+i*26;
+    const tower=new THREE.Mesh(geometry,material);
+    tower.name='city-skyline-'+i;
+    tower.position.set(x,height/2-1,-390);
+    tower.scale.set(15+(i%3)*5,height,13);
+    vista.add(tower);
+    if(i%3===0){
+      const beacon=new THREE.Mesh(geometry,windowMat);
+      beacon.position.set(x,height+1,-390); beacon.scale.set(1.5,2,1.5);
+      vista.add(beacon);
+    }
+  }
+  root.add(vista);
+  return {dispose(){vista.traverse(o=>{if(o.isMesh)o.geometry?.dispose?.();});material.dispose();windowMat.dispose();root.remove(vista);}};
+}
+
 export async function installEstatesIslandLive({
   THREE, scene, player, avatar, camera, getYaw, setYaw, getMode, setMode,
   isInteractPressed = () => false,
@@ -84,6 +109,7 @@ export async function installEstatesIslandLive({
   const root = renderer.root;
   root.position.x = OFFSET_X;
   addBridgeArchitecture(THREE, root);
+  const distantCityVista=addDistantCityVista(THREE,root);
 
   let active = false, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
   const panel = makePanel();
@@ -247,7 +273,7 @@ export async function installEstatesIslandLive({
   const api = Object.freeze({
     tick,
     dispose(){
-      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); distantCityVista.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       onStatus({state:'disposed'}); return true;
     },

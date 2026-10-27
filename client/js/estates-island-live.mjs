@@ -70,12 +70,15 @@ function addBridgeArchitecture(THREE, root) {
 export async function installEstatesIslandLive({
   THREE, scene, player, avatar, camera, getYaw, setYaw, getMode, setMode,
   isInteractPressed = () => false,
+  cityGate = CITY_GATE,
   onStatus = () => {}
 } = {}) {
   if (!THREE || !scene || !player?.pos || !avatar || !camera || typeof getYaw !== 'function' ||
       typeof getMode !== 'function' || typeof setMode !== 'function' || typeof setYaw !== 'function') {
     throw new TypeError('Live Estates Island host dependencies are incomplete');
   }
+  if (![cityGate?.x,cityGate?.z].every(finite)) throw new TypeError('Estates city entrance must have finite coordinates');
+  const gate = {x:cityGate.x,y:finite(cityGate.y)?cityGate.y:CITY_GATE.y,z:cityGate.z};
   const response = await fetch('./data/estate-catalog.json', { cache: 'no-cache' });
   if (!response.ok) throw new Error('Estate catalog could not be loaded ('+response.status+')');
   const catalog = await response.json();
@@ -144,7 +147,7 @@ export async function installEstatesIslandLive({
     if(edge) {lastLandmarkId=nearest.id;showLandmarkDetails(nearest);return;}
     if(lastLandmarkId!==nearest.id) {lastLandmarkId=nearest.id;showLandmarkPrompt(nearest);}
   };
-  const cityDistance = () => Math.hypot(player.pos.x-CITY_GATE.x,player.pos.z-CITY_GATE.z);
+  const cityDistance = () => Math.hypot(player.pos.x-gate.x,player.pos.z-gate.z);
   const localActor = {
     get position() {
       return { x:player.pos.x-OFFSET_X, y:player.pos.y, z:player.pos.z,
@@ -194,7 +197,7 @@ export async function installEstatesIslandLive({
   function leaveIsland() {
     if(disposed||!active)return;
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();
-    const destination=returnPosition??CITY_GATE;
+    const destination=returnPosition??gate;
     player.pos.set(destination.x,destination.y,destination.z);
     returnPosition=null;
     setYaw(Math.PI/2);
@@ -211,7 +214,7 @@ export async function installEstatesIslandLive({
       const near=cityDistance()<=10;
       if(near&&!nearCityGate) {
         nearCityGate=true;
-        showPanel('ESTATES ISLAND','A public island neighborhood lies across this bridge. Enter only when you are ready.',
+        showPanel('ESTATES ISLAND','Enter the public island neighborhood from the Estates entrance.',
           [{label:'Enter Estates Island',primary:true,run:enterIsland},{label:'Not now',run:hidePanel}],
           'Explicit entry · public paths · private lots remain permission-controlled.');
       } else if(!near&&nearCityGate) { nearCityGate=false; hidePanel(); }

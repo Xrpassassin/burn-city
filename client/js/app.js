@@ -1369,7 +1369,7 @@ $('tUse').addEventListener('touchstart',e=>{interact();e.preventDefault()},{pass
 // ---------- explore: physics, collisions, districts, interaction ----------
 function groundAt(x,z,y){let g=0;for(const c of colliders){if(c.h<=y+.35&&c.h>g&&Math.hypot(x-c.x,z-c.z)<c.r)g=c.h}if(window.__deckAt){const dk=window.__deckAt(x,z);if(dk!=null&&dk<=y+1.4&&dk>g)g=dk}if(window.__hwDeck){const hd=window.__hwDeck(x,z);if(hd!=null&&hd<=y+1.4&&hd>g)g=hd}return g}
 // walkers stay out of the water except on docks and the lake bridge
-function wet(x,z){const es=window.__estate;if(!es)return false;if(es.inCityIsland?.(x,z))return true;if(!es.inLake(x,z))return false;if(window.__deckAt&&window.__deckAt(x,z)!=null)return false;const ce=es.roadO||es.cityEdge,dr=es.dir;if(ce&&dr&&Math.abs((x-ce.x)*dr.z-(z-ce.z)*dr.x)<7.5)return false;return true}
+function wet(x,z){const es=window.__estate;if(!es)return false;if(es.inCityIsland?.(x,z))return true;if(!es.inLake(x,z))return false;if(window.__deckAt&&window.__deckAt(x,z)!=null)return false;return true}
 function collide(p){for(const c of colliders){if(p.y>=c.h-.05)continue;const dx=p.x-c.x,dz=p.z-c.z,m=c.r+.38;if(Math.abs(dx)>m||Math.abs(dz)>m)continue;const d=Math.hypot(dx,dz);if(d<m){const k=(m-d)/(d||1);p.x+=dx*k;p.z+=dz*k}}}
 const dirOf=()=>_t.set(-Math.sin(yp.yaw)*Math.cos(yp.pitch),Math.sin(yp.pitch),-Math.cos(yp.yaw)*Math.cos(yp.pitch)).clone();
 // ---------- web shooters: Web mode on -> HOLD jump = attach to the best anchor ahead & above and swing; release = let go, keep momentum ----------

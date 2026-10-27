@@ -35,4 +35,21 @@ jobs:
           curl -fsS -X POST -H "Authorization: Bearer $FLY_API_TOKEN" \
             https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/restart
           sleep 25
-          curl -fsS -o /dev/null -w "%{http_code}\n" https://burn-city-game.fly.dev/
+          echo "Checking live commit against GitHub main: $GITHUB_SHA"
+          for attempt in $(seq 1 12); do
+            if curl -fsS --max-time 15 "https://burn-city-game.fly.dev/api/deploy-version" -o /tmp/burn-deploy-version.json; then
+              if EXPECTED_SHA="$GITHUB_SHA" node -e '
+                const fs = require("fs");
+                const v = JSON.parse(fs.readFileSync("/tmp/burn-deploy-version.json", "utf8"));
+                console.log("Live runtime source:", v.source, "commit:", v.commit || "unavailable");
+                process.exit(v.source === "github-volume" && v.commit === process.env.EXPECTED_SHA ? 0 : 1);
+              '; then
+                echo "Verified live Fly.io code matches $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            echo "Live commit not verified yet (attempt $attempt/12)"
+            sleep 15
+          done
+          echo "::error::Fly.io restarted but live commit could not be verified against $GITHUB_SHA"
+          exit 1

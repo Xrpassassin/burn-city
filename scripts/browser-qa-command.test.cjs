@@ -38,6 +38,7 @@ fs.appendFileSync(${JSON.stringify(log)},JSON.stringify({args:process.argv.slice
  assert.equal(result.status,0,result.stderr);
  const calls=fs.readFileSync(log,'utf8').trim().split('\n').map(JSON.parse);
  assert.deepEqual(calls.map(c=>c.args[0]),['open','set','screenshot','snapshot','set','screenshot','errors','close']);
+ assert.equal(calls[0].args[1],'http://127.0.0.1:8080/?qa=1','Local QA URL must activate diagnostics');
  for(const c of calls){assert.equal(c.secret,undefined);assert.equal(c.allow,'127.0.0.1');}
  console.log('Browser QA command sequence and environment isolation fixture passed');
 }finally{fs.rmSync(tmp,{recursive:true,force:true});}

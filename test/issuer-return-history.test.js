@@ -21,4 +21,8 @@ assert.equal(calc([{ ...tx('a', '1'), meta: { TransactionResult: 'tecPATH_DRY' }
 assert.equal(calc([tx('a', '1000000000000001')]).status, 'unverified');
 assert.equal(calc([tx('a', '0.000000000000001')]).burned, '0.000000000000001');
 assert.equal(calc([{ ...tx('missing', '1'), tx: { ...tx('missing', '1').tx, Amount: { issuer, currency, value: '1' } }, meta: { TransactionResult: 'tesSUCCESS' } }]).status, 'unverified');
+assert.equal(calc([tx('exponent', '9.65e14')]).burned, '965000000000000');
+assert.equal(calc([tx('micro', '1e-15')]).burned, '0.000000000000001');
+assert.equal(calc([tx('invalid', '1e-16')]).status, 'unverified');
+assert.equal(calc([tx('decimal', '1.25e3')]).burned, '1250');
 console.log('issuer-return-history: all tests passed');

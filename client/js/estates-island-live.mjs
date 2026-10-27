@@ -83,6 +83,7 @@ export async function installEstatesIslandLive({
   const renderer = createEstatesIslandRenderer({ THREE, scene, manifest });
   const root = renderer.root;
   root.position.x = OFFSET_X;
+  root.visible = false; // Do not expose the full island inside the city proxy.
   addBridgeArchitecture(THREE, root);
 
   let active = false, nearCityGate = false, lastE = false, lastProperty = null, lastLandmarkId = null, disposed = false;
@@ -177,9 +178,11 @@ export async function installEstatesIslandLive({
     }
   });
 
+  let returnPosition = null;
   function enterIsland() {
     if (disposed || active) return;
-    active=true; nearCityGate=false; hidePanel();
+    returnPosition = {x:player.pos.x,y:player.pos.y,z:player.pos.z};
+    active=true; root.visible=true; nearCityGate=false; hidePanel();
     if(getMode()!=='explore') setMode('explore');
     player.pos.set(OFFSET_X+ISLAND_SPAWN.x,ISLAND_SPAWN.y,ISLAND_SPAWN.z);
     player.fp=false;
@@ -190,8 +193,10 @@ export async function installEstatesIslandLive({
   }
   function leaveIsland() {
     if(disposed||!active)return;
-    active=false; hidePanel(); controllerRef.dispose();
-    player.pos.set(CITY_GATE.x,CITY_GATE.y,CITY_GATE.z);
+    active=false; root.visible=false; hidePanel(); controllerRef.dispose();
+    const destination=returnPosition??CITY_GATE;
+    player.pos.set(destination.x,destination.y,destination.z);
+    returnPosition=null;
     setYaw(Math.PI/2);
     player.vel?.set(0,0,0); player.onGround=true; player.climb=null; player.spawned=1;
     avatar.position.copy(player.pos);
@@ -246,6 +251,7 @@ export async function installEstatesIslandLive({
   // Public island is rendered at the city offset, with a continuous bridge; the city-side interaction is explicit.
   const api = Object.freeze({
     tick,
+    enterFromCity(){if(disposed||active)return false;enterIsland();return true;},
     dispose(){
       if(disposed)return false; disposed=true; hidePanel(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();

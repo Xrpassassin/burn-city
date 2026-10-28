@@ -115,7 +115,7 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
       const head=new THREE.Mesh(new THREE.SphereGeometry(.3,6,4),new THREE.MeshLambertMaterial({color:0xb68c71}));head.position.y=2.12;npc.add(head);
       beachPark.add(npc);return npc;
     });
-    anim.push(t=>{const visit=beachVisitState(t);if(!visit)return;visitors.forEach((npc,i)=>{const phase=t*.10+i*2.09;npc.position.set((i-1)*1.1,.12,7+Math.sin(phase)*19);npc.rotation.y=Math.cos(phase)>=0?0:Math.PI;npc.visible=i!==0||visit.stage==='beach'||visit.stage==='exit'||visit.stage==='return';});});
+    anim.push(t=>{const visit=beachVisitState(t);if(!visit)return;visitors.forEach((npc,i)=>{const phase=t*.10+i*2.09;if(i===0){const walk=visit.visitor;npc.position.set(0,.12,2+walk*19);npc.rotation.y=visit.stage==='return'?Math.PI:0;npc.visible=visit.stage==='exit'||visit.stage==='beach'||visit.stage==='return';}else{npc.position.set((i-1)*1.1,.12,7+Math.sin(phase)*13);npc.rotation.y=Math.cos(phase)>=0?0:Math.PI;}});});
   }
 
   // ---------- lake: animated shader, fake shimmer + streaks of city light ----------

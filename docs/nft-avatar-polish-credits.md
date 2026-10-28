@@ -59,3 +59,17 @@ What the art showed, and what changed:
   with Flaming Eyes), oversized shirt-front flame decals.
 
 No new third-party code was used in this pass (three.js primitives only, MIT).
+
+## v120 nftheads: sculpted per-NFT heads
+
+- **Sculpted heads** (`client/js/nft-avatar-sculpt.js`, `client/js/nft-avatar-head-specs.js`): original code. Heads are
+  signed-distance fields (ellipsoids + round cones, polynomial smooth-min / smooth-subtraction) meshed by ray-casting a
+  subdivided sphere onto the surface, with smooth normals and soft per-primitive vertex colours. The SDF formulas follow
+  Inigo Quilez's public write-ups (iquilezles.org: "distance functions", "smooth minimum"); re-implemented, no code copied.
+- **Firekeepers 1/1 specs** (`client/js/nft-avatar-firekeepers-1of1.js`): shape/colour parameters written by reviewing each
+  token's own art and metadata (fetched from the token URIs via the Pinata IPFS gateway). No NFT art is stored in the repo.
+- **Krea image-to-3D**: not used. The connected Krea account has 0 compute units (quotes were 166.7–222.2 CU per
+  generation), so 0 credits were spent and no generated GLBs ship in this build.
+- **skill-issue.in**: reviewed; it offers design/frontend/agent skills only, with no three.js/WebGL code relevant here.
+  Nothing taken.
+- No third-party code was added in this release.

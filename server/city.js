@@ -39,6 +39,9 @@ function attach(ws, url, pass, ip) {
   clients.set(id, c); dirty = true;
   if (acct) c.fl = Flair.tier(acct, v => { c.fl = v; dirty = true; });
   c.nft = acct ? Nft.charFor(acct) : null; if (c.nft) bcast({ t: 'n', m: { [id]: c.nft } });
+  // Reconnect/join: refresh the ledger proof if it is stale, then publish only the server-verified result.
+  const reverify = () => Nft.verify(acct).then(n => { if (clients.get(id) !== c) return; if ((n?.id || null) !== (c.nft?.id || null)) { c.nft = n; bcast({ t: 'n', m: { [id]: n } }); } }).catch(() => {});
+  if (acct) reverify();
   { const all = {}; for (const o of clients.values()) if (o.nft) all[o.id] = o.nft; if (Object.keys(all).length) send(ws, { t: 'n', m: all }); }
   send(ws, { t: 'w', id, name, guest: c.guest, canChat: !!acct, jet: hasJet(acct), msgs: st.recent.all(CH).reverse().map(m => ({ id: m.id, acct: m.acct, name: m.name, b: m.body, ts: m.created })) });
   ws.on('message', d => {
@@ -55,7 +58,7 @@ function attach(ws, url, pass, ip) {
     else if (m.t === 'ab') {   // AEGIS Response Ops relay: a beacon hold heartbeat (h) or stabilization (s); cosmetic only, no rewards server-side
       if (rate('ab:' + c.id, 14, 10e3) || typeof m.k !== 'string' || !/^w\d{1,10}-[0-2]$/.test(m.k)) return;
       const s = JSON.stringify({ t: 'ab', pid: id, name: c.name, k: m.k, h: m.h ? 1 : 0, s: m.s ? 1 : 0 }); for (const o of clients.values()) if (o.id !== id) send(o.ws, s); }
-    else if (m.t === 'nft') { if (!c.acct || rate('nft:' + c.id, 4, 60e3)) return; c.nft = Nft.charFor(c.acct); bcast({ t: 'n', m: { [id]: c.nft } }); }
+    else if (m.t === 'nft') { if (!c.acct || rate('nft:' + c.id, 4, 60e3)) return; c.nft = Nft.charFor(c.acct); bcast({ t: 'n', m: { [id]: c.nft } }); reverify(); }   // any client-sent id is ignored: the server looks up its own verified selection
     else if (m.t === 'c') {
       if (!c.acct) return send(ws, { t: 'e', e: 'sign_in_with_xaman' });
       const p = st.getP.get(c.acct); if (!p || p.banned) return send(ws, { t: 'e', e: 'banned' });

@@ -78,7 +78,7 @@ export function bakeAvatar(root, { ao = true } = {}) {
     const I = vc > 65535 ? new Uint32Array(ic) : new Uint16Array(ic);
     let vo = 0, io = 0;
     for (const [o, bi] of gr.parts) {
-      const g = o.geometry, pos = g.attributes.position, nor = g.attributes.normal, m = o.matrixWorld;
+      const g = o.geometry, pos = g.attributes.position, nor = g.attributes.normal, m = o.matrixWorld, vcol = o.material.vertexColors ? g.attributes.color : null;
       nm.getNormalMatrix(m); const flip = m.determinant() < 0;
       const src = o.material.isMeshBasicMaterial || gr.kind !== 'glow' ? o.material.color : (o.material.emissive || o.material.color);
       col.copy(src);
@@ -88,7 +88,9 @@ export function bakeAvatar(root, { ao = true } = {}) {
         const j = (vo + i) * 3; P[j] = v.x; P[j + 1] = v.y; P[j + 2] = v.z; N[j] = n.x; N[j + 1] = n.y; N[j + 2] = n.z;
         // Cheap baked occlusion: downward-facing surfaces and feet read darker, tops slightly brighter.
         const k = ao && gr.kind !== 'glow' ? (.8 + .2 * (n.y * .5 + .5)) * (.86 + .14 * Math.min(1, Math.max(0, v.y / .55))) : 1;
-        C[j] = col.r * k; C[j + 1] = col.g * k; C[j + 2] = col.b * k;
+        // Sculpted heads carry per-vertex colour (fur masks, lips, sockets): multiply it in.
+        const vr = vcol ? vcol.getX(i) : 1, vg = vcol ? vcol.getY(i) : 1, vb = vcol ? vcol.getZ(i) : 1;
+        C[j] = col.r * k * vr; C[j + 1] = col.g * k * vg; C[j + 2] = col.b * k * vb;
         SI[(vo + i) * 4] = bi; SW[(vo + i) * 4] = 1;
       }
       const idx = g.index;

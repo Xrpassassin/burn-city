@@ -7,7 +7,7 @@
 // Anything else is "held" (keys exist), "time-locked" (LP in an Escrow), "unaccounted" or UNVERIFIED (fetch failed / stale). Never assumed 0% or 100%.
 'use strict';
 const G = require('../client/js/goldlock.js');
-const { auditBurnSupply } = require('../scripts/audit-burn-supply');
+const { auditBurnSupply } = require('./burn-supply-audit');
 const { BURN_ISSUER, BURN_CURRENCY } = require('./issuer-return-history');
 const BURN_KEY = BURN_ISSUER + '-' + BURN_CURRENCY;
 const { attachIssuerReturnHistory } = require('./issuer-return-api-contract');

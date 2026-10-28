@@ -8,7 +8,7 @@ on:
       - 'client/js/verified-supply-visual*'
       - 'test/burn-supply-live.test.js'
       - 'server/burn-launch-*'
-      - 'server/burn-supply-reconciliation.js'
+      - 'server/burn-supply-*.js'
       - 'scripts/audit-burn-supply.js'
       - 'test/burn-launch-evidence.test.js'
       - 'test/burn-supply-reconciliation.test.js'

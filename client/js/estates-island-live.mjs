@@ -5,7 +5,9 @@ import { createEstatesIslandController } from './estates-island-controller.mjs';
 
 const OFFSET_X = 650;
 const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
-const ISLAND_SPAWN = Object.freeze({ x: -195, y: 0.1, z: 188 });
+// Enter at the island-side end of the east-west approach bridge, facing toward the estate gate.
+// x=-10 sits on the bridge deck (-210..0), before the connector at x=0 / z=159..188.
+export const ISLAND_SPAWN = Object.freeze({ x: -10, y: 0.1, z: 188 });
 const finite = n => typeof n === 'number' && Number.isFinite(n);
 // Keep keyboard and mobile diagonal speed equal to straight-line movement.
 // Bound a single frame's movement so a background-tab resume cannot jump through terrain.

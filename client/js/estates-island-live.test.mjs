@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { installEstatesIslandLive, islandMoveDelta } from './estates-island-live.mjs';
+import { installEstatesIslandLive, islandMoveDelta, ISLAND_SPAWN } from './estates-island-live.mjs';
 
 assert.equal(typeof installEstatesIslandLive, 'function');
+assert.deepEqual(ISLAND_SPAWN,{x:-10,y:0.1,z:188},'arrivals land near the estate-side end of the bridge');
+assert(ISLAND_SPAWN.x >= -210 && ISLAND_SPAWN.x <= 0 && ISLAND_SPAWN.z >= 183 && ISLAND_SPAWN.z <= 193,'spawn remains on the traversable connecting deck');
 const straight=islandMoveDelta({dt:1/60,yaw:0,moveX:1,moveZ:0},4.5);
 const diagonal=islandMoveDelta({dt:1/60,yaw:0,moveX:1,moveZ:1},4.5);
 assert(Math.abs(Math.hypot(straight.x,straight.z)-Math.hypot(diagonal.x,diagonal.z))<1e-10,'diagonal travel must not be faster');

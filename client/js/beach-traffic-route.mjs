@@ -19,3 +19,19 @@ export function followBeachRoute(route,progress){
  for(let i=0;i<lengths.length;i++){const n=lengths[i],a=route[i],b=route[i+1];if(d<=n||i===lengths.length-1){const t=n?Math.max(0,Math.min(1,d/n)):0;return {x:a.x+(b.x-a.x)*t,z:a.z+(b.z-a.z)*t,yaw:Math.atan2(b.x-a.x,b.z-a.z)};}d-=n}
  return null;
 }
+
+// Both lanes advance u from 0 to 1; only the rendered road position reverses.
+// Compute all advances before applying them so iteration order cannot change spacing.
+export function beachTrafficAdvance(car, lane, roadLength, junctionU, dt) {
+ if(!Number.isFinite(roadLength)||roadLength<=0||!Number.isFinite(dt))return 0;
+ let gap=1;
+ for(const other of lane){
+  if(other===car||other.lane!==car.lane)continue;
+  gap=Math.min(gap,((other.u-car.u)%1+1)%1);
+ }
+ const roadU=car.lane===0?car.u:1-car.u;
+ const approach=Math.abs(roadU-junctionU)*roadLength<18?.4:1;
+ const following=Math.max(0,Math.min(1,(gap*roadLength-7)/13));
+ const wanted=car.sp*Math.max(0,Math.min(.05,dt))*.6*Math.min(approach,following);
+ return Math.max(0,Math.min(wanted,gap-7/roadLength));
+}

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createEstatesCityLakeGeometry, CITY_LAKE_DIMENSIONS } from './estates-city-lake-geometry.mjs';
-import {buildBeachAccessRoute,followBeachRoute} from './beach-traffic-route.mjs';
+import {buildBeachAccessRoute,followBeachRoute,beachTrafficAdvance} from './beach-traffic-route.mjs';
 import {beachVisitState} from './beach-visit-cycle.mjs';
 const box = (w, h, d, x, y, z, ry = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); return g.translate(x, y, z); };
 // lake frame: depends only on the district nodes (+ avoid points), so the city layout can test it before the Estates are built
@@ -47,13 +47,35 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
   const G = new THREE.Group(); S.add(G);
   // Public beach access on the city bank: a compact car park plus strolling visitors.
   // All placement is derived from lakeFrame; bridge, fishing and estates follow the shifted lake.
-  const beachPark=new THREE.Group();
+  const beachPark=new THREE.Group();beachPark.name='city-beach-parking';
   const beachRoadJunction=roadO.clone().addScaledVector(dir,Math.max(12,k0-34));
-  const parkOrigin=beachRoadJunction.clone().addScaledVector(side,33);
+  let parkOrigin=beachRoadJunction.clone().addScaledVector(side,33);
+  const dryBeachPoint=(x,z)=>!inside(x,z,lakeC,0)&&!inCityIsland(x,z);
+  const inBeachRect=(p,c,halfW,minZ,maxZ,pad=0)=>{
+    const dx=p.x-c.x,dz=p.z-c.z,u=dx*side.x+dz*side.z,v=dx*dir.x+dz*dir.z;
+    return Math.hypot(Math.max(0,Math.abs(u)-halfW),Math.max(0,minZ-v,v-maxZ))<pad;
+  };
+  let beachPlacementFound=false;
+  // Keep the parking surface clear of existing city poles/buildings and out of water.
+  parkingPlacement:for(const shift of [0,12,-12,24,-24,36,-36])for(const across of [33,-33,45,-45,57,-57,69,-69,81,-81,105,-105,129,-129,153,-153])for(const along of [0,6,12,18,24,30,36,42,-6,-12,-18,-24,-30,-36,-42]){
+    const candidateJunction=beachRoadJunction.clone().addScaledVector(dir,shift);
+    const candidate=candidateJunction.clone().addScaledVector(side,across).addScaledVector(dir,along);
+    const blocked=colliders.some(c=>c.r>0&&(inBeachRect(c,candidate,21,-10.5,10.5,c.r+.75)||inBeachRect(c,candidate,2,2,26,c.r+.75)));
+    if(blocked)continue;
+    let dry=true;
+    for(const x of [-21,-10,0,10,21])for(const z of [-10.5,0,10.5,26]){
+      if(!dryBeachPoint(candidate.x+side.x*x+dir.x*z,candidate.z+side.z*x+dir.z*z))dry=false;
+    }
+    if(!dry)continue;
+    const trial=buildBeachAccessRoute({junction:candidateJunction,parking:candidate,dir,side});
+    const samples=new THREE.CatmullRomCurve3(trial.map(p=>new THREE.Vector3(p.x,0,p.z)),false,'centripetal').getPoints(36);
+    if(samples.some(p=>!dryBeachPoint(p.x,p.z)||colliders.some(c=>c.r>0&&Math.hypot(p.x-c.x,p.z-c.z)<c.r+4.5)))continue;
+    parkOrigin=candidate;beachRoadJunction.copy(candidateJunction);beachPlacementFound=true;break parkingPlacement;
+  }
   beachPark.position.copy(parkOrigin);beachPark.rotation.y=yaw;
   G.add(beachPark);
-  const asphalt=new THREE.MeshLambertMaterial({color:0x36383a}),stripe=new THREE.MeshBasicMaterial({color:0xd9d4bd});
-  const walkway=new THREE.MeshLambertMaterial({color:0xafa287}),carPaint=[0x36546b,0x9b4638,0xb9b9ad,0x526656].map(color=>new THREE.MeshLambertMaterial({color}));
+  const asphalt=new THREE.MeshLambertMaterial({color:0x36383a,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}),stripe=new THREE.MeshBasicMaterial({color:0xd9d4bd,polygonOffset:true,polygonOffsetFactor:-5,polygonOffsetUnits:-5});
+  const walkway=new THREE.MeshLambertMaterial({color:0xafa287,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}),carPaint=[0x36546b,0x9b4638,0xb9b9ad,0x526656].map(color=>new THREE.MeshLambertMaterial({color}));
   const visitorMat=new THREE.MeshLambertMaterial({color:0x426577});
   // Follow the same route that the animated arrival car uses. A broad tapered
   // entrance avoids a disconnected asphalt strip or a sharp 90-degree corner.
@@ -88,6 +110,16 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
     centerline.setIndex(markIndices);
     const markings=new THREE.Mesh(centerline,stripe.clone());markings.material.side=THREE.DoubleSide;G.add(markings);
   }
+  const inBeach=(x,z,pad=0)=>{
+    const point={x,z},margin=Math.max(.01,pad);
+    if(inBeachRect(point,parkOrigin,21,-10.5,10.5,margin)||inBeachRect(point,parkOrigin,2,2,26,margin))return true;
+    for(let i=1;i<beachDrivePath.length;i++){
+      const a=beachDrivePath[i-1],b=beachDrivePath[i],dx=b.x-a.x,dz=b.z-a.z;
+      const t=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/(dx*dx+dz*dz||1)));
+      if(Math.hypot(x-a.x-dx*t,z-a.z-dz*t)<3.7+margin)return true;
+    }
+    return false;
+  };
   // Visually join the access curve to the parking surface with a flush entrance apron.
   const apron=new THREE.Mesh(new THREE.BoxGeometry(12,.075,12),asphalt);
   // The curve terminates at the parking center. Match the apron to that endpoint.
@@ -108,6 +140,21 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
     const body=new THREE.Mesh(new THREE.BoxGeometry(2.5,.65,4.4),carPaint[i%carPaint.length]);body.position.y=.5;car.add(body);
     const cab=new THREE.Mesh(new THREE.BoxGeometry(2.05,.6,2.15),carPaint[i%carPaint.length]);cab.position.set(0,1.08,-.2);car.add(cab);
     beachPark.add(car);
+  }
+  // Batch stationary beach geometry by material to keep mobile draw calls bounded.
+  beachPark.updateMatrixWorld(true);
+  const beachInverse=beachPark.matrixWorld.clone().invert(),beachBatches=new Map();
+  beachPark.traverse(object=>{
+    if(!object.isMesh)return;
+    const geometry=object.geometry.clone().applyMatrix4(beachInverse.clone().multiply(object.matrixWorld));
+    if(!beachBatches.has(object.material))beachBatches.set(object.material,[]);
+    beachBatches.get(object.material).push(geometry);
+    object.geometry.dispose();
+  });
+  beachPark.clear();
+  for(const [material,parts] of beachBatches){
+    beachPark.add(new THREE.Mesh(mergeGeometries(parts),material));
+    parts.forEach(geometry=>geometry.dispose());
   }
   // A lightweight visitor vehicle follows the road-to-parking route instead of teleporting.
   // Decorative traffic only: does not interact with city traffic authority.
@@ -130,7 +177,7 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
       const head=new THREE.Mesh(new THREE.SphereGeometry(.3,6,4),new THREE.MeshLambertMaterial({color:0xb68c71}));head.position.y=2.12;npc.add(head);
       beachPark.add(npc);return npc;
     });
-    anim.push(t=>{const visit=beachVisitState(t);if(!visit)return;visitors.forEach((npc,i)=>{const phase=t*.10+i*2.09;if(i===0){const walk=visit.visitor;npc.position.set(0,.12,2+walk*19);npc.rotation.y=visit.stage==='return'?Math.PI:0;npc.visible=visit.stage==='exit'||visit.stage==='beach'||visit.stage==='return';}else{npc.position.set((i-1)*1.1,.12,7+Math.sin(phase)*13);npc.rotation.y=Math.cos(phase)>=0?0:Math.PI;}});});
+    anim.push(t=>{const visit=beachVisitState(t);if(!visit)return;visitors.forEach((npc,i)=>{const phase=t*.10+i*2.09;if(i===0){const walk=visit.visitor;npc.position.set(0,.12,2+walk*19);npc.rotation.y=visit.stage==='return'?Math.PI:0;npc.visible=visit.stage==='exit'||visit.stage==='beach'||visit.stage==='return';}else{npc.position.set((i-1)*1.1,.12,14+Math.sin(phase)*10);npc.rotation.y=Math.cos(phase)>=0?0:Math.PI;}});});
   }
 
   // ---------- lake: animated shader, fake shimmer + streaks of city light ----------
@@ -153,7 +200,7 @@ varying vec3 vW;
 float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
 vec2 wv(vec2 d,float k,float a,float s,vec2 p){return d*k*a*cos(dot(d,p)*k+t*s);}
-void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=atan(vv,uu); float r=length(vec2(uu,vv))/(1.+.12*sin(3.*aa+1.3)+.07*sin(5.*aa+.4)+.035*sin(9.*aa+2.1)); vec2 p=vW.xz*.08;
+void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/${Wd.toFixed(1)}, vv=dot(q,ld)/${D.toFixed(1)}, aa=atan(vv,uu); float r=length(vec2(uu,vv))/(1.+.12*sin(3.*aa+1.3)+.07*sin(5.*aa+.4)+.035*sin(9.*aa+2.1)); vec2 p=vW.xz*.08;
   float w=n(p+vec2(t*.25,t*.18))*.6+n(p*2.3-vec2(t*.4,-t*.3))*.4;
   // surface slope: a few travelling waves (choppier in storms) + ripple rings from casts, bites, splashes and boat wakes + rain
   float ch=1.+storm*1.6+wet*.5; vec2 P=vW.xz, g=vec2(0);
@@ -208,7 +255,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   ]){
     const bandShape=new THREE.Shape(ring(outer));
     bandShape.holes.push(new THREE.Path(ring(inner)));
-    const band=new THREE.Mesh(toWorld(new THREE.ShapeGeometry(bandShape)),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,depthWrite:false}));
+    const band=new THREE.Mesh(toWorld(new THREE.ShapeGeometry(bandShape)),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,transparent:true,depthWrite:false}));
     band.position.y=y;band.renderOrder=1;G.add(band);
   }
   // A subdued translucent surf lip replaces the previously bright hard outline.
@@ -287,23 +334,12 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.45, 6, 4), new THREE.MeshBasicMaterial({ color: 0xfff2d0, fog: false }), NC * 2), tail = new THREE.InstancedMesh(new THREE.SphereGeometry(0.4, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff2a1a }), NC * 2);
   head.frustumCulled = tail.frustumCulled = false; const carG = new THREE.Group(); carG.position.copy(roadO); carG.rotation.y = yaw; carG.add(head, tail); carG.visible=false; G.add(carG);
   const M = new THREE.Matrix4();
+  const junctionU=Math.max(0,Math.min(1,beachRoadJunction.clone().sub(roadO).dot(dir)/roadLen));
+  const laneCars=[cars.filter(c=>c.lane===0),cars.filter(c=>c.lane===1)];
+  const advances=new Float64Array(cars.length);
   anim.push((t, dt = 1 / 60) => {
-    // Short approach zone at the public beach turn-in; limit rapid motion at the junction.
-    // Keep safe following distances independently on each highway lane.
-    const junctionU=Math.max(0,Math.min(1,beachRoadJunction.clone().sub(roadO).dot(dir)/roadLen));
-    const step=Math.max(0,Math.min(.05,Number.isFinite(dt)?dt:0));
-    const laneCars=[cars.filter(c=>c.lane===0),cars.filter(c=>c.lane===1)];
-    const advances=new Map();
-    for(const lane of laneCars)for(const c of lane){
-      const forward=c.lane===0?c.u:1-c.u;
-      let gap=1;
-      for(const other of lane){if(other===c)continue;const o=other.lane===0?other.u:1-other.u;const d=(o-forward+1)%1;if(d>0&&d<gap)gap=d;}
-      const roadDist=Math.abs(c.u-junctionU)*roadLen;
-      const approach=roadDist<18?.4:1;
-      const following=Math.max(0,Math.min(1,(gap*roadLen-7)/13));
-      advances.set(c,c.sp*step*.6*Math.min(approach,following));
-    }
-    let hi = 0, ti = 0; for (const c of cars) { c.u = (c.u + advances.get(c)) % 1; const out = c.lane === 0, z = (out ? c.u : 1 - c.u) * roadLen, x = out ? 3.5 : -3.5, y = ys(z) + 0.4, f = out ? 1 : -1;
+    for(let i=0;i<cars.length;i++)advances[i]=beachTrafficAdvance(cars[i],laneCars[cars[i].lane],roadLen,junctionU,dt);
+    let hi = 0, ti = 0; for (let i=0;i<cars.length;i++) { const c=cars[i]; c.u = (c.u + advances[i]) % 1; const out = c.lane === 0, z = (out ? c.u : 1 - c.u) * roadLen, x = out ? 3.5 : -3.5, y = ys(z) + 0.4, f = out ? 1 : -1;
       // a car facing +z shows white heads in front (+z) and red tails behind; cars going back show the opposite
       head.setMatrixAt(hi++, M.makeTranslation(x - 0.7, y, z + 1.6 * f)); head.setMatrixAt(hi++, M.makeTranslation(x + 0.7, y, z + 1.6 * f));
       tail.setMatrixAt(ti++, M.makeTranslation(x - 0.7, y, z - 1.6 * f)); tail.setMatrixAt(ti++, M.makeTranslation(x + 0.7, y, z - 1.6 * f)); }
@@ -828,7 +864,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
     return best;
   });
   const deepC=lakeC.clone().addScaledVector(side,CITY_LAKE_DIMENSIONS.deepOffset);
-  return { lakeC, deepC, lotC, islandEntrance, bridgeStart, bridgeLength, cityIsland, inCityIsland, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad) && !inCityIsland(x,z), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
+  return { beach:{placementFound:beachPlacementFound,origin:parkOrigin,junction:beachRoadJunction,route:beachDrivePath,contains:inBeach}, lakeC, deepC, lotC, islandEntrance, bridgeStart, bridgeLength, cityIsland, inCityIsland, maxR, dir, side, D, Wd, rho, inLake: (x, z, pad = 0) => inside(x, z, lakeC, pad) && !inCityIsland(x,z), cityEdge, yaw, toNear, toFar, roadO, roadLen, hwJoin, hwOff: HW_OFF };
 }
 const ESTATE_TIER_INFO = { trailer:{label:'Trailer Home',units:1}, apartment:{label:'Apartment Unit',units:2}, starter:{label:'Two-Bedroom Starter Home',units:3}, family:{label:'Four-Bedroom Family Home',units:5}, mansion:{label:'Luxury Lakefront Mansion',units:10} };
 const ESTATE_PLOTS = [{id:'trailer-01',tier:'trailer',address:'Estates Row 01'},{id:'trailer-02',tier:'trailer',address:'Estates Row 02'},{id:'apartment-01',tier:'apartment',address:'Lakeview Apartments'},{id:'starter-01',tier:'starter',address:'Starter Lane 01'},{id:'starter-02',tier:'starter',address:'Starter Lane 02'},{id:'family-01',tier:'family',address:'Family Crescent 01'},{id:'family-02',tier:'family',address:'Family Crescent 02'},{id:'mansion-01',tier:'mansion',address:'Lakefront Estate 01'},{id:'mansion-02',tier:'mansion',address:'Lakefront Estate 02'}];

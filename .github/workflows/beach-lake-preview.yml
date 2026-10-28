@@ -3,7 +3,11 @@ on:
   pull_request:
     paths:
       - 'client/js/estate.js'
+      - 'client/js/app.js'
+      - 'client/js/citylife.js'
+      - 'client/js/streetprops.js'
       - 'client/js/beach-traffic-route*'
+      - 'client/js/beach-visit-cycle*'
       - 'scripts/beach-lake-browser-preview.mjs'
       - '.github/workflows/beach-lake-preview.yml'
 jobs:

@@ -1204,7 +1204,7 @@ const ESTATE=buildEstate({S,U,pick,anim,nodes:E.nodes,low:TIER==='low',avoid:[LP
  let nx=0;anim.push(t=>{if(t<nx)return;nx=t+1;bridges.slice(0,NV).forEach((b,i)=>{act[i]=b.act||0;pt[i]=b.pulseT??-99})});window.__veins={bridges:()=>bridges.slice(0,NV),pt}}
 // ---------- parks & plazas: lake-shore park + central plaza (grass, low-poly trees, benches, lamps), all instanced ----------
 {const lowT=TIER==='low',e=ESTATE,spots=[],grass=[],benches=[],lamps=[],trees=[];
- const free=(x,z,r)=>!onRoad(x,z,r)&&!colliders.some(c=>c.r>0&&Math.hypot(c.x-x,c.z-z)<c.r+r)&&!e.inLake(x,z,4)&&Math.abs((x-e.roadO.x)*e.dir.z-(z-e.roadO.z)*e.dir.x)>13;
+ const free=(x,z,r)=>!onRoad(x,z,r)&&!colliders.some(c=>c.r>0&&Math.hypot(c.x-x,c.z-z)<c.r+r)&&!e.inLake(x,z,4)&&!e.beach.contains(x,z,r)&&Math.abs((x-e.roadO.x)*e.dir.z-(z-e.roadO.z)*e.dir.x)>13;
  // lake shore (city side), skipping the docks stretch
  for(let u=-160;u<=160;u+=lowT?14:8){if(u>-118&&u<-34)continue;const p=e.lakeC.clone().addScaledVector(e.side,u).addScaledVector(e.dir,-e.D*2.2);let k=0;while(k++<200&&!e.inLake(p.x,p.z,5))p.addScaledVector(e.dir,1);if(k>=200)continue;p.addScaledVector(e.dir,-5);
   for(const off of [3,9,15]){const q=p.clone().addScaledVector(e.dir,-off);if(free(q.x,q.z,2.5))spots.push([q.x,q.z,'shore',u,off])}}
@@ -1616,7 +1616,7 @@ function bridgeLook(b){const L=b.Lv,minor=b.minor;// neon is activity-only again
  if(b.actCol)b.solid.material.color.copy(b.actCol);else b.solid.material.color.set(0x3cf3ff);b.baseOp=minor?.3:.85;b.core.material.opacity=minor?.4:.95;b.solid.material.opacity=b.baseOp;if(b.flk)b.rail=Math.max(0,(1-L)/Math.max(.001,1-b.L))}
 actScore();bridges.forEach(b=>{b.baseOp=b.solid.material.opacity});
 try{initAmmLock({THREE,S,bridges,N,U,anim,TIER,MOBILE,pick})}catch(e){console.warn('amm-lock',e)}
-try { if(!Q.has('nonature')) window.__cityNature=installCityNature({scene:S,nodes:E.nodes,onRoad,colliders,tier:TIER}); } catch(e) { console.warn('city nature optional pass',e); }
+try { if(!Q.has('nonature')) window.__cityNature=installCityNature({scene:S,nodes:E.nodes,onRoad:(x,z,r)=>onRoad(x,z,r)||ESTATE.beach.contains(x,z,r),colliders,tier:TIER}); } catch(e) { console.warn('city nature optional pass',e); }
 try { if(!Q.has('nobirds')) window.__cityBirds=installCityBirds({scene:S,nodes:E.nodes,tier:TIER,anim}); } catch(e) {console.warn('city birds optional pass',e)}
 {let af=0;anim.push(t=>{if(MOBILE&&(af++%3))return;for(const b of bridges){if(b.act==null||!b.group.visible)continue;const k=b.act,sp=.6+4.4*k*k;b.core.material.color.copy(b.actCol).lerp(WHITE_C,.55);b.core.material.opacity=(b.minor?.3:.35+.65*b.Lv)*(.55+.45*(.5+.5*Math.sin(t*sp+b.r*7)))}})}
 

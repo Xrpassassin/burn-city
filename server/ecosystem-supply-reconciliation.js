@@ -3,7 +3,8 @@
 // The verified initial issuance is supplied by a separately reviewed, pinned launch ledger record.
 // A market-data supply number must never be substituted for this evidence.
 const { decimalUnits } = require('./issuer-return-history');
-const { classifyAccount } = require('./amm-lock');
+const goldlock = require('../client/js/goldlock.js');
+function issuerIsBlackholed(info) { return !!info?.account_data && !info.account_data.AMMID && goldlock.isBlackholedInfo(info); }
 const TOKENS = Object.freeze({
  IMM: {issuer:'rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP',currency:'IMM'},
  XRPyro: {issuer:'rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va',currency:'XRPYRO'}
@@ -27,7 +28,7 @@ function reconcile({name,launch,issuerInfo,gateway,now=Date.now()}={}) {
   if(a?.validated!==true||g?.validated!==true||!Number.isSafeInteger(i)||
     !/^[A-Fa-f0-9]{64}$/.test(h||'')||g.ledger_index!==i||g.ledger_hash!==h||g.account!==t.issuer)
     return fail('issuer and gateway require same validated ledger hash');
-  if(classifyAccount(a).cls!=='blackhole')return fail('issuer not verified permanently inaccessible');
+  if(!issuerIsBlackholed(a))return fail('issuer not verified permanently inaccessible');
   // gateway_balances excludes frozen and escrowed funds from obligations.
   if(Object.keys(g.balances||{}).length||Object.keys(g.assets||{}).length)
     return fail('unexpected gateway exclusions require review');

@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {buildBeachAccessRoute,followBeachRoute} from './beach-traffic-route.mjs';
+const route=buildBeachAccessRoute({junction:{x:0,z:0},parking:{x:33,z:8},dir:{x:0,z:1},side:{x:1,z:0}});
+assert.equal(route.length,5);assert.equal(route[0].x,0);assert.equal(route.at(-1).x,33);assert.equal(route.at(-1).z,8);
+assert.deepEqual(followBeachRoute(route,0),{x:0,z:-12,yaw:0});
+assert.equal(followBeachRoute(route,1).x,33);
+assert.deepEqual(followBeachRoute(route,-1),followBeachRoute(route,0));
+assert.deepEqual(followBeachRoute(route,2),followBeachRoute(route,1));
+assert.equal(buildBeachAccessRoute({junction:{x:0,z:0},parking:{x:0,z:4},dir:{x:0,z:1},side:{x:1,z:0}}).length,0);
+assert.equal(followBeachRoute([],0),null);
+console.log('beach access vehicle route tests passed');

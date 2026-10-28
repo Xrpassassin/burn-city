@@ -3,6 +3,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createEstatesCityLakeGeometry, CITY_LAKE_DIMENSIONS } from './estates-city-lake-geometry.mjs';
+import {buildBeachAccessRoute,followBeachRoute} from './beach-traffic-route.mjs';
+import {beachVisitState} from './beach-visit-cycle.mjs';
 const box = (w, h, d, x, y, z, ry = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); return g.translate(x, y, z); };
 // lake frame: depends only on the district nodes (+ avoid points), so the city layout can test it before the Estates are built
 function lakeFrame(nodes, avoid = []) {
@@ -21,6 +23,8 @@ function lakeFrame(nodes, avoid = []) {
   const inside = (x, z, c, pad = 0) => { const [u, v] = loc(x, z, c), a = Math.atan2(v / D, u / Wd); return Math.hypot(u / (Wd + pad), v / (D + pad)) < rho(a); };
   const blockers = nodes.filter(n => n.pos).map(n => [n.pos.x, n.pos.z, (n.distR || n.w * 2 || 10) + 6]).concat(avoid.map(p => [p.x, p.z, 40]));
   let k0 = 6; for (; k0 < 400; k0 += 4) { const c = cityEdge.clone().addScaledVector(dir, k0 + D); if (!blockers.some(([x, z, r]) => inside(x, z, c, r))) break; }
+  // Small additional city-side setback for a public beach arrival / parking strip.
+  k0 += 24;
   const lakeC = cityEdge.clone().addScaledVector(dir, k0 + D), nearV = D * rho(-Math.PI / 2), farV = D * rho(Math.PI / 2);
   return { best, maxR, dir, side, yaw, hub, cityEdge, D, Wd, rho, loc, inside, k0, lakeC, nearV, farV };
 }
@@ -41,6 +45,94 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
       for (let b = 0; b <= 90; b += 0.5) { const q = o.clone().addScaledVector(dir, -b); for (const [n, r] of rings) if (Math.abs(Math.hypot(q.x - n.pos.x, q.z - n.pos.z) - r) < 0.6 && clear(o, -b)) { HW_OFF = L; roadO = q; hwJoin = n.name; break search; } } }
     if (!hwJoin) { HW_OFF = hub.distR + 26; roadO = cityEdge.clone().addScaledVector(side, HW_OFF); } }
   const G = new THREE.Group(); S.add(G);
+  // Public beach access on the city bank: a compact car park plus strolling visitors.
+  // All placement is derived from lakeFrame; bridge, fishing and estates follow the shifted lake.
+  const beachPark=new THREE.Group();
+  const beachRoadJunction=roadO.clone().addScaledVector(dir,Math.max(12,k0-34));
+  const parkOrigin=beachRoadJunction.clone().addScaledVector(side,33);
+  beachPark.position.copy(parkOrigin);beachPark.rotation.y=yaw;
+  G.add(beachPark);
+  const asphalt=new THREE.MeshLambertMaterial({color:0x36383a}),stripe=new THREE.MeshBasicMaterial({color:0xd9d4bd});
+  const walkway=new THREE.MeshLambertMaterial({color:0xafa287}),carPaint=[0x36546b,0x9b4638,0xb9b9ad,0x526656].map(color=>new THREE.MeshLambertMaterial({color}));
+  const visitorMat=new THREE.MeshLambertMaterial({color:0x426577});
+  // Follow the same route that the animated arrival car uses. A broad tapered
+  // entrance avoids a disconnected asphalt strip or a sharp 90-degree corner.
+  const beachArrivalRoute=buildBeachAccessRoute({junction:beachRoadJunction,parking:parkOrigin,dir,side});
+  let beachDrivePath=beachArrivalRoute;
+  if(beachArrivalRoute.length>1){
+    const roadPts=beachArrivalRoute.map(p=>new THREE.Vector3(p.x,.12,p.z));
+    const curve=new THREE.CatmullRomCurve3(roadPts,false,'centripetal');
+    const roadShape=new THREE.BufferGeometry(),verts=[],inds=[],steps=36;
+    beachDrivePath=curve.getPoints(steps).map(p=>({x:p.x,z:p.z}));
+    for(let i=0;i<=steps;i++){
+      const t=i/steps,p=curve.getPoint(t),d=curve.getTangent(t).normalize();
+      const sideways=new THREE.Vector3(-d.z,0,d.x),width=3.7;
+      verts.push(p.x+sideways.x*width,.11,p.z+sideways.z*width,p.x-sideways.x*width,.11,p.z-sideways.z*width);
+      if(i<steps){const k=i*2;inds.push(k,k+1,k+2,k+1,k+3,k+2)}
+    }
+    roadShape.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));roadShape.setIndex(inds);
+    roadShape.computeVertexNormals();
+    const accessMat=asphalt.clone();accessMat.side=THREE.DoubleSide;
+    const access=new THREE.Mesh(roadShape,accessMat);G.add(access);
+    // A subtle centreline makes the approach readable against dark terrain without adding traffic physics.
+    const centerline=new THREE.BufferGeometry(),markVerts=[],markIndices=[];
+    for(let i=2;i<steps-2;i+=5){
+      const t0=i/steps,t1=Math.min((i+2)/steps,1),p0=curve.getPoint(t0),p1=curve.getPoint(t1);
+      const tangent=curve.getTangent((t0+t1)/2).normalize();
+      const normal=new THREE.Vector3(-tangent.z,0,tangent.x).multiplyScalar(.085);
+      const k=markVerts.length/3;
+      for(const p of [p0,p1]){markVerts.push(p.x+normal.x,.125,p.z+normal.z,p.x-normal.x,.125,p.z-normal.z);}
+      markIndices.push(k,k+1,k+2,k+1,k+3,k+2);
+    }
+    centerline.setAttribute('position',new THREE.Float32BufferAttribute(markVerts,3));
+    centerline.setIndex(markIndices);
+    const markings=new THREE.Mesh(centerline,stripe.clone());markings.material.side=THREE.DoubleSide;G.add(markings);
+  }
+  // Visually join the access curve to the parking surface with a flush entrance apron.
+  const apron=new THREE.Mesh(new THREE.BoxGeometry(12,.075,12),asphalt);
+  // The curve terminates at the parking center. Match the apron to that endpoint.
+  apron.position.set(0,.105,0);beachPark.add(apron);
+  // Keep a clear pedestrian boundary: cars stop at painted parking-end bars.
+  for(let i=0;i<6;i++){
+    const x=(i-2.5)*6.2;
+    const stopBar=new THREE.Mesh(new THREE.BoxGeometry(4.6,.018,.16),stripe);
+    stopBar.position.set(x,.106,1.25);beachPark.add(stopBar);
+  }
+  const parkingSlab=new THREE.Mesh(new THREE.BoxGeometry(42,.12,21),asphalt);parkingSlab.position.set(0,.02,0);beachPark.add(parkingSlab);
+  const path=new THREE.Mesh(new THREE.BoxGeometry(4,.10,24),walkway);path.position.set(0,.065,14);beachPark.add(path);
+  for(let i=0;i<6;i++){
+    const x=(i-2.5)*6.2;
+    const line=new THREE.Mesh(new THREE.BoxGeometry(.12,.025,9),stripe);line.position.set(x-2.9,.10,-4);beachPark.add(line);
+    if(i===2)continue; // open parking bay
+    const car=new THREE.Group();car.position.set(x,.16,-4);
+    const body=new THREE.Mesh(new THREE.BoxGeometry(2.5,.65,4.4),carPaint[i%carPaint.length]);body.position.y=.5;car.add(body);
+    const cab=new THREE.Mesh(new THREE.BoxGeometry(2.05,.6,2.15),carPaint[i%carPaint.length]);cab.position.set(0,1.08,-.2);car.add(cab);
+    beachPark.add(car);
+  }
+  // A lightweight visitor vehicle follows the road-to-parking route instead of teleporting.
+  // Decorative traffic only: does not interact with city traffic authority.
+  if(!low&&beachArrivalRoute.length&&Array.isArray(anim)){
+    const arrivingCar=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(2.2,.65,4),carPaint[0]);body.position.y=.48;arrivingCar.add(body);
+    const roof=new THREE.Mesh(new THREE.BoxGeometry(1.9,.55,2),carPaint[0]);roof.position.set(0,1,-.2);arrivingCar.add(roof);
+    G.add(arrivingCar);
+    anim.push(t=>{const state=beachVisitState(t);if(!state)return;
+      const p=followBeachRoute(beachDrivePath,state.progress);
+      if(p){arrivingCar.position.set(p.x,.17,p.z);arrivingCar.rotation.y=p.yaw+(state.stage==='depart'?Math.PI:0);}
+    });
+  }
+  // Cosmetic visitors travel between parked cars and the beach; no collision or transactions.
+  if(!low && Array.isArray(anim)){
+    const visitors=Array.from({length:3},(_,i)=>{
+      const npc=new THREE.Group();
+      const legs=new THREE.Mesh(new THREE.BoxGeometry(.5,1,.4),visitorMat);legs.position.y=.52;npc.add(legs);
+      const torso=new THREE.Mesh(new THREE.BoxGeometry(.85,.85,.45),visitorMat);torso.position.y=1.44;npc.add(torso);
+      const head=new THREE.Mesh(new THREE.SphereGeometry(.3,6,4),new THREE.MeshLambertMaterial({color:0xb68c71}));head.position.y=2.12;npc.add(head);
+      beachPark.add(npc);return npc;
+    });
+    anim.push(t=>{const visit=beachVisitState(t);if(!visit)return;visitors.forEach((npc,i)=>{const phase=t*.10+i*2.09;if(i===0){const walk=visit.visitor;npc.position.set(0,.12,2+walk*19);npc.rotation.y=visit.stage==='return'?Math.PI:0;npc.visible=visit.stage==='exit'||visit.stage==='beach'||visit.stage==='return';}else{npc.position.set((i-1)*1.1,.12,7+Math.sin(phase)*13);npc.rotation.y=Math.cos(phase)>=0?0:Math.PI;}});});
+  }
+
   // ---------- lake: animated shader, fake shimmer + streaks of city light ----------
   // tower reflections: the NT towers that matter most from the lake, as vertical glowing columns the reflected ray can hit (no reflection render pass)
   const NT = low ? 0 : 10, NR = 8, NF = 6, V4 = () => new THREE.Vector4(0, 0, -99, 0);
@@ -104,8 +196,23 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const islandHole=[];for(let i=0;i<96;i++){const a=-i/96*Math.PI*2;islandHole.push(new THREE.Vector2(Math.cos(a)*cityIsland.islandRadiusX,Math.sin(a)*cityIsland.islandRadiusZ));}
   lakeShape.holes.push(new THREE.Path(islandHole));
   const lake = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(lakeShape)), water); lake.position.y = 0.22; lake.renderOrder = 2; G.add(lake);
-  const shore = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(shoreShape)), new THREE.MeshBasicMaterial({ color: 0x4a3e2c, side: THREE.DoubleSide, fog: false, transparent: true, depthWrite: false })); shore.position.y = 0.18; shore.renderOrder = 1; G.add(shore);
-  const edge = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(edgeShape)), new THREE.MeshBasicMaterial({ color: 0x6fe8ff, transparent: true, opacity: 0.75, fog: false, side: THREE.DoubleSide })); edge.position.y = 0.26; G.add(edge);
+  const shore = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(shoreShape)), new THREE.MeshBasicMaterial({ color: 0xc8b68d, side: THREE.DoubleSide, fog: false, transparent: true, depthWrite: false })); shore.position.y = 0.18; shore.renderOrder = 1; G.add(shore);
+  // Thin sand transition outside the water boundary, without changing swimming/fishing geometry.
+  // Graded concentric beach shelves: water-adjacent wet sand transitions into dry sand,
+  // then muted ground. Geometry is decorative; the authoritative water boundary stays unchanged.
+  for(const [inner,outer,color,y] of [
+    [0,4,0xb8b1a0,.19],
+    [4,11,0xd0c1a0,.187],
+    [11,20,0xc1b08b,.184],
+    [20,25,0x938d70,.178]
+  ]){
+    const bandShape=new THREE.Shape(ring(outer));
+    bandShape.holes.push(new THREE.Path(ring(inner)));
+    const band=new THREE.Mesh(toWorld(new THREE.ShapeGeometry(bandShape)),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,depthWrite:false}));
+    band.position.y=y;band.renderOrder=1;G.add(band);
+  }
+  // A subdued translucent surf lip replaces the previously bright hard outline.
+  const edge = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(edgeShape)), new THREE.MeshBasicMaterial({ color: 0xc6d9ce, transparent: true, opacity: 0.28, fog: false, side: THREE.DoubleSide })); edge.position.y = 0.26; G.add(edge);
   lake.material.side = THREE.DoubleSide;
   // A compact neighborhood silhouette makes the gateway visible from the city.
   const proxy=new THREE.Group();proxy.position.copy(lakeC);proxy.rotation.y=yaw;G.add(proxy);
@@ -180,7 +287,23 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.45, 6, 4), new THREE.MeshBasicMaterial({ color: 0xfff2d0, fog: false }), NC * 2), tail = new THREE.InstancedMesh(new THREE.SphereGeometry(0.4, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff2a1a }), NC * 2);
   head.frustumCulled = tail.frustumCulled = false; const carG = new THREE.Group(); carG.position.copy(roadO); carG.rotation.y = yaw; carG.add(head, tail); carG.visible=false; G.add(carG);
   const M = new THREE.Matrix4();
-  anim.push((t, dt = 1 / 60) => { let hi = 0, ti = 0; for (const c of cars) { c.u = (c.u + c.sp * dt * 0.6) % 1; const out = c.lane === 0, z = (out ? c.u : 1 - c.u) * roadLen, x = out ? 3.5 : -3.5, y = ys(z) + 0.4, f = out ? 1 : -1;
+  anim.push((t, dt = 1 / 60) => {
+    // Short approach zone at the public beach turn-in; limit rapid motion at the junction.
+    // Keep safe following distances independently on each highway lane.
+    const junctionU=Math.max(0,Math.min(1,beachRoadJunction.clone().sub(roadO).dot(dir)/roadLen));
+    const step=Math.max(0,Math.min(.05,Number.isFinite(dt)?dt:0));
+    const laneCars=[cars.filter(c=>c.lane===0),cars.filter(c=>c.lane===1)];
+    const advances=new Map();
+    for(const lane of laneCars)for(const c of lane){
+      const forward=c.lane===0?c.u:1-c.u;
+      let gap=1;
+      for(const other of lane){if(other===c)continue;const o=other.lane===0?other.u:1-other.u;const d=(o-forward+1)%1;if(d>0&&d<gap)gap=d;}
+      const roadDist=Math.abs(c.u-junctionU)*roadLen;
+      const approach=roadDist<18?.4:1;
+      const following=Math.max(0,Math.min(1,(gap*roadLen-7)/13));
+      advances.set(c,c.sp*step*.6*Math.min(approach,following));
+    }
+    let hi = 0, ti = 0; for (const c of cars) { c.u = (c.u + advances.get(c)) % 1; const out = c.lane === 0, z = (out ? c.u : 1 - c.u) * roadLen, x = out ? 3.5 : -3.5, y = ys(z) + 0.4, f = out ? 1 : -1;
       // a car facing +z shows white heads in front (+z) and red tails behind; cars going back show the opposite
       head.setMatrixAt(hi++, M.makeTranslation(x - 0.7, y, z + 1.6 * f)); head.setMatrixAt(hi++, M.makeTranslation(x + 0.7, y, z + 1.6 * f));
       tail.setMatrixAt(ti++, M.makeTranslation(x - 0.7, y, z - 1.6 * f)); tail.setMatrixAt(ti++, M.makeTranslation(x + 0.7, y, z - 1.6 * f)); }

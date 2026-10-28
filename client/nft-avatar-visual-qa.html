@@ -42,9 +42,26 @@ textarea{min-height:300px;resize:vertical}button{background:#303a49;color:#fff;b
 }</textarea>
 <label for="reviewNotes">Reviewer notes / mismatches</label>
 <textarea id="reviewNotes" rows="4" style="min-height:90px" placeholder="Example: eye mask too narrow; pendant obscures artwork; coat color differs from source."></textarea>
+<label>Source-fidelity review gates</label>
+<div id="fidelityGates" class="panel" style="padding:10px;background:#11151b">
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="identity" style="width:auto;margin-top:4px"> Exact token identity and collection issuer/taxon verified</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="traits" style="width:auto;margin-top:4px"> Every source trait represented or recorded as unresolved</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="silhouette" style="width:auto;margin-top:4px"> Silhouette and defining accessories match at all four angles</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="materials" style="width:auto;margin-top:4px"> Colors, markings, patterns, and material response match</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="geometry" style="width:auto;margin-top:4px"> Defining features use real 3D geometry, not only a 2D overlay</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="attachments" style="width:auto;margin-top:4px"> Accessories attach correctly; no major clipping or floating</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="sourceArt" style="width:auto;margin-top:4px"> Original artwork visible and source URL/provenance recorded</label>
+  <label style="display:flex;gap:8px;align-items:flex-start;font-weight:500"><input type="checkbox" data-gate="rights" style="width:auto;margin-top:4px"> Asset-use rights reviewed for intended distribution</label>
+</div>
+<p class="note">These are human attestations, not automatic likeness detection. All gates must be checked to report “review checklist complete”; this tool does not grant production approval or rights.</p>
+<label for="tokenId">Live XRPL NFT ID (64 hex characters)</label>
+<input id="tokenId" value="000A271005C6E016B0AB93B24A603594F2A3989BD7503434C700A18905BF49E4" spellcheck="false">
+<div><button id="loadLiveNft">Load real RACC NFT from XRPL.to API</button></div>
+<p class="note">Metadata is fetched from the documented XRPL.to API; this tool links back to XRPL.to and does not verify ownership. <a href="https://xrpl.to" target="_blank" rel="noopener noreferrer">Data source: XRPL.to</a></p>
 <label for="artUrl">Original artwork URL (optional)</label>
 <input id="artUrl" type="url" placeholder="https://…/token-image.png">
 <div><button class="primary" id="render">Render / update sample</button><button id="clear">Clear artwork</button><button id="copyReport">Copy QA report</button></div>
+<label style="display:flex;align-items:center;gap:8px;font-weight:500"><input id="showTabard" type="checkbox" checked style="width:auto"> Show original artwork tabard on 3D character</label>
 <div class="views" aria-label="Load collection examples">
 <button data-sample="racc">Load RACC example</button><button data-sample="fk">Load Firekeepers example</button><button data-sample="589">Load 589 example</button>
 </div>
@@ -88,6 +105,8 @@ const keyLight = new THREE.DirectionalLight(0xffffff, 2.2); keyLight.position.se
 const fillLight = new THREE.DirectionalLight(0x8eaaff, 0.8); fillLight.position.set(-4,2,-3); scene.add(fillLight);
 const floor = new THREE.GridHelper(8,16,0x444c5c,0x292f3a); floor.position.y=-0.03; scene.add(floor);
 let avatar = null;
+// Retain latest diagnostics for report-copy action outside renderSample().
+let latestQa = { reconstruction: {}, traitCoverage: [] };
 const views = {
  front: [0,1.6,6], threeQuarter:[3.8,1.7,5.2], side:[6,1.6,0], rear:[0,1.6,-6], reset:[0,1.6,6]
 };
@@ -95,27 +114,74 @@ function setView(name){const v=views[name]||views.front;camera.position.set(...v
 function resize(){const w=Math.max(1,stage.clientWidth),h=Math.max(1,stage.clientHeight);if(renderer)renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 function loop(){requestAnimationFrame(loop);if(renderer)renderer.render(scene,camera)} loop();
 new ResizeObserver(resize).observe(stage); resize(); setView('front');
+function normalizeArtworkUrl(url){
+ if(!url)return '';
+ const value=String(url).trim();
+ if(value.startsWith('ipfs://'))return 'https://gateway.pinata.cloud/ipfs/'+value.slice(7).replace(/^ipfs\//,'').split('/').map(part=>encodeURIComponent(decodeURIComponent(part))).join('/');
+ if(value.startsWith('https://')||value.startsWith('http://'))return value;
+ return '';
+}
+async function loadLiveNft(){
+ const id=document.querySelector('#tokenId').value.trim().toUpperCase();
+ if(!/^[0-9A-F]{64}$/.test(id)){status.textContent='Enter a valid 64-character hexadecimal NFTokenID.';return;}
+ const button=document.querySelector('#loadLiveNft');button.disabled=true;status.textContent='Loading NFT metadata from the documented XRPL.to API…';
+ try{
+  const response=await fetch('https://api.xrpl.to/v1/nft/'+encodeURIComponent(id),{headers:{accept:'application/json'}});
+  if(!response.ok)throw new Error('API returned HTTP '+response.status);
+  const record=await response.json();
+  if(String(record.NFTokenID||record._id||'').toUpperCase()!==id)throw new Error('API response did not match the requested NFTokenID.');
+  if(String(record.Issuer||'')!=='rXYdhW4ZHdzt27VuHJgNwbD1aJjcKZJ9M'||Number(record.NFTokenTaxon??record.Taxon)!==0)throw new Error('The requested token is not verified as a RACC collection NFT (issuer/taxon mismatch or missing fields).');
+  const meta=record.meta&&typeof record.meta==='object'?record.meta:{};
+  const rawTraits=Array.isArray(meta.attributes)?meta.attributes:(Array.isArray(record.props)?record.props.map(item=>({trait_type:item.type,value:item.value})):[]);
+  const traits=rawTraits.slice(0,64).map(item=>[String(item.trait_type||item.type||'').trim(),String(item.value??'').trim()]).filter(item=>item[0]);
+  const files=Array.isArray(record.files)?record.files:[];
+  const imageUrl=normalizeArtworkUrl(meta.image||files.find(item=>/image/i.test(String(item.type||item.parsedType||'')))?.parsedUrl||files.find(item=>/\.(png|jpe?g|webp)(\?|$)/i.test(String(item.parsedUrl||item.url||'')))?.parsedUrl||'');
+  if(!traits.length)throw new Error('The API returned no usable traits for this NFT.');
+  const nft={key:'racc',id,name:String(meta.name||record.name||'RACC reference NFT'),img:imageUrl,traits,pal:{}};
+  document.querySelector('#sample').value=JSON.stringify(nft,null,2);
+  document.querySelector('#artUrl').value=imageUrl;
+  renderSample();
+  status.textContent+='\nLoaded actual on-ledger NFT metadata. Compare with artwork overlay hidden and inspect all four angles. Source: https://xrpl.to/nft/'+id;
+ }catch(error){status.textContent='Could not load live NFT: '+error.message+'\nYou can still paste source artwork URL and metadata manually.';}
+ finally{button.disabled=false;}
+}
+function getFidelityGateReport(){
+ const gates=[...document.querySelectorAll('#fidelityGates [data-gate]')].map(input=>({key:input.dataset.gate,checked:input.checked}));
+ return {gates,passed:gates.filter(g=>g.checked).length,total:gates.length,complete:gates.length>0&&gates.every(g=>g.checked),status:gates.length>0&&gates.every(g=>g.checked)?'checklist-complete-reviewer-attestation':'incomplete'};
+}
 function showArtwork(url){art.replaceChildren();if(!url){const s=document.createElement('span');s.textContent='Provide an artwork URL to compare identity details.';art.append(s);return;}
  const img=document.createElement('img');img.alt='Original NFT artwork reference';img.referrerPolicy='no-referrer';img.src=url;img.onerror=()=>{art.replaceChildren();const s=document.createElement('span');s.textContent='Artwork could not load. Check the URL, permissions, or CORS policy.';art.append(s);};art.append(img);}
 function renderSample(){try{
  const nft=JSON.parse(document.querySelector('#sample').value);
  if(!nft || typeof nft!=='object' || Array.isArray(nft)) throw new Error('Sample must be a JSON object.');
+ const artworkUrl=document.querySelector('#artUrl').value.trim()||String(nft.img||nft.image||'').trim();
  if(avatar){scene.remove(avatar); /* Avatar builder caches shared geometry/materials; do not dispose shared resources here. */}
- avatar=buildNftChar(nft);avatar.position.set(0,0,0);scene.add(avatar);setView('front');
+ avatar=buildNftChar(nft,{panel:document.querySelector('#showTabard').checked,artworkUrl,debugUnknownTraits:true});avatar.position.set(0,0,0);scene.add(avatar);setView('front');
  const profile=avatar.userData.nftAvatarProfile||{};
  const recon=profile.reconstruction||{};
  const components=profile.components||{};
  const rawTraits=Array.isArray(nft.traits)?nft.traits:[];
  const normalizedProfile=resolveNftAvatarProfile(nft);
+ const traitCoverage=Array.isArray(profile.traitCoverage)?profile.traitCoverage:[];
+ latestQa = { reconstruction: recon, traitCoverage };
+ latestQa = { reconstruction: recon, traitCoverage };
+ const traitCoverageText=traitCoverage.length
+   ? traitCoverage.map(item=>'  - ['+item.status+' / '+(item.fidelityLevel||'unclassified')+'] '+item.rawType+' → '+item.slot+': '+item.value+' — '+item.reason).join('\n')
+   : '  no source traits found';
+ const fidelityCounts=traitCoverage.reduce((counts,item)=>{const level=item.fidelityLevel||'unclassified';counts[level]=(counts[level]||0)+1;return counts;},{});
+ const fidelitySummary=Object.entries(fidelityCounts).map(([level,count])=>level+'='+count).join(', ')||'no traits';
+ const visualApproval=profile.visualApproval||'not-reviewed';
  const handledSlots=new Set(['identity','background','eye color','eye appearance','eye wear','body effect','accessory','outfit','headwear','weapon','fur color','hair style','hair color','skin color','armor','mask','expression','facial hair','markings','body pattern','horns','wing','flame','tail']);
  const unmapped=normalizedProfile.renderTraits.map(([slot,value],i)=>({slot,value,rawType:normalizedProfile.rawTraits[i]?.[0]})).filter(item=>!handledSlots.has(item.slot));
  const unmappedText=unmapped.length?unmapped.map(({rawType,slot,value})=>'  - '+rawType+' → '+slot+': '+value).join('\n'):'  none detected';
- status.textContent='Rendered: '+(nft.name||nft.id||'unnamed sample')+'\nCollection: '+(profile.collectionName||nft.key||'unknown')+'\nRaw traits: '+rawTraits.length+'\nTrait slots without an explicit renderer mapping: '+unmapped.length+'\n'+unmappedText+'\nArchetype: '+(recon.archetype||profile.archetype||'unknown')+'\nFidelity mode: '+(recon.fidelityMode||'unknown')+'\nExact reconstruction: '+String(!!recon.exactReconstruction)+'\nRecipes: outfit='+components.outfitStyle+', headwear='+components.headwearStyle+', weapon='+components.weaponStyle+', tail='+components.tailStyle+'\nReview status: visual inspection required; no automated likeness score.';
- const url=document.querySelector('#artUrl').value.trim()||String(nft.img||nft.image||'').trim();showArtwork(url);
+ status.textContent='Rendered: '+(nft.name||nft.id||'unnamed sample')+'\nCollection: '+(profile.collectionName||nft.key||'unknown')+'\nRaw traits: '+rawTraits.length+'\nTrait slots without an explicit renderer mapping: '+unmapped.length+'\n'+unmappedText+'\nArchetype: '+(recon.archetype||profile.archetype||'unknown')+'\nFidelity mode: '+(recon.fidelityMode||'unknown')+'\nExact reconstruction: '+String(!!recon.exactReconstruction)+'\nRecipes: outfit='+components.outfitStyle+', headwear='+components.headwearStyle+', weapon='+components.weaponStyle+', tail='+components.tailStyle+'\nArtwork tabard: '+(document.querySelector('#showTabard').checked?(artworkUrl?'visible':'enabled, but no source artwork URL was supplied'):'hidden for geometry review')+'\nTrait-by-trait coverage ('+traitCoverage.length+'):\n'+traitCoverageText+'\nFidelity-level counts: '+fidelitySummary+'\nVisual approval: '+visualApproval+' (human reference-art review required)\nCollection-specific review requirements:\n'+((recon.visualRequirements||[]).map(item=>'  - '+item).join('\n')||'  No collection-specific requirements available')+'\nTraits needing dedicated geometry: '+((profile.unsupportedVisualTraits||[]).map(x=>x.slot+' = '+x.value).join(', ')||'none detected')+'\nReview status: procedural mappings are not approved likeness; inspect source and model at all four angles.';
+ showArtwork(artworkUrl);
  }catch(e){status.textContent='Could not render sample: '+e.message;}}
+document.querySelector('#loadLiveNft').addEventListener('click',loadLiveNft);
 document.querySelector('#render').addEventListener('click',renderSample);
-document.querySelector('#clear').addEventListener('click',()=>{document.querySelector('#artUrl').value='';showArtwork('');});
-document.querySelector('#copyReport').addEventListener('click',async()=>{try{const nft=JSON.parse(document.querySelector('#sample').value);const report={tool:'BURN City NFT Avatar Visual QA',createdAt:new Date().toISOString(),sample:{key:nft.key||null,id:nft.id||nft.nftId||null,name:nft.name||null,traits:Array.isArray(nft.traits)?nft.traits:[]},artworkUrl:document.querySelector('#artUrl').value.trim()||nft.img||nft.image||null,diagnostics:status.textContent,review:{notes:document.querySelector('#reviewNotes').value.trim(),visualInspectionRequired:true,automatedLikenessScore:null,ownershipVerified:false}};await navigator.clipboard.writeText(JSON.stringify(report,null,2));status.textContent+='\nQA report copied. Include screenshots and reviewer notes when reporting mismatches.';}catch(e){status.textContent='Could not copy report: '+e.message+' (the browser may require HTTPS or clipboard permission).';}});
+document.querySelector('#showTabard').addEventListener('change',renderSample);
+document.querySelector('#clear').addEventListener('click',()=>{document.querySelector('#artUrl').value='';showArtwork('');renderSample();});
+document.querySelector('#copyReport').addEventListener('click',async()=>{try{const nft=JSON.parse(document.querySelector('#sample').value);const fidelityGateReport=getFidelityGateReport();const report={tool:'BURN City NFT Avatar Visual QA',createdAt:new Date().toISOString(),fidelityGateReport,sample:{key:nft.key||null,id:nft.id||nft.nftId||null,name:nft.name||null,traits:Array.isArray(nft.traits)?nft.traits:[]},artworkUrl:document.querySelector('#artUrl').value.trim()||nft.img||nft.image||null,diagnostics:status.textContent,collectionRequirements:latestQa.reconstruction.visualRequirements||[],review:{notes:document.querySelector('#reviewNotes').value.trim(),visualInspectionRequired:true,visualApproval:'not-reviewed',fidelityGateReport,fidelityCounts:Object.fromEntries(latestQa.traitCoverage.map(item=>[item.fidelityLevel||'unclassified',(latestQa.traitCoverage.filter(x=>(x.fidelityLevel||'unclassified')===(item.fidelityLevel||'unclassified')).length)])),automatedLikenessScore:null,ownershipVerified:false}};await navigator.clipboard.writeText(JSON.stringify(report,null,2));status.textContent+='\nQA report copied. Checklist: '+fidelityGateReport.passed+'/'+fidelityGateReport.total+'; '+fidelityGateReport.status+'. Include screenshots and reviewer notes when reporting mismatches.';}catch(e){status.textContent='Could not copy report: '+e.message+' (the browser may require HTTPS or clipboard permission).';}});
 const samples = {
  racc: {key:'racc',id:'RACC-review-001',name:'RACC — TNT / Striped Sweater / Bee Hive',img:'',traits:[['Armed','TNT'],['Fits','Yellow Striped Sweater'],['Top Gear','Bee Hive'],['Bandit Mask','Crimson'],['Ring Tail','Black and White']],pal:{face:'#8b7770',body:'#d8b44a',top:'#cf493e',acc:'#cf493e'}},
  fk: {key:'fk',id:'FK-review-001',name:'Firekeepers — Blue Flame / Keeper Robes / Cowl',img:'',traits:[['Ember Type','Blue Flame'],['Keeper Robes','Ash'],['Cowl','Ember Cowl'],['Relic','Sun Sigil']],pal:{face:'#c9a27e',body:'#393b4b',top:'#596b8a',acc:'#4bc9ef'}},

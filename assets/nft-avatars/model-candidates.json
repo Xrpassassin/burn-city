@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "status": "research-only",
+  "policy": "Candidates are not production assets. Do not copy them into collection manifests or ship them until the exact downloaded files, licence terms, provenance, technical compatibility, and collection-specific visual review are approved.",
+  "candidates": [
+    {
+      "id": "quaternius-universal-base-characters",
+      "publisher": "Quaternius",
+      "sourceUrl": "https://quaternius.com/packs/universalbasecharacters.html",
+      "intendedCollection": "589",
+      "purpose": "humanoid-base-rig-prototype",
+      "formats": [
+        "glTF",
+        "FBX",
+        "OBJ"
+      ],
+      "reportedLicense": "CC0",
+      "rightsStatus": "pending-review",
+      "visualStatus": "not-reviewed",
+      "technicalStatus": "not-tested",
+      "notes": "Official page describes six game-ready humanoid bases, a humanoid rig, retargeting, modular hairstyles, and an average triangle count around 13k. Prototype only; verify the exact downloaded release and licence evidence."
+    },
+    {
+      "id": "quaternius-universal-animation-library",
+      "publisher": "Quaternius",
+      "sourceUrl": "https://quaternius.com/packs/universalanimationlibrary.html",
+      "intendedCollection": "shared-technical",
+      "purpose": "humanoid-animation-retargeting-prototype",
+      "formats": [
+        "GLB",
+        "FBX",
+        "Blend"
+      ],
+      "reportedLicense": "CC0",
+      "rightsStatus": "pending-review",
+      "visualStatus": "not-reviewed",
+      "technicalStatus": "not-tested",
+      "notes": "Official page describes 120+ animations on a universal humanoid rig. Shared technical candidate only; test skeleton mapping and game animation controller before adoption."
+    },
+    {
+      "id": "quaternius-modular-character-outfits-fantasy",
+      "publisher": "Quaternius",
+      "sourceUrl": "https://quaternius.com/packs/modularcharacteroutfitsfantasy.html",
+      "intendedCollection": "fk",
+      "purpose": "layered-clothing-attachment-prototype",
+      "formats": [
+        "glTF",
+        "FBX",
+        "OBJ"
+      ],
+      "reportedLicense": "CC0",
+      "rightsStatus": "pending-review",
+      "visualStatus": "not-reviewed",
+      "technicalStatus": "not-tested",
+      "notes": "Official page describes 12 outfits made from 62 modular parts and compatibility with Universal Base Characters. Use only to test clothing attachment and clipping; the fantasy look is not approved as Firekeepers art."
+    },
+    {
+      "id": "quaternius-ultimate-modular-men",
+      "publisher": "Quaternius",
+      "sourceUrl": "https://quaternius.com/packs/ultimatemodularcharacters.html",
+      "intendedCollection": "589",
+      "purpose": "alternate-humanoid-modularity-benchmark",
+      "formats": [
+        "glTF",
+        "FBX",
+        "OBJ",
+        "Blend"
+      ],
+      "reportedLicense": "CC0",
+      "rightsStatus": "pending-review",
+      "visualStatus": "not-reviewed",
+      "technicalStatus": "not-tested",
+      "notes": "Official page describes 11 modular characters and 24 animations. Older pack; capture exact version and source-page/licence evidence at download time."
+    },
+    {
+      "id": "racc-creature-base",
+      "publisher": "not-selected",
+      "sourceUrl": "",
+      "intendedCollection": "racc",
+      "purpose": "collection-specific-creature-base",
+      "formats": [],
+      "reportedLicense": "unknown",
+      "rightsStatus": "not-assessed",
+      "visualStatus": "not-reviewed",
+      "technicalStatus": "not-tested",
+      "notes": "No candidate selected yet. Do not substitute a generic humanoid. Search for a raccoon/anthropomorphic base or proceed with a custom sculpt against reviewed NFT artwork."
+    }
+  ]
+}

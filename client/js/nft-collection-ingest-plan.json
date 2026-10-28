@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Resumable source ingestion for approved NFT collections; values below must be verified before ingestion is enabled.",
+  "source": {
+    "marketplace": "xrp.cafe",
+    "catalogApi": "https://xrpl.to",
+    "docs": [
+      "https://xrpl.to/docs/collection/get-nft-collections",
+      "https://xrpl.to/docs/collection/get-nft-collections-slug",
+      "https://xrpl.to/docs/collection/get-nft"
+    ]
+  },
+  "collections": [
+    {
+      "key": "racc",
+      "displayName": "RACC",
+      "slug": null,
+      "issuer": null,
+      "taxon": null,
+      "expectedCount": null,
+      "status": "needs-identity-verification"
+    },
+    {
+      "key": "589",
+      "displayName": "589 Protocol",
+      "slug": null,
+      "issuer": null,
+      "taxon": null,
+      "expectedCount": null,
+      "status": "needs-identity-verification"
+    },
+    {
+      "key": "firekeepers",
+      "displayName": "Firekeepers",
+      "slug": null,
+      "issuer": null,
+      "taxon": null,
+      "expectedCount": null,
+      "status": "needs-identity-verification"
+    }
+  ],
+  "ingestionPolicy": {
+    "pageSizeMax": 200,
+    "verifyIssuerAndTaxon": true,
+    "failClosedOnUnknownIdentity": true,
+    "resumeFromCheckpoint": true,
+    "recordEveryPageError": true,
+    "dedupeBy": "NFTokenID",
+    "preserveRawMetadata": true,
+    "downloadArtworkByDefault": false,
+    "rightsReviewRequired": true
+  }
+}

@@ -76,7 +76,8 @@ function stableHash(value) {
   return h >>> 0;
 }
 export function resolveNftAvatarProfile(nft = {}) {
-  const key = ['racc', 'fk', '589'].includes(String(nft.key || '').toLowerCase()) ? String(nft.key).toLowerCase() : 'generic';
+  const normalizedKey = String(nft.key || '').trim().toLowerCase();
+  const key = ['racc', 'fk', '589'].includes(normalizedKey) ? normalizedKey : 'generic';
   const rawTraits = (Array.isArray(nft.traits) ? nft.traits : [])
     .filter(pair => Array.isArray(pair) && pair.length > 1)
     .slice(0, 64)

@@ -1,0 +1,41 @@
+name: City browser preview (isolated)
+on:
+  pull_request:
+    paths:
+      - 'client/js/city-birds-*'
+      - 'client/js/city-nature-*'
+      - 'client/js/app.js'
+      - 'scripts/city-environment-browser-preview.mjs'
+      - '.github/workflows/city-browser-preview.yml'
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --omit=dev
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Start isolated preview (no live Fly volume)
+        run: |
+          DRY_RUN=true BURN_JOB_IN_SERVER=false PORT=8080 node server/server.js > /tmp/city-preview.log 2>&1 &
+          echo $! > /tmp/city-preview.pid
+          for i in $(seq 1 40); do if curl -fsS http://127.0.0.1:8080/ >/dev/null; then exit 0; fi; sleep 2; done
+          cat /tmp/city-preview.log
+          exit 1
+      - name: Browser render and screenshots
+        run: node scripts/city-environment-browser-preview.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: city-nature-birds-preview
+          path: preview-output/
+          if-no-files-found: ignore
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/city-preview.log

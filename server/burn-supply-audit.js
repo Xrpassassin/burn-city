@@ -6,14 +6,16 @@ async function auditBurnSupply({rpc,maxEscrowPages=20,now=Date.now()}={}){
  if(typeof rpc!=='function')throw Error('read-only RPC function required');
  const unwrap=x=>x?.result||x;
  const info=unwrap(await rpc('server_info',{})),pin=info.info?.validated_ledger?.seq;
- if(info.info?.network_id!==0||!Number.isSafeInteger(pin))throw Error('validated mainnet ledger unavailable');
- const current=unwrap(await rpc('account_info',{account:issuer,ledger_index:pin,signer_lists:true}));
- const gateway=unwrap(await rpc('gateway_balances',{account:issuer,ledger_index:pin,strict:true}));
+ const hash=info.info?.validated_ledger?.hash;
+ if(info.info?.network_id!==0||!Number.isSafeInteger(pin)||!/^[A-Fa-f0-9]{64}$/.test(hash||''))throw Error('validated mainnet ledger hash unavailable');
+ const ledger={ledger_hash:hash};
+ const current=unwrap(await rpc('account_info',{account:issuer,...ledger,signer_lists:true}));
+ const gateway=unwrap(await rpc('gateway_balances',{account:issuer,...ledger,strict:true}));
  const escrowPages=[];let marker;
  for(let i=0;i<maxEscrowPages;i++){
-  const r=unwrap(await rpc('account_objects',{account:issuer,ledger_index:pin,type:'escrow',limit:400,...(marker?{marker}:{})}));
+  const r=unwrap(await rpc('account_objects',{account:issuer,...ledger,type:'escrow',limit:400,...(marker?{marker}:{})}));
   escrowPages.push(r);marker=r.marker;if(!marker)break;
  }
- return reconcileBurnSupply({launchEvidence,current,gateway,escrowPages,now});
+ return reconcileBurnSupply({launchEvidence,current,gateway,escrowPages,pinnedLedger:{index:pin,hash},now});
 }
 module.exports={auditBurnSupply};

@@ -4,7 +4,7 @@ const {BURN_ISSUER:issuer,BURN_CURRENCY:currency,BURN_LAUNCH_SUPPLY:supply,decim
 const SCALE=decimalUnits('1').scale,DIGITS=SCALE.toString().length-1;
 const units=value=>{const p=decimalUnits(value);if(!p)throw Error('invalid or unsupported decimal amount');return p.units;};
 const display=n=>{const rem=(n%SCALE).toString().padStart(DIGITS,'0').replace(/0+$/,'');return String(n/SCALE)+(rem?'.'+rem:'');};
-function reconcileBurnSupply({launchEvidence,current,gateway,escrowPages,now=Date.now()}={}){
+function reconcileBurnSupply({launchEvidence,current,gateway,escrowPages,pinnedLedger,now=Date.now()}={}){
  const invalid=reason=>({status:'unverified',method:'fixed_issuance_supply_v1',token_key:issuer+'-'+currency,burned:null,burned_pct:null,reason});
  try{
   const c=current?.result||current,g=gateway?.result||gateway;
@@ -12,7 +12,14 @@ function reconcileBurnSupply({launchEvidence,current,gateway,escrowPages,now=Dat
   if(!launch.verified)return invalid(launch.errors.join('; '));
   const pin=c.ledger_index,hash=c.ledger_hash;
   const matches=r=>r?.validated===true&&r.ledger_index===pin&&r.ledger_hash===hash;
-  if(!/^[A-Fa-f0-9]{64}$/.test(hash||'')||!matches(g)||g.account!==issuer)return invalid('gateway balances are not pinned to the validated issuer snapshot');
+  const ledgerPinned=pinnedLedger?.index===pin&&pinnedLedger?.hash===hash;
+  // Some gateway_balances servers omit ledger_hash in their reply; a request
+  // made with the validated ledger_hash, plus matching validated sequence,
+  // still pins the read. Never accept a conflicting hash.
+  const gatewayMatches=g?.validated===true&&g.ledger_index===pin&&
+    (g.ledger_hash===hash || (g.ledger_hash==null&&ledgerPinned));
+  if(!/^[A-Fa-f0-9]{64}$/.test(hash||'')||!gatewayMatches||g.account!==issuer)
+    return invalid('gateway balances are not pinned to the validated issuer snapshot');
   if(!Number.isFinite(now)||now<=0)return invalid('invalid check time');
   if(Object.keys(g.balances||{}).length||Object.keys(g.assets||{}).length)return invalid('excluded wallets or unexpected issuer assets require review');
   if(!Array.isArray(escrowPages)||!escrowPages.length)return invalid('complete escrow directory required');

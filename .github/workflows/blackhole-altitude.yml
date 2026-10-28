@@ -1,0 +1,16 @@
+name: Black-hole altitude checks
+on:
+  pull_request:
+    paths:
+      - 'client/js/blackhole-altitude*'
+      - 'client/js/amm-lock.js'
+      - '.github/workflows/blackhole-altitude.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node client/js/blackhole-altitude.test.mjs

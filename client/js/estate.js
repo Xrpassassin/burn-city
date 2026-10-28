@@ -72,11 +72,13 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
     }
     roadShape.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));roadShape.setIndex(inds);
     roadShape.computeVertexNormals();
-    const access=new THREE.Mesh(roadShape,asphalt);access.material.side=THREE.DoubleSide;G.add(access);
+    const accessMat=asphalt.clone();accessMat.side=THREE.DoubleSide;
+    const access=new THREE.Mesh(roadShape,accessMat);G.add(access);
   }
   // Visually join the access curve to the parking surface with a flush entrance apron.
-  const apron=new THREE.Mesh(new THREE.BoxGeometry(9,.075,9),asphalt);
-  apron.position.set(-18,.105,7);beachPark.add(apron);
+  const apron=new THREE.Mesh(new THREE.BoxGeometry(12,.075,12),asphalt);
+  // The curve terminates at the parking center. Match the apron to that endpoint.
+  apron.position.set(0,.105,0);beachPark.add(apron);
   // Keep a clear pedestrian boundary: cars stop at painted parking-end bars.
   for(let i=0;i<6;i++){
     const x=(i-2.5)*6.2;
@@ -183,10 +185,11 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const lake = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(lakeShape)), water); lake.position.y = 0.22; lake.renderOrder = 2; G.add(lake);
   const shore = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(shoreShape)), new THREE.MeshBasicMaterial({ color: 0xc8b68d, side: THREE.DoubleSide, fog: false, transparent: true, depthWrite: false })); shore.position.y = 0.18; shore.renderOrder = 1; G.add(shore);
   // Thin sand transition outside the water boundary, without changing swimming/fishing geometry.
-  const sandShape=new THREE.Shape(ring(15));sandShape.holes.push(new THREE.Path(ring(0)));
+  const sandShape=new THREE.Shape(ring(20));sandShape.holes.push(new THREE.Path(ring(0)));
   const sand=new THREE.Mesh(toWorld(new THREE.ShapeGeometry(sandShape)),new THREE.MeshLambertMaterial({color:0xd7c393,side:THREE.DoubleSide,depthWrite:false}));
-  sand.position.y=.165;sand.renderOrder=0;G.add(sand);
-  const edge = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(edgeShape)), new THREE.MeshBasicMaterial({ color: 0x6fe8ff, transparent: true, opacity: 0.75, fog: false, side: THREE.DoubleSide })); edge.position.y = 0.26; G.add(edge);
+  sand.position.y=.185;sand.renderOrder=1;G.add(sand);
+  // A subdued translucent surf lip replaces the previously bright hard outline.
+  const edge = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(edgeShape)), new THREE.MeshBasicMaterial({ color: 0xc6d9ce, transparent: true, opacity: 0.28, fog: false, side: THREE.DoubleSide })); edge.position.y = 0.26; G.add(edge);
   lake.material.side = THREE.DoubleSide;
   // A compact neighborhood silhouette makes the gateway visible from the city.
   const proxy=new THREE.Group();proxy.position.copy(lakeC);proxy.rotation.y=yaw;G.add(proxy);

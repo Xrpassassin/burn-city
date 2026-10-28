@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {planCityNature} from './city-nature-plan.mjs';
+const nodes=[{pos:{x:180,z:0},distR:65,w:4}];
+const road=(x,z)=>x<175;
+const a=planCityNature({nodes,onRoad:road,seed:14,tier:'low'});
+assert.deepEqual(a,planCityNature({nodes,onRoad:road,seed:14,tier:'low'}));
+assert(a.length>0&&a.length<=140);
+assert(a.every(p=>!road(p.x,p.z)&&Math.hypot(p.x,p.z)>75));
+const denied=planCityNature({nodes,onRoad:()=>true,tier:'low'});
+assert.equal(denied.length,0);
+assert.equal(planCityNature({nodes:[]}).length,0);
+console.log('city nature placement: all tests passed');

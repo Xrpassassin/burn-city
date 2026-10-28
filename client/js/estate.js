@@ -73,6 +73,15 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
     roadShape.computeVertexNormals();
     const access=new THREE.Mesh(roadShape,asphalt);access.material.side=THREE.DoubleSide;G.add(access);
   }
+  // Visually join the access curve to the parking surface with a flush entrance apron.
+  const apron=new THREE.Mesh(new THREE.BoxGeometry(9,.075,9),asphalt);
+  apron.position.set(-18,.105,7);beachPark.add(apron);
+  // Keep a clear pedestrian boundary: cars stop at painted parking-end bars.
+  for(let i=0;i<6;i++){
+    const x=(i-2.5)*6.2;
+    const stopBar=new THREE.Mesh(new THREE.BoxGeometry(4.6,.018,.16),stripe);
+    stopBar.position.set(x,.106,1.25);beachPark.add(stopBar);
+  }
   const parkingSlab=new THREE.Mesh(new THREE.BoxGeometry(42,.12,21),asphalt);parkingSlab.position.set(0,.02,0);beachPark.add(parkingSlab);
   const path=new THREE.Mesh(new THREE.BoxGeometry(4,.10,24),walkway);path.position.set(0,.065,14);beachPark.add(path);
   for(let i=0;i<6;i++){

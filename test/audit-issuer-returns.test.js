@@ -18,5 +18,14 @@ audit({ fromLedger: 10, toLedger: 20, request }).then(r => {
  assert.equal(r.status, 'unverified');
  assert.equal(r.scan.pages, 1);
  assert.equal(r.server_ledger_coverage.available, true);
- console.log('audit-issuer-returns: all tests passed');
+ return audit({fromLedger:1,toLedger:20,request:async method=>{
+   if(method==='server_info')return {info:{complete_ledgers:'10-20'}};
+   throw Error('account_info/account_tx must not be requested with missing archive range');
+ }}).then(missing=>{
+   assert.equal(missing.status,'unverified');
+   assert.equal(missing.burned_pct,null);
+   assert.equal(missing.scan.pages,0);
+   assert.equal(missing.server_ledger_coverage.available,false);
+   console.log('audit-issuer-returns: all tests passed');
+ });
 }).catch(e => { console.error(e); process.exitCode = 1; });

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
 import { resolveNftAvatarComponents } from './nft-avatar-components.js';
 import { resolveNftAvatarReconstruction } from './nft-avatar-reconstruction.js';
+import { bakeAvatar, disposeBaked } from './avatar-bake.js';
 const G = new Map(), TX = new Map(), MT = new Map();
 const QA_MARKER_MAT = new THREE.MeshBasicMaterial({color:'#e5bd54',wireframe:true});
 const geo = (k, f) => G.get(k) || (G.set(k, f()), G.get(k));
@@ -71,10 +72,11 @@ export function buildNftChar(n, opts = {}) {
   const eyeMood=traitValue(/eye appearance/i).toLowerCase();
   const eyeHex = traitColor(/eye color|iris color|eyes?$|iris$/i, /flame|burn|melt|glow|neon/i.test(eyeMood)||has(tr,/flaming eyes|burn eye|melt|glowing eyes/)?accentHex:'#343039');
   const skin = mat(faceHex, .82, .01), cloth = mat(bodyHex, .82, .02), darkCloth = mat(shade(bodyHex,.52),.86,.04);
-  const trim = mat(topHex,.6,.12), accent = glow(accentHex), metal = mat('#a8b1ba',.34,.68), bootMat = mat('#191b20',.78,.16);
+  const trim = mat(topHex,.6,.12), accent = glow(accentHex), metal = mat('#a8b1ba',.34,.68), bootMat = mat('#191b20',.78,.16), soleMat = mat('#3a3d44',.9,.02);
   const lite = !!opts.lite;
   const S = geo(lite ? 'unit-sphere-lite' : 'unit-sphere', () => new THREE.SphereGeometry(1, lite ? 10 : 16, lite ? 8 : 12));
-  const addSphere = (parent, material, pos, scale, geometry=S) => { const m=add(geometry,material,pos[0],pos[1],pos[2],parent); m.scale.set(scale[0],scale[1],scale[2]); return m; };
+  const SLow = geo('unit-sphere-low',()=>new THREE.SphereGeometry(1,8,6));
+  const addSphere = (parent, material, pos, scale, geometry=(lite&&Math.max(scale[0],scale[1],scale[2])<.045?SLow:S)) => { const m=add(geometry,material,pos[0],pos[1],pos[2],parent); m.scale.set(scale[0],scale[1],scale[2]); return m; };
   const addCapsule = (parent, material, pos, radius, length, scale=[1,1,1]) => { const m=add(capsule(radius,length,lite?8:10,lite?3:4),material,pos[0],pos[1],pos[2],parent); m.scale.set(...scale); return m; };
   const addBox = (parent, material, pos, size) => add(box(...size),material,pos[0],pos[1],pos[2],parent);
   const addDiagnosticMarker = (parent, slot, pos, scale) => {
@@ -216,6 +218,9 @@ export function buildNftChar(n, opts = {}) {
     addCapsule(knee,darkCloth,[0,-.205,0],.075,.25,[1.02,1,.95]);
     addCapsule(knee,bootMat,[0,-.385,.045],.075,.08,[1.08,.62,1.5]);
     addSphere(knee,bootMat,[0,-.415,.11],[.085,.045,.105]);
+    // Rubber sole + toe cap give the shoe a readable silhouette (merged into the baked mesh, no extra draw call).
+    add(capsule(.07,.13,8,2),soleMat,0,-.452,.07,knee).scale.set(1.12,.28,1.18);
+    addSphere(knee,soleMat,[0,-.425,.17],[.068,.032,.05],geo('unit-sphere-low',()=>new THREE.SphereGeometry(1,8,6)));
     hip.userData.knee = knee; return hip;
   });
   const arms = [-1,1].map(s => {
@@ -227,6 +232,8 @@ export function buildNftChar(n, opts = {}) {
     addCapsule(elbow,cloth,[0,-.135,0],.059,.17,[1,1,1]);
     addSphere(elbow,skin,[0,-.255,.01],[.061,.068,.062]);
     addSphere(elbow,skin,[0,-.285,.04],[.048,.045,.05]);
+    add(capsule(.016,.035,5,1),skin,-s*.04,-.262,.045,elbow).rotation.z=-s*.75;
+    if(!lite) for(let f=0;f<3;f++) add(capsule(.012,.03,5,1),skin,(f-1)*.022,-.322,.045,elbow);
     shoulder.userData.elbow=elbow; return shoulder;
   });
 
@@ -340,6 +347,8 @@ export function buildNftChar(n, opts = {}) {
       addSphere(head,skin,[s*.19,.01,0],[.04,.065,.045]);
       addSphere(head,mat('#f0e7d9'),[s*.067,.045,.158],surprisedEyes?[.038,.034,.018]:[.035,.025,.018]);
       addSphere(head,components.eyeStyle === 'glowing' ? glow(eyeHex) : mat(eyeHex),[s*.067,.043,.175],surprisedEyes?[.018,.023,.01]:[.016,.018,.01]);
+      if(components.eyeStyle !== 'glowing') addSphere(head,mat('#0d0f14',.4,0),[s*.067,.043,.183],[.008,.01,.004],geo('unit-sphere-low',()=>new THREE.SphereGeometry(1,8,6))).name='nft-eye-pupil';
+      addSphere(head,mat('#ffffff',.2,0,'#ffffff'),[s*.061,.051,.186],[.004,.005,.002],geo('unit-sphere-low',()=>new THREE.SphereGeometry(1,8,6))).name='nft-eye-glint';
       addCapsule(head,mat(shade(faceHex,.65)),[s*.067,.092,.155],.012,.035,[1,.6,.6]).rotation.z=s*.15;
     }
     // Nose geometry follows an explicit NFT trait when present; otherwise keep a subtle human nose.
@@ -555,7 +564,8 @@ export function buildNftChar(n, opts = {}) {
       const flame=add(geo('flame',()=>new THREE.ConeGeometry(.055,.25,7)),glow(accentHex),x,.24+h*.25,-.04,head);
       flame.scale.y=h/.25; flame.userData.flame=1;
     }
-    addSphere(head,glow(shade(accentHex,.6)),[0,-.01,.14],[.2,.055,.03]);
+    // Thin ember streaks under the eyes (was a wide glowing band that read as clown cheeks).
+    for(const s of [-1,1]) addSphere(head,glow(shade(accentHex,.75)),[s*.095,-.012,.168],[.04,.009,.012]).rotation.z=s*-.35;
   }
   if(components.accessoryStyle === 'chain' || has(tr,/chain|medallion|necklace|gold pick|grill/)) {
     // Wearable jewelry sits just in front of the full-artwork tabard, never behind it.
@@ -829,11 +839,14 @@ export function buildNftChar(n, opts = {}) {
     if(g.userData.card)g.userData.card.position.y=g.userData.frame.position.y=2.55+Math.sin(t*2)*.045;
   };
   g.traverse(o=>{if(o.isMesh){o.frustumCulled=true;o.userData.nftAvatarPart=true}});
+  // Collapse ~60-115 part meshes into a few skinned meshes (rig groups stay animated); opts.bake=false keeps raw parts for QA.
+  if(opts.bake!==false){try{g.userData.bake=bakeAvatar(g)}catch(e){g.userData.bake={error:String(e&&e.message||e)}}}
   return g;
 }
 export function disposeNftChar(g) {
   // Most geometries, materials and NFT textures are intentionally shared/cached. Do not dispose them per avatar.
   if(!g)return;
+  disposeBaked(g);
   g.traverse(o=>{if(o.isSprite||(o.isMesh&&o.material?.map))o.material.dispose()});
   g.removeFromParent();
 }

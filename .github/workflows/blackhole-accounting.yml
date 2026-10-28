@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'server/issuer-return-*.js'
+      - 'server/amm-lock.js'
+      - 'client/js/amm-lock.js'
+      - 'client/js/verified-supply-visual*'
+      - 'test/burn-supply-live.test.js'
       - 'server/burn-launch-*'
       - 'server/burn-supply-reconciliation.js'
       - 'scripts/audit-burn-supply.js'
@@ -45,3 +49,6 @@ jobs:
 
       - name: BURN supply snapshot without transaction scans
         run: node test/burn-launch-evidence.test.js && node test/burn-supply-reconciliation.test.js
+
+      - name: BURN live supply and visual contract
+        run: node test/burn-supply-live.test.js && node client/js/verified-supply-visual.test.mjs

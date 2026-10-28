@@ -1,13 +1,14 @@
 import { blackHoleAltitude } from './blackhole-altitude.mjs';
 import { verifiedBurnFraction } from './verified-burn-visual.mjs';
-import { issuerReturnCard } from './issuer-return-card.mjs';
+import { verifiedSupplyFraction } from './verified-supply-visual.mjs';
+import { issuerReturnCard, supplyReconciliationCard } from './issuer-return-card.mjs';
 // AMM lock + burn visuals (server truth: GET /api/amm-lock, server/amm-lock.js). +3 draw calls total, all instanced/merged:
 //   1) ONE InstancedMesh: gold segmented chain halo around every pool bridge (at the arc's midpoint). Lit arc = VERIFIED permanently locked
 //      share of the LP token supply; dim amber dashes = time-locked (Escrow); faint steel = the rest; grey dashes = UNVERIFIED (nothing gold).
 //      The bridge body (thickness = liquidity, colour = activity) is never touched.
-//   2) ONE InstancedMesh: a dark black/violet singularity per TOKEN (not per pool), above its tower, sized by verified issuer returns / launch circulating supply.
-//   3) ONE Points draw: particles falling into the singularities, motion entirely in the vertex shader (no per-frame CPU work). Off on LOW tier
-//      and with prefers-reduced-motion (halo glint frozen too).
+//   2) ONE InstancedMesh: a dark black/violet singularity per TOKEN (not per pool), above its tower, sized by verified supply reduction or issuer returns.
+//   3) ONE InstancedMesh: thin accretion disks. Shader-only motion; no particles,
+//      textures, lights, render targets, or post-processing. Reduced motion freezes animation.
 // Cards: pool card (tap a bridge) + token card (tap a tower or a singularity) get a lock/burn section with figures, status and sources.
 // Strict gold (client/js/goldlock.js, #121 gold vein + Forever Rails) is unchanged: it stays the "certified" badge (>= 95% AND >= 5k XRP), the halo is the measurement.
 // Test: ?locktest (fixture covering every case, no network) · ?debug=1 -> window.__ammLock.
@@ -43,7 +44,7 @@ function fixture(bridges, N) {
 }
 
 // A fixed-size BURN marker signals a verified inaccessible issuer; it is not a
-// burn percentage. A complete issuer-return history is still required for that.
+// burn percentage. A verified supply snapshot or issuer-return history supplies that.
 export function burnIssuerMarker(key, issuerVerified, fresh) {
   return key === 'rwgNTwrsZKPe7xYCy4emjFAYpgnuioHSkd-4255524E00000000000000000000000000000000' && issuerVerified === true && fresh === true;
 }
@@ -76,7 +77,7 @@ export function initAmmLock(c) {
   const sA = new Float32Array(NT); sph.setAttribute('bp', new THREE.InstancedBufferAttribute(sA, 1));
   const sm = new THREE.ShaderMaterial({ toneMapped: false, fog: true, uniforms: { t: lockT, ...fogU },
     vertexShader: 'attribute float bp;varying vec3 vN;varying float vB;varying vec3 vP;\n#include <fog_pars_vertex>\nvoid main(){vB=bp;vN=normalize(normalMatrix*mat3(instanceMatrix)*normal);vP=position;vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
-    fragmentShader: 'uniform float t;varying vec3 vN;varying float vB;varying vec3 vP;\n#include <fog_pars_fragment>\nvoid main(){float f=pow(1.-abs(vN.z),2.6);float sw=.5+.5*sin(atan(vP.z,vP.x)*3.+vP.y*4.-t*.6);vec3 col=vec3(.012,.0,.03)+vec3(.45,.16,.95)*f*(1.1+.5*vB)+vec3(.25,.05,.5)*f*sw*.5;gl_FragColor=vec4(col,1.);\n#include <fog_fragment>\n}' });
+    fragmentShader: 'uniform float t;varying vec3 vN;varying float vB;varying vec3 vP;\n#include <fog_pars_fragment>\nvoid main(){float f=pow(1.-abs(normalize(vN).z),4.);float sw=.5+.5*sin(atan(vP.z,vP.x)*3.+vP.y*4.-t*.6);vec3 col=vec3(.001,.0,.003)+vec3(.45,.16,.95)*f*(.7+.3*vB)+vec3(.25,.05,.5)*f*sw*.5;gl_FragColor=vec4(col,1.);\n#include <fog_fragment>\n}' });
   const sing = new THREE.InstancedMesh(sph, sm, NT); sing.frustumCulled = false; S.add(sing);
   const pickMat = new THREE.MeshBasicMaterial({ visible: false }), pickGeo = new THREE.SphereGeometry(1, 8, 6), pickers = {};
   // city centre for the outward offset (singularities sit on the far side of each tower from the hub, at street level: apart from every rail)
@@ -84,24 +85,34 @@ export function initAmmLock(c) {
   const singPos = (n, R, fraction, verified, out) => out.set(n.pos.x, blackHoleAltitude({ rooftop: n.top || n.h || 0, radius: R, fraction, verified }), n.pos.z);
   const singR = f => 1.1 + 3.4 * Math.sqrt(Math.min(1, f));
 
-  // ---- 3) particles: one Points draw, shader-driven ----
-  const PER = LOW || RM ? 0 : MOBILE ? 14 : 32; let pts = null, pA = null, pC = null;
-  if (PER) { const n = NT * PER, g = new THREE.BufferGeometry(); pA = new Float32Array(n * 3); pC = new Float32Array(n * 4); const sd = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) sd.set([Math.random() * 6.2832, Math.acos(2 * Math.random() - 1), Math.random()], i * 3);
-    g.setAttribute('position', new THREE.BufferAttribute(pA, 3)); g.setAttribute('ctr', new THREE.BufferAttribute(pC, 4)); g.setAttribute('sd', new THREE.BufferAttribute(sd, 3));
-    const pm = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, uniforms: { t: lockT, px: { value: MOBILE ? 26 : 34 } },
-      // ctr = (centre xyz, radius; radius 0 = hidden). Each particle spirals from 2.8R in to the horizon (1R) and fades: life = fract(seed + t*speed)
-      vertexShader: 'attribute vec4 ctr;attribute vec3 sd;uniform float t;uniform float px;varying float vA;void main(){float R=ctr.w;float life=fract(sd.z+t*.16);float r=R*(2.8-1.75*life);float th=sd.x+life*2.4;float ph=sd.y;'
-        + 'vec3 p=ctr.xyz+r*vec3(sin(ph)*cos(th),cos(ph)*.55,sin(ph)*sin(th));vA=step(.001,R)*smoothstep(0.,.25,life)*(1.-smoothstep(.8,1.,life));vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=px*(.35+.65*(1.-life))/max(1.,-mv.z*.08);gl_Position=projectionMatrix*mv;}',
-      fragmentShader: 'varying float vA;void main(){vec2 d=gl_PointCoord-.5;float k=smoothstep(.5,.0,length(d));gl_FragColor=vec4(vec3(.7,.45,1.)*k*vA*.9,1.);}' });
-    pts = new THREE.Points(g, pm); pts.frustumCulled = false; S.add(pts); }
-  st.draws = 2 + (pts ? 1 : 0);
+  // ---- 3) accretion disks: one instanced draw, no lights/textures/post passes ----
+  const diskGeo = new THREE.RingGeometry(1.06, 2.2, LOW ? 32 : 64);
+  const diskMat = new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,
+    blending:THREE.AdditiveBlending,toneMapped:false,fog:true,uniforms:{t:lockT,...THREE.UniformsUtils.merge([THREE.UniformsLib.fog])},
+    vertexShader:`varying vec2 p;
+#include <fog_pars_vertex>
+    void main(){p=position.xy;vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;
+#include <fog_vertex>
+}`,
+    fragmentShader:`uniform float t;varying vec2 p;
+#include <fog_pars_fragment>
+    void main(){float r=length(p);float a=atan(p.y,p.x);float edge=smoothstep(1.06,1.16,r)*(1.-smoothstep(1.5,2.2,r));
+    float bands=.55+.45*sin(r*18.-a*2.+t*.7);float hot=pow(max(0.,1.-abs(r-1.16)*8.),2.);
+    vec3 col=mix(vec3(.38,.13,.8),vec3(1.,.56,.17),hot);float alpha=edge*(.16+.34*bands)+hot*.6;
+    gl_FragColor=vec4(col,alpha);
+#include <fog_fragment>
+}`});
+  const disks = new THREE.InstancedMesh(diskGeo,diskMat,NT);disks.frustumCulled=false;S.add(disks);
+  const diskQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-1.24);
+  st.draws = 3;
 
   const poolOf = b => st.data && st.data.pools ? st.data.pools[b.p.amm] : null;
   const fresh = o => o && (st.data && st.data.fixture || Date.now() - (o.t_ms != null ? o.t_ms : Date.parse(o.ts)) <= STALE_MS);
   const poolView = b => { const o = poolOf(b); if (!o || !fresh(o) || o.status === 'unverified') return { st: 'unverified', o, perm: 0, tl: 0 }; return { st: 'verified', o, perm: (o.locked_pct || 0) / 100, tl: (o.time_locked_pct || 0) / 100 }; };
   const tokOf = k => { const o = st.data && st.data.tokens ? st.data.tokens[k] : null;
     if(st.data?.fixture){if(!o||!fresh(o)||o.status==='unverified'||o.burned_pct==null)return {st:'unverified',o,f:0};return {st:o.status,o,f:o.burned_pct/100};}
+    const supply = verifiedSupplyFraction(o?.supply_reconciliation,N[k]?.key);
+    if(supply!==null && fresh(o))return {st:'verified',o:{...o,burned:o.supply_reconciliation.burned,burned_pct:supply*100},f:supply,net:true};
     const historical = verifiedBurnFraction(o?.issuer_return_history, N[k]?.key);
     if(historical !== null && fresh(o))return {st:'verified',o:{...o,burned:o.issuer_return_history.burned,burned_pct:historical*100},f:historical};
     if(burnIssuerMarker(N[k]?.key,o?.issuer_keys_disabled,!!fresh(o)))return {st:'history_pending',o,f:0.08};
@@ -115,12 +126,16 @@ export function initAmmLock(c) {
       hA.set([v.st === 'verified' ? v.perm : 0, v.st === 'verified' ? v.tl : 0, v.st === 'verified' ? 1 : 2, 0], i * 4);
       _m.compose(M.p, M.q, _s.setScalar(show ? M.R : 0)); halos.setMatrixAt(i, _m); });
     halos.instanceMatrix.needsUpdate = true; ring.attributes.lk.needsUpdate = true;
+    let visibleSingularities = 0;
     tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = singR(v.f); singPos(n, R, v.f, v.st === 'verified', _v);
-      _m.compose(_v, _q.identity(), _s.setScalar(on ? R : 0)); sing.setMatrixAt(i, _m); sA[i] = v.f;
-      if (pC) for (let j = 0; j < PER; j++) pC.set([_v.x, _v.y, _v.z, on ? R : 0], (i * PER + j) * 4);
+      if(on) { const slot=visibleSingularities++;
+        _m.compose(_v,_q.identity(),_s.setScalar(R));sing.setMatrixAt(slot,_m);sA[slot]=v.f;
+        _m.compose(_v,diskQ,_s.setScalar(R));disks.setMatrixAt(slot,_m);
+      }
       let pk = pickers[k]; if (on) { if (!pk) { pk = pickers[k] = new THREE.Mesh(pickGeo, pickMat); pk.userData = { kind: 'ammlock', token: k }; S.add(pk); pick.push(pk); } pk.position.copy(_v); pk.scale.setScalar(R * 1.6); pk.visible = true; }
       else if (pk) { pk.position.set(0, -999, 0); } });
-    sing.instanceMatrix.needsUpdate = true; sph.attributes.bp.needsUpdate = true; if (pts) pts.geometry.attributes.ctr.needsUpdate = true;
+    sing.count = disks.count = visibleSingularities;
+    sing.instanceMatrix.needsUpdate = true; sph.attributes.bp.needsUpdate = true; disks.instanceMatrix.needsUpdate = true;
   }
   // follow towers that rescale with market cap + the minor-pool toggle: cheap re-apply every 2 s (CPU, ~70 matrices)
   let acc = 0; anim.push((t, dt) => { acc += dt || 0; if (acc < 2) return; acc = 0; apply(); });
@@ -136,7 +151,7 @@ export function initAmmLock(c) {
   // ---- cards (reuse #info styling: table rows, .dim) ----
   const badge = (s, stale) => s === 'verified' ? '<b style="color:#7dffa8">✓ VERIFIED on-ledger</b>' : s === 'partial' ? '<b style="color:#ffd27a">◐ PARTIAL (lower bound)</b>' : `<b style="color:#c9c9d6">? UNVERIFIED${stale ? ' (stale)' : ''}</b>`;
   const CLS = { permanent: ['#ffc64a', 'permanently locked'], time_locked: ['#ff9d3c', 'time-locked'], held: ['#8fd8ff', 'held (keys exist)'], unknown: ['#c9c9d6', 'unverified'], burned: ['#b98cff', 'black hole'], designated: ['#d9a7ff', 'sent to designated address'] };
-  const legend = '<div class="dim" style="margin-top:6px;line-height:1.5"><span style="color:#8fd8ff">━</span> bridge = liquidity (thickness) + activity (blue→red) · <span style="color:#ffc64a">◯</span> gold chain halo = LP permanently locked (verified) · <span style="color:#ff9d3c">┅</span> time-locked · <span style="color:#c9c9d6">┅</span> grey = unverified · <span style="color:#b98cff">●</span> singularity = verified burned supply · gold vein = strict gold (≥95% + ≥5k XRP)</div>';
+  const legend = '<div class="dim" style="margin-top:6px;line-height:1.5"><span style="color:#8fd8ff">━</span> bridge = liquidity (thickness) + activity (blue→red) · <span style="color:#ffc64a">◯</span> gold chain halo = LP permanently locked (verified) · <span style="color:#ff9d3c">┅</span> time-locked · <span style="color:#c9c9d6">┅</span> grey = unverified · <span style="color:#b98cff">●</span> singularity = verified supply reduction · gold vein = strict gold (≥95% + ≥5k XRP)</div>';
   function poolHTML(p) {
     const b = bridges.find(x => x.p === p || x.p.amm === p.amm); const v = b ? poolView(b) : { st: 'unverified' }, o = v.o, stale = o && !fresh(o);
     const rows = [['Total liquidity', `${fmtN(p.tvl_xrp)} XRP <span class="dim">(bridge thickness · ECO reserves)</span>`], ['Lock status', badge(v.st, stale)]];
@@ -152,6 +167,8 @@ export function initAmmLock(c) {
   function tokHTML(k) {
     const v = tokOf(k), o = v.o, stale = o && !fresh(o), n = N[k]; const rows = [['Burn status', badge(v.st, stale)]];
     if(!st.data?.fixture){
+      const supplyCard = supplyReconciliationCard({record:fresh(o)?o?.supply_reconciliation:null,tokenKey:n?.key,tokenName:k});
+      if(supplyCard)return supplyCard;
       return issuerReturnCard({ record: fresh(o) ? o?.issuer_return_history : null,
         tokenKey: n?.key, tokenName: k,
         issuerVerified: !!(o && fresh(o) && o.issuer_keys_disabled === true) });
@@ -166,15 +183,15 @@ export function initAmmLock(c) {
     return `<div class="amml" role="group" aria-label="Burned supply details"><h3 style="margin:10px 0 4px;font-size:13px">🕳 Black-hole supply (singularity)</h3><table style="width:100%;table-layout:fixed">${rows.map(r => `<tr><td style="width:34%;white-space:normal;vertical-align:top">${r[0]}</td><td style="white-space:normal;overflow-wrap:anywhere;word-break:break-word">${r[1]}</td></tr>`).join('')}</table>${legend}</div>`;
   }
   const api = {
-    get data() { return st.data; }, get err() { return st.err; }, draws: () => st.draws, particles: PER * NT, reduced: RM, low: LOW, test: TEST,
+    get data() { return st.data; }, get err() { return st.err; }, draws: () => st.draws, particles: 0, reduced: RM, low: LOW, test: TEST,
     // "Locked LP" text for the existing pool card row + hover tip: verified figure, else the served one labelled unverified
     lpText(p) { const b = bridges.find(x => x.p === p); const v = b ? poolView(b) : null; return v && v.st === 'verified' ? pctS(v.o.locked_pct) + ' verified' : pctS(+p.locked_pct || 0) + ' reported · unverified'; },
     card(box, u) { if (!box || !u) return; let h = ''; if (u.pool && !u.node) h = poolHTML(u.pool); else if (u.node && !u.lot && tokNames.includes(u.node.name)) h = tokHTML(u.node.name); if (h) box.insertAdjacentHTML('beforeend', h); },
     open(u) { const box = document.getElementById('info'); if (!box || !u.token) return; box.innerHTML = `<button class="x" aria-label="Close">✕</button><h2>${esc(u.token)} · black hole</h2>` + tokHTML(u.token); box.classList.remove('v2'); box.style.display = 'block'; box.scrollTop = 0; box.querySelector('.x').onclick = () => box.style.display = 'none'; },
-    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.st === 'history_pending' ? 'issuer verified; return history pending' : v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + ' of supply burned'} · tap for details`; },
+    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.st === 'history_pending' ? 'issuer verified; return history pending' : v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + (v.net?' net supply reduction':' of supply burned')} · tap for details`; },
     view: (DBG || TEST) ? () => ({ pools: bridges.map((b, i) => { const v = poolView(b); return { pair: b.p.a + '/' + b.p.b, amm: b.p.amm, st: v.st, perm: v.perm, tl: v.tl, shown: halos.instanceMatrix.array[i * 16] !== 0 || halos.instanceMatrix.array[i * 16 + 1] !== 0, mid: mids[i].p.toArray(), R: mids[i].R }; }),
       tokens: tokNames.map((k, i) => { const v = tokOf(k); return { token: k, st: v.st, f: v.f, pos: pickers[k] && v.f > 0 ? pickers[k].position.toArray() : null }; }) }) : undefined,
-    objs: (DBG || TEST) ? [halos, sing, pts].filter(Boolean) : undefined,
+    objs: (DBG || TEST) ? [halos, sing, disks].filter(Boolean) : undefined,
     apply: (DBG || TEST) ? apply : undefined, load: (DBG || TEST) ? load : undefined,
   };
   window.__ammLock = api;   // read by app.js hooks (cards / tip / showInfo); figures only, no test controls

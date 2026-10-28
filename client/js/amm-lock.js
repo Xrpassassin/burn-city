@@ -1,3 +1,4 @@
+import { blackHoleAltitude } from './blackhole-altitude.mjs';
 import { verifiedBurnFraction } from './verified-burn-visual.mjs';
 // AMM lock + burn visuals (server truth: GET /api/amm-lock, server/amm-lock.js). +3 draw calls total, all instanced/merged:
 //   1) ONE InstancedMesh: gold segmented chain halo around every pool bridge (at the arc's midpoint). Lit arc = VERIFIED permanently locked
@@ -79,7 +80,7 @@ export function initAmmLock(c) {
   const pickMat = new THREE.MeshBasicMaterial({ visible: false }), pickGeo = new THREE.SphereGeometry(1, 8, 6), pickers = {};
   // city centre for the outward offset (singularities sit on the far side of each tower from the hub, at street level: apart from every rail)
   const cx = tokNames.reduce((s, k) => s + N[k].pos.x, 0) / Math.max(1, tokNames.length), cz = tokNames.reduce((s, k) => s + N[k].pos.z, 0) / Math.max(1, tokNames.length);
-  const singPos = (n, R, out) => out.set(n.pos.x, (n.top || n.h || 0) + R + 12, n.pos.z);
+  const singPos = (n, R, fraction, verified, out) => out.set(n.pos.x, blackHoleAltitude({ rooftop: n.top || n.h || 0, radius: R, fraction, verified }), n.pos.z);
   const singR = f => 1.1 + 3.4 * Math.sqrt(Math.min(1, f));
 
   // ---- 3) particles: one Points draw, shader-driven ----
@@ -113,7 +114,7 @@ export function initAmmLock(c) {
       hA.set([v.st === 'verified' ? v.perm : 0, v.st === 'verified' ? v.tl : 0, v.st === 'verified' ? 1 : 2, 0], i * 4);
       _m.compose(M.p, M.q, _s.setScalar(show ? M.R : 0)); halos.setMatrixAt(i, _m); });
     halos.instanceMatrix.needsUpdate = true; ring.attributes.lk.needsUpdate = true;
-    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = singR(v.f); singPos(n, R, _v);
+    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = singR(v.f); singPos(n, R, v.f, v.st === 'verified', _v);
       _m.compose(_v, _q.identity(), _s.setScalar(on ? R : 0)); sing.setMatrixAt(i, _m); sA[i] = v.f;
       if (pC) for (let j = 0; j < PER; j++) pC.set([_v.x, _v.y, _v.z, on ? R : 0], (i * PER + j) * 4);
       let pk = pickers[k]; if (on) { if (!pk) { pk = pickers[k] = new THREE.Mesh(pickGeo, pickMat); pk.userData = { kind: 'ammlock', token: k }; S.add(pk); pick.push(pk); } pk.position.copy(_v); pk.scale.setScalar(R * 1.6); pk.visible = true; }

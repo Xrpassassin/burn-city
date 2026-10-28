@@ -4,7 +4,7 @@
 // Each simulated player gets its own fly-client-ip so per-IP limits never mask a per-account result.
 const fs = require('fs'), path = require('path'), os = require('os'), http = require('http'), assert = require('node:assert/strict');
 const DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'bcestates-'));
-Object.assign(process.env, { DATA_DIR: DIR, PORT: '0', TOKEN_SECRET: 'estsimsecret', ADMIN_TOKEN: 'estadmintoken', XRPL_WSS: 'ws://127.0.0.1:1', DRY_RUN: 'true', BURN_JOB_IN_SERVER: 'false', XUMM_KEY: '', XUMM_SECRET: '' });
+Object.assign(process.env, { DATA_DIR: DIR, PORT: '0', TOKEN_SECRET: 'estsimsecret', ADMIN_TOKEN: 'estadmintoken', XRPL_WSS: 'ws://127.0.0.1:1', DRY_RUN: 'true', BURN_JOB_IN_SERVER: 'false', XUMM_KEY: '', XUMM_SECRET: '', XAMAN_API_KEY: '', XAMAN_API_SECRET: '', XUMM_API_KEY: '', XUMM_API_SECRET: '' }); // config.js reads XAMAN_API_* / XUMM_API_*: blank them so a dev shell with real keys never hits Xaman
 delete process.env.ESTATE_TREASURY_ADDRESS;
 const Srv = require('../server/server'), Pay = require('../server/payments');
 const { allocateProfit, propertyWeight, CATALOG } = require('../server/estate-economy');

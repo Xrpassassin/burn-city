@@ -1,0 +1,19 @@
+name: Black-hole skyline sizing
+on:
+  pull_request:
+    paths:
+      - 'client/js/amm-lock.js'
+      - 'test/blackhole-size-and-pending.test.js'
+      - '.github/workflows/blackhole-skyline.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node test/blackhole-size-and-pending.test.js
+      - run: node --check client/js/amm-lock.js
+      - run: node client/js/verified-three-token-blackholes.test.mjs

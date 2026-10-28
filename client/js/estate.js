@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createEstatesCityLakeGeometry, CITY_LAKE_DIMENSIONS } from './estates-city-lake-geometry.mjs';
+import {buildBeachAccessRoute,followBeachRoute} from './beach-traffic-route.mjs';
 const box = (w, h, d, x, y, z, ry = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); return g.translate(x, y, z); };
 // lake frame: depends only on the district nodes (+ avoid points), so the city layout can test it before the Estates are built
 function lakeFrame(nodes, avoid = []) {
@@ -73,6 +74,19 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
     const body=new THREE.Mesh(new THREE.BoxGeometry(2.5,.65,4.4),carPaint[i%carPaint.length]);body.position.y=.5;car.add(body);
     const cab=new THREE.Mesh(new THREE.BoxGeometry(2.05,.6,2.15),carPaint[i%carPaint.length]);cab.position.set(0,1.08,-.2);car.add(cab);
     beachPark.add(car);
+  }
+  // A lightweight visitor vehicle follows the road-to-parking route instead of teleporting.
+  // Decorative traffic only: does not interact with city traffic authority.
+  const beachArrivalRoute=buildBeachAccessRoute({junction:beachRoadJunction,parking:parkOrigin,dir,side});
+  if(!low&&beachArrivalRoute.length&&Array.isArray(anim)){
+    const arrivingCar=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(2.2,.65,4),carPaint[0]);body.position.y=.48;arrivingCar.add(body);
+    const roof=new THREE.Mesh(new THREE.BoxGeometry(1.9,.55,2),carPaint[0]);roof.position.set(0,1,-.2);arrivingCar.add(roof);
+    G.add(arrivingCar);
+    anim.push(t=>{if(!Number.isFinite(t))return;const phase=(t*.035)%2;const progress=phase<=1?phase:2-phase;
+      const p=followBeachRoute(beachArrivalRoute,progress);
+      if(p){arrivingCar.position.set(p.x,.17,p.z);arrivingCar.rotation.y=p.yaw+(phase>1?Math.PI:0);}
+    });
   }
   // Cosmetic visitors travel between parked cars and the beach; no collision or transactions.
   if(!low && Array.isArray(anim)){

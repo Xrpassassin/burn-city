@@ -1,0 +1,41 @@
+name: Beach lake browser preview
+on:
+  pull_request:
+    paths:
+      - 'client/js/estate.js'
+      - 'client/js/app.js'
+      - 'client/js/citylife.js'
+      - 'client/js/streetprops.js'
+      - 'client/js/beach-traffic-route*'
+      - 'client/js/beach-visit-cycle*'
+      - 'scripts/beach-lake-browser-preview.mjs'
+      - '.github/workflows/beach-lake-preview.yml'
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --omit=dev
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Start isolated scene
+        run: |
+          DRY_RUN=true BURN_JOB_IN_SERVER=false PORT=8080 node server/server.js > /tmp/beach-preview.log 2>&1 &
+          for i in $(seq 1 40); do if curl -fsS http://127.0.0.1:8080/ > /dev/null; then exit 0; fi; sleep 2; done
+          cat /tmp/beach-preview.log
+          exit 1
+      - run: node scripts/beach-lake-browser-preview.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: beach-lake-preview
+          path: beach-preview-output/
+          if-no-files-found: ignore
+      - if: failure()
+        run: if [ -f /tmp/beach-preview.log ]; then cat /tmp/beach-preview.log; fi

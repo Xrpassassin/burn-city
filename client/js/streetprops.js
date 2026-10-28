@@ -74,7 +74,7 @@ function build() {
     if (HW && onHw(x, z, r + .5)) return false;
     const CL = window.__cityLife; if (CL) for (const o of CL.taken) { if (Math.hypot(x - o.x, z - o.z) < o.r + r + .8) return false; }
     for (const o of taken) { if (Math.abs(x - o.x) < o.r + r + 1 && Math.hypot(x - o.x, z - o.z) < o.r + r + .8) return false; }
-    const es = window.__estate; if (es && es.inLake && es.inLake(x, z)) return false;
+    const es = window.__estate; if(es?.beach?.contains(x,z,r+1))return false; if (es && es.inLake && es.inLake(x, z)) return false;
     const pk = SK && (SK.park || SK.parkArea); if (pk && Math.abs(x - pk.x) < 28 && Math.abs(z - pk.z) < 25) return false;
     if (Math.abs(c.groundAt(x, z, 3)) > .15) return false;
     return true;

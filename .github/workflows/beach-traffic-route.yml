@@ -1,0 +1,23 @@
+name: Beach traffic route checks
+on:
+  pull_request:
+    paths:
+      - 'client/js/estate.js'
+      - 'client/js/app.js'
+      - 'client/js/citylife.js'
+      - 'client/js/streetprops.js'
+      - 'client/js/beach-traffic-route.mjs'
+      - 'client/js/beach-traffic-route.test.mjs'
+      - 'client/js/beach-visit-cycle*'
+      - '.github/workflows/beach-traffic-route.yml'
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check client/js/estate.js
+      - run: node client/js/beach-traffic-route.test.mjs
+      - run: node client/js/beach-visit-cycle.test.mjs

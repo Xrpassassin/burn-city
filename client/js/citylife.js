@@ -122,7 +122,7 @@ function build() {
   const free = (x, z, r, opts = {}) => {
     for (const o of c.colliders) if (o.r > 0 && Math.abs(x - o.x) < o.r + r + 2 && Math.hypot(x - o.x, z - o.z) < o.r + r + 1.5) return false;
     for (const o of taken) if (Math.hypot(x - o.x, z - o.z) < o.r + r + 1) return false;
-    const es = window.__estate; if (es && es.inLake && es.inLake(x, z, r)) return false;   // whole footprint clear of the water
+    const es = window.__estate; if(es?.beach?.contains(x,z,r+1))return false; if (es && es.inLake && es.inLake(x, z, r)) return false;   // whole footprint clear of the water
     const sk = window.__skate && (window.__skate.park || window.__skate.parkArea); if (sk && Math.abs(x - sk.x) < 24 + r && Math.abs(z - sk.z) < 21 + r) return false;
     if (Math.abs(c.groundAt(x, z, 3)) > .2) return false;
     if (!opts.offroad && distToStreets(st, x, z) < r + 5.2) return false;

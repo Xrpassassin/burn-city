@@ -10,7 +10,7 @@ assert(a.every(p=>Math.hypot(p.x-180,p.z)<=62));
 const blocked=planCityNature({nodes,onRoad:()=>false,colliders:[{x:180,z:0,r:100}],tier:'low'});
 assert.equal(blocked.length,0);
 assert.equal(planCityNature({nodes:[null,{}, {pos:{x:0,z:0},distR:0}]}).length,0);
-const invalid=planCityNature({nodes:[{pos:{x:NaN,z:Infinity},distR:55,w:3},...nodes],seed:14,tier:'low'});
+const invalid=planCityNature({nodes:[{pos:{x:NaN,z:Infinity},distR:55,w:3},...nodes],onRoad:road,seed:14,tier:'low'});
 assert.deepEqual(invalid,a);
 const denied=planCityNature({nodes,onRoad:()=>true,tier:'low'});
 assert.equal(denied.length,0);

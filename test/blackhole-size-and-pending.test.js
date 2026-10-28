@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const src=fs.readFileSync(require('node:path').join(__dirname,'../client/js/amm-lock.js'),'utf8');
+assert.match(src,/verified \? 2 \+ 13 \* Math\.sqrt/);
+assert.match(src,/pendingIssuer && o\?\.issuer_keys_disabled===true && !!fresh\(o\)/);
+assert.match(src,/rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP-IMM/);
+assert.match(src,/rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-XRPYRO/);
+assert.match(src,/const v = tokOf\(k\), n = N\[k\], on = v\.f > 0, R = singR\(v\.f, v\.st === 'verified'\)/);
+const radius=f=>2+13*Math.sqrt(Math.max(0,Math.min(1,f)));
+assert.ok(radius(.965156)>14);
+assert.ok(radius(.965156)>3*4.5);
+assert.equal(radius(0),2);
+console.log('BURN high-supply scale and IMM/XRPyro pending marker guards passed');

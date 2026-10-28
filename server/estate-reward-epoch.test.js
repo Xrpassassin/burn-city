@@ -1,0 +1,13 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { allocateEpoch } = require('./estate-reward-epoch');
+const walletA = 'rrrrrrrrrrrrrrrrrrrrrrrrr';
+const walletB = 'rrrrrrrrrrrrrrrrrrrrrrrrs';
+const holdings = [{propertyId:'trailer-01',acct:walletA},{propertyId:'apartment-01',acct:walletB}];
+const result = allocateEpoch({epochId:'2026-10-28T12:00:00Z',currency:'XRP',distributableUnits:'600000000000000000000',holdings});
+assert.equal(result.totalWeight,'6');
+assert.equal(result.remainderUnits,'0');
+assert.equal(result.allocations.reduce((sum,a)=>sum+BigInt(a.units),0n),600000000000000000000n);
+assert.throws(()=>allocateEpoch({epochId:'bad',currency:'XRP',distributableUnits:'1',holdings}));
+assert.throws(()=>allocateEpoch({epochId:'2026-10-28T12:00:00Z',currency:'XRP',distributableUnits:'1',holdings:[holdings[0],holdings[0]]}));
+console.log('estate reward epoch tests passed');

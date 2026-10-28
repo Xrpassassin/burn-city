@@ -1,0 +1,12 @@
+'use strict';
+const assert = require('node:assert/strict');
+const {planPayouts,transitionPayout}=require('./estate-payout-ledger');
+const p=planPayouts({epochId:'2026-10-28T12:00:00Z',currency:'IMG',distributableUnits:'17',holdings:[{propertyId:'trailer-01',acct:'rrrrrrrrrrrrrrrrrrrrrrrrr'}],fundingRef:'ledger:12345',sourceLedgerIndex:12345});
+assert.equal(p.allocatedUnits,'17');
+assert.equal(p.payouts.length,1);
+assert.equal(p.payouts[0].id.length,64);
+const ready=transitionPayout(p.payouts[0],'ready');
+const submitting=transitionPayout(ready,'submitting');
+assert.equal(transitionPayout(submitting,'confirmed',{txHash:'a'.repeat(64)}).state,'confirmed');
+assert.throws(()=>transitionPayout(p.payouts[0],'confirmed',{txHash:'a'.repeat(64)}));
+console.log('estate payout ledger tests passed');

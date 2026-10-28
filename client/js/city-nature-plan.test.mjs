@@ -9,6 +9,7 @@ assert(a.every(p=>!road(p.x,p.z)&&Math.hypot(p.x,p.z)>75));
 assert(a.every(p=>Math.hypot(p.x-180,p.z)<=62));
 assert(a.every(p=>p.height>=.26&&p.height<=1.11));
 assert(a.every(p=>typeof p.flower==='boolean'));
+for(let i=0;i<a.length;i++)for(let j=i+1;j<a.length;j++)assert(Math.hypot(a[i].x-a[j].x,a[i].z-a[j].z)>=.72-1e-9);
 const blocked=planCityNature({nodes,onRoad:()=>false,colliders:[{x:180,z:0,r:100}],tier:'low'});
 assert.equal(blocked.length,0);
 assert.equal(planCityNature({nodes:[null,{}, {pos:{x:0,z:0},distR:0}]}).length,0);

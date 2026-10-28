@@ -26,5 +26,7 @@ jobs:
         run: node test/issuer-return-scanner.test.js
       - name: Archive ledger coverage
         run: node test/issuer-return-ledger-coverage.test.js
+      - name: Issuance evidence
+        run: node test/issuer-return-issuance-evidence.test.js
       - name: Read-only audit
         run: node test/audit-issuer-returns.test.js

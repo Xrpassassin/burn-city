@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import {createShoreWalk} from './shore-walk.mjs';
 
 const listeners=new Map();
+function vector(x=0,y=0,z=0){
+ return {x,y,z,set(x,y,z){Object.assign(this,{x,y,z});return this;},clone(){return vector(this.x,this.y,this.z);},add(v){this.x+=v.x;this.y+=v.y;this.z+=v.z;return this;}};
+}
 function el(){
- const node={children:[],style:{},hidden:false,listeners:new Map(),position:{x:0,y:0,z:0,set(x,y,z){Object.assign(this,{x,y,z});},clone(){return {x:this.x,y:this.y,z:this.z,add(v){this.x+=v.x;this.y+=v.y;this.z+=v.z;return this;}};}},rotation:{y:0},add(child){this.children.push(child);},append(child){this.children.push(child);},remove(){this.removed=true;},setAttribute(){},addEventListener(k,fn){this.listeners.set(k,fn);},removeEventListener(k){this.listeners.delete(k);},getBoundingClientRect(){return {left:0,top:0,width:116,height:116};},setPointerCapture(){}};
+ const node={children:[],style:{},hidden:false,listeners:new Map(),position:vector(),rotation:{y:0},add(child){this.children.push(child);},append(child){this.children.push(child);},remove(){this.removed=true;},setAttribute(){},addEventListener(k,fn){this.listeners.set(k,fn);},removeEventListener(k){this.listeners.delete(k);},getBoundingClientRect(){return {left:0,top:0,width:116,height:116};},setPointerCapture(){}};
  return node;
 }
 globalThis.document={hidden:false,createElement:el,addEventListener:(k,fn)=>listeners.set(k,fn),removeEventListener:k=>listeners.delete(k)};

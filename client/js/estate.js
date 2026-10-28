@@ -74,6 +74,19 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
     roadShape.computeVertexNormals();
     const accessMat=asphalt.clone();accessMat.side=THREE.DoubleSide;
     const access=new THREE.Mesh(roadShape,accessMat);G.add(access);
+    // A subtle centreline makes the approach readable against dark terrain without adding traffic physics.
+    const centerline=new THREE.BufferGeometry(),markVerts=[],markIndices=[];
+    for(let i=2;i<steps-2;i+=5){
+      const t0=i/steps,t1=Math.min((i+2)/steps,1),p0=curve.getPoint(t0),p1=curve.getPoint(t1);
+      const tangent=curve.getTangent((t0+t1)/2).normalize();
+      const normal=new THREE.Vector3(-tangent.z,0,tangent.x).multiplyScalar(.085);
+      const k=markVerts.length/3;
+      for(const p of [p0,p1]){markVerts.push(p.x+normal.x,.125,p.z+normal.z,p.x-normal.x,.125,p.z-normal.z);}
+      markIndices.push(k,k+1,k+2,k+1,k+3,k+2);
+    }
+    centerline.setAttribute('position',new THREE.Float32BufferAttribute(markVerts,3));
+    centerline.setIndex(markIndices);
+    const markings=new THREE.Mesh(centerline,stripe.clone());markings.material.side=THREE.DoubleSide;G.add(markings);
   }
   // Visually join the access curve to the parking surface with a flush entrance apron.
   const apron=new THREE.Mesh(new THREE.BoxGeometry(12,.075,12),asphalt);

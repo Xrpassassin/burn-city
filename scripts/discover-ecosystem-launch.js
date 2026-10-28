@@ -48,9 +48,9 @@ async function discover(name,{request=rpc,maxPages=MAX_PAGES}={}){
  if(!Number.isSafeInteger(maxPages)||maxPages<1||maxPages>MAX_PAGES)throw Error('invalid page cap');
  const info=await request('server_info',{});
  const range=String(info.info?.complete_ledgers||'');
- // The archive must explicitly include genesis-era history. Never treat an incomplete scan as complete.
- const coversGenesis=range.split(',').some(part=>{const m=/^(\d+)-(\d+)$/.exec(part.trim());return m&&Number(m[1])<=2&&Number(m[2])>=2;});
- if(!coversGenesis)return {status:'unverified',token:name,reason:'endpoint does not advertise genesis-era archive coverage',scan_pages:0};
+ // Ledger coverage must be parseable; launch-era completeness still requires independent proof.
+ if(!range || !/^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$/.test(range))
+  return {status:'unverified',token:name,reason:'archive ledger coverage unavailable',scan_pages:0};
  const items=[];let marker,finished=false,pages=0;const markers=new Set();
  while(pages<maxPages){
   const page=await request('account_tx',{account:t.issuer,ledger_index_min:-1,ledger_index_max:-1,

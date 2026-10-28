@@ -54,16 +54,23 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
   const asphalt=new THREE.MeshLambertMaterial({color:0x36383a}),stripe=new THREE.MeshBasicMaterial({color:0xd9d4bd});
   const walkway=new THREE.MeshLambertMaterial({color:0xafa287}),carPaint=[0x36546b,0x9b4638,0xb9b9ad,0x526656].map(color=>new THREE.MeshLambertMaterial({color}));
   const visitorMat=new THREE.MeshLambertMaterial({color:0x426577});
-  // Physical access connects the shoulder of the existing highway to the parking lot.
-  // A rectangular, flush, world-aligned segment avoids the former isolated asphalt island.
-  const accessStart=beachRoadJunction.clone().addScaledVector(side,4).addScaledVector(dir,7);
-  const accessEnd=parkOrigin.clone().addScaledVector(side,-20).addScaledVector(dir,7);
-  const accessCenter=accessStart.clone().add(accessEnd).multiplyScalar(.5);
-  const accessLength=accessStart.distanceTo(accessEnd);
-  const access=new THREE.Mesh(new THREE.BoxGeometry(7,.10,accessLength+3),asphalt);
-  access.position.set(accessCenter.x,.10,accessCenter.z);
-  access.rotation.y=Math.atan2(accessEnd.x-accessStart.x,accessEnd.z-accessStart.z);
-  G.add(access);
+  // Follow the same route that the animated arrival car uses. A broad tapered
+  // entrance avoids a disconnected asphalt strip or a sharp 90-degree corner.
+  const beachArrivalRoute=buildBeachAccessRoute({junction:beachRoadJunction,parking:parkOrigin,dir,side});
+  if(beachArrivalRoute.length>1){
+    const roadPts=beachArrivalRoute.map(p=>new THREE.Vector3(p.x,.12,p.z));
+    const curve=new THREE.CatmullRomCurve3(roadPts,false,'centripetal');
+    const roadShape=new THREE.BufferGeometry(),verts=[],inds=[],steps=36;
+    for(let i=0;i<=steps;i++){
+      const t=i/steps,p=curve.getPoint(t),d=curve.getTangent(t).normalize();
+      const sideways=new THREE.Vector3(-d.z,0,d.x),width=3.7;
+      verts.push(p.x+sideways.x*width,.11,p.z+sideways.z*width,p.x-sideways.x*width,.11,p.z-sideways.z*width);
+      if(i<steps){const k=i*2;inds.push(k,k+1,k+2,k+1,k+3,k+2)}
+    }
+    roadShape.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));roadShape.setIndex(inds);
+    roadShape.computeVertexNormals();
+    const access=new THREE.Mesh(roadShape,asphalt);access.material.side=THREE.DoubleSide;G.add(access);
+  }
   const parkingSlab=new THREE.Mesh(new THREE.BoxGeometry(42,.12,21),asphalt);parkingSlab.position.set(0,.02,0);beachPark.add(parkingSlab);
   const path=new THREE.Mesh(new THREE.BoxGeometry(4,.10,24),walkway);path.position.set(0,.065,14);beachPark.add(path);
   for(let i=0;i<6;i++){
@@ -77,7 +84,6 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
   }
   // A lightweight visitor vehicle follows the road-to-parking route instead of teleporting.
   // Decorative traffic only: does not interact with city traffic authority.
-  const beachArrivalRoute=buildBeachAccessRoute({junction:beachRoadJunction,parking:parkOrigin,dir,side});
   if(!low&&beachArrivalRoute.length&&Array.isArray(anim)){
     const arrivingCar=new THREE.Group();
     const body=new THREE.Mesh(new THREE.BoxGeometry(2.2,.65,4),carPaint[0]);body.position.y=.48;arrivingCar.add(body);

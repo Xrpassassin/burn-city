@@ -9,7 +9,7 @@ const anchor={validated:true,ledger_index:pin,ledger_hash:hash};
 const current={...structuredClone(launchEvidence.locked.result||launchEvidence.locked),...anchor};
 const gateway={...anchor,account:issuer,obligations:{[currency]:'30'},frozen_balances:{holder:[{currency,value:'2'}]},locked:{[currency]:'3'}};
 const escrowPages=[{...anchor,account:issuer,account_objects:[],marker:'next'},{...anchor,account:issuer,account_objects:[{LedgerEntryType:'Escrow',index:'e1',Amount:{issuer,currency,value:'3'}}]}];
-const base={launchEvidence,current,gateway,escrowPages,now:1000};
+const base={launchEvidence,current,gateway,escrowPages,pinnedLedger:{index:pin,hash},now:1000};
 const result=reconcileBurnSupply(base);
 assert.equal(result.status,'verified');assert.equal(result.outstanding,'35');assert.equal(result.burned,'999999999999965');assert.equal(result.burned_pct,99.9999);
 for(const mutate of [

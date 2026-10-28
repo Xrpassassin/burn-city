@@ -57,10 +57,12 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
   // Follow the same route that the animated arrival car uses. A broad tapered
   // entrance avoids a disconnected asphalt strip or a sharp 90-degree corner.
   const beachArrivalRoute=buildBeachAccessRoute({junction:beachRoadJunction,parking:parkOrigin,dir,side});
+  let beachDrivePath=beachArrivalRoute;
   if(beachArrivalRoute.length>1){
     const roadPts=beachArrivalRoute.map(p=>new THREE.Vector3(p.x,.12,p.z));
     const curve=new THREE.CatmullRomCurve3(roadPts,false,'centripetal');
     const roadShape=new THREE.BufferGeometry(),verts=[],inds=[],steps=36;
+    beachDrivePath=curve.getPoints(steps).map(p=>({x:p.x,z:p.z}));
     for(let i=0;i<=steps;i++){
       const t=i/steps,p=curve.getPoint(t),d=curve.getTangent(t).normalize();
       const sideways=new THREE.Vector3(-d.z,0,d.x),width=3.7;
@@ -90,7 +92,7 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
     const roof=new THREE.Mesh(new THREE.BoxGeometry(1.9,.55,2),carPaint[0]);roof.position.set(0,1,-.2);arrivingCar.add(roof);
     G.add(arrivingCar);
     anim.push(t=>{if(!Number.isFinite(t))return;const phase=(t*.035)%2;const progress=phase<=1?phase:2-phase;
-      const p=followBeachRoute(beachArrivalRoute,progress);
+      const p=followBeachRoute(beachDrivePath,progress);
       if(p){arrivingCar.position.set(p.x,.17,p.z);arrivingCar.rotation.y=p.yaw+(phase>1?Math.PI:0);}
     });
   }

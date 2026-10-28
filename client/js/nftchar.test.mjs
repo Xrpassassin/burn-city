@@ -174,7 +174,7 @@ has(avatar, /key==='589'/, 'selects the 589 Protocol collection renderer');
 has(avatar, /const hasProtocolMark=hasTrait\(\/outfit\|identity\|brand\|logo\|emblem\|insignia\/i,\/burn\|protocol\|insignia\|logo\|emblem\/i\)/, 'gates the 589 brand mark on identity-bearing traits rather than background values');
 has(avatar, /if\(hasTrait\(\/strap\|harness\|gear\|outfit\|armor\/i,\/strap\|harness\|tactical\|techwear\/i\)/, 'gates 589 tactical straps on token-specific gear traits');
 has(avatar, /Keep the trait-backed Protocol insignia above the optional QA artwork panel/, 'documents that the 589 insignia is trait-gated and layered correctly when present');
-has(avatar, /nft-protocol-emblem[\s\S]*1\.655,\.245[\s\S]*renderOrder=3/, 'keeps the 589 emblem above the original artwork panel');
+has(avatar, /mat\('#c8352a',\.7,\.05\),-\.1,1\.34,\.205\);[\s\S]*nft-protocol-emblem[\s\S]*renderOrder=3/, 'keeps the 589 chest emblem (art: upper-left chest logo) above the original artwork panel');
 has(avatar, /Restrained edge stitching supports the streetwear silhouette[\s\S]*side\*\.292[\s\S]*renderOrder=3/, 'keeps restrained 589 shirt edge stitching visible outside the artwork frame');
 has(avatar, /addBox\(g,mat\('#15171c'\),\[0,\.775,\.252\],\[\.12,\.055,\.012\]\)\.name='nft-protocol-shirt-print'/, 'places the 589 shirt print below the artwork frame where it remains visible');
 has(avatar, /nft-protocol-shirt-sigil[\s\S]*\.775,\.266[\s\S]*renderOrder=3/, 'places the 589 shirt sigil below the artwork frame and above the torso');

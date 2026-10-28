@@ -32,3 +32,30 @@ The same reduction applies to the shadow pass, because the parts cast shadows.
   for draw calls) and `threejs-shaders` (`onBeforeCompile` injection at `#include <opaque_fragment>`,
   `customProgramCacheKey`, view-space rim). Found through https://skill-issue.in/. These are guidance only; no code copied.
 - No third-party models, textures, GPL code or Mixamo files were added.
+
+## Reference-art match pass (bc-v119-nftmatch)
+
+User feedback: NFT-owner avatars looked cartoonish next to the real art. Public token metadata and
+images were pulled read-only from the XRP Ledger (issuer/taxon from `server/nft.js`, via public
+`account_nfts` / `account_tx` on xrplcluster.com) and the public Pinata IPFS gateway, and reviewed
+**outside the repo**. No NFT artwork, crops or textures were copied into this repository; the
+procedural models only take proportions, palette and trait placement from that review.
+
+What the art showed, and what changed:
+
+- **589 Protocol** (5 tokens reviewed): realistic human streetwear portraits. Skin follows the
+  `Body` trait (Flame On = molten yellow, Heating Up = red-brown, About To Burn = dark red-brown,
+  Cool Off = grey). Tees over dark denim (short sleeves, bare forearms); grey "Burn XRP Fitted" cap
+  with red front logo; orange mohawk; Punk Burner black vest over white tee; thin gold Burn Chain
+  worn on the chest; heavy-lidded "Fr" stare; small flame licks off the shoulders/cap.
+- **Firekeepers** (5 tokens reviewed): broad, muscular bare-chested warriors (or armored / suited),
+  gold tribal linework, gold neck rings or a flame collar, flaming heads, great helm for "Helmet".
+  The robe silhouette is now only used when a token actually has a robe trait.
+- **RACC** (4 tokens reviewed, mostly 1:1 customs): grey-furred anthropomorphic raccoon, black
+  mask, big blue eyes and ringed tail. The big eyes are the collection's own style and were kept;
+  limbs are now fur instead of the outfit colour, with dark paws.
+- Cartoon cues removed for human collections: catch-light glints, contrasting ball knees and
+  shoulder caps, emissive yellow chain ring, orange "clown" cheek streaks (now only for Firekeepers
+  with Flaming Eyes), oversized shirt-front flame decals.
+
+No new third-party code was used in this pass (three.js primitives only, MIT).

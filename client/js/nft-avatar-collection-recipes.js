@@ -14,7 +14,7 @@ const RECIPES = {
   },
   fk: {
     key: 'fk', displayName: 'Firekeepers', archetype: 'firekeeper', rig: 'humanoid-robed',
-    proportions: { torsoWidth: .98, torsoHeight: 1.04, headScale: [1, 1.03, 1], shoulderSpan: .30, hipSpan: .12, headY: 1.79, legScale: 1, armScale: .98 },
+    proportions: { torsoWidth: 1.12, torsoHeight: 1.04, headScale: [.98, 1, .98], shoulderSpan: .33, hipSpan: .125, headY: 1.79, legScale: 1, armScale: 1 },
     silhouetteTags: ['layered-robe', 'trait-gated-cowl', 'trait-gated-mantle', 'trait-gated-relic-sigil'],
     signature: 'firekeeper',
     visualRequirements: ['layered robe silhouette with hem separation', 'hood/cowl only when the token trait specifies it', 'mantle only when the token outfit metadata specifies it', 'relic/sigil only when the token accessory metadata specifies it', 'ember/flame identity without obscuring face'],
@@ -25,7 +25,7 @@ const RECIPES = {
   },
   '589': {
     key: '589', displayName: '589 Protocol', archetype: 'burn-protocol-humanoid', rig: 'humanoid-techwear',
-    proportions: { torsoWidth: 1.06, torsoHeight: 1, headScale: [1.02, 1, 1], shoulderSpan: .34, hipSpan: .13, headY: 1.78, legScale: 1, armScale: 1.02 },
+    proportions: { torsoWidth: 1.06, torsoHeight: 1, headScale: [.97, .98, .97], shoulderSpan: .34, hipSpan: .13, headY: 1.77, legScale: 1.02, armScale: 1.02 },
     silhouetteTags: ['streetwear', 'trait-gated-burn-insignia', 'trait-gated-chain', 'trait-gated-tech-gear'],
     signature: 'protocol',
     visualRequirements: ['streetwear silhouette distinct from robe and RACC rigs', 'visible BURN insignia when present', 'chain and tech accessories preserve source placement', 'face expression and headwear follow token traits'],

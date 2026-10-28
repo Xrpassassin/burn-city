@@ -32,6 +32,11 @@ for(const mutate of [
  }});
  assert.equal(report.status,'verified');
  const gatewayNoHash={...gateway};delete gatewayNoHash.ledger_hash;
+ const gatewayNoLedger={...gateway};delete gatewayNoLedger.ledger_hash;delete gatewayNoLedger.ledger_index;
+ assert.equal(reconcileBurnSupply({...base,gateway:gatewayNoLedger,pinnedLedger:{index:pin,hash}}).status,'verified');
+ assert.equal(reconcileBurnSupply({...base,gateway:gatewayNoLedger}).status,'unverified');
+ assert.equal(reconcileBurnSupply({...base,gateway:{...gateway,validated:false},pinnedLedger:{index:pin,hash}}).status,'unverified');
+ assert.equal(reconcileBurnSupply({...base,gateway:{...gateway,ledger_index:pin+1},pinnedLedger:{index:pin,hash}}).status,'unverified');
  const anchored=reconcileBurnSupply({...base,gateway:gatewayNoHash,pinnedLedger:{index:pin,hash}});
  assert.equal(anchored.status,'verified');
  assert.equal(reconcileBurnSupply({...base,gateway:gatewayNoHash}).status,'unverified');

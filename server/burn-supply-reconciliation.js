@@ -16,8 +16,9 @@ function reconcileBurnSupply({launchEvidence,current,gateway,escrowPages,pinnedL
   // Some gateway_balances servers omit ledger_hash in their reply; a request
   // made with the validated ledger_hash, plus matching validated sequence,
   // still pins the read. Never accept a conflicting hash.
-  const gatewayMatches=g?.validated===true&&g.ledger_index===pin&&
-    (g.ledger_hash===hash || (g.ledger_hash==null&&ledgerPinned));
+  const gatewayMatches=g?.validated===true && ledgerPinned &&
+    (g.ledger_index==null || g.ledger_index===pin) &&
+    (g.ledger_hash==null || g.ledger_hash===hash);
   if(!/^[A-Fa-f0-9]{64}$/.test(hash||'')||!gatewayMatches||g.account!==issuer)
     return invalid('gateway balances are not pinned to the validated issuer snapshot');
   if(!Number.isFinite(now)||now<=0)return invalid('invalid check time');

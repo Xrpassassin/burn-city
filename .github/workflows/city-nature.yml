@@ -1,0 +1,16 @@
+name: BURN City nature pass
+on:
+  pull_request:
+    paths:
+      - client/js/city-nature-*
+      - client/js/app.js
+      - .github/workflows/city-nature.yml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node client/js/city-nature-plan.test.mjs

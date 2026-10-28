@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {planBirdFlocks} from './city-birds-plan.mjs';
+const n=[{pos:{x:180,z:120},distR:60}];
+assert.equal(planBirdFlocks({nodes:n,tier:'low'}).length,0);
+assert.equal(planBirdFlocks({nodes:n,tier:'medium'}).length,8);
+assert.equal(planBirdFlocks({nodes:n,tier:'high'}).length,18);
+assert.deepEqual(planBirdFlocks({nodes:n}),planBirdFlocks({nodes:n}));
+assert.equal(planBirdFlocks({nodes:[{pos:{x:NaN,z:1},distR:60}]}).length,0);
+assert(planBirdFlocks({nodes:n}).every(x=>x.y>=22&&x.y<42&&x.radius>=6));
+console.log('ambient city birds tests passed');

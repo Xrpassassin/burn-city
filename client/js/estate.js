@@ -53,7 +53,7 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
   const walkway=new THREE.MeshLambertMaterial({color:0xafa287}),carPaint=[0x36546b,0x9b4638,0xb9b9ad,0x526656].map(color=>new THREE.MeshLambertMaterial({color}));
   const visitorMat=new THREE.MeshLambertMaterial({color:0x426577});
   const parkingSlab=new THREE.Mesh(new THREE.BoxGeometry(42,.12,21),asphalt);parkingSlab.position.set(0,.02,0);beachPark.add(parkingSlab);
-  const path=new THREE.Mesh(new THREE.BoxGeometry(4,.10,34),walkway);path.position.set(0,.065,22);beachPark.add(path);
+  const path=new THREE.Mesh(new THREE.BoxGeometry(4,.10,24),walkway);path.position.set(0,.065,14);beachPark.add(path);
   for(let i=0;i<6;i++){
     const x=(i-2.5)*6.2;
     const line=new THREE.Mesh(new THREE.BoxGeometry(.12,.025,9),stripe);line.position.set(x-2.9,.10,-4);beachPark.add(line);
@@ -72,7 +72,7 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
       const head=new THREE.Mesh(new THREE.SphereGeometry(.3,6,4),new THREE.MeshLambertMaterial({color:0xb68c71}));head.position.y=2.12;npc.add(head);
       beachPark.add(npc);return npc;
     });
-    anim.push(t=>{if(!Number.isFinite(t))return;visitors.forEach((npc,i)=>{const phase=t*.10+i*2.09;npc.position.set((i-1)*1.1,.12,7+Math.sin(phase)*25);npc.rotation.y=Math.cos(phase)>=0?0:Math.PI;});});
+    anim.push(t=>{if(!Number.isFinite(t))return;visitors.forEach((npc,i)=>{const phase=t*.10+i*2.09;npc.position.set((i-1)*1.1,.12,7+Math.sin(phase)*19);npc.rotation.y=Math.cos(phase)>=0?0:Math.PI;});});
   }
 
   // ---------- lake: animated shader, fake shimmer + streaks of city light ----------

@@ -1,7 +1,8 @@
 import { blackHoleAltitude } from './blackhole-altitude.mjs';
 import { verifiedBurnFraction } from './verified-burn-visual.mjs';
 import { verifiedSupplyFraction } from './verified-supply-visual.mjs';
-import { issuerReturnCard, supplyReconciliationCard } from './issuer-return-card.mjs';
+import { verifiedEcosystemSupplyFraction } from './verified-ecosystem-supply-visual.mjs';
+import { issuerReturnCard, supplyReconciliationCard, ecosystemSupplyCard } from './issuer-return-card.mjs';
 // AMM lock + burn visuals (server truth: GET /api/amm-lock, server/amm-lock.js). +3 draw calls total, all instanced/merged:
 //   1) ONE InstancedMesh: gold segmented chain halo around every pool bridge (at the arc's midpoint). Lit arc = VERIFIED permanently locked
 //      share of the LP token supply; dim amber dashes = time-locked (Escrow); faint steel = the rest; grey dashes = UNVERIFIED (nothing gold).
@@ -113,6 +114,10 @@ export function initAmmLock(c) {
     if(st.data?.fixture){if(!o||!fresh(o)||o.status==='unverified'||o.burned_pct==null)return {st:'unverified',o,f:0};return {st:o.status,o,f:o.burned_pct/100};}
     const supply = verifiedSupplyFraction(o?.supply_reconciliation,N[k]?.key);
     if(supply!==null && fresh(o))return {st:'verified',o:{...o,burned:o.supply_reconciliation.burned,burned_pct:supply*100},f:supply,net:true};
+    // IMM and XRPyro use a separately validated launch-vs-outstanding snapshot.
+    // No legacy holder ratio or market supply is eligible to scale the singularity.
+    const ecosystem = verifiedEcosystemSupplyFraction(o?.supply_reconciliation,k);
+    if(ecosystem!==null && fresh(o))return {st:'verified',o:{...o,burned_pct:ecosystem*100},f:ecosystem,net:true};
     const historical = verifiedBurnFraction(o?.issuer_return_history, N[k]?.key);
     if(historical !== null && fresh(o))return {st:'verified',o:{...o,burned:o.issuer_return_history.burned,burned_pct:historical*100},f:historical};
     if(burnIssuerMarker(N[k]?.key,o?.issuer_keys_disabled,!!fresh(o)))return {st:'history_pending',o,f:0.08};
@@ -169,6 +174,8 @@ export function initAmmLock(c) {
     if(!st.data?.fixture){
       const supplyCard = supplyReconciliationCard({record:fresh(o)?o?.supply_reconciliation:null,tokenKey:n?.key,tokenName:k});
       if(supplyCard)return supplyCard;
+      const ecosystemCard = ecosystemSupplyCard({record:fresh(o)?o?.supply_reconciliation:null,tokenName:k});
+      if(ecosystemCard)return ecosystemCard;
       return issuerReturnCard({ record: fresh(o) ? o?.issuer_return_history : null,
         tokenKey: n?.key, tokenName: k,
         issuerVerified: !!(o && fresh(o) && o.issuer_keys_disabled === true) });

@@ -1,5 +1,6 @@
 import { verifiedSupplyFraction } from './verified-supply-visual.mjs';
 import { verifiedBurnFraction } from './verified-burn-visual.mjs';
+import { verifiedEcosystemSupplyFraction } from './verified-ecosystem-supply-visual.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -16,4 +17,11 @@ export function issuerReturnCard({ record, tokenKey, tokenName, issuerVerified, 
 export function supplyReconciliationCard({record,tokenKey,tokenName,now=Date.now()}) {
  const f=verifiedSupplyFraction(record,tokenKey,now);if(f===null)return null;
  return `<div class="amml" role="group" aria-label="Verified net supply reduction"><h3>🕳 Black-hole supply</h3><p><b>${(f*100).toFixed(4)}% net supply reduction</b> since the original 1 quadrillion ${esc(tokenName)} issuance.</p><p>Approximately ${esc(record.outstanding)} ${esc(tokenName)} remains outstanding, including pool holdings, frozen balances and escrow.</p><p>Issuer keys disabled · validated ledger ${esc(record.ledger_index)} · checked ${esc(new Date(record.t_ms).toISOString())}.</p><p class="dim">Includes transfer-fee reductions. This measures supply reduction; individual burn transactions have not been fully enumerated.</p></div>`;
+}
+
+/** IMM/XRPyro supply detail. Never derive a percent from a holder scan or an unaudited launch claim. */
+export function ecosystemSupplyCard({record,tokenName,now=Date.now()}) {
+ const fraction=verifiedEcosystemSupplyFraction(record,tokenName,now);
+ if(fraction===null)return null;
+ return `<div class="amml" role="group" aria-label="Verified net supply reduction"><h3>🕳 ${esc(tokenName)} supply</h3><p><b>${(fraction*100).toFixed(4)}% net supply reduction</b> from verified launch issuance.</p><p>Validated ledger ${esc(record.ledger_index)} · checked ${esc(new Date(record.t_ms).toISOString())}.</p><p class="dim">Includes issuer returns and transfer-fee reductions; AMM LP locks are a separate metric.</p></div>`;
 }

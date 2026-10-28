@@ -32,6 +32,17 @@ async function rpc(method, params, endpoint = URLS[0]) {
 async function audit({ fromLedger, toLedger, maxPages = 10, request = rpc }) {
   const serverInfo = await request('server_info', {});
   const ledgerCoverage = assessServerLedgerCoverage(serverInfo, fromLedger, toLedger);
+  // Never perform a costly scan against a server that admits historical gaps.
+  // This is a preflight only: passing it does not establish the token's launch supply.
+  if (!ledgerCoverage.available) {
+    return {
+      status: 'unverified', burned: null, burned_pct: null,
+      returned_lower_bound: null, server_ledger_coverage: ledgerCoverage,
+      scan: { pages: 0, fetched_transactions: 0, error: 'archive ledger coverage unavailable' },
+      launch_supply_source: 'project-reported; independent on-ledger verification pending',
+      notice: 'No transaction scan performed because the server lacks the requested historical range.'
+    };
+  }
   const issuerInfo = await request('account_info', {
     account: BURN_ISSUER, ledger_index: 'validated', signer_lists: true
   });

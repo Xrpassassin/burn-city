@@ -45,4 +45,11 @@ ok(ids.length === 22, 'all 22 minted Firekeepers have a 1/1 spec');
 ok(ids.every(id => /^[0-9A-F]{64}$/.test(id) && id.startsWith('0008C350CBA4A5AF2A8012786865E81067D054E55EB87419')), '1/1 specs are keyed by Firekeepers NFTokenID');
 ok(ids.every(id => /^(human|wolf|reptile|monkey|skull|bird|helm)$/.test(FK_1OF1[id].sculpt) && FK_1OF1[id].fidelity), 'every 1/1 picks a sculpted head and records an honest fidelity note');
 ok(firekeeperSpec(ids[16].toLowerCase())?.sculpt === 'wolf' && firekeeperSpec('unknown') === null, 'lookup is case-insensitive and unknown tokens fall back');
+// v121 colour pass: palettes are sampled numbers per token / trait value.
+const HEX = /^#[0-9a-f]{6}$/i;
+ok(ids.every(id => ['skin', 'shadow', 'accent', 'metal', 'glow'].every(k => HEX.test(FK_1OF1[id].pal?.[k] || ''))), 'every Firekeeper 1/1 stores 5 sampled key colours');
+const { PAL_589_BODY, palette589, cloth589, PAL_RACC } = await import('./nft-avatar-palette.js');
+ok(['flame on', 'heating up', 'about to burn', 'cool off'].every(b => HEX.test(PAL_589_BODY[b].skin) && HEX.test(PAL_589_BODY[b].shadow)), '589 Body values all have skin + shadow colours');
+ok(palette589(' Flame On ') === PAL_589_BODY['flame on'] && cloth589('Blue Tee') === '#3a4b7d' && palette589('???') === null, '589 palette lookups are shared per trait value');
+ok(HEX.test(PAL_RACC.skin) && HEX.test(PAL_RACC.shadow), 'RACC has a shared palette');
 console.log(`NFT avatar head-shape tests passed (${checks} assertions).`);

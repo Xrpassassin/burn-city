@@ -10,6 +10,7 @@ import { resolveNftHeadShape } from './nft-avatar-head.js';
 import { sculptHeadGeometry, SCULPT_MATERIAL, SCULPT_METAL_MATERIAL } from './nft-avatar-sculpt.js';
 import { humanHeadSpec, wolfHeadSpec, reptileHeadSpec, monkeyHeadSpec, skullHeadSpec, greatHelmSpec, birdHeadSpec } from './nft-avatar-head-specs.js';
 import { firekeeperSpec } from './nft-avatar-firekeepers-1of1.js';
+import { palette589, cloth589, PAL_589, PAL_RACC } from './nft-avatar-palette.js';
 const G = new Map(), TX = new Map(), MT = new Map();
 const QA_MARKER_MAT = new THREE.MeshBasicMaterial({color:'#e5bd54',wireframe:true});
 const geo = (k, f) => G.get(k) || (G.set(k, f()), G.get(k));
@@ -20,6 +21,11 @@ const mat = (c, r = .72, m = .05, e = 0) => {
   return MT.get(k);
 };
 const glow = c => mat(c, .36, .12, c);
+// Flames glow like the art's fire: unlit vertex gradient from a deep ember base through the token accent to a hot yellow tip.
+const flameGeoFn = () => { const g = new THREE.ConeGeometry(.055, .25, 7), p = g.attributes.position, col = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) { const t = (p.getY(i) + .125) / .25; col[i * 3] = 1; col[i * 3 + 1] = .2 + .7 * t * t; col[i * 3 + 2] = .02 + .3 * t * t * t; }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3)); return g; };
+const flameMat = c => { const k = 'flame|' + c; if (!MT.has(k)) MT.set(k, new THREE.MeshBasicMaterial({ color: new THREE.Color(c).lerp(new THREE.Color('#ffd27a'), .5), vertexColors: true })); return MT.get(k); };
 const sphere = () => new THREE.SphereGeometry(1, 16, 12);
 const capsule = (r, len, radial = 10, cap = 4) => geo('capsule:' + [r,len,radial,cap].join(','), () => new THREE.CapsuleGeometry(r, len, cap, radial));
 const box = (w, h, d) => geo('box:' + [w,h,d].join(','), () => new THREE.BoxGeometry(w,h,d));
@@ -85,19 +91,22 @@ export function buildNftChar(n, opts = {}) {
   const fkBare = key === 'fk' && !fkRobed && (fk1 ? !fk1.cloth : !/armor|suit|mail/.test(fkChest));
   const fkFlameEyes = key === 'fk' && /flaming eyes|fire eyes|glowing eyes/.test(fkFace);
   const p589Body = key === '589' ? rawValue(/^body$/i) : '', p589Cloth = key === '589' ? rawValue(/^clothing$/i) : '';
-  const refSkin = key === '589' ? ({'flame on':'#d9a93a','heating up':'#7a3d27','about to burn':'#5e2a1d','cool off':'#8e9094'})[p589Body] || '#6f3a24'
+  const refSkin = key === '589' ? palette589(p589Body)?.skin || '#6f3a24'
     : key === 'fk' && hs.skin ? hs.skin
     : key === 'fk' && !fkRobed ? (/slime/.test(fkChest+fkFace) ? '#3fbf9a' : /lizard|reptil/.test(fkFace) ? '#24262b' : /suit|beard/.test(fkChest+fkFace) ? '#e0a33c' : '#6f3f22') : '';
-  const refCloth = key === 'fk' && fk1?.cloth ? fk1.cloth : key === '589' ? (/punk/.test(p589Cloth) ? '#ecebe6' : /burn xrp tee/.test(p589Cloth) ? '#d6c3a0' : /jersey/.test(p589Cloth) ? '#c8352a' : /black burn tee/.test(p589Cloth) ? '#1d1d21' : /space suit/.test(p589Cloth) ? '#d9dde2' : '') 
+  const refCloth = key === 'fk' && fk1?.cloth ? fk1.cloth : key === '589' ? cloth589(p589Cloth) || (/punk/.test(p589Cloth) ? '#ecebe6' : /burn xrp tee/.test(p589Cloth) ? '#d6c3a0' : /jersey/.test(p589Cloth) ? '#c8352a' : /black burn tee/.test(p589Cloth) ? '#1d1d21' : /space suit/.test(p589Cloth) ? '#d9dde2' : '') 
     : key === 'fk' && !fkRobed ? (/suit/.test(fkChest) ? '#62666e' : /armor/.test(fkChest) ? '#4d5038' : '#2c2420') : '';
   const bodyHex = traitColor(/outfit|armor/i, refCloth || color(pal.body, '#424957'));
-  const faceHex = key === 'racc' ? traitColor(/fur color|fur|skin|face/i, '#858a91') : (refSkin && !traitValue(/skin tone|skin color/i) ? refSkin : traitColor(/skin tone|skin color|skin$|face$/i, color(pal.face, '#c9a27e')));
+  const faceHex = key === 'racc' ? (/^(gr[ae]y)?$/i.test(traitValue(/fur color/i).trim()) ? PAL_RACC.skin : traitColor(/fur color|fur|skin|face/i, '#858a91')) : (refSkin && !traitValue(/skin tone|skin color/i) ? refSkin : traitColor(/skin tone|skin color|skin$|face$/i, color(pal.face, '#c9a27e')));
   const hairHex = traitColor(/hair color|hair$/i, has(tr,/white hair|silver hair/)?'#bfc3ca':has(tr,/red hair/)?'#7b2c24':has(tr,/blond|blonde/)?'#c8a05b':has(tr,/blue hair/)?'#344f9a':key==='589'&&has(tr,/mohawk/)?'#d4471c':key==='fk'?'#1f1712':color(pal.top,'#201c20'));
   const topHex = traitColor(/outerwear|coat|jacket|helmet|headwear/i, key==='589'&&has(tr,/fitted|cap/)?'#5a5d63':color(pal.top, bodyHex));
   const accentHex = profile.collectionKey === 'fk' ? components.flame.color : traitColor(/accent|accessory|flame|fire|aura/i, color(pal.acc, '#ff7a1a'));
   const eyeMood=traitValue(/eye appearance/i).toLowerCase();
   const eyeHex = traitColor(/eye color|iris color|eyes?$|iris$/i, /flame|burn|melt|glow|neon/i.test(eyeMood)||has(tr,/flaming eyes|burn eye|melt|glowing eyes/)?accentHex:'#343039');
+  // Colour palette sampled from the art (v121): drives the bake's gradients, crack pattern and shadow tone.
+  const artPal = key === 'fk' && fk1 ? { ...fk1.pal, crackle: fk1.crackle || 0, crack: fk1.sculpt === 'wolf' ? fk1.pal.accent : '' } : key === '589' ? { ...PAL_589, ...(palette589(p589Body) || {}) } : key === 'racc' ? PAL_RACC : null;
   const skin = mat(faceHex, .82, .01), cloth = mat(bodyHex, .82, .02), darkCloth = mat(shade(bodyHex,.52),.86,.04);
+  skin.userData.bcSurf = key === 'racc' ? 'fur' : 'skin';
   const trim = mat(topHex,.6,.12), accent = glow(accentHex), metal = mat('#a8b1ba',.34,.68), bootMat = mat('#191b20',.78,.16), soleMat = mat('#3a3d44',.9,.02);
   // Per-region materials: tees and bare arms show skin, trousers are dark denim/leather, RACC limbs are fur.
   const torsoMat = fkBare ? skin : cloth;
@@ -109,6 +118,7 @@ export function buildNftChar(n, opts = {}) {
   const handMat = key === 'racc' ? mat('#2b2c31',.82,.01) : skin;
   const lite = !!opts.lite;
   const S = geo(lite ? 'unit-sphere-lite' : 'unit-sphere', () => new THREE.SphereGeometry(1, lite ? 10 : 16, lite ? 8 : 12));
+  const flameGeo = geo('flame-gradient', flameGeoFn);
   const SLow = geo('unit-sphere-low',()=>new THREE.SphereGeometry(1,8,6));
   const addSphere = (parent, material, pos, scale, geometry=(lite&&Math.max(scale[0],scale[1],scale[2])<.045?SLow:S)) => { const m=add(geometry,material,pos[0],pos[1],pos[2],parent); m.scale.set(scale[0],scale[1],scale[2]); return m; };
   const addCapsule = (parent, material, pos, radius, length, scale=[1,1,1]) => { const m=add(capsule(radius,length,lite?8:10,lite?3:4),material,pos[0],pos[1],pos[2],parent); m.scale.set(...scale); return m; };
@@ -406,7 +416,7 @@ export function buildNftChar(n, opts = {}) {
         : sculptKind==='helm' ? greatHelmSpec({ metal:fk1?.metal || '#2c2e2a' })
         : humanHeadSpec(hs, faceHex, { prims: extra });
       const sm = new THREE.Mesh(sculptHeadGeometry(spec, { lite }), sculptKind==='helm' ? SCULPT_METAL_MATERIAL : SCULPT_MATERIAL);
-      sm.name = 'nft-head-sculpt-' + sculptKind; sm.castShadow = true; head.add(sm);
+      sm.name = 'nft-head-sculpt-' + sculptKind; sm.castShadow = true; sm.userData.bcSurf = /wolf|monkey/.test(sculptKind) ? 'fur' : sculptKind==='helm' ? 'metal' : 'skin'; head.add(sm);
     } else addSphere(head,skin,[0,-.095-hs.jawDrop,.025],[.15*hs.jawW,.105,.15*hs.jawD]).name='nft-head-jaw';
     // Facial planes, eyes, brows, nose and ears create a less toy-like human face.
     const surprisedEyes=/surprised|wide|open/i.test(components.eyeAppearance);
@@ -414,7 +424,7 @@ export function buildNftChar(n, opts = {}) {
     const sockets=hs.faceKind==='skull';
     if (creature) {
       // Creature eyes sit inside the sculpted sockets (wolf amber, serpent yellow, skull embers).
-      const E={wolf:[.062,.052,.15,'#ffb020'],reptile:[.085,.066,.112,fk1?.eyes||'#f2c94c'],monkey:[.058,.042,.142,'#2a1a10'],skull:[.064,.04,.13,'#ff5a1a'],bird:[.095,.07,.1,'#ffcf3a']}[sculptKind];
+      const E={wolf:[.062,.052,.15,fk1?.pal?.glow||'#ffb020'],reptile:[.085,.066,.112,fk1?.eyes||'#f2c94c'],monkey:[.058,.042,.142,'#2a1a10'],skull:[.064,.04,.13,'#ff5a1a'],bird:[.095,.07,.1,'#ffcf3a']}[sculptKind];
       for (const s of [-1,1]) addSphere(head,sculptKind==='monkey'?mat(E[3],.35,0):glow(E[3]),[s*E[0],E[1],E[2]],[.017,.014,.012],lowSphere).name='nft-creature-eye';
     }
     if (!noFace) for (const s of [-1,1]) {
@@ -698,7 +708,7 @@ export function buildNftChar(n, opts = {}) {
   if(hasTrait(/body effect|flame|aura/i,/flame|fire|on fire|flaming|ember|inferno|heating up|smolder/i)||key==='fk') {
     for(const [x,h] of [[-.12,.24],[-.04,.32],[.055,.27],[.13,.2]]) {
       const fs=key==='589'?.55:1;
-      const flame=add(geo('flame',()=>new THREE.ConeGeometry(.055,.25,7)),glow(accentHex),x,.24+h*.25*fs,-.04,head);
+      const flame=add(flameGeo,flameMat(accentHex),x,.24+h*.25*fs,-.04,head);
       flame.scale.set(fs,h/.25*fs,fs); flame.userData.flame=1; flame.userData.flameBase=h/.25*fs;
     }
     // Thin ember streaks under the eyes (was a wide glowing band that read as clown cheeks).
@@ -783,7 +793,8 @@ export function buildNftChar(n, opts = {}) {
   if(key==='fk' && !fkRobed) {
     // Real Firekeepers art: broad bare chest with gold tribal linework, heavy gold neck rings,
     // armor/suit chests, flaming heads. Geometry follows each token's Head/Neck/Chest/Face/Accessory.
-    const gold=mat('#d6a335',.32,.82);
+    const gold=mat(fk1?.pal?.metal && /^#[e-f]/i.test(fk1.pal.metal) ? fk1.pal.metal : '#e2b04a',.26,.9);
+    const tattooMat=fk1?.glowTattoo ? glow(shade(fk1.pal.accent,.8)) : gold;
     if (fkBare) {
       for (const side of [-1,1]) {
         // Low, flattened pectoral planes give the muscular silhouette without blobby toy anatomy.
@@ -791,12 +802,17 @@ export function buildNftChar(n, opts = {}) {
       }
       if (/tattoo|tribal/.test(fkChest)) for (let i=0;i<6;i++) {
         const side=i%2?1:-1, row=Math.floor(i/2);
-        const line=addBox(g,gold,[side*(.07+row*.03),1.32-row*.1,.198-row*.006],[.12,.012,.008]);
+        const line=addBox(g,tattooMat,[side*(.07+row*.03),1.32-row*.1,.198-row*.006],[.12,.012,.008]);
         line.rotation.z=side*(.5-row*.25); line.name='nft-firekeeper-tribal-tattoo';
       }
     } else if (/armor|mail/.test(fkChest)) {
       const plate=addSphere(g,mat(shade(bodyHex,1.1),.4,.7),[0,1.26,.035],[.27,.24,.175]); plate.name='nft-firekeeper-breastplate';
       for (const side of [-1,1]) addSphere(g,mat(shade(bodyHex,.9),.4,.7),[side*.27,1.42,0],[.13,.1,.13]).name='nft-armor-shoulder';
+      if (fk1?.pal?.accent) {
+        // Art trim (e.g. the Burned Knight's red edging) as a collar band and shoulder rims.
+        const band=add(geo('nft-armor-trim-band',()=>new THREE.TorusGeometry(.2,.022,6,lite?12:20)),mat(fk1.pal.accent,.4,.6),0,1.47,.0); band.rotation.x=Math.PI/2; band.name='nft-armor-trim';
+        for (const side of [-1,1]) addSphere(g,mat(fk1.pal.accent,.4,.6),[side*.27,1.37,0],[.135,.03,.135]).name='nft-armor-trim';
+      }
     } else if (/suit/.test(fkChest)) {
       addBox(g,mat('#e8e6e0'),[0,1.32,.19],[.09,.2,.01]).name='nft-firekeeper-shirt';
       for (const side of [-1,1]) { const lapel=addBox(g,mat(shade(bodyHex,.8)),[side*.07,1.3,.2],[.05,.2,.012]); lapel.rotation.z=side*-.25; }
@@ -819,15 +835,15 @@ export function buildNftChar(n, opts = {}) {
       const hood=add(hoodGeo,mat(fk1?.hoodCol||shade(bodyHex,.8),.9,.01),0,.0,-.02,head); hood.name='nft-firekeeper-hood';
     }
     if (sculptKind==='helm') {
-      addBox(head,glow(fk1?.metal==='#2f6e45'?'#ffd34a':'#ff8a1e'),[0,.045,.2],[.17,.016,.02]).name='nft-firekeeper-helm-slit';
-      if (fk1?.horns) for (const s of [-1,1]) { const h=add(geo('nft-helm-horn',()=>new THREE.ConeGeometry(.045,.24,lite?6:10)),mat('#e8dcc0',.6,.05),s*.24,.16,0,head); h.rotation.z=-s*1.0; h.name='nft-firekeeper-helm-horn'; }
+      addBox(head,glow(fk1?.pal?.glow||'#ff8a1e'),[0,.045,.2],[.17,.016,.02]).name='nft-firekeeper-helm-slit';
+      if (fk1?.horns) for (const s of [-1,1]) { const h=add(geo('nft-helm-horn',()=>new THREE.ConeGeometry(.045,.24,lite?6:10)),(fk1.horn?mat(fk1.horn,.26,.9):mat('#e8dcc0',.6,.05)),s*.24,.16,0,head); h.rotation.z=-s*1.0; h.name='nft-firekeeper-helm-horn'; }
     } else if (/helmet/.test(fkHead) && !/space/.test(fkHead)) {
       const helm=addSphere(head,mat('#2c2e2a',.45,.65),[0,.025,0],[.215,.26,.215]); helm.name='nft-firekeeper-great-helm';
       addBox(head,glow('#ff8a1e'),[0,.04,.205],[.16,.018,.02]).name='nft-firekeeper-helm-slit';
       addBox(head,mat('#2c2e2a',.45,.65),[0,.2,.02],[.03,.12,.36]).name='nft-firekeeper-helm-crest';
     }
     if (/tattoo|tribal/.test(fkFace)) for (const side of [-1,1]) {
-      const mark=addBox(head,gold,[side*.075,-.02,.176],[.012,.06,.006]); mark.rotation.z=side*.3; mark.name='nft-face-paint';
+      const mark=addBox(head,tattooMat,[side*.075,-.02,sculptKind?.19:.176],[.012,.06,.006]); mark.rotation.z=side*.3; mark.name='nft-face-paint';
     }
     if (/tongue/.test(fkFace) || fk1?.tongue) addBox(head,mat('#d46a9a'),sculptKind==='reptile'?[0,-.08,.33]:[0,-.16,.17],sculptKind==='reptile'?[.02,.01,.1]:[.035,.12,.012]).name='nft-firekeeper-tongue';
     if (/beard/.test(fkFace) && !sculptKind) addSphere(head,mat(shade(faceHex,1.12)),[0,-.11,.14],[.11,.08,.06]).name='nft-beard';
@@ -1039,7 +1055,8 @@ export function buildNftChar(n, opts = {}) {
   };
   g.traverse(o=>{if(o.isMesh){o.frustumCulled=true;o.userData.nftAvatarPart=true}});
   // Collapse ~60-115 part meshes into a few skinned meshes (rig groups stay animated); opts.bake=false keeps raw parts for QA.
-  if(opts.bake!==false){try{g.userData.bake=bakeAvatar(g)}catch(e){g.userData.bake={error:String(e&&e.message||e)}}}
+  g.userData.artPalette=artPal;
+  if(opts.bake!==false){try{g.userData.bake=bakeAvatar(g,{style:'nft',lite,palette:artPal})}catch(e){g.userData.bake={error:String(e&&e.message||e)}}}
   return g;
 }
 export function disposeNftChar(g) {

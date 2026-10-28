@@ -73,3 +73,13 @@ No new third-party code was used in this pass (three.js primitives only, MIT).
 - **skill-issue.in**: reviewed; it offers design/frontend/agent skills only, with no three.js/WebGL code relevant here.
   Nothing taken.
 - No third-party code was added in this release.
+
+## v121 nftcolor: palette and materials
+
+- **Palettes** (`client/js/nft-avatar-palette.js`, `pal` in `client/js/nft-avatar-firekeepers-1of1.js`): 3–5 key colours per
+  Firekeeper and per 589/RACC trait value, sampled as median pixel values from the tokens' own art (kept outside the repo)
+  and hand-corrected where a sample hit an outline. Only hex numbers are stored; no art is copied.
+- **Shading** (`client/js/avatar-bake.js`, NFT avatars only; the default walker is unchanged): original code. Per-vertex
+  roughness/metalness attribute, baked vertex gradients and value-noise "molten" veins, an ember fresnel rim, a warm metal
+  sheen, a camera-relative fill and partial neutralisation of the city's blue ambient, all via `onBeforeCompile` on the
+  existing three.js (MIT) MeshStandardMaterial. No extra lights, textures or draw calls; no third-party code added.

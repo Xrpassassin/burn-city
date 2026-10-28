@@ -8,6 +8,7 @@
 'use strict';
 const G = require('../client/js/goldlock.js');
 const { auditBurnSupply } = require('./burn-supply-audit');
+const { reconcile: reconcileEcosystemSupply } = require('./ecosystem-supply-reconciliation');
 const { BURN_ISSUER, BURN_CURRENCY } = require('./issuer-return-history');
 const BURN_KEY = BURN_ISSUER + '-' + BURN_CURRENCY;
 const { attachIssuerReturnHistory } = require('./issuer-return-api-contract');
@@ -110,6 +111,8 @@ function servable(o, now = Date.now()) {
 function create(opts = {}) {
   // Trusted, server-populated audit map only; no client-submitted claims.
   const audits = opts.issuerReturnAudits instanceof Map ? opts.issuerReturnAudits : new Map();
+  // Reviewed, server-owned evidence only. No launch number is inferred from market snapshots.
+  const ecosystemEvidence = opts.ecosystemSupplyEvidence instanceof Map ? opts.ecosystemSupplyEvidence : new Map();
   const rpc0 = opts.rpc, now = opts.now || (() => Date.now()), gap = opts.gap != null ? opts.gap : MIN_GAP_MS;
   const S = { pools: {}, tokens: {}, run: null, last_ok: null, last_err: null, calls: 0, started: null }, acct = new Map();
   let lastCall = 0; const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -149,7 +152,14 @@ function create(opts = {}) {
     if (scan) { const supply = gw.obligations && gw.obligations[currency] != null ? +gw.obligations[currency] : lines.filter(l => l.currency === currency && +l.balance < 0).reduce((s, l) => s - l.balance, 0);
       const hs = lines.filter(l => l.currency === currency && +l.balance < 0 && l.account !== issuer).sort((a, b) => a.balance - b.balance).slice(0, TOK_CHECK_MAX);
       for (const h of hs) { if (supply > 0 && -h.balance / supply < TOK_CHECK_MIN) continue; infos[h.account] = ammSet.has(h.account) ? { account_data: { AMMID: 'known', Flags: 0 } } : await info(h.account); } }
-    return computeTokenBurn(gw, scan, infos, issuerInfo, { name: n.name, issuer, currency, pools: pools.filter(p => p.a === n.name || p.b === n.name).map(p => p.amm), now: now() });
+    const legacy = computeTokenBurn(gw, scan, infos, issuerInfo, { name: n.name, issuer, currency, pools: pools.filter(p => p.a === n.name || p.b === n.name).map(p => p.amm), now: now() });
+    // IMM/XRPyro launch-relative accounting is separate from the legacy holder black-hole percentage.
+    // Only verified independently reviewed evidence may replace the visual-facing burn percentage.
+    if (n.name !== 'IMM' && n.name !== 'XRPyro') return legacy;
+    const ev = ecosystemEvidence.get(n.name);
+    const rec = reconcileEcosystemSupply({name:n.name,launch:ev?.launch,issuerInfo:ev?.issuerInfo,
+      gateway:ev?.gateway,now:now()});
+    return {...legacy,supply_reconciliation:rec};
   }
   async function refresh(data) {
     if (S.run) return S.run;

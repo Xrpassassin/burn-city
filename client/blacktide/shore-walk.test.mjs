@@ -16,7 +16,9 @@ class Group {constructor(){Object.assign(this,el());}}
 class Mesh extends Group {}
 class Vector3 {constructor(x=0,y=0,z=0){Object.assign(this,{x,y,z});}}
 const THREE={Group,Mesh,Vector3,MeshStandardMaterial:class{},CapsuleGeometry:class{},SphereGeometry:class{}};
-const scene=el(),game=el();
+const scene=el(),game=el(),helm=el();
+helm.style.display='flex';
+game.querySelector=selector=>selector==='.mobile-controls'?helm:null;
 const camera={position:{lerp(){}},lookAt(){}};
 let docked='cinder-cove',shore=false;
 const trade={test:{state:()=>({docked})},setShoreMode(v){shore=v;}};
@@ -28,6 +30,7 @@ button.listeners.get('click')();
 assert.equal(walk.ashore,true);
 assert.equal(shore,true);
 assert.equal(pad.hidden,false);
+assert.equal(helm.style.display,'none','ship controls stay hidden while walking');
 const startX=walk.position.x;
 const event={pointerId:1,clientX:112,clientY:58,pointerType:'touch',preventDefault(){}};
 pad.listeners.get('pointerdown')(event);
@@ -37,11 +40,18 @@ pad.listeners.get('pointercancel')(event);
 const afterCancel=walk.position.x;
 walk.update(0.1,new Set());
 assert.equal(walk.position.x,afterCancel,'cancelled pointer must stop movement');
+button.listeners.get('click')();
+assert.equal(walk.ashore,false);
+assert.equal(pad.hidden,true);
+assert.equal(helm.style.display,'flex','return restores ship controls');
+button.listeners.get('click')();
+assert.equal(helm.style.display,'none');
 docked=null;
 walk.update(1/60,new Set());
 assert.equal(walk.ashore,false);
 assert.equal(pad.hidden,true);
 assert.equal(shore,false);
+assert.equal(helm.style.display,'flex','forced undock restores ship controls');
 walk.dispose();
 assert.equal(button.removed,true);
 assert.equal(pad.removed,true);

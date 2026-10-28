@@ -12,8 +12,12 @@ export function installCityNature({scene,nodes,onRoad,colliders,tier='medium'}) 
   const mesh=new THREE.InstancedMesh(geo,mat,group.length);
   group.forEach((p,i)=>{dummy.position.set(p.x,p.height*.5-.045,p.z);dummy.rotation.set(0,p.rotation,0);
    dummy.scale.set(t?.65:1,p.height,t?.65:1);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix)});
-  mesh.instanceMatrix.needsUpdate=true;mesh.receiveShadow=false;mesh.castShadow=false;
+  mesh.instanceMatrix.needsUpdate=true;
+  // InstancedMesh's initial bounds describe the untransformed cone, not scattered tufts.
+  // Recompute so frustum culling doesn't make distant vegetation disappear abruptly.
+  mesh.computeBoundingSphere();
+  mesh.receiveShadow=false;mesh.castShadow=false;
   scene.add(mesh);meshes.push(mesh);
  }
- return {count:placements.length,draws:meshes.length,dispose(){for(const mesh of meshes){scene.remove(mesh);mesh.geometry.dispose();mesh.material.dispose()}}};
+ return {count:placements.length,draws:meshes.length,dispose(){for(const mesh of meshes){scene.remove(mesh);mesh.material.dispose()}geo.dispose()}};
 }

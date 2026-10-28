@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {summarizeIssuanceEvidence}=require('../server/issuer-return-issuance-evidence');
+const {BURN_ISSUER:issuer,BURN_CURRENCY:currency}=require('../server/issuer-return-history');
+const tx=(hash,account,dest,value,ledger)=>({validated:true,tx:{hash,ledger_index:ledger,TransactionType:'Payment',Account:account,Destination:dest},meta:{TransactionResult:'tesSUCCESS',delivered_amount:{issuer,currency,value}}});
+const a=tx('first',issuer,'rRecipient','9.65e14',10),b=tx('second',issuer,'rRecipient','3.5e13',11);
+let r=summarizeIssuanceEvidence({transactions:[a,b,b],coverageComplete:true});
+assert.equal(r.gross_issued_observed,'1000000000000000');
+assert.equal(r.gross_issued_matches_reported,true);
+assert.equal(r.first_issuance_ledger,10);
+assert.equal(r.issuance_transactions,2);
+assert.equal(r.launch_supply_verified,false);
+assert.equal(summarizeIssuanceEvidence({transactions:[a],coverageComplete:false}).gross_issued_matches_reported,null);
+assert.equal(summarizeIssuanceEvidence({transactions:[tx('burn','rOther',issuer,'100',12)],coverageComplete:true}).gross_issued_observed,'0');
+assert.equal(summarizeIssuanceEvidence({transactions:[tx('bad',issuer,'rRecipient','1e-16',15)],coverageComplete:true}).status,'incomplete');
+console.log('issuer-return-issuance-evidence: all tests passed');

@@ -24,14 +24,20 @@ for(const mutate of [
  const calls=[];
  const report=await auditBurnSupply({now:1000,rpc:async(method,params)=>{
   calls.push({method,params});
-  if(method==='server_info')return {info:{network_id:0,validated_ledger:{seq:pin}}};
-  assert.equal(params.ledger_index,pin);assert.equal(params.account,issuer);
+  if(method==='server_info')return {info:{network_id:0,validated_ledger:{seq:pin,hash}}};
+  assert.equal(params.ledger_hash,hash);assert.equal(params.account,issuer);
   if(method==='account_info')return current;
   if(method==='gateway_balances'){assert.equal(params.hotwallet,undefined);return gateway;}
   assert.equal(method,'account_objects');return params.marker?escrowPages[1]:escrowPages[0];
  }});
- assert.equal(report.status,'verified');assert.equal(calls.length,5);assert.ok(calls.every(c=>c.method!=='account_tx'));
- const capped=await auditBurnSupply({maxEscrowPages:1,rpc:async m=>m==='server_info'?{info:{network_id:0,validated_ledger:{seq:pin}}}:m==='account_info'?current:m==='gateway_balances'?gateway:escrowPages[0]});
+ assert.equal(report.status,'verified');
+ const gatewayNoHash={...gateway};delete gatewayNoHash.ledger_hash;
+ const anchored=reconcileBurnSupply({...base,gateway:gatewayNoHash,pinnedLedger:{index:pin,hash}});
+ assert.equal(anchored.status,'verified');
+ assert.equal(reconcileBurnSupply({...base,gateway:gatewayNoHash}).status,'unverified');
+ assert.equal(reconcileBurnSupply({...base,gateway:{...gateway,ledger_hash:'C'.repeat(64)},pinnedLedger:{index:pin,hash}}).status,'unverified');
+assert.equal(calls.length,5);assert.ok(calls.every(c=>c.method!=='account_tx'));
+ const capped=await auditBurnSupply({maxEscrowPages:1,rpc:async m=>m==='server_info'?{info:{network_id:0,validated_ledger:{seq:pin,hash}}}:m==='account_info'?current:m==='gateway_balances'?gateway:escrowPages[0]});
  assert.equal(capped.status,'unverified');
  console.log('BURN supply reconciliation: frozen/escrow accounting, ledger pinning, fail-closed pagination and no transaction scan passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});

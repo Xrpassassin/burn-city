@@ -15,4 +15,15 @@ assert.equal(get({...verified,coverage:{...verified.coverage,complete:false}}).i
 assert.equal(get({...verified,burned_pct:101}).issuer_return_history,undefined);
 assert.equal(get({...verified,issuer:'rWrong'}).issuer_return_history,undefined);
 assert.equal(tokens.BURN.issuer_return_history,undefined);
+const cachedHistory = get(verified).issuer_return_history;
+const cachedTokens = { BURN: { ...token, issuer_return_history: cachedHistory } };
+for (const audits of [undefined, new Map(), new Map([[key, {...verified,launchSupplyVerified:false}]]),
+  new Map([[key, {...verified,checkedAtMs:now-21600001}]])]) {
+  const result = attachIssuerReturnHistory(cachedTokens,audits,now);
+  assert.equal(result.BURN.issuer_return_history,undefined);
+  assert.equal(result.BURN.issuer,token.issuer);
+  assert.equal(cachedTokens.BURN.issuer_return_history,cachedHistory);
+}
+assert.equal(attachIssuerReturnHistory(cachedTokens,new Map([[key,verified]]),now)
+  .BURN.issuer_return_history.burned_pct,96.5);
 console.log('issuer-return-api-contract: all tests passed');

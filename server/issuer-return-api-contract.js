@@ -21,6 +21,9 @@ function attachIssuerReturnHistory(tokens, audits, now = Date.now()) {
       Number.isFinite(audit.checkedAtMs) && audit.checkedAtMs > 0 && audit.checkedAtMs <= now &&
       now - audit.checkedAtMs <= 6 * 3600e3;
     out[name] = { ...token };
+    // Only the current audit may authorize historical burn data. Cached token
+    // fields must not survive an expired, missing, or rejected audit.
+    delete out[name].issuer_return_history;
     if (approved) {
       out[name].issuer_return_history = {
         status: 'verified', method: 'issuer_returns_v1', token_key: key,

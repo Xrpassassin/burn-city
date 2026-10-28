@@ -1,10 +1,11 @@
 import { blackHoleAltitude } from './blackhole-altitude.mjs';
 import { verifiedBurnFraction } from './verified-burn-visual.mjs';
+import { issuerReturnCard } from './issuer-return-card.mjs';
 // AMM lock + burn visuals (server truth: GET /api/amm-lock, server/amm-lock.js). +3 draw calls total, all instanced/merged:
 //   1) ONE InstancedMesh: gold segmented chain halo around every pool bridge (at the arc's midpoint). Lit arc = VERIFIED permanently locked
 //      share of the LP token supply; dim amber dashes = time-locked (Escrow); faint steel = the rest; grey dashes = UNVERIFIED (nothing gold).
 //      The bridge body (thickness = liquidity, colour = activity) is never touched.
-//   2) ONE InstancedMesh: a dark black/violet singularity per TOKEN (not per pool), beside its tower, sized by the VERIFIED % of supply held by black holes.
+//   2) ONE InstancedMesh: a dark black/violet singularity per TOKEN (not per pool), above its tower, sized by verified issuer returns / launch circulating supply.
 //   3) ONE Points draw: particles falling into the singularities, motion entirely in the vertex shader (no per-frame CPU work). Off on LOW tier
 //      and with prefers-reduced-motion (halo glint frozen too).
 // Cards: pool card (tap a bridge) + token card (tap a tower or a singularity) get a lock/burn section with figures, status and sources.
@@ -102,7 +103,7 @@ export function initAmmLock(c) {
   const tokOf = k => { const o = st.data && st.data.tokens ? st.data.tokens[k] : null;
     if(st.data?.fixture){if(!o||!fresh(o)||o.status==='unverified'||o.burned_pct==null)return {st:'unverified',o,f:0};return {st:o.status,o,f:o.burned_pct/100};}
     const historical = verifiedBurnFraction(o?.issuer_return_history, N[k]?.key);
-    if(historical !== null && fresh(o))return {st:'verified',o:{...o,burned_pct:historical*100},f:historical};
+    if(historical !== null && fresh(o))return {st:'verified',o:{...o,burned:o.issuer_return_history.burned,burned_pct:historical*100},f:historical};
     if(burnIssuerMarker(N[k]?.key,o?.issuer_keys_disabled,!!fresh(o)))return {st:'history_pending',o,f:0.08};
     return {st:'unverified',o,f:0};
   };
@@ -151,9 +152,9 @@ export function initAmmLock(c) {
   function tokHTML(k) {
     const v = tokOf(k), o = v.o, stale = o && !fresh(o), n = N[k]; const rows = [['Burn status', badge(v.st, stale)]];
     if(!st.data?.fixture){
-      const issuer=o&&fresh(o)&&o.issuer_keys_disabled===true?'Verified inaccessible issuer':'Issuer not verified';
-      const baseline=n?.key==='rwgNTwrsZKPe7xYCy4emjFAYpgnuioHSkd-4255524E00000000000000000000000000000000'?'1,000,000,000,000,000 BURN (project-reported launch supply)':'Not established';
-      return `<div class="amml"><h3>🕳 Issuer return history</h3><p>${issuer}. Launch supply: ${baseline}.</p><p>Complete issuer-return history has not been verified. The fixed-size marker does not represent a percentage. Tokens in other black-holed wallets are not included.</p></div>`;
+      return issuerReturnCard({ record: fresh(o) ? o?.issuer_return_history : null,
+        tokenKey: n?.key, tokenName: k,
+        issuerVerified: !!(o && fresh(o) && o.issuer_keys_disabled === true) });
     }
     if (o && v.st !== 'unverified') rows.push(['Burned / inaccessible', `<b style="color:#b98cff">${fmtN(o.burned)} ${esc(k)}</b> · ${pctS(o.burned_pct)} of total supply${v.st === 'partial' ? ' <span class="dim">(at least)</span>' : ''}`]);
     else rows.push(['Burned / inaccessible', '<b>not verified</b>' + (o && o.burned_min > 0 ? ` · at least ${fmtN(o.burned_min)}` : '')]);

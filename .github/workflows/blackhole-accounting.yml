@@ -6,6 +6,9 @@ on:
       - 'scripts/audit-issuer-returns.js'
       - 'test/issuer-return-*.test.js'
       - 'test/audit-issuer-returns.test.js'
+      - 'client/js/verified-burn-visual*'
+      - 'client/js/issuer-return-card*'
+      - 'client/js/amm-lock.js'
       - '.github/workflows/blackhole-accounting.yml'
   push:
     branches:
@@ -30,3 +33,7 @@ jobs:
         run: node test/issuer-return-issuance-evidence.test.js
       - name: Read-only audit
         run: node test/audit-issuer-returns.test.js
+      - name: Historical API contract
+        run: node test/issuer-return-api-contract.test.js
+      - name: Verified visual and card contract
+        run: node client/js/verified-burn-visual.test.mjs && node client/js/issuer-return-card.test.mjs

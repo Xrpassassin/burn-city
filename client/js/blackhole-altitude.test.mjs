@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { blackHoleAltitude } from './blackhole-altitude.mjs';
+const spot=(f,R,verified=true)=>blackHoleAltitude({rooftop:100,radius:R,fraction:f,verified});
+assert.equal(spot(0,2),114);
+assert.equal(spot(0.965,4.4)>spot(0.6,3.8),true);
+assert.equal(spot(0.6,3.8)>spot(0.1,2.2),true);
+assert.equal(spot(0.965,4.4,false),116.4);
+assert.equal(spot(5,4.5),spot(1,4.5));
+assert.equal(spot(-1,4.5),spot(0,4.5));
+console.log('blackhole-altitude: all tests passed');

@@ -22,21 +22,27 @@ export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
   const pad=createWalkingPad(game,{label:'Cinder Cove movement'});
   pad.setVisible(false);
   let ashore=false,angle=0;
+  const helmControls=game.querySelector?.('.mobile-controls');
+  const helmDisplay=helmControls?.style.display || '';
+  const syncControls=()=>{
+    pad.setVisible(ashore);
+    if(helmControls)helmControls.style.display=ashore?'none':helmDisplay;
+  };
   button.addEventListener('click',()=>{
     ashore=!ashore;avatar.visible=ashore;
     if(ashore){avatar.position.set(island.x,2.4,island.z-7);angle=0;}
     button.textContent=ashore?'RETURN TO SHIP':'DISEMBARK · CINDER COVE';
     trade.setShoreMode(ashore);
-    pad.setVisible(ashore);
+    syncControls();
   });
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   return {
-    dispose(){pad.dispose();button.remove();scene.remove(avatar);},
+    dispose(){pad.dispose();if(helmControls)helmControls.style.display=helmDisplay;button.remove();scene.remove(avatar);},
     get ashore(){return ashore;},
     get position(){return avatar.position;},
     update(dt,keys) {
       const atCove=trade.test.state().docked==='cinder-cove';
-      if(!atCove&&ashore){ashore=false;avatar.visible=false;trade.setShoreMode(false);pad.setVisible(false);}
+      if(!atCove&&ashore){ashore=false;avatar.visible=false;trade.setShoreMode(false);syncControls();}
       button.hidden=!atCove;
       if(!ashore)return false;
       const {x:side,z:f}=walkingIntent(keys,pad.vector);

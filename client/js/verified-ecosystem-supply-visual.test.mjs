@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {verifiedEcosystemSupplyFraction as fraction} from '../client/js/verified-ecosystem-supply-visual.mjs';
+import {verifiedEcosystemSupplyFraction as fraction} from './verified-ecosystem-supply-visual.mjs';
 const keys={IMM:['rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP','IMM'],XRPyro:['rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va','XRPYRO']};
 for(const [name,[issuer,currency]] of Object.entries(keys)){
  const now=100000000;

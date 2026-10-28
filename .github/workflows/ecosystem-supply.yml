@@ -1,0 +1,20 @@
+name: IMM and XRPyro supply checks
+on:
+  pull_request:
+    paths:
+      - 'server/ecosystem-supply-reconciliation.js'
+      - 'server/amm-lock.js'
+      - 'test/ecosystem-supply-reconciliation-sim.js'
+      - 'client/js/verified-ecosystem-supply-visual*'
+      - '.github/workflows/ecosystem-supply.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node test/ecosystem-supply-reconciliation-sim.js
+      - run: node client/js/verified-ecosystem-supply-visual.test.mjs

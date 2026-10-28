@@ -84,7 +84,8 @@ export function initAmmLock(c) {
   // city centre for the outward offset (singularities sit on the far side of each tower from the hub, at street level: apart from every rail)
   const cx = tokNames.reduce((s, k) => s + N[k].pos.x, 0) / Math.max(1, tokNames.length), cz = tokNames.reduce((s, k) => s + N[k].pos.z, 0) / Math.max(1, tokNames.length);
   const singPos = (n, R, fraction, verified, out) => out.set(n.pos.x, blackHoleAltitude({ rooftop: n.top || n.h || 0, radius: R, fraction, verified }), n.pos.z);
-  const singR = f => 1.1 + 3.4 * Math.sqrt(Math.min(1, f));
+  // Verified burns earn a dramatic skyline silhouette; fixed issuer markers remain small.
+  const singR = (f,verified) => verified ? 2 + 13 * Math.sqrt(Math.max(0,Math.min(1,f))) : 2.2;
 
   // ---- 3) accretion disks: one instanced draw, no lights/textures/post passes ----
   const diskGeo = new THREE.RingGeometry(1.06, 2.2, LOW ? 32 : 64);
@@ -120,7 +121,13 @@ export function initAmmLock(c) {
     if(ecosystem!==null && fresh(o))return {st:'verified',o:{...o,burned_pct:ecosystem*100},f:ecosystem,net:true};
     const historical = verifiedBurnFraction(o?.issuer_return_history, N[k]?.key);
     if(historical !== null && fresh(o))return {st:'verified',o:{...o,burned:o.issuer_return_history.burned,burned_pct:historical*100},f:historical};
-    if(burnIssuerMarker(N[k]?.key,o?.issuer_keys_disabled,!!fresh(o)))return {st:'history_pending',o,f:0.08};
+    // A verified inaccessible issuer earns a small, fixed marker even while its
+    // launch supply is not established. This is NEVER a supply-percentage claim.
+    const pendingIssuer = (k==='IMM' && N[k]?.key==='rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP-IMM') ||
+      (k==='XRPyro' && N[k]?.key==='rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-XRPYRO');
+    if((burnIssuerMarker(N[k]?.key,o?.issuer_keys_disabled,!!fresh(o)) ||
+      pendingIssuer && o?.issuer_keys_disabled===true && !!fresh(o)))
+      return {st:'history_pending',o,f:0.08};
     return {st:'unverified',o,f:0};
   };
 
@@ -132,7 +139,7 @@ export function initAmmLock(c) {
       _m.compose(M.p, M.q, _s.setScalar(show ? M.R : 0)); halos.setMatrixAt(i, _m); });
     halos.instanceMatrix.needsUpdate = true; ring.attributes.lk.needsUpdate = true;
     let visibleSingularities = 0;
-    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = singR(v.f); singPos(n, R, v.f, v.st === 'verified', _v);
+    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = singR(v.f, v.st === 'verified'); singPos(n, R, v.f, v.st === 'verified', _v);
       if(on) { const slot=visibleSingularities++;
         _m.compose(_v,_q.identity(),_s.setScalar(R));sing.setMatrixAt(slot,_m);sA[slot]=v.f;
         _m.compose(_v,diskQ,_s.setScalar(R));disks.setMatrixAt(slot,_m);
@@ -195,7 +202,7 @@ export function initAmmLock(c) {
     lpText(p) { const b = bridges.find(x => x.p === p); const v = b ? poolView(b) : null; return v && v.st === 'verified' ? pctS(v.o.locked_pct) + ' verified' : pctS(+p.locked_pct || 0) + ' reported · unverified'; },
     card(box, u) { if (!box || !u) return; let h = ''; if (u.pool && !u.node) h = poolHTML(u.pool); else if (u.node && !u.lot && tokNames.includes(u.node.name)) h = tokHTML(u.node.name); if (h) box.insertAdjacentHTML('beforeend', h); },
     open(u) { const box = document.getElementById('info'); if (!box || !u.token) return; box.innerHTML = `<button class="x" aria-label="Close">✕</button><h2>${esc(u.token)} · black hole</h2>` + tokHTML(u.token); box.classList.remove('v2'); box.style.display = 'block'; box.scrollTop = 0; box.querySelector('.x').onclick = () => box.style.display = 'none'; },
-    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.st === 'history_pending' ? 'issuer verified; return history pending' : v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + (v.net?' net supply reduction':' of supply burned')} · tap for details`; },
+    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.st === 'history_pending' ? 'issuer inaccessible; launch supply unverified (fixed marker)' : v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + (v.net?' net supply reduction':' of supply burned')} · tap for details`; },
     view: (DBG || TEST) ? () => ({ pools: bridges.map((b, i) => { const v = poolView(b); return { pair: b.p.a + '/' + b.p.b, amm: b.p.amm, st: v.st, perm: v.perm, tl: v.tl, shown: halos.instanceMatrix.array[i * 16] !== 0 || halos.instanceMatrix.array[i * 16 + 1] !== 0, mid: mids[i].p.toArray(), R: mids[i].R }; }),
       tokens: tokNames.map((k, i) => { const v = tokOf(k); return { token: k, st: v.st, f: v.f, pos: pickers[k] && v.f > 0 ? pickers[k].position.toArray() : null }; }) }) : undefined,
     objs: (DBG || TEST) ? [halos, sing, disks].filter(Boolean) : undefined,

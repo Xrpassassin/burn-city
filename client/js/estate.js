@@ -198,9 +198,19 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const lake = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(lakeShape)), water); lake.position.y = 0.22; lake.renderOrder = 2; G.add(lake);
   const shore = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(shoreShape)), new THREE.MeshBasicMaterial({ color: 0xc8b68d, side: THREE.DoubleSide, fog: false, transparent: true, depthWrite: false })); shore.position.y = 0.18; shore.renderOrder = 1; G.add(shore);
   // Thin sand transition outside the water boundary, without changing swimming/fishing geometry.
-  const sandShape=new THREE.Shape(ring(20));sandShape.holes.push(new THREE.Path(ring(0)));
-  const sand=new THREE.Mesh(toWorld(new THREE.ShapeGeometry(sandShape)),new THREE.MeshLambertMaterial({color:0xd7c393,side:THREE.DoubleSide,depthWrite:false}));
-  sand.position.y=.185;sand.renderOrder=1;G.add(sand);
+  // Graded concentric beach shelves: water-adjacent wet sand transitions into dry sand,
+  // then muted ground. Geometry is decorative; the authoritative water boundary stays unchanged.
+  for(const [inner,outer,color,y] of [
+    [0,4,0xb8b1a0,.19],
+    [4,11,0xd0c1a0,.187],
+    [11,20,0xc1b08b,.184],
+    [20,25,0x938d70,.178]
+  ]){
+    const bandShape=new THREE.Shape(ring(outer));
+    bandShape.holes.push(new THREE.Path(ring(inner)));
+    const band=new THREE.Mesh(toWorld(new THREE.ShapeGeometry(bandShape)),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,depthWrite:false}));
+    band.position.y=y;band.renderOrder=1;G.add(band);
+  }
   // A subdued translucent surf lip replaces the previously bright hard outline.
   const edge = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(edgeShape)), new THREE.MeshBasicMaterial({ color: 0xc6d9ce, transparent: true, opacity: 0.28, fog: false, side: THREE.DoubleSide })); edge.position.y = 0.26; G.add(edge);
   lake.material.side = THREE.DoubleSide;

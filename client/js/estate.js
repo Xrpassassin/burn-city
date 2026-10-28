@@ -171,7 +171,11 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const islandHole=[];for(let i=0;i<96;i++){const a=-i/96*Math.PI*2;islandHole.push(new THREE.Vector2(Math.cos(a)*cityIsland.islandRadiusX,Math.sin(a)*cityIsland.islandRadiusZ));}
   lakeShape.holes.push(new THREE.Path(islandHole));
   const lake = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(lakeShape)), water); lake.position.y = 0.22; lake.renderOrder = 2; G.add(lake);
-  const shore = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(shoreShape)), new THREE.MeshBasicMaterial({ color: 0x4a3e2c, side: THREE.DoubleSide, fog: false, transparent: true, depthWrite: false })); shore.position.y = 0.18; shore.renderOrder = 1; G.add(shore);
+  const shore = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(shoreShape)), new THREE.MeshBasicMaterial({ color: 0xc8b68d, side: THREE.DoubleSide, fog: false, transparent: true, depthWrite: false })); shore.position.y = 0.18; shore.renderOrder = 1; G.add(shore);
+  // Thin sand transition outside the water boundary, without changing swimming/fishing geometry.
+  const sandShape=new THREE.Shape(ring(15));sandShape.holes.push(new THREE.Path(ring(0)));
+  const sand=new THREE.Mesh(toWorld(new THREE.ShapeGeometry(sandShape)),new THREE.MeshLambertMaterial({color:0xd7c393,side:THREE.DoubleSide,depthWrite:false}));
+  sand.position.y=.165;sand.renderOrder=0;G.add(sand);
   const edge = new THREE.Mesh(toWorld(new THREE.ShapeGeometry(edgeShape)), new THREE.MeshBasicMaterial({ color: 0x6fe8ff, transparent: true, opacity: 0.75, fog: false, side: THREE.DoubleSide })); edge.position.y = 0.26; G.add(edge);
   lake.material.side = THREE.DoubleSide;
   // A compact neighborhood silhouette makes the gateway visible from the city.

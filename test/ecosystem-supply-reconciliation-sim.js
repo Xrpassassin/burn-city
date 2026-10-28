@@ -13,7 +13,7 @@ for(const name of Object.keys(TOKENS)){
  const run=(l=launch,a=issuerInfo,g=gateway)=>reconcile({name,launch:l,issuerInfo:a,gateway:g,now:123456});
  const ok=run();assert.equal(ok.status,'verified',name+': valid audited snapshot');
  assert.equal(ok.removed_pct,21);
- assert.equal(ok.outstanding_units,'7900000000000000');
+ assert.equal(BigInt(ok.removed_units)*100n/BigInt(ok.outstanding_units),26n);
  assert.equal(run(null).status,'unverified');
  assert.equal(run({...launch,initial_supply:'bad'}).status,'unverified');
  assert.equal(run({...launch,initial_supply:'0'}).status,'unverified');

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createEstatesCityLakeGeometry, CITY_LAKE_DIMENSIONS } from './estates-city-lake-geometry.mjs';
 import {buildBeachAccessRoute,followBeachRoute} from './beach-traffic-route.mjs';
+import {beachVisitState} from './beach-visit-cycle.mjs';
 const box = (w, h, d, x, y, z, ry = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); return g.translate(x, y, z); };
 // lake frame: depends only on the district nodes (+ avoid points), so the city layout can test it before the Estates are built
 function lakeFrame(nodes, avoid = []) {
@@ -100,9 +101,9 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
     const body=new THREE.Mesh(new THREE.BoxGeometry(2.2,.65,4),carPaint[0]);body.position.y=.48;arrivingCar.add(body);
     const roof=new THREE.Mesh(new THREE.BoxGeometry(1.9,.55,2),carPaint[0]);roof.position.set(0,1,-.2);arrivingCar.add(roof);
     G.add(arrivingCar);
-    anim.push(t=>{if(!Number.isFinite(t))return;const phase=(t*.035)%2;const progress=phase<=1?phase:2-phase;
-      const p=followBeachRoute(beachDrivePath,progress);
-      if(p){arrivingCar.position.set(p.x,.17,p.z);arrivingCar.rotation.y=p.yaw+(phase>1?Math.PI:0);}
+    anim.push(t=>{const state=beachVisitState(t);if(!state)return;
+      const p=followBeachRoute(beachDrivePath,state.progress);
+      if(p){arrivingCar.position.set(p.x,.17,p.z);arrivingCar.rotation.y=p.yaw+(state.stage==='depart'?Math.PI:0);}
     });
   }
   // Cosmetic visitors travel between parked cars and the beach; no collision or transactions.
@@ -114,7 +115,7 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
       const head=new THREE.Mesh(new THREE.SphereGeometry(.3,6,4),new THREE.MeshLambertMaterial({color:0xb68c71}));head.position.y=2.12;npc.add(head);
       beachPark.add(npc);return npc;
     });
-    anim.push(t=>{if(!Number.isFinite(t))return;visitors.forEach((npc,i)=>{const phase=t*.10+i*2.09;npc.position.set((i-1)*1.1,.12,7+Math.sin(phase)*19);npc.rotation.y=Math.cos(phase)>=0?0:Math.PI;});});
+    anim.push(t=>{const visit=beachVisitState(t);if(!visit)return;visitors.forEach((npc,i)=>{const phase=t*.10+i*2.09;npc.position.set((i-1)*1.1,.12,7+Math.sin(phase)*19);npc.rotation.y=Math.cos(phase)>=0?0:Math.PI;npc.visible=i!==0||visit.stage==='beach'||visit.stage==='exit'||visit.stage==='return';});});
   }
 
   // ---------- lake: animated shader, fake shimmer + streaks of city light ----------

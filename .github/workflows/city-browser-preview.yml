@@ -9,7 +9,7 @@ on:
       - '.github/workflows/city-browser-preview.yml'
 jobs:
   screenshot:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     permissions:
       contents: read
@@ -38,4 +38,4 @@ jobs:
           if-no-files-found: ignore
       - name: Show server log on failure
         if: failure()
-        run: cat /tmp/city-preview.log
+        run: if [ -f /tmp/city-preview.log ]; then cat /tmp/city-preview.log; else echo 'Server did not start; no log available'; fi

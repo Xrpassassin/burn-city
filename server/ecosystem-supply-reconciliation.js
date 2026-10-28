@@ -48,7 +48,7 @@ function reconcile({name,launch,issuerInfo,gateway,now=Date.now()}={}) {
   if(!Number.isFinite(now)||now<=0)return fail('invalid verification time');
   const removed=initial-outstanding;
   const pct=Number(removed*1000000n/initial)/10000;
-  return {status:'verified',method:'verified_launch_vs_outstanding_v1',token:name,
+  return {status:'verified',method:'verified_launch_vs_outstanding_v1',token:name,issuer:t.issuer,currency:t.currency,
    initial_supply:launch.initial_supply,removed_pct:pct,
    outstanding_units:outstanding.toString(),removed_units:removed.toString(),
    ledger_index:i,ledger_hash:h,launch_ledger:launch.launch_ledger,

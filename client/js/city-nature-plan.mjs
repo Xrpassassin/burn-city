@@ -13,7 +13,9 @@ export function planCityNature({nodes=[],onRoad=()=>false,colliders=[],tier='med
   if(Math.hypot(x,z)<75||onRoad(x,z,2.5))continue;
   if(Math.hypot(x-n.pos.x,z-n.pos.z)>n.distR-3)continue;
   if(districts.some(v=>Math.hypot(v.pos.x-x,v.pos.z-z)<(v.w||5)*2.8+3))continue;
-  if(colliders.some(c=>Number.isFinite(c?.x)&&Number.isFinite(c?.z)&&Math.hypot(c.x-x,c.z-z)<(c.r||0)+2))continue;
+  if(colliders.some(c=>Number.isFinite(c?.x)&&Number.isFinite(c?.z)&&Math.hypot(c.x-x,c.z-z)<(Number.isFinite(c.r)?Math.max(0,c.r):0)+2))continue;
+  // Leave breathing room around other vegetation to avoid implausible dense spikes.
+  if(result.some(p=>Math.hypot(p.x-x,p.z-z)<.72))continue;
   // More organic growth at district edges; central plots stay tidy and shorter.
   const radial=Math.hypot(x-n.pos.x,z-n.pos.z)/n.distR;
   const outskirts=Math.min(1,Math.max(0,(radial-.36)/.54));

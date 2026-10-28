@@ -1,0 +1,19 @@
+name: Three token black-hole visual checks
+on:
+  pull_request:
+    paths:
+      - 'client/js/verified-three-token-blackholes*'
+      - 'client/js/issuer-return-card.mjs'
+      - '.github/workflows/three-token-blackholes.yml'
+  workflow_dispatch:
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node client/js/verified-three-token-blackholes.test.mjs
+      - run: node client/js/verified-supply-visual.test.mjs
+      - run: node client/js/verified-ecosystem-supply-visual.test.mjs

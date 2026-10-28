@@ -1,0 +1,21 @@
+name: Three-token live black-hole wiring
+on:
+  pull_request:
+    paths:
+      - 'client/js/amm-lock.js'
+      - 'test/three-token-live-wiring.test.js'
+      - '.github/workflows/three-token-live-wiring.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node test/three-token-live-wiring.test.js
+      - run: node client/js/verified-three-token-blackholes.test.mjs
+      - run: node client/js/verified-supply-visual.test.mjs
+      - run: node client/js/verified-ecosystem-supply-visual.test.mjs
+      - run: node --check client/js/amm-lock.js

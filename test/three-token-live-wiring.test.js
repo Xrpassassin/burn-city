@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const src=fs.readFileSync(path.join(__dirname,'../client/js/amm-lock.js'),'utf8');
+assert.match(src,/import \{ verifiedEcosystemSupplyFraction \} from '\.\/verified-ecosystem-supply-visual\.mjs'/);
+assert.match(src,/const ecosystem = verifiedEcosystemSupplyFraction\(o\?\.supply_reconciliation,k\)/);
+assert.match(src,/if\(ecosystem!==null && fresh\(o\)\)return \{st:'verified'/);
+assert.match(src,/const ecosystemCard = ecosystemSupplyCard\(/);
+assert.match(src,/if\(ecosystemCard\)return ecosystemCard/);
+assert.match(src,/sing\.count = disks\.count = visibleSingularities/);
+assert.match(src,/st\.draws = 3/);
+console.log('Three-token live renderer wiring guards passed');

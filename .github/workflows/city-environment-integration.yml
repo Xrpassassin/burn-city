@@ -1,0 +1,24 @@
+name: City environment integration smoke
+on:
+  pull_request:
+    paths:
+      - 'client/js/city-birds-*'
+      - 'client/js/city-nature-*'
+      - 'client/js/city-environment-integration.test.mjs'
+      - 'client/js/app.js'
+      - '.github/workflows/city-environment-integration.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate module syntax
+        run: |
+          node --check client/js/app.js
+          node --check client/js/city-nature-render.mjs
+          node --check client/js/city-birds-render.mjs
+      - name: Run combined environment integration checks
+        run: node client/js/city-environment-integration.test.mjs

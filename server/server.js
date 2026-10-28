@@ -258,7 +258,7 @@ wss.on('connection', (ws, req) => {
   const pass = Pay.checkToken(url.searchParams.get('token'));   // optional sign-in: free play either way
   const want = (url.searchParams.get('look') || '').split(',').filter(Boolean), own = pass ? Pay.owned(pass.acct) : [], look = {};
   for (const id of want) if (own.includes(id) && items[id]) look[items[id].kind] = id;   // only equip what the account owns
-  if (pass && url.searchParams.get('nft') !== '0') { const n = Nft.charFor(pass.acct); if (n) look.nft = n; }   // verified-owner NFT character only
+  if (pass && url.searchParams.get('nft') !== '0') { const n = Nft.charFor(pass.acct); if (n) look.nft = n; Nft.verify(pass.acct).catch(() => {}); }   // verified-owner NFT character only (stale proofs fail closed; refresh for the next join)
   const rt = url.searchParams.get('ranked'), lob = rt ? Ranked.lobbies[Ranked.ticketMatch(rt)] : null;
   if (rt && pass && Object.values(rooms).flat().some(r => (r.ranked || r.tl?.ranked) && [...r.players.values()].some(x => x.acct === pass.acct))) return ws.close(4004, 'one_ranked_match_at_a_time');
   const recon = Ranked.reconOk(rt, pass?.acct, lob);   // started ranked match: only an already-admitted entrant may reconnect (as spectator); everyone else is locked out

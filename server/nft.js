@@ -60,7 +60,26 @@ async function scan(acct, ledger) {                 // every collection NFT the 
   for (let i = 0; i < 20; i++) { const r = (await cl.request({ command: 'account_nfts', account: acct, limit: 400, marker })).result;
     for (const n of r.account_nfts) { const c = COLS[n.Issuer + ':' + n.NFTokenTaxon]; if (c) list.push({ id: n.NFTokenID.toUpperCase(), key: c.key, uri: n.URI || '', serial: n.nft_serial }); }
     if (!(marker = r.marker)) break; }
-  owned.set(acct, { t: Date.now(), list }); return list;
+  owned.set(acct, { t: Date.now(), list });
+  // The ledger has exactly one owner per NFTokenID: if this account holds a token another account
+  // still has selected (it was sold/transferred), that other account's cached proof is void now.
+  const ids = new Set(list.map(n => n.id));
+  for (const a of Object.keys(sel)) if (a !== acct && ids.has(sel[a])) owned.delete(a);
+  return list;
+}
+const verifying = new Map();
+// Async fresh ownership proof for a signed-in wallet (city join / reconnect / avatar refresh).
+// Re-scans the ledger when the cached proof is older than maxAge; returns the verified character or null.
+async function verify(acct, ledger = ledgerFn, maxAge = TTL) {
+  if (!acct || !ACCT.test(acct) || !ledger) return charFor(acct);
+  const o = owned.get(acct);
+  if (!o || Date.now() - o.t >= maxAge) {
+    if (!verifying.has(acct)) verifying.set(acct, scan(acct, ledger).catch(() => null).finally(() => verifying.delete(acct)));
+    const list = await verifying.get(acct);
+    if (list && sel[acct] && !list.some(n => n.id === sel[acct])) { delete sel[acct]; S.save('nft_sel.json', sel); }
+    if (list && sel[acct] && !metaMem.has(sel[acct])) { const n = list.find(x => x.id === sel[acct]); if (n) await meta(n).catch(() => null); }
+  }
+  return charFor(acct);
 }
 async function holdings(acct, ledger, fresh) { const o = owned.get(acct); if (!fresh && o && Date.now() - o.t < TTL) return o.list; return scan(acct, ledger); }
 
@@ -157,7 +176,8 @@ async function recheck() {                          // periodic: re-verify every
       if (!l.some(n => n.id === sel[acct])) { delete sel[acct]; S.save('nft_sel.json', sel); }
       else { const n = l.find(x => x.id === sel[acct]); await meta(n); } } catch { } await new Promise(r => setTimeout(r, 500)); }
 }
-function start() { ledgerFn = mainLedger; setTimeout(recheck, 5e3).unref?.(); setInterval(recheck, 10 * 60e3).unref(); }
+// Sweep every TTL so a sold NFT stops rendering within ~5 min even if its seller stays connected (charFor fails closed after 3*TTL).
+function start() { ledgerFn = mainLedger; setTimeout(recheck, 5e3).unref?.(); setInterval(recheck, TTL).unref(); }
 function image(req, res, p) {                       // GET /nftimg/<ID>.webp|jpg (public, immutable)
   const m = p.match(/^\/nftimg\/([0-9A-F]{64})\.(webp|jpg)$/); if (!m) return false;
   const f = path.join(DIR, m[1] + '.' + m[2]);
@@ -165,4 +185,5 @@ function image(req, res, p) {                       // GET /nftimg/<ID>.webp|jpg
   res.writeHead(200, { 'content-type': m[2] === 'webp' ? 'image/webp' : 'image/jpeg', 'cache-control': 'public, max-age=31536000, immutable', 'access-control-allow-origin': '*', 'cross-origin-resource-policy': 'cross-origin', 'x-content-type-options': 'nosniff' });
   fs.createReadStream(f).pipe(res); return true;
 }
-module.exports = { mainLedger, COLS, mine, select, charFor, start, image, holdings, ACCT };
+module.exports = { mainLedger, COLS, mine, select, charFor, verify, start, image, holdings, recheck, ACCT, TTL,
+  _test: { setLedger: f => { ledgerFn = f; }, reset: () => { owned.clear(); metaMem.clear(); for (const k of Object.keys(sel)) delete sel[k]; }, age: (acct, ms) => { const o = owned.get(acct); if (o) o.t -= ms; } } };

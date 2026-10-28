@@ -236,7 +236,7 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
       const forward=c.lane===0?c.u:1-c.u;
       let gap=1;
       for(const other of lane){if(other===c)continue;const o=other.lane===0?other.u:1-other.u;const d=(o-forward+1)%1;if(d>0&&d<gap)gap=d;}
-      const roadDist=Math.abs(forward-junctionU)*roadLen;
+      const roadDist=Math.abs(c.u-junctionU)*roadLen;
       const approach=roadDist<18?.4:1;
       const following=Math.max(0,Math.min(1,(gap*roadLen-7)/13));
       advances.set(c,c.sp*step*.6*Math.min(approach,following));

@@ -1,0 +1,16 @@
+name: Ambient city birds checks
+on:
+  pull_request:
+    paths:
+      - 'client/js/city-birds-*'
+      - 'client/js/app.js'
+      - '.github/workflows/city-birds.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node client/js/city-birds-plan.test.mjs

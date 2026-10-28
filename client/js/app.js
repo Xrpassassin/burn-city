@@ -23,7 +23,8 @@ import {getBloomComparisonPreset,isBloomComparisonPreset} from './bloom-comparis
 import {Reflector} from 'three/addons/objects/Reflector.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {PlayerState,NetClient} from './net.js';
-import {initAmmLock} from './amm-lock.js';   // verified LP-lock halos + per-token black-hole singularities (/api/amm-lock, +3 draws)
+import {initAmmLock} from './amm-lock.js';
+import {installCityNature} from './city-nature-render.mjs';   // verified LP-lock halos + per-token black-hole singularities (/api/amm-lock, +3 draws)
 import './goldlock.js';   // globalThis.BCGold: the ONE strict gold rule (>=95% LP black-holed AND TVL >= 5000 XRP), shared with server/eco.js
 
 // ---------- config / device ----------
@@ -1614,6 +1615,7 @@ function bridgeLook(b){const L=b.Lv,minor=b.minor;// neon is activity-only again
  if(b.actCol)b.solid.material.color.copy(b.actCol);else b.solid.material.color.set(0x3cf3ff);b.baseOp=minor?.3:.85;b.core.material.opacity=minor?.4:.95;b.solid.material.opacity=b.baseOp;if(b.flk)b.rail=Math.max(0,(1-L)/Math.max(.001,1-b.L))}
 actScore();bridges.forEach(b=>{b.baseOp=b.solid.material.opacity});
 try{initAmmLock({THREE,S,bridges,N,U,anim,TIER,MOBILE,pick})}catch(e){console.warn('amm-lock',e)}
+try { if(!Q.has('nonature')) window.__cityNature=installCityNature({scene:S,nodes:E.nodes,onRoad,colliders,tier:TIER}); } catch(e) { console.warn('city nature optional pass',e); }
 {let af=0;anim.push(t=>{if(MOBILE&&(af++%3))return;for(const b of bridges){if(b.act==null||!b.group.visible)continue;const k=b.act,sp=.6+4.4*k*k;b.core.material.color.copy(b.actCol).lerp(WHITE_C,.55);b.core.material.opacity=(b.minor?.3:.35+.65*b.Lv)*(.55+.45*(.5+.5*Math.sin(t*sp+b.r*7)))}})}
 
 function updFX(t,dt){

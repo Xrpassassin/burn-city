@@ -21,6 +21,8 @@ function lakeFrame(nodes, avoid = []) {
   const inside = (x, z, c, pad = 0) => { const [u, v] = loc(x, z, c), a = Math.atan2(v / D, u / Wd); return Math.hypot(u / (Wd + pad), v / (D + pad)) < rho(a); };
   const blockers = nodes.filter(n => n.pos).map(n => [n.pos.x, n.pos.z, (n.distR || n.w * 2 || 10) + 6]).concat(avoid.map(p => [p.x, p.z, 40]));
   let k0 = 6; for (; k0 < 400; k0 += 4) { const c = cityEdge.clone().addScaledVector(dir, k0 + D); if (!blockers.some(([x, z, r]) => inside(x, z, c, r))) break; }
+  // Small additional city-side setback for a public beach arrival / parking strip.
+  k0 += 24;
   const lakeC = cityEdge.clone().addScaledVector(dir, k0 + D), nearV = D * rho(-Math.PI / 2), farV = D * rho(Math.PI / 2);
   return { best, maxR, dir, side, yaw, hub, cityEdge, D, Wd, rho, loc, inside, k0, lakeC, nearV, farV };
 }
@@ -41,6 +43,38 @@ export function buildEstate({ S, U, pick, anim, nodes, low, avoid = [], collider
       for (let b = 0; b <= 90; b += 0.5) { const q = o.clone().addScaledVector(dir, -b); for (const [n, r] of rings) if (Math.abs(Math.hypot(q.x - n.pos.x, q.z - n.pos.z) - r) < 0.6 && clear(o, -b)) { HW_OFF = L; roadO = q; hwJoin = n.name; break search; } } }
     if (!hwJoin) { HW_OFF = hub.distR + 26; roadO = cityEdge.clone().addScaledVector(side, HW_OFF); } }
   const G = new THREE.Group(); S.add(G);
+  // Public beach access on the city bank: a compact car park plus strolling visitors.
+  // All placement is derived from lakeFrame; bridge, fishing and estates follow the shifted lake.
+  const beachPark=new THREE.Group();
+  const parkOrigin=cityEdge.clone().addScaledVector(dir,k0-22).addScaledVector(side,55);
+  beachPark.position.copy(parkOrigin);beachPark.rotation.y=yaw;
+  G.add(beachPark);
+  const asphalt=new THREE.MeshLambertMaterial({color:0x36383a}),stripe=new THREE.MeshBasicMaterial({color:0xd9d4bd});
+  const walkway=new THREE.MeshLambertMaterial({color:0xafa287}),carPaint=[0x36546b,0x9b4638,0xb9b9ad,0x526656].map(color=>new THREE.MeshLambertMaterial({color}));
+  const visitorMat=new THREE.MeshLambertMaterial({color:0x426577});
+  const parkingSlab=new THREE.Mesh(new THREE.BoxGeometry(42,.12,21),asphalt);parkingSlab.position.set(0,.02,0);beachPark.add(parkingSlab);
+  const path=new THREE.Mesh(new THREE.BoxGeometry(4,.10,34),walkway);path.position.set(0,.065,22);beachPark.add(path);
+  for(let i=0;i<6;i++){
+    const x=(i-2.5)*6.2;
+    const line=new THREE.Mesh(new THREE.BoxGeometry(.12,.025,9),stripe);line.position.set(x-2.9,.10,-4);beachPark.add(line);
+    if(i===2)continue; // open parking bay
+    const car=new THREE.Group();car.position.set(x,.16,-4);
+    const body=new THREE.Mesh(new THREE.BoxGeometry(2.5,.65,4.4),carPaint[i%carPaint.length]);body.position.y=.5;car.add(body);
+    const cab=new THREE.Mesh(new THREE.BoxGeometry(2.05,.6,2.15),carPaint[i%carPaint.length]);cab.position.set(0,1.08,-.2);car.add(cab);
+    beachPark.add(car);
+  }
+  // Cosmetic visitors travel between parked cars and the beach; no collision or transactions.
+  if(!low && Array.isArray(anim)){
+    const visitors=Array.from({length:3},(_,i)=>{
+      const npc=new THREE.Group();
+      const legs=new THREE.Mesh(new THREE.BoxGeometry(.5,1,.4),visitorMat);legs.position.y=.52;npc.add(legs);
+      const torso=new THREE.Mesh(new THREE.BoxGeometry(.85,.85,.45),visitorMat);torso.position.y=1.44;npc.add(torso);
+      const head=new THREE.Mesh(new THREE.SphereGeometry(.3,6,4),new THREE.MeshLambertMaterial({color:0xb68c71}));head.position.y=2.12;npc.add(head);
+      beachPark.add(npc);return npc;
+    });
+    anim.push(t=>{if(!Number.isFinite(t))return;visitors.forEach((npc,i)=>{const phase=t*.10+i*2.09;npc.position.set((i-1)*1.1,.12,7+Math.sin(phase)*25);npc.rotation.y=Math.cos(phase)>=0?0:Math.PI;});});
+  }
+
   // ---------- lake: animated shader, fake shimmer + streaks of city light ----------
   // tower reflections: the NT towers that matter most from the lake, as vertical glowing columns the reflected ray can hit (no reflection render pass)
   const NT = low ? 0 : 10, NR = 8, NF = 6, V4 = () => new THREE.Vector4(0, 0, -99, 0);

@@ -4,8 +4,6 @@ import {planBirdFlocks} from './city-birds-plan.mjs';
 export function installCityBirds({scene,nodes,tier='medium',anim}) {
  const flocks=planBirdFlocks({nodes,tier});
  if(!flocks.length)return {count:0,dispose(){}};
- const verts=new Float32Array(flocks.length*9),geometry=new THREE.BufferGeometry();
- geometry.setAttribute('position',new THREE.BufferAttribute(verts,3));
  const material=new THREE.LineBasicMaterial({color:0x909fa8,transparent:true,opacity:.7,depthWrite:false});
  // Each bird is a shallow V of two wings (two line segments).
  const points=new Float32Array(flocks.length*12),g=new THREE.BufferGeometry();

@@ -7,8 +7,8 @@ let now=Date.now(),fail=false;const calls=[],pin=107955066,ledger_hash='A'.repea
 const anchor={validated:true,ledger_index:pin,ledger_hash};
 const rpc=async(method,params)=>{
  calls.push(method);if(fail)throw Error('offline');
- if(method==='server_info')return {info:{network_id:0,validated_ledger:{seq:pin}}};
- assert.equal(params.ledger_index,pin);
+ if(method==='server_info')return {info:{network_id:0,validated_ledger:{seq:pin,hash:ledger_hash}}};
+ assert.equal(params.ledger_hash,ledger_hash);
  if(method==='account_info')return {...(baseline.locked.result||baseline.locked),...anchor};
  if(method==='gateway_balances')return {...anchor,account:issuer,obligations:{[currency]:'34843983811577.57'}};
  assert.equal(method,'account_objects');return {...anchor,account:issuer,account_objects:[]};

@@ -20,6 +20,15 @@ export function buildWalker({ suit = 0x1b2338, accent = 0x7ee0ff, skin = 0, lite
   const head = new THREE.Group(); torso.add(head); head.position.set(0, .93, 0);
   add(new THREE.Mesh(geo('head', () => { const h = new THREE.SphereGeometry(.19, 14, 10); h.scale(1, 1.1, 1.02); return h }), skn), head);
   if (!lite) add(new THREE.Mesh(geo('hair', () => { const h = new THREE.SphereGeometry(.205, 14, 8, 0, Math.PI * 2, 0, Math.PI * .43); h.scale(1, 1.1, 1.04); h.rotateX(.25); return h }), std(hair, .8, 0)), head, 0, .01, .01);
+  // Small silhouette and clothing details on the full-quality player model only.
+  // All detail geometries/materials are cached just like the base rig.
+  if (!lite) {
+    for (const side of [-1, 1]) {
+      add(new THREE.Mesh(geo('collar', () => new THREE.BoxGeometry(.13, .075, .16)), dk), torso, side * .13, .69, -.035);
+      add(new THREE.Mesh(geo('hipPouch', () => new THREE.BoxGeometry(.13, .16, .12)), dk), torso, side * .22, .07, .03);
+    }
+    add(new THREE.Mesh(geo('chestTrim', () => new THREE.BoxGeometry(.22, .025, .025)), glow), torso, 0, .29, -.166);
+  }
   const visor = add(new THREE.Mesh(geo('visor', () => new THREE.BoxGeometry(.34, .07, .06)), glow), head, 0, .02, -.14);
   const arms = [], legs = [];
   for (const s of [-1, 1]) {

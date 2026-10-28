@@ -3,6 +3,11 @@ on:
   pull_request:
     paths:
       - 'server/issuer-return-*.js'
+      - 'server/burn-launch-*'
+      - 'server/burn-supply-reconciliation.js'
+      - 'scripts/audit-burn-supply.js'
+      - 'test/burn-launch-evidence.test.js'
+      - 'test/burn-supply-reconciliation.test.js'
       - 'scripts/audit-issuer-returns.js'
       - 'test/issuer-return-*.test.js'
       - 'test/audit-issuer-returns.test.js'
@@ -37,3 +42,6 @@ jobs:
         run: node test/issuer-return-api-contract.test.js
       - name: Verified visual and card contract
         run: node client/js/verified-burn-visual.test.mjs && node client/js/issuer-return-card.test.mjs
+
+      - name: BURN supply snapshot without transaction scans
+        run: node test/burn-launch-evidence.test.js && node test/burn-supply-reconciliation.test.js

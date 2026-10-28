@@ -34,12 +34,12 @@ for(const mutate of [
  const gatewayNoHash={...gateway};delete gatewayNoHash.ledger_hash;
  const gatewayNoLedger={...gateway};delete gatewayNoLedger.ledger_hash;delete gatewayNoLedger.ledger_index;
  assert.equal(reconcileBurnSupply({...base,gateway:gatewayNoLedger,pinnedLedger:{index:pin,hash}}).status,'verified');
- assert.equal(reconcileBurnSupply({...base,gateway:gatewayNoLedger}).status,'unverified');
+ assert.equal(reconcileBurnSupply({...base,pinnedLedger:null,gateway:gatewayNoLedger}).status,'unverified');
  assert.equal(reconcileBurnSupply({...base,gateway:{...gateway,validated:false},pinnedLedger:{index:pin,hash}}).status,'unverified');
  assert.equal(reconcileBurnSupply({...base,gateway:{...gateway,ledger_index:pin+1},pinnedLedger:{index:pin,hash}}).status,'unverified');
  const anchored=reconcileBurnSupply({...base,gateway:gatewayNoHash,pinnedLedger:{index:pin,hash}});
  assert.equal(anchored.status,'verified');
- assert.equal(reconcileBurnSupply({...base,gateway:gatewayNoHash}).status,'unverified');
+ assert.equal(reconcileBurnSupply({...base,pinnedLedger:null,gateway:gatewayNoHash}).status,'unverified');
  assert.equal(reconcileBurnSupply({...base,gateway:{...gateway,ledger_hash:'C'.repeat(64)},pinnedLedger:{index:pin,hash}}).status,'unverified');
 assert.equal(calls.length,5);assert.ok(calls.every(c=>c.method!=='account_tx'));
  const capped=await auditBurnSupply({maxEscrowPages:1,rpc:async m=>m==='server_info'?{info:{network_id:0,validated_ledger:{seq:pin,hash}}}:m==='account_info'?current:m==='gateway_balances'?gateway:escrowPages[0]});

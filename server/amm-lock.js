@@ -7,6 +7,9 @@
 // Anything else is "held" (keys exist), "time-locked" (LP in an Escrow), "unaccounted" or UNVERIFIED (fetch failed / stale). Never assumed 0% or 100%.
 'use strict';
 const G = require('../client/js/goldlock.js');
+const { auditBurnSupply } = require('../scripts/audit-burn-supply');
+const { BURN_ISSUER, BURN_CURRENCY } = require('./issuer-return-history');
+const BURN_KEY = BURN_ISSUER + '-' + BURN_CURRENCY;
 const { attachIssuerReturnHistory } = require('./issuer-return-api-contract');
 
 const REFRESH_MS = 2 * 3600e3;        // full re-verification every 2 h
@@ -127,6 +130,14 @@ function create(opts = {}) {
     return computePoolLock(ai, lines, infos, esc, { amm: p.amm, pair: p.a + '/' + p.b, reported_pct: p.locked_pct, now: now() });
   }
   async function token(n, pools) {
+    if(n.key === BURN_KEY) {
+      let record;
+      try { record = await auditBurnSupply({rpc:call,now:now()}); }
+      catch(e) { record = {status:'unverified',reason:e.message}; }
+      return {name:n.name,issuer:BURN_ISSUER,currency:BURN_CURRENCY,status:record.status,
+        t_ms:now(),ts:iso(now()),issuer_keys_disabled:record.status==='verified'?true:null,
+        supply_reconciliation:record,pools:pools.filter(p=>p.a===n.name||p.b===n.name).map(p=>p.amm)};
+    }
     const i = n.key.indexOf('-'), issuer = n.key.slice(0, i), currency = n.key.slice(i + 1);
     const gw = await call('gateway_balances', { account: issuer, ledger_index: 'validated' });
     const lines = []; let marker, pages = 0, ok = true;
@@ -145,8 +156,10 @@ function create(opts = {}) {
     S.run = (async () => { S.started = iso(now());
       try { const d = data(); if (!d) throw new Error('no eco data');
         const pools = d.pools.filter(p => p.amm && !p.gone);
+        const burn = d.nodes.find(n=>n.key===BURN_KEY);
+        if(burn) S.tokens[burn.name] = await token(burn,pools);
         for (const p of pools) S.pools[p.amm] = await pool(p);
-        for (const n of d.nodes) { if (!n.key || !n.key.includes('-') || SKIP_TOKENS.has(n.name)) continue; S.tokens[n.name] = await token(n, pools); }
+        for (const n of d.nodes) { if (!n.key || n.key===BURN_KEY || !n.key.includes('-') || SKIP_TOKENS.has(n.name)) continue; S.tokens[n.name] = await token(n, pools); }
         S.last_ok = iso(now()); S.last_err = null;
       } catch (e) { S.last_err = e.message; } finally { S.run = null; } })();
     return S.run;
@@ -157,6 +170,7 @@ function create(opts = {}) {
     return { v: 1, ts: iso(t), t_ms: t, refresh_s: REFRESH_MS / 1e3, stale_after_h: STALE_MS / 3600e3, last_ok: S.last_ok, last_err: S.last_err, running: !!S.run, calls: S.calls,
       rules: { permanent: 'account_info: lsfDisableMaster AND (no RegularKey or RegularKey in ' + G.BH_KEYS.join(', ') + ') AND no SignerList AND not an AMM account',
         lock_pct: 'LP held by permanent accounts / amm_info.lp_token (LPTokenBalance); holders < 0.1% not checked (counted as not locked)',
+        supply_reconciliation: 'BURN: verified fixed issuance minus outstanding obligations, frozen balances and escrow at one validated ledger; includes transfer-fee reductions',
         burn_pct: 'token balance held by black-hole accounts (issuer excluded) / gateway_balances obligations (or sum of issuer trustlines)',
         issuer_keys_disabled: 'separate fact; never counted as burned supply', unverified: 'fetch failed or older than ' + STALE_MS / 3600e3 + ' h: no % is shown' },
       pools: P, tokens: attachIssuerReturnHistory(T, audits, t) }; }

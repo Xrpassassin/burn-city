@@ -225,7 +225,23 @@ void main(){ vec2 q=vW.xz-lc; float uu=dot(q,ls)/210.0, vv=dot(q,ld)/78.0, aa=at
   const head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.45, 6, 4), new THREE.MeshBasicMaterial({ color: 0xfff2d0, fog: false }), NC * 2), tail = new THREE.InstancedMesh(new THREE.SphereGeometry(0.4, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff2a1a }), NC * 2);
   head.frustumCulled = tail.frustumCulled = false; const carG = new THREE.Group(); carG.position.copy(roadO); carG.rotation.y = yaw; carG.add(head, tail); carG.visible=false; G.add(carG);
   const M = new THREE.Matrix4();
-  anim.push((t, dt = 1 / 60) => { let hi = 0, ti = 0; for (const c of cars) { c.u = (c.u + c.sp * dt * 0.6) % 1; const out = c.lane === 0, z = (out ? c.u : 1 - c.u) * roadLen, x = out ? 3.5 : -3.5, y = ys(z) + 0.4, f = out ? 1 : -1;
+  anim.push((t, dt = 1 / 60) => {
+    // Short approach zone at the public beach turn-in; limit rapid motion at the junction.
+    // Keep safe following distances independently on each highway lane.
+    const junctionU=Math.max(0,Math.min(1,beachRoadJunction.clone().sub(roadO).dot(dir)/roadLen));
+    const step=Math.max(0,Math.min(.05,Number.isFinite(dt)?dt:0));
+    const laneCars=[cars.filter(c=>c.lane===0),cars.filter(c=>c.lane===1)];
+    const advances=new Map();
+    for(const lane of laneCars)for(const c of lane){
+      const forward=c.lane===0?c.u:1-c.u;
+      let gap=1;
+      for(const other of lane){if(other===c)continue;const o=other.lane===0?other.u:1-other.u;const d=(o-forward+1)%1;if(d>0&&d<gap)gap=d;}
+      const roadDist=Math.abs(forward-junctionU)*roadLen;
+      const approach=roadDist<18?.4:1;
+      const following=Math.max(0,Math.min(1,(gap*roadLen-7)/13));
+      advances.set(c,c.sp*step*.6*Math.min(approach,following));
+    }
+    let hi = 0, ti = 0; for (const c of cars) { c.u = (c.u + advances.get(c)) % 1; const out = c.lane === 0, z = (out ? c.u : 1 - c.u) * roadLen, x = out ? 3.5 : -3.5, y = ys(z) + 0.4, f = out ? 1 : -1;
       // a car facing +z shows white heads in front (+z) and red tails behind; cars going back show the opposite
       head.setMatrixAt(hi++, M.makeTranslation(x - 0.7, y, z + 1.6 * f)); head.setMatrixAt(hi++, M.makeTranslation(x + 0.7, y, z + 1.6 * f));
       tail.setMatrixAt(ti++, M.makeTranslation(x - 0.7, y, z - 1.6 * f)); tail.setMatrixAt(ti++, M.makeTranslation(x + 0.7, y, z - 1.6 * f)); }

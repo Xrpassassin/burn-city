@@ -12,7 +12,17 @@ function createImgHourlyBatchReconciler(db){
  CREATE TABLE IF NOT EXISTS estate_img_hourly_entitlements(
  epoch_start_ms INTEGER NOT NULL, owner TEXT NOT NULL,
  amount_units TEXT NOT NULL, PRIMARY KEY(epoch_start_ms,owner)
- );`);
+ );
+ CREATE TABLE IF NOT EXISTS estate_img_scan_watermarks(
+ id INTEGER PRIMARY KEY CHECK(id=1), scanned_through_ms INTEGER NOT NULL,
+ ledger_index INTEGER NOT NULL, verified_at_ms INTEGER NOT NULL
+ );
+ CREATE TRIGGER IF NOT EXISTS estate_img_no_late_receipt BEFORE INSERT ON estate_img_reward_receipts
+ WHEN EXISTS(SELECT 1 FROM estate_img_hourly_batches WHERE epoch_start_ms=NEW.epoch_start_ms)
+ BEGIN SELECT RAISE(ABORT,'closed_hour_receipt'); END;
+ CREATE TRIGGER IF NOT EXISTS estate_img_no_late_allocation BEFORE INSERT ON estate_img_hourly_allocations
+ WHEN EXISTS(SELECT 1 FROM estate_img_hourly_batches WHERE epoch_start_ms=NEW.epoch_start_ms)
+ BEGIN SELECT RAISE(ABORT,'closed_hour_allocation'); END;`);
  const receipts=db.prepare('SELECT tx_hash,amount_units FROM estate_img_reward_receipts WHERE epoch_start_ms=? ORDER BY tx_hash');
  const allocations=db.prepare('SELECT tx_hash,property_id,owner,amount_units FROM estate_img_hourly_allocations WHERE epoch_start_ms=? ORDER BY tx_hash,property_id');
  const batch=db.prepare('SELECT * FROM estate_img_hourly_batches WHERE epoch_start_ms=?');
@@ -24,6 +34,8 @@ function createImgHourlyBatchReconciler(db){
   db.exec('BEGIN IMMEDIATE');
   try{
    if(batch.get(epochStartMs))throw new Error('hour_already_closed');
+   const watermark=db.prepare('SELECT scanned_through_ms,ledger_index FROM estate_img_scan_watermarks WHERE id=1').get();
+   if(!watermark||watermark.scanned_through_ms<epochStartMs+3600000||!Number.isSafeInteger(watermark.ledger_index)||watermark.ledger_index<1)throw new Error('verified_ledger_scan_watermark_required');
    const rs=receipts.all(epochStartMs),as=allocations.all(epochStartMs);
    if(!rs.length)throw new Error('no_verified_receipts');
    const receiptTotal=rs.reduce((s,r)=>s+BigInt(r.amount_units),0n);

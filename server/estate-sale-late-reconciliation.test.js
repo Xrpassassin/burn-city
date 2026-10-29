@@ -21,6 +21,7 @@ const client={request:async()=>{lookups++;return {result:{validated,ledger_index
  await assert.rejects(review.inspect({reservationId:r.reservation_id,buyer,now:r.expires_at+1000}),/payment_not_validated_success/);
  assert.equal(review.get(r.reservation_id),undefined);
  validated=true;
+ db.prepare("UPDATE estate_sale_reservations SET status='expired' WHERE reservation_id=?").run(r.reservation_id);
  const result=await review.inspect({reservationId:r.reservation_id,buyer,now:r.expires_at+1000});
  assert.equal(result.status,'needs_review');assert.equal(result.ownershipAssigned,false);
  assert.equal((await review.inspect({reservationId:r.reservation_id,buyer,now:r.expires_at+2000})).status,'needs_review');

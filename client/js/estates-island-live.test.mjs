@@ -67,3 +67,5 @@ assert(app.includes('installEstatesIslandLive({THREE,scene:S,player:P,avatar,cam
 assert(sw.includes("'js/estates-island-live.mjs'"), 'service worker precaches live integration');
 assert(/const VERSION = 'bc-v\d+-/.test(sw), 'service worker cache version is set');   // exact number moves with every merge
 console.log('estates-island-live: host wiring smoke tests passed');
+
+assert(live.includes('mountEstatePurchase(panel,property.propertyId,{api:apiBase})'), 'mapped island lot inspection includes the server-backed purchase panel');

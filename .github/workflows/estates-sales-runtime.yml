@@ -7,6 +7,7 @@ on:
       - 'server/payments.js'
       - 'client/js/estate-purchase-ui.mjs'
       - 'client/js/app.js'
+      - 'client/js/estates-island-live.mjs'
       - 'test/estate-sales-runtime-http.test.js'
       - 'scripts/estate-purchase-browser-test.mjs'
       - '.github/workflows/estates-sales-runtime.yml'

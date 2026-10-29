@@ -13,11 +13,15 @@ function createEstateXamanPaymentSession(db,{sdk,treasury,enabled=false}={}){
   const r=reservations.get(reservationId);
   if(!r||r.buyer!==buyer)return {ok:false,error:'reservation_not_found'};
   if(r.status!=='reserved'||now>=r.expires_at)return {ok:false,error:'reservation_not_active'};
+  // Do not issue a 10-minute Xaman request when the reservation is about to expire.
+  // The remote request cannot extend the server's original price/ownership hold.
+  if(r.expires_at-now<60000)return {ok:false,error:'reservation_near_expiry'};
   const prior=payloads.get(reservationId);
   if(prior)return prior.buyer===buyer?{ok:true,reservationId,payloadUuid:prior.payload_uuid,reused:true}:{ok:false,error:'reservation_not_found'};
   // Concurrent callers can race to create a remote payload. Only one can be bound
   // and returned; the other must recover the already-bound UUID.
   const created=await adapter.create(r);
+  if(Date.now()>=r.expires_at)return {ok:false,error:'reservation_expired_during_payload_creation'};
   try{
    const bound=payloads.bind({reservationId,uuid:created.uuid,buyer,now:Date.now()});
    return {ok:true,reservationId,payloadUuid:bound.payload_uuid,qr:created.qr,deeplink:created.deeplink,reused:false};

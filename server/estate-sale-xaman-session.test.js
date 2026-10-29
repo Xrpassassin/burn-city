@@ -13,6 +13,8 @@ const sdk={payload:{create:async p=>{calls++;assert.equal(p.txjson.Account,buyer
  const disabled=createEstateXamanPaymentSession(db);
  assert.equal((await disabled.start({reservationId:r.reservation_id,buyer})).error,'estate_sales_disabled');
  const session=createEstateXamanPaymentSession(db,{sdk,treasury,enabled:true});
+ assert.equal((await session.start({reservationId:r.reservation_id,buyer,now:r.expires_at-30000})).error,'reservation_near_expiry');
+ assert.equal(calls,0);
  const first=await session.start({reservationId:r.reservation_id,buyer});
  assert.equal(first.payloadUuid,'test-uuid');assert.equal(first.reused,false);
  const second=await session.start({reservationId:r.reservation_id,buyer});

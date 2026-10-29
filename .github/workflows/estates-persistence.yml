@@ -1,0 +1,19 @@
+name: Estates ownership persistence
+on:
+  pull_request:
+    paths:
+      - 'server/estate-sale-persistence.test.js'
+      - 'server/estate-sale-settlement.js'
+      - 'server/estate-sale-reservations.js'
+      - '.github/workflows/estates-persistence.yml'
+  workflow_dispatch:
+jobs:
+  persistence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-sale-persistence.test.js
+      - run: node server/estate-sale-lifecycle.test.js

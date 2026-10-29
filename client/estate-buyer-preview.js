@@ -25,7 +25,7 @@
    for(const property of catalog.properties){
     const tier=tiers.get(property.tier);if(!tier)continue;
     const card=document.createElement('article');
-    card.append(element('h2',property.label||property.name||property.id));
+    card.append(element('h2',property.address||property.label||property.name||property.id));
     card.append(element('p',tier.label+' · '+tier.price+' XRP'));
     card.append(element('p',tier.shareUnits+' allocation unit(s) — distributions disabled'));
     const button=element('button','Check availability');

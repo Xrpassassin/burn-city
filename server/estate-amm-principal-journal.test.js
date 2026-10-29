@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {DatabaseSync}=require('node:sqlite');
+const {createAmmPrincipalJournal}=require('./estate-amm-principal-journal');
+const db=new DatabaseSync(':memory:');
+const journal=createAmmPrincipalJournal(db);
+const base={eventId:'deposit-1',txHash:'A'.repeat(64),poolId:'IMG:PLX',eventKind:'liquidity_deposit',imgUnits:'1000',plxUnits:'2000',imgBasisUnits:'1000'};
+assert.equal(journal.stage(base).status,'pending_verification');
+assert.equal(journal.get(base.eventId).distributable,0);
+assert.throws(()=>journal.stage({...base,eventId:'deposit-2'}),/UNIQUE constraint failed/);
+assert.throws(()=>journal.stage({...base,eventId:'bad',txHash:'B'.repeat(64),imgBasisUnits:'-1'}),/invalid_amm_accounting_event/);
+assert.throws(()=>db.prepare('UPDATE estate_amm_accounting_events SET distributable=1').run(),/CHECK constraint failed/);
+assert.equal(db.prepare('SELECT COUNT(*) AS n FROM estate_amm_accounting_events').get().n,1);
+console.log('AMM principal journal tests passed');

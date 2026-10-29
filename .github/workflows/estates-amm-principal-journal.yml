@@ -1,0 +1,18 @@
+name: Estates AMM principal journal
+on:
+  pull_request:
+    paths:
+      - 'server/estate-amm-principal-journal.js'
+      - 'server/estate-amm-principal-journal.test.js'
+      - '.github/workflows/estates-amm-principal-journal.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/estate-amm-principal-journal.js
+      - run: node server/estate-amm-principal-journal.test.js

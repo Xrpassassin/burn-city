@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const {DatabaseSync}=require('node:sqlite');
 const {createEstateSaleReservations}=require('./estate-sale-reservations');
+const {createEstateXamanPayloadStore}=require('./estate-sale-xaman-payload-store');
 const db=new DatabaseSync(':memory:');
 db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY)');
 const store=createEstateSaleReservations(db);
@@ -13,6 +14,10 @@ assert.equal(store.reserve(base).reservation_id,a.reservation_id);
 assert.throws(()=>store.reserve({...base,reservationId:'reservation-00000002'}),/UNIQUE/);
 assert.throws(()=>store.reserve({...base,propertyId:'mansion-01'}),/reservation_id_conflict/);
 assert.equal(store.reserve({...base,reservationId:'reservation-00000003',now:2000000}).status,'reserved');
+const bound=store.reserve({reservationId:'reservation-pending-0001',propertyId:'starter-01',buyer,now:3000000});
+createEstateXamanPayloadStore(db).bind({reservationId:bound.reservation_id,uuid:'pending-payload-0001',buyer,now:3001000});
+assert.throws(()=>store.reserve({reservationId:'reservation-pending-0002',propertyId:'starter-01',buyer,now:4000000}),/property_pending_payment_review/);
+assert.equal(store.get(bound.reservation_id).status,'reserved'); // Failed transaction rolls back expiry atomically.
 db.prepare('INSERT INTO estate_property_ownership(property_id) VALUES(?)').run('apartment-01');
 assert.throws(()=>store.reserve({...base,reservationId:'reservation-00000004',propertyId:'apartment-01'}),/property_already_owned/);
 assert.throws(()=>store.reserve({...base,reservationId:'reservation-00000005',propertyId:'not-real'}),/property_not_for_sale/);

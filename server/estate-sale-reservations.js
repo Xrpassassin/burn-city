@@ -16,6 +16,16 @@ function createEstateSaleReservations(db){
  const find=db.prepare('SELECT * FROM estate_sale_reservations WHERE reservation_id=?');
  const expire=db.prepare("UPDATE estate_sale_reservations SET status='expired' WHERE status='reserved' AND expires_at<=?");
  const occupied=db.prepare('SELECT 1 FROM estate_property_ownership WHERE property_id=?');
+ // Fail closed when an expired reservation has an associated signing payload:
+ // it may have been paid before expiry and not yet finalized.
+ db.exec(`CREATE TABLE IF NOT EXISTS estate_xaman_payment_payloads(
+ reservation_id TEXT PRIMARY KEY, payload_uuid TEXT NOT NULL UNIQUE,
+ buyer TEXT NOT NULL, created_at INTEGER NOT NULL,
+ FOREIGN KEY(reservation_id) REFERENCES estate_sale_reservations(reservation_id)
+ )`);
+ const unresolvedPayment=db.prepare(`SELECT 1 FROM estate_sale_reservations r
+ JOIN estate_xaman_payment_payloads p ON p.reservation_id=r.reservation_id
+ WHERE r.property_id=? AND r.status='expired' LIMIT 1`);
  const add=db.prepare('INSERT INTO estate_sale_reservations(reservation_id,property_id,buyer,price_drops,created_at,expires_at) VALUES(?,?,?,?,?,?)');
  function reserve({reservationId,propertyId,buyer,now=Date.now(),ttlMs=600000}={}){
   if(typeof reservationId!=='string'||!/^[a-zA-Z0-9_-]{16,100}$/.test(reservationId))throw new TypeError('invalid_reservation_id');
@@ -34,6 +44,7 @@ function createEstateSaleReservations(db){
    }
    expire.run(now);
    if(occupied.get(propertyId))throw new Error('property_already_owned');
+   if(unresolvedPayment.get(propertyId))throw new Error('property_pending_payment_review');
    add.run(reservationId,propertyId,buyer,priceDrops,now,now+ttlMs);
    const result=find.get(reservationId);
    db.exec('COMMIT');return result;

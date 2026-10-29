@@ -13,7 +13,9 @@ let pass = 0, fail = 0; const ok = (c, m) => { c ? pass++ : fail++; console.log(
 const TABLES = ['estate_property_ownership', 'estate_profit_weeks', 'estate_profit_allocations'];
 const counts = () => TABLES.map(t => db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n).join(',');
 const rnd = (() => { let s = 0x5eed1234; return () => ((s = (s * 1103515245 + 12345) >>> 0) / 2 ** 32); })();   // deterministic fuzz
-const ACCTS = ['rPlayerA', 'rPlayerB', 'rPlayerC', 'rPlayerD', 'rPlayerE'];
+// Deterministic, checksum-valid public addresses; no signing keys or network calls.
+const account = i => require('xrpl').encodeAccountID(Buffer.alloc(20, i + 1));
+const ACCTS = Array.from({length:5}, (_,i)=>account(i));
 
 (async () => {
   console.log('allocateProfit fuzz');
@@ -77,7 +79,7 @@ const ACCTS = ['rPlayerA', 'rPlayerB', 'rPlayerC', 'rPlayerD', 'rPlayerE'];
   console.log('Auth: logged-out and forged tokens -> 401');
   for (const [p, m] of [['/api/estates', 'GET'], ['/api/estates/buy', 'POST'], ['/api/estates/wallet/status', 'GET'], ['/api/estates/wallet/verify/start', 'POST'], ['/api/estates/wallet/verify/finish', 'POST'], ['/api/estates/anything', 'GET']])
     ok((await req(p, { method: m, ip: '10.1.0.1' })).status === 401, `logged-out ${m} ${p} -> 401`);
-  const forged = tok('rPlayerA').replace(/.$/, c => c === 'A' ? 'B' : 'A'), expired = Pay.sign({ acct: 'rPlayerA', exp: Date.now() - 1000 }), foreignSig = Buffer.from(JSON.stringify({ acct: 'rPlayerA', exp: Date.now() + 1e6 })).toString('base64url') + '.AAAA';
+  const forged = tok(ACCTS[0]).replace(/.$/, c => c === 'A' ? 'B' : 'A'), expired = Pay.sign({ acct: 'rPlayerA', exp: Date.now() - 1000 }), foreignSig = Buffer.from(JSON.stringify({ acct: 'rPlayerA', exp: Date.now() + 1e6 })).toString('base64url') + '.AAAA';
   for (const [t, m] of [[forged, 'tampered signature'], [expired, 'expired token'], [foreignSig, 'unsigned token']]) ok((await req('/api/estates', { ip: '10.1.0.2', token: t })).status === 401, m + ' -> 401');
 
   console.log('4+ players, parallel and forged buys -> 409, nothing written');
@@ -98,7 +100,7 @@ const ACCTS = ['rPlayerA', 'rPlayerB', 'rPlayerC', 'rPlayerD', 'rPlayerE'];
   for (const p of players) { const j = await (await req('/api/estates', { ip: '10.3.0.' + p.ip.split('.').pop(), token: p.token })).json(); if (j.error) { ok(true, p.acct + ': rate-limited after storm (expected)'); continue; } ok(j.owned.length === 0 && j.totalShareUnits === 0, `${p.acct}: still owns nothing, total share units 0`); }
 
   console.log('Buy never reads the body');
-  const fresh = { acct: 'rPlayerF', token: tok('rPlayerF'), ip: '10.4.0.1' };
+  const fresh = { acct: 'rPlayerF', token: tok(account(5)), ip: '10.4.0.1' };
   const hung = await new Promise(resolve => {
     const r = http.request({ host: '127.0.0.1', port, path: '/api/estates/buy', method: 'POST', headers: { 'fly-client-ip': fresh.ip, authorization: 'Bearer ' + fresh.token, 'content-type': 'application/json', 'content-length': '999999' } }, res2 => { let d = ''; res2.on('data', c => d += c); res2.on('end', () => resolve({ s: res2.statusCode, d })); });
     r.on('error', () => resolve({ s: 0 })); r.write('{"propertyId":"mansion-01","amountDrops":'); setTimeout(() => resolve({ s: -1 }), 3000);   // body never finishes
@@ -106,7 +108,7 @@ const ACCTS = ['rPlayerA', 'rPlayerB', 'rPlayerC', 'rPlayerD', 'rPlayerE'];
   ok(hung.s === 409, 'buy answers 409 while the request body is still unfinished (body is never awaited) -> ' + hung.s);
 
   console.log('Owner-wallet routes: admin token only (403)');
-  const adm = { ip: '10.5.0.1', token: tok('rPlayerA') };
+  const adm = { ip: '10.5.0.1', token: tok(ACCTS[0]) };
   for (const [p, m] of [['/api/estates/wallet/status', 'GET'], ['/api/estates/wallet/verify/start', 'POST'], ['/api/estates/wallet/verify/finish', 'POST']]) {
     ok((await req(p, { method: m, ip: adm.ip, token: adm.token })).status === 403, `signed-in player, no admin token: ${m} ${p} -> 403`);
     ok((await req(p, { method: m, ip: '10.5.0.2', token: adm.token, admin: 'wrong-token-xx' })).status === 403, `wrong admin token: ${m} ${p} -> 403`);
@@ -150,10 +152,10 @@ const ACCTS = ['rPlayerA', 'rPlayerB', 'rPlayerC', 'rPlayerD', 'rPlayerE'];
     db.prepare("DELETE FROM estate_property_ownership WHERE property_id='trailer-01'").run(); }
 
   console.log('Rate limits');
-  const rl = { token: tok('rPlayerRL') }; const codes = [];
+  const rl = { token: tok(account(6)) }; const codes = [];
   for (let i = 0; i < 64; i++) codes.push((await req('/api/estates', { ip: '10.6.0.' + (i % 60 + 1), token: rl.token })).status);
   ok(codes.slice(0, 60).every(c => c === 200) && codes.slice(60).every(c => c === 429), 'per-account: 60/min then 429 even across IPs');
-  const ipc = []; for (let i = 0; i < 34; i++) ipc.push((await req('/api/estates', { ip: '10.7.0.1', token: tok('rIp' + i) })).status);
+  const ipc = []; for (let i = 0; i < 34; i++) ipc.push((await req('/api/estates', { ip: '10.7.0.1', token: tok(account(i+10)) })).status);
   ok(ipc.slice(0, 30).every(c => c === 200) && ipc.slice(30).every(c => c === 429), 'per-IP: shared API limit 30/min then 429 even across accounts');
 
   ok(counts() === '0,0,0', 'end state: no Estates rows written by any request');

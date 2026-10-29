@@ -1,0 +1,21 @@
+name: Estates owner currency planning
+on:
+  pull_request:
+    paths:
+      - 'server/estate-owner-currency-plan.js'
+      - 'server/estate-owner-currency-plan.test.js'
+      - 'server/estate-payout-ledger.js'
+      - 'server/estate-reward-epoch.js'
+      - 'client/data/estate-catalog.json'
+      - '.github/workflows/estates-owner-currency.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-owner-currency-plan.test.js
+      - run: node --check server/estate-owner-currency-plan.js

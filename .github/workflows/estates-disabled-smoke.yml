@@ -1,0 +1,21 @@
+name: Estates no-payment dry-run smoke
+on:
+  pull_request:
+    paths:
+      - 'server/estate-sale-disabled-smoke.test.js'
+      - 'server/estate-sale-quote.js'
+      - 'server/estate-sale-reservation-api.js'
+      - 'server/estate-sale-xaman-session.js'
+      - 'server/estate-sale-finalization.js'
+      - '.github/workflows/estates-disabled-smoke.yml'
+  workflow_dispatch:
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-sale-disabled-smoke.test.js
+      - run: node server/estate-sale-production-gates.test.js

@@ -338,7 +338,8 @@ export async function installEstatesIslandLive({
   }
   function leaveIsland() {
     if(disposed||!active)return;
-    active=false; root.visible=false; if(selectedLotBeacon)selectedLotBeacon.group.visible=false; hidePanel(); controllerRef.dispose();
+    active=false; root.visible=false; hidePanel(); controllerRef.dispose();
+    if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
     exitButton.style.display='none';
     releaseLease();
     restoreCityScene();

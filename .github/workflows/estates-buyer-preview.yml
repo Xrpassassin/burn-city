@@ -1,0 +1,18 @@
+name: Estates buyer preview
+on:
+  pull_request:
+    paths:
+      - 'client/estate-properties.html'
+      - 'client/estate-buyer-preview.js'
+      - '.github/workflows/estates-buyer-preview.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check client/estate-buyer-preview.js
+      - run: node server/estate-sale-quote.test.js

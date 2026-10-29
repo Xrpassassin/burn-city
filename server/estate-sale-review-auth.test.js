@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {authorizeEstateReview,parseEstateReviewAdminAccounts}=require('./estate-sale-review-auth');
+const owner='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',other='rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd';
+const empty=parseEstateReviewAdminAccounts('');
+assert.equal(authorizeEstateReview({account:owner,adminTokenValid:true,allowedAccounts:empty}),false);
+const allow=parseEstateReviewAdminAccounts(' '+owner+' , '+owner+' ');
+assert.equal(allow.size,1);
+assert.equal(authorizeEstateReview({account:owner,adminTokenValid:true,allowedAccounts:allow}),true);
+assert.equal(authorizeEstateReview({account:owner,adminTokenValid:false,allowedAccounts:allow}),false);
+assert.equal(authorizeEstateReview({account:other,adminTokenValid:true,allowedAccounts:allow}),false);
+assert.equal(authorizeEstateReview({account:'',adminTokenValid:true,allowedAccounts:allow}),false);
+assert.equal(authorizeEstateReview({account:owner,adminTokenValid:true}),false);
+assert.throws(()=>parseEstateReviewAdminAccounts('not-a-wallet'),/invalid_admin_accounts/);
+assert.throws(()=>parseEstateReviewAdminAccounts(123),/invalid_admin_accounts/);
+console.log('Estates review authorization tests passed');

@@ -1,0 +1,19 @@
+name: Estates IMG bounded replay
+on:
+  pull_request:
+    paths:
+      - 'server/estate-img-bounded-replay.js'
+      - 'server/estate-img-bounded-replay.test.js'
+      - '.github/workflows/estates-img-replay.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-img-bounded-replay.test.js
+      - run: node server/estate-img-validated-ledger-scanner.test.js
+      - run: node server/estate-sale-production-gates.test.js

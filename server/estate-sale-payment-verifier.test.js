@@ -12,6 +12,10 @@ async function check(t,expected){
 }
 async function main(){
  await check(tx);
+ await check({...tx,tx_json:{...tx.tx_json,hash:undefined}},'payment_hash_mismatch');
+ await check({...tx,tx_json:{...tx.tx_json,hash:'B'.repeat(64)}},'payment_hash_mismatch');
+ await check({...tx,hash:'B'.repeat(64),tx_json:{...tx.tx_json,hash:undefined}},'payment_hash_mismatch');
+ await check({...tx,hash:txHash,tx_json:{...tx.tx_json,hash:undefined}});
  const review=await verify({request:async()=>({result:tx})},{...reservation,status:'expired'},{txHash,treasury,now:expiresAt+1000,reviewExpired:true});
  assert.equal(review.reviewOnly,true);assert.equal(review.settlementVerified,false);
  await assert.rejects(verify({request:async()=>({result:tx})},{...reservation,status:'expired'},{txHash,treasury,now:expiresAt+1000}),/invalid_or_inactive_reservation/);

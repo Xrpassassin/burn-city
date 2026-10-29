@@ -12,7 +12,8 @@ async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=D
  const body=tx?.tx_json||tx?.transaction||tx;
  const meta=tx?.meta||tx?.metaData;
  if(tx?.validated!==true||body?.TransactionType!=='Payment'||meta?.TransactionResult!=='tesSUCCESS')throw new Error('payment_not_validated_success');
- if(typeof body.hash==='string'&&body.hash.toUpperCase()!==txHash.toUpperCase())throw new Error('payment_hash_mismatch');
+ const returnedHash=body?.hash??tx?.hash;
+ if(typeof returnedHash!=='string'||!/^[a-fA-F0-9]{64}$/.test(returnedHash)||returnedHash.toUpperCase()!==txHash.toUpperCase())throw new Error('payment_hash_mismatch');
  if(body.Account!==reservation.buyer||body.Destination!==treasury)throw new Error('payment_sender_or_destination_mismatch');
  if(typeof body.Amount!=='string'||!/^[0-9]+$/.test(body.Amount)||BigInt(body.Amount)!==BigInt(reservation.price_drops))throw new Error('payment_amount_mismatch');
  const delivered=meta?.delivered_amount;

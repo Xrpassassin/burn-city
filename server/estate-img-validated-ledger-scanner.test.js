@@ -2,8 +2,10 @@
 const assert=require('node:assert/strict');
 const {DatabaseSync}=require('node:sqlite');
 const {createImgValidatedLedgerScanner}=require('./estate-img-validated-ledger-scanner');
+const {createImgHistoricalBootstrap}=require('./estate-img-historical-bootstrap');
 const treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',source='rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',hash='A'.repeat(64);
 const ledgerIndex=101,close_time=900000000;
+function configure(db){createImgHistoricalBootstrap(db).configure({startLedgerIndex:ledgerIndex,startLedgerHash:'B'.repeat(64),treasury,imgIssuer:source,allowedSources:[source],confirmedOnChain:true});}
 function makeClient({valid=true,delivered='1.000001'}={}){
  return {request:async request=>{
   if(request.command==='ledger')return {result:{validated:valid,ledger:{ledger_index:ledgerIndex,ledger_hash:'B'.repeat(64),parent_hash:'C'.repeat(64),transaction_hash:'D'.repeat(64),close_time,transactions:[{hash,TransactionType:'Payment',Account:source,Destination:treasury}]}}};
@@ -13,12 +15,14 @@ function makeClient({valid=true,delivered='1.000001'}={}){
 }
 (async()=>{
  const db=new DatabaseSync(':memory:');
+ configure(db);
  const scanner=createImgValidatedLedgerScanner({db,client:makeClient(),treasury,imgIssuer:source,allowedSources:[source]});
  const result=await scanner.scan(ledgerIndex,{verifiedAtMs:1900000000000});
  assert.equal(result.newReceipts,1);assert.equal(result.ledgerHash,'B'.repeat(64));assert.equal(scanner.current().ledger_index,ledgerIndex);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_img_reward_receipts').get().n,1);
  await assert.rejects(()=>scanner.scan(ledgerIndex),/noncontiguous_ledger/);
  const invalidDb=new DatabaseSync(':memory:');
+ configure(invalidDb);
  const invalid=createImgValidatedLedgerScanner({db:invalidDb,client:makeClient({valid:false}),treasury,imgIssuer:source,allowedSources:[source]});
  await assert.rejects(()=>invalid.scan(ledgerIndex),/unvalidated_or_incomplete_ledger/);
  assert.equal(invalid.current(),null);
@@ -26,10 +30,12 @@ function makeClient({valid=true,delivered='1.000001'}={}){
  const duplicateClient=makeClient();
  const originalRequest=duplicateClient.request;
  duplicateClient.request=async request=>{const response=await originalRequest(request);if(request.command==='ledger')response.result.ledger.transactions.push({...response.result.ledger.transactions[0]});return response;};
+ configure(duplicateDb);
  const duplicate=createImgValidatedLedgerScanner({db:duplicateDb,client:duplicateClient,treasury,imgIssuer:source,allowedSources:[source]});
  await assert.rejects(()=>duplicate.scan(ledgerIndex),/duplicate_ledger_transaction/);
  assert.equal(duplicate.current(),null);
  const badDb=new DatabaseSync(':memory:');
+ configure(badDb);
  const bad=createImgValidatedLedgerScanner({db:badDb,client:makeClient({delivered:'0'}),treasury,imgIssuer:source,allowedSources:[source]});
  await assert.rejects(()=>bad.scan(ledgerIndex),/zero_img_delivery/);
  assert.equal(bad.current(),null);

@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {inspectValidatedAmmTx,verifyAmmTx}=require('./estate-amm-tx-inspector');
+const treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',imgIssuer='rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',plxIssuer='rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q',hash='A'.repeat(64);
+const config={treasury,imgIssuer,plxIssuer};
+const tx={validated:true,ledger_index:42,hash,tx_json:{TransactionType:'AMMDeposit',Account:treasury,Asset:{currency:'IMG',issuer:imgIssuer},Asset2:{currency:'PLX',issuer:plxIssuer}},meta:{TransactionResult:'tesSUCCESS'}};
+assert.equal(inspectValidatedAmmTx(tx,config).eventKind,'liquidity_deposit');
+assert.equal(inspectValidatedAmmTx(tx,config).distributable,false);
+assert.equal(inspectValidatedAmmTx({...tx,tx_json:{...tx.tx_json,Asset:tx.tx_json.Asset2,Asset2:tx.tx_json.Asset}},config).eventKind,'liquidity_deposit');
+assert.equal(inspectValidatedAmmTx({...tx,tx_json:{...tx.tx_json,TransactionType:'AMMWithdraw'}},config).eventKind,'liquidity_withdrawal');
+assert.throws(()=>inspectValidatedAmmTx({...tx,validated:false},config),/unvalidated/);
+assert.throws(()=>inspectValidatedAmmTx({...tx,tx_json:{...tx.tx_json,Account:imgIssuer}},config),/not_treasury/);
+assert.throws(()=>inspectValidatedAmmTx({...tx,tx_json:{...tx.tx_json,Asset2:{currency:'XRP'}}},config),/wrong_amm_asset_pair/);
+assert.throws(()=>inspectValidatedAmmTx({...tx,meta:{TransactionResult:'tecFAILED'}},config),/not_successful/);
+verifyAmmTx({request:async()=>({result:tx})},hash,config).then(x=>assert.equal(x.hash,hash)).then(()=>console.log('AMM validated transaction inspector tests passed')).catch(e=>{console.error(e);process.exitCode=1});

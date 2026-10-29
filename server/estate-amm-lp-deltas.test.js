@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {extractTreasuryLpDelta:extract}=require('./estate-amm-lp-deltas');
+const treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',ammAccount='rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',lpCurrency='03ABCDEF0123456789ABCDEF0123456789ABCDEF';
+const config={treasury,ammAccount,lpCurrency};
+const node=(before,after,reverse=false)=>({ModifiedNode:{LedgerEntryType:'RippleState',FinalFields:{LowLimit:{issuer:reverse?ammAccount:treasury},HighLimit:{issuer:reverse?treasury:ammAccount},Balance:{currency:lpCurrency,value:after}},PreviousFields:{Balance:{currency:lpCurrency,value:before}}}});
+const tx={validated:true,meta:{TransactionResult:'tesSUCCESS',AffectedNodes:[node('10','12.5')]}};
+assert.equal(extract(tx,config).lpTokenDelta,'2.5');
+assert.equal(extract({...tx,meta:{...tx.meta,AffectedNodes:[node('10','12.5',true)]}},config).lpTokenDelta,'-2.5');
+assert.equal(extract(tx,config).distributable,false);
+assert.throws(()=>extract({...tx,validated:false},config),/validated_metadata_required/);
+assert.throws(()=>extract({...tx,meta:{...tx.meta,AffectedNodes:[{ModifiedNode:{LedgerEntryType:'RippleState',FinalFields:{LowLimit:{issuer:treasury},HighLimit:{issuer:ammAccount},Balance:{currency:lpCurrency,value:'12'}}}}]}},config),/incomplete_lp_delta/);
+console.log('AMM LP token delta tests passed');

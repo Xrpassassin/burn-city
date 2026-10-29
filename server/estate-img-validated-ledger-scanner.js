@@ -11,16 +11,22 @@ function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSo
  const verify=createImgRewardVerifier(client,config);
  const receipts=createImgHourlyRewardLedger(db,config);
  const checkpoints=createImgScanCheckpointStore(db);
+ const bootstrap=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='estate_img_scan_bootstrap'").get() ? db.prepare('SELECT * FROM estate_img_scan_bootstrap WHERE id=1') : null;
  const sources=new Set(allowedSources);
  async function scan(ledgerIndex,{verifiedAtMs=Date.now()}={}){
   if(!Number.isSafeInteger(ledgerIndex)||ledgerIndex<1)throw new TypeError('invalid_ledger_index');
   const previous=checkpoints.current();
+  const cfg=bootstrap?.get();
+  if(!cfg)throw new Error('historical_bootstrap_required');
+  if(cfg.treasury!==treasury||cfg.img_issuer!==imgIssuer||JSON.stringify(JSON.parse(cfg.source_addresses_json).sort())!==JSON.stringify([...sources].sort()))throw new Error('scanner_configuration_mismatch');
+  if(!previous&&ledgerIndex!==cfg.start_ledger_index)throw new Error('unexpected_start_ledger');
   if(previous&&ledgerIndex!==previous.ledger_index+1)throw new Error('noncontiguous_ledger');
   const response=await client.request({command:'ledger',ledger_index:ledgerIndex,transactions:true,expand:true});
   const ledger=response?.result?.ledger;
   if(response?.result?.validated!==true||!ledger||Number(ledger.ledger_index)!==ledgerIndex||!Array.isArray(ledger.transactions)||!Number.isSafeInteger(ledger.close_time))throw new Error('unvalidated_or_incomplete_ledger');
   const ledgerHash=ledger.ledger_hash||response.result.ledger_hash;
   if(!HASH.test(ledgerHash||'')||!HASH.test(ledger.parent_hash||'')||!HASH.test(ledger.transaction_hash||''))throw new Error('missing_ledger_integrity_hashes');
+  if(!previous&&ledgerHash.toUpperCase()!==cfg.start_ledger_hash.toUpperCase())throw new Error('start_ledger_hash_mismatch');
   const hashes=[];
   const seenHashes=new Set();
   for(const entry of ledger.transactions){

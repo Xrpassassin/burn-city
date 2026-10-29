@@ -12,6 +12,10 @@ const { createEstateSaleSessionRecovery } = require('./estate-sale-session-recov
 const { createEstateReservationApi } = require('./estate-sale-reservation-api');
 const { createEstateXamanPaymentSession } = require('./estate-sale-xaman-session');
 const { createEstateSaleFinalization } = require('./estate-sale-finalization');
+const { createEstateLatePaymentReviewQueue } = require('./estate-sale-late-review-queue');
+const { createEstateReviewAudit } = require('./estate-sale-review-audit');
+const estateReviewQueue = createEstateLatePaymentReviewQueue(Pay.sdb);
+const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: (process.env.ESTATE_REVIEW_ADMIN_ACCOUNTS || '').split(',').map(x => x.trim()).filter(Boolean) });
 // Deliberately fail closed: no payment requests or settlements until reviewed activation.
 const estatePaymentSession = createEstateXamanPaymentSession(Pay.sdb, { enabled: false });
 const estateFinalization = createEstateSaleFinalization(Pay.sdb, { enabled: false });
@@ -209,6 +213,24 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/access/revoke' && req.method === 'POST') {
         const b = await body(), result = EstateAccess.revoke(u.acct, String(b.propertyId || ''), String(b.guestAcct || ''));
         return json(res, result.ok ? 200 : (result.error === 'unknown_property' ? 404 : 403), result);
+      }
+      if (url.pathname.startsWith('/api/estates/admin/reviews')) {
+        // Two independent checks: signed-in wallet must be allowlisted AND
+        // the request must supply the existing constant-time checked admin token.
+        if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });
+        if (gate('estate-review-admin:' + u.acct, 12, 60e3) || gate('estate-review-admin-ip:' + ip, 24, 60e3)) return json(res, 429, { error: 'slow_down' });
+        const allowed = estateReviewAudit.history({ actor: u.acct, reservationId: '__authorization_probe__' });
+        if (allowed.error === 'admin_not_authorized') return json(res, 403, { error: 'forbidden' });
+        if (req.method !== 'GET') return json(res, 405, { error: 'read_only_review_api' });
+        if (url.pathname === '/api/estates/admin/reviews') return json(res, 200, { reviews: estateReviewQueue.list({ limit: 25 }), readOnly: true });
+        if (url.pathname === '/api/estates/admin/reviews/detail') {
+          const reservationId = String(url.searchParams.get('reservationId') || '');
+          const review = estateReviewQueue.detail(reservationId);
+          if (!review) return json(res, 404, { error: 'review_not_found' });
+          const audit = estateReviewAudit.history({ actor: u.acct, reservationId });
+          return json(res, 200, { review, audit: audit.events, readOnly: true });
+        }
+        return json(res, 404, { error: 'not_found' });
       }
       if (url.pathname === '/api/estates/purchase/payment/start' && req.method === 'POST') {
         if (gate('estate-payment-start:' + u.acct, 6, 60e3) || gate('estate-payment-start-ip:' + ip, 12, 60e3)) return json(res, 429, { error: 'slow_down' });

@@ -96,6 +96,26 @@ export async function installEstatesIslandLive({
   root.position.x = OFFSET_X;
   root.visible = false; // Do not expose the full island inside the city proxy.
   addBridgeArchitecture(THREE, root);
+  // Low-cost property locator: one emissive marker and a pulsing ring, attached
+  // to the authoritative lot position in island-local coordinates.
+  let selectedLotBeacon=null;
+  if(requestedLot){
+    const beacon=new THREE.Group();
+    beacon.name='estates-selected-property-beacon';
+    beacon.position.set(requestedLot.position.x,0.4,requestedLot.position.z);
+    const material=new THREE.MeshBasicMaterial({color:0xffc266,transparent:true,opacity:.9,depthWrite:false});
+    const ringMaterial=new THREE.MeshBasicMaterial({color:0xffdf9a,transparent:true,opacity:.6,depthWrite:false,side:THREE.DoubleSide});
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(.14,.14,9,8),material);
+    stem.position.y=4.5;beacon.add(stem);
+    const cap=new THREE.Mesh(new THREE.OctahedronGeometry(1.15,0),material);
+    cap.position.y=9.7;beacon.add(cap);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(2.1,2.45,32),ringMaterial);
+    ring.rotation.x=-Math.PI/2;ring.position.y=.15;beacon.add(ring);
+    beacon.visible=false;
+    root.add(beacon);
+    selectedLotBeacon={group:beacon,ring,materials:[material,ringMaterial],geometries:[stem.geometry,cap.geometry,ring.geometry]};
+  }
+
   // A distant, inexpensive city silhouette gives the separate island a horizon.
   const skyline=new THREE.Group();skyline.name='estates-city-horizon';root.add(skyline);
   const towerMaterial=new THREE.MeshStandardMaterial({color:0x334a58,roughness:.8});
@@ -313,11 +333,13 @@ export async function installEstatesIslandLive({
     if(window.__skate?.active)window.__skate.state.pos.copy(player.pos);
     avatar.position.copy(player.pos);
     connectPresence(leaseToken,admission.instanceId);
+    if(selectedLotBeacon)selectedLotBeacon.group.visible=true;
     onStatus({state:'entered-public-island',instanceId:admission.instanceId,catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
   }
   function leaveIsland() {
     if(disposed||!active)return;
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();
+    if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
     exitButton.style.display='none';
     releaseLease();
     restoreCityScene();
@@ -349,6 +371,10 @@ export async function installEstatesIslandLive({
       return false;
     }
     hideCityScene();animatePeers(dt);
+    if(selectedLotBeacon){
+      const pulse=1+0.12*Math.sin(Date.now()*0.003);
+      selectedLotBeacon.ring.scale.setScalar(pulse);
+    }
     // Rebuild controller after its previous instance was disposed on exit.
     if(!controllerRef.isActive) {
       controllerRef=createEstatesIslandController({
@@ -403,7 +429,9 @@ export async function installEstatesIslandLive({
     dispose(){
       if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
-      root.userData.propertyDeepLinkHint?.remove(); onStatus({state:'disposed'}); return true;
+      root.userData.propertyDeepLinkHint?.remove();
+      if(selectedLotBeacon){selectedLotBeacon.group.removeFromParent();for(const g of selectedLotBeacon.geometries)g.dispose();for(const m of selectedLotBeacon.materials)m.dispose();}
+      onStatus({state:'disposed'}); return true;
     },
     get active(){return active;},
     get manifest(){return manifest;}

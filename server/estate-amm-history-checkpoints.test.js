@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {createAmmHistoryCheckpointStore}=require('./estate-amm-history-checkpoints');
+const {DatabaseSync}=require('node:sqlite');
+const db=new DatabaseSync(':memory:');
+const store=createAmmHistoryCheckpointStore(db);
+const scan={scanId:'test',treasury:'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',ledgerMin:100,ledgerMax:200};
+assert.equal(store.begin(scan).page_count,0);
+assert.equal(store.begin(scan).page_count,0);
+assert.throws(()=>store.begin({...scan,ledgerMax:201}),/scan_identity_conflict/);
+const tx={hash:'A'.repeat(64),ledgerIndex:101,validated:true,transactionType:'AMMDeposit'};
+assert.equal(store.recordPage({scanId:'test',expectedPageCount:0,transactions:[tx],nextMarker:{ledger:101}}).page_count,1);
+assert.throws(()=>store.recordPage({scanId:'test',expectedPageCount:0,transactions:[],nextMarker:null}),/stale_scan_checkpoint/);
+assert.throws(()=>store.recordPage({scanId:'test',expectedPageCount:1,transactions:[tx],nextMarker:null}),/UNIQUE/);
+assert.equal(store.get('test').page_count,1);
+assert.equal(store.recordPage({scanId:'test',expectedPageCount:1,transactions:[],nextMarker:null}).exhausted,1);
+assert.throws(()=>store.recordPage({scanId:'test',expectedPageCount:2,transactions:[],nextMarker:null}),/scan_already_exhausted/);
+console.log('AMM history checkpoint tests passed');

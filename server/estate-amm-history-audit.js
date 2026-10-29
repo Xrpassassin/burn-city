@@ -17,6 +17,6 @@ function auditAmmHistory(records,{fromLedger,toLedger,historyComplete=false}={})
  }
  for(let i=1;i<ordered.length;i++)if(ordered[i].ledgerIndex<ordered[i-1].ledgerIndex)issues.push('out_of_order_ledger');
  const distinct=[...new Set(issues)];
- return Object.freeze({fromLedger,toLedger,recordCount:ordered.length,hashes:ordered.map(x=>x.hash),issues:distinct,historyComplete:historyComplete===true&&distinct.length===0,accountingReady:false,principalBasisVerified:false,distributable:false});
+ return Object.freeze({fromLedger,toLedger,recordCount:ordered.length,hashes:ordered.map(x=>x.hash),issues:distinct,historyCompletenessClaimed:historyComplete===true,historyComplete:false,accountingReady:false,principalBasisVerified:false,distributable:false});
 }
 module.exports={auditAmmHistory};

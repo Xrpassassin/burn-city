@@ -1,4 +1,5 @@
 // Live BURN City host integration for the public Estates Island traversal.
+import { mountEstatePurchase } from './estate-purchase-ui.mjs';
 import { buildEstatesIslandScene } from './estates-island-scene.mjs';
 import { createEstatesIslandRenderer } from './estates-island-renderer.mjs';
 import { createEstatesIslandController } from './estates-island-controller.mjs';
@@ -27,7 +28,7 @@ function makePanel() {
   if (panel) return panel;
   const style = document.createElement('style');
   style.textContent = `
-    #bcEstatesLivePrompt{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:1200;width:min(92vw,430px);padding:15px;border:1px solid #ffbd68aa;border-radius:14px;background:linear-gradient(145deg,#111a26f5,#080d15f5);box-shadow:0 12px 40px #0009;color:#f5e8d6;font:14px/1.45 system-ui,sans-serif;display:none}
+    #bcEstatesLivePrompt{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:1200;width:min(92vw,430px);max-height:calc(100dvh - 210px);overflow:auto;box-sizing:border-box;padding:15px;border:1px solid #ffbd68aa;border-radius:14px;background:linear-gradient(145deg,#111a26f5,#080d15f5);box-shadow:0 12px 40px #0009;color:#f5e8d6;font:14px/1.45 system-ui,sans-serif;display:none}
     #bcEstatesLivePrompt h3{margin:0 0 7px;font-size:16px;color:#ffd49a;letter-spacing:.04em}
     #bcEstatesLivePrompt p{margin:0 0 12px;color:#d3dbe6}
     #bcEstatesLivePrompt .actions{display:flex;gap:8px;flex-wrap:wrap}
@@ -154,7 +155,8 @@ export async function installEstatesIslandLive({
     showPanel('LOT INSPECTION · '+property.lotId,
       'Address: '+property.address+' · Tier: '+property.tier+' · Catalog mapping: '+(catalogued?'mapped':'unmapped'),
       [{label:'Close',primary:true,run:hidePanel}],
-      'Read-only inspection. A catalog mapping is not proof of ownership; private access and building require server-verified permissions.');
+      'A catalog mapping is not proof of ownership; private access and building require server-verified permissions.');
+    if(catalogued)mountEstatePurchase(panel,property.propertyId,{api:apiBase});
   };
   const showLotPrompt = property => {
     const catalogued=Boolean(property.propertyId);

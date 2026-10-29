@@ -24,9 +24,11 @@ async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=D
  if(!Array.isArray(body.Memos)||body.Memos.length!==1||body.Memos[0]?.Memo?.MemoType?.toUpperCase()!==expectedType||body.Memos[0]?.Memo?.MemoData?.toUpperCase()!==expectedMemo)throw new Error('payment_reservation_memo_mismatch');
  if(body.Flags!==undefined&&(!Number.isSafeInteger(body.Flags)||body.Flags<0||(body.Flags & 0x00020000)!==0))throw new Error('partial_payment_not_allowed');
  if(body.DestinationTag!==undefined||body.InvoiceID!==undefined)throw new Error('unexpected_payment_routing');
- if(typeof body.date!=='number'||!Number.isSafeInteger(body.date))throw new Error('payment_timestamp_unavailable');
+ const closeDate=body.date??tx.date;
+ if(typeof closeDate!=='number'||!Number.isSafeInteger(closeDate))throw new Error('payment_timestamp_unavailable');
+ if(body.date!==undefined&&tx.date!==undefined&&body.date!==tx.date)throw new Error('payment_timestamp_conflict');
  // XRPL date is seconds since 2000-01-01; reserve against pre-existing transactions.
- const paymentAt=(body.date+946684800)*1000;
+ const paymentAt=(closeDate+946684800)*1000;
  if(paymentAt<reservation.created_at-1000||paymentAt>reservation.expires_at+1000)throw new Error('payment_outside_reservation_window');
  if(!Number.isSafeInteger(tx.ledger_index)||tx.ledger_index<1)throw new Error('payment_ledger_unavailable');
  return Object.freeze({reservationId:reservation.reservation_id,propertyId:reservation.property_id,buyer:reservation.buyer,txHash:txHash.toUpperCase(),amountDrops:reservation.price_drops,ledgerIndex:tx.ledger_index,validated:true,settlementVerified:reviewExpired!==true,reviewOnly:reviewExpired===true,ownershipAssigned:false,distributable:false});

@@ -1,0 +1,24 @@
+name: Estates production XRP sale safety gate
+on:
+  pull_request:
+    paths:
+      - 'server/server.js'
+      - 'server/estate-sale-production-gates.test.js'
+      - '.github/workflows/estates-production-gates.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/server.js'
+      - 'server/estate-sale-production-gates.test.js'
+      - '.github/workflows/estates-production-gates.yml'
+  workflow_dispatch:
+jobs:
+  require-disabled:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-sale-production-gates.test.js
+      - run: node server/estate-sale-lifecycle.test.js

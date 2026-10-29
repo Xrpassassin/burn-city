@@ -1,0 +1,22 @@
+name: Estates IMG receipt ingestion
+on:
+  pull_request:
+    paths:
+      - 'server/estate-img-receipt-ingestion.js'
+      - 'server/estate-img-receipt-ingestion.test.js'
+      - 'server/estate-img-receipt.js'
+      - 'server/estate-img-receipt-journal.js'
+      - '.github/workflows/estates-img-receipt-ingestion.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/estate-img-receipt-ingestion.js
+      - run: node server/estate-img-receipt.test.js
+      - run: node server/estate-img-receipt-journal.test.js
+      - run: node server/estate-img-receipt-ingestion.test.js

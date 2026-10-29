@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BURN City — Estates Properties</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#0e1520;color:#edf3fa}body{max-width:1100px;margin:auto;padding:24px}
+a{color:#8ccaff}header{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
+h1{font-size:1.8rem}p{color:#b9c6d6}.notice{border:1px solid #53667b;border-radius:12px;padding:14px;margin:18px 0;background:#1a2939}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}input,button{font:inherit;padding:10px;border:1px solid #53667b;border-radius:8px;background:#1b2938;color:#fff}
+input{min-width:280px}button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}
+#properties{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+article{border:1px solid #344558;border-radius:12px;background:#192536;padding:16px}article h2{margin-top:0}
+small{color:#b9c6d6}#quote{white-space:pre-wrap;overflow-wrap:anywhere}
+</style></head><body>
+<header><h1>Estates Island · Properties</h1><a href="/">Return to BURN City</a></header>
+<div class="notice"><strong>Preview only — property sales are not enabled.</strong><p>Prices and allocation units are informational. No XRP payments or property reservations can be initiated here. Future distributions are not active or guaranteed.</p></div>
+<section><h2>Explore properties</h2><div id="properties" aria-live="polite">Loading property catalog…</div></section>
+<section class="notice"><h2>Authenticated property quote</h2><p>Optionally enter your existing Xaman bearer token to check a property's server-side quote and availability. The token is not stored.</p>
+<div class="controls"><input id="bearer" type="password" autocomplete="off" placeholder="Xaman bearer token" aria-label="Xaman bearer token"><button id="clear">Clear token</button></div><p id="status" role="status"></p><pre id="quote">Select “Check availability” on a property.</pre></section>
+<script src="/estate-buyer-preview.js" defer></script></body></html>

@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {allocateLpCostBasis:allocate}=require('./estate-amm-lp-cost-basis');
+const base={ledgerIndex:100,distributable:false,historicalAmmIdentityVerified:true,balanceDeltasVerified:true,lpTokenDeltaVerified:true,basisSourceVerified:true};
+const deposit={...base,hash:'A'.repeat(64),eventKind:'liquidity_deposit',lpUnits:'3',imgBasisUnits:'10',plxBasisUnits:'20'};
+const partial={...base,hash:'B'.repeat(64),ledgerIndex:101,eventKind:'liquidity_withdrawal',lpUnits:'1',imgBasisUnits:'3',plxBasisUnits:'6'};
+const final={...base,hash:'C'.repeat(64),ledgerIndex:102,eventKind:'liquidity_withdrawal',lpUnits:'2',imgBasisUnits:'7',plxBasisUnits:'14'};
+const result=allocate([deposit,partial,final]);
+assert.equal(result.remainingLpUnits,'0');assert.equal(result.remainingImgBasisUnits,'0');assert.equal(result.distributable,false);
+assert.equal(result.allocations[1].returnedImgPrincipalBasisUnits,'3');
+assert.throws(()=>allocate([deposit,{...partial,lpUnits:'4'}]),/lp_inventory_overdraw/);
+assert.throws(()=>allocate([deposit,{...partial,imgBasisUnits:'4'}]),/withdrawal_basis_allocation_mismatch/);
+assert.throws(()=>allocate([{...deposit,basisSourceVerified:false}]),/unverified_lp_basis_inputs/);
+assert.throws(()=>allocate([deposit,deposit]),/duplicate_lp_event/);
+assert.throws(()=>allocate([deposit,{...partial,ledgerIndex:99}]),/out_of_order_lp_event/);
+console.log('AMM LP cost basis allocation tests passed');

@@ -8,7 +8,7 @@ const HASH=/^[A-Fa-f0-9]{64}$/;
 function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSources}={}){
  if(!client||typeof client.request!=='function')throw new TypeError('xrpl_client_required');
  const config={treasury,imgIssuer,allowedSources};
- const verify=createImgRewardVerifier(client,config);
+ const verify=createImgRewardVerifier(client,{...config,skipNonImgPayments:true});
  const receipts=createImgHourlyRewardLedger(db,config);
  const checkpoints=createImgScanCheckpointStore(db);
  const bootstrap=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='estate_img_scan_bootstrap'").get() ? db.prepare('SELECT * FROM estate_img_scan_bootstrap WHERE id=1') : null;
@@ -40,8 +40,9 @@ function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSo
   const closeTimeMs=(ledger.close_time+946684800)*1000;
   if(!Number.isSafeInteger(closeTimeMs))throw new Error('invalid_ledger_close_time');
   // Verify every candidate independently before committing anything.
-  const verified=await Promise.all(hashes.map(verify));
-  if(verified.some(r=>r.ledgerIndex!==ledgerIndex||r.receivedAtMs!==closeTimeMs))throw new Error('receipt_ledger_or_time_mismatch');
+  const checked=await Promise.all(hashes.map(verify));
+  const verified=checked.filter(r=>!r.ignored);
+  if(checked.some(r=>r.ledgerIndex!==ledgerIndex||r.receivedAtMs!==closeTimeMs))throw new Error('receipt_ledger_or_time_mismatch');
   db.exec('BEGIN IMMEDIATE');
   try{
    db.exec('CREATE TABLE IF NOT EXISTS estate_img_scanned_ledger_hashes(ledger_index INTEGER PRIMARY KEY,ledger_hash TEXT NOT NULL,parent_hash TEXT NOT NULL,transaction_hash TEXT NOT NULL)');

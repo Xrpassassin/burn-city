@@ -2,9 +2,10 @@
 // Read-only reward accounting: caller must first independently validate XRPL payment,
 // issuer, destination, delivered_amount, and eligible Pollux source. Never signs or pays.
 const {propertyWeight}=require('./estate-economy');
+const {splitImgAmount}=require('./estate-img-amount');
 const HASH=/^[A-F0-9]{64}$/;
 const ACCOUNT=/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
-const SCALE=1000000n; // 6 decimal places, smaller fractions explicitly rejected
+const SCALE=1000000n; // Existing accounting unit remains one micro-IMG.
 function units(value){
  if(typeof value!=='string'|| !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(value))throw new TypeError('invalid_img_amount');
  const [whole,decimal='']=value.split('.');
@@ -32,6 +33,11 @@ function createImgHourlyRewardLedger(db,{treasury,imgIssuer,allowedSources}={}){
  if(!ACCOUNT.test(treasury||'')||!ACCOUNT.test(imgIssuer||'')||!Array.isArray(allowedSources)||!allowedSources.length||allowedSources.some(x=>!ACCOUNT.test(x)))throw new TypeError('verified_configuration_required');
  const sources=new Set(allowedSources);
  init(db);
+ // Additive migration: old micro-unit balances retain their meaning. New receipts
+ // retain both exact delivery and non-distributable dust in a separate journal.
+ db.exec(`CREATE TABLE IF NOT EXISTS estate_img_reward_precision(
+ tx_hash TEXT PRIMARY KEY, exact_amount TEXT NOT NULL, dust_amount TEXT NOT NULL,
+ FOREIGN KEY(tx_hash) REFERENCES estate_img_reward_receipts(tx_hash));`);
  const insert=db.prepare('INSERT INTO estate_img_reward_receipts(tx_hash,ledger_index,source,destination,img_issuer,amount_units,received_at_ms,epoch_start_ms,verified) VALUES(?,?,?,?,?,?,?,?,1)');
  const find=db.prepare('SELECT * FROM estate_img_reward_receipts WHERE tx_hash=?');
  const add=db.prepare('INSERT INTO estate_img_hourly_allocations(epoch_start_ms,tx_hash,property_id,owner,amount_units) VALUES(?,?,?,?,?)');
@@ -39,10 +45,16 @@ function createImgHourlyRewardLedger(db,{treasury,imgIssuer,allowedSources}={}){
   if(verified!==true)throw new Error('unverified_reward_rejected');
   if(typeof txHash!=='string'||!HASH.test(txHash)||!Number.isSafeInteger(ledgerIndex)||ledgerIndex<=0)throw new TypeError('invalid_tx_reference');
   if(!sources.has(source)||destination!==treasury||issuer!==imgIssuer)throw new Error('ineligible_img_reward');
-  const n=units(amount),hour=epoch(receivedAtMs);
+  const precision=splitImgAmount(amount),n=BigInt(precision.units),hour=epoch(receivedAtMs);
   const prior=find.get(txHash);
-  if(prior){if(prior.ledger_index!==ledgerIndex||prior.source!==source||prior.destination!==destination||prior.img_issuer!==issuer||prior.amount_units!==String(n)||prior.received_at_ms!==receivedAtMs)throw new Error('reward_hash_conflict');return {inserted:false,epochStartMs:hour};}
+  const saved=db.prepare('SELECT exact_amount FROM estate_img_reward_precision WHERE tx_hash=?').get(txHash);
+  if(prior){if(prior.ledger_index!==ledgerIndex||prior.source!==source||prior.destination!==destination||prior.img_issuer!==issuer||prior.amount_units!==String(n)||prior.received_at_ms!==receivedAtMs||(saved?saved.exact_amount!==precision.exact:precision.dust!=='0'))throw new Error('reward_hash_conflict');return {inserted:false,epochStartMs:hour};}
+  db.exec('SAVEPOINT estate_img_precision_receipt');
+  try{
   insert.run(txHash,ledgerIndex,source,destination,issuer,String(n),receivedAtMs,hour);
+  db.prepare('INSERT INTO estate_img_reward_precision VALUES(?,?,?)').run(txHash,precision.exact,precision.dust);
+  db.exec('RELEASE estate_img_precision_receipt');
+  }catch(e){db.exec('ROLLBACK TO estate_img_precision_receipt');db.exec('RELEASE estate_img_precision_receipt');throw e;}
   return {inserted:true,epochStartMs:hour};
  }
  function allocate({txHash,holdings}={}){

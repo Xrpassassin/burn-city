@@ -21,6 +21,8 @@ const verifier=createImgRewardVerifier({request:async request=>{assert.deepEqual
   const bad=createImgRewardVerifier({request:async()=>({result:{...tx.result,...altered}})},{treasury,imgIssuer:issuer,allowedSources:[source]});
   await assert.rejects(()=>bad(hash));
  }
- for(const amount of ['0','-1','1.0000001','1e4','unavailable'])assert.throws(()=>canonicalUnits(amount));
+ for(const amount of ['0','-1','unavailable','1e999','NaN'])assert.throws(()=>canonicalUnits(amount));
+ assert.equal(canonicalUnits('0.31949269804787'),'0.31949269804787');
+ assert.equal(canonicalUnits('1e-7'),'0.0000001');
  console.log('Validated IMG XRPL receipt verifier tests passed');
 })().catch(e=>{console.error(e);process.exitCode=1});

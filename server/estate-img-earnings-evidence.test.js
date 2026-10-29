@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {DatabaseSync}=require('node:sqlite');
+const {createImgReceiptJournal}=require('./estate-img-receipt-journal');
+const {createImgEarningsEvidenceLedger}=require('./estate-img-earnings-evidence');
+const db=new DatabaseSync(':memory:');
+const receipts=createImgReceiptJournal(db);
+const hash='A'.repeat(64);
+receipts.record({hash,ledgerIndex:99,treasury:'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',imgIssuer:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',sender:'rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q',deliveredImg:'5',classification:'unclassified_receipt',distributable:false});
+const ledger=createImgEarningsEvidenceLedger(db);
+const input={evidenceId:'amm-claim-1',receiptHash:hash,sourceKind:'amm_fee_claim',sourceReference:'ledger-99-claim',proposedImgUnits:'5'};
+assert.equal(ledger.stage(input).status,'pending_review');
+assert.equal(ledger.get('amm-claim-1').distributable,0);
+assert.throws(()=>ledger.stage({...input,evidenceId:'amm-claim-2'}),/UNIQUE constraint failed/);
+assert.throws(()=>ledger.stage({...input,evidenceId:'amm-claim-3',receiptHash:'B'.repeat(64)}),/verified_receipt_required/);
+assert.throws(()=>ledger.stage({...input,evidenceId:'amm-claim-4',proposedImgUnits:'0'}),/invalid_earnings_evidence/);
+assert.throws(()=>db.prepare("UPDATE estate_img_earnings_evidence SET distributable=1").run(),/CHECK constraint failed/);
+console.log('IMG earnings evidence quarantine tests passed');

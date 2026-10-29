@@ -1,0 +1,18 @@
+name: Estates sale settlement
+on:
+  pull_request:
+    paths:
+      - 'server/estate-sale-settlement.js'
+      - 'server/estate-sale-settlement.test.js'
+      - '.github/workflows/estates-sale-settlement.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/estate-sale-settlement.js
+      - run: node server/estate-sale-settlement.test.js

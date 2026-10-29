@@ -5,7 +5,8 @@ const HASH=/^[A-Fa-f0-9]{64}$/;
 const ACCOUNT=/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 function createImgHistoricalBootstrap(db){
  if(!db||typeof db.prepare!=='function'||typeof db.exec!=='function')throw new TypeError('sqlite_required');
- db.exec(`CREATE TABLE IF NOT EXISTS estate_img_scan_bootstrap(
+ db.exec(`CREATE TABLE IF NOT EXISTS estate_img_scan_watermarks(id INTEGER PRIMARY KEY CHECK(id=1),scanned_through_ms INTEGER NOT NULL,ledger_index INTEGER NOT NULL,verified_at_ms INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS estate_img_scan_bootstrap(
  id INTEGER PRIMARY KEY CHECK(id=1),
  start_ledger_index INTEGER NOT NULL,
  start_ledger_hash TEXT NOT NULL,

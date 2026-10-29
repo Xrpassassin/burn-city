@@ -27,6 +27,18 @@ function getState(acct = '') {
   const totalShareUnits = db.prepare('SELECT COALESCE(SUM(share_units),0) AS n FROM estate_property_ownership').get().n;
   return { catalog: CATALOG, owned: owned.map(p => ({ ...p, property: PROPERTY_BY_ID.get(p.propertyId), tier: TIER_BY_ID.get(PROPERTY_BY_ID.get(p.propertyId)?.tier) })), portfolioShareUnits: owned.reduce((n,p) => n + p.shareUnits,0), totalShareUnits, salesEnabled: false, distributionsEnabled: false, status: 'wallet_integration_pending', payoutPreference: acct ? payoutPreference(acct) : null };
 }
+// Server-authoritative planning: ownership and settlement choices are read from SQLite,
+// never supplied by a caller. Funding proof must be separately reviewed before execution.
+function createOwnerRewardEpoch({ epochId, distributableImgUnits, fundingRef, sourceLedgerIndex } = {}) {
+  const holdings = db.prepare('SELECT property_id AS propertyId, acct FROM estate_property_ownership ORDER BY property_id').all();
+  if (holdings.length === 0) throw new Error('no_eligible_property_owners');
+  const preferences = Object.create(null);
+  const owners = [...new Set(holdings.map(h => h.acct))];
+  const query = db.prepare('SELECT currency FROM estate_owner_payout_preferences WHERE acct=?');
+  for (const acct of owners) preferences[acct] = query.get(acct)?.currency || null;
+  // Missing preference intentionally produces a held payout, never an implicit XRP sale.
+  return ownerEpochs.create({ epochId, distributableImgUnits, fundingRef, sourceLedgerIndex, holdings, preferences });
+}
 function previewWeeklyAllocation(distributableDrops) {
   const holdings = db.prepare('SELECT property_id AS propertyId, acct FROM estate_property_ownership ORDER BY property_id').all();
   return allocateProfit(distributableDrops, holdings);
@@ -92,4 +104,4 @@ function recordWeeklyPayoutStatus(weekStart, acct, nextStatus, txHash = null) {
   return getWeeklySnapshot(weekStart);
 }
 
-module.exports = { ownerEpochs, payoutPreference, setPayoutPreference, CATALOG, getState, propertyWeight, previewWeeklyAllocation, createWeeklySnapshot, getWeeklySnapshot, transitionWeeklySnapshot, recordWeeklyPayoutStatus };
+module.exports = { createOwnerRewardEpoch, ownerEpochs, payoutPreference, setPayoutPreference, CATALOG, getState, propertyWeight, previewWeeklyAllocation, createWeeklySnapshot, getWeeklySnapshot, transitionWeeklySnapshot, recordWeeklyPayoutStatus };

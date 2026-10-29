@@ -65,8 +65,9 @@ function createEstatePayoutExecutor({db,client,wallet,treasury,imgIssuer,guard,e
    if(db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state='preparing'").get())return {blocked:'interrupted_preparation_review_required'};
    const w=wallet();if(!w||w.classicAddress!==treasury)return {blocked:'treasury_signer_mismatch'};
    const rows=db.prepare("SELECT * FROM estate_hourly_payouts WHERE state='queued' ORDER BY checked_at_ms,epoch_start_ms,owner LIMIT 50").all();
-   for(const row of rows){
-    if(!row.currency){const choice=db.prepare('SELECT currency FROM estate_owner_payout_preferences WHERE acct=?').get(row.owner)?.currency;if(!choice){note(row.id,'owner_currency_selection_required');continue;}update(row.id,{currency:choice});row.currency=choice;}
+   for(const queued of rows){
+    const row=db.prepare('SELECT * FROM estate_hourly_payouts WHERE id=?').get(queued.id);if(row?.state!=='queued')continue;
+    if(!row.currency){const choice=db.prepare('SELECT currency FROM estate_owner_payout_preferences WHERE acct=?').get(row.owner)?.currency;if(!choice){note(row.id,'owner_currency_selection_required');continue;}db.prepare("UPDATE estate_hourly_payouts SET currency=? WHERE id=? AND state='queued' AND currency IS NULL").run(choice,row.id);const current=db.prepare('SELECT currency,state FROM estate_hourly_payouts WHERE id=?').get(row.id);if(current.state!=='queued')continue;row.currency=current.currency;}
     if(row.owner===treasury||row.owner===imgIssuer){note(row.id,'self_or_issuer_payment_review');continue;}
     const budget=BigInt(row.img_units);const now=Date.now(),day=now-now%86400000;const daily=db.prepare('SELECT img_units FROM estate_hourly_payouts WHERE submitted_at_ms>=? AND tx_hash IS NOT NULL').all(day).reduce((s,r)=>s+BigInt(r.img_units),0n);if(daily+budget>BigInt(maxDailyImgUnits)){note(row.id,'daily_payment_budget_limit');continue;}if(budget<=0n||budget>BigInt(maxImgUnits)){note(row.id,'payment_budget_limit');continue;}
     try{
@@ -85,7 +86,7 @@ function createEstatePayoutExecutor({db,client,wallet,treasury,imgIssuer,guard,e
      if(row.currency==='IMG'){
       const line=(await lines(row.owner,ledgerHash)).find(l=>l.currency==='IMG'&&l.account===imgIssuer);
       if(!line||line.freeze||line.freeze_peer||units(line.limit)-units(line.balance)<budget||((issuer.account_data.Flags&0x00040000)&&line.peer_authorized!==true))throw Error('recipient_img_trustline_unavailable');
-      amount={currency:'IMG',issuer:imgIssuer,value:micro(budget)};
+      amount={currency:'IMG',issuer:imgIssuer,value:micro(budget)};sendMax={...amount};
      }else{
       const pool=(await client.request({command:'amm_info',asset:{currency:'XRP'},asset2:{currency:'IMG',issuer:imgIssuer},ledger_hash:ledgerHash})).result;
       if(pool?.validated!==true||pool.ledger_hash!==ledgerHash)throw Error('unvalidated_conversion_pool');

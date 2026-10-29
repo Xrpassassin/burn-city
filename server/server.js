@@ -194,9 +194,11 @@ const server = http.createServer(async (req, res) => {
         return json(res, result.ok ? 200 : (result.error === 'unknown_property' ? 404 : 403), result);
       }
       if (url.pathname === '/api/estates/buy' && req.method === 'POST') return json(res, 409, { error: 'sales_not_configured', status: 'wallet_integration_pending', message: 'Property sales are disabled until the designated wallet, verified payment settlement, property pricing, and final share weights are configured and audited.' });   // never reads the body: no client amount is ever used
-      // Owner-wallet identity check (Xaman SignIn payload, no ledger transaction): admin token only.
+      // Treasury operations require the admin token AND a session for the exact treasury address.
+      // Never let an unrelated signed-in wallet use a prior treasury-owner verification.
       if (url.pathname.startsWith('/api/estates/wallet/')) {
         if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });
+        if (u.acct !== C.ESTATE_TREASURY) return json(res, 403, { error: 'treasury_wallet_session_required' });
         if (url.pathname === '/api/estates/wallet/status' && req.method === 'GET') return json(res, 200, EstateWallet.status());
         // Read-only check. Requires admin authorization; never signs.
         if (url.pathname === '/api/estates/wallet/token-lines' && req.method === 'GET') {

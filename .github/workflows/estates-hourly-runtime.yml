@@ -1,0 +1,30 @@
+name: Estates hourly accounting and settlement software
+on:
+  pull_request:
+    paths:
+      - 'server/estate-hourly-*.js'
+      - 'server/estate-payout-executor*.js'
+      - 'server/estate-img-*.js'
+      - 'server/server.js'
+      - 'server/watch.js'
+      - 'scripts/estate-bootstrap.cjs'
+      - '.github/workflows/estates-hourly-runtime.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: |
+          node --check server/server.js
+          node --check scripts/estate-bootstrap.cjs
+          node server/estate-hourly-runtime.test.js
+          node server/estate-payout-executor.test.js
+          for test in server/estate-img-*.test.js; do node "$test" || exit 1; done
+          node test/estate-sales-runtime-http.test.js
+          node server/estate-sale-production-gates.test.js

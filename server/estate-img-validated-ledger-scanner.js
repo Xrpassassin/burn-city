@@ -5,10 +5,10 @@ const {createImgRewardVerifier}=require('./estate-img-xrpl-receipt-verifier');
 const {createImgHourlyRewardLedger}=require('./estate-img-hourly-rewards');
 const {createImgScanCheckpointStore}=require('./estate-img-scan-checkpoints');
 const HASH=/^[A-Fa-f0-9]{64}$/;
-function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSources}={}){
+function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSources,rewardPoolAccount}={}){
  if(!client||typeof client.request!=='function')throw new TypeError('xrpl_client_required');
  const config={treasury,imgIssuer,allowedSources};
- const verify=createImgRewardVerifier(client,{...config,skipNonImgPayments:true});
+ const verify=createImgRewardVerifier(client,{...config,skipNonImgPayments:true,rewardPoolAccount});
  const receipts=createImgHourlyRewardLedger(db,config);
  const checkpoints=createImgScanCheckpointStore(db);
  const bootstrap=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='estate_img_scan_bootstrap'").get() ? db.prepare('SELECT * FROM estate_img_scan_bootstrap WHERE id=1') : null;

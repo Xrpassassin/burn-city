@@ -17,7 +17,11 @@ function createEstateXamanPaymentSession(db,{sdk,treasury,enabled=false}={}){
   // The remote request cannot extend the server's original price/ownership hold.
   if(r.expires_at-now<60000)return {ok:false,error:'reservation_near_expiry'};
   const prior=payloads.get(reservationId);
-  if(prior)return prior.buyer===buyer?{ok:true,reservationId,payloadUuid:prior.payload_uuid,reused:true}:{ok:false,error:'reservation_not_found'};
+  if(prior){
+   if(prior.buyer!==buyer)return {ok:false,error:'reservation_not_found'};
+   const payload=await sdk.payload.get(prior.payload_uuid);
+   return {ok:true,reservationId,payloadUuid:prior.payload_uuid,qr:payload?.refs?.qr_png,deeplink:payload?.next?.always,reused:true};
+  }
   // Concurrent callers can race to create a remote payload. Only one can be bound
   // and returned; the other must recover the already-bound UUID.
   const created=await adapter.create(r);

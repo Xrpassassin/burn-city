@@ -1,0 +1,37 @@
+name: Estates purchase runtime and UI
+on:
+  pull_request:
+    paths:
+      - 'server/estate-sale*.js'
+      - 'server/server.js'
+      - 'server/payments.js'
+      - 'client/js/estate-purchase-ui.mjs'
+      - 'client/js/app.js'
+      - 'test/estate-sales-runtime-http.test.js'
+      - 'scripts/estate-purchase-browser-test.mjs'
+      - '.github/workflows/estates-sales-runtime.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: |
+          node server/estate-sales-runtime.test.js
+          node test/estate-sales-runtime-http.test.js
+          for test in server/estate-sale-*.test.js; do node "$test" || exit 1; done
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/estate-purchase-browser-test.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: estate-purchase-preview
+          path: estate-purchase-preview/
+          if-no-files-found: ignore

@@ -93,4 +93,4 @@ function checkToken(t) {
   if (!m || m.length !== mm.length || !crypto.timingSafeEqual(Buffer.from(m), Buffer.from(mm))) return null;
   try { const o = JSON.parse(Buffer.from(b, 'base64url')); return o.exp > Date.now() ? o : null; } catch { return null; }
 }
-module.exports = { sweepBuys, sessions, sdb, startSignIn, finishSignIn, newPurchase, txJsonFor, createXamanPayload, verify, owned, checkToken, sign, ledger };
+module.exports = { sdk, sweepBuys, sessions, sdb, startSignIn, finishSignIn, newPurchase, txJsonFor, createXamanPayload, verify, owned, checkToken, sign, ledger };

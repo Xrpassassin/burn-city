@@ -7,11 +7,7 @@ const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates =
 const { inspectEstateTokenLines } = require('./estate-token-lines');
 const { preparePlxTrustlineRequest } = require('./estate-plx-xaman');
 const EstateRights = require('./estates-rights');
-const { estatePurchaseQuote } = require('./estate-sale-quote');
-const { createEstateSaleSessionRecovery } = require('./estate-sale-session-recovery');
-const { createEstateReservationApi } = require('./estate-sale-reservation-api');
-const { createEstateXamanPaymentSession } = require('./estate-sale-xaman-session');
-const { createEstateSaleFinalization } = require('./estate-sale-finalization');
+const { createEstateSalesRuntime } = require('./estate-sales-runtime');
 const { createEstateLatePaymentReconciliation } = require('./estate-sale-late-reconciliation');
 const { createEstateLatePaymentReviewQueue } = require('./estate-sale-late-review-queue');
 const { createEstateReviewAudit } = require('./estate-sale-review-audit');
@@ -21,11 +17,7 @@ createEstateLatePaymentReconciliation(Pay.sdb); // Initialize durable review sch
 const estateReviewQueue = createEstateLatePaymentReviewQueue(Pay.sdb);
 const estateReviewAdminAccounts = parseEstateReviewAdminAccounts(process.env.ESTATE_REVIEW_ADMIN_ACCOUNTS || '');
 const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: [...estateReviewAdminAccounts] });
-// Deliberately fail closed: no payment requests or settlements until reviewed activation.
-const estatePaymentSession = createEstateXamanPaymentSession(Pay.sdb, { enabled: false });
-const estateFinalization = createEstateSaleFinalization(Pay.sdb, { enabled: false });
-const estateReservationApi = createEstateReservationApi(Pay.sdb, { enabled: false });
-const estateSessionRecovery = createEstateSaleSessionRecovery(Pay.sdb);
+const estateSales = createEstateSalesRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
@@ -182,7 +174,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/estates' || url.pathname.startsWith('/api/estates/')) {   // Estates (server/estates.js): bearer auth first; sales/distributions stay disabled
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
-      if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, Estates.getState(u.acct));
+      if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, ({...Estates.getState(u.acct),...estateSales.status()}));
       if (url.pathname === '/api/estates/payout-preference' && req.method === 'GET') return json(res, 200, Estates.payoutPreference(u.acct));
       if (url.pathname === '/api/estates/payout-preference' && req.method === 'POST') {
         if (gate('estate-payout-preference:' + u.acct, 6, 60e3)) return json(res, 429, { error: 'slow_down' });
@@ -229,29 +221,34 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/purchase/payment/start' && req.method === 'POST') {
         if (gate('estate-payment-start:' + u.acct, 6, 60e3) || gate('estate-payment-start-ip:' + ip, 12, 60e3)) return json(res, 429, { error: 'slow_down' });
         const b = await body();
-        const result = await estatePaymentSession.start({ reservationId: String(b?.reservationId || ''), buyer: u.acct });
-        return json(res, result.ok ? 200 : result.error === 'estate_sales_disabled' ? 409 : 400, result);
+        const result = await estateSales.start({ reservationId: String(b?.reservationId || ''), buyer: u.acct });
+        return json(res, result.ok ? 200 : result.pending ? 202 : ['estate_sales_disabled','estate_treasury_paused'].includes(result.error) ? 409 : 400, result);
       }
       if (url.pathname === '/api/estates/purchase/payment/confirm' && req.method === 'POST') {
         if (gate('estate-payment-confirm:' + u.acct, 12, 60e3) || gate('estate-payment-confirm-ip:' + ip, 24, 60e3)) return json(res, 429, { error: 'slow_down' });
         const b = await body();
-        const result = await estateFinalization.finalize({ reservationId: String(b?.reservationId || ''), buyer: u.acct });
-        return json(res, result.ok ? 200 : result.error === 'estate_sales_disabled' ? 409 : 400, result);
+        const result = await estateSales.finalize({ reservationId: String(b?.reservationId || ''), buyer: u.acct });
+        return json(res, result.ok ? 200 : result.pending ? 202 : ['estate_sales_disabled','estate_treasury_paused'].includes(result.error) ? 409 : 400, result);
+      }
+      if (url.pathname === '/api/estates/purchase/payment/review' && req.method === 'POST') {
+        if (gate('estate-payment-review:' + u.acct, 6, 60e3)) return json(res, 429, { error: 'slow_down' });
+        const b = await body(), result = await estateSales.inspectLate({reservationId:String(b?.reservationId || ''),buyer:u.acct});
+        return json(res, result.ok ? 200 : 409, result);
       }
       if (url.pathname === '/api/estates/purchase/reserve' && req.method === 'POST') {
         if (gate('estate-reserve:' + u.acct, 6, 60e3) || gate('estate-reserve-ip:' + ip, 12, 60e3)) return json(res, 429, { error: 'slow_down' });
         const b = await body();
-        const result = estateReservationApi.create({ buyer: u.acct, propertyId: b?.propertyId });
-        return json(res, result.ok ? 201 : result.error === 'estate_sales_disabled' ? 409 : (result.error === 'property_reserved' || result.error === 'property_pending_payment_review') ? 409 : 400, result);
+        const result = estateSales.reserve({ buyer: u.acct, propertyId: b?.propertyId });
+        return json(res, result.ok ? 201 : ['estate_sales_disabled','estate_treasury_paused'].includes(result.error) ? 409 : (result.error === 'property_reserved' || result.error === 'property_pending_payment_review') ? 409 : 400, result);
       }
       if (url.pathname === '/api/estates/purchase/session' && req.method === 'GET') {
         if (gate('estate-session:' + u.acct, 20, 60e3)) return json(res, 429, { error: 'slow_down' });
-        const result = estateSessionRecovery.get({ reservationId: String(url.searchParams.get('reservationId') || ''), buyer: u.acct });
+        const result = estateSales.recover({ reservationId: String(url.searchParams.get('reservationId') || ''), buyer: u.acct });
         return json(res, result.ok ? 200 : 404, result);
       }
       if (url.pathname === '/api/estates/purchase/quote' && req.method === 'GET') {
         if (gate('estate-quote:' + u.acct, 12, 60e3)) return json(res, 429, { error: 'slow_down' });
-        const result = estatePurchaseQuote(Pay.sdb, { propertyId: String(url.searchParams.get('propertyId') || ''), buyer: u.acct });
+        const result = estateSales.quote({ propertyId: String(url.searchParams.get('propertyId') || ''), buyer: u.acct });
         return json(res, result.ok ? 200 : result.error === 'unknown_property' ? 404 : 409, result);
       }
       if (url.pathname === '/api/estates/buy' && req.method === 'POST') return json(res, 409, { error: 'sales_not_configured', status: 'wallet_integration_pending', message: 'Property sales are disabled until the designated wallet, verified payment settlement, property pricing, and final share weights are configured and audited.' });   // never reads the body: no client amount is ever used

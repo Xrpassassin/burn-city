@@ -1,0 +1,28 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const data=fs.mkdtempSync(path.join(os.tmpdir(),'estate-live-http-'));
+Object.assign(process.env,{DATA_DIR:data,PORT:'0',DRY_RUN:'false',ESTATE_SALES_ENABLED:'1',XRPL_NETWORK:'mainnet',XAMAN_API_KEY:'test-key',XAMAN_API_SECRET:'test-secret',BURN_JOB_IN_SERVER:'false',XRPL_WSS:'ws://127.0.0.1:1'});
+const Pay=require('../server/payments');let tx,signed=false,validated=false;
+const buyer='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',hash='A'.repeat(64);
+Pay._sdk=()=>({payload:{create:async p=>{tx=p.txjson;return {uuid:'http-test',refs:{qr_png:'https://example.com/qr'},next:{always:'https://example.com/sign'}};},get:async()=>({meta:{signed},response:{account:buyer,txid:hash}})}});
+Pay._ledger=async()=>({request:async q=>{assert.equal(q.command,'tx');return {result:{validated,hash,ledger_index:123,...tx,date:Math.floor(Date.now()/1000)-946684800,meta:{TransactionResult:'tesSUCCESS',delivered_amount:tx.Amount}}};}});
+const {server}=require('../server/server');
+(async()=>{
+ await new Promise(r=>server.listening?r():server.once('listening',r));const url='http://127.0.0.1:'+server.address().port;
+ const token=Pay.sign({acct:buyer,exp:Date.now()+60000});
+ const call=async(p,body,auth=true)=>{const r=await fetch(url+'/api/estates'+p,{method:body?'POST':'GET',headers:{...(auth?{authorization:'Bearer '+token}:{}),'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {code:r.status,data:await r.json()};};
+ assert.equal((await call('/purchase/reserve',{propertyId:'trailer-01'},false)).code,401);
+ const state=await call('');assert.equal(state.data.salesEnabled,true);assert.equal(state.data.distributionsEnabled,false);
+ const r=await call('/purchase/reserve',{propertyId:'trailer-01',amountDrops:1,shareUnits:99999});assert.equal(r.code,201);assert.equal(r.data.priceDrops,3000000);
+ const input={reservationId:r.data.reservationId};
+ assert.equal((await call('/purchase/payment/start',input)).data.ok,true);assert.equal(tx.Amount,'3000000');
+ signed=true;const pending=await call('/purchase/payment/confirm',input);assert.equal(pending.code,202);assert.equal(pending.data.pending,true);
+ require('../server/store').save('pause.json',{paused:true});
+ assert.equal((await call('/purchase/reserve',{propertyId:'trailer-02'})).code,409);
+ validated=true;assert.equal((await call('/purchase/payment/confirm',input)).data.ownershipAssigned,true);
+ assert.equal((await call('/purchase/payment/confirm',input)).data.status,'already_settled');
+ assert.equal((await call('')).data.owned.length,1);
+ assert.equal((await call('/payout-preference',{currency:'IMG'})).code,200);
+ console.log('Enabled Estates HTTP purchase, pause, pending validation and settled ownership passed');
+ server.close();fs.rmSync(data,{recursive:true,force:true});process.exit(0);
+})().catch(e=>{console.error(e);process.exit(1);});

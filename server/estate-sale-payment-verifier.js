@@ -15,6 +15,12 @@ async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=D
  if(typeof body.hash==='string'&&body.hash.toUpperCase()!==txHash.toUpperCase())throw new Error('payment_hash_mismatch');
  if(body.Account!==reservation.buyer||body.Destination!==treasury)throw new Error('payment_sender_or_destination_mismatch');
  if(typeof body.Amount!=='string'||!/^[0-9]+$/.test(body.Amount)||BigInt(body.Amount)!==BigInt(reservation.price_drops))throw new Error('payment_amount_mismatch');
+ const delivered=meta?.delivered_amount;
+ if(typeof delivered!=='string'||!/^[0-9]+$/.test(delivered)||BigInt(delivered)!==BigInt(reservation.price_drops))throw new Error('payment_delivered_amount_mismatch');
+ const expectedType=Buffer.from('burncity/estates').toString('hex').toUpperCase();
+ const expectedMemo=Buffer.from(reservation.reservation_id).toString('hex').toUpperCase();
+ if(!Array.isArray(body.Memos)||body.Memos.length!==1||body.Memos[0]?.Memo?.MemoType?.toUpperCase()!==expectedType||body.Memos[0]?.Memo?.MemoData?.toUpperCase()!==expectedMemo)throw new Error('payment_reservation_memo_mismatch');
+ if(body.Flags!==undefined && (body.Flags & 0x00020000)!==0)throw new Error('partial_payment_not_allowed');
  if(body.DestinationTag!==undefined||body.InvoiceID!==undefined)throw new Error('unexpected_payment_routing');
  if(typeof body.date!=='number'||!Number.isSafeInteger(body.date))throw new Error('payment_timestamp_unavailable');
  // XRPL date is seconds since 2000-01-01; reserve against pre-existing transactions.

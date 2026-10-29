@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {reconcileAmmRealizedImg:reconcile}=require('./estate-amm-profit-reconciliation');
+const base={verifiedImgProceedsUnits:'1000',returnedPrincipalImgBasisUnits:'700',verifiedImgCostsUnits:'100',previouslyRecognizedEarningsImgUnits:'50'};
+assert.equal(reconcile(base).additionalCandidateEarningsImgUnits,'150');
+assert.equal(reconcile(base).cumulativeRealizedProfitImgUnits,'200');
+assert.equal(reconcile({...base,returnedPrincipalImgBasisUnits:'1000'}).additionalCandidateEarningsImgUnits,'0');
+assert.equal(reconcile({...base,previouslyRecognizedEarningsImgUnits:'500'}).additionalCandidateEarningsImgUnits,'0');
+assert.equal(reconcile(base).distributable,false);
+assert.throws(()=>reconcile({...base,verifiedImgProceedsUnits:'-1'}),/unsigned_integer_string/);
+assert.throws(()=>reconcile({...base,verifiedImgCostsUnits:'0.5'}),/unsigned_integer_string/);
+console.log('AMM principal-first profit candidate tests passed');

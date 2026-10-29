@@ -1,0 +1,22 @@
+name: Estates durable owner reward epochs
+on:
+  pull_request:
+    paths:
+      - 'server/estate-owner-epoch-store.js'
+      - 'server/estate-owner-epoch-store.test.js'
+      - 'server/estate-owner-currency-plan.js'
+      - 'server/estate-payout-ledger.js'
+      - 'server/estate-reward-epoch.js'
+      - 'client/data/estate-catalog.json'
+      - '.github/workflows/estates-owner-epochs.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/estate-owner-epoch-store.js
+      - run: node server/estate-owner-epoch-store.test.js

@@ -15,9 +15,11 @@ const { createEstateSaleFinalization } = require('./estate-sale-finalization');
 const { createEstateLatePaymentReconciliation } = require('./estate-sale-late-reconciliation');
 const { createEstateLatePaymentReviewQueue } = require('./estate-sale-late-review-queue');
 const { createEstateReviewAudit } = require('./estate-sale-review-audit');
+const { authorizeEstateReview, parseEstateReviewAdminAccounts } = require('./estate-sale-review-auth');
 createEstateLatePaymentReconciliation(Pay.sdb); // Initialize durable review schema; disabled by default.
 const estateReviewQueue = createEstateLatePaymentReviewQueue(Pay.sdb);
-const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: (process.env.ESTATE_REVIEW_ADMIN_ACCOUNTS || '').split(',').map(x => x.trim()).filter(Boolean) });
+const estateReviewAdminAccounts = parseEstateReviewAdminAccounts(process.env.ESTATE_REVIEW_ADMIN_ACCOUNTS || '');
+const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: [...estateReviewAdminAccounts] });
 // Deliberately fail closed: no payment requests or settlements until reviewed activation.
 const estatePaymentSession = createEstateXamanPaymentSession(Pay.sdb, { enabled: false });
 const estateFinalization = createEstateSaleFinalization(Pay.sdb, { enabled: false });
@@ -219,10 +221,8 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname.startsWith('/api/estates/admin/reviews')) {
         // Two independent checks: signed-in wallet must be allowlisted AND
         // the request must supply the existing constant-time checked admin token.
-        if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });
+        if (!authorizeEstateReview({ account: u.acct, adminTokenValid: adminOk(req, ip), allowedAccounts: estateReviewAdminAccounts })) return json(res, 403, { error: 'forbidden' });
         if (gate('estate-review-admin:' + u.acct, 12, 60e3) || gate('estate-review-admin-ip:' + ip, 24, 60e3)) return json(res, 429, { error: 'slow_down' });
-        const allowed = estateReviewAudit.history({ actor: u.acct, reservationId: '__authorization_probe__' });
-        if (allowed.error === 'admin_not_authorized') return json(res, 403, { error: 'forbidden' });
         if (req.method !== 'GET') return json(res, 405, { error: 'read_only_review_api' });
         if (url.pathname === '/api/estates/admin/reviews') return json(res, 200, { reviews: estateReviewQueue.list({ limit: 25 }), readOnly: true });
         if (url.pathname === '/api/estates/admin/reviews/detail') {

@@ -8,7 +8,7 @@ const {createEstateXamanPaymentSession}=require('./estate-sale-xaman-session');
 const {createEstateSaleFinalization}=require('./estate-sale-finalization');
 const {estatePurchaseQuote}=require('./estate-sale-quote');
 const db=new DatabaseSync(':memory:');
-db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY)');
+db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT NOT NULL)');
 const buyer='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
 const reservation=createEstateReservationApi(db);
 const payment=createEstateXamanPaymentSession(db);

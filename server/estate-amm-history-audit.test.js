@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {auditAmmHistory:audit}=require('./estate-amm-history-audit');
+const hash='A'.repeat(64),other='B'.repeat(64);
+const record=(h,l)=>({hash:h,ledgerIndex:l,eventKind:'liquidity_deposit',distributable:false,realizedProfitVerified:false,principalBasisVerified:false});
+const config={fromLedger:100,toLedger:200,historyComplete:true};
+const ok=audit([record(hash,100),record(other,200)],config);
+assert.deepEqual(ok.issues,[]);assert.equal(ok.historyComplete,false);assert.equal(ok.accountingReady,false);
+assert.ok(audit([record(hash,100),record(hash,101)],config).issues.includes('duplicate_transaction_hash'));
+assert.ok(audit([record(other,200),record(hash,100)],config).issues.includes('out_of_order_ledger'));
+assert.ok(audit([{...record(hash,100),distributable:true}],config).issues.includes('untrusted_profit_or_distribution_claim'));
+assert.ok(audit([record(hash,99)],config).issues.includes('invalid_or_out_of_range_record'));
+console.log('AMM history audit tests passed');

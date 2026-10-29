@@ -11,6 +11,8 @@ module.exports = {
   ADMIN_TOKEN: e.ADMIN_TOKEN || '',                   // required for /admin/* (payout list)
   IMG_ISSUER: e.IMG_ISSUER || 'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',
   IMG_CURRENCY: e.IMG_CURRENCY || 'IMG',
+  PLX_ISSUER: e.PLX_ISSUER || 'rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q',
+  PLX_CURRENCY: e.PLX_CURRENCY || 'PLX',
   PRIZE_WALLET: e.PRIZE_WALLET_ADDRESS || '',          // funded by you; NOT from sales
   PRIZES: (e.PRIZES || '5000,2500,1000'),             // IMG for rank 1,2,3 (example)
   TREASURY: e.TREASURY_ADDRESS || '',

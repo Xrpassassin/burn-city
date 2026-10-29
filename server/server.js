@@ -4,6 +4,8 @@ const Retain = require('./retain'), Fish = require('./fish'), LB = require('./le
 const Nft = require('./nft'), Social = require('./social'), C = require('./config'), Pay = require('./payments'), { Room } = require('./game'), S = require('./store'), City = require('./city'), Eco = require('./eco');
 
 const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates = require('./estates'), EstateWallet = require('./estate-wallet');
+const { inspectEstateTokenLines } = require('./estate-token-lines');
+const { preparePlxTrustlineRequest } = require('./estate-plx-xaman');
 const EstateRights = require('./estates-rights');
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
@@ -196,6 +198,23 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname.startsWith('/api/estates/wallet/')) {
         if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });
         if (url.pathname === '/api/estates/wallet/status' && req.method === 'GET') return json(res, 200, EstateWallet.status());
+        // Read-only check. Requires admin authorization; never signs.
+        if (url.pathname === '/api/estates/wallet/token-lines' && req.method === 'GET') {
+          if (gate('estate-token-lines:' + ip, 5, 60e3)) return json(res, 429, { error: 'slow_down' });
+          const client = await Pay.ledger();
+          return json(res, 200, await inspectEstateTokenLines(client));
+        }
+        // Owner verification and admin authorization are both mandatory.
+        if (url.pathname === '/api/estates/wallet/plx-trustset' && req.method === 'POST') {
+          if (gate('estate-plx-trustset:' + ip, 2, 10 * 60e3)) return json(res, 429, { error: 'slow_down' });
+          if (!EstateWallet.status().ownerControlVerified) return json(res, 403, { error: 'treasury_owner_verification_required' });
+          if (!C.XUMM_KEY || !C.XUMM_SECRET) return json(res, 503, { error: 'xaman_credentials_missing' });
+          const client = await Pay.ledger();
+          const { XummSdk } = require('xumm-sdk');
+          const xaman = new XummSdk(C.XUMM_KEY, C.XUMM_SECRET);
+          const result = await preparePlxTrustlineRequest({ client, xaman });
+          return json(res, 200, result);
+        }
         if (url.pathname === '/api/estates/wallet/verify/start' && req.method === 'POST') { if (gate('estate-wallet-start:' + ip, 5, 10 * 60e3)) return json(res, 429, { error: 'slow_down' }); const result = await EstateWallet.startVerification(); return json(res, result.ok ? 200 : 503, result); }
         if (url.pathname === '/api/estates/wallet/verify/finish' && req.method === 'POST') { const b = await body(); const result = await EstateWallet.finishVerification(b.verificationId); return json(res, result.ok ? 200 : result.pending ? 202 : 400, result); }
       }

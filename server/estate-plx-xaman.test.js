@@ -1,0 +1,21 @@
+'use strict';
+const assert=require('node:assert/strict');
+const C=require('./config');
+const {preparePlxTrustlineRequest}=require('./estate-plx-xaman');
+(async()=>{
+  const calls=[];
+  const xaman={payload:{create:async p=>{calls.push(p);return {uuid:'payload-1',next:{always:'https://xaman.app/sign/payload-1'}}}}};
+  const ledger=exists=>({request:async()=>({result:{account:C.ESTATE_TREASURY,lines:exists?[{account:C.PLX_ISSUER,currency:C.PLX_CURRENCY,limit:'100',balance:'0'}]:[]}})});
+  const existing=await preparePlxTrustlineRequest({client:ledger(true),xaman});
+  assert.equal(existing.alreadyExists,true);
+  assert.equal(calls.length,0);
+  const fresh=await preparePlxTrustlineRequest({client:ledger(false),xaman});
+  assert.equal(fresh.alreadyExists,false);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].txjson.TransactionType,'TrustSet');
+  assert.equal(calls[0].txjson.Account,C.ESTATE_TREASURY);
+  assert.equal(calls[0].txjson.LimitAmount.issuer,C.PLX_ISSUER);
+  await assert.rejects(preparePlxTrustlineRequest({client:ledger(false),xaman,limit:'-1'}),/invalid_limit/);
+  await assert.rejects(preparePlxTrustlineRequest({client:ledger(false),xaman,config:{...C,NETWORK:'testnet'}}),/mainnet_required/);
+  console.log('estate PLX Xaman tests passed');
+})().catch(e=>{console.error(e);process.exitCode=1});

@@ -21,14 +21,15 @@ function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSo
   if(response?.result?.validated!==true||!ledger||Number(ledger.ledger_index)!==ledgerIndex||!Array.isArray(ledger.transactions)||!Number.isSafeInteger(ledger.close_time))throw new Error('unvalidated_or_incomplete_ledger');
   const hashes=[];
   for(const entry of ledger.transactions){
-   if(!entry||typeof entry!=='object'||typeof entry.TransactionType!=='string'||!HASH.test(entry.hash||''))throw new Error('unexpected_ledger_transaction_shape');
-   if(entry.TransactionType==='Payment'&&sources.has(entry.Account)&&entry.Destination===treasury)hashes.push(entry.hash);
+   const tx=entry?.tx_json||entry;
+   if(!tx||typeof tx!=='object'||typeof tx.TransactionType!=='string'||!HASH.test(entry.hash||tx.hash||''))throw new Error('unexpected_ledger_transaction_shape');
+   if(tx.TransactionType==='Payment'&&sources.has(tx.Account)&&tx.Destination===treasury)hashes.push(entry.hash||tx.hash);
   }
   const closeTimeMs=(ledger.close_time+946684800)*1000;
   if(!Number.isSafeInteger(closeTimeMs))throw new Error('invalid_ledger_close_time');
   // Verify every candidate independently before committing anything.
   const verified=await Promise.all(hashes.map(verify));
-  if(verified.some(r=>r.ledgerIndex!==ledgerIndex))throw new Error('receipt_ledger_mismatch');
+  if(verified.some(r=>r.ledgerIndex!==ledgerIndex||r.receivedAtMs!==closeTimeMs))throw new Error('receipt_ledger_or_time_mismatch');
   db.exec('BEGIN IMMEDIATE');
   try{
    let inserted=0;

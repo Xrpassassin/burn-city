@@ -1,0 +1,23 @@
+name: Estates IMG PLX preflight
+on:
+  pull_request:
+    paths:
+      - 'server/estate-token-lines*'
+      - 'server/estate-plx-xaman*'
+      - 'server/estate-wallet.js'
+      - 'server/server.js'
+      - 'server/config.js'
+      - 'package.json'
+      - '.github/workflows/estates-plx.yml'
+  workflow_dispatch:
+jobs:
+  focused-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run test:estate-plx
+      - run: node --check server/server.js

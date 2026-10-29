@@ -18,6 +18,7 @@ const estateReviewQueue = createEstateLatePaymentReviewQueue(Pay.sdb);
 const estateReviewAdminAccounts = parseEstateReviewAdminAccounts(process.env.ESTATE_REVIEW_ADMIN_ACCOUNTS || '');
 const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: [...estateReviewAdminAccounts] });
 const estateSales = createEstateSalesRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
+const estateHourly = require('./estate-hourly-service').createEstateHourlyService({db:Pay.sdb,pay:Pay,config:C,guard:require('./guard')});
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
@@ -174,7 +175,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/estates' || url.pathname.startsWith('/api/estates/')) {   // Estates (server/estates.js): bearer auth first; sales/distributions stay disabled
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
-      if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, ({...Estates.getState(u.acct),...estateSales.status()}));
+      if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, ({...Estates.getState(u.acct),...estateSales.status(),...estateHourly.status(u.acct)}));
+      if (url.pathname === '/api/estates/payouts' && req.method === 'GET') return json(res, 200, estateHourly.status(u.acct));
       if (url.pathname === '/api/estates/payout-preference' && req.method === 'GET') return json(res, 200, Estates.payoutPreference(u.acct));
       if (url.pathname === '/api/estates/payout-preference' && req.method === 'POST') {
         if (gate('estate-payout-preference:' + u.acct, 6, 60e3)) return json(res, 429, { error: 'slow_down' });
@@ -499,6 +501,7 @@ setInterval(() => {
   stats.tickMs.push(Number(process.hrtime.bigint() - t0) / 1e6); if (stats.tickMs.length > 3000) stats.tickMs.shift();
 }, 1000 * dt);
 
+estateHourly.start();
 try { if (require('./img-burn').start()) console.log('[img-burn] JETPACK_TREASURY_AUTO=1: batched IMG buy-and-burn on'); } catch (e) { console.error('[img-burn] start', e?.message); }
 if (C.BURN_INTERVAL_MS > 0 && process.env.BURN_JOB_IN_SERVER === 'true') setInterval(() => require('./burn').run().catch(e => console.error('burn', e.message)), C.BURN_INTERVAL_MS);
 Nft.start();

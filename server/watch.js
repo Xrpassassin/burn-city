@@ -4,6 +4,7 @@ const fs = require('fs'), C = require('./config'), S = require('./store'), Q = r
 function known() { const k = new Set(S.load('watch_known.json', []));
   for (const r of Q.db.prepare('SELECT hash FROM payq WHERE hash IS NOT NULL UNION SELECT hash FROM payq_hist').all()) k.add(r.hash);
   try { for (const l of fs.readFileSync(S.file('burns.jsonl'), 'utf8').split('\n')) { const h = l && JSON.parse(l).hash; if (h) k.add(h); } } catch {}
+  try {const db=require('./payments').sdb;if(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_hourly_payouts'").get())for(const r of db.prepare('SELECT tx_hash FROM estate_hourly_payouts WHERE tx_hash IS NOT NULL').all())k.add(r.tx_hash);}catch{}
   return k; }
 async function tick(ledger) {
   if (!C.TREASURY) return; const c = await ledger();

@@ -21,6 +21,7 @@ try{
    if(path==='/purchase/reserve')data={ok:true,reservationId:'test-reservation'};
    if(path==='/purchase/payment/start')data={ok:true,deeplink:'https://example.com/sign'};
    if(path==='/purchase/payment/confirm')data=++confirmed===1?{ok:false,pending:true}:{ok:true,txHash:'A'.repeat(64)};
+   if(path==='/payouts')data={distributionsEnabled:true,payouts:[{epoch_start_ms:1700000000000,state:'confirmed'}]};
    if(path==='/payout-preference')data={currency:options.body?JSON.parse(options.body).currency:null};
    return {ok:true,status:200,json:async()=>data};
   }});
@@ -38,6 +39,9 @@ try{
  await page.getByLabel('Payout currency').selectOption('XRP');
  await page.getByRole('button',{name:'Save payout preference'}).click();
  await page.getByText('Payout preference saved.',{exact:false}).waitFor();
+ await page.getByRole('button',{name:'Refresh hourly payouts'}).click();
+ await page.getByText('Payment confirmed',{exact:false}).waitFor();
+ await page.getByText('Eligible verified earnings are distributed hourly.',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  const calls=await page.evaluate(()=>window.calls);assert.deepEqual(calls.find(c=>c.path==='/purchase/reserve').body,{propertyId:'trailer-01'});
  assert.deepEqual(calls.filter(c=>c.path==='/payout-preference'&&c.body).at(-1).body,{currency:'XRP'});

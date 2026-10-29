@@ -22,6 +22,7 @@ function createEstateLatePaymentReconciliation(db,{sdk,client,treasury,enabled=f
   if(!enabled)return {ok:false,error:'estate_sales_disabled'};
   const r=reservations.get(reservationId);
   if(!r||r.buyer!==buyer)return {ok:false,error:'reservation_not_found'};
+  if(r.status!=='reserved'&&r.status!=='expired'&&r.status!=='settled')return {ok:false,error:'reservation_not_reviewable'};
   if(r.status==='settled')return {ok:true,status:'already_settled',txHash:r.payment_tx};
   if(now<=r.expires_at)return {ok:false,error:'reservation_not_expired'};
   const existing=find.get(reservationId);
@@ -32,8 +33,8 @@ function createEstateLatePaymentReconciliation(db,{sdk,client,treasury,enabled=f
   if(!hash)return {ok:false,error:'no_submitted_payment'};
   // Validate full transaction evidence against the original reservation, including
   // the XRPL close timestamp, even though processing occurs after expiry.
-  const evidence=await verifyEstateSalePayment(client,r,{txHash:hash,treasury,now:r.expires_at});
-  if(!evidence.validated)return {ok:false,error:'payment_unverified'};
+  const evidence=await verifyEstateSalePayment(client,r,{txHash:hash,treasury,now,reviewExpired:true});
+  if(!evidence.validated||evidence.reviewOnly!==true||evidence.settlementVerified!==false)return {ok:false,error:'payment_unverified'};
   insert.run(reservationId,buyer,hash,now);
   const saved=find.get(reservationId);
   if(!saved||saved.tx_hash!==hash||saved.buyer!==buyer)throw new Error('late_payment_review_conflict');

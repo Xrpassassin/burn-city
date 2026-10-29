@@ -12,6 +12,11 @@ async function check(t,expected){
 }
 async function main(){
  await check(tx);
+ const review=await verify({request:async()=>({result:tx})},{...reservation,status:'expired'},{txHash,treasury,now:expiresAt+1000,reviewExpired:true});
+ assert.equal(review.reviewOnly,true);assert.equal(review.settlementVerified,false);
+ await assert.rejects(verify({request:async()=>({result:tx})},{...reservation,status:'expired'},{txHash,treasury,now:expiresAt+1000}),/invalid_or_inactive_reservation/);
+ await assert.rejects(verify({request:async()=>({result:tx})},reservation,{txHash,treasury,now:expiresAt+1000}),/reservation_expired/);
+ await assert.rejects(verify({request:async()=>({result:{...tx,tx_json:{...tx.tx_json,date:Math.floor(expiresAt/1000)-946684800+100}}})},{...reservation,status:'expired'},{txHash,treasury,now:expiresAt+100000,reviewExpired:true}),/payment_outside_reservation_window/);
  await check({...tx,meta:{...tx.meta,delivered_amount:'2000000'}},'payment_delivered_amount_mismatch');
  await check({...tx,tx_json:{...tx.tx_json,Memos:[]}},'payment_reservation_memo_mismatch');
  await check({...tx,validated:false},'payment_not_validated_success');

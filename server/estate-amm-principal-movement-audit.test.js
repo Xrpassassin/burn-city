@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {auditAmmPrincipalMovements:audit}=require('./estate-amm-principal-movement-audit');
+const base={hash:'A'.repeat(64),ledgerIndex:100,eventKind:'liquidity_deposit',imgDelta:'-10',plxDelta:'-20',lpTokenDelta:'5',historicalAmmIdentityVerified:false,principalBasisVerified:false,distributable:false};
+const result=audit([base,{...base,hash:'B'.repeat(64),ledgerIndex:101,eventKind:'liquidity_withdrawal',imgDelta:'3',plxDelta:'4',lpTokenDelta:'-1'}]);
+assert.equal(result.movements,2);assert.equal(result.uncertainHistoricalIdentity,2);assert.equal(result.distributable,false);
+assert.throws(()=>audit([base,base]),/duplicate_movement_hash/);
+assert.throws(()=>audit([{...base,ledgerIndex:101},{...base,hash:'B'.repeat(64),ledgerIndex:100}]),/out_of_order_movement/);
+assert.throws(()=>audit([{...base,distributable:true}]),/unsafe_movement_accounting_claim/);
+assert.throws(()=>audit([{...base,lpTokenDelta:'n/a'}]),/invalid_movement_delta/);
+console.log('AMM principal movement audit tests passed');

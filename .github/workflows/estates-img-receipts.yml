@@ -1,0 +1,18 @@
+name: Estates validated IMG receipts
+on:
+  pull_request:
+    paths:
+      - 'server/estate-img-receipt.js'
+      - 'server/estate-img-receipt.test.js'
+      - '.github/workflows/estates-img-receipts.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/estate-img-receipt.js
+      - run: node server/estate-img-receipt.test.js

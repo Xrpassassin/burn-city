@@ -1,0 +1,19 @@
+name: Estates IMG ownership snapshots
+on:
+  pull_request:
+    paths:
+      - 'server/estate-img-ownership-snapshots.js'
+      - 'server/estate-img-ownership-snapshots.test.js'
+      - '.github/workflows/estates-img-ownership.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-img-ownership-snapshots.test.js
+      - run: node server/estate-img-verified-ingestion.test.js
+      - run: node server/estate-sale-production-gates.test.js

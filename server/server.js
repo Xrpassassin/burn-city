@@ -8,6 +8,8 @@ const { inspectEstateTokenLines } = require('./estate-token-lines');
 const { preparePlxTrustlineRequest } = require('./estate-plx-xaman');
 const EstateRights = require('./estates-rights');
 const { estatePurchaseQuote } = require('./estate-sale-quote');
+const { createEstateSaleSessionRecovery } = require('./estate-sale-session-recovery');
+const estateSessionRecovery = createEstateSaleSessionRecovery(Pay.sdb);
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
@@ -200,6 +202,11 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/access/revoke' && req.method === 'POST') {
         const b = await body(), result = EstateAccess.revoke(u.acct, String(b.propertyId || ''), String(b.guestAcct || ''));
         return json(res, result.ok ? 200 : (result.error === 'unknown_property' ? 404 : 403), result);
+      }
+      if (url.pathname === '/api/estates/purchase/session' && req.method === 'GET') {
+        if (gate('estate-session:' + u.acct, 20, 60e3)) return json(res, 429, { error: 'slow_down' });
+        const result = estateSessionRecovery.get({ reservationId: String(url.searchParams.get('reservationId') || ''), buyer: u.acct });
+        return json(res, result.ok ? 200 : 404, result);
       }
       if (url.pathname === '/api/estates/purchase/quote' && req.method === 'GET') {
         if (gate('estate-quote:' + u.acct, 12, 60e3)) return json(res, 429, { error: 'slow_down' });

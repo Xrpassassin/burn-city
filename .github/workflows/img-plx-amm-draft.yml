@@ -1,0 +1,18 @@
+name: IMG PLX AMM deposit draft
+on:
+  pull_request:
+    paths:
+      - 'server/img-plx-amm-deposit-draft.js'
+      - 'server/img-plx-amm-deposit-draft.test.js'
+      - '.github/workflows/img-plx-amm-draft.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/img-plx-amm-deposit-draft.test.js
+      - run: node server/estate-sale-production-gates.test.js

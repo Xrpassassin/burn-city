@@ -12,8 +12,10 @@ const { createEstateSaleSessionRecovery } = require('./estate-sale-session-recov
 const { createEstateReservationApi } = require('./estate-sale-reservation-api');
 const { createEstateXamanPaymentSession } = require('./estate-sale-xaman-session');
 const { createEstateSaleFinalization } = require('./estate-sale-finalization');
+const { createEstateLatePaymentReconciliation } = require('./estate-sale-late-reconciliation');
 const { createEstateLatePaymentReviewQueue } = require('./estate-sale-late-review-queue');
 const { createEstateReviewAudit } = require('./estate-sale-review-audit');
+createEstateLatePaymentReconciliation(Pay.sdb); // Initialize durable review schema; disabled by default.
 const estateReviewQueue = createEstateLatePaymentReviewQueue(Pay.sdb);
 const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: (process.env.ESTATE_REVIEW_ADMIN_ACCOUNTS || '').split(',').map(x => x.trim()).filter(Boolean) });
 // Deliberately fail closed: no payment requests or settlements until reviewed activation.

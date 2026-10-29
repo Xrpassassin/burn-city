@@ -1,0 +1,20 @@
+name: Estates live IMG receipt compatibility
+on:
+  pull_request:
+    paths:
+      - 'server/estate-img-*.js'
+      - '.github/workflows/estates-img-live-receipts.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          node --check server/server.js
+          node --check server/game.js
+          for test in server/estate-img-*.test.js; do node "$test" || exit 1; done
+          node server/estate-sale-production-gates.test.js

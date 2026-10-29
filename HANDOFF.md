@@ -117,6 +117,15 @@ GitHub `main` is the single source of truth, and **deploys are automatic: merge 
 
 _Auto-deploy verified 2026-10-19._
 
+### Estates live payout prerequisites — Oct 29, 2026
+
+- Read-only XRPL checks confirmed IMG/PLX pool `rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ`, IMG issuer `rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd`, PLX issuer `rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q`, and a treasury LP balance at validated ledger 107988107.
+- Actual Pollux IMG reward: tx `84C32FA3653FB912F5E51A030BFEBC00DBA2D69638848276B6670FD9C786EE54`, ledger 107987683 / hash `C2C9E18FB714886006FBA617816FE3DECE1593502F7D8378C4FDBDF27A34796C`, from `r9DW7jqMXqa32TaTujSxdxcpwnPgJayG8V` to the Estates treasury. Exact delivery `0.31949269804787` IMG. Its structured memo names the designated pool. This evidence does not approve an entire historical range or all payments from that source.
+- Receipt accounting retains existing micro-IMG units. Additive table `estate_img_reward_precision` stores exact delivery and sub-micro dust atomically with new receipts; no existing balances change units. Dust is retained for audit, not distributed or automatically rolled forward. Do not drop this table on rollback. Legacy receipts have no precision row; replay remains accepted only for an exact micro-unit match.
+- The IMG scanner independently verifies other source Payments too, excluding validated non-IMG deliveries and `tec` failures from IMG funding while still checking their ledger/time binding. XRP minimum rewards are **not** yet allocated by this IMG pipeline.
+- Tests: `for test in server/estate-img-*.test.js; do node "$test" || exit 1; done`, server/game syntax checks, and `node server/estate-sale-production-gates.test.js`. Read-only in-memory replay of the actual ledger above also passed. No transaction was signed or submitted.
+- Activation remains incomplete: production scanner/allocation/hour-close wiring, pool-specific reward classification, durable payout execution/reconciliation, owner trustline checks, IMG-to-XRP settlement, funding/reserve caps, and production signing/configuration access. Global `/api/status` reported `payoutsPaused:true` during this check; diagnose that pause before changing it because other treasury jobs share it. No payout worker or activation flag was added by this receipt compatibility fix.
+
 ## AEGIS City Watch (merged; superseded in part by the Pyramid HQ below)
 - Client: `client/js/aegis.js` (lazy-loaded by app.js; `?noaegis` / `?aegis=0` or Settings → "Live AEGIS feed" turns it off).
   Polls `https://api.xrpl.fun/v1/aegis/city` every 60 s (backoff, paused when hidden), validates everything, never loads the AEGIS sdk.js.

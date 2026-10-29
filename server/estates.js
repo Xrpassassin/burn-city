@@ -36,6 +36,7 @@ function createOwnerRewardEpoch({ epochId, distributableImgUnits, fundingRef, so
   const owners = [...new Set(holdings.map(h => h.acct))];
   const query = db.prepare('SELECT currency FROM estate_owner_payout_preferences WHERE acct=?');
   for (const acct of owners) preferences[acct] = query.get(acct)?.currency || null;
+  // Missing preference intentionally produces a held payout, never an implicit XRP sale.
   return ownerEpochs.create({ epochId, distributableImgUnits, fundingRef, sourceLedgerIndex, holdings, preferences });
 }
 function previewWeeklyAllocation(distributableDrops) {

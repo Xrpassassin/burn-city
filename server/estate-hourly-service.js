@@ -11,9 +11,9 @@ function createEstateHourlyService({db,pay,config,guard,env=process.env}={}){
   wallet:()=>{try{return config.TREASURY_SEED?require('xrpl').Wallet.fromSeed(config.TREASURY_SEED):null;}catch{return null;}}});
  let timer=null,busy=false,lastError=null,lastBlock=null;
  let signerMatches=false;try{signerMatches=!!config.TREASURY_SEED&&require('xrpl').Wallet.fromSeed(config.TREASURY_SEED).classicAddress===config.ESTATE_TREASURY;}catch{}
- async function tick(){if(busy)return;busy=true;try{await accounting.tick();const result=await executor.tick();lastBlock=result?.blocked||null;lastError=null;}catch(e){lastError='processing_delayed';console.error('[estates-hourly]',e.message);}finally{busy=false;}}
+ async function tick(){if(busy)return;busy=true;try{const accountingResult=await accounting.tick();const result=await executor.tick({reconcileOnly:!!accountingResult?.blocked||!accountingEnabled});lastBlock=accountingResult?.blocked||result?.blocked||null;lastError=null;}catch(e){lastError='processing_delayed';console.error('[estates-hourly]',e.message);}finally{busy=false;}}
  function status(owner){const a=accounting.state(owner);return {...a,accountingEnabled,distributionsEnabled:payoutsEnabled&&a.bootstrapped&&signerMatches&&!guard.paused()&&!lastError&&!lastBlock,distributionStatus:!payoutsEnabled?'disabled':!a.bootstrapped?'bootstrap_required':!signerMatches?'treasury_signer_unavailable':guard.paused()?'treasury_paused':lastError||lastBlock||'enabled',distributionSchedule:'hourly'};}
- function start(){if(!accountingEnabled||timer)return false;timer=setInterval(()=>void tick(),15000);timer.unref?.();void tick();return true;}
+ function start(){if(timer||(!accountingEnabled&&!db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state='submitted'").get()))return false;timer=setInterval(()=>void tick(),15000);timer.unref?.();void tick();return true;}
  return {status,start,tick};
 }
 module.exports={createEstateHourlyService};

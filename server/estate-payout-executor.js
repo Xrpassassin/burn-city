@@ -56,10 +56,11 @@ function createEstatePayoutExecutor({db,client,wallet,treasury,imgIssuer,guard,e
    update(row.id,{state:'confirmed',note:null,delivered:JSON.stringify(delivered),spent_img_units:String(spent),remainder_img_units:String(remaining)});db.exec('COMMIT');
   }catch(e){db.exec('ROLLBACK');throw e;}return {confirmed:row.id};
  }
- async function tick(){
-  if(!enabled)return {skipped:'disabled'};if(busy)return {skipped:'busy'};busy=true;
+ async function tick({reconcileOnly=false}={}){
+  if(busy)return {skipped:'busy'};busy=true;
   try{
    const open=db.prepare("SELECT * FROM estate_hourly_payouts WHERE state='submitted' ORDER BY epoch_start_ms LIMIT 1").get();if(open)return await reconcile(open);
+   if(!enabled||reconcileOnly)return {skipped:'disabled'};
    if(guard.paused())return {blocked:'payouts_paused'};
    if(db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state='preparing'").get())return {blocked:'interrupted_preparation_review_required'};
    const w=wallet();if(!w||w.classicAddress!==treasury)return {blocked:'treasury_signer_mismatch'};

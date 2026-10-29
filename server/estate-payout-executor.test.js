@@ -29,7 +29,7 @@ function setup(currency='IMG'){
  a.paused=false;a.missingLine=true;await a.make().tick();assert.equal(a.submits,0);assert.equal(a.runtime.state(a.owner).payouts[0].note,'recipient_img_trustline_unavailable');
  a.missingLine=false;a.failSubmit=true;assert.ok((await a.make().tick()).submitted);assert.equal(a.submits,1);
  await a.make().tick();assert.equal(a.submits,1);assert.equal(a.runtime.state(a.owner).payouts[0].state,'submitted');
- a.validated=true;a.paused=true;assert.ok((await a.make().tick()).confirmed);assert.equal(a.runtime.state(a.owner).payouts[0].state,'confirmed');await a.make().tick();assert.equal(a.submits,1);
+ a.validated=true;a.paused=true;assert.ok((await a.make(false).tick()).confirmed);assert.equal(a.runtime.state(a.owner).payouts[0].state,'confirmed');await a.make().tick();assert.equal(a.submits,1);
  const b=setup('XRP');assert.ok((await b.make().tick()).submitted);b.validated=true;assert.ok((await b.make().tick()).confirmed);assert.equal(b.runtime.state(b.owner).payouts[0].remainder_img_units,'100000');
  assert.equal(b.db.prepare('SELECT units FROM estate_payout_credits').get().units,'100000');
  b.runtime.enqueue(0);assert.equal(b.db.prepare('SELECT units FROM estate_payout_credits').get().units,'100000');

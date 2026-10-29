@@ -60,6 +60,14 @@ async function run(){
  assert.equal(settled.ownershipAssigned,true);
  assert.equal((await finalize.finalize({reservationId:reservation.reservationId,buyer,now:now+5000})).status,'already_settled');
  assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_property_ownership').get().n,1);
+ const second=reservationApi.create({buyer,propertyId:'trailer-02',now});
+ assert.equal(second.ok,true);
+ // Reuse of the already-settled transaction cannot buy a second property.
+ const secondPayment=await payment.start({reservationId:second.reservationId,buyer,now});
+ assert.equal(secondPayment.ok,true);
+ await assert.rejects(finalize.finalize({reservationId:second.reservationId,buyer,now:now+4000}),/payment_reservation_memo_mismatch/);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_property_ownership').get().n,1);
+ assert.equal(db.prepare('SELECT status FROM estate_sale_reservations WHERE reservation_id=?').get(second.reservationId).status,'reserved');
  assert.equal(recovery.get({reservationId:reservation.reservationId,buyer,now:now+5000}).status,'settled');
  console.log('Estate full purchase lifecycle integration tests passed');
 }

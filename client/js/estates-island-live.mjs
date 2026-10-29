@@ -3,6 +3,7 @@ import { buildEstatesIslandScene } from './estates-island-scene.mjs';
 import { createEstatesIslandRenderer } from './estates-island-renderer.mjs';
 import { createEstatesIslandController } from './estates-island-controller.mjs';
 import { estateWalkingGuidance } from './estates-walking-guidance.mjs';
+import { estateRoadWaypoints, estateNextWaypoint } from './estates-road-waypoints.mjs';
 
 const OFFSET_X = 650;
 const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
@@ -376,9 +377,11 @@ export async function installEstatesIslandLive({
     if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
       lastGuidanceUpdate=Date.now();
       const pos={x:player.pos.x-OFFSET_X,z:player.pos.z};
-      const nav=estateWalkingGuidance(pos,requestedLot.position);
+      const direct=estateWalkingGuidance(pos,requestedLot.position);
+      const waypoint=direct.arrived?requestedLot.position:estateNextWaypoint(pos,selectedRoadWaypoints);
+      const nav=estateWalkingGuidance(pos,waypoint||requestedLot.position);
       const compass=['N','NE','E','SE','S','SW','W','NW'][Math.round(((nav.bearingRadians+Math.PI*2)%(Math.PI*2))/(Math.PI/4))%8];
-      guidanceHud.textContent=nav.arrived?'Arrived at '+requestedLot.address:'Lot '+requestedLot.address+' · '+Math.round(nav.distance)+'m · '+compass;
+      guidanceHud.textContent=direct.arrived?'Arrived at '+requestedLot.address:'Towards '+requestedLot.address+' · waypoint '+Math.round(nav.distance)+'m · '+compass+' · public-road guidance';
       guidanceHud.style.display='block';
     }
     if(selectedLotBeacon){
@@ -435,6 +438,7 @@ export async function installEstatesIslandLive({
   }
 
   let guidanceHud=null, lastGuidanceUpdate=0;
+  const selectedRoadWaypoints=requestedLot?estateRoadWaypoints(ISLAND_SPAWN,requestedLot.position):null;
   if(requestedLot){
     guidanceHud=document.createElement('div');
     guidanceHud.id='bcEstatesWalkingGuidance';

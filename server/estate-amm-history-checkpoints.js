@@ -41,11 +41,15 @@ function createAmmHistoryCheckpointStore(db){
   }
   const markerJson=nextMarker===undefined||nextMarker===null?null:JSON.stringify(nextMarker);
   if(markerJson!==null&&(markerJson===current.marker_json||markerJson.length>8192))throw new Error('invalid_or_repeated_marker');
-  const commit=db.transaction(()=>{
+  db.exec('BEGIN IMMEDIATE');
+  try {
+   const fresh=get.get(scanId);
+   if(fresh.page_count!==expectedPageCount||fresh.exhausted)throw new Error('stale_scan_checkpoint');
    for(const item of transactions)insert.run(scanId,item.hash.toUpperCase(),item.ledgerIndex,item.validated?1:0,item.transactionType||null);
    update.run(markerJson,markerJson===null?1:0,scanId);
-  });
-  commit();return get.get(scanId);
+   db.exec('COMMIT');
+  } catch(err) {db.exec('ROLLBACK');throw err;}
+  return get.get(scanId);
  }
  return {begin,recordPage,get:(scanId)=>get.get(scanId)};
 }

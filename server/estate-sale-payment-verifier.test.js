@@ -12,6 +12,10 @@ async function check(t,expected){
 }
 async function main(){
  await check(tx);
+ await check({...tx,hash:'B'.repeat(64)},'payment_hash_mismatch');
+ await check({...tx,tx_json:{...tx.tx_json,Flags:'0'}},'partial_payment_not_allowed');
+ await check({...tx,tx_json:{...tx.tx_json,Flags:-1}},'partial_payment_not_allowed');
+ await check({...tx,tx_json:{...tx.tx_json,Flags:0x00020000}},'partial_payment_not_allowed');
  await check({...tx,tx_json:{...tx.tx_json,hash:undefined}},'payment_hash_mismatch');
  await check({...tx,tx_json:{...tx.tx_json,hash:'B'.repeat(64)}},'payment_hash_mismatch');
  await check({...tx,hash:'B'.repeat(64),tx_json:{...tx.tx_json,hash:undefined}},'payment_hash_mismatch');

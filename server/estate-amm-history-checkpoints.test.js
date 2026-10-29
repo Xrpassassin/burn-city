@@ -1,8 +1,8 @@
 'use strict';
 const assert=require('node:assert/strict');
 const {createAmmHistoryCheckpointStore}=require('./estate-amm-history-checkpoints');
-const Database=require('better-sqlite3');
-const db=new Database(':memory:');
+const {DatabaseSync}=require('node:sqlite');
+const db=new DatabaseSync(':memory:');
 const store=createAmmHistoryCheckpointStore(db);
 const scan={scanId:'test',treasury:'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',ledgerMin:100,ledgerMax:200};
 assert.equal(store.begin(scan).page_count,0);

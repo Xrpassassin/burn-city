@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {estateWalkingGuidance as guide} from './estates-walking-guidance.mjs';
+assert.equal(guide({x:0,z:0},{x:0,z:-10}).distance,10);
+assert.equal(guide({x:0,z:0},{x:0,z:-10}).bearingRadians,0);
+assert.equal(guide({x:0,z:0},{x:10,z:0}).bearingRadians,Math.PI/2);
+assert.equal(guide({x:0,z:0},{x:3,z:4}).arrived,true);
+assert.equal(guide({x:0,z:0},{x:6,z:0}).arrived,false);
+assert.deepEqual(guide({x:0,z:0},{x:0,z:0}).direction,{x:0,z:0});
+assert.throws(()=>guide({x:NaN,z:0},{x:1,z:2}),TypeError);
+console.log('Estates walking guidance checks passed');

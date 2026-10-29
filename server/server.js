@@ -15,7 +15,8 @@ const { createEstateSaleFinalization } = require('./estate-sale-finalization');
 const { createEstateLatePaymentReconciliation } = require('./estate-sale-late-reconciliation');
 const { createEstateLatePaymentReviewQueue } = require('./estate-sale-late-review-queue');
 const { createEstateReviewAudit } = require('./estate-sale-review-audit');
-const { authorizeEstateReview, parseEstateReviewAdminAccounts } = require('./estate-sale-review-auth');
+const { parseEstateReviewAdminAccounts } = require('./estate-sale-review-auth');
+const { handleEstateReviewRequest } = require('./estate-sale-review-http');
 createEstateLatePaymentReconciliation(Pay.sdb); // Initialize durable review schema; disabled by default.
 const estateReviewQueue = createEstateLatePaymentReviewQueue(Pay.sdb);
 const estateReviewAdminAccounts = parseEstateReviewAdminAccounts(process.env.ESTATE_REVIEW_ADMIN_ACCOUNTS || '');
@@ -221,18 +222,9 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname.startsWith('/api/estates/admin/reviews')) {
         // Two independent checks: signed-in wallet must be allowlisted AND
         // the request must supply the existing constant-time checked admin token.
-        if (!authorizeEstateReview({ account: u.acct, adminTokenValid: adminOk(req, ip), allowedAccounts: estateReviewAdminAccounts })) return json(res, 403, { error: 'forbidden' });
         if (gate('estate-review-admin:' + u.acct, 12, 60e3) || gate('estate-review-admin-ip:' + ip, 24, 60e3)) return json(res, 429, { error: 'slow_down' });
-        if (req.method !== 'GET') return json(res, 405, { error: 'read_only_review_api' });
-        if (url.pathname === '/api/estates/admin/reviews') return json(res, 200, { reviews: estateReviewQueue.list({ limit: 25 }), readOnly: true });
-        if (url.pathname === '/api/estates/admin/reviews/detail') {
-          const reservationId = String(url.searchParams.get('reservationId') || '');
-          const review = estateReviewQueue.detail(reservationId);
-          if (!review) return json(res, 404, { error: 'review_not_found' });
-          const audit = estateReviewAudit.history({ actor: u.acct, reservationId });
-          return json(res, 200, { review, audit: audit.events, readOnly: true });
-        }
-        return json(res, 404, { error: 'not_found' });
+        const decision = handleEstateReviewRequest({ method: req.method, path: url.pathname, query: url.searchParams, account: u.acct, adminTokenValid: adminOk(req, ip), allowedAccounts: estateReviewAdminAccounts, queue: estateReviewQueue, audit: estateReviewAudit });
+        return json(res, decision.code, decision.body);
       }
       if (url.pathname === '/api/estates/purchase/payment/start' && req.method === 'POST') {
         if (gate('estate-payment-start:' + u.acct, 6, 60e3) || gate('estate-payment-start-ip:' + ip, 12, 60e3)) return json(res, 429, { error: 'slow_down' });

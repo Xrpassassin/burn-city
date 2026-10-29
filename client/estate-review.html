@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BURN City — Estates Payment Review</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#10151d;color:#eaf0f7}
+body{max-width:1100px;margin:auto;padding:24px}header{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+h1{font-size:1.7rem}h2{font-size:1.15rem}p{color:#b4c2d0}input,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #4a596b;background:#1b2734;color:#fff}
+input{min-width:240px}button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}.panel{background:#19232f;border:1px solid #344253;border-radius:12px;padding:18px;margin-top:16px}
+table{width:100%;border-collapse:collapse}td,th{padding:10px;border-bottom:1px solid #344253;text-align:left;word-break:break-word}th{color:#b4c2d0}
+code{overflow-wrap:anywhere}#status{min-height:1.5em}#details{white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:700px){.table-wrap{overflow-x:auto}input{width:100%;min-width:0}}
+</style></head><body>
+<header><div><h1>Estates payment review</h1><p>Read-only administration · No refunds or property transfers</p></div><a href="/">Return to BURN City</a></header>
+<section class="panel"><h2>Authenticated access</h2><p>Use your existing Xaman bearer session and administrator token. Credentials are held only in this page's memory and are never saved.</p>
+<div class="controls"><input id="bearer" type="password" autocomplete="off" placeholder="Xaman bearer token" aria-label="Xaman bearer token"><input id="admin" type="password" autocomplete="off" placeholder="Administrator token" aria-label="Administrator token"><button id="load">Load reviews</button><button id="clear">Clear credentials</button></div><p id="status" role="status"></p></section>
+<section class="panel"><h2>Payment exceptions</h2><div class="table-wrap"><table><thead><tr><th>Reservation</th><th>Property</th><th>Amount</th><th>Buyer</th><th>Review</th></tr></thead><tbody id="reviews"><tr><td colspan="5">No data loaded</td></tr></tbody></table></div></section>
+<section class="panel"><h2>Selected review and audit history</h2><pre id="details">Select a review to inspect its evidence.</pre></section>
+<script src="/estate-review-dashboard.js" defer></script></body></html>

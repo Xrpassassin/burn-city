@@ -1,0 +1,18 @@
+name: Estates read-only review dashboard
+on:
+  pull_request:
+    paths:
+      - 'client/estate-review.html'
+      - 'client/estate-review-dashboard.js'
+      - '.github/workflows/estates-review-dashboard.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check client/estate-review-dashboard.js
+      - run: node server/estate-sale-review-http.test.js

@@ -69,7 +69,8 @@
     "test:nft-avatar-model-factory": "node scripts/nft-avatar-model-factory.test.mjs",
     "test:nft-avatar-collection-recipes": "node client/js/nft-avatar-collection-recipes.test.mjs",
     "test:nft-avatar-build-spec": "node scripts/nft-avatar-build-spec.test.mjs",
-    "test:nft-avatar-build-pipeline": "node scripts/nft-avatar-build-pipeline.test.mjs"
+    "test:nft-avatar-build-pipeline": "node scripts/nft-avatar-build-pipeline.test.mjs",
+    "test:estate-plx": "node server/estate-token-lines.test.js && node server/estate-plx-xaman.test.js"
   },
   "keywords": [],
   "author": "",

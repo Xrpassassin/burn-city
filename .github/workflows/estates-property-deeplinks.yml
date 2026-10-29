@@ -1,0 +1,19 @@
+name: Estates property deep links
+on:
+  pull_request:
+    paths:
+      - 'client/estate-buyer-preview.js'
+      - 'client/js/estates-island-live.mjs'
+      - '.github/workflows/estates-property-deeplinks.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check client/estate-buyer-preview.js
+      - run: node --check client/js/estates-island-live.mjs
+      - run: node --test client/js/estates-island-scene.test.mjs

@@ -1,0 +1,19 @@
+name: Estates authenticated quote
+on:
+  pull_request:
+    paths:
+      - 'server/estate-sale-quote.js'
+      - 'server/estate-sale-quote.test.js'
+      - 'server/server.js'
+      - '.github/workflows/estates-sale-quote.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/server.js
+      - run: node server/estate-sale-quote.test.js

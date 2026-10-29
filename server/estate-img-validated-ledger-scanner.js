@@ -19,6 +19,8 @@ function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSo
   const response=await client.request({command:'ledger',ledger_index:ledgerIndex,transactions:true,expand:true});
   const ledger=response?.result?.ledger;
   if(response?.result?.validated!==true||!ledger||Number(ledger.ledger_index)!==ledgerIndex||!Array.isArray(ledger.transactions)||!Number.isSafeInteger(ledger.close_time))throw new Error('unvalidated_or_incomplete_ledger');
+  const ledgerHash=ledger.ledger_hash||response.result.ledger_hash;
+  if(!HASH.test(ledgerHash||'')||!HASH.test(ledger.parent_hash||'')||!HASH.test(ledger.transaction_hash||''))throw new Error('missing_ledger_integrity_hashes');
   const hashes=[];
   const seenHashes=new Set();
   for(const entry of ledger.transactions){
@@ -36,6 +38,10 @@ function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSo
   if(verified.some(r=>r.ledgerIndex!==ledgerIndex||r.receivedAtMs!==closeTimeMs))throw new Error('receipt_ledger_or_time_mismatch');
   db.exec('BEGIN IMMEDIATE');
   try{
+   db.exec('CREATE TABLE IF NOT EXISTS estate_img_scanned_ledger_hashes(ledger_index INTEGER PRIMARY KEY,ledger_hash TEXT NOT NULL,parent_hash TEXT NOT NULL,transaction_hash TEXT NOT NULL)');
+   const priorHash=db.prepare('SELECT ledger_hash FROM estate_img_scanned_ledger_hashes WHERE ledger_index=?').get(ledgerIndex-1);
+   if(previous&&!priorHash)throw new Error('missing_previous_ledger_hash');
+   if(priorHash&&priorHash.ledger_hash.toUpperCase()!==ledger.parent_hash.toUpperCase())throw new Error('ledger_parent_hash_mismatch');
    let inserted=0;
    for(const receipt of verified)if(receipts.record(receipt).inserted)inserted++;
    // Checkpoint store owns its own transaction: avoid nested transactions by
@@ -44,8 +50,9 @@ function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSo
    if(current&&ledgerIndex!==current.ledger_index+1)throw new Error('noncontiguous_ledger');
    if(current&&closeTimeMs<current.scanned_through_ms)throw new Error('ledger_time_regression');
    db.prepare('INSERT INTO estate_img_scan_watermarks(id,scanned_through_ms,ledger_index,verified_at_ms) VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET scanned_through_ms=excluded.scanned_through_ms,ledger_index=excluded.ledger_index,verified_at_ms=excluded.verified_at_ms').run(closeTimeMs,ledgerIndex,verifiedAtMs);
+   db.prepare('INSERT INTO estate_img_scanned_ledger_hashes VALUES(?,?,?,?)').run(ledgerIndex,ledgerHash.toUpperCase(),ledger.parent_hash.toUpperCase(),ledger.transaction_hash.toUpperCase());
    db.exec('COMMIT');
-   return Object.freeze({ledgerIndex,closeTimeMs,eligiblePayments:verified.length,newReceipts:inserted});
+   return Object.freeze({ledgerIndex,ledgerHash:ledgerHash.toUpperCase(),closeTimeMs,eligiblePayments:verified.length,newReceipts:inserted});
   }catch(e){db.exec('ROLLBACK');throw e;}
  }
  return Object.freeze({scan,current:checkpoints.current});

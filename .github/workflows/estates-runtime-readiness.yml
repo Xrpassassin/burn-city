@@ -1,7 +1,7 @@
 name: Estates read-only production readiness
 on:
   push:
-    branches: [ops/estates-runtime-readiness]
+    branches: [ops/estates-runtime-readiness, fix/estates-launch-diagnostics]
     paths:
       - 'scripts/estate-runtime-readiness.cjs'
       - '.github/workflows/estates-runtime-readiness.yml'

@@ -19,8 +19,8 @@ if(fs.existsSync(pausePath)){
  report.pauseFile.exists=true;
  try{
   const pause=JSON.parse(fs.readFileSync(pausePath,'utf8'));
-  const reason=typeof pause.reason==='string'&&/^store_corrupt:[a-zA-Z0-9_.-]{1,100}$/.test(pause.reason)?pause.reason:'operator_or_other_reason';
-  report.pauseFile={exists:true,paused:pause.paused===true,reason};
+  const reason=typeof pause.reason==='string'&&/^(?:unexpected_outgoing_tx|store_corrupt:[a-zA-Z0-9_.-]{1,100})$/.test(pause.reason)?pause.reason:'operator_or_other_reason';
+  report.pauseFile={exists:true,paused:pause.paused===true,reason,transactions:Array.isArray(pause.unknown)?pause.unknown.slice(0,30).filter(x=>/^[A-Fa-f0-9]{64}$/.test(x.hash||'')).map(x=>({hash:x.hash,type:typeof x.type==='string'&&/^[A-Za-z]{1,40}$/.test(x.type)?x.type:'unknown'})):[]};
  }catch{report.pauseFile={exists:true,unreadable:true};}
 }
 const dbPath=path.join(root,'shop.db');

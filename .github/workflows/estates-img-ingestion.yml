@@ -1,0 +1,20 @@
+name: Estates verified IMG ingestion
+on:
+  pull_request:
+    paths:
+      - 'server/estate-img-verified-ingestion.js'
+      - 'server/estate-img-verified-ingestion.test.js'
+      - '.github/workflows/estates-img-ingestion.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-img-verified-ingestion.test.js
+      - run: node server/estate-img-xrpl-receipt-verifier.test.js
+      - run: node server/estate-img-hourly-rewards.test.js
+      - run: node server/estate-sale-production-gates.test.js

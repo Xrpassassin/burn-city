@@ -1,0 +1,23 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {DatabaseSync}=require('node:sqlite');
+const {createVerifiedImgRewardIngestion}=require('./estate-img-verified-ingestion');
+const treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',source='rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',hash='A'.repeat(64);
+const db=new DatabaseSync(':memory:');
+let calls=0;
+const client={request:async req=>{calls++;assert.equal(req.command,'tx');return {result:{hash,validated:true,ledger_index:123,date:900000000,TransactionType:'Payment',Account:source,Destination:treasury,meta:{TransactionResult:'tesSUCCESS',delivered_amount:{currency:'IMG',issuer:source,value:'1.000001'}}}}}};
+const ingestion=createVerifiedImgRewardIngestion({client,db,treasury,imgIssuer:source,allowedSources:[source]});
+(async()=>{
+ const first=await ingestion.ingest(hash),again=await ingestion.ingest(hash);
+ assert.equal(first.inserted,true);assert.equal(again.inserted,false);
+ assert.equal(calls,2);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_img_reward_receipts').get().n,1);
+ const rows=[{propertyId:'trailer-01',acct:treasury},{propertyId:'trailer-02',acct:source}];
+ const allocated=ingestion.allocateVerified(hash,rows);
+ assert.equal(allocated.allocations.reduce((sum,x)=>sum+BigInt(x.amountUnits),0n),1000001n);
+ assert.throws(()=>ingestion.allocateVerified(hash,rows),/reward_already_allocated/);
+ const rejected=createVerifiedImgRewardIngestion({client:{request:async()=>({result:{validated:false}})},db:new DatabaseSync(':memory:'),treasury,imgIssuer:source,allowedSources:[source]});
+ await assert.rejects(()=>rejected.ingest(hash));
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_img_reward_receipts').get().n,1);
+ console.log('Verified XRPL IMG ingestion -> SQLite -> hourly allocation tests passed');
+})().catch(e=>{console.error(e);process.exitCode=1});

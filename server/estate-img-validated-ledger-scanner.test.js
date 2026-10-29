@@ -22,6 +22,13 @@ function makeClient({valid=true,delivered='1.000001'}={}){
  const invalid=createImgValidatedLedgerScanner({db:invalidDb,client:makeClient({valid:false}),treasury,imgIssuer:source,allowedSources:[source]});
  await assert.rejects(()=>invalid.scan(ledgerIndex),/unvalidated_or_incomplete_ledger/);
  assert.equal(invalid.current(),null);
+ const duplicateDb=new DatabaseSync(':memory:');
+ const duplicateClient=makeClient();
+ const originalRequest=duplicateClient.request;
+ duplicateClient.request=async request=>{const response=await originalRequest(request);if(request.command==='ledger')response.result.ledger.transactions.push({...response.result.ledger.transactions[0]});return response;};
+ const duplicate=createImgValidatedLedgerScanner({db:duplicateDb,client:duplicateClient,treasury,imgIssuer:source,allowedSources:[source]});
+ await assert.rejects(()=>duplicate.scan(ledgerIndex),/duplicate_ledger_transaction/);
+ assert.equal(duplicate.current(),null);
  const badDb=new DatabaseSync(':memory:');
  const bad=createImgValidatedLedgerScanner({db:badDb,client:makeClient({delivered:'0'}),treasury,imgIssuer:source,allowedSources:[source]});
  await assert.rejects(()=>bad.scan(ledgerIndex),/zero_img_delivery/);

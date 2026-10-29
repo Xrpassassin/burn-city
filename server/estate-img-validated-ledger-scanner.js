@@ -20,10 +20,14 @@ function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSo
   const ledger=response?.result?.ledger;
   if(response?.result?.validated!==true||!ledger||Number(ledger.ledger_index)!==ledgerIndex||!Array.isArray(ledger.transactions)||!Number.isSafeInteger(ledger.close_time))throw new Error('unvalidated_or_incomplete_ledger');
   const hashes=[];
+  const seenHashes=new Set();
   for(const entry of ledger.transactions){
    const tx=entry?.tx_json||entry;
    if(!tx||typeof tx!=='object'||typeof tx.TransactionType!=='string'||!HASH.test(entry.hash||tx.hash||''))throw new Error('unexpected_ledger_transaction_shape');
-   if(tx.TransactionType==='Payment'&&sources.has(tx.Account)&&tx.Destination===treasury)hashes.push(entry.hash||tx.hash);
+   const hash=(entry.hash||tx.hash).toUpperCase();
+   if(seenHashes.has(hash))throw new Error('duplicate_ledger_transaction');
+   seenHashes.add(hash);
+   if(tx.TransactionType==='Payment'&&sources.has(tx.Account)&&tx.Destination===treasury)hashes.push(hash);
   }
   const closeTimeMs=(ledger.close_time+946684800)*1000;
   if(!Number.isSafeInteger(closeTimeMs))throw new Error('invalid_ledger_close_time');

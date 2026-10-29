@@ -10,6 +10,11 @@ const EstateRights = require('./estates-rights');
 const { estatePurchaseQuote } = require('./estate-sale-quote');
 const { createEstateSaleSessionRecovery } = require('./estate-sale-session-recovery');
 const { createEstateReservationApi } = require('./estate-sale-reservation-api');
+const { createEstateXamanPaymentSession } = require('./estate-sale-xaman-session');
+const { createEstateSaleFinalization } = require('./estate-sale-finalization');
+// Deliberately fail closed: no payment requests or settlements until reviewed activation.
+const estatePaymentSession = createEstateXamanPaymentSession(Pay.sdb, { enabled: false });
+const estateFinalization = createEstateSaleFinalization(Pay.sdb, { enabled: false });
 const estateReservationApi = createEstateReservationApi(Pay.sdb, { enabled: false });
 const estateSessionRecovery = createEstateSaleSessionRecovery(Pay.sdb);
 const EstateAccess = require('./estate-access');
@@ -204,6 +209,18 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/access/revoke' && req.method === 'POST') {
         const b = await body(), result = EstateAccess.revoke(u.acct, String(b.propertyId || ''), String(b.guestAcct || ''));
         return json(res, result.ok ? 200 : (result.error === 'unknown_property' ? 404 : 403), result);
+      }
+      if (url.pathname === '/api/estates/purchase/payment/start' && req.method === 'POST') {
+        if (gate('estate-payment-start:' + u.acct, 6, 60e3) || gate('estate-payment-start-ip:' + ip, 12, 60e3)) return json(res, 429, { error: 'slow_down' });
+        const b = await body();
+        const result = await estatePaymentSession.start({ reservationId: String(b?.reservationId || ''), buyer: u.acct });
+        return json(res, result.ok ? 200 : result.error === 'estate_sales_disabled' ? 409 : 400, result);
+      }
+      if (url.pathname === '/api/estates/purchase/payment/confirm' && req.method === 'POST') {
+        if (gate('estate-payment-confirm:' + u.acct, 12, 60e3) || gate('estate-payment-confirm-ip:' + ip, 24, 60e3)) return json(res, 429, { error: 'slow_down' });
+        const b = await body();
+        const result = await estateFinalization.finalize({ reservationId: String(b?.reservationId || ''), buyer: u.acct });
+        return json(res, result.ok ? 200 : result.error === 'estate_sales_disabled' ? 409 : 400, result);
       }
       if (url.pathname === '/api/estates/purchase/reserve' && req.method === 'POST') {
         if (gate('estate-reserve:' + u.acct, 6, 60e3) || gate('estate-reserve-ip:' + ip, 12, 60e3)) return json(res, 429, { error: 'slow_down' });

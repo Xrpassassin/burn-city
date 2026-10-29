@@ -1,0 +1,15 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { DatabaseSync } = require('node:sqlite');
+const { createImgReceiptJournal } = require('./estate-img-receipt-journal');
+const db = new DatabaseSync(':memory:');
+const journal = createImgReceiptJournal(db);
+const verified = {hash:'A'.repeat(64),ledgerIndex:42,treasury:'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',imgIssuer:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',sender:'rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q',deliveredImg:'12.5',classification:'unclassified_receipt',distributable:false};
+assert.equal(journal.record(verified).inserted,true);
+assert.equal(journal.record(verified).inserted,false);
+assert.equal(journal.get(verified.hash).distributable,0);
+assert.equal(db.prepare('SELECT COUNT(*) AS n FROM estate_img_receipts').get().n,1);
+assert.throws(()=>journal.record({...verified,deliveredImg:'999'}),/receipt_hash_conflict/);
+assert.throws(()=>journal.record({...verified,hash:'B'.repeat(64),distributable:true}),/validated_unclassified_img_receipt_required/);
+assert.throws(()=>db.prepare("UPDATE estate_img_receipts SET distributable=1").run(),/CHECK constraint failed/);
+console.log('IMG receipt journal replay and quarantine tests passed');

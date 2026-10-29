@@ -9,21 +9,23 @@ function createEstateWallet({ config = C, pay = Pay, now = Date.now } = {}) {
   const expectedTreasury = String(config.ESTATE_TREASURY || '').trim();
   const pending = new Map();
   let verifiedAt = 0;
+  const OWNER_VERIFICATION_TTL_MS = 10 * 60e3;
 
   function status() {
     const validAddress = ADDRESS_RE.test(expectedTreasury);
     const xamanConfigured = !!(config.XUMM_KEY && config.XUMM_SECRET);
+    const verifiedRecently = !!(verifiedAt && now() - verifiedAt >= 0 && now() - verifiedAt < OWNER_VERIFICATION_TTL_MS);
     return {
       provider: 'Xaman',
       network: config.NETWORK,
       expectedAddress: validAddress ? expectedTreasury : null,
       addressConfigured: validAddress,
       xamanConfigured,
-      ownerControlVerified: !!(verifiedAt && validAddress),
-      ownerControlVerifiedAt: verifiedAt || null,
+      ownerControlVerified: !!(verifiedRecently && validAddress),
+      ownerControlVerifiedAt: verifiedRecently ? verifiedAt : null,
       salesEnabled: false,
       distributionsEnabled: false,
-      status: !validAddress ? 'treasury_address_not_configured' : !xamanConfigured ? 'xaman_credentials_missing' : verifiedAt ? 'owner_control_verified_sales_disabled' : 'awaiting_owner_signin'
+      status: !validAddress ? 'treasury_address_not_configured' : !xamanConfigured ? 'xaman_credentials_missing' : verifiedRecently ? 'owner_control_verified_sales_disabled' : 'awaiting_owner_signin'
     };
   }
 

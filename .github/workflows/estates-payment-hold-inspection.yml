@@ -1,0 +1,18 @@
+name: Estates payment hold inspection
+on:
+  pull_request:
+    paths:
+      - 'server/estate-sale-payment-hold-inspection.js'
+      - 'server/estate-sale-payment-hold-inspection.test.js'
+      - '.github/workflows/estates-payment-hold-inspection.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-sale-payment-hold-inspection.test.js
+      - run: node server/estate-sale-reservations.test.js

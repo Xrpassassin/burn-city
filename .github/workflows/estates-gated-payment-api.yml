@@ -1,0 +1,20 @@
+name: Estates gated payment API
+on:
+  pull_request:
+    paths:
+      - 'server/server.js'
+      - '.github/workflows/estates-gated-payment-api.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/server.js
+      - run: node server/estate-sale-xaman-session.test.js
+      - run: node server/estate-sale-finalization.test.js
+      - run: node server/estate-sale-reservation-api.test.js
+      - run: node server/estate-sale-session-recovery.test.js

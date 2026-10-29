@@ -1,0 +1,18 @@
+name: Estates AMM account_tx pagination
+on:
+  pull_request:
+    paths:
+      - 'server/estate-amm-account-tx-history.js'
+      - 'server/estate-amm-account-tx-history.test.js'
+      - '.github/workflows/estates-amm-account-tx.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/estate-amm-account-tx-history.js
+      - run: node server/estate-amm-account-tx-history.test.js

@@ -1,5 +1,5 @@
 'use strict';
-const { inspectValidatedAmmTx, verifyAmmTx } = require('./estate-amm-tx-inspector');
+const { inspectValidatedAmmTx } = require('./estate-amm-tx-inspector');
 const { extractTreasuryTrustlineDeltas } = require('./estate-amm-balance-deltas');
 const { extractTreasuryLpDelta } = require('./estate-amm-lp-deltas');
 // Read-only aggregation. The LP issuer/currency must be independently verified
@@ -17,8 +17,9 @@ function reconcileValidatedAmmTx(result, { treasury, imgIssuer, plxIssuer, ammAc
  });
 }
 async function fetchAndReconcileAmmTx(client,txHash,config) {
- const structure=await verifyAmmTx(client,txHash,config);
- const response=await client.request({command:'tx',transaction:structure.hash});
+ if(typeof txHash!=='string'||!/^[A-Fa-f0-9]{64}$/.test(txHash))throw new TypeError('invalid_transaction_hash');
+ if(!client||typeof client.request!=='function')throw new TypeError('xrpl_client_required');
+ const response=await client.request({command:'tx',transaction:txHash.toUpperCase()});
  return reconcileValidatedAmmTx(response.result,config);
 }
 module.exports={reconcileValidatedAmmTx,fetchAndReconcileAmmTx};

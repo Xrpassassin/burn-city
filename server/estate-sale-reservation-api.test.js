@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {DatabaseSync}=require('node:sqlite');
+const {createEstateReservationApi}=require('./estate-sale-reservation-api');
+const db=new DatabaseSync(':memory:');
+db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY)');
+const buyer='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
+const disabled=createEstateReservationApi(db);
+assert.equal(disabled.create({buyer,propertyId:'trailer-01'}).error,'estate_sales_disabled');
+const enabled=createEstateReservationApi(db,{enabled:true});
+const first=enabled.create({buyer,propertyId:'trailer-01'});
+assert.equal(first.ok,true);assert.equal(first.priceDrops,3000000);assert.match(first.reservationId,/^estate_[a-f0-9]{32}$/);
+assert.equal(enabled.create({buyer,propertyId:'trailer-01'}).error,'property_reserved');
+assert.equal(enabled.create({buyer,propertyId:'not-a-property'}).error,'property_not_for_sale');
+console.log('Estate reservation API tests passed');

@@ -1,0 +1,19 @@
+name: Estates pending payment HTTP conflict
+on:
+  pull_request:
+    paths:
+      - 'server/server.js'
+      - 'server/estate-sale-http-conflicts.test.js'
+      - '.github/workflows/estates-pending-review-http.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-sale-http-conflicts.test.js
+      - run: node server/estate-sale-production-gates.test.js
+      - run: node server/estate-sale-reservation-api.test.js

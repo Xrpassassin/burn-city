@@ -1,0 +1,10 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const source=fs.readFileSync(path.join(__dirname,'server.js'),'utf8');
+const reserve=source.match(/if \(url\.pathname === '\/api\/estates\/purchase\/reserve'[^]*?(?=if \(url\.pathname === '\/api\/estates\/purchase\/session')/);
+assert.ok(reserve,'reservation HTTP route must exist');
+assert.match(reserve[0],/result\.error === 'property_pending_payment_review'/,'pending payment hold must be an HTTP conflict');
+assert.match(reserve[0],/\? 409 : 400/,'pending payment hold must return 409');
+console.log('Estate pending-payment hold HTTP conflict mapping verified');

@@ -9,6 +9,8 @@ const verifier=createImgRewardVerifier({request:async request=>{assert.deepEqual
  assert.equal(receipt.verified,true);assert.equal(receipt.amount,'1.000001');
  assert.equal(receipt.receivedAtMs,(900000000+946684800)*1000);
  assert.equal(canonicalUnits('1.0000000'),'1');
+ const nested=createImgRewardVerifier({request:async()=>({result:{validated:true,hash,ledger_index:100,close_time_iso:new Date((900000000+946684800)*1000).toISOString(),tx_json:{TransactionType:'Payment',Account:source,Destination:treasury},meta:tx.result.meta}})},{treasury,imgIssuer:issuer,allowedSources:[source]});
+ assert.equal((await nested(hash)).amount,'1.000001');
  for(const altered of [
   {validated:false},{TransactionType:'AMMDeposit'},{Account:treasury},{Destination:source},{hash:'B'.repeat(64)},
   {meta:{...tx.result.meta,TransactionResult:'tecFAILED'}},

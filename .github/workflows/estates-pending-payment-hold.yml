@@ -1,0 +1,19 @@
+name: Estates unresolved payment holds
+on:
+  pull_request:
+    paths:
+      - 'server/estate-sale-reservations.js'
+      - 'server/estate-sale-reservations.test.js'
+      - '.github/workflows/estates-pending-payment-hold.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-sale-reservations.test.js
+      - run: node server/estate-sale-xaman-payload-store.test.js
+      - run: node server/estate-sale-lifecycle.test.js

@@ -12,4 +12,8 @@ assert.equal(q.ok,true);assert.equal(q.priceDrops,3000000);assert.equal(q.salesE
 assert.equal(estatePurchaseQuote(db,{propertyId:'nonexistent',buyer}).error,'unknown_property');
 db.prepare('INSERT INTO estate_property_ownership(property_id,acct) VALUES(?,?)').run('trailer-02',buyer);
 assert.equal(estatePurchaseQuote(db,{propertyId:'trailer-02',buyer}).error,'property_already_owned');
+const hold=createEstateSaleReservations(db).reserve({reservationId:'hold-quote-0000001',propertyId:'starter-01',buyer,now:1000000});
+db.prepare('INSERT INTO estate_xaman_payment_payloads(reservation_id,payload_uuid,buyer,created_at) VALUES(?,?,?,?)').run(hold.reservation_id,'quote-hold-uuid',buyer,1001000);
+db.prepare("UPDATE estate_sale_reservations SET status='expired' WHERE reservation_id=?").run(hold.reservation_id);
+assert.equal(estatePurchaseQuote(db,{propertyId:'starter-01',buyer}).error,'property_pending_payment_review');
 console.log('Estate authenticated quote tests passed');

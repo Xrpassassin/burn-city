@@ -5,6 +5,7 @@ const {createEstateReservationApi}=require('./estate-sale-reservation-api');
 const {createEstateXamanPaymentSession}=require('./estate-sale-xaman-session');
 const {createEstateSaleFinalization}=require('./estate-sale-finalization');
 const {createEstateSaleSessionRecovery}=require('./estate-sale-session-recovery');
+const {createEstateSaleOrchestrator}=require('./estate-sale-orchestrator');
 
 const db=new DatabaseSync(':memory:');
 db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT NOT NULL,purchase_tx TEXT NOT NULL UNIQUE,purchase_amount_drops INTEGER NOT NULL,share_units INTEGER NOT NULL,purchased_at INTEGER NOT NULL)');
@@ -63,9 +64,7 @@ async function run(){
  const second=reservationApi.create({buyer,propertyId:'trailer-02',now});
  assert.equal(second.ok,true);
  // Reuse of the already-settled transaction cannot buy a second property.
- const secondPayment=await payment.start({reservationId:second.reservationId,buyer,now});
- assert.equal(secondPayment.ok,true);
- await assert.rejects(finalize.finalize({reservationId:second.reservationId,buyer,now:now+4000}),/payment_reservation_memo_mismatch/);
+ await assert.rejects(createEstateSaleOrchestrator(db,{client,treasury}).settle({reservationId:second.reservationId,txHash,now:now+4000}),/payment_reservation_memo_mismatch/);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_property_ownership').get().n,1);
  assert.equal(db.prepare('SELECT status FROM estate_sale_reservations WHERE reservation_id=?').get(second.reservationId).status,'reserved');
  assert.equal(recovery.get({reservationId:reservation.reservationId,buyer,now:now+5000}).status,'settled');

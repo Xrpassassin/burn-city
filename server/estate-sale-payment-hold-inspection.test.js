@@ -18,6 +18,18 @@ assert.equal(view.list()[0].needsManualReview,true);
 assert.equal(view.list()[0].canAutoRelease,false);
 assert.equal(view.forProperty('trailer-01')[0].payload_uuid,'hold-payload');
 assert.equal(view.forProperty('mansion-01').length,0);
+// A failed reservation attempt can roll back expiry transitions, leaving an
+// overdue reservation marked 'reserved' despite a bound payment payload.
+db.prepare("UPDATE estate_sale_reservations SET status='reserved' WHERE reservation_id=?").run(r.reservation_id);
+assert.equal(view.list({now:r.expires_at}).length,0);
+assert.equal(view.list({now:r.expires_at+1}).length,1);
+assert.equal(view.list({now:r.expires_at+1})[0].status,'reserved');
+assert.equal(view.forProperty('trailer-01',{now:r.expires_at+1}).length,1);
+assert.equal(view.forProperty('trailer-01',{now:r.expires_at}).length,0);
+assert.throws(()=>view.list({now:NaN}),TypeError);
+assert.throws(()=>view.forProperty('trailer-01',{now:-1}),TypeError);
+db.prepare("UPDATE estate_sale_reservations SET status='expired' WHERE reservation_id=?").run(r.reservation_id);
+assert.equal(view.list({now:r.expires_at}).length,1);
 assert.throws(()=>view.list({limit:501}),TypeError);
 assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_property_ownership').get().n,0);
 console.log('Estate payment hold inspection tests passed');

@@ -1,0 +1,26 @@
+name: Estates preview entry point
+on:
+  pull_request:
+    paths:
+      - 'client/index.html'
+      - 'client/estate-properties.html'
+      - '.github/workflows/estates-preview-entry.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('node:assert/strict');
+          const index=fs.readFileSync('client/index.html','utf8');
+          assert.match(index,/id="estatesPreviewLink" href="estate-properties.html"/);
+          assert.ok(fs.existsSync('client/estate-properties.html'));
+          assert.ok(fs.existsSync('client/estate-buyer-preview.js'));
+          assert.match(fs.readFileSync('client/estate-properties.html','utf8'),/property sales are not enabled/i);
+          console.log('Estates preview entry point checks passed');
+          NODE

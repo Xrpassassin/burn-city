@@ -1,0 +1,23 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {DatabaseSync}=require('node:sqlite');
+const {createEstateSaleReservations}=require('./estate-sale-reservations');
+const {createEstateXamanPaymentSession}=require('./estate-sale-xaman-session');
+const db=new DatabaseSync(':memory:');
+db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY)');
+const buyer='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',treasury='rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd';
+const r=createEstateSaleReservations(db).reserve({reservationId:'reservation-00000001',propertyId:'trailer-01',buyer,now:Date.now()});
+let calls=0;
+const sdk={payload:{create:async p=>{calls++;assert.equal(p.txjson.Account,buyer);return {uuid:'test-uuid',refs:{qr_png:'https://example.com/qr'},next:{always:'https://example.com/xaman'}}},get:async()=>({meta:{signed:true},response:{account:buyer,txid:'A'.repeat(64)}})}};
+(async()=>{
+ const disabled=createEstateXamanPaymentSession(db);
+ assert.equal((await disabled.start({reservationId:r.reservation_id,buyer})).error,'estate_sales_disabled');
+ const session=createEstateXamanPaymentSession(db,{sdk,treasury,enabled:true});
+ const first=await session.start({reservationId:r.reservation_id,buyer});
+ assert.equal(first.payloadUuid,'test-uuid');assert.equal(first.reused,false);
+ const second=await session.start({reservationId:r.reservation_id,buyer});
+ assert.equal(second.reused,true);assert.equal(calls,1);
+ assert.equal((await session.start({reservationId:r.reservation_id,buyer:treasury})).error,'reservation_not_found');
+ assert.equal((await session.signedHash({reservationId:r.reservation_id,buyer})).txHash,'A'.repeat(64));
+ console.log('Estate Xaman payment session tests passed');
+})().catch(e=>{console.error(e);process.exitCode=1});

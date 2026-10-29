@@ -28,6 +28,7 @@
     card.append(element('h2',property.address||property.label||property.name||property.id));
     card.append(element('p',tier.label+' · '+tier.price+' XRP'));
     card.append(element('p',tier.shareUnits+' allocation unit(s) — distributions disabled'));
+    const cityLink=document.createElement('a');cityLink.href='./?estateProperty='+encodeURIComponent(property.id);cityLink.textContent='Locate in 3D city';cityLink.style.cssText='display:inline-block;margin:0 12px 12px 0;color:#8ccaff';card.append(cityLink);
     const button=element('button','Check availability');
     button.addEventListener('click',()=>check(property.id));card.append(button);container.append(card);
    }

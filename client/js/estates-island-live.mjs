@@ -86,6 +86,11 @@ export async function installEstatesIslandLive({
   if (!response.ok) throw new Error('Estate catalog could not be loaded ('+response.status+')');
   const catalog = await response.json();
   const manifest = buildEstatesIslandScene({ catalog, seed: 20261024 });
+  // Resolve property deep links against the same manifest that builds the 3D lots.
+  // Never trust query-supplied coordinates or property metadata.
+  const requestedPropertyId = new URLSearchParams(location.search).get('estateProperty');
+  const requestedLot = requestedPropertyId ? manifest.lots.find(l => l.propertyId === requestedPropertyId) : null;
+
   const renderer = createEstatesIslandRenderer({ THREE, scene, manifest });
   const root = renderer.root;
   root.position.x = OFFSET_X;
@@ -380,13 +385,25 @@ export async function installEstatesIslandLive({
     return true;
   }
   // Public island is rendered at the city offset, with a continuous bridge; the city-side interaction is explicit.
+  if (requestedLot) {
+    const hint=document.createElement('aside');
+    hint.id='bcEstatePropertyHint';
+    hint.style.cssText='position:fixed;right:12px;top:72px;z-index:1100;max-width:min(330px,85vw);padding:12px;border:1px solid #ffbd68aa;border-radius:12px;background:#101925ed;color:#f4e8d6;font:13px/1.45 system-ui';
+    const heading=document.createElement('strong');heading.textContent='Estates property location';
+    const body=document.createElement('p');
+    body.textContent=requestedLot.address+' · '+requestedLot.district+' · lot '+requestedLot.id+'. Enter Estates Island via the bridge and explore to find this lot.';
+    const close=document.createElement('button');close.textContent='Dismiss';close.addEventListener('click',()=>hint.remove());
+    hint.append(heading,body,close);document.body.append(hint);
+    // The hint is informational; do not teleport, override property rights or mutate ownership.
+    root.userData.propertyDeepLinkHint=hint;
+  }
   const api = Object.freeze({
     tick,
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
       if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
-      onStatus({state:'disposed'}); return true;
+      root.userData.propertyDeepLinkHint?.remove(); onStatus({state:'disposed'}); return true;
     },
     get active(){return active;},
     get manifest(){return manifest;}

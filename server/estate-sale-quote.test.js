@@ -16,4 +16,8 @@ const hold=createEstateSaleReservations(db).reserve({reservationId:'hold-quote-0
 db.prepare('INSERT INTO estate_xaman_payment_payloads(reservation_id,payload_uuid,buyer,created_at) VALUES(?,?,?,?)').run(hold.reservation_id,'quote-hold-uuid',buyer,1001000);
 db.prepare("UPDATE estate_sale_reservations SET status='expired' WHERE reservation_id=?").run(hold.reservation_id);
 assert.equal(estatePurchaseQuote(db,{propertyId:'starter-01',buyer}).error,'property_pending_payment_review');
+const unswept=createEstateSaleReservations(db).reserve({reservationId:'hold-quote-unswept-001',propertyId:'family-01',buyer,now:1000000});
+db.prepare('INSERT INTO estate_xaman_payment_payloads(reservation_id,payload_uuid,buyer,created_at) VALUES(?,?,?,?)').run(unswept.reservation_id,'quote-unswept-uuid',buyer,1001000);
+assert.equal(estatePurchaseQuote(db,{propertyId:'family-01',buyer}).error,'property_pending_payment_review');
+assert.equal(createEstateSaleReservations(db).get(unswept.reservation_id).status,'reserved');
 console.log('Estate authenticated quote tests passed');

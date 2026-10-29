@@ -1,0 +1,19 @@
+name: Estates IMG hourly batch reconciliation
+on:
+  pull_request:
+    paths:
+      - 'server/estate-img-hourly-batches.js'
+      - 'server/estate-img-hourly-batches.test.js'
+      - '.github/workflows/estates-img-batches.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-img-hourly-batches.test.js
+      - run: node server/estate-img-ownership-snapshots.test.js
+      - run: node server/estate-sale-production-gates.test.js

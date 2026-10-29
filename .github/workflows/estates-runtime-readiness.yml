@@ -1,0 +1,39 @@
+name: Estates read-only production readiness
+on:
+  push:
+    branches: [ops/estates-runtime-readiness]
+    paths:
+      - 'scripts/estate-runtime-readiness.cjs'
+      - '.github/workflows/estates-runtime-readiness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect runtime gates without writing data or submitting transactions
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          if (!process.env.FLY_API_TOKEN) throw new Error('FLY_API_TOKEN_missing');
+          const command = ['node','-e',fs.readFileSync('scripts/estate-runtime-readiness.cjs','utf8')];
+          const response = await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{
+            method:'POST', headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},
+            body:JSON.stringify({command,timeout:20}),signal:AbortSignal.timeout(30000)
+          });
+          if (!response.ok) throw new Error('fly_readonly_audit_http_'+response.status);
+          const result=await response.json();
+          if (result.exit_code!==0) throw new Error('fly_readonly_audit_command_failed');
+          // The remote script emits only a fixed, nonsecret JSON projection.
+          const report=JSON.parse(result.stdout.trim());
+          if(report.readOnly!==true) throw new Error('unexpected_audit_output');
+          console.log(JSON.stringify(report,null,2));
+          NODE

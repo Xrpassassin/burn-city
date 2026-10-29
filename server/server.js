@@ -7,6 +7,7 @@ const AegisClips = require('./aegis-clips'), Cams = require('./cams'), Estates =
 const { inspectEstateTokenLines } = require('./estate-token-lines');
 const { preparePlxTrustlineRequest } = require('./estate-plx-xaman');
 const EstateRights = require('./estates-rights');
+const { estatePurchaseQuote } = require('./estate-sale-quote');
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
@@ -199,6 +200,11 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/access/revoke' && req.method === 'POST') {
         const b = await body(), result = EstateAccess.revoke(u.acct, String(b.propertyId || ''), String(b.guestAcct || ''));
         return json(res, result.ok ? 200 : (result.error === 'unknown_property' ? 404 : 403), result);
+      }
+      if (url.pathname === '/api/estates/purchase/quote' && req.method === 'GET') {
+        if (gate('estate-quote:' + u.acct, 12, 60e3)) return json(res, 429, { error: 'slow_down' });
+        const result = estatePurchaseQuote(Pay.sdb, { propertyId: String(url.searchParams.get('propertyId') || ''), buyer: u.acct });
+        return json(res, result.ok ? 200 : result.error === 'unknown_property' ? 404 : 409, result);
       }
       if (url.pathname === '/api/estates/buy' && req.method === 'POST') return json(res, 409, { error: 'sales_not_configured', status: 'wallet_integration_pending', message: 'Property sales are disabled until the designated wallet, verified payment settlement, property pricing, and final share weights are configured and audited.' });   // never reads the body: no client amount is ever used
       // Owner-wallet identity check (Xaman SignIn payload, no ledger transaction): admin token only.

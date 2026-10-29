@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {DatabaseSync}=require('node:sqlite');
+const {createEstateSaleReservations}=require('./estate-sale-reservations');
+const {estatePurchaseQuote}=require('./estate-sale-quote');
+const db=new DatabaseSync(':memory:');
+db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT)');
+createEstateSaleReservations(db);
+const buyer='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
+const q=estatePurchaseQuote(db,{propertyId:'trailer-01',buyer});
+assert.equal(q.ok,true);assert.equal(q.priceDrops,3000000);assert.equal(q.salesEnabled,false);
+assert.equal(estatePurchaseQuote(db,{propertyId:'nonexistent',buyer}).error,'unknown_property');
+db.prepare('INSERT INTO estate_property_ownership(property_id,acct) VALUES(?,?)').run('trailer-02',buyer);
+assert.equal(estatePurchaseQuote(db,{propertyId:'trailer-02',buyer}).error,'property_already_owned');
+console.log('Estate authenticated quote tests passed');

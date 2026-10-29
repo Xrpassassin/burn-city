@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {DatabaseSync}=require('node:sqlite');
+const {createImgScanCheckpointStore}=require('./estate-img-scan-checkpoints');
+const db=new DatabaseSync(':memory:');
+const checkpoints=createImgScanCheckpointStore(db);
+assert.equal(checkpoints.current(),null);
+const first={ledgerIndex:100,ledgerCloseTimeMs:1700000000000,verifiedAtMs:1700000001000,fullyProcessed:true,validated:true};
+assert.throws(()=>checkpoints.advance({...first,fullyProcessed:false}),/ledger_not_verified/);
+assert.throws(()=>checkpoints.advance({...first,validated:false}),/ledger_not_verified/);
+assert.equal(checkpoints.advance(first).ledger_index,100);
+assert.throws(()=>checkpoints.advance({...first,ledgerIndex:102}),/noncontiguous_ledger/);
+assert.throws(()=>checkpoints.advance({...first,ledgerIndex:101,ledgerCloseTimeMs:first.ledgerCloseTimeMs-1}),/ledger_time_regression/);
+assert.equal(checkpoints.advance({...first,ledgerIndex:101,ledgerCloseTimeMs:first.ledgerCloseTimeMs+1000}).ledger_index,101);
+assert.equal(createImgScanCheckpointStore(db).current().ledger_index,101);
+console.log('Validated contiguous ledger checkpoint tests passed');

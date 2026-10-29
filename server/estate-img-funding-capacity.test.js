@@ -1,0 +1,13 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { calculateImgRewardCapacity: capacity } = require('./estate-img-funding-capacity');
+const base = { treasuryImgUnits:'1000', committedLiquidityImgUnits:'400', pendingWithdrawalsImgUnits:'100', minimumReserveImgUnits:'100', verifiedRealizedEarningsImgUnits:'300', alreadyAllocatedImgUnits:'50' };
+assert.equal(capacity(base).capacityImgUnits,'250');
+assert.equal(capacity(base).unencumberedTreasuryImgUnits,'400');
+assert.equal(capacity({...base,committedLiquidityImgUnits:'900'}).capacityImgUnits,'0');
+assert.equal(capacity({...base,verifiedRealizedEarningsImgUnits:'30'}).capacityImgUnits,'0');
+assert.equal(capacity({...base,alreadyAllocatedImgUnits:'300'}).capacityImgUnits,'0');
+assert.equal(capacity(base).executionEnabled,false);
+assert.throws(()=>capacity({...base,treasuryImgUnits:'-1'}),/unsigned_integer_string/);
+assert.throws(()=>capacity({...base,treasuryImgUnits:'1.5'}),/unsigned_integer_string/);
+console.log('Estates IMG funding capacity tests passed');

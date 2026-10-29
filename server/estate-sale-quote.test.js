@@ -20,4 +20,12 @@ const unswept=createEstateSaleReservations(db).reserve({reservationId:'hold-quot
 db.prepare('INSERT INTO estate_xaman_payment_payloads(reservation_id,payload_uuid,buyer,created_at) VALUES(?,?,?,?)').run(unswept.reservation_id,'quote-unswept-uuid',buyer,1001000);
 assert.equal(estatePurchaseQuote(db,{propertyId:'family-01',buyer}).error,'property_pending_payment_review');
 assert.equal(createEstateSaleReservations(db).get(unswept.reservation_id).status,'reserved');
+const timeDb=new DatabaseSync(':memory:');
+timeDb.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT)');
+const timeStore=createEstateSaleReservations(timeDb);
+const timeHold=timeStore.reserve({reservationId:'quote-time-00000001',propertyId:'trailer-01',buyer,now:1000000,ttlMs:60000});
+timeDb.prepare('INSERT INTO estate_xaman_payment_payloads(reservation_id,payload_uuid,buyer,created_at) VALUES(?,?,?,?)').run(timeHold.reservation_id,'time-uuid',buyer,1000001);
+assert.equal(estatePurchaseQuote(timeDb,{propertyId:'trailer-01',buyer,now:1059999}).error,'property_reserved');
+assert.equal(estatePurchaseQuote(timeDb,{propertyId:'trailer-01',buyer,now:1060000}).error,'property_pending_payment_review');
+assert.throws(()=>estatePurchaseQuote(timeDb,{propertyId:'trailer-01',buyer,now:NaN}),/invalid_quote_timestamp/);
 console.log('Estate authenticated quote tests passed');

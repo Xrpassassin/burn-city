@@ -9,7 +9,7 @@ function estatePurchaseQuote(db,{propertyId,buyer}={}){
  if(!tier||!Number.isSafeInteger(tier.price)||tier.price<=0)return {ok:false,error:'property_not_for_sale'};
  const owned=db.prepare('SELECT acct FROM estate_property_ownership WHERE property_id=?').get(propertyId);
  if(owned)return {ok:false,error:'property_already_owned'};
- const held=db.prepare("SELECT 1 FROM estate_sale_reservations r JOIN estate_xaman_payment_payloads p ON p.reservation_id=r.reservation_id WHERE r.property_id=? AND r.status='expired' LIMIT 1").get(propertyId);
+ const held=db.prepare("SELECT 1 FROM estate_sale_reservations r JOIN estate_xaman_payment_payloads p ON p.reservation_id=r.reservation_id WHERE r.property_id=? AND (r.status='expired' OR (r.status='reserved' AND r.expires_at<=?)) LIMIT 1").get(propertyId,Date.now());
  if(held)return {ok:false,error:'property_pending_payment_review'};
  const active=db.prepare("SELECT expires_at FROM estate_sale_reservations WHERE property_id=? AND status='reserved' AND expires_at>?").get(propertyId,Date.now());
  if(active)return {ok:false,error:'property_reserved',expiresAt:active.expires_at};

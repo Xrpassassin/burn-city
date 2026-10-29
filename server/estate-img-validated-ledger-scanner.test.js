@@ -6,7 +6,7 @@ const treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',source='rsJJMwweNS6GveA12RV7
 const ledgerIndex=101,close_time=900000000;
 function makeClient({valid=true,delivered='1.000001'}={}){
  return {request:async request=>{
-  if(request.command==='ledger')return {result:{validated:valid,ledger:{ledger_index:ledgerIndex,close_time,transactions:[{hash,TransactionType:'Payment',Account:source,Destination:treasury}]}}};
+  if(request.command==='ledger')return {result:{validated:valid,ledger:{ledger_index:ledgerIndex,ledger_hash:'B'.repeat(64),parent_hash:'C'.repeat(64),transaction_hash:'D'.repeat(64),close_time,transactions:[{hash,TransactionType:'Payment',Account:source,Destination:treasury}]}}};
   if(request.command==='tx')return {result:{validated:true,hash,ledger_index:ledgerIndex,date:close_time,TransactionType:'Payment',Account:source,Destination:treasury,meta:{TransactionResult:'tesSUCCESS',delivered_amount:{currency:'IMG',issuer:source,value:delivered}}}};
   throw new Error('unexpected_command');
  }};
@@ -15,7 +15,7 @@ function makeClient({valid=true,delivered='1.000001'}={}){
  const db=new DatabaseSync(':memory:');
  const scanner=createImgValidatedLedgerScanner({db,client:makeClient(),treasury,imgIssuer:source,allowedSources:[source]});
  const result=await scanner.scan(ledgerIndex,{verifiedAtMs:1900000000000});
- assert.equal(result.newReceipts,1);assert.equal(scanner.current().ledger_index,ledgerIndex);
+ assert.equal(result.newReceipts,1);assert.equal(result.ledgerHash,'B'.repeat(64));assert.equal(scanner.current().ledger_index,ledgerIndex);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_img_reward_receipts').get().n,1);
  await assert.rejects(()=>scanner.scan(ledgerIndex),/noncontiguous_ledger/);
  const invalidDb=new DatabaseSync(':memory:');

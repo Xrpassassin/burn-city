@@ -9,6 +9,8 @@ const { preparePlxTrustlineRequest } = require('./estate-plx-xaman');
 const EstateRights = require('./estates-rights');
 const { estatePurchaseQuote } = require('./estate-sale-quote');
 const { createEstateSaleSessionRecovery } = require('./estate-sale-session-recovery');
+const { createEstateReservationApi } = require('./estate-sale-reservation-api');
+const estateReservationApi = createEstateReservationApi(Pay.sdb, { enabled: false });
 const estateSessionRecovery = createEstateSaleSessionRecovery(Pay.sdb);
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
@@ -202,6 +204,12 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/access/revoke' && req.method === 'POST') {
         const b = await body(), result = EstateAccess.revoke(u.acct, String(b.propertyId || ''), String(b.guestAcct || ''));
         return json(res, result.ok ? 200 : (result.error === 'unknown_property' ? 404 : 403), result);
+      }
+      if (url.pathname === '/api/estates/purchase/reserve' && req.method === 'POST') {
+        if (gate('estate-reserve:' + u.acct, 6, 60e3) || gate('estate-reserve-ip:' + ip, 12, 60e3)) return json(res, 429, { error: 'slow_down' });
+        const b = await body();
+        const result = estateReservationApi.create({ buyer: u.acct, propertyId: b?.propertyId });
+        return json(res, result.ok ? 201 : result.error === 'estate_sales_disabled' ? 409 : result.error === 'property_reserved' ? 409 : 400, result);
       }
       if (url.pathname === '/api/estates/purchase/session' && req.method === 'GET') {
         if (gate('estate-session:' + u.acct, 20, 60e3)) return json(res, 429, { error: 'slow_down' });

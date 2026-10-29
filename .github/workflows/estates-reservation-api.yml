@@ -1,0 +1,19 @@
+name: Estates reservation API
+on:
+  pull_request:
+    paths:
+      - 'server/estate-sale-reservation-api.js'
+      - 'server/estate-sale-reservation-api.test.js'
+      - 'server/server.js'
+      - '.github/workflows/estates-reservation-api.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/server.js
+      - run: node server/estate-sale-reservation-api.test.js

@@ -16,7 +16,7 @@ function createEstateReservationApi(db,{enabled=false,randomBytes=crypto.randomB
   }catch(e){
    if(e.message==='property_not_for_sale')return {ok:false,error:'property_not_for_sale'};
    if(e.message==='property_already_owned')return {ok:false,error:'property_already_owned'};
-   if(e.code==='SQLITE_CONSTRAINT_UNIQUE')return {ok:false,error:'property_reserved'};
+   if(e.code==='SQLITE_CONSTRAINT_UNIQUE'||(e.code==='ERR_SQLITE_ERROR'&&e.errcode===2067&&/estate_sale_reservations\.property_id/.test(e.message)))return {ok:false,error:'property_reserved'};
    throw e;
   }
  }

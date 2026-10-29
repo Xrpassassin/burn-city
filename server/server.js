@@ -164,6 +164,13 @@ const server = http.createServer(async (req, res) => {
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
       if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, Estates.getState(u.acct));
+      if (url.pathname === '/api/estates/payout-preference' && req.method === 'GET') return json(res, 200, Estates.payoutPreference(u.acct));
+      if (url.pathname === '/api/estates/payout-preference' && req.method === 'POST') {
+        if (gate('estate-payout-preference:' + u.acct, 6, 60e3)) return json(res, 429, { error: 'slow_down' });
+        const b = await body();
+        if (b?.currency !== 'IMG' && b?.currency !== 'XRP') return json(res, 400, { error: 'unsupported_payout_currency' });
+        return json(res, 200, Estates.setPayoutPreference(u.acct, b.currency));
+      }
       if (url.pathname === '/api/estates/rights' && req.method === 'GET') {   // #235 rights decision (renamed from /access, which #237's owner guest list uses)
         const propertyId = String(url.searchParams.get('propertyId') || '');
         const action = String(url.searchParams.get('action') || 'enter');

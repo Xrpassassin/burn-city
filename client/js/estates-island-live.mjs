@@ -2,6 +2,7 @@
 import { buildEstatesIslandScene } from './estates-island-scene.mjs';
 import { createEstatesIslandRenderer } from './estates-island-renderer.mjs';
 import { createEstatesIslandController } from './estates-island-controller.mjs';
+import { estateWalkingGuidance } from './estates-walking-guidance.mjs';
 
 const OFFSET_X = 650;
 const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
@@ -339,6 +340,7 @@ export async function installEstatesIslandLive({
   function leaveIsland() {
     if(disposed||!active)return;
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();
+    if(guidanceHud)guidanceHud.style.display='none';
     if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
     exitButton.style.display='none';
     releaseLease();
@@ -371,6 +373,14 @@ export async function installEstatesIslandLive({
       return false;
     }
     hideCityScene();animatePeers(dt);
+    if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
+      lastGuidanceUpdate=Date.now();
+      const pos={x:player.pos.x-OFFSET_X,z:player.pos.z};
+      const nav=estateWalkingGuidance(pos,requestedLot.position);
+      const compass=['N','NE','E','SE','S','SW','W','NW'][Math.round(((nav.bearingRadians+Math.PI*2)%(Math.PI*2))/(Math.PI/4))%8];
+      guidanceHud.textContent=nav.arrived?'Arrived at '+requestedLot.address:'Lot '+requestedLot.address+' · '+Math.round(nav.distance)+'m · '+compass;
+      guidanceHud.style.display='block';
+    }
     if(selectedLotBeacon){
       const pulse=1+0.12*Math.sin(Date.now()*0.003);
       selectedLotBeacon.ring.scale.setScalar(pulse);
@@ -423,13 +433,22 @@ export async function installEstatesIslandLive({
     // The hint is informational; do not teleport, override property rights or mutate ownership.
     root.userData.propertyDeepLinkHint=hint;
   }
+
+  let guidanceHud=null, lastGuidanceUpdate=0;
+  if(requestedLot){
+    guidanceHud=document.createElement('div');
+    guidanceHud.id='bcEstatesWalkingGuidance';
+    guidanceHud.setAttribute('role','status');
+    guidanceHud.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:1090;max-width:90vw;padding:9px 15px;border:1px solid #ffbd68aa;border-radius:20px;background:#101925ed;color:#ffe0ad;font:600 13px system-ui;text-align:center;pointer-events:none;display:none';
+    document.body.append(guidanceHud);
+  }
   const api = Object.freeze({
     tick,
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
       if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
-      root.userData.propertyDeepLinkHint?.remove();
+      root.userData.propertyDeepLinkHint?.remove(); guidanceHud?.remove();
       if(selectedLotBeacon){selectedLotBeacon.group.removeFromParent();for(const g of selectedLotBeacon.geometries)g.dispose();for(const m of selectedLotBeacon.materials)m.dispose();}
       onStatus({state:'disposed'}); return true;
     },

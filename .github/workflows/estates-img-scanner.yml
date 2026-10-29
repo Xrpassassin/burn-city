@@ -1,0 +1,19 @@
+name: Estates IMG validated ledger scanner
+on:
+  pull_request:
+    paths:
+      - 'server/estate-img-validated-ledger-scanner.js'
+      - 'server/estate-img-validated-ledger-scanner.test.js'
+      - '.github/workflows/estates-img-scanner.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-img-validated-ledger-scanner.test.js
+      - run: node server/estate-img-hourly-batches.test.js
+      - run: node server/estate-sale-production-gates.test.js

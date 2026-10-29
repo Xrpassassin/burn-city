@@ -1,0 +1,17 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { inspectImgReceipt, verifyImgReceipt } = require('./estate-img-receipt');
+const treasury = 'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
+const imgIssuer = 'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd';
+const hash = 'A'.repeat(64);
+const tx = { validated:true, ledger_index:900, hash, tx_json:{TransactionType:'Payment',Account:imgIssuer,Destination:treasury},meta:{TransactionResult:'tesSUCCESS',delivered_amount:{currency:'IMG',issuer:imgIssuer,value:'123.456'}} };
+const config = { treasury, imgIssuer };
+const r = inspectImgReceipt(tx,config);
+assert.equal(r.deliveredImg,'123.456');
+assert.equal(r.distributable,false);
+assert.equal(r.classification,'unclassified_receipt');
+assert.throws(()=>inspectImgReceipt({...tx,validated:false},config),/unvalidated/);
+assert.throws(()=>inspectImgReceipt({...tx,meta:{...tx.meta,TransactionResult:'tecPATH_DRY'}},config),/not_successful/);
+assert.throws(()=>inspectImgReceipt({...tx,meta:{...tx.meta,delivered_amount:{...tx.meta.delivered_amount,issuer:treasury}}},config),/not_delivered_img/);
+assert.throws(()=>inspectImgReceipt({...tx,tx_json:{...tx.tx_json,Destination:imgIssuer}},config),/not_treasury_payment/);
+verifyImgReceipt({request:async()=>({result:tx})},hash,config).then(x=>assert.equal(x.hash,hash)).then(()=>console.log('IMG receipt verification tests passed')).catch(e=>{console.error(e);process.exitCode=1});

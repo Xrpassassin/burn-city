@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {estateRoadWaypoints,estateNextWaypoint} from './estates-road-waypoints.mjs';
+const path=estateRoadWaypoints({x:0,z:80},{x:50,z:-40});
+assert(path.length>=3);
+assert.deepEqual(path.at(-1),{x:50,z:-40});
+assert(path.some(p=>p.x===0&&p.z===8),'route passes through public spine junction');
+assert.deepEqual(estateNextWaypoint({x:0,z:80},path),path.find(p=>Math.hypot(p.x,p.z-80)>5));
+assert.throws(()=>estateRoadWaypoints({x:NaN,z:0},{x:0,z:0}),TypeError);
+assert.equal(estateNextWaypoint({x:0,z:0},[]),null);
+console.log('Estates road waypoint checks passed');

@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {extractTreasuryTrustlineDeltas:extract}=require('./estate-amm-balance-deltas');
+const treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',imgIssuer='rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',plxIssuer='rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q';
+const node=(currency,issuer,before,after,treasuryLow=true)=>({ModifiedNode:{LedgerEntryType:'RippleState',FinalFields:{LowLimit:{issuer:treasuryLow?treasury:issuer},HighLimit:{issuer:treasuryLow?issuer:treasury},Balance:{currency,value:after}},PreviousFields:{Balance:{currency,value:before}}}});
+const tx={validated:true,meta:{TransactionResult:'tesSUCCESS',AffectedNodes:[node('IMG',imgIssuer,'10','15.5'),node('PLX',plxIssuer,'8','6',false)]}};
+const config={treasury,imgIssuer,plxIssuer};
+const r=extract(tx,config);
+assert.equal(r.imgDelta,'5.5');
+assert.equal(r.plxDelta,'2');
+assert.equal(r.distributable,false);
+assert.equal(r.lpTokenDeltaVerified,false);
+assert.throws(()=>extract({...tx,validated:false},config),/validated_metadata_required/);
+assert.throws(()=>extract({...tx,meta:{...tx.meta,AffectedNodes:[node('IMG',imgIssuer,'10.2','15.2'.repeat(2))]}},config),/invalid_trustline_balance/);
+assert.throws(()=>extract({...tx,meta:{...tx.meta,AffectedNodes:[{ModifiedNode:{LedgerEntryType:'RippleState',FinalFields:{LowLimit:{issuer:treasury},HighLimit:{issuer:imgIssuer},Balance:{currency:'IMG',value:'15'}}}}]}},config),/incomplete_trustline_delta/);
+console.log('AMM treasury trustline metadata delta tests passed');

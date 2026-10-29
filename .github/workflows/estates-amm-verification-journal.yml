@@ -1,0 +1,18 @@
+name: Estates AMM verification journal
+on:
+  pull_request:
+    paths:
+      - 'server/estate-amm-history-verification-journal.js'
+      - 'server/estate-amm-history-verification-journal.test.js'
+      - '.github/workflows/estates-amm-verification-journal.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/estate-amm-history-verification-journal.js
+      - run: node server/estate-amm-history-verification-journal.test.js

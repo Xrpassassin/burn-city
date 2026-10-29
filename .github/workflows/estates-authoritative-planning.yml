@@ -1,0 +1,22 @@
+name: Estates authoritative reward planning
+on:
+  pull_request:
+    paths:
+      - 'server/estates.js'
+      - 'server/estate-owner-epoch-store.js'
+      - 'server/estate-owner-currency-plan.js'
+      - 'server/estate-owner-epoch-store.test.js'
+      - '.github/workflows/estates-authoritative-planning.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/estates.js
+      - run: node --check server/estate-owner-epoch-store.js
+      - run: node server/estate-owner-epoch-store.test.js
+      - run: node server/estate-owner-currency-plan.test.js

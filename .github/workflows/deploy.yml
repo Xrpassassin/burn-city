@@ -29,7 +29,7 @@ jobs:
           npm run test:all
       - name: Restart Fly machine (it pulls main on boot)
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
         run: |
           if [ -z "$FLY_API_TOKEN" ]; then echo "::error::FLY_API_TOKEN secret is missing; Fly machine was NOT restarted"; exit 1; fi
           curl -fsS -X POST -H "Authorization: Bearer $FLY_API_TOKEN" \

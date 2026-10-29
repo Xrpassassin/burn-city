@@ -1,12 +1,12 @@
 'use strict';
 // Read-only XRP payment verifier. No ownership mutation or wallet signing.
 // Caller must obtain the reservation from the trusted SQLite reservation store.
-async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=Date.now()}={}){
+async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=Date.now(),reviewExpired=false}={}){
  if(!client||typeof client.request!=='function')throw new TypeError('xrpl_client_required');
  if(typeof txHash!=='string'||!/^[a-fA-F0-9]{64}$/.test(txHash))throw new TypeError('invalid_transaction_hash');
  if(typeof treasury!=='string'||!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(treasury))throw new TypeError('invalid_treasury');
- if(!reservation||reservation.status!=='reserved'||typeof reservation.buyer!=='string'||!Number.isSafeInteger(reservation.price_drops)||reservation.price_drops<1||!Number.isSafeInteger(reservation.created_at)||!Number.isSafeInteger(reservation.expires_at))throw new Error('invalid_or_inactive_reservation');
- if(!Number.isSafeInteger(now)||now>reservation.expires_at)throw new Error('reservation_expired');
+ if(!reservation||(reservation.status!=='reserved'&&!(reviewExpired===true&&reservation.status==='expired'))||typeof reservation.buyer!=='string'||!Number.isSafeInteger(reservation.price_drops)||reservation.price_drops<1||!Number.isSafeInteger(reservation.created_at)||!Number.isSafeInteger(reservation.expires_at))throw new Error('invalid_or_inactive_reservation');
+ if(!Number.isSafeInteger(now)||(now>reservation.expires_at&&reviewExpired!==true))throw new Error('reservation_expired');
  const response=await client.request({command:'tx',transaction:txHash,binary:false});
  const tx=response?.result;
  const body=tx?.tx_json||tx?.transaction||tx;
@@ -27,6 +27,6 @@ async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=D
  const paymentAt=(body.date+946684800)*1000;
  if(paymentAt<reservation.created_at-1000||paymentAt>reservation.expires_at+1000)throw new Error('payment_outside_reservation_window');
  if(!Number.isSafeInteger(tx.ledger_index)||tx.ledger_index<1)throw new Error('payment_ledger_unavailable');
- return Object.freeze({reservationId:reservation.reservation_id,propertyId:reservation.property_id,buyer:reservation.buyer,txHash:txHash.toUpperCase(),amountDrops:reservation.price_drops,ledgerIndex:tx.ledger_index,validated:true,settlementVerified:true,ownershipAssigned:false,distributable:false});
+ return Object.freeze({reservationId:reservation.reservation_id,propertyId:reservation.property_id,buyer:reservation.buyer,txHash:txHash.toUpperCase(),amountDrops:reservation.price_drops,ledgerIndex:tx.ledger_index,validated:true,settlementVerified:reviewExpired!==true,reviewOnly:reviewExpired===true,ownershipAssigned:false,distributable:false});
 }
 module.exports={verifyEstateSalePayment};

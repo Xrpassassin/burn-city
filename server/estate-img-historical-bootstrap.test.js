@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {DatabaseSync}=require('node:sqlite');
+const {createImgHistoricalBootstrap}=require('./estate-img-historical-bootstrap');
+const db=new DatabaseSync(':memory:');
+const bootstrap=createImgHistoricalBootstrap(db);
+const cfg={startLedgerIndex:500,startLedgerHash:'A'.repeat(64),treasury:'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',imgIssuer:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',allowedSources:['rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd'],configuredAtMs:1900000000000,confirmedOnChain:true};
+assert.equal(bootstrap.current(),null);
+assert.throws(()=>bootstrap.configure({...cfg,confirmedOnChain:false}),/on_chain_identifiers_not_confirmed/);
+assert.throws(()=>bootstrap.configure({...cfg,startLedgerHash:'BAD'}),/invalid_bootstrap_ledger/);
+assert.equal(bootstrap.configure(cfg).start_ledger_index,500);
+assert.deepEqual(bootstrap.current().allowedSources,cfg.allowedSources);
+assert.throws(()=>bootstrap.configure(cfg),/bootstrap_or_scan_already_exists/);
+console.log('Explicit IMG historical scan bootstrap tests passed');

@@ -1,0 +1,18 @@
+name: Estates AMM history checkpoints
+on:
+  pull_request:
+    paths:
+      - 'server/estate-amm-history-checkpoints.js'
+      - 'server/estate-amm-history-checkpoints.test.js'
+      - '.github/workflows/estates-amm-history-checkpoints.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/estate-amm-history-checkpoints.js
+      - run: node server/estate-amm-history-checkpoints.test.js

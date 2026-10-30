@@ -1,4 +1,4 @@
-name: Estates bounded treasury history probe
+name: Estates mainnet receipt read-only replay
 on:
   push:
     branches: [ops/estates-live-activation-442]
@@ -24,6 +24,6 @@ jobs:
           for(const mode of ['probe']){
             const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',source,mode,'640d0f6045adeba27a9ce7c47f3b0726fbda0bb2'],timeout:55}),signal:AbortSignal.timeout(60000)});
             if(!r.ok)throw Error('readonly_status_http_'+r.status);
-            const result=await r.json();for(const line of result.stdout.trim().split('\n'))console.log(JSON.stringify(JSON.parse(line)));if(result.exit_code!==0)throw Error('readonly_probe_failed');
+            const result=await r.json();console.log(JSON.stringify(JSON.parse(result.stdout.trim())));if(result.exit_code!==0)throw Error('readonly_probe_failed');
           }
           NODE

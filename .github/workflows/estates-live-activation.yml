@@ -20,5 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify activation orchestration
+        run: node scripts/estate-live-operations.test.cjs
       - name: Preflight, bootstrap, verify accounting, and activate the approved gates
         run: node scripts/estate-live-operations.mjs

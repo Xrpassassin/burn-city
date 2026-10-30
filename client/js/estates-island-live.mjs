@@ -411,8 +411,8 @@ export async function installEstatesIslandLive({
     const token=leaseToken;leaseToken=null;
     if(token) void leaseRequest('leave',{leaseToken:token},true).catch(()=>{});
   }
-  async function enterIsland() {
-    if (disposed || active || entering) return;
+  async function enterIsland(destinationPropertyId=null) {
+    if (disposed || active || entering) return false;
     void refreshAppearance(true);
     entering=true; hidePanel();
     let admission;
@@ -424,9 +424,9 @@ export async function installEstatesIslandLive({
       if(disposed){void leaseRequest('leave',{leaseToken:admission.leaseToken},true).catch(()=>{});return;}
     } catch(error) {
       if(!disposed) showPanel('ESTATES CONNECTION FAILED','The island could not be reached. You are still in BURN City.',
-        [{label:'Retry entry',primary:true,run:enterIsland},{label:'Not now',run:hidePanel}]);
+        [{label:'Retry entry',primary:true,run:typeof destinationPropertyId==='string'?()=>teleportToProperty(destinationPropertyId):enterIsland},{label:'Not now',run:hidePanel}]);
       onStatus({state:'entry-failed',message:String(error?.message||error)});
-      return;
+      return false;
     } finally { entering=false; }
     leaseToken=admission.leaseToken;
     heartbeatTimer=setInterval(()=>{
@@ -452,6 +452,28 @@ export async function installEstatesIslandLive({
     connectPresence(leaseToken,admission.instanceId);
     if(selectedLotBeacon)selectedLotBeacon.group.visible=Boolean(targetLot);
     onStatus({state:'entered-public-island',instanceId:admission.instanceId,catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
+    return true;
+  }
+  async function teleportToProperty(propertyId) {
+    const lot=manifest.lots.find(l=>l.propertyId===propertyId);
+    if(disposed||typeof propertyId!=='string'||!lot)return false;
+    const arrival=controllerRef.navigation.propertyApproach(propertyId);
+    if(!arrival)return false;
+    if(!active&&!await enterIsland(propertyId))return false;
+    if(disposed||!active)return false;
+    targetLot=lot;hidePanel();lastProperty=null;lastLandmarkId=null;
+    if(window.__skate?.active)window.__skate.toggle(false);
+    player.pos.set(OFFSET_X+arrival.x,ISLAND_SPAWN.y,arrival.z);
+    player.vel?.set(0,0,0);player.fp=false;player.onGround=true;player.climb=null;player.spawned=1;
+    const yaw=Math.atan2(arrival.x-lot.position.x,arrival.z-lot.position.z);
+    setYaw(yaw);avatar.position.copy(player.pos);avatar.rotation.y=yaw;
+    camera.position.set(player.pos.x+Math.sin(yaw)*7,player.pos.y+2.6,player.pos.z+Math.cos(yaw)*7);
+    camera.lookAt(player.pos.x,player.pos.y+1.25,player.pos.z);
+    selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=true;
+    lastGuidanceUpdate=0;
+    showLotPrompt({lotId:lot.id,propertyId:lot.propertyId,address:lot.address,tier:lot.tier});
+    onStatus({state:'teleported-to-property',propertyId:lot.propertyId,lotId:lot.id});
+    return true;
   }
   function leaveIsland() {
     if(disposed||!active)return;
@@ -495,7 +517,8 @@ export async function installEstatesIslandLive({
       if(panel.childElementCount)positionPanel();
       const pos={x:player.pos.x-OFFSET_X,z:player.pos.z};
       if(!targetLot){guidanceHud.style.display='none';} else {
-      const nav=estateWalkingGuidance(pos,targetLot.position);
+      const approach=targetLot.propertyId?controllerRef.navigation.propertyApproach(targetLot.propertyId):null;
+      const nav=estateWalkingGuidance(pos,approach??targetLot.position);
       const compass=['N','NE','E','SE','S','SW','W','NW'][Math.round(((nav.bearingRadians+Math.PI*2)%(Math.PI*2))/(Math.PI/4))%8];
       guidanceHud.textContent=nav.arrived?'Arrived at '+targetLot.address:'Lot '+targetLot.address+' · '+Math.round(nav.distance)+'m · '+compass;
       guidanceHud.style.display='block';
@@ -547,10 +570,11 @@ export async function installEstatesIslandLive({
     hint.style.cssText='position:fixed;right:12px;top:72px;z-index:1100;max-width:min(330px,85vw);padding:12px;border:1px solid #ffbd68aa;border-radius:12px;background:#101925ed;color:#f4e8d6;font:13px/1.45 system-ui';
     const heading=document.createElement('strong');heading.textContent='Estates property location';
     const body=document.createElement('p');
-    body.textContent=requestedLot.address+' · '+requestedLot.district+' · lot '+requestedLot.id+'. Enter Estates Island via the bridge and explore to find this lot.';
+    body.textContent=requestedLot.address+' · '+requestedLot.district+'. Travel directly to the public approach outside this home.';
+    const travel=document.createElement('button');travel.textContent='Teleport to property';travel.addEventListener('click',()=>void teleportToProperty(requestedLot.propertyId));
     const close=document.createElement('button');close.textContent='Dismiss';close.addEventListener('click',()=>hint.remove());
-    hint.append(heading,body,close);document.body.append(hint);
-    // The hint is informational; do not teleport, override property rights or mutate ownership.
+    hint.append(heading,body,travel,close);document.body.append(hint);
+    // Arrival is outside the home; admission and private access remain enforced.
     root.userData.propertyDeepLinkHint=hint;
   }
 
@@ -564,6 +588,7 @@ export async function installEstatesIslandLive({
   }
   const api = Object.freeze({
     tick,
+    teleportToProperty,
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
       if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();
@@ -579,5 +604,6 @@ export async function installEstatesIslandLive({
   // Read-only browser diagnostic to distinguish missing deploys from failed scene activation.
   window.__estatesIslandDiagnostics=Object.freeze({build:'estates-entry-20261026-pr300',scene:'burn-city-estates-island',lake:'continuous-ring',get loaded(){return !disposed},get active(){return active},get visible(){return root.visible}});
   onStatus({state:'ready',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length,publicTraversal:true,privateAccess:'permission-gated'});
+  if(requestedLot)await teleportToProperty(requestedLot.propertyId);
   return api;
 }

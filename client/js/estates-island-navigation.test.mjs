@@ -67,3 +67,12 @@ assert.equal(unassigned.propertyId,null);
 assert.throws(()=>nav.move({x:NaN,y:0,z:0},{x:1,y:0,z:0}),TypeError);
 assert.throws(()=>createEstatesIslandNavigation({manifest,playerRadius:0}),/playerRadius/);
 console.log('estates-island-navigation: all tests passed');
+
+// Every purchasable property's public arrival must be walkable and identify
+// that home when the visitor inspects it, including large mansions.
+for(const lot of manifest.lots.filter(l=>l.propertyId)){
+ const arrival=nav.propertyApproach(lot.propertyId);
+ assert(arrival&&nav.isWalkable(arrival),'safe arrival for '+lot.propertyId);
+ assert.equal(nav.nearbyProperty(arrival)?.propertyId,lot.propertyId,'arrival inspects the selected home');
+}
+assert.equal(nav.propertyApproach('not-a-real-property'),null);

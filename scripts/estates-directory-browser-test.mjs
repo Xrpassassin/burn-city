@@ -71,5 +71,53 @@ try {
   assert.deepEqual(errors,[]);
   await page.evaluate(()=>host.dispose());await page.close();
   console.log('Directory, guidance, nearby inspection and unobscured controls passed',viewport);
+  // The buyer-preview deep link is an explicit travel action. It must acquire
+  // public-island admission, arrive outside the selected home, and reset motion.
+  for(const scenario of ['direct','admission-retry','unknown']){
+   const linked=await browser.newPage({viewport,isMobile:mobile,hasTouch:mobile});
+   const errors=[],requests=[];linked.on('pageerror',e=>errors.push(e.message));linked.on('request',r=>requests.push({url:r.url(),method:r.method()}));
+   let attempts=0;
+   if(scenario==='admission-retry')await linked.route('**/api/estates/instance/enter',route=>++attempts===1?route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({error:'admission_denied'})}):route.continue());
+   const id=scenario==='unknown'?'not-a-real-property':selected.propertyId;
+   await linked.goto('http://127.0.0.1:'+server.address().port+'/?estateProperty='+encodeURIComponent(id)+'&x=999999&z=-999999');
+   await linked.waitForFunction(()=>window.ready);
+   if(scenario==='unknown'){
+    assert.equal(await linked.evaluate(()=>host.active),false);
+    assert.equal(requests.some(r=>r.url.includes('/instance/enter')),false);
+   }else{
+    if(scenario==='admission-retry'){
+     assert.equal(await linked.evaluate(()=>host.active),false);
+     assert.deepEqual(await linked.evaluate(()=>({x:fixture.player.pos.x,z:fixture.player.pos.z})),{x:445,z:188});
+     await linked.getByRole('button',{name:'Retry entry',exact:true}).click();await linked.waitForFunction(()=>host.active);
+    }
+    const check=await linked.evaluate(async propertyId=>{
+     const {createEstatesIslandNavigation}=await import('/js/estates-island-navigation.mjs');
+     const nav=createEstatesIslandNavigation({manifest:host.manifest}),lot=host.manifest.lots.find(l=>l.propertyId===propertyId),arrival=nav.propertyApproach(propertyId),p=fixture.player.pos;
+     return {active:host.active,walkable:nav.isWalkable({x:p.x-650,y:p.y,z:p.z}),position:{x:p.x-650,y:p.y,z:p.z},expected:{...arrival,y:.1},outside:Math.abs(p.x-650-lot.position.x)>=lot.buildingFootprint.width/2||Math.abs(p.z-lot.position.z)>=lot.buildingFootprint.depth/2,velocity:fixture.player.vel.length(),presencePaused:window.__estatesCityPresencePaused};
+    },selected.propertyId);
+    assert.equal(check.active,true);assert.equal(check.walkable,true);assert.equal(check.outside,true);assert.equal(check.velocity,0);assert.equal(check.presencePaused,true);assert.deepEqual(check.position,check.expected);
+    await linked.getByRole('button',{name:'View home & upgrades',exact:true}).waitFor();
+    // Another valid target works without a second admission; unknown IDs cannot move anyone.
+    const arrivalCount=requests.filter(r=>r.url.includes('/instance/enter')).length;
+    const last=await linked.evaluate(()=>host.manifest.lots.filter(l=>l.propertyId).at(-1).propertyId);
+    await linked.evaluate(()=>fixture.player.vel.set(7,2,5));
+    assert.equal(await linked.evaluate(id=>host.teleportToProperty(id),last),true);
+    assert.equal(await linked.evaluate(()=>fixture.player.vel.length()),0);
+    assert.equal(requests.filter(r=>r.url.includes('/instance/enter')).length,arrivalCount);
+    const before=await linked.evaluate(()=>fixture.player.pos.toArray());
+    assert.equal(await linked.evaluate(()=>host.teleportToProperty('not-real')),false);
+    assert.deepEqual(await linked.evaluate(()=>fixture.player.pos.toArray()),before);
+    await linked.getByRole('button',{name:'Return to BURN City',exact:true}).click();
+    assert.deepEqual(await linked.evaluate(()=>fixture.player.pos.toArray()),[445,.1,188]);
+    assert.equal(await linked.evaluate(()=>window.__estatesCityPresencePaused),false);
+    await linked.getByRole('button',{name:'Teleport to property',exact:true}).click();await linked.waitForFunction(()=>host.active);
+    await linked.evaluate(()=>step());
+    assert.equal(await linked.evaluate(()=>host.active),true,'return and re-entry recreate a usable controller');
+   }
+   assert.equal(requests.some(r=>r.method==='POST'&&!r.url.includes('/instance/')),false,'travel does not create purchases or change access rights');
+   assert.deepEqual(errors,[]);await linked.evaluate(()=>host.dispose());await linked.close();
+  }
+  console.log('Property teleport, admission retry, unknown IDs and city return passed',viewport);
+
  }
 } finally {await browser.close();server.close();}

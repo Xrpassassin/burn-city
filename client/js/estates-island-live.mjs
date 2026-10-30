@@ -95,6 +95,7 @@ export async function installEstatesIslandLive({
   // Never trust query-supplied coordinates or property metadata.
   const requestedPropertyId = new URLSearchParams(location.search).get('estateProperty');
   const requestedLot = requestedPropertyId ? manifest.lots.find(l => l.propertyId === requestedPropertyId) : null;
+  let targetLot=requestedLot;
 
   const renderer = createEstatesIslandRenderer({ THREE, scene, manifest });
   const root = renderer.root;
@@ -104,10 +105,10 @@ export async function installEstatesIslandLive({
   // Low-cost property locator: one emissive marker and a pulsing ring, attached
   // to the authoritative lot position in island-local coordinates.
   let selectedLotBeacon=null;
-  if(requestedLot){
+  {
     const beacon=new THREE.Group();
     beacon.name='estates-selected-property-beacon';
-    beacon.position.set(requestedLot.position.x,0.4,requestedLot.position.z);
+    beacon.position.set(targetLot?.position.x??0,0.4,targetLot?.position.z??0);
     const material=new THREE.MeshBasicMaterial({color:0xffc266,transparent:true,opacity:.9,depthWrite:false});
     const ringMaterial=new THREE.MeshBasicMaterial({color:0xffdf9a,transparent:true,opacity:.6,depthWrite:false,side:THREE.DoubleSide});
     const stem=new THREE.Mesh(new THREE.CylinderGeometry(.14,.14,9,8),material);
@@ -221,7 +222,7 @@ export async function installEstatesIslandLive({
     const home=catalog.properties.find(p=>p.id===property.propertyId),tier=catalog.tiers.find(t=>t.id===home?.tier);
     showPanel(property.address,
       tier?tier.label+' · '+tier.price+' XRP · '+tier.shareUnits+' reward share units. Explore the finishes and see how this home can grow.':'This plot is reserved for a future home.',
-      [{label:'Close',primary:true,run:hidePanel}],
+      [{label:'Navigate to property',primary:true,run:()=>{const lot=manifest.lots.find(l=>l.propertyId===property.propertyId);if(lot){targetLot=lot;if(selectedLotBeacon){selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=active;}if(guidanceHud)guidanceHud.style.display='block';hidePanel();}}},{label:'Close',run:hidePanel}],
       'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests.');
     if(catalogued){
       let finishes;
@@ -427,7 +428,7 @@ export async function installEstatesIslandLive({
     if(window.__skate?.active)window.__skate.state.pos.copy(player.pos);
     avatar.position.copy(player.pos);
     connectPresence(leaseToken,admission.instanceId);
-    if(selectedLotBeacon)selectedLotBeacon.group.visible=true;
+    if(selectedLotBeacon)selectedLotBeacon.group.visible=Boolean(targetLot);
     onStatus({state:'entered-public-island',instanceId:admission.instanceId,catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
   }
   function leaveIsland() {
@@ -469,10 +470,12 @@ export async function installEstatesIslandLive({
     if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
       lastGuidanceUpdate=Date.now();
       const pos={x:player.pos.x-OFFSET_X,z:player.pos.z};
-      const nav=estateWalkingGuidance(pos,requestedLot.position);
+      if(!targetLot){guidanceHud.style.display='none';} else {
+      const nav=estateWalkingGuidance(pos,targetLot.position);
       const compass=['N','NE','E','SE','S','SW','W','NW'][Math.round(((nav.bearingRadians+Math.PI*2)%(Math.PI*2))/(Math.PI/4))%8];
-      guidanceHud.textContent=nav.arrived?'Arrived at '+requestedLot.address:'Lot '+requestedLot.address+' · '+Math.round(nav.distance)+'m · '+compass;
+      guidanceHud.textContent=nav.arrived?'Arrived at '+targetLot.address:'Lot '+targetLot.address+' · '+Math.round(nav.distance)+'m · '+compass;
       guidanceHud.style.display='block';
+      }
     }
     if(selectedLotBeacon){
       const pulse=1+0.12*Math.sin(Date.now()*0.003);
@@ -528,7 +531,7 @@ export async function installEstatesIslandLive({
   }
 
   let guidanceHud=null, lastGuidanceUpdate=0;
-  if(requestedLot){
+  {
     guidanceHud=document.createElement('div');
     guidanceHud.id='bcEstatesWalkingGuidance';
     guidanceHud.setAttribute('role','status');

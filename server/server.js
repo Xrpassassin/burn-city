@@ -170,6 +170,11 @@ const server = http.createServer(async (req, res) => {
       const b = await body(), result = estatesInstance.leave(String(b.leaseToken || ''));
       return json(res, result.ok ? 200 : 400, result);
     }
+    if (url.pathname === '/api/estates/ownership' && req.method === 'GET') {
+      if(gate('estates-ownership-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
+      const properties=Pay.sdb.prepare('SELECT property_id AS propertyId,acct AS owner FROM estate_property_ownership ORDER BY property_id').all();
+      return json(res,200,{asOfMs:Date.now(),properties});
+    }
     if (url.pathname === '/api/estates/status' && req.method === 'GET') {
       if(gate('estates-status-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
       const sales=estateSales.status(),rewards=estateHourly.status();

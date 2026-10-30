@@ -1515,7 +1515,7 @@ if(/[?&]debug=1/.test(location.search))window.__tourDbg={get:()=>tour,caps:()=>t
   if(f&&f.shopPos){const sp=f.shopPos,d=f.dock.dir;tourStops.push([V3(sp.x+d.x*16+d.z*10,9,sp.z+d.z*16-d.x*10),V3(sp.x,2,sp.z)]);tourCaps.push('Fishing dock + Tackle & Bait: free rod & worms, catch ~20 species, sell for lake coins (no real value), upgrade rods/bait')}
   if(bw&&bw.base){const b=bw.base,d=f.dock.dir;tourStops.push([V3(b.x-d.x*16+d.z*12,8,b.z-d.z*16-d.x*12),V3(b.x+d.x*4,0,b.z+d.z*4)]);tourCaps.push('Boat dock: hop in and drive a boat around the lake')}
  }catch(err){}tourStops.push(TS0[TS0.length-1]);tourCaps.push(TC0[TC0.length-1])}
-$('tour').onclick=()=>{if(tlOn())return;tourBuild();setMode('orbit');orbit.enabled=false;mode='tour';tour={cam:new THREE.CatmullRomCurve3(tourStops.map(s=>s[0])),look:new THREE.CatmullRomCurve3(tourStops.map(s=>s[1])),t:0}};
+$('tour').onclick=()=>{if(tlOn()||window.__estatesIslandLive?.active)return;tourBuild();setMode('orbit');orbit.enabled=false;mode='tour';tour={cam:new THREE.CatmullRomCurve3(tourStops.map(s=>s[0])),look:new THREE.CatmullRomCurve3(tourStops.map(s=>s[1])),t:0}};
 
 // ---------- picking, labels (screen-space de-cluttering), minimap ----------
 const ray=new THREE.Raycaster(),mv2=new THREE.Vector2();
@@ -1781,14 +1781,14 @@ const hint=document.createElement('div');hint.id='vHint';document.body.appendChi
 const mn=document.createElement('div');mn.id='vMenu';mn.innerHTML='<div><b>Paused · choose view</b><button data-v="orbit">1 ◎ Orbit</button><button data-v="fly">2 ✈ Fly</button><button data-v="tour">3 ▶ Tour</button><button data-v="explore">🚶 Explore</button><button data-v="resume">4 ↩ Resume</button></div>';document.body.appendChild(mn);
 // Movement & Games hub (movement-games-menu.js): city toasts + "take me there" (Explore at a known world spot, facing `face`). Refuses during the Wilds travel lock, in a boat or the tower.
 window.__bcToast=(text,col)=>{const d=document.createElement('span');d.textContent=String(text);toast(d.innerHTML,col)};
-window.__walkTo=(x,z,face)=>{if(tlOn()||window.__burnTowerOpen||(window.__boat&&window.__boat.active)||!isFinite(x)||!isFinite(z))return false;if(mode!=='explore')setMode('explore');if(mode!=='explore')return false;P.pos.set(x,groundAt(x,z,99),z);P.vel.set(0,0,0);P.spawned=1;if(face&&isFinite(face.x)&&isFinite(face.z)){yp.yaw=Math.atan2(face.x-x,-(face.z-z));avatar.rotation.y=yp.yaw}return true};
+window.__walkTo=(x,z,face)=>{if(tlOn()||window.__estatesIslandLive?.active||window.__burnTowerOpen||(window.__boat&&window.__boat.active)||!isFinite(x)||!isFinite(z))return false;if(mode!=='explore')setMode('explore');if(mode!=='explore')return false;P.pos.set(x,groundAt(x,z,99),z);P.vel.set(0,0,0);P.spawned=1;if(face&&isFinite(face.x)&&isFinite(face.z)){yp.yaw=Math.atan2(face.x-x,-(face.z-z));avatar.rotation.y=yp.yaw}return true};
 // Estates Island live public traversal: renderer + bridge + existing third-person frame loop.
 void installEstatesIslandLive({THREE,scene:S,player:P,avatar,camera:C,buildWalker,poseWalker,getYaw:()=>yp.yaw,setYaw:y=>{yp.yaw=y;avatar.rotation.y=y},getMode:()=>mode,setMode,isInteractPressed:()=>Boolean(keys.KeyE),cityGate:ESTATE.islandEntrance,onStatus:event=>{if(event.state==='ready')window.__bcToast?.('Estates Island ready · public paths, permission-gated properties','#ffbd68');else if(event.state==='error')window.__bcToast?.('Estates Island could not load: '+event.message,'#ff7755')}}).catch(error=>{console.error('[Estates Island] live integration failed',error);window.__bcToast?.('Estates Island unavailable; see console for details','#ff7755')});
 
 window.__launchBlacktide=()=>{if(document.body.classList.contains('wl-travel'))return false;try{sessionStorage.bc_ret=JSON.stringify({m:mode,p:[P.pos.x,P.pos.y,P.pos.z],c:[C.position.x,C.position.y,C.position.z],yaw:yp.yaw})}catch(_){}location.href='blacktide/';return true};
 let tw=null;const menuOn=()=>mn.classList.contains('on'),hide=()=>mn.classList.remove('on');
-const show=()=>{if(document.pointerLockElement)document.exitPointerLock();mn.classList.add('on')};
-function go(v){hide();const from=mode;
+const show=()=>{if(window.__estatesIslandLive?.active)return;if(document.pointerLockElement)document.exitPointerLock();mn.classList.add('on')};
+function go(v){hide();if(window.__estatesIslandLive?.active&&v!=='resume')return;const from=mode;
  if(v==='explore'&&mode==='explore')v='resume';   // already walking: Explore just closes the menu (setMode would reset the jetpack/web + pitch)
  if(v==='resume'){if(!MOBILE&&mode==='fly')R.domElement.requestPointerLock?.();return}
  if(v==='tour'){$('tour').click();return}

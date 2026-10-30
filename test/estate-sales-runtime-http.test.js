@@ -34,6 +34,7 @@ const {server}=require('../server/server');
  const otherToken=Pay.sign({acct:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',exp:Date.now()+60000});
  const privateState=await (await fetch(url+'/api/estates',{headers:{authorization:'Bearer '+otherToken}})).json();
  assert.equal(privateState.capitalAllocations.length,0);
+ const publicOwnership=await (await fetch(url+'/api/estates/ownership')).json();assert.deepEqual(publicOwnership.properties,[{propertyId:'trailer-01',owner:buyer}]);assert.equal(publicOwnership.walletReceived,undefined);assert.equal(publicOwnership.payouts,undefined);assert(!JSON.stringify(publicOwnership).includes(hash));
  const ownReport=(await call('/portfolio?owner='+encodeURIComponent('rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q'))).data;assert.equal(ownReport.portfolio.properties.length,1);assert.equal(ownReport.portfolio.properties[0].propertyId,'trailer-01');
  const otherReport=await (await fetch(url+'/api/estates/portfolio?owner='+encodeURIComponent(buyer),{headers:{authorization:'Bearer '+otherToken}})).json();assert.equal(otherReport.owned.length,0);assert.equal(otherReport.portfolio.properties.length,0);assert(!JSON.stringify(otherReport).includes(hash));
 

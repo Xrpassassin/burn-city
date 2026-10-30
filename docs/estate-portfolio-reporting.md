@@ -11,3 +11,11 @@ The owner-only share calculator starts at zero. A user supplies hypothetical sys
 Sources reviewed October 30, 2026:
 - SEC/CFTC interpretive release, March 2026: https://www.sec.gov/files/rules/interp/2026/33-11412.pdf
 - SEC staff FAQs, September 2026 (staff guidance, not binding law): https://www.sec.gov/about/divisions-offices/division-corporation-finance/faqs-crypto-assets
+
+## Ownership inspection and received rewards
+
+`/api/estates/ownership` deliberately exposes only settled property IDs and their owner wallet addresses, as requested for public in-world inspections. It does not expose allocations, purchase amounts, or payment histories. Owned lot borders are blue, unowned lot borders yellow; cosmetic previews do not alter ownership colors. The public snapshot refreshes during island play and immediately after purchase settlement.
+
+The private portfolio additionally reports confirmed wallet deliveries across all owned properties, with IMG and XRP kept separate. Converted IMG payouts count as the XRP actually delivered, not as an additional IMG delivery. Queued/submitted/held payments are excluded. Malformed or duplicate confirmation evidence produces unavailable totals. Received rewards are not labeled net investment profit: purchase costs and unrealized changes in pool assets are not included. Inspection shows these private totals only when the authenticated portfolio confirms the inspected property belongs to that session, and clears them when the wallet changes.
+
+The island hides city Tour, mode controls, the combined Movement & Games hub, and the city view menu. Walking, touch controls, interaction, and the explicit return-to-city button remain available. City tour, view shortcuts, and travel callbacks are guarded while island admission is active; normal controls return on island exit or disposal.

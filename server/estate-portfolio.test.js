@@ -8,7 +8,8 @@ CREATE TABLE estate_img_reward_receipts(tx_hash TEXT,received_at_ms INTEGER,veri
 CREATE TABLE estate_img_hourly_allocations(tx_hash TEXT,property_id TEXT,owner TEXT,amount_units TEXT);
 CREATE TABLE estate_img_scan_watermarks(id INTEGER,scanned_through_ms INTEGER,ledger_index INTEGER);
 CREATE TABLE estate_xrp_profit_receipts(source_id TEXT,distributable_drops TEXT,realized_at_ms INTEGER);
-CREATE TABLE estate_xrp_profit_payouts(source_id TEXT,owner TEXT,base_amount_drops TEXT,amount_drops TEXT);`);
+CREATE TABLE estate_xrp_profit_payouts(source_id TEXT,owner TEXT,base_amount_drops TEXT,amount_drops TEXT,state TEXT DEFAULT 'queued',tx_hash TEXT);
+CREATE TABLE estate_hourly_payouts(owner TEXT,state TEXT,delivered TEXT,tx_hash TEXT);`);
 const property=db.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?)');
 property.run('trailer-01',owner,1,now-7200000);property.run('apartment-01',owner,5,now-1800000);property.run('starter-01',other,25,now-172800000);
 db.prepare('INSERT INTO estate_img_scan_watermarks VALUES(1,?,123)').run(now-1000);
@@ -17,7 +18,7 @@ receipt.run('a',now-3600000);allocation.run('a','trailer-01',owner,'1000000');al
 receipt.run('b',now-900000);allocation.run('b','trailer-01',owner,'1000000');allocation.run('b','apartment-01',owner,'5000000');
 receipt.run('old',now-90000000);allocation.run('old','trailer-01',owner,'9000000000');
 receipt.run('future',now+60000);allocation.run('future','trailer-01',owner,'9000000000');
-const native=db.prepare('INSERT INTO estate_xrp_profit_receipts VALUES(?,?,?)'),payout=db.prepare('INSERT INTO estate_xrp_profit_payouts VALUES(?,?,?,?)');
+const native=db.prepare('INSERT INTO estate_xrp_profit_receipts VALUES(?,?,?)'),payout=db.prepare('INSERT INTO estate_xrp_profit_payouts(source_id,owner,base_amount_drops,amount_drops) VALUES(?,?,?,?)');
 native.run('x','260',now-3600000);payout.run('x',owner,'10','99');native.run('y','310',now-900000);payout.run('y',owner,'60','130');
 db.exec('PRAGMA query_only=ON');
 const s=readEstatePortfolio({db,owner,now});assert.equal(s.totalShareUnits,31);assert.equal(s.portfolioShareUnits,6);assert.equal(s.scannerCurrent,true);
@@ -28,7 +29,17 @@ assert.equal(s.properties.reduce((n,p)=>n+BigInt(p.xrpAllocated24hDrops),0n),70n
 assert.equal(readEstatePortfolio({db,owner:other,now}).properties.length,1);
 assert(!JSON.stringify(readEstatePortfolio({db,owner:other,now})).includes('trailer-01'),'another wallet cannot see owner allocations');
 assert.throws(()=>readEstatePortfolio({db,owner:'bad',now}));
-db.exec('PRAGMA query_only=OFF');allocation.run('b','trailer-01',owner,'9007199254740993123');
+db.exec('PRAGMA query_only=OFF');
+const confirmed=db.prepare('INSERT INTO estate_hourly_payouts VALUES(?,?,?,?)');
+confirmed.run(owner,'confirmed',JSON.stringify({currency:'IMG',value:'1.234567'}),'1'.repeat(64));
+confirmed.run(owner,'confirmed',JSON.stringify('50000'),'2'.repeat(64));
+confirmed.run(owner,'queued',JSON.stringify('9999999'),'3'.repeat(64));
+confirmed.run(other,'confirmed',JSON.stringify('8888888'),'4'.repeat(64));
+db.prepare("INSERT INTO estate_xrp_profit_payouts VALUES('paid',?,'1000','1200','confirmed',?)").run(owner,'5'.repeat(64));
+const received=readEstatePortfolio({db,owner,now}).walletReceived;assert.equal(received.complete,true);assert.equal(received.imgUnits,'1234567');assert.equal(received.xrpDrops,'51200','actual converted XRP and native wallet deliveries include paid credits');
+db.prepare("UPDATE estate_hourly_payouts SET delivered='invalid' WHERE tx_hash=?").run('1'.repeat(64));assert.equal(readEstatePortfolio({db,owner,now}).walletReceived.complete,false);
+db.prepare('UPDATE estate_hourly_payouts SET delivered=? WHERE tx_hash=?').run(JSON.stringify({currency:'IMG',value:'1.234567'}),'1'.repeat(64));
+allocation.run('b','trailer-01',owner,'9007199254740993123');
 assert.equal(readEstatePortfolio({db,owner,now}).properties.find(p=>p.propertyId==='trailer-01').imgAllocated24hUnits,'9007199254742993123','no floating-point monetary sums');
 db.prepare("UPDATE estate_xrp_profit_payouts SET base_amount_drops='999' WHERE source_id='y'").run();
 const bad=readEstatePortfolio({db,owner,now});assert.equal(bad.xrpHistoryAvailable,false);assert(bad.properties.every(p=>p.xrpAllocated24hDrops===null));

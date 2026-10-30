@@ -2,6 +2,10 @@ name: Estates directory and responsive UI checks
 on:
   pull_request:
     paths:
+      - 'client/js/estate-ownership*'
+      - 'client/js/estates-island-renderer*'
+      - 'client/js/movement-games-menu.js'
+      - 'client/js/app.js'
       - 'client/js/estate-portfolio*'
       - 'client/js/estate-reward-scenario*'
       - 'client/estate-properties.html'

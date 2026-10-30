@@ -8,13 +8,14 @@ const calls=[];let paused=false,unavailable=false;
 const live=()=>({salesEnabled:!paused,salesStatus:paused?'treasury_paused':'open',distributionsEnabled:!paused,imgXrpProfitDistributionsEnabled:!paused});
 function portfolio(wallet){const id=wallet==='wallet-b'?'apartment-01':'trailer-01',property=catalog.properties.find(p=>p.id===id),tier=tiers.get(property.tier),share=tier.shareUnits;
  return {...live(),owned:[{propertyId:id,property,tier,shareUnits:share}],capitalAllocations:[{property_id:id,fundingState:'invested'}],payoutPreference:{currency:'IMG'},xrpProfitCreditDrops:'0',
- portfolio:{properties:[{propertyId:id,imgAllocated24hUnits:'864000000',imgAverageHourlyUnits:'36000000',xrpAllocated24hDrops:'2400000',xrpAverageHourlyDrops:'100000'}],portfolioShareUnits:share,totalShareUnits:6,imgHistoryAvailable:true,xrpHistoryAvailable:true,dataThroughMs:Date.now()-1000,scannerCurrent:true},
+ portfolio:{properties:[{propertyId:id,imgAllocated24hUnits:'864000000',imgAverageHourlyUnits:'36000000',xrpAllocated24hDrops:'2400000',xrpAverageHourlyDrops:'100000'}],portfolioShareUnits:share,totalShareUnits:6,imgHistoryAvailable:true,xrpHistoryAvailable:true,dataThroughMs:Date.now()-1000,scannerCurrent:true,walletReceived:{complete:true,imgUnits:'1234567',xrpDrops:'51200'}},
  payouts:[{epoch_start_ms:Date.now()-3600000,state:'confirmed',delivered:JSON.stringify('12345'),tx_hash:'A'.repeat(64)}],xrpProfitPayouts:[]};}
 const server=http.createServer((req,res)=>{
  const u=new URL(req.url,'http://localhost');
  if(u.pathname.startsWith('/api/estates')){
   const wallet=(req.headers.authorization||'').replace('Bearer ','');calls.push({path:u.pathname,wallet,method:req.method});res.setHeader('content-type','application/json');
   if(u.pathname.endsWith('/status')){res.writeHead(unavailable?503:200);res.end(JSON.stringify(unavailable?{error:'unavailable'}:live()));return;}
+  if(u.pathname.endsWith('/ownership')){res.end(JSON.stringify({properties:[{propertyId:'trailer-01',owner:'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb'}]}));return;}
   if(!['wallet-a','wallet-b'].includes(wallet)){res.writeHead(401);res.end(JSON.stringify({error:'sign_in_with_xaman'}));return;}
   if(u.pathname.endsWith('/portfolio')){res.end(JSON.stringify(portfolio(wallet)));return;}
   if(u.pathname.endsWith('/payout-preference')){res.end(JSON.stringify({currency:'XRP'}));return;}
@@ -63,5 +64,22 @@ try{for(const viewport of [{width:1280,height:800},{width:390,height:844},{width
  assert.equal(await page.locator('#scenario-net').isDisabled(),true);assert.equal(await page.locator('#wallet-history').textContent(),'');assert.equal(await page.locator('#scenario-property option').count(),0);
  unavailable=true;await page.getByRole('button',{name:'Refresh wallet portfolio'}).click();await page.getByText('Live sales status unavailable. Please refresh.',{exact:true}).waitFor();
  assert.equal(await page.getByRole('textbox',{name:'Xaman bearer token'}).count(),0,'players never paste credentials');
+ // Owner inspection shows private wallet deliveries only to the owning session.
+ unavailable=false;paused=false;
+ await page.evaluate(async()=>{
+  localStorage.setItem('bcToken','wallet-a');dispatchEvent(new StorageEvent('storage',{key:'bcToken'}));
+  const {mountEstateOwnership}=await import('/js/estate-ownership-ui.mjs');window.mountOwnership=mountEstateOwnership;
+  const host=document.createElement('div');host.id='ownership-fixture';document.body.append(host);window.ownerView=mountEstateOwnership(host,'trailer-01',{api:location.origin});await ownerView.ready;
+ });
+ await page.getByText('You own this property.',{exact:true}).waitFor();
+ await page.getByText('Your wallet rewards received · all properties: 1.234567 IMG · 0.051200 XRP',{exact:true}).waitFor();
+ await page.evaluate(()=>{localStorage.setItem('bcToken','wallet-b');dispatchEvent(new StorageEvent('storage',{key:'bcToken'}));});
+ assert.equal(await page.locator('#ownership-fixture').textContent().then(t=>t.includes('0.051200')),false,'switching wallets clears private inspection totals');
+ await page.evaluate(async()=>{ownerView.dispose();document.querySelector('#ownership-fixture').replaceChildren();ownerView=mountOwnership(document.querySelector('#ownership-fixture'),'trailer-01',{api:location.origin});await ownerView.ready;});
+ assert.equal(await page.locator('#ownership-fixture').textContent().then(t=>t.includes('You own')),false);
+ assert.equal(await page.locator('#ownership-fixture').textContent().then(t=>t.includes('wallet rewards received')),false,'visitors cannot see owner earnings');
+ assert.equal(await page.locator('#ownership-fixture').textContent().then(t=>t.includes('rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb')),true,'public verified owner remains visible');
+ assert.equal(calls.filter(c=>c.method==='POST').length,1,'inspection does not submit payments');
+ await page.evaluate(()=>ownerView.dispose());
  assert.deepEqual(errors,[]);await page.close();console.log('Owned properties, recorded rates, scenario math, wallet isolation and live status passed',viewport);
 }}finally{await browser.close();server.close();}

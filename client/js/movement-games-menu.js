@@ -127,6 +127,7 @@ const MSG={
  wilds:[()=>'🌲 The Wilds gate is just ahead: walk through it to enter the forest.','🌲 The Wilds: walk north of town to the forest gate.'],
 };
 async function travel(k){
+ if(window.__estatesIslandLive?.active){say('Return to BURN City before using city travel.');return}
  if(locked()){say('🌲 In the Wilds you travel on foot. Walk back out through the gate first.');return}
  let s=null;try{s=await spots[k]()}catch(_){}
  const ok=!!(s&&window.__walkTo&&window.__walkTo(s.x,s.z,s.face));
@@ -135,6 +136,7 @@ async function travel(k){
 }
 const close=(focus=true)=>{panel.classList.remove('on');opener.setAttribute('aria-expanded','false');if(focus)opener.focus()};
 const open=()=>{
+ if(window.__estatesIslandLive?.active)return;
  selectTab('movement');
  const fh=panel.querySelector('.bc-mg-flyhint');if(fh)fh.textContent=touch()?'Free-fly above the city · left stick, drag to look, ▲ / ▼':'Free-fly above the city · WASD, Space up, C down';
  const bh=panel.querySelector('.bc-mg-boathint');if(bh)bh.textContent=touch()?'Takes you to the boat dock · tap 🚤 Board boat':'Takes you to the boat dock · board with E';
@@ -147,6 +149,7 @@ panel.addEventListener('click',e=>{
  const game=e.target.closest('[data-game]');
  if(!move&&!game)return;
  const key=move?move.dataset.move:game.dataset.game;
+ if(window.__estatesIslandLive?.active){close(false);if(key==='city')window.__estatesIslandLive.returnToCity?.();else say('Return to BURN City before using city travel or games.');return}
  close(false);   // every entry closes the panel first, even when it is refused
  if(key==='arena'){const pb=document.getElementById('playBtn');if(pb)pb.click();else location.href='arena/';return}
  if(locked()&&key!=='explore'){say('🌲 In the Wilds you travel on foot. Walk back out through the gate first.');return}

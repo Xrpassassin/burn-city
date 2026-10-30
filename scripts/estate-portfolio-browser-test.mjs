@@ -60,7 +60,7 @@ try{for(const viewport of [{width:1280,height:800},{width:390,height:844},{width
  paused=true;await page.getByRole('button',{name:'Refresh wallet portfolio'}).click();await page.getByText('Property purchases are temporarily paused.',{exact:true}).waitFor();
  await page.evaluate(()=>{localStorage.removeItem('bcToken');dispatchEvent(new StorageEvent('storage',{key:'bcToken'}));});
  await page.waitForFunction(()=>!document.querySelector('[data-owned-property]'));
- assert.equal(await page.locator('#scenario-fields').isDisabled(),true);assert.equal(await page.locator('#wallet-history').textContent(),'');assert.equal(await page.locator('#scenario-property option').count(),0);
+ assert.equal(await page.locator('#scenario-net').isDisabled(),true);assert.equal(await page.locator('#wallet-history').textContent(),'');assert.equal(await page.locator('#scenario-property option').count(),0);
  unavailable=true;await page.getByRole('button',{name:'Refresh wallet portfolio'}).click();await page.getByText('Live sales status unavailable. Please refresh.',{exact:true}).waitFor();
  assert.equal(await page.getByRole('textbox',{name:'Xaman bearer token'}).count(),0,'players never paste credentials');
  assert.deepEqual(errors,[]);await page.close();console.log('Owned properties, recorded rates, scenario math, wallet isolation and live status passed',viewport);

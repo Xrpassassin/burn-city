@@ -3,19 +3,20 @@
 export const HOUSE_MATERIALS = Object.freeze({
   plaster:0xd8cbb5, stone:0x817d73, siding:0x71878a, timber:0x855a3c,
   roof:0x303b49, frame:0x283d49, glass:0x537f8b, warm:0xffc982,
-  brass:0xb89457, leaf:0x48664c
+  brass:0xb89457, leaf:0x48664c, flower:0xd37a73, copper:0xb0754a, ivory:0xe9dfcc
 });
 export function estateHouseParts(item) {
   const f=item.buildingFootprint;
   if(!f) return [];
   const {width:w,depth:d,height:h}=f, tier=item.tier;
   const trailer=tier==='trailer', apartment=tier==='apartment', mansion=tier==='mansion', family=tier==='family';
+  const level=Number.isInteger(item.prestigeLevel)&&item.prestigeLevel>=0&&item.prestigeLevel<=5?item.prestigeLevel:0;
   const parts=[];
   const add=(name,mat,x,y,z,width,height,depth,rz=0)=>parts.push({name,mat,x,y,z,width,height,depth,rz});
   // Recess the shell to leave room for frames, eaves and an entry terrace within collision bounds.
   const W=w-.6,D=d-.6, bodyH=apartment?h-.55:trailer?h-.55:h*.72;
   add('foundation','stone',0,.15,0,w,.3,d);
-  add('shell',trailer?'siding':'plaster',0,.3+bodyH/2,0,W,bodyH,D);
+  add('shell',level>=5?'ivory':trailer?'siding':'plaster',0,.3+bodyH/2,0,W,bodyH,D);
   const front=D/2, top=.3+bodyH;
   const doorX=apartment?0:-W*.24, doorH=Math.min(2.2,bodyH*.78);
   add('entry-frame','stone',doorX,.3+doorH/2,front+.035,1.35,doorH+.18,.16);
@@ -75,6 +76,45 @@ export function estateHouseParts(item) {
   for(const x of [-W*.42,W*.42]) {
     add('planter','stone',x,.51,front+.02,.62,.42,.42);
     add('plant','leaf',x,.8,front+.02,.52,.3,.36);
+  }
+  // Cumulative cosmetic stages: no garden objects beyond the collision shell.
+  if(level>=1) for(const side of [-1,1]) {
+    const x=side*W*.33;
+    add('garden-box','timber',x,.5,front+.06,W*.22,.32,.28);
+    add('garden-leaf','leaf',x,.72,front+.06,W*.24,.2,.26);
+    for(const dx of [-.22,0,.22])add('garden-flower','flower',x+dx,.86,front+.09,.12,.16,.12);
+  }
+  if(level>=2) {
+    add('crafted-base-band','stone',0,.48,front+.09,W,.16,.16);
+    for(const side of [-1,1]) {
+      add('crafted-corner','stone',side*(W/2-.12),top/2,front+.05,.23,top-.25,.22);
+      // Shutters frame the right ground-floor window without covering its pane.
+      add('crafted-shutter','timber',W*.28+side*(W*.135+.2),.3+.57*bodyH/floors,front+.14,.18,Math.min(1.6,bodyH/floors*.48),.12);
+    }
+  }
+  if(level>=3) {
+    add('copper-eave','copper',0,top,front+.06,W,.12,.16);
+    for(const side of [-1,1]) {
+      const x=side*(W*.38);
+      add('signature-lantern-case','frame',x,1.65,front+.08,.23,.56,.18);
+      add('signature-lantern-glow','warm',x,1.65,front+.19,.15,.39,.05);
+      add('signature-lantern-cap','copper',x,1.98,front+.1,.3,.1,.24);
+    }
+  }
+  if(level>=4) {
+    const canopyY=Math.min(top-.25,doorH+.65),span=Math.min(W*.62,4,2*(W/2-Math.abs(doorX)-.3));
+    for(const side of [-1,1]) {
+      add('grand-column','stone',doorX+side*span/2,canopyY/2,front-.03,.18,canopyY,.35);
+      add('grand-capital','brass',doorX+side*span/2,canopyY-.08,front-.03,.25,.14,.4);
+    }
+    for(let i=0;i<5;i++) add('grand-pergola','timber',doorX-span/2+i*span/4,canopyY+.06,front-.08,.12,.14,.65);
+    add('grand-pergola-beam','timber',doorX,canopyY-.07,front+.18,span+.28,.18,.12);
+  }
+  if(level>=5) {
+    add('landmark-inlay','brass',0,top*.83,front+.12,W*.84,.08,.06);
+    const crestY=apartment||mansion?top+.62:top+(h-top)*.65;
+    add('landmark-crest','brass',0,crestY,0,.42,.42,.42,Math.PI/4);
+    for(const side of [-1,1]) add('landmark-corner-inlay','copper',side*(W/2-.12),top/2,front+.18,.055,top-.35,.04);
   }
   return parts;
 }

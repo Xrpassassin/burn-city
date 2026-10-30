@@ -1,0 +1,27 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const data=fs.mkdtempSync(path.join(os.tmpdir(),'estate-prestige-http-'));
+Object.assign(process.env,{DATA_DIR:data,PORT:'0',DRY_RUN:'false',ESTATE_COSMETIC_UPGRADES_ENABLED:'1',XRPL_NETWORK:'mainnet',XAMAN_API_KEY:'test-key',XAMAN_API_SECRET:'test-secret',BURN_JOB_IN_SERVER:'false',XRPL_WSS:'ws://127.0.0.1:1'});
+const Pay=require('../server/payments');let tx,signed=false;
+const buyer='rKZmQq3gMCNmV6th3wZPhfqgZ3815vUmiV',other='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',hash='A'.repeat(64);
+Pay._sdk=()=>({payload:{create:async p=>{tx=p.txjson;return {uuid:'upgrade-http-test',next:{always:'https://example.com/sign'}};},get:async()=>({meta:{signed},response:{account:buyer,txid:hash},next:{always:'https://example.com/sign'}})}});
+Pay._ledger=async()=>({request:async()=>({result:{validated:true,hash,ledger_index:123,...tx,date:Math.floor(Date.now()/1000)-946684800,meta:{TransactionResult:'tesSUCCESS',delivered_amount:tx?.Amount}}})});
+const {server}=require('../server/server');
+Pay.sdb.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run('trailer-01',buyer,'B'.repeat(64),3000000,1,Date.now());
+(async()=>{
+ await new Promise(r=>server.listening?r():server.once('listening',r));const url='http://127.0.0.1:'+server.address().port;
+ const token=acct=>Pay.sign({acct,exp:Date.now()+60000});
+ const call=async(p,body,acct=buyer)=>{const r=await fetch(url+'/api/estates'+p,{method:body?'POST':'GET',headers:{...(acct?{authorization:'Bearer '+token(acct)}:{}),'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {code:r.status,data:await r.json()};};
+ for(const p of ['/upgrade/quote?propertyId=trailer-01','/upgrade/start','/upgrade/confirm'])assert.equal((await call(p,p.includes('?')?null:{propertyId:'trailer-01'},null)).code,401);
+ const publicState=await call('/appearance',null,null);assert.equal(publicState.code,200);assert(!JSON.stringify(publicState.data).includes(buyer));assert(!JSON.stringify(publicState.data).includes('B'.repeat(64)));
+ const quote=await call('/upgrade/quote?propertyId=trailer-01');assert.equal(quote.data.next.remainingDrops,12000000);
+ const forged=await call('/upgrade/start',{propertyId:'trailer-01',buyer,priceDrops:1,targetLevel:5},other);assert.equal(forged.code,409);assert(!tx);
+ const start=await call('/upgrade/start',{propertyId:'trailer-01',amountDrops:1,targetLevel:5});assert.equal(start.code,200);assert.equal(tx.Amount,'12000000');
+ const input={upgradeId:start.data.upgradeId,buyer:other,txHash:'F'.repeat(64)};
+ assert.equal((await call('/upgrade/confirm',input,other)).code,409);assert.equal((await call('/upgrade/confirm',input)).code,202);
+ signed=true;const settled=await call('/upgrade/confirm',input);assert.equal(settled.code,200);assert.equal(settled.data.appearance.level,1);
+ assert.equal((await call('/upgrade/confirm',input)).data.alreadySettled,true);
+ assert.equal(Pay.sdb.prepare('SELECT share_units FROM estate_property_ownership').get().share_units,1);
+ console.log('Estate prestige HTTP: public appearance privacy, session ownership, forged amount/hash rejection, validation and replay passed');
+ server.close();fs.rmSync(data,{recursive:true,force:true});process.exit(0);
+})().catch(e=>{console.error(e);process.exit(1);});

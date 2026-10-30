@@ -55,8 +55,8 @@ assert(live.includes('active=true; root.visible=true'), 'entering island must re
 assert(live.includes('enterFromCity(){'), 'city landmark must expose entry action');
 assert(app.includes("if(u.kind==='estate' && window.__estatesIslandLive?.enterFromCity)"), 'city Estates landmark routes to island');
 assert(!live.includes('active=false; hidePanel(); controller.dispose();'), 'stale controller disposal regression');
-assert(live.includes('Catalog mapping:'), 'lot inspection labels catalog mapping rather than implying owner assignment');
-assert(live.includes('That record does not prove ownership'), 'catalog membership must never be presented as verified ownership');
+assert(live.includes('check purchase availability'), 'home inspection describes availability rather than claiming ownership');
+assert(live.includes('Private homes are for their owners and invited guests.'), 'private access is explained without inferring ownership from a catalog record');
 assert(live.includes('updateLandmarkInteraction(edge,Boolean(result.property))'), 'public landmark interactions are checked in the live exploration loop');
 assert(live.includes('showLandmarkDetails(nearest)'), 'pressing E opens a landmark detail panel');
 assert(live.includes('no ownership or transaction is implied'), 'landmark interactions cannot imply ownership or a live transaction');
@@ -68,4 +68,4 @@ assert(sw.includes("'js/estates-island-live.mjs'"), 'service worker precaches li
 assert(/const VERSION = 'bc-v\d+-/.test(sw), 'service worker cache version is set');   // exact number moves with every merge
 console.log('estates-island-live: host wiring smoke tests passed');
 
-assert(live.includes('mountEstatePurchase(panel,property.propertyId,{api:apiBase})'), 'mapped island lot inspection includes the server-backed purchase panel');
+assert(/mountEstatePurchase\(panel,property\.propertyId,\{api:apiBase[,}]/.test(live), 'mapped island lot inspection includes the server-backed purchase panel');

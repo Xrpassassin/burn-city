@@ -1,7 +1,7 @@
 'use strict';
 // Read-only XRP payment verifier. No ownership mutation or wallet signing.
 // Caller must obtain the reservation from the trusted SQLite reservation store.
-async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=Date.now(),reviewExpired=false}={}){
+async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=Date.now(),reviewExpired=false,memoType='burncity/estates'}={}){
  if(!client||typeof client.request!=='function')throw new TypeError('xrpl_client_required');
  if(typeof txHash!=='string'||!/^[a-fA-F0-9]{64}$/.test(txHash))throw new TypeError('invalid_transaction_hash');
  if(typeof treasury!=='string'||!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(treasury))throw new TypeError('invalid_treasury');
@@ -19,7 +19,7 @@ async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=D
  if(typeof body.Amount!=='string'||!/^[0-9]+$/.test(body.Amount)||BigInt(body.Amount)!==BigInt(reservation.price_drops))throw new Error('payment_amount_mismatch');
  const delivered=meta?.delivered_amount;
  if(typeof delivered!=='string'||!/^[0-9]+$/.test(delivered)||BigInt(delivered)!==BigInt(reservation.price_drops))throw new Error('payment_delivered_amount_mismatch');
- const expectedType=Buffer.from('burncity/estates').toString('hex').toUpperCase();
+ const expectedType=Buffer.from(memoType).toString('hex').toUpperCase();
  const expectedMemo=Buffer.from(reservation.reservation_id).toString('hex').toUpperCase();
  if(!Array.isArray(body.Memos)||body.Memos.length!==1||body.Memos[0]?.Memo?.MemoType?.toUpperCase()!==expectedType||body.Memos[0]?.Memo?.MemoData?.toUpperCase()!==expectedMemo)throw new Error('payment_reservation_memo_mismatch');
  if(body.Flags!==undefined&&(!Number.isSafeInteger(body.Flags)||body.Flags<0||(body.Flags & 0x00020000)!==0))throw new Error('partial_payment_not_allowed');

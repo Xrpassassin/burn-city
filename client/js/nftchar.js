@@ -1,7 +1,9 @@
-// BURN City NFT avatars: smoother, articulated characters driven by verified RACC / Firekeepers / 589 traits.
+// BURN City NFT avatars: collection-coloured shared walkers by default.
+// Detailed trait reconstruction is retained as an explicit QA preview (opts.detailed).
 // The NFT artwork remains the visual ground truth: a full-composition chest tabard plus optional floating peer card.
 // Typed metadata adds a best-effort 3D interpretation. Geometry/materials are cached for phone performance.
 import * as THREE from 'three';
+import { buildCollectionPlaceholder } from './nft-avatar-placeholder.js';
 import { resolveNftAvatarProfile } from './nft-avatar-adapters.js';
 import { resolveNftAvatarComponents } from './nft-avatar-components.js';
 import { resolveNftAvatarReconstruction } from './nft-avatar-reconstruction.js';
@@ -31,6 +33,7 @@ const has = (t, re) => t.some(v => re.test(v));
 const color = (value, fallback) => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : fallback;
 // Typed NFT attributes are retained separately so identical values from different traits are not conflated.
 export function buildNftChar(n, opts = {}) {
+  if (opts.detailed !== true) return buildCollectionPlaceholder(n, opts);
   const pal = n?.pal || {}, key = n?.key || '589';
   const profile = resolveNftAvatarProfile(n);
   const components = resolveNftAvatarComponents(profile);
@@ -596,6 +599,7 @@ export function buildNftChar(n, opts = {}) {
 export function disposeNftChar(g) {
   // Most geometries, materials and NFT textures are intentionally shared/cached. Do not dispose them per avatar.
   if(!g)return;
+  if(g.userData.representation==='collection-placeholder'){g.removeFromParent();return;}
   g.traverse(o=>{if(o.isSprite||(o.isMesh&&o.material?.map))o.material.dispose()});
   g.removeFromParent();
 }

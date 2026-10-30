@@ -101,7 +101,7 @@ function renderSample(){try{
  const nft=JSON.parse(document.querySelector('#sample').value);
  if(!nft || typeof nft!=='object' || Array.isArray(nft)) throw new Error('Sample must be a JSON object.');
  if(avatar){scene.remove(avatar); /* Avatar builder caches shared geometry/materials; do not dispose shared resources here. */}
- avatar=buildNftChar(nft);avatar.position.set(0,0,0);scene.add(avatar);setView('front');
+ avatar=buildNftChar(nft,{detailed:true});avatar.position.set(0,0,0);scene.add(avatar);setView('front');
  const profile=avatar.userData.nftAvatarProfile||{};
  const recon=profile.reconstruction||{};
  const components=profile.components||{};

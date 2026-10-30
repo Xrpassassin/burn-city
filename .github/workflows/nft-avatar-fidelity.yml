@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'client/js/nftchar.js'
+      - 'client/js/nft-avatar-placeholder.js'
+      - 'client/js/nft-avatar-placeholder.test.mjs'
+      - 'client/js/walker.js'
       - 'client/js/nft-avatar-adapters.js'
       - 'client/js/nft-avatar-components.js'
       - 'client/js/nft-avatar-reconstruction.js'
@@ -38,6 +41,9 @@ on:
       - 'feat/nft-avatar-trait-components'
     paths:
       - 'client/js/nftchar.js'
+      - 'client/js/nft-avatar-placeholder.js'
+      - 'client/js/nft-avatar-placeholder.test.mjs'
+      - 'client/js/walker.js'
       - 'client/js/nft-avatar-adapters.js'
       - 'client/js/nft-avatar-components.js'
       - 'client/js/nftchar.test.mjs'

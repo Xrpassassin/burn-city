@@ -1,0 +1,30 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Estates visual review</title>
+<style>body{margin:0;background:#15202c;color:#f7eddc;font:15px system-ui}header{padding:16px 24px;position:absolute;z-index:1;background:#15202ce8;left:0;right:0}h1{font-size:21px;margin:0 0 6px}p{margin:0 0 10px}button{background:#394d5d;color:white;border:1px solid #92a3ac;padding:9px 12px;border-radius:5px;margin:3px}canvas{display:block}#labels{position:absolute;bottom:14px;left:24px;right:24px;text-align:center;padding:12px;background:#15202cd9}</style>
+<header><h1>Estates architecture & collection walkers</h1><p>Five housing tiers. Shared avatar model with temporary collection colours.</p><button id="houses">Homes</button><button id="avatars">NFT collections</button><button id="island">Island layout</button><button id="motion">Toggle walking</button></header><div id="labels"></div>
+<script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.min.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from './vendor/three/examples/jsm/controls/OrbitControls.js';
+import {renderEstateHouses} from './js/estates-house-design.mjs';
+import {buildNftChar} from './js/nftchar.js';
+import {buildEstatesIslandScene} from './js/estates-island-scene.mjs';
+import {createEstatesIslandRenderer} from './js/estates-island-renderer.mjs';
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x8ca7b4);
+let renderer;try{renderer=new THREE.WebGLRenderer({antialias:true});}catch(error){document.querySelector('#labels').textContent='3D preview requires a browser with WebGL enabled.';throw error;}renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;document.body.append(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(42,1,.1,1000),controls=new OrbitControls(camera,renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xfff2d6,0x435342,2.1));const sun=new THREE.DirectionalLight(0xffefd9,2.5);sun.position.set(-25,45,32);scene.add(sun);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(650,650),new THREE.MeshStandardMaterial({color:0x647b58,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.02;scene.add(ground);
+const homes=new THREE.Group(),avatars=new THREE.Group();scene.add(homes,avatars);
+const tiers=['trailer','starter','family','apartment','mansion'],sizes=[[6,5,3],[8,7,5],[10,9,6],[7,8,10],[13,11,8]];
+const items=tiers.map((tier,i)=>({id:tier,tier,position:{x:(i-2)*17,y:.15,z:0},buildingFootprint:{width:sizes[i][0],depth:sizes[i][1],height:sizes[i][2]}}));
+renderEstateHouses(THREE,homes,items);
+const chars=['racc','fk','589'].map((key,i)=>{const g=buildNftChar({key,id:key},{lite:false});g.position.x=(i-1)*1.8;avatars.add(g);return g;});
+const catalog=await (await fetch('./data/estate-catalog.json')).json(),manifest=buildEstatesIslandScene({catalog});
+const island=createEstatesIslandRenderer({THREE,scene,manifest});
+let mode='homes',walk=false;
+function select(next){mode=next;homes.visible=next==='homes';avatars.visible=next==='avatars';island.root.visible=next==='island';const target=next==='avatars'?[0,1,0]:[0,2,0],pos=next==='avatars'?[4,2.8,7]:next==='island'?[190,220,270]:[39,28,55];controls.target.set(...target);camera.position.set(...pos);controls.update();document.querySelector('#labels').textContent=next==='homes'?'Trailer · Starter home · Family home · Apartments · Mansion':next==='avatars'?'RACC — silver-blue     •     Firekeepers — ember orange     •     589 Protocol — burgundy & gold':'Existing island lot positions and walking footprint';}
+document.querySelector('#houses').onclick=()=>select('homes');document.querySelector('#avatars').onclick=()=>select('avatars');document.querySelector('#island').onclick=()=>select('island');document.querySelector('#motion').onclick=()=>walk=!walk;
+function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}addEventListener('resize',resize);resize();select('homes');
+function frame(t){requestAnimationFrame(frame);for(const g of chars)g.userData.anim(t/1000,walk);controls.update();renderer.render(scene,camera);}requestAnimationFrame(frame);
+window.visualReview={scene,renderer,chars,homes,island,select};
+</script></html>

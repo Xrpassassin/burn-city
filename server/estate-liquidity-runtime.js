@@ -1,6 +1,6 @@
 'use strict';
 const crypto=require('node:crypto');
-const {N,value,token,drops,ceil,sameAmount,balanceDelta,xrpMovement,inspectPool,buyQuote,liquidationQuote}=require('./estate-liquidity-ledger');
+const {N,value,token,drops,ceil,sameAmount,balanceDelta,boundedTokenDebit,verifiedTokenCredit,verifiedLpBurn,xrpMovement,inspectPool,buyQuote,liquidationQuote}=require('./estate-liquidity-ledger');
 const {createEstateTreasuryTransactions}=require('./estate-treasury-transactions');
 const {createEstateImgOwnershipSnapshots}=require('./estate-img-ownership-snapshots');
 const {allocateProfit}=require('./estate-economy');
@@ -20,6 +20,7 @@ function estateCashReserve(db){
  if(n<0n)throw Error('capital_reserve_underflow');return n.toString();
 }
 function estateGuardReserve(db){
+ if(reserveExists(db,'estate_hourly_payouts')&&db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted')").get())throw Error('estate_payment_reconciliation_pending');
  if(reserveExists(db,'estate_treasury_transactions')&&db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state IN ('preparing','submitted','validated','held')").get())throw Error('estate_treasury_reconciliation_pending');
  return estateCashReserve(db);
 }
@@ -33,12 +34,15 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
   UNIQUE(purchase_tx,pair));
  CREATE TABLE IF NOT EXISTS estate_xrp_profit_receipts(
   source_id TEXT PRIMARY KEY,job_id TEXT NOT NULL,realized_at_ms INTEGER NOT NULL,available_after_ms INTEGER NOT NULL,
-  gross_drops TEXT NOT NULL,basis_drops TEXT NOT NULL,cost_drops TEXT NOT NULL,distributable_drops TEXT NOT NULL
+  gross_drops TEXT NOT NULL,basis_drops TEXT NOT NULL,cost_drops TEXT NOT NULL,distributable_drops TEXT NOT NULL,loss_carry_drops TEXT NOT NULL DEFAULT '0'
  );
+ CREATE TABLE IF NOT EXISTS estate_xrp_realized_loss_carry(id INTEGER PRIMARY KEY CHECK(id=1),drops TEXT NOT NULL);
+ INSERT OR IGNORE INTO estate_xrp_realized_loss_carry VALUES(1,'0');
  CREATE TABLE IF NOT EXISTS estate_xrp_profit_payouts(
   id TEXT PRIMARY KEY,source_id TEXT NOT NULL,owner TEXT NOT NULL,amount_drops TEXT NOT NULL,
   available_after_ms INTEGER NOT NULL,state TEXT NOT NULL CHECK(state IN ('queued','confirmed')),tx_hash TEXT,
   UNIQUE(source_id,owner));`);
+ if(!db.prepare('PRAGMA table_info(estate_xrp_profit_receipts)').all().some(r=>r.name==='loss_carry_drops'))db.exec("ALTER TABLE estate_xrp_profit_receipts ADD COLUMN loss_carry_drops TEXT NOT NULL DEFAULT '0'");
  const ownership=createEstateImgOwnershipSnapshots(db);
  const executor=createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabled:fundingEnabled||harvestEnabled||payoutsEnabled,maxFeeDrops,
   purposeEnabled:p=>p==='xrp_profit_payout'?payoutsEnabled:p.startsWith('profit_')?harvestEnabled:fundingEnabled});
@@ -122,9 +126,10 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
   const step='buy_'+kind;
   if(applyConfirmed(row,d,step,(r,c,p,j,data)=>{
    const issue=kind==='img'?IMG:PLX,delivered=r.meta.delivered_amount;
-   if(!sameAmount(delivered,{...issue,value:c.output})||!balanceDelta(r,treasury,issue).eq(value(c.output)))throw Error('acquisition_delivery_proof_mismatch');
+   if(!sameAmount(delivered,{...issue,value:c.output}))throw Error('acquisition_delivery_proof_mismatch');
+   const received=verifiedTokenCredit(r,treasury,issue,c.output);
    const spent=xrpMovement(r,treasury).negated();if(!spent.gt(0)||spent.gt(value(c.budget)))throw Error('acquisition_budget_mismatch');
-   subtract(data,'cash',spent);data[kind]=value(data[kind]).plus(c.output).toFixed();data[kind+'Cost']=spent.toFixed();data.fees=value(data.fees).plus(p.fee_drops).toFixed();
+   subtract(data,'cash',spent);data[kind]=value(data[kind]).plus(received).toFixed();data[kind+'Cost']=spent.toFixed();data.fees=value(data.fees).plus(p.fee_drops).toFixed();
    save(j,data,kind==='img'&&j.pair==='img-plx'?'buy_plx':'deposit');
   }))return;
   if(!canPlan())return;
@@ -136,10 +141,10 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
  }
  async function deposit(row,d){
   if(applyConfirmed(row,d,'deposit',(r,c,p,j,data)=>{
-   const lp=balanceDelta(r,treasury,c.lp),img=balanceDelta(r,treasury,IMG).negated(),other=j.pair==='img-plx'?balanceDelta(r,treasury,PLX).negated():xrpMovement(r,treasury).negated();
+   const observedLp=balanceDelta(r,treasury,c.lp),lp=value(token(observedLp)),img=boundedTokenDebit(r,treasury,IMG,data.img),other=j.pair==='img-plx'?boundedTokenDebit(r,treasury,PLX,data.plx):xrpMovement(r,treasury).negated();
    if(!lp.gte(value(c.minimumLp))||!img.gt(0)||img.gt(value(data.img))||!other.gt(0)||other.gt(value(j.pair==='img-plx'?data.plx:data.cash)))throw Error('deposit_movement_proof_mismatch');
    const imgBasis=ceil(value(data.imgCost).times(img).div(value(data.img))),otherBasis=j.pair==='img-plx'?ceil(value(data.plxCost).times(other).div(value(data.plx))):other.toFixed();
-   data.basis=data.carryBasis===null?value(imgBasis).plus(otherBasis).plus(data.fees).plus(p.fee_drops).toFixed():value(data.carryBasis).plus(data.fees).plus(p.fee_drops).toFixed();
+   data.basis=value(imgBasis).plus(otherBasis).plus(data.fees).plus(p.fee_drops).toFixed();
    subtract(data,'img',img);subtract(data,'imgCost',value(imgBasis));
    if(j.pair==='img-plx'){subtract(data,'plx',other);subtract(data,'plxCost',value(otherBasis));}else subtract(data,'cash',other);
    data.lp=lp.toFixed();data.lpAccount=c.lp.issuer;data.lpCurrency=c.lp.currency;data.fees='0';data.carryBasis=null;
@@ -170,32 +175,33 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
  }
  async function withdrawal(row,d){
   if(!applyConfirmed(row,d,'withdraw',(r,c,p,j,data)=>{
-   const delta=balanceDelta(r,treasury,c.lp),img=balanceDelta(r,treasury,IMG),xrp=xrpMovement(r,treasury);
-   if(!delta.eq(value(c.positionLp).negated())||!img.gt(0)||!xrp.gt(0)||data.lp!==c.positionLp||data.basis!==c.basis)throw Error('withdrawal_principal_proof_mismatch');
+   verifiedLpBurn(r,treasury,c.lp,c.positionLp);const img=value(token(balanceDelta(r,treasury,IMG))),xrp=xrpMovement(r,treasury);
+   if(!img.gt(0)||!xrp.gt(0)||data.lp!==c.positionLp||data.basis!==c.basis)throw Error('withdrawal_principal_proof_mismatch');
    data.lp='0';data.harvestImg=img.toFixed();data.harvestXrp=xrp.toFixed();data.harvestFees=p.fee_drops;data.harvestBasis=c.basis;data.harvestSource=p.tx_hash;data.harvestHour=c.harvestHour;
    data.img=value(data.img).plus(img).toFixed();save(j,data,'convert_profit');
   }))throw Error('withdrawal_intent_missing');
  }
  async function convert(row,d){
   if(applyConfirmed(row,d,'convert',(r,c,p,j,data)=>{
-   const debit=balanceDelta(r,treasury,IMG).negated(),xrp=xrpMovement(r,treasury);
+   const debit=boundedTokenDebit(r,treasury,IMG,data.harvestImg),xrp=xrpMovement(r,treasury);
    if(!debit.gt(0)||debit.gt(value(data.harvestImg))||!xrp.eq(value(c.output))||r.meta.delivered_amount!==c.output)throw Error('profit_conversion_proof_mismatch');
    subtract(data,'img',debit);data.harvestFees=value(data.harvestFees).plus(p.fee_drops).toFixed();data.harvestXrp=value(data.harvestXrp).plus(xrp).toFixed();
    const residual=value(data.harvestImg).minus(debit);
    data.residualImg=value(data.residualImg||'0').plus(residual).toFixed();subtract(data,'img',residual);
    // Undebited IMG is retained as position residual, never counted as XRP profit.
-   const net=value(data.harvestXrp).minus(data.harvestFees),basis=value(data.harvestBasis),profit=N.maximum(0,net.minus(basis));
+   const net=value(data.harvestXrp).minus(data.harvestFees),basis=value(data.harvestBasis),priorLoss=value(db.prepare('SELECT drops FROM estate_xrp_realized_loss_carry WHERE id=1').get().drops),change=net.minus(basis),profit=N.maximum(0,change.minus(priorLoss));
+   db.prepare('UPDATE estate_xrp_realized_loss_carry SET drops=? WHERE id=1').run(N.maximum(0,priorLoss.minus(change)).toFixed());
    if(net.lt(0))throw Error('negative_realized_proceeds');
    const holders=ownership.at(p.close_ms),owners=new Set(holders.map(h=>h.acct)),feeBudget=new N(maxFeeDrops).times(owners.size),distributable=holders.length&&profit.gt(feeBudget)?drops(profit.minus(feeBudget)):'0';
    const availableAfter=Math.floor(p.close_ms/3600000)*3600000+3600000,source=p.tx_hash;
-   db.prepare('INSERT INTO estate_xrp_profit_receipts VALUES(?,?,?,?,?,?,?,?)').run(source,j.id,p.close_ms,availableAfter,data.harvestXrp,data.harvestBasis,data.harvestFees,distributable);
+   db.prepare('INSERT INTO estate_xrp_profit_receipts(source_id,job_id,realized_at_ms,available_after_ms,gross_drops,basis_drops,cost_drops,distributable_drops,loss_carry_drops) VALUES(?,?,?,?,?,?,?,?,?)').run(source,j.id,p.close_ms,availableAfter,data.harvestXrp,data.harvestBasis,data.harvestFees,distributable,priorLoss.toFixed());
    if(integer(distributable)>0n){
     if(integer(distributable)>BigInt(Number.MAX_SAFE_INTEGER))throw Error('profit_allocation_exceeds_safe_range');
     const combined=new Map();for(const a of allocateProfit(Number(distributable),holders))combined.set(a.acct,(combined.get(a.acct)||0)+a.amountDrops);
     for(const [owner,amount] of combined){if(!amount)continue;db.prepare("INSERT INTO estate_xrp_profit_payouts VALUES(?,?,?,?,?,'queued',NULL)").run(hash(source+':'+owner),source,owner,String(amount),availableAfter);}
    }
    const capital=net.minus(distributable).minus(integer(distributable)>0n?feeBudget:0);
-   const previousCash=value(data.cash);data.cash=previousCash.plus(capital).toFixed();data.carryBasis=N.maximum(basis,capital).plus(previousCash).toFixed();data.generation++;data.fees='0';data.lp='0';
+   const previousCash=value(data.cash);data.cash=previousCash.plus(capital).toFixed();data.carryBasis=null;data.generation++;data.fees='0';data.lp='0';
    for(const k of ['harvestImg','harvestXrp','harvestFees','harvestBasis','harvestSource','harvestHour'])delete data[k];
    db.prepare('UPDATE estate_liquidity_jobs SET last_harvest_hour=? WHERE id=?').run(Math.floor(p.close_ms/3600000)*3600000,j.id);
    save(j,data,'buy_img');
@@ -242,7 +248,7 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
      else if(row.state==='convert_profit'&&(harvestEnabled||pending(row,d,'convert')))await convert(row,d);
     }catch(e){note(row,e.message);}
    }
-   await payouts();const result=await executor.tick();lastError=null;return result;
+   await payouts();const result=await executor.tick();if(result.blocked)lastBlock=result.blocked;lastError=null;return result;
   }catch(e){lastError=e.message;return {blocked:e.message};}finally{busy=false;}
  }
  function status(owner){return {capitalFundingEnabled:fundingEnabled,xrpProfitHarvestEnabled:harvestEnabled,imgXrpProfitDistributionsEnabled:harvestEnabled&&payoutsEnabled,

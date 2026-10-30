@@ -45,4 +45,34 @@ function liquidationQuote(pool,lp){
  const x=pool.a.times(share),img=pool.b.times(share),xr=pool.a.minus(x),ir=pool.b.minus(img),net=100000-pool.fee;
  return drops(x.plus(xr.times(img).times(net).div(ir.times(100000).plus(img.times(net)))));
 }
-module.exports={N,value,token,drops,ceil,sameAmount,balanceDelta,xrpMovement,inspectPool,buyQuote,liquidationQuote};
+
+function roundingTolerance(result,account,asset){
+ let tolerance=new N(0);
+ for(const wrapper of result.meta?.AffectedNodes||[]){
+  const n=wrapper.ModifiedNode||wrapper.CreatedNode||wrapper.DeletedNode,f=n?.FinalFields||n?.NewFields;
+  if(n?.LedgerEntryType!=='RippleState'||f?.Balance?.currency!==asset.currency)continue;
+  const low=f.LowLimit?.issuer,high=f.HighLimit?.issuer;
+  if(!((low===account&&high===asset.issuer)||(high===account&&low===asset.issuer)))continue;
+  for(const s of [f.Balance.value,n.PreviousFields?.Balance?.value])if(s!==undefined){const n=value(s).abs();if(n.gt(0))tolerance=tolerance.plus(new N(10).pow(n.e-15));}
+ }
+ return tolerance;
+}
+function boundedTokenDebit(result,account,asset,maximum){
+ const actual=balanceDelta(result,account,asset).negated(),cap=value(maximum),tolerance=roundingTolerance(result,account,asset);
+ if(!actual.gt(0)||tolerance.gt(cap.div('1e8'))||actual.gt(cap.plus(tolerance)))throw Error('token_debit_exceeds_bound');
+ // STAmount balance rounding can differ from the nominal transfer by one ULP.
+ // Never book more than the signed asset cap, or leave an over-stated inventory.
+ return N.minimum(cap,actual.precision(16,N.ROUND_UP));
+}
+function verifiedTokenCredit(result,account,asset,nominal){
+ const actual=balanceDelta(result,account,asset),expected=value(nominal),tolerance=roundingTolerance(result,account,asset);
+ if(!actual.gt(0)||tolerance.gt(expected.div('1e8'))||actual.minus(expected).abs().gt(tolerance))throw Error('token_credit_proof_mismatch');
+ return value(token(N.minimum(actual,expected)));
+}
+function verifiedLpBurn(result,account,asset,nominal){
+ const actual=balanceDelta(result,account,asset).negated(),expected=value(nominal),tolerance=roundingTolerance(result,account,asset);
+ if(!actual.gt(0)||tolerance.gt(expected.div('1e8'))||actual.minus(expected).abs().gt(tolerance))throw Error('lp_burn_proof_mismatch');
+ return actual;
+}
+
+module.exports={N,value,token,drops,ceil,sameAmount,balanceDelta,roundingTolerance,boundedTokenDebit,verifiedTokenCredit,verifiedLpBurn,xrpMovement,inspectPool,buyQuote,liquidationQuote};

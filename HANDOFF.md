@@ -768,3 +768,35 @@ Derrik's vision: an open-world RPG. Each player owns a **private Homefront insta
   existing optional conversion; it is not a second native XRP pool profit stream.
 - Read-only Fly audit adds live activation flag booleans and a bounded public
   Pollux receipt probe. This does not initialize the scanner, clear pauses or sign.
+
+### Estates liquidity execution and independent XRP profit stream
+- `estate-liquidity-runtime.js` executes the 70/30 capital jobs through actual
+  asset acquisition, two-sided deposits, validated LP/balance proof and tracked
+  position basis. Residual cash/tokens remain principal. Existing outside LP is
+  excluded. `estate-treasury-transactions.js` owns shared durable signing claims,
+  persist-before-submit, exact-hash reconciliation and atomic proof application.
+- `estate-liquidity-ledger.js` uses explicit bignumber.js 10.0.2 for exact ledger
+  decimal math, quote bounds, token precision and normalized balance metadata.
+- New gates: `ESTATE_LIQUIDITY_ENABLED=1` and
+  `ESTATE_XRP_PROFIT_HARVEST_ENABLED=1`. Mainnet + non-dry-run is required through
+  the production service. Distribution remains separately gated. Defaults are off.
+- Profitable attributable IMG/XRP LP positions can be withdrawn/converted once an
+  hour, with basis, actual fees, global realized loss carry and payout fee budgets
+  deducted before allocation. Returned principal is reserved for reinvestment.
+  Native XRP payouts wait for the scanner's hour close and ignore IMG preferences;
+  they supplement the existing optional Pollux IMG->XRP settlement route.
+- New tables: `estate_liquidity_jobs`, `estate_treasury_transactions`,
+  `estate_xrp_profit_receipts`, `estate_xrp_realized_loss_carry`,
+  `estate_xrp_profit_payouts`. Never delete transaction blobs or reserved principal
+  to recover an uncertain outcome. No automatic replacement transaction is signed.
+- Guard reserve reads cover pending cash/native liabilities and block other guarded
+  spending while an Estates signature/proof/application is unresolved. Watchdog
+  recognizes exact new journal hashes. External wallet signing remains outside
+  server control; a sequence conflict is held rather than silently retried.
+- Purchase verification accepts API-v2 DeliverMax and close_time_iso, while rejecting
+  conflicting aliases/timestamps. UI separately reports native XRP pool payout
+  activation/history and non-guaranteed earnings. SW v126.
+- `estate-liquidity-runtime.test.js` covers full simulated lifecycle, loss/no payouts,
+  restart/unknown submit, principal reserve, hour close, wallet delivery and missing
+  proof. `scripts/estate-liquidity-testnet.cjs` uses real disposable testnet accounts
+  and transactions; only the test accounting watermark is accelerated.

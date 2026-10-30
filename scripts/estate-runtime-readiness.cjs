@@ -7,7 +7,9 @@ const report={checkedAt:new Date().toISOString(),readOnly:true,
  dryRun:process.env.DRY_RUN!=='false',
  estateSalesEnabled:process.env.ESTATE_SALES_ENABLED==='1',
  estateAccountingEnabled:process.env.ESTATE_ACCOUNTING_ENABLED==='1',
- estateDistributionsEnabled:process.env.ESTATE_DISTRIBUTIONS_ENABLED==='1',pauseEnvironment:process.env.PAYOUTS_PAUSED==='true',
+ estateDistributionsEnabled:process.env.ESTATE_DISTRIBUTIONS_ENABLED==='1',
+ estateLiquidityEnabled:process.env.ESTATE_LIQUIDITY_ENABLED==='1',
+ estateXrpProfitHarvestEnabled:process.env.ESTATE_XRP_PROFIT_HARVEST_ENABLED==='1',pauseEnvironment:process.env.PAYOUTS_PAUSED==='true',
  signerConfigured:!!process.env.TREASURY_SEED,xamanConfigured:!!((process.env.XAMAN_API_KEY||process.env.XUMM_API_KEY)&&(process.env.XAMAN_API_SECRET||process.env.XUMM_API_SECRET)),
  signerMatchesEstateTreasury:null,pauseFile:{exists:false},database:{exists:false}};
 if(report.signerConfigured){
@@ -34,7 +36,7 @@ if(fs.existsSync(dbPath)){
   const {DatabaseSync}=require('node:sqlite');
   db=new DatabaseSync(dbPath,{readOnly:true});
   db.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=1000');
-  const names=['estate_property_ownership','estate_img_scan_bootstrap','estate_img_scan_watermarks','estate_img_reward_receipts','estate_img_hourly_allocations','estate_img_hourly_batches','estate_img_hourly_entitlements','estate_img_reward_intents','estate_hourly_payouts','estate_capital_allocations'];
+  const names=['estate_property_ownership','estate_img_scan_bootstrap','estate_img_scan_watermarks','estate_img_reward_receipts','estate_img_hourly_allocations','estate_img_hourly_batches','estate_img_hourly_entitlements','estate_img_reward_intents','estate_hourly_payouts','estate_capital_allocations','estate_liquidity_jobs','estate_treasury_transactions','estate_xrp_profit_receipts','estate_xrp_profit_payouts'];
   report.database.tables={};
   for(const name of names){
    const exists=!!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);

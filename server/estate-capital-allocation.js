@@ -31,7 +31,15 @@ function createEstateCapitalAllocation(db){
  function reservedDrops(){
   return require('./estate-liquidity-runtime').estateGuardReserve(db);
  }
- function state(buyer){return {capitalAllocationPolicy:POLICY,capitalAllocations:buyer?db.prepare('SELECT property_id,purchase_drops,img_plx_drops,img_xrp_drops,state FROM estate_capital_allocations WHERE buyer=? ORDER BY property_id').all(buyer):[]};}
+ function state(buyer){
+  const rows=buyer?db.prepare('SELECT property_id,purchase_tx,purchase_drops,img_plx_drops,img_xrp_drops,state FROM estate_capital_allocations WHERE buyer=? ORDER BY property_id').all(buyer):[];
+  const hasJobs=!!db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_liquidity_jobs'").get();
+  return {capitalAllocationPolicy:POLICY,capitalAllocations:rows.map(({purchase_tx,...r})=>{
+   const positions=hasJobs?db.prepare('SELECT state,note,data_json FROM estate_liquidity_jobs WHERE purchase_tx=?').all(purchase_tx):[];
+   return {...r,fundingState:positions.some(p=>p.note)?'review_needed':positions.length===2&&positions.every(p=>p.state==='invested')?'invested':positions.length?'in_progress':'pending',
+    uninvestedXrpDrops:positions.length?positions.reduce((n,p)=>n+BigInt(JSON.parse(p.data_json).cash),0n).toString():r.purchase_drops};
+  })};
+ }
  return {record,reservedDrops,state};
 }
 module.exports={POLICY,splitEstateCapital,createEstateCapitalAllocation};

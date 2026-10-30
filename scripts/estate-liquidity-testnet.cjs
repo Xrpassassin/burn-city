@@ -34,9 +34,12 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const options={db,client,wallet:()=>treasury,treasury:treasury.classicAddress,imgIssuer:issuer.classicAddress,plxIssuer:issuer.classicAddress,guard:{paused:()=>false,check:async()=>null},fundingEnabled:true,harvestEnabled:false,payoutsEnabled:true,now:()=>clock,imgPlxPoolAccount:pair,maxNativePayoutDrops:'100000000',maxNativeDailyDrops:'1000000000'};
   let runtime=createEstateLiquidityRuntime(options);
   async function until(predicate,label,limit=150){
+   let repeated=0,lastNote='';
    for(let i=0;i<limit;i++){
     if(predicate()){console.log(label,'passed');return;}
     await runtime.tick();
+    const currentNote=runtime.status(owner.classicAddress).liquidityStatus;if(currentNote===lastNote&&currentNote!=='enabled'&&!currentNote.startsWith('awaiting_'))repeated++;else repeated=0;lastNote=currentNote;
+    if(repeated>=3){for(const row of db.prepare("SELECT purpose,draft_json,result_json,note FROM estate_treasury_transactions WHERE state='validated'").all()){const result=JSON.parse(row.result_json);console.log('Public testnet proof diagnostic',JSON.stringify({purpose:row.purpose,draft:JSON.parse(row.draft_json),hash:result.hash,delivered:result.meta.delivered_amount,nodes:result.meta.AffectedNodes.filter(n=>['AccountRoot','RippleState'].includes((n.ModifiedNode||n.CreatedNode||n.DeletedNode)?.LedgerEntryType))}));}throw Error('testnet_proof_blocked:'+currentNote);}
     const held=db.prepare("SELECT id,state,note FROM estate_treasury_transactions WHERE state='held'").all();if(held.length)throw Error('testnet_transaction_held:'+JSON.stringify(held));
     if(i%10===0)console.log(label,JSON.stringify({status:runtime.status(owner.classicAddress).liquidityStatus,jobs:db.prepare('SELECT pair,state,note FROM estate_liquidity_jobs').all(),intents:db.prepare("SELECT purpose,state,note FROM estate_treasury_transactions WHERE state!='applied'").all()}));
     await wait(2000);

@@ -34,7 +34,8 @@ function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabl
   if(r.meta?.TransactionResult!=='tesSUCCESS'){
    db.prepare("UPDATE estate_treasury_transactions SET state='held',note=? WHERE id=?").run('validated_failure:'+r.meta?.TransactionResult,row.id);return {blocked:'validated_failure'};
   }
-  const date=r.date??t.date,index=r.ledger_index;
+  let date=r.date??t.date;const index=r.ledger_index;
+  if(typeof r.close_time_iso==='string'){const ms=Date.parse(r.close_time_iso);if(!Number.isSafeInteger(ms)||ms%1000!==0)return block(row.id,'ledger_time_proof_required');const seconds=ms/1000-946684800;if(date!==undefined&&date!==seconds)return block(row.id,'conflicting_ledger_time_proof');date=seconds;}
   if(!Number.isSafeInteger(index)||!Number.isSafeInteger(date))return block(row.id,'ledger_time_proof_required');
   db.prepare("UPDATE estate_treasury_transactions SET state='validated',result_json=?,fee_drops=?,ledger_index=?,close_ms=?,note=NULL WHERE id=? AND state='submitted'").run(JSON.stringify(r),t.Fee,index,(date+946684800)*1000,row.id);
   return {validated:row.id};

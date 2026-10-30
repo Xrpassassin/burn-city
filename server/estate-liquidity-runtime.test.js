@@ -7,7 +7,7 @@ const POOL='rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ';
 function fixture(){
  const w=xrpl.Wallet.generate(),treasury=w.classicAddress,imgIssuer=xrpl.Wallet.generate().classicAddress,plxIssuer=xrpl.Wallet.generate().classicAddress,owner=xrpl.Wallet.generate().classicAddress;
  const db=new DatabaseSync(':memory:');db.exec(`CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,purchase_tx TEXT UNIQUE,purchase_amount_drops INTEGER,share_units INTEGER,purchased_at INTEGER); CREATE TABLE estate_img_scan_watermarks(id INTEGER PRIMARY KEY,scanned_through_ms INTEGER);`);
- const hour=1700000000000-1700000000000%3600000;let clock=hour,index=100,sequence=0,paused=false,unknown=false,badProof=false;
+ const hour=1700000000000-1700000000000%3600000;let clock=hour,index=100,sequence=0,paused=false,unknown=false,badProof=false,crashOnWithdraw=false;
  const IMG={currency:'IMG',issuer:imgIssuer},PLX={currency:'PLX',issuer:plxIssuer};
  const key=a=>a.currency==='XRP'?'XRP':a.currency+':'+a.issuer;
  const balances=new Map([['XRP',new N('10000000000')],[key(IMG),new N('1000000')],[key(PLX),new N('1000000')]]);
@@ -42,10 +42,11 @@ function fixture(){
    const minted=value(token(p.lp.times(N.minimum(ax.div(p.x),by.div(p.y)))));assert.ok(minted.gte(value(tx.LPTokenOut.value)));
    add(p.a,ax.negated());add(p.b,by.negated());add({currency:p.currency,issuer:p.account},minted);p.x=p.x.plus(ax);p.y=p.y.plus(by);p.lp=p.lp.plus(minted);
   }else if(tx.TransactionType==='AMMWithdraw'){
-   const p=getPool(tx.Asset,tx.Asset2),lp=value(tx.LPTokenIn.value),ratio=lp.div(p.lp),x=value(drops(p.x.times(ratio))),y=value(token(p.y.times(ratio)));
+   const p=getPool(tx.Asset,tx.Asset2);if(crashOnWithdraw){p.x=p.x.times('.05');crashOnWithdraw=false;}const lp=value(tx.LPTokenIn.value),ratio=lp.div(p.lp),x=value(drops(p.x.times(ratio))),y=value(token(p.y.times(ratio)));
    add(p.a,x);add(p.b,y);add({currency:p.currency,issuer:p.account},lp.negated());p.x=p.x.minus(x);p.y=p.y.minus(y);p.lp=p.lp.minus(lp);
   }else throw Error('unexpected_fixture_transaction');
   add({currency:'XRP'},fee.negated());
+  for(const [k,n] of balances)if(k!=='XRP')balances.set(k,n.precision(16,N.ROUND_HALF_EVEN));
   const nodes=[];
   for(const [k,after] of balances){const old=before.get(k)||new N(0);if(old.eq(after))continue;
    assert.ok(after.gte(0),'fixture treasury stays funded');
@@ -75,7 +76,7 @@ function fixture(){
  const guard={paused:()=>paused,check:async()=>null};
  const options={db,client,wallet:()=>w,treasury,imgIssuer,plxIssuer,guard,fundingEnabled:true,harvestEnabled:false,payoutsEnabled:true,maxNativePayoutDrops:'100000000',maxNativeDailyDrops:'1000000000',now:()=>clock};
  const make=overrides=>createEstateLiquidityRuntime({...options,...overrides});
- return {db,treasury,owner,capital,make,sent,balances,xrpPool,get clock(){return clock;},set clock(v){clock=v;},set paused(v){paused=v;},set unknown(v){unknown=v;},set badProof(v){badProof=v;}};
+ return {db,treasury,owner,capital,make,sent,balances,xrpPool,get clock(){return clock;},set clock(v){clock=v;},set paused(v){paused=v;},set unknown(v){unknown=v;},set badProof(v){badProof=v;},set crashOnWithdraw(v){crashOnWithdraw=v;}};
 }
 async function until(f,runtime,predicate,limit=50){for(let i=0;i<limit;i++){if(predicate())return;await runtime.tick();}assert.ok(predicate(),JSON.stringify(runtime.status(f.owner))+' '+JSON.stringify(f.db.prepare('SELECT pair,state,note FROM estate_liquidity_jobs').all())+' '+JSON.stringify(f.db.prepare('SELECT id,state,note FROM estate_treasury_transactions').all()));}
 (async()=>{
@@ -105,6 +106,16 @@ async function until(f,runtime,predicate,limit=50){for(let i=0;i<limit;i++){if(p
  await until(f,r,()=>f.db.prepare("SELECT COUNT(*) n FROM estate_xrp_profit_payouts WHERE state='confirmed'").get().n===1,80);
  const pays=f.sent.filter(t=>t.TransactionType==='Payment'&&t.Destination===f.owner);assert.equal(pays.length,1);assert.equal(pays[0].Amount,receipt.distributable_drops);
  const after=f.sent.length;r=f.make({harvestEnabled:true});for(let i=0;i<4;i++)await r.tick();assert.equal(f.sent.filter(t=>t.Destination===f.owner).length,1,'restart does not duplicate native XRP payouts');
+ // A quote is not profit proof: if the market falls before execution, actual
+ // loss is carried across the whole XRP pool and no owner reward is created.
+ const loss=fixture();let lr=loss.make();await until(loss,lr,()=>loss.db.prepare("SELECT COUNT(*) n FROM estate_liquidity_jobs WHERE state='invested'").get().n===2);
+ loss.clock+=3600000;loss.xrpPool.x=loss.xrpPool.x.times('3');loss.crashOnWithdraw=true;lr=loss.make({harvestEnabled:true});
+ await until(loss,lr,()=>loss.db.prepare('SELECT COUNT(*) n FROM estate_xrp_profit_receipts').get().n===1,80);
+ assert.equal(loss.db.prepare('SELECT distributable_drops FROM estate_xrp_profit_receipts').get().distributable_drops,'0');
+ assert.ok(BigInt(loss.db.prepare('SELECT drops FROM estate_xrp_realized_loss_carry WHERE id=1').get().drops)>0n);
+ assert.equal(loss.db.prepare('SELECT COUNT(*) n FROM estate_xrp_profit_payouts').get().n,0);
+ // Disabled gates never sign, even with settled capital earmarks present.
+ const disabled=fixture(),dr=disabled.make({fundingEnabled:false,payoutsEnabled:false});await dr.tick();assert.equal(disabled.sent.length,0);
  // Corrupt or incomplete ledger proof must never release principal reservations.
  const bad=fixture(),br=bad.make();bad.badProof=true;await br.tick();const heldReserve=estateCashReserve(bad.db);for(let i=0;i<4;i++)await br.tick();assert.equal(estateCashReserve(bad.db),heldReserve);assert.equal(bad.sent.length,1);assert.equal(bad.db.prepare('SELECT COUNT(*) n FROM estate_xrp_profit_payouts').get().n,0);
  console.log('Liquidity integration: 70/30 funding, two-sided LP, persisted signing, ambiguous submit, restart, loss/no rewards, realized net XRP, closed hours, direct wallet delivery, reinvestment and corrupt proof passed');

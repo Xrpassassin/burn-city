@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'client/js/estates-directory*'
+      - 'client/js/estate-purchase-ui.mjs'
       - 'client/js/estates-panel-layout*'
       - 'client/js/estates-plot-separation.test.mjs'
       - 'client/js/estates-island-scene.mjs'

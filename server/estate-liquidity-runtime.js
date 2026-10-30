@@ -8,15 +8,23 @@ const POOL='rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ';
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 const zero=()=>({cash:'0',img:'0',plx:'0',imgCost:'0',plxCost:'0',fees:'0',lp:'0',basis:'0',generation:0,carryBasis:null});
 function integer(s){if(typeof s!=='string'||!/^\d+$/.test(s))throw Error('integer_drops_required');return BigInt(s);}
+function validateData(d){
+ for(const k of ['cash','imgCost','plxCost','fees','basis'])integer(d[k]);
+ for(const k of ['img','plx','lp','residualImg','residualPlx'])if(value(d[k]||'0').lt(0))throw Error('negative_position_inventory');
+ if(!Number.isSafeInteger(d.generation)||d.generation<0||(value(d.lp).gt(0)&&integer(d.basis)<1n))throw Error('invalid_position_basis');
+ for(const k of ['harvestXrp','harvestFees','harvestBasis'])if(d[k]!==undefined)integer(d[k]);
+ return d;
+}
 function reserveExists(db,name){return !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);}
 // Also used by standalone guarded jobs. Does not create or mutate any schema.
 function estateCashReserve(db){
  let n=db.prepare('SELECT purchase_drops FROM estate_capital_allocations').all().reduce((n,r)=>n+integer(r.purchase_drops),0n);
  if(reserveExists(db,'estate_liquidity_jobs'))for(const r of db.prepare('SELECT initial_budget_drops,data_json FROM estate_liquidity_jobs').all()){
-  const d=JSON.parse(r.data_json);n-=integer(r.initial_budget_drops);n+=integer(d.cash);
+  const d=validateData(JSON.parse(r.data_json));n-=integer(r.initial_budget_drops);n+=integer(d.cash);
   if(d.harvestXrp)n+=BigInt(N.maximum(0,value(d.harvestXrp).minus(d.harvestFees||'0')).toFixed(0));
  }
  if(reserveExists(db,'estate_xrp_profit_payouts'))for(const r of db.prepare("SELECT amount_drops FROM estate_xrp_profit_payouts WHERE state!='confirmed'").all())n+=integer(r.amount_drops);
+ if(reserveExists(db,'estate_xrp_profit_credits'))for(const r of db.prepare('SELECT amount_drops FROM estate_xrp_profit_credits').all())n+=integer(r.amount_drops);
  if(n<0n)throw Error('capital_reserve_underflow');return n.toString();
 }
 function estateGuardReserve(db){
@@ -41,15 +49,17 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
  CREATE TABLE IF NOT EXISTS estate_xrp_profit_payouts(
   id TEXT PRIMARY KEY,source_id TEXT NOT NULL,owner TEXT NOT NULL,amount_drops TEXT NOT NULL,
   available_after_ms INTEGER NOT NULL,state TEXT NOT NULL CHECK(state IN ('queued','confirmed')),tx_hash TEXT,
-  UNIQUE(source_id,owner));`);
+  UNIQUE(source_id,owner));
+ CREATE TABLE IF NOT EXISTS estate_xrp_profit_credits(owner TEXT PRIMARY KEY,amount_drops TEXT NOT NULL);`);
  if(!db.prepare('PRAGMA table_info(estate_xrp_profit_receipts)').all().some(r=>r.name==='loss_carry_drops'))db.exec("ALTER TABLE estate_xrp_profit_receipts ADD COLUMN loss_carry_drops TEXT NOT NULL DEFAULT '0'");
+ if(!db.prepare('PRAGMA table_info(estate_xrp_profit_payouts)').all().some(r=>r.name==='base_amount_drops')){db.exec('ALTER TABLE estate_xrp_profit_payouts ADD COLUMN base_amount_drops TEXT');db.exec('UPDATE estate_xrp_profit_payouts SET base_amount_drops=amount_drops WHERE base_amount_drops IS NULL');}
  const ownership=createEstateImgOwnershipSnapshots(db);
  const executor=createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabled:fundingEnabled||harvestEnabled||payoutsEnabled,maxFeeDrops,
   purposeEnabled:p=>p==='xrp_profit_payout'?payoutsEnabled:p.startsWith('profit_')?harvestEnabled:fundingEnabled});
  let busy=false,lastBlock=null,lastError=null;
  const jobs=()=>db.prepare('SELECT * FROM estate_liquidity_jobs ORDER BY id').all();
  const get=id=>db.prepare('SELECT * FROM estate_liquidity_jobs WHERE id=?').get(id);
- function save(row,d,state=row.state){db.prepare('UPDATE estate_liquidity_jobs SET data_json=?,state=?,note=NULL WHERE id=?').run(JSON.stringify(d),state,row.id);}
+ function save(row,d,state=row.state){validateData(d);db.prepare('UPDATE estate_liquidity_jobs SET data_json=?,state=?,note=NULL WHERE id=?').run(JSON.stringify(d),state,row.id);}
  function canPlan(){
   if(db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state!='applied'").get())return false;
   return !reserveExists(db,'estate_hourly_payouts')||!db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted')").get();
@@ -189,7 +199,7 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
    const residual=value(data.harvestImg).minus(debit);
    data.residualImg=value(data.residualImg||'0').plus(residual).toFixed();subtract(data,'img',residual);
    // Undebited IMG is retained as position residual, never counted as XRP profit.
-   const net=value(data.harvestXrp).minus(data.harvestFees),basis=value(data.harvestBasis),priorLoss=value(db.prepare('SELECT drops FROM estate_xrp_realized_loss_carry WHERE id=1').get().drops),change=net.minus(basis),profit=N.maximum(0,change.minus(priorLoss));
+   const net=value(data.harvestXrp).minus(data.harvestFees),basis=value(data.harvestBasis),priorLoss=value(integer(db.prepare('SELECT drops FROM estate_xrp_realized_loss_carry WHERE id=1').get().drops).toString()),change=net.minus(basis),profit=N.maximum(0,change.minus(priorLoss));
    db.prepare('UPDATE estate_xrp_realized_loss_carry SET drops=? WHERE id=1').run(N.maximum(0,priorLoss.minus(change)).toFixed());
    if(net.lt(0))throw Error('negative_realized_proceeds');
    const holders=ownership.at(p.close_ms),owners=new Set(holders.map(h=>h.acct)),feeBudget=new N(maxFeeDrops).times(owners.size),distributable=holders.length&&profit.gt(feeBudget)?drops(profit.minus(feeBudget)):'0';
@@ -198,7 +208,7 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
    if(integer(distributable)>0n){
     if(integer(distributable)>BigInt(Number.MAX_SAFE_INTEGER))throw Error('profit_allocation_exceeds_safe_range');
     const combined=new Map();for(const a of allocateProfit(Number(distributable),holders))combined.set(a.acct,(combined.get(a.acct)||0)+a.amountDrops);
-    for(const [owner,amount] of combined){if(!amount)continue;db.prepare("INSERT INTO estate_xrp_profit_payouts VALUES(?,?,?,?,?,'queued',NULL)").run(hash(source+':'+owner),source,owner,String(amount),availableAfter);}
+    for(const [owner,amount] of combined){if(!amount)continue;db.prepare("INSERT INTO estate_xrp_profit_payouts(id,source_id,owner,amount_drops,available_after_ms,state,tx_hash,base_amount_drops) VALUES(?,?,?,?,?,'queued',NULL,?)").run(hash(source+':'+owner),source,owner,String(amount),availableAfter,String(amount));}
    }
    const capital=net.minus(distributable).minus(integer(distributable)>0n?feeBudget:0);
    const previousCash=value(data.cash);data.cash=previousCash.plus(capital).toFixed();data.carryBasis=null;data.generation++;data.fees='0';data.lp='0';
@@ -218,6 +228,9 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
    const key='profit:'+row.id,prior=executor.get(key);
    if(prior?.state==='validated')executor.apply(prior,(r,c,proof)=>{
     if(r.meta.delivered_amount!==row.amount_drops||!xrpMovement(r,treasury).eq(value(row.amount_drops).negated()))throw Error('native_payout_delivery_mismatch');
+    const remainder=integer(c.feeBudgetDrops)-integer(proof.fee_drops);if(remainder<0n)throw Error('native_fee_budget_exceeded');
+    const credit=integer(db.prepare('SELECT amount_drops FROM estate_xrp_profit_credits WHERE owner=?').get(row.owner)?.amount_drops||'0');
+    db.prepare('INSERT INTO estate_xrp_profit_credits VALUES(?,?) ON CONFLICT(owner) DO UPDATE SET amount_drops=excluded.amount_drops').run(row.owner,(credit+remainder).toString());
     db.prepare("UPDATE estate_xrp_profit_payouts SET state='confirmed',tx_hash=? WHERE id=? AND state='queued'").run(proof.tx_hash,row.id);
    });
    if(prior)continue;
@@ -225,12 +238,18 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
    const through=reserveExists(db,'estate_img_scan_watermarks')?db.prepare('SELECT scanned_through_ms FROM estate_img_scan_watermarks WHERE id=1').get()?.scanned_through_ms:0;
    if(!through||through<row.available_after_ms)continue;
    if(row.owner===treasury||row.owner===imgIssuer||row.owner===plxIssuer){lastBlock='self_or_issuer_profit_payout_review';continue;}
-   if(integer(row.amount_drops)>integer(maxNativePayoutDrops)){lastBlock='native_profit_payment_budget_limit';continue;}
+   const credit=integer(db.prepare('SELECT amount_drops FROM estate_xrp_profit_credits WHERE owner=?').get(row.owner)?.amount_drops||'0'),amount=(integer(row.amount_drops)+credit).toString();
+   if(integer(amount)>integer(maxNativePayoutDrops)){lastBlock='native_profit_payment_budget_limit';continue;}
    const today=now()-now()%86400000,used=db.prepare("SELECT draft_json FROM estate_treasury_transactions WHERE purpose='xrp_profit_payout' AND submitted_at>=? AND tx_hash IS NOT NULL").all(today).reduce((n,r)=>n+integer(JSON.parse(r.draft_json).Amount),0n);
-   if(used+integer(row.amount_drops)>integer(maxNativeDailyDrops)){lastBlock='native_profit_daily_budget_limit';continue;}
+   if(used+integer(amount)>integer(maxNativeDailyDrops)){lastBlock='native_profit_daily_budget_limit';continue;}
    const h=await head(),r=(await client.request({command:'account_info',account:row.owner,ledger_hash:h.hash})).result;
    if(r?.validated!==true||r.ledger_hash!==h.hash||r.account_data?.Account!==row.owner||(r.account_data.Flags&0x00020000)){lastBlock='profit_recipient_unavailable';continue;}
-   executor.ensure(key,'xrp_profit_payout',{Account:treasury,TransactionType:'Payment',Destination:row.owner,Amount:row.amount_drops,Flags:0},{payoutId:row.id,amountDrops:row.amount_drops});
+   db.exec('BEGIN IMMEDIATE');try{
+    if(executor.get(key))throw Error('native_payout_claim_conflict');
+    db.prepare('UPDATE estate_xrp_profit_payouts SET amount_drops=? WHERE id=? AND state=\'queued\'').run(amount,row.id);
+    db.prepare('INSERT INTO estate_xrp_profit_credits VALUES(?,\'0\') ON CONFLICT(owner) DO UPDATE SET amount_drops=\'0\'').run(row.owner);
+    executor.ensure(key,'xrp_profit_payout',{Account:treasury,TransactionType:'Payment',Destination:row.owner,Amount:amount,Flags:0},{payoutId:row.id,amountDrops:amount,feeBudgetDrops:String(maxFeeDrops)});db.exec('COMMIT');
+   }catch(e){db.exec('ROLLBACK');throw e;}
   }
  }
  async function tick(){
@@ -238,7 +257,7 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
   try{
    if(fundingEnabled)seed();
    for(const row of jobs()){
-    const d=JSON.parse(row.data_json);
+    const d=validateData(JSON.parse(row.data_json));
     try{
      if(row.state==='buy_img'&&(fundingEnabled||pending(row,d,'buy_img')))await buy(row,d,'img');
      else if(row.state==='buy_plx'&&(fundingEnabled||pending(row,d,'buy_plx')))await buy(row,d,'plx');
@@ -253,6 +272,7 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
  }
  function status(owner){return {capitalFundingEnabled:fundingEnabled,xrpProfitHarvestEnabled:harvestEnabled,imgXrpProfitDistributionsEnabled:harvestEnabled&&payoutsEnabled,
   liquidityStatus:lastError||lastBlock||(!fundingEnabled?'disabled':guard.paused()?'treasury_paused':'enabled'),
+  xrpProfitCreditDrops:owner?db.prepare('SELECT amount_drops FROM estate_xrp_profit_credits WHERE owner=?').get(owner)?.amount_drops||'0':'0',
   xrpProfitPayouts:owner?db.prepare('SELECT amount_drops,available_after_ms,state,tx_hash FROM estate_xrp_profit_payouts WHERE owner=? ORDER BY available_after_ms DESC LIMIT 100').all(owner):[]};}
  return {tick,status,reservedDrops:()=>estateCashReserve(db),executor};
 }

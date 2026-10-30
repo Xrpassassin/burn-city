@@ -105,7 +105,17 @@ async function until(f,runtime,predicate,limit=50){for(let i=0;i<limit;i++){if(p
  f.db.prepare('INSERT INTO estate_img_scan_watermarks VALUES(1,?)').run(receipt.available_after_ms);
  await until(f,r,()=>f.db.prepare("SELECT COUNT(*) n FROM estate_xrp_profit_payouts WHERE state='confirmed'").get().n===1,80);
  const pays=f.sent.filter(t=>t.TransactionType==='Payment'&&t.Destination===f.owner);assert.equal(pays.length,1);assert.equal(pays[0].Amount,receipt.distributable_drops);
+ assert.equal(f.db.prepare('SELECT amount_drops FROM estate_xrp_profit_credits WHERE owner=?').get(f.owner).amount_drops,'88','unused native fee budget is credited to the owner');
  const after=f.sent.length;r=f.make({harvestEnabled:true});for(let i=0;i<4;i++)await r.tick();assert.equal(f.sent.filter(t=>t.Destination===f.owner).length,1,'restart does not duplicate native XRP payouts');
+ await until(f,r,()=>f.db.prepare("SELECT COUNT(*) n FROM estate_liquidity_jobs WHERE state='invested'").get().n===2,80);
+ f.clock+=3600000;f.xrpPool.x=f.xrpPool.x.times('1.5');
+ await until(f,r,()=>f.db.prepare('SELECT COUNT(*) n FROM estate_xrp_profit_receipts').get().n===2,80);
+ const nextReceipt=f.db.prepare('SELECT * FROM estate_xrp_profit_receipts ORDER BY realized_at_ms DESC LIMIT 1').get();
+ f.db.prepare('UPDATE estate_img_scan_watermarks SET scanned_through_ms=? WHERE id=1').run(nextReceipt.available_after_ms);
+ await until(f,r,()=>f.db.prepare("SELECT COUNT(*) n FROM estate_xrp_profit_payouts WHERE state='confirmed'").get().n===2,80);
+ const rolled=f.db.prepare('SELECT amount_drops,base_amount_drops FROM estate_xrp_profit_payouts WHERE source_id=?').get(nextReceipt.source_id);
+ assert.equal(BigInt(rolled.amount_drops)-BigInt(rolled.base_amount_drops),88n,'fee credit rolls exactly once into the next funded native payout');
+ assert.equal(f.db.prepare('SELECT amount_drops FROM estate_xrp_profit_credits WHERE owner=?').get(f.owner).amount_drops,'88');
  // A quote is not profit proof: if the market falls before execution, actual
  // loss is carried across the whole XRP pool and no owner reward is created.
  const loss=fixture();let lr=loss.make();await until(loss,lr,()=>loss.db.prepare("SELECT COUNT(*) n FROM estate_liquidity_jobs WHERE state='invested'").get().n===2);

@@ -47,7 +47,8 @@ Actual delivered XRP, IMG debits and LP burn must validate first.
 
 Net proceeds are reduced by the position basis, actual realization fees and any
 previous realized loss carried across the Estates XRP pool. Payout fee budgets
-are also withheld. Only a remaining positive amount is allocated to receipt-time
+are also withheld; unused native fee budgets become owner credits, reserved and
+rolled exactly once into a future funded native payout. Only a remaining positive amount is allocated to receipt-time
 owners. Principal is reserved for automatic reinvestment into IMG/XRP. A loss or
 insufficient net earnings creates no reward; losses must be recovered before new
 profits become distributable. The process temporarily withdraws attributable
@@ -129,4 +130,4 @@ insufficient reserves/funding, expired quotes and treasury pause block new signa
 To stop new signatures, disable the relevant sales/liquidity/harvest/distribution
 flags and/or pause the treasury. Already submitted transactions can still validate
 and must be reconciled. Preserve the allocation, liquidity job, treasury transaction,
-loss-carry, profit receipt, payout and original IMG accounting tables on rollback.
+loss-carry, profit receipt, payout/credit and original IMG accounting tables on rollback.

@@ -60,7 +60,8 @@ function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabl
    if(!/^\d+$/.test(tx.Fee||'')||BigInt(tx.Fee)>BigInt(maxFeeDrops)||!Number.isSafeInteger(tx.Sequence)||tx.Sequence<1||!Number.isSafeInteger(tx.LastLedgerSequence)||tx.LastLedgerSequence<=index||tx.LastLedgerSequence>index+30)throw Error('unsafe_transaction_envelope');
    // Each principal/reward amount is already encumbered by its owning ledger.
    // The fee must be covered by additional unencumbered treasury XRP.
-   const bad=await guard.check(client,treasury,Number(tx.Fee));if(bad)return block(row.id,bad);
+   const feeCheck=row.purpose==='xrp_profit_payout'?maxFeeDrops:Number(tx.Fee);
+   const bad=await guard.check(client,treasury,feeCheck);if(bad)return block(row.id,bad);
    if(guard.paused())return block(row.id,'treasury_paused');
    const otherPending=db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_hourly_payouts'").get()?" AND NOT EXISTS(SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted'))":'';
    if(db.prepare("UPDATE estate_treasury_transactions SET state='preparing',note=NULL WHERE id=? AND state='queued' AND NOT EXISTS(SELECT 1 FROM estate_treasury_transactions WHERE state IN ('preparing','submitted','validated','held'))"+otherPending).run(row.id).changes!==1)return {blocked:'treasury_claim_conflict'};

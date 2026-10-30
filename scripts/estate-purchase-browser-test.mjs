@@ -41,7 +41,7 @@ try{
  await page.getByRole('button',{name:'Save payout preference'}).click();
  await page.getByText('Payout preference saved.',{exact:false}).waitFor();
  await page.getByRole('button',{name:'Refresh hourly payouts'}).click();
- await page.getByText('Payment confirmed',{exact:true}).waitFor();
+ await page.getByText('Payment confirmed',{exact:false}).first().waitFor();
  await page.getByText('XRP pool profit · 0.012345 XRP · Payment confirmed',{exact:true}).waitFor();
  await page.getByText('Realized net IMG/XRP pool profits, when available, are paid as additional XRP.',{exact:false}).waitFor();
  await page.getByText('Eligible verified earnings are distributed hourly. No earnings means no new rewards.',{exact:true}).waitFor();

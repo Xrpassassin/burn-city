@@ -800,3 +800,11 @@ Derrik's vision: an open-world RPG. Each player owns a **private Homefront insta
   restart/unknown submit, principal reserve, hour close, wallet delivery and missing
   proof. `scripts/estate-liquidity-testnet.cjs` uses real disposable testnet accounts
   and transactions; only the test accounting watermark is accelerated.
+
+- Native payout fee budgets return unused drops to reserved owner credits in
+  `estate_xrp_profit_credits`; credits roll once into the next funded native
+  intent. `base_amount_drops` retains the source-hour allocation for audit.
+- SHA-bound `estate-live-ops.cjs` and runner `estate-live-operations.mjs` prepare
+  preflight, bootstrap, accounting-first activation, verified known-alert
+  unpause, and failure re-pause using existing Fly access. They do not run by
+  default; no production mutation is attached to pull-request CI.

@@ -154,6 +154,16 @@ export async function installEstatesIslandLive({
     }
     panel.appendChild(row);
     const reserved=[];
+    // Reserve visible movement, interaction, and wallet controls where detectable.
+    for(const selector of ['#bcEstatesExit','#bcEstatesWalkingGuidance','#bcEstatePropertyHint',
+      '#joystick','#mobileJoystick','.nipple','.nipple-container',
+      '[data-mobile-controls]','[data-wallet-modal]','[role="dialog"][aria-modal="true"]']) {
+      for(const element of document.querySelectorAll(selector)){
+        if(element===panel||panel.contains(element)||element.style.display==='none')continue;
+        const bounds=element.getBoundingClientRect();
+        if(bounds.width>0&&bounds.height>0)reserved.push({x:bounds.x,y:bounds.y,width:bounds.width,height:bounds.height});
+      }
+    }
     if(exitButton.style.display!=='none') {
       const bounds=exitButton.getBoundingClientRect();
       reserved.push({x:bounds.x,y:bounds.y,width:bounds.width,height:bounds.height});

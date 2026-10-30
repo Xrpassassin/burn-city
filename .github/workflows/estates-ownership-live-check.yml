@@ -1,0 +1,26 @@
+name: Estates ownership live verification
+on:
+  push:
+    branches: [ops/estates-ownership-live-check-446]
+    paths: ['.github/workflows/estates-ownership-live-check.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify settled owner and private confirmed-reward reporting without logging balances
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',fs.readFileSync('scripts/estate-ownership-live-check.cjs','utf8')],timeout:25}),signal:AbortSignal.timeout(35000)});
+          if(!r.ok)throw Error('readonly_check_http_'+r.status);
+          const result=await r.json();console.log(JSON.stringify(JSON.parse(result.stdout.trim())));if(result.exit_code!==0)throw Error('readonly_check_failed');
+          NODE

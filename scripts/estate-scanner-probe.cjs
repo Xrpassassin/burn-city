@@ -1,0 +1,5 @@
+'use strict';
+const {createRequire}=require('node:module'),req=createRequire('/data/gh/cur/package.json'),C=req('./server/config'),{Client}=req('xrpl');
+(async()=>{const c=new Client(C.XRPL_WSS,{timeout:8000});await c.connect();try{const head=(await c.request({command:'ledger',ledger_index:'validated'})).result;const last=Number(head.ledger_index??head.ledger.ledger_index);let requests=0;
+for(let i=last-11;i<=last;i++){const h=(await c.request({command:'ledger',ledger_index:i,transactions:true,expand:false})).result;requests++;const r=(await c.request({command:'account_tx',account:C.ESTATE_TREASURY,ledger_hash:h.ledger_hash||h.ledger.ledger_hash,limit:10,binary:false,forward:true})).result;requests++;console.log(JSON.stringify({ledger:i,validated:h.validated,hashCount:h.ledger.transactions.length,hashType:typeof h.ledger.transactions[0],account:r.account,min:r.ledger_index_min,max:r.ledger_index_max,validatedAccount:r.validated,entries:r.transactions.length,marker:!!r.marker,keys:r.transactions[0]?Object.keys(r.transactions[0]):[],requests}));}
+}finally{await c.disconnect();}})().catch(e=>{console.log(JSON.stringify({error:e.message}));process.exitCode=1;});

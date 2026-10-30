@@ -156,7 +156,7 @@ export async function installEstatesIslandLive({
     const reserved=[];
     // Reserve visible movement, interaction, and wallet controls where detectable.
     for(const selector of ['#bcEstatesExit','#bcEstatesWalkingGuidance','#bcEstatePropertyHint',
-      '#joystick','#mobileJoystick','.nipple','.nipple-container',
+      '#bcEstatesDirectoryButton','#joystick','#mobileJoystick','.nipple','.nipple-container',
       '[data-mobile-controls]','[data-wallet-modal]','[role="dialog"][aria-modal="true"]']) {
       for(const element of document.querySelectorAll(selector)){
         if(element===panel||panel.contains(element)||element.style.display==='none')continue;
@@ -184,6 +184,7 @@ export async function installEstatesIslandLive({
   let directoryOpen=false;
   const directoryButton=document.createElement('button');
   directoryButton.type='button';
+  directoryButton.id='bcEstatesDirectoryButton';
   directoryButton.textContent='⌂ Browse Estates';
   directoryButton.style.cssText='display:none;position:fixed;right:12px;top:calc(72px + env(safe-area-inset-top));z-index:95;min-height:44px;padding:9px 14px;border:1px solid #ffb45b;border-radius:10px;background:#17151af0;color:#ffe4bd;font:700 13px system-ui;cursor:pointer';
   document.body.appendChild(directoryButton);
@@ -209,7 +210,7 @@ export async function installEstatesIslandLive({
       const matches=searchEstateLots(manifest.lots,search.value,select.value);
       for(const lot of matches){
         const button=document.createElement('button');button.type='button';
-        button.style.textAlign='left';
+        button.style.cssText='text-align:left;min-height:44px;width:100%;padding:10px;border:1px solid #ffb45b77;border-radius:9px;background:#28303c;color:#fff1df;cursor:pointer';
         button.textContent=lot.address+' · '+lot.district+' · '+lot.tier;
         button.addEventListener('click',()=>{
           directoryOpen=false;

@@ -1,0 +1,28 @@
+name: Estates directory and responsive UI checks
+on:
+  pull_request:
+    paths:
+      - 'client/js/estates-directory*'
+      - 'client/js/estates-panel-layout*'
+      - 'client/js/estates-plot-separation.test.mjs'
+      - 'client/js/estates-island-scene.mjs'
+      - 'client/js/estates-island-live.mjs'
+      - 'scripts/estates-directory-browser-test.mjs'
+      - '.github/workflows/estates-ui-validation.yml'
+  workflow_dispatch:
+jobs:
+  estates-ui:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check live host syntax
+        run: node --check client/js/estates-island-live.mjs
+      - name: Test directory, panel layout, and plot setbacks
+        run: node --test client/js/estates-directory.test.mjs client/js/estates-panel-layout.test.mjs client/js/estates-plot-separation.test.mjs
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Browser directory, walking guidance and nearby inspection
+        run: node scripts/estates-directory-browser-test.mjs

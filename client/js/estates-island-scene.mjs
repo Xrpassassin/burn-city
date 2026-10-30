@@ -33,6 +33,19 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
       tier:tier?.id??'unassigned',buildingFootprint:footprint,district
     });
   });
+  // Reserve the entire plot, not just the current house shell, for future upgrades.
+  // Touching boundaries are allowed; actual area overlap is not.
+  for(let i=0;i<lots.length;i++) for(let j=i+1;j<lots.length;j++){
+    const a=lots[i],b=lots[j];
+    const overlapX=Math.abs(a.position.x-b.position.x)<(a.dimensions.width+b.dimensions.width)/2;
+    const overlapZ=Math.abs(a.position.z-b.position.z)<(a.dimensions.depth+b.dimensions.depth)/2;
+    if(overlapX&&overlapZ) throw new Error('Estate plot overlap: '+a.id+' and '+b.id);
+  }
+  for(const lot of lots){
+    const f=lot.buildingFootprint;
+    if(f&&(f.width>lot.dimensions.width-2||f.depth>lot.dimensions.depth-2))
+      throw new Error('Estate house exceeds reserved plot setback: '+lot.id);
+  }
   const mappedIds=lots.filter(l=>l.propertyId).map(l=>l.propertyId);
   if(mappedIds.length!==catalog.properties.length || propertyIds.some(id=>mappedIds.filter(mapped=>mapped===id).length!==1)) throw new Error('Every catalog property must map to exactly one island lot');
   const roads=[

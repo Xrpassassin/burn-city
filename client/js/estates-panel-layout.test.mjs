@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import {planEstatesPanel,overlapsRect,propertyDirectoryEntry} from './estates-panel-layout.mjs';
+const desktop=planEstatesPanel({width:1280,height:800});
+assert.equal(desktop.mode,'side-panel');
+assert.ok(desktop.panel.x>800);
+const left=planEstatesPanel({width:1280,height:800,blocked:[{x:900,y:0,width:380,height:800}]});
+assert.equal(left.mode,'side-panel');
+assert.ok(left.panel.x<100);
+const mobile=planEstatesPanel({width:390,height:844,blocked:[{x:0,y:730,width:150,height:114}]});
+assert.equal(mobile.mode,'bottom-sheet');
+assert.ok(mobile.panel.y<400);
+const crowded=planEstatesPanel({width:390,height:844,blocked:[{x:0,y:0,width:390,height:844}]});
+assert.equal(crowded.mode,'collapsed');
+assert.equal(crowded.panel,null);
+assert.equal(overlapsRect({x:0,y:0,width:10,height:10},{x:20,y:20,width:10,height:10}),false);
+assert.equal(propertyDirectoryEntry({id:'a',propertyId:'p1',address:'1 Bay Lane'},['p1']).owned,true);
+assert.equal(propertyDirectoryEntry({id:'b'}).assigned,false);
+assert.throws(()=>planEstatesPanel({width:NaN,height:500}),TypeError);
+console.log('Estates panel layout tests passed');
+
+const phone=planEstatesPanel({width:390,height:844,blocked:[
+ {x:100,y:116,width:190,height:44},{x:220,y:72,width:158,height:44},
+ {x:24,y:514,width:124,height:124},{x:258,y:530,width:116,height:194}
+]});
+assert.ok(phone.panel,'directory fits between actual phone controls');
+for(const b of [{x:100,y:116,width:190,height:44},{x:24,y:514,width:124,height:124},{x:258,y:530,width:116,height:194}])
+ assert.equal(overlapsRect(phone.panel,b,8),false);

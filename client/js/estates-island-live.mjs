@@ -5,6 +5,8 @@ import { buildEstatesIslandScene } from './estates-island-scene.mjs';
 import { createEstatesIslandRenderer } from './estates-island-renderer.mjs';
 import { createEstatesIslandController } from './estates-island-controller.mjs';
 import { estateWalkingGuidance } from './estates-walking-guidance.mjs';
+import { planEstatesPanel } from './estates-panel-layout.mjs';
+import { searchEstateLots } from './estates-directory.mjs';
 
 const OFFSET_X = 650;
 const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
@@ -93,6 +95,7 @@ export async function installEstatesIslandLive({
   // Never trust query-supplied coordinates or property metadata.
   const requestedPropertyId = new URLSearchParams(location.search).get('estateProperty');
   const requestedLot = requestedPropertyId ? manifest.lots.find(l => l.propertyId === requestedPropertyId) : null;
+  let targetLot=requestedLot;
 
   const renderer = createEstatesIslandRenderer({ THREE, scene, manifest });
   const root = renderer.root;
@@ -102,10 +105,10 @@ export async function installEstatesIslandLive({
   // Low-cost property locator: one emissive marker and a pulsing ring, attached
   // to the authoritative lot position in island-local coordinates.
   let selectedLotBeacon=null;
-  if(requestedLot){
+  {
     const beacon=new THREE.Group();
     beacon.name='estates-selected-property-beacon';
-    beacon.position.set(requestedLot.position.x,0.4,requestedLot.position.z);
+    beacon.position.set(targetLot?.position.x??0,0.4,targetLot?.position.z??0);
     const material=new THREE.MeshBasicMaterial({color:0xffc266,transparent:true,opacity:.9,depthWrite:false});
     const ringMaterial=new THREE.MeshBasicMaterial({color:0xffdf9a,transparent:true,opacity:.6,depthWrite:false,side:THREE.DoubleSide});
     const stem=new THREE.Mesh(new THREE.CylinderGeometry(.14,.14,9,8),material);
@@ -137,6 +140,34 @@ export async function installEstatesIslandLive({
   exitButton.setAttribute('aria-label','Return to BURN City');
   exitButton.style.cssText='display:none;position:fixed;left:50%;top:calc(116px + env(safe-area-inset-top));transform:translateX(-50%);z-index:90;min-height:44px;padding:8px 14px;border:1px solid #ffb45b;border-radius:9px;background:#17151af0;color:#ffe4bd;font:700 13px system-ui;cursor:pointer';
   document.body.appendChild(exitButton);exitButton.addEventListener('click',()=>leaveIsland());
+  let directoryOpen=false;
+  const positionPanel = () => {
+    const reserved=[];
+    // Reserve visible movement, interaction, and wallet controls where detectable.
+    for(const selector of ['#bcEstatesExit','#bcEstatesWalkingGuidance','#bcEstatePropertyHint',
+      '#bcEstatesDirectoryButton','#joy','#tbtns','#gearBar','#joystick','#mobileJoystick','.nipple','.nipple-container',
+      '[data-mobile-controls]','[data-wallet-modal]','[role="dialog"][aria-modal="true"]']) {
+      for(const element of document.querySelectorAll(selector)){
+        if(element===panel||panel.contains(element)||element.style.display==='none')continue;
+        const bounds=element.getBoundingClientRect();
+        if(bounds.width>0&&bounds.height>0)reserved.push({x:bounds.x,y:bounds.y,width:bounds.width,height:bounds.height});
+      }
+    }
+    if(exitButton.style.display!=='none') {
+      const bounds=exitButton.getBoundingClientRect();
+      reserved.push({x:bounds.x,y:bounds.y,width:bounds.width,height:bounds.height});
+    }
+    const placement=planEstatesPanel({width:window.innerWidth,height:window.innerHeight,blocked:reserved});
+    if(placement.panel) {
+      panel.style.left=placement.panel.x+'px';
+      panel.style.top=placement.panel.y+'px';
+      panel.style.bottom='auto';
+      panel.style.transform='none';
+      panel.style.width=placement.panel.width+'px';
+      panel.style.maxHeight=placement.panel.height+'px';
+      panel.style.display='block';
+    } else panel.style.display='none';
+  };
   const showPanel = (heading, message, actions, muted='') => {
     restoreAppearance();
     panel.replaceChildren();
@@ -149,15 +180,68 @@ export async function installEstatesIslandLive({
       if(action.primary)b.className='primary';
       b.addEventListener('click',action.run); row.appendChild(b);
     }
-    panel.appendChild(row); panel.style.display='block';
+    panel.appendChild(row);
+    positionPanel();
   };
-  const hidePanel = () => { restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
+  const hidePanel = () => { directoryOpen=false; restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
+  // A single shared panel hosts the directory and inspection; no stacked overlays.
+  const directoryButton=document.createElement('button');
+  directoryButton.type='button';
+  directoryButton.id='bcEstatesDirectoryButton';
+  directoryButton.textContent='⌂ Browse Estates';
+  directoryButton.style.cssText='display:none;position:fixed;right:12px;top:calc(72px + env(safe-area-inset-top));z-index:95;min-height:44px;padding:9px 14px;border:1px solid #ffb45b;border-radius:10px;background:#17151af0;color:#ffe4bd;font:700 13px system-ui;cursor:pointer';
+  document.body.appendChild(directoryButton);
+  function openDirectory(query='',filter='mapped') {
+    if(!active)return;
+    directoryOpen=true;
+    showPanel('ESTATES DIRECTORY','Search properties and select a lot to navigate there. Inspect homes and purchase options when nearby.',
+      [{label:'Close directory',run:()=>{directoryOpen=false;hidePanel();}}]);
+    const search=document.createElement('input');
+    search.type='search';search.placeholder='Search address, district, or tier';
+    search.value=query;search.setAttribute('aria-label','Search Estates');
+    search.style.cssText='width:100%;box-sizing:border-box;min-height:44px;margin:8px 0;padding:8px;border-radius:8px;border:1px solid #ffb45b;background:#121b27;color:white';
+    const select=document.createElement('select');
+    select.setAttribute('aria-label','Filter properties');
+    select.style.cssText=search.style.cssText;
+    for(const [value,label] of [['mapped','Catalog homes'],['all','All lots'],['unassigned','Unassigned lots']]){
+      const option=document.createElement('option');option.value=value;option.textContent=label;select.appendChild(option);
+    }
+    select.value=filter;
+    const results=document.createElement('div');results.style.cssText='display:grid;gap:8px;max-height:40dvh;overflow:auto';
+    const render=()=>{
+      results.replaceChildren();
+      const matches=searchEstateLots(manifest.lots,search.value,select.value);
+      for(const lot of matches){
+        const button=document.createElement('button');button.type='button';
+        button.style.cssText='text-align:left;min-height:44px;width:100%;padding:10px;border:1px solid #ffb45b77;border-radius:9px;background:#28303c;color:#fff1df;cursor:pointer';
+        button.textContent=lot.address+' · '+lot.district+' · '+lot.tier;
+        button.addEventListener('click',()=>{
+          directoryOpen=false;
+          const destination=manifest.lots.find(item=>item.id===lot.id);
+          if(!destination)return;
+          targetLot=destination;
+          selectedLotBeacon.group.position.set(destination.position.x,.4,destination.position.z);
+          selectedLotBeacon.group.visible=active;
+          hidePanel();
+          onStatus({state:'estate-navigation-target',lotId:destination.id,propertyId:destination.propertyId??null});
+        });
+        results.appendChild(button);
+      }
+      if(!matches.length){const empty=document.createElement('p');empty.textContent='No matching lots.';results.appendChild(empty);}
+    };
+    search.addEventListener('input',render);select.addEventListener('change',render);
+    panel.insertBefore(search,panel.querySelector('.actions'));
+    panel.insertBefore(select,panel.querySelector('.actions'));
+    panel.insertBefore(results,panel.querySelector('.actions'));
+    render();
+  }
+  directoryButton.addEventListener('click',()=>directoryOpen?(directoryOpen=false,hidePanel()):openDirectory());
   const showLotInspection = property => {
     const catalogued=Boolean(property.propertyId);
     const home=catalog.properties.find(p=>p.id===property.propertyId),tier=catalog.tiers.find(t=>t.id===home?.tier);
     showPanel(property.address,
       tier?tier.label+' · '+tier.price+' XRP · '+tier.shareUnits+' reward share units. Explore the finishes and see how this home can grow.':'This plot is reserved for a future home.',
-      [{label:'Close',primary:true,run:hidePanel}],
+      [{label:'Navigate to property',primary:true,run:()=>{const lot=manifest.lots.find(l=>l.id===property.lotId);if(lot){targetLot=lot;if(selectedLotBeacon){selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=active;}if(guidanceHud)guidanceHud.style.display='block';hidePanel();}}},{label:'Close',run:hidePanel}],
       'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests.');
     if(catalogued){
       let finishes;
@@ -166,6 +250,7 @@ export async function installEstatesIslandLive({
     }
   };
   const showLotPrompt = property => {
+    if(directoryOpen)return;
     const catalogued=Boolean(property.propertyId);
     if(property.confirmedInteraction){showLotInspection(property);return;}
     showPanel('ESTATES · '+property.address,
@@ -186,6 +271,7 @@ export async function installEstatesIslandLive({
       'Press E to read this landmark, or use the button.');
   };
   const updateLandmarkInteraction = (edge,propertyNearby=false) => {
+    if(directoryOpen)return;
     if(propertyNearby) { lastLandmarkId=null; return; }
     const x=player.pos.x-OFFSET_X,z=player.pos.z;
     let nearest=null,nearestDistance=Infinity;
@@ -194,7 +280,7 @@ export async function installEstatesIslandLive({
       if(distance<=landmark.interactionRadius&&distance<nearestDistance) {nearest=landmark;nearestDistance=distance;}
     }
     if(!nearest) {
-      if(lastLandmarkId!==null) {lastLandmarkId=null;hidePanel();}
+      if(lastLandmarkId!==null) {lastLandmarkId=null;if(!directoryOpen)hidePanel();}
       return;
     }
     if(edge) {lastLandmarkId=nearest.id;showLandmarkDetails(nearest);return;}
@@ -223,7 +309,7 @@ export async function installEstatesIslandLive({
     cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
     cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
     onPropertyPrompt:property=>{lastProperty=property;lastLandmarkId=null;showLotPrompt(property);},
-    onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;hidePanel();},
+    onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;if(!directoryOpen)hidePanel();},
     onExitPrompt:event=>{
       if(!active)return;
       if(event.confirmedInteraction){leaveIsland();return;}
@@ -351,7 +437,8 @@ export async function installEstatesIslandLive({
     },30000);
     returnPosition = {x:player.pos.x,y:player.pos.y,z:player.pos.z};
     returnCamera = {position:camera.position.clone(),quaternion:camera.quaternion.clone()};
-    active=true; root.visible=true; nearCityGate=false; hidePanel();
+    active=true; root.visible=true; nearCityGate=false; hidePanel(); directoryButton.style.display='block';
+    if(root.userData.propertyDeepLinkHint)root.userData.propertyDeepLinkHint.style.display='none';
     exitButton.style.display='block';
     hideCityScene();
     window.__estatesCityPresencePaused=true;window.__cityNet?.setPaused(true);
@@ -363,7 +450,7 @@ export async function installEstatesIslandLive({
     if(window.__skate?.active)window.__skate.state.pos.copy(player.pos);
     avatar.position.copy(player.pos);
     connectPresence(leaseToken,admission.instanceId);
-    if(selectedLotBeacon)selectedLotBeacon.group.visible=true;
+    if(selectedLotBeacon)selectedLotBeacon.group.visible=Boolean(targetLot);
     onStatus({state:'entered-public-island',instanceId:admission.instanceId,catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length});
   }
   function leaveIsland() {
@@ -371,7 +458,8 @@ export async function installEstatesIslandLive({
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();
     if(guidanceHud)guidanceHud.style.display='none';
     if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
-    exitButton.style.display='none';
+    exitButton.style.display='none'; directoryButton.style.display='none'; directoryOpen=false;
+    if(root.userData.propertyDeepLinkHint)root.userData.propertyDeepLinkHint.style.display='block';
     releaseLease();
     restoreCityScene();
     const destination=returnPosition??gate;
@@ -404,11 +492,14 @@ export async function installEstatesIslandLive({
     hideCityScene();animatePeers(dt);void refreshAppearance();
     if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
       lastGuidanceUpdate=Date.now();
+      if(panel.childElementCount)positionPanel();
       const pos={x:player.pos.x-OFFSET_X,z:player.pos.z};
-      const nav=estateWalkingGuidance(pos,requestedLot.position);
+      if(!targetLot){guidanceHud.style.display='none';} else {
+      const nav=estateWalkingGuidance(pos,targetLot.position);
       const compass=['N','NE','E','SE','S','SW','W','NW'][Math.round(((nav.bearingRadians+Math.PI*2)%(Math.PI*2))/(Math.PI/4))%8];
-      guidanceHud.textContent=nav.arrived?'Arrived at '+requestedLot.address:'Lot '+requestedLot.address+' · '+Math.round(nav.distance)+'m · '+compass;
+      guidanceHud.textContent=nav.arrived?'Arrived at '+targetLot.address:'Lot '+targetLot.address+' · '+Math.round(nav.distance)+'m · '+compass;
       guidanceHud.style.display='block';
+      }
     }
     if(selectedLotBeacon){
       const pulse=1+0.12*Math.sin(Date.now()*0.003);
@@ -422,7 +513,7 @@ export async function installEstatesIslandLive({
         cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
         cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
         onPropertyPrompt:property=>{lastProperty=property;lastLandmarkId=null;showLotPrompt(property);},
-        onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;hidePanel();},
+        onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;if(!directoryOpen)hidePanel();},
         onExitPrompt:event=>{
           if(!active)return;
           if(event.confirmedInteraction){leaveIsland();return;}
@@ -464,7 +555,7 @@ export async function installEstatesIslandLive({
   }
 
   let guidanceHud=null, lastGuidanceUpdate=0;
-  if(requestedLot){
+  {
     guidanceHud=document.createElement('div');
     guidanceHud.id='bcEstatesWalkingGuidance';
     guidanceHud.setAttribute('role','status');
@@ -475,7 +566,7 @@ export async function installEstatesIslandLive({
     tick,
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
-      if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       root.userData.propertyDeepLinkHint?.remove(); guidanceHud?.remove();
       if(selectedLotBeacon){selectedLotBeacon.group.removeFromParent();for(const g of selectedLotBeacon.geometries)g.dispose();for(const m of selectedLotBeacon.materials)m.dispose();}

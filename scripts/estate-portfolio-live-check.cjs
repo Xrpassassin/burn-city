@@ -1,0 +1,9 @@
+'use strict';const fs=require('node:fs'),path=require('node:path'),{createRequire}=require('node:module'),{DatabaseSync}=require('node:sqlite'),req=createRequire('/data/gh/cur/package.json'),C=req('./server/config');
+(async()=>{const expected="bdb2b4f12008e14daa54fa5337e5084bf5326a9a";if(fs.readFileSync('/data/gh/SHA','utf8').trim()!==expected)throw Error('deployed_commit_mismatch');
+ const base='http://127.0.0.1:'+C.PORT,version=await (await fetch(base+'/api/deploy-version')).json();if(version.commit!==expected)throw Error('active_server_mismatch');
+ const status=await (await fetch(base+'/api/estates/status')).json(),privateResponse=await fetch(base+'/api/estates/portfolio');if(privateResponse.status!==401)throw Error('portfolio_requires_authentication');
+ const db=new DatabaseSync(path.join(C.DATA_DIR,'shop.db'),{readOnly:true});db.exec('PRAGMA query_only=ON;PRAGMA busy_timeout=3000');
+ try{const property=db.prepare("SELECT property_id,acct FROM estate_property_ownership WHERE property_id='trailer-01'").get();if(!property)throw Error('settled_property_not_found');
+ const p=req('./server/estate-portfolio').readEstatePortfolio({db,owner:property.acct});if(!p.properties.some(x=>x.propertyId===property.property_id))throw Error('owned_property_missing_from_portfolio');
+ console.log(JSON.stringify({readOnly:true,commit:expected,status,privatePortfolioRequiresAuth:true,purchasedPropertyInPortfolio:true,imgHistoryAvailable:p.imgHistoryAvailable,xrpHistoryAvailable:p.xrpHistoryAvailable,scannerCurrent:p.scannerCurrent,ownerAmountsNotLogged:true}));
+ }finally{db.close();}})().catch(e=>{console.log(JSON.stringify({readOnly:true,error:e.message}));process.exitCode=1;});

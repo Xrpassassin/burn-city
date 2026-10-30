@@ -185,7 +185,8 @@ export async function installEstatesIslandLive({
     panel.appendChild(row);
     positionPanel();
   };
-  const hidePanel = () => { directoryOpen=false; restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
+  let directoryCleanup=null;
+  const hidePanel = () => { directoryCleanup?.();directoryCleanup=null;directoryOpen=false; restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
   // A single shared panel hosts the directory and inspection; no stacked overlays.
   const directoryButton=document.createElement('button');
   directoryButton.type='button';
@@ -194,7 +195,7 @@ export async function installEstatesIslandLive({
   directoryButton.style.cssText='display:none;position:fixed;right:12px;top:calc(72px + env(safe-area-inset-top));z-index:95;min-height:44px;padding:9px 14px;border:1px solid #ffb45b;border-radius:10px;background:#17151af0;color:#ffe4bd;font:700 13px system-ui;cursor:pointer';
   document.body.appendChild(directoryButton);
   function openDirectory(query='',filter='mapped') {
-    if(!active)return;
+    if(!active)return;directoryCleanup?.();directoryCleanup=null;
     directoryOpen=true;
     showPanel('ESTATES DIRECTORY','Search properties and select a lot to navigate there. Inspect homes and purchase options when nearby.',
       [{label:'Close directory',run:()=>{directoryOpen=false;hidePanel();}}]);
@@ -205,19 +206,41 @@ export async function installEstatesIslandLive({
     const select=document.createElement('select');
     select.setAttribute('aria-label','Filter properties');
     select.style.cssText=search.style.cssText;
-    for(const [value,label] of [['mapped','Catalog homes'],['all','All lots'],['unassigned','Unassigned lots']]){
+    for(const [value,label] of [['mapped','Catalog homes'],['mine','My properties'],['all','All lots'],['unassigned','Unassigned lots']]){
       const option=document.createElement('option');option.value=value;option.textContent=label;select.appendChild(option);
     }
     select.value=filter;
     const results=document.createElement('div');results.style.cssText='display:grid;gap:8px;max-height:40dvh;overflow:auto';
-    const render=()=>{
-      results.replaceChildren();
-      const matches=searchEstateLots(manifest.lots,search.value,select.value);
+    const status=document.createElement('p');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+    const getToken=()=>{try{return localStorage.getItem('bcToken')||'';}catch{return '';}};
+    let renderId=0,session=getToken(),mineCache=null,loading=null,closed=false;
+    async function ownedIds(auth){
+      if(mineCache?.auth===auth)return mineCache.ids;
+      if(loading?.auth===auth)return loading.promise;
+      const promise=(async()=>{const r=await fetch(apiBase+'/api/estates',{headers:{authorization:'Bearer '+auth},cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(8000)});
+        if(!r.ok)throw Error(r.status===401?'Sign in again with Xaman in BURN City.':'Could not load your properties. Select this filter again to retry.');
+        const s=await r.json();if(!Array.isArray(s.owned))throw Error('Could not verify your properties.');
+        const ids=s.owned.map(p=>p.propertyId).filter(id=>typeof id==='string');if(!closed&&getToken()===auth)mineCache={auth,ids};return ids;
+      })();
+      loading={auth,promise};try{return await promise;}finally{if(loading?.promise===promise)loading=null;}
+    }
+    const render=async()=>{
+      const sequence=++renderId;results.replaceChildren();status.textContent='';let ids=[];
+      if(select.value==='mine'){
+        const auth=getToken();if(!auth){status.textContent='Sign in with Xaman in BURN City to view My properties.';return;}
+        status.textContent='Loading your verified properties…';
+        try{ids=await ownedIds(auth);}catch(e){if(!closed&&sequence===renderId&&getToken()===auth)status.textContent=e.message==='Sign in again with Xaman in BURN City.'?e.message:'Could not load your properties. Select this filter again to retry.';return;}
+        if(closed||sequence!==renderId||!directoryOpen||!panel.contains(results))return;
+        if(getToken()!==auth){mineCache=null;void render();return;}
+        status.textContent=ids.length?'Select a home to teleport to its public entrance.':'No verified properties in this wallet yet.';
+      }
+      const matches=searchEstateLots(manifest.lots,search.value,select.value,ids);
       for(const lot of matches){
         const button=document.createElement('button');button.type='button';
         button.style.cssText='text-align:left;min-height:44px;width:100%;padding:10px;border:1px solid #ffb45b77;border-radius:9px;background:#28303c;color:#fff1df;cursor:pointer';
         button.textContent=lot.address+' · '+lot.district+' · '+lot.tier;
         button.addEventListener('click',()=>{
+          if(select.value==='mine'){void teleportToProperty(lot.propertyId);return;}
           directoryOpen=false;
           const destination=manifest.lots.find(item=>item.id===lot.id);
           if(!destination)return;
@@ -231,11 +254,17 @@ export async function installEstatesIslandLive({
       }
       if(!matches.length){const empty=document.createElement('p');empty.textContent='No matching lots.';results.appendChild(empty);}
     };
-    search.addEventListener('input',render);select.addEventListener('change',render);
+    const walletChanged=()=>{const next=getToken();if(next!==session){session=next;mineCache=null;void render();}};
+    const storageChanged=e=>{if(e.key==='bcToken'||e.key===null)walletChanged();};
+    const tokenTimer=setInterval(walletChanged,500);
+    window.addEventListener('storage',storageChanged);window.addEventListener('focus',walletChanged);
+    directoryCleanup=()=>{closed=true;renderId++;mineCache=null;clearInterval(tokenTimer);window.removeEventListener('storage',storageChanged);window.removeEventListener('focus',walletChanged);};
+    search.addEventListener('input',()=>void render());select.addEventListener('change',()=>void render());
     panel.insertBefore(search,panel.querySelector('.actions'));
     panel.insertBefore(select,panel.querySelector('.actions'));
+    panel.insertBefore(status,panel.querySelector('.actions'));
     panel.insertBefore(results,panel.querySelector('.actions'));
-    render();
+    void render();
   }
   directoryButton.addEventListener('click',()=>directoryOpen?(directoryOpen=false,hidePanel()):openDirectory());
   const showLotInspection = property => {

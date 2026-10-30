@@ -10,4 +10,8 @@ assert.deepEqual(searchEstateLots(lots,'EAST','mapped').map(l=>l.id),['lot-3']);
 assert.deepEqual(searchEstateLots(lots,'','unassigned').map(l=>l.id),['lot-2']);
 assert.equal(searchEstateLots(lots,'missing').length,0);
 assert.throws(()=>searchEstateLots(lots,'','owned'),TypeError);
+assert.deepEqual(searchEstateLots(lots,'','mine',['p3']).map(l=>l.id),['lot-3']);
+assert.deepEqual(searchEstateLots(lots,'harbor','mine',['p3']),[]);
+assert.deepEqual(searchEstateLots(lots,'','mine',[]),[]);
+assert.deepEqual(searchEstateLots(lots,'','mine',['forged',null]).map(l=>l.id),[]);
 console.log('Estates directory tests passed');

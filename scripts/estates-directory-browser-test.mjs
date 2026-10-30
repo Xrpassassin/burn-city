@@ -25,6 +25,7 @@ window.ready=true;
 </script>`;
 const server=http.createServer((req,res)=>{
  const url=new URL(req.url,'http://localhost');
+ if(url.pathname==='/api/estates'){res.setHeader('Content-Type','application/json');const auth=req.headers.authorization;res.writeHead(auth==='Bearer mine-a'||auth==='Bearer mine-b'?200:401);res.end(JSON.stringify({owned:auth==='Bearer mine-a'?[{propertyId:'trailer-01'},{propertyId:'forged-property'}]:auth==='Bearer mine-b'?[{propertyId:'apartment-01'}]:[],error:'sign_in_with_xaman'}));return;}
  if(url.pathname==='/api/estates/ownership'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({properties:[{propertyId:'trailer-01',owner:'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb'}]}));return;}
  if(url.pathname.startsWith('/api/')) {res.setHeader('Content-Type','application/json');res.end(JSON.stringify(url.pathname.includes('/instance/')?{ok:true,leaseToken:'browser-fixture',instanceId:'test'}:{properties:[]}));return;}
  if(url.pathname==='/'){res.setHeader('Content-Type','text/html');res.end(html);return;}
@@ -79,9 +80,38 @@ try {
   assert.equal(await page.getByRole('button',{name:'Browse Estates'}).isVisible(),false);
   assert.deepEqual(await page.evaluate(()=>['tour','bcMoveGamesOpen','vExit'].map(id=>getComputedStyle(document.getElementById(id)).display)),cityDisplays);
   await page.evaluate(()=>__hub.open());assert.equal(await page.locator('#bcMoveGamesPanel').evaluate(e=>e.classList.contains('on')),true);await page.evaluate(()=>__hub.close());
+  // My properties derives IDs from the authenticated server, never from the
+  // public owner list or a locally decoded token. Selection uses safe travel.
+  await page.evaluate(()=>host.enterFromCity());await page.getByRole('button',{name:'Browse Estates'}).waitFor();
+  await page.getByRole('button',{name:'Browse Estates'}).click();await page.getByLabel('Filter properties').selectOption('mine');
+  await page.getByText('Sign in with Xaman in BURN City to view My properties.',{exact:true}).waitFor();
+  await page.evaluate(()=>localStorage.setItem('bcToken','mine-a'));
+  const own=await page.evaluate(()=>host.manifest.lots.find(l=>l.propertyId==='trailer-01'));
+  const ownName=own.address+' · '+own.district+' · '+own.tier;
+  await page.getByRole('button',{name:ownName,exact:true}).waitFor();
+  assert.equal(await page.locator('#bcEstatesLivePrompt').getByRole('button').count(),2,'only the matching owned home and close action');
+  await page.getByLabel('Search Estates').fill('no-such-home');await page.getByText('No matching lots.',{exact:true}).waitFor();await page.getByLabel('Search Estates').fill('');
+  await page.getByRole('button',{name:ownName,exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('#bcEstatesLivePrompt input[type=search]'));
+  const arrival=await page.evaluate(()=>{const l=host.manifest.lots.find(l=>l.propertyId==='trailer-01');const p=fixture.player.pos;return {x:p.x-650,z:p.z,distance:Math.hypot(p.x-650-l.position.x,p.z-l.position.z)};});
+  assert(arrival.distance<15,'My properties arrives outside the selected home');
+  await page.getByRole('button',{name:'Browse Estates'}).click();await page.getByLabel('Filter properties').selectOption('mine');
+  await page.getByRole('button',{name:ownName,exact:true}).waitFor();
+  const other=await page.evaluate(()=>host.manifest.lots.find(l=>l.propertyId==='apartment-01')),otherName=other.address+' · '+other.district+' · '+other.tier;
+  let release;const held=new Promise(r=>release=r);let delay=true;
+  await page.route('**/api/estates',async route=>{if(delay&&route.request().headers().authorization==='Bearer mine-a'){delay=false;await held;}await route.continue();});
+  await page.getByRole('button',{name:'Close directory'}).click();await page.getByRole('button',{name:'Browse Estates'}).click();
+  const pending=page.waitForRequest(r=>r.url().endsWith('/api/estates')&&r.headers().authorization==='Bearer mine-a');await page.getByLabel('Filter properties').selectOption('mine');await pending;
+  await page.evaluate(()=>{localStorage.setItem('bcToken','mine-b');dispatchEvent(new StorageEvent('storage',{key:'bcToken'}));});
+  await page.getByRole('button',{name:otherName,exact:true}).waitFor();
+  const oldResponse=page.waitForResponse(r=>r.url().endsWith('/api/estates')&&r.request().headers().authorization==='Bearer mine-a');release();await oldResponse;
+  assert.equal(await page.getByRole('button',{name:ownName,exact:true}).count(),0,'delayed old-wallet replies never restore prior results');
+  await page.evaluate(()=>{localStorage.removeItem('bcToken');dispatchEvent(new StorageEvent('storage',{key:'bcToken'}));});
+  await page.getByText('Sign in with Xaman in BURN City to view My properties.',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:otherName,exact:true}).count(),0);
+  await page.getByRole('button',{name:'Close directory'}).click();
   assert.deepEqual(errors,[]);
   await page.evaluate(()=>host.dispose());await page.close();
-  console.log('Directory, guidance, nearby inspection and unobscured controls passed',viewport);
+  console.log('Directory, My properties filtering/travel, wallet isolation, guidance and unobscured controls passed',viewport);
   // The buyer-preview deep link is an explicit travel action. It must acquire
   // public-island admission, arrive outside the selected home, and reset motion.
   for(const scenario of ['direct','admission-retry','unknown']){

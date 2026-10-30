@@ -86,7 +86,7 @@ async function preflight(){
  }
  const encumbered=BigInt(req('./server/estate-liquidity-runtime').estateCashReserve(openDb()));
  const available=BigInt(ai.account_data.Balance)-BigInt(reserve.reserve_base)-BigInt(reserve.reserve_inc)*(BigInt(ai.account_data.OwnerCount||0)+BigInt(newLines))-BigInt(process.env.RESERVE_MARGIN_DROPS||500000)-encumbered;
- report.additionalFeeBufferDrops=available.toString();if(available<5000n)throw Error('additional_treasury_fee_funding_required');
+ report.additionalFeeBufferDrops=available.toString();if(available<5000n)throw Error('additional_treasury_fee_funding_required: shortfall_drops='+(5000n-available)+' available_drops='+available+' treasury_balance_drops='+ai.account_data.Balance+' additional_lp_trustlines='+newLines);
  report.ready=true;return report;
 }
 (async()=>{

@@ -77,7 +77,23 @@ async function preflight(){
   const originalAlert=pause.reason==='unexpected_outgoing_tx'||(pause.reason==='estate_activation_verification_failed'&&pause.prior_reason==='unexpected_outgoing_tx');
   const reviewedAlert=originalAlert&&Array.isArray(unknown)&&unknown.length===1&&unknown[0].hash===knownDeposit&&unknown[0].type==='AMMDeposit';
   const activationRollback=pause.reason==='estate_activation_verification_failed'&&pause.prior_reason===null&&Array.isArray(unknown)&&unknown.length===0&&Array.isArray(known)&&known.includes(knownDeposit);
-  if(!reviewedAlert&&!activationRollback)throw Error('unexpected_treasury_pause_requires_review');
+  const reviewedHistory=[["A52BDA33696E7448C487AE61BDD3D63F3634D5669D71062102F5F0BC906F2070",107974545,"AMMDeposit"],["C6426F933049D579614E129CD8B0F730D139F39EF36D65BAA2ABD3DA3B7B634B",107974533,"Payment"],["EC1727E7DD42CF5D0B48997099C886EF575EBC850B1E55CE9467729182B1710E",107974532,"Payment"],["3640D63D1D8C411840DD2F3F6C237D24C9B35E87E4A0D5AB014B81B3532F7466",107974504,"TrustSet"],["E363F5345B1349548BFDA1688C14ED336A389DACB736038E6A8773B3D58956CB",107974494,"Payment"],["DB7EB8BAA5910A0A9F948AAACEE0B2C53DBC86FDE2E68950E62A2F731B37E194",107974493,"Payment"]];
+  const historicalAlert=originalAlert&&Array.isArray(unknown)&&unknown.length===reviewedHistory.length&&new Set(unknown.map(x=>x.hash)).size===reviewedHistory.length&&unknown.every(x=>reviewedHistory.some(([h,,type])=>x.hash===h&&x.type===type));
+  if(historicalAlert){
+   const boundary=report.bootstrap?.start_ledger_index;if(!Number.isSafeInteger(boundary))throw Error('historical_review_boundary_required');
+   for(const [hash,index,type] of reviewedHistory){
+    const proof=(await c.request({command:'tx',transaction:hash,binary:false})).result,t=proof.tx_json||proof;
+    if(proof.validated!==true||proof.meta?.TransactionResult!=='tesSUCCESS'||proof.ledger_index!==index||index>=boundary||t.Account!==treasury||t.TransactionType!==type||(proof.hash||t.hash)!==hash)throw Error('historical_setup_proof_failed');
+    if(type==='AMMDeposit'&&!balanceDelta(proof,treasury,pools[0].lp).gt(0))throw Error('historical_lp_mint_required');
+    if(type==='TrustSet'&&(t.LimitAmount?.currency!=='PLX'||t.LimitAmount.issuer!==C.PLX_ISSUER))throw Error('historical_plx_line_required');
+    if(type==='Payment'&&t.Destination!==treasury){
+     const amount=t.DeliverMax||t.Amount;
+     if(t.Destination!=='ryouhapPYV5KNHmFUKrjNqsjxhnxvQiVt'||!['8000','3600'].includes(amount)||proof.meta.delivered_amount!==amount)throw Error('historical_xaman_fee_proof_failed');
+    }
+   }
+   report.reviewedHistoricalSetupTransactions=reviewedHistory.map(([hash])=>hash);
+  }
+  if(!reviewedAlert&&!activationRollback&&!historicalAlert)throw Error('unexpected_treasury_pause_requires_review');
   const r=(await c.request({command:'tx',transaction:knownDeposit,binary:false})).result,t=r.tx_json||r;
   const issues=[t.Asset,t.Asset2];
   if(r.validated!==true||r.meta?.TransactionResult!=='tesSUCCESS'||t.Account!==treasury||t.TransactionType!=='AMMDeposit'||!issues.some(a=>a.currency==='IMG'&&a.issuer===C.IMG_ISSUER)||!issues.some(a=>a.currency==='PLX'&&a.issuer===C.PLX_ISSUER)||!balanceDelta(r,treasury,pools[0].lp).gt(0))throw Error('known_manual_deposit_proof_failed');

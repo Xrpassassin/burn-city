@@ -24,3 +24,4 @@ jobs:
       - name: Preflight, catch up accounting, activate, and observe sustained health
         run: node scripts/estate-live-operations.mjs
 # Rate-limited read-only preflight requests wait for the provider retry window.
+# Exact validated historical XPMarket/Xaman hashes reviewed before accounting bootstrap.

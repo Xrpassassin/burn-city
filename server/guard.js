@@ -9,8 +9,24 @@ const log = (kind, o) => { console.log(`[OUTGOING-TX] ${kind} ${JSON.stringify(o
 async function spendable(client, acct) {
   const [ai, ss] = await Promise.all([client.request({ command: 'account_info', account: acct, ledger_index: 'validated' }), client.request({ command: 'server_state' })]);
   const v = ss.result.state.validated_ledger, base = +v.reserve_base, inc = +v.reserve_inc, d = ai.result.account_data;
-  return +d.Balance - base - inc * (+d.OwnerCount || 0) - G.MARGIN;
+  const reserved=capitalReserveReader(acct);
+  if(typeof reserved!=='string'||!/^\d+$/.test(reserved)||BigInt(reserved)>BigInt(Number.MAX_SAFE_INTEGER))throw Error('invalid_estate_capital_reserve');
+  return +d.Balance - base - inc * (+d.OwnerCount || 0) - G.MARGIN - Number(reserved);
 }
+// Standalone guarded jobs share this protection even without server.js startup.
+function readPersistedEstateCapital(acct){
+ const C=require('./config');if(acct!==C.ESTATE_TREASURY)return '0';
+ const fs=require('node:fs'),path=require('node:path'),file=path.join(C.DATA_DIR,'shop.db');
+ if(!fs.existsSync(file))return '0';
+ const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(file,{readOnly:true});
+ try{
+  db.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=1000');
+  if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_capital_allocations'").get())return '0';
+  return require('./estate-liquidity-runtime').estateGuardReserve(db);
+ }finally{db.close();}
+}
+let capitalReserveReader=readPersistedEstateCapital;
+function setEstateCapitalReserveReader(reader){if(typeof reader!=='function')throw Error('capital_reserve_reader_required');capitalReserveReader=reader;}
 const dayKey = () => new Date().toISOString().slice(0, 10);
 function dayUsed() { const d = S.load('payout_daily.json', {}); return d[dayKey()] || 0; }
 function addrUsed(a) { return (S.load('payout_addr_daily.json', {})[dayKey()] || {})[a] || 0; }
@@ -25,4 +41,4 @@ async function check(client, acct, drops, { prize = false, payees = [] } = {}) {
   if (G.BUDGET) sp = Math.min(sp, G.BUDGET - (S.load('payout_total.json', { drops: 0 }).drops)); if (drops > sp) return `would_break_reserve (spendable ${Math.max(0, sp)} drops)`;
   return null;
 }
-module.exports = { G, paused, log, bookAddr, check, book, dayUsed, spendable, addrUsedPub: addrUsed };
+module.exports = { setEstateCapitalReserveReader, G, paused, log, bookAddr, check, book, dayUsed, spendable, addrUsedPub: addrUsed };

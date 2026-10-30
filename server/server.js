@@ -18,6 +18,7 @@ const estateReviewQueue = createEstateLatePaymentReviewQueue(Pay.sdb);
 const estateReviewAdminAccounts = parseEstateReviewAdminAccounts(process.env.ESTATE_REVIEW_ADMIN_ACCOUNTS || '');
 const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: [...estateReviewAdminAccounts] });
 const estateSales = createEstateSalesRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
+require('./guard').setEstateCapitalReserveReader(account=>account===C.ESTATE_TREASURY?estateSales.reservedCapitalDrops():'0');
 const estateHourly = require('./estate-hourly-service').createEstateHourlyService({db:Pay.sdb,pay:Pay,config:C,guard:require('./guard')});
 const estatePrestige = require('./estate-prestige-runtime').createEstatePrestigeRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const EstateAccess = require('./estate-access');
@@ -180,7 +181,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/estates' || url.pathname.startsWith('/api/estates/')) {   // Estates (server/estates.js): bearer auth first; sales/distributions stay disabled
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
-      if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, ({...Estates.getState(u.acct),...estateSales.status(),...estateHourly.status(u.acct)}));
+      if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, ({...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct)}));
       if (url.pathname === '/api/estates/upgrade/quote' && req.method === 'GET') {const result=estatePrestige.quote({propertyId:String(url.searchParams.get('propertyId')||''),buyer:u.acct});return json(res,result.ok?200:400,result);}
       if (url.pathname === '/api/estates/upgrade/start' && req.method === 'POST') {
         if(gate('estate-upgrade-start:'+u.acct,5,600000))return json(res,429,{error:'slow_down'});

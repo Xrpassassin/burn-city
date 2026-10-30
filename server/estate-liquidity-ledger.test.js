@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {value,token,verifiedTokenCredit,boundedTokenDebit,verifiedLpBurn,balanceDelta,inspectPool}=require('./estate-liquidity-ledger');
+const acct='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',issuer='rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',asset={currency:'IMG',issuer};
+const metadata=(before,after,high=false)=>({validated:true,meta:{TransactionResult:'tesSUCCESS',AffectedNodes:[{ModifiedNode:{LedgerEntryType:'RippleState',FinalFields:{LowLimit:{issuer:high?issuer:acct},HighLimit:{issuer:high?acct:issuer},Balance:{currency:'IMG',value:after}},PreviousFields:{Balance:{currency:'IMG',value:before}}}}]}});
+const rounded=metadata('1000.123456789012','1000.223456789012');
+assert.equal(verifiedTokenCredit(rounded,acct,asset,'0.1000000000000123').toFixed(),'0.1');
+assert.throws(()=>verifiedTokenCredit(rounded,acct,asset,'1'),/proof_mismatch/);
+assert.throws(()=>verifiedTokenCredit(metadata('1000000000000000','1000000000000001'),acct,asset,'1'),/proof_mismatch/,'insufficient balance precision cannot be accepted');
+const debit=metadata('1000.223456789012','1000.123456789012');assert.equal(boundedTokenDebit(debit,acct,asset,'0.0999999999999999').toFixed(),'0.0999999999999999');
+assert.throws(()=>boundedTokenDebit(debit,acct,asset,'0.09'),/exceeds_bound/);
+assert.equal(balanceDelta(metadata('-1000','-1001',true),acct,asset).toFixed(),'1');
+assert.throws(()=>verifiedLpBurn(metadata('100','99'),acct,asset,'2'),/proof_mismatch/);
+assert.throws(()=>balanceDelta({...rounded,validated:false},acct,asset),/validated_metadata_required/);
+assert.throws(()=>balanceDelta({...rounded,meta:{...rounded.meta,AffectedNodes:[]}},acct,asset),/unique_asset_delta_required/);
+assert.equal(value(token('1234567890.123456789')).precision(),16);
+assert.throws(()=>inspectPool({validated:false},{asset:{currency:'XRP'},other:asset}),/validated_pool_identity_required/);
+console.log('Ledger proof arithmetic: STAmount rounding bounds, no over-credit, bounded debits, high-side balances, missing/unvalidated proof and token precision passed');

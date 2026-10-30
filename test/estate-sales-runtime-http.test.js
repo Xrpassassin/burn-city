@@ -1,7 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const data=fs.mkdtempSync(path.join(os.tmpdir(),'estate-live-http-'));
-Object.assign(process.env,{DATA_DIR:data,PORT:'0',DRY_RUN:'false',ESTATE_SALES_ENABLED:'1',XRPL_NETWORK:'mainnet',XAMAN_API_KEY:'test-key',XAMAN_API_SECRET:'test-secret',BURN_JOB_IN_SERVER:'false',XRPL_WSS:'ws://127.0.0.1:1'});
+Object.assign(process.env,{DATA_DIR:data,PORT:'0',DRY_RUN:'false',ESTATE_SALES_ENABLED:'1',ESTATE_TREASURY_ADDRESS:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',XRPL_NETWORK:'mainnet',XAMAN_API_KEY:'test-key',XAMAN_API_SECRET:'test-secret',BURN_JOB_IN_SERVER:'false',XRPL_WSS:'ws://127.0.0.1:1'});
 const Pay=require('../server/payments');let tx,signed=false,validated=false;
 const buyer='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',hash='A'.repeat(64);
 Pay._sdk=()=>({payload:{create:async p=>{tx=p.txjson;return {uuid:'http-test',refs:{qr_png:'https://example.com/qr'},next:{always:'https://example.com/sign'}};},get:async()=>({meta:{signed},response:{account:buyer,txid:hash}})}});
@@ -21,7 +21,18 @@ const {server}=require('../server/server');
  assert.equal((await call('/purchase/reserve',{propertyId:'trailer-02'})).code,409);
  validated=true;assert.equal((await call('/purchase/payment/confirm',input)).data.ownershipAssigned,true);
  assert.equal((await call('/purchase/payment/confirm',input)).data.status,'already_settled');
- assert.equal((await call('')).data.owned.length,1);
+ const settledState=(await call('')).data;
+ assert.equal(settledState.owned.length,1);
+ assert.equal(settledState.capitalAllocations.length,1);
+ assert.equal(settledState.capitalAllocations[0].img_plx_drops,'2100000');
+ assert.equal(settledState.capitalAllocations[0].img_xrp_drops,'900000');
+ assert.equal(settledState.capitalAllocations[0].state,'awaiting_liquidity_execution');
+ assert.equal(settledState.rewardsGuaranteed,false);
+ assert.equal(settledState.imgXrpProfitDistributionsEnabled,false);
+ const otherToken=Pay.sign({acct:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',exp:Date.now()+60000});
+ const privateState=await (await fetch(url+'/api/estates',{headers:{authorization:'Bearer '+otherToken}})).json();
+ assert.equal(privateState.capitalAllocations.length,0);
+
  assert.equal((await call('/payout-preference',{currency:'IMG'})).code,200);
  console.log('Enabled Estates HTTP purchase, pause, pending validation and settled ownership passed');
  server.close();fs.rmSync(data,{recursive:true,force:true});process.exit(0);

@@ -17,7 +17,7 @@ function openDb(){if(!db){db=new DatabaseSync(path.join(root,'shop.db'),{readOnl
 function exists(name){return !!openDb().prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);}
 function count(name,where=''){return exists(name)?openDb().prepare('SELECT COUNT(*) n FROM '+name+where).get().n:0;}
 function pauseState(){const file=path.join(root,'pause.json');return fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):{paused:false};}
-async function rpc(){if(!client){client=new xrpl.Client(C.XRPL_WSS,{connectionTimeout:8000,timeout:8000});await client.connect();}return client;}
+async function rpc(){if(!client){client=new xrpl.Client(C.XRPL_WSS,{connectionTimeout:8000,timeout:8000});await client.connect();const request=client.request.bind(client);client.request=async payload=>{for(let attempt=0;;attempt++){try{return await request(payload);}catch(e){const delay=/rate limit: units quota .*retry in ~(\d+)ms/.exec(e.message||'');if(!delay||attempt>=2||Number(delay[1])>30000)throw e;await new Promise(resolve=>setTimeout(resolve,Number(delay[1])+350));}}};}return client;}
 async function status(){
  const version=await (await fetch('http://127.0.0.1:'+C.PORT+'/api/deploy-version',{signal:AbortSignal.timeout(5000)})).json();
  if(version.commit!==expected||version.source!=='github-volume')throw Error('active_server_commit_mismatch');

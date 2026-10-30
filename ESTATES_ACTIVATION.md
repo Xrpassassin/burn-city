@@ -120,7 +120,8 @@ insufficient reserves/funding, expired quotes and treasury pause block new signa
    ```
 
    All execution also requires mainnet, `DRY_RUN=false`, matching treasury signer
-   and relevant prerequisites. Xaman approval remains necessary for each purchase.
+   and relevant prerequisites. Xaman approval remains necessary for each purchase. Use a purchasing wallet
+   different from the treasury: direct XRP payments to the same account are invalid.
 
 5. Verify the first owner's actual purchase, both funding deposits, hourly receipt
    allocation and payout hashes against validated mainnet transactions. Testnet

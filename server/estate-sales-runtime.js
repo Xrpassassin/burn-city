@@ -24,8 +24,9 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
   capitalAllocationPolicy:POLICY,rewardsGuaranteed:false,imgXrpProfitDistributionsEnabled:false,
   distributionSchedule:'hourly',payoutCurrencies:['IMG','XRP'],currency:'XRP',treasury:config.ESTATE_TREASURY});
  const blocked=()=>!configured?{ok:false,error:'estate_sales_disabled'}:paused()?{ok:false,error:'estate_treasury_paused'}:null;
- function reserve(input){return blocked()||reservations.create(input);}
- async function start(input){return blocked()||payments.start(input);}
+ const buyerBlock=input=>input?.buyer===config.ESTATE_TREASURY?{ok:false,error:'estate_treasury_cannot_purchase'}:null;
+ function reserve(input){return blocked()||buyerBlock(input)||reservations.create(input);}
+ async function start(input){return blocked()||buyerBlock(input)||payments.start(input);}
  async function finalize(input){
   if(!configured)return {ok:false,error:'estate_sales_disabled'};
   // A pause blocks new money requests, but never prevents reconciliation of an
@@ -37,6 +38,6 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
  }
  return {status,reserve,start,finalize,capitalState:capital.state,reservedCapitalDrops:capital.reservedDrops,inspectLate:late.inspect,
   recover:input=>({...recovery.get(input),salesEnabled:status().salesEnabled}),
-  quote:input=>({...estatePurchaseQuote(db,input),...status()})};
+  quote:input=>buyerBlock(input)||({...estatePurchaseQuote(db,input),...status()})};
 }
 module.exports={createEstateSalesRuntime};

@@ -1,7 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const data=fs.mkdtempSync(path.join(os.tmpdir(),'estate-live-http-'));
-Object.assign(process.env,{DATA_DIR:data,PORT:'0',DRY_RUN:'false',ESTATE_SALES_ENABLED:'1',XRPL_NETWORK:'mainnet',XAMAN_API_KEY:'test-key',XAMAN_API_SECRET:'test-secret',BURN_JOB_IN_SERVER:'false',XRPL_WSS:'ws://127.0.0.1:1'});
+Object.assign(process.env,{DATA_DIR:data,PORT:'0',DRY_RUN:'false',ESTATE_SALES_ENABLED:'1',ESTATE_TREASURY_ADDRESS:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',XRPL_NETWORK:'mainnet',XAMAN_API_KEY:'test-key',XAMAN_API_SECRET:'test-secret',BURN_JOB_IN_SERVER:'false',XRPL_WSS:'ws://127.0.0.1:1'});
 const Pay=require('../server/payments');let tx,signed=false,validated=false;
 const buyer='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',hash='A'.repeat(64);
 Pay._sdk=()=>({payload:{create:async p=>{tx=p.txjson;return {uuid:'http-test',refs:{qr_png:'https://example.com/qr'},next:{always:'https://example.com/sign'}};},get:async()=>({meta:{signed},response:{account:buyer,txid:hash}})}});

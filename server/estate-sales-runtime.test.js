@@ -18,11 +18,14 @@ const config={DRY_RUN:false,NETWORK:'mainnet',XUMM_KEY:'test-key',XUMM_SECRET:'t
  const sdk={payload:{create:async p=>{createdTx=p.txjson;return {uuid:'test-uuid',refs:{qr_png:'https://example.com/qr'},next:{always:'https://example.com/sign'}};},get:async()=>({meta:{signed},response:{account:buyer,txid:hash}})}};
  const pay={sdk:()=>sdk,ledger:async()=>({request:async q=>{requestCount++;assert.equal(q.transaction,hash);return {result:{hash,validated,ledger_index:123,date:Math.floor(now/1000)-946684800+5,tx_json:{...createdTx},meta:{TransactionResult:'tesSUCCESS',delivered_amount:'3000000'}}};}})};
  const build=()=>createEstateSalesRuntime({db,pay,config,env:{ESTATE_SALES_ENABLED:'1'},paused:()=>paused});
- let r=build();assert.equal(r.status().salesEnabled,true);assert.equal(r.status().distributionsEnabled,false);
+ let r=build();assert.equal(r.status().salesEnabled,true);
+ assert.equal(r.reserve({buyer:treasury,propertyId:'trailer-01',now}).error,'estate_treasury_cannot_purchase');
+ assert.equal(r.quote({buyer:treasury,propertyId:'trailer-01',now}).error,'estate_treasury_cannot_purchase');
+ assert.equal((await r.start({buyer:treasury})).error,'estate_treasury_cannot_purchase');assert.equal(r.status().distributionsEnabled,false);
  const quote=r.quote({buyer,propertyId:'trailer-01'});assert.equal(quote.priceDrops,3000000);assert.equal(quote.salesEnabled,true);
  const reservation=r.reserve({buyer,propertyId:'trailer-01',now});assert.equal(reservation.ok,true);
  const input={buyer,reservationId:reservation.reservationId,now:now+10000};
- assert.equal((await r.start({...input,buyer:treasury})).error,'reservation_not_found');
+ assert.equal((await r.start({...input,buyer:'rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q'})).error,'reservation_not_found');
  const payment=await r.start(input);assert.equal(payment.ok,true);assert.equal(createdTx.Amount,'3000000');assert.equal(createdTx.Account,buyer);assert.equal(createdTx.Destination,treasury);
  assert.equal((await r.finalize(input)).error,'payment_not_signed_or_submitted');
  signed=true;assert.equal((await r.finalize(input)).pending,true);assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_property_ownership').get().n,0);

@@ -22,7 +22,7 @@ async function status(){
  const version=await (await fetch('http://127.0.0.1:'+C.PORT+'/api/deploy-version',{signal:AbortSignal.timeout(5000)})).json();
  if(version.commit!==expected||version.source!=='github-volume')throw Error('active_server_commit_mismatch');
  const pause=pauseState();
- const report={mode,commit:expected,mainnet:C.NETWORK==='mainnet',dryRun:C.DRY_RUN,
+ const report={mode,commit:expected,pauseDetails:{reason:pause.reason||null,priorReason:pause.prior_reason??null,unknown:(pause.unknown||[]).map(x=>({hash:x.hash,type:x.type,to:x.to}))},mainnet:C.NETWORK==='mainnet',dryRun:C.DRY_RUN,
   sales:process.env.ESTATE_SALES_ENABLED==='1',accounting:process.env.ESTATE_ACCOUNTING_ENABLED==='1',
   liquidity:process.env.ESTATE_LIQUIDITY_ENABLED==='1',harvest:process.env.ESTATE_XRP_PROFIT_HARVEST_ENABLED==='1',distributions:process.env.ESTATE_DISTRIBUTIONS_ENABLED==='1',
   paused:pause.paused===true||process.env.PAYOUTS_PAUSED==='true',signerMatches:!!C.TREASURY_SEED&&xrpl.Wallet.fromSeed(C.TREASURY_SEED).classicAddress===treasury,

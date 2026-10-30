@@ -13,7 +13,22 @@ async function spendable(client, acct) {
   if(typeof reserved!=='string'||!/^\d+$/.test(reserved)||BigInt(reserved)>BigInt(Number.MAX_SAFE_INTEGER))throw Error('invalid_estate_capital_reserve');
   return +d.Balance - base - inc * (+d.OwnerCount || 0) - G.MARGIN - Number(reserved);
 }
-let capitalReserveReader=()=> '0';
+// Standalone guarded jobs share this protection even without server.js startup.
+function readPersistedEstateCapital(acct){
+ const C=require('./config');if(acct!==C.ESTATE_TREASURY)return '0';
+ const fs=require('node:fs'),path=require('node:path'),file=path.join(C.DATA_DIR,'shop.db');
+ if(!fs.existsSync(file))return '0';
+ const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(file,{readOnly:true});
+ try{
+  db.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=1000');
+  if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_capital_allocations'").get())return '0';
+  return db.prepare('SELECT purchase_drops FROM estate_capital_allocations').all().reduce((sum,r)=>{
+   if(typeof r.purchase_drops!=='string'||!/^\d+$/.test(r.purchase_drops))throw Error('invalid_estate_capital_reserve');
+   return sum+BigInt(r.purchase_drops);
+  },0n).toString();
+ }finally{db.close();}
+}
+let capitalReserveReader=readPersistedEstateCapital;
 function setEstateCapitalReserveReader(reader){if(typeof reader!=='function')throw Error('capital_reserve_reader_required');capitalReserveReader=reader;}
 const dayKey = () => new Date().toISOString().slice(0, 10);
 function dayUsed() { const d = S.load('payout_daily.json', {}); return d[dayKey()] || 0; }

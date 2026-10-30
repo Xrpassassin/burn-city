@@ -1,4 +1,4 @@
-name: Estates account-scoped scanner read-only probe
+name: Estates paused scanner quota measurement
 on:
   push:
     branches: [ops/estates-live-activation-442]
@@ -20,6 +20,12 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
+          const endpoint='https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068',headers={Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'};
+          const state=await fetch(endpoint,{headers});if(!state.ok)throw Error('machine_read_failed');const m=await state.json();
+          const config={...m.config,env:{...m.config.env,ESTATE_ACCOUNTING_ENABLED:'0',ESTATE_SALES_ENABLED:'0',ESTATE_DISTRIBUTIONS_ENABLED:'0',ESTATE_LIQUIDITY_ENABLED:'0',ESTATE_XRP_PROFIT_HARVEST_ENABLED:'0'}};
+          const updated=await fetch(endpoint,{method:'POST',headers,body:JSON.stringify({current_version:m.instance_id,config})});if(!updated.ok)throw Error('disable_gates_http_'+updated.status);
+          console.log('Disabled Estates gates for the paused scanner investigation.');
+          await new Promise(r=>setTimeout(r,45000));
           const source=fs.readFileSync('scripts/estate-scanner-probe.cjs','utf8');
           for(const mode of ['probe']){
             const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',source,mode,'640d0f6045adeba27a9ce7c47f3b0726fbda0bb2'],timeout:55}),signal:AbortSignal.timeout(60000)});

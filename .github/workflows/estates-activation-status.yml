@@ -1,4 +1,4 @@
-name: Estates historical treasury transaction proof
+name: Estates steady-state scanner errors
 on:
   push:
     branches: [ops/estates-live-activation-443]
@@ -14,16 +14,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Inspect only Estates scanner errors
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          flyctl logs --app burn-city-game --no-tail --json | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{for(const line of s.split("\n")){if(line.includes("[estates-hourly]"))console.log(line.slice(0,600));}});'
       - name: Read deployed status and exact funding requirement
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
-          const source=fs.readFileSync('scripts/estate-watchdog-proof.cjs','utf8');
+          const source=fs.readFileSync('scripts/estate-live-ops.cjs','utf8');
           for(const mode of ['status']){
             const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',source,mode,'3d6184e611471e3f7123f6219c06c14735eba5d9'],timeout:55}),signal:AbortSignal.timeout(60000)});
             if(!r.ok)throw Error('readonly_status_http_'+r.status);
-            const result=await r.json();for(const line of result.stdout.trim().split('\n'))console.log(JSON.stringify(JSON.parse(line)));if(result.exit_code!==0)throw Error('readonly_proof_failed');
+            const result=await r.json();console.log(JSON.stringify(JSON.parse(result.stdout.trim())));
           }
           NODE

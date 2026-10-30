@@ -63,6 +63,8 @@ function createEstatePayoutExecutor({db,client,wallet,treasury,imgIssuer,guard,e
    if(!enabled||reconcileOnly)return {skipped:'disabled'};
    if(guard.paused())return {blocked:'payouts_paused'};
    if(db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state='preparing'").get())return {blocked:'interrupted_preparation_review_required'};
+   const hasShared=db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_treasury_transactions'").get();
+   if(hasShared&&db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state IN ('preparing','submitted','validated','held')").get())return {blocked:'other_estates_transaction_pending'};
    const w=wallet();if(!w||w.classicAddress!==treasury)return {blocked:'treasury_signer_mismatch'};
    const rows=db.prepare("SELECT * FROM estate_hourly_payouts WHERE state='queued' ORDER BY checked_at_ms,epoch_start_ms,owner LIMIT 50").all();
    for(const queued of rows){
@@ -98,7 +100,8 @@ function createEstatePayoutExecutor({db,client,wallet,treasury,imgIssuer,guard,e
      if(!/^\d+$/.test(tx.Fee||'')||Number(tx.Fee)>maxFeeDrops||!Number.isSafeInteger(tx.Sequence)||tx.Sequence<1||!Number.isSafeInteger(tx.LastLedgerSequence)||tx.LastLedgerSequence<=Number(head.ledger_index??head.ledger?.ledger_index)||tx.LastLedgerSequence>Number(head.ledger_index??head.ledger?.ledger_index)+30)throw Error('unsafe_transaction_envelope');
      const bad=await guard.check(client,treasury,Number(tx.Fee));if(bad)throw Error(bad);
      if(guard.paused())throw Error('payouts_paused');
-     if(db.prepare("UPDATE estate_hourly_payouts SET state='preparing' WHERE id=? AND state='queued' AND NOT EXISTS(SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted'))").run(row.id).changes!==1)throw Error('payout_claim_conflict');
+     const sharedLock=hasShared?" AND NOT EXISTS(SELECT 1 FROM estate_treasury_transactions WHERE state IN ('preparing','submitted','validated','held'))":'';
+     if(db.prepare("UPDATE estate_hourly_payouts SET state='preparing' WHERE id=? AND state='queued' AND NOT EXISTS(SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted'))"+sharedLock).run(row.id).changes!==1)throw Error('payout_claim_conflict');
      const signed=w.sign(tx);
      const xrpl=require('xrpl'),decoded=xrpl.decode(signed.tx_blob);
      if(xrpl.hashes.hashSignedTx(signed.tx_blob)!==signed.hash||!xrpl.verifySignature(signed.tx_blob)||decoded.Account!==treasury||decoded.Destination!==row.owner||!sameJsonAmount(decoded.Amount,tx.Amount))throw Error('signed_payment_mismatch');

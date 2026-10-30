@@ -22,10 +22,7 @@ function readPersistedEstateCapital(acct){
  try{
   db.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=1000');
   if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_capital_allocations'").get())return '0';
-  return db.prepare('SELECT purchase_drops FROM estate_capital_allocations').all().reduce((sum,r)=>{
-   if(typeof r.purchase_drops!=='string'||!/^\d+$/.test(r.purchase_drops))throw Error('invalid_estate_capital_reserve');
-   return sum+BigInt(r.purchase_drops);
-  },0n).toString();
+  return require('./estate-liquidity-runtime').estateGuardReserve(db);
  }finally{db.close();}
 }
 let capitalReserveReader=readPersistedEstateCapital;

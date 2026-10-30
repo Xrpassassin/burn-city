@@ -16,7 +16,9 @@ async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=D
  if(typeof body?.hash==='string'&&typeof tx?.hash==='string'&&body.hash.toUpperCase()!==tx.hash.toUpperCase())throw new Error('payment_hash_mismatch');
  if(typeof returnedHash!=='string'||!/^[a-fA-F0-9]{64}$/.test(returnedHash)||returnedHash.toUpperCase()!==txHash.toUpperCase())throw new Error('payment_hash_mismatch');
  if(body.Account!==reservation.buyer||body.Destination!==treasury)throw new Error('payment_sender_or_destination_mismatch');
- if(typeof body.Amount!=='string'||!/^[0-9]+$/.test(body.Amount)||BigInt(body.Amount)!==BigInt(reservation.price_drops))throw new Error('payment_amount_mismatch');
+ const paymentAmount=body.Amount??body.DeliverMax;
+ if(body.Amount!==undefined&&body.DeliverMax!==undefined&&body.Amount!==body.DeliverMax)throw new Error('payment_amount_mismatch');
+ if(typeof paymentAmount!=='string'||!/^[0-9]+$/.test(paymentAmount)||BigInt(paymentAmount)!==BigInt(reservation.price_drops))throw new Error('payment_amount_mismatch');
  const delivered=meta?.delivered_amount;
  if(typeof delivered!=='string'||!/^[0-9]+$/.test(delivered)||BigInt(delivered)!==BigInt(reservation.price_drops))throw new Error('payment_delivered_amount_mismatch');
  const expectedType=Buffer.from(memoType).toString('hex').toUpperCase();
@@ -24,7 +26,8 @@ async function verifyEstateSalePayment(client,reservation,{txHash,treasury,now=D
  if(!Array.isArray(body.Memos)||body.Memos.length!==1||body.Memos[0]?.Memo?.MemoType?.toUpperCase()!==expectedType||body.Memos[0]?.Memo?.MemoData?.toUpperCase()!==expectedMemo)throw new Error('payment_reservation_memo_mismatch');
  if(body.Flags!==undefined&&(!Number.isSafeInteger(body.Flags)||body.Flags<0||(body.Flags & 0x00020000)!==0))throw new Error('partial_payment_not_allowed');
  if(body.DestinationTag!==undefined||body.InvoiceID!==undefined)throw new Error('unexpected_payment_routing');
- const closeDate=body.date??tx.date;
+ let closeDate=body.date??tx.date;
+ if(typeof tx.close_time_iso==='string'){const ms=Date.parse(tx.close_time_iso);if(!Number.isSafeInteger(ms)||ms%1000!==0)throw new Error('payment_timestamp_unavailable');const isoDate=ms/1000-946684800;if(closeDate!==undefined&&closeDate!==isoDate)throw new Error('payment_timestamp_conflict');closeDate=isoDate;}
  if(typeof closeDate!=='number'||!Number.isSafeInteger(closeDate))throw new Error('payment_timestamp_unavailable');
  if(body.date!==undefined&&tx.date!==undefined&&body.date!==tx.date)throw new Error('payment_timestamp_conflict');
  // XRPL date is seconds since 2000-01-01; reserve against pre-existing transactions.

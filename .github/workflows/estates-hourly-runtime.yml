@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'server/estate-hourly-*.js'
+      - 'server/estate-liquidity-*.js'
+      - 'server/estate-treasury-transactions*.js'
+      - 'scripts/estate-liquidity-testnet.cjs'
       - 'server/estate-capital-*.js'
       - 'server/estate-sale-settlement*.js'
       - 'server/estate-sales-runtime*.js'
@@ -29,6 +32,7 @@ jobs:
       - run: |
           node --check server/server.js
           node --check scripts/estate-bootstrap.cjs
+          node server/estate-liquidity-runtime.test.js
           node server/estate-capital-allocation.test.js
           node server/estate-capital-reserve.test.js
           node server/estate-hourly-runtime.test.js
@@ -36,3 +40,14 @@ jobs:
           for test in server/estate-img-*.test.js; do node "$test" || exit 1; done
           node test/estate-sales-runtime-http.test.js
           node server/estate-sale-production-gates.test.js
+  testnet:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - name: Public testnet funding and realized XRP payout proof
+        run: node scripts/estate-liquidity-testnet.cjs

@@ -29,7 +29,7 @@ function createEstateCapitalAllocation(db){
   return get.get(hash);
  }
  function reservedDrops(){
-  return db.prepare('SELECT purchase_drops FROM estate_capital_allocations').all().reduce((n,r)=>n+BigInt(r.purchase_drops),0n).toString();
+  return require('./estate-liquidity-runtime').estateGuardReserve(db);
  }
  function state(buyer){return {capitalAllocationPolicy:POLICY,capitalAllocations:buyer?db.prepare('SELECT property_id,purchase_drops,img_plx_drops,img_xrp_drops,state FROM estate_capital_allocations WHERE buyer=? ORDER BY property_id').all(buyer):[]};}
  return {record,reservedDrops,state};

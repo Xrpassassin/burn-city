@@ -1,0 +1,25 @@
+name: Estates verified live activation
+on:
+  push:
+    branches: [ops/estates-live-activation-443]
+    paths: ['.github/workflows/estates-live-activation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  activate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+      ESTATE_EXPECTED_COMMIT: '3d6184e611471e3f7123f6219c06c14735eba5d9'
+      CONFIRM_ESTATES_ACTIVATION: '70-30-realized-earnings-only'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify activation orchestration
+        run: node scripts/estate-live-operations.test.cjs
+      - name: Preflight, catch up accounting, activate, and observe sustained health
+        run: node scripts/estate-live-operations.mjs

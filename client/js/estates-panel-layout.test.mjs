@@ -17,3 +17,11 @@ assert.equal(propertyDirectoryEntry({id:'a',propertyId:'p1',address:'1 Bay Lane'
 assert.equal(propertyDirectoryEntry({id:'b'}).assigned,false);
 assert.throws(()=>planEstatesPanel({width:NaN,height:500}),TypeError);
 console.log('Estates panel layout tests passed');
+
+const phone=planEstatesPanel({width:390,height:844,blocked:[
+ {x:100,y:116,width:190,height:44},{x:220,y:72,width:158,height:44},
+ {x:24,y:514,width:124,height:124},{x:258,y:530,width:116,height:194}
+]});
+assert.ok(phone.panel,'directory fits between actual phone controls');
+for(const b of [{x:100,y:116,width:190,height:44},{x:24,y:514,width:124,height:124},{x:258,y:530,width:116,height:194}])
+ assert.equal(overlapsRect(phone.panel,b,8),false);

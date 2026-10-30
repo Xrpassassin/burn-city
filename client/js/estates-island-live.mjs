@@ -140,23 +140,12 @@ export async function installEstatesIslandLive({
   exitButton.setAttribute('aria-label','Return to BURN City');
   exitButton.style.cssText='display:none;position:fixed;left:50%;top:calc(116px + env(safe-area-inset-top));transform:translateX(-50%);z-index:90;min-height:44px;padding:8px 14px;border:1px solid #ffb45b;border-radius:9px;background:#17151af0;color:#ffe4bd;font:700 13px system-ui;cursor:pointer';
   document.body.appendChild(exitButton);exitButton.addEventListener('click',()=>leaveIsland());
-  const showPanel = (heading, message, actions, muted='') => {
-    restoreAppearance();
-    panel.replaceChildren();
-    const h = document.createElement('h3'); h.textContent = heading; panel.appendChild(h);
-    const p = document.createElement('p'); p.textContent = message; panel.appendChild(p);
-    if (muted) { const small=document.createElement('p'); small.className='muted'; small.textContent=muted; panel.appendChild(small); }
-    const row = document.createElement('div'); row.className='actions';
-    for (const action of actions) {
-      const b=document.createElement('button'); b.textContent=action.label;
-      if(action.primary)b.className='primary';
-      b.addEventListener('click',action.run); row.appendChild(b);
-    }
-    panel.appendChild(row);
+  let directoryOpen=false;
+  const positionPanel = () => {
     const reserved=[];
     // Reserve visible movement, interaction, and wallet controls where detectable.
     for(const selector of ['#bcEstatesExit','#bcEstatesWalkingGuidance','#bcEstatePropertyHint',
-      '#bcEstatesDirectoryButton','#joystick','#mobileJoystick','.nipple','.nipple-container',
+      '#bcEstatesDirectoryButton','#joy','#tbtns','#gearBar','#joystick','#mobileJoystick','.nipple','.nipple-container',
       '[data-mobile-controls]','[data-wallet-modal]','[role="dialog"][aria-modal="true"]']) {
       for(const element of document.querySelectorAll(selector)){
         if(element===panel||panel.contains(element)||element.style.display==='none')continue;
@@ -179,9 +168,23 @@ export async function installEstatesIslandLive({
       panel.style.display='block';
     } else panel.style.display='none';
   };
-  const hidePanel = () => { restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
+  const showPanel = (heading, message, actions, muted='') => {
+    restoreAppearance();
+    panel.replaceChildren();
+    const h = document.createElement('h3'); h.textContent = heading; panel.appendChild(h);
+    const p = document.createElement('p'); p.textContent = message; panel.appendChild(p);
+    if (muted) { const small=document.createElement('p'); small.className='muted'; small.textContent=muted; panel.appendChild(small); }
+    const row = document.createElement('div'); row.className='actions';
+    for (const action of actions) {
+      const b=document.createElement('button'); b.textContent=action.label;
+      if(action.primary)b.className='primary';
+      b.addEventListener('click',action.run); row.appendChild(b);
+    }
+    panel.appendChild(row);
+    positionPanel();
+  };
+  const hidePanel = () => { directoryOpen=false; restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
   // A single shared panel hosts the directory and inspection; no stacked overlays.
-  let directoryOpen=false;
   const directoryButton=document.createElement('button');
   directoryButton.type='button';
   directoryButton.id='bcEstatesDirectoryButton';
@@ -238,7 +241,7 @@ export async function installEstatesIslandLive({
     const home=catalog.properties.find(p=>p.id===property.propertyId),tier=catalog.tiers.find(t=>t.id===home?.tier);
     showPanel(property.address,
       tier?tier.label+' · '+tier.price+' XRP · '+tier.shareUnits+' reward share units. Explore the finishes and see how this home can grow.':'This plot is reserved for a future home.',
-      [{label:'Navigate to property',primary:true,run:()=>{const lot=manifest.lots.find(l=>l.propertyId===property.propertyId);if(lot){targetLot=lot;if(selectedLotBeacon){selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=active;}if(guidanceHud)guidanceHud.style.display='block';hidePanel();}}},{label:'Close',run:hidePanel}],
+      [{label:'Navigate to property',primary:true,run:()=>{const lot=manifest.lots.find(l=>l.id===property.lotId);if(lot){targetLot=lot;if(selectedLotBeacon){selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=active;}if(guidanceHud)guidanceHud.style.display='block';hidePanel();}}},{label:'Close',run:hidePanel}],
       'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests.');
     if(catalogued){
       let finishes;
@@ -247,6 +250,7 @@ export async function installEstatesIslandLive({
     }
   };
   const showLotPrompt = property => {
+    if(directoryOpen)return;
     const catalogued=Boolean(property.propertyId);
     if(property.confirmedInteraction){showLotInspection(property);return;}
     showPanel('ESTATES · '+property.address,
@@ -267,6 +271,7 @@ export async function installEstatesIslandLive({
       'Press E to read this landmark, or use the button.');
   };
   const updateLandmarkInteraction = (edge,propertyNearby=false) => {
+    if(directoryOpen)return;
     if(propertyNearby) { lastLandmarkId=null; return; }
     const x=player.pos.x-OFFSET_X,z=player.pos.z;
     let nearest=null,nearestDistance=Infinity;
@@ -275,7 +280,7 @@ export async function installEstatesIslandLive({
       if(distance<=landmark.interactionRadius&&distance<nearestDistance) {nearest=landmark;nearestDistance=distance;}
     }
     if(!nearest) {
-      if(lastLandmarkId!==null) {lastLandmarkId=null;hidePanel();}
+      if(lastLandmarkId!==null) {lastLandmarkId=null;if(!directoryOpen)hidePanel();}
       return;
     }
     if(edge) {lastLandmarkId=nearest.id;showLandmarkDetails(nearest);return;}
@@ -304,7 +309,7 @@ export async function installEstatesIslandLive({
     cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
     cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
     onPropertyPrompt:property=>{lastProperty=property;lastLandmarkId=null;showLotPrompt(property);},
-    onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;hidePanel();},
+    onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;if(!directoryOpen)hidePanel();},
     onExitPrompt:event=>{
       if(!active)return;
       if(event.confirmedInteraction){leaveIsland();return;}
@@ -433,6 +438,7 @@ export async function installEstatesIslandLive({
     returnPosition = {x:player.pos.x,y:player.pos.y,z:player.pos.z};
     returnCamera = {position:camera.position.clone(),quaternion:camera.quaternion.clone()};
     active=true; root.visible=true; nearCityGate=false; hidePanel(); directoryButton.style.display='block';
+    if(root.userData.propertyDeepLinkHint)root.userData.propertyDeepLinkHint.style.display='none';
     exitButton.style.display='block';
     hideCityScene();
     window.__estatesCityPresencePaused=true;window.__cityNet?.setPaused(true);
@@ -453,6 +459,7 @@ export async function installEstatesIslandLive({
     if(guidanceHud)guidanceHud.style.display='none';
     if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
     exitButton.style.display='none'; directoryButton.style.display='none'; directoryOpen=false;
+    if(root.userData.propertyDeepLinkHint)root.userData.propertyDeepLinkHint.style.display='block';
     releaseLease();
     restoreCityScene();
     const destination=returnPosition??gate;
@@ -485,6 +492,7 @@ export async function installEstatesIslandLive({
     hideCityScene();animatePeers(dt);void refreshAppearance();
     if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
       lastGuidanceUpdate=Date.now();
+      if(panel.childElementCount)positionPanel();
       const pos={x:player.pos.x-OFFSET_X,z:player.pos.z};
       if(!targetLot){guidanceHud.style.display='none';} else {
       const nav=estateWalkingGuidance(pos,targetLot.position);
@@ -505,7 +513,7 @@ export async function installEstatesIslandLive({
         cameraLookAt:target=>camera.lookAt(target.x+OFFSET_X,target.y,target.z),
         cameraDistance:7,cameraHeight:2.6,lookHeight:1.25,
         onPropertyPrompt:property=>{lastProperty=property;lastLandmarkId=null;showLotPrompt(property);},
-        onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;hidePanel();},
+        onPropertyPromptClear:()=>{lastProperty=null;lastLandmarkId=null;if(!directoryOpen)hidePanel();},
         onExitPrompt:event=>{
           if(!active)return;
           if(event.confirmedInteraction){leaveIsland();return;}

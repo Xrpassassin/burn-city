@@ -23,7 +23,30 @@ export function planEstatesPanel({width,height,blocked=[],safeInset=12,preferred
     rect(width-safeInset-panelW,safeInset,panelW,panelH),
     rect(safeInset,safeInset,panelW,panelH)
   ];
-  const free=candidates.find(candidate=>blocked.every(b=>!overlapsRect(candidate,b,8)));
+  let free=candidates.find(candidate=>blocked.every(b=>!overlapsRect(candidate,b,8)));
+  // Fit a scrollable panel between controls when neither preferred corner is clear.
+  if(!free) {
+    const columns=mobile?[{x:safeInset,width:usableW}]:[
+      {x:width-safeInset-panelW,width:panelW},{x:safeInset,width:panelW}];
+    if(mobile&&width>height) {
+      const compactW=Math.min(340,usableW);
+      columns.push({x:(width-compactW)/2,width:compactW});
+    }
+    const gaps=[];
+    for(const column of columns) {
+      const obstacles=blocked.filter(b=>b.width>0&&b.height>0&&
+        b.x<column.x+column.width+8&&b.x+b.width+8>column.x)
+        .map(b=>({start:Math.max(safeInset,b.y-8),end:Math.min(height-safeInset,b.y+b.height+8)}))
+        .filter(b=>b.end>b.start).sort((a,b)=>a.start-b.start);
+      let start=safeInset;
+      for(const obstacle of [...obstacles,{start:height-safeInset,end:height-safeInset}]) {
+        const h=Math.min(panelH,obstacle.start-start);
+        if(h>=120)gaps.push(rect(column.x,start,column.width,h));
+        start=Math.max(start,obstacle.end);
+      }
+    }
+    free=gaps.sort((a,b)=>b.height-a.height)[0];
+  }
   return Object.freeze(free?{mode:mobile?'bottom-sheet':'side-panel',panel:free,reason:null}:
     {mode:'collapsed',panel:null,reason:'controls-occlude-panel'});
 }

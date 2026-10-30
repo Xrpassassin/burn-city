@@ -89,3 +89,34 @@ The authenticated property panel shows actual server activation status and payou
 history. The server never returns signing keys or stored signed blobs in these APIs.
 To stop new purchases/payments, set the two activation flags to `0`. Submitted
 transactions may still validate and are reconciled without issuing replacements.
+
+
+## Estates purchase capital policy (70/30)
+
+New settled property purchases atomically earmark 70% of the XRP principal for
+IMG/PLX and the remaining 30% for IMG/XRP. Integer-drop rounding goes to IMG/XRP;
+the two budgets always sum to the complete purchase amount. Cosmetic upgrades,
+jetpack sales and incoming reward receipts do not enter this allocation ledger.
+
+The current allocation status is `awaiting_liquidity_execution`. This records an
+obligation to invest; it is not an AMM deposit or proof of LP ownership. There is
+no automatic purchase-to-liquidity executor yet. Historical purchases are not
+silently reallocated, because they may already have been invested externally.
+Pending purchase principal is reserved from guarded treasury spending. Network
+fees and XRP account reserves require separate liquid treasury funding. External
+wallet activity cannot be prevented by these server guards.
+
+Owners receive only their own allocation status through the authenticated Estates
+state endpoint. The policy reports `automaticDepositsEnabled: false` and
+`imgXrpProfitDistributionsEnabled: false` until the missing execution and evidence
+paths are complete. Do not describe the 30% allocation as a live XRP profit stream.
+
+Rewards are variable and not guaranteed. A completed hour without eligible
+verified reward receipts creates no new reward allocation. Previously earned,
+pending entitlements may still settle in a later hour. Deposits, returned
+principal, wallet balances and unrealized LP value are not distributable earnings.
+
+IMG/XRP trading fees accrue inside the LP position. A separate XRP profit stream
+requires validated realization (withdrawal and any required conversion), complete
+position-specific principal basis, costs, and duplicate/loss reconciliation.
+The current candidate-only AMM reconciler is deliberately not a payout source.

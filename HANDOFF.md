@@ -749,3 +749,22 @@ Derrik's vision: an open-world RPG. Each player owns a **private Homefront insta
 - Watchdog known transactions include the durable Estates payout hashes. No manual AMM transaction or arbitrary address is allowlisted. Existing treasury pause is unchanged.
 - Authenticated `/api/estates/payouts` returns only the caller's public payout status/history; no blob or key. Property UI reads actual enabled status and can refresh history. SW v118.
 - `ESTATES_ACTIVATION.md` contains the operator-only bootstrap/activation steps, accounting scope, caps, dust/credit behavior, failure/recovery limitations and first-mainnet-proof requirements. No live outgoing transaction or production activation was performed during development.
+
+
+### Estates purchase principal earmarks and conditional rewards
+- Atomic 70/30 capital allocation is created in `estate-sale-settlement.js` only
+  with new ledger-verified ownership. Failure to record capital rolls settlement
+  back. The source purchase hash is unique; replay never creates another split.
+- `estate_capital_allocations` holds integer-drop budgets and
+  `awaiting_liquidity_execution` status. No AMM executor or automatic principal
+  release is implemented. Old purchases and cosmetic/jetpack payments are excluded.
+- `guard.spendable` subtracts pending Estates principal for the Estates treasury
+  through a server-registered reserve reader. Missing/invalid reserve evidence
+  prevents guarded outgoing spending. It does not constrain external wallet usage.
+- Authenticated Estates state includes only the current owner's allocation rows.
+  Status explicitly reports automatic deposits and IMG/XRP profit payouts disabled.
+- Purchase UI states variable, non-guaranteed earnings, principal exclusion and
+  zero new allocations without verified earnings. IMG->XRP settlement remains the
+  existing optional conversion; it is not a second native XRP pool profit stream.
+- Read-only Fly audit adds live activation flag booleans and a bounded public
+  Pollux receipt probe. This does not initialize the scanner, clear pauses or sign.

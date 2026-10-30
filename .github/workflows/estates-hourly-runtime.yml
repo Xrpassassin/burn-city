@@ -3,6 +3,12 @@ on:
   pull_request:
     paths:
       - 'server/estate-hourly-*.js'
+      - 'server/estate-capital-*.js'
+      - 'server/estate-sale-settlement*.js'
+      - 'server/estate-sales-runtime*.js'
+      - 'server/guard.js'
+      - 'client/js/estate-purchase-ui.mjs'
+      - 'package.json'
       - 'server/estate-payout-executor*.js'
       - 'server/estate-img-*.js'
       - 'server/server.js'
@@ -23,6 +29,8 @@ jobs:
       - run: |
           node --check server/server.js
           node --check scripts/estate-bootstrap.cjs
+          node server/estate-capital-allocation.test.js
+          node server/estate-capital-reserve.test.js
           node server/estate-hourly-runtime.test.js
           node server/estate-payout-executor.test.js
           for test in server/estate-img-*.test.js; do node "$test" || exit 1; done

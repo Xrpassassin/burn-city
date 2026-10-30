@@ -27,6 +27,7 @@ try{
   }});
   window.mount(false);
  });
+ await page.getByText('Rewards are variable and not guaranteed.',{exact:false}).waitFor();
  await page.getByText('Purchases are currently paused.',{exact:false}).waitFor();
  assert.equal(await page.getByRole('button').count(),0);
  await page.evaluate(()=>{document.querySelector('main').replaceChildren();window.mount(true);});
@@ -41,7 +42,7 @@ try{
  await page.getByText('Payout preference saved.',{exact:false}).waitFor();
  await page.getByRole('button',{name:'Refresh hourly payouts'}).click();
  await page.getByText('Payment confirmed',{exact:false}).waitFor();
- await page.getByText('Eligible verified earnings are distributed hourly.',{exact:true}).waitFor();
+ await page.getByText('Eligible verified earnings are distributed hourly. No earnings means no new rewards.',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  const calls=await page.evaluate(()=>window.calls);assert.deepEqual(calls.find(c=>c.path==='/purchase/reserve').body,{propertyId:'trailer-01'});
  assert.deepEqual(calls.filter(c=>c.path==='/payout-preference'&&c.body).at(-1).body,{currency:'XRP'});

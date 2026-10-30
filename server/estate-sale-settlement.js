@@ -1,9 +1,11 @@
 'use strict';
+const {createEstateCapitalAllocation}=require('./estate-capital-allocation');
 const {PROPERTY_BY_ID,TIER_BY_ID}=require('./estate-economy');
 // Accept ONLY the output of the trusted server-side XRPL verifier. Caller must
 // orchestrate verification; this store never trusts client-supplied payment data.
 function createEstateSaleSettlementStore(db){
  if(!db||typeof db.prepare!=='function'||typeof db.exec!=='function')throw new TypeError('sqlite_db_required');
+ const capital=createEstateCapitalAllocation(db);
  const reservation=db.prepare('SELECT * FROM estate_sale_reservations WHERE reservation_id=?');
  const owned=db.prepare('SELECT * FROM estate_property_ownership WHERE property_id=?');
  const byTx=db.prepare('SELECT * FROM estate_property_ownership WHERE purchase_tx=?');
@@ -33,6 +35,7 @@ function createEstateSaleSettlementStore(db){
    insert.run(row.property_id,row.buyer,hash,row.price_drops,tier.shareUnits,now);
    if(mark.run(hash,reservationId).changes!==1)throw new Error('reservation_settlement_conflict');
    const result=owned.get(row.property_id);
+   capital.record(result);
    db.exec('COMMIT');return result;
   }catch(e){db.exec('ROLLBACK');throw e;}
  }

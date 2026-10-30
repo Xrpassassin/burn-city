@@ -3,8 +3,8 @@ export function mountEstatePurchase(container,propertyId,{api='https://burn-city
  const section=document.createElement('section');section.style.cssText='padding:12px;border:1px solid #ffb45b66;border-radius:10px;margin-top:12px';
  const title=document.createElement('h3');title.textContent='Property purchase';
  const note=document.createElement('p');note.setAttribute('role','status');note.setAttribute('aria-live','polite');
- const actions=document.createElement('div');actions.style.cssText='display:grid;gap:8px';section.append(title,note,actions);container.append(section);
- let distributionsActive=false;const payoutNote=()=>distributionsActive?'Eligible verified earnings are distributed hourly.':'Hourly payouts are not active yet.';
+ const actions=document.createElement('div');actions.style.cssText='display:grid;gap:8px';const terms=document.createElement('p');terms.textContent='Rewards are variable and not guaranteed. No verified distributable earnings means no new reward allocation. Purchase funds and returned principal are not earnings.';section.append(title,terms,note,actions);container.append(section);
+ let distributionsActive=false;const payoutNote=()=>distributionsActive?'Eligible verified earnings are distributed hourly. No earnings means no new rewards.':'Hourly payouts are not active yet.';
  let wallet='signed-in';try{wallet=JSON.parse(atob((storage.getItem('bcToken')||'').split('.')[0].replace(/-/g,'+').replace(/_/g,'/'))).acct||wallet;}catch{}
  const key='bcEstatePurchase:'+propertyId+':'+wallet;let reservationId=storage.getItem(key)||'',busy=false;
  async function request(path,body){const token=storage.getItem('bcToken');if(!token)throw Error('Sign in with Xaman to purchase a property.');

@@ -1,4 +1,5 @@
 // Live BURN City host integration for the public Estates Island traversal.
+import { mountEstatePrestige } from './estate-prestige-ui.mjs';
 import { mountEstatePurchase } from './estate-purchase-ui.mjs';
 import { buildEstatesIslandScene } from './estates-island-scene.mjs';
 import { createEstatesIslandRenderer } from './estates-island-renderer.mjs';
@@ -137,6 +138,7 @@ export async function installEstatesIslandLive({
   exitButton.style.cssText='display:none;position:fixed;left:50%;top:calc(116px + env(safe-area-inset-top));transform:translateX(-50%);z-index:90;min-height:44px;padding:8px 14px;border:1px solid #ffb45b;border-radius:9px;background:#17151af0;color:#ffe4bd;font:700 13px system-ui;cursor:pointer';
   document.body.appendChild(exitButton);exitButton.addEventListener('click',()=>leaveIsland());
   const showPanel = (heading, message, actions, muted='') => {
+    restoreAppearance();
     panel.replaceChildren();
     const h = document.createElement('h3'); h.textContent = heading; panel.appendChild(h);
     const p = document.createElement('p'); p.textContent = message; panel.appendChild(p);
@@ -149,23 +151,28 @@ export async function installEstatesIslandLive({
     }
     panel.appendChild(row); panel.style.display='block';
   };
-  const hidePanel = () => { panel.style.display='none'; panel.replaceChildren(); };
+  const hidePanel = () => { restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
   const showLotInspection = property => {
     const catalogued=Boolean(property.propertyId);
-    showPanel('LOT INSPECTION · '+property.lotId,
-      'Address: '+property.address+' · Tier: '+property.tier+' · Catalog mapping: '+(catalogued?'mapped':'unmapped'),
+    const home=catalog.properties.find(p=>p.id===property.propertyId),tier=catalog.tiers.find(t=>t.id===home?.tier);
+    showPanel(property.address,
+      tier?tier.label+' · '+tier.price+' XRP · '+tier.shareUnits+' reward share units. Explore the finishes and see how this home can grow.':'This plot is reserved for a future home.',
       [{label:'Close',primary:true,run:hidePanel}],
-      'A catalog mapping is not proof of ownership; private access and building require server-verified permissions.');
-    if(catalogued)mountEstatePurchase(panel,property.propertyId,{api:apiBase});
+      'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests.');
+    if(catalogued){
+      let finishes;
+      mountEstatePurchase(panel,property.propertyId,{api:apiBase,onSettled:()=>{void refreshAppearance(true);void finishes?.refresh();}});
+      finishes=mountEstatePrestige(panel,property.propertyId,{api:apiBase,onPreview:level=>previewAppearance(property.propertyId,level),onConfirmed:()=>refreshAppearance(true)});
+    }
   };
   const showLotPrompt = property => {
     const catalogued=Boolean(property.propertyId);
     if(property.confirmedInteraction){showLotInspection(property);return;}
     showPanel('ESTATES · '+property.address,
-      catalogued?'This lot maps to a property record in the current catalog. That record does not prove ownership; private access and build controls require server-verified permissions.':'This lot has no property record mapped in the current catalog. No ownership is inferred.',
-      [{label:'Inspect lot',primary:true,run:()=>showLotInspection(property)},
+      catalogued?'Discover this home, preview its future finishes, and check purchase availability.':'This plot is reserved for a future home.',
+      [{label:'View home & upgrades',primary:true,run:()=>showLotInspection(property)},
        {label:'Close',run:hidePanel}],
-      'Walk up to a lot to inspect it. Private property access requires server-verified permissions.');
+      'Sign in with Xaman to buy a home or manage one you own.');
   };
   const showLandmarkDetails = landmark => {
     showPanel(landmark.title,landmark.message,
@@ -241,6 +248,25 @@ export async function installEstatesIslandLive({
   function restoreCityScene(){for(const [object,visible] of hiddenCityObjects)if(object.parent===scene)object.visible=visible;hiddenCityObjects.clear();}
   const apiBase = new URLSearchParams(location.search).get('citysrv') ||
     (/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
+  let verifiedAppearances=[],previewProperty=null,previewLevel=null,lastAppearanceFetch=0,appearanceFetching=false;
+  function restoreAppearance(){previewProperty=null;previewLevel=null;renderer.setAppearance(verifiedAppearances);}
+  function previewAppearance(propertyId,level){
+    if(level===null){restoreAppearance();return;}
+    previewProperty=propertyId;previewLevel=level;
+    renderer.setAppearance([...verifiedAppearances.filter(p=>p.propertyId!==propertyId),{propertyId,level}]);
+  }
+  async function refreshAppearance(force=false){
+    if(disposed||appearanceFetching||(!force&&Date.now()-lastAppearanceFetch<30000))return;
+    appearanceFetching=true;lastAppearanceFetch=Date.now();
+    try{
+      const response=await fetch(apiBase+'/api/estates/appearance',{cache:'no-store',signal:AbortSignal.timeout(8000)});
+      if(!response.ok)return;const result=await response.json();
+      if(disposed||!Array.isArray(result.properties))return;
+      verifiedAppearances=result.properties;
+      if(previewProperty!==null)previewAppearance(previewProperty,previewLevel);else renderer.setAppearance(verifiedAppearances);
+    }catch{}finally{appearanceFetching=false;}
+  }
+
   async function leaseRequest(action, payload, keepalive=false) {
     const response=await fetch(apiBase+'/api/estates/instance/'+action, {
       method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload),keepalive,
@@ -301,6 +327,7 @@ export async function installEstatesIslandLive({
   }
   async function enterIsland() {
     if (disposed || active || entering) return;
+    void refreshAppearance(true);
     entering=true; hidePanel();
     let admission;
     try {
@@ -374,7 +401,7 @@ export async function installEstatesIslandLive({
       if(edge&&near) { enterIsland(); return true; }
       return false;
     }
-    hideCityScene();animatePeers(dt);
+    hideCityScene();animatePeers(dt);void refreshAppearance();
     if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
       lastGuidanceUpdate=Date.now();
       const pos={x:player.pos.x-OFFSET_X,z:player.pos.z};

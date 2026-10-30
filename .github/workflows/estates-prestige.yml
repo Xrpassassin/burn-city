@@ -1,0 +1,36 @@
+name: Estates appearance progression
+on:
+  pull_request:
+    paths:
+      - 'server/estate-prestige*.js'
+      - 'server/estate-sale-payment-verifier.js'
+      - 'server/server.js'
+      - 'client/js/estate-prestige*'
+      - 'client/js/estates-house-design*'
+      - 'client/js/estates-island-renderer.mjs'
+      - 'client/js/estates-island-live.mjs'
+      - 'test/estate-prestige-http.test.js'
+      - 'client/data/estate-catalog.json'
+      - '.github/workflows/estates-prestige.yml'
+permissions:
+  contents: read
+jobs:
+  prestige:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: |
+          node --check client/js/estates-island-live.mjs
+          node --check server/server.js
+          node server/estate-prestige-runtime.test.js
+          node server/estate-sale-payment-verifier.test.js
+          node test/estate-prestige-http.test.js
+          node client/js/estate-prestige-ui.test.mjs
+          node client/js/estates-house-design.test.mjs
+          node client/js/estates-island-renderer.test.mjs
+          node client/js/estates-island-live.test.mjs
+          node server/estate-price-weights.test.js

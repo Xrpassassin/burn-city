@@ -118,12 +118,29 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     }
     objects.set(item.id,made);
   }
-  const houses=renderEstateHouses(THREE,root,source.objects.filter(item=>item.kind==='property-lot'&&item.buildingFootprint));
-  for(const [id,meshes] of houses) objects.set(id,[...objects.get(id),...meshes]);
+  const houseRoot=new THREE.Group();houseRoot.name='estates-property-architecture';root.add(houseRoot);
+  const lots=source.objects.filter(item=>item.kind==='property-lot'&&item.buildingFootprint);
+  const boundaries=new Map(lots.map(item=>[item.id,objects.get(item.id)]));
+  let disposed=false,appearanceKey=null;
+  function setAppearance(properties=[]){
+    if(disposed)return false;
+    const levels=new Map(properties.filter(p=>typeof p?.propertyId==='string'&&Number.isInteger(p.level)&&p.level>=0&&p.level<=5).map(p=>[p.propertyId,p.level]));
+    const key=lots.map(l=>levels.get(l.propertyId)||0).join(',');
+    if(key===appearanceKey)return false;
+    appearanceKey=key;
+    const geometries=new Set(),materials=new Set();
+    houseRoot.traverse?.(node=>{if(node.geometry)geometries.add(node.geometry);if(node.material)materials.add(node.material);});
+    for(const geometry of geometries)geometry.dispose?.();for(const mat of materials)mat.dispose?.();
+    for(const child of [...houseRoot.children])houseRoot.remove(child);
+    const houses=renderEstateHouses(THREE,houseRoot,lots.map(item=>({...item,prestigeLevel:levels.get(item.propertyId)||0})));
+    for(const [id,meshes] of houses)objects.set(id,[...boundaries.get(id),...meshes]);
+    return true;
+  }
+  setAppearance();
   scene.add(root);
-  let disposed=false;
   return Object.freeze({
     root,
+    setAppearance,
     getObject(id){return objects.get(id)??null;},
     get objectCount(){return objects.size;},
     dispose(){

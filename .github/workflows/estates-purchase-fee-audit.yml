@@ -1,0 +1,27 @@
+name: Estates settled purchase fee audit
+on:
+  push:
+    branches: [ops/estates-purchase-fee-audit-444]
+    paths: ['.github/workflows/estates-purchase-fee-audit.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect settled purchase and validated treasury fees without changing data
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const source=fs.readFileSync('scripts/estate-purchase-fee-audit.cjs','utf8');
+          const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',source],timeout:45}),signal:AbortSignal.timeout(55000)});
+          if(!r.ok)throw Error('readonly_audit_http_'+r.status);
+          const result=await r.json();console.log(JSON.stringify(JSON.parse(result.stdout.trim())));if(result.exit_code!==0)throw Error('readonly_audit_failed');
+          NODE

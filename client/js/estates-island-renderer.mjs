@@ -1,3 +1,4 @@
+import { renderEstateHouses } from './estates-house-design.mjs';
 // Optional Three.js renderer adapter for buildEstatesIslandScene().
 // Pass the same THREE namespace already used by the host experience; no new CDN or bundle dependency.
 const PALETTE = {
@@ -103,12 +104,6 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
         const w=d.width,dep=d.depth;
         const boundary=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w,.12,dep)),new THREE.LineBasicMaterial({color:PALETTE['lot-boundary']}));
         boundary.name=item.id+'-boundary'; place(boundary,{x:p.x,y:p.y+.08,z:p.z}); root.add(boundary); made.push(boundary);
-        if(item.buildingFootprint) {
-          const f=item.buildingFootprint, color=PALETTE[item.tier]??0x9c927e;
-          made.push(box(THREE,root,item.id+'-building-blockout',{x:p.x,y:p.y+f.height/2,z:p.z},f.width,f.height,f.depth,color));
-          const roof=box(THREE,root,item.id+'-roof-blockout',{x:p.x,y:p.y+f.height+.12,z:p.z},f.width+.35,.24,f.depth+.35,0x49352a);
-          made.push(roof);
-        }
         break;
       }
       case 'tree': made=addTree(THREE,root,item); break;
@@ -123,6 +118,8 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     }
     objects.set(item.id,made);
   }
+  const houses=renderEstateHouses(THREE,root,source.objects.filter(item=>item.kind==='property-lot'&&item.buildingFootprint));
+  for(const [id,meshes] of houses) objects.set(id,[...objects.get(id),...meshes]);
   scene.add(root);
   let disposed=false;
   return Object.freeze({

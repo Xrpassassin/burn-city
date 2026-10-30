@@ -33,6 +33,7 @@ jobs:
           node client/js/lake-casting-geometry.test.mjs
           node client/js/estates-island-scene.test.mjs
           node client/js/estates-island-renderer.test.mjs
+          node client/js/estates-house-design.test.mjs
           node client/js/estates-island-runtime.test.mjs
       - name: Test walkable navigation and third-person controller
         run: |

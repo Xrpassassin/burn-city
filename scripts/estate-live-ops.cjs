@@ -61,7 +61,7 @@ async function preflight(){
   if(info.validated!==true||info.ledger_hash!==ledgerHash||(info.account_data.TransferRate||1000000000)!==1000000000||(flags&0x00400000)||lines.validated!==true||lines.ledger_hash!==ledgerHash||!l||l.freeze||l.freeze_peer||((flags&0x00040000)&&l.peer_authorized!==true))throw Error('treasury_'+a.currency+'_trustline_not_ready');
  }
  report.assetTrustlinesReady=true;
- const recent=(await c.request({command:'account_tx',account:treasury,ledger_index_min:-1,ledger_index_max:-1,limit:100,forward:false})).result;
+ const recent=(await c.request({command:'account_tx',account:treasury,ledger_index_min:-1,ledger_index_max:-1,limit:10,forward:false})).result;
  const verifier=createImgRewardVerifier(c,{treasury,imgIssuer:C.IMG_ISSUER,allowedSources:[SOURCE],rewardPoolAccount:POOL,skipNonImgPayments:true});
  let recognized=null;
  for(const entry of recent.transactions||[]){const t=entry.tx_json||entry.tx||entry;if(entry.validated!==true||t.Account!==SOURCE||t.Destination!==treasury||t.TransactionType!=='Payment')continue;
@@ -72,7 +72,12 @@ async function preflight(){
  const pause=pauseState();
  for(const name of ['watch_known.json','watch_state.json']){const file=path.join(root,name);if(fs.existsSync(file))JSON.parse(fs.readFileSync(file,'utf8'));}
  if(pause.paused===true){
-  if(pause.reason!=='unexpected_outgoing_tx'||!Array.isArray(pause.unknown)||pause.unknown.length!==1||pause.unknown[0].hash!==knownDeposit||pause.unknown[0].type!=='AMMDeposit')throw Error('unexpected_treasury_pause_requires_review');
+  const unknown=pause.unknown||[],knownFile=path.join(root,'watch_known.json');
+  const known=fs.existsSync(knownFile)?JSON.parse(fs.readFileSync(knownFile,'utf8')):[];
+  const originalAlert=pause.reason==='unexpected_outgoing_tx'||(pause.reason==='estate_activation_verification_failed'&&pause.prior_reason==='unexpected_outgoing_tx');
+  const reviewedAlert=originalAlert&&Array.isArray(unknown)&&unknown.length===1&&unknown[0].hash===knownDeposit&&unknown[0].type==='AMMDeposit';
+  const activationRollback=pause.reason==='estate_activation_verification_failed'&&pause.prior_reason===null&&Array.isArray(unknown)&&unknown.length===0&&Array.isArray(known)&&known.includes(knownDeposit);
+  if(!reviewedAlert&&!activationRollback)throw Error('unexpected_treasury_pause_requires_review');
   const r=(await c.request({command:'tx',transaction:knownDeposit,binary:false})).result,t=r.tx_json||r;
   const issues=[t.Asset,t.Asset2];
   if(r.validated!==true||r.meta?.TransactionResult!=='tesSUCCESS'||t.Account!==treasury||t.TransactionType!=='AMMDeposit'||!issues.some(a=>a.currency==='IMG'&&a.issuer===C.IMG_ISSUER)||!issues.some(a=>a.currency==='PLX'&&a.issuer===C.PLX_ISSUER)||!balanceDelta(r,treasury,pools[0].lp).gt(0))throw Error('known_manual_deposit_proof_failed');
@@ -103,7 +108,7 @@ async function preflight(){
    db?.close();db=null;
    req('./server/watch').unpause();console.log(JSON.stringify({mode,commit:expected,unpaused:true}));
   }else{
-   const prior=pauseState();req('./server/store').save('pause.json',{...prior,paused:true,prior_reason:prior.reason||null,reason:'estate_activation_verification_failed',t:Date.now()});console.log(JSON.stringify({mode,commit:expected,paused:true}));
+   const prior=pauseState();req('./server/store').save('pause.json',{...prior,paused:true,prior_reason:prior.reason==='estate_activation_verification_failed'?prior.prior_reason:prior.reason||null,reason:'estate_activation_verification_failed',t:Date.now()});console.log(JSON.stringify({mode,commit:expected,paused:true}));
   }
  }finally{db?.close();try{await client?.disconnect();}catch{}}
 })().catch(e=>{console.log(JSON.stringify({mode,commit:expected,ready:false,error:e.message}));process.exitCode=1;});

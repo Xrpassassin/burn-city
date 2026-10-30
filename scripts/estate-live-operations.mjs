@@ -25,10 +25,17 @@ try{
  await command('preflight');await command('bootstrap');changed=true;
  await update({ESTATE_ACCOUNTING_ENABLED:'1'});
  let progressed=false;
- for(let i=0;i<20;i++){const s=await command('status');if(s.accounting&&s.checkpoint?.ledger_index>=s.bootstrap?.start_ledger_index){progressed=true;break;}await pause(5000);}
+ for(let i=0;i<60;i++){const s=await command('status');if(s.accounting&&s.checkpoint?.ledger_index>=s.bootstrap?.start_ledger_index&&Date.now()-s.checkpoint.scanned_through_ms<=60000){progressed=true;break;}await pause(5000);}
  if(!progressed)throw Error('accounting_checkpoint_not_progressing');
  await update({ESTATE_SALES_ENABLED:'1',ESTATE_LIQUIDITY_ENABLED:'1',ESTATE_XRP_PROFIT_HARVEST_ENABLED:'1',ESTATE_DISTRIBUTIONS_ENABLED:'1'});
- await command('unpause');await pause(18000);const final=await command('status');
+ await command('unpause');
+ let previousLedger=null;
+ for(let sample=0;sample<4;sample++){
+ await pause(20000);const final=await command('status');
  if(final.paused||!final.sales||!final.accounting||!final.liquidity||!final.harvest||!final.distributions||!final.checkpoint||final.liveStatus&&(!final.liveStatus.distributionsEnabled||!final.liveStatus.imgXrpProfitDistributionsEnabled))throw Error('final_live_activation_not_verified');
+ if(Date.now()-final.checkpoint.scanned_through_ms>60000)throw Error('final_scanner_not_current');
+ if(sample===3&&final.checkpoint.ledger_index<=previousLedger)throw Error('final_scanner_not_advancing');
+ previousLedger=final.checkpoint.ledger_index;
+ }
  console.log(JSON.stringify({activated:true,commit:expected,mainnetPurchaseOrPayoutProven:false,awaitingOwnerPurchaseApproval:true}));
 }catch(e){if(changed){try{await command('pause');}catch{console.error('Activation failed; verify the treasury pause immediately.');}}throw e;}

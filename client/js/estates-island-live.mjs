@@ -5,6 +5,7 @@ import { buildEstatesIslandScene } from './estates-island-scene.mjs';
 import { createEstatesIslandRenderer } from './estates-island-renderer.mjs';
 import { createEstatesIslandController } from './estates-island-controller.mjs';
 import { estateWalkingGuidance } from './estates-walking-guidance.mjs';
+import { planEstatesPanel } from './estates-panel-layout.mjs';
 
 const OFFSET_X = 650;
 const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
@@ -149,7 +150,22 @@ export async function installEstatesIslandLive({
       if(action.primary)b.className='primary';
       b.addEventListener('click',action.run); row.appendChild(b);
     }
-    panel.appendChild(row); panel.style.display='block';
+    panel.appendChild(row);
+    const reserved=[];
+    if(exitButton.style.display!=='none') {
+      const bounds=exitButton.getBoundingClientRect();
+      reserved.push({x:bounds.x,y:bounds.y,width:bounds.width,height:bounds.height});
+    }
+    const placement=planEstatesPanel({width:window.innerWidth,height:window.innerHeight,blocked:reserved});
+    if(placement.panel) {
+      panel.style.left=placement.panel.x+'px';
+      panel.style.top=placement.panel.y+'px';
+      panel.style.bottom='auto';
+      panel.style.transform='none';
+      panel.style.width=placement.panel.width+'px';
+      panel.style.maxHeight=placement.panel.height+'px';
+      panel.style.display='block';
+    } else panel.style.display='none';
   };
   const hidePanel = () => { restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
   const showLotInspection = property => {

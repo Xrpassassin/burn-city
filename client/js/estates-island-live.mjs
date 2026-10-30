@@ -191,7 +191,7 @@ export async function installEstatesIslandLive({
   function openDirectory(query='',filter='mapped') {
     if(!active)return;
     directoryOpen=true;
-    showPanel('ESTATES DIRECTORY','Search properties and select a home to inspect or navigate toward.',
+    showPanel('ESTATES DIRECTORY','Search properties and select a lot to navigate there. Inspect homes and purchase options when nearby.',
       [{label:'Close directory',run:()=>{directoryOpen=false;hidePanel();}}]);
     const search=document.createElement('input');
     search.type='search';search.placeholder='Search address, district, or tier';
@@ -214,8 +214,13 @@ export async function installEstatesIslandLive({
         button.textContent=lot.address+' · '+lot.district+' · '+lot.tier;
         button.addEventListener('click',()=>{
           directoryOpen=false;
-          if(lot.propertyId)showLotInspection({propertyId:lot.propertyId,address:lot.address,tier:lot.tier});
-          else showPanel(lot.address,'This plot is reserved for a future home.',[{label:'Directory',run:()=>openDirectory(search.value,select.value)}]);
+          const destination=manifest.lots.find(item=>item.id===lot.id);
+          if(!destination)return;
+          targetLot=destination;
+          selectedLotBeacon.group.position.set(destination.position.x,.4,destination.position.z);
+          selectedLotBeacon.group.visible=active;
+          hidePanel();
+          onStatus({state:'estate-navigation-target',lotId:destination.id,propertyId:destination.propertyId??null});
         });
         results.appendChild(button);
       }

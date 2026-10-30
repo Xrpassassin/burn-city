@@ -20,6 +20,7 @@ const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: [...
 const estateSales = createEstateSalesRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 require('./guard').setEstateCapitalReserveReader(account=>account===C.ESTATE_TREASURY?estateSales.reservedCapitalDrops():'0');
 const estateHourly = require('./estate-hourly-service').createEstateHourlyService({db:Pay.sdb,pay:Pay,config:C,guard:require('./guard')});
+const {readEstatePortfolio}=require('./estate-portfolio');
 const estatePrestige = require('./estate-prestige-runtime').createEstatePrestigeRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
@@ -169,6 +170,13 @@ const server = http.createServer(async (req, res) => {
       const b = await body(), result = estatesInstance.leave(String(b.leaseToken || ''));
       return json(res, result.ok ? 200 : 400, result);
     }
+    if (url.pathname === '/api/estates/status' && req.method === 'GET') {
+      if(gate('estates-status-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
+      const sales=estateSales.status(),rewards=estateHourly.status();
+      return json(res,200,{asOfMs:Date.now(),salesEnabled:sales.salesEnabled,salesStatus:sales.salesStatus,
+        distributionsEnabled:rewards.distributionsEnabled,distributionStatus:rewards.distributionStatus,
+        imgXrpProfitDistributionsEnabled:rewards.imgXrpProfitDistributionsEnabled,rewardsGuaranteed:false});
+    }
     if (url.pathname === '/api/estates/appearance' && req.method === 'GET') {
       if (gate('estates-appearance-ip:' + ip, 60, 60e3)) return json(res, 429, {error:'slow_down'});
       return json(res, 200, estatePrestige.publicState());
@@ -182,6 +190,9 @@ const server = http.createServer(async (req, res) => {
       const u = who(); if (!u) return json(res, 401, { error: 'sign_in_with_xaman' });
       if (gate('estates:' + u.acct, 60, 60e3) || gate('estates-ip:' + ip, 120, 60e3)) return json(res, 429, { error: 'slow_down' });
       if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, ({...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct)}));
+      if (url.pathname === '/api/estates/portfolio' && req.method === 'GET') return json(res,200,{
+        ...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct),
+        portfolio:readEstatePortfolio({db:Pay.sdb,owner:u.acct})});
       if (url.pathname === '/api/estates/upgrade/quote' && req.method === 'GET') {const result=estatePrestige.quote({propertyId:String(url.searchParams.get('propertyId')||''),buyer:u.acct});return json(res,result.ok?200:400,result);}
       if (url.pathname === '/api/estates/upgrade/start' && req.method === 'POST') {
         if(gate('estate-upgrade-start:'+u.acct,5,600000))return json(res,429,{error:'slow_down'});

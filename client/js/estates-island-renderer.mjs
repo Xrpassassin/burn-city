@@ -65,7 +65,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
   if (!scene || typeof scene.add!=='function' || typeof scene.remove!=='function') throw new TypeError('Three.js scene with add/remove is required');
   if (typeof onInteract!=='function') throw new TypeError('onInteract must be a function');
   const root=new THREE.Group(); root.name='burn-city-estates-island';
-  const objects=new Map();
+  const objects=new Map(),ownershipBoundaries=[];
   const add=(id,obj)=>{objects.set(id,obj);root.add(obj);return obj;};
   const source=manifest;
   if (!source || !Array.isArray(source.objects)) throw new TypeError('island scene manifest is required');
@@ -104,6 +104,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
         const w=d.width,dep=d.depth;
         const boundary=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w,.12,dep)),new THREE.LineBasicMaterial({color:PALETTE['lot-boundary']}));
         boundary.name=item.id+'-boundary'; place(boundary,{x:p.x,y:p.y+.08,z:p.z}); root.add(boundary); made.push(boundary);
+        ownershipBoundaries.push({propertyId:item.propertyId,mesh:boundary});
         break;
       }
       case 'tree': made=addTree(THREE,root,item); break;
@@ -122,6 +123,15 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
   const lots=source.objects.filter(item=>item.kind==='property-lot'&&item.buildingFootprint);
   const boundaries=new Map(lots.map(item=>[item.id,objects.get(item.id)]));
   let disposed=false,appearanceKey=null;
+  function setOwnership(properties=[]){
+    if(disposed)return false;
+    const owned=new Set(properties.filter(p=>typeof p?.propertyId==='string'&&/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(p.owner||'')).map(p=>p.propertyId));
+    for(const {propertyId,mesh} of ownershipBoundaries){
+      const purchased=typeof propertyId==='string'&&owned.has(propertyId);
+      mesh.material.color.set(purchased?0x4a9fff:PALETTE['lot-boundary']);mesh.userData.owned=purchased;
+    }
+    return true;
+  }
   function setAppearance(properties=[]){
     if(disposed)return false;
     const levels=new Map(properties.filter(p=>typeof p?.propertyId==='string'&&Number.isInteger(p.level)&&p.level>=0&&p.level<=5).map(p=>[p.propertyId,p.level]));
@@ -141,6 +151,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
   return Object.freeze({
     root,
     setAppearance,
+    setOwnership,
     getObject(id){return objects.get(id)??null;},
     get objectCount(){return objects.size;},
     dispose(){

@@ -6,14 +6,15 @@ import http from 'node:http';
 import path from 'node:path';
 import {chromium} from 'playwright';
 const root=path.resolve('client');
-const html=`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><body style="background:#172330"><div id="touch"><div id="joy"><div id="knob"></div></div><div id="tbtns"><button id="tJump">Jump</button><button id="tRun">Run</button><button id="tUse" aria-label="Use">E</button></div></div><script type="module">
+const html=`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><body style="background:#172330"><div id="btns"><button id="tour">Tour</button><button data-m="orbit">Orbit</button></div><button id="vExit" style="display:block">View</button><div id="vMenu" class="on"></div><div id="touch"><div id="joy"><div id="knob"></div></div><div id="tbtns"><button id="tJump">Jump</button><button id="tRun">Run</button><button id="tUse" aria-label="Use">E</button></div></div><script type="module">
 import * as THREE from '/vendor/three/build/three.module.min.js';
+import '/js/movement-games-menu.js';
 import {installEstatesIslandLive} from '/js/estates-island-live.mjs';
 import {buildEstatesIslandScene} from '/js/estates-island-scene.mjs';
 const catalog=await (await fetch('/data/estate-catalog.json')).json();
 const manifest=buildEstatesIslandScene({catalog});
 const scene=new THREE.Scene(),player={pos:new THREE.Vector3(445,.1,188),vel:new THREE.Vector3()},avatar=new THREE.Group(),camera=new THREE.PerspectiveCamera();
-scene.add(avatar,camera);let yaw=0,mode='explore',pressed=false;
+scene.add(avatar,camera);let yaw=0,mode='explore',pressed=false;window.cityMoves=0;window.__setBurnMode=v=>mode=v;window.__walkTo=()=>{window.cityMoves++;return true;};
 window.fixture={manifest,player,scene};
 window.host=await installEstatesIslandLive({THREE,scene,player,avatar,camera,getYaw:()=>yaw,setYaw:v=>yaw=v,getMode:()=>mode,setMode:v=>mode=v,buildWalker:()=>new THREE.Group(),poseWalker:()=>{},isInteractPressed:()=>pressed});
 document.querySelector('#tUse').addEventListener('touchstart',e=>{pressed=true;e.preventDefault();},{passive:false});
@@ -24,6 +25,7 @@ window.ready=true;
 </script>`;
 const server=http.createServer((req,res)=>{
  const url=new URL(req.url,'http://localhost');
+ if(url.pathname==='/api/estates/ownership'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({properties:[{propertyId:'trailer-01',owner:'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb'}]}));return;}
  if(url.pathname.startsWith('/api/')) {res.setHeader('Content-Type','application/json');res.end(JSON.stringify(url.pathname.includes('/instance/')?{ok:true,leaseToken:'browser-fixture',instanceId:'test'}:{properties:[]}));return;}
  if(url.pathname==='/'){res.setHeader('Content-Type','text/html');res.end(html);return;}
  const file=path.resolve(root,'.'+url.pathname);
@@ -36,10 +38,17 @@ try {
  for(const viewport of [{width:1280,height:800},{width:390,height:844},{width:667,height:375}]) {
   const mobile=viewport.width<700,page=await browser.newPage({viewport,isMobile:mobile,hasTouch:mobile});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForFunction(()=>window.ready);
+  await page.goto('http://127.0.0.1:'+server.address().port+'/?hubtest=1');await page.waitForFunction(()=>window.ready);
+  const cityDisplays=await page.evaluate(()=>['tour','bcMoveGamesOpen','vExit'].map(id=>getComputedStyle(document.getElementById(id)).display));
   await page.evaluate(()=>host.enterFromCity());await page.getByRole('button',{name:'Browse Estates'}).waitFor();
+  assert.equal(await page.evaluate(()=>document.body.classList.contains('bc-estates-active')),true);
+  assert.equal(await page.evaluate(()=>['tour','bcMoveGamesOpen','vExit'].every(id=>getComputedStyle(document.getElementById(id)).display==='none')),true);
+  await page.evaluate(async()=>{__hub.open();await __hub.travel('boat');document.querySelector('[data-move=orbit]').click();});
+  assert.equal(await page.evaluate(()=>cityMoves),0);assert.equal(await page.locator('#bcMoveGamesPanel').evaluate(e=>e.classList.contains('on')),false);
   await page.getByRole('button',{name:'Browse Estates'}).click();
   await page.getByLabel('Search Estates').waitFor({state:'visible'});
+  await page.waitForFunction(()=>fixture.scene.getObjectByName('estate-lot-01-boundary').material.color.getHex()===0x4a9fff);
+  assert.equal(await page.evaluate(()=>fixture.scene.getObjectByName('estate-lot-02-boundary').material.color.getHex()),0xe5b45d);
   const selected=await page.evaluate(()=>fixture.manifest.lots.find(l=>l.propertyId));
   await page.getByLabel('Search Estates').fill(selected.address);
   const result=page.getByRole('button',{name:selected.address+' · '+selected.district+' · '+selected.tier,exact:true});
@@ -68,6 +77,8 @@ try {
   await page.getByRole('button',{name:'Close directory'}).click();
   await page.getByRole('button',{name:'Return to BURN City',exact:true}).click();
   assert.equal(await page.getByRole('button',{name:'Browse Estates'}).isVisible(),false);
+  assert.deepEqual(await page.evaluate(()=>['tour','bcMoveGamesOpen','vExit'].map(id=>getComputedStyle(document.getElementById(id)).display)),cityDisplays);
+  await page.evaluate(()=>__hub.open());assert.equal(await page.locator('#bcMoveGamesPanel').evaluate(e=>e.classList.contains('on')),true);await page.evaluate(()=>__hub.close());
   assert.deepEqual(errors,[]);
   await page.evaluate(()=>host.dispose());await page.close();
   console.log('Directory, guidance, nearby inspection and unobscured controls passed',viewport);
@@ -79,7 +90,7 @@ try {
    let attempts=0;
    if(scenario==='admission-retry')await linked.route('**/api/estates/instance/enter',route=>++attempts===1?route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({error:'admission_denied'})}):route.continue());
    const id=scenario==='unknown'?'not-a-real-property':selected.propertyId;
-   await linked.goto('http://127.0.0.1:'+server.address().port+'/?estateProperty='+encodeURIComponent(id)+'&x=999999&z=-999999');
+   await linked.goto('http://127.0.0.1:'+server.address().port+'/?estateProperty='+encodeURIComponent(id)+'&x=999999&z=-999999&hubtest=1');
    await linked.waitForFunction(()=>window.ready);
    if(scenario==='unknown'){
     assert.equal(await linked.evaluate(()=>host.active),false);

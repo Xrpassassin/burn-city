@@ -2,7 +2,23 @@
 // Read-only reporting. Allocations are entitlements, never claims that a wallet
 // payment happened or that the current share will earn a future fixed amount.
 const {allocateProfit}=require('./estate-economy');
+const N=require('bignumber.js');
 const DAY=86400000;
+function walletRewardsReceived(db,owner,exists){
+ let img=0n,xrp=0n,complete=true;const seen=new Set();
+ const proof=hash=>{if(!/^[A-Fa-f0-9]{64}$/.test(hash||'')||seen.has(hash)){complete=false;return false;}seen.add(hash);return true;};
+ if(exists('estate_hourly_payouts'))for(const r of db.prepare("SELECT delivered,tx_hash FROM estate_hourly_payouts WHERE owner=? AND state='confirmed'").all(owner)){
+  if(!proof(r.tx_hash))continue;
+  try{const d=JSON.parse(r.delivered);if(typeof d==='string'&&/^\d+$/.test(d))xrp+=BigInt(d);
+   else if(d?.currency==='IMG'){const units=new N(d.value).times(1000000);if(!units.isFinite()||!units.isInteger()||units.lt(0))throw Error('invalid_delivery');img+=BigInt(units.toFixed());}
+   else throw Error('invalid_delivery');
+  }catch{complete=false;}
+ }else complete=false;
+ if(exists('estate_xrp_profit_payouts'))for(const r of db.prepare("SELECT amount_drops,tx_hash FROM estate_xrp_profit_payouts WHERE owner=? AND state='confirmed'").all(owner)){
+  if(!proof(r.tx_hash))continue;if(!/^\d+$/.test(r.amount_drops)){complete=false;continue;}xrp+=BigInt(r.amount_drops);
+ }else complete=false;
+ return {complete,imgUnits:complete?img.toString():null,xrpDrops:complete?xrp.toString():null,basis:'confirmed_wallet_deliveries_all_properties',netInvestmentProfit:false};
+}
 function readEstatePortfolio({db,owner,now=Date.now()}){
  if(!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(owner||'')||!Number.isSafeInteger(now)||now<0)throw Error('invalid_portfolio_request');
  const exists=name=>!!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
@@ -37,6 +53,7 @@ function readEstatePortfolio({db,owner,now=Date.now()}){
  return {asOfMs:now,windowStartMs:from,windowHours:24,totalShareUnits,portfolioShareUnits:owned.reduce((n,p)=>n+p.share_units,0),
   dataThroughMs:checkpoint?.scanned_through_ms||null,scannerCurrent:!!checkpoint&&now-checkpoint.scanned_through_ms<=60000,
   imgHistoryAvailable:imgAvailable,xrpHistoryAvailable:xrpAvailable,
+  walletReceived:walletRewardsReceived(db,owner,exists),
   properties:[...rows.values()].map(p=>({...p,imgAverageHourlyUnits:imgAvailable?(BigInt(p.imgAllocated24hUnits)/24n).toString():null,xrpAverageHourlyDrops:xrpAvailable?(BigInt(p.xrpAllocated24hDrops)/24n).toString():null})),
   basis:'recorded_property_allocations_last_24h',paymentsCombinedByWallet:true,rewardsGuaranteed:false};
 }

@@ -1,5 +1,6 @@
 // Live BURN City host integration for the public Estates Island traversal.
 import { mountEstatePrestige } from './estate-prestige-ui.mjs';
+import { mountEstateOwnership } from './estate-ownership-ui.mjs';
 import { mountEstatePurchase } from './estate-purchase-ui.mjs';
 import { buildEstatesIslandScene } from './estates-island-scene.mjs';
 import { createEstatesIslandRenderer } from './estates-island-renderer.mjs';
@@ -31,6 +32,7 @@ function makePanel() {
   if (panel) return panel;
   const style = document.createElement('style');
   style.textContent = `
+    body.bc-estates-active #tour,body.bc-estates-active #btns [data-m],body.bc-estates-active #bcMoveGamesOpen,body.bc-estates-active #bcMoveGamesWrap,body.bc-estates-active #bcMoveGamesPanel,body.bc-estates-active #vExit,body.bc-estates-active #vMenu,body.bc-estates-active #vHint{display:none!important}
     #bcEstatesLivePrompt{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:1200;width:min(92vw,430px);max-height:calc(100dvh - 210px);overflow:auto;box-sizing:border-box;padding:15px;border:1px solid #ffbd68aa;border-radius:14px;background:linear-gradient(145deg,#111a26f5,#080d15f5);box-shadow:0 12px 40px #0009;color:#f5e8d6;font:14px/1.45 system-ui,sans-serif;display:none}
     #bcEstatesLivePrompt h3{margin:0 0 7px;font-size:16px;color:#ffd49a;letter-spacing:.04em}
     #bcEstatesLivePrompt p{margin:0 0 12px;color:#d3dbe6}
@@ -242,10 +244,12 @@ export async function installEstatesIslandLive({
     showPanel(property.address,
       tier?tier.label+' · '+tier.price+' XRP · '+tier.shareUnits+' reward share units. Explore the finishes and see how this home can grow.':'This plot is reserved for a future home.',
       [{label:'Navigate to property',primary:true,run:()=>{const lot=manifest.lots.find(l=>l.id===property.lotId);if(lot){targetLot=lot;if(selectedLotBeacon){selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=active;}if(guidanceHud)guidanceHud.style.display='block';hidePanel();}}},{label:'Close',run:hidePanel}],
-      'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests.');
+      'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests. Borders: yellow = unowned; blue = purchased.');
     if(catalogued){
+      const ownershipOptions={api:apiBase,onOwnership:properties=>renderer.setOwnership(properties)};
+      let ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);
       let finishes;
-      mountEstatePurchase(panel,property.propertyId,{api:apiBase,onSettled:()=>{void refreshAppearance(true);void finishes?.refresh();}});
+      mountEstatePurchase(panel,property.propertyId,{api:apiBase,onSettled:()=>{void refreshAppearance(true);void refreshOwnership(true);void finishes?.refresh();ownershipDetails.dispose();ownershipDetails.section.remove();ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);}});
       finishes=mountEstatePrestige(panel,property.propertyId,{api:apiBase,onPreview:level=>previewAppearance(property.propertyId,level),onConfirmed:()=>refreshAppearance(true)});
     }
   };
@@ -335,6 +339,21 @@ export async function installEstatesIslandLive({
   const apiBase = new URLSearchParams(location.search).get('citysrv') ||
     (/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   let verifiedAppearances=[],previewProperty=null,previewLevel=null,lastAppearanceFetch=0,appearanceFetching=false;
+  let lastOwnershipFetch=0,ownershipFetching=false,ownershipRefreshQueued=false;
+  async function refreshOwnership(force=false){
+    if(disposed)return;if(ownershipFetching){if(force)ownershipRefreshQueued=true;return;}if(!force&&Date.now()-lastOwnershipFetch<30000)return;
+    ownershipFetching=true;lastOwnershipFetch=Date.now();
+    try{const r=await fetch(apiBase+'/api/estates/ownership',{cache:'no-store',signal:AbortSignal.timeout(8000)});if(!r.ok)return;const s=await r.json();if(!disposed&&Array.isArray(s.properties))renderer.setOwnership(s.properties);}catch{}finally{ownershipFetching=false;if(ownershipRefreshQueued&&!disposed){ownershipRefreshQueued=false;void refreshOwnership(true);}}
+  }
+  function islandControls(inside){
+    document.body.classList.toggle('bc-estates-active',inside);
+    if(inside){
+      document.querySelector('#bcMoveGamesPanel')?.classList.remove('on');
+      document.querySelector('#bcMoveGamesOpen')?.setAttribute('aria-expanded','false');
+      document.querySelector('#vMenu')?.classList.remove('on');
+      document.querySelector('#vHint')?.classList.remove('on');
+    }
+  }
   function restoreAppearance(){previewProperty=null;previewLevel=null;renderer.setAppearance(verifiedAppearances);}
   function previewAppearance(propertyId,level){
     if(level===null){restoreAppearance();return;}
@@ -413,7 +432,7 @@ export async function installEstatesIslandLive({
   }
   async function enterIsland(destinationPropertyId=null) {
     if (disposed || active || entering) return false;
-    void refreshAppearance(true);
+    void refreshAppearance(true);void refreshOwnership(true);
     entering=true; hidePanel();
     let admission;
     try {
@@ -437,7 +456,7 @@ export async function installEstatesIslandLive({
     },30000);
     returnPosition = {x:player.pos.x,y:player.pos.y,z:player.pos.z};
     returnCamera = {position:camera.position.clone(),quaternion:camera.quaternion.clone()};
-    active=true; root.visible=true; nearCityGate=false; hidePanel(); directoryButton.style.display='block';
+    active=true; root.visible=true; islandControls(true); nearCityGate=false; hidePanel(); directoryButton.style.display='block';
     if(root.userData.propertyDeepLinkHint)root.userData.propertyDeepLinkHint.style.display='none';
     exitButton.style.display='block';
     hideCityScene();
@@ -477,7 +496,7 @@ export async function installEstatesIslandLive({
   }
   function leaveIsland() {
     if(disposed||!active)return;
-    active=false; root.visible=false; hidePanel(); controllerRef.dispose();
+    active=false; root.visible=false; hidePanel(); controllerRef.dispose();islandControls(false);
     if(guidanceHud)guidanceHud.style.display='none';
     if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
     exitButton.style.display='none'; directoryButton.style.display='none'; directoryOpen=false;
@@ -511,7 +530,7 @@ export async function installEstatesIslandLive({
       if(edge&&near) { enterIsland(); return true; }
       return false;
     }
-    hideCityScene();animatePeers(dt);void refreshAppearance();
+    hideCityScene();animatePeers(dt);void refreshAppearance();void refreshOwnership();
     if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
       lastGuidanceUpdate=Date.now();
       if(panel.childElementCount)positionPanel();
@@ -589,9 +608,10 @@ export async function installEstatesIslandLive({
   const api = Object.freeze({
     tick,
     teleportToProperty,
+    returnToCity(){if(disposed||!active)return false;leaveIsland();return true;},
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
-      if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false; disposed=true; islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       root.userData.propertyDeepLinkHint?.remove(); guidanceHud?.remove();
       if(selectedLotBeacon){selectedLotBeacon.group.removeFromParent();for(const g of selectedLotBeacon.geometries)g.dispose();for(const m of selectedLotBeacon.materials)m.dispose();}
@@ -604,6 +624,7 @@ export async function installEstatesIslandLive({
   // Read-only browser diagnostic to distinguish missing deploys from failed scene activation.
   window.__estatesIslandDiagnostics=Object.freeze({build:'estates-entry-20261026-pr300',scene:'burn-city-estates-island',lake:'continuous-ring',get loaded(){return !disposed},get active(){return active},get visible(){return root.visible}});
   onStatus({state:'ready',catalogProperties:catalog.properties?.length??0,lotAnchors:manifest.lots.length,publicTraversal:true,privateAccess:'permission-gated'});
+  void refreshOwnership(true);
   if(requestedLot)await teleportToProperty(requestedLot.propertyId);
   return api;
 }

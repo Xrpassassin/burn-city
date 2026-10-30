@@ -2,6 +2,7 @@ name: Estates hourly accounting and settlement software
 on:
   pull_request:
     paths:
+      - 'server/estate-portfolio*.js'
       - 'server/estate-hourly-*.js'
       - 'server/estate-liquidity-*.js'
       - 'server/estate-treasury-transactions*.js'
@@ -34,6 +35,7 @@ jobs:
       - run: |
           node --check server/server.js
           node --check scripts/estate-bootstrap.cjs
+          node server/estate-portfolio.test.js
           node server/estate-liquidity-ledger.test.js
           node scripts/estate-live-operations.test.cjs
           node --check scripts/estate-live-ops.cjs

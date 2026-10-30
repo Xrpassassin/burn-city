@@ -11,6 +11,8 @@ const {server}=require('../server/server');
  await new Promise(r=>server.listening?r():server.once('listening',r));const url='http://127.0.0.1:'+server.address().port;
  const token=Pay.sign({acct:buyer,exp:Date.now()+60000});
  const call=async(p,body,auth=true)=>{const r=await fetch(url+'/api/estates'+p,{method:body?'POST':'GET',headers:{...(auth?{authorization:'Bearer '+token}:{}),'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {code:r.status,data:await r.json()};};
+ const publicStatus=await (await fetch(url+'/api/estates/status')).json();assert.equal(publicStatus.salesEnabled,true);assert.equal(publicStatus.owned,undefined);assert.equal(publicStatus.payouts,undefined);
+ assert.equal((await call('/portfolio',null,false)).code,401);
  assert.equal((await call('/purchase/reserve',{propertyId:'trailer-01'},false)).code,401);
  const state=await call('');assert.equal(state.data.salesEnabled,true);assert.equal(state.data.distributionsEnabled,false);
  const r=await call('/purchase/reserve',{propertyId:'trailer-01',amountDrops:1,shareUnits:99999});assert.equal(r.code,201);assert.equal(r.data.priceDrops,3000000);
@@ -32,6 +34,8 @@ const {server}=require('../server/server');
  const otherToken=Pay.sign({acct:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',exp:Date.now()+60000});
  const privateState=await (await fetch(url+'/api/estates',{headers:{authorization:'Bearer '+otherToken}})).json();
  assert.equal(privateState.capitalAllocations.length,0);
+ const ownReport=(await call('/portfolio?owner='+encodeURIComponent('rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q'))).data;assert.equal(ownReport.portfolio.properties.length,1);assert.equal(ownReport.portfolio.properties[0].propertyId,'trailer-01');
+ const otherReport=await (await fetch(url+'/api/estates/portfolio?owner='+encodeURIComponent(buyer),{headers:{authorization:'Bearer '+otherToken}})).json();assert.equal(otherReport.owned.length,0);assert.equal(otherReport.portfolio.properties.length,0);assert(!JSON.stringify(otherReport).includes(hash));
 
  assert.equal((await call('/payout-preference',{currency:'IMG'})).code,200);
  console.log('Enabled Estates HTTP purchase, pause, pending validation and settled ownership passed');

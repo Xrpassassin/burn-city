@@ -21,6 +21,9 @@ jobs:
           assert.match(index,/id="estatesPreviewLink" href="estate-properties.html"/);
           assert.ok(fs.existsSync('client/estate-properties.html'));
           assert.ok(fs.existsSync('client/estate-buyer-preview.js'));
-          assert.match(fs.readFileSync('client/estate-properties.html','utf8'),/property sales are not enabled/i);
+          const page=fs.readFileSync('client/estate-properties.html','utf8');
+          assert.match(page,/id="live-status"/);
+          assert.match(page,/id="owned-properties"/);
+          assert.doesNotMatch(page,/Preview only — property sales are not enabled/i);
           console.log('Estates preview entry point checks passed');
           NODE

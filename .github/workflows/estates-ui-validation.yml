@@ -2,6 +2,13 @@ name: Estates directory and responsive UI checks
 on:
   pull_request:
     paths:
+      - 'client/js/estate-portfolio*'
+      - 'client/js/estate-reward-scenario*'
+      - 'client/estate-properties.html'
+      - 'client/estate-buyer-preview.js'
+      - 'server/estate-portfolio*'
+      - 'server/server.js'
+      - 'scripts/estate-portfolio-browser-test.mjs'
       - 'client/js/estates-directory*'
       - 'client/js/estate-purchase-ui.mjs'
       - 'client/js/estates-panel-layout*'
@@ -27,3 +34,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Browser directory, walking guidance and nearby inspection
         run: node scripts/estates-directory-browser-test.mjs
+      - name: Portfolio accounting and hypothetical allocation tests
+        run: node server/estate-portfolio.test.js && node client/js/estate-reward-scenario.test.mjs
+      - name: Browser owned properties, wallet isolation, scenarios and live status
+        run: node scripts/estate-portfolio-browser-test.mjs

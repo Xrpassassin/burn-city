@@ -1,0 +1,28 @@
+name: Estates purchase readiness now
+on:
+  push:
+    branches: [ops/estates-purchase-readiness-444]
+    paths: ['.github/workflows/estates-purchase-readiness.yml']
+permissions:
+  contents: read
+jobs:
+  status:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read current deployed sales and payout status without changing controls
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const source=fs.readFileSync('scripts/estate-live-ops.cjs','utf8').replace('/api/estates/payouts','/api/estates').replace('distributionStatus:s.distributionStatus','salesEnabled:s.salesEnabled,salesStatus:s.salesStatus,distributionStatus:s.distributionStatus');
+          const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',source,'status','6e2eae03c519659407917736795734bef7fc57e6'],timeout:20}),signal:AbortSignal.timeout(30000)});
+          if(!r.ok)throw Error('readonly_status_http_'+r.status);
+          const result=await r.json();const report=JSON.parse(result.stdout.trim());console.log(JSON.stringify(report));
+          if(result.exit_code!==0)throw Error('readonly_status_failed');
+          NODE

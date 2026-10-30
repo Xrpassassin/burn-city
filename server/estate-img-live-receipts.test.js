@@ -19,7 +19,8 @@ function setup({badIgnoredLedger=false,unavailable=false}={}){
  createImgHistoricalBootstrap(db).configure({...config,startLedgerIndex:ledgerIndex,startLedgerHash:'B'.repeat(64),confirmedOnChain:true});
  const entries=['1','2','3'].map(c=>({hash:c.repeat(64),TransactionType:'Payment',Account:source,Destination:treasury}));
  const client={request:async q=>{
-  if(q.command==='ledger')return {result:{validated:true,ledger:{ledger_index:ledgerIndex,ledger_hash:'B'.repeat(64),parent_hash:'C'.repeat(64),transaction_hash:'D'.repeat(64),close_time:closeTime,transactions:entries}}};
+  if(q.command==='ledger')return {result:{validated:true,ledger:{ledger_index:ledgerIndex,ledger_hash:'B'.repeat(64),parent_hash:'C'.repeat(64),transaction_hash:'D'.repeat(64),close_time:closeTime,transactions:entries.map(e=>e.hash)}}};
+  if(q.command==='account_tx')return {result:{validated:true,account:treasury,ledger_index_min:ledgerIndex,ledger_index_max:ledgerIndex,transactions:entries.map(tx=>({validated:true,ledger_index:ledgerIndex,hash:tx.hash,tx_json:tx}))}};
   const i=entries.findIndex(e=>e.hash===q.transaction);
   return {result:{...entries[i],validated:true,ledger_index:badIgnoredLedger&&i===1?102:ledgerIndex,date:closeTime,
    meta:{TransactionResult:i===2?'tecPATH_DRY':'tesSUCCESS',delivered_amount:i===0?{currency:'IMG',issuer:imgIssuer,value:amount}:unavailable?'unavailable':'6'}}};

@@ -21,21 +21,29 @@ function createImgValidatedLedgerScanner({client,db,treasury,imgIssuer,allowedSo
   if(cfg.treasury!==treasury||cfg.img_issuer!==imgIssuer||JSON.stringify(JSON.parse(cfg.source_addresses_json).sort())!==JSON.stringify([...sources].sort()))throw new Error('scanner_configuration_mismatch');
   if(!previous&&ledgerIndex!==cfg.start_ledger_index)throw new Error('unexpected_start_ledger');
   if(previous&&ledgerIndex!==previous.ledger_index+1)throw new Error('noncontiguous_ledger');
-  const response=await client.request({command:'ledger',ledger_index:ledgerIndex,transactions:true,expand:true});
+  const response=await client.request({command:'ledger',ledger_index:ledgerIndex,transactions:false,expand:false});
   const ledger=response?.result?.ledger;
-  if(response?.result?.validated!==true||!ledger||Number(ledger.ledger_index)!==ledgerIndex||!Array.isArray(ledger.transactions)||!Number.isSafeInteger(ledger.close_time))throw new Error('unvalidated_or_incomplete_ledger');
+  if(response?.result?.validated!==true||!ledger||Number(ledger.ledger_index)!==ledgerIndex||!Number.isSafeInteger(ledger.close_time))throw new Error('unvalidated_or_incomplete_ledger');
   const ledgerHash=ledger.ledger_hash||response.result.ledger_hash;
   if(!HASH.test(ledgerHash||'')||!HASH.test(ledger.parent_hash||'')||!HASH.test(ledger.transaction_hash||''))throw new Error('missing_ledger_integrity_hashes');
   if(!previous&&ledgerHash.toUpperCase()!==cfg.start_ledger_hash.toUpperCase())throw new Error('start_ledger_hash_mismatch');
-  const hashes=[];
-  const seenHashes=new Set();
-  for(const entry of ledger.transactions){
-   const tx=entry?.tx_json||entry;
-   if(!tx||typeof tx!=='object'||typeof tx.TransactionType!=='string'||!HASH.test(entry.hash||tx.hash||''))throw new Error('unexpected_ledger_transaction_shape');
-   const hash=(entry.hash||tx.hash).toUpperCase();
-   if(seenHashes.has(hash))throw new Error('duplicate_ledger_transaction');
-   seenHashes.add(hash);
-   if(tx.TransactionType==='Payment'&&sources.has(tx.Account)&&tx.Destination===treasury)hashes.push(hash);
+  // Read only this treasury's validated history within the exact validated ledger.
+  // Expanding every network transaction exceeds public RPC quotas. Every page
+  // must cover this exact ledger before its checkpoint can advance.
+  const hashes=[],seenHashes=new Set(),markers=new Set();let marker;
+  for(let page=0;;page++){
+   if(page>=100)throw new Error('treasury_scan_page_budget_exceeded');
+   const r=(await client.request({command:'account_tx',account:treasury,ledger_index_min:ledgerIndex,ledger_index_max:ledgerIndex,binary:false,forward:true,limit:10,...(marker===undefined?{}:{marker})})).result;
+   if(r?.validated!==true||r.account!==treasury||Number(r.ledger_index_min)!==ledgerIndex||Number(r.ledger_index_max)!==ledgerIndex||!Array.isArray(r.transactions))throw new Error('unvalidated_or_incomplete_treasury_history');
+   for(const entry of r.transactions){
+    const tx=entry?.tx_json||entry?.tx,hash=entry?.hash||tx?.hash;
+    if(entry?.validated!==true||Number(entry.ledger_index??tx?.ledger_index)!==ledgerIndex||!tx||typeof tx.TransactionType!=='string'||!HASH.test(hash||'')||(entry.ledger_hash&&entry.ledger_hash.toUpperCase()!==ledgerHash.toUpperCase()))throw new Error('unexpected_treasury_transaction_shape');
+    const key=hash.toUpperCase();
+    if(seenHashes.has(key))throw new Error('duplicate_treasury_transaction');seenHashes.add(key);
+    if(tx.TransactionType==='Payment'&&sources.has(tx.Account)&&tx.Destination===treasury)hashes.push(key);
+   }
+   if(r.marker===undefined||r.marker===null)break;
+   const key=JSON.stringify(r.marker);if(markers.has(key))throw new Error('repeated_treasury_history_marker');markers.add(key);marker=r.marker;
   }
   const closeTimeMs=(ledger.close_time+946684800)*1000;
   if(!Number.isSafeInteger(closeTimeMs))throw new Error('invalid_ledger_close_time');

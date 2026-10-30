@@ -10,9 +10,10 @@ function setup(rewards=true){const db=new DatabaseSync(':memory:');db.exec('CREA
  const hashes=['B','C','D'].map(c=>c.repeat(64));
  const client={request:async q=>{
   if(q.command==='ledger'&&q.ledger_index==='validated')return {result:{validated:true,ledger_index:103}};
-  const i=q.command==='ledger'?q.ledger_index-101:Number(q.transaction[0])-1;
+  const i=q.command==='ledger'?q.ledger_index-101:q.command==='account_tx'?q.ledger_index_min-101:Number(q.transaction[0])-1;
   const time=times[i];
-  if(q.command==='ledger')return {result:{validated:true,ledger:{ledger_index:101+i,close_time:date(time),ledger_hash:hashes[i],parent_hash:i?hashes[i-1]:'A'.repeat(64),transaction_hash:'E'.repeat(64),transactions:rewards&&i<2?[{hash:String(i+1).repeat(64),TransactionType:'Payment',Account:SOURCE,Destination:treasury}]:[]}}};
+  if(q.command==='ledger')return {result:{validated:true,ledger:{ledger_index:101+i,close_time:date(time),ledger_hash:hashes[i],parent_hash:i?hashes[i-1]:'A'.repeat(64),transaction_hash:'E'.repeat(64),transactions:rewards&&i<2?[String(i+1).repeat(64)]:[]}}};
+  if(q.command==='account_tx')return {result:{validated:true,account:treasury,ledger_index_min:101+i,ledger_index_max:101+i,transactions:rewards&&i<2?[{validated:true,ledger_index:101+i,hash:String(i+1).repeat(64),tx_json:{TransactionType:'Payment',Account:SOURCE,Destination:treasury}}]:[]}};
   return {result:{validated:true,ledger_index:101+i,hash:q.transaction,date:date(time),TransactionType:'Payment',Account:SOURCE,Destination:treasury,Memos:[{Memo:{MemoData:Buffer.from(JSON.stringify({payoutType:'lp',poolAccount:POOL,rewardAsset:'IMG',roundId:'test-'+i})).toString('hex')}}],meta:{TransactionResult:'tesSUCCESS',delivered_amount:{currency:'IMG',issuer,value:'1.000001234'}}}};
  }};
  return {db,client};}

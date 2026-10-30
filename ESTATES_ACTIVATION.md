@@ -132,3 +132,5 @@ To stop new signatures, disable the relevant sales/liquidity/harvest/distributio
 flags and/or pause the treasury. Already submitted transactions can still validate
 and must be reconciled. Preserve the allocation, liquidity job, treasury transaction,
 loss-carry, profit receipt, payout/credit and original IMG accounting tables on rollback.
+
+Production scanner quota handling: read validated ledger headers and paginate only the treasury's account history within each exact ledger range. Every page must confirm the full requested range; receipt verification and ledger parent-hash continuity remain required before checkpoint advancement. Activation waits for a checkpoint within 60 seconds of the present, then verifies health and progress over four samples spanning 80 seconds. A retry may clear only the previously reviewed manual-deposit pause or its preserved activation rollback; other alerts still require review.

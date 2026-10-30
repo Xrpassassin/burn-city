@@ -1,4 +1,4 @@
-name: Estates minimal treasury history probe
+name: Estates bounded treasury history probe
 on:
   push:
     branches: [ops/estates-live-activation-442]

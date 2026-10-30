@@ -6,6 +6,7 @@ import { createEstatesIslandRenderer } from './estates-island-renderer.mjs';
 import { createEstatesIslandController } from './estates-island-controller.mjs';
 import { estateWalkingGuidance } from './estates-walking-guidance.mjs';
 import { planEstatesPanel } from './estates-panel-layout.mjs';
+import { searchEstateLots } from './estates-directory.mjs';
 
 const OFFSET_X = 650;
 const CITY_GATE = Object.freeze({ x: 445, y: 0.1, z: 188 });
@@ -168,6 +169,53 @@ export async function installEstatesIslandLive({
     } else panel.style.display='none';
   };
   const hidePanel = () => { restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
+  // A single shared panel hosts the directory and inspection; no stacked overlays.
+  let directoryOpen=false;
+  const directoryButton=document.createElement('button');
+  directoryButton.type='button';
+  directoryButton.textContent='⌂ Browse Estates';
+  directoryButton.style.cssText='display:none;position:fixed;right:12px;top:calc(72px + env(safe-area-inset-top));z-index:95;min-height:44px;padding:9px 14px;border:1px solid #ffb45b;border-radius:10px;background:#17151af0;color:#ffe4bd;font:700 13px system-ui;cursor:pointer';
+  document.body.appendChild(directoryButton);
+  function openDirectory(query='',filter='mapped') {
+    if(!active)return;
+    directoryOpen=true;
+    showPanel('ESTATES DIRECTORY','Search properties and select a home to inspect or navigate toward.',
+      [{label:'Close directory',run:()=>{directoryOpen=false;hidePanel();}}]);
+    const search=document.createElement('input');
+    search.type='search';search.placeholder='Search address, district, or tier';
+    search.value=query;search.setAttribute('aria-label','Search Estates');
+    search.style.cssText='width:100%;box-sizing:border-box;min-height:44px;margin:8px 0;padding:8px;border-radius:8px;border:1px solid #ffb45b;background:#121b27;color:white';
+    const select=document.createElement('select');
+    select.setAttribute('aria-label','Filter properties');
+    select.style.cssText=search.style.cssText;
+    for(const [value,label] of [['mapped','Catalog homes'],['all','All lots'],['unassigned','Unassigned lots']]){
+      const option=document.createElement('option');option.value=value;option.textContent=label;select.appendChild(option);
+    }
+    select.value=filter;
+    const results=document.createElement('div');results.style.cssText='display:grid;gap:8px;max-height:40dvh;overflow:auto';
+    const render=()=>{
+      results.replaceChildren();
+      const matches=searchEstateLots(manifest.lots,search.value,select.value);
+      for(const lot of matches){
+        const button=document.createElement('button');button.type='button';
+        button.style.textAlign='left';
+        button.textContent=lot.address+' · '+lot.district+' · '+lot.tier;
+        button.addEventListener('click',()=>{
+          directoryOpen=false;
+          if(lot.propertyId)showLotInspection({propertyId:lot.propertyId,address:lot.address,tier:lot.tier});
+          else showPanel(lot.address,'This plot is reserved for a future home.',[{label:'Directory',run:()=>openDirectory(search.value,select.value)}]);
+        });
+        results.appendChild(button);
+      }
+      if(!matches.length){const empty=document.createElement('p');empty.textContent='No matching lots.';results.appendChild(empty);}
+    };
+    search.addEventListener('input',render);select.addEventListener('change',render);
+    panel.insertBefore(search,panel.querySelector('.actions'));
+    panel.insertBefore(select,panel.querySelector('.actions'));
+    panel.insertBefore(results,panel.querySelector('.actions'));
+    render();
+  }
+  directoryButton.addEventListener('click',()=>directoryOpen?(directoryOpen=false,hidePanel()):openDirectory());
   const showLotInspection = property => {
     const catalogued=Boolean(property.propertyId);
     const home=catalog.properties.find(p=>p.id===property.propertyId),tier=catalog.tiers.find(t=>t.id===home?.tier);
@@ -367,7 +415,7 @@ export async function installEstatesIslandLive({
     },30000);
     returnPosition = {x:player.pos.x,y:player.pos.y,z:player.pos.z};
     returnCamera = {position:camera.position.clone(),quaternion:camera.quaternion.clone()};
-    active=true; root.visible=true; nearCityGate=false; hidePanel();
+    active=true; root.visible=true; nearCityGate=false; hidePanel(); directoryButton.style.display='block';
     exitButton.style.display='block';
     hideCityScene();
     window.__estatesCityPresencePaused=true;window.__cityNet?.setPaused(true);
@@ -387,7 +435,7 @@ export async function installEstatesIslandLive({
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();
     if(guidanceHud)guidanceHud.style.display='none';
     if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
-    exitButton.style.display='none';
+    exitButton.style.display='none'; directoryButton.style.display='none'; directoryOpen=false;
     releaseLease();
     restoreCityScene();
     const destination=returnPosition??gate;
@@ -491,7 +539,7 @@ export async function installEstatesIslandLive({
     tick,
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
-      if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false; disposed=true; releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       root.userData.propertyDeepLinkHint?.remove(); guidanceHud?.remove();
       if(selectedLotBeacon){selectedLotBeacon.group.removeFromParent();for(const g of selectedLotBeacon.geometries)g.dispose();for(const m of selectedLotBeacon.materials)m.dispose();}

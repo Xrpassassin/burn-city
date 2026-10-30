@@ -15,6 +15,7 @@ async function command(mode){
 }
 async function update(flags){
  const m=await call(endpoint);if(!m.instance_id||!m.config)throw Error('machine_configuration_unavailable');
+ if(Object.entries(flags).every(([k,v])=>m.config.env?.[k]===v)){await command('status');return;}
  await call(endpoint,{method:'POST',body:JSON.stringify({current_version:m.instance_id,config:{...m.config,env:{...m.config.env,...flags}}})});
  // Poll after reboot; no blind retry of a configuration mutation.
  for(let i=0;i<30;i++){await pause(5000);try{const r=await fetch('https://burn-city-game.fly.dev/api/deploy-version',{signal:AbortSignal.timeout(5000)}),v=await r.json();if(v.source==='github-volume'&&v.commit===expected){const s=await command('status');if(Object.entries(flags).every(([k,v])=>({ESTATE_SALES_ENABLED:s.sales,ESTATE_ACCOUNTING_ENABLED:s.accounting,ESTATE_LIQUIDITY_ENABLED:s.liquidity,ESTATE_XRP_PROFIT_HARVEST_ENABLED:s.harvest,ESTATE_DISTRIBUTIONS_ENABLED:s.distributions}[k])===(v==='1')))return;}}catch{}}
@@ -22,13 +23,15 @@ async function update(flags){
 }
 let changed=false;
 try{
- await command('preflight');await command('bootstrap');changed=true;
+ const initial=await command('preflight');if(!initial.bootstrap)await command('bootstrap');changed=true;
  await update({ESTATE_ACCOUNTING_ENABLED:'1'});
  let progressed=false;
  for(let i=0;i<60;i++){const s=await command('status');if(s.accounting&&s.checkpoint?.ledger_index>=s.bootstrap?.start_ledger_index&&Date.now()-s.checkpoint.scanned_through_ms<=60000){progressed=true;break;}await pause(5000);}
  if(!progressed)throw Error('accounting_checkpoint_not_progressing');
  await update({ESTATE_SALES_ENABLED:'1',ESTATE_LIQUIDITY_ENABLED:'1',ESTATE_XRP_PROFIT_HARVEST_ENABLED:'1',ESTATE_DISTRIBUTIONS_ENABLED:'1'});
  await command('unpause');
+ // Let the preflight read burst expire before measuring steady-state health.
+ for(let cooldown=0;cooldown<3;cooldown++){await pause(25000);const s=await command('status');if(s.paused)throw Error('watchdog_paused_during_cooldown');}
  let previousLedger=null;
  for(let sample=0;sample<4;sample++){
  await pause(20000);const final=await command('status');

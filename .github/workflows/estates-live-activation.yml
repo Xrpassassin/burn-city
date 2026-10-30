@@ -25,3 +25,4 @@ jobs:
         run: node scripts/estate-live-operations.mjs
 # Rate-limited read-only preflight requests wait for the provider retry window.
 # Exact validated historical XPMarket/Xaman hashes reviewed before accounting bootstrap.
+# Preserve already-active flags, allow inspection quota to expire, then verify 80 seconds of healthy operation.

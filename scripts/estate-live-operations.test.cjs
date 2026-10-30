@@ -1,14 +1,14 @@
 'use strict';
 const assert=require('node:assert/strict'),{spawnSync}=require('node:child_process');
 const target='a'.repeat(40),base='https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068';
-for(const scenario of ['healthy','failed_status','stale_scanner']){
- const failFinal=scenario==='failed_status',stale=scenario==='stale_scanner';
+for(const scenario of ['healthy','failed_status','stale_scanner','already_enabled']){
+ const failFinal=scenario==='failed_status',stale=scenario==='stale_scanner',alreadyEnabled=scenario==='already_enabled',success=scenario==='healthy'||alreadyEnabled;
  const mock=`
  import assert from 'node:assert/strict';
- const base=${JSON.stringify(base)},expected=${JSON.stringify(target)},failFinal=${failFinal},stale=${stale};
+ const base=${JSON.stringify(base)},expected=${JSON.stringify(target)},failFinal=${failFinal},stale=${stale},alreadyEnabled=${alreadyEnabled};
  const realTimeout=globalThis.setTimeout;globalThis.setTimeout=(fn,ms,...args)=>realTimeout(fn,1,...args);
- let sampleLedger=100,version=1,env={UNRELATED:'preserved'},paused=true,bootstrap=false;const actions=[];
- process.on('exit',()=>console.log('FIXTURE_RESULT:'+JSON.stringify({actions,env,paused})));
+ let sampleLedger=100,version=1,env={UNRELATED:'preserved'},paused=true,bootstrap=alreadyEnabled;if(alreadyEnabled)for(const k of ['ESTATE_ACCOUNTING_ENABLED','ESTATE_SALES_ENABLED','ESTATE_LIQUIDITY_ENABLED','ESTATE_XRP_PROFIT_HARVEST_ENABLED','ESTATE_DISTRIBUTIONS_ENABLED'])env[k]='1';const actions=[];
+ process.on('exit',()=>console.log('FIXTURE_RESULT:'+JSON.stringify({actions,env,paused,version})));
  globalThis.fetch=async(url,options={})=>{
   const ok=v=>new Response(JSON.stringify(v),{status:200,headers:{'Content-Type':'application/json'}});
   if(String(url).endsWith('/api/deploy-version'))return ok({source:'github-volume',commit:expected});
@@ -28,10 +28,11 @@ for(const scenario of ['healthy','failed_status','stale_scanner']){
  };
  `;
  const r=spawnSync(process.execPath,['--import','data:text/javascript,'+encodeURIComponent(mock),'scripts/estate-live-operations.mjs'],{encoding:'utf8',timeout:10000,env:{...process.env,ESTATE_EXPECTED_COMMIT:target,FLY_API_TOKEN:'test-fixture-token',CONFIRM_ESTATES_ACTIVATION:'70-30-realized-earnings-only'}});
- assert.equal(r.status,scenario==='healthy'?0:1,r.stderr+'\n'+r.stdout);
+ assert.equal(r.status,success?0:1,r.stderr+'\n'+r.stdout);
  const result=JSON.parse(r.stdout.split('\n').find(x=>x.startsWith('FIXTURE_RESULT:')).slice('FIXTURE_RESULT:'.length));
- assert.equal(result.env.UNRELATED,'preserved');assert.equal(result.actions.indexOf('preflight')<result.actions.indexOf('bootstrap'),true);if(!stale)assert.equal(result.actions.indexOf('bootstrap')<result.actions.indexOf('unpause'),true);
- assert.equal(result.paused,scenario!=='healthy');assert.equal(result.actions.includes('pause'),scenario!=='healthy');assert.equal(result.actions.includes('unpause'),!stale);
- if(scenario==='healthy')assert.equal(r.stdout.includes('"activated":true'),true);
+ assert.equal(result.env.UNRELATED,'preserved');if(!alreadyEnabled){assert.equal(result.actions.indexOf('preflight')<result.actions.indexOf('bootstrap'),true);if(!stale)assert.equal(result.actions.indexOf('bootstrap')<result.actions.indexOf('unpause'),true);}
+ assert.equal(result.paused,!success);assert.equal(result.actions.includes('pause'),!success);assert.equal(result.actions.includes('unpause'),!stale);
+ if(alreadyEnabled)assert.equal(result.version,1);
+ if(success)assert.equal(r.stdout.includes('"activated":true'),true);
 }
 console.log('Activation orchestration: expected SHA/version, preserved config, accounting-first order, status verification and failure re-pause passed (no network)');

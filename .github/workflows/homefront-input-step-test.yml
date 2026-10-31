@@ -7,6 +7,8 @@ on:
       - 'server/homefront-input-step.test.js'
       - 'server/homefront-world.js'
       - 'test/homefront-input-world-sim.js'
+      - 'server/homefront.js'
+      - 'test/homefront-input-api-sim.js'
       - '.github/workflows/homefront-input-step-test.yml'
   pull_request:
     paths:
@@ -14,6 +16,8 @@ on:
       - 'server/homefront-input-step.test.js'
       - 'server/homefront-world.js'
       - 'test/homefront-input-world-sim.js'
+      - 'server/homefront.js'
+      - 'test/homefront-input-api-sim.js'
       - '.github/workflows/homefront-input-step-test.yml'
 jobs:
   input-step:
@@ -26,3 +30,4 @@ jobs:
           node-version: '22'
       - run: node server/homefront-input-step.test.js
       - run: node test/homefront-input-world-sim.js
+      - run: node test/homefront-input-api-sim.js

@@ -53,7 +53,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
    let amount=formatRewardUnits(r.amount_drops)+' XRP equivalent allocated';
    if(r.state==='confirmed'&&r.delivered){try{const d=JSON.parse(r.delivered);amount=typeof d==='string'?formatRewardUnits(d)+' XRP delivered':d.value+' IMG delivered';}catch{amount='Delivery requires review';}}
    else if(r.state==='confirmed')amount=formatRewardUnits(r.amount_drops)+' XRP delivered';
-   add('Eligible after '+new Date(r.available_after_ms).toLocaleString()+' · '+(r.payout_policy===2?'IMG/RLUSD realized profit':'Legacy XRP pool profit')+' · '+amount+' · '+(r.carried?'Accrued for a future payout':labels[r.state]||'Pending'),r.tx_hash);
+   add('Eligible after '+new Date(r.available_after_ms).toLocaleString()+' · '+(r.payout_policy===2?'IMG/RLUSD realized profit':'Legacy XRP pool profit')+' · '+amount+' · '+(r.carried?'Accrued for a future payout':r.note==='reward_transaction_review_required'?'Held for review':labels[r.state]||'Pending')+(r.note==='owner_currency_selection_required'?' · Choose IMG or XRP above.':r.note==='recipient_img_trustline_unavailable'?' · An IMG trustline is needed.':r.note==='quote_expired_review_required'?' · Conversion quote needs review.':''),r.tx_hash);
   }
   for(const [key,asset] of [['rewardXrpCreditDrops','XRP'],['rewardImgCreditUnits','IMG']])if(BigInt(s[key]||'0')>0n)add('Retained '+asset+' reward credit: '+formatRewardUnits(s[key])+' '+asset+'. Included in a future eligible payout.');
   if(BigInt(s.xrpProfitCreditDrops||'0')>0n)add('Unpaid XRP reward credit: '+formatRewardUnits(s.xrpProfitCreditDrops)+' XRP. Included with a future eligible payment.');

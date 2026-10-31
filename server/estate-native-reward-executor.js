@@ -76,6 +76,7 @@ function createEstateNativeRewardExecutor({db,client,wallet,treasury,imgIssuer,g
     db.prepare("UPDATE estate_xrp_profit_payouts SET state='confirmed',tx_hash=?,currency=?,delivered=?,note=NULL WHERE id=?").run(p.tx_hash,s.currency,JSON.stringify(result.meta.delivered_amount),pay.id);
    }
   });
+  for(const r of db.prepare("SELECT context_json FROM estate_treasury_transactions WHERE purpose IN ('native_reward_convert','native_reward_payout') AND state='held'").all())note(JSON.parse(r.context_json).payoutId,'reward_transaction_review_required');
  }
  async function tick(){
   proofs();
@@ -118,7 +119,7 @@ function createEstateNativeRewardExecutor({db,client,wallet,treasury,imgIssuer,g
      journal.ensure(pay.id+':native-pay','native_reward_payout',{Account:treasury,TransactionType:'Payment',Destination:pay.owner,Amount:amount,Flags:0},{payoutId:pay.id});
     }
     note(pay.id,s.state==='converting'?'converting_earned_profit_to_img':'awaiting_net_reward_payment');
-    return await journal.tick();
+    const result=await journal.tick();if(result.blocked)note(pay.id,result.blocked);return result;
    }catch(e){note(pay.id,e.message);}
   }
   return {idle:true};

@@ -21,12 +21,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Read-only live Estates and IMG/RLUSD preflight
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
+          import {spawnSync} from 'node:child_process';
           if(!process.env.FLY_API_TOKEN) throw Error('fly_credential_missing');
           const base='https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec';
           const headers={Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'};
@@ -41,10 +43,13 @@ jobs:
           if(readiness.readOnly!==true)throw Error('readiness_not_readonly');
           // Run the existing dedicated ledger preflight inside the deployed runtime, using
           // its own installed XRPL client and server configuration. No signing.
-          const pool=await run(['node','/data/gh/cur/scripts/estate-rlusd-readiness.cjs','rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f']);
+          const check=spawnSync(process.execPath,['scripts/estate-rlusd-readiness.cjs','rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f'],{encoding:'utf8',timeout:90000,env:{...process.env,XRPL_NETWORK:'mainnet'}});
+          let pool;try{pool=JSON.parse(check.stdout)}catch{throw Error('pool_report_unavailable')}
+          if(!pool || !Array.isArray(pool.blockers))throw Error('invalid_pool_report');
           const visible={readOnly:true,live:readiness,pool};
           console.log(JSON.stringify(visible,null,2));
           if(pool.poolAccount!=='rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f')throw Error('unexpected_pool_account');
-          if(!pool.ready)throw Error('img_rlusd_preflight_blocked');
+          if(!pool.ready || check.status!==0)throw Error('img_rlusd_preflight_blocked_'+pool.blockers.filter(x=>typeof x==='string'&&/^[a-z0-9_]{1,90}$/i.test(x)).join('__'));
+          if(check.error)throw Error('pool_check_execution_failed');
           // A successful audit is NOT authorization to unpause or enable sales.
           NODE

@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {planBalancedEstateDeposit:plan}=require('./estate-rlusd-balanced-deposit');
+const base={poolImg:'2000',poolRlusd:'4',availableImg:'100',availableRlusd:'1',priceDeviationBps:'80'};
+assert.deepEqual(plan(base),{ready:true,reason:null,img:'20',rlusd:'0.04',poolPriceRlusdPerImg:'0.002000000000'});
+assert.equal(plan({...base,priceDeviationBps:'215.45'}).reason,'img_rlusd_market_price_mismatch');
+assert.equal(plan({...base,availableRlusd:'0'}).reason,'no_balanced_inventory');
+assert.equal(plan({...base,availableImg:'2',availableRlusd:'1',maxShareBps:'1000'}).img,'2');
+assert.throws(()=>plan({...base,poolImg:'0'}),RangeError);
+assert.throws(()=>plan({...base,availableImg:'-3'}),TypeError);
+console.log('Balanced RLUSD deposit planner checks passed');

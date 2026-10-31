@@ -48,6 +48,8 @@ mismatch.step({ x: 1, z: 1 }, false, 100, 0.05);
 await new Promise(resolve => setImmediate(resolve));
 assert.equal(mismatch.enabled, false, 'unexpected server acknowledgement disables the opt-in mode');
 assert.deepEqual(rejected, ['movement_ack_mismatch']);
+mismatch.sync({ enabled: true, nextSequence: 10 }, { x: 0, z: 0 }, 400);
+assert.equal(mismatch.enabled, false, 'fatal acknowledgement mismatch is not rearmed by a polling GET');
 
 const denied = [];
 const serverOff = createContinuousInput({
@@ -59,4 +61,35 @@ serverOff.step({ x: 0, z: 1 }, false, 100, 0.02);
 await new Promise(resolve => setImmediate(resolve));
 assert.equal(serverOff.enabled, false);
 assert.deepEqual(denied, ['continuous_movement_unavailable']);
+
+const waitingSends = [];
+const waiting = createContinuousInput({ send: command => {
+  waitingSends.push(command);
+  return { inputAck: { sequence: command.sequence, x: 1, z: 0 } };
+} });
+waiting.sync({ enabled: true, nextSequence: 11, readyInMs: 600 }, { x: 0, z: 0 }, 1000);
+waiting.step({ x: 1, z: 0 }, false, 1300, 0.05);
+assert.equal(waitingSends.length, 0, 'spawn cooldown does not send premature input');
+assert.deepEqual(waiting.position(), { x: 0, z: 0 }, 'spawn cooldown does not predict server-rejected movement');
+waiting.step({ x: 1, z: 0 }, false, 1600, 0.05);
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(waitingSends.length, 1);
+assert.equal(waitingSends[0].sequence, 11);
+
+let rejectedCooldown = 0;
+const cooldown = createContinuousInput({ send: () => {
+  rejectedCooldown++;
+  throw new Error('move_cooldown');
+} });
+cooldown.sync({ enabled: true, nextSequence: 0 }, { x: 0, z: 0 });
+cooldown.step({ x: 1, z: 0 }, false, 100, 0.05);
+await new Promise(resolve => setImmediate(resolve));
+assert.deepEqual(cooldown.position(), { x: 0, z: 0 }, 'cooldown rejection rolls back prediction');
+cooldown.step({ x: 1, z: 0 }, false, 250, 0.05);
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(rejectedCooldown, 1, 'cooldown rejection backs off before sending another command');
+cooldown.step({ x: 1, z: 0 }, false, 350, 0.05);
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(rejectedCooldown, 2, 'cooldown backoff expires and movement retries');
+
 console.log('Homefront continuous client input prediction tests passed.');

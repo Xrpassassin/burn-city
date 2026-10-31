@@ -20,8 +20,11 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
+          for(let attempt=0;attempt<5;attempt++){
+          if(attempt)await new Promise(r=>setTimeout(r,30000));
           const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',fs.readFileSync('scripts/estate-reward-diagnosis.cjs','utf8')],timeout:25}),signal:AbortSignal.timeout(35000)});
           if(!r.ok)throw Error('readonly_diagnosis_http_'+r.status);const result=await r.json();console.log(JSON.stringify(JSON.parse(result.stdout.trim())));if(result.exit_code!==0)throw Error('readonly_diagnosis_failed');
+          }
           NODE
 
-# Compare saved payout with validated ledger proof.
+# Verify production queue recovery after merged payout proof fix.

@@ -67,6 +67,9 @@ on:
       - 'client/arena/homefront-graveyard-3d.js'
       - 'client/arena/homefront-landmark-builder.mjs'
       - 'client/arena/homefront-landmark-builder.test.mjs'
+      - 'client/arena/homefront-power-station.mjs'
+      - 'client/arena/homefront-power-station.test.mjs'
+      - 'docs/homefront-ashfall-power-station.md'
       - 'client/arena/homefront-interior-world.mjs'
       - 'client/arena/homefront-interior-world.test.mjs'
       - 'client/arena/homefront-view.mjs'
@@ -124,6 +127,7 @@ jobs:
         run: |
           node --input-type=module --check < client/arena/homefront-graveyard-3d.js
           node --input-type=module --check < client/arena/homefront-interior-world.mjs
+          node --input-type=module --check < client/arena/homefront-power-station.mjs
           node --input-type=module --check < client/arena/homefront-hud.mjs
           node --input-type=module --check < client/arena/homefront-jetpack.mjs
           node --input-type=module --check < client/js/jetpack-shop.mjs
@@ -145,6 +149,10 @@ jobs:
         run: node test/homefront-environment-damage.test.mjs
       - name: Run authoritative Homefront environment integration tests
         run: node server/homefront-environment.test.js
+      - name: Verify deterministic urban and industrial landmark meshes
+        run: node client/arena/homefront-landmark-builder.test.mjs
+      - name: Verify off-map Ashfall power-station visuals and mobile budget
+        run: node client/arena/homefront-power-station.test.mjs
       - name: Run Homefront 3D scene integration assertions
         run: node test/homefront-graveyard-3d.test.mjs
       - name: Run Homefront view-mode tests

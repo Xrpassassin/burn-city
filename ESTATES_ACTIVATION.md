@@ -1,5 +1,35 @@
 # Estates production activation
 
+## Current IMG/RLUSD policy
+
+New purchases use policy version 2: 99% is earmarked for IMG/RLUSD and 1%
+is retained as an XRP operating reserve. Existing IMG/PLX and IMG/XRP positions
+retain their original accounting; they are not new-purchase destinations.
+
+The sections below describe the **legacy 70/30 activation procedure**.
+`scripts/estate-live-operations.mjs` and `scripts/estate-live-ops.cjs` still
+require the legacy pools and a recent Pollux receipt. Do not use those scripts
+as evidence that IMG/RLUSD purchases and payouts are ready, or change their
+confirmation phrase to force activation.
+
+For the current policy, `.github/workflows/estates-pool-address-stage.yml`
+only stages the designated pool address with financial switches disabled.
+`.github/workflows/estates-rlusd-production-preflight.yml` checks live runtime
+state and validated pool identity, trustlines and market depth without signing.
+Its pool report explicitly does **not** verify signing and operating reserves.
+Neither workflow enables purchases or distributions. Passing tests or merging
+these workflows does not prove a mainnet purchase, deposit or owner payout.
+
+Current activation must independently verify the configured pool, treasury pause
+and pending transactions, available reserves, scanner progress, purchase gates,
+IMG/RLUSD funding gate, harvest gate and distribution gate. Preserve all existing
+principal and reward liabilities; do not treat manually withdrawn principal as
+profit. Verify the first real purchase and resulting deposits and payouts using
+validated transaction hashes. Hourly processing does not guarantee an hourly
+payment.
+
+## Legacy 70/30 procedure (historical reference)
+
 Merging/deploying code does not enable purchases, liquidity investment or outgoing
 rewards. Existing Fly credentials can be reused; no additional signing secret is
 required if the treasury signer already matches the Estates treasury.

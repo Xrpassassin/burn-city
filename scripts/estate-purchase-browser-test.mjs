@@ -8,6 +8,7 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({headless:true});
 try{
  const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+ page.setDefaultTimeout(10000);
  await page.goto('http://127.0.0.1:'+server.address().port);
  await page.evaluate(async()=>{
   const {mountEstatePurchase}=await import('/ui.mjs');
@@ -21,7 +22,7 @@ try{
    if(path==='/purchase/reserve')data={ok:true,reservationId:'test-reservation'};
    if(path==='/purchase/payment/start')data={ok:true,deeplink:'https://example.com/sign'};
    if(path==='/purchase/payment/confirm')data=++confirmed===1?{ok:false,pending:true}:{ok:true,txHash:'A'.repeat(64)};
-   if(path==='/payouts')data={distributionsEnabled:true,imgXrpProfitDistributionsEnabled:true,xrpProfitPayouts:[{amount_drops:'12345',state:'confirmed'}],payouts:[{epoch_start_ms:1700000000000,state:'confirmed'}]};
+   if(path==='/payouts')data=window.payoutState||{distributionsEnabled:true,imgXrpProfitDistributionsEnabled:true,xrpProfitPayouts:[{amount_drops:'12345',state:'confirmed'}],payouts:[{epoch_start_ms:1700000000000,state:'confirmed'}]};
    if(path==='/img-trustline/start')data={ready:false,deeplink:'https://xaman.app/sign/trustline'};
    if(path==='/img-trustline')data={ready:true};
    if(path==='/payout-preference')data={currency:options.body?JSON.parse(options.body).currency:null};
@@ -61,6 +62,17 @@ try{
  assert.deepEqual(calls.filter(c=>c.path==='/payout-preference'&&c.body).at(-1).body,{currency:'XRP'});
  fs.mkdirSync('estate-purchase-preview',{recursive:true});await page.screenshot({path:'estate-purchase-preview/mobile-settled.png',fullPage:true});
  await page.setViewportSize({width:1280,height:800});await page.screenshot({path:'estate-purchase-preview/desktop-settled.png',fullPage:true});
+ // Credits must remain visible even before the first payout row exists.
+ for(const [field,label] of [['rewardXrpCreditDrops','XRP credit'],['rewardImgCreditUnits','IMG credit'],['xrpProfitCreditDrops','Unpaid XRP reward credit']]){
+  await page.evaluate(field=>{window.payoutState={[field]:'12345',payouts:[],xrpProfitPayouts:[]};},field);
+  await page.getByRole('button',{name:'Refresh hourly payouts'}).click();
+  await page.getByText(label+': 0.012345',{exact:false}).waitFor();
+  assert.equal(await page.getByText('No hourly payouts recorded yet.',{exact:true}).count(),0);
+  assert.equal(await page.locator('[data-payout-history] p').count(),1,'refresh replaces earlier credit rows');
+ }
+ await page.evaluate(()=>{window.payoutState={rewardXrpCreditDrops:'0',rewardImgCreditUnits:'0',xrpProfitCreditDrops:'0',payouts:[],xrpProfitPayouts:[]};});
+ await page.getByRole('button',{name:'Refresh hourly payouts'}).click();
+ await page.getByText('No hourly payouts recorded yet.',{exact:true}).waitFor();
  const before=await page.evaluate(()=>window.calls.length);await page.evaluate(()=>localStorage.setItem('bcToken','changed-wallet'));
  await page.getByRole('button',{name:'Save payout preference'}).click();await page.getByText('Your wallet changed.',{exact:false}).waitFor();
  assert.equal(await page.evaluate(()=>window.calls.length),before);

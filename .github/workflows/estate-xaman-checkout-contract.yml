@@ -1,0 +1,22 @@
+name: Estates Xaman checkout contract simulation
+on:
+  pull_request:
+    paths:
+      - 'server/estate-xaman-checkout-contract.test.js'
+      - '.github/workflows/estate-xaman-checkout-contract.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/estate-xaman-checkout-contract.test.js'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node server/estate-xaman-checkout-contract.test.js

@@ -10,6 +10,7 @@ import { groundDetailCandidates } from './homefront-ground-detail.mjs';
 import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
 import { explorationGuidance } from './homefront-exploration-guidance.mjs';
 import { buildLandmarkSetPiece } from './homefront-landmark-builder.mjs';
+import { buildPowerStationSkyline, POWER_STATION_SITE } from './homefront-power-station.mjs';
 import { INTERIORS, availableInteriorActions, buildInteriorSetPiece, interiorForLandmark, interiorRoom } from './homefront-interior-world.mjs';
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
@@ -535,6 +536,11 @@ function boot(host) {
     cityChunkAt(visualX, visualZ).add(piece);
     landmarkSetPieces.set(landmark.id, piece);
   }
+  // The distant power station is a skyline anchor beyond the authoritative world
+  // boundary. It shares the existing chunk culling and never creates interactables.
+  cityChunkAt(POWER_STATION_SITE.x, POWER_STATION_SITE.z).add(
+    buildPowerStationSkyline(THREE, terrainElevation(POWER_STATION_SITE.x, POWER_STATION_SITE.z))
+  );
   // Authored open-roof room shells are part of the walkable 3D district, not a separate flat menu map.
   const interiorSetPieces = new Map();
   for (const interior of INTERIORS) {

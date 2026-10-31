@@ -1,0 +1,50 @@
+name: Estates IMG/RLUSD read-only production preflight
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/estates-rlusd-production-preflight.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/estates-rlusd-production-preflight.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    # Do not expose Fly credentials to fork pull requests.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read-only live Estates and IMG/RLUSD preflight
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          if(!process.env.FLY_API_TOKEN) throw Error('fly_credential_missing');
+          const base='https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec';
+          const headers={Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'};
+          const run=async command=>{
+            const response=await fetch(base,{method:'POST',headers,body:JSON.stringify({command,timeout:45}),signal:AbortSignal.timeout(60000)});
+            if(!response.ok)throw Error('fly_remote_readonly_http_'+response.status);
+            const output=await response.json();
+            if(output.exit_code!==0)throw Error('fly_remote_readonly_failed_'+output.exit_code);
+            return JSON.parse(output.stdout.trim());
+          };
+          const readiness=await run(['node','-e',fs.readFileSync('scripts/estate-runtime-readiness.cjs','utf8')]);
+          if(readiness.readOnly!==true)throw Error('readiness_not_readonly');
+          // Run the existing dedicated ledger preflight inside the deployed runtime, using
+          // its own installed XRPL client and server configuration. No signing.
+          const pool=await run(['node','/data/gh/cur/scripts/estate-rlusd-readiness.cjs','rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f']);
+          const visible={readOnly:true,live:readiness,pool};
+          console.log(JSON.stringify(visible,null,2));
+          if(pool.poolAccount!=='rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f')throw Error('unexpected_pool_account');
+          if(!pool.ready)throw Error('img_rlusd_preflight_blocked');
+          // A successful audit is NOT authorization to unpause or enable sales.
+          NODE

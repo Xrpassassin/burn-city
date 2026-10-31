@@ -1,0 +1,32 @@
+name: Estates pool address configuration (sales stay disabled)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Pin verified IMG/RLUSD pool with all financial gates closed
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          if(!process.env.FLY_API_TOKEN)throw Error('fly_token_missing');
+          const app='burn-city-game',id='8d2909be270068';
+          const url='https://api.machines.dev/v1/apps/'+app+'/machines/'+id;
+          const headers={authorization:'Bearer '+process.env.FLY_API_TOKEN,'content-type':'application/json'};
+          const get=await fetch(url,{headers,signal:AbortSignal.timeout(20000)});
+          if(!get.ok)throw Error('fly_machine_read_'+get.status);
+          const m=await get.json(),env=m.config?.env||{};
+          const off=['ESTATE_SALES_ENABLED','ESTATE_DISTRIBUTIONS_ENABLED','ESTATE_LIQUIDITY_ENABLED','ESTATE_XRP_PROFIT_HARVEST_ENABLED'];
+          if(off.some(k=>env[k]==='1'))throw Error('refuse_configure_while_financial_switches_enabled');
+          const pool='rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f';
+          if(env.ESTATE_IMG_RLUSD_POOL_ACCOUNT&&env.ESTATE_IMG_RLUSD_POOL_ACCOUNT!==pool)throw Error('existing_pool_conflict');
+          if(env.ESTATE_IMG_RLUSD_POOL_ACCOUNT===pool){console.log('already_configured_no_mutation');process.exit(0);}
+          const next={...m.config,env:{...env,ESTATE_IMG_RLUSD_POOL_ACCOUNT:pool,ESTATE_IMG_RLUSD_FUNDING_ENABLED:'0'}};
+          const r=await fetch(url,{method:'POST',headers,body:JSON.stringify({current_version:m.instance_id,config:next}),signal:AbortSignal.timeout(30000)});
+          if(!r.ok)throw Error('pool_config_update_failed_'+r.status);
+          console.log('pool_address_staged_financial_switches_unchanged');
+          NODE

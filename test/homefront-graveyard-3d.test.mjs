@@ -394,3 +394,11 @@ assert.match(scene, /explorerPositions\.set\(p\.id, \{/,
   'remote players interpolate from authoritative coordinates without reconstructing walkers');
 assert.match(scene, /applyEnvironmentStateSnapshot\(next\.world\?\.environmentStructures\)/,
   'environment collision damage remains replicated during lightweight input updates');
+
+
+assert.match(scene, /refreshContinuousProximity\(next\)/,
+  'direct walking refreshes actionable ranges on acknowledged server snapshots');
+assert.match(scene, /homefrontInputProximity\(data, \{/,
+  'loot, combat and environment controls use server-authoritative range calculations');
+assert.match(scene, /selectedInteriorLandmarkId = nearInterior \? guidance\.nearest\.id : null/,
+  'nearby interior enter actions update during direct walking');

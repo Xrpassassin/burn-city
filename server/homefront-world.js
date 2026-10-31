@@ -88,6 +88,7 @@ function normalizeWorld(input) {
   w.encounters = Combat.normalizeEncounters(w.encounters);
   w.lootNodes = Loot.normalize(w.lootNodes);
   w.environmentStructures = Environment.normalize(w.environmentStructures);
+  w.sharedInteriors = Interiors.normalizeShared(w.sharedInteriors);
   if (!w.bosses || typeof w.bosses !== 'object' || Array.isArray(w.bosses)) w.bosses = {};
   if (!w.caches || typeof w.caches !== 'object' || Array.isArray(w.caches)) w.caches = {};
   for (const point of POINTS_OF_INTEREST.filter(p => p.type === 'cache')) {
@@ -109,7 +110,8 @@ function normalizeWorld(input) {
     const savedInterior = w.interiors?.[acct];
     const activeInteriorId = savedInterior?.activeLandmarkId || null;
     const activeInteriorState = activeInteriorId ? savedInterior.interiors?.[activeInteriorId] : null;
-    const interiorRemoved = Collision.interiorRemovedIds(activeInteriorId, activeInteriorState?.openedDoors);
+    const interiorRemoved = Collision.interiorRemovedIds(activeInteriorId,
+      Interiors.sharedOpenedDoors(w.sharedInteriors, activeInteriorId, activeInteriorState?.openedDoors));
     if (!Collision.isSafePosition(p.x, p.z, { bounds: WORLD_SIZE, removedObstacleIds: interiorRemoved })) {
       const anchor = ALL_SPAWNS.find(s => s.id === p.spawn) || chooseSpawn(w, acct);
       const recovered = Collision.findSafePosition(anchor.x, anchor.z, { bounds: WORLD_SIZE }) || Collision.findSafePosition(0, 0, { bounds: WORLD_SIZE });
@@ -322,7 +324,7 @@ function snapshot(input, acct, now = Date.now()) {
     selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null,
     selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null,
     selfWeaponHandling: p ? { aiming: p.aiming, aimStartedAt: p.aimStartedAt, lastSprintAt: p.lastSprintAt, accuracyRecoverUntil: p.accuracyRecoverUntil } : null,
-    interior: p ? Interiors.publicState(w.interiors, acct) : null,
+    interior: p ? Interiors.publicState(w.interiors, acct, w.sharedInteriors) : null,
     interiorInstance: p ? (() => {
       const own = Interiors.roomPresence(w.interiors, w.players, acct, now, PRESENCE_TTL);
       if (!own) return null;
@@ -332,8 +334,11 @@ function snapshot(input, acct, now = Date.now()) {
           const presence = Interiors.roomPresence(w.interiors, w.players, id, now, PRESENCE_TTL);
           return { ...publicPlayer(id, w.players[id], acct, now, viewerParty), roomId: presence.roomId };
         }).filter(player => player.online);
+      const mechanisms = w.sharedInteriors?.[own.landmarkId];
       return { id: own.instanceId, landmarkId: own.landmarkId, roomId: own.roomId,
-        occupants, count: occupants.length, shared: true };
+        occupants, count: occupants.length, shared: true,
+        mechanisms: { flags: [...(mechanisms?.flags || [])],
+          openedDoors: [...(mechanisms?.openedDoors || [])] } };
     })() : null
   };
 }
@@ -428,7 +433,8 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
   const activeInteriorOwner = w.interiors?.[acct];
   const activeInteriorId = activeInteriorOwner?.activeLandmarkId || null;
   const activeInteriorState = activeInteriorId ? activeInteriorOwner.interiors?.[activeInteriorId] : null;
-  removedObstacleIds.push(...Collision.interiorRemovedIds(activeInteriorId, activeInteriorState?.openedDoors));
+  removedObstacleIds.push(...Collision.interiorRemovedIds(activeInteriorId,
+    Interiors.sharedOpenedDoors(w.sharedInteriors, activeInteriorId, activeInteriorState?.openedDoors)));
   if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE, removedObstacleIds })) {
     if (isInput) {
       // Unlike destination travel, direct controls may only slide along a safe
@@ -473,7 +479,8 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
       const followerInteriorOwner = w.interiors?.[member];
       const followerInteriorId = followerInteriorOwner?.activeLandmarkId || null;
       const followerInteriorState = followerInteriorId ? followerInteriorOwner.interiors?.[followerInteriorId] : null;
-      followerRemoved.push(...Collision.interiorRemovedIds(followerInteriorId, followerInteriorState?.openedDoors));
+      followerRemoved.push(...Collision.interiorRemovedIds(followerInteriorId,
+        Interiors.sharedOpenedDoors(w.sharedInteriors, followerInteriorId, followerInteriorState?.openedDoors)));
       const route = Collision.findPath(followerState.x, followerState.z, targetX, targetZ, {
         bounds: WORLD_SIZE, maxExpanded: 900, removedObstacleIds: followerRemoved
       });

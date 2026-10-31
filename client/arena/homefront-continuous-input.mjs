@@ -17,11 +17,11 @@ const coords = value => Number.isFinite(value?.x) && Number.isFinite(value?.z)
 export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailable = () => {} }) {
   if (typeof send !== 'function') throw new TypeError('send is required');
   let enabled = false, nextSequence = 0, pending = false, lastSentAt = -Infinity;
-  let sentMotion = false, lastAckAt = -Infinity, server = null, predicted = null;
+  let sentMotion = false, lastAckAt = -Infinity, server = null, predicted = null, generation = 0;
 
   function disable(reason = 'disabled') {
     const hadMode = enabled;
-    enabled = false; pending = false; sentMotion = false;
+    enabled = false; pending = false; sentMotion = false; generation++;
     predicted = server ? { ...server } : null;
     if (hadMode) onUnavailable(reason);
   }
@@ -31,7 +31,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
     const point = coords(position);
     if (!point) return;
     if (!enabled) {
-      enabled = true; nextSequence = protocol.nextSequence;
+      enabled = true; generation++; nextSequence = protocol.nextSequence;
       server = point; predicted = { ...point }; lastSentAt = -Infinity; sentMotion = false;
       return;
     }
@@ -73,21 +73,22 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
     lastSentAt = now;
     sentMotion = vec.moving;
     const command = { sequence: nextSequence++, x: vec.moving ? vec.x : 0, z: vec.moving ? vec.z : 0, sprint: !!sprint };
+    const requestGeneration = generation;
     Promise.resolve().then(() => send(command)).then(data => {
-      if (!enabled) return;
+      if (!enabled || generation !== requestGeneration) return;
       if (!data?.inputAck || data.inputAck.sequence !== command.sequence) throw new Error('movement_ack_mismatch');
       correct(data.inputAck);
       lastAckAt = now;
       onSnapshot(data, now);
     }).catch(error => {
-      if (!enabled) return;
+      if (!enabled || generation !== requestGeneration) return;
       const code = String(error?.message || error);
       if (code === 'continuous_movement_unavailable' || code === 'invalid_movement_sequence' || code === 'movement_ack_mismatch') {
         disable(code);
       } else if (code === 'terrain_path_blocked') {
         correct(server, true);
       }
-    }).finally(() => { pending = false; });
+    }).finally(() => { if (generation === requestGeneration) pending = false; });
   }
   return {
     sync, step, disable,

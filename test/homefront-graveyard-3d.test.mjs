@@ -432,3 +432,15 @@ assert.match(scene, /current\.id === 'interior-door'/,
   'in-world prompt can traverse connected rooms');
 assert.match(scene, /current\.targetId !== shownContext\?\.targetId/,
   'stale nearby action targets are rejected before triggering server requests');
+
+
+assert.match(scene, /from '\.\/homefront-camera-occlusion\.mjs'/,
+  'Homefront imports pure third-person interior wall clearance');
+assert.match(scene, /node\.userData\?\.interiorCameraOccluder/,
+  'room camera raycast indexes structural occluders only once per building');
+assert.match(scene, /cameraWallRaycaster\.intersectObjects\(walls\.filter\(wall => wall\.visible\), false\)/,
+  'wall check skips opened doors without touching gameplay collision');
+assert.match(scene, /coarsePointer \? 90 : 45/,
+  'mobile raycast updates are capped lower than desktop');
+assert.match(scene, /if \(view\.mode !== 'first' && interiorState\?\.landmarkId\)/,
+  'first-person and outdoor movement retain the existing camera');

@@ -11,7 +11,7 @@ const {server}=require('../server/server');
  await new Promise(r=>server.listening?r():server.once('listening',r));const url='http://127.0.0.1:'+server.address().port;
  const token=Pay.sign({acct:buyer,exp:Date.now()+60000});
  const call=async(p,body,auth=true)=>{const r=await fetch(url+'/api/estates'+p,{method:body?'POST':'GET',headers:{...(auth?{authorization:'Bearer '+token}:{}),'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {code:r.status,data:await r.json()};};
- const publicStatus=await (await fetch(url+'/api/estates/status')).json();assert.equal(publicStatus.salesEnabled,true);assert.equal(publicStatus.owned,undefined);assert.equal(publicStatus.payouts,undefined);
+ const publicStatus=await (await fetch(url+'/api/estates/status')).json();assert.equal(publicStatus.salesEnabled,true);assert.equal(publicStatus.owned,undefined);assert.equal(publicStatus.payouts,undefined);assert.equal(publicStatus.capitalAllocationPolicy.version,2);assert.equal(publicStatus.imgRlusdFundingEnabled,false);assert.equal(publicStatus.distributionSchedule,'hourly');assert.equal(publicStatus.liquidityPositions,undefined);assert.equal(publicStatus.imgRlusdPositionCount,0);
  assert.equal((await call('/portfolio',null,false)).code,401);
  assert.equal((await call('/img-trustline',null,false)).code,401);assert.equal((await call('/img-trustline/start',{},false)).code,401);
  assert.equal((await call('/img-trustline?account=forged')).data.account,buyer);

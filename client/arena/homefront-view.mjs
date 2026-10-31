@@ -93,7 +93,7 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     pad.append(knob); host.append(pad);
     let jid = null;
     const setJoy = e => { const r = pad.getBoundingClientRect(); let dx = (e.clientX - r.left - r.width / 2) / (r.width / 2), dy = (e.clientY - r.top - r.height / 2) / (r.height / 2); const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; } state.joy = { x: dx, y: -dy }; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
-    pad.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); activeView = state; jid = e.pointerId; try { pad.setPointerCapture(jid); } catch {} setJoy(e); });
+    pad.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (jid !== null || (e.pointerType === 'mouse' && e.button !== 0)) return; activeView = state; jid = e.pointerId; try { pad.setPointerCapture(jid); } catch {} setJoy(e); });
     pad.addEventListener('pointermove', e => { if (e.pointerId === jid) setJoy(e); });
     const endJoy = e => { if (e.pointerId !== jid) return; jid = null; state.joy = { x: 0, y: 0 }; knob.style.transform = ''; };
     for (const n of ['pointerup', 'pointercancel', 'lostpointercapture']) pad.addEventListener(n, endJoy);

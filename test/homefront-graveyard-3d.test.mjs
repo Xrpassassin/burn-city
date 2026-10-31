@@ -412,3 +412,11 @@ assert.match(scene, /event\.code !== 'KeyE'/,
   'E key activates context actions only when view has focus');
 assert.match(scene, /contextPrompt\.addEventListener\('pointerdown', event => event\.stopPropagation\(\)\)/,
   'mobile context tap cannot trigger underlying movement or raycast');
+
+
+assert.match(scene, /from '\.\/homefront-power-station\.mjs'/,
+  'load the Ashfall Thermal Station landmark skyline module');
+assert.match(scene, /cityChunkAt\(POWER_STATION_SITE\.x, POWER_STATION_SITE\.z\)\.add\(/,
+  'station belongs to the existing streamed industrial-side chunk');
+assert.match(scene, /buildPowerStationSkyline\(THREE, terrainElevation\(POWER_STATION_SITE\.x, POWER_STATION_SITE\.z\)\)/,
+  'station uses terrain elevation while staying decorative and off the server collision map');

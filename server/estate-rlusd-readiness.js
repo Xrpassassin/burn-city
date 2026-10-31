@@ -33,7 +33,10 @@ async function inspectEstateRlusdReadiness({client,treasury,imgIssuer,poolAccoun
  }
  const maxBudget=N.minimum(img.a,stable.a).times(maxImpactBps).div(10000-maxImpactBps).times(2).times(10000).div(9900);
  return {ready:blockers.length===0,blockers,ledgerIndex:Number(r.ledger_index??r.ledger?.ledger_index),poolAccount:target.account,treasury,trustlines,
-  indicativeMaxPurchaseDrops:drops(maxBudget),priceDeviationBps:deviation.toFixed(2),signedPriceDeviationBps:signedDeviation.toFixed(2),\n  poolPriceRlusdPerImg:target.b.div(target.a).toFixed(12),referencePriceRlusdPerImg:market.toFixed(12),\n  priceDirection:signedDeviation.gt(0)?'img_more_expensive_in_target_pool':signedDeviation.lt(0)?'img_cheaper_in_target_pool':'aligned',\n  priceRemediation:'read_only_diagnostic_no_transaction_or_guard_override',poolTradingFeeBps:target.fee/10,
+  indicativeMaxPurchaseDrops:drops(maxBudget),priceDeviationBps:deviation.toFixed(2),signedPriceDeviationBps:signedDeviation.toFixed(2),
+  poolPriceRlusdPerImg:target.b.div(target.a).toFixed(12),referencePriceRlusdPerImg:market.toFixed(12),
+  priceDirection:signedDeviation.gt(0)?'img_more_expensive_in_target_pool':signedDeviation.lt(0)?'img_cheaper_in_target_pool':'aligned',
+  priceRemediation:'read_only_diagnostic_no_transaction_or_guard_override',poolTradingFeeBps:target.fee/10,
   scope:'pool_identity_trustlines_and_market_depth_only',signingAndOperatingReserveVerified:false};
 }
 module.exports={inspectEstateRlusdReadiness,RLUSD};

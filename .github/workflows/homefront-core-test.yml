@@ -85,6 +85,7 @@ on:
       - 'test/homefront-graveyard-3d.test.mjs'
       - 'test/homefront-shared-interior-sim.js'
       - 'test/homefront-shared-interior-controls-sim.js'
+      - 'test/homefront-ashfall-access-sim.js'
       - 'docs/zombies-homefront.md'
       - 'docs/homefront-playable-handoff.md'
       - 'docs/homefront-survival-cosmetics-open-world.md'
@@ -157,6 +158,8 @@ jobs:
         run: node client/arena/homefront-power-station.test.mjs
       - name: Run Homefront 3D scene integration assertions
         run: node test/homefront-graveyard-3d.test.mjs
+      - name: Verify enterable Ashfall station, depot, rail and shelter
+        run: node test/homefront-ashfall-access-sim.js
       - name: Test shared Homefront building power and door persistence
         run: node test/homefront-shared-interior-controls-sim.js
       - name: Verify multi-account shared Homefront interior occupancy

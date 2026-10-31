@@ -33,12 +33,13 @@ export function nearestInteriorInteraction(interior, state, origin, player, rang
   }
   for (const exit of room.exits) {
     if (!interiorRoom(interior, exit.to) ||
-        !exit.requires?.every(flag => (state.flags || []).includes(flag)) && exit.requires?.length) continue;
+        (Array.isArray(exit.requires) &&
+          !exit.requires.every(flag => (state.flags || []).includes(flag)))) continue;
     const point = sidePoint(room, exit.side);
     add('door', exit.id, exit.label + ' — ' + interiorRoom(interior, exit.to).title, point.x, point.z);
   }
   candidates.sort((a, b) => a.distance - b.distance ||
-    (a.kind === 'action' ? -1 : 1) || a.id.localeCompare(b.id));
+    (a.kind === b.kind ? a.id.localeCompare(b.id) : a.kind === 'action' ? -1 : 1));
   const winner = candidates[0];
   if (!winner) return null;
   return Object.freeze({ ...winner, label: winner.label.slice(0, 78) });

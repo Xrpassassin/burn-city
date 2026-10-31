@@ -72,6 +72,12 @@ export function buildPowerStationSkyline(THREE, terrainY = 0) {
     place(new THREE.CylinderGeometry(rTop, rBottom, h, segments), material,
       x, y, z, Math.max(rTop, rBottom), tag);
 
+  // The traversable ground mesh ends at x=-102. This static industrial
+  // embankment meets that edge without crossing into the playable circle;
+  // otherwise the distant station appears to float above empty sky.
+  box(43, 1.8, 72, -1.5, -0.9, 0, 'stainedConcrete', 'station-cinder-foundation');
+  box(40, 0.22, 68, -2.0, -0.09, 0, 'dark', 'station-foundation-deck');
+
   // Two hyperbolic cooling-tower silhouettes: 12-sided lathe geometry, only
   // seven profile rings per tower. One has a shortened, stained upper section.
   function coolingTower(x, z, height, damaged, tag) {

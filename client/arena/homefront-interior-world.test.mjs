@@ -4,7 +4,7 @@ import {
   interiorForLandmark, interiorRoom, traverseInteriorDoor, buildInteriorSetPiece
 } from './homefront-interior-world.mjs';
 
-assert.equal(INTERIORS.length, 7);
+assert.equal(INTERIORS.length, 11);
 const ids = new Set();
 for (const interior of INTERIORS) {
   assert(interiorRoom(interior, interior.entryRoom), interior.landmarkId + ' entry room must exist');
@@ -117,4 +117,26 @@ foundryState = applyInteriorAction(foundry, foundryState, 'power_isolator').stat
 foundryState = traverseInteriorDoor(foundry, foundryState, 'gantry_ladder');
 foundryState = traverseInteriorDoor(foundry, foundryState, 'tool_cage');
 assert.equal(foundryState.roomId, 'maintenance_shed');
+
+const ashfall = interiorForLandmark('ashfall_station');
+let stationState = createInteriorState('ashfall_station');
+assert.equal(stationState.roomId, 'security_entrance');
+stationState = traverseInteriorDoor(ashfall, stationState, 'ashfall_turbine_door');
+assert.throws(() => traverseInteriorDoor(ashfall, stationState, 'ashfall_control_stairs'),
+  /interior_door_locked/, 'station control stairs require shared grid power');
+stationState = traverseInteriorDoor(ashfall, stationState, 'ashfall_turbine_door');
+stationState = applyInteriorAction(ashfall, stationState, 'ashfall_breaker').state;
+assert.ok(stationState.flags.includes('ashfall_grid'));
+stationState = traverseInteriorDoor(ashfall, stationState, 'ashfall_turbine_door');
+stationState = traverseInteriorDoor(ashfall, stationState, 'ashfall_control_stairs');
+assert.equal(stationState.roomId, 'control_room');
+stationState = traverseInteriorDoor(ashfall, stationState, 'ashfall_pump_gate');
+assert.equal(stationState.roomId, 'cooling_pumps');
+assert.ok(availableInteriorActions(ashfall, stationState).some(item => item.id === 'ashfall_service_crate'));
+for (const id of ['wrecked_depot', 'old_rail_yard', 'quarantine_shelter']) {
+  const blueprint = interiorForLandmark(id);
+  assert.ok(blueprint && blueprint.rooms.length >= 2,
+    id + ' now has a traversable shared building room graph');
+}
+
 console.log('Homefront interior room graph and interaction tests passed');

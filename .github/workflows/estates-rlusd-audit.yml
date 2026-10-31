@@ -26,7 +26,7 @@ jobs:
             for(let i=0;i<45;i++){try{const r=await fetch('https://burn-city-game.fly.dev/api/deploy-version',{signal:AbortSignal.timeout(5000)}),v=await r.json();if(v.source==='github-volume'&&v.commit===expected){ready=true;break;}}catch{}await delay(4000);}
             if(!ready)throw Error('expected_deployment_not_live');
             const mode=process.env.CONFIRMED_EXIT_APPLY==='1'?'apply':'inspect';
-            const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',source,mode,expected],timeout:45}),signal:AbortSignal.timeout(55000)});
+            const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',source,mode,expected],timeout:55}),signal:AbortSignal.timeout(60000)});
             if(!r.ok)throw Error('confirmed_exit_http_'+r.status);
             const d=await r.json();console.log(d.stdout);if(d.exit_code!==0){console.error(d.stderr);throw Error('confirmed_exit_check_failed');}
           })().catch(e=>{console.error(e.message);process.exitCode=1});

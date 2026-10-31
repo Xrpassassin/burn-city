@@ -18,7 +18,8 @@ const client=new xrpl.Client(C.XRPL_WSS,{connectionTimeout:8000,timeout:8000});l
  await client.connect();db=new DatabaseSync(path.join(root,'shop.db'),{readOnly:mode==='inspect'});db.exec('PRAGMA busy_timeout=3000');if(mode==='inspect')db.exec('PRAGMA query_only=ON');
  if(db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state!='applied'").get()||db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted')").get())throw Error('pending_transaction_review_required');
  const proofs=[];let costs=0n,externalFees=0n;
- for(const hash of reviewed){const r=(await client.request({command:'tx',transaction:hash,binary:false})).result,t=r.tx_json||r;
+ const checked=await Promise.allSettled(reviewed.map(hash=>client.request({command:'tx',transaction:hash,binary:false})));
+ for(let i=0;i<reviewed.length;i++){if(checked[i].status!=='fulfilled')throw checked[i].reason;const hash=reviewed[i],r=checked[i].value.result,t=r.tx_json||r;
   if(r.validated!==true||r.meta?.TransactionResult!=='tesSUCCESS'||(r.hash||t.hash)!==hash||t.Account!==treasury||!/^\d+$/.test(t.Fee)||BigInt(t.Fee)>1000000n)throw Error('reviewed_transaction_proof_failed');
   costs+=BigInt(t.Fee);proofs.push({r,t});
  }
@@ -33,8 +34,9 @@ const client=new xrpl.Client(C.XRPL_WSS,{connectionTimeout:8000,timeout:8000});l
  const head=(await client.request({command:'ledger',ledger_index:'validated'})).result,h=head.ledger_hash||head.ledger?.ledger_hash;
  if(head.validated!==true||!/^[A-F0-9]{64}$/.test(h||''))throw Error('validated_head_required');
  async function pool(a,b,pin){const r=(await client.request({command:'amm_info',asset:a,asset2:b,ledger_hash:h})).result;if(r.ledger_hash!==h)throw Error('quote_ledger_mismatch');return inspectPool(r,{asset:a,other:b,poolAccount:pin});}
- async function lines(peer){let marker;const all=[];for(let page=0;page<10;page++){const r=(await client.request({command:'account_lines',account:treasury,peer,ledger_hash:h,limit:400,...(marker?{marker}:{})})).result;if(r.validated!==true||r.ledger_hash!==h)throw Error('validated_inventory_required');all.push(...r.lines);marker=r.marker;if(!marker)return all;}throw Error('incomplete_inventory');}
- const target=await pool(IMG,RLUSD,poolAccount),imgXrp=await pool(XRP,IMG),usdXrp=await pool(XRP,RLUSD);
+ const lineCache=new Map();async function fetchLines(peer){let marker;const all=[];for(let page=0;page<10;page++){const r=(await client.request({command:'account_lines',account:treasury,peer,ledger_hash:h,limit:400,...(marker?{marker}:{})})).result;if(r.validated!==true||r.ledger_hash!==h)throw Error('validated_inventory_required');all.push(...r.lines);marker=r.marker;if(!marker)return all;}throw Error('incomplete_inventory');}
+ const lines=peer=>{if(!lineCache.has(peer))lineCache.set(peer,fetchLines(peer));return lineCache.get(peer);};
+ const fetched=await Promise.allSettled([pool(IMG,RLUSD,poolAccount),pool(XRP,IMG),pool(XRP,RLUSD),lines(poolAccount),lines('rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ'),lines(PLX.issuer),lines(IMG.issuer)]);for(const result of fetched)if(result.status!=='fulfilled')throw result.reason;const [target,imgXrp,usdXrp]=fetched.slice(0,3).map(r=>r.value);
  const newLine=(await lines(poolAccount)).find(l=>l.currency===target.lp.currency);
  if(!newLine||newLine.freeze||newLine.freeze_peer)throw Error('replacement_lp_unavailable');
  const seedLp=balanceDelta(seed.r,treasury,target.lp);if(!seedLp.gt(0))throw Error('seed_lp_mint_proof_required');

@@ -19,6 +19,7 @@ These are *visual geometry only*. The built-in Homefront scene, materials, playe
 - Every Ashfall station footprint is placed entirely beyond **x = -100** (root x = -122, z = 34), which is outside the authoritative world's 100-unit radial traversal boundary. Each mesh enforces a strict easternmost-edge bound at construction time.
 - It is anchored in the existing **homefront:-2,0** chunk, visible when exploring Ironworks (-16,22) and culled from distant districts.
 - The Ashfall station does **not** appear in the server POI list, grant rewards, block traversal, enable interactions, or claim that it is accessible. It is a *distant skyline backdrop*, not an explorable mission site.
+- A low-poly cinder embankment joins the terrain mesh's western edge at x = -102, so the skyline is not suspended above the map boundary. Its entire footprint remains outside x = -100.
 - The skyline uses a shared nine-color material palette and **no shadows, animated lights, smoke simulation, physics bodies, or new postprocessing**. Geometry is low-poly; the deterministic test caps it at 48 mesh draws.
 - Added playable-area landmark details are **rooftop or above head height**, leaving the existing base geometry and gameplay ground collision contracts unchanged.
 - Existing server-confirmed Ironworks and nearby cache POIs, exploration objectives, and story links remain unmodified.

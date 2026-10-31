@@ -9,6 +9,9 @@ on:
       - 'test/homefront-input-world-sim.js'
       - 'server/homefront.js'
       - 'test/homefront-input-api-sim.js'
+      - 'client/arena/homefront-continuous-input.mjs'
+      - 'client/arena/homefront-continuous-input.test.mjs'
+      - 'client/arena/homefront-graveyard-3d.js'
       - '.github/workflows/homefront-input-step-test.yml'
   pull_request:
     paths:
@@ -18,6 +21,9 @@ on:
       - 'test/homefront-input-world-sim.js'
       - 'server/homefront.js'
       - 'test/homefront-input-api-sim.js'
+      - 'client/arena/homefront-continuous-input.mjs'
+      - 'client/arena/homefront-continuous-input.test.mjs'
+      - 'client/arena/homefront-graveyard-3d.js'
       - '.github/workflows/homefront-input-step-test.yml'
 jobs:
   input-step:
@@ -31,3 +37,4 @@ jobs:
       - run: node server/homefront-input-step.test.js
       - run: node test/homefront-input-world-sim.js
       - run: node test/homefront-input-api-sim.js
+      - run: node client/arena/homefront-continuous-input.test.mjs

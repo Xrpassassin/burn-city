@@ -11,10 +11,15 @@ const Interiors = require('./homefront-interiors');
 const Environment = require('./homefront-environment');
 const Director = require('./homefront-director');
 const Travel = require('./homefront-travel');
+const InputStep = require('./homefront-input-step');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
 const SPRINT_STEP = 18;
+// Continuous-input speed is in world units/second, not per command. Server time is authoritative.
+const INPUT_WALK_SPEED = 8;
+const INPUT_SPRINT_SPEED = 12;
+const INPUT_MIN_INTERVAL_MS = 75;
 const AIM_MOVE_SCALE = Object.freeze({ pipe_blade: 0.62, pump_shotgun: 0.52, marksman_rifle: 0.42, shock_maul: 0.56 });
 const AIM_RECOVERY_MS = 700;
 const SPRINT_RECOVERY_MS = 1450;
@@ -104,6 +109,10 @@ function normalizeWorld(input) {
       p.x = recovered.x; p.z = recovered.z;
     }
     p.lastMove = Number.isFinite(p.lastMove) ? p.lastMove : 0;
+    p.lastMoveMode = p.lastMoveMode === 'input' ? 'input' : 'legacy';
+    p.lastInputAt = Number.isFinite(p.lastInputAt) && p.lastInputAt >= 0 ? p.lastInputAt : 0;
+    p.lastInputSequence = Number.isSafeInteger(p.lastInputSequence) && p.lastInputSequence >= 0 ? p.lastInputSequence : -1;
+    p.lastWorldInputTick = Number.isFinite(p.lastWorldInputTick) && p.lastWorldInputTick >= 0 ? p.lastWorldInputTick : 0;
     p.directorState = p.directorState && typeof p.directorState === 'object' ? p.directorState : {};
     p.lastNoiseAt = Number.isFinite(p.lastNoiseAt) ? clamp(p.lastNoiseAt, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.noiseLevel = clamp(p.noiseLevel, 0, 100);
@@ -354,19 +363,35 @@ function walkedRouteClear(startX, startZ, path, end, budget, removedObstacleIds)
   }
   return legClear(end.x, end.z);
 }
-function move(input, acct, x, z, now = Date.now(), sprint = false) {
+function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand = null) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   prune(w, now);
   const p = w.players[acct];
   if (!p) throw new Error('not_in_expedition');
   // Followers move with the leader only while the leader is out in the world; a leader at home never freezes them.
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader !== acct && w.players[w.parties[p.partyCode].leader]) throw new Error('party_leader_controls_movement');
+  const isInput = inputCommand !== null;
+  const command = isInput ? InputStep.validateInput(inputCommand, p.lastInputSequence) : null;
   if (typeof sprint !== 'boolean') throw new Error('invalid_movement_mode');
-  if (now - p.lastMove < 900) throw new Error('move_cooldown');
+  if (isInput && p.lastMoveMode === 'input') {
+    if (now - p.lastInputAt < INPUT_MIN_INTERVAL_MS) throw new Error('move_cooldown');
+  } else if (now - p.lastMove < 900) {
+    // Prevent interleaving old destination moves with faster continuous-input steps.
+    throw new Error('move_cooldown');
+  }
   if (sprint && p.aiming) throw new Error('lower_weapon_before_sprinting');
   const weaponId = p.weaponMagazine?.weaponId || 'pipe_blade';
-  const movementBudget = p.aiming ? MOVE_STEP * (AIM_MOVE_SCALE[weaponId] || 0.55) : sprint ? SPRINT_STEP : MOVE_STEP;
-  let nx = clamp(x, -WORLD_SIZE, WORLD_SIZE), nz = clamp(z, -WORLD_SIZE, WORLD_SIZE);
+  const inputDisplacement = isInput
+    ? InputStep.displacementForInput(command, {
+      now, previousAt: p.lastMoveMode === 'input' && p.lastInputAt ? p.lastInputAt : now,
+      walkSpeed: INPUT_WALK_SPEED, sprintSpeed: INPUT_SPRINT_SPEED
+    }) : null;
+  const aimScale = p.aiming ? (AIM_MOVE_SCALE[weaponId] || 0.55) : 1;
+  const movementBudget = isInput ? Math.hypot(inputDisplacement.x, inputDisplacement.z) * aimScale
+    : p.aiming ? MOVE_STEP * aimScale : sprint ? SPRINT_STEP : MOVE_STEP;
+  // Client sends direction only; never accept a proposed position for continuous input.
+  let nx = clamp(isInput ? p.x + inputDisplacement.x * aimScale : x, -WORLD_SIZE, WORLD_SIZE);
+  let nz = clamp(isInput ? p.z + inputDisplacement.z * aimScale : z, -WORLD_SIZE, WORLD_SIZE);
   const radius = Math.hypot(nx, nz); if (radius > WORLD_SIZE) { nx = nx / radius * WORLD_SIZE; nz = nz / radius * WORLD_SIZE; }
   const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz);
   const scale = d > movementBudget ? movementBudget / d : 1;
@@ -378,6 +403,8 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
   const activeInteriorState = activeInteriorId ? activeInteriorOwner.interiors?.[activeInteriorId] : null;
   removedObstacleIds.push(...Collision.interiorRemovedIds(activeInteriorId, activeInteriorState?.openedDoors));
   if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE, removedObstacleIds })) {
+    // Continuous controls stop at a blocked surface; legacy destination travel may path around it.
+    if (isInput) throw new Error('terrain_path_blocked');
     const route = Collision.findPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE, maxExpanded: 2600, removedObstacleIds });
     if (!route || !route.length) throw new Error('terrain_path_unreachable');
     const advanced = advanceAlongTerrainPath(oldX, oldZ, route, movementBudget);
@@ -385,12 +412,18 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
     if (!walkedRouteClear(oldX, oldZ, route, advanced, movementBudget, removedObstacleIds)) throw new Error('terrain_path_blocked');
   }
   p.x = nextX; p.z = nextZ;
+  const movedDistance = Math.hypot(p.x - oldX, p.z - oldZ);
   p.lastMove = p.lastSeen = now;
-  if (sprint) { p.lastSprintAt = now; p.accuracyRecoverUntil = now + SPRINT_RECOVERY_MS; }
-  else p.accuracyRecoverUntil = Math.max(p.accuracyRecoverUntil || 0, now + AIM_RECOVERY_MS);
-  p.aiming = false; p.aimStartedAt = 0;
-  p.survival = Survival.move(p.survival, now, Math.hypot(p.x - oldX, p.z - oldZ) * (sprint ? 1.55 : 1));
-  if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct) {
+  p.lastMoveMode = isInput ? 'input' : 'legacy';
+  p.lastInputAt = isInput ? now : 0;
+  if (isInput) p.lastInputSequence = command.sequence;
+  if (movedDistance > 0) {
+    if (sprint) { p.lastSprintAt = now; p.accuracyRecoverUntil = now + SPRINT_RECOVERY_MS; }
+    else p.accuracyRecoverUntil = Math.max(p.accuracyRecoverUntil || 0, now + AIM_RECOVERY_MS);
+    p.aiming = false; p.aimStartedAt = 0;
+    p.survival = Survival.move(p.survival, now, movedDistance * (sprint ? 1.55 : 1));
+  }
+  if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct && (!isInput || movedDistance > 0)) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {
       const offsetX = (hash(member) % 7) - 3;
       const offsetZ = (hash(member + 'z') % 7) - 3;
@@ -407,7 +440,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
       });
       let walked = false;
       if (route?.length) {
-        const step = Math.min(Math.hypot(targetX - followerState.x, targetZ - followerState.z), MOVE_STEP);
+        const step = Math.min(Math.hypot(targetX - followerState.x, targetZ - followerState.z), isInput ? movementBudget : MOVE_STEP);
         const next = advanceAlongTerrainPath(followerState.x, followerState.z, route, step);
         if (walkedRouteClear(followerState.x, followerState.z, route, next, step, followerRemoved)) {
           followerState.x = next.x; followerState.z = next.z; walked = true;
@@ -417,18 +450,30 @@ function move(input, acct, x, z, now = Date.now(), sprint = false) {
       // could not walk this step and is out of formation (the bounded 900-node search failed), snaps to a safe spot beside the leader, as before #191,
       // so a party never splits for good. Followers inside an interior are never pulled out.
       const behind = Math.hypot(followerState.x - p.x, followerState.z - p.z);
-      if (!followerInteriorId && (behind > MOVE_STEP * 2 || (!walked && behind > 8.5))) {
+      if (!isInput && !followerInteriorId && (behind > MOVE_STEP * 2 || (!walked && behind > 8.5))) {
         const regroup = Collision.findSafePosition(targetX, targetZ, { bounds: WORLD_SIZE, removedObstacleIds: followerRemoved });
         if (regroup) { followerState.x = regroup.x; followerState.z = regroup.z; }
       }
       followerState.lastSeen = now;
     }
   }
-  // Advance AI only on an authoritative world action; no client frame loop can move enemies.
-  w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, interiors: w.interiors, now });
-  tickDirector(w, acct, now);
-  w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
-  return { world: w, result: snapshot(w, acct, now) };
+  // High-frequency input never accelerates the global enemy director or environment tick.
+  // Legacy moves retain the prior update semantics.
+  if (!isInput || now - p.lastWorldInputTick >= 500) {
+    w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, interiors: w.interiors, now });
+    tickDirector(w, acct, now);
+    w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
+    if (isInput) p.lastWorldInputTick = now;
+  }
+  const result = snapshot(w, acct, now);
+  if (isInput) result.inputAck = { sequence: command.sequence, x: p.x, z: p.z, elapsedMs: inputDisplacement.elapsedMs };
+  return { world: w, result };
+}
+
+function moveInput(input, acct, command, now = Date.now()) {
+  // Explicit public entry point: direct callers cannot bypass payload validation.
+  if (!command || typeof command !== 'object' || Array.isArray(command)) throw new Error('invalid_movement_input');
+  return move(input, acct, undefined, undefined, now, command.sprint, command);
 }
 
 function setAiming(input, acct, aiming, now = Date.now()) {
@@ -509,4 +554,4 @@ function leave(input, acct, now = Date.now(), { keepParty = false } = {}) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };
+module.exports = { FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, moveInput, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };

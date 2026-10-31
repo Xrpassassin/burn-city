@@ -1,0 +1,28 @@
+name: Estates net reward deployment verification
+on:
+  push:
+    branches: [ops/estates-net-reward-verification-449]
+    paths: ['.github/workflows/estates-reward-diagnosis.yml']
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect verified earnings and payout holds without signing or changing records
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          for(let attempt=0;attempt<5;attempt++){
+          if(attempt)await new Promise(r=>setTimeout(r,30000));
+          const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',fs.readFileSync('scripts/estate-reward-diagnosis.cjs','utf8')],timeout:25}),signal:AbortSignal.timeout(35000)});
+          if(!r.ok)throw Error('readonly_diagnosis_http_'+r.status);const result=await r.json();console.log(JSON.stringify(JSON.parse(result.stdout.trim())));if(result.exit_code!==0)throw Error('readonly_diagnosis_failed');
+          }
+          NODE

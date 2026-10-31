@@ -20,6 +20,10 @@ function setPayoutPreference(acct, currency) {
   if (typeof acct !== 'string' || !/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(acct)) throw new TypeError('invalid_owner_wallet');
   if (currency !== 'IMG' && currency !== 'XRP') throw new TypeError('unsupported_payout_currency');
   db.prepare('INSERT INTO estate_owner_payout_preferences (acct,currency,updated_at) VALUES (?,?,?) ON CONFLICT(acct) DO UPDATE SET currency=excluded.currency,updated_at=excluded.updated_at').run(acct,currency,Date.now());
+  if(db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_hourly_payouts'").get()){
+    const hasSettlement=db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_reward_settlements'").get();
+    db.prepare("UPDATE estate_hourly_payouts SET currency=?,note=NULL WHERE owner=? AND state='queued' AND tx_hash IS NULL"+(hasSettlement?" AND NOT EXISTS(SELECT 1 FROM estate_reward_settlements s WHERE s.payout_id=estate_hourly_payouts.id)":"")).run(currency,acct);
+  }
   return payoutPreference(acct);
 }
 function getState(acct = '') {

@@ -25,7 +25,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   for(const a of [IMG,PLX])await send(maker,{TransactionType:'AMMCreate',Amount:'20000000',Amount2:{...a,value:'20000'},TradingFee:300});
   await send(maker,{TransactionType:'AMMCreate',Amount:{...IMG,value:'20000'},Amount2:{...PLX,value:'20000'},TradingFee:300});
   const pair=(await client.request({command:'amm_info',asset:IMG,asset2:PLX,ledger_index:'validated'})).result.amm.account;
-  const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,purchase_tx TEXT UNIQUE,purchase_amount_drops INTEGER,share_units INTEGER,purchased_at INTEGER);CREATE TABLE estate_img_scan_watermarks(id INTEGER PRIMARY KEY,scanned_through_ms INTEGER)');
+  const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,purchase_tx TEXT UNIQUE,purchase_amount_drops INTEGER,share_units INTEGER,purchased_at INTEGER);CREATE TABLE estate_img_scan_watermarks(id INTEGER PRIMARY KEY,scanned_through_ms INTEGER,ledger_index INTEGER,verified_at_ms INTEGER)');
   createEstateCapitalAllocation(db);const reservations=createEstateSaleReservations(db),reservation=reservations.reserve({reservationId:'testnet-estate-reservation',propertyId:'trailer-01',buyer:owner.classicAddress,now:Date.now()});
   const purchased=await send(owner,{TransactionType:'Payment',Destination:treasury.classicAddress,Amount:'3000000',Memos:[{Memo:{MemoType:Buffer.from('burncity/estates').toString('hex').toUpperCase(),MemoData:Buffer.from(reservation.reservation_id).toString('hex').toUpperCase()}}]});
   assert.ok(purchased.hash,'validated purchase hash required');
@@ -54,11 +54,47 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const receipt=db.prepare('SELECT * FROM estate_xrp_profit_receipts').get();assert.ok(BigInt(receipt.distributable_drops)>0n);
   // Advance only the test database's scan watermark. Real production hour close
   // is covered by scanner tests; this avoids waiting a wall-clock hour on testnet.
-  db.prepare('INSERT INTO estate_img_scan_watermarks VALUES(1,?)').run(receipt.available_after_ms);
+  db.prepare('INSERT INTO estate_img_scan_watermarks(id,scanned_through_ms) VALUES(1,?)').run(receipt.available_after_ms);
   await until(()=>db.prepare("SELECT COUNT(*) n FROM estate_xrp_profit_payouts WHERE state='confirmed'").get().n===1,'Actual owner XRP wallet payout');
   const payout=db.prepare('SELECT * FROM estate_xrp_profit_payouts').get(),proof=(await client.request({command:'tx',transaction:payout.tx_hash,binary:false})).result;
   assert.equal(proof.validated,true);assert.equal(proof.meta.TransactionResult,'tesSUCCESS');assert.equal(proof.meta.delivered_amount,payout.amount_drops);
   const tx=proof.tx_json||proof;assert.equal(tx.Destination,owner.classicAddress);
+  // Fund verified disposable reward inventory, then exercise both real net
+  // payout paths. Production seeds/configuration remain unavailable here.
+  await send(owner,{TransactionType:'TrustSet',LimitAmount:{...IMG,value:'1000000'},Flags:131072});
+  await send(issuer,{TransactionType:'Payment',Destination:treasury.classicAddress,Amount:{...IMG,value:'10'}});
+  const {createEstateHourlyRuntime}=require('../server/estate-hourly-runtime');
+  const {createEstateNetRewardExecutor}=require('../server/estate-net-reward-executor');
+  db.exec('CREATE TABLE estate_owner_payout_preferences(acct TEXT PRIMARY KEY,currency TEXT)');
+  const hourly=createEstateHourlyRuntime({db,client,treasury:treasury.classicAddress,imgIssuer:issuer.classicAddress});
+  const netOptions={db,client,wallet:()=>treasury,treasury:treasury.classicAddress,imgIssuer:issuer.classicAddress,guard:{paused:()=>false,check:async()=>null},enabled:true};
+  const beforeNet=BigInt((await client.request({command:'account_info',account:treasury.classicAddress,ledger_index:'validated'})).result.account_data.Balance);
+  const netHashes=[];
+  for(const [hour,currency] of [[0,'IMG'],[3600000,'XRP']]){
+   db.prepare('INSERT INTO estate_owner_payout_preferences VALUES(?,?) ON CONFLICT(acct) DO UPDATE SET currency=excluded.currency').run(owner.classicAddress,currency);
+   db.prepare('INSERT INTO estate_img_hourly_batches VALUES(?,?,?,?,?,?)').run(hour,'1000000',1,1,'testnet-'+currency,hour+3600000);
+   db.prepare('INSERT INTO estate_img_hourly_entitlements VALUES(?,?,?)').run(hour,owner.classicAddress,'1000000');hourly.enqueue(hour);
+   let paid;
+   for(let attempt=0;attempt<60;attempt++){
+    // Recreate on every pass to test durable recovery, not in-memory state.
+    await createEstateNetRewardExecutor(netOptions).tick();
+    paid=db.prepare('SELECT * FROM estate_hourly_payouts WHERE epoch_start_ms=?').get(hour);if(paid.state==='confirmed')break;
+    if(attempt%10===0)console.log('Net reward testnet',currency,paid.note||paid.state);
+    if(db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state='held'").get())throw Error('net_reward_testnet_held');
+    await wait(2000);
+   }
+   assert.equal(paid.state,'confirmed',paid.note);
+   const paidProof=(await client.request({command:'tx',transaction:paid.tx_hash,binary:false})).result;
+   assert.equal(paidProof.validated,true);assert.equal(paidProof.meta.TransactionResult,'tesSUCCESS');
+   assert.equal((paidProof.tx_json||paidProof).Destination,owner.classicAddress);
+   if(currency==='IMG')assert.equal(paidProof.meta.delivered_amount.currency,'IMG');else assert.equal(typeof paidProof.meta.delivered_amount,'string');
+   const fees=db.prepare('SELECT fee_paid_drops,unrecovered_fee_drops,state FROM estate_reward_settlements WHERE payout_id=?').get(paid.id);
+   assert.equal(fees.state,'paid');assert.equal(fees.unrecovered_fee_drops,'0');assert(BigInt(fees.fee_paid_drops)>0n);
+   netHashes.push({currency,hash:paid.tx_hash});console.log('Actual net hourly reward',currency,'passed');
+  }
+  const afterNet=BigInt((await client.request({command:'account_info',account:treasury.classicAddress,ledger_index:'validated'})).result.account_data.Balance);
+  assert(afterNet>=beforeNet,'reward conversion must cover every network fee without reducing pre-existing treasury XRP');
+  console.log('Actual treasury XRP preservation after IMG and XRP net rewards passed',JSON.stringify(netHashes));
   console.log(JSON.stringify({network:'testnet',passed:true,purchaseHash:purchased.hash,liquidityTransactions:db.prepare("SELECT purpose,tx_hash FROM estate_treasury_transactions WHERE state='applied'").all(),nativePayoutHash:payout.tx_hash,payoutDrops:payout.amount_drops,hourCloseUsesTestWatermark:true}));
  }finally{await client.disconnect();}
 })().catch(e=>{console.error(e.message);process.exitCode=1});

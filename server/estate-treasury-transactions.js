@@ -3,7 +3,7 @@ const xrpl=require('xrpl'),{sameAmount}=require('./estate-liquidity-ledger');
 const hex=s=>Buffer.from(s).toString('hex').toUpperCase();
 const canonical=o=>Array.isArray(o)?o.map(canonical):o&&typeof o==='object'?Object.fromEntries(Object.keys(o).sort().map(k=>[k,canonical(o[k])])):o;
 const stable=o=>JSON.stringify(canonical(o));
-function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabled=false,purposeEnabled=()=>true,maxFeeDrops=100}={}){
+function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabled=false,purposeEnabled=()=>true,beforeSign=()=>null,maxFeeDrops=100}={}){
  db.exec(`CREATE TABLE IF NOT EXISTS estate_treasury_transactions(
  id TEXT PRIMARY KEY,purpose TEXT NOT NULL,draft_json TEXT NOT NULL,context_json TEXT NOT NULL,
  state TEXT NOT NULL CHECK(state IN ('queued','preparing','submitted','validated','applied','held')),
@@ -13,7 +13,7 @@ function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabl
  const get=id=>db.prepare('SELECT * FROM estate_treasury_transactions WHERE id=?').get(id);
  let busy=false;
  function ensure(id,purpose,draft,context){
-  if(typeof id!=='string'||!/^[A-Za-z0-9:_-]{1,200}$/.test(id)||!['capital_buy','capital_deposit','profit_withdraw','profit_convert','xrp_profit_payout'].includes(purpose)||draft.Account!==treasury||!['Payment','AMMDeposit','AMMWithdraw'].includes(draft.TransactionType))throw Error('invalid_treasury_intent');
+  if(typeof id!=='string'||!/^[A-Za-z0-9:_-]{1,200}$/.test(id)||!['capital_buy','capital_deposit','profit_withdraw','profit_convert','xrp_profit_payout','hourly_reward_convert','hourly_reward_payout'].includes(purpose)||draft.Account!==treasury||!['Payment','AMMDeposit','AMMWithdraw'].includes(draft.TransactionType))throw Error('invalid_treasury_intent');
   const memo=[{Memo:{MemoType:hex('burncity/estate-treasury'),MemoData:hex(id)}}];
   const json=JSON.stringify({...draft,Memos:memo}),ctx=JSON.stringify(context),prior=get(id);
   if(prior){if(prior.purpose!==purpose||prior.draft_json!==json||prior.context_json!==ctx)throw Error('treasury_intent_conflict');return prior;}
@@ -32,7 +32,7 @@ function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabl
    if(['Amount','SendMax','Amount2','LPTokenIn','LPTokenOut'].includes(key)?!sameAmount(a,b):typeof b==='object'?stable(a)!==stable(b):a!==b)return block(row.id,'validated_envelope_mismatch');
   }
   if(r.meta?.TransactionResult!=='tesSUCCESS'){
-   db.prepare("UPDATE estate_treasury_transactions SET state='held',note=? WHERE id=?").run('validated_failure:'+r.meta?.TransactionResult,row.id);return {blocked:'validated_failure'};
+   db.prepare("UPDATE estate_treasury_transactions SET state='held',note=?,result_json=?,fee_drops=? WHERE id=?").run('validated_failure:'+r.meta?.TransactionResult,JSON.stringify(r),t.Fee,row.id);return {blocked:'validated_failure'};
   }
   let date=r.date??t.date;const index=r.ledger_index;
   if(typeof r.close_time_iso==='string'){const ms=Date.parse(r.close_time_iso);if(!Number.isSafeInteger(ms)||ms%1000!==0)return block(row.id,'ledger_time_proof_required');const seconds=ms/1000-946684800;if(date!==undefined&&date!==seconds)return block(row.id,'conflicting_ledger_time_proof');date=seconds;}
@@ -62,6 +62,7 @@ function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabl
    // The fee must be covered by additional unencumbered treasury XRP.
    const feeCheck=row.purpose==='xrp_profit_payout'?maxFeeDrops:Number(tx.Fee);
    const bad=await guard.check(client,treasury,feeCheck);if(bad)return block(row.id,bad);
+   const policyBlock=await beforeSign(row,tx);if(policyBlock)return block(row.id,policyBlock);
    if(guard.paused())return block(row.id,'treasury_paused');
    const otherPending=db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_hourly_payouts'").get()?" AND NOT EXISTS(SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted'))":'';
    if(db.prepare("UPDATE estate_treasury_transactions SET state='preparing',note=NULL WHERE id=? AND state='queued' AND NOT EXISTS(SELECT 1 FROM estate_treasury_transactions WHERE state IN ('preparing','submitted','validated','held'))"+otherPending).run(row.id).changes!==1)return {blocked:'treasury_claim_conflict'};

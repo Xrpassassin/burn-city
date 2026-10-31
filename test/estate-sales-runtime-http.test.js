@@ -4,8 +4,8 @@ const data=fs.mkdtempSync(path.join(os.tmpdir(),'estate-live-http-'));
 Object.assign(process.env,{DATA_DIR:data,PORT:'0',DRY_RUN:'false',ESTATE_SALES_ENABLED:'1',ESTATE_TREASURY_ADDRESS:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd',XRPL_NETWORK:'mainnet',XAMAN_API_KEY:'test-key',XAMAN_API_SECRET:'test-secret',BURN_JOB_IN_SERVER:'false',XRPL_WSS:'ws://127.0.0.1:1'});
 const Pay=require('../server/payments');let tx,signed=false,validated=false;
 const buyer='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',hash='A'.repeat(64);
-Pay._sdk=()=>({payload:{create:async p=>{tx=p.txjson;return {uuid:'http-test',refs:{qr_png:'https://example.com/qr'},next:{always:'https://example.com/sign'}};},get:async()=>({meta:{signed},response:{account:buyer,txid:hash}})}});
-Pay._ledger=async()=>({request:async q=>{assert.equal(q.command,'tx');return {result:{validated,hash,ledger_index:123,...tx,date:Math.floor(Date.now()/1000)-946684800,meta:{TransactionResult:'tesSUCCESS',delivered_amount:tx.Amount}}};}});
+Pay._sdk=()=>({payload:{create:async p=>{tx=p.txjson;return {uuid:'http-test',refs:{qr_png:'https://example.com/qr'},next:{always:'https://xaman.app/sign/test'}};},get:async()=>({meta:{signed},response:{account:buyer,txid:hash}})}});
+Pay._ledger=async()=>({request:async q=>{if(q.command==='ledger')return {result:{validated:true,ledger_hash:'B'.repeat(64)}};if(q.command==='account_lines'){assert.equal(q.account,buyer);assert.equal(q.peer,require('../server/config').IMG_ISSUER);return {result:{validated:true,ledger_hash:'B'.repeat(64),lines:[]}};}assert.equal(q.command,'tx');return {result:{validated,hash,ledger_index:123,...tx,date:Math.floor(Date.now()/1000)-946684800,meta:{TransactionResult:'tesSUCCESS',delivered_amount:tx.Amount}}};}});
 const {server}=require('../server/server');
 (async()=>{
  await new Promise(r=>server.listening?r():server.once('listening',r));const url='http://127.0.0.1:'+server.address().port;
@@ -13,6 +13,8 @@ const {server}=require('../server/server');
  const call=async(p,body,auth=true)=>{const r=await fetch(url+'/api/estates'+p,{method:body?'POST':'GET',headers:{...(auth?{authorization:'Bearer '+token}:{}),'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {code:r.status,data:await r.json()};};
  const publicStatus=await (await fetch(url+'/api/estates/status')).json();assert.equal(publicStatus.salesEnabled,true);assert.equal(publicStatus.owned,undefined);assert.equal(publicStatus.payouts,undefined);
  assert.equal((await call('/portfolio',null,false)).code,401);
+ assert.equal((await call('/img-trustline',null,false)).code,401);assert.equal((await call('/img-trustline/start',{},false)).code,401);
+ assert.equal((await call('/img-trustline?account=forged')).data.account,buyer);
  assert.equal((await call('/purchase/reserve',{propertyId:'trailer-01'},false)).code,401);
  const state=await call('');assert.equal(state.data.salesEnabled,true);assert.equal(state.data.distributionsEnabled,false);
  const r=await call('/purchase/reserve',{propertyId:'trailer-01',amountDrops:1,shareUnits:99999});assert.equal(r.code,201);assert.equal(r.data.priceDrops,3000000);
@@ -39,6 +41,7 @@ const {server}=require('../server/server');
  const otherReport=await (await fetch(url+'/api/estates/portfolio?owner='+encodeURIComponent(buyer),{headers:{authorization:'Bearer '+otherToken}})).json();assert.equal(otherReport.owned.length,0);assert.equal(otherReport.portfolio.properties.length,0);assert(!JSON.stringify(otherReport).includes(hash));
 
  assert.equal((await call('/payout-preference',{currency:'IMG'})).code,200);
+ const trust=await call('/img-trustline/start',{account:'forged',issuer:'forged',limit:'999'});assert.equal(trust.code,200);assert.equal(tx.TransactionType,'TrustSet');assert.equal(tx.Account,buyer);assert.equal(tx.LimitAmount.issuer,require('../server/config').IMG_ISSUER);assert.equal(tx.LimitAmount.value,'1000000000');
  console.log('Enabled Estates HTTP purchase, pause, pending validation and settled ownership passed');
  server.close();fs.rmSync(data,{recursive:true,force:true});process.exit(0);
 })().catch(e=>{console.error(e);process.exit(1);});

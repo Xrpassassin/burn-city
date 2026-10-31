@@ -40,6 +40,9 @@ try{for(const viewport of [{width:1280,height:800},{width:390,height:844},{width
  await page.locator('#scenario-net').fill('12');await page.getByText('Hypothetical allocation: 2.000000 IMG',{exact:false}).waitFor();
  await page.locator('#scenario-net').fill('-5');await page.getByText('Hypothetical allocation: 0.000000 IMG',{exact:false}).waitFor();
  await page.locator('#scenario-net').fill('1e3');await page.getByText('Enter an amount with at most six decimal places.',{exact:true}).waitFor();
+ await page.locator('#wallet-controls').getByRole('button',{name:'Set up IMG trustline in Xaman'}).waitFor();
+ await page.locator('#payout-currency').selectOption('XRP');assert.equal(await page.locator('#wallet-controls [data-img-trustline]').isVisible(),false);
+ await page.locator('#payout-currency').selectOption('IMG');assert.equal(await page.locator('#wallet-controls [data-img-trustline]').isVisible(),true);
  assert.equal(calls.some(c=>c.method==='POST'),false,'loading, reporting and scenario inputs never initiate payments');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'page fits viewport');
  // Simulate an old wallet request completing after a wallet switch.

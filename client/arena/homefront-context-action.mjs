@@ -4,8 +4,18 @@
 export function homefrontContextAction({
   canEnter = false, enterTitle = '',
   canLoot = false, lootLabel = '',
-  canDamage = false, environmentLabel = ''
+  canDamage = false, environmentLabel = '',
+  roomTarget = null
 } = {}) {
+  if (roomTarget && (roomTarget.kind === 'action' || roomTarget.kind === 'door') &&
+      typeof roomTarget.id === 'string' && roomTarget.id.length &&
+      typeof roomTarget.label === 'string') {
+    return Object.freeze({
+      id: roomTarget.kind === 'door' ? 'interior-door' : 'interior-action',
+      targetId: roomTarget.id,
+      label: (roomTarget.kind === 'door' ? 'Go through ' : 'Use ') + roomTarget.label.slice(0, 68)
+    });
+  }
   if (canEnter) return Object.freeze({
     id: 'enter', label: enterTitle ? 'Enter ' + String(enterTitle).slice(0, 56) : 'Enter building'
   });

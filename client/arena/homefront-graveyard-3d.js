@@ -18,6 +18,7 @@ import { createZombieModelPilot } from './zombie-model-pilot.mjs';
 import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
+import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
 import { mergeSharedInteriorPresence } from './homefront-shared-presence.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
@@ -1657,7 +1658,16 @@ function boot(host) {
   };
   let shownContext = null;
   function availableContext() {
-    if (!worldData?.self || !view.visible || moving) return null;
+    if (!worldData?.self || !view.visible || moving || !token()) return null;
+    // Native exploration controls use only authored, server-authenticated rooms.
+    // Show a target after walking within real reach; do not teleport, auto-loot,
+    // or unlock doors based on client data.
+    if (interiorState) {
+      const roomBlueprint = interiorForLandmark(interiorState.landmarkId);
+      const roomAnchor = LANDMARKS.find(point => point.id === interiorState.landmarkId);
+      const roomTarget = nearestInteriorInteraction(roomBlueprint, interiorState, roomAnchor, worldData.self);
+      return roomTarget ? homefrontContextAction({ roomTarget }) : null;
+    }
     const loot = (worldData.world?.lootNodes || []).find(node => node.id === selectedLootId);
     const environment = (worldData.world?.environmentStructures || [])
       .find(item => item.id === selectedEnvironmentId);
@@ -1677,7 +1687,8 @@ function boot(host) {
   }
   function renderContextAction() {
     const next = availableContext();
-    if (next?.id === shownContext?.id && next?.label === shownContext?.label) return;
+    if (next?.id === shownContext?.id && next?.label === shownContext?.label &&
+        next?.targetId === shownContext?.targetId) return;
     shownContext = next;
     contextPrompt.hidden = !next;
     if (next) {
@@ -1686,8 +1697,18 @@ function boot(host) {
     }
   }
   function activateContextAction() {
-    const button = homefrontActionTarget(shownContext, contextControls);
-    if (button && availableContext()?.id === shownContext?.id) button.click();
+    const current = availableContext();
+    if (!current || current.id !== shownContext?.id || current.targetId !== shownContext?.targetId) return;
+    if (current.id === 'interior-action') {
+      void performInteriorAction(current.targetId);
+      return;
+    }
+    if (current.id === 'interior-door') {
+      void interactInteriorDoor(current.targetId);
+      return;
+    }
+    const button = homefrontActionTarget(current, contextControls);
+    if (button) button.click();
   }
   contextPrompt.addEventListener('pointerdown', event => event.stopPropagation());
   contextPrompt.addEventListener('click', event => { event.stopPropagation(); activateContextAction(); });

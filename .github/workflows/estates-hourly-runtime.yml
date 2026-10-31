@@ -13,6 +13,9 @@ on:
       - 'scripts/estate-live-*.cjs'
       - 'scripts/estate-live-*.mjs'
       - 'server/estate-capital-*.js'
+      - 'server/estate-native-reward-*.js'
+      - 'server/estate-rlusd-*.js'
+      - 'server/estate-schema-upgrade.js'
       - 'server/estate-sale-settlement*.js'
       - 'server/estate-sales-runtime*.js'
       - 'server/guard.js'
@@ -44,6 +47,7 @@ jobs:
           node --check scripts/estate-live-ops.cjs
           node --check scripts/estate-live-operations.mjs
           node server/estate-liquidity-runtime.test.js
+          npm run -s test:estate-rlusd
           node server/estate-capital-allocation.test.js
           node server/estate-capital-reserve.test.js
           node server/estate-hourly-runtime.test.js

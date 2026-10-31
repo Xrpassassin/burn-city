@@ -18,6 +18,8 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  function renderStatus(s){
   $('live-status').textContent=s.salesEnabled?'Property sales are open.':s.salesStatus==='treasury_paused'?'Property purchases are temporarily paused.':'Property purchases are currently unavailable.';
   $('reward-status').textContent=s.distributionsEnabled?'Hourly reward processing is enabled.':'Hourly reward processing is currently unavailable or delayed.';
+  const allocation=$('allocation-status');if(allocation)allocation.textContent=s.capitalAllocationPolicy?.version===2?'New purchases: 99% allocated to IMG/RLUSD; 1% retained for XRP operating costs. '+(s.imgRlusdFundingEnabled?'Pool routing enabled.':'Pool routing awaits activation; proceeds remain reserved in the treasury.'):'Checking purchase allocation policy…';
+  const pool=$('pool-status');if(pool)pool.textContent=(s.liquidityPositions||[]).length+' tracked IMG/RLUSD positions · '+({awaiting_pool_activation:'Awaiting pool activation',enabled:'Processing enabled',treasury_paused:'Treasury paused',disabled:'Routing disabled'}[s.imgRlusdStatus]||'Processing delayed or requires review')+'.';
  }
  function renderCatalog(){
   if(!catalog)return;const tiers=new Map(catalog.tiers.map(t=>[t.id,t])),owned=new Set((current?.owned||[]).map(p=>p.propertyId));
@@ -47,7 +49,12 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
    const reason=({recipient_img_trustline_unavailable:'An IMG trustline is needed in the receiving wallet.',owner_currency_selection_required:'Choose IMG or XRP above.',daily_payment_budget_limit:'Waiting for the next payment budget.',unfunded_img_liabilities:'Awaiting verified funding.',below_net_reward_minimum_carried:'Accrued toward a future payout after fees.',funding_reward_network_fees:'Funding fees from earned IMG.',awaiting_net_reward_payment:'Preparing reward after fees.',reward_transaction_review_required:'Held for review; no automatic replacement.'})[r.note];
    add('Reward hour '+new Date(r.epoch_start_ms).toLocaleString()+' · IMG earnings · '+(r.note==='below_net_reward_minimum_carried'?'Accrued for a future payout':labels[r.state]||'Pending')+' · '+amount+(reason?' · '+reason:''),r.tx_hash);
   }
-  for(const r of (s.xrpProfitPayouts||[]).slice(0,20))add('Eligible after '+new Date(r.available_after_ms).toLocaleString()+' · Additional XRP pool profit · '+formatRewardUnits(r.amount_drops)+' XRP · '+(r.note==='below_net_reward_minimum_carried'?'Accrued for a future payout':labels[r.state]||'Pending'),r.tx_hash);
+  for(const r of (s.xrpProfitPayouts||[]).slice(0,20)){
+   let amount=formatRewardUnits(r.amount_drops)+' XRP equivalent allocated';
+   if(r.state==='confirmed'&&r.delivered){try{const d=JSON.parse(r.delivered);amount=typeof d==='string'?formatRewardUnits(d)+' XRP delivered':d.value+' IMG delivered';}catch{amount='Delivery requires review';}}
+   else if(r.state==='confirmed')amount=formatRewardUnits(r.amount_drops)+' XRP delivered';
+   add('Eligible after '+new Date(r.available_after_ms).toLocaleString()+' · '+(r.payout_policy===2?'IMG/RLUSD realized profit':'Legacy XRP pool profit')+' · '+amount+' · '+(r.carried?'Accrued for a future payout':r.note==='reward_transaction_review_required'?'Held for review':labels[r.state]||'Pending')+(r.note==='owner_currency_selection_required'?' · Choose IMG or XRP above.':r.note==='recipient_img_trustline_unavailable'?' · An IMG trustline is needed.':r.note==='quote_expired_review_required'?' · Conversion quote needs review.':''),r.tx_hash);
+  }
   for(const [key,asset] of [['rewardXrpCreditDrops','XRP'],['rewardImgCreditUnits','IMG']])if(BigInt(s[key]||'0')>0n)add('Retained '+asset+' reward credit: '+formatRewardUnits(s[key])+' '+asset+'. Included in a future eligible payout.');
   if(BigInt(s.xrpProfitCreditDrops||'0')>0n)add('Unpaid XRP reward credit: '+formatRewardUnits(s.xrpProfitCreditDrops)+' XRP. Included with a future eligible payment.');
   if(!list.childElementCount)list.append(make('p','No wallet payments recorded yet. Allocations appear separately from confirmed payments.'));
@@ -62,7 +69,8 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
    card.append(make('h3',p.property?.address||p.propertyId),make('p',p.tier?.label||p.property?.tier||''),
     field('Current reward share',sharePercent(p.shareUnits,report.totalShareUnits)+'% ('+p.shareUnits+' units)'));
    const funding=s.capitalAllocations?.find(a=>a.property_id===p.propertyId)?.fundingState;
-   card.append(field('Pool funding',({invested:'Invested',in_progress:'In progress',pending:'Awaiting execution',review_needed:'Awaiting review'})[funding]||'Status unavailable'));
+   const allocation=s.capitalAllocations?.find(a=>a.property_id===p.propertyId);if(allocation)card.append(field('Investment pool',allocation.pool||'Legacy allocation'));
+   card.append(field('Pool funding',({awaiting_pool:'Awaiting IMG/RLUSD pool activation',invested:'Invested',in_progress:'In progress',pending:'Awaiting execution',review_needed:'Awaiting review'})[funding]||'Status unavailable'));
    const img=report.imgHistoryAvailable&&r,xrp=report.xrpHistoryAvailable&&r;
    card.append(field('IMG allocated · last 24h',img?formatRewardUnits(r.imgAllocated24hUnits)+' IMG':'History unavailable'),
     field('Approx. historical hourly average',img?formatRewardUnits(r.imgAverageHourlyUnits)+' IMG/h':'Unavailable'),
@@ -109,7 +117,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  $('save-preference').addEventListener('click',async()=>{
   const auth=token(),currency=$('payout-currency').value;if(!auth||!currency){$('preference-status').textContent='Choose IMG or XRP while signed in.';return;}
   $('save-preference').disabled=true;
-  try{await request('/payout-preference',auth,{currency});if(token()===auth)$('preference-status').textContent='Wallet payout preference saved. Existing payout requests may retain their original currency. Additional XRP pool profits are paid separately in XRP.';}
+  try{await request('/payout-preference',auth,{currency});if(token()===auth)$('preference-status').textContent='Wallet payout preference saved. Existing payout requests may retain their original currency. New IMG/RLUSD profits follow your selected payout currency; already-created payments retain their currency.';}
   catch(e){$('preference-status').textContent=e.message;}finally{$('save-preference').disabled=false;}
  });
  for(const id of ['scenario-property','scenario-net','scenario-asset','scenario-period'])$(id).addEventListener('input',calculate);

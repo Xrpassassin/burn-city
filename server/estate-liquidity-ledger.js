@@ -32,7 +32,7 @@ function inspectPool(result,{asset,other,poolAccount}={}){
  const a=result?.amm,amounts=[a?.amount,a?.amount2];
  const find=issue=>amounts.find(v=>issue.currency==='XRP'?typeof v==='string':v?.currency===issue.currency&&v.issuer===issue.issuer);
  const av=find(asset),bv=find(other),aa=typeof av==='string'?av:av?.value,bb=typeof bv==='string'?bv:bv?.value;
- if(result?.validated!==true||!aa||!bb||!value(aa).gt(0)||!value(bb).gt(0)||!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(a?.account||'')||(poolAccount&&a.account!==poolAccount)||!/^03[A-Fa-f0-9]{38}$/.test(a?.lp_token?.currency||'')||a.lp_token.issuer!==a.account||!value(a.lp_token.value).gt(0)||!Number.isSafeInteger(a.trading_fee)||a.trading_fee<0||a.trading_fee>1000)throw Error('validated_pool_identity_required');
+ if(a?.asset_frozen===true||a?.asset2_frozen===true||result?.validated!==true||!aa||!bb||!value(aa).gt(0)||!value(bb).gt(0)||!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(a?.account||'')||(poolAccount&&a.account!==poolAccount)||!/^03[A-Fa-f0-9]{38}$/.test(a?.lp_token?.currency||'')||a.lp_token.issuer!==a.account||!value(a.lp_token.value).gt(0)||!Number.isSafeInteger(a.trading_fee)||a.trading_fee<0||a.trading_fee>1000)throw Error('validated_pool_identity_required');
  return {account:a.account,lp:{currency:a.lp_token.currency,issuer:a.account},a:value(aa),b:value(bb),supply:value(a.lp_token.value),fee:a.trading_fee};
 }
 // Exact-output quote under a hard XRP SendMax. The haircut does not increase spend.

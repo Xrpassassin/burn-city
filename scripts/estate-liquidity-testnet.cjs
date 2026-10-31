@@ -26,10 +26,16 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   await send(maker,{TransactionType:'AMMCreate',Amount:{...IMG,value:'20000'},Amount2:{...PLX,value:'20000'},TradingFee:300});
   const pair=(await client.request({command:'amm_info',asset:IMG,asset2:PLX,ledger_index:'validated'})).result.amm.account;
   const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,purchase_tx TEXT UNIQUE,purchase_amount_drops INTEGER,share_units INTEGER,purchased_at INTEGER);CREATE TABLE estate_img_scan_watermarks(id INTEGER PRIMARY KEY,scanned_through_ms INTEGER,ledger_index INTEGER,verified_at_ms INTEGER)');
-  createEstateCapitalAllocation(db);const reservations=createEstateSaleReservations(db),reservation=reservations.reserve({reservationId:'testnet-estate-reservation',propertyId:'trailer-01',buyer:owner.classicAddress,now:Date.now()});
+  createEstateCapitalAllocation(db,{policyVersion:1});const reservations=createEstateSaleReservations(db),reservation=reservations.reserve({reservationId:'testnet-estate-reservation',propertyId:'trailer-01',buyer:owner.classicAddress,now:Date.now()});
   const purchased=await send(owner,{TransactionType:'Payment',Destination:treasury.classicAddress,Amount:'3000000',Memos:[{Memo:{MemoType:Buffer.from('burncity/estates').toString('hex').toUpperCase(),MemoData:Buffer.from(reservation.reservation_id).toString('hex').toUpperCase()}}]});
   assert.ok(purchased.hash,'validated purchase hash required');
   await createEstateSaleOrchestrator(db,{treasury:treasury.classicAddress,client}).settle({reservationId:reservation.reservation_id,txHash:purchased.hash,now:Date.now()});
+  // This scenario proves historical policy-1 positions continue to execute.
+  // Current sale settlement correctly writes policy 2; seed the disposable
+  // test database with the exact pre-upgrade allocation before executing it.
+  const legacy=require('../server/estate-capital-allocation').splitEstateCapital('3000000',1);
+  assert.equal(db.prepare('SELECT policy_version FROM estate_capital_allocations WHERE purchase_tx=?').get(purchased.hash).policy_version,2);
+  db.prepare("UPDATE estate_capital_allocations SET policy_version=1,img_plx_drops=?,img_xrp_drops=?,img_rlusd_drops='0',operating_reserve_drops='0' WHERE purchase_tx=?").run(legacy.imgPlxDrops,legacy.imgXrpDrops,purchased.hash);
   let clock=Date.now();
   const options={db,client,wallet:()=>treasury,treasury:treasury.classicAddress,imgIssuer:issuer.classicAddress,plxIssuer:issuer.classicAddress,guard:{paused:()=>false,check:async()=>null},fundingEnabled:true,harvestEnabled:false,payoutsEnabled:true,now:()=>clock,imgPlxPoolAccount:pair,maxNativePayoutDrops:'100000000',maxNativeDailyDrops:'1000000000'};
   let runtime=createEstateLiquidityRuntime(options);

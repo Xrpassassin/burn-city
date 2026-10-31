@@ -1,0 +1,23 @@
+name: Homefront input step tests
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/homefront-input-step.js'
+      - 'server/homefront-input-step.test.js'
+      - '.github/workflows/homefront-input-step-test.yml'
+  pull_request:
+    paths:
+      - 'server/homefront-input-step.js'
+      - 'server/homefront-input-step.test.js'
+      - '.github/workflows/homefront-input-step-test.yml'
+jobs:
+  input-step:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/homefront-input-step.test.js

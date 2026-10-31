@@ -21,7 +21,9 @@ function createEstateNativeRewardExecutor({db,client,wallet,treasury,imgIssuer,g
    const usage=db.prepare('SELECT * FROM estate_native_reward_usage WHERE payout_id=?').get(s.payout_id);
    if(!usage||integer(usage.budget_drops)>integer(maxNativePayoutDrops))return 'native_profit_payment_budget_limit';
    const day=now()-now()%86400000,used=db.prepare('SELECT budget_drops FROM estate_native_reward_usage WHERE created_at>=?').all(day).reduce((n,r)=>n+integer(r.budget_drops),0n);
-   return used>integer(maxNativeDailyDrops)?'native_profit_daily_budget_limit':null;
+   const budget=integer(usage.budget_drops);if(used+(usage.created_at<day?budget:0n)>integer(maxNativeDailyDrops))return 'native_profit_daily_budget_limit';
+   if(usage.created_at<day)db.prepare('UPDATE estate_native_reward_usage SET created_at=? WHERE payout_id=?').run(now(),s.payout_id);
+   return null;
   }});
  async function preflight(owner,amount='0',acquiring=false){
   if(owner===treasury||owner===imgIssuer)throw Error('self_or_issuer_profit_payout_review');

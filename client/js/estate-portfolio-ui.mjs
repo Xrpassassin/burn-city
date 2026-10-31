@@ -70,7 +70,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
     field('Current reward share',sharePercent(p.shareUnits,report.totalShareUnits)+'% ('+p.shareUnits+' units)'));
    const funding=s.capitalAllocations?.find(a=>a.property_id===p.propertyId)?.fundingState;
    const allocation=s.capitalAllocations?.find(a=>a.property_id===p.propertyId);if(allocation)card.append(field('Investment pool',allocation.pool||'Legacy allocation'));
-   card.append(field('Pool funding',({invested:'Invested',in_progress:'In progress',pending:'Awaiting execution',review_needed:'Awaiting review'})[funding]||'Status unavailable'));
+   card.append(field('Pool funding',({awaiting_pool:'Awaiting IMG/RLUSD pool activation',invested:'Invested',in_progress:'In progress',pending:'Awaiting execution',review_needed:'Awaiting review'})[funding]||'Status unavailable'));
    const img=report.imgHistoryAvailable&&r,xrp=report.xrpHistoryAvailable&&r;
    card.append(field('IMG allocated · last 24h',img?formatRewardUnits(r.imgAllocated24hUnits)+' IMG':'History unavailable'),
     field('Approx. historical hourly average',img?formatRewardUnits(r.imgAverageHourlyUnits)+' IMG/h':'Unavailable'),

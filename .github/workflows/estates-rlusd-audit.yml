@@ -1,41 +1,26 @@
-name: Recover Estates maintenance timeout
+name: Inspect Estates recovery resources
 on:
   push:
     branches: [ops/estates-rlusd-audit]
 permissions:
   contents: read
-  actions: write
 jobs:
-  recover:
+  inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Stop owned read-only inspections and restart paused app
+      - name: Read verification stage and memory without starting a Node worker
         env:
-          GH_TOKEN: ${{ github.token }}
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
         run: |
           node <<'NODE'
           (async()=>{
-            const headers={Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'};
-            const response=await fetch('https://api.github.com/repos/Xrpassassin/burn-city/actions/runs?branch=ops%2Festates-rlusd-audit&per_page=30',{headers,signal:AbortSignal.timeout(15000)});
-            if(!response.ok)throw Error('owned_runs_read_failed_'+response.status);
-            const runs=(await response.json()).workflow_runs;
-            for(const r of runs){if(String(r.id)===process.env.GITHUB_RUN_ID||r.status==='completed'||!['Reconcile confirmed Estates PLX exit','Read-only Estates treasury alert inspection'].includes(r.name))continue;
-              const cancel=await fetch('https://api.github.com/repos/Xrpassassin/burn-city/actions/runs/'+r.id+'/cancel',{method:'POST',headers,signal:AbortSignal.timeout(15000)});
-              if(![202,409].includes(cancel.status))throw Error('owned_inspection_cancel_failed_'+cancel.status);
-              console.log('Stopped owned read-only inspection',r.id);
+            const headers={Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'};
+            for(const command of [['cat','/tmp/estate-confirmed-exit-stage.json','/sys/fs/cgroup/memory.max','/sys/fs/cgroup/memory.current'],['ps','-o','pid,comm,rss']]){
+              const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers,body:JSON.stringify({command,timeout:10}),signal:AbortSignal.timeout(15000)});
+              if(!r.ok)throw Error('resource_read_http_'+r.status);const d=await r.json();console.log(JSON.stringify({command,stdout:d.stdout,stderr:d.stderr,exitCode:d.exit_code}));
             }
-            const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/restart',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN},signal:AbortSignal.timeout(20000)});
-            if(!r.ok)throw Error('paused_app_restart_failed_'+r.status);
-            console.log('Restart requested; persisted treasury guard remains unchanged.');
-            for(let i=0;i<30;i++){await new Promise(r=>setTimeout(r,4000));try{
-              const response=await fetch('https://burn-city-game.fly.dev/api/estates/status',{signal:AbortSignal.timeout(4000)});if(!response.ok)continue;const s=await response.json();
-              console.log(JSON.stringify({healthy:true,salesStatus:s.salesStatus,distributionStatus:s.distributionStatus,imgRlusdStatus:s.imgRlusdStatus}));return;
-            }catch{}}
-            throw Error('app_health_not_verified');
           })().catch(e=>{console.error(e.message);process.exitCode=1});
           NODE

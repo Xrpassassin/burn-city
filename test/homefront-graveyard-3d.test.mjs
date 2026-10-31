@@ -384,3 +384,13 @@ assert.match(scene, /walkingCameraHeading\(localActor\?\.rotation\.y \|\| 0, cam
   'direct walking uses stable camera yaw instead of rotating movement with the avatar');
 assert.match(scene, /directSprintRequested\(sprintTravel, view\.running\(\), aiming\)/,
   'direct walking includes Shift and the shared touch RUN button and respects aiming');
+
+
+assert.match(scene, /requiresHomefrontSceneRebuild\(lastRenderedWorldData, next\)/,
+  'movement acknowledgements rebuild 3D meshes only when entity visuals materially change');
+assert.match(scene, /mergeHomefrontInputSnapshot\(previous, data\)/,
+  'continuous server responses update the world state without discarding negotiated protocol');
+assert.match(scene, /explorerPositions\.set\(p\.id, \{/,
+  'remote players interpolate from authoritative coordinates without reconstructing walkers');
+assert.match(scene, /applyEnvironmentStateSnapshot\(next\.world\?\.environmentStructures\)/,
+  'environment collision damage remains replicated during lightweight input updates');

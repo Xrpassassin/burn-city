@@ -48,3 +48,33 @@ export function playerPositionUpdates(snapshot) {
     .filter(p => Number.isFinite(p?.x) && Number.isFinite(p?.z))
     .map(p => ({ id: playerId(p), x: p.x, z: p.z, isLocalPlayer: p.label === 'You' }));
 }
+
+/**
+ * Visual-only action proximity. Server endpoints independently validate loot,
+ * combat, and environment range using authoritative player coordinates.
+ */
+export function homefrontInputProximity(snapshot, {
+  selectedLootId = null, selectedCombatTargetId = null, selectedEnvironmentId = null
+} = {}) {
+  const self = snapshot?.self;
+  const distance = point => self && Number.isFinite(self.x) && Number.isFinite(self.z) &&
+    Number.isFinite(point?.x) && Number.isFinite(point?.z)
+    ? Math.hypot(self.x - point.x, self.z - point.z) : Infinity;
+  const loot = (snapshot?.world?.lootNodes || []).find(node => node.id === selectedLootId) || null;
+  const encounter = snapshot?.selfEncounter || snapshot?.encounter || null;
+  const environment = (snapshot?.world?.environmentStructures || [])
+    .find(item => item.id === selectedEnvironmentId) || null;
+  const enemyDistance = distance(encounter);
+  const enemyInReach = !!encounter && !encounter.defeated && encounter.hp > 0 &&
+    enemyDistance <= (Number.isFinite(encounter.range) ? encounter.range : 0);
+  const targetMatches = !!encounter && encounter.id === selectedCombatTargetId;
+  const environmentActive = !!environment && environment.collisionEnabled !== false &&
+    environment.health > 0 && environment.stage !== 'destroyed';
+  return {
+    loot, nearLoot: !!loot && distance(loot) <= 9,
+    canLoot: !!loot?.available && distance(loot) <= 9,
+    encounter, enemyDistance, enemyInReach, targetMatches,
+    canAttack: enemyInReach, canAutoFire: enemyInReach && targetMatches,
+    environment, canDamageEnvironment: environmentActive && distance(environment) <= 8
+  };
+}

@@ -1,0 +1,23 @@
+name: Estates prelaunch safety gates
+on:
+  pull_request:
+    paths:
+      - 'server/estate-prelaunch-safety.js'
+      - 'server/estate-prelaunch-safety.test.js'
+      - '.github/workflows/estate-prelaunch-safety.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/estate-prelaunch-safety.js'
+      - 'server/estate-prelaunch-safety.test.js'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node server/estate-prelaunch-safety.test.js

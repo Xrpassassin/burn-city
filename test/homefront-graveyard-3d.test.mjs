@@ -406,7 +406,7 @@ assert.match(scene, /selectedInteriorLandmarkId = nearInterior \? guidance\.near
 
 assert.match(scene, /homefrontContextAction\(\{/,
   'in-world context prompt selects only nearby Homefront actions');
-assert.match(scene, /homefrontActionTarget\(shownContext, contextControls\)/,
+assert.match(scene, /homefrontActionTarget\(current, contextControls\)/,
   'context prompt delegates to existing permission-checked action controls');
 assert.match(scene, /event\.code !== 'KeyE'/,
   'E key activates context actions only when view has focus');

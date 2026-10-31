@@ -4,17 +4,20 @@ const {N,value,token,drops,balanceDelta,liquidationQuote}=require('./estate-liqu
 const {createEstateCapitalAllocation}=require('./estate-capital-allocation');
 const {createEstateLiquidityRuntime,estateCashReserve}=require('./estate-liquidity-runtime');
 const POOL='rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ';
-function fixture(){
+function fixture({policyVersion=1}={}){
  const w=xrpl.Wallet.generate(),treasury=w.classicAddress,imgIssuer=xrpl.Wallet.generate().classicAddress,plxIssuer=xrpl.Wallet.generate().classicAddress,owner=xrpl.Wallet.generate().classicAddress;
  const db=new DatabaseSync(':memory:');db.exec(`CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,purchase_tx TEXT UNIQUE,purchase_amount_drops INTEGER,share_units INTEGER,purchased_at INTEGER); CREATE TABLE estate_img_scan_watermarks(id INTEGER PRIMARY KEY,scanned_through_ms INTEGER);`);
  const hour=1700000000000-1700000000000%3600000;let clock=hour,index=100,sequence=0,paused=false,unknown=false,badProof=false,crashOnWithdraw=false;
- const IMG={currency:'IMG',issuer:imgIssuer},PLX={currency:'PLX',issuer:plxIssuer};
+ const IMG={currency:'IMG',issuer:imgIssuer},PLX={currency:'PLX',issuer:plxIssuer},RLUSD={currency:'524C555344000000000000000000000000000000',issuer:'rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De'};
  const key=a=>a.currency==='XRP'?'XRP':a.currency+':'+a.issuer;
- const balances=new Map([['XRP',new N('10000000000')],[key(IMG),new N('1000000')],[key(PLX),new N('1000000')]]);
+ const balances=new Map([['XRP',new N('10000000000')],[key(IMG),new N('1000000')],[key(PLX),new N('1000000')],[key(RLUSD),new N('1000000')]]);
  const xrpPool={a:{currency:'XRP'},b:IMG,x:new N('100000000'),y:new N('1000000'),lp:new N('10000'),account:xrpl.Wallet.generate().classicAddress,currency:'03'+'1'.repeat(38)};
  const plxXrp={a:{currency:'XRP'},b:PLX,x:new N('100000000'),y:new N('1000000'),lp:new N('10000'),account:xrpl.Wallet.generate().classicAddress,currency:'03'+'2'.repeat(38)};
  const plxPool={a:IMG,b:PLX,x:new N('1000000'),y:new N('1000000'),lp:new N('10000'),account:POOL,currency:'03'+'3'.repeat(38)};
- const pools=[xrpPool,plxXrp,plxPool],transactions=new Map(),sent=[];
+ if(policyVersion===2){xrpPool.x=xrpPool.x.times(100);xrpPool.y=xrpPool.y.times(100);}
+ const stableXrp={a:{currency:'XRP'},b:RLUSD,x:new N('10000000000'),y:new N('10000'),lp:new N('10000'),account:xrpl.Wallet.generate().classicAddress,currency:'03'+'4'.repeat(38)};
+ const stablePool={a:IMG,b:RLUSD,x:new N('1000000'),y:new N('100'),lp:new N('10000'),account:xrpl.Wallet.generate().classicAddress,currency:'03'+'5'.repeat(38)};
+ const pools=[xrpPool,plxXrp,plxPool,stableXrp,stablePool],transactions=new Map(),sent=[];
  const ledgerHash=()=>index.toString(16).padStart(64,'A').toUpperCase();
  const issueValue=(a,n)=>a.currency==='XRP'?drops(n):({...a,value:token(n)});
  function getPool(a,b){const p=pools.find(p=>(key(p.a)===key(a)&&key(p.b)===key(b))||(key(p.a)===key(b)&&key(p.b)===key(a)));assert.ok(p,'fixture pool exists');return p;}
@@ -31,7 +34,7 @@ function fixture(){
    add(input,spent.negated());add({currency:'XRP'},value(tx.Amount));delivered=tx.Amount;
    const pool=getPool({currency:'XRP'},input);pool.x=pool.x.minus(tx.Amount);pool.y=pool.y.plus(spent);
   }else if(tx.TransactionType==='Payment'){
-   add({currency:'XRP'},value(tx.Amount).negated());delivered=tx.Amount;
+   if(typeof tx.Amount==='string')add({currency:'XRP'},value(tx.Amount).negated());else add(tx.Amount,value(tx.Amount.value).negated());delivered=tx.Amount;
   }else if(tx.TransactionType==='AMMDeposit'){
    const p=getPool(tx.Asset,tx.Asset2),one=typeof tx.Amount==='string'?value(tx.Amount):value(tx.Amount.value),two=typeof tx.Amount2==='string'?value(tx.Amount2):value(tx.Amount2.value),a=key(p.a)===key(tx.Asset)?one:two,b=key(p.b)===key(tx.Asset2)?two:one;
    let ratio=N.minimum(a.div(p.x),b.div(p.y));
@@ -42,7 +45,7 @@ function fixture(){
    const minted=value(token(p.lp.times(N.minimum(ax.div(p.x),by.div(p.y)))));assert.ok(minted.gte(value(tx.LPTokenOut.value)));
    add(p.a,ax.negated());add(p.b,by.negated());add({currency:p.currency,issuer:p.account},minted);p.x=p.x.plus(ax);p.y=p.y.plus(by);p.lp=p.lp.plus(minted);
   }else if(tx.TransactionType==='AMMWithdraw'){
-   const p=getPool(tx.Asset,tx.Asset2);if(crashOnWithdraw){p.x=p.x.times('.05');crashOnWithdraw=false;}const lp=value(tx.LPTokenIn.value),ratio=lp.div(p.lp),x=value(drops(p.x.times(ratio))),y=value(token(p.y.times(ratio)));
+   const p=getPool(tx.Asset,tx.Asset2);if(crashOnWithdraw){p.x=p.x.times('.05');crashOnWithdraw=false;}const lp=value(tx.LPTokenIn.value),ratio=lp.div(p.lp),x=value(p.a.currency==='XRP'?drops(p.x.times(ratio)):token(p.x.times(ratio))),y=value(p.b.currency==='XRP'?drops(p.y.times(ratio)):token(p.y.times(ratio)));
    add(p.a,x);add(p.b,y);add({currency:p.currency,issuer:p.account},lp.negated());p.x=p.x.minus(x);p.y=p.y.minus(y);p.lp=p.lp.minus(lp);
   }else throw Error('unexpected_fixture_transaction');
   add({currency:'XRP'},fee.negated());
@@ -54,12 +57,13 @@ function fixture(){
    const [currency,issuer]=k.split(':');const final={LowLimit:{issuer:treasury},HighLimit:{issuer},Balance:{currency,value:after.toFixed()}};
    nodes.push(old.isZero()?{CreatedNode:{LedgerEntryType:'RippleState',NewFields:final}}:{ModifiedNode:{LedgerEntryType:'RippleState',FinalFields:final,PreviousFields:{Balance:{currency,value:old.toFixed()}}}});
   }
+  if(tx.TransactionType==='Payment'&&tx.Destination===owner&&typeof tx.Amount==='object')nodes.push({CreatedNode:{LedgerEntryType:'RippleState',NewFields:{LowLimit:{issuer:owner},HighLimit:{issuer:tx.Amount.issuer},Balance:{currency:tx.Amount.currency,value:tx.Amount.value}}}});
   index++;sequence++;clock+=4000;
   const result={validated:true,hash:txHash,ledger_index:index,date:clock/1000-946684800,tx_json:tx,meta:{TransactionResult:'tesSUCCESS',AffectedNodes:nodes,...(delivered?{delivered_amount:delivered}:{})}};
   transactions.set(txHash,result);sent.push(tx);
  }
  const client={autofill:async tx=>({...tx,Fee:'12',Sequence:sequence+1,LastLedgerSequence:index+20}),request:async q=>{
-  if(q.command==='ledger')return {result:{validated:true,ledger_index:index,ledger_hash:ledgerHash()}};
+  if(q.command==='ledger')return {result:{validated:true,ledger_index:index,ledger_hash:ledgerHash(),ledger:{close_time:Math.floor(clock/1000)-946684800}}};
   if(q.command==='amm_info')return {result:poolResult(getPool(q.asset,q.asset2))};
   if(q.command==='account_info')return {result:{validated:true,ledger_hash:ledgerHash(),account_data:{Account:q.account,Flags:0,TransferRate:1000000000}}};
   if(q.command==='account_lines'){
@@ -70,16 +74,16 @@ function fixture(){
   if(q.command==='tx'){const r=structuredClone(transactions.get(q.transaction));if(badProof)r.meta.AffectedNodes=r.meta.AffectedNodes.filter(n=>(n.ModifiedNode||n.CreatedNode)?.LedgerEntryType!=='RippleState');return {result:r};}
   throw Error('unexpected_fixture_request:'+q.command);
  }};
- const capital=createEstateCapitalAllocation(db);
+ const capital=createEstateCapitalAllocation(db,{policyVersion});
  db.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run('trailer-01',owner,'B'.repeat(64),3000000,1,hour-1000);
  capital.record(db.prepare('SELECT * FROM estate_property_ownership').get());
  const guard={paused:()=>paused,check:async()=>null};
- const options={db,client,wallet:()=>w,treasury,imgIssuer,plxIssuer,guard,fundingEnabled:true,harvestEnabled:false,payoutsEnabled:true,maxNativePayoutDrops:'100000000',maxNativeDailyDrops:'1000000000',now:()=>clock};
+ const options={db,client,wallet:()=>w,treasury,imgIssuer,plxIssuer,rlusdIssuer:RLUSD.issuer,rlusdPoolAccount:stablePool.account,rlusdEnabled:policyVersion===2,guard,fundingEnabled:true,harvestEnabled:false,payoutsEnabled:true,maxNativePayoutDrops:'100000000',maxNativeDailyDrops:'1000000000',now:()=>clock};
  const make=overrides=>createEstateLiquidityRuntime({...options,...overrides});
- return {db,treasury,owner,capital,make,sent,balances,xrpPool,get clock(){return clock;},set clock(v){clock=v;},set paused(v){paused=v;},set unknown(v){unknown=v;},set badProof(v){badProof=v;},set crashOnWithdraw(v){crashOnWithdraw=v;}};
+ return {db,treasury,owner,capital,make,sent,balances,xrpPool,stablePool,stableXrp,IMG,RLUSD,client,options,get clock(){return clock;},set clock(v){clock=v;},set paused(v){paused=v;},set unknown(v){unknown=v;},set badProof(v){badProof=v;},set crashOnWithdraw(v){crashOnWithdraw=v;}};
 }
 async function until(f,runtime,predicate,limit=50){for(let i=0;i<limit;i++){if(predicate())return;await runtime.tick();}assert.ok(predicate(),JSON.stringify(runtime.status(f.owner))+' '+JSON.stringify(f.db.prepare('SELECT pair,state,note FROM estate_liquidity_jobs').all())+' '+JSON.stringify(f.db.prepare('SELECT id,state,note FROM estate_treasury_transactions').all()));}
-(async()=>{
+if(require.main===module)(async()=>{
  const f=fixture();let r=f.make();
  assert.equal(estateCashReserve(f.db),'3000000');
  f.paused=true;await r.tick();assert.equal(f.sent.length,0);f.paused=false;
@@ -130,3 +134,5 @@ async function until(f,runtime,predicate,limit=50){for(let i=0;i<limit;i++){if(p
  const bad=fixture(),br=bad.make();bad.badProof=true;await br.tick();const heldReserve=estateCashReserve(bad.db);for(let i=0;i<4;i++)await br.tick();assert.equal(estateCashReserve(bad.db),heldReserve);assert.equal(bad.sent.length,1);assert.equal(bad.db.prepare('SELECT COUNT(*) n FROM estate_xrp_profit_payouts').get().n,0);
  console.log('Liquidity integration: 70/30 funding, two-sided LP, persisted signing, ambiguous submit, restart, loss/no rewards, realized net XRP, closed hours, direct wallet delivery, reinvestment and corrupt proof passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});
+
+module.exports={fixture,until};

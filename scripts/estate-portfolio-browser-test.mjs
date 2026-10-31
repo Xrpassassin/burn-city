@@ -5,7 +5,7 @@ import http from 'node:http';
 import {chromium} from 'playwright';
 const root=path.resolve('client'),catalog=JSON.parse(fs.readFileSync(path.join(root,'data/estate-catalog.json'))),tiers=new Map(catalog.tiers.map(t=>[t.id,t]));
 const calls=[];let paused=false,unavailable=false;
-const live=()=>({salesEnabled:!paused,salesStatus:paused?'treasury_paused':'open',distributionsEnabled:!paused,imgXrpProfitDistributionsEnabled:!paused});
+const live=()=>({capitalAllocationPolicy:{version:2},imgRlusdFundingEnabled:false,imgRlusdStatus:'awaiting_pool_activation',liquidityPositions:[],salesEnabled:!paused,salesStatus:paused?'treasury_paused':'open',distributionsEnabled:!paused,imgXrpProfitDistributionsEnabled:!paused});
 function portfolio(wallet){const id=wallet==='wallet-b'?'apartment-01':'trailer-01',property=catalog.properties.find(p=>p.id===id),tier=tiers.get(property.tier),share=tier.shareUnits;
  return {...live(),owned:[{propertyId:id,property,tier,shareUnits:share}],capitalAllocations:[{property_id:id,fundingState:'invested'}],payoutPreference:{currency:'IMG'},xrpProfitCreditDrops:'0',
  portfolio:{properties:[{propertyId:id,imgAllocated24hUnits:'864000000',imgAverageHourlyUnits:'36000000',xrpAllocated24hDrops:'2400000',xrpAverageHourlyDrops:'100000'}],portfolioShareUnits:share,totalShareUnits:6,imgHistoryAvailable:true,xrpHistoryAvailable:true,dataThroughMs:Date.now()-1000,scannerCurrent:true,walletReceived:{complete:true,imgUnits:'1234567',xrpDrops:'51200'}},
@@ -33,6 +33,7 @@ try{for(const viewport of [{width:1280,height:800},{width:390,height:844},{width
  await page.addInitScript(()=>localStorage.setItem('bcToken','wallet-a'));await page.goto(url+'/estate-properties.html');
  await page.waitForFunction(()=>window.__estatePortfolio);await page.evaluate(()=>window.__estatePortfolio.ready);
  await page.getByText('Property sales are open.',{exact:true}).waitFor();
+ await page.getByText('New purchases: 99% allocated to IMG/RLUSD',{exact:false}).waitFor();
  await page.locator('[data-owned-property="trailer-01"]').waitFor();
  assert.equal(await page.locator('#owned-properties').textContent().then(s=>s.includes('36.000000 IMG/h')),true);
  assert.equal(await page.locator('#wallet-history').textContent().then(s=>s.includes('0.012345 XRP')),true,'show actual converted wallet delivery');

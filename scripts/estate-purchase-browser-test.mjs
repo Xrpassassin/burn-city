@@ -53,8 +53,8 @@ try{
  assert.equal(await page.getByRole('button',{name:'Check IMG trustline',exact:true}).isVisible(),false);
  await page.getByRole('button',{name:'Refresh hourly payouts'}).click();
  await page.getByText('Payment confirmed',{exact:false}).first().waitFor();
- await page.getByText('XRP pool profit · 0.012345 XRP · Payment confirmed',{exact:true}).waitFor();
- await page.getByText('Realized net IMG/XRP pool profits, when available, are paid as additional XRP.',{exact:false}).waitFor();
+ await page.getByText('Legacy XRP pool profit · 0.012345 XRP equivalent allocated · Payment confirmed',{exact:true}).waitFor();
+ await page.getByText('New purchases allocate 99% to IMG/RLUSD',{exact:false}).waitFor();
  await page.getByText('Eligible verified earnings are distributed hourly. No earnings means no new rewards.',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  const calls=await page.evaluate(()=>window.calls);assert.deepEqual(calls.find(c=>c.path==='/purchase/reserve').body,{propertyId:'trailer-01'});

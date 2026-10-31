@@ -37,6 +37,24 @@ function move(input, now = Date.now(), distance = 12) {
   return s;
 }
 
+
+/**
+ * Input-driven travel uses small, frequent server-validated distances.
+ * Unlike legacy move(), it must not charge the two-point per-action flat cost:
+ * eight 1-unit input packets should cost approximately the same stamina as one
+ * eight-unit legacy travel command. Never trust a client-supplied distance.
+ */
+function moveContinuous(input, now = Date.now(), distance = 0) {
+  const s = tick(input, now);
+  const traveled = clamp(distance, 0, 12);
+  const needPressure = s.hunger <= 25 || s.thirst <= 25;
+  const perUnitStamina = (needPressure ? 7.5 : 5) / 12;
+  s.stamina = clamp(s.stamina - traveled * perUnitStamina, 0, 100);
+  s.hunger = clamp(s.hunger - traveled * 0.004, 0, 100);
+  s.thirst = clamp(s.thirst - traveled * 0.007, 0, 100);
+  return s;
+}
+
 function act(input, action, now = Date.now()) {
   const s = tick(input, now);
   switch (action) {
@@ -57,4 +75,4 @@ function act(input, action, now = Date.now()) {
   s.lastTick = now;
   return s;
 }
-module.exports = { DEFAULTS, normalize, tick, move, act };
+module.exports = { DEFAULTS, normalize, tick, move, moveContinuous, act };

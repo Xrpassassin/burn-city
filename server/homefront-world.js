@@ -421,7 +421,10 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
     if (sprint) { p.lastSprintAt = now; p.accuracyRecoverUntil = now + SPRINT_RECOVERY_MS; }
     else p.accuracyRecoverUntil = Math.max(p.accuracyRecoverUntil || 0, now + AIM_RECOVERY_MS);
     p.aiming = false; p.aimStartedAt = 0;
-    p.survival = Survival.move(p.survival, now, movedDistance * (sprint ? 1.55 : 1));
+    const effortDistance = movedDistance * (sprint ? 1.55 : 1);
+    p.survival = isInput
+      ? Survival.moveContinuous(p.survival, now, effortDistance)
+      : Survival.move(p.survival, now, effortDistance);
   }
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct && (!isInput || movedDistance > 0)) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {

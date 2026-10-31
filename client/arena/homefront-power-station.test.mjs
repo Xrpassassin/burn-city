@@ -47,6 +47,13 @@ for (const part of ['cooling-east-shell', 'cooling-west-shell', 'reactor-hall',
 }
 assert.equal(station.children.filter(child => child.geometry instanceof FakeLatheGeometry).length, 2,
   'exactly two low-poly curved cooling towers');
+const foundation = station.children.find(child => child.userData.part === 'station-cinder-foundation');
+assert.ok(foundation, 'distant station has a visible base beyond the 204-unit terrain mesh');
+assert.equal(station.position.x + foundation.position.x + foundation.userData.halfWidthX, -102,
+  'scenic embankment meets the terrain edge without extending into the playable zone');
+assert.equal(foundation.position.y + foundation.geometry.args[1] / 2, 0,
+  'flat elevated station foundation meets the root terrain elevation');
+
 const materials = new Set(station.children.map(child => child.material));
 assert.ok(materials.size <= 9, 'palette material cache avoids unique shaders per building piece');
 for (const part of station.children) {

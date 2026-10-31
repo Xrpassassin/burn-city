@@ -103,6 +103,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       const payload = req.method === 'POST' ? await body() : null;
       const db = World.normalizeWorld(store.load('homefront-world.json', World.defaultWorld()));
       db.interiors = Interiors.normalize(db.interiors);
+      db.sharedInteriors = Interiors.normalizeShared(db.sharedInteriors);
       let outcome;
       // Live refuge siege (server/homefront-siege.js): hordes, gun platforms, mortars.
       if (url.pathname === '/api/homefront/world/siege' || url.pathname.startsWith('/api/homefront/world/siege/')) {
@@ -164,9 +165,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         if (db.players && db.players[user.acct] && Date.now() - db.players[user.acct].lastSeen <= World.PRESENCE_TTL) {
           const joined = World.enter(db, user.acct);
           store.save('homefront-world.json', joined.world);
-          json(res, 200, { mode: 'homefront-world', ...joined.result, interior: Interiors.publicState(db.interiors, user.acct), inputProtocol: { enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1', nextSequence: (joined.world.players[user.acct]?.lastInputSequence ?? -1) + 1, readyInMs: World.inputReadyInMs(joined.world.players[user.acct]) } }); return true;
+          json(res, 200, { mode: 'homefront-world', ...joined.result, interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors), inputProtocol: { enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1', nextSequence: (joined.world.players[user.acct]?.lastInputSequence ?? -1) + 1, readyInMs: World.inputReadyInMs(joined.world.players[user.acct]) } }); return true;
         }
-        json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), interior: Interiors.publicState(db.interiors, user.acct), inputProtocol: { enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1', nextSequence: (db.players[user.acct]?.lastInputSequence ?? -1) + 1, readyInMs: World.inputReadyInMs(db.players[user.acct]) } }); return true;
+        json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors), inputProtocol: { enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1', nextSequence: (db.players[user.acct]?.lastInputSequence ?? -1) + 1, readyInMs: World.inputReadyInMs(db.players[user.acct]) } }); return true;
       }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
@@ -441,14 +442,15 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           db.interiors = entered.state;
           if (player) player.lastSeen = now;
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct) });
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors) });
           return true;
         }
         case '/api/homefront/world/interior/action': {
           const player = db.players[user.acct];
           const now = Date.now();
-          const acted = Interiors.action(db.interiors, { account: user.acct, player, actionId: typeof payload.actionId === 'string' ? payload.actionId : '', now });
+          const acted = Interiors.action(db.interiors, { account: user.acct, player, actionId: typeof payload.actionId === 'string' ? payload.actionId : '', now, shared: db.sharedInteriors });
           db.interiors = acted.state;
+          db.sharedInteriors = acted.shared;
           const bases = store.load('homefront.json', {});
           const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
           if (!base) throw new Error('save_invalid');
@@ -473,17 +475,18 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           }
           if (player) player.lastSeen = now;
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct), interiorMessage: acted.message, interiorReward: acted.reward, overflowDestination: returnedOverflow ? 'refuge' : null, inventory: { ...acted.inventory, used: Inventory.used(acted.inventory), capacity: Inventory.CAPACITY }, interiorNoise: acted.noise });
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors), interiorMessage: acted.message, interiorReward: acted.reward, overflowDestination: returnedOverflow ? 'refuge' : null, inventory: { ...acted.inventory, used: Inventory.used(acted.inventory), capacity: Inventory.CAPACITY }, interiorNoise: acted.noise });
           return true;
         }
         case '/api/homefront/world/interior/door': {
           const player = db.players[user.acct];
           const now = Date.now();
-          const traversed = Interiors.traverse(db.interiors, { account: user.acct, player, doorId: typeof payload.doorId === 'string' ? payload.doorId : '', now });
+          const traversed = Interiors.traverse(db.interiors, { account: user.acct, player, doorId: typeof payload.doorId === 'string' ? payload.doorId : '', now, shared: db.sharedInteriors });
           db.interiors = traversed.state;
+          db.sharedInteriors = traversed.shared;
           if (player) player.lastSeen = now;
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct) });
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors) });
           return true;
         }
         case '/api/homefront/world/interior/leave': {

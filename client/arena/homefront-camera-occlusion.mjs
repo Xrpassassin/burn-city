@@ -12,7 +12,9 @@ export function clipInteriorCamera(anchor, desired, firstHitDistance = Infinity,
   // The camera must stop on the player's side even when the obstruction is
   // extremely close. Do not force an arbitrary minimum that crosses a wall.
   const padding = Number.isFinite(clearance) ? Math.max(0.05,Math.min(clearance,0.6)) : 0.24;
-  const safe = Math.min(firstHitDistance*0.8,Math.max(0.06,firstHitDistance-padding));
+  const safe = firstHitDistance > padding * 2
+    ? firstHitDistance - padding
+    : firstHitDistance * 0.8;
   const ratio = safe / distance;
   return { x:a.x+dx*ratio, y:a.y+dy*ratio, z:a.z+dz*ratio, occluded:true };
 }

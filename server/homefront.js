@@ -86,7 +86,19 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
   const user = who();
   if (!user?.acct) { json(res, 401, { error: 'sign_in_with_xaman', message: 'Sign in to save your personal refuge.' }); return true; }
   if (worldRoute) {
-    if (gate('homefront-world:' + user.acct, 120, 60e3) || gate('homefront-world-ip:' + ip, 300, 60e3)) { json(res, 429, { error: 'slow_down' }); return true; }
+    const inputRoute = url.pathname === '/api/homefront/world/move-input';
+    // Deployment flag is server-owned; clients cannot enable experimental movement.
+    if (inputRoute && process.env.HOMEFRONT_CONTINUOUS_MOVEMENT !== '1') {
+      json(res, 501, { error: 'continuous_movement_unavailable' }); return true;
+    }
+    // A separate bounded input budget avoids relaxing rate limits for inventory,
+    // combat, or other world actions. Short movement bursts still face a world cooldown.
+    const limited = inputRoute
+      ? (gate('homefront-world-input:' + user.acct, 480, 60e3) ||
+         gate('homefront-world-input-ip:' + ip, 1440, 60e3))
+      : (gate('homefront-world:' + user.acct, 120, 60e3) ||
+         gate('homefront-world-ip:' + ip, 300, 60e3));
+    if (limited) { json(res, 429, { error: 'slow_down' }); return true; }
     try {
       const payload = req.method === 'POST' ? await body() : null;
       const db = World.normalizeWorld(store.load('homefront-world.json', World.defaultWorld()));
@@ -496,13 +508,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), pvp });
           return true;
         }
-        case '/api/homefront/world/move-input': {
-          // Reserved for the future server-authoritative continuous-input protocol.
-          // Deliberately fail closed until server-side collision, session sequencing,
-          // rate limits, and reconciliation are implemented and tested together.
-          json(res, 501, { error: 'continuous_movement_unavailable' });
-          return true;
-        }
+        case '/api/homefront/world/move-input':
+          outcome = World.moveInput(db, user.acct, payload, Date.now()); break;
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z), Date.now(), payload.sprint === true); break;
         case '/api/homefront/world/aim': outcome = World.setAiming(db, user.acct, payload.aiming, Date.now()); break;
         case '/api/homefront/world/rescue': {

@@ -89,6 +89,26 @@ const labShell = buildInteriorSetPiece(fakeThree, interiorForLandmark('research_
 assert(labShell.children.some(child => child instanceof FakeInstancedMesh && child.userData.environmentalSetDressing === 'research consoles'),
   'research interiors use distinct console silhouettes');
 
+// Four added shared buildings must have distinct procedural furnishings,
+// without additional draw-call batches or imported third-party meshes.
+const newRoomProfiles = [
+  ['ashfall_station', 'turbine control cabinets'],
+  ['wrecked_depot', 'freight pallets'],
+  ['old_rail_yard', 'signal relay racks'],
+  ['quarantine_shelter', 'triage cots']
+];
+for (const [landmarkId, label] of newRoomProfiles) {
+  const shell = buildInteriorSetPiece(fakeThree, interiorForLandmark(landmarkId), { x: 0, y: 0, z: 0 });
+  const batches = shell.children.filter(child => child instanceof FakeInstancedMesh);
+  assert.equal(batches.length, 5,
+    landmarkId + ' uses the original five instanced room/furniture layers');
+  const furnishings = batches.filter(child => child.userData.environmentalSetDressing === label);
+  assert.equal(furnishings.length, 2,
+    landmarkId + ' has landmark-specific furnishing silhouettes and accents');
+  assert.ok(furnishings.every(batch => batch.count > 0),
+    landmarkId + ' furnishing batches contain at least one rendered object');
+}
+
 const hospital = interiorForLandmark('mercy_hospital');
 let state = createInteriorState('mercy_hospital');
 assert(availableInteriorActions(hospital, state).some(item => item.id === 'generator_switch'));

@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),{createRequire}=require('node:module'),{DatabaseSync}=require('node:sqlite');
 const mark=stage=>fs.writeFileSync('/tmp/estate-confirmed-exit-stage.json',JSON.stringify({stage,t:Date.now(),pid:process.pid}));mark('start');
-const mode=process.argv[1],expected=process.argv[2],root=process.env.DATA_DIR||'/data',code=path.join(root,'gh/cur');
+const arg=['inspect','apply'].includes(process.argv[1])?1:2,mode=process.argv[arg],expected=process.argv[arg+1],root=process.env.DATA_DIR||'/data',code=path.join(root,'gh/cur');
 if(!['inspect','apply'].includes(mode)||!/^[a-f0-9]{40}$/.test(expected||''))throw Error('explicit_mode_and_commit_required');
 if(fs.readFileSync(path.join(root,'gh/SHA'),'utf8').trim()!==expected)throw Error('live_commit_mismatch');
 const req=createRequire(path.join(code,'package.json')),C=req('./server/config');mark('config_loaded');

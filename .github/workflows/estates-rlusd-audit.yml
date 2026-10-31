@@ -26,8 +26,17 @@ jobs:
             for(let i=0;i<45;i++){try{const r=await fetch('https://burn-city-game.fly.dev/api/deploy-version',{signal:AbortSignal.timeout(5000)}),v=await r.json();if(v.source==='github-volume'&&v.commit===expected){ready=true;break;}}catch{}await delay(4000);}
             if(!ready)throw Error('expected_deployment_not_live');
             const mode=process.env.CONFIRMED_EXIT_APPLY==='1'?'apply':'inspect';
-            const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command:['node','-e',source,mode,expected],timeout:55}),signal:AbortSignal.timeout(60000)});
-            if(!r.ok)throw Error('confirmed_exit_http_'+r.status);
-            const d=await r.json();console.log(d.stdout);if(d.exit_code!==0){console.error(d.stderr);throw Error('confirmed_exit_check_failed');}
+            const crypto=require('node:crypto'),digest=crypto.createHash('sha256').update(source).digest('hex'),file='/tmp/bc-plx-exit-'+digest.slice(0,16)+'.cjs';
+            async function execute(command,timeout=20){
+              const r=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{method:'POST',headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({command,timeout}),signal:AbortSignal.timeout((timeout+5)*1000)});
+              if(!r.ok)throw Error('confirmed_exit_http_'+r.status);
+              const d=await r.json();if(d.exit_code!==0){console.error(d.stderr);throw Error('confirmed_exit_check_failed');}return d;
+            }
+            await execute(['node','-e',"require('node:fs').writeFileSync(process.argv[1],'')",file]);
+            const encoded=Buffer.from(source).toString('base64');
+            for(let i=0;i<encoded.length;i+=2400)await execute(['node','-e',"require('node:fs').appendFileSync(process.argv[1],Buffer.from(process.argv[2],'base64'))",file,encoded.slice(i,i+2400)]);
+            await execute(['node','-e',"const fs=require('node:fs'),c=require('node:crypto');if(c.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex')!==process.argv[2])throw Error('source_digest_mismatch')",file,digest]);
+            console.log('Verified maintenance source digest',digest,'mode',mode);
+            const d=await execute(['node',file,mode,expected],55);console.log(d.stdout);
           })().catch(e=>{console.error(e.message);process.exitCode=1});
           NODE

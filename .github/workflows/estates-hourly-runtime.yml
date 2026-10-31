@@ -4,6 +4,9 @@ on:
     paths:
       - 'server/estate-portfolio*.js'
       - 'server/estate-hourly-*.js'
+      - 'server/estate-net-reward-*.js'
+      - 'server/estate-reward-*.js'
+      - 'server/estate-img-trustline*.js'
       - 'server/estate-liquidity-*.js'
       - 'server/estate-treasury-transactions*.js'
       - 'scripts/estate-liquidity-testnet.cjs'
@@ -45,6 +48,7 @@ jobs:
           node server/estate-capital-reserve.test.js
           node server/estate-hourly-runtime.test.js
           node server/estate-payout-executor.test.js
+          node server/estate-net-reward-executor.test.js
           for test in server/estate-img-*.test.js; do node "$test" || exit 1; done
           node test/estate-sales-runtime-http.test.js
           node server/estate-sale-production-gates.test.js

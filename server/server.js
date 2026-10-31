@@ -20,6 +20,7 @@ const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: [...
 const estateSales = createEstateSalesRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 require('./guard').setEstateCapitalReserveReader(account=>account===C.ESTATE_TREASURY?estateSales.reservedCapitalDrops():'0');
 const estateHourly = require('./estate-hourly-service').createEstateHourlyService({db:Pay.sdb,pay:Pay,config:C,guard:require('./guard')});
+const estateImgTrustline=require('./estate-img-trustline').createEstateImgTrustline({db:Pay.sdb,client:{request:async q=>(await Pay.ledger()).request(q)},sdk:()=>Pay.sdk(),config:C});
 const {readEstatePortfolio}=require('./estate-portfolio');
 const estatePrestige = require('./estate-prestige-runtime').createEstatePrestigeRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const EstateAccess = require('./estate-access');
@@ -206,6 +207,11 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/upgrade/confirm' && req.method === 'POST') {
         if(gate('estate-upgrade-confirm:'+u.acct,15,60000))return json(res,429,{error:'slow_down'});
         const b=await body(),result=await estatePrestige.confirm({upgradeId:String(b?.upgradeId||''),buyer:u.acct});return json(res,result.ok?200:result.pending?202:409,result);
+      }
+      if (url.pathname === '/api/estates/img-trustline' && req.method === 'GET') {try{return json(res,200,await estateImgTrustline.status(u.acct));}catch{return json(res,503,{error:'img_trustline_unavailable'});}}
+      if (url.pathname === '/api/estates/img-trustline/start' && req.method === 'POST') {
+        if(gate('estate-img-trustline:'+u.acct,3,600000))return json(res,429,{error:'slow_down'});
+        try{return json(res,200,await estateImgTrustline.start(u.acct));}catch(e){const known=['img_trustline_frozen','trustline_limit_review_required','trustline_request_pending'];return json(res,known.includes(e.message)?409:503,{error:known.includes(e.message)?e.message:'img_trustline_unavailable'});}
       }
       if (url.pathname === '/api/estates/payouts' && req.method === 'GET') return json(res, 200, estateHourly.status(u.acct));
       if (url.pathname === '/api/estates/payout-preference' && req.method === 'GET') return json(res, 200, Estates.payoutPreference(u.acct));

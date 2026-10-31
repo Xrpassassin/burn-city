@@ -13,7 +13,7 @@ function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabl
  const get=id=>db.prepare('SELECT * FROM estate_treasury_transactions WHERE id=?').get(id);
  let busy=false;
  function ensure(id,purpose,draft,context){
-  if(typeof id!=='string'||!/^[A-Za-z0-9:_-]{1,200}$/.test(id)||!['capital_buy','capital_deposit','profit_withdraw','profit_convert','xrp_profit_payout'].includes(purpose)||draft.Account!==treasury||!['Payment','AMMDeposit','AMMWithdraw'].includes(draft.TransactionType))throw Error('invalid_treasury_intent');
+  if(typeof id!=='string'||!/^[A-Za-z0-9:_-]{1,200}$/.test(id)||!['capital_buy','capital_deposit','profit_withdraw','profit_convert','xrp_profit_payout','hourly_reward_convert','hourly_reward_payout'].includes(purpose)||draft.Account!==treasury||!['Payment','AMMDeposit','AMMWithdraw'].includes(draft.TransactionType))throw Error('invalid_treasury_intent');
   const memo=[{Memo:{MemoType:hex('burncity/estate-treasury'),MemoData:hex(id)}}];
   const json=JSON.stringify({...draft,Memos:memo}),ctx=JSON.stringify(context),prior=get(id);
   if(prior){if(prior.purpose!==purpose||prior.draft_json!==json||prior.context_json!==ctx)throw Error('treasury_intent_conflict');return prior;}
@@ -32,7 +32,7 @@ function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabl
    if(['Amount','SendMax','Amount2','LPTokenIn','LPTokenOut'].includes(key)?!sameAmount(a,b):typeof b==='object'?stable(a)!==stable(b):a!==b)return block(row.id,'validated_envelope_mismatch');
   }
   if(r.meta?.TransactionResult!=='tesSUCCESS'){
-   db.prepare("UPDATE estate_treasury_transactions SET state='held',note=? WHERE id=?").run('validated_failure:'+r.meta?.TransactionResult,row.id);return {blocked:'validated_failure'};
+   db.prepare("UPDATE estate_treasury_transactions SET state='held',note=?,result_json=?,fee_drops=? WHERE id=?").run('validated_failure:'+r.meta?.TransactionResult,JSON.stringify(r),t.Fee,row.id);return {blocked:'validated_failure'};
   }
   let date=r.date??t.date;const index=r.ledger_index;
   if(typeof r.close_time_iso==='string'){const ms=Date.parse(r.close_time_iso);if(!Number.isSafeInteger(ms)||ms%1000!==0)return block(row.id,'ledger_time_proof_required');const seconds=ms/1000-946684800;if(date!==undefined&&date!==seconds)return block(row.id,'conflicting_ledger_time_proof');date=seconds;}

@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'server/estate-sale*.js'
+      - 'server/estate-img-trustline*.js'
       - 'server/server.js'
       - 'server/payments.js'
       - 'client/js/estate-purchase-ui.mjs'
@@ -25,6 +26,7 @@ jobs:
       - run: npm ci
       - run: |
           node server/estate-sales-runtime.test.js
+          node server/estate-img-trustline.test.js
           node test/estate-sales-runtime-http.test.js
           for test in server/estate-sale-*.test.js; do node "$test" || exit 1; done
       - run: npm install --no-save --package-lock=false playwright@1.56.1

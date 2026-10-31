@@ -22,6 +22,8 @@ try{
    if(path==='/purchase/payment/start')data={ok:true,deeplink:'https://example.com/sign'};
    if(path==='/purchase/payment/confirm')data=++confirmed===1?{ok:false,pending:true}:{ok:true,txHash:'A'.repeat(64)};
    if(path==='/payouts')data={distributionsEnabled:true,imgXrpProfitDistributionsEnabled:true,xrpProfitPayouts:[{amount_drops:'12345',state:'confirmed'}],payouts:[{epoch_start_ms:1700000000000,state:'confirmed'}]};
+   if(path==='/img-trustline/start')data={ready:false,deeplink:'https://xaman.app/sign/trustline'};
+   if(path==='/img-trustline')data={ready:true};
    if(path==='/payout-preference')data={currency:options.body?JSON.parse(options.body).currency:null};
    return {ok:true,status:200,json:async()=>data};
   }});
@@ -40,6 +42,15 @@ try{
  await page.getByLabel('Payout currency').selectOption('XRP');
  await page.getByRole('button',{name:'Save payout preference'}).click();
  await page.getByText('Payout preference saved.',{exact:false}).waitFor();
+ await page.getByLabel('Payout currency').selectOption('IMG');
+ await page.getByRole('button',{name:'Set up IMG trustline in Xaman'}).click();
+ assert.equal(await page.getByRole('link',{name:'Open Xaman to enable IMG'}).getAttribute('href'),'https://xaman.app/sign/trustline');
+ await page.getByText('Your wallet pays its network fee',{exact:false}).waitFor();
+ await page.getByRole('button',{name:'Check IMG trustline',exact:true}).click();
+ await page.getByText('IMG trustline verified on the ledger.',{exact:false}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Set up IMG trustline in Xaman'}).isVisible(),false);
+ await page.getByLabel('Payout currency').selectOption('XRP');
+ assert.equal(await page.getByRole('button',{name:'Check IMG trustline',exact:true}).isVisible(),false);
  await page.getByRole('button',{name:'Refresh hourly payouts'}).click();
  await page.getByText('Payment confirmed',{exact:false}).first().waitFor();
  await page.getByText('XRP pool profit · 0.012345 XRP · Payment confirmed',{exact:true}).waitFor();
@@ -50,5 +61,8 @@ try{
  assert.deepEqual(calls.filter(c=>c.path==='/payout-preference'&&c.body).at(-1).body,{currency:'XRP'});
  fs.mkdirSync('estate-purchase-preview',{recursive:true});await page.screenshot({path:'estate-purchase-preview/mobile-settled.png',fullPage:true});
  await page.setViewportSize({width:1280,height:800});await page.screenshot({path:'estate-purchase-preview/desktop-settled.png',fullPage:true});
+ const before=await page.evaluate(()=>window.calls.length);await page.evaluate(()=>localStorage.setItem('bcToken','changed-wallet'));
+ await page.getByRole('button',{name:'Save payout preference'}).click();await page.getByText('Your wallet changed.',{exact:false}).waitFor();
+ assert.equal(await page.evaluate(()=>window.calls.length),before);
  console.log('Mobile/desktop purchase component: paused, reserve, signing, pending, confirmed and preference passed');
 }finally{await browser.close();server.close();}

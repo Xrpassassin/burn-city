@@ -1,5 +1,6 @@
 'use strict';
 const crypto=require('node:crypto');
+const {rewardImgLiabilityUnits,rewardCashReserve}=require('./estate-reward-reserves');
 const {N,value,token,drops,ceil,sameAmount,balanceDelta,boundedTokenDebit,verifiedTokenCredit,verifiedLpBurn,xrpMovement,inspectPool,buyQuote,liquidationQuote}=require('./estate-liquidity-ledger');
 const {createEstateTreasuryTransactions}=require('./estate-treasury-transactions');
 const {createEstateImgOwnershipSnapshots}=require('./estate-img-ownership-snapshots');
@@ -25,7 +26,7 @@ function estateCashReserve(db){
  }
  if(reserveExists(db,'estate_xrp_profit_payouts'))for(const r of db.prepare("SELECT amount_drops FROM estate_xrp_profit_payouts WHERE state!='confirmed'").all())n+=integer(r.amount_drops);
  if(reserveExists(db,'estate_xrp_profit_credits'))for(const r of db.prepare('SELECT amount_drops FROM estate_xrp_profit_credits').all())n+=integer(r.amount_drops);
- if(n<0n)throw Error('capital_reserve_underflow');return n.toString();
+ n+=rewardCashReserve(db);if(n<0n)throw Error('capital_reserve_underflow');return n.toString();
 }
 function estateGuardReserve(db){
  if(reserveExists(db,'estate_hourly_payouts')&&db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted')").get())throw Error('estate_payment_reconciliation_pending');
@@ -55,7 +56,7 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
  if(!db.prepare('PRAGMA table_info(estate_xrp_profit_payouts)').all().some(r=>r.name==='base_amount_drops')){db.exec('ALTER TABLE estate_xrp_profit_payouts ADD COLUMN base_amount_drops TEXT');db.exec('UPDATE estate_xrp_profit_payouts SET base_amount_drops=amount_drops WHERE base_amount_drops IS NULL');}
  const ownership=createEstateImgOwnershipSnapshots(db);
  const executor=createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabled:fundingEnabled||harvestEnabled||payoutsEnabled,maxFeeDrops,
-  purposeEnabled:p=>p==='xrp_profit_payout'?payoutsEnabled:p.startsWith('profit_')?harvestEnabled:fundingEnabled});
+  purposeEnabled:p=>p.startsWith('hourly_reward_')?false:p==='xrp_profit_payout'?payoutsEnabled:p.startsWith('profit_')?harvestEnabled:fundingEnabled});
  let busy=false,lastBlock=null,lastError=null;
  const jobs=()=>db.prepare('SELECT * FROM estate_liquidity_jobs ORDER BY id').all();
  const get=id=>db.prepare('SELECT * FROM estate_liquidity_jobs WHERE id=?').get(id);
@@ -95,12 +96,7 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
   if(r?.validated!==true||r.ledger_hash!==h.hash||r.account_data?.Account!==issue.issuer||(r.account_data.TransferRate||1000000000)!==1000000000||(r.account_data.Flags&0x00400000))throw Error('unsupported_issuer_state');
   return r.account_data.Flags||0;
  }
- function rewardImgLiabilities(){
-  if(!reserveExists(db,'estate_hourly_payouts'))return new N(0);
-  let units=db.prepare("SELECT img_units FROM estate_hourly_payouts WHERE state!='confirmed'").all().reduce((n,r)=>n+integer(r.img_units),0n);
-  for(const r of db.prepare('SELECT units FROM estate_payout_credits').all())units+=integer(r.units);
-  return new N(units.toString()).div(1000000);
- }
+ function rewardImgLiabilities(){return new N(rewardImgLiabilityUnits(db).toString()).div(1000000);}
  async function inventory(issue,h,{increase='0',spend='0'}={}){
   const flags=await issuer(issue,h),ls=await lines(issue,h),l=ls.find(l=>l.account===issue.issuer&&l.currency===issue.currency);
   if(!l||l.freeze||l.freeze_peer||((flags&0x00040000)&&l.peer_authorized!==true))throw Error('treasury_asset_trustline_unavailable');

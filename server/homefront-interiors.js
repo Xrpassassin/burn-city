@@ -156,6 +156,22 @@ function leave(input, { account, player, now = Date.now() }) {
   ctx.stateMap[account] = ctx.owner;
   return { state: ctx.stateMap, left: true };
 }
+// A physical building is one shared world space, NOT one copy per player.
+// Account room/progression remains private; room presence is exposed only for
+// active, nearby, fresh players already returned by world interest management.
+function roomPresence(input, players, account, now = Date.now(), ttl = 45_000) {
+  const player = players?.[account];
+  const landmarkId = input?.[account]?.activeLandmarkId;
+  const blueprint = Catalog.interiorForLandmark(landmarkId);
+  const point = LANDMARKS[landmarkId];
+  const roomId = input?.[account]?.interiors?.[landmarkId]?.roomId;
+  if (!player || !point || !blueprint || !Catalog.interiorRoom(blueprint, roomId) ||
+      !Number.isFinite(player.x) || !Number.isFinite(player.z) ||
+      !Number.isFinite(player.lastSeen) || now - player.lastSeen > ttl ||
+      Math.hypot(player.x - point.x, player.z - point.z) > ENTRY_RADIUS + 6) return null;
+  return { instanceId: 'homefront:building:' + landmarkId, landmarkId, roomId };
+}
+
 function publicState(input, account) {
   const owner = input?.[account];
   if (!owner?.activeLandmarkId) return null;
@@ -164,4 +180,4 @@ function publicState(input, account) {
   const state = owner.interiors?.[landmarkId];
   return blueprint && state ? { ...copy(state), title: blueprint.title, room: Catalog.interiorRoom(blueprint, state.roomId), actions: Catalog.availableInteriorActions(blueprint, state) } : null;
 }
-module.exports = { LANDMARKS, ENTRY_RADIUS, INTERACTION_RADIUS, REWARDS, normalize, enter, action, traverse, breachDoor, leave, publicState };
+module.exports = { LANDMARKS, ENTRY_RADIUS, INTERACTION_RADIUS, REWARDS, normalize, enter, action, traverse, breachDoor, leave, publicState, roomPresence };

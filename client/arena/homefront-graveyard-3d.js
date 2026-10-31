@@ -706,7 +706,16 @@ function boot(host) {
     if (!interior || !room) return;
     if (enterInteriorButton) enterInteriorButton.hidden = true;
     if (interiorTitle) interiorTitle.textContent = interior.title + ' · ' + room.title;
-    if (interiorRoomDescription) interiorRoomDescription.textContent = room.description + ' Inventory and mission rewards remain server-authoritative.';
+    if (interiorRoomDescription) {
+      const instance = worldData?.interiorInstance;
+      const occupants = instance?.landmarkId === interior.landmarkId ? (instance.occupants || []) : [];
+      const sameRoom = occupants.filter(player => player.roomId === interiorState.roomId);
+      const otherSurvivors = sameRoom.filter(player => player.label !== 'You');
+      interiorRoomDescription.textContent = room.description +
+        ' · Shared building · ' + Math.max(1, occupants.length) + ' survivor(s) inside' +
+        (otherSurvivors.length ? ' · ' + otherSurvivors.length + ' other survivor(s) in this room' : '') +
+        '. Inventory and rewards remain tied to your account.';
+    }
     if (interiorActions) {
       interiorActions.replaceChildren();
       for (const item of availableInteriorActions(interior, interiorState)) {
@@ -856,6 +865,8 @@ function boot(host) {
       }
       interiorState = nextInterior;
     }
+    // Room occupants are authoritative, not an independent browser-created instance.
+    if (interiorState) updateInteriorPanel();
     const objective = document.getElementById('explorationObjective');
     if (objective && data.self) {
       const discovered = Array.isArray(explorationProgress?.discoveredIds) ? explorationProgress.discoveredIds : [];
@@ -974,7 +985,16 @@ function boot(host) {
     explorerPositions.clear();
     for (const p of (data.players || [])) {
       const key = String(p.id || p.userId || p.accountId || p.label || 'explorer');
-      const targetY = p.label === 'You' ? terrainElevation(p.x, p.z) + activeInteriorElevation() : interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z));
+      const interiorLocation = p.interior;
+      const sharedRoom = interiorLocation
+        ? interiorRoom(interiorForLandmark(interiorLocation.landmarkId), interiorLocation.roomId) : null;
+      const sharedPoint = interiorLocation
+        ? LANDMARKS.find(point => point.id === interiorLocation.landmarkId) : null;
+      const targetY = sharedRoom && sharedPoint
+        ? terrainElevation(sharedPoint.x, sharedPoint.z) + sharedRoom.elevation
+        : p.label === 'You'
+          ? terrainElevation(p.x, p.z) + activeInteriorElevation()
+          : terrainElevation(p.x, p.z);
       const g = new THREE.Group();
       const previousPosition = previousExplorerPositions.get(key);
       g.position.set(previousPosition?.x ?? p.x, previousPosition?.y ?? targetY, previousPosition?.z ?? p.z);

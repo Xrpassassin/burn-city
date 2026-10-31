@@ -83,6 +83,7 @@ on:
       - 'test/homefront-world-sim.js'
       - 'test/homefront-assets.test.mjs'
       - 'test/homefront-graveyard-3d.test.mjs'
+      - 'test/homefront-shared-interior-sim.js'
       - 'docs/zombies-homefront.md'
       - 'docs/homefront-playable-handoff.md'
       - 'docs/homefront-survival-cosmetics-open-world.md'
@@ -155,5 +156,7 @@ jobs:
         run: node client/arena/homefront-power-station.test.mjs
       - name: Run Homefront 3D scene integration assertions
         run: node test/homefront-graveyard-3d.test.mjs
+      - name: Verify multi-account shared Homefront interior occupancy
+        run: node test/homefront-shared-interior-sim.js
       - name: Run Homefront view-mode tests
         run: node client/arena/homefront-view.test.mjs

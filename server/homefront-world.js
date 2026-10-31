@@ -303,7 +303,14 @@ function snapshot(input, acct, now = Date.now()) {
   const nearEncounter = e => !!p && (e.owner === acct || Math.hypot(e.x - p.x, e.z - p.z) <= INTEREST_RADIUS + 10);
   return {
     world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
-    players: [...visible].map(id => publicPlayer(id, w.players[id], acct, now, viewerParty)).filter(v => v.online),
+    players: [...visible].map(id => {
+      const avatar = publicPlayer(id, w.players[id], acct, now, viewerParty);
+      const presence = Interiors.roomPresence(w.interiors, w.players, id, now, PRESENCE_TTL);
+      // Do not disclose interior room choices across unrelated buildings.
+      const sameBuilding = presence && (id === acct ||
+        presence.landmarkId === Interiors.roomPresence(w.interiors, w.players, acct, now, PRESENCE_TTL)?.landmarkId);
+      return { ...avatar, interior: sameBuilding ? presence : null };
+    }).filter(v => v.online),
     interest: { radius: INTEREST_RADIUS, mapShows: 'party' },
     self: p ? publicPlayer(acct, p, acct, now, viewerParty) : null,
     director: p ? { phase: p.directorState?.phase || 'calm', lastDecision: p.directorState?.lastDecision || 'hold', nextSpawnAt: p.directorState?.nextSpawnAt || 0, noise: Math.round(Math.max(0, (p.noiseLevel || 0) - Math.max(0, now - (p.lastNoiseAt || now)) / 120)) } : null,
@@ -315,7 +322,19 @@ function snapshot(input, acct, now = Date.now()) {
     selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null,
     selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null,
     selfWeaponHandling: p ? { aiming: p.aiming, aimStartedAt: p.aimStartedAt, lastSprintAt: p.lastSprintAt, accuracyRecoverUntil: p.accuracyRecoverUntil } : null,
-    interior: p ? Interiors.publicState(w.interiors, acct) : null
+    interior: p ? Interiors.publicState(w.interiors, acct) : null,
+    interiorInstance: p ? (() => {
+      const own = Interiors.roomPresence(w.interiors, w.players, acct, now, PRESENCE_TTL);
+      if (!own) return null;
+      const occupants = [...visible].filter(id =>
+        Interiors.roomPresence(w.interiors, w.players, id, now, PRESENCE_TTL)?.instanceId === own.instanceId)
+        .map(id => {
+          const presence = Interiors.roomPresence(w.interiors, w.players, id, now, PRESENCE_TTL);
+          return { ...publicPlayer(id, w.players[id], acct, now, viewerParty), roomId: presence.roomId };
+        }).filter(player => player.online);
+      return { id: own.instanceId, landmarkId: own.landmarkId, roomId: own.roomId,
+        occupants, count: occupants.length, shared: true };
+    })() : null
   };
 }
 function enter(input, acct, now = Date.now()) {

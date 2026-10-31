@@ -19,7 +19,7 @@ const THREE = {
   CylinderGeometry: FakeGeometry, MeshStandardMaterial: FakeMaterial
 };
 
-assert.equal(LANDMARK_ARCHETYPES.length, 17, 'each authored POI archetype has a dedicated set-piece recipe');
+assert.equal(LANDMARK_ARCHETYPES.length, 18, 'each authored POI archetype has a dedicated set-piece recipe');
 const summaries = landmarkRecipeSummary();
 for (const landmark of LANDMARKS) {
   assert.ok(LANDMARK_ARCHETYPES.includes(landmark.archetype), 'missing 3D recipe for ' + landmark.id);

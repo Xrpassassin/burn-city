@@ -403,13 +403,22 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
   const activeInteriorState = activeInteriorId ? activeInteriorOwner.interiors?.[activeInteriorId] : null;
   removedObstacleIds.push(...Collision.interiorRemovedIds(activeInteriorId, activeInteriorState?.openedDoors));
   if (!Terrain.canTraverse(oldX, oldZ, nextX, nextZ) || !Collision.canTraverse(oldX, oldZ, nextX, nextZ, { bounds: WORLD_SIZE, removedObstacleIds })) {
-    // Continuous controls stop at a blocked surface; legacy destination travel may path around it.
-    if (isInput) throw new Error('terrain_path_blocked');
-    const route = Collision.findPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE, maxExpanded: 2600, removedObstacleIds });
-    if (!route || !route.length) throw new Error('terrain_path_unreachable');
-    const advanced = advanceAlongTerrainPath(oldX, oldZ, route, movementBudget);
-    nextX = advanced.x; nextZ = advanced.z;
-    if (!walkedRouteClear(oldX, oldZ, route, advanced, movementBudget, removedObstacleIds)) throw new Error('terrain_path_blocked');
+    if (isInput) {
+      // Unlike destination travel, direct controls may only slide along a safe
+      // axis of the player's short input step. Never search a path around a wall.
+      const slide = InputStep.slideAlongBlockedStep(
+        { x: oldX, z: oldZ }, { x: nextX, z: nextZ },
+        (x, z) => Terrain.canTraverse(oldX, oldZ, x, z) &&
+          Collision.canTraverse(oldX, oldZ, x, z, { bounds: WORLD_SIZE, removedObstacleIds })
+      );
+      nextX = slide.x; nextZ = slide.z;
+    } else {
+      const route = Collision.findPath(oldX, oldZ, nx, nz, { bounds: WORLD_SIZE, maxExpanded: 2600, removedObstacleIds });
+      if (!route || !route.length) throw new Error('terrain_path_unreachable');
+      const advanced = advanceAlongTerrainPath(oldX, oldZ, route, movementBudget);
+      nextX = advanced.x; nextZ = advanced.z;
+      if (!walkedRouteClear(oldX, oldZ, route, advanced, movementBudget, removedObstacleIds)) throw new Error('terrain_path_blocked');
+    }
   }
   p.x = nextX; p.z = nextZ;
   const movedDistance = Math.hypot(p.x - oldX, p.z - oldZ);

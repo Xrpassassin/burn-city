@@ -30,4 +30,25 @@ function displacementForInput(input, { now, previousAt, walkSpeed, sprintSpeed }
   return Object.freeze({ x: input.x * speed * seconds, z: input.z * speed * seconds, elapsedMs });
 }
 
-module.exports = { MAX_INPUT_DT_MS, validateInput, displacementForInput };
+
+/**
+ * Attempt one axis at a time when a small continuous-input diagonal hits a
+ * blocking obstacle. No path search: the player can only advance within the
+ * input's original displacement and only on server-cleared segments.
+ * Returns the starting position if neither axis is traversable.
+ */
+function slideAlongBlockedStep(from, desired, canTraverse) {
+  if (typeof canTraverse !== 'function' || !Number.isFinite(from?.x) || !Number.isFinite(from?.z) ||
+      !Number.isFinite(desired?.x) || !Number.isFinite(desired?.z)) throw new Error('invalid_slide_step');
+  const dx = desired.x - from.x, dz = desired.z - from.z;
+  const axes = [
+    { x: desired.x, z: from.z, distance: Math.abs(dx) },
+    { x: from.x, z: desired.z, distance: Math.abs(dz) }
+  ].sort((a, b) => b.distance - a.distance);
+  for (const axis of axes) {
+    if (axis.distance > 0 && canTraverse(axis.x, axis.z)) return Object.freeze({ x: axis.x, z: axis.z });
+  }
+  return Object.freeze({ x: from.x, z: from.z });
+}
+
+module.exports = { MAX_INPUT_DT_MS, validateInput, displacementForInput, slideAlongBlockedStep };

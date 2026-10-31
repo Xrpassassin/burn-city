@@ -23,7 +23,7 @@ function createEstateNetRewardExecutor({db,client,wallet,treasury,imgIssuer,guar
  unrecovered_fee_drops TEXT NOT NULL DEFAULT '0',state TEXT NOT NULL CHECK(state IN ('converting','funded','paid','held')));
  CREATE TABLE IF NOT EXISTS estate_reward_xrp_credits(owner TEXT PRIMARY KEY,drops TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS estate_reward_carryovers(payout_id TEXT PRIMARY KEY,units TEXT NOT NULL);`);
- const journal=createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabled,maxFeeDrops,purposeEnabled:p=>enabled&&p.startsWith('hourly_reward_')});
+ const journal=createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabled,maxFeeDrops,purposeEnabled:p=>enabled&&p.startsWith('hourly_reward_'),beforeSign:row=>{if(!row.purpose.startsWith('hourly_reward_'))return 'purpose_disabled';const s=settlement(JSON.parse(row.context_json).payoutId);if(!s)return 'net_reward_identity_missing';if(units(s.budget_img_units)>units(maxImgUnits))return 'payment_budget_limit';const day=Date.now()-Date.now()%86400000,{used,counted}=dailyUse(day,s.payout_id);return used+(counted?0n:units(s.budget_img_units))>units(maxDailyImgUnits)?'daily_payment_budget_limit':null;}});
  const settlement=id=>db.prepare('SELECT * FROM estate_reward_settlements WHERE payout_id=?').get(id);
  const payout=id=>db.prepare('SELECT * FROM estate_hourly_payouts WHERE id=?').get(id);
  const note=(id,reason)=>{db.prepare('UPDATE estate_hourly_payouts SET note=?,checked_at_ms=? WHERE id=?').run(reason,Date.now(),id);return {blocked:reason};};
@@ -95,13 +95,16 @@ function createEstateNetRewardExecutor({db,client,wallet,treasury,imgIssuer,guar
    note(s.payout_id,'reward_transaction_review_required');
   }
  }
+ function dailyUse(day,payoutId){
+  const rows=db.prepare('SELECT s.payout_id,s.budget_img_units FROM estate_reward_settlements s JOIN estate_treasury_transactions t ON t.id=s.payout_id||\':reward-pay\' OR t.id=s.payout_id||\':reward-convert\' WHERE t.submitted_at>=? GROUP BY s.payout_id').all(day);
+  const legacy=db.prepare('SELECT img_units FROM estate_hourly_payouts WHERE submitted_at_ms>=? AND tx_hash IS NOT NULL AND NOT EXISTS(SELECT 1 FROM estate_reward_settlements s WHERE s.payout_id=estate_hourly_payouts.id)').all(day).reduce((n,r)=>n+units(r.img_units),0n);
+  return {used:rows.reduce((n,r)=>n+units(r.budget_img_units),legacy),counted:rows.some(r=>r.payout_id===payoutId)};
+ }
  async function plan(row){
   if(row.owner===treasury||row.owner===imgIssuer)throw Error('self_or_issuer_payment_review');
   const budget=units(row.img_units);if(budget<1n||budget>units(maxImgUnits))throw Error('payment_budget_limit');
   const day=Date.now()-Date.now()%86400000;
-  const used=db.prepare('SELECT s.budget_img_units FROM estate_reward_settlements s JOIN estate_treasury_transactions t ON t.id=s.payout_id||\':reward-pay\' OR t.id=s.payout_id||\':reward-convert\' WHERE t.submitted_at>=? GROUP BY s.payout_id').all(day).reduce((n,r)=>n+units(r.budget_img_units),0n);
-  const legacy=db.prepare('SELECT img_units FROM estate_hourly_payouts WHERE submitted_at_ms>=? AND tx_hash IS NOT NULL AND NOT EXISTS(SELECT 1 FROM estate_reward_settlements s WHERE s.payout_id=estate_hourly_payouts.id)').all(day).reduce((n,r)=>n+units(r.img_units),0n);
-  if(used+legacy+budget>units(maxDailyImgUnits))throw Error('daily_payment_budget_limit');
+  if(dailyUse(day,row.id).used+budget>units(maxDailyImgUnits))throw Error('daily_payment_budget_limit');
   const h=await preflight(row.owner,row.currency==='IMG'?budget:0n),credit=units(db.prepare('SELECT drops FROM estate_reward_xrp_credits WHERE owner=?').get(row.owner)?.drops||'0');
   let cap=0n,output;
   if(row.currency==='XRP'||credit<feeBudget){
@@ -142,8 +145,19 @@ function createEstateNetRewardExecutor({db,client,wallet,treasury,imgIssuer,guar
       if(row.currency==='XRP'&&units(amount)<1n||row.currency==='IMG'&&remaining<1n)throw Error('below_net_reward_minimum');
       journal.ensure(row.id+':reward-pay','hourly_reward_payout',{Account:treasury,TransactionType:'Payment',Destination:row.owner,Amount:amount,Flags:0},{payoutId:row.id});
      }
+     const limit=dailyUse(Date.now()-Date.now()%86400000,row.id);if(limit.used+(limit.counted?0n:units(s.budget_img_units))>units(maxDailyImgUnits)){note(row.id,'daily_payment_budget_limit');continue;}
+     const conversion=journal.get(row.id+':reward-convert');
+     if(s.state==='converting'&&conversion?.state==='queued'&&conversion.note==='quote_expired_review_required'){
+      const h=await preflight(row.owner,row.currency==='IMG'?units(row.img_units):0n),r=(await client.request({command:'amm_info',asset:{currency:'XRP'},asset2:IMG,ledger_hash:h.hash})).result;
+      if(r?.validated!==true||r.ledger_hash!==h.hash)throw Error('unvalidated_conversion_pool');
+      const ctx=JSON.parse(conversion.context_json);
+      if(units(quoteXrp(r.amm,units(s.conversion_cap_units),imgIssuer,slippageBps))<units(ctx.output))throw Error('conversion_price_outside_bound');
+      // Refresh only the evidence timestamp. The unsigned amount and spend cap
+      // remain identical, and any persisted signature makes this update fail.
+      db.prepare("UPDATE estate_treasury_transactions SET context_json=?,note=NULL WHERE id=? AND state='queued' AND tx_hash IS NULL AND tx_blob IS NULL AND tx_json IS NULL AND context_json=?").run(JSON.stringify({...ctx,quoteLedger:h.index}),conversion.id,conversion.context_json);
+     }
      note(row.id,s.state==='converting'?'funding_reward_network_fees':'awaiting_net_reward_payment');
-     return await journal.tick();
+     const result=await journal.tick();if(result.blocked)note(row.id,result.blocked);return result;
     }catch(e){note(row.id,e.message);}
    }
    return {idle:true};

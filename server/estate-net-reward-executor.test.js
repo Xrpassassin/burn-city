@@ -7,9 +7,9 @@ const {value}=require('./estate-liquidity-ledger');
 function fixture(currency='IMG',budget='1000000'){
  const db=new DatabaseSync(':memory:'),w=xrpl.Wallet.generate(),owner=xrpl.Wallet.generate().classicAddress,issuer=xrpl.Wallet.generate().classicAddress,treasury=w.classicAddress,h='A'.repeat(64);
  db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,share_units INTEGER,purchased_at INTEGER);CREATE TABLE estate_owner_payout_preferences(acct TEXT PRIMARY KEY,currency TEXT);');
- let paused=false,validated=true,failSubmit=false,badDelivery=false,failed=false,missingLine=false,fee='12',submits=0,img=value('10'),xrp=100000000n;const proofs=new Map();
- const client={autofill:async t=>({...t,Fee:fee,Sequence:submits+1,LastLedgerSequence:120}),request:async q=>{
-  if(q.command==='ledger')return {result:{validated:true,ledger_hash:h,ledger_index:100}};
+ let paused=false,validated=true,failSubmit=false,badDelivery=false,failed=false,missingLine=false,fee='12',ledgerIndex=100,submits=0,img=value('10'),xrp=100000000n;const proofs=new Map();
+ const client={autofill:async t=>({...t,Fee:fee,Sequence:submits+1,LastLedgerSequence:ledgerIndex+20}),request:async q=>{
+  if(q.command==='ledger')return {result:{validated:true,ledger_hash:h,ledger_index:ledgerIndex}};
   if(q.command==='account_info')return {result:{validated:true,ledger_hash:h,account_data:{Account:q.account,Flags:0}}};
   if(q.command==='account_lines')return {result:{validated:true,ledger_hash:h,lines:missingLine&&q.account===owner?[]:[{currency:'IMG',account:issuer,balance:q.account===treasury?img.toFixed():'0',limit:'1000'}]}};
   if(q.command==='amm_info')return {result:{validated:true,ledger_hash:h,amm:{amount:'1000000',amount2:{currency:'IMG',issuer,value:'100'},trading_fee:300}}};
@@ -32,10 +32,10 @@ function fixture(currency='IMG',budget='1000000'){
  db.prepare('INSERT INTO estate_owner_payout_preferences VALUES(?,?)').run(owner,currency);
  function enqueue(hour=0,n=budget){db.prepare('INSERT INTO estate_img_hourly_batches VALUES(?,?,?,?,?,?)').run(hour,n,1,1,'digest'+hour,hour+3600000);db.prepare('INSERT INTO estate_img_hourly_entitlements VALUES(?,?,?)').run(hour,owner,n);runtime.enqueue(hour);}
  enqueue();
- const make=(enabled=true)=>createEstateNetRewardExecutor({db,client,wallet:()=>w,treasury,imgIssuer:issuer,guard:{paused:()=>paused,check:async()=>null},enabled});
+ const make=(enabled=true,options={})=>createEstateNetRewardExecutor({db,client,wallet:()=>w,treasury,imgIssuer:issuer,guard:{paused:()=>paused,check:async()=>null},enabled,...options});
  const payout=()=>db.prepare('SELECT * FROM estate_hourly_payouts ORDER BY epoch_start_ms DESC LIMIT 1').get();
  async function settle(){for(let i=0;i<12;i++){await make().tick();if(payout().state==='confirmed')return;}throw Error('not_settled:'+JSON.stringify(payout()));}
- return {db,make,payout,enqueue,settle,owner,get submits(){return submits;},get xrp(){return xrp;},get img(){return img;},set paused(v){paused=v;},set validated(v){validated=v;},set failSubmit(v){failSubmit=v;},set badDelivery(v){badDelivery=v;},set failed(v){failed=v;},set missingLine(v){missingLine=v;},set fee(v){fee=v;}};
+ return {db,make,payout,enqueue,settle,owner,get submits(){return submits;},get xrp(){return xrp;},get img(){return img;},set paused(v){paused=v;},set validated(v){validated=v;},set failSubmit(v){failSubmit=v;},set badDelivery(v){badDelivery=v;},set failed(v){failed=v;},set missingLine(v){missingLine=v;},set fee(v){fee=v;},set ledgerIndex(v){ledgerIndex=v;}};
 }
 (async()=>{
  for(const currency of ['IMG','XRP']){
@@ -54,6 +54,8 @@ function fixture(currency='IMG',budget='1000000'){
  const capital=fixture();capital.db.exec("CREATE TABLE estate_liquidity_jobs(data_json TEXT);");capital.db.prepare('INSERT INTO estate_liquidity_jobs VALUES(?)').run(JSON.stringify({img:'9.5',residualImg:'0'}));await capital.make().tick();assert.equal(capital.submits,0);assert.equal(capital.payout().note,'unfunded_img_liabilities','principal inventory cannot replace missing rewards');
  const concurrent=fixture();await Promise.all([concurrent.make().tick(),concurrent.make().tick()]);assert.equal(concurrent.submits,1,'independent workers claim one durable conversion');
  const expensive=fixture();expensive.fee='101';await expensive.make().tick();assert.equal(expensive.submits,0);assert.equal(expensive.payout().note,'unsafe_transaction_envelope');
+ const capped=fixture();capped.fee='101';await capped.make().tick();capped.db.prepare("INSERT INTO estate_hourly_payouts(id,epoch_start_ms,owner,img_units,base_img_units,currency,state,tx_hash,submitted_at_ms) VALUES('older-paid',-3600000,?,'1000000','1000000','IMG','confirmed',?,?)").run(capped.owner,'F'.repeat(64),Date.now());capped.fee='12';await capped.make(true,{maxDailyImgUnits:'1000000'}).tick();assert.equal(capped.submits,0,'recheck daily budget when signing an already queued conversion');assert.equal(capped.payout().note,'daily_payment_budget_limit');
+ const expired=fixture();expired.fee='101';await expired.make().tick();const originalDraft=expired.db.prepare("SELECT draft_json FROM estate_treasury_transactions").get().draft_json;expired.fee='12';expired.ledgerIndex=120;await expired.make().tick();assert.equal(expired.submits,0);await expired.make().tick();assert.equal(expired.submits,1,'a fresh validated quote can renew unchanged unsigned bounds');assert.equal(expired.db.prepare("SELECT draft_json FROM estate_treasury_transactions").get().draft_json,originalDraft);await expired.settle();assert.equal(expired.submits,2);
  const corrupt=fixture();await corrupt.make().tick();corrupt.badDelivery=true;await assert.rejects(()=>corrupt.make().tick(),/conversion_proof_mismatch/);assert.equal(corrupt.payout().state,'queued');assert.equal(corrupt.submits,1);
  const failed=fixture();failed.failed=true;await failed.make().tick();await failed.make().tick();const held=failed.make().settlement(failed.payout().id);assert.equal(held.state,'held');assert.equal(held.unrecovered_fee_drops,'12');await failed.make().tick();assert.equal(failed.submits,1,'validated failure never auto-resigns');assert.equal(failed.make().settlement(failed.payout().id).fee_paid_drops,'12');
  console.log('Net hourly rewards: earned-fee funding, IMG and XRP wallet delivery, exact fee accounting, protected credits, tiny reward carry, restart/unknown outcomes, failed fees and proof rejection passed');

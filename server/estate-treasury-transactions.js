@@ -3,7 +3,7 @@ const xrpl=require('xrpl'),{sameAmount}=require('./estate-liquidity-ledger');
 const hex=s=>Buffer.from(s).toString('hex').toUpperCase();
 const canonical=o=>Array.isArray(o)?o.map(canonical):o&&typeof o==='object'?Object.fromEntries(Object.keys(o).sort().map(k=>[k,canonical(o[k])])):o;
 const stable=o=>JSON.stringify(canonical(o));
-function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabled=false,purposeEnabled=()=>true,maxFeeDrops=100}={}){
+function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabled=false,purposeEnabled=()=>true,beforeSign=()=>null,maxFeeDrops=100}={}){
  db.exec(`CREATE TABLE IF NOT EXISTS estate_treasury_transactions(
  id TEXT PRIMARY KEY,purpose TEXT NOT NULL,draft_json TEXT NOT NULL,context_json TEXT NOT NULL,
  state TEXT NOT NULL CHECK(state IN ('queued','preparing','submitted','validated','applied','held')),
@@ -62,6 +62,7 @@ function createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabl
    // The fee must be covered by additional unencumbered treasury XRP.
    const feeCheck=row.purpose==='xrp_profit_payout'?maxFeeDrops:Number(tx.Fee);
    const bad=await guard.check(client,treasury,feeCheck);if(bad)return block(row.id,bad);
+   const policyBlock=await beforeSign(row,tx);if(policyBlock)return block(row.id,policyBlock);
    if(guard.paused())return block(row.id,'treasury_paused');
    const otherPending=db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_hourly_payouts'").get()?" AND NOT EXISTS(SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted'))":'';
    if(db.prepare("UPDATE estate_treasury_transactions SET state='preparing',note=NULL WHERE id=? AND state='queued' AND NOT EXISTS(SELECT 1 FROM estate_treasury_transactions WHERE state IN ('preparing','submitted','validated','held'))"+otherPending).run(row.id).changes!==1)return {blocked:'treasury_claim_conflict'};

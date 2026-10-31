@@ -297,14 +297,21 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
     exchange_market: { label: 'stock shelving', size: [1.05, 1.35, 0.34], accent: [0.96, 0.07, 0.38], height: 1.35, color: 0x77654d },
     mercy_hospital: { label: 'hospital beds', size: [1.45, 0.30, 0.68], accent: [1.28, 0.08, 0.56], height: 0.30, color: 0x8c9690 },
     ironworks: { label: 'industrial machinery', size: [0.95, 1.05, 0.82], accent: [0.76, 0.14, 0.66], height: 1.05, color: 0x59615e },
+    // Distinct silhouettes in the newest explorable rooms use the same two
+    // InstancedMesh batches as existing interiors; no external models, texture
+    // downloads, colliders, shadows, or extra per-item draw calls.
+    ashfall_station: { label: 'turbine control cabinets', size: [1.28, 1.12, 0.58], accent: [0.95, 0.10, 0.43], height: 1.12, color: 0x536461 },
+    wrecked_depot: { label: 'freight pallets', size: [1.50, 0.42, 1.04], accent: [1.32, 0.10, 0.88], height: 0.42, color: 0x6e5a47 },
+    old_rail_yard: { label: 'signal relay racks', size: [0.96, 1.45, 0.50], accent: [0.82, 0.09, 0.36], height: 1.45, color: 0x5c6863 },
+    quarantine_shelter: { label: 'triage cots', size: [1.48, 0.34, 0.74], accent: [1.26, 0.08, 0.62], height: 0.34, color: 0x87918a },
     buried_subway: { label: 'subway utility cabinets', size: [0.88, 1.08, 0.46], accent: [0.70, 0.07, 0.38], height: 1.08, color: 0x4f5b59 },
     research_annex: { label: 'research consoles', size: [1.18, 0.92, 0.56], accent: [0.92, 0.08, 0.42], height: 0.92, color: 0x647c7a }
   };
   const profile = propProfiles[interior.landmarkId] || propProfiles.north_bus_depot;
   const furnitureMat = material(profile.color);
   const accentMat = new THREE.MeshStandardMaterial({
-    color: interior.landmarkId === 'mercy_hospital' ? 0xb6c7be : 0xb58b4f,
-    emissive: interior.landmarkId === 'research_annex' ? 0x1c6b63 : 0x000000,
+    color: ['mercy_hospital','quarantine_shelter'].includes(interior.landmarkId) ? 0xb6c7be : 0xb58b4f,
+    emissive: ['research_annex','ashfall_station'].includes(interior.landmarkId) ? 0x1c6b63 : 0x000000,
     emissiveIntensity: 0.22, roughness: 0.82
   });
   const furnitureBatch = new THREE.InstancedMesh(new THREE.BoxGeometry(...profile.size), furnitureMat, detailCount);

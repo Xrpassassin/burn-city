@@ -159,6 +159,8 @@ jobs:
         run: node test/homefront-environment-damage.test.mjs
       - name: Run authoritative Homefront environment integration tests
         run: node server/homefront-environment.test.js
+      - name: Verify authored Homefront room graph and distinct prop visuals
+        run: node client/arena/homefront-interior-world.test.mjs
       - name: Verify deterministic urban and industrial landmark meshes
         run: node client/arena/homefront-landmark-builder.test.mjs
       - name: Verify off-map Ashfall power-station visuals and mobile budget

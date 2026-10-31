@@ -97,6 +97,10 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     pad.addEventListener('pointermove', e => { if (e.pointerId === jid) setJoy(e); });
     const endJoy = e => { if (e.pointerId !== jid) return; jid = null; state.joy = { x: 0, y: 0 }; knob.style.transform = ''; };
     for (const n of ['pointerup', 'pointercancel', 'lostpointercapture']) pad.addEventListener(n, endJoy);
+    // A suspended tab or interrupted gesture must never leave movement held down.
+    const resetJoy = () => { jid = null; state.joy = { x: 0, y: 0 }; knob.style.transform = ''; };
+    window.addEventListener('blur', resetJoy);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) resetJoy(); });
   }
   // Touch action buttons (Burn City joystick layout): Jump (tap) and Run (hold), bottom-right, thumb-sized.
   const actionBtns = [];

@@ -16,6 +16,7 @@ import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
 import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
+import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
 import { stepVertical, createMotion } from '../js/player-motion.mjs';
@@ -589,6 +590,7 @@ function boot(host) {
   // Otherwise the established destination-based controls are unchanged.
   const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
   let lastContinuousWorldRefresh = 0;
+  let lastEnvironmentInputRefresh = 0;
   const continuousInput = createContinuousInput({
     send: async command => {
       const response = await fetch(API + '/api/homefront/world/move-input', {
@@ -602,13 +604,44 @@ function boot(host) {
     },
     onSnapshot: (data, time) => {
       if (!worldData || !data.self) return;
-      // Full scene rebuilds are expensive; refresh them much less often than inputs.
-      if (time - lastContinuousWorldRefresh >= 900) {
+      const previous = worldData;
+      const next = mergeHomefrontInputSnapshot(previous, data);
+      // Moving should not destroy and rebuild every walker, label and loot mesh
+      // each second. Full scene reconciliation is reserved for material changes
+      // (new/removed actors, combat damage, outfit or loot state).
+      if (requiresHomefrontSceneRebuild(previous, next) && time - lastContinuousWorldRefresh >= 900) {
         lastContinuousWorldRefresh = time;
-        updateWorld(data);
-      } else {
-        worldData = { ...worldData, self: data.self, selfSurvival: data.selfSurvival,
-          selfWeaponHandling: data.selfWeaponHandling };
+        updateWorld(next);
+        return;
+      }
+      worldData = next;
+      // Update remote actors using the existing frame interpolator; only the
+      // local avatar uses bounded visual prediction from continuousInput.
+      for (const p of playerPositionUpdates(next)) {
+        if (p.isLocalPlayer) continue;
+        explorerPositions.set(p.id, {
+          x: p.x, z: p.z, y: interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z))
+        });
+      }
+      for (const encounter of (next.encounters || [])) {
+        const actor = combatActors.get(encounter.id);
+        if (actor) {
+          actor.userData.targetX = encounter.x;
+          actor.userData.targetZ = encounter.z;
+        }
+      }
+      if (time - lastEnvironmentInputRefresh >= 1000) {
+        lastEnvironmentInputRefresh = time;
+        applyEnvironmentStateSnapshot(next.world?.environmentStructures);
+      }
+      // Server movement can lower the weapon, and a moving player can interrupt
+      // local reload sequences; update the small controls without rebuilding meshes.
+      if (typeof next.selfWeaponHandling?.aiming === 'boolean') {
+        aiming = next.selfWeaponHandling.aiming;
+        if (aimWeaponButton) {
+          aimWeaponButton.setAttribute('aria-pressed', String(aiming));
+          aimWeaponButton.textContent = aiming ? 'Lower weapon' : 'Aim weapon';
+        }
       }
     },
     onUnavailable: reason => {

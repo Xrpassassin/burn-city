@@ -379,3 +379,8 @@ assert.match(homefrontPage, /smelter:\{wood:20,scrap:18,stone:10\}/, 'smelter pl
 
 assert.match(scene, /WEAPON_DELAY\[equippedWeaponId\]/, 'autofire cadence mirrors the server tier table');
 for (const id of ['smg','assault_rifle','machine_gun','heavy_machine_gun']) assert.match(scene, new RegExp("'" + id + "'"), id + ' is wired into Graveyard feedback');
+
+assert.match(scene, /walkingCameraHeading\(localActor\?\.rotation\.y \|\| 0, cameraYawOffset, view\.yaw, continuousInput\.enabled\)/,
+  'direct walking uses stable camera yaw instead of rotating movement with the avatar');
+assert.match(scene, /directSprintRequested\(sprintTravel, view\.running\(\), aiming\)/,
+  'direct walking includes Shift and the shared touch RUN button and respects aiming');

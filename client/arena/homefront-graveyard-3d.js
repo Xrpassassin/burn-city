@@ -1074,6 +1074,10 @@ function boot(host) {
       objective.textContent = (guidance.alreadyDiscovered ? 'KNOWN SITE' : 'UNMAPPED SITE') +
         ' · ' + site.title + ' — ' + site.objective + ' · ' +
         (self.frontierBand || self.district || 'perimeter') + ' · Risk ' + (self.risk || 1) + '/5';
+    } else if (objective) {
+      objective.textContent = 'EXPEDITION · ' +
+        (self.frontierBand || self.district || 'perimeter') +
+        ' · Risk ' + (self.risk || 1) + '/5 · Scan the skyline for supply caches and landmarks.';
     }
   }
 

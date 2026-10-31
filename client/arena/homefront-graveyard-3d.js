@@ -18,6 +18,7 @@ import { createZombieModelPilot } from './zombie-model-pilot.mjs';
 import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
+import { mergeSharedInteriorPresence } from './homefront-shared-presence.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
@@ -1190,6 +1191,43 @@ function boot(host) {
       explorationDiscoveryPending.delete(landmarkId);
     }
   }
+  let presencePending = false;
+  // Building-scoped polling supplements the slower full-world poll without
+  // simulating combat, generating loot, or rebuilding the whole Three.js scene.
+  async function fetchBuildingPresence() {
+    const instanceId = worldData?.interiorInstance?.id;
+    if (presencePending || !view.visible || !interiorState || !instanceId || !token()) return;
+    presencePending = true;
+    try {
+      const response = await fetch(API + '/api/homefront/world/interior/presence', {
+        headers: { authorization: 'Bearer ' + token() }, cache: 'no-store'
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (!worldData || worldData.interiorInstance?.id !== instanceId) return;
+      const merged = mergeSharedInteriorPresence(worldData, data);
+      if (!merged) return;
+      worldData = merged.world;
+      // Shared opened doors and power can change while another player acts.
+      if (data.interior && interiorState?.landmarkId === data.interior.landmarkId) {
+        interiorState = data.interior;
+        updateInteriorPanel();
+      }
+      for (const p of data.players || []) {
+        if (p.label === 'You') continue;
+        const landmark = LANDMARKS.find(item => item.id === p.interior?.landmarkId);
+        const room = interiorRoom(interiorForLandmark(p.interior?.landmarkId), p.interior?.roomId);
+        explorerPositions.set(p.id, {
+          x: p.x, z: p.z,
+          y: landmark && room ? terrainElevation(landmark.x, landmark.z) + room.elevation : terrainElevation(p.x,p.z)
+        });
+      }
+      if (merged.rosterChanged) await fetchWorld();
+    } catch {
+      // Transient presence failures never affect the authoritative world state.
+    } finally { presencePending = false; }
+  }
+
   async function fetchWorld() {
     if (!token() || moving) { if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.'; return; }
     try {
@@ -1751,4 +1789,5 @@ function boot(host) {
     console.warn('[homefront-graveyard] animated infected unavailable; using procedural infected', error);
   });
   tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
+  setInterval(fetchBuildingPresence, 2400);
 }

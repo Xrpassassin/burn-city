@@ -48,6 +48,17 @@ jobs:
           if(!pool || !Array.isArray(pool.blockers))throw Error('invalid_pool_report');
           const visible={readOnly:true,live:readiness,pool};
           console.log(JSON.stringify(visible,null,2));
+          const liveResponse=await fetch('https://burn-city-game.fly.dev/api/estates/status',{signal:AbortSignal.timeout(10000)});
+          if(!liveResponse.ok)throw Error('public_estates_status_unavailable');
+          const status=await liveResponse.json();
+          const launchBlockers=[
+            ...(!status.salesEnabled?['property_sales_disabled']:[]),
+            ...(!status.distributionsEnabled?['hourly_distributions_disabled']:[]),
+            ...(!status.imgRlusdFundingEnabled?['img_rlusd_funding_disabled']:[]),
+            ...(status.imgRlusdPoolAccount!==pool.poolAccount?['pool_account_not_configured']:[]),
+            ...(!status.capitalAllocationPolicy||status.capitalAllocationPolicy.pair!=='IMG/RLUSD'?['funding_policy_mismatch']:[])
+          ];
+          console.log('ESTATES_LAUNCH_GATES='+JSON.stringify({ready:launchBlockers.length===0&&pool.ready,blockers:launchBlockers,marketBlockers:pool.blockers,priceDeviationBps:pool.priceDeviationBps,indicativeMaxPurchaseDrops:pool.indicativeMaxPurchaseDrops}));
           if(pool.poolAccount!=='rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f')throw Error('unexpected_pool_account');
           if(!pool.ready || check.status!==0)throw Error('img_rlusd_preflight_blocked_'+pool.blockers.filter(x=>typeof x==='string'&&/^[a-z0-9_]{1,90}$/i.test(x)).join('__'));
           if(check.error)throw Error('pool_check_execution_failed');

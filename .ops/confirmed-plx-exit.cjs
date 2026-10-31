@@ -13,7 +13,7 @@ const read=n=>JSON.parse(fs.readFileSync(path.join(root,n),'utf8'));
 const pauseBefore=fs.readFileSync(path.join(root,'pause.json'),'utf8'),pause=JSON.parse(pauseBefore);
 if(C.ESTATE_TREASURY!==treasury||C.NETWORK!=='mainnet'||C.DRY_RUN!==false||process.env.ESTATE_RLUSD_ENABLED==='1'||process.env.PAYOUTS_PAUSED==='true')throw Error('unexpected_production_configuration');
 if(!pause.paused||pause.reason!=='unexpected_outgoing_tx'||!Array.isArray(pause.unknown)||!pause.unknown.length||pause.unknown.some(u=>u.hash!==reviewed[0]||u.type!=='AMMWithdraw'))throw Error('unreviewed_treasury_alert');
-const client=new xrpl.Client(C.XRPL_WSS,{connectionTimeout:8000,timeout:8000});let db;
+const client={connect:async()=>{},disconnect:async()=>{},request:async q=>{const {command,...params}=q;const r=await fetch('https://xrplcluster.com/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method:command,params:[params]}),signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('ledger_rpc_http_'+r.status);const d=await r.json();if(d.result?.error)throw Error('ledger_rpc_'+d.result.error);return d;}};let db;
 (async()=>{try{
  await client.connect();db=new DatabaseSync(path.join(root,'shop.db'),{readOnly:mode==='inspect'});db.exec('PRAGMA busy_timeout=3000');if(mode==='inspect')db.exec('PRAGMA query_only=ON');
  if(db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state!='applied'").get()||db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted')").get())throw Error('pending_transaction_review_required');

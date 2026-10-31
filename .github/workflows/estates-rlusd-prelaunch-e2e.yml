@@ -1,0 +1,22 @@
+name: Estates RLUSD prelaunch end-to-end simulation
+on:
+  pull_request:
+    paths:
+      - 'server/estate-rlusd-prelaunch-e2e.test.js'
+      - '.github/workflows/estates-rlusd-prelaunch-e2e.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/estate-rlusd-prelaunch-e2e.test.js'
+permissions:
+  contents: read
+jobs:
+  simulation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node server/estate-rlusd-prelaunch-e2e.test.js

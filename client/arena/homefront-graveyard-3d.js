@@ -15,6 +15,7 @@ import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
 import { attachViewControls, cameraPose, worldMove } from './homefront-view.mjs';
+import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
 import { stepVertical, createMotion } from '../js/player-motion.mjs';
@@ -584,6 +585,39 @@ function boot(host) {
     lootGroup.add(g);
   }
   let worldData = null, moving = false;
+  // Experimental direct walking requires BOTH the server flag and explicit ?movement=continuous.
+  // Otherwise the established destination-based controls are unchanged.
+  const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
+  let lastContinuousWorldRefresh = 0;
+  const continuousInput = createContinuousInput({
+    send: async command => {
+      const response = await fetch(API + '/api/homefront/world/move-input', {
+        method: 'POST',
+        headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
+        body: JSON.stringify(command)
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'continuous_input_failed');
+      return data;
+    },
+    onSnapshot: (data, time) => {
+      if (!worldData || !data.self) return;
+      // Full scene rebuilds are expensive; refresh them much less often than inputs.
+      if (time - lastContinuousWorldRefresh >= 900) {
+        lastContinuousWorldRefresh = time;
+        updateWorld(data);
+      } else {
+        worldData = { ...worldData, self: data.self, selfSurvival: data.selfSurvival,
+          selfWeaponHandling: data.selfWeaponHandling };
+      }
+    },
+    onUnavailable: reason => {
+      // Switching movement protocols must not immediately trigger a legacy 10-unit step.
+      lastStickMoveAt = performance.now();
+      if (status && reason !== 'server_disabled') status.textContent =
+        'Direct walking unavailable (' + reason + '). Restored normal controls.';
+    }
+  });
   let interiorState = null;
   let selectedInteriorLandmarkId = null;
   let explorationProgress = null;
@@ -761,6 +795,9 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
+    if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
+      continuousInput.sync(data.inputProtocol, data.self, performance.now());
+    }
     if (Object.prototype.hasOwnProperty.call(data, 'interior')) {
       const previousInterior = interiorState;
       const nextInterior = data.interior ? { ...data.interior } : null;
@@ -958,7 +995,7 @@ function boot(host) {
     if (status) {
       const self = data.self;
       status.textContent = self
-        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.frontierBand || self.district || 'perimeter') + ' · ' + (self.frontierDepth || 0) + '% frontier depth · danger ' + self.risk + '/5 · deeper routes raise infected pressure; gunfire draws attention · tap to travel · drag to look · WASD/joystick to move · right-drag to orbit · scroll to zoom · V or 👁 switches first-/third-person · Overhead view is reserved for base construction'
+        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.frontierBand || self.district || 'perimeter') + ' · ' + (self.frontierDepth || 0) + '% frontier depth · danger ' + self.risk + '/5 · deeper routes raise infected pressure; gunfire draws attention · ' + (continuousInput.enabled ? 'direct WASD/joystick walking (preview)' : 'tap to travel · WASD/joystick to move') + ' · drag to look · right-drag to orbit · scroll to zoom · V or 👁 switches first-/third-person · Overhead view is reserved for base construction'
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
     }
   }
@@ -1396,6 +1433,7 @@ function boot(host) {
     moveTo(Math.max(-100, Math.min(100, hits[0].point.x)), Math.max(-100, Math.min(100, hits[0].point.z)));
   };
   async function moveTo(x, z) {
+    if (continuousInput.enabled) return false;
     if (reloadState) cancelReload('Reload interrupted by movement.');
     aiming = false;
     if (aimWeaponButton) { aimWeaponButton.setAttribute('aria-pressed', 'false'); aimWeaponButton.textContent = 'Aim weapon'; }
@@ -1502,21 +1540,33 @@ function boot(host) {
         const audioZombies = (worldData.encounters || []).filter(e => !e.defeated && e.hp > 0).map(e => ({ id: e.id, x: e.x, y: interiorElevationAt(e.x, e.z, terrainElevation(e.x, e.z)), z: e.z, ty: /brute|juggernaut|heavy/i.test(e.enemy || '') ? 3 : /crawler|runner/i.test(e.enemy || '') ? 4 : 0, hp: e.hp, out: false }));
         zombieAudio.tick(dt, audioMe, audioZombies, [], 'homefront-local-player');
       }
-      updateVisibleChunks(self.x, self.z);
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = (localActor?.rotation.y || 0) + cameraYawOffset + view.yaw;
+      const stick = worldMove(view.move(), heading);
+      if (continuousInput.enabled && !moving && !(worldData.party && !worldData.party.leader)) {
+        continuousInput.step(stick, sprintTravel, now, dt);
+      }
+      const shownSelf = continuousInput.position() || self;
+      updateVisibleChunks(shownSelf.x, shownSelf.z);
+      if (continuousInput.enabled && localActor?.userData.explorerKey) {
+        explorerPositions.set(localActor.userData.explorerKey, {
+          x: shownSelf.x, y: terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation(), z: shownSelf.z
+        });
+      }
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
-      const targetY = terrainElevation(self.x, self.z) + activeInteriorElevation();
-      const pose = cameraPose({ mode: view.mode, x: self.x, y: targetY, z: self.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
+      const targetY = terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation();
+      const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
       camera.position.x += (pose.px - camera.position.x) * followBlend;
       camera.position.y += (pose.py - camera.position.y) * followBlend;
       camera.position.z += (pose.pz - camera.position.z) * followBlend;
       lookTarget.x += (pose.lx - lookTarget.x) * followBlend; lookTarget.y += (pose.ly - lookTarget.y) * followBlend; lookTarget.z += (pose.lz - lookTarget.z) * followBlend;
       camera.lookAt(lookTarget);
       if (localActor) localActor.visible = view.mode !== 'first';
-      // Joystick / WASD travel: one server-clamped step toward the stick direction per move cooldown.
-      const stick = worldMove(view.move(), heading);
-      if (stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) { lastStickMoveAt = now; moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10))); }
+      // Preserve the original endpoint outside the explicit direct-walk preview.
+      if (!continuousInput.enabled && stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) {
+        lastStickMoveAt = now;
+        moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10)));
+      }
     }
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };
   // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.

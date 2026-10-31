@@ -8,6 +8,9 @@ on:
       - 'server/homefront-interiors.js'
       - 'server/homefront-exploration.js'
       - 'server/homefront-exploration.test.js'
+      - 'server/homefront-field-surveys.js'
+      - 'server/homefront-field-surveys.test.js'
+      - 'test/homefront-field-survey-api-sim.js'
       - 'client/arena/homefront-navigation.mjs'
       - 'client/arena/homefront-navigation.test.mjs'
       - 'client/arena/homefront-exploration-guidance.mjs'
@@ -119,6 +122,7 @@ jobs:
           node --check server/homefront-collision.js
           node --check server/homefront-interiors.js
           node --check server/homefront-exploration.js
+          node --check server/homefront-field-surveys.js
           node --check server/homefront-interiors.test.js
           node --check server/homefront-environment.js
           node --check server/homefront-survival.js
@@ -153,6 +157,8 @@ jobs:
         run: node client/arena/homefront-navigation.test.mjs
       - name: Run Homefront survivor interaction assertions
         run: node test/homefront-survivor-inspection.test.mjs
+      - name: Check exploration field survey reward invariants
+        run: node server/homefront-field-surveys.test.js && node test/homefront-field-survey-api-sim.js
       - name: Run Homefront settlement simulation
         run: npm run test:homefront
       - name: Run Homefront environment damage and repair tests

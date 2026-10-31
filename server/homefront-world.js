@@ -5,6 +5,7 @@ const Combat = require('./homefront-combat');
 const Survival = require('./homefront-survival');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
+const FieldSurveys = require('./homefront-field-surveys');
 const Terrain = require('./homefront-terrain');
 const Collision = require('./homefront-collision');
 const Interiors = require('./homefront-interiors');
@@ -81,13 +82,14 @@ const POINTS_OF_INTEREST = [
 ];
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : 0));
-const defaultWorld = () => ({ version: 1, players: {}, parties: {}, encounters: {}, lootNodes: {}, environmentStructures: {} });
+const defaultWorld = () => ({ version: 1, players: {}, parties: {}, encounters: {}, lootNodes: {}, environmentStructures: {}, fieldSurveyClaims: {} });
 function normalizeWorld(input) {
   const w = input && input.version === 1 ? input : defaultWorld();
   if (!w.players || typeof w.players !== 'object' || Array.isArray(w.players)) w.players = {};
   if (!w.parties || typeof w.parties !== 'object' || Array.isArray(w.parties)) w.parties = {};
   w.encounters = Combat.normalizeEncounters(w.encounters);
   w.lootNodes = Loot.normalize(w.lootNodes);
+  w.fieldSurveyClaims = FieldSurveys.normalize(w.fieldSurveyClaims);
   w.environmentStructures = Environment.normalize(w.environmentStructures);
   w.sharedInteriors = Interiors.normalizeShared(w.sharedInteriors);
   if (!w.bosses || typeof w.bosses !== 'object' || Array.isArray(w.bosses)) w.bosses = {};

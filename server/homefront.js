@@ -13,6 +13,7 @@ const Environment = require('./homefront-environment');
 const Siege = require('./homefront-siege');
 const Interiors = require('./homefront-interiors');
 const Exploration = require('./homefront-exploration');
+const FieldSurveys = require('./homefront-field-surveys');
 const Travel = require('./homefront-travel');
 const PvP = require('./homefront-pvp');
 const Rpg = require('./homefront-rpg');
@@ -158,7 +159,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       }
       if (req.method === 'GET' && url.pathname === '/api/homefront/world/exploration') {
         const progressDb = Exploration.normalize(store.load('homefront-exploration.json', {}));
-        json(res, 200, { mode: 'homefront-exploration', exploration: Exploration.snapshot(progressDb, user.acct) });
+        const exploration = Exploration.snapshot(progressDb, user.acct);
+        json(res, 200, { mode: 'homefront-exploration', exploration,
+          surveys: FieldSurveys.surveySnapshot(db.fieldSurveyClaims, user.acct, exploration.discoveredIds) });
         return true;
       }
       if (req.method === 'GET' && url.pathname === '/api/homefront/world') {
@@ -191,7 +194,33 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const progressDb = Exploration.normalize(store.load('homefront-exploration.json', {}));
           const discovered = Exploration.discover(progressDb, { account: user.acct, player, landmarkId, now: Date.now() });
           if (discovered.newlyDiscovered) { store.save('homefront-exploration.json', discovered.state); Rpg.award(store, user.acct, 'discover'); }
-          json(res, 200, { mode: 'homefront-exploration', exploration: discovered.progress, newlyDiscovered: discovered.newlyDiscovered, landmark: discovered.landmark });
+          json(res, 200, { mode: 'homefront-exploration', exploration: discovered.progress,
+            surveys: FieldSurveys.surveySnapshot(db.fieldSurveyClaims, user.acct, discovered.progress.discoveredIds),
+            newlyDiscovered: discovered.newlyDiscovered, landmark: discovered.landmark });
+          return true;
+        }
+        case '/api/homefront/world/exploration/claim': {
+          // Manual, bounded claim only. Discovery site IDs come from the saved,
+          // independently distance-validated exploration journal, not the POST.
+          const player = db.players[user.acct];
+          const now = Date.now();
+          if (!player || !Number.isFinite(player.lastSeen) ||
+              now - player.lastSeen > World.PRESENCE_TTL) throw new Error('not_in_expedition');
+          const progressDb = Exploration.normalize(store.load('homefront-exploration.json', {}));
+          const progress = Exploration.snapshot(progressDb, user.acct);
+          const result = FieldSurveys.claim(db.fieldSurveyClaims, {
+            account: user.acct, player, contractId: typeof payload.contractId === 'string' ? payload.contractId : '',
+            discoveredIds: progress.discoveredIds, now
+          });
+          // Both claim ledger and carried items belong to a single world save.
+          db.fieldSurveyClaims = result.ledger;
+          player.lastSeen = now;
+          addSessionTotals(player, { resources: Object.fromEntries(result.supplies.map(d => [d.item,d.amount])) });
+          store.save('homefront-world.json', db);
+          json(res, 200, { mode: 'homefront-field-survey', claimed: result.contract,
+            supplies: result.supplies,
+            inventory: { ...Inventory.normalize(result.inventory, now), used: Inventory.used(result.inventory), capacity: Inventory.CAPACITY },
+            surveys: FieldSurveys.surveySnapshot(result.ledger, user.acct, progress.discoveredIds) });
           return true;
         }
         case '/api/homefront/world/survival': {

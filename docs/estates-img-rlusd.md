@@ -78,3 +78,15 @@ loss/no-reward behavior and closed-hour XRP/IMG settlement. The existing
 liquidity testnet script continues to exercise legacy execution; new-policy
 integration tests use a simulated ledger. Production first-deposit and first-
 reward verification remain required after the owner creates the mainnet pool.
+
+## Confirmed manual PLX exit
+
+An owner-confirmed manual withdrawal can be reconciled using the internal
+`estate-manual-pool-migration` maintenance module. It requires independently
+verified withdrawal and seed LP movements, sufficient unencumbered replacement
+LP, and a conservative executable exit quote. Original basis, unsold residual
+cost and verified migration costs carry into the replacement position. Cash
+reservations stay identical; no profit receipt or payout is created. Original
+position JSON and ledger references are retained in an immutable migration
+journal. The historical funding identity remains present to prevent restart
+from repurchasing PLX. This module has no HTTP route and never signs a trade.

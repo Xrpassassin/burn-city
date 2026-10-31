@@ -42,9 +42,9 @@ function createEstateCapitalAllocation(db,{policyVersion=POLICY.version}={}){
   const rows=buyer?db.prepare('SELECT property_id,purchase_tx,purchase_drops,img_plx_drops,img_xrp_drops,img_rlusd_drops,operating_reserve_drops,policy_version,state FROM estate_capital_allocations WHERE buyer=? ORDER BY property_id').all(buyer):[];
   const hasJobs=!!db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_liquidity_jobs'").get();
   return {capitalAllocationPolicy:POLICY,capitalAllocations:rows.map(({purchase_tx,...r})=>{
-   const positions=hasJobs?db.prepare('SELECT state,note,data_json FROM estate_liquidity_jobs WHERE purchase_tx=?').all(purchase_tx):[];
+   const positions=hasJobs?db.prepare('SELECT pair,state,note,data_json FROM estate_liquidity_jobs WHERE purchase_tx=?').all(purchase_tx).filter(p=>p.state!=='manually_migrated'):[];
    return {...r,fundingState:positions.some(p=>p.note==='img_rlusd_activation_required')?'awaiting_pool':positions.some(p=>p.note)?'review_needed':positions.length===(r.policy_version===2?1:2)&&positions.every(p=>p.state==='invested')?'invested':positions.length?'in_progress':'pending',
-    pool:r.policy_version===2?'IMG/RLUSD':'Legacy IMG/PLX + IMG/XRP',
+    pool:positions.length?positions.map(p=>({'img-rlusd':'IMG/RLUSD','img-plx':'Legacy IMG/PLX','img-xrp':'Legacy IMG/XRP'})[p.pair]||p.pair).join(' + '):r.policy_version===2?'IMG/RLUSD':'Legacy IMG/PLX + IMG/XRP',
     uninvestedXrpDrops:positions.length?positions.reduce((n,p)=>n+BigInt(JSON.parse(p.data_json).cash),0n).toString():(BigInt(r.purchase_drops)-BigInt(r.operating_reserve_drops)).toString()};
   })};
  }

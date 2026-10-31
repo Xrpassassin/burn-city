@@ -1,0 +1,28 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {quoteEstate}=require('./estate-purchase-contract');
+const {createEstateXamanPaymentAdapter}=require('./estate-sale-xaman');
+const {fixture,until}=require('./estate-liquidity-runtime.test');
+(async()=>{
+ const f=fixture({policyVersion:2}),quote=quoteEstate('trailer-01'),id='checkout-verified-0001';
+ let payloadRequest;let signed=true;let signer=f.owner;let hash='C'.repeat(64);
+ const sdk={payload:{create:async request=>{payloadRequest=request;return {uuid:'checkout-test',refs:{qr_png:'https://example.test/qr'},next:{always:'https://example.test/deeplink'}}},get:async()=>({meta:{signed},response:{account:signer,txid:hash}})}};
+ const xaman=createEstateXamanPaymentAdapter({sdk,treasury:f.treasury});
+ const reservation={reservation_id:id,status:'reserved',buyer:f.owner,price_drops:quote.priceDrops};
+ const payload=await xaman.create(reservation);
+ assert.equal(payload.uuid,'checkout-test');
+ assert.equal(payloadRequest.txjson.Destination,f.treasury);
+ assert.equal(payloadRequest.txjson.Account,f.owner);
+ assert.equal(payloadRequest.txjson.Amount,String(quote.priceDrops));
+ assert.equal(payloadRequest.txjson.TransactionType,'Payment');
+ assert.equal(Buffer.from(payloadRequest.txjson.Memos[0].Memo.MemoData,'hex').toString(),id);
+ signed=false;assert.equal(await xaman.signedTransactionHash(payload.uuid,f.owner),null);
+ signed=true;signer=f.treasury;assert.equal(await xaman.signedTransactionHash(payload.uuid,f.owner),null);
+ signer=f.owner;hash='bad-hash';assert.equal(await xaman.signedTransactionHash(payload.uuid,f.owner),null);
+ hash='C'.repeat(64);assert.equal(await xaman.signedTransactionHash(payload.uuid,f.owner),hash);
+ assert.equal(quote.paymentEnabled,false,'signed mock payload does not activate purchases');
+ const r=f.make({fundingEnabled:false,harvestEnabled:false,payoutsEnabled:false});
+ await r.tick();assert.equal(f.sent.length,0,'no live treasury operations from mock Xaman signing');
+ assert.equal(f.db.prepare('SELECT COUNT(*) n FROM estate_xrp_profit_payouts').get().n,0);
+ console.log('Mock Xaman checkout: amount, destination, memo, signed identity, hash, disabled treasury passed');
+})().catch(e=>{console.error(e);process.exitCode=1});

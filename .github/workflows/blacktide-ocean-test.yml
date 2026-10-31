@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'client/blacktide/**'
+      - 'client/js/walking-input*.mjs'
+      - 'client/js/walking-pad*.mjs'
       - 'package.json'
       - '.github/workflows/blacktide-ocean-test.yml'
   push:
@@ -13,6 +15,8 @@ on:
       - feat/blacktide-npc-cannon-combat
     paths:
       - 'client/blacktide/**'
+      - 'client/js/walking-input*.mjs'
+      - 'client/js/walking-pad*.mjs'
       - 'package.json'
       - '.github/workflows/blacktide-ocean-test.yml'
 

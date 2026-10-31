@@ -41,14 +41,14 @@ export function createShoreWalk({THREE,scene,camera,game,ship,trade}) {
     get ashore(){return ashore;},
     get position(){return avatar.position;},
     update(dt,keys) {
+      dt=Math.max(0,Math.min(.1,Number.isFinite(dt)?dt:0));
       const atCove=trade.test.state().docked==='cinder-cove';
       if(!atCove&&ashore){ashore=false;avatar.visible=false;trade.setShoreMode(false);syncControls();}
       button.hidden=!atCove;
       if(!ashore)return false;
-      const {x:side,z:f}=walkingIntent(keys,pad.vector);
-      const len=Math.hypot(f,side);
-      if(len>0){
-        const dx=side/len,dz=-f/len;
+      const {x:side,z:f,moving}=walkingIntent(keys,pad.vector);
+      if(moving){
+        const dx=side,dz=-f;
         avatar.position.x=clamp(avatar.position.x+dx*dt*4,island.x-7,island.x+7);
         avatar.position.z=clamp(avatar.position.z+dz*dt*4,island.z-17,island.z+10);
         angle=Math.atan2(-dx,-dz);avatar.rotation.y=angle;

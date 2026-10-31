@@ -16,7 +16,7 @@ import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
 import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
-import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates } from './homefront-input-snapshot.mjs';
+import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
 import { stepVertical, createMotion } from '../js/player-motion.mjs';
@@ -616,6 +616,7 @@ function boot(host) {
         return;
       }
       worldData = next;
+      refreshContinuousProximity(next);
       // Update remote actors using the existing frame interpolator; only the
       // local avatar uses bounded visual prediction from continuousInput.
       for (const p of playerPositionUpdates(next)) {
@@ -1034,6 +1035,48 @@ function boot(host) {
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
     }
   }
+  // Direct walking updates the authenticated position up to eight times a second.
+  // Re-evaluate actionable distances without rebuilding Three.js meshes or allowing
+  // the client to authorize anything; each server action rechecks its own range.
+  function refreshContinuousProximity(data) {
+    const self = data.self;
+    if (!self) return;
+    const checks = homefrontInputProximity(data, {
+      selectedLootId, selectedCombatTargetId, selectedEnvironmentId
+    });
+    if (lootActionButton) lootActionButton.disabled = !checks.canLoot || moving;
+    if (lootStatus) lootStatus.textContent = !checks.loot
+      ? 'Select a physical supply crate in the 3D world to inspect it.'
+      : !checks.loot.available ? checks.loot.label + ' has already been searched. It will restock later.'
+      : !checks.nearLoot ? checks.loot.label + ' selected · move closer to search it.'
+      : checks.loot.label + ' · within reach. Search the container to collect its supplies.';
+    if (checks.environment && !checks.environmentActive && selectedEnvironmentId) selectedEnvironmentId = null;
+    if (damageEnvironmentButton) damageEnvironmentButton.disabled = !token() || !checks.canDamageEnvironment || moving;
+    if (aimWeaponButton) aimWeaponButton.disabled = moving || !!reloadState || !checks.canAutoFire;
+    if (attackInfectedButton) attackInfectedButton.disabled = !checks.canAttack || moving;
+    if (autoFireButton) autoFireButton.disabled = !checks.canAutoFire || moving || !!reloadState;
+    if (pvpTargetId && !(data.players || []).some(p => p.id === pvpTargetId && !p.party)) {
+      pvpTargetId = null; pvpButton.hidden = true;
+    }
+    const discovered = Array.isArray(explorationProgress?.discoveredIds) ? explorationProgress.discoveredIds : [];
+    const guidance = explorationGuidance({ x: self.x, z: self.z }, discovered);
+    const nearInterior = guidance.nearest && guidance.distance <= 12 &&
+      interiorForLandmark(guidance.nearest.id);
+    selectedInteriorLandmarkId = nearInterior ? guidance.nearest.id : null;
+    if (enterInteriorButton) {
+      enterInteriorButton.hidden = !selectedInteriorLandmarkId || !!interiorState;
+      enterInteriorButton.textContent = nearInterior
+        ? 'Enter ' + guidance.nearest.title : 'Enter nearby building';
+    }
+    const objective = document.getElementById('explorationObjective');
+    if (objective && guidance.nearest && guidance.distance <= 20) {
+      const site = guidance.nearest;
+      objective.textContent = (guidance.alreadyDiscovered ? 'KNOWN SITE' : 'UNMAPPED SITE') +
+        ' · ' + site.title + ' — ' + site.objective + ' · ' +
+        (self.frontierBand || self.district || 'perimeter') + ' · Risk ' + (self.risk || 1) + '/5';
+    }
+  }
+
   function renderExplorationJournal() {
     if (!explorationJournalContent) return;
     const progress = explorationProgress || {};

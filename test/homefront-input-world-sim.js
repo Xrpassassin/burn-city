@@ -30,6 +30,8 @@ const distance = Math.hypot(w.players['walker-a'].x - start.x, w.players['walker
 assert.ok(distance >= 0.5 && distance <= 0.91, '100ms of walking travels under one world unit');
 assert.equal(out.result.inputAck.elapsedMs, 100);
 assert.ok(w.players['walker-a'].survival.stamina < enter.world.players['walker-a'].survival.stamina, 'stamina is charged for real movement');
+assert.ok(w.players['walker-a'].survival.stamina > 99.5,
+  'a one-meter continuous input step does not consume two stamina per packet');
 assert.throws(() => World.move(w, 'walker-a', 0, 0, 2150), /move_cooldown/, 'legacy travel cannot be interleaved for extra distance');
 
 // Long stalls and neutral packets do not accumulate distance or drain travel stamina.

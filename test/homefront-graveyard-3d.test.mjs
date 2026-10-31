@@ -458,3 +458,12 @@ assert.match(scene, /for \(const hit of interiorHits\)/,
   'floor geometry cannot swallow a clickable interior switch or doorway target');
 assert.match(scene, /if \(hit\.object\.userData\?\.interiorCameraOccluder\) break;/,
   'opaque interior walls stop raycasting before a target behind them');
+
+assert.match(scene, /claimExplorationSurvey\(survey\.id\)/,
+  'Field Journal offers explicit manually initiated survey claims');
+assert.match(scene, /exploration\/claim/,
+  'survey reward claims always use authenticated server routes');
+assert.match(scene, /data\.surveys/,
+  'one-time contract readiness comes from the server, not local landmark flags');
+assert.match(scene, /explorationSurveyPending\.has\(contractId\)/,
+  'duplicate claim clicks are suppressed while a request is pending');

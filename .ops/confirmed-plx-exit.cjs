@@ -1,9 +1,10 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),{createRequire}=require('node:module'),{DatabaseSync}=require('node:sqlite');
+const mark=stage=>fs.writeFileSync('/tmp/estate-confirmed-exit-stage.json',JSON.stringify({stage,t:Date.now(),pid:process.pid}));mark('start');
 const mode=process.argv[1],expected=process.argv[2],root=process.env.DATA_DIR||'/data',code=path.join(root,'gh/cur');
 if(!['inspect','apply'].includes(mode)||!/^[a-f0-9]{40}$/.test(expected||''))throw Error('explicit_mode_and_commit_required');
 if(fs.readFileSync(path.join(root,'gh/SHA'),'utf8').trim()!==expected)throw Error('live_commit_mismatch');
-const req=createRequire(path.join(code,'package.json')),C=req('./server/config'),xrpl=req('xrpl');
+const req=createRequire(path.join(code,'package.json')),C=req('./server/config');mark('config_loaded');
 const {N,value,drops,balanceDelta,xrpMovement,inspectPool}=req('./server/estate-liquidity-ledger');
 const {estateCashReserve}=req('./server/estate-liquidity-runtime');
 const {planManualPoolMigration,applyManualPoolMigration}=req('./server/estate-manual-pool-migration');
@@ -15,15 +16,15 @@ if(C.ESTATE_TREASURY!==treasury||C.NETWORK!=='mainnet'||C.DRY_RUN!==false||proce
 if(!pause.paused||pause.reason!=='unexpected_outgoing_tx'||!Array.isArray(pause.unknown)||!pause.unknown.length||pause.unknown.some(u=>u.hash!==reviewed[0]||u.type!=='AMMWithdraw'))throw Error('unreviewed_treasury_alert');
 const client={connect:async()=>{},disconnect:async()=>{},request:async q=>{const {command,...params}=q;const r=await fetch('https://xrplcluster.com/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method:command,params:[params]}),signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error('ledger_rpc_http_'+r.status);const d=await r.json();if(d.result?.error)throw Error('ledger_rpc_'+d.result.error);return d;}};let db;
 (async()=>{try{
- await client.connect();db=new DatabaseSync(path.join(root,'shop.db'),{readOnly:mode==='inspect'});db.exec('PRAGMA busy_timeout=3000');if(mode==='inspect')db.exec('PRAGMA query_only=ON');
+ mark('before_database');await client.connect();db=new DatabaseSync(path.join(root,'shop.db'),{readOnly:mode==='inspect'});db.exec('PRAGMA busy_timeout=3000');if(mode==='inspect')db.exec('PRAGMA query_only=ON');
  if(db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state!='applied'").get()||db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state IN ('preparing','submitted')").get())throw Error('pending_transaction_review_required');
  const proofs=[];let costs=0n,externalFees=0n;
- const checked=await Promise.allSettled(reviewed.map(hash=>client.request({command:'tx',transaction:hash,binary:false})));
+ mark('before_proofs');const checked=await Promise.allSettled(reviewed.map(hash=>client.request({command:'tx',transaction:hash,binary:false})));
  for(let i=0;i<reviewed.length;i++){if(checked[i].status!=='fulfilled')throw checked[i].reason;const hash=reviewed[i],r=checked[i].value.result,t=r.tx_json||r;
   if(r.validated!==true||r.meta?.TransactionResult!=='tesSUCCESS'||(r.hash||t.hash)!==hash||t.Account!==treasury||!/^\d+$/.test(t.Fee)||BigInt(t.Fee)>1000000n)throw Error('reviewed_transaction_proof_failed');
   costs+=BigInt(t.Fee);proofs.push({r,t});
  }
- const withdrawal=proofs[0],seed=proofs[8],same=(a,b)=>a?.currency===b.currency&&a.issuer===b.issuer;
+ mark('proofs_received');const withdrawal=proofs[0],seed=proofs[8],same=(a,b)=>a?.currency===b.currency&&a.issuer===b.issuer;
  if(withdrawal.t.TransactionType!=='AMMWithdraw'||!(withdrawal.t.Flags&0x00020000)||!same(withdrawal.t.Asset,IMG)||!same(withdrawal.t.Asset2,PLX))throw Error('withdrawal_asset_identity_mismatch');
  if(seed.t.TransactionType!=='AMMCreate'||!same(seed.t.Amount,IMG)||!same(seed.t.Amount2,RLUSD))throw Error('seed_asset_identity_mismatch');
  for(const i of [1,6])if(proofs[i].t.TransactionType!=='Payment'||proofs[i].t.Destination!==treasury)throw Error('manual_swap_identity_mismatch');
@@ -31,13 +32,13 @@ const client={connect:async()=>{},disconnect:async()=>{},request:async q=>{const
  for(const [i,amount] of [[2,'18894'],[7,'20000']]){const t=proofs[i].t;if(t.TransactionType!=='Payment'||t.Destination!=='ryouhapPYV5KNHmFUKrjNqsjxhnxvQiVt'||t.Amount!==amount)throw Error('reviewed_exchange_fee_mismatch');externalFees+=BigInt(amount);}
  if(proofs[3].t.TransactionType!=='Payment'||proofs[3].t.Destination!==PLX.issuer||!same(proofs[3].t.Amount,PLX)||value(proofs[3].t.Amount.value).gt(value('0.00000001')))throw Error('plx_dust_redemption_mismatch');
  if(proofs[4].t.TransactionType!=='TrustSet'||!same(proofs[4].t.LimitAmount,PLX)||!value(proofs[4].t.LimitAmount.value).isZero()||proofs[5].t.TransactionType!=='TrustSet'||!same(proofs[5].t.LimitAmount,RLUSD))throw Error('trustline_transition_mismatch');
- const head=(await client.request({command:'ledger',ledger_index:'validated'})).result,h=head.ledger_hash||head.ledger?.ledger_hash;
+ mark('before_head');const head=(await client.request({command:'ledger',ledger_index:'validated'})).result,h=head.ledger_hash||head.ledger?.ledger_hash;
  if(head.validated!==true||!/^[A-F0-9]{64}$/.test(h||''))throw Error('validated_head_required');
  async function pool(a,b,pin){const r=(await client.request({command:'amm_info',asset:a,asset2:b,ledger_hash:h})).result;if(r.ledger_hash!==h)throw Error('quote_ledger_mismatch');return inspectPool(r,{asset:a,other:b,poolAccount:pin});}
  const lineCache=new Map();async function fetchLines(peer){let marker;const all=[];for(let page=0;page<10;page++){const r=(await client.request({command:'account_lines',account:treasury,peer,ledger_hash:h,limit:400,...(marker?{marker}:{})})).result;if(r.validated!==true||r.ledger_hash!==h)throw Error('validated_inventory_required');all.push(...r.lines);marker=r.marker;if(!marker)return all;}throw Error('incomplete_inventory');}
  const lines=peer=>{if(!lineCache.has(peer))lineCache.set(peer,fetchLines(peer));return lineCache.get(peer);};
- const fetched=await Promise.allSettled([pool(IMG,RLUSD,poolAccount),pool(XRP,IMG),pool(XRP,RLUSD),lines(poolAccount),lines('rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ'),lines(PLX.issuer),lines(IMG.issuer)]);for(const result of fetched)if(result.status!=='fulfilled')throw result.reason;const [target,imgXrp,usdXrp]=fetched.slice(0,3).map(r=>r.value);
- const newLine=(await lines(poolAccount)).find(l=>l.currency===target.lp.currency);
+ mark('before_pool_inventory');const fetched=await Promise.allSettled([pool(IMG,RLUSD,poolAccount),pool(XRP,IMG),pool(XRP,RLUSD),lines(poolAccount),lines('rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ'),lines(PLX.issuer),lines(IMG.issuer)]);for(const result of fetched)if(result.status!=='fulfilled')throw result.reason;const [target,imgXrp,usdXrp]=fetched.slice(0,3).map(r=>r.value);
+ mark('pool_inventory_received');const newLine=(await lines(poolAccount)).find(l=>l.currency===target.lp.currency);
  if(!newLine||newLine.freeze||newLine.freeze_peer)throw Error('replacement_lp_unavailable');
  const seedLp=balanceDelta(seed.r,treasury,target.lp);if(!seedLp.gt(0))throw Error('seed_lp_mint_proof_required');
  const migrationTable=!!db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_manual_pool_migrations'").get(),priorMigration=migrationTable?db.prepare('SELECT * FROM estate_manual_pool_migrations WHERE withdraw_hash=? AND seed_hash=?').get(reviewed[0],reviewed[8]):null;
@@ -53,9 +54,9 @@ const client={connect:async()=>{},disconnect:async()=>{},request:async q=>{const
  const imgLine=(await lines(IMG.issuer)).find(l=>l.currency==='IMG');const liability=req('./server/estate-reward-reserves').rewardImgLiabilityUnits(db);
  const imgInventory=db.prepare('SELECT data_json FROM estate_liquidity_jobs').all().reduce((n,j)=>{const d=JSON.parse(j.data_json);return n.plus(d.img||'0').plus(d.residualImg||'0');},value('0'));
  if(!imgLine||imgLine.freeze||imgLine.freeze_peer||value(imgLine.balance).minus(imgInventory).times(1000000).lt(liability.toString()))throw Error('existing_img_reward_inventory_missing');
- const spareXrp=await req('./server/guard').spendable(client,treasury);if(!Number.isFinite(spareXrp)||spareXrp<1000)throw Error('treasury_operating_reserve_insufficient');
- const verifiedCostsDrops=String(costs+externalFees),plan=planManualPoolMigration({job:source[0],pool:target,availableLp:available.toFixed(),exitQuote,withdrawHash:reviewed[0],seedHash:reviewed[8],verifiedCostsDrops});
- const report={mode,commit:expected,poolAccount,sourceBasisDrops:old.basis,withdrawnLp:burned.toFixed(),trackedSourceLp:old.lp,returnedImg:balanceDelta(withdrawal.r,treasury,IMG).toFixed(),returnedPlx:balanceDelta(withdrawal.r,treasury,PLX).toFixed(),seedLpMinted:seedLp.toFixed(),availableLp:available.toFixed(),existingImgLiabilityUnits:liability.toString(),spareXrpDrops:spareXrp,replacementBasisDrops:plan.basisDrops,migrationCostDrops:verifiedCostsDrops,replacementLp:JSON.parse(plan.replacementJson).lp,conservativeExitDrops:exitQuote(value(JSON.parse(plan.replacementJson).lp)).toFixed(),reservedCashDrops:estateCashReserve(db),reviewedTransactions:reviewed,ready:true,rlusdRoutingEnabled:false};
+ mark('before_spendable');const spareXrp=await req('./server/guard').spendable(client,treasury);if(!Number.isFinite(spareXrp)||spareXrp<1000)throw Error('treasury_operating_reserve_insufficient');
+ mark('before_plan');const verifiedCostsDrops=String(costs+externalFees),plan=planManualPoolMigration({job:source[0],pool:target,availableLp:available.toFixed(),exitQuote,withdrawHash:reviewed[0],seedHash:reviewed[8],verifiedCostsDrops});
+ mark('planned');const report={mode,commit:expected,poolAccount,sourceBasisDrops:old.basis,withdrawnLp:burned.toFixed(),trackedSourceLp:old.lp,returnedImg:balanceDelta(withdrawal.r,treasury,IMG).toFixed(),returnedPlx:balanceDelta(withdrawal.r,treasury,PLX).toFixed(),seedLpMinted:seedLp.toFixed(),availableLp:available.toFixed(),existingImgLiabilityUnits:liability.toString(),spareXrpDrops:spareXrp,replacementBasisDrops:plan.basisDrops,migrationCostDrops:verifiedCostsDrops,replacementLp:JSON.parse(plan.replacementJson).lp,conservativeExitDrops:exitQuote(value(JSON.parse(plan.replacementJson).lp)).toFixed(),reservedCashDrops:estateCashReserve(db),reviewedTransactions:reviewed,ready:true,rlusdRoutingEnabled:false};
  if(mode==='apply'){
   if(fs.readFileSync(path.join(root,'pause.json'),'utf8')!==pauseBefore)throw Error('pause_changed_during_review');
   const before=estateCashReserve(db);report.migration=applyManualPoolMigration(db,plan,{verifiedLedgerIndex:Number(head.ledger_index??head.ledger?.ledger_index),verifiedAtMs:Date.now(),verifiedWithdrawLp:burned.toFixed(),verifiedSeedLp:seedLp.toFixed(),verifiedCostsDrops});
@@ -63,5 +64,5 @@ const client={connect:async()=>{},disconnect:async()=>{},request:async q=>{const
   const known=new Set(read('watch_known.json'));for(const hash of reviewed)known.add(hash);req('./server/store').save('watch_known.json',[...known]);
   req('./server/watch').unpause();report.unpaused=true;
  }
- console.log(JSON.stringify(report));
-}finally{db?.close();await client.disconnect();}})().catch(e=>{console.error(e.message);process.exitCode=1;});
+ mark('reported');console.log(JSON.stringify(report));
+}finally{db?.close();await client.disconnect();}})().then(()=>process.stdout.write('',()=>process.exit(0)),e=>{console.error(e.message);process.stderr.write('',()=>process.exit(1));});

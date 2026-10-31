@@ -1,11 +1,11 @@
 // The server owns price, reservations, signing identity and settlement status.
 export function mountEstatePurchase(container,propertyId,{api='https://burn-city-game.fly.dev',fetcher=fetch,storage=localStorage,onSettled=()=>{}}={}){
  const section=document.createElement('section');section.style.cssText='padding:12px;border:1px solid #ffb45b66;border-radius:10px;margin-top:12px';
- const title=document.createElement('h3');title.textContent='Property purchase';
+ const title=document.createElement('h3');title.textContent='Estate details · '+propertyId;
  const note=document.createElement('p');note.setAttribute('role','status');note.setAttribute('aria-live','polite');
  const extraIncome=document.createElement('p');extraIncome.textContent='New purchase proceeds target IMG/RLUSD after pool activation, with 1% retained for XRP costs. Rewards require realized net earnings.';
  const actions=document.createElement('div');actions.style.cssText='display:grid;gap:8px';const terms=document.createElement('p');terms.textContent='Rewards are variable and not guaranteed. No verified distributable earnings means no new reward allocation. Purchase funds and returned principal are not earnings. Conversion and network fees are deducted from earned rewards. Small amounts accumulate until they can cover costs.';section.append(title,terms,extraIncome,note,actions);container.append(section);
- let distributionsActive=false,xrpProfitActive=false;const payoutNote=()=>distributionsActive?'Eligible verified earnings are distributed hourly. No earnings means no new rewards.':'Hourly payouts are not active yet.';
+ let distributionsActive=false,xrpProfitActive=false;const payoutNote=()=>distributionsActive?'Discretionary bonus processing is enabled; payment is not guaranteed.':'Discretionary bonuses are currently unavailable.';
  const sessionToken=storage.getItem('bcToken');
  let wallet='signed-in';try{wallet=JSON.parse(atob((storage.getItem('bcToken')||'').split('.')[0].replace(/-/g,'+').replace(/_/g,'/'))).acct||wallet;}catch{}
  const key='bcEstatePurchase:'+propertyId+':'+wallet;let reservationId=storage.getItem(key)||'',busy=false;
@@ -26,7 +26,7 @@ export function mountEstatePurchase(container,propertyId,{api='https://burn-city
   if(state.owned?.some(p=>p.propertyId===propertyId)){receipt({});return;}
   const quote=await request('/purchase/quote?propertyId='+encodeURIComponent(propertyId));
   if(!quote.ok){note.textContent=quote.error==='estate_treasury_cannot_purchase'?'Choose a purchasing wallet different from the Estates treasury.':quote.error;return;}
-  note.textContent=(BigInt(quote.priceDrops)/1000000n).toString()+' XRP · '+quote.shareUnits+' share units. '+payoutNote();
+  note.textContent='Purchase price: '+(BigInt(quote.priceDrops)/1000000n).toString()+' XRP · property allocation weight: '+quote.shareUnits+' units. '+payoutNote();
   if(!quote.salesEnabled){note.textContent+=' Purchases are currently paused.';return;}
   button('Reserve and review in Xaman',async()=>{const r=await request('/purchase/reserve',{propertyId});reservationId=r.reservationId;storage.setItem(key,reservationId);await start();});
  }

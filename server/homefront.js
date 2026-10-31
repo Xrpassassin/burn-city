@@ -164,9 +164,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         if (db.players && db.players[user.acct] && Date.now() - db.players[user.acct].lastSeen <= World.PRESENCE_TTL) {
           const joined = World.enter(db, user.acct);
           store.save('homefront-world.json', joined.world);
-          json(res, 200, { mode: 'homefront-world', ...joined.result, interior: Interiors.publicState(db.interiors, user.acct) }); return true;
+          json(res, 200, { mode: 'homefront-world', ...joined.result, interior: Interiors.publicState(db.interiors, user.acct), inputProtocol: { enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1', nextSequence: (joined.world.players[user.acct]?.lastInputSequence ?? -1) + 1 } }); return true;
         }
-        json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), interior: Interiors.publicState(db.interiors, user.acct) }); return true;
+        json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), interior: Interiors.publicState(db.interiors, user.acct), inputProtocol: { enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1', nextSequence: (db.players[user.acct]?.lastInputSequence ?? -1) + 1 } }); return true;
       }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {

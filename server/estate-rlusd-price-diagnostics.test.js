@@ -1,0 +1,24 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {fixture}=require('./estate-liquidity-runtime.test');
+const {inspectEstateRlusdReadiness}=require('./estate-rlusd-readiness');
+(async()=>{
+ const f=fixture({policyVersion:2});
+ const params={client:f.client,treasury:f.treasury,imgIssuer:f.IMG.issuer,poolAccount:f.stablePool.account};
+ let r=await inspectEstateRlusdReadiness(params);
+ assert.equal(r.ready,true);
+ assert.equal(r.priceDirection,'aligned');
+ assert.equal(r.signedPriceDeviationBps,'0.00');
+ assert.equal(r.priceRemediation,'read_only_diagnostic_no_transaction_or_guard_override');
+ f.stablePool.y=f.stablePool.y.times('1.03');
+ r=await inspectEstateRlusdReadiness(params);
+ assert.equal(r.ready,false);
+ assert.equal(r.priceDirection,'img_more_expensive_in_target_pool');
+ assert.equal(r.signedPriceDeviationBps,'300.00');
+ assert.ok(r.blockers.includes('img_rlusd_market_price_mismatch'));
+ f.stablePool.y=f.stablePool.y.div('1.03').times('0.97');
+ r=await inspectEstateRlusdReadiness(params);
+ assert.equal(r.priceDirection,'img_cheaper_in_target_pool');
+ assert.equal(r.signedPriceDeviationBps,'-300.00');
+ console.log('RLUSD read-only market direction and fail-closed price deviation guards verified');
+})().catch(e=>{console.error(e);process.exitCode=1});

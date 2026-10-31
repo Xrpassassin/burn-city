@@ -5,7 +5,7 @@ const {createEstatePayoutExecutor,quoteXrp}=require('./estate-payout-executor');
 function setup(currency='IMG'){
  const wallet=xrpl.Wallet.generate(),treasury=wallet.classicAddress,issuer=xrpl.Wallet.generate().classicAddress,owner=xrpl.Wallet.generate().classicAddress;
  const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,share_units INTEGER,purchased_at INTEGER);CREATE TABLE estate_owner_payout_preferences(acct TEXT PRIMARY KEY,currency TEXT)');
- let paused=false,submits=0,validated=false,failSubmit=false,missingLine=false,badHash=false,decoded,hash;
+ let paused=false,submits=0,validated=false,failSubmit=false,missingLine=false,badHash=false,ledgerMemos=false,tamperedMemo=false,decoded,hash;
  const ledgerHash='A'.repeat(64);
  const client={autofill:async tx=>({...tx,Fee:'12',Sequence:1,LastLedgerSequence:120}),request:async q=>{
   if(q.command==='ledger')return {result:{validated:true,ledger_index:100,ledger_hash:ledgerHash}};
@@ -13,7 +13,7 @@ function setup(currency='IMG'){
   if(q.command==='account_lines')return {result:{validated:true,ledger_hash:ledgerHash,lines:missingLine&&q.account===owner?[]:[{currency:'IMG',account:issuer,balance:q.account===treasury?'10':'0',limit:'1000'}]}};
   if(q.command==='amm_info')return {result:{validated:true,ledger_hash:ledgerHash,amm:{amount:'1000000',amount2:{currency:'IMG',issuer,value:'100'},trading_fee:300}}};
   if(q.command==='submit'){submits++;decoded=xrpl.decode(q.tx_blob);hash=xrpl.hashes.hashSignedTx(q.tx_blob);if(failSubmit)throw Error('unknown_submit_outcome');return {result:{engine_result:'tesSUCCESS'}};}
-  if(q.command==='tx')return {result:{hash:badHash?'B'.repeat(64):hash,validated,tx_json:decoded,meta:{TransactionResult:'tesSUCCESS',delivered_amount:decoded.Amount,AffectedNodes:[{ModifiedNode:{LedgerEntryType:'RippleState',FinalFields:{LowLimit:{issuer:treasury},HighLimit:{issuer},Balance:{currency:'IMG',value:currency==='XRP'?'9.1':'9'}},PreviousFields:{Balance:{currency:'IMG',value:'10'}}}}]}}};
+  if(q.command==='tx'){const tx=structuredClone(decoded);if(ledgerMemos){tx.Memos=tx.Memos.map(({Memo})=>({Memo:{MemoData:Memo.MemoData,MemoType:Memo.MemoType}}));tx.DeliverMax=tx.Amount;delete tx.Amount;}if(tamperedMemo)tx.Memos[0].Memo.MemoData='00';return {result:{hash:badHash?'B'.repeat(64):hash,validated,tx_json:tx,meta:{TransactionResult:'tesSUCCESS',delivered_amount:decoded.Amount,AffectedNodes:[{ModifiedNode:{LedgerEntryType:'RippleState',FinalFields:{LowLimit:{issuer:treasury},HighLimit:{issuer},Balance:{currency:'IMG',value:currency==='XRP'?'9.1':'9'}},PreviousFields:{Balance:{currency:'IMG',value:'10'}}}}]}}};}
   throw Error('unexpected_request:'+q.command);
  }};
  const runtime=createEstateHourlyRuntime({db,client,treasury,imgIssuer:issuer,enabled:false});
@@ -22,7 +22,7 @@ function setup(currency='IMG'){
  db.prepare('INSERT INTO estate_owner_payout_preferences VALUES(?,?)').run(owner,currency);
  runtime.enqueue(0);
  const make=(enabled=true,options={})=>createEstatePayoutExecutor({db,client,wallet:()=>wallet,treasury,imgIssuer:issuer,enabled,guard:{paused:()=>paused,check:async()=>null},...options});
- return {db,runtime,make,owner,issuer,get submits(){return submits;},set paused(v){paused=v;},set validated(v){validated=v;},set failSubmit(v){failSubmit=v;},set missingLine(v){missingLine=v;},set badHash(v){badHash=v;}};
+ return {db,runtime,make,owner,issuer,get submits(){return submits;},set paused(v){paused=v;},set validated(v){validated=v;},set failSubmit(v){failSubmit=v;},set missingLine(v){missingLine=v;},set badHash(v){badHash=v;},set ledgerMemos(v){ledgerMemos=v;},set tamperedMemo(v){tamperedMemo=v;}};
 }
 (async()=>{
  const a=setup();assert.equal((await a.make(false).tick()).skipped,'disabled');a.paused=true;assert.equal((await a.make().tick()).blocked,'payouts_paused');assert.equal(a.submits,0);
@@ -39,6 +39,19 @@ function setup(currency='IMG'){
  const capped=setup();await capped.make(true,{maxDailyImgUnits:'1'}).tick();assert.equal(capped.submits,0);assert.equal(capped.runtime.state(capped.owner).payouts[0].note,'daily_payment_budget_limit');
  const interrupted=setup();interrupted.db.exec("UPDATE estate_hourly_payouts SET state='preparing'");assert.equal((await interrupted.make().tick()).blocked,'interrupted_preparation_review_required');assert.equal(interrupted.submits,0);
  const c=setup();await c.make().tick();c.validated=true;c.badHash=true;await c.make().tick();assert.equal(c.runtime.state(c.owner).payouts[0].state,'submitted');assert.equal(c.submits,1);
+ // Mainnet API v2 returns memo fields in a different object-key order.
+ // Reconcile the persisted hash on restart, preserving memo contents and array order.
+ for(const currency of ['IMG','XRP']){
+  const live=setup(currency);live.failSubmit=true;await live.make().tick();live.validated=true;live.ledgerMemos=true;
+  live.tamperedMemo=true;assert.equal((await live.make().tick()).held,'unexpected_validated_payment');assert.equal(live.submits,1);
+  live.tamperedMemo=false;assert.ok((await live.make(false).tick()).confirmed);assert.equal(live.submits,1);
+  const payout=live.runtime.state(live.owner).payouts[0];assert.equal(payout.state,'confirmed');assert.equal(payout.note,null);
+  assert.equal(payout.remainder_img_units,currency==='XRP'?'100000':'0');
+  await live.make().tick();assert.equal(live.submits,1);
+  live.db.prepare('INSERT INTO estate_img_hourly_batches VALUES(?,?,?,?,?,?)').run(3600000,'1000000',1,1,'next',7200000);
+  live.db.prepare('INSERT INTO estate_img_hourly_entitlements VALUES(?,?,?)').run(3600000,live.owner,'1000000');live.runtime.enqueue(3600000);
+  assert.ok((await live.make().tick()).submitted);assert.equal(live.submits,2);
+ }
  assert.throws(()=>quoteXrp({amount:'1',amount2:{currency:'IMG',issuer:b.issuer,value:'100'},trading_fee:300},'1',b.issuer),/below_xrp/);
  console.log('Payout software: IMG/XRP, trustlines, pause, persisted signed blob, ambiguous submit, hash proof and remainder credit tests passed');
 })().catch(e=>{console.error(e);process.exitCode=1;});

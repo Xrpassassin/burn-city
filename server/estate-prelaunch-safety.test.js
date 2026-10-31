@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {estatePrelaunchDecision:decide}=require('./estate-prelaunch-safety');
+let x=decide();assert.equal(x.purchaseAuthorized,false);assert.equal(x.bonusAuthorized,false);
+assert.ok(x.blockers.includes('legal_review_pending'));
+x=decide({mode:'production',counselCleared:true,approvedTermsVersion:'v1',termsAccepted:true,liveSalesFlag:true,liveRewardsFlag:true});
+assert.equal(x.purchaseAuthorized,false);
+assert.equal(x.bonusAuthorized,false);
+assert.ok(x.blockers.includes('production_requires_independent_legal_and_operational_release'));
+assert.equal(decide({mode:'simulation'}).simulationAllowed,true);
+console.log('Prelaunch safety gates fail closed');

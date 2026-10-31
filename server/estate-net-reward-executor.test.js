@@ -39,7 +39,7 @@ function fixture(currency='IMG',budget='1000000'){
 }
 (async()=>{
  for(const currency of ['IMG','XRP']){
-  const f=fixture(currency),start=f.xrp;await f.settle();const row=f.payout(),s=f.make().settlement(row.id);
+  const f=fixture(currency),start=f.xrp;if(currency==='XRP')f.missingLine=true;await f.settle();const row=f.payout(),s=f.make().settlement(row.id);
   assert.equal(f.submits,2);assert.equal(s.state,'paid');assert.equal(s.fee_paid_drops,'24');assert.equal(s.unrecovered_fee_drops,'0');assert(f.xrp>=start,'actual earned conversion covers both fees and payment');
   assert.equal(rewardCashReserve(f.db),f.xrp-start);assert.equal(rewardImgLiabilityUnits(f.db),BigInt(row.remainder_img_units));
   const delivered=JSON.parse(row.delivered);assert.equal(typeof delivered,currency==='XRP'?'string':'object');

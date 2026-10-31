@@ -65,6 +65,13 @@ const apartmentShell = buildInteriorSetPiece(fakeThree, apartmentsBlueprint, { x
 const shellMeshes = [];
 const collectMeshes = node => { if (node instanceof FakeMesh) shellMeshes.push(node); for (const child of node.children || []) collectMeshes(child); };
 collectMeshes(apartmentShell);
+assert(shellMeshes.filter(mesh => mesh.userData?.interiorCameraOccluder).length >= 10,
+  'interior camera casts against actual wall segments, not scenic particles or furniture');
+assert(shellMeshes.some(mesh => mesh.userData?.interiorDoorSlab && mesh.userData?.interiorCameraOccluder),
+  'closed doors are camera blockers until the shared world opens them');
+assert(shellMeshes.some(mesh => !mesh.userData?.interiorCameraOccluder),
+  'furniture and floor details do not pull the camera into the player');
+
 assert(shellMeshes.some(mesh => mesh.geometry.dimensions[1] === 3.2 && mesh.position.values[1] > 0.5),
   'raised interior transitions render ladder rails spanning the authored floor height');
 assert(shellMeshes.some(mesh => Math.abs(mesh.position.values[1] - 3.12) < 0.001),

@@ -228,10 +228,16 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
     const fixed = alongX ? z : x;
     const base = alongX ? room.x : room.z;
     const wallPosition = (offset, segment) => alongX ? [base + offset, room.elevation + h / 2, fixed] : [fixed, room.elevation + h / 2, base + offset];
-    if (!gap) { box(parent, alongX ? [length, h, t] : [t, h, length], wallPosition(0), wallMat); return; }
+    const wallMesh = (size, position) => {
+      const mesh = box(parent, size, position, wallMat);
+      // Camera-only occlusion tagging. Physical collision is owned by the server
+      // and never inferred from graphics or hidden wall state.
+      mesh.userData.interiorCameraOccluder = true;
+    };
+    if (!gap) { wallMesh(alongX ? [length, h, t] : [t, h, length], wallPosition(0)); return; }
     const gapWidth = 1.8, segment = (length - gapWidth) / 2;
-    box(parent, alongX ? [segment, h, t] : [t, h, segment], wallPosition(-(gapWidth + segment) / 2), wallMat);
-    box(parent, alongX ? [segment, h, t] : [t, h, segment], wallPosition((gapWidth + segment) / 2), wallMat);
+    wallMesh(alongX ? [segment, h, t] : [t, h, segment], wallPosition(-(gapWidth + segment) / 2));
+    wallMesh(alongX ? [segment, h, t] : [t, h, segment], wallPosition((gapWidth + segment) / 2));
   };
   const hasExit = (r, side) => r.exits.some(exit => exit.side === side);
   // Open-roof rooms get small batches of floor rubble, wall grime, and emergency lamps.
@@ -352,6 +358,7 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
       box(door, [1.48, 0.12, 0.12], [0, 2.1, 0], trimMat);
       const slab = box(door, [1.25, 1.95, 0.08], [0, 0.98, 0], glassMat);
       slab.userData.interiorDoorSlab = true;
+      slab.userData.interiorCameraOccluder = true;
       slab.userData.interiorDoorId = exit.id;
       root.add(door);
       const destinationRoom = interiorRoom(interior, exit.to);

@@ -6,6 +6,8 @@ on:
       - 'server/homefront-input-step.js'
       - 'server/homefront-input-step.test.js'
       - 'server/homefront-world.js'
+      - 'server/homefront-survival.js'
+      - 'server/homefront-survival.test.js'
       - 'test/homefront-input-world-sim.js'
       - 'server/homefront.js'
       - 'test/homefront-input-api-sim.js'
@@ -18,6 +20,8 @@ on:
       - 'server/homefront-input-step.js'
       - 'server/homefront-input-step.test.js'
       - 'server/homefront-world.js'
+      - 'server/homefront-survival.js'
+      - 'server/homefront-survival.test.js'
       - 'test/homefront-input-world-sim.js'
       - 'server/homefront.js'
       - 'test/homefront-input-api-sim.js'
@@ -35,6 +39,7 @@ jobs:
         with:
           node-version: '22'
       - run: node server/homefront-input-step.test.js
+      - run: node server/homefront-survival.test.js
       - run: node test/homefront-input-world-sim.js
       - run: node test/homefront-input-api-sim.js
       - run: node client/arena/homefront-continuous-input.test.mjs

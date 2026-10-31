@@ -1,0 +1,11 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { ESTATES_TREASURY, requireReadOnlyTreasury } = require('./estate-treasury-config');
+assert.equal(ESTATES_TREASURY.address, 'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb');
+assert.equal(ESTATES_TREASURY.mode, 'read-only');
+assert.equal(ESTATES_TREASURY.transfersEnabled, false);
+assert.equal(ESTATES_TREASURY.ammTradesEnabled, false);
+assert.equal(ESTATES_TREASURY.rewardPayoutsEnabled, false);
+assert.equal(requireReadOnlyTreasury(ESTATES_TREASURY.address), ESTATES_TREASURY);
+assert.throws(() => requireReadOnlyTreasury('rOther'), /treasury_account_mismatch/);
+console.log('estate treasury config tests passed');

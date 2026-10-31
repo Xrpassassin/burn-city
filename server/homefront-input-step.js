@@ -21,7 +21,10 @@ function validateInput(command, lastSequence = -1) {
 function displacementForInput(input, { now, previousAt, walkSpeed, sprintSpeed }) {
   if (!Number.isFinite(now) || !Number.isFinite(previousAt) || now < previousAt) throw new Error('invalid_server_time');
   if (!Number.isFinite(walkSpeed) || !Number.isFinite(sprintSpeed) || walkSpeed < 0 || sprintSpeed < walkSpeed) throw new Error('invalid_movement_speed');
-  const elapsedMs = Math.min(MAX_INPUT_DT_MS, now - previousAt);
+  // No distance credit is earned on the first packet or after a stalled connection.
+  // A resumed stream must establish a fresh server-time baseline before moving.
+  const gapMs = now - previousAt;
+  const elapsedMs = gapMs > MAX_INPUT_DT_MS * 2 ? 0 : Math.min(MAX_INPUT_DT_MS, gapMs);
   const speed = input.sprint ? sprintSpeed : walkSpeed;
   const seconds = elapsedMs / 1000;
   return Object.freeze({ x: input.x * speed * seconds, z: input.z * speed * seconds, elapsedMs });

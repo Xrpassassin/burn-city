@@ -12,8 +12,10 @@ assert.throws(() => validateInput({ sequence: 3, x: 0, z: 0, sprint: 1 }), /mode
 const speeds = { walkSpeed: 4, sprintSpeed: 7 };
 assert.deepEqual(displacementForInput(cmd, { now: 100, previousAt: 0, ...speeds }), { x: 0.24, z: 0.32000000000000006, elapsedMs: 100 });
 const stalled = displacementForInput(cmd, { now: 10000, previousAt: 0, ...speeds });
-assert.equal(stalled.elapsedMs, MAX_INPUT_DT_MS);
-assert.ok(Math.hypot(stalled.x, stalled.z) <= 0.5 + 1e-9);
+assert.equal(stalled.elapsedMs, 0, 'long disconnects must not bank movement');
+assert.equal(stalled.x, 0); assert.equal(stalled.z, 0);
+const bounded = displacementForInput(cmd, { now: MAX_INPUT_DT_MS + 50, previousAt: 0, ...speeds });
+assert.equal(bounded.elapsedMs, MAX_INPUT_DT_MS, 'moderate scheduling delays are capped');
 const idle = displacementForInput(validateInput({ sequence: 3, x: 0, z: 0, sprint: false }, 2), { now: 10000, previousAt: 0, ...speeds });
 assert.equal(idle.x, 0); assert.equal(idle.z, 0);
 assert.throws(() => displacementForInput(cmd, { now: 10, previousAt: 20, ...speeds }), /server_time/);

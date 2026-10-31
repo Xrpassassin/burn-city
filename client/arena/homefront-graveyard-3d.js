@@ -612,6 +612,8 @@ function boot(host) {
       }
     },
     onUnavailable: reason => {
+      // Switching movement protocols must not immediately trigger a legacy 10-unit step.
+      lastStickMoveAt = performance.now();
       if (status && reason !== 'server_disabled') status.textContent =
         'Direct walking unavailable (' + reason + '). Restored normal controls.';
     }

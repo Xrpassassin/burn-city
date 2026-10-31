@@ -17,7 +17,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  }
  function renderStatus(s){
   $('live-status').textContent=s.salesEnabled?'Property sales are open.':s.salesStatus==='treasury_paused'?'Property purchases are temporarily paused.':'Property purchases are currently unavailable.';
-  $('reward-status').textContent=s.distributionsEnabled?'Hourly reward processing is enabled.':'Hourly reward processing is currently unavailable or delayed.';
+  $('reward-status').textContent=s.distributionsEnabled?'Discretionary bonus processing is enabled; no payout is guaranteed.':'Discretionary bonuses are paused or unavailable; no payout is guaranteed.';
   const allocation=$('allocation-status');if(allocation)allocation.textContent=s.capitalAllocationPolicy?.version===2?'New purchases: 99% allocated to IMG/RLUSD; 1% retained for XRP operating costs. '+(s.imgRlusdFundingEnabled?'Pool routing enabled.':'Pool routing awaits activation; proceeds remain reserved in the treasury.'):'Checking purchase allocation policy…';
   const pool=$('pool-status');if(pool)pool.textContent=(s.imgRlusdPositionCount??s.liquidityPositions?.length??0)+' tracked IMG/RLUSD positions · '+({awaiting_pool_activation:'Awaiting pool activation',enabled:'Processing enabled',treasury_paused:'Treasury paused',disabled:'Routing disabled'}[s.imgRlusdStatus]||'Processing delayed or requires review')+'.';
  }

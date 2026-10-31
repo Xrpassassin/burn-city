@@ -169,6 +169,19 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         }
         json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct), interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors), inputProtocol: { enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1', nextSequence: (db.players[user.acct]?.lastInputSequence ?? -1) + 1, readyInMs: World.inputReadyInMs(db.players[user.acct]) } }); return true;
       }
+      // Read-only, scoped multiplayer interior presence. Does not tick AI,
+      // grant rewards, mutate world state, or disclose unrelated-world players.
+      if (req.method === 'GET' && url.pathname === '/api/homefront/world/interior/presence') {
+        const view = World.snapshot(db, user.acct);
+        const instance = view.interiorInstance;
+        json(res, 200, {
+          mode: 'homefront-interior-presence',
+          interiorInstance: instance,
+          interior: view.interior,
+          players: instance ? view.players.filter(p => p.interior?.instanceId === instance.id) : []
+        });
+        return true;
+      }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
         case '/api/homefront/world/exploration/discover': {

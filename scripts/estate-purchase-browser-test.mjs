@@ -55,7 +55,7 @@ try{
  await page.getByText('Payment confirmed',{exact:false}).first().waitFor();
  await page.getByText('Legacy XRP pool profit · 0.012345 XRP equivalent allocated · Payment confirmed',{exact:true}).waitFor();
  await page.getByText('New purchases allocate 99% to IMG/RLUSD',{exact:false}).waitFor();
- await page.getByText('Eligible verified earnings are distributed hourly. No earnings means no new rewards.',{exact:true}).waitFor();
+ await page.getByText('Discretionary bonus processing is enabled; payment is not guaranteed.',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  const calls=await page.evaluate(()=>window.calls);assert.deepEqual(calls.find(c=>c.path==='/purchase/reserve').body,{propertyId:'trailer-01'});
  assert.deepEqual(calls.filter(c=>c.path==='/payout-preference'&&c.body).at(-1).body,{currency:'XRP'});

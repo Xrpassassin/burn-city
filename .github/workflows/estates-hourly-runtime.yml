@@ -16,6 +16,7 @@ on:
       - 'server/estate-native-reward-*.js'
       - 'server/estate-rlusd-*.js'
       - 'server/estate-schema-upgrade.js'
+      - 'server/estate-manual-pool-migration*.js'
       - 'server/estate-sale-settlement*.js'
       - 'server/estate-sales-runtime*.js'
       - 'server/guard.js'

@@ -72,7 +72,7 @@
     "test:nft-avatar-build-pipeline": "node scripts/nft-avatar-build-pipeline.test.mjs",
     "test:estate-plx": "node server/estate-token-lines.test.js && node server/estate-plx-xaman.test.js",
     "test:estate-prestige": "node server/estate-prestige-runtime.test.js && node test/estate-prestige-http.test.js && node client/js/estate-prestige-ui.test.mjs",
-    "test:estate-rlusd": "node server/estate-rlusd-runtime.test.js && node server/estate-rlusd-migration.test.js"
+    "test:estate-rlusd": "node server/estate-rlusd-runtime.test.js && node server/estate-rlusd-migration.test.js && node server/estate-manual-pool-migration.test.js"
   },
   "keywords": [],
   "author": "",

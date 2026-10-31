@@ -1,0 +1,27 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {fixture,until}=require('./estate-liquidity-runtime.test');
+const {estateCashReserve}=require('./estate-liquidity-runtime');
+const {planManualPoolMigration,applyManualPoolMigration}=require('./estate-manual-pool-migration');
+const {value}=require('./estate-liquidity-ledger');
+(async()=>{
+ const f=fixture();const runtime=f.make();await until(f,runtime,()=>f.db.prepare("SELECT COUNT(*) n FROM estate_liquidity_jobs WHERE state='invested'").get().n===2);
+ const job=f.db.prepare("SELECT * FROM estate_liquidity_jobs WHERE pair='img-plx'").get(),old=JSON.parse(job.data_json),cash=estateCashReserve(f.db),other=f.db.prepare("SELECT * FROM estate_liquidity_jobs WHERE pair='img-xrp'").get();
+ const options={job,pool:{account:f.stablePool.account,lp:{currency:f.stablePool.currency}},availableLp:'100',exitQuote:n=>n.times(1000000),withdrawHash:'A'.repeat(64),seedHash:'B'.repeat(64)};
+ assert.throws(()=>planManualPoolMigration({...options,availableLp:'0.000001'}),/cannot_cover/);
+ const plan=planManualPoolMigration(options),basis=['basis','imgCost','plxCost','fees','residualImgCost','residualPlxCost'].reduce((n,k)=>n.plus(old[k]||'0'),value('0'));
+ assert.equal(plan.basisDrops,basis.toFixed());const costPlan=planManualPoolMigration({...options,verifiedCostsDrops:'50'});assert.equal(costPlan.basisDrops,basis.plus(50).toFixed());assert.throws(()=>planManualPoolMigration({...options,verifiedCostsDrops:'-1'}),/invalid_migration_costs/);assert.ok(value(JSON.parse(plan.replacementJson).lp).lte(value('100')));
+ const evidence={verifiedLedgerIndex:101,verifiedAtMs:f.clock,verifiedWithdrawLp:old.lp,verifiedSeedLp:'100'};
+ assert.throws(()=>applyManualPoolMigration(f.db,plan,{...evidence,verifiedWithdrawLp:'0.00001'}),/source_or_inventory/);
+ assert.equal(f.db.prepare('SELECT state FROM estate_liquidity_jobs WHERE id=?').get(job.id).state,'invested');assert.equal(estateCashReserve(f.db),cash);
+ assert.equal(applyManualPoolMigration(f.db,plan,evidence).alreadyApplied,false);
+ assert.equal(applyManualPoolMigration(f.db,plan,evidence).alreadyApplied,true);
+ assert.equal(estateCashReserve(f.db),cash);assert.deepEqual(f.db.prepare("SELECT * FROM estate_liquidity_jobs WHERE pair='img-xrp'").get(),other);
+ const archived=f.db.prepare('SELECT * FROM estate_manual_pool_migrations').get();assert.equal(archived.source_json,job.data_json);assert.equal(archived.basis_drops,basis.toFixed());
+ const rows=f.db.prepare('SELECT * FROM estate_liquidity_jobs').all();assert.equal(rows.length,3);assert.equal(rows.find(r=>r.id===job.id).state,'manually_migrated');assert.equal(rows.find(r=>r.id===plan.replacementId).initial_budget_drops,'0');
+ assert.equal(f.db.prepare('SELECT COUNT(*) n FROM estate_xrp_profit_receipts').get().n,0,'migration never recognizes profit');
+ assert.equal(f.db.prepare('SELECT COUNT(*) n FROM estate_xrp_profit_payouts').get().n,0);
+ const before=f.sent.length;await f.make({rlusdEnabled:false}).tick();assert.equal(f.sent.length,before,'restart cannot repurchase PLX or sign new-policy transactions before activation');
+ const state=f.capital.state(f.owner);assert.deepEqual(state.capitalAllocations[0].pool.split(' + ').sort(),['IMG/RLUSD','Legacy IMG/XRP']);assert(!state.capitalAllocations[0].pool.includes('PLX'));
+ console.log('Manual migration: full basis/residual cost and cash preserved, verified LP capacity, rollback/replay, original audit, no profit, no PLX repurchase');
+})().catch(e=>{console.error(e);process.exitCode=1;});

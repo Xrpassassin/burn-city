@@ -420,3 +420,15 @@ assert.match(scene, /cityChunkAt\(POWER_STATION_SITE\.x, POWER_STATION_SITE\.z\)
   'station belongs to the existing streamed industrial-side chunk');
 assert.match(scene, /buildPowerStationSkyline\(THREE, terrainElevation\(POWER_STATION_SITE\.x, POWER_STATION_SITE\.z\)\)/,
   'station uses terrain elevation while staying decorative and off the server collision map');
+
+
+assert.match(scene, /from '\.\/homefront-room-proximity\.mjs'/,
+  'scene imports server-compatible physical room interaction rules');
+assert.match(scene, /nearestInteriorInteraction\(roomBlueprint, interiorState, roomAnchor, worldData\.self\)/,
+  'nearby E/tap targets are selected from the current room and authoritative player position');
+assert.match(scene, /current\.id === 'interior-action'/,
+  'in-world prompt can use authored server-backed objects');
+assert.match(scene, /current\.id === 'interior-door'/,
+  'in-world prompt can traverse connected rooms');
+assert.match(scene, /current\.targetId !== shownContext\?\.targetId/,
+  'stale nearby action targets are rejected before triggering server requests');

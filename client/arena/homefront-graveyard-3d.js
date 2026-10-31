@@ -591,6 +591,7 @@ function boot(host) {
   const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
   let lastContinuousWorldRefresh = 0;
   let lastEnvironmentInputRefresh = 0;
+  let lastRenderedWorldData = null;
   const continuousInput = createContinuousInput({
     send: async command => {
       const response = await fetch(API + '/api/homefront/world/move-input', {
@@ -609,7 +610,7 @@ function boot(host) {
       // Moving should not destroy and rebuild every walker, label and loot mesh
       // each second. Full scene reconciliation is reserved for material changes
       // (new/removed actors, combat damage, outfit or loot state).
-      if (requiresHomefrontSceneRebuild(previous, next) && time - lastContinuousWorldRefresh >= 900) {
+      if (requiresHomefrontSceneRebuild(lastRenderedWorldData, next) && time - lastContinuousWorldRefresh >= 900) {
         lastContinuousWorldRefresh = time;
         updateWorld(next);
         return;
@@ -828,6 +829,7 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
+    lastRenderedWorldData = data;
     if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
       continuousInput.sync(data.inputProtocol, data.self, performance.now());
     }

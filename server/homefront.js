@@ -496,6 +496,13 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), pvp });
           return true;
         }
+        case '/api/homefront/world/move-input': {
+          // Reserved for the future server-authoritative continuous-input protocol.
+          // Deliberately fail closed until server-side collision, session sequencing,
+          // rate limits, and reconciliation are implemented and tested together.
+          json(res, 501, { error: 'continuous_movement_unavailable' });
+          return true;
+        }
         case '/api/homefront/world/move': outcome = World.move(db, user.acct, Number(payload.x), Number(payload.z), Date.now(), payload.sprint === true); break;
         case '/api/homefront/world/aim': outcome = World.setAiming(db, user.acct, payload.aiming, Date.now()); break;
         case '/api/homefront/world/rescue': {

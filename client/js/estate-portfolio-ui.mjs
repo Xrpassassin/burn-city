@@ -1,10 +1,10 @@
-import {mountEstatePurchase} from './estate-purchase-ui.mjs';
+import {mountEstatePurchase,mountEstateImgTrustline} from './estate-purchase-ui.mjs';
 import {formatRewardUnits,sharePercent,rewardScenario} from './estate-reward-scenario.mjs';
 
 export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localStorage,api}={}){
  api??=(/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname)?location.origin:'https://burn-city-game.fly.dev');
  const $=id=>doc.getElementById(id),make=(tag,text,cls)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
- let catalog=null,current=null,generation=0,lastToken=null,disposed=false;
+ let catalog=null,current=null,generation=0,lastToken=null,disposed=false,trustlineDispose=null;
  const token=()=>{try{return storage.getItem('bcToken')||'';}catch{return '';}};
  const field=(label,value)=>make('p',label+': '+value);
  function cityLink(propertyId,label='Locate in 3D city'){
@@ -32,7 +32,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
   }
  }
  function clearPrivate(message){
-  current=null;$('scenario-property').replaceChildren();$('payout-currency').value='';$('preference-status').textContent='';$('history-through').textContent='';$('owned-properties').replaceChildren(make('p',message));$('portfolio-summary').textContent='';
+  trustlineDispose?.();trustlineDispose=null;current=null;$('scenario-property').replaceChildren();$('payout-currency').value='';$('preference-status').textContent='';$('history-through').textContent='';$('owned-properties').replaceChildren(make('p',message));$('portfolio-summary').textContent='';
   $('wallet-history').replaceChildren();$('wallet-controls').hidden=true;$('scenario-fields').disabled=true;
   $('scenario-result').textContent='Sign in to calculate from your verified property shares.';
   renderCatalog();
@@ -44,10 +44,11 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
   for(const r of (s.payouts||[]).slice(0,20)){
    let amount='Amount pending settlement';
    if(r.state==='confirmed'&&r.delivered){try{const d=JSON.parse(r.delivered);if(typeof d==='string'&&/^\d+$/.test(d))amount=formatRewardUnits(d)+' XRP';else if(d?.currency==='IMG'&&typeof d.value==='string')amount=d.value+' IMG';}catch{}}
-   const reason=({recipient_img_trustline_unavailable:'An IMG trustline is needed in the receiving wallet.',owner_currency_selection_required:'Choose IMG or XRP above.',daily_payment_budget_limit:'Waiting for the next payment budget.',unfunded_img_liabilities:'Awaiting verified funding.'})[r.note];
-   add('Reward hour '+new Date(r.epoch_start_ms).toLocaleString()+' · IMG earnings · '+(labels[r.state]||'Pending')+' · '+amount+(reason?' · '+reason:''),r.tx_hash);
+   const reason=({recipient_img_trustline_unavailable:'An IMG trustline is needed in the receiving wallet.',owner_currency_selection_required:'Choose IMG or XRP above.',daily_payment_budget_limit:'Waiting for the next payment budget.',unfunded_img_liabilities:'Awaiting verified funding.',below_net_reward_minimum_carried:'Accrued toward a future payout after fees.',funding_reward_network_fees:'Funding fees from earned IMG.',awaiting_net_reward_payment:'Preparing reward after fees.',reward_transaction_review_required:'Held for review; no automatic replacement.'})[r.note];
+   add('Reward hour '+new Date(r.epoch_start_ms).toLocaleString()+' · IMG earnings · '+(r.note==='below_net_reward_minimum_carried'?'Accrued for a future payout':labels[r.state]||'Pending')+' · '+amount+(reason?' · '+reason:''),r.tx_hash);
   }
-  for(const r of (s.xrpProfitPayouts||[]).slice(0,20))add('Eligible after '+new Date(r.available_after_ms).toLocaleString()+' · Additional XRP pool profit · '+formatRewardUnits(r.amount_drops)+' XRP · '+(labels[r.state]||'Pending'),r.tx_hash);
+  for(const r of (s.xrpProfitPayouts||[]).slice(0,20))add('Eligible after '+new Date(r.available_after_ms).toLocaleString()+' · Additional XRP pool profit · '+formatRewardUnits(r.amount_drops)+' XRP · '+(r.note==='below_net_reward_minimum_carried'?'Accrued for a future payout':labels[r.state]||'Pending'),r.tx_hash);
+  for(const [key,asset] of [['rewardXrpCreditDrops','XRP'],['rewardImgCreditUnits','IMG']])if(BigInt(s[key]||'0')>0n)add('Retained '+asset+' reward credit: '+formatRewardUnits(s[key])+' '+asset+'. Included in a future eligible payout.');
   if(BigInt(s.xrpProfitCreditDrops||'0')>0n)add('Unpaid XRP reward credit: '+formatRewardUnits(s.xrpProfitCreditDrops)+' XRP. Included with a future eligible payment.');
   if(!list.childElementCount)list.append(make('p','No wallet payments recorded yet. Allocations appear separately from confirmed payments.'));
  }
@@ -67,11 +68,13 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
     field('Approx. historical hourly average',img?formatRewardUnits(r.imgAverageHourlyUnits)+' IMG/h':'Unavailable'),
     field('XRP profit allocated · last 24h',xrp?formatRewardUnits(r.xrpAllocated24hDrops)+' XRP':'History unavailable'),
     field('Approx. historical hourly average',xrp?formatRewardUnits(r.xrpAverageHourlyDrops)+' XRP/h':'Unavailable'),
-    make('p','24-hour averages include zero-reward hours. Allocated amounts may still be awaiting payment; they do not predict future earnings.','muted'),cityLink(p.propertyId));
+    make('p','24-hour averages include zero-reward hours. Allocations are before delivery costs and may still be awaiting payment; they do not predict future earnings.','muted'),cityLink(p.propertyId));
    $('owned-properties').append(card);
   }
   $('history-through').textContent=report.dataThroughMs?'IMG ledger coverage through '+new Date(report.dataThroughMs).toLocaleString()+(report.scannerCurrent?'':'. Coverage is delayed; recent allocations may be missing.'):'Verified ledger coverage is not available yet.';
   $('wallet-controls').hidden=false;$('payout-currency').value=s.payoutPreference?.currency||'';
+  trustlineDispose?.();const auth=token();trustlineDispose=mountEstateImgTrustline($('wallet-controls'),$('payout-currency'),{doc,request:async(path,body)=>{if(token()!==auth)throw Error('Your wallet changed. Refresh the portfolio.');const r=await request(path,auth,body);if(token()!==auth)throw Error('Your wallet changed. Refresh the portfolio.');return r;}});
+
   renderHistory(s);renderScenarioOptions();renderCatalog();
  }
  function renderScenarioOptions(){
@@ -112,5 +115,5 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  for(const id of ['scenario-property','scenario-net','scenario-asset','scenario-period'])$(id).addEventListener('input',calculate);
  doc.defaultView?.addEventListener('storage',onStorage);doc.defaultView?.addEventListener('focus',onFocus);
  const ready=(async()=>{try{const r=await fetcher('./data/estate-catalog.json',{cache:'no-store'});if(!r.ok)throw Error('catalog');catalog=await r.json();if(!Array.isArray(catalog.properties)||!Array.isArray(catalog.tiers))throw Error('catalog');renderCatalog();}catch{$('properties').textContent='The property catalog could not be loaded. Please refresh.';}await refresh();})();
- return {ready,refresh,dispose(){disposed=true;generation++;doc.defaultView?.removeEventListener('storage',onStorage);doc.defaultView?.removeEventListener('focus',onFocus);}};
+ return {ready,refresh,dispose(){trustlineDispose?.();disposed=true;generation++;doc.defaultView?.removeEventListener('storage',onStorage);doc.defaultView?.removeEventListener('focus',onFocus);}};
 }

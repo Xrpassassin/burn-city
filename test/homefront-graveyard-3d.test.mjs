@@ -456,3 +456,5 @@ assert.match(scene, /raycaster\.intersectObjects\(\s*\[\.\.\.landmarkSetPieces\.
   'outside facades remain clickable to request the original authenticated enter route');
 assert.match(scene, /for \(const hit of interiorHits\)/,
   'floor geometry cannot swallow a clickable interior switch or doorway target');
+assert.match(scene, /if \(hit\.object\.userData\?\.interiorCameraOccluder\) break;/,
+  'opaque interior walls stop raycasting before a target behind them');

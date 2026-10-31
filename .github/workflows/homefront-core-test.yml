@@ -72,6 +72,8 @@ on:
       - 'docs/homefront-ashfall-power-station.md'
       - 'client/arena/homefront-interior-world.mjs'
       - 'client/arena/homefront-interior-world.test.mjs'
+      - 'client/arena/homefront-camera-occlusion.mjs'
+      - 'client/arena/homefront-camera-occlusion.test.mjs'
       - 'client/arena/homefront-view.mjs'
       - 'client/arena/homefront-view.test.mjs'
       - 'client/arena/assets/homefront/**'
@@ -171,5 +173,7 @@ jobs:
         run: node test/homefront-shared-interior-controls-sim.js
       - name: Verify multi-account shared Homefront interior occupancy
         run: node test/homefront-shared-interior-sim.js
+      - name: Check third-person interior camera wall clearance
+        run: node client/arena/homefront-camera-occlusion.test.mjs
       - name: Run Homefront view-mode tests
         run: node client/arena/homefront-view.test.mjs

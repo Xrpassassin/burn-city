@@ -12,7 +12,7 @@ async function inspectEstateRlusdReadiness({client,treasury,imgIssuer,poolAccoun
   const p=(await client.request({command:'amm_info',asset,asset2:other,ledger_hash:h})).result;
   if(p?.ledger_hash!==h)throw Error('pool_ledger_mismatch');pools.push(inspectPool(p,{asset,other,poolAccount:pin}));
  }
- const [target,img,stable]=pools,market=img.a.div(img.b).times(stable.b).div(stable.a),deviation=target.b.div(target.a).div(market).minus(1).abs().times(10000);
+ const [target,img,stable]=pools,market=img.a.div(img.b).times(stable.b).div(stable.a),signedDeviation=target.b.div(target.a).div(market).minus(1).times(10000),deviation=signedDeviation.abs();
  const blockers=[];
  if(deviation.gt(maxImpactBps))blockers.push('img_rlusd_market_price_mismatch');
  const trustlines=[];
@@ -33,7 +33,7 @@ async function inspectEstateRlusdReadiness({client,treasury,imgIssuer,poolAccoun
  }
  const maxBudget=N.minimum(img.a,stable.a).times(maxImpactBps).div(10000-maxImpactBps).times(2).times(10000).div(9900);
  return {ready:blockers.length===0,blockers,ledgerIndex:Number(r.ledger_index??r.ledger?.ledger_index),poolAccount:target.account,treasury,trustlines,
-  indicativeMaxPurchaseDrops:drops(maxBudget),priceDeviationBps:deviation.toFixed(2),poolTradingFeeBps:target.fee/10,
+  indicativeMaxPurchaseDrops:drops(maxBudget),priceDeviationBps:deviation.toFixed(2),signedPriceDeviationBps:signedDeviation.toFixed(2),\n  poolPriceRlusdPerImg:target.b.div(target.a).toFixed(12),referencePriceRlusdPerImg:market.toFixed(12),\n  priceDirection:signedDeviation.gt(0)?'img_more_expensive_in_target_pool':signedDeviation.lt(0)?'img_cheaper_in_target_pool':'aligned',\n  priceRemediation:'read_only_diagnostic_no_transaction_or_guard_override',poolTradingFeeBps:target.fee/10,
   scope:'pool_identity_trustlines_and_market_depth_only',signingAndOperatingReserveVerified:false};
 }
 module.exports={inspectEstateRlusdReadiness,RLUSD};

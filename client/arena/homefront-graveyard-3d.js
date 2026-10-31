@@ -16,6 +16,7 @@ import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
 import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
+import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
@@ -1575,6 +1576,66 @@ function boot(host) {
   const masterView = 'third-person';
   // Third-/first-person toggle (V or the on-canvas button), touch joystick + drag-to-look, pinch zoom.
   const view = attachViewControls(host, { onTap: onWorldTap, wheel: false });
+
+  // In-world contextual interaction (keyboard E / one mobile tap). The real
+  // server-authenticated buttons remain the only way gameplay actions execute.
+  // Never add a second loot, combat, or permission path here.
+  const contextPrompt = document.createElement('button');
+  contextPrompt.type = 'button';
+  contextPrompt.className = 'hf-context-action';
+  contextPrompt.id = 'homefrontContextAction';
+  contextPrompt.hidden = true;
+  contextPrompt.setAttribute('aria-label', 'Nearby world interaction');
+  contextPrompt.style.cssText = 'position:absolute;left:50%;bottom:125px;transform:translateX(-50%);z-index:7;max-width:min(70%,350px);min-height:44px;padding:8px 16px;border:1px solid #efb77e;border-radius:12px;background:#1b120de8;color:#ffe4c5;box-shadow:0 4px 20px #000b;font:700 13px system-ui;cursor:pointer;touch-action:manipulation';
+  host.append(contextPrompt);
+  const contextControls = {
+    enter: enterInteriorButton, loot: lootActionButton, damage: damageEnvironmentButton
+  };
+  let shownContext = null;
+  function availableContext() {
+    if (!worldData?.self || !view.visible || moving) return null;
+    const loot = (worldData.world?.lootNodes || []).find(node => node.id === selectedLootId);
+    const environment = (worldData.world?.environmentStructures || [])
+      .find(item => item.id === selectedEnvironmentId);
+    const enterTitle = selectedInteriorLandmarkId
+      ? (enterInteriorButton?.textContent || '').replace(/^Enter\\s+/, '') : '';
+    return homefrontContextAction({
+      canEnter: !!selectedInteriorLandmarkId && !!enterInteriorButton &&
+        !enterInteriorButton.hidden && !enterInteriorButton.disabled,
+      enterTitle,
+      canLoot: !!selectedLootId && !!lootActionButton && !lootActionButton.hidden &&
+        !lootActionButton.disabled,
+      lootLabel: loot?.label || '',
+      canDamage: !!selectedEnvironmentId && !!damageEnvironmentButton &&
+        !damageEnvironmentButton.hidden && !damageEnvironmentButton.disabled,
+      environmentLabel: environment?.label || ''
+    });
+  }
+  function renderContextAction() {
+    const next = availableContext();
+    if (next?.id === shownContext?.id && next?.label === shownContext?.label) return;
+    shownContext = next;
+    contextPrompt.hidden = !next;
+    if (next) {
+      contextPrompt.textContent = (LITE_AVATARS ? '' : 'E · ') + next.label;
+      contextPrompt.setAttribute('aria-label', next.label);
+    }
+  }
+  function activateContextAction() {
+    const button = homefrontActionTarget(shownContext, contextControls);
+    if (button && availableContext()?.id === shownContext?.id) button.click();
+  }
+  contextPrompt.addEventListener('pointerdown', event => event.stopPropagation());
+  contextPrompt.addEventListener('click', event => { event.stopPropagation(); activateContextAction(); });
+  window.addEventListener('keydown', event => {
+    if (event.code !== 'KeyE' || event.repeat || event.altKey || event.ctrlKey || event.metaKey ||
+        !view.visible || !shownContext || event.target?.isContentEditable ||
+        /INPUT|TEXTAREA|SELECT/.test(event.target?.tagName || '') ||
+        document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])')) return;
+    event.preventDefault();
+    activateContextAction();
+  });
+
   const lookTarget = new THREE.Vector3();
   let lastStickMoveAt = 0;
   let lastFrame = performance.now();
@@ -1650,6 +1711,7 @@ function boot(host) {
         moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10)));
       }
     }
+    renderContextAction();
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };
   // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.
   zombieModelPilotLoading = true;

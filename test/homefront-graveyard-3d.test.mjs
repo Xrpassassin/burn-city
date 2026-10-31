@@ -402,3 +402,13 @@ assert.match(scene, /homefrontInputProximity\(data, \{/,
   'loot, combat and environment controls use server-authoritative range calculations');
 assert.match(scene, /selectedInteriorLandmarkId = nearInterior \? guidance\.nearest\.id : null/,
   'nearby interior enter actions update during direct walking');
+
+
+assert.match(scene, /homefrontContextAction\(\{/,
+  'in-world context prompt selects only nearby Homefront actions');
+assert.match(scene, /homefrontActionTarget\(shownContext, contextControls\)/,
+  'context prompt delegates to existing permission-checked action controls');
+assert.match(scene, /event\.code !== 'KeyE'/,
+  'E key activates context actions only when view has focus');
+assert.match(scene, /contextPrompt\.addEventListener\('pointerdown', event => event\.stopPropagation\(\)\)/,
+  'mobile context tap cannot trigger underlying movement or raycast');

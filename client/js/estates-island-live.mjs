@@ -6,6 +6,7 @@ import { buildEstatesIslandScene } from './estates-island-scene.mjs';
 import { createEstatesIslandRenderer } from './estates-island-renderer.mjs';
 import { createEstatesIslandController } from './estates-island-controller.mjs';
 import { estateWalkingGuidance } from './estates-walking-guidance.mjs';
+import { estateRoadWaypoints, estateNextWaypoint } from './estates-road-waypoints.mjs';
 import { planEstatesPanel } from './estates-panel-layout.mjs';
 import { searchEstateLots } from './estates-directory.mjs';
 
@@ -566,9 +567,13 @@ export async function installEstatesIslandLive({
       const pos={x:player.pos.x-OFFSET_X,z:player.pos.z};
       if(!targetLot){guidanceHud.style.display='none';} else {
       const approach=targetLot.propertyId?controllerRef.navigation.propertyApproach(targetLot.propertyId):null;
-      const nav=estateWalkingGuidance(pos,approach??targetLot.position);
+      const destination=approach??targetLot.position;
+      const waypoints=estateRoadWaypoints(pos,destination);
+      const nextWaypoint=estateNextWaypoint(pos,waypoints);
+      const nav=estateWalkingGuidance(pos,nextWaypoint??destination);
       const compass=['N','NE','E','SE','S','SW','W','NW'][Math.round(((nav.bearingRadians+Math.PI*2)%(Math.PI*2))/(Math.PI/4))%8];
-      guidanceHud.textContent=nav.arrived?'Arrived at '+targetLot.address:'Lot '+targetLot.address+' · '+Math.round(nav.distance)+'m · '+compass;
+      const directDistance=Math.hypot(pos.x-destination.x,pos.z-destination.z);
+      guidanceHud.textContent=directDistance<=5?'Arrived at '+targetLot.address:'Lot '+targetLot.address+' · '+Math.round(directDistance)+'m direct · '+compass+' (approx. road guide)';
       guidanceHud.style.display='block';
       }
     }

@@ -1,0 +1,21 @@
+name: Estates road waypoint guidance
+on:
+  pull_request:
+    paths:
+      - 'client/js/estates-island-live.mjs'
+      - 'client/js/estates-road-waypoints.mjs'
+      - 'client/js/estates-road-waypoints.test.mjs'
+      - '.github/workflows/estates-road-waypoints.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check client/js/estates-island-live.mjs
+      - run: node client/js/estates-road-waypoints.test.mjs
+      - run: node client/js/estates-walking-guidance.test.mjs
+      - run: node client/js/estates-island-live.test.mjs

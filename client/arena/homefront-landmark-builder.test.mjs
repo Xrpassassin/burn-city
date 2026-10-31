@@ -45,7 +45,7 @@ for (const [archetype, originalPieces, minimum] of [
   const view = buildLandmarkSetPiece(THREE, landmark);
   assert.ok(view.children.length >= minimum, archetype + ' now has distinctive rooftop details');
   for (const mesh of view.children.slice(originalPieces)) {
-    const height = mesh.geometry.args[1];
+    const height = mesh.geometry.args.length === 4 ? mesh.geometry.args[2] : mesh.geometry.args[1];
     assert.ok(mesh.position.y - height / 2 > 1.7,
       archetype + ' decoration must remain above normal player walking height');
     assert.equal(mesh.castShadow, false, 'extra scenery must not enable shadow passes');

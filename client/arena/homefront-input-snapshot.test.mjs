@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates } from './homefront-input-snapshot.mjs';
+import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 
 const baseline = {
   inputProtocol: { enabled: true, nextSequence: 17 },
@@ -47,4 +47,40 @@ assert.equal(requiresHomefrontSceneRebuild(null, moved), true);
 assert.strictEqual(mergeHomefrontInputSnapshot(null, moved), null);
 assert.deepEqual(playerPositionUpdates({ players: [{ id: 'bad', x: Infinity, z: 3 }] }), [],
   'nonfinite coordinates are not forwarded into Three.js');
+
+const position = {
+  self: { x: 0, z: 0 },
+  world: {
+    lootNodes: [{ id: 'cache', label: 'Cache', x: 8.5, z: 0, available: true }],
+    environmentStructures: [{ id: 'door', x: 7.9, z: 0, health: 50, stage: 'damaged', collisionEnabled: true }]
+  },
+  selfEncounter: { id: 'walker', x: 9, z: 0, hp: 25, range: 10 }
+};
+const selected = { selectedLootId: 'cache', selectedCombatTargetId: 'walker', selectedEnvironmentId: 'door' };
+const near = homefrontInputProximity(position, selected);
+assert.equal(near.canLoot, true, 'server-acknowledged position permits loot proximity');
+assert.equal(near.canAttack, true, 'active encounter is within its own attack range');
+assert.equal(near.canAutoFire, true, 'autofire requires target selection and range');
+assert.equal(near.environmentActive, true);
+assert.equal(near.canDamageEnvironment, true, 'damaged, live structure can be targeted within range');
+const distant = homefrontInputProximity({ ...position, self: { x: 30, z: 30 } }, selected);
+assert.equal(distant.canLoot, false);
+assert.equal(distant.canAttack, false);
+assert.equal(distant.canAutoFire, false);
+assert.equal(distant.canDamageEnvironment, false);
+assert.equal(homefrontInputProximity(position, { ...selected, selectedCombatTargetId: 'other' }).canAutoFire, false,
+  'autofire cannot use an unselected target');
+const gone = homefrontInputProximity({
+  ...position,
+  world: { ...position.world, lootNodes: [{ ...position.world.lootNodes[0], available: false }],
+    environmentStructures: [{ ...position.world.environmentStructures[0], health: 0, stage: 'destroyed', collisionEnabled: false }] },
+  selfEncounter: { ...position.selfEncounter, hp: 0, defeated: true }
+}, selected);
+assert.equal(gone.canLoot, false, 'empty crate is not actionable');
+assert.equal(gone.canAttack, false, 'dead infected is not actionable');
+assert.equal(gone.environmentActive, false, 'destroyed building stops being a target');
+assert.equal(gone.canDamageEnvironment, false);
+assert.equal(homefrontInputProximity({ self: { x: Infinity, z: 0 } }, selected).canAttack, false,
+  'invalid or missing authoritative position cannot enable world actions');
+
 console.log('Homefront lightweight movement snapshot tests passed.');

@@ -89,6 +89,12 @@ export const LANDMARKS = Object.freeze([
   poi('mercy_hospital', 'St. Mercy Hospital', 'hospital', 24, 30, 3, 'hospital_complex', 'Restore access to the emergency wing', 'A ward recording hints that the research annex received a transfer after the evacuation order.', ['generator_switch', 'patient_chart', 'service_elevator'], 'medical_research_clues', ['cache_hospital', 'quarantine_shelter', 'research_annex'], ['emergency lobby', 'ward corridor', 'pharmacy', 'roof helipad'], ['power_puzzle', 'story_thread']),
   poi('exchange_market', 'Exchange Market', 'commercial', -38, 32, 3, 'market_ruin', 'Search the market and unlock a back route', 'A shopkeeper\u2019s chalk marks point to a staff passage beneath the loading dock.', ['rolling_shutter', 'stockroom_shelves', 'loading_dock_latch'], 'food_tools', ['cache_exchange', 'collapsed_apartments', 'river_checkpoint'], ['market floor', 'stockroom', 'loading dock'], ['interior', 'shortcut']),
   poi('ironworks', 'Ironworks Yard', 'industrial', -16, 22, 4, 'foundry_yard', 'Secure the maintenance gantry', 'The tool crate is part of a repair shipment; the manifest identifies a second power cell.', ['gantry_ladder', 'power_isolator', 'tool_cage'], 'heavy_tools', ['old_rail_yard', 'cache_ironworks', 'buried_subway'], ['yard floor', 'gantry catwalk', 'maintenance shed'], ['vertical_route', 'power_puzzle']),
+  poi('ashfall_station', 'Ashfall Power Station Access', 'industrial', -42, 8, 4, 'power_station_access',
+    'Enter the abandoned station service wing and inspect the control systems',
+    'An underground service wing still links the Ironworks feeder to the distant Ashfall plant. The main cooling towers remain beyond the quarantine boundary.',
+    ['ashfall_breaker', 'ashfall_operations_log', 'ashfall_service_crate'], 'heavy_tools',
+    ['ironworks', 'old_rail_yard', 'research_annex'],
+    ['security vestibule', 'turbine gallery', 'control room', 'cooling pump room'], ['power_puzzle', 'interior', 'industrial']),
   poi('buried_subway', 'Buried Subway', 'subway', 6, -8, 5, 'subway_entrance', 'Find the signal room and map a safe tunnel exit', 'The last station recording repeats a platform number that also appears in the hospital transfer log.', ['ticket_gate', 'signal_panel', 'maintenance_hatch'], 'high_risk_salvage', ['west_underpass', 'ironworks', 'research_annex'], ['ticket hall', 'platform', 'stalled train', 'signal room'], ['deep_expedition', 'story_thread']),
   poi('research_annex', 'Sealed Research Annex', 'research_lab', -4, 6, 5, 'research_facility', 'Recover the incident record and reach extraction', 'The transfer log connects St. Mercy, the buried line, and a containment failure; the full report remains behind a powered lock.', ['terminal_archive', 'power_bus', 'containment_lock'], 'endgame_evidence', ['mercy_hospital', 'buried_subway', 'cache_hospital'], ['decontamination lock', 'observation gallery', 'containment hall', 'archive vault'], ['deep_expedition', 'story_thread', 'endgame'])
 ]);
@@ -104,6 +110,7 @@ export const ROUTES = Object.freeze([
   Object.freeze({ id: 'freight_cut', title: 'Freight Cut-Through', from: 'old_rail_yard', to: 'ironworks', risk: 3, style: 'rail', unlock: 'find_track_switch', alternate: 'wrecked_depot' }),
   Object.freeze({ id: 'market_service', title: 'Market Service Passage', from: 'exchange_market', to: 'cache_exchange', risk: 2, style: 'interior', unlock: 'open_loading_dock', alternate: 'collapsed_apartments' }),
   Object.freeze({ id: 'hospital_link', title: 'Emergency Service Link', from: 'mercy_hospital', to: 'cache_hospital', risk: 3, style: 'interior', unlock: 'restore_emergency_power', alternate: 'quarantine_shelter' }),
+  Object.freeze({ id: 'ashfall_feeder', title: 'Ashfall Feeder Route', from: 'ironworks', to: 'ashfall_station', risk: 4, style: 'road', unlock: 'open', alternate: 'old_rail_yard' }),
   Object.freeze({ id: 'buried_line', title: 'Buried Line', from: 'buried_subway', to: 'research_annex', risk: 5, style: 'tunnel', unlock: 'find_signal_room', alternate: 'mercy_hospital' })
 ]);
 

@@ -18,6 +18,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
   if (typeof send !== 'function') throw new TypeError('send is required');
   let enabled = false, nextSequence = 0, pending = false, lastSentAt = -Infinity;
   let sentMotion = false, lastAckAt = -Infinity, server = null, predicted = null, generation = 0;
+  let readyAfter = -Infinity, fatalFallback = false;
 
   function disable(reason = 'disabled') {
     const hadMode = enabled;
@@ -26,6 +27,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
     if (hadMode) onUnavailable(reason);
   }
   function sync(protocol, position, now = 0) {
+    if (fatalFallback) return;
     if (!protocol?.enabled) { disable('server_disabled'); return; }
     if (!Number.isSafeInteger(protocol.nextSequence) || protocol.nextSequence < 0) return;
     const point = coords(position);
@@ -33,6 +35,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
     if (!enabled) {
       enabled = true; generation++; nextSequence = protocol.nextSequence;
       server = point; predicted = { ...point }; lastSentAt = -Infinity; sentMotion = false;
+      readyAfter = now + Math.min(1000, Math.max(0, Number.isFinite(protocol.readyInMs) ? protocol.readyInMs : 0));
       return;
     }
     nextSequence = Math.max(nextSequence, protocol.nextSequence);
@@ -52,6 +55,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
   }
   function step(direction, sprint, now, dt) {
     if (!enabled || !server || !predicted) return;
+    if (now < readyAfter) { predicted = { ...server }; return; }
     const vec = normalizeDirection(direction);
     if (vec.moving && Number.isFinite(dt) && dt > 0) {
       const speed = sprint ? SPRINT_SPEED : WALK_SPEED;
@@ -83,10 +87,18 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
     }).catch(error => {
       if (!enabled || generation !== requestGeneration) return;
       const code = String(error?.message || error);
-      if (code === 'continuous_movement_unavailable' || code === 'invalid_movement_sequence' || code === 'movement_ack_mismatch') {
+      if (code === 'continuous_movement_unavailable' || code === 'invalid_movement_sequence' ||
+          code === 'movement_ack_mismatch' || code === 'sign_in_with_xaman') {
+        if (code !== 'continuous_movement_unavailable') fatalFallback = true;
         disable(code);
-      } else if (code === 'terrain_path_blocked') {
+      } else if (code === 'move_cooldown') {
+        // Avoid briefly showing movement that the server cannot accept after a fresh spawn.
         correct(server, true);
+        readyAfter = now + 200;
+      } else {
+        // Network failures cannot grant a longer speculative lead.
+        correct(server, true);
+        readyAfter = now + 350;
       }
     }).finally(() => { if (generation === requestGeneration) pending = false; });
   }

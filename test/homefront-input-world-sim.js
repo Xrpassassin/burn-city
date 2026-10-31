@@ -9,6 +9,12 @@ const enter = World.enter(World.defaultWorld(), 'walker-a', 1000);
 let w = enter.world;
 const p = w.players['walker-a'];
 const start = { x: p.x, z: p.z };
+
+assert.equal(World.inputReadyInMs(p, 1000), 900, 'fresh spawn waits for legacy cooldown');
+assert.equal(World.inputReadyInMs(p, 1500), 400);
+assert.equal(World.inputReadyInMs(p, 1900), 0);
+assert.equal(World.inputReadyInMs(null, 1900), 0);
+
 const directions = [{ x: 1, z: 0 }, { x: 0, z: 1 }, { x: -1, z: 0 }, { x: 0, z: -1 }];
 const direction = directions.find(d => Collision.canTraverse(p.x, p.z, p.x + d.x, p.z + d.z, { bounds: World.WORLD_SIZE })
   && Terrain.canTraverse(p.x, p.z, p.x + d.x, p.z + d.z));

@@ -33,6 +33,20 @@ async function call(method, acct, payload = {}) {
     process.env.HOMEFRONT_CONTINUOUS_MOVEMENT = '1';
     const created = World.enter(World.defaultWorld(), 'walker', Date.now() - 2500);
     store.save('homefront-world.json', created.world);
+
+    const worldGet = {};
+    await handle({ method: 'GET' }, worldGet, new URL('http://local/api/homefront/world'), {
+      json: (_res, status, data) => Object.assign(worldGet, { status, data }),
+      gate: () => false, ip: '127.0.0.1', body: async () => null,
+      who: () => ({ acct: 'walker' }), store
+    });
+    assert.equal(worldGet.status, 200);
+    assert.equal(worldGet.data.inputProtocol.enabled, true);
+    assert.equal(worldGet.data.inputProtocol.nextSequence, 0);
+    assert.ok(Number.isFinite(worldGet.data.inputProtocol.readyInMs) &&
+      worldGet.data.inputProtocol.readyInMs >= 0,
+      'authenticated world GET advertises server-calculated movement cooldown');
+
     const spawn = created.world.players.walker;
     const directions = [{x: 1,z: 0},{x: -1,z: 0},{x: 0,z: 1},{x: 0,z: -1}];
     const dir = directions.find(d => Terrain.canTraverse(spawn.x,spawn.z,spawn.x+d.x,spawn.z+d.z)

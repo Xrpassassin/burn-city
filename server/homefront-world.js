@@ -20,6 +20,14 @@ const SPRINT_STEP = 18;
 const INPUT_WALK_SPEED = 8;
 const INPUT_SPRINT_SPEED = 12;
 const INPUT_MIN_INTERVAL_MS = 75;
+function inputReadyInMs(player, now = Date.now()) {
+  if (!player) return 0;
+  const direct = player.lastMoveMode === 'input';
+  const last = direct ? player.lastInputAt : player.lastMove;
+  const interval = direct ? INPUT_MIN_INTERVAL_MS : 900;
+  const elapsed = Number.isFinite(last) ? Math.max(0, now - last) : interval;
+  return Math.max(0, Math.ceil(interval - elapsed));
+}
 const AIM_MOVE_SCALE = Object.freeze({ pipe_blade: 0.62, pump_shotgun: 0.52, marksman_rifle: 0.42, shock_maul: 0.56 });
 const AIM_RECOVERY_MS = 700;
 const SPRINT_RECOVERY_MS = 1450;
@@ -566,4 +574,4 @@ function leave(input, acct, now = Date.now(), { keepParty = false } = {}) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, moveInput, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };
+module.exports = { FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, moveInput, inputReadyInMs, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };

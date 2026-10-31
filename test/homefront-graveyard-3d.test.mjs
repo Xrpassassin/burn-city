@@ -444,3 +444,17 @@ assert.match(scene, /coarsePointer \? 90 : 45/,
   'mobile raycast updates are capped lower than desktop');
 assert.match(scene, /if \(view\.mode !== 'first' && interiorState\?\.landmarkId\)/,
   'first-person and outdoor movement retain the existing camera');
+
+
+assert.match(scene, /from '\.\/homefront-interior-visibility\.mjs'/,
+  'Homefront uses one physical building with explicit exterior/interior visual layers');
+assert.match(scene, /piece\.visible = false; \/\/ Opaque street facade shown until an authenticated entry/,
+  'interior geometry is not rendered over the exterior building before entry');
+assert.match(scene, /applyInteriorVisualLayers\(interiorState\?\.landmarkId \|\| null, interiorSetPieces, landmarkSetPieces\)/,
+  'entering or leaving swaps only the currently authorized building visual layer');
+assert.match(scene, /raycaster\.intersectObjects\(\s*\[\.\.\.landmarkSetPieces\.values\(\)\]/,
+  'outside facades remain clickable to request the original authenticated enter route');
+assert.match(scene, /for \(const hit of interiorHits\)/,
+  'floor geometry cannot swallow a clickable interior switch or doorway target');
+assert.match(scene, /if \(hit\.object\.userData\?\.interiorCameraOccluder\) break;/,
+  'opaque interior walls stop raycasting before a target behind them');

@@ -33,6 +33,14 @@ These are *visual geometry only*. The built-in Homefront scene, materials, playe
 5. Confirm no skybox/terrain seams or floating scenery at station coordinates. Visual altitude is sampled from the same deterministic terrain function.
 6. Run `node client/arena/homefront-power-station.test.mjs`, `node client/arena/homefront-landmark-builder.test.mjs`, and `node test/homefront-graveyard-3d.test.mjs`.
 
+## Visual presentation of shared rooms
+
+- **Outside:** Only the exterior landmark facade is rendered. The invisible detailed interior rooms no longer overlap its roof/walls. Click a nearby building facade or use the existing Enter/E prompt; the server validates actual entry distance.
+- **Inside:** The opaque exterior facade for the entered building is hidden on that player's client. Its authored rooms, ladders, walls, doors and furniture become visible. All other enterable buildings retain their exterior and cull their unused room geometry.
+- **Leaving:** The outside facade returns and the interior layers are culled. This is purely a render transition in the same shared server world; it does not create private sessions, teleport characters, grant access, or alter collisions.
+- **Interaction:** Raycasting skips closer noninteractive room-floor mesh hits to find actual authored door/switch targets.
+- **Test:** With two players, enter the same building and verify both see the same room architecture and survivor locations; have one exit and verify the second remains inside. Check desktop/mobile render times and UI overlaps during live playtesting.
+
 ## Shared playable buildings (next release)
 
 The off-map Ashfall cooling towers remain **visual-only scenery** beyond x = -100. A distinct **Ashfall Power Station Access** POI at (-42, 8) now provides real server-authoritative entry into its reachable service wing, with four interconnected areas: Security Vestibule, Turbine Gallery, Reactor Control Room, and Cooling Pump Bay. Switchgear power is shared across all connected players in this building instance, whereas salvage remains personal to each account. Physical room walls/doors are generated from the same room blueprint as server collision, not client-only geometry.

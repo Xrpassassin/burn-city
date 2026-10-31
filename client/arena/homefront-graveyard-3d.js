@@ -20,6 +20,7 @@ import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
 import { clipInteriorCamera } from './homefront-camera-occlusion.mjs';
+import { applyInteriorVisualLayers } from './homefront-interior-visibility.mjs';
 import { mergeSharedInteriorPresence } from './homefront-shared-presence.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
@@ -554,6 +555,7 @@ function boot(host) {
     const landmark = LANDMARKS.find(item => item.id === interior.landmarkId);
     if (!landmark) continue;
     const piece = buildInteriorSetPiece(THREE, interior, { x: landmark.x, y: terrainElevation(landmark.x, landmark.z), z: landmark.z });
+    piece.visible = false; // Opaque street facade shown until an authenticated entry.
     cityChunkAt(landmark.x, landmark.z).add(piece);
     interiorSetPieces.set(interior.landmarkId, piece);
     const occluders = [];
@@ -708,6 +710,9 @@ function boot(host) {
       : fallbackY;
   }
   function updateInteriorPanel() {
+    // One physical world with two presentation layers, never a second browser
+    // game or a privately created room. The server remains authoritative.
+    applyInteriorVisualLayers(interiorState?.landmarkId || null, interiorSetPieces, landmarkSetPieces);
     if (!interiorPanel) return;
     interiorPanel.hidden = !interiorState;
     if (!interiorState) { if (enterInteriorButton) enterInteriorButton.hidden = !selectedInteriorLandmarkId; return; }
@@ -1541,9 +1546,17 @@ function boot(host) {
     }
     const interiorHits = raycaster.intersectObjects([...interiorSetPieces.values()].filter(group => group.visible && group.parent?.visible), true);
     if (interiorHits.length) {
-      let node = interiorHits[0].object;
-      while (node && !node.userData?.interiorTarget) node = node.parent;
-      const target = node?.userData?.interiorTarget;
+      // Floor panels can be closer to the camera than a switch or door:
+      // scan the hit list for an actual authored interactive target.
+      let target = null;
+      for (const hit of interiorHits) {
+        let node = hit.object;
+        while (node && !node.userData?.interiorTarget) node = node.parent;
+        if (node?.userData?.interiorTarget) { target = node.userData.interiorTarget; break; }
+        // Ignore noninteractive floor/debris hits, but never select an object
+        // behind a physically opaque wall or another closed door.
+        if (hit.object.userData?.interiorCameraOccluder) break;
+      }
       if (target) {
         if (!interiorState) {
           const landmark = LANDMARKS.find(item => item.id === target.landmarkId);
@@ -1556,6 +1569,26 @@ function boot(host) {
         if (target.kind === 'door') void interactInteriorDoor(target.doorId);
         else if (target.kind === 'action') void performInteriorAction(target.actionId);
         return;
+      }
+    }
+    if (!interiorState) {
+      // The outside mesh remains clickable even though interior room meshes
+      // are culled. A nearby facade uses the exact existing authenticated
+      // interior/enter route; it cannot create a client-side private room.
+      const facadeHits = raycaster.intersectObjects(
+        [...landmarkSetPieces.values()].filter(root =>
+          root.visible && root.parent?.visible &&
+          interiorForLandmark(root.userData?.interactionPointId)), true
+      );
+      for (const hit of facadeHits) {
+        let node = hit.object;
+        while (node && !node.userData?.interactionPointId) node = node.parent;
+        const id = node?.userData?.interactionPointId;
+        const landmark = LANDMARKS.find(point => point.id === id);
+        if (landmark && Math.hypot(worldData.self.x - landmark.x, worldData.self.z - landmark.z) <= 12) {
+          enterInterior(id);
+          return;
+        }
       }
     }
     const environmentHits = raycaster.intersectObjects([...environmentVisuals.values()].filter(group => group.visible && group.parent?.visible), true);

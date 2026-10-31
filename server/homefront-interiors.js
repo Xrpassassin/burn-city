@@ -51,6 +51,37 @@ function normalize(input) {
   }
   return out;
 }
+// Per-building mutable mechanisms are shared by every authenticated survivor
+// in the same physical world. Inventory, searched rewards, and story progress
+// remain per-account. Do not accept client-supplied shared flags or doors.
+const SHARED_FLAGS = new Set(['emergency_power', 'power_cut', 'blackglass_power']);
+function normalizeShared(input) {
+  const out = Object.create(null);
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return out;
+  for (const [landmarkId, value] of Object.entries(input)) {
+    const blueprint = Catalog.interiorForLandmark(landmarkId);
+    if (!blueprint || !value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const doors = new Set(blueprint.rooms.flatMap(room => room.exits.map(exit => exit.id)));
+    out[landmarkId] = {
+      flags: [...new Set((Array.isArray(value.flags) ? value.flags : []).filter(flag => SHARED_FLAGS.has(flag)))],
+      openedDoors: [...new Set((Array.isArray(value.openedDoors) ? value.openedDoors : []).filter(id => doors.has(id)))],
+      updatedAt: clampInt(value.updatedAt, 0, Number.MAX_SAFE_INTEGER)
+    };
+  }
+  return out;
+}
+function effectiveState(privateState, shared, landmarkId) {
+  const common = shared?.[landmarkId];
+  if (!privateState || !common) return privateState;
+  return { ...privateState,
+    flags: [...new Set([...(privateState.flags || []), ...(common.flags || [])])],
+    openedDoors: [...new Set([...(privateState.openedDoors || []), ...(common.openedDoors || [])])]
+  };
+}
+function sharedOpenedDoors(shared, landmarkId, privateDoors = []) {
+  return [...new Set([...(Array.isArray(privateDoors) ? privateDoors : []),
+    ...(shared?.[landmarkId]?.openedDoors || [])])];
+}
 function currentState(input, account, landmarkId) {
   return input?.[account]?.interiors?.[landmarkId] || null;
 }
@@ -86,7 +117,7 @@ function requireActive(input, account, player, now) {
   state.updatedAt = now;
   return { stateMap, owner, landmarkId, catalog, state };
 }
-function action(input, { account, player, actionId, now = Date.now() }) {
+function action(input, { account, player, actionId, now = Date.now(), shared = null }) {
   const ctx = requireActive(input, account, player, now);
   const item = ctx.catalog.interactables.find(target => target.id === actionId && target.roomId === ctx.state.roomId);
   if (!item || ctx.state.used.includes(actionId)) throw new Error('interior_action_unavailable');
@@ -94,7 +125,13 @@ function action(input, { account, player, actionId, now = Date.now() }) {
   const room = Catalog.interiorRoom(ctx.catalog, ctx.state.roomId);
   const targetX = landmark.x + item.x, targetZ = landmark.z + item.z;
   if (Math.hypot(player.x - targetX, player.z - targetZ) > INTERACTION_RADIUS) throw new Error('too_far_from_interior_action');
-  const result = Catalog.applyInteriorAction(ctx.catalog, ctx.state, actionId);
+  const commonState = normalizeShared(shared);
+  const result = Catalog.applyInteriorAction(ctx.catalog, effectiveState(ctx.state, commonState, ctx.landmarkId), actionId);
+  if (item.action === 'power') {
+    const current = commonState[ctx.landmarkId] || { flags: [], openedDoors: [], updatedAt: 0 };
+    const newFlags = result.state.flags.filter(flag => SHARED_FLAGS.has(flag));
+    commonState[ctx.landmarkId] = { ...current, flags: [...new Set([...current.flags, ...newFlags])], updatedAt: now };
+  }
   if (result.state.noise > ctx.state.noise) {
     player.noiseLevel = Math.max(player.noiseLevel || 0, result.state.noise);
     player.lastNoiseAt = now; player.noiseX = player.x; player.noiseZ = player.z;
@@ -115,9 +152,9 @@ function action(input, { account, player, actionId, now = Date.now() }) {
   }
   ctx.owner.interiors[ctx.landmarkId] = { ...result.state, updatedAt: now };
   ctx.owner.activeLandmarkId = ctx.landmarkId;
-  return { state: ctx.stateMap, interior: copy(ctx.owner.interiors[ctx.landmarkId]), message: result.message, reward, inventory: Inventory.normalize(player.inventory), noise: result.state.noise };
+  return { state: ctx.stateMap, shared: commonState, interior: copy(ctx.owner.interiors[ctx.landmarkId]), message: result.message, reward, inventory: Inventory.normalize(player.inventory), noise: result.state.noise };
 }
-function traverse(input, { account, player, doorId, now = Date.now() }) {
+function traverse(input, { account, player, doorId, now = Date.now(), shared = null }) {
   const ctx = requireActive(input, account, player, now);
   const room = Catalog.interiorRoom(ctx.catalog, ctx.state.roomId);
   const exit = room?.exits.find(item => item.id === doorId);
@@ -126,7 +163,8 @@ function traverse(input, { account, player, doorId, now = Date.now() }) {
   const targetX = landmark.x + room.x + (exit.side === 'east' ? room.width / 2 : exit.side === 'west' ? -room.width / 2 : 0);
   const targetZ = landmark.z + room.z + (exit.side === 'south' ? room.depth / 2 : exit.side === 'north' ? -room.depth / 2 : 0);
   if (Math.hypot(player.x - targetX, player.z - targetZ) > INTERACTION_RADIUS) throw new Error('too_far_from_interior_door');
-  const next = Catalog.traverseInteriorDoor(ctx.catalog, ctx.state, doorId);
+  const commonState = normalizeShared(shared);
+  const next = Catalog.traverseInteriorDoor(ctx.catalog, effectiveState(ctx.state, commonState, ctx.landmarkId), doorId);
   ctx.owner.interiors[ctx.landmarkId] = { ...next, updatedAt: now };
   return { state: ctx.stateMap, interior: copy(ctx.owner.interiors[ctx.landmarkId]), room: Catalog.interiorRoom(ctx.catalog, next.roomId) };
 }
@@ -172,12 +210,13 @@ function roomPresence(input, players, account, now = Date.now(), ttl = 45_000) {
   return { instanceId: 'homefront:building:' + landmarkId, landmarkId, roomId };
 }
 
-function publicState(input, account) {
+function publicState(input, account, shared = null) {
   const owner = input?.[account];
   if (!owner?.activeLandmarkId) return null;
   const landmarkId = owner.activeLandmarkId;
   const blueprint = Catalog.interiorForLandmark(landmarkId);
   const state = owner.interiors?.[landmarkId];
-  return blueprint && state ? { ...copy(state), title: blueprint.title, room: Catalog.interiorRoom(blueprint, state.roomId), actions: Catalog.availableInteriorActions(blueprint, state) } : null;
+  const effective = effectiveState(state, shared, landmarkId);
+  return blueprint && effective ? { ...copy(effective), title: blueprint.title, room: Catalog.interiorRoom(blueprint, effective.roomId), actions: Catalog.availableInteriorActions(blueprint, effective) } : null;
 }
-module.exports = { LANDMARKS, ENTRY_RADIUS, INTERACTION_RADIUS, REWARDS, normalize, enter, action, traverse, breachDoor, leave, publicState, roomPresence };
+module.exports = { LANDMARKS, ENTRY_RADIUS, INTERACTION_RADIUS, REWARDS, normalize, enter, action, traverse, breachDoor, leave, publicState, roomPresence, normalizeShared, effectiveState, sharedOpenedDoors };

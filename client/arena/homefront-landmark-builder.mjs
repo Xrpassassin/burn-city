@@ -87,6 +87,20 @@ const RECIPES = Object.freeze({
     ['box',[3.8,.3,.4],[.2,6.2,-1.25],'rust'],
     ['box',[1.8,.12,.14],[0,3.1,2.3],'hazard']
   ],
+  power_station_access: [
+    // A reachable ground-level service wing inside the existing world boundary.
+    // The distant cooling-tower facility remains an off-map atmosphere backdrop.
+    ['box',[6.0,3.2,4.8],[0,1.6,0],'concreteDark'],
+    ['box',[6.4,.3,5.1],[0,3.35,0],'rust'],
+    ['box',[3.2,1.7,.12],[-.7,1.8,2.46],'glass'],
+    ['box',[1.15,2.1,.16],[2,1.12,2.49],'metal'],
+    ['box',[5.6,.18,.22],[0,2.9,2.52],'hazard'],
+    ['box',[3.1,.3,.4],[-1.1,3.8,-1.0],'rust'],
+    ['cylinder',[.48,4.8,.48],[2.2,5.8,-1.2],'metal'],
+    ['box',[2.5,.22,1.9],[-1.6,3.9,1.1],'metal'],
+    ['box',[.16,1.1,.16],[-2.8,4.4,1.7],'hazard'],
+    ['box',[1.2,1.2,.18],[-1.4,2.0,-2.47],'glass']
+  ],
   subway_entrance: [['box',[5,.25,3.5],[0,1.8,0],'concrete'],['box',[.35,3,.35],[-2.2,1.5,0],'concreteDark'],['box',[.35,3,.35],[2.2,1.5,0],'concreteDark'],['box',[4.7,.22,.25],[0,2.8,0],'hazard'],['box',[2.8,.12,2.3],[0,.1,0],'metal'],['box',[.14,2,.14],[-1.2,1,1.4],'rust'],['box',[.14,2,.14],[1.2,1,1.4],'rust']],
   research_facility: [['box',[5.5,3.4,4.8],[0,1.7,0],'concreteDark'],['box',[5.7,.22,5],[0,3.4,0],'metal'],['box',[4.2,2.2,.12],[0,1.9,2.42],'glass'],['box',[.14,2.4,.16],[-2.2,1.2,2.5],'hazard'],['box',[.14,2.4,.16],[2.2,1.2,2.5],'hazard'],['box',[1.6,1,.12],[0,1.4,2.55],'light'],['box',[.7,.7,.7],[0,.35,-.9],'metal']]
 });

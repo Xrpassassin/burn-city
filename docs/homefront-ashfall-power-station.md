@@ -33,8 +33,16 @@ These are *visual geometry only*. The built-in Homefront scene, materials, playe
 5. Confirm no skybox/terrain seams or floating scenery at station coordinates. Visual altitude is sampled from the same deterministic terrain function.
 6. Run `node client/arena/homefront-power-station.test.mjs`, `node client/arena/homefront-landmark-builder.test.mjs`, and `node test/homefront-graveyard-3d.test.mjs`.
 
+## Shared playable buildings (next release)
+
+The off-map Ashfall cooling towers remain **visual-only scenery** beyond x = -100. A distinct **Ashfall Power Station Access** POI at (-42, 8) now provides real server-authoritative entry into its reachable service wing, with four interconnected areas: Security Vestibule, Turbine Gallery, Reactor Control Room, and Cooling Pump Bay. Switchgear power is shared across all connected players in this building instance, whereas salvage remains personal to each account. Physical room walls/doors are generated from the same room blueprint as server collision, not client-only geometry.
+
+Three more pre-existing real-world points become accessible interiors: Wrecked Depot (office and warehouse), Old Rail Yard (signal cabin and freight car), and Quarantine Shelter (triage desk and isolation ward). Their room/door graph, loot/search locations, and shared occupant presence are validated on the server.
+
+This is not a new separately booted game or a private lobby: all participants share the current Homefront world and persistent building state. Existing player movement, weapons, rewards, and server validation are retained.
+
 ## Next phase (not part of this PR)
 
-An **explorable** reactor compound requires an authored interior layout, a safe reachable location, a collision catalog mirrored server/client, escape routes, and explicit authenticated story/loot actions. An inaccessible skyline should not silently become a walk-through building. The power-station exterior is intentionally only the first visual milestone; player feedback can guide where a playable compound belongs.
+The service-wing rooms, reachable entrance and server-mirrored collision are now included. The giant cooling towers, reactor shell and outdoor cooling ponds are **not** yet traversable; expanding the main compound will need additional collision-safe routes, exterior entrances, and performance tests. Procedural unmarked ruined buildings also remain scenery until they get validated room layouts.
 
 UI overlap and device-specific camera framing are reserved for a later user playtest.

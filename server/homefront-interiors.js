@@ -10,6 +10,10 @@ const LANDMARKS = Object.freeze({
   exchange_market: { x: -38, z: 32 },
   mercy_hospital: { x: 24, z: 30 },
   ironworks: { x: -16, z: 22 },
+  ashfall_station: { x: -42, z: 8 },
+  wrecked_depot: { x: 14, z: 72 },
+  old_rail_yard: { x: -73, z: 17 },
+  quarantine_shelter: { x: 36, z: 38 },
   buried_subway: { x: 6, z: -8 },
   research_annex: { x: -4, z: 6 }
 });
@@ -21,6 +25,10 @@ const REWARDS = Object.freeze({
   stockroom_shelves: [['food', 1, 2], ['scrap', 1, 3]],
   emergency_locker: [['meds', 1, 2], ['water', 1, 2]],
   tool_crate: [['scrap', 2, 5], ['wood', 1, 3]],
+  ashfall_service_crate: [['scrap', 2, 4], ['ammo', 1, 2]],
+  depot_tool_cabinet: [['scrap', 1, 3], ['wood', 1, 2]],
+  rail_signal_crate: [['scrap', 1, 3], ['ammo', 1, 2]],
+  shelter_cabinet: [['meds', 1, 2], ['water', 1, 2]],
   terminal_archive: [['ammo', 2, 4], ['meds', 1, 2]]
 });
 const clampInt = (n, min, max) => Number.isFinite(n) ? Math.max(min, Math.min(max, Math.floor(n))) : min;
@@ -54,7 +62,7 @@ function normalize(input) {
 // Per-building mutable mechanisms are shared by every authenticated survivor
 // in the same physical world. Inventory, searched rewards, and story progress
 // remain per-account. Do not accept client-supplied shared flags or doors.
-const SHARED_FLAGS = new Set(['emergency_power', 'power_cut', 'blackglass_power']);
+const SHARED_FLAGS = new Set(['emergency_power', 'power_cut', 'blackglass_power', 'ashfall_grid']);
 function normalizeShared(input) {
   const out = Object.create(null);
   if (!input || typeof input !== 'object' || Array.isArray(input)) return out;

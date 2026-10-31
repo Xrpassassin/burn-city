@@ -55,6 +55,70 @@ export const INTERIORS = Object.freeze([
     target('gantry_console', 'Gantry console', 'gantry_catwalk', 1.1, -6.2, 'clue', 'The maintenance log lists a second power cell moved to Blackglass.'),
     target('tool_crate', 'Sealed tool crate', 'maintenance_shed', 6.1, -6.2, 'search', 'A sealed crate is ready for a server-authoritative salvage action.', ['power_cut'])
   ]),
+  blueprint('ashfall_station', 'Ashfall Power Station — Service Wing', [
+    room('security_entrance', 'Security Vestibule', 0, 0,
+      'The access corridor is lined with abandoned radiation badges and empty guard lockers.',
+      [{ id: 'ashfall_turbine_door', to: 'turbine_gallery', side: 'east', label: 'Turbine hall door' }]),
+    room('turbine_gallery', 'Turbine Gallery', 4.8, 0,
+      'A dead overhead crane crosses a row of silent turbine casings; the switchgear feeds an elevated control room.',
+      [{ id: 'ashfall_turbine_door', to: 'security_entrance', side: 'west', label: 'Security door' },
+       { id: 'ashfall_control_stairs', to: 'control_room', side: 'north', label: 'Control-room stairs', requires: ['ashfall_grid'] }]),
+    room('control_room', 'Reactor Control Room', 4.8, -4.8,
+      'Broken gauges face the distant cooling towers. The last shift log mentions containment shutters and a missing crew.',
+      [{ id: 'ashfall_control_stairs', to: 'turbine_gallery', side: 'south', label: 'Control-room stairs' },
+       { id: 'ashfall_pump_gate', to: 'cooling_pumps', side: 'west', label: 'Cooling-pump gate', requires: ['ashfall_grid'] }], 3.2),
+    room('cooling_pumps', 'Cooling Pump Bay', 0, -4.8,
+      'Dry pumping channels disappear under corroded gratings; an emergency supply crate remains sealed.',
+      [{ id: 'ashfall_pump_gate', to: 'control_room', side: 'east', label: 'Pump-room gate' }], 3.2)
+  ], [
+    target('ashfall_breaker', 'Main switchgear isolator', 'security_entrance', -1.1, 0.7,
+      'power', 'The shared service-wing bus powers the control stairs and pump-room interlock.'),
+    target('ashfall_turbine_manifest', 'Turbine inspection log', 'turbine_gallery', 6.1, 0.8,
+      'clue', 'The turbines were shut down three days before the evacuation.'),
+    target('ashfall_operations_log', 'Control room incident record', 'control_room', 6.1, -6.2,
+      'clue', 'A final operator logged rising pump temperatures and redirected crews to the Ironworks.'),
+    target('ashfall_service_crate', 'Emergency station supply locker', 'cooling_pumps', -1.1, -6.2,
+      'search', 'A few usable tools survived in a sealed emergency supply cabinet.', ['ashfall_grid'])
+  ]),
+  blueprint('wrecked_depot', 'Wrecked Freight Depot — Loading Rooms', [
+    room('loading_office', 'Freight Office', 0, 0,
+      'A shipping schedule hangs above the freight desk.',
+      [{ id: 'depot_loading_gate', to: 'warehouse', side: 'east', label: 'Loading bay gate' }]),
+    room('warehouse', 'Warehouse Bay', 4.8, 0,
+      'Spilled cargo and toppled steel shelving surround a battered tool cabinet.',
+      [{ id: 'depot_loading_gate', to: 'loading_office', side: 'west', label: 'Office gate' }])
+  ], [
+    target('depot_shipping_manifest', 'Transfer manifest', 'loading_office', -1.1, .7,
+      'clue', 'The manifest marks an urgent replacement shipment to Ashfall.'),
+    target('depot_tool_cabinet', 'Depot tool cabinet', 'warehouse', 6.1, .8,
+      'search', 'There may be serviceable tools left beneath the fallen shelving.')
+  ]),
+  blueprint('old_rail_yard', 'Old Rail Yard — Signal Cabin', [
+    room('signal_cabin', 'Signal Cabin', 0, 0,
+      'An old switch diagram identifies the route toward the power plant.',
+      [{ id: 'railcar_door', to: 'freight_car', side: 'north', label: 'Freight car door' }]),
+    room('freight_car', 'Open Freight Car', 0, -4.8,
+      'A derailed maintenance wagon still contains spare wiring and an emergency cache.',
+      [{ id: 'railcar_door', to: 'signal_cabin', side: 'south', label: 'Signal cabin door' }])
+  ], [
+    target('rail_switch_diagram', 'Rail switch diagram', 'signal_cabin', -1.1, .7,
+      'clue', 'A maintenance siding leads toward the western industrial sector.'),
+    target('rail_signal_crate', 'Signal maintenance box', 'freight_car', -1.1, -6.2,
+      'search', 'An emergency maintenance box is tucked below the wagon bench.')
+  ]),
+  blueprint('quarantine_shelter', 'Quarantine Shelter — Triage Isolation', [
+    room('triage_desk', 'Triage Desk', 0, 0,
+      'A damaged infection-control checklist is pinned beside the entry curtain.',
+      [{ id: 'isolation_door', to: 'isolation_ward', side: 'east', label: 'Isolation bay door' }]),
+    room('isolation_ward', 'Isolation Ward', 4.8, 0,
+      'Empty camp beds and an abandoned medical cabinet fill the decontamination bay.',
+      [{ id: 'isolation_door', to: 'triage_desk', side: 'west', label: 'Triage bay door' }])
+  ], [
+    target('triage_case_log', 'Patient movement log', 'triage_desk', -1.1, .7,
+      'clue', 'A handwritten note orders all stable patients toward St. Mercy.'),
+    target('shelter_cabinet', 'Triage medical cabinet', 'isolation_ward', 6.1, .8,
+      'search', 'Some of the medical supplies were left behind during evacuation.')
+  ]),
   blueprint('buried_subway', 'Buried Subway — Signal Rooms', [
     room('ticket_hall', 'Ticket Hall', 0, 0, 'Floodwater covers the turnstiles; a maintenance hatch opens toward the platform.', [{ id: 'platform_gate', to: 'platform', side: 'east', label: 'Platform gate' }]),
     room('platform', 'Buried Platform', 4.8, 0, 'A stalled train blocks half the platform and hides the far end.', [{ id: 'platform_gate', to: 'ticket_hall', side: 'west', label: 'Ticket-hall gate' }, { id: 'signal_door', to: 'signal_room', side: 'north', label: 'Signal-room door' }]),
@@ -101,7 +165,7 @@ export function applyInteriorAction(interior, state, actionId) {
     if (item.id === 'signal_panel') next.flags.push('incident_clue');
     if (item.id === 'route_board') next.flags.push('evacuation_route');
   } else if (item.action === 'power') {
-    const flag = item.id === 'generator_switch' ? 'emergency_power' : item.id === 'power_isolator' ? 'power_cut' : 'blackglass_power';
+    const flag = item.id === 'generator_switch' ? 'emergency_power' : item.id === 'power_isolator' ? 'power_cut' : item.id === 'ashfall_breaker' ? 'ashfall_grid' : 'blackglass_power';
     if (!next.flags.includes(flag)) next.flags.push(flag);
     next.used.push(item.id);
     next.noise = Math.min(100, next.noise + (item.id === 'rolling_shutter' ? 30 : 8));

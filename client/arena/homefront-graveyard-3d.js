@@ -1553,6 +1553,9 @@ function boot(host) {
         let node = hit.object;
         while (node && !node.userData?.interiorTarget) node = node.parent;
         if (node?.userData?.interiorTarget) { target = node.userData.interiorTarget; break; }
+        // Ignore noninteractive floor/debris hits, but never select an object
+        // behind a physically opaque wall or another closed door.
+        if (hit.object.userData?.interiorCameraOccluder) break;
       }
       if (target) {
         if (!interiorState) {

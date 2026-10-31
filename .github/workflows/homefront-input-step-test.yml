@@ -17,6 +17,8 @@ on:
       - 'client/arena/homefront-input-snapshot.test.mjs'
       - 'client/arena/homefront-context-action.mjs'
       - 'client/arena/homefront-context-action.test.mjs'
+      - 'client/arena/homefront-room-proximity.mjs'
+      - 'client/arena/homefront-room-proximity.test.mjs'
       - 'client/arena/homefront-graveyard-3d.js'
       - '.github/workflows/homefront-input-step-test.yml'
   pull_request:
@@ -35,6 +37,8 @@ on:
       - 'client/arena/homefront-input-snapshot.test.mjs'
       - 'client/arena/homefront-context-action.mjs'
       - 'client/arena/homefront-context-action.test.mjs'
+      - 'client/arena/homefront-room-proximity.mjs'
+      - 'client/arena/homefront-room-proximity.test.mjs'
       - 'client/arena/homefront-graveyard-3d.js'
       - '.github/workflows/homefront-input-step-test.yml'
 jobs:
@@ -53,3 +57,4 @@ jobs:
       - run: node client/arena/homefront-continuous-input.test.mjs
       - run: node client/arena/homefront-input-snapshot.test.mjs
       - run: node client/arena/homefront-context-action.test.mjs
+      - run: node client/arena/homefront-room-proximity.test.mjs

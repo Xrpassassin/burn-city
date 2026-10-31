@@ -675,6 +675,8 @@ function boot(host) {
   let interiorState = null;
   let selectedInteriorLandmarkId = null;
   let explorationProgress = null;
+  let explorationSurveys = [];
+  const explorationSurveyPending = new Set();
   const explorationDiscoveryPending = new Set();
   const explorationDiscoveryAttempted = new Set();
   const explorationJournalCount = document.getElementById('explorationJournalCount');
@@ -1155,6 +1157,31 @@ function boot(host) {
       }
       explorationJournalContent.appendChild(node);
     };
+    if (explorationSurveys.length) {
+      heading('Field survey contracts · one-time supply rewards');
+      for (const survey of explorationSurveys) {
+        const reward = (survey.supplies || []).map(drop => drop.amount + ' ' + drop.item).join(' + ');
+        const remaining = (survey.remaining || []).map(id => LANDMARKS.find(item => item.id === id)?.title || id);
+        const statusText = survey.status === 'claimed' ? 'Claimed · supplies added to pack'
+          : survey.status === 'ready' ? 'Route surveyed · reward ready'
+          : 'Visit: ' + remaining.join(' · ');
+        const row = document.createElement('div'); row.className = 'journal-entry';
+        const title = document.createElement('strong');
+        title.textContent = survey.title + ' · ' + survey.visited + '/' + survey.required;
+        const summary = document.createElement('p');
+        summary.textContent = survey.description + ' · Reward: ' + reward + ' · ' + statusText;
+        row.append(title, summary);
+        if (survey.status === 'ready') {
+          const claim = document.createElement('button'); claim.type = 'button';
+          claim.className = 'btn primary';
+          claim.textContent = explorationSurveyPending.has(survey.id) ? 'Claiming…' : 'Claim field supplies';
+          claim.disabled = explorationSurveyPending.has(survey.id);
+          claim.addEventListener('click', () => { void claimExplorationSurvey(survey.id); });
+          row.append(claim);
+        }
+        explorationJournalContent.appendChild(row);
+      }
+    }
     if (!discovered.length) {
       entry('No field notes yet', 'Approach a named landmark to record its location and reveal connected leads.');
       return;
@@ -1176,13 +1203,42 @@ function boot(host) {
       }
     }
   }
+  async function claimExplorationSurvey(contractId) {
+    if (!token() || explorationSurveyPending.has(contractId) ||
+        !explorationSurveys.some(s => s.id === contractId && s.status === 'ready')) return;
+    explorationSurveyPending.add(contractId); renderExplorationJournal();
+    try {
+      const response = await fetch(API + '/api/homefront/world/exploration/claim', {
+        method:'POST', headers: { authorization:'Bearer ' + token(), 'content-type':'application/json' },
+        body: JSON.stringify({contractId})
+      });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.message || data.error || 'field_survey_claim_failed');
+      if (Array.isArray(data.surveys)) explorationSurveys = data.surveys;
+      setInteriorStatus('FIELD SURVEY COMPLETE · ' + data.claimed.title +
+        ' · supplies added to your field pack.');
+      // The same server save commits both the claim and its pack rewards.
+      // Never assume a new client-side inventory balance.
+      void fetchWorld();
+    } catch (error) {
+      setInteriorStatus(error.message === 'inventory_full'
+        ? 'FIELD PACK FULL · Make space in your pack to claim the survey supplies.'
+        : 'Field survey claim failed: ' + error.message);
+    } finally {
+      explorationSurveyPending.delete(contractId);
+      renderExplorationJournal();
+    }
+  }
+
   async function fetchExplorationProgress() {
     if (!token()) return;
     try {
       const response = await fetch(API + '/api/homefront/world/exploration', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'exploration_progress_unavailable');
-      if (data.exploration) { explorationProgress = data.exploration; renderExplorationJournal(); }
+      if (data.exploration) explorationProgress = data.exploration;
+      if (Array.isArray(data.surveys)) explorationSurveys = data.surveys;
+      renderExplorationJournal();
     } catch { /* Exploration guidance still works offline; server progress retries on the next world load. */ }
   }
   async function discoverExplorationLandmark(landmarkId) {
@@ -1196,7 +1252,9 @@ function boot(host) {
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'landmark_discovery_failed');
-      if (data.exploration) { explorationProgress = data.exploration; renderExplorationJournal(); }
+      if (data.exploration) explorationProgress = data.exploration;
+      if (Array.isArray(data.surveys)) explorationSurveys = data.surveys;
+      renderExplorationJournal();
       if (data.newlyDiscovered && data.landmark) setInteriorStatus('FIELD NOTES UPDATED · ' + data.landmark.title + ' discovered. New route and story leads recorded.');
     } catch (error) {
       // Permit retry on a later world update if this was a transient network/server error.

@@ -4,7 +4,7 @@ import {formatRewardUnits,sharePercent,rewardScenario} from './estate-reward-sce
 export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localStorage,api}={}){
  api??=(/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname)?location.origin:'https://burn-city-game.fly.dev');
  const $=id=>doc.getElementById(id),make=(tag,text,cls)=>{const e=doc.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
- let catalog=null,current=null,generation=0,lastToken=null,disposed=false,trustlineDispose=null;
+ let catalog=null,current=null,publicOwners=new Map(),liveSalesEnabled=false,generation=0,lastToken=null,disposed=false,trustlineDispose=null;
  const token=()=>{try{return storage.getItem('bcToken')||'';}catch{return '';}};
  const field=(label,value)=>make('p',label+': '+value);
  function cityLink(propertyId,label='Locate in 3D city'){
@@ -16,6 +16,7 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
   const data=await r.json();if(!r.ok)throw Error(r.status===401?'Sign in again with Xaman in BURN City.':'Live data could not be loaded. Please refresh.');return data;
  }
  function renderStatus(s){
+  liveSalesEnabled=s.salesEnabled===true;
   $('live-status').textContent=s.salesEnabled?'Property sales are open.':s.salesStatus==='treasury_paused'?'Property purchases are temporarily paused.':'Property purchases are currently unavailable.';
   $('reward-status').textContent=s.distributionsEnabled?'Discretionary bonus processing is enabled; no payout is guaranteed.':'Discretionary bonuses are paused or unavailable; no payout is guaranteed.';
   const allocation=$('allocation-status');if(allocation)allocation.textContent=s.capitalAllocationPolicy?.version===2?'New purchases: 99% allocated to IMG/RLUSD; 1% retained for XRP operating costs. '+(s.imgRlusdFundingEnabled?'Pool routing enabled.':'Pool routing awaits activation; proceeds remain reserved in the treasury.'):'Checking purchase allocation policy…';
@@ -26,11 +27,17 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
   $('properties').replaceChildren();
   for(const p of catalog.properties){
    const t=tiers.get(p.tier);if(!t)continue;const card=make('article');card.dataset.propertyId=p.id;
+   const verifiedOwner=publicOwners.get(p.id),mine=owned.has(p.id);
+   card.dataset.propertyStatus=mine?'owned-by-you':verifiedOwner?'owned':liveSalesEnabled?'available':'sales-paused';
    card.append(make('h3',p.address||p.id),field(t.label,t.price+' XRP'),field('Allocation weight',t.shareUnits+' share units'),cityLink(p.id));
-   if(owned.has(p.id))card.append(make('p','Owned by you','badge'));
-   const target=make('div');card.append(action(owned.has(p.id)?'Manage this property':'Check availability / buy',()=>{
-    target.replaceChildren();mountEstatePurchase(target,p.id,{api,fetcher,storage,onSettled:()=>{if(!owned.has(p.id))void refresh();}});
-   }),target);$('properties').append(card);
+   card.append(make('p',mine?'Owned by you':verifiedOwner?'Owned · unavailable for purchase':liveSalesEnabled?'Unowned · check availability':'Sales paused · view only','muted'));
+   const target=make('div');target.dataset.purchaseDetail=p.id;
+   const button=action(mine?'Manage property':verifiedOwner?'View owned property':liveSalesEnabled?'Check availability / buy':'View details (sales paused)',()=>{
+    // Keep at most one expanded detail panel across the directory.
+    for(const other of $('properties').querySelectorAll('[data-purchase-detail]'))if(other!==target)other.replaceChildren();
+    if(target.childElementCount){target.replaceChildren();button.setAttribute('aria-expanded','false');return;}
+    mountEstatePurchase(target,p.id,{api,fetcher,storage,onSettled:()=>void refresh()});button.setAttribute('aria-expanded','true');
+   });button.setAttribute('aria-expanded','false');card.append(button,target);$('properties').append(card);
   }
  }
  function clearPrivate(message){
@@ -105,11 +112,13 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
   $('live-status').textContent='Checking live sales status…';$('reward-status').textContent='Checking reward processing…';
   clearPrivate(auth?'Loading verified ownership…':'Sign in with Xaman in BURN City, then refresh this page to view your properties.');
   $('session-status').textContent=auth?'Loading your wallet portfolio…':'No Xaman wallet session on this page.';
-  const results=await Promise.allSettled([request('/status'),auth?request('/portfolio',auth):Promise.resolve(null)]);
+  const results=await Promise.allSettled([request('/status'),auth?request('/portfolio',auth):Promise.resolve(null),request('/ownership')]);
   if(disposed||seq!==generation)return;if(token()!==auth){void refresh();return;}
-  if(results[0].status==='fulfilled')renderStatus(results[0].value);else{$('live-status').textContent='Live sales status unavailable. Please refresh.';$('reward-status').textContent='Reward status unavailable.';}
+  if(results[0].status==='fulfilled')renderStatus(results[0].value);else{liveSalesEnabled=false;$('live-status').textContent='Live sales status unavailable. Please refresh.';$('reward-status').textContent='Reward status unavailable.';}
+  publicOwners=new Map(results[2].status==='fulfilled'&&Array.isArray(results[2].value.properties)?results[2].value.properties.filter(p=>typeof p.propertyId==='string'&&typeof p.owner==='string').map(p=>[p.propertyId,p.owner]):[]);
   if(results[1].status==='fulfilled'&&results[1].value){renderPortfolio(results[1].value);renderStatus(results[1].value);$('session-status').textContent='Verified wallet portfolio loaded.';}
   else if(auth){clearPrivate('Portfolio unavailable. '+(results[1].reason?.message||'Please refresh.'));$('session-status').textContent=results[1].reason?.message||'Portfolio unavailable.';}
+  renderCatalog();
  }
  const onStorage=e=>{if(e.key==='bcToken'||e.key===null)void refresh();};
  const onFocus=()=>{if(token()!==lastToken)void refresh();};

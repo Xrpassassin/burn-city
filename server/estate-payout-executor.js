@@ -1,6 +1,7 @@
 'use strict';
 // Durable outgoing software adapter. Production activation is operator-controlled.
 // Never re-sign a submitted or ambiguous payment, including after expiry.
+const {isDeepStrictEqual}=require('node:util');
 const {splitImgAmount}=require('./estate-img-amount');
 const hex=s=>Buffer.from(s).toString('hex').toUpperCase();
 const micro=n=>{n=BigInt(n);return (n/1000000n)+'.'+String(n%1000000n).padStart(6,'0');};
@@ -45,7 +46,7 @@ function createEstatePayoutExecutor({db,client,wallet,treasury,imgIssuer,guard,e
   const delivered=result.meta.delivered_amount;
   const amount=tx.Amount??tx.DeliverMax;
   const sameAsset=sameJsonAmount;
-  if(tx.TransactionType!=='Payment'||tx.Account!==treasury||tx.Destination!==row.owner||!sameAsset(amount,expected.Amount)||!sameAsset(delivered,expected.Amount)||JSON.stringify(tx.Memos)!==JSON.stringify(expected.Memos))return note(row.id,'unexpected_validated_payment');
+  if(tx.TransactionType!=='Payment'||tx.Account!==treasury||tx.Destination!==row.owner||!sameAsset(amount,expected.Amount)||!sameAsset(delivered,expected.Amount)||!isDeepStrictEqual(tx.Memos,expected.Memos))return note(row.id,'unexpected_validated_payment');
   let spent;try{spent=spentMicro(result.meta,treasury,imgIssuer);}catch{return note(row.id,'source_debit_proof_required');}
   if(spent>BigInt(row.img_units)||(row.currency==='IMG'&&spent!==BigInt(row.img_units)))return note(row.id,'source_budget_mismatch');
   const remaining=BigInt(row.img_units)-spent;

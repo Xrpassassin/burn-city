@@ -17,7 +17,9 @@ export function createWalkingPad(host, {label='Move', radius=54}={}) {
     x=dx*scale/radius;z=-dy*scale/radius;
     thumb.style.transform=`translate(${dx*scale}px,${dy*scale}px)`;
   };
-  const down=e=>{if(active!==null || e.isPrimary===false || (e.pointerType==='mouse' && e.button!==0))return;active=e.pointerId;try{pad.setPointerCapture?.(active);}catch{}move(e);e.preventDefault();};
+  // A camera finger may already be the primary touch. Ownership of this pad,
+  // rather than global primary-pointer status, determines who can move it.
+  const down=e=>{if(active!==null || (e.pointerType==='mouse' && e.button!==0))return;active=e.pointerId;try{pad.setPointerCapture?.(active);}catch{}move(e);e.preventDefault();};
   const drag=e=>{if(e.pointerId===active){move(e);e.preventDefault();}};
   const up=e=>{if(e.pointerId===active)reset();};
   const hidden=()=>{if(document.hidden)reset();};

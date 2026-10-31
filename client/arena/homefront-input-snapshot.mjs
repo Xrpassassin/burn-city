@@ -75,6 +75,6 @@ export function homefrontInputProximity(snapshot, {
     canLoot: !!loot?.available && distance(loot) <= 9,
     encounter, enemyDistance, enemyInReach, targetMatches,
     canAttack: enemyInReach, canAutoFire: enemyInReach && targetMatches,
-    environment, canDamageEnvironment: environmentActive && distance(environment) <= 8
+    environment, environmentActive, canDamageEnvironment: environmentActive && distance(environment) <= 8
   };
 }

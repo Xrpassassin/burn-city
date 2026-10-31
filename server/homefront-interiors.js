@@ -165,8 +165,11 @@ function traverse(input, { account, player, doorId, now = Date.now(), shared = n
   if (Math.hypot(player.x - targetX, player.z - targetZ) > INTERACTION_RADIUS) throw new Error('too_far_from_interior_door');
   const commonState = normalizeShared(shared);
   const next = Catalog.traverseInteriorDoor(ctx.catalog, effectiveState(ctx.state, commonState, ctx.landmarkId), doorId);
+  const current = commonState[ctx.landmarkId] || { flags: [], openedDoors: [], updatedAt: 0 };
+  commonState[ctx.landmarkId] = { ...current,
+    openedDoors: [...new Set([...current.openedDoors, doorId])], updatedAt: now };
   ctx.owner.interiors[ctx.landmarkId] = { ...next, updatedAt: now };
-  return { state: ctx.stateMap, interior: copy(ctx.owner.interiors[ctx.landmarkId]), room: Catalog.interiorRoom(ctx.catalog, next.roomId) };
+  return { state: ctx.stateMap, shared: commonState, interior: copy(ctx.owner.interiors[ctx.landmarkId]), room: Catalog.interiorRoom(ctx.catalog, next.roomId) };
 }
 function breachDoor(input, { account, landmarkId, doorId, damage, now = Date.now() }) {
   const stateMap = normalize(input);

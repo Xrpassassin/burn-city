@@ -42,6 +42,22 @@ export function worldMove(vec, heading) {
   return { x: fx * f - fz * r, z: fz * f + fx * r };
 }
 
+// Direct walking keeps camera heading independent of the avatar's movement-facing yaw.
+// Legacy movement retains the established actor-relative camera behavior.
+export function walkingCameraHeading(actorYaw = 0, orbitYaw = 0, lookYaw = 0, direct = false) {
+  return (direct ? 0 : actorYaw) + orbitYaw + lookYaw;
+}
+export function directSprintRequested(toggle = false, runPressed = false, aiming = false) {
+  return !aiming && !!(toggle || runPressed);
+}
+export function releaseMovementControls(state) {
+  if (!state) return;
+  state.keys = { x: 0, y: 0 };
+  state.joy = { x: 0, y: 0 };
+  state.runKey = false;
+  state.runTouch = false;
+}
+
 const KEYMAP = { w: [0, 1], arrowup: [0, 1], s: [0, -1], arrowdown: [0, -1], a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0] };
 let activeView = null;
 const views = new Set();
@@ -60,7 +76,9 @@ if (typeof window !== 'undefined') {
     if (k === ' ' && activeView && activeView.visible && !e.repeat) { activeView.jumpQueued = true; e.preventDefault(); }
   });
   window.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k === 'shift') for (const v of views) v.runKey = false; if (!held.delete(k)) return; if (activeView) activeView.keys = keyVector(held); });
-  window.addEventListener('blur', () => { held.clear(); for (const v of views) { v.keys = { x: 0, y: 0 }; v.runKey = false; } });
+  const releaseHeld = () => { held.clear(); for (const v of views) releaseMovementControls(v); };
+  window.addEventListener('blur', releaseHeld);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) releaseHeld(); });
 }
 function keyVector(held) { let x = 0, y = 0; for (const k of held) { x += KEYMAP[k][0]; y += KEYMAP[k][1]; } return { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) }; }
 export function setViewMode(mode) {
@@ -98,7 +116,7 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     const endJoy = e => { if (e.pointerId !== jid) return; jid = null; state.joy = { x: 0, y: 0 }; knob.style.transform = ''; };
     for (const n of ['pointerup', 'pointercancel', 'lostpointercapture']) pad.addEventListener(n, endJoy);
     // A suspended tab or interrupted gesture must never leave movement held down.
-    const resetJoy = () => { jid = null; state.joy = { x: 0, y: 0 }; knob.style.transform = ''; };
+    const resetJoy = () => { jid = null; releaseMovementControls(state); knob.style.transform = ''; };
     window.addEventListener('blur', resetJoy);
     document.addEventListener('visibilitychange', () => { if (document.hidden) resetJoy(); });
   }

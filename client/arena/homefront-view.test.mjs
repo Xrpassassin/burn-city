@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { VIEW_KEY, readViewMode, writeViewMode, nextViewMode, cameraPose, worldMove } from './homefront-view.mjs';
+import { VIEW_KEY, readViewMode, writeViewMode, nextViewMode, cameraPose, worldMove, walkingCameraHeading, directSprintRequested, releaseMovementControls } from './homefront-view.mjs';
 
 const mem = new Map(); const storage = { getItem: k => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)) };
 assert.equal(readViewMode(storage), 'third', 'third-person is the default view');
@@ -27,4 +27,19 @@ assert.equal(worldMove({ x: 0, y: 0.05 }, 0), null, 'small stick noise is ignore
 const fwd = worldMove({ x: 0, y: 1 }, 0); assert.ok(Math.abs(fwd.x) < 1e-9 && Math.abs(fwd.z - 1) < 1e-9, 'forward follows the camera heading');
 const right = worldMove({ x: 1, y: 0 }, 0); assert.ok(Math.abs(Math.hypot(right.x, right.z) - 1) < 1e-9 && Math.abs(right.z) < 1e-9, 'strafe is perpendicular to heading');
 const diag = worldMove({ x: 1, y: 1 }, 1.2); assert.ok(Math.abs(Math.hypot(diag.x, diag.z) - 1) < 1e-9, 'diagonal input is normalized');
+
+const directA = walkingCameraHeading(0.35, 0.7, -0.1, true);
+const directB = walkingCameraHeading(2.8, 0.7, -0.1, true);
+assert.equal(directA, directB, 'direct walk heading remains stable while the avatar turns');
+assert.equal(walkingCameraHeading(0.35, 0.7, -0.1, false), 0.35 + 0.7 - 0.1,
+  'existing legacy camera movement stays actor-relative');
+assert.equal(directSprintRequested(false, true, false), true, 'Shift/RUN triggers direct sprint');
+assert.equal(directSprintRequested(true, false, false), true, 'existing sprint toggle triggers direct sprint');
+assert.equal(directSprintRequested(true, true, true), false, 'aiming prevents direct sprint');
+assert.equal(directSprintRequested(false, false, false), false);
+const heldControls = { keys: { x: 1, y: 1 }, joy: { x: -0.5, y: 0.8 }, runKey: true, runTouch: true };
+releaseMovementControls(heldControls);
+assert.deepEqual(heldControls, { keys: { x: 0, y: 0 }, joy: { x: 0, y: 0 }, runKey: false, runTouch: false },
+  'blur and hidden-tab resets clear keyboard, touch joystick and both run modes');
+
 console.log('Homefront view (first/third-person, construction-only overhead) tests passed.');

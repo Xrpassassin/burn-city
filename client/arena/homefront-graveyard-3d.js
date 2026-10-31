@@ -14,7 +14,7 @@ import { INTERIORS, availableInteriorActions, buildInteriorSetPiece, interiorFor
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
-import { attachViewControls, cameraPose, worldMove } from './homefront-view.mjs';
+import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
@@ -1541,10 +1541,10 @@ function boot(host) {
         zombieAudio.tick(dt, audioMe, audioZombies, [], 'homefront-local-player');
       }
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
-      const heading = (localActor?.rotation.y || 0) + cameraYawOffset + view.yaw;
+      const heading = walkingCameraHeading(localActor?.rotation.y || 0, cameraYawOffset, view.yaw, continuousInput.enabled);
       const stick = worldMove(view.move(), heading);
       if (continuousInput.enabled && !moving && !(worldData.party && !worldData.party.leader)) {
-        continuousInput.step(stick, sprintTravel, now, dt);
+        continuousInput.step(stick, directSprintRequested(sprintTravel, view.running(), aiming), now, dt);
       }
       const shownSelf = continuousInput.position() || self;
       updateVisibleChunks(shownSelf.x, shownSelf.z);

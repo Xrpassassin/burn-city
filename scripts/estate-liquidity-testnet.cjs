@@ -25,7 +25,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   for(const a of [IMG,PLX])await send(maker,{TransactionType:'AMMCreate',Amount:'20000000',Amount2:{...a,value:'20000'},TradingFee:300});
   await send(maker,{TransactionType:'AMMCreate',Amount:{...IMG,value:'20000'},Amount2:{...PLX,value:'20000'},TradingFee:300});
   const pair=(await client.request({command:'amm_info',asset:IMG,asset2:PLX,ledger_index:'validated'})).result.amm.account;
-  const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,purchase_tx TEXT UNIQUE,purchase_amount_drops INTEGER,share_units INTEGER,purchased_at INTEGER);CREATE TABLE estate_img_scan_watermarks(id INTEGER PRIMARY KEY,scanned_through_ms INTEGER)');
+  const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,purchase_tx TEXT UNIQUE,purchase_amount_drops INTEGER,share_units INTEGER,purchased_at INTEGER);CREATE TABLE estate_img_scan_watermarks(id INTEGER PRIMARY KEY,scanned_through_ms INTEGER,ledger_index INTEGER,verified_at_ms INTEGER)');
   createEstateCapitalAllocation(db);const reservations=createEstateSaleReservations(db),reservation=reservations.reserve({reservationId:'testnet-estate-reservation',propertyId:'trailer-01',buyer:owner.classicAddress,now:Date.now()});
   const purchased=await send(owner,{TransactionType:'Payment',Destination:treasury.classicAddress,Amount:'3000000',Memos:[{Memo:{MemoType:Buffer.from('burncity/estates').toString('hex').toUpperCase(),MemoData:Buffer.from(reservation.reservation_id).toString('hex').toUpperCase()}}]});
   assert.ok(purchased.hash,'validated purchase hash required');
@@ -54,7 +54,7 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const receipt=db.prepare('SELECT * FROM estate_xrp_profit_receipts').get();assert.ok(BigInt(receipt.distributable_drops)>0n);
   // Advance only the test database's scan watermark. Real production hour close
   // is covered by scanner tests; this avoids waiting a wall-clock hour on testnet.
-  db.prepare('INSERT INTO estate_img_scan_watermarks VALUES(1,?)').run(receipt.available_after_ms);
+  db.prepare('INSERT INTO estate_img_scan_watermarks(id,scanned_through_ms) VALUES(1,?)').run(receipt.available_after_ms);
   await until(()=>db.prepare("SELECT COUNT(*) n FROM estate_xrp_profit_payouts WHERE state='confirmed'").get().n===1,'Actual owner XRP wallet payout');
   const payout=db.prepare('SELECT * FROM estate_xrp_profit_payouts').get(),proof=(await client.request({command:'tx',transaction:payout.tx_hash,binary:false})).result;
   assert.equal(proof.validated,true);assert.equal(proof.meta.TransactionResult,'tesSUCCESS');assert.equal(proof.meta.delivered_amount,payout.amount_drops);

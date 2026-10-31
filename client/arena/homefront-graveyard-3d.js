@@ -19,6 +19,7 @@ import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, direct
 import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
+import { clipInteriorCamera } from './homefront-camera-occlusion.mjs';
 import { mergeSharedInteriorPresence } from './homefront-shared-presence.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
@@ -110,6 +111,10 @@ function boot(host) {
   const ground = new THREE.Mesh(groundGeometry, groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.y = 0; scene.add(ground);
   const raycaster = new THREE.Raycaster();
+  const cameraWallRaycaster = new THREE.Raycaster();
+  cameraWallRaycaster.near = 0.08;
+  const cameraEye = new THREE.Vector3(), cameraArm = new THREE.Vector3();
+  let lastCameraOcclusionAt = -Infinity, lastCameraOcclusionId = null, lastCameraHitDistance = Infinity;
   const pointer = new THREE.Vector2();
   const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
   const worldChunkGroups = new Map();
@@ -544,13 +549,16 @@ function boot(host) {
     buildPowerStationSkyline(THREE, terrainElevation(POWER_STATION_SITE.x, POWER_STATION_SITE.z))
   );
   // Authored open-roof room shells are part of the walkable 3D district, not a separate flat menu map.
-  const interiorSetPieces = new Map();
+  const interiorSetPieces = new Map(), interiorCameraOccluders = new Map();
   for (const interior of INTERIORS) {
     const landmark = LANDMARKS.find(item => item.id === interior.landmarkId);
     if (!landmark) continue;
     const piece = buildInteriorSetPiece(THREE, interior, { x: landmark.x, y: terrainElevation(landmark.x, landmark.z), z: landmark.z });
     cityChunkAt(landmark.x, landmark.z).add(piece);
     interiorSetPieces.set(interior.landmarkId, piece);
+    const occluders = [];
+    piece.traverse(node => { if (node.userData?.interiorCameraOccluder) occluders.push(node); });
+    interiorCameraOccluders.set(interior.landmarkId, occluders);
   }
   const markerObjects = new Map();
   function labelSprite(text, color = '#f6d8b5') {
@@ -1784,6 +1792,36 @@ function boot(host) {
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
       const targetY = terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation();
       const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
+      // Only interior wall/closed-door geometry can shorten the camera arm;
+      // outdoor scenery, collectibles and player models never affect the view.
+      // Bound raycast frequency, particularly for touch/mobile GPUs.
+      if (view.mode !== 'first' && interiorState?.landmarkId) {
+        const roomRoot = interiorSetPieces.get(interiorState.landmarkId);
+        const walls = interiorCameraOccluders.get(interiorState.landmarkId);
+        cameraEye.set(pose.lx, pose.ly, pose.lz);
+        cameraArm.set(pose.px, pose.py, pose.pz).sub(cameraEye);
+        const desiredDistance = cameraArm.length();
+        if (roomRoot?.visible && walls?.length && desiredDistance > 0.5) {
+          if (lastCameraOcclusionId !== interiorState.landmarkId ||
+              now - lastCameraOcclusionAt >= (coarsePointer ? 90 : 45)) {
+            lastCameraOcclusionAt = now;
+            lastCameraOcclusionId = interiorState.landmarkId;
+            cameraWallRaycaster.far = desiredDistance;
+            cameraWallRaycaster.set(cameraEye, cameraArm.normalize());
+            const hits = cameraWallRaycaster.intersectObjects(walls.filter(wall => wall.visible), false);
+            lastCameraHitDistance = hits.length ? hits[0].distance : Infinity;
+          }
+          const limited = clipInteriorCamera(
+            { x: pose.lx, y: pose.ly, z: pose.lz },
+            { x: pose.px, y: pose.py, z: pose.pz },
+            lastCameraHitDistance
+          );
+          pose.px = limited.x; pose.py = limited.y; pose.pz = limited.z;
+        }
+      } else {
+        lastCameraOcclusionId = null;
+        lastCameraHitDistance = Infinity;
+      }
       camera.position.x += (pose.px - camera.position.x) * followBlend;
       camera.position.y += (pose.py - camera.position.y) * followBlend;
       camera.position.z += (pose.pz - camera.position.z) * followBlend;

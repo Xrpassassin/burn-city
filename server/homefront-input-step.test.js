@@ -1,0 +1,20 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { validateInput, displacementForInput, MAX_INPUT_DT_MS } = require('./homefront-input-step');
+
+const cmd = validateInput({ sequence: 2, x: 0.6, z: 0.8, sprint: false }, 1);
+assert.equal(cmd.magnitude, 1);
+assert.throws(() => validateInput({ sequence: 2, x: 0, z: 1, sprint: false }, 2), /sequence/);
+assert.throws(() => validateInput({ sequence: 1.2, x: 0, z: 1, sprint: false }), /sequence/);
+for (const x of [NaN, Infinity, -Infinity, '1', 2]) assert.throws(() => validateInput({ sequence: 3, x, z: 0, sprint: false }), /vector/);
+assert.throws(() => validateInput({ sequence: 3, x: 1, z: 1, sprint: false }), /vector/);
+assert.throws(() => validateInput({ sequence: 3, x: 0, z: 0, sprint: 1 }), /mode/);
+const speeds = { walkSpeed: 4, sprintSpeed: 7 };
+assert.deepEqual(displacementForInput(cmd, { now: 100, previousAt: 0, ...speeds }), { x: 0.24, z: 0.32000000000000006, elapsedMs: 100 });
+const stalled = displacementForInput(cmd, { now: 10000, previousAt: 0, ...speeds });
+assert.equal(stalled.elapsedMs, MAX_INPUT_DT_MS);
+assert.ok(Math.hypot(stalled.x, stalled.z) <= 0.5 + 1e-9);
+const idle = displacementForInput(validateInput({ sequence: 3, x: 0, z: 0, sprint: false }, 2), { now: 10000, previousAt: 0, ...speeds });
+assert.equal(idle.x, 0); assert.equal(idle.z, 0);
+assert.throws(() => displacementForInput(cmd, { now: 10, previousAt: 20, ...speeds }), /server_time/);
+console.log('Homefront input step validator tests passed.');

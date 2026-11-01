@@ -9,6 +9,7 @@ import { auditOrganicRouteReachability } from '../client/arena/homefront-route-r
 import { auditHomefrontV2MigrationReadiness } from '../client/arena/homefront-v2-migration-audit.mjs';
 import { auditOrganicRoadGrades } from '../client/arena/homefront-road-grade-audit.mjs';
 import { auditOrganicRoadWidth } from '../client/arena/homefront-road-width-audit.mjs';
+import { auditOrganicCorridorObstacles } from '../client/arena/homefront-corridor-obstacles.mjs';
 import { protectedOrganicSitesPreview, reserveOrganicLandmarkClearance } from '../client/arena/homefront-landmark-reservations.mjs';
 import { auditOrganicRoadClearance, roadBuildingClearance, buildableOrganicSitesPreview } from '../client/arena/homefront-road-clearance.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
@@ -227,5 +228,21 @@ test('v2 road width samples edge slopes and remains a fail-closed migration chec
   const gate = auditHomefrontV2MigrationReadiness();
   assert.deepEqual(gate.roadWidth, report);
   assert.equal(gate.checks.roadWidthSlopesWithinPreviewLimit, report.acceptable);
+  assert.equal(gate.readyForActivation, false);
+});
+
+test('v2 corridor obstacle audit rejects building intrusions and remains preview-only', () => {
+  const report = auditOrganicCorridorObstacles();
+  assert.deepEqual(report, auditOrganicCorridorObstacles());
+  assert.equal(report.scope, 'v2-preview-buildings-only');
+  const road = { id: 'test-road', from: { x: -10, z: 0 }, to: { x: 10, z: 0 }, width: 4 };
+  const blocked = auditOrganicCorridorObstacles({
+    roads: [road], buildings: [{ id: 'test-building', x: 0, z: 0, w: 4, d: 4 }]
+  });
+  assert.equal(blocked.pass, false);
+  assert.equal(blocked.conflicts[0].buildingId, 'test-building');
+  const gate = auditHomefrontV2MigrationReadiness();
+  assert.deepEqual(gate.corridorObstacles, report);
+  assert.equal(gate.checks.previewBuildingCorridorsClear, report.pass);
   assert.equal(gate.readyForActivation, false);
 });

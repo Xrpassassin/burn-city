@@ -49,6 +49,8 @@ on:
       - 'client/arena/homefront-environment-damage.mjs'
       - 'test/homefront-environment-damage.test.mjs'
       - 'client/arena/homefront-world-generation.mjs'
+      - 'client/arena/homefront-atmosphere.mjs'
+      - 'client/arena/homefront-atmosphere.test.mjs'
       - 'client/arena/homefront-exploration-content.mjs'
       - 'client/arena/homefront-exploration-content.test.mjs'
       - 'docs/homefront-exploration-world-content.md'
@@ -165,6 +167,8 @@ jobs:
         run: node test/homefront-environment-damage.test.mjs
       - name: Run authoritative Homefront environment integration tests
         run: node server/homefront-environment.test.js
+      - name: Test biome and interior weather rendering budget
+        run: node client/arena/homefront-atmosphere.test.mjs
       - name: Verify authored Homefront room graph and distinct prop visuals
         run: node client/arena/homefront-interior-world.test.mjs
       - name: Verify deterministic urban and industrial landmark meshes

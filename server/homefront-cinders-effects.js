@@ -20,10 +20,12 @@ function fromAttributes(attributes) {
     d=rank('dexterity'),e=rank('engineering'),
     r=rank('resourcefulness'),s=rank('spirit');
   return Object.freeze({
-    needScale: Math.max(0.93,1-c*0.01),
-    staminaScale: Math.max(0.895,1-c*0.005-d*0.01),
-    lootNoiseScale: Math.max(0.895,1-i*0.015),
-    aimStabilityBonus: Math.min(0.063,n*0.009),
+    // Integer thousandths avoid drift such as 0.9299999999999999 from
+    // subtracting fractional percentages at stat cap.
+    needScale: (100-c)/100,
+    staminaScale: (1000-5*c-10*d)/1000,
+    lootNoiseScale: (1000-15*i)/1000,
+    aimStabilityBonus: (9*n)/1000,
     repairHpBonus: Math.min(10,Math.floor(e*1.5)),
     foodRestoreBonus: Math.min(9,r*1.25),
     restRestoreBonus: Math.min(11,s*1.5)

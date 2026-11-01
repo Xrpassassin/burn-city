@@ -238,4 +238,26 @@ function publicState(input, account, shared = null) {
   const effective = effectiveState(state, shared, landmarkId);
   return blueprint && effective ? { ...copy(effective), title: blueprint.title, room: Catalog.interiorRoom(blueprint, effective.roomId), actions: Catalog.availableInteriorActions(blueprint, effective) } : null;
 }
-module.exports = { LANDMARKS, ENTRY_RADIUS, INTERACTION_RADIUS, REWARDS, normalize, enter, action, traverse, breachDoor, leave, publicState, roomPresence, normalizeShared, effectiveState, sharedOpenedDoors };
+function evidenceSnapshot(input, account) {
+  // Personal field notes across all previously explored buildings. Server
+  // supplies authored text; one player's clues cannot leak into another's log.
+  if (typeof account !== 'string' || !account) return [];
+  const owned = normalize(input)[account]?.interiors;
+  if (!owned) return [];
+  const notes = [];
+  for (const [landmarkId, room] of Object.entries(owned)) {
+    const blueprint = Catalog.interiorForLandmark(landmarkId);
+    if (!blueprint) continue;
+    for (const actionId of room.discovered || []) {
+      const item = blueprint.interactables.find(target =>
+        target.id === actionId && target.action === 'clue');
+      if (item) notes.push({
+        id: item.id, landmarkId, site:blueprint.title,
+        label:item.label, text:item.text
+      });
+    }
+  }
+  return notes.slice(0,48);
+}
+
+module.exports = { LANDMARKS, ENTRY_RADIUS, INTERACTION_RADIUS, REWARDS, normalize, enter, action, traverse, breachDoor, leave, publicState, roomPresence, normalizeShared, effectiveState, sharedOpenedDoors, evidenceSnapshot };

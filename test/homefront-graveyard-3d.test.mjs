@@ -20,7 +20,7 @@ assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play
 assert.match(scene, /zombieAudio\.zdie\(target\)/, 'play infected death audio only after server-confirmed kills');
 assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
 assert.match(scene, /const environmentVisuals = new Map\(\)/, 'index rendered environment structures by authoritative collision ID');
-assert.match(scene, /registerEnvironmentVisual\('building:' \+ x \+ ',' \+ z, structure\)/, 'group building meshes so server-confirmed destruction removes the whole structure');
+assert.match(scene, /registerEnvironmentVisual\(id, structure\)/, 'register grouped building meshes using the shared authoritative layout id');
 assert.match(scene, /registerEnvironmentVisual\(prefix \+ ':' \+ cell\[0\] \+ ',' \+ cell\[1\], g\)/, 'map destructible environmental props to the server collision catalog');
 assert.match(scene, /applyEnvironmentStateSnapshot\(data\.world\?\.environmentStructures\)/, 'replicate server-owned structure health and stages into the renderer');
 assert.match(scene, /environment\/damage/, 'send structure damage requests through the authoritative Homefront API');

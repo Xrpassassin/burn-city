@@ -47,3 +47,9 @@ test('road fragments are streamed and grounded without changing authoritative co
   assert.match(scene, /const roadY = terrainElevation\(rx, rz\) \+ 0\.012/);
   assert.match(scene, /addBox\(roadChunk, width, 0\.045, length, rx, roadY, rz, material\)/);
 });
+
+test('roadside erosion stays cosmetic, deterministic, and terrain grounded', () => {
+  assert.match(scene, /const edge = pavementHash\(k, n, axis \+ 11\)/);
+  assert.match(scene, /const patchY = terrainElevation\(patchX, patchZ\) \+ 0\.006/);
+  assert.match(scene, /addBox\(cityChunkAt\(patchX, patchZ\), patchWidth/);
+});

@@ -35,3 +35,9 @@ test('inventory and modal overlays block avatar movement and jumping', () => {
   assert.match(view, /state\.running = \(\) => !menuOpen\(\)/);
   assert.match(view, /state\.takeJump = \(\) => \{ const j = !menuOpen\(\)/);
 });
+
+test('wastes pavement is segmented cosmetic geometry, not uninterrupted grid strips', () => {
+  assert.match(scene, /const pavementHash = \(a, b, axis\) =>/);
+  assert.match(scene, /for \(let k = -95; k < 95; k \+= 10\)/);
+  assert.doesNotMatch(scene, /addBox\(cityGroup, 4\.2, 0\.04, 196/);
+});

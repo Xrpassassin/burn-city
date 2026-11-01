@@ -152,7 +152,7 @@ export function createInteriorState(landmarkId) {
 }
 export function availableInteriorActions(interior, state) {
   if (!interior || !state || state.landmarkId !== interior.landmarkId) return [];
-  return interior.interactables.filter(item => item.roomId === state.roomId && item.requires.every(flag => state.flags.includes(flag)) && !state.used.includes(item.id));
+  return interior.interactables.filter(item => item.roomId === state.roomId && item.requires.every(flag => state.flags.includes(flag)) && !state.used.includes(item.id) && !(item.action === 'clue' && state.discovered.includes(item.id)));
 }
 export function applyInteriorAction(interior, state, actionId) {
   if (!interior || !state || state.landmarkId !== interior.landmarkId) throw new Error('interior_state_mismatch');
@@ -161,6 +161,7 @@ export function applyInteriorAction(interior, state, actionId) {
   const next = { ...state, flags: [...state.flags], discovered: [...state.discovered], used: [...state.used], openedDoors: [...(state.openedDoors || [])] };
   if (item.action === 'clue') {
     if (!next.discovered.includes(item.id)) next.discovered.push(item.id);
+    if (!next.used.includes(item.id)) next.used.push(item.id); // one-time evidence; no repeatable event spam
     if (item.id === 'patient_chart') next.flags.push('incident_clue');
     if (item.id === 'signal_panel') next.flags.push('incident_clue');
     if (item.id === 'route_board') next.flags.push('evacuation_route');

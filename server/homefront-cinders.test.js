@@ -25,8 +25,8 @@ const malicious=C.normalizeAttributes({
   ...trained,cinderheart:99,nerve:NaN,dexterity:'10',spirit:-2,
   __proto__:{constructor:999},constructor:10
 },1);
-assert.equal(malicious.instinct,5);
-assert.equal(malicious.resourcefulness,6);
+assert.equal(malicious.instinct,3);
+assert.equal(malicious.resourcefulness,3);
 assert.equal(malicious.engineering,3,
   'forged attribute increases beyond earned budget are removed, not minted');
 assert.equal(malicious.cinderheart,10,'the first safe catalog attribute may spend up to its cap');
@@ -45,7 +45,7 @@ assert.equal(C.perkPoints(6,{ash_reader:true}),1);
 assert.equal(C.normalizePerks({ash_reader:'true'},3,minimum).ash_reader,undefined,
   'string and number perk ownership are never accepted');
 assert.equal(C.normalizePerks({ash_reader:true,constructor:true,__proto__:true},3,minimum).ash_reader,true);
-assert.equal(C.normalizePerks({ash_reader:true,constructor:true},3,minimum).constructor,Object.prototype.constructor,
+assert.equal(C.normalizePerks({ash_reader:true,constructor:true},3,minimum).constructor,undefined,
   'forged proto-name entries never become catalog perks');
 assert.equal(C.perkRequirement(C.PERKS.find(p=>p.id==='furnace_watch'),30,
   {...novice,engineering:6},{engineer:1}),'skill');

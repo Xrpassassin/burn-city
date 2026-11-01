@@ -69,8 +69,11 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       }
     } else {
       // Recover from speculative movement after release.
-      predicted.x += (server.x - predicted.x) * 0.16;
-      predicted.z += (server.z - predicted.z) * 0.16;
+      // Frame-rate independent recovery: a 30 FPS device should not settle
+      // twice as slowly as a 60 FPS device. Keep visual correction cosmetic.
+      const settle = 1 - Math.exp(-11 * Math.min(0.05, Math.max(0, Number.isFinite(dt) ? dt : 0)));
+      predicted.x += (server.x - predicted.x) * settle;
+      predicted.z += (server.z - predicted.z) * settle;
     }
     if (pending || now - lastSentAt < INPUT_SEND_INTERVAL_MS || (!vec.moving && !sentMotion)) return;
     pending = true;

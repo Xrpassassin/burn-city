@@ -17,6 +17,7 @@ const FieldSurveys = require('./homefront-field-surveys');
 const Travel = require('./homefront-travel');
 const PvP = require('./homefront-pvp');
 const Rpg = require('./homefront-rpg');
+const CindersEffects = require('./homefront-cinders-effects');
 const Collision = require('./homefront-collision');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
@@ -86,6 +87,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
   }
   const user = who();
   if (!user?.acct) { json(res, 401, { error: 'sign_in_with_xaman', message: 'Sign in to save your personal refuge.' }); return true; }
+  // Only server-persisted, normalized RPG attributes may affect gameplay.
+  // Never derive bonuses from request body, a public avatar or client HUD.
+  const cindersEffects = () => CindersEffects.fromAttributes(Rpg.get(store,user.acct).attributes);
   if (worldRoute) {
     const inputRoute = url.pathname === '/api/homefront/world/move-input';
     // Deployment flag is server-owned; clients cannot enable experimental movement.
@@ -139,6 +143,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         if (req.method === 'POST') {
           if (!payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_rpg_action' }); return true; }
           const profile = Rpg.act(store, user.acct, payload, base);
+          if (payload.action === 'train-attribute' && db.players[user.acct]) {
+            // Refresh the active player's bounded movement modifiers immediately
+            // after an authenticated spend; the world save remains server-only.
+            db.players[user.acct].cindersEffects = CindersEffects.fromAttributes(profile.attributes);
+            store.save('homefront-world.json', db);
+          }
           json(res, 200, { mode: 'homefront-rpg', sheet: Rpg.sheet(profile, base) }); return true;
         }
         json(res, 200, { mode: 'homefront-rpg', sheet: Rpg.sheet(Rpg.get(store, user.acct, base), base) }); return true;
@@ -233,6 +243,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
           if (!base) throw new Error('save_invalid');
           let inventory = Inventory.normalize(player.inventory);
+          const training = cindersEffects();
           let survival;
           let logText = '';
           if (action === 'cook_food' || action === 'purify_water') {
@@ -245,12 +256,12 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             if (converted.accepted !== 1) throw new Error('inventory_full');
             inventory = Inventory.removeUsable(converted.inventory, recipe.input, 1, now).inventory;
             inventory = Inventory.remove(inventory, 'wood', 1).inventory;
-            survival = Survival.tick(player.survival, now);
+            survival = Survival.tick(player.survival, now, training);
             logText = recipe.label;
           } else {
             const itemFor = { eat: 'food', drink: 'water', bandage: 'meds' }[action];
             if (itemFor) inventory = itemFor === 'food' ? Inventory.removeUsable(inventory, itemFor, 1, now).inventory : Inventory.remove(inventory, itemFor, 1, now).inventory;
-            survival = Survival.act(player.survival, action, now);
+            survival = Survival.act(player.survival, action, now, training);
             logText = ({ eat: 'Consumed a cooked ration in the field.', drink: 'Drank carried clean water in the field.', bandage: 'Used carried medical supplies to treat field injuries.', catch_breath: 'Stopped to recover stamina.' })[action];
           }
           const survivalConsumed = {};
@@ -315,12 +326,16 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           db.lootNodes = found.state;
           // Loot containers are quick to open but never silent. Deeper caches emit a
           // stronger signature, recorded server-side at the container's location.
-          player.noiseLevel = Math.max(player.noiseLevel || 0, found.noise.level);
+          // Instinct tempers careful scavenging, but cannot silence alarms,
+          // combat, deliberate sabotage or other players' sound events.
+          const training = cindersEffects();
+          const searchNoise = Math.max(1,Math.round(found.noise.level * training.lootNoiseScale));
+          player.noiseLevel = Math.max(player.noiseLevel || 0, searchNoise);
           player.lastNoiseAt = now;
           player.noiseX = player.x;
           player.noiseZ = player.z;
           player.lastSeen = now;
-          player.survival = Survival.tick(player.survival, now);
+          player.survival = Survival.tick(player.survival, now, training);
           const bases = store.load('homefront.json', {});
           const base = Core.validateBase(bases[user.acct] || Core.createBase(user.acct), user.acct);
           if (!base) throw new Error('save_invalid');
@@ -351,7 +366,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             mode: 'homefront-world',
             ...World.snapshot(db, user.acct, now),
             base, rpgAward,
-            loot: { node: found.node, accepted: found.accepted, overflow: found.overflow, overflowDestination: 'refuge', noise: { level: found.noise.level, durationMs: found.noise.durationMs } },
+            loot: { node: found.node, accepted: found.accepted, overflow: found.overflow, overflowDestination: 'refuge', noise: { level: searchNoise, durationMs: found.noise.durationMs } },
             inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }
           });
           return true;
@@ -403,8 +418,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const magazine = player.weaponMagazine && player.weaponMagazine.weaponId === weaponId ? player.weaponMagazine : { weaponId, loaded: 0 };
           const combatBase = Core.validateBase({ ...base, resources: { ...base.resources, ammo: magazine.loaded } }, user.acct);
           const combatAt = Date.now();
-          const survivalBeforeAttack = Survival.tick(player.survival, combatAt);
-          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null });
+          const training = cindersEffects();
+          const survivalBeforeAttack = Survival.tick(player.survival, combatAt, training);
+          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), aimTrainingBonus: training.aimStabilityBonus, targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null });
           // Gunfire and melee combat leave a server-recorded noise signature. The next
           // authoritative world tick uses it to attract the local infected director.
           player.noiseLevel = Math.max(player.noiseLevel || 0, Firearms.isFirearmTier(weaponId) ? Firearms.FIREARM_TIERS[weaponId].noise : weaponId === 'pump_shotgun' ? 95 : weaponId === 'marksman_rifle' ? 82 : 62);
@@ -432,7 +448,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           // "Travel with party": a leader at home summons members in the same Homefront instance first.
           if (payload.withParty === true && !db.players[user.acct] && Travel.partyOf(db, user.acct)) Travel.summonParty(db, user.acct);
           const wasHome = !db.players[user.acct];
-          outcome=World.enter(db,user.acct);
+          outcome=World.enter(db,user.acct,Date.now(),cindersEffects());
           if (wasHome) { Travel.rejoinOnEnter(outcome.world, user.acct, { Collision, bounds: World.WORLD_SIZE }); Rpg.award(store, user.acct, 'enter_world'); }
           outcome.result = World.snapshot(outcome.world, user.acct);
           const player=outcome.world.players[user.acct];
@@ -780,7 +796,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
     }
     if (payload.action.type === 'expedition' || payload.action.type === 'boss_attack') throw new Error('use_shared_expedition_map');
     base.repelledCount = Number.isSafeInteger(base.repelledCount) ? base.repelledCount : 0;
-    const next = Core.applyAction(base, user.acct, payload.action);
+    const repairEffects = payload.action.type === 'repair' ? cindersEffects() : null;
+    const next = Core.applyAction(base, user.acct, payload.action, Date.now(), repairEffects);
     const repelled = payload.action.type === 'defend' && next.log.at(-1)?.kind === 'defense' && next.log.at(-1)?.text.startsWith('Perimeter breach repelled');
     next.repelledCount = base.repelledCount + (repelled ? 1 : 0);
     if (repelled) {

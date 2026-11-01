@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { homefrontBuildingLayout, homefrontOrganicLayoutPreview, HOMEFRONT_ORGANIC_LAYOUT_VERSION } from '../client/arena/homefront-building-layout.mjs';
+import { homefrontRoadNetworkPreview } from '../client/arena/homefront-road-network-preview.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
 
@@ -99,4 +100,19 @@ test('organic layout v2 is deterministic, bounded, and not activated in gameplay
   const server=readFileSync(new URL('../server/homefront-collision.js',import.meta.url),'utf8');
   assert.doesNotMatch(server,/homefrontOrganicLayoutPreview/);
   assert.doesNotMatch(scene,/homefrontOrganicLayoutPreview/);
+});
+
+test('v2 winding roads deterministically connect the backbone and district spurs', () => {
+  const first = homefrontRoadNetworkPreview();
+  assert.deepEqual(first, homefrontRoadNetworkPreview());
+  assert.equal(first.version, 2);
+  assert.equal(first.nodes.length, 17);
+  assert.equal(first.roads.filter(r => r.kind === 'arterial').length, 16);
+  const nodeIds = new Set(first.nodes.map(n => n.id));
+  assert.ok(first.roads.some(r => r.kind === 'district'));
+  assert.ok(first.roads.every(r => r.from && r.to && r.width > 0 && [r.from.x,r.from.z,r.to.x,r.to.z].every(Number.isFinite)));
+  assert.ok(first.roads.every(r => r.kind !== 'arterial' || (nodeIds.has(r.from.id) && nodeIds.has(r.to.id))));
+  const server = readFileSync(new URL('../server/homefront-collision.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(server, /homefrontRoadNetworkPreview/);
+  assert.doesNotMatch(scene, /homefrontRoadNetworkPreview/);
 });

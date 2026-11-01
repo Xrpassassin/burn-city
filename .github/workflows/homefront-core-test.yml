@@ -6,6 +6,8 @@ on:
       - 'server/homefront-core.js'
       - 'server/homefront-interiors.test.js'
       - 'server/homefront-interiors.js'
+      - 'server/homefront-interior-events.js'
+      - 'server/homefront-interior-events.test.js'
       - 'server/homefront-exploration.js'
       - 'server/homefront-exploration.test.js'
       - 'server/homefront-field-surveys.js'
@@ -77,6 +79,8 @@ on:
       - 'docs/homefront-ashfall-power-station.md'
       - 'client/arena/homefront-interior-world.mjs'
       - 'client/arena/homefront-interior-world.test.mjs'
+      - 'client/arena/homefront-interior-event-feed.mjs'
+      - 'client/arena/homefront-interior-event-feed.test.mjs'
       - 'client/arena/homefront-camera-occlusion.mjs'
       - 'client/arena/homefront-camera-occlusion.test.mjs'
       - 'client/arena/homefront-interior-visibility.mjs'
@@ -195,6 +199,8 @@ jobs:
         run: node test/homefront-shared-interior-sim.js
       - name: Test Minecraft-style field inventory stack model and responsive HUD
         run: node client/arena/homefront-pack-grid.test.mjs && node client/arena/homefront-hud.test.mjs
+      - name: Test multiplayer interior alarm, evidence and event privacy
+        run: node server/homefront-interior-events.test.js && node client/arena/homefront-interior-event-feed.test.mjs
       - name: Verify shared building power changes instanced emergency lamps
         run: node client/arena/homefront-interior-lamps.test.mjs
       - name: Test exterior/interior scene visibility and culling

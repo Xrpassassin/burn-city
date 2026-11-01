@@ -177,7 +177,9 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       }
       if (req.method === 'GET' && url.pathname === '/api/homefront/world') {
         if (db.players && db.players[user.acct] && Date.now() - db.players[user.acct].lastSeen <= World.PRESENCE_TTL) {
-          const joined = World.enter(db, user.acct);
+          const rosters=store.load('homefront.json',{});
+          const roster=Core.validateBase(rosters[user.acct] || Core.createBase(user.acct),user.acct);
+          const joined = World.enter(db, user.acct, Date.now(), null, roster);
           store.save('homefront-world.json', joined.world);
           json(res, 200, { mode: 'homefront-world', ...joined.result, interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors), inputProtocol: { enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1', nextSequence: (joined.world.players[user.acct]?.lastInputSequence ?? -1) + 1, readyInMs: World.inputReadyInMs(joined.world.players[user.acct]) } }); return true;
         }
@@ -448,7 +450,10 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           // "Travel with party": a leader at home summons members in the same Homefront instance first.
           if (payload.withParty === true && !db.players[user.acct] && Travel.partyOf(db, user.acct)) Travel.summonParty(db, user.acct);
           const wasHome = !db.players[user.acct];
-          outcome=World.enter(db,user.acct,Date.now(),cindersEffects());
+          const escortRosters=store.load('homefront.json',{});
+          const escortBase=Core.validateBase(escortRosters[user.acct] || Core.createBase(user.acct),user.acct);
+          if(!escortBase)throw new Error('save_invalid');
+          outcome=World.enter(db,user.acct,Date.now(),cindersEffects(),escortBase);
           if (wasHome) { Travel.rejoinOnEnter(outcome.world, user.acct, { Collision, bounds: World.WORLD_SIZE }); Rpg.award(store, user.acct, 'enter_world'); }
           outcome.result = World.snapshot(outcome.world, user.acct);
           const player=outcome.world.players[user.acct];
@@ -795,6 +800,14 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       json(res, 400, { error: 'invalid_action' }); return true;
     }
     if (payload.action.type === 'expedition' || payload.action.type === 'boss_attack') throw new Error('use_shared_expedition_map');
+    // Squad selection is a refuge action. It cannot summon a companion in the
+    // middle of a dangerous expedition, and never accepts an invented survivor.
+    if(payload.action.type==='assign_expedition_companion'){
+      const worldDb=store.load('homefront-world.json',{});
+      const presence=worldDb.players?.[user.acct];
+      if(presence && Date.now()-(presence.lastSeen||0)<=World.PRESENCE_TTL)
+        throw new Error('return_to_refuge_to_change_companion');
+    }
     base.repelledCount = Number.isSafeInteger(base.repelledCount) ? base.repelledCount : 0;
     const repairEffects = payload.action.type === 'repair' ? cindersEffects() : null;
     const next = Core.applyAction(base, user.acct, payload.action, Date.now(), repairEffects);

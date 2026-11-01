@@ -32,8 +32,11 @@ export function auditHomefrontDestinationRoutes({ network = homefrontRoadNetwork
   const destinations=candidates.map(candidate=>{
     const road=network.roads.find(r=>r.id===candidate.roadId);
     const connected=!!road && (visited.has(road.from.id)||visited.has(road.to.id));
-    const swept=candidate.connector && candidate.status==='candidate'
-      ? auditHomefrontRoadSweeps({roads:[{...candidate.connector,id:'connector:'+candidate.siteId}],
+    const segment=candidate.connector;
+    const tiny=segment && Math.hypot(segment.to.x-segment.from.x,segment.to.z-segment.from.z)<0.001;
+    const sweepSegment=tiny ? {...segment,to:{x:segment.from.x+0.001,z:segment.from.z}} : segment;
+    const swept=segment && candidate.status==='candidate'
+      ? auditHomefrontRoadSweeps({roads:[{...sweepSegment,id:'connector:'+candidate.siteId}],
         buildings,playerRadius:0.45,margin:0.3}) : null;
     const status=!originRoad?'no-spawn-anchor':
       candidate.status!=='candidate'?'connector-'+candidate.status:

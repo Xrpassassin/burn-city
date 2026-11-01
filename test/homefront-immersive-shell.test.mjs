@@ -10,6 +10,7 @@ import { auditHomefrontV2MigrationReadiness } from '../client/arena/homefront-v2
 import { auditOrganicRoadGrades } from '../client/arena/homefront-road-grade-audit.mjs';
 import { auditOrganicRoadWidth } from '../client/arena/homefront-road-width-audit.mjs';
 import { auditOrganicCorridorObstacles } from '../client/arena/homefront-corridor-obstacles.mjs';
+import { auditOrganicDestinationAccess } from '../client/arena/homefront-destination-access.mjs';
 import { protectedOrganicSitesPreview, reserveOrganicLandmarkClearance } from '../client/arena/homefront-landmark-reservations.mjs';
 import { auditOrganicRoadClearance, roadBuildingClearance, buildableOrganicSitesPreview } from '../client/arena/homefront-road-clearance.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
@@ -244,5 +245,20 @@ test('v2 corridor obstacle audit rejects building intrusions and remains preview
   const gate = auditHomefrontV2MigrationReadiness();
   assert.deepEqual(gate.corridorObstacles, report);
   assert.equal(gate.checks.previewBuildingCorridorsClear, report.pass);
+  assert.equal(gate.readyForActivation, false);
+});
+
+test('v2 destination access records off-road gaps without claiming physical reachability', () => {
+  const report = auditOrganicDestinationAccess();
+  assert.deepEqual(report, auditOrganicDestinationAccess());
+  assert.ok(report.total > 3);
+  assert.equal(report.scope, 'distance-only-not-traversal');
+  assert.equal(report.connected + report.missing.length, report.total);
+  const unreachable = auditOrganicDestinationAccess({roads: [], sites: [{id:'isolated',x:0,z:0,radius:1}]});
+  assert.equal(unreachable.allWithinConnectorRange,false);
+  assert.equal(unreachable.missing[0].roadId,null);
+  const gate = auditHomefrontV2MigrationReadiness();
+  assert.deepEqual(gate.destinationAccess, report);
+  assert.equal(gate.checks.destinationsNearRoads, report.allWithinConnectorRange);
   assert.equal(gate.readyForActivation, false);
 });

@@ -25,3 +25,16 @@ assert.ok(closedAt > 0, 'grid closes');
 const inside = grid.slice(0, closedAt);
 for (const id of ['refugeWorldPanel', 'graveyardPanel', 'survivalPanel', 'privacyPanel', 'liveSiegePanel', 'buildPanel', 'tycoonPanel', 'logPanel']) assert.ok(inside.includes('id="' + id + '"'), id + ' is inside .grid');
 console.log('Homefront HUD tests passed (party-only minimap, build panel only in build mode, panels inside .grid).');
+
+assert.ok(hud.includes("import { createFieldPackGrid, fieldPackKey } from './homefront-pack-grid.mjs'"),
+  'HUD uses the existing world inventory rather than duplicating server item storage');
+assert.ok(hud.includes('createFieldPackGrid(document,carried,actionButtonId =>'),
+  'the inventory tab renders a slot-based field pack from server world snapshots');
+assert.ok(hud.includes("document.getElementById(actionButtonId)?.click()"),
+  'quick-use buttons use established authenticated survival actions');
+assert.ok(hud.includes("packButton.setAttribute('aria-label', 'Open field backpack')"),
+  'mobile players have an accessible backpack toggle alongside the existing HUD');
+assert.ok(hud.includes("if (!sheet.hidden && tab === 'inventory' && lastPackKey !== fieldPackKey(world?.selfInventory)) draw();"),
+  'open backpack updates on authoritative loot or survival changes without per-frame redraws');
+assert.ok(hud.includes("if (!sheet.hidden && tab === 'inventory') hide();"),
+  'I keyboard toggle and backpack button can close the same single overlay');

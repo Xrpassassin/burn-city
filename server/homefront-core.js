@@ -1,6 +1,7 @@
 // Renderer-independent, server-authoritative rules for the optional Zombies Homefront mode.
 'use strict';
 const { resolveDirectorLoot } = require('./homefront-director');
+const Companions = require('./homefront-companions');
 const CindersEffects = require('./homefront-cinders-effects');
 
 // Lookup tables keyed by client-supplied ids are null-prototype so 'constructor'/'__proto__'/'toString' never resolve.
@@ -11,7 +12,7 @@ const MAX_SURVIVORS = 12;
 const MAX_FARM_PLOTS = 24;
 const CROPS = NP({ potato: { days: 3, yield: 5, seedCost: 1 }, beans: { days: 4, yield: 7, seedCost: 1 }, corn: { days: 5, yield: 9, seedCost: 2 } });
 const ROLES = new Set(['idle', 'guard', 'scavenger', 'farmer', 'medic', 'mechanic']);
-const SURVIVOR_TASKS = new Set(['rest_at_refuge', 'perimeter_watch', 'defend_perimeter', 'stockpile_supplies', 'tend_crops', 'infirmary_duty', 'triage_standby', 'maintain_structures', 'emergency_repair', 'stand_by_repairs', 'take_shelter']);
+const SURVIVOR_TASKS = new Set(['rest_at_refuge', 'perimeter_watch', 'defend_perimeter', 'stockpile_supplies', 'tend_crops', 'infirmary_duty', 'triage_standby', 'maintain_structures', 'emergency_repair', 'stand_by_repairs', 'take_shelter', 'field_escort']);
 const SURVIVOR_STATS = Object.freeze(['combat', 'scavenging', 'farming', 'medical', 'engineering', 'endurance']);
 const MATERIAL_TIERS = Object.freeze({ wood: { label: 'Wood', hp: 1, defense: 0, resistance: 0, next: 'stone' }, stone: { label: 'Stone', hp: 1.75, defense: 2, resistance: 0.18, next: 'steel' }, steel: { label: 'Steel', hp: 2.8, defense: 5, resistance: 0.35, next: null } });
 const MATERIAL_UPGRADE_COSTS = Object.freeze({ stone: { stone: 12, scrap: 6 }, steel: { steel: 18, stone: 10, scrap: 12 } });
@@ -144,7 +145,7 @@ function createBase(ownerId, now = Date.now()) {
     embers: 50, upgrades: { scavenger_rig: 0, ember_press: 0, field_armory: 0, medic_station: 0 },
     weapons: ['pipe_blade'], equippedWeapon: 'pipe_blade', weaponMods: {},
     cosmeticsOwned: Object.keys(DEFAULT_COSMETICS).map(slot => DEFAULT_COSMETICS[slot]), cosmeticsEquipped: { ...DEFAULT_COSMETICS },
-    structures: [], farmPlots: [], survivors: [], expeditionCount: 0, defenseCount: 0, lastSiege: null,
+    structures: [], farmPlots: [], survivors: [], expeditionCompanionId: null, expeditionCount: 0, defenseCount: 0, lastSiege: null,
     log: [{ id: 1, kind: 'welcome', text: 'A refuge is yours. Gather supplies, recruit survivors, and prepare for the first breach.', at: now }]
   };
 }
@@ -216,6 +217,10 @@ function validateBase(input, ownerId) {
         background: typeof s.background === 'string' && SURVIVOR_BACKGROUNDS.includes(s.background) ? s.background : profile.background
       };
     });
+  out.expeditionCompanionId =
+    typeof input.expeditionCompanionId === 'string' &&
+    out.survivors.some(v => v.id === input.expeditionCompanionId && Companions.eligible(v))
+      ? input.expeditionCompanionId : null;
   out.log = Array.isArray(out.log) ? out.log.slice(-20) : [];
   return out;
 }
@@ -251,6 +256,9 @@ function syncSurvivorBehavior(s, now) {
     .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp) || a.id.localeCompare(b.id))[0];
   for (const survivor of s.survivors) {
     let task = defaultSurvivorTask(survivor.role), target = '', reason = 'Normal settlement duty';
+    if (survivor.id === s.expeditionCompanionId) {
+      task='field_escort';reason='Assigned to accompany the player on the next expedition';
+    } else
     if (incoming) {
       if (survivor.role === 'guard') { task = 'defend_perimeter'; target = siegeTarget?.id || ''; reason = 'Responding to incoming siege'; }
       else if (survivor.role === 'mechanic') { task = damaged ? 'emergency_repair' : 'stand_by_repairs'; target = damaged?.id || siegeTarget?.id || ''; reason = damaged ? 'Prioritize the weakest structure during siege warning' : 'Ready to reinforce the threatened perimeter'; }
@@ -276,7 +284,7 @@ function threatProfile(input) {
   if (!s || !Array.isArray(s.structures) || !Array.isArray(s.survivors)) throw new Error('invalid_base');
   const active = s.structures.filter(x => x && x.hp > 0 && BUILDINGS[x.type]);
   const activeFarmPlots = (s.farmPlots || []).filter(plot => plot && plot.crop && CROPS[plot.crop]).length;
-  const guards = s.survivors.filter(x => x && x.role === 'guard');
+  const guards = s.survivors.filter(x => x && x.role === 'guard' && x.id !== s.expeditionCompanionId);
   const guardStrength = guards.reduce((total, x) => {
     const morale = clampInt(x.morale, 0, 100);
     const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
@@ -627,6 +635,22 @@ function applyAction(input, ownerId, action, now = Date.now(), effects = null) {
       plot.crop = null; plot.growth = 0; plot.watered = false; plot.plantedAt = 0;
       break;
     }
+    case 'assign_expedition_companion': {
+      if (s.baseHp <= 0) throw new Error('base_destroyed');
+      if (action.survivorId === null) {
+        s.expeditionCompanionId=null;
+        record(s,'assignment','Field companion recalled to regular refuge duty.',now);
+      } else {
+        if (typeof action.survivorId !== 'string') throw new Error('unknown_survivor');
+        const survivor=s.survivors.find(x=>x.id===action.survivorId);
+        if (!survivor) throw new Error('unknown_survivor');
+        if (!Companions.eligible(survivor)) throw new Error('companion_requires_epic_or_legendary');
+        s.expeditionCompanionId=survivor.id;
+        record(s,'assignment',survivor.name+' assigned to accompany future field expeditions.',now);
+      }
+      syncSurvivorBehavior(s,now);
+      break;
+    }
     case 'assign': {
       if (action.role === 'farmer' && !s.farmPlots.some(p => p.crop)) throw new Error('plant_crops_before_recruiting_farmers');
       const survivor = s.survivors.find(x => x.id === action.survivorId);
@@ -653,7 +677,7 @@ function applyAction(input, ownerId, action, now = Date.now(), effects = null) {
       if (s.baseHp <= 0) throw new Error('base_destroyed');
       // Morale is operational, not cosmetic: exhausted or demoralized workers produce less.
       const labor = role => {
-        const assigned = s.survivors.filter(x => x.role === role);
+        const assigned = s.survivors.filter(x => x.role === role && x.id !== s.expeditionCompanionId);
         const baseLabor = assigned.reduce((total, x) => {
           const morale = clampInt(x.morale, 0, 100);
           const moraleFactor = morale >= 80 ? 1.25 : morale >= 40 ? 1 : morale >= 20 ? 0.75 : 0.5;
@@ -772,7 +796,7 @@ function applyAction(input, ownerId, action, now = Date.now(), effects = null) {
       if (!pendingIncident) s.defenseCount++;
       const profile = threatProfile(s);
       const active = s.structures.filter(x => x.hp > 0);
-      const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(s.survivors.filter(x => x.role === 'guard').length / 2) + 1));
+      const ammoUsed = Math.min(s.resources.ammo, Math.max(1, Math.ceil(s.survivors.filter(x => x.role === 'guard' && x.id !== s.expeditionCompanionId).length / 2) + 1));
       s.resources.ammo -= ammoUsed;
       const mannedTurrets = active.filter(x => x.type === 'turret' && x.manned);
       const turretAmmo = Math.min(s.resources.ammo, mannedTurrets.length * 3);

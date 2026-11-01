@@ -132,7 +132,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         if (!db.players[user.acct]) { Travel.touch(db, user.acct, now); store.save('homefront-world.json', db); }
         json(res, 200, { mode: 'homefront-travel', travel: Travel.publicState(db, user.acct, now) }); return true;
       }
-      // RPG character sheet (server/homefront-rpg.js): GET the sheet; POST learn/equip/unequip/track only.
+      // RPG C.I.N.D.E.R.S. sheet (server/homefront-rpg.js): existing GET; authenticated POST for skills, attributes, Ember perks, equipment and quest tracking.
       if (url.pathname === '/api/homefront/world/rpg') {
         const bases = store.load('homefront.json', {});
         const base = Object.prototype.hasOwnProperty.call(bases, user.acct) ? Core.validateBase(bases[user.acct], user.acct) : null;

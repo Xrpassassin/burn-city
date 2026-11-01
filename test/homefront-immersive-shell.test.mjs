@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { homefrontBuildingLayout } from '../client/arena/homefront-building-layout.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
 
@@ -68,4 +69,23 @@ test('client and server import exactly the same versioned building-layout genera
   assert.match(collision, /require\('\.\.\/client\/arena\/homefront-building-layout\.mjs'\)/);
   assert.match(layout, /HOMEFRONT_LAYOUT_VERSION = 1/);
   assert.match(layout, /HOMEFRONT_LAYOUT_SEED = 8675309/);
+});
+
+test('version 1 building layout preserves legacy generated footprints and random stream', () => {
+  let seed = 8675309;
+  const rand = () => { seed = (Math.imul(seed,1664525)+1013904223)>>>0; return seed/4294967296; };
+  const expected = [];
+  for (let x=-90;x<=90;x+=10) for(let z=-90;z<=90;z+=10){
+    if(rand()<0.27||Math.abs(x%20)<5||Math.abs(z%20)<5)continue;
+    const bx=x+(rand()-0.5)*2.2,bz=z+(rand()-0.5)*2.2;
+    if(Math.hypot(bx,bz)<13)continue;
+    const w=3.4+rand()*3.4,d=3.4+rand()*3.4;
+    const h=3+rand()*(Math.hypot(bx,bz)>65?11:6);
+    const materialIndex=Math.floor(rand()*4);
+    const rotation=(rand()-0.5)*0.16;
+    const roof=rand()>0.45?{xOffset:rand()-.5,zOffset:rand()-.5}:null;
+    const emberHeight=rand()>0.7?1.2+rand():null;
+    expected.push({id:'building:'+x+','+z,x:bx,z:bz,w,d,h,materialIndex,rotation,roof,emberHeight});
+  }
+  assert.deepEqual([...homefrontBuildingLayout()], expected);
 });

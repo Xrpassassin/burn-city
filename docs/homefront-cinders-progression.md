@@ -29,3 +29,9 @@ Attribute and perk actions are available only from the authenticated existing RP
 ## QA
 
 Open Character with desktop C or the existing menu on mobile; assign attributes, then earn real XP, train skills and unlock Ember perks. Test a legacy profile, separate wallets, repeated clicks, prereq locks and maximum level. The Character tab should remain the single existing HUD overlay. Full gameplay stat effects on health, speed, damage, stealth and repair costs remain future balance work rather than unverified promises.
+
+## Level-up feedback and safe skill practice
+
+The existing Homefront HUD now checks the authenticated RPG sheet on an 18-second cadence while signed in. A confirmed increase in character level shows a short-lived, non-blocking level-up notice in normal page flow, outside the joystick area. It lists current unspent skill, attribute and Ember perk points and opens the same Character screen when clicked. Existing levels on the initial load are not announced, repeated polls do not replay a notice, and a signed-out user clears the previous profile state.
+
+Skill-use XP bonuses are earned exclusively for genuine, positive-XP sources in the existing PRACTICE catalog. World entry itself is **zero XP**, remains zero after hundreds of entries, and can never become an infinite practice XP farm. Unrelated event types do not receive familiarity bonuses.

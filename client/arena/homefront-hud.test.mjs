@@ -57,3 +57,17 @@ assert.match(hud, /if \(\(e\.key === 'c' \|\| e\.key === 'C'\)/,
   'desktop C toggles the single Character overlay without changing movement');
 assert.match(hud, /@media\(max-width:560px\)/,
   'attribute and perk grids collapse to one column on narrow mobile screens');
+
+
+assert.match(hud, /from '\.\/homefront-level-up\.mjs'/,
+  'the HUD uses a pure level-change announcement model');
+assert.match(hud, /const RPG_REFRESH_MS = 18000/,
+  'RPG snapshots refresh at a bounded cadence instead of every animation frame');
+assert.match(hud, /const upgrade = levelUpNotice\(knownLevel,next\)/,
+  'only a higher server-confirmed level can trigger the upgrade notice');
+assert.match(hud, /levelNotice\.onclick = \(\) => \{ levelNotice\.hidden = true; void open\('character'\); \}/,
+  'level-up notice takes the player into the existing CINDERS upgrade screen');
+assert.match(hud, /\.hf-level-up-notice\[hidden\]\{display:none!important\}/,
+  'hidden announcements cannot overlap the mobile joystick or other controls');
+assert.match(hud, /lastProfileFetchAt = 0;/,
+  'signing out resets old profile poll state');

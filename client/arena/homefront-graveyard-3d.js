@@ -536,13 +536,28 @@ function boot(host) {
     for (const prop of environmentalCandidates(cx, cz, { density: 0.18 })) addEnvironmentalCandidate(chunk, prop);
     for (const landmark of landmarkCandidates(cx, cz)) addLandmark(chunk, landmark);
   }
-  // Deterministic road grid and procedural ruined buildings; no extra engine or dependency.
+  // Visual-only broken pavement. The deterministic road centers remain aligned
+  // with server terrain/collision and existing player saves. Replace the old
+  // uninterrupted strips with irregular, damaged sections; never shift the
+  // authoritative walking corridors merely to improve appearance.
+  const pavementHash = (a, b, axis) => {
+    const v = Math.sin(a * 127.1 + b * 311.7 + axis * 74.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const wornRoadMats = [roadMat, mat(0x383b35), mat(0x31362f), mat(0x424039)];
   for (let n = -90; n <= 90; n += 20) {
-    addBox(cityGroup, 4.2, 0.04, 196, n, 0, 0, roadMat);
-    addBox(cityGroup, 196, 0.04, 4.2, 0, 0, n, roadMat);
-    for (const offset of [-7, 7]) {
-      addBox(cityGroup, 0.22, 0.035, 196, n + offset, 0.025, 0, mat(0x55584d));
-      addBox(cityGroup, 196, 0.035, 0.22, 0, 0.025, n + offset, mat(0x55584d));
+    for (let k = -95; k < 95; k += 10) {
+      for (let axis = 0; axis < 2; axis++) {
+        const wear = pavementHash(n, k, axis);
+        // Preserve the main connection across blocks but introduce washouts,
+        // potholes and exposed terrain rather than a rigid solid checkerboard.
+        const length = wear < 0.1 ? 4.7 : 7.4 + wear * 2.1;
+        const width = 3.4 + pavementHash(k, n, axis + 3) * 0.9;
+        const center = k + 5 + (pavementHash(k, n, axis + 9) - 0.5) * 0.5;
+        const material = wornRoadMats[Math.min(3, Math.floor(wear * 4))];
+        if (axis === 0) addBox(cityGroup, width, 0.045, length, n, 0.01, center, material);
+        else addBox(cityGroup, length, 0.045, width, center, 0.01, n, material);
+      }
     }
   }
   let seed = 8675309;

@@ -2,6 +2,8 @@
 // on-demand full panels (Character, Inventory, Journal, Build, Manage, Travel) as one overlay with tabs.
 // Everything else stays hidden by default so the 3D view is not congested (iPhone first).
 // Presentation only: all numbers come from the server (world snapshot, /api/homefront/world/rpg).
+import { createFieldPackGrid, fieldPackKey } from './homefront-pack-grid.mjs';
+
 export const HUD_TABS = Object.freeze(['character', 'inventory', 'journal', 'build', 'manage', 'travel']);
 export const QUICK_SLOTS = Object.freeze([
   { id: 'bandage', icon: '🩹', label: 'Bandage', button: 'bandageInField' },
@@ -26,6 +28,24 @@ body.rpg-hud header{padding:calc(6px + env(safe-area-inset-top)) 12px 6px}body.r
 body.rpg-hud .wrap{padding:8px 8px 40px}body.rpg-hud #introText{display:none}body.rpg-hud #status{margin:6px 0;padding:6px 10px;font-size:12px}
 body.rpg-hud .rpg-nav{display:none}body.rpg-hud .rpg-nav.hf-talk{display:flex;padding:6px;margin:6px 0}body.rpg-hud .rpg-nav.hf-talk>*:not(#rpgTalk){display:none!important}
 .hf-hud{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 8px;margin:0 0 8px;border:1px solid #a55c3566;border-radius:12px;background:#100b09ee;position:sticky;top:calc(52px + env(safe-area-inset-top));z-index:4}
+.hf-pack{background:#130f0d;border:1px solid #755039;border-radius:12px;padding:10px;margin:6px 0 14px}
+.hf-pack-title{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.hf-pack-title strong{font-size:14px;color:#ffd8a9}
+.hf-pack-title small,.hf-pack-footnote{font-size:11px;color:#c9b7a6}
+.hf-pack-meter{height:7px;border-radius:8px;background:#322921;overflow:hidden;margin:8px 0 12px}
+.hf-pack-fill{height:100%;background:linear-gradient(90deg,#aeac69,#ffb46b);transition:width .18s ease}
+.hf-pack-fill.full{background:#ec7661}
+.hf-pack-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.hf-pack-slot{position:relative;display:grid;place-items:center;aspect-ratio:1;min-width:0;min-height:48px;border:2px solid #78553b;background:linear-gradient(135deg,#342c23,#181512);border-radius:7px;color:#ffe2bb;font:26px system-ui;cursor:pointer;padding:3px}
+.hf-pack-slot[aria-pressed=true]{border-color:#ffcd72;box-shadow:inset 0 0 0 2px #e99e4666}
+.hf-pack-slot.zero{opacity:.47}.hf-pack-slot.empty{opacity:.32;cursor:default;background:#1a1612}
+.hf-pack-slot:focus-visible,.hf-pack-use:focus-visible{outline:2px solid #ffdb9b;outline-offset:2px}
+.hf-pack-count{position:absolute;bottom:2px;right:3px;background:#0b0909c9;border-radius:3px;padding:1px 3px;color:#fff1d5;font:800 11px system-ui}
+.hf-pack-detail{min-height:70px;margin-top:8px;padding:9px;background:#100d0a;border:1px solid #59402b;border-radius:8px;color:#e5d0be;font-size:12px}
+.hf-pack-detail strong{display:block;color:#ffe0b8;font-size:13px}.hf-pack-detail p{margin:5px 0}
+.hf-pack-use{border:1px solid #a86a3d;background:#5a2915;color:#ffe9ce;border-radius:7px;padding:7px 11px;min-height:36px;font:700 12px system-ui}
+@media(max-width:520px){.hf-pack-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.hf-pack-slot{min-height:52px;font-size:24px}}
+@media(max-width:420px){.hf-hud{gap:4px;padding:5px 4px}.hf-hud .hf-q{width:34px;height:34px;flex-basis:34px}.hf-hud .hf-mm{width:38px;height:38px;flex-basis:38px}.hf-hud .hf-menu{padding:5px 7px;font-size:12px}}
 .hf-hud .hf-vit{flex:1 1 auto;min-width:0;display:grid;gap:3px}.hf-bar{height:8px;border-radius:5px;background:#2b1c15;overflow:hidden}.hf-bar i{display:block;height:100%;background:linear-gradient(90deg,#c43a2a,#ff8b3d)}
 .hf-hud small{font:700 11px system-ui;color:#e8cdb6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hf-q{width:38px;height:38px;flex:0 0 38px;border-radius:10px;border:1px solid #8e5235;background:#24140d;color:#ffe0c4;font-size:17px;padding:0;cursor:pointer}.hf-q:disabled{opacity:.35}
@@ -60,7 +80,9 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const quick = QUICK_SLOTS.map(q => { const b = el('button', { className: 'hf-q', type: 'button', textContent: q.icon, title: q.label }); b.setAttribute('aria-label', q.label); b.onclick = () => document.getElementById(q.button)?.click(); return b; });
   const mm = el('canvas', { className: 'hf-mm', width: 88, height: 88, title: 'Party map (only your party appears)' }); mm.setAttribute('aria-label', 'Party minimap');
   const menu = el('button', { className: 'hf-menu', type: 'button', textContent: '☰ Menu' }); menu.setAttribute('aria-haspopup', 'dialog');
-  const hud = el('div', { className: 'hf-hud', id: 'hfHud' }, vit, ...quick, mm, menu); hud.setAttribute('role', 'toolbar'); hud.setAttribute('aria-label', 'HUD');
+  const packButton = el('button', { className: 'hf-q', type: 'button', textContent: '🎒', title: 'Open field backpack' });
+  packButton.setAttribute('aria-label', 'Open field backpack');
+  const hud = el('div', { className: 'hf-hud', id: 'hfHud' }, vit, ...quick, mm, packButton, menu); hud.setAttribute('role', 'toolbar'); hud.setAttribute('aria-label', 'HUD');
   nav?.after(hud);
   // Overlay with tabs (hidden by default).
   const tabsEl = el('div', { className: 'hf-tabs' }); tabsEl.setAttribute('role', 'tablist');
@@ -70,11 +92,22 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const sheet = el('div', { className: 'hf-sheet', id: 'hfSheet', hidden: true }, card); sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', 'Character and management');
   document.body.append(sheet);
   const LABEL = { character: '🧍 Character', inventory: '🎒 Inventory', journal: '📓 Journal', build: '🛠 Build', manage: '📋 Manage', travel: '🧭 Travel' };
-  let tab = 'character', rpg = null, borrowed = null;
+  let tab = 'character', rpg = null, borrowed = null, lastPackKey = '';
   const returnBorrowed = () => { if (borrowed) { borrowed.home.after(borrowed.node); borrowed.home.remove(); borrowed = null; } };
-  const hide = () => { returnBorrowed(); sheet.hidden = true; };
+  const hide = () => { returnBorrowed(); sheet.hidden = true; lastPackKey = ''; };
   close.onclick = hide; sheet.addEventListener('click', e => { if (e.target === sheet) hide(); });
-  window.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) hide(); if ((e.key === 'i' || e.key === 'I') && !/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName || '')) open(sheet.hidden ? 'inventory' : tab); });
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !sheet.hidden) hide();
+    if ((e.key === 'i' || e.key === 'I') && !e.repeat &&
+        !e.ctrlKey && !e.metaKey && !e.altKey &&
+        !/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName || '') &&
+        !e.target?.isContentEditable) {
+      e.preventDefault();
+      if (!sheet.hidden && tab === 'inventory') hide();
+      else void open('inventory');
+    }
+  });
+  packButton.onclick = () => { if (!sheet.hidden && tab === 'inventory') hide(); else void open('inventory'); };
   const rowOf = (left, right) => el('div', { className: 'hf-row' }, left, right || '');
   async function rpgAct(payload) { try { rpg = (await request('/api/homefront/world/rpg', 'POST', payload)).sheet; draw(); } catch (e) { message(e.message === 'no_skill_points' ? 'No skill points yet: earn XP in the Wastes.' : e.message, 'danger'); } }
   function draw() {
@@ -87,6 +120,13 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
       body.append(el('p', { className: 'hf-muted', textContent: rpg.skillPoints + ' skill point' + (rpg.skillPoints === 1 ? '' : 's') + ' to spend · armor ' + rpg.armor + ' · XP comes from infected, crates, landmarks, rescues, workdays, sieges and PvP.' }));
       for (const s of rpg.skills) { const b = el('button', { type: 'button', textContent: s.rank >= s.max ? 'Max' : '+1' }); b.disabled = s.rank >= s.max || rpg.skillPoints < 1; b.onclick = () => rpgAct({ action: 'learn', skill: s.id }); body.append(rowOf(el('span', { textContent: s.label + ' ' + s.rank + '/' + s.max + ' · ' }, el('span', { className: 'hf-muted', textContent: s.planned + ' (bonus not active yet)' })), b)); }
     } else if (tab === 'inventory') {
+      const carried = getWorld()?.selfInventory || null;
+      lastPackKey = fieldPackKey(carried);
+      body.append(createFieldPackGrid(document,carried,actionButtonId => {
+        // Dispatch only established survival controls, whose handlers issue
+        // authenticated server requests. Never mutate local pack counts.
+        document.getElementById(actionButtonId)?.click();
+      }));
       body.append(el('h3', { textContent: 'Equipment' }));
       body.append(rowOf(el('span', { textContent: '🔫 Weapon · ' + String(rpg.equipment.weapon).replaceAll('_', ' ') }), el('span', { className: 'hf-muted', textContent: 'change at the weapon bench' })));
       for (const slot of rpg.slots) { const id = rpg.equipment[slot], item = rpg.items.find(i => i.id === id); const b = el('button', { type: 'button', textContent: 'Unequip' }); b.hidden = !id; b.onclick = () => rpgAct({ action: 'unequip', slot }); body.append(rowOf(el('span', { textContent: slot[0].toUpperCase() + slot.slice(1) + ' · ' + (item ? item.label : 'empty') }), b)); }
@@ -135,6 +175,8 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const ctx = mm.getContext('2d');
   function update() {
     const world = getWorld(), inWorld = !!world?.self;
+    packButton.hidden = !inWorld;
+    if (!sheet.hidden && tab === 'inventory' && lastPackKey !== fieldPackKey(world?.selfInventory)) draw();
     const health = inWorld ? Math.round(world.selfSurvival?.health ?? 100) : 100;
     hp.style.width = Math.max(0, Math.min(100, health)) + '%'; hpText.textContent = '❤ ' + health + (inWorld ? '' : ' · Homefront');
     const mag = world?.selfWeaponMagazine;

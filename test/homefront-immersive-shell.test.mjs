@@ -27,3 +27,11 @@ test('unsupported movement is surfaced in the game view rather than silently ret
   assert.match(scene, /setMovementAvailability\(continuousInput\.enabled, data\.inputProtocol\?\.enabled/);
   assert.match(scene, /setMovementAvailability\(false, reason\)/);
 });
+
+test('inventory and modal overlays block avatar movement and jumping', () => {
+  const view = readFileSync(new URL('../client/arena/homefront-view.mjs', import.meta.url), 'utf8');
+  assert.match(view, /const menuOpen = \(\) =>/);
+  assert.match(view, /state\.move = \(\) => \{ if \(menuOpen\(\)\) return \{ x: 0, y: 0 \}/);
+  assert.match(view, /state\.running = \(\) => !menuOpen\(\)/);
+  assert.match(view, /state\.takeJump = \(\) => \{ const j = !menuOpen\(\)/);
+});

@@ -217,6 +217,20 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
             el('span',{textContent:a.value+'/'+a.max}),train)));
       }
       body.append(attributesGrid);
+      if (rpg.gameplayEffects) {
+        const bonuses=rpg.gameplayEffects;
+        const effectsText=[
+          'Cinderheart: '+bonuses.needsReductionPct+'% slower field needs',
+          'Dexterity: '+bonuses.staminaSavingsPct+'% less travel stamina (combined with Cinderheart)',
+          'Instinct: '+bonuses.searchNoiseReductionPct+'% quieter container searches',
+          'Nerve: +'+bonuses.aimStabilityBonusPct+'% PvE aim stability',
+          'Engineering: +'+bonuses.repairBonusHp+' repair integrity',
+          'Resourcefulness: +'+bonuses.foodRestoreBonus+' hunger restored per ration',
+          'Spirit: +'+bonuses.restRestoreBonus+' stamina per rest'
+        ];
+        body.append(el('h3',{textContent:'Active field bonuses'}),
+          el('p',{className:'hf-muted',textContent:effectsText.join(' · ')}));
+      }
       body.append(el('h3',{textContent:'Trained skills · '+rpg.skillPoints+' points'}));
       body.append(el('p',{className:'hf-muted',textContent:
         'Spend one skill point per level. Practicing real actions builds familiarity and a small XP bonus. Other skill effects will be activated through separately tested gameplay changes.'}));

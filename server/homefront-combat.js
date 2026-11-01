@@ -180,7 +180,7 @@ function advance({encounters,players,interiors=null,now=Date.now(),speed=2.8,max
  }
  return clean;
 }
-function attack({encounters,account,player,base,survival=null,now=Date.now(),weaponPower=1,seed=0,targetId=null,aimPoint=null}){
+function attack({encounters,account,player,base,survival=null,now=Date.now(),weaponPower=1,seed=0,targetId=null,aimPoint=null,aimTrainingBonus=0}){
  const clean=normalizeEncounters(encounters,now),e=clean[account];if(!e||e.defeated||e.hp<=0)throw Error('no_active_encounter');if(now>e.expiresAt)throw Error('encounter_expired');
  const living=(e.members||[]).filter(m=>!m.defeated&&m.hp>0);
  if(targetId!=null&&(typeof targetId!=='string'||(targetId!==e.id&&!living.some(m=>m.id===targetId))))throw Error('target_mismatch');
@@ -198,7 +198,7 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  const recoveryRemaining=Number.isFinite(player.accuracyRecoverUntil)?Math.max(0,player.accuracyRecoverUntil-now):0;
  const recoveryPenalty=clamp(recoveryRemaining/handling.recoveryMs,0,1)*0.55;
  const adsProgress=clamp(aimElapsed/handling.adsMs,0,1);
- const aimStability=clamp(1-recoveryPenalty+(player.aiming===true?adsProgress*0.18:0),0,1);
+ const aimStability=clamp(1-recoveryPenalty+(player.aiming===true?adsProgress*0.18:0)+clamp(aimTrainingBonus,0,0.063),0,1);
  const aimed=aimPoint!=null&&player.aiming===true&&aimElapsed>=handling.adsMs&&aimStability>=0.68;
  if(aimed)aimedZone=aimPoint.y>=1.88?'head':aimPoint.y<=0.68?'limb':'torso';
  const fireInterval=WEAPON_FIRE_INTERVAL[weaponId]||ATTACK_COOLDOWN;

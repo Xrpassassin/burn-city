@@ -32,6 +32,9 @@ on:
       - 'server/homefront-rpg.js'
       - 'server/homefront-cinders.js'
       - 'server/homefront-cinders.test.js'
+      - 'server/homefront-cinders-effects.js'
+      - 'server/homefront-cinders-effects.test.js'
+      - 'test/homefront-cinders-effects-api-sim.js'
       - 'client/arena/homefront-level-up.mjs'
       - 'client/arena/homefront-level-up.test.mjs'
       - 'test/homefront-cinders-levelup-sim.js'
@@ -180,6 +183,8 @@ jobs:
         run: node server/homefront-field-surveys.test.js && node test/homefront-field-survey-api-sim.js
       - name: Verify CINDERS level-up alerts and zero-XP event safety
         run: node client/arena/homefront-level-up.test.mjs && node test/homefront-cinders-levelup-sim.js
+      - name: Test bounded CINDERS gameplay effects and two-account enforcement
+        run: node server/homefront-cinders-effects.test.js && node test/homefront-cinders-effects-api-sim.js
       - name: Test CINDERS attribute allocation, practice and protected Ember perks
         run: node server/homefront-cinders.test.js && node test/homefront-cinders-rpg-sim.js
       - name: Run Homefront settlement simulation

@@ -1,4 +1,5 @@
 'use strict';
+const CindersEffects = require('./homefront-cinders-effects');
 
 // Server-authoritative field survival state for Homefront expeditions.
 // Needs only decay while the explorer is present in the shared Graveyard.
@@ -13,25 +14,27 @@ function normalize(input, now = Date.now()) {
     lastTick: clamp(s.lastTick, 0, Number.MAX_SAFE_INTEGER) || now
   };
 }
-function tick(input, now = Date.now()) {
+function tick(input, now = Date.now(), effects = null) {
   const s = normalize(input, now);
+  const training = CindersEffects.normalizeEffects(effects);
   const elapsed = clamp((now - s.lastTick) / 1000, 0, 20);
   s.lastTick = now;
-  s.hunger = clamp(s.hunger - elapsed * 0.035, 0, 100);
-  s.thirst = clamp(s.thirst - elapsed * 0.06, 0, 100);
+  s.hunger = clamp(s.hunger - elapsed * 0.035 * training.needScale, 0, 100);
+  s.thirst = clamp(s.thirst - elapsed * 0.06 * training.needScale, 0, 100);
   // Exhaustion is a pressure, not a timer that kills a player while offline.
   if (s.hunger <= 0 || s.thirst <= 0) s.health = clamp(s.health - elapsed * (s.thirst <= 0 ? 0.22 : 0.12), 0, 100);
   if (s.health > 0 && s.hunger > 35 && s.thirst > 35 && s.infection === 0) s.health = clamp(s.health + elapsed * 0.015, 0, 100);
   return s;
 }
-function move(input, now = Date.now(), distance = 12) {
-  const s = tick(input, now);
+function move(input, now = Date.now(), distance = 12, effects = null) {
+  const s = tick(input, now, effects);
+  const training = CindersEffects.normalizeEffects(effects);
   // Travel itself is costly: longer moves use more stamina and gently accelerate metabolism.
   // The caller supplies only server-measured, already-clamped world displacement.
   const traveled = clamp(distance, 0, 12);
   const needPressure = s.hunger <= 25 || s.thirst <= 25;
   const staminaCost = 2 + traveled * 0.25 + (needPressure ? 2.5 : 0);
-  s.stamina = clamp(s.stamina - staminaCost, 0, 100);
+  s.stamina = clamp(s.stamina - staminaCost * training.staminaScale, 0, 100);
   s.hunger = clamp(s.hunger - traveled * 0.004, 0, 100);
   s.thirst = clamp(s.thirst - traveled * 0.007, 0, 100);
   return s;
@@ -44,23 +47,25 @@ function move(input, now = Date.now(), distance = 12) {
  * eight 1-unit input packets should cost approximately the same stamina as one
  * eight-unit legacy travel command. Never trust a client-supplied distance.
  */
-function moveContinuous(input, now = Date.now(), distance = 0) {
-  const s = tick(input, now);
+function moveContinuous(input, now = Date.now(), distance = 0, effects = null) {
+  const s = tick(input, now, effects);
+  const training = CindersEffects.normalizeEffects(effects);
   const traveled = clamp(distance, 0, 12);
   const needPressure = s.hunger <= 25 || s.thirst <= 25;
   const perUnitStamina = (needPressure ? 7.5 : 5) / 12;
-  s.stamina = clamp(s.stamina - traveled * perUnitStamina, 0, 100);
+  s.stamina = clamp(s.stamina - traveled * perUnitStamina * training.staminaScale, 0, 100);
   s.hunger = clamp(s.hunger - traveled * 0.004, 0, 100);
   s.thirst = clamp(s.thirst - traveled * 0.007, 0, 100);
   return s;
 }
 
-function act(input, action, now = Date.now()) {
-  const s = tick(input, now);
+function act(input, action, now = Date.now(), effects = null) {
+  const s = tick(input, now, effects);
+  const training = CindersEffects.normalizeEffects(effects);
   switch (action) {
     case 'eat':
       if (s.hunger >= 95) throw new Error('not_hungry');
-      s.hunger = clamp(s.hunger + 38, 0, 100); break;
+      s.hunger = clamp(s.hunger + 38 + training.foodRestoreBonus, 0, 100); break;
     case 'drink':
       if (s.thirst >= 95) throw new Error('not_thirsty');
       s.thirst = clamp(s.thirst + 45, 0, 100); break;
@@ -69,7 +74,7 @@ function act(input, action, now = Date.now()) {
       s.health = clamp(s.health + 30, 0, 100); s.infection = clamp(s.infection - 8, 0, 100); break;
     case 'catch_breath':
       if (s.stamina >= 95) throw new Error('not_exhausted');
-      s.stamina = clamp(s.stamina + 45, 0, 100); break;
+      s.stamina = clamp(s.stamina + 45 + training.restRestoreBonus, 0, 100); break;
     default: throw new Error('unknown_survival_action');
   }
   s.lastTick = now;

@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const Combat = require('./homefront-combat');
 const Survival = require('./homefront-survival');
+const CindersEffects = require('./homefront-cinders-effects');
 const Inventory = require('./homefront-inventory');
 const Loot = require('./homefront-loot');
 const FieldSurveys = require('./homefront-field-surveys');
@@ -137,6 +138,7 @@ function normalizeWorld(input) {
     p.lastSprintAt = Number.isFinite(p.lastSprintAt) ? clamp(p.lastSprintAt, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.accuracyRecoverUntil = Number.isFinite(p.accuracyRecoverUntil) ? clamp(p.accuracyRecoverUntil, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.survival = Survival.normalize(p.survival, p.lastSeen || Date.now());
+    p.cindersEffects = CindersEffects.normalizeEffects(p.cindersEffects);
     p.pvpHits = Array.isArray(p.pvpHits) ? p.pvpHits.filter(h => h && Number.isFinite(h.at) && Number.isFinite(h.damage) && typeof h.fromId === 'string').slice(-5) : [];
     p.pvpKills = Number.isSafeInteger(p.pvpKills) && p.pvpKills > 0 ? p.pvpKills : 0;
     p.spawnedAt = Number.isFinite(p.spawnedAt) ? p.spawnedAt : 0;
@@ -370,7 +372,7 @@ function snapshot(input, acct, now = Date.now()) {
     })() : null
   };
 }
-function enter(input, acct, now = Date.now()) {
+function enter(input, acct, now = Date.now(), effects = null) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   prune(w, now);
   let p = w.players[acct];
@@ -380,7 +382,10 @@ function enter(input, acct, now = Date.now()) {
     p = w.players[acct] = { x: position.x, z: position.z, spawn: spawn.id, spawnedAt: now, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }, aiming: false, aimStartedAt: 0, lastSprintAt: 0, accuracyRecoverUntil: 0 };
   }
   p.lastSeen = now;
-  p.survival = Survival.tick(p.survival, now);
+  // Rebind cached movement effects from the authenticated RPG profile at each
+  // ordinary world enter/refresh. High-rate movement avoids disk RPG reads.
+  if (effects) p.cindersEffects = CindersEffects.normalizeEffects(effects);
+  p.survival = Survival.tick(p.survival, now, p.cindersEffects);
   // Party joins establish formation in joinParty(). Presence refreshes must not snap
   // followers to the leader: their position is advanced by bounded, collision-aware
   // movement in move(), not by polling this endpoint.
@@ -493,8 +498,8 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
     p.aiming = false; p.aimStartedAt = 0;
     const effortDistance = movedDistance * (sprint ? 1.55 : 1);
     p.survival = isInput
-      ? Survival.moveContinuous(p.survival, now, effortDistance)
-      : Survival.move(p.survival, now, effortDistance);
+      ? Survival.moveContinuous(p.survival, now, effortDistance, p.cindersEffects)
+      : Survival.move(p.survival, now, effortDistance, p.cindersEffects);
   }
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct && (!isInput || movedDistance > 0)) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {

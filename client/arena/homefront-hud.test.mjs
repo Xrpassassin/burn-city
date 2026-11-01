@@ -71,3 +71,12 @@ assert.match(hud, /\.hf-level-up-notice\[hidden\]\{display:none!important\}/,
   'hidden announcements cannot overlap the mobile joystick or other controls');
 assert.match(hud, /lastProfileFetchAt = 0;/,
   'signing out resets old profile poll state');
+
+assert.match(hud,/if \(rpg\.gameplayEffects\)/,
+  'active gameplay bonuses are shown only from server RPG sheet');
+assert.match(hud,/bonuses\.searchNoiseReductionPct/,
+  'Instinct effect is visible without inventing a new stealth UI');
+assert.match(hud,/bonuses\.repairBonusHp/,
+  'Engineering repair benefit shows actual server-validated integrity');
+assert.match(hud,/bonuses\.aimStabilityBonusPct/,
+  'Nerve is labelled as PvE-only steadiness');

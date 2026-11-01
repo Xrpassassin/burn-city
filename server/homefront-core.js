@@ -1,6 +1,7 @@
 // Renderer-independent, server-authoritative rules for the optional Zombies Homefront mode.
 'use strict';
 const { resolveDirectorLoot } = require('./homefront-director');
+const CindersEffects = require('./homefront-cinders-effects');
 
 // Lookup tables keyed by client-supplied ids are null-prototype so 'constructor'/'__proto__'/'toString' never resolve.
 const NP = o => Object.freeze(Object.assign(Object.create(null), o));
@@ -305,7 +306,7 @@ function threatProfile(input) {
       projectedStructureDamage >= 60 || projectedBaseDamage >= 25 ? 'critical' : 'strained'
   };
 }
-function applyAction(input, ownerId, action, now = Date.now()) {
+function applyAction(input, ownerId, action, now = Date.now(), effects = null) {
   const s = validateBase(input, ownerId);
   if (!s) throw new Error('invalid_or_foreign_base');
   const foodBefore = { food: s.resources.food, rawFood: s.resources.rawFood };
@@ -880,6 +881,7 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       break;
     }
     case 'repair': {
+      const repairBonus = Math.floor(CindersEffects.normalizeEffects(effects).repairHpBonus);
       const target = action.target === 'base' ? null : s.structures.find(x => x.id === action.target);
       if (action.target !== 'base' && !target) throw new Error('unknown_repair_target');
       if (target && target.hp >= target.maxHp || !target && s.baseHp >= s.baseMaxHp) throw new Error('already_repaired');
@@ -890,11 +892,11 @@ function applyAction(input, ownerId, action, now = Date.now()) {
       for (const [resource, amount] of Object.entries(repairCost)) s.resources[resource] -= amount;
       if (target) {
         const before = target.hp;
-        target.hp = Math.min(target.maxHp, target.hp + 50);
+        target.hp = Math.min(target.maxHp, target.hp + 50 + repairBonus);
         record(s, 'repair', 'Repaired ' + target.type + ' ' + target.id + ': +' + (target.hp - before) + ' HP (' + Math.round(target.hp / target.maxHp * 100) + '% integrity).', now);
       } else {
         const before = s.baseHp;
-        s.baseHp = Math.min(s.baseMaxHp, s.baseHp + 75);
+        s.baseHp = Math.min(s.baseMaxHp, s.baseHp + 75 + repairBonus);
         record(s, 'repair', 'Repaired refuge: +' + (s.baseHp - before) + ' HP (' + Math.round(s.baseHp / s.baseMaxHp * 100) + '% integrity).', now);
       }
       break;

@@ -35,3 +35,35 @@ Open Character with desktop C or the existing menu on mobile; assign attributes,
 The existing Homefront HUD now checks the authenticated RPG sheet on an 18-second cadence while signed in. A confirmed increase in character level shows a short-lived, non-blocking level-up notice in normal page flow, outside the joystick area. It lists current unspent skill, attribute and Ember perk points and opens the same Character screen when clicked. Existing levels on the initial load are not announced, repeated polls do not replay a notice, and a signed-out user clears the previous profile state.
 
 Skill-use XP bonuses are earned exclusively for genuine, positive-XP sources in the existing PRACTICE catalog. World entry itself is **zero XP**, remains zero after hundreds of entries, and can never become an infinite practice XP farm. Unrelated event types do not receive familiarity bonuses.
+
+## Live attribute effects — bounded gameplay pass
+
+The following bonuses are now computed exclusively from the server's saved, level-validated C.I.N.D.E.R.S. attributes. Every character starts at 3 per attribute; only points **above 3** unlock extra effects. Existing level thresholds, available upgrade points, equipment and PvP remain unchanged.
+
+| Attribute | Server-side effect per point above 3 | Maximum individual effect |
+| --- | --- | --- |
+| Cinderheart | 1% less hunger/thirst decay, 0.5% lower travel stamina | 7% needs reduction, 3.5% stamina saving |
+| Instinct | 1.5% quieter ordinary container searches | 10.5% noise reduction |
+| Nerve | +0.9 percentage points PvE aim stability | +6.3 points (not PvP) |
+| Dexterity | 1% lower travel stamina | 7% stamina saving |
+| Engineering | +1.5 repair HP, rounded down | +10 HP for a material-paid repair |
+| Resourcefulness | +1.25 hunger from a consumed ration | +8.75 hunger |
+| Spirit | +1.5 stamina on a successful field rest | +10.5 stamina |
+
+Combined Cinderheart and Dexterity stamina cost reduction never exceeds 10.5%. The existing 24-weight field backpack, item counts, food/wood costs, repair material costs, server-authoritative movement/aim, boss damage, PvP damage and shared alarm volume remain unchanged.
+
+These are intentionally small, real effects. They do **not** change maximum health, enemy health, weapon damage, player speed, encounter spawns, drop quantities, crafting recipes or XRPL payouts. Instinct applies only when scavenging regular containers; a loud alarm or firearm remains loud.
+
+The current actor's movement bonuses refresh on entering the expedition and immediately after an authenticated attribute spend. Active players get their server-derived profile rechecked on normal re-entry/refresh instead of performing a new profile file read on every continuous-movement packet.
+
+### QA acceptance
+
+1. A level-1 character has the exact original survival and PvE combat numbers.
+2. A character with Cinderheart 10 and Dexterity 9 has exactly 9.5% lower travel stamina cost; the same saving applies to direct and legacy movement.
+3. An Engineering-10 character repairs 85 refuge HP rather than 75 and spends the exact same wood and scrap.
+4. Eating and resting cannot exceed 100; exhausted/fully fed actions retain their existing checks.
+5. A second account's attribute spending or effects must not modify the first account's profile or world state.
+6. Client-supplied levels, effect multipliers or repair bonus values are ignored. Malformed persisted modifier values are clamped.
+7. Test mobile/desktop HUD display; verify PvP unaffected and input movement speed unchanged.
+
+See `server/homefront-cinders-effects.test.js` and `test/homefront-cinders-effects-api-sim.js`.

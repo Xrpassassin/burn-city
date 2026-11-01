@@ -1,6 +1,7 @@
 // Preview-only migration gate. Do not use this to activate v2 gameplay:
 // geometric clearance and graph connectivity do not prove physical walkability.
 import { homefrontRoadNetworkPreview } from './homefront-road-network-preview.mjs';
+import { auditHomefrontDestinationRoutes } from './homefront-destination-route-audit.mjs';
 import { auditHomefrontRoadSweeps } from './homefront-road-sweep-audit.mjs';
 import { auditOrganicRoadGrades } from './homefront-road-grade-audit.mjs';
 import { auditOrganicRoadWidth } from './homefront-road-width-audit.mjs';
@@ -19,6 +20,7 @@ export function auditHomefrontV2MigrationReadiness() {
   const roadSites = buildableOrganicSitesPreview({ roads: network.roads });
   const reserved = reserveOrganicLandmarkClearance({ buildings: roadSites.buildings });
   const clearance = auditOrganicRoadClearance({ roads: network.roads, buildings: reserved.buildings });
+  const destinationRoutes = auditHomefrontDestinationRoutes({ network, sites: protectedOrganicSitesPreview(), buildings: reserved.buildings });
   const sweptCorridors = auditHomefrontRoadSweeps({ roads: network.roads, buildings: reserved.buildings });
   const corridorObstacles = auditOrganicCorridorObstacles({ roads: network.roads, buildings: reserved.buildings });
   const checks = {
@@ -27,6 +29,7 @@ export function auditHomefrontV2MigrationReadiness() {
     roadCorridorsClear: clearance.clear,
     previewBuildingCorridorsClear: corridorObstacles.pass,
     sampledRoadSweepsClear: sweptCorridors.clear,
+    spawnToDestinationsHaveCandidateRoutes: destinationRoutes.allCandidates,
     roadGradesWithinPreviewLimit: terrainGrades.acceptable,
     roadWidthSlopesWithinPreviewLimit: roadWidth.acceptable,
     protectedSitesReserved: reserved.buildings.every(b => protectedOrganicSitesPreview().every(site =>
@@ -38,7 +41,7 @@ export function auditHomefrontV2MigrationReadiness() {
     'version and migrate saved coordinates, interiors, AI and POI references',
     'complete desktop, mobile and two-player traversal tests'
   ];
-  return { version: 2, checks, topology, destinationAccess, terrainGrades, roadWidth, corridorObstacles, sweptCorridors,
+  return { version: 2, checks, topology, destinationAccess, terrainGrades, roadWidth, corridorObstacles, sweptCorridors, destinationRoutes,
     summary: { roadCount: network.roads.length, retainedBuildings: reserved.buildings.length,
       excludedForRoads: roadSites.excluded.length, excludedForLandmarks: reserved.excluded.length,
       protectedSites: reserved.protectedSites },

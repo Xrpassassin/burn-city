@@ -212,7 +212,7 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   const objectMat = material(0x393b37), clueMat = material(0x9e7944), powerMat = material(0x647d70), glassMat = material(0x405357);
   const rubbleMat = material(0x62594e);
   const grimeMat = new THREE.MeshStandardMaterial({ color: 0x282b29, roughness: 1, transparent: true, opacity: 0.32, depthWrite: false });
-  const lampMat = new THREE.MeshStandardMaterial({ color: 0xffbd78, emissive: 0xff742e, emissiveIntensity: 0.65, roughness: 0.7 });
+  const lampMat = new THREE.MeshStandardMaterial({ color: 0xffbd78, emissive: 0xff742e, emissiveIntensity: 0.12, roughness: 0.7 });
   const detailHash = value => { let h = 2166136261; for (const ch of value) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
   const detailRandom = (seed, lane) => { const n = Math.sin(seed * 12.9898 + lane * 78.233) * 43758.5453; return n - Math.floor(n); };
   const box = (parent, size, position, mat) => {
@@ -249,6 +249,7 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   const rubbleBatch = new THREE.InstancedMesh(rubbleGeometry, rubbleMat, detailCount * 4);
   const grimeBatch = new THREE.InstancedMesh(grimeGeometry, grimeMat, detailCount * 2);
   const lampBatch = new THREE.InstancedMesh(lampGeometry, lampMat, detailCount);
+  lampBatch.userData.homefrontEmergencyLamps = true;
   const dummy = new THREE.Object3D();
   let rubbleIndex = 0, grimeIndex = 0, lampIndex = 0;
   for (const r of interior.rooms) {

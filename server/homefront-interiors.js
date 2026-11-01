@@ -3,6 +3,7 @@
 // but account progress and rewards are only committed here after distance/room/requirement checks.
 const Catalog = require('../client/arena/homefront-interior-world.mjs');
 const Inventory = require('./homefront-inventory');
+const Events = require('./homefront-interior-events');
 
 const LANDMARKS = Object.freeze({
   north_bus_depot: { x: -8, z: -65 },
@@ -73,6 +74,7 @@ function normalizeShared(input) {
     out[landmarkId] = {
       flags: [...new Set((Array.isArray(value.flags) ? value.flags : []).filter(flag => SHARED_FLAGS.has(flag)))],
       openedDoors: [...new Set((Array.isArray(value.openedDoors) ? value.openedDoors : []).filter(id => doors.has(id)))],
+      ...Events.normalize(value, landmarkId),
       updatedAt: clampInt(value.updatedAt, 0, Number.MAX_SAFE_INTEGER)
     };
   }
@@ -128,15 +130,19 @@ function requireActive(input, account, player, now) {
 function action(input, { account, player, actionId, now = Date.now(), shared = null }) {
   const ctx = requireActive(input, account, player, now);
   const item = ctx.catalog.interactables.find(target => target.id === actionId && target.roomId === ctx.state.roomId);
-  if (!item || ctx.state.used.includes(actionId)) throw new Error('interior_action_unavailable');
+  if (!item || ctx.state.used.includes(actionId) ||
+      (item.action === 'clue' && ctx.state.discovered.includes(actionId))) throw new Error('interior_action_unavailable');
   const landmark = LANDMARKS[ctx.landmarkId];
   const room = Catalog.interiorRoom(ctx.catalog, ctx.state.roomId);
   const targetX = landmark.x + item.x, targetZ = landmark.z + item.z;
   if (Math.hypot(player.x - targetX, player.z - targetZ) > INTERACTION_RADIUS) throw new Error('too_far_from_interior_action');
   const commonState = normalizeShared(shared);
   const result = Catalog.applyInteriorAction(ctx.catalog, effectiveState(ctx.state, commonState, ctx.landmarkId), actionId);
+  const currentShared = commonState[ctx.landmarkId] || { flags: [], openedDoors: [], updatedAt: 0 };
+  const recorded = Events.record(currentShared, { landmarkId:ctx.landmarkId, actionId, now });
+  commonState[ctx.landmarkId] = recorded.state;
   if (item.action === 'power') {
-    const current = commonState[ctx.landmarkId] || { flags: [], openedDoors: [], updatedAt: 0 };
+    const current = commonState[ctx.landmarkId];
     const newFlags = result.state.flags.filter(flag => SHARED_FLAGS.has(flag));
     commonState[ctx.landmarkId] = { ...current, flags: [...new Set([...current.flags, ...newFlags])], updatedAt: now };
   }
@@ -160,7 +166,9 @@ function action(input, { account, player, actionId, now = Date.now(), shared = n
   }
   ctx.owner.interiors[ctx.landmarkId] = { ...result.state, updatedAt: now };
   ctx.owner.activeLandmarkId = ctx.landmarkId;
-  return { state: ctx.stateMap, shared: commonState, interior: copy(ctx.owner.interiors[ctx.landmarkId]), message: result.message, reward, inventory: Inventory.normalize(player.inventory), noise: result.state.noise };
+  return { state: ctx.stateMap, shared: commonState, event: recorded.event,
+    interior: copy(ctx.owner.interiors[ctx.landmarkId]), message: result.message, reward,
+    inventory: Inventory.normalize(player.inventory), noise: result.state.noise };
 }
 function traverse(input, { account, player, doorId, now = Date.now(), shared = null }) {
   const ctx = requireActive(input, account, player, now);
@@ -230,4 +238,26 @@ function publicState(input, account, shared = null) {
   const effective = effectiveState(state, shared, landmarkId);
   return blueprint && effective ? { ...copy(effective), title: blueprint.title, room: Catalog.interiorRoom(blueprint, effective.roomId), actions: Catalog.availableInteriorActions(blueprint, effective) } : null;
 }
-module.exports = { LANDMARKS, ENTRY_RADIUS, INTERACTION_RADIUS, REWARDS, normalize, enter, action, traverse, breachDoor, leave, publicState, roomPresence, normalizeShared, effectiveState, sharedOpenedDoors };
+function evidenceSnapshot(input, account) {
+  // Personal field notes across all previously explored buildings. Server
+  // supplies authored text; one player's clues cannot leak into another's log.
+  if (typeof account !== 'string' || !account) return [];
+  const owned = normalize(input)[account]?.interiors;
+  if (!owned) return [];
+  const notes = [];
+  for (const [landmarkId, room] of Object.entries(owned)) {
+    const blueprint = Catalog.interiorForLandmark(landmarkId);
+    if (!blueprint) continue;
+    for (const actionId of room.discovered || []) {
+      const item = blueprint.interactables.find(target =>
+        target.id === actionId && target.action === 'clue');
+      if (item) notes.push({
+        id: item.id, landmarkId, site:blueprint.title,
+        label:item.label, text:item.text
+      });
+    }
+  }
+  return notes.slice(0,48);
+}
+
+module.exports = { LANDMARKS, ENTRY_RADIUS, INTERACTION_RADIUS, REWARDS, normalize, enter, action, traverse, breachDoor, leave, publicState, roomPresence, normalizeShared, effectiveState, sharedOpenedDoors, evidenceSnapshot };

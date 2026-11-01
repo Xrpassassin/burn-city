@@ -485,3 +485,19 @@ assert.match(scene, /from '\.\/homefront-interior-lamps\.mjs'/,
   'Homefront loads the batched room lighting profile helper');
 assert.match(scene, /applyInteriorLampProfile\(interiorSetPieces\.get\(interiorState\.landmarkId\), interiorState\)/,
   'power restoration visuals consume authenticated shared interior flags');
+
+
+assert.match(scene, /from '\.\/homefront-interior-event-feed\.mjs'/,
+  'world scene shows real server-owned shared building events');
+assert.match(scene, /showInteriorEvent\(data\.interiorInstance\)/,
+  'full world snapshot updates nearby shared event state');
+assert.match(scene, /showInteriorEvent\(merged\.world\.interiorInstance\)/,
+  '2.4-second presence polls can show new co-op alarms without a full reload');
+assert.match(scene, /if \(!eventToast\.hidden && now > eventToastUntil\) eventToast\.hidden = true;/,
+  'immersive feedback is short-lived and does not block game controls');
+assert.match(scene, /sfx\.radio\(\)/,
+  'the existing sound system handles the shared shutter alarm');
+assert.match(scene, /explorationEvidence = data\.evidence/,
+  'individual survivor clue notes come from the server');
+assert.match(scene, /explorationEvidence\.slice\(-20\)\.reverse\(\)/,
+  'evidence list uses capped authored text');

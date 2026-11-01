@@ -6,6 +6,7 @@ import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
+import { homefrontBuildingLayout } from './homefront-building-layout.mjs';
 import { atmosphereAt, AMBIENT_UPDATE_MS } from './homefront-atmosphere.mjs';
 import { groundDetailCandidates } from './homefront-ground-detail.mjs';
 import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
@@ -580,20 +581,16 @@ function boot(host) {
       }
     }
   }
-  let seed = 8675309;
-  const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-  for (let x = -90; x <= 90; x += 10) for (let z = -90; z <= 90; z += 10) {
-    if (rand() < 0.27 || Math.abs(x % 20) < 5 || Math.abs(z % 20) < 5) continue;
-    const bx = x + (rand() - 0.5) * 2.2, bz = z + (rand() - 0.5) * 2.2;
-    if (Math.hypot(bx, bz) < 13) continue;
-    const w = 3.4 + rand() * 3.4, d = 3.4 + rand() * 3.4, h = 3 + rand() * (Math.hypot(bx, bz) > 65 ? 11 : 6);
+  for (const layout of homefrontBuildingLayout()) {
+    const { id, x: bx, z: bz, w, d, h, materialIndex, rotation, roof, emberHeight } = layout;
     const chunk = cityChunkAt(bx, bz);
     const baseY = terrainElevation(bx, bz);
     const structure = new THREE.Group();
-    const building = addBox(structure, w, h, d, bx, baseY, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
-    building.rotation.y = (rand() - 0.5) * 0.16;
-    if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h, bz + (rand() - .5), ruinMat);
-    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat); }
+    const building = addBox(structure, w, h, d, bx, baseY, bz, buildingMats[materialIndex]);
+    building.rotation.y = rotation;
+    if (roof) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + roof.xOffset, baseY + h, bz + roof.zOffset, ruinMat);
+    if (emberHeight !== null) addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat);
+    const x = Number(id.slice(9).split(',')[0]), z = Number(id.split(',')[1]);
     // Per-building roof silhouettes break up the repeated cuboid skyline.
     // Hash-only cosmetics deliberately consume no LCG calls: the sequence of
     // authoritative building positions and server obstacle bounds stays aligned.
@@ -608,7 +605,7 @@ function boot(host) {
       addBox(structure, 0.2, 0.6, 0.2, bx, baseY + h, bz, ruinMat);
     }
     chunk.add(structure);
-    registerEnvironmentVisual('building:' + x + ',' + z, structure);
+    registerEnvironmentVisual(id, structure);
   }
   // Authored landmarks are distinct low-poly set pieces; server POIs remain the interaction authority.
   const landmarkSetPieces = new Map();

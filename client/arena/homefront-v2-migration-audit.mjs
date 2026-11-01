@@ -2,6 +2,7 @@
 // geometric clearance and graph connectivity do not prove physical walkability.
 import { homefrontRoadNetworkPreview } from './homefront-road-network-preview.mjs';
 import { auditOrganicRoadGrades } from './homefront-road-grade-audit.mjs';
+import { auditOrganicRoadWidth } from './homefront-road-width-audit.mjs';
 import { auditOrganicRouteReachability } from './homefront-route-reachability.mjs';
 import { buildableOrganicSitesPreview, auditOrganicRoadClearance } from './homefront-road-clearance.mjs';
 import { reserveOrganicLandmarkClearance, protectedOrganicSitesPreview } from './homefront-landmark-reservations.mjs';
@@ -10,6 +11,7 @@ export function auditHomefrontV2MigrationReadiness() {
   const network = homefrontRoadNetworkPreview();
   const topology = auditOrganicRouteReachability(network);
   const terrainGrades = auditOrganicRoadGrades({ roads: network.roads });
+  const roadWidth = auditOrganicRoadWidth({ roads: network.roads });
   const roadSites = buildableOrganicSitesPreview({ roads: network.roads });
   const reserved = reserveOrganicLandmarkClearance({ buildings: roadSites.buildings });
   const clearance = auditOrganicRoadClearance({ roads: network.roads, buildings: reserved.buildings });
@@ -17,6 +19,7 @@ export function auditHomefrontV2MigrationReadiness() {
     roadGraphConnected: topology.connected && topology.disconnectedSpurs.length === 0,
     roadCorridorsClear: clearance.clear,
     roadGradesWithinPreviewLimit: terrainGrades.acceptable,
+    roadWidthSlopesWithinPreviewLimit: roadWidth.acceptable,
     protectedSitesReserved: reserved.buildings.every(b => protectedOrganicSitesPreview().every(site =>
       Math.hypot(b.x-site.x,b.z-site.z) >= site.radius + Math.hypot(b.w,b.d)/2 + 1))
   };
@@ -26,7 +29,7 @@ export function auditHomefrontV2MigrationReadiness() {
     'version and migrate saved coordinates, interiors, AI and POI references',
     'complete desktop, mobile and two-player traversal tests'
   ];
-  return { version: 2, checks, topology, terrainGrades,
+  return { version: 2, checks, topology, terrainGrades, roadWidth,
     summary: { roadCount: network.roads.length, retainedBuildings: reserved.buildings.length,
       excludedForRoads: roadSites.excluded.length, excludedForLandmarks: reserved.excluded.length,
       protectedSites: reserved.protectedSites },

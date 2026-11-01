@@ -44,3 +44,16 @@ test('authenticated server disabling movement disables local prediction', () => 
   assert.equal(c.enabled,false);
   assert.deepEqual(reasons,['server_disabled']);
 });
+
+test('release correction is stable across 30 FPS and 60 FPS', () => {
+  const build = () => boot(() => new Promise(() => {})).c;
+  const fast = build(), slow = build();
+  // Simulate a prediction lead without accepting any server movement;
+  // one in-flight packet remains unresolved while movement is released.
+  fast.step({x:1,z:0},false,200,0.05);
+  slow.step({x:1,z:0},false,200,0.05);
+  for (let i = 0; i < 60; i++) fast.step(null,false,210+i*16.6667,1/60);
+  for (let i = 0; i < 30; i++) slow.step(null,false,210+i*33.3333,1/30);
+  assert.ok(Math.abs(fast.position().x-slow.position().x)<0.002,
+    'equal elapsed time should produce equivalent cosmetic correction');
+});

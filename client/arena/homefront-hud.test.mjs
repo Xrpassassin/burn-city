@@ -38,3 +38,22 @@ assert.ok(hud.includes("if (!sheet.hidden && tab === 'inventory' && lastPackKey 
   'open backpack updates on authoritative loot or survival changes without per-frame redraws');
 assert.ok(hud.includes("if (!sheet.hidden && tab === 'inventory') hide();"),
   'I keyboard toggle and backpack button can close the same single overlay');
+
+assert.match(hud, /C\.I\.N\.D\.E\.R\.S\. · Level /,
+  'Character tab introduces the original seven-attribute C.I.N.D.E.R.S. system');
+assert.match(hud, /rpg\.attributePoints \+ ' attribute · ' \+ rpg\.skillPoints/,
+  'attribute, skill and ember perk budgets appear in one existing HUD overlay');
+assert.match(hud, /for \(const a of rpg\.attributes \|\| \[\]\)/,
+  'attributes display directly from authenticated RPG sheet');
+assert.match(hud, /action:'train-attribute',attribute:a\.id/,
+  'attribute allocation uses authenticated RPG endpoint');
+assert.match(hud, /action:'learn-perk',perk:perk\.id/,
+  'perk unlocks use authenticated RPG endpoint');
+assert.match(hud, /train\.disabled=!perk\.canLearn/,
+  'locked perks cannot issue purchase requests');
+assert.match(hud, /const practice=skill\.practice/,
+  'skill mastery comes from verified play and tracked practice');
+assert.match(hud, /if \(\(e\.key === 'c' \|\| e\.key === 'C'\)/,
+  'desktop C toggles the single Character overlay without changing movement');
+assert.match(hud, /@media\(max-width:560px\)/,
+  'attribute and perk grids collapse to one column on narrow mobile screens');

@@ -31,7 +31,7 @@ try{
   window.mount(false);
  });
  await page.getByText('rewards are never guaranteed.',{exact:false}).waitFor();
- await page.getByText('Purchasing provides virtual, in-game property access only.',{exact:false}).waitFor();
+ await page.getByText('Virtual property is for gameplay access only; there is no financial claim',{exact:false}).waitFor();
  await page.getByText('Purchases are currently disabled; no Xaman payment request can be created.',{exact:false}).waitFor();
  assert.equal(await page.getByRole('button').count(),0);
  await page.evaluate(()=>{document.querySelector('main').replaceChildren();window.mount(true);});

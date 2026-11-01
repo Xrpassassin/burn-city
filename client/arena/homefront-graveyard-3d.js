@@ -988,7 +988,10 @@ function boot(host) {
   function updateWorld(data) {
     worldData = data;
     lastRenderedWorldData = data;
-    if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
+    if (!data.self) {
+      continuousInput.disable('left_world');
+      movementNotice.hidden = true;
+    } else if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
       continuousInput.sync(data.inputProtocol, data.self, performance.now());
       setMovementAvailability(continuousInput.enabled, data.inputProtocol?.enabled ? 'connection' : 'server_disabled');
     }
@@ -1463,13 +1466,19 @@ function boot(host) {
     } finally { presencePending = false; }
   }
 
+  let worldFetchGeneration = 0;
+  // Travel responses arrive in the page controller. Re-fetch authenticated state
+  // immediately instead of leaving the scene on its previous eight-second poll.
+  window.addEventListener('homefront:world-membership', () => { void fetchWorld(); });
   async function fetchWorld() {
     if (!token() || moving) { if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.'; return; }
+    const requestGeneration = ++worldFetchGeneration;
     try {
       const r = await fetch(API + '/api/homefront/world', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
       await fetchExplorationProgress();
+      if (requestGeneration !== worldFetchGeneration) return;
       updateWorld(data);
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }

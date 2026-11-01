@@ -1,3 +1,4 @@
+import { previewDestinationDetours } from '../client/arena/homefront-destination-detours.mjs';
 import { previewDestinationConnectors } from '../client/arena/homefront-destination-connectors.mjs';
 // Source-level regression guard for Homefront immersive game shell.
 // Execute: node --test test/homefront-immersive-shell.test.mjs
@@ -278,4 +279,20 @@ test('v2 connector preview produces deterministic candidate paths and detects bl
   assert.equal(blocked.connectors[0].status,'blocked');
   assert.deepEqual(blocked.connectors[0].conflicts,['obstacle']);
   assert.equal(previewDestinationConnectors({roads:[],sites:[{id:'isolated',x:0,z:0,radius:1}],buildings:[]}).connectors[0].status,'no-road');
+});
+
+test('preview detours are deterministic and never return an obstructed accepted route', () => {
+  const report = previewDestinationDetours();
+  assert.deepEqual(report, previewDestinationDetours());
+  assert.equal(report.version, 2);
+  assert.equal(report.scope, 'preview-building-clearance-only');
+  const connector = {siteId:'test',connector:{from:{x:-10,z:0},to:{x:10,z:0},width:2.2},status:'blocked'};
+  const building = {id:'blocker',x:0,z:0,w:4,d:4};
+  const result = previewDestinationDetours({connectors:[connector],buildings:[building]});
+  assert.ok(['detour-candidate','blocked'].includes(result.routes[0].status));
+  if (result.routes[0].status === 'detour-candidate') {
+    for (const segment of result.routes[0].segments)
+      assert.ok(roadBuildingClearance(segment,building) >= 0.55);
+  } else assert.equal(result.routes[0].segments.length,0);
+  assert.equal(previewDestinationDetours({connectors:[{siteId:'isolated',status:'no-road'}],buildings:[]}).unresolved.length,1);
 });

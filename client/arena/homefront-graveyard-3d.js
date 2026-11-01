@@ -725,7 +725,7 @@ function boot(host) {
       // Switching movement protocols must not immediately trigger a legacy 10-unit step.
       lastStickMoveAt = performance.now();
       if (status && reason !== 'server_disabled') status.textContent =
-        'Direct walking unavailable (' + reason + '). Restored normal controls.';
+        'Direct walking unavailable (' + reason + '). Server activation or network recovery required; use ?movement=legacy only for testing.';
     }
   });
   let interiorState = null;
@@ -1775,6 +1775,10 @@ function boot(host) {
         return;
       }
     }
+    // In immersive mode, clicking empty ground must never become a travel
+    // command. Preserve ground-click pathing only in the explicit classic
+    // or legacy controller so rollback remains operable during server QA.
+    if (wantsContinuous) return;
     if (worldData.party && !worldData.party.leader) return;
     const hits = raycaster.intersectObject(groundHit, false);
     if (!hits.length) return;
@@ -1804,7 +1808,7 @@ function boot(host) {
       return false;
     } finally { moving = false; }
   }
-  const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(260, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };
+  const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
   // Exploration remains third-person; overhead views are reserved for base construction.

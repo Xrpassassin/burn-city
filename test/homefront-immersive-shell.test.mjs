@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { homefrontBuildingLayout, homefrontOrganicLayoutPreview, HOMEFRONT_ORGANIC_LAYOUT_VERSION } from '../client/arena/homefront-building-layout.mjs';
 import { homefrontRoadNetworkPreview } from '../client/arena/homefront-road-network-preview.mjs';
+import { auditOrganicRoadClearance, roadBuildingClearance } from '../client/arena/homefront-road-clearance.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
 
@@ -115,4 +116,15 @@ test('v2 winding roads deterministically connect the backbone and district spurs
   const server = readFileSync(new URL('../server/homefront-collision.js', import.meta.url), 'utf8');
   assert.doesNotMatch(server, /homefrontRoadNetworkPreview/);
   assert.doesNotMatch(scene, /homefrontRoadNetworkPreview/);
+});
+
+test('road clearance audit is reproducible and reports actionable conflicts', () => {
+  const a = auditOrganicRoadClearance();
+  assert.deepEqual(a, auditOrganicRoadClearance());
+  assert.ok(a.roadCount >= 16 && a.buildingCount > 20);
+  assert.equal(a.clear, a.conflicts.length === 0);
+  assert.ok(a.conflicts.every(c => c.roadId && c.buildingId && Number.isFinite(c.clearance)));
+  const road={from:{x:-10,z:0},to:{x:10,z:0},width:4};
+  assert.ok(roadBuildingClearance(road,{x:0,z:0,w:4,d:4}) < 0);
+  assert.ok(roadBuildingClearance(road,{x:0,z:30,w:4,d:4}) > 20);
 });

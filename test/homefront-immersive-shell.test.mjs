@@ -21,3 +21,9 @@ test('empty ground cannot issue click-to-move in immersive mode', () => {
 test('fullscreen renderer accepts actual host height', () => {
   assert.match(scene, /Math\.max\(1, host\.clientHeight\)/);
 });
+
+test('unsupported movement is surfaced in the game view rather than silently returning to point-and-click', () => {
+  assert.match(scene, /movementNotice\.setAttribute\('role', 'status'\)/);
+  assert.match(scene, /setMovementAvailability\(continuousInput\.enabled, data\.inputProtocol\?\.enabled/);
+  assert.match(scene, /setMovementAvailability\(false, reason\)/);
+});

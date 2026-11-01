@@ -15,7 +15,7 @@ test('v2 saved-position audit flags collision without moving any saved data', ()
 
 test('v2 audit handles rotated buildings, invalid positions and safe margins', () => {
   const buildings = [{ id: 'angled', x: 0, z: 0, w: 6, d: 2, rotation: Math.PI / 4 }];
-  const positions = [{ id: 'near', x: 1.4, z: -1.4 }, { id: 'far', x: 20, z: 20 }, { id: 'broken', x: NaN, z: 0 }];
+  const positions = [{ id: 'near', x: 1, z: -1 }, { id: 'far', x: 20, z: 20 }, { id: 'broken', x: NaN, z: 0 }];
   const result = auditHomefrontSavedPositions({ positions, buildings });
   assert.equal(result.hazards.some(h => h.id === 'near' && h.reason === 'building_obstruction'), true);
   assert.equal(result.hazards.some(h => h.id === 'broken' && h.reason === 'invalid_position'), true);

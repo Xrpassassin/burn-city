@@ -41,3 +41,9 @@ test('wastes pavement is segmented cosmetic geometry, not uninterrupted grid str
   assert.match(scene, /for \(let k = -95; k < 95; k \+= 10\)/);
   assert.doesNotMatch(scene, /addBox\(cityGroup, 4\.2, 0\.04, 196/);
 });
+
+test('road fragments are streamed and grounded without changing authoritative collision', () => {
+  assert.match(scene, /const roadChunk = cityChunkAt\(rx, rz\)/);
+  assert.match(scene, /const roadY = terrainElevation\(rx, rz\) \+ 0\.012/);
+  assert.match(scene, /addBox\(roadChunk, width, 0\.045, length, rx, roadY, rz, material\)/);
+});

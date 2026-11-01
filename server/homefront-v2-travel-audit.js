@@ -4,6 +4,7 @@
 const { createV2CollisionPreview, canTraverseV2Preview } = require('./homefront-v2-collision-preview');
 const { homefrontRoadNetworkPreview } = require('../client/arena/homefront-road-network-preview.mjs');
 const { previewDestinationConnectors } = require('../client/arena/homefront-destination-connectors.mjs');
+const { previewDestinationDetours } = require('../client/arena/homefront-destination-detours.mjs');
 function auditV2TravelPreview({ network=homefrontRoadNetworkPreview(), connectors, catalog=createV2CollisionPreview(),
   radius=0.55, sampleStep=0.75 } = {}) {
   if (!Array.isArray(network?.roads)) throw new TypeError('invalid road network');
@@ -17,10 +18,12 @@ function auditV2TravelPreview({ network=homefrontRoadNetworkPreview(), connector
     sites:catalog.protectedSites,
     buildings:catalog.obstacles.map(b=>({id:b.id,x:b.x,z:b.z,w:b.halfX*2,d:b.halfZ*2,rotation:b.rotation}))
   }).connectors;
+  const detourCandidates=previewDestinationDetours({connectors:access,buildings:catalog.obstacles.map(b=>({id:b.id,x:b.x,z:b.z,w:b.halfX*2,d:b.halfZ*2,rotation:b.rotation}))}).routes;
   const destinations=access.map(c=>{
-    const pass=c.status==='candidate' && !!c.connector &&
-      roadPass.get(c.roadId)===true &&
-      canTraverseV2Preview(catalog,c.connector.from,c.connector.to,{radius,sampleStep});
+    const direct=c.status==='candidate' && !!c.connector && canTraverseV2Preview(catalog,c.connector.from,c.connector.to,{radius,sampleStep});
+    const detour=detourCandidates.find(d=>d.siteId===c.siteId);
+    const alternate=!direct && detour?.status==='detour-candidate' && detour.segments.every(s=>canTraverseV2Preview(catalog,s.from,s.to,{radius,sampleStep}));
+    const pass=roadPass.get(c.roadId)===true && (direct||alternate);
     return {siteId:c.siteId,roadId:c.roadId??null,pass,
       reason:pass?null:c.status!=='candidate'?'connector-'+c.status:
         !roadPass.get(c.roadId)?'road-impassable':'connector-impassable'};

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { homefrontBuildingLayout, homefrontOrganicLayoutPreview, HOMEFRONT_ORGANIC_LAYOUT_VERSION } from '../client/arena/homefront-building-layout.mjs';
 import { homefrontRoadNetworkPreview } from '../client/arena/homefront-road-network-preview.mjs';
-import { auditOrganicRoadClearance, roadBuildingClearance } from '../client/arena/homefront-road-clearance.mjs';
+import { auditOrganicRoadClearance, roadBuildingClearance, buildableOrganicSitesPreview } from '../client/arena/homefront-road-clearance.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
 
@@ -127,4 +127,27 @@ test('road clearance audit is reproducible and reports actionable conflicts', ()
   const road={from:{x:-10,z:0},to:{x:10,z:0},width:4};
   assert.ok(roadBuildingClearance(road,{x:0,z:0,w:4,d:4}) < 0);
   assert.ok(roadBuildingClearance(road,{x:0,z:30,w:4,d:4}) > 20);
+});
+
+test('v2 road-reserved buildable sites remain clear without altering the live v1 map', () => {
+  const first = buildableOrganicSitesPreview();
+  assert.deepEqual(first, buildableOrganicSitesPreview());
+  assert.equal(first.version, 2);
+  assert.ok(first.buildings.length > 0);
+  assert.ok(first.clearance.clear, 'retained preview building footprints must clear proposed roads');
+  assert.equal(first.buildings.length + first.excluded.length, [...homefrontOrganicLayoutPreview()].length);
+  const retainedIds = new Set(first.buildings.map(b => b.id));
+  assert.ok(first.excluded.every(e => !retainedIds.has(e.id) && e.roadIds.length > 0));
+  assert.deepEqual([...homefrontBuildingLayout()], [...homefrontBuildingLayout()], 'persistent v1 remains deterministic');
+});
+
+test('all v2 district roads connect to an arterial and the arterial spine has no gaps', () => {
+  const { nodes, roads } = homefrontRoadNetworkPreview();
+  const seen = new Set([nodes[0].id]);
+  for (const road of roads.filter(r=>r.kind === 'arterial')) {
+    assert.ok(seen.has(road.from.id), 'spine must connect from prior node');
+    seen.add(road.to.id);
+  }
+  assert.equal(seen.size, nodes.length);
+  assert.ok(roads.filter(r=>r.kind==='district').every(r => seen.has(r.from.id)));
 });

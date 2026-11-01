@@ -2,6 +2,7 @@
 'use strict';
 const crypto = require('crypto');
 const Combat = require('./homefront-combat');
+const Companions = require('./homefront-companions');
 const Survival = require('./homefront-survival');
 const CindersEffects = require('./homefront-cinders-effects');
 const Inventory = require('./homefront-inventory');
@@ -138,6 +139,7 @@ function normalizeWorld(input) {
     p.lastSprintAt = Number.isFinite(p.lastSprintAt) ? clamp(p.lastSprintAt, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.accuracyRecoverUntil = Number.isFinite(p.accuracyRecoverUntil) ? clamp(p.accuracyRecoverUntil, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.survival = Survival.normalize(p.survival, p.lastSeen || Date.now());
+    p.companion = Companions.normalize(p.companion);
     p.cindersEffects = CindersEffects.normalizeEffects(p.cindersEffects);
     p.pvpHits = Array.isArray(p.pvpHits) ? p.pvpHits.filter(h => h && Number.isFinite(h.at) && Number.isFinite(h.damage) && typeof h.fromId === 'string').slice(-5) : [];
     p.pvpKills = Number.isSafeInteger(p.pvpKills) && p.pvpKills > 0 ? p.pvpKills : 0;
@@ -343,6 +345,10 @@ function snapshot(input, acct, now = Date.now()) {
       return { ...avatar, interior: sameBuilding ? presence : null };
     }).filter(v => v.online),
     interest: { radius: INTEREST_RADIUS, mapShows: 'party' },
+    // A single rare escort per visible player. They never join account/player
+    // arrays, cannot be targeted by PvP and reveal no private camp roster.
+    companions: [...visible].filter(id => now - (w.players[id]?.lastSeen || 0) <= PRESENCE_TTL)
+      .map(id => Companions.publicCompanion(id,w.players[id])).filter(Boolean),
     self: p ? publicPlayer(acct, p, acct, now, viewerParty) : null,
     director: p ? { phase: p.directorState?.phase || 'calm', lastDecision: p.directorState?.lastDecision || 'hold', nextSpawnAt: p.directorState?.nextSpawnAt || 0, noise: Math.round(Math.max(0, (p.noiseLevel || 0) - Math.max(0, now - (p.lastNoiseAt || now)) / 120)) } : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now, viewerParty)) } : null,
@@ -372,7 +378,7 @@ function snapshot(input, acct, now = Date.now()) {
     })() : null
   };
 }
-function enter(input, acct, now = Date.now(), effects = null) {
+function enter(input, acct, now = Date.now(), effects = null, base = null) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   prune(w, now);
   let p = w.players[acct];
@@ -385,12 +391,15 @@ function enter(input, acct, now = Date.now(), effects = null) {
   // Rebind cached movement effects from the authenticated RPG profile at each
   // ordinary world enter/refresh. High-rate movement avoids disk RPG reads.
   if (effects) p.cindersEffects = CindersEffects.normalizeEffects(effects);
+  if (base) Companions.assign(p,base,now);
+  Companions.advance(p,now);
   p.survival = Survival.tick(p.survival, now, p.cindersEffects);
   // Party joins establish formation in joinParty(). Presence refreshes must not snap
   // followers to the leader: their position is advanced by bounded, collision-aware
   // movement in move(), not by polling this endpoint.
   // Refreshes advance bounded pursuit too, so infected do not require player movement to update.
   w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, interiors: w.interiors, now });
+  Companions.guard(w.encounters,acct,p,now);
   tickDirector(w, acct, now);
   w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
   return { world: w, result: snapshot(w, acct, now) };
@@ -501,6 +510,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
       ? Survival.moveContinuous(p.survival, now, effortDistance, p.cindersEffects)
       : Survival.move(p.survival, now, effortDistance, p.cindersEffects);
   }
+  Companions.advance(p,now,removedObstacleIds);
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader === acct && (!isInput || movedDistance > 0)) {
     for (const member of w.parties[p.partyCode].members) if (member !== acct && w.players[member]) {
       const offsetX = (hash(member) % 7) - 3;
@@ -540,6 +550,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
   // Legacy moves retain the prior update semantics.
   if (!isInput || now - p.lastWorldInputTick >= 500) {
     w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, interiors: w.interiors, now });
+    Companions.guard(w.encounters,acct,p,now);
     tickDirector(w, acct, now);
     w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
     if (isInput) p.lastWorldInputTick = now;

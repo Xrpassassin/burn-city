@@ -28,6 +28,26 @@ body.rpg-hud header{padding:calc(6px + env(safe-area-inset-top)) 12px 6px}body.r
 body.rpg-hud .wrap{padding:8px 8px 40px}body.rpg-hud #introText{display:none}body.rpg-hud #status{margin:6px 0;padding:6px 10px;font-size:12px}
 body.rpg-hud .rpg-nav{display:none}body.rpg-hud .rpg-nav.hf-talk{display:flex;padding:6px;margin:6px 0}body.rpg-hud .rpg-nav.hf-talk>*:not(#rpgTalk){display:none!important}
 .hf-hud{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 8px;margin:0 0 8px;border:1px solid #a55c3566;border-radius:12px;background:#100b09ee;position:sticky;top:calc(52px + env(safe-area-inset-top));z-index:4}
+.hf-cinders-title{letter-spacing:.13em;color:#ffbb75;font-size:17px;text-transform:uppercase}
+.hf-cinders-summary{margin:6px 0 12px;color:#dfc3a6;font-size:12px}
+.hf-xp-track{height:9px;border:1px solid #86563b;background:#241910;border-radius:8px;overflow:hidden}
+.hf-xp-fill{height:100%;background:linear-gradient(90deg,#c14f25,#ffa14e);transition:width .2s}
+.hf-cinders-attributes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0 16px}
+.hf-cinders-attribute{display:flex;gap:8px;align-items:center;min-width:0;padding:9px;border:1px solid #865638;border-radius:10px;background:linear-gradient(145deg,#28190f,#18110e)}
+.hf-cinders-letter{display:grid;place-items:center;flex:0 0 38px;height:43px;border:1px solid #ae6d3c;border-radius:7px;background:#382016;color:#ffb66b;font:800 24px system-ui}
+.hf-cinders-description{flex:1;min-width:0}.hf-cinders-description strong{display:block;color:#ffe6bf;font-size:13px}
+.hf-cinders-description small{display:block;color:#bbac9a;font-size:11px;line-height:1.4}
+.hf-cinders-score{display:grid;justify-items:center;gap:3px;color:#ffe0ac;font:800 17px system-ui}
+.hf-cinders-score button,.hf-cinders-perk button{min-height:32px;min-width:34px;padding:4px 9px;border-radius:7px;border:1px solid #c17c40;background:#6b3016;color:#ffe5b8;font-weight:800}
+.hf-cinders-score button:disabled,.hf-cinders-perk button:disabled{opacity:.45;cursor:default}
+.hf-cinders-score button:focus-visible,.hf-cinders-perk button:focus-visible{outline:2px solid #fff1b8;outline-offset:2px}
+.hf-cinders-perks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0 16px}
+.hf-cinders-perk{border:1px solid #69442c;border-radius:10px;padding:9px;background:#1d1511;min-width:0}
+.hf-cinders-perk strong{color:#ffcc8a;display:block;font-size:13px}
+.hf-cinders-perk p{font-size:12px;line-height:1.4;color:#d9c3a9;margin:4px 0}
+.hf-cinders-perk small{display:block;color:#ad9e8f;font-size:11px;margin-bottom:7px}
+.hf-cinders-perk.unlocked{border-color:#b67a32;background:#292014}
+@media(max-width:560px){.hf-cinders-attributes,.hf-cinders-perks{grid-template-columns:1fr}.hf-cinders-attribute{padding:8px}.hf-cinders-letter{flex-basis:34px;height:40px}}
 .hf-pack{background:#130f0d;border:1px solid #755039;border-radius:12px;padding:10px;margin:6px 0 14px}
 .hf-pack-title{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .hf-pack-title strong{font-size:14px;color:#ffd8a9}
@@ -91,13 +111,21 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const card = el('div', { className: 'hf-card' }, tabsEl, body, close);
   const sheet = el('div', { className: 'hf-sheet', id: 'hfSheet', hidden: true }, card); sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', 'Character and management');
   document.body.append(sheet);
-  const LABEL = { character: '🧍 Character', inventory: '🎒 Inventory', journal: '📓 Journal', build: '🛠 Build', manage: '📋 Manage', travel: '🧭 Travel' };
+  const LABEL = { character: '🔥 C.I.N.D.E.R.S.', inventory: '🎒 Inventory', journal: '📓 Journal', build: '🛠 Build', manage: '📋 Manage', travel: '🧭 Travel' };
   let tab = 'character', rpg = null, borrowed = null, lastPackKey = '';
   const returnBorrowed = () => { if (borrowed) { borrowed.home.after(borrowed.node); borrowed.home.remove(); borrowed = null; } };
   const hide = () => { returnBorrowed(); sheet.hidden = true; lastPackKey = ''; };
   close.onclick = hide; sheet.addEventListener('click', e => { if (e.target === sheet) hide(); });
   window.addEventListener('keydown', e => {
     if (e.key === 'Escape' && !sheet.hidden) hide();
+    if ((e.key === 'c' || e.key === 'C') && !e.repeat &&
+        !e.ctrlKey && !e.metaKey && !e.altKey &&
+        !/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName || '') &&
+        !e.target?.isContentEditable) {
+      e.preventDefault();
+      if (!sheet.hidden && tab === 'character') hide();
+      else void open('character');
+    }
     if ((e.key === 'i' || e.key === 'I') && !e.repeat &&
         !e.ctrlKey && !e.metaKey && !e.altKey &&
         !/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName || '') &&
@@ -116,9 +144,71 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     body.replaceChildren();
     if (!rpg && ['character', 'inventory', 'journal'].includes(tab)) { body.append(el('p', { className: 'hf-muted', textContent: signedIn() ? 'Loading your character…' : 'Sign in to keep a character sheet.' })); return; }
     if (tab === 'character') {
-      body.append(el('h3', { textContent: 'Level ' + rpg.level + (rpg.xpNextLevel ? ' · ' + rpg.xpThisLevel + '/' + rpg.xpNextLevel + ' XP' : ' · max level') }));
-      body.append(el('p', { className: 'hf-muted', textContent: rpg.skillPoints + ' skill point' + (rpg.skillPoints === 1 ? '' : 's') + ' to spend · armor ' + rpg.armor + ' · XP comes from infected, crates, landmarks, rescues, workdays, sieges and PvP.' }));
-      for (const s of rpg.skills) { const b = el('button', { type: 'button', textContent: s.rank >= s.max ? 'Max' : '+1' }); b.disabled = s.rank >= s.max || rpg.skillPoints < 1; b.onclick = () => rpgAct({ action: 'learn', skill: s.id }); body.append(rowOf(el('span', { textContent: s.label + ' ' + s.rank + '/' + s.max + ' · ' }, el('span', { className: 'hf-muted', textContent: s.planned + ' (bonus not active yet)' })), b)); }
+      body.append(el('h3', { className:'hf-cinders-title', textContent: 'C.I.N.D.E.R.S. · Level ' + rpg.level }));
+      const xpLabel = rpg.xpNextLevel ? rpg.xpThisLevel + '/' + rpg.xpNextLevel + ' XP toward next level' : 'Maximum level reached';
+      const meter = el('div', { className: 'hf-xp-track' });
+      meter.setAttribute('role','progressbar');
+      meter.setAttribute('aria-label','Character level experience');
+      meter.setAttribute('aria-valuenow', String(rpg.xpThisLevel));
+      meter.setAttribute('aria-valuemax', String(rpg.xpNextLevel || 1));
+      const xpFill = el('div', { className:'hf-xp-fill' });
+      xpFill.style.width = (rpg.xpNextLevel ? Math.min(100,rpg.xpThisLevel/rpg.xpNextLevel*100) : 100) + '%';
+      meter.append(xpFill);
+      body.append(meter,el('p', { className:'hf-cinders-summary',textContent:
+        xpLabel + ' · ' + rpg.attributePoints + ' attribute · ' + rpg.skillPoints +
+        ' skill · ' + rpg.perkPoints + ' ember perk points available' }));
+      body.append(el('h3', { textContent: 'Seven C.I.N.D.E.R.S. attributes' }));
+      body.append(el('p', { className:'hf-muted', textContent:
+        'Every character begins with seven freely assignable points; earn another attribute point every five levels. Attributes are permanent. C opens this screen.' }));
+      const attributesGrid=el('div',{className:'hf-cinders-attributes'});
+      for (const a of rpg.attributes || []) {
+        const train=el('button',{type:'button',textContent:'+1',title:'Train '+a.label+' by 1'});
+        train.disabled=rpg.attributePoints<1||a.value>=a.max;
+        train.setAttribute('aria-label','Raise '+a.label+' from '+a.value+' to '+(a.value+1));
+        train.onclick=()=>rpgAct({action:'train-attribute',attribute:a.id});
+        attributesGrid.append(el('div',{className:'hf-cinders-attribute'},
+          el('span',{className:'hf-cinders-letter',textContent:a.letter}),
+          el('div',{className:'hf-cinders-description'},
+            el('strong',{textContent:a.label}),
+            el('small',{textContent:a.focus})),
+          el('div',{className:'hf-cinders-score'},
+            el('span',{textContent:a.value+'/'+a.max}),train)));
+      }
+      body.append(attributesGrid);
+      body.append(el('h3',{textContent:'Trained skills · '+rpg.skillPoints+' points'}));
+      body.append(el('p',{className:'hf-muted',textContent:
+        'Spend one skill point per level. Practicing real actions builds familiarity and a small XP bonus. Other skill effects will be activated through separately tested gameplay changes.'}));
+      for (const skill of rpg.skills) {
+        const train=el('button',{type:'button',textContent:skill.rank>=skill.max?'Max':'+1'});
+        train.disabled=skill.rank>=skill.max||rpg.skillPoints<1;
+        train.onclick=()=>rpgAct({action:'learn',skill:skill.id});
+        const practice=skill.practice;
+        const familiar=practice ? practice.label+' · '+practice.count+' verified actions'+
+          (practice.next===null?' · mastered':' · next at '+practice.next) : 'Unseasoned';
+        body.append(rowOf(el('span',{textContent:skill.label+' '+skill.rank+'/'+skill.max+' · '},
+          el('span',{className:'hf-muted',textContent:familiar})),train));
+      }
+      body.append(el('h3',{textContent:'Ember perks · '+rpg.perkPoints+' points'}));
+      body.append(el('p',{className:'hf-muted',textContent:
+        'Earn a perk point every three levels. Each perk has minimum C.I.N.D.E.R.S. attributes and sometimes trained-skill prerequisites. Unlocked effects are calculated by the server.'}));
+      const perkGrid=el('div',{className:'hf-cinders-perks'});
+      const attributeName=id=>(rpg.attributes||[]).find(a=>a.id===id)?.label||id;
+      const skillName=id=>(rpg.skills||[]).find(a=>a.id===id)?.label||id;
+      for(const perk of rpg.perks||[]) {
+        const req=perk.requirement;
+        const prerequisites='Level '+req.level+' · '+attributeName(req.attribute)+' '+req.minimum+
+          (req.skill?' · '+skillName(req.skill)+' '+req.rank:'');
+        const unlocked=perk.rank>0;
+        const train=el('button',{type:'button',textContent:unlocked?'Unlocked':perk.canLearn?'Learn perk':'Locked'});
+        train.disabled=!perk.canLearn;
+        train.onclick=()=>rpgAct({action:'learn-perk',perk:perk.id});
+        perkGrid.append(el('div',{className:'hf-cinders-perk'+(unlocked?' unlocked':'')},
+          el('strong',{textContent:perk.label}),
+          el('p',{textContent:perk.effect}),
+          el('small',{textContent:prerequisites+(unlocked?' · owned':perk.blockedBy?' · needs '+perk.blockedBy:' · ready')}),
+          train));
+      }
+      body.append(perkGrid);
     } else if (tab === 'inventory') {
       const carried = getWorld()?.selfInventory || null;
       lastPackKey = fieldPackKey(carried);

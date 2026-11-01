@@ -26,6 +26,26 @@ export function previewDestinationDetours({
       if (clear(first)&&clear(second))
         return {siteId:entry.siteId,status:'detour-candidate',segments:[first,second],waypoint};
     }
+    // Bounded three-leg dogleg: two offsets around the obstructing footprint.
+    // Retain authored endpoints and cap offsets to avoid large cross-map shortcuts.
+    for (const offset of [4,-4,8,-8,12,-12,16,-16,20,-20]) {
+      for (const firstFraction of [0.2,0.35,0.5]) {
+        for (const secondFraction of [0.65,0.8]) {
+          if (secondFraction <= firstFraction) continue;
+          const firstPoint={x:straight.from.x+dx*firstFraction+nx*offset,
+            z:straight.from.z+dz*firstFraction+nz*offset};
+          const secondPoint={x:straight.from.x+dx*secondFraction+nx*offset,
+            z:straight.from.z+dz*secondFraction+nz*offset};
+          const segments=[
+            {from:straight.from,to:firstPoint,width:straight.width},
+            {from:firstPoint,to:secondPoint,width:straight.width},
+            {from:secondPoint,to:straight.to,width:straight.width}
+          ];
+          if (segments.every(clear)) return {siteId:entry.siteId,status:'detour-candidate',
+            segments,waypoints:[firstPoint,secondPoint]};
+        }
+      }
+    }
     return {siteId:entry.siteId,status:'blocked',segments:[]};
   });
   return {version:2,routes,unresolved:routes.filter(r=>r.status==='blocked'||r.status==='no-road'),

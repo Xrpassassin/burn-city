@@ -161,6 +161,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         const progressDb = Exploration.normalize(store.load('homefront-exploration.json', {}));
         const exploration = Exploration.snapshot(progressDb, user.acct);
         json(res, 200, { mode: 'homefront-exploration', exploration,
+          evidence: Interiors.evidenceSnapshot(db.interiors, user.acct),
           surveys: FieldSurveys.surveySnapshot(db.fieldSurveyClaims, user.acct, exploration.discoveredIds) });
         return true;
       }
@@ -516,8 +517,15 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             base.log = base.log.slice(-20); bases[user.acct] = base; store.save('homefront.json', bases);
           }
           if (player) player.lastSeen = now;
+          // Noise spreads only to co-located, still-active building occupants.
+          // The infected director reads this server-owned noise on subsequent
+          // world ticks; no client can submit its own alarm level.
+          if (acted.event?.noise) World.shareInteriorNoise(db, {
+            sourceAccount:user.acct, landmarkId:acted.event.landmarkId,
+            level:acted.event.noise, now
+          });
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors), interiorMessage: acted.message, interiorReward: acted.reward, overflowDestination: returnedOverflow ? 'refuge' : null, inventory: { ...acted.inventory, used: Inventory.used(acted.inventory), capacity: Inventory.CAPACITY }, interiorNoise: acted.noise });
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors), interiorMessage: acted.message, interiorReward: acted.reward, interiorEvent: acted.event, overflowDestination: returnedOverflow ? 'refuge' : null, inventory: { ...acted.inventory, used: Inventory.used(acted.inventory), capacity: Inventory.CAPACITY }, interiorNoise: acted.noise });
           return true;
         }
         case '/api/homefront/world/interior/door': {

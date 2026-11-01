@@ -24,6 +24,7 @@ import { clipInteriorCamera } from './homefront-camera-occlusion.mjs';
 import { applyInteriorVisualLayers } from './homefront-interior-visibility.mjs';
 import { applyInteriorLampProfile } from './homefront-interior-lamps.mjs';
 import { mergeSharedInteriorPresence } from './homefront-shared-presence.mjs';
+import { nextInteriorEvent } from './homefront-interior-event-feed.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
@@ -69,6 +70,28 @@ function boot(host) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.15 : 1.6));
   renderer.shadowMap.enabled = false;
   host.appendChild(renderer.domElement);
+  // Small in-world toast, not another dashboard panel. It stays clear of
+  // joystick and bottom HUD, and never intercepts walking/interaction taps.
+  const eventToast = document.createElement('div');
+  eventToast.className = 'hf-event-toast';
+  eventToast.style.cssText = 'position:absolute;top:12px;left:50%;transform:translateX(-50%);max-width:min(90%,450px);padding:9px 13px;border:1px solid #ba835b;border-radius:9px;background:#15120fe8;color:#ffddae;font:700 12px system-ui;text-align:center;pointer-events:none;z-index:5;';
+  eventToast.hidden = true;
+  eventToast.setAttribute('role', 'status');
+  eventToast.setAttribute('aria-live', 'polite');
+  host.appendChild(eventToast);
+  let eventFeedState = null, eventToastUntil = 0;
+  function showInteriorEvent(instance) {
+    const next = nextInteriorEvent(eventFeedState, instance);
+    eventFeedState = next.state;
+    if (!next.event) return;
+    const e = next.event;
+    eventToast.textContent = e.message;
+    eventToast.hidden = false;
+    eventToastUntil = performance.now() + 4400;
+    if (e.kind === 'alarm') sfx.radio();
+    else if (e.kind === 'power' || e.kind === 'mechanism') sfx.door();
+    else if (e.kind === 'evidence') sfx.box();
+  }
   scene.add(new THREE.HemisphereLight(0xaec5cc, 0x24251e, 2.0));
   const moon = new THREE.DirectionalLight(0xffc18a, 1.4);
   moon.position.set(-50, 100, 35); scene.add(moon);
@@ -683,6 +706,7 @@ function boot(host) {
   let interiorState = null;
   let selectedInteriorLandmarkId = null;
   let explorationProgress = null;
+  let explorationEvidence = [];
   let explorationSurveys = [];
   const explorationSurveyPending = new Set();
   const explorationDiscoveryPending = new Set();
@@ -780,6 +804,7 @@ function boot(host) {
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'interior_action_failed');
       updateWorld(data);
+      if (action === 'action' && data.interiorEvent?.kind === 'evidence') void fetchExplorationProgress();
       if (action === 'enter') setInteriorStatus('Interior entered. Room state is saved on the server.');
       else if (action === 'leave') setInteriorStatus('Returned to the street. Interior progress is saved.');
       else if (action === 'action') {
@@ -895,6 +920,7 @@ function boot(host) {
       }
       interiorState = nextInterior;
     }
+    showInteriorEvent(data.interiorInstance);
     // Room occupants are authoritative, not an independent browser-created instance.
     if (interiorState) updateInteriorPanel();
     const objective = document.getElementById('explorationObjective');
@@ -1170,6 +1196,12 @@ function boot(host) {
       }
       explorationJournalContent.appendChild(node);
     };
+    if (explorationEvidence.length) {
+      heading('Recovered evidence · personal field notes');
+      for (const clue of explorationEvidence.slice(-20).reverse()) {
+        entry(clue.label, clue.text, clue.site);
+      }
+    }
     if (explorationSurveys.length) {
       heading('Field survey contracts · one-time supply rewards');
       for (const survey of explorationSurveys) {
@@ -1251,6 +1283,7 @@ function boot(host) {
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'exploration_progress_unavailable');
       if (data.exploration) explorationProgress = data.exploration;
       if (Array.isArray(data.surveys)) explorationSurveys = data.surveys;
+      if (Array.isArray(data.evidence)) explorationEvidence = data.evidence;
       renderExplorationJournal();
     } catch { /* Exploration guidance still works offline; server progress retries on the next world load. */ }
   }
@@ -1267,6 +1300,7 @@ function boot(host) {
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'landmark_discovery_failed');
       if (data.exploration) explorationProgress = data.exploration;
       if (Array.isArray(data.surveys)) explorationSurveys = data.surveys;
+      if (Array.isArray(data.evidence)) explorationEvidence = data.evidence;
       renderExplorationJournal();
       if (data.newlyDiscovered && data.landmark) setInteriorStatus('FIELD NOTES UPDATED · ' + data.landmark.title + ' discovered. New route and story leads recorded.');
     } catch (error) {
@@ -1293,6 +1327,7 @@ function boot(host) {
       const merged = mergeSharedInteriorPresence(worldData, data);
       if (!merged) return;
       worldData = merged.world;
+      showInteriorEvent(merged.world.interiorInstance);
       // Shared opened doors and power can change while another player acts.
       if (data.interior && interiorState?.landmarkId === data.interior.landmarkId) {
         interiorState = data.interior;
@@ -1837,6 +1872,7 @@ function boot(host) {
   let lastStickMoveAt = 0;
   let lastFrame = performance.now();
   const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; tracerPool.update(dt);
+    if (!eventToast.hidden && now > eventToastUntil) eventToast.hidden = true;
     if (now - lastAmbientUpdateAt >= AMBIENT_UPDATE_MS) {
       lastAmbientUpdateAt = now;
       ambientTarget = atmosphereAt({

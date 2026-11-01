@@ -7,6 +7,7 @@ import { homefrontBuildingLayout, homefrontOrganicLayoutPreview, HOMEFRONT_ORGAN
 import { homefrontRoadNetworkPreview } from '../client/arena/homefront-road-network-preview.mjs';
 import { auditOrganicRouteReachability } from '../client/arena/homefront-route-reachability.mjs';
 import { auditHomefrontV2MigrationReadiness } from '../client/arena/homefront-v2-migration-audit.mjs';
+import { auditOrganicRoadGrades } from '../client/arena/homefront-road-grade-audit.mjs';
 import { protectedOrganicSitesPreview, reserveOrganicLandmarkClearance } from '../client/arena/homefront-landmark-reservations.mjs';
 import { auditOrganicRoadClearance, roadBuildingClearance, buildableOrganicSitesPreview } from '../client/arena/homefront-road-clearance.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
@@ -201,4 +202,17 @@ test('v2 migration audit reports all existing safety checks but never enables th
   assert.equal(report.readyForActivation, false);
   assert.ok(report.requiredBeforeActivation.some(s => s.includes('saved coordinates')));
   assert.doesNotMatch(scene, /auditHomefrontV2MigrationReadiness/);
+});
+
+test('v2 preview road grade audit detects severe slopes and remains deterministic', () => {
+  const report = auditOrganicRoadGrades();
+  assert.deepEqual(report, auditOrganicRoadGrades());
+  assert.ok(report.samples > report.roadCount);
+  assert.ok(report.flagged.every(f => f.roadId && ['grade','zero-length'].includes(f.reason)));
+  const deliberatelySteep = auditOrganicRoadGrades({ maxRisePerUnit: 0 });
+  assert.ok(deliberatelySteep.flagged.length > 0);
+  const gate = auditHomefrontV2MigrationReadiness();
+  assert.deepEqual(gate.terrainGrades, report);
+  assert.equal(gate.checks.roadGradesWithinPreviewLimit, report.acceptable);
+  assert.equal(gate.readyForActivation, false);
 });

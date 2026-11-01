@@ -33,6 +33,7 @@ jobs:
           };
           const output = JSON.stringify(summary,null,2);
           console.log(output);
+          console.log('Destination failures:', JSON.stringify(report.destinationFailures,null,2));
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## Homefront proposed-map diagnostics\n\n```json\n'+output+'\n```\n');
           NODE
       - name: Upload diagnostic report

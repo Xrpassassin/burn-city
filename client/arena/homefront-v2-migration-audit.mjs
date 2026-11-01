@@ -4,6 +4,7 @@ import { homefrontRoadNetworkPreview } from './homefront-road-network-preview.mj
 import { auditOrganicRoadGrades } from './homefront-road-grade-audit.mjs';
 import { auditOrganicRoadWidth } from './homefront-road-width-audit.mjs';
 import { auditOrganicCorridorObstacles } from './homefront-corridor-obstacles.mjs';
+import { auditOrganicDestinationAccess } from './homefront-destination-access.mjs';
 import { auditOrganicRouteReachability } from './homefront-route-reachability.mjs';
 import { buildableOrganicSitesPreview, auditOrganicRoadClearance } from './homefront-road-clearance.mjs';
 import { reserveOrganicLandmarkClearance, protectedOrganicSitesPreview } from './homefront-landmark-reservations.mjs';
@@ -11,6 +12,7 @@ import { reserveOrganicLandmarkClearance, protectedOrganicSitesPreview } from '.
 export function auditHomefrontV2MigrationReadiness() {
   const network = homefrontRoadNetworkPreview();
   const topology = auditOrganicRouteReachability(network);
+  const destinationAccess = auditOrganicDestinationAccess({ roads: network.roads });
   const terrainGrades = auditOrganicRoadGrades({ roads: network.roads });
   const roadWidth = auditOrganicRoadWidth({ roads: network.roads });
   const roadSites = buildableOrganicSitesPreview({ roads: network.roads });
@@ -19,6 +21,7 @@ export function auditHomefrontV2MigrationReadiness() {
   const corridorObstacles = auditOrganicCorridorObstacles({ roads: network.roads, buildings: reserved.buildings });
   const checks = {
     roadGraphConnected: topology.connected && topology.disconnectedSpurs.length === 0,
+    destinationsNearRoads: destinationAccess.allWithinConnectorRange,
     roadCorridorsClear: clearance.clear,
     previewBuildingCorridorsClear: corridorObstacles.pass,
     roadGradesWithinPreviewLimit: terrainGrades.acceptable,
@@ -32,7 +35,7 @@ export function auditHomefrontV2MigrationReadiness() {
     'version and migrate saved coordinates, interiors, AI and POI references',
     'complete desktop, mobile and two-player traversal tests'
   ];
-  return { version: 2, checks, topology, terrainGrades, roadWidth, corridorObstacles,
+  return { version: 2, checks, topology, destinationAccess, terrainGrades, roadWidth, corridorObstacles,
     summary: { roadCount: network.roads.length, retainedBuildings: reserved.buildings.length,
       excludedForRoads: roadSites.excluded.length, excludedForLandmarks: reserved.excluded.length,
       protectedSites: reserved.protectedSites },

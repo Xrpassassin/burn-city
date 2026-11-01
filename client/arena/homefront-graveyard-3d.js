@@ -22,6 +22,7 @@ import { homefrontContextAction, homefrontActionTarget } from './homefront-conte
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
 import { clipInteriorCamera } from './homefront-camera-occlusion.mjs';
 import { applyInteriorVisualLayers } from './homefront-interior-visibility.mjs';
+import { applyInteriorLampProfile } from './homefront-interior-lamps.mjs';
 import { mergeSharedInteriorPresence } from './homefront-shared-presence.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
@@ -722,6 +723,11 @@ function boot(host) {
     // One physical world with two presentation layers, never a second browser
     // game or a privately created room. The server remains authoritative.
     applyInteriorVisualLayers(interiorState?.landmarkId || null, interiorSetPieces, landmarkSetPieces);
+    if (interiorState) {
+      // Every survivor sees the same powered/unpowered emergency lamps after
+      // the authenticated world or 2.4-second building-presence refresh.
+      applyInteriorLampProfile(interiorSetPieces.get(interiorState.landmarkId), interiorState);
+    }
     if (!interiorPanel) return;
     interiorPanel.hidden = !interiorState;
     if (!interiorState) { if (enterInteriorButton) enterInteriorButton.hidden = !selectedInteriorLandmarkId; return; }

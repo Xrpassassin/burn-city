@@ -563,6 +563,20 @@ function boot(host) {
         const roadY = terrainElevation(rx, rz) + 0.012;
         if (axis === 0) addBox(roadChunk, width, 0.045, length, rx, roadY, rz, material);
         else addBox(roadChunk, length, 0.045, width, rx, roadY, rz, material);
+        // Asymmetric roadside erosion softens the regimented city-block
+        // silhouette without adding walls, collision, or discoverable objects.
+        // Every patch uses the same stable hash and follows the streamed chunk.
+        if (wear > 0.25 && wear < 0.68) {
+          const edge = pavementHash(k, n, axis + 11) > 0.5 ? 1 : -1;
+          const shoulder = (pavementHash(n, k, axis + 17) - 0.5) * 1.8;
+          const patchX = rx + (axis === 0 ? edge * (width * 0.5 + 0.65) : shoulder);
+          const patchZ = rz + (axis === 1 ? edge * (width * 0.5 + 0.65) : shoulder);
+          const patchY = terrainElevation(patchX, patchZ) + 0.006;
+          const patchWidth = axis === 0 ? 1.4 : 2.2;
+          const patchDepth = axis === 0 ? 2.2 : 1.4;
+          addBox(cityChunkAt(patchX, patchZ), patchWidth, 0.012, patchDepth, patchX, patchY, patchZ,
+            wornRoadMats[3]);
+        }
       }
     }
   }

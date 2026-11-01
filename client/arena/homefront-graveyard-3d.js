@@ -662,6 +662,21 @@ function boot(host) {
   let lastContinuousWorldRefresh = 0;
   let lastEnvironmentInputRefresh = 0;
   let lastRenderedWorldData = null;
+  // A blocking, in-world diagnostic is preferable to silently reverting to
+  // click-to-move when the deployment has not enabled authenticated input.
+  const movementNotice = document.createElement('div');
+  movementNotice.setAttribute('role', 'status');
+  movementNotice.setAttribute('aria-live', 'polite');
+  movementNotice.style.cssText = 'position:absolute;left:50%;top:24%;transform:translateX(-50%);z-index:8;width:min(85%,440px);padding:14px 18px;border:1px solid #d49a66;border-radius:12px;background:#140e0be8;color:#ffe5c8;text-align:center;font:600 14px/1.5 system-ui;pointer-events:none';
+  movementNotice.hidden = true;
+  host.append(movementNotice);
+  function setMovementAvailability(ready, reason = '') {
+    if (!wantsContinuous || ready) { movementNotice.hidden = true; return; }
+    movementNotice.textContent = reason === 'server_disabled'
+      ? 'Direct movement is not enabled on this server. Expedition walking is paused until server activation. Classic controls remain available for testing.'
+      : 'Direct movement connection interrupted. Reconnect or reload to restore walking; classic controls remain available for testing.';
+    movementNotice.hidden = false;
+  }
   const continuousInput = createContinuousInput({
     send: async command => {
       const response = await fetch(API + '/api/homefront/world/move-input', {
@@ -724,8 +739,9 @@ function boot(host) {
     onUnavailable: reason => {
       // Switching movement protocols must not immediately trigger a legacy 10-unit step.
       lastStickMoveAt = performance.now();
-      if (status && reason !== 'server_disabled') status.textContent =
-        'Direct walking unavailable (' + reason + '). Server activation or network recovery required; use ?movement=legacy only for testing.';
+      setMovementAvailability(false, reason);
+      if (status) status.textContent =
+        'Direct walking unavailable (' + reason + '). Check server activation and connection.';
     }
   });
   let interiorState = null;
@@ -929,6 +945,7 @@ function boot(host) {
     lastRenderedWorldData = data;
     if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
       continuousInput.sync(data.inputProtocol, data.self, performance.now());
+      setMovementAvailability(continuousInput.enabled, data.inputProtocol?.enabled ? 'connection' : 'server_disabled');
     }
     if (Object.prototype.hasOwnProperty.call(data, 'interior')) {
       const previousInterior = interiorState;

@@ -9,6 +9,7 @@ const FieldSurveys = require('./homefront-field-surveys');
 const Terrain = require('./homefront-terrain');
 const Collision = require('./homefront-collision');
 const Interiors = require('./homefront-interiors');
+const InteriorEvents = require('./homefront-interior-events');
 const Environment = require('./homefront-environment');
 const Director = require('./homefront-director');
 const Travel = require('./homefront-travel');
@@ -297,6 +298,29 @@ function recordNoise(input, acct, level = 75, now = Date.now()) {
   p.lastSeen = now;
   return w;
 }
+// Alarm and noisy building mechanisms are heard by ACTIVE players inside
+// that same authenticated shared instance only. Existing per-account director
+// AI consumes their increased noise during its next bounded world tick.
+function shareInteriorNoise(world,{ landmarkId, sourceAccount, level, now = Date.now() }={}) {
+  if (!world?.players || !landmarkId || !sourceAccount ||
+      !Number.isFinite(now) || !Number.isFinite(level) || level <= 0) return 0;
+  const source=Interiors.roomPresence(world.interiors,world.players,sourceAccount,now,PRESENCE_TTL);
+  if (source?.landmarkId !== landmarkId) return 0;
+  const point=Interiors.LANDMARKS[landmarkId];
+  if (!point) return 0;
+  let heard=0;
+  for (const [account,player] of Object.entries(world.players)) {
+    const here=Interiors.roomPresence(world.interiors,world.players,account,now,PRESENCE_TTL);
+    if (here?.instanceId !== source.instanceId) continue;
+    const sound=Math.max(0,Math.min(70,level));
+    player.noiseLevel=Math.max(player.noiseLevel || 0,sound);
+    player.lastNoiseAt=now;
+    player.noiseX=point.x;player.noiseZ=point.z;
+    heard++;
+  }
+  return heard;
+}
+
 function snapshot(input, acct, now = Date.now()) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
   prune(w, now);
@@ -341,7 +365,8 @@ function snapshot(input, acct, now = Date.now()) {
       return { id: own.instanceId, landmarkId: own.landmarkId, roomId: own.roomId,
         occupants, count: occupants.length, shared: true,
         mechanisms: { flags: [...(mechanisms?.flags || [])],
-          openedDoors: [...(mechanisms?.openedDoors || [])] } };
+          openedDoors: [...(mechanisms?.openedDoors || [])],
+          events: InteriorEvents.recent(mechanisms,own.landmarkId,now) } };
     })() : null
   };
 }
@@ -603,4 +628,4 @@ function leave(input, acct, now = Date.now(), { keepParty = false } = {}) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, moveInput, inputReadyInMs, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };
+module.exports = { FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, moveInput, inputReadyInMs, shareInteriorNoise, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };

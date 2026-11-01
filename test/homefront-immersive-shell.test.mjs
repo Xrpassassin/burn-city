@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { homefrontBuildingLayout } from '../client/arena/homefront-building-layout.mjs';
+import { homefrontBuildingLayout, homefrontOrganicLayoutPreview, HOMEFRONT_ORGANIC_LAYOUT_VERSION } from '../client/arena/homefront-building-layout.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
 
@@ -88,4 +88,15 @@ test('version 1 building layout preserves legacy generated footprints and random
     expected.push({id:'building:'+x+','+z,x:bx,z:bz,w,d,h,materialIndex,rotation,roof,emberHeight});
   }
   assert.deepEqual([...homefrontBuildingLayout()], expected);
+});
+
+test('organic layout v2 is deterministic, bounded, and not activated in gameplay', () => {
+  assert.equal(HOMEFRONT_ORGANIC_LAYOUT_VERSION, 2);
+  const first=[...homefrontOrganicLayoutPreview()];
+  assert.deepEqual(first,[...homefrontOrganicLayoutPreview()]);
+  assert.ok(first.length > 20 && first.length < 250);
+  assert.ok(first.every(b=>Number.isFinite(b.x)&&Number.isFinite(b.z)&&Math.abs(b.x)<=95&&Math.abs(b.z)<=95));
+  const server=readFileSync(new URL('../server/homefront-collision.js',import.meta.url),'utf8');
+  assert.doesNotMatch(server,/homefrontOrganicLayoutPreview/);
+  assert.doesNotMatch(scene,/homefrontOrganicLayoutPreview/);
 });

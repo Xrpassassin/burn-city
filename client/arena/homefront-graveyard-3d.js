@@ -603,7 +603,7 @@ function boot(host) {
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
     sprite.scale.set(13, 2.45, 1); return sprite;
   }
-  function buildPOI(p) {
+  function buildPOI(p, rescueReady = true) {
     const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z);
     let color = 0x78bfe8;
     if (p.type === 'boss') color = 0xff4545;
@@ -617,7 +617,23 @@ function boot(host) {
     pad.position.y = 0.1; g.add(pad);
     const label = labelSprite(p.label, '#' + color.toString(16).padStart(6, '0')); label.position.y = p.type === 'boss' ? 7.1 : 4.0; g.add(label);
     if (p.type === 'cache') addBox(g, 1.7, 1.2, 1.3, 0, 0.15, 0, mat(0x8c6736));
-    if (p.type === 'rescue') { addBox(g, 2.8, 1.7, 2.4, 0, 0.15, 0, mat(0x62584a)); addBox(g, 3, 0.12, 2.6, 0, 1.95, 0, mat(0x9c7449)); }
+    if (p.type === 'rescue') {
+      addBox(g, 2.8, 1.7, 2.4, 0, 0.15, 0, mat(0x62584a));
+      addBox(g, 3, 0.12, 2.6, 0, 1.95, 0, mat(0x9c7449));
+      // The authored rescue POI actually contains a frightened survivor,
+      // using the same cached walker assets as playable characters.
+      if (rescueReady) {
+        const npc = buildWalker({suit:0x766551,accent:0xdca66c,skin:1,lite:true});
+        npc.scale.setScalar(EXPLORER_SCALE*0.88);
+        npc.position.set(2.2,0,0.35);
+        npc.rotation.y=-Math.PI*0.25;
+        npc.traverse(node=>{if(node.isMesh)node.userData.sharedAsset=true;});
+        g.add(npc);
+        const rescueNote=labelSprite('SURVIVOR · NEEDS HELP','#ffca9b');
+        rescueNote.position.set(2.2,4.45,0.35);rescueNote.scale.set(10,1.8,1);
+        g.add(rescueNote);
+      }
+    }
     poiGroup.add(g); markerObjects.set(p.id, g);
   }
   function buildLootNode(p) {
@@ -673,6 +689,11 @@ function boot(host) {
         if (p.isLocalPlayer) continue;
         explorerPositions.set(p.id, {
           x: p.x, z: p.z, y: interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z))
+        });
+      }
+      for (const escort of next.companions || []) {
+        explorerPositions.set(escort.id,{
+          x:escort.x,z:escort.z,y:terrainElevation(escort.x,escort.z)
         });
       }
       for (const encounter of (next.encounters || [])) {
@@ -960,7 +981,7 @@ function boot(host) {
     if (sprintTravelButton) { sprintTravelButton.setAttribute('aria-pressed', String(sprintTravel)); sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF'; }
     clearGroup(poiGroup); clearGroup(lootGroup); markerObjects.clear();
     for (const p of (data.world?.pointsOfInterest || [])) {
-      buildPOI(p);
+      buildPOI(p,p.type!=='rescue'||!(data.world?.rescues?.[p.id]?.readyAt>Date.now()));
       const marker = markerObjects.get(p.id);
       if (p.type === 'cache' && data.world?.caches?.[p.id]?.readyAt > Date.now()) marker.children[0].material.color.setHex(0x77716b);
       if (p.type === 'rescue' && data.world?.rescues?.[p.id]?.readyAt > Date.now()) marker.children[0].material.color.setHex(0x77716b);
@@ -1106,6 +1127,34 @@ function boot(host) {
       ];
       const name = labelSprite(p.label || 'Explorer', p.label === 'You' ? '#ffe28a' : '#c8d8df'); name.position.y = 4.7; g.add(name);
       playerGroup.add(g);
+    }
+    // One server-positioned helper per visible account, never a PVP target.
+    // Existing world rebuilds, walkers and animation loop are reused.
+    for (const escort of (data.companions || [])) {
+      if (!Number.isFinite(escort.x)||!Number.isFinite(escort.z))continue;
+      const key=escort.id;
+      const npc=new THREE.Group();
+      const targetY=terrainElevation(escort.x,escort.z);
+      const prev=previousExplorerPositions.get(key);
+      npc.position.set(prev?.x??escort.x,prev?.y??targetY,prev?.z??escort.z);
+      npc.userData.explorerKey=key;
+      npc.userData.pvpTarget=false;
+      npc.userData.isLocalPlayer=false;
+      explorerPositions.set(key,{x:escort.x,y:targetY,z:escort.z});
+      const legendary=escort.rarity==='legendary';
+      const walker=buildWalker({
+        suit:legendary?0xa47f39:0x685386,
+        accent:legendary?0xffcf67:0xcda4f3,
+        skin:1,lite:true
+      });
+      walker.scale.setScalar(EXPLORER_SCALE);
+      walker.rotation.y=Math.PI;
+      walker.traverse(node=>{if(node.isMesh)node.userData.sharedAsset=true;});
+      npc.add(walker);npc.userData.walker=walker;
+      const label=labelSprite('ALLY · '+escort.name+' · '+escort.rarity.toUpperCase(),
+        legendary?'#ffd375':'#d4aaff');
+      label.position.y=4.7;label.scale.set(11.5,2.0,1);npc.add(label);
+      playerGroup.add(npc);
     }
     const selectedLoot = (data.world?.lootNodes || []).find(n => n.id === selectedLootId);
     const nearSelected = !!selectedLoot && !!data.self && Math.hypot(data.self.x-selectedLoot.x,data.self.z-selectedLoot.z) <= 9;

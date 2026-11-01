@@ -109,6 +109,10 @@ for (const [landmarkId, label] of newRoomProfiles) {
     landmarkId + ' furnishing batches contain at least one rendered object');
 }
 
+const emergencyBatch = apartmentShell.children.find(child => child.userData?.homefrontEmergencyLamps);
+assert.ok(emergencyBatch, 'authored rooms provide one instanced emergency lamp batch');
+assert.equal(emergencyBatch.count, apartmentsBlueprint.rooms.length,
+  'each room uses an existing batched emergency light marker');
 const hospital = interiorForLandmark('mercy_hospital');
 let state = createInteriorState('mercy_hospital');
 assert(availableInteriorActions(hospital, state).some(item => item.id === 'generator_switch'));

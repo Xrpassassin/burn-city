@@ -28,3 +28,20 @@ export function auditOrganicRoadClearance({ roads = homefrontRoadNetworkPreview(
   return { roadCount: roads.length, buildingCount: buildings.length, conflicts,
     clear: conflicts.length === 0 };
 }
+
+/**
+ * Preview-only buildable sites after reserving the road corridor and shoulder.
+ * Existing live buildings are NEVER deleted: this operates on version 2 proposals.
+ * Excluded IDs are returned for review before a versioned world migration.
+ */
+export function buildableOrganicSitesPreview({ roads = homefrontRoadNetworkPreview().roads,
+  buildings = [...homefrontOrganicLayoutPreview()], margin = 1 } = {}) {
+  if (!Number.isFinite(margin) || margin < 0) throw new RangeError('invalid road clearance margin');
+  const retained = [], excluded = [];
+  for (const building of buildings) {
+    const blockers = roads.filter(road => roadBuildingClearance(road, building) < margin).map(road => road.id);
+    if (blockers.length) excluded.push({ id: building.id, roadIds: blockers });
+    else retained.push(building);
+  }
+  return { version: 2, buildings: retained, excluded, clearance: auditOrganicRoadClearance({ roads, buildings: retained, margin }) };
+}

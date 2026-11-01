@@ -652,9 +652,13 @@ function boot(host) {
     lootGroup.add(g);
   }
   let worldData = null, moving = false;
-  // Experimental direct walking requires BOTH the server flag and explicit ?movement=continuous.
-  // Otherwise the established destination-based controls are unchanged.
-  const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
+  // Prefer embodied movement in the immersive Homefront shell. The authenticated
+  // server must still explicitly advertise inputProtocol.enabled; this preference
+  // NEVER enables the server endpoint or weakens movement validation.
+  // ?movement=legacy and ?classic=1 provide a deliberate rollback for testers.
+  const movementParams = new URLSearchParams(location.search);
+  const wantsContinuous = movementParams.get('movement') === 'continuous' ||
+    (movementParams.get('movement') !== 'legacy' && movementParams.get('classic') !== '1');
   let lastContinuousWorldRefresh = 0;
   let lastEnvironmentInputRefresh = 0;
   let lastRenderedWorldData = null;

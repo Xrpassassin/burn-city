@@ -6,6 +6,7 @@
 'use strict';
 const NP = o => Object.freeze(Object.assign(Object.create(null), o));
 const Cinders = require('./homefront-cinders');
+const CindersEffects = require('./homefront-cinders-effects');
 const FILE = 'homefront-rpg.json';
 const MAX_LEVEL = 30;
 const SKILL_MAX = 5;
@@ -118,6 +119,7 @@ function sheet(profile, base = null) {
     level, xp: profile.xp, xpThisLevel: profile.xp - xpForLevel(level), xpNextLevel: level >= MAX_LEVEL ? null : xpForLevel(level + 1) - xpForLevel(level), maxLevel: MAX_LEVEL,
     skillPoints: Math.max(0, level - 1 - spent),
     progression: 'C.I.N.D.E.R.S.',
+    gameplayEffects: CindersEffects.summary(CindersEffects.fromAttributes(profile.attributes)),
     attributePoints: Cinders.attributePoints(level, profile.attributes),
     perkPoints: Cinders.perkPoints(level, profile.perks),
     attributes: Cinders.ATTRIBUTES.map(a => ({

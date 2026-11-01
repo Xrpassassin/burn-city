@@ -81,6 +81,8 @@ on:
       - 'client/arena/homefront-camera-occlusion.test.mjs'
       - 'client/arena/homefront-interior-visibility.mjs'
       - 'client/arena/homefront-interior-visibility.test.mjs'
+      - 'client/arena/homefront-interior-lamps.mjs'
+      - 'client/arena/homefront-interior-lamps.test.mjs'
       - 'client/arena/homefront-view.mjs'
       - 'client/arena/homefront-view.test.mjs'
       - 'client/arena/assets/homefront/**'
@@ -187,6 +189,8 @@ jobs:
         run: node test/homefront-shared-interior-controls-sim.js
       - name: Verify multi-account shared Homefront interior occupancy
         run: node test/homefront-shared-interior-sim.js
+      - name: Verify shared building power changes instanced emergency lamps
+        run: node client/arena/homefront-interior-lamps.test.mjs
       - name: Test exterior/interior scene visibility and culling
         run: node client/arena/homefront-interior-visibility.test.mjs
       - name: Check third-person interior camera wall clearance

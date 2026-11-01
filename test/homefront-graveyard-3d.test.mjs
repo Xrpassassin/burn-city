@@ -479,3 +479,9 @@ assert.match(scene, /ashMotes\.visible = ambientTarget\.ashVisible/,
   'outdoor ash is hidden when entering a sheltered shared room');
 assert.match(scene, /lastAmbientUpdateAt >= AMBIENT_UPDATE_MS/,
   'cosmetic profiles refresh on a bounded cadence, not once per particle per frame');
+
+
+assert.match(scene, /from '\.\/homefront-interior-lamps\.mjs'/,
+  'Homefront loads the batched room lighting profile helper');
+assert.match(scene, /applyInteriorLampProfile\(interiorSetPieces\.get\(interiorState\.landmarkId\), interiorState\)/,
+  'power restoration visuals consume authenticated shared interior flags');

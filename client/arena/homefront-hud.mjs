@@ -3,6 +3,7 @@
 // Everything else stays hidden by default so the 3D view is not congested (iPhone first).
 // Presentation only: all numbers come from the server (world snapshot, /api/homefront/world/rpg).
 import { createFieldPackGrid, fieldPackKey } from './homefront-pack-grid.mjs';
+import { levelUpNotice } from './homefront-level-up.mjs';
 
 export const HUD_TABS = Object.freeze(['character', 'inventory', 'journal', 'build', 'manage', 'travel']);
 export const QUICK_SLOTS = Object.freeze([
@@ -28,6 +29,9 @@ body.rpg-hud header{padding:calc(6px + env(safe-area-inset-top)) 12px 6px}body.r
 body.rpg-hud .wrap{padding:8px 8px 40px}body.rpg-hud #introText{display:none}body.rpg-hud #status{margin:6px 0;padding:6px 10px;font-size:12px}
 body.rpg-hud .rpg-nav{display:none}body.rpg-hud .rpg-nav.hf-talk{display:flex;padding:6px;margin:6px 0}body.rpg-hud .rpg-nav.hf-talk>*:not(#rpgTalk){display:none!important}
 .hf-hud{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 8px;margin:0 0 8px;border:1px solid #a55c3566;border-radius:12px;background:#100b09ee;position:sticky;top:calc(52px + env(safe-area-inset-top));z-index:4}
+.hf-level-up-notice{display:block;width:100%;max-width:880px;min-height:44px;margin:4px auto 9px;padding:9px 14px;border:1px solid #df9852;border-radius:12px;background:linear-gradient(90deg,#5a250e,#2a180d);color:#ffe2af;font:700 13px system-ui;text-align:center;box-shadow:0 2px 12px #180b0759;cursor:pointer}
+.hf-level-up-notice[hidden]{display:none!important}
+.hf-level-up-notice:focus-visible{outline:2px solid #fff4bf;outline-offset:2px}
 .hf-cinders-title{letter-spacing:.13em;color:#ffbb75;font-size:17px;text-transform:uppercase}
 .hf-cinders-summary{margin:6px 0 12px;color:#dfc3a6;font-size:12px}
 .hf-xp-track{height:9px;border:1px solid #86563b;background:#241910;border-radius:8px;overflow:hidden}
@@ -104,6 +108,9 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   packButton.setAttribute('aria-label', 'Open field backpack');
   const hud = el('div', { className: 'hf-hud', id: 'hfHud' }, vit, ...quick, mm, packButton, menu); hud.setAttribute('role', 'toolbar'); hud.setAttribute('aria-label', 'HUD');
   nav?.after(hud);
+  // A temporary notification sits in document flow, not over the joystick.
+  const levelNotice = el('button', {className:'hf-level-up-notice',type:'button',hidden:true});
+  hud.after(levelNotice);
   // Overlay with tabs (hidden by default).
   const tabsEl = el('div', { className: 'hf-tabs' }); tabsEl.setAttribute('role', 'tablist');
   const body = el('div', { className: 'hf-body' });
@@ -113,6 +120,33 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   document.body.append(sheet);
   const LABEL = { character: '🔥 C.I.N.D.E.R.S.', inventory: '🎒 Inventory', journal: '📓 Journal', build: '🛠 Build', manage: '📋 Manage', travel: '🧭 Travel' };
   let tab = 'character', rpg = null, borrowed = null, lastPackKey = '';
+  let knownLevel = null, noticeUntil = 0, profilePending = false, lastProfileFetchAt = 0;
+  const RPG_REFRESH_MS = 18000;
+  function acceptRpgSheet(next) {
+    if (!next || !Number.isSafeInteger(next.level)) return;
+    const upgrade = levelUpNotice(knownLevel,next);
+    knownLevel = next.level;
+    rpg = next;
+    if (upgrade) {
+      levelNotice.textContent = upgrade.title + ' · ' + upgrade.message + ' · ' + upgrade.action;
+      levelNotice.setAttribute('aria-label', levelNotice.textContent);
+      levelNotice.hidden = false;
+      noticeUntil = Date.now() + 9500;
+    }
+  }
+  async function refreshRpgSheet(force = false) {
+    if (!signedIn() || profilePending ||
+        (!force && Date.now() - lastProfileFetchAt < RPG_REFRESH_MS)) return;
+    profilePending = true;
+    lastProfileFetchAt = Date.now();
+    try {
+      const result = await request('/api/homefront/world/rpg');
+      acceptRpgSheet(result.sheet);
+      if (!sheet.hidden && (tab === 'character' || tab === 'journal')) draw();
+    } catch { /* Keep the last verified sheet and retry at the next interval. */ }
+    finally { profilePending = false; }
+  }
+  levelNotice.onclick = () => { levelNotice.hidden = true; void open('character'); };
   const returnBorrowed = () => { if (borrowed) { borrowed.home.after(borrowed.node); borrowed.home.remove(); borrowed = null; } };
   const hide = () => { returnBorrowed(); sheet.hidden = true; lastPackKey = ''; };
   close.onclick = hide; sheet.addEventListener('click', e => { if (e.target === sheet) hide(); });
@@ -137,7 +171,15 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   });
   packButton.onclick = () => { if (!sheet.hidden && tab === 'inventory') hide(); else void open('inventory'); };
   const rowOf = (left, right) => el('div', { className: 'hf-row' }, left, right || '');
-  async function rpgAct(payload) { try { rpg = (await request('/api/homefront/world/rpg', 'POST', payload)).sheet; draw(); } catch (e) { message(e.message === 'no_skill_points' ? 'No skill points yet: earn XP in the Wastes.' : e.message, 'danger'); } }
+  async function rpgAct(payload) {
+    try {
+      acceptRpgSheet((await request('/api/homefront/world/rpg','POST',payload)).sheet);
+      draw();
+    } catch (e) {
+      message(e.message === 'no_skill_points'
+        ? 'No skill points yet: earn XP in the Wastes.' : e.message, 'danger');
+    }
+  }
   function draw() {
     returnBorrowed();
     tabsEl.replaceChildren(...HUD_TABS.map(t => { const b = el('button', { type: 'button', textContent: LABEL[t] }); b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(t === tab)); b.onclick = () => open(t); return b; }));
@@ -239,7 +281,7 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     if (t === 'manage') { hide(); setMode('management'); return; }
     if (t === 'travel') { hide(); travel.open(); return; }
     tab = t; sheet.hidden = false; draw();
-    if (signedIn()) { try { rpg = (await request('/api/homefront/world/rpg')).sheet; } catch { /* keep last */ } if (!sheet.hidden && tab === t) draw(); }
+    if (signedIn()) { await refreshRpgSheet(true); if (!sheet.hidden && tab === t) draw(); }
   }
   menu.onclick = () => open(tab === 'build' || tab === 'manage' || tab === 'travel' ? 'character' : tab);
   // Manage: one management panel at a time behind a tab strip.
@@ -264,6 +306,12 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   }
   const ctx = mm.getContext('2d');
   function update() {
+    if (signedIn()) void refreshRpgSheet();
+    else if (knownLevel !== null) {
+      knownLevel = null; rpg = null; levelNotice.hidden = true;
+      lastProfileFetchAt = 0;
+    }
+    if (!levelNotice.hidden && Date.now() >= noticeUntil) levelNotice.hidden = true;
     const world = getWorld(), inWorld = !!world?.self;
     packButton.hidden = !inWorld;
     if (!sheet.hidden && tab === 'inventory' && lastPackKey !== fieldPackKey(world?.selfInventory)) draw();

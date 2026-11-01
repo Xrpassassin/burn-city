@@ -107,17 +107,24 @@ const ACCTS = Array.from({length:5}, (_,i)=>account(i));
   });
   ok(hung.s === 409, 'buy answers 409 while the request body is still unfinished (body is never awaited) -> ' + hung.s);
 
-  console.log('Owner-wallet routes: admin token only (403)');
+  console.log('Treasury-wallet routes: require admin token AND exact treasury wallet session');
   const adm = { ip: '10.5.0.1', token: tok(ACCTS[0]) };
   for (const [p, m] of [['/api/estates/wallet/status', 'GET'], ['/api/estates/wallet/verify/start', 'POST'], ['/api/estates/wallet/verify/finish', 'POST']]) {
     ok((await req(p, { method: m, ip: adm.ip, token: adm.token })).status === 403, `signed-in player, no admin token: ${m} ${p} -> 403`);
     ok((await req(p, { method: m, ip: '10.5.0.2', token: adm.token, admin: 'wrong-token-xx' })).status === 403, `wrong admin token: ${m} ${p} -> 403`);
   }
-  let r = await req('/api/estates/wallet/status', { ip: '10.5.0.3', token: adm.token, admin: 'estadmintoken' }); let j = await r.json();
+  const treasurySession=tok('rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb');
+  for(const [p,m] of [['/api/estates/wallet/status','GET'],
+    ['/api/estates/wallet/verify/start','POST'],['/api/estates/wallet/verify/finish','POST']]){
+    const denied=await req(p,{method:m,ip:'10.5.0.5',token:adm.token,admin:'estadmintoken'});
+    ok(denied.status===403,
+      'unrelated signed-in wallet with valid admin token cannot manage treasury: '+m+' '+p);
+  }
+  let r = await req('/api/estates/wallet/status', { ip: '10.5.0.3', token: treasurySession, admin: 'estadmintoken' }); let j = await r.json();
   ok(r.status === 200 && j.salesEnabled === false && j.distributionsEnabled === false && j.expectedAddress === 'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb', 'admin status 200: confirmed treasury address, sales/distributions disabled');
-  r = await req('/api/estates/wallet/verify/start', { method: 'POST', ip: '10.5.0.3', token: adm.token, admin: 'estadmintoken' }); j = await r.json();
+  r = await req('/api/estates/wallet/verify/start', { method: 'POST', ip: '10.5.0.3', token: treasurySession, admin: 'estadmintoken' }); j = await r.json();
   ok(r.status === 503 && j.error === 'xaman_credentials_missing', 'verify/start without Xaman keys -> 503, no payload created');
-  r = await req('/api/estates/wallet/verify/finish', { method: 'POST', ip: '10.5.0.3', token: adm.token, admin: 'estadmintoken', body: JSON.stringify({ verificationId: 'SIforged' }) }); j = await r.json();
+  r = await req('/api/estates/wallet/verify/finish', { method: 'POST', ip: '10.5.0.3', token: treasurySession, admin: 'estadmintoken', body: JSON.stringify({ verificationId: 'SIforged' }) }); j = await r.json();
   ok(r.status === 400 && j.error === 'verification_expired_or_unknown', 'verify/finish with a forged id -> 400');
   ok((await req('/api/estates/wallet/status', { ip: '10.5.0.4', admin: 'estadmintoken' })).status === 401, 'admin token alone (no player sign-in) -> 401');
 

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { homefrontBuildingLayout, homefrontOrganicLayoutPreview, HOMEFRONT_ORGANIC_LAYOUT_VERSION } from '../client/arena/homefront-building-layout.mjs';
 import { homefrontRoadNetworkPreview } from '../client/arena/homefront-road-network-preview.mjs';
+import { protectedOrganicSitesPreview, reserveOrganicLandmarkClearance } from '../client/arena/homefront-landmark-reservations.mjs';
 import { auditOrganicRoadClearance, roadBuildingClearance, buildableOrganicSitesPreview } from '../client/arena/homefront-road-clearance.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
@@ -150,4 +151,25 @@ test('all v2 district roads connect to an arterial and the arterial spine has no
   }
   assert.equal(seen.size, nodes.length);
   assert.ok(roads.filter(r=>r.kind==='district').every(r => seen.has(r.from.id)));
+});
+
+test('v2 preview preserves spawn, authored landmarks, and rescue exclusion zones', () => {
+  const sites = protectedOrganicSitesPreview();
+  const result = reserveOrganicLandmarkClearance();
+  assert.deepEqual(result, reserveOrganicLandmarkClearance());
+  assert.equal(result.version, 2);
+  assert.ok(sites.some(s => s.id === 'world:spawn'));
+  assert.ok(sites.some(s => s.id === 'rescue:stranded_bus'));
+  assert.ok(sites.some(s => s.id.startsWith('landmark:')));
+  assert.ok(result.buildings.length > 0);
+  for (const b of result.buildings) {
+    const radius = Math.hypot(b.w, b.d) / 2;
+    for (const site of sites) {
+      assert.ok(Math.hypot(b.x - site.x, b.z - site.z) >= site.radius + radius + 1,
+        b.id + ' overlaps protected site ' + site.id);
+    }
+  }
+  assert.equal(result.buildings.length + result.excluded.length,
+    buildableOrganicSitesPreview().buildings.length);
+  assert.doesNotMatch(scene, /reserveOrganicLandmarkClearance/);
 });

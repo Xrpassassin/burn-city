@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { homefrontBuildingLayout, homefrontOrganicLayoutPreview, HOMEFRONT_ORGANIC_LAYOUT_VERSION } from '../client/arena/homefront-building-layout.mjs';
 import { homefrontRoadNetworkPreview } from '../client/arena/homefront-road-network-preview.mjs';
 import { auditOrganicRouteReachability } from '../client/arena/homefront-route-reachability.mjs';
+import { auditHomefrontV2MigrationReadiness } from '../client/arena/homefront-v2-migration-audit.mjs';
 import { protectedOrganicSitesPreview, reserveOrganicLandmarkClearance } from '../client/arena/homefront-landmark-reservations.mjs';
 import { auditOrganicRoadClearance, roadBuildingClearance, buildableOrganicSitesPreview } from '../client/arena/homefront-road-clearance.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
@@ -186,4 +187,18 @@ test('v2 road graph is connected and reachability audit detects broken spurs', (
   const damaged = auditOrganicRouteReachability(severed);
   assert.equal(damaged.connected, false);
   assert.ok(damaged.disconnectedNodes.length > 0);
+});
+
+test('v2 migration audit reports all existing safety checks but never enables the live world', () => {
+  const report = auditHomefrontV2MigrationReadiness();
+  assert.deepEqual(report, auditHomefrontV2MigrationReadiness());
+  assert.equal(report.version, 2);
+  assert.equal(report.checks.roadGraphConnected, true);
+  assert.equal(report.checks.roadCorridorsClear, true);
+  assert.equal(report.checks.protectedSitesReserved, true);
+  assert.ok(report.summary.roadCount > 0);
+  assert.ok(report.summary.retainedBuildings > 0);
+  assert.equal(report.readyForActivation, false);
+  assert.ok(report.requiredBeforeActivation.some(s => s.includes('saved coordinates')));
+  assert.doesNotMatch(scene, /auditHomefrontV2MigrationReadiness/);
 });

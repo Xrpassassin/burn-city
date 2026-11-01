@@ -51,6 +51,9 @@ on:
       - 'server/homefront-siege.js'
       - 'server/homefront-combat.js'
       - 'server/homefront-world.js'
+      - 'server/homefront-companions.js'
+      - 'server/homefront-companions.test.js'
+      - 'test/homefront-companion-api-sim.js'
       - 'server/homefront-terrain.js'
       - 'server/homefront-collision.js'
       - 'server/homefront-environment.js'
@@ -187,6 +190,8 @@ jobs:
         run: node server/homefront-cinders-effects.test.js && node test/homefront-cinders-effects-api-sim.js
       - name: Test CINDERS attribute allocation, practice and protected Ember perks
         run: node server/homefront-cinders.test.js && node test/homefront-cinders-rpg-sim.js
+      - name: Verify Epic and Legendary escort behavior, permissions and independent accounts
+        run: node server/homefront-companions.test.js && node test/homefront-companion-api-sim.js
       - name: Run Homefront settlement simulation
         run: npm run test:homefront
       - name: Run Homefront environment damage and repair tests

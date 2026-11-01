@@ -594,6 +594,19 @@ function boot(host) {
     building.rotation.y = (rand() - 0.5) * 0.16;
     if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h, bz + (rand() - .5), ruinMat);
     if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat); }
+    // Per-building roof silhouettes break up the repeated cuboid skyline.
+    // Hash-only cosmetics deliberately consume no LCG calls: the sequence of
+    // authoritative building positions and server obstacle bounds stays aligned.
+    const roofStyle = Math.floor(pavementHash(x, z, 27) * 5);
+    if (roofStyle === 0) {
+      addBox(structure, w * 0.24, 1.7, d * 0.24, bx, baseY + h, bz, ruinMat);
+    } else if (roofStyle === 1) {
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 1.15, 8), ruinMat);
+      tank.position.set(bx, baseY + h + 0.75, bz); structure.add(tank);
+    } else if (roofStyle === 2) {
+      addBox(structure, w * 0.6, 0.23, 0.22, bx, baseY + h + 0.45, bz, ruinMat);
+      addBox(structure, 0.2, 0.6, 0.2, bx, baseY + h, bz, ruinMat);
+    }
     chunk.add(structure);
     registerEnvironmentVisual('building:' + x + ',' + z, structure);
   }

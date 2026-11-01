@@ -93,12 +93,18 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
         disable(code);
       } else if (code === 'move_cooldown') {
         // Avoid briefly showing movement that the server cannot accept after a fresh spawn.
+        // The server rejected this packet before accepting its sequence.
+        // Retry the same sequence instead of skipping it on the next tick.
+        nextSequence = command.sequence;
         correct(server, true);
         readyAfter = now + 200;
       } else {
-        // Network failures cannot grant a longer speculative lead.
+        // Delivery is ambiguous: the server may already have committed this
+        // sequence. Never guess which sequence is next or resume prediction.
+        // A fresh page/world handshake is required to restore authority.
+        fatalFallback = true;
         correct(server, true);
-        readyAfter = now + 350;
+        disable('movement_connection_lost');
       }
     }).finally(() => { if (generation === requestGeneration) pending = false; });
   }

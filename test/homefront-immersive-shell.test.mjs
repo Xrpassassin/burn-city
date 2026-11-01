@@ -1,3 +1,4 @@
+import { previewDestinationConnectors } from '../client/arena/homefront-destination-connectors.mjs';
 // Source-level regression guard for Homefront immersive game shell.
 // Execute: node --test test/homefront-immersive-shell.test.mjs
 import test from 'node:test';
@@ -261,4 +262,20 @@ test('v2 destination access records off-road gaps without claiming physical reac
   assert.deepEqual(gate.destinationAccess, report);
   assert.equal(gate.checks.destinationsNearRoads, report.allWithinConnectorRange);
   assert.equal(gate.readyForActivation, false);
+});
+
+test('v2 connector preview produces deterministic candidate paths and detects blockers', () => {
+  const report = previewDestinationConnectors();
+  assert.deepEqual(report, previewDestinationConnectors());
+  assert.equal(report.version, 2);
+  assert.equal(report.scope, 'geometry-preview-only');
+  assert.ok(report.connectors.length > 3);
+  const blocked = previewDestinationConnectors({
+    roads:[{id:'road',from:{x:-10,z:0},to:{x:10,z:0},width:4}],
+    sites:[{id:'site',x:0,z:20,radius:2}],
+    buildings:[{id:'obstacle',x:0,z:10,w:4,d:4}]
+  });
+  assert.equal(blocked.connectors[0].status,'blocked');
+  assert.deepEqual(blocked.connectors[0].conflicts,['obstacle']);
+  assert.equal(previewDestinationConnectors({roads:[],sites:[{id:'isolated',x:0,z:0,radius:1}],buildings:[]}).connectors[0].status,'no-road');
 });

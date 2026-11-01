@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { homefrontBuildingLayout, homefrontOrganicLayoutPreview, HOMEFRONT_ORGANIC_LAYOUT_VERSION } from '../client/arena/homefront-building-layout.mjs';
 import { homefrontRoadNetworkPreview } from '../client/arena/homefront-road-network-preview.mjs';
+import { auditOrganicRouteReachability } from '../client/arena/homefront-route-reachability.mjs';
 import { protectedOrganicSitesPreview, reserveOrganicLandmarkClearance } from '../client/arena/homefront-landmark-reservations.mjs';
 import { auditOrganicRoadClearance, roadBuildingClearance, buildableOrganicSitesPreview } from '../client/arena/homefront-road-clearance.mjs';
 const html = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
@@ -172,4 +173,17 @@ test('v2 preview preserves spawn, authored landmarks, and rescue exclusion zones
   assert.equal(result.buildings.length + result.excluded.length,
     buildableOrganicSitesPreview().buildings.length);
   assert.doesNotMatch(scene, /reserveOrganicLandmarkClearance/);
+});
+
+test('v2 road graph is connected and reachability audit detects broken spurs', () => {
+  const network = homefrontRoadNetworkPreview();
+  const audit = auditOrganicRouteReachability(network);
+  assert.deepEqual(audit, auditOrganicRouteReachability(network));
+  assert.ok(audit.connected);
+  assert.equal(audit.disconnectedNodes.length, 0);
+  assert.equal(audit.disconnectedSpurs.length, 0);
+  const severed = { ...network, roads: network.roads.filter(r => r.id !== 'backbone:8') };
+  const damaged = auditOrganicRouteReachability(severed);
+  assert.equal(damaged.connected, false);
+  assert.ok(damaged.disconnectedNodes.length > 0);
 });

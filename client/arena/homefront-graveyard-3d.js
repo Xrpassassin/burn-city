@@ -555,8 +555,14 @@ function boot(host) {
         const width = 3.4 + pavementHash(k, n, axis + 3) * 0.9;
         const center = k + 5 + (pavementHash(k, n, axis + 9) - 0.5) * 0.5;
         const material = wornRoadMats[Math.min(3, Math.floor(wear * 4))];
-        if (axis === 0) addBox(cityGroup, width, 0.045, length, n, 0.01, center, material);
-        else addBox(cityGroup, length, 0.045, width, center, 0.01, n, material);
+        // Put each pavement section in its streamed visual chunk, and ground
+        // its base using the same terrain sampler as the player and props.
+        // The road footprint itself remains cosmetic; server collision is untouched.
+        const rx = axis === 0 ? n : center, rz = axis === 0 ? center : n;
+        const roadChunk = cityChunkAt(rx, rz);
+        const roadY = terrainElevation(rx, rz) + 0.012;
+        if (axis === 0) addBox(roadChunk, width, 0.045, length, rx, roadY, rz, material);
+        else addBox(roadChunk, length, 0.045, width, rx, roadY, rz, material);
       }
     }
   }

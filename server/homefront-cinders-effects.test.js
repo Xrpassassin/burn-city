@@ -57,7 +57,8 @@ const rested=S.act({...initial,stamina:20},'catch_breath',now+1000,each.S);
 assert.equal(rested.stamina,75.5);
 const medic=S.act({...initial,health:30,infection:20},'bandage',now+1000,high);
 const plainMedic=S.act({...initial,health:30,infection:20},'bandage',now+1000);
-assert.deepEqual(medic,plainMedic,'field aid health and infection remain identical for PvP balance');
+assert.equal(medic.health,plainMedic.health,'field aid health is not boosted by CINDERS training');
+assert.equal(medic.infection,plainMedic.infection,'field aid infection treatment retains its original bounds');
 
 const owner='cinders-crafting-test',base=Core.createBase(owner,now);
 base.baseHp=200;

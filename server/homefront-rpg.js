@@ -33,6 +33,28 @@ const ITEMS = NP({
 });
 const LOOT_ITEMS = Object.freeze(Object.keys(ITEMS).filter(k => ITEMS[k].loot));
 const XP = NP({ kill_infected: 12, loot: 5, discover: 15, rescue: 20, workday: 8, pvp_kill: 25, boss: 60, siege_repelled: 30, enter_world: 0 });
+// Verified actions increase familiarity independently of purchased skill
+// ranks. This is a small, capped use-to-grow XP benefit, not client-supplied
+// proficiency or an unbounded multiplier on combat and equipment.
+const PRACTICE = NP({
+  marksman: ['kill_infected','boss'],
+  scavenger: ['loot'],
+  survivalist: ['workday','siege_repelled'],
+  engineer: ['workday'],
+  leader: ['rescue','siege_repelled'],
+  field_medic: ['rescue'],
+  wayfinder: ['discover']
+});
+const PRACTICE_THRESHOLDS = Object.freeze([0,10,30,70]);
+const PRACTICE_TITLES = Object.freeze(['Unseasoned','Spark','Flame','Inferno']);
+const practiceTier = count => count >= 70 ? 3 : count >= 30 ? 2 : count >= 10 ? 1 : 0;
+function practiceFor(profile,skill) {
+  const count=(PRACTICE[skill] || []).reduce((n,source)=>n+(profile.counters?.[source]||0),0);
+  const tier=practiceTier(count);
+  return { count,tier,label:PRACTICE_TITLES[tier],
+    next: tier>=3 ? null : PRACTICE_THRESHOLDS[tier+1] };
+}
+const practiceBonus = (profile,source) => Math.min(2,practiceTier(profile.counters?.[source]||0));
 const QUESTS = NP({
   first_steps: NP({ label: 'First steps', text: 'Travel from your Homefront into the Wastes.', counter: 'enter_world', goal: 1, xp: 20 }),
   scavenger: NP({ label: 'Scavenger', text: 'Search 3 supply crates in the Wastes.', counter: 'loot', goal: 3, xp: 40 }),
@@ -100,7 +122,7 @@ function sheet(profile, base = null) {
       value:profile.attributes[a.id], max:Cinders.ATTR_MAX
     })),
     perks: Cinders.perksForSheet(level, profile.attributes, profile.skills, profile.perks),
-    skills: Object.entries(SKILLS).map(([id, s]) => ({ id, label: s.label, rank: profile.skills[id], max: SKILL_MAX, planned: s.planned })),
+    skills: Object.entries(SKILLS).map(([id, s]) => ({ id, label: s.label, rank: profile.skills[id], max: SKILL_MAX, planned: s.planned, practice: practiceFor(profile,id) })),
     slots: SLOTS, equipment: { ...profile.equipment, weapon: base?.equippedWeapon || 'pipe_blade' },
     items: profile.items.map(id => ({ id, label: ITEMS[id].label, slot: ITEMS[id].slot, armor: ITEMS[id].armor, jetpack: ITEMS[id].jetpack || null, equipped: profile.equipment[ITEMS[id].slot] === id })),
     armor: SLOTS.reduce((a, s) => a + (profile.equipment[s] ? ITEMS[profile.equipment[s]].armor : 0), 0),
@@ -116,7 +138,7 @@ function award(store, acct, source, { now = Date.now(), lootKey = null, base = n
   const before = levelFor(p.xp);
   // Only authenticated server events can award XP. Earned perk bonuses apply
   // here, not from user-supplied client quantities or item counts.
-  const earnedXp = XP[source] + Cinders.bonusExperience(source, p.perks);
+  const earnedXp = XP[source] + Cinders.bonusExperience(source, p.perks) + practiceBonus(p,source);
   p.xp = Math.min(xpForLevel(MAX_LEVEL), p.xp + earnedXp);
   p.counters[source] = (p.counters[source] || 0) + 1;
   const questsDone = [];
@@ -195,4 +217,4 @@ function act(store, acct, payload, base = null) {
   db[acct] = p; store.save(FILE, db);
   return p;
 }
-module.exports = { FILE, MAX_LEVEL, SKILL_MAX, SKILLS, Cinders, SLOTS, ITEMS, XP, QUESTS, xpForLevel, levelFor, defaultProfile, normalizeProfile, get, sheet, award, grantItem, hasItem, act };
+module.exports = { FILE, MAX_LEVEL, SKILL_MAX, SKILLS, Cinders, PRACTICE, practiceFor, SLOTS, ITEMS, XP, QUESTS, xpForLevel, levelFor, defaultProfile, normalizeProfile, get, sheet, award, grantItem, hasItem, act };

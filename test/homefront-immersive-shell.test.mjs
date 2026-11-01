@@ -60,3 +60,12 @@ test('roof silhouettes vary without consuming authoritative building RNG', () =>
   const roof = scene.slice(scene.indexOf('const roofStyle ='), scene.indexOf('chunk.add(structure);', scene.indexOf('const roofStyle =')));
   assert.doesNotMatch(roof, /rand\(\)/, 'extra RNG calls would desynchronize building collision with the server');
 });
+
+test('client and server import exactly the same versioned building-layout generator', () => {
+  const collision = readFileSync(new URL('../server/homefront-collision.js', import.meta.url), 'utf8');
+  const layout = readFileSync(new URL('../client/arena/homefront-building-layout.mjs', import.meta.url), 'utf8');
+  assert.match(scene, /import \{ homefrontBuildingLayout \} from '\.\/homefront-building-layout\.mjs'/);
+  assert.match(collision, /require\('\.\.\/client\/arena\/homefront-building-layout\.mjs'\)/);
+  assert.match(layout, /HOMEFRONT_LAYOUT_VERSION = 1/);
+  assert.match(layout, /HOMEFRONT_LAYOUT_SEED = 8675309/);
+});

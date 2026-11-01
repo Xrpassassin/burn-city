@@ -45,6 +45,7 @@ body.rpg-hud .rpg-nav{display:none}body.rpg-hud .rpg-nav.hf-talk{display:flex;pa
 .hf-pack-detail strong{display:block;color:#ffe0b8;font-size:13px}.hf-pack-detail p{margin:5px 0}
 .hf-pack-use{border:1px solid #a86a3d;background:#5a2915;color:#ffe9ce;border-radius:7px;padding:7px 11px;min-height:36px;font:700 12px system-ui}
 @media(max-width:520px){.hf-pack-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.hf-pack-slot{min-height:52px;font-size:24px}}
+@media(max-width:420px){.hf-hud{gap:4px;padding:5px 4px}.hf-hud .hf-q{width:34px;height:34px;flex-basis:34px}.hf-hud .hf-mm{width:38px;height:38px;flex-basis:38px}.hf-hud .hf-menu{padding:5px 7px;font-size:12px}}
 .hf-hud .hf-vit{flex:1 1 auto;min-width:0;display:grid;gap:3px}.hf-bar{height:8px;border-radius:5px;background:#2b1c15;overflow:hidden}.hf-bar i{display:block;height:100%;background:linear-gradient(90deg,#c43a2a,#ff8b3d)}
 .hf-hud small{font:700 11px system-ui;color:#e8cdb6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hf-q{width:38px;height:38px;flex:0 0 38px;border-radius:10px;border:1px solid #8e5235;background:#24140d;color:#ffe0c4;font-size:17px;padding:0;cursor:pointer}.hf-q:disabled{opacity:.35}

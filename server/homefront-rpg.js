@@ -54,7 +54,10 @@ function practiceFor(profile,skill) {
   return { count,tier,label:PRACTICE_TITLES[tier],
     next: tier>=3 ? null : PRACTICE_THRESHOLDS[tier+1] };
 }
-const practiceBonus = (profile,source) => Math.min(2,practiceTier(profile.counters?.[source]||0));
+const PRACTICED_SOURCES = new Set(Object.values(PRACTICE).flat());
+const practiceBonus = (profile,source) =>
+  PRACTICED_SOURCES.has(source) && XP[source] > 0
+    ? Math.min(2,practiceTier(profile.counters?.[source]||0)) : 0;
 const QUESTS = NP({
   first_steps: NP({ label: 'First steps', text: 'Travel from your Homefront into the Wastes.', counter: 'enter_world', goal: 1, xp: 20 }),
   scavenger: NP({ label: 'Scavenger', text: 'Search 3 supply crates in the Wastes.', counter: 'loot', goal: 3, xp: 40 }),

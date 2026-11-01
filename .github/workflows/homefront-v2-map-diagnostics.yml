@@ -1,0 +1,42 @@
+name: Homefront v2 full-map diagnostics
+on:
+  pull_request:
+    paths:
+      - 'server/homefront-v2-*.js'
+      - 'client/arena/homefront-*.mjs'
+      - '.github/workflows/homefront-v2-map-diagnostics.yml'
+  workflow_dispatch:
+jobs:
+  map-diagnostics:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run full proposed-map audit
+        run: |
+          mkdir -p diagnostics
+          node server/homefront-v2-route-diagnostics.js > diagnostics/homefront-v2-routes.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('diagnostics/homefront-v2-routes.json','utf8'));
+          const summary = {
+            version: report.version,
+            previewOnly: report.previewOnly,
+            allJourneysPass: report.allJourneysPass,
+            failedRoads: report.roadFailures.length,
+            failedDestinations: report.destinationFailures.length,
+            kinds: report.roadFailures.reduce((a,b)=>(a[b.kind]=(a[b.kind]||0)+1,a),{})
+          };
+          const output = JSON.stringify(summary,null,2);
+          console.log(output);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## Homefront proposed-map diagnostics\n\n```json\n'+output+'\n```\n');
+          NODE
+      - name: Upload diagnostic report
+        uses: actions/upload-artifact@v4
+        with:
+          name: homefront-v2-full-map-diagnostics
+          path: diagnostics/homefront-v2-routes.json

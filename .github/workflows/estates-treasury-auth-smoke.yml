@@ -1,0 +1,30 @@
+name: Estates treasury admin security and money simulator
+on:
+  pull_request:
+    paths:
+      - 'test/estates-money-sim.js'
+      - 'server/estate-wallet.js'
+      - 'server/server.js'
+      - '.github/workflows/estates-treasury-auth-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'test/estates-money-sim.js'
+      - 'server/estate-wallet.js'
+      - 'server/server.js'
+permissions:
+  contents: read
+jobs:
+  money-and-admin-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --omit=dev
+      - name: Enforce treasury-only session plus admin token and disabled sales
+        run: node test/estates-money-sim.js
+      - name: Verify generic money API security regression
+        run: node test/security-sim.js

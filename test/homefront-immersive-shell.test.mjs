@@ -53,3 +53,10 @@ test('roadside erosion stays cosmetic, deterministic, and terrain grounded', () 
   assert.match(scene, /const patchY = terrainElevation\(patchX, patchZ\) \+ 0\.006/);
   assert.match(scene, /addBox\(cityChunkAt\(patchX, patchZ\), patchWidth/);
 });
+
+test('roof silhouettes vary without consuming authoritative building RNG', () => {
+  assert.match(scene, /const roofStyle = Math\.floor\(pavementHash\(x, z, 27\) \* 5\)/);
+  assert.match(scene, /new THREE\.CylinderGeometry\(0\.75, 0\.75, 1\.15, 8\)/);
+  const roof = scene.slice(scene.indexOf('const roofStyle ='), scene.indexOf('chunk.add(structure);', scene.indexOf('const roofStyle =')));
+  assert.doesNotMatch(roof, /rand\(\)/, 'extra RNG calls would desynchronize building collision with the server');
+});

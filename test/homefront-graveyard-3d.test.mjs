@@ -467,3 +467,15 @@ assert.match(scene, /data\.surveys/,
   'one-time contract readiness comes from the server, not local landmark flags');
 assert.match(scene, /explorationSurveyPending\.has\(contractId\)/,
   'duplicate claim clicks are suppressed while a request is pending');
+
+
+assert.match(scene, /from '\.\/homefront-atmosphere\.mjs'/,
+  'Homefront reuses authored site district data for lightweight cosmetic environmental changes');
+assert.match(scene, /atmosphereAt\(\{/,
+  'world frame loop computes conditions from server-confirmed position and active room');
+assert.match(scene, /scene\.fog\.color\.lerp\(ambientFogColor,ambientBlend\)/,
+  'existing fog color transitions smoothly without added postprocessing or lights');
+assert.match(scene, /ashMotes\.visible = ambientTarget\.ashVisible/,
+  'outdoor ash is hidden when entering a sheltered shared room');
+assert.match(scene, /lastAmbientUpdateAt >= AMBIENT_UPDATE_MS/,
+  'cosmetic profiles refresh on a bounded cadence, not once per particle per frame');

@@ -69,8 +69,11 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       }
     } else {
       // Recover from speculative movement after release.
-      predicted.x += (server.x - predicted.x) * 0.16;
-      predicted.z += (server.z - predicted.z) * 0.16;
+      // Frame-rate independent recovery: a 30 FPS device should not settle
+      // twice as slowly as a 60 FPS device. Keep visual correction cosmetic.
+      const settle = 1 - Math.exp(-11 * Math.min(0.05, Math.max(0, Number.isFinite(dt) ? dt : 0)));
+      predicted.x += (server.x - predicted.x) * settle;
+      predicted.z += (server.z - predicted.z) * settle;
     }
     if (pending || now - lastSentAt < INPUT_SEND_INTERVAL_MS || (!vec.moving && !sentMotion)) return;
     pending = true;
@@ -93,12 +96,18 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
         disable(code);
       } else if (code === 'move_cooldown') {
         // Avoid briefly showing movement that the server cannot accept after a fresh spawn.
+        // The server rejected this packet before accepting its sequence.
+        // Retry the same sequence instead of skipping it on the next tick.
+        nextSequence = command.sequence;
         correct(server, true);
         readyAfter = now + 200;
       } else {
-        // Network failures cannot grant a longer speculative lead.
+        // Delivery is ambiguous: the server may already have committed this
+        // sequence. Never guess which sequence is next or resume prediction.
+        // A fresh page/world handshake is required to restore authority.
+        fatalFallback = true;
         correct(server, true);
-        readyAfter = now + 350;
+        disable('movement_connection_lost');
       }
     }).finally(() => { if (generation === requestGeneration) pending = false; });
   }

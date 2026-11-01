@@ -2,6 +2,7 @@
 // Deterministic server-side occupancy mirror for Homefront's Graveyard scene.
 // Keep generation constants aligned with client/arena/homefront-graveyard-3d.js.
 const Terrain = require('./homefront-terrain');
+const { homefrontBuildingLayout } = require('../client/arena/homefront-building-layout.mjs');
 const InteriorRules = require('./homefront-interiors');
 const InteriorCatalog = require('../client/arena/homefront-interior-world.mjs');
 const WORLD_SIZE = 100;
@@ -25,22 +26,12 @@ function biomeAt(x, z) {
 }
 function buildObstacles() {
   const out = [];
-  // Procedural buildings use the same LCG and grid traversal as the visible scene.
-  let seed = ENVIRONMENT_SEED;
-  const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-  for (let x = -90; x <= 90; x += 10) for (let z = -90; z <= 90; z += 10) {
-    if (rand() < 0.27 || Math.abs(x % 20) < 5 || Math.abs(z % 20) < 5) continue;
-    const bx = x + (rand() - 0.5) * 2.2, bz = z + (rand() - 0.5) * 2.2;
-    if (Math.hypot(bx, bz) < 13) continue;
-    const w = 3.4 + rand() * 3.4, d = 3.4 + rand() * 3.4;
-    rand(); // height
-    rand(); // building material
-    const rotation = (rand() - 0.5) * 0.16;
-    out.push({ id: 'building:' + x + ',' + z, type: 'rect', x: bx, z: bz,
+  // Shared deterministic layout is consumed by both the server and renderer.
+  for (const building of homefrontBuildingLayout()) {
+    const { id, x, z, w, d, rotation } = building;
+    out.push({ id, type: 'rect', x, z,
       halfX: Math.abs(Math.cos(rotation)) * w / 2 + Math.abs(Math.sin(rotation)) * d / 2 + 0.25,
       halfZ: Math.abs(Math.sin(rotation)) * w / 2 + Math.abs(Math.cos(rotation)) * d / 2 + 0.25 });
-    if (rand() > 0.45) { rand(); rand(); } // roof cap dimensions/offsets, visual only
-    if (rand() > 0.7) rand(); // ember prop
   }
   // Procedural environmental props share the client's 8-unit cells, seed and density.
   const chunkSize = 64, cells = 8, density = 0.18;

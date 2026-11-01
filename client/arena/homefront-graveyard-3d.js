@@ -6,6 +6,7 @@ import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
+import { homefrontBuildingLayout } from './homefront-building-layout.mjs';
 import { atmosphereAt, AMBIENT_UPDATE_MS } from './homefront-atmosphere.mjs';
 import { groundDetailCandidates } from './homefront-ground-detail.mjs';
 import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
@@ -536,31 +537,75 @@ function boot(host) {
     for (const prop of environmentalCandidates(cx, cz, { density: 0.18 })) addEnvironmentalCandidate(chunk, prop);
     for (const landmark of landmarkCandidates(cx, cz)) addLandmark(chunk, landmark);
   }
-  // Deterministic road grid and procedural ruined buildings; no extra engine or dependency.
+  // Visual-only broken pavement. The deterministic road centers remain aligned
+  // with server terrain/collision and existing player saves. Replace the old
+  // uninterrupted strips with irregular, damaged sections; never shift the
+  // authoritative walking corridors merely to improve appearance.
+  const pavementHash = (a, b, axis) => {
+    const v = Math.sin(a * 127.1 + b * 311.7 + axis * 74.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const wornRoadMats = [roadMat, mat(0x383b35), mat(0x31362f), mat(0x424039)];
   for (let n = -90; n <= 90; n += 20) {
-    addBox(cityGroup, 4.2, 0.04, 196, n, 0, 0, roadMat);
-    addBox(cityGroup, 196, 0.04, 4.2, 0, 0, n, roadMat);
-    for (const offset of [-7, 7]) {
-      addBox(cityGroup, 0.22, 0.035, 196, n + offset, 0.025, 0, mat(0x55584d));
-      addBox(cityGroup, 196, 0.035, 0.22, 0, 0.025, n + offset, mat(0x55584d));
+    for (let k = -95; k < 95; k += 10) {
+      for (let axis = 0; axis < 2; axis++) {
+        const wear = pavementHash(n, k, axis);
+        // Preserve the main connection across blocks but introduce washouts,
+        // potholes and exposed terrain rather than a rigid solid checkerboard.
+        const length = wear < 0.1 ? 4.7 : 7.4 + wear * 2.1;
+        const width = 3.4 + pavementHash(k, n, axis + 3) * 0.9;
+        const center = k + 5 + (pavementHash(k, n, axis + 9) - 0.5) * 0.5;
+        const material = wornRoadMats[Math.min(3, Math.floor(wear * 4))];
+        // Put each pavement section in its streamed visual chunk, and ground
+        // its base using the same terrain sampler as the player and props.
+        // The road footprint itself remains cosmetic; server collision is untouched.
+        const rx = axis === 0 ? n : center, rz = axis === 0 ? center : n;
+        const roadChunk = cityChunkAt(rx, rz);
+        const roadY = terrainElevation(rx, rz) + 0.012;
+        if (axis === 0) addBox(roadChunk, width, 0.045, length, rx, roadY, rz, material);
+        else addBox(roadChunk, length, 0.045, width, rx, roadY, rz, material);
+        // Asymmetric roadside erosion softens the regimented city-block
+        // silhouette without adding walls, collision, or discoverable objects.
+        // Every patch uses the same stable hash and follows the streamed chunk.
+        if (wear > 0.25 && wear < 0.68) {
+          const edge = pavementHash(k, n, axis + 11) > 0.5 ? 1 : -1;
+          const shoulder = (pavementHash(n, k, axis + 17) - 0.5) * 1.8;
+          const patchX = rx + (axis === 0 ? edge * (width * 0.5 + 0.65) : shoulder);
+          const patchZ = rz + (axis === 1 ? edge * (width * 0.5 + 0.65) : shoulder);
+          const patchY = terrainElevation(patchX, patchZ) + 0.006;
+          const patchWidth = axis === 0 ? 1.4 : 2.2;
+          const patchDepth = axis === 0 ? 2.2 : 1.4;
+          addBox(cityChunkAt(patchX, patchZ), patchWidth, 0.012, patchDepth, patchX, patchY, patchZ,
+            wornRoadMats[3]);
+        }
+      }
     }
   }
-  let seed = 8675309;
-  const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-  for (let x = -90; x <= 90; x += 10) for (let z = -90; z <= 90; z += 10) {
-    if (rand() < 0.27 || Math.abs(x % 20) < 5 || Math.abs(z % 20) < 5) continue;
-    const bx = x + (rand() - 0.5) * 2.2, bz = z + (rand() - 0.5) * 2.2;
-    if (Math.hypot(bx, bz) < 13) continue;
-    const w = 3.4 + rand() * 3.4, d = 3.4 + rand() * 3.4, h = 3 + rand() * (Math.hypot(bx, bz) > 65 ? 11 : 6);
+  for (const layout of homefrontBuildingLayout()) {
+    const { id, x: bx, z: bz, w, d, h, materialIndex, rotation, roof, emberHeight } = layout;
     const chunk = cityChunkAt(bx, bz);
     const baseY = terrainElevation(bx, bz);
     const structure = new THREE.Group();
-    const building = addBox(structure, w, h, d, bx, baseY, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
-    building.rotation.y = (rand() - 0.5) * 0.16;
-    if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h, bz + (rand() - .5), ruinMat);
-    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat); }
+    const building = addBox(structure, w, h, d, bx, baseY, bz, buildingMats[materialIndex]);
+    building.rotation.y = rotation;
+    if (roof) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + roof.xOffset, baseY + h, bz + roof.zOffset, ruinMat);
+    if (emberHeight !== null) addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat);
+    const x = Number(id.slice(9).split(',')[0]), z = Number(id.split(',')[1]);
+    // Per-building roof silhouettes break up the repeated cuboid skyline.
+    // Hash-only cosmetics deliberately consume no LCG calls: the sequence of
+    // authoritative building positions and server obstacle bounds stays aligned.
+    const roofStyle = Math.floor(pavementHash(x, z, 27) * 5);
+    if (roofStyle === 0) {
+      addBox(structure, w * 0.24, 1.7, d * 0.24, bx, baseY + h, bz, ruinMat);
+    } else if (roofStyle === 1) {
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 1.15, 8), ruinMat);
+      tank.position.set(bx, baseY + h + 0.75, bz); structure.add(tank);
+    } else if (roofStyle === 2) {
+      addBox(structure, w * 0.6, 0.23, 0.22, bx, baseY + h + 0.45, bz, ruinMat);
+      addBox(structure, 0.2, 0.6, 0.2, bx, baseY + h, bz, ruinMat);
+    }
     chunk.add(structure);
-    registerEnvironmentVisual('building:' + x + ',' + z, structure);
+    registerEnvironmentVisual(id, structure);
   }
   // Authored landmarks are distinct low-poly set pieces; server POIs remain the interaction authority.
   const landmarkSetPieces = new Map();
@@ -652,12 +697,31 @@ function boot(host) {
     lootGroup.add(g);
   }
   let worldData = null, moving = false;
-  // Experimental direct walking requires BOTH the server flag and explicit ?movement=continuous.
-  // Otherwise the established destination-based controls are unchanged.
-  const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
+  // Prefer embodied movement in the immersive Homefront shell. The authenticated
+  // server must still explicitly advertise inputProtocol.enabled; this preference
+  // NEVER enables the server endpoint or weakens movement validation.
+  // ?movement=legacy and ?classic=1 provide a deliberate rollback for testers.
+  const movementParams = new URLSearchParams(location.search);
+  const wantsContinuous = movementParams.get('movement') === 'continuous' ||
+    (movementParams.get('movement') !== 'legacy' && movementParams.get('classic') !== '1');
   let lastContinuousWorldRefresh = 0;
   let lastEnvironmentInputRefresh = 0;
   let lastRenderedWorldData = null;
+  // A blocking, in-world diagnostic is preferable to silently reverting to
+  // click-to-move when the deployment has not enabled authenticated input.
+  const movementNotice = document.createElement('div');
+  movementNotice.setAttribute('role', 'status');
+  movementNotice.setAttribute('aria-live', 'polite');
+  movementNotice.style.cssText = 'position:absolute;left:50%;top:24%;transform:translateX(-50%);z-index:8;width:min(85%,440px);padding:14px 18px;border:1px solid #d49a66;border-radius:12px;background:#140e0be8;color:#ffe5c8;text-align:center;font:600 14px/1.5 system-ui;pointer-events:none';
+  movementNotice.hidden = true;
+  host.append(movementNotice);
+  function setMovementAvailability(ready, reason = '') {
+    if (!wantsContinuous || ready) { movementNotice.hidden = true; return; }
+    movementNotice.textContent = reason === 'server_disabled'
+      ? 'Direct movement is not enabled on this server. Expedition walking is paused until server activation. Classic controls remain available for testing.'
+      : 'Direct movement connection interrupted. Reconnect or reload to restore walking; classic controls remain available for testing.';
+    movementNotice.hidden = false;
+  }
   const continuousInput = createContinuousInput({
     send: async command => {
       const response = await fetch(API + '/api/homefront/world/move-input', {
@@ -720,8 +784,9 @@ function boot(host) {
     onUnavailable: reason => {
       // Switching movement protocols must not immediately trigger a legacy 10-unit step.
       lastStickMoveAt = performance.now();
-      if (status && reason !== 'server_disabled') status.textContent =
-        'Direct walking unavailable (' + reason + '). Restored normal controls.';
+      setMovementAvailability(false, reason);
+      if (status) status.textContent =
+        'Direct walking unavailable (' + reason + '). Check server activation and connection.';
     }
   });
   let interiorState = null;
@@ -923,8 +988,12 @@ function boot(host) {
   function updateWorld(data) {
     worldData = data;
     lastRenderedWorldData = data;
-    if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
+    if (!data.self) {
+      continuousInput.disable('left_world');
+      movementNotice.hidden = true;
+    } else if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
       continuousInput.sync(data.inputProtocol, data.self, performance.now());
+      setMovementAvailability(continuousInput.enabled, data.inputProtocol?.enabled ? 'connection' : 'server_disabled');
     }
     if (Object.prototype.hasOwnProperty.call(data, 'interior')) {
       const previousInterior = interiorState;
@@ -1397,13 +1466,19 @@ function boot(host) {
     } finally { presencePending = false; }
   }
 
+  let worldFetchGeneration = 0;
+  // Travel responses arrive in the page controller. Re-fetch authenticated state
+  // immediately instead of leaving the scene on its previous eight-second poll.
+  window.addEventListener('homefront:world-membership', () => { void fetchWorld(); });
   async function fetchWorld() {
     if (!token() || moving) { if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.'; return; }
+    const requestGeneration = ++worldFetchGeneration;
     try {
       const r = await fetch(API + '/api/homefront/world', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
       await fetchExplorationProgress();
+      if (requestGeneration !== worldFetchGeneration) return;
       updateWorld(data);
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
@@ -1771,6 +1846,10 @@ function boot(host) {
         return;
       }
     }
+    // In immersive mode, clicking empty ground must never become a travel
+    // command. Preserve ground-click pathing only in the explicit classic
+    // or legacy controller so rollback remains operable during server QA.
+    if (wantsContinuous) return;
     if (worldData.party && !worldData.party.leader) return;
     const hits = raycaster.intersectObject(groundHit, false);
     if (!hits.length) return;
@@ -1800,7 +1879,7 @@ function boot(host) {
       return false;
     } finally { moving = false; }
   }
-  const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(260, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };
+  const resize = () => { const w = Math.max(1, host.clientWidth), h = Math.max(1, host.clientHeight); camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe(host);
   resize();
   // Exploration remains third-person; overhead views are reserved for base construction.

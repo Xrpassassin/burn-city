@@ -226,3 +226,18 @@ jobs:
           if(j.error||!j.amm)throw Error('amm_info_unavailable');
           console.log('ESTATES_POOL_HOLDINGS='+JSON.stringify({pool:j.amm.account,lpToken:j.amm.lp_token,ledger:j.ledger_index,readOnly:true}));
           NODE
+      - name: Read treasury-specific LP trustline at validated ledger
+        run: |
+          node --input-type=module <<'NODE'
+          const treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
+          const pool='rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f';
+          const r=await fetch('https://s1.ripple.com:51234/',{method:'POST',
+            headers:{'content-type':'application/json'},
+            body:JSON.stringify({method:'account_lines',params:[{account:treasury,peer:pool,ledger_index:'validated',limit:400}]}),
+            signal:AbortSignal.timeout(15000)});
+          if(!r.ok)throw Error('ledger_unavailable');
+          const d=(await r.json()).result;
+          if(d.error||d.validated!==true||d.marker)throw Error('incomplete_ledger_evidence');
+          const matches=(d.lines||[]).filter(l=>l.account===pool);
+          console.log('TREASURY_RLUSD_LP='+JSON.stringify({readOnly:true,ledger:d.ledger_index,lines:matches.map(l=>({currency:l.currency,balance:l.balance})),fullScan:true,basisReconciled:false}));
+          NODE

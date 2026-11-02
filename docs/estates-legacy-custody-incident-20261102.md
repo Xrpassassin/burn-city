@@ -31,3 +31,17 @@ The recorded customer IMG/PLX position currently lacks specified LP-token custod
 - **Refund/settle the old customer's position** under applicable purchase terms, while retaining records and legal/tax obligations. Do not treat this as automatic forfeiture of entitlements.
 
 None of these alternatives has been selected or executed. Mainnet customer payments stay disabled, and all treasury protection holds remain in force.
+
+## Follow-on validated asset movement trace
+
+The corrected [full-range validated treasury history run 41429312233](https://github.com/Xrpassassin/burn-city/actions/runs/41429312233) inspected **9** transactions at ledgers 108015969–108065129 with complete pagination. Regression tests confirm balance changes are distinguished from flag-only trustline edits. Relevant confirmed steps:
+
+1. `581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2`: IMG/PLX AMMWithdraw; **+1,598.741351076311 IMG, +13,172.413752276136 PLX**.
+2. `2762310505CB5C6B4F556C77CACDDD114281331F90F6964BCBBB5B5297D82F3C`: a successful Payment **from the treasury back to itself**; actual treasury PLX balance change **−13,330.3455626686 PLX**. The outgoing PLX balance movement is verified; the delivered counter-asset and value still require direct verification, so do not call this a realized profit or customer capital replacement.
+3. `D3A34E3FBB3D108D393485701C595416ADD0809A23D317B0EDB164B189387976`: another Payment to the PLX issuer, treasury PLX balance change **−0.00000000003 PLX**.
+4. `C4390EC090ACDD434AEBFAF93089E4CD9D8376064274D7E4651BF20653D0CA09`: TrustSet, **zero PLX balance change**.
+5. `59FAA96D8EF6A5C35747E22E664A7E0A8FBEA5F373D746B5EF3A58E5558FBE43`: IMG/RLUSD AMMCreate, treasury debit **−3,100 IMG**.
+
+The PLX debit in the treasury self-payment exceeds the manual withdrawal's PLX credit; this means simply earmarking that withdrawal as new customer capital is unsupported. The record supplies a transaction trail but **not** independent owner attribution, purchase cost or authorization to erase a legacy job.
+
+The workflow remains **red intentionally** because it fails the customer LP custody test, even though the follow-on token-flow scanner and its regression test now pass. Resolve the outstanding customer LP shortfall before any financial activation.

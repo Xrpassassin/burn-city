@@ -12,13 +12,21 @@ const sdk={payload:{create:async p=>{calls++;assert.equal(p.txjson.Account,buyer
 (async()=>{
  const disabled=createEstateXamanPaymentSession(db);
  assert.equal((await disabled.start({reservationId:r.reservation_id,buyer})).error,'estate_sales_disabled');
+ const terms={version:'v1.0',digest:'A'.repeat(64)};
+ const protectedSession=createEstateXamanPaymentSession(db,{sdk,treasury,enabled:true,requiredTerms:terms});
+ assert.equal((await protectedSession.start({reservationId:r.reservation_id,buyer})).error,'purchase_terms_acceptance_required');
+ assert.equal(calls,0);
+ const accepted=createEstateSaleReservations(db).reserve({reservationId:'reservation-terms-00001',
+   propertyId:'trailer-02',buyer,now:Date.now(),termsVersion:terms.version,termsDigest:terms.digest,acceptedAt:Date.now()});
+ const allowed=await protectedSession.start({reservationId:accepted.reservation_id,buyer});
+ assert.equal(allowed.ok,true);assert.equal(calls,1);
  const session=createEstateXamanPaymentSession(db,{sdk,treasury,enabled:true});
  assert.equal((await session.start({reservationId:r.reservation_id,buyer,now:r.expires_at-30000})).error,'reservation_near_expiry');
- assert.equal(calls,0);
+ assert.equal(calls,1);
  const first=await session.start({reservationId:r.reservation_id,buyer});
  assert.equal(first.payloadUuid,'test-uuid');assert.equal(first.reused,false);
  const second=await session.start({reservationId:r.reservation_id,buyer});
- assert.equal(second.reused,true);assert.equal(calls,1);
+ assert.equal(second.reused,true);assert.equal(calls,2);
  assert.equal((await session.start({reservationId:r.reservation_id,buyer:treasury})).error,'reservation_not_found');
  assert.equal((await session.signedHash({reservationId:r.reservation_id,buyer})).txHash,'A'.repeat(64));
  console.log('Estate Xaman payment session tests passed');

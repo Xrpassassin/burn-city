@@ -93,3 +93,31 @@ jobs:
           console.log('ESTATES_TREASURY_READONLY='+JSON.stringify(checks));
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Live treasury read-only diagnostic\n\n```json\n'+JSON.stringify(checks,null,2)+'\n```\n');
           NODE
+      - name: Validate paused AMM withdrawal on XRPL without signing
+        run: |
+          node --input-type=module <<'NODE'
+          const hash='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2';
+          const request={method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({method:'tx',params:[{transaction:hash,binary:false}]})};
+          let result;
+          for(const host of ['https://s1.ripple.com:51234/','https://xrplcluster.com/']){
+            try {
+              const response=await fetch(host,{...request,signal:AbortSignal.timeout(12000)});
+              if(!response.ok)continue;
+              const body=await response.json();
+              if(body.result?.validated===true){result=body.result;break;}
+            }catch{}
+          }
+          if(!result)throw Error('validated_transaction_not_obtained');
+          const tx=result.tx_json||result;
+          const check={hash,validated:result.validated===true,ledgerIndex:result.ledger_index,
+            accountMatchesTreasury:tx.Account==='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',
+            type:tx.TransactionType,engineResult:result.meta?.TransactionResult,
+            asset:tx.Asset,asset2:tx.Asset2,
+            feeDrops:tx.Fee,
+            affectedNodeTypes:[...new Set((result.meta?.AffectedNodes||[]).map(n=>Object.keys(n)[0]))]};
+          console.log('ESTATES_PAUSED_WITHDRAWAL='+JSON.stringify(check));
+          const fs=await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Paused withdrawal validated-ledger evidence\n\n```json\n'+JSON.stringify(check,null,2)+'\n```\n');
+          if(check.type!=='AMMWithdraw'||!check.accountMatchesTreasury||check.engineResult!=='tesSUCCESS')
+            throw Error('withdrawal_requires_manual_investigation');
+          NODE

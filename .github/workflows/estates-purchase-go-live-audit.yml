@@ -25,6 +25,7 @@ jobs:
         run: |
           node server/estate-rlusd-reward-capacity.test.js
           node server/estate-rlusd-positions-readonly.test.js
+          node server/estate-rlusd-lp-history.test.js
       - name: Inspect public deployed purchase status without signing or exposing secrets
         run: |
           node --input-type=module <<'NODE'
@@ -269,3 +270,5 @@ jobs:
           const summary={readOnly:true,transactionsScanned:scanned,completeHistory:!marker,events};
           console.log('ESTATES_RLUSD_HISTORY='+JSON.stringify(summary));
           NODE
+      - name: Reconstruct validated treasury IMG/RLUSD LP changes
+        run: node scripts/estate-rlusd-lp-history.cjs

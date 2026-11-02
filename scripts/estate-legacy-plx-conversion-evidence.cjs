@@ -22,12 +22,15 @@ function inspect(tx){
   throw Error('validated_self_payment_required');
  const deltas=Object.fromEntries(Object.entries(ASSETS).map(([k,a])=>[k,safeDelta(tx,a)]));
  if(Number(deltas.PLX)>=0)throw Error('plx_debit_missing');
- const outputAsset=Object.entries(deltas).filter(([k,n])=>k!=='PLX'&&Number(n)>0);
+ const xrp=xrpMovement(tx,TREASURY);
+ const outputAsset=Object.entries(deltas).filter(([k,n])=>k!=='PLX'&&Number(n)>0)
+  .map(([asset,received])=>({asset,received}));
+ if(xrp.gt(0))outputAsset.push({asset:'XRP',receivedDrops:xrp.toFixed()});
  return Object.freeze({readOnly:true,hash:HASH,ledgerIndex:tx.ledger_index,
   transactionType:body.TransactionType,treasurySelfPayment:true,
-  ledgerBalanceChanges:deltas,xrpTransferDeltaDrops:xrpMovement(tx,TREASURY).toFixed(),
+  ledgerBalanceChanges:deltas,xrpTransferDeltaDrops:xrp.toFixed(),
   networkFeeDrops:body.Fee||null,
-  tokenOutputsObserved:outputAsset.map(([asset,received])=>({asset,received})),
+  tokenOutputsObserved:outputAsset,
   estimatedPurchaseCapitalReplaced:false,customerOwnershipAttributionVerified:false,
   realisedNetProfitVerified:false,treasuryPauseReleaseAuthorized:false});
 }

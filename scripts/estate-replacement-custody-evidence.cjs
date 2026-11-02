@@ -25,6 +25,7 @@ try{
  const liveRoot=roots.find(root=>fs.existsSync(path.join(root,'server','estate-legacy-v2-review.js')));
  if(!liveRoot)throw Error('deployed_legacy_inspection_module_not_found');
  const {inspectLegacyEstateCapital}=require(path.join(liveRoot,'server','estate-legacy-v2-review.js'));
+ const {inspectEstateLiabilityRows}=require(path.join(liveRoot,'server','estate-legacy-liability-inventory.js'));
  const p=inspectLegacyEstateCapital(db,sales[0].purchase_tx);
  const count=name=>db.prepare("SELECT COUNT(*) n FROM "+name).get().n;
  const tables=db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(x=>x.name);
@@ -34,6 +35,7 @@ try{
   if(tables.includes(n))pending[n]=count(n);
  }
  console.log(JSON.stringify({readOnly:true,legacy:p,legacyLiabilityTableCounts:pending,
+  liabilityInventory:inspectEstateLiabilityRows(db),
   liabilitiesHaveBeenEconomicallyReconciled:false}));
 }finally{db.close()}
 `;
@@ -121,6 +123,7 @@ async function audit(){
    actuallyMigrated:false},
   poolSnapshots:results,custody:coverage,
   legacyLiabilityRowCounts:accounting.legacyLiabilityTableCounts,
+  legacyLiabilityInventory:accounting.liabilityInventory,
   allLiabilitiesQuantified:false,
   evidenceDigest:fingerprint,
   legallyApproved:false,

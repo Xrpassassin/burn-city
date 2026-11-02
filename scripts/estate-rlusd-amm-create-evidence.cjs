@@ -18,6 +18,10 @@ function evidence(tx){
  const depositedImg=balanceDelta(tx,TREASURY,IMG);
  const depositedRlusd=balanceDelta(tx,TREASURY,RLUSD);
  if(!depositedImg.lt(0)||!depositedRlusd.lt(0))throw Error('unexpected_treasury_asset_movements');
+ const inputImg=value(contributions.find(x=>issuedEq(x,IMG)).value);
+ const inputRlusd=value(contributions.find(x=>issuedEq(x,RLUSD)).value);
+ if(!depositedImg.negated().eq(inputImg)||!depositedRlusd.negated().eq(inputRlusd))
+  throw Error('amm_creation_debit_mismatch');
  const issued=lpDelta({validated:true,meta:tx.meta});
  if(!issued||!issued.gt(0))throw Error('lp_mint_proof_missing');
  return {readOnly:true,hash:HASH,ledger:tx.ledger_index||body.ledger_index,

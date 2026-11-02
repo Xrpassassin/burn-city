@@ -187,3 +187,32 @@ jobs:
             accountingReconciled:false};
           console.log('WITHDRAWAL_EFFECTS='+JSON.stringify(summary));
           NODE
+      - name: Assess real IMG/RLUSD position inventory without signing
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          if(!process.env.FLY_API_TOKEN)throw Error('fly_credential_missing');
+          const script=[
+            "const {DatabaseSync}=require('node:sqlite');",
+            "const db=new DatabaseSync((process.env.DATA_DIR||'/data')+'/shop.db',{readOnly:true});",
+            "db.exec('PRAGMA query_only=ON');",
+            "const rows=db.prepare('SELECT pair,state,note,initial_budget_drops,data_json FROM estate_liquidity_jobs').all();",
+            "const groups={};",
+            "for(const r of rows){const key=r.pair+':'+r.state;groups[key]=(groups[key]||0)+1;}",
+            "const rlusd=rows.filter(r=>r.pair==='img-rlusd');",
+            "const result={readOnly:true,positionCounts:groups,rlusdPositions:rlusd.length,rlusdBasisFromJobs:rlusd.every(r=>{try{const d=JSON.parse(r.data_json);return typeof d.basis==='string'&&/^[0-9]+$/.test(d.basis)&&BigInt(d.basis)>0n}catch{return false}}),manualPositionReconciled:false,rewardsApproved:false};",
+            "db.close();console.log(JSON.stringify(result));"
+          ].join('\n');
+          const response=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{
+            method:'POST',headers:{authorization:'Bearer '+process.env.FLY_API_TOKEN,'content-type':'application/json'},
+            body:JSON.stringify({command:['node','-e',script],timeout:30}),signal:AbortSignal.timeout(50000)});
+          if(!response.ok)throw Error('read_only_inventory_http_'+response.status);
+          const run=await response.json();
+          if(run.exit_code!==0)throw Error('read_only_inventory_failed');
+          const result=JSON.parse(String(run.stdout||'').trim());
+          if(result.readOnly!==true)throw Error('inventory_not_readonly');
+          console.log('ESTATES_RLUSD_INVENTORY='+JSON.stringify(result));
+          const fs=await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## IMG/RLUSD position inventory\n\n```json\n'+JSON.stringify(result,null,2)+'\n```\n');
+          NODE

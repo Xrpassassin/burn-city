@@ -1,0 +1,29 @@
+name: Estates legacy capital review safety
+on:
+  pull_request:
+    paths:
+      - 'server/estate-legacy-v2-review.js'
+      - 'server/estate-legacy-v2-review.test.js'
+      - '.github/workflows/estates-legacy-review.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  immutable-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check immutable legacy review with zero capital movement
+        run: |
+          node --check server/estate-legacy-v2-review.js
+          node server/estate-legacy-v2-review.test.js
+          node server/estate-capital-allocation.test.js
+          node server/estate-capital-reserve.test.js
+      - name: Confirm no payment, migration or pause release
+        run: |
+          echo 'This workflow tests an unverified, append-only review journal. It does not transfer assets, rebook principal, approve migration, clear the treasury pause, or enable XRP purchases.' >> "$GITHUB_STEP_SUMMARY"

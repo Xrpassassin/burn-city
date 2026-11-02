@@ -4,7 +4,7 @@ const {createEstateXamanPayloadStore}=require('./estate-sale-xaman-payload-store
 const {createEstateXamanPaymentAdapter}=require('./estate-sale-xaman');
 // Server-only bridge: no HTTP route, no sale activation, no XRPL signing keys.
 // A UUID must be durably associated with the authenticated reservation before it is returned.
-function createEstateXamanPaymentSession(db,{sdk,treasury,enabled=false}={}){
+function createEstateXamanPaymentSession(db,{sdk,treasury,enabled=false,requiredTerms=null}={}){
  const reservations=createEstateSaleReservations(db);
  const payloads=createEstateXamanPayloadStore(db);
  const adapter=enabled?createEstateXamanPaymentAdapter({sdk,treasury}):null;
@@ -12,6 +12,9 @@ function createEstateXamanPaymentSession(db,{sdk,treasury,enabled=false}={}){
   if(!enabled)return {ok:false,error:'estate_sales_disabled'};
   const r=reservations.get(reservationId);
   if(!r||r.buyer!==buyer)return {ok:false,error:'reservation_not_found'};
+  if(requiredTerms&&(r.terms_version!==requiredTerms.version||r.terms_digest!==requiredTerms.digest||
+   !Number.isSafeInteger(r.terms_accepted_at)||r.terms_accepted_at<1))
+   return {ok:false,error:'purchase_terms_acceptance_required'};
   if(r.status!=='reserved'||now>=r.expires_at)return {ok:false,error:'reservation_not_active'};
   // Do not issue a 10-minute Xaman request when the reservation is about to expire.
   // The remote request cannot extend the server's original price/ownership hold.

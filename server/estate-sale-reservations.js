@@ -9,10 +9,13 @@ function createEstateSaleReservations(db){
  price_drops INTEGER NOT NULL CHECK(price_drops>0),
  status TEXT NOT NULL DEFAULT 'reserved' CHECK(status IN ('reserved','expired','settled','cancelled')),
  created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL CHECK(expires_at>created_at),
- payment_tx TEXT UNIQUE
+ payment_tx TEXT UNIQUE,
+ terms_version TEXT,terms_digest TEXT,terms_accepted_at INTEGER
  );
  CREATE UNIQUE INDEX IF NOT EXISTS estate_one_active_reservation
  ON estate_sale_reservations(property_id) WHERE status='reserved';`);
+ for(const [column,type] of [['terms_version','TEXT'],['terms_digest','TEXT'],['terms_accepted_at','INTEGER']])
+  if(!db.prepare('PRAGMA table_info(estate_sale_reservations)').all().some(r=>r.name===column))db.exec('ALTER TABLE estate_sale_reservations ADD COLUMN '+column+' '+type);
  const find=db.prepare('SELECT * FROM estate_sale_reservations WHERE reservation_id=?');
  const expire=db.prepare("UPDATE estate_sale_reservations SET status='expired' WHERE status='reserved' AND expires_at<=?");
  const occupied=db.prepare('SELECT 1 FROM estate_property_ownership WHERE property_id=?');
@@ -26,11 +29,15 @@ function createEstateSaleReservations(db){
  const unresolvedPayment=db.prepare(`SELECT 1 FROM estate_sale_reservations r
  JOIN estate_xaman_payment_payloads p ON p.reservation_id=r.reservation_id
  WHERE r.property_id=? AND r.status='expired' LIMIT 1`);
- const add=db.prepare('INSERT INTO estate_sale_reservations(reservation_id,property_id,buyer,price_drops,created_at,expires_at) VALUES(?,?,?,?,?,?)');
- function reserve({reservationId,propertyId,buyer,now=Date.now(),ttlMs=600000}={}){
+ const add=db.prepare('INSERT INTO estate_sale_reservations(reservation_id,property_id,buyer,price_drops,created_at,expires_at,terms_version,terms_digest,terms_accepted_at) VALUES(?,?,?,?,?,?,?,?,?)');
+ function reserve({reservationId,propertyId,buyer,now=Date.now(),ttlMs=600000,termsVersion=null,termsDigest=null,acceptedAt=null}={}){
   if(typeof reservationId!=='string'||!/^[a-zA-Z0-9_-]{16,100}$/.test(reservationId))throw new TypeError('invalid_reservation_id');
   if(typeof buyer!=='string'||!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(buyer))throw new TypeError('invalid_buyer');
   if(!Number.isSafeInteger(now)||now<1||!Number.isSafeInteger(ttlMs)||ttlMs<60000||ttlMs>900000)throw new TypeError('invalid_reservation_window');
+  const accepted=termsVersion!==null||termsDigest!==null||acceptedAt!==null;
+  if(accepted&&(!/^[A-Za-z0-9][A-Za-z0-9._-]{1,79}$/.test(termsVersion||'')||
+    !/^[A-Fa-f0-9]{64}$/.test(termsDigest||'')||
+    !Number.isSafeInteger(acceptedAt)||acceptedAt<1))throw Error('invalid_purchase_terms_receipt');
   const property=PROPERTY_BY_ID.get(propertyId),tier=property&&TIER_BY_ID.get(property.tier);
   if(!tier||!Number.isSafeInteger(tier.price)||tier.price<=0)throw new Error('property_not_for_sale');
   const priceDrops=tier.price*1000000;
@@ -39,13 +46,15 @@ function createEstateSaleReservations(db){
   try{
    const previous=find.get(reservationId);
    if(previous){
-    if(previous.property_id!==propertyId||previous.buyer!==buyer)throw new Error('reservation_id_conflict');
+    if(previous.property_id!==propertyId||previous.buyer!==buyer||
+     previous.terms_version!==termsVersion||
+     previous.terms_digest!==(termsDigest?.toUpperCase()||null))throw new Error('reservation_id_conflict');
     db.exec('COMMIT');return previous;
    }
    expire.run(now);
    if(occupied.get(propertyId))throw new Error('property_already_owned');
    if(unresolvedPayment.get(propertyId))throw new Error('property_pending_payment_review');
-   add.run(reservationId,propertyId,buyer,priceDrops,now,now+ttlMs);
+   add.run(reservationId,propertyId,buyer,priceDrops,now,now+ttlMs,termsVersion,termsDigest?.toUpperCase()||null,acceptedAt);
    const result=find.get(reservationId);
    db.exec('COMMIT');return result;
   }catch(err){db.exec('ROLLBACK');throw err;}

@@ -1,0 +1,42 @@
+name: Estates purchase-only consent and recovery safety
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/estates-purchase-only-safety.yml'
+      - 'server/estate-sales-runtime.js'
+      - 'server/estate-sale-reservations.js'
+      - 'server/estate-sale-reservation-api.js'
+      - 'server/estate-sale-xaman-session.js'
+      - 'server/estate-purchase-terms-*.js'
+      - 'server/estate-sales-runtime.test.js'
+      - 'server/estate-sale-xaman-session.test.js'
+      - 'server/server.js'
+      - 'test/estate-sales-runtime-http.test.js'
+      - 'client/js/estate-purchase-ui.mjs'
+      - 'scripts/estate-purchase-browser-test.mjs'
+permissions:
+  contents: read
+jobs:
+  purchase-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked project dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Validate fail-closed release gate and signed payment recovery
+        run: |
+          node server/estate-sale-production-gates.test.js
+          node server/estate-purchase-terms-gate.test.js
+          node server/estate-purchase-terms-publication.test.js
+          node server/estate-sale-reservations.test.js
+          node server/estate-sale-xaman-session.test.js
+          node server/estate-sales-runtime.test.js
+          node test/estate-sales-runtime-http.test.js
+      - name: Report non-activation
+        run: |
+          echo 'All checks are nonpaying simulations. This workflow does not unpause treasury, activate sales, confirm legal approval, or make XRP payments.' >> "$GITHUB_STEP_SUMMARY"

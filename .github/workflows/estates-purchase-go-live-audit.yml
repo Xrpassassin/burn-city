@@ -121,3 +121,46 @@ jobs:
           if(check.type!=='AMMWithdraw'||!check.accountMatchesTreasury||check.engineResult!=='tesSUCCESS')
             throw Error('withdrawal_requires_manual_investigation');
           NODE
+      - name: Compare paused withdrawal to durable treasury journal and capital state (read only)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          const script=`
+          const {DatabaseSync}=require('node:sqlite');
+          const db=new DatabaseSync((process.env.DATA_DIR||'/data')+'/shop.db',{readOnly:true});
+          db.exec('PRAGMA query_only=ON');
+          const hash='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2';
+          const tables=['estate_capital_allocations','estate_liquidity_jobs','estate_treasury_transactions'];
+          const result={readOnly:true,withdrawalHash:hash,tables:{}};
+          for(const name of tables){
+            const columns=db.prepare('PRAGMA table_info('+name+')').all().map(c=>c.name);
+            const rows=db.prepare('SELECT * FROM '+name+' LIMIT 100').all();
+            result.tables[name]={total:db.prepare('SELECT COUNT(*) n FROM '+name).get().n,
+              rows:rows.map(r=>{
+                const kept={};
+                for(const key of ['state','pair','policy_version','note','img_plx_drops','img_xrp_drops','img_rlusd_drops','operating_reserve_drops','purchase_drops','tx_type','kind']){
+                  if(columns.includes(key))kept[key]=r[key];
+                }
+                const matches=Object.entries(r).filter(([key,value])=>typeof value==='string'&&value.toUpperCase().includes(hash));
+                kept.containsPausedWithdrawal=matches.length>0;
+                kept.matchingColumns=matches.map(([key])=>key);
+                return kept;
+              })};
+          }
+          db.close();console.log(JSON.stringify(result));
+          `;
+          const url='https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec';
+          const response=await fetch(url,{method:'POST',
+            headers:{authorization:'Bearer '+process.env.FLY_API_TOKEN,'content-type':'application/json'},
+            body:JSON.stringify({command:['node','-e',script],timeout:30}),
+            signal:AbortSignal.timeout(50000)});
+          if(!response.ok)throw Error('treasury_journal_read_http_'+response.status);
+          const output=await response.json();
+          if(output.exit_code!==0)throw Error('treasury_journal_read_failed');
+          const data=JSON.parse(String(output.stdout||'').trim());
+          if(data.readOnly!==true)throw Error('not_readonly');
+          console.log('ESTATES_WITHDRAWAL_RECONCILIATION='+JSON.stringify(data));
+          const fs=await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Treasury journal reconciliation (read only)\n\n```json\n'+JSON.stringify(data,null,2)+'\n```\n');
+          NODE

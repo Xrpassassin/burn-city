@@ -27,6 +27,7 @@ jobs:
           node server/estate-rlusd-positions-readonly.test.js
           node server/estate-rlusd-lp-history.test.js
           node server/estate-rlusd-amm-create-evidence.test.js
+          node server/estate-rlusd-prospective-rewards.test.js
       - name: Inspect public deployed purchase status without signing or exposing secrets
         run: |
           node --input-type=module <<'NODE'

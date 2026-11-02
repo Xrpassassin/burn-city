@@ -1,0 +1,30 @@
+name: Estates forward IMG RLUSD status safety
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/estates-forward-readiness.yml'
+      - 'server/estate-rlusd-forward-readiness.js'
+      - 'server/estate-rlusd-forward-readiness.test.js'
+      - 'server/estate-hourly-service.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  truthful-future-rewards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify forward-only rewards cannot be confused with legacy payouts
+        run: |
+          node --check server/estate-rlusd-forward-readiness.js
+          node --check server/estate-hourly-service.js
+          node server/estate-rlusd-forward-readiness.test.js
+          node server/estate-img-hourly-rewards.test.js
+      - name: No financial activation
+        run: |
+          echo 'Read-only program status only. This does not connect settlement, fund the AMM, enable purchases, or distribute assets.' >> "$GITHUB_STEP_SUMMARY"

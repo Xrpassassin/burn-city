@@ -78,12 +78,31 @@ function fixture({policyVersion=1}={}){
  db.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run('trailer-01',owner,'B'.repeat(64),3000000,1,hour-1000);
  capital.record(db.prepare('SELECT * FROM estate_property_ownership').get());
  const guard={paused:()=>paused,check:async()=>null};
- const options={db,client,wallet:()=>w,treasury,imgIssuer,plxIssuer,rlusdIssuer:RLUSD.issuer,rlusdPoolAccount:stablePool.account,rlusdEnabled:policyVersion===2,guard,fundingEnabled:true,harvestEnabled:false,payoutsEnabled:true,maxNativePayoutDrops:'100000000',maxNativeDailyDrops:'1000000000',now:()=>clock};
+ const options={db,client,wallet:()=>w,treasury,imgIssuer,plxIssuer,rlusdIssuer:RLUSD.issuer,rlusdPoolAccount:stablePool.account,rlusdEnabled:policyVersion===2,legacyTradingEnabled:policyVersion===1,guard,fundingEnabled:true,harvestEnabled:false,payoutsEnabled:true,maxNativePayoutDrops:'100000000',maxNativeDailyDrops:'1000000000',now:()=>clock};
  const make=overrides=>createEstateLiquidityRuntime({...options,...overrides});
  return {db,treasury,owner,capital,make,sent,balances,xrpPool,stablePool,stableXrp,IMG,RLUSD,client,options,get clock(){return clock;},set clock(v){clock=v;},set paused(v){paused=v;},set unknown(v){unknown=v;},set badProof(v){badProof=v;},set crashOnWithdraw(v){crashOnWithdraw=v;}};
 }
 async function until(f,runtime,predicate,limit=50){for(let i=0;i<limit;i++){if(predicate())return;await runtime.tick();}assert.ok(predicate(),JSON.stringify(runtime.status(f.owner))+' '+JSON.stringify(f.db.prepare('SELECT pair,state,note FROM estate_liquidity_jobs').all())+' '+JSON.stringify(f.db.prepare('SELECT id,state,note FROM estate_treasury_transactions').all()));}
 if(require.main===module)(async()=>{
+ // Production defaults must never spawn new IMG/PLX or IMG/XRP trades from
+ // old policy-v1 allocations, even if funding flags are enabled.
+ const retired=fixture();const safe=retired.make({legacyTradingEnabled:false});
+ assert.equal(safe.status(retired.owner).legacyAmmTradingEnabled,false);
+ await safe.tick();
+ assert.equal(retired.db.prepare('SELECT COUNT(*) n FROM estate_liquidity_jobs').get().n,0);
+ assert.equal(retired.db.prepare('SELECT COUNT(*) n FROM estate_capital_allocations').get().n,1);
+ assert.equal(retired.sent.length,0);
+ // A stale legacy position can remain visible without being rebalanced,
+ // harvested or altered by a default-off service on restart.
+ const stored=retired.db.prepare("INSERT INTO estate_liquidity_jobs(id,purchase_tx,pair,initial_budget_drops,state,data_json) VALUES(?,?,?,?,?,?)");
+ const p=retired.db.prepare('SELECT purchase_tx,img_plx_drops FROM estate_capital_allocations LIMIT 1').get();
+ const empty={cash:'0',img:'0',plx:'0',rlusd:'0',imgCost:'0',plxCost:'0',rlusdCost:'0',fees:'0',lp:'1',basis:'1000',generation:0,carryBasis:null};
+ stored.run('historical-plx-position',p.purchase_tx,'img-plx',p.img_plx_drops,'invested',JSON.stringify(empty));
+ const restart=retired.make({legacyTradingEnabled:false,harvestEnabled:true,payoutsEnabled:false});
+ await restart.tick();
+ assert.equal(retired.db.prepare("SELECT state FROM estate_liquidity_jobs WHERE id='historical-plx-position'").get().state,'invested');
+ assert.equal(restart.status(retired.owner).legacyPositionsRetiredFromAutomation,1);
+ assert.equal(retired.sent.length,0);
  const f=fixture();let r=f.make();
  assert.equal(estateCashReserve(f.db),'3000000');
  f.paused=true;await r.tick();assert.equal(f.sent.length,0);f.paused=false;

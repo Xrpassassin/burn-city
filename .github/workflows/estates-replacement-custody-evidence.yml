@@ -11,6 +11,8 @@ on:
       - 'scripts/estate-legacy-payout-proof-audit.cjs'
       - 'scripts/estate-legacy-plx-conversion-evidence.cjs'
       - 'server/estate-legacy-plx-conversion-evidence.test.js'
+      - 'scripts/estate-operator-migration-trace.cjs'
+      - 'server/estate-operator-migration-trace.test.js'
       - 'scripts/estate-replacement-custody-evidence.cjs'
       - '.github/workflows/estates-replacement-custody-evidence.yml'
   workflow_dispatch:
@@ -34,6 +36,7 @@ jobs:
           node server/estate-legacy-liability-inventory.test.js
           node server/estate-legacy-payout-verification.test.js
           node server/estate-legacy-plx-conversion-evidence.test.js
+          node server/estate-operator-migration-trace.test.js
           node server/estate-legacy-v2-review.test.js
       - name: Verify read-only production purchase and cost-basis inventory first
         env:
@@ -61,6 +64,9 @@ jobs:
       - name: Trace validated counter-asset received in retired PLX conversion
         if: always()
         run: node scripts/estate-legacy-plx-conversion-evidence.cjs
+      - name: Trace operator-retired PLX and funded IMG/RLUSD on validated XRPL
+        if: always()
+        run: node scripts/estate-operator-migration-trace.cjs
       - name: Financial operation stays disabled
         if: always()
         run: echo 'No migration, no transaction signing, no treasury pause release, no purchases and no profit distribution performed.' >> "$GITHUB_STEP_SUMMARY"

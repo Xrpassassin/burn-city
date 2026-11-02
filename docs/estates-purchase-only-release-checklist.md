@@ -6,7 +6,7 @@ The purchase flow and optional rewards are distinct. This checklist is a **relea
 
 1. The shared treasury guard is **paused** following an unexpected external AMM transaction. Independently reconcile the flagged IMG/PLX withdrawal and the registered legacy position, including any existing liabilities and signer security before unpausing. Do **not** bypass or disable the guard merely to accept new deposits.
 2. Counsel review for the actual Estates offer and purchase/bonus representations remains marked **NOT OBTAINED** in `docs/estates-arizona-legal-launch-review.md`. A virtual property purchase may be presented as a simple consumptive game feature only when the gameplay rights and all marketing/terms support that description. The separate AMM funding and possible future bonuses still require review. A server environment flag does not constitute legal clearance.
-3. The attorney-approved purchase terms must be versioned and accessible via HTTPS. The operator must verify the SHA-256 of the actual approved terms, record the counsel signoff reference, and confirm client and server use the exact same version/digest. The code does not independently validate a lawyer's identity.
+3. The attorney-approved purchase terms must be versioned and accessible via HTTPS. The operator must independently verify the SHA-256 of the **exact publicly served bytes** against the approved document, record the counsel signoff reference, and confirm client and server use the exact same version/digest. The code does not independently validate a lawyer's identity. After documenting actual signoff, run `node scripts/estate-purchase-terms-preflight.cjs` with the approved ESTATE_PURCHASE_* environment variables. This read-only preflight rejects redirects, oversized responses, empty content, nonpublic URLs and hash mismatches. A pass is technical publication proof, **not** legal approval.
 4. Validate purchase reserve, Xaman signed payment, exact buyer/treasury and amount, invoice expiration and delayed settlement, server-side ownership persistence, prior-purchase recovery, refund/cancellation/support, and DB backup/restore with new versioned consent columns.
 
 ## Purchase-only configuration after independent release approval
@@ -44,3 +44,7 @@ The public property quote includes the approved terms URL/version/digest. The UI
 - Stop additional offers immediately if the ledger, treasury pause, reconciliation, terms, or property state is inconsistent.
 
 **No guaranteed return:** property purchases do not convey real property, pool ownership or a claim to AMM income. Unverified, discretionary potential bonuses are not entitlements. None of the settings above guarantee investment principal preservation.
+
+## Additional Xaman payment gate
+
+Even if a caller bypasses the normal reservation route, a Xaman session configured with `requiredTerms` now independently verifies the reservation's accepted terms version, SHA-256, and timestamp before creating a new XRP payment request. Previously accepted terms remain in the reservation; advancing the terms version blocks creation of **new** payment requests against stale accepted versions. Existing signed payloads still require the ordinary validated-ledger and expiration/late-payment reconciliation paths; a policy update must not simply discard customer payments.

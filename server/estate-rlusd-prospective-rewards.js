@@ -35,7 +35,7 @@ function inspectProspectiveRlusdReward({start,receiptLedgerIndex,receiptTimeMs,
   receiptHash,poolAccount,realizedNetProfitUnits='0',realizedLossCarryUnits='0',
   verifiedLiquidSurplusUnits='0',currentLiquidationUnits='0',
   capitalAddedSinceStartUnits='0',outstandingLiabilitiesUnits='0',
-  operatingReserveUnits='0',receiptValidated=false,realizationVerified=false,
+  operatingReserveUnits='0',previouslyReservedUnits='0',receiptValidated=false,realizationVerified=false,
   evidenceDeduplicated=false,valuationFresh=false,ownershipReconciled=false}={}){
  if(!start||start.policyVersion!==1||!Number.isSafeInteger(start.ledgerIndex)||
   !validTime(start.firstFullHourMs)||!ACCOUNT.test(start.poolAccount||''))
@@ -45,17 +45,24 @@ function inspectProspectiveRlusdReward({start,receiptLedgerIndex,receiptTimeMs,
   validTime(receiptTimeMs)&&receiptTimeMs>=start.firstFullHourMs&&
   HASH.test(receiptHash||'')&&poolAccount===start.poolAccount;
  const protectedCapital=units(start.protectedBaselineUnits)+units(capitalAddedSinceStartUnits);
+ const alreadyReserved=units(previouslyReservedUnits);
+ const netProfit=units(realizedNetProfitUnits),losses=units(realizedLossCarryUnits);
+ const surplus=units(verifiedLiquidSurplusUnits);
+ // Cumulative realized profit and liquid surplus must cover ALL prior held
+ // draft allocations before considering another receipt. Reserve again in
+ // the liquidation-value test so no receipt can spend the same headroom twice.
+ const availableProfit=netProfit>losses+alreadyReserved?netProfit-losses-alreadyReserved:0n;
+ const availableLiquid=surplus>alreadyReserved?surplus-alreadyReserved:0n;
  const result=inspectImgRlusdRewardCapacity({
-  realizedNetProfit:realizedNetProfitUnits,
-  realizedLossCarry:realizedLossCarryUnits,
-  independentlyVerifiedLiquidSurplus:verifiedLiquidSurplusUnits,
+  realizedNetProfit:availableProfit.toString(),
+  independentlyVerifiedLiquidSurplus:availableLiquid.toString(),
   principalBaseline:protectedCapital.toString(),
   currentLiquidationValue:currentLiquidationUnits,
-  outstandingLiabilities:outstandingLiabilitiesUnits,
+  outstandingLiabilities:(units(outstandingLiabilitiesUnits)+alreadyReserved).toString(),
   operatingReserve:operatingReserveUnits,
   verified:applicable,valuationFresh,ownershipReconciled
  });
- return Object.freeze({...result,prospectiveOnly:true,
+ return Object.freeze({...result,previouslyReservedUnits:alreadyReserved.toString(),prospectiveOnly:true,
   firstEligibleHourMs:start.firstFullHourMs,
   receiptEligible:!!applicable,immutableHistoricRewardsUnaffected:true});
 }

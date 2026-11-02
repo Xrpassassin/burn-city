@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'scripts/estate-legacy-customer-attribution-readonly.cjs'
+      - 'scripts/estate-legacy-lp-custody-check.cjs'
       - '.github/workflows/estates-legacy-capital-attribution-audit.yml'
 permissions:
   contents: read
@@ -60,3 +61,9 @@ jobs:
           const fs=await import('node:fs');
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Validated treasury withdrawal\n\n```json\n'+JSON.stringify(info,null,2)+'\n```\n');
           NODE
+      - name: Verify live XRP Ledger LP custody covers recorded customer positions
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node scripts/estate-legacy-lp-custody-check.cjs

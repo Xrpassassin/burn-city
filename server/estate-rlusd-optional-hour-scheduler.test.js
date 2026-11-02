@@ -4,6 +4,10 @@ const {fixture}=require('./estate-liquidity-runtime.test');
 const {createEstateHourlyService}=require('./estate-hourly-service');
 const make=(enabled)=>{
  const f=fixture({policyVersion:2});
+ // The legacy liquidity fixture creates a minimal watermark table. Bring
+ // it up to the real hourly-service checkpoint schema for integration.
+ f.db.exec('ALTER TABLE estate_img_scan_watermarks ADD COLUMN ledger_index INTEGER');
+ f.db.exec('ALTER TABLE estate_img_scan_watermarks ADD COLUMN verified_at_ms INTEGER');
  const service=createEstateHourlyService({
   db:f.db,pay:{ledger:async()=>f.client},
   config:{NETWORK:'testnet',DRY_RUN:true,ESTATE_TREASURY:f.treasury,

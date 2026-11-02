@@ -280,7 +280,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/purchase/reserve' && req.method === 'POST') {
         if (gate('estate-reserve:' + u.acct, 6, 60e3) || gate('estate-reserve-ip:' + ip, 12, 60e3)) return json(res, 429, { error: 'slow_down' });
         const b = await body();
-        const result = estateSales.reserve({ buyer: u.acct, propertyId: b?.propertyId });
+        const result = estateSales.reserve({ buyer: u.acct, propertyId: b?.propertyId, termsVersion: b?.termsVersion, termsDigest: b?.termsDigest, acceptedTerms: b?.acceptedTerms });
         return json(res, result.ok ? 201 : ['estate_sales_disabled','estate_treasury_paused'].includes(result.error) ? 409 : (result.error === 'property_reserved' || result.error === 'property_pending_payment_review') ? 409 : 400, result);
       }
       if (url.pathname === '/api/estates/purchase/session' && req.method === 'GET') {

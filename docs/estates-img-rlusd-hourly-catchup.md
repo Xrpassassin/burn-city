@@ -13,6 +13,16 @@ The scanner in `server/estate-rlusd-validated-hour-scanner.js` performs bounded 
 - Candidate insertion, completed-hour observations and the new ledger checkpoint commit atomically. Network failures and corrupt histories cannot advance the checkpoint. Crash/restart resumes at the exact next ledger, with no skipped hour or duplicated candidate.
 - A small buffer behind the public validated head avoids cross-server tip races. The batch size and pagination limits are bounded to prevent runaway reads or falsely complete history.
 
+## Optional scheduler integration (disabled in production by default)
+
+The existing Estates hourly service may drive this scanner **only when** the operator explicitly configures `ESTATE_FORWARD_RLUSD_SCAN_ENABLED=1`. If the flag is absent or any other value, the scanner is not constructed, no checkpoint tables are created by the integration, and the legacy service follows its existing behavior.
+
+Even with the opt-in flag, the scanner **requires** the immutable forward-start row; without it, the service reports `immutable_forward_start_required` and does not query XRPL or advance a checkpoint. The guarded worker performs at most **120 validated-ledger scans per 15-second tick**, with its own bounded page limit; any missing ledger history leaves the durable checkpoint unchanged. Scanner RPC errors are reported separately and **cannot block reconciliation of existing legacy submitted transfers**.
+
+The Estates status API reports `forwardImgRlusdRewards.validatedHourScannerEnabled`, `validatedHourScannerCheckpointLedger`, and `validatedHourScannerStatus` distinct from the previous legacy distribution flags. They are diagnostic only. The forward status always reports `livePaymentsEnabled:false`.
+
+**No production environment variables were changed by this branch. Do not activate scanning or stage a financial start until capital evidence and release requirements are reviewed.**
+
 ## What this does NOT do
 
 No API route or live timer is connected yet. No automatic forward reward start is staged. It **does not** price pool positions, independently prove realized net profit, allocate owners, convert IMG, create IMG/XRP payouts, execute Xaman payments, sign mainnet transactions, release the treasury pause, or change legacy owner rewards. If a day has no AMM withdrawals it does **not** prove the pool made no fees, only that this scanner saw no matching withdrawal event.

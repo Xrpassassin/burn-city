@@ -6,6 +6,11 @@ on:
       - '.github/workflows/estates-purchase-go-live-audit.yml'
       - 'server/estate-sales-runtime.js'
       - 'server/estate-sale-production-gates.test.js'
+      - 'server/estate-purchase-terms-gate.js'
+      - 'server/estate-purchase-terms-gate.test.js'
+      - 'server/estate-sale-reservations.js'
+      - 'server/estate-sale-reservation-api.js'
+      - 'client/js/estate-purchase-ui.mjs'
       - 'server/estate-rlusd-*.js'
       - 'scripts/estate-rlusd-*.cjs'
 permissions:
@@ -23,6 +28,8 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           node server/estate-sale-production-gates.test.js
+          node server/estate-purchase-terms-gate.test.js
+          node server/estate-sale-reservations.test.js
       - name: Check IMG/RLUSD principal-protected reward mathematics
         run: |
           node server/estate-rlusd-reward-capacity.test.js

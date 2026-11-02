@@ -275,3 +275,5 @@ jobs:
         run: node scripts/estate-rlusd-lp-history.cjs
       - name: Prove AMMCreate contributed assets and minted LP from validated metadata
         run: node scripts/estate-rlusd-amm-create-evidence.cjs
+      - name: Inspect historic IMG/PLX withdrawal proceeds and LP burn
+        run: node scripts/estate-legacy-withdraw-evidence.cjs

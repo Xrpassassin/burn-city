@@ -4,6 +4,8 @@ on:
     paths:
       - 'server/estate-replacement-custody-snapshot.js'
       - 'server/estate-replacement-custody-snapshot.test.js'
+      - 'server/estate-legacy-liability-inventory.js'
+      - 'server/estate-legacy-liability-inventory.test.js'
       - 'scripts/estate-replacement-custody-evidence.cjs'
       - '.github/workflows/estates-replacement-custody-evidence.yml'
   workflow_dispatch:
@@ -24,6 +26,7 @@ jobs:
         run: |
           node --check scripts/estate-replacement-custody-evidence.cjs
           node server/estate-replacement-custody-snapshot.test.js
+          node server/estate-legacy-liability-inventory.test.js
           node server/estate-legacy-v2-review.test.js
       - name: Verify read-only production purchase and cost-basis inventory first
         env:

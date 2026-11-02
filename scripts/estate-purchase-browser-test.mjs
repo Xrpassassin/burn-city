@@ -18,7 +18,7 @@ try{
    const path=new URL(url).pathname.replace('/api/estates','');window.calls.push({path,body:options.body?JSON.parse(options.body):null});
    let data={};
    if(path==='')data={owned:[]};
-   if(path==='/purchase/quote')data={ok:true,priceDrops:3000000,shareUnits:1,salesEnabled:enabled};
+   if(path==='/purchase/quote')data={ok:true,priceDrops:3000000,shareUnits:1,salesEnabled:enabled,purchaseTerms:{version:'v1.0',digest:'A'.repeat(64),url:'https://example.com/estate-terms'}};
    if(path==='/purchase/reserve')data={ok:true,reservationId:'test-reservation'};
    if(path==='/purchase/payment/start')data={ok:true,deeplink:'https://example.com/sign'};
    if(path==='/purchase/payment/confirm')data=++confirmed===1?{ok:false,pending:true}:{ok:true,txHash:'A'.repeat(64)};
@@ -35,6 +35,9 @@ try{
  await page.getByText('Purchases are currently disabled; no Xaman payment request can be created.',{exact:false}).waitFor();
  assert.equal(await page.getByRole('button').count(),0);
  await page.evaluate(()=>{document.querySelector('main').replaceChildren();window.mount(true);});
+ assert.equal(await page.getByRole('button',{name:'Reserve and review in Xaman'}).isDisabled(),true);
+ assert.equal(await page.getByRole('link',{name:'virtual property purchase terms (v1.0)'}).getAttribute('href'),'https://example.com/estate-terms');
+ await page.getByRole('checkbox').check();
  await page.getByRole('button',{name:'Reserve and review in Xaman'}).click();
  assert.equal(await page.getByRole('link',{name:'Open Xaman to review payment'}).getAttribute('href'),'https://example.com/sign');
  await page.getByRole('button',{name:'Check signed payment'}).click();
@@ -59,7 +62,7 @@ try{
  await page.getByText('Virtual property is for gameplay access only; there is no financial claim',{exact:false}).waitFor();
  await page.getByText('Separate bonus processing is active, but no reward amount or timing is guaranteed.',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- const calls=await page.evaluate(()=>window.calls);assert.deepEqual(calls.find(c=>c.path==='/purchase/reserve').body,{propertyId:'trailer-01'});
+ const calls=await page.evaluate(()=>window.calls);assert.deepEqual(calls.find(c=>c.path==='/purchase/reserve').body,{propertyId:'trailer-01',acceptedTerms:true,termsVersion:'v1.0',termsDigest:'A'.repeat(64)});
  assert.deepEqual(calls.filter(c=>c.path==='/payout-preference'&&c.body).at(-1).body,{currency:'XRP'});
  fs.mkdirSync('estate-purchase-preview',{recursive:true});await page.screenshot({path:'estate-purchase-preview/mobile-settled.png',fullPage:true});
  await page.setViewportSize({width:1280,height:800});await page.screenshot({path:'estate-purchase-preview/desktop-settled.png',fullPage:true});

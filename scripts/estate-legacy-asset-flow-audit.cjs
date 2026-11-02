@@ -1,7 +1,7 @@
 'use strict';
 // Validated, read-only account history after the manual IMG/PLX withdrawal.
 // Demonstrates token balance changes, NOT beneficial capital ownership.
-const {balanceDelta}=require('../server/estate-liquidity-ledger');
+const {N,value}=require('../server/estate-liquidity-ledger');
 const TREASURY='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
 const FROM=108015969;
 const img={currency:'IMG',issuer:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd'};
@@ -15,9 +15,30 @@ async function rpc(method,params){
  if(!d||d.error)throw Error('xrpl_history_unavailable_'+String(d?.error||'empty'));
  return d;
 }
-function delta(entry,issue){
- try{return balanceDelta(entry,TREASURY,issue).toFixed()}
- catch(e){if(e.message==='unique_asset_delta_required')return null;throw e}
+function delta(entry,issue,account=TREASURY){
+ if(entry?.validated!==true||entry.meta?.TransactionResult!=='tesSUCCESS'||
+  !Array.isArray(entry.meta.AffectedNodes))throw Error('validated_tx_metadata_required');
+ let total=new N(0),matched=0;
+ for(const nodeWrapper of entry.meta.AffectedNodes){
+  const kind=Object.keys(nodeWrapper)[0],node=nodeWrapper[kind];
+  const fields=node?.FinalFields||node?.NewFields||{};
+  if(node?.LedgerEntryType!=='RippleState'||fields.Balance?.currency!==issue.currency)continue;
+  const low=fields.LowLimit?.issuer,high=fields.HighLimit?.issuer;
+  if(!((low===account&&high===issue.issuer)||(low===issue.issuer&&high===account)))continue;
+  let before,after;
+  if(kind==='CreatedNode'){before='0';after=fields.Balance.value}
+  else if(kind==='DeletedNode'){before=fields.Balance.value;after='0'}
+  else if(kind==='ModifiedNode'){
+   // Trustline flags, limits, or fee updates can alter RippleState without
+   // altering the balance. Such entries are not token movements.
+   if(!node.PreviousFields?.Balance)continue;
+   before=node.PreviousFields.Balance.value;after=fields.Balance.value;
+  }else throw Error('unsupported_trustline_node');
+  total=total.plus(value(after).minus(value(before)).times(low===account?1:-1));
+  matched++;
+ }
+ if(matched>1)throw Error('duplicate_asset_trustline_in_transaction');
+ return matched===0?null:total.toFixed();
 }
 async function main(){
  const h=await rpc('ledger',{ledger_index:'validated'});
@@ -54,4 +75,4 @@ async function main(){
  return result;
 }
 if(require.main===module)main().catch(e=>{console.error('ESTATES_WITHDRAWAL_FLOW_ERROR='+e.message);process.exitCode=1});
-module.exports={main};
+module.exports={main,delta};

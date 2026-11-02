@@ -31,8 +31,15 @@ async function inspect(){
    scanned++;
    if(tx.TransactionType!=='AMMWithdraw')continue;
    if(item.validated!==true)throw Error('unvalidated_withdrawal_in_history');
-   const evidence={...item,hash:item.hash||tx.hash};
-   if(isRlusdPoolWithdrawal(evidence))events.push(inspectValidatedRlusdWithdrawal(evidence));
+   const candidate={...item,hash:item.hash||tx.hash};
+   if(!isRlusdPoolWithdrawal(candidate))continue;
+   if(!/^[A-Fa-f0-9]{64}$/.test(candidate.hash||''))throw Error('missing_candidate_hash');
+   // Independently re-fetch the exact validated transaction; account_tx
+   // history response variants need not contain the full tx ledger metadata.
+   const verified=await rpc('tx',{transaction:candidate.hash,binary:false});
+   if(verified.validated!==true||Number(verified.ledger_index)>snapshotLedger)
+    throw Error('unvalidated_or_future_withdrawal');
+   events.push(inspectValidatedRlusdWithdrawal({...verified,hash:candidate.hash}));
   }
   pages++;
   marker=batch.marker;

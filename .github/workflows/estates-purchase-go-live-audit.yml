@@ -6,6 +6,8 @@ on:
       - '.github/workflows/estates-purchase-go-live-audit.yml'
       - 'server/estate-sales-runtime.js'
       - 'server/estate-sale-production-gates.test.js'
+      - 'server/estate-rlusd-*.js'
+      - 'scripts/estate-rlusd-*.cjs'
 permissions:
   contents: read
 jobs:

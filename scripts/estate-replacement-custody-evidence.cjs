@@ -39,12 +39,22 @@ try{
   liabilitiesHaveBeenEconomicallyReconciled:false}));
 }finally{db.close()}
 `;
+function remoteAuditSource(){
+ // Audit the PR's exact tested liability module before it exists on main.
+ // Inline only this source into the isolated remote node process; never
+ // copy secrets, edit production files, or use a mutable package.
+ const code=fs.readFileSync(require('node:path').join(__dirname,'../server/estate-legacy-liability-inventory.js'),'utf8');
+ const anchor=" const {inspectEstateLiabilityRows}=require(path.join(liveRoot,'server','estate-legacy-liability-inventory.js'));";
+ if(!SCRIPT.includes(anchor))throw Error('liability_module_injection_anchor_missing');
+ return SCRIPT.replace(anchor,
+  ' const review={exports:{}}; (function(module){\\n'+code+'\\n})(review);\\n const inspectEstateLiabilityRows=review.exports.inspectEstateLiabilityRows;');
+}
 async function remote(){
  const token=process.env.FLY_API_TOKEN;
  if(!token)throw Error('fly_readonly_credential_missing');
  const response=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{
   method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-  body:JSON.stringify({command:['node','-e',SCRIPT],timeout:35}),
+  body:JSON.stringify({command:['node','-e',remoteAuditSource()],timeout:35}),
   signal:AbortSignal.timeout(50000)});
  if(!response.ok)throw Error('readonly_remote_http_'+response.status);
  const d=await response.json();

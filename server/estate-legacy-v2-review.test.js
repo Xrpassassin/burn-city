@@ -11,7 +11,7 @@ db.exec(`CREATE TABLE estate_property_ownership(
 );
 CREATE TABLE estate_liquidity_jobs(
  id TEXT PRIMARY KEY,purchase_tx TEXT,pair TEXT,initial_budget_drops TEXT,
- state TEXT,data_json TEXT
+ state TEXT,data_json TEXT,note TEXT
 );
 CREATE TABLE estate_payout_credits(owner TEXT PRIMARY KEY,units TEXT);
 INSERT INTO estate_payout_credits VALUES('${wallet}','1000000');

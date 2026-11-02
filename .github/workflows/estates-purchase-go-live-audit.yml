@@ -32,6 +32,7 @@ jobs:
           node server/estate-rlusd-prospective-rewards.test.js
           node server/estate-rlusd-forward-start-store.test.js
           node server/estate-rlusd-forward-allocation-store.test.js
+          node server/estate-rlusd-realized-withdrawal-evidence.test.js
       - name: Inspect public deployed purchase status without signing or exposing secrets
         run: |
           node --input-type=module <<'NODE'
@@ -282,3 +283,5 @@ jobs:
         run: node scripts/estate-rlusd-amm-create-evidence.cjs
       - name: Inspect historic IMG/PLX withdrawal proceeds and LP burn
         run: node scripts/estate-legacy-withdraw-evidence.cjs
+      - name: Observe validated IMG/RLUSD withdrawals without crediting capital as profit
+        run: node scripts/estate-rlusd-withdrawal-history.cjs

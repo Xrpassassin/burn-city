@@ -38,3 +38,22 @@ The apparent match between entitlements and confirmed payout totals is useful, b
 - Complete independent legal review of the property/bonus offering and final purchase terms. Issue [#517](https://github.com/Xrpassassin/burn-city/issues/517) remains **open** until independently reconciled.
 
 **Do not restore PLX, manipulate historical entries, sign new payments, or clear the shared treasury hold solely on these balances.**
+
+## Independent historical payment verification
+
+[GitHub Actions run 41537663524](https://github.com/Xrpassassin/burn-city/actions/runs/41537663524) fetched every recorded confirmed Estate payout by its transaction hash and independently checked the validated XRPL Payment, payer, owner destination, original submitted transaction, memo, delivered token amount, actual treasury IMG balance debit, spent amount and zero remainder.
+
+- Exactly **4 / 4** historical payouts independently verified.
+- IMG issued-token balance debited across those four transactions: **0.161207 IMG** (161207 IMG micro-units).
+- The existing payout credit row records **zero IMG** due; the checked native reward/XRP credit tables are empty.
+- No additional historical rewards were minted, transferred, promised or waived by this audit.
+
+Thus the previous confirmed-payout status now has on-chain evidence. This does not discharge the original capital allocation or any unrelated legal obligations.
+
+## Verified legacy PLX conversion output
+
+The same [validated historical transaction audit](https://github.com/Xrpassassin/burn-city/actions/runs/41537663524) fetched treasury self-payment `2762310505CB5C6B4F556C77CACDDD114281331F90F6964BCBBB5B5297D82F3C`, ledger **108015978**. The validated ledger metadata proves a treasury balance change of **−13,330.3455626686 PLX** and **+2,397,661 XRP drops (2.397661 XRP)** excluding the transaction fee of **12 XRP drops**. There was **no IMG or RLUSD balance change** in this transaction. The PLX quantity spent exceeds the 13,172.413752276136 PLX credited in the earlier manual LP withdrawal; other treasury PLX balances were therefore involved or available. This is an asset swap in an operator-controlled wallet, not independently verified beneficial ownership transfer for the one old Estate.
+
+The conversion output is **not** proof that 2.397661 XRP is currently on hand, belonged specifically to the 3 XRP purchase, remains unencumbered, or was later invested into IMG/RLUSD. Do not rebook customer capital merely because an earlier swap grossed XRP proceeds. The old 1,940.67982383456 IMG/PLX LP custody gap remains unresolved.
+
+The custody audit is resilient to transient public-node lag, using one stable previously validated ledger for all pool balances and retrying only transient RPC availability errors. Neither recovery handling nor these forensic transaction reports can clear the treasury pause.

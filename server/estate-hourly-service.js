@@ -63,7 +63,8 @@ function createEstateHourlyService({db,pay,config,guard,env=process.env}={}){
     validatedHourScannerEnabled:forwardScannerEnabled,
     validatedHourScannerCheckpointLedger:forwardScanner?.checkpoint()?.ledger_index??null,
     validatedHourScannerStatus:forwardScanError||forwardLastStatus?.blocked||
-     (forwardScanner?'not_started':'disabled'),
+     (forwardLastStatus?.checkpointLedger!==undefined?'verified_hour_observations_only':
+      forwardScanner?'not_started':'disabled'),
     // Scanner observations are NEVER profit receipts or payment approvals.
     verifiedRealizationIngestionConnected:false,livePaymentsEnabled:false},
    legacyImgRewardPipeline:{accountingEnabled,payoutExecutionConfigured:payoutsEnabled,

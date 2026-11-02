@@ -4,6 +4,7 @@ const {createEstateLiquidityRuntime}=require('./estate-liquidity-runtime');
 const {createEstateNetRewardExecutor}=require('./estate-net-reward-executor');
 const {POLICY}=require('./estate-capital-allocation');
 const {createEstatePayoutExecutor}=require('./estate-payout-executor');
+const {inspectEstateForwardRewardReadiness}=require('./estate-rlusd-forward-readiness');
 function createEstateHourlyService({db,pay,config,guard,env=process.env}={}){
  const live=config.NETWORK==='mainnet'&&config.DRY_RUN===false;
  const accountingEnabled=live&&env.ESTATE_ACCOUNTING_ENABLED==='1';
@@ -19,7 +20,19 @@ function createEstateHourlyService({db,pay,config,guard,env=process.env}={}){
  let timer=null,busy=false,lastError=null,lastBlock=null;
  let signerMatches=false;try{signerMatches=!!config.TREASURY_SEED&&require('xrpl').Wallet.fromSeed(config.TREASURY_SEED).classicAddress===config.ESTATE_TREASURY;}catch{}
  async function tick(){if(busy)return;busy=true;try{const accountingResult=await accounting.tick();await liquidity.tick();await executor.tick({reconcileOnly:true});const result=await netRewards.tick({reconcileOnly:!!accountingResult?.blocked||!accountingEnabled});lastBlock=accountingResult?.blocked||result?.blocked||null;lastError=null;}catch(e){lastError='processing_delayed';console.error('[estates-hourly]',e.message);}finally{busy=false;}}
- function status(owner){const a=accounting.state(owner);return {...a,...liquidity.status(owner),capitalAllocationPolicy:{...POLICY,automaticDepositsEnabled:fundingEnabled&&env.ESTATE_RLUSD_ENABLED==='1'&&!!env.ESTATE_IMG_RLUSD_POOL_ACCOUNT&&signerMatches&&!guard.paused()},rewardFeePolicy:'deduct_from_earned_rewards_carry_small_amounts',rewardXrpCreditDrops:owner?db.prepare('SELECT drops FROM estate_reward_xrp_credits WHERE owner=?').get(owner)?.drops||'0':'0',rewardImgCreditUnits:owner?db.prepare('SELECT units FROM estate_payout_credits WHERE owner=?').get(owner)?.units||'0':'0',rewardsGuaranteed:false,imgXrpProfitDistributionsEnabled:harvestEnabled&&payoutsEnabled&&a.bootstrapped&&signerMatches&&!guard.paused()&&!lastError,accountingEnabled,distributionsEnabled:payoutsEnabled&&a.bootstrapped&&signerMatches&&!guard.paused()&&!lastError&&!lastBlock,distributionStatus:!payoutsEnabled?'disabled':!a.bootstrapped?'bootstrap_required':!signerMatches?'treasury_signer_unavailable':guard.paused()?'treasury_paused':lastError||lastBlock||'enabled',distributionSchedule:'hourly'};}
+ function status(owner){
+  const a=accounting.state(owner);
+  // Do not misrepresent legacy IMG hourly payouts as IMG/RLUSD AMM
+  // reward distributions. A draft or staged start cannot pay an owner.
+  let forward;
+  try{forward=inspectEstateForwardRewardReadiness(db,{owner});}
+  catch{forward={pool:'IMG/RLUSD',status:'forward_accounting_review_required',
+   settlementEngineConnected:false,verifiedRealizationIngestionConnected:false,
+   livePaymentsEnabled:false,noGuaranteedHourlyPayment:true};}
+  return {...a,...liquidity.status(owner),
+   forwardImgRlusdRewards:forward,
+   legacyImgRewardPipeline:{accountingEnabled,payoutExecutionConfigured:payoutsEnabled,
+    distinctFromForwardImgRlusd:true},capitalAllocationPolicy:{...POLICY,automaticDepositsEnabled:fundingEnabled&&env.ESTATE_RLUSD_ENABLED==='1'&&!!env.ESTATE_IMG_RLUSD_POOL_ACCOUNT&&signerMatches&&!guard.paused()},rewardFeePolicy:'deduct_from_earned_rewards_carry_small_amounts',rewardXrpCreditDrops:owner?db.prepare('SELECT drops FROM estate_reward_xrp_credits WHERE owner=?').get(owner)?.drops||'0':'0',rewardImgCreditUnits:owner?db.prepare('SELECT units FROM estate_payout_credits WHERE owner=?').get(owner)?.units||'0':'0',rewardsGuaranteed:false,imgXrpProfitDistributionsEnabled:harvestEnabled&&payoutsEnabled&&a.bootstrapped&&signerMatches&&!guard.paused()&&!lastError,accountingEnabled,distributionsEnabled:payoutsEnabled&&a.bootstrapped&&signerMatches&&!guard.paused()&&!lastError&&!lastBlock,distributionStatus:!payoutsEnabled?'disabled':!a.bootstrapped?'bootstrap_required':!signerMatches?'treasury_signer_unavailable':guard.paused()?'treasury_paused':lastError||lastBlock||'enabled',distributionSchedule:'hourly'};}
  function start(){if(timer||(!accountingEnabled&&!fundingEnabled&&!harvestEnabled&&!db.prepare("SELECT 1 FROM estate_hourly_payouts WHERE state='submitted'").get()&&!db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state IN ('submitted','validated')").get()))return false;timer=setInterval(()=>void tick(),15000);timer.unref?.();void tick();return true;}
  return {status,start,tick};
 }

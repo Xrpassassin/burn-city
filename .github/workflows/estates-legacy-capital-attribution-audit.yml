@@ -7,6 +7,7 @@ on:
       - 'scripts/estate-legacy-lp-custody-check.cjs'
       - 'scripts/estate-legacy-current-balances.cjs'
       - 'scripts/estate-legacy-asset-flow-audit.cjs'
+      - 'server/estate-legacy-asset-flow.test.js'
       - '.github/workflows/estates-legacy-capital-attribution-audit.yml'
 permissions:
   contents: read
@@ -76,4 +77,5 @@ jobs:
         if: always()
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
+          node server/estate-legacy-asset-flow.test.js
           node scripts/estate-legacy-asset-flow-audit.cjs

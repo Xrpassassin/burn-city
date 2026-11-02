@@ -241,3 +241,31 @@ jobs:
           const matches=(d.lines||[]).filter(l=>l.account===pool);
           console.log('TREASURY_RLUSD_LP='+JSON.stringify({readOnly:true,ledger:d.ledger_index,lines:matches.map(l=>({currency:l.currency,balance:l.balance})),fullScan:true,basisReconciled:false}));
           NODE
+      - name: Scan treasury LP transaction history read-only
+        run: |
+          node --input-type=module <<'NODE'
+          const treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
+          const pool='rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f';
+          let marker,scanned=0;const events=[];
+          for(let page=0;page<12;page++){
+            const r=await fetch('https://s1.ripple.com:51234/',{method:'POST',headers:{'content-type':'application/json'},
+              body:JSON.stringify({method:'account_tx',params:[{account:treasury,ledger_index_min:-1,ledger_index_max:-1,limit:200,forward:false,...(marker?{marker}:{})}]}),signal:AbortSignal.timeout(18000)});
+            if(!r.ok)throw Error('history_unavailable');
+            const data=(await r.json()).result;
+            if(data.error||!Array.isArray(data.transactions))throw Error('invalid_history');
+            for(const item of data.transactions){
+              scanned++;
+              const tx=item.tx_json||item.tx||{};
+              if(item.validated!==true||!['AMMDeposit','AMMWithdraw'].includes(tx.TransactionType))continue;
+              const affectsPool=(item.meta?.AffectedNodes||[]).some(x=>{
+                const node=x.ModifiedNode||x.DeletedNode||x.CreatedNode||{};
+                return node.LedgerEntryType==='AMM'&&(node.FinalFields?.Account===pool||node.NewFields?.Account===pool);
+              });
+              if(affectsPool)events.push({hash:item.hash||tx.hash,ledger:item.ledger_index,type:tx.TransactionType,result:item.meta?.TransactionResult});
+            }
+            marker=data.marker;
+            if(!marker)break;
+          }
+          const summary={readOnly:true,transactionsScanned:scanned,completeHistory:!marker,events};
+          console.log('ESTATES_RLUSD_HISTORY='+JSON.stringify(summary));
+          NODE

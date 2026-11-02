@@ -5,17 +5,31 @@ const { homefrontRoadNetworkPreview } = require('../client/arena/homefront-road-
 const { buildableOrganicSitesPreview } = require('../client/arena/homefront-road-clearance.mjs');
 const { reserveOrganicLandmarkClearance, protectedOrganicSitesPreview } = require('../client/arena/homefront-landmark-reservations.mjs');
 const Terrain = require('./homefront-terrain');
+const { previewDestinationConnectors } = require('../client/arena/homefront-destination-connectors.mjs');
+const { roadBuildingClearance } = require('../client/arena/homefront-road-clearance.mjs');
 const VERSION = 2;
 function createV2CollisionPreview() {
   const network = homefrontRoadNetworkPreview();
   const roadSites = buildableOrganicSitesPreview({roads:network.roads,buildings:[...homefrontOrganicLayoutPreview()]});
   const reserved = reserveOrganicLandmarkClearance({buildings:roadSites.buildings});
-  const obstacles = reserved.buildings.map(b=>Object.freeze({
+  // Preview-only: reserve approach corridors for blocked authored destinations.
+  // Only procedural structures are eligible. The existing live v1 layout is untouched.
+  const prioritySites = new Set(['rescue:stranded_bus','landmark:stranded_bus','landmark:west_underpass']);
+  const approaches = previewDestinationConnectors({
+    roads:network.roads,sites:protectedOrganicSitesPreview(),buildings:reserved.buildings
+  }).connectors.filter(x=>prioritySites.has(x.siteId) && x.connector);
+  const excludedForAccess = new Set();
+  for(const entry of approaches) for(const b of reserved.buildings) {
+    if(roadBuildingClearance(entry.connector,b)<0.55) excludedForAccess.add(b.id);
+  }
+  const approachBuildings = reserved.buildings.filter(b=>!excludedForAccess.has(b.id));
+  const obstacles = approachBuildings.map(b=>Object.freeze({
     id:b.id,type:'rotated-rect',x:b.x,z:b.z,halfX:b.w/2,halfZ:b.d/2,rotation:b.rotation
   }));
   return Object.freeze({version:VERSION,previewOnly:true,obstacles:Object.freeze(obstacles),
     protectedSites:Object.freeze(protectedOrganicSitesPreview()),
-    removedForRoads:roadSites.excluded.length,removedForSites:reserved.excluded.length});
+    removedForRoads:roadSites.excluded.length,removedForSites:reserved.excluded.length,
+    removedForAccess:Object.freeze([...excludedForAccess].sort())});
 }
 function pointBlockedV2(catalog,x,z,radius=0.55) {
   if(catalog?.version!==VERSION||!catalog.previewOnly) throw new TypeError('expected v2 preview catalog');

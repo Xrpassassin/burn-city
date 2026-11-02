@@ -88,8 +88,12 @@ const expectedPools={
 async function audit(){
  const accounting=await remote();
  const h=await rpc('ledger',{ledger_index:'validated'});
- const height=Number(h.ledger_index??h.ledger?.ledger_index);
- if(h.validated!==true||!Number.isSafeInteger(height)||height<1)throw Error('validated_snapshot_unavailable');
+ const latest=Number(h.ledger_index??h.ledger?.ledger_index);
+ if(h.validated!==true||!Number.isSafeInteger(latest)||latest<100)throw Error('validated_snapshot_unavailable');
+ // The public XRPL RPC load-balances multiple servers. A small validated
+ // offset ensures the chosen ledger is retained on nodes a few closes behind
+ // the tip. Never fall forward to an open, unvalidated ledger.
+ const height=latest-40;
  const positions=accounting.legacy.positions;
  if(positions.length!==2||positions.some(x=>!ACCOUNT.test(x.poolAccount||'')))throw Error('legacy_positions_not_complete');
  const rawPools=[

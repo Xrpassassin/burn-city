@@ -72,13 +72,30 @@ async function remote(){
  return r;
 }
 async function rpc(method,params){
- const response=await fetch('https://s1.ripple.com:51234/',{
-  method:'POST',headers:{'content-type':'application/json'},
-  body:JSON.stringify({method,params:[params]}),signal:AbortSignal.timeout(20000)});
- if(!response.ok)throw Error('xrpl_http_'+response.status);
- const out=(await response.json()).result;
- if(!out||out.error)throw Error('xrpl_read_failed_'+String(out?.error||'none'));
- return out;
+ for(let attempt=0;attempt<3;attempt++){
+  try{
+   const response=await fetch('https://s1.ripple.com:51234/',{
+    method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({method,params:[params]}),signal:AbortSignal.timeout(18000)});
+   if(!response.ok){
+    if([429,500,502,503,504].includes(response.status))throw Error('transient_xrpl_http');
+    throw Error('xrpl_http_'+response.status);
+   }
+   const out=(await response.json()).result;
+   if(!out||out.error){
+    if(['lgrNotFound','serverBusy','tooBusy'].includes(out?.error))
+     throw Error('transient_xrpl_node');
+    throw Error('xrpl_read_failed_'+String(out?.error||'none'));
+   }
+   return out;
+  }catch(e){
+   const msg=String(e.message||'');
+   if(attempt===2||!(/fetch failed|transient_xrpl_|timed out|TimeoutError/i.test(msg)))
+    throw e;
+   await new Promise(done=>setTimeout(done,400*(attempt+1)));
+  }
+ }
+ throw Error('exhausted_xrpl_retry');
 }
 const expectedPools={
  'img-plx':[IMG,PLX],

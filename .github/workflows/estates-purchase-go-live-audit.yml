@@ -8,6 +8,9 @@ on:
       - 'server/estate-sale-production-gates.test.js'
       - 'server/estate-purchase-terms-gate.js'
       - 'server/estate-purchase-terms-gate.test.js'
+      - 'server/estate-purchase-terms-publication.js'
+      - 'server/estate-purchase-terms-publication.test.js'
+      - 'server/estate-sale-xaman-session.js'
       - 'server/estate-sale-reservations.js'
       - 'server/estate-sale-reservation-api.js'
       - 'client/js/estate-purchase-ui.mjs'
@@ -29,6 +32,8 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund
           node server/estate-sale-production-gates.test.js
           node server/estate-purchase-terms-gate.test.js
+          node server/estate-purchase-terms-publication.test.js
+          node server/estate-sale-xaman-session.test.js
           node server/estate-sale-reservations.test.js
       - name: Check IMG/RLUSD principal-protected reward mathematics
         run: |

@@ -5,13 +5,13 @@ const {createEstateSaleReservations}=require('./estate-sale-reservations');
 // Explicitly disabled by default. Never issue Xaman payments from this endpoint.
 function createEstateReservationApi(db,{enabled=false,randomBytes=crypto.randomBytes}={}){
  const store=createEstateSaleReservations(db);
- function create({buyer,propertyId,now=Date.now()}={}){
+ function create({buyer,propertyId,now=Date.now(),termsVersion=null,termsDigest=null,acceptedAt=null}={}){
   if(!enabled)return {ok:false,error:'estate_sales_disabled'};
   if(typeof buyer!=='string'||!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(buyer))return {ok:false,error:'authentication_required'};
   if(typeof propertyId!=='string'||propertyId.length>100)return {ok:false,error:'invalid_property'};
   const reservationId='estate_'+randomBytes(16).toString('hex');
   try{
-   const r=store.reserve({reservationId,propertyId,buyer,now});
+   const r=store.reserve({reservationId,propertyId,buyer,now,termsVersion,termsDigest,acceptedAt});
    return {ok:true,reservationId:r.reservation_id,propertyId:r.property_id,priceDrops:r.price_drops,expiresAt:r.expires_at,status:r.status};
   }catch(e){
    if(e.message==='property_not_for_sale')return {ok:false,error:'property_not_for_sale'};

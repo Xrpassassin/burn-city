@@ -41,7 +41,7 @@ async function main(){
   treasuryOwnerCount:a.account_data?.OwnerCount,
   manualWithdrawalHash:WITHDRAWAL,withdrawalLedger:t.ledger_index,
   previousWithdrawalProceeds:{img:'1598.741351076311',plx:'13172.413752276136'},
-  thoseProceedsRemainUnspent:false, // cannot trace fungible provenance from balances
+  proceedsRemainUnspent:'not_established', // cannot trace fungible provenance from balances
   currentAssetsAssignedToCustomerPrincipal:false,
   customerLiabilitiesReconciled:false,pauseClearanceAuthorized:false};
  console.log('ESTATES_LEGACY_WITHDRAWAL_CURRENT_BALANCES='+JSON.stringify(result));

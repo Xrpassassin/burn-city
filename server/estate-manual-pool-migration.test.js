@@ -22,6 +22,6 @@ const {value}=require('./estate-liquidity-ledger');
  assert.equal(f.db.prepare('SELECT COUNT(*) n FROM estate_xrp_profit_receipts').get().n,0,'migration never recognizes profit');
  assert.equal(f.db.prepare('SELECT COUNT(*) n FROM estate_xrp_profit_payouts').get().n,0);
  const before=f.sent.length;await f.make({rlusdEnabled:false}).tick();assert.equal(f.sent.length,before,'restart cannot repurchase PLX or sign new-policy transactions before activation');
- const state=f.capital.state(f.owner);assert.deepEqual(state.capitalAllocations[0].pool.split(' + ').sort(),['IMG/RLUSD','Legacy IMG/XRP']);assert(!state.capitalAllocations[0].pool.includes('PLX'));
+ const state=f.capital.state(f.owner);assert.equal(state.capitalAllocations[0].fundingState,'legacy_retired_review');assert.equal(state.capitalAllocations[0].pool,'Retired historical allocation (not active liquidity)');
  console.log('Manual migration: full basis/residual cost and cash preserved, verified LP capacity, rollback/replay, original audit, no profit, no PLX repurchase');
 })().catch(e=>{console.error(e);process.exitCode=1;});

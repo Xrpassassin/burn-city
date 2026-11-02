@@ -59,6 +59,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
         run: node scripts/estate-legacy-payout-proof-audit.cjs
       - name: Trace validated counter-asset received in retired PLX conversion
+        if: always()
         run: node scripts/estate-legacy-plx-conversion-evidence.cjs
       - name: Financial operation stays disabled
         if: always()

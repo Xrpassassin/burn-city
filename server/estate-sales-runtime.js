@@ -33,7 +33,14 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
   if(!confirmPurchaseTerms(input,terms))return {ok:false,error:'purchase_terms_acceptance_required'};
   return reservations.create({...input,termsVersion:terms.version,termsDigest:terms.digest,acceptedAt:Date.now()});
  }
- async function start(input){return blocked()||buyerBlock(input)||payments.start(input);}
+ async function start(input){
+  const error=blocked()||buyerBlock(input);if(error)return error;
+  const saved=db.prepare('SELECT terms_version,terms_digest,terms_accepted_at FROM estate_sale_reservations WHERE reservation_id=?').get(input?.reservationId||'');
+  if(saved&&(saved.terms_version!==terms.version||saved.terms_digest!==terms.digest||
+     !Number.isSafeInteger(saved.terms_accepted_at)||saved.terms_accepted_at<1))
+   return {ok:false,error:'purchase_terms_acceptance_required'};
+  return payments.start(input);
+ }
  async function finalize(input){
   if(!configured)return {ok:false,error:'estate_sales_disabled'};
   // A pause blocks new money requests, but never prevents reconciliation of an

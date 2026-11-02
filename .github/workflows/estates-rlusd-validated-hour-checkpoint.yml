@@ -1,0 +1,26 @@
+name: Estates IMG RLUSD validated hourly checkpoint
+on:
+  pull_request:
+    paths:
+      - 'server/estate-rlusd-validated-hour-scanner.js'
+      - 'server/estate-rlusd-validated-hour-scanner.test.js'
+      - '.github/workflows/estates-rlusd-validated-hour-checkpoint.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validated-hour-catchup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate scanner syntax and verify restart-safe checkpoints
+        run: |
+          node --check server/estate-rlusd-validated-hour-scanner.js
+          node server/estate-rlusd-validated-hour-scanner.test.js
+      - name: No financial operations are authorized
+        run: |
+          echo 'This is a bounded read-only XRPL scan with durable local observations only. No signer, funding, entitlement, profit, payout or unpause operation is connected.' >> "$GITHUB_STEP_SUMMARY"

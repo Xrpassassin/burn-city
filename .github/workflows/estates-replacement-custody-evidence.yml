@@ -6,6 +6,9 @@ on:
       - 'server/estate-replacement-custody-snapshot.test.js'
       - 'server/estate-legacy-liability-inventory.js'
       - 'server/estate-legacy-liability-inventory.test.js'
+      - 'server/estate-legacy-payout-verification.js'
+      - 'server/estate-legacy-payout-verification.test.js'
+      - 'scripts/estate-legacy-payout-proof-audit.cjs'
       - 'scripts/estate-replacement-custody-evidence.cjs'
       - '.github/workflows/estates-replacement-custody-evidence.yml'
   workflow_dispatch:
@@ -27,6 +30,7 @@ jobs:
           node --check scripts/estate-replacement-custody-evidence.cjs
           node server/estate-replacement-custody-snapshot.test.js
           node server/estate-legacy-liability-inventory.test.js
+          node server/estate-legacy-payout-verification.test.js
           node server/estate-legacy-v2-review.test.js
       - name: Verify read-only production purchase and cost-basis inventory first
         env:
@@ -47,6 +51,10 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
         run: node scripts/estate-replacement-custody-evidence.cjs
+      - name: Verify recorded historical reward payments independently
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: node scripts/estate-legacy-payout-proof-audit.cjs
       - name: Financial operation stays disabled
         if: always()
         run: echo 'No migration, no transaction signing, no treasury pause release, no purchases and no profit distribution performed.' >> "$GITHUB_STEP_SUMMARY"

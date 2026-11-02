@@ -14,7 +14,7 @@ function createEstateHourlyService({db,pay,config,guard,env=process.env}={}){
   wallet:()=>{try{return config.TREASURY_SEED?require('xrpl').Wallet.fromSeed(config.TREASURY_SEED):null;}catch{return null;}}});
  const fundingEnabled=live&&env.ESTATE_LIQUIDITY_ENABLED==='1';
  const harvestEnabled=accountingEnabled&&env.ESTATE_XRP_PROFIT_HARVEST_ENABLED==='1';
- const liquidity=createEstateLiquidityRuntime({db,client,treasury:config.ESTATE_TREASURY,imgIssuer:config.IMG_ISSUER,plxIssuer:config.PLX_ISSUER,rlusdEnabled:env.ESTATE_RLUSD_ENABLED==='1',rlusdPoolAccount:env.ESTATE_IMG_RLUSD_POOL_ACCOUNT||'',guard,fundingEnabled,harvestEnabled,payoutsEnabled,wallet:()=>{try{return config.TREASURY_SEED?require('xrpl').Wallet.fromSeed(config.TREASURY_SEED):null;}catch{return null;}}});
+ const liquidity=createEstateLiquidityRuntime({db,client,treasury:config.ESTATE_TREASURY,imgIssuer:config.IMG_ISSUER,plxIssuer:config.PLX_ISSUER,legacyTradingEnabled:false,rlusdEnabled:env.ESTATE_RLUSD_ENABLED==='1',rlusdPoolAccount:env.ESTATE_IMG_RLUSD_POOL_ACCOUNT||'',guard,fundingEnabled,harvestEnabled,payoutsEnabled,wallet:()=>{try{return config.TREASURY_SEED?require('xrpl').Wallet.fromSeed(config.TREASURY_SEED):null;}catch{return null;}}});
  const netRewards=createEstateNetRewardExecutor({db,client,treasury:config.ESTATE_TREASURY,imgIssuer:config.IMG_ISSUER,guard,enabled:payoutsEnabled,wallet:()=>{try{return config.TREASURY_SEED?require('xrpl').Wallet.fromSeed(config.TREASURY_SEED):null;}catch{return null;}}});
  let timer=null,busy=false,lastError=null,lastBlock=null;
  let signerMatches=false;try{signerMatches=!!config.TREASURY_SEED&&require('xrpl').Wallet.fromSeed(config.TREASURY_SEED).classicAddress===config.ESTATE_TREASURY;}catch{}

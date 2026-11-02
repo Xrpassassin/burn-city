@@ -29,7 +29,7 @@ db.exec(`CREATE TABLE estate_rlusd_forward_reward_start(
  CREATE TABLE estate_hourly_payouts(id TEXT PRIMARY KEY,state TEXT);
  INSERT INTO estate_hourly_payouts VALUES('historical-claim','queued');`);
 const addStart=db.prepare('INSERT INTO estate_rlusd_forward_reward_start VALUES(1,?,?,?,?,?,?)');
-let ledgerHead=1017,incomplete=false,rejectNext=false;
+let ledgerHead=1017,incomplete=false,rejectNext=false,paginate=false,duplicateNext=false;
 const counters={accountTx:0};
 const client={request:async q=>{
  if(q.command==='ledger'){
@@ -42,7 +42,13 @@ const client={request:async q=>{
   if(rejectNext){rejectNext=false;throw Error('synthetic_rpc_outage');}
   const expected= q.ledger_index_min===1006&&q.ledger_index_max===1010;
   if(incomplete&&expected)return {result:{transactions:[],ledger_index_min:1006,ledger_index_max:1009}};
-  const txs=expected?[{hash,validated:true,ledger_index:1008,tx_json:transaction.tx_json}]:[];
+  let txs=expected?[{hash,validated:true,ledger_index:1008,tx_json:transaction.tx_json}]:[];
+  if(paginate&&expected){
+   if(q.marker==='page-2')txs=duplicateNext?txs:[];
+   return {result:{transactions:txs,
+    ledger_index_min:q.ledger_index_min,ledger_index_max:q.ledger_index_max,
+    ...(q.marker?{}:{marker:'page-2'})}};
+  }
   return {result:{transactions:txs,
    ledger_index_min:q.ledger_index_min,ledger_index_max:q.ledger_index_max}};
  }
@@ -75,6 +81,11 @@ const make=()=>scanner({db,client,treasury:TREASURY,maxLedgers:5});
  await assert.rejects(first.scan(),/account_history_range_not_proven/);
  assert.equal(first.checkpoint().ledger_index,1005);
  incomplete=false;
+ paginate=true;duplicateNext=true;
+ await assert.rejects(first.scan(),/duplicate_transaction_across_history_pages/);
+ assert.equal(first.checkpoint().ledger_index,1005);
+ assert.equal(first.candidates().length,0);
+ duplicateNext=false;
  r=await first.scan();
  assert.equal(r.checkpointLedger,1010);
  assert.equal(r.verifiedHoursClosed,1);

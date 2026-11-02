@@ -65,3 +65,20 @@ The custody audit is resilient to transient public-node lag, using one stable pr
 The previous phrase “unexpected outgoing transaction” refers to the accounting service's **unreconciled journal entry**, not an unknown actor or suspected unauthorized third-party attack. Do **not** infer theft from that pause reason. The operator-directed conversion explains why old IMG/PLX LP custody is zero and does **not** justify requiring a new PLX purchase or deposit. Existing validated evidence covers the IMG/PLX withdrawal, PLX-to-XRP conversion (2.397661 XRP credited), and subsequent IMG/RLUSD AMM creation (3,100 IMG and 3.106054465 RLUSD supplied). The intermediate RLUSD acquisition path remains to be checked independently.
 
 The remaining task is **append-only attribution/settlement** of the original historical 3 XRP Estate purchase, any accrued liabilities and net executable value, plus independent legal release review—not restoring legacy PLX LP tokens. No retrospective reward reset, fund movement, revenue guarantee or sales activation follows from this clarification.
+
+## Intermediate XRP → RLUSD acquisition now independently verified
+
+Following the operator's first-person clarification that they personally retired PLX, sold it and bought RLUSD for the new pool, the **validated event-by-event read-only trace** in [GitHub Actions #41539537672](https://github.com/Xrpassassin/burn-city/actions/runs/41539537672) completed. The transaction sequence within ledgers 108015969–108016045 is:
+
+| Ledger | Transaction hash | Validated treasury balance movement |
+|---|---|---|
+| 108015969 | `581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2` | IMG/PLX LP withdrawal; +1,598.741351076311 IMG, +13,172.413752276136 PLX |
+| 108015978 | `2762310505CB5C6B4F556C77CACDDD114281331F90F6964BCBBB5B5297D82F3C` | Sold 13,330.3455626686 PLX; received 2.397661 XRP, plus separate network fee |
+| 108016026 | `1405C49328D81079BE24D47C5D7A2A09A974807216BA09F957D25E375B264C27` | Spent 2.5 XRP; received 3.106054465 RLUSD |
+| 108016045 | `59FAA96D8EF6A5C35747E22E664A7E0A8FBEA5F373D746B5EF3A58E5558FBE43` | IMG/RLUSD AMMCreate; debited 3,100 IMG + **exactly 3.106054465 RLUSD**, minted 98.1262902666762 LP |
+
+Additional treasury transactions and fees are visible in the full scan; no attempt is made to conceal or attribute them to the Estate. The **RLUSD purchased at ledger 108016026 exactly matches the RLUSD contributed to AMMCreate** 19 ledgers later. The purchase's 2.5 XRP cost exceeds the 2.397661 XRP proceeds of the preceding PLX sale by **0.102339 XRP**, and the 3,100 IMG pool contribution exceeds the earlier LP withdrawal's 1,598.741351076311 IMG return by **1,501.258648923689 IMG**. These differences establish other treasury inventory was used; fungible tokens cannot be tagged as unique proceeds.
+
+**Conclusion:** The operator-initiated transition from retired IMG/PLX through XRP into IMG/RLUSD is now strongly supported by both the operator's explicit statement and independently verified validated-ledger activity. This resolves the *mystery of transaction intent and RLUSD sourcing*, not automatically the original 3 XRP Estate purchase's contractual/economic cost basis or formal ledger classification. No restoration of PLX is needed.
+
+**Remaining release work:** an append-only operator/owner-approved designation of the historical position's treatment in the current treasury, conservative economic valuation and applicable legal clearance. Do not call an old missing IMG/PLX LP an unexplained attack; do not authorize new purchases or erase old books based solely on the migration trace.

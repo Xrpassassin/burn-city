@@ -1,0 +1,81 @@
+name: Estates legacy LP customer capital attribution audit
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/estate-legacy-customer-attribution-readonly.cjs'
+      - 'scripts/estate-legacy-lp-custody-check.cjs'
+      - 'scripts/estate-legacy-current-balances.cjs'
+      - 'scripts/estate-legacy-asset-flow-audit.cjs'
+      - 'server/estate-legacy-asset-flow.test.js'
+      - '.github/workflows/estates-legacy-capital-attribution-audit.yml'
+permissions:
+  contents: read
+jobs:
+  read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse audit script without opening database
+        run: node --check scripts/estate-legacy-customer-attribution-readonly.cjs
+      - name: Audit legacy customer capital in live SQLite without writes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          if(!process.env.FLY_API_TOKEN)throw Error('fly_credential_missing');
+          const script=fs.readFileSync('scripts/estate-legacy-customer-attribution-readonly.cjs','utf8');
+          const response=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{
+           method:'POST',headers:{authorization:'Bearer '+process.env.FLY_API_TOKEN,'content-type':'application/json'},
+           body:JSON.stringify({command:['node','-e',script],timeout:30}),
+           signal:AbortSignal.timeout(45000)});
+          if(!response.ok)throw Error('fly_readonly_attribution_http_'+response.status);
+          const data=await response.json();
+          if(data.exit_code!==0)throw Error('readonly_attribution_failed_'+String(data.stderr||'').slice(0,140));
+          const report=JSON.parse(String(data.stdout||'').trim());
+          if(report.readOnly!==true||report.treasuryPauseReleaseAuthorized!==false)
+           throw Error('attribution_not_fail_closed');
+          console.log('ESTATES_LEGACY_ATTRIBUTION='+JSON.stringify(report));
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## Legacy LP custody and customer capital\n\n```json\n'+JSON.stringify(report,null,2)+'\n```\n\nEvidence is read-only. This does not clear the pause or authorize payments.\n');
+          NODE
+      - name: Independently verify flagged AMM withdrawal on validated XRPL
+        run: |
+          node --input-type=module <<'NODE'
+          const txid='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2';
+          const response=await fetch('https://s1.ripple.com:51234/',{
+           method:'POST',headers:{'content-type':'application/json'},
+           body:JSON.stringify({method:'tx',params:[{transaction:txid,binary:false}]}),
+           signal:AbortSignal.timeout(15000)});
+          if(!response.ok)throw Error('xrpl_rpc_unavailable');
+          const t=(await response.json()).result,body=t?.tx_json||t;
+          if(t?.validated!==true||t.meta?.TransactionResult!=='tesSUCCESS'||
+           body.Account!=='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb'||
+           body.TransactionType!=='AMMWithdraw')throw Error('invalid_legacy_withdrawal');
+          const info={validated:true,ledgerIndex:t.ledger_index,type:body.TransactionType,
+           requestedLPTokenIn:body.LPTokenIn||null,poolIssuer:body.LPTokenIn?.issuer||null,
+           feeDrops:body.Fee,asset:body.Asset,asset2:body.Asset2,
+           withdrawalReconciledWithCustomerJobs:false};
+          console.log('ESTATES_FLAGGED_WITHDRAWAL='+JSON.stringify(info));
+          const fs=await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Validated treasury withdrawal\n\n```json\n'+JSON.stringify(info,null,2)+'\n```\n');
+          NODE
+      - name: Verify live XRP Ledger LP custody covers recorded customer positions
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node scripts/estate-legacy-lp-custody-check.cjs
+      - name: Inspect current IMG PLX XRP treasury assets even when LP custody fails
+        if: always()
+        run: node scripts/estate-legacy-current-balances.cjs
+      - name: Trace validated treasury IMG PLX changes after legacy withdrawal
+        if: always()
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node server/estate-legacy-asset-flow.test.js
+          node scripts/estate-legacy-asset-flow-audit.cjs

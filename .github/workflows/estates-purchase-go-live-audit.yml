@@ -1,0 +1,299 @@
+name: Estates purchase go-live safety audit
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/estates-purchase-go-live-audit.yml'
+      - 'server/estate-sales-runtime.js'
+      - 'server/estate-sale-production-gates.test.js'
+      - 'server/estate-purchase-terms-gate.js'
+      - 'server/estate-purchase-terms-gate.test.js'
+      - 'server/estate-purchase-terms-publication.js'
+      - 'server/estate-purchase-terms-publication.test.js'
+      - 'server/estate-sale-xaman-session.js'
+      - 'server/estate-sale-reservations.js'
+      - 'server/estate-sale-reservation-api.js'
+      - 'client/js/estate-purchase-ui.mjs'
+      - 'server/estate-rlusd-*.js'
+      - 'scripts/estate-rlusd-*.cjs'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify sales fail closed in repository tests
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node server/estate-sale-production-gates.test.js
+          node server/estate-purchase-terms-gate.test.js
+          node server/estate-purchase-terms-publication.test.js
+          node server/estate-sale-xaman-session.test.js
+          node server/estate-sale-reservations.test.js
+      - name: Check IMG/RLUSD principal-protected reward mathematics
+        run: |
+          node server/estate-rlusd-reward-capacity.test.js
+          node server/estate-rlusd-positions-readonly.test.js
+          node server/estate-rlusd-lp-history.test.js
+          node server/estate-rlusd-amm-create-evidence.test.js
+          node server/estate-rlusd-prospective-rewards.test.js
+          node server/estate-rlusd-forward-start-store.test.js
+          node server/estate-rlusd-forward-allocation-store.test.js
+          node server/estate-rlusd-realized-withdrawal-evidence.test.js
+      - name: Inspect public deployed purchase status without signing or exposing secrets
+        run: |
+          node --input-type=module <<'NODE'
+          const url='https://burn-city-game.fly.dev/api/estates/status';
+          const response=await fetch(url,{signal:AbortSignal.timeout(15000)});
+          if(!response.ok)throw Error('estates_status_http_'+response.status);
+          const data=await response.json();
+          const policy=data.capitalAllocationPolicy??{};
+          const summary={
+            publicStatusReachable:true,
+            salesEnabled:data.salesEnabled===true,
+            salesStatus:typeof data.salesStatus==='string'?data.salesStatus:'unknown',
+            distributionsEnabled:data.distributionsEnabled===true,
+            imgRlusdFundingEnabled:data.imgRlusdFundingEnabled===true,
+            fundingPolicyMatches:policy.pair==='IMG/RLUSD',
+            noGuaranteedRewards:data.rewardsGuaranteed===false
+          };
+          console.log('ESTATES_PUBLIC_READINESS='+JSON.stringify(summary));
+          const blockers=[
+            ...(!summary.fundingPolicyMatches?['funding_policy_unverified']:[]),
+            ...(!summary.imgRlusdFundingEnabled?['funding_disabled']:[]),
+            ...(!summary.salesEnabled?['sales_disabled']:[]),
+            ...(!summary.noGuaranteedRewards?['reward_disclosure_mismatch']:[])
+          ];
+          const report={...summary,blockers,requiresManualReview:[
+            'legal_counsel_clearance','independent_treasury_signer_reserve_validation',
+            'treasury_pause_and_pending_transaction_review','validated_testnet_and_first_mainnet_purchase_reconciliation',
+            'versioned_purchase_terms_and_acceptance'
+          ]};
+          const md='## Estates purchase go-live audit (read only)\n\n```json\n'+JSON.stringify(report,null,2)+'\n```\n\nA passing workflow does not authorize payments, remove legal holds, or verify a mainnet purchase.\n';
+          const fs=await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,md);
+          NODE
+      - name: Read-only live treasury pause and database gate inspection
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          if(!process.env.FLY_API_TOKEN)throw Error('fly_credential_missing');
+          const url='https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec';
+          const script=fs.readFileSync('scripts/estate-runtime-readiness.cjs','utf8');
+          const response=await fetch(url,{
+            method:'POST',
+            headers:{authorization:'Bearer '+process.env.FLY_API_TOKEN,'content-type':'application/json'},
+            body:JSON.stringify({command:['node','-e',script],timeout:45}),
+            signal:AbortSignal.timeout(60000)
+          });
+          if(!response.ok)throw Error('fly_readonly_inspection_http_'+response.status);
+          const run=await response.json();
+          if(run.exit_code!==0)throw Error('fly_readonly_inspection_failed');
+          const report=JSON.parse(String(run.stdout||'').trim());
+          if(report.readOnly!==true)throw Error('unexpected_non_readonly_result');
+          const checks={
+            readOnly:true,
+            salesFlag:report.estateSalesEnabled,
+            accountingFlag:report.estateAccountingEnabled,
+            liquidityFlag:report.estateLiquidityEnabled,
+            distributionsFlag:report.estateDistributionsEnabled,
+            dryRun:report.dryRun,
+            xamanConfigured:report.xamanConfigured,
+            signerConfigured:report.signerConfigured,
+            signerMatchesTreasury:report.signerMatchesEstateTreasury,
+            environmentPause:report.pauseEnvironment,
+            pauseFile:report.pauseFile,
+            databasePresent:report.database?.exists===true,
+            databaseReadFailed:report.database?.readFailed===true,
+            tableCounts:Object.fromEntries(Object.entries(report.database?.tables||{}).map(([k,v])=>[k,{exists:v.exists,rows:v.rows}]))
+          };
+          console.log('ESTATES_TREASURY_READONLY='+JSON.stringify(checks));
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Live treasury read-only diagnostic\n\n```json\n'+JSON.stringify(checks,null,2)+'\n```\n');
+          NODE
+      - name: Validate paused AMM withdrawal on XRPL without signing
+        run: |
+          node --input-type=module <<'NODE'
+          const hash='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2';
+          const request={method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({method:'tx',params:[{transaction:hash,binary:false}]})};
+          let result;
+          for(const host of ['https://s1.ripple.com:51234/','https://xrplcluster.com/']){
+            try {
+              const response=await fetch(host,{...request,signal:AbortSignal.timeout(12000)});
+              if(!response.ok)continue;
+              const body=await response.json();
+              if(body.result?.validated===true){result=body.result;break;}
+            }catch{}
+          }
+          if(!result)throw Error('validated_transaction_not_obtained');
+          const tx=result.tx_json||result;
+          const check={hash,validated:result.validated===true,ledgerIndex:result.ledger_index,
+            accountMatchesTreasury:tx.Account==='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',
+            type:tx.TransactionType,engineResult:result.meta?.TransactionResult,
+            asset:tx.Asset,asset2:tx.Asset2,
+            feeDrops:tx.Fee,
+            affectedNodeTypes:[...new Set((result.meta?.AffectedNodes||[]).map(n=>Object.keys(n)[0]))]};
+          console.log('ESTATES_PAUSED_WITHDRAWAL='+JSON.stringify(check));
+          const fs=await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Paused withdrawal validated-ledger evidence\n\n```json\n'+JSON.stringify(check,null,2)+'\n```\n');
+          if(check.type!=='AMMWithdraw'||!check.accountMatchesTreasury||check.engineResult!=='tesSUCCESS')
+            throw Error('withdrawal_requires_manual_investigation');
+          NODE
+      - name: Compare paused withdrawal to durable treasury journal and capital state (read only)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          const script=`
+          const {DatabaseSync}=require('node:sqlite');
+          const db=new DatabaseSync((process.env.DATA_DIR||'/data')+'/shop.db',{readOnly:true});
+          db.exec('PRAGMA query_only=ON');
+          const hash='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2';
+          const tables=['estate_capital_allocations','estate_liquidity_jobs','estate_treasury_transactions'];
+          const result={readOnly:true,withdrawalHash:hash,tables:{}};
+          for(const name of tables){
+            const columns=db.prepare('PRAGMA table_info('+name+')').all().map(c=>c.name);
+            const rows=db.prepare('SELECT * FROM '+name+' LIMIT 100').all();
+            result.tables[name]={total:db.prepare('SELECT COUNT(*) n FROM '+name).get().n,
+              rows:rows.map(r=>{
+                const kept={};
+                for(const key of ['state','pair','policy_version','note','img_plx_drops','img_xrp_drops','img_rlusd_drops','operating_reserve_drops','purchase_drops','tx_type','kind']){
+                  if(columns.includes(key))kept[key]=r[key];
+                }
+                const matches=Object.entries(r).filter(([key,value])=>typeof value==='string'&&value.toUpperCase().includes(hash));
+                kept.containsPausedWithdrawal=matches.length>0;
+                kept.matchingColumns=matches.map(([key])=>key);
+                return kept;
+              })};
+          }
+          db.close();console.log(JSON.stringify(result));
+          `;
+          const url='https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec';
+          const response=await fetch(url,{method:'POST',
+            headers:{authorization:'Bearer '+process.env.FLY_API_TOKEN,'content-type':'application/json'},
+            body:JSON.stringify({command:['node','-e',script],timeout:30}),
+            signal:AbortSignal.timeout(50000)});
+          if(!response.ok)throw Error('treasury_journal_read_http_'+response.status);
+          const output=await response.json();
+          if(output.exit_code!==0)throw Error('treasury_journal_read_failed');
+          const data=JSON.parse(String(output.stdout||'').trim());
+          if(data.readOnly!==true)throw Error('not_readonly');
+          console.log('ESTATES_WITHDRAWAL_RECONCILIATION='+JSON.stringify(data));
+          const fs=await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Treasury journal reconciliation (read only)\n\n```json\n'+JSON.stringify(data,null,2)+'\n```\n');
+          NODE
+      - name: Inspect paused withdrawal's ledger impact (read only)
+        run: |
+          node --input-type=module <<'NODE'
+          const h='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2';
+          const resp=await fetch('https://s1.ripple.com:51234/',{
+            method:'POST',
+            headers:{'content-type':'application/json'},
+            body:JSON.stringify({method:'tx',params:[{transaction:h,binary:false}]}),
+            signal:AbortSignal.timeout(15000)
+          });
+          if(!resp.ok)throw Error('ledger_unavailable');
+          const data=(await resp.json()).result;
+          if(data.validated!==true||data.meta?.TransactionResult!=='tesSUCCESS')throw Error('withdrawal_not_validated');
+          const affected=(data.meta.AffectedNodes||[]).map(x=>x.ModifiedNode||x.DeletedNode||x.CreatedNode).filter(Boolean);
+          const summary={validated:true,ledger:data.ledger_index,
+            types:affected.reduce((acc,x)=>(acc[x.LedgerEntryType]=(acc[x.LedgerEntryType]||0)+1,acc),{}),
+            accountingReconciled:false};
+          console.log('WITHDRAWAL_EFFECTS='+JSON.stringify(summary));
+          NODE
+      - name: Assess real IMG/RLUSD position inventory without signing
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          if(!process.env.FLY_API_TOKEN)throw Error('fly_credential_missing');
+          const script=[
+            "const {DatabaseSync}=require('node:sqlite');",
+            "const db=new DatabaseSync((process.env.DATA_DIR||'/data')+'/shop.db',{readOnly:true});",
+            "db.exec('PRAGMA query_only=ON');",
+            "const rows=db.prepare('SELECT pair,state,note,initial_budget_drops,data_json FROM estate_liquidity_jobs').all();",
+            "const groups={};",
+            "for(const r of rows){const key=r.pair+':'+r.state;groups[key]=(groups[key]||0)+1;}",
+            "const rlusd=rows.filter(r=>r.pair==='img-rlusd');",
+            "const result={readOnly:true,positionCounts:groups,rlusdPositions:rlusd.length,rlusdBasisFromJobs:rlusd.every(r=>{try{const d=JSON.parse(r.data_json);return typeof d.basis==='string'&&/^[0-9]+$/.test(d.basis)&&BigInt(d.basis)>0n}catch{return false}}),manualPositionReconciled:false,rewardsApproved:false};",
+            "db.close();console.log(JSON.stringify(result));"
+          ].join('\n');
+          const response=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{
+            method:'POST',headers:{authorization:'Bearer '+process.env.FLY_API_TOKEN,'content-type':'application/json'},
+            body:JSON.stringify({command:['node','-e',script],timeout:30}),signal:AbortSignal.timeout(50000)});
+          if(!response.ok)throw Error('read_only_inventory_http_'+response.status);
+          const run=await response.json();
+          if(run.exit_code!==0)throw Error('read_only_inventory_failed');
+          const result=JSON.parse(String(run.stdout||'').trim());
+          if(result.readOnly!==true)throw Error('inventory_not_readonly');
+          console.log('ESTATES_RLUSD_INVENTORY='+JSON.stringify(result));
+          const fs=await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## IMG/RLUSD position inventory\n\n```json\n'+JSON.stringify(result,null,2)+'\n```\n');
+          NODE
+      - name: Verify IMG/RLUSD pool ownership can be queried read-only
+        run: |
+          node --input-type=module <<'NODE'
+          const req={method:'amm_info',params:[{amm_account:'rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f',account:'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',ledger_index:'validated'}]};
+          const r=await fetch('https://s1.ripple.com:51234/',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(req),signal:AbortSignal.timeout(15000)});
+          if(!r.ok)throw Error('xrpl_http_failure');
+          const j=(await r.json()).result;
+          if(j.error||!j.amm)throw Error('amm_info_unavailable');
+          console.log('ESTATES_POOL_HOLDINGS='+JSON.stringify({pool:j.amm.account,lpToken:j.amm.lp_token,ledger:j.ledger_index,readOnly:true}));
+          NODE
+      - name: Read treasury-specific LP trustline at validated ledger
+        run: |
+          node --input-type=module <<'NODE'
+          const treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
+          const pool='rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f';
+          const r=await fetch('https://s1.ripple.com:51234/',{method:'POST',
+            headers:{'content-type':'application/json'},
+            body:JSON.stringify({method:'account_lines',params:[{account:treasury,peer:pool,ledger_index:'validated',limit:400}]}),
+            signal:AbortSignal.timeout(15000)});
+          if(!r.ok)throw Error('ledger_unavailable');
+          const d=(await r.json()).result;
+          if(d.error||d.validated!==true||d.marker)throw Error('incomplete_ledger_evidence');
+          const matches=(d.lines||[]).filter(l=>l.account===pool);
+          console.log('TREASURY_RLUSD_LP='+JSON.stringify({readOnly:true,ledger:d.ledger_index,lines:matches.map(l=>({currency:l.currency,balance:l.balance})),fullScan:true,basisReconciled:false}));
+          NODE
+      - name: Scan treasury LP transaction history read-only
+        run: |
+          node --input-type=module <<'NODE'
+          const treasury='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
+          const pool='rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f';
+          let marker,scanned=0;const events=[];
+          for(let page=0;page<12;page++){
+            const r=await fetch('https://s1.ripple.com:51234/',{method:'POST',headers:{'content-type':'application/json'},
+              body:JSON.stringify({method:'account_tx',params:[{account:treasury,ledger_index_min:-1,ledger_index_max:-1,limit:200,forward:false,...(marker?{marker}:{})}]}),signal:AbortSignal.timeout(18000)});
+            if(!r.ok)throw Error('history_unavailable');
+            const data=(await r.json()).result;
+            if(data.error||!Array.isArray(data.transactions))throw Error('invalid_history');
+            for(const item of data.transactions){
+              scanned++;
+              const tx=item.tx_json||item.tx||{};
+              if(item.validated!==true||!['AMMDeposit','AMMWithdraw'].includes(tx.TransactionType))continue;
+              const affectsPool=(item.meta?.AffectedNodes||[]).some(x=>{
+                const node=x.ModifiedNode||x.DeletedNode||x.CreatedNode||{};
+                return node.LedgerEntryType==='AMM'&&(node.FinalFields?.Account===pool||node.NewFields?.Account===pool);
+              });
+              if(affectsPool)events.push({hash:item.hash||tx.hash,ledger:item.ledger_index,type:tx.TransactionType,result:item.meta?.TransactionResult});
+            }
+            marker=data.marker;
+            if(!marker)break;
+          }
+          const summary={readOnly:true,transactionsScanned:scanned,completeHistory:!marker,events};
+          console.log('ESTATES_RLUSD_HISTORY='+JSON.stringify(summary));
+          NODE
+      - name: Reconstruct validated treasury IMG/RLUSD LP changes
+        run: node scripts/estate-rlusd-lp-history.cjs
+      - name: Prove AMMCreate contributed assets and minted LP from validated metadata
+        run: node scripts/estate-rlusd-amm-create-evidence.cjs
+      - name: Inspect historic IMG/PLX withdrawal proceeds and LP burn
+        run: node scripts/estate-legacy-withdraw-evidence.cjs
+      - name: Observe validated IMG/RLUSD withdrawals without crediting capital as profit
+        run: node scripts/estate-rlusd-withdrawal-history.cjs

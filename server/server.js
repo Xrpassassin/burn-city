@@ -184,7 +184,9 @@ const server = http.createServer(async (req, res) => {
         imgXrpProfitDistributionsEnabled:rewards.imgXrpProfitDistributionsEnabled,rewardsGuaranteed:false,
         capitalAllocationPolicy:rewards.capitalAllocationPolicy,distributionSchedule:rewards.distributionSchedule,
         imgRlusdFundingEnabled:rewards.imgRlusdFundingEnabled,imgRlusdPoolAccount:rewards.imgRlusdPoolAccount,
-        imgRlusdStatus:rewards.imgRlusdStatus,imgRlusdPositionCount:rewards.liquidityPositions?.length||0});
+        imgRlusdStatus:rewards.imgRlusdStatus,imgRlusdPositionCount:rewards.liquidityPositions?.length||0,
+        forwardImgRlusdRewards:rewards.forwardImgRlusdRewards,
+        legacyImgRewardPipeline:rewards.legacyImgRewardPipeline});
     }
     if (url.pathname === '/api/estates/appearance' && req.method === 'GET') {
       if (gate('estates-appearance-ip:' + ip, 60, 60e3)) return json(res, 429, {error:'slow_down'});

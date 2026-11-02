@@ -164,3 +164,22 @@ jobs:
           const fs=await import('node:fs');
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Treasury journal reconciliation (read only)\n\n```json\n'+JSON.stringify(data,null,2)+'\n```\n');
           NODE
+      - name: Inspect paused withdrawal's ledger impact (read only)
+        run: |
+          node --input-type=module <<'NODE'
+          const h='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2';
+          const resp=await fetch('https://s1.ripple.com:51234/',{
+            method:'POST',
+            headers:{'content-type':'application/json'},
+            body:JSON.stringify({method:'tx',params:[{transaction:h,binary:false}]}),
+            signal:AbortSignal.timeout(15000)
+          });
+          if(!resp.ok)throw Error('ledger_unavailable');
+          const data=(await resp.json()).result;
+          if(data.validated!==true||data.meta?.TransactionResult!=='tesSUCCESS')throw Error('withdrawal_not_validated');
+          const affected=(data.meta.AffectedNodes||[]).map(x=>x.ModifiedNode||x.DeletedNode||x.CreatedNode).filter(Boolean);
+          const summary={validated:true,ledger:data.ledger_index,
+            types:affected.reduce((acc,x)=>(acc[x.LedgerEntryType]=(acc[x.LedgerEntryType]||0)+1,acc),{}),
+            accountingReconciled:false};
+          console.log('WITHDRAWAL_EFFECTS='+JSON.stringify(summary));
+          NODE

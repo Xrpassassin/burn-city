@@ -1,0 +1,30 @@
+name: Estates IMG/RLUSD-only legacy retirement gate
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/estates-retired-legacy-amm.yml'
+      - 'server/estate-liquidity-runtime.js'
+      - 'server/estate-liquidity-runtime.test.js'
+      - 'server/estate-hourly-service.js'
+      - 'server/estate-capital-allocation.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  legacy-trading-disabled:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Legacy pooled-funds and principal safety tests
+        run: |
+          node server/estate-liquidity-runtime.test.js
+          node server/estate-capital-allocation.test.js
+          node server/estate-capital-reserve.test.js
+      - name: No activation
+        run: |
+          echo 'Legacy trades disabled in production service; this workflow does not authorize sales, remove pauses or alter treasury funds.' >> "$GITHUB_STEP_SUMMARY"

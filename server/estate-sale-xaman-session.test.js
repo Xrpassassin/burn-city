@@ -8,7 +8,7 @@ db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY)');
 const buyer='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',treasury='rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd';
 const r=createEstateSaleReservations(db).reserve({reservationId:'reservation-00000001',propertyId:'trailer-01',buyer,now:Date.now()});
 let calls=0;
-const sdk={payload:{create:async p=>{calls++;assert.equal(p.txjson.Account,buyer);return {uuid:'test-uuid',refs:{qr_png:'https://example.com/qr'},next:{always:'https://example.com/xaman'}}},get:async()=>({meta:{signed:true},response:{account:buyer,txid:'A'.repeat(64)}})}};
+const sdk={payload:{create:async p=>{calls++;assert.equal(p.txjson.Account,buyer);return {uuid:'test-uuid-'+calls,refs:{qr_png:'https://example.com/qr'},next:{always:'https://example.com/xaman'}}},get:async()=>({meta:{signed:true},response:{account:buyer,txid:'A'.repeat(64)}})}};
 (async()=>{
  const disabled=createEstateXamanPaymentSession(db);
  assert.equal((await disabled.start({reservationId:r.reservation_id,buyer})).error,'estate_sales_disabled');
@@ -24,7 +24,7 @@ const sdk={payload:{create:async p=>{calls++;assert.equal(p.txjson.Account,buyer
  assert.equal((await session.start({reservationId:r.reservation_id,buyer,now:r.expires_at-30000})).error,'reservation_near_expiry');
  assert.equal(calls,1);
  const first=await session.start({reservationId:r.reservation_id,buyer});
- assert.equal(first.payloadUuid,'test-uuid');assert.equal(first.reused,false);
+ assert.equal(first.payloadUuid,'test-uuid-2');assert.equal(first.reused,false);
  const second=await session.start({reservationId:r.reservation_id,buyer});
  assert.equal(second.reused,true);assert.equal(calls,2);
  assert.equal((await session.start({reservationId:r.reservation_id,buyer:treasury})).error,'reservation_not_found');

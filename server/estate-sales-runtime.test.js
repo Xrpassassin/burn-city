@@ -31,6 +31,10 @@ const acceptance={acceptedTerms:true,termsVersion:'v1.0',termsDigest:'A'.repeat(
  const quote=r.quote({buyer,propertyId:'trailer-01'});assert.equal(quote.priceDrops,3000000);assert.equal(quote.salesEnabled,true);
  assert.equal(r.reserve({buyer,propertyId:'trailer-01',now}).error,'purchase_terms_acceptance_required');
  assert.equal(r.reserve({buyer,propertyId:'trailer-01',now,...acceptance,termsDigest:'B'.repeat(64)}).error,'purchase_terms_acceptance_required');
+ const legacy=require('./estate-sale-reservations').createEstateSaleReservations(db).reserve({
+  reservationId:'legacy-no-terms-00001',propertyId:'trailer-02',buyer,now
+ });
+ assert.equal((await r.start({buyer,reservationId:legacy.reservation_id,now:now+1000})).error,'purchase_terms_acceptance_required');
  const reservation=r.reserve({buyer,propertyId:'trailer-01',now,...acceptance});assert.equal(reservation.ok,true);
  const input={buyer,reservationId:reservation.reservationId,now:now+10000};
  assert.equal((await r.start({...input,buyer:'rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q'})).error,'reservation_not_found');

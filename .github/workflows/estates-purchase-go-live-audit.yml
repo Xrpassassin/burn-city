@@ -21,6 +21,8 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           node server/estate-sale-production-gates.test.js
+      - name: Check IMG/RLUSD principal-protected reward mathematics
+        run: node server/estate-rlusd-reward-capacity.test.js
       - name: Inspect public deployed purchase status without signing or exposing secrets
         run: |
           node --input-type=module <<'NODE'

@@ -57,3 +57,11 @@ The same [validated historical transaction audit](https://github.com/Xrpassassin
 The conversion output is **not** proof that 2.397661 XRP is currently on hand, belonged specifically to the 3 XRP purchase, remains unencumbered, or was later invested into IMG/RLUSD. Do not rebook customer capital merely because an earlier swap grossed XRP proceeds. The old 1,940.67982383456 IMG/PLX LP custody gap remains unresolved.
 
 The custody audit is resilient to transient public-node lag, using one stable previously validated ledger for all pool balances and retrying only transient RPC availability errors. Neither recovery handling nor these forensic transaction reports can clear the treasury pause.
+
+## Operator-attested retirement and RLUSD funding sequence
+
+**2026-11-02 operator clarification:** The operator states that **they personally sold the retired PLX, acquired RLUSD, and contributed liquidity to the IMG/RLUSD pool**. This is an operator statement of intent/authorization; it is not a standalone on-chain proof that a specific historical buyer's entire purchase cost basis was transferred.
+
+The previous phrase “unexpected outgoing transaction” refers to the accounting service's **unreconciled journal entry**, not an unknown actor or suspected unauthorized third-party attack. Do **not** infer theft from that pause reason. The operator-directed conversion explains why old IMG/PLX LP custody is zero and does **not** justify requiring a new PLX purchase or deposit. Existing validated evidence covers the IMG/PLX withdrawal, PLX-to-XRP conversion (2.397661 XRP credited), and subsequent IMG/RLUSD AMM creation (3,100 IMG and 3.106054465 RLUSD supplied). The intermediate RLUSD acquisition path remains to be checked independently.
+
+The remaining task is **append-only attribution/settlement** of the original historical 3 XRP Estate purchase, any accrued liabilities and net executable value, plus independent legal release review—not restoring legacy PLX LP tokens. No retrospective reward reset, fund movement, revenue guarantee or sales activation follows from this clarification.

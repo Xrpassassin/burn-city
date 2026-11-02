@@ -21,7 +21,10 @@ db.exec('PRAGMA query_only=ON');
 try{
  const sales=db.prepare("SELECT purchase_tx FROM estate_capital_allocations WHERE policy_version=1").all();
  if(sales.length!==1)throw Error('single_legacy_purchase_required');
- const {inspectLegacyEstateCapital}=require('./server/estate-legacy-v2-review');
+ const roots=['/data/gh/cur','/data/patch/app','/app'];
+ const liveRoot=roots.find(root=>fs.existsSync(path.join(root,'server','estate-legacy-v2-review.js')));
+ if(!liveRoot)throw Error('deployed_legacy_inspection_module_not_found');
+ const {inspectLegacyEstateCapital}=require(path.join(liveRoot,'server','estate-legacy-v2-review.js'));
  const p=inspectLegacyEstateCapital(db,sales[0].purchase_tx);
  const count=name=>db.prepare("SELECT COUNT(*) n FROM "+name).get().n;
  const tables=db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(x=>x.name);

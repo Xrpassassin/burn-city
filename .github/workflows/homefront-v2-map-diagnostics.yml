@@ -34,6 +34,11 @@ jobs:
           const output = JSON.stringify(summary,null,2);
           console.log(output);
           console.log('Destination failures:', JSON.stringify(report.destinationFailures,null,2));
+          const {createV2CollisionPreview,pointBlockedV2}=require('./server/homefront-v2-collision-preview');
+          const {previewDestinationConnectors}=require('./client/arena/homefront-destination-connectors.mjs');
+          const catalog=createV2CollisionPreview();
+          const entries=previewDestinationConnectors({sites:catalog.protectedSites,buildings:catalog.obstacles.map(b=>({id:b.id,x:b.x,z:b.z,w:b.halfX*2,d:b.halfZ*2,rotation:b.rotation}))}).connectors;
+          console.log('Problem geometry:', JSON.stringify(report.destinationFailures.map(d=>({siteId:d.siteId,site:catalog.protectedSites.find(s=>s.id===d.siteId),connector:entries.find(e=>e.siteId===d.siteId),pointObstacle:(()=>{const p=catalog.protectedSites.find(s=>s.id===d.siteId);return p&&pointBlockedV2(catalog,p.x,p.z)?.id})()})),null,2));
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## Homefront proposed-map diagnostics\n\n```json\n'+output+'\n```\n');
           NODE
       - name: Upload diagnostic report

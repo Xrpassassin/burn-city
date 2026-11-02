@@ -19,6 +19,16 @@ assert.equal(r.ledgerBalanceChanges.RLUSD,'3');
 assert.equal(r.ledgerBalanceChanges.IMG,'0');
 assert.equal(r.xrpTransferDeltaDrops,'0');
 assert.equal(r.tokenOutputsObserved.length,1);
+const xrpPayout={...tx,meta:{...tx.meta,AffectedNodes:[
+ tx.meta.AffectedNodes[0],
+ {ModifiedNode:{LedgerEntryType:'AccountRoot',
+  PreviousFields:{Balance:'2000000'},
+  FinalFields:{Account:treasury,Balance:'4397649'}}}
+]}};
+const realized=inspect(xrpPayout);
+assert.equal(realized.xrpTransferDeltaDrops,'2397661');
+assert.deepEqual(realized.tokenOutputsObserved,[{asset:'XRP',receivedDrops:'2397661'}]);
+assert.equal(realized.customerOwnershipAttributionVerified,false);
 assert.equal(r.customerOwnershipAttributionVerified,false);
 assert.equal(r.treasuryPauseReleaseAuthorized,false);
 assert.throws(()=>inspect({...tx,validated:false}),/validated_self_payment_required/);

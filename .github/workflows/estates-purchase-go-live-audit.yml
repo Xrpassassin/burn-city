@@ -1,0 +1,56 @@
+name: Estates purchase go-live safety audit
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/estates-purchase-go-live-audit.yml'
+      - 'server/estate-sales-runtime.js'
+      - 'server/estate-sale-production-gates.test.js'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify sales fail closed in repository tests
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node server/estate-sale-production-gates.test.js
+      - name: Inspect public deployed purchase status without signing or exposing secrets
+        run: |
+          node --input-type=module <<'NODE'
+          const url='https://burn-city-game.fly.dev/api/estates/status';
+          const response=await fetch(url,{signal:AbortSignal.timeout(15000)});
+          if(!response.ok)throw Error('estates_status_http_'+response.status);
+          const data=await response.json();
+          const policy=data.capitalAllocationPolicy??{};
+          const summary={
+            publicStatusReachable:true,
+            salesEnabled:data.salesEnabled===true,
+            salesStatus:typeof data.salesStatus==='string'?data.salesStatus:'unknown',
+            distributionsEnabled:data.distributionsEnabled===true,
+            imgRlusdFundingEnabled:data.imgRlusdFundingEnabled===true,
+            fundingPolicyMatches:policy.pair==='IMG/RLUSD',
+            noGuaranteedRewards:data.rewardsGuaranteed===false
+          };
+          console.log('ESTATES_PUBLIC_READINESS='+JSON.stringify(summary));
+          const blockers=[
+            ...(!summary.fundingPolicyMatches?['funding_policy_unverified']:[]),
+            ...(!summary.imgRlusdFundingEnabled?['funding_disabled']:[]),
+            ...(!summary.salesEnabled?['sales_disabled']:[]),
+            ...(!summary.noGuaranteedRewards?['reward_disclosure_mismatch']:[])
+          ];
+          const report={...summary,blockers,requiresManualReview:[
+            'legal_counsel_clearance','independent_treasury_signer_reserve_validation',
+            'treasury_pause_and_pending_transaction_review','validated_testnet_and_first_mainnet_purchase_reconciliation',
+            'versioned_purchase_terms_and_acceptance'
+          ]};
+          const md='## Estates purchase go-live audit (read only)\n\n```json\n'+JSON.stringify(report,null,2)+'\n```\n\nA passing workflow does not authorize payments, remove legal holds, or verify a mainnet purchase.\n';
+          const fs=await import('node:fs');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,md);
+          NODE

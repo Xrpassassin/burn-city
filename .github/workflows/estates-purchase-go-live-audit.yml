@@ -54,3 +54,42 @@ jobs:
           const fs=await import('node:fs');
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,md);
           NODE
+      - name: Read-only live treasury pause and database gate inspection
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          if(!process.env.FLY_API_TOKEN)throw Error('fly_credential_missing');
+          const url='https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec';
+          const script=fs.readFileSync('scripts/estate-runtime-readiness.cjs','utf8');
+          const response=await fetch(url,{
+            method:'POST',
+            headers:{authorization:'Bearer '+process.env.FLY_API_TOKEN,'content-type':'application/json'},
+            body:JSON.stringify({command:['node','-e',script],timeout:45}),
+            signal:AbortSignal.timeout(60000)
+          });
+          if(!response.ok)throw Error('fly_readonly_inspection_http_'+response.status);
+          const run=await response.json();
+          if(run.exit_code!==0)throw Error('fly_readonly_inspection_failed');
+          const report=JSON.parse(String(run.stdout||'').trim());
+          if(report.readOnly!==true)throw Error('unexpected_non_readonly_result');
+          const checks={
+            readOnly:true,
+            salesFlag:report.estateSalesEnabled,
+            accountingFlag:report.estateAccountingEnabled,
+            liquidityFlag:report.estateLiquidityEnabled,
+            distributionsFlag:report.estateDistributionsEnabled,
+            dryRun:report.dryRun,
+            xamanConfigured:report.xamanConfigured,
+            signerConfigured:report.signerConfigured,
+            signerMatchesTreasury:report.signerMatchesEstateTreasury,
+            environmentPause:report.pauseEnvironment,
+            pauseFile:report.pauseFile,
+            databasePresent:report.database?.exists===true,
+            databaseReadFailed:report.database?.readFailed===true,
+            tableCounts:Object.fromEntries(Object.entries(report.database?.tables||{}).map(([k,v])=>[k,{exists:v.exists,rows:v.rows}]))
+          };
+          console.log('ESTATES_TREASURY_READONLY='+JSON.stringify(checks));
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n## Live treasury read-only diagnostic\n\n```json\n'+JSON.stringify(checks,null,2)+'\n```\n');
+          NODE

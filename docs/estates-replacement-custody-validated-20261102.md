@@ -18,9 +18,17 @@ The new IMG/RLUSD pool contains **2,296.68301327368 IMG** and **4.20352010357177
 
 The retired IMG/XRP position's **gross treasury share of reserves** is about **40.8871 XRP** plus **27,655.60 IMG** at the snapshot; these are **not** a guaranteed withdrawal quote, distributable funds, or assets assigned to the historical customer. Fees, pool changes, transaction costs, slippage, other owners, and treasury-wide liabilities remain to be reconciled. The deposited cost-basis journal and gross reserve proportions are not equivalent to actual economic gain.
 
-## Recorded but unquantified obligations
+## Itemized historical reward balances
 
-The production database shows 4 historical hourly entitlement rows, 4 confirmed hourly payout rows and 1 IMG credit row; its economic balance and any cross-ledger overlapping credits need a dedicated read-only liability audit. Existing held, confirmed or pending obligations are not waived by merely choosing not to backfill hypothetical bonuses.
+A later [read-only liability audit #41532264796](https://github.com/Xrpassassin/burn-city/actions/runs/41532264796) inspected production records alongside validated XRPL ledger **108075402**. It found:
+
+- 4 historic IMG entitlement rows containing **161207 recording units** in total.
+- 4 corresponding hourly payout rows, **all state = confirmed**, also totaling **161207 recording units**.
+- No queued, preparing, submitted or held hourly payout rows.
+- 1 IMG payout-credit row, but its outstanding value is **0**.
+- No reward carryovers, XRP reward credits, XRP-profit payout rows, or XRP-profit credits.
+
+The apparent match between entitlements and confirmed payout totals is useful, but those totals **overlap** and must never be added as separate liabilities. Recorded confirmed status does not independently validate historical transfer delivery; review transaction proofs before formally declaring all obligations discharged. The historical 3 XRP capital claim is **separate** from this reward accounting and remains unresolved. No earlier earnings are automatically cancelled or retroactively recalculated.
 
 ## Evidence and release requirements
 

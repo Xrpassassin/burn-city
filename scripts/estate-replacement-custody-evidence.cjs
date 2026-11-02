@@ -122,4 +122,4 @@ async function audit(){
 if(require.main===module)audit().catch(e=>{
  console.error('ESTATES_REPLACEMENT_EVIDENCE_ERROR='+e.message);process.exitCode=1;
 });
-module.exports={audit};
+module.exports={audit,remote};

@@ -37,7 +37,7 @@ function estateGuardReserve(db){
  if(reserveExists(db,'estate_treasury_transactions')&&db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state IN ('preparing','submitted','validated','held')").get())throw Error('estate_treasury_reconciliation_pending');
  return estateCashReserve(db);
 }
-function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIssuer,guard,imgPlxPoolAccount=POOL,rlusdIssuer='rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De',rlusdPoolAccount='',rlusdEnabled=false,maxAcquisitionImpactBps=100,fundingEnabled=false,harvestEnabled=false,payoutsEnabled=false,maxFeeDrops=100,maxNativePayoutDrops='1000000',maxNativeDailyDrops='10000000',slippageBps=300,now=()=>Date.now()}={}){
+function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIssuer,guard,imgPlxPoolAccount=POOL,rlusdIssuer='rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De',rlusdPoolAccount='',rlusdEnabled=false,legacyTradingEnabled=false,maxAcquisitionImpactBps=100,fundingEnabled=false,harvestEnabled=false,payoutsEnabled=false,maxFeeDrops=100,maxNativePayoutDrops='1000000',maxNativeDailyDrops='10000000',slippageBps=300,now=()=>Date.now()}={}){
  if(!Number.isSafeInteger(maxFeeDrops)||maxFeeDrops<1||maxFeeDrops>1000||!Number.isSafeInteger(slippageBps)||slippageBps<0||slippageBps>1000)throw Error('invalid_liquidity_limits');
  if(integer(maxNativePayoutDrops)<1n||integer(maxNativeDailyDrops)<1n)throw Error('invalid_native_profit_limits');
  if(!Number.isSafeInteger(maxAcquisitionImpactBps)||maxAcquisitionImpactBps<1||maxAcquisitionImpactBps>1000)throw Error('invalid_acquisition_impact_limit');
@@ -66,7 +66,14 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
  const nativeRewards=require('./estate-native-reward-executor').createEstateNativeRewardExecutor({db,client,wallet,treasury,imgIssuer,guard,enabled:payoutsEnabled,maxFeeDrops,slippageBps,maxNativePayoutDrops,maxNativeDailyDrops,now});
  const ownership=createEstateImgOwnershipSnapshots(db);
  const executor=createEstateTreasuryTransactions({db,client,wallet,treasury,guard,enabled:fundingEnabled||harvestEnabled||payoutsEnabled,maxFeeDrops,
-  beforeSign:row=>{const ctx=JSON.parse(row.context_json),j=ctx.jobId?db.prepare('SELECT pair FROM estate_liquidity_jobs WHERE id=?').get(ctx.jobId):null;return j?.pair==='img-rlusd'&&(!rlusdEnabled||!rlusdPoolAccount)?'img_rlusd_activation_required':null;},
+  beforeSign:row=>{
+   const ctx=JSON.parse(row.context_json);
+   const j=ctx.jobId?db.prepare('SELECT pair FROM estate_liquidity_jobs WHERE id=?').get(ctx.jobId):null;
+   // Legacy liquidity transactions already submitted remain reconcilable,
+   // but neither PLX nor IMG/XRP trades can be newly signed by default.
+   if(j&&j.pair!=='img-rlusd'&&!legacyTradingEnabled)return 'legacy_amm_execution_retired';
+   return j?.pair==='img-rlusd'&&(!rlusdEnabled||!rlusdPoolAccount)?'img_rlusd_activation_required':null;
+  },
   purposeEnabled:p=>p.startsWith('hourly_reward_')||p.startsWith('native_reward_')?false:p==='xrp_profit_payout'?payoutsEnabled:p.startsWith('profit_')?harvestEnabled:fundingEnabled});
  let busy=false,lastBlock=null,lastError=null;
  const jobs=()=>db.prepare('SELECT * FROM estate_liquidity_jobs ORDER BY id').all();
@@ -79,6 +86,9 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
  function note(row,message){db.prepare('UPDATE estate_liquidity_jobs SET note=? WHERE id=?').run(message,row.id);lastBlock=message;}
  function seed(){
   for(const a of db.prepare('SELECT * FROM estate_capital_allocations ORDER BY created_at,purchase_tx').all())for(const [pair,budget] of (a.policy_version===2?[['img-rlusd',a.img_rlusd_drops]]:[['img-plx',a.img_plx_drops],['img-xrp',a.img_xrp_drops]])){
+   // Historical policy-v1 customer allocations remain in the database,
+   // but cannot spawn fresh PLX or IMG/XRP trading intents.
+   if(!legacyTradingEnabled&&pair!=='img-rlusd')continue;
    if(integer(budget)<1n)continue;
    const id=hash(a.purchase_tx+':'+pair),d={...zero(),cash:budget};
    db.prepare("INSERT OR IGNORE INTO estate_liquidity_jobs(id,purchase_tx,pair,initial_budget_drops,state,data_json) VALUES(?,?,?,?,'buy_img',?)").run(id,a.purchase_tx,pair,budget,JSON.stringify(d));
@@ -317,6 +327,10 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
    for(const row of jobs()){
     const d=validateData(JSON.parse(row.data_json));
     try{
+     // Preserve historical cost basis, position rows, signed submissions
+     // and outstanding customer claims. Never automatically roll retired
+     // LP positions back into old AMMs; manual accounting migration only.
+     if(!legacyTradingEnabled&&row.pair!=='img-rlusd')continue;
      if(row.pair==='img-rlusd'&&!rlusdEnabled&&!['withdraw','convert_rlusd','convert_profit'].includes(row.state)&&!['buy_img','buy_rlusd','deposit'].some(step=>pending(row,d,step)))throw Error('img_rlusd_activation_required');
      if(row.state==='buy_img'&&(fundingEnabled||pending(row,d,'buy_img')))await buy(row,d,'img');
      else if(row.state==='buy_rlusd'&&(fundingEnabled||pending(row,d,'buy_rlusd')))await buy(row,d,'rlusd');
@@ -331,7 +345,9 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
    await payouts();await nativeRewards.tick();const result=await executor.tick();if(result.blocked)lastBlock=result.blocked;lastError=null;return result;
   }catch(e){lastError=e.message;return {blocked:e.message};}finally{busy=false;}
  }
- function status(owner){return {imgRlusdFundingEnabled:fundingEnabled&&rlusdEnabled,liquidityPositions:jobs().filter(j=>j.pair==='img-rlusd').map(j=>{const d=JSON.parse(j.data_json);return {poolAccount:d.lpAccount||rlusdPoolAccount||null,state:j.state,note:j.note,lpTokens:d.lp,costBasisDrops:d.basis,uninvestedDrops:d.cash,lastCheckedHour:j.last_harvest_hour};}),imgRlusdPoolAccount:rlusdPoolAccount||null,imgRlusdStatus:!fundingEnabled?'disabled':!rlusdEnabled||!rlusdPoolAccount?'awaiting_pool_activation':guard.paused()?'treasury_paused':lastError||lastBlock||'enabled',capitalFundingEnabled:fundingEnabled,xrpProfitHarvestEnabled:harvestEnabled,imgXrpProfitDistributionsEnabled:harvestEnabled&&payoutsEnabled,
+ function status(owner){return {legacyAmmTradingEnabled:legacyTradingEnabled,
+  legacyPositionsRetiredFromAutomation:jobs().filter(j=>j.pair!=='img-rlusd').length,
+  imgRlusdFundingEnabled:fundingEnabled&&rlusdEnabled,liquidityPositions:jobs().filter(j=>j.pair==='img-rlusd').map(j=>{const d=JSON.parse(j.data_json);return {poolAccount:d.lpAccount||rlusdPoolAccount||null,state:j.state,note:j.note,lpTokens:d.lp,costBasisDrops:d.basis,uninvestedDrops:d.cash,lastCheckedHour:j.last_harvest_hour};}),imgRlusdPoolAccount:rlusdPoolAccount||null,imgRlusdStatus:!fundingEnabled?'disabled':!rlusdEnabled||!rlusdPoolAccount?'awaiting_pool_activation':guard.paused()?'treasury_paused':lastError||lastBlock||'enabled',capitalFundingEnabled:fundingEnabled,xrpProfitHarvestEnabled:harvestEnabled,imgXrpProfitDistributionsEnabled:harvestEnabled&&payoutsEnabled,
   liquidityStatus:lastError||lastBlock||(!fundingEnabled?'disabled':guard.paused()?'treasury_paused':'enabled'),
   xrpProfitCreditDrops:owner?db.prepare('SELECT amount_drops FROM estate_xrp_profit_credits WHERE owner=?').get(owner)?.amount_drops||'0':'0',
   xrpProfitPayouts:owner?db.prepare('SELECT amount_drops,available_after_ms,state,tx_hash,currency,delivered,note,payout_policy,carried FROM estate_xrp_profit_payouts WHERE owner=? ORDER BY available_after_ms DESC LIMIT 100').all(owner):[]};}

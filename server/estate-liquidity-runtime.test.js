@@ -103,6 +103,16 @@ if(require.main===module)(async()=>{
  assert.equal(retired.db.prepare("SELECT state FROM estate_liquidity_jobs WHERE id='historical-plx-position'").get().state,'invested');
  assert.equal(restart.status(retired.owner).legacyPositionsRetiredFromAutomation,1);
  assert.equal(retired.sent.length,0);
+ // Even a pre-existing queued legacy intent must not be signed after the
+ // new policy is installed; submitted transactions remain in reconciliation.
+ restart.executor.ensure('obsolete-plx-acquisition','capital_buy',{
+  Account:retired.treasury,TransactionType:'Payment',Destination:retired.treasury,
+  Amount:{...retired.IMG,value:'1'},SendMax:'100',Flags:0
+ },{jobId:'historical-plx-position'});
+ const blocked=await restart.executor.tick();
+ assert.equal(blocked.blocked,'legacy_amm_execution_retired');
+ assert.equal(retired.db.prepare("SELECT state FROM estate_treasury_transactions WHERE id='obsolete-plx-acquisition'").get().state,'queued');
+ assert.equal(retired.sent.length,0);
  const f=fixture();let r=f.make();
  assert.equal(estateCashReserve(f.db),'3000000');
  f.paused=true;await r.tick();assert.equal(f.sent.length,0);f.paused=false;

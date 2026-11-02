@@ -29,6 +29,10 @@ add.run('old-imgxrp',tx,'img-xrp','900000','invested',
  JSON.stringify({basis:'869056',cash:'30968',lp:'11157.61391981',
   lpAccount:'rBcRRghoEuyvkUwL3DVaEJrcmPHf8DkTc6',
   lpCurrency:'03169AE84CCDEF4E3D0C33574F387117F6077973'}));
+const originalPolicy=createEstateCapitalAllocation(db,{policyVersion:1}).state(wallet);
+assert.equal(originalPolicy.capitalAllocations.length,1);
+assert.equal(originalPolicy.capitalAllocations[0].fundingState,'legacy_retired_review');
+assert.match(originalPolicy.capitalAllocations[0].pool,/Retired historical allocation/);
 const store=createLegacyEstateReviewJournal(db);
 const draft=store.preview(tx);
 assert.equal(draft.purchaseDrops,'3000000');

@@ -20,7 +20,7 @@ db.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)')
  .run('trailer-01',wallet,tx,3000000,1,1700000000);
 createEstateCapitalAllocation(db,{policyVersion:1})
  .record(db.prepare('SELECT * FROM estate_property_ownership').get());
-const add=db.prepare('INSERT INTO estate_liquidity_jobs VALUES(?,?,?,?,?,?)');
+const add=db.prepare('INSERT INTO estate_liquidity_jobs(id,purchase_tx,pair,initial_budget_drops,state,data_json) VALUES(?,?,?,?,?,?)');
 add.run('old-plx',tx,'img-plx','2100000','invested',
  JSON.stringify({basis:'2038880',cash:'32448',lp:'1940.67982383456',
   lpAccount:'rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ',

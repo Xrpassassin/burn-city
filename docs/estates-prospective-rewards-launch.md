@@ -40,3 +40,13 @@ The caller must independently prove the profit receipt, cumulative realized amou
 - Atomic reservation and reconciliation across IMG/RLUSD draft allocations and ALL other treasury obligations.
 - Verified conversion/trustline/fee-budget mechanics for the chosen IMG or XRP settlement, followed by a manual-reviewed testnet and carefully reconciled first mainnet settlement.
 - Counsel clearance and reviewed, versioned terms before public sales or payout activation; current unexpected-outgoing-transaction pause remains intact.
+
+## Verified IMG/RLUSD withdrawal evidence (audit snapshot)
+
+The validated-ledger read-only scan in [Estates safety audit run 41398395951](https://github.com/Xrpassassin/burn-city/actions/runs/41398395951) examined 87 treasury transactions through ledger **108061175**, with complete account-history pagination, and found **zero IMG/RLUSD `AMMWithdraw` transactions**. Consequently it reported **zero independently verified distributable profit** and did not create entitlements.
+
+`server/estate-rlusd-realized-withdrawal-evidence.js` verifies the dual-asset withdrawal shape using actual ledger-state deltas for IMG and RLUSD treasury credits, a positive IMG/RLUSD LP burn, the XRP network fee, treasury identity, pool LP issuer, success and validation. Even a valid withdrawal is still **capital plus assets returned**; the code intentionally reports `distributableProfitUnits:'0'` and `realizedProfitVerified:false`. It cannot be used to label returned principal as income.
+
+For real hourly rewards, the accounting engine must independently verify economic gain **after** the asset cost basis, prior loss carry, pool position liquidation value, outstanding historical obligations, network fees and settlement costs. AMM fees normally accrue inside the pool and are **unrealized** until a validated economic realization occurs. An hourly check can show no payout for an unprofitable hour and must not withdraw liquidity merely to force an hourly reward. No APR, yield, profit or principal stability is guaranteed.
+
+The present forward allocation store is deliberately a held **simulation/accounting draft** interface: its numeric profit fields and Boolean verification flags are **not independently authenticated inputs**. Do not attach it to customer-accessible endpoints or a signer; build a validated realization-and-valuation ingestion adapter before any actual reward claim or payout. Treasury remains paused for unrelated unresolved withdrawal reconciliation, customer-capital checks and legal review.

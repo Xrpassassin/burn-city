@@ -272,3 +272,5 @@ jobs:
           NODE
       - name: Reconstruct validated treasury IMG/RLUSD LP changes
         run: node scripts/estate-rlusd-lp-history.cjs
+      - name: Prove AMMCreate contributed assets and minted LP from validated metadata
+        run: node scripts/estate-rlusd-amm-create-evidence.cjs

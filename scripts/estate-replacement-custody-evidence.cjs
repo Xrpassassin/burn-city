@@ -43,7 +43,14 @@ async function remote(){
   signal:AbortSignal.timeout(50000)});
  if(!response.ok)throw Error('readonly_remote_http_'+response.status);
  const d=await response.json();
- if(d.exit_code!==0)throw Error('readonly_remote_accounting_unavailable');
+ if(d.exit_code!==0){
+  // Never print raw remote stderr or credentials; only a constrained,
+  // program-generated exception identifier for diagnosing audit failures.
+  const err=String(d.stderr||'');
+  const match=err.match(/(?:Error: |throw Error\(')([a-z][a-z0-9_]{2,90})/i);
+  const reason=match?match[1]:(/Cannot find module/.test(err)?'required_module_unavailable':'unknown_remote_failure');
+  throw Error('readonly_remote_accounting_unavailable_'+reason);
+ }
  const r=JSON.parse(String(d.stdout||'').trim());
  if(r.readOnly!==true||r.legacy?.treasuryPauseClearanceAuthorized!==false||
   r.legacy.actualReplacementAssetsVerified!==false)throw Error('unsafe_remote_accounting_result');

@@ -14,7 +14,7 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
  const terms=purchaseTerms(env);
  const configured=!!terms&&env.ESTATE_SALES_ENABLED==='1'&&config.DRY_RUN===false&&config.NETWORK==='mainnet'&&
   !!config.XUMM_KEY&&!!config.XUMM_SECRET&&/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(config.ESTATE_TREASURY||'');
- const options=configured?{enabled:true,sdk:pay.sdk(),treasury:config.ESTATE_TREASURY,
+ const options=configured?{enabled:true,sdk:pay.sdk(),treasury:config.ESTATE_TREASURY,requiredTerms:terms,
   client:{request:async q=>(await pay.ledger()).request(q)}}:{enabled:false};
  const reservations=createEstateReservationApi(db,{enabled:configured});
  const payments=createEstateXamanPaymentSession(db,options);

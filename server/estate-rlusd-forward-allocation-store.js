@@ -47,6 +47,7 @@ function createEstateRlusdForwardAllocationStore(db){
   receipt_hash TEXT PRIMARY KEY,
   ledger_index INTEGER NOT NULL CHECK(ledger_index>0),
   received_at_ms INTEGER NOT NULL,
+  epoch_start_ms INTEGER NOT NULL,
   first_eligible_hour_ms INTEGER NOT NULL,
   pool_account TEXT NOT NULL,
   accounting_unit TEXT NOT NULL CHECK(accounting_unit='micro_RLUSD'),
@@ -71,10 +72,10 @@ function createEstateRlusdForwardAllocationStore(db){
  const all=db.prepare('SELECT drafted_units FROM estate_rlusd_forward_allocation_drafts');
  const latest=db.prepare('SELECT ledger_index,received_at_ms FROM estate_rlusd_forward_allocation_drafts ORDER BY ledger_index DESC,received_at_ms DESC LIMIT 1');
  const insert=db.prepare(`INSERT INTO estate_rlusd_forward_allocation_drafts
-  (receipt_hash,ledger_index,received_at_ms,first_eligible_hour_ms,pool_account,accounting_unit,
+  (receipt_hash,ledger_index,received_at_ms,epoch_start_ms,first_eligible_hour_ms,pool_account,accounting_unit,
    cumulative_profit_units,cumulative_loss_units,verified_liquid_surplus_units,already_reserved_units,
    drafted_units,ownership_digest,state)
-  VALUES(?,?,?,?,?,'micro_RLUSD',?,?,?,?,?,?,'held')`);
+  VALUES(?,?,?,?,?,?,'micro_RLUSD',?,?,?,?,?,?,'held')`);
  const addOwner=db.prepare(`INSERT INTO estate_rlusd_forward_owner_drafts
   (receipt_hash,owner,share_weight,amount_units,state) VALUES(?,?,?,?,'held')`);
  function totalHeldUnits(){
@@ -125,7 +126,8 @@ function createEstateRlusdForwardAllocationStore(db){
    const digest=crypto.createHash('sha256').update(JSON.stringify(holdings
     .map(p=>({propertyId:p.propertyId,acct:p.acct})).sort((a,b)=>a.propertyId.localeCompare(b.propertyId)))).digest('hex');
    // No IMG/XRP settlement intents are created here. Drafts remain held.
-   insert.run(hash,input.receiptLedgerIndex,input.receiptTimeMs,start.firstFullHourMs,
+   const epochStartMs=Math.floor(input.receiptTimeMs/3600000)*3600000;
+   insert.run(hash,input.receiptLedgerIndex,input.receiptTimeMs,epochStartMs,start.firstFullHourMs,
     start.poolAccount,input.cumulativeRealizedProfitUnits,input.cumulativeRealizedLossUnits,
     input.verifiedLiquidSurplusUnits,previouslyReservedUnits,amount.toString(),digest);
    for(const a of allocations)addOwner.run(hash,a.owner,a.weight,a.amountUnits);
@@ -133,6 +135,30 @@ function createEstateRlusdForwardAllocationStore(db){
    return get(hash);
   }catch(e){db.exec('ROLLBACK');throw e;}
  }
- return Object.freeze({get,totalHeldUnits,stageVerifiedRealization});
+ // Read-only closed-hour preview. Validated scanner must supply the
+ // hour watermark; this still never marks any draft payable.
+ function previewClosedHour(epochStartMs,verifiedThroughMs){
+  if(!Number.isSafeInteger(epochStartMs)||epochStartMs<0||epochStartMs%3600000!==0)
+   throw Error('invalid_utc_hour');
+  if(!Number.isSafeInteger(verifiedThroughMs)||verifiedThroughMs<epochStartMs+3600000)
+   throw Error('complete_verified_hour_required');
+  const receipts=db.prepare('SELECT receipt_hash,drafted_units FROM estate_rlusd_forward_allocation_drafts WHERE epoch_start_ms=? ORDER BY receipt_hash').all(epochStartMs);
+  const rowQuery=db.prepare('SELECT owner,amount_units FROM estate_rlusd_forward_owner_drafts WHERE receipt_hash=?');
+  const byOwner=new Map();let total=0n,allocated=0n;
+  for(const receipt of receipts){
+   total+=units(receipt.drafted_units);
+   for(const row of rowQuery.all(receipt.receipt_hash)){
+    const amount=units(row.amount_units);
+    allocated+=amount;
+    byOwner.set(row.owner,(byOwner.get(row.owner)||0n)+amount);
+   }
+  }
+  if(allocated!==total)throw Error('hour_allocation_reconciliation_failed');
+  return Object.freeze({epochStartMs,receiptCount:receipts.length,totalUnits:total.toString(),
+   allocations:[...byOwner].sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([owner,amount])=>({owner,amountUnits:amount.toString(),state:'held'})),
+   previewOnly:true,executionEnabled:false});
+ }
+ return Object.freeze({get,totalHeldUnits,stageVerifiedRealization,previewClosedHour});
 }
 module.exports={createEstateRlusdForwardAllocationStore,splitBudget};

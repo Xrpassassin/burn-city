@@ -47,7 +47,7 @@ function remoteAuditSource(){
  const anchor=" const {inspectEstateLiabilityRows}=require(path.join(liveRoot,'server','estate-legacy-liability-inventory.js'));";
  if(!SCRIPT.includes(anchor))throw Error('liability_module_injection_anchor_missing');
  return SCRIPT.replace(anchor,
-  ' const review={exports:{}}; (function(module){\\n'+code+'\\n})(review);\\n const inspectEstateLiabilityRows=review.exports.inspectEstateLiabilityRows;');
+  ' const review={exports:{}}; (function(module){\n'+code+'\n})(review);\n const inspectEstateLiabilityRows=review.exports.inspectEstateLiabilityRows;');
 }
 async function remote(){
  const token=process.env.FLY_API_TOKEN;

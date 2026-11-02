@@ -6,6 +6,7 @@ on:
       - 'scripts/estate-legacy-customer-attribution-readonly.cjs'
       - 'scripts/estate-legacy-lp-custody-check.cjs'
       - 'scripts/estate-legacy-current-balances.cjs'
+      - 'scripts/estate-legacy-asset-flow-audit.cjs'
       - '.github/workflows/estates-legacy-capital-attribution-audit.yml'
 permissions:
   contents: read
@@ -71,3 +72,8 @@ jobs:
       - name: Inspect current IMG PLX XRP treasury assets even when LP custody fails
         if: always()
         run: node scripts/estate-legacy-current-balances.cjs
+      - name: Trace validated treasury IMG PLX changes after legacy withdrawal
+        if: always()
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node scripts/estate-legacy-asset-flow-audit.cjs

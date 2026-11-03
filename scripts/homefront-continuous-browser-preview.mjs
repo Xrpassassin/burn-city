@@ -63,7 +63,12 @@ const responseWithLatency = (res, code, value) => {
   } else json(res, code, value);
 };
 const json = (res, code, value) => {
-  if (res.previewPath) apiResponses.push({ path: res.previewPath, acct: res.previewAccount, status: code, error: value?.error || null, ack: value?.inputAck?.sequence });
+  if (res.previewPath) apiResponses.push({
+    path: res.previewPath, acct: res.previewAccount, status: code,
+    error: value?.error || null, ack: value?.inputAck?.sequence,
+    x: value?.inputAck?.x, z: value?.inputAck?.z,
+    elapsedMs: value?.inputAck?.elapsedMs
+  });
   res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' });
   res.end(JSON.stringify(value));
 };
@@ -77,7 +82,8 @@ const server = createServer(async (req, res) => {
       const chunks = [];
       for await (const part of req) chunks.push(part);
       const raw = Buffer.concat(chunks).toString('utf8');
-      apiCalls.push({ acct, method: req.method, pathname: url.pathname });
+      apiCalls.push({ acct, method: req.method, pathname: url.pathname,
+        input: url.pathname.endsWith('/move-input') && raw ? JSON.parse(raw) : undefined });
       res.previewPath = url.pathname; res.previewAccount = acct;
       const served = await Homefront.handle(req, res, url, {
         json: responseWithLatency, ip: '127.0.0.1', gate: () => false,
@@ -270,7 +276,7 @@ try {
     mobileDirection, beforeTouch: { x: beforeTouch.x, z: beforeTouch.z },
     afterTouch: { x: afterTouch.x, z: afterTouch.z },
     mobileMoved, movementPackets: mobileSends.length,
-    responses: apiResponses.filter(c => c.acct === B &&
+    commands: mobileSends.map(c => c.input), responses: apiResponses.filter(c => c.acct === B &&
       c.path === '/api/homefront/world/move-input').slice(-9),
     status: await touch.locator('#graveyard3dStatus').innerText(),
     errors: pageErrors

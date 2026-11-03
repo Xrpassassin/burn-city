@@ -1,5 +1,5 @@
 // Optional Homefront 3D movement controller. Visual prediction never modifies game authority.
-import { releasePredictionBlend } from './homefront-presentation-smoothing.mjs';
+import { releasePredictionBlend, clampPredictionLead } from './homefront-presentation-smoothing.mjs';
 export const INPUT_SEND_INTERVAL_MS = 125;
 export const WALK_SPEED = 8;
 export const SPRINT_SPEED = 12;
@@ -54,6 +54,9 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       predicted.x += (server.x - predicted.x) * 0.35;
       predicted.z += (server.z - predicted.z) * 0.35;
     }
+    // A server ack can move the authoritative anchor enough that the old
+    // 35%-toward-server blend still leaves more than 1.5 units of visual lead.
+    predicted = clampPredictionLead(predicted, server, MAX_PREDICTION_LEAD);
   }
   function step(direction, sprint, now, dt) {
     if (Number.isFinite(now)) lastFrameAt = Math.max(lastFrameAt, now);
@@ -64,12 +67,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       const speed = sprint ? SPRINT_SPEED : WALK_SPEED;
       predicted.x += vec.x * Math.min(0.05, dt) * speed;
       predicted.z += vec.z * Math.min(0.05, dt) * speed;
-      const lead = Math.hypot(predicted.x - server.x, predicted.z - server.z);
-      if (lead > MAX_PREDICTION_LEAD) {
-        const k = MAX_PREDICTION_LEAD / lead;
-        predicted.x = server.x + (predicted.x - server.x) * k;
-        predicted.z = server.z + (predicted.z - server.z) * k;
-      }
+      predicted = clampPredictionLead(predicted, server, MAX_PREDICTION_LEAD);
     } else {
       // Release correction is elapsed-time based, not a fixed percent per frame.
       const recovery = releasePredictionBlend(dt);

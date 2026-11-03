@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { smoothFacing, facingFromMovement, cameraFollowAnchor, releasePredictionBlend, clampPredictionLead } from '../client/arena/homefront-presentation-smoothing.mjs';
 import { createContinuousInput, MAX_PREDICTION_LEAD } from '../client/arena/homefront-continuous-input.mjs';
 import { worldMove } from '../client/arena/homefront-view.mjs';
@@ -105,5 +106,13 @@ correction.sync({ enabled: true, nextSequence: 9 }, { x: -1.85, z: 0 }, 1500);
 assert(Math.hypot(correction.position().x + 1.85, correction.position().z) <= MAX_PREDICTION_LEAD + 1e-9,
   'polling GET correction also obeys 1.5-unit limit');
 correction.disable('test_end');
+
+// Rendering must not rotate the character from input which gameplay has
+// already suppressed (legacy travel or party-leader control).
+const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
+assert.match(scene, /const canDirectStep = continuousInput\\.enabled && !moving &&/,
+  'walking and turn presentation share a guarded movement eligibility decision');
+assert.match(scene, /if \\(canDirectStep && localActor\\)/,
+  'avatar facing does not react to disallowed movement controls');
 
 console.log('Homefront presentation smoothing: 30/60/120 FPS, wrap, analog, release, shared camera anchor, bounded authoritative correction passed');

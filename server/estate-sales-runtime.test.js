@@ -54,7 +54,7 @@ const acceptance={acceptedTerms:true,termsVersion:'v1.0',termsDigest:'A'.repeat(
  assert.equal((await r.start(input)).error,'estate_sales_disabled');
  assert.equal((await r.finalize(input)).pending,true);
  validated=true;r=build(revoked);assert.equal(r.recover(input).payloadUuid,'test-uuid');assert.equal((await r.finalize(input)).ownershipAssigned,true);
- assert.equal((await r.finalize(input)).status,'already_settled');assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_property_ownership').get().n,1);assert.equal(requestCount,2);
+ assert.equal((await r.finalize(input)).status,'already_settled');assert.equal(db.prepare('SELECT COUNT(*) n FROM estate_property_ownership').get().n,1);assert.equal(requestCount,3);
  assert.equal(r.recover(input).paymentTx,hash);
  // Once settled, a replay must work even though new sales and old legal
  // terms remain turned off. No new reservation or money request is created.

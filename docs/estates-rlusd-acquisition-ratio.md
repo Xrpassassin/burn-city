@@ -28,3 +28,13 @@ This creates a *sizing target*, not a quote. It does not assume that the amounts
 6. Test the actual `tfTwoAsset` field combination including the optional `LPTokenOut` interpretation against the active network implementation on a **disposable testnet account**. Official AMMDeposit reference documents `Amount` / `Amount2`; the published XLS-0030 proposal includes optional `LPTokenOut`. Do not silently remove a minimum-LP safeguard or claim production compatibility solely from static tests.
 
 The original frozen treasury and property-sale gates stay unchanged. A successful read-only preflight or merge does **not** authorize real customer sales, automatic pool funding, distributions, or legal launch.
+
+## Disabled executor integration and recovery
+
+The IMG/RLUSD-only acquisition path in `server/estate-liquidity-runtime.js` now computes the first IMG acquisition budget from a **single validated ledger** containing target AMM reserves plus the XRP/IMG and XRP/RLUSD reference pools. It retains the price-deviation and per-acquisition impact caps. After the first IMG swap validates, the prior signed transaction's context supplies a durable `plannedRlusdBudgetDrops` for the second leg. The RLUSD purchase cannot consume an unspent IMG allowance just because the first trade used less than `SendMax`; that XRP remains principal.
+
+If a transaction was already signed before this deployment, the existing immutable intent and its original budget are reconciled unchanged. The new planner never overwrites prior signed transaction blobs or reparses prior purchases as reward income.
+
+The new integration test `server/estate-rlusd-acquisition-runtime.test.js` checks a deliberate 80-bps pool/reference price mismatch, exact first/second SendMax allocation, ledger-proved two-sided deposits, preservation of leftover principal, crash-safe restart, and continued blocking of out-of-policy swaps.
+
+**Still pending:** A validated end-to-end policy-v2 testnet with genuine asset acquisition and full journal reconciliation; staged funding across large trades; production pool staging and owner terms/legal clearance. The planning improvement does **not** change the default-off production switches or release the treasury pause.

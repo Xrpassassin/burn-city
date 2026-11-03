@@ -3,6 +3,7 @@
 // purchase capacity is NOT a commitment to fill, approved sale, or APY.
 // Future customer deposits are property purchase principal, never AMM yield.
 const {splitEstateCapital,POLICY}=require('./estate-capital-allocation');
+const {previewEstateStagedFunding}=require('./estate-rlusd-staged-funding-preview');
 function inspectEstateTierFundingCapacity({tiers,indicativeMaxPurchaseDrops}={}){
  if(!Array.isArray(tiers)||tiers.length===0||POLICY.version!==2||
     POLICY.imgRlusdBps!==9900||POLICY.operatingReserveBps!==100)
@@ -18,12 +19,16 @@ function inspectEstateTierFundingCapacity({tiers,indicativeMaxPurchaseDrops}={})
    throw Error('invalid_property_sale_tier');
   seen.add(t.id);
   const price=BigInt(t.price)*1000000n,capital=splitEstateCapital(price.toString());
+  const stagedFundingPreview=previewEstateStagedFunding({
+   earmarkedCapitalDrops:capital.imgRlusdDrops,
+   indicativeMaxPurchaseDrops});
   return Object.freeze({tier:t.id,priceXrp:t.price,
    purchaseDrops:price.toString(),
    plannedImgRlusdCapitalDrops:capital.imgRlusdDrops,
    plannedOperatingReserveDrops:capital.operatingReserveDrops,
    indicativeSinglePurchaseWithinMaxImpact:price<=max,
    immediateFullSinglePurchaseFundingVerified:false,
+   stagedFundingPreview,
    newPurchasePrincipalIsNotIncome:true});
  });
  return Object.freeze({
@@ -35,6 +40,7 @@ function inspectEstateTierFundingCapacity({tiers,indicativeMaxPurchaseDrops}={})
    rows.filter(x=>!x.indicativeSinglePurchaseWithinMaxImpact).map(x=>x.tier),
   simultaneousPurchaseAndSlippageProtectionNotVerified:true,
   stagingOrDeeperLiquidityReviewNeeded:rows.some(x=>!x.indicativeSinglePurchaseWithinMaxImpact),
+  stagedFundingAvailableOnlyAsReadOnlyPreview:true,
   automaticFundingAuthorized:false,propertySalesAuthorized:false
  });
 }

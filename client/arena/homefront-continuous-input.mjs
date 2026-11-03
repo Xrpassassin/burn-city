@@ -19,6 +19,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
   let enabled = false, nextSequence = 0, pending = false, lastSentAt = -Infinity;
   let sentMotion = false, lastAckAt = -Infinity, server = null, predicted = null, generation = 0;
   let readyAfter = -Infinity, fatalFallback = false;
+  let lastFrameAt = -Infinity, networkFailureStreak = 0;
 
   function disable(reason = 'disabled') {
     const hadMode = enabled;
@@ -54,6 +55,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
     }
   }
   function step(direction, sprint, now, dt) {
+    if (Number.isFinite(now)) lastFrameAt = Math.max(lastFrameAt, now);
     if (!enabled || !server || !predicted) return;
     if (now < readyAfter) { predicted = { ...server }; return; }
     const vec = normalizeDirection(direction);
@@ -82,7 +84,8 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       if (!enabled || generation !== requestGeneration) return;
       if (!data?.inputAck || data.inputAck.sequence !== command.sequence) throw new Error('movement_ack_mismatch');
       correct(data.inputAck);
-      lastAckAt = now;
+      networkFailureStreak = 0;
+      lastAckAt = Math.max(now, lastFrameAt);
       onSnapshot(data, now);
     }).catch(error => {
       if (!enabled || generation !== requestGeneration) return;
@@ -94,11 +97,18 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       } else if (code === 'move_cooldown') {
         // Avoid briefly showing movement that the server cannot accept after a fresh spawn.
         correct(server, true);
-        readyAfter = now + 200;
+        readyAfter = Math.max(now, lastFrameAt) + 200;
       } else {
-        // Network failures cannot grant a longer speculative lead.
+        // Network failures cannot grant a longer speculative lead. Base
+        // backoff on the latest frame clock, not the timestamp captured
+        // before a 1.8-second fetch timeout.
         correct(server, true);
-        readyAfter = now + 350;
+        networkFailureStreak = Math.min(5, networkFailureStreak + 1);
+        readyAfter = Math.max(now, lastFrameAt) + Math.min(4000, 350 * (2 ** (networkFailureStreak - 1)));
+        if (networkFailureStreak >= 5) {
+          fatalFallback = true;
+          disable('movement_network_unavailable');
+        }
       }
     }).finally(() => { if (generation === requestGeneration) pending = false; });
   }

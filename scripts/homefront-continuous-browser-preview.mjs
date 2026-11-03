@@ -108,7 +108,10 @@ try {
     '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
     '--ignore-gpu-blocklist', '--no-sandbox', '--no-zygote'
   ] });
-  const desktop = await browser.newContext({ viewport: { width: 1280, height: 850 } });
+  // Independent BrowserContexts are mandatory: separate pages in one context
+  // share localStorage and would overwrite each other's fake bearer identity.
+  const desktopA = await browser.newContext({ viewport: { width: 1280, height: 850 } });
+  const desktopB = await browser.newContext({ viewport: { width: 1280, height: 850 } });
   const pageErrors = [];
   async function openPage(context, token, name) {
     const page = await context.newPage();
@@ -124,8 +127,8 @@ try {
     await page.screenshot({ path: output + '/' + name + '-initial.png' });
     return page;
   }
-  const first = await openPage(desktop, 'preview-token-a', 'desktop-a');
-  const second = await openPage(desktop, 'preview-token-b', 'desktop-b');
+  const first = await openPage(desktopA, 'preview-token-a', 'desktop-a');
+  const second = await openPage(desktopB, 'preview-token-b', 'desktop-b');
   const view = first.locator('#graveyard3d .hf-viewbtn');
   assert(await view.isVisible(), 'actual camera toggle rendered');
   await view.click();
@@ -175,7 +178,8 @@ try {
     realServerMovement: true, desktopCameraToggle: true, pointerOrbitExercised: true,
     visibleRemoteTestPlayer: true, mobileCanvasLoaded: true, pageErrors: [] }));
   await mobile.close();
-  await desktop.close();
+  await desktopA.close();
+  await desktopB.close();
 } finally {
   if (browser) await browser.close();
   await new Promise(ok => server.close(ok));

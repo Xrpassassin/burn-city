@@ -75,7 +75,7 @@ export function createZombieFX(scene, { low = false } = {}) {
   // Nearby detailed rigs replace procedural copies; distant hordes remain instanced.
   // ?zombieModels=0 disables them, ?zombieModels=1 explicitly previews them.
   // Reduced-motion and data-saver preferences are respected by the auto path.
-  let zombieModelPilot = null, pilotCleared = false;
+  let zombieModelPilot = null;
   const modelPolicy = zombieModelPolicy({
     low,
     search: typeof location !== 'undefined' ? location.search : '',
@@ -92,10 +92,7 @@ export function createZombieFX(scene, { low = false } = {}) {
         maxModels: modelPolicy.maxModels,
         maxDistance: modelPolicy.maxDistance
       }))
-      .then(pilot => {
-        if (pilotCleared) { pilot.clear(); return; }
-        zombieModelPilot = pilot;
-      })
+.then(pilot => { zombieModelPilot = pilot; })
       .catch(() => { zombieModelPilot = null; }); // GLB failure keeps the instanced procedural fallback.
   }
   const hit = new THREE.Color(0xffd0a0), burnC = new THREE.Color(0xff5a10), charC = new THREE.Color(0x1a1410), tmp = new THREE.Color(), tmp2 = new THREE.Color(), tmp3 = new THREE.Color(), tmp4 = new THREE.Color();
@@ -296,7 +293,7 @@ export function createZombieFX(scene, { low = false } = {}) {
       zombieModelPilot?.react(e.id, 'HitReact');
     } },
     armorBreak(e) { const z = zs.get(e.id); if (z) { z.armorBroken = 1; z.fl = 1; z.flash = 1; zombieModelPilot?.react(e.id, 'HitReact'); } },
-    clear() { zombieModelPilot?.clear(); pilotCleared = true; fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; for (const tr of ravagerTracers) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); } ravagerTracers.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
+    clear() { zombieModelPilot?.clear(); fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; for (const tr of ravagerTracers) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); } ravagerTracers.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
     // st: interpolated state; me: predicted self {x,z,yaw,firing}; colorOf(id) -> THREE.Color
     update(dt, st, me, myId, colorOf, flameCol, nftOf, srv) {
       t += dt; const seen = new Set(); nb = 0; for (let k = ravagerTracers.length - 1; k >= 0; k--) { const tr = ravagerTracers[k]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.075); if (tr.left <= 0) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); ravagerTracers.splice(k, 1); } }

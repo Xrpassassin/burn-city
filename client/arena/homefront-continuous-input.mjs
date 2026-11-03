@@ -40,8 +40,12 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       readyAfter = now + Math.min(1000, Math.max(0, Number.isFinite(protocol.readyInMs) ? protocol.readyInMs : 0));
       return;
     }
-    nextSequence = Math.max(nextSequence, protocol.nextSequence);
-    // A delayed GET must not roll an acknowledged player position backwards.
+    // A world GET sent before an acknowledged movement can arrive much later.
+    // Its protocol cursor is older than the next locally allocated command,
+    // so its position must never roll our presentation back. Still honor an
+    // explicit server disable above, even when the refresh is stale.
+    if (protocol.nextSequence < nextSequence) return;
+    nextSequence = protocol.nextSequence;
     if (!pending && now - lastAckAt >= 1200) correct(point);
   }
   function correct(point, blocked = false) {

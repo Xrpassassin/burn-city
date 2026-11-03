@@ -76,7 +76,7 @@ function previewRlusdRealization({withdrawalProof,capitalLots,
  const proceeds=complete?rlusdReceived+imgNet:0n;
  const required=basisConsumed+previousLoss+costs;
  const profit=complete&&proceeds>required?proceeds-required:0n;
- const nextLoss=complete&&required>proceeds?required-proceeds:previousLoss;
+ const nextLoss=complete?(required>proceeds?required-proceeds:0n):previousLoss;
  return Object.freeze({
   withdrawalHash:withdrawalProof.txHash.toUpperCase(),
   sourcePool:withdrawalProof.poolAccount,

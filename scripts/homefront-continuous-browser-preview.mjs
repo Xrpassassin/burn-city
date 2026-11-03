@@ -51,6 +51,15 @@ const previewHTML = '<!doctype html><html><head><meta name="viewport" content="w
   '<div id="explorationObjective"></div>' +
   '<script type="module" src="./homefront-graveyard-3d.js"></script></body></html>';
 const apiResponses = [];
+// Optional response delay models WAN acknowledgements, only in this isolated
+// in-memory CI server; requests still use the real Homefront world handler.
+let movementAckDelayMs = 0;
+const responseWithLatency = (res, code, value) => {
+  if (movementAckDelayMs && res.previewAccount === A &&
+      res.previewPath === '/api/homefront/world/move-input') {
+    setTimeout(() => json(res, code, value), movementAckDelayMs);
+  } else json(res, code, value);
+};
 const json = (res, code, value) => {
   if (res.previewPath) apiResponses.push({ path: res.previewPath, acct: res.previewAccount, status: code, error: value?.error || null, ack: value?.inputAck?.sequence });
   res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -69,7 +78,7 @@ const server = createServer(async (req, res) => {
       apiCalls.push({ acct, method: req.method, pathname: url.pathname });
       res.previewPath = url.pathname; res.previewAccount = acct;
       const served = await Homefront.handle(req, res, url, {
-        json, ip: '127.0.0.1', gate: () => false,
+        json: responseWithLatency, ip: '127.0.0.1', gate: () => false,
         who: () => acct ? { acct } : null,
         body: async () => raw ? JSON.parse(raw) : {},
         store
@@ -159,14 +168,70 @@ try {
   const remote = World.snapshot(store.load('homefront-world.json'), B, Date.now());
   assert(remote.players.some(player => player.id !== remote.self.id),
     'remote test account can see the walking player in the authoritative snapshot');
+  // Prove the SECOND browser actually consumes an updated player snapshot.
+  // This checks live in-browser multiplayer polling rather than only calling
+  // World.snapshot from Node and claiming client synchronization.
+  let remoteAvatarPosition = null;
+  for (let attempt = 0; attempt < 2 && !remoteAvatarPosition; attempt++) {
+    const response = await second.waitForResponse(r =>
+      new URL(r.url()).pathname === '/api/homefront/world' &&
+      r.request().method() === 'GET' && r.status() === 200,
+      { timeout: 14500 });
+    const snapshot = await response.json();
+    const other = snapshot.players?.find(p => p.label !== 'You');
+    if (other && Math.hypot(other.x - after.x, other.z - after.z) < 0.06) {
+      remoteAvatarPosition = { x: other.x, z: other.z };
+    }
+  }
+  assert(remoteAvatarPosition, 'second live browser receives first player updated authoritative position');
   const canvas = first.locator('#graveyard3d canvas').first();
   const bounds = await canvas.boundingBox();
   assert(bounds, 'real 3D canvas has a box for right-button orbit');
+  // Camera orbit must visibly change the actual rendered pixels. Exclude
+  // scene animation from the verdict by sampling a no-drag control interval.
+  const beforeOrbit = await first.screenshot();
+  await first.waitForTimeout(180);
+  const idleOrbit = await first.screenshot();
   await first.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await first.mouse.down({ button: 'right' });
   await first.mouse.move(bounds.x + bounds.width / 2 + 150, bounds.y + bounds.height / 2 - 40, { steps: 10 });
   await first.mouse.up({ button: 'right' });
-  await first.screenshot({ path: output + '/desktop-a-orbit.png' });
+  const afterOrbit = await first.screenshot({ path: output + '/desktop-a-orbit.png' });
+  const orbitMetrics = await first.evaluate(async images => {
+    const pixels = async base64 => {
+      const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width; canvas.height = bitmap.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0);
+      return { width: canvas.width, height: canvas.height,
+        values: ctx.getImageData(0, 0, canvas.width, canvas.height).data };
+    };
+    const frames = await Promise.all(images.map(pixels));
+    const contrast = (left, right) => {
+      let samples = 0, changed = 0;
+      const width = Math.min(left.width, right.width);
+      const height = Math.min(left.height, right.height);
+      for (let y = 80; y < height * .72; y += 12) {
+        for (let x = width * .15; x < width * .85; x += 12) {
+          const ix = (Math.floor(y) * left.width + Math.floor(x)) * 4;
+          const jx = (Math.floor(y) * right.width + Math.floor(x)) * 4;
+          const a = left.values, b = right.values;
+          const difference = Math.abs(a[ix] - b[jx]) +
+            Math.abs(a[ix + 1] - b[jx + 1]) + Math.abs(a[ix + 2] - b[jx + 2]);
+          samples++;
+          if (difference > 42) changed++;
+        }
+      }
+      return changed / Math.max(1, samples);
+    };
+    return { idle: contrast(frames[0], frames[1]),
+      afterRightDrag: contrast(frames[1], frames[2]) };
+  }, [beforeOrbit, idleOrbit, afterOrbit].map(b => b.toString('base64')));
+  assert(orbitMetrics.afterRightDrag > Math.max(0.045, orbitMetrics.idle + 0.025),
+    'right-button orbit must produce a measurable rendered camera change: ' +
+    JSON.stringify(orbitMetrics));
   const mobile = await browser.newContext({
     viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block'
   });
@@ -202,12 +267,33 @@ try {
   assert(mobileSends.length >= 2, 'mobile touch joystick sent repeated actual movement packets');
   assert(mobileMoved > 0.12, 'mobile joystick moves authoritative player position; observed ' + mobileMoved);
   await touch.screenshot({ path: output + '/mobile-b-walked.png' });
+  // Simulate a bounded 220ms movement-ACK delay, not a fake position or
+  // a bypass to World.moveInput. No other account is affected.
+  movementAckDelayMs = 220;
+  const beforeLag = store.load('homefront-world.json').players[A];
+  const priorPackets = apiCalls.filter(c => c.acct === A &&
+    c.pathname === '/api/homefront/world/move-input').length;
+  await first.keyboard.down(dir.key);
+  await first.waitForTimeout(1100);
+  await first.keyboard.up(dir.key);
+  await first.waitForTimeout(500);
+  movementAckDelayMs = 0;
+  const afterLag = store.load('homefront-world.json').players[A];
+  const lagMovement = Math.hypot(afterLag.x - beforeLag.x, afterLag.z - beforeLag.z);
+  const lagPackets = apiCalls.filter(c => c.acct === A &&
+    c.pathname === '/api/homefront/world/move-input').length - priorPackets;
+  assert(lagPackets >= 2, '220ms delayed ACK still allows repeated real walking inputs');
+  assert(lagMovement > 0.12 && lagMovement < 14,
+    'delayed-ACK phase moves an authoritative actor within bounds: ' + lagMovement);
   assert.deepEqual(pageErrors, [], 'desktop and mobile have no uncaught JS errors');
   console.log('HOMEFRONT ISOLATED CHROMIUM SMOKE PASSED');
   console.log(JSON.stringify({ distance: Number(moved.toFixed(3)), movementPackets: sent.length,
     mobileDistance: Number(mobileMoved.toFixed(3)), mobileMovementPackets: mobileSends.length,
     realServerMovement: true, desktopCameraToggle: true, pointerOrbitExercised: true,
-    visibleRemoteTestPlayer: true, mobileCanvasLoaded: true, mobileJoystickExercised: true, pageErrors: [] }));
+    visibleRemoteTestPlayer: true, remoteBrowserObservedPosition: remoteAvatarPosition,
+    cameraOrbitPixelDifference: orbitMetrics, delayedAckMs: 220,
+    delayedAckMovement: Number(lagMovement.toFixed(3)), delayedAckPackets: lagPackets,
+    mobileCanvasLoaded: true, mobileJoystickExercised: true, pageErrors: [] }));
   await mobile.close();
   await desktopA.close();
   await desktopB.close();

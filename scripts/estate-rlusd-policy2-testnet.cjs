@@ -42,8 +42,11 @@ async function accountBalance(wallet){
  assert.equal(r.validated,true);
  return BigInt(r.account_data.Balance);
 }
-async function walletFromFaucet(label){
- const wallet=(await client.fundWallet()).wallet;
+async function walletFromFaucet(label,amount){
+ // The public faucet often defaults to 100 test XRP; independent 600-XRP
+ // deep-market makers explicitly need a larger but faucet-permitted grant.
+ const funded=await client.fundWallet(null,amount?{amount:String(amount)}:undefined);
+ const wallet=funded.wallet;
  assert(wallet?.classicAddress,'disposable_wallet_faucet_failed:'+label);
  console.log('Fresh disposable public-testnet wallet ready:',label);
  return wallet;
@@ -82,8 +85,8 @@ async function run(){
   // for both acquisition pools without depending on faucet amount >1000.
   const [issuer,makerImg,makerRlusd,makerPair,treasury,owner]=[
    await walletFromFaucet('issuer'),
-   await walletFromFaucet('xrp_img_maker'),
-   await walletFromFaucet('xrp_mock_rlusd_maker'),
+   await walletFromFaucet('xrp_img_maker','700'),
+   await walletFromFaucet('xrp_mock_rlusd_maker','700'),
    await walletFromFaucet('img_mock_rlusd_maker'),
    await walletFromFaucet('treasury'),
    await walletFromFaucet('property_buyer')

@@ -7,7 +7,7 @@ export function createHomefrontMoveTransport({
   fetchImpl = globalThis.fetch,
   timeoutMs = HOMEFRONT_INPUT_TIMEOUT_MS
 } = {}) {
-  if (typeof api !== 'string' || !api.startsWith('/')) throw new Error('invalid_homefront_api_base');
+  if (typeof api !== 'string' || !(/^(https:\/\/[^/?#]+|http:\/\/(?:localhost|127\\.0\\.0\\.1)(?::\\d+)?|\/[^?#]*)\/?$/.test(api))) throw new Error('invalid_homefront_api_base');
   if (typeof token !== 'function' || typeof fetchImpl !== 'function') throw new Error('homefront_transport_dependencies_required');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 4000) throw new Error('invalid_homefront_movement_timeout');
   return async command => {

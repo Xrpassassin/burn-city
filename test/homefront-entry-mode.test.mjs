@@ -46,13 +46,13 @@ direct.setResponse({ self: { x: 2, z: 3 } });
 await direct.run('/api/homefront/world/enter', {});
 assert.equal(direct.getMode(), 'expedition',
   'direct expedition entry must reveal the Graveyard panel');
-assert.deepEqual(direct.changes, ['expedition'],
+assert.deepEqual(Array.from(direct.changes), ['expedition'],
   'entry makes a single intentional mode transition');
 direct.setResponse({ self: { x: 2.2, z: 3 } });
 await direct.run('/api/homefront/world/move', { x: 2.2, z: 3 });
 assert.equal(direct.getMode(), 'expedition',
   'regular movement does not alter the selected presentation mode');
-assert.deepEqual(direct.changes, ['expedition']);
+assert.deepEqual(Array.from(direct.changes), ['expedition']);
 direct.setResponse({ self: null });
 await direct.run('/api/homefront/world/leave', {});
 assert.equal(direct.getMode(), 'home',

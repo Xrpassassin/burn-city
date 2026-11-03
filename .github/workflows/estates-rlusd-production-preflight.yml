@@ -25,6 +25,7 @@ jobs:
           node server/estate-rlusd-tier-funding-capacity.test.js
           node server/estate-rlusd-staged-funding-preview.test.js
           node server/estate-rlusd-two-asset-deposit-preview.test.js
+          node server/estate-rlusd-acquisition-ratio-preview.test.js
       - name: Inspect ACTUAL Fly runtime and public IMG/RLUSD AMM without writes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}

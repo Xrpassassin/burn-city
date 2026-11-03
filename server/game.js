@@ -134,7 +134,7 @@ class Room {
       if ((this.waveDelay -= dt) <= 0) { this.wave++; const np = Math.max(1, ps.filter(p => !p.spectator).length); this.toSpawn = Math.round((6 + this.wave * 4) * Z.scaleN(np)); this.waveTotal = this.toSpawn; this.spawnT = 2.5; this.waveDelay = Z.waveGap(np); ev.push({ e: 'wave', n: this.wave });
         // Warn before the first spawn, without modifying ranked or daily modes.
         this.freeplayWavePlan = !this.ranked && !this.daily ? Director.planFreeplayWave({roomId:this.id,mapId:this.mapId,wave:this.wave,partySize:np}) : null;
-        if (this.freeplayWavePlan?.warning) ev.push({e:'zpressure',kind:this.freeplayWavePlan.style,wave:this.wave});
+        if (this.freeplayWavePlan?.warning) ev.push({e:'zpressure',kind:this.mapId==='cosmodrome'&&this.wave>=8&&this.wave%4===0?'warden':this.freeplayWavePlan.style,wave:this.wave});
         for (const p of ps) if (p.draft) takeDraft(p, 0, ev);
         for (const p of ps) if (!p.alive && !this.ranked) { this.spawn(p); ev.push({ e: 'spawn', id: p.id, x: q(p.x), z: q(p.z) }); } }
     }

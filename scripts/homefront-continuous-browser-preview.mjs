@@ -284,6 +284,12 @@ try {
   assert(mobileSends.length >= 2, 'mobile touch joystick sent repeated actual movement packets');
   assert(mobileMoved > 0.12, 'mobile joystick moves authoritative player position; observed ' + mobileMoved);
   await touch.screenshot({ path: output + '/mobile-b-walked.png' });
+  // Multiplayer and mobile rendering were checked above. Stop both extra
+  // WebGL scenes before testing latency: a three-canvas headless CI runner
+  // can fall below 1 FPS and give misleading elapsedMs=0 server baselines.
+  await mobile.close();
+  await desktopB.close();
+  await first.bringToFront();
   // Simulate a bounded 220ms movement-ACK delay, not a fake position or
   // a bypass to World.moveInput. No other account is affected.
   // Reinitialize the scene after the orbit check: its right-drag heading is
@@ -302,9 +308,9 @@ try {
   const priorPackets = apiCalls.filter(c => c.acct === A &&
     c.pathname === '/api/homefront/world/move-input').length;
   await first.keyboard.down(lagDir.key);
-  await first.waitForTimeout(1100);
+  await first.waitForTimeout(2100);
   await first.keyboard.up(lagDir.key);
-  await first.waitForTimeout(500);
+  await first.waitForTimeout(550);
   movementAckDelayMs = 0;
   const afterLag = store.load('homefront-world.json').players[A];
   const lagMovement = Math.hypot(afterLag.x - beforeLag.x, afterLag.z - beforeLag.z);
@@ -381,9 +387,7 @@ try {
     blurNeutralPacket: neutralAfterMotion, blurIdleDrift: Number(blurIdleDrift.toFixed(4)),
     serverFeatureKillSwitchVerified: true,
     mobileCanvasLoaded: true, mobileJoystickExercised: true, pageErrors: [] }));
-  await mobile.close();
   await desktopA.close();
-  await desktopB.close();
 } finally {
   if (browser) await browser.close();
   await new Promise(ok => server.close(ok));

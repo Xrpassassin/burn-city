@@ -20,12 +20,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Test per-tier purchase principal and market depth guard
+        run: node server/estate-rlusd-tier-funding-capacity.test.js
       - name: Inspect ACTUAL Fly runtime and public IMG/RLUSD AMM without writes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
+          import {createRequire} from 'node:module';
+          const require=createRequire(process.cwd()+'/package.json');
+          const {inspectEstateTierFundingCapacity}=require('./server/estate-rlusd-tier-funding-capacity');
+          const catalog=require('./client/data/estate-catalog.json');
           const poolAccount='rhPErqSNp1PzSDTgQpK4F637AEKHfbhR4f';
           const endpoint='https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec';
           if(!process.env.FLY_API_TOKEN)throw Error('fly_credential_missing');
@@ -69,7 +75,12 @@ jobs:
             status.capitalAllocationPolicy?.version!==2||
             status.capitalAllocationPolicy?.imgRlusdBps!==9900)
             throw Error('forward_purchase_policy_mismatch');
+          const fundingCapacity=inspectEstateTierFundingCapacity({
+            tiers:catalog.tiers,
+            indicativeMaxPurchaseDrops:String(pool.indicativeMaxPurchaseDrops)});
           const blockers=[
+            ...(fundingCapacity.stagingOrDeeperLiquidityReviewNeeded?[
+              'higher_tiers_exceed_indicative_single_purchase_funding_capacity']:[]),
             ...(runtime.pauseFile?.paused||runtime.pauseEnvironment?['treasury_paused']:[]),
             ...(!status.salesEnabled?['property_sales_disabled']:[]),
             ...(!status.imgRlusdFundingEnabled?['img_rlusd_funding_disabled']:[]),
@@ -95,6 +106,8 @@ jobs:
             priceDeviationBps:pool.priceDeviationBps,
             indicativeMaxPurchaseDrops:pool.indicativeMaxPurchaseDrops,
             poolTrustlineReadiness:pool.trustlines,
+            tierFundingCapacity:fundingCapacity.tiers,
+            tiersNeedingFundingDepthReview:fundingCapacity.tiersExceedingIndicativeSinglePurchaseCapacity,
             blockers,
             legalApprovalIndependentlyVerified:false,
             actualCustomerPaymentTestVerified:false,
@@ -107,6 +120,8 @@ jobs:
             '- Deployed commit: `'+deployed.commit.slice(0,12)+'`\n'+
             '- Validated pool ledger: '+pool.ledgerIndex+'\n'+
             '- Pool ready for verified identity/trustline/market checks: '+pool.ready+'\n'+
+            '- Tiers exceeding indicative single-trade capacity: '+
+              (fundingCapacity.tiersExceedingIndicativeSinglePurchaseCapacity.join(', ')||'none')+'\n'+
             '- Live purchases: '+status.salesEnabled+'; future rewards payable: '+output.futureRewardsPayable+'\n'+
             '- Technical blockers: '+(blockers.length?blockers.join(', '):'none reported')+'\n\n'+
             '**This audit never authorizes legal release, unpauses treasury, signs, transfers, or starts distributions.**\n');

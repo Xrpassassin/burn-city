@@ -3,6 +3,10 @@
 // Pure validation/math for a future opt-in authoritative Homefront input endpoint.
 // This module does NOT move players, persist state, or bypass the legacy move cooldown.
 const MAX_INPUT_DT_MS = 125;
+// A low-FPS mobile client or a delayed ACK can legitimately send input at
+// 3–4 Hz. Permit these bounded gaps without allowing stored-up travel.
+// A truly stalled/backgrounded connection still re-establishes a baseline.
+const MAX_INPUT_RESUME_GAP_MS = 750;
 const MAX_INPUT_MAGNITUDE = 1;
 const INPUT_EPSILON = 1e-6;
 
@@ -21,10 +25,11 @@ function validateInput(command, lastSequence = -1) {
 function displacementForInput(input, { now, previousAt, walkSpeed, sprintSpeed }) {
   if (!Number.isFinite(now) || !Number.isFinite(previousAt) || now < previousAt) throw new Error('invalid_server_time');
   if (!Number.isFinite(walkSpeed) || !Number.isFinite(sprintSpeed) || walkSpeed < 0 || sprintSpeed < walkSpeed) throw new Error('invalid_movement_speed');
-  // No distance credit is earned on the first packet or after a stalled connection.
-  // A resumed stream must establish a fresh server-time baseline before moving.
+  // The first packet and long disconnects establish a server-time baseline.
+  // Brief 250–750ms render/network gaps may still move, but each packet earns
+  // AT MOST 125ms of movement; unreceived input time is never banked.
   const gapMs = now - previousAt;
-  const elapsedMs = gapMs > MAX_INPUT_DT_MS * 2 ? 0 : Math.min(MAX_INPUT_DT_MS, gapMs);
+  const elapsedMs = gapMs > MAX_INPUT_RESUME_GAP_MS ? 0 : Math.min(MAX_INPUT_DT_MS, gapMs);
   const speed = input.sprint ? sprintSpeed : walkSpeed;
   const seconds = elapsedMs / 1000;
   return Object.freeze({ x: input.x * speed * seconds, z: input.z * speed * seconds, elapsedMs });
@@ -51,4 +56,4 @@ function slideAlongBlockedStep(from, desired, canTraverse) {
   return Object.freeze({ x: from.x, z: from.z });
 }
 
-module.exports = { MAX_INPUT_DT_MS, validateInput, displacementForInput, slideAlongBlockedStep };
+module.exports = { MAX_INPUT_DT_MS, MAX_INPUT_RESUME_GAP_MS, validateInput, displacementForInput, slideAlongBlockedStep };

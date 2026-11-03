@@ -40,34 +40,34 @@ assert.ok(w.players['walker-a'].survival.stamina > 99.5,
   'a one-meter continuous input step does not consume two stamina per packet');
 assert.throws(() => World.move(w, 'walker-a', 0, 0, 2150), /move_cooldown/, 'legacy travel cannot be interleaved for extra distance');
 
-// Long stalls and neutral packets do not accumulate distance or drain travel stamina.
+// Gaps greater than the low-FPS grace window and neutral packets do not accumulate distance or drain travel stamina.
 const beforeStall = { x: w.players['walker-a'].x, z: w.players['walker-a'].z };
-out = World.moveInput(w, 'walker-a', input(3), 2500); w = out.world;
+out = World.moveInput(w, 'walker-a', input(3), 3000); w = out.world;
 assert.equal(out.result.inputAck.elapsedMs, 0);
 assert.deepEqual([w.players['walker-a'].x, w.players['walker-a'].z], [beforeStall.x, beforeStall.z]);
 const staminaBeforeIdle = w.players['walker-a'].survival.stamina;
-out = World.moveInput(w, 'walker-a', input(4, 0, 0), 2600); w = out.world;
+out = World.moveInput(w, 'walker-a', input(4, 0, 0), 3100); w = out.world;
 assert.deepEqual([w.players['walker-a'].x, w.players['walker-a'].z], [beforeStall.x, beforeStall.z]);
 assert.equal(w.players['walker-a'].survival.stamina, staminaBeforeIdle);
 assert.equal(w.players['walker-a'].lastInputSequence, 4, 'sequence survives world normalization and saves');
-assert.throws(() => World.moveInput(w, 'walker-a', input(4), 2700), /invalid_movement_sequence/);
+assert.throws(() => World.moveInput(w, 'walker-a', input(4), 3200), /invalid_movement_sequence/);
 
 // Legacy movement remains supported after a full cooldown; switching back has no teleport credit.
-out = World.move(w, 'walker-a', start.x, start.z, 3600); w = out.world;
+out = World.move(w, 'walker-a', start.x, start.z, 4100); w = out.world;
 assert.equal(w.players['walker-a'].lastMoveMode, 'legacy');
-out = World.moveInput(w, 'walker-a', input(5), 4600); w = out.world;
+out = World.moveInput(w, 'walker-a', input(5), 5100); w = out.world;
 assert.equal(out.result.inputAck.elapsedMs, 0);
 
 // Authenticated account selection is enforced by the world function, not a command.account field.
-assert.throws(() => World.moveInput(w, 'not-joined', { ...input(6), account: 'walker-a' }, 4700), /not_in_expedition/);
-const joined = World.enter(w, 'walker-b', 4650); w = joined.world;
-assert.throws(() => World.moveInput(w, 'walker-b', input(6), 4700), /move_cooldown/);
-const b = World.moveInput(w, 'walker-b', input(0), 5700);
+assert.throws(() => World.moveInput(w, 'not-joined', { ...input(6), account: 'walker-a' }, 5200), /not_in_expedition/);
+const joined = World.enter(w, 'walker-b', 5150); w = joined.world;
+assert.throws(() => World.moveInput(w, 'walker-b', input(6), 5200), /move_cooldown/);
+const b = World.moveInput(w, 'walker-b', input(0), 6200);
 assert.equal(b.world.players['walker-b'].lastInputSequence, 0, 'input sequences are per authenticated account');
 assert.equal(b.world.players['walker-a'].lastInputSequence, 5);
 
 // A follower may not issue movement commands while the leader is active.
-let parties = World.createParty(w, 'walker-a', 4750);
-parties = World.joinParty(parties.world, 'walker-b', parties.result.party.code, 4800);
-assert.throws(() => World.moveInput(parties.world, 'walker-b', input(1), 5800), /party_leader_controls_movement/);
+let parties = World.createParty(w, 'walker-a', 5250);
+parties = World.joinParty(parties.world, 'walker-b', parties.result.party.code, 5300);
+assert.throws(() => World.moveInput(parties.world, 'walker-b', input(1), 6300), /party_leader_controls_movement/);
 console.log('Homefront authoritative input world integration tests passed.');

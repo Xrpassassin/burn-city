@@ -1,0 +1,31 @@
+name: Estates signed payment recovery after launch pause
+on:
+  pull_request:
+    paths:
+      - 'server/estate-sales-runtime.js'
+      - 'server/estate-sales-runtime.test.js'
+      - '.github/workflows/estates-signed-payment-recovery.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recover-existing-signed-payments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Validate no-new-sale and verified prior-payment completion
+        run: |
+          node --check server/estate-sales-runtime.js
+          node server/estate-sales-runtime.test.js
+          node server/estate-sale-finalization.test.js
+          node server/estate-sale-late-reconciliation.test.js
+          node server/estate-purchase-terms-gate.test.js
+          node test/estate-sales-runtime-http.test.js
+      - name: Read-only launch safety note
+        run: |
+          echo 'A previous Xaman payment may be validated and settled after new sales are disabled. New reservations and payloads remain blocked by legal/treasury checks. No production activation or financial transfer.' >> "$GITHUB_STEP_SUMMARY"

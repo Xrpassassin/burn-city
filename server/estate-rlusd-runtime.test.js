@@ -44,9 +44,17 @@ function preference(f,currency){f.db.exec('CREATE TABLE IF NOT EXISTS estate_own
  assert.equal(g.db.prepare('SELECT currency FROM estate_xrp_profit_payouts').get().currency,'IMG');
  // Missing activation, wrong pool, bad market price and excessive acquisition
  // impact park the purchase without submitting any transaction.
- for(const config of [{rlusdEnabled:false},{rlusdPoolAccount:g.owner},{maxAcquisitionImpactBps:1}]){
+ for(const config of [{rlusdEnabled:false},{rlusdPoolAccount:g.owner}]){
   const blocked=fixture({policyVersion:2}),br=blocked.make(config);await br.tick();assert.equal(blocked.sent.length,0);assert.equal(estateCashReserve(blocked.db),'2970000');
  }
+ // A narrower per-swap impact policy now permits only a bounded *stage*,
+ // rather than rejecting the entire estate purchase forever.
+ const shallow=fixture({policyVersion:2}),sr=shallow.make({maxAcquisitionImpactBps:1});
+ await sr.tick();
+ assert.equal(shallow.sent.length,1,'a price-safe small acquisition tranche can be signed');
+ assert(BigInt(shallow.sent[0].SendMax)<1485000n,'1-bps impact cap constrains the first IMG acquisition');
+ assert.equal(shallow.sent.filter(t=>t.TransactionType==='AMMDeposit').length,0);
+ assert.equal(estateCashReserve(shallow.db),'2970000','submitted but unverified trade cannot release reserved principal');
  const bad=fixture({policyVersion:2});bad.stablePool.y=bad.stablePool.y.times('2');await bad.make().tick();assert.equal(bad.sent.length,0);
  // Tiny entitlements accrue once, including their unused fee allowance.
  const tiny=fixture({policyVersion:2});preference(tiny,'XRP');const tr=tiny.make({fundingEnabled:false});

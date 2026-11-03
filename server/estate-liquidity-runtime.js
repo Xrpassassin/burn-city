@@ -6,6 +6,7 @@ const {createEstateTreasuryTransactions}=require('./estate-treasury-transactions
 const {createEstateImgOwnershipSnapshots}=require('./estate-img-ownership-snapshots');
 const {allocateProfit}=require('./estate-economy');
 const {planEstateRlusdAcquisitionSplit}=require('./estate-rlusd-acquisition-ratio-preview');
+const {planEstateNextAcquisitionStage}=require('./estate-rlusd-next-acquisition-stage');
 const POOL='rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ';
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 const zero=()=>({cash:'0',img:'0',plx:'0',rlusd:'0',imgCost:'0',plxCost:'0',rlusdCost:'0',fees:'0',lp:'0',basis:'0',generation:0,carryBasis:null});
@@ -13,7 +14,10 @@ function integer(s){if(typeof s!=='string'||!/^\d+$/.test(s))throw Error('intege
 function validateData(d){
  for(const k of ['cash','imgCost','plxCost','fees','basis'])integer(d[k]);
  integer(d.rlusdCost||'0');
- if(d.plannedRlusdBudgetDrops!==undefined)integer(d.plannedRlusdBudgetDrops);
+ for(const name of ['plannedImgBudgetDrops','plannedRlusdBudgetDrops','imgCommittedBudgetDrops','rlusdCommittedBudgetDrops'])
+  if(d[name]!==undefined)integer(d[name]);
+ for(const name of ['imgStageCount','rlusdStageCount'])
+  if(d[name]!==undefined&&(!Number.isSafeInteger(d[name])||d[name]<0||d[name]>128))throw Error('invalid_acquisition_stage_count');
  for(const k of ['img','plx','lp','residualImg','residualPlx','rlusd','residualRlusd'])if(value(d[k]||'0').lt(0))throw Error('negative_position_inventory');
  if(!Number.isSafeInteger(d.generation)||d.generation<0||(value(d.lp).gt(0)&&integer(d.basis)<1n))throw Error('invalid_position_basis');
  for(const k of ['harvestXrp','harvestFees','harvestBasis'])if(d[k]!==undefined)integer(d[k]);
@@ -135,6 +139,10 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
   if(!l||l.freeze||l.freeze_peer||value(l.balance).lt(total))throw Error('tracked_lp_inventory_missing');
  }
  function id(row,d,step){return row.id+':'+d.generation+':'+step;}
+ function buyStep(row,d,kind){
+  const count=row.pair==='img-rlusd'?(kind==='img'?d.imgStageCount||0:kind==='rlusd'?d.rlusdStageCount||0:0):0;
+  return 'buy_'+kind+(count>0?':stage'+count:'');
+ }
  function pending(row,d,step){return executor.get(id(row,d,step));}
  function ensure(row,d,step,purpose,draft,ctx,h){return executor.ensure(id(row,d,step),purpose,{Account:treasury,...draft},{jobId:row.id,generation:d.generation,step,quoteLedger:h.index,...ctx});}
  function subtract(d,field,n){const next=value(d[field]).minus(n);if(next.lt(0))throw Error('liquidity_budget_underflow');d[field]=next.toFixed();}
@@ -153,7 +161,7 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
   return true;
  }
  async function buy(row,d,kind){
-  const step='buy_'+kind;
+  const step=buyStep(row,d,kind);
   if(applyConfirmed(row,d,step,(r,c,p,j,data)=>{
    const issue=kind==='img'?IMG:kind==='rlusd'?RLUSD:PLX,delivered=r.meta.delivered_amount;
    if(!sameAmount(delivered,{...issue,value:c.output}))throw Error('acquisition_delivery_proof_mismatch');
@@ -167,7 +175,25 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
     integer(c.plannedRlusdBudgetDrops);
     data.plannedRlusdBudgetDrops=c.plannedRlusdBudgetDrops;
    }
-   save(j,data,kind==='img'&&j.pair==='img-plx'?'buy_plx':kind==='img'&&j.pair==='img-rlusd'?'buy_rlusd':'deposit');
+   if(j.pair==='img-rlusd'&&kind==='img'&&c.plannedImgBudgetDrops!==undefined){
+    integer(c.plannedImgBudgetDrops);
+    data.plannedImgBudgetDrops=c.plannedImgBudgetDrops;
+   }
+   let next=kind==='img'&&j.pair==='img-plx'?'buy_plx':
+    kind==='img'&&j.pair==='img-rlusd'?'buy_rlusd':'deposit';
+   // Stage counts advance ONLY inside the validated ledger application
+   // transaction. Earlier signed, pre-staging intents remain one-shot.
+   if(j.pair==='img-rlusd'&&data.plannedImgBudgetDrops!==undefined&&['img','rlusd'].includes(kind)){
+    const field=kind==='img'?'imgCommittedBudgetDrops':'rlusdCommittedBudgetDrops';
+    const count=kind==='img'?'imgStageCount':'rlusdStageCount';
+    const planned=BigInt(kind==='img'?data.plannedImgBudgetDrops:data.plannedRlusdBudgetDrops);
+    const committed=BigInt(data[field]||'0')+BigInt(c.budget);
+    if(committed>planned||Number(c.stageNumber)!==Number(data[count]||0))
+     throw Error('acquisition_stage_identity_or_budget_conflict');
+    data[field]=committed.toString();data[count]=(data[count]||0)+1;
+    next=committed<planned?'buy_'+kind:kind==='img'?'buy_rlusd':'deposit';
+   }
+   save(j,data,next);
   }))return;
   if(!canPlan())return;
   let budget=kind==='img'?drops(value(d.cash).div(2)):d.cash;
@@ -178,10 +204,9 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
    const target=await pool(IMG,RLUSD,h,rlusdPoolAccount),imgXrp=kind==='img'?p:await pool(XRP,IMG,h),stableXrp=kind==='rlusd'?p:await pool(XRP,RLUSD,h);
    const market=imgXrp.a.div(imgXrp.b).times(stableXrp.b).div(stableXrp.a),quoted=target.b.div(target.a);
    if(quoted.div(market).minus(1).abs().times(10000).gt(maxAcquisitionImpactBps))throw Error('img_rlusd_market_price_mismatch');
-   if(kind==='img'){
-    // XRP proceeds are acquired at market prices, then deposited in the
-    // pool's EXISTING IMG/RLUSD quantity ratio. Exactly half the XRP on
-    // each side is correct only when external prices agree with that ratio.
+   if(kind==='img'&&d.plannedImgBudgetDrops===undefined){
+    // Set the full per-asset budget once, in the immutable first signed
+    // intent. Later tranches retain that commitment after validation.
     budgetPlan=planEstateRlusdAcquisitionSplit({
      earmarkedCapitalDrops:d.cash,
      poolImg:target.a.toFixed(),poolRlusd:target.b.toFixed(),
@@ -189,10 +214,26 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
      referenceXrpPerRlusd:stableXrp.a.div(stableXrp.b).div(1000000).toFixed(18)
     });
     if(!budgetPlan.bothAcquisitionBudgetsNonzero)throw Error('two_sided_acquisition_budget_below_minimum');
-    budget=budgetPlan.indicativeImgAcquisitionBudgetDrops;
+   }
+   // Amounts are the *maximum authorized XRP SendMax*, not actual costs.
+   // Each new stage requires its own validated-ledger pool depth snapshot.
+   if((kind==='img'&& (budgetPlan||d.plannedImgBudgetDrops!==undefined))||
+      (kind==='rlusd'&&d.plannedImgBudgetDrops!==undefined)){
+    const planned=kind==='img'?(budgetPlan?.indicativeImgAcquisitionBudgetDrops||d.plannedImgBudgetDrops):
+     d.plannedRlusdBudgetDrops;
+    const committed=kind==='img'?d.imgCommittedBudgetDrops||'0':d.rlusdCommittedBudgetDrops||'0';
+    const stages=kind==='img'?d.imgStageCount||0:d.rlusdStageCount||0;
+    const stage=planEstateNextAcquisitionStage({
+     plannedBudgetDrops:planned,committedBudgetDrops:committed,
+     poolXrpReserveDrops:p.a.toFixed(0),maxImpactBps:maxAcquisitionImpactBps,
+     completedStages:stages
+    });
+    if(!stage.ready)throw Error(stage.blocker||'acquisition_stage_not_needed');
+    budget=BigInt(stage.nextStageSendMaxDrops)<BigInt(d.cash)?stage.nextStageSendMaxDrops:d.cash;
+    if(BigInt(budget)<1n)throw Error('acquisition_cash_below_stage_minimum');
    }else if(kind==='rlusd'&&d.plannedRlusdBudgetDrops!==undefined){
-    // A favorable IMG fill must not silently be overspent on RLUSD.
-    // Unspent XRP remains identifiable purchase principal.
+    // Older signed one-shot IMG intents must complete under original
+    // immutable semantics, not silently receive a new budget policy.
     budget=(integer(d.plannedRlusdBudgetDrops)<integer(d.cash)?d.plannedRlusdBudgetDrops:d.cash);
    }
    if(value(budget).times(10000).div(p.a.plus(value(budget))).gt(maxAcquisitionImpactBps))throw Error('acquisition_price_impact_limit');
@@ -200,7 +241,12 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
   if(integer(budget)<1n)throw Error('capital_below_conversion_minimum');
   const output=buyQuote(p,budget,slippageBps);
   await inventory(issue,h,{increase:output});
-  ensure(row,d,step,'capital_buy',{TransactionType:'Payment',Destination:treasury,Amount:{...issue,value:output},SendMax:budget,Flags:0},{budget,output,...(budgetPlan?{plannedRlusdBudgetDrops:budgetPlan.indicativeRlusdAcquisitionBudgetDrops}:{})},h);
+  ensure(row,d,step,'capital_buy',{TransactionType:'Payment',Destination:treasury,Amount:{...issue,value:output},SendMax:budget,Flags:0},{budget,output,...(row.pair==='img-rlusd'&&kind==='img'&&budgetPlan?{
+   plannedImgBudgetDrops:budgetPlan.indicativeImgAcquisitionBudgetDrops,
+   plannedRlusdBudgetDrops:budgetPlan.indicativeRlusdAcquisitionBudgetDrops}:{}),
+   ...(row.pair==='img-rlusd'&&d.plannedImgBudgetDrops!==undefined?{
+    stageNumber:kind==='img'?d.imgStageCount||0:d.rlusdStageCount||0}:{}),
+   ...(row.pair==='img-rlusd'&&kind==='img'&&budgetPlan?{stageNumber:0}:{})},h);
  }
  async function deposit(row,d){
   if(applyConfirmed(row,d,'deposit',(r,c,p,j,data)=>{
@@ -359,8 +405,8 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
      // LP positions back into old AMMs; manual accounting migration only.
      if(!legacyTradingEnabled&&row.pair!=='img-rlusd')continue;
      if(row.pair==='img-rlusd'&&!rlusdEnabled&&!['withdraw','convert_rlusd','convert_profit'].includes(row.state)&&!['buy_img','buy_rlusd','deposit'].some(step=>pending(row,d,step)))throw Error('img_rlusd_activation_required');
-     if(row.state==='buy_img'&&(fundingEnabled||pending(row,d,'buy_img')))await buy(row,d,'img');
-     else if(row.state==='buy_rlusd'&&(fundingEnabled||pending(row,d,'buy_rlusd')))await buy(row,d,'rlusd');
+     if(row.state==='buy_img'&&(fundingEnabled||pending(row,d,buyStep(row,d,'img'))))await buy(row,d,'img');
+     else if(row.state==='buy_rlusd'&&(fundingEnabled||pending(row,d,buyStep(row,d,'rlusd'))))await buy(row,d,'rlusd');
      else if(row.state==='buy_plx'&&(fundingEnabled||pending(row,d,'buy_plx')))await buy(row,d,'plx');
      else if(row.state==='deposit'&&(fundingEnabled||pending(row,d,'deposit')))await deposit(row,d);
      else if(row.state==='invested'&&harvestEnabled&&!guard.paused())await harvest(row,d);

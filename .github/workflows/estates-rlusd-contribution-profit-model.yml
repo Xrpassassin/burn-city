@@ -1,0 +1,35 @@
+name: Estates future-buyer contribution and LP basis math
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/estates-rlusd-contribution-profit-model.yml'
+      - 'server/estate-rlusd-contribution-shares.js'
+      - 'server/estate-rlusd-contribution-shares.test.js'
+      - 'server/estate-rlusd-profit-basis-preview.js'
+      - 'server/estate-rlusd-profit-basis-preview.test.js'
+      - 'server/estate-capital-allocation.js'
+      - 'server/estate-rlusd-validated-withdrawal-proof.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  conservative-reward-amounts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check owner contribution and LP cost-basis previews
+        run: |
+          node --check server/estate-rlusd-contribution-shares.js
+          node --check server/estate-rlusd-profit-basis-preview.js
+          node server/estate-rlusd-contribution-shares.test.js
+          node server/estate-rlusd-profit-basis-preview.test.js
+          node server/estate-capital-allocation.test.js
+          node server/estate-rlusd-validated-withdrawal-proof.test.js
+      - name: Confirm nonpaying accounting stage
+        run: |
+          echo 'All shares are preview-only. Only fully verified profit can be considered; incoming purchases and unverified IMG are not revenue. No owner entitlement or mainnet payout authorized.' >> "$GITHUB_STEP_SUMMARY"

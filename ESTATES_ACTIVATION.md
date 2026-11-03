@@ -6,11 +6,16 @@ New purchases use policy version 2: 99% is earmarked for IMG/RLUSD and 1%
 is retained as an XRP operating reserve. Existing IMG/PLX and IMG/XRP positions
 retain their original accounting; they are not new-purchase destinations.
 
-The sections below describe the **legacy 70/30 activation procedure**.
-`scripts/estate-live-operations.mjs` and `scripts/estate-live-ops.cjs` still
-require the legacy pools and a recent Pollux receipt. Do not use those scripts
-as evidence that IMG/RLUSD purchases and payouts are ready, or change their
-confirmation phrase to force activation.
+The sections below document the **retired 70/30 architecture for historical reference**.
+The old `scripts/estate-live-operations.mjs` automated production activation
+is now intentionally **nonoperational** and fails before calling Fly.io.
+The associated `scripts/estate-live-ops.cjs` rejects `preflight`, `bootstrap`
+and `unpause` for that legacy system; its read-only `status` and emergency
+`pause` commands remain available. Do not change or bypass the retirement
+guards, reenroll old PLX pools, or run the historical flags to make IMG/RLUSD
+appear operational. Use the **Estates IMG/RLUSD read-only production preflight**
+GitHub Action for current validation. A new reviewed activation procedure
+must be built and tested for the modern purchase-only/reward release sequence.
 
 For the current policy, `.github/workflows/estates-pool-address-stage.yml`
 only stages the designated pool address with financial switches disabled.

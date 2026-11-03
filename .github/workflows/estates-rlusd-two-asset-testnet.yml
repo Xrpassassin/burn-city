@@ -1,0 +1,27 @@
+name: Estates IMG/RLUSD two-sided AMM protocol proof (testnet only)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/estate-rlusd-two-asset-testnet.cjs'
+      - '.github/workflows/estates-rlusd-two-asset-testnet.yml'
+permissions:
+  contents: read
+jobs:
+  proof:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Syntax check
+        run: node --check scripts/estate-rlusd-two-asset-testnet.cjs
+      - name: Verify real tfTwoAsset + optional LPTokenOut on public testnet
+        env:
+          XRPL_TESTNET_ONLY: '1'
+        run: node scripts/estate-rlusd-two-asset-testnet.cjs

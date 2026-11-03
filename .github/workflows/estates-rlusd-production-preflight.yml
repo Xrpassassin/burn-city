@@ -24,6 +24,7 @@ jobs:
         run: |
           node server/estate-rlusd-tier-funding-capacity.test.js
           node server/estate-rlusd-staged-funding-preview.test.js
+          node server/estate-rlusd-two-asset-deposit-preview.test.js
       - name: Inspect ACTUAL Fly runtime and public IMG/RLUSD AMM without writes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
@@ -82,7 +83,7 @@ jobs:
             indicativeMaxPurchaseDrops:String(pool.indicativeMaxPurchaseDrops)});
           const blockers=[
             ...(fundingCapacity.stagingOrDeeperLiquidityReviewNeeded?[
-              'higher_tiers_exceed_indicative_single_purchase_funding_capacity']:[]),
+              'higher_tiers_need_bounded_asset_acquisition_not_amm_deposit_limit']:[]),
             ...(runtime.pauseFile?.paused||runtime.pauseEnvironment?['treasury_paused']:[]),
             ...(!status.salesEnabled?['property_sales_disabled']:[]),
             ...(!status.imgRlusdFundingEnabled?['img_rlusd_funding_disabled']:[]),
@@ -110,6 +111,8 @@ jobs:
             poolTrustlineReadiness:pool.trustlines,
             tierFundingCapacity:fundingCapacity.tiers,
             tiersNeedingFundingDepthReview:fundingCapacity.tiersExceedingIndicativeSinglePurchaseCapacity,
+            singleTradeCapacityDoesNotCapProportionalTwoSidedDeposits:true,
+            purchaseCapitalArrivesAsXrpAndNeedsAssetAcquisition:true,
             stagedFundingIsOnlyReadOnlyPreview:true,
             blockers,
             legalApprovalIndependentlyVerified:false,
@@ -123,8 +126,9 @@ jobs:
             '- Deployed commit: `'+deployed.commit.slice(0,12)+'`\n'+
             '- Validated pool ledger: '+pool.ledgerIndex+'\n'+
             '- Pool ready for verified identity/trustline/market checks: '+pool.ready+'\n'+
-            '- Tiers exceeding indicative single-trade capacity: '+
+            '- Tiers needing asset-acquisition depth planning (NOT a two-asset deposit size cap): '+
               (fundingCapacity.tiersExceedingIndicativeSinglePurchaseCapacity.join(', ')||'none')+'\n'+
+            '- Proportional IMG/RLUSD deposits are not capped by single-trade market depth; inventory and pool ratio must validate separately.\n'+
             '- Live purchases: '+status.salesEnabled+'; future rewards payable: '+output.futureRewardsPayable+'\n'+
             '- Technical blockers: '+(blockers.length?blockers.join(', '):'none reported')+'\n\n'+
             '**This audit never authorizes legal release, unpauses treasury, signs, transfers, or starts distributions.**\n');

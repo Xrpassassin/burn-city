@@ -269,19 +269,39 @@ try {
   await touch.screenshot({ path: output + '/mobile-b-walked.png' });
   // Simulate a bounded 220ms movement-ACK delay, not a fake position or
   // a bypass to World.moveInput. No other account is affected.
-  movementAckDelayMs = 220;
+  // Reinitialize the scene after the orbit check: its right-drag heading is
+  // intentionally changed, so reusing the original WASD direction could walk
+  // straight into a wall and falsely blame network delay. The server state
+  // remains persistent and authoritative across the local browser reload.
+  await first.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+  await first.waitForFunction(() => document.getElementById('graveyard3dStatus')
+    ?.textContent?.includes('direct WASD/joystick walking (preview)'), { timeout: 60000 });
   const beforeLag = store.load('homefront-world.json').players[A];
+  const lagDir = directions.find(d =>
+    Terrain.canTraverse(beforeLag.x, beforeLag.z, beforeLag.x + 3 * d.x, beforeLag.z + 3 * d.z) &&
+    Collision.canTraverse(beforeLag.x, beforeLag.z, beforeLag.x + 3 * d.x, beforeLag.z + 3 * d.z, { bounds: World.WORLD_SIZE }));
+  assert(lagDir, 'lag simulation starts with an unobstructed 3-unit direction');
+  movementAckDelayMs = 220;
   const priorPackets = apiCalls.filter(c => c.acct === A &&
     c.pathname === '/api/homefront/world/move-input').length;
-  await first.keyboard.down(dir.key);
+  await first.keyboard.down(lagDir.key);
   await first.waitForTimeout(1100);
-  await first.keyboard.up(dir.key);
+  await first.keyboard.up(lagDir.key);
   await first.waitForTimeout(500);
   movementAckDelayMs = 0;
   const afterLag = store.load('homefront-world.json').players[A];
   const lagMovement = Math.hypot(afterLag.x - beforeLag.x, afterLag.z - beforeLag.z);
   const lagPackets = apiCalls.filter(c => c.acct === A &&
     c.pathname === '/api/homefront/world/move-input').length - priorPackets;
+  console.log('HOMEFRONT_DELAYED_ACK_DIAGNOSTICS', JSON.stringify({
+    lagDirection: lagDir, lagMovement, lagPackets,
+    inputResponses: apiResponses.filter(c =>
+      c.acct === A && c.path === '/api/homefront/world/move-input').slice(-9),
+    browserKeys: await first.evaluate(() => window.__testKeys),
+    before: { x: beforeLag.x, z: beforeLag.z },
+    after: { x: afterLag.x, z: afterLag.z },
+    pageErrors
+  }));
   assert(lagPackets >= 2, '220ms delayed ACK still allows repeated real walking inputs');
   assert(lagMovement > 0.12 && lagMovement < 14,
     'delayed-ACK phase moves an authoritative actor within bounds: ' + lagMovement);

@@ -21,7 +21,7 @@ import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
-import { clipInteriorCamera } from './homefront-camera-occlusion.mjs';
+import { clipInteriorCamera, interiorCameraProbeOrigins } from './homefront-camera-occlusion.mjs';
 import { applyInteriorVisualLayers } from './homefront-interior-visibility.mjs';
 import { applyInteriorLampProfile } from './homefront-interior-lamps.mjs';
 import { mergeSharedInteriorPresence } from './homefront-shared-presence.mjs';
@@ -146,7 +146,7 @@ function boot(host) {
   const raycaster = new THREE.Raycaster();
   const cameraWallRaycaster = new THREE.Raycaster();
   cameraWallRaycaster.near = 0.08;
-  const cameraEye = new THREE.Vector3(), cameraArm = new THREE.Vector3();
+  const cameraEye = new THREE.Vector3(), cameraArm = new THREE.Vector3(), cameraProbeEye = new THREE.Vector3();
   let lastCameraOcclusionAt = -Infinity, lastCameraOcclusionId = null, lastCameraHitDistance = Infinity;
   const pointer = new THREE.Vector2();
   const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
@@ -2010,9 +2010,21 @@ function boot(host) {
             lastCameraOcclusionAt = now;
             lastCameraOcclusionId = interiorState.landmarkId;
             cameraWallRaycaster.far = desiredDistance;
-            cameraWallRaycaster.set(cameraEye, cameraArm.normalize());
-            const hits = cameraWallRaycaster.intersectObjects(walls.filter(wall => wall.visible), false);
-            lastCameraHitDistance = hits.length ? hits[0].distance : Infinity;
+            const cameraDirection = cameraArm.normalize();
+            const visibleWalls = walls.filter(wall => wall.visible);
+            const probes = interiorCameraProbeOrigins(
+              {x:cameraEye.x,y:cameraEye.y,z:cameraEye.z},
+              {x:pose.px,y:pose.py,z:pose.pz},
+              {compact:coarsePointer}
+            );
+            let nearest = Infinity;
+            for (const sample of probes) {
+              cameraProbeEye.set(sample.x,sample.y,sample.z);
+              cameraWallRaycaster.set(cameraProbeEye,cameraDirection);
+              const hits = cameraWallRaycaster.intersectObjects(visibleWalls,false);
+              if (hits.length && hits[0].distance < nearest) nearest = hits[0].distance;
+            }
+            lastCameraHitDistance = nearest;
           }
           const limited = clipInteriorCamera(
             { x: pose.lx, y: pose.ly, z: pose.lz },

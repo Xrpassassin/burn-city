@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { clipInteriorCamera } from './homefront-camera-occlusion.mjs';
+import { clipInteriorCamera, interiorCameraProbeOrigins } from './homefront-camera-occlusion.mjs';
 
 const target={x:0,y:1.8,z:0}, camera={x:0,y:4,z:-7};
 assert.deepEqual(clipInteriorCamera(target,camera,Infinity),
@@ -19,4 +19,23 @@ assert.ok(clipInteriorCamera({x:0,y:0,z:0},{x:0,y:0,z:0},0.5).occluded===false,
 assert.throws(()=>clipInteriorCamera(target,{x:NaN,y:0,z:0},2),/finite camera/);
 assert.throws(()=>clipInteriorCamera(null,camera,2),/finite camera/);
 assert.deepEqual(clipInteriorCamera(target,camera,-1),{...camera,occluded:false});
+
+const samples=interiorCameraProbeOrigins(target,camera);
+assert.equal(samples.length,5,'desktop volume uses five rays');
+assert.deepEqual(samples[0],target,'first ray stays on the original camera line');
+assert.equal(samples[1].y,target.y);
+assert.equal(samples[2].y,target.y);
+assert(Math.abs(samples[1].x+samples[2].x-2*target.x)<1e-9);
+assert(Math.abs(samples[1].z+samples[2].z-2*target.z)<1e-9);
+assert(samples[3].y>target.y && samples[4].y<target.y,'vertical probes cover the camera body');
+const compact=interiorCameraProbeOrigins(target,camera,{compact:true});
+assert.equal(compact.length,3,'mobile uses only three rays');
+const sideways=interiorCameraProbeOrigins({x:3,y:2,z:4},{x:9,y:4,z:4});
+assert(Math.abs(sideways[1].x-3)<1e-9,'lateral probe is perpendicular to horizontal camera arm');
+assert(Math.abs(sideways[1].z-4)>0.15,'camera probe covers edge clipping beyond central view ray');
+const steep=interiorCameraProbeOrigins({x:0,y:0,z:0},{x:0,y:6,z:0});
+assert(steep.every(p=>Object.values(p).every(Number.isFinite)),'vertical camera arms produce finite safe probes');
+assert.throws(()=>interiorCameraProbeOrigins(target,{x:NaN,y:0,z:0}),/finite camera/);
+assert.deepEqual(target,{x:0,y:1.8,z:0},'probe policy never changes the target');
+
 console.log('Homefront third-person interior camera wall clearance tests passed.');

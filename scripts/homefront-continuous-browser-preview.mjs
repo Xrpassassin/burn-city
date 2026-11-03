@@ -8,8 +8,9 @@ import { readFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { mkdirSync } from 'node:fs';
 
-const require = createRequire((process.env.PLAYWRIGHT_DIR || process.cwd()) + '/package.json');
-const { chromium } = require('playwright');
+const require = createRequire(import.meta.url);
+const playwrightRequire = createRequire((process.env.PLAYWRIGHT_DIR || process.cwd()) + '/package.json');
+const { chromium } = playwrightRequire('playwright');
 const World = require('../server/homefront-world.js');
 const Homefront = require('../server/homefront.js');
 const Collision = require('../server/homefront-collision.js');

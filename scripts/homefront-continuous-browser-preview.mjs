@@ -25,8 +25,10 @@ const store = {
 let state = World.enter(World.defaultWorld(), A, Date.now() - 10000).world;
 state = World.enter(state, B, Date.now() - 9900).world;
 const spawn = { x: state.players[A].x, z: state.players[A].z };
-state.players[B].x = spawn.x + 0.8;
-state.players[B].z = spawn.z + 0.8;
+// Spawn both fake identities at the same proven traversable location. This
+// avoids random adjacent obstacle placement while keeping distinct accounts.
+state.players[B].x = spawn.x;
+state.players[B].z = spawn.z;
 store.save('homefront-world.json', state);
 const directions = [
   { key: 'w', x: 0, z: 1 }, { key: 's', x: 0, z: -1 },
@@ -241,8 +243,8 @@ try {
   assert(await joystick.isVisible(), 'mobile virtual joystick is visible');
   const beforeTouch = store.load('homefront-world.json').players[B];
   const mobileDirection = directions.find(d =>
-    Terrain.canTraverse(beforeTouch.x, beforeTouch.z, beforeTouch.x + 2 * d.x, beforeTouch.z + 2 * d.z) &&
-    Collision.canTraverse(beforeTouch.x, beforeTouch.z, beforeTouch.x + 2 * d.x, beforeTouch.z + 2 * d.z, { bounds: World.WORLD_SIZE }));
+    Terrain.canTraverse(beforeTouch.x, beforeTouch.z, beforeTouch.x + 4 * d.x, beforeTouch.z + 4 * d.z) &&
+    Collision.canTraverse(beforeTouch.x, beforeTouch.z, beforeTouch.x + 4 * d.x, beforeTouch.z + 4 * d.z, { bounds: World.WORLD_SIZE }));
   assert(mobileDirection, 'mobile test player has an unobstructed movement direction');
   // Isolated synthetic touch/pointer sequence through the real joystick DOM
   // listener. The player never uses client-supplied coordinates as authority.
@@ -264,6 +266,15 @@ try {
   const afterTouch = store.load('homefront-world.json').players[B];
   const mobileMoved = Math.hypot(afterTouch.x - beforeTouch.x, afterTouch.z - beforeTouch.z);
   const mobileSends = apiCalls.filter(c => c.acct === B && c.pathname === '/api/homefront/world/move-input');
+  console.log('HOMEFRONT_MOBILE_DIAGNOSTICS', JSON.stringify({
+    mobileDirection, beforeTouch: { x: beforeTouch.x, z: beforeTouch.z },
+    afterTouch: { x: afterTouch.x, z: afterTouch.z },
+    mobileMoved, movementPackets: mobileSends.length,
+    responses: apiResponses.filter(c => c.acct === B &&
+      c.path === '/api/homefront/world/move-input').slice(-9),
+    status: await touch.locator('#graveyard3dStatus').innerText(),
+    errors: pageErrors
+  }));
   assert(mobileSends.length >= 2, 'mobile touch joystick sent repeated actual movement packets');
   assert(mobileMoved > 0.12, 'mobile joystick moves authoritative player position; observed ' + mobileMoved);
   await touch.screenshot({ path: output + '/mobile-b-walked.png' });

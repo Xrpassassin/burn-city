@@ -18,12 +18,16 @@ assert.equal(report.tiers[4].indicativeSinglePurchaseWithinMaxImpact,false);
 assert.deepEqual(report.tiersExceedingIndicativeSinglePurchaseCapacity,
  ['apartment','starter','family','mansion']);
 assert.equal(report.stagingOrDeeperLiquidityReviewNeeded,true);
+assert.equal(report.acquiredBothSidesCanBeDepositedProportionatelyWithoutSwapImpact,true);
+assert.equal(report.quotedSingleTradeCapacityIsNotAnAmmDepositSizeLimit,true);
 assert.equal(report.automaticFundingAuthorized,false);
 assert.equal(report.propertySalesAuthorized,false);
 for(const t of report.tiers){
  assert.equal(BigInt(t.plannedImgRlusdCapitalDrops)+
   BigInt(t.plannedOperatingReserveDrops),BigInt(t.purchaseDrops));
  assert.equal(t.immediateFullSinglePurchaseFundingVerified,false);
+ assert.equal(t.proportionalTwoAssetAmmDepositSizeCappedByTradeImpact,false);
+ assert.equal(t.acquisitionOfImgAndRlusdStillRequiresIndependentQuotes,true);
  assert.equal(t.newPurchasePrincipalIsNotIncome,true);
 }
 const deep=inspect({tiers,indicativeMaxPurchaseDrops:'300000000'});

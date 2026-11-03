@@ -1,4 +1,5 @@
 // Optional Homefront 3D movement controller. Visual prediction never modifies game authority.
+import { releasePredictionBlend } from './homefront-presentation-smoothing.mjs';
 export const INPUT_SEND_INTERVAL_MS = 125;
 export const WALK_SPEED = 8;
 export const SPRINT_SPEED = 12;
@@ -70,9 +71,10 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
         predicted.z = server.z + (predicted.z - server.z) * k;
       }
     } else {
-      // Recover from speculative movement after release.
-      predicted.x += (server.x - predicted.x) * 0.16;
-      predicted.z += (server.z - predicted.z) * 0.16;
+      // Release correction is elapsed-time based, not a fixed percent per frame.
+      const recovery = releasePredictionBlend(dt);
+      predicted.x += (server.x - predicted.x) * recovery;
+      predicted.z += (server.z - predicted.z) * recovery;
     }
     if (pending || now - lastSentAt < INPUT_SEND_INTERVAL_MS || (!vec.moving && !sentMotion)) return;
     pending = true;

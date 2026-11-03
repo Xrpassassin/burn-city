@@ -470,7 +470,14 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
   const dx = nx - p.x, dz = nz - p.z, d = Math.hypot(dx, dz);
   const scale = d > movementBudget ? movementBudget / d : 1;
   const oldX = p.x, oldZ = p.z;
-  let nextX = Math.round((p.x + dx * scale) * 10) / 10, nextZ = Math.round((p.z + dz * scale) * 10) / 10;
+  // Input-driven walking preserves analog stick speed, including small
+  // partial deflections. Rounding *every* 75–125ms movement packet to 0.1
+  // units can turn a requested 0.12-unit step into 0.1 or 0.2, causing
+  // repeated slow-stick drift and visible stutter. Preserve full server-
+  // derived precision only for the authenticated direct-input path.
+  // Destination travel retains its previous one-decimal behavior.
+  let nextX = isInput ? p.x + dx * scale : Math.round((p.x + dx * scale) * 10) / 10;
+  let nextZ = isInput ? p.z + dz * scale : Math.round((p.z + dz * scale) * 10) / 10;
   const removedObstacleIds = Object.values(w.environmentStructures).filter(s => s.health <= 0).map(s => s.id);
   const activeInteriorOwner = w.interiors?.[acct];
   const activeInteriorId = activeInteriorOwner?.activeLandmarkId || null;

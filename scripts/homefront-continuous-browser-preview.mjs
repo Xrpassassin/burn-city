@@ -50,7 +50,9 @@ const previewHTML = '<!doctype html><html><head><meta name="viewport" content="w
   '<div id="graveyard3d"></div><div id="graveyard3dStatus">Loading</div>' +
   '<div id="explorationObjective"></div>' +
   '<script type="module" src="./homefront-graveyard-3d.js"></script></body></html>';
+const apiResponses = [];
 const json = (res, code, value) => {
+  if (res.previewPath) apiResponses.push({ path: res.previewPath, acct: res.previewAccount, status: code, error: value?.error || null, ack: value?.inputAck?.sequence });
   res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' });
   res.end(JSON.stringify(value));
 };
@@ -65,6 +67,7 @@ const server = createServer(async (req, res) => {
       for await (const part of req) chunks.push(part);
       const raw = Buffer.concat(chunks).toString('utf8');
       apiCalls.push({ acct, method: req.method, pathname: url.pathname });
+      res.previewPath = url.pathname; res.previewAccount = acct;
       const served = await Homefront.handle(req, res, url, {
         json, ip: '127.0.0.1', gate: () => false,
         who: () => acct ? { acct } : null,
@@ -110,7 +113,7 @@ try {
   async function openPage(context, token, name) {
     const page = await context.newPage();
     page.on('pageerror', error => pageErrors.push(name + ': ' + error.message));
-    await page.addInitScript(t => localStorage.setItem('bcToken', t), token);
+    await page.addInitScript(t => { localStorage.setItem('bcToken', t); window.__testKeys = []; window.addEventListener('keydown', e => window.__testKeys.push(e.key), true); }, token);
     const response = await page.goto(address, { waitUntil: 'domcontentloaded', timeout: 60000 });
     assert.equal(response?.status(), 200);
     await page.waitForFunction(() => document.getElementById('graveyard3dStatus')
@@ -136,6 +139,13 @@ try {
   await first.waitForTimeout(400);
   const after = store.load('homefront-world.json').players[A];
   const moved = Math.hypot(after.x - before.x, after.z - before.z);
+  console.log('HOMEFRONT_BROWSER_DIAGNOSTICS', JSON.stringify({
+    moved, dir, after, before, keys: await first.evaluate(() => window.__testKeys),
+    status: await first.locator('#graveyard3dStatus').innerText(),
+    inputs: apiCalls.filter(c => c.pathname.endsWith('move-input')),
+    responses: apiResponses.filter(c => c.path.endsWith('move-input')),
+    errors: pageErrors
+  }));
   assert(moved > 0.15, 'holding WASD must advance real server position; observed ' + moved);
   assert(moved < 15, 'server movement budget prevents giant teleport');
   await first.screenshot({ path: output + '/desktop-a-walked.png' });

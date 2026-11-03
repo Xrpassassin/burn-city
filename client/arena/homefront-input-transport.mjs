@@ -7,7 +7,12 @@ export function createHomefrontMoveTransport({
   fetchImpl = globalThis.fetch,
   timeoutMs = HOMEFRONT_INPUT_TIMEOUT_MS
 } = {}) {
-  if (typeof api !== 'string' || !(/^(https:\/\/[^/?#]+|http:\/\/(?:localhost|127\\.0\\.0\\.1)(?::\\d+)?|\/[^?#]*)\/?$/.test(api))) throw new Error('invalid_homefront_api_base');
+  const base = typeof api === 'string' ? api.replace(/\/+$/, '') : '';
+  // Do not expose bearer tokens to insecure remote URLs supplied via ?api=.
+  const safe = /^https:\/\/[^/?#]+$/i.test(base) ||
+    /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(base) ||
+    (base.startsWith('/') && !base.startsWith('//') && !/[?#]/.test(base));
+  if (!safe) throw new Error('invalid_homefront_api_base');
   if (typeof token !== 'function' || typeof fetchImpl !== 'function') throw new Error('homefront_transport_dependencies_required');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 4000) throw new Error('invalid_homefront_movement_timeout');
   return async command => {
@@ -17,7 +22,7 @@ export function createHomefrontMoveTransport({
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
     try {
-      const response = await fetchImpl(api + '/api/homefront/world/move-input', {
+      const response = await fetchImpl(base + '/api/homefront/world/move-input', {
         method: 'POST',
         headers: {
           authorization: 'Bearer ' + credential,

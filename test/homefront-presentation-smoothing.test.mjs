@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { smoothFacing, facingFromMovement, cameraFollowAnchor, releasePredictionBlend } from '../client/arena/homefront-presentation-smoothing.mjs';
+import { smoothFacing, facingFromMovement, cameraFollowAnchor, releasePredictionBlend, clampPredictionLead } from '../client/arena/homefront-presentation-smoothing.mjs';
 import { createContinuousInput, MAX_PREDICTION_LEAD } from '../client/arena/homefront-continuous-input.mjs';
 import { worldMove } from '../client/arena/homefront-view.mjs';
 const delta=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
@@ -72,4 +72,38 @@ assert(Math.max(...recovered) - Math.min(...recovered) < 1e-9,
 assert.equal(releasePredictionBlend(NaN), 0, 'invalid frame delta cannot move avatar');
 assert.equal(releasePredictionBlend(-1), 0, 'negative frame delta cannot move avatar');
 
-console.log('Homefront presentation smoothing: 30/60/120 FPS, wrap, analog, release, shared camera anchor passed');
+// Position corrections must respect the same cap as continuous input frames.
+assert.deepEqual(clampPredictionLead({ x: 2, z: 0 }, { x: 0, z: 0 }),
+  { x: 1.5, z: 0 }, 'isolated lead clamp');
+assert.deepEqual(clampPredictionLead({ x: 2, z: 0 }, { x: 0, z: 0 }, 0),
+  { x: 0, z: 0 }, 'zero cap follows authoritative position');
+assert.deepEqual(clampPredictionLead(null, { x: 0.25, z: -0.5 }),
+  { x: 0.25, z: -0.5 }, 'invalid local prediction recovers from authority');
+assert.equal(clampPredictionLead({ x: 0, z: 0 }, { x: Infinity, z: 0 }), null,
+  'invalid authority is rejected');
+
+let resolveCorrection, correctionCommand;
+const correction = createContinuousInput({
+  send: command => new Promise(resolve => {
+    correctionCommand = command;
+    resolveCorrection = resolve;
+  })
+});
+correction.sync({ enabled: true, nextSequence: 8 }, { x: 0, z: 0 }, 0);
+correction.step({ x: 1, z: 0 }, false, 100, 0.05);
+await Promise.resolve();
+for (let frame = 0; frame < 50; frame++) correction.step({ x: 1, z: 0 }, false, 110, 0.05);
+assert.equal(correction.position().x, MAX_PREDICTION_LEAD,
+  'prediction reached its normal 1.5-unit cap before delayed ack');
+resolveCorrection({ inputAck: { sequence: correctionCommand.sequence, x: -0.9, z: 0, elapsedMs: 125 } });
+await new Promise(resolve => setImmediate(resolve));
+assert(Math.hypot(correction.position().x + 0.9, correction.position().z) <= MAX_PREDICTION_LEAD + 1e-9,
+  'ack correction never exceeds the advertised 1.5-unit lead');
+assert(Math.abs(correction.position().x - 0.6) < 1e-9,
+  'distant valid ack is clamped, not blindly blended into excess prediction');
+correction.sync({ enabled: true, nextSequence: 9 }, { x: -1.85, z: 0 }, 1500);
+assert(Math.hypot(correction.position().x + 1.85, correction.position().z) <= MAX_PREDICTION_LEAD + 1e-9,
+  'polling GET correction also obeys 1.5-unit limit');
+correction.disable('test_end');
+
+console.log('Homefront presentation smoothing: 30/60/120 FPS, wrap, analog, release, shared camera anchor, bounded authoritative correction passed');

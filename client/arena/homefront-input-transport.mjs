@@ -11,7 +11,7 @@ export function createHomefrontMoveTransport({
   // Do not expose bearer tokens to insecure remote URLs supplied via ?api=.
   const safe = /^https:\/\/[^/?#]+$/i.test(base) ||
     /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(base) ||
-    (base.startsWith('/') && !base.startsWith('//') && !/[?#]/.test(base));
+    (api === '/' || (base.startsWith('/') && !base.startsWith('//') && !/[?#]/.test(base)));
   if (!safe) throw new Error('invalid_homefront_api_base');
   if (typeof token !== 'function' || typeof fetchImpl !== 'function') throw new Error('homefront_transport_dependencies_required');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 4000) throw new Error('invalid_homefront_movement_timeout');

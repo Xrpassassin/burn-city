@@ -438,8 +438,14 @@ assert.match(scene, /from '\.\/homefront-camera-occlusion\.mjs'/,
   'Homefront imports pure third-person interior wall clearance');
 assert.match(scene, /node\.userData\?\.interiorCameraOccluder/,
   'room camera raycast indexes structural occluders only once per building');
-assert.match(scene, /cameraWallRaycaster\.intersectObjects\(walls\.filter\(wall => wall\.visible\), false\)/,
+assert.match(scene, /const visibleWalls = walls\.filter\(wall => wall\.visible\)/,
   'wall check skips opened doors without touching gameplay collision');
+assert.match(scene, /interiorCameraProbeOrigins\(/,
+  'camera clearance checks a small visible lens volume rather than only one centre ray');
+assert.match(scene, /cameraWallRaycaster\.intersectObjects\(visibleWalls,false\)/,
+  'ray probes reuse the filtered interior walls without recomputing per sample');
+assert.match(scene, /compact:coarsePointer/,
+  'mobile camera probe budget remains smaller than desktop');
 assert.match(scene, /coarsePointer \? 90 : 45/,
   'mobile raycast updates are capped lower than desktop');
 assert.match(scene, /if \(view\.mode !== 'first' && interiorState\?\.landmarkId\)/,

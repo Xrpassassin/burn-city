@@ -19,11 +19,15 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
   !!config.XUMM_KEY&&!!config.XUMM_SECRET&&
   /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(config.ESTATE_TREASURY||'');
  const configured=!!terms&&env.ESTATE_SALES_ENABLED==='1'&&settlementConfigured;
- const settlementOptions=settlementConfigured?{enabled:true,sdk:pay.sdk(),
+ const reservations=createEstateReservationApi(db,{enabled:configured});
+ // No SDK initialization for a fully disabled, empty installation. Existing
+ // server-bound Xaman payloads are the sole exception when new sales are off.
+ const boundPayloadExists=!!db.prepare('SELECT 1 FROM estate_xaman_payment_payloads LIMIT 1').get();
+ const recoveryConfigured=settlementConfigured&&(configured||boundPayloadExists);
+ const settlementOptions=recoveryConfigured?{enabled:true,sdk:pay.sdk(),
   treasury:config.ESTATE_TREASURY,
   client:{request:async q=>(await pay.ledger()).request(q)}}:{enabled:false};
  const saleOptions=configured?{...settlementOptions,requiredTerms:terms}:{enabled:false};
- const reservations=createEstateReservationApi(db,{enabled:configured});
  const payments=createEstateXamanPaymentSession(db,saleOptions);
  // These paths do not create a Xaman payload, nor trust a client tx hash.
  // They only inspect an existing server-bound payload and validated ledger tx.
@@ -31,7 +35,7 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
  const recovery=createEstateSaleSessionRecovery(db);
  const late=createEstateLatePaymentReconciliation(db,settlementOptions);
  const status=()=>({salesEnabled:configured&&!paused(),
-  preexistingPaymentReconciliationAvailable:settlementConfigured,
+  preexistingPaymentReconciliationAvailable:recoveryConfigured,
   distributionsEnabled:false,
   salesStatus:!configured?'sales_not_enabled':paused()?'treasury_paused':'open',
   purchaseTerms:terms?{version:terms.version,digest:terms.digest,url:terms.url}:null,
@@ -53,7 +57,7 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
   return payments.start(input);
  }
  async function finalize(input){
-  if(!settlementConfigured)return {ok:false,error:'estate_sales_disabled'};
+  if(!recoveryConfigured)return {ok:false,error:'estate_sales_disabled'};
   // A pause, legal terms rotation, or disabled new sales must not block the
   // validated completion of an already-bound incoming XRP payment.
   // already-authorized incoming payment or replay of settled ownership.

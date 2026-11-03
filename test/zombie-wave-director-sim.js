@@ -57,7 +57,7 @@ free.step(0.1);
 assert.equal(free.wave,5);
 assert.equal(free.events.filter(e=>e.e==='zpressure').length,1);
 assert.equal(free.events.filter(e=>e.e==='wave').length,1);
-assert.equal(free.spawnT,2.5);
+assert(Math.abs(free.spawnT-2.4)<1e-9,'existing 2.5-second initial spawn delay decrements by the simulated 0.1-second tick');
 assert(free.freeplayWavePlan);
 free.events=[];
 free.step(0.1);

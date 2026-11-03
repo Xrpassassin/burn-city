@@ -322,6 +322,54 @@ try {
   assert(lagPackets >= 2, '220ms delayed ACK still allows repeated real walking inputs');
   assert(lagMovement > 0.12 && lagMovement < 14,
     'delayed-ACK phase moves an authoritative actor within bounds: ' + lagMovement);
+
+  // Losing browser focus must clear held WASD immediately. The client may
+  // acknowledge one already-in-flight movement step, but it must then send a
+  // neutral release and cease travelling without needing a keyup event.
+  const beforeBlur = store.load('homefront-world.json').players[A];
+  const blurDir = directions.find(d =>
+    Terrain.canTraverse(beforeBlur.x, beforeBlur.z, beforeBlur.x + 3 * d.x, beforeBlur.z + 3 * d.z) &&
+    Collision.canTraverse(beforeBlur.x, beforeBlur.z, beforeBlur.x + 3 * d.x, beforeBlur.z + 3 * d.z, { bounds: World.WORLD_SIZE }));
+  assert(blurDir, 'blur-release test starts on traversable ground');
+  const inputCountBeforeBlur = apiCalls.filter(c => c.acct === A &&
+    c.pathname === '/api/homefront/world/move-input').length;
+  await first.keyboard.down(blurDir.key);
+  await first.waitForTimeout(430);
+  await first.evaluate(() => window.dispatchEvent(new Event('blur')));
+  // Crucially do NOT release the simulated physical key yet: browser blur is
+  // responsible for cancelling the held movement intent.
+  await first.waitForTimeout(1650);
+  const afterFocusLoss = store.load('homefront-world.json').players[A];
+  const blurInputPackets = apiCalls.filter(c => c.acct === A &&
+    c.pathname === '/api/homefront/world/move-input').slice(inputCountBeforeBlur);
+  const lastNonNeutral = blurInputPackets.findLastIndex(c =>
+    Math.hypot(c.input?.x || 0, c.input?.z || 0) > 0.1);
+  const neutralAfterMotion = blurInputPackets.slice(lastNonNeutral + 1)
+    .some(c => Math.hypot(c.input?.x || 0, c.input?.z || 0) < 0.001);
+  assert(lastNonNeutral >= 0 && neutralAfterMotion,
+    'browser focus loss must send a neutral input after held walking');
+  await first.waitForTimeout(650);
+  const afterBlurIdle = store.load('homefront-world.json').players[A];
+  const blurIdleDrift = Math.hypot(afterBlurIdle.x - afterFocusLoss.x,
+    afterBlurIdle.z - afterFocusLoss.z);
+  assert(blurIdleDrift < 0.03, 'blurred scene must not keep walking: ' + blurIdleDrift);
+  await first.keyboard.up(blurDir.key);
+
+  // Server-owned kill-switch remains authoritative even if the browser URL
+  // explicitly opts into continuous movement. This environment flag is only
+  // changed in the disposable localhost browser harness.
+  const sendsBeforeDisabled = apiCalls.filter(c => c.acct === A &&
+    c.pathname === '/api/homefront/world/move-input').length;
+  process.env.HOMEFRONT_CONTINUOUS_MOVEMENT = '0';
+  await first.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+  await first.waitForFunction(() => document.getElementById('graveyard3dStatus')
+    ?.textContent?.includes('tap to travel · WASD/joystick to move'), { timeout: 60000 });
+  await first.waitForTimeout(330);
+  const sendsAfterDisabled = apiCalls.filter(c => c.acct === A &&
+    c.pathname === '/api/homefront/world/move-input').length;
+  assert.equal(sendsAfterDisabled, sendsBeforeDisabled,
+    'server-disabled experimental movement never sends direct inputs after reload');
+  process.env.HOMEFRONT_CONTINUOUS_MOVEMENT = '1';
   assert.deepEqual(pageErrors, [], 'desktop and mobile have no uncaught JS errors');
   console.log('HOMEFRONT ISOLATED CHROMIUM SMOKE PASSED');
   console.log(JSON.stringify({ distance: Number(moved.toFixed(3)), movementPackets: sent.length,
@@ -330,6 +378,8 @@ try {
     visibleRemoteTestPlayer: true, remoteBrowserObservedPosition: remoteAvatarPosition,
     cameraOrbitPixelDifference: orbitMetrics, delayedAckMs: 220,
     delayedAckMovement: Number(lagMovement.toFixed(3)), delayedAckPackets: lagPackets,
+    blurNeutralPacket: neutralAfterMotion, blurIdleDrift: Number(blurIdleDrift.toFixed(4)),
+    serverFeatureKillSwitchVerified: true,
     mobileCanvasLoaded: true, mobileJoystickExercised: true, pageErrors: [] }));
   await mobile.close();
   await desktopA.close();

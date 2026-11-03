@@ -172,11 +172,42 @@ try {
   });
   const touch = await openPage(mobile, 'preview-token-b', 'mobile-b');
   assert(await touch.locator('#graveyard3d .hf-viewbtn').isVisible(), 'touch camera button renders');
+  const joystick = touch.locator('#graveyard3d .hf-joy');
+  assert(await joystick.isVisible(), 'mobile virtual joystick is visible');
+  const beforeTouch = store.load('homefront-world.json').players[B];
+  const mobileDirection = directions.find(d =>
+    Terrain.canTraverse(beforeTouch.x, beforeTouch.z, beforeTouch.x + 2 * d.x, beforeTouch.z + 2 * d.z) &&
+    Collision.canTraverse(beforeTouch.x, beforeTouch.z, beforeTouch.x + 2 * d.x, beforeTouch.z + 2 * d.z, { bounds: World.WORLD_SIZE }));
+  assert(mobileDirection, 'mobile test player has an unobstructed movement direction');
+  // Isolated synthetic touch/pointer sequence through the real joystick DOM
+  // listener. The player never uses client-supplied coordinates as authority.
+  const directionToPad = {
+    w: { dx: 0, dy: -32 }, s: { dx: 0, dy: 32 },
+    a: { dx: -32, dy: 0 }, d: { dx: 32, dy: 0 }
+  };
+  await touch.evaluate(({ dx, dy }) => {
+    const pad = document.querySelector('#graveyard3d .hf-joy'), box = pad.getBoundingClientRect();
+    pad.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch',
+      pointerId: 23, clientX: box.left + box.width / 2 + dx, clientY: box.top + box.height / 2 + dy }));
+  }, directionToPad[mobileDirection.key]);
+  await touch.waitForTimeout(1350);
+  await touch.evaluate(() => {
+    document.querySelector('#graveyard3d .hf-joy').dispatchEvent(new PointerEvent('pointerup',
+      { bubbles: true, pointerType: 'touch', pointerId: 23 }));
+  });
+  await touch.waitForTimeout(400);
+  const afterTouch = store.load('homefront-world.json').players[B];
+  const mobileMoved = Math.hypot(afterTouch.x - beforeTouch.x, afterTouch.z - beforeTouch.z);
+  const mobileSends = apiCalls.filter(c => c.acct === B && c.pathname === '/api/homefront/world/move-input');
+  assert(mobileSends.length >= 2, 'mobile touch joystick sent repeated actual movement packets');
+  assert(mobileMoved > 0.12, 'mobile joystick moves authoritative player position; observed ' + mobileMoved);
+  await touch.screenshot({ path: output + '/mobile-b-walked.png' });
   assert.deepEqual(pageErrors, [], 'desktop and mobile have no uncaught JS errors');
   console.log('HOMEFRONT ISOLATED CHROMIUM SMOKE PASSED');
   console.log(JSON.stringify({ distance: Number(moved.toFixed(3)), movementPackets: sent.length,
+    mobileDistance: Number(mobileMoved.toFixed(3)), mobileMovementPackets: mobileSends.length,
     realServerMovement: true, desktopCameraToggle: true, pointerOrbitExercised: true,
-    visibleRemoteTestPlayer: true, mobileCanvasLoaded: true, pageErrors: [] }));
+    visibleRemoteTestPlayer: true, mobileCanvasLoaded: true, mobileJoystickExercised: true, pageErrors: [] }));
   await mobile.close();
   await desktopA.close();
   await desktopB.close();

@@ -5,6 +5,10 @@ const fs=require('node:fs'),path=require('node:path'),{createRequire}=require('n
 const arg=['preflight','bootstrap','unpause','pause','status'].includes(process.argv[1])?1:2;
 const mode=process.argv[arg],expected=process.argv[arg+1],root=process.env.DATA_DIR||'/data',code=path.join(root,'gh/cur');
 if(!['preflight','bootstrap','unpause','pause','status'].includes(mode)||!/^[a-f0-9]{40}$/.test(expected||''))throw Error('explicit_mode_and_merged_commit_required');
+// Reject deprecated 70/30 paths BEFORE reading the Fly volume or touching
+// treasury state. Emergency pause and read-only status remain available.
+if(['preflight','bootstrap','unpause'].includes(mode))
+ throw Error('legacy_pollux_activation_and_unpause_retired');
 if(fs.readFileSync(path.join(root,'gh/SHA'),'utf8').trim()!==expected)throw Error('live_commit_mismatch');
 const req=createRequire(path.join(code,'package.json')),C=req('./server/config'),xrpl=req('xrpl');
 const {balanceDelta,inspectPool}=req('./server/estate-liquidity-ledger');

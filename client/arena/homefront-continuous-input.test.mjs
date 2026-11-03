@@ -92,4 +92,46 @@ cooldown.step({ x: 1, z: 0 }, false, 350, 0.05);
 await new Promise(resolve => setImmediate(resolve));
 assert.equal(rejectedCooldown, 2, 'cooldown backoff expires and movement retries');
 
+
+const failures=[];
+let delayedFail;
+let delayedAttempts=0;
+const delayed=createContinuousInput({
+  send:()=>{delayedAttempts++;return new Promise((_resolve,reject)=>{delayedFail=reject;});},
+  onUnavailable:reason=>failures.push(reason)
+});
+delayed.sync({enabled:true,nextSequence:0},{x:0,z:0});
+delayed.step({x:1,z:0},false,100,0.05);
+await Promise.resolve();
+delayed.step({x:1,z:0},false,1900,0.05);
+assert.equal(delayedAttempts,1,'only one request is in flight even during high-latency frames');
+delayedFail(new Error('offline'));
+await new Promise(resolve=>setImmediate(resolve));
+assert.deepEqual(delayed.position(),{x:0,z:0},'failed request rolls visual prediction back to verified position');
+delayed.step({x:1,z:0},false,2100,0.05);
+await Promise.resolve();
+assert.equal(delayedAttempts,1,'network retry delay is based on latest frame, not stale send timestamp');
+delayed.step({x:1,z:0},false,2251,0.05);
+await Promise.resolve();
+assert.equal(delayedAttempts,2,'network retry resumes only after the bounded delay');
+delayed.disable('test_end');
+assert.deepEqual(failures,['test_end']);
+
+const repeated=[];
+let requests=0;
+const offline=createContinuousInput({
+  send:()=>{requests++;throw new Error('offline');},
+  onUnavailable:reason=>repeated.push(reason)
+});
+offline.sync({enabled:true,nextSequence:0},{x:0,z:0});
+for(const at of [100,500,1300,2800,5800]){
+  offline.step({x:1,z:0},false,at,0.05);
+  await new Promise(resolve=>setImmediate(resolve));
+}
+assert.equal(requests,5,'exponential backoff avoids a retry storm');
+assert.equal(offline.enabled,false,'five failed transfers fall back instead of freezing movement indefinitely');
+assert.deepEqual(repeated,['movement_network_unavailable']);
+offline.sync({enabled:true,nextSequence:100},{x:0,z:0});
+assert.equal(offline.enabled,false,'fatal network fallback needs an explicit page reload to re-enable preview');
+
 console.log('Homefront continuous client input prediction tests passed.');

@@ -1,0 +1,39 @@
+name: Homefront continuous movement transport safety
+on:
+  pull_request:
+    paths:
+      - 'client/arena/homefront-input-transport.mjs'
+      - 'client/arena/homefront-input-transport.test.mjs'
+      - 'client/arena/homefront-continuous-input.mjs'
+      - 'client/arena/homefront-continuous-input.test.mjs'
+      - 'client/arena/homefront-graveyard-3d.js'
+      - 'server/homefront-input-step.js'
+      - 'server/homefront-world.js'
+      - '.github/workflows/homefront-movement-transport.yml'
+      - 'package.json'
+permissions:
+  contents: read
+jobs:
+  movement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check syntax
+        run: |
+          node --check client/arena/homefront-input-transport.mjs
+          node --check client/arena/homefront-continuous-input.mjs
+          node --check client/arena/homefront-graveyard-3d.js
+      - name: Preview transport and prediction regressions
+        run: |
+          node client/arena/homefront-input-transport.test.mjs
+          node client/arena/homefront-continuous-input.test.mjs
+      - name: Authoritative movement and shared world regressions
+        run: |
+          node server/homefront-input-step.test.js
+          node test/homefront-input-api-sim.js
+          node test/homefront-world-sim.js
+          node test/homefront-graveyard-3d.test.mjs

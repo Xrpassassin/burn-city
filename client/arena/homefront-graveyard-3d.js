@@ -18,6 +18,7 @@ import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
 import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
+import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
 import { clipInteriorCamera } from './homefront-camera-occlusion.mjs';
@@ -659,16 +660,10 @@ function boot(host) {
   let lastEnvironmentInputRefresh = 0;
   let lastRenderedWorldData = null;
   const continuousInput = createContinuousInput({
-    send: async command => {
-      const response = await fetch(API + '/api/homefront/world/move-input', {
-        method: 'POST',
-        headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
-        body: JSON.stringify(command)
-      });
-      const data = await response.json();
-      if (!response.ok || data.error) throw new Error(data.error || 'continuous_input_failed');
-      return data;
-    },
+    // The preview must never stall forever on a missing server response.
+    // A timeout aborts the request; controller rollback keeps the local
+    // avatar bounded until a fresh validated server acknowledgement.
+    send: createHomefrontMoveTransport({ api: API, token }),
     onSnapshot: (data, time) => {
       if (!worldData || !data.self) return;
       const previous = worldData;

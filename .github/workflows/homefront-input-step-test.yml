@@ -13,6 +13,8 @@ on:
       - 'test/homefront-input-api-sim.js'
       - 'client/arena/homefront-continuous-input.mjs'
       - 'client/arena/homefront-continuous-input.test.mjs'
+      - 'client/arena/homefront-input-transport.mjs'
+      - 'client/arena/homefront-input-transport.test.mjs'
       - 'client/arena/homefront-input-snapshot.mjs'
       - 'client/arena/homefront-input-snapshot.test.mjs'
       - 'client/arena/homefront-context-action.mjs'
@@ -33,6 +35,8 @@ on:
       - 'test/homefront-input-api-sim.js'
       - 'client/arena/homefront-continuous-input.mjs'
       - 'client/arena/homefront-continuous-input.test.mjs'
+      - 'client/arena/homefront-input-transport.mjs'
+      - 'client/arena/homefront-input-transport.test.mjs'
       - 'client/arena/homefront-input-snapshot.mjs'
       - 'client/arena/homefront-input-snapshot.test.mjs'
       - 'client/arena/homefront-context-action.mjs'
@@ -55,6 +59,7 @@ jobs:
       - run: node test/homefront-input-world-sim.js
       - run: node test/homefront-input-api-sim.js
       - run: node client/arena/homefront-continuous-input.test.mjs
+      - run: node client/arena/homefront-input-transport.test.mjs
       - run: node client/arena/homefront-input-snapshot.test.mjs
       - run: node client/arena/homefront-context-action.test.mjs
       - run: node client/arena/homefront-room-proximity.test.mjs

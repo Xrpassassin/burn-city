@@ -1983,12 +1983,15 @@ function boot(host) {
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = walkingCameraHeading(localActor?.rotation.y || 0, cameraYawOffset, view.yaw, continuousInput.enabled);
       const stick = worldMove(view.move(), heading);
-      if (continuousInput.enabled && !moving && !(worldData.party && !worldData.party.leader)) {
+      const canDirectStep = continuousInput.enabled && !moving &&
+        !(worldData.party && !worldData.party.leader);
+      if (canDirectStep) {
         continuousInput.step(stick, directSprintRequested(sprintTravel, view.running(), aiming), now, dt);
       }
       const shownSelf = continuousInput.position() || self;
-      // Direct input turns the avatar toward travel direction, not prediction-correction residual.
-      if (continuousInput.enabled && localActor) {
+      // A player cannot visually turn from suppressed input while a legacy
+      // travel action or party leader has movement authority.
+      if (canDirectStep && localActor) {
         const desiredYaw = facingFromMovement(stick, localActor.rotation.y);
         localActor.rotation.y = smoothFacing(localActor.rotation.y, desiredYaw, dt);
       }

@@ -28,3 +28,20 @@ The workflow `.github/workflows/estates-policy2-testnet.yml` runs syntax and non
 - Testnet credentials must never be supplied from an actual user wallet or production environment. The script fails closed if known production secret variable names are present.
 
 Related: [Issue #537](https://github.com/Xrpassassin/burn-city/issues/537), [PR #536](https://github.com/Xrpassassin/burn-city/pull/536).
+
+## First independently validated policy-v2 end-to-end testnet run
+
+GitHub Actions: [successful public-testnet acceptance run #41606682153](https://github.com/Xrpassassin/burn-city/actions/runs/41606682153), Node 22 on 2026-11-03 UTC. This test was executed by GitHub Actions and produced **actual validated XRPL public-testnet hashes**, not a local simulation. It used disposable mock assets issued by a newly generated issuer. No mainnet assets or real RLUSD were involved.
+
+| Validated testnet action | Transaction hash | Ledger |
+| --- | --- | --- |
+| XRP purchase and memo-backed ownership settlement | `D3919638419BAA6A299BA04789B9EBFEDD01280F690D65FF3ABA0B2FB7EAF879` | 22033026 |
+| XRP to mock IMG acquisition | `FFC81B63C439C0DF0B8C557152EAD18A385DBC74501748B7444A2739505C8AFE` | 22033027 |
+| XRP to mock RLUSD acquisition | `194E51FE131ABB77280DDEF48C9985188C06D1DB9868FD452FAD60CF662DC919` | 22033029 |
+| Actual `tfTwoAsset` AMMDeposit | `29C3FE8FB6438DEF5516FB28A697A2686F3B236DFB8063A251029B005A0213E8` | 22033031 |
+
+Observed LP minted `14.325936178035`; actual recorded LP basis `2880724` XRP drops; uninvested principal `89312` XRP drops. The source purchase was exactly 3 XRP, allocated 2,970,000 drops to liquidity and 30,000 drops to operating reserve. The script verified idempotent ownership and treasury recovery and zero profit/reward receipts from new principal.
+
+Initial run #41606486691 failed **before any pool transactions** because the public test XRP faucet's default funding was below the test's explicit >620 XRP market-maker prerequisite. The test was corrected to request sufficient disposable faucet funding; no risk guard, production setting, or mainnet dependency was weakened. The subsequent real testnet run above **passed**.
+
+This proof does not replace production pool/issuer verification, full large-tier sourcing tests, security review, operator go-live controls, or legal approval. Live property sales and automated rewards remain disabled.

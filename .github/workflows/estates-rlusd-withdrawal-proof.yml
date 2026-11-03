@@ -1,0 +1,30 @@
+name: Estates validated IMG RLUSD withdrawal proof
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/estates-rlusd-withdrawal-proof.yml'
+      - 'server/estate-rlusd-validated-withdrawal-proof.js'
+      - 'server/estate-rlusd-validated-withdrawal-proof.test.js'
+      - 'server/estate-liquidity-ledger.js'
+      - 'server/estate-rlusd-validated-hour-scanner.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  receipt-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify independent on-chain LP burn and both asset receipts
+        run: |
+          node --check server/estate-rlusd-validated-withdrawal-proof.js
+          node server/estate-rlusd-validated-withdrawal-proof.test.js
+          node server/estate-rlusd-validated-hour-scanner.test.js
+      - name: Confirm no financial activation
+        run: |
+          echo 'Only nonpaying, immutable verified withdrawal evidence is stored. Cost basis, IMG disposal, net RLUSD proceeds, actual profits and owner payouts remain unverified and unauthorized.' >> "$GITHUB_STEP_SUMMARY"

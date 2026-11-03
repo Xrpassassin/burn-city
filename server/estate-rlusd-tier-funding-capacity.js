@@ -27,6 +27,9 @@ function inspectEstateTierFundingCapacity({tiers,indicativeMaxPurchaseDrops}={})
    plannedImgRlusdCapitalDrops:capital.imgRlusdDrops,
    plannedOperatingReserveDrops:capital.operatingReserveDrops,
    indicativeSinglePurchaseWithinMaxImpact:price<=max,
+   indicativeSingleStepAssetAcquisitionWithinMaxImpact:price<=max,
+   proportionalTwoAssetAmmDepositSizeCappedByTradeImpact:false,
+   acquisitionOfImgAndRlusdStillRequiresIndependentQuotes:true,
    immediateFullSinglePurchaseFundingVerified:false,
    stagedFundingPreview,
    newPurchasePrincipalIsNotIncome:true});
@@ -41,6 +44,8 @@ function inspectEstateTierFundingCapacity({tiers,indicativeMaxPurchaseDrops}={})
   simultaneousPurchaseAndSlippageProtectionNotVerified:true,
   stagingOrDeeperLiquidityReviewNeeded:rows.some(x=>!x.indicativeSinglePurchaseWithinMaxImpact),
   stagedFundingAvailableOnlyAsReadOnlyPreview:true,
+  acquiredBothSidesCanBeDepositedProportionatelyWithoutSwapImpact:true,
+  quotedSingleTradeCapacityIsNotAnAmmDepositSizeLimit:true,
   automaticFundingAuthorized:false,propertySalesAuthorized:false
  });
 }

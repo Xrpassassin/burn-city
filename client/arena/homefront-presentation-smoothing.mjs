@@ -26,6 +26,22 @@ export function cameraFollowAnchor(continuous, avatar, predicted) {
   return predicted;
 }
 
+// Keep displayed prediction bounded after authoritative acks and polling GETs,
+// not only while integrating joystick movement between network packets.
+// This is presentation math: never adjusts the server-owned position.
+export function clampPredictionLead(predicted, authoritative, maxLead = 1.5) {
+  if (!Number.isFinite(authoritative?.x) || !Number.isFinite(authoritative?.z)) return null;
+  if (!Number.isFinite(predicted?.x) || !Number.isFinite(predicted?.z)) {
+    return { x: authoritative.x, z: authoritative.z };
+  }
+  const limit = Number.isFinite(maxLead) ? Math.max(0, maxLead) : 0;
+  const dx = predicted.x - authoritative.x, dz = predicted.z - authoritative.z;
+  const lead = Math.hypot(dx, dz);
+  if (lead <= limit) return { x: predicted.x, z: predicted.z };
+  const scale = lead > 0 ? limit / lead : 0;
+  return { x: authoritative.x + dx * scale, z: authoritative.z + dz * scale };
+}
+
 // A time-based correction matches the old ~16%/frame feel at 60 FPS without
 // correcting 4x faster at 120 FPS than at 30 FPS. Visual-only; no server moves.
 export function releasePredictionBlend(dt, responsiveness = 10.5) {

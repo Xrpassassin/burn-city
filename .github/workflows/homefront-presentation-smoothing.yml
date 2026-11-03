@@ -1,0 +1,29 @@
+name: Homefront avatar camera smoothing
+on:
+  push:
+    branches:
+      - feat/547-homefront-avatar-camera-smoothing
+  pull_request:
+    paths:
+      - 'client/arena/homefront-presentation-smoothing.mjs'
+      - 'client/arena/homefront-graveyard-3d.js'
+      - 'test/homefront-presentation-smoothing.test.mjs'
+      - 'package.json'
+      - '.github/workflows/homefront-presentation-smoothing.yml'
+jobs:
+  presentation-smoothing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check scene syntax
+        run: node --check client/arena/homefront-graveyard-3d.js
+      - name: Check presentation helper and regression
+        run: node test/homefront-presentation-smoothing.test.mjs
+      - name: Check analog movement regression
+        run: node test/homefront-analog-input-sim.js
+      - name: Check continuous input regression
+        run: node client/arena/homefront-continuous-input.test.mjs

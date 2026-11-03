@@ -27,6 +27,7 @@ jobs:
         run: |
           node --check client/arena/zombie-model-pilot.mjs
           node --check client/arena/zombie-model-selection.mjs
+          node --check client/arena/zombie-model-policy.mjs
           node --input-type=module --check < client/arena/fx.js
       - name: Validate bundled GLB and animation contract
         run: node client/arena/zombie-model-pilot.test.mjs

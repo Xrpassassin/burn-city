@@ -24,9 +24,9 @@ async function send(wallet,tx){
 async function run(){
  await client.connect();
  try{
-  const [issuer,maker,depositor]=await Promise.all([
-   client.fundWallet(),client.fundWallet(),client.fundWallet()
-  ]).then(rs=>rs.map(r=>r.wallet));
+  const wallets=[];
+  for(let i=0;i<3;i++)wallets.push((await client.fundWallet()).wallet);
+  const [issuer,maker,depositor]=wallets;
   const IMG={currency:'IMG',issuer:issuer.classicAddress};
   // RLU is a disposable TEST token, never Ripple's real RLUSD.
   const RLU={currency:'RLU',issuer:issuer.classicAddress};

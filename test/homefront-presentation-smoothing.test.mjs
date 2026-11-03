@@ -110,9 +110,9 @@ correction.disable('test_end');
 // Rendering must not rotate the character from input which gameplay has
 // already suppressed (legacy travel or party-leader control).
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
-assert.match(scene, /const canDirectStep = continuousInput\\.enabled && !moving &&/,
+assert.ok(scene.includes('const canDirectStep = continuousInput.enabled && !moving &&'),
   'walking and turn presentation share a guarded movement eligibility decision');
-assert.match(scene, /if \\(canDirectStep && localActor\\)/,
+assert.ok(scene.includes('if (canDirectStep && localActor)'),
   'avatar facing does not react to disallowed movement controls');
 
 console.log('Homefront presentation smoothing: 30/60/120 FPS, wrap, analog, release, shared camera anchor, bounded authoritative correction passed');

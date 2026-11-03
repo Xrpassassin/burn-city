@@ -1,0 +1,38 @@
+name: Zombies encounter director and legacy gameplay isolation
+on:
+  pull_request:
+    paths:
+      - 'server/zombie-wave-director.js'
+      - 'server/game.js'
+      - 'client/arena/index.html'
+      - 'test/zombie-wave-director-sim.js'
+      - 'test/zombie-cosmodrome-enemies-sim.js'
+      - '.github/workflows/zombies-encounter-director.yml'
+      - 'package.json'
+permissions:
+  contents: read
+jobs:
+  zombies-director:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate JavaScript syntax
+        run: |
+          node --check server/zombie-wave-director.js
+          node --check server/game.js
+          node --check test/zombie-wave-director-sim.js
+      - name: Pure and live-room encounter selection tests
+        run: node test/zombie-wave-director-sim.js
+      - name: Existing zombie gameplay and Cosmodrome special-threat checks
+        run: |
+          node test/zombie-sim.js
+          node test/zombie-nav-sim.js
+          node test/zombie-cosmodrome-sim.js
+          node test/zombie-cosmodrome-enemies-sim.js
+          node test/zombie-map-progression-sim.js
+          node test/zombie-forge-tier-sim.js
+          node test/zombie-ravager-sim.js

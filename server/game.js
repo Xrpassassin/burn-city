@@ -1,6 +1,6 @@
 // Authoritative simulation for both modes. Clients only send inputs; server owns all state,
 // collisions and damage. Numbers are quantized in snapshots to keep bandwidth small.
-const Heli = require('./heli'), Rotary = require('./rotary-rules');   // helicopter finale (Night Shift ch. 4)
+const Heli = require('./heli'), Rotary = require('./rotary-rules'), Director = require('./zombie-wave-director');   // helicopter finale (Night Shift ch. 4)
 const C = require('./config'), Z = require('./cod'), Quest = require('./quest'), IFRAME = +(process.env.ZOMBIE_IFRAME || 1), SPAWN_GAP = +(process.env.ZOMBIE_SPAWN_GAP || 1.8), REGEN_DELAY = +(process.env.ZOMBIE_REGEN_DELAY || 3.5), REGEN_RATE = +(process.env.ZOMBIE_REGEN_RATE || 22), HS_LAT = 0.3, HS_BONUS = 40, TEST_GOD = process.env.ZOMBIE_TEST_GOD === '1' && !process.env.FLY_APP_NAME;   // local screenshot runs only
 // between-round upgrade draft (Mortuus-style): after each cleared wave every standing player picks 1 of 3 stacking boons
 const DRAFT = { dmg: ['Searing Fuel', '+12% damage', 5, '🔥'], fuel: ['Deep Tanks', '+25% fuel refill', 4, '⛽'], armor: ['Slag Plating', '-10% damage taken', 3, '🛡️'], hp: ['Thick Skin', '+20 max health', 5, '❤️'],
@@ -46,7 +46,7 @@ class Room {
   reset() {
     this.round = (this.round || 0) + 1;
     if (this.mode === 'zombie') { this.over = 0; this.zombies = new Map(); this.spawned = 0; this.wave = (!process.env.FLY_APP_NAME && +process.env.ZOMBIE_START_WAVE) || 0;   // start-wave override: local testing only
-    this.score = 0; this.toSpawn = 0; this.waveDelay = 5; this.zid = 1; Heli.reset(this); this.onFlare = e => Heli.start(this, e); const oldM = this.M; Z.resetMap(this); if (oldM && oldM !== this.M) this.events.push({ e: 'map', map: Z.layout() }); for (const p of this.players.values()) Z.initPlayer(p); }
+    this.score = 0; this.toSpawn = 0; this.waveDelay = 5; this.zid = 1; this.freeplayWavePlan = null; Heli.reset(this); this.onFlare = e => Heli.start(this, e); const oldM = this.M; Z.resetMap(this); if (oldM && oldM !== this.M) this.events.push({ e: 'map', map: Z.layout() }); for (const p of this.players.values()) Z.initPlayer(p); }
     else this.roundEnd = null;
     for (const p of this.players.values()) this.spawn(p);
     if (this.tl) this.tl.order = [];
@@ -131,22 +131,28 @@ class Room {
     if (this.toSpawn === 0 && this.zombies.size === 0) {        // next wave
       if (!this.ranked && this.wave >= 1 && this.drafted !== this.wave) { this.drafted = this.wave; for (const p of ps) if (p.alive && !p.down && !p.spectator) offerDraft(p, ev); }
       Quest.onBreak(this, ev);   // between rounds: the next radio call (once per break)
-      if ((this.waveDelay -= dt) <= 0) { this.wave++; const np = Math.max(1, ps.filter(p => !p.spectator).length); this.toSpawn = Math.round((6 + this.wave * 4) * Z.scaleN(np)); this.waveTotal = this.toSpawn; this.spawnT = 2.5; this.waveDelay = Z.waveGap(np); ev.push({ e: 'wave', n: this.wave }); for (const p of ps) if (p.draft) takeDraft(p, 0, ev);
+      if ((this.waveDelay -= dt) <= 0) { this.wave++; const np = Math.max(1, ps.filter(p => !p.spectator).length); this.toSpawn = Math.round((6 + this.wave * 4) * Z.scaleN(np)); this.waveTotal = this.toSpawn; this.spawnT = 2.5; this.waveDelay = Z.waveGap(np); ev.push({ e: 'wave', n: this.wave });
+        // Warn before the first spawn, without modifying ranked or daily modes.
+        this.freeplayWavePlan = !this.ranked && !this.daily ? Director.planFreeplayWave({roomId:this.id,mapId:this.mapId,wave:this.wave,partySize:np}) : null;
+        if (this.freeplayWavePlan?.warning) ev.push({e:'zpressure',kind:this.mapId==='cosmodrome'&&this.wave>=8&&this.wave%4===0?'warden':this.freeplayWavePlan.style,wave:this.wave});
+        for (const p of ps) if (p.draft) takeDraft(p, 0, ev);
         for (const p of ps) if (!p.alive && !this.ranked) { this.spawn(p); ev.push({ e: 'spawn', id: p.id, x: q(p.x), z: q(p.z) }); } }
     }
     // paced spawning: one zombie per gap instead of all at once. The gap starts at SPAWN_GAP, tightens a little each wave, and
     // stretches out as the wave goes on (up to ~1.9x by the last zombie), so a round builds and then thins. Alive count is capped per wave too.
     const npl = Math.max(1, ps.filter(p => !p.spectator).length), capZ = Math.min(MAX_Z, Math.round((6 + this.wave * 2.5) * Math.sqrt(npl)));
+    const wavePlan = !this.ranked && !this.daily ? (this.freeplayWavePlan?.wave === this.wave ? this.freeplayWavePlan : (this.freeplayWavePlan = Director.planFreeplayWave({roomId:this.id,mapId:this.mapId,wave:this.wave,partySize:npl}))) : null;
     this.spawnT = (this.spawnT ?? 0) - dt;
     while (this.toSpawn > 0 && this.zombies.size < capZ && this.spawnT <= 0) {    // trickle in through windows of unlocked zones
       const prog = 1 - this.toSpawn / Math.max(1, this.waveTotal || this.toSpawn);
-      this.spawnT += Math.max(0.55, SPAWN_GAP * Math.pow(0.95, this.wave - 1)) * (1 + 0.9 * prog) / Math.sqrt(npl) * (0.8 + Math.random() * 0.4);
+      this.spawnT += Math.max(0.55, SPAWN_GAP * Math.pow(0.95, this.wave - 1)) * (1 + 0.9 * prog) / Math.sqrt(npl) * (0.8 + Math.random() * 0.4) * (wavePlan?.spawnGapMultiplier || 1);
       const wi = Z.windowSpawn(this), wn = Z.WINDOWS[wi]; let [sx, sz] = wn ? [wn.ox + (wn.ox - wn.x) * 3 + (Math.random() - .5) * 3, wn.oz + (wn.oz - wn.z) * 3 + (Math.random() - .5) * 3] : Z.zoneSpawn(this); this.toSpawn--; this.spawned++;
       const roll = Math.random(), sr = this.ranked ? 1 : Math.random(), wv = this.wave, cosmo = this.mapId === 'cosmodrome';
       // Map 2 introduces an airborne hunter (6) and a ranged shooter (7); neither appears in ranked/daily balance.
       // The Ashen Warden is a named-feeling elite encounter: first spawn on waves 8, 12, 16…; standard modes are untouched.
       const boss = cosmo && wv >= 8 && wv % 4 === 0 && this.spawned === 1;
-      const ty = boss ? 8 : cosmo && wv >= 4 && sr < 0.07 ? 7 : cosmo && wv >= 3 && sr < 0.14 ? 6 : wv >= 5 && sr < 0.035 ? 3 : wv >= 4 && sr < 0.11 ? 4 : wv >= 6 && sr < 0.17 ? 5 : wv >= 2 && roll < 0.18 ? 1 : wv >= 3 && roll > 0.9 ? 2 : 0;
+      const baselineTy = boss ? 8 : cosmo && wv >= 4 && sr < 0.07 ? 7 : cosmo && wv >= 3 && sr < 0.14 ? 6 : wv >= 5 && sr < 0.035 ? 3 : wv >= 4 && sr < 0.11 ? 4 : wv >= 6 && sr < 0.17 ? 5 : wv >= 2 && roll < 0.18 ? 1 : wv >= 3 && roll > 0.9 ? 2 : 0;
+       const ty = wavePlan ? Director.chooseFreeplayZombieType({plan:wavePlan,baseType:baselineTy,spawnIndex:this.spawned}) : baselineTy;
       if (ty >= 6) [sx, sz] = Z.zoneSpawn(this);
       const base = (60 + this.wave * 15) * (cosmo ? 1.25 : 1) * (this.mod?.hp || 1) * Z.hpN(Math.max(1, ps.filter(p => !p.spectator).length)), sp = (2.2 + Math.min(this.wave * 0.25, 2.5) + Math.random()) * (this.mod?.sp || 1);
       this.zombies.set(this.zid, { id: this.zid++, ty, x: sx, z: sz, lv: ty === 6 ? 0 : wn?.lv || 0, y: ty === 6 ? 2.4 : (wn?.lv || 0) * Z.UH, hp: base * HPM[ty], maxhp: base * HPM[ty], sp: sp * (ty === 1 ? Z.RUNNER : SPM[ty]), win: ty >= 6 ? null : wn ? wi : null, ph: 0, armorHp: ty === 2 || ty === 3 || ty === 8 ? base * (ty === 8 ? 0.38 : 0.28) : 0, armorBroken: 0, ...(ty === 7 ? { shotT: 2.2 + Math.random() * 1.2 } : {}) });

@@ -66,7 +66,7 @@ const client={request:async q=>{
 }};
 (async()=>{
  const service=create({db,client,treasury:TREASURY});
- assert.equal((await service.scan()).blocked,'closed_hour_scanner_required');
+ assert.equal((await service.scan()).verifiedCandidateCount,0); // no completed hour yet
  assert.equal(service.list().length,0);
  db.prepare('INSERT INTO estate_rlusd_hour_scan_windows VALUES(?)').run(EPOCH);
  broken=true;

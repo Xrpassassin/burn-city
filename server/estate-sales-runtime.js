@@ -12,16 +12,27 @@ const {purchaseTerms,confirmPurchaseTerms}=require('./estate-purchase-terms-gate
 function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true}={}){
  const capital=createEstateCapitalAllocation(db);
  const terms=purchaseTerms(env);
- const configured=!!terms&&env.ESTATE_SALES_ENABLED==='1'&&config.DRY_RUN===false&&config.NETWORK==='mainnet'&&
-  !!config.XUMM_KEY&&!!config.XUMM_SECRET&&/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(config.ESTATE_TREASURY||'');
- const options=configured?{enabled:true,sdk:pay.sdk(),treasury:config.ESTATE_TREASURY,requiredTerms:terms,
+ // Creating new XRP requests needs all sale, legal, treasury and terms
+ // gates. Recovering a previously-bound/signed request is a different,
+ // narrower operation: disabling new sales must not strand validated funds.
+ const settlementConfigured=config.DRY_RUN===false&&config.NETWORK==='mainnet'&&
+  !!config.XUMM_KEY&&!!config.XUMM_SECRET&&
+  /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(config.ESTATE_TREASURY||'');
+ const configured=!!terms&&env.ESTATE_SALES_ENABLED==='1'&&settlementConfigured;
+ const settlementOptions=settlementConfigured?{enabled:true,sdk:pay.sdk(),
+  treasury:config.ESTATE_TREASURY,
   client:{request:async q=>(await pay.ledger()).request(q)}}:{enabled:false};
+ const saleOptions=configured?{...settlementOptions,requiredTerms:terms}:{enabled:false};
  const reservations=createEstateReservationApi(db,{enabled:configured});
- const payments=createEstateXamanPaymentSession(db,options);
- const settlement=createEstateSaleFinalization(db,options);
+ const payments=createEstateXamanPaymentSession(db,saleOptions);
+ // These paths do not create a Xaman payload, nor trust a client tx hash.
+ // They only inspect an existing server-bound payload and validated ledger tx.
+ const settlement=createEstateSaleFinalization(db,settlementOptions);
  const recovery=createEstateSaleSessionRecovery(db);
- const late=createEstateLatePaymentReconciliation(db,options);
- const status=()=>({salesEnabled:configured&&!paused(),distributionsEnabled:false,
+ const late=createEstateLatePaymentReconciliation(db,settlementOptions);
+ const status=()=>({salesEnabled:configured&&!paused(),
+  preexistingPaymentReconciliationAvailable:settlementConfigured,
+  distributionsEnabled:false,
   salesStatus:!configured?'sales_not_enabled':paused()?'treasury_paused':'open',
   purchaseTerms:terms?{version:terms.version,digest:terms.digest,url:terms.url}:null,
   capitalAllocationPolicy:POLICY,rewardsGuaranteed:false,imgXrpProfitDistributionsEnabled:false,
@@ -42,8 +53,9 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
   return payments.start(input);
  }
  async function finalize(input){
-  if(!configured)return {ok:false,error:'estate_sales_disabled'};
-  // A pause blocks new money requests, but never prevents reconciliation of an
+  if(!settlementConfigured)return {ok:false,error:'estate_sales_disabled'};
+  // A pause, legal terms rotation, or disabled new sales must not block the
+  // validated completion of an already-bound incoming XRP payment.
   // already-authorized incoming payment or replay of settled ownership.
   try{return await settlement.finalize(input);}catch(e){
    if(e.message==='payment_not_validated_success'||e.data?.error==='txnNotFound')return {ok:false,pending:true,error:'payment_pending_validation'};

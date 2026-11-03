@@ -5,6 +5,7 @@ const {N,value,token,drops,ceil,sameAmount,balanceDelta,boundedTokenDebit,verifi
 const {createEstateTreasuryTransactions}=require('./estate-treasury-transactions');
 const {createEstateImgOwnershipSnapshots}=require('./estate-img-ownership-snapshots');
 const {allocateProfit}=require('./estate-economy');
+const {planEstateRlusdAcquisitionSplit}=require('./estate-rlusd-acquisition-ratio-preview');
 const POOL='rPDJ5BQxKQboHmaPEzy8n7D3RD5N7AwMiJ';
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 const zero=()=>({cash:'0',img:'0',plx:'0',rlusd:'0',imgCost:'0',plxCost:'0',rlusdCost:'0',fees:'0',lp:'0',basis:'0',generation:0,carryBasis:null});
@@ -12,6 +13,7 @@ function integer(s){if(typeof s!=='string'||!/^\d+$/.test(s))throw Error('intege
 function validateData(d){
  for(const k of ['cash','imgCost','plxCost','fees','basis'])integer(d[k]);
  integer(d.rlusdCost||'0');
+ if(d.plannedRlusdBudgetDrops!==undefined)integer(d.plannedRlusdBudgetDrops);
  for(const k of ['img','plx','lp','residualImg','residualPlx','rlusd','residualRlusd'])if(value(d[k]||'0').lt(0))throw Error('negative_position_inventory');
  if(!Number.isSafeInteger(d.generation)||d.generation<0||(value(d.lp).gt(0)&&integer(d.basis)<1n))throw Error('invalid_position_basis');
  for(const k of ['harvestXrp','harvestFees','harvestBasis'])if(d[k]!==undefined)integer(d[k]);
@@ -158,22 +160,47 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
    const received=verifiedTokenCredit(r,treasury,issue,c.output);
    const spent=xrpMovement(r,treasury).negated();if(!spent.gt(0)||spent.gt(value(c.budget)))throw Error('acquisition_budget_mismatch');
    subtract(data,'cash',spent);data[kind]=value(data[kind]).plus(received).toFixed();data[kind+'Cost']=spent.toFixed();data.fees=value(data.fees).plus(p.fee_drops).toFixed();
+   // Persist the pre-signing ratio-based RLUSD cap only AFTER the original
+   // IMG acquisition validates. Earlier signed intents lacking this field
+   // are recovered under their original accounting, never re-signed.
+   if(j.pair==='img-rlusd'&&kind==='img'&&c.plannedRlusdBudgetDrops!==undefined){
+    integer(c.plannedRlusdBudgetDrops);
+    data.plannedRlusdBudgetDrops=c.plannedRlusdBudgetDrops;
+   }
    save(j,data,kind==='img'&&j.pair==='img-plx'?'buy_plx':kind==='img'&&j.pair==='img-rlusd'?'buy_rlusd':'deposit');
   }))return;
   if(!canPlan())return;
-  const budget=kind==='img'?drops(value(d.cash).div(2)):d.cash;
-  if(integer(budget)<1n)throw Error('capital_below_conversion_minimum');
+  let budget=kind==='img'?drops(value(d.cash).div(2)):d.cash;
   const h=await head(),issue=kind==='img'?IMG:kind==='rlusd'?RLUSD:PLX,p=await pool(XRP,issue,h);
+  let budgetPlan=null;
   if(row.pair==='img-rlusd'){
    if(!rlusdEnabled||!/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(rlusdPoolAccount))throw Error('img_rlusd_activation_required');
    const target=await pool(IMG,RLUSD,h,rlusdPoolAccount),imgXrp=kind==='img'?p:await pool(XRP,IMG,h),stableXrp=kind==='rlusd'?p:await pool(XRP,RLUSD,h);
    const market=imgXrp.a.div(imgXrp.b).times(stableXrp.b).div(stableXrp.a),quoted=target.b.div(target.a);
    if(quoted.div(market).minus(1).abs().times(10000).gt(maxAcquisitionImpactBps))throw Error('img_rlusd_market_price_mismatch');
+   if(kind==='img'){
+    // XRP proceeds are acquired at market prices, then deposited in the
+    // pool's EXISTING IMG/RLUSD quantity ratio. Exactly half the XRP on
+    // each side is correct only when external prices agree with that ratio.
+    budgetPlan=planEstateRlusdAcquisitionSplit({
+     earmarkedCapitalDrops:d.cash,
+     poolImg:target.a.toFixed(),poolRlusd:target.b.toFixed(),
+     referenceXrpPerImg:imgXrp.a.div(imgXrp.b).div(1000000).toFixed(18),
+     referenceXrpPerRlusd:stableXrp.a.div(stableXrp.b).div(1000000).toFixed(18)
+    });
+    if(!budgetPlan.bothAcquisitionBudgetsNonzero)throw Error('two_sided_acquisition_budget_below_minimum');
+    budget=budgetPlan.indicativeImgAcquisitionBudgetDrops;
+   }else if(kind==='rlusd'&&d.plannedRlusdBudgetDrops!==undefined){
+    // A favorable IMG fill must not silently be overspent on RLUSD.
+    // Unspent XRP remains identifiable purchase principal.
+    budget=(integer(d.plannedRlusdBudgetDrops)<integer(d.cash)?d.plannedRlusdBudgetDrops:d.cash);
+   }
    if(value(budget).times(10000).div(p.a.plus(value(budget))).gt(maxAcquisitionImpactBps))throw Error('acquisition_price_impact_limit');
   }
+  if(integer(budget)<1n)throw Error('capital_below_conversion_minimum');
   const output=buyQuote(p,budget,slippageBps);
   await inventory(issue,h,{increase:output});
-  ensure(row,d,step,'capital_buy',{TransactionType:'Payment',Destination:treasury,Amount:{...issue,value:output},SendMax:budget,Flags:0},{budget,output},h);
+  ensure(row,d,step,'capital_buy',{TransactionType:'Payment',Destination:treasury,Amount:{...issue,value:output},SendMax:budget,Flags:0},{budget,output,...(budgetPlan?{plannedRlusdBudgetDrops:budgetPlan.indicativeRlusdAcquisitionBudgetDrops}:{})},h);
  }
  async function deposit(row,d){
   if(applyConfirmed(row,d,'deposit',(r,c,p,j,data)=>{

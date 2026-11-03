@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createFPBody } from './fpbody.js';
 import { buildNftChar, disposeNftChar } from '../js/nftchar.js';
+import { zombieModelPolicy } from './zombie-model-policy.mjs';
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = new THREE.Vector3(), S = new THREE.Vector3(), C = new THREE.Color();
 const P = new THREE.Vector3(), Pt = new THREE.Matrix4();
 // one instanced mesh per body part; each part has a pivot offset (shoulder/hip) so limbs swing naturally
@@ -70,13 +71,32 @@ export function createZombieFX(scene, { low = false } = {}) {
     { s: 1.9, skin: [0x3c3a40, 0x45403a], eye: 0xff2010, speed: 0.55 }, { s: 1.0, skin: [0xb8b49a, 0xa8a890], eye: 0x9aff40, speed: 1.75 }, { s: 0.62, skin: [0x4a5a78, 0x3e4e66], eye: 0x40e8ff, speed: 1.55 }, { s: 0.9, skin: [0x387f99, 0x295b70], eye: 0x58eaff, speed: 1.25 }, { s: 1.05, skin: [0x87629c, 0x59416b], eye: 0xc18aff, speed: 0.72 }, { s: 1.55, skin: [0x3c3538, 0x5d342c], eye: 0xff7b42, speed: 0.68 }];   // 3 Juggernaut, 4 Lope (runs on its arms), 5 Skitter
   const CLOTH = [0x5a3a2a, 0x2f3d55, 0x6a6a6a, 0x7a2a22, 0x3e4a2e, 0x8a7a5a, 0x40304a], PANTS = [0x2a2a33, 0x3a3226, 0x23324a, 0x4a3a2a];
   const zs = new Map(), dying = [];   // id -> {x,z,yaw,ph,var,heat}
-  // Animated model pilot is strictly opt-in; normal play stays on the procedural, instanced renderer.
-  let zombieModelPilot = null;
-  if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('zombieModels') === '1') {
+  // Animated infected are enabled automatically only for suitable devices.
+  // Nearby detailed rigs replace procedural copies; distant hordes remain instanced.
+  // ?zombieModels=0 disables them, ?zombieModels=1 explicitly previews them.
+  // Reduced-motion and data-saver preferences are respected by the auto path.
+  let zombieModelPilot = null, pilotCleared = false;
+  const modelPolicy = zombieModelPolicy({
+    low,
+    search: typeof location !== 'undefined' ? location.search : '',
+    hardwareConcurrency: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined,
+    deviceMemory: typeof navigator !== 'undefined' ? navigator.deviceMemory : undefined,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+    saveData: typeof navigator !== 'undefined' ? !!navigator.connection?.saveData : false,
+    reducedMotion: typeof matchMedia !== 'undefined'
+      ? matchMedia('(prefers-reduced-motion: reduce)').matches : false
+  });
+  if (modelPolicy.enabled) {
     import('./zombie-model-pilot.mjs')
-      .then(({ createZombieModelPilot }) => createZombieModelPilot(scene))
-      .then(pilot => { zombieModelPilot = pilot; })
-      .catch(() => { zombieModelPilot = null; }); // Missing/invalid assets fall back without breaking Zombies.
+      .then(({ createZombieModelPilot }) => createZombieModelPilot(scene, {
+        maxModels: modelPolicy.maxModels,
+        maxDistance: modelPolicy.maxDistance
+      }))
+      .then(pilot => {
+        if (pilotCleared) { pilot.clear(); return; }
+        zombieModelPilot = pilot;
+      })
+      .catch(() => { zombieModelPilot = null; }); // GLB failure keeps the instanced procedural fallback.
   }
   const hit = new THREE.Color(0xffd0a0), burnC = new THREE.Color(0xff5a10), charC = new THREE.Color(0x1a1410), tmp = new THREE.Color(), tmp2 = new THREE.Color(), tmp3 = new THREE.Color(), tmp4 = new THREE.Color();
   const HID = 0.0001;
@@ -264,9 +284,19 @@ export function createZombieFX(scene, { low = false } = {}) {
       if (e.w === 'shotgun') { const ox = (isMe ? meX : e.x) + fx * 1.4, oz = (isMe ? meZ : e.z) + fz * 1.4; burst(mzY != null ? meX : ox, mzY != null ? mzY : 1.25 + sy, mzY != null ? meZ : oz, fx, fz, low ? 22 : 45, pr); }
       if (e.w === 'napalm' && e.ray) { const x0 = isMe ? meX : e.x, z0 = isMe ? meZ : e.z, ty = e.ty ?? sy; rays.push({ x0, z0, x1: e.tx, z1: e.tz, y0: mzY != null ? mzY - 1.2 : sy, y1: ty, t: 0.2, mz: mzY != null }); burst(e.tx, 1.1 + ty, e.tz, -fx * 0.2, -fz * 0.2, low ? 8 : 16, WP[1] || pr); return; }
       if (e.w === 'napalm' && blobs.length < NB) blobs.push({ x0: isMe ? meX : e.x, z0: isMe ? meZ : e.z, x1: e.tx, z1: e.tz, t: 0 }); },
-    zdie(e) { const z = zs.get(e.id); if (z) { z.deathType = e.ty ?? z.ty; dying.push({ ...z, fade: 0 }); zs.delete(e.id); } },
-    armorBreak(e) { const z = zs.get(e.id); if (z) { z.armorBroken = 1; z.fl = 1; z.flash = 1; } },
-    clear() { zombieModelPilot?.clear(); fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; for (const tr of ravagerTracers) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); } ravagerTracers.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
+    zdie(e) { const z = zs.get(e.id); if (z) {
+      z.deathType = e.ty ?? z.ty;
+      // The animated rig owns its death clip; do not draw a second corpse.
+      // Procedural hordes retain the original death tumble/fade behavior.
+      if (!zombieModelPilot?.react(e.id, 'Death')) dying.push({ ...z, fade: 0 });
+      zs.delete(e.id);
+    } },
+    zhit(e) { const z = zs.get(e.id); if (z) {
+      z.flash = Math.max(z.flash, 0.6);
+      zombieModelPilot?.react(e.id, 'HitReact');
+    } },
+    armorBreak(e) { const z = zs.get(e.id); if (z) { z.armorBroken = 1; z.fl = 1; z.flash = 1; zombieModelPilot?.react(e.id, 'HitReact'); } },
+    clear() { zombieModelPilot?.clear(); pilotCleared = true; fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; for (const tr of ravagerTracers) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); } ravagerTracers.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
     // st: interpolated state; me: predicted self {x,z,yaw,firing}; colorOf(id) -> THREE.Color
     update(dt, st, me, myId, colorOf, flameCol, nftOf, srv) {
       t += dt; const seen = new Set(); nb = 0; for (let k = ravagerTracers.length - 1; k >= 0; k--) { const tr = ravagerTracers[k]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.075); if (tr.left <= 0) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); ravagerTracers.splice(k, 1); } }

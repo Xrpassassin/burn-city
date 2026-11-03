@@ -20,7 +20,7 @@ assert(optionsSeen.signal instanceof AbortSignal);
 assert.equal(optionsSeen.signal.aborted,false);
 assert.equal(createHomefrontMoveTransport({api:'/',token:()=>'x',fetchImpl:async()=>({ok:true,json:async()=>({inputAck:{sequence:1,x:0,z:0}})})}) instanceof Function,true);
 assert.equal(typeof createHomefrontMoveTransport({api:'http://localhost:3000',token:()=>'x',fetchImpl:async()=>({ok:true,json:async()=>({inputAck:{sequence:1,x:0,z:0}})})}),'function');
-for(const bad of ['http://example.org','javascript:alert(1)','file:///root','https://x.test/path?secret=1',null]){
+for(const bad of ['http://example.org','https://attacker.example','https://user:pass@evil.example','javascript:alert(1)','file:///root','https://x.test/path?secret=1','//evil.example',null]){
   assert.throws(()=>createHomefrontMoveTransport({api:bad,token:()=>'',fetchImpl:()=>{}}),/invalid_homefront_api_base/);
 }
 assert.throws(()=>createHomefrontMoveTransport({api:'/',token:()=>'x',fetchImpl:()=>{},timeoutMs:9000}),/invalid_homefront_movement_timeout/);

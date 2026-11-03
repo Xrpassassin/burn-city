@@ -9,7 +9,15 @@ export function createHomefrontMoveTransport({
 } = {}) {
   const base = typeof api === 'string' ? api.replace(/\/+$/, '') : '';
   // Do not expose bearer tokens to insecure remote URLs supplied via ?api=.
-  const safe = /^https:\/\/[^/?#]+$/i.test(base) ||
+  // A user-supplied ?api= URL must not redirect an existing bearer
+  // token to an arbitrary HTTPS domain. Only this page's origin, the
+  // production game host, localhost dev and relative same-origin routes
+  // may receive authenticated movement packets.
+  const currentOrigin = typeof globalThis.location?.origin === 'string'
+    ? globalThis.location.origin : null;
+  const trusted = new Set(['https://burn-city-game.fly.dev']);
+  if (currentOrigin) trusted.add(currentOrigin);
+  const safe = trusted.has(base) ||
     /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(base) ||
     (api === '/' || (base.startsWith('/') && !base.startsWith('//') && !/[?#]/.test(base)));
   if (!safe) throw new Error('invalid_homefront_api_base');

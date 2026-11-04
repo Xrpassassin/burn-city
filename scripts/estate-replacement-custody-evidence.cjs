@@ -140,7 +140,8 @@ async function audit(){
  const body=tx.tx_json||tx;
  const originalPurchaseValidated=tx.validated===true&&tx.meta?.TransactionResult==='tesSUCCESS'&&
   body.TransactionType==='Payment'&&body.Account===accounting.legacy.ownerWallet&&
-  body.Destination===TREASURY&&(body.Amount??body.DeliverMax)===accounting.legacy.purchaseDrops;
+  body.Destination===TREASURY&&(body.Amount??body.DeliverMax)===accounting.legacy.purchaseDrops&&
+  tx.meta.delivered_amount===accounting.legacy.purchaseDrops;
  if(!originalPurchaseValidated)throw Error('original_purchase_onchain_validation_missing');
  const fingerprint=createHash('sha256').update(JSON.stringify({
   purchaseHash:txHash,positionFingerprints:positions.map(x=>x.rawPositionDigest),

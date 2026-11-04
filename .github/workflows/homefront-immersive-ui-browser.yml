@@ -28,6 +28,12 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --omit=dev
+      - name: Syntax-check isolated preview scripts and guarded deployment command
+        run: |
+          node --check scripts/homefront-preview-gateway.cjs
+          node --check scripts/homefront-preview-gateway.test.mjs
+          node --check scripts/homefront-preview-browser-smoke.mjs
+          bash -n scripts/deploy-homefront-preview.sh
       - name: Require preview auth and prove production money routes are unavailable
         env:
           HOMEFRONT_CONTINUOUS_MOVEMENT: '0'

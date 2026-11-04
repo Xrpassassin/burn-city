@@ -37,5 +37,18 @@ export function fetchHomefront(api, path, options = {}) {
   return fetch(api + guestPath, {
     ...options, cache: 'no-store',
     credentials: previewAccess() ? 'same-origin' : 'omit', headers
+  }).then(async response => {
+    // A server restart or idle timeout can invalidate an otherwise healthy
+    // WebGL session. Never retry mutations or quietly replace a player's
+    // in-memory refuge: let the UI offer an explicit fresh start.
+    if (response.status === 401 && guestToken) {
+      const data = await response.clone().json().catch(() => ({}));
+      if (data?.error === 'guest_session_expired') {
+        endGuest();
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function')
+          window.dispatchEvent(new Event('homefront-guest-expired'));
+      }
+    }
+    return response;
   });
 }

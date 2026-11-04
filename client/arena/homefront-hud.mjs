@@ -121,6 +121,8 @@ body.rpg-hud.hf-playing .hf-panel-header .hf-actions{display:flex;gap:6px}
 body.rpg-hud.hf-playing .hf-panel-header button{min-height:35px;padding:6px 9px;background:#2c1a12;border:1px solid #9b5a38;border-radius:8px;color:#ffe4c3;font:700 12px system-ui}
 body.rpg-hud.hf-playing .hf-card .hf-mtabs{display:flex;flex-wrap:wrap;max-height:112px;overflow:auto}
 body.rpg-hud.hf-playing .hf-card .hf-mtabs button{white-space:normal;text-align:left}
+.hf-build-exit{position:fixed;right:calc(12px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));z-index:20;min-height:44px;padding:9px 14px;border:1px solid #ffb064;border-radius:11px;background:#57240ff2;color:#ffe6c2;font:800 13px system-ui;box-shadow:0 5px 22px #000a}
+.hf-build-exit[hidden]{display:none!important}
 body.rpg-hud.hf-playing #world .hf-viewbtn,
 body.rpg-hud.hf-playing #graveyard3d .hf-viewbtn{top:calc(68px + env(safe-area-inset-top))!important}
 @media(max-width:620px){
@@ -151,6 +153,12 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   packButton.setAttribute('aria-label', 'Open field backpack');
   const hud = el('div', { className: 'hf-hud', id: 'hfHud' }, vit, ...quick, mm, packButton, menu); hud.setAttribute('role', 'toolbar'); hud.setAttribute('aria-label', 'HUD');
   nav?.after(hud);
+  const exitBuild = el('button', { className: 'hf-build-exit', type: 'button',
+    textContent: '✓ Finish building', hidden: true,
+    title: 'Leave protected construction mode and resume third-person exploration' });
+  exitBuild.setAttribute('aria-label', 'Finish building and return to exploration');
+  document.body.append(exitBuild);
+  exitBuild.onclick = () => setMode('home');
   // A temporary notification sits in document flow, not over the joystick.
   const levelNotice = el('button', {className:'hf-level-up-notice',type:'button',hidden:true});
   hud.after(levelNotice);
@@ -209,11 +217,11 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     return true;
   };
   let priorFocus = null;
-  const hide = () => {
+  const hide = ({ keepWorkshop = false } = {}) => {
     returnBorrowed();
     sheet.hidden = true;
     lastPackKey = '';
-    if (getMode() === 'workshop') setMode('home');
+    if (!keepWorkshop && getMode() === 'workshop') setMode('home');
     if (priorFocus?.isConnected) priorFocus.focus({ preventScroll: true });
     priorFocus = null;
   };
@@ -221,6 +229,17 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   backToArena.onclick = () => document.getElementById('back')?.click();
   account.onclick = () => { hide(); document.getElementById('signin')?.click(); };
   sheet.addEventListener('click', e => { if (e.target === sheet) hide(); });
+  // A selected placement needs an unobstructed 3D yard. Exit the drawer
+  // without cancelling the protected workshop mode or pending build ghost.
+  // Original button listeners commit the selection before this bubble handler.
+  document.getElementById('buildPanel')?.addEventListener('click', e => {
+    const button = e.target.closest('button');
+    const placing = button && (button.id === 'tillPlot' ||
+      /^(?:Choose placement|Tap yard to place)/.test(button.textContent.trim()));
+    if (placing && tab === 'build' && !sheet.hidden) {
+      queueMicrotask(() => { if (tab === 'build' && !sheet.hidden) hide({ keepWorkshop: true }); });
+    }
+  });
   // Opening a menu releases any held WASD/joystick input. Captured key events
   // cannot move the avatar behind a modal; text inputs remain unaffected.
   window.addEventListener('keydown', e => {
@@ -449,6 +468,7 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     // The game HUD only owns the full viewport once the existing signed-in
     // game is loaded. The login and classic page keep the original layout.
     document.body.classList.toggle('hf-playing', !!game && !game.hidden);
+    exitBuild.hidden = getMode() !== 'workshop' || !sheet.hidden;
     if (signedIn()) void refreshRpgSheet();
     else if (knownLevel !== null) {
       knownLevel = null; rpg = null; levelNotice.hidden = true;

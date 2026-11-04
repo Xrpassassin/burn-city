@@ -71,6 +71,44 @@ await Homefront.handle({method:'GET'}, {}, new URL('http://localhost/api/homefro
   body:async()=>({})
 });
 assert.equal(status,401,'guest token cannot unlock wallet save route');
+
+// The same authoritative engine must keep wallet sessions persisted through
+// separate requests while guest actions remain isolated. This is a synthetic
+// wallet identity and isolated test store — no real Xaman or disk writes.
+const walletFiles=new Map();
+const savedStore={
+  load(name,fallback){return structuredClone(walletFiles.has(name)?walletFiles.get(name):fallback);},
+  save(name,value){walletFiles.set(name,structuredClone(value));}
+};
+async function walletAsk(path,method='GET',payload=null){
+  const result={status:null,data:null};
+  const req={method,headers:{}};
+  const served=await Homefront.handle(req,result,new URL(path,'http://localhost'),{
+    json(_res,code,data){result.status=code;result.data=data},
+    who:()=>({acct:'rSyntheticWalletHomefrontCheck'}),store:savedStore,
+    gate:()=>false,ip:'127.0.0.1',body:async()=>payload||{}
+  });
+  assert.equal(served,true);
+  return result;
+}
+const walletStart=await walletAsk('/api/homefront');
+assert.equal(walletStart.status,200);
+const walletOwner=walletStart.data.base.owner;
+const walletUpdated=await walletAsk('/api/homefront/action','POST',{action:{type:'workday'}});
+assert.equal(walletUpdated.status,200);
+assert(walletUpdated.data.base.day>walletStart.data.base.day,
+  'a wallet-linked account saves its actual gameplay changes');
+const savedDay=walletUpdated.data.base.day;
+const freshGuest=(await h.ask('/api/homefront/guest/start','POST')).data.token;
+assert.equal((await h.ask('/api/homefront/guest/action','POST',freshGuest,
+  {action:{type:'workday'}})).status,200);
+const walletAgain=await walletAsk('/api/homefront');
+assert.equal(walletAgain.data.base.owner,walletOwner,
+  'guest actions cannot replace a wallet-backed account');
+assert.equal(walletAgain.data.base.day,savedDay,
+  'guest progress is not imported into or allowed to overwrite wallet saves');
+assert.equal(walletFiles.has('homefront.json'),true,
+  'wallet-connected actions use the dedicated saved game store');
 // A fresh server process cannot restore the old token (no disk persistence).
 assert.equal((await harness(createGuestHandler()).ask('/api/homefront/guest','GET',first)).status,401);
 // Idle expiry and maximum in-memory guest count are enforced.

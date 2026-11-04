@@ -1,4 +1,4 @@
-# ISOLATED PR #551 PREVIEW, NEVER THE PRODUCTION APP OR VOLUME.
+# ISOLATED PRs #551 + #552 PREVIEW. NEVER PRODUCTION APP OR VOLUME.
 # This configuration must only be deployed with a separately scoped preview token.
 app = "burn-city-homefront-preview-551"
 primary_region = "lax"

@@ -1,0 +1,63 @@
+name: Homefront immersive UI browser acceptance
+on:
+  pull_request:
+    paths:
+      - 'client/arena/homefront-hud.mjs'
+      - 'client/arena/homefront-hud.test.mjs'
+      - 'client/arena/homefront.html'
+      - 'scripts/homefront-ui-browser-preview.mjs'
+      - 'scripts/homefront-ui-real-graveyard-browser.mjs'
+      - 'scripts/homefront-preview-gateway.cjs'
+      - 'scripts/homefront-preview-gateway.test.mjs'
+      - 'scripts/homefront-preview-browser-smoke.mjs'
+      - 'scripts/deploy-homefront-preview.sh'
+      - 'Dockerfile.homefront-preview'
+      - 'fly.homefront-preview.toml'
+      - '.github/workflows/homefront-immersive-ui-browser.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  immersive-ui-chromium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --omit=dev
+      - name: Syntax-check isolated preview scripts and guarded deployment command
+        run: |
+          node --check scripts/homefront-preview-gateway.cjs
+          node --check scripts/homefront-preview-gateway.test.mjs
+          node --check scripts/homefront-preview-browser-smoke.mjs
+          bash -n scripts/deploy-homefront-preview.sh
+      - name: Require preview auth and prove production money routes are unavailable
+        env:
+          HOMEFRONT_CONTINUOUS_MOVEMENT: '0'
+        run: node scripts/homefront-preview-gateway.test.mjs
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Verify mobile and desktop Homefront fullscreen HUD and menu
+        env:
+          HOMEFRONT_UI_ARTIFACTS: homefront-ui-browser-output
+        run: node scripts/homefront-ui-browser-preview.mjs
+      - name: Verify actual Three.js Graveyard scene with immersive HUD and server world snapshots
+        env:
+          HOMEFRONT_UI_ARTIFACTS: homefront-ui-browser-output
+          HOMEFRONT_CONTINUOUS_MOVEMENT: '0'
+        run: node scripts/homefront-ui-real-graveyard-browser.mjs
+      - name: Verify password-gated standalone preview in actual desktop/mobile Chromium
+        env:
+          HOMEFRONT_UI_ARTIFACTS: homefront-ui-browser-output
+          HOMEFRONT_CONTINUOUS_MOVEMENT: '0'
+        run: node scripts/homefront-preview-browser-smoke.mjs
+      - name: Upload Homefront interface screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homefront-ui-browser-preview
+          path: homefront-ui-browser-output/
+          if-no-files-found: ignore

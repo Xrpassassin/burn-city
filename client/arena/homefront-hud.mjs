@@ -90,6 +90,51 @@ body.rpg-hud.rpg-mode-expedition #explorationObjective,body.rpg-hud.rpg-mode-exp
 body.rpg-hud #game section.panel.hf-tab-off{display:none!important}body.rpg-hud.rpg-mode-management #refugeWorldPanel,body.rpg-hud.rpg-mode-management #graveyardPanel,body.rpg-hud.rpg-mode-management #game #survivalPanel{display:none!important}
 .hf-mtabs[hidden]{display:none}.hf-mtabs{display:flex;gap:4px;overflow-x:auto;margin:0 0 8px;padding:2px}.hf-mtabs button{flex:0 0 auto;min-height:36px;padding:6px 10px;border-radius:9px;border:1px solid #8e5235;background:#24140d;color:#ffe0c4;font:700 12px system-ui;white-space:nowrap}.hf-mtabs button[aria-selected=true]{background:#a63f16}
 .hf-sheet #survivalPanel{display:block!important;margin:0;padding:8px}
+
+/* Immersive play mode: the existing Three.js scene is the viewport, not a framed webpage.
+   All overrides are restricted to the active HUD game. Classic mode is untouched. */
+body.rpg-hud.hf-playing{height:100svh;overflow:hidden;overscroll-behavior:none}
+body.rpg-hud.hf-playing header{display:none}
+body.rpg-hud.hf-playing .wrap{max-width:none;width:100%;height:100%;margin:0;padding:0}
+body.rpg-hud.hf-playing #game{position:fixed;inset:0;overflow:hidden}
+body.rpg-hud.hf-playing #game>.grid{position:absolute;inset:0;display:block;overflow:hidden;pointer-events:none}
+body.rpg-hud.hf-playing #game>.grid>#refugeWorldPanel,
+body.rpg-hud.hf-playing #game>.grid>#graveyardPanel{position:absolute;inset:0;margin:0;padding:0;max-width:none;overflow:hidden;border:0;border-radius:0;background:transparent;box-shadow:none;pointer-events:auto}
+body.rpg-hud.hf-playing.rpg-mode-home #refugeWorldPanel .world,
+body.rpg-hud.hf-playing.rpg-mode-workshop #refugeWorldPanel .world,
+body.rpg-hud.hf-playing.rpg-mode-expedition #graveyard3d{
+ width:100%;height:100%;min-height:0;max-width:none;border:0;border-radius:0;touch-action:none
+}
+body.rpg-hud.hf-playing #status{position:fixed;left:calc(10px + env(safe-area-inset-left));top:calc(68px + env(safe-area-inset-top));bottom:auto;z-index:10;max-width:min(58vw,420px);margin:0;padding:5px 8px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.78;pointer-events:none}
+body.rpg-hud.hf-playing .hf-hud{position:fixed;top:calc(8px + env(safe-area-inset-top));left:calc(10px + env(safe-area-inset-left));right:calc(10px + env(safe-area-inset-right));width:min(750px,calc(100vw - 20px));max-width:100%;margin:0 auto;z-index:18;background:#100b09d9;box-shadow:0 7px 25px #0008;backdrop-filter:blur(10px)}
+body.rpg-hud.hf-playing .hf-level-up-notice{position:fixed;top:calc(70px + env(safe-area-inset-top));left:12px;right:12px;max-width:550px;z-index:19}
+body.rpg-hud.hf-playing .hf-sheet{z-index:50;display:flex;align-items:stretch;justify-content:flex-end;padding:calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom));background:#0704038f;backdrop-filter:blur(2px)}
+body.rpg-hud.hf-playing .hf-sheet[hidden]{display:none!important}
+body.rpg-hud.hf-playing .hf-card{width:min(100%,640px);max-height:100%;min-height:0;border-radius:16px;box-shadow:0 18px 65px #000b}
+body.rpg-hud.hf-playing .hf-card .hf-body{overscroll-behavior:contain;min-height:0}
+body.rpg-hud.hf-playing .hf-card .panel{grid-column:auto;box-shadow:none}
+body.rpg-hud.hf-playing .hf-card #buildPanel{display:block!important}
+body.rpg-hud.hf-playing .hf-card section.panel.hf-tab-off{display:block!important}
+body.rpg-hud.hf-playing .hf-panel-header{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#130d0ad9;border-bottom:1px solid #a55c3555}
+body.rpg-hud.hf-playing .hf-panel-header strong{font-size:12px;letter-spacing:.11em;color:#ffcf9f}
+body.rpg-hud.hf-playing .hf-panel-header .hf-actions{display:flex;gap:6px}
+body.rpg-hud.hf-playing .hf-panel-header button{min-height:35px;padding:6px 9px;background:#2c1a12;border:1px solid #9b5a38;border-radius:8px;color:#ffe4c3;font:700 12px system-ui}
+body.rpg-hud.hf-playing .hf-card .hf-mtabs{display:flex;flex-wrap:wrap;max-height:112px;overflow:auto}
+body.rpg-hud.hf-playing .hf-card .hf-mtabs button{white-space:normal;text-align:left}
+.hf-build-exit{position:fixed;right:calc(12px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));z-index:20;min-height:44px;padding:9px 14px;border:1px solid #ffb064;border-radius:11px;background:#57240ff2;color:#ffe6c2;font:800 13px system-ui;box-shadow:0 5px 22px #000a}
+.hf-build-exit[hidden]{display:none!important}
+body.rpg-hud.hf-playing #world .hf-viewbtn,
+body.rpg-hud.hf-playing #graveyard3d .hf-viewbtn{top:calc(68px + env(safe-area-inset-top))!important}
+@media(max-width:620px){
+ body.rpg-hud.hf-playing .hf-hud{width:calc(100vw - 16px);left:8px;right:8px;gap:3px}
+ body.rpg-hud.hf-playing .hf-hud .hf-q{width:34px;flex-basis:34px}
+ body.rpg-hud.hf-playing .hf-sheet{padding:0}
+ body.rpg-hud.hf-playing .hf-card{width:100%;border-radius:0;border:0}
+ body.rpg-hud.hf-playing .hf-card .hf-body{padding:10px}
+ body.rpg-hud.hf-playing .hf-card .hf-mtabs{max-height:108px}
+ body.rpg-hud.hf-playing #world .hf-viewbtn,
+ body.rpg-hud.hf-playing #graveyard3d .hf-viewbtn{top:calc(76px + env(safe-area-inset-top))!important}
+}
 `;
 const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); for (const k of kids) n.append(k); return n; };
 
@@ -108,6 +153,12 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   packButton.setAttribute('aria-label', 'Open field backpack');
   const hud = el('div', { className: 'hf-hud', id: 'hfHud' }, vit, ...quick, mm, packButton, menu); hud.setAttribute('role', 'toolbar'); hud.setAttribute('aria-label', 'HUD');
   nav?.after(hud);
+  const exitBuild = el('button', { className: 'hf-build-exit', type: 'button',
+    textContent: '✓ Finish building', hidden: true,
+    title: 'Leave protected construction mode and resume third-person exploration' });
+  exitBuild.setAttribute('aria-label', 'Finish building and return to exploration');
+  document.body.append(exitBuild);
+  exitBuild.onclick = () => setMode('home');
   // A temporary notification sits in document flow, not over the joystick.
   const levelNotice = el('button', {className:'hf-level-up-notice',type:'button',hidden:true});
   hud.after(levelNotice);
@@ -115,7 +166,13 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const tabsEl = el('div', { className: 'hf-tabs' }); tabsEl.setAttribute('role', 'tablist');
   const body = el('div', { className: 'hf-body' });
   const close = el('button', { className: 'hf-close', type: 'button', textContent: 'Close' });
-  const card = el('div', { className: 'hf-card' }, tabsEl, body, close);
+  const topClose = el('button', { type: 'button', textContent: '✕ Close', title: 'Close in-game menu' });
+  const backToArena = el('button', { type: 'button', textContent: '← Arena', title: 'Return to BURN City arena' });
+  const account = el('button', { type: 'button', textContent: 'Account', title: 'BURN City account and sign-in' });
+  const topActions = el('div', { className: 'hf-actions' }, backToArena, account, topClose);
+  const titlebar = el('div', { className: 'hf-panel-header' },
+    el('strong', { textContent: 'HOMEFRONT · FIELD MENU' }), topActions);
+  const card = el('div', { className: 'hf-card' }, titlebar, tabsEl, body, close);
   const sheet = el('div', { className: 'hf-sheet', id: 'hfSheet', hidden: true }, card); sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', 'Character and management');
   document.body.append(sheet);
   const LABEL = { character: '🔥 C.I.N.D.E.R.S.', inventory: '🎒 Inventory', journal: '📓 Journal', build: '🛠 Build', manage: '📋 Manage', travel: '🧭 Travel' };
@@ -147,9 +204,52 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     finally { profilePending = false; }
   }
   levelNotice.onclick = () => { levelNotice.hidden = true; void open('character'); };
-  const returnBorrowed = () => { if (borrowed) { borrowed.home.after(borrowed.node); borrowed.home.remove(); borrowed = null; } };
-  const hide = () => { returnBorrowed(); sheet.hidden = true; lastPackKey = ''; };
-  close.onclick = hide; sheet.addEventListener('click', e => { if (e.target === sheet) hide(); });
+  const returnBorrowed = () => {
+    if (borrowed) { borrowed.home.after(borrowed.node); borrowed.home.remove(); borrowed = null; }
+  };
+  const borrowPanel = node => {
+    if (!node) return false;
+    const home = el('span', { className: 'hf-restore-marker', hidden: true });
+    node.before(home);
+    borrowed = { home, node };
+    node.classList.remove('hf-tab-off');
+    body.append(node);
+    return true;
+  };
+  let priorFocus = null;
+  const hide = ({ keepWorkshop = false } = {}) => {
+    returnBorrowed();
+    sheet.hidden = true;
+    lastPackKey = '';
+    if (!keepWorkshop && getMode() === 'workshop') setMode('home');
+    if (priorFocus?.isConnected) priorFocus.focus({ preventScroll: true });
+    priorFocus = null;
+  };
+  close.onclick = hide; topClose.onclick = hide;
+  backToArena.onclick = () => document.getElementById('back')?.click();
+  account.onclick = () => { hide(); document.getElementById('signin')?.click(); };
+  sheet.addEventListener('click', e => { if (e.target === sheet) hide(); });
+  // A selected placement needs an unobstructed 3D yard. Exit the drawer
+  // without cancelling the protected workshop mode or pending build ghost.
+  // Original button listeners commit the selection before this bubble handler.
+  document.getElementById('buildPanel')?.addEventListener('click', e => {
+    const button = e.target.closest('button');
+    const placing = button && (button.id === 'tillPlot' ||
+      /^(?:Choose placement|Tap yard to place)/.test(button.textContent.trim()));
+    if (placing && tab === 'build' && !sheet.hidden) {
+      queueMicrotask(() => { if (tab === 'build' && !sheet.hidden) hide({ keepWorkshop: true }); });
+    }
+  });
+  // Opening a menu releases any held WASD/joystick input. Captured key events
+  // cannot move the avatar behind a modal; text inputs remain unaffected.
+  window.addEventListener('keydown', e => {
+    if (sheet.hidden || e.target?.isContentEditable ||
+        /INPUT|TEXTAREA|SELECT/.test(e.target?.tagName || '')) return;
+    if (/^(?:w|a|s|d|arrowup|arrowdown|arrowleft|arrowright| )$/i.test(e.key)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
   window.addEventListener('keydown', e => {
     if (e.key === 'Escape' && !sheet.hidden) hide();
     if ((e.key === 'c' || e.key === 'C') && !e.repeat &&
@@ -182,6 +282,8 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   }
   function draw() {
     returnBorrowed();
+    // Construction is a separate in-game mode only while Build is selected.
+    if (tab !== 'build' && getMode() === 'workshop') setMode('home');
     tabsEl.replaceChildren(...HUD_TABS.map(t => { const b = el('button', { type: 'button', textContent: LABEL[t] }); b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(t === tab)); b.onclick = () => open(t); return b; }));
     body.replaceChildren();
     if (!rpg && ['character', 'inventory', 'journal'].includes(tab)) { body.append(el('p', { className: 'hf-muted', textContent: signedIn() ? 'Loading your character…' : 'Sign in to keep a character sheet.' })); return; }
@@ -288,20 +390,63 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     } else if (tab === 'journal') {
       for (const q of rpg.quests) { const b = el('button', { type: 'button', textContent: q.done ? 'Done' : q.tracked ? 'Tracking' : 'Track' }); b.disabled = q.done || q.tracked; b.onclick = () => rpgAct({ action: 'track', quest: q.id }); body.append(rowOf(el('span', { textContent: (q.done ? '✅ ' : '◻ ') + q.label + ' · ' + q.progress + '/' + q.goal + ' ' }, el('span', { className: 'hf-muted', textContent: q.text + ' (+' + q.xp + ' XP)' })), b)); }
       if (rpg.log.length) { body.append(el('h3', { textContent: 'Recent' })); for (const e of rpg.log.slice().reverse()) body.append(el('p', { className: 'hf-muted', textContent: e.text })); }
+    } else if (tab === 'build') {
+      body.append(el('p', { className: 'hf-muted',
+        textContent: 'Place structures in your 3D refuge. The world stays visible behind this panel; close it to resume exploring.' }));
+      if (!borrowPanel(document.getElementById('buildPanel')))
+        body.append(el('p', { textContent: 'The construction workshop is unavailable.' }));
+    } else if (tab === 'manage') {
+      // Reuse original server-authorized management controls. Reparent only
+      // their DOM nodes; their event handlers and server state are unchanged.
+      const panels = [...(game?.querySelectorAll('section.panel') || [])]
+        .filter(p => !NOT_MANAGED.includes(p.id) && !p.parentElement.closest('section.panel'));
+      // The selected node is moved out of #game while the menu is open.
+      // Keep a stable registry so it remains selectable and restorable.
+      for (const p of managedPanels) if (!panels.includes(p)) panels.push(p);
+      if (!panels.length) {
+        body.append(el('p', { textContent: 'Settlement management is unavailable.' }));
+      } else {
+        mSel = Math.min(Math.max(0, mSel), panels.length - 1);
+        const categories = el('div', { className: 'hf-mtabs', role: 'tablist' });
+        panels.forEach((p, i) => {
+          const title = (p.querySelector('h2')?.textContent || 'Settlement').trim();
+          const button = el('button', { type: 'button', textContent: title });
+          button.setAttribute('role', 'tab');
+          button.setAttribute('aria-selected', String(mSel === i));
+          button.onclick = () => { mSel = i; draw(); };
+          categories.append(button);
+        });
+        body.append(categories);
+        borrowPanel(panels[mSel]);
+      }
     }
   }
   async function open(t = 'character') {
-    if (t === 'build') { hide(); setMode('workshop'); return; }
-    if (t === 'manage') { hide(); setMode('management'); return; }
     if (t === 'travel') { hide(); travel.open(); return; }
-    tab = t; sheet.hidden = false; draw();
+    if ((t === 'build' || t === 'manage') && getWorld()?.self) {
+      message('Return to your Homefront refuge before editing the settlement.', 'danger');
+      return;
+    }
+    if (sheet.hidden) {
+      priorFocus = document.activeElement;
+      // Reset held input on both the yard and Graveyard canvases before
+      // displaying any modal; avoids walking while reviewing equipment.
+      window.dispatchEvent(new Event('blur'));
+    }
+    tab = t;
+    if (t === 'build' && getMode() !== 'workshop') setMode('workshop');
+    sheet.hidden = false;
+    draw();
+    topClose.focus({ preventScroll: true });
     if (signedIn()) { await refreshRpgSheet(true); if (!sheet.hidden && tab === t) draw(); }
   }
-  menu.onclick = () => open(tab === 'build' || tab === 'manage' || tab === 'travel' ? 'character' : tab);
+  menu.onclick = () => { if (!sheet.hidden) hide(); else void open(tab); };
   // Manage: one management panel at a time behind a tab strip.
   const mtabs = el('div', { className: 'hf-mtabs', hidden: true }); mtabs.setAttribute('role', 'tablist');
   hud.after(mtabs);
   let mSel = 0;
+  const managedPanels = [...(game?.querySelectorAll('section.panel') || [])]
+    .filter(p => !NOT_MANAGED.includes(p.id) && !p.parentElement.closest('section.panel'));
   function layoutManagement() {
     const mode = getMode(), managing = mode === 'management';
     mtabs.hidden = !managing;
@@ -320,6 +465,10 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   }
   const ctx = mm.getContext('2d');
   function update() {
+    // The game HUD only owns the full viewport once the existing signed-in
+    // game is loaded. The login and classic page keep the original layout.
+    document.body.classList.toggle('hf-playing', !!game && !game.hidden);
+    exitBuild.hidden = getMode() !== 'workshop' || !sheet.hidden;
     if (signedIn()) void refreshRpgSheet();
     else if (knownLevel !== null) {
       knownLevel = null; rpg = null; levelNotice.hidden = true;

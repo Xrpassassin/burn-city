@@ -24,9 +24,10 @@ const ACCOUNT='preview-refuge-player';
 const FAKE_BEARER='preview-only-inmemory-bearer';
 const ROOT=path.resolve(__dirname,'../client');
 const COOKIE='homefront_preview';
-const sessionId=crypto.createHmac('sha256',secret)
-  .update('homefront-preview-session-v1').digest('hex');
-const sessionValue=Buffer.from(sessionId);
+// Tokens are per-login, unpredictable and expire on the server as well as the
+// browser. A deterministic cookie would remain valid after Max-Age expires.
+const SESSION_MS=4*60*60*1000;
+const sessions=new Map();
 const loginFailures=new Map();
 const files=new Map();
 const copy=value=>structuredClone(value);
@@ -63,7 +64,10 @@ function authed(req) {
   const cookies=String(req.headers.cookie||'').split(';').map(x=>x.trim());
   const value=cookies.find(x=>x.startsWith(COOKIE+'='))?.slice(COOKIE.length+1)||'';
   if(!/^[a-f0-9]{64}$/.test(value)) return false;
-  return crypto.timingSafeEqual(sessionValue,Buffer.from(value));
+  const expires=sessions.get(value);
+  if(!expires)return false;
+  if(expires<=Date.now()){sessions.delete(value);return false;}
+  return true;
 }
 function loginPage(message='') {
   const warning=message?'<p role="alert">Access denied. Check the preview password.</p>':'';
@@ -101,8 +105,13 @@ const app=http.createServer(async(req,res)=>{
         return send(res,403,'text/html; charset=utf-8',loginPage(true));
       }
       state.count=0;
+      for(const [token,expires] of sessions){
+        if(expires<=Date.now())sessions.delete(token);
+      }
+      const token=crypto.randomBytes(32).toString('hex');
+      sessions.set(token,Date.now()+SESSION_MS);
       res.writeHead(303,{...headers,'Location':'/arena/homefront.html',
-        'Set-Cookie':COOKIE+'='+sessionId+'; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=14400'});
+        'Set-Cookie':COOKIE+'='+token+'; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=14400'});
       return res.end();
     }
     if(!authed(req))return send(res,401,'text/html; charset=utf-8',loginPage());

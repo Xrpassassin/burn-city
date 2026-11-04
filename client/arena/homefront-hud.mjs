@@ -158,7 +158,13 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const tabsEl = el('div', { className: 'hf-tabs' }); tabsEl.setAttribute('role', 'tablist');
   const body = el('div', { className: 'hf-body' });
   const close = el('button', { className: 'hf-close', type: 'button', textContent: 'Close' });
-  const card = el('div', { className: 'hf-card' }, tabsEl, body, close);
+  const topClose = el('button', { type: 'button', textContent: '✕ Close', title: 'Close in-game menu' });
+  const backToArena = el('button', { type: 'button', textContent: '← Arena', title: 'Return to BURN City arena' });
+  const account = el('button', { type: 'button', textContent: 'Account', title: 'BURN City account and sign-in' });
+  const topActions = el('div', { className: 'hf-actions' }, backToArena, account, topClose);
+  const titlebar = el('div', { className: 'hf-panel-header' },
+    el('strong', { textContent: 'HOMEFRONT · FIELD MENU' }), topActions);
+  const card = el('div', { className: 'hf-card' }, titlebar, tabsEl, body, close);
   const sheet = el('div', { className: 'hf-sheet', id: 'hfSheet', hidden: true }, card); sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', 'Character and management');
   document.body.append(sheet);
   const LABEL = { character: '🔥 C.I.N.D.E.R.S.', inventory: '🎒 Inventory', journal: '📓 Journal', build: '🛠 Build', manage: '📋 Manage', travel: '🧭 Travel' };
@@ -190,9 +196,41 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     finally { profilePending = false; }
   }
   levelNotice.onclick = () => { levelNotice.hidden = true; void open('character'); };
-  const returnBorrowed = () => { if (borrowed) { borrowed.home.after(borrowed.node); borrowed.home.remove(); borrowed = null; } };
-  const hide = () => { returnBorrowed(); sheet.hidden = true; lastPackKey = ''; };
-  close.onclick = hide; sheet.addEventListener('click', e => { if (e.target === sheet) hide(); });
+  const returnBorrowed = () => {
+    if (borrowed) { borrowed.home.after(borrowed.node); borrowed.home.remove(); borrowed = null; }
+  };
+  const borrowPanel = node => {
+    if (!node) return false;
+    const home = el('span', { className: 'hf-restore-marker', hidden: true });
+    node.before(home);
+    borrowed = { home, node };
+    node.classList.remove('hf-tab-off');
+    body.append(node);
+    return true;
+  };
+  let priorFocus = null;
+  const hide = () => {
+    returnBorrowed();
+    sheet.hidden = true;
+    lastPackKey = '';
+    if (getMode() === 'workshop') setMode('home');
+    if (priorFocus?.isConnected) priorFocus.focus({ preventScroll: true });
+    priorFocus = null;
+  };
+  close.onclick = hide; topClose.onclick = hide;
+  backToArena.onclick = () => document.getElementById('back')?.click();
+  account.onclick = () => { hide(); document.getElementById('signin')?.click(); };
+  sheet.addEventListener('click', e => { if (e.target === sheet) hide(); });
+  // Opening a menu releases any held WASD/joystick input. Captured key events
+  // cannot move the avatar behind a modal; text inputs remain unaffected.
+  window.addEventListener('keydown', e => {
+    if (sheet.hidden || e.target?.isContentEditable ||
+        /INPUT|TEXTAREA|SELECT/.test(e.target?.tagName || '')) return;
+    if (/^(?:w|a|s|d|arrowup|arrowdown|arrowleft|arrowright| )$/i.test(e.key)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
   window.addEventListener('keydown', e => {
     if (e.key === 'Escape' && !sheet.hidden) hide();
     if ((e.key === 'c' || e.key === 'C') && !e.repeat &&
@@ -225,6 +263,8 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   }
   function draw() {
     returnBorrowed();
+    // Construction is a separate in-game mode only while Build is selected.
+    if (tab !== 'build' && getMode() === 'workshop') setMode('home');
     tabsEl.replaceChildren(...HUD_TABS.map(t => { const b = el('button', { type: 'button', textContent: LABEL[t] }); b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(t === tab)); b.onclick = () => open(t); return b; }));
     body.replaceChildren();
     if (!rpg && ['character', 'inventory', 'journal'].includes(tab)) { body.append(el('p', { className: 'hf-muted', textContent: signedIn() ? 'Loading your character…' : 'Sign in to keep a character sheet.' })); return; }
@@ -331,20 +371,63 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     } else if (tab === 'journal') {
       for (const q of rpg.quests) { const b = el('button', { type: 'button', textContent: q.done ? 'Done' : q.tracked ? 'Tracking' : 'Track' }); b.disabled = q.done || q.tracked; b.onclick = () => rpgAct({ action: 'track', quest: q.id }); body.append(rowOf(el('span', { textContent: (q.done ? '✅ ' : '◻ ') + q.label + ' · ' + q.progress + '/' + q.goal + ' ' }, el('span', { className: 'hf-muted', textContent: q.text + ' (+' + q.xp + ' XP)' })), b)); }
       if (rpg.log.length) { body.append(el('h3', { textContent: 'Recent' })); for (const e of rpg.log.slice().reverse()) body.append(el('p', { className: 'hf-muted', textContent: e.text })); }
+    } else if (tab === 'build') {
+      body.append(el('p', { className: 'hf-muted',
+        textContent: 'Place structures in your 3D refuge. The world stays visible behind this panel; close it to resume exploring.' }));
+      if (!borrowPanel(document.getElementById('buildPanel')))
+        body.append(el('p', { textContent: 'The construction workshop is unavailable.' }));
+    } else if (tab === 'manage') {
+      // Reuse original server-authorized management controls. Reparent only
+      // their DOM nodes; their event handlers and server state are unchanged.
+      const panels = [...(game?.querySelectorAll('section.panel') || [])]
+        .filter(p => !NOT_MANAGED.includes(p.id) && !p.parentElement.closest('section.panel'));
+      // The selected node is moved out of #game while the menu is open.
+      // Keep a stable registry so it remains selectable and restorable.
+      for (const p of managedPanels) if (!panels.includes(p)) panels.push(p);
+      if (!panels.length) {
+        body.append(el('p', { textContent: 'Settlement management is unavailable.' }));
+      } else {
+        mSel = Math.min(Math.max(0, mSel), panels.length - 1);
+        const categories = el('div', { className: 'hf-mtabs', role: 'tablist' });
+        panels.forEach((p, i) => {
+          const title = (p.querySelector('h2')?.textContent || 'Settlement').trim();
+          const button = el('button', { type: 'button', textContent: title });
+          button.setAttribute('role', 'tab');
+          button.setAttribute('aria-selected', String(mSel === i));
+          button.onclick = () => { mSel = i; draw(); };
+          categories.append(button);
+        });
+        body.append(categories);
+        borrowPanel(panels[mSel]);
+      }
     }
   }
   async function open(t = 'character') {
-    if (t === 'build') { hide(); setMode('workshop'); return; }
-    if (t === 'manage') { hide(); setMode('management'); return; }
     if (t === 'travel') { hide(); travel.open(); return; }
-    tab = t; sheet.hidden = false; draw();
+    if ((t === 'build' || t === 'manage') && getWorld()?.self) {
+      message('Return to your Homefront refuge before editing the settlement.', 'danger');
+      return;
+    }
+    if (sheet.hidden) {
+      priorFocus = document.activeElement;
+      // Reset held input on both the yard and Graveyard canvases before
+      // displaying any modal; avoids walking while reviewing equipment.
+      window.dispatchEvent(new Event('blur'));
+    }
+    tab = t;
+    if (t === 'build' && getMode() !== 'workshop') setMode('workshop');
+    sheet.hidden = false;
+    draw();
+    topClose.focus({ preventScroll: true });
     if (signedIn()) { await refreshRpgSheet(true); if (!sheet.hidden && tab === t) draw(); }
   }
-  menu.onclick = () => open(tab === 'build' || tab === 'manage' || tab === 'travel' ? 'character' : tab);
+  menu.onclick = () => { if (!sheet.hidden) hide(); else void open(tab); };
   // Manage: one management panel at a time behind a tab strip.
   const mtabs = el('div', { className: 'hf-mtabs', hidden: true }); mtabs.setAttribute('role', 'tablist');
   hud.after(mtabs);
   let mSel = 0;
+  const managedPanels = [...(game?.querySelectorAll('section.panel') || [])]
+    .filter(p => !NOT_MANAGED.includes(p.id) && !p.parentElement.closest('section.panel'));
   function layoutManagement() {
     const mode = getMode(), managing = mode === 'management';
     mtabs.hidden = !managing;
@@ -363,6 +446,9 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   }
   const ctx = mm.getContext('2d');
   function update() {
+    // The game HUD only owns the full viewport once the existing signed-in
+    // game is loaded. The login and classic page keep the original layout.
+    document.body.classList.toggle('hf-playing', !!game && !game.hidden);
     if (signedIn()) void refreshRpgSheet();
     else if (knownLevel !== null) {
       knownLevel = null; rpg = null; levelNotice.hidden = true;

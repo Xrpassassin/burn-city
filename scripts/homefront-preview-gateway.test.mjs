@@ -66,6 +66,11 @@ try{
   const h={cookie};
   const page=await get('/arena/homefront.html',{headers:h});
   assert.equal(page.status,200);
+  const csp=page.headers.get('content-security-policy')||'';
+  assert(csp.includes("connect-src 'self' blob:"),
+    'preview permits local Three.js GLTF blob texture loads');
+  assert(!csp.includes("connect-src *")&&!csp.includes("connect-src https:"),
+    'preview forbids external fetches and wallet endpoints');
   const html=await page.text();
   assert(html.includes('window.__BURN_CITY_ISOLATED_PREVIEW__=true'),
     'preview always marks its synthetic account');

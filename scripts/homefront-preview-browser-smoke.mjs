@@ -106,6 +106,18 @@ try{
     await page.locator('#hfHud .hf-menu').click();
     assert.match(await page.locator('#hfSheet .hf-panel-header').innerText(),/GUEST \(UNSAVED\)/,
       'password preview exercises authentic unsaved-guest HUD');
+    // The isolated preview must never start a real Xaman challenge, even if
+    // a guest taps the usual in-game wallet save action.
+    await page.locator('#hfSheet .hf-panel-header .hf-actions button')
+      .filter({hasText:'Connect wallet to save'}).click();
+    assert.match(await page.locator('#status').innerText(),
+      /Wallet saving is disabled in this isolated guest preview/,
+      'preview must reject actual wallet authentication');
+    assert(await page.locator('#qrbox').isHidden(),
+      'isolated guest preview never opens a wallet QR');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('bcToken')),null,
+      'isolated preview never manufactures a wallet credential');
+    await page.locator('#hfHud .hf-menu').click();
     await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Build'}).click();
     assert(await page.locator('#hfSheet #buildPanel').isVisible(),
       "guest trial Build menu opens on 3D refuge");

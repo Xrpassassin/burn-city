@@ -51,7 +51,9 @@ jobs:
             const {verifyEstatePurchaseTermsPublication}=require('/data/gh/cur/server/estate-purchase-terms-publication');
             (async()=>{
               const result={};
-              const pause=JSON.parse(fs.readFileSync('/data/pause.json','utf8'));
+              let pause={};
+              try{pause=JSON.parse(fs.readFileSync('/data/pause.json','utf8'));}
+              catch(e){if(e.code!=='ENOENT')throw e;}
               result.treasuryPaused=pause.paused===true||process.env.PAYOUTS_PAUSED==='true';
               result.purchaseSwitchOn=process.env.ESTATE_SALES_ENABLED==='1';
               result.automatedFundingOrPayoutSwitchOn=['ESTATE_LIQUIDITY_ENABLED',

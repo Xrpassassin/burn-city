@@ -91,7 +91,7 @@ try{
     await page.locator('#hfHud .hf-menu').click();
     await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Build'}).click();
     assert(await page.locator('#hfSheet #buildPanel').isVisible(),
-      'authenticated demo's real Build menu opens on 3D refuge');
+      "authenticated demo Build menu opens on 3D refuge");
     assert(await yard.isVisible(),'scene remains behind Build');
     await page.screenshot({path:out+'/'+name+'-password-gated-build.png'});
     await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Manage'}).click();

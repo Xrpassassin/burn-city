@@ -36,6 +36,14 @@ const server=createServer(async(req,res)=>{
   };
   try{
     if(url.pathname.startsWith('/api/')){
+      // Browser-only synthetic Xaman flow: verify the real in-world Account
+      // button can reveal QR, but never grant a wallet, token or real save.
+      if(url.pathname==='/api/signin'&&req.method==='POST')return json(res,200,{
+        sid:'synthetic-login-not-a-real-wallet',
+        xaman:{qr:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLytQAAAABJRU5ErkJggg==',
+          deeplink:'https://invalid.example/never-open'}
+      });
+      if(url.pathname==='/api/signin/finish'&&req.method==='POST')return json(res,200,{ok:false});
       if(await guest.handle(req,res,url,{json,gate:()=>false,ip:'127.0.0.1',body}))return;
       return json(res,404,{error:'no_production_apis_in_guest_browser'});
     }
@@ -122,6 +130,22 @@ try{
     await page.screenshot({path:output+'/'+name+'-guest-inventory.png'});
     await page.keyboard.press('Escape');
     assert(await page.locator('#hfSheet').isHidden());
+    if(!phone){
+      await page.locator('#hfHud .hf-menu').click();
+      await page.locator('#hfSheet .hf-panel-header .hf-actions button')
+        .filter({hasText:'Connect wallet to save'}).click();
+      await page.locator('#qrbox .qr img').waitFor({state:'visible',timeout:10000});
+      assert(await page.locator('#qrbox').isVisible(),
+        'actual guest Account action opens the Xaman QR above 3D world');
+      assert(await page.locator('#world canvas').first().isVisible(),
+        'wallet QR does not unmount the live third-person scene');
+      await page.screenshot({path:output+'/'+name+'-guest-xaman-mock-flow.png'});
+      await page.locator('#hideWalletQr').click();
+      assert(await page.locator('#qrbox').isHidden(),
+        'the real QR flow can be dismissed without authenticating');
+      assert.equal(await page.evaluate(()=>localStorage.getItem('bcToken')),null,
+        'synthetic QR check cannot grant wallet access');
+    }
     // Test the real wallet dialog DOM and CSS without making a Xaman request
     // or connecting any account to the isolated guest browser fixture.
     await page.evaluate(()=>{document.getElementById('qrbox').hidden=false;});

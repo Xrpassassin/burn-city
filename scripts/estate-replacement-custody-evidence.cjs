@@ -235,6 +235,15 @@ async function audit({readAccounting=remote,book=null}={}){
  console.log('ESTATES_REPLACEMENT_CUSTODY_EVIDENCE='+JSON.stringify(report));
  return report;
 }
+function commitEarmark(db,{plan,verifiedLedgerIndex,verifiedWithdrawLp,verifiedSeedLp},head,now=Date.now()){
+ const latest=Number(head.ledger_index??head.ledger?.ledger_index);
+ if(head.validated!==true||!Number.isSafeInteger(latest)||latest<verifiedLedgerIndex||
+  latest-verifiedLedgerIndex>60)throw Error('earmark_quote_stale');
+ const lp=JSON.parse(plan.replacementJson).lp;
+ if(value(lp).gt('31.82196255719245'))throw Error('earmark_exceeds_reviewed_lp_cap');
+ return applyManualPoolMigration(db,plan,{verifiedLedgerIndex,verifiedAtMs:now,
+  verifiedWithdrawLp,verifiedSeedLp,requireUncommittedPool:true});
+}
 async function bookOnFly(){
  const {DatabaseSync}=require('node:sqlite');
  const {execFileSync}=require('node:child_process');
@@ -262,22 +271,13 @@ async function bookOnFly(){
  assertPaused();
  const readAccounting=()=>JSON.parse(execFileSync(process.execPath,['-e',remoteAuditSource()],
   {encoding:'utf8',timeout:20000}));
- return audit({readAccounting,book:async({plan,verifiedLedgerIndex,verifiedWithdrawLp,verifiedSeedLp})=>{
+ return audit({readAccounting,book:async booking=>{
   const head=await rpc('ledger',{ledger_index:'validated'});
-  const latest=Number(head.ledger_index??head.ledger?.ledger_index);
-  if(head.validated!==true||!Number.isSafeInteger(latest)||latest<verifiedLedgerIndex||
-   latest-verifiedLedgerIndex>60)throw Error('earmark_quote_stale');
-  const lp=JSON.parse(plan.replacementJson).lp;
-  if(value(lp).gt('31.82196255719245'))throw Error('earmark_exceeds_reviewed_lp_cap');
   assertPaused();
   const db=new DatabaseSync(dbPath,{allowExtension:false});
   try{
    db.exec('PRAGMA busy_timeout=3000');
-   if(db.prepare("SELECT 1 FROM estate_liquidity_jobs WHERE pair='img-rlusd'").get()||
-    db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state NOT IN ('applied','failed')").get())
-    throw Error('new_position_or_pending_treasury_intent');
-   return applyManualPoolMigration(db,plan,{verifiedLedgerIndex,verifiedAtMs:Date.now(),
-    verifiedWithdrawLp,verifiedSeedLp});
+   return commitEarmark(db,booking,head);
   }finally{db.close();}
  }});
 }
@@ -285,4 +285,4 @@ if(require.main===module)(process.argv[2]==='--book'?bookOnFly():
  process.argv.length===2?audit():Promise.reject(Error('unknown_estates_audit_arguments'))).catch(e=>{
  console.error('ESTATES_REPLACEMENT_EVIDENCE_ERROR='+e.message);process.exitCode=1;
 });
-module.exports={audit,remote};
+module.exports={audit,remote,commitEarmark};

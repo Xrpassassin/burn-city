@@ -22,6 +22,20 @@ const canvas = document.createElement('canvas');
 canvas.setAttribute('aria-label', '3D test-world placeholder');
 canvas.style.cssText = 'display:block;width:100%;height:100%;background:#252e27';
 document.getElementById('world').append(canvas);
+// Layout-only controls: the actual scene adds equivalent overlays at runtime.
+// They let Chromium reject positions that would cover the thumb joystick.
+const camera = document.createElement('button');
+camera.className = 'hf-viewbtn';
+camera.textContent = 'Third-person · V';
+camera.style.cssText = 'position:absolute;top:8px;right:8px;z-index:3;min-height:40px';
+document.getElementById('world').append(camera);
+if (matchMedia('(pointer: coarse)').matches) {
+  const joystick = document.createElement('div');
+  joystick.className = 'hf-joy';
+  joystick.setAttribute('aria-label', 'Movement joystick');
+  joystick.style.cssText = 'position:absolute;left:12px;bottom:12px;width:104px;height:104px;border:2px solid orange;z-index:3';
+  document.getElementById('world').append(joystick);
+}
 const sheetData = { level: 1, xpThisLevel: 0, xpNextLevel: 100,
   attributePoints: 0, skillPoints: 0, perkPoints: 0,
   attributes: [], skills: [], perks: [], gameplayEffects: null,
@@ -187,6 +201,22 @@ try {
     'world fills mobile viewport, including safe areas: '+JSON.stringify(mworld));
   assert(await mobile.locator('#hfHud .hf-menu').isVisible(),
     'menu remains accessible on phone viewport');
+  const rects = await mobile.evaluate(() => {
+    const bounds = selector => {
+      const {x,y,width,height} = document.querySelector(selector).getBoundingClientRect();
+      return {x,y,width,height};
+    };
+    return {hud:bounds('#hfHud'),camera:bounds('#world .hf-viewbtn'),
+      status:bounds('#status'),joystick:bounds('#world .hf-joy')};
+  });
+  const intersects = (a,b) => a.x < b.x+b.width && a.x+a.width > b.x &&
+    a.y < b.y+b.height && a.y+a.height > b.y;
+  assert(!intersects(rects.hud,rects.camera),
+    'mobile HUD must not cover first-/third-person camera control');
+  assert(!intersects(rects.status,rects.joystick),
+    'persistent status notices must not block mobile movement joystick');
+  assert(!intersects(rects.hud,rects.joystick),
+    'mobile HUD must leave the bottom-left touch thumb area clear');
   await mobile.screenshot({path:out+'/mobile-world.png'});
   await mobile.locator('#hfHud .hf-menu').click();
   assert(await mobile.locator('#hfSheet').isVisible());
@@ -208,7 +238,7 @@ try {
     manageCategories:await manageTabs.count(),
     buildReusesOriginalNode:true,manageReusesOriginalNode:true,
     arenaAccountTravelAccessible:true,worldPersistsBehindMenus:true,
-    browserErrors}));
+    mobileHudNoControlOverlap:true, browserErrors}));
   await mobileContext.close();
   await desktop.close();
 } finally {

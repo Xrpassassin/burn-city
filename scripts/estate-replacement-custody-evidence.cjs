@@ -4,6 +4,10 @@
 const fs=require('node:fs');
 const {createHash}=require('node:crypto');
 const {snapshotPool,historicCoverage}=require('../server/estate-replacement-custody-snapshot');
+const {inspectPool,value,drops}=require('../server/estate-liquidity-ledger');
+const {planManualPoolMigration}=require('../server/estate-manual-pool-migration');
+const WITHDRAW='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2';
+const SEED='59FAA96D8EF6A5C35747E22E664A7E0A8FBEA5F373D746B5EF3A58E5558FBE43';
 const TREASURY='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
 const IMG={currency:'IMG',issuer:'rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd'};
 const PLX={currency:'PLX',issuer:'rGLEgQdktoN4Be5thhk6seg1HifGPBxY5Q'};
@@ -34,7 +38,11 @@ try{
    'estate_payout_credits','estate_xrp_profit_payouts','estate_xrp_profit_credits']){
   if(tables.includes(n))pending[n]=count(n);
  }
+ const sourceJob=db.prepare("SELECT * FROM estate_liquidity_jobs WHERE purchase_tx=? AND pair='img-plx'").get(p.purchaseTx);
+ const currentPoolJobs=count("estate_liquidity_jobs WHERE pair='img-rlusd'");
+ const pendingTreasuryIntents=count("estate_treasury_transactions WHERE state NOT IN ('applied','failed')");
  console.log(JSON.stringify({readOnly:true,legacy:p,legacyLiabilityTableCounts:pending,
+  sourceJob,currentPoolJobs,pendingTreasuryIntents,
   liabilityInventory:inspectEstateLiabilityRows(db),
   liabilitiesHaveBeenEconomicallyReconciled:false}));
 }finally{db.close()}
@@ -140,8 +148,47 @@ async function audit(){
  const body=tx.tx_json||tx;
  const originalPurchaseValidated=tx.validated===true&&tx.meta?.TransactionResult==='tesSUCCESS'&&
   body.TransactionType==='Payment'&&body.Account===accounting.legacy.ownerWallet&&
-  body.Destination===TREASURY&&(body.Amount??body.DeliverMax)===accounting.legacy.purchaseDrops;
+  body.Destination===TREASURY&&(body.Amount??body.DeliverMax)===accounting.legacy.purchaseDrops&&
+  tx.meta.delivered_amount===accounting.legacy.purchaseDrops;
  if(!originalPurchaseValidated)throw Error('original_purchase_onchain_validation_missing');
+ let replacementEarmark={status:'blocked',reason:'existing_position_or_pending_treasury_intent'};
+ if(accounting.currentPoolJobs===0&&accounting.pendingTreasuryIntents===0){
+  try{
+   const snapshot=results['img-rlusd'];
+   const XRP={currency:'XRP'};
+   const quotePool=async(asset,other,poolAccount)=>{
+    const raw=await rpc('amm_info',{asset,asset2:other,ledger_index:height});
+    if(Number(raw.ledger_index)!==height)throw Error('quote_ledger_mismatch');
+    return inspectPool(raw,{asset,other,poolAccount});
+   };
+   const [target,img,stable]=await Promise.all([
+    quotePool(IMG,RLUSD,POOL),quotePool(XRP,IMG),quotePool(XRP,RLUSD)
+   ]);
+   if(target.lp.currency!==snapshot.lpCurrency||
+    !target.supply.eq(snapshot.totalLpSupply))throw Error('quote_pool_snapshot_mismatch');
+   const sell=(pool,amount)=>{
+    const net=amount.times(100000-pool.fee);
+    return value(drops(pool.a.times(net).div(pool.b.times(100000).plus(net)).times(9700).div(10000)));
+   };
+   // Three bounded transactions: proportional withdrawal and two conversions.
+   // Use the production quote haircut and default 100-drop fee cap.
+   const exitQuote=lp=>{
+    const share=lp.div(target.supply);
+    return sell(img,target.a.times(share)).plus(sell(stable,target.b.times(share))).minus(300);
+   };
+   const plan=planManualPoolMigration({job:accounting.sourceJob,pool:target,
+    availableLp:snapshot.treasuryLpHeld,exitQuote,withdrawHash:WITHDRAW,seedHash:SEED});
+   const lp=JSON.parse(plan.replacementJson).lp;
+   replacementEarmark={status:'quote_only',pair:'IMG/RLUSD',poolAccount:POOL,
+    ledgerIndex:height,recordedBasisDrops:plan.basisDrops,proposedLpUnits:lp,
+    netIndicativeExitDrops:exitQuote(value(lp)).toFixed(),treasuryLpHeld:snapshot.treasuryLpHeld,
+    migrationFeesIncluded:false,inventoryCommitmentCheck:'estate_jobs_and_treasury_intents',
+    recordedOnProduction:false};
+  }catch(e){
+   replacementEarmark={status:'blocked',reason:/^[a-z][a-z0-9_]{2,90}$/.test(e.message)?
+    e.message:'replacement_quote_unavailable'};
+  }
+ }
  const fingerprint=createHash('sha256').update(JSON.stringify({
   purchaseHash:txHash,positionFingerprints:positions.map(x=>x.rawPositionDigest),
   ledger:height,pools:results})).digest('hex');
@@ -152,7 +199,7 @@ async function audit(){
   proposedPolicy2:{imgRlusdDrops:accounting.legacy.proposedImgRlusdDrops,
    reserveDrops:accounting.legacy.proposedXrpReserveDrops,
    actuallyMigrated:false},
-  poolSnapshots:results,custody:coverage,
+  poolSnapshots:results,custody:coverage,replacementEarmark,
   legacyLiabilityRowCounts:accounting.legacyLiabilityTableCounts,
   legacyLiabilityInventory:accounting.liabilityInventory,
   allLiabilitiesQuantified:false,

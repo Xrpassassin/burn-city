@@ -124,7 +124,15 @@ try {
     const page=await context.newPage();
     page.on('pageerror',error=>errors.push(name+': '+error.message));
     await page.addInitScript(token=>localStorage.setItem('bcToken',token),TOKEN);
-    await page.goto('http://127.0.0.1:'+port+'/arena/homefront-real-ui.html',
+    // The real Homefront API resolver uses "localhost", not 127.0.0.1,
+    // as its explicit local-site whitelist. Block EVERY nonlocal request.
+    await page.route('**/*',route=>{
+      const host=new URL(route.request().url()).hostname;
+      if(host==='localhost'||host==='127.0.0.1') return route.continue();
+      errors.push(name+': attempted nonlocal request '+host);
+      return route.abort('blockedbyclient');
+    });
+    await page.goto('http://localhost:'+port+'/arena/homefront-real-ui.html',
       {waitUntil:'domcontentloaded',timeout:60000});
     await page.waitForFunction(()=>window.__ui?.ready&&
       document.body.classList.contains('hf-playing'),{timeout:20000});

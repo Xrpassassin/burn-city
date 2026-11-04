@@ -37,4 +37,31 @@ jobs:
               *) echo "${target}: inconclusive_HTTP_${status}" ;;
             esac
           done
+          # Determine whether the token can list apps in the production
+          # app's organization. Return only capability flags, never names,
+          # secrets, metadata, or the raw API JSON.
+          meta_status="$(curl --silent --show-error --max-time 15 \
+            --output /tmp/fly-homefront-app-metadata.json --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${FLY_API_TOKEN}" \
+            'https://api.machines.dev/v1/apps/burn-city-game' || true)"
+          if [[ "${meta_status}" == "200" ]]; then
+            org_slug="$(node -e 'try {const x=require("/tmp/fly-homefront-app-metadata.json");const y=x?.organization?.slug||"";if(/^[a-zA-Z0-9_-]{1,80}$/.test(y)) process.stdout.write(y)} catch{}')"
+            if [[ -n "${org_slug}" ]]; then
+              list_status="$(curl --silent --show-error --max-time 15 \
+                --output /tmp/fly-homefront-org-apps.json --write-out '%{http_code}' \
+                --header "Authorization: Bearer ${FLY_API_TOKEN}" \
+                --get --data-urlencode "org_slug=${org_slug}" \
+                'https://api.machines.dev/v1/apps' || true)"
+              if [[ "${list_status}" == "200" ]]; then
+                echo "org_app_listing: permitted"
+                node -e 'try{const x=require("/tmp/fly-homefront-org-apps.json");const present=(x.apps||[]).some(a=>a.name==="burn-city-homefront-preview-551");console.log("preview_in_org_list: "+(present?"yes":"no"))}catch{console.log("preview_in_org_list: unknown")}'
+              else
+                echo "org_app_listing: denied_or_unavailable_HTTP_${list_status}"
+              fi
+            else
+              echo "org_app_listing: no_organization_metadata"
+            fi
+          else
+            echo "org_app_listing: production_app_metadata_unavailable"
+          fi
           echo "Safety: no Fly API write requests were made."

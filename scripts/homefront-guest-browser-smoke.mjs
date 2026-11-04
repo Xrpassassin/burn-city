@@ -107,10 +107,15 @@ try{
       const api=new URLSearchParams(location.search).get('api')||location.origin;
       const response=await mod.fetchHomefront(api,'/api/homefront');
       const result=await response.json();
-      return {owner:result.base?.owner,day:result.base?.day,guest:mod.isGuest()};
+      return {owner:result.base?.owner,day:result.base?.day,guest:mod.isGuest(),
+        responseType:response.type,apiOrigin:new URL(api).origin,appOrigin:location.origin};
     });
     const initial=await state();
     assert(initial.guest&&initial.owner?.startsWith('guest_'),'temporary guest refuge is live');
+    assert.equal(initial.apiOrigin!==initial.appOrigin,crossOrigin,
+      'the guest browser test actually requests the intended API origin');
+    assert.equal(initial.responseType,crossOrigin?'cors':'basic',
+      'Chromium successfully reads a cross-origin guest API response');
     // Prove interactive game actions work without wallet authentication, but
     // never become an account save after a browser refresh.
     const worked=await page.evaluate(async()=>{
@@ -233,8 +238,21 @@ try{
   const desktop=await inspect('desktop',{width:1280,height:800});
   const mobile=await inspect('mobile',{width:390,height:844},true);
   const crossOrigin=await inspect('cross-origin',{width:1024,height:768},false,true);
-  assert(preflightCount>0,
-    'real Chrome guest API made cross-origin OPTIONS preflight using x-homefront-guest');
+  // Explicitly verify the actual production CORS response over HTTP. Some
+  // Playwright route-interception configurations suppress implicit OPTIONS
+  // traffic, so a preflight *count* is not reliable proof of browser CORS.
+  const preflight=await fetch(crossOriginApi+'/api/homefront/guest',{
+    method:'OPTIONS',headers:{
+      origin,'access-control-request-method':'GET',
+      'access-control-request-headers':'x-homefront-guest'
+    }
+  });
+  assert.equal(preflight.status,204,'cross-origin OPTIONS returns success');
+  assert.equal(preflight.headers.get('access-control-allow-origin'),origin,
+    'server replies with the actual GitHub-style game origin');
+  assert(preflight.headers.get('access-control-allow-headers')?.includes('x-homefront-guest'),
+    'OPTIONS permits guest capability header');
+  assert(preflightCount>0,'explicit real HTTP preflight reached the server');
   assert.deepEqual(errors,[], 'guest mode does not throw JS errors or fetch external APIs');
   console.log('HOMEFRONT NO-WALLET REAL THREE.JS GUEST BROWSER PASSED',
     JSON.stringify({desktop,mobile,crossOrigin,preflightCount,noWallet:true,productionApisBlocked:true}));

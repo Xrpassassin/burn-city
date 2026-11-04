@@ -105,7 +105,7 @@ body.rpg-hud.hf-playing.rpg-mode-workshop #refugeWorldPanel .world,
 body.rpg-hud.hf-playing.rpg-mode-expedition #graveyard3d{
  width:100%;height:100%;min-height:0;max-width:none;border:0;border-radius:0;touch-action:none
 }
-body.rpg-hud.hf-playing #status{position:fixed;left:calc(10px + env(safe-area-inset-left));bottom:calc(8px + env(safe-area-inset-bottom));z-index:10;max-width:min(75vw,450px);margin:0;padding:5px 8px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.78;pointer-events:none}
+body.rpg-hud.hf-playing #status{position:fixed;left:calc(10px + env(safe-area-inset-left));top:calc(68px + env(safe-area-inset-top));bottom:auto;z-index:10;max-width:min(58vw,420px);margin:0;padding:5px 8px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.78;pointer-events:none}
 body.rpg-hud.hf-playing .hf-hud{position:fixed;top:calc(8px + env(safe-area-inset-top));left:calc(10px + env(safe-area-inset-left));right:calc(10px + env(safe-area-inset-right));width:min(750px,calc(100vw - 20px));max-width:100%;margin:0 auto;z-index:18;background:#100b09d9;box-shadow:0 7px 25px #0008;backdrop-filter:blur(10px)}
 body.rpg-hud.hf-playing .hf-level-up-notice{position:fixed;top:calc(70px + env(safe-area-inset-top));left:12px;right:12px;max-width:550px;z-index:19}
 body.rpg-hud.hf-playing .hf-sheet{z-index:50;display:flex;align-items:stretch;justify-content:flex-end;padding:calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom));background:#0704038f;backdrop-filter:blur(2px)}

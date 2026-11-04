@@ -90,7 +90,7 @@ assert.match(hud, /body\.rpg-hud\.hf-playing\.rpg-mode-home #refugeWorldPanel \.
   'refuge canvas expands instead of remaining a bordered page widget');
 assert.match(hud, /body\.rpg-hud\.hf-playing\.rpg-mode-expedition #graveyard3d/,
   'shared expedition scene also expands to the viewport');
-assert.match(hud, /if \(tab === 'build' && getMode\(\) !== 'workshop'\) setMode\('workshop'\)/,
+assert.match(hud, /if \(t === 'build' && getMode\(\) !== 'workshop'\) setMode\('workshop'\)/,
   'Build enters existing construction mode without replacing the world');
 assert.match(hud, /borrowPanel\(document\.getElementById\('buildPanel'\)\)/,
   'Build reuses the authenticated original workshop actions');

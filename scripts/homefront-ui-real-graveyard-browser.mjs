@@ -128,8 +128,24 @@ try {
       {waitUntil:'domcontentloaded',timeout:60000});
     await page.waitForFunction(()=>window.__ui?.ready&&
       document.body.classList.contains('hf-playing'),{timeout:20000});
-    await page.waitForFunction(()=>document.getElementById('graveyard3dStatus')
-      ?.textContent?.includes('3D shared world live'),{timeout:60000});
+    try {
+      await page.waitForFunction(()=>document.getElementById('graveyard3dStatus')
+        ?.textContent?.includes('3D shared world live'),null,{timeout:45000});
+    } catch(error) {
+      const diagnosis=await page.evaluate(()=>({
+        ready:window.__ui?.ready,
+        hud:document.body.className,
+        status:document.getElementById('graveyard3dStatus')?.textContent,
+        sceneSize:document.getElementById('graveyard3d')?.getBoundingClientRect().toJSON(),
+        canvasCount:document.querySelectorAll('#graveyard3d canvas').length,
+        htmlMode:document.body.className
+      }));
+      console.error('REAL_WEBGL_INIT_DIAGNOSTICS',JSON.stringify({
+        name,diagnosis,requests:observed.slice(-25),pageErrors:errors.slice(-15)
+      }));
+      await page.screenshot({path:out+'/'+name+'-real-webgl-error.png'}).catch(()=>{});
+      throw error;
+    }
     const canvas=page.locator('#graveyard3d canvas').first();
     assert(await canvas.isVisible(),name+': actual Three.js WebGL canvas mounted and visible');
     const box=await canvas.boundingBox();

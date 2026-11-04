@@ -77,6 +77,13 @@ const json=(res,status,payload)=>{
 const server=createServer(async(req,res)=>{
   const url=new URL(req.url||'/', 'http://localhost');
   try {
+    // Real Homefront requests the jetpack status on refuge load. This route
+    // is deliberately a harmless read-only fixture, not a payment backend.
+    if(url.pathname==='/api/jetpack') {
+      if(req.method!=='GET')return json(res,405,{error:'read_only_test_fixture'});
+      return json(res,200,{owned:{homefront:false},payments:false,
+        prices:{homefront:{xrp:0}}});
+    }
     if(url.pathname.startsWith('/api/homefront')) {
       const token=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');
       const account=token===TOKEN?ACCOUNT:token===REFUGE_TOKEN?REFUGE_ACCOUNT:null;
@@ -279,6 +286,19 @@ try {
   await buildOptions.first().click();
   await refuge.waitForFunction(()=>document.getElementById('hfSheet')?.hidden,
     null,{timeout:10000});
+  try {
+    await refuge.locator('.hf-build-exit').waitFor({state:'visible',timeout:10000});
+  }catch(error){
+    console.error('REAL_REFUGE_PLACEMENT_DIAGNOSTICS',JSON.stringify(
+      await refuge.evaluate(()=>({
+        mode:document.body.className,
+        panelHidden:document.getElementById('hfSheet')?.hidden,
+        exitHidden:document.querySelector('.hf-build-exit')?.hidden,
+        placing:document.getElementById('placementHelp')?.textContent,
+        cancelHidden:document.getElementById('cancelPlacement')?.hidden
+      }))));
+    throw error;
+  }
   assert(await refuge.locator('.hf-build-exit').isVisible(),
     'selected 3D construction exposes Finish building in world');
   assert(await refuge.locator('#cancelPlacement').isVisible(),

@@ -90,6 +90,49 @@ body.rpg-hud.rpg-mode-expedition #explorationObjective,body.rpg-hud.rpg-mode-exp
 body.rpg-hud #game section.panel.hf-tab-off{display:none!important}body.rpg-hud.rpg-mode-management #refugeWorldPanel,body.rpg-hud.rpg-mode-management #graveyardPanel,body.rpg-hud.rpg-mode-management #game #survivalPanel{display:none!important}
 .hf-mtabs[hidden]{display:none}.hf-mtabs{display:flex;gap:4px;overflow-x:auto;margin:0 0 8px;padding:2px}.hf-mtabs button{flex:0 0 auto;min-height:36px;padding:6px 10px;border-radius:9px;border:1px solid #8e5235;background:#24140d;color:#ffe0c4;font:700 12px system-ui;white-space:nowrap}.hf-mtabs button[aria-selected=true]{background:#a63f16}
 .hf-sheet #survivalPanel{display:block!important;margin:0;padding:8px}
+
+/* Immersive play mode: the existing Three.js scene is the viewport, not a framed webpage.
+   All overrides are restricted to the active HUD game. Classic mode is untouched. */
+body.rpg-hud.hf-playing{height:100svh;overflow:hidden;overscroll-behavior:none}
+body.rpg-hud.hf-playing header{display:none}
+body.rpg-hud.hf-playing .wrap{max-width:none;width:100%;height:100%;margin:0;padding:0}
+body.rpg-hud.hf-playing #game{position:fixed;inset:0;overflow:hidden}
+body.rpg-hud.hf-playing #game>.grid{position:absolute;inset:0;display:block;overflow:hidden;pointer-events:none}
+body.rpg-hud.hf-playing #game>.grid>#refugeWorldPanel,
+body.rpg-hud.hf-playing #game>.grid>#graveyardPanel{position:absolute;inset:0;margin:0;padding:0;max-width:none;overflow:hidden;border:0;border-radius:0;background:transparent;box-shadow:none;pointer-events:auto}
+body.rpg-hud.hf-playing.rpg-mode-home #refugeWorldPanel .world,
+body.rpg-hud.hf-playing.rpg-mode-workshop #refugeWorldPanel .world,
+body.rpg-hud.hf-playing.rpg-mode-expedition #graveyard3d{
+ width:100%;height:100%;min-height:0;max-width:none;border:0;border-radius:0;touch-action:none
+}
+body.rpg-hud.hf-playing #status{position:fixed;left:calc(10px + env(safe-area-inset-left));bottom:calc(8px + env(safe-area-inset-bottom));z-index:10;max-width:min(75vw,450px);margin:0;padding:5px 8px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.78;pointer-events:none}
+body.rpg-hud.hf-playing .hf-hud{position:fixed;top:calc(8px + env(safe-area-inset-top));left:calc(10px + env(safe-area-inset-left));right:calc(10px + env(safe-area-inset-right));width:min(750px,calc(100vw - 20px));max-width:100%;margin:0 auto;z-index:18;background:#100b09d9;box-shadow:0 7px 25px #0008;backdrop-filter:blur(10px)}
+body.rpg-hud.hf-playing .hf-level-up-notice{position:fixed;top:calc(70px + env(safe-area-inset-top));left:12px;right:12px;max-width:550px;z-index:19}
+body.rpg-hud.hf-playing .hf-sheet{z-index:50;display:flex;align-items:stretch;justify-content:flex-end;padding:calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom));background:#0704038f;backdrop-filter:blur(2px)}
+body.rpg-hud.hf-playing .hf-sheet[hidden]{display:none!important}
+body.rpg-hud.hf-playing .hf-card{width:min(100%,640px);max-height:100%;min-height:0;border-radius:16px;box-shadow:0 18px 65px #000b}
+body.rpg-hud.hf-playing .hf-card .hf-body{overscroll-behavior:contain;min-height:0}
+body.rpg-hud.hf-playing .hf-card .panel{grid-column:auto;box-shadow:none}
+body.rpg-hud.hf-playing .hf-card #buildPanel{display:block!important}
+body.rpg-hud.hf-playing .hf-card section.panel.hf-tab-off{display:block!important}
+body.rpg-hud.hf-playing .hf-panel-header{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#130d0ad9;border-bottom:1px solid #a55c3555}
+body.rpg-hud.hf-playing .hf-panel-header strong{font-size:12px;letter-spacing:.11em;color:#ffcf9f}
+body.rpg-hud.hf-playing .hf-panel-header .hf-actions{display:flex;gap:6px}
+body.rpg-hud.hf-playing .hf-panel-header button{min-height:35px;padding:6px 9px;background:#2c1a12;border:1px solid #9b5a38;border-radius:8px;color:#ffe4c3;font:700 12px system-ui}
+body.rpg-hud.hf-playing .hf-card .hf-mtabs{display:flex;flex-wrap:wrap;max-height:112px;overflow:auto}
+body.rpg-hud.hf-playing .hf-card .hf-mtabs button{white-space:normal;text-align:left}
+body.rpg-hud.hf-playing #world .hf-viewbtn,
+body.rpg-hud.hf-playing #graveyard3d .hf-viewbtn{top:calc(68px + env(safe-area-inset-top))!important}
+@media(max-width:620px){
+ body.rpg-hud.hf-playing .hf-hud{width:calc(100vw - 16px);left:8px;right:8px;gap:3px}
+ body.rpg-hud.hf-playing .hf-hud .hf-q{width:34px;flex-basis:34px}
+ body.rpg-hud.hf-playing .hf-sheet{padding:0}
+ body.rpg-hud.hf-playing .hf-card{width:100%;border-radius:0;border:0}
+ body.rpg-hud.hf-playing .hf-card .hf-body{padding:10px}
+ body.rpg-hud.hf-playing .hf-card .hf-mtabs{max-height:108px}
+ body.rpg-hud.hf-playing #world .hf-viewbtn,
+ body.rpg-hud.hf-playing #graveyard3d .hf-viewbtn{top:calc(76px + env(safe-area-inset-top))!important}
+}
 `;
 const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); for (const k of kids) n.append(k); return n; };
 

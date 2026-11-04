@@ -37,6 +37,63 @@ jobs:
           node server/estate-sale-xaman-session.test.js
           node server/estate-sales-runtime.test.js
           node test/estate-sales-runtime-http.test.js
+      - name: Check live checkout prerequisites without creating a payment
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node --input-type=module <<'NODE'
+          import {appendFileSync} from 'node:fs';
+          if(!process.env.FLY_API_TOKEN)throw Error('fly_preflight_credential_missing');
+          const code=`
+            const fs=require('node:fs');
+            const {DatabaseSync}=require('node:sqlite');
+            const {verifyEstatePurchaseTermsPublication}=require('/data/gh/cur/server/estate-purchase-terms-publication');
+            (async()=>{
+              const result={};
+              let pause={};
+              try{pause=JSON.parse(fs.readFileSync('/data/pause.json','utf8'));}
+              catch(e){if(e.code!=='ENOENT')throw e;}
+              result.treasuryPaused=pause.paused===true||process.env.PAYOUTS_PAUSED==='true';
+              result.purchaseSwitchOn=process.env.ESTATE_SALES_ENABLED==='1';
+              result.automatedFundingOrPayoutSwitchOn=['ESTATE_LIQUIDITY_ENABLED',
+                'ESTATE_XRP_PROFIT_HARVEST_ENABLED','ESTATE_DISTRIBUTIONS_ENABLED']
+                .some(key=>process.env[key]==='1');
+              const db=new DatabaseSync('/data/shop.db',{readOnly:true});
+              try{
+                db.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=2000');
+                const table=db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_manual_pool_migrations'").get();
+                result.historicalEarmarkBooked=!!table&&!!db.prepare(
+                  "SELECT 1 FROM estate_manual_pool_migrations WHERE withdraw_hash=? AND seed_hash=?"
+                ).get('581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2',
+                  '59FAA96D8EF6A5C35747E22E664A7E0A8FBEA5F373D746B5EF3A58E5558FBE43');
+              }finally{db.close();}
+              try{
+                result.publishedTermsVerified=(await verifyEstatePurchaseTermsPublication(process.env)).verified;
+              }catch(e){
+                result.publishedTermsVerified=false;
+                result.termsBlocker=/^[a-z][a-z0-9_]{2,90}$/.test(e.message)?e.message:'terms_preflight_failed';
+              }
+              console.log(JSON.stringify(result));
+            })().catch(()=>{process.exitCode=1;});
+          `;
+          const response=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{
+            method:'POST',redirect:'error',signal:AbortSignal.timeout(50000),
+            headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},
+            body:JSON.stringify({command:['node','-e',code],timeout:40})
+          });
+          if(!response.ok)throw Error('fly_preflight_http_'+response.status);
+          const execution=await response.json();
+          if(execution.exit_code!==0)throw Error('fly_purchase_preflight_failed');
+          const state=JSON.parse(String(execution.stdout||'').trim());
+          const flags=['treasuryPaused','purchaseSwitchOn','automatedFundingOrPayoutSwitchOn',
+            'historicalEarmarkBooked','publishedTermsVerified'];
+          if(flags.some(key=>typeof state[key]!=='boolean'))throw Error('invalid_purchase_preflight_report');
+          const lines=flags.map(key=>'- '+key+': '+state[key]);
+          if(/^[a-z][a-z0-9_]{2,90}$/.test(state.termsBlocker||''))lines.push('- Terms blocker: '+state.termsBlocker);
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY,lines.join('\n')+'\n');
+          console.log(lines.join('\n'));
+          NODE
       - name: Report non-activation
         run: |
           echo 'All checks are nonpaying simulations. This workflow does not unpause treasury, activate sales, confirm legal approval, or make XRP payments.' >> "$GITHUB_STEP_SUMMARY"

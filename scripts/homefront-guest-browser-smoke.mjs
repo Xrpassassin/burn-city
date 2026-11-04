@@ -201,6 +201,7 @@ try{
     // sees a server-style 401 and opens the explicit recovery UI.
     await page.route('**/api/homefront/guest?expiry_probe=1',route=>
       route.fulfill({status:401,contentType:'application/json',
+        headers:{'access-control-allow-origin':origin,'cache-control':'no-store'},
         body:JSON.stringify({error:'guest_session_expired'})}));
     const responseCode=await page.evaluate(async()=>{
       const mod=await import('/arena/homefront-guest.mjs');

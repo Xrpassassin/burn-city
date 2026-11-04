@@ -149,6 +149,53 @@ try{
       const hit=rectA.x<rectB.x+rectB.width&&rectA.x+rectA.width>rectB.x&&
         rectA.y<rectB.y+rectB.height&&rectA.y+rectA.height>rectB.y;
       assert(!hit,'real mobile movement joystick unobstructed by HUD');
+      // A phone rotated into landscape has a much shorter usable height.
+      // Exercise the SAME signed-in Three.js scene through ResizeObserver
+      // instead of reloading a fixture with a fake canvas.
+      await page.setViewportSize({width:844,height:390});
+      await page.waitForFunction(()=>{
+        const canvas=document.querySelector('#world canvas');
+        const rect=canvas?.getBoundingClientRect();
+        return rect&&rect.width>=839&&rect.height>=384 &&
+          document.body.classList.contains('rpg-mode-home');
+      },null,{timeout:15000});
+      const landscapeWorld=await yard.boundingBox();
+      const landscapeJoy=await joy.boundingBox();
+      const landscapeHud=await page.locator('#hfHud').boundingBox();
+      const camera=page.locator('#world .hf-viewbtn').first();
+      assert(await camera.isVisible(),'rotated phone still exposes third-person camera control');
+      const landscapeCamera=await camera.boundingBox();
+      const overlaps=(a,b)=>!!a&&!!b&&a.x<b.x+b.width&&
+        a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y;
+      assert(!overlaps(landscapeJoy,landscapeHud),
+        'landscape thumbstick does not overlap compact HUD');
+      assert(!overlaps(landscapeCamera,landscapeHud),
+        'landscape camera button does not overlap compact HUD');
+      assert(landscapeJoy.x>=0&&landscapeJoy.y>=0&&
+        landscapeJoy.x+landscapeJoy.width<=844&&
+        landscapeJoy.y+landscapeJoy.height<=390,
+        'landscape thumbstick remains within visible touch viewport');
+      await page.screenshot({path:out+'/'+name+'-landscape-real-refuge.png'});
+      await page.locator('#hfHud .hf-menu').click();
+      await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Inventory'}).click();
+      assert(await page.locator('#hfSheet').isVisible(),
+        'rotated phone can still open in-world Inventory');
+      assert(await yard.isVisible(),
+        'landscape Inventory does not unmount original Three.js scene');
+      await page.keyboard.press('Escape');
+      assert(await page.locator('#hfSheet').isHidden(),
+        'landscape Escape returns to exploration');
+      await page.setViewportSize({width:390,height:844});
+      await page.waitForFunction(()=>{
+        const rect=document.querySelector('#world canvas')?.getBoundingClientRect();
+        return rect&&rect.width>=385&&rect.height>=838;
+      },null,{timeout:15000});
+      assert(await joy.isVisible(),
+        'portrait recovery restores mobile movement after rotating twice');
+      console.log('HOMEFRONT_PREVIEW_ROTATION_ACCEPTANCE',JSON.stringify({
+        landscapeWorld,landscapeJoy,landscapeHud,landscapeCamera,
+        restoredPortrait:true
+      }));
     }
     await context.close();
     return {world:{width:box.width,height:box.height},phone};

@@ -49,6 +49,12 @@ const setMode = m => {
   document.body.classList.remove('rpg-mode-home','rpg-mode-workshop','rpg-mode-management','rpg-mode-expedition');
   document.body.classList.add('rpg-mode-' + m);
 };
+const buildChoice = document.createElement('button');
+buildChoice.type = 'button';
+buildChoice.id = 'testChoosePlacement';
+buildChoice.textContent = 'Choose placement';
+buildChoice.onclick = () => window.__test.placementClicks = (window.__test.placementClicks || 0) + 1;
+document.getElementById('buildings').append(buildChoice);
 window.__test.hud = createHud({
   request: async (path, method = 'GET', payload) => {
     window.__test.requests.push({path, method, payload});
@@ -132,6 +138,19 @@ try {
   assert(Math.abs(buildBox.width-initial.width)<1 && Math.abs(buildBox.height-initial.height)<1,
     'opening Build does not resize or recreate the 3D scene');
   await page.screenshot({path:out+'/desktop-build-menu.png'});
+  // A construction selection must close the drawer WITHOUT reverting to
+  // normal play: the real handler keeps a pendingBuilding ghost in that mode.
+  await page.locator('#hfSheet #testChoosePlacement').click();
+  await page.waitForFunction(() => document.getElementById('hfSheet').hidden);
+  assert.equal(await page.evaluate(() => window.__test.mode),'workshop',
+    'a chosen structure keeps protected in-world placement active');
+  assert.equal(await page.evaluate(() => window.__test.placementClicks),1);
+  await page.locator('.hf-build-exit').waitFor({state:'visible'});
+  await page.locator('.hf-build-exit').click();
+  assert.equal(await page.evaluate(() => window.__test.mode),'home',
+    'Finish building exits protected placement and restores normal exploration');
+  await page.locator('#hfHud .hf-menu').click();
+  await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Build'}).click();
 
   await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Manage'}).click();
   assert.equal(await page.evaluate(() => window.__test.mode),'home',
@@ -237,6 +256,7 @@ try {
     mobileWorld:{w:mworld.width,h:mworld.height},
     manageCategories:await manageTabs.count(),
     buildReusesOriginalNode:true,manageReusesOriginalNode:true,
+    selectionKeepsWorldPlacementMode:true,
     arenaAccountTravelAccessible:true,worldPersistsBehindMenus:true,
     mobileHudNoControlOverlap:true, browserErrors}));
   await mobileContext.close();

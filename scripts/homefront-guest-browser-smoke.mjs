@@ -115,9 +115,32 @@ try{
     await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Inventory'}).click();
     assert(await page.locator('#hfSheet').isVisible(),'guest can access in-world inventory');
     assert(await page.locator('#world canvas').first().isVisible(),'menu never removes real 3D scene');
+    assert.match(await page.locator('#hfSheet .hf-panel-header').innerText(),/GUEST \(UNSAVED\)/,
+      'fullscreen menu labels temporary guest progress explicitly');
+    assert.match(await page.locator('#hfSheet .hf-panel-header .hf-actions').innerText(),/Connect wallet to save/,
+      'wallet save action is reachable in the immersive menu');
     await page.screenshot({path:output+'/'+name+'-guest-inventory.png'});
     await page.keyboard.press('Escape');
     assert(await page.locator('#hfSheet').isHidden());
+    // Test the real wallet dialog DOM and CSS without making a Xaman request
+    // or connecting any account to the isolated guest browser fixture.
+    await page.evaluate(()=>{document.getElementById('qrbox').hidden=false;});
+    assert(await page.locator('#qrbox').isVisible(),'wallet QR is visible above the real 3D scene');
+    const walletOverlay=await page.locator('#qrbox').evaluate(el=>{
+      const r=el.getBoundingClientRect();
+      return {top:r.top,width:r.width,height:r.height,z:Number(getComputedStyle(el).zIndex)};
+    });
+    assert(walletOverlay.z>=80 && walletOverlay.width>=viewport.width-6 &&
+      walletOverlay.height>=viewport.height-6,
+      'wallet QR covers fullscreen WebGL rather than appearing behind it');
+    assert.match(await page.locator('#qrbox').innerText(),/Guest progress.*will not transfer/,
+      'wallet dialog must warn that guest gameplay will not be imported');
+    await page.screenshot({path:output+'/'+name+'-guest-wallet-overlay.png'});
+    await page.locator('#hideWalletQr').click();
+    assert(await page.locator('#qrbox').isHidden(),
+      'guest can dismiss the wallet dialog and continue playing');
+    assert(await page.locator('#world canvas').first().isVisible(),
+      'dismissing the wallet dialog preserves the live WebGL scene');
     // A tab refresh must start an entirely new guest account. Wallet savings
     // are not affected and a guest has no server-side recovery credential.
     await page.reload({waitUntil:'domcontentloaded'});

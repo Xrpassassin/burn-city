@@ -27,7 +27,7 @@ const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
 const estatesInstance = createEstatesInstanceManager({maxLeases:40});
-const BT = require('./blacktide'), Homefront = require('./homefront'), FlightLobby = require('./flight-lobby');
+const BT = require('./blacktide'), Homefront = require('./homefront'), HomefrontGuest = require('./homefront-guest'), FlightLobby = require('./flight-lobby');
 const Jetpack = require('./jetpack');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
@@ -52,7 +52,7 @@ function adminOk(req, ip) {   // constant-time compare, header only, 10 bad trie
 const ORIGINS = /^(?:https:\/\/xrpassassin\.github\.io|https:\/\/burn-city-game\.fly\.dev|https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?)$/;
 const okOrigin = o => !o || ORIGINS.test(o);
 const SEC = { 'strict-transport-security': 'max-age=31536000; includeSubDomains', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer', 'content-security-policy': "default-src 'none'; frame-ancestors 'none'", vary: 'Origin' };
-const json = (res, code, o) => { const og = res.req?.headers?.origin; res.writeHead(code, { ...SEC, 'content-type': 'application/json', 'access-control-allow-origin': og && ORIGINS.test(og) ? og : 'https://xrpassassin.github.io', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' }); res.end(JSON.stringify(o)); };
+const json = (res, code, o) => { const og = res.req?.headers?.origin; res.writeHead(code, { ...SEC, 'content-type': 'application/json', 'access-control-allow-origin': og && ORIGINS.test(og) ? og : 'https://xrpassassin.github.io', 'access-control-allow-headers': 'content-type, authorization, x-homefront-guest', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' }); res.end(JSON.stringify(o)); };
 const gates = new Map();   // sliding-window limiter shared by HTTP + WS
 function gate(k, n, ms) { const t = Date.now(), a = (gates.get(k) || []).filter(x => t - x < ms); a.push(t); gates.set(k, a); return a.length > n; }
 setInterval(() => { const t = Date.now(); for (const [k, a] of gates) if (!a.some(x => t - x < 600e3)) gates.delete(k); for (const [k, a] of hits) if (!a.some(x => t - x < 120e3)) hits.delete(k); }, 300e3).unref();
@@ -111,6 +111,11 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { tickAvgMs: a.reduce((x, y) => x + y, 0) / (a.length || 1), tickP99Ms: a[Math.floor(a.length * 0.99)] || 0, tickMaxMs: a.at(-1) || 0, bytesOut: stats.bytesOut, upS: (Date.now() - stats.started) / 1e3, mem: process.memoryUsage().rss }); }
     const body = async () => { let b = ''; for await (const c of req) { b += c; if (b.length > 8000) throw new Error('big'); } try { const o = JSON.parse(b || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; } };
     const who = () => Pay.checkToken((req.headers.authorization || '').replace(/^Bearer /, ''));
+    // Guests reuse authoritative Homefront rules against per-session RAM only.
+    // Never map guest tokens through Pay.checkToken or the persistent store.
+    if (url.pathname === '/api/homefront/guest' || url.pathname.startsWith('/api/homefront/guest/')) {
+      if (await HomefrontGuest.handle(req, res, url, { json, gate, ip, body })) return;
+    }
     if (url.pathname === '/api/homefront' || url.pathname === '/api/homefront/action' || url.pathname === '/api/homefront/visit' || url.pathname === '/api/homefront/world' || url.pathname.startsWith('/api/homefront/world/')) { if (await Homefront.handle(req, res, url, { json, gate, ip, body, who })) return; }
     if ((url.pathname === '/api/jetpack' || url.pathname.startsWith('/api/jetpack/')) && await Jetpack.handle(req, res, url, { json, gate, ip, body, who })) return;   // jetpacks + real-XRP invoices (server/jetpack.js), off unless JETPACK_PAYMENTS=1
     if (url.pathname.startsWith('/api/cams') && await Cams.handle(req, res, url, { json, gate, ip, body })) return;

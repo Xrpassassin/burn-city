@@ -1,0 +1,67 @@
+name: Fly preview access preflight (read only)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/fly-preview-access-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-existing-access:
+    # Only trusted, same-repository PRs, never external forks.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Read-only Fly app access check (NO deployments)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${FLY_API_TOKEN:-}" ]]; then
+            echo "No configured Fly token exposed to this trusted workflow."
+            echo "Result: no_preconfigured_fly_credentials"
+            exit 0
+          fi
+          # Fixed allowlisted GET endpoints only. No app creation, write,
+          # token introspection, secret printing, or production mutation.
+          for target in "burn-city-game" "burn-city-homefront-preview-551"; do
+            status="$(curl --silent --show-error --output /dev/null --max-time 15               --write-out '%{http_code}'               --header "Authorization: Bearer ${FLY_API_TOKEN}"               "https://api.machines.dev/v1/apps/${target}" || true)"
+            case "${status}" in
+              200) echo "${target}: readable_with_existing_token" ;;
+              401|403) echo "${target}: unauthorized_or_token_limited" ;;
+              404) echo "${target}: not_visible_or_not_created" ;;
+              *) echo "${target}: inconclusive_HTTP_${status}" ;;
+            esac
+          done
+          # Determine whether the token can list apps in the production
+          # app's organization. Return only capability flags, never names,
+          # secrets, metadata, or the raw API JSON.
+          meta_status="$(curl --silent --show-error --max-time 15 \
+            --output /tmp/fly-homefront-app-metadata.json --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${FLY_API_TOKEN}" \
+            'https://api.machines.dev/v1/apps/burn-city-game' || true)"
+          if [[ "${meta_status}" == "200" ]]; then
+            org_slug="$(node -e 'try {const x=require("/tmp/fly-homefront-app-metadata.json");const y=x?.organization?.slug||"";if(/^[a-zA-Z0-9_-]{1,80}$/.test(y)) process.stdout.write(y)} catch{}')"
+            if [[ -n "${org_slug}" ]]; then
+              list_status="$(curl --silent --show-error --max-time 15 \
+                --output /tmp/fly-homefront-org-apps.json --write-out '%{http_code}' \
+                --header "Authorization: Bearer ${FLY_API_TOKEN}" \
+                --get --data-urlencode "org_slug=${org_slug}" \
+                'https://api.machines.dev/v1/apps' || true)"
+              if [[ "${list_status}" == "200" ]]; then
+                echo "org_app_listing: permitted"
+                node -e 'try{const x=require("/tmp/fly-homefront-org-apps.json");const present=(x.apps||[]).some(a=>a.name==="burn-city-homefront-preview-551");console.log("preview_in_org_list: "+(present?"yes":"no"))}catch{console.log("preview_in_org_list: unknown")}'
+              else
+                echo "org_app_listing: denied_or_unavailable_HTTP_${list_status}"
+              fi
+            else
+              echo "org_app_listing: no_organization_metadata"
+            fi
+          else
+            echo "org_app_listing: production_app_metadata_unavailable"
+          fi
+          echo "Safety: no Fly API write requests were made."

@@ -1,6 +1,6 @@
 // Gate and safety assertions for the isolated Homefront-only Fly preview.
 // Exercises a REAL HTTP process and actual Homefront GET/POST handlers against
-// an ephemeral in-memory fake account. Requires no Fly token or network.
+// isolated disposable guest sessions. Requires no Fly token or network.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
@@ -44,8 +44,8 @@ try{
   assert(ready,'isolated preview binds a fresh local port');
   const health=await (await get('/healthz')).json();
   assert.deepEqual(health,{status:'preview',saves:'memory-only',payments:false});
-  for(const pathname of ['/','/arena/homefront.html','/api/homefront',
-    '/api/homefront/world','/client/arena/homefront-hud.mjs','/api/estates/status']){
+  for(const pathname of ['/','/arena/homefront.html','/api/homefront/guest/start',
+    '/api/homefront/guest/world','/client/arena/homefront-hud.mjs','/api/estates/status']){
     const response=await get(pathname);
     assert.equal(response.status,401,'unauthenticated request cannot access '+pathname);
   }
@@ -74,10 +74,14 @@ try{
   assert.notEqual(secondCookie,cookie,
     're-login does not return a deterministic reusable preview cookie');
   const forged=cookie.slice(0,-1)+(cookie.endsWith('a')?'b':'a');
-  assert.equal((await get('/api/homefront',{headers:{cookie:forged}})).status,401,
+  assert.equal((await get('/api/homefront/guest/start',{method:'POST',headers:{cookie:forged}})).status,401,
     'tampered session token is never accepted');
-  assert.equal((await get('/api/homefront',{headers:{cookie:secondCookie}})).status,200,
-    'the second session is recognized without exposing a secret');
+  const started=await get('/api/homefront/guest/start',{method:'POST',headers:{cookie:secondCookie}});
+  assert.equal(started.status,200,'preview password permits isolated guest creation only');
+  const {token:guestToken,persistent,multiplayer}=await started.json();
+  assert.match(guestToken,/^[a-f0-9]{64}$/);
+  assert.equal(persistent,false);
+  assert.equal(multiplayer,false);
   const page=await get('/arena/homefront.html',{headers:h});
   assert.equal(page.status,200);
   const csp=page.headers.get('content-security-policy')||'';
@@ -87,35 +91,46 @@ try{
     'preview forbids external fetches and wallet endpoints');
   const html=await page.text();
   assert(html.includes('window.__BURN_CITY_ISOLATED_PREVIEW__=true'),
-    'preview always marks its synthetic account');
-  assert(html.includes('PREVIEW · SYNTHETIC DATA · NO PAYMENTS'),
+    'preview always marks its isolated game');
+  assert(html.includes('GUEST PREVIEW · UNSAVED · NO PAYMENTS'),
     'cannot mistake testing server for the production game');
+  assert(!html.includes('preview-only-inmemory-bearer') &&
+    html.includes('localStorage.removeItem("bcToken")'),
+    'preview must never inject a fake authenticated wallet session');
   assert(html.includes('homefront-hud.mjs'),
     'preview serves production Homefront UI and actual renderer source');
 
-  const data=await get('/api/homefront',{headers:h});
-  assert.equal(data.status,200,'actual Homefront handler serves synthetic refuge');
+  const gh={...h,'x-homefront-guest':guestToken};
+  assert.equal((await get('/api/homefront/guest',{headers:h})).status,401,
+    'preview password alone cannot access a guest world without its guest token');
+  const data=await get('/api/homefront/guest',{headers:gh});
+  assert.equal(data.status,200,'actual Homefront handler serves guest refuge');
   const state=await data.json();
   assert.equal(state.mode,'homefront');
-  assert(state.base&&state.base.owner==='preview-refuge-player');
+  assert(state.base&&state.base.owner.startsWith('guest_'));
+  const second=await (await get('/api/homefront/guest/start',{method:'POST',headers:h})).json();
+  assert.notEqual(second.token,guestToken,'guest worlds have separate identities');
+  assert.equal((await get('/api/homefront',{headers:gh})).status,404,
+    'guest token never grants access to wallet-scoped Homefront route');
   const jet=await get('/api/jetpack',{headers:h});
   assert.equal(jet.status,200);
   assert.equal((await jet.json()).payments,false);
 
   // No live Estates, payment, token, Xaman or generic BURN City route exists.
   for(const route of ['/api/estates','/api/estates/status',
-    '/api/estates/purchase/payment/start','/api/xumm','/api/burn']){
+    '/api/estates/purchase/payment/start','/api/signin','/api/signin/finish',
+    '/api/xumm','/api/burn']){
     for(const method of ['GET','POST']){
       const res=await get(route,{method,headers:{...h,'content-type':'application/json'},
         ...(method==='POST'?{body:'{}'}:{})});
       assert.equal(res.status,404,'non-Homefront route blocked: '+method+' '+route);
     }
   }
-  const invalidAction=await get('/api/homefront/action',{method:'POST',
-    headers:{...h,'content-type':'application/json'},body:'{"action":{"type":"not_real"}}'});
+  const invalidAction=await get('/api/homefront/guest/action',{method:'POST',
+    headers:{...gh,'content-type':'application/json'},body:'{"action":{"type":"not_real"}}'});
   assert([400,404].includes(invalidAction.status),'invalid fake action rejected by real game rules');
-  const check=await get('/api/homefront',{headers:h});
-  assert.equal(check.status,200,'testing a rejected action cannot corrupt fake refuge');
+  const check=await get('/api/homefront/guest',{headers:gh});
+  assert.equal(check.status,200,'testing a rejected action cannot corrupt disposable refuge');
 
   const staticSource=await get('/arena/homefront-hud.mjs',{headers:h});
   assert.equal(staticSource.status,200,'real HUD module available under preview');
@@ -126,7 +141,7 @@ try{
   assert.equal(redirect.status,200,'signed-in user enters preview');
   console.log('HOMEFRONT FLY PREVIEW SECURITY GATE PASSED',JSON.stringify({
     passwordRequired:true,secureCookie:true,assetsProtected:true,
-    syntheticRefuge:true,strictApiAllowlist:true,
+    disposableGuestRefuge:true,strictApiAllowlist:true,
     walletsPaymentsAndEstatesUnavailable:true,productionDataUnaffected:true
   }));
 }finally{

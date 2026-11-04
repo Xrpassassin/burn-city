@@ -76,7 +76,7 @@ try{
       await page.waitForFunction(()=>document.getElementById('game')?.hidden===false &&
         document.body.classList.contains('hf-playing') &&
         !!document.querySelector('#world canvas') &&
-        (document.getElementById('status')?.textContent||'').includes('Refuge loaded'),
+        (document.getElementById('status')?.textContent||'').includes('Playing as guest'),
         null,{timeout:60000});
     }catch(error){
       console.error('GATEWAY_BROWSER_DIAGNOSTICS',JSON.stringify({
@@ -88,7 +88,15 @@ try{
       throw error;
     }
     assert(await page.locator('#homefrontPreviewMarker').isVisible(),
-      'synthetic account / no payments marker is unmistakably shown');
+      'guest preview / no payments marker is unmistakably shown');
+    assert.match(await page.locator('#homefrontPreviewMarker').innerText(),/GUEST PREVIEW.*UNSAVED.*NO PAYMENTS/);
+    assert.equal(await page.evaluate(()=>localStorage.getItem('bcToken')),null,
+      'guest preview never injects a fake wallet token');
+    const welcome=page.locator('#homefrontModal');
+    if(await welcome.isVisible()){
+      await page.locator('#homefrontModalActions button').filter({hasText:'Enter Homefront'}).click();
+      assert(await welcome.isHidden(),'first-visit onboarding does not block the preview HUD');
+    }
     assert(await page.locator('#hfHud').isVisible(),'real Homefront HUD displayed');
     const yard=page.locator('#world canvas').first();
     const box=await yard.boundingBox();
@@ -96,9 +104,23 @@ try{
       'actual yard 3D renderer fills preview viewport: '+JSON.stringify(box));
     await page.screenshot({path:out+'/'+name+'-password-gated-real-refuge.png'});
     await page.locator('#hfHud .hf-menu').click();
+    assert.match(await page.locator('#hfSheet .hf-panel-header').innerText(),/GUEST \(UNSAVED\)/,
+      'password preview exercises authentic unsaved-guest HUD');
+    // The isolated preview must never start a real Xaman challenge, even if
+    // a guest taps the usual in-game wallet save action.
+    await page.locator('#hfSheet .hf-panel-header .hf-actions button')
+      .filter({hasText:'Connect wallet to save'}).click();
+    assert.match(await page.locator('#status').innerText(),
+      /Wallet saving is disabled in this isolated guest preview/,
+      'preview must reject actual wallet authentication');
+    assert(await page.locator('#qrbox').isHidden(),
+      'isolated guest preview never opens a wallet QR');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('bcToken')),null,
+      'isolated preview never manufactures a wallet credential');
+    await page.locator('#hfHud .hf-menu').click();
     await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Build'}).click();
     assert(await page.locator('#hfSheet #buildPanel').isVisible(),
-      "authenticated demo Build menu opens on 3D refuge");
+      "guest trial Build menu opens on 3D refuge");
     assert(await yard.isVisible(),'scene remains behind Build');
     await page.screenshot({path:out+'/'+name+'-password-gated-build.png'});
     await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Manage'}).click();
@@ -205,7 +227,7 @@ try{
   assert.deepEqual(pageErrors,[],'no runtime errors or nonlocal browser traffic');
   console.log('HOMEFRONT PASSWORD-GATED PREVIEW BROWSER PASSED',
     JSON.stringify({desktop,mobile,syntheticGame:true,productionPaymentsBlocked:true,
-      loginRequired:true,previewMarker:true,pageErrors}));
+      loginRequired:true,guestMode:true,previewMarker:true,pageErrors}));
 }finally{
   if(browser)await browser.close();
   proc.kill('SIGTERM');

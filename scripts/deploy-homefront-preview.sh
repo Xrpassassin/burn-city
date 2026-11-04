@@ -11,8 +11,8 @@ if [[ ! -f "$CONFIG" || ! -f Dockerfile.homefront-preview ]]; then
   echo >&2 "Run from the repository root on the reviewed Homefront preview branch."
   exit 2
 fi
-if [[ "$(git branch --show-current)" != "feat/homefront-immersive-ui-shell" ]]; then
-  echo >&2 "Refusing deployment outside the reviewed feat/homefront-immersive-ui-shell branch."
+if [[ "$(git branch --show-current)" != "feat/homefront-guest-play-wallet-save-20261103" ]]; then
+  echo >&2 "Refusing deployment outside the reviewed combined guest-play branch."
   exit 2
 fi
 if grep -Eq '^app[[:space:]]*=[[:space:]]*"burn-city-game"' "$CONFIG"; then

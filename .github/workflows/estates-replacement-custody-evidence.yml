@@ -1,0 +1,72 @@
+name: Estates replacement-asset evidence, no financial activation
+on:
+  pull_request:
+    paths:
+      - 'server/estate-replacement-custody-snapshot.js'
+      - 'server/estate-replacement-custody-snapshot.test.js'
+      - 'server/estate-legacy-liability-inventory.js'
+      - 'server/estate-legacy-liability-inventory.test.js'
+      - 'server/estate-legacy-payout-verification.js'
+      - 'server/estate-legacy-payout-verification.test.js'
+      - 'scripts/estate-legacy-payout-proof-audit.cjs'
+      - 'scripts/estate-legacy-plx-conversion-evidence.cjs'
+      - 'server/estate-legacy-plx-conversion-evidence.test.js'
+      - 'scripts/estate-operator-migration-trace.cjs'
+      - 'server/estate-operator-migration-trace.test.js'
+      - 'scripts/estate-replacement-custody-evidence.cjs'
+      - '.github/workflows/estates-replacement-custody-evidence.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evidence:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Validate same-ledger snapshot and refuse unproven migration claims
+        run: |
+          node --check scripts/estate-replacement-custody-evidence.cjs
+          node server/estate-replacement-custody-snapshot.test.js
+          node server/estate-legacy-liability-inventory.test.js
+          node server/estate-legacy-payout-verification.test.js
+          node server/estate-legacy-plx-conversion-evidence.test.js
+          node server/estate-operator-migration-trace.test.js
+          node server/estate-legacy-v2-review.test.js
+      - name: Verify read-only production purchase and cost-basis inventory first
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: |
+          node <<'NODE'
+          const {remote}=require('./scripts/estate-replacement-custody-evidence.cjs');
+          remote().then(r=>{
+           console.log('ESTATES_LEGACY_BOOKS_READONLY='+JSON.stringify({
+            readOnly:r.readOnly,purchaseDrops:r.legacy.purchaseDrops,
+            legacyPositions:r.legacy.positions.map(p=>({pair:p.pair,state:p.state,
+             lp:p.recordedLpUnits,basisDrops:p.recordedBasisDrops})),
+            liabilitiesReconciled:r.liabilitiesHaveBeenEconomicallyReconciled,
+            treasuryPauseReleaseAuthorized:r.legacy.treasuryPauseClearanceAuthorized}));
+          }).catch(e=>{console.error('ESTATES_ACCOUNTING_PREFLIGHT_ERROR='+e.message);process.exitCode=1});
+          NODE
+      - name: Compare live legacy purchase and current pooled assets read-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: node scripts/estate-replacement-custody-evidence.cjs
+      - name: Verify recorded historical reward payments independently
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+        run: node scripts/estate-legacy-payout-proof-audit.cjs
+      - name: Trace validated counter-asset received in retired PLX conversion
+        if: always()
+        run: node scripts/estate-legacy-plx-conversion-evidence.cjs
+      - name: Trace operator-retired PLX and funded IMG/RLUSD on validated XRPL
+        if: always()
+        run: node scripts/estate-operator-migration-trace.cjs
+      - name: Financial operation stays disabled
+        if: always()
+        run: echo 'No migration, no transaction signing, no treasury pause release, no purchases and no profit distribution performed.' >> "$GITHUB_STEP_SUMMARY"

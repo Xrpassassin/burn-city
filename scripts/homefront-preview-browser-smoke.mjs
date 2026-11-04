@@ -107,6 +107,19 @@ try{
     assert.equal(safe.status,404,'Fly preview gateway forbids real Estates APIs');
     if(phone){
       const joy=page.locator('#world .hf-joy');
+      const joystickInfo=await page.evaluate(()=>{
+        const el=document.querySelector('#world .hf-joy');
+        const game=document.querySelector('#game'),world=document.querySelector('#world');
+        return {coarse:matchMedia('(pointer: coarse)').matches,
+          anyPointer:matchMedia('(any-pointer: coarse)').matches,
+          maxTouchPoints:navigator.maxTouchPoints,mode:document.body.className,
+          gameHidden:game?.hidden,worldSize:world?.getBoundingClientRect().toJSON(),
+          joyExists:!!el,joyHidden:el?.hidden,
+          joyDisplay:el?getComputedStyle(el).display:null,
+          joyRect:el?.getBoundingClientRect().toJSON(),
+          parentDisplay:el?getComputedStyle(el.parentElement).display:null};
+      });
+      console.log('HOMEFRONT_PREVIEW_MOBILE_JOYSTICK_DIAGNOSTICS',JSON.stringify(joystickInfo));
       assert(await joy.isVisible(),'touch joystick exists on actual preview yard');
       const rectA=await joy.boundingBox(),rectB=await page.locator('#hfHud').boundingBox();
       const hit=rectA.x<rectB.x+rectB.width&&rectA.x+rectA.width>rectB.x&&

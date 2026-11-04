@@ -136,9 +136,13 @@ try{
     assert.match(await page.locator('#qrbox').innerText(),/Guest progress.*will not transfer/,
       'wallet dialog must warn that guest gameplay will not be imported');
     await page.screenshot({path:output+'/'+name+'-guest-wallet-overlay.png'});
+    await page.keyboard.press('Escape');
+    assert(await page.locator('#qrbox').isHidden(),
+      'Escape dismisses the wallet dialog without leaving Homefront');
+    await page.evaluate(()=>{document.getElementById('qrbox').hidden=false;});
     await page.locator('#hideWalletQr').click();
     assert(await page.locator('#qrbox').isHidden(),
-      'guest can dismiss the wallet dialog and continue playing');
+      'guest can dismiss wallet QR with the explicit continue-playing button');
     assert(await page.locator('#world canvas').first().isVisible(),
       'dismissing the wallet dialog preserves the live WebGL scene');
     // A tab refresh must start an entirely new guest account. Wallet savings

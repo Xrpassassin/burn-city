@@ -6,6 +6,7 @@ on:
       - 'client/arena/homefront-hud.test.mjs'
       - 'client/arena/homefront.html'
       - 'scripts/homefront-ui-browser-preview.mjs'
+      - 'scripts/homefront-ui-real-graveyard-browser.mjs'
       - '.github/workflows/homefront-immersive-ui-browser.yml'
 
 permissions:
@@ -27,6 +28,11 @@ jobs:
         env:
           HOMEFRONT_UI_ARTIFACTS: homefront-ui-browser-output
         run: node scripts/homefront-ui-browser-preview.mjs
+      - name: Verify actual Three.js Graveyard scene with immersive HUD and server world snapshots
+        env:
+          HOMEFRONT_UI_ARTIFACTS: homefront-ui-browser-output
+          HOMEFRONT_CONTINUOUS_MOVEMENT: '0'
+        run: node scripts/homefront-ui-real-graveyard-browser.mjs
       - name: Upload Homefront interface screenshots
         if: always()
         uses: actions/upload-artifact@v4

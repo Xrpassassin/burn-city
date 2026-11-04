@@ -49,7 +49,7 @@ const headers={
   'X-Content-Type-Options':'nosniff',
   'X-Frame-Options':'DENY',
   'Referrer-Policy':'no-referrer',
-  'Content-Security-Policy':"default-src 'self' data: blob:; connect-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; form-action 'self'; frame-ancestors 'none'",
+  'Content-Security-Policy':"default-src 'self' data: blob:; connect-src 'self' blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; form-action 'self'; frame-ancestors 'none'",
   'Cross-Origin-Resource-Policy':'same-origin'
 };
 function send(res,status,type,body,additional={}) {

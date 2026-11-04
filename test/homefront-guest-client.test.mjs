@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { startGuest, endGuest, isGuest, hasHomefrontPlayer, fetchHomefront } from '../client/arena/homefront-guest.mjs';
+import { travelOptions } from '../client/arena/homefront-travel.mjs';
 const urls=[], token='a'.repeat(64);
 const priorFetch=globalThis.fetch, priorStorage=globalThis.localStorage;
 globalThis.localStorage={ getItem:()=>null };
@@ -41,6 +42,16 @@ try {
   assert(scene.includes('homefrontFetch('), 'actual Graveyard scene uses guest-aware transport');
   assert(!scene.includes("fetch(API + '/api/homefront"),
     'all direct world API requests respect guest isolation');
+  const guestOptions=travelOptions({party:{leader:true,members:[]}},{guest:true});
+  assert.deepEqual(guestOptions.map(o=>o.id),['solo'],
+    'guest Homefront only offers private solo exploration');
+  assert.deepEqual(travelOptions(null,{guest:true,inWorld:true}).map(o=>o.id),['return'],
+    'guest in Wastes can return to private refuge');
+  const savedOptions=travelOptions(null,{guest:false});
+  assert(savedOptions.some(o=>o.id==='party_create')&&savedOptions.some(o=>o.id==='party_join'),
+    'wallet-connected players retain regular multiplayer travel choices');
+  assert(html.includes('guest:()=>isGuest()'),
+    'actual Travel overlay receives the guest status');
   console.log('HOMEFRONT GUEST CLIENT AND WEBGL ROUTING PASSED');
 } finally {
   endGuest();

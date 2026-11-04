@@ -9,6 +9,9 @@ on:
       - 'server/estate-sale-reservation-api.js'
       - 'server/estate-sale-xaman-session.js'
       - 'server/estate-purchase-terms-*.js'
+      - 'server/estate-financial-switches*.js'
+      - 'test/workflow-secret-boundary.test.mjs'
+      - '.github/workflows/estates-*.yml'
       - 'server/estate-sales-runtime.test.js'
       - 'server/estate-sale-xaman-session.test.js'
       - 'server/server.js'
@@ -19,6 +22,7 @@ permissions:
   contents: read
 jobs:
   purchase-only:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -37,8 +41,23 @@ jobs:
           node server/estate-sale-xaman-session.test.js
           node server/estate-sales-runtime.test.js
           node test/estate-sales-runtime-http.test.js
+          node server/estate-financial-switches.test.js
+          node test/workflow-secret-boundary.test.mjs
+  purchase-only-production:
+    # Production credentials: trusted main-branch runs only, behind the protected environment.
+    needs: purchase-only
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked project dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Check live checkout prerequisites without creating a payment
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
         run: |
@@ -56,9 +75,9 @@ jobs:
               catch(e){if(e.code!=='ENOENT')throw e;}
               result.treasuryPaused=pause.paused===true||process.env.PAYOUTS_PAUSED==='true';
               result.purchaseSwitchOn=process.env.ESTATE_SALES_ENABLED==='1';
-              result.automatedFundingOrPayoutSwitchOn=['ESTATE_LIQUIDITY_ENABLED',
-                'ESTATE_XRP_PROFIT_HARVEST_ENABLED','ESTATE_DISTRIBUTIONS_ENABLED']
-                .some(key=>process.env[key]==='1');
+              const sw=require('/data/gh/cur/server/estate-financial-switches').switchReport(process.env);
+              result.automatedFundingOrPayoutSwitchOn=sw.automatedFundingOrPayoutSwitchOn;
+              result.switches=sw.switches;
               const db=new DatabaseSync('/data/shop.db',{readOnly:true});
               try{
                 db.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=2000');
@@ -89,11 +108,20 @@ jobs:
           const flags=['treasuryPaused','purchaseSwitchOn','automatedFundingOrPayoutSwitchOn',
             'historicalEarmarkBooked','publishedTermsVerified'];
           if(flags.some(key=>typeof state[key]!=='boolean'))throw Error('invalid_purchase_preflight_report');
+          const {ESTATE_FINANCIAL_SWITCHES,checkoutReadiness}=(await import('node:module')).createRequire(process.cwd()+'/package.json')('./server/estate-financial-switches.js');
+          if(ESTATE_FINANCIAL_SWITCHES.some(key=>typeof state.switches?.[key]!=='boolean'))throw Error('invalid_switch_report');
           const lines=flags.map(key=>'- '+key+': '+state[key]);
+          for(const key of ESTATE_FINANCIAL_SWITCHES)lines.push('- '+key+': '+state.switches[key]);
+          const readiness=checkoutReadiness(state);
+          lines.push('- readyForCheckout: '+readiness.ready+(readiness.ready?'':' ('+readiness.blockers.join(', ')+')'));
+          appendFileSync(process.env.GITHUB_ENV,'ESTATES_READY_FOR_CHECKOUT='+readiness.ready+'\n');
           if(/^[a-z][a-z0-9_]{2,90}$/.test(state.termsBlocker||''))lines.push('- Terms blocker: '+state.termsBlocker);
           appendFileSync(process.env.GITHUB_STEP_SUMMARY,lines.join('\n')+'\n');
           console.log(lines.join('\n'));
           NODE
+      - name: Assert checkout readiness (fails while any blocker remains)
+        run: test "$ESTATES_READY_FOR_CHECKOUT" = true || { echo 'Not ready for checkout; see the report above.' >&2; exit 1; }
       - name: Report non-activation
+        if: always()
         run: |
           echo 'All checks are nonpaying simulations. This workflow does not unpause treasury, activate sales, confirm legal approval, or make XRP payments.' >> "$GITHUB_STEP_SUMMARY"

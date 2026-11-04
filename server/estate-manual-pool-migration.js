@@ -26,7 +26,7 @@ function applyManualPoolMigration(db,plan,{verifiedLedgerIndex,verifiedAtMs,veri
  db.exec('BEGIN IMMEDIATE');try{
   db.exec(`CREATE TABLE IF NOT EXISTS estate_manual_pool_migrations(source_id TEXT PRIMARY KEY,replacement_id TEXT NOT NULL UNIQUE,withdraw_hash TEXT NOT NULL,seed_hash TEXT NOT NULL,source_json TEXT NOT NULL,basis_drops TEXT NOT NULL,migration_cost_drops TEXT NOT NULL,verified_ledger INTEGER NOT NULL,verified_at_ms INTEGER NOT NULL);`);
   const prior=db.prepare('SELECT * FROM estate_manual_pool_migrations WHERE source_id=?').get(plan.sourceId);
- if(prior){if(prior.withdraw_hash!==plan.withdrawHash||prior.seed_hash!==plan.seedHash||prior.replacement_id!==plan.replacementId||prior.basis_drops!==plan.basisDrops)throw Error('migration_identity_conflict');db.exec('COMMIT');return {alreadyApplied:true};}
+ if(prior){if(prior.withdraw_hash!==plan.withdrawHash||prior.seed_hash!==plan.seedHash||prior.replacement_id!==plan.replacementId||prior.basis_drops!==plan.basisDrops||prior.migration_cost_drops!==String(verifiedCostsDrops))throw Error('migration_identity_conflict');const booked=db.prepare('SELECT data_json FROM estate_liquidity_jobs WHERE id=?').get(prior.replacement_id);db.exec('COMMIT');return {alreadyApplied:true,basisDrops:prior.basis_drops,replacementId:prior.replacement_id,bookedLp:booked?JSON.parse(booked.data_json).lp:null};}
 
   if(requireUncommittedPool&&(db.prepare("SELECT 1 FROM estate_liquidity_jobs WHERE pair='img-rlusd'").get()||
    db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state NOT IN ('applied','failed')").get()))

@@ -12,7 +12,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   book:
-    if: github.ref == 'refs/heads/main' && inputs.book == true
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.book == true
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
@@ -72,15 +73,15 @@ jobs:
             });
             if(!update.ok)throw Error('fly_estates_switch_update_http_'+update.status);
             let ready=false;
+            // Wait on THIS machine's own record (read-only GET): a new instance must be started.
             for(let attempt=0;attempt<12;attempt++){
               await new Promise(resolve=>setTimeout(resolve,5000));
-              let live;
               try{
-                const probe=await fetch('https://burn-city-game.fly.dev/api/deploy-version',{
-                  redirect:'error',cache:'no-store',signal:AbortSignal.timeout(5000)});
-                if(probe.ok)live=await probe.json();
+                const probe=await fetch(machine,{headers,redirect:'error',signal:AbortSignal.timeout(10000)});
+                const m=probe.ok?await probe.json():null;
+                if(m&&m.instance_id!==current.instance_id&&m.state==='started'&&
+                   switches.every(k=>m.config?.env?.[k]==='0')){ready=true;break;}
               }catch{}
-              if(live?.source==='github-volume'&&live.commit===sha){ready=true;break;}
             }
             if(!ready)throw Error('wait_for_fly_restart_before_booking');
             if(!(await readState()).switchesOff)throw Error('effective_estates_switches_still_enabled');

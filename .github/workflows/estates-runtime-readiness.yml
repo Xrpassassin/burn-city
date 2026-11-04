@@ -5,16 +5,13 @@ on:
     paths:
       - 'scripts/estate-runtime-readiness.cjs'
       - '.github/workflows/estates-runtime-readiness.yml'
-  pull_request:
-    paths:
-      - 'scripts/estate-runtime-readiness.cjs'
-      - '.github/workflows/estates-runtime-readiness.yml'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   audit:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:

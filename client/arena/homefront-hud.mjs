@@ -97,6 +97,19 @@ body.rpg-hud.hf-playing{height:100svh;overflow:hidden;overscroll-behavior:none}
 body.rpg-hud.hf-playing header{display:none}
 body.rpg-hud.hf-playing .wrap{max-width:none;width:100%;height:100%;margin:0;padding:0}
 body.rpg-hud.hf-playing #game{position:fixed;inset:0;overflow:hidden}
+body.rpg-hud.hf-playing #qrbox:not([hidden]){
+ position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;
+ align-items:center;justify-content:center;gap:12px;
+ padding:calc(20px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right))
+ calc(20px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));
+ border:0;border-radius:0;background:#0a0808f5;overflow:auto;overscroll-behavior:contain;
+}
+body.rpg-hud.hf-playing #qrbox h2,
+body.rpg-hud.hf-playing #qrbox p{max-width:420px;text-align:center;margin:0}
+body.rpg-hud.hf-playing #qrbox .qr{justify-content:center}
+body.rpg-hud.hf-playing #qrbox img{width:min(55vw,180px);height:auto;max-height:35svh;object-fit:contain}
+body.rpg-hud.hf-playing #qrbox #hideWalletQr{width:min(100%,380px)}
+body.rpg-hud.hf-playing #qrbox[hidden]{display:none!important}
 body.rpg-hud.hf-playing #game>.grid{position:absolute;inset:0;display:block;overflow:hidden;pointer-events:none}
 body.rpg-hud.hf-playing #game>.grid>#refugeWorldPanel,
 body.rpg-hud.hf-playing #game>.grid>#graveyardPanel{position:absolute;inset:0;margin:0;padding:0;max-width:none;overflow:hidden;border:0;border-radius:0;background:transparent;box-shadow:none;pointer-events:auto}

@@ -36,6 +36,26 @@ Status: draft stacked PR #552 on immersive UI PR #551. **Not merged or deployed.
 - The experimental continuous-movement two-key release gate is unchanged.
   No wallet, treasury, Estates, Xaman or payment code is modified.
 
+## Expiration and cross-origin release checks
+
+- The browser holds a guest token only in memory. After 90 minutes idle or a
+  Fly machine restart, the server returns `401 guest_session_expired`.
+  Homefront clears the expired token, releases held controls, closes the stale
+  world and shows a **Guest session ended** dialog. Restarting creates a new
+  disposable world; no combat, crafting or settlement mutations are silently
+  retried. A real wallet-linked account remains separate.
+- The introductory tutorial and guest field survival display say plainly that
+  progress is temporary, not saved, and never transferred on Xaman login.
+- Homefront may be served from `https://xrpassassin.github.io` while using the
+  `https://burn-city-game.fly.dev` API. The production CORS OPTIONS response
+  must allow exactly the `x-homefront-guest` request header in addition to the
+  existing content-type and authorization headers. It still restricts origins
+  to the prior allowlist and never enables credentialed wildcard requests.
+- `test/homefront-guest-cors.test.mjs` evaluates the real production JSON/
+  OPTIONS CORS response in an isolated VM. The Chromium guest smoke also runs
+  a third real WebGL session with local page and API on **different origins**,
+  checking that an actual browser sends and passes a guest preflight.
+
 ## Acceptance
 - `node test/homefront-guest-sim.mjs`: gameplay, guest isolation, no
   persistent store access, invalid token rejection, TTL and capacity.

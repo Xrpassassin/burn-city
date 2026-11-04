@@ -4,7 +4,7 @@
 const fs=require('node:fs');
 const {createHash}=require('node:crypto');
 const {snapshotPool,historicCoverage}=require('../server/estate-replacement-custody-snapshot');
-const {inspectPool,value,drops}=require('../server/estate-liquidity-ledger');
+const {balanceDelta,inspectPool,value,drops}=require('../server/estate-liquidity-ledger');
 const {planManualPoolMigration}=require('../server/estate-manual-pool-migration');
 const WITHDRAW='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2';
 const SEED='59FAA96D8EF6A5C35747E22E664A7E0A8FBEA5F373D746B5EF3A58E5558FBE43';
@@ -176,12 +176,30 @@ async function audit(){
     const share=lp.div(target.supply);
     return sell(img,target.a.times(share)).plus(sell(stable,target.b.times(share))).minus(300);
    };
+   const old=results['img-plx'];
+   const [withdraw,seed]=await Promise.all([
+    rpc('tx',{transaction:WITHDRAW,binary:false}),rpc('tx',{transaction:SEED,binary:false})
+   ]);
+   for(const [proof,hash,type] of [[withdraw,WITHDRAW,'AMMWithdraw'],[seed,SEED,'AMMCreate']]){
+    const transaction=proof.tx_json||proof;
+    if((proof.hash||transaction.hash)!==hash||transaction.Account!==TREASURY||
+     transaction.TransactionType!==type||proof.validated!==true||
+     proof.meta?.TransactionResult!=='tesSUCCESS')
+     throw Error('historical_treasury_transaction_mismatch');
+   }
+   const burned=balanceDelta(withdraw,TREASURY,{currency:old.lpCurrency,issuer:old.poolAccount}).negated();
+   const minted=balanceDelta(seed,TREASURY,target.lp);
+   if(!burned.gte(value(JSON.parse(accounting.sourceJob.data_json).lp))||!minted.gt(0))
+    throw Error('historical_lp_proof_insufficient');
+   const held=value(snapshot.treasuryLpHeld);
+   const availableLp=(held.lte(minted)?held:minted).toFixed();
    const plan=planManualPoolMigration({job:accounting.sourceJob,pool:target,
-    availableLp:snapshot.treasuryLpHeld,exitQuote,withdrawHash:WITHDRAW,seedHash:SEED});
+    availableLp,exitQuote,withdrawHash:WITHDRAW,seedHash:SEED});
    const lp=JSON.parse(plan.replacementJson).lp;
    replacementEarmark={status:'quote_only',pair:'IMG/RLUSD',poolAccount:POOL,
     ledgerIndex:height,recordedBasisDrops:plan.basisDrops,proposedLpUnits:lp,
     netIndicativeExitDrops:exitQuote(value(lp)).toFixed(),treasuryLpHeld:snapshot.treasuryLpHeld,
+    provenWithdrawnLpUnits:burned.toFixed(),provenSeedLpUnits:minted.toFixed(),
     migrationFeesIncluded:false,inventoryCommitmentCheck:'estate_jobs_and_treasury_intents',
     recordedOnProduction:false};
   }catch(e){

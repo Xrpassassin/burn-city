@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       book:
-        description: Book the approved historical LP earmark on production
+        description: Turn off Estates switches, then book the approved historical LP earmark
         type: boolean
         default: false
 permissions: {}
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
-      - name: Check deployment and execute the guarded maintenance command once
+      - name: Verify the treasury pause, close Estates switches, and book once
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
           EXPECTED_SHA: ${{ github.sha }}
@@ -31,14 +31,63 @@ jobs:
           const deployed=await version.json();
           if(deployed.source!=='github-volume'||deployed.commit!==sha)
             throw Error('wait_for_this_main_commit_to_deploy');
-          const response=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{
-            method:'POST',redirect:'error',signal:AbortSignal.timeout(65000),
-            headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},
-            body:JSON.stringify({
-              command:['node','/data/gh/cur/scripts/estate-replacement-custody-evidence.cjs','--book',sha],
-              timeout:55
-            })
+          const machine='https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068';
+          const headers={Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'};
+          const exec=(command,timeout)=>fetch(machine+'/exec',{
+            method:'POST',redirect:'error',signal:AbortSignal.timeout((timeout+10)*1000),
+            headers,body:JSON.stringify({command,timeout})
           });
+          const switches=['ESTATE_SALES_ENABLED','ESTATE_DISTRIBUTIONS_ENABLED',
+            'ESTATE_LIQUIDITY_ENABLED','ESTATE_XRP_PROFIT_HARVEST_ENABLED','ESTATE_IMG_RLUSD_FUNDING_ENABLED'];
+          const pauseProbe=`
+            const fs=require('node:fs');
+            const p=JSON.parse(fs.readFileSync('/data/pause.json','utf8'));
+            console.log(JSON.stringify({reviewedPause:p.paused===true&&
+              p.reason==='unexpected_outgoing_tx'&&p.unknown?.length===1&&
+              p.unknown[0].hash==='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2',
+              switchesOff:${JSON.stringify(switches)}.every(k=>process.env[k]!=='1')}));
+          `;
+          const readState=async()=>{
+            const r=await exec(['node','-e',pauseProbe],10);
+            if(!r.ok)throw Error('fly_pause_probe_http_'+r.status);
+            const out=await r.json();
+            if(out.exit_code!==0)throw Error('fly_pause_probe_failed');
+            const state=JSON.parse(String(out.stdout||'').trim());
+            if(state.reviewedPause!==true||typeof state.switchesOff!=='boolean')
+              throw Error('reviewed_treasury_pause_required');
+            return state;
+          };
+          const before=await readState();
+          if(!before.switchesOff){
+            const get=await fetch(machine,{headers,redirect:'error',signal:AbortSignal.timeout(15000)});
+            if(!get.ok)throw Error('fly_machine_read_'+get.status);
+            const current=await get.json();
+            if(!current.config||typeof current.instance_id!=='string'||current.state!=='started')
+              throw Error('fly_machine_config_unavailable');
+            const env={...current.config.env};
+            for(const key of switches)env[key]='0';
+            const update=await fetch(machine,{
+              method:'POST',headers,redirect:'error',signal:AbortSignal.timeout(35000),
+              body:JSON.stringify({current_version:current.instance_id,config:{...current.config,env}})
+            });
+            if(!update.ok)throw Error('fly_estates_switch_update_http_'+update.status);
+            let ready=false;
+            for(let attempt=0;attempt<12;attempt++){
+              await new Promise(resolve=>setTimeout(resolve,5000));
+              let live;
+              try{
+                const probe=await fetch('https://burn-city-game.fly.dev/api/deploy-version',{
+                  redirect:'error',cache:'no-store',signal:AbortSignal.timeout(5000)});
+                if(probe.ok)live=await probe.json();
+              }catch{}
+              if(live?.source==='github-volume'&&live.commit===sha){ready=true;break;}
+            }
+            if(!ready)throw Error('wait_for_fly_restart_before_booking');
+            if(!(await readState()).switchesOff)throw Error('effective_estates_switches_still_enabled');
+            console.log('Estates switches verified off while the treasury stayed paused');
+          }
+          const response=await exec(
+            ['node','/data/gh/cur/scripts/estate-replacement-custody-evidence.cjs','--book',sha],55);
           if(!response.ok)throw Error('fly_booking_http_'+response.status);
           const execution=await response.json();
           if(execution.exit_code!==0){

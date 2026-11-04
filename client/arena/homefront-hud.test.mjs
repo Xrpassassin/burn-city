@@ -98,7 +98,7 @@ assert.match(hud, /borrowPanel\(panels\[mSel\]\)/,
   'Manage reuses and restores the original settlement panels');
 assert.match(hud, /const returnBorrowed = \(\) => \{/,
   'every borrowed panel has an explicit restoration path');
-assert.match(hud, /if \(getMode\(\) === 'workshop'\) setMode\('home'\)/,
+assert.match(hud, /if \(!keepWorkshop && getMode\(\) === 'workshop'\) setMode\('home'\)/,
   'closing Build restores normal third-person exploration');
 assert.match(hud, /if \(\(t === 'build' \|\| t === 'manage'\) && getWorld\(\)\?\.self\)/,
   'management does not bypass the expedition-to-refuge access boundary');
@@ -108,3 +108,8 @@ assert.match(hud, /window\.dispatchEvent\(new Event\('blur'\)\)/,
   'opening the drawer releases held walking and touch controls');
 assert.match(hud, /document\.body\.classList\.toggle\('hf-playing', !!game && !game\.hidden\)/,
   'the fullscreen state activates only after the signed-in game has loaded');
+
+assert.match(hud, /hide\(\{ keepWorkshop: true \}\)/,
+  'choosing a structure dismisses Build without abandoning the active placement');
+assert.match(hud, /exitBuild\.onclick = \(\) => setMode\('home'\)/,
+  'player can finish protected building and resume normal exploration');

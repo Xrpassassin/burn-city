@@ -64,6 +64,20 @@ try{
   }
   const cookie=cookieHeader.split(';')[0];
   const h={cookie};
+  // The browser Max-Age is not a server-side expiry. Ensure the gateway
+  // issues independent random sessions instead of a reusable HMAC cookie.
+  const relogin=await get('/preview-login',{method:'POST',
+    headers:{'content-type':'application/x-www-form-urlencoded'},body:form(pass)});
+  assert.equal(relogin.status,303,'second valid login creates a fresh session');
+  const secondCookie=(relogin.headers.get('set-cookie')||'').split(';')[0];
+  assert.match(secondCookie,/^homefront_preview=[a-f0-9]{64}$/);
+  assert.notEqual(secondCookie,cookie,
+    're-login does not return a deterministic reusable preview cookie');
+  const forged=cookie.slice(0,-1)+(cookie.endsWith('a')?'b':'a');
+  assert.equal((await get('/api/homefront',{headers:{cookie:forged}})).status,401,
+    'tampered session token is never accepted');
+  assert.equal((await get('/api/homefront',{headers:{cookie:secondCookie}})).status,200,
+    'the second session is recognized without exposing a secret');
   const page=await get('/arena/homefront.html',{headers:h});
   assert.equal(page.status,200);
   const csp=page.headers.get('content-security-policy')||'';

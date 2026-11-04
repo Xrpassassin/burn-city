@@ -1,6 +1,10 @@
 // Guest credentials are deliberately memory-only: a page reload starts over.
 // Wallet sessions remain owned by the existing BURN City Xaman authentication.
 let guestToken = '';
+// In the isolated password-gated Fly preview, this *preview-only* flag
+// allows the access cookie. Production guest requests still send no cookies.
+const previewAccess = () => typeof window !== 'undefined' &&
+  window.__BURN_CITY_ISOLATED_PREVIEW__ === true;
 
 export const isGuest = () => !!guestToken;
 export const getGuestToken = () => guestToken;
@@ -11,7 +15,8 @@ export const endGuest = () => { guestToken = ''; };
 export async function startGuest(api) {
   if (guestToken) return;
   const response = await fetch(api + '/api/homefront/guest/start', {
-    method: 'POST', cache: 'no-store', credentials: 'omit'
+    method: 'POST', cache: 'no-store',
+    credentials: previewAccess() ? 'same-origin' : 'omit'
   });
   let data = {};
   try { data = await response.json(); } catch {}
@@ -30,6 +35,7 @@ export function fetchHomefront(api, path, options = {}) {
   headers.delete('authorization');
   headers.set('x-homefront-guest', guestToken);
   return fetch(api + guestPath, {
-    ...options, cache: 'no-store', credentials: 'omit', headers
+    ...options, cache: 'no-store',
+    credentials: previewAccess() ? 'same-origin' : 'omit', headers
   });
 }

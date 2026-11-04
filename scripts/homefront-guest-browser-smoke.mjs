@@ -88,6 +88,14 @@ try{
     });
     const initial=await state();
     assert(initial.guest&&initial.owner?.startsWith('guest_'),'temporary guest refuge is live');
+    // Real first-run Homefront displays its existing tutorial. Complete the
+    // onboarding as a player would before testing the HUD underneath.
+    const tutorial=page.locator('#homefrontModal');
+    if(await tutorial.isVisible()){
+      assert.match(await page.locator('#homefrontModalTitle').innerText(),/first refuge/i);
+      await page.locator('#homefrontModalActions button').filter({hasText:'Enter Homefront'}).click();
+      assert(await tutorial.isHidden(),'tutorial allows a guest to enter real gameplay');
+    }
     await page.screenshot({path:output+'/'+name+'-guest-refuge.png'});
     await page.locator('#hfHud .hf-menu').click();
     await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Inventory'}).click();

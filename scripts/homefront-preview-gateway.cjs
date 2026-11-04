@@ -20,8 +20,19 @@ if (process.env.HOMEFRONT_PREVIEW_MODE !== '1') {
   console.error('HOMEFRONT_PREVIEW_MODE=1 is required for this dedicated preview server');
   process.exit(1);
 }
-const ACCOUNT='preview-refuge-player';
-const FAKE_BEARER='preview-only-inmemory-bearer';
+const Guest = require('../server/homefront-guest');
+const guest = Guest.createGuestHandler({maxSessions:32});
+const guestRates = new Map();
+function rate(key,limit,windowMs) {
+  const now=Date.now(), state=guestRates.get(key)||{count:0,until:now+windowMs};
+  if(now>=state.until){state.count=0;state.until=now+windowMs;}
+  state.count++;
+  guestRates.set(key,state);
+  if(guestRates.size>500){
+    for(const [k,v] of guestRates){if(v.until<=now)guestRates.delete(k);}
+  }
+  return state.count>limit;
+}
 const ROOT=path.resolve(__dirname,'../client');
 const COOKIE='homefront_preview';
 // Tokens are per-login, unpredictable and expire on the server as well as the
@@ -29,13 +40,6 @@ const COOKIE='homefront_preview';
 const SESSION_MS=4*60*60*1000;
 const sessions=new Map();
 const loginFailures=new Map();
-const files=new Map();
-const copy=value=>structuredClone(value);
-const store={
-  load(name,fallback){return files.has(name)?copy(files.get(name)):fallback;},
-  save(name,value){files.set(name,copy(value));}
-};
-const Homefront=require('../server/homefront');
 const mime={
   '.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8',
   '.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8',
@@ -71,12 +75,12 @@ function authed(req) {
 }
 function loginPage(message='') {
   const warning=message?'<p role="alert">Access denied. Check the preview password.</p>':'';
-  return '<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>BURN City · Homefront preview</title><style>body{background:#12100f;color:#f8e5cd;font:16px system-ui;min-height:95vh;display:grid;place-items:center}main{padding:24px;max-width:400px;border:1px solid #86563c;border-radius:16px;background:#231b18}input,button{display:block;width:100%;box-sizing:border-box;margin-top:14px;padding:14px;border-radius:8px}button{background:#a55626;color:white;border:0;font-weight:bold}p{line-height:1.45}</style></head><body><main><h1>Homefront UI preview</h1><p>Isolated synthetic player and disposable world. No wallets, real purchases, or production saves.</p>'+warning+'<form method="POST" action="/preview-login"><label>Preview access password<input type="password" name="password" required autocomplete="off"></label><button type="submit">Open preview</button></form></main></body></html>';
+  return '<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>BURN City · Homefront guest preview</title><style>body{background:#12100f;color:#f8e5cd;font:16px system-ui;min-height:95vh;display:grid;place-items:center}main{padding:24px;max-width:400px;border:1px solid #86563c;border-radius:16px;background:#231b18}input,button{display:block;width:100%;box-sizing:border-box;margin-top:14px;padding:14px;border-radius:8px}button{background:#a55626;color:white;border:0;font-weight:bold}p{line-height:1.45}</style></head><body><main><h1>Homefront guest preview</h1><p>Private browser preview. Play as a guest with temporary in-memory progress. No real wallets, purchases, or production saves are available.</p>'+warning+'<form method="POST" action="/preview-login"><label>Preview access password<input type="password" name="password" required autocomplete="off"></label><button type="submit">Open preview</button></form></main></body></html>';
 }
 function renderGame(html) {
-  const intro='<script>localStorage.setItem("bcToken",'+JSON.stringify(FAKE_BEARER)+');localStorage.setItem("bcAcct",'+JSON.stringify(ACCOUNT)+');localStorage.setItem("bcHomefrontTutorial:'+ACCOUNT+'","seen");window.__BURN_CITY_ISOLATED_PREVIEW__=true;</script>'+
+  const intro='<script>localStorage.removeItem("bcToken");localStorage.removeItem("bcAcct");window.__BURN_CITY_ISOLATED_PREVIEW__=true;</script>'+
     '<style>#homefrontPreviewMarker{position:fixed;right:calc(9px + env(safe-area-inset-right));bottom:calc(8px + env(safe-area-inset-bottom));z-index:9999;font:700 10px system-ui;letter-spacing:.05em;padding:6px 9px;border:1px solid #df9d57aa;background:#29170ded;color:#ffe0b4;border-radius:8px;pointer-events:none}</style>';
-  const marker='<div id="homefrontPreviewMarker" aria-label="Isolated test environment">PREVIEW · SYNTHETIC DATA · NO PAYMENTS</div>';
+  const marker='<div id="homefrontPreviewMarker" aria-label="Isolated test environment">GUEST PREVIEW · UNSAVED · NO PAYMENTS</div>';
   return html.replace('</head>',intro+'</head>').replace('</body>',marker+'</body>');
 }
 async function parseBody(req,max=4096) {
@@ -122,14 +126,18 @@ const app=http.createServer(async(req,res)=>{
       return json(res,200,{owned:{homefront:false},payments:false});
     }
     if(url.pathname.startsWith('/api/')){
-      if(!(url.pathname==='/api/homefront'||url.pathname.startsWith('/api/homefront/'))){
-        return json(res,404,{error:'preview_only_homefront'});
+      // The password is only an access gate. It is not a wallet login, and
+      // the preview grants no synthetic bearer token to its HTML or APIs.
+      if(url.pathname!=='/api/homefront/guest'&&!url.pathname.startsWith('/api/homefront/guest/')){
+        return json(res,404,{error:'preview_guest_only'});
       }
-      const raw= req.method==='POST' ? await parseBody(req,65536) : '';
+      const raw=req.method==='POST'&&url.pathname!=='/api/homefront/guest/start'
+        ?await parseBody(req,65536):'';
       const wrapped={...req,method:req.method};
-      const served=await Homefront.handle(wrapped,res,url,{
-        json,ip:'127.0.0.1',gate:()=>false,who:()=>({acct:ACCOUNT}),
-        body:async()=>raw?JSON.parse(raw):{},store
+      const served=await guest.handle(wrapped,res,url,{
+        json,ip:req.socket.remoteAddress||'unknown',
+        gate:(key,limit,windowMs)=>rate(key,limit,windowMs),
+        body:async()=>raw?JSON.parse(raw):{}
       });
       if(!served)return json(res,404,{error:'preview_endpoint_not_found'});
       return;

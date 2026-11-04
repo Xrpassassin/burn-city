@@ -133,8 +133,9 @@ const app=http.createServer(async(req,res)=>{
       }
       const raw=req.method==='POST'&&url.pathname!=='/api/homefront/guest/start'
         ?await parseBody(req,65536):'';
-      const wrapped={...req,method:req.method};
-      const served=await guest.handle(wrapped,res,url,{
+      // Do not spread IncomingMessage: headers and socket are prototype-backed
+      // and would disappear, breaking guest session authentication.
+      const served=await guest.handle(req,res,url,{
         json,ip:req.socket.remoteAddress||'unknown',
         gate:(key,limit,windowMs)=>rate(key,limit,windowMs),
         body:async()=>raw?JSON.parse(raw):{}

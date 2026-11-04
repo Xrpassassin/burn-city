@@ -10,6 +10,7 @@ on:
       - 'scripts/homefront-guest-browser-smoke.mjs'
       - 'test/homefront-guest-sim.mjs'
       - 'test/homefront-guest-client.test.mjs'
+      - 'test/homefront-guest-cors.test.mjs'
       - 'package.json'
       - '.github/workflows/homefront-guest-play.yml'
   workflow_dispatch:
@@ -36,6 +37,8 @@ jobs:
         run: node test/homefront-guest-sim.mjs
       - name: Prove memory-only browser guest and isolated WebGL routing
         run: node test/homefront-guest-client.test.mjs
+      - name: Cross-origin GitHub Pages guest API CORS regression
+        run: node test/homefront-guest-cors.test.mjs
       - name: Run all Homefront regressions
         run: npm run test:homefront
   guest-real-webgl:

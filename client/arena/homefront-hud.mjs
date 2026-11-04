@@ -138,7 +138,7 @@ body.rpg-hud.hf-playing #graveyard3d .hf-viewbtn{top:calc(68px + env(safe-area-i
 `;
 const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); for (const k of kids) n.append(k); return n; };
 
-export function createHud({ request, getWorld, getBase, getMode, setMode, travel, message, signedIn, jetpack = null }) {
+export function createHud({ request, getWorld, getBase, getMode, setMode, travel, message, signedIn, walletConnected = signedIn, jetpack = null }) {
   if (typeof document === 'undefined') return null;
   document.head.append(el('style', { textContent: CSS }));
   document.body.classList.add('rpg-hud');
@@ -170,8 +170,8 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const backToArena = el('button', { type: 'button', textContent: '← Arena', title: 'Return to BURN City arena' });
   const account = el('button', { type: 'button', textContent: 'Account', title: 'BURN City account and sign-in' });
   const topActions = el('div', { className: 'hf-actions' }, backToArena, account, topClose);
-  const titlebar = el('div', { className: 'hf-panel-header' },
-    el('strong', { textContent: 'HOMEFRONT · FIELD MENU' }), topActions);
+  const titleLabel = el('strong', { textContent: 'HOMEFRONT · FIELD MENU' });
+  const titlebar = el('div', { className: 'hf-panel-header' }, titleLabel, topActions);
   const card = el('div', { className: 'hf-card' }, titlebar, tabsEl, body, close);
   const sheet = el('div', { className: 'hf-sheet', id: 'hfSheet', hidden: true }, card); sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', 'Character and management');
   document.body.append(sheet);
@@ -465,6 +465,13 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   }
   const ctx = mm.getContext('2d');
   function update() {
+    // An in-world guest must always have a visible wallet-save action even
+    // when the original HTML header is hidden by immersive fullscreen mode.
+    const guest = signedIn() && !walletConnected();
+    account.textContent = guest ? 'Connect wallet to save' : 'Account';
+    titleLabel.textContent = guest ? 'HOMEFRONT · GUEST (UNSAVED)' : 'HOMEFRONT · FIELD MENU';
+    menu.textContent = guest ? '☰ Guest' : '☰ Menu';
+    menu.title = guest ? 'Guest progress is temporary. Open to connect a wallet and start a saved refuge.' : 'Open Homefront field menu';
     // The game HUD only owns the full viewport once the existing signed-in
     // game is loaded. The login and classic page keep the original layout.
     document.body.classList.toggle('hf-playing', !!game && !game.hidden);

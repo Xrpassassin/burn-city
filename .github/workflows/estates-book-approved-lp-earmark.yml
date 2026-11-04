@@ -1,0 +1,60 @@
+name: Book approved Estates LP earmark
+on:
+  workflow_dispatch:
+    inputs:
+      book:
+        description: Book the approved historical LP earmark on production
+        type: boolean
+        default: false
+permissions: {}
+concurrency:
+  group: estates-production-lp-earmark-booking
+  cancel-in-progress: false
+jobs:
+  book:
+    if: github.ref == 'refs/heads/main' && inputs.book == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Check deployment and execute the guarded maintenance command once
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          const sha=process.env.EXPECTED_SHA;
+          if(!/^[a-f0-9]{40}$/.test(sha||'')||!process.env.FLY_API_TOKEN)
+            throw Error('deployment_identity_or_fly_credential_missing');
+          const version=await fetch('https://burn-city-game.fly.dev/api/deploy-version',{
+            signal:AbortSignal.timeout(12000),redirect:'error',cache:'no-store'});
+          if(!version.ok)throw Error('live_deployment_check_failed');
+          const deployed=await version.json();
+          if(deployed.source!=='github-volume'||deployed.commit!==sha)
+            throw Error('wait_for_this_main_commit_to_deploy');
+          const response=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{
+            method:'POST',redirect:'error',signal:AbortSignal.timeout(185000),
+            headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},
+            body:JSON.stringify({
+              command:['node','/data/gh/cur/scripts/estate-replacement-custody-evidence.cjs','--book',sha],
+              timeout:165
+            })
+          });
+          if(!response.ok)throw Error('fly_booking_http_'+response.status);
+          const execution=await response.json();
+          if(execution.exit_code!==0){
+            const reason=String(execution.stderr||'').match(/ESTATES_REPLACEMENT_EVIDENCE_ERROR=([a-z][a-z0-9_]{2,90})(?:\r?\n|$)/)?.[1];
+            throw Error(reason||'fly_booking_execution_failed_check_journal_before_retry');
+          }
+          const line=String(execution.stdout||'').split('\n').find(x=>x.startsWith('ESTATES_REPLACEMENT_CUSTODY_EVIDENCE='));
+          const report=JSON.parse(line?.slice('ESTATES_REPLACEMENT_CUSTODY_EVIDENCE='.length)||'null');
+          const earmark=report?.replacementEarmark;
+          if(report?.readOnly!==false||report?.financialMigrationExecuted!==true||
+             report?.customerPurchasesAuthorized!==false||report?.treasuryPauseReleaseAuthorized!==false||
+             earmark?.status!=='booked'||earmark?.recordedOnProduction!==true||
+             !/^[0-9]+(?:\.[0-9]+)?$/.test(earmark.proposedLpUnits||'')||
+             !/^[0-9]+$/.test(earmark.recordedBasisDrops||'')||
+             !Number.isSafeInteger(earmark.ledgerIndex))
+            throw Error('booking_result_unverified_check_journal_before_retry');
+          console.log(JSON.stringify({booked:true,commit:sha,ledger:earmark.ledgerIndex,
+            lpUnits:earmark.proposedLpUnits,basisDrops:earmark.recordedBasisDrops}));
+          NODE

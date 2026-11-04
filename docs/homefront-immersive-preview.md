@@ -12,6 +12,28 @@ The preview serves the **actual Homefront HTML, refuge and Graveyard Three.js cl
 - `scripts/homefront-preview-gateway.test.mjs`: asserts fail-closed password, session and fake account, protected static assets, and rejection of production wallet, token, and Estates routes.
 - `scripts/deploy-homefront-preview.sh`: manually deploys **only** the dedicated app with a **separate app-scoped token**, refusing production app and persistent volume references. No auto-deploy on PR pushes.
 
+## Review without any new Fly.io credentials
+
+The feature branch already has a GitHub Actions browser-acceptance workflow that
+launches the real Homefront refuge/Graveyard Three.js scenes with synthetic data
+and captures screenshots. To review its current state **without** creating a
+Fly app, password, token, or billable resource:
+
+1. Open [Homefront immersive UI browser acceptance](https://github.com/Xrpassassin/burn-city/actions/workflows/homefront-immersive-ui-browser.yml).
+2. Select the latest successful run for PR #551.
+3. Download the **Homefront interface screenshots** artifact from that run.
+   It includes signed-in desktop and simulated mobile portrait/landscape views.
+
+This is the correct first review path while the owner is not ready to provision
+a dedicated cloud preview. The artifact does not offer interactive physical-phone
+testing or real-network multiplayer acceptance. It never enables
+`HOMEFRONT_CONTINUOUS_MOVEMENT` and does not authenticate to Fly.io.
+
+A separate scoped Fly token and preview-only password are needed **only if**
+the owner later chooses the optional isolated live Fly preview below. Existing
+production `FLY_IO`, `FLY_IOV2` or `FLY_API_TOKEN` credentials should not
+be copied into that app.
+
 ## One-time Fly setup (owner action)
 
 These commands can create billable Fly resources. Use your own Fly login on your own machine. **Do not paste passwords, tokens, seeds or treasury credentials into ChatGPT or GitHub issues.**

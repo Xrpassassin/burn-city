@@ -180,8 +180,37 @@ try{
       'refresh discards guest progression rather than saving it');
     assert.equal(reloaded.day,initial.day,
       'unsaved guest workday does not persist across reload');
+    // Fake ONLY the expiry response for an intentionally marked request.
+    // The normal browser client still performs the real guest transport,
+    // sees a server-style 401 and opens the explicit recovery UI.
+    await page.route('**/api/homefront/guest?expiry_probe=1',route=>
+      route.fulfill({status:401,contentType:'application/json',
+        body:JSON.stringify({error:'guest_session_expired'})}));
+    const responseCode=await page.evaluate(async()=>{
+      const mod=await import('/arena/homefront-guest.mjs');
+      const result=await mod.fetchHomefront(location.origin,
+        '/api/homefront?expiry_probe=1');
+      return result.status;
+    });
+    assert.equal(responseCode,401,'guest API expiry propagates as a failed request');
+    await page.locator('#homefrontModalTitle').filter({hasText:'Guest session ended'})
+      .waitFor({state:'visible'});
+    assert(await page.locator('#game').isHidden(),
+      'expired guest is removed from the stale interactive 3D game');
+    assert.match(await page.locator('#homefrontModalBody').innerText(),
+      /progress is never saved or transferred/,
+      'expiry warning discloses unsaved guest progress loss');
+    await page.screenshot({path:output+'/'+name+'-guest-session-expired.png'});
+    await page.locator('#homefrontModalActions button')
+      .filter({hasText:'Start new guest refuge'}).click();
+    await page.waitForFunction(()=>document.getElementById('game')?.hidden===false &&
+      (document.getElementById('status')?.textContent||'').includes('Playing as guest'),
+      null,{timeout:60000});
+    const restarted=await state();
+    assert.notEqual(restarted.owner,reloaded.owner,
+      'explicit restart creates a brand-new temporary refuge');
     await context.close();
-    return {name,viewport,ownerIsTemporary:true,reloadResets:true};
+    return {name,viewport,ownerIsTemporary:true,reloadResets:true,expiryRecovery:true};
   }
   const desktop=await inspect('desktop',{width:1280,height:800});
   const mobile=await inspect('mobile',{width:390,height:844},true);

@@ -32,11 +32,11 @@ jobs:
           if(deployed.source!=='github-volume'||deployed.commit!==sha)
             throw Error('wait_for_this_main_commit_to_deploy');
           const response=await fetch('https://api.machines.dev/v1/apps/burn-city-game/machines/8d2909be270068/exec',{
-            method:'POST',redirect:'error',signal:AbortSignal.timeout(185000),
+            method:'POST',redirect:'error',signal:AbortSignal.timeout(65000),
             headers:{Authorization:'Bearer '+process.env.FLY_API_TOKEN,'Content-Type':'application/json'},
             body:JSON.stringify({
               command:['node','/data/gh/cur/scripts/estate-replacement-custody-evidence.cjs','--book',sha],
-              timeout:165
+              timeout:55
             })
           });
           if(!response.ok)throw Error('fly_booking_http_'+response.status);

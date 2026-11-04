@@ -24,8 +24,12 @@ export async function startGuest(api) {
 export function fetchHomefront(api, path, options = {}) {
   if (!guestToken || !path.startsWith('/api/homefront')) return fetch(api + path, options);
   const guestPath = '/api/homefront/guest' + path.slice('/api/homefront'.length);
+  // A guest is never a wallet session. Drop stale bearer credentials and
+  // browser cookies, even if the calling world client supplied them.
+  const headers = new Headers(options.headers || {});
+  headers.delete('authorization');
+  headers.set('x-homefront-guest', guestToken);
   return fetch(api + guestPath, {
-    ...options, cache: 'no-store',
-    headers: { ...options.headers, 'x-homefront-guest': guestToken }
+    ...options, cache: 'no-store', credentials: 'omit', headers
   });
 }

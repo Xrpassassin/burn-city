@@ -57,6 +57,11 @@ try {
   assert(html.includes('Connect wallet to save'), 'save boundary clearly presented');
   assert(html.includes('endGuest();location.reload()'),
     'wallet sign-in resets the entire guest renderer before loading wallet progress');
+  const net=readFileSync('client/arena/net.js','utf8');
+  assert(net.includes("location.href = x.deeplink"),
+    'shared Xaman helper retains one mobile deep-link opener');
+  assert(!html.includes('location.href=x.deeplink'),
+    'Homefront QR callback must not trigger a second mobile Xaman redirect');
   const scene=readFileSync('client/arena/homefront-graveyard-3d.js','utf8');
   assert(scene.includes('homefrontFetch('), 'actual Graveyard scene uses guest-aware transport');
   assert(!scene.includes("fetch(API + '/api/homefront"),

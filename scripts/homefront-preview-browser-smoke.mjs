@@ -120,7 +120,24 @@ try{
           parentDisplay:el?getComputedStyle(el.parentElement).display:null};
       });
       console.log('HOMEFRONT_PREVIEW_MOBILE_JOYSTICK_DIAGNOSTICS',JSON.stringify(joystickInfo));
-      assert(await joy.isVisible(),'touch joystick exists on actual preview yard');
+      // Protected construction hides touch controls. Resuming normal refuge
+      // mode must restore them on a subsequent actual Three.js animation frame.
+      const resumedAt=Date.now();
+      try { await joy.waitFor({state:'visible',timeout:9000}); }
+      catch(error) {
+        console.error('HOMEFRONT_JOYSTICK_STUCK_HIDDEN',JSON.stringify(
+          await page.evaluate(()=>({
+            mode:document.body.className,
+            joystickHidden:document.querySelector('#world .hf-joy')?.hidden,
+            cameraHidden:document.querySelector('#world .hf-viewbtn')?.hidden,
+            gameHidden:document.getElementById('game')?.hidden,
+            sheetHidden:document.getElementById('hfSheet')?.hidden
+          }))));
+        throw error;
+      }
+      const resumeMs=Date.now()-resumedAt;
+      console.log('HOMEFRONT_JOYSTICK_RECOVERY_MS',resumeMs);
+      assert(await joy.isVisible(),'touch joystick returns after finishing protected construction');
       const rectA=await joy.boundingBox(),rectB=await page.locator('#hfHud').boundingBox();
       const hit=rectA.x<rectB.x+rectB.width&&rectA.x+rectA.width>rectB.x&&
         rectA.y<rectB.y+rectB.height&&rectA.y+rectA.height>rectB.y;

@@ -1,8 +1,8 @@
 # Homefront immersive UI — isolated Fly preview
 
-**Scope:** Draft PR #551 (`feat/homefront-immersive-ui-shell`). Production game `burn-city-game` is never a deployment target for this procedure.
+**Scope:** Combined draft PRs #551 and #552 on branch `feat/homefront-guest-play-wallet-save-20261103`. Production `burn-city-game` is never a target.
 
-The preview serves the **actual Homefront HTML, refuge and Graveyard Three.js clients** using `scripts/homefront-preview-gateway.cjs`, a standalone password-gated HTTP service. It runs Homefront-only gameplay handlers against **disposable in-memory state** with a synthetic wallet/account. No production database or `/data` volume is mounted. There is no production payment service, Xaman authentication, Estates purchase endpoint, jetpack payment endpoint, or XRP treasury secret. Player actions only modify the fake server state in RAM and disappear on restart.
+The preview serves the **actual Homefront HTML, refuge and Graveyard Three.js clients** using `scripts/homefront-preview-gateway.cjs`, a standalone password-gated HTTP service. It runs Homefront-only gameplay handlers against **disposable in-memory state** with temporary guest sessions. No synthetic wallet is issued. No production database or `/data` volume is mounted. There is no production payment service, Xaman authentication, Estates purchase endpoint, jetpack payment endpoint, or XRP treasury secret. Player actions only modify the fake server state in RAM and disappear on restart.
 
 ## What is ready
 
@@ -53,7 +53,7 @@ Store the newly issued *preview-app-only* deploy token as `FLY_HOMEFRONT_PREVIEW
 
 ```bash
 git fetch origin
-git switch feat/homefront-immersive-ui-shell
+git switch feat/homefront-guest-play-wallet-save-20261103
 # Requires only the NEW preview-app token in FLY_HOMEFRONT_PREVIEW_API_TOKEN.
 bash scripts/deploy-homefront-preview.sh
 ```
@@ -62,7 +62,7 @@ The script fails closed if the app does not already exist or is inaccessible, th
 
 ## Manual release acceptance
 
-1. On desktop and a physical phone: sign into the preview using its **preview-only password**, not Xaman. Confirm the preview marker says **SYNTHETIC DATA · NO PAYMENTS**. Never connect a real wallet.
+1. On desktop and a physical phone: sign into the preview using its **preview-only password**, not Xaman. Confirm the marker says **GUEST PREVIEW · UNSAVED · NO PAYMENTS**. A guest refuge should appear automatically. Real wallet connection is disabled in this preview.
 2. Check refuge in third-person, open and close Inventory/Journal/Build/Manage, inspect at least two management categories, and verify no duplicated or overlapping panels.
 3. Choose a building, verify the drawer closes while the 3D yard remains visible, place it into the fake refuge, then use **Finish building**. Verify Build returns correctly and the result is only in the fake state.
 4. Enter and leave the Graveyard; verify camera controls, movement, menu access restrictions and return routing. Note that PR #549 continuous WASD movement and PR #550 direct expedition routing are **not** part of this preview.
@@ -73,6 +73,20 @@ After testing, stop or destroy the preview app through Fly to avoid unexpected o
 
 ## Explicit limitations
 
-- Synthetic preview data does not test existing real accounts or wallets; that is intentional.
+- The preview tests guest gameplay only; real wallet handoff and saved account restoration still require separate release acceptance.
 - Fly deployment has **not** occurred merely because these files are committed or CI passes. The dedicated app/password/token must be created and the manual deploy command run first.
 - Browser CI proves the actual refuge/Graveyard 3D scenes, HUD layering, and key construction handoff, but cannot certify physical-device touch comfort or remote network latency.
+
+## Guest-mode isolation
+
+On this combined branch, the password gate is **preview access only**, not a wallet. After login, the guest starts automatically and uses `/api/homefront/guest/*` with a per-session in-memory token. The gateway:
+- does not inject any `bcToken` or simulate a wallet;
+- blocks all Xaman, wallet, Estates, treasury and payment routes;
+- requires its own HttpOnly preview access cookie on top of guest tokens;
+- runs a maximum of 32 concurrent temporary guest worlds per instance;
+- does not share production databases or persistent volumes;
+- never enables experimental continuous movement.
+
+The guest client permits the preview access cookie **only** when the isolated preview marker flag is present. Regular production guest calls continue omitting cookies and bearer authentication.
+
+Fish Browser can test the hosted preview **only after** the app exists and a dedicated password/token have been provisioned through Fly. PR CI passing alone does not create a live URL. The current target is `https://burn-city-homefront-preview-551.fly.dev/`; do not describe it as working until `/healthz` is verified on the live Fly app.

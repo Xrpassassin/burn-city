@@ -38,6 +38,11 @@ jobs:
           node server/estate-legacy-plx-conversion-evidence.test.js
           node server/estate-operator-migration-trace.test.js
           node server/estate-legacy-v2-review.test.js
+          node server/estate-manual-pool-migration.test.js
+          if node scripts/estate-replacement-custody-evidence.cjs --book; then
+            echo 'Booking must reject a runner without an explicit deployed commit' >&2
+            exit 1
+          fi
       - name: Verify read-only production purchase and cost-basis inventory first
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}

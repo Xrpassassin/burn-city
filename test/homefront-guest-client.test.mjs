@@ -71,6 +71,35 @@ try {
     'wallet-connected players retain regular multiplayer travel choices');
   assert(html.includes('guest:()=>isGuest()'),
     'actual Travel overlay receives the guest status');
+  assert(html.includes('Guest session ended')&&html.includes('Start new guest refuge'),
+    'expired session offers a clear new start instead of a stalled game');
+  assert(html.includes('Guest survival values are temporary and NOT saved.'),
+    'the survival panel must not claim that guest progress is persisted');
+  assert(html.includes('guest items and progress will not transfer'),
+    'guest tutorial explains the wallet handoff before first gameplay');
+
+  // Real 401 from the disposable server revokes guest capability, not a
+  // legitimate wallet session, and NEVER automatically retries a mutation.
+  const oldMock=globalThis.fetch, events=[];
+  globalThis.window={__BURN_CITY_ISOLATED_PREVIEW__:false,
+    dispatchEvent:event=>{events.push(event.type)}};
+  await startGuest('https://burn-city-game.fly.dev');
+  const beforeCount=urls.length;
+  globalThis.fetch=async(url,options)=>{
+    urls.push({url,options});
+    return new Response(JSON.stringify({error:'guest_session_expired'}),{
+      status:401,headers:{'content-type':'application/json'}
+    });
+  };
+  const expired=await fetchHomefront('https://burn-city-game.fly.dev','/api/homefront/action',{
+    method:'POST',headers:{'content-type':'application/json'},body:'{"action":{"type":"workday"}}'
+  });
+  assert.equal(expired.status,401,'expired guests retain original HTTP error');
+  assert.equal(urls.length,beforeCount+1,'expired guest mutations are not replayed');
+  assert.equal(isGuest(),false,'expired session clears memory-only credential');
+  assert.deepEqual(events,['homefront-guest-expired'],
+    'one explicit UI recovery prompt instead of silent world replacement');
+  globalThis.fetch=oldMock;
   console.log('HOMEFRONT GUEST CLIENT AND WEBGL ROUTING PASSED');
 } finally {
   endGuest();

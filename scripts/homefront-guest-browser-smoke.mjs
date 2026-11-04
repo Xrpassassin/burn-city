@@ -88,6 +88,20 @@ try{
     });
     const initial=await state();
     assert(initial.guest&&initial.owner?.startsWith('guest_'),'temporary guest refuge is live');
+    // Prove interactive game actions work without wallet authentication, but
+    // never become an account save after a browser refresh.
+    const worked=await page.evaluate(async()=>{
+      const mod=await import('/arena/homefront-guest.mjs');
+      const response=await mod.fetchHomefront(location.origin,'/api/homefront/action',{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({action:{type:'workday'}})
+      });
+      return {status:response.status,data:await response.json()};
+    });
+    assert.equal(worked.status,200,'guest can perform a real settlement action');
+    assert(worked.data.base.day>initial.day,
+      'guest work shift changes authoritative in-session gameplay');
+
     // Real first-run Homefront displays its existing tutorial. Complete the
     // onboarding as a player would before testing the HUD underneath.
     const tutorial=page.locator('#homefrontModal');
@@ -113,6 +127,8 @@ try{
     const reloaded=await state();
     assert.notEqual(reloaded.owner,initial.owner,
       'refresh discards guest progression rather than saving it');
+    assert.equal(reloaded.day,initial.day,
+      'unsaved guest workday does not persist across reload');
     await context.close();
     return {name,viewport,ownerIsTemporary:true,reloadResets:true};
   }

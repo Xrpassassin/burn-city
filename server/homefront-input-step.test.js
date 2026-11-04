@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { validateInput, displacementForInput, MAX_INPUT_DT_MS, slideAlongBlockedStep } = require('./homefront-input-step');
+const { validateInput, displacementForInput, MAX_INPUT_DT_MS, MAX_INPUT_RESUME_GAP_MS, slideAlongBlockedStep } = require('./homefront-input-step');
 
 const cmd = validateInput({ sequence: 2, x: 0.6, z: 0.8, sprint: false }, 1);
 assert.equal(cmd.magnitude, 1);
@@ -16,6 +16,17 @@ assert.equal(stalled.elapsedMs, 0, 'long disconnects must not bank movement');
 assert.equal(stalled.x, 0); assert.equal(stalled.z, 0);
 const bounded = displacementForInput(cmd, { now: MAX_INPUT_DT_MS + 50, previousAt: 0, ...speeds });
 assert.equal(bounded.elapsedMs, MAX_INPUT_DT_MS, 'moderate scheduling delays are capped');
+for (const gap of [275, 400, MAX_INPUT_RESUME_GAP_MS]) {
+  const delayed = displacementForInput(cmd, { now: gap, previousAt: 0, ...speeds });
+  assert.equal(delayed.elapsedMs, MAX_INPUT_DT_MS,
+    'low-frame-rate or network delay still receives only a 125ms movement budget');
+  assert.ok(Math.hypot(delayed.x, delayed.z) <= speeds.walkSpeed * MAX_INPUT_DT_MS / 1000 + 1e-10,
+    'delayed packets can never bank the full elapsed movement time');
+}
+const staleEdge = displacementForInput(cmd,
+  { now: MAX_INPUT_RESUME_GAP_MS + 1, previousAt: 0, ...speeds });
+assert.equal(staleEdge.elapsedMs, 0, 'backgrounded/stalled input resets time credit');
+
 const idle = displacementForInput(validateInput({ sequence: 3, x: 0, z: 0, sprint: false }, 2), { now: 10000, previousAt: 0, ...speeds });
 assert.equal(idle.x, 0); assert.equal(idle.z, 0);
 assert.throws(() => displacementForInput(cmd, { now: 10, previousAt: 20, ...speeds }), /server_time/);

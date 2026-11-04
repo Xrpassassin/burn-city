@@ -1,0 +1,37 @@
+name: Homefront continuous 3D browser preview
+on:
+  pull_request:
+    paths:
+      - 'scripts/homefront-continuous-browser-preview.mjs'
+      - 'client/arena/homefront-graveyard-3d.js'
+      - 'client/arena/homefront-continuous-input.mjs'
+      - 'client/arena/homefront-presentation-smoothing.mjs'
+      - 'client/arena/homefront-view.mjs'
+      - '.github/workflows/homefront-continuous-browser-preview.yml'
+
+jobs:
+  isolated-chromium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --omit=dev
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Exercise actual Homefront WebGL scene against in-memory world authority
+        env:
+          DRY_RUN: 'true'
+          HOMEFRONT_BROWSER_OUTPUT: homefront-browser-output
+        run: node scripts/homefront-continuous-browser-preview.mjs
+      - name: Preserve desktop and mobile verification screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homefront-continuous-browser-preview
+          path: homefront-browser-output/
+          if-no-files-found: ignore

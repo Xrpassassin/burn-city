@@ -134,4 +134,27 @@ assert.deepEqual(repeated,['movement_network_unavailable']);
 offline.sync({enabled:true,nextSequence:100},{x:0,z:0});
 assert.equal(offline.enabled,false,'fatal network fallback needs an explicit page reload to re-enable preview');
 
+// An older world GET can arrive *after* an accepted input ack. Never use a
+// stale protocol cursor to reconcile local prediction to the older position.
+let resolveNewerAck;
+const refreshRace = createContinuousInput({
+  send: () => new Promise(resolve => { resolveNewerAck = resolve; })
+});
+refreshRace.sync({ enabled: true, nextSequence: 3 }, { x: 0, z: 0 }, 0);
+refreshRace.step({ x: 1, z: 0 }, false, 100, 0.05);
+await Promise.resolve();
+resolveNewerAck({ inputAck: { sequence: 3, x: 0.8, z: 0 } });
+await new Promise(resolve => setImmediate(resolve));
+const acknowledgedPrediction = refreshRace.position();
+assert.ok(acknowledgedPrediction.x > 0, 'acknowledged walking advances the local presentation');
+refreshRace.sync({ enabled: true, nextSequence: 3 }, { x: -50, z: -50 }, 5000);
+assert.deepEqual(refreshRace.position(), acknowledgedPrediction,
+  'stale refresh sequence cannot roll back a newer acknowledged move');
+assert.equal(refreshRace.nextSequence, 4, 'stale world GET cannot decrease local input sequence');
+refreshRace.sync({ enabled: true, nextSequence: 4 }, { x: 0.8, z: 0 }, 5000);
+assert.ok(Math.hypot(refreshRace.position().x - 0.8, refreshRace.position().z) <= MAX_PREDICTION_LEAD,
+  'current refresh can still reconcile local presentation');
+refreshRace.sync({ enabled: false, nextSequence: 3 }, { x: 0, z: 0 }, 5100);
+assert.equal(refreshRace.enabled, false, 'server disables preview even with stale cursor');
+
 console.log('Homefront continuous client input prediction tests passed.');

@@ -1,4 +1,5 @@
 // Optional Homefront 3D movement controller. Visual prediction never modifies game authority.
+import { releasePredictionBlend, clampPredictionLead } from './homefront-presentation-smoothing.mjs';
 export const INPUT_SEND_INTERVAL_MS = 125;
 export const WALK_SPEED = 8;
 export const SPRINT_SPEED = 12;
@@ -39,8 +40,12 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       readyAfter = now + Math.min(1000, Math.max(0, Number.isFinite(protocol.readyInMs) ? protocol.readyInMs : 0));
       return;
     }
-    nextSequence = Math.max(nextSequence, protocol.nextSequence);
-    // A delayed GET must not roll an acknowledged player position backwards.
+    // A world GET sent before an acknowledged movement can arrive much later.
+    // Its protocol cursor is older than the next locally allocated command,
+    // so its position must never roll our presentation back. Still honor an
+    // explicit server disable above, even when the refresh is stale.
+    if (protocol.nextSequence < nextSequence) return;
+    nextSequence = protocol.nextSequence;
     if (!pending && now - lastAckAt >= 1200) correct(point);
   }
   function correct(point, blocked = false) {
@@ -53,6 +58,9 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       predicted.x += (server.x - predicted.x) * 0.35;
       predicted.z += (server.z - predicted.z) * 0.35;
     }
+    // A server ack can move the authoritative anchor enough that the old
+    // 35%-toward-server blend still leaves more than 1.5 units of visual lead.
+    predicted = clampPredictionLead(predicted, server, MAX_PREDICTION_LEAD);
   }
   function step(direction, sprint, now, dt) {
     if (Number.isFinite(now)) lastFrameAt = Math.max(lastFrameAt, now);
@@ -63,16 +71,12 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       const speed = sprint ? SPRINT_SPEED : WALK_SPEED;
       predicted.x += vec.x * Math.min(0.05, dt) * speed;
       predicted.z += vec.z * Math.min(0.05, dt) * speed;
-      const lead = Math.hypot(predicted.x - server.x, predicted.z - server.z);
-      if (lead > MAX_PREDICTION_LEAD) {
-        const k = MAX_PREDICTION_LEAD / lead;
-        predicted.x = server.x + (predicted.x - server.x) * k;
-        predicted.z = server.z + (predicted.z - server.z) * k;
-      }
+      predicted = clampPredictionLead(predicted, server, MAX_PREDICTION_LEAD);
     } else {
-      // Recover from speculative movement after release.
-      predicted.x += (server.x - predicted.x) * 0.16;
-      predicted.z += (server.z - predicted.z) * 0.16;
+      // Release correction is elapsed-time based, not a fixed percent per frame.
+      const recovery = releasePredictionBlend(dt);
+      predicted.x += (server.x - predicted.x) * recovery;
+      predicted.z += (server.z - predicted.z) * recovery;
     }
     if (pending || now - lastSentAt < INPUT_SEND_INTERVAL_MS || (!vec.moving && !sentMotion)) return;
     pending = true;

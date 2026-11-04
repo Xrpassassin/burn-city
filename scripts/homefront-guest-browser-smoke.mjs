@@ -11,8 +11,20 @@ import vm from 'node:vm';
 
 const require=createRequire(import.meta.url);
 const {createGuestHandler}=require('../server/homefront-guest.js');
+const Homefront=require('../server/homefront.js');
 const {chromium}=require('playwright');
 const guest=createGuestHandler();
+// Synthetic wallet approval and a separate RAM save store for browser
+// acceptance. This fixture never signs in to Xaman or touches production.
+const MOCK_ACCT='rHomefrontOnlySyntheticWalletAccount';
+const MOCK_TOKEN='HOMEFRONT_BROWSER_FIXTURE_ONLY_NOT_A_REAL_LOGIN';
+const MOCK_SID='synthetic-wallet-approval-for-ui-acceptance';
+let mockWalletApproval=false;
+const walletSaves=new Map();
+const walletStore={
+  load(name,fallback){return structuredClone(walletSaves.has(name)?walletSaves.get(name):fallback);},
+  save(name,value){walletSaves.set(name,structuredClone(value));}
+};
 const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const root=path.join(project,'client');
 // Run the ACTUAL CORS response function from production, but never boot the
@@ -50,12 +62,29 @@ const server=createServer(async(req,res)=>{
       // Browser-only synthetic Xaman flow: verify the real in-world Account
       // button can reveal QR, but never grant a wallet, token or real save.
       if(url.pathname==='/api/signin'&&req.method==='POST')return json(res,200,{
-        sid:'synthetic-login-not-a-real-wallet',
+        sid:MOCK_SID,
         xaman:{qr:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLytQAAAABJRU5ErkJggg==',
           deeplink:'https://invalid.example/never-open'}
       });
-      if(url.pathname==='/api/signin/finish'&&req.method==='POST')return json(res,200,{ok:false});
+      if(url.pathname==='/api/signin/finish'&&req.method==='POST'){
+        const payload=await body();
+        const approved=mockWalletApproval&&payload.sid===MOCK_SID;
+        return json(res,200,approved
+          ?{ok:true,token:MOCK_TOKEN,account:MOCK_ACCT}
+          :{ok:false});
+      }
       if(await guest.handle(req,res,url,{json,gate:()=>false,ip:'127.0.0.1',body}))return;
+      if(mockWalletApproval && (url.pathname==='/api/homefront' ||
+        url.pathname==='/api/homefront/action' ||
+        url.pathname==='/api/homefront/world' ||
+        url.pathname.startsWith('/api/homefront/world/'))){
+        const served=await Homefront.handle(req,res,url,{
+          json,gate:()=>false,ip:'127.0.0.1',body,store:walletStore,
+          who:()=>req.headers.authorization==='Bearer '+MOCK_TOKEN
+            ?{acct:MOCK_ACCT}:null
+        });
+        if(served)return;
+      }
       return json(res,404,{error:'no_production_apis_in_guest_browser'});
     }
     if(req.method!=='GET')return json(res,405,{error:'method_not_allowed'});
@@ -238,6 +267,105 @@ try{
   const desktop=await inspect('desktop',{width:1280,height:800});
   const mobile=await inspect('mobile',{width:390,height:844},true);
   const crossOrigin=await inspect('cross-origin',{width:1024,height:768},false,true);
+  // Verify the real Xaman UI callback, guest discard, page reload and saved
+  // account restoration using an in-process synthetic sign-in approval.
+  // This has no real Xaman request, token, XRPL transaction or disk save.
+  async function inspectWalletTransition(){
+    mockWalletApproval=true;
+    const ctx=await browser.newContext({
+      viewport:{width:1180,height:760},serviceWorkers:'block'
+    });
+    const page=await ctx.newPage();
+    page.on('pageerror',e=>errors.push('wallet-handoff: '+e.message));
+    await page.route('**/*',route=>{
+      const url=new URL(route.request().url());
+      if(['localhost','127.0.0.1'].includes(url.hostname)||url.protocol==='blob:')
+        return route.continue();
+      errors.push('wallet-handoff blocked unexpected external request '+url.hostname);
+      return route.abort();
+    });
+    await page.goto(origin+'/arena/homefront.html',{waitUntil:'domcontentloaded'});
+    await page.waitForFunction(()=>!document.getElementById('game')?.hidden &&
+      (document.getElementById('status')?.textContent||'').includes('Playing as guest'),
+      null,{timeout:60000});
+    const guestStart=await page.evaluate(async()=>{
+      const m=await import('/arena/homefront-guest.mjs');
+      const base=await (await m.fetchHomefront(location.origin,'/api/homefront')).json();
+      return {owner:base.base.owner,day:base.base.day,isGuest:m.isGuest()};
+    });
+    assert(guestStart.isGuest&&guestStart.owner.startsWith('guest_'));
+    const guestUpdated=await page.evaluate(async()=>{
+      const m=await import('/arena/homefront-guest.mjs');
+      return (await m.fetchHomefront(location.origin,'/api/homefront/action',{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({action:{type:'workday'}})
+      })).json();
+    });
+    assert(guestUpdated.base.day>guestStart.day,
+      'temporary guest actually progressed before wallet handoff');
+    const tutorial=page.locator('#homefrontModal');
+    if(await tutorial.isVisible())
+      await page.locator('#homefrontModalActions button')
+        .filter({hasText:'Enter Homefront'}).click();
+    await page.locator('#hfHud .hf-menu').click();
+    await page.locator('#hfSheet .hf-panel-header .hf-actions button')
+      .filter({hasText:'Connect wallet to save'}).click();
+    await page.locator('#qrbox .qr img').waitFor({state:'visible',timeout:10000});
+    // signIn() polls the local synthetic approval after 3 seconds; the
+    // actual Homefront handler must clear guest state and reload the page.
+    await page.waitForFunction(account=>
+      localStorage.getItem('bcAcct')===account &&
+      document.getElementById('game')?.hidden===false &&
+      (document.getElementById('status')?.textContent||'').includes('Refuge loaded'),
+      MOCK_ACCT,{timeout:30000});
+    const saved=await page.evaluate(async()=>{
+      const m=await import('/arena/homefront-guest.mjs');
+      const r=await fetch('/api/homefront',{
+        headers:{authorization:'Bearer '+localStorage.getItem('bcToken')}
+      });
+      return {data:await r.json(),guest:m.isGuest(),
+        account:localStorage.getItem('bcAcct')};
+    });
+    assert.equal(saved.account,MOCK_ACCT,'Xaman callback sets account identity');
+    assert.equal(saved.guest,false,'Xaman handoff discards temporary guest token');
+    assert.equal(saved.data.base.owner,MOCK_ACCT,'wallet loads own saved refuge');
+    assert.notEqual(saved.data.base.owner,guestStart.owner,
+      'guest refuge identity cannot be imported into wallet save');
+    assert.equal(saved.data.base.day,guestStart.day,
+      'guest workday is not imported into wallet progression');
+    const walletAction=await page.evaluate(async()=>{
+      const response=await fetch('/api/homefront/action',{
+        method:'POST',headers:{authorization:'Bearer '+localStorage.getItem('bcToken'),
+          'content-type':'application/json'},
+        body:JSON.stringify({action:{type:'workday'}})
+      });
+      return {status:response.status,data:await response.json()};
+    });
+    assert.equal(walletAction.status,200,'wallet-authorized gameplay works');
+    assert(walletAction.data.base.day>saved.data.base.day,
+      'wallet progress advances independently after authentication');
+    await page.reload({waitUntil:'domcontentloaded'});
+    await page.waitForFunction(()=>!document.getElementById('game')?.hidden &&
+      (document.getElementById('status')?.textContent||'').includes('Refuge loaded'),
+      null,{timeout:60000});
+    const restored=await page.evaluate(async()=>{
+      const m=await import('/arena/homefront-guest.mjs');
+      return {guest:m.isGuest(),account:localStorage.getItem('bcAcct'),
+        day:(await (await fetch('/api/homefront',{
+          headers:{authorization:'Bearer '+localStorage.getItem('bcToken')}
+        })).json()).base.day};
+    });
+    assert.equal(restored.guest,false,'reload does not start a guest over wallet');
+    assert.equal(restored.account,MOCK_ACCT);
+    assert.equal(restored.day,walletAction.data.base.day,
+      'existing wallet progress survives browser reload');
+    await page.screenshot({path:output+'/wallet-handoff-saved-refuge.png'});
+    await ctx.close();
+    mockWalletApproval=false;
+    return {walletApprovedInFixture:true,guestDiscarded:true,
+      guestProgressNotImported:true,walletSaveRestored:true};
+  }
+  const walletTransition=await inspectWalletTransition();
   // Explicitly verify the actual production CORS response over HTTP. Some
   // Playwright route-interception configurations suppress implicit OPTIONS
   // traffic, so a preflight *count* is not reliable proof of browser CORS.
@@ -255,7 +383,8 @@ try{
   assert(preflightCount>0,'explicit real HTTP preflight reached the server');
   assert.deepEqual(errors,[], 'guest mode does not throw JS errors or fetch external APIs');
   console.log('HOMEFRONT NO-WALLET REAL THREE.JS GUEST BROWSER PASSED',
-    JSON.stringify({desktop,mobile,crossOrigin,preflightCount,noWallet:true,productionApisBlocked:true}));
+    JSON.stringify({desktop,mobile,crossOrigin,walletTransition,preflightCount,
+      noRealWallet:true,productionApisBlocked:true}));
 }finally{
   await browser?.close();
   await new Promise(resolve=>server.close(resolve));

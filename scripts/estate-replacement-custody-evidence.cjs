@@ -1,6 +1,6 @@
 'use strict';
-// Operator-only, read-only evidence: production books + same-ledger XRPL pools.
-// No escrow action, fund movement, reservation, payout or migration mutation.
+// Default: read-only production books and same-ledger XRPL evidence.
+// Explicit on-machine booking records a migration without signing or moving funds.
 const fs=require('node:fs');
 const {createHash}=require('node:crypto');
 const {snapshotPool,historicCoverage}=require('../server/estate-replacement-custody-snapshot');
@@ -217,13 +217,13 @@ async function audit({readAccounting=remote,book=null}={}){
  const fingerprint=createHash('sha256').update(JSON.stringify({
   purchaseHash:txHash,positionFingerprints:positions.map(x=>x.rawPositionDigest),
   ledger:height,pools:results})).digest('hex');
- const report={readOnly:true,validatedLedger:height,originalPurchaseValidated:true,
+ const report={readOnly:!book,validatedLedger:height,originalPurchaseValidated:true,
   originalPurchaseHashTail:txHash.slice(-8),recordedPurchaseDrops:accounting.legacy.purchaseDrops,
   historicalBudgetDrops:{imgPlx:accounting.legacy.oldPlxBudgetDrops,
    imgXrp:accounting.legacy.oldImgXrpBudgetDrops},
   proposedPolicy2:{imgRlusdDrops:accounting.legacy.proposedImgRlusdDrops,
    reserveDrops:accounting.legacy.proposedXrpReserveDrops,
-   actuallyMigrated:!!book},
+   actuallyMigrated:false},
   poolSnapshots:results,custody:coverage,replacementEarmark,
   legacyLiabilityRowCounts:accounting.legacyLiabilityTableCounts,
   legacyLiabilityInventory:accounting.liabilityInventory,

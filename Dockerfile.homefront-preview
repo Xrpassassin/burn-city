@@ -12,5 +12,5 @@ ENV DRY_RUN=true
 ENV BURN_JOB_IN_SERVER=false
 ENV DATA_DIR=/tmp/homefront-preview
 EXPOSE 8080
-# Dedicated preview entrypoint: never reads /data/boot.sh or starts production payment routes.
+# Dedicated preview entrypoint: never uses the production volume bootstrap or payment server.
 CMD ["node","scripts/homefront-preview-gateway.cjs"]

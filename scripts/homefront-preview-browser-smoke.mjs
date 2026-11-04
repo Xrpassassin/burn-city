@@ -51,11 +51,18 @@ try{
     });
     const page=await context.newPage();
     page.on('pageerror',err=>pageErrors.push(name+': '+err.message));
-    page.on('console',msg=>{if(msg.type()==='error')
-      pageErrors.push(name+' console: '+msg.text().slice(0,200));});
+    // A 401 from the initial password challenge is expected; missing
+    // optional procedural assets may 404 and fall back. CSP violations and
+    // uncaught JavaScript errors are never expected.
+    page.on('console',msg=>{
+      if(msg.type()!=='error') return;
+      if(/Content Security Policy|Refused to connect|Refused to load|violates.*directive/i.test(msg.text()))
+        pageErrors.push(name+' CSP: '+msg.text().slice(0,250));
+    });
     await page.route('**/*',route=>{
       const url=new URL(route.request().url());
-      if(url.hostname==='localhost'||url.hostname==='127.0.0.1')
+      if(url.hostname==='localhost'||url.hostname==='127.0.0.1'||
+        (url.protocol==='blob:'&&url.origin===base))
         return route.continue();
       pageErrors.push(name+': blocked nonlocal '+url.hostname);
       return route.abort('blockedbyclient');

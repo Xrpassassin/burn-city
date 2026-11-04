@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const {createHash}=require('node:crypto');
 const {snapshotPool,historicCoverage}=require('../server/estate-replacement-custody-snapshot');
 const {balanceDelta,inspectPool,value,drops}=require('../server/estate-liquidity-ledger');
-const {planManualPoolMigration}=require('../server/estate-manual-pool-migration');
+const {planManualPoolMigration,applyManualPoolMigration}=require('../server/estate-manual-pool-migration');
 const WITHDRAW='581A03641BFCD81CEFDD3275ED90B396C96A0AE33D79CFD94CEF3DBA65C6ECE2';
 const SEED='59FAA96D8EF6A5C35747E22E664A7E0A8FBEA5F373D746B5EF3A58E5558FBE43';
 const TREASURY='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb';
@@ -110,8 +110,8 @@ const expectedPools={
  'img-xrp':[IMG,{currency:'XRP'}],
  'img-rlusd':[IMG,RLUSD]
 };
-async function audit(){
- const accounting=await remote();
+async function audit({readAccounting=remote,book=null}={}){
+ const accounting=await readAccounting();
  const h=await rpc('ledger',{ledger_index:'validated'});
  const latest=Number(h.ledger_index??h.ledger?.ledger_index);
  if(h.validated!==true||!Number.isSafeInteger(latest)||latest<100)throw Error('validated_snapshot_unavailable');
@@ -151,6 +151,7 @@ async function audit(){
   body.Destination===TREASURY&&(body.Amount??body.DeliverMax)===accounting.legacy.purchaseDrops&&
   tx.meta.delivered_amount===accounting.legacy.purchaseDrops;
  if(!originalPurchaseValidated)throw Error('original_purchase_onchain_validation_missing');
+ let booking=null;
  let replacementEarmark={status:'blocked',reason:'existing_position_or_pending_treasury_intent'};
  if(accounting.currentPoolJobs===0&&accounting.pendingTreasuryIntents===0){
   try{
@@ -196,6 +197,7 @@ async function audit(){
    const plan=planManualPoolMigration({job:accounting.sourceJob,pool:target,
     availableLp,exitQuote,withdrawHash:WITHDRAW,seedHash:SEED});
    const lp=JSON.parse(plan.replacementJson).lp;
+   booking={plan,verifiedLedgerIndex:height,verifiedWithdrawLp:burned.toFixed(),verifiedSeedLp:minted.toFixed()};
    replacementEarmark={status:'quote_only',pair:'IMG/RLUSD',poolAccount:POOL,
     ledgerIndex:height,recordedBasisDrops:plan.basisDrops,proposedLpUnits:lp,
     netIndicativeExitDrops:exitQuote(value(lp)).toFixed(),treasuryLpHeld:snapshot.treasuryLpHeld,
@@ -207,6 +209,11 @@ async function audit(){
     e.message:'replacement_quote_unavailable'};
   }
  }
+ if(book){
+  if(!booking)throw Error(replacementEarmark.reason);
+  const result=await book(booking);
+  replacementEarmark={...replacementEarmark,status:'booked',recordedOnProduction:true,alreadyApplied:result.alreadyApplied};
+ }
  const fingerprint=createHash('sha256').update(JSON.stringify({
   purchaseHash:txHash,positionFingerprints:positions.map(x=>x.rawPositionDigest),
   ledger:height,pools:results})).digest('hex');
@@ -216,19 +223,66 @@ async function audit(){
    imgXrp:accounting.legacy.oldImgXrpBudgetDrops},
   proposedPolicy2:{imgRlusdDrops:accounting.legacy.proposedImgRlusdDrops,
    reserveDrops:accounting.legacy.proposedXrpReserveDrops,
-   actuallyMigrated:false},
+   actuallyMigrated:!!book},
   poolSnapshots:results,custody:coverage,replacementEarmark,
   legacyLiabilityRowCounts:accounting.legacyLiabilityTableCounts,
   legacyLiabilityInventory:accounting.liabilityInventory,
   allLiabilitiesQuantified:false,
   evidenceDigest:fingerprint,
   legallyApproved:false,
-  financialMigrationExecuted:false,
+  financialMigrationExecuted:!!book,
   customerPurchasesAuthorized:false,treasuryPauseReleaseAuthorized:false};
  console.log('ESTATES_REPLACEMENT_CUSTODY_EVIDENCE='+JSON.stringify(report));
  return report;
 }
-if(require.main===module)audit().catch(e=>{
+async function bookOnFly(){
+ const {DatabaseSync}=require('node:sqlite');
+ const {execFileSync}=require('node:child_process');
+ const path=require('node:path');
+ const root=process.env.DATA_DIR||'/data';
+ const expected=process.argv[3];
+ if(process.argv.length!==4||!/^[a-f0-9]{40}$/.test(expected||'')||
+  process.env.FLY_APP_NAME!=='burn-city-game'||root!=='/data')
+  throw Error('explicit_live_fly_commit_required');
+ const dbPath=path.join(root,'shop.db');
+ function assertPaused(){
+  if(fs.readFileSync(path.join(root,'gh/SHA'),'utf8').trim()!==expected||
+   path.resolve(__dirname)!==path.join(root,'gh/cur/scripts')&&
+   fs.realpathSync(__dirname)!==fs.realpathSync(path.join(root,'gh/cur/scripts')))
+   throw Error('live_commit_mismatch');
+  const pause=JSON.parse(fs.readFileSync(path.join(root,'pause.json'),'utf8'));
+  if(pause.paused!==true||pause.reason!=='unexpected_outgoing_tx'||
+   !Array.isArray(pause.unknown)||pause.unknown.length!==1||
+   pause.unknown[0].hash!==WITHDRAW)
+   throw Error('reviewed_treasury_pause_required');
+  if(['ESTATE_SALES_ENABLED','ESTATE_LIQUIDITY_ENABLED','ESTATE_XRP_PROFIT_HARVEST_ENABLED',
+   'ESTATE_DISTRIBUTIONS_ENABLED','ESTATE_IMG_RLUSD_FUNDING_ENABLED']
+   .some(name=>process.env[name]==='1'))throw Error('financial_flags_must_stay_off');
+ }
+ assertPaused();
+ const readAccounting=()=>JSON.parse(execFileSync(process.execPath,['-e',remoteAuditSource()],
+  {encoding:'utf8',timeout:20000}));
+ return audit({readAccounting,book:async({plan,verifiedLedgerIndex,verifiedWithdrawLp,verifiedSeedLp})=>{
+  const head=await rpc('ledger',{ledger_index:'validated'});
+  const latest=Number(head.ledger_index??head.ledger?.ledger_index);
+  if(head.validated!==true||!Number.isSafeInteger(latest)||latest<verifiedLedgerIndex||
+   latest-verifiedLedgerIndex>60)throw Error('earmark_quote_stale');
+  const lp=JSON.parse(plan.replacementJson).lp;
+  if(value(lp).gt('31.82196255719245'))throw Error('earmark_exceeds_reviewed_lp_cap');
+  assertPaused();
+  const db=new DatabaseSync(dbPath,{allowExtension:false});
+  try{
+   db.exec('PRAGMA busy_timeout=3000');
+   if(db.prepare("SELECT 1 FROM estate_liquidity_jobs WHERE pair='img-rlusd'").get()||
+    db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state NOT IN ('applied','failed')").get())
+    throw Error('new_position_or_pending_treasury_intent');
+   return applyManualPoolMigration(db,plan,{verifiedLedgerIndex,verifiedAtMs:Date.now(),
+    verifiedWithdrawLp,verifiedSeedLp});
+  }finally{db.close();}
+ }});
+}
+if(require.main===module)(process.argv[2]==='--book'?bookOnFly():
+ process.argv.length===2?audit():Promise.reject(Error('unknown_estates_audit_arguments'))).catch(e=>{
  console.error('ESTATES_REPLACEMENT_EVIDENCE_ERROR='+e.message);process.exitCode=1;
 });
 module.exports={audit,remote};

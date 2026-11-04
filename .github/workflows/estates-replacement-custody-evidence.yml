@@ -43,6 +43,19 @@ jobs:
             echo 'Booking must reject a runner without an explicit deployed commit' >&2
             exit 1
           fi
+  evidence-production:
+    # Production credentials: trusted main-branch runs only, behind the protected environment.
+    needs: evidence
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify read-only production purchase and cost-basis inventory first
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}

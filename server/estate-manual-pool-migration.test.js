@@ -25,6 +25,8 @@ const {value}=require('./estate-liquidity-ledger');
  f.db.prepare("DELETE FROM estate_liquidity_jobs WHERE id='existing-position'").run();
  assert.equal(commitEarmark(f.db,booking,head,f.clock).alreadyApplied,false);
  assert.equal(applyManualPoolMigration(f.db,plan,evidence).alreadyApplied,true);
+ {const replay=applyManualPoolMigration(f.db,plan,evidence);assert.equal(replay.bookedLp,JSON.parse(plan.replacementJson).lp,'replay reports the LP actually booked');
+  assert.throws(()=>applyManualPoolMigration(f.db,plan,{...evidence,verifiedCostsDrops:'999'}),/migration_identity_conflict/);}
  assert.equal(estateCashReserve(f.db),cash);assert.deepEqual(f.db.prepare("SELECT * FROM estate_liquidity_jobs WHERE pair='img-xrp'").get(),other);
  const archived=f.db.prepare('SELECT * FROM estate_manual_pool_migrations').get();assert.equal(archived.source_json,job.data_json);assert.equal(archived.basis_drops,basis.toFixed());
  const rows=f.db.prepare('SELECT * FROM estate_liquidity_jobs').all();assert.equal(rows.length,3);assert.equal(rows.find(r=>r.id===job.id).state,'manually_migrated');assert.equal(rows.find(r=>r.id===plan.replacementId).initial_budget_drops,'0');

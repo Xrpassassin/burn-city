@@ -1,0 +1,129 @@
+// Password-gated standalone Fly-preview image tested locally with the REAL
+// Homefront HTML and Three.js. No external requests, wallets, or saved accounts.
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
+import { once } from 'node:events';
+import { mkdir } from 'node:fs/promises';
+
+const pw='fake-local-preview-password-please-never-use-in-production';
+const pl=requirePlaywright();
+function requirePlaywright() {
+  return createRequire((process.env.PLAYWRIGHT_DIR||process.cwd())+'/package.json')('playwright');
+}
+const { chromium }=pl;
+const out=process.env.HOMEFRONT_UI_ARTIFACTS||'homefront-ui-browser-output';
+await mkdir(out,{recursive:true});
+const tmp=createServer();
+tmp.listen(0,'127.0.0.1');
+await once(tmp,'listening');
+const port=tmp.address().port;
+await new Promise(ok=>tmp.close(ok));
+const proc=spawn(process.execPath,['scripts/homefront-preview-gateway.cjs'],{
+  env:{...process.env,PORT:String(port),HOMEFRONT_PREVIEW_MODE:'1',
+    HOMEFRONT_PREVIEW_PASSWORD:pw,HOMEFRONT_CONTINUOUS_MOVEMENT:'0',
+    DRY_RUN:'true',BURN_JOB_IN_SERVER:'false',DATA_DIR:'/tmp/burn-preview-browser-'+port},
+  stdio:['ignore','pipe','pipe']
+});
+let serverLog='';
+proc.stdout.on('data',c=>{serverLog+=c;});
+proc.stderr.on('data',c=>{serverLog+=c;});
+const base='http://localhost:'+port;
+let browser;
+try{
+  let ready=false;
+  for(let i=0;i<100;i++){
+    try{if((await fetch(base+'/healthz')).ok){ready=true;break;}}catch{}
+    if(proc.exitCode!==null)throw Error('Preview gateway exited '+serverLog);
+    await new Promise(ok=>setTimeout(ok,150));
+  }
+  assert(ready,'Fly preview gateway is ready locally');
+  browser=await chromium.launch({headless:true,args:[
+    '--no-sandbox','--no-zygote','--use-gl=angle',
+    '--use-angle=swiftshader','--enable-unsafe-swiftshader',
+    '--ignore-gpu-blocklist'
+  ]});
+  const pageErrors=[];
+  async function verify(viewport,name,phone=false){
+    const context=await browser.newContext({
+      viewport,isMobile:phone,hasTouch:phone,serviceWorkers:'block'
+    });
+    const page=await context.newPage();
+    page.on('pageerror',err=>pageErrors.push(name+': '+err.message));
+    page.on('console',msg=>{if(msg.type()==='error')
+      pageErrors.push(name+' console: '+msg.text().slice(0,200));});
+    await page.route('**/*',route=>{
+      const url=new URL(route.request().url());
+      if(url.hostname==='localhost'||url.hostname==='127.0.0.1')
+        return route.continue();
+      pageErrors.push(name+': blocked nonlocal '+url.hostname);
+      return route.abort('blockedbyclient');
+    });
+    await page.goto(base+'/arena/homefront.html',{waitUntil:'domcontentloaded'});
+    assert(await page.locator('form[action="/preview-login"]').isVisible(),
+      'access denied until preview-only password is entered');
+    await page.locator('input[name=password]').fill(pw);
+    await page.locator('form[action="/preview-login"] button').click();
+    try{
+      await page.waitForFunction(()=>document.getElementById('game')?.hidden===false &&
+        document.body.classList.contains('hf-playing') &&
+        !!document.querySelector('#world canvas') &&
+        (document.getElementById('status')?.textContent||'').includes('Refuge loaded'),
+        null,{timeout:60000});
+    }catch(error){
+      console.error('GATEWAY_BROWSER_DIAGNOSTICS',JSON.stringify({
+        name,status:await page.locator('#status').textContent().catch(()=>null),
+        location:page.url(),serverLog:serverLog.slice(-1300),
+        errors:pageErrors
+      }));
+      await page.screenshot({path:out+'/'+name+'-preview-error.png'}).catch(()=>{});
+      throw error;
+    }
+    assert(await page.locator('#homefrontPreviewMarker').isVisible(),
+      'synthetic account / no payments marker is unmistakably shown');
+    assert(await page.locator('#hfHud').isVisible(),'real Homefront HUD displayed');
+    const yard=page.locator('#world canvas').first();
+    const box=await yard.boundingBox();
+    assert(box&&box.width>=viewport.width-5&&box.height>=viewport.height-6,
+      'actual yard 3D renderer fills preview viewport: '+JSON.stringify(box));
+    await page.screenshot({path:out+'/'+name+'-password-gated-real-refuge.png'});
+    await page.locator('#hfHud .hf-menu').click();
+    await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Build'}).click();
+    assert(await page.locator('#hfSheet #buildPanel').isVisible(),
+      'authenticated demo's real Build menu opens on 3D refuge');
+    assert(await yard.isVisible(),'scene remains behind Build');
+    await page.screenshot({path:out+'/'+name+'-password-gated-build.png'});
+    await page.locator('#hfSheet .hf-tabs button').filter({hasText:'Manage'}).click();
+    assert(await page.locator('#hfSheet .hf-mtabs button').count()>=4,
+      'original settlement management categories available');
+    assert(await yard.isVisible(),'world remains mounted behind Manage');
+    await page.keyboard.press('Escape');
+    assert(await page.locator('#hfSheet').isHidden(),'Escape restores gameplay');
+    const safe=await page.evaluate(async()=>{
+      const resp=await fetch('/api/estates/status');
+      return {status:resp.status,marker:document.querySelector('#homefrontPreviewMarker')?.textContent};
+    });
+    assert.equal(safe.status,404,'Fly preview gateway forbids real Estates APIs');
+    if(phone){
+      const joy=page.locator('#world .hf-joy');
+      assert(await joy.isVisible(),'touch joystick exists on actual preview yard');
+      const rectA=await joy.boundingBox(),rectB=await page.locator('#hfHud').boundingBox();
+      const hit=rectA.x<rectB.x+rectB.width&&rectA.x+rectA.width>rectB.x&&
+        rectA.y<rectB.y+rectB.height&&rectA.y+rectA.height>rectB.y;
+      assert(!hit,'real mobile movement joystick unobstructed by HUD');
+    }
+    await context.close();
+    return {world:{width:box.width,height:box.height},phone};
+  }
+  const desktop=await verify({width:1280,height:800},'desktop',false);
+  const mobile=await verify({width:390,height:844},'mobile',true);
+  assert.deepEqual(pageErrors,[],'no runtime errors or nonlocal browser traffic');
+  console.log('HOMEFRONT PASSWORD-GATED PREVIEW BROWSER PASSED',
+    JSON.stringify({desktop,mobile,syntheticGame:true,productionPaymentsBlocked:true,
+      loginRequired:true,previewMarker:true,pageErrors}));
+}finally{
+  if(browser)await browser.close();
+  proc.kill('SIGTERM');
+  await Promise.race([once(proc,'exit'),new Promise(ok=>setTimeout(ok,2000))]);
+}

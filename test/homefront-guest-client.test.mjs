@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { startGuest, endGuest, isGuest, hasHomefrontPlayer, fetchHomefront } from '../client/arena/homefront-guest.mjs';
 import { travelOptions } from '../client/arena/homefront-travel.mjs';
 const urls=[], token='a'.repeat(64);
-const priorFetch=globalThis.fetch, priorStorage=globalThis.localStorage;
+const priorFetch=globalThis.fetch, priorStorage=globalThis.localStorage, priorWindow=globalThis.window;
 globalThis.localStorage={ getItem:()=>null };
 globalThis.fetch=async(url,options={})=>{
   urls.push({url,options});
@@ -34,6 +34,21 @@ try {
   endGuest();
   assert.equal(isGuest(),false,'connecting a wallet discards unsaved guest state');
   assert.equal(hasHomefrontPlayer(),false);
+  // Only a password-gated isolated PREVIEW may send its session cookie;
+  // production guests never send stale wallet cookies or authorization.
+  globalThis.window={__BURN_CITY_ISOLATED_PREVIEW__:true};
+  await startGuest('https://burn-city-homefront-preview-551.fly.dev');
+  assert.equal(urls.at(-1).options.credentials,'same-origin',
+    'isolated preview sends its own password session cookie');
+  await fetchHomefront('https://burn-city-homefront-preview-551.fly.dev','/api/homefront');
+  assert.equal(urls.at(-1).options.credentials,'same-origin',
+    'isolated guest API carries the preview access cookie');
+  endGuest();
+  globalThis.window={__BURN_CITY_ISOLATED_PREVIEW__:false};
+  await startGuest('https://burn-city-game.fly.dev');
+  assert.equal(urls.at(-1).options.credentials,'omit',
+    'a normal production guest can never inherit the preview cookie exception');
+  endGuest();
   const guestSource=readFileSync('client/arena/homefront-guest.mjs','utf8');
   assert(!/localStorage\.setItem|sessionStorage/.test(guestSource),
     'a reload does not preserve disposable guest credentials');
@@ -61,4 +76,6 @@ try {
   endGuest();
   globalThis.fetch=priorFetch;
   globalThis.localStorage=priorStorage;
+  if(priorWindow===undefined)delete globalThis.window;
+  else globalThis.window=priorWindow;
 }

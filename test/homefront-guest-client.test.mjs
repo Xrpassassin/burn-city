@@ -18,11 +18,15 @@ try {
   assert.deepEqual(urls[0].options, {method:'POST',cache:'no-store',credentials:'omit'});
   assert(urls[0].url.endsWith('/api/homefront/guest/start'));
   await fetchHomefront('https://burn-city-game.fly.dev','/api/homefront/world/enter',{
-    method:'POST',headers:{'content-type':'application/json'},body:'{}'
+    method:'POST',headers:{'content-type':'application/json',authorization:'Bearer OLD_WALLET_TOKEN'},body:'{}'
   });
   assert(urls[1].url.endsWith('/api/homefront/guest/world/enter'));
-  assert.equal(urls[1].options.headers['x-homefront-guest'],token);
-  assert.equal(urls[1].options.headers['content-type'],'application/json');
+  assert.equal(urls[1].options.headers.get('x-homefront-guest'),token);
+  assert.equal(urls[1].options.headers.get('content-type'),'application/json');
+  assert.equal(urls[1].options.headers.has('authorization'),false,
+    'guest requests must strip expired wallet authorization');
+  assert.equal(urls[1].options.credentials,'omit',
+    'guest requests must not send any same-origin wallet cookies');
   await fetchHomefront('https://burn-city-game.fly.dev','/api/jetpack',{method:'GET'});
   assert(urls[2].url.endsWith('/api/jetpack'),
     'guest tokens do not get redirected to unrelated payment APIs');

@@ -53,8 +53,11 @@ Status: draft stacked PR #552 on immersive UI PR #551. **Not merged or deployed.
   to the prior allowlist and never enables credentialed wildcard requests.
 - `test/homefront-guest-cors.test.mjs` evaluates the real production JSON/
   OPTIONS CORS response in an isolated VM. The Chromium guest smoke also runs
-  a third real WebGL session with local page and API on **different origins**,
-  checking that an actual browser sends and passes a guest preflight.
+  a third real WebGL session with the game page and API on **different
+  origins**, verifies the browser's successful CORS response and separately
+  validates the real server's explicit HTTP OPTIONS response. Browser
+  interception can suppress an implicit preflight count, so the test does
+  not depend on that counter.
 
 ## Acceptance
 - `node test/homefront-guest-sim.mjs`: gameplay, guest isolation, no

@@ -7,12 +7,22 @@ import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {mkdir} from 'node:fs/promises';
+import vm from 'node:vm';
 
 const require=createRequire(import.meta.url);
 const {createGuestHandler}=require('../server/homefront-guest.js');
 const {chromium}=require('playwright');
 const guest=createGuestHandler();
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../client');
+const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const root=path.join(project,'client');
+// Run the ACTUAL CORS response function from production, but never boot the
+// payment-enabled production HTTP server in this browser fixture.
+const serverSource=await readFile(path.join(project,'server/server.js'),'utf8');
+const corsStart=serverSource.indexOf('const ORIGINS = ');
+const corsEnd=serverSource.indexOf('const gates =',corsStart);
+assert(corsStart>=0&&corsEnd>corsStart);
+const json=vm.runInNewContext(serverSource.slice(corsStart,corsEnd)+'\njson;',Object.create(null));
+let preflightCount=0;
 const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript',
   '.css':'text/css','.json':'application/json','.glb':'model/gltf-binary',
   '.gltf':'model/gltf+json','.jpg':'image/jpeg','.jpeg':'image/jpeg',
@@ -22,10 +32,11 @@ const output=process.env.HOMEFRONT_UI_ARTIFACTS||'homefront-guest-browser-output
 await mkdir(output,{recursive:true});
 const server=createServer(async(req,res)=>{
   const url=new URL(req.url||'/','http://localhost');
-  const json=(_res,code,data)=>{
-    res.writeHead(code,{'content-type':'application/json','cache-control':'no-store'});
-    res.end(JSON.stringify(data));
-  };
+  if(req.method==='OPTIONS'){
+    if(url.pathname.startsWith('/api/homefront/guest'))preflightCount++;
+    json(res,204,{});
+    return;
+  }
   const body=async()=>{
     let raw='';
     for await(const chunk of req){
@@ -59,6 +70,7 @@ const server=createServer(async(req,res)=>{
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const origin='http://localhost:'+server.address().port;
+const crossOriginApi='http://127.0.0.1:'+server.address().port;
 let browser;
 const errors=[];
 try{
@@ -66,7 +78,7 @@ try{
     '--no-sandbox','--no-zygote','--use-gl=angle',
     '--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'
   ]});
-  async function inspect(name,viewport,phone=false){
+  async function inspect(name,viewport,phone=false,crossOrigin=false){
     const context=await browser.newContext({viewport,isMobile:phone,hasTouch:phone,serviceWorkers:'block'});
     const page=await context.newPage();
     page.on('pageerror',e=>errors.push(name+': '+e.message));
@@ -76,7 +88,9 @@ try{
       errors.push(name+' attempted external network '+uri.hostname);
       return route.abort();
     });
-    await page.goto(origin+'/arena/homefront.html',{waitUntil:'domcontentloaded'});
+    await page.goto(origin+'/arena/homefront.html'+
+      (crossOrigin?'?api='+encodeURIComponent(crossOriginApi):''),
+      {waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>!document.getElementById('game')?.hidden &&
       !!document.querySelector('#world canvas') &&
       document.body.classList.contains('hf-playing') &&
@@ -90,7 +104,8 @@ try{
       'guest gameplay never creates a wallet login token');
     const state=async()=>page.evaluate(async()=>{
       const mod=await import('/arena/homefront-guest.mjs');
-      const response=await mod.fetchHomefront(location.origin,'/api/homefront');
+      const api=new URLSearchParams(location.search).get('api')||location.origin;
+      const response=await mod.fetchHomefront(api,'/api/homefront');
       const result=await response.json();
       return {owner:result.base?.owner,day:result.base?.day,guest:mod.isGuest()};
     });
@@ -100,7 +115,8 @@ try{
     // never become an account save after a browser refresh.
     const worked=await page.evaluate(async()=>{
       const mod=await import('/arena/homefront-guest.mjs');
-      const response=await mod.fetchHomefront(location.origin,'/api/homefront/action',{
+      const api=new URLSearchParams(location.search).get('api')||location.origin;
+      const response=await mod.fetchHomefront(api,'/api/homefront/action',{
         method:'POST',headers:{'content-type':'application/json'},
         body:JSON.stringify({action:{type:'workday'}})
       });
@@ -188,7 +204,8 @@ try{
         body:JSON.stringify({error:'guest_session_expired'})}));
     const responseCode=await page.evaluate(async()=>{
       const mod=await import('/arena/homefront-guest.mjs');
-      const result=await mod.fetchHomefront(location.origin,
+      const api=new URLSearchParams(location.search).get('api')||location.origin;
+      const result=await mod.fetchHomefront(api,
         '/api/homefront?expiry_probe=1');
       return result.status;
     });
@@ -214,9 +231,12 @@ try{
   }
   const desktop=await inspect('desktop',{width:1280,height:800});
   const mobile=await inspect('mobile',{width:390,height:844},true);
+  const crossOrigin=await inspect('cross-origin',{width:1024,height:768},false,true);
+  assert(preflightCount>0,
+    'real Chrome guest API made cross-origin OPTIONS preflight using x-homefront-guest');
   assert.deepEqual(errors,[], 'guest mode does not throw JS errors or fetch external APIs');
   console.log('HOMEFRONT NO-WALLET REAL THREE.JS GUEST BROWSER PASSED',
-    JSON.stringify({desktop,mobile,noWallet:true,productionApisBlocked:true}));
+    JSON.stringify({desktop,mobile,crossOrigin,preflightCount,noWallet:true,productionApisBlocked:true}));
 }finally{
   await browser?.close();
   await new Promise(resolve=>server.close(resolve));

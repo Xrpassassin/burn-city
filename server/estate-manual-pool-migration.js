@@ -20,13 +20,18 @@ function planManualPoolMigration({job,pool,availableLp,exitQuote,withdrawHash,se
  const archived={...d,...empty,residualImg:'0',residualImgCost:'0',residualPlx:'0',residualPlxCost:'0',residualRlusd:'0',residualRlusdCost:'0'};
  return {sourceId:job.id,replacementId:hash(job.purchase_tx+':img-rlusd'),purchaseTx:job.purchase_tx,sourceJson:job.data_json,archivedJson:JSON.stringify(archived),replacementJson:JSON.stringify(replacement),basisDrops:basis.toFixed(),verifiedCostsDrops,withdrawHash,seedHash};
 }
-function applyManualPoolMigration(db,plan,{verifiedLedgerIndex,verifiedAtMs,verifiedWithdrawLp,verifiedSeedLp,verifiedCostsDrops='0'}={}){
+function applyManualPoolMigration(db,plan,{verifiedLedgerIndex,verifiedAtMs,verifiedWithdrawLp,verifiedSeedLp,verifiedCostsDrops='0',requireUncommittedPool=false}={}){
  if(!Number.isSafeInteger(verifiedLedgerIndex)||verifiedLedgerIndex<1||!Number.isSafeInteger(verifiedAtMs)||verifiedAtMs<1||!value(verifiedWithdrawLp).gt(0)||!value(verifiedSeedLp).gt(0))throw Error('verified_migration_evidence_required');
- db.exec(`CREATE TABLE IF NOT EXISTS estate_manual_pool_migrations(source_id TEXT PRIMARY KEY,replacement_id TEXT NOT NULL UNIQUE,withdraw_hash TEXT NOT NULL,seed_hash TEXT NOT NULL,source_json TEXT NOT NULL,basis_drops TEXT NOT NULL,migration_cost_drops TEXT NOT NULL,verified_ledger INTEGER NOT NULL,verified_at_ms INTEGER NOT NULL);`);
- const prior=db.prepare('SELECT * FROM estate_manual_pool_migrations WHERE source_id=?').get(plan.sourceId);
- if(prior){if(prior.withdraw_hash!==plan.withdrawHash||prior.seed_hash!==plan.seedHash||prior.replacement_id!==plan.replacementId||prior.basis_drops!==plan.basisDrops)throw Error('migration_identity_conflict');return {alreadyApplied:true};}
- const {estateCashReserve}=require('./estate-liquidity-runtime'),before=estateCashReserve(db);
+ const {estateCashReserve}=require('./estate-liquidity-runtime');
  db.exec('BEGIN IMMEDIATE');try{
+  db.exec(`CREATE TABLE IF NOT EXISTS estate_manual_pool_migrations(source_id TEXT PRIMARY KEY,replacement_id TEXT NOT NULL UNIQUE,withdraw_hash TEXT NOT NULL,seed_hash TEXT NOT NULL,source_json TEXT NOT NULL,basis_drops TEXT NOT NULL,migration_cost_drops TEXT NOT NULL,verified_ledger INTEGER NOT NULL,verified_at_ms INTEGER NOT NULL);`);
+  const prior=db.prepare('SELECT * FROM estate_manual_pool_migrations WHERE source_id=?').get(plan.sourceId);
+ if(prior){if(prior.withdraw_hash!==plan.withdrawHash||prior.seed_hash!==plan.seedHash||prior.replacement_id!==plan.replacementId||prior.basis_drops!==plan.basisDrops)throw Error('migration_identity_conflict');db.exec('COMMIT');return {alreadyApplied:true};}
+
+  if(requireUncommittedPool&&(db.prepare("SELECT 1 FROM estate_liquidity_jobs WHERE pair='img-rlusd'").get()||
+   db.prepare("SELECT 1 FROM estate_treasury_transactions WHERE state NOT IN ('applied','failed')").get()))
+   throw Error('new_position_or_pending_treasury_intent');
+  const before=estateCashReserve(db);
   const source=db.prepare('SELECT * FROM estate_liquidity_jobs WHERE id=?').get(plan.sourceId),old=source&&JSON.parse(source.data_json),fresh=JSON.parse(plan.replacementJson);
   if(!/^\d+$/.test(verifiedCostsDrops)||plan.verifiedCostsDrops!==verifiedCostsDrops)throw Error('migration_cost_evidence_conflict');
   const expectedBasis=old&&['basis','imgCost','plxCost','fees','residualImgCost','residualPlxCost'].reduce((n,k)=>n.plus(old[k]||'0'),value(verifiedCostsDrops));

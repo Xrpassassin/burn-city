@@ -40,8 +40,8 @@ try {
   const html=readFileSync('client/arena/homefront.html','utf8');
   assert(html.includes('await startGuest(API)'), 'unauthenticated visitors start playable guest world');
   assert(html.includes('Connect wallet to save'), 'save boundary clearly presented');
-  assert(html.includes('endGuest();expeditionWorld=null'),
-    'wallet sign-in replaces guest world instead of importing unsaved progress');
+  assert(html.includes('endGuest();location.reload()'),
+    'wallet sign-in resets the entire guest renderer before loading wallet progress');
   const scene=readFileSync('client/arena/homefront-graveyard-3d.js','utf8');
   assert(scene.includes('homefrontFetch('), 'actual Graveyard scene uses guest-aware transport');
   assert(!scene.includes("fetch(API + '/api/homefront"),

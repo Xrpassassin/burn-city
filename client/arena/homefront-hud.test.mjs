@@ -80,3 +80,31 @@ assert.match(hud,/bonuses\.repairBonusHp/,
   'Engineering repair benefit shows actual server-validated integrity');
 assert.match(hud,/bonuses\.aimStabilityBonusPct/,
   'Nerve is labelled as PvE-only steadiness');
+
+
+// Immersive fullscreen HUD must not edit the original classic HTML structure
+// or disable the authoritative game controls. Management stays in the one menu.
+assert.match(hud, /body\.rpg-hud\.hf-playing #game\{position:fixed;inset:0;overflow:hidden\}/,
+  'loaded Homefront uses the viewport as its game surface');
+assert.match(hud, /body\.rpg-hud\.hf-playing\.rpg-mode-home #refugeWorldPanel \.world/,
+  'refuge canvas expands instead of remaining a bordered page widget');
+assert.match(hud, /body\.rpg-hud\.hf-playing\.rpg-mode-expedition #graveyard3d/,
+  'shared expedition scene also expands to the viewport');
+assert.match(hud, /if \(tab === 'build' && getMode\(\) !== 'workshop'\) setMode\('workshop'\)/,
+  'Build enters existing construction mode without replacing the world');
+assert.match(hud, /borrowPanel\(document\.getElementById\('buildPanel'\)\)/,
+  'Build reuses the authenticated original workshop actions');
+assert.match(hud, /borrowPanel\(panels\[mSel\]\)/,
+  'Manage reuses and restores the original settlement panels');
+assert.match(hud, /const returnBorrowed = \(\) => \{/,
+  'every borrowed panel has an explicit restoration path');
+assert.match(hud, /if \(getMode\(\) === 'workshop'\) setMode\('home'\)/,
+  'closing Build restores normal third-person exploration');
+assert.match(hud, /if \(\(t === 'build' \|\| t === 'manage'\) && getWorld\(\)\?\.self\)/,
+  'management does not bypass the expedition-to-refuge access boundary');
+assert.match(hud, /server state are unchanged/,
+  'UI reuses existing event handlers, not duplicate gameplay requests');
+assert.match(hud, /window\.dispatchEvent\(new Event\('blur'\)\)/,
+  'opening the drawer releases held walking and touch controls');
+assert.match(hud, /document\.body\.classList\.toggle\('hf-playing', !!game && !game\.hidden\)/,
+  'the fullscreen state activates only after the signed-in game has loaded');

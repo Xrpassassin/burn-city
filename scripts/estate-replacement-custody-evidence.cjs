@@ -173,7 +173,7 @@ async function audit(){
    // Three bounded transactions: proportional withdrawal and two conversions.
    // Use the production quote haircut and default 100-drop fee cap.
    const exitQuote=lp=>{
-    const share=value(lp).div(target.supply);
+    const share=lp.div(target.supply);
     return sell(img,target.a.times(share)).plus(sell(stable,target.b.times(share))).minus(300);
    };
    const plan=planManualPoolMigration({job:accounting.sourceJob,pool:target,
@@ -181,7 +181,7 @@ async function audit(){
    const lp=JSON.parse(plan.replacementJson).lp;
    replacementEarmark={status:'quote_only',pair:'IMG/RLUSD',poolAccount:POOL,
     ledgerIndex:height,recordedBasisDrops:plan.basisDrops,proposedLpUnits:lp,
-    netIndicativeExitDrops:exitQuote(lp).toFixed(),treasuryLpHeld:snapshot.treasuryLpHeld,
+    netIndicativeExitDrops:exitQuote(value(lp)).toFixed(),treasuryLpHeld:snapshot.treasuryLpHeld,
     migrationFeesIncluded:false,inventoryCommitmentCheck:'estate_jobs_and_treasury_intents',
     recordedOnProduction:false};
   }catch(e){

@@ -1,3 +1,5 @@
+import { readZombieStick } from './zombie-stick.mjs';
+
 // Homefront camera/view rules shared by the refuge yard and the Graveyard.
 // Derrik (Oct 23, 2026): players switch between third-person and first-person at any time
 // (button on touch, V on desktop) and the choice is remembered. The ONLY top-down view is
@@ -33,9 +35,9 @@ export function cameraPose({ mode = 'third', building = false, x = 0, y = 0, z =
 }
 
 // Movement intent (joystick or WASD: x = strafe right, y = forward) rotated into world space by the camera heading.
-export function worldMove(vec, heading) {
+export function worldMove(vec, heading, deadzone = 0.15) {
   const len = Math.hypot(vec.x || 0, vec.y || 0);
-  if (len < 0.15) return null;
+  if (len === 0 || len < deadzone) return null;
   const s = Math.min(1, len) / len, fx = Math.sin(heading), fz = Math.cos(heading);
   const f = (vec.y || 0) * s, r = (vec.x || 0) * s;
   // right vector is forward rotated -90° about Y: (-fz, fx) for heading measured from +Z toward +X.
@@ -110,7 +112,12 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     knob.style.cssText = 'position:absolute;left:36px;top:36px;width:32px;height:32px;border-radius:50%;background:#ffb060aa;pointer-events:none';
     pad.append(knob); host.append(pad);
     let jid = null;
-    const setJoy = e => { const r = pad.getBoundingClientRect(); let dx = (e.clientX - r.left - r.width / 2) / (r.width / 2), dy = (e.clientY - r.top - r.height / 2) / (r.height / 2); const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; } state.joy = { x: dx, y: -dy }; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
+    const setJoy = e => {
+      const rect = pad.getBoundingClientRect();
+      const stick = readZombieStick(e.clientX - rect.left - rect.width / 2, e.clientY - rect.top - rect.height / 2, rect.width / 2);
+      state.joy = { x: stick.x, y: -stick.y };
+      knob.style.transform = `translate(${stick.knobX * 34}px,${stick.knobY * 34}px)`;
+    };
     pad.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); if (jid !== null || (e.pointerType === 'mouse' && e.button !== 0)) return; activeView = state; jid = e.pointerId; try { pad.setPointerCapture(jid); } catch {} setJoy(e); });
     pad.addEventListener('pointermove', e => { if (e.pointerId === jid) setJoy(e); });
     const endJoy = e => { if (e.pointerId !== jid) return; jid = null; state.joy = { x: 0, y: 0 }; knob.style.transform = ''; };

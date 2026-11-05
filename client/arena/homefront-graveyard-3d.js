@@ -1981,7 +1981,7 @@ function boot(host) {
       }
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = walkingCameraHeading(localActor?.rotation.y || 0, cameraYawOffset, view.yaw, continuousInput.enabled);
-      const stick = worldMove(view.move(), heading);
+      const stick = worldMove(view.move(), heading, 0);
       if (continuousInput.enabled && !moving && !(worldData.party && !worldData.party.leader)) {
         continuousInput.step(stick, directSprintRequested(sprintTravel, view.running(), aiming), now, dt);
       }

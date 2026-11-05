@@ -720,10 +720,8 @@ function boot(host) {
       }
     },
     onUnavailable: reason => {
-      // Switching movement protocols must not immediately trigger a legacy 10-unit step.
-      lastStickMoveAt = performance.now();
-      if (status && reason !== 'server_disabled') status.textContent =
-        'Direct walking unavailable (' + reason + '). Restored normal controls.';
+      if (status && reason !== 'returned_to_refuge') status.textContent =
+        'Direct walking unavailable (' + reason + ').';
     }
   });
   let interiorState = null;
@@ -1680,10 +1678,15 @@ function boot(host) {
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopAutoFire(); });
     autoFireButton.addEventListener('contextmenu', event => event.preventDefault());
   }
+  let fireAtReticle;
   const groundHit = ground;
   // Taps arrive from the shared view controller on release, so a drag-to-look never travels.
   const onWorldTap = e => {
     if (e.button === 2 || cameraOrbiting || !worldData?.self || moving) return;
+    if (wantsContinuous) {
+      if (e.pointerType === 'mouse' && e.button === 0) fireAtReticle?.();
+      return;
+    }
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = (e.clientX - rect.left) / rect.width * 2 - 1;
     pointer.y = -(e.clientY - rect.top) / rect.height * 2 + 1;
@@ -1788,7 +1791,7 @@ function boot(host) {
     moveTo(Math.max(-100, Math.min(100, hits[0].point.x)), Math.max(-100, Math.min(100, hits[0].point.z)));
   };
   async function moveTo(x, z) {
-    if (continuousInput.enabled) return false;
+    if (wantsContinuous) return false;
     if (reloadState) cancelReload('Reload interrupted by movement.');
     aiming = false;
     if (aimWeaponButton) { aimWeaponButton.setAttribute('aria-pressed', 'false'); aimWeaponButton.textContent = 'Aim weapon'; }
@@ -1864,14 +1867,22 @@ function boot(host) {
     fire.textContent = 'Fire';
     fire.style.cssText = 'position:absolute;right:16px;bottom:110px;min-width:64px;min-height:64px;z-index:6;touch-action:manipulation';
     fire.hidden = true;
+    const unavailable = document.createElement('div');
+    unavailable.setAttribute('role', 'status');
+    unavailable.style.cssText = 'position:absolute;top:12px;left:50%;transform:translateX(-50%);max-width:70%;padding:8px 12px;background:#1b120de8;color:white;text-align:center;z-index:5;pointer-events:none';
+    unavailable.textContent = 'Direct walking is unavailable on this connection.';
+    unavailable.hidden = true;
+    host.append(unavailable);
     updateWeaponOverlay = () => {
+      const hideUnavailable = !worldData?.self || continuousInput.enabled;
+      if (unavailable.hidden !== hideUnavailable) unavailable.hidden = hideUnavailable;
       const hidden = !worldData?.self || !continuousInput.enabled;
       if (reticle.hidden !== hidden) reticle.hidden = hidden;
       if (coarsePointer && fire.hidden !== hidden) fire.hidden = hidden;
     };
     host.append(fire);
 
-    function fireAtReticle() {
+    fireAtReticle = () => {
       const active = worldData?.selfEncounter || worldData?.encounter;
       const self = worldData?.self;
       if (!view.visible || !self || !token() || moving || !continuousInput.enabled ||
@@ -1895,16 +1906,10 @@ function boot(host) {
       selectedCombatTargetId = active.id;
       selectedCombatAimPoint = { x: hit.point.x, y: hit.point.y, z: hit.point.z };
       void combatAction('attack', active.id);
-    }
+    };
 
     fire.addEventListener('pointerdown', event => event.stopPropagation());
     fire.addEventListener('click', fireAtReticle);
-    renderer.domElement.addEventListener('pointerup', event => {
-      if (event.pointerType !== 'mouse' || event.button !== 0 || view.dragging) return;
-      if (!continuousInput.enabled) return;
-      event.stopPropagation();
-      fireAtReticle();
-    });
     window.addEventListener('keydown', event => {
       if (event.code !== 'KeyR' || event.repeat || event.defaultPrevented ||
           event.altKey || event.ctrlKey || event.metaKey ||
@@ -2166,8 +2171,8 @@ function boot(host) {
       lookTarget.x += (pose.lx - lookTarget.x) * followBlend; lookTarget.y += (pose.ly - lookTarget.y) * followBlend; lookTarget.z += (pose.lz - lookTarget.z) * followBlend;
       camera.lookAt(lookTarget);
       if (localActor) localActor.visible = view.mode !== 'first';
-      // Preserve the original endpoint outside the explicit direct-walk preview.
-      if (!continuousInput.enabled && stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) {
+      // Destination stepping belongs to the legacy page mode only.
+      if (!wantsContinuous && stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) {
         lastStickMoveAt = now;
         moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10)));
       }

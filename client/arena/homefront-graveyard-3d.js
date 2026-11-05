@@ -595,6 +595,13 @@ function boot(host) {
     interiorCameraOccluders.set(interior.landmarkId, occluders);
   }
   const markerObjects = new Map();
+  const refugeReturnMarker = new THREE.Group();
+  const refugeReturnSign = labelSprite('REFUGE WAY BACK', '#f0cb78');
+  refugeReturnSign.scale.set(5, 0.94, 1);
+  refugeReturnSign.position.y = 2.5;
+  refugeReturnMarker.add(refugeReturnSign);
+  refugeReturnMarker.visible = false;
+  scene.add(refugeReturnMarker);
   function labelSprite(text, color = '#f6d8b5') {
     const c = document.createElement('canvas'); c.width = 512; c.height = 96;
     const cx = c.getContext('2d'); cx.font = 'bold 34px system-ui'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
@@ -1392,14 +1399,23 @@ function boot(host) {
     } finally { presencePending = false; }
   }
 
+  let gateRevision = 0;
+  host.addEventListener('homefront:gate-changed', ({ detail }) => {
+    gateRevision++;
+    if (!detail.self) continuousInput.disable('returned_to_refuge');
+    updateWorld(detail);
+    if (detail.self) void fetchWorld();
+  });
+
   async function fetchWorld() {
     if (!token() || moving) { if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.'; return; }
+    const revision = gateRevision;
     try {
       const r = await fetch(API + '/api/homefront/world', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
       await fetchExplorationProgress();
-      updateWorld(data);
+      if (revision === gateRevision) updateWorld(data);
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
   async function combatAction(action, targetId = selectedCombatTargetId) {
@@ -1915,6 +1931,19 @@ function boot(host) {
     enter: enterInteriorButton, loot: lootActionButton, damage: damageEnvironmentButton
   };
   let shownContext = null;
+  function refugeReturnDistance() {
+    const anchor = worldData?.refugeReturn;
+    const self = worldData?.self;
+    if (!self || !anchor || interiorState || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.z)) return Infinity;
+    return Math.hypot(self.x - anchor.x, self.z - anchor.z);
+  }
+  function updateRefugeReturnMarker() {
+    const distance = refugeReturnDistance();
+    refugeReturnMarker.visible = distance <= 36;
+    if (!refugeReturnMarker.visible) return;
+    const { x, z } = worldData.refugeReturn;
+    refugeReturnMarker.position.set(x, terrainElevation(x, z), z);
+  }
   function availableContext() {
     if (!worldData?.self || !view.visible || moving || !token()) return null;
     // Native exploration controls use only authored, server-authenticated rooms.
@@ -1925,6 +1954,19 @@ function boot(host) {
       const roomAnchor = LANDMARKS.find(point => point.id === interiorState.landmarkId);
       const roomTarget = nearestInteriorInteraction(roomBlueprint, interiorState, roomAnchor, worldData.self);
       return roomTarget ? homefrontContextAction({ roomTarget }) : null;
+    }
+    if (refugeReturnDistance() <= 3) return { id: 'return-refuge', label: 'Return to refuge' };
+    if (continuousInput.enabled) {
+      const self = worldData.self;
+      let nearest = null, nearestDistance = 9;
+      for (const node of worldData.world?.lootNodes || []) {
+        const distance = Math.hypot(self.x - node.x, self.z - node.z);
+        if (node.available && distance <= nearestDistance) {
+          nearest = node;
+          nearestDistance = distance;
+        }
+      }
+      if (nearest) return { id: 'nearby-loot', targetId: nearest.id, label: 'Search ' + nearest.label };
     }
     const loot = (worldData.world?.lootNodes || []).find(node => node.id === selectedLootId);
     const environment = (worldData.world?.environmentStructures || [])
@@ -1957,6 +1999,15 @@ function boot(host) {
   function activateContextAction() {
     const current = availableContext();
     if (!current || current.id !== shownContext?.id || current.targetId !== shownContext?.targetId) return;
+    if (current.id === 'return-refuge') {
+      host.dispatchEvent(new CustomEvent('homefront:return-to-refuge'));
+      return;
+    }
+    if (current.id === 'nearby-loot') {
+      selectedLootId = current.targetId;
+      void collectSelectedLoot();
+      return;
+    }
     if (current.id === 'interior-action') {
       void performInteriorAction(current.targetId);
       return;
@@ -2121,6 +2172,7 @@ function boot(host) {
         moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10)));
       }
     }
+    updateRefugeReturnMarker();
     renderContextAction();
     updateWeaponOverlay?.();
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };

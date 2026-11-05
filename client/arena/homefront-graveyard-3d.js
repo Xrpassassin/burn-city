@@ -1422,7 +1422,7 @@ function boot(host) {
       if (revision === gateRevision) updateWorld(data);
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
-  async function combatAction(action, targetId = selectedCombatTargetId) {
+  async function combatAction(action, targetId = selectedCombatTargetId, miss = false) {
     if (reloadState) cancelReload('Reload interrupted by combat.');
     if (!token()) { if (combatStatus) combatStatus.textContent = 'Sign in before fighting in the Graveyard.'; return; }
     if (moving) return;
@@ -1437,15 +1437,22 @@ function boot(host) {
       const r = await fetch(API + '/api/homefront/world/' + action, {
         method: 'POST',
         headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
-        body: JSON.stringify(targetId ? { targetId, ...(aimPoint ? { aimPoint } : {}) } : {})
+        body: JSON.stringify(miss ? { miss: true } : targetId ? { targetId, ...(aimPoint ? { aimPoint } : {}) } : {})
       });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
       if (data.combat) {
         authoritativeAimStability = Number.isFinite(data.combat.aimStability) ? data.combat.aimStability : null;
         const hitDetail = { damage: data.combat.damage, hitZone: data.combat.hitZone, killed: data.combat.killed, weaponId: WEAPON_IDS.includes(data.combat.weaponId) ? data.combat.weaponId : equippedWeaponId, hitTargetId: data.combat.hitTargetId, hits: data.combat.hits, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 };
-        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: hitDetail }));
-        window.dispatchEvent(new CustomEvent('homefront:combat-hit-feedback', { detail: hitDetail }));
+        if (data.combat.missed) {
+          weaponSwingStartedAt = performance.now();
+          weaponSwingUntil = weaponSwingStartedAt + 320;
+          weaponSwingWeaponId = hitDetail.weaponId;
+          if (data.combat.ammoCost > 0) sfx.weaponFire?.(hitDetail.weaponId);
+        } else {
+          window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: hitDetail }));
+          window.dispatchEvent(new CustomEvent('homefront:combat-hit-feedback', { detail: hitDetail }));
+        }
       }
       updateWorld(data);
       if (data.combat && combatStatus) {
@@ -1453,7 +1460,7 @@ function boot(host) {
         const precision = result.aimed ? ' · ADS confirmed (' + Math.round((result.aimStability || 0) * 100) + '% stability)' : (result.aimStability < 0.72 ? ' · weapon settling (' + Math.round((result.aimStability || 0) * 100) + '%)' : '');
         const stamina = Number.isFinite(data.selfSurvival?.stamina) ? Math.round(data.selfSurvival.stamina) : null;
         const fatigue = stamina !== null ? ' · stamina ' + stamina + '/100' + (stamina < 15 ? ' · exhausted: damage reduced' : stamina < 35 ? ' · tiring: damage reduced' : '') : '';
-        combatStatus.textContent = result.killed
+        combatStatus.textContent = result.missed ? (result.ammoCost ? 'Shot missed. Ammo spent: ' + result.ammoCost + '.' : 'Swing missed.') : result.killed
           ? 'Defeated the infected! +' + result.reward.scrap + ' scrap, +' + result.reward.embers + ' Embers (' + result.reward.quality + ').' + fatigue
           : (result.hitZone === 'head' ? 'HEADSHOT! ' : result.hitZone === 'limb' ? 'Limb hit. ' : '') + 'Hit for ' + result.damage + '. Retaliation: ' + result.enemyDamage + '. Ammo spent: ' + result.ammoCost + '.' + fatigue + precision;
       } else if (combatStatus && data.encounter) {
@@ -1892,25 +1899,27 @@ function boot(host) {
       const active = worldData?.selfEncounter || worldData?.encounter;
       const self = worldData?.self;
       if (!view.visible || !self || !token() || moving || !continuousInput.enabled ||
-          document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])') ||
-          !active || active.defeated || active.hp <= 0 ||
-          Math.hypot(self.x - active.x, self.z - active.z) > (active.range || 0)) return;
+          document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])')) return;
 
       pointer.set(0, 0);
       raycaster.setFromCamera(pointer, camera);
       const hit = raycaster.intersectObject(combatGroup, true)
         .find(entry => entry.object.userData?.combatHitbox);
-      if (!hit) return;
-      let target = hit.object;
+      let target = hit?.object;
       while (target && !target.userData?.encounterId) target = target.parent;
-      if (target?.userData.encounterId !== active.id) return;
 
       const walls = interiorCameraOccluders.get(interiorState?.landmarkId) || [];
       const obstruction = raycaster.intersectObjects(walls.filter(wall => wall.visible), false)[0];
-      if (obstruction && obstruction.distance < hit.distance) return;
+      if (!hit || !active || active.defeated || active.hp <= 0 ||
+          target?.userData.encounterId !== active.id ||
+          Math.hypot(self.x - active.x, self.z - active.z) > (active.range || 0) ||
+          (obstruction && obstruction.distance < hit.distance)) {
+        void combatAction('attack', null, true);
+        return;
+      }
 
       selectedCombatTargetId = active.id;
-      selectedCombatAimPoint = { x: hit.point.x, y: hit.point.y, z: hit.point.z };
+      selectedCombatAimPoint = { x: hit.point.x, y: hit.point.y - target.position.y, z: hit.point.z };
       void combatAction('attack', active.id);
     };
 

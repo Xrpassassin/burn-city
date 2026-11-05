@@ -422,10 +422,11 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const combatAt = Date.now();
           const training = cindersEffects();
           const survivalBeforeAttack = Survival.tick(player.survival, combatAt, training);
-          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), aimTrainingBonus: training.aimStabilityBonus, targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null });
+          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), aimTrainingBonus: training.aimStabilityBonus, targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null, miss: payload?.miss === true && payload.targetId == null && payload.aimPoint == null });
           // Gunfire and melee combat leave a server-recorded noise signature. The next
           // authoritative world tick uses it to attract the local infected director.
           player.noiseLevel = Math.max(player.noiseLevel || 0, Firearms.isFirearmTier(weaponId) ? Firearms.FIREARM_TIERS[weaponId].noise : weaponId === 'pump_shotgun' ? 95 : weaponId === 'marksman_rifle' ? 82 : 62);
+          player.lastWeaponFireAt = combatAt;
           player.lastNoiseAt = combatAt;
           player.noiseX = player.x;
           player.noiseZ = player.z;
@@ -443,7 +444,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           store.save('homefront.json', bases);
           store.save('homefront-world.json', db);
           const rpgAward = outcome.killed ? Rpg.award(store, user.acct, 'kill_infected', { base, now: combatAt }) : null;
-          json(res, 200, { mode: 'homefront-world', rpgAward, ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, hitZone: outcome.hitZone, aimed: outcome.aimed, aimStability: outcome.aimStability, adsProgress: outcome.adsProgress, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward, weaponId, hitTargetId: outcome.hitTargetId, rounds: outcome.rounds, hits: outcome.hits }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
+          json(res, 200, { mode: 'homefront-world', rpgAward, ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { missed: outcome.missed === true, killed: outcome.killed, damage: outcome.damage, hitZone: outcome.hitZone, aimed: outcome.aimed, aimStability: outcome.aimStability, adsProgress: outcome.adsProgress, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward, weaponId, hitTargetId: outcome.hitTargetId, rounds: outcome.rounds, hits: outcome.hits }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
           return true;
         }
         case '/api/homefront/world/enter': {

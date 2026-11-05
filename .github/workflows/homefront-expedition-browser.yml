@@ -9,6 +9,7 @@ on:
       - 'client/js/player-motion.mjs'
       - 'server/homefront*'
       - 'scripts/homefront-expedition-browser.mjs'
+      - 'scripts/homefront-ui-real-graveyard-browser.mjs'
       - '.github/workflows/homefront-expedition-browser.yml'
   workflow_dispatch:
 permissions:
@@ -28,6 +29,11 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/homefront-browser" playwright@1.62.1 --no-audit --no-fund
           node "$RUNNER_TEMP/homefront-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Check desktop and phone opening and city exit
+        run: node scripts/homefront-ui-real-graveyard-browser.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
+          HOMEFRONT_UI_OPENING_ONLY: '1'
       - name: Play desktop expedition
         run: node scripts/homefront-expedition-browser.mjs
         env:

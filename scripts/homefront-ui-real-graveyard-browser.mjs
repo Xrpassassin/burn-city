@@ -162,6 +162,8 @@ try {
     assert.equal(firstPaint.intro,'none');
     release();
     await opening.waitForFunction(()=>document.getElementById('status')?.textContent.includes('Sign in to create'),null,{timeout:60000});
+    assert.equal(await opening.locator('#graveyard3d canvas').count(),0,'hidden Wastes renderer waits for an expedition');
+    assert(await opening.locator('header h1').evaluate(el=>parseFloat(getComputedStyle(el).fontSize)>=34),'game title remains full size after HUD initialization');
     await opening.locator('#signin').click();
     await opening.waitForFunction(()=>document.getElementById('status')?.textContent.includes('Sign-in unavailable'));
     assert(await opening.locator('#closeSignIn').isVisible(),'failed sign-in remains dismissible');

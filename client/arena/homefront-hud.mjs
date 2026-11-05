@@ -25,7 +25,7 @@ export function minimapPoints(world, size = 64, span = 120) {
   return out;
 }
 const CSS = `
-body.rpg-hud header{padding:calc(6px + env(safe-area-inset-top)) 12px 6px}body.rpg-hud header .eyebrow{display:none}body.rpg-hud header h1{font-size:18px}body.rpg-hud header .btn{min-height:36px;padding:6px 10px;font-size:13px}
+html:not(.hf-shell) body.rpg-hud header{padding:calc(6px + env(safe-area-inset-top)) 12px 6px}html:not(.hf-shell) body.rpg-hud header .eyebrow{display:none}html:not(.hf-shell) body.rpg-hud header h1{font-size:18px}html:not(.hf-shell) body.rpg-hud header .btn{min-height:36px;padding:6px 10px;font-size:13px}
 body.rpg-hud .wrap{padding:8px 8px 40px}body.rpg-hud #introText{display:none}body.rpg-hud #status{margin:6px 0;padding:6px 10px;font-size:12px}
 body.rpg-hud .rpg-nav{display:none}body.rpg-hud .rpg-nav.hf-talk{display:flex;padding:6px;margin:6px 0}body.rpg-hud .rpg-nav.hf-talk>*:not(#rpgTalk){display:none!important}
 .hf-hud{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 8px;margin:0 0 8px;border:1px solid #a55c3566;border-radius:12px;background:#100b09ee;position:sticky;top:calc(52px + env(safe-area-inset-top));z-index:4}

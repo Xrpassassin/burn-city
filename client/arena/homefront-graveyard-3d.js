@@ -41,7 +41,20 @@ const WEAPON_DELAY = { pipe_blade: 950, shock_maul: 950, pump_shotgun: 1150, mar
 const TRACER_COLOR = { pump_shotgun: 0xffb45c, marksman_rifle: 0xd9f5ff, smg: 0xff9b4a, assault_rifle: 0xffe7a1, machine_gun: 0xffd27a, heavy_machine_gun: 0xffe6a0, fifty_cal: 0xfff2c4 };
 
 const host = document.getElementById('graveyard3d');
-if (host) boot(host);
+// The hidden expedition must not build an entire world behind account entry
+// or the refuge. Observe its actual layout, then initialize it once on entry.
+if (host) {
+  let started = false;
+  const startWhenVisible = () => {
+    if (started || !host.getClientRects().length || host.clientWidth === 0 || host.clientHeight === 0) return;
+    started = true;
+    visibilityObserver.disconnect();
+    boot(host);
+  };
+  const visibilityObserver = new ResizeObserver(startWhenVisible);
+  visibilityObserver.observe(host);
+  startWhenVisible();
+}
 
 function boot(host) {
   const status = document.getElementById('graveyard3dStatus');

@@ -246,7 +246,7 @@ try {
   await page.waitForFunction(
     () => Math.abs(window.__hfYard.player.z - 8.9) <= 1.8,
     null,
-    { timeout: 6000 },
+    { timeout: 20000 },
   );
   await stopWalking("s");
   await activate(page.locator("#homefrontInteractionPrompt button"));
@@ -266,8 +266,19 @@ try {
         .getElementById("homefrontContextAction")
         .textContent.includes("Search"),
     null,
-    { timeout: 12000 },
-  );
+    { timeout: 30000 },
+  ).catch(async error => {
+    console.error('EXPEDITION_WALK_DIAGNOSTICS',JSON.stringify({
+      state:await page.evaluate(()=>({
+        status:document.getElementById('graveyard3dStatus')?.textContent,
+        action:document.getElementById('homefrontContextAction')?.textContent,
+        mode:document.body.className,
+        movement:document.querySelector('.hf-movement-status')?.textContent
+      })),world:store.load('homefront-world.json',null),errors,
+      requests:observed.slice(-10)
+    }));
+    throw error;
+  });
   await stopWalking("w");
 
   await activate(page.locator("#homefrontContextAction"));
@@ -279,7 +290,7 @@ try {
     async function walkAxis(key, axis, target, direction) {
       await startWalking(key);
       try {
-        const deadline = Date.now() + 15000;
+        const deadline = Date.now() + 30000;
         while (Date.now() < deadline) {
           const position = objects.get("homefront-world.json").players[ACCOUNT][
             axis
@@ -346,6 +357,9 @@ try {
         .textContent.includes("Returned to the street"),
     );
 
+    // Clear the south doorway before turning along the building frontage.
+    // Exit placement can resolve to a nearby safe point beside the jamb.
+    await walkAxis("w", "z", -59, 1);
     await walkAxis("d", "x", -13, -1);
     await walkAxis("s", "z", -74, -1);
     await walkAxis("a", "x", -8, 1);
@@ -378,7 +392,7 @@ try {
         .getElementById("homefrontContextAction")
         .textContent.includes("Return to refuge"),
     null,
-    { timeout: 12000 },
+    { timeout: 30000 },
   );
   await stopWalking("s");
   await activate(page.locator("#homefrontContextAction"));

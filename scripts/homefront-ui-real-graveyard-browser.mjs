@@ -132,6 +132,59 @@ try {
     '--ignore-gpu-blocklist','--no-sandbox','--no-zygote'
   ]});
   const errors=[];
+  // Inspect the real opening screen before module downloads can replace it.
+  for (const viewport of [{width:1280,height:800},{width:390,height:844}]) {
+    const openingContext=await browser.newContext({viewport});
+    const opening=await openingContext.newPage();
+    opening.on('pageerror',error=>errors.push('opening: '+error.message));
+    let release;
+    const modulesReady=new Promise(resolve=>{release=resolve;});
+    await opening.route('**/*',async route=>{
+      const url=new URL(route.request().url());
+      if(url.hostname!=='localhost'&&url.hostname!=='127.0.0.1')return route.abort();
+      if(url.pathname==='/api/signin')return route.fulfill({json:{error:'fixture_signin_unavailable'}});
+      if(/\.(mjs|js)$/.test(url.pathname))await modulesReady;
+      return route.continue();
+    });
+    await opening.goto('http://localhost:'+port+'/arena/homefront-real-refuge.html',
+      {waitUntil:'commit'});
+    await opening.locator('#signin').waitFor({state:'visible'});
+    const firstPaint=await opening.evaluate(()=>({
+      shell:document.documentElement.classList.contains('hf-shell'),
+      header:document.querySelector('header').getBoundingClientRect().toJSON(),
+      overflow:document.documentElement.scrollHeight>innerHeight,
+      intro:getComputedStyle(document.getElementById('introText')).display
+    }));
+    assert(firstPaint.shell,'viewport shell exists before module initialization');
+    assert.equal(firstPaint.header.width,viewport.width);
+    assert.equal(firstPaint.header.height,viewport.height);
+    assert.equal(firstPaint.overflow,false,'opening never becomes a scrolling page');
+    assert.equal(firstPaint.intro,'none');
+    release();
+    await opening.waitForFunction(()=>document.getElementById('status')?.textContent.includes('Sign in to create'),null,{timeout:60000});
+    await opening.locator('#signin').click();
+    await opening.waitForFunction(()=>document.getElementById('status')?.textContent.includes('Sign-in unavailable'));
+    assert(await opening.locator('#closeSignIn').isVisible(),'failed sign-in remains dismissible');
+    await opening.locator('#closeSignIn').click();
+    assert(await opening.locator('#qrbox').isHidden());
+    await opening.screenshot({path:out+'/opening-'+viewport.width+'.png'});
+    // Show the real HUD independently of WebGL to isolate menu layout/navigation.
+    await opening.evaluate(()=>{document.getElementById('game').hidden=false;});
+    await opening.locator('#hfHud .hf-menu').click();
+    const leave=opening.locator('#hfSheet button').filter({hasText:'Return to BURN City'});
+    const leaveBox=await leave.boundingBox();
+    assert(leaveBox&&leaveBox.x>=0&&leaveBox.x+leaveBox.width<=viewport.width,
+      'city exit fits the game menu on desktop and phone');
+    await opening.route('http://localhost:'+port+'/',route=>route.fulfill({contentType:'text/html',body:'<title>BURN City return fixture</title>'}));
+    await leave.click();
+    await opening.waitForURL('http://localhost:'+port+'/');
+    assert.equal(await opening.title(),'BURN City return fixture');
+    await openingContext.close();
+  }
+  if(process.env.HOMEFRONT_UI_OPENING_ONLY==='1') {
+    assert.deepEqual(errors,[]);
+    console.log('HOMEFRONT FIRST-PAINT DESKTOP AND PHONE OPENING PASSED');
+  } else {
   async function inspect(context,name,minWidth,minHeight){
     const page=await context.newPage();
     page.on('pageerror',error=>errors.push(name+': '+error.message));
@@ -321,6 +374,11 @@ try {
   assert(await yard.isVisible());
   assert(!observed.some(r=>r.account===REFUGE_ACCOUNT&&r.path==='/api/homefront/action'),
     'refuge mode inspection and choosing a placement never sent a mutation');
+  await refuge.route('http://localhost:'+port+'/',route=>route.fulfill({contentType:'text/html',body:'<title>BURN City return fixture</title>'}));
+  await refuge.locator('#hfHud .hf-menu').click();
+  await refuge.locator('#hfSheet button').filter({hasText:'Return to BURN City'}).click();
+  await refuge.waitForURL('http://localhost:'+port+'/');
+  assert.equal(await refuge.title(),'BURN City return fixture','game menu exits to city root');
   assert.deepEqual(errors,[],'no uncaught script exceptions during real refuge and Graveyard tests');
   console.log('HOMEFRONT IMMERSIVE REAL WEBGL SMOKE PASSED');
   console.log(JSON.stringify({desktop:first.box,mobile:phone.box,refuge:yardBox,
@@ -329,6 +387,7 @@ try {
     realCameraToggle:true,inventoryOverlay:true,expeditionManageGuard:true,
     mobileRealJoystickNonoverlap:true,pageErrors:errors}));
   await refugeContext.close();
+  }
 }finally{
   if(browser)await browser.close();
   await new Promise(ok=>server.close(ok));

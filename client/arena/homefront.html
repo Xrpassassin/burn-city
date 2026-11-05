@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#100b09"><title>BURN City — Homefront</title><script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+<script>if(new URLSearchParams(location.search).get('classic')!=='1')document.documentElement.classList.add('hf-shell');</script>
 <style>
 :root{color-scheme:dark;--ember:#ff8b3d;--line:#9a5531;--panel:#1b1512;--muted:#bca99b;--good:#9fce8a;--bad:#ff7d72}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 0,#4a2418 0,#140e0b 52%,#080707 100%);color:#f5e6d8;font:15px system-ui,-apple-system,sans-serif;min-height:100vh}
@@ -12,12 +13,32 @@ header{padding:calc(14px + env(safe-area-inset-top)) 16px 14px;border-bottom:1px
 @media(min-width:700px){.half{grid-column:span 6}.third{grid-column:span 4}.wide{grid-column:span 8}.side{grid-column:span 4}}
 /* the interaction prompt clears the touch joystick + action buttons (it sat on top of them on phones) */
 body:has(.hf-joy) #homefrontInteractionPrompt{bottom:146px!important}
+/* Own the viewport from the first paint, including loading and account entry. */
+html.hf-shell, .hf-shell body{height:100%;overflow:hidden;overscroll-behavior:none}
+.hf-shell body{min-height:100svh;background:radial-gradient(ellipse at 50% 70%,#302018,#100e0c 65%,#060707)}
+.hf-shell .wrap{max-width:none;margin:0;padding:0}
+.hf-shell #introText,.hf-shell .foot{display:none}
+.hf-shell header{position:fixed;inset:0;display:grid;place-items:center;padding:24px;border:0;background:transparent;backdrop-filter:none}
+.hf-shell header .top{display:grid;justify-items:center;gap:30px;text-align:center}
+.hf-shell header h1{font-size:clamp(34px,8vw,76px);letter-spacing:.12em}
+.hf-shell header .eyebrow{letter-spacing:.24em}
+.hf-shell header .row{justify-content:center}
+.hf-shell #status{position:fixed;left:16px;right:16px;bottom:calc(18px + env(safe-area-inset-bottom));margin:0 auto;max-width:560px;text-align:center;background:transparent;border:0;pointer-events:none}
+.hf-shell #qrbox{position:fixed;inset:0;z-index:60;margin:0;border:0;border-radius:0;display:grid;align-content:center;justify-items:center;gap:12px;padding:24px;background:#0a0908f5;overflow:auto;text-align:center}
+.hf-shell #qrbox[hidden]{display:none}
+.hf-shell #qrbox .qr{justify-content:center}
+.hf-shell #qrbox p{max-width:400px}
+.hf-shell body:has(#game:not([hidden])) header{display:none}
+.hf-shell #game{position:fixed;inset:0;overflow:hidden}
+.hf-shell #game>.grid{position:absolute;inset:0;display:block;overflow:hidden;pointer-events:none}
+.hf-shell #game>.grid>#refugeWorldPanel,.hf-shell #game>.grid>#graveyardPanel{position:absolute;inset:0;margin:0;padding:0;max-width:none;overflow:hidden;border:0;border-radius:0;background:transparent;box-shadow:none;pointer-events:auto}
+.hf-shell #refugeWorldPanel .world,.hf-shell #graveyard3d{width:100%;height:100svh;min-height:0;max-width:none;border:0;border-radius:0}
 </style></head><body>
-<header><div class="top"><div><div class="eyebrow">UNRANKED ZOMBIES SURVIVAL</div><h1>🏚 HOMEFRONT</h1></div><div class="row" style="flex:0 1 auto"><button class="btn" id="back">← Arena</button><button class="btn primary" id="signin">Sign in to save</button></div></div></header>
+<header><div class="top"><div><div class="eyebrow">UNRANKED ZOMBIES SURVIVAL</div><h1>🏚 HOMEFRONT</h1></div><div class="row" style="flex:0 1 auto"><button class="btn" id="back">Return to BURN City</button><button class="btn primary" id="signin">Sign in to save</button></div></div></header>
 <main class="wrap">
 <p class="intro" id="introText">This refuge is yours. Scavenge beyond the walls, bring survivors home, assign them to work, build up the settlement, and hold the line when the dead arrive. Your progress is tied to your signed-in BURN City account.</p>
 <div class="status" id="status" role="status">Connecting to the refuge ledger…</div>
-<div id="qrbox" class="panel" hidden><h2>Sign in with Xaman</h2><p class="muted">Scan the QR code to connect your account and enable server-side saving.</p><div class="qr" id="qr"></div></div>
+<div id="qrbox" class="panel" hidden><h2>Sign in with Xaman</h2><p class="muted">Scan the QR code to connect your account and enable server-side saving.</p><div class="qr" id="qr"></div><button class="btn" id="closeSignIn" type="button">Close</button></div>
 <div id="homefrontModal" class="homefront-modal" hidden role="dialog" aria-modal="true" aria-labelledby="homefrontModalTitle"><section class="homefront-modal-card"><h2 id="homefrontModalTitle">Homefront</h2><div id="homefrontModalBody"></div><div class="homefront-modal-actions" id="homefrontModalActions"></div></section></div>
 <div id="game" hidden>
 <nav class="rpg-nav" aria-label="Homefront gameplay modes"><button class="btn primary" id="rpgReturnHome" type="button">🏚 Homefront</button><button class="btn" id="rpgWorkshop" type="button">🛠 Workshop</button><button class="btn" id="rpgTalk" type="button" hidden disabled>💬 Talk to survivor</button><button class="btn" id="rpgGate" type="button" disabled>🚪 Walk to Gate</button><button class="btn" id="rpgManagement" type="button">📋 Management</button><button class="btn" id="rpgTravel" type="button">🧭 Travel</button><span class="rpg-mode-status" id="rpgModeStatus" aria-live="polite">Explore your refuge in third person. Walk to the gate to begin an expedition, or open Workshop to build in 3D.</span></nav>
@@ -431,8 +452,9 @@ async function load(){if(defendMode){try{if(!localStorage.bcToken){message('Sign
 $('makePrivate').onclick=()=>act({type:'visibility',value:'private'});$('makePublic').onclick=()=>act({type:'visibility',value:'public'});
 $('copyVisitLink').onclick=async()=>{if(!base||base.visibility!=='public')return;const link=new URL(location.href);link.searchParams.set('visit',base.owner);try{await navigator.clipboard.writeText(link.href);message('Visitor link copied.','ok')}catch{message('Copy unavailable. Visitor link: '+link.href,'ok')}};
 $('visitBase').onclick=()=>{const owner=$('visitOwner').value.trim();if(!owner){message('Enter the public refuge owner account first.','danger');return}location.href='?visit='+encodeURIComponent(owner)};
+$('closeSignIn').onclick=()=>{$('qrbox').hidden=true;};
 $('signin').onclick=async()=>{if(localStorage.bcToken){await load();return}try{message('Waiting for Xaman approval…');$('qrbox').hidden=false;const v=await signIn(API,{onQr:x=>{const img=document.createElement('img');img.alt='Xaman sign-in QR';img.src=x.qr;$('qr').replaceChildren(img);if(x.deeplink&&/iPhone|Android/i.test(navigator.userAgent))location.href=x.deeplink}});$('qrbox').hidden=true;message('Account connected. Loading your refuge…','ok');await load()}catch(e){message('Sign-in unavailable: '+e.message,'danger')}};
-$('back').onclick=()=>location.href=new URLSearchParams(location.search).get('from')==='airport'?'../':'./';
+$('back').onclick=()=>{location.href='../';};
 $('tillPlot').onclick=()=>{if(visiting)return;pendingBuilding='farm_plot';pendingRotation=0;if(placementGhost)placementGhost.visible=true;message('Tap open soil in your refuge yard to till a plot.');render();};$('cropChoice').onchange=()=>render();$('cancelPlacement').onclick=()=>{pendingBuilding=null;constructionPaused=false;if(placementGhost)placementGhost.visible=false;$('rotatePlacement').disabled=true;$('placementHelp').textContent='Choose a structure, then tap an open spot in the yard to place it. Dragging the scene is not required.';message('Construction paused ended. Normal base activity resumed.');$('placementHelp').textContent='Standard yard view restored. Choose a structure, then tap an open spot to place it.';render()};$('rotatePlacement').onclick=()=>{if(!pendingBuilding)return;pendingRotation=(pendingRotation+Math.PI/4)%(Math.PI*2);$('rotatePlacement').textContent='Rotate: '+Math.round(pendingRotation*180/Math.PI)+'°';if(placementGhost)placementGhost.rotation.y=pendingRotation};$('expedition').onclick=()=>worldAction('/api/homefront/world/scavenge',{difficulty:$('expeditionDifficulty').value});$('openCache').onclick=()=>worldAction('/api/homefront/world/cache',{difficulty:$('expeditionDifficulty').value});$('rescueSurvivor').onclick=()=>worldAction('/api/homefront/world/rescue',{difficulty:$('expeditionDifficulty').value});$('bossHunt').onclick=()=>{const self=expeditionWorld?.self;if(!self)return;const bosses=(expeditionWorld.world.pointsOfInterest||[]).filter(p=>p.type==='boss').sort((a,b)=>Math.hypot(a.x-self.x,a.z-self.z)-Math.hypot(b.x-self.x,b.z-self.z));if(bosses[0])worldAction('/api/homefront/world/boss-hunt',{pointId:bosses[0].id,difficulty:$('expeditionDifficulty').value})};$('workday').onclick=()=>act({type:'workday'});$('rally').onclick=()=>act({type:'rally'});$('defend').onclick=()=>act({type:base?.lastSiege?.status==='incoming'?'defend':'start_siege'});$('repairBase').onclick=()=>act({type:'repair',target:'base'});
 /* RPG travel (client/arena/homefront-travel.mjs + server/homefront-travel.js): Homefront instance <-> shared world, parties, friends' Homefronts. */
 const travelModal={close:closeHomefrontModal,ask:label=>{const v=prompt(label);return v?v.trim():''},show(title,lines,opts,choose){$('homefrontModalTitle').textContent=title;const body=$('homefrontModalBody');body.replaceChildren(...lines.map(t=>Object.assign(document.createElement('p'),{textContent:t})));const actions=$('homefrontModalActions');actions.replaceChildren(...opts.map(o=>modalButton(o.label,()=>choose(o),!!o.primary)),modalButton('Close',closeHomefrontModal));$('homefrontModal').hidden=false}};

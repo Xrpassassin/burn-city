@@ -115,9 +115,9 @@ body.rpg-hud.hf-playing .hf-card .hf-body{overscroll-behavior:contain;min-height
 body.rpg-hud.hf-playing .hf-card .panel{grid-column:auto;box-shadow:none}
 body.rpg-hud.hf-playing .hf-card #buildPanel{display:block!important}
 body.rpg-hud.hf-playing .hf-card section.panel.hf-tab-off{display:block!important}
-body.rpg-hud.hf-playing .hf-panel-header{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#130d0ad9;border-bottom:1px solid #a55c3555}
+body.rpg-hud.hf-playing .hf-panel-header{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:#130d0ad9;border-bottom:1px solid #a55c3555}
 body.rpg-hud.hf-playing .hf-panel-header strong{font-size:12px;letter-spacing:.11em;color:#ffcf9f}
-body.rpg-hud.hf-playing .hf-panel-header .hf-actions{display:flex;gap:6px}
+body.rpg-hud.hf-playing .hf-panel-header .hf-actions{display:flex;flex-wrap:wrap;gap:6px;max-width:100%}
 body.rpg-hud.hf-playing .hf-panel-header button{min-height:35px;padding:6px 9px;background:#2c1a12;border:1px solid #9b5a38;border-radius:8px;color:#ffe4c3;font:700 12px system-ui}
 body.rpg-hud.hf-playing .hf-card .hf-mtabs{display:flex;flex-wrap:wrap;max-height:112px;overflow:auto}
 body.rpg-hud.hf-playing .hf-card .hf-mtabs button{white-space:normal;text-align:left}
@@ -170,7 +170,7 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const body = el('div', { className: 'hf-body' });
   const close = el('button', { className: 'hf-close', type: 'button', textContent: 'Close' });
   const topClose = el('button', { type: 'button', textContent: '✕ Close', title: 'Close in-game menu' });
-  const backToArena = el('button', { type: 'button', textContent: '← Arena', title: 'Return to BURN City arena' });
+  const backToArena = el('button', { type: 'button', textContent: 'Return to BURN City', title: 'Leave Homefront and return to BURN City' });
   const account = el('button', { type: 'button', textContent: 'Account', title: 'BURN City account and sign-in' });
   const topActions = el('div', { className: 'hf-actions' }, backToArena, account, topClose);
   const titlebar = el('div', { className: 'hf-panel-header' },
@@ -469,7 +469,7 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const ctx = mm.getContext('2d');
   function update() {
     // The game HUD only owns the full viewport once the existing signed-in
-    // game is loaded. The login and classic page keep the original layout.
+    // game is loaded. The opening screen is owned by the critical page styles.
     document.body.classList.toggle('hf-playing', !!game && !game.hidden);
     exitBuild.hidden = getMode() !== 'workshop' || !sheet.hidden;
     if (signedIn()) void refreshRpgSheet();

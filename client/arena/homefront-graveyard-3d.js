@@ -1955,6 +1955,7 @@ function boot(host) {
     fieldReload.addEventListener('click', reloadWeapon);
     host.append(fieldReload);
     const unavailable = document.createElement('div');
+    unavailable.className = 'hf-movement-status';
     unavailable.setAttribute('role', 'status');
     unavailable.style.cssText = 'position:absolute;top:12px;left:50%;transform:translateX(-50%);max-width:70%;padding:8px 12px;background:#1b120de8;color:white;text-align:center;z-index:5;pointer-events:none';
     unavailable.textContent = 'Direct walking is unavailable on this connection.';

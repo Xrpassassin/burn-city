@@ -1887,12 +1887,12 @@ function boot(host) {
     const fire = document.createElement('button');
     fire.type = 'button';
     fire.textContent = 'Fire';
-    fire.style.cssText = 'position:absolute;right:16px;bottom:110px;min-width:64px;min-height:64px;z-index:6;touch-action:manipulation';
+    fire.style.cssText = 'position:absolute;right:12px;bottom:144px;width:68px;height:64px;z-index:6;touch-action:manipulation';
     fire.hidden = true;
     const fieldReload = document.createElement('button');
     fieldReload.type = 'button';
     fieldReload.textContent = 'Reload';
-    fieldReload.style.cssText = 'position:absolute;right:16px;bottom:182px;min-width:64px;min-height:44px;z-index:6;touch-action:manipulation';
+    fieldReload.style.cssText = 'position:absolute;right:12px;bottom:216px;width:68px;height:44px;z-index:6;touch-action:manipulation';
     fieldReload.hidden = true;
     fieldReload.addEventListener('pointerdown', event => event.stopPropagation());
     fieldReload.addEventListener('click', reloadWeapon);
@@ -1976,6 +1976,10 @@ function boot(host) {
   contextPrompt.hidden = true;
   contextPrompt.setAttribute('aria-label', 'Nearby world interaction');
   contextPrompt.style.cssText = 'position:absolute;left:50%;bottom:125px;transform:translateX(-50%);z-index:7;max-width:min(70%,350px);min-height:44px;padding:8px 16px;border:1px solid #efb77e;border-radius:12px;background:#1b120de8;color:#ffe4c5;box-shadow:0 4px 20px #000b;font:700 13px system-ui;cursor:pointer;touch-action:manipulation';
+  if (wantsContinuous && coarsePointer) {
+    contextPrompt.style.maxWidth = 'calc(100% - 176px)';
+    renderer.domElement.style.touchAction = 'none';
+  }
   host.append(contextPrompt);
   const contextControls = {
     enter: enterInteriorButton, loot: lootActionButton, damage: damageEnvironmentButton

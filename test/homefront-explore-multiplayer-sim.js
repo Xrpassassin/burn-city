@@ -2,6 +2,7 @@
 // Four accounts in the shared Graveyard exercising the exploration journal and authored interiors
 // through the real route handler: auth, isolation, replay/duplicate protection, prototype keys.
 const assert = require('node:assert/strict');
+const Collision = require('../server/homefront-collision');
 const { handle } = require('../server/homefront');
 
 const files = new Map();
@@ -45,7 +46,17 @@ const place = (acct, x, z) => { const w = files.get('homefront-world.json'); w.p
   assert.equal((await call('POST', W + '/interior/action', B, { actionId: 'dispatch_drawer' })).status, 200, 'B searches its own copy of the drawer');
   assert.equal((await call('POST', W + '/interior/action', C, { actionId: 'dispatch_drawer' })).data.error, 'not_inside_interior', 'an account outside cannot act on another interior');
   assert.equal((await call('POST', W + '/interior/door', A, { doorId: 'constructor' })).status, 400, 'unknown door rejected');
-  assert.equal((await call('POST', W + '/interior/leave', A, {})).status, 200);
+  place(A, -8, -65);
+  const prematureExit = await call('POST', W + '/interior/leave', A, { doorway: true });
+  assert.equal(prematureExit.data.error, 'too_far_from_interior_exit');
+  assert.equal((await call('GET', W, A)).data.interior.landmarkId, 'north_bus_depot');
+  place(A, -8, -62.6);
+  const exit = await call('POST', W + '/interior/leave', A, { doorway: true });
+  assert.equal(exit.status, 200, JSON.stringify(exit.data));
+  assert.equal(exit.data.interior, null);
+  assert.ok(Collision.isSafePosition(exit.data.self.x, exit.data.self.z), 'exit lands on walkable outdoor ground');
+  assert.equal(exit.data.inputProtocol.nextSequence, 0);
+
   assert.equal((await call('GET', W, A)).data.interior, null);
   assert.equal((await call('GET', W, B)).data.interior.landmarkId, 'north_bus_depot', 'leaving is per account');
   const saved = files.get('homefront-world.json').interiors;

@@ -563,11 +563,23 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         case '/api/homefront/world/interior/leave': {
           const player = db.players[user.acct];
           const now = Date.now();
-          const left = Interiors.leave(db.interiors, { account: user.acct, player, now });
+          const left = Interiors.leave(db.interiors, { account: user.acct, player, doorway: payload.doorway === true, now });
+          if (left.exterior) {
+            const removedObstacleIds = Object.values(db.environmentStructures || {}).filter(item => item.health <= 0).map(item => item.id);
+            const { x, z } = left.exterior;
+            const safe = Collision.findSafePosition(x, z, { bounds: World.WORLD_SIZE, removedObstacleIds });
+            if (!safe) throw new Error('no_safe_interior_exit');
+            Object.assign(player, safe);
+          }
           db.interiors = left.state;
           if (player) player.lastSeen = now;
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: null });
+          const inputProtocol = left.exterior ? {
+            enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1',
+            nextSequence: (player.lastInputSequence ?? -1) + 1,
+            readyInMs: World.inputReadyInMs(player)
+          } : undefined;
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: null, inputProtocol });
           return true;
         }
         case '/api/homefront/world/pvp': {

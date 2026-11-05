@@ -207,11 +207,22 @@ function breachDoor(input, { account, landmarkId, doorId, damage, now = Date.now
   owner.interiors[landmarkId] = state;
   return { state: stateMap, broken, progress };
 }
-function leave(input, { account, player, now = Date.now() }) {
+function leave(input, { account, player, doorway = false, now = Date.now() }) {
   const ctx = requireActive(input, account, player, now);
+  let exterior = null;
+  if (doorway) {
+    const entry = Catalog.interiorRoom(ctx.catalog, ctx.catalog.entryRoom);
+    const landmark = LANDMARKS[ctx.landmarkId];
+    const x = landmark.x + entry.x;
+    const thresholdZ = landmark.z + entry.z + entry.depth / 2;
+    if (ctx.state.roomId !== entry.id || Math.hypot(player.x - x, player.z - thresholdZ) > 1.4) {
+      throw new Error('too_far_from_interior_exit');
+    }
+    exterior = { x, z: thresholdZ + 1 };
+  }
   ctx.owner.activeLandmarkId = null;
   ctx.stateMap[account] = ctx.owner;
-  return { state: ctx.stateMap, left: true };
+  return { state: ctx.stateMap, left: true, exterior };
 }
 // A physical building is one shared world space, NOT one copy per player.
 // Account room/progression remains private; room presence is exposed only for

@@ -720,7 +720,7 @@ function boot(host) {
       }
     },
     onUnavailable: reason => {
-      if (status && reason !== 'returned_to_refuge') status.textContent =
+      if (status && reason !== 'returned_to_refuge' && reason !== 'interior_exit') status.textContent =
         'Direct walking unavailable (' + reason + ').';
     }
   });
@@ -826,6 +826,10 @@ function boot(host) {
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'interior_action_failed');
+      if (action === 'leave' && payload.doorway && data.inputProtocol) {
+        gateRevision++;
+        continuousInput.disable('interior_exit');
+      }
       updateWorld(data);
       if (action === 'action' && data.interiorEvent?.kind === 'evidence') void fetchExplorationProgress();
       if (action === 'enter') setInteriorStatus('Interior entered. Room state is saved on the server.');
@@ -2019,7 +2023,7 @@ function boot(host) {
       return;
     }
     if (current.id === 'leave-interior') {
-      leaveInterior();
+      void postInteriorAction('leave', { doorway: true });
       return;
     }
     if (current.id === 'nearby-loot') {

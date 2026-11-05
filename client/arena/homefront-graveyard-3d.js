@@ -676,9 +676,39 @@ function boot(host) {
   // Experimental direct walking requires BOTH the server flag and explicit ?movement=continuous.
   // Otherwise the established destination-based controls are unchanged.
   const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
+  let survivalReadout = null;
   if (wantsContinuous) {
     eventToast.style.top = '54px';
     eventToast.style.whiteSpace = 'pre-line';
+    if (coarsePointer) {
+      eventToast.style.left = 'auto';
+      eventToast.style.right = '12px';
+      eventToast.style.transform = 'none';
+      eventToast.style.maxWidth = '46%';
+      eventToast.style.boxSizing = 'border-box';
+    }
+    survivalReadout = document.createElement('div');
+    survivalReadout.className = 'hf-survival-readout';
+    survivalReadout.setAttribute('aria-label', 'Survival status');
+    survivalReadout.style.cssText = 'position:absolute;top:12px;left:12px;max-width:min(41%,180px);box-sizing:border-box;padding:7px 9px;border:1px solid #9b7555;border-radius:8px;background:#15120fe8;color:#ffddae;font:700 12px/1.45 system-ui;white-space:pre-line;pointer-events:none;z-index:5';
+    survivalReadout.hidden = true;
+    host.append(survivalReadout);
+  }
+
+  let lastSurvivalSnapshot;
+  function updateSurvivalReadout(data) {
+    if (!survivalReadout || data === lastSurvivalSnapshot) return;
+    lastSurvivalSnapshot = data;
+    const vitals = data?.selfSurvival;
+    survivalReadout.hidden = !data?.self || !Number.isFinite(vitals?.health);
+    if (survivalReadout.hidden) return;
+    const lines = ['Health ' + Math.ceil(vitals.health)];
+    if (vitals.infection > 0) lines.push('Infection ' + Math.ceil(vitals.infection) + '%');
+    if (vitals.thirst <= 25) lines.push(vitals.thirst <= 0 ? 'Dehydrated' : 'Thirsty');
+    if (vitals.hunger <= 25) lines.push(vitals.hunger <= 0 ? 'Starving' : 'Hungry');
+    if (vitals.stamina < 15) lines.push('Exhausted');
+    if (data.director?.noise >= 55) lines.push('Loud · infected may investigate');
+    survivalReadout.textContent = lines.join('\n');
   }
   let lastContinuousWorldRefresh = 0;
   let lastEnvironmentInputRefresh = 0;
@@ -2267,6 +2297,7 @@ function boot(host) {
     }
     updateRefugeReturnMarker();
     renderContextAction();
+    updateSurvivalReadout(worldData);
     updateWeaponOverlay?.();
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };
   // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.

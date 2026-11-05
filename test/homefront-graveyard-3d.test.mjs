@@ -148,7 +148,7 @@ assert.match(scene, /selectedCombatAimPoint = \{ x: hit\.x, y: hit\.y, z: hit\.z
 assert.match(scene, /const fireLoop = async \(\) =>/, 'repeat authenticated attacks while the autofire control is held');
 assert.match(scene, /return !\(data\.combat\?\.killed\)/, 'stop the held firing loop after a confirmed kill');
 assert.match(scene, /setPointerCapture\(event\.pointerId\)/, 'keep mobile autofire held through pointer movement');
-assert.match(scene, /const aimPoint = selectedCombatAimPoint && activeTarget && targetId === activeTarget\.id/, 'refresh the aim point against the latest target snapshot on each shot');
+assert.match(scene, /const aimPoint = selectedCombatAimPoint && aimTarget/, 'refresh the aim point against the latest target snapshot on each shot');
 assert.match(scene, /fired === false\) \{ stopAutoFire\(\); return; \}/, 'stop repeated requests after a combat error such as empty ammunition');
 assert.match(scene, /function cancelReload\(message = 'Reload interrupted\.'/ , 'support cancelling a reload before ammunition transfer');
 assert.match(scene, /Reload interrupted by combat/, 'combat input interrupts an in-progress reload');

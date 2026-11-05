@@ -32,8 +32,10 @@ jobs:
         run: node scripts/homefront-expedition-browser.mjs
         env:
           PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
+          HOMEFRONT_EXPEDITION_INTERIOR: '1'
       - name: Play phone expedition
         run: node scripts/homefront-expedition-browser.mjs
         env:
           PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
+          HOMEFRONT_EXPEDITION_INTERIOR: '1'
           HOMEFRONT_EXPEDITION_MOBILE: '1'

@@ -878,7 +878,7 @@ function boot(host) {
   }
   function enterInterior(landmarkId) {
     const interior = interiorForLandmark(landmarkId); if (!interior) return;
-    void postInteriorAction('enter', { landmarkId });
+    void postInteriorAction('enter', { landmarkId, ...(wantsContinuous ? { doorway: true } : {}) });
   }
   function leaveInterior() {
     void postInteriorAction('leave', {});
@@ -894,7 +894,7 @@ function boot(host) {
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'interior_action_failed');
-      if (action === 'leave' && payload.doorway && data.inputProtocol) {
+      if ((action === 'leave' || action === 'enter') && payload.doorway && data.inputProtocol) {
         gateRevision++;
         continuousInput.disable('interior_exit');
       }
@@ -2100,6 +2100,17 @@ function boot(host) {
       const roomTarget = nearestInteriorInteraction(roomBlueprint, interiorState, roomAnchor, worldData.self);
       return roomTarget ? homefrontContextAction({ roomTarget }) : null;
     }
+    if (wantsContinuous) {
+      for (const interior of INTERIORS) {
+        const landmark = LANDMARKS.find(point => point.id === interior.landmarkId);
+        const entry = interiorRoom(interior, interior.entryRoom);
+        if (!landmark || !entry) continue;
+        const x = landmark.x + entry.x, z = landmark.z + entry.z + entry.depth / 2;
+        if (Math.hypot(worldData.self.x - x, worldData.self.z - z) <= 3) {
+          return { id: 'enter-doorway', targetId: interior.landmarkId, label: 'Enter ' + interior.title };
+        }
+      }
+    }
     if (refugeReturnDistance() <= 3) return { id: 'return-refuge', label: 'Return to refuge' };
     if (continuousInput.enabled) {
       const self = worldData.self;
@@ -2119,7 +2130,7 @@ function boot(host) {
     const enterTitle = selectedInteriorLandmarkId
       ? (enterInteriorButton?.textContent || '').replace(/^Enter\\s+/, '') : '';
     return homefrontContextAction({
-      canEnter: !!selectedInteriorLandmarkId && !!enterInteriorButton &&
+      canEnter: !wantsContinuous && !!selectedInteriorLandmarkId && !!enterInteriorButton &&
         !enterInteriorButton.hidden && !enterInteriorButton.disabled,
       enterTitle,
       canLoot: !!selectedLootId && !!lootActionButton && !lootActionButton.hidden &&
@@ -2146,6 +2157,10 @@ function boot(host) {
     if (!current || current.id !== shownContext?.id || current.targetId !== shownContext?.targetId) return;
     if (current.id === 'return-refuge') {
       host.dispatchEvent(new CustomEvent('homefront:return-to-refuge'));
+      return;
+    }
+    if (current.id === 'enter-doorway') {
+      enterInterior(current.targetId);
       return;
     }
     if (current.id === 'leave-interior') {

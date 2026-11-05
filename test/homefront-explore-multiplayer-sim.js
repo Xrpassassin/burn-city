@@ -76,6 +76,16 @@ const place = (acct, x, z) => { const w = files.get('homefront-world.json'); w.p
 
   assert.equal((await call('GET', W, A)).data.interior, null);
   assert.equal((await call('GET', W, B)).data.interior.landmarkId, 'north_bus_depot', 'leaving is per account');
+  place(B, -8, -70);
+  const awayFromDoor = await call('POST', W + '/interior/enter', B, { landmarkId: 'north_bus_depot', doorway: true });
+  assert.equal(awayFromDoor.data.error, 'too_far_from_interior_entry');
+  place(B, -7.2, -60.5);
+  const throughDoor = await call('POST', W + '/interior/enter', B, { landmarkId: 'north_bus_depot', doorway: true });
+  assert.equal(throughDoor.status, 200, JSON.stringify(throughDoor.data));
+  assert.equal(throughDoor.data.self.x, -8);
+  assert.equal(throughDoor.data.self.z, -63.5);
+  assert.equal(throughDoor.data.interior.roomId, 'dispatch');
+  assert.equal(throughDoor.data.inputProtocol.enabled, true);
   const saved = files.get('homefront-world.json').interiors;
   assert.ok(saved[A].interiors.north_bus_depot.used.includes('dispatch_drawer') && saved[B].interiors.north_bus_depot.used.includes('dispatch_drawer'));
   assert.equal(saved[C], undefined, 'accounts that never entered keep no interior state');

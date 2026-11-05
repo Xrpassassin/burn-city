@@ -176,7 +176,12 @@ try {
     });
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchMove",
-      touchPoints: [{ x, y: y + (key === "w" ? -46 : 46) }],
+      touchPoints: [
+        {
+          x: x + (key === "d" ? 46 : key === "a" ? -46 : 0),
+          y: y + (key === "w" ? -46 : key === "s" ? 46 : 0),
+        },
+      ],
     });
   }
   async function stopWalking(key) {
@@ -270,6 +275,81 @@ try {
     document.querySelector(".hf-event-toast")?.textContent.includes("Pack:"),
   );
 
+  if (process.env.HOMEFRONT_EXPEDITION_INTERIOR === "1") {
+    async function walkAxis(key, axis, target, direction) {
+      await startWalking(key);
+      try {
+        const deadline = Date.now() + 15000;
+        while (Date.now() < deadline) {
+          const position = objects.get("homefront-world.json").players[ACCOUNT][
+            axis
+          ];
+          if ((position - target) * direction >= 0) return;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        throw new Error(
+          "Walking blocked before " +
+            axis +
+            "=" +
+            target +
+            " at " +
+            JSON.stringify(
+              objects.get("homefront-world.json").players[ACCOUNT],
+            ),
+        );
+      } finally {
+        await stopWalking(key);
+      }
+    }
+    await walkAxis("d", "x", -13, -1);
+    await walkAxis("w", "z", -61, 1);
+    await walkAxis("a", "x", -8, 1);
+    await page.waitForFunction(() =>
+      document
+        .getElementById("homefrontContextAction")
+        .textContent.includes("Enter"),
+    );
+    const entered = page.waitForResponse((response) =>
+      response.url().endsWith("/api/homefront/world/interior/enter"),
+    );
+    await activate(page.locator("#homefrontContextAction"));
+    assert.equal((await (await entered).json()).interior.roomId, "dispatch");
+    await walkAxis("s", "z", -64.3, -1);
+    await page.waitForFunction(() =>
+      document
+        .getElementById("homefrontContextAction")
+        .textContent.includes("Dispatch drawer"),
+    );
+    const searched = page.waitForResponse((response) =>
+      response.url().endsWith("/api/homefront/world/interior/action"),
+    );
+    await activate(page.locator("#homefrontContextAction"));
+    const searchResult = await (await searched).json();
+    assert(
+      searchResult.interior.used.includes("dispatch_drawer"),
+      "drawer search is saved",
+    );
+    assert(
+      searchResult.interiorReward.some((drop) => drop.amount > 0),
+      "drawer gives carried supplies",
+    );
+    await walkAxis("w", "z", -62.8, 1);
+    await page.waitForFunction(() =>
+      document
+        .getElementById("homefrontContextAction")
+        .textContent.includes("Step outside"),
+    );
+    await activate(page.locator("#homefrontContextAction"));
+    await page.waitForFunction(() =>
+      document
+        .getElementById("interiorStatus")
+        .textContent.includes("Returned to the street"),
+    );
+
+    await walkAxis("d", "x", -13, -1);
+    await walkAxis("s", "z", -74, -1);
+    await walkAxis("a", "x", -8, 1);
+  }
   const attackResponse = page.waitForResponse((response) =>
     response.url().endsWith("/api/homefront/world/attack"),
   );
@@ -315,6 +395,7 @@ try {
     "PLAYABLE EXPEDITION PASSED",
     JSON.stringify({
       mobile,
+      interior: process.env.HOMEFRONT_EXPEDITION_INTERIOR === "1",
       startedAtGate: true,
       walkedToDepot: true,
       scavenged: true,

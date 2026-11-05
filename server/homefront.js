@@ -503,11 +503,25 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         case '/api/homefront/world/interior/enter': {
           const player = db.players[user.acct];
           const now = Date.now();
-          const entered = Interiors.enter(db.interiors, { account: user.acct, player, landmarkId: typeof payload.landmarkId === 'string' ? payload.landmarkId : '', now });
+          const entered = Interiors.enter(db.interiors, { account: user.acct, player, landmarkId: typeof payload.landmarkId === 'string' ? payload.landmarkId : '', doorway: payload.doorway === true, now });
+          if (entered.entryPosition) {
+            const removedObstacleIds = Object.values(db.environmentStructures || {}).filter(item => item.health <= 0).map(item => item.id);
+            removedObstacleIds.push(...Collision.interiorRemovedIds(payload.landmarkId,
+              Interiors.sharedOpenedDoors(db.sharedInteriors, payload.landmarkId, entered.interior.openedDoors)));
+            const { x, z } = entered.entryPosition;
+            if (!Collision.isSafePosition(x, z, { bounds: World.WORLD_SIZE, removedObstacleIds })) throw new Error('no_safe_interior_entry');
+            Object.assign(player, entered.entryPosition);
+          }
           db.interiors = entered.state;
           if (player) player.lastSeen = now;
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors) });
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now),
+            interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors),
+            inputProtocol: entered.entryPosition ? {
+              enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1',
+              nextSequence: (player.lastInputSequence ?? -1) + 1,
+              readyInMs: World.inputReadyInMs(player)
+            } : undefined });
           return true;
         }
         case '/api/homefront/world/interior/action': {

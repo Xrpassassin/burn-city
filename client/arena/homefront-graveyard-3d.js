@@ -1833,6 +1833,73 @@ function boot(host) {
   // Third-/first-person toggle (V or the on-canvas button), touch joystick + drag-to-look, pinch zoom.
   const view = attachViewControls(host, { onTap: onWorldTap, wheel: false });
 
+  // The direct-walk preview uses the camera to aim, with no separate target-selection step.
+  let updateWeaponOverlay;
+  if (wantsContinuous) {
+    const reticle = document.createElement('span');
+    reticle.setAttribute('aria-hidden', 'true');
+    reticle.textContent = '+';
+    reticle.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:white;text-shadow:0 1px 4px black;font:24px system-ui;pointer-events:none;z-index:4';
+    host.append(reticle);
+    reticle.hidden = true;
+
+    const fire = document.createElement('button');
+    fire.type = 'button';
+    fire.textContent = 'Fire';
+    fire.style.cssText = 'position:absolute;right:16px;bottom:110px;min-width:64px;min-height:64px;z-index:6;touch-action:manipulation';
+    fire.hidden = true;
+    updateWeaponOverlay = () => {
+      const hidden = !worldData?.self || !continuousInput.enabled;
+      if (reticle.hidden !== hidden) reticle.hidden = hidden;
+      if (coarsePointer && fire.hidden !== hidden) fire.hidden = hidden;
+    };
+    host.append(fire);
+
+    function fireAtReticle() {
+      const active = worldData?.selfEncounter || worldData?.encounter;
+      const self = worldData?.self;
+      if (!view.visible || !self || !token() || moving || !continuousInput.enabled ||
+          document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])') ||
+          !active || active.defeated || active.hp <= 0 ||
+          Math.hypot(self.x - active.x, self.z - active.z) > (active.range || 0)) return;
+
+      pointer.set(0, 0);
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObject(combatGroup, true)
+        .find(entry => entry.object.userData?.combatHitbox);
+      if (!hit) return;
+      let target = hit.object;
+      while (target && !target.userData?.encounterId) target = target.parent;
+      if (target?.userData.encounterId !== active.id) return;
+
+      const walls = interiorCameraOccluders.get(interiorState?.landmarkId) || [];
+      const obstruction = raycaster.intersectObjects(walls.filter(wall => wall.visible), false)[0];
+      if (obstruction && obstruction.distance < hit.distance) return;
+
+      selectedCombatTargetId = active.id;
+      selectedCombatAimPoint = { x: hit.point.x, y: hit.point.y, z: hit.point.z };
+      void combatAction('attack', active.id);
+    }
+
+    fire.addEventListener('pointerdown', event => event.stopPropagation());
+    fire.addEventListener('click', fireAtReticle);
+    renderer.domElement.addEventListener('pointerup', event => {
+      if (event.pointerType !== 'mouse' || event.button !== 0 || view.dragging) return;
+      if (!continuousInput.enabled) return;
+      event.stopPropagation();
+      fireAtReticle();
+    });
+    window.addEventListener('keydown', event => {
+      if (event.code !== 'KeyR' || event.repeat || event.defaultPrevented ||
+          event.altKey || event.ctrlKey || event.metaKey ||
+          event.target?.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(event.target?.tagName || '') ||
+          !view.visible || !worldData?.self || !continuousInput.enabled ||
+          document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])')) return;
+      event.preventDefault();
+      void reloadWeapon();
+    });
+  }
+
   // In-world contextual interaction (keyboard E / one mobile tap). The real
   // server-authenticated buttons remain the only way gameplay actions execute.
   // Never add a second loot, combat, or permission path here.
@@ -1995,6 +2062,11 @@ function boot(host) {
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
       const targetY = terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation();
       const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
+      if (continuousInput.enabled && view.mode === 'third') {
+        const aimPitch = cameraPitchOffset + view.pitch * 0.5;
+        const cameraArmLength = Math.hypot(pose.px - pose.lx, pose.pz - pose.lz);
+        pose.py = Math.max(targetY + 0.55, pose.ly - Math.tan(aimPitch) * cameraArmLength);
+      }
       // Only interior wall/closed-door geometry can shorten the camera arm;
       // outdoor scenery, collectibles and player models never affect the view.
       // Bound raycast frequency, particularly for touch/mobile GPUs.
@@ -2050,6 +2122,7 @@ function boot(host) {
       }
     }
     renderContextAction();
+    updateWeaponOverlay?.();
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };
   // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.
   zombieModelPilotLoading = true;

@@ -123,14 +123,26 @@ function advance({encounters,players,interiors=null,now=Date.now(),speed=2.8,max
   if(elapsed<=0)continue;
   const dx=player.x-e.x,dz=player.z-e.z,distance=Math.hypot(dx,dz);
   const stopDistance=2.2;
-  // Infected remember the last known position, but do not pursue forever.
-  // Recent gunfire extends investigation at that remembered location; otherwise
-  // the infected disengages once the player breaks its archetype-derived leash.
-  const recentNoise=Number.isFinite(player.lastNoiseAt)&&now-player.lastNoiseAt>=0&&now-player.lastNoiseAt<=15000&&Number.isFinite(player.noiseX)&&Number.isFinite(player.noiseZ);
-  if(recentNoise){e.lastKnownX=clamp(player.noiseX,-100,100);e.lastKnownZ=clamp(player.noiseZ,-100,100);e.lastKnownAt=player.lastNoiseAt;e.investigateUntil=player.lastNoiseAt+15000;}
-  else if(distance<=e.pursuitRadius){e.lastKnownX=player.x;e.lastKnownZ=player.z;e.lastKnownAt=now;}
-  const investigating=distance>e.pursuitRadius||now<e.investigateUntil;
-  const targetX=investigating?e.lastKnownX:player.x,targetZ=investigating?e.lastKnownZ:player.z;
+  // Solid cover breaks sight. Infected pursue their last observed position,
+  // while louder player actions can reveal a new location from farther away.
+  const seesPlayer = distance <= e.pursuitRadius &&
+    Collision.canTraverse(e.x, e.z, player.x, player.z, {
+      radius: 0.45, bounds: 100, removedObstacleIds: collisionOptions.removedObstacleIds
+    });
+  const noiseAge = now - player.lastNoiseAt;
+  const noiseLevel = clamp(player.noiseLevel, 0, 100);
+  const hearsNoise = Number.isFinite(player.lastNoiseAt) && noiseAge >= 0 && noiseAge <= 15000 &&
+    noiseLevel > 0 && Number.isFinite(player.noiseX) && Number.isFinite(player.noiseZ) &&
+    Math.hypot(e.x - player.noiseX, e.z - player.noiseZ) <= 8 + noiseLevel * 0.45;
+  if (seesPlayer) {
+    e.lastKnownX = player.x; e.lastKnownZ = player.z; e.lastKnownAt = now;
+    e.investigateUntil = 0;
+  } else if (hearsNoise) {
+    e.lastKnownX = clamp(player.noiseX, -100, 100); e.lastKnownZ = clamp(player.noiseZ, -100, 100);
+    e.lastKnownAt = player.lastNoiseAt; e.investigateUntil = player.lastNoiseAt + 15000;
+  }
+  const targetX = seesPlayer ? player.x : e.lastKnownX;
+  const targetZ = seesPlayer ? player.z : e.lastKnownZ;
   const targetDx=targetX-e.x,targetDz=targetZ-e.z,targetDistance=Math.hypot(targetDx,targetDz);
   if(targetDistance>stopDistance){
   const step=Math.min(targetDistance-stopDistance,speed*elapsed);

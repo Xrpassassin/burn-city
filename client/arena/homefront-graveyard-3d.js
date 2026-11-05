@@ -817,6 +817,8 @@ function boot(host) {
   }
   async function postInteriorAction(action, payload) {
     if (!token()) { setInteriorStatus('Sign in before exploring interiors.'); return null; }
+    if (moving) return null;
+    moving = true;
     try {
       const response = await fetch(API + '/api/homefront/world/interior/' + action, {
         method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
@@ -833,7 +835,7 @@ function boot(host) {
         setInteriorStatus((data.interiorMessage || 'Interaction complete.') + (rewardText ? ' Found: ' + rewardText + '.' : '') + (data.overflowDestination === 'refuge' ? ' Overflow returned to refuge storage.' : '') + (data.interiorNoise ? ' Noise ' + data.interiorNoise + '/100.' : ''));
       } else if (action === 'door') setInteriorStatus('Door traversed. Room progress saved.');
       return data;
-    } catch (error) { setInteriorStatus('Interior action failed: ' + error.message); return null; }
+    } catch (error) { setInteriorStatus('Interior action failed: ' + error.message); return null; } finally { moving = false; }
   }
   async function performInteriorAction(actionId) {
     const interior = interiorForLandmark(interiorState?.landmarkId);
@@ -1957,6 +1959,14 @@ function boot(host) {
     if (interiorState) {
       const roomBlueprint = interiorForLandmark(interiorState.landmarkId);
       const roomAnchor = LANDMARKS.find(point => point.id === interiorState.landmarkId);
+      if (wantsContinuous && roomBlueprint?.entryRoom === interiorState.roomId && roomAnchor) {
+        const entry = interiorRoom(roomBlueprint, roomBlueprint.entryRoom);
+        const exitX = roomAnchor.x + entry.x;
+        const exitZ = roomAnchor.z + entry.z + entry.depth / 2;
+        if (Math.hypot(worldData.self.x - exitX, worldData.self.z - exitZ) <= 1.4) {
+          return { id: 'leave-interior', label: 'Step outside' };
+        }
+      }
       const roomTarget = nearestInteriorInteraction(roomBlueprint, interiorState, roomAnchor, worldData.self);
       return roomTarget ? homefrontContextAction({ roomTarget }) : null;
     }
@@ -2006,6 +2016,10 @@ function boot(host) {
     if (!current || current.id !== shownContext?.id || current.targetId !== shownContext?.targetId) return;
     if (current.id === 'return-refuge') {
       host.dispatchEvent(new CustomEvent('homefront:return-to-refuge'));
+      return;
+    }
+    if (current.id === 'leave-interior') {
+      leaveInterior();
       return;
     }
     if (current.id === 'nearby-loot') {

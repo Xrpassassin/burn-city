@@ -1506,8 +1506,10 @@ function boot(host) {
     if (attackInfectedButton) attackInfectedButton.disabled = true;
     try {
       const activeTarget = worldData?.selfEncounter || worldData?.encounter || null;
-      const aimPoint = selectedCombatAimPoint && activeTarget && targetId === activeTarget.id
-        ? { x: activeTarget.x, y: selectedCombatAimPoint.y, z: activeTarget.z }
+      const aimTarget = activeTarget?.id === targetId ? activeTarget
+        : activeTarget?.members?.find(member => member.id === targetId);
+      const aimPoint = selectedCombatAimPoint && aimTarget
+        ? { x: aimTarget.x, y: selectedCombatAimPoint.y, z: aimTarget.z }
         : selectedCombatAimPoint;
       const r = await fetch(API + '/api/homefront/world/' + action, {
         method: 'POST',
@@ -2030,7 +2032,7 @@ function boot(host) {
       }
 
       selectedCombatTargetId = target.userData.encounterId;
-      selectedCombatAimPoint = { x: hit.point.x, y: hit.point.y - target.position.y, z: hit.point.z };
+      selectedCombatAimPoint = { x: hit.point.x, y: Math.max(0.05, Math.min(2.7, hit.point.y - target.position.y)), z: hit.point.z };
       void combatAction('attack', selectedCombatTargetId);
     };
 

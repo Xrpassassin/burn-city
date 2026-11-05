@@ -285,8 +285,8 @@ try {
       .click({ position: { x: 640, y: 400 } });
   const attack = await (await attackResponse).json();
   assert(
-    attack.combat.missed || attack.combat.damage > 0,
-    "the click resolves through server combat",
+    attack.combat && (attack.combat.missed || attack.combat.damage > 0),
+    "the click resolves through server combat: " + JSON.stringify(attack),
   );
   const expectedAmmo =
     objects.get("homefront.json")[ACCOUNT].resources.ammo +

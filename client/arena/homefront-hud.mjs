@@ -80,6 +80,9 @@ body.rpg-hud .rpg-nav{display:none}body.rpg-hud .rpg-nav.hf-talk{display:flex;pa
 .hf-tabs{display:flex;gap:4px;overflow-x:auto;padding:8px;border-bottom:1px solid #a55c3555;flex:0 0 auto}.hf-tabs button{flex:0 0 auto;min-height:36px;padding:6px 10px;border-radius:9px;border:1px solid #8e5235;background:#24140d;color:#ffe0c4;font:700 13px system-ui}.hf-tabs button[aria-selected=true]{background:#a63f16;border-color:#ffd09b}
 .hf-body{padding:12px;overflow:auto;flex:1 1 auto;color:#f5e6d8;font-size:14px}.hf-body h3{margin:10px 0 6px;color:#ffc18e;font-size:15px}.hf-body .hf-row{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:7px 9px;margin:4px 0;border:1px solid #a55c3540;border-radius:9px;background:#0d0a09}.hf-body .hf-row button{min-height:34px;padding:4px 10px;border-radius:8px;border:1px solid #8e5235;background:#32190f;color:#ffe0c4;font:700 12px system-ui}
 .hf-body .hf-muted{color:#bca99b;font-size:12px}.hf-close{margin:8px;align-self:flex-end;min-height:38px;padding:6px 14px;border-radius:10px;border:1px solid #8e5235;background:#24140d;color:#ffe0c4;font:700 13px system-ui}
+.hf-menu-footer{display:flex;flex:0 0 auto;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:8px;gap:8px}
+.hf-menu-footer .hf-close{margin:0;align-self:auto}
+.hf-menu-footer a.hf-close{display:inline-flex;align-items:center;text-decoration:none}
 body.rpg-hud.rpg-mode-home #refugeWorldPanel>h2,body.rpg-hud.rpg-mode-home #placementHelp,body.rpg-hud.rpg-mode-home #refugeWorldPanel .row{display:none}
 body.rpg-hud #refugeWorldPanel,body.rpg-hud #graveyardPanel{padding:8px}
 body.rpg-hud.rpg-mode-home #refugeWorldPanel .world{height:calc(100svh - 190px);min-height:300px}
@@ -115,7 +118,9 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const tabsEl = el('div', { className: 'hf-tabs' }); tabsEl.setAttribute('role', 'tablist');
   const body = el('div', { className: 'hf-body' });
   const close = el('button', { className: 'hf-close', type: 'button', textContent: 'Close' });
-  const card = el('div', { className: 'hf-card' }, tabsEl, body, close);
+  const city = el('a', { className: 'hf-close', href: '/', textContent: 'Return to BURN City' });
+  const footer = el('div', { className: 'hf-menu-footer' }, city, close);
+  const card = el('div', { className: 'hf-card' }, tabsEl, body, footer);
   const sheet = el('div', { className: 'hf-sheet', id: 'hfSheet', hidden: true }, card); sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', 'Character and management');
   document.body.append(sheet);
   const LABEL = { character: '🔥 C.I.N.D.E.R.S.', inventory: '🎒 Inventory', journal: '📓 Journal', build: '🛠 Build', manage: '📋 Manage', travel: '🧭 Travel' };

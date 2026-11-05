@@ -29,7 +29,7 @@ import { nextInteriorEvent } from './homefront-interior-event-feed.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
-import { infectedPresentation } from './homefront-infected-presentation.mjs';
+import { infectedPresentation, visibleInfected } from './homefront-infected-presentation.mjs';
 import { stepVertical, createMotion, turnToward } from '../js/player-motion.mjs';
 // Burn City walker avatars (shared with the city) at Graveyard scale; meshes reuse walker.js's cached geometry/materials.
 const EXPLORER_SCALE = 1.45, LITE_AVATARS = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -233,10 +233,20 @@ function boot(host) {
   window.addEventListener('homefront:combat-hit', event => {
     const detail = event.detail || {};
     const active = worldData?.selfEncounter || worldData?.encounter || (worldData?.encounters || []).find(item => item.id === detail.encounterId) || null;
-    const target = active ? { id: active.id, x: active.x, y: terrainElevation(active.x, active.z), z: active.z, ty: 0 } : null;
+    const member = active?.members?.find(item => item.id === detail.hitTargetId);
+    const hitActor = combatActors.get(detail.hitTargetId || active?.id);
+    const point = hitActor?.position || member || active;
+    const target = point ? { x: point.x, y: point.y ?? terrainElevation(point.x, point.z), z: point.z, ty: 0 } : null;
     zombieAudio.hit({ hs: detail.hitZone === 'head', k: !!detail.killed }, target);
-    if (active?.id) zombieModelPilot?.react(active.id, detail.killed ? 'Death' : 'HitReact');
-    if (detail.killed && target) zombieAudio.zdie(target);
+    const hits = detail.hits?.length ? detail.hits
+      : [{ targetId: detail.hitTargetId || active?.id, killed: !!detail.killed }];
+    for (const hit of hits) {
+      if (hit.targetId) zombieModelPilot?.react(hit.targetId, hit.killed ? 'Death' : 'HitReact');
+      if (hit.killed) {
+        const actor = combatActors.get(hit.targetId);
+        if (actor) zombieAudio.zdie({ x: actor.position.x, y: actor.position.y, z: actor.position.z });
+      }
+    }
   });
   window.addEventListener('homefront:combat-hit-feedback', event => {
     weaponSwingStartedAt = performance.now();
@@ -246,7 +256,7 @@ function boot(host) {
     const isAuto = FIREARM_IDS.includes(weaponId);
     const style = weaponId === 'shock_maul' ? 'blunt' : weaponId === 'pump_shotgun' || weaponId === 'marksman_rifle' || isAuto ? 'firearm' : 'sharp';
     weaponSwingWeaponId = weaponId;
-    const targetId = detail.encounterId || detail.encounter?.id || detail.combat?.encounterId;
+    const targetId = detail.hitTargetId || detail.encounterId || detail.encounter?.id || detail.combat?.encounterId;
     const target = targetId ? combatActors.get(targetId) : null;
     // Tracers are emitted only after the server confirms a hit. They are cosmetic: the server's hit result remains authoritative.
     if (target && style === 'firearm' && tracerPool) {
@@ -748,7 +758,8 @@ function boot(host) {
           x:escort.x,z:escort.z,y:terrainElevation(escort.x,escort.z)
         });
       }
-      for (const encounter of (next.encounters || [])) {
+      const nextInfected = wantsContinuous ? visibleInfected(next.encounters || []) : next.encounters || [];
+      for (const encounter of nextInfected) {
         const actor = combatActors.get(encounter.id);
         if (actor) {
           actor.userData.targetX = encounter.x;
@@ -1054,7 +1065,7 @@ function boot(host) {
       if (key) previousExplorerPositions.set(key, explorer.position.clone());
     }
     clearGroup(playerGroup);
-    const encounters = data.encounters || [];
+    const encounters = wantsContinuous ? visibleInfected(data.encounters || []) : data.encounters || [];
     const activeEncounterIds = new Set();
     for (const e of encounters) {
       activeEncounterIds.add(e.id);
@@ -1072,10 +1083,11 @@ function boot(host) {
         label.position.y = 3.5; actor.add(label);
         const threatRing = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xd84b3e, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));
         threatRing.rotation.x = -Math.PI / 2; threatRing.position.y = 0.045; actor.add(threatRing);
-        actor.userData = { encounterId: e.id, enemyType: e.enemy || '', targetX: e.x, targetZ: e.z, hp: e.hp, body, head, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
+        actor.userData = { encounterId: e.id, parentEncounterId: e.parentEncounterId || e.id, enemyType: e.enemy || '', targetX: e.x, targetZ: e.z, hp: e.hp, body, head, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
         combatActors.set(e.id, actor); combatGroup.add(actor);
       } else {
         actor.userData.encounterId = e.id;
+        actor.userData.parentEncounterId = e.parentEncounterId || e.id;
         actor.userData.enemyType = e.enemy || actor.userData.enemyType || '';
         actor.userData.targetX = e.x; actor.userData.targetZ = e.z;
         if (actor.userData.hp !== e.hp) {
@@ -2000,8 +2012,8 @@ function boot(host) {
       const walls = interiorCameraOccluders.get(interiorState?.landmarkId) || [];
       const obstruction = raycaster.intersectObjects(walls.filter(wall => wall.visible), false)[0];
       if (!hit || !active || active.defeated || active.hp <= 0 ||
-          target?.userData.encounterId !== active.id ||
-          Math.hypot(self.x - active.x, self.z - active.z) > (active.range || 0) ||
+          target?.userData.parentEncounterId !== active.id ||
+          Math.hypot(self.x - target.position.x, self.z - target.position.z) > (active.range || 0) ||
           (obstruction && obstruction.distance < hit.distance)) {
         const distance = Math.min(24, obstruction?.distance ?? Infinity, hit?.distance ?? Infinity);
         const missPoint = raycaster.ray.at(distance, new THREE.Vector3());
@@ -2009,9 +2021,9 @@ function boot(host) {
         return;
       }
 
-      selectedCombatTargetId = active.id;
+      selectedCombatTargetId = target.userData.encounterId;
       selectedCombatAimPoint = { x: hit.point.x, y: hit.point.y - target.position.y, z: hit.point.z };
-      void combatAction('attack', active.id);
+      void combatAction('attack', selectedCombatTargetId);
     };
 
     fire.addEventListener('pointerdown', event => event.stopPropagation());

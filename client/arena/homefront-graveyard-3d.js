@@ -81,14 +81,27 @@ function boot(host) {
   eventToast.setAttribute('aria-live', 'polite');
   host.appendChild(eventToast);
   let eventFeedState = null, eventToastUntil = 0;
+  function showFieldToast(message) {
+    eventToast.textContent = message;
+    eventToast.hidden = false;
+    eventToastUntil = performance.now() + 4400;
+  }
+  function showScavengeFeedback(carried, stored, loud) {
+    if (!wantsContinuous || (!carried && !stored)) return;
+    const lines = [];
+    if (carried) lines.push('Pack: ' + carried);
+    if (stored) lines.push('Sent to refuge: ' + stored);
+    if (loud) lines.push('Loud search. Infected may investigate.');
+    showFieldToast(lines.join('\n'));
+    if (loud) sfx.radio();
+    else sfx.box();
+  }
   function showInteriorEvent(instance) {
     const next = nextInteriorEvent(eventFeedState, instance);
     eventFeedState = next.state;
     if (!next.event) return;
     const e = next.event;
-    eventToast.textContent = e.message;
-    eventToast.hidden = false;
-    eventToastUntil = performance.now() + 4400;
+    showFieldToast(e.message);
     if (e.kind === 'alarm') sfx.radio();
     else if (e.kind === 'power' || e.kind === 'mechanism') sfx.door();
     else if (e.kind === 'evidence') sfx.box();
@@ -663,6 +676,10 @@ function boot(host) {
   // Experimental direct walking requires BOTH the server flag and explicit ?movement=continuous.
   // Otherwise the established destination-based controls are unchanged.
   const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
+  if (wantsContinuous) {
+    eventToast.style.top = '54px';
+    eventToast.style.whiteSpace = 'pre-line';
+  }
   let lastContinuousWorldRefresh = 0;
   let lastEnvironmentInputRefresh = 0;
   let lastRenderedWorldData = null;
@@ -835,7 +852,12 @@ function boot(host) {
       if (action === 'enter') setInteriorStatus('Interior entered. Room state is saved on the server.');
       else if (action === 'leave') setInteriorStatus('Returned to the street. Interior progress is saved.');
       else if (action === 'action') {
-        const rewardText = (data.interiorReward || []).filter(drop => drop.amount > 0).map(drop => '+' + drop.amount + ' ' + drop.item).join(', ');
+        const drops = data.interiorReward || [];
+        const rewardText = drops.filter(drop => drop.amount > 0).map(drop => '+' + drop.amount + ' ' + drop.item).join(', ');
+        const stored = data.overflowDestination === 'refuge'
+          ? drops.filter(drop => drop.overflow > 0).map(drop => '+' + drop.overflow + ' ' + drop.item).join(', ')
+          : '';
+        showScavengeFeedback(rewardText, stored, data.interiorNoise >= 55);
         setInteriorStatus((data.interiorMessage || 'Interaction complete.') + (rewardText ? ' Found: ' + rewardText + '.' : '') + (data.overflowDestination === 'refuge' ? ' Overflow returned to refuge storage.' : '') + (data.interiorNoise ? ' Noise ' + data.interiorNoise + '/100.' : ''));
       } else if (action === 'door') setInteriorStatus('Door traversed. Room progress saved.');
       return data;
@@ -1464,6 +1486,10 @@ function boot(host) {
         }
       }
       updateWorld(data);
+      if (wantsContinuous && data.combat?.killed && data.combat.reward) {
+        const { scrap, embers } = data.combat.reward;
+        showFieldToast('Infected down\n+' + scrap + ' scrap · +' + embers + ' Embers');
+      }
       if (data.combat && combatStatus) {
         const result = data.combat;
         const precision = result.aimed ? ' · ADS confirmed (' + Math.round((result.aimStability || 0) * 100) + '% stability)' : (result.aimStability < 0.72 ? ' · weapon settling (' + Math.round((result.aimStability || 0) * 100) + '%)' : '');
@@ -1510,6 +1536,7 @@ function boot(host) {
       const accepted=(data.loot?.accepted||[]).map(d=>'+'+d.amount+' '+d.item).join(', ');
       const overflow=(data.loot?.overflow||[]).map(d=>d.amount+' '+d.item).join(', ');
       const noiseLevel=Number(data.loot?.noise?.level)||0;
+      showScavengeFeedback(accepted, overflow, noiseLevel >= 55);
       const noiseWarning=noiseLevel>=55?' Loud container! Noise '+noiseLevel+'/100 may pull infected into this block. ':' The container made noise; stay alert for nearby infected. ';
       if (lootStatus) lootStatus.textContent = (accepted ? 'Collected: '+accepted+'. ' : 'Your pack could not accept the supplies. ') + (overflow ? 'Pack full; sent to refuge stores: '+overflow+'. ' : '') + noiseWarning + 'This container will restock after its cooldown.';
     } catch (e) {

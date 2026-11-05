@@ -1422,7 +1422,7 @@ function boot(host) {
       if (revision === gateRevision) updateWorld(data);
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
-  async function combatAction(action, targetId = selectedCombatTargetId, miss = false) {
+  async function combatAction(action, targetId = selectedCombatTargetId, missPoint = null) {
     if (reloadState) cancelReload('Reload interrupted by combat.');
     if (!token()) { if (combatStatus) combatStatus.textContent = 'Sign in before fighting in the Graveyard.'; return; }
     if (moving) return;
@@ -1437,7 +1437,7 @@ function boot(host) {
       const r = await fetch(API + '/api/homefront/world/' + action, {
         method: 'POST',
         headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
-        body: JSON.stringify(miss ? { miss: true } : targetId ? { targetId, ...(aimPoint ? { aimPoint } : {}) } : {})
+        body: JSON.stringify(missPoint ? { miss: true } : targetId ? { targetId, ...(aimPoint ? { aimPoint } : {}) } : {})
       });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
@@ -1448,7 +1448,16 @@ function boot(host) {
           weaponSwingStartedAt = performance.now();
           weaponSwingUntil = weaponSwingStartedAt + 320;
           weaponSwingWeaponId = hitDetail.weaponId;
-          if (data.combat.ammoCost > 0) sfx.weaponFire?.(hitDetail.weaponId);
+          if (data.combat.ammoCost > 0) {
+            sfx.weaponFire?.(hitDetail.weaponId);
+            const shooter = worldData?.self;
+            if (missPoint && shooter) {
+              tracerPool?.emit(
+                { x: shooter.x, y: terrainElevation(shooter.x, shooter.z) + 1.35, z: shooter.z },
+                missPoint, TRACER_COLOR[hitDetail.weaponId] || 0xffb45c, 0.095
+              );
+            }
+          }
         } else {
           window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: hitDetail }));
           window.dispatchEvent(new CustomEvent('homefront:combat-hit-feedback', { detail: hitDetail }));
@@ -1880,6 +1889,14 @@ function boot(host) {
     fire.textContent = 'Fire';
     fire.style.cssText = 'position:absolute;right:16px;bottom:110px;min-width:64px;min-height:64px;z-index:6;touch-action:manipulation';
     fire.hidden = true;
+    const fieldReload = document.createElement('button');
+    fieldReload.type = 'button';
+    fieldReload.textContent = 'Reload';
+    fieldReload.style.cssText = 'position:absolute;right:16px;bottom:182px;min-width:64px;min-height:44px;z-index:6;touch-action:manipulation';
+    fieldReload.hidden = true;
+    fieldReload.addEventListener('pointerdown', event => event.stopPropagation());
+    fieldReload.addEventListener('click', reloadWeapon);
+    host.append(fieldReload);
     const unavailable = document.createElement('div');
     unavailable.setAttribute('role', 'status');
     unavailable.style.cssText = 'position:absolute;top:12px;left:50%;transform:translateX(-50%);max-width:70%;padding:8px 12px;background:#1b120de8;color:white;text-align:center;z-index:5;pointer-events:none';
@@ -1892,6 +1909,17 @@ function boot(host) {
       const hidden = !worldData?.self || !continuousInput.enabled;
       if (reticle.hidden !== hidden) reticle.hidden = hidden;
       if (coarsePointer && fire.hidden !== hidden) fire.hidden = hidden;
+      if (coarsePointer) {
+        const magazine = worldData?.selfWeaponMagazine;
+        const canReload = magazine?.weaponId === 'pump_shotgun' || magazine?.weaponId === 'marksman_rifle';
+        const hideReload = hidden || !canReload;
+        if (fieldReload.hidden !== hideReload) fieldReload.hidden = hideReload;
+        const reloadDisabled = !!reloadState || moving || !canReload ||
+          magazine.loaded >= magazine.capacity || !(worldData?.selfInventory?.ammo > 0);
+        if (fieldReload.disabled !== reloadDisabled) fieldReload.disabled = reloadDisabled;
+        const fireLabel = magazine?.capacity > 0 ? 'Fire · ' + magazine.loaded : 'Attack';
+        if (fire.textContent !== fireLabel) fire.textContent = fireLabel;
+      }
     };
     host.append(fire);
 
@@ -1914,7 +1942,9 @@ function boot(host) {
           target?.userData.encounterId !== active.id ||
           Math.hypot(self.x - active.x, self.z - active.z) > (active.range || 0) ||
           (obstruction && obstruction.distance < hit.distance)) {
-        void combatAction('attack', null, true);
+        const distance = Math.min(24, obstruction?.distance ?? Infinity, hit?.distance ?? Infinity);
+        const missPoint = raycaster.ray.at(distance, new THREE.Vector3());
+        void combatAction('attack', null, missPoint);
         return;
       }
 

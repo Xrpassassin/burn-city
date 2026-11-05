@@ -62,6 +62,7 @@ function boot(host) {
   const API = new URLSearchParams(location.search).get('api') ||
     (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   const token = () => localStorage.getItem('bcToken') || '';
+  const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x111312);
   scene.fog = new THREE.FogExp2(0x171a18, 0.0038);
@@ -265,16 +266,22 @@ function boot(host) {
       const fromY = terrainElevation(startX, startZ) + 1.35;
       // One pooled tracer per server-resolved round, staggered across the burst; spread follows the server hit list.
       const hits = Array.isArray(detail.hits) && detail.hits.length ? detail.hits.slice(0, 6) : [{ hitZone: detail.hitZone }];
-      hits.forEach((hit, r) => setTimeout(() => {
-        const y = target.position.y + (hit.hitZone === 'head' ? 1.75 : hit.hitZone === 'limb' ? 0.72 : 1.15);
-        const off = r ? ((r % 2 ? 1 : -1) * 0.35 * Math.ceil(r / 2)) : 0;
-        tracerPool.emit({ x: startX, y: fromY, z: startZ }, { x: target.position.x + off, y, z: target.position.z - off * 0.5 }, TRACER_COLOR[weaponId] || 0xffb45c, weaponId === 'heavy_machine_gun' ? 0.13 : 0.095);
-        if (r && isAuto) sfx.weaponFire?.(weaponId);
-      }, r * 70));
+      hits.forEach((hit, r) => {
+        const hitActor = combatActors.get(hit.targetId) || target;
+        const endpoint = {
+          x: hitActor.position.x,
+          y: hitActor.position.y + (hit.hitZone === 'head' ? 1.75 : hit.hitZone === 'limb' ? 0.72 : 1.15),
+          z: hitActor.position.z
+        };
+        setTimeout(() => {
+          tracerPool.emit({ x: startX, y: fromY, z: startZ }, endpoint, TRACER_COLOR[weaponId] || 0xffb45c, weaponId === 'heavy_machine_gun' ? 0.13 : 0.095);
+          if (r && isAuto) sfx.weaponFire?.(weaponId);
+        }, r * 70);
+      });
     }
     // Reuse the existing licensed sample bank; a failed fetch must never break combat feedback.
     if (target) {
-      const pos = [target.position.x, detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1, target.position.z];
+      const pos = [target.position.x, target.position.y + (detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1), target.position.z];
       const sound = weaponId === 'pump_shotgun' || isAuto ? 'shotgun' : 'hit';
       sfx.loadBank(new URL('./sfx/', import.meta.url).href)
         .then(() => sfx.play(sfx.has(sound) ? sound : 'hit', { pos, v: isAuto ? (weaponId === 'heavy_machine_gun' || weaponId === 'fifty_cal' ? 0.42 : 0.32) : weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
@@ -304,7 +311,7 @@ function boot(host) {
       const origin = target.position.clone();
       for (let i = 0; i < 2; i++) {
         const piece = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.52, 2, 5), mat(0x6e7770));
-        piece.position.set(origin.x + (i ? 0.42 : -0.42), 1.05 + i * 0.25, origin.z);
+        piece.position.set(origin.x + (i ? 0.42 : -0.42), origin.y + 1.05 + i * 0.25, origin.z);
         piece.rotation.z = i ? -0.55 : 0.55;
         piece.userData.life = 0.8; piece.userData.vx = i ? 1.1 : -1.1;
         piece.userData.vy = 2.0; piece.userData.vz = 0.4;
@@ -635,7 +642,7 @@ function boot(host) {
     cx.fillStyle = color; cx.fillText(text.slice(0, 30), 256, 48);
     const texture = new THREE.CanvasTexture(c);
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-    sprite.scale.set(13, 2.45, 1); return sprite;
+    sprite.scale.set(wantsContinuous ? 4.5 : 13, wantsContinuous ? 0.85 : 2.45, 1); return sprite;
   }
   function buildPOI(p, rescueReady = true) {
     const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z);
@@ -688,7 +695,7 @@ function boot(host) {
   let worldData = null, moving = false;
   // Experimental direct walking requires BOTH the server flag and explicit ?movement=continuous.
   // Otherwise the established destination-based controls are unchanged.
-  const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
+
   let survivalReadout = null;
   if (wantsContinuous) {
     eventToast.style.top = '54px';
@@ -1199,6 +1206,7 @@ function boot(host) {
         { object: packStrap, baseY: 1.92, phase: 0.04 }
       ];
       const name = labelSprite(p.label || 'Explorer', p.label === 'You' ? '#ffe28a' : '#c8d8df'); name.position.y = 4.7; g.add(name);
+      if (wantsContinuous && isLocalPlayer) name.visible = false;
       playerGroup.add(g);
     }
     // One server-positioned helper per visible account, never a PVP target.
@@ -2066,7 +2074,7 @@ function boot(host) {
   }
   function updateRefugeReturnMarker() {
     const distance = refugeReturnDistance();
-    refugeReturnMarker.visible = distance <= 36;
+    refugeReturnMarker.visible = distance > 3 && distance <= 36;
     if (!refugeReturnMarker.visible) return;
     const { x, z } = worldData.refugeReturn;
     refugeReturnMarker.position.set(x, terrainElevation(x, z), z);
@@ -2170,6 +2178,7 @@ function boot(host) {
   });
 
   const lookTarget = new THREE.Vector3();
+  let cameraInitialized = false;
   let lastStickMoveAt = 0;
   let lastFrame = performance.now();
   const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; tracerPool.update(dt);
@@ -2217,7 +2226,7 @@ function boot(host) {
       if (wantsContinuous) {
         const distance = Math.hypot(localForModels.x - actor.position.x, localForModels.z - actor.position.z);
         actor.userData.label.scale.set(4.8, 0.9, 1);
-        actor.userData.label.visible = actor.userData.hp > 0 && distance <= 12;
+        actor.userData.label.visible = actor.userData.hp > 0 && distance >= 5 && distance <= 12;
         actor.userData.threatRing.visible = false;
       }
         for (const proxy of [actor.userData.body, actor.userData.head]) {
@@ -2268,6 +2277,11 @@ function boot(host) {
       const targetY = terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation();
       const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
       if (continuousInput.enabled && view.mode === 'third') {
+        // Place the reticle beside the player's shoulder so their body does not obscure aim.
+        const shoulderX = -Math.cos(heading) * 0.9;
+        const shoulderZ = Math.sin(heading) * 0.9;
+        pose.px += shoulderX; pose.lx += shoulderX;
+        pose.pz += shoulderZ; pose.lz += shoulderZ;
         const aimPitch = cameraPitchOffset + view.pitch * 0.5;
         const cameraArmLength = Math.hypot(pose.px - pose.lx, pose.pz - pose.lz);
         pose.py = Math.max(targetY + 0.55, pose.ly - Math.tan(aimPitch) * cameraArmLength);
@@ -2314,6 +2328,14 @@ function boot(host) {
         lastCameraOcclusionId = null;
         lastCameraHitDistance = Infinity;
       }
+      if (wantsContinuous && view.mode !== 'first' && !interiorState) {
+        pose.py = Math.max(pose.py, terrainElevation(pose.px, pose.pz) + 0.65);
+      }
+      if (!cameraInitialized) {
+        camera.position.set(pose.px, pose.py, pose.pz);
+        lookTarget.set(pose.lx, pose.ly, pose.lz);
+        cameraInitialized = true;
+      }
       camera.position.x += (pose.px - camera.position.x) * followBlend;
       camera.position.y += (pose.py - camera.position.y) * followBlend;
       camera.position.z += (pose.pz - camera.position.z) * followBlend;
@@ -2326,6 +2348,7 @@ function boot(host) {
         moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10)));
       }
     }
+    if (!worldData?.self) cameraInitialized = false;
     if (zombieAudioActive && (!worldData?.self || !view.visible || document.hidden)) {
       zombieAudio.stop();
       zombieAudioActive = false;

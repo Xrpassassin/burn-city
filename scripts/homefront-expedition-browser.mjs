@@ -259,6 +259,54 @@ try {
       .textContent.includes("direct WASD"),
   );
 
+  if (!mobile) {
+    // Observe the real camera after lookAt, including its smoothed pitch.
+    await page.evaluate(async () => {
+      const { PerspectiveCamera, Vector3 } = await import("/arena/vendor/three.module.min.js");
+      const lookAt = PerspectiveCamera.prototype.lookAt;
+      const direction = new Vector3();
+      PerspectiveCamera.prototype.lookAt = function (...args) {
+        lookAt.apply(this, args);
+        if (this.fov === 48) {
+          this.getWorldDirection(direction);
+          window.fieldLookDirection = { x: direction.x, y: direction.y };
+        }
+      };
+    });
+    const canvas = await page.locator("#graveyard3d canvas").boundingBox();
+    const x = canvas.x + canvas.width / 2;
+    const y = canvas.y + canvas.height / 2;
+    const attacksBeforeLook = observed.filter(entry => entry.path.endsWith("/world/attack")).length;
+    async function rightDrag(fromX, fromY, toX, toY) {
+      await page.mouse.move(fromX, fromY);
+      await page.mouse.down({ button: "right" });
+      await page.mouse.move(toX, toY, { steps: 5 });
+      await page.mouse.up({ button: "right" });
+    }
+    for (const mode of ["Third-person", "First-person"]) {
+      if (mode === "First-person") await page.keyboard.press("v");
+      await page.waitForFunction(
+        label => document.querySelector("#graveyard3d .hf-viewbtn")?.textContent.includes(label),
+        mode,
+      );
+      await page.waitForFunction(() => {
+        const direction = window.fieldLookDirection;
+        return direction && Math.abs(direction.x) < 0.03 && Math.abs(direction.y) < 0.03;
+      });
+      await rightDrag(x, y, x + 90, y - 60);
+      await page.waitForFunction(() =>
+        window.fieldLookDirection?.x < -0.2 && window.fieldLookDirection.y > 0.07,
+      );
+      await rightDrag(x + 90, y - 60, x, y);
+    }
+    await page.keyboard.press("v");
+    await page.waitForFunction(() =>
+      Math.abs(window.fieldLookDirection?.x) < 0.03 && Math.abs(window.fieldLookDirection?.y) < 0.03,
+    );
+    assert.equal(observed.filter(entry => entry.path.endsWith("/world/attack")).length,
+      attacksBeforeLook, "right-drag does not fire the weapon");
+  }
+
   await startWalking("w");
   await page.waitForFunction(
     () =>

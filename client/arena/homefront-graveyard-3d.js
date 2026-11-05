@@ -1943,6 +1943,7 @@ function boot(host) {
   renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
   renderer.domElement.addEventListener('pointerdown', event => {
     if (event.button !== 2 || masterView !== 'third-person') return;
+    if (wantsContinuous) return; // Preview uses the shared mouse/touch look direction.
     cameraOrbiting = true; cameraPointerId = event.pointerId;
     try { renderer.domElement.setPointerCapture(event.pointerId); } catch {}
     event.preventDefault();
@@ -1967,7 +1968,7 @@ function boot(host) {
   // not a hotkey that can pull the player out of the world during combat.
   const masterView = 'third-person';
   // Third-/first-person toggle (V or the on-canvas button), touch joystick + drag-to-look, pinch zoom.
-  const view = attachViewControls(host, { onTap: onWorldTap, wheel: false });
+  const view = attachViewControls(host, { onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous });
 
   // The direct-walk preview uses the camera to aim, with no separate target-selection step.
   let updateWeaponOverlay;

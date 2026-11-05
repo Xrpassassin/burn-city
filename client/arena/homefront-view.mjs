@@ -93,7 +93,7 @@ export function setViewMode(mode) {
 
 // Per-canvas controller: toggle button, touch joystick, drag-to-look, pinch/wheel zoom, keyboard focus,
 // and offscreen detection so a hidden canvas can skip rendering (mobile perf).
-export function attachViewControls(host, { canLook = () => true, onTap = null, joystick = true, wheel = true } = {}) {
+export function attachViewControls(host, { canLook = () => true, onTap = null, joystick = true, wheel = true, rightDrag = false } = {}) {
   const state = { mode: readViewMode(), yaw: 0, pitch: 0, distance: 6.2, joy: { x: 0, y: 0 }, keys: { x: 0, y: 0 }, visible: true, dragging: false, runKey: false, runTouch: false, jumpQueued: false };
   views.add(state); if (!activeView) activeView = state;
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -144,6 +144,35 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
   }
   // Drag to look (left mouse or one finger) and pinch/wheel zoom. A press that never moves is a tap.
   const pts = new Map(); let start = null, pinch0 = 0, dist0 = 0;
+  const look = (dx, dy) => {
+    state.yaw -= dx * 0.006;
+    state.pitch = Math.max(-0.9, Math.min(0.7, state.pitch - dy * 0.004));
+  };
+  if (rightDrag) {
+    let orbit = null;
+    const stopOrbit = e => {
+      if (orbit && (!e || e.pointerId === orbit.id)) orbit = null;
+    };
+    host.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'mouse' || e.button !== 2 || e.target.tagName !== 'CANVAS' ||
+          !canLook() || modalOpen()) return;
+      orbit = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      try { e.target.setPointerCapture(e.pointerId); } catch {}
+      e.preventDefault();
+    });
+    host.addEventListener('pointermove', e => {
+      if (!orbit || orbit.id !== e.pointerId) return;
+      if (!(e.buttons & 2) || !state.visible || !canLook() || modalOpen()) {
+        stopOrbit(e);
+        return;
+      }
+      look(e.clientX - orbit.x, e.clientY - orbit.y);
+      orbit.x = e.clientX;
+      orbit.y = e.clientY;
+    });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) host.addEventListener(type, stopOrbit);
+    window.addEventListener('blur', () => stopOrbit());
+  }
   host.addEventListener('pointerdown', e => {
     activeView = state;
     if (e.target !== host && e.target.tagName !== 'CANVAS') return;
@@ -158,7 +187,7 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     if (pts.size === 2) { const [a, b] = [...pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0 > 0) state.distance = Math.max(3.5, Math.min(10.5, dist0 * pinch0 / Math.max(20, d))); return; }
     if (!start || e.pointerId !== start.id || !canLook() || modalOpen()) return;
     if (!start.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) { start.moved = true; state.dragging = true; }
-    if (start.moved) { state.yaw -= dx * 0.006; state.pitch = Math.max(-0.9, Math.min(0.7, state.pitch - dy * 0.004)); }
+    if (start.moved) look(dx, dy);
   });
   const up = e => {
     if (!pts.delete(e.pointerId)) return;

@@ -405,6 +405,15 @@ try {
     expectedAmmo,
     "field ammo returns to camp stores",
   );
+  // Re-enter the same mounted scene, then use its spawn return marker. This
+  // catches controls/camera that fail to resume after the hidden-world pause.
+  await page.waitForFunction(()=>!document.getElementById('homefrontInteractionPrompt')?.hidden);
+  await activate(page.locator('#homefrontInteractionPrompt button'));
+  await page.waitForFunction(()=>document.body.classList.contains('rpg-mode-expedition'));
+  await page.waitForFunction(()=>document.getElementById('homefrontContextAction')?.textContent.includes('Return to refuge'));
+  await activate(page.locator('#homefrontContextAction'));
+  await page.waitForFunction(()=>document.body.classList.contains('rpg-mode-home'));
+  assert.equal(objects.get('homefront-world.json').players[ACCOUNT],undefined);
   console.log(
     "PLAYABLE EXPEDITION PASSED",
     JSON.stringify({
@@ -415,6 +424,7 @@ try {
       scavenged: true,
       serverConfirmedAttack: true,
       returnedHome: true,
+      repeatedGateTransition: true,
       pageErrors: errors,
     }),
   );

@@ -16,7 +16,7 @@ import { INTERIORS, availableInteriorActions, buildInteriorSetPiece, interiorFor
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
-import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested } from './homefront-view.mjs';
+import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested, releaseMovementControls } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
@@ -2211,7 +2211,30 @@ function boot(host) {
   let cameraInitialized = false;
   let lastStickMoveAt = 0;
   let lastFrame = performance.now();
-  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; tracerPool.update(dt);
+  let sceneWasVisible = true;
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
+    // Keep server polling authoritative, but do no world animation or scenery
+    // work while at the refuge or in a hidden tab. Reset the frame clock above
+    // so returning never applies a large catch-up animation step.
+    if (!view.visible || document.hidden) {
+      releaseMovementControls(view);
+      view.jumpQueued = false;
+      if (sceneWasVisible) {
+        stopAutoFire();
+        if (reloadState) cancelReload('Reload interrupted on leaving the field view.');
+        if (zombieAudioActive) { zombieAudio.stop(); zombieAudioActive = false; }
+        tracerPool.update(1);
+        cameraInitialized = false;
+        sceneWasVisible = false;
+      }
+      // A pending movement acknowledgement may delay the release command.
+      // Retry the neutral step until the existing transport can send it.
+      if (worldData?.self) continuousInput.step({ x: 0, z: 0 }, false, now, 0);
+      requestAnimationFrame(tick);
+      return;
+    }
+    sceneWasVisible = true;
+    tracerPool.update(dt);
     if (!eventToast.hidden && now > eventToastUntil) eventToast.hidden = true;
     if (now - lastAmbientUpdateAt >= AMBIENT_UPDATE_MS) {
       lastAmbientUpdateAt = now;

@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install browser
@@ -44,4 +44,16 @@ jobs:
         env:
           PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
           HOMEFRONT_EXPEDITION_INTERIOR: '1'
+          HOMEFRONT_EXPEDITION_MOBILE: '1'
+      - name: Play wallet-free desktop expedition with building entry and city exit
+        run: node scripts/homefront-expedition-browser.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
+          HOMEFRONT_EXPEDITION_GUEST: '1'
+          HOMEFRONT_EXPEDITION_INTERIOR: '1'
+      - name: Play wallet-free touch expedition
+        run: node scripts/homefront-expedition-browser.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
+          HOMEFRONT_EXPEDITION_GUEST: '1'
           HOMEFRONT_EXPEDITION_MOBILE: '1'

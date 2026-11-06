@@ -1,6 +1,7 @@
 // Three.js shared XRPL Graveyard scene for Homefront.
 // Uses the existing Homefront world API as authority; this module owns presentation only.
 import * as THREE from './vendor/three.module.min.js';
+import { getGuestToken, fetchHomefront } from './homefront-guest.mjs';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
@@ -74,7 +75,8 @@ function boot(host) {
   window.addEventListener('pagehide', () => zombieAudio.stop(), { once: true });
   const API = new URLSearchParams(location.search).get('api') ||
     (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
-  const token = () => localStorage.getItem('bcToken') || '';
+  const token = () => getGuestToken() || localStorage.getItem('bcToken') || '';
+  const homefrontFetch = (path, options) => fetchHomefront(API, path, options);
   const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x111312);
@@ -203,7 +205,7 @@ function boot(host) {
     if (!target || pvpBusy) return;
     pvpBusy = true; pvpButton.disabled = true;
     try {
-      const r = await fetch(API + '/api/homefront/world/pvp', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ targetId: target.id, aimPoint: { x: target.x, z: target.z } }) });
+      const r = await homefrontFetch('/api/homefront/world/pvp', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ targetId: target.id, aimPoint: { x: target.x, z: target.z } }) });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.error || 'pvp_failed');
       if (combatStatus) combatStatus.textContent = 'PvP · ' + data.pvp.hits.filter(h => h.hit).length + '/' + data.pvp.rounds + ' hits · ' + data.pvp.damage + ' damage' + (data.pvp.killed ? ' · survivor downed' : '');
@@ -750,7 +752,7 @@ function boot(host) {
     // The preview must never stall forever on a missing server response.
     // A timeout aborts the request; controller rollback keeps the local
     // avatar bounded until a fresh validated server acknowledgement.
-    send: createHomefrontMoveTransport({ api: API, token }),
+    send: createHomefrontMoveTransport({ api: API, token, fetchImpl: (_url, options) => homefrontFetch('/api/homefront/world/move-input', options) }),
     onSnapshot: (data, time) => {
       if (!worldData || !data.self) return;
       const previous = worldData;
@@ -901,7 +903,7 @@ function boot(host) {
     if (moving) return null;
     moving = true;
     try {
-      const response = await fetch(API + '/api/homefront/world/interior/' + action, {
+      const response = await homefrontFetch('/api/homefront/world/interior/' + action, {
         method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
         body: JSON.stringify(payload || {})
       });
@@ -1396,7 +1398,7 @@ function boot(host) {
         !explorationSurveys.some(s => s.id === contractId && s.status === 'ready')) return;
     explorationSurveyPending.add(contractId); renderExplorationJournal();
     try {
-      const response = await fetch(API + '/api/homefront/world/exploration/claim', {
+      const response = await homefrontFetch('/api/homefront/world/exploration/claim', {
         method:'POST', headers: { authorization:'Bearer ' + token(), 'content-type':'application/json' },
         body: JSON.stringify({contractId})
       });
@@ -1421,7 +1423,7 @@ function boot(host) {
   async function fetchExplorationProgress() {
     if (!token()) return;
     try {
-      const response = await fetch(API + '/api/homefront/world/exploration', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
+      const response = await homefrontFetch('/api/homefront/world/exploration', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'exploration_progress_unavailable');
       if (data.exploration) explorationProgress = data.exploration;
@@ -1435,7 +1437,7 @@ function boot(host) {
     explorationDiscoveryPending.add(landmarkId);
     explorationDiscoveryAttempted.add(landmarkId);
     try {
-      const response = await fetch(API + '/api/homefront/world/exploration/discover', {
+      const response = await homefrontFetch('/api/homefront/world/exploration/discover', {
         method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
         body: JSON.stringify({ landmarkId })
       });
@@ -1461,7 +1463,7 @@ function boot(host) {
     if (presencePending || !view.visible || !interiorState || !instanceId || !token()) return;
     presencePending = true;
     try {
-      const response = await fetch(API + '/api/homefront/world/interior/presence', {
+      const response = await homefrontFetch('/api/homefront/world/interior/presence', {
         headers: { authorization: 'Bearer ' + token() }, cache: 'no-store'
       });
       if (!response.ok) return;
@@ -1503,7 +1505,7 @@ function boot(host) {
     if (!token() || moving) { if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.'; return; }
     const revision = gateRevision;
     try {
-      const r = await fetch(API + '/api/homefront/world', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
+      const r = await homefrontFetch('/api/homefront/world', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
       await fetchExplorationProgress();
@@ -1524,7 +1526,7 @@ function boot(host) {
       const aimPoint = selectedCombatAimPoint && aimTarget
         ? { x: aimTarget.x, y: selectedCombatAimPoint.y, z: aimTarget.z }
         : selectedCombatAimPoint;
-      const r = await fetch(API + '/api/homefront/world/' + action, {
+      const r = await homefrontFetch('/api/homefront/world/' + action, {
         method: 'POST',
         headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
         body: JSON.stringify(missPoint ? { miss: true } : targetId ? { targetId, ...(aimPoint ? { aimPoint } : {}) } : {})
@@ -1597,7 +1599,7 @@ function boot(host) {
     if (!selectedLootId || moving || !token()) { if (lootStatus) lootStatus.textContent = 'Sign in and enter an expedition before collecting supplies.'; return; }
     moving = true; if (lootActionButton) lootActionButton.disabled = true;
     try {
-      const r = await fetch(API + '/api/homefront/world/loot', {method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:JSON.stringify({nodeId:selectedLootId})});
+      const r = await homefrontFetch('/api/homefront/world/loot', {method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},body:JSON.stringify({nodeId:selectedLootId})});
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'loot_failed');
       updateWorld(data);
@@ -1630,7 +1632,7 @@ function boot(host) {
     if (combatStatus && message) combatStatus.textContent = message + ' Any shells already inserted remain loaded.';
   }
   async function requestReloadRounds(rounds) {
-    const r = await fetch(API + '/api/homefront/world/reload', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ rounds }) });
+    const r = await homefrontFetch('/api/homefront/world/reload', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ rounds }) });
     const data = await r.json();
     if (!r.ok || data.error) throw new Error(data.message || data.error || 'reload_failed');
     updateWorld(data);
@@ -1685,7 +1687,7 @@ function boot(host) {
   }
   if (reloadWeaponButton) reloadWeaponButton.addEventListener('click', reloadWeapon);
   async function requestAimState(value) {
-    const r = await fetch(API + '/api/homefront/world/aim', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ aiming: value }) });
+    const r = await homefrontFetch('/api/homefront/world/aim', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ aiming: value }) });
     const data = await r.json();
     if (!r.ok || data.error) throw new Error(data.message || data.error || 'aim_state_failed');
     return data;
@@ -1754,7 +1756,7 @@ function boot(host) {
     moving = true;
     if (damageEnvironmentButton) damageEnvironmentButton.disabled = true;
     try {
-      const response = await fetch(API + '/api/homefront/world/environment/damage', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ structureId: selectedEnvironmentId }) });
+      const response = await homefrontFetch('/api/homefront/world/environment/damage', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ structureId: selectedEnvironmentId }) });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'environment_damage_failed');
       const previousState = selected;
@@ -1921,7 +1923,7 @@ function boot(host) {
         updateWorld(lowered);
         aiming = false;
       }
-      const r = await fetch(API + '/api/homefront/world/move', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ x, z, sprint: sprintTravel }) });
+      const r = await homefrontFetch('/api/homefront/world/move', { method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' }, body: JSON.stringify({ x, z, sprint: sprintTravel }) });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'movement_rejected');
       updateWorld(data);

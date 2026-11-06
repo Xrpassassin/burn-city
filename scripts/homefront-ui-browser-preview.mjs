@@ -199,7 +199,7 @@ try {
   assert.equal(reqs.length,0,'UI-only navigation never mutated the fake server');
 
   // City and account remain available after hiding the old HTML header.
-  assert.equal(await page.getByRole('link',{name:'Return to BURN City'}).getAttribute('href'),'/');
+  assert.equal(await page.getByRole('link',{name:'Return to BURN City'}).getAttribute('href'),'../');
   await page.locator('#hfSheet .hf-panel-header button').filter({hasText:'Account'}).click();
   assert.equal(await page.evaluate(() => window.__test.accountCount),1);
   await page.locator('#hfHud .hf-menu').click();

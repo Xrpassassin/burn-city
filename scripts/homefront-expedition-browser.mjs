@@ -13,12 +13,27 @@ const playwrightRequire = createRequire(
 const { chromium } = playwrightRequire("playwright");
 const World = localRequire("../server/homefront-world.js");
 const Homefront = localRequire("../server/homefront.js");
-const ACCOUNT = Array.from({ length: 50 }, (_, i) => "playtest-" + i).find(
+const guestMode = process.env.HOMEFRONT_EXPEDITION_GUEST === "1";
+const fixturePath = path => guestMode ? path.replace('/api/homefront','/api/homefront/guest') : path;
+let ACCOUNT = Array.from({ length: 50 }, (_, i) => "playtest-" + i).find(
   (account) =>
     World.chooseSafeSpawn(World.defaultWorld(), account).spawn.id ===
     "north_gate",
 );
 const TOKEN = "ui-three-token";
+const guest = localRequire('../server/homefront-guest.js').createGuestHandler();
+let guestStore;
+// Observe, but do not replace, the authority's real per-session RAM store.
+// This lets the same end-to-end assertions inspect wallet and guest fixtures.
+const realHandle = Homefront.handle;
+Homefront.handle = async (req, res, url, context) => {
+  const account = context.who()?.acct;
+  if (guestMode && account?.startsWith('guest_')) {
+    ACCOUNT = account;
+    guestStore = context.store;
+  }
+  return realHandle(req, res, url, context);
+};
 const REFUGE_ACCOUNT = "ui-refuge-test-only";
 const REFUGE_TOKEN = "ui-refuge-token";
 const objects = new Map();
@@ -30,6 +45,7 @@ const store = {
     objects.set(key, structuredClone(value));
   },
 };
+const testState = key => guestMode ? guestStore?.load(key, undefined) : objects.get(key);
 const initialWorld = World.defaultWorld();
 store.save("homefront-world.json", initialWorld);
 const original = await readFile("client/arena/homefront.html", "utf8");
@@ -72,7 +88,32 @@ const server = createServer(async (req, res) => {
         prices: { homefront: { xrp: 0 } },
       });
     }
+    if (guestMode && url.pathname.startsWith('/api/homefront/guest')) {
+      assert.equal(req.headers.authorization, undefined, 'guest gameplay never sends a wallet bearer');
+      const received=[]; for await (const chunk of req) received.push(chunk);
+      const raw=Buffer.concat(received).toString('utf8');
+      const context={json,gate:()=>false,ip:'127.0.0.1',body:async()=>raw?JSON.parse(raw):{}};
+      observed.push({path:url.pathname.replace('/guest',''),method:req.method,guest:true});
+      if (url.pathname.endsWith('/guest/start')) {
+        // Use real disposable sessions, choosing a North Gate guest just as
+        // the wallet fixture chooses a North Gate account. No spawn override,
+        // movement shortcut or test hook is installed in game code.
+        for (let attempt=0;attempt<100;attempt++) {
+          let started;
+          await guest.handle(req,res,url,{...context,json:(_res,status,data)=>{started={status,data};}});
+          assert.equal(started.status,200);
+          await guest.handle({method:'GET',headers:{'x-homefront-guest':started.data.token}},res,
+            new URL('/api/homefront/guest',url),{...context,json:()=>{}});
+          if (World.chooseSafeSpawn(World.defaultWorld(),ACCOUNT).spawn.id==='north_gate') {
+            json(res,200,started.data);return;
+          }
+        }
+        throw Error('No North Gate guest found in bounded fixture sampling');
+      }
+      await guest.handle(req,res,url,context);return;
+    }
     if (url.pathname.startsWith("/api/homefront")) {
+      if (guestMode) throw Error('Guest expedition attempted wallet API '+url.pathname);
       const token = String(req.headers.authorization || "").replace(
         /^Bearer\s+/i,
         "",
@@ -109,6 +150,11 @@ const server = createServer(async (req, res) => {
     ) {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(original);
+      return;
+    }
+    if (url.pathname === '/') {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<h1>BURN City local exit fixture</h1>');
       return;
     }
     const path = resolve(clientRoot, "." + decodeURIComponent(url.pathname));
@@ -200,7 +246,7 @@ try {
   }
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.addInitScript(
+  if (!guestMode) await page.addInitScript(
     ({ TOKEN, ACCOUNT }) => {
       localStorage.bcToken = TOKEN;
       localStorage.bcAcct = ACCOUNT;
@@ -340,7 +386,7 @@ try {
       try {
         const deadline = Date.now() + 30000;
         while (Date.now() < deadline) {
-          const position = objects.get("homefront-world.json").players[ACCOUNT][
+          const position = testState("homefront-world.json").players[ACCOUNT][
             axis
           ];
           if ((position - target) * direction >= 0) return;
@@ -353,7 +399,7 @@ try {
             target +
             " at " +
             JSON.stringify(
-              objects.get("homefront-world.json").players[ACCOUNT],
+              testState("homefront-world.json").players[ACCOUNT],
             ),
         );
       } finally {
@@ -369,7 +415,7 @@ try {
         .textContent.includes("Enter"),
     );
     const entered = page.waitForResponse((response) =>
-      response.url().endsWith("/api/homefront/world/interior/enter"),
+      response.url().endsWith(fixturePath("/api/homefront/world/interior/enter")),
     );
     await activate(page.locator("#homefrontContextAction"));
     assert.equal((await (await entered).json()).interior.roomId, "dispatch");
@@ -380,7 +426,7 @@ try {
         .textContent.includes("Dispatch drawer"),
     );
     const searched = page.waitForResponse((response) =>
-      response.url().endsWith("/api/homefront/world/interior/action"),
+      response.url().endsWith(fixturePath("/api/homefront/world/interior/action")),
     );
     await activate(page.locator("#homefrontContextAction"));
     const searchResult = await (await searched).json();
@@ -413,7 +459,7 @@ try {
     await walkAxis("a", "x", -8, 1);
   }
   const attackResponse = page.waitForResponse((response) =>
-    response.url().endsWith("/api/homefront/world/attack"),
+    response.url().endsWith(fixturePath("/api/homefront/world/attack")),
   );
   if (mobile)
     await page
@@ -431,8 +477,8 @@ try {
     "the click resolves through server combat: " + JSON.stringify(attack),
   );
   const expectedAmmo =
-    objects.get("homefront.json")[ACCOUNT].resources.ammo +
-    objects.get("homefront-world.json").players[ACCOUNT].inventory.ammo;
+    testState("homefront.json")[ACCOUNT].resources.ammo +
+    testState("homefront-world.json").players[ACCOUNT].inventory.ammo;
   await startWalking("s");
   await page.waitForFunction(
     () =>
@@ -447,9 +493,9 @@ try {
   await page.waitForFunction(() =>
     document.body.classList.contains("rpg-mode-home"),
   );
-  assert.equal(objects.get("homefront-world.json").players[ACCOUNT], undefined);
+  assert.equal(testState("homefront-world.json").players[ACCOUNT], undefined);
   assert.equal(
-    objects.get("homefront.json")[ACCOUNT].resources.ammo,
+    testState("homefront.json")[ACCOUNT].resources.ammo,
     expectedAmmo,
     "field ammo returns to camp stores",
   );
@@ -461,11 +507,17 @@ try {
   await page.waitForFunction(()=>document.getElementById('homefrontContextAction')?.textContent.includes('Return to refuge'));
   await activate(page.locator('#homefrontContextAction'));
   await page.waitForFunction(()=>document.body.classList.contains('rpg-mode-home'));
-  assert.equal(objects.get('homefront-world.json').players[ACCOUNT],undefined);
+  assert.equal(testState('homefront-world.json').players[ACCOUNT],undefined);
+  if (guestMode) assert.equal(await page.evaluate(()=>localStorage.getItem('bcToken')),null,'the complete expedition required no wallet');
+  await activate(page.locator('#hfHud .hf-menu'));
+  await activate(page.getByRole('link', { name: 'Return to BURN City' }));
+  await page.waitForURL('http://localhost:' + port + '/');
+  assert.match(await page.locator('h1').innerText(), /BURN City/);
   console.log(
     "PLAYABLE EXPEDITION PASSED",
     JSON.stringify({
       mobile,
+      guest: guestMode,
       interior: process.env.HOMEFRONT_EXPEDITION_INTERIOR === "1",
       startedAtGate: true,
       walkedToDepot: true,
@@ -473,12 +525,14 @@ try {
       serverConfirmedAttack: true,
       returnedHome: true,
       repeatedGateTransition: true,
+      cityExit: true,
       pageErrors: errors,
     }),
   );
 
   assert.deepEqual(errors, []);
 } finally {
+  Homefront.handle = realHandle;
   await browser.close();
   await new Promise((ok) => server.close(ok));
 }

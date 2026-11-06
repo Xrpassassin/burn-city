@@ -1,0 +1,66 @@
+name: Homefront wallet-free guest play
+on:
+  pull_request:
+    paths:
+      - 'server/homefront-guest.js'
+      - 'server/server.js'
+      - 'client/arena/homefront.html'
+      - 'client/arena/homefront-graveyard-3d.js'
+      - 'client/arena/homefront-guest.mjs'
+      - 'scripts/homefront-guest-browser-smoke.mjs'
+      - 'test/homefront-guest-sim.mjs'
+      - 'test/homefront-guest-client.test.mjs'
+      - 'test/homefront-guest-cors.test.mjs'
+      - 'package.json'
+      - '.github/workflows/homefront-guest-play.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guest-isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --omit=dev
+      - name: Parse guest server/client and smoke fixtures
+        run: |
+          node --check server/homefront-guest.js
+          node --check client/arena/homefront-guest.mjs
+          node --check scripts/homefront-guest-browser-smoke.mjs
+      - name: Prove guest play never touches wallet save files or shared world
+        run: node test/homefront-guest-sim.mjs
+      - name: Prove memory-only browser guest and isolated WebGL routing
+        run: node test/homefront-guest-client.test.mjs
+      - name: Cross-origin GitHub Pages guest API CORS regression
+        run: node test/homefront-guest-cors.test.mjs
+      - name: Run all Homefront regressions
+        run: npm run test:homefront
+  guest-real-webgl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --omit=dev
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Load real Homefront 3D without Xaman on desktop and mobile
+        env:
+          HOMEFRONT_CONTINUOUS_MOVEMENT: '0'
+          HOMEFRONT_UI_ARTIFACTS: homefront-guest-browser-output
+        run: node scripts/homefront-guest-browser-smoke.mjs
+      - name: Upload guest gameplay screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homefront-guest-browser-preview
+          path: homefront-guest-browser-output/
+          if-no-files-found: warn

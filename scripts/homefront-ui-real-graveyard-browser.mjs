@@ -13,6 +13,7 @@ const playwrightRequire = createRequire((process.env.PLAYWRIGHT_DIR || process.c
 const { chromium } = playwrightRequire('playwright');
 const World = localRequire('../server/homefront-world.js');
 const Homefront = localRequire('../server/homefront.js');
+const guest = localRequire('../server/homefront-guest.js').createGuestHandler();
 const ACCOUNT = 'ui-three-test-only';
 const TOKEN = 'ui-three-token';
 const REFUGE_ACCOUNT = 'ui-refuge-test-only';
@@ -83,6 +84,13 @@ const server=createServer(async(req,res)=>{
       if(req.method!=='GET')return json(res,405,{error:'read_only_test_fixture'});
       return json(res,200,{owned:{homefront:false},payments:false,
         prices:{homefront:{xrp:0}}});
+    }
+    if(url.pathname.startsWith('/api/homefront/guest')) {
+      const received=[];for await(const p of req) received.push(p);
+      const raw=Buffer.concat(received).toString('utf8');
+      await guest.handle(req,res,url,{json,gate:()=>false,ip:'127.0.0.1',
+        body:async()=>raw?JSON.parse(raw):{}});
+      return;
     }
     if(url.pathname.startsWith('/api/homefront')) {
       const token=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');
@@ -162,17 +170,14 @@ try {
     assert.equal(firstPaint.overflow,false,'opening never becomes a scrolling page');
     assert.equal(firstPaint.intro,'none');
     release();
-    await opening.waitForFunction(()=>document.getElementById('status')?.textContent.includes('Sign in to create'),null,{timeout:60000});
+    await opening.waitForFunction(()=>document.getElementById('status')?.textContent.includes('Playing as guest'),null,{timeout:60000});
     assert.equal(await opening.locator('#graveyard3d canvas').count(),0,'hidden Wastes renderer waits for an expedition');
-    assert(await opening.locator('header h1').evaluate(el=>parseFloat(getComputedStyle(el).fontSize)>=34),'game title remains full size after HUD initialization');
-    await opening.locator('#signin').click();
+    await opening.locator('#homefrontModalActions button').filter({hasText:'Enter Homefront'}).click();
+    await opening.locator('#hfHud .hf-menu').click();
+    await opening.locator('#hfSheet .hf-panel-header button').filter({hasText:'Connect wallet to save'}).click();
     await opening.waitForFunction(()=>document.getElementById('status')?.textContent.includes('Sign-in unavailable'));
-    assert(await opening.locator('#closeSignIn').isVisible(),'failed sign-in remains dismissible');
-    await opening.locator('#closeSignIn').click();
-    assert(await opening.locator('#qrbox').isHidden());
+    assert(await opening.locator('#qrbox').isHidden(),'failed optional sign-in returns to guest gameplay');
     await opening.screenshot({path:out+'/opening-'+viewport.width+'.png'});
-    // Show the real HUD independently of WebGL to isolate menu layout/navigation.
-    await opening.evaluate(()=>{document.getElementById('game').hidden=false;});
     await opening.locator('#hfHud .hf-menu').click();
     const leave=opening.getByRole('link',{name:'Return to BURN City'});
     const leaveBox=await leave.boundingBox();

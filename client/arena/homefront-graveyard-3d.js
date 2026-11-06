@@ -72,7 +72,8 @@ function boot(host) {
     if (sfx.has('attack')) sfx.play('attack', { pos: [landmark.x, terrainElevation(landmark.x, landmark.z) + 1.1, landmark.z], v: 1.1, ref: 4, max: 36, roll: 1.2 });
   });
   window.addEventListener('pagehide', () => zombieAudio.stop(), { once: true });
-  const API = new URLSearchParams(location.search).get('api') ||
+  const API = window.__BURN_CITY_ISOLATED_PREVIEW__ ? location.origin :
+    new URLSearchParams(location.search).get('api') ||
     (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   const token = () => localStorage.getItem('bcToken') || '';
   const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';

@@ -80,7 +80,8 @@ if(directWalkPreview){
  document.getElementById('graveyardMap').setAttribute('aria-label','Shared Graveyard navigation map');
  document.getElementById('graveyardStatus').textContent='Connecting to shared world…';
 }
-const API = new URLSearchParams(location.search).get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
+const API = window.__BURN_CITY_ISOLATED_PREVIEW__ ? location.origin :
+  new URLSearchParams(location.search).get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
 const $ = id => document.getElementById(id);
 let base = null, threatProfile = null, busy = false, pendingBuilding = null, pendingRotation = 0, constructionPaused = false, homefrontMode = "home", lastNearbySurvivorId = null;
 const visitOwner = new URLSearchParams(location.search).get('visit');

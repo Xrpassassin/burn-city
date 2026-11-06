@@ -613,9 +613,19 @@ body.touch #iosHint{left:calc(var(--left) + 106px)!important;right:calc(var(--ri
 /* iPhone SE / mini: the top row (BURN CITY, ☰ View, ⇄ Play, ⋯) did not fit around the centred View button */
 @media (max-width:380px){
   #bcMoveGamesOpen .bc-mg-short{display:none!important}
-  body.touch #vExit{left:auto!important;right:calc(var(--right) + 118px)!important;transform:none!important;padding:0 10px!important}
   #bcMoveGamesOpen .bc-mg-mark{margin-right:0!important}
 }
 @media (max-height:500px) and (orientation:landscape){
   body.touch #estateInteriorHud{top:calc(var(--top) + var(--tap) + 8px)!important;left:calc(var(--left) + 106px)!important;right:calc(var(--right) + 160px)!important}
 }
+
+/* Top bar (root-cause layout): ☰ View / ✕ Exit and 🏠 Estates are ordinary flex items of #btns, the bar is capped to the
+   space right of the HUD (--hud-right, measured in ui.js) and .tight swaps long labels for short ones instead of overlapping. */
+#btns{max-width:calc(100vw - var(--hud-right,0px) - var(--right) - 8px)!important;min-width:0}
+#btns>*{flex:0 0 auto}
+#btns #vExit{position:relative!important;left:auto!important;right:auto!important;top:auto!important;transform:none!important;order:-1}
+#btns .barLink{display:inline-flex;align-items:center;gap:6px;box-sizing:border-box;min-height:var(--ctl);padding:0 12px;border:1px solid #59758e;border-radius:12px;background:#142538;color:#e6f1ff;text-decoration:none;font:600 13px var(--f-ui,system-ui);white-space:nowrap}
+body.touch #btns .barLink{min-height:var(--tap);min-width:var(--tap);justify-content:center}
+#btns.tight .barLink .bl-txt,#btns.tight #vExit::after{display:none}
+#btns.tight .barLink{padding:0 10px}
+#btns.tight #bcMoveGamesOpen .bc-mg-long{display:none}#btns.tight #bcMoveGamesOpen .bc-mg-short{display:inline}

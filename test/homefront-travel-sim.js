@@ -59,6 +59,9 @@ const ok = (r, msg) => { assert.equal(r.status, 200, msg + ' → ' + JSON.string
   assert.equal(bOut.party?.code, code, 'B rejoins the same party in the world');
   const a = files.get('homefront-world.json').players[A], b = files.get('homefront-world.json').players[B];
   assert.ok(Math.hypot(a.x - b.x, a.z - b.z) < 8, 'B regroups beside the leader');
+  assert.deepEqual(bOut.refugeReturn, out.refugeReturn, 'followers can return through the active leader’s gate');
+  const reserved = files.get('homefront-world.json').refugeEntries;
+  assert.notEqual(reserved[A], reserved[B], 'regrouping does not reassign B’s own refuge gate');
   // A returns home with travel:true: the party is kept and A is at home again; B (follower) is not frozen.
   const back = ok(await call('POST', W + '/leave', A, { travel: true }), 'A returns home');
   assert.equal(back.self, null);

@@ -49,6 +49,17 @@ const FRONTIER_SPAWNS = Object.freeze(Array.from({ length: 16 }, (_, i) => {
   return Object.freeze({ id: 'frontier_' + i, label: 'Frontier Rim ' + (i + 1), x: Math.round(Math.cos(a) * 86), z: Math.round(Math.sin(a) * 86) });
 }));
 const ALL_SPAWNS = Object.freeze([...SPAWNS, ...FRONTIER_SPAWNS]);
+// The authored gates are preferred. Additional grounded sites give the current
+// map room for more refuges without sharing any permanent entry coordinates.
+const REFUGE_ENTRY_SPACING = 14;
+const EXTRA_REFUGE_ENTRIES = [];
+for (let x = -84; x <= 84; x += 14) for (let z = -84; z <= 84; z += 14) {
+  const radius = Math.hypot(x, z);
+  if (radius < 58 || radius > 91) continue;
+  EXTRA_REFUGE_ENTRIES.push({ id: 'refuge_' + x + '_' + z, label: 'Refuge trailhead', x, z });
+}
+const REFUGE_ENTRY_SPAWNS = [...ALL_SPAWNS, ...EXTRA_REFUGE_ENTRIES];
+const REFUGE_ENTRY_BY_ID = new Map(REFUGE_ENTRY_SPAWNS.map(spawn => [spawn.id, spawn]));
 const MIN_SPAWN_DISTANCE = 60;
 // Interest management: strangers are only sent to a client inside this radius (render range).
 // Party members are always sent (they are the only explorers on the map). Never broadcast everyone.
@@ -85,11 +96,21 @@ const POINTS_OF_INTEREST = [
 ];
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : 0));
-const defaultWorld = () => ({ version: 1, players: {}, parties: {}, encounters: {}, lootNodes: {}, environmentStructures: {}, fieldSurveyClaims: {} });
+const defaultWorld = () => ({ version: 1, players: {}, refugeEntries: {}, parties: {}, encounters: {}, lootNodes: {}, environmentStructures: {}, fieldSurveyClaims: {} });
 function normalizeWorld(input, now = Date.now()) {
   const w = input && input.version === 1 ? input : defaultWorld();
   if (!w.players || typeof w.players !== 'object' || Array.isArray(w.players)) w.players = {};
   if (!w.parties || typeof w.parties !== 'object' || Array.isArray(w.parties)) w.parties = {};
+  const entries = Object.create(null);
+  const claimed = new Set();
+  if (w.refugeEntries && typeof w.refugeEntries === 'object' && !Array.isArray(w.refugeEntries)) {
+    for (const [account, id] of Object.entries(w.refugeEntries)) {
+      if (!REFUGE_ENTRY_BY_ID.has(id) || claimed.has(id)) continue;
+      entries[account] = id;
+      claimed.add(id);
+    }
+  }
+  w.refugeEntries = entries;
   w.encounters = Combat.normalizeEncounters(w.encounters, now);
   w.lootNodes = Loot.normalize(w.lootNodes);
   w.fieldSurveyClaims = FieldSurveys.normalize(w.fieldSurveyClaims);
@@ -112,14 +133,14 @@ function normalizeWorld(input, now = Date.now()) {
     p.x = clamp(p.x, -WORLD_SIZE, WORLD_SIZE); p.z = clamp(p.z, -WORLD_SIZE, WORLD_SIZE);
     p.lastSeen = Number.isFinite(p.lastSeen) ? p.lastSeen : 0;
     p.partyCode = typeof p.partyCode === 'string' ? p.partyCode : null;
-    p.spawn = ALL_SPAWNS.some(s => s.id === p.spawn) ? p.spawn : SPAWNS[hash(acct) % SPAWNS.length].id;
+    p.spawn = REFUGE_ENTRY_BY_ID.has(p.spawn) ? p.spawn : SPAWNS[hash(acct) % SPAWNS.length].id;
     const savedInterior = w.interiors?.[acct];
     const activeInteriorId = savedInterior?.activeLandmarkId || null;
     const activeInteriorState = activeInteriorId ? savedInterior.interiors?.[activeInteriorId] : null;
     const interiorRemoved = Collision.interiorRemovedIds(activeInteriorId,
       Interiors.sharedOpenedDoors(w.sharedInteriors, activeInteriorId, activeInteriorState?.openedDoors));
     if (!Collision.isSafePosition(p.x, p.z, { bounds: WORLD_SIZE, removedObstacleIds: interiorRemoved })) {
-      const anchor = ALL_SPAWNS.find(s => s.id === p.spawn) || chooseSpawn(w, acct);
+      const anchor = REFUGE_ENTRY_BY_ID.get(p.spawn) || chooseSpawn(w, acct);
       const recovered = Collision.findSafePosition(anchor.x, anchor.z, { bounds: WORLD_SIZE }) || Collision.findSafePosition(0, 0, { bounds: WORLD_SIZE });
       if (!recovered) throw new Error('no_safe_spawn_location');
       p.x = recovered.x; p.z = recovered.z;
@@ -204,6 +225,35 @@ const safeSpawnCache = new Map();   // static collision only: a spawn's safe foo
 function safeSpawnPosition(spawn) {
   if (!safeSpawnCache.has(spawn.id)) safeSpawnCache.set(spawn.id, Collision.findSafePosition(spawn.x, spawn.z, { bounds: WORLD_SIZE }));
   const p = safeSpawnCache.get(spawn.id); return p ? { x: p.x, z: p.z } : null;
+}
+function assignRefugeEntry(w, acct) {
+  const existing = REFUGE_ENTRY_BY_ID.get(w.refugeEntries[acct]);
+  const existingPosition = existing && safeSpawnPosition(existing);
+  if (existingPosition) return { spawn: existing, position: existingPosition };
+
+  // Reservations outlive presence and expedition sessions. Rank candidates by
+  // distance from already assigned gates, preferring authored sites on a tie.
+  const occupied = new Set(Object.values(w.refugeEntries));
+  // Old expeditions keep their current return point until their next deployment.
+  for (const [account, player] of Object.entries(w.players)) {
+    if (!w.refugeEntries[account]) occupied.add(player.spawn);
+  }
+  const positions = [...occupied].map(id => safeSpawnPosition(REFUGE_ENTRY_BY_ID.get(id))).filter(Boolean);
+  let best = null;
+  for (const spawn of REFUGE_ENTRY_SPAWNS) {
+    if (occupied.has(spawn.id)) continue;
+    const position = safeSpawnPosition(spawn);
+    if (!position) continue;
+    const distance = positions.reduce((nearest, other) =>
+      Math.min(nearest, Math.hypot(position.x - other.x, position.z - other.z)), Infinity);
+    if (distance + 1e-6 < REFUGE_ENTRY_SPACING) continue;
+    if (!best || distance > best.distance) best = { spawn, position, distance };
+    // Give the first reservations authored routes when there is ample space.
+    if (SPAWNS.includes(spawn) && distance >= MIN_SPAWN_DISTANCE) break;
+  }
+  if (!best) throw new Error('homefront_entry_points_full');
+  w.refugeEntries[acct] = best.spawn.id;
+  return best;
 }
 // Server-picked spawn far from everyone else: the authored spawns in their usual order, taking the first one
 // at least MIN_SPAWN_DISTANCE from every other explorer (party members excluded: they regroup anyway);
@@ -333,7 +383,10 @@ function snapshot(input, acct, now = Date.now()) {
   const viewerParty = party ? p.partyCode : null;
   // Interest management: only self, party members and strangers within INTEREST_RADIUS ever leave the server.
   const visible = visibleAccounts(w, acct, now);
-  const returnSpawn = p && ALL_SPAWNS.find(spawn => spawn.id === p.spawn);
+  // Followers travel under an active leader's control and can use the same
+  // exit together. Their own reservations are untouched by party travel.
+  const returnAccount = party && w.players[party.leader] ? party.leader : acct;
+  const returnSpawn = p && REFUGE_ENTRY_BY_ID.get(w.refugeEntries[returnAccount] || w.players[returnAccount]?.spawn);
   const nearEncounter = e => !!p && (e.owner === acct || Math.hypot(e.x - p.x, e.z - p.z) <= INTEREST_RADIUS + 10);
   return {
     world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
@@ -409,16 +462,13 @@ function tickInfected(w, acct, now) {
   delete w.encounters[acct];
   player.directorState.lastSpawnAt = now;
 }
-function enter(input, acct, now = Date.now(), effects = null, base = null, { pineCrossing = false } = {}) {
+function enter(input, acct, now = Date.now(), effects = null, base = null) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())), now);
   prune(w, now);
   let p = w.players[acct];
   if (!p) {
     if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
-    const trailhead = pineCrossing && SPAWNS.find(spawn => spawn.id === 'north_gate');
-    const trailheadPosition = trailhead && safeSpawnPosition(trailhead);
-    const { spawn, position } = trailheadPosition
-      ? { spawn: trailhead, position: trailheadPosition } : chooseSafeSpawn(w, acct);
+    const { spawn, position } = assignRefugeEntry(w, acct);
     p = w.players[acct] = { x: position.x, z: position.z, spawn: spawn.id, spawnedAt: now, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }, aiming: false, aimStartedAt: 0, lastSprintAt: 0, accuracyRecoverUntil: 0 };
   }
   p.lastSeen = now;

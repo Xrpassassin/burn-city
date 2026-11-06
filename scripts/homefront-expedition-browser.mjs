@@ -16,11 +16,7 @@ const World = localRequire("../server/homefront-world.js");
 const Homefront = localRequire("../server/homefront.js");
 const guestMode = process.env.HOMEFRONT_EXPEDITION_GUEST === "1";
 const fixturePath = path => guestMode ? path.replace('/api/homefront','/api/homefront/guest') : path;
-let ACCOUNT = Array.from({ length: 50 }, (_, i) => "playtest-" + i).find(
-  (account) =>
-    World.chooseSafeSpawn(World.defaultWorld(), account).spawn.id ===
-    "north_gate",
-);
+let ACCOUNT = "playtest-first-refuge";
 const TOKEN = "ui-three-token";
 const guest = localRequire('../server/homefront-guest.js').createGuestHandler();
 let guestStore;
@@ -95,22 +91,6 @@ const server = createServer(async (req, res) => {
       const raw=Buffer.concat(received).toString('utf8');
       const context={json,gate:()=>false,ip:'127.0.0.1',body:async()=>raw?JSON.parse(raw):{}};
       observed.push({path:url.pathname.replace('/guest',''),method:req.method,guest:true});
-      if (url.pathname.endsWith('/guest/start')) {
-        // Use real disposable sessions, choosing a North Gate guest just as
-        // the wallet fixture chooses a North Gate account. No spawn override,
-        // movement shortcut or test hook is installed in game code.
-        for (let attempt=0;attempt<100;attempt++) {
-          let started;
-          await guest.handle(req,res,url,{...context,json:(_res,status,data)=>{started={status,data};}});
-          assert.equal(started.status,200);
-          await guest.handle({method:'GET',headers:{'x-homefront-guest':started.data.token}},res,
-            new URL('/api/homefront/guest',url),{...context,json:()=>{}});
-          if (World.chooseSafeSpawn(World.defaultWorld(),ACCOUNT).spawn.id==='north_gate') {
-            json(res,200,started.data);return;
-          }
-        }
-        throw Error('No North Gate guest found in bounded fixture sampling');
-      }
       await guest.handle(req,res,url,context);return;
     }
     if (url.pathname.startsWith("/api/homefront")) {
@@ -311,6 +291,7 @@ try {
   const contactStore = guestMode ? guestStore : store;
   const contactWorld = testState("homefront-world.json");
   const contactPlayer = contactWorld.players[ACCOUNT];
+  assert.equal(contactPlayer.spawn, 'north_gate', 'the first Homefront enters at Pine Crossing’s North Gate');
   const contactEncounter = contactWorld.encounters[ACCOUNT];
   const attacker = {
     ...contactEncounter.members[0], x: contactPlayer.x, z: contactPlayer.z

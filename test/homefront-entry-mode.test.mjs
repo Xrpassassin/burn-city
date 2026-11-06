@@ -46,7 +46,7 @@ function harness(initialMode = 'home', directWalkPreview = false) {
 const direct = harness('home', true);
 direct.setResponse({ self: { x: 2, z: 3 } });
 await direct.run('/api/homefront/world/enter', {});
-assert.equal(direct.requests[0].body.route, 'pine-crossing', 'direct preview requests the authored trailhead');
+assert.equal(direct.requests[0].body.route, undefined, 'the server assigns each Homefront its own trailhead');
 assert.equal(direct.getMode(), 'expedition',
   'direct expedition entry must reveal the Graveyard panel');
 assert.deepEqual(Array.from(direct.changes), ['expedition'],

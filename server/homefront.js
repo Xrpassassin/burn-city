@@ -450,9 +450,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const escortRosters=store.load('homefront.json',{});
           const escortBase=Core.validateBase(escortRosters[user.acct] || Core.createBase(user.acct),user.acct);
           if(!escortBase)throw new Error('save_invalid');
-          outcome=World.enter(db,user.acct,Date.now(),cindersEffects(),escortBase,{
-            pineCrossing: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1' && payload.route === 'pine-crossing'
-          });
+          outcome=World.enter(db,user.acct,Date.now(),cindersEffects(),escortBase);
           if (wasHome) { Travel.rejoinOnEnter(outcome.world, user.acct, { Collision, bounds: World.WORLD_SIZE }); Rpg.award(store, user.acct, 'enter_world'); }
           outcome.result = World.snapshot(outcome.world, user.acct);
           const player=outcome.world.players[user.acct];

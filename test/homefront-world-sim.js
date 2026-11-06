@@ -13,6 +13,35 @@ assert.equal(a.result.self.risk, 1, 'perimeter spawn is low risk');
 assert.ok(a.world.encounters['acct-a'], 'the authoritative director seeds an infected encounter when an explorer enters');
 assert.ok(a.result.director && a.result.director.nextSpawnAt > 1000, 'world snapshot exposes the persisted local director schedule');
 assert.equal(world.players['acct-a'].directorState.lastSpawnAt, 1000, 'director spawn cadence is persisted per player');
+assert.equal(a.result.self.spawn, 'north_gate', 'the first Homefront claims the Pine Crossing trailhead');
+assert.deepEqual(a.result.refugeReturn, { x: a.result.self.x, z: a.result.self.z });
+assert.equal(b.result.refugeEntries, undefined, 'private gate assignments are not shared with clients');
+{
+  let saved = W.leave(a.world, 'acct-a', 2000).world;
+  // Save/restore after every exit with nobody left online. Every subsequent
+  // refuge still reserves a separate footprint.
+  const gates = [a.result.refugeReturn];
+  for (let i = 0; i < 24; i++) {
+    const account = 'offline-refuge-' + i;
+    const next = W.enter(JSON.parse(JSON.stringify(saved)), account, 3000 + i * 2000);
+    const gate = next.result.refugeReturn;
+    assert.ok(gates.every(other => Math.hypot(other.x - gate.x, other.z - gate.z) >= 14 - 1e-6),
+      'a new gate has a separate footprint even if all earlier owners left');
+    gates.push(gate);
+    saved = W.leave(next.world, account, 4000 + i * 2000).world;
+  }
+  const returned = W.enter(JSON.parse(JSON.stringify(saved)), 'acct-a', 60000);
+  assert.deepEqual(returned.result.refugeReturn, a.result.refugeReturn, 'returning Homefront keeps its reserved gate');
+  assert.deepEqual({ x: returned.result.self.x, z: returned.result.self.z }, a.result.refugeReturn);
+}
+{
+  const legacy = JSON.parse(JSON.stringify(a.world));
+  delete legacy.refugeEntries;
+  const newcomer = W.enter(legacy, 'new-refuge', 3000);
+  assert.notEqual(newcomer.result.self.spawn, 'north_gate',
+    'a new refuge cannot claim the return point of a pre-update active explorer');
+  assert.deepEqual(W.snapshot(newcomer.world, 'acct-a', 3000).refugeReturn, a.result.refugeReturn);
+}
 const noisyWorld = W.recordNoise(world, 'acct-a', 95, 1500);
 assert.equal(noisyWorld.players['acct-a'].noiseLevel, 95, 'server records gunfire noise intensity');
 assert.equal(noisyWorld.players['acct-a'].lastNoiseAt, 1500, 'server records the authoritative noise timestamp');

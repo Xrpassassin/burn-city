@@ -325,7 +325,9 @@ function tickDirector(w, acct, now = Date.now()) {
   const district = districtAt(p.x, p.z);
   const zoneId = district.id === 'graveyard_core' ? 'research_lab' : district.id === 'perimeter' ? 'outskirts' : district.id;
   const frontierDepth = frontierDepthAt(p.x, p.z);
-  const active = Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0 && e.owner === acct).length;
+  const encounters = Combat.normalizeEncounters(w.encounters, now);
+  const active = (encounters[acct] && !encounters[acct].defeated && encounters[acct].hp > 0 ? 1 : 0) +
+    Combat.nearbyPartyPatrols(encounters, acct, w.players, now).length;
   const elapsed = Math.max(0, now - (p.lastNoiseAt || now));
   const noise = Math.max(0, (p.noiseLevel || 0) - elapsed / 120);
   const previousSpawnAt = p.directorState?.lastSpawnAt || 0;
@@ -392,6 +394,10 @@ function snapshot(input, acct, now = Date.now()) {
   const returnAccount = party && w.players[party.leader] ? party.leader : acct;
   const returnSpawn = p && REFUGE_ENTRY_BY_ID.get(w.refugeEntries[returnAccount] || w.players[returnAccount]?.spawn);
   const nearEncounter = e => !!p && (e.owner === acct || Math.hypot(e.x - p.x, e.z - p.z) <= INTEREST_RADIUS + 10);
+  const alliedPatrols = Combat.nearbyPartyPatrols(w.encounters, acct, w.players, now);
+  const attackable = new Set(alliedPatrols.map(e => e.id));
+  const own = w.encounters[acct];
+  const primary = own && !own.defeated && own.hp > 0 ? own : alliedPatrols[0] || own;
   return {
     world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
     players: [...visible].map(id => {
@@ -411,8 +417,11 @@ function snapshot(input, acct, now = Date.now()) {
     refugeReturn: returnSpawn ? safeSpawnPosition(returnSpawn) : null,
     director: p ? { phase: p.directorState?.phase || 'calm', lastDecision: p.directorState?.lastDecision || 'hold', nextSpawnAt: p.directorState?.nextSpawnAt || 0, noise: Math.round(Math.max(0, (p.noiseLevel || 0) - Math.max(0, now - (p.lastNoiseAt || now)) / 120)) } : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now, viewerParty)) } : null,
-    encounters: Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0 && nearEncounter(e)).map(Combat.publicEncounter),
-    selfEncounter: Combat.publicEncounter(w.encounters?.[acct]),
+    encounters: Object.values(w.encounters).filter(e => !e.defeated && e.hp > 0 && nearEncounter(e))
+      .map(e => ({ ...Combat.publicEncounter(e), attackable: e.owner === acct || attackable.has(e.id) })),
+    selfEncounter: Combat.publicEncounter(primary),
+    recentPatrolDeaths: Object.values(w.encounters).filter(e => e.patrolId && nearEncounter(e))
+      .flatMap(e => e.members.filter(m => m.defeated && m.lastAttackAt > 0 && now - m.lastAttackAt <= 3500).map(m => m.id)),
     selfSurvival: p ? { ...p.survival } : null,
     selfInfectedHit: p?.infectedHit && now - p.infectedHit.at <= 3500 ? { ...p.infectedHit } : null,
     selfPvp: p ? { recentHits: p.pvpHits || [], kills: p.pvpKills || 0, downedAt: p.downedAt || 0, protectedUntil: (p.spawnedAt || 0) + 10_000 } : null,
@@ -446,7 +455,14 @@ function tickInfected(w, acct, now) {
   const scene = { interiors: w.interiors, sharedInteriors: w.sharedInteriors, destroyedObstacles, now };
   w.encounters = Combat.advance({ ...scene, encounters: w.encounters, players: w.players });
   Companions.guard(w.encounters, acct, player, now);
-  const hit = Combat.meleeContact({ ...scene, encounter: w.encounters[acct], player, account: acct });
+  const threats = [w.encounters[acct], ...Combat.nearbyPartyPatrols(w.encounters, acct, w.players, now)];
+  let hit = null;
+  for (const encounter of threats) {
+    hit = Combat.meleeContact({ ...scene, encounter, player, account: acct });
+    if (!hit) continue;
+    if (encounter.patrolId) encounter.lastMeleeAt = now;
+    break;
+  }
   if (!hit) return;
 
   const survival = player.survival;
@@ -463,7 +479,10 @@ function tickInfected(w, acct, now) {
   player.aiming = false; player.aimStartedAt = 0;
   survival.health = Survival.RESPAWN_HEALTH;
   if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
-  delete w.encounters[acct];
+  if (!w.encounters[acct]?.patrolId || !player.partyCode ||
+      !Object.values(w.players).some(other => other !== player && other.partyCode === player.partyCode)) {
+    delete w.encounters[acct];
+  }
   player.directorState.lastSpawnAt = now;
 }
 function enter(input, acct, now = Date.now(), effects = null, base = null) {

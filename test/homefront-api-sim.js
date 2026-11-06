@@ -331,5 +331,59 @@ async function call(method, pathname, acct, payload = {}) {
   const leftDepot = await call('POST', '/api/homefront/world/interior/leave', 'acct-a');
   assert.equal(leftDepot.status, 200);
 
+  // Play a party encounter through independent authenticated requests.
+  files.clear();
+  const [leader, ally, stranger] = ['patrol-lead', 'patrol-ally', 'patrol-stranger'];
+  for (const account of [leader, ally, stranger]) {
+    assert.equal((await call('POST', '/api/homefront/world/enter', account)).status, 200);
+  }
+  const patrolWorld = files.get('homefront-world.json');
+  const patrol = patrolWorld.encounters[leader];
+  assert.ok(patrol.patrolId);
+  delete patrolWorld.encounters[ally];
+  delete patrolWorld.encounters[stranger];
+  const party = 'AB1122';
+  patrolWorld.parties[party] = { leader, members: [leader, ally] };
+  Object.assign(patrolWorld.players[leader], { x: -43, z: -42, partyCode: party });
+  Object.assign(patrolWorld.players[ally], { x: -36, z: -42, partyCode: party });
+  Object.assign(patrolWorld.players[stranger], { x: -37, z: -42 });
+  const target = { ...patrol.members[0], x: -39, z: -42, hp: 120, maxHp: 120 };
+  Object.assign(patrol, { x: target.x, z: target.z, hp: 120, maxHp: 120, members: [target], lastAiAt: Date.now() });
+  files.set('homefront-world.json', patrolWorld);
+  const allyView = await call('GET', '/api/homefront/world', ally);
+  assert.equal(allyView.data.selfEncounter.id, patrol.id, 'teammates see the same encounter as their active threat');
+  assert.equal(allyView.data.encounters.find(e => e.id === patrol.id).attackable, true);
+  assert.equal(files.get('homefront-world.json').encounters[ally], undefined, 'the director reuses the patrol instead of spawning a copy');
+
+  const attackPath = '/api/homefront/world/attack';
+  const payload = { targetId: target.id };
+  assert.equal((await call('POST', attackPath, stranger, payload)).data.error, 'target_mismatch');
+  const first = await call('POST', attackPath, leader, payload);
+  const second = await call('POST', attackPath, ally, payload);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200, 'one teammate cannot consume the other’s attack cooldown');
+  assert.equal((await call('POST', attackPath, ally, payload)).data.error, 'attack_cooldown');
+  assert.equal(second.data.encounter.hp, 120 - first.data.combat.damage - second.data.combat.damage,
+    'both attacks change one persisted health pool');
+
+  const covered = files.get('homefront-world.json');
+  Object.assign(covered.players[ally], { x: -42, z: -43, lastWeaponFireAt: 0 });
+  Object.assign(covered.encounters[leader], { x: -42, z: -49 });
+  Object.assign(covered.encounters[leader].members[0], { x: -42, z: -49 });
+  files.set('homefront-world.json', covered);
+  assert.equal((await call('POST', attackPath, ally, payload)).data.error, 'infected_behind_cover',
+    'an exterior wall blocks a shared patrol attack');
+
+  Object.assign(covered.encounters[leader], { x: -39, z: -42, hp: 1 });
+  Object.assign(covered.encounters[leader].members[0], { x: -39, z: -42, hp: 1 });
+  files.set('homefront-world.json', covered);
+  const finish = await call('POST', attackPath, ally, payload);
+  assert.equal(finish.status, 200);
+  assert.equal(finish.data.combat.killed, true);
+  assert.ok(finish.data.combat.reward.scrap > 0);
+  assert.ok(finish.data.recentPatrolDeaths.includes(target.id));
+  const replay = await call('POST', attackPath, leader, payload);
+  assert.equal(replay.status, 400, 'a second player cannot claim a defeated patrol’s reward');
+
   console.log('Homefront authenticated save API simulation passed.');
 })().catch(e => { console.error(e); process.exitCode = 1; });

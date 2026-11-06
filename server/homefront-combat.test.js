@@ -287,6 +287,12 @@ console.log('fifty cal tier ok');
  const investigating = C.advance({ encounters: seeded.encounters, players: { [account]: shot }, now: now + 1000 });
  assert.equal(investigating[account].lastKnownZ, shot.noiseZ, 'an audible shot replaces the patrol target');
  assert.ok(investigating[account].z < initial.z, 'infected walk toward the source, away from the patrol waypoint');
+ const ally = { ...shot, partyCode: 'ABCDEF' };
+ const partyOwner = { ...walker, partyCode: ally.partyCode };
+ const heardAlly = C.advance({ encounters: seeded.encounters, players: { [account]: partyOwner, ally }, now: now + 1000 });
+ assert.equal(heardAlly[account].lastKnownZ, shot.noiseZ, 'a patrol hears another member of its owner’s party');
+ const ignored = C.advance({ encounters: seeded.encounters, players: { [account]: walker, ally }, now: now + 1000 });
+ assert.notEqual(ignored[account].lastKnownZ, shot.noiseZ, 'an unrelated player cannot retarget a party patrol');
  const resumed = C.advance({ encounters: investigating, players: { [account]: walker }, now: now + 18000 });
  assert.ok(resumed[account].z > investigating[account].z, 'patrol resumes after the sound expires');
 

@@ -250,9 +250,15 @@ function boot(host) {
   let weaponSwingUntil = 0;
   let weaponSwingStartedAt = 0;
   let weaponSwingWeaponId = 'pipe_blade';
+  function combatEncounterFor(targetId) {
+    const primary = worldData?.selfEncounter || worldData?.encounter || null;
+    if (!targetId) return primary;
+    const matches = item => item && (item.id === targetId || item.members?.some(member => member.id === targetId));
+    return matches(primary) ? primary : (worldData?.encounters || []).find(item => item.attackable && matches(item)) || null;
+  }
   window.addEventListener('homefront:combat-hit', event => {
     const detail = event.detail || {};
-    const active = worldData?.selfEncounter || worldData?.encounter || (worldData?.encounters || []).find(item => item.id === detail.encounterId) || null;
+    const active = combatEncounterFor(detail.encounterId);
     const member = active?.members?.find(item => item.id === detail.hitTargetId);
     const hitActor = combatActors.get(detail.hitTargetId || active?.id);
     const point = hitActor?.position || member || active;
@@ -1130,8 +1136,10 @@ function boot(host) {
         actor.userData.hp = e.hp;
       }
     }
+    const recentPatrolDeaths = new Set(data.recentPatrolDeaths || []);
     for (const [id, actor] of combatActors) {
       if (activeEncounterIds.has(id)) continue;
+      if (recentPatrolDeaths.has(id)) infectedRenderer.zdie({ id });
       combatGroup.remove(actor); clearGroup(actor); combatActors.delete(id);
       if (selectedCombatTargetId === id) { selectedCombatTargetId = null; selectedCombatAimPoint = null; autoFireHeld = false; if (autoFireTimer) clearTimeout(autoFireTimer); autoFireTimer = null; }
     }
@@ -1533,10 +1541,13 @@ function boot(host) {
   }
   function pollInfectedContact() {
     const self = worldData?.self;
-    const encounter = worldData?.selfEncounter;
-    if (!view.visible || document.hidden || !self || !encounter || encounter.defeated ||
-        encounter.hp <= 0 || continuousInput.pending ||
-        Math.hypot(encounter.x - self.x, encounter.z - self.z) > 24) return;
+    if (!view.visible || document.hidden || !self || continuousInput.pending) return;
+    const encounters = worldData.encounters ?? [worldData.selfEncounter];
+    const nearby = encounters.some(encounter => encounter &&
+      (encounter.attackable || encounter === worldData.selfEncounter) &&
+      !encounter.defeated && encounter.hp > 0 &&
+      Math.hypot(encounter.x - self.x, encounter.z - self.z) <= 24);
+    if (!nearby) return;
     void fetchWorld({ contactOnly: true });
   }
   async function combatAction(action, targetId = selectedCombatTargetId, missPoint = null) {
@@ -1547,7 +1558,7 @@ function boot(host) {
     if (findInfectedButton) findInfectedButton.disabled = true;
     if (attackInfectedButton) attackInfectedButton.disabled = true;
     try {
-      const activeTarget = worldData?.selfEncounter || worldData?.encounter || null;
+      const activeTarget = combatEncounterFor(targetId);
       const aimTarget = activeTarget?.id === targetId ? activeTarget
         : activeTarget?.members?.find(member => member.id === targetId);
       const aimPoint = selectedCombatAimPoint && aimTarget
@@ -1613,7 +1624,8 @@ function boot(host) {
       return !(data.combat?.killed);
     } catch (e) {
       if (combatStatus) combatStatus.textContent = e.message === 'no_infected_nearby'
-        ? 'No infected tracks nearby.' : e.message === 'enemy_out_of_range'
+        ? 'No infected tracks nearby.' : e.message === 'infected_behind_cover'
+        ? 'Your target is behind cover.' : e.message === 'enemy_out_of_range'
         ? 'Too far from the infected. Move closer on the map.'
         : e.message === 'attack_cooldown' ? 'Recovering from your last attack. Try again in a moment.'
         : e.message === 'insufficient_ammo' ? 'Magazine empty or short on rounds. Reload before firing.'
@@ -2063,7 +2075,6 @@ function boot(host) {
     host.append(fire);
 
     fireAtReticle = () => {
-      const active = worldData?.selfEncounter || worldData?.encounter;
       const self = worldData?.self;
       if (!view.visible || !self || !token() || moving || !continuousInput.enabled ||
           document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])')) return;
@@ -2074,6 +2085,7 @@ function boot(host) {
         .find(entry => entry.object.userData?.combatHitbox);
       let target = hit?.object;
       while (target && !target.userData?.encounterId) target = target.parent;
+      const active = combatEncounterFor(target?.userData.encounterId);
 
       const walls = interiorCameraOccluders.get(interiorState?.landmarkId) || [];
       const obstruction = raycaster.intersectObjects(walls.filter(wall => wall.visible), false)[0];

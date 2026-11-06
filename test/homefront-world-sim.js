@@ -278,3 +278,24 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
   assert.ok(next.result.self.x < resumed.result.self.x, 'the explorer is actually sprinting after the shot');
   assert.equal(next.world.players[account].noiseX, -20, 'a sprint cannot move the origin of a recent gunshot');
 }
+
+{
+  const now = 150000, owner = 'pine-owner', ally = 'pine-bite-ally';
+  let patrolWorld = W.enter(W.defaultWorld(), owner, now).world;
+  patrolWorld = W.enter(patrolWorld, ally, now).world;
+  const patrol = patrolWorld.encounters[owner];
+  delete patrolWorld.encounters[ally];
+  const party = 'D00D11';
+  patrolWorld.parties[party] = { leader: owner, members: [owner, ally] };
+  Object.assign(patrolWorld.players[owner], { x: -43, z: -42, partyCode: party });
+  Object.assign(patrolWorld.players[ally], { x: -38.2, z: -42, partyCode: party });
+  const member = { ...patrol.members[0], x: -39, z: -42 };
+  Object.assign(patrol, { x: member.x, z: member.z, members: [member], hp: member.hp, lastAiAt: now });
+  const bitten = W.enter(patrolWorld, ally, now + 100);
+  assert.equal(bitten.result.selfInfectedHit.encounterId, patrol.id, 'a shared patrol can bite a teammate');
+  assert.equal(bitten.world.players[owner].survival.health, 100, 'a teammate refresh does not apply damage to another account');
+
+  Object.assign(bitten.world.players[owner], { x: -38.3, z: -42 });
+  const second = W.enter(JSON.parse(JSON.stringify(bitten.world)), owner, now + 180);
+  assert.equal(second.result.selfSurvival.health, 100, 'one patrol does not double-strike on simultaneous refreshes');
+}

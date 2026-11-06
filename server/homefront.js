@@ -423,7 +423,10 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const combatAt = Date.now();
           const training = cindersEffects();
           const survivalBeforeAttack = Survival.tick(player.survival, combatAt, training);
-          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), aimTrainingBonus: training.aimStabilityBonus, targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null, miss: payload?.miss === true && payload.targetId == null && payload.aimPoint == null });
+          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, players: db.players,
+            interiors: db.interiors, sharedInteriors: db.sharedInteriors,
+            destroyedObstacles: Object.values(db.environmentStructures).filter(s => s.health <= 0).map(s => s.id),
+            base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), aimTrainingBonus: training.aimStabilityBonus, targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null, miss: payload?.miss === true && payload.targetId == null && payload.aimPoint == null });
           // Gunfire and melee combat leave a server-recorded noise signature. The next
           // authoritative world tick uses it to attract the local infected director.
           player.noiseLevel = Math.max(player.noiseLevel || 0, Firearms.isFirearmTier(weaponId) ? Firearms.FIREARM_TIERS[weaponId].noise : weaponId === 'pump_shotgun' ? 95 : weaponId === 'marksman_rifle' ? 82 : 62);

@@ -1,0 +1,37 @@
+name: Homefront isolated phone preview
+on:
+  push:
+    branches: [preview/homefront-fullscreen]
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify password gate and preview-only APIs
+        run: |
+          bash -n scripts/deploy-homefront-preview.sh
+          node scripts/homefront-preview-gateway.test.mjs
+      - name: Install browser
+        run: |
+          npm install --prefix "$RUNNER_TEMP/homefront-browser" playwright@1.62.1 --no-audit --no-fund
+          node "$RUNNER_TEMP/homefront-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Verify the password-gated game on desktop and touch Chromium
+        run: node scripts/homefront-preview-browser-smoke.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: homefront-phone-preview
+          path: homefront-ui-browser-output/
+          if-no-files-found: ignore

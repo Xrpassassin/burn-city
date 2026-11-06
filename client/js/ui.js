@@ -24,7 +24,7 @@ if (btns) {
   const KEY = { tour: '3' };
   const ORDER = ['tour', 'guideBtn', 'musicBtn', 'audio', 'socialBtn', 'bagBtn', 'copyLink', 'installBtn'];
   const compact = matchMedia('(max-width:700px), (max-height:500px) and (orientation:landscape)');
-  const stay = new Set(['moreBtn', 'playBtn', 'bcMoveGamesOpen']);   // bcMoveGamesOpen: Movement & Games hub (movement-games-menu.js)
+  const stay = new Set(['moreBtn', 'playBtn', 'bcMoveGamesOpen', 'vExit']);   // vExit: ☰ View / ✕ Exit lives in the bar flow (app.js)   // bcMoveGamesOpen: Movement & Games hub (movement-games-menu.js)
   function adopt(b) {
     if (!b || !b.id || stay.has(b.id) || b.closest('.seg')) return;
     if (b.id === 'tour' && !compact.matches) return; // roomy screens keep Tour on the bar
@@ -99,3 +99,24 @@ setInterval(() => {
   b.classList.toggle('skating', !!(window.__skate && window.__skate.active));
   b.classList.toggle('inTower', !!window.__burnTowerOpen);
 }, 300);
+
+// 5) Top bar fit: the toolbar and the HUD share the top row. Instead of pinning items at guessed offsets, measure the
+// HUD's right edge, cap the toolbar to the space that is left, and switch long labels to short ones when it would overflow.
+{
+  const bar = $('btns'), hud = $('hud');
+  if (bar) {
+    const fit = () => {
+      const hr = hud && getComputedStyle(hud).display !== 'none' && !document.body.classList.contains('uiHudOpen') ? hud.getBoundingClientRect().right : 0;
+      document.documentElement.style.setProperty('--hud-right', Math.ceil(hr) + 'px');
+      bar.classList.remove('tight');
+      // right-aligned flex overflows to the LEFT, which scrollWidth does not report, so compare the items' extent instead
+      const kids = [...bar.children].filter(k => getComputedStyle(k).display !== 'none' && getComputedStyle(k).position !== 'fixed');
+      const gap = parseFloat(getComputedStyle(bar).columnGap) || 0;
+      const need = kids.reduce((w, k) => w + k.getBoundingClientRect().width, 0) + gap * Math.max(0, kids.length - 1);
+      if (need > bar.clientWidth + 1) bar.classList.add('tight');
+    };
+    const ro = new ResizeObserver(fit); ro.observe(bar); hud && ro.observe(hud);
+    new MutationObserver(fit).observe(bar, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'hidden'] });
+    addEventListener('resize', fit); addEventListener('orientationchange', fit); fit();
+  }
+}

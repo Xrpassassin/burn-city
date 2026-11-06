@@ -1,0 +1,34 @@
+name: Fly Homefront preview access check
+on:
+  push:
+    branches: [ops/homefront-fly-access]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  access:
+    if: github.repository == 'Xrpassassin/burn-city' && github.ref == 'refs/heads/ops/homefront-fly-access'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check both existing tokens with read-only Fly requests
+        env:
+          FLY_PRIMARY: ${{ secrets.FLY_IOV2 }}
+          FLY_SECONDARY: ${{ secrets.FLY_IO }}
+        run: |
+          probe() {
+            local label="$1" token="$2" app code
+            if [[ -z "$token" ]]; then
+              printf '%s is unavailable to this workflow\n' "$label"
+              return
+            fi
+            for app in burn-city-game burn-city-homefront-preview-551; do
+              code=$(curl --silent --max-time 10 --output /dev/null --write-out '%{http_code}' \
+                --proto '=https' --request GET --header "Authorization: Bearer $token" \
+                "https://api.machines.dev/v1/apps/$app/machines") || code=unreachable
+              printf '%s %s GET machines: %s\n' "$label" "$app" "$code"
+            done
+          }
+          probe FLY_IOV2 "$FLY_PRIMARY"
+          probe FLY_IO "$FLY_SECONDARY"

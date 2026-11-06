@@ -440,7 +440,9 @@ try {
   await activate(refuge.getByRole('button',{name:/Travel to the Wastes/}));
   assert((await (await entry).json()).self,'the server entered the Wastes');
   await refuge.waitForFunction(()=>document.body.classList.contains('rpg-mode-expedition'));
-  assert(await refuge.locator('#graveyard3d canvas').isVisible());
+  await refuge.locator('#graveyard3d canvas').waitFor({state:'visible'});
+  await refuge.waitForFunction(()=>document.getElementById('graveyard3dStatus')
+    ?.textContent.includes('3D shared world live'));
   await openTravel();
   const exit = refuge.waitForResponse(r=>r.url().endsWith('/api/homefront/world/leave')&&r.request().method()==='POST');
   await activate(refuge.getByRole('button',{name:/Return to Homefront/}));

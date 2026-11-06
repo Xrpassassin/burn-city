@@ -16,13 +16,11 @@ const Environment = require('./homefront-environment');
 const Director = require('./homefront-director');
 const Travel = require('./homefront-travel');
 const InputStep = require('./homefront-input-step');
+const { ZOMBIE_WALK_SPEED, ZOMBIE_FAST_SPEED } = require('../client/arena/zombie-locomotion.mjs');
 const WORLD_SIZE = 100;
 const PRESENCE_TTL = 45_000;
 const MOVE_STEP = 12;
 const SPRINT_STEP = 18;
-// Continuous-input speed is in world units/second, not per command. Server time is authoritative.
-const INPUT_WALK_SPEED = 8;
-const INPUT_SPRINT_SPEED = 12;
 const INPUT_MIN_INTERVAL_MS = 75;
 function inputReadyInMs(player, now = Date.now()) {
   if (!player) return 0;
@@ -460,7 +458,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
   const inputDisplacement = isInput
     ? InputStep.displacementForInput(command, {
       now, previousAt: p.lastMoveMode === 'input' && p.lastInputAt ? p.lastInputAt : now,
-      walkSpeed: INPUT_WALK_SPEED, sprintSpeed: INPUT_SPRINT_SPEED
+      walkSpeed: ZOMBIE_WALK_SPEED, sprintSpeed: ZOMBIE_FAST_SPEED
     }) : null;
   const aimScale = p.aiming ? (AIM_MOVE_SCALE[weaponId] || 0.55) : 1;
   const movementBudget = isInput ? Math.hypot(inputDisplacement.x, inputDisplacement.z) * aimScale

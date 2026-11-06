@@ -1,7 +1,8 @@
 // Optional Homefront 3D movement controller. Visual prediction never modifies game authority.
+import { ZOMBIE_WALK_SPEED as WALK_SPEED, ZOMBIE_FAST_SPEED as SPRINT_SPEED } from './zombie-locomotion.mjs';
+
 export const INPUT_SEND_INTERVAL_MS = 125;
-export const WALK_SPEED = 8;
-export const SPRINT_SPEED = 12;
+export { WALK_SPEED, SPRINT_SPEED };
 export const MAX_PREDICTION_LEAD = 1.5;
 
 function normalizeDirection(direction) {

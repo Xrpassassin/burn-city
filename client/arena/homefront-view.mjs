@@ -1,4 +1,5 @@
 import { readZombieStick } from './zombie-stick.mjs';
+import { zombieMoveVector } from './zombie-locomotion.mjs';
 
 // Homefront camera/view rules shared by the refuge yard and the Graveyard.
 // Derrik (Oct 23, 2026): players switch between third-person and first-person at any time
@@ -38,10 +39,8 @@ export function cameraPose({ mode = 'third', building = false, x = 0, y = 0, z =
 export function worldMove(vec, heading, deadzone = 0.15) {
   const len = Math.hypot(vec.x || 0, vec.y || 0);
   if (len === 0 || len < deadzone) return null;
-  const s = Math.min(1, len) / len, fx = Math.sin(heading), fz = Math.cos(heading);
-  const f = (vec.y || 0) * s, r = (vec.x || 0) * s;
-  // right vector is forward rotated -90° about Y: (-fz, fx) for heading measured from +Z toward +X.
-  return { x: fx * f - fz * r, z: fz * f + fx * r };
+  const { x, z } = zombieMoveVector(vec.x || 0, vec.y || 0, heading);
+  return { x, z };
 }
 
 // Direct walking keeps camera heading independent of the avatar's movement-facing yaw.

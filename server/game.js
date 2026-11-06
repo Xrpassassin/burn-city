@@ -1,5 +1,6 @@
 // Authoritative simulation for both modes. Clients only send inputs; server owns all state,
 // collisions and damage. Numbers are quantized in snapshots to keep bandwidth small.
+const { zombieMoveVector, ZOMBIE_WALK_SPEED, ZOMBIE_FAST_SPEED, ZOMBIE_CRAWL_SPEED } = require('../client/arena/zombie-locomotion.mjs');
 const Heli = require('./heli'), Rotary = require('./rotary-rules'), Director = require('./zombie-wave-director');   // helicopter finale (Night Shift ch. 4)
 const C = require('./config'), Z = require('./cod'), Quest = require('./quest'), IFRAME = +(process.env.ZOMBIE_IFRAME || 1), SPAWN_GAP = +(process.env.ZOMBIE_SPAWN_GAP || 1.8), REGEN_DELAY = +(process.env.ZOMBIE_REGEN_DELAY || 3.5), REGEN_RATE = +(process.env.ZOMBIE_REGEN_RATE || 22), HS_LAT = 0.3, HS_BONUS = 40, TEST_GOD = process.env.ZOMBIE_TEST_GOD === '1' && !process.env.FLY_APP_NAME;   // local screenshot runs only
 // between-round upgrade draft (Mortuus-style): after each cleared wave every standing player picks 1 of 3 stacking boons
@@ -165,8 +166,8 @@ class Room {
       p.ptsAcc += real * 0.2; if (p.ptsAcc >= 1) { const k = Math.floor(p.ptsAcc); p.pts += k; p.ptsAcc -= k; } };   // points per hit (by damage dealt)
     const up = ps.filter(p => p.alive && !p.down && !p.aboard), AIM = { vAim, hsV, reachH, missD, endY, hurt };
     // Last stand: downed players crawl and fire a BURN pistol (hotter if they own any Forged gun)
-    const lastStand = (p, dt) => { const s = Math.sin(p.yaw), c = Math.cos(p.yaw), CR = 1.6; let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
-      const nx = clamp(p.x + vx * CR * dt, -W, W), nz = clamp(p.z + vz * CR * dt, -W, W); if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
+    const lastStand = (p, dt) => { const s = Math.sin(p.yaw), c = Math.cos(p.yaw); const { x: vx, z: vz } = zombieMoveVector(p.in.mx, p.in.mz, p.yaw);
+      const nx = clamp(p.x + vx * ZOMBIE_CRAWL_SPEED * dt, -W, W), nz = clamp(p.z + vz * ZOMBIE_CRAWL_SPEED * dt, -W, W); if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
       const hot = !!(p.up && p.up.length), dmg = hot ? 85 : 42, range = hot ? LS_RANGE_HOT : LS_RANGE, cd = hot ? 0.28 : 0.42, splash = hot ? 1.3 : 0; p.cd = Math.max(0, (p.cd || 0) - dt);
       if (!(p.in.fire && p.cd <= 0)) return; p.cd = cd; p.firing = true; let hit = null, hd = reachH(p, range);
       for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && vAim(p, zb, along) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) { hd = along; hit = zb; hit._lat = lat; hit._hv = hsV(p, zb, along); } }
@@ -191,8 +192,8 @@ class Room {
       if (p.in.pk != null) { takeDraft(p, p.in.pk, ev); p.in.pk = null; }   // health regen after a few seconds without damage
       if (p.aboard) { Heli.rider(this, p, dt, ev, AIM); continue; }   // seated in the helicopter: vote / minigun only
       if (p.in.use) { p.in.use = false; if (!Quest.use(this, p, ev)) Z.use(this, p, ev); } Z.repair(this, p, dt, ev);
-      const s = Math.sin(p.yaw), c = Math.cos(p.yaw), SP = Z.has(p, 'speed') ? 8.2 : 6;           // move relative to view
-      let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
+      const s = Math.sin(p.yaw), c = Math.cos(p.yaw), SP = Z.has(p, 'speed') ? ZOMBIE_FAST_SPEED : ZOMBIE_WALK_SPEED;           // move relative to view
+      const { x: vx, z: vz } = zombieMoveVector(p.in.mx, p.in.mz, p.yaw);
       const nx = clamp(p.x + vx * SP * dt, -W, W), nz = clamp(p.z + vz * SP * dt, -W, W);   // stay inside unlocked zones (doors = barriers)
       if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
       const w0 = Z.wpn(p), ro = bon(p, 'rof'), w = bon(p, 'range') || bon(p, 'fuel') || ro ? { ...w0, range: fireRange(p), regen: w0.regen * (1 + 0.25 * bon(p, 'fuel')), use: w0.use * (1 - 0.08 * ro), cd: w0.cd && w0.cd * (1 - 0.08 * ro) } : w0, quick = Z.has(p, 'quick'); p.cd = Math.max(0, p.cd - dt); if (w0.kind !== 'rotary' && p.ravHeat > 0) { p.ravHeat = Math.max(0, p.ravHeat - dt * (p.ravLock > 0 ? 34 : 19)); p.ravSpin = Math.max(0, (p.ravSpin || 0) - dt * 1.1); p.ravLock = Math.max(0, (p.ravLock || 0) - dt); }

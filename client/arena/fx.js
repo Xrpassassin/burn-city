@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { createFPBody } from './fpbody.js';
 import { buildNftChar, disposeNftChar } from '../js/nftchar.js';
+import { stableZombieHash } from './zombie-model-selection.mjs';
 import { zombieModelPolicy } from './zombie-model-policy.mjs';
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = new THREE.Vector3(), S = new THREE.Vector3(), C = new THREE.Color();
 const P = new THREE.Vector3(), Pt = new THREE.Matrix4();
@@ -30,8 +31,7 @@ function rotSkin(g, w, h) { g.fillStyle = '#f2f2ee'; g.fillRect(0, 0, w, h);
   for (let i = 0; i < 3; i++) { const x = rnd() * w, y = rnd() * h, r = 5 + rnd() * 6; blot(g, x, y, r * 1.8, 'rgba(90,10,6,.55)'); g.fillStyle = 'rgba(40,0,0,.85)'; g.beginPath(); g.ellipse(x, y, r * 0.6, r * 0.35, rnd() * 3, 0, 7); g.fill();
     g.fillStyle = 'rgba(230,210,190,.8)'; for (let k = 0; k < 3; k++) g.fillRect(x - r * 0.4 + k * r * 0.35, y - 1, 2, 2); }   // open wounds with a bit of exposed bone
   for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(100,0,0,${0.3 + rnd() * 0.4})`; g.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 3); } }
-export function createZombieFX(scene, { low = false } = {}) {
-  const lam = c => new THREE.MeshLambertMaterial({ color: c });
+export function createZombieRenderer(scene, { low = false, deathOnRemoval = true, scale = 1 } = {}) {
   const skinTex = ctex(64, 64, rotSkin), skinM = new THREE.MeshLambertMaterial({ color: 0xffffff, map: skinTex });
   const faceTex = ctex(64, 64, (g, w, h) => { rotSkin(g, w, h);
     for (const x of [18, 46]) { blot(g, x, 26, 13, 'rgba(10,0,0,.9)'); g.fillStyle = 'rgba(0,0,0,.9)'; g.beginPath(); g.ellipse(x, 26, 7, 6, 0, 0, 7); g.fill(); }   // sunken sockets
@@ -90,23 +90,24 @@ export function createZombieFX(scene, { low = false } = {}) {
     import('./zombie-model-pilot.mjs')
       .then(({ createZombieModelPilot }) => createZombieModelPilot(scene, {
         maxModels: modelPolicy.maxModels,
-        maxDistance: modelPolicy.maxDistance
+        maxDistance: modelPolicy.maxDistance,
+        targetHeight: 1.72 * scale
       }))
-.then(pilot => { zombieModelPilot = pilot; })
+      .then(pilot => { zombieModelPilot = pilot; })
       .catch(() => { zombieModelPilot = null; }); // GLB failure keeps the instanced procedural fallback.
   }
   const hit = new THREE.Color(0xffd0a0), burnC = new THREE.Color(0xff5a10), charC = new THREE.Color(0x1a1410), tmp = new THREE.Color(), tmp2 = new THREE.Color(), tmp3 = new THREE.Color(), tmp4 = new THREE.Color();
   const HID = 0.0001;
   function drawZ(i, z, t, fade, burning) {
-    const ty = TY[z.ty] || TY[0], quad = z.ty === 4 || z.ty === 5, crawl = z.cr || quad || (z.ty === 0 && z.id % 4 === 0), brute = z.ty === 2 || z.ty === 3, runner = z.ty === 1 || z.ty === 4;
-    const s = ty.s * z.v, ph = z.ph, lurch = Math.sin(ph) * 0.12, sw = Math.sin(ph) * (runner ? 0.9 : 0.6), fl = z.fl || 0, dead = fade !== undefined;
-    const tint = (c, base) => { c.setHex(base); if (burning) c.lerp(burnC, 0.45 + 0.3 * Math.sin(t * 30 + z.id)); if (z.flash > 0) c.lerp(hit, z.flash); if (dead) c.lerp(charC, Math.min(1, fade * 2)); return c; };
-    const skin = tint(tmp, ty.skin[(z.id * 7) % ty.skin.length]).multiplyScalar(1.15), shirt = tint(tmp3, z.ty === 3 ? (z.ch ? 0x8a2a14 : 0x4a4a54) : z.ty === 5 ? 0x1a2230 : CLOTH[(z.id * 5 + z.ty) % CLOTH.length]);   // Juggernaut: iron plate (glows red mid-charge)
+    const ty = TY[z.ty] || TY[0], quad = z.ty === 4 || z.ty === 5, crawl = z.cr || quad || (z.ty === 0 && z.seed % 4 === 0), brute = z.ty === 2 || z.ty === 3, runner = z.ty === 1 || z.ty === 4;
+    const s = ty.s * z.v * scale, ph = z.ph, lurch = Math.sin(ph) * 0.12, sw = Math.sin(ph) * (runner ? 0.9 : 0.6), fl = z.fl || 0, dead = fade !== undefined;
+    const tint = (c, base) => { c.setHex(base); if (burning) c.lerp(burnC, 0.45 + 0.3 * Math.sin(t * 30 + z.seed)); if (z.flash > 0) c.lerp(hit, z.flash); if (dead) c.lerp(charC, Math.min(1, fade * 2)); return c; };
+    const skin = tint(tmp, ty.skin[(z.seed * 7) % ty.skin.length]).multiplyScalar(1.15), shirt = tint(tmp3, z.ty === 3 ? (z.ch ? 0x8a2a14 : 0x4a4a54) : z.ty === 5 ? 0x1a2230 : CLOTH[(z.seed * 5 + z.ty) % CLOTH.length]);   // Juggernaut: iron plate (glows red mid-charge)
     // death: topple forward over 0.35 of the fade, then sink + char. flinch: snap back + small twist.
     const fall = dead ? Math.min(1, fade / 0.35) : 0, deathKick = dead ? (z.deathType === 3 || z.deathType === 8 ? 0.75 : z.deathType === 4 || z.deathType === 5 ? -0.55 : 0.2) : 0, pitch = (quad || z.cr ? 1.35 : crawl ? 0.9 : runner ? 0.45 : 0.25) + (z.ch ? 0.35 : 0) - fl * 0.55 + fall * (1.45 - (crawl ? 0.6 : 0.25)) + deathKick * fall;
     let y0 = dead ? Math.max(0, 1 - fall) * 0.78 * s - Math.max(0, fade - 0.5) * 0.9 * s + 0.15 * s * fall : (quad ? 0.5 : z.cr ? 0.2 : crawl ? 0.45 : 0.78) * s + Math.abs(Math.cos(ph)) * (quad ? 0.12 : 0.05) * s;
     y0 += z.y || 0;   // upper floor / ramp height
-    const sc = s * (dead ? 1 - Math.max(0, fade - 0.5) * 0.5 : 1), twist = fl * 0.35 * Math.sin(z.id), yaw = z.yaw + twist;
+    const sc = s * (dead ? 1 - Math.max(0, fade - 0.5) * 0.5 : 1), twist = fl * 0.35 * Math.sin(z.seed), yaw = z.yaw + twist;
     put(Z.body, i, z.x, y0, z.z, yaw, sc, 0, 0, 0, pitch + lurch, lurch * 0.5, skin);
     put(Z.shirt, i, z.x, y0, z.z, yaw, sc, 0, 0, 0, pitch + lurch, lurch * 0.5, shirt);
     put(Z.belly, i, z.x, y0, z.z, yaw, brute ? sc : HID, 0, 0.02, 0.06, pitch + lurch, 0, tmp2.copy(skin).multiplyScalar(0.85));
@@ -114,14 +115,14 @@ export function createZombieFX(scene, { low = false } = {}) {
     const plated = (z.ty === 2 || z.ty === 3 || z.ty === 8) && !z.armorBroken;
     put(Z.armor, i, z.x, y0, z.z, yaw, plated ? sc : HID, 0.17, 0.47, 0.235, pitch + lurch, -0.06, tint(tmp2, z.ch ? 0x7b2518 : 0x45494b));
     // A few asymmetric, dark-red wounds break up the repeated procedural skin without extra textures.
-    const wounded = z.id % 3 === 0 || z.ty === 4;
-    put(Z.wound, i, z.x, y0, z.z, yaw, wounded ? sc : HID, z.id % 2 ? -0.18 : 0.18, 0.46, 0.247, pitch + lurch, z.id % 2 ? -0.25 : 0.25, tint(tmp3, burning ? 0xff6a18 : 0x681b1b));
+    const wounded = z.seed % 3 === 0 || z.ty === 4;
+    put(Z.wound, i, z.x, y0, z.z, yaw, wounded ? sc : HID, z.seed % 2 ? -0.18 : 0.18, 0.46, 0.247, pitch + lurch, z.seed % 2 ? -0.25 : 0.25, tint(tmp3, burning ? 0xff6a18 : 0x681b1b));
     // Skitters and juggernauts get a small dorsal mutation so their silhouettes read at a distance.
     const spined = z.ty === 3 || z.ty === 5;
     put(Z.spike, i, z.x, y0, z.z, yaw, spined ? sc : HID, 0, 0.65, -0.22, pitch + lurch, 0.35, tint(tmp4, z.ty === 5 ? 0x526d83 : 0x514b48));
     const hp = pitch + 0.1 + lurch, hy = 0.8 * Math.cos(pitch), hz = 0.8 * Math.sin(pitch) + 0.08;
     put(Z.head, i, z.x, y0, z.z, yaw, sc, 0, hy, hz, hp, 0.2 * Math.sin(ph * 0.5) + (crawl ? 0.3 : 0), skin);
-    const jawOpen = 0.25 + 0.2 * Math.sin(t * 5 + z.id);
+    const jawOpen = 0.25 + 0.2 * Math.sin(t * 5 + z.seed);
     put(Z.jaw, i, z.x, y0, z.z, yaw, sc, 0, hy + 0.03 - Math.sin(hp) * 0.05, hz + 0.18 + Math.cos(hp) * 0.04, hp + jawOpen, 0, tmp2.copy(skin).multiplyScalar(0.7));
     const eyeC = dead ? tmp4.setHex(0x000000) : burning ? tmp4.setHex(0xff5a10) : tmp4.setHex(ty.eye), ey = hy + 0.25 * Math.cos(hp), ez = hz + 0.22 + 0.25 * Math.sin(hp);
     put(Z.eye, i, z.x, y0, z.z, yaw, sc, 0.1, ey, ez, hp, 0, eyeC); put(arms2.eye, i, z.x, y0, z.z, yaw, sc, -0.1, ey, ez, hp, 0, eyeC);
@@ -129,10 +130,65 @@ export function createZombieFX(scene, { low = false } = {}) {
     const reach = quad ? -1.45 + sw * 0.9 : crawl ? -1.6 : runner ? -0.6 - sw * 0.5 : -1.35, ay = 0.7 * Math.cos(pitch), az = 0.7 * Math.sin(pitch) + 0.05;
     put(Z.arm, i, z.x, y0, z.z, yaw, sc * (brute ? 1.25 : z.ty === 4 ? 1.4 : 1), brute ? 0.27 : 0.4, ay, az, reach + sw * 0.3 + fall * 1.2, 0.1, skin);
     put(arms2.arm, i, z.x, y0, z.z, yaw, sc * (brute ? 1.25 : z.ty === 4 ? 1.4 : 1), brute ? -0.27 : -0.4, ay, az, (quad ? -1.45 - sw * 0.9 : runner ? -0.6 + sw * 0.5 : reach + 0.1) - sw * 0.3 + fall * 1.2, -0.1, skin);
-    const pants = tint(tmp2, PANTS[z.id % PANTS.length]), lp = crawl ? 0.9 : 0;
+    const pants = tint(tmp2, PANTS[z.seed % PANTS.length]), lp = crawl ? 0.9 : 0;
     put(Z.leg, i, z.x, y0, z.z, yaw, sc, 0.16, 0, 0, (crawl ? sw * 0.3 : sw) + lp - fall * 0.3, 0, pants);
     put(arms2.leg, i, z.x, y0, z.z, yaw, sc, -0.16, 0, 0, -(crawl ? sw * 0.3 : sw) + lp - fall * 0.3, 0, pants);
   }
+  let t = 0;
+  return {
+    zs,
+    zdie(e) { const z = zs.get(e.id); if (z) {
+      z.deathType = e.ty ?? z.ty;
+      // The animated rig owns its death clip; do not draw a second corpse.
+      // Procedural hordes retain the original death tumble/fade behavior.
+      if (!zombieModelPilot?.react(e.id, 'Death')) dying.push({ ...z, fade: 0 });
+      zs.delete(e.id);
+    } },
+    zhit(e) { const z = zs.get(e.id); if (z) {
+      z.flash = Math.max(z.flash, 0.6);
+      zombieModelPilot?.react(e.id, 'HitReact');
+    } },
+    armorBreak(e) { const z = zs.get(e.id); if (z) { z.armorBroken = 1; z.fl = 1; z.flash = 1; zombieModelPilot?.react(e.id, 'HitReact'); } },
+    clear() {
+      zombieModelPilot?.clear();
+      zs.clear();
+      dying.length = 0;
+      done(Z, 0);
+      done(arms2, 0);
+    },
+    update(dt, zombies, me) {
+      t += dt;
+      const seen = new Set();
+      for (const s of zombies) { seen.add(s.id); let z = zs.get(s.id);
+        if (!z) {
+          const seed = typeof s.id === 'number' ? s.id : stableZombieHash(s.id);
+          z = { id: s.id, seed, x: s.x, z: s.z, yaw: s.yaw ?? 0, ph: Math.random() * 6, v: 0.92 + ((seed * 37) % 17) / 100, ty: s.ty, flash: 0, burnT: 0 };
+          zs.set(s.id, z);
+        }
+        const dx = s.x - z.x, dz = s.z - z.z, d = Math.hypot(dx, dz); if (Number.isFinite(s.yaw)) z.yaw = s.yaw; else if (d > 0.01) z.yaw += (((Math.atan2(dx, dz) - z.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 6);
+        z.x = s.x; z.z = s.z; z.y = s.y || 0; z.speed = s.speed; z.ph += dt * (d / Math.max(dt, 1e-3) * 1.6 * (TY[s.ty]?.speed ? 1 : 1) + 1.5) * 0.9 / (TY[s.ty]?.s || 1); z.ty = s.ty; z.cr = s.cr; z.ch = s.ch; z.stagger = s.stagger || 0; z.armorBroken = s.armorBroken || 0; z.armored = s.armored || 0; z.hpFrac = s.hpFrac ?? 1;
+        if (z.stagger > 0) z.fl = Math.max(z.fl || 0, Math.min(1, z.stagger * 3.5)); if (s.burn) { z.flash = Math.max(z.flash, 0.45); z.burnT = Math.max(z.burnT, 2.2); } else z.burnT = Math.max(0, z.burnT - dt); z.flash = Math.max(0, z.flash - dt * 5); z.fl = Math.max(0, (z.fl || 0) - dt * 6); }
+      for (const id of zs.keys()) if (!seen.has(id)) { if (deathOnRemoval) dying.push({ ...zs.get(id), fade: 0 }); zs.delete(id); }
+      const modeled = zombieModelPilot?.update([...zs.values()], dt, me) || new Set();
+      let i = 0; for (const z of zs.values()) {
+        if (i >= MAXZ) break;
+        if (modeled.has(z.id)) {
+          // Keep instance slots aligned while hiding the procedural copy beneath the animated model.
+          for (const mesh of Object.values(Z)) put(mesh, i, z.x, 0, z.z, 0, HID, 0, 0, 0);
+          for (const mesh of Object.values(arms2)) put(mesh, i, z.x, 0, z.z, 0, HID, 0, 0, 0);
+        } else drawZ(i, z, t, undefined, z.burnT > 0);
+        i++;
+      }
+      for (let k = dying.length - 1; k >= 0; k--) { const z = dying[k]; z.fade += dt * 0.8; z.fl = 0; if (z.fade >= 1) { dying.splice(k, 1); continue; } if (i < MAXZ) drawZ(i++, z, t, z.fade, z.fade < 0.5); }
+      done(Z, i); done(arms2, i);
+    },
+  };
+}
+
+export function createZombieFX(scene, { low = false } = {}) {
+  const lam = c => new THREE.MeshLambertMaterial({ color: c });
+  const infected = createZombieRenderer(scene, { low });
+  const tmp2 = new THREE.Color();
   // ---------- players (third person): suited pyromaniacs, gas-mask helmet, fuel tanks, accent lights in player color ----------
   const MAXP = 16, PL = rig(scene, MAXP, [
     ['body', box(0.62, 0.78, 0.36, 0.39), lam(0x2b2b30)], ['head', box(0.44, 0.44, 0.44, 0.22), lam(0x1d1d22)],
@@ -265,7 +321,7 @@ export function createZombieFX(scene, { low = false } = {}) {
     shield.scale.set(Math.max(1, th * 0.9), Math.max(1, th * 0.9), l); shield.position.z = -0.3 * l; const sk = WSKIN[w] || WSKIN[0]; const heatSkin = tier >= 2 ? (TIER2_SKIN[w] || TIER2_SKIN[0]) : null; shield.material.color.setHex(heatSkin ?? sk.sh); for (const m of [body, top, grip, fgrip]) { m.material = sk.body; m.material.color.setHex(heatSkin ?? 0xffffff); } tank.material = sk.tank; tank.material.color.setHex(heatSkin ?? 0xffffff); tank.material.map.needsUpdate = true; if (heatSkin != null) barrel.material.color.setHex(heatSkin); curAc = heatSkin ?? sk.ac; rotor.visible = w === 5; };
   let t = 0;
   return {
-    gun, zs, ps,
+    gun, zs: infected.zs, ps,
     attach(cam) { cam.add(gun); if (!cam.parent) scene.add(cam); },
     shot(e, isMe, meX, meZ, sy = 0) { const pr = WP[e.w === 'napalm' ? 3 : 2], fx = Math.sin(e.y || 0), fz = Math.cos(e.y || 0); let mzY = null;
       if (isMe && gun.visible) { kick = 1; gun.updateMatrixWorld(true); nozzle.getWorldPosition(_mz); meX = _mz.x; meZ = _mz.z; mzY = _mz.y; }   // own shots: recoil + tracer/burst from the muzzle
@@ -281,41 +337,15 @@ export function createZombieFX(scene, { low = false } = {}) {
       if (e.w === 'shotgun') { const ox = (isMe ? meX : e.x) + fx * 1.4, oz = (isMe ? meZ : e.z) + fz * 1.4; burst(mzY != null ? meX : ox, mzY != null ? mzY : 1.25 + sy, mzY != null ? meZ : oz, fx, fz, low ? 22 : 45, pr); }
       if (e.w === 'napalm' && e.ray) { const x0 = isMe ? meX : e.x, z0 = isMe ? meZ : e.z, ty = e.ty ?? sy; rays.push({ x0, z0, x1: e.tx, z1: e.tz, y0: mzY != null ? mzY - 1.2 : sy, y1: ty, t: 0.2, mz: mzY != null }); burst(e.tx, 1.1 + ty, e.tz, -fx * 0.2, -fz * 0.2, low ? 8 : 16, WP[1] || pr); return; }
       if (e.w === 'napalm' && blobs.length < NB) blobs.push({ x0: isMe ? meX : e.x, z0: isMe ? meZ : e.z, x1: e.tx, z1: e.tz, t: 0 }); },
-    zdie(e) { const z = zs.get(e.id); if (z) {
-      z.deathType = e.ty ?? z.ty;
-      // The animated rig owns its death clip; do not draw a second corpse.
-      // Procedural hordes retain the original death tumble/fade behavior.
-      if (!zombieModelPilot?.react(e.id, 'Death')) dying.push({ ...z, fade: 0 });
-      zs.delete(e.id);
-    } },
-    zhit(e) { const z = zs.get(e.id); if (z) {
-      z.flash = Math.max(z.flash, 0.6);
-      zombieModelPilot?.react(e.id, 'HitReact');
-    } },
-    armorBreak(e) { const z = zs.get(e.id); if (z) { z.armorBroken = 1; z.fl = 1; z.flash = 1; zombieModelPilot?.react(e.id, 'HitReact'); } },
-    clear() { zombieModelPilot?.clear(); fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); zs.clear(); ps.clear(); dying.length = 0; for (const tr of ravagerTracers) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); } ravagerTracers.length = 0; done(Z, 0); done(arms2, 0); done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
+    zdie: infected.zdie,
+    zhit: infected.zhit,
+    armorBreak: infected.armorBreak,
+    clear() { infected.clear(); fpTorso.visible = false; fpBody.update(0, null); kick = 0; for (const q of ps.values()) if (q.nc) disposeNftChar(q.nc); ps.clear(); for (const tr of ravagerTracers) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); } ravagerTracers.length = 0; done(PL, 0); done(PL2, 0); age.fill(9); gun.visible = false; blobs.length = pools.length = rays.length = 0; blobM.count = poolM.count = beamM.count = 0; if (heat) heat.intensity = 0; },
     // st: interpolated state; me: predicted self {x,z,yaw,firing}; colorOf(id) -> THREE.Color
     update(dt, st, me, myId, colorOf, flameCol, nftOf, srv) {
-      t += dt; const seen = new Set(); nb = 0; for (let k = ravagerTracers.length - 1; k >= 0; k--) { const tr = ravagerTracers[k]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.075); if (tr.left <= 0) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); ravagerTracers.splice(k, 1); } }
+      t += dt; nb = 0; for (let k = ravagerTracers.length - 1; k >= 0; k--) { const tr = ravagerTracers[k]; tr.left -= dt; tr.line.material.opacity = Math.max(0, tr.left / 0.075); if (tr.left <= 0) { scene.remove(tr.line); tr.line.geometry.dispose(); tr.line.material.dispose(); ravagerTracers.splice(k, 1); } }
       for (let i = rays.length - 1; i >= 0; i--) { const r = rays[i]; if ((r.t -= dt) <= 0) { rays.splice(i, 1); continue; } const dx = r.x1 - r.x0, dz = r.z1 - r.z0, L = Math.hypot(dx, dz) || 1, yaw = Math.atan2(dx, dz); const dy = (r.y1 || 0) - (r.y0 || 0), L3 = Math.hypot(L, dy); const o6 = r.mz ? 0 : 0.6; beamAt(r.x0 + dx / L * o6, 1.2 + (r.y0 || 0), r.z0 + dz / L * o6, yaw, Math.max(0.5, L3 - o6), -Math.atan2(dy, L)); }   // Firestorm ember bolts
-      for (const s of st.zombies) { seen.add(s.id); let z = zs.get(s.id);
-        if (!z) zs.set(s.id, z = { id: s.id, x: s.x, z: s.z, yaw: 0, ph: Math.random() * 6, v: 0.92 + ((s.id * 37) % 17) / 100, ty: s.ty, flash: 0, burnT: 0 });
-        const dx = s.x - z.x, dz = s.z - z.z, d = Math.hypot(dx, dz); if (d > 0.01) z.yaw += (((Math.atan2(dx, dz) - z.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 6);
-        z.x = s.x; z.z = s.z; z.y = s.y || 0; z.ph += dt * (d / Math.max(dt, 1e-3) * 1.6 * (TY[s.ty]?.speed ? 1 : 1) + 1.5) * 0.9 / (TY[s.ty]?.s || 1); z.ty = s.ty; z.cr = s.cr; z.ch = s.ch; z.stagger = s.stagger || 0; z.armorBroken = s.armorBroken || 0; z.armored = s.armored || 0; z.hpFrac = s.hpFrac ?? 1;
-        if (z.stagger > 0) z.fl = Math.max(z.fl || 0, Math.min(1, z.stagger * 3.5)); if (s.burn) { z.flash = Math.max(z.flash, 0.45); z.burnT = Math.max(z.burnT, 2.2); } else z.burnT = Math.max(0, z.burnT - dt); z.flash = Math.max(0, z.flash - dt * 5); z.fl = Math.max(0, (z.fl || 0) - dt * 6); }
-      for (const id of zs.keys()) if (!seen.has(id)) { const z = zs.get(id); dying.push({ ...z, fade: 0 }); zs.delete(id); }
-      const modeled = zombieModelPilot?.update([...zs.values()], dt, me) || new Set();
-      let i = 0; for (const z of zs.values()) {
-        if (i >= MAXZ) break;
-        if (modeled.has(z.id)) {
-          // Keep instance slots aligned while hiding the procedural copy beneath the animated model.
-          for (const mesh of Object.values(Z)) put(mesh, i, z.x, 0, z.z, 0, HID, 0, 0, 0);
-          for (const mesh of Object.values(arms2)) put(mesh, i, z.x, 0, z.z, 0, HID, 0, 0, 0);
-        } else drawZ(i, z, t, undefined, z.burnT > 0);
-        i++;
-      }
-      for (let k = dying.length - 1; k >= 0; k--) { const z = dying[k]; z.fade += dt * 0.8; z.fl = 0; if (z.fade >= 1) { dying.splice(k, 1); continue; } if (i < MAXZ) drawZ(i++, z, t, z.fade, z.fade < 0.5); }
-      done(Z, i); done(arms2, i);
+      infected.update(dt, st.zombies, me);
       // other players
       let j = 0; for (const p of st.players) { if (p.id === myId || !p.alive || j >= MAXP) continue; let q = ps.get(p.id);
         if (!q) ps.set(p.id, q = { x: p.x, z: p.z, y: p.y || 0, yaw: p.yaw || 0, ph: 0, spd: 0 });

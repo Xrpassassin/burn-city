@@ -26,13 +26,13 @@ for(let i=0;i<4;i++){
  world=result.world;
  const after=world.players['precision-walker'];
  const step=Math.hypot(after.x-before.x,after.z-before.z);
- assert(Math.abs(step-0.16)<1e-7,'20%-deflected analog stick travels precisely 0.16 unit per 100ms');
- assert(step<=0.16000001,'precision cannot exceed the server-derived speed budget');
+ assert(Math.abs(step-0.12)<1e-7,'20%-deflected analog stick travels precisely 0.12 unit per 100ms');
+ assert(step<=0.12000001,'precision cannot exceed the server-derived speed budget');
  assert.equal(result.result.inputAck.sequence,i+2);
  assert.equal(result.result.inputAck.elapsedMs,100);
 }
 const p=world.players['precision-walker'];
-assert(Math.abs(Math.hypot(p.x-start.x,p.z-start.z)-0.64)<1e-7,
+assert(Math.abs(Math.hypot(p.x-start.x,p.z-start.z)-0.48)<1e-7,
  'four smooth analog steps conserve requested travel, rather than repeatedly rounding it to tenths');
 assert(
  Math.abs(p.x*10-Math.round(p.x*10))>1e-6 ||

@@ -2,8 +2,6 @@
 // Uses the existing Homefront world API as authority; this module owns presentation only.
 import * as THREE from './vendor/three.module.min.js';
 import { getGuestToken, fetchHomefront } from './homefront-guest.mjs';
-import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
-import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
@@ -16,7 +14,7 @@ import { buildPowerStationSkyline, POWER_STATION_SITE } from './homefront-power-
 import { INTERIORS, availableInteriorActions, buildInteriorSetPiece, interiorForLandmark, interiorRoom } from './homefront-interior-world.mjs';
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
-import { createZombieModelPilot } from './zombie-model-pilot.mjs';
+import { createZombieRenderer } from './fx.js';
 import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested, releaseMovementControls } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
@@ -181,12 +179,12 @@ function boot(host) {
   const cameraEye = new THREE.Vector3(), cameraArm = new THREE.Vector3(), cameraProbeEye = new THREE.Vector3();
   let lastCameraOcclusionAt = -Infinity, lastCameraOcclusionId = null, lastCameraHitDistance = Infinity;
   const pointer = new THREE.Vector2();
-  const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
+  const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
   const worldChunkGroups = new Map();
   const environmentVisuals = new Map();
   const environmentStateCache = new Map();
   let activeChunkSignature = '';
-  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, zombieGroup, combatGroup, impactGroup);
+  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, combatGroup, impactGroup);
   const tracerPool = createTracerPool(THREE, scene, { max: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 12 : 32 });
   const combatStatus = document.getElementById('combatStatus');
   const lootActionButton = document.getElementById('collectLoot');
@@ -235,12 +233,9 @@ function boot(host) {
   let selectedCombatAimPoint = null;
   let autoFireHeld = false;
   let autoFireTimer = null;
-  const zombieMixers = [];
   // Keep server-owned infected actors between snapshots so movement is presented smoothly.
   const combatActors = new Map();
-  let zombieModelPilot = null;
-  let zombieModelPilotLoading = false;
-  let zombieModelPilotFailed = false;
+  const infectedRenderer = createZombieRenderer(scene, { low: coarsePointer, deathOnRemoval: false, scale: 1.25 });
   // Interpolate explorer positions between authoritative world snapshots.
   const explorerPositions = new Map();
   let weaponSwingUntil = 0;
@@ -257,7 +252,9 @@ function boot(host) {
     const hits = detail.hits?.length ? detail.hits
       : [{ targetId: detail.hitTargetId || active?.id, killed: !!detail.killed }];
     for (const hit of hits) {
-      if (hit.targetId) zombieModelPilot?.react(hit.targetId, hit.killed ? 'Death' : 'HitReact');
+      if (!hit.targetId) continue;
+      if (hit.killed) infectedRenderer.zdie({ id: hit.targetId });
+      else infectedRenderer.zhit({ id: hit.targetId });
       if (hit.killed) {
         const actor = combatActors.get(hit.targetId);
         if (actor) zombieAudio.zdie({ x: actor.position.x, y: actor.position.y, z: actor.position.z });
@@ -316,10 +313,6 @@ function boot(host) {
         drop.userData.blood = true;
         impactGroup.add(drop);
       }
-      target.userData.impactUntil = performance.now() + (style === 'blunt' ? 420 : detail.hitZone === 'head' ? 360 : 300);
-      target.userData.impactStyle = detail.hitZone === 'head' ? 'headshot' : style;
-      const playerX = Number.isFinite(worldData?.self?.x) ? worldData.self.x : 0;
-      target.userData.impactDirection = detail.direction || (target.position.x >= playerX ? 1 : -1);
     }
     // Stylized limb-separation feedback is visual-only and requires a server-confirmed sharp-weapon kill.
     if (detail.killed && style === 'sharp' && target) {
@@ -334,7 +327,7 @@ function boot(host) {
       }
     }
   });
-  const infectedSpawns = [[27, 25], [19, 34], [-32, 28], [-43, 36], [-11, 27], [-20, 15], [9, -12], [1, -15]];
+
 
   const mat = (color, roughness = 0.94) => new THREE.MeshStandardMaterial({ color, roughness });
   let equippedWeaponSkinColor = 0x9a7b62;
@@ -958,43 +951,6 @@ function boot(host) {
   }
   if (enterInteriorButton) enterInteriorButton.addEventListener('click', () => enterInterior(selectedInteriorLandmarkId));
   if (leaveInteriorButton) leaveInteriorButton.addEventListener('click', leaveInterior);
-  function spawnAmbientInfected(gltf = null) {
-    const positions = infectedSpawns;
-    for (let i = 0; i < positions.length; i++) {
-      const [x, z] = positions[i];
-      if (gltf?.scene) {
-        const actor = SkeletonUtils.clone(gltf.scene);
-        const bounds = new THREE.Box3().setFromObject(actor);
-        const size = bounds.getSize(new THREE.Vector3());
-        actor.scale.setScalar(1.8 / Math.max(0.01, size.y));
-        const fitted = new THREE.Box3().setFromObject(actor);
-        actor.position.set(x, terrainElevation(x, z) - fitted.min.y, z);
-        actor.rotation.y = Math.atan2(-x, -z);
-        actor.traverse(node => { if (node.isMesh) { node.castShadow = false; node.receiveShadow = false; } });
-        zombieGroup.add(actor);
-        const clips = gltf.animations || [];
-        const clip = clips.find(c => /walk|run|idle/i.test(c.name)) || clips[0];
-        if (clip) { const mixer = new THREE.AnimationMixer(actor); mixer.clipAction(clip).play(); zombieMixers.push(mixer); }
-      } else {
-        const actor = new THREE.Group(); actor.position.set(x, terrainElevation(x, z), z);
-        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.72, 3, 6), mat(i % 2 ? 0x526248 : 0x66704b));
-        body.position.y = 0.62; actor.add(body);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), mat(0x8c9972));
-        head.position.y = 1.22; actor.add(head); zombieGroup.add(actor);
-      }
-    }
-  }
-  async function loadInfectedAsset() {
-    try {
-      const loader = new GLTFLoader();
-      const url = new URL('./assets/homefront/zombie.glb', import.meta.url).href;
-      const gltf = await loader.loadAsync(url);
-      spawnAmbientInfected(gltf);
-    } catch (error) {
-      console.warn('[homefront-graveyard] zombie asset unavailable; using procedural infected', error);
-      spawnAmbientInfected();
-    }
-  }
   function clearGroup(group) {
     const disposeMaterial = material => {
       if (!material) return;
@@ -1087,7 +1043,7 @@ function boot(host) {
       if (key) previousExplorerPositions.set(key, explorer.position.clone());
     }
     clearGroup(playerGroup);
-    const encounters = wantsContinuous ? visibleInfected(data.encounters || []) : data.encounters || [];
+    const encounters = wantsContinuous ? visibleInfected(data.encounters || []) : (data.encounters || []).filter(e => !e.defeated && e.hp > 0);
     const activeEncounterIds = new Set();
     for (const e of encounters) {
       activeEncounterIds.add(e.id);
@@ -1095,34 +1051,26 @@ function boot(host) {
       if (!actor) {
         actor = new THREE.Group();
         actor.position.set(e.x, terrainElevation(e.x, e.z), e.z);
-        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.85, 1.1, 3, 7), mat(0x8e302d));
-        body.position.y = 1.2; actor.add(body);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), mat(0xaaa18a));
-        head.position.y = 2.15; actor.add(head);
+        // Invisible picking proxies preserve Homefront's aim transport. The arena
+        // renderer owns all visible infected geometry and reactions.
+        const hitboxMaterial = new THREE.MeshBasicMaterial({ visible: false });
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.92, 3, 7), hitboxMaterial);
+        body.position.y = 0.9; actor.add(body);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 8, 6), hitboxMaterial.clone());
+        head.position.y = 2.0; actor.add(head);
         body.userData.combatHitbox = true;
         head.userData.combatHitbox = true;
-        const label = labelSprite(e.enemy + ' · ' + e.hp + '/' + e.maxHp, '#ffaaa0');
-        label.position.y = 3.5; actor.add(label);
-        const threatRing = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xd84b3e, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));
-        threatRing.rotation.x = -Math.PI / 2; threatRing.position.y = 0.045; actor.add(threatRing);
-        actor.userData = { encounterId: e.id, parentEncounterId: e.parentEncounterId || e.id, enemyType: e.enemy || '', targetX: e.x, targetZ: e.z, hp: e.hp, body, head, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
+        actor.userData = {
+          encounterId: e.id, parentEncounterId: e.parentEncounterId || e.id,
+          enemyType: e.enemy || '', targetX: e.x, targetZ: e.z, hp: e.hp
+        };
         combatActors.set(e.id, actor); combatGroup.add(actor);
       } else {
         actor.userData.encounterId = e.id;
         actor.userData.parentEncounterId = e.parentEncounterId || e.id;
         actor.userData.enemyType = e.enemy || actor.userData.enemyType || '';
         actor.userData.targetX = e.x; actor.userData.targetZ = e.z;
-        if (actor.userData.hp !== e.hp) {
-          actor.userData.hp = e.hp;
-          actor.userData.hitFlash = 0.38;
-          actor.userData.body.material.emissive?.setHex(0xff3018);
-          actor.userData.body.material.emissiveIntensity = 1.1;
-          const oldLabel = actor.userData.label;
-          actor.remove(oldLabel);
-          oldLabel.material.map?.dispose(); oldLabel.material.dispose();
-          const label = labelSprite(e.enemy + ' · ' + e.hp + '/' + e.maxHp, '#ffaaa0');
-          label.position.y = 3.5; actor.add(label); actor.userData.label = label;
-        }
+        actor.userData.hp = e.hp;
       }
     }
     for (const [id, actor] of combatActors) {
@@ -1144,10 +1092,6 @@ function boot(host) {
     if (!targetMatches || !enemyInReach) { aiming = false; if (aimWeaponButton) { aimWeaponButton.setAttribute('aria-pressed', 'false'); aimWeaponButton.textContent = 'Aim weapon'; } }
     if (attackInfectedButton) attackInfectedButton.disabled = !selfEncounter || selfEncounter.defeated || selfEncounter.hp <= 0 || !enemyInReach;
     if (autoFireButton) autoFireButton.disabled = !targetMatches || selfEncounter.defeated || selfEncounter.hp <= 0 || !enemyInReach || moving;
-    for (const [id, actor] of combatActors) {
-      const ring = actor.userData.threatRing;
-      if (ring) { ring.material.color.setHex(id === selectedCombatTargetId ? 0xffc05b : 0xd84b3e); ring.material.opacity = id === selectedCombatTargetId ? 0.72 : 0.08; }
-    }
     if (combatStatus) combatStatus.textContent = selfEncounter && !selfEncounter.defeated
       ? selfEncounter.enemy + ' · HP ' + selfEncounter.hp + '/' + selfEncounter.maxHp + ' · risk ' + selfEncounter.risk + '/5 · ' + Math.ceil(enemyDistance) + ' units away' + (enemyInReach ? ' · in attack range' : ' · move closer to attack')
       : 'No active encounter. Search for infected to begin a server-authoritative fight.';
@@ -2227,6 +2171,7 @@ function boot(host) {
         if (reloadState) cancelReload('Reload interrupted on leaving the field view.');
         if (zombieAudioActive) { zombieAudio.stop(); zombieAudioActive = false; }
         tracerPool.update(1);
+        infectedRenderer.clear();
         cameraInitialized = false;
         sceneWasVisible = false;
       }
@@ -2257,45 +2202,26 @@ function boot(host) {
     const ashWind = ambientTarget.windX;
     for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += (Math.sin(now * 0.0003 + i) * 0.12 + ashWind * 0.16) * dt;
       if (ashPositions[j] > 98) ashPositions[j] = -98;
-      if (ashPositions[j] < -98) ashPositions[j] = 98; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) { const travelBlend = 1 - Math.exp(-8 * dt); explorer.position.x += (target.x - explorer.position.x) * travelBlend; explorer.position.y += (target.y - explorer.position.y) * travelBlend; explorer.position.z += (target.z - explorer.position.z) * travelBlend; movingAvatar = Math.hypot(target.x - explorer.position.x, target.z - explorer.position.z) > 0.035; if (movingAvatar) explorer.rotation.y = Math.atan2(target.x - explorer.position.x, target.z - explorer.position.z); } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (explorer.userData.walker) { poseWalker(explorer.userData.walker, now * 0.012, movingAvatar ? 1 : 0, now / 1000); if (explorer.userData.isLocalPlayer) { stepVertical(localJump, dt, 0, view.takeJump(), EXPLORER_SCALE); explorer.userData.walker.position.y = localJump.y; } } if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.72 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; if (piece.userData.tracer) { piece.material.opacity = Math.max(0, piece.userData.life / (piece.userData.maxLife || 0.095)); if (piece.userData.life <= 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } continue; } piece.position.x += (piece.userData.vx || 0) * dt; piece.position.y += (piece.userData.vy || 0) * dt; piece.position.z += (piece.userData.vz || 0) * dt; piece.userData.vy = (piece.userData.vy || 0) - 5.5 * dt; if (piece.rotation) { piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; } if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); else if (piece.material?.opacity != null) piece.material.opacity = Math.max(0, piece.userData.life / 0.075); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; state.presentedSpeed = Math.hypot(dx, dz) * blend / Math.max(dt, 0.001); actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainElevation(actor.position.x, actor.position.z);
-      const impactRemaining = state.impactUntil - now;
-      if (impactRemaining > 0) {
-        const p = impactRemaining / 300;
-        const hitPulse = Math.sin(p * Math.PI);
-        const headshot = state.impactStyle === 'headshot';
-        actor.position.x += state.impactDirection * (state.impactStyle === 'blunt' ? 0.075 : headshot ? 0.065 : 0.045) * hitPulse;
-        actor.rotation.z = (state.impactStyle === 'blunt' ? 0.22 : headshot ? 0.28 : 0.12) * hitPulse * state.impactDirection;
-        state.body.scale.y = state.impactStyle === 'blunt' ? 1 - 0.18 * hitPulse : headshot ? 1 - 0.1 * hitPulse : 1;
-      } else { actor.rotation.z = 0; state.body.scale.y = 1; }
-      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(dx, dz), dt); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } }
-      // Shared Zombies selector/model pilot: at most eight nearby animated rigs, with procedural fallback.
-      const localForModels = worldData?.self || { x: 0, z: 0 };
-      const modelCandidates = [...combatActors.values()].map(actor => {
-        const state = actor.userData;
-        const distance = Math.hypot(localForModels.x - actor.position.x, localForModels.z - actor.position.z);
-        return { id: state.encounterId, x: actor.position.x, y: terrainElevation(actor.position.x, actor.position.z), z: actor.position.z, yaw: actor.rotation.y || 0, ...infectedPresentation(state.enemyType), speed: state.presentedSpeed || 0, ch: distance <= 2.7, hp: state.hp };
+      if (ashPositions[j] < -98) ashPositions[j] = 98; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) { const travelBlend = 1 - Math.exp(-8 * dt); explorer.position.x += (target.x - explorer.position.x) * travelBlend; explorer.position.y += (target.y - explorer.position.y) * travelBlend; explorer.position.z += (target.z - explorer.position.z) * travelBlend; movingAvatar = Math.hypot(target.x - explorer.position.x, target.z - explorer.position.z) > 0.035; if (movingAvatar) explorer.rotation.y = Math.atan2(target.x - explorer.position.x, target.z - explorer.position.z); } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (explorer.userData.walker) { poseWalker(explorer.userData.walker, now * 0.012, movingAvatar ? 1 : 0, now / 1000); if (explorer.userData.isLocalPlayer) { stepVertical(localJump, dt, 0, view.takeJump(), EXPLORER_SCALE); explorer.userData.walker.position.y = localJump.y; } } if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.72 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; if (piece.userData.tracer) { piece.material.opacity = Math.max(0, piece.userData.life / (piece.userData.maxLife || 0.095)); if (piece.userData.life <= 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } continue; } piece.position.x += (piece.userData.vx || 0) * dt; piece.position.y += (piece.userData.vy || 0) * dt; piece.position.z += (piece.userData.vz || 0) * dt; piece.userData.vy = (piece.userData.vy || 0) - 5.5 * dt; if (piece.rotation) { piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; } if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); else if (piece.material?.opacity != null) piece.material.opacity = Math.max(0, piece.userData.life / 0.075); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } }
+    const localForInfected = continuousInput.position() || worldData?.self;
+    const presentedInfected = [];
+    for (const actor of combatActors.values()) {
+      const state = actor.userData;
+      const blend = 1 - Math.exp(-3.5 * dt);
+      const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z;
+      actor.position.x += dx * blend;
+      actor.position.z += dz * blend;
+      actor.position.y = terrainElevation(actor.position.x, actor.position.z);
+      if (Math.hypot(dx, dz) > 0.08) {
+        actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(dx, dz), dt);
+      }
+      presentedInfected.push({
+        id: state.encounterId, x: actor.position.x, y: actor.position.y, z: actor.position.z,
+        yaw: actor.rotation.y, ...infectedPresentation(state.enemyType),
+        speed: Math.hypot(dx, dz) * blend / Math.max(dt, 0.001), hp: state.hp
       });
-      let modeledZombieIds = new Set();
-      if (zombieModelPilot) modeledZombieIds = zombieModelPilot.update(modelCandidates, dt, localForModels);
-      for (const actor of combatActors.values()) {
-        const modeled = modeledZombieIds.has(actor.userData.encounterId);
-      if (wantsContinuous) {
-        const distance = Math.hypot(localForModels.x - actor.position.x, localForModels.z - actor.position.z);
-        actor.userData.label.scale.set(4.8, 0.9, 1);
-        actor.userData.label.visible = actor.userData.hp > 0 && distance >= 5 && distance <= 12;
-        actor.userData.threatRing.visible = false;
-      }
-        for (const proxy of [actor.userData.body, actor.userData.head]) {
-          if (!proxy) continue;
-          const opacity = modeled ? 0 : 1;
-          if (proxy.material.opacity !== opacity || proxy.material.transparent !== modeled) {
-            proxy.material.transparent = modeled;
-            proxy.material.opacity = opacity;
-            proxy.material.depthWrite = !modeled;
-            proxy.material.needsUpdate = true;
-          }
-        }
-      }
+    }
+    infectedRenderer.update(dt, presentedInfected, localForInfected);
       if (worldData?.self) {
       const self = worldData.self;
       if (zombieAudioStarted && view.visible && !document.hidden) {
@@ -2308,12 +2234,7 @@ function boot(host) {
           hp: Number.isFinite(survival.health) ? survival.health : 100,
           max: 100, alive: survival.health !== 0, down: survival.health === 0
         };
-        const audioZombies = [...combatActors.values()].filter(actor => actor.userData.hp > 0).map(actor => ({
-          id: actor.userData.encounterId, x: actor.position.x, y: actor.position.y,
-          z: actor.position.z, ...infectedPresentation(actor.userData.enemyType),
-          hp: actor.userData.hp, out: false
-        }));
-        zombieAudio.tick(dt, audioMe, audioZombies, [], 'homefront-local-player');
+        zombieAudio.tick(dt, audioMe, presentedInfected, [], 'homefront-local-player');
         zombieAudioActive = true;
       }
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
@@ -2414,17 +2335,6 @@ function boot(host) {
     updateSurvivalReadout(worldData);
     updateWeaponOverlay?.();
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };
-  // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.
-  zombieModelPilotLoading = true;
-  createZombieModelPilot(scene, { targetHeight: 2.7, maxModels: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 4 : 8 }).then(pilot => {
-    zombieModelPilot = pilot;
-    zombieModelPilotLoading = false;
-    console.info('[homefront-graveyard] shared animated infected ready');
-  }).catch(error => {
-    zombieModelPilotFailed = true;
-    zombieModelPilotLoading = false;
-    console.warn('[homefront-graveyard] animated infected unavailable; using procedural infected', error);
-  });
-  tick(); if (!wantsContinuous) loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
+  tick(); fetchWorld(); setInterval(fetchWorld, 8000);
   setInterval(fetchBuildingPresence, 2400);
 }

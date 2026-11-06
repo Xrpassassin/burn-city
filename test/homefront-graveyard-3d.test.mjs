@@ -5,18 +5,19 @@ const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', 
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 
 assert.match(scene, /from '\.\/zaudio\.js'/, 'reuse the Zombies sound director in Homefront');
-assert.match(scene, /from '\.\/zombie-model-pilot\.mjs'/, 'reuse the existing animated Zombies model pilot');
-assert.match(scene, /zombieModelPilot\.update\(modelCandidates, dt, localForModels\)/, 'drive animated infected from authoritative encounter snapshots');
-assert.match(scene, /modeledZombieIds\.has\(actor\.userData\.encounterId\)/, 'bound detailed rigs and retain procedural fallback actors');
-assert.match(scene, /const opacity = modeled \? 0 : 1/, 'preserve raycast hit proxies under animated models');
-assert.match(scene, /createZombieModelPilot\(scene, \{ targetHeight: 2\.7, maxModels: /, 'fit rigs to Homefront combat hitbox scale with a lower rig cap on touch devices');
+assert.match(scene, /import \{ createZombieRenderer \} from '\.\/fx\.js'/, 'reuse the arena renderer for both animated and instanced infected');
+assert.match(scene, /infectedRenderer\.update\(dt, presentedInfected, localForInfected\)/, 'drive the arena renderer from authoritative encounter snapshots');
+assert.match(scene, /MeshBasicMaterial\(\{ visible: false \}\)/, 'keep aiming proxies separate from the visible models');
+assert.match(scene, /createZombieRenderer\(scene, \{ low: coarsePointer, deathOnRemoval: false, scale: 1.25 \}\)/, 'keep render budgets and distinguish leaving interest range from a confirmed death');
 assert.match(scene, /createZombieAudio\(sfx, \{ base: new URL\('\.\/sfx\/'/, 'reuse the existing positional zombie audio sample bank');
 assert.match(scene, /from '\.\/homefront-ground-detail\.mjs'/, 'load deterministic lightweight ground dressing');
 assert.match(scene, /new THREE\.InstancedMesh\(/, 'batch micro-props to avoid one draw call per piece of scenery');
 assert.match(scene, /addGroundDetailInstances\(chunk, cx, cz\)/, 'cull ground details with their spatial chunk');
 assert.match(scene, /coarsePointer \? 1\.15 : 1\.6/, 'cap mobile render resolution to preserve frame time while allowing sharper desktop output');
-assert.match(scene, /zombieAudio\.tick\(dt, audioMe, audioZombies/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
+assert.match(scene, /zombieAudio\.tick\(dt, audioMe, presentedInfected/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
 assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play shared hit and headshot audio only after authoritative combat confirmation');
+assert.match(scene, /if \(hit\.killed\) infectedRenderer\.zdie/, 'play the shared death reaction after a confirmed kill');
+assert.match(scene, /else infectedRenderer\.zhit/, 'play the shared hit reaction after a confirmed hit');
 assert.match(scene, /if \(hit\.killed\) \{[\s\S]*?zombieAudio\.zdie\(/, 'play infected death audio only after server-confirmed kills');
 assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
 assert.match(scene, /const environmentVisuals = new Map\(\)/, 'index rendered environment structures by authoritative collision ID');
@@ -43,10 +44,6 @@ assert.match(zombiePilot, /MAX_MODEL_DISTANCE = 28/, 'keep detailed rigs near th
 assert.match(zombiePilot, /react\(id, kind = 'HitReact'\)/, 'expose authoritative hit and death animation reactions');
 assert.match(zombiePilot, /next\.setLoop\(THREE\.LoopOnce, 1\)/, 'play hit and death clips as one-shot reactions');
 assert.match(zombiePilot, /item\.deadUntil = item\.reactionUntil/, 'retain server-confirmed death animation after encounter removal');
-assert.match(scene, /zombieModelPilot\?\.react\(hit\.targetId, hit\.killed \? 'Death' : 'HitReact'\)/, 'trigger animated reactions only from confirmed combat events');
-assert.match(scene, /GLTFLoader/, 'reuse the existing GLTF asset loader');
-assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely');
-assert.match(scene, /assets\/homefront\/zombie\.glb/, 'reuse the existing Homefront zombie model');
 assert.match(scene, /\/api\/homefront\/world/, 'read the shared Homefront world snapshot');
 assert.match(scene, /\/api\/homefront\/world\/move/, 'send movement through the authoritative world API');
 assert.match(scene, /\/api\/homefront\/world\/exploration/, 'load account-persisted exploration notes');
@@ -62,9 +59,6 @@ assert.match(scene, /\/api\/homefront\/world\/' \+ action/, 'combat controls cal
 assert.match(scene, /data\.encounters/, 'render active server-owned infected encounters');
 assert.match(scene, /const combatActors = new Map\(\)/, 'retain infected scene actors across authoritative snapshots');
 assert.match(scene, /state\.targetX - actor\.position\.x/, 'interpolate infected movement between server snapshots');
-assert.match(scene, /actor\.userData\.hitFlash = 0\.38/, 'give confirmed enemy damage a brief visual hit flash');
-assert.match(scene, /threatRing/, 'render a proximity danger telegraph for nearby infected');
-assert.match(scene, /threatDistance <= 3/, 'increase infected danger feedback at close combat distance');
 assert.match(scene, /frontierBand/, 'show the current expansion band in the expedition HUD');
 assert.match(scene, /frontierDepth/, 'show inward frontier depth and rising danger context');
 assert.match(scene, /gunfire attracts attention/, 'warn players that noise escalates danger beyond the perimeter');
@@ -113,10 +107,7 @@ assert.match(scene, /explorer\.userData\.weapon\.rotation\.z/, 'animate a visibl
 assert.match(scene, /weaponSwingWeaponId === 'marksman_rifle' \? 0\.62 : 0\.46/, 'firearms use weapon-specific recoil strength');
 assert.match(scene, /weaponSwingWeaponId === 'shock_maul'/, 'shock maul uses a heavier dedicated swing animation');
 assert.match(scene, /const kick = progress < 0\.2 \? progress \/ 0\.2/, 'firearm recoil kicks back quickly and recovers during the animation');
-assert.match(scene, /const headshot = state\.impactStyle === 'headshot'/, 'confirmed headshots trigger a stronger infected flinch');
-assert.match(scene, /headshot \? 0\.28 : 0\.12/, 'headshot hit reactions have a distinct knockback response');
 
-assert.match(scene, /impactStyle === 'blunt'/, 'blunt weapons produce a heavier body-bash response');
 assert.ok(scene.includes("if (detail.killed && style === 'sharp' && target)"), 'sharp-weapon separation effect requires a confirmed kill');
 assert.match(scene, /homefront:combat-hit/, 'impact response only runs from confirmed combat results');
 

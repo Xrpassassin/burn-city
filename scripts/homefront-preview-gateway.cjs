@@ -23,6 +23,11 @@ if (process.env.HOMEFRONT_PREVIEW_MODE !== '1') {
 const ACCOUNT='preview-refuge-player';
 const directPreview=process.env.HOMEFRONT_PREVIEW_DIRECT==='1';
 const gamePath='/arena/homefront.html'+(directPreview?'?movement=continuous':'');
+const revision=process.env.HOMEFRONT_PREVIEW_REVISION||null;
+const health={
+  status:'preview',saves:'memory-only',payments:false,
+  movement:directPreview?'direct':'classic',revision
+};
 process.env.HOMEFRONT_CONTINUOUS_MOVEMENT=directPreview?'1':'0';
 const FAKE_BEARER='preview-only-inmemory-bearer';
 const ROOT=path.resolve(__dirname,'../client');
@@ -97,7 +102,7 @@ async function parseBody(req,max=4096) {
 const app=http.createServer(async(req,res)=>{
   const url=new URL(req.url||'/', 'http://localhost');
   try{
-    if(url.pathname==='/healthz'&&req.method==='GET')return json(res,200,{status:'preview',saves:'memory-only',payments:false});
+    if(url.pathname==='/healthz'&&req.method==='GET')return json(res,200,health);
     if(url.pathname==='/preview-login'&&req.method==='POST'){
       const ip=req.socket.remoteAddress||'unknown';
       const state=loginFailures.get(ip)||{count:0,until:Date.now()+60000};

@@ -21,6 +21,7 @@ jobs:
         run: |
           bash -n scripts/start-homefront-preview.sh
           node scripts/homefront-preview-gateway.test.mjs
+          bash scripts/deploy-homefront-preview.test.sh
       - name: Install browser
         run: |
           npm install --prefix "$RUNNER_TEMP/homefront-browser" playwright@1.62.1 --no-audit --no-fund

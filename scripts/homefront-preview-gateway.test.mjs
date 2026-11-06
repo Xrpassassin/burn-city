@@ -24,7 +24,8 @@ const freePort=async()=>{
 const port=await freePort();
 const child=spawn(process.execPath,['scripts/homefront-preview-gateway.cjs'],{
   env:{...process.env,PORT:String(port),HOMEFRONT_PREVIEW_MODE:'1',
-    HOMEFRONT_PREVIEW_PASSWORD:pass,HOMEFRONT_CONTINUOUS_MOVEMENT:'0',
+    HOMEFRONT_PREVIEW_PASSWORD:pass,HOMEFRONT_CONTINUOUS_MOVEMENT:'0',HOMEFRONT_PREVIEW_DIRECT:'0',
+    HOMEFRONT_PREVIEW_REVISION:'gateway-test-revision',
     DRY_RUN:'true',BURN_JOB_IN_SERVER:'false',DATA_DIR:'/tmp/homefront-preview-test-'+port},
   stdio:['ignore','pipe','pipe']
 });
@@ -43,7 +44,7 @@ try{
   }
   assert(ready,'isolated preview binds a fresh local port');
   const health=await (await get('/healthz')).json();
-  assert.deepEqual(health,{status:'preview',saves:'memory-only',payments:false});
+  assert.deepEqual(health,{status:'preview',saves:'memory-only',payments:false,movement:'classic',revision:'gateway-test-revision'});
   for(const pathname of ['/','/arena/homefront.html','/api/homefront',
     '/api/homefront/world','/client/arena/homefront-hud.mjs','/api/estates/status']){
     const response=await get(pathname);

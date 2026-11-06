@@ -1,0 +1,18 @@
+FROM node:24-alpine
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY server ./server
+COPY client ./client
+COPY scripts/homefront-preview-gateway.cjs ./scripts/homefront-preview-gateway.cjs
+ARG HOMEFRONT_PREVIEW_REVISION
+ENV HOMEFRONT_PREVIEW_REVISION=${HOMEFRONT_PREVIEW_REVISION}
+ENV PORT=8080
+ENV HOMEFRONT_PREVIEW_MODE=1
+ENV HOMEFRONT_CONTINUOUS_MOVEMENT=0
+ENV DRY_RUN=true
+ENV BURN_JOB_IN_SERVER=false
+ENV DATA_DIR=/tmp/homefront-preview
+EXPOSE 8080
+# Dedicated preview entrypoint: never uses the production volume bootstrap or payment server.
+CMD ["node","scripts/homefront-preview-gateway.cjs"]

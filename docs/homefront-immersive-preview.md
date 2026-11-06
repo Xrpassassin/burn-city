@@ -13,6 +13,16 @@ bash scripts/start-homefront-preview.sh
 
 The launcher prompts for a preview password without echoing it. Forward port **8080** in the Codespace **Ports** panel and keep it **Private**. Open the forwarded HTTPS address on the phone using the same GitHub account and enter the preview password. Confirm the **PREVIEW · SYNTHETIC DATA · NO PAYMENTS** marker. Keep the Codespace running during the playtest.
 
+## Deploy to the separate Fly preview
+
+From a clean checkout of `preview/homefront-direct-walking`, use:
+
+```bash
+bash scripts/deploy-homefront-preview.sh
+```
+
+The script uses the dedicated `burn-city-homefront-preview-551` app. The app needs a preview password in its Fly secret named `HOMEFRONT_PREVIEW_PASSWORD`, and the operator supplies a preview-app token in `FLY_HOMEFRONT_PREVIEW_API_TOKEN`. If those are already provisioned, reuse them. The script checks the app before deploying and verifies the exact build revision, in-memory saves and direct movement at the [Fly preview URL](https://burn-city-homefront-preview-551.fly.dev/).
+
 ## Compare on the same phone
 
 1. Open [BURN City Zombies](https://burn-city-game.fly.dev/arena/) and play a short match. Note how the joystick starts and stops, how fast the camera turns, and how clearly you can locate infected by sound.

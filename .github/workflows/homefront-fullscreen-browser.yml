@@ -34,6 +34,12 @@ jobs:
         run: node scripts/homefront-ui-real-graveyard-browser.mjs
         env:
           PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
+      - name: Play the full refuge round trip with phone touch
+        run: node scripts/homefront-ui-real-graveyard-browser.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
+          HOMEFRONT_UI_TOUCH_REFUGE: '1'
+          HOMEFRONT_UI_ARTIFACTS: homefront-ui-browser-output/touch
       - uses: actions/upload-artifact@v4
         if: always()
         with:

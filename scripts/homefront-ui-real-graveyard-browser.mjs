@@ -244,7 +244,11 @@ try {
   // Full real Homefront HTML + its real, complete inline Three.js refuge module,
   // not just the separate Graveyard module from above. This login is synthetic
   // and receives an isolated blank base from the original GET handler.
-  const refugeContext=await browser.newContext({viewport:{width:1280,height:800}});
+  const touchRefuge = process.env.HOMEFRONT_UI_TOUCH_REFUGE === '1';
+  const refugeName = touchRefuge ? 'mobile' : 'desktop';
+  const viewport = touchRefuge ? {width:390,height:844} : {width:1280,height:800};
+  const refugeContext=await browser.newContext({viewport,isMobile:touchRefuge,hasTouch:touchRefuge});
+  const activate = (locator, options) => touchRefuge ? locator.tap(options) : locator.click(options);
   const refuge=await refugeContext.newPage();
   refuge.on('pageerror',error=>errors.push('refuge: '+error.message));
   await refuge.addInitScript(({token,account})=>{
@@ -258,7 +262,7 @@ try {
     errors.push('refuge: attempted nonlocal request '+host);
     return route.abort('blockedbyclient');
   });
-  await refuge.goto('http://localhost:'+port+'/arena/homefront-real-refuge.html',
+  await refuge.goto('http://localhost:'+port+'/arena/homefront-real-refuge.html?debug=1',
     {waitUntil:'domcontentloaded',timeout:60000});
   try {
     await refuge.waitForFunction(()=>{
@@ -285,19 +289,47 @@ try {
   }
   const yard=refuge.locator('#world canvas').first();
   const yardBox=await yard.boundingBox();
-  assert(yardBox&&yardBox.width>1220&&yardBox.height>740,
+  assert(yardBox&&Math.abs(yardBox.width-viewport.width)<=1&&Math.abs(yardBox.height-viewport.height)<=1,
     'actual refuge WebGL renderer uses immersive viewport '+JSON.stringify(yardBox));
   assert(await refuge.locator('#hfHud').isVisible(),'real refuge loads unified HUD');
-  await refuge.screenshot({path:out+'/desktop-real-refuge.png'});
-  await refuge.locator('#hfHud .hf-menu').click();
-  await refuge.locator('#hfSheet .hf-tabs button').filter({hasText:'Build'}).click();
+  if (touchRefuge) {
+    const joystick = await refuge.locator('#world .hf-joy').boundingBox();
+    assert(joystick,'the real refuge touch joystick is visible');
+    const x = Math.round(joystick.x + joystick.width/2);
+    const y = Math.round(joystick.y + joystick.height/2);
+    const before = await refuge.evaluate(() => ({x:window.__hfYard.player.x,z:window.__hfYard.player.z}));
+    const touch = await refugeContext.newCDPSession(refuge);
+    try {
+      await touch.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+      await touch.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+40,y}]});
+      await refuge.waitForFunction(({x,z}) => Math.hypot(window.__hfYard.player.x-x,window.__hfYard.player.z-z) > 0.4,before);
+    } finally {
+      await touch.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+      await touch.detach();
+    }
+    await activate(refuge.locator('#hfHud .hf-menu'));
+    await activate(refuge.getByRole('tab',{name:/Inventory/}));
+    await refuge.setViewportSize({width:844,height:390});
+    await refuge.waitForFunction(() => {
+      const world = document.querySelector('#world canvas')?.getBoundingClientRect();
+      const card = document.querySelector('#hfSheet .hf-card')?.getBoundingClientRect();
+      return world?.width === 844 && world.height === 390 && card?.width > 0 &&
+        card.left >= 0 && card.right <= 844 && card.bottom <= 390;
+    });
+    await refuge.screenshot({path:out+'/mobile-landscape-inventory.png'});
+    await refuge.setViewportSize(viewport);
+    await activate(refuge.getByRole('button',{name:'✕ Close',exact:true}));
+  }
+  await refuge.screenshot({path:out+'/'+refugeName+'-real-refuge.png'});
+  await activate(refuge.locator('#hfHud .hf-menu'));
+  await activate(refuge.locator('#hfSheet .hf-tabs button').filter({hasText:'Build'}));
   assert(await refuge.locator('#hfSheet #buildPanel').isVisible(),
     'real refuge Build controls are inside the overlay, not a separate page');
   assert(await yard.isVisible(),'real refuge Three.js canvas stays mounted behind Build');
-  await refuge.screenshot({path:out+'/desktop-real-refuge-build.png'});
+  await refuge.screenshot({path:out+'/'+refugeName+'-real-refuge-build.png'});
   const buildOptions=refuge.locator('#hfSheet #buildings button').filter({hasText:'Choose placement'});
   assert(await buildOptions.count()>0,'real server refuge exposes placeable building cards');
-  await buildOptions.first().click();
+  await activate(buildOptions.first());
   await refuge.waitForFunction(()=>document.getElementById('hfSheet')?.hidden,
     null,{timeout:10000});
   try {
@@ -318,56 +350,57 @@ try {
   assert(await refuge.locator('#cancelPlacement').isVisible(),
     'actual protected placement remains selected after drawer closes');
   assert(await yard.isVisible(),'real 3D yard is accessible for placement');
-  await refuge.screenshot({path:out+'/desktop-real-refuge-placement.png'});
+  await refuge.screenshot({path:out+'/'+refugeName+'-real-refuge-placement.png'});
   const buildRequests = () => observed.filter(r=>r.account===REFUGE_ACCOUNT&&r.path==='/api/homefront/action');
   assert.equal(buildRequests().length,0,'opening placement does not mutate the refuge');
   // Try clear yard positions within the overhead view until the genuine action fires.
   const buildReply = refuge.waitForResponse(r=>r.url().endsWith('/api/homefront/action')&&r.request().method()==='POST');
   for (const [x,y] of [[.64,.53],[.37,.62],[.64,.70],[.40,.34],[.55,.66]]) {
     if (!(await refuge.locator('#cancelPlacement').isVisible())) break;
-    await yard.click({position:{x:yardBox.width*x,y:yardBox.height*y}});
+    await activate(yard,{position:{x:yardBox.width*x,y:yardBox.height*y}});
   }
   const placed = await buildReply;
   assert(placed.ok(),'real server accepted structure placement');
   assert((await placed.json()).base?.structures?.length > 0,'the server returns the updated refuge');
-  await refuge.locator('.hf-build-exit').click();
+  await activate(refuge.locator('.hf-build-exit'));
   await refuge.waitForFunction(()=>document.body.classList.contains('rpg-mode-home'));
   assert(await yard.isVisible(),'Finish building restores true third-person refuge');
-  await refuge.locator('#hfHud .hf-menu').click();
-  await refuge.locator('#hfSheet .hf-tabs button').filter({hasText:'Manage'}).click();
+  await activate(refuge.locator('#hfHud .hf-menu'));
+  await activate(refuge.locator('#hfSheet .hf-tabs button').filter({hasText:'Manage'}));
   assert(await refuge.locator('#hfSheet .hf-mtabs button').count()>=4,
     'real settlement categories accessible inside the drawer');
   assert(await yard.isVisible(),'real 3D refuge remains mounted behind Manage');
-  await refuge.screenshot({path:out+'/desktop-real-refuge-manage.png'});
-  await refuge.keyboard.press('Escape');
+  await refuge.screenshot({path:out+'/'+refugeName+'-real-refuge-manage.png'});
+  if (touchRefuge) await activate(refuge.getByRole('button',{name:'✕ Close',exact:true}));
+  else await refuge.keyboard.press('Escape');
   assert(await refuge.locator('#hfSheet').isHidden());
   assert(await yard.isVisible());
   assert.equal(buildRequests().length,1,'the structure was placed exactly once');
   const openTravel = async () => {
-    await refuge.locator('#hfHud .hf-menu').click();
-    await refuge.locator('#hfSheet .hf-tabs button').filter({hasText:'Travel'}).click();
+    await activate(refuge.locator('#hfHud .hf-menu'));
+    await activate(refuge.locator('#hfSheet .hf-tabs button').filter({hasText:'Travel'}));
   };
   await openTravel();
   const entry = refuge.waitForResponse(r=>r.url().endsWith('/api/homefront/world/enter')&&r.request().method()==='POST');
-  await refuge.getByRole('button',{name:/Travel to the Wastes/}).click();
+  await activate(refuge.getByRole('button',{name:/Travel to the Wastes/}));
   assert((await (await entry).json()).self,'the server entered the Wastes');
   await refuge.waitForFunction(()=>document.body.classList.contains('rpg-mode-expedition'));
   assert(await refuge.locator('#graveyard3d canvas').isVisible());
   await openTravel();
   const exit = refuge.waitForResponse(r=>r.url().endsWith('/api/homefront/world/leave')&&r.request().method()==='POST');
-  await refuge.getByRole('button',{name:/Return to Homefront/}).click();
+  await activate(refuge.getByRole('button',{name:/Return to Homefront/}));
   const returned = await (await exit).json();
   assert(returned.base && !returned.self,'the server returned the player to the refuge');
   await refuge.waitForFunction(()=>document.body.classList.contains('rpg-mode-home'));
-  await refuge.getByRole('button',{name:'Back to refuge',exact:true}).click();
+  await activate(refuge.getByRole('button',{name:'Back to refuge',exact:true}));
   await refuge.route('http://localhost:'+port+'/',route=>route.fulfill({contentType:'text/html',body:'<title>BURN City fixture</title>'}));
-  await refuge.locator('#hfHud .hf-menu').click();
-  await refuge.getByRole('link',{name:'Return to BURN City'}).click();
+  await activate(refuge.locator('#hfHud .hf-menu'));
+  await activate(refuge.getByRole('link',{name:'Return to BURN City'}));
   await refuge.waitForURL('http://localhost:'+port+'/');
   assert.deepEqual(errors,[],'no uncaught script exceptions during real refuge and Graveyard tests');
   console.log('HOMEFRONT IMMERSIVE REAL WEBGL SMOKE PASSED');
   console.log(JSON.stringify({desktop:first.box,mobile:phone.box,refuge:yardBox,
-    isolatedRefugePlacementAndTravel:true,previewContinuousMovementOff:true,realThreeCanvas:true,
+    touchRefuge,isolatedRefugePlacementAndTravel:true,previewContinuousMovementOff:true,realThreeCanvas:true,
     realRefugeCanvas:true,realRefugePlacementPreserved:true,realRefugeManagementOverlay:true,
     realCameraToggle:true,inventoryOverlay:true,expeditionManageGuard:true,
     mobileRealJoystickNonoverlap:true,pageErrors:errors}));

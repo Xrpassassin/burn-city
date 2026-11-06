@@ -15,7 +15,7 @@ const InteriorEvents = require('./homefront-interior-events');
 const Environment = require('./homefront-environment');
 const Director = require('./homefront-director');
 const Travel = require('./homefront-travel');
-const { PINE_CROSSING_BUILDINGS } = require('../client/arena/homefront-pine-crossing.mjs');
+const { PINE_CROSSING_BUILDINGS, inPineCrossing, pineSurfaceAt } = require('../client/arena/homefront-pine-crossing.mjs');
 const InputStep = require('./homefront-input-step');
 const { ZOMBIE_WALK_SPEED, ZOMBIE_FAST_SPEED } = require('../client/arena/zombie-locomotion.mjs');
 const WORLD_SIZE = 100;
@@ -328,6 +328,7 @@ function tickDirector(w, acct, now = Date.now()) {
   const active = Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0 && e.owner === acct).length;
   const elapsed = Math.max(0, now - (p.lastNoiseAt || now));
   const noise = Math.max(0, (p.noiseLevel || 0) - elapsed / 120);
+  const previousSpawnAt = p.directorState?.lastSpawnAt || 0;
   const tick = Director.advanceDirector(p.directorState, {
     zoneId, risk: district.risk, frontierDepth, playerCount: p.partyCode && w.parties[p.partyCode] ? w.parties[p.partyCode].members.length : 1,
     activeEncounters: active, noise, lastNoiseAt: p.lastNoiseAt, now,
@@ -335,11 +336,14 @@ function tickDirector(w, acct, now = Date.now()) {
   });
   p.directorState = tick.state;
   if (tick.decision === 'spawn' && active === 0) {
-    const spawned = Combat.spawn({ encounters: w.encounters, account: acct, player: p, now, seed: tick.plan.threat });
+    const spawned = Combat.spawn({ encounters: w.encounters, account: acct, player: p, players: w.players, interiors: w.interiors, now, seed: tick.plan.threat });
     w.encounters = spawned.encounters;
-    p.directorState.lastSpawnAt = now;
-    p.directorState.nextSpawnAt = now + tick.plan.spawnIntervalMs;
-    p.directorState.lastDecision = 'spawn';
+    if (!spawned.encounter) {
+      p.directorState.lastSpawnAt = previousSpawnAt;
+      p.directorState.nextSpawnAt = previousSpawnAt + tick.plan.spawnIntervalMs;
+      p.directorState.lastDecision = tick.decision = 'hold';
+      tick.reason = 'No unoccupied patrol route is close enough.';
+    }
   }
   return { phase: tick.state.phase, decision: tick.decision, reason: tick.reason, threat: tick.plan.threat, pressure: tick.plan.pressure, risk: tick.plan.risk, zoneId: tick.plan.zoneId, recommendedMaxAlive: tick.plan.recommendedMaxAlive, spawnIntervalMs: tick.plan.spawnIntervalMs, nextSpawnAt: p.directorState.nextSpawnAt || 0, noise: Math.round(noise) };
 }
@@ -595,6 +599,15 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
     if (sprint) { p.lastSprintAt = now; p.accuracyRecoverUntil = now + SPRINT_RECOVERY_MS; }
     else p.accuracyRecoverUntil = Math.max(p.accuracyRecoverUntil || 0, now + AIM_RECOVERY_MS);
     p.aiming = false; p.aimStartedAt = 0;
+    if (sprint && inPineCrossing(p.x, p.z, 4) && now - (p.lastNoiseAt || 0) >= 750) {
+      const surface = pineSurfaceAt(p.x, p.z);
+      const level = surface === 'gravel' ? 32 : surface === 'asphalt' ? 24 : 19;
+      const remaining = Math.max(0, (p.noiseLevel || 0) - (now - (p.lastNoiseAt || 0)) / 120);
+      if (remaining <= level) {
+        p.lastNoiseAt = now;
+        p.noiseX = p.x; p.noiseZ = p.z; p.noiseLevel = level;
+      }
+    }
     const effortDistance = movedDistance * (sprint ? 1.55 : 1);
     p.survival = isInput
       ? Survival.moveContinuous(p.survival, now, effortDistance, p.cindersEffects)

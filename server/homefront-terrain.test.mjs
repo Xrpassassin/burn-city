@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { DEFAULT_TERRAIN_SEED, terrainHeight, terrainElevation, terrainChunkSamples } from '../client/arena/homefront-terrain-generation.mjs';
-import { inPineCrossing, PINE_CROSSING_ROUTES } from '../client/arena/homefront-pine-crossing.mjs';
+import { inPineCrossing, PINE_CROSSING_ROUTES, PINE_PATROLS } from '../client/arena/homefront-pine-crossing.mjs';
 const require = createRequire(import.meta.url);
 const serverTerrain = require('./homefront-terrain.js');
 
@@ -25,6 +25,15 @@ for (const { id, points } of PINE_CROSSING_ROUTES) {
     assert.ok(serverTerrain.canTraverse(...segment), id + ' has a walkable grade');
     assert.ok(collision.canTraverse(...segment, { removedObstacleIds: collision.INTERIOR_OBSTACLE_IDS }),
       id + ' is clear of authoritative obstacles');
+  }
+}
+for (const { id, points } of PINE_PATROLS) {
+  const options = { removedObstacleIds: collision.INTERIOR_OBSTACLE_IDS };
+  for (let i = 0; i < points.length; i++) {
+    const next = points[(i + 1) % points.length];
+    assert.ok(collision.isSafePosition(...points[i], options), id + ' has grounded waypoints');
+    assert.ok(collision.canTraverse(...points[i], ...next, options), id + ' patrol avoids cover');
+    assert.ok(serverTerrain.canTraverse(...points[i], ...next), id + ' patrol stays on walkable grades');
   }
 }
 assert.equal(serverTerrain.canTraverse(0, 0, 12, 8), true, 'the current gentle terrain should be traversable');

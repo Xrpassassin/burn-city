@@ -270,3 +270,26 @@ console.log('Homefront squad anchor audit tests passed.');
  const l6=Core.applyAction({...l5,level:6},'t5-test',{type:'craft_weapon',weapon:'fifty_cal'},3);assert.ok(l6.weapons.includes('fifty_cal'));
  assert.equal(F.publicTiers().find(t=>t.id==='fifty_cal').pierce,3);}
 console.log('fifty cal tier ok');
+
+{
+ const now = 100000;
+ const account = 'pine-walker';
+ const walker = { x: -8, z: -82, lastNoiseAt: 0 };
+ const seeded = C.spawn({ encounters: {}, account, player: walker, now });
+ const initial = seeded.encounters[account];
+ assert.equal(initial.patrolId, 'logging-approach');
+ assert.ok(Math.hypot(initial.x - walker.x, initial.z - walker.z) >= 11,
+   'the logging patrol spawns beyond immediate contact range');
+ const patrolled = C.advance({ encounters: JSON.parse(JSON.stringify(seeded.encounters)), players: { [account]: walker }, now: now + 1000 });
+ assert.ok(patrolled[account].x < initial.x && patrolled[account].z > initial.z, 'undisturbed infected follow the authored patrol');
+
+ const shot = { ...walker, lastNoiseAt: now + 1000, noiseLevel: 95, noiseX: -20, noiseZ: -81 };
+ const investigating = C.advance({ encounters: seeded.encounters, players: { [account]: shot }, now: now + 1000 });
+ assert.equal(investigating[account].lastKnownZ, shot.noiseZ, 'an audible shot replaces the patrol target');
+ assert.ok(investigating[account].z < initial.z, 'infected walk toward the source, away from the patrol waypoint');
+ const resumed = C.advance({ encounters: investigating, players: { [account]: walker }, now: now + 18000 });
+ assert.ok(resumed[account].z > investigating[account].z, 'patrol resumes after the sound expires');
+
+ const blocked = C.spawn({ encounters: {}, account, player: walker, players: { observer: { x: -20, z: -76 } }, now });
+ assert.equal(blocked.encounter, null, 'the director will not materialize an infected next to another explorer');
+}

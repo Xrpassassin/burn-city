@@ -67,6 +67,43 @@ export const sfx = {
   setVol(x) { vol = Math.min(1, Math.max(0, x)); localStorage[LS] = vol; if (master) master.gain.value = muted ? 0 : vol; },
   setMuted(m) { muted = !!m; localStorage[MUTE] = muted ? '1' : '0'; if (master) master.gain.value = muted ? 0 : vol; },
   loadBank, play, loop, listen, heartbeat, has: k => !!BUF[k]?.length,
+  fieldWind() {
+    if (!A || !noiseBuf) return null;
+    const source = A.createBufferSource(), filter = A.createBiquadFilter(), gain = A.createGain();
+    source.buffer = noiseBuf;
+    source.loop = true;
+    filter.type = 'bandpass';
+    filter.frequency.value = 530;
+    filter.Q.value = 0.58;
+    gain.gain.value = 0;
+    source.connect(filter).connect(gain).connect(bus);
+    source.start();
+    return {
+      set(level) {
+        gain.gain.cancelScheduledValues(A.currentTime);
+        gain.gain.setTargetAtTime(level, A.currentTime, 0.25);
+      },
+      stop() {
+        gain.gain.setTargetAtTime(0, A.currentTime, 0.1);
+        source.stop(A.currentTime + 0.4);
+        source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
+      }
+    };
+  },
+  fieldStep(surface, sprint) {
+    const gain = sprint ? 1.35 : 1;
+    const pitch = 0.87 + Math.random() * 0.24;
+    const profiles = {
+      gravel: { f: 1900, dec: 0.125, v: 0.20 },
+      asphalt: { f: 850, dec: 0.055, v: 0.14 },
+      wood: { f: 560, dec: 0.085, v: 0.12 },
+      dirt: { f: 970, dec: 0.075, v: 0.11 },
+      forest: { f: 1300, dec: 0.135, v: 0.11 }
+    };
+    const { f, dec, v } = profiles[surface] || profiles.forest;
+    noise({ f: f * pitch, dec, v: v * gain, q: 0.75 });
+    tone((surface === 'wood' ? 138 : 88) * pitch, { dec: 0.07, v: 0.055 * gain, f1: 54 });
+  },
   // d = distance in metres; quieter and duller with distance, nothing beyond 35 m (synth fallback when the bank isn't loaded)
   groan(d = 5, pan = 0) { if (d > 35) return; const k = 1 / (1 + d / 6), f = 70 + Math.random() * 50; tone(f, { type: 'sawtooth', a: 0.15, dec: 0.6 + Math.random() * 0.4, v: 0.12 * k, f1: f * 0.7, pan });
     noise({ a: 0.12, dec: 0.6, v: 0.05 * k, f: 300 + 600 * k, q: 4, pan }); },

@@ -263,3 +263,18 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
   assert.ok(Collision.isSafePosition(defeated.result.self.x, defeated.result.self.z));
   assert.equal(W.snapshot(defeated.world, account, start + 12000).selfInfectedHit, null, 'expired hit feedback is not replayed on reconnect');
 }
+
+{
+  const account = 'pine-sprinter';
+  const entered = W.enter(W.defaultWorld(), account, 1000);
+  const start = W.moveInput(entered.world, account, { sequence: 0, x: -1, z: 0, sprint: true }, 2000);
+  const sprint = W.moveInput(start.world, account, { sequence: 1, x: -1, z: 0, sprint: true }, 2100);
+  const player = sprint.world.players[account];
+  assert.equal(player.noiseLevel, 32, 'sprinting along the logging road makes gravel noise');
+  assert.equal(player.noiseX, player.x, 'noise position comes from accepted movement');
+  Object.assign(player, { lastNoiseAt: 2100, noiseLevel: 95, noiseX: -20, noiseZ: -81 });
+  const resumed = W.moveInput(sprint.world, account, { sequence: 2, x: -1, z: 0, sprint: true }, 2900);
+  const next = W.moveInput(resumed.world, account, { sequence: 3, x: -1, z: 0, sprint: true }, 3000);
+  assert.ok(next.result.self.x < resumed.result.self.x, 'the explorer is actually sprinting after the shot');
+  assert.equal(next.world.players[account].noiseX, -20, 'a sprint cannot move the origin of a recent gunshot');
+}

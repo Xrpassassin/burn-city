@@ -112,14 +112,13 @@ assert.ok(scene.includes("if (detail.killed && style === 'sharp' && target)"), '
 assert.match(scene, /homefront:combat-hit/, 'impact response only runs from confirmed combat results');
 
 assert.match(scene, /import \{ sfx \} from '\.\/sfx\.js'/, 'reuse the existing arena sound engine');
-assert.ok(scene.includes("sfx.play(sfx.has(sound) ? sound : 'hit'"), 'fall back to a loaded hit sample when a dedicated weapon sound is unavailable');
+assert.ok(scene.includes("if (!sfx.play('shotgun',"), 'use the existing shotgun sound with a synth fallback');
+assert.match(scene, /sfx\.fieldStep\(interiorState \? 'wood' : pineSurfaceAt/, 'play a footstep matching the actual surface');
 assert.ok(scene.includes("const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16)"), 'head hits get distinct blood particle feedback');
 assert.match(scene, /drop\.userData\.blood = true/, 'mark short-lived blood particles for fade-out');
 
 assert.match(scene, /const weaponId = WEAPON_IDS\.includes\(detail\.weaponId\)/, 'select only known server-equipped weapon profiles for impact feedback');
-assert.match(scene, /weaponId === 'pump_shotgun' \|\| isAuto \? 'shotgun'/, 'shotgun and automatic tiers reuse the licensed firearm sample');
 assert.ok(scene.includes("detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18)"), 'shotgun killing blows produce a wider, stronger impact burst');
-assert.match(scene, /\.catch\(\(\) => \{\}\)/, 'audio asset failures cannot interrupt confirmed combat feedback');
 assert.match(scene, /data\.combat\.encounterId/, 'resolve encounter IDs from the combat response when available');
 
 assert.match(scene, /hitZone: data\.combat\.hitZone/, 'forward the server-calculated hit zone to the scene');

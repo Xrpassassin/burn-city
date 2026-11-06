@@ -4,7 +4,7 @@ import * as THREE from './vendor/three.module.min.js';
 import { getGuestToken, fetchHomefront } from './homefront-guest.mjs';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
-import { inPineCrossing, pineRouteDistance, pineCrossingBuilding, PINE_CROSSING_BOUNDS } from './homefront-pine-crossing.mjs';
+import { inPineCrossing, pineRouteDistance, pineSurfaceAt, pineCrossingBuilding, PINE_CROSSING_BOUNDS } from './homefront-pine-crossing.mjs';
 import { addPineCrossingScenery, buildPineFacade } from './homefront-pine-scenery.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { atmosphereAt, AMBIENT_UPDATE_MS } from './homefront-atmosphere.mjs';
@@ -64,15 +64,19 @@ function boot(host) {
   let zombieAudioActive = false;
   const audioDirection = new THREE.Vector3();
   const startZombieAudio = () => { if (zombieAudioStarted) return; zombieAudioStarted = true; zombieAudio.start(); };
-  window.addEventListener('pointerdown', startZombieAudio, { once: true, passive: true });
-  window.addEventListener('keydown', startZombieAudio, { once: true });
+  // The touch pad stops bubbling so it can own the gesture. Capture the
+  // gesture first, or mobile players can enter and walk in silence.
+  for (const gesture of ['pointerdown', 'touchend', 'keydown']) {
+    window.addEventListener(gesture, startZombieAudio, { once: true, passive: true, capture: true });
+  }
+  if (sfx.ctx_?.state === 'running') startZombieAudio();
   window.addEventListener('homefront:interior-breach', event => {
     const landmark = LANDMARKS.find(item => item.id === event.detail?.landmarkId);
     if (!landmark) return;
     startZombieAudio();
     if (sfx.has('attack')) sfx.play('attack', { pos: [landmark.x, terrainElevation(landmark.x, landmark.z) + 1.1, landmark.z], v: 1.1, ref: 4, max: 36, roll: 1.2 });
   });
-  window.addEventListener('pagehide', () => zombieAudio.stop(), { once: true });
+  window.addEventListener('pagehide', () => { zombieAudio.stop(); stopFieldAudio(); }, { once: true });
   const API = new URLSearchParams(location.search).get('api') ||
     (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   const token = () => getGuestToken() || localStorage.getItem('bcToken') || '';
@@ -292,17 +296,11 @@ function boot(host) {
         };
         setTimeout(() => {
           tracerPool.emit({ x: startX, y: fromY, z: startZ }, endpoint, TRACER_COLOR[weaponId] || 0xffb45c, weaponId === 'heavy_machine_gun' ? 0.13 : 0.095);
-          if (r && isAuto) sfx.weaponFire?.(weaponId);
         }, r * 70);
       });
     }
-    // Reuse the existing licensed sample bank; a failed fetch must never break combat feedback.
     if (target) {
       const pos = [target.position.x, target.position.y + (detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1), target.position.z];
-      const sound = weaponId === 'pump_shotgun' || isAuto ? 'shotgun' : 'hit';
-      sfx.loadBank(new URL('./sfx/', import.meta.url).href)
-        .then(() => sfx.play(sfx.has(sound) ? sound : 'hit', { pos, v: isAuto ? (weaponId === 'heavy_machine_gun' || weaponId === 'fifty_cal' ? 0.42 : 0.32) : weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
-        .catch(() => {});
       // Weapon-specific, short-lived blood mist. Visual feedback never determines damage.
       const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16) : detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18) : (weaponId === 'pump_shotgun' ? 15 : 9);
       const spread = weaponId === 'pump_shotgun' ? 0.95 : weaponId === 'marksman_rifle' ? 0.22 : 0.5;
@@ -1565,12 +1563,24 @@ function boot(host) {
       if (data.combat) {
         authoritativeAimStability = Number.isFinite(data.combat.aimStability) ? data.combat.aimStability : null;
         const hitDetail = { damage: data.combat.damage, hitZone: data.combat.hitZone, killed: data.combat.killed, weaponId: WEAPON_IDS.includes(data.combat.weaponId) ? data.combat.weaponId : equippedWeaponId, hitTargetId: data.combat.hitTargetId, hits: data.combat.hits, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 };
+        if (data.combat.ammoCost > 0) {
+          const revision = gateRevision;
+          const playShot = () => {
+            if (revision !== gateRevision || !view.visible || document.hidden) return;
+            if (hitDetail.weaponId === 'pump_shotgun') {
+              if (!sfx.play('shotgun', { v: 0.85, vr: 0.06 })) sfx.shot(2);
+            } else sfx.weaponFire(hitDetail.weaponId);
+          };
+          playShot();
+          for (let round = 1; round < Math.min(6, data.combat.ammoCost); round++) {
+            setTimeout(playShot, round * 70);
+          }
+        }
         if (data.combat.missed) {
           weaponSwingStartedAt = performance.now();
           weaponSwingUntil = weaponSwingStartedAt + 320;
           weaponSwingWeaponId = hitDetail.weaponId;
           if (data.combat.ammoCost > 0) {
-            sfx.weaponFire?.(hitDetail.weaponId);
             const shooter = worldData?.self;
             if (missPoint && shooter) {
               tracerPool?.emit(
@@ -1602,7 +1612,8 @@ function boot(host) {
       }
       return !(data.combat?.killed);
     } catch (e) {
-      if (combatStatus) combatStatus.textContent = e.message === 'enemy_out_of_range'
+      if (combatStatus) combatStatus.textContent = e.message === 'no_infected_nearby'
+        ? 'No infected tracks nearby.' : e.message === 'enemy_out_of_range'
         ? 'Too far from the infected. Move closer on the map.'
         : e.message === 'attack_cooldown' ? 'Recovering from your last attack. Try again in a moment.'
         : e.message === 'insufficient_ammo' ? 'Magazine empty or short on rounds. Reload before firing.'
@@ -2243,6 +2254,34 @@ function boot(host) {
   let cameraInitialized = false;
   let lastStickMoveAt = 0;
   let lastFrame = performance.now();
+  let fieldWind = null, lastFoot = null, stepDistance = 0, lastWindAt = -Infinity;
+  function stopFieldAudio() {
+    fieldWind?.stop();
+    fieldWind = null;
+    lastFoot = null;
+    stepDistance = 0;
+    lastWindAt = -Infinity;
+  }
+  function updateFieldAudio(point, sprint, now) {
+    if (!zombieAudioStarted || !point || !inPineCrossing(point.x, point.z, 4)) {
+      if (fieldWind || lastFoot) stopFieldAudio();
+      return;
+    }
+    fieldWind ||= sfx.fieldWind();
+    if (fieldWind && now - lastWindAt >= 125) {
+      fieldWind.set(interiorState ? 0.013 : 0.18 + 0.08 * Math.sin(now / 2150));
+      lastWindAt = now;
+    }
+    const step = lastFoot ? Math.hypot(point.x - lastFoot.x, point.z - lastFoot.z) : 0;
+    lastFoot = { x: point.x, z: point.z };
+    if (step > 0.85) { stepDistance = 0; return; }
+    if (step < 0.008) return;
+    stepDistance += step;
+    if (stepDistance >= (sprint ? 2.15 : 1.8)) {
+      stepDistance = 0;
+      sfx.fieldStep(interiorState ? 'wood' : pineSurfaceAt(point.x, point.z), sprint);
+    }
+  }
   let sceneWasVisible = true;
   const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
     // Keep server polling authoritative, but do no world animation or scenery
@@ -2255,6 +2294,7 @@ function boot(host) {
         stopAutoFire();
         if (reloadState) cancelReload('Reload interrupted on leaving the field view.');
         if (zombieAudioActive) { zombieAudio.stop(); zombieAudioActive = false; }
+        stopFieldAudio();
         tracerPool.update(1);
         infectedRenderer.clear();
         cameraInitialized = false;
@@ -2342,10 +2382,12 @@ function boot(host) {
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = walkingCameraHeading(localActor?.rotation.y || 0, cameraYawOffset, view.yaw, continuousInput.enabled);
       const stick = worldMove(view.move(), heading, 0);
+      const sprint = directSprintRequested(sprintTravel, view.running(), aiming);
       if (continuousInput.enabled && !moving && !(worldData.party && !worldData.party.leader)) {
-        continuousInput.step(stick, directSprintRequested(sprintTravel, view.running(), aiming), now, dt);
+        continuousInput.step(stick, sprint, now, dt);
       }
       const shownSelf = continuousInput.position() || self;
+      updateFieldAudio(shownSelf, sprint, now);
       updateVisibleChunks(shownSelf.x, shownSelf.z);
       if (continuousInput.enabled && localActor?.userData.explorerKey) {
         explorerPositions.set(localActor.userData.explorerKey, {
@@ -2427,7 +2469,10 @@ function boot(host) {
         moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10)));
       }
     }
-    if (!worldData?.self) cameraInitialized = false;
+    if (!worldData?.self) {
+      cameraInitialized = false;
+      if (fieldWind || lastFoot) stopFieldAudio();
+    }
     if (zombieAudioActive && (!worldData?.self || !view.visible || document.hidden)) {
       zombieAudio.stop();
       zombieAudioActive = false;

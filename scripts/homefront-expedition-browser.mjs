@@ -276,6 +276,25 @@ try {
     { timeout: 20000 },
   );
   await stopWalking("s");
+  const pineCrossing = process.env.HOMEFRONT_EXPEDITION_PINE === '1';
+  if (pineCrossing) await page.evaluate(async () => {
+    const { sfx } = await import('/arena/sfx.js');
+    const probe = window.fieldAudioProbe = { surfaces: [], windStarts: 0, windStops: 0 };
+    const wind = sfx.fieldWind;
+    sfx.fieldWind = () => {
+      const loop = wind();
+      if (!loop) return null;
+      probe.windStarts++;
+      const stop = loop.stop;
+      loop.stop = () => { probe.windStops++; stop(); };
+      return loop;
+    };
+    const step = sfx.fieldStep;
+    sfx.fieldStep = (surface, sprint) => {
+      probe.surfaces.push(surface);
+      step(surface, sprint);
+    };
+  });
   await activate(page.locator("#homefrontInteractionPrompt button"));
   await page.waitForFunction(() =>
     document.body.classList.contains("rpg-mode-expedition"),
@@ -316,7 +335,6 @@ try {
   assert.ok(!observed.some(entry => entry.path.endsWith("/world/attack")),
     "the bite happens before the survivor attacks");
 
-  const pineCrossing = process.env.HOMEFRONT_EXPEDITION_PINE === '1';
   if (pineCrossing) {
     const route = id => PINE_CROSSING_ROUTES.find(item => item.id === id).points;
     let touchOrigin;
@@ -392,6 +410,12 @@ try {
     await activate(action);
     await page.waitForFunction(() => document.body.classList.contains('rpg-mode-home'));
     assert.equal(testState('homefront-world.json').players[ACCOUNT], undefined);
+    await page.waitForFunction(() => window.fieldAudioProbe.windStops > 0);
+    const audio = await page.evaluate(() => window.fieldAudioProbe);
+    assert.ok(audio.windStarts > 0, 'outdoor wind starts in the field');
+    for (const surface of ['gravel', 'asphalt', 'dirt', 'wood']) {
+      assert.ok(audio.surfaces.includes(surface), 'footsteps respond to ' + surface);
+    }
     assert.deepEqual(errors, []);
     console.log('PINE CROSSING PLAYTEST PASSED', JSON.stringify({ mobile, guest: guestMode, woods: true, store: true, clinic: true, creekReturn: true }));
   } else {

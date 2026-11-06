@@ -56,3 +56,19 @@ export const PINE_CROSSING_TREES = Object.freeze((() => {
   }
   return trees;
 })());
+
+export const PINE_PATROLS = Object.freeze([
+  { id: 'logging-approach', points: [[-20,-76],[-24,-73]] },
+  { id: 'logging-bend', points: [[-39,-66],[-42,-62],[-44,-58],[-42,-62]] },
+  { id: 'main-street', points: [[-39,-42],[-36,-42],[-32,-43],[-36,-42]] },
+  { id: 'creek-bank', points: [[-23,-55],[-24,-59],[-23,-64],[-24,-59]] }
+]);
+
+export function pineSurfaceAt(x, z) {
+  for (const { width, surface, points } of PINE_CROSSING_ROUTES) {
+    for (let i = 1; i < points.length; i++) {
+      if (segmentDistance(x, z, points[i - 1], points[i]) <= width / 2) return surface;
+    }
+  }
+  return 'forest';
+}

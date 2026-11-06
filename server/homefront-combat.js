@@ -1,6 +1,7 @@
 'use strict';
 // Authoritative, renderer-independent combat for Homefront's shared Graveyard.
 const { ARCHETYPES, QUALITY_ORDER, planEncounter, planHorde } = require('./homefront-director');
+const { PINE_PATROLS, inPineCrossing } = require('../client/arena/homefront-pine-crossing.mjs');
 const Terrain = require('./homefront-terrain');
 const { ZOMBIE_MELEE_REACH, ZOMBIE_MELEE_HEIGHT, ZOMBIE_IFRAME_SECONDS } = require('./zombie-contact');
 const Collision = require('./homefront-collision');
@@ -48,12 +49,61 @@ function normalizeEncounters(input,now=Date.now()){
  const out={};if(!input||typeof input!=='object'||Array.isArray(input))return out;
  for(const [owner,e] of Object.entries(input)){if(!e||typeof e!=='object'||typeof e.id!=='string'||!STATS[e.event]||!Number.isFinite(e.expiresAt)||e.expiresAt<=now)continue;
  out[owner]={id:e.id.slice(0,80),owner,event:e.event,enemy:String(e.enemy||'Stray Runner').slice(0,80),district:String(e.district||'outskirts').slice(0,40),x:clamp(e.x,-100,100),z:clamp(e.z,-100,100),hp:clamp(e.hp,0,10000),maxHp:clamp(e.maxHp,1,10000),damage:clamp(e.damage,1,50),ammoCost:clamp(e.ammoCost,1,5),range:clamp(e.range,1,40),risk:clamp(e.risk,1,5),pursuitRadius:clamp(e.pursuitRadius??26,8,60),lastKnownX:clamp(e.lastKnownX??e.x,-100,100),lastKnownZ:clamp(e.lastKnownZ??e.z,-100,100),lastKnownAt:clamp(e.lastKnownAt??e.createdAt,0,Number.MAX_SAFE_INTEGER),investigateUntil:clamp(e.investigateUntil??0,0,Number.MAX_SAFE_INTEGER),packPlan:planHorde({event:e.event,risk:e.risk,seed:e.id}),members:(Array.isArray(e.members)&&e.members.length?e.members:planHorde({event:e.event,risk:e.risk,seed:e.id}).members.map(m=>({...m,x:e.x+m.offsetX,z:e.z+m.offsetZ,hp:Math.max(1,Math.round(e.maxHp*m.healthScale/Math.max(1,planHorde({event:e.event,risk:e.risk,seed:e.id}).count))),maxHp:Math.max(1,Math.round(e.maxHp*m.healthScale/Math.max(1,planHorde({event:e.event,risk:e.risk,seed:e.id}).count))),defeated:false,lastAttackAt:0}))).map(m=>({id:String(m.id).slice(0,80),slot:clamp(m.slot??0,0,10),role:String(m.role||'stalker').slice(0,20),offsetX:clamp(m.offsetX??0,-20,20),offsetZ:clamp(m.offsetZ??0,-20,20),healthScale:clamp(m.healthScale??1,0.5,2),speedScale:clamp(m.speedScale??1,0.5,1.5),x:clamp(m.x??e.x,-100,100),z:clamp(m.z??e.z,-100,100),hp:clamp(m.hp,0,10000),maxHp:clamp(m.maxHp,1,10000),defeated:!!m.defeated,lastAttackAt:clamp(m.lastAttackAt??0,0,Number.MAX_SAFE_INTEGER)})),createdAt:clamp(e.createdAt,0,Number.MAX_SAFE_INTEGER),lastAttackAt:clamp(e.lastAttackAt,0,Number.MAX_SAFE_INTEGER),lastAiAt:clamp(e.lastAiAt??e.createdAt,0,Number.MAX_SAFE_INTEGER),expiresAt:e.expiresAt,defeated:!!e.defeated};}
+ for (const [owner, encounter] of Object.entries(out)) {
+  const patrol = PINE_PATROLS.find(site => site.id === input[owner].patrolId);
+  if (patrol) {
+   encounter.patrolId = patrol.id;
+   encounter.patrolIndex = Math.floor(clamp(input[owner].patrolIndex, 0, patrol.points.length - 1));
+  }
+ }
  return out;
 }
-function spawn({encounters,account,player,interiors=null,now=Date.now(),seed=0}){
- const clean=normalizeEncounters(encounters,now),old=clean[account];if(old&&!old.defeated&&old.hp>0)return{encounters:clean,encounter:publicEncounter(old),reused:true};
- const depth=100-Math.hypot(player.x,player.z),risk=depth<25?1:depth<45?1:depth<62?2:depth<76?3:depth<88?4:5,district=risk>=5?'research_lab':risk>=4?'industrial':risk>=3?'commercial':risk===2?'residential':'outskirts';
- const e=resolveSpawn({account,x:player.x,z:player.z,district,risk,now,seed});e.hp=e.members.reduce((sum,m)=>sum+m.hp,0);e.maxHp=e.members.reduce((sum,m)=>sum+m.maxHp,0);const collisionOptions=interiorCollisionOptions(interiors,account);const safe=safeEnemyPosition(e.x,e.z,player.x,player.z,100,collisionOptions.removedObstacleIds);const shiftX=safe.x-e.x,shiftZ=safe.z-e.z;e.x=safe.x;e.z=safe.z;for(const m of e.members){m.x=clamp(m.x+shiftX,-100,100);m.z=clamp(m.z+shiftZ,-100,100);}clean[account]=e;return{encounters:clean,encounter:publicEncounter(e),reused:false};
+function spawn({ encounters, account, player, players = {}, interiors = null, now = Date.now(), seed = 0 }) {
+ const clean = normalizeEncounters(encounters, now), old = clean[account];
+ if (old && !old.defeated && old.hp > 0) return { encounters: clean, encounter: publicEncounter(old), reused: true };
+ const depth = 100 - Math.hypot(player.x, player.z);
+ const risk = depth < 45 ? 1 : depth < 62 ? 2 : depth < 76 ? 3 : depth < 88 ? 4 : 5;
+ const district = risk >= 5 ? 'research_lab' : risk >= 4 ? 'industrial' : risk >= 3 ? 'commercial' : risk === 2 ? 'residential' : 'outskirts';
+ const collisionOptions = interiorCollisionOptions(interiors, account);
+ const pine = inPineCrossing(player.x, player.z, 4);
+ let patrol = null;
+ if (pine) {
+  const occupied = new Set(Object.values(clean).filter(e => !e.defeated && e.hp > 0).map(e => e.patrolId));
+  const nearby = [player, ...Object.values(players).filter(other => other !== player)];
+  let nearest = 30;
+  for (const site of PINE_PATROLS) {
+   const [x, z] = site.points[0];
+   const distance = Math.hypot(player.x - x, player.z - z);
+   if (occupied.has(site.id) || distance > nearest ||
+       nearby.some(other => Math.hypot(other.x - x, other.z - z) < 11) ||
+       !Collision.isSafePosition(x, z, { removedObstacleIds: collisionOptions.removedObstacleIds })) continue;
+   patrol = site;
+   nearest = distance;
+  }
+  if (!patrol) return { encounters: clean, encounter: null, reused: false };
+ }
+ const origin = patrol ? { x: patrol.points[0][0], z: patrol.points[0][1] } : player;
+ const e = resolveSpawn({ account, ...origin, district, risk, now, seed });
+ const safe = patrol ? origin : safeEnemyPosition(e.x, e.z, player.x, player.z, 100, collisionOptions.removedObstacleIds);
+ if (patrol) {
+  e.patrolId = patrol.id;
+  e.patrolIndex = 1;
+  e.pursuitRadius = 12;
+  e.lastKnownAt = 0;
+ }
+ e.x = safe.x; e.z = safe.z;
+ for (const member of e.members) {
+  const x = clamp(safe.x + member.offsetX, -100, 100);
+  const z = clamp(safe.z + member.offsetZ, -100, 100);
+  const clear = Collision.canTraverse(safe.x, safe.z, x, z, collisionOptions) &&
+    (!patrol || Math.hypot(x - player.x, z - player.z) >= 9);
+  member.x = clear ? x : safe.x;
+  member.z = clear ? z : safe.z;
+ }
+ e.hp = e.members.reduce((sum, m) => sum + m.hp, 0);
+ e.maxHp = e.members.reduce((sum, m) => sum + m.maxHp, 0);
+ clean[account] = e;
+ return { encounters: clean, encounter: publicEncounter(e), reused: false };
 }
 
 function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
@@ -162,7 +212,7 @@ function advance({encounters,players,interiors=null,sharedInteriors,destroyedObs
       radius: 0.45, bounds: 100, removedObstacleIds: collisionOptions.removedObstacleIds
     });
   const noiseAge = now - player.lastNoiseAt;
-  const noiseLevel = clamp(player.noiseLevel, 0, 100);
+  const noiseLevel = Math.max(0, clamp(player.noiseLevel, 0, 100) - (e.patrolId ? Math.max(0, noiseAge) / 120 : 0));
   const hearsNoise = Number.isFinite(player.lastNoiseAt) && noiseAge >= 0 && noiseAge <= 15000 &&
     noiseLevel > 0 && Number.isFinite(player.noiseX) && Number.isFinite(player.noiseZ) &&
     Math.hypot(e.x - player.noiseX, e.z - player.noiseZ) <= 8 + noiseLevel * 0.45;
@@ -171,18 +221,26 @@ function advance({encounters,players,interiors=null,sharedInteriors,destroyedObs
     e.investigateUntil = 0;
   } else if (hearsNoise) {
     e.lastKnownX = clamp(player.noiseX, -100, 100); e.lastKnownZ = clamp(player.noiseZ, -100, 100);
-    e.lastKnownAt = player.lastNoiseAt; e.investigateUntil = player.lastNoiseAt + 15000;
+    e.lastKnownAt = player.lastNoiseAt; e.investigateUntil = player.lastNoiseAt + (e.patrolId && player.noiseLevel < 40 ? 4500 : 15000);
   }
-  const targetX = seesPlayer ? player.x : e.lastKnownX;
-  const targetZ = seesPlayer ? player.z : e.lastKnownZ;
+  const patrol = PINE_PATROLS.find(site => site.id === e.patrolId);
+  const patrolling = patrol && !seesPlayer && !hearsNoise &&
+    now >= e.investigateUntil && (!e.lastKnownAt || now - e.lastKnownAt >= 6500);
+  if (patrolling && Math.hypot(e.x - patrol.points[e.patrolIndex][0], e.z - patrol.points[e.patrolIndex][1]) < 0.65) {
+   e.patrolIndex = (e.patrolIndex + 1) % patrol.points.length;
+  }
+  const targetX = patrolling ? patrol.points[e.patrolIndex][0] : e.lastKnownX;
+  const targetZ = patrolling ? patrol.points[e.patrolIndex][1] : e.lastKnownZ;
+  const stop = patrolling ? 0.2 : stopDistance;
+  const moveSpeed = patrolling ? speed * 0.48 : speed;
   const targetDx=targetX-e.x,targetDz=targetZ-e.z,targetDistance=Math.hypot(targetDx,targetDz);
-  if(targetDistance>stopDistance){
-  const step=Math.min(targetDistance-stopDistance,speed*elapsed);
+  if(targetDistance>stop){
+  const step=Math.min(targetDistance-stop,moveSpeed*elapsed);
   const nextX=clamp(e.x+targetDx/targetDistance*step,-100,100),nextZ=clamp(e.z+targetDz/targetDistance*step,-100,100);
   // Prefer the direct step; only invoke bounded A* when terrain blocks the pursuit line.
   if(Terrain.canTraverse(e.x,e.z,nextX,nextZ)&&Collision.canTraverse(e.x,e.z,nextX,nextZ,{radius:0.45,bounds:100,removedObstacleIds:collisionOptions.removedObstacleIds})){e.x=nextX;e.z=nextZ;}
   else {
-   const route=(!collisionOptions.landmarkId && Terrain.findTerrainPath(e.x,e.z,targetX,targetZ)) || Collision.findPath(e.x,e.z,targetX,targetZ,{bounds:100,maxExpanded:2600,radius:0.45,removedObstacleIds:collisionOptions.removedObstacleIds});
+   const route=Collision.findPath(e.x,e.z,targetX,targetZ,{bounds:100,maxExpanded:2600,radius:0.45,removedObstacleIds:collisionOptions.removedObstacleIds});
    const handledByDoor = collisionOptions.landmarkId && attemptInteriorBreach({ account, enemy: e, player, interiors, now, elapsed, collisionOptions, speed });
    if(!handledByDoor && route&&route.length){
     const advanced=advanceAlongTerrainPath(e.x,e.z,route,step);

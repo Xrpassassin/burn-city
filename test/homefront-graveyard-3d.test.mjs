@@ -17,7 +17,7 @@ assert.match(scene, /addGroundDetailInstances\(chunk, cx, cz\)/, 'cull ground de
 assert.match(scene, /coarsePointer \? 1\.15 : 1\.6/, 'cap mobile render resolution to preserve frame time while allowing sharper desktop output');
 assert.match(scene, /zombieAudio\.tick\(dt, audioMe, audioZombies/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
 assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play shared hit and headshot audio only after authoritative combat confirmation');
-assert.match(scene, /zombieAudio\.zdie\(target\)/, 'play infected death audio only after server-confirmed kills');
+assert.match(scene, /if \(hit\.killed\) \{[\s\S]*?zombieAudio\.zdie\(/, 'play infected death audio only after server-confirmed kills');
 assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
 assert.match(scene, /const environmentVisuals = new Map\(\)/, 'index rendered environment structures by authoritative collision ID');
 assert.match(scene, /registerEnvironmentVisual\('building:' \+ x \+ ',' \+ z, structure\)/, 'group building meshes so server-confirmed destruction removes the whole structure');
@@ -43,7 +43,7 @@ assert.match(zombiePilot, /MAX_MODEL_DISTANCE = 28/, 'keep detailed rigs near th
 assert.match(zombiePilot, /react\(id, kind = 'HitReact'\)/, 'expose authoritative hit and death animation reactions');
 assert.match(zombiePilot, /next\.setLoop\(THREE\.LoopOnce, 1\)/, 'play hit and death clips as one-shot reactions');
 assert.match(zombiePilot, /item\.deadUntil = item\.reactionUntil/, 'retain server-confirmed death animation after encounter removal');
-assert.match(scene, /zombieModelPilot\?\.react\(active\.id, detail\.killed \? 'Death' : 'HitReact'\)/, 'trigger animated reactions only from confirmed combat events');
+assert.match(scene, /zombieModelPilot\?\.react\(hit\.targetId, hit\.killed \? 'Death' : 'HitReact'\)/, 'trigger animated reactions only from confirmed combat events');
 assert.match(scene, /GLTFLoader/, 'reuse the existing GLTF asset loader');
 assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely');
 assert.match(scene, /assets\/homefront\/zombie\.glb/, 'reuse the existing Homefront zombie model');
@@ -148,7 +148,7 @@ assert.match(scene, /selectedCombatAimPoint = \{ x: hit\.x, y: hit\.y, z: hit\.z
 assert.match(scene, /const fireLoop = async \(\) =>/, 'repeat authenticated attacks while the autofire control is held');
 assert.match(scene, /return !\(data\.combat\?\.killed\)/, 'stop the held firing loop after a confirmed kill');
 assert.match(scene, /setPointerCapture\(event\.pointerId\)/, 'keep mobile autofire held through pointer movement');
-assert.match(scene, /const aimPoint = selectedCombatAimPoint && activeTarget && targetId === activeTarget\.id/, 'refresh the aim point against the latest target snapshot on each shot');
+assert.match(scene, /const aimPoint = selectedCombatAimPoint && aimTarget/, 'refresh the aim point against the latest target snapshot on each shot');
 assert.match(scene, /fired === false\) \{ stopAutoFire\(\); return; \}/, 'stop repeated requests after a combat error such as empty ammunition');
 assert.match(scene, /function cancelReload\(message = 'Reload interrupted\.'/ , 'support cancelling a reload before ammunition transfer');
 assert.match(scene, /Reload interrupted by combat/, 'combat input interrupts an in-progress reload');
@@ -158,7 +158,7 @@ assert.match(scene, /2250/, 'give the marksman rifle a longer reload animation t
 assert.match(scene, /sfx\.reloadWeapon\(shotgun \? 'shotgun' : 'marksman_rifle'\)/, 'play weapon-specific reload handling audio');
 assert.match(scene, /if \(reloadState\) \{ const phase/, 'animate the held weapon during the reload action');
 assert.match(scene, /pointercancel|pointerup/, 'stop autofire on pointer release or cancellation');
-assert.match(scene, /JSON\.stringify\(targetId \? \{ targetId/, 'include the selected target with combat requests');
+assert.match(scene, /JSON\.stringify\(missPoint \? \{ miss: true \} : targetId \? \{ targetId/, 'include the selected target with combat requests');
 
 
 assert.match(page, /id="aimWeapon"/, 'provide a contextual aim toggle');
@@ -200,9 +200,9 @@ assert.match(page, /cameraPose\(\{mode:yardView\.mode,building:constructionView/
 assert.match(page, /camera\.position\.lerp\((?:new THREE\.Vector3|yardCamTarget\.set)\(pose\.px,pose\.py,pose\.pz\),blend\)/, 'blend smoothly between construction and the previous walking view');
 assert.doesNotMatch(page, /Vector3\(constructionView\?0:19/, 'no fixed elevated yard camera outside construction');
 assert.match(page, /yardView=attachViewControls\(host,\{canLook:\(\)=>!pendingBuilding&&!constructionPaused\}\)/, 'yard look/joystick controls pause during construction');
-assert.match(scene, /attachViewControls\(host, \{ onTap: onWorldTap, wheel: false \}\)/, 'Graveyard taps come from the shared controller so drag-to-look never travels');
+assert.match(scene, /attachViewControls\(host, \{ onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous \}\)/, 'Graveyard taps and direct-walk orbit come from the shared controller');
 assert.match(scene, /cameraPose\(\{ mode: view\.mode/, 'Graveyard camera follows the remembered first-/third-person mode');
-assert.match(scene, /worldMove\(view\.move\(\), heading\)/, 'joystick / WASD travel is relative to the camera heading');
+assert.match(scene, /worldMove\(view\.move\(\), heading, 0\)/, 'joystick / WASD travel is relative to the camera heading');
 assert.match(scene, /noiseWarning=noiseLevel>=55\?' Loud container! Noise '/, 'loot UI warns when a noisy container can attract infected');
 assert.match(scene, /if \(view\.visible\) renderer\.render/, 'offscreen Graveyard canvas skips rendering');
 assert.match(page, /if\(yardView\.visible&&homefrontMode!=='expedition'\)renderer\.render/, 'hidden refuge scene skips rendering during expeditions');

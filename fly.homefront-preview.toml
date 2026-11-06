@@ -1,0 +1,29 @@
+# ISOLATED PRs #551 + #552 PREVIEW. NEVER PRODUCTION APP OR VOLUME.
+# This configuration must only be deployed with a separately scoped preview token.
+app = "burn-city-homefront-preview-551"
+primary_region = "lax"
+
+[build]
+  dockerfile = "Dockerfile.homefront-preview"
+
+[env]
+  PORT = "8080"
+  HOMEFRONT_PREVIEW_MODE = "1"
+  HOMEFRONT_CONTINUOUS_MOVEMENT = "0"
+  DRY_RUN = "true"
+  BURN_JOB_IN_SERVER = "false"
+  DATA_DIR = "/tmp/homefront-preview"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    timeout = "5s"
+    method = "GET"
+    path = "/healthz"

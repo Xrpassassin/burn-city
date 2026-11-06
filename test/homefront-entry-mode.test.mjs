@@ -22,7 +22,7 @@ function harness(initialMode = 'home') {
     FRIENDLY_ERRORS: {}
   };
   vm.runInNewContext(`
-    let expeditionWorld = null, graveyardBusy = false, base = null,
+    let expeditionWorld = null, graveyardBusy = false, graveyardRevision = 0, base = null,
         threatProfile = null, lastEncounterText = '', homefrontMode = ${JSON.stringify(initialMode)};
     function setHomefrontMode(mode) { homefrontMode = mode; globalThis.modeChanges.push(mode); }
     ${handler}

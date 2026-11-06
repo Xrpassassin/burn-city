@@ -123,14 +123,26 @@ function advance({encounters,players,interiors=null,now=Date.now(),speed=2.8,max
   if(elapsed<=0)continue;
   const dx=player.x-e.x,dz=player.z-e.z,distance=Math.hypot(dx,dz);
   const stopDistance=2.2;
-  // Infected remember the last known position, but do not pursue forever.
-  // Recent gunfire extends investigation at that remembered location; otherwise
-  // the infected disengages once the player breaks its archetype-derived leash.
-  const recentNoise=Number.isFinite(player.lastNoiseAt)&&now-player.lastNoiseAt>=0&&now-player.lastNoiseAt<=15000&&Number.isFinite(player.noiseX)&&Number.isFinite(player.noiseZ);
-  if(recentNoise){e.lastKnownX=clamp(player.noiseX,-100,100);e.lastKnownZ=clamp(player.noiseZ,-100,100);e.lastKnownAt=player.lastNoiseAt;e.investigateUntil=player.lastNoiseAt+15000;}
-  else if(distance<=e.pursuitRadius){e.lastKnownX=player.x;e.lastKnownZ=player.z;e.lastKnownAt=now;}
-  const investigating=distance>e.pursuitRadius||now<e.investigateUntil;
-  const targetX=investigating?e.lastKnownX:player.x,targetZ=investigating?e.lastKnownZ:player.z;
+  // Solid cover breaks sight. Infected pursue their last observed position,
+  // while louder player actions can reveal a new location from farther away.
+  const seesPlayer = distance <= e.pursuitRadius &&
+    Collision.canTraverse(e.x, e.z, player.x, player.z, {
+      radius: 0.45, bounds: 100, removedObstacleIds: collisionOptions.removedObstacleIds
+    });
+  const noiseAge = now - player.lastNoiseAt;
+  const noiseLevel = clamp(player.noiseLevel, 0, 100);
+  const hearsNoise = Number.isFinite(player.lastNoiseAt) && noiseAge >= 0 && noiseAge <= 15000 &&
+    noiseLevel > 0 && Number.isFinite(player.noiseX) && Number.isFinite(player.noiseZ) &&
+    Math.hypot(e.x - player.noiseX, e.z - player.noiseZ) <= 8 + noiseLevel * 0.45;
+  if (seesPlayer) {
+    e.lastKnownX = player.x; e.lastKnownZ = player.z; e.lastKnownAt = now;
+    e.investigateUntil = 0;
+  } else if (hearsNoise) {
+    e.lastKnownX = clamp(player.noiseX, -100, 100); e.lastKnownZ = clamp(player.noiseZ, -100, 100);
+    e.lastKnownAt = player.lastNoiseAt; e.investigateUntil = player.lastNoiseAt + 15000;
+  }
+  const targetX = seesPlayer ? player.x : e.lastKnownX;
+  const targetZ = seesPlayer ? player.z : e.lastKnownZ;
   const targetDx=targetX-e.x,targetDz=targetZ-e.z,targetDistance=Math.hypot(targetDx,targetDz);
   if(targetDistance>stopDistance){
   const step=Math.min(targetDistance-stopDistance,speed*elapsed);
@@ -180,16 +192,16 @@ function advance({encounters,players,interiors=null,now=Date.now(),speed=2.8,max
  }
  return clean;
 }
-function attack({encounters,account,player,base,survival=null,now=Date.now(),weaponPower=1,seed=0,targetId=null,aimPoint=null,aimTrainingBonus=0}){
- const clean=normalizeEncounters(encounters,now),e=clean[account];if(!e||e.defeated||e.hp<=0)throw Error('no_active_encounter');if(now>e.expiresAt)throw Error('encounter_expired');
- const living=(e.members||[]).filter(m=>!m.defeated&&m.hp>0);
+function attack({encounters,account,player,base,survival=null,now=Date.now(),weaponPower=1,seed=0,targetId=null,aimPoint=null,aimTrainingBonus=0,miss=false}){
+ const clean=normalizeEncounters(encounters,now),e=clean[account];if(!miss&&(!e||e.defeated||e.hp<=0))throw Error('no_active_encounter');if(!miss&&now>e.expiresAt)throw Error('encounter_expired');
+ const living=(e?.members||[]).filter(m=>!m.defeated&&m.hp>0);
  if(targetId!=null&&(typeof targetId!=='string'||(targetId!==e.id&&!living.some(m=>m.id===targetId))))throw Error('target_mismatch');
  let target=targetId&&targetId!==e.id?living.find(m=>m.id===targetId):null;
  if(!target&&aimPoint&&living.length)target=living.reduce((best,m)=>!best||Math.hypot(m.x-aimPoint.x,m.z-aimPoint.z)<Math.hypot(best.x-aimPoint.x,best.z-aimPoint.z)?m:best,null);
  if(!target)target=living[0]||e;
  let aimedZone=null;
  if(aimPoint!=null&&(!aimPoint||![aimPoint.x,aimPoint.y,aimPoint.z].every(Number.isFinite)||Math.hypot(aimPoint.x-target.x,aimPoint.z-target.z)>1.75||aimPoint.y<0.05||aimPoint.y>2.7))throw Error('invalid_aim_point');
- if(Math.hypot(player.x-target.x,player.z-target.z)>e.range)throw Error('enemy_out_of_range');
+ if(!miss&&Math.hypot(player.x-target.x,player.z-target.z)>e.range)throw Error('enemy_out_of_range');
  const weaponId=typeof base.equippedWeapon==='string'&&Object.prototype.hasOwnProperty.call(WEAPON_FIRE_INTERVAL,base.equippedWeapon)&&(!Array.isArray(base.weapons)||base.weapons.includes(base.equippedWeapon))?base.equippedWeapon:'pipe_blade';
  const tier=Firearms.isFirearmTier(weaponId)?Firearms.FIREARM_TIERS[weaponId]:null;
  if(tier){const u=Firearms.unlockStatus(base,weaponId);if(!u.unlocked)throw Error('weapon_locked');}
@@ -202,12 +214,13 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  const aimed=aimPoint!=null&&player.aiming===true&&aimElapsed>=handling.adsMs&&aimStability>=0.68;
  if(aimed)aimedZone=aimPoint.y>=1.88?'head':aimPoint.y<=0.68?'limb':'torso';
  const fireInterval=WEAPON_FIRE_INTERVAL[weaponId]||ATTACK_COOLDOWN;
- if(now-e.lastAttackAt<Math.max(ATTACK_COOLDOWN,fireInterval))throw Error('attack_cooldown');
+ if(now-Math.max(e?.lastAttackAt||0,player.lastWeaponFireAt||0)<Math.max(ATTACK_COOLDOWN,fireInterval))throw Error('attack_cooldown');
  // Automatic tiers fire a short server-resolved burst per request; the server decides how many rounds leave the magazine.
  const loadedAmmo=Math.max(0,Math.floor(base.resources?.ammo||0));
  const rounds=tier?Math.min(tier.rounds,loadedAmmo):1;
  const ammoCost=WEAPON_MAGAZINE_CAPACITY[weaponId]>0?Math.max(1,rounds):0;
  if(loadedAmmo<ammoCost)throw Error('insufficient_ammo');base.resources.ammo-=ammoCost;base.revision=(Number.isSafeInteger(base.revision)?base.revision:0)+1;
+ if(miss)return {encounters:clean,encounter:e?publicEncounter(e):null,missed:true,killed:false,damage:0,hits:[],rounds:ammoCost,aimed:false,aimStability,adsProgress,enemyDamage:0,ammoCost,reward:null,base,survival};
  const power=clamp(Math.floor(weaponPower),1,20);const field=survival&&typeof survival==='object'?{...survival}:null;const staminaBefore=field?clamp(field.stamina,0,100):100;const fatigueScale=staminaBefore<15?0.55:staminaBefore<35?0.75:1;
  // Hit zones are rolled on the server from encounter and attack clock; clients cannot submit a headshot claim.
  const zoneRoll=hash(target.id+':'+now+':'+seed)%100;

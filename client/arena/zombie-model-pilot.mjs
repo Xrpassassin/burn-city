@@ -48,7 +48,7 @@ export async function createZombieModelPilot(scene, options = {}) {
     const clip = item.model.clips.get(name) || item.model.clips.get('Idle') || item.model.gltf.animations[0];
     if (!clip || (item.clipName === clip.name && !oneShot)) return;
     const next = item.mixer.clipAction(clip);
-    next.reset().setEffectiveWeight(1);
+    next.reset().setEffectiveTimeScale(1).setEffectiveWeight(1);
     if (oneShot) {
       next.setLoop(THREE.LoopOnce, 1);
       next.clampWhenFinished = true;
@@ -115,7 +115,9 @@ export async function createZombieModelPilot(scene, options = {}) {
           try { item = createInstance(z); active.set(z.id, item); }
           catch { continue; }
         }
-        const moving = Math.hypot(z.x - item.group.position.x, z.z - item.group.position.z) > 0.012;
+        const hasSpeed = Number.isFinite(z.speed);
+        const moving = hasSpeed ? z.speed > 0.15
+          : Math.hypot(z.x - item.group.position.x, z.z - item.group.position.z) > 0.012;
         item.group.position.set(z.x, z.y || 0, z.z);
         item.group.rotation.set(0, z.yaw || 0, 0);
         if (item.deadUntil > now || item.reactionUntil > now) {
@@ -124,6 +126,12 @@ export async function createZombieModelPilot(scene, options = {}) {
         }
         item.reactionUntil = 0;
         setAnimation(item, animationFor(z, item.model.clips, moving));
+        if (hasSpeed && item.action) {
+          const locomotion = moving && !z.ch;
+          const running = z.ty === 1 || z.ty === 4 || z.ty === 6;
+          item.action.setEffectiveTimeScale(locomotion
+            ? Math.max(0.45, Math.min(1.65, z.speed / (running ? 3.5 : 1.4))) : 1);
+        }
         item.mixer.update(Math.min(0.05, Math.max(0, dt)));
       }
       for (const [id, item] of active) {

@@ -25,7 +25,7 @@ export function minimapPoints(world, size = 64, span = 120) {
   return out;
 }
 const CSS = `
-body.rpg-hud header{padding:calc(6px + env(safe-area-inset-top)) 12px 6px}body.rpg-hud header .eyebrow{display:none}body.rpg-hud header h1{font-size:18px}body.rpg-hud header .btn{min-height:36px;padding:6px 10px;font-size:13px}
+html:not(.hf-shell) body.rpg-hud header{padding:calc(6px + env(safe-area-inset-top)) 12px 6px}html:not(.hf-shell) body.rpg-hud header .eyebrow{display:none}html:not(.hf-shell) body.rpg-hud header h1{font-size:18px}html:not(.hf-shell) body.rpg-hud header .btn{min-height:36px;padding:6px 10px;font-size:13px}
 body.rpg-hud .wrap{padding:8px 8px 40px}body.rpg-hud #introText{display:none}body.rpg-hud #status{margin:6px 0;padding:6px 10px;font-size:12px}
 body.rpg-hud .rpg-nav{display:none}body.rpg-hud .rpg-nav.hf-talk{display:flex;padding:6px;margin:6px 0}body.rpg-hud .rpg-nav.hf-talk>*:not(#rpgTalk){display:none!important}
 .hf-hud{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 8px;margin:0 0 8px;border:1px solid #a55c3566;border-radius:12px;background:#100b09ee;position:sticky;top:calc(52px + env(safe-area-inset-top));z-index:4}
@@ -97,6 +97,19 @@ body.rpg-hud.hf-playing{height:100svh;overflow:hidden;overscroll-behavior:none}
 body.rpg-hud.hf-playing header{display:none}
 body.rpg-hud.hf-playing .wrap{max-width:none;width:100%;height:100%;margin:0;padding:0}
 body.rpg-hud.hf-playing #game{position:fixed;inset:0;overflow:hidden}
+body.rpg-hud.hf-playing #qrbox:not([hidden]){
+ position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;
+ align-items:center;justify-content:center;gap:12px;
+ padding:calc(20px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right))
+ calc(20px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));
+ border:0;border-radius:0;background:#0a0808f5;overflow:auto;overscroll-behavior:contain;
+}
+body.rpg-hud.hf-playing #qrbox h2,
+body.rpg-hud.hf-playing #qrbox p{max-width:420px;text-align:center;margin:0}
+body.rpg-hud.hf-playing #qrbox .qr{justify-content:center}
+body.rpg-hud.hf-playing #qrbox img{width:min(55vw,180px);height:auto;max-height:35svh;object-fit:contain}
+body.rpg-hud.hf-playing #qrbox #hideWalletQr{width:min(100%,380px)}
+body.rpg-hud.hf-playing #qrbox[hidden]{display:none!important}
 body.rpg-hud.hf-playing #game>.grid{position:absolute;inset:0;display:block;overflow:hidden;pointer-events:none}
 body.rpg-hud.hf-playing #game>.grid>#refugeWorldPanel,
 body.rpg-hud.hf-playing #game>.grid>#graveyardPanel{position:absolute;inset:0;margin:0;padding:0;max-width:none;overflow:hidden;border:0;border-radius:0;background:transparent;box-shadow:none;pointer-events:auto}
@@ -123,6 +136,9 @@ body.rpg-hud.hf-playing .hf-card .hf-mtabs{display:flex;flex-wrap:wrap;max-heigh
 body.rpg-hud.hf-playing .hf-card .hf-mtabs button{white-space:normal;text-align:left}
 .hf-build-exit{position:fixed;right:calc(12px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));z-index:20;min-height:44px;padding:9px 14px;border:1px solid #ffb064;border-radius:11px;background:#57240ff2;color:#ffe6c2;font:800 13px system-ui;box-shadow:0 5px 22px #000a}
 .hf-build-exit[hidden]{display:none!important}
+body.rpg-hud.hf-playing.hf-direct-walk #graveyard3d .hf-survival-readout,
+body.rpg-hud.hf-playing.hf-direct-walk #graveyard3d .hf-event-toast,
+body.rpg-hud.hf-playing.hf-direct-walk #graveyard3d .hf-movement-status{top:124px!important}
 body.rpg-hud.hf-playing #world .hf-viewbtn,
 body.rpg-hud.hf-playing #graveyard3d .hf-viewbtn{top:calc(68px + env(safe-area-inset-top))!important}
 @media(max-width:620px){
@@ -138,7 +154,7 @@ body.rpg-hud.hf-playing #graveyard3d .hf-viewbtn{top:calc(68px + env(safe-area-i
 `;
 const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); for (const k of kids) n.append(k); return n; };
 
-export function createHud({ request, getWorld, getBase, getMode, setMode, travel, message, signedIn, jetpack = null }) {
+export function createHud({ request, getWorld, getBase, getMode, setMode, travel, message, signedIn, walletConnected = signedIn, jetpack = null }) {
   if (typeof document === 'undefined') return null;
   document.head.append(el('style', { textContent: CSS }));
   document.body.classList.add('rpg-hud');
@@ -167,11 +183,11 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const body = el('div', { className: 'hf-body' });
   const close = el('button', { className: 'hf-close', type: 'button', textContent: 'Close' });
   const topClose = el('button', { type: 'button', textContent: '✕ Close', title: 'Close in-game menu' });
-  const city = el('a', { href: '/', textContent: 'Return to BURN City' });
+  const city = el('a', { href: '../', textContent: 'Return to BURN City' });
   const account = el('button', { type: 'button', textContent: 'Account', title: 'BURN City account and sign-in' });
   const topActions = el('div', { className: 'hf-actions' }, city, account, topClose);
-  const titlebar = el('div', { className: 'hf-panel-header' },
-    el('strong', { textContent: 'HOMEFRONT · FIELD MENU' }), topActions);
+  const titleLabel = el('strong', { textContent: 'HOMEFRONT · FIELD MENU' });
+  const titlebar = el('div', { className: 'hf-panel-header' }, titleLabel, topActions);
   const card = el('div', { className: 'hf-card' }, titlebar, tabsEl, body, close);
   const sheet = el('div', { className: 'hf-sheet', id: 'hfSheet', hidden: true }, card); sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', 'Character and management');
   document.body.append(sheet);
@@ -470,7 +486,15 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   }
   const ctx = mm.getContext('2d');
   function update() {
-    // Switch from the opening screen to the fullscreen world when the game loads.
+    // An in-world guest must always have a visible wallet-save action even
+    // when the original HTML header is hidden by immersive fullscreen mode.
+    const guest = signedIn() && !walletConnected();
+    account.textContent = guest ? 'Connect wallet to save' : 'Account';
+    titleLabel.textContent = guest ? 'HOMEFRONT · GUEST (UNSAVED)' : 'HOMEFRONT · FIELD MENU';
+    menu.textContent = guest ? '☰ Guest' : '☰ Menu';
+    menu.title = guest ? 'Guest progress is temporary. Open to connect a wallet and start a saved refuge.' : 'Open Homefront field menu';
+    // The game HUD only owns the full viewport once the existing signed-in
+    // game is loaded. The login and classic page keep the original layout.
     document.body.classList.toggle('hf-playing', !!game && !game.hidden);
     exitBuild.hidden = getMode() !== 'workshop' || !sheet.hidden;
     if (signedIn()) void refreshRpgSheet();

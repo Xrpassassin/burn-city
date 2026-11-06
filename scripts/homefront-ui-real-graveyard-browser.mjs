@@ -13,6 +13,7 @@ const playwrightRequire = createRequire((process.env.PLAYWRIGHT_DIR || process.c
 const { chromium } = playwrightRequire('playwright');
 const World = localRequire('../server/homefront-world.js');
 const Homefront = localRequire('../server/homefront.js');
+const guest = localRequire('../server/homefront-guest.js').createGuestHandler();
 const ACCOUNT = 'ui-three-test-only';
 const TOKEN = 'ui-three-token';
 const REFUGE_ACCOUNT = 'ui-refuge-test-only';
@@ -84,6 +85,13 @@ const server=createServer(async(req,res)=>{
       return json(res,200,{owned:{homefront:false},payments:false,
         prices:{homefront:{xrp:0}}});
     }
+    if(url.pathname.startsWith('/api/homefront/guest')) {
+      const received=[];for await(const p of req) received.push(p);
+      const raw=Buffer.concat(received).toString('utf8');
+      await guest.handle(req,res,url,{json,gate:()=>false,ip:'127.0.0.1',
+        body:async()=>raw?JSON.parse(raw):{}});
+      return;
+    }
     if(url.pathname.startsWith('/api/homefront')) {
       const token=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');
       const account=token===TOKEN?ACCOUNT:token===REFUGE_TOKEN?REFUGE_ACCOUNT:null;
@@ -132,6 +140,58 @@ try {
     '--ignore-gpu-blocklist','--no-sandbox','--no-zygote'
   ]});
   const errors=[];
+  if(process.env.HOMEFRONT_UI_OPENING_ONLY==='1') {
+  // Inspect the real opening screen before module downloads can replace it.
+  for (const viewport of [{width:1280,height:800},{width:390,height:844}]) {
+    const openingContext=await browser.newContext({viewport});
+    const opening=await openingContext.newPage();
+    opening.on('pageerror',error=>errors.push('opening: '+error.message));
+    let release;
+    const modulesReady=new Promise(resolve=>{release=resolve;});
+    await opening.route('**/*',async route=>{
+      const url=new URL(route.request().url());
+      if(url.hostname!=='localhost'&&url.hostname!=='127.0.0.1')return route.abort();
+      if(url.pathname==='/api/signin')return route.fulfill({json:{error:'fixture_signin_unavailable'}});
+      if(/\.(mjs|js)$/.test(url.pathname))await modulesReady;
+      return route.continue();
+    });
+    await opening.goto('http://localhost:'+port+'/arena/homefront-real-refuge.html',
+      {waitUntil:'commit'});
+    await opening.locator('#signin').waitFor({state:'visible'});
+    const firstPaint=await opening.evaluate(()=>({
+      shell:document.documentElement.classList.contains('hf-shell'),
+      header:document.querySelector('header').getBoundingClientRect().toJSON(),
+      overflow:document.documentElement.scrollHeight>innerHeight,
+      intro:getComputedStyle(document.getElementById('introText')).display
+    }));
+    assert(firstPaint.shell,'viewport shell exists before module initialization');
+    assert.equal(firstPaint.header.width,viewport.width);
+    assert.equal(firstPaint.header.height,viewport.height);
+    assert.equal(firstPaint.overflow,false,'opening never becomes a scrolling page');
+    assert.equal(firstPaint.intro,'none');
+    release();
+    await opening.waitForFunction(()=>document.getElementById('status')?.textContent.includes('Playing as guest'),null,{timeout:60000});
+    assert.equal(await opening.locator('#graveyard3d canvas').count(),0,'hidden Wastes renderer waits for an expedition');
+    await opening.locator('#homefrontModalActions button').filter({hasText:'Enter Homefront'}).click();
+    await opening.locator('#hfHud .hf-menu').click();
+    await opening.locator('#hfSheet .hf-panel-header button').filter({hasText:'Connect wallet to save'}).click();
+    await opening.waitForFunction(()=>document.getElementById('status')?.textContent.includes('Sign-in unavailable'));
+    assert(await opening.locator('#qrbox').isHidden(),'failed optional sign-in returns to guest gameplay');
+    await opening.screenshot({path:out+'/opening-'+viewport.width+'.png'});
+    await opening.locator('#hfHud .hf-menu').click();
+    const leave=opening.getByRole('link',{name:'Return to BURN City'});
+    const leaveBox=await leave.boundingBox();
+    assert(leaveBox&&leaveBox.x>=0&&leaveBox.x+leaveBox.width<=viewport.width,
+      'city exit fits the game menu on desktop and phone');
+    await opening.route('http://localhost:'+port+'/',route=>route.fulfill({contentType:'text/html',body:'<title>BURN City return fixture</title>'}));
+    await leave.click();
+    await opening.waitForURL('http://localhost:'+port+'/');
+    assert.equal(await opening.title(),'BURN City return fixture');
+    await openingContext.close();
+  }
+    assert.deepEqual(errors,[]);
+    console.log('HOMEFRONT FIRST-PAINT DESKTOP AND PHONE OPENING PASSED');
+  } else {
   const opening = await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
   await opening.route('**/*', route => {
     const url = new URL(route.request().url());
@@ -385,7 +445,9 @@ try {
   await activate(refuge.getByRole('button',{name:/Travel to the Wastes/}));
   assert((await (await entry).json()).self,'the server entered the Wastes');
   await refuge.waitForFunction(()=>document.body.classList.contains('rpg-mode-expedition'));
-  assert(await refuge.locator('#graveyard3d canvas').isVisible());
+  await refuge.locator('#graveyard3d canvas').waitFor({state:'visible'});
+  await refuge.waitForFunction(()=>document.getElementById('graveyard3dStatus')
+    ?.textContent.includes('3D shared world live'));
   await openTravel();
   const exit = refuge.waitForResponse(r=>r.url().endsWith('/api/homefront/world/leave')&&r.request().method()==='POST');
   await activate(refuge.getByRole('button',{name:/Return to Homefront/}));
@@ -405,6 +467,7 @@ try {
     realCameraToggle:true,inventoryOverlay:true,expeditionManageGuard:true,
     mobileRealJoystickNonoverlap:true,pageErrors:errors}));
   await refugeContext.close();
+  }
 }finally{
   if(browser)await browser.close();
   await new Promise(ok=>server.close(ok));

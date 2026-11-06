@@ -128,6 +128,28 @@ const seenInside = C.advance({ encounters: { [interiorAccount]: concealedEncount
   players: { [interiorAccount]: { ...interiorPlayer, lastNoiseAt: 100500, noiseLevel: 95, noiseX: hospital.x, noiseZ: hospital.z } },
   interiors: openInterior, now: 101000 });
 assert.equal(seenInside[interiorAccount].lastKnownX, interiorPlayer.x, 'seeing a survivor takes priority over an earlier sound');
+// A ward door blocks contact even when both positions are within melee reach.
+{
+  const doorX = hospital.x + 2.4;
+  const victim = { x: doorX + 0.5, z: hospital.z, survival: { health: 100 } };
+  const infected = { ...interiorEncounter.members[0], x: doorX - 0.5, z: hospital.z };
+  const contact = { encounter: { ...interiorEncounter, members: [infected] },
+    account: interiorAccount, player: victim, interiors: interiorState, now: 101000 };
+  assert.equal(C.meleeContact(contact), null, 'a closed door blocks a bite within melee reach');
+  assert.equal(C.meleeContact({ ...contact, sharedInteriors: { mercy_hospital: { openedDoors: ['ward_door'] } } }).sourceId,
+    infected.id, 'a door opened by another explorer clears the contact path');
+  assert.equal(C.meleeContact({ ...contact, interiors: openInterior,
+    encounter: { ...contact.encounter, members: [{ ...infected, hp: 0 }] } }), null, 'dead infected cannot attack');
+
+  const flat = InteriorRules.LANDMARKS.collapsed_apartments;
+  const upstairs = { x: flat.x, z: flat.z - 4.8, survival: { health: 100 } };
+  const lowerInfected = { ...infected, x: upstairs.x, z: upstairs.z };
+  const stairs = { [interiorAccount]: { activeLandmarkId: 'collapsed_apartments',
+    interiors: { collapsed_apartments: { roomId: 'upper_flat', openedDoors: ['fire_escape'] } } } };
+  assert.equal(C.meleeContact({ ...contact, player: upstairs, interiors: stairs,
+    encounter: { ...contact.encounter, members: [lowerInfected] } }), null, 'an infected downstairs cannot hit the floor above');
+}
+
 let interiorEncounters = { [interiorAccount]: interiorEncounter };
 for (let tick = 1; tick <= 8; tick++) {
   interiorEncounters = C.advance({ encounters: interiorEncounters, players: { [interiorAccount]: interiorPlayer }, interiors: interiorState, now: 100000 + tick * 1000 });

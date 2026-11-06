@@ -435,10 +435,6 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           player.inventory = carried;
           db.encounters = outcome.encounters;
           player.survival = outcome.survival || survivalBeforeAttack;
-          if (outcome.enemyDamage > 0) {
-            player.survival.health = Math.max(0, player.survival.health - outcome.enemyDamage);
-            player.survival.infection = Math.min(100, player.survival.infection + Math.max(1, Math.floor(outcome.enemyDamage / 4)));
-          }
           player.lastSeen = combatAt;
           bases[user.acct] = outcome.base;
           store.save('homefront.json', bases);

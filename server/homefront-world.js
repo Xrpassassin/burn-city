@@ -84,11 +84,11 @@ const POINTS_OF_INTEREST = [
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : 0));
 const defaultWorld = () => ({ version: 1, players: {}, parties: {}, encounters: {}, lootNodes: {}, environmentStructures: {}, fieldSurveyClaims: {} });
-function normalizeWorld(input) {
+function normalizeWorld(input, now = Date.now()) {
   const w = input && input.version === 1 ? input : defaultWorld();
   if (!w.players || typeof w.players !== 'object' || Array.isArray(w.players)) w.players = {};
   if (!w.parties || typeof w.parties !== 'object' || Array.isArray(w.parties)) w.parties = {};
-  w.encounters = Combat.normalizeEncounters(w.encounters);
+  w.encounters = Combat.normalizeEncounters(w.encounters, now);
   w.lootNodes = Loot.normalize(w.lootNodes);
   w.fieldSurveyClaims = FieldSurveys.normalize(w.fieldSurveyClaims);
   w.environmentStructures = Environment.normalize(w.environmentStructures);
@@ -324,7 +324,7 @@ function shareInteriorNoise(world,{ landmarkId, sourceAccount, level, now = Date
 }
 
 function snapshot(input, acct, now = Date.now()) {
-  const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
+  const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())), now);
   prune(w, now);
   const p = w.players[acct] || null;
   const party = p?.partyCode && w.parties[p.partyCode];
@@ -355,6 +355,7 @@ function snapshot(input, acct, now = Date.now()) {
     encounters: Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0 && nearEncounter(e)).map(Combat.publicEncounter),
     selfEncounter: Combat.publicEncounter(w.encounters?.[acct]),
     selfSurvival: p ? { ...p.survival } : null,
+    selfInfectedHit: p?.infectedHit && now - p.infectedHit.at <= 3500 ? { ...p.infectedHit } : null,
     selfPvp: p ? { recentHits: p.pvpHits || [], kills: p.pvpKills || 0, downedAt: p.downedAt || 0, protectedUntil: (p.spawnedAt || 0) + 10_000 } : null,
     selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null,
     selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null,
@@ -378,8 +379,36 @@ function snapshot(input, acct, now = Date.now()) {
     })() : null
   };
 }
+// Advance pursuit globally, but resolve damage only for the explorer whose
+// request is being processed. A nearby player's requests cannot damage an idle save.
+function tickInfected(w, acct, now) {
+  const player = w.players[acct];
+  const destroyedObstacles = Object.values(w.environmentStructures).filter(s => s.health <= 0).map(s => s.id);
+  const scene = { interiors: w.interiors, sharedInteriors: w.sharedInteriors, destroyedObstacles, now };
+  w.encounters = Combat.advance({ ...scene, encounters: w.encounters, players: w.players });
+  Companions.guard(w.encounters, acct, player, now);
+  const hit = Combat.meleeContact({ ...scene, encounter: w.encounters[acct], player, account: acct });
+  if (!hit) return;
+
+  const survival = player.survival;
+  survival.health = Math.max(0, survival.health - hit.damage);
+  survival.infection = Math.min(100, survival.infection + Math.max(1, Math.floor(hit.damage / 4)));
+  player.infectedHit = { ...hit, defeated: survival.health === 0 };
+  if (!player.infectedHit.defeated) return;
+
+  // Match Homefront's existing field defeat convention: return to a safe
+  // spawn at reduced health with the field pack intact.
+  const { spawn, position } = chooseSafeSpawn(w, acct);
+  player.x = position.x; player.z = position.z;
+  player.spawn = spawn.id; player.spawnedAt = now; player.lastMove = now;
+  player.aiming = false; player.aimStartedAt = 0;
+  survival.health = Survival.RESPAWN_HEALTH;
+  if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
+  delete w.encounters[acct];
+  player.directorState.lastSpawnAt = now;
+}
 function enter(input, acct, now = Date.now(), effects = null, base = null) {
-  const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
+  const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())), now);
   prune(w, now);
   let p = w.players[acct];
   if (!p) {
@@ -398,8 +427,7 @@ function enter(input, acct, now = Date.now(), effects = null, base = null) {
   // followers to the leader: their position is advanced by bounded, collision-aware
   // movement in move(), not by polling this endpoint.
   // Refreshes advance bounded pursuit too, so infected do not require player movement to update.
-  w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, interiors: w.interiors, now });
-  Companions.guard(w.encounters,acct,p,now);
+  tickInfected(w, acct, now);
   tickDirector(w, acct, now);
   w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
   return { world: w, result: snapshot(w, acct, now) };
@@ -438,7 +466,7 @@ function walkedRouteClear(startX, startZ, path, end, budget, removedObstacleIds)
   return legClear(end.x, end.z);
 }
 function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand = null) {
-  const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
+  const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())), now);
   prune(w, now);
   const p = w.players[acct];
   if (!p) throw new Error('not_in_expedition');
@@ -556,8 +584,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
   // High-frequency input never accelerates the global enemy director or environment tick.
   // Legacy moves retain the prior update semantics.
   if (!isInput || now - p.lastWorldInputTick >= 500) {
-    w.encounters = Combat.advance({ encounters: w.encounters, players: w.players, interiors: w.interiors, now });
-    Companions.guard(w.encounters,acct,p,now);
+    tickInfected(w, acct, now);
     tickDirector(w, acct, now);
     w.environmentStructures = Environment.tick(w.environmentStructures, w.players, now);
     if (isInput) p.lastWorldInputTick = now;

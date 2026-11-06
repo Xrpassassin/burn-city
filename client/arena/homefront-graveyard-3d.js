@@ -741,60 +741,74 @@ function boot(host) {
   let lastContinuousWorldRefresh = 0;
   let lastEnvironmentInputRefresh = 0;
   let lastRenderedWorldData = null;
+  let infectedHitAt = 0;
+  let infectedAttackUntil = 0;
+  function acceptInfectedHit(data) {
+    const hit = data.selfInfectedHit;
+    if (!hit || hit.at <= infectedHitAt) return false;
+    infectedHitAt = hit.at;
+    infectedAttackUntil = performance.now() + 450;
+    zombieAudio.bitten({ x: hit.x, y: terrainElevation(hit.x, hit.z), z: hit.z, ...infectedPresentation(hit.enemy) });
+    showFieldToast(hit.defeated ? 'Overrun by infected · relocated to safety' : 'Bitten · −' + Math.ceil(hit.damage) + ' health');
+    return hit.defeated;
+  }
+  function acceptRealtimeSnapshot(data, time) {
+    if (!worldData || !data.self) return;
+    const previous = worldData;
+    const next = mergeHomefrontInputSnapshot(previous, data);
+    // Moving should not destroy and rebuild every walker, label and loot mesh
+    // each second. Full scene reconciliation is reserved for material changes
+    // (new/removed actors, combat damage, outfit or loot state).
+    const respawned = next.selfInfectedHit?.defeated && next.selfInfectedHit.at > infectedHitAt;
+    if (respawned || (requiresHomefrontSceneRebuild(lastRenderedWorldData, next) && time - lastContinuousWorldRefresh >= 900)) {
+      lastContinuousWorldRefresh = time;
+      updateWorld(next);
+      return;
+    }
+    worldData = next;
+    acceptInfectedHit(next);
+    refreshContinuousProximity(next);
+    // Update remote actors using the existing frame interpolator; only the
+    // local avatar uses bounded visual prediction from continuousInput.
+    for (const p of playerPositionUpdates(next)) {
+      if (p.isLocalPlayer) continue;
+      explorerPositions.set(p.id, {
+        x: p.x, z: p.z, y: interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z))
+      });
+    }
+    for (const escort of next.companions || []) {
+      explorerPositions.set(escort.id,{
+        x:escort.x,z:escort.z,y:terrainElevation(escort.x,escort.z)
+      });
+    }
+    const nextInfected = wantsContinuous ? visibleInfected(next.encounters || []) : next.encounters || [];
+    for (const encounter of nextInfected) {
+      const actor = combatActors.get(encounter.id);
+      if (actor) {
+        actor.userData.targetX = encounter.x;
+        actor.userData.targetZ = encounter.z;
+      }
+    }
+    if (time - lastEnvironmentInputRefresh >= 1000) {
+      lastEnvironmentInputRefresh = time;
+      applyEnvironmentStateSnapshot(next.world?.environmentStructures);
+    }
+    // Server movement can lower the weapon, and a moving player can interrupt
+    // local reload sequences; update the small controls without rebuilding meshes.
+    if (typeof next.selfWeaponHandling?.aiming === 'boolean') {
+      aiming = next.selfWeaponHandling.aiming;
+      if (aimWeaponButton) {
+        aimWeaponButton.setAttribute('aria-pressed', String(aiming));
+        aimWeaponButton.textContent = aiming ? 'Lower weapon' : 'Aim weapon';
+      }
+    }
+  }
   const continuousInput = createContinuousInput({
     // The preview must never stall forever on a missing server response.
     // A timeout aborts the request; controller rollback keeps the local
     // avatar bounded until a fresh validated server acknowledgement.
     send: createHomefrontMoveTransport({ api: API, token, fetchImpl: (_url, options) => homefrontFetch('/api/homefront/world/move-input', options) }),
-    onSnapshot: (data, time) => {
-      if (!worldData || !data.self) return;
-      const previous = worldData;
-      const next = mergeHomefrontInputSnapshot(previous, data);
-      // Moving should not destroy and rebuild every walker, label and loot mesh
-      // each second. Full scene reconciliation is reserved for material changes
-      // (new/removed actors, combat damage, outfit or loot state).
-      if (requiresHomefrontSceneRebuild(lastRenderedWorldData, next) && time - lastContinuousWorldRefresh >= 900) {
-        lastContinuousWorldRefresh = time;
-        updateWorld(next);
-        return;
-      }
-      worldData = next;
-      refreshContinuousProximity(next);
-      // Update remote actors using the existing frame interpolator; only the
-      // local avatar uses bounded visual prediction from continuousInput.
-      for (const p of playerPositionUpdates(next)) {
-        if (p.isLocalPlayer) continue;
-        explorerPositions.set(p.id, {
-          x: p.x, z: p.z, y: interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z))
-        });
-      }
-      for (const escort of next.companions || []) {
-        explorerPositions.set(escort.id,{
-          x:escort.x,z:escort.z,y:terrainElevation(escort.x,escort.z)
-        });
-      }
-      const nextInfected = wantsContinuous ? visibleInfected(next.encounters || []) : next.encounters || [];
-      for (const encounter of nextInfected) {
-        const actor = combatActors.get(encounter.id);
-        if (actor) {
-          actor.userData.targetX = encounter.x;
-          actor.userData.targetZ = encounter.z;
-        }
-      }
-      if (time - lastEnvironmentInputRefresh >= 1000) {
-        lastEnvironmentInputRefresh = time;
-        applyEnvironmentStateSnapshot(next.world?.environmentStructures);
-      }
-      // Server movement can lower the weapon, and a moving player can interrupt
-      // local reload sequences; update the small controls without rebuilding meshes.
-      if (typeof next.selfWeaponHandling?.aiming === 'boolean') {
-        aiming = next.selfWeaponHandling.aiming;
-        if (aimWeaponButton) {
-          aimWeaponButton.setAttribute('aria-pressed', String(aiming));
-          aimWeaponButton.textContent = aiming ? 'Lower weapon' : 'Aim weapon';
-        }
-      }
-    },
+    onSnapshot(data, time) { acceptRealtimeSnapshot(data, time); },
     onUnavailable: reason => {
       if (status && reason !== 'returned_to_refuge' && reason !== 'interior_exit') status.textContent =
         'Direct walking unavailable (' + reason + ').';
@@ -972,6 +986,7 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
+    const respawned = acceptInfectedHit(data);
     lastRenderedWorldData = data;
     if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
       continuousInput.sync(data.inputProtocol, data.self, performance.now());
@@ -1112,7 +1127,7 @@ function boot(host) {
           ? terrainElevation(p.x, p.z) + activeInteriorElevation()
           : terrainElevation(p.x, p.z);
       const g = new THREE.Group();
-      const previousPosition = previousExplorerPositions.get(key);
+      const previousPosition = respawned && p.label === 'You' ? null : previousExplorerPositions.get(key);
       g.position.set(previousPosition?.x ?? p.x, previousPosition?.y ?? targetY, previousPosition?.z ?? p.z);
       g.userData.explorerKey = key;
       g.userData.targetX = p.x; g.userData.targetZ = p.z; g.userData.targetY = targetY;
@@ -1445,16 +1460,42 @@ function boot(host) {
     if (detail.self) void fetchWorld();
   });
 
-  async function fetchWorld() {
-    if (!token() || moving) { if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.'; return; }
+  let worldFetchPending = false;
+  async function fetchWorld({ contactOnly = false } = {}) {
+    if (document.hidden || worldFetchPending || !token() || moving) {
+      if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.';
+      return;
+    }
     const revision = gateRevision;
+    const previous = worldData;
+    worldFetchPending = true;
     try {
       const r = await homefrontFetch('/api/homefront/world', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
-      await fetchExplorationProgress();
-      if (revision === gateRevision) updateWorld(data);
-    } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
+      if (!contactOnly) await fetchExplorationProgress();
+      if (revision !== gateRevision) return;
+      if (contactOnly) {
+        // A newer move or combat reply already carries the latest server hit.
+        if (worldData !== previous || moving) return;
+        if (continuousInput.enabled && data.self) {
+          const now = performance.now();
+          continuousInput.sync(data.inputProtocol, data.self, now);
+          acceptRealtimeSnapshot(data, now);
+          return;
+        }
+      }
+      updateWorld(data);
+    } catch (e) { if (status && !contactOnly) status.textContent = '3D world unavailable: ' + e.message; }
+    finally { worldFetchPending = false; }
+  }
+  function pollInfectedContact() {
+    const self = worldData?.self;
+    const encounter = worldData?.selfEncounter;
+    if (!view.visible || document.hidden || !self || !encounter || encounter.defeated ||
+        encounter.hp <= 0 || continuousInput.pending ||
+        Math.hypot(encounter.x - self.x, encounter.z - self.z) > 24) return;
+    void fetchWorld({ contactOnly: true });
   }
   async function combatAction(action, targetId = selectedCombatTargetId, missPoint = null) {
     if (reloadState) cancelReload('Reload interrupted by combat.');
@@ -1511,7 +1552,7 @@ function boot(host) {
         const fatigue = stamina !== null ? ' · stamina ' + stamina + '/100' + (stamina < 15 ? ' · exhausted: damage reduced' : stamina < 35 ? ' · tiring: damage reduced' : '') : '';
         combatStatus.textContent = result.missed ? (result.ammoCost ? 'Shot missed. Ammo spent: ' + result.ammoCost + '.' : 'Swing missed.') : result.killed
           ? 'Defeated the infected! +' + result.reward.scrap + ' scrap, +' + result.reward.embers + ' Embers (' + result.reward.quality + ').' + fatigue
-          : (result.hitZone === 'head' ? 'HEADSHOT! ' : result.hitZone === 'limb' ? 'Limb hit. ' : '') + 'Hit for ' + result.damage + '. Retaliation: ' + result.enemyDamage + '. Ammo spent: ' + result.ammoCost + '.' + fatigue + precision;
+          : (result.hitZone === 'head' ? 'HEADSHOT! ' : result.hitZone === 'limb' ? 'Limb hit. ' : '') + 'Hit for ' + result.damage + '. Ammo spent: ' + result.ammoCost + '.' + fatigue + precision;
       } else if (combatStatus && data.encounter) {
         combatStatus.textContent = (data.reused ? 'Active threat: ' : 'Threat detected: ') + data.encounter.enemy + ' · HP ' + data.encounter.hp + '/' + data.encounter.maxHp + '. Close distance and attack.';
       }
@@ -2215,9 +2256,15 @@ function boot(host) {
       if (Math.hypot(dx, dz) > 0.08) {
         actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(dx, dz), dt);
       }
+      const hit = worldData?.selfInfectedHit;
+      const attacking = now < infectedAttackUntil &&
+        (hit?.sourceId === state.encounterId || (!wantsContinuous && hit?.encounterId === state.encounterId));
+      if (attacking && localForInfected && !hit.defeated) {
+        actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(localForInfected.x - actor.position.x, localForInfected.z - actor.position.z), dt);
+      }
       presentedInfected.push({
         id: state.encounterId, x: actor.position.x, y: actor.position.y, z: actor.position.z,
-        yaw: actor.rotation.y, ...infectedPresentation(state.enemyType),
+        yaw: actor.rotation.y, ch: attacking, ...infectedPresentation(state.enemyType),
         speed: Math.hypot(dx, dz) * blend / Math.max(dt, 0.001), hp: state.hp
       });
     }
@@ -2336,5 +2383,6 @@ function boot(host) {
     updateWeaponOverlay?.();
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };
   tick(); fetchWorld(); setInterval(fetchWorld, 8000);
+  setInterval(pollInfectedContact, 1500);
   setInterval(fetchBuildingPresence, 2400);
 }

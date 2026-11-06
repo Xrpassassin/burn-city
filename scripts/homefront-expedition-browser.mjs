@@ -305,6 +305,28 @@ try {
       .textContent.includes("direct WASD"),
   );
 
+  // Place a living infected within reach in the disposable store. Stand still
+  // and let the real browser poll the server. No attack or movement is sent.
+  const contactStore = guestMode ? guestStore : store;
+  const contactWorld = testState("homefront-world.json");
+  const contactPlayer = contactWorld.players[ACCOUNT];
+  const contactEncounter = contactWorld.encounters[ACCOUNT];
+  const attacker = {
+    ...contactEncounter.members[0], x: contactPlayer.x, z: contactPlayer.z
+  };
+  Object.assign(contactEncounter, { x: attacker.x, z: attacker.z, members: [attacker], damage: 2 });
+  contactPlayer.survival.health = 100;
+  delete contactPlayer.infectedHit;
+  contactStore.save("homefront-world.json", contactWorld);
+  await page.waitForFunction(() =>
+    document.querySelector(".hf-event-toast")?.textContent.includes("Bitten"),
+    null, { timeout: 10000 },
+  );
+  assert.ok(testState("homefront-world.json").players[ACCOUNT].survival.health < 100,
+    "the stationary survivor takes authoritative infected damage");
+  assert.ok(!observed.some(entry => entry.path.endsWith("/world/attack")),
+    "the bite happens before the survivor attacks");
+
   if (!mobile) {
     // Observe the real camera after lookAt, including its smoothed pitch.
     await page.evaluate(async () => {
@@ -523,6 +545,7 @@ try {
       walkedToDepot: true,
       scavenged: true,
       serverConfirmedAttack: true,
+      stationaryInfectedBite: true,
       returnedHome: true,
       repeatedGateTransition: true,
       cityExit: true,

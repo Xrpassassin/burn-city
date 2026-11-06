@@ -194,3 +194,43 @@ try {
   Collision.findPath = originalCollisionFindPath;
 }
 console.log('Homefront shared Graveyard world and terrain-movement integration passed.');
+
+{
+  const account = 'contact-survivor';
+  const start = 100000;
+  const fixture = W.enter(W.defaultWorld(), account, start).world;
+  const target = fixture.players[account];
+  const direction = [[1,0], [-1,0], [0,1], [0,-1]].find(([dx, dz]) =>
+    Collision.canTraverse(target.x, target.z, target.x + dx * 4, target.z + dz * 4) &&
+    Terrain.canTraverse(target.x, target.z, target.x + dx * 4, target.z + dz * 4));
+  assert.ok(direction, 'test spawn has a clear path for a pursuing infected');
+  const [dx, dz] = direction;
+  const encounter = fixture.encounters[account];
+  const member = { ...encounter.members[0], x: target.x + dx * 4, z: target.z + dz * 4 };
+  Object.assign(encounter, { x: member.x, z: member.z, hp: member.hp, maxHp: member.maxHp,
+    members: [member], lastAiAt: start, damage: 5 });
+  const observer = W.enter(fixture, 'contact-observer', start + 100).world;
+  assert.equal(observer.players[account].survival.health, 100, "another player's refresh does not apply damage to this account");
+
+  const distant = W.enter(observer, account, start + 400);
+  assert.equal(distant.result.selfInfectedHit, null, 'pursuit outside melee reach leaves the survivor unharmed');
+  const bitten = W.enter(distant.world, account, start + 1700);
+  assert.equal(bitten.result.selfInfectedHit.sourceId, member.id, 'an infected reaches and bites a stationary survivor without a player attack');
+  assert.equal(bitten.result.selfSurvival.health, 95);
+  assert.equal(bitten.result.selfSurvival.infection, 1);
+  const protectedTick = W.enter(JSON.parse(JSON.stringify(bitten.world)), account, start + 1750);
+  assert.equal(protectedTick.result.selfSurvival.health, 95, 'persisted recovery window prevents repeat damage from rapid requests');
+  assert.equal(protectedTick.result.selfInfectedHit.at, bitten.result.selfInfectedHit.at);
+  const secondBite = W.enter(protectedTick.world, account, start + 2700);
+  assert.equal(secondBite.result.selfSurvival.health, 90, 'an infected still in reach can attack after recovery');
+
+  secondBite.world.players[account].survival.health = 3;
+  secondBite.world.players[account].inventory = { ammo: 4 };
+  const defeated = W.enter(secondBite.world, account, start + 8000);
+  assert.equal(defeated.result.selfInfectedHit.defeated, true);
+  assert.equal(defeated.result.selfSurvival.health, require('../server/homefront-survival').RESPAWN_HEALTH);
+  assert.equal(defeated.result.selfInventory.ammo, 4, 'safe respawn keeps the field pack');
+  assert.equal(defeated.result.selfEncounter, null, 'the defeated player is released from the encounter');
+  assert.ok(Collision.isSafePosition(defeated.result.self.x, defeated.result.self.z));
+  assert.equal(W.snapshot(defeated.world, account, start + 12000).selfInfectedHit, null, 'expired hit feedback is not replayed on reconnect');
+}

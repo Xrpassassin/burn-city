@@ -2,6 +2,7 @@
 // Authoritative, renderer-independent combat for Homefront's shared Graveyard.
 const { ARCHETYPES, QUALITY_ORDER, planEncounter, planHorde } = require('./homefront-director');
 const Terrain = require('./homefront-terrain');
+const { ZOMBIE_MELEE_REACH, ZOMBIE_MELEE_HEIGHT, ZOMBIE_IFRAME_SECONDS } = require('./zombie-contact');
 const Collision = require('./homefront-collision');
 const InteriorRules = require('./homefront-interiors');
 const InteriorCatalog = require('../client/arena/homefront-interior-world.mjs');
@@ -65,18 +66,49 @@ function advanceAlongTerrainPath(startX, startZ, path, distanceBudget) {
  }
  return{x:Math.round(x*10)/10,z:Math.round(z*10)/10};
 }
-function interiorCollisionOptions(interiors, account) {
+function interiorCollisionOptions(interiors, account, sharedInteriors, destroyedObstacles = []) {
  const owner = interiors?.[account], landmarkId = owner?.activeLandmarkId || null;
  const state = landmarkId ? owner.interiors?.[landmarkId] : null;
- const removedObstacleIds = Collision.interiorRemovedIds(landmarkId, state?.openedDoors);
- return { removedObstacleIds, landmarkId, state };
+ const openedDoors = InteriorRules.sharedOpenedDoors(sharedInteriors, landmarkId, state?.openedDoors);
+ const interiorIds = Collision.interiorRemovedIds(landmarkId, openedDoors);
+ const removedObstacleIds = destroyedObstacles.length ? [...interiorIds, ...destroyedObstacles] : interiorIds;
+ return { removedObstacleIds, landmarkId, state, openedDoors };
+}
+function meleeContact({ encounter, player, account, interiors, sharedInteriors, destroyedObstacles, now }) {
+ const victim = player?.survival;
+ if (!victim || victim.health <= 0 || !encounter || encounter.defeated ||
+     encounter.hp <= 0 || encounter.expiresAt <= now) return null;
+ const lastHitAt = player.infectedHit?.at;
+ if (Number.isFinite(lastHitAt) && now - lastHitAt < ZOMBIE_IFRAME_SECONDS * 1000) return null;
+
+ const { removedObstacleIds, landmarkId, state } = interiorCollisionOptions(interiors, account, sharedInteriors, destroyedObstacles);
+ const landmark = InteriorRules.LANDMARKS[landmarkId];
+ const room = InteriorCatalog.interiorRoom(InteriorCatalog.interiorForLandmark(landmarkId), state?.roomId);
+ const victimY = room && landmark
+  ? Terrain.terrainElevation(landmark.x, landmark.z) + (room.elevation || 0)
+  : Terrain.terrainElevation(player.x, player.z);
+ let closest = null, reach = ZOMBIE_MELEE_REACH;
+ for (const member of encounter.members || []) {
+  if (member.defeated || member.hp <= 0) continue;
+  const distance = Math.hypot(member.x - player.x, member.z - player.z);
+  if (distance > reach || Math.abs(Terrain.terrainElevation(member.x, member.z) - victimY) >= ZOMBIE_MELEE_HEIGHT) continue;
+  if (!Collision.canTraverse(member.x, member.z, player.x, player.z, { radius: 0.1, sampleStep: 0.15, removedObstacleIds }) ||
+      !Terrain.canTraverse(member.x, member.z, player.x, player.z)) continue;
+  closest = member;
+  reach = distance;
+ }
+ if (!closest) return null;
+ return {
+  at: now, encounterId: encounter.id, sourceId: closest.id, enemy: encounter.enemy,
+  x: closest.x, z: closest.z, damage: Math.min(victim.health, encounter.damage)
+ };
 }
 function attemptInteriorBreach({ account, enemy, player, interiors, now, elapsed, collisionOptions, speed }) {
- const { landmarkId, state } = collisionOptions;
+ const { landmarkId, state, openedDoors } = collisionOptions;
  if (!landmarkId || !state || !interiors) return false;
  const catalog = InteriorCatalog.interiorForLandmark(landmarkId), landmark = InteriorRules.LANDMARKS[landmarkId];
  if (!catalog || !landmark) return false;
- const opened = new Set(state.openedDoors || []), candidates = [];
+ const opened = new Set(openedDoors), candidates = [];
  const secureDoorIds = new Set(catalog.rooms.flatMap(room => room.exits.filter(exit => exit.requires?.length).map(exit => exit.id)));
  for (const room of catalog.rooms) for (const exit of room.exits) {
   if (opened.has(exit.id) || secureDoorIds.has(exit.id)) continue;
@@ -111,18 +143,18 @@ function attemptInteriorBreach({ account, enemy, player, interiors, now, elapsed
  }
  return false;
 }
-function advance({encounters,players,interiors=null,now=Date.now(),speed=2.8,maxElapsed=2.5}){
+function advance({encounters,players,interiors=null,sharedInteriors,destroyedObstacles,now=Date.now(),speed=2.8,maxElapsed=2.5}){
  const clean=normalizeEncounters(encounters,now);
  for(const [account,e] of Object.entries(clean)){
   if(e.defeated||e.hp<=0)continue;
   const player=players?.[account];
-  const collisionOptions=interiorCollisionOptions(interiors,account);
+  const collisionOptions=interiorCollisionOptions(interiors,account,sharedInteriors,destroyedObstacles);
   if(!player||!Number.isFinite(player.x)||!Number.isFinite(player.z)){e.lastAiAt=now;continue;}
   const elapsed=clamp((now-e.lastAiAt)/1000,0,maxElapsed);
   e.lastAiAt=now;
   if(elapsed<=0)continue;
   const dx=player.x-e.x,dz=player.z-e.z,distance=Math.hypot(dx,dz);
-  const stopDistance=2.2;
+  const stopDistance=ZOMBIE_MELEE_REACH - 0.1;
   // Solid cover breaks sight. Infected pursue their last observed position,
   // while louder player actions can reveal a new location from farther away.
   const seesPlayer = distance <= e.pursuitRadius &&
@@ -232,9 +264,7 @@ function attack({encounters,account,player,base,survival=null,now=Date.now(),wea
  base.resources.scrap=Math.min(999999,(base.resources.scrap||0)+scrap);base.embers=Math.min(999999999,(base.embers||0)+embers);
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Cleared '+e.enemy+' squad and recovered '+quality.toLowerCase()+'-grade salvage: +'+scrap+' scrap and +'+embers+' Embers.'});base.log=base.log.slice(-20);}
  return{encounters:clean,encounter:publicEncounter(e),killed:true,damage,hitZone,hitTargetId:target.id,hits,rounds:ammoCost||hits.length,aimed,aimStability,adsProgress,enemyDamage:0,ammoCost,reward:{quality,scrap,embers},base,survival:field};}
- const guards=Array.isArray(base.survivors)?base.survivors.filter(s=>s.role==='guard').length:0,enemyDamage=Math.max(1,e.damage-Math.min(3,guards));
- if(Array.isArray(base.survivors)&&base.survivors.length){const target=base.survivors.reduce((a,s)=>!a||(s.morale||0)<(a.morale||0)?s:a,null);if(target)target.morale=clamp((target.morale||0)-enemyDamage*2,0,100);}else base.resources.food=Math.max(0,(base.resources.food||0)-Math.max(1,Math.ceil(enemyDamage/3)));
- if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Hit '+target.role+' in '+e.enemy+' squad for '+damage+' damage. The squad retaliated for '+enemyDamage+' pressure.'});base.log=base.log.slice(-20);}
- return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,hitTargetId:target.id,hits,rounds:ammoCost||hits.length,aimed,aimStability,adsProgress,enemyDamage,ammoCost,reward:null,base,survival:field};
+ if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Hit '+target.role+' in '+e.enemy+' squad for '+damage+' damage.'});base.log=base.log.slice(-20);}
+ return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,hitTargetId:target.id,hits,rounds:ammoCost||hits.length,aimed,aimStability,adsProgress,enemyDamage:0,ammoCost,reward:null,base,survival:field};
 }
-module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,WEAPON_FIRE_INTERVAL,WEAPON_MAGAZINE_CAPACITY,WEAPON_HANDLING,STATS,normalizeEncounters,resolveSpawn,publicEncounter,spawn,advance,attack};
+module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,WEAPON_FIRE_INTERVAL,WEAPON_MAGAZINE_CAPACITY,WEAPON_HANDLING,STATS,normalizeEncounters,resolveSpawn,publicEncounter,spawn,advance,meleeContact,attack};

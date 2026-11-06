@@ -165,10 +165,9 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(attack.data.selfInventory.ammo, threat.data.selfInventory.ammo, 'firing consumes loaded magazine rounds, not reserve inventory');
   assert.ok(attack.data.selfWeaponMagazine.loaded < threat.data.selfWeaponMagazine.loaded, 'firearm attacks consume server-persisted magazine rounds');
   assert.ok(attack.data.encounter.hp < threat.data.encounter.hp, 'attacks reduce server-owned enemy health');
-if (attack.data.combat.enemyDamage > 0) {
-  assert.ok(attack.data.selfSurvival.health < 100, 'infected retaliation damages the player through server-owned survival state');
-  assert.ok(attack.data.selfSurvival.infection > 0, 'infected retaliation adds treatment pressure');
-}
+  assert.equal(attack.data.combat.enemyDamage, 0, 'weapon fire no longer triggers infected retaliation');
+  assert.equal(attack.data.selfSurvival.health, threat.data.selfSurvival.health, 'firing does not damage the shooter');
+  assert.equal(attack.data.base.resources.food, combatBaseBefore.resources.food, 'field combat does not consume refuge rations');
 
   const scavenge = await call('POST', '/api/homefront/world/scavenge', 'acct-a');
   assert.equal(scavenge.status, 200, 'a player can scavenge at a nearby shared landmark');

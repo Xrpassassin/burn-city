@@ -4,6 +4,7 @@ const CindersEffects = require('./homefront-cinders-effects');
 // Server-authoritative field survival state for Homefront expeditions.
 // Needs only decay while the explorer is present in the shared Graveyard.
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : min));
+const RESPAWN_HEALTH = 60;
 const DEFAULTS = Object.freeze({ health: 100, hunger: 100, thirst: 100, stamina: 100, infection: 0, lastTick: 0 });
 function normalize(input, now = Date.now()) {
   const s = input && typeof input === 'object' ? input : {};
@@ -80,4 +81,4 @@ function act(input, action, now = Date.now(), effects = null) {
   s.lastTick = now;
   return s;
 }
-module.exports = { DEFAULTS, normalize, tick, move, moveContinuous, act };
+module.exports = { DEFAULTS, RESPAWN_HEALTH, normalize, tick, move, moveContinuous, act };

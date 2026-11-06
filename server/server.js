@@ -22,6 +22,12 @@ require('./guard').setEstateCapitalReserveReader(account=>account===C.ESTATE_TRE
 const estateHourly = require('./estate-hourly-service').createEstateHourlyService({db:Pay.sdb,pay:Pay,config:C,guard:require('./guard')});
 const estateImgTrustline=require('./estate-img-trustline').createEstateImgTrustline({db:Pay.sdb,client:{request:async q=>(await Pay.ledger()).request(q)},sdk:()=>Pay.sdk(),config:C});
 const {readEstatePortfolio}=require('./estate-portfolio');
+// Owner-to-buyer resale: off unless ESTATE_RESALE_ENABLED=1 AND the shared treasury pause is lifted AND mainnet Xaman is configured.
+const estateResaleEnabled=()=>process.env.ESTATE_RESALE_ENABLED==='1'&&!require('./guard').paused()&&C.DRY_RUN===false&&C.NETWORK==='mainnet'&&!!C.XUMM_KEY&&!!C.XUMM_SECRET;
+const estateResale=require('./estate-resale-market').createEstateResaleMarket(Pay.sdb,{isEnabled:estateResaleEnabled,
+  xrplClient:{request:async q=>(await Pay.ledger()).request(q)},
+  xamanSdk:{payload:{create:(...a)=>Pay.sdk().payload.create(...a),get:(...a)=>Pay.sdk().payload.get(...a)}}});
+const {estateTreasuryMonitor}=require('./estate-treasury-monitor');
 const estatePrestige = require('./estate-prestige-runtime').createEstatePrestigeRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
@@ -188,6 +194,15 @@ const server = http.createServer(async (req, res) => {
         forwardImgRlusdRewards:rewards.forwardImgRlusdRewards,
         legacyImgRewardPipeline:rewards.legacyImgRewardPipeline});
     }
+    if (url.pathname === '/api/estates/market' && req.method === 'GET') {   // public, read-only: ownership + open resale listings + fee disclosure
+      if(gate('estates-market-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
+      const owners=Pay.sdb.prepare('SELECT property_id AS propertyId,acct AS owner FROM estate_property_ownership ORDER BY property_id').all();
+      return json(res,200,{asOfMs:Date.now(),...estateResale.status(),owners,listings:estateResale.listings()});
+    }
+    if (url.pathname === '/api/estates/history' && req.method === 'GET') {
+      if(gate('estates-history-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
+      return json(res,200,{propertyId:String(url.searchParams.get('propertyId')||''),history:estateResale.history(url.searchParams.get('propertyId'))});
+    }
     if (url.pathname === '/api/estates/appearance' && req.method === 'GET') {
       if (gate('estates-appearance-ip:' + ip, 60, 60e3)) return json(res, 429, {error:'slow_down'});
       return json(res, 200, estatePrestige.publicState());
@@ -261,6 +276,25 @@ const server = http.createServer(async (req, res) => {
         if (gate('estate-review-admin:' + u.acct, 12, 60e3) || gate('estate-review-admin-ip:' + ip, 24, 60e3)) return json(res, 429, { error: 'slow_down' });
         const decision = handleEstateReviewRequest({ method: req.method, path: url.pathname, query: url.searchParams, account: u.acct, adminTokenValid: adminOk(req, ip), allowedAccounts: estateReviewAdminAccounts, queue: estateReviewQueue, audit: estateReviewAudit });
         return json(res, decision.code, decision.body);
+      }
+      if (url.pathname.startsWith('/api/estates/resale/') && req.method === 'POST') {
+        if (gate('estate-resale:' + u.acct, 12, 60e3) || gate('estate-resale-ip:' + ip, 24, 60e3)) return json(res, 429, { error: 'slow_down' });
+        const b = await body(), op = url.pathname.slice('/api/estates/resale/'.length);
+        const askDrops = Number.isSafeInteger(b?.askDrops) ? b.askDrops : (typeof b?.askDrops === 'string' && /^[0-9]{1,15}$/.test(b.askDrops) ? Number(b.askDrops) : NaN);
+        let result;
+        if (op === 'list') result = estateResale.list({ seller: u.acct, propertyId: String(b?.propertyId || ''), askDrops, approved: b?.approveTransfer === true });
+        else if (op === 'reprice') result = estateResale.reprice({ seller: u.acct, listingId: String(b?.listingId || ''), askDrops, approved: b?.approveTransfer === true });
+        else if (op === 'cancel') result = estateResale.cancel({ seller: u.acct, listingId: String(b?.listingId || '') });
+        else if (op === 'reserve') result = estateResale.reserve({ buyer: u.acct, listingId: String(b?.listingId || '') });
+        else if (op === 'payment/start') result = await estateResale.startPayment({ buyer: u.acct, reservationId: String(b?.reservationId || '') });
+        else if (op === 'payment/confirm') result = await estateResale.confirm({ buyer: u.acct, reservationId: String(b?.reservationId || '') });
+        else return json(res, 404, { error: 'not_found' });
+        return json(res, result.ok ? 200 : result.pending ? 202 : result.error === 'estate_resale_disabled' ? 409 : 400, result);
+      }
+      if (url.pathname === '/api/estates/admin/treasury-monitor' && req.method === 'GET') {   // read-only; allowlisted wallet AND admin token
+        if (!estateReviewAdminAccounts.has(u.acct)) return json(res, 403, { error: 'forbidden' });
+        if (!adminOk(req, ip)) return json(res, 403, { error: 'forbidden' });
+        return json(res, 200, estateTreasuryMonitor(Pay.sdb, { status: { ...estateSales.status(), ...estateHourly.status() } }));
       }
       if (url.pathname === '/api/estates/purchase/payment/start' && req.method === 'POST') {
         if (gate('estate-payment-start:' + u.acct, 6, 60e3) || gate('estate-payment-start-ip:' + ip, 12, 60e3)) return json(res, 429, { error: 'slow_down' });

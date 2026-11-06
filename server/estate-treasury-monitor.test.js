@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('assert/strict');const {DatabaseSync}=require('node:sqlite');
+const {estateTreasuryMonitor}=require('./estate-treasury-monitor');
+const db=new DatabaseSync(':memory:');
+db.exec("CREATE TABLE estate_liquidity_jobs(id TEXT,status TEXT,amount_drops INTEGER);INSERT INTO estate_liquidity_jobs VALUES('a','pending',5),('b','failed',7),('c','done',1)");
+db.exec("CREATE TABLE estate_capital_allocations(id TEXT,principal_drops INTEGER);INSERT INTO estate_capital_allocations VALUES('x',3000000)");
+const before=db.prepare("SELECT group_concat(sql) s FROM sqlite_master").get().s;
+const m=estateTreasuryMonitor(db,{status:{salesEnabled:false,salesStatus:'treasury_paused'}});
+assert.equal(m.readOnly,true);assert.equal(m.gates.salesEnabled,false);assert.match(m.gates.activationBlocker,/#517/);
+assert.equal(m.sections.pendingAllocations.estate_liquidity_jobs.byStatus.failed,1);assert.equal(m.failures,1);
+assert.equal(m.sections.deposits.estate_capital_allocations.sumsDrops.principal_drops,'3000000');
+assert.equal(m.sections.earnedRewards.estate_capital_allocations,undefined,'principal never listed as earnings');
+assert.equal(db.prepare("SELECT group_concat(sql) s FROM sqlite_master").get().s,before);
+console.log('estate treasury monitor tests passed');

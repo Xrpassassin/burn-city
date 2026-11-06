@@ -118,7 +118,7 @@ body.rpg-hud.hf-playing .hf-card section.panel.hf-tab-off{display:block!importan
 body.rpg-hud.hf-playing .hf-panel-header{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:#130d0ad9;border-bottom:1px solid #a55c3555}
 body.rpg-hud.hf-playing .hf-panel-header strong{font-size:12px;letter-spacing:.11em;color:#ffcf9f}
 body.rpg-hud.hf-playing .hf-panel-header .hf-actions{display:flex;flex-wrap:wrap;gap:6px;max-width:100%}
-body.rpg-hud.hf-playing .hf-panel-header button{min-height:35px;padding:6px 9px;background:#2c1a12;border:1px solid #9b5a38;border-radius:8px;color:#ffe4c3;font:700 12px system-ui}
+body.rpg-hud.hf-playing .hf-panel-header :is(button,a){display:inline-flex;align-items:center;text-decoration:none;min-height:38px;padding:6px 9px;background:#2c1a12;border:1px solid #9b5a38;border-radius:8px;color:#ffe4c3;font:700 12px system-ui}
 body.rpg-hud.hf-playing .hf-card .hf-mtabs{display:flex;flex-wrap:wrap;max-height:112px;overflow:auto}
 body.rpg-hud.hf-playing .hf-card .hf-mtabs button{white-space:normal;text-align:left}
 .hf-build-exit{position:fixed;right:calc(12px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));z-index:20;min-height:44px;padding:9px 14px;border:1px solid #ffb064;border-radius:11px;background:#57240ff2;color:#ffe6c2;font:800 13px system-ui;box-shadow:0 5px 22px #000a}
@@ -131,8 +131,8 @@ body.rpg-hud.hf-playing #graveyard3d .hf-viewbtn{top:calc(68px + env(safe-area-i
 @media(max-width:620px){
  body.rpg-hud.hf-playing .hf-hud{width:calc(100vw - 16px);left:8px;right:8px;gap:3px}
  body.rpg-hud.hf-playing .hf-hud .hf-q{width:34px;flex-basis:34px}
- body.rpg-hud.hf-playing .hf-sheet{padding:0}
- body.rpg-hud.hf-playing .hf-card{width:100%;border-radius:0;border:0}
+ body.rpg-hud.hf-playing .hf-sheet{align-items:flex-end;padding:0}
+ body.rpg-hud.hf-playing .hf-card{width:100%;max-height:78%;padding-bottom:env(safe-area-inset-bottom);border-radius:16px 16px 0 0;border:0}
  body.rpg-hud.hf-playing .hf-card .hf-body{padding:10px}
  body.rpg-hud.hf-playing .hf-card .hf-mtabs{max-height:108px}
  body.rpg-hud.hf-playing #world .hf-viewbtn,
@@ -170,9 +170,9 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   const body = el('div', { className: 'hf-body' });
   const close = el('button', { className: 'hf-close', type: 'button', textContent: 'Close' });
   const topClose = el('button', { type: 'button', textContent: '✕ Close', title: 'Close in-game menu' });
-  const backToArena = el('button', { type: 'button', textContent: 'Return to BURN City', title: 'Leave Homefront and return to BURN City' });
+  const city = el('a', { href: '/', textContent: 'Return to BURN City' });
   const account = el('button', { type: 'button', textContent: 'Account', title: 'BURN City account and sign-in' });
-  const topActions = el('div', { className: 'hf-actions' }, backToArena, account, topClose);
+  const topActions = el('div', { className: 'hf-actions' }, city, account, topClose);
   const titlebar = el('div', { className: 'hf-panel-header' },
     el('strong', { textContent: 'HOMEFRONT · FIELD MENU' }), topActions);
   const card = el('div', { className: 'hf-card' }, titlebar, tabsEl, body, close);
@@ -229,7 +229,6 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     priorFocus = null;
   };
   close.onclick = hide; topClose.onclick = hide;
-  backToArena.onclick = () => document.getElementById('back')?.click();
   account.onclick = () => { hide(); document.getElementById('signin')?.click(); };
   sheet.addEventListener('click', e => { if (e.target === sheet) hide(); });
   // A selected placement needs an unobstructed 3D yard. Exit the drawer
@@ -248,6 +247,7 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   window.addEventListener('keydown', e => {
     if (sheet.hidden || e.target?.isContentEditable ||
         /INPUT|TEXTAREA|SELECT/.test(e.target?.tagName || '')) return;
+    if (e.key === ' ' && e.target?.closest?.('button, a[href]')) return;
     if (/^(?:w|a|s|d|arrowup|arrowdown|arrowleft|arrowright| )$/i.test(e.key)) {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -438,12 +438,17 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     }
     tab = t;
     if (t === 'build' && getMode() !== 'workshop') setMode('workshop');
+    if (t !== 'build' && getMode() === 'workshop') setMode('home');
     sheet.hidden = false;
     draw();
     topClose.focus({ preventScroll: true });
     if (signedIn()) { await refreshRpgSheet(true); if (!sheet.hidden && tab === t) draw(); }
   }
-  menu.onclick = () => { if (!sheet.hidden) hide(); else void open(tab); };
+  menu.onclick = () => {
+    if (!sheet.hidden) { hide(); return; }
+    const settlementTab = tab === 'build' || tab === 'manage';
+    void open(settlementTab && getWorld()?.self ? 'character' : tab);
+  };
   // Manage: one management panel at a time behind a tab strip.
   const mtabs = el('div', { className: 'hf-mtabs', hidden: true }); mtabs.setAttribute('role', 'tablist');
   hud.after(mtabs);
@@ -468,8 +473,7 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   }
   const ctx = mm.getContext('2d');
   function update() {
-    // The game HUD only owns the full viewport once the existing signed-in
-    // game is loaded. The opening screen is owned by the critical page styles.
+    // Switch from the opening screen to the fullscreen world when the game loads.
     document.body.classList.toggle('hf-playing', !!game && !game.hidden);
     exitBuild.hidden = getMode() !== 'workshop' || !sheet.hidden;
     if (signedIn()) void refreshRpgSheet();

@@ -21,6 +21,7 @@ on:
       - 'test/homefront-survivor-economy-sim.js'
       - 'test/homefront-interior-route-sim.js'
       - 'test/homefront-explore-multiplayer-sim.js'
+      - 'test/homefront-entry-mode.test.mjs'
       - 'server/homefront-travel.js'
       - 'client/arena/homefront-travel.mjs'
       - 'client/js/player-motion.mjs'

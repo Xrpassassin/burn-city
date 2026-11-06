@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
+import { PINE_CROSSING_BUILDINGS, PINE_CROSSING_ROUTES } from '../client/arena/homefront-pine-crossing.mjs';
 
 const localRequire = createRequire(import.meta.url);
 const playwrightRequire = createRequire(
@@ -317,15 +318,102 @@ try {
   Object.assign(contactEncounter, { x: attacker.x, z: attacker.z, members: [attacker], damage: 2 });
   contactPlayer.survival.health = 100;
   delete contactPlayer.infectedHit;
+  const plantedAt = Date.now();
+  const bitten = page.waitForResponse(async response => {
+    if (response.request().method() !== 'GET' ||
+        !response.url().endsWith(fixturePath('/api/homefront/world'))) return false;
+    const data = await response.json().catch(() => null);
+    return data?.selfInfectedHit?.at >= plantedAt && data.selfInfectedHit.sourceId === attacker.id;
+  }, { timeout: 15000 });
   contactStore.save("homefront-world.json", contactWorld);
+  const bite = await (await bitten).json();
   await page.waitForFunction(() =>
     document.querySelector(".hf-event-toast")?.textContent.includes("Bitten"),
     null, { timeout: 10000 },
   );
-  assert.ok(testState("homefront-world.json").players[ACCOUNT].survival.health < 100,
-    "the stationary survivor takes authoritative infected damage");
+  assert.ok(bite.selfSurvival.health < 100, "the stationary survivor takes authoritative infected damage");
   assert.ok(!observed.some(entry => entry.path.endsWith("/world/attack")),
     "the bite happens before the survivor attacks");
+
+  const pineCrossing = process.env.HOMEFRONT_EXPEDITION_PINE === '1';
+  if (pineCrossing) {
+    const route = id => PINE_CROSSING_ROUTES.find(item => item.id === id).points;
+    let touchOrigin;
+    if (mobile) {
+      const box = await page.locator('#graveyard3d .hf-joy').boundingBox();
+      touchOrigin = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    }
+    async function walkTo([x, z]) {
+      const held = new Set();
+      if (touchOrigin) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [touchOrigin] });
+      }
+      try {
+        const deadline = Date.now() + 14000;
+        while (Date.now() < deadline) {
+          const player = testState('homefront-world.json').players[ACCOUNT];
+          const dx = x - player.x, dz = z - player.z;
+          const distance = Math.hypot(dx, dz);
+          if (distance < 0.8) return;
+          if (touchOrigin) {
+            const scale = 46 / Math.max(2, distance);
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [
+              { x: touchOrigin.x - dx * scale, y: touchOrigin.y - dz * scale }
+            ] });
+          } else {
+            const keys = new Set([
+              ...(Math.abs(dx) > 0.56 ? [dx > 0 ? 'a' : 'd'] : []),
+              ...(Math.abs(dz) > 0.56 ? [dz > 0 ? 'w' : 's'] : [])
+            ]);
+            for (const key of held) if (!keys.has(key)) { await page.keyboard.up(key); held.delete(key); }
+            for (const key of keys) if (!held.has(key)) { await page.keyboard.down(key); held.add(key); }
+          }
+          await new Promise(resolve => setTimeout(resolve, 85));
+        }
+        const player = testState('homefront-world.json').players[ACCOUNT];
+        throw Error('Pine Crossing walk blocked near ' + JSON.stringify([player.x, player.z]) + ' toward ' + JSON.stringify([x,z]));
+      } finally {
+        if (touchOrigin) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        else for (const key of held) await page.keyboard.up(key);
+      }
+    }
+    for (const point of route('logging-road').slice(1)) await walkTo(point);
+    if (process.env.HOMEFRONT_PINE_SCREENSHOT) {
+      await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
+    }
+    const action = page.locator('#homefrontContextAction');
+    for (const building of PINE_CROSSING_BUILDINGS) {
+      await walkTo([building.x, -43]);
+      await walkTo([building.x, -45.5]);
+      await page.waitForFunction(title => document.querySelector('#homefrontContextAction')?.textContent.includes('Enter ' + title),
+        building.title);
+      const entered = page.waitForResponse(response => response.url().endsWith(fixturePath('/api/homefront/world/interior/enter')));
+      await activate(action);
+      const interior = (await (await entered).json()).interior;
+      assert.equal(interior.landmarkId, building.id);
+      const item = building.finish === 'store' ? 'Dry goods shelf' : 'First-aid cabinet';
+      await walkTo([building.x - 0.8, building.z - 0.2]);
+      await page.waitForFunction(label => document.querySelector('#homefrontContextAction')?.textContent.includes(label), item);
+      const searched = page.waitForResponse(response => response.url().endsWith(fixturePath('/api/homefront/world/interior/action')));
+      await activate(action);
+      const result = await (await searched).json();
+      assert(result.interior.used.includes(building.id + '_search'));
+      assert(result.interiorReward.some(drop => drop.amount > 0), item + ' yields a physical supply reward');
+      await walkTo([building.x, building.z + 1.75]);
+      await page.waitForFunction(() => document.querySelector('#homefrontContextAction')?.textContent.includes('Step outside'));
+      await activate(action);
+      await page.waitForFunction(() => document.querySelector('#interiorStatus')?.textContent.includes('Returned to the street'));
+      await walkTo([building.x, -43]);
+    }
+    for (const point of route('creek-trail')) await walkTo(point);
+    await walkTo([-8, -82]);
+    await page.waitForFunction(() => document.querySelector('#homefrontContextAction')?.textContent.includes('Return to refuge'));
+    await activate(action);
+    await page.waitForFunction(() => document.body.classList.contains('rpg-mode-home'));
+    assert.equal(testState('homefront-world.json').players[ACCOUNT], undefined);
+    assert.deepEqual(errors, []);
+    console.log('PINE CROSSING PLAYTEST PASSED', JSON.stringify({ mobile, guest: guestMode, woods: true, store: true, clinic: true, creekReturn: true }));
+  } else {
 
   if (!mobile) {
     // Observe the real camera after lookAt, including its smoothed pitch.
@@ -554,6 +642,7 @@ try {
   );
 
   assert.deepEqual(errors, []);
+  }
 } finally {
   Homefront.handle = realHandle;
   await browser.close();

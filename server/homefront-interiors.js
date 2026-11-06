@@ -2,10 +2,12 @@
 // Server-authoritative Homefront interior state. Geometry is shared with the client catalog,
 // but account progress and rewards are only committed here after distance/room/requirement checks.
 const Catalog = require('../client/arena/homefront-interior-world.mjs');
+const { PINE_CROSSING_BUILDINGS, pineCrossingBuilding } = require('../client/arena/homefront-pine-crossing.mjs');
 const Inventory = require('./homefront-inventory');
 const Events = require('./homefront-interior-events');
 
 const LANDMARKS = Object.freeze({
+  ...Object.fromEntries(PINE_CROSSING_BUILDINGS.map(({ id, x, z }) => [id, { x, z }])),
   north_bus_depot: { x: -8, z: -65 },
   collapsed_apartments: { x: -22, z: 48 },
   exchange_market: { x: -38, z: 32 },
@@ -21,6 +23,10 @@ const LANDMARKS = Object.freeze({
 const ENTRY_RADIUS = 14;
 const INTERACTION_RADIUS = 4.8;
 const REWARDS = Object.freeze({
+  pine_general_store_search: [['food', 1, 2], ['water', 1, 2]],
+  pine_general_store_back_search: [['ammo', 1, 3], ['scrap', 1, 2]],
+  pine_clinic_search: [['meds', 1, 2], ['water', 1, 1]],
+  pine_clinic_back_search: [['meds', 1, 2], ['water', 1, 2]],
   dispatch_drawer: [['scrap', 1, 3], ['ammo', 1, 2]],
   bus_luggage: [['food', 1, 2], ['water', 1, 2]],
   stockroom_shelves: [['food', 1, 2], ['scrap', 1, 3]],
@@ -106,7 +112,7 @@ function enter(input, { account, player, landmarkId, doorway = false, now = Date
   if (!player) throw new Error('not_in_expedition');
   if (!near(player, landmarkId, ENTRY_RADIUS)) throw new Error('too_far_from_interior');
   let entryPosition = null;
-  if (doorway) {
+  if (doorway || pineCrossingBuilding(landmarkId)) {
     const entry = Catalog.interiorRoom(catalog, catalog.entryRoom);
     const landmark = LANDMARKS[landmarkId];
     const x = landmark.x + entry.x, thresholdZ = landmark.z + entry.z + entry.depth / 2;
@@ -118,7 +124,7 @@ function enter(input, { account, player, landmarkId, doorway = false, now = Date
   if (!stateMap[account].interiors[landmarkId]) stateMap[account].interiors[landmarkId] = {
     ...Catalog.createInteriorState(landmarkId), doorDamage: {}, updatedAt: now
   };
-  if (doorway) stateMap[account].interiors[landmarkId].roomId = catalog.entryRoom;
+  if (entryPosition) stateMap[account].interiors[landmarkId].roomId = catalog.entryRoom;
   stateMap[account].activeLandmarkId = landmarkId;
   stateMap[account].interiors[landmarkId].updatedAt = now;
   return { state: stateMap, interior: copy(stateMap[account].interiors[landmarkId]), title: catalog.title, entryPosition };
@@ -219,7 +225,7 @@ function breachDoor(input, { account, landmarkId, doorId, damage, now = Date.now
 function leave(input, { account, player, doorway = false, now = Date.now() }) {
   const ctx = requireActive(input, account, player, now);
   let exterior = null;
-  if (doorway) {
+  if (doorway || pineCrossingBuilding(ctx.landmarkId)) {
     const entry = Catalog.interiorRoom(ctx.catalog, ctx.catalog.entryRoom);
     const landmark = LANDMARKS[ctx.landmarkId];
     const x = landmark.x + entry.x;

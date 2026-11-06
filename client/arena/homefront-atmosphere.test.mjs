@@ -20,9 +20,9 @@ assert.ok(industrial.fogDensity>residential.fogDensity,
   'industrial haze is denser than the quieter residential environment');
 for (const district of ATMOSPHERE_DISTRICTS) {
   const out=atmosphereAt({player:{x:80,z:0},serverDistrict:district,timeMs:180000});
-  assert.ok(out.ashVisible);
+  assert.equal(out.ashVisible, district !== 'pine_crossing');
   assert.ok(out.ashOpacity>=0 && out.ashOpacity<=0.40);
-  assert.ok(out.fogDensity>=0.003 && out.fogDensity<=0.0055);
+  assert.ok(out.fogDensity>=0.003 && out.fogDensity<=(district === 'pine_crossing' ? 0.012 : 0.0055));
   assert.ok(Math.abs(out.windX)<=0.8);
   assert.deepEqual(out,atmosphereAt({player:{x:80,z:0},serverDistrict:district,timeMs:180000}),
     'same player location/time yields consistent cosmetic air conditions');

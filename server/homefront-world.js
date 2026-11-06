@@ -15,6 +15,7 @@ const InteriorEvents = require('./homefront-interior-events');
 const Environment = require('./homefront-environment');
 const Director = require('./homefront-director');
 const Travel = require('./homefront-travel');
+const { PINE_CROSSING_BUILDINGS } = require('../client/arena/homefront-pine-crossing.mjs');
 const InputStep = require('./homefront-input-step');
 const { ZOMBIE_WALK_SPEED, ZOMBIE_FAST_SPEED } = require('../client/arena/zombie-locomotion.mjs');
 const WORLD_SIZE = 100;
@@ -62,6 +63,7 @@ const DISTRICTS = [
   { id: 'graveyard_core', label: 'Graveyard Core', radius: 101, risk: 5 }
 ];
 const POINTS_OF_INTEREST = [
+  ...PINE_CROSSING_BUILDINGS.map(({ id, title, x, z }) => ({ id, label: title, type: 'interior', zone: 'outskirts', x, z, risk: 1 })),
   { id: 'north_bus_depot', label: 'North Bus Depot', type: 'scavenge', zone: 'outskirts', x: -8, z: -65, risk: 1 },
   { id: 'river_checkpoint', label: 'River Checkpoint', type: 'scavenge', zone: 'outskirts', x: 62, z: -20, risk: 1 },
   { id: 'wrecked_depot', label: 'Wrecked Depot', type: 'scavenge', zone: 'outskirts', x: 14, z: 72, risk: 1 },
@@ -266,7 +268,7 @@ function publicPlayer(acct, p, me, now, viewerParty = null) {
   const frontierBand = frontierDepth < 25 ? 'perimeter' : frontierDepth < 45 ? 'outer ring' : frontierDepth < 63 ? 'inner blocks' : frontierDepth < 76 ? 'commercial edge' : frontierDepth < 89 ? 'industrial belt' : 'core approach';
   return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, frontierDepth, frontierBand, spawn: acct === me ? p.spawn : undefined, party: acct !== me && !!viewerParty && p.partyCode === viewerParty, online: now - p.lastSeen <= PRESENCE_TTL };
 }
-function nearestPoint(x, z, type = null) { const points = POINTS_OF_INTEREST.filter(p => !type || (type === 'non-boss' ? p.type !== 'boss' : p.type === type)); let best = null; for (const point of points) { const distance = Math.hypot(point.x - x, point.z - z); if (!best || distance < best.distance) best = { point, distance }; } return best; }
+function nearestPoint(x, z, type = null) { const points = POINTS_OF_INTEREST.filter(p => !type || (type === 'non-boss' ? p.type !== 'boss' && p.type !== 'interior' : p.type === type)); let best = null; for (const point of points) { const distance = Math.hypot(point.x - x, point.z - z); if (!best || distance < best.distance) best = { point, distance }; } return best; }
 function tickDirector(w, acct, now = Date.now()) {
   const p = w.players[acct];
   if (!p) return null;
@@ -407,13 +409,16 @@ function tickInfected(w, acct, now) {
   delete w.encounters[acct];
   player.directorState.lastSpawnAt = now;
 }
-function enter(input, acct, now = Date.now(), effects = null, base = null) {
+function enter(input, acct, now = Date.now(), effects = null, base = null, { pineCrossing = false } = {}) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())), now);
   prune(w, now);
   let p = w.players[acct];
   if (!p) {
     if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
-    const safeSpawn = chooseSafeSpawn(w, acct), spawn = safeSpawn.spawn, position = safeSpawn.position;
+    const trailhead = pineCrossing && SPAWNS.find(spawn => spawn.id === 'north_gate');
+    const trailheadPosition = trailhead && safeSpawnPosition(trailhead);
+    const { spawn, position } = trailheadPosition
+      ? { spawn: trailhead, position: trailheadPosition } : chooseSafeSpawn(w, acct);
     p = w.players[acct] = { x: position.x, z: position.z, spawn: spawn.id, spawnedAt: now, lastSeen: now, lastMove: now, partyCode: null, inventory: {}, inventoryInitialized: false, weaponMagazine: { weaponId: 'pipe_blade', loaded: 0 }, aiming: false, aimStartedAt: 0, lastSprintAt: 0, accuracyRecoverUntil: 0 };
   }
   p.lastSeen = now;

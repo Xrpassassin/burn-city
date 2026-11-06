@@ -2,11 +2,13 @@
 // Driven from server-confirmed player position and authored site metadata.
 // No radiation/oxygen/visibility penalty, combat buffs, network traffic,
 // random loot, physics, sound triggers or lighting/shadow passes.
+import { inPineCrossing } from './homefront-pine-crossing.mjs';
 import { LANDMARKS } from './homefront-exploration-content.mjs';
 
 export const AMBIENT_UPDATE_MS = 4000;
 const WEATHER_PHASE_MS = 90_000;
 const LOOK = Object.freeze({
+  pine_crossing: Object.freeze({ name:'Pine Crossing overcast', fog:0x4c5b55, sky:0x5c6b65, density:0.011, ash:0 }),
   outskirts: Object.freeze({ name:'Windblown outskirts', fog:0x171a18, sky:0x111312, density:0.0034, ash:0.25 }),
   residential: Object.freeze({ name:'Hollow Blocks haze', fog:0x25221e, sky:0x171412, density:0.0043, ash:0.23 }),
   commercial: Object.freeze({ name:'Market smoke', fog:0x30251d, sky:0x1c1411, density:0.0047, ash:0.30 }),
@@ -24,6 +26,7 @@ function hash(value) {
 }
 export function nearbyAtmosphereDistrict(player, serverDistrict) {
   if (!player || !Number.isFinite(player.x) || !Number.isFinite(player.z)) return 'outskirts';
+  if (inPineCrossing(player.x, player.z, 2)) return 'pine_crossing';
   const near = LANDMARKS.reduce((best, landmark) => {
     const distance=Math.hypot(player.x-landmark.x,player.z-landmark.z);
     return distance < best.distance ? { landmark, distance } : best;
@@ -55,9 +58,9 @@ export function atmosphereAt({ player = null, serverDistrict = null, interior = 
   return Object.freeze({
     district:id, name:settings.name,
     fogColor:settings.fog, skyColor:settings.sky,
-    fogDensity:Math.min(0.0055,settings.density+gust*0.00035),
-    ashOpacity:Math.min(0.40,settings.ash+gust*0.04),
-    ashVisible:true, windX:((hash(id+':wind:'+tick)%201)-100)/100*(0.25+gust*0.55),
+    fogDensity:settings.density+gust*0.00035,
+    ashOpacity:settings.ash ? Math.min(0.40,settings.ash+gust*0.04) : 0,
+    ashVisible:settings.ash > 0, windX:((hash(id+':wind:'+tick)%201)-100)/100*(0.25+gust*0.55),
     phase:gust===1?'ash gust':gust===0.5?'breezy':'still',inside:false
   });
 }

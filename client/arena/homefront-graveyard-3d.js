@@ -4,6 +4,8 @@ import * as THREE from './vendor/three.module.min.js';
 import { getGuestToken, fetchHomefront } from './homefront-guest.mjs';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
+import { inPineCrossing, pineRouteDistance, pineCrossingBuilding, PINE_CROSSING_BOUNDS } from './homefront-pine-crossing.mjs';
+import { addPineCrossingScenery, buildPineFacade } from './homefront-pine-scenery.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { atmosphereAt, AMBIENT_UPDATE_MS } from './homefront-atmosphere.mjs';
 import { groundDetailCandidates } from './homefront-ground-detail.mjs';
@@ -151,7 +153,8 @@ function boot(host) {
 
   // Color the continuous ground from the same seeded biome sampler as environmental dressing.
   // Elevation remains intentionally flat until movement, hit-testing, and server validation share terrain heights.
-  const groundGeometry = new THREE.PlaneGeometry(204, 204, 96, 96);
+  const groundSpan = 204, groundSegments = 96;
+  const groundGeometry = new THREE.PlaneGeometry(groundSpan, groundSpan, groundSegments, groundSegments);
   const groundPositions = groundGeometry.attributes.position;
   const groundColors = new Float32Array(groundPositions.count * 3);
   const groundColor = new THREE.Color();
@@ -160,9 +163,11 @@ function boot(host) {
     // Shallow broad rises and depressions create visible slopes without yet changing server movement rules.
     groundPositions.setZ(i, (terrainElevation(worldX, worldZ)));
     const biome = biomeAt(worldX, worldZ);
-    groundColor.setHex(biome.ground);
+    groundColor.setHex(inPineCrossing(worldX, worldZ) ? (worldZ < -45 ? 0x394331 : 0x514b3b) : biome.ground);
     // Tiny seeded-looking tonal drift from biome fields avoids a completely flat painted appearance.
-    const drift = (biome.moisture - 0.5) * 0.045 + (biome.urban - 0.5) * 0.025;
+    const pineVariation = inPineCrossing(worldX, worldZ)
+      ? Math.sin(worldX * 1.37 + worldZ * 0.47) * Math.cos(worldZ * 0.86) * 0.013 : 0;
+    const drift = (biome.moisture - 0.5) * 0.045 + (biome.urban - 0.5) * 0.025 + pineVariation;
     groundColors[i * 3] = Math.max(0, Math.min(1, groundColor.r + drift));
     groundColors[i * 3 + 1] = Math.max(0, Math.min(1, groundColor.g + drift));
     groundColors[i * 3 + 2] = Math.max(0, Math.min(1, groundColor.b + drift));
@@ -365,10 +370,6 @@ function boot(host) {
     if (signature === activeChunkSignature) return;
     activeChunkSignature = signature;
     for (const [id, group] of worldChunkGroups) group.visible = visible.has(id);
-  }
-  for (const [radius, color] of [[25, 0x4f885b], [45, 0x88854b], [62, 0x9a683e], [76, 0x984d37], [90, 0x7d3037]]) {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.18, radius + 0.18, 128), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.68, side: THREE.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; scene.add(ring);
   }
   // Deterministic environmental dressing is grouped with structures so chunk visibility culls it together.
   // Props remain presentation-only: they do not grant loot, block movement, or alter server authority.
@@ -575,18 +576,48 @@ function boot(host) {
   for (let cz = -2; cz <= 1; cz++) for (let cx = -2; cx <= 1; cx++) {
     const chunk = cityChunkAt(cx * 64 + 0.01, cz * 64 + 0.01);
     addGroundDetailInstances(chunk, cx, cz);
-    for (const prop of environmentalCandidates(cx, cz, { density: 0.18 })) addEnvironmentalCandidate(chunk, prop);
-    for (const landmark of landmarkCandidates(cx, cz)) addLandmark(chunk, landmark);
+    for (const prop of environmentalCandidates(cx, cz, { density: 0.18 })) {
+      if (inPineCrossing(prop.x, prop.z) || (prop.z < -78 && pineRouteDistance(prop.x, prop.z) < 2.5)) continue;
+      addEnvironmentalCandidate(chunk, prop);
+    }
+    for (const landmark of landmarkCandidates(cx, cz)) if (!inPineCrossing(landmark.x, landmark.z, 4)) addLandmark(chunk, landmark);
   }
-  // Deterministic road grid and procedural ruined buildings; no extra engine or dependency.
-  for (let n = -90; n <= 90; n += 20) {
-    addBox(cityGroup, 4.2, 0.04, 196, n, 0, 0, roadMat);
-    addBox(cityGroup, 196, 0.04, 4.2, 0, 0, n, roadMat);
-    for (const offset of [-7, 7]) {
-      addBox(cityGroup, 0.22, 0.035, 196, n + offset, 0.025, 0, mat(0x55584d));
-      addBox(cityGroup, 196, 0.035, 0.22, 0, 0.025, n + offset, mat(0x55584d));
+  // Keep the existing routes beyond Pine Crossing. The new region is shaped by
+  // its logging road, main street and return trail rather than the old grid.
+  const bounds = PINE_CROSSING_BOUNDS;
+  function addOldRoad(vertical, at, width, material, height) {
+    const crossMin = vertical ? bounds.minX : bounds.minZ;
+    const crossMax = vertical ? bounds.maxX : bounds.maxZ;
+    const from = vertical ? bounds.minZ : bounds.minX;
+    const to = vertical ? bounds.maxZ : bounds.maxX;
+    const spans = at + width / 2 >= crossMin && at - width / 2 <= crossMax
+      ? [[-98, from], [to, 98]] : [[-98, 98]];
+    for (const [start, end] of spans) {
+      const center = (start + end) / 2, length = end - start;
+      addBox(cityGroup, vertical ? width : length, 0.035, vertical ? length : width,
+        vertical ? at : center, height, vertical ? center : at, material);
     }
   }
+  const oldLaneEdge = mat(0x55584d);
+  for (let n = -90; n <= 90; n += 20) {
+    for (const vertical of [true, false]) {
+      addOldRoad(vertical, n, 4.2, roadMat, 0);
+      for (const offset of [-7, 7]) addOldRoad(vertical, n + offset, 0.22, oldLaneEdge, 0.025);
+    }
+  }
+  // Drape the roads over the rendered triangles so the mesh and surface
+  // do not alternate in front of one another at shallow camera angles.
+  function renderedGroundAt(x, z) {
+    const gx = (x / groundSpan + 0.5) * groundSegments, gz = (z / groundSpan + 0.5) * groundSegments;
+    const ix = Math.floor(gx), iz = Math.floor(gz), tx = gx - ix, tz = gz - iz;
+    const stride = groundSegments + 1, a = iz * stride + ix;
+    const topRight = groundPositions.getZ(a + 1), bottomLeft = groundPositions.getZ(a + stride);
+    if (tx + tz <= 1) {
+      return groundPositions.getZ(a) * (1 - tx - tz) + topRight * tx + bottomLeft * tz;
+    }
+    return groundPositions.getZ(a + stride + 1) * (tx + tz - 1) + topRight * (1 - tz) + bottomLeft * (1 - tx);
+  }
+  addPineCrossingScenery(THREE, cityChunkAt, renderedGroundAt);
   let seed = 8675309;
   const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   for (let x = -90; x <= 90; x += 10) for (let z = -90; z <= 90; z += 10) {
@@ -594,19 +625,31 @@ function boot(host) {
     const bx = x + (rand() - 0.5) * 2.2, bz = z + (rand() - 0.5) * 2.2;
     if (Math.hypot(bx, bz) < 13) continue;
     const w = 3.4 + rand() * 3.4, d = 3.4 + rand() * 3.4, h = 3 + rand() * (Math.hypot(bx, bz) > 65 ? 11 : 6);
+    const material = buildingMats[Math.floor(rand() * buildingMats.length)];
+    const rotation = (rand() - 0.5) * 0.16;
+    const cap = rand() > 0.45 ? { x: rand() - 0.5, z: rand() - 0.5 } : null;
+    const emberHeight = rand() > 0.7 ? 1.2 + rand() : 0;
+    if (inPineCrossing(bx, bz, 3.5)) continue;
     const chunk = cityChunkAt(bx, bz);
     const baseY = terrainElevation(bx, bz);
     const structure = new THREE.Group();
-    const building = addBox(structure, w, h, d, bx, baseY, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
-    building.rotation.y = (rand() - 0.5) * 0.16;
-    if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h, bz + (rand() - .5), ruinMat);
-    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat); }
+    const building = addBox(structure, w, h, d, bx, baseY, bz, material);
+    building.rotation.y = rotation;
+    if (cap) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + cap.x, baseY + h, bz + cap.z, ruinMat);
+    if (emberHeight) addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat);
     chunk.add(structure);
     registerEnvironmentVisual('building:' + x + ',' + z, structure);
   }
   // Authored landmarks are distinct low-poly set pieces; server POIs remain the interaction authority.
   const landmarkSetPieces = new Map();
   for (const landmark of LANDMARKS) {
+    const pine = pineCrossingBuilding(landmark.id);
+    if (pine) {
+      const piece = buildPineFacade(THREE, pine, addBox, mat);
+      cityChunkAt(pine.x, pine.z).add(piece);
+      landmarkSetPieces.set(pine.id, piece);
+      continue;
+    }
     // Offset the structure slightly from the server marker so its interaction beacon remains readable.
     const hash = [...landmark.id].reduce((sum, char) => (Math.imul(sum ^ char.charCodeAt(0), 16777619) >>> 0), 2166136261);
     const angle = (hash % 8) * Math.PI / 4;
@@ -1046,6 +1089,7 @@ function boot(host) {
     if (sprintTravelButton) { sprintTravelButton.setAttribute('aria-pressed', String(sprintTravel)); sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF'; }
     clearGroup(poiGroup); clearGroup(lootGroup); markerObjects.clear();
     for (const p of (data.world?.pointsOfInterest || [])) {
+      if (pineCrossingBuilding(p.id)) continue;
       buildPOI(p,p.type!=='rescue'||!(data.world?.rescues?.[p.id]?.readyAt>Date.now()));
       const marker = markerObjects.get(p.id);
       if (p.type === 'cache' && data.world?.caches?.[p.id]?.readyAt > Date.now()) marker.children[0].material.color.setHex(0x77716b);
@@ -2243,7 +2287,18 @@ function boot(host) {
     const ashWind = ambientTarget.windX;
     for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += (Math.sin(now * 0.0003 + i) * 0.12 + ashWind * 0.16) * dt;
       if (ashPositions[j] > 98) ashPositions[j] = -98;
-      if (ashPositions[j] < -98) ashPositions[j] = 98; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) { const travelBlend = 1 - Math.exp(-8 * dt); explorer.position.x += (target.x - explorer.position.x) * travelBlend; explorer.position.y += (target.y - explorer.position.y) * travelBlend; explorer.position.z += (target.z - explorer.position.z) * travelBlend; movingAvatar = Math.hypot(target.x - explorer.position.x, target.z - explorer.position.z) > 0.035; if (movingAvatar) explorer.rotation.y = Math.atan2(target.x - explorer.position.x, target.z - explorer.position.z); } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (explorer.userData.walker) { poseWalker(explorer.userData.walker, now * 0.012, movingAvatar ? 1 : 0, now / 1000); if (explorer.userData.isLocalPlayer) { stepVertical(localJump, dt, 0, view.takeJump(), EXPLORER_SCALE); explorer.userData.walker.position.y = localJump.y; } } if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.72 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; if (piece.userData.tracer) { piece.material.opacity = Math.max(0, piece.userData.life / (piece.userData.maxLife || 0.095)); if (piece.userData.life <= 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } continue; } piece.position.x += (piece.userData.vx || 0) * dt; piece.position.y += (piece.userData.vy || 0) * dt; piece.position.z += (piece.userData.vz || 0) * dt; piece.userData.vy = (piece.userData.vy || 0) - 5.5 * dt; if (piece.rotation) { piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; } if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); else if (piece.material?.opacity != null) piece.material.opacity = Math.max(0, piece.userData.life / 0.075); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } }
+      if (ashPositions[j] < -98) ashPositions[j] = 98; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) {
+      const dx = target.x - explorer.position.x, dz = target.z - explorer.position.z;
+      // The local predictor is already smoothed and bounded to server movement.
+      // A second position lerp leaves the avatar trailing its own camera.
+      const directLocal = continuousInput.enabled && explorer.userData.isLocalPlayer;
+      const travelBlend = directLocal ? 1 : 1 - Math.exp(-8 * dt);
+      explorer.position.x += dx * travelBlend;
+      explorer.position.y += (target.y - explorer.position.y) * travelBlend;
+      explorer.position.z += dz * travelBlend;
+      movingAvatar = Math.hypot(dx, dz) > (directLocal ? 0.004 : 0.035);
+      if (movingAvatar) explorer.rotation.y = turnToward(explorer.rotation.y, Math.atan2(dx, dz), dt);
+    } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (explorer.userData.walker) { poseWalker(explorer.userData.walker, now * 0.012, movingAvatar ? 1 : 0, now / 1000); if (explorer.userData.isLocalPlayer) { stepVertical(localJump, dt, 0, view.takeJump(), EXPLORER_SCALE); explorer.userData.walker.position.y = localJump.y; } } if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.72 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; if (piece.userData.tracer) { piece.material.opacity = Math.max(0, piece.userData.life / (piece.userData.maxLife || 0.095)); if (piece.userData.life <= 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } continue; } piece.position.x += (piece.userData.vx || 0) * dt; piece.position.y += (piece.userData.vy || 0) * dt; piece.position.z += (piece.userData.vz || 0) * dt; piece.userData.vy = (piece.userData.vy || 0) - 5.5 * dt; if (piece.rotation) { piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; } if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); else if (piece.material?.opacity != null) piece.material.opacity = Math.max(0, piece.userData.life / 0.075); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } }
     const localForInfected = continuousInput.position() || worldData?.self;
     const presentedInfected = [];
     for (const actor of combatActors.values()) {

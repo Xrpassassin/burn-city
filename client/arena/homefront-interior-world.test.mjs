@@ -4,7 +4,7 @@ import {
   interiorForLandmark, interiorRoom, traverseInteriorDoor, buildInteriorSetPiece
 } from './homefront-interior-world.mjs';
 
-assert.equal(INTERIORS.length, 11);
+assert.equal(INTERIORS.length, 13);
 const ids = new Set();
 for (const interior of INTERIORS) {
   assert(interiorRoom(interior, interior.entryRoom), interior.landmarkId + ' entry room must exist');

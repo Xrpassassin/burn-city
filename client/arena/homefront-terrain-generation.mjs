@@ -1,3 +1,5 @@
+import { PINE_CROSSING_BOUNDS } from './homefront-pine-crossing.mjs';
+
 // Deterministic, coordinate-based terrain sampling for Homefront.
 // Pure math only: safe to share between client generation and future server validation.
 // The server mirrors this height field for traversal checks; keep both scale constants in lockstep.
@@ -52,7 +54,12 @@ export function terrainHeight(x, z, seed = DEFAULT_SEED) {
   // Blend terrain to zero at road centers so the road mesh and ground cannot disagree.
   const roadDistance = value => Math.abs((((value - 10) % 20) + 30) % 20 - 10);
   const roadBlend = value => { const t = Math.max(0, Math.min(1, roadDistance(value) / 4.5)); return t * t * (3 - 2 * t); };
-  const roadFactor = Math.min(roadBlend(x), roadBlend(z));
+  const oldRoadFactor = Math.min(roadBlend(x), roadBlend(z));
+  // The woodland slopes stay continuous across the old urban grid.
+  const { minX, maxX, minZ, maxZ } = PINE_CROSSING_BOUNDS;
+  const depth = Math.min(x - minX, maxX - x, z - minZ, maxZ - z);
+  const woodlandBlend = smooth(Math.max(0, Math.min(1, depth / 4)));
+  const roadFactor = lerp(oldRoadFactor, 1, woodlandBlend);
   const height = Math.round((broad + detail + ridge) * roadFactor * 1000) / 1000;
   return height === 0 ? 0 : height;
 }

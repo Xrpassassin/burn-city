@@ -174,8 +174,8 @@ assert.match(scene, /Math\.sin\(now \* 0\.006\) \* 0\.055/, 'pulse the selected 
 assert.match(scene, /focus\.mesh\.material\.color\.setHex\(selected \? 0xffe08a : focus\.color\)/, 'restore each supply node base glow color when selection changes');
 assert.match(scene, /const previousExplorerPositions = new Map\(\)/, 'preserve each explorer position across world snapshots');
 assert.match(scene, /explorerPositions\.set\(key, \{ x: p\.x, y: targetY, z: p\.z \}\)/, 'store authoritative explorer destinations separately from rendered positions');
-assert.match(scene, /const travelBlend = 1 - Math\.exp\(-8 \* dt\)/, 'interpolate explorer motion smoothly per frame instead of snapping on each snapshot');
-assert.match(scene, /explorer\.rotation\.y = Math\.atan2\(target\.x - explorer\.position\.x, target\.z - explorer\.position\.z\)/, 'turn moving explorers toward their travel direction');
+assert.match(scene, /const travelBlend = directLocal \? 1 : 1 - Math\.exp\(-8 \* dt\)/, 'use local predicted position directly and interpolate remote explorers');
+assert.match(scene, /explorer\.rotation\.y = turnToward\(explorer\.rotation\.y, Math\.atan2\(dx, dz\), dt\)/, 'turn moving explorers toward their travel direction');
 assert.match(scene, /g\.userData\.avatarParts = \[/, 'retain avatar body, head, backpack, and strap references for animation');
 assert.match(scene, /const bob = movingAvatar \? Math\.abs\(Math\.sin\(now \* 0\.014\)\) \* 0\.11/, 'add a lightweight step bob while explorers move');
 assert.match(scene, /part\.object\.position\.y = part\.baseY \+ bob/, 'animate avatar parts without changing authoritative world coordinates');

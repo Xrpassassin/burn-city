@@ -1,3 +1,5 @@
+import { PINE_CROSSING_BUILDINGS } from './homefront-pine-crossing.mjs';
+
 // Homefront authored interior floorplans and room-state rules.
 // Geometry is presentation-only; room search rewards must be granted by the server in a later API integration.
 export const INTERIOR_VERSION = 1;
@@ -21,6 +23,23 @@ export const INTERIORS = Object.freeze([
     target('route_board', 'Evacuation route board', 'dispatch', 1.15, -1.1, 'clue', 'A hand-drawn route marks the River Checkpoint and a convoy turnoff.'),
     target('bus_luggage', 'Abandoned luggage', 'bus_bays', 6.1, 0.7, 'search', 'A torn bag and a child’s name tag lie under the seat.')
   ]),
+  ...PINE_CROSSING_BUILDINGS.map(({ id, title, finish }) => {
+    const store = finish === 'store';
+    const rearDoor = id + '_rear_door';
+    return blueprint(id, title, [
+      room('front', store ? 'Shop floor' : 'Reception', 0, 0,
+        store ? 'Dust covers the checkout counter and empty shelves.' : 'Patient charts and a cracked register litter the desk.',
+        [{ id: rearDoor, to: 'back', side: 'east', label: store ? 'Stockroom door' : 'Treatment room door' }]),
+      room('back', store ? 'Stockroom' : 'Treatment room', 4.8, 0,
+        store ? 'A delivery never made it onto the shelves.' : 'A sealed first-aid cabinet hangs above an overturned cot.',
+        [{ id: rearDoor, to: 'front', side: 'west', label: 'Front room door' }])
+    ], [
+      target(id + '_search', store ? 'Dry goods shelf' : 'First-aid cabinet', 'front', -1.2, -0.7,
+        'search', store ? 'Sealed food and clean water survived on the shelf.' : 'The cabinet still holds bandages and water.'),
+      target(id + '_back_search', store ? 'Delivery crate' : 'Treatment cabinet', 'back', 5.8, -0.7,
+        'search', store ? 'The crate contains salvage and loose ammunition.' : 'There are dressings and clean water in the cabinet.')
+    ]);
+  }),
   blueprint('collapsed_apartments', 'Collapsed Apartments — Upper Flat', [
     room('lobby', 'Ground-floor Lobby', 0, 0, 'The stairwell has pancaked; a fire escape is the only route up.', [{ id: 'fire_escape', to: 'upper_flat', side: 'north', label: 'Fire escape' }]),
     room('upper_flat', 'Upper Apartment', 0, -4.8, 'A distress light flashes through a cracked bedroom door.', [{ id: 'fire_escape', to: 'lobby', side: 'south', label: 'Fire escape ladder' }], 3.2)
@@ -294,6 +313,8 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   // Landmark-specific silhouettes make each location readable at a glance without imported assets.
   // Two instanced batches per interior keep draw-call growth independent of room count.
   const propProfiles = {
+    pine_general_store: { label: 'general-store shelving', size: [1.18, 1.45, 0.46], accent: [1.09, 0.08, 0.4], height: 1.45, color: 0x6a5541 },
+    pine_clinic: { label: 'clinic examination tables', size: [1.42, 0.34, 0.66], accent: [1.31, 0.09, 0.56], height: 0.34, color: 0x7e8982 },
     north_bus_depot: { label: 'dispatch furniture', size: [1.15, 0.72, 0.52], accent: [0.98, 0.08, 0.42], height: 0.72, color: 0x6b5845 },
     collapsed_apartments: { label: 'apartment furniture', size: [1.35, 0.58, 0.72], accent: [1.12, 0.10, 0.58], height: 0.58, color: 0x625448 },
     exchange_market: { label: 'stock shelving', size: [1.05, 1.35, 0.34], accent: [0.96, 0.07, 0.38], height: 1.35, color: 0x77654d },

@@ -16,7 +16,7 @@ import { INTERIORS, availableInteriorActions, buildInteriorSetPiece, interiorFor
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
 import { createZombieModelPilot } from './zombie-model-pilot.mjs';
-import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested } from './homefront-view.mjs';
+import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested, releaseMovementControls } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
@@ -29,7 +29,8 @@ import { nextInteriorEvent } from './homefront-interior-event-feed.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
-import { stepVertical, createMotion } from '../js/player-motion.mjs';
+import { infectedPresentation, visibleInfected } from './homefront-infected-presentation.mjs';
+import { stepVertical, createMotion, turnToward } from '../js/player-motion.mjs';
 // Burn City walker avatars (shared with the city) at Graveyard scale; meshes reuse walker.js's cached geometry/materials.
 const EXPLORER_SCALE = 1.45, LITE_AVATARS = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const localJump = createMotion();
@@ -40,12 +41,27 @@ const WEAPON_DELAY = { pipe_blade: 950, shock_maul: 950, pump_shotgun: 1150, mar
 const TRACER_COLOR = { pump_shotgun: 0xffb45c, marksman_rifle: 0xd9f5ff, smg: 0xff9b4a, assault_rifle: 0xffe7a1, machine_gun: 0xffd27a, heavy_machine_gun: 0xffe6a0, fifty_cal: 0xfff2c4 };
 
 const host = document.getElementById('graveyard3d');
-if (host) boot(host);
+// The hidden expedition must not build an entire world behind account entry
+// or the refuge. Observe its actual layout, then initialize it once on entry.
+if (host) {
+  let started = false;
+  const startWhenVisible = () => {
+    if (started || !host.getClientRects().length || host.clientWidth === 0 || host.clientHeight === 0) return;
+    started = true;
+    visibilityObserver.disconnect();
+    boot(host);
+  };
+  const visibilityObserver = new ResizeObserver(startWhenVisible);
+  visibilityObserver.observe(host);
+  startWhenVisible();
+}
 
 function boot(host) {
   const status = document.getElementById('graveyard3dStatus');
   const zombieAudio = createZombieAudio(sfx, { base: new URL('./sfx/', import.meta.url).href, mobile: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches });
   let zombieAudioStarted = false;
+  let zombieAudioActive = false;
+  const audioDirection = new THREE.Vector3();
   const startZombieAudio = () => { if (zombieAudioStarted) return; zombieAudioStarted = true; zombieAudio.start(); };
   window.addEventListener('pointerdown', startZombieAudio, { once: true, passive: true });
   window.addEventListener('keydown', startZombieAudio, { once: true });
@@ -59,6 +75,7 @@ function boot(host) {
   const API = new URLSearchParams(location.search).get('api') ||
     (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   const token = () => localStorage.getItem('bcToken') || '';
+  const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x111312);
   scene.fog = new THREE.FogExp2(0x171a18, 0.0038);
@@ -81,14 +98,27 @@ function boot(host) {
   eventToast.setAttribute('aria-live', 'polite');
   host.appendChild(eventToast);
   let eventFeedState = null, eventToastUntil = 0;
+  function showFieldToast(message) {
+    eventToast.textContent = message;
+    eventToast.hidden = false;
+    eventToastUntil = performance.now() + 4400;
+  }
+  function showScavengeFeedback(carried, stored, loud) {
+    if (!wantsContinuous || (!carried && !stored)) return;
+    const lines = [];
+    if (carried) lines.push('Pack: ' + carried);
+    if (stored) lines.push('Sent to refuge: ' + stored);
+    if (loud) lines.push('Loud search. Infected may investigate.');
+    showFieldToast(lines.join('\n'));
+    if (loud) sfx.radio();
+    else sfx.box();
+  }
   function showInteriorEvent(instance) {
     const next = nextInteriorEvent(eventFeedState, instance);
     eventFeedState = next.state;
     if (!next.event) return;
     const e = next.event;
-    eventToast.textContent = e.message;
-    eventToast.hidden = false;
-    eventToastUntil = performance.now() + 4400;
+    showFieldToast(e.message);
     if (e.kind === 'alarm') sfx.radio();
     else if (e.kind === 'power' || e.kind === 'mechanism') sfx.door();
     else if (e.kind === 'evidence') sfx.box();
@@ -217,10 +247,20 @@ function boot(host) {
   window.addEventListener('homefront:combat-hit', event => {
     const detail = event.detail || {};
     const active = worldData?.selfEncounter || worldData?.encounter || (worldData?.encounters || []).find(item => item.id === detail.encounterId) || null;
-    const target = active ? { id: active.id, x: active.x, y: terrainElevation(active.x, active.z), z: active.z, ty: 0 } : null;
+    const member = active?.members?.find(item => item.id === detail.hitTargetId);
+    const hitActor = combatActors.get(detail.hitTargetId || active?.id);
+    const point = hitActor?.position || member || active;
+    const target = point ? { x: point.x, y: point.y ?? terrainElevation(point.x, point.z), z: point.z, ty: 0 } : null;
     zombieAudio.hit({ hs: detail.hitZone === 'head', k: !!detail.killed }, target);
-    if (active?.id) zombieModelPilot?.react(active.id, detail.killed ? 'Death' : 'HitReact');
-    if (detail.killed && target) zombieAudio.zdie(target);
+    const hits = detail.hits?.length ? detail.hits
+      : [{ targetId: detail.hitTargetId || active?.id, killed: !!detail.killed }];
+    for (const hit of hits) {
+      if (hit.targetId) zombieModelPilot?.react(hit.targetId, hit.killed ? 'Death' : 'HitReact');
+      if (hit.killed) {
+        const actor = combatActors.get(hit.targetId);
+        if (actor) zombieAudio.zdie({ x: actor.position.x, y: actor.position.y, z: actor.position.z });
+      }
+    }
   });
   window.addEventListener('homefront:combat-hit-feedback', event => {
     weaponSwingStartedAt = performance.now();
@@ -230,7 +270,7 @@ function boot(host) {
     const isAuto = FIREARM_IDS.includes(weaponId);
     const style = weaponId === 'shock_maul' ? 'blunt' : weaponId === 'pump_shotgun' || weaponId === 'marksman_rifle' || isAuto ? 'firearm' : 'sharp';
     weaponSwingWeaponId = weaponId;
-    const targetId = detail.encounterId || detail.encounter?.id || detail.combat?.encounterId;
+    const targetId = detail.hitTargetId || detail.encounterId || detail.encounter?.id || detail.combat?.encounterId;
     const target = targetId ? combatActors.get(targetId) : null;
     // Tracers are emitted only after the server confirms a hit. They are cosmetic: the server's hit result remains authoritative.
     if (target && style === 'firearm' && tracerPool) {
@@ -239,16 +279,22 @@ function boot(host) {
       const fromY = terrainElevation(startX, startZ) + 1.35;
       // One pooled tracer per server-resolved round, staggered across the burst; spread follows the server hit list.
       const hits = Array.isArray(detail.hits) && detail.hits.length ? detail.hits.slice(0, 6) : [{ hitZone: detail.hitZone }];
-      hits.forEach((hit, r) => setTimeout(() => {
-        const y = target.position.y + (hit.hitZone === 'head' ? 1.75 : hit.hitZone === 'limb' ? 0.72 : 1.15);
-        const off = r ? ((r % 2 ? 1 : -1) * 0.35 * Math.ceil(r / 2)) : 0;
-        tracerPool.emit({ x: startX, y: fromY, z: startZ }, { x: target.position.x + off, y, z: target.position.z - off * 0.5 }, TRACER_COLOR[weaponId] || 0xffb45c, weaponId === 'heavy_machine_gun' ? 0.13 : 0.095);
-        if (r && isAuto) sfx.weaponFire?.(weaponId);
-      }, r * 70));
+      hits.forEach((hit, r) => {
+        const hitActor = combatActors.get(hit.targetId) || target;
+        const endpoint = {
+          x: hitActor.position.x,
+          y: hitActor.position.y + (hit.hitZone === 'head' ? 1.75 : hit.hitZone === 'limb' ? 0.72 : 1.15),
+          z: hitActor.position.z
+        };
+        setTimeout(() => {
+          tracerPool.emit({ x: startX, y: fromY, z: startZ }, endpoint, TRACER_COLOR[weaponId] || 0xffb45c, weaponId === 'heavy_machine_gun' ? 0.13 : 0.095);
+          if (r && isAuto) sfx.weaponFire?.(weaponId);
+        }, r * 70);
+      });
     }
     // Reuse the existing licensed sample bank; a failed fetch must never break combat feedback.
     if (target) {
-      const pos = [target.position.x, detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1, target.position.z];
+      const pos = [target.position.x, target.position.y + (detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1), target.position.z];
       const sound = weaponId === 'pump_shotgun' || isAuto ? 'shotgun' : 'hit';
       sfx.loadBank(new URL('./sfx/', import.meta.url).href)
         .then(() => sfx.play(sfx.has(sound) ? sound : 'hit', { pos, v: isAuto ? (weaponId === 'heavy_machine_gun' || weaponId === 'fifty_cal' ? 0.42 : 0.32) : weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
@@ -278,7 +324,7 @@ function boot(host) {
       const origin = target.position.clone();
       for (let i = 0; i < 2; i++) {
         const piece = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.52, 2, 5), mat(0x6e7770));
-        piece.position.set(origin.x + (i ? 0.42 : -0.42), 1.05 + i * 0.25, origin.z);
+        piece.position.set(origin.x + (i ? 0.42 : -0.42), origin.y + 1.05 + i * 0.25, origin.z);
         piece.rotation.z = i ? -0.55 : 0.55;
         piece.userData.life = 0.8; piece.userData.vx = i ? 1.1 : -1.1;
         piece.userData.vy = 2.0; piece.userData.vz = 0.4;
@@ -595,6 +641,13 @@ function boot(host) {
     interiorCameraOccluders.set(interior.landmarkId, occluders);
   }
   const markerObjects = new Map();
+  const refugeReturnMarker = new THREE.Group();
+  const refugeReturnSign = labelSprite('REFUGE WAY BACK', '#f0cb78');
+  refugeReturnSign.scale.set(5, 0.94, 1);
+  refugeReturnSign.position.y = 2.5;
+  refugeReturnMarker.add(refugeReturnSign);
+  refugeReturnMarker.visible = false;
+  scene.add(refugeReturnMarker);
   function labelSprite(text, color = '#f6d8b5') {
     const c = document.createElement('canvas'); c.width = 512; c.height = 96;
     const cx = c.getContext('2d'); cx.font = 'bold 34px system-ui'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
@@ -602,7 +655,7 @@ function boot(host) {
     cx.fillStyle = color; cx.fillText(text.slice(0, 30), 256, 48);
     const texture = new THREE.CanvasTexture(c);
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-    sprite.scale.set(13, 2.45, 1); return sprite;
+    sprite.scale.set(wantsContinuous ? 4.5 : 13, wantsContinuous ? 0.85 : 2.45, 1); return sprite;
   }
   function buildPOI(p, rescueReady = true) {
     const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z);
@@ -655,7 +708,41 @@ function boot(host) {
   let worldData = null, moving = false;
   // Experimental direct walking requires BOTH the server flag and explicit ?movement=continuous.
   // Otherwise the established destination-based controls are unchanged.
-  const wantsContinuous = new URLSearchParams(location.search).get('movement') === 'continuous';
+
+  let survivalReadout = null;
+  if (wantsContinuous) {
+    eventToast.style.top = '54px';
+    eventToast.style.whiteSpace = 'pre-line';
+    if (coarsePointer) {
+      eventToast.style.left = 'auto';
+      eventToast.style.right = '12px';
+      eventToast.style.transform = 'none';
+      eventToast.style.maxWidth = '46%';
+      eventToast.style.boxSizing = 'border-box';
+    }
+    survivalReadout = document.createElement('div');
+    survivalReadout.className = 'hf-survival-readout';
+    survivalReadout.setAttribute('aria-label', 'Survival status');
+    survivalReadout.style.cssText = 'position:absolute;top:12px;left:12px;max-width:min(41%,180px);box-sizing:border-box;padding:7px 9px;border:1px solid #9b7555;border-radius:8px;background:#15120fe8;color:#ffddae;font:700 12px/1.45 system-ui;white-space:pre-line;pointer-events:none;z-index:5';
+    survivalReadout.hidden = true;
+    host.append(survivalReadout);
+  }
+
+  let lastSurvivalSnapshot;
+  function updateSurvivalReadout(data) {
+    if (!survivalReadout || data === lastSurvivalSnapshot) return;
+    lastSurvivalSnapshot = data;
+    const vitals = data?.selfSurvival;
+    survivalReadout.hidden = !data?.self || !Number.isFinite(vitals?.health);
+    if (survivalReadout.hidden) return;
+    const lines = ['Health ' + Math.ceil(vitals.health)];
+    if (vitals.infection > 0) lines.push('Infection ' + Math.ceil(vitals.infection) + '%');
+    if (vitals.thirst <= 25) lines.push(vitals.thirst <= 0 ? 'Dehydrated' : 'Thirsty');
+    if (vitals.hunger <= 25) lines.push(vitals.hunger <= 0 ? 'Starving' : 'Hungry');
+    if (vitals.stamina < 15) lines.push('Exhausted');
+    if (data.director?.noise >= 55) lines.push('Loud · infected may investigate');
+    survivalReadout.textContent = lines.join('\n');
+  }
   let lastContinuousWorldRefresh = 0;
   let lastEnvironmentInputRefresh = 0;
   let lastRenderedWorldData = null;
@@ -691,7 +778,8 @@ function boot(host) {
           x:escort.x,z:escort.z,y:terrainElevation(escort.x,escort.z)
         });
       }
-      for (const encounter of (next.encounters || [])) {
+      const nextInfected = wantsContinuous ? visibleInfected(next.encounters || []) : next.encounters || [];
+      for (const encounter of nextInfected) {
         const actor = combatActors.get(encounter.id);
         if (actor) {
           actor.userData.targetX = encounter.x;
@@ -713,10 +801,8 @@ function boot(host) {
       }
     },
     onUnavailable: reason => {
-      // Switching movement protocols must not immediately trigger a legacy 10-unit step.
-      lastStickMoveAt = performance.now();
-      if (status && reason !== 'server_disabled') status.textContent =
-        'Direct walking unavailable (' + reason + '). Restored normal controls.';
+      if (status && reason !== 'returned_to_refuge' && reason !== 'interior_exit') status.textContent =
+        'Direct walking unavailable (' + reason + ').';
     }
   });
   let interiorState = null;
@@ -805,13 +891,15 @@ function boot(host) {
   }
   function enterInterior(landmarkId) {
     const interior = interiorForLandmark(landmarkId); if (!interior) return;
-    void postInteriorAction('enter', { landmarkId });
+    void postInteriorAction('enter', { landmarkId, ...(wantsContinuous ? { doorway: true } : {}) });
   }
   function leaveInterior() {
     void postInteriorAction('leave', {});
   }
   async function postInteriorAction(action, payload) {
     if (!token()) { setInteriorStatus('Sign in before exploring interiors.'); return null; }
+    if (moving) return null;
+    moving = true;
     try {
       const response = await fetch(API + '/api/homefront/world/interior/' + action, {
         method: 'POST', headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
@@ -819,16 +907,25 @@ function boot(host) {
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.message || data.error || 'interior_action_failed');
+      if ((action === 'leave' || action === 'enter') && payload.doorway && data.inputProtocol) {
+        gateRevision++;
+        continuousInput.disable('interior_exit');
+      }
       updateWorld(data);
       if (action === 'action' && data.interiorEvent?.kind === 'evidence') void fetchExplorationProgress();
       if (action === 'enter') setInteriorStatus('Interior entered. Room state is saved on the server.');
       else if (action === 'leave') setInteriorStatus('Returned to the street. Interior progress is saved.');
       else if (action === 'action') {
-        const rewardText = (data.interiorReward || []).filter(drop => drop.amount > 0).map(drop => '+' + drop.amount + ' ' + drop.item).join(', ');
+        const drops = data.interiorReward || [];
+        const rewardText = drops.filter(drop => drop.amount > 0).map(drop => '+' + drop.amount + ' ' + drop.item).join(', ');
+        const stored = data.overflowDestination === 'refuge'
+          ? drops.filter(drop => drop.overflow > 0).map(drop => '+' + drop.overflow + ' ' + drop.item).join(', ')
+          : '';
+        showScavengeFeedback(rewardText, stored, data.interiorNoise >= 55);
         setInteriorStatus((data.interiorMessage || 'Interaction complete.') + (rewardText ? ' Found: ' + rewardText + '.' : '') + (data.overflowDestination === 'refuge' ? ' Overflow returned to refuge storage.' : '') + (data.interiorNoise ? ' Noise ' + data.interiorNoise + '/100.' : ''));
       } else if (action === 'door') setInteriorStatus('Door traversed. Room progress saved.');
       return data;
-    } catch (error) { setInteriorStatus('Interior action failed: ' + error.message); return null; }
+    } catch (error) { setInteriorStatus('Interior action failed: ' + error.message); return null; } finally { moving = false; }
   }
   async function performInteriorAction(actionId) {
     const interior = interiorForLandmark(interiorState?.landmarkId);
@@ -988,7 +1085,7 @@ function boot(host) {
       if (key) previousExplorerPositions.set(key, explorer.position.clone());
     }
     clearGroup(playerGroup);
-    const encounters = data.encounters || [];
+    const encounters = wantsContinuous ? visibleInfected(data.encounters || []) : data.encounters || [];
     const activeEncounterIds = new Set();
     for (const e of encounters) {
       activeEncounterIds.add(e.id);
@@ -1006,10 +1103,11 @@ function boot(host) {
         label.position.y = 3.5; actor.add(label);
         const threatRing = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xd84b3e, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));
         threatRing.rotation.x = -Math.PI / 2; threatRing.position.y = 0.045; actor.add(threatRing);
-        actor.userData = { encounterId: e.id, enemyType: e.enemy || '', targetX: e.x, targetZ: e.z, hp: e.hp, body, head, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
+        actor.userData = { encounterId: e.id, parentEncounterId: e.parentEncounterId || e.id, enemyType: e.enemy || '', targetX: e.x, targetZ: e.z, hp: e.hp, body, head, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
         combatActors.set(e.id, actor); combatGroup.add(actor);
       } else {
         actor.userData.encounterId = e.id;
+        actor.userData.parentEncounterId = e.parentEncounterId || e.id;
         actor.userData.enemyType = e.enemy || actor.userData.enemyType || '';
         actor.userData.targetX = e.x; actor.userData.targetZ = e.z;
         if (actor.userData.hp !== e.hp) {
@@ -1121,6 +1219,7 @@ function boot(host) {
         { object: packStrap, baseY: 1.92, phase: 0.04 }
       ];
       const name = labelSprite(p.label || 'Explorer', p.label === 'You' ? '#ffe28a' : '#c8d8df'); name.position.y = 4.7; g.add(name);
+      if (wantsContinuous && isLocalPlayer) name.visible = false;
       playerGroup.add(g);
     }
     // One server-positioned helper per visible account, never a PVP target.
@@ -1392,17 +1491,26 @@ function boot(host) {
     } finally { presencePending = false; }
   }
 
+  let gateRevision = 0;
+  host.addEventListener('homefront:gate-changed', ({ detail }) => {
+    gateRevision++;
+    if (!detail.self) continuousInput.disable('returned_to_refuge');
+    updateWorld(detail);
+    if (detail.self) void fetchWorld();
+  });
+
   async function fetchWorld() {
     if (!token() || moving) { if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.'; return; }
+    const revision = gateRevision;
     try {
       const r = await fetch(API + '/api/homefront/world', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
       await fetchExplorationProgress();
-      updateWorld(data);
+      if (revision === gateRevision) updateWorld(data);
     } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
   }
-  async function combatAction(action, targetId = selectedCombatTargetId) {
+  async function combatAction(action, targetId = selectedCombatTargetId, missPoint = null) {
     if (reloadState) cancelReload('Reload interrupted by combat.');
     if (!token()) { if (combatStatus) combatStatus.textContent = 'Sign in before fighting in the Graveyard.'; return; }
     if (moving) return;
@@ -1411,29 +1519,51 @@ function boot(host) {
     if (attackInfectedButton) attackInfectedButton.disabled = true;
     try {
       const activeTarget = worldData?.selfEncounter || worldData?.encounter || null;
-      const aimPoint = selectedCombatAimPoint && activeTarget && targetId === activeTarget.id
-        ? { x: activeTarget.x, y: selectedCombatAimPoint.y, z: activeTarget.z }
+      const aimTarget = activeTarget?.id === targetId ? activeTarget
+        : activeTarget?.members?.find(member => member.id === targetId);
+      const aimPoint = selectedCombatAimPoint && aimTarget
+        ? { x: aimTarget.x, y: selectedCombatAimPoint.y, z: aimTarget.z }
         : selectedCombatAimPoint;
       const r = await fetch(API + '/api/homefront/world/' + action, {
         method: 'POST',
         headers: { authorization: 'Bearer ' + token(), 'content-type': 'application/json' },
-        body: JSON.stringify(targetId ? { targetId, ...(aimPoint ? { aimPoint } : {}) } : {})
+        body: JSON.stringify(missPoint ? { miss: true } : targetId ? { targetId, ...(aimPoint ? { aimPoint } : {}) } : {})
       });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'combat_failed');
       if (data.combat) {
         authoritativeAimStability = Number.isFinite(data.combat.aimStability) ? data.combat.aimStability : null;
         const hitDetail = { damage: data.combat.damage, hitZone: data.combat.hitZone, killed: data.combat.killed, weaponId: WEAPON_IDS.includes(data.combat.weaponId) ? data.combat.weaponId : equippedWeaponId, hitTargetId: data.combat.hitTargetId, hits: data.combat.hits, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 };
-        window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: hitDetail }));
-        window.dispatchEvent(new CustomEvent('homefront:combat-hit-feedback', { detail: hitDetail }));
+        if (data.combat.missed) {
+          weaponSwingStartedAt = performance.now();
+          weaponSwingUntil = weaponSwingStartedAt + 320;
+          weaponSwingWeaponId = hitDetail.weaponId;
+          if (data.combat.ammoCost > 0) {
+            sfx.weaponFire?.(hitDetail.weaponId);
+            const shooter = worldData?.self;
+            if (missPoint && shooter) {
+              tracerPool?.emit(
+                { x: shooter.x, y: terrainElevation(shooter.x, shooter.z) + 1.35, z: shooter.z },
+                missPoint, TRACER_COLOR[hitDetail.weaponId] || 0xffb45c, 0.095
+              );
+            }
+          }
+        } else {
+          window.dispatchEvent(new CustomEvent('homefront:combat-hit', { detail: hitDetail }));
+          window.dispatchEvent(new CustomEvent('homefront:combat-hit-feedback', { detail: hitDetail }));
+        }
       }
       updateWorld(data);
+      if (wantsContinuous && data.combat?.killed && data.combat.reward) {
+        const { scrap, embers } = data.combat.reward;
+        showFieldToast('Infected down\n+' + scrap + ' scrap · +' + embers + ' Embers');
+      }
       if (data.combat && combatStatus) {
         const result = data.combat;
         const precision = result.aimed ? ' · ADS confirmed (' + Math.round((result.aimStability || 0) * 100) + '% stability)' : (result.aimStability < 0.72 ? ' · weapon settling (' + Math.round((result.aimStability || 0) * 100) + '%)' : '');
         const stamina = Number.isFinite(data.selfSurvival?.stamina) ? Math.round(data.selfSurvival.stamina) : null;
         const fatigue = stamina !== null ? ' · stamina ' + stamina + '/100' + (stamina < 15 ? ' · exhausted: damage reduced' : stamina < 35 ? ' · tiring: damage reduced' : '') : '';
-        combatStatus.textContent = result.killed
+        combatStatus.textContent = result.missed ? (result.ammoCost ? 'Shot missed. Ammo spent: ' + result.ammoCost + '.' : 'Swing missed.') : result.killed
           ? 'Defeated the infected! +' + result.reward.scrap + ' scrap, +' + result.reward.embers + ' Embers (' + result.reward.quality + ').' + fatigue
           : (result.hitZone === 'head' ? 'HEADSHOT! ' : result.hitZone === 'limb' ? 'Limb hit. ' : '') + 'Hit for ' + result.damage + '. Retaliation: ' + result.enemyDamage + '. Ammo spent: ' + result.ammoCost + '.' + fatigue + precision;
       } else if (combatStatus && data.encounter) {
@@ -1474,6 +1604,7 @@ function boot(host) {
       const accepted=(data.loot?.accepted||[]).map(d=>'+'+d.amount+' '+d.item).join(', ');
       const overflow=(data.loot?.overflow||[]).map(d=>d.amount+' '+d.item).join(', ');
       const noiseLevel=Number(data.loot?.noise?.level)||0;
+      showScavengeFeedback(accepted, overflow, noiseLevel >= 55);
       const noiseWarning=noiseLevel>=55?' Loud container! Noise '+noiseLevel+'/100 may pull infected into this block. ':' The container made noise; stay alert for nearby infected. ';
       if (lootStatus) lootStatus.textContent = (accepted ? 'Collected: '+accepted+'. ' : 'Your pack could not accept the supplies. ') + (overflow ? 'Pack full; sent to refuge stores: '+overflow+'. ' : '') + noiseWarning + 'This container will restock after its cooldown.';
     } catch (e) {
@@ -1664,10 +1795,15 @@ function boot(host) {
     document.addEventListener('visibilitychange', () => { if (document.hidden) stopAutoFire(); });
     autoFireButton.addEventListener('contextmenu', event => event.preventDefault());
   }
+  let fireAtReticle;
   const groundHit = ground;
   // Taps arrive from the shared view controller on release, so a drag-to-look never travels.
   const onWorldTap = e => {
     if (e.button === 2 || cameraOrbiting || !worldData?.self || moving) return;
+    if (wantsContinuous) {
+      if (e.pointerType === 'mouse' && e.button === 0) fireAtReticle?.();
+      return;
+    }
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = (e.clientX - rect.left) / rect.width * 2 - 1;
     pointer.y = -(e.clientY - rect.top) / rect.height * 2 + 1;
@@ -1772,7 +1908,7 @@ function boot(host) {
     moveTo(Math.max(-100, Math.min(100, hits[0].point.x)), Math.max(-100, Math.min(100, hits[0].point.z)));
   };
   async function moveTo(x, z) {
-    if (continuousInput.enabled) return false;
+    if (wantsContinuous) return false;
     if (reloadState) cancelReload('Reload interrupted by movement.');
     aiming = false;
     if (aimWeaponButton) { aimWeaponButton.setAttribute('aria-pressed', 'false'); aimWeaponButton.textContent = 'Aim weapon'; }
@@ -1807,6 +1943,7 @@ function boot(host) {
   renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
   renderer.domElement.addEventListener('pointerdown', event => {
     if (event.button !== 2 || masterView !== 'third-person') return;
+    if (wantsContinuous) return; // Preview uses the shared mouse/touch look direction.
     cameraOrbiting = true; cameraPointerId = event.pointerId;
     try { renderer.domElement.setPointerCapture(event.pointerId); } catch {}
     event.preventDefault();
@@ -1831,7 +1968,100 @@ function boot(host) {
   // not a hotkey that can pull the player out of the world during combat.
   const masterView = 'third-person';
   // Third-/first-person toggle (V or the on-canvas button), touch joystick + drag-to-look, pinch zoom.
-  const view = attachViewControls(host, { onTap: onWorldTap, wheel: false });
+  const view = attachViewControls(host, { onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous });
+
+  // The direct-walk preview uses the camera to aim, with no separate target-selection step.
+  let updateWeaponOverlay;
+  if (wantsContinuous) {
+    const reticle = document.createElement('span');
+    reticle.setAttribute('aria-hidden', 'true');
+    reticle.textContent = '+';
+    reticle.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:white;text-shadow:0 1px 4px black;font:24px system-ui;pointer-events:none;z-index:4';
+    host.append(reticle);
+    reticle.hidden = true;
+
+    const fire = document.createElement('button');
+    fire.type = 'button';
+    fire.textContent = 'Fire';
+    fire.style.cssText = 'position:absolute;right:12px;bottom:144px;width:68px;height:64px;z-index:6;touch-action:manipulation';
+    fire.hidden = true;
+    const fieldReload = document.createElement('button');
+    fieldReload.type = 'button';
+    fieldReload.textContent = 'Reload';
+    fieldReload.style.cssText = 'position:absolute;right:12px;bottom:216px;width:68px;height:44px;z-index:6;touch-action:manipulation';
+    fieldReload.hidden = true;
+    fieldReload.addEventListener('pointerdown', event => event.stopPropagation());
+    fieldReload.addEventListener('click', reloadWeapon);
+    host.append(fieldReload);
+    const unavailable = document.createElement('div');
+    unavailable.className = 'hf-movement-status';
+    unavailable.setAttribute('role', 'status');
+    unavailable.style.cssText = 'position:absolute;top:12px;left:50%;transform:translateX(-50%);max-width:70%;padding:8px 12px;background:#1b120de8;color:white;text-align:center;z-index:5;pointer-events:none';
+    unavailable.textContent = 'Direct walking is unavailable on this connection.';
+    unavailable.hidden = true;
+    host.append(unavailable);
+    updateWeaponOverlay = () => {
+      const hideUnavailable = !worldData?.self || continuousInput.enabled;
+      if (unavailable.hidden !== hideUnavailable) unavailable.hidden = hideUnavailable;
+      const hidden = !worldData?.self || !continuousInput.enabled;
+      if (reticle.hidden !== hidden) reticle.hidden = hidden;
+      if (coarsePointer && fire.hidden !== hidden) fire.hidden = hidden;
+      if (coarsePointer) {
+        const magazine = worldData?.selfWeaponMagazine;
+        const canReload = magazine?.weaponId === 'pump_shotgun' || magazine?.weaponId === 'marksman_rifle';
+        const hideReload = hidden || !canReload;
+        if (fieldReload.hidden !== hideReload) fieldReload.hidden = hideReload;
+        const reloadDisabled = !!reloadState || moving || !canReload ||
+          magazine.loaded >= magazine.capacity || !(worldData?.selfInventory?.ammo > 0);
+        if (fieldReload.disabled !== reloadDisabled) fieldReload.disabled = reloadDisabled;
+        const fireLabel = magazine?.capacity > 0 ? 'Fire · ' + magazine.loaded : 'Attack';
+        if (fire.textContent !== fireLabel) fire.textContent = fireLabel;
+      }
+    };
+    host.append(fire);
+
+    fireAtReticle = () => {
+      const active = worldData?.selfEncounter || worldData?.encounter;
+      const self = worldData?.self;
+      if (!view.visible || !self || !token() || moving || !continuousInput.enabled ||
+          document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])')) return;
+
+      pointer.set(0, 0);
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObject(combatGroup, true)
+        .find(entry => entry.object.userData?.combatHitbox);
+      let target = hit?.object;
+      while (target && !target.userData?.encounterId) target = target.parent;
+
+      const walls = interiorCameraOccluders.get(interiorState?.landmarkId) || [];
+      const obstruction = raycaster.intersectObjects(walls.filter(wall => wall.visible), false)[0];
+      if (!hit || !active || active.defeated || active.hp <= 0 ||
+          target?.userData.parentEncounterId !== active.id ||
+          Math.hypot(self.x - target.position.x, self.z - target.position.z) > (active.range || 0) ||
+          (obstruction && obstruction.distance < hit.distance)) {
+        const distance = Math.min(24, obstruction?.distance ?? Infinity, hit?.distance ?? Infinity);
+        const missPoint = raycaster.ray.at(distance, new THREE.Vector3());
+        void combatAction('attack', null, missPoint);
+        return;
+      }
+
+      selectedCombatTargetId = target.userData.encounterId;
+      selectedCombatAimPoint = { x: hit.point.x, y: Math.max(0.05, Math.min(2.7, hit.point.y - target.position.y)), z: hit.point.z };
+      void combatAction('attack', selectedCombatTargetId);
+    };
+
+    fire.addEventListener('pointerdown', event => event.stopPropagation());
+    fire.addEventListener('click', fireAtReticle);
+    window.addEventListener('keydown', event => {
+      if (event.code !== 'KeyR' || event.repeat || event.defaultPrevented ||
+          event.altKey || event.ctrlKey || event.metaKey ||
+          event.target?.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(event.target?.tagName || '') ||
+          !view.visible || !worldData?.self || !continuousInput.enabled ||
+          document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])')) return;
+      event.preventDefault();
+      void reloadWeapon();
+    });
+  }
 
   // In-world contextual interaction (keyboard E / one mobile tap). The real
   // server-authenticated buttons remain the only way gameplay actions execute.
@@ -1843,11 +2073,28 @@ function boot(host) {
   contextPrompt.hidden = true;
   contextPrompt.setAttribute('aria-label', 'Nearby world interaction');
   contextPrompt.style.cssText = 'position:absolute;left:50%;bottom:125px;transform:translateX(-50%);z-index:7;max-width:min(70%,350px);min-height:44px;padding:8px 16px;border:1px solid #efb77e;border-radius:12px;background:#1b120de8;color:#ffe4c5;box-shadow:0 4px 20px #000b;font:700 13px system-ui;cursor:pointer;touch-action:manipulation';
+  if (wantsContinuous && coarsePointer) {
+    contextPrompt.style.maxWidth = 'calc(100% - 176px)';
+    renderer.domElement.style.touchAction = 'none';
+  }
   host.append(contextPrompt);
   const contextControls = {
     enter: enterInteriorButton, loot: lootActionButton, damage: damageEnvironmentButton
   };
   let shownContext = null;
+  function refugeReturnDistance() {
+    const anchor = worldData?.refugeReturn;
+    const self = worldData?.self;
+    if (!self || !anchor || interiorState || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.z)) return Infinity;
+    return Math.hypot(self.x - anchor.x, self.z - anchor.z);
+  }
+  function updateRefugeReturnMarker() {
+    const distance = refugeReturnDistance();
+    refugeReturnMarker.visible = distance > 3 && distance <= 36;
+    if (!refugeReturnMarker.visible) return;
+    const { x, z } = worldData.refugeReturn;
+    refugeReturnMarker.position.set(x, terrainElevation(x, z), z);
+  }
   function availableContext() {
     if (!worldData?.self || !view.visible || moving || !token()) return null;
     // Native exploration controls use only authored, server-authenticated rooms.
@@ -1856,8 +2103,40 @@ function boot(host) {
     if (interiorState) {
       const roomBlueprint = interiorForLandmark(interiorState.landmarkId);
       const roomAnchor = LANDMARKS.find(point => point.id === interiorState.landmarkId);
+      if (wantsContinuous && roomBlueprint?.entryRoom === interiorState.roomId && roomAnchor) {
+        const entry = interiorRoom(roomBlueprint, roomBlueprint.entryRoom);
+        const exitX = roomAnchor.x + entry.x;
+        const exitZ = roomAnchor.z + entry.z + entry.depth / 2;
+        if (Math.hypot(worldData.self.x - exitX, worldData.self.z - exitZ) <= 1.4) {
+          return { id: 'leave-interior', label: 'Step outside' };
+        }
+      }
       const roomTarget = nearestInteriorInteraction(roomBlueprint, interiorState, roomAnchor, worldData.self);
       return roomTarget ? homefrontContextAction({ roomTarget }) : null;
+    }
+    if (wantsContinuous) {
+      for (const interior of INTERIORS) {
+        const landmark = LANDMARKS.find(point => point.id === interior.landmarkId);
+        const entry = interiorRoom(interior, interior.entryRoom);
+        if (!landmark || !entry) continue;
+        const x = landmark.x + entry.x, z = landmark.z + entry.z + entry.depth / 2;
+        if (Math.hypot(worldData.self.x - x, worldData.self.z - z) <= 3) {
+          return { id: 'enter-doorway', targetId: interior.landmarkId, label: 'Enter ' + interior.title };
+        }
+      }
+    }
+    if (refugeReturnDistance() <= 3) return { id: 'return-refuge', label: 'Return to refuge' };
+    if (continuousInput.enabled) {
+      const self = worldData.self;
+      let nearest = null, nearestDistance = 9;
+      for (const node of worldData.world?.lootNodes || []) {
+        const distance = Math.hypot(self.x - node.x, self.z - node.z);
+        if (node.available && distance <= nearestDistance) {
+          nearest = node;
+          nearestDistance = distance;
+        }
+      }
+      if (nearest) return { id: 'nearby-loot', targetId: nearest.id, label: 'Search ' + nearest.label };
     }
     const loot = (worldData.world?.lootNodes || []).find(node => node.id === selectedLootId);
     const environment = (worldData.world?.environmentStructures || [])
@@ -1865,7 +2144,7 @@ function boot(host) {
     const enterTitle = selectedInteriorLandmarkId
       ? (enterInteriorButton?.textContent || '').replace(/^Enter\\s+/, '') : '';
     return homefrontContextAction({
-      canEnter: !!selectedInteriorLandmarkId && !!enterInteriorButton &&
+      canEnter: !wantsContinuous && !!selectedInteriorLandmarkId && !!enterInteriorButton &&
         !enterInteriorButton.hidden && !enterInteriorButton.disabled,
       enterTitle,
       canLoot: !!selectedLootId && !!lootActionButton && !lootActionButton.hidden &&
@@ -1890,6 +2169,23 @@ function boot(host) {
   function activateContextAction() {
     const current = availableContext();
     if (!current || current.id !== shownContext?.id || current.targetId !== shownContext?.targetId) return;
+    if (current.id === 'return-refuge') {
+      host.dispatchEvent(new CustomEvent('homefront:return-to-refuge'));
+      return;
+    }
+    if (current.id === 'enter-doorway') {
+      enterInterior(current.targetId);
+      return;
+    }
+    if (current.id === 'leave-interior') {
+      void postInteriorAction('leave', { doorway: true });
+      return;
+    }
+    if (current.id === 'nearby-loot') {
+      selectedLootId = current.targetId;
+      void collectSelectedLoot();
+      return;
+    }
     if (current.id === 'interior-action') {
       void performInteriorAction(current.targetId);
       return;
@@ -1913,9 +2209,33 @@ function boot(host) {
   });
 
   const lookTarget = new THREE.Vector3();
+  let cameraInitialized = false;
   let lastStickMoveAt = 0;
   let lastFrame = performance.now();
-  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now; tracerPool.update(dt);
+  let sceneWasVisible = true;
+  const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
+    // Keep server polling authoritative, but do no world animation or scenery
+    // work while at the refuge or in a hidden tab. Reset the frame clock above
+    // so returning never applies a large catch-up animation step.
+    if (!view.visible || document.hidden) {
+      releaseMovementControls(view);
+      view.jumpQueued = false;
+      if (sceneWasVisible) {
+        stopAutoFire();
+        if (reloadState) cancelReload('Reload interrupted on leaving the field view.');
+        if (zombieAudioActive) { zombieAudio.stop(); zombieAudioActive = false; }
+        tracerPool.update(1);
+        cameraInitialized = false;
+        sceneWasVisible = false;
+      }
+      // A pending movement acknowledgement may delay the release command.
+      // Retry the neutral step until the existing transport can send it.
+      if (worldData?.self) continuousInput.step({ x: 0, z: 0 }, false, now, 0);
+      requestAnimationFrame(tick);
+      return;
+    }
+    sceneWasVisible = true;
+    tracerPool.update(dt);
     if (!eventToast.hidden && now > eventToastUntil) eventToast.hidden = true;
     if (now - lastAmbientUpdateAt >= AMBIENT_UPDATE_MS) {
       lastAmbientUpdateAt = now;
@@ -1935,7 +2255,7 @@ function boot(host) {
     const ashWind = ambientTarget.windX;
     for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += (Math.sin(now * 0.0003 + i) * 0.12 + ashWind * 0.16) * dt;
       if (ashPositions[j] > 98) ashPositions[j] = -98;
-      if (ashPositions[j] < -98) ashPositions[j] = 98; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) { const travelBlend = 1 - Math.exp(-8 * dt); explorer.position.x += (target.x - explorer.position.x) * travelBlend; explorer.position.y += (target.y - explorer.position.y) * travelBlend; explorer.position.z += (target.z - explorer.position.z) * travelBlend; movingAvatar = Math.hypot(target.x - explorer.position.x, target.z - explorer.position.z) > 0.035; if (movingAvatar) explorer.rotation.y = Math.atan2(target.x - explorer.position.x, target.z - explorer.position.z); } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (explorer.userData.walker) { poseWalker(explorer.userData.walker, now * 0.012, movingAvatar ? 1 : 0, now / 1000); if (explorer.userData.isLocalPlayer) { stepVertical(localJump, dt, 0, view.takeJump(), EXPLORER_SCALE); explorer.userData.walker.position.y = localJump.y; } } if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.72 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; if (piece.userData.tracer) { piece.material.opacity = Math.max(0, piece.userData.life / (piece.userData.maxLife || 0.095)); if (piece.userData.life <= 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } continue; } piece.position.x += (piece.userData.vx || 0) * dt; piece.position.y += (piece.userData.vy || 0) * dt; piece.position.z += (piece.userData.vz || 0) * dt; piece.userData.vy = (piece.userData.vy || 0) - 5.5 * dt; if (piece.rotation) { piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; } if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); else if (piece.material?.opacity != null) piece.material.opacity = Math.max(0, piece.userData.life / 0.075); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainElevation(actor.position.x, actor.position.z);
+      if (ashPositions[j] < -98) ashPositions[j] = 98; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) { const travelBlend = 1 - Math.exp(-8 * dt); explorer.position.x += (target.x - explorer.position.x) * travelBlend; explorer.position.y += (target.y - explorer.position.y) * travelBlend; explorer.position.z += (target.z - explorer.position.z) * travelBlend; movingAvatar = Math.hypot(target.x - explorer.position.x, target.z - explorer.position.z) > 0.035; if (movingAvatar) explorer.rotation.y = Math.atan2(target.x - explorer.position.x, target.z - explorer.position.z); } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (explorer.userData.walker) { poseWalker(explorer.userData.walker, now * 0.012, movingAvatar ? 1 : 0, now / 1000); if (explorer.userData.isLocalPlayer) { stepVertical(localJump, dt, 0, view.takeJump(), EXPLORER_SCALE); explorer.userData.walker.position.y = localJump.y; } } if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.72 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; if (piece.userData.tracer) { piece.material.opacity = Math.max(0, piece.userData.life / (piece.userData.maxLife || 0.095)); if (piece.userData.life <= 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } continue; } piece.position.x += (piece.userData.vx || 0) * dt; piece.position.y += (piece.userData.vy || 0) * dt; piece.position.z += (piece.userData.vz || 0) * dt; piece.userData.vy = (piece.userData.vy || 0) - 5.5 * dt; if (piece.rotation) { piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; } if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); else if (piece.material?.opacity != null) piece.material.opacity = Math.max(0, piece.userData.life / 0.075); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; state.presentedSpeed = Math.hypot(dx, dz) * blend / Math.max(dt, 0.001); actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainElevation(actor.position.x, actor.position.z);
       const impactRemaining = state.impactUntil - now;
       if (impactRemaining > 0) {
         const p = impactRemaining / 300;
@@ -1945,20 +2265,24 @@ function boot(host) {
         actor.rotation.z = (state.impactStyle === 'blunt' ? 0.22 : headshot ? 0.28 : 0.12) * hitPulse * state.impactDirection;
         state.body.scale.y = state.impactStyle === 'blunt' ? 1 - 0.18 * hitPulse : headshot ? 1 - 0.1 * hitPulse : 1;
       } else { actor.rotation.z = 0; state.body.scale.y = 1; }
-      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = Math.atan2(dx, dz); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } }
+      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(dx, dz), dt); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } }
       // Shared Zombies selector/model pilot: at most eight nearby animated rigs, with procedural fallback.
       const localForModels = worldData?.self || { x: 0, z: 0 };
       const modelCandidates = [...combatActors.values()].map(actor => {
         const state = actor.userData;
         const distance = Math.hypot(localForModels.x - actor.position.x, localForModels.z - actor.position.z);
-        const name = String(state.enemyType || '').toLowerCase();
-        const crawler = /crawler|crawl/.test(name), runner = /runner|fast/.test(name), heavy = /brute|juggernaut|heavy|boss/.test(name);
-        return { id: state.encounterId, x: actor.position.x, y: terrainElevation(actor.position.x, actor.position.z), z: actor.position.z, yaw: actor.rotation.y || 0, ty: crawler ? 5 : runner ? 1 : heavy ? 3 : 0, cr: crawler, ch: distance <= 2.7, hp: state.hp };
+        return { id: state.encounterId, x: actor.position.x, y: terrainElevation(actor.position.x, actor.position.z), z: actor.position.z, yaw: actor.rotation.y || 0, ...infectedPresentation(state.enemyType), speed: state.presentedSpeed || 0, ch: distance <= 2.7, hp: state.hp };
       });
       let modeledZombieIds = new Set();
       if (zombieModelPilot) modeledZombieIds = zombieModelPilot.update(modelCandidates, dt, localForModels);
       for (const actor of combatActors.values()) {
         const modeled = modeledZombieIds.has(actor.userData.encounterId);
+      if (wantsContinuous) {
+        const distance = Math.hypot(localForModels.x - actor.position.x, localForModels.z - actor.position.z);
+        actor.userData.label.scale.set(4.8, 0.9, 1);
+        actor.userData.label.visible = actor.userData.hp > 0 && distance >= 5 && distance <= 12;
+        actor.userData.threatRing.visible = false;
+      }
         for (const proxy of [actor.userData.body, actor.userData.head]) {
           if (!proxy) continue;
           const opacity = modeled ? 0 : 1;
@@ -1972,16 +2296,27 @@ function boot(host) {
       }
       if (worldData?.self) {
       const self = worldData.self;
-      if (zombieAudioStarted) {
+      if (zombieAudioStarted && view.visible && !document.hidden) {
         const survival = worldData.selfSurvival || {};
-        const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
-        const audioMe = { x: self.x, y: terrainElevation(self.x, self.z) + activeInteriorElevation(), z: self.z, yaw: localActor?.rotation.y || 0, hp: Number.isFinite(survival.health) ? survival.health : 100, max: 100, alive: survival.health !== 0, down: survival.health === 0 };
-        const audioZombies = (worldData.encounters || []).filter(e => !e.defeated && e.hp > 0).map(e => ({ id: e.id, x: e.x, y: interiorElevationAt(e.x, e.z, terrainElevation(e.x, e.z)), z: e.z, ty: /brute|juggernaut|heavy/i.test(e.enemy || '') ? 3 : /crawler|runner/i.test(e.enemy || '') ? 4 : 0, hp: e.hp, out: false }));
+        const shownSelf = continuousInput.position() || self;
+        camera.getWorldDirection(audioDirection);
+        const audioMe = {
+          x: shownSelf.x, y: terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation(),
+          z: shownSelf.z, yaw: Math.atan2(audioDirection.x, audioDirection.z),
+          hp: Number.isFinite(survival.health) ? survival.health : 100,
+          max: 100, alive: survival.health !== 0, down: survival.health === 0
+        };
+        const audioZombies = [...combatActors.values()].filter(actor => actor.userData.hp > 0).map(actor => ({
+          id: actor.userData.encounterId, x: actor.position.x, y: actor.position.y,
+          z: actor.position.z, ...infectedPresentation(actor.userData.enemyType),
+          hp: actor.userData.hp, out: false
+        }));
         zombieAudio.tick(dt, audioMe, audioZombies, [], 'homefront-local-player');
+        zombieAudioActive = true;
       }
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = walkingCameraHeading(localActor?.rotation.y || 0, cameraYawOffset, view.yaw, continuousInput.enabled);
-      const stick = worldMove(view.move(), heading);
+      const stick = worldMove(view.move(), heading, 0);
       if (continuousInput.enabled && !moving && !(worldData.party && !worldData.party.leader)) {
         continuousInput.step(stick, directSprintRequested(sprintTravel, view.running(), aiming), now, dt);
       }
@@ -1995,6 +2330,16 @@ function boot(host) {
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
       const targetY = terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation();
       const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
+      if (continuousInput.enabled && view.mode === 'third') {
+        // Place the reticle beside the player's shoulder so their body does not obscure aim.
+        const shoulderX = -Math.cos(heading) * 0.9;
+        const shoulderZ = Math.sin(heading) * 0.9;
+        pose.px += shoulderX; pose.lx += shoulderX;
+        pose.pz += shoulderZ; pose.lz += shoulderZ;
+        const aimPitch = cameraPitchOffset + view.pitch * 0.5;
+        const cameraArmLength = Math.hypot(pose.px - pose.lx, pose.pz - pose.lz);
+        pose.py = Math.max(targetY + 0.55, pose.ly - Math.tan(aimPitch) * cameraArmLength);
+      }
       // Only interior wall/closed-door geometry can shorten the camera arm;
       // outdoor scenery, collectibles and player models never affect the view.
       // Bound raycast frequency, particularly for touch/mobile GPUs.
@@ -2037,19 +2382,35 @@ function boot(host) {
         lastCameraOcclusionId = null;
         lastCameraHitDistance = Infinity;
       }
+      if (wantsContinuous && view.mode !== 'first' && !interiorState) {
+        pose.py = Math.max(pose.py, terrainElevation(pose.px, pose.pz) + 0.65);
+      }
+      if (!cameraInitialized) {
+        camera.position.set(pose.px, pose.py, pose.pz);
+        lookTarget.set(pose.lx, pose.ly, pose.lz);
+        cameraInitialized = true;
+      }
       camera.position.x += (pose.px - camera.position.x) * followBlend;
       camera.position.y += (pose.py - camera.position.y) * followBlend;
       camera.position.z += (pose.pz - camera.position.z) * followBlend;
       lookTarget.x += (pose.lx - lookTarget.x) * followBlend; lookTarget.y += (pose.ly - lookTarget.y) * followBlend; lookTarget.z += (pose.lz - lookTarget.z) * followBlend;
       camera.lookAt(lookTarget);
       if (localActor) localActor.visible = view.mode !== 'first';
-      // Preserve the original endpoint outside the explicit direct-walk preview.
-      if (!continuousInput.enabled && stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) {
+      // Destination stepping belongs to the legacy page mode only.
+      if (!wantsContinuous && stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) {
         lastStickMoveAt = now;
         moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10)));
       }
     }
+    if (!worldData?.self) cameraInitialized = false;
+    if (zombieAudioActive && (!worldData?.self || !view.visible || document.hidden)) {
+      zombieAudio.stop();
+      zombieAudioActive = false;
+    }
+    updateRefugeReturnMarker();
     renderContextAction();
+    updateSurvivalReadout(worldData);
+    updateWeaponOverlay?.();
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };
   // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.
   zombieModelPilotLoading = true;
@@ -2062,6 +2423,6 @@ function boot(host) {
     zombieModelPilotLoading = false;
     console.warn('[homefront-graveyard] animated infected unavailable; using procedural infected', error);
   });
-  tick(); loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
+  tick(); if (!wantsContinuous) loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
   setInterval(fetchBuildingPresence, 2400);
 }

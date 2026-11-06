@@ -422,10 +422,11 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const combatAt = Date.now();
           const training = cindersEffects();
           const survivalBeforeAttack = Survival.tick(player.survival, combatAt, training);
-          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), aimTrainingBonus: training.aimStabilityBonus, targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null });
+          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), aimTrainingBonus: training.aimStabilityBonus, targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null, miss: payload?.miss === true && payload.targetId == null && payload.aimPoint == null });
           // Gunfire and melee combat leave a server-recorded noise signature. The next
           // authoritative world tick uses it to attract the local infected director.
           player.noiseLevel = Math.max(player.noiseLevel || 0, Firearms.isFirearmTier(weaponId) ? Firearms.FIREARM_TIERS[weaponId].noise : weaponId === 'pump_shotgun' ? 95 : weaponId === 'marksman_rifle' ? 82 : 62);
+          player.lastWeaponFireAt = combatAt;
           player.lastNoiseAt = combatAt;
           player.noiseX = player.x;
           player.noiseZ = player.z;
@@ -443,7 +444,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           store.save('homefront.json', bases);
           store.save('homefront-world.json', db);
           const rpgAward = outcome.killed ? Rpg.award(store, user.acct, 'kill_infected', { base, now: combatAt }) : null;
-          json(res, 200, { mode: 'homefront-world', rpgAward, ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { killed: outcome.killed, damage: outcome.damage, hitZone: outcome.hitZone, aimed: outcome.aimed, aimStability: outcome.aimStability, adsProgress: outcome.adsProgress, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward, weaponId, hitTargetId: outcome.hitTargetId, rounds: outcome.rounds, hits: outcome.hits }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
+          json(res, 200, { mode: 'homefront-world', rpgAward, ...World.snapshot(db, user.acct), encounter: outcome.encounter, combat: { missed: outcome.missed === true, killed: outcome.killed, damage: outcome.damage, hitZone: outcome.hitZone, aimed: outcome.aimed, aimStability: outcome.aimStability, adsProgress: outcome.adsProgress, enemyDamage: outcome.enemyDamage, ammoCost: outcome.ammoCost, reward: outcome.reward, weaponId, hitTargetId: outcome.hitTargetId, rounds: outcome.rounds, hits: outcome.hits }, inventory: { ...Inventory.normalize(player.inventory), used: Inventory.used(player.inventory), capacity: Inventory.CAPACITY }, base: outcome.base });
           return true;
         }
         case '/api/homefront/world/enter': {
@@ -502,11 +503,25 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         case '/api/homefront/world/interior/enter': {
           const player = db.players[user.acct];
           const now = Date.now();
-          const entered = Interiors.enter(db.interiors, { account: user.acct, player, landmarkId: typeof payload.landmarkId === 'string' ? payload.landmarkId : '', now });
+          const entered = Interiors.enter(db.interiors, { account: user.acct, player, landmarkId: typeof payload.landmarkId === 'string' ? payload.landmarkId : '', doorway: payload.doorway === true, now });
+          if (entered.entryPosition) {
+            const removedObstacleIds = Object.values(db.environmentStructures || {}).filter(item => item.health <= 0).map(item => item.id);
+            removedObstacleIds.push(...Collision.interiorRemovedIds(payload.landmarkId,
+              Interiors.sharedOpenedDoors(db.sharedInteriors, payload.landmarkId, entered.interior.openedDoors)));
+            const { x, z } = entered.entryPosition;
+            if (!Collision.isSafePosition(x, z, { bounds: World.WORLD_SIZE, removedObstacleIds })) throw new Error('no_safe_interior_entry');
+            Object.assign(player, entered.entryPosition);
+          }
           db.interiors = entered.state;
           if (player) player.lastSeen = now;
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors) });
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now),
+            interior: Interiors.publicState(db.interiors, user.acct, db.sharedInteriors),
+            inputProtocol: entered.entryPosition ? {
+              enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1',
+              nextSequence: (player.lastInputSequence ?? -1) + 1,
+              readyInMs: World.inputReadyInMs(player)
+            } : undefined });
           return true;
         }
         case '/api/homefront/world/interior/action': {
@@ -563,11 +578,23 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
         case '/api/homefront/world/interior/leave': {
           const player = db.players[user.acct];
           const now = Date.now();
-          const left = Interiors.leave(db.interiors, { account: user.acct, player, now });
+          const left = Interiors.leave(db.interiors, { account: user.acct, player, doorway: payload.doorway === true, now });
+          if (left.exterior) {
+            const removedObstacleIds = Object.values(db.environmentStructures || {}).filter(item => item.health <= 0).map(item => item.id);
+            const { x, z } = left.exterior;
+            const safe = Collision.findSafePosition(x, z, { bounds: World.WORLD_SIZE, removedObstacleIds });
+            if (!safe) throw new Error('no_safe_interior_exit');
+            Object.assign(player, safe);
+          }
           db.interiors = left.state;
           if (player) player.lastSeen = now;
           store.save('homefront-world.json', db);
-          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: null });
+          const inputProtocol = left.exterior ? {
+            enabled: process.env.HOMEFRONT_CONTINUOUS_MOVEMENT === '1',
+            nextSequence: (player.lastInputSequence ?? -1) + 1,
+            readyInMs: World.inputReadyInMs(player)
+          } : undefined;
+          json(res, 200, { mode: 'homefront-world', ...World.snapshot(db, user.acct, now), interior: null, inputProtocol });
           return true;
         }
         case '/api/homefront/world/pvp': {

@@ -441,7 +441,11 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     topClose.focus({ preventScroll: true });
     if (signedIn()) { await refreshRpgSheet(true); if (!sheet.hidden && tab === t) draw(); }
   }
-  menu.onclick = () => { if (!sheet.hidden) hide(); else void open(tab); };
+  menu.onclick = () => {
+    if (!sheet.hidden) { hide(); return; }
+    const settlementTab = tab === 'build' || tab === 'manage';
+    void open(settlementTab && getWorld()?.self ? 'character' : tab);
+  };
   // Manage: one management panel at a time behind a tab strip.
   const mtabs = el('div', { className: 'hf-mtabs', hidden: true }); mtabs.setAttribute('role', 'tablist');
   hud.after(mtabs);

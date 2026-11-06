@@ -29,7 +29,9 @@ const proc=spawn(process.execPath,['scripts/homefront-preview-gateway.cjs'],{
 let serverLog='';
 proc.stdout.on('data',c=>{serverLog+=c;});
 proc.stderr.on('data',c=>{serverLog+=c;});
-const base='http://localhost:'+port;
+// Loopback is trusted for Secure cookies, but this host does not match the
+// production client's localhost/Fly rules. The gateway must pin same-origin.
+const base='http://127.0.0.1:'+port;
 let browser;
 try{
   let ready=false;
@@ -50,6 +52,7 @@ try{
       viewport,isMobile:phone,hasTouch:phone,serviceWorkers:'block'
     });
     const page=await context.newPage();
+    const activate=(locator,options)=>phone?locator.tap(options):locator.click(options);
     page.on('pageerror',err=>pageErrors.push(name+': '+err.message));
     // A 401 from the initial password challenge is expected; missing
     // optional procedural assets may 404 and fall back. CSP violations and
@@ -197,13 +200,39 @@ try{
         restoredPortrait:true
       }));
     }
-    await page.locator('#hfHud .hf-menu').click();
-    const city=page.getByRole('link',{name:'Return to BURN City'});
-    if(phone)await city.tap();else await city.click();
+    await activate(page.locator('#hfHud .hf-menu'));
+    await activate(page.getByRole('tab',{name:/Build/}));
+    await activate(page.locator('#hfSheet #buildings button').filter({hasText:'Choose placement'}).first());
+    await page.locator('.hf-build-exit').waitFor({state:'visible'});
+    const building=page.waitForResponse(r=>r.request().method()==='POST'&&r.url()===base+'/api/homefront/action');
+    for(const [x,y] of [[.64,.53],[.37,.62],[.64,.70],[.40,.34],[.55,.66]]){
+      if(!(await page.locator('#cancelPlacement').isVisible()))break;
+      await activate(yard,{position:{x:box.width*x,y:box.height*y}});
+    }
+    assert((await building).ok(),'isolated server placed a structure');
+    await activate(page.locator('.hf-build-exit'));
+    const travel=async()=>{
+      await activate(page.locator('#hfHud .hf-menu'));
+      await activate(page.getByRole('tab',{name:/Travel/}));
+    };
+    await travel();
+    const entry=page.waitForResponse(r=>r.request().method()==='POST'&&r.url()===base+'/api/homefront/world/enter');
+    await activate(page.getByRole('button',{name:/Travel to the Wastes/}));
+    assert((await (await entry).json()).self,'isolated server entered the Wastes');
+    await page.locator('#graveyard3d canvas').waitFor({state:'visible'});
+    await page.waitForFunction(()=>document.querySelector('#graveyard3dStatus')?.textContent.includes('3D shared world live'));
+    await travel();
+    const leave=page.waitForResponse(r=>r.request().method()==='POST'&&r.url()===base+'/api/homefront/world/leave');
+    await activate(page.getByRole('button',{name:/Return to Homefront/}));
+    const returned=await (await leave).json();
+    assert(returned.base&&!returned.self,'isolated server returned the player to the refuge');
+    await activate(page.getByRole('button',{name:'Back to refuge',exact:true}));
+    await activate(page.locator('#hfHud .hf-menu'));
+    await activate(page.getByRole('link',{name:'Return to BURN City'}));
     await page.waitForURL(base+'/');
     const reopen=page.getByRole('link',{name:'Reopen Homefront'});
     assert(await reopen.isVisible(),'the game exits to the separate preview entrance');
-    if(phone)await reopen.tap();else await reopen.click();
+    await activate(reopen);
     await page.waitForURL(base+'/arena/homefront.html');
     assert(await page.locator('#homefrontPreviewMarker').isVisible(),'the same preview session can reopen the game');
     await context.close();

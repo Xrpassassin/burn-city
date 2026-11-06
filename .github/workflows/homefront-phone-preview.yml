@@ -20,6 +20,7 @@ jobs:
       - name: Verify password gate and preview-only APIs
         run: |
           bash -n scripts/deploy-homefront-preview.sh
+          bash -n scripts/start-homefront-preview.sh
           node scripts/homefront-preview-gateway.test.mjs
       - name: Install browser
         run: |

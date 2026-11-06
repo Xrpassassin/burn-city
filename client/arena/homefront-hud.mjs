@@ -25,7 +25,7 @@ export function minimapPoints(world, size = 64, span = 120) {
   return out;
 }
 const CSS = `
-body.rpg-hud header{padding:calc(6px + env(safe-area-inset-top)) 12px 6px}body.rpg-hud header .eyebrow{display:none}body.rpg-hud header h1{font-size:18px}body.rpg-hud header .btn{min-height:36px;padding:6px 10px;font-size:13px}
+html:not(.hf-shell) body.rpg-hud header{padding:calc(6px + env(safe-area-inset-top)) 12px 6px}html:not(.hf-shell) body.rpg-hud header .eyebrow{display:none}html:not(.hf-shell) body.rpg-hud header h1{font-size:18px}html:not(.hf-shell) body.rpg-hud header .btn{min-height:36px;padding:6px 10px;font-size:13px}
 body.rpg-hud .wrap{padding:8px 8px 40px}body.rpg-hud #introText{display:none}body.rpg-hud #status{margin:6px 0;padding:6px 10px;font-size:12px}
 body.rpg-hud .rpg-nav{display:none}body.rpg-hud .rpg-nav.hf-talk{display:flex;padding:6px;margin:6px 0}body.rpg-hud .rpg-nav.hf-talk>*:not(#rpgTalk){display:none!important}
 .hf-hud{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;padding:6px 8px;margin:0 0 8px;border:1px solid #a55c3566;border-radius:12px;background:#100b09ee;position:sticky;top:calc(52px + env(safe-area-inset-top));z-index:4}
@@ -123,6 +123,9 @@ body.rpg-hud.hf-playing .hf-card .hf-mtabs{display:flex;flex-wrap:wrap;max-heigh
 body.rpg-hud.hf-playing .hf-card .hf-mtabs button{white-space:normal;text-align:left}
 .hf-build-exit{position:fixed;right:calc(12px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));z-index:20;min-height:44px;padding:9px 14px;border:1px solid #ffb064;border-radius:11px;background:#57240ff2;color:#ffe6c2;font:800 13px system-ui;box-shadow:0 5px 22px #000a}
 .hf-build-exit[hidden]{display:none!important}
+body.rpg-hud.hf-playing.hf-direct-walk #graveyard3d .hf-survival-readout,
+body.rpg-hud.hf-playing.hf-direct-walk #graveyard3d .hf-event-toast,
+body.rpg-hud.hf-playing.hf-direct-walk #graveyard3d .hf-movement-status{top:124px!important}
 body.rpg-hud.hf-playing #world .hf-viewbtn,
 body.rpg-hud.hf-playing #graveyard3d .hf-viewbtn{top:calc(68px + env(safe-area-inset-top))!important}
 @media(max-width:620px){

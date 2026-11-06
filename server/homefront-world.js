@@ -333,6 +333,7 @@ function snapshot(input, acct, now = Date.now()) {
   const viewerParty = party ? p.partyCode : null;
   // Interest management: only self, party members and strangers within INTEREST_RADIUS ever leave the server.
   const visible = visibleAccounts(w, acct, now);
+  const returnSpawn = p && ALL_SPAWNS.find(spawn => spawn.id === p.spawn);
   const nearEncounter = e => !!p && (e.owner === acct || Math.hypot(e.x - p.x, e.z - p.z) <= INTEREST_RADIUS + 10);
   return {
     world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
@@ -350,6 +351,7 @@ function snapshot(input, acct, now = Date.now()) {
     companions: [...visible].filter(id => now - (w.players[id]?.lastSeen || 0) <= PRESENCE_TTL)
       .map(id => Companions.publicCompanion(id,w.players[id])).filter(Boolean),
     self: p ? publicPlayer(acct, p, acct, now, viewerParty) : null,
+    refugeReturn: returnSpawn ? safeSpawnPosition(returnSpawn) : null,
     director: p ? { phase: p.directorState?.phase || 'calm', lastDecision: p.directorState?.lastDecision || 'hold', nextSpawnAt: p.directorState?.nextSpawnAt || 0, noise: Math.round(Math.max(0, (p.noiseLevel || 0) - Math.max(0, now - (p.lastNoiseAt || now)) / 120)) } : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now, viewerParty)) } : null,
     encounters: Object.values(Combat.normalizeEncounters(w.encounters, now)).filter(e => !e.defeated && e.hp > 0 && nearEncounter(e)).map(Combat.publicEncounter),

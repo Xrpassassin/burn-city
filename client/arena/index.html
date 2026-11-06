@@ -44,6 +44,7 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <div id="touch"><div id="tl" style="left:20px"></div><div id="tr" style="right:20px"></div></div><div id="xh" hidden></div><div id="joy" hidden><i id="knob"></i></div><button id="firebtn" hidden>🔥<br>FIRE</button><button id="gear" hidden>⚙</button>
 <div id="set" hidden><b>Settings</b><label>Look sensitivity <input id="sens" type="range" min="0.3" max="2.5" step="0.1"> <span id="sensv"></span></label><label><input id="autof" type="checkbox"> Auto-fire when the crosshair is on a zombie</label><label><input id="lowq" type="checkbox"> Low graphics<span></span></label></div><div id="codhud" hidden></div><div id="prompt" hidden></div><div id="toast"></div><button id="usebtn" hidden>USE</button><button id="swapbtn" hidden>⇄<br>SWAP</button><div id="hurt"></div><div id="over" hidden></div><div id="hint" hidden></div><div id="teampick" hidden style="position:fixed;left:50%;top:44%;transform:translateX(-50%);z-index:6;display:flex;gap:6px;flex-wrap:wrap;justify-content:center"></div><button id="rkstart" hidden style="position:fixed;left:50%;top:60%;transform:translateX(-50%);z-index:6">▶ Start match</button>
 <script type="module">
+import { readZombieStick } from './zombie-stick.mjs';
 import { createHeli } from './heli.js'; import * as THREE from 'three'; import { GameNet, signIn, buy } from './net.js'; import { sfx as SFX } from './sfx.js'; import { confirmPay, receipt, badge, NOTICE, TREASURY } from './paysafe.js'; import { createZombieFX } from './fx.js'; import { createCodWorld } from './cod.js'; import { createZombieAudio } from './zaudio.js'; import { createMusic } from './music.js'; import { buildNftChar, disposeNftChar } from '../js/nftchar.js'; import * as NftPick from '../js/nftpick.js';
 const P = new URLSearchParams(location.search), API = P.get('api') || (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev'), WS = API.replace(/^http/, 'ws');
 const CITY_RETURN = ['airport', 'aegis-pyramid-plaza'].includes(P.get('from'));
@@ -263,7 +264,7 @@ let touchX = null;
 $('#tl').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: -1 }); e.preventDefault(); };
 $('#tr').ontouchstart = e => { if (mode === 'tron') net?.input({ turn: 1 }); e.preventDefault(); };
 // ---- zombie touch controls: floating joystick (left half), swipe-look (right half), big FIRE button ----
-const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 }, look = { id: null, x: 0, y: 0 }, R_JOY = 56, DEAD = 0.15;
+const joy = { id: null, ox: 0, oy: 0, x: 0, y: 0 }, look = { id: null, x: 0, y: 0 }, R_JOY = 56;
 // Fixed joystick option: anchored bottom-left instead of appearing under the thumb. Default on for listed wallets (same signed-in
 // account the city uses, localStorage.bcAcct), otherwise off; anyone can toggle it in Settings (localStorage.bcFixJoy).
 const FIXJOY_DEF = ['ckR0VUVNRlZEaTNLN1RVUUFRTGk2eHhhMVdDZXI4NGRjQQ=='].map(atob);   // Gnasty
@@ -277,10 +278,12 @@ function placeJoy() { const j = $('#joy'); j.classList.toggle('fixed', fixJoy())
 #codhud{top:calc(34px + env(safe-area-inset-top))!important;left:calc(10px + env(safe-area-inset-left))!important;font-size:11px!important;line-height:1.35!important}#codhud b{font-size:16px!important}}`; document.head.appendChild(st);
   const set = $('#set'); if (set) { const lb = document.createElement('label'); lb.innerHTML = '<input id="fixjoy" type="checkbox"> Fixed joystick (bottom-left)'; set.appendChild(lb); const cb = lb.querySelector('input'); cb.checked = fixJoy(); cb.onchange = () => { localStorage.bcFixJoy = cb.checked ? '1' : '0'; placeJoy(); if (zTouchOn()) $('#joy').hidden = !fixJoy(); }; } }
 function zTouchOn() { return mode === 'zombie' && mobile; }
-function setJoy(t) { let dx = t.clientX - joy.ox, dy = t.clientY - joy.oy; const d = Math.hypot(dx, dy), c = Math.min(d, R_JOY);
-  if (d > 0) { dx = dx / d * c; dy = dy / d * c; } $('#knob').style.transform = `translate(${dx}px,${dy}px)`;
-  const m = c / R_JOY, a = m < DEAD ? 0 : (m - DEAD) / (1 - DEAD), k = a * a * (3 - 2 * a) / (m || 1);   // deadzone + smooth analog ramp
-  joy.x = dx / R_JOY * k; joy.y = dy / R_JOY * k; }
+function setJoy(t) {
+  const stick = readZombieStick(t.clientX - joy.ox, t.clientY - joy.oy, R_JOY);
+  $('#knob').style.transform = `translate(${stick.knobX * R_JOY}px,${stick.knobY * R_JOY}px)`;
+  joy.x = stick.x;
+  joy.y = stick.y;
+}
 const zTouch = () => mode === 'zombie' && mobile;
 addEventListener('touchstart', e => { if (!zTouch() || (e.target.closest('button,input,#set,a') && e.target.id !== 'firebtn')) return; e.preventDefault();
   for (const t of e.changedTouches) {

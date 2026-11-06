@@ -91,6 +91,15 @@ assert.ok(noiseDrawn.a.x<40,'recent gunfire pulls infected toward its recorded s
 
 
 assert.equal(noiseDrawn.a.lastKnownX,30,'infected retain the authoritative noise source as their last-known position');
+const quietSource = { x: 0, z: 0, lastNoiseAt: 100500, noiseLevel: 20, noiseX: 0, noiseZ: 0 };
+const unaware = { ...pursuer, x: 40, z: 0, pursuitRadius: 20, lastKnownX: 40, lastKnownZ: 0, lastKnownAt: 100000, investigateUntil: 0 };
+const quiet = C.advance({ encounters: { a: unaware }, players: { a: quietSource }, now: 101000 });
+assert.equal(quiet.a.lastKnownX, 40, 'a distant quiet search does not reveal the player');
+const loud = C.advance({ encounters: { a: unaware }, players: { a: { ...quietSource, noiseLevel: 95 } }, now: 101000 });
+assert.equal(loud.a.lastKnownX, 0, 'gunfire can be heard beyond visual pursuit range');
+const oldNoise = C.advance({ encounters: { a: unaware }, players: { a: { ...quietSource, noiseLevel: 95, lastNoiseAt: 80000 } }, now: 101000 });
+assert.equal(oldNoise.a.lastKnownX, 40, 'expired gunfire does not reveal a new position');
+
 
 // Interior-aware pursuit must batter a closed ordinary door instead of phasing through it.
 const InteriorRules = require('./homefront-interiors');
@@ -105,6 +114,20 @@ const interiorSeed = C.spawn({ encounters: {}, account: interiorAccount, player:
 let interiorEncounter = { ...interiorSeed.encounters[interiorAccount], x: hospital.x, z: hospital.z,
   lastKnownX: interiorPlayer.x, lastKnownZ: interiorPlayer.z, lastKnownAt: 100000, investigateUntil: 0, lastAiAt: 100000,
   members: interiorSeed.encounters[interiorAccount].members.map((m,i)=>({...m,x:hospital.x+i*0.1,z:hospital.z})) };
+const concealedEncounter = { ...interiorEncounter, lastKnownX: hospital.x, lastKnownZ: hospital.z };
+const concealed = C.advance({ encounters: { [interiorAccount]: concealedEncounter },
+  players: { [interiorAccount]: interiorPlayer }, interiors: structuredClone(interiorState), now: 101000 });
+assert.equal(concealed[interiorAccount].lastKnownX, hospital.x, 'a closed door conceals a quiet survivor');
+const heardInside = C.advance({ encounters: { [interiorAccount]: concealedEncounter },
+  players: { [interiorAccount]: { ...interiorPlayer, lastNoiseAt: 100500, noiseLevel: 95, noiseX: interiorPlayer.x, noiseZ: interiorPlayer.z } },
+  interiors: structuredClone(interiorState), now: 101000 });
+assert.equal(heardInside[interiorAccount].lastKnownX, interiorPlayer.x, 'gunfire behind a closed door gives infected a location to investigate');
+const openInterior = structuredClone(interiorState);
+openInterior[interiorAccount].interiors.mercy_hospital.openedDoors = ['ward_door'];
+const seenInside = C.advance({ encounters: { [interiorAccount]: concealedEncounter },
+  players: { [interiorAccount]: { ...interiorPlayer, lastNoiseAt: 100500, noiseLevel: 95, noiseX: hospital.x, noiseZ: hospital.z } },
+  interiors: openInterior, now: 101000 });
+assert.equal(seenInside[interiorAccount].lastKnownX, interiorPlayer.x, 'seeing a survivor takes priority over an earlier sound');
 let interiorEncounters = { [interiorAccount]: interiorEncounter };
 for (let tick = 1; tick <= 8; tick++) {
   interiorEncounters = C.advance({ encounters: interiorEncounters, players: { [interiorAccount]: interiorPlayer }, interiors: interiorState, now: 100000 + tick * 1000 });

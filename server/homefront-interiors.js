@@ -100,19 +100,28 @@ function near(player, landmarkId, radius) {
   return !!point && !!player && Math.hypot(player.x - point.x, player.z - point.z) <= radius;
 }
 function normalizeMutable(input) { return normalize(input); }
-function enter(input, { account, player, landmarkId, now = Date.now() }) {
+function enter(input, { account, player, landmarkId, doorway = false, now = Date.now() }) {
   const catalog = Catalog.interiorForLandmark(landmarkId);
   if (!catalog || !LANDMARKS[landmarkId]) throw new Error('unknown_interior');
   if (!player) throw new Error('not_in_expedition');
   if (!near(player, landmarkId, ENTRY_RADIUS)) throw new Error('too_far_from_interior');
+  let entryPosition = null;
+  if (doorway) {
+    const entry = Catalog.interiorRoom(catalog, catalog.entryRoom);
+    const landmark = LANDMARKS[landmarkId];
+    const x = landmark.x + entry.x, thresholdZ = landmark.z + entry.z + entry.depth / 2;
+    if (Math.hypot(player.x - x, player.z - thresholdZ) > 3) throw new Error('too_far_from_interior_entry');
+    entryPosition = { x, z: thresholdZ - 0.9 };
+  }
   const stateMap = normalizeMutable(input);
   if (!stateMap[account]) stateMap[account] = { activeLandmarkId: null, interiors: Object.create(null) };
   if (!stateMap[account].interiors[landmarkId]) stateMap[account].interiors[landmarkId] = {
     ...Catalog.createInteriorState(landmarkId), doorDamage: {}, updatedAt: now
   };
+  if (doorway) stateMap[account].interiors[landmarkId].roomId = catalog.entryRoom;
   stateMap[account].activeLandmarkId = landmarkId;
   stateMap[account].interiors[landmarkId].updatedAt = now;
-  return { state: stateMap, interior: copy(stateMap[account].interiors[landmarkId]), title: catalog.title };
+  return { state: stateMap, interior: copy(stateMap[account].interiors[landmarkId]), title: catalog.title, entryPosition };
 }
 function requireActive(input, account, player, now) {
   const stateMap = normalizeMutable(input);
@@ -207,11 +216,22 @@ function breachDoor(input, { account, landmarkId, doorId, damage, now = Date.now
   owner.interiors[landmarkId] = state;
   return { state: stateMap, broken, progress };
 }
-function leave(input, { account, player, now = Date.now() }) {
+function leave(input, { account, player, doorway = false, now = Date.now() }) {
   const ctx = requireActive(input, account, player, now);
+  let exterior = null;
+  if (doorway) {
+    const entry = Catalog.interiorRoom(ctx.catalog, ctx.catalog.entryRoom);
+    const landmark = LANDMARKS[ctx.landmarkId];
+    const x = landmark.x + entry.x;
+    const thresholdZ = landmark.z + entry.z + entry.depth / 2;
+    if (ctx.state.roomId !== entry.id || Math.hypot(player.x - x, player.z - thresholdZ) > 1.4) {
+      throw new Error('too_far_from_interior_exit');
+    }
+    exterior = { x, z: thresholdZ + 1 };
+  }
   ctx.owner.activeLandmarkId = null;
   ctx.stateMap[account] = ctx.owner;
-  return { state: ctx.stateMap, left: true };
+  return { state: ctx.stateMap, left: true, exterior };
 }
 // A physical building is one shared world space, NOT one copy per player.
 // Account room/progression remains private; room presence is exposed only for

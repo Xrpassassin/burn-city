@@ -1,0 +1,42 @@
+name: Homefront fullscreen browser acceptance
+on:
+  pull_request:
+    paths:
+      - 'client/arena/homefront*'
+      - 'server/homefront*'
+      - 'scripts/homefront-ui-browser-preview.mjs'
+      - 'scripts/homefront-ui-real-graveyard-browser.mjs'
+      - '.github/workflows/homefront-fullscreen-browser.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fullscreen-chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install browser
+        run: |
+          npm install --prefix "$RUNNER_TEMP/homefront-browser" playwright@1.62.1 --no-audit --no-fund
+          node "$RUNNER_TEMP/homefront-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Check desktop and phone menus
+        run: node scripts/homefront-ui-browser-preview.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
+      - name: Exercise fullscreen opening, live renderer, placement and round trip
+        run: node scripts/homefront-ui-real-graveyard-browser.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: homefront-fullscreen-screenshots
+          path: homefront-ui-browser-output/
+          if-no-files-found: ignore

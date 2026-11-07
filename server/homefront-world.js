@@ -175,6 +175,9 @@ function normalizeWorld(input, now = Date.now()) {
     const magazineWeapon = Object.prototype.hasOwnProperty.call(Combat.WEAPON_MAGAZINE_CAPACITY, magazine.weaponId) ? magazine.weaponId : 'pipe_blade';
     p.weaponMagazine = { weaponId: magazineWeapon, loaded: clamp(magazine.loaded, 0, Combat.WEAPON_MAGAZINE_CAPACITY[magazineWeapon]) };
   }
+  for (const v of Object.values(w.vehicles))if(v.driver&&!w.players[v.driver]){
+    v.driver=null;v.lastDriveAt=0; // no ghost seat lock after an offline player or process restart
+  }
   for (const [code, party] of Object.entries(w.parties)) {
     if (!party || typeof party !== 'object' || !Array.isArray(party.members)) { delete w.parties[code]; continue; }
     party.members = [...new Set(party.members.filter(a => typeof a === 'string'))].slice(0, 4);
@@ -194,7 +197,9 @@ function normalizeWorld(input, now = Date.now()) {
   return w;
 }
 function prune(w, now) {
-  for (const [acct, p] of Object.entries(w.players)) if (now - p.lastSeen > PRESENCE_TTL) delete w.players[acct];
+  for (const [acct, p] of Object.entries(w.players))if(now-p.lastSeen>PRESENCE_TTL){
+    Vehicles.release(w,acct);delete w.players[acct];
+  }
   Travel.prune(w, now);
   for (const [code, party] of Object.entries(w.parties)) {
     // Members at home in a Homefront instance (fresh presence) stay in the party (server/homefront-travel.js).
@@ -786,6 +791,8 @@ function joinParty(input, acct, code, now = Date.now()) {
   if (p.partyCode && w.parties[p.partyCode]) throw new Error('already_in_party');
   if (party.members.length >= 4) throw new Error('party_full');
   party.members.push(acct); p.partyCode = key;
+  // Party regroup may reposition this player, so keep their owned rover parked.
+  Vehicles.release(w,acct);
   const leader = w.players[party.leader];
   if (leader) { p.x = leader.x; p.z = leader.z; p.spawn = leader.spawn; }
   p.lastSeen = now;

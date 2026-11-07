@@ -304,7 +304,7 @@ try {
       const built=page.waitForResponse(response=>response.request().method()==='POST'&&
         response.url().endsWith('/api/homefront/world/vehicle/build'),{timeout:12000});
       await page.keyboard.press('b');
-      const builtResult=await (await built).json().catch(async error=>{
+      const builtResult=await built.then(response=>response.json()).catch(async error=>{
         console.error('ROVER_BUILD_DIAGNOSTICS',JSON.stringify({
           error:String(error),observed:observed.slice(-16),
           world:testState('homefront-world.json')?.players?.[ACCOUNT],

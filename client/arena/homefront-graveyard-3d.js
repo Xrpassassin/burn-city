@@ -751,10 +751,17 @@ function boot(host) {
     else if (p.type === 'medical') color = 0x9fce8a;
     else if (p.type === 'industrial') color = 0xe1b65b;
     const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.8, p.type === 'boss' ? 5.5 : 2.1, 8), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: p.type === 'boss' ? 0.6 : 0.15, transparent: true, opacity: 0.9 }));
-    glow.position.y = p.type === 'boss' ? 2.75 : 1.05; g.add(glow);
+    glow.position.y = p.type === 'boss' ? 2.75 : 1.05;
+    if(wantsContinuous&&p.type==='rescue')glow.visible=false; // survivor, not a glowing quest pillar
+    g.add(glow);
     const pad = new THREE.Mesh(new THREE.CylinderGeometry(p.type === 'boss' ? 5.2 : 3.2, p.type === 'boss' ? 5.2 : 3.2, 0.15, 20), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 }));
-    pad.position.y = 0.1; g.add(pad);
-    const label = labelSprite(p.label, '#' + color.toString(16).padStart(6, '0')); label.position.y = p.type === 'boss' ? 7.1 : 4.0; g.add(label);
+    pad.position.y = 0.1;
+    if(wantsContinuous&&p.type==='rescue')pad.visible=false;
+    g.add(pad);
+    const label = labelSprite(p.label, '#' + color.toString(16).padStart(6, '0'));
+    label.position.y = p.type === 'boss' ? 7.1 : 4.0;
+    if(wantsContinuous&&p.type==='rescue')label.visible=false;
+    g.add(label);
     if (p.type === 'cache') addBox(g, 1.7, 1.2, 1.3, 0, 0.15, 0, mat(0x8c6736));
     if (p.type === 'rescue') {
       addBox(g, 2.8, 1.7, 2.4, 0, 0.15, 0, mat(0x62584a));
@@ -2238,6 +2245,12 @@ function boot(host) {
     onError:message=>{if(message)showFieldToast(message);}
   });
   window.addEventListener('keydown',event=>{
+    if(event.code==='KeyB'&&!event.repeat&&view.visible&&!worldData?.selfVehicle&&
+       worldData?.vehicleEnabled&&!(worldData.world?.vehicles||[]).some(v=>v.mine)&&
+       refugeReturnDistance()<=7&&
+       !/INPUT|TEXTAREA|SELECT/.test(event.target?.tagName||'')){
+      event.preventDefault();void roverAction('build');
+    }
     if(event.code==='KeyC'&&!event.repeat&&view.visible&&!worldData?.selfVehicle&&
        !/INPUT|TEXTAREA|SELECT/.test(event.target?.tagName||'')){
       const me=(worldData?.world?.vehicles||[]).find(v=>v.mine);
@@ -2314,7 +2327,7 @@ function boot(host) {
       const ownRover=(worldData.world?.vehicles||[]).find(v=>v.mine);
       if(ownRover&&Math.hypot(worldData.self.x-ownRover.x,worldData.self.z-ownRover.z)<=3.5)
         return {id:'rover-board',label:'Board scrap rover · charge '+Math.round(ownRover.charge)+'% (C: recharge)'};
-      if(!ownRover&&refugeReturnDistance()<=6)
+      if(!ownRover&&refugeReturnDistance()>3&&refugeReturnDistance()<=6)
         return {id:'rover-build',label:'Assemble scrap rover · 24 scrap + 12 wood'};
     }
     if (refugeReturnDistance() <= 3) return { id: 'return-refuge', label: 'Return to refuge' };

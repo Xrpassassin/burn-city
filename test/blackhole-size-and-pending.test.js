@@ -5,7 +5,7 @@ const src=fs.readFileSync(require('node:path').join(__dirname,'../client/js/amm-
 assert.match(src,/verified \? 2 \+ 13 \* Math\.sqrt/);
 assert.match(src,/pendingIssuer && o\?\.issuer_keys_disabled===true && !!fresh\(o\)/);
 assert.match(src,/rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP-IMM/);
-assert.match(src,/rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-XRPYRO/);
+assert.match(src,/rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-58525079726F0000000000000000000000000000/);
 assert.match(src,/const v = tokOf\(k\), n = N\[k\], on = v\.f > 0, R = singR\(v\.f, v\.st === 'verified'\)/);
 const radius=f=>2+13*Math.sqrt(Math.max(0,Math.min(1,f)));
 assert.ok(radius(.965156)>14);

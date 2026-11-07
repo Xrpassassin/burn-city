@@ -421,10 +421,36 @@ try {
   }
   const placed = await buildReply;
   assert(placed.ok(),'real server accepted structure placement');
-  assert((await placed.json()).base?.structures?.length > 0,'the server returns the updated refuge');
+  const placedBase=(await placed.json()).base;
+  assert(placedBase?.structures?.length > 0,'the server returns the updated refuge');
   await activate(refuge.locator('.hf-build-exit'));
   await refuge.waitForFunction(()=>document.body.classList.contains('rpg-mode-home'));
   assert(await yard.isVisible(),'Finish building restores true third-person refuge');
+  // A tap on the in-world Action button must show its actual target's panel,
+  // not silently render the inspection under the hidden legacy dashboard.
+  // This is an isolated synthetic refuge; teleport only the local test avatar.
+  const built=placedBase.structures[placedBase.structures.length-1];
+  await refuge.evaluate(({x,z})=>{
+    window.__hfYard.player.x=x;
+    window.__hfYard.player.z=z;
+  },{x:built.x,z:built.z});
+  await refuge.waitForFunction(()=>{
+    const prompt=document.getElementById('homefrontInteractionPrompt');
+    return prompt&&!prompt.hidden&&/inspect/i.test(prompt.textContent||'');
+  },null,{timeout:10000});
+  await activate(refuge.locator('#homefrontInteractionPrompt button'));
+  assert(await refuge.locator('#hfSheet').isVisible(),
+    'refuge Action opens the actual fullscreen inspection drawer');
+  assert(await refuge.locator('#hfSheet #structureInspection').isVisible(),
+    'built structure inspection is visible, not behind the scene');
+  assert(await refuge.locator('#hfSheet .hf-tabs').isHidden(),
+    'unrelated HUD tabs disappear while a structure is inspected');
+  await refuge.screenshot({path:out+'/'+refugeName+'-refuge-action-inspection.png'});
+  await activate(refuge.locator('#hfSheet #structureInspection button').filter({hasText:'Close inspection'}));
+  assert(await refuge.locator('#hfSheet').isHidden(),
+    'closing Action inspection returns to the live camera');
+  assert(await yard.isVisible(),
+    'Action inspection does not unmount or replace the world renderer');
   await activate(refuge.locator('#hfHud .hf-menu'));
   await activate(refuge.locator('#hfSheet .hf-tabs button').filter({hasText:'Manage'}));
   assert(await refuge.locator('#hfSheet .hf-mtabs button').count()>=4,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { VIEW_KEY, readViewMode, writeViewMode, nextViewMode, cameraPose, worldMove, walkingCameraHeading, directSprintRequested, releaseMovementControls } from './homefront-view.mjs';
+import { VIEW_KEY, readViewMode, writeViewMode, nextViewMode, cameraPose, worldMove, walkingCameraHeading, lookDragAngles, directSprintRequested, releaseMovementControls } from './homefront-view.mjs';
 
 const mem = new Map(); const storage = { getItem: k => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)) };
 assert.equal(readViewMode(storage), 'third', 'third-person is the default view');
@@ -19,6 +19,20 @@ const fp = cameraPose({ ...at, mode: 'first' });
 assert.ok(Math.abs(fp.py - (at.y + 1.62)) < 1e-9 && Math.hypot(fp.px - at.x, fp.pz - at.z) < 0.2, 'first-person camera sits at eye height on the character');
 const tp = cameraPose({ ...at, mode: 'third' });
 assert.ok(Math.hypot(tp.px - at.x, tp.pz - at.z) > 3, 'third-person camera sits behind the character');
+const lookLeft = lookDragAngles(0, 0, -60, 0);
+assert.ok(lookLeft.yaw < 0, 'dragging left turns the camera left');
+assert.ok(lookDragAngles(0, 0, 0, 60).pitch < 0, 'dragging downward looks down');
+const lookRight = lookDragAngles(0, 0, 60, 0);
+assert.ok(lookRight.yaw > 0 && (() => { const camera = cameraPose({ mode: 'third', heading: lookRight.yaw }); return camera.lx - camera.px > 0; })(),
+  'rightward mouse/touch drag turns the third-person camera right in the yard and Wastes');
+const lookUp = lookDragAngles(0, 0, 0, -60);
+assert.ok(lookUp.pitch > 0, 'upward touch/mouse drag increases view pitch');
+assert.ok(cameraPose({ mode: 'first', pitch: lookUp.pitch }).ly > cameraPose({ mode: 'first', pitch: 0 }).ly,
+  'upward drag looks up in first person');
+assert.ok(cameraPose({ mode: 'third', pitch: lookUp.pitch }).py < cameraPose({ mode: 'third', pitch: 0 }).py,
+  'upward drag raises third-person gaze by lowering the trailing camera');
+assert.ok(lookDragAngles(0, 0.69, 0, -500).pitch <= 0.7,
+  'look input cannot flip the camera vertically');
 const build = cameraPose({ ...at, mode: 'first', building: true });
 assert.equal(build.kind, 'construction', 'building overrides either walking view');
 assert.ok(build.py - build.ly > 20 && Math.hypot(build.lx - build.px, build.lz - build.pz) < 0.1, 'construction is the only straight-down view');

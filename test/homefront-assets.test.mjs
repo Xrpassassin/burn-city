@@ -60,4 +60,20 @@ assert.ok(html.includes('function nearbySurvivor()') && html.includes('function 
 assert.ok(html.includes("$('rpgTalk').onclick=showNearbySurvivor"), 'the contextual talk action opens survivor interaction');
 assert.ok(html.includes("constructionPaused=homefrontMode==='workshop'"), 'placing a structure does not unexpectedly exit Workshop mode');
 assert.ok(html.includes('Walk up to a survivor and choose Talk') && html.includes('Walk to the gate to enter the Graveyard'), 'first-visit tutorial teaches the RPG interaction loop');
+assert.ok(html.includes('#homefrontInteractionPrompt[hidden]{display:none!important}'),
+  'hidden base Action prompt must not overlap the camera input region');
+assert.ok(html.includes("interactionPrompt.addEventListener(type,e=>e.stopPropagation())"),
+  'base Action taps do not bubble into the look gesture handler');
+assert.ok(html.includes("homefrontMode!=='home'||constructionView"),
+  'base Action is suppressed outside refuge exploration');
+assert.ok(html.includes("hud?.inspect?.(panel,survivor.name||'Survivor')") &&
+  html.includes("hud?.inspect?.(panel,'Farm plot')") &&
+  html.includes("hud?.inspect?.(panel,title.textContent)"),
+  'survivors, crops, and structures open their corresponding on-screen inspection');
+assert.ok(html.includes("if(e&&(e.__homefrontInspected||yardView?.dragging))return"),
+  'looking around cannot trigger base inspections on pointer release');
+assert.ok(html.includes("e.__homefrontInspected=true") && !html.includes("e.stopImmediatePropagation()"),
+  'world-object selection does not swallow pointer-up before the camera can release its drag');
+assert.ok(html.includes("function closeRefugeInspection(panel)"),
+  'inspection close and server-backed actions restore the fullscreen camera');
 console.log('Homefront CC0 GLB asset checks passed.');

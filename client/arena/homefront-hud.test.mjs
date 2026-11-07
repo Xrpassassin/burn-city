@@ -17,6 +17,14 @@ const hud = fs.readFileSync(new URL('./homefront-hud.mjs', import.meta.url), 'ut
 assert.ok(html.includes('body:not(.rpg-mode-workshop) #buildPanel{display:none!important}'), 'page hides the build panel outside workshop mode');
 assert.ok(/getElementById\('buildPanel'\)\?\.classList\.toggle\('hf-tab-off', mode !== 'workshop'\)/.test(hud), 'HUD hides the build panel outside workshop mode');
 assert.ok(hud.includes('.hf-mtabs[hidden]{display:none}'), 'manage tab strip honours [hidden] (display:flex would override it)');
+assert.ok(hud.includes('.hf-tabs[hidden]{display:none!important}'), 'inspection drawer hides the unrelated menu tabs');
+assert.match(hud, /function inspect\(node, label = 'Inspection'\)/,
+  'refuge actions can open the existing fullscreen drawer instead of a hidden page section');
+assert.match(hud, /if \(!node \|\| !node\.parentNode \|\| getMode\(\) !== 'home' \|\| getWorld\(\)\?\.self\) return false/,
+  'inspection cannot bypass refuge scope or read world-side panels');
+assert.match(hud, /return \{ open, inspect, update, hide, element: hud, sheet \}/,
+  'Homefront exposes the inspection handoff through the HUD instance');
+
 // Every top-level panel must sit inside .grid, or the page's mode rules (.grid>.panel) miss it (the stray </div> bug).
 const grid = html.slice(html.indexOf('<div class="grid">'));
 let depth = 0, closedAt = -1;
@@ -34,7 +42,7 @@ assert.ok(hud.includes("document.getElementById(actionButtonId)?.click()"),
   'quick-use buttons use established authenticated survival actions');
 assert.ok(hud.includes("packButton.setAttribute('aria-label', 'Open field backpack')"),
   'mobile players have an accessible backpack toggle alongside the existing HUD');
-assert.ok(hud.includes("if (!sheet.hidden && tab === 'inventory' && lastPackKey !== fieldPackKey(world?.selfInventory)) draw();"),
+assert.ok(hud.includes("if (!inspectionTitle && !sheet.hidden && tab === 'inventory' && lastPackKey !== fieldPackKey(world?.selfInventory)) draw();"),
   'open backpack updates on authoritative loot or survival changes without per-frame redraws');
 assert.ok(hud.includes("if (!sheet.hidden && tab === 'inventory') hide();"),
   'I keyboard toggle and backpack button can close the same single overlay');

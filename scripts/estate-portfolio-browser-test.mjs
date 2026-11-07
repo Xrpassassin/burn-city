@@ -34,6 +34,8 @@ try{for(const viewport of [{width:1280,height:800},{width:390,height:844},{width
  await page.waitForFunction(()=>window.__estatePortfolio);await page.evaluate(()=>window.__estatePortfolio.ready);
  await page.getByText('Property sales are open.',{exact:true}).waitFor();
  await page.getByText('New purchases: 99% allocated to IMG/RLUSD',{exact:false}).waitFor();
+ // Portfolio cards live behind the marketplace's My properties tab.
+ await page.getByRole('tab',{name:'My properties',exact:true}).click();
  await page.locator('[data-owned-property="trailer-01"]').waitFor();
  assert.equal(await page.locator('#owned-properties').textContent().then(s=>s.includes('36.000000 IMG/h')),true);
  assert.equal(await page.locator('#wallet-history').textContent().then(s=>s.includes('0.012345 XRP')),true,'show actual converted wallet delivery');

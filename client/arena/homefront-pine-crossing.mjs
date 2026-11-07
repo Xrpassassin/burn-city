@@ -14,6 +14,14 @@ export const PINE_CROSSING_BUILDINGS = Object.freeze([
 ]);
 export const pineCrossingBuilding = id => PINE_CROSSING_BUILDINGS.find(building => building.id === id);
 
+// Solid roadside scenery is shared with server collision. Main Street and
+// the woodland trail retain a continuous lane past these shoulder obstacles.
+export const PINE_ROADSIDE_SITES = Object.freeze([
+  { id: 'pine-deadfall', kind: 'deadfall', x: -40.5, z: -57, halfX: 1.9, halfZ: 0.44 },
+  { id: 'pine-abandoned-pickup', kind: 'pickup', x: -36.5, z: -38.7, halfX: 2.2, halfZ: 1 },
+  { id: 'pine-evacuation-barrier', kind: 'barrier', x: -21.5, z: -39.1, halfX: 2.05, halfZ: 0.57 }
+]);
+
 const PINE_SOUND_SOURCES = [
   { id: 'north-pines', kind: 'canopy', x: -25, z: -77, height: 4, radius: 15 },
   { id: 'logging-pines', kind: 'canopy', x: -41, z: -65, height: 4.5, radius: 15 },
@@ -96,7 +104,9 @@ export const PINE_CROSSING_TREES = Object.freeze((() => {
     const inParcel = PINE_CROSSING_BUILDINGS.some(building =>
       x > building.x - 3.6 && x < building.x + 8.4 && Math.abs(z - building.z) < 3.6);
     const inTownClearing = z >= -46 && z <= -37;
-    if (inParcel || inTownClearing || pineRouteDistance(x, z) < 1.6 ||
+    const atRoadsideSite = PINE_ROADSIDE_SITES.some(site =>
+      Math.abs(x - site.x) < site.halfX + 0.6 && Math.abs(z - site.z) < site.halfZ + 0.6);
+    if (inParcel || inTownClearing || atRoadsideSite || pineRouteDistance(x, z) < 1.6 ||
         nearestPineCreek(x, z).distance < 1.35 || jitter(gx, gz, 3) < 0.22) continue;
     const height = 4.1 + jitter(gx, gz, 4) * 4.5;
     trees.push({ id: 'pine:' + gx + ',' + gz, x, z, height, radius: 0.24 + height * 0.023,

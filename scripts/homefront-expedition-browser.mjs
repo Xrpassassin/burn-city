@@ -283,6 +283,17 @@ try {
   const pineCrossing = process.env.HOMEFRONT_EXPEDITION_PINE === '1';
   if (pineCrossing) await page.evaluate(async () => {
     const { sfx } = await import('/arena/sfx.js');
+    const { Object3D } = await import('/arena/vendor/three.module.min.js');
+    const environment = window.pineEnvironmentProbe = {};
+    const expected = new Set(['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier',
+      'pine-cracked-asphalt', 'pine-roadside-grass', 'pine-crows']);
+    const add = Object3D.prototype.add;
+    Object3D.prototype.add = function (...objects) {
+      const result = add.apply(this, objects);
+      for (const object of objects) if (expected.delete(object?.name)) environment[object.name] = object.count ?? true;
+      if (expected.size === 0) Object3D.prototype.add = add;
+      return result;
+    };
     const probe = window.fieldAudioProbe = { surfaces: [], cues: [], windStarts: 0, windStops: 0, creekPeak: 0, creekStops: 0 };
     const cue = sfx.fieldCue;
     sfx.fieldCue = (kind, ...position) => {
@@ -428,7 +439,14 @@ try {
         'the road shoulder yields supplies between buildings');
     }
     if (process.env.HOMEFRONT_PINE_SCREENSHOT) {
+      await walkTo([-36.5, -43]);
+      const view = page.locator('#graveyard3d .hf-viewbtn');
+      const thirdPerson = (await view.getAttribute('aria-pressed')) !== 'true';
+      if (thirdPerson) await activate(view);
+      // Let the first-person camera clear the storefront behind the player.
+      await page.waitForTimeout(350);
       await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
+      if (thirdPerson) await activate(view);
     }
     await page.waitForFunction(() => window.fieldAudioProbe.cues.includes('canvas'), null, { timeout: 6000 });
     for (const building of PINE_CROSSING_BUILDINGS) {
@@ -469,6 +487,12 @@ try {
     assert.ok(audio.windStarts > 0, 'outdoor wind starts in the field');
     assert.ok(audio.creekPeak > 0.14, 'creek grows audible on the return trail');
     assert.ok(audio.creekStops > 0, 'creek audio stops at the refuge');
+    const environment = await page.evaluate(() => window.pineEnvironmentProbe);
+    for (const site of ['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier', 'pine-cracked-asphalt']) {
+      assert.equal(environment[site], true, site + ' was attached to the world scene');
+    }
+    assert.ok(environment['pine-roadside-grass'] > 0, 'shoulder growth is instanced in the scene');
+    assert.equal(environment['pine-crows'], 8, 'four crows use a single wing batch');
     for (const surface of ['gravel', 'asphalt', 'dirt', 'wood']) {
       assert.ok(audio.surfaces.includes(surface), 'footsteps respond to ' + surface);
     }

@@ -627,7 +627,7 @@ function boot(host) {
     }
     return groundPositions.getZ(a + stride + 1) * (tx + tz - 1) + topRight * (1 - tz) + bottomLeft * (1 - tx);
   }
-  const updatePineCreek = addPineCrossingScenery(THREE, cityChunkAt, renderedGroundAt);
+  const updatePineScenery = addPineCrossingScenery(THREE, cityChunkAt, renderedGroundAt);
   let seed = 8675309;
   const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   for (let x = -90; x <= 90; x += 10) for (let z = -90; z <= 90; z += 10) {
@@ -2380,7 +2380,7 @@ function boot(host) {
     }
     sceneWasVisible = true;
     view.refreshCrouch?.();
-    updatePineCreek(dt);
+    updatePineScenery(dt);
     tracerPool.update(dt);
     if (!eventToast.hidden && now > eventToastUntil) eventToast.hidden = true;
     if (now - lastAmbientUpdateAt >= AMBIENT_UPDATE_MS) {

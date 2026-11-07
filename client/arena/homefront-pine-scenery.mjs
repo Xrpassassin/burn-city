@@ -1,6 +1,6 @@
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/three/examples/jsm/utils/BufferGeometryUtils.js';
-import { PINE_CREEK, PINE_CROSSING_ROUTES, PINE_CROSSING_TREES, pineRouteDistance } from './homefront-pine-crossing.mjs';
+import { PINE_CREEK, PINE_CROSSING_ROUTES, PINE_CROSSING_TREES, PINE_ROADSIDE_SITES, pineRouteDistance } from './homefront-pine-crossing.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 
 const ROAD_COLORS = { gravel: 0x766c56, dirt: 0x574933, asphalt: 0x414343 };
@@ -27,7 +27,8 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
         const wx = x - dz / span * half * side, wz = z + dx / span * half * side;
         vertices.push(wx, groundAt(wx, wz) + ROAD_OFFSETS[route.surface], wz);
         const shade = 1 + Math.sin(i * 17.17) * 0.065 - Math.abs(side) * 0.15;
-        colors.push(color.r * shade, color.g * shade, color.b * shade);
+        const moss = Math.abs(side) * Math.max(0, Math.sin(i * 0.22)) * 0.25;
+        colors.push(color.r * shade * (1 - moss), color.g * shade, color.b * shade * (1 - moss));
       }
       if (i === 0) return;
       for (let column = 0; column < 4; column++) {
@@ -44,6 +45,7 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
     ribbon.name = 'pine-road:' + route.id;
     chunkAt(...route.points[Math.floor(route.points.length / 2)]).add(ribbon);
   }
+  addRoadsideDressing(THREE, chunkAt, groundAt);
 
   const postGeometry = new THREE.BoxGeometry(0.13, 1.65, 0.13);
   const postMaterial = new THREE.MeshStandardMaterial({ color: 0x544b39, roughness: 1 });
@@ -133,7 +135,191 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
     brush.computeBoundingSphere();
     group.add(trunks, crowns, brush);
   }
-  return addPineCreek(THREE, chunkAt, groundAt);
+  const updateCreek = addPineCreek(THREE, chunkAt, groundAt);
+  const updateCrows = addPineCrows(THREE, chunkAt(-36, -58));
+  return dt => { updateCreek(dt); updateCrows(dt); };
+}
+
+function addPineCrows(THREE, chunk) {
+  const wing = new THREE.BufferGeometry();
+  wing.setAttribute('position', new THREE.Float32BufferAttribute([
+    0, 0, -0.18, 0.31, 0, -0.12, 0.59, 0, 0,
+    0, 0, -0.18, 0.59, 0, 0, 0, 0, 0.18
+  ], 3));
+  const flock = new THREE.InstancedMesh(wing, new THREE.MeshBasicMaterial({ color: 0x242a26, side: THREE.DoubleSide }), 8);
+  flock.name = 'pine-crows';
+  flock.frustumCulled = false;
+  chunk.add(flock);
+  const root = new THREE.Object3D(), hinge = new THREE.Object3D();
+  root.add(hinge);
+  let clock = 0;
+  return dt => {
+    if (!chunk.visible) return;
+    clock += dt;
+    for (let bird = 0; bird < 4; bird++) {
+      const angle = clock * 0.27 + bird * 0.17;
+      const radius = 11 + bird * 1.2;
+      root.position.set(-36 + Math.cos(angle) * radius, 10.5 + bird * 0.53 + Math.sin(angle * 2) * 0.7,
+        -58 + Math.sin(angle) * radius);
+      root.rotation.set(0, -angle, 0.13);
+      const flap = (0.2 + 0.35 * Math.sin(clock * 0.94 + bird) ** 2) * Math.sin(clock * 12 + bird);
+      for (const side of [-1, 1]) {
+        hinge.rotation.set(0, side < 0 ? Math.PI : 0, side * flap, 'ZYX');
+        root.updateMatrixWorld(true);
+        flock.setMatrixAt(bird * 2 + (side > 0 ? 1 : 0), hinge.matrixWorld);
+      }
+    }
+    flock.instanceMatrix.needsUpdate = true;
+  };
+}
+
+function addRoadsideDressing(THREE, chunkAt, groundAt) {
+  const material = color => new THREE.MeshStandardMaterial({ color, roughness: 0.92 });
+  const bark = material(0x4b4035), cutWood = material(0x7a6247), moss = material(0x545d37);
+  const paint = material(0x53594e), rust = material(0x74503b), rubber = material(0x292924);
+  const glass = material(0x273637), frame = material(0x414643), concrete = material(0x757267);
+  const reflector = material(0x968354), lamp = material(0x8c825c);
+  const box = (group, mat, w, h, d, x, y, z) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    mesh.position.set(x, y, z);
+    group.add(mesh);
+    return mesh;
+  };
+  const cylinder = (group, mat, top, bottom, length, x, y, z, axis) => {
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, length, 9), mat);
+    mesh.position.set(x, y, z);
+    mesh.rotation[axis] = Math.PI / 2;
+    group.add(mesh);
+    return mesh;
+  };
+  for (const site of PINE_ROADSIDE_SITES) {
+    const group = new THREE.Group();
+    group.name = site.id;
+    group.position.set(site.x, groundAt(site.x, site.z), site.z);
+    if (site.kind === 'deadfall') {
+      cylinder(group, bark, 0.32, 0.41, 3.76, 0, 0.34, 0, 'z');
+      cylinder(group, cutWood, 0.27, 0.27, 0.07, -1.86, 0.34, 0, 'z');
+      for (const [x, angle] of [[-1.02, -0.4], [0.2, 0.38], [1.1, -0.64]]) {
+        cylinder(group, bark, 0.045, 0.16, 0.62, x, 0.6, 0.04, 'z').rotation.z = angle;
+      }
+      for (const [x, w, z] of [[-1.16, 0.63, 0.06], [0.12, 1.1, -0.06], [1.24, 0.45, 0.09]]) {
+        box(group, moss, w, 0.065, 0.19, x, 0.68, z).rotation.x = z;
+      }
+    } else if (site.kind === 'pickup') {
+      box(group, frame, 4.26, 0.21, 1.66, 0, 0.44, 0);
+      box(group, paint, 4.12, 0.4, 1.75, 0, 0.71, 0);
+      box(group, paint, 1.4, 0.2, 1.74, 1.38, 0.99, 0);
+      box(group, paint, 1.39, 0.11, 1.54, 0.16, 1.78, 0);
+      for (const x of [-0.47, 0.8]) for (const z of [-0.7, 0.7]) {
+        box(group, frame, 0.11, 0.79, 0.1, x, 1.38, z).rotation.z = x > 0 ? 0.20 : 0;
+      }
+      box(group, glass, 0.055, 0.68, 1.35, 0.81, 1.37, 0).rotation.z = 0.20;
+      box(group, frame, 0.11, 0.14, 1.73, 2.11, 0.52, 0);
+      box(group, lamp, 0.05, 0.13, 0.31, 2.08, 0.86, 0.57);
+      box(group, rust, 1.24, 0.29, 0.05, -1.36, 0.91, 0.84);
+      box(group, rust, 0.76, 0.035, 0.39, 1.47, 1.102, -0.38);
+      for (const x of [-1.4, 1.3]) for (const z of [-0.82, 0.82]) {
+        cylinder(group, rubber, 0.36, 0.36, 0.29, x, 0.35, z, 'x');
+      }
+    } else {
+      for (const x of [-1.52, 1.52]) {
+        box(group, concrete, 0.66, 0.24, 0.96, x, 0.12, 0);
+        box(group, frame, 0.12, 1.33, 0.16, x, 0.78, 0);
+      }
+      box(group, concrete, 4, 0.42, 0.44, 0, 0.46, 0);
+      box(group, frame, 3.85, 0.21, 0.13, 0, 1.02, 0).rotation.z = -0.05;
+      for (const x of [-1.52, -0.62, 0.35, 1.4]) {
+        box(group, reflector, 0.28, 0.2, 0.025, x, 1.02 - x * 0.05, -0.071).rotation.z = -0.38;
+      }
+      const notice = signPlaque(THREE, 'EVACUATION HALTED', 1.92, '#6d5235');
+      notice.position.set(0.12, 1.33, -0.12);
+      notice.rotation.y = Math.PI;
+      notice.rotation.z = -0.10;
+      group.add(notice);
+    }
+    chunkAt(site.x, site.z).add(group);
+  }
+
+  const marks = [], colors = [];
+  const marking = new THREE.Color(0x81734f), fracture = new THREE.Color(0x272b26);
+  const strip = (ax, az, bx, bz, width, tint) => {
+    const dx = bx - ax, dz = bz - az, span = Math.hypot(dx, dz);
+    const tx = -dz * width / (2 * span), tz = dx * width / (2 * span);
+    for (const [x, z] of [[ax + tx, az + tz], [bx + tx, bz + tz], [ax - tx, az - tz],
+      [ax - tx, az - tz], [bx + tx, bz + tz], [bx - tx, bz - tz]]) {
+      marks.push(x, groundAt(x, z) + ROAD_OFFSETS.asphalt + 0.022, z);
+      colors.push(tint.r, tint.g, tint.b);
+    }
+  };
+  for (let i = 0; i < 9; i++) {
+    const x = -47.5 + i * 3.25;
+    if (i !== 3 && i !== 6) {
+      strip(x, -43, x + 0.59, -43, 0.09, marking);
+      strip(x + 0.69, -43, x + 1.22, -43, 0.07, marking);
+    }
+    const side = i % 2 === 0 ? -1 : 1;
+    const edge = -43 + side * 2.2, inner = -43 + side * (0.5 + i % 3 * 0.35);
+    strip(x, edge, x + 0.62, (edge + inner) / 2, 0.05, fracture);
+    strip(x + 0.62, (edge + inner) / 2, x + 0.22, inner, 0.035, fracture);
+    strip(x + 0.62, (edge + inner) / 2, x + 1.04, edge - side * 0.44, 0.026, fracture);
+  }
+  const asphalt = new THREE.BufferGeometry();
+  asphalt.setAttribute('position', new THREE.Float32BufferAttribute(marks, 3));
+  asphalt.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  asphalt.computeVertexNormals();
+  const brokenPaint = new THREE.Mesh(asphalt, new THREE.MeshStandardMaterial({
+    vertexColors: true, side: THREE.DoubleSide, roughness: 1
+  }));
+  brokenPaint.name = 'pine-cracked-asphalt';
+  chunkAt(-34, -43).add(brokenPaint);
+
+  // Reuse one grass clump mesh for all shoulder plants and keep it batched by chunk.
+  const clump = new THREE.BufferGeometry(), blades = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = i * 2.4, x = Math.cos(angle), z = Math.sin(angle), height = 0.45 + i * 0.10;
+    blades.push(x * 0.15 - z * 0.052, 0, z * 0.15 + x * 0.052,
+      x * 0.15 + z * 0.052, 0, z * 0.15 - x * 0.052, x * 0.42, height, z * 0.42);
+  }
+  clump.setAttribute('position', new THREE.Float32BufferAttribute(blades, 3));
+  clump.computeVertexNormals();
+  const grassMat = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 1 });
+  const sites = new Map();
+  let serial = 0;
+  for (const { points, width, surface } of PINE_CROSSING_ROUTES.slice(0, 3)) {
+    for (let i = 1; i < points.length; i++) {
+      const [ax, az] = points[i - 1], [bx, bz] = points[i];
+      const dx = bx - ax, dz = bz - az, span = Math.hypot(dx, dz);
+      for (let along = 0.5; along < span; along += 0.78) {
+        for (const side of [-1, 1]) {
+          const id = serial++;
+          const verge = width / 2 + 0.08 + 1.2 * Math.abs(Math.sin(id * 11.73));
+          const x = ax + dx * along / span - side * dz * verge / span;
+          const z = az + dz * along / span + side * dx * verge / span;
+          if (pineRouteDistance(x, z) < 0.05) continue;
+          const chunk = chunkAt(x, z);
+          if (!sites.has(chunk)) sites.set(chunk, []);
+          sites.get(chunk).push({ x, z, id, surface });
+        }
+      }
+    }
+  }
+  const dummy = new THREE.Object3D(), tint = new THREE.Color();
+  for (const [chunk, plants] of sites) {
+    const grass = new THREE.InstancedMesh(clump, grassMat, plants.length);
+    grass.name = 'pine-roadside-grass';
+    plants.forEach(({ x, z, id, surface }, i) => {
+      const growth = 0.27 + 0.52 * Math.abs(Math.cos(id * 4.67));
+      dummy.position.set(x, groundAt(x, z) - 0.01, z);
+      dummy.rotation.y = id * 2.4;
+      dummy.scale.set(growth, growth * (surface === 'asphalt' ? 0.72 : 1), growth);
+      dummy.updateMatrix();
+      grass.setMatrixAt(i, dummy.matrix);
+      tint.setHSL(0.14 + 0.10 * Math.abs(Math.sin(id)), 0.19 + 0.21 * Math.abs(Math.cos(id * 2.31)), 0.22 + 0.13 * growth);
+      grass.setColorAt(i, tint);
+    });
+    grass.computeBoundingSphere();
+    chunk.add(grass);
+  }
 }
 
 function addPineCreek(THREE, chunkAt, groundAt) {

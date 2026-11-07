@@ -2,7 +2,7 @@
 // Deterministic server-side occupancy mirror for Homefront's Graveyard scene.
 // Keep generation constants aligned with client/arena/homefront-graveyard-3d.js.
 const Terrain = require('./homefront-terrain');
-const { inPineCrossing, pineRouteDistance, pineCrossingBuilding, PINE_CROSSING_TREES } =
+const { inPineCrossing, pineRouteDistance, pineCrossingBuilding, PINE_CROSSING_TREES, PINE_ROADSIDE_SITES } =
   require('../client/arena/homefront-pine-crossing.mjs');
 const InteriorRules = require('./homefront-interiors');
 const InteriorCatalog = require('../client/arena/homefront-interior-world.mjs');
@@ -66,6 +66,7 @@ function buildObstacles() {
     }
   }
   for (const { id, x, z, radius } of PINE_CROSSING_TREES) out.push({ id, type: 'circle', x, z, radius });
+  for (const { id, x, z, halfX, halfZ } of PINE_ROADSIDE_SITES) out.push({ id, type: 'rect', x, z, halfX, halfZ });
   // Loot/rescue marker props have solid crates or shelter bodies at their authoritative POI coordinates.
   const poiProps = [
     { id: 'cache_exchange', x: -32, z: 24, type: 'rect', halfX: 1.15, halfZ: 0.95 },

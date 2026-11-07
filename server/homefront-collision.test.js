@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const Collision = require('./homefront-collision');
 const Terrain = require('./homefront-terrain');
+const { PINE_CROSSING_ROUTES, PINE_ROADSIDE_SITES } = require('../client/arena/homefront-pine-crossing.mjs');
 
 assert.ok(Collision.OBSTACLES.length > 100, 'deterministic map occupancy includes buildings and environmental props');
 const building = Collision.OBSTACLES.find(o => o.type === 'rect' && o.id.startsWith('building:') && Math.hypot(o.x, o.z) < 65 &&
@@ -15,6 +16,14 @@ assert.equal(Collision.canTraverse(building.x - building.halfX - 2, building.z, 
   removedObstacleIds: [building.id]
 }), true, 'destroyed structures can be removed from authoritative collision so routes open through the breach');
 assert.equal(Collision.isSafePosition(100, 100), false, 'collision placement also enforces world bounds');
+for (const site of PINE_ROADSIDE_SITES) {
+  assert.equal(Collision.pointBlocked(site.x, site.z)?.id, site.id, 'roadside geometry has server collision');
+}
+for (const { id, points } of PINE_CROSSING_ROUTES) {
+  for (let i = 1; i < points.length; i++) {
+    assert.ok(Collision.canTraverse(...points[i - 1], ...points[i]), id + ' keeps a clear lane past roadside props');
+  }
+}
 
 const water = Collision.OBSTACLES.find(o => o.id.startsWith('water:') && Math.hypot(o.x, o.z) < 85 &&
   Collision.canTraverse(o.x - 3, o.z + 3, o.x - 3, o.z + 3) && Collision.canTraverse(o.x + 3, o.z + 3, o.x + 3, o.z + 3));

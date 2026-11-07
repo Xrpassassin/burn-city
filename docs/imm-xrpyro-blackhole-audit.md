@@ -39,6 +39,25 @@ amount on XRPL, its AMMs, its issuer, or its supply.
 
 XRPL.to reference: https://xrpl.to/token/rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-58525079726F0000000000000000000000000000
 
+## IMM live issuer-obligation visual
+
+The XRPL.to API reported **800,472,463,677,779.76261 IMM** outstanding,
+updated 2026-11-07 03:45:31 UTC. Compared with the project-provided initial
+**888,888,888,888,888 IMM**, this suggests roughly **9.95%** launch-relative
+net supply reduction. These are NOT yet independently reconciled against the
+original minting/issuance history, so the UI uses the word *estimated*.
+
+Like XRPyro, IMM's black-hole radius now takes live outstanding supply only
+when the BURN City issuer service identifies the exact IMM issuer and
+currency, reports a directly sourced `gateway_balances(issuer).obligations`
+figure, verifies the issuer is permanently inaccessible, and returns a
+verified holder scan less than six hours old. It rejects negative amounts,
+amounts exceeding the project launch baseline, mismatched issuer IDs and
+stale/unverified records. A missing record falls back to the existing
+incomplete issuer-return preview, not an invented supply figure.
+
+XRPL.to reference: https://xrpl.to/token/rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP-IMM
+
 ## Conflicting outstanding supply reports
 As inspected on 2026-11-06:
 - IMM: the project dataset reports approximately **800.54 trillion**; XRPL.to reports approximately **800.47 trillion**; XRPLWin shows **1.16 quadrillion**.

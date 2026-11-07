@@ -13,11 +13,11 @@ export function observedBurnPreview({
   const baseline = BASELINES[name];
   if (!baseline || tokenKey !== baseline.key) return null;
 
-  // For XRPyro, prefer live ledger obligations from the verified issuer's
+  // For IMM and XRPyro, prefer live ledger obligations from the verified issuer's
   // gateway_balances entry. The renderer separately validates the issuer,
   // source identity, server freshness, and issuer-key disablement.
   // This *estimate* is launch minus outstanding, not a proof of historical burns.
-  if (name === 'XRPyro' && outstandingSupply !== undefined) {
+  if ((name === 'XRPyro' || name === 'IMM') && outstandingSupply !== undefined) {
     if (outstandingSource !== 'xrpl_gateway_balances' ||
         typeof outstandingSupply !== 'number' ||
         !Number.isFinite(outstandingSupply) ||

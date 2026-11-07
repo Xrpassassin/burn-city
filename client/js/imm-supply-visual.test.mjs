@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {immLedgerOutstanding} from './imm-supply-visual.mjs';
+const issuer='rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP', currency='IMM';
+const tokenKey=issuer+'-'+currency, now=1794020607521;
+const record={issuer,currency,status:'verified',issuer_keys_disabled:true,
+ supply_src:'gateway_balances('+issuer+').obligations',supply:800472463677779.8,t_ms:now};
+const go=(r=record,opts={})=>immLedgerOutstanding({name:'IMM',tokenKey,record:r,now,...opts});
+assert.equal(go(),record.supply);
+assert.equal(go(record,{tokenKey:'wrong'}),null);
+assert.equal(go(record,{name:'XRPyro'}),null);
+assert.equal(go({...record,issuer:'wrong'}),null);
+assert.equal(go({...record,currency:'IMMM'}),null);
+assert.equal(go({...record,issuer_keys_disabled:false}),null);
+assert.equal(go({...record,status:'partial'}),null);
+assert.equal(go({...record,supply_src:'sum of account_lines'}),null);
+assert.equal(go({...record,supply:1e15}),null);
+assert.equal(go({...record,supply:-1}),null);
+assert.equal(go({...record,supply:NaN}),null);
+assert.equal(go({...record,t_ms:now-6*3600e3-1}),null);
+assert.equal(go({...record,t_ms:now+1}),null);
+assert.equal(go({...record,supply:0}),0);
+console.log('IMM current-supply preview validates issuer, currency, source, key status, freshness and launch bounds');

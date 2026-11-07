@@ -5,6 +5,7 @@ on:
       - 'client/js/verified-three-token-blackholes*'
       - 'client/js/observed-burn-preview*'
       - 'client/js/xrpyro-supply-visual*'
+      - 'client/js/imm-supply-visual*'
       - 'client/js/blackhole-radius*'
       - 'client/js/amm-lock.js'
       - 'client/js/verified-ecosystem-supply-visual*'
@@ -24,6 +25,7 @@ jobs:
       - run: node client/js/verified-ecosystem-supply-visual.test.mjs
       - run: node client/js/observed-burn-preview.test.mjs
       - run: node client/js/xrpyro-supply-visual.test.mjs
+      - run: node client/js/imm-supply-visual.test.mjs
       - run: node client/js/blackhole-radius.test.mjs
       - run: node test/blackhole-size-and-pending.test.js
       - run: node test/three-token-live-wiring.test.js

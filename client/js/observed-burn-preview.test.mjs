@@ -33,4 +33,19 @@ assert.equal(supplyPreview({outstandingSupply:1}),null);
 assert.equal(supplyPreview({outstandingSupply:0}).fraction,1);
 const fallback=supplyPreview({outstandingSupply:undefined});
 assert.equal(fallback.status,'indicative_partial_scan');
-console.log('Partial scans and live XRPyro supply preview remain independently labeled and identity-checked');
+
+const immKey='rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP-IMM';
+const immPreview=values=>observedBurnPreview({name:'IMM',tokenKey:immKey,
+  outstandingSource:'xrpl_gateway_balances',outstandingSupply:800472463677779.8,
+  observedReturns:31310513918336.77,transactionCount:13,scanComplete:false,...values});
+const imm=immPreview();
+assert.equal(imm.status,'indicative_outstanding_supply');
+assert.ok(imm.fraction>.09 && imm.fraction<.11);
+assert.equal(imm.baseline,888888888888888);
+assert.equal(imm.outstanding,800472463677779.8);
+assert.equal(immPreview({outstandingSupply:889000000000000}),null);
+assert.equal(immPreview({outstandingSupply:-1}),null);
+assert.equal(immPreview({outstandingSource:'market_data'}),null);
+assert.equal(immPreview({tokenKey:'wrong'}),null);
+assert.equal(immPreview({outstandingSupply:undefined}).status,'indicative_partial_scan');
+console.log('Partial scans and ledger-backed XRPyro/IMM supply estimates remain independently labeled and identity-checked');

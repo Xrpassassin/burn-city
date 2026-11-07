@@ -22,6 +22,8 @@ import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
 import { queueDoorwayTap } from './homefront-context-action-queue.mjs';
+import { buildRoverMesh } from './homefront-rover-mesh.mjs';
+import { createRoverControls } from './homefront-rover-controls.mjs';
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
 import { clipInteriorCamera, interiorCameraProbeOrigins } from './homefront-camera-occlusion.mjs';
 import { applyInteriorVisualLayers } from './homefront-interior-visibility.mjs';
@@ -204,7 +206,24 @@ function boot(host) {
   const environmentVisuals = new Map();
   const environmentStateCache = new Map();
   let activeChunkSignature = '';
-  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, combatGroup, impactGroup);
+  const roverGroup=new THREE.Group(),roverVisuals=new Map();
+  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, combatGroup, impactGroup, roverGroup);
+  function syncRoverMeshes(vehicles=[]){
+    const seen=new Set();
+    for(const v of vehicles){
+      if(v?.type!=='scrap_rover'||!Number.isFinite(v.x)||!Number.isFinite(v.z)||!v.id)continue;
+      seen.add(v.id);
+      let model=roverVisuals.get(v.id);
+      if(!model){model=buildRoverMesh(THREE);model.name=v.id;roverVisuals.set(v.id,model);roverGroup.add(model);}
+      model.position.set(v.x,terrainElevation(v.x,v.z),v.z);
+      model.rotation.y=v.heading||0;
+    }
+    for(const [id,model]of roverVisuals)if(!seen.has(id)){
+      roverGroup.remove(model);
+      model.traverse(n=>{n.geometry?.dispose();n.material?.dispose();});
+      roverVisuals.delete(id);
+    }
+  }
   const tracerPool = createTracerPool(THREE, scene, { max: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 12 : 32 });
   const combatStatus = document.getElementById('combatStatus');
   const lootActionButton = document.getElementById('collectLoot');
@@ -1091,9 +1110,11 @@ function boot(host) {
     worldData = data;
     const respawned = acceptInfectedHit(data);
     lastRenderedWorldData = data;
-    if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
+    if(data.selfVehicle)continuousInput.disable('rover_occupied');
+    else if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
       continuousInput.sync(data.inputProtocol, data.self, performance.now());
     }
+    syncRoverMeshes(data.world?.vehicles||[]);
     if (Object.prototype.hasOwnProperty.call(data, 'interior')) {
       const previousInterior = interiorState;
       const nextInterior = data.interior ? { ...data.interior } : null;
@@ -2113,9 +2134,9 @@ function boot(host) {
     unavailable.hidden = true;
     host.append(unavailable);
     updateWeaponOverlay = () => {
-      const hideUnavailable = !worldData?.self || continuousInput.enabled;
+      const hideUnavailable = !worldData?.self || continuousInput.enabled || !!worldData?.selfVehicle;
       if (unavailable.hidden !== hideUnavailable) unavailable.hidden = hideUnavailable;
-      const hidden = !worldData?.self || !continuousInput.enabled;
+      const hidden = !worldData?.self || !continuousInput.enabled || !!worldData?.selfVehicle;
       if (reticle.hidden !== hidden) reticle.hidden = hidden;
       if (coarsePointer && fire.hidden !== hidden) fire.hidden = hidden;
       if (coarsePointer) {
@@ -2175,6 +2196,56 @@ function boot(host) {
     });
   }
 
+  // Vehicle transport is part of the same world, not a separate game or map.
+  // Every rover action goes to the authenticated server. Touch controls are
+  // displayed only for the driver and have no independent collision authority.
+  async function roverRequest(action,payload={}){
+    if(!worldData?.vehicleEnabled||!token())throw Error('homefront_vehicles_unavailable');
+    const response=await homefrontFetch('/api/homefront/world/vehicle/'+action,{
+      method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await response.json();
+    if(!response.ok||data.error)throw Error(data.error||'vehicle_action_failed');
+    return data;
+  }
+  async function roverAction(action){
+    if(moving)return;
+    moving=true;
+    try{
+      const data=await roverRequest(action);
+      updateWorld(data);
+      const v=data.vehicle;
+      showFieldToast(({
+        build:'Scrap rover assembled · 24 scrap, 12 wood.',
+        board:'Rover ready · WASD or touch arrows to drive.',
+        dismount:'Rover parked · return when you need it.',
+        charge:'Recharged rover battery with 2 scrap.'
+      })[action]||'Rover ready');
+      if(v)roverUI.sync();
+    }catch(error){showFieldToast('Rover: '+String(error?.message||error));}
+    finally{moving=false;}
+  }
+  const roverUI=createRoverControls({
+    host,getSnapshot:()=>worldData,visible:()=>view.visible,
+    send:roverRequest,
+    onSnapshot:data=>{
+      if(!worldData)return;
+      worldData={...worldData,...data,world:{...worldData.world,vehicles:data.world?.vehicles||[]}};
+      syncRoverMeshes(data.world?.vehicles||[]);
+      continuousInput.disable('rover_occupied');
+    },
+    onError:message=>{if(message)showFieldToast(message);}
+  });
+  window.addEventListener('keydown',event=>{
+    if(event.code==='KeyC'&&!event.repeat&&view.visible&&!worldData?.selfVehicle&&
+       !/INPUT|TEXTAREA|SELECT/.test(event.target?.tagName||'')){
+      const me=(worldData?.world?.vehicles||[]).find(v=>v.mine);
+      if(me&&worldData?.self&&Math.hypot(me.x-worldData.self.x,me.z-worldData.self.z)<=3.5&&me.charge<100){
+        event.preventDefault();void roverAction('charge');
+      }
+    }
+  });
   // In-world contextual interaction (keyboard E / one mobile tap). The real
   // server-authenticated buttons remain the only way gameplay actions execute.
   // Never add a second loot, combat, or permission path here.
@@ -2209,6 +2280,8 @@ function boot(host) {
   }
   function availableContext() {
     if (!worldData?.self || !view.visible || moving || !token()) return null;
+    if(worldData.vehicleEnabled && worldData.selfVehicle)
+      return {id:'rover-dismount',label:'Park rover · E'};
     // Native exploration controls use only authored, server-authenticated rooms.
     // Show a target after walking within real reach; do not teleport, auto-loot,
     // or unlock doors based on client data.
@@ -2237,7 +2310,20 @@ function boot(host) {
         }
       }
     }
+    if(worldData.vehicleEnabled&&!interiorState){
+      const ownRover=(worldData.world?.vehicles||[]).find(v=>v.mine);
+      if(ownRover&&Math.hypot(worldData.self.x-ownRover.x,worldData.self.z-ownRover.z)<=3.5)
+        return {id:'rover-board',label:'Board scrap rover · charge '+Math.round(ownRover.charge)+'% (C: recharge)'};
+      if(!ownRover&&refugeReturnDistance()<=6)
+        return {id:'rover-build',label:'Assemble scrap rover · 24 scrap + 12 wood'};
+    }
     if (refugeReturnDistance() <= 3) return { id: 'return-refuge', label: 'Return to refuge' };
+    if(!interiorState&&wantsContinuous){
+      const survivor=(worldData.world?.pointsOfInterest||[]).find(p=>p.type==='rescue'&&
+        !(worldData.world?.rescues?.[p.id]?.readyAt>Date.now())&&
+        Math.hypot(worldData.self.x-p.x,worldData.self.z-p.z)<=5);
+      if(survivor)return {id:'rescue-survivor',targetId:survivor.id,label:'Help stranded survivor · 2 food + 1 ammo'};
+    }
     if (continuousInput.enabled) {
       const self = worldData.self;
       let nearest = null, nearestDistance = 9;
@@ -2298,6 +2384,27 @@ function boot(host) {
     }
     const current = availableContext();
     if (!current || current.id !== shownContext?.id || current.targetId !== shownContext?.targetId) return;
+    if(current.id==='rover-build'){void roverAction('build');return;}
+    if(current.id==='rover-board'){void roverAction('board');return;}
+    if(current.id==='rover-dismount'){void roverAction('dismount');return;}
+    if(current.id==='rescue-survivor'){
+      moving=true;
+      void (async()=>{
+        try{
+          const response=await homefrontFetch('/api/homefront/world/rescue',{
+            method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},
+            body:JSON.stringify({pointId:current.targetId,difficulty:'standard'})
+          });
+          const data=await response.json();
+          if(!response.ok||data.error)throw Error(data.error||'rescue_failed');
+          updateWorld(data);
+          showFieldToast('Survivor rescued · '+(data.encounter?.survivor?.name||'New survivor')+
+            ' is heading toward the refuge. Your supplies have been consumed.');
+        }catch(error){showFieldToast('Survivor: '+String(error.message||error));}
+        finally{moving=false;}
+      })();
+      return;
+    }
     if (current.id === 'return-refuge') {
       host.dispatchEvent(new CustomEvent('homefront:return-to-refuge'));
       return;

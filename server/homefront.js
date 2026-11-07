@@ -93,13 +93,19 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
   const cindersEffects = () => CindersEffects.fromAttributes(Rpg.get(store,user.acct).attributes);
   if (worldRoute) {
     const inputRoute = url.pathname === '/api/homefront/world/move-input';
-    // Deployment flag is server-owned; clients cannot enable experimental movement.
+    const roverInputRoute = url.pathname === '/api/homefront/world/vehicle/drive';
+    // Both preview transports are server-owned flags. Neither flag implies
+    // enabling the other; all control actions remain authenticated.
     if (inputRoute && process.env.HOMEFRONT_CONTINUOUS_MOVEMENT !== '1') {
       json(res, 501, { error: 'continuous_movement_unavailable' }); return true;
     }
-    // A separate bounded input budget avoids relaxing rate limits for inventory,
-    // combat, or other world actions. Short movement bursts still face a world cooldown.
-    const limited = inputRoute
+    if (roverInputRoute && process.env.HOMEFRONT_VEHICLES_ENABLED !== '1') {
+      json(res, 501, { error: 'homefront_vehicles_unavailable' }); return true;
+    }
+    // Steering can send six bounded commands per second. Apply the EXISTING
+    // dedicated movement-input budget to both streams, not the ordinary 120/min
+    // combat, loot and inventory budget. Neither may bypass server cooldown.
+    const limited = inputRoute || roverInputRoute
       ? (gate('homefront-world-input:' + user.acct, 480, 60e3) ||
          gate('homefront-world-input-ip:' + ip, 1440, 60e3))
       : (gate('homefront-world:' + user.acct, 120, 60e3) ||

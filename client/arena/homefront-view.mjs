@@ -31,7 +31,8 @@ export function cameraPose({ mode = 'third', building = false, x = 0, y = 0, z =
     return { kind: 'first', px: x + fx * 0.15, py: ey, pz: z + fz * 0.15, lx: x + fx * Math.cos(p) * 10, ly: ey + Math.sin(p) * 10, lz: z + fz * Math.cos(p) * 10 };
   }
   const d = Math.max(2.5, Math.min(12, distance));
-  const h = Math.max(1.4, Math.min(6, 2.6 + pitch * 6));
+  // Positive pitch looks upward in both first- and third-person views.
+  const h = Math.max(1.4, Math.min(6, 2.6 - pitch * 6));
   return { kind: 'third', px: x - fx * d, py: y + h, pz: z - fz * d, lx: x, ly: y + 1.45 + 0.45, lz: z };
 }
 
@@ -47,6 +48,10 @@ export function worldMove(vec, heading, deadzone = 0.15) {
 // Legacy movement retains the established actor-relative camera behavior.
 export function walkingCameraHeading(actorYaw = 0, orbitYaw = 0, lookYaw = 0, direct = false) {
   return (direct ? 0 : actorYaw) + orbitYaw + lookYaw;
+}
+// Screen-space drag deltas: right turns right, upward drag looks upward.
+export function lookDragAngles(yaw, pitch, dx, dy) {
+  return { yaw: yaw + dx * 0.006, pitch: Math.max(-0.9, Math.min(0.7, pitch - dy * 0.004)) };
 }
 export function directSprintRequested(toggle = false, runPressed = false, aiming = false) {
   return !aiming && !!(toggle || runPressed);
@@ -178,8 +183,9 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
   // Drag to look (left mouse or one finger) and pinch/wheel zoom. A press that never moves is a tap.
   const pts = new Map(); let start = null, pinch0 = 0, dist0 = 0;
   const look = (dx, dy) => {
-    state.yaw -= dx * 0.006;
-    state.pitch = Math.max(-0.9, Math.min(0.7, state.pitch - dy * 0.004));
+    const angles = lookDragAngles(state.yaw, state.pitch, dx, dy);
+    state.yaw = angles.yaw;
+    state.pitch = angles.pitch;
   };
   if (rightDrag) {
     let orbit = null;
@@ -222,6 +228,11 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     if (!start.moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) { start.moved = true; state.dragging = true; }
     if (start.moved) look(dx, dy);
   });
+  // A modal can open mid-gesture (for example by pressing Interact with another
+  // finger). Discard that camera gesture rather than allowing a stuck look drag.
+  const resetLook = () => { pts.clear(); start = null; pinch0 = 0; state.dragging = false; };
+  window.addEventListener('blur', resetLook);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) resetLook(); });
   const up = e => {
     if (!pts.delete(e.pointerId)) return;
     if (start && e.pointerId === start.id) { const tap = !start.moved && e.type === 'pointerup'; const s = start; start = null; setTimeout(() => { state.dragging = false; }, 0); if (tap && onTap) onTap({ clientX: e.clientX, clientY: e.clientY, button: s.button, pointerType: s.type }); }

@@ -297,10 +297,27 @@ try {
       await activate(page.locator('#homefrontInteractionPrompt button'));
       await page.waitForFunction(()=>document.body.classList.contains('rpg-mode-expedition')&&
         document.querySelector('#graveyard3d')?.getClientRects().length>0);
+      // Loading the container isn't proof that the Three.js module has
+      // finished booting and installed its controls; require active gameplay.
+      await page.waitForFunction(()=>document.querySelector('#graveyard3dStatus')?.
+        textContent.includes('direct WASD'),null,{timeout:20000});
       const built=page.waitForResponse(response=>response.request().method()==='POST'&&
         response.url().endsWith('/api/homefront/world/vehicle/build'),{timeout:12000});
       await page.keyboard.press('b');
-      const builtResult=await (await built).json();
+      const builtResult=await (await built).json().catch(async error=>{
+        console.error('ROVER_BUILD_DIAGNOSTICS',JSON.stringify({
+          error:String(error),observed:observed.slice(-16),
+          world:testState('homefront-world.json')?.players?.[ACCOUNT],
+          ui:await page.evaluate(()=>({
+            mode:document.body.className,
+            status:document.querySelector('#graveyard3dStatus')?.textContent,
+            prompt:document.querySelector('#homefrontContextAction')?.textContent,
+            visible:!!document.querySelector('#graveyard3d')?.getClientRects().length,
+            pending:document.querySelector('.hf-movement-status')?.textContent
+          }))
+        }));
+        throw error;
+      });
       assert.equal(builtResult.vehicle?.type,'scrap_rover','B assembles a real salvage rover');
       assert.ok(builtResult.world.vehicles.some(v=>v.mine),'the rover mesh receives authoritative physical state');
       // Move the disposable test account next to its own vehicle only for

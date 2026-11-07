@@ -2,12 +2,12 @@
 // independent authority, or click-to-move. The server owns steering distance,
 // collision, vehicle ownership, charge, and shared visibility.
 export function createRoverControls({
- host, getSnapshot, visible=()=>true, send, onSnapshot, onError=()=>{}
+ host, getSnapshot, visible=()=>true, send, onSnapshot, onResync=async()=>null, onError=()=>{}
 }={}){
  if(!host||typeof getSnapshot!=='function'||typeof send!=='function'||typeof onSnapshot!=='function')
    throw TypeError('Rover controls require host, snapshot and server transport');
  const held=new Set();
- let busy=false,sequence=0,activeId=null;
+ let busy=false,sequence=0,activeId=null,failedAcks=0;
  const pad=document.createElement('div');
  pad.className='hf-rover-pad';
  pad.hidden=true;
@@ -44,7 +44,7 @@ export function createRoverControls({
  window.addEventListener('blur',()=>held.clear());
  function sync(){
   const snap=getSnapshot(),id=snap?.selfVehicle?.id||null;
-  if(id!==activeId){activeId=id;sequence=Number.isSafeInteger(snap?.selfVehicle?.sequence)?snap.selfVehicle.sequence+1:0;held.clear();}
+  if(id!==activeId){activeId=id;sequence=Number.isSafeInteger(snap?.selfVehicle?.sequence)?snap.selfVehicle.sequence+1:0;held.clear();failedAcks=0;}
   pad.hidden=!id||!visible();
   pad.style.display=id&&visible()?'grid':'none';
   if(!id)return;
@@ -61,12 +61,33 @@ export function createRoverControls({
    const response=await send('drive',{sequence:sequence,throttle,steer});
    if(!response?.vehicle||response.vehicle.id!==id)throw Error('vehicle_response_mismatch');
    sequence=response.vehicle.sequence+1;
+   failedAcks=0;
    onSnapshot(response);
    if(response.vehicleResult?.blocked)onError('Obstacle ahead. Find a wider route.');
   }catch(error){
-   onError(String(error?.message||error));
-   if(['invalid_vehicle_input','not_driving_vehicle','homefront_vehicles_unavailable'].includes(String(error?.message)))
-    {activeId=null;held.clear();}
+   const reason=String(error?.message||error);
+   failedAcks++;
+   if(reason==='invalid_vehicle_input'||failedAcks>=2){
+     // A request can commit on the server while its response is lost. Do
+     // not endlessly replay the old sequence or guess movement/position:
+     // retrieve the current authoritative owner-only sequence and pose.
+     // Keep controls paused until the GET completes.
+     held.clear();
+     try{
+       const fresh=await onResync();
+       if(fresh?.selfVehicle?.id===id&&Number.isSafeInteger(fresh.selfVehicle.sequence)){
+         sequence=fresh.selfVehicle.sequence+1;failedAcks=0;
+         onError('Rover connection restored. Resume steering.');
+       }else {
+         activeId=null;sequence=0;
+         onError('Rover connection lost. Check that you are still driving.');
+       }
+     }catch(resyncError){
+       onError('Rover reconnect failed: '+String(resyncError?.message||resyncError));
+     }
+   }else if(['not_driving_vehicle','homefront_vehicles_unavailable'].includes(reason)){
+     held.clear();activeId=null;sequence=0;onError(reason);
+   }else onError(reason);
   }finally{busy=false;}
  }
  const clock=setInterval(tick,165);

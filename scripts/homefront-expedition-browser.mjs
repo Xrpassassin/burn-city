@@ -415,7 +415,8 @@ try {
       await activate(action);
       const result = await (await searched).json();
       assert.equal(result.loot.node.id, 'loot_pine_logging_kit');
-      assert.ok(result.loot.accepted.length, 'the road shoulder yields supplies between buildings');
+      assert.ok(result.loot.accepted.length || (result.loot.overflow.length && result.loot.overflowDestination === 'refuge'),
+        'the road shoulder yields supplies between buildings');
     }
     if (process.env.HOMEFRONT_PINE_SCREENSHOT) {
       await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
@@ -436,7 +437,8 @@ try {
       await activate(action);
       const result = await (await searched).json();
       assert(result.interior.used.includes(building.id + '_search'));
-      assert(result.interiorReward.some(drop => drop.amount > 0), item + ' yields a physical supply reward');
+      assert(result.interiorReward.some(drop => drop.amount > 0 ||
+        (drop.overflow > 0 && result.overflowDestination === 'refuge')), item + ' yields a physical supply reward');
       await walkTo([building.x, building.z + 1.75]);
       await page.waitForFunction(() => document.querySelector('#homefrontContextAction')?.textContent.includes('Step outside'));
       await activate(action);

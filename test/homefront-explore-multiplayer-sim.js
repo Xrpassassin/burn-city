@@ -25,9 +25,37 @@ const place = (acct, x, z) => { const w = files.get('homefront-world.json'); w.p
   assert.equal((await call('GET', W + '/exploration', null)).status, 401, 'journal needs a bearer token');
   assert.equal((await call('POST', W + '/interior/enter', null, { landmarkId: 'north_bus_depot' })).status, 401, 'interiors need a bearer token');
   for (const k of [A, B, C, D]) assert.equal((await call('POST', W + '/enter', k, {})).status, 200);
-  assert.equal(Object.keys(files.get('homefront-world.json').players).length, 4, 'all four explorers share one world');
-  for (const k of [A, B]) place(k, -9.1, -64.6);           // inside the north bus depot dispatch room
+  const sharedWorld=files.get('homefront-world.json');
+  assert.equal(Object.keys(sharedWorld.players).length, 4, 'all four explorers share one world');
+  assert.equal(Object.keys(sharedWorld.refugeEntries).length, 4,
+    'all four survivors have separately assigned permanent Homefront gates');
+  assert.equal(new Set(Object.values(sharedWorld.refugeEntries)).size, 4,
+    'no two survivors can claim the same Homefront gate in the shared map');
+  assert.equal(sharedWorld.refugeEntries[A], 'north_gate',
+    'first survivor begins at Pine Crossing; later survivors settle elsewhere in the same map');
+  const positions=[A,B,C,D].map(account=>({
+    x:sharedWorld.players[account].x,z:sharedWorld.players[account].z
+  }));
+  for(let i=0;i<positions.length;i++)for(let j=i+1;j<positions.length;j++){
+    assert.ok(Math.hypot(positions[i].x-positions[j].x,positions[i].z-positions[j].z)>=14,
+      'player Homefront starting areas must remain physically separated');
+  }
+  for (const k of [A, B]) place(k, -9.1, -64.6);           // players travel to the SAME bus depot
   place(C, -4, 6); place(D, 60, 60);
+  const sightA=(await call('GET',W,A)).data;
+  const sightB=(await call('GET',W,B)).data;
+  assert.equal(sightA.players.length,2,
+    'same-location strangers meet in one shared open world without a party or instance transfer');
+  assert.equal(sightB.players.length,2,
+    'players on both sides independently see the same nearby survivor');
+  assert.equal(sightA.world.width,sightB.world.width,'all players use the same continuous world bounds');
+  assert.deepEqual(sightA.world.pointsOfInterest,sightB.world.pointsOfInterest,
+    'all players explore the same authored roads, buildings and public locations');
+  assert.equal(sightA.players.find(p=>p.label==='You')?.x,-9.1);
+  assert.equal(sightB.players.find(p=>p.label==='You')?.x,-9.1);
+  assert.equal(sightA.refugeReturn.x===sightB.refugeReturn.x &&
+    sightA.refugeReturn.z===sightB.refugeReturn.z,false,
+    'meeting at a shared building must not overwrite anyone\'s personal refuge location');
   for (const bad of ['__proto__', 'constructor', 'toString', '']) {
     assert.equal((await call('POST', W + '/interior/enter', A, { landmarkId: bad })).status, 400, 'landmark id ' + JSON.stringify(bad) + ' rejected');
     assert.equal((await call('POST', W + '/exploration/discover', A, { landmarkId: bad })).status, 400, 'discover id ' + JSON.stringify(bad) + ' rejected');

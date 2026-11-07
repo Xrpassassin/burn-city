@@ -7,6 +7,7 @@ const Collision=require('../server/homefront-collision');
 let world=World.defaultWorld();
 const entered=World.enter(world,'driver-a',1000);
 world=entered.world;
+world.encounters={}; // physical infected-blocker test creates one explicitly below
 const base=Core.createBase('driver-a',1000),gate=World.ownRefugeGate(world,'driver-a');
 assert.ok(gate&&Collision.isSafePosition(gate.x,gate.z));
 const initialScrap=base.resources.scrap,initialWood=base.resources.wood;

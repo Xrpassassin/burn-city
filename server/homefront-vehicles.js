@@ -132,6 +132,7 @@ function publicVehicles(world,viewer,radius=40){
  if(!p)return [];
  return Object.values(normalize(world.vehicles)).filter(v=>distance(v,p)<=radius||v.owner===viewer)
    .map(v=>({id:v.id,type:v.type,x:v.x,z:v.z,heading:v.heading,charge:v.charge,
-     occupied:!!v.driver,mine:v.owner===viewer}));
+     occupied:!!v.driver,mine:v.owner===viewer,
+     ...(v.owner===viewer?{sequence:v.sequence}:{} )}));
 }
 module.exports={BUILD_COST,CHARGE_COST,VEHICLE_RADIUS,MAX_SPEED,MAX_VEHICLES,normalize,roadClear,parkingSpot,build,board,drive,dismount,release,charge,publicVehicles};

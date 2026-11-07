@@ -223,6 +223,31 @@ function addRoadsideDressing(THREE, chunkAt, groundAt) {
       for (const x of [-1.4, 1.3]) for (const z of [-0.82, 0.82]) {
         cylinder(group, rubber, 0.36, 0.36, 0.29, x, 0.35, z, 'x');
       }
+    } else if (site.kind === 'relay') {
+      // Authored abandoned radio shelter, visible from the logging spur.
+      // The base matches the single server-owned AABB. Everything above its
+      // roof is visual: no phantom collision, expensive lights, or new assets.
+      box(group, concrete, 3.38, 0.3, 2.58, 0, 0.12, 0);
+      box(group, frame, 3.2, 2.15, 2.44, 0, 1.3, 0);
+      box(group, paint, 3.3, 0.22, 2.6, 0, 2.47, 0);
+      box(group, rust, 0.92, 1.68, 0.08, -0.78, 1.17, 1.25); // seized service hatch
+      box(group, glass, 0.9, 0.58, 0.08, 0.85, 1.49, 1.25);
+      box(group, rust, 1.15, 0.32, 0.26, 0.85, 1.01, 1.36); // weathered console
+      for (const x of [-1.4, 1.4]) {
+        const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.047, 0.07, 4.3, 6), frame);
+        mast.position.set(x, 3.55, -0.75); group.add(mast);
+        box(group, rust, 0.13, 0.1, 1.63, x, 4.2, -0.52);
+      }
+      box(group, frame, 2.86, 0.08, 0.08, 0, 5.35, -0.75);
+      box(group, frame, 2.86, 0.08, 0.08, 0, 4.9, -0.75);
+      box(group, paint, 1.1, 0.08, 1.05, 0.86, 3.35, 0.43).rotation.x = -0.44; // bent antenna dish
+      box(group, reflector, 0.25, 0.17, 0.06, -1.35, 5.62, -0.74);
+      for (let i = 0; i < 3; i++) {
+        box(group, concrete, 0.61, 0.38, 0.65, -1.4 + i * 0.65, 0.2, 2.1); // flood-damaged crates
+      }
+      const notice = signPlaque(THREE, 'RELAY 07 / NO SIGNAL', 2.35, '#514e3c');
+      notice.position.set(0.06, 2.04, 1.35);
+      group.add(notice);
     } else {
       for (const x of [-1.52, 1.52]) {
         box(group, concrete, 0.66, 0.24, 0.96, x, 0.12, 0);

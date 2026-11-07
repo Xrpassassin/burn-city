@@ -23,7 +23,7 @@ import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
 import { queueDoorwayTap } from './homefront-context-action-queue.mjs';
 import { buildRoverMesh } from './homefront-rover-mesh.mjs';
-import { closestStrandedSurvivor, survivorApproachCue, survivorInteraction } from './homefront-survivor-encounters.mjs';
+import { closestStrandedSurvivor, survivorApproachCue, survivorInteraction, SURVIVOR_OFFSET } from './homefront-survivor-encounters.mjs';
 import { createRoverControls } from './homefront-rover-controls.mjs';
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
 import { clipInteriorCamera, interiorCameraProbeOrigins } from './homefront-camera-occlusion.mjs';
@@ -772,13 +772,13 @@ function boot(host) {
       if (rescueReady) {
         const npc = buildWalker({suit:0x766551,accent:0xdca66c,skin:1,lite:true});
         npc.scale.setScalar(EXPLORER_SCALE*0.88);
-        npc.position.set(2.2,0,0.35);
+        npc.position.set(SURVIVOR_OFFSET.x,0,SURVIVOR_OFFSET.z);
         npc.rotation.y=-Math.PI*0.25;
         npc.traverse(node=>{if(node.isMesh)node.userData.sharedAsset=true;});
         g.add(npc);
         g.userData.rescueActor=npc;
         const rescueNote=labelSprite('SURVIVOR · NEEDS HELP','#ffca9b');
-        rescueNote.position.set(2.2,4.45,0.35);rescueNote.scale.set(10,1.8,1);
+        rescueNote.position.set(SURVIVOR_OFFSET.x,4.45,SURVIVOR_OFFSET.z);rescueNote.scale.set(10,1.8,1);
         g.add(rescueNote);
       }
     }
@@ -2239,7 +2239,9 @@ function boot(host) {
         charge:'Recharged rover battery with 2 scrap.'
       })[action]||'Rover ready');
       if(v)roverUI.sync();
-    }catch(error){showFieldToast('Rover: '+String(error?.message||error));}
+    }catch(error){showFieldToast(error?.message==='vehicle_exit_blocked'
+      ?'Exit blocked. Clear the area or move the rover.'
+      :'Rover: '+String(error?.message||error));}
     finally{moving=false;}
   }
   const roverUI=createRoverControls({
@@ -2458,7 +2460,15 @@ function boot(host) {
           updateWorld(data);
           showFieldToast('Survivor rescued · '+(data.encounter?.survivor?.name||'New survivor')+
             ' is heading toward the refuge. Your supplies have been consumed.');
-        }catch(error){showFieldToast('Survivor: '+String(error.message||error));}
+        }catch(error){
+          const message=({rescue_path_blocked:'Move around the cover to reach the survivor.',
+            too_far_from_rescue:'Move closer to the survivor.',
+            exit_vehicle_before_rescue:'Park and leave the rover before helping.',
+            leave_building_before_rescue:'Step outside to reach the survivor.',
+            field_supplies_required:'Carry 2 food and 1 ammo to help this survivor.',
+            rescue_unavailable:'Another survivor has already helped here.'})[error.message];
+          showFieldToast(message||'Survivor: '+String(error.message||error));
+        }
         finally{moving=false;}
       })();
       return;
@@ -2610,7 +2620,7 @@ function boot(host) {
     view.refreshCrouch?.();
     updatePineScenery(dt);
     tracerPool.update(dt);
-    if(wantsContinuous&&worldData?.self&&!interiorState){
+    if(wantsContinuous&&worldData?.self&&!worldData.selfVehicle&&!interiorState){
       // Three hand-authored survivors breathe, scan for infected and turn
       // toward an approaching player. Geometry is cached by the world view.
       // This is PRESENTATION, not independent NPC movement authority.

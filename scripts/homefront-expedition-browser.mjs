@@ -373,9 +373,44 @@ try {
       assert.equal(store.load('homefront.json',{})[ACCOUNT].resources.scrap,scrapBeforeCharge-2,
         'touch recharge consumes the same server-owned materials as keyboard recharge');
       await recharge.waitFor({state:'hidden',timeout:5000});
+      // Move only the disposable account to the same authored rescue site.
+      // A survivor on the far side of the solid bus must not expose an E action.
+      const rescueState=store.load('homefront-world.json',null);
+      Object.assign(rescueState.players[ACCOUNT],{x:32.3,z:-42,lastSeen:Date.now()});
+      const blockedSnapshot=page.waitForResponse(async response=>{
+        if(response.request().method()!=='GET'||!response.url().endsWith('/api/homefront/world'))return false;
+        const data=await response.json().catch(()=>null);
+        return data?.self?.x===32.3&&data?.world?.rescues?.stranded_bus?.reachable===false;
+      },{timeout:15000});
+      store.save('homefront-world.json',rescueState);
+      await blockedSnapshot;
+      await page.waitForFunction(()=>document.querySelector('#homefrontContextAction')?.hidden||
+        document.querySelector('#homefrontContextAction')?.textContent.includes('Board scrap rover')===false,
+        null,{timeout:15000});
+      assert.equal(await page.locator('#homefrontContextAction').evaluate(el=>!el.hidden&&el.textContent.includes('Help the stranded driver')),false,
+        'the blocked survivor does not offer an interaction through the bus');
+      const physicalRescue=store.load('homefront-world.json',null);
+      Object.assign(physicalRescue.players[ACCOUNT],{x:39,z:-42,lastSeen:Date.now()});
+      physicalRescue.players[ACCOUNT].inventory.food=2;
+      physicalRescue.players[ACCOUNT].inventory.ammo=1;
+      const survivorCount=store.load('homefront.json',{})[ACCOUNT].survivors.length;
+      store.save('homefront-world.json',physicalRescue);
+      await page.waitForFunction(()=>!document.querySelector('#homefrontContextAction')?.hidden&&
+        document.querySelector('#homefrontContextAction')?.textContent.includes('Help the stranded driver'),
+        null,{timeout:15000});
+      const rescued=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/rescue'));
+      await activate(page.locator('#homefrontContextAction'));
+      const rescueResult=await (await rescued).json();
+      assert.equal(rescueResult.encounter?.rescued,true,'physical E/touch action recruits the shared survivor');
+      assert.equal(store.load('homefront.json',{})[ACCOUNT].survivors.length,survivorCount+1);
+      assert.equal(rescueResult.selfInventory.food,0,'rescue uses carried field food');
+      assert.equal(rescueResult.selfInventory.ammo,0,'rescue uses carried field ammo');
+      await page.waitForFunction(()=>document.querySelector('#homefrontContextAction')?.hidden||
+        document.querySelector('#homefrontContextAction')?.textContent.includes('Help the stranded driver')===false,null,{timeout:10000});
       assert.deepEqual(errors,[]);
       console.log('SHARED ROVER PLAYTEST PASSED',JSON.stringify({mobile,assembled:true,boarded:true,
-        serverCappedDrive:true,chargeUsed:true,parked:true,recharged:true}));
+        serverCappedDrive:true,chargeUsed:true,parked:true,recharged:true,physicalRescue:true}));
       break expeditionRun;
     }
 

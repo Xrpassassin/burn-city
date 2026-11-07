@@ -18,6 +18,8 @@ export const SURVIVOR_SCENES=Object.freeze({
   prompt:'Help the shelter survivor · 2 food + 1 ammo'
  })
 });
+export const SURVIVOR_OFFSET=Object.freeze({x:2.2,z:0.35});
+export function survivorPosition(point){return {x:point.x+SURVIVOR_OFFSET.x,z:point.z+SURVIVOR_OFFSET.z};}
 export const SURVIVOR_APPROACH_RADIUS=12;
 export const SURVIVOR_INTERACT_RADIUS=5;
 export const SURVIVOR_REPEAT_DELAY_MS=90000;
@@ -29,10 +31,10 @@ export function closestStrandedSurvivor(world,self,now=Date.now(),radius=SURVIVO
   if(!poi||poi.type!=='rescue'||!SURVIVOR_SCENES[poi.id]||
     !Number.isFinite(poi.x)||!Number.isFinite(poi.z)||
     (world.rescues?.[poi.id]?.readyAt||0)>now)continue;
-  const x=poi.x+2.2,z=poi.z+0.35;
+  const {x,z}=survivorPosition(poi);
   const distance=Math.hypot(x-self.x,z-self.z);
   if(distance>radius||best&&distance>=best.distance)continue;
-  best={id:poi.id,x,z,distance,
+  best={id:poi.id,x,z,distance,reachable:world.rescues?.[poi.id]?.reachable,
     ...SURVIVOR_SCENES[poi.id]};
  }
  return best;
@@ -42,6 +44,6 @@ export function survivorApproachCue(scene,seenAt,now=Date.now()){
  return {id:scene.id,message:scene.call,at:now};
 }
 export function survivorInteraction(scene){
- if(!scene||scene.distance>SURVIVOR_INTERACT_RADIUS)return null;
+ if(!scene||scene.reachable===false||scene.distance>SURVIVOR_INTERACT_RADIUS)return null;
  return {id:'rescue-survivor',targetId:scene.id,label:scene.prompt};
 }

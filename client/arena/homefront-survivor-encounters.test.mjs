@@ -17,6 +17,7 @@ const scene=closestStrandedSurvivor(world,self,now);
 assert.equal(scene?.id,'stranded_bus');
 assert.equal(scene?.role,'Stranded driver');
 assert.equal(survivorInteraction(scene)?.targetId,'stranded_bus');
+assert.equal(survivorInteraction({...scene,reachable:false}),null,'server-obstructed survivors never offer a rescue prompt');
 assert.equal(survivorInteraction({...scene,distance:5.1}),null,'faraway survivors cannot offer an interaction prompt');
 const cue=survivorApproachCue(scene,undefined,now);
 assert.match(cue.message,/survivor/i);

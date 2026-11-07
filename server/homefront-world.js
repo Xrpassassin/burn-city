@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const Combat = require('./homefront-combat');
 const Companions = require('./homefront-companions');
 const Vehicles = require('./homefront-vehicles');
+const Rescue = require('./homefront-rescue');
 const Survival = require('./homefront-survival');
 const CindersEffects = require('./homefront-cinders-effects');
 const Inventory = require('./homefront-inventory');
@@ -454,7 +455,8 @@ function snapshot(input, acct, now = Date.now()) {
   const self = p ? { ...publicPlayer(acct, p, acct, now, viewerParty), risk: exposure.risk,
     homefrontDistance: Math.floor(exposure.distance), homefrontBand: exposure.band } : null;
   return {
-    world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, vehicles: Vehicles.publicVehicles(w,acct,INTEREST_RADIUS), lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
+    world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, vehicles: Vehicles.publicVehicles(w,acct,INTEREST_RADIUS), lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: Object.fromEntries(POINTS_OF_INTEREST.filter(site=>site.type==='rescue').map(site=>
+      [site.id,{...w.rescues[site.id],reachable:!Rescue.reachError(w,acct,site)}])) },
     players: [...visible].map(id => {
       const avatar = id === acct ? self : publicPlayer(id, w.players[id], acct, now, viewerParty);
       const presence = Interiors.roomPresence(w.interiors, w.players, id, now, PRESENCE_TTL);

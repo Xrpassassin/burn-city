@@ -217,6 +217,33 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(rescuePackFood.status, 200);
   const rescuePackAmmo = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'ammo', amount: 1 });
   assert.equal(rescuePackAmmo.status, 200);
+  const beforeInvalidRescue=structuredClone(files.get('homefront-world.json'));
+  const distantRescue=await call('POST','/api/homefront/world/rescue','acct-a',{pointId:'stranded_bus'});
+  assert.equal(distantRescue.data.error,'too_far_from_rescue','rescue uses five metres from the actor, not the old map marker radius');
+  assert.deepEqual(files.get('homefront-world.json'),beforeInvalidRescue,'failed reach never spends supplies or claims the shared survivor');
+  const rescueFixture=files.get('homefront-world.json');
+  Object.assign(rescueFixture.players['acct-a'],{x:32.3,z:-42});
+  files.set('homefront-world.json',rescueFixture);
+  const obstructedRescue=await call('POST','/api/homefront/world/rescue','acct-a',{pointId:'stranded_bus'});
+  assert.equal(obstructedRescue.data.error,'rescue_path_blocked','the solid bus cannot be rescued through');
+  const blockedView=await call('GET','/api/homefront/world','acct-a');
+  assert.equal(blockedView.data.world.rescues.stranded_bus.reachable,false,'server snapshot hides an obstructed rescue interaction');
+  Object.assign(rescueFixture.players['acct-a'],{x:39,z:-42,vehicleId:'rover:acct-a'});
+  rescueFixture.vehicles['acct-a']={type:'scrap_rover',x:39,z:-42,driver:'acct-a',charge:75,heading:0};
+  files.set('homefront-world.json',rescueFixture);
+  assert.equal((await call('POST','/api/homefront/world/rescue','acct-a',{pointId:'stranded_bus'})).data.error,
+    'exit_vehicle_before_rescue','driving cannot bypass the on-foot encounter');
+  delete rescueFixture.vehicles['acct-a'];
+  rescueFixture.players['acct-a'].vehicleId=null;
+  rescueFixture.interiors['acct-a']={activeLandmarkId:'pine_general_store'};
+  files.set('homefront-world.json',rescueFixture);
+  assert.equal((await call('POST','/api/homefront/world/rescue','acct-a',{pointId:'stranded_bus'})).data.error,
+    'leave_building_before_rescue','a shared interior is not the outdoor survivor encounter');
+  delete rescueFixture.interiors['acct-a'];
+  Object.assign(rescueFixture.players['acct-b'],{x:39,z:-42});
+  files.set('homefront-world.json',rescueFixture);
+  const reachableView=await call('GET','/api/homefront/world','acct-a');
+  assert.equal(reachableView.data.world.rescues.stranded_bus.reachable,true,'walking around the bus exposes the same survivor interaction');
   const rescue = await call('POST', '/api/homefront/world/rescue', 'acct-a', { pointId: 'stranded_bus', difficulty: 'standard' });
   assert.equal(rescue.status, 200, 'explorer can rescue a nearby stranded survivor');
   assert.equal(rescue.data.encounter.rescued, true);

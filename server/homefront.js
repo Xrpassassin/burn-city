@@ -20,6 +20,7 @@ const Rpg = require('./homefront-rpg');
 const CindersEffects = require('./homefront-cinders-effects');
 const Collision = require('./homefront-collision');
 const Vehicles = require('./homefront-vehicles');
+const Rescue = require('./homefront-rescue');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
@@ -674,7 +675,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');
           const nearest = World.nearestPoint(player.x, player.z, 'rescue');
-          if (!nearest || nearest.distance > 14) throw new Error('too_far_from_rescue');
+          const reachError=Rescue.reachError(db,user.acct,nearest?.point);
+          if(reachError)throw new Error(reachError);
           if (payload.pointId && payload.pointId !== nearest.point.id) throw new Error('too_far_from_rescue');
           const now = Date.now();
           const rescue = db.rescues[nearest.point.id];

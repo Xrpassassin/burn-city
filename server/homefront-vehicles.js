@@ -41,15 +41,15 @@ function segmentDistance(px,pz,x0,z0,x1,z1){
  const t=len>0?Math.max(0,Math.min(1,((px-x0)*dx+(pz-z0)*dz)/len)):0;
  return Math.hypot(px-x0-t*dx,pz-z0-t*dz);
 }
-function dynamicRoadClear(world,account,x,z,prevX,prevZ,now){
+function dynamicRoadClear(world,account,x,z,prevX,prevZ,now,radius=VEHICLE_RADIUS){
  for(const [owner,other]of Object.entries(world.vehicles||{})){
   if(owner===account)continue;
-  if(segmentDistance(other.x,other.z,prevX,prevZ,x,z)<VEHICLE_RADIUS*2+0.35)return false;
+  if(segmentDistance(other.x,other.z,prevX,prevZ,x,z)<radius+VEHICLE_RADIUS+0.35)return false;
  }
  for(const [id,other]of Object.entries(world.players||{})){
   if(id===account||other?.vehicleId||!Number.isFinite(other?.lastSeen)||
      now-other.lastSeen>45000)continue;
-  if(segmentDistance(other.x,other.z,prevX,prevZ,x,z)<VEHICLE_RADIUS+0.55)return false;
+  if(segmentDistance(other.x,other.z,prevX,prevZ,x,z)<radius+0.55)return false;
  }
  // A rover cannot silently drive through a living infected group. Later
  // impacts may cause server-resolved knockdowns; this first slice stops the
@@ -59,7 +59,7 @@ function dynamicRoadClear(world,account,x,z,prevX,prevZ,now){
   for(const infected of encounter.members||[]){
    if(infected.defeated||infected.hp<=0||
       !Number.isFinite(infected.x)||!Number.isFinite(infected.z))continue;
-   if(segmentDistance(infected.x,infected.z,prevX,prevZ,x,z)<VEHICLE_RADIUS+0.55)return false;
+   if(segmentDistance(infected.x,infected.z,prevX,prevZ,x,z)<radius+0.55)return false;
   }
  }
  return true;
@@ -137,9 +137,15 @@ function drive(world,account,input,now=Date.now()){
 function dismount(world,account,now=Date.now()){
  const player=world.players?.[account],v=world.vehicles?.[account];
  if(!player||!v||v.driver!==account||player.vehicleId!==v.id)throw Error('not_driving_vehicle');
- const offsets=[[2,0],[-2,0],[0,2],[0,-2],[2,2],[-2,-2]];
- const exit=offsets.map(([dx,dz])=>({x:v.x+dx,z:v.z+dz}))
-   .find(p=>Collision.isSafePosition(p.x,p.z) && Terrain.isSafePosition(p.x,p.z));
+ // Prefer the right/left doors relative to the actual heading, then try
+ // fore/aft clearance. Never place a pedestrian through a wall or live actor.
+ const offsets=[[2.1,0],[-2.1,0],[0,2.1],[0,-2.1],[2.1,2.1],[-2.1,-2.1]];
+ const sin=Math.sin(v.heading),cos=Math.cos(v.heading);
+ const exit=offsets.map(([dx,dz])=>({x:v.x+dx*cos+dz*sin,z:v.z-dx*sin+dz*cos}))
+   .find(p=>Collision.isSafePosition(p.x,p.z) &&
+     Collision.canTraverse(v.x,v.z,p.x,p.z,{radius:Collision.PLAYER_RADIUS,sampleStep:0.2}) &&
+     Terrain.canTraverse(v.x,v.z,p.x,p.z) &&
+     dynamicRoadClear(world,account,p.x,p.z,v.x,v.z,now,Collision.PLAYER_RADIUS));
  if(!exit)throw Error('vehicle_exit_blocked');
  v.driver=null;v.lastDriveAt=0;
  player.vehicleId=null;player.x=exit.x;player.z=exit.z;player.lastSeen=now;

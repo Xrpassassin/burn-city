@@ -17,7 +17,7 @@ issue #574.
 One owner-locked **scrap electric rover** per persistent player. A player
 physically at their OWN Homefront gate can assemble a vehicle for **24 scrap
 and 12 wood** from their refuge stockpile. The server picks a parking space
-with clearance for a 1.05m collision radius, never from client-supplied
+with clearance for a 1.4m collision radius, never from client-supplied
 coordinates. The rover is a muted low-poly welded utility buggy with a cage,
 cargo bed, wheels and battered headlamps. The lightweight rendered model
 follows server snapshots; other nearby survivors see the same rover.

@@ -278,6 +278,17 @@ try {
     .filter({ hasText: "Skip" })
     .click();
 
+  // First complete the real refuge-to-world gate transition. Before this,
+  // we're still inside the private Homefront and world rover controls do not
+  // exist yet; the vehicle test must never skip that crossing.
+  await startWalking("s");
+  await page.waitForFunction(
+    () => Math.abs(window.__hfYard.player.z - 8.9) <= 1.8,
+    null,
+    { timeout: 20000 },
+  );
+  await stopWalking("s");
+
   expeditionRun: {
     if(process.env.HOMEFRONT_EXPEDITION_ROVER==='1'){
       assert.equal(guestMode,false,'shared vehicle acceptance uses wallet-authenticated world fixture');
@@ -336,13 +347,6 @@ try {
       break expeditionRun;
     }
 
-  await startWalking("s");
-  await page.waitForFunction(
-    () => Math.abs(window.__hfYard.player.z - 8.9) <= 1.8,
-    null,
-    { timeout: 20000 },
-  );
-  await stopWalking("s");
   const pineCrossing = process.env.HOMEFRONT_EXPEDITION_PINE === '1';
   if (pineCrossing) await page.evaluate(async () => {
     const { sfx } = await import('/arena/sfx.js');

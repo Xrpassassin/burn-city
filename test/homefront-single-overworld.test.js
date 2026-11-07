@@ -47,8 +47,8 @@ assert.deepEqual(alpha.world.pointsOfInterest,bravo.world.pointsOfInterest,
   'both view the same world map and landmarks');
 assert.notDeepEqual(alpha.refugeReturn,bravo.refugeReturn,
   'meeting does not move or merge the distinct Homefront reservations');
-assert.equal(alpha.self.risk,bravo.self.risk ? alpha.self.risk : alpha.self.risk,
-  'risk is calculated separately from each assigned Homefront');
+assert.ok(alpha.self.risk < bravo.self.risk,
+  'at the same salvage site, the survivor farther from their own Homefront faces higher risk');
 
 const claim=Loot.claim(world.lootNodes,{
  account:'alpha',player:world.players.alpha,nodeId:node.id,now:3100,

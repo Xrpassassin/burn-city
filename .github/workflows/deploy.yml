@@ -6,6 +6,10 @@ name: Validate main and optionally restart Fly
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - '.github/workflows/deploy.yml'
+      - 'test/fly-auto-sync-workflow.test.mjs'
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check auto-sync and protected restart boundary
+        run: node test/fly-auto-sync-workflow.test.mjs
       - name: Syntax check
         run: node --check server/server.js && node --check server/game.js
       - uses: actions/setup-node@v4

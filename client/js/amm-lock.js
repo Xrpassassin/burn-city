@@ -4,6 +4,7 @@ import { verifiedBurnFraction } from './verified-burn-visual.mjs';
 import { verifiedSupplyFraction } from './verified-supply-visual.mjs';
 import { verifiedEcosystemSupplyFraction } from './verified-ecosystem-supply-visual.mjs';
 import { observedBurnPreview } from './observed-burn-preview.mjs';
+import { xrpyroLedgerOutstanding } from './xrpyro-supply-visual.mjs';
 import { issuerReturnCard, supplyReconciliationCard, ecosystemSupplyCard } from './issuer-return-card.mjs';
 // AMM lock + burn visuals (server truth: GET /api/amm-lock, server/amm-lock.js). +3 draw calls total, all instanced/merged:
 //   1) ONE InstancedMesh: gold segmented chain halo around every pool bridge (at the arc's midpoint). Lit arc = VERIFIED permanently locked
@@ -125,18 +126,12 @@ export function initAmmLock(c) {
     // Supply-based XRPyro preview uses issuer obligations from the read-only
     // ledger service. Require the exact token identity, gateway source, fresh
     // verified holder snapshot and disabled issuer keys. Not an audited burn.
-    const xrpyroLedgerSource = k === 'XRPyro' &&
-      N[k]?.key === 'rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-58525079726F0000000000000000000000000000' &&
-      o?.issuer === 'rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va' &&
-      o?.currency === '58525079726F0000000000000000000000000000' &&
-      o?.issuer_keys_disabled === true && o?.status === 'verified' &&
-      o?.supply_src === 'gateway_balances(rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va).obligations' &&
-      fresh(o);
+    const xrpyroSupply = xrpyroLedgerOutstanding({name:k,tokenKey:N[k]?.key,record:o});
     const preview = observedBurnPreview({name:k,tokenKey:N[k]?.key,
       observedReturns:N[k]?.burn_vol,transactionCount:N[k]?.burn_txs,
       scanComplete:N[k]?.burn_complete,
-      outstandingSupply:xrpyroLedgerSource ? o.supply : undefined,
-      outstandingSource:xrpyroLedgerSource ? 'xrpl_gateway_balances' : undefined});
+      outstandingSupply:xrpyroSupply === null ? undefined : xrpyroSupply,
+      outstandingSource:xrpyroSupply === null ? undefined : 'xrpl_gateway_balances'});
     if(preview && o?.issuer_keys_disabled===true && fresh(o))
       return {st:preview.status === 'indicative_outstanding_supply' ? 'estimated' : 'partial',o,f:preview.fraction,preview};
     // A verified inaccessible issuer earns a small, fixed marker even while its

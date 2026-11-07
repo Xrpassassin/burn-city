@@ -2629,6 +2629,7 @@ function boot(host) {
         zombieAudioActive = true;
       }
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
+      if(localActor)localActor.visible=!worldData.selfVehicle; // occupied seats do not leave an avatar standing behind
       const heading = walkingCameraHeading(localActor?.rotation.y || 0, cameraYawOffset, view.yaw, continuousInput.enabled);
       const stick = worldMove(view.move(), heading, 0);
       const crouched = view.crouching?.() === true;
@@ -2637,16 +2638,17 @@ function boot(host) {
         continuousInput.step(stick, sprint, now, dt, crouched);
       }
       const shownSelf = continuousInput.position() || self;
-      updateFieldAudio(shownSelf, sprint, crouched || self.crouched, now);
+      if(worldData.selfVehicle){lastFoot=null;stepDistance=0;}
+      else updateFieldAudio(shownSelf, sprint, crouched || self.crouched, now);
       updateVisibleChunks(shownSelf.x, shownSelf.z);
-      if (continuousInput.enabled && localActor?.userData.explorerKey) {
+      if ((continuousInput.enabled||worldData.selfVehicle) && localActor?.userData.explorerKey) {
         explorerPositions.set(localActor.userData.explorerKey, {
           x: shownSelf.x, y: terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation(), z: shownSelf.z, crouched: crouched || self.crouched
         });
       }
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
       const targetY = terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation();
-      const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
+      const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: (cameraDistance+(worldData.selfVehicle?2.1:0)) * view.distance / 6.2 });
       if (crouched || self.crouched) { pose.py -= 0.47; pose.ly -= 0.47; }
       if (continuousInput.enabled && view.mode === 'third') {
         // Place the reticle beside the player's shoulder so their body does not obscure aim.

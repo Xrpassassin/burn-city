@@ -20,14 +20,14 @@ import { createZombieAudio } from './zaudio.js';
 import { createZombieRenderer } from './fx.js';
 import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested, releaseMovementControls } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
-import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
+import { createHomefrontMoveTransport, createHomefrontResyncTransport } from './homefront-input-transport.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
 import { queueDoorwayTap } from './homefront-context-action-queue.mjs';
 import { buildRoverMesh } from './homefront-rover-mesh.mjs';
 import { closestStrandedSurvivor, survivorApproachCue, survivorInteraction, SURVIVOR_OFFSET } from './homefront-survivor-encounters.mjs';
 import { createRoverControls } from './homefront-rover-controls.mjs';
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
-import { clipInteriorCamera, interiorCameraProbeOrigins } from './homefront-camera-occlusion.mjs';
+import { clipInteriorCamera, interiorCameraProbeOrigins, clipActorCamera } from './homefront-camera-occlusion.mjs';
 import { applyInteriorVisualLayers } from './homefront-interior-visibility.mjs';
 import { applyInteriorLampProfile } from './homefront-interior-lamps.mjs';
 import { mergeSharedInteriorPresence } from './homefront-shared-presence.mjs';
@@ -957,7 +957,10 @@ function boot(host) {
     // A timeout aborts the request; controller rollback keeps the local
     // avatar bounded until a fresh validated server acknowledgement.
     send: createHomefrontMoveTransport({ api: API, token, fetchImpl: (_url, options) => homefrontFetch('/api/homefront/world/move-input', options) }),
-    onSnapshot(data, time) { acceptRealtimeSnapshot(data, time); },
+    onResync: createHomefrontResyncTransport({api:API,token,fetchImpl:(_url,options)=>homefrontFetch('/api/homefront/world',options)}),
+    onSnapshot(data, time) {
+      if(data.inputProtocol)updateWorld(data);else acceptRealtimeSnapshot(data,time);
+    },
     onUnavailable: reason => {
       if (status && reason !== 'returned_to_refuge' && reason !== 'interior_exit') status.textContent =
         'Direct walking unavailable (' + reason + ').';
@@ -2162,7 +2165,8 @@ function boot(host) {
     unavailable.hidden = true;
     host.append(unavailable);
     updateWeaponOverlay = () => {
-      const hideUnavailable = !worldData?.self || continuousInput.enabled || !!worldData?.selfVehicle;
+      const hideUnavailable = !worldData?.self || (continuousInput.enabled&&!continuousInput.recovering) || !!worldData?.selfVehicle;
+      unavailable.textContent=continuousInput.recovering?'Reconnecting movement…':'Direct walking is unavailable on this connection.';
       if (unavailable.hidden !== hideUnavailable) unavailable.hidden = hideUnavailable;
       const hidden = !worldData?.self || !continuousInput.enabled || !!worldData?.selfVehicle;
       if (reticle.hidden !== hidden) reticle.hidden = hidden;
@@ -2830,9 +2834,15 @@ function boot(host) {
           }
         }
       }
+      if(view.mode==='third'){
+        cameraEye.set(shownSelf.x,pose.ly,shownSelf.z);
+        const cleared=clipActorCamera(cameraEye,camera.position,presentedInfected);
+        if(cleared.occluded)camera.position.set(cleared.x,cleared.y,cleared.z);
+      }
       lookTarget.x += (pose.lx - lookTarget.x) * followBlend; lookTarget.y += (pose.ly - lookTarget.y) * followBlend; lookTarget.z += (pose.lz - lookTarget.z) * followBlend;
       camera.lookAt(lookTarget);
-      if (localActor) localActor.visible = view.mode !== 'first';
+      if (localActor) localActor.visible = view.mode !== 'first'&&!worldData.selfVehicle&&
+        Math.hypot(camera.position.x-shownSelf.x,camera.position.z-shownSelf.z)>0.85;
       // Destination stepping belongs to the legacy page mode only.
       if (!wantsContinuous && stick && !moving && now - lastStickMoveAt > 950 && !(worldData.party && !worldData.party.leader)) {
         lastStickMoveAt = now;

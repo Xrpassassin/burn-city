@@ -35,17 +35,19 @@ jobs:
         env:
           PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
           HOMEFRONT_UI_OPENING_ONLY: '1'
-      - name: Play desktop expedition
+      - name: Play desktop expedition after a lost committed movement acknowledgement
         run: node scripts/homefront-expedition-browser.mjs
         env:
           PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
           HOMEFRONT_EXPEDITION_INTERIOR: '1'
-      - name: Play phone expedition
+          HOMEFRONT_TEST_MOVEMENT_LOSS: 'committed'
+      - name: Play phone expedition after an unreceived movement packet
         run: node scripts/homefront-expedition-browser.mjs
         env:
           PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
           HOMEFRONT_EXPEDITION_INTERIOR: '1'
           HOMEFRONT_EXPEDITION_MOBILE: '1'
+          HOMEFRONT_TEST_MOVEMENT_LOSS: 'unreceived'
       - name: Play wallet-free desktop expedition with building entry and city exit
         run: node scripts/homefront-expedition-browser.mjs
         env:

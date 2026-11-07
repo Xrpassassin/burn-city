@@ -54,3 +54,18 @@ assert(Date.now()-start<1300,'client does not hang indefinitely');
 const network=createHomefrontMoveTransport({api:'/',token:()=>'x',fetchImpl:()=>Promise.reject(new Error('offline'))});
 await assert.rejects(network(request),/offline/);
 console.log('Homefront guarded movement transport: authorization, ack, validation, server errors, offline, 250ms abort and timeout passed');
+const {createHomefrontResyncTransport}=await import('./homefront-input-transport.mjs');
+let getOptions;
+const read=createHomefrontResyncTransport({api:'/',token:()=>'test-token',fetchImpl:async(url,options)=>{
+ assert.equal(url,'/api/homefront/world');getOptions=options;
+ return {ok:true,json:async()=>({self:{x:1,z:2},inputProtocol:{enabled:true,nextSequence:5}})};
+}});
+assert.equal((await read()).inputProtocol.nextSequence,5);
+assert.equal(getOptions.method,'GET');assert.equal(getOptions.body,undefined);
+assert.equal(getOptions.headers.authorization,'Bearer test-token');
+let credential='old';
+const rotated=createHomefrontResyncTransport({api:'/',token:()=>credential,fetchImpl:async()=>{
+ credential='new';return {ok:true,json:async()=>({self:{x:9,z:9},inputProtocol:{enabled:true,nextSequence:9}})};
+}});
+await assert.rejects(rotated(),/sign_in_with_xaman/,'a response for an abandoned credential cannot restore movement');
+console.log('Homefront movement resync transport: read-only GET, authorization and credential rotation passed');

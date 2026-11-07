@@ -19,6 +19,9 @@ const fp = cameraPose({ ...at, mode: 'first' });
 assert.ok(Math.abs(fp.py - (at.y + 1.62)) < 1e-9 && Math.hypot(fp.px - at.x, fp.pz - at.z) < 0.2, 'first-person camera sits at eye height on the character');
 const tp = cameraPose({ ...at, mode: 'third' });
 assert.ok(Math.hypot(tp.px - at.x, tp.pz - at.z) > 3, 'third-person camera sits behind the character');
+const lookLeft = lookDragAngles(0, 0, -60, 0);
+assert.ok(lookLeft.yaw < 0, 'dragging left turns the camera left');
+assert.ok(lookDragAngles(0, 0, 0, 60).pitch < 0, 'dragging downward looks down');
 const lookRight = lookDragAngles(0, 0, 60, 0);
 assert.ok(lookRight.yaw > 0 && (() => { const camera = cameraPose({ mode: 'third', heading: lookRight.yaw }); return camera.lx - camera.px > 0; })(),
   'rightward mouse/touch drag turns the third-person camera right in the yard and Wastes');

@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const Combat = require('./homefront-combat');
 const Companions = require('./homefront-companions');
+const Vehicles = require('./homefront-vehicles');
 const Survival = require('./homefront-survival');
 const CindersEffects = require('./homefront-cinders-effects');
 const Inventory = require('./homefront-inventory');
@@ -96,7 +97,7 @@ const POINTS_OF_INTEREST = [
 ];
 const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : 0));
-const defaultWorld = () => ({ version: 1, players: {}, refugeEntries: {}, parties: {}, encounters: {}, lootNodes: {}, environmentStructures: {}, fieldSurveyClaims: {} });
+const defaultWorld = () => ({ version: 1, players: {}, refugeEntries: {}, parties: {}, encounters: {}, vehicles: {}, lootNodes: {}, environmentStructures: {}, fieldSurveyClaims: {} });
 function normalizeWorld(input, now = Date.now()) {
   const w = input && input.version === 1 ? input : defaultWorld();
   if (!w.players || typeof w.players !== 'object' || Array.isArray(w.players)) w.players = {};
@@ -112,6 +113,7 @@ function normalizeWorld(input, now = Date.now()) {
   }
   w.refugeEntries = entries;
   w.encounters = Combat.normalizeEncounters(w.encounters, now);
+  w.vehicles = Vehicles.normalize(w.vehicles);
   w.lootNodes = Loot.normalize(w.lootNodes);
   w.fieldSurveyClaims = FieldSurveys.normalize(w.fieldSurveyClaims);
   w.environmentStructures = Environment.normalize(w.environmentStructures);
@@ -145,6 +147,7 @@ function normalizeWorld(input, now = Date.now()) {
       if (!recovered) throw new Error('no_safe_spawn_location');
       p.x = recovered.x; p.z = recovered.z;
     }
+    p.vehicleId = w.vehicles[acct]?.driver === acct ? w.vehicles[acct].id : null;
     p.lastMove = Number.isFinite(p.lastMove) ? p.lastMove : 0;
     p.lastMoveMode = p.lastMoveMode === 'input' ? 'input' : 'legacy';
     p.lastInputAt = Number.isFinite(p.lastInputAt) && p.lastInputAt >= 0 ? p.lastInputAt : 0;
@@ -243,6 +246,10 @@ function homefrontExposure(w, acct) {
   const distance = gate ? Math.hypot(p.x - gate.x, p.z - gate.z) : 0;
   const band = EXPEDITION_BANDS.findIndex(({ until }) => distance < until);
   return { distance, risk: band + 1, band: EXPEDITION_BANDS[band].label };
+}
+function ownRefugeGate(w, acct) {
+  const site = REFUGE_ENTRY_BY_ID.get(w?.refugeEntries?.[acct]);
+  return site ? safeSpawnPosition(site) : null;
 }
 function assignRefugeEntry(w, acct) {
   const existing = REFUGE_ENTRY_BY_ID.get(w.refugeEntries[acct]);
@@ -442,7 +449,7 @@ function snapshot(input, acct, now = Date.now()) {
   const self = p ? { ...publicPlayer(acct, p, acct, now, viewerParty), risk: exposure.risk,
     homefrontDistance: Math.floor(exposure.distance), homefrontBand: exposure.band } : null;
   return {
-    world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
+    world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, vehicles: Vehicles.publicVehicles(w,acct,INTEREST_RADIUS), lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
     players: [...visible].map(id => {
       const avatar = id === acct ? self : publicPlayer(id, w.players[id], acct, now, viewerParty);
       const presence = Interiors.roomPresence(w.interiors, w.players, id, now, PRESENCE_TTL);
@@ -457,6 +464,8 @@ function snapshot(input, acct, now = Date.now()) {
     companions: [...visible].filter(id => now - (w.players[id]?.lastSeen || 0) <= PRESENCE_TTL)
       .map(id => Companions.publicCompanion(id,w.players[id])).filter(Boolean),
     self,
+    selfVehicle: p?.vehicleId ? Vehicles.publicVehicles(w,acct,INTEREST_RADIUS).find(v=>v.id===p.vehicleId) || null : null,
+    vehicleEnabled: process.env.HOMEFRONT_VEHICLES_ENABLED === '1',
     refugeReturn: returnSpawn ? safeSpawnPosition(returnSpawn) : null,
     director: p ? { phase: p.directorState?.phase || 'calm', lastDecision: p.directorState?.lastDecision || 'hold', nextSpawnAt: p.directorState?.nextSpawnAt || 0, noise: Math.round(Math.max(0, (p.noiseLevel || 0) - Math.max(0, now - (p.lastNoiseAt || now)) / 120)) } : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now, viewerParty)) } : null,
@@ -514,6 +523,7 @@ function tickInfected(w, acct, now) {
   player.infectedHit = { ...hit, defeated: survival.health === 0 };
   if (!player.infectedHit.defeated) return;
 
+  Vehicles.release(w, acct);
   // Death returns a survivor to THEIR reserved Homefront in the SAME shared
   // overworld. Never choose another player's gate or start a private copy.
   // Older saves without a reservation receive one through the usual bounded
@@ -593,6 +603,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
   prune(w, now);
   const p = w.players[acct];
   if (!p) throw new Error('not_in_expedition');
+  if (p.vehicleId) throw new Error('exit_vehicle_before_walking');
   // Followers move with the leader only while the leader is out in the world; a leader at home never freezes them.
   if (p.partyCode && w.parties[p.partyCode] && w.parties[p.partyCode].leader !== acct && w.players[w.parties[p.partyCode].leader]) throw new Error('party_leader_controls_movement');
   const isInput = inputCommand !== null;
@@ -796,6 +807,7 @@ function leaveParty(input, acct, now = Date.now()) {
 }
 function leave(input, acct, now = Date.now(), { keepParty = false } = {}) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
+  Vehicles.release(w, acct);
   if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
   const p = w.players[acct];
   if (keepParty) {
@@ -814,4 +826,4 @@ function leave(input, acct, now = Date.now(), { keepParty = false } = {}) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, moveInput, inputReadyInMs, shareInteriorNoise, setAiming, createParty, joinParty, leaveParty, leave, spawnEncounter, tickDirector, recordNoise };
+module.exports = { ownRefugeGate, FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, moveInput, inputReadyInMs, shareInteriorNoise, setAiming, createParty, joinParty, leaveParty, leave, spawnEncounter, tickDirector, recordNoise };

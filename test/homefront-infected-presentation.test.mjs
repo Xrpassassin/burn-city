@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { infectedPresentation, visibleInfected } from '../client/arena/homefront-infected-presentation.mjs';
+import { createZombieAudio } from '../client/arena/zaudio.js';
 
 const require = createRequire(import.meta.url);
 const Combat = require('../server/homefront-combat.js');
@@ -34,4 +35,22 @@ assert.equal(visibleInfected([{ ...encounter, defeated: true }]).length, 0);
 assert.equal(visibleInfected([{ ...encounter, members: undefined }])[0].id, encounter.id);
 assert.equal(infectedPresentation('Runner').ty, 1);
 assert.equal(infectedPresentation('Crawler').cr, true);
+
+const voices = [];
+const sound = { hb: {}, loadBank() {}, listen() {}, heartbeat() {},
+  play(key, options) { voices.push({ key, ...options }); } };
+const audio = createZombieAudio(sound, {
+  isVoiceObstructed: (listener, source) => listener[1] === 1.6 && source[0] > 0
+});
+audio.start();
+audio.tick(5, { x: 0, y: 0, z: 0, hp: 100, alive: true }, [
+  { id: 'behind-wall', x: 5, y: 0, z: 2 },
+  { id: 'in-open', x: -5, y: 0, z: 2 }
+], [], 'local');
+const [behindWall, inOpen] = voices;
+assert.deepEqual(behindWall.pos, [5, 1.5, 2], 'cover keeps the infected sound in its real direction');
+assert.deepEqual(inOpen.pos, [-5, 1.5, 2]);
+assert.equal(behindWall.cutoff, 780);
+assert.equal(inOpen.cutoff, undefined);
+assert.ok(behindWall.v < inOpen.v, 'cover softens the infected voice');
 console.log('Homefront individual infected presentation and target selection passed');

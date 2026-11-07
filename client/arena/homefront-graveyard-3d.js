@@ -65,7 +65,9 @@ if (host) {
 
 function boot(host) {
   const status = document.getElementById('graveyard3dStatus');
-  const zombieAudio = createZombieAudio(sfx, { base: new URL('./sfx/', import.meta.url).href, mobile: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches });
+  const zombieAudio = createZombieAudio(sfx, { base: new URL('./sfx/', import.meta.url).href,
+    mobile: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches,
+    isVoiceObstructed: pineVoiceObstructed });
   let zombieAudioStarted = false;
   let zombieAudioActive = false;
   const audioDirection = new THREE.Vector3();
@@ -193,6 +195,7 @@ function boot(host) {
   cameraWallRaycaster.near = 0.08;
   const cameraEye = new THREE.Vector3(), cameraArm = new THREE.Vector3(), cameraProbeEye = new THREE.Vector3();
   const facadeCameraRay = new THREE.Ray(), facadeCameraHit = new THREE.Vector3();
+  const voiceRay = new THREE.Ray(), voiceHit = new THREE.Vector3();
   let lastCameraOcclusionAt = -Infinity, lastCameraOcclusionId = null, lastCameraHitDistance = Infinity;
   const pointer = new THREE.Vector2();
   const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
@@ -652,7 +655,7 @@ function boot(host) {
     registerEnvironmentVisual('building:' + x + ',' + z, structure);
   }
   // Authored landmarks are distinct low-poly set pieces; server POIs remain the interaction authority.
-  const landmarkSetPieces = new Map(), pineFacadeCameraBounds = [];
+  const landmarkSetPieces = new Map(), pineFacadeBounds = [];
   for (const landmark of LANDMARKS) {
     const pine = pineCrossingBuilding(landmark.id);
     if (pine) {
@@ -660,7 +663,7 @@ function boot(host) {
       cityChunkAt(pine.x, pine.z).add(piece);
       landmarkSetPieces.set(pine.id, piece);
       piece.updateWorldMatrix(true, true);
-      pineFacadeCameraBounds.push(...piece.children.filter(mesh => mesh.userData.pineCameraOccluder)
+      pineFacadeBounds.push(...piece.children.filter(mesh => mesh.userData.pineCameraOccluder)
         .map(mesh => new THREE.Box3().setFromObject(mesh).expandByScalar(0.13)));
       continue;
     }
@@ -673,6 +676,16 @@ function boot(host) {
     piece.userData.interactionPointId = landmark.id;
     cityChunkAt(visualX, visualZ).add(piece);
     landmarkSetPieces.set(landmark.id, piece);
+  }
+  function pineVoiceObstructed(listener, source) {
+    if (!inPineCrossing(listener[0], listener[2], 4)) return false;
+    voiceRay.origin.fromArray(listener);
+    voiceRay.direction.fromArray(source).sub(voiceRay.origin);
+    const distance = voiceRay.direction.length();
+    if (distance < 0.01) return false;
+    voiceRay.direction.multiplyScalar(1 / distance);
+    return pineFacadeBounds.some(bounds => !bounds.containsPoint(voiceRay.origin) &&
+      voiceRay.intersectBox(bounds, voiceHit) && voiceHit.distanceTo(voiceRay.origin) < distance);
   }
   // The distant power station is a skyline anchor beyond the authoritative world
   // boundary. It shares the existing chunk culling and never creates interactables.
@@ -746,10 +759,30 @@ function boot(host) {
     const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z); g.userData.lootNodeId = p.id;
     if (p.trail && wantsContinuous) {
       const pack = p.kind === 'medical';
-      addBox(g, 0.77, pack ? 0.33 : 0.41, 0.5, 0, 0.02, 0,
-        mat(p.available ? pack ? 0x747b60 : 0x695948 : 0x47443c));
-      addBox(g, 0.64, 0.08, 0.05, 0, 0.22, 0.25, mat(pack ? 0xbcb697 : 0x9d805d));
-      addBox(g, 0.24, 0.055, 0.07, 0, pack ? 0.37 : 0.45, 0, mat(0x524c3e));
+      g.name = p.id + (p.available ? ':closed' : ':searched');
+      const shell = mat(pack ? 0x747b60 : 0x695948), dark = mat(0x302c25);
+      const marking = mat(pack ? 0xd8d0ae : 0xcfab5e);
+      const width = pack ? 0.74 : 0.94, height = pack ? 0.27 : 0.32, depth = pack ? 0.48 : 0.57;
+      addBox(g, width, 0.075, depth, 0, 0.025, 0, shell);
+      for (const x of [-1, 1]) addBox(g, 0.045, height, depth, x * (width / 2 - 0.022), 0.1, 0, shell);
+      for (const z of [-1, 1]) addBox(g, width - 0.09, height, 0.045, 0, 0.1, z * (depth / 2 - 0.022), shell);
+      const lid = new THREE.Group();
+      lid.position.set(0, height + 0.1, -depth / 2);
+      lid.rotation.x = p.available ? 0 : -1.21;
+      g.add(lid);
+      addBox(lid, width, 0.075, depth, 0, 0, depth / 2, shell);
+      addBox(lid, 0.25, 0.055, 0.085, 0, 0.075, depth * 0.48, dark);
+      if (pack) {
+        const patch = mat(0x444d3d);
+        addBox(g, 0.28, 0.23, 0.025, 0, 0.11, depth / 2, patch);
+        addBox(g, 0.16, 0.045, 0.012, 0, 0.20, depth / 2 + 0.015, marking);
+        addBox(g, 0.045, 0.15, 0.012, 0, 0.15, depth / 2 + 0.015, marking);
+      } else {
+        for (const x of [-0.28, 0.28]) {
+          addBox(g, 0.14, 0.075, 0.022, x, 0.20, depth / 2, marking);
+          addBox(g, 0.06, 0.12, 0.035, x, height - 0.015, depth / 2, dark);
+        }
+      }
       g.rotation.y = pack ? 0.68 : -0.38;
       lootGroup.add(g);
       return;
@@ -2546,7 +2579,7 @@ function boot(host) {
         if (distance > 0.01) {
           facadeCameraRay.set(cameraEye, cameraArm.multiplyScalar(1 / distance));
           let nearest = distance;
-          for (const bounds of pineFacadeCameraBounds) {
+          for (const bounds of pineFacadeBounds) {
             if (bounds.containsPoint(cameraEye) || !facadeCameraRay.intersectBox(bounds, facadeCameraHit)) continue;
             nearest = Math.min(nearest, facadeCameraHit.distanceTo(cameraEye));
           }

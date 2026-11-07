@@ -41,10 +41,22 @@ let voices = 0; const MAXV = coarse ? 16 : 28;
 function panner(x, y, z, ref, max, roll) { const p = A.createPanner(); p.panningModel = coarse ? 'equalpower' : 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = ref; p.maxDistance = max; p.rolloffFactor = roll;
   if (p.positionX) { p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z; } else p.setPosition(x, y, z); return p; }
 // one-shot sample. pos = [x,y,z] for 3D (null = in your head). rate/var = playback rate + random spread. Returns the source (or null).
-function play(k, { pos = null, v = 1, rate = 1, vr = 0.08, ref = 2.2, max = 45, roll = 1.15, at = 0, out = null } = {}) {
+function play(k, { pos = null, v = 1, rate = 1, vr = 0.08, ref = 2.2, max = 45, roll = 1.15, at = 0, out = null, cutoff = null } = {}) {
   if (!ready() || voices >= MAXV) return null; const b = pick(k); if (!b) return null; const t = A.currentTime + at, s = A.createBufferSource(), g = A.createGain();
-  s.buffer = b; s.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * vr); g.gain.value = v; let n = s.connect(g); if (pos) n = n.connect(panner(pos[0], pos[1], pos[2], ref, max, roll)); n.connect(out || bus);
-  voices++; s.onended = () => { voices--; try { s.disconnect(); } catch { } }; s.start(t); return s; }
+  s.buffer = b; s.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * vr); g.gain.value = v;
+  const filter = Number.isFinite(cutoff) ? A.createBiquadFilter() : null;
+  const spatial = pos ? panner(pos[0], pos[1], pos[2], ref, max, roll) : null;
+  let signal = s.connect(g);
+  if (filter) {
+    filter.type = 'lowpass';
+    filter.frequency.value = cutoff;
+    signal = signal.connect(filter);
+  }
+  if (spatial) signal = signal.connect(spatial);
+  signal.connect(out || bus);
+  voices++;
+  s.onended = () => { voices--; s.disconnect(); g.disconnect(); filter?.disconnect(); spatial?.disconnect(); };
+  s.start(t); return s; }
 // looping bed (flamethrower, beam, horde). Returns { set(v,pos), stop(fade) }.
 function loop(k, { pos = null, v = 1, rate = 1, ref = 2.5, max = 45, out = null } = {}) {
   if (!A || !BUF[k]?.length) return null; const s = A.createBufferSource(), g = A.createGain(); s.buffer = BUF[k][0]; s.loop = true; const d = s.buffer.duration; s.loopStart = Math.min(0.06, d * 0.1); s.loopEnd = Math.max(s.loopStart + 0.1, d - 0.06);

@@ -295,7 +295,8 @@ try {
     };
     const environment = window.pineEnvironmentProbe = {};
     const expected = new Set(['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier',
-      'pine-cracked-asphalt', 'pine-roadside-grass', 'pine-crows']);
+      'pine-cracked-asphalt', 'pine-roadside-grass', 'pine-crows',
+      'loot_pine_logging_kit:closed', 'loot_pine_logging_kit:searched', 'loot_pine_creek_pack:closed']);
     const add = Object3D.prototype.add;
     Object3D.prototype.add = function (...objects) {
       const result = add.apply(this, objects);
@@ -516,6 +517,9 @@ try {
     }
     assert.ok(environment['pine-roadside-grass'] > 0, 'shoulder growth is instanced in the scene');
     assert.equal(environment['pine-crows'], 8, 'four crows use a single wing batch');
+    assert.equal(environment['loot_pine_logging_kit:closed'], true, 'the full crew kit is visible on the trail');
+    assert.equal(environment['loot_pine_logging_kit:searched'], true, 'scavenging leaves the kit visibly open');
+    assert.equal(environment['loot_pine_creek_pack:closed'], true, 'the first-aid case is visible on the creek trail');
     for (const surface of ['gravel', 'asphalt', 'dirt', 'wood']) {
       assert.ok(audio.surfaces.includes(surface), 'footsteps respond to ' + surface);
     }

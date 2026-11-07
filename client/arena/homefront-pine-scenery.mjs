@@ -52,7 +52,9 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
   for (const [x,z,yaw,text] of [
     [-12,-79,Math.PI,'PINE CROSSING  →'],
     [-45,-46,Math.PI,'PINE CROSSING'],
+    [-41.6,-62.7,-Math.PI / 2,'CREW KIT'],
     [-19.5,-45,0,'CREEK TRAIL  →'],
+    [-25.6,-57.8,Math.PI / 2,'FIRST AID'],
     [-16,-77,0,'NORTH GATE  →']
   ]) {
     const sign = new THREE.Group();

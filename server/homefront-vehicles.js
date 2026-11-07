@@ -51,6 +51,17 @@ function dynamicRoadClear(world,account,x,z,prevX,prevZ,now){
      now-other.lastSeen>45000)continue;
   if(segmentDistance(other.x,other.z,prevX,prevZ,x,z)<VEHICLE_RADIUS+0.55)return false;
  }
+ // A rover cannot silently drive through a living infected group. Later
+ // impacts may cause server-resolved knockdowns; this first slice stops the
+ // vehicle instead of creating free zombie kills without combat authority.
+ for(const encounter of Object.values(world.encounters||{})){
+  if(encounter?.defeated||encounter?.hp<=0)continue;
+  for(const infected of encounter.members||[]){
+   if(infected.defeated||infected.hp<=0||
+      !Number.isFinite(infected.x)||!Number.isFinite(infected.z))continue;
+   if(segmentDistance(infected.x,infected.z,prevX,prevZ,x,z)<VEHICLE_RADIUS+0.55)return false;
+  }
+ }
  return true;
 }
 function parkingSpot(gate,vehicles){

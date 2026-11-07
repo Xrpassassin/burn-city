@@ -27,10 +27,13 @@ assert.ok(Math.min(...color.array)<Math.max(...color.array),'wall weathering var
 fern.dispose();wall.geometry.dispose();wall.material.dispose();
 console.log('Pine environment detail: deterministic bark, clear travel lanes, instancing budget and unchanged wall geometry passed');
 
-const {homefrontPixelRatio,homefrontRendererName}=await import('./homefront-render-budget.mjs');
+const {homefrontPixelRatio,homefrontRendererName,homefrontSoftwareRenderer}=await import('./homefront-render-budget.mjs');
 assert.equal(homefrontPixelRatio(3,true,'Apple GPU'),1.15,'phone GPUs keep the existing detail cap');
 assert.equal(homefrontPixelRatio(2,false,'NVIDIA GPU'),1.6,'desktop GPUs keep the existing detail cap');
 assert.equal(homefrontPixelRatio(2,false,'ANGLE SwiftShader'),0.75,'software rendering uses a smaller framebuffer');
 assert.equal(homefrontPixelRatio(1,true,'llvmpipe'),0.75);
 assert.equal(homefrontPixelRatio(NaN,false,''),1);
 assert.equal(homefrontRendererName({getContext(){throw Error('unavailable');}}),'','masked renderer information never prevents startup');
+
+assert.equal(homefrontSoftwareRenderer('ANGLE SwiftShader'),true);
+assert.equal(homefrontSoftwareRenderer('Apple GPU'),false);

@@ -23,7 +23,7 @@ unchanged.
   and glazing are batched per building.
 
 Software rasterizers (SwiftShader/llvmpipe/softpipe) use a 0.75 framebuffer pixel
-ratio to limit CPU rendering cost. Normal desktop and phone GPUs retain their
+ratio and disable desktop multisampling to limit CPU rendering cost. Normal desktop and phone GPUs retain their
 existing resolution caps. Renderer detection is local, guarded, and never sent
 to the server.
 

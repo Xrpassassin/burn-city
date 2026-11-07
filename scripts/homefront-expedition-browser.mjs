@@ -641,6 +641,18 @@ try {
     const surfaceProbe=await page.evaluate(()=>window.pineSurfaceProbe);
     assert.ok(Object.values(surfaceProbe.maps).every(([w,h])=>w===512&&h===512),'all three scanned materials decode their colour, normal and roughness maps at the mobile budget');
     console.log('HOMEFRONT SURFACE PACK LOADED',JSON.stringify(surfaceProbe));
+    const renderBudget=await page.evaluate(()=>{
+      const canvas=document.querySelector('#graveyard3d canvas');
+      const gl=canvas.getContext('webgl2')||canvas.getContext('webgl');
+      const debug=gl.getExtension('WEBGL_debug_renderer_info');
+      return {renderer:String(gl.getParameter(debug?debug.UNMASKED_RENDERER_WEBGL:gl.RENDERER)),
+        antialias:gl.getContextAttributes().antialias,ratio:canvas.width/canvas.clientWidth};
+    });
+    if(/swiftshader|llvmpipe|softpipe|software rasterizer/i.test(renderBudget.renderer)){
+      assert.equal(renderBudget.antialias,false,'software rendering avoids desktop multisampling');
+      assert.ok(renderBudget.ratio<=0.76,'software rendering retains a bounded framebuffer');
+    }
+    console.log('WOODLAND RENDER BUDGET',JSON.stringify(renderBudget));
     if (process.env.HOMEFRONT_PINE_SCREENSHOT) await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
     await page.waitForFunction(() => window.fieldAudioProbe.cues.includes('canvas'), null, { timeout: 6000 });
     for (const building of PINE_CROSSING_BUILDINGS) {

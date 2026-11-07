@@ -1,7 +1,8 @@
 // Retain normal GPU detail; reduce only the framebuffer cost of CPU rasterizers.
+export const homefrontSoftwareRenderer=name=>/swiftshader|llvmpipe|softpipe|software rasterizer/i.test(name);
 export function homefrontPixelRatio(deviceRatio,coarse=false,rendererName=''){
  const ratio=Number.isFinite(deviceRatio)&&deviceRatio>0?deviceRatio:1;
- const software=/swiftshader|llvmpipe|softpipe|software rasterizer/i.test(rendererName);
+ const software=homefrontSoftwareRenderer(rendererName);
  return Math.min(ratio,coarse?1.15:1.6,software?0.75:Infinity);
 }
 

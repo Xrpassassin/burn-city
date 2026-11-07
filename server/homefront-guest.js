@@ -1,5 +1,4 @@
-// Wallet-free Homefront trial. Each guest plays in a private, disposable RAM store.
-// This module NEVER calls the persistent Homefront store or joins the shared world.
+// Wallet-free Homefront: disposable personal saves, optionally one shared world.
 'use strict';
 const crypto = require('node:crypto');
 const Homefront = require('./homefront');
@@ -20,12 +19,17 @@ function disposableStore() {
   };
 }
 
-function createGuestHandler({ now = Date.now, maxSessions = MAX_SESSIONS, maxPerIp = MAX_PER_IP } = {}) {
+function createGuestHandler({ now = Date.now, maxSessions = MAX_SESSIONS, maxPerIp = MAX_PER_IP, overworld = null } = {}) {
   const sessions = new Map();
+  const remove = token => {
+    const session = sessions.get(token);
+    if (session) overworld?.release(session.account);
+    sessions.delete(token);
+  };
   const sweep = () => {
     const time = now();
     for (const [token, session] of sessions) {
-      if (time >= session.expires) sessions.delete(token);
+      if (time >= session.expires) remove(token);
     }
   };
   async function handle(req, res, url, { json, gate, ip, body }) {
@@ -40,19 +44,21 @@ function createGuestHandler({ now = Date.now, maxSessions = MAX_SESSIONS, maxPer
       // Bounded admission per caller: replacing the caller's oldest session means
       // reloads and repeated starts never consume more than maxPerIp slots.
       const mine = [...sessions].filter(([, s]) => s.ip === ip).sort((a, b) => a[1].created - b[1].created);
-      while (mine.length >= maxPerIp) sessions.delete(mine.shift()[0]);
+      while (mine.length >= maxPerIp) remove(mine.shift()[0]);
       // A replaced page sends its previous token so that slot is freed at once.
       const previous = String(req.headers['x-homefront-guest'] || '');
-      if (sessions.get(previous)?.ip === ip) sessions.delete(previous);
+      if (sessions.get(previous)?.ip === ip) remove(previous);
       if (sessions.size >= maxSessions) {
         json(res, 503, {error:'guest_capacity_reached'}); return true;
       }
       const token = crypto.randomBytes(32).toString('hex');
+      const account = 'guest_' + crypto.randomBytes(12).toString('hex');
+      const personal = disposableStore();
       sessions.set(token, {
-        account: 'guest_' + crypto.randomBytes(12).toString('hex'),
-        store: disposableStore(), expires: now() + UNCLAIMED_MS, ip, created: now(), claimed: false
+        account, store: overworld ? overworld.admit(account, personal) : personal,
+        expires: now() + UNCLAIMED_MS, ip, created: now(), claimed: false
       });
-      json(res, 200, { token, persistent: false, multiplayer: false, expiresAfterIdleMs: IDLE_MS });
+      json(res, 200, { token, persistent: false, multiplayer: !!overworld, expiresAfterIdleMs: IDLE_MS });
       return true;
     }
     if (suffix !== '' && suffix !== '/action' && suffix !== '/world' && !suffix.startsWith('/world/')) {
@@ -63,6 +69,12 @@ function createGuestHandler({ now = Date.now, maxSessions = MAX_SESSIONS, maxPer
     const token = String(req.headers['x-homefront-guest'] || '');
     const session = /^[a-f0-9]{64}$/.test(token) ? sessions.get(token) : null;
     if (!session) { json(res, 401, {error:'guest_session_expired'}); return true; }
+    // Temporary identities can meet and scavenge, but cannot obtain invitations,
+    // summon saved survivors, or damage persistent players through throwaway IDs.
+    if (overworld && (suffix.startsWith('/world/party/') || suffix === '/world/pvp' ||
+        (suffix === '/world/travel' && req.method === 'POST'))) {
+      json(res, 403, {error:'connect_wallet_for_party_or_pvp'}); return true;
+    }
     session.claimed = true;
     session.expires = now() + IDLE_MS;
     const target = new URL(url.href);
@@ -73,7 +85,7 @@ function createGuestHandler({ now = Date.now, maxSessions = MAX_SESSIONS, maxPer
     if (!handled) json(res, 404, {error:'guest_route_not_found'});
     return true;
   }
-  return {handle};
+  return {handle, sweep};
 }
 
 module.exports = {handle: createGuestHandler().handle, createGuestHandler};

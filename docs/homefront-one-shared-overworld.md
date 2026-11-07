@@ -1,6 +1,6 @@
 # Homefront: one shared, open overworld
 
-Status: **implementation contract for draft PR #566**. Do not promote the unfinished
+Status: **shared wallet/guest authority implemented; large-world expansion remains**. Do not promote the unfinished
 continuous-movement path to production until the physical-device playtest and
 desktop/phone expedition suites pass.
 
@@ -46,21 +46,27 @@ rooms should be anchored to **world-visible buildings at the owners' reserved
 coordinates**, with invitation/access checks on entry. Do not create
 independent open-world copies merely because individual bases are private.
 
-**Known gap: wallet-free guests.** `server/homefront-guest.js` deliberately
-creates a separate disposable in-memory store for every guest session and
-returns `multiplayer:false`. Therefore guest players do **not yet share the
-wallet-authenticated persistent world**; claims that all player types meet
-would be inaccurate. Do not simply give anonymous guests the persistent
-Homefront store: that would allow untrusted temporary accounts to mutate
-shared save state without robust admission, expiry and abuse protection.
+**Wallet-free visitors now share the production overworld.** The server creates
+one `homefront-overworld.js` authority for both wallet and guest routes. Bounded,
+random guest identities receive temporary unique gates, reciprocal nearby
+presence, common building rooms and the same public loot cooldowns. Other
+survivors can find them without a party or wallet connection.
+
+Guest bases, RPG progress and rewards use session-only stores. A persistence
+projection removes guest-owned world records and identifiers before saving;
+public changes such as a depleted loot container remain shared and persistent.
+Expiry/replacement removes guest presence, gates, vehicles and interior evidence.
+An unclaimed session expires after five minutes; active trials after ninety
+minutes of idle time. Global/per-IP admission limits and existing action/input
+rate limits apply. Guest credentials never authorize wallet save routes. There
+is no guest-to-wallet progress migration. Guests cannot join parties, obtain
+party-based private-base access or engage in PvP; wallet PvP also rejects guests.
+Standalone guest fixtures without an overworld remain deliberately disposable.
 
 ## Remaining production work
 
-1. Design a **single shared authority** for wallet and guest presence with
-   bounded anonymous-session identifiers, per-session throttles, online
-   expiration/cleanup, and no automatic guest-to-wallet asset migration.
-   Guests may play but may only save long-term personal progress after wallet
-   authentication. Protect shared loot, PvP and invite permissions from abuse.
+1. Extend guest social play only with tested invite permissions and anti-abuse
+   rules. Shared exploration is available now; guest PvP/parties remain disabled.
 2. Place persistent Homefront structures in the shared world near reserved
    gates. Stream only nearby public-safe markers and solid geometry, and keep
    private interiors permission-gated rather than duplicating the map.
@@ -85,3 +91,9 @@ shared save state without robust admission, expiry and abuse protection.
   authenticated accounts using the **same world store** and shared buildings.
 - `test/homefront-pine-relay-sim.mjs`: traversable physical relay route,
   collision, sound, local danger and server-owned scavenging.
+
+- `test/homefront-guest-overworld.test.cjs`: two guests plus one wallet, unique
+  gates, reciprocal presence, common building rooms, concurrent shared scavenging,
+  forged reward/account payloads, private-base boundaries, expiry and restart.
+- `scripts/homefront-expedition-browser.mjs`: guest browser journeys use the same
+  shared authority as production, with disposable personal progression.

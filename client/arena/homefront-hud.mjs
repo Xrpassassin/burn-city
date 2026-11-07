@@ -75,6 +75,7 @@ body.rpg-hud .rpg-nav{display:none}body.rpg-hud .rpg-nav.hf-talk{display:flex;pa
 .hf-q{width:38px;height:38px;flex:0 0 38px;border-radius:10px;border:1px solid #8e5235;background:#24140d;color:#ffe0c4;font-size:17px;padding:0;cursor:pointer}.hf-q:disabled{opacity:.35}
 .hf-mm{width:44px;height:44px;flex:0 0 44px;border-radius:50%;border:1px solid #805238;background:#0c0a09}
 .hf-menu{flex:0 0 auto;min-height:38px;padding:6px 10px;border-radius:10px;border:1px solid #ff8b3d;background:linear-gradient(120deg,#a63f16,#63250f);color:#ffe0c4;font:800 13px system-ui;cursor:pointer}
+.hf-tabs[hidden]{display:none!important}
 .hf-sheet{position:fixed;inset:0;z-index:40;background:#050403e6;display:grid;place-items:center;padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom))}.hf-sheet[hidden]{display:none}
 .hf-card{width:min(100%,640px);max-height:100%;display:flex;flex-direction:column;background:linear-gradient(155deg,#2a1a12,#100b09);border:1px solid #ff8b3d99;border-radius:16px;overflow:hidden}
 .hf-tabs{display:flex;gap:4px;overflow-x:auto;padding:8px;border-bottom:1px solid #a55c3555;flex:0 0 auto}.hf-tabs button{flex:0 0 auto;min-height:36px;padding:6px 10px;border-radius:9px;border:1px solid #8e5235;background:#24140d;color:#ffe0c4;font:700 13px system-ui}.hf-tabs button[aria-selected=true]{background:#a63f16;border-color:#ffd09b}

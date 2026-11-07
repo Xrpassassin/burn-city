@@ -1,4 +1,5 @@
 import { blackHoleAltitude } from './blackhole-altitude.mjs';
+import { blackHoleRadius } from './blackhole-radius.mjs';
 import { verifiedBurnFraction } from './verified-burn-visual.mjs';
 import { verifiedSupplyFraction } from './verified-supply-visual.mjs';
 import { verifiedEcosystemSupplyFraction } from './verified-ecosystem-supply-visual.mjs';
@@ -86,7 +87,6 @@ export function initAmmLock(c) {
   const cx = tokNames.reduce((s, k) => s + N[k].pos.x, 0) / Math.max(1, tokNames.length), cz = tokNames.reduce((s, k) => s + N[k].pos.z, 0) / Math.max(1, tokNames.length);
   const singPos = (n, R, fraction, verified, out) => out.set(n.pos.x, blackHoleAltitude({ rooftop: n.top || n.h || 0, radius: R, fraction, verified }), n.pos.z);
   // Verified burns earn a dramatic skyline silhouette; fixed issuer markers remain small.
-  const singR = (f,verified) => verified ? 2 + 13 * Math.sqrt(Math.max(0,Math.min(1,f))) : f > 0 ? 3.4 + 7 * Math.sqrt(Math.max(0,Math.min(1,f))) : 2.2;
 
   // ---- 3) accretion disks: one instanced draw, no lights/textures/post passes ----
   const diskGeo = new THREE.RingGeometry(1.06, 2.2, LOW ? 32 : 64);
@@ -146,7 +146,7 @@ export function initAmmLock(c) {
       _m.compose(M.p, M.q, _s.setScalar(show ? M.R : 0)); halos.setMatrixAt(i, _m); });
     halos.instanceMatrix.needsUpdate = true; ring.attributes.lk.needsUpdate = true;
     let visibleSingularities = 0;
-    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = singR(v.f, v.st === 'verified'); singPos(n, R, v.f, v.st === 'verified', _v);
+    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = blackHoleRadius({fraction:v.f,status:v.st}); singPos(n, R, v.f, v.st === 'verified', _v);
       if(on) { const slot=visibleSingularities++;
         _m.compose(_v,_q.identity(),_s.setScalar(R));sing.setMatrixAt(slot,_m);
         // BURN purple, IMM turquoise, XRPyro ember-orange; one batched shader and one singularity per token.

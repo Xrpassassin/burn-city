@@ -292,6 +292,9 @@ try {
   expeditionRun: {
     if(process.env.HOMEFRONT_EXPEDITION_ROVER==='1'){
       assert.equal(guestMode,false,'shared vehicle acceptance uses wallet-authenticated world fixture');
+      // Reaching the Homefront exit is not entering the shared overworld.
+      // The separate existing expedition path explicitly clicks this gate.
+      await activate(page.locator('#homefrontInteractionPrompt button'));
       await page.waitForFunction(()=>document.body.classList.contains('rpg-mode-expedition')&&
         document.querySelector('#graveyard3d')?.getClientRects().length>0);
       const built=page.waitForResponse(response=>response.request().method()==='POST'&&

@@ -38,6 +38,7 @@ const W='/api/homefront/world';
   assert.equal((await call('POST',W+'/vehicle/build','A')).body.error,'vehicle_already_owned',
    'duplicate requests do not grant another rover or withdraw resources');
   const state=store.load('homefront-world.json',{});
+  state.encounters={}; // isolate pedestrian collision from the independent infected traffic test
   assert.equal(Object.keys(state.vehicles).length,1);
   assert.equal((await call('POST',W+'/vehicle/board','B')).body.error,'no_owned_vehicle',
    'other survivors cannot steal the owner-locked first rover');

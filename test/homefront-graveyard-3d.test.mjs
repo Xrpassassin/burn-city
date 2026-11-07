@@ -6,6 +6,14 @@ const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.
 
 assert.match(scene, /from '\.\/zaudio\.js'/, 'reuse the Zombies sound director in Homefront');
 assert.match(scene, /from '\.\/homefront-context-action-queue\.mjs'/, 'defer only explicit busy doorway taps until movement settles');
+assert.match(scene, /from '\.\/homefront-rover-mesh\.mjs'/, 'render the server-owned rover in the existing 3D world');
+assert.match(scene, /from '\.\/homefront-rover-controls\.mjs'/, 'enable explicit touch and WASD rover controls, not point-and-click travel');
+assert.match(scene, /syncRoverMeshes\(data\.world\?\.vehicles\|\|\[\]\)/, 'mirror the real server vehicle coordinates');
+assert.match(scene, /homefront\/world\/vehicle\/'\+action/, 'vehicle actions must use authenticated Homefront world API');
+assert.match(scene, /current\.id==='rescue-survivor'/, 'interact with a frightened human survivor in physical range');
+assert.match(scene, /homefront\/world\/rescue/, 'reuse the authoritative rescue and owned survivor roster system');
+assert.match(scene, /glow\.visible=false/, 'remove giant non-diegetic quest glow over rescue NPCs');
+
 assert.match(scene, /queueDoorwayTap\(\{/, 'revalidate an explicitly tapped mobile doorway after movement acknowledgment');
 assert.match(scene, /current:\(\)=>availableContext\(\)/, 'deferred doorways re-check world position and session state');
 assert.match(scene, /import \{ createZombieRenderer \} from '\.\/fx\.js'/, 'reuse the arena renderer for both animated and instanced infected');

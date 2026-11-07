@@ -224,7 +224,7 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             const out=Vehicles.drive(db,account,{sequence:payload.sequence,steer:payload.steer,throttle:payload.throttle},now);
             vehicle=out.vehicle;blocked=out.blocked;
           } else if(action==='dismount')vehicle=Vehicles.dismount(db,account,now);
-          else if(action==='charge')vehicle=Vehicles.charge(db,base,account,now);
+          else if(action==='charge')vehicle=Vehicles.charge(db,base,account,World.ownRefugeGate(db,account),now);
           else throw Error('unknown_vehicle_action');
           if(action==='build'||action==='charge'){
             base.revision++;base.updatedAt=now;

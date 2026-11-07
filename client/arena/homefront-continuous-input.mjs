@@ -100,8 +100,11 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       }
     } else {
       // Recover from speculative movement after release.
-      predicted.x += (server.x - predicted.x) * 0.16;
-      predicted.z += (server.z - predicted.z) * 0.16;
+      // Time-based easing keeps release correction consistent at 30, 60 and 120 FPS.
+      // A fixed per-frame fraction makes the avatar snap back much faster on high-refresh displays.
+      const idleBlend = 1 - Math.exp(-Math.max(0, Math.min(0.1, Number.isFinite(dt) ? dt : 0)) * 10.46);
+      predicted.x += (server.x - predicted.x) * idleBlend;
+      predicted.z += (server.z - predicted.z) * idleBlend;
     }
     if (pending || now - lastSentAt < INPUT_SEND_INTERVAL_MS ||
         (!vec.moving && !sentMotion && crouched === acknowledgedCrouch)) return;

@@ -1,5 +1,6 @@
 import { DEFAULT_TERRAIN_SEED, terrainHeight, valueNoise2D } from './homefront-terrain-generation.mjs';
 import { CHUNK_SIZE } from './homefront-world-streaming.mjs';
+import { vehicleCorridorAt } from './homefront-vehicle-corridors.mjs';
 
 const BIOMES = Object.freeze([
   { id: 'ashland', label: 'Ashland', ground: 0x4b4b42, vegetation: 0x55594a, moisture: 0.25 },
@@ -42,6 +43,7 @@ export function environmentalCandidates(cx, cz, { chunkSize = CHUNK_SIZE, seed =
     if (hash01(worldCellX, worldCellZ, seed ^ 0x12a4f3) > density) continue;
     const x = cx * chunkSize + (gx + 0.2 + hash01(worldCellX, worldCellZ, seed ^ 0x67ab91) * 0.6) * chunkSize / cells;
     const z = cz * chunkSize + (gz + 0.2 + hash01(worldCellX, worldCellZ, seed ^ 0x9981de) * 0.6) * chunkSize / cells;
+    if(vehicleCorridorAt(x,z))continue; // leave drive-width carriageways clear, preserve roadside clutter
     const biome = biomeAt(x, z, seed);
     const height = terrainHeight(x, z, seed);
     const roll = hash01(worldCellX, worldCellZ, seed ^ 0x9e3779b9);

@@ -13,6 +13,14 @@ assert.match(scene, /homefront\/world\/vehicle\/'\+action/, 'vehicle actions mus
 assert.match(scene, /current\.id==='rescue-survivor'/, 'interact with a frightened human survivor in physical range');
 assert.match(scene, /homefront\/world\/rescue/, 'reuse the authoritative rescue and owned survivor roster system');
 assert.match(scene, /glow\.visible=false/, 'remove giant non-diegetic quest glow over rescue NPCs');
+assert.match(scene, /from '\.\/homefront-survivor-encounters\.mjs'/, 'authored survivor vignettes share the existing rescue POI states');
+assert.match(scene, /survivorInteraction\(survivor\)/, 'rescue prompts require physical proximity to the visible survivor actor');
+assert.match(scene, /survivorApproachCue\(scene,/, 'approach dialogue is short, location-driven and cooldown limited');
+assert.match(scene, /roverMotorBed\s*\|\|=\s*sfx\.roverMotor\(\)/, 'driver hears rover motor through existing audio bus');
+assert.match(scene, /stopRoverMotor\(\)/, 'dismount and hidden scene stop the rover motor');
+const audioSource = readFileSync(new URL('../client/arena/sfx.js', import.meta.url), 'utf8');
+assert.match(audioSource, /function roverMotor\(\)/, 'electric rover engine is a procedural cue with no asset download');
+assert.match(audioSource, /gain\.gain\.setTargetAtTime\(0\.0001,t,0\.07\)/, 'synthesized engine fades before oscillator cleanup');
 
 assert.match(scene, /queueDoorwayTap\(\{/, 'revalidate an explicitly tapped mobile doorway after movement acknowledgment');
 assert.match(scene, /current:\(\)=>availableContext\(\)/, 'deferred doorways re-check world position and session state');

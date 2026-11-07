@@ -356,19 +356,20 @@ try {
       const firstPoint={x:boarding.self.x,z:boarding.self.z};
       const driving=page.waitForResponse(response=>response.request().method()==='POST'&&
         response.url().endsWith('/api/homefront/world/vehicle/drive'),{timeout:12000});
+      let driveResponse;
       if(mobile){
         const pad=page.getByRole('button',{name:'Rover KeyW'});
         const bounds=await pad.boundingBox();
         const at={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
         await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[at]});
-        await new Promise(resolve=>setTimeout(resolve,450));
-        await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+        try{driveResponse=await driving;}
+        finally{await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});}
       }else{
         await page.keyboard.down('w');
-        await new Promise(resolve=>setTimeout(resolve,450));
-        await page.keyboard.up('w');
+        try{driveResponse=await driving;}
+        finally{await page.keyboard.up('w');}
       }
-      const driven=await (await driving).json();
+      const driven=await driveResponse.json();
       assert.equal(driven.vehicle?.sequence,0);
       assert.ok(Math.hypot(driven.self.x-firstPoint.x,driven.self.z-firstPoint.z)<1.5,
         'server controls the first rover movement budget');

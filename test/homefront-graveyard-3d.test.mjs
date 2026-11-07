@@ -5,6 +5,9 @@ const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', 
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 
 assert.match(scene, /from '\.\/zaudio\.js'/, 'reuse the Zombies sound director in Homefront');
+assert.match(scene, /from '\.\/homefront-context-action-queue\.mjs'/, 'defer only explicit busy doorway taps until movement settles');
+assert.match(scene, /queueDoorwayTap\(\{/, 'revalidate an explicitly tapped mobile doorway after movement acknowledgment');
+assert.match(scene, /current:\(\)=>availableContext\(\)/, 'deferred doorways re-check world position and session state');
 assert.match(scene, /import \{ createZombieRenderer \} from '\.\/fx\.js'/, 'reuse the arena renderer for both animated and instanced infected');
 assert.match(scene, /infectedRenderer\.update\(dt, presentedInfected, localForInfected\)/, 'drive the arena renderer from authoritative encounter snapshots');
 assert.match(scene, /MeshBasicMaterial\(\{ visible: false \}\)/, 'keep aiming proxies separate from the visible models');

@@ -73,7 +73,10 @@ if (typeof window !== 'undefined') {
     if (k === 'v' && !e.repeat) { setViewMode(nextViewMode(readViewMode())); return; }
     // Keys drive the canvas on screen: a hidden view (e.g. the Graveyard while at home) hands over to a visible one.
     if (activeView && !activeView.visible) { const shown = [...views].find(v => v.visible); if (shown) activeView = shown; }
-    if (k === 'c' && !e.repeat && activeView?.visible && activeView.toggleCrouch?.()) e.preventDefault();
+    if (k === 'z' && !e.repeat) {
+      const field = [...views].find(v => v.visible && v.toggleCrouch);
+      if (field?.toggleCrouch()) e.preventDefault();
+    }
     if (KEYMAP[k] && activeView) { held.add(k); activeView.keys = keyVector(held); e.preventDefault(); }
     // Shared Burn City movement keys (client/js/player-motion.mjs): Shift runs, Space jumps.
     if (k === 'shift' && activeView) activeView.runKey = true;
@@ -150,7 +153,7 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     let crouched = false;
     const paintStance = () => {
       stance.textContent = crouched ? 'Stand' : 'Crouch';
-      if (!coarse) stance.textContent += ' · C';
+      if (!coarse) stance.textContent += ' · Z';
       stance.setAttribute('aria-pressed', String(crouched));
       stance.setAttribute('aria-label', 'Crouch');
     };

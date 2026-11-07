@@ -324,7 +324,7 @@ try {
   if (pineCrossing) {
     const stance = page.locator('#graveyard3d .hf-crouch');
     await stance.waitFor({ state: 'visible' });
-    const toggle = () => mobile ? stance.tap() : page.keyboard.press('c');
+    const toggle = () => mobile ? stance.tap() : page.keyboard.press('z');
     for (const crouched of [true, false]) {
       await toggle();
       await page.waitForFunction(expected =>

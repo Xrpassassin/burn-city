@@ -2,6 +2,9 @@
 // Deterministic server-side occupancy mirror for Homefront's Graveyard scene.
 // Keep generation constants aligned with client/arena/homefront-graveyard-3d.js.
 const Terrain = require('./homefront-terrain');
+const { inPineCrossing, pineRouteDistance, pineCrossingBuilding, PINE_CROSSING_TREES, PINE_ROADSIDE_SITES } =
+  require('../client/arena/homefront-pine-crossing.mjs');
+const {vehicleCorridorAt}=require('../client/arena/homefront-vehicle-corridors.mjs');
 const InteriorRules = require('./homefront-interiors');
 const InteriorCatalog = require('../client/arena/homefront-interior-world.mjs');
 const WORLD_SIZE = 100;
@@ -36,7 +39,7 @@ function buildObstacles() {
     rand(); // height
     rand(); // building material
     const rotation = (rand() - 0.5) * 0.16;
-    out.push({ id: 'building:' + x + ',' + z, type: 'rect', x: bx, z: bz,
+    if (!inPineCrossing(bx, bz, 3.5)) out.push({ id: 'building:' + x + ',' + z, type: 'rect', x: bx, z: bz,
       halfX: Math.abs(Math.cos(rotation)) * w / 2 + Math.abs(Math.sin(rotation)) * d / 2 + 0.25,
       halfZ: Math.abs(Math.sin(rotation)) * w / 2 + Math.abs(Math.cos(rotation)) * d / 2 + 0.25 });
     if (rand() > 0.45) { rand(); rand(); } // roof cap dimensions/offsets, visual only
@@ -50,6 +53,7 @@ function buildObstacles() {
       if (hash01(wx, wz, Terrain.DEFAULT_SEED ^ 0x12a4f3) > density) continue;
       const x = cx * chunkSize + (gx + 0.2 + hash01(wx, wz, Terrain.DEFAULT_SEED ^ 0x67ab91) * 0.6) * chunkSize / cells;
       const z = cz * chunkSize + (gz + 0.2 + hash01(wx, wz, Terrain.DEFAULT_SEED ^ 0x9981de) * 0.6) * chunkSize / cells;
+      if (inPineCrossing(x, z) || vehicleCorridorAt(x,z) || (z < -78 && pineRouteDistance(x, z) < 2.5)) continue;
       const biome = biomeAt(x, z), roll = hash01(wx, wz, Terrain.DEFAULT_SEED ^ 0x9e3779b9);
       const type = biome === 'marsh' ? (roll < 0.55 ? 'dead_reed' : 'standing_water') :
         biome === 'deadwood' ? (roll < 0.62 ? 'dead_tree' : 'fallen_log') :
@@ -62,6 +66,8 @@ function buildObstacles() {
       else if (type === 'rubble' || type === 'stone_debris') out.push({ id: 'debris:' + wx + ',' + wz, type: 'circle', x, z, radius: 0.62 });
     }
   }
+  for (const { id, x, z, radius } of PINE_CROSSING_TREES) out.push({ id, type: 'circle', x, z, radius });
+  for (const { id, x, z, halfX, halfZ } of PINE_ROADSIDE_SITES) out.push({ id, type: 'rect', x, z, halfX, halfZ });
   // Loot/rescue marker props have solid crates or shelter bodies at their authoritative POI coordinates.
   const poiProps = [
     { id: 'cache_exchange', x: -32, z: 24, type: 'rect', halfX: 1.15, halfZ: 0.95 },
@@ -78,6 +84,10 @@ function buildObstacles() {
     const landmark = InteriorRules.LANDMARKS[interior.landmarkId];
     if (!landmark) continue;
     for (const room of interior.rooms) {
+      if (pineCrossingBuilding(interior.landmarkId)) {
+        out.push({ id: 'pine-shell:' + interior.landmarkId + ':' + room.id, type: 'rect',
+          x: landmark.x + room.x, z: landmark.z + room.z, halfX: room.width / 2, halfZ: room.depth / 2 });
+      }
       for (const side of ['north','south','east','west']) {
         const alongX = side === 'north' || side === 'south';
         const length = alongX ? room.width : room.depth;

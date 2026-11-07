@@ -1,7 +1,9 @@
 // Authoritative simulation for both modes. Clients only send inputs; server owns all state,
 // collisions and damage. Numbers are quantized in snapshots to keep bandwidth small.
+const { zombieMoveVector, ZOMBIE_WALK_SPEED, ZOMBIE_FAST_SPEED, ZOMBIE_CRAWL_SPEED } = require('../client/arena/zombie-locomotion.mjs');
 const Heli = require('./heli'), Rotary = require('./rotary-rules'), Director = require('./zombie-wave-director');   // helicopter finale (Night Shift ch. 4)
-const C = require('./config'), Z = require('./cod'), Quest = require('./quest'), IFRAME = +(process.env.ZOMBIE_IFRAME || 1), SPAWN_GAP = +(process.env.ZOMBIE_SPAWN_GAP || 1.8), REGEN_DELAY = +(process.env.ZOMBIE_REGEN_DELAY || 3.5), REGEN_RATE = +(process.env.ZOMBIE_REGEN_RATE || 22), HS_LAT = 0.3, HS_BONUS = 40, TEST_GOD = process.env.ZOMBIE_TEST_GOD === '1' && !process.env.FLY_APP_NAME;   // local screenshot runs only
+const { ZOMBIE_MELEE_REACH, ZOMBIE_MELEE_HEIGHT, ZOMBIE_IFRAME_SECONDS: IFRAME } = require('./zombie-contact');
+const C = require('./config'), Z = require('./cod'), Quest = require('./quest'), SPAWN_GAP = +(process.env.ZOMBIE_SPAWN_GAP || 1.8), REGEN_DELAY = +(process.env.ZOMBIE_REGEN_DELAY || 3.5), REGEN_RATE = +(process.env.ZOMBIE_REGEN_RATE || 22), HS_LAT = 0.3, HS_BONUS = 40, TEST_GOD = process.env.ZOMBIE_TEST_GOD === '1' && !process.env.FLY_APP_NAME;   // local screenshot runs only
 // between-round upgrade draft (Mortuus-style): after each cleared wave every standing player picks 1 of 3 stacking boons
 const DRAFT = { dmg: ['Searing Fuel', '+12% damage', 5, '🔥'], fuel: ['Deep Tanks', '+25% fuel refill', 4, '⛽'], armor: ['Slag Plating', '-10% damage taken', 3, '🛡️'], hp: ['Thick Skin', '+20 max health', 5, '❤️'],
   pts: ['Bounty Hunter', '+15% kill points', 4, '💰'], regen: ['Second Wind', 'Faster health regen', 3, '🌬️'], range: ['Long Reach', '+8% weapon range', 3, '🎯'], hs: ['Executioner', '+25% headshot damage', 3, '💀'],
@@ -165,8 +167,8 @@ class Room {
       p.ptsAcc += real * 0.2; if (p.ptsAcc >= 1) { const k = Math.floor(p.ptsAcc); p.pts += k; p.ptsAcc -= k; } };   // points per hit (by damage dealt)
     const up = ps.filter(p => p.alive && !p.down && !p.aboard), AIM = { vAim, hsV, reachH, missD, endY, hurt };
     // Last stand: downed players crawl and fire a BURN pistol (hotter if they own any Forged gun)
-    const lastStand = (p, dt) => { const s = Math.sin(p.yaw), c = Math.cos(p.yaw), CR = 1.6; let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
-      const nx = clamp(p.x + vx * CR * dt, -W, W), nz = clamp(p.z + vz * CR * dt, -W, W); if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
+    const lastStand = (p, dt) => { const s = Math.sin(p.yaw), c = Math.cos(p.yaw); const { x: vx, z: vz } = zombieMoveVector(p.in.mx, p.in.mz, p.yaw);
+      const nx = clamp(p.x + vx * ZOMBIE_CRAWL_SPEED * dt, -W, W), nz = clamp(p.z + vz * ZOMBIE_CRAWL_SPEED * dt, -W, W); if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
       const hot = !!(p.up && p.up.length), dmg = hot ? 85 : 42, range = hot ? LS_RANGE_HOT : LS_RANGE, cd = hot ? 0.28 : 0.42, splash = hot ? 1.3 : 0; p.cd = Math.max(0, (p.cd || 0) - dt);
       if (!(p.in.fire && p.cd <= 0)) return; p.cd = cd; p.firing = true; let hit = null, hd = reachH(p, range);
       for (const zb of this.zombies.values()) { const dx = zb.x - p.x, dz = zb.z - p.z, along = dx * s + dz * c, lat = Math.abs(dx * c - dz * s); if (along > 0 && along < hd && lat < 0.9 && vAim(p, zb, along) && Z.los(this, p.x, p.z, zb.x, zb.z, p.y, zb.y)) { hd = along; hit = zb; hit._lat = lat; hit._hv = hsV(p, zb, along); } }
@@ -191,8 +193,8 @@ class Room {
       if (p.in.pk != null) { takeDraft(p, p.in.pk, ev); p.in.pk = null; }   // health regen after a few seconds without damage
       if (p.aboard) { Heli.rider(this, p, dt, ev, AIM); continue; }   // seated in the helicopter: vote / minigun only
       if (p.in.use) { p.in.use = false; if (!Quest.use(this, p, ev)) Z.use(this, p, ev); } Z.repair(this, p, dt, ev);
-      const s = Math.sin(p.yaw), c = Math.cos(p.yaw), SP = Z.has(p, 'speed') ? 8.2 : 6;           // move relative to view
-      let vx = p.in.mz * s - p.in.mx * c, vz = p.in.mz * c + p.in.mx * s; const l = Math.hypot(vx, vz); if (l > 1) { vx /= l; vz /= l; }
+      const s = Math.sin(p.yaw), c = Math.cos(p.yaw), SP = Z.has(p, 'speed') ? ZOMBIE_FAST_SPEED : ZOMBIE_WALK_SPEED;           // move relative to view
+      const { x: vx, z: vz } = zombieMoveVector(p.in.mx, p.in.mz, p.yaw);
       const nx = clamp(p.x + vx * SP * dt, -W, W), nz = clamp(p.z + vz * SP * dt, -W, W);   // stay inside unlocked zones (doors = barriers)
       if (Z.inside(this, nx, p.z, 0.42, p.lv)) p.x = nx; if (Z.inside(this, p.x, nz, 0.42, p.lv)) p.z = nz; Z.lift(p);
       const w0 = Z.wpn(p), ro = bon(p, 'rof'), w = bon(p, 'range') || bon(p, 'fuel') || ro ? { ...w0, range: fireRange(p), regen: w0.regen * (1 + 0.25 * bon(p, 'fuel')), use: w0.use * (1 - 0.08 * ro), cd: w0.cd && w0.cd * (1 - 0.08 * ro) } : w0, quick = Z.has(p, 'quick'); p.cd = Math.max(0, p.cd - dt); if (w0.kind !== 'rotary' && p.ravHeat > 0) { p.ravHeat = Math.max(0, p.ravHeat - dt * (p.ravLock > 0 ? 34 : 19)); p.ravSpin = Math.max(0, (p.ravSpin || 0) - dt * 1.1); p.ravLock = Math.max(0, (p.ravLock || 0) - dt); }
@@ -241,7 +243,7 @@ class Room {
       if (Z.atWindow(this, zb, dt, ev)) { zb.burn = Math.max(0, (zb.burn || 0) - dt); continue; }
       let best = null, bd = 1e9; for (const p of ps) if (p.alive && !p.down && !p.aboard) { const d = Math.hypot(p.x - zb.x, p.z - zb.z) + (zb.ty !== 6 && Math.abs((p.y || 0) - (zb.y || 0)) > 1.3 ? 6 : 0); if (d < bd) { bd = d; best = p; } }   // another floor counts as further away
       if (!best) continue;
-      const sameLv = zb.ty === 6 || Math.abs((best.y || 0) - (zb.y || 0)) < 1.3;
+      const sameLv = zb.ty === 6 || Math.abs((best.y || 0) - (zb.y || 0)) < ZOMBIE_MELEE_HEIGHT;
       if (zb.ty === 7 && sameLv && bd > 5 && bd < 18 && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) {
         zb.shotT -= dt;
         if (zb.shotT <= 0) { zb.shotT = 2.1 + Math.random() * 0.8; ev.push({ e: 'zshot', id: zb.id, by: best.id, x: q(zb.x), z: q(zb.z), y: q(zb.y || 0), tx: q(best.x), tz: q(best.z), ty: q((best.y || 0) + 1) });
@@ -250,7 +252,7 @@ class Room {
               if (phoenix && !others && !best.usedSelf) { best.down = 1; best.selfRev = 3; best.usedSelf = true; ev.push({ e: 'downed', id: best.id, self: 1 }); } else if (others) { best.down = 1; best.bleed = 30; best.revT = 0; ev.push({ e: 'downed', id: best.id }); } else { best.alive = false; this.life(best); ev.push({ e: 'down', id: best.id }); } }
           }
         }
-      } else if (bd > 1.1 || !sameLv) {   // follow the flow field; go straight only when close with a clear line
+      } else if (bd > ZOMBIE_MELEE_REACH || !sameLv) {   // follow the flow field; go straight only when close with a clear line
         let tx = best.x, tz = best.z; const st = Z.nextStep(this, zb.x, zb.z, zb.lv); if (zb.ty !== 6 && st && !(bd < 3 && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y))) { tx = st[0]; tz = st[1]; }
         if (zb.ty === 3 || zb.ty === 8) { zb.chT = (zb.chT ?? (zb.ty === 8 ? 6 : 5)) - dt; zb.charge = Math.max(0, (zb.charge || 0) - dt); if (zb.chT <= 0 && bd < (zb.ty === 8 ? 12 : 14) && sameLv && Z.los(this, zb.x, zb.z, best.x, best.z, zb.y, best.y)) { zb.chT = (zb.ty === 8 ? 8 + Math.random() * 2 : 7 + Math.random() * 3); zb.charge = zb.ty === 8 ? 1.05 : 1.3; ev.push({ e: 'jcharge', id: zb.id }); } }
         const dx = tx - zb.x, dz = tz - zb.z, dl = Math.hypot(dx, dz) || 1, mv = zb.sp * (!this.ranked && !this.daily && zb.stagger > 0 ? 0.12 : 1) * (zb.charge > 0 ? (zb.ty === 8 ? 2.6 : 3.2) : 1) * dt, nx = zb.x + dx / dl * mv, nz = zb.z + dz / dl * mv;

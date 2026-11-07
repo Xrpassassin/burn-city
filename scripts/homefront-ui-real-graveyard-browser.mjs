@@ -67,7 +67,7 @@ const fixture = markup +
   '</body></html>';
 const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript',
   '.css':'text/css','.json':'application/json','.png':'image/png','.jpg':'image/jpeg',
-  '.jpeg':'image/jpeg','.svg':'image/svg+xml','.glb':'model/gltf-binary',
+  '.jpeg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.glb':'model/gltf-binary',
   '.mp3':'audio/mpeg','.wav':'audio/wav','.ogg':'audio/ogg','.woff2':'font/woff2'};
 const clientRoot=resolve('client');
 const observed=[];

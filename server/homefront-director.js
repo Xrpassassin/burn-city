@@ -47,8 +47,8 @@ function planEncounter({ zoneId = 'outskirts', risk = 1, playerCount = 1, active
   const players = Math.max(1, Math.min(8, Math.floor(Number.isFinite(playerCount) ? playerCount : 1)));
   const active = Math.max(0, Math.min(20, Math.floor(Number.isFinite(activeEncounters) ? activeEncounters : 0)));
   const noiseLevel = Math.max(0, Math.min(100, Number.isFinite(noise) ? noise : 0));
-  // Risk bands describe the district, while frontierDepth provides a gradual ramp
-  // as players push inward from the perimeter. It never overrides the local cap.
+  // Risk is the discrete tier. Frontier depth adds a gradual pressure ramp
+  // within it. Expedition callers normalize distance from the player's gate.
   const depthFactor = Math.max(0, Math.min(1, Number.isFinite(frontierDepth) ? frontierDepth / 100 : 0));
   const pressureBonus = Math.min(0.16, Math.max(0, (players - 1) * 0.025 + noiseLevel / 200 + depthFactor * 0.04 - active * 0.02));
   const specialWeight = Math.min(0.38, 0.09 + boundedRisk * 0.04 + pressureBonus * 0.35 + depthFactor * 0.015);

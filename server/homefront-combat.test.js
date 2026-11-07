@@ -128,6 +128,28 @@ const seenInside = C.advance({ encounters: { [interiorAccount]: concealedEncount
   players: { [interiorAccount]: { ...interiorPlayer, lastNoiseAt: 100500, noiseLevel: 95, noiseX: hospital.x, noiseZ: hospital.z } },
   interiors: openInterior, now: 101000 });
 assert.equal(seenInside[interiorAccount].lastKnownX, interiorPlayer.x, 'seeing a survivor takes priority over an earlier sound');
+// A ward door blocks contact even when both positions are within melee reach.
+{
+  const doorX = hospital.x + 2.4;
+  const victim = { x: doorX + 0.5, z: hospital.z, survival: { health: 100 } };
+  const infected = { ...interiorEncounter.members[0], x: doorX - 0.5, z: hospital.z };
+  const contact = { encounter: { ...interiorEncounter, members: [infected] },
+    account: interiorAccount, player: victim, interiors: interiorState, now: 101000 };
+  assert.equal(C.meleeContact(contact), null, 'a closed door blocks a bite within melee reach');
+  assert.equal(C.meleeContact({ ...contact, sharedInteriors: { mercy_hospital: { openedDoors: ['ward_door'] } } }).sourceId,
+    infected.id, 'a door opened by another explorer clears the contact path');
+  assert.equal(C.meleeContact({ ...contact, interiors: openInterior,
+    encounter: { ...contact.encounter, members: [{ ...infected, hp: 0 }] } }), null, 'dead infected cannot attack');
+
+  const flat = InteriorRules.LANDMARKS.collapsed_apartments;
+  const upstairs = { x: flat.x, z: flat.z - 4.8, survival: { health: 100 } };
+  const lowerInfected = { ...infected, x: upstairs.x, z: upstairs.z };
+  const stairs = { [interiorAccount]: { activeLandmarkId: 'collapsed_apartments',
+    interiors: { collapsed_apartments: { roomId: 'upper_flat', openedDoors: ['fire_escape'] } } } };
+  assert.equal(C.meleeContact({ ...contact, player: upstairs, interiors: stairs,
+    encounter: { ...contact.encounter, members: [lowerInfected] } }), null, 'an infected downstairs cannot hit the floor above');
+}
+
 let interiorEncounters = { [interiorAccount]: interiorEncounter };
 for (let tick = 1; tick <= 8; tick++) {
   interiorEncounters = C.advance({ encounters: interiorEncounters, players: { [interiorAccount]: interiorPlayer }, interiors: interiorState, now: 100000 + tick * 1000 });
@@ -164,6 +186,17 @@ assert.equal(interiorState[interiorAccount].interiors.mercy_hospital.doorDamage.
 }
 
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
+{
+  const hordeAt = risk => C.resolveSpawn({
+    account: 'route-horde', x: 0, z: 0, district: 'outskirts', risk, now: 123000,
+    plan: { event: 'infected_horde', enemy: 'Roadside Pack', pursuitRadius: 16 + risk * 5 }
+  });
+  const near = hordeAt(1), far = hordeAt(5);
+  assert.ok(far.members.length > near.members.length);
+  assert.ok(far.members[0].maxHp > near.members[0].maxHp, 'adding infected does not dilute individual toughness');
+  assert.ok(far.damage > near.damage);
+  assert.equal(far.hp, far.members.reduce((total, member) => total + member.hp, 0));
+}
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
 const noAmmo=C.spawn({encounters:{},account:'b',player,now:200000});assert.throws(()=>C.attack({encounters:noAmmo.encounters,account:'b',player,base:{...base(),resources:{ammo:0},equippedWeapon:'pump_shotgun'},now:201000}),/insufficient_ammo/);
 const meleeSpawn=C.spawn({encounters:{},account:'melee',player,now:210000});
@@ -248,3 +281,42 @@ console.log('Homefront squad anchor audit tests passed.');
  const l6=Core.applyAction({...l5,level:6},'t5-test',{type:'craft_weapon',weapon:'fifty_cal'},3);assert.ok(l6.weapons.includes('fifty_cal'));
  assert.equal(F.publicTiers().find(t=>t.id==='fifty_cal').pierce,3);}
 console.log('fifty cal tier ok');
+
+{
+ const now = 100000;
+ const account = 'pine-walker';
+ const walker = { x: -8, z: -82, lastNoiseAt: 0 };
+ const seeded = C.spawn({ encounters: {}, account, player: walker, now });
+ const initial = seeded.encounters[account];
+ assert.equal(initial.patrolId, 'logging-approach');
+ assert.ok(Math.hypot(initial.x - walker.x, initial.z - walker.z) >= 11,
+   'the logging patrol spawns beyond immediate contact range');
+ const patrolled = C.advance({ encounters: JSON.parse(JSON.stringify(seeded.encounters)), players: { [account]: walker }, now: now + 1000 });
+ assert.ok(patrolled[account].x < initial.x && patrolled[account].z > initial.z, 'undisturbed infected follow the authored patrol');
+ const crossing = { ...walker, x: -14, z: -81 };
+ const watch = (encounters, player, offset) => C.advance({
+   encounters, players: { [account]: player }, now: now + offset
+ })[account];
+ const noticed = watch(seeded.encounters, crossing, 1000);
+ assert.equal(noticed.lastKnownX, crossing.x, 'a standing survivor is visible across the clearing');
+ const quiet = watch(seeded.encounters, { ...crossing, crouched: true }, 1000);
+ assert.equal(quiet.lastKnownAt, 0, 'a crouched survivor can stay below patrol detection range');
+ const tracked = watch({ [account]: noticed }, { ...crossing, crouched: true }, 1200);
+ assert.equal(tracked.lastKnownAt, now + 1200, 'crouching alone cannot break recent visual contact');
+
+ const shot = { ...walker, lastNoiseAt: now + 1000, noiseLevel: 95, noiseX: -20, noiseZ: -81 };
+ const investigating = C.advance({ encounters: seeded.encounters, players: { [account]: shot }, now: now + 1000 });
+ assert.equal(investigating[account].lastKnownZ, shot.noiseZ, 'an audible shot replaces the patrol target');
+ assert.ok(investigating[account].z < initial.z, 'infected walk toward the source, away from the patrol waypoint');
+ const ally = { ...shot, partyCode: 'ABCDEF' };
+ const partyOwner = { ...walker, partyCode: ally.partyCode };
+ const heardAlly = C.advance({ encounters: seeded.encounters, players: { [account]: partyOwner, ally }, now: now + 1000 });
+ assert.equal(heardAlly[account].lastKnownZ, shot.noiseZ, 'a patrol hears another member of its owner’s party');
+ const ignored = C.advance({ encounters: seeded.encounters, players: { [account]: walker, ally }, now: now + 1000 });
+ assert.notEqual(ignored[account].lastKnownZ, shot.noiseZ, 'an unrelated player cannot retarget a party patrol');
+ const resumed = C.advance({ encounters: investigating, players: { [account]: walker }, now: now + 18000 });
+ assert.ok(resumed[account].z > investigating[account].z, 'patrol resumes after the sound expires');
+
+ const blocked = C.spawn({ encounters: {}, account, player: walker, players: { observer: { x: -20, z: -76 } }, now });
+ assert.equal(blocked.encounter, null, 'the director will not materialize an infected next to another explorer');
+}

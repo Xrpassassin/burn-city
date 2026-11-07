@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'client/arena/homefront*'
+      - 'client/arena/assets/homefront/surfaces/**'
       - 'client/arena/zombie*'
       - 'client/arena/zaudio.js'
       - 'client/arena/sfx.js'
@@ -56,4 +57,30 @@ jobs:
         env:
           PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-browser
           HOMEFRONT_EXPEDITION_GUEST: '1'
+          HOMEFRONT_EXPEDITION_MOBILE: '1'
+
+  rover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install rover browser
+        run: |
+          npm install --prefix "$RUNNER_TEMP/homefront-rover-browser" playwright@1.62.1 --no-audit --no-fund
+          node "$RUNNER_TEMP/homefront-rover-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Build, board, drive and park rover in desktop Three.js scene
+        run: node scripts/homefront-expedition-browser.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-rover-browser
+          HOMEFRONT_EXPEDITION_ROVER: '1'
+      - name: Build, board, drive and park rover with phone touch arrows
+        run: node scripts/homefront-expedition-browser.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-rover-browser
+          HOMEFRONT_EXPEDITION_ROVER: '1'
           HOMEFRONT_EXPEDITION_MOBILE: '1'

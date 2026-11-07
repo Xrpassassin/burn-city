@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { DEFAULT_TERRAIN_SEED, terrainHeight, terrainElevation, terrainChunkSamples } from '../client/arena/homefront-terrain-generation.mjs';
+import { inPineCrossing, PINE_CROSSING_ROUTES, PINE_PATROLS } from '../client/arena/homefront-pine-crossing.mjs';
 const require = createRequire(import.meta.url);
 const serverTerrain = require('./homefront-terrain.js');
 
@@ -13,8 +14,26 @@ for (let x = -100; x <= 100; x += 7.25) {
 }
 for (const roadCenter of [-90, -70, -50, -30, -10, 10, 30, 50, 70, 90]) {
   for (let z = -100; z <= 100; z += 10) {
-    assert.equal(terrainHeight(roadCenter, z), 0, 'road centerline must be level with the ground mesh');
-    assert.equal(terrainHeight(z, roadCenter), 0, 'cross-road centerline must be level with the ground mesh');
+    if (!inPineCrossing(roadCenter, z)) assert.equal(terrainHeight(roadCenter, z), 0, 'road centerline must be level with the ground mesh');
+    if (!inPineCrossing(z, roadCenter)) assert.equal(terrainHeight(z, roadCenter), 0, 'cross-road centerline must be level with the ground mesh');
+  }
+}
+const collision = require('./homefront-collision.js');
+for (const { id, points } of PINE_CROSSING_ROUTES) {
+  for (let i = 1; i < points.length; i++) {
+    const segment = [...points[i - 1], ...points[i]];
+    assert.ok(serverTerrain.canTraverse(...segment), id + ' has a walkable grade');
+    assert.ok(collision.canTraverse(...segment, { removedObstacleIds: collision.INTERIOR_OBSTACLE_IDS }),
+      id + ' is clear of authoritative obstacles');
+  }
+}
+for (const { id, points } of PINE_PATROLS) {
+  const options = { removedObstacleIds: collision.INTERIOR_OBSTACLE_IDS };
+  for (let i = 0; i < points.length; i++) {
+    const next = points[(i + 1) % points.length];
+    assert.ok(collision.isSafePosition(...points[i], options), id + ' has grounded waypoints');
+    assert.ok(collision.canTraverse(...points[i], ...next, options), id + ' patrol avoids cover');
+    assert.ok(serverTerrain.canTraverse(...points[i], ...next), id + ' patrol stays on walkable grades');
   }
 }
 assert.equal(serverTerrain.canTraverse(0, 0, 12, 8), true, 'the current gentle terrain should be traversable');

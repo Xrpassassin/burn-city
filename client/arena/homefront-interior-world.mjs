@@ -1,3 +1,5 @@
+import { PINE_CROSSING_BUILDINGS } from './homefront-pine-crossing.mjs';
+
 // Homefront authored interior floorplans and room-state rules.
 // Geometry is presentation-only; room search rewards must be granted by the server in a later API integration.
 export const INTERIOR_VERSION = 1;
@@ -21,6 +23,23 @@ export const INTERIORS = Object.freeze([
     target('route_board', 'Evacuation route board', 'dispatch', 1.15, -1.1, 'clue', 'A hand-drawn route marks the River Checkpoint and a convoy turnoff.'),
     target('bus_luggage', 'Abandoned luggage', 'bus_bays', 6.1, 0.7, 'search', 'A torn bag and a child’s name tag lie under the seat.')
   ]),
+  ...PINE_CROSSING_BUILDINGS.map(({ id, title, finish }) => {
+    const store = finish === 'store';
+    const rearDoor = id + '_rear_door';
+    return blueprint(id, title, [
+      room('front', store ? 'Shop floor' : 'Reception', 0, 0,
+        store ? 'Dust covers the checkout counter and empty shelves.' : 'Patient charts and a cracked register litter the desk.',
+        [{ id: rearDoor, to: 'back', side: 'east', label: store ? 'Stockroom door' : 'Treatment room door' }]),
+      room('back', store ? 'Stockroom' : 'Treatment room', 4.8, 0,
+        store ? 'A delivery never made it onto the shelves.' : 'A sealed first-aid cabinet hangs above an overturned cot.',
+        [{ id: rearDoor, to: 'front', side: 'west', label: 'Front room door' }])
+    ], [
+      target(id + '_search', store ? 'Dry goods shelf' : 'First-aid cabinet', 'front', -1.2, -0.7,
+        'search', store ? 'Sealed food and clean water survived on the shelf.' : 'The cabinet still holds bandages and water.'),
+      target(id + '_back_search', store ? 'Delivery crate' : 'Treatment cabinet', 'back', 5.8, -0.7,
+        'search', store ? 'The crate contains salvage and loose ammunition.' : 'There are dressings and clean water in the cabinet.')
+    ]);
+  }),
   blueprint('collapsed_apartments', 'Collapsed Apartments — Upper Flat', [
     room('lobby', 'Ground-floor Lobby', 0, 0, 'The stairwell has pancaked; a fire escape is the only route up.', [{ id: 'fire_escape', to: 'upper_flat', side: 'north', label: 'Fire escape' }]),
     room('upper_flat', 'Upper Apartment', 0, -4.8, 'A distress light flashes through a cracked bedroom door.', [{ id: 'fire_escape', to: 'lobby', side: 'south', label: 'Fire escape ladder' }], 3.2)
@@ -209,7 +228,11 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   root.position.set(origin.x, origin.y, origin.z);
   root.userData.interiorLandmarkId = interior.landmarkId;
   const material = color => new THREE.MeshStandardMaterial({ color, roughness: 0.95 });
-  const floorMat = material(0x4b4940), wallMat = material(0x5b554b), trimMat = material(0x7a5c42);
+  const pineStore = interior.landmarkId === 'pine_general_store';
+  const pineClinic = interior.landmarkId === 'pine_clinic';
+  const floorMat = material(pineClinic ? 0x616866 : pineStore ? 0x645541 : 0x4b4940);
+  const wallMat = material(pineClinic ? 0x888b78 : pineStore ? 0x77624d : 0x5b554b);
+  const trimMat = material(pineClinic ? 0x4c605e : 0x7a5c42);
   const objectMat = material(0x393b37), clueMat = material(0x9e7944), powerMat = material(0x647d70), glassMat = material(0x405357);
   const rubbleMat = material(0x62594e);
   const grimeMat = new THREE.MeshStandardMaterial({ color: 0x282b29, roughness: 1, transparent: true, opacity: 0.32, depthWrite: false });
@@ -294,6 +317,8 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   // Landmark-specific silhouettes make each location readable at a glance without imported assets.
   // Two instanced batches per interior keep draw-call growth independent of room count.
   const propProfiles = {
+    pine_general_store: { label: 'general-store shelving', size: [1.18, 1.45, 0.46], accent: [1.09, 0.08, 0.4], height: 1.45, color: 0x6a5541 },
+    pine_clinic: { label: 'clinic examination tables', size: [1.42, 0.34, 0.66], accent: [1.31, 0.09, 0.56], height: 0.34, color: 0x7e8982 },
     north_bus_depot: { label: 'dispatch furniture', size: [1.15, 0.72, 0.52], accent: [0.98, 0.08, 0.42], height: 0.72, color: 0x6b5845 },
     collapsed_apartments: { label: 'apartment furniture', size: [1.35, 0.58, 0.72], accent: [1.12, 0.10, 0.58], height: 0.58, color: 0x625448 },
     exchange_market: { label: 'stock shelving', size: [1.05, 1.35, 0.34], accent: [0.96, 0.07, 0.38], height: 1.35, color: 0x77654d },
@@ -312,7 +337,7 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   const profile = propProfiles[interior.landmarkId] || propProfiles.north_bus_depot;
   const furnitureMat = material(profile.color);
   const accentMat = new THREE.MeshStandardMaterial({
-    color: ['mercy_hospital','quarantine_shelter'].includes(interior.landmarkId) ? 0xb6c7be : 0xb58b4f,
+    color: pineClinic || ['mercy_hospital','quarantine_shelter'].includes(interior.landmarkId) ? 0xb6c7be : 0xb58b4f,
     emissive: ['research_annex','ashfall_station'].includes(interior.landmarkId) ? 0x1c6b63 : 0x000000,
     emissiveIntensity: 0.22, roughness: 0.82
   });
@@ -350,6 +375,14 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   for (const r of interior.rooms) {
     box(root, [r.width, 0.16, r.depth], [r.x, r.elevation - 0.08, r.z], floorMat);
     for (const side of ['north','south','east','west']) wall(root, r, side, hasExit(r, side) || (r.id === interior.entryRoom && side === 'south'));
+    if (pineClinic || pineStore) {
+      // Paint in the room's perimeter, leaving real door openings clear.
+      for (const side of ['north', 'south']) {
+        if (hasExit(r, side) || (r.id === interior.entryRoom && side === 'south')) continue;
+        box(root, [r.width - 0.18, pineClinic ? 0.17 : 0.10, 0.035],
+          [r.x, r.elevation + (pineClinic ? 0.94 : 0.16), r.z + (side === 'north' ? -1 : 1) * (r.depth / 2 - 0.09)], trimMat);
+      }
+    }
     // A small wall-mounted emergency light gives the roofless floorplan readable depth.
     box(root, [0.28, 0.12, 0.12], [r.x - r.width * 0.32, r.elevation + 1.75, r.z - r.depth / 2 + 0.16], clueMat);
     for (const exit of r.exits) {

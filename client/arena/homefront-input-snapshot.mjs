@@ -46,7 +46,8 @@ export function playerPositionUpdates(snapshot) {
   if (!snapshot) return [];
   return (snapshot.players || [])
     .filter(p => Number.isFinite(p?.x) && Number.isFinite(p?.z))
-    .map(p => ({ id: playerId(p), x: p.x, z: p.z, isLocalPlayer: p.label === 'You' }));
+    .map(p => ({ id: playerId(p), x: p.x, z: p.z, isLocalPlayer: p.label === 'You',
+      ...(p.crouched ? { crouched: true } : {}) }));
 }
 
 /**

@@ -19,13 +19,13 @@ function unlock() { const a = ctx(); if (!a) return; try { const s = a.createBuf
 for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, unlock, { once: true, passive: true });
 const ready = () => A && A.state === 'running' && !muted && vol > 0;
 function env(g, t, a, peak, dec) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + dec); }
-function tone(f, { type = 'sine', at = 0, a = 0.01, dec = 0.2, v = 0.3, f1 = null, pan = 0 } = {}) {
+function tone(f, { type = 'sine', at = 0, a = 0.01, dec = 0.2, v = 0.3, f1 = null, pan = 0, out = bus } = {}) {
   if (!ready()) return; const t = A.currentTime + at, o = A.createOscillator(), g = A.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + a + dec);
-  env(g, t, a, v, dec); let out = g; if (pan && A.createStereoPanner) { const p = A.createStereoPanner(); p.pan.value = pan; g.connect(p); out = p; } o.connect(g); out.connect(bus); o.start(t); o.stop(t + a + dec + 0.05); }
-function noise({ at = 0, a = 0.005, dec = 0.2, v = 0.3, f = 1200, f1 = null, q = 1, type = 'bandpass' } = {}) {
+  env(g, t, a, v, dec); let signal = o.connect(g); if (pan && A.createStereoPanner) { const p = A.createStereoPanner(); p.pan.value = pan; signal = signal.connect(p); } signal.connect(out); o.start(t); o.stop(t + a + dec + 0.05); }
+function noise({ at = 0, a = 0.005, dec = 0.2, v = 0.3, f = 1200, f1 = null, q = 1, type = 'bandpass', out = bus } = {}) {
   if (!ready()) return; const t = A.currentTime + at, s = A.createBufferSource(), fl = A.createBiquadFilter(), g = A.createGain(); s.buffer = noiseBuf; s.loop = true;
   fl.type = type; fl.frequency.setValueAtTime(f, t); if (f1) fl.frequency.exponentialRampToValueAtTime(f1, t + a + dec); fl.Q.value = q; env(g, t, a, v, dec);
-  s.connect(fl).connect(g).connect(bus); s.start(t, Math.random() * 0.5); s.stop(t + a + dec + 0.05); }
+  s.connect(fl).connect(g).connect(out); s.start(t, Math.random() * 0.5); s.stop(t + a + dec + 0.05); return s; }
 const notes = (seq, type = 'triangle', v = 0.18) => seq.forEach(([f, at, d]) => tone(f, { type, at, dec: d, v }));
 // ---------- sample bank ----------
 const BANK = { groan: 6, breath: 3, shriek: 4, attack: 5, step: 4, crawl: 4, roar: 3, hit: 3, bite: 3, headshot: 0, shotgun: 0, pump: 0, firestorm: 0, boom: 0, flame_start: 0, flame_loop: 0, flame_end: 0, beam_loop: 0, reload: 0, pistol_reload: 0, pistol: 0, heartbeat: 0, horde: 0 };
@@ -41,10 +41,22 @@ let voices = 0; const MAXV = coarse ? 16 : 28;
 function panner(x, y, z, ref, max, roll) { const p = A.createPanner(); p.panningModel = coarse ? 'equalpower' : 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = ref; p.maxDistance = max; p.rolloffFactor = roll;
   if (p.positionX) { p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z; } else p.setPosition(x, y, z); return p; }
 // one-shot sample. pos = [x,y,z] for 3D (null = in your head). rate/var = playback rate + random spread. Returns the source (or null).
-function play(k, { pos = null, v = 1, rate = 1, vr = 0.08, ref = 2.2, max = 45, roll = 1.15, at = 0, out = null } = {}) {
+function play(k, { pos = null, v = 1, rate = 1, vr = 0.08, ref = 2.2, max = 45, roll = 1.15, at = 0, out = null, cutoff = null } = {}) {
   if (!ready() || voices >= MAXV) return null; const b = pick(k); if (!b) return null; const t = A.currentTime + at, s = A.createBufferSource(), g = A.createGain();
-  s.buffer = b; s.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * vr); g.gain.value = v; let n = s.connect(g); if (pos) n = n.connect(panner(pos[0], pos[1], pos[2], ref, max, roll)); n.connect(out || bus);
-  voices++; s.onended = () => { voices--; try { s.disconnect(); } catch { } }; s.start(t); return s; }
+  s.buffer = b; s.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * vr); g.gain.value = v;
+  const filter = Number.isFinite(cutoff) ? A.createBiquadFilter() : null;
+  const spatial = pos ? panner(pos[0], pos[1], pos[2], ref, max, roll) : null;
+  let signal = s.connect(g);
+  if (filter) {
+    filter.type = 'lowpass';
+    filter.frequency.value = cutoff;
+    signal = signal.connect(filter);
+  }
+  if (spatial) signal = signal.connect(spatial);
+  signal.connect(out || bus);
+  voices++;
+  s.onended = () => { voices--; s.disconnect(); g.disconnect(); filter?.disconnect(); spatial?.disconnect(); };
+  s.start(t); return s; }
 // looping bed (flamethrower, beam, horde). Returns { set(v,pos), stop(fade) }.
 function loop(k, { pos = null, v = 1, rate = 1, ref = 2.5, max = 45, out = null } = {}) {
   if (!A || !BUF[k]?.length) return null; const s = A.createBufferSource(), g = A.createGain(); s.buffer = BUF[k][0]; s.loop = true; const d = s.buffer.duration; s.loopStart = Math.min(0.06, d * 0.1); s.loopEnd = Math.max(s.loopStart + 0.1, d - 0.06);
@@ -54,6 +66,76 @@ function loop(k, { pos = null, v = 1, rate = 1, ref = 2.5, max = 45, out = null 
 function listen(x, y, z, yaw) { if (!A) return; const L = A.listener, fx = Math.sin(yaw), fz = Math.cos(yaw);
   if (L.positionX) { L.positionX.value = x; L.positionY.value = y; L.positionZ.value = z; L.forwardX.value = fx; L.forwardY.value = 0; L.forwardZ.value = fz; L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0; }
   else { L.setPosition(x, y, z); L.setOrientation(fx, 0, fz, 0, 1, 0); } }
+function fieldNoiseBed(frequency, quality, spatial = false) {
+  if (!A || !noiseBuf) return null;
+  const source = A.createBufferSource(), filter = A.createBiquadFilter(), gain = A.createGain();
+  const position = spatial ? panner(0, 0, 0, 3.5, 20, 0.6) : null;
+  source.buffer = noiseBuf;
+  source.loop = true;
+  filter.type = 'bandpass';
+  filter.frequency.value = frequency;
+  filter.Q.value = quality;
+  gain.gain.value = 0;
+  source.connect(filter).connect(gain);
+  if (position) gain.connect(position).connect(bus);
+  else gain.connect(bus);
+  source.start();
+  return {
+    set(level, x, y, z) {
+      const now = A.currentTime;
+      gain.gain.setTargetAtTime(level, now, 0.2);
+      if (position?.positionX) {
+        position.positionX.setTargetAtTime(x, now, 0.12);
+        position.positionY.setTargetAtTime(y, now, 0.12);
+        position.positionZ.setTargetAtTime(z, now, 0.12);
+      } else if (position) position.setPosition(x, y, z);
+    },
+    stop() {
+      gain.gain.setTargetAtTime(0, A.currentTime, 0.1);
+      source.onended = () => {
+        source.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+        position?.disconnect();
+      };
+      source.stop(A.currentTime + 0.4);
+    }
+  };
+}
+// Small original synthesized electric-salvage-rover motor. It uses the
+// existing volume/mute bus, with no downloaded engine samples or new
+// AudioContext. The caller owns the lifecycle; it must stop on dismount.
+function roverMotor() {
+  if (!ready()) return null;
+  const low=A.createOscillator(),harmonic=A.createOscillator();
+  const filter=A.createBiquadFilter(),gain=A.createGain();
+  low.type='sawtooth';harmonic.type='triangle';
+  low.frequency.value=63;harmonic.frequency.value=126;
+  filter.type='lowpass';filter.frequency.value=300;filter.Q.value=0.48;
+  gain.gain.value=0.0001;
+  low.connect(filter);harmonic.connect(filter);filter.connect(gain).connect(bus);
+  low.start();harmonic.start();
+  let ended=false;
+  return {
+    set(power=0){
+      if(ended||!A)return;
+      const t=A.currentTime,v=Math.max(0,Math.min(1,Number.isFinite(power)?power:0));
+      low.frequency.setTargetAtTime(63+v*65,t,0.12);
+      harmonic.frequency.setTargetAtTime(126+v*130,t,0.12);
+      filter.frequency.setTargetAtTime(245+v*300,t,0.16);
+      gain.gain.setTargetAtTime(0.018+v*0.057,t,0.14);
+    },
+    stop(){
+      if(ended)return;ended=true;
+      const t=A.currentTime;
+      gain.gain.setTargetAtTime(0.0001,t,0.07);
+      for(const o of [low,harmonic]){try{o.stop(t+0.3);}catch{}}
+      low.onended=()=>{
+        low.disconnect();harmonic.disconnect();filter.disconnect();gain.disconnect();
+      };
+    }
+  };
+}
 // ---------- heartbeat: BPM + volume follow intensity (0..1); the rest of the mix gets muffled as it rises ----------
 const HB = { i: 0, bpm: 0, next: 0, cutoff: 20000, onBeat: null };
 function heartbeat(i) { HB.i = i; if (!A) return; const now = A.currentTime;
@@ -67,6 +149,46 @@ export const sfx = {
   setVol(x) { vol = Math.min(1, Math.max(0, x)); localStorage[LS] = vol; if (master) master.gain.value = muted ? 0 : vol; },
   setMuted(m) { muted = !!m; localStorage[MUTE] = muted ? '1' : '0'; if (master) master.gain.value = muted ? 0 : vol; },
   loadBank, play, loop, listen, heartbeat, has: k => !!BUF[k]?.length,
+  roverMotor,
+  fieldWind() {
+    return fieldNoiseBed(530, 0.58);
+  },
+  fieldCreek() {
+    return fieldNoiseBed(1450, 0.75, true);
+  },
+  fieldCue(kind, x, y, z) {
+    if (!ready()) return false;
+    const recipes = {
+      canopy: { f: 2100, f1: 850, q: 0.56, a: 0.25, dec: 0.66, v: 0.15 },
+      canvas: { f: 790, f1: 340, q: 0.87, a: 0.035, dec: 0.33, v: 0.21 },
+      timber: { f: 430, f1: 165, q: 1.6, a: 0.08, dec: 0.37, v: 0.15 },
+      metal: { f: 1450, f1: 720, q: 2.5, a: 0.008, dec: 0.40, v: 0.13 }
+    };
+    const recipe = recipes[kind];
+    if (!recipe) return false;
+    const out = panner(x, y, z, 3.8, 18, 1.1);
+    out.connect(bus);
+    const pitch = 0.88 + Math.random() * 0.24;
+    const source = noise({ ...recipe, f: recipe.f * pitch, f1: recipe.f1 * pitch, out });
+    if (kind === 'timber') tone(138 * pitch, { f1: 78 * pitch, type: 'triangle', a: 0.04, dec: 0.24, v: 0.075, out });
+    if (kind === 'metal') tone(465 * pitch, { f1: 395 * pitch, type: 'triangle', a: 0.008, dec: 0.23, v: 0.09, out });
+    source.onended = () => out.disconnect();
+    return true;
+  },
+  fieldStep(surface, sprint, crouched = false) {
+    const gain = sprint ? 1.35 : crouched ? 0.28 : 1;
+    const pitch = 0.87 + Math.random() * 0.24;
+    const profiles = {
+      gravel: { f: 1900, dec: 0.125, v: 0.20 },
+      asphalt: { f: 850, dec: 0.055, v: 0.14 },
+      wood: { f: 560, dec: 0.085, v: 0.12 },
+      dirt: { f: 970, dec: 0.075, v: 0.11 },
+      forest: { f: 1300, dec: 0.135, v: 0.11 }
+    };
+    const { f, dec, v } = profiles[surface] || profiles.forest;
+    noise({ f: f * pitch, dec, v: v * gain, q: 0.75 });
+    tone((surface === 'wood' ? 138 : 88) * pitch, { dec: 0.07, v: 0.055 * gain, f1: 54 });
+  },
   // d = distance in metres; quieter and duller with distance, nothing beyond 35 m (synth fallback when the bank isn't loaded)
   groan(d = 5, pan = 0) { if (d > 35) return; const k = 1 / (1 + d / 6), f = 70 + Math.random() * 50; tone(f, { type: 'sawtooth', a: 0.15, dec: 0.6 + Math.random() * 0.4, v: 0.12 * k, f1: f * 0.7, pan });
     noise({ a: 0.12, dec: 0.6, v: 0.05 * k, f: 300 + 600 * k, q: 4, pan }); },

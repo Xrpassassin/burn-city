@@ -165,10 +165,9 @@ async function call(method, pathname, acct, payload = {}) {
   assert.equal(attack.data.selfInventory.ammo, threat.data.selfInventory.ammo, 'firing consumes loaded magazine rounds, not reserve inventory');
   assert.ok(attack.data.selfWeaponMagazine.loaded < threat.data.selfWeaponMagazine.loaded, 'firearm attacks consume server-persisted magazine rounds');
   assert.ok(attack.data.encounter.hp < threat.data.encounter.hp, 'attacks reduce server-owned enemy health');
-if (attack.data.combat.enemyDamage > 0) {
-  assert.ok(attack.data.selfSurvival.health < 100, 'infected retaliation damages the player through server-owned survival state');
-  assert.ok(attack.data.selfSurvival.infection > 0, 'infected retaliation adds treatment pressure');
-}
+  assert.equal(attack.data.combat.enemyDamage, 0, 'weapon fire no longer triggers infected retaliation');
+  assert.equal(attack.data.selfSurvival.health, threat.data.selfSurvival.health, 'firing does not damage the shooter');
+  assert.equal(attack.data.base.resources.food, combatBaseBefore.resources.food, 'field combat does not consume refuge rations');
 
   const scavenge = await call('POST', '/api/homefront/world/scavenge', 'acct-a');
   assert.equal(scavenge.status, 200, 'a player can scavenge at a nearby shared landmark');
@@ -218,6 +217,33 @@ if (attack.data.combat.enemyDamage > 0) {
   assert.equal(rescuePackFood.status, 200);
   const rescuePackAmmo = await call('POST', '/api/homefront/world/inventory', 'acct-a', { action: 'take', item: 'ammo', amount: 1 });
   assert.equal(rescuePackAmmo.status, 200);
+  const beforeInvalidRescue=structuredClone(files.get('homefront-world.json'));
+  const distantRescue=await call('POST','/api/homefront/world/rescue','acct-a',{pointId:'stranded_bus'});
+  assert.equal(distantRescue.data.error,'too_far_from_rescue','rescue uses five metres from the actor, not the old map marker radius');
+  assert.deepEqual(files.get('homefront-world.json'),beforeInvalidRescue,'failed reach never spends supplies or claims the shared survivor');
+  const rescueFixture=files.get('homefront-world.json');
+  Object.assign(rescueFixture.players['acct-a'],{x:32.3,z:-42});
+  files.set('homefront-world.json',rescueFixture);
+  const obstructedRescue=await call('POST','/api/homefront/world/rescue','acct-a',{pointId:'stranded_bus'});
+  assert.equal(obstructedRescue.data.error,'rescue_path_blocked','the solid bus cannot be rescued through');
+  const blockedView=await call('GET','/api/homefront/world','acct-a');
+  assert.equal(blockedView.data.world.rescues.stranded_bus.reachable,false,'server snapshot hides an obstructed rescue interaction');
+  Object.assign(rescueFixture.players['acct-a'],{x:39,z:-42,vehicleId:'rover:acct-a'});
+  rescueFixture.vehicles['acct-a']={type:'scrap_rover',x:39,z:-42,driver:'acct-a',charge:75,heading:0};
+  files.set('homefront-world.json',rescueFixture);
+  assert.equal((await call('POST','/api/homefront/world/rescue','acct-a',{pointId:'stranded_bus'})).data.error,
+    'exit_vehicle_before_rescue','driving cannot bypass the on-foot encounter');
+  delete rescueFixture.vehicles['acct-a'];
+  rescueFixture.players['acct-a'].vehicleId=null;
+  rescueFixture.interiors['acct-a']={activeLandmarkId:'pine_general_store'};
+  files.set('homefront-world.json',rescueFixture);
+  assert.equal((await call('POST','/api/homefront/world/rescue','acct-a',{pointId:'stranded_bus'})).data.error,
+    'leave_building_before_rescue','a shared interior is not the outdoor survivor encounter');
+  delete rescueFixture.interiors['acct-a'];
+  Object.assign(rescueFixture.players['acct-b'],{x:39,z:-42});
+  files.set('homefront-world.json',rescueFixture);
+  const reachableView=await call('GET','/api/homefront/world','acct-a');
+  assert.equal(reachableView.data.world.rescues.stranded_bus.reachable,true,'walking around the bus exposes the same survivor interaction');
   const rescue = await call('POST', '/api/homefront/world/rescue', 'acct-a', { pointId: 'stranded_bus', difficulty: 'standard' });
   assert.equal(rescue.status, 200, 'explorer can rescue a nearby stranded survivor');
   assert.equal(rescue.data.encounter.rescued, true);
@@ -331,6 +357,60 @@ if (attack.data.combat.enemyDamage > 0) {
   assert(baseAfterOverflow.resources.scrap > baseBeforeOverflow.resources.scrap || baseAfterOverflow.resources.ammo > baseBeforeOverflow.resources.ammo, 'full-pack salvage overflow is deposited into refuge resources');
   const leftDepot = await call('POST', '/api/homefront/world/interior/leave', 'acct-a');
   assert.equal(leftDepot.status, 200);
+
+  // Play a party encounter through independent authenticated requests.
+  files.clear();
+  const [leader, ally, stranger] = ['patrol-lead', 'patrol-ally', 'patrol-stranger'];
+  for (const account of [leader, ally, stranger]) {
+    assert.equal((await call('POST', '/api/homefront/world/enter', account)).status, 200);
+  }
+  const patrolWorld = files.get('homefront-world.json');
+  const patrol = patrolWorld.encounters[leader];
+  assert.ok(patrol.patrolId);
+  delete patrolWorld.encounters[ally];
+  delete patrolWorld.encounters[stranger];
+  const party = 'AB1122';
+  patrolWorld.parties[party] = { leader, members: [leader, ally] };
+  Object.assign(patrolWorld.players[leader], { x: -43, z: -42, partyCode: party });
+  Object.assign(patrolWorld.players[ally], { x: -36, z: -42, partyCode: party });
+  Object.assign(patrolWorld.players[stranger], { x: -37, z: -42 });
+  const target = { ...patrol.members[0], x: -39, z: -42, hp: 120, maxHp: 120 };
+  Object.assign(patrol, { x: target.x, z: target.z, hp: 120, maxHp: 120, members: [target], lastAiAt: Date.now() });
+  files.set('homefront-world.json', patrolWorld);
+  const allyView = await call('GET', '/api/homefront/world', ally);
+  assert.equal(allyView.data.selfEncounter.id, patrol.id, 'teammates see the same encounter as their active threat');
+  assert.equal(allyView.data.encounters.find(e => e.id === patrol.id).attackable, true);
+  assert.equal(files.get('homefront-world.json').encounters[ally], undefined, 'the director reuses the patrol instead of spawning a copy');
+
+  const attackPath = '/api/homefront/world/attack';
+  const payload = { targetId: target.id };
+  assert.equal((await call('POST', attackPath, stranger, payload)).data.error, 'target_mismatch');
+  const first = await call('POST', attackPath, leader, payload);
+  const second = await call('POST', attackPath, ally, payload);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200, 'one teammate cannot consume the other’s attack cooldown');
+  assert.equal((await call('POST', attackPath, ally, payload)).data.error, 'attack_cooldown');
+  assert.equal(second.data.encounter.hp, 120 - first.data.combat.damage - second.data.combat.damage,
+    'both attacks change one persisted health pool');
+
+  const covered = files.get('homefront-world.json');
+  Object.assign(covered.players[ally], { x: -42, z: -43, lastWeaponFireAt: 0 });
+  Object.assign(covered.encounters[leader], { x: -42, z: -49 });
+  Object.assign(covered.encounters[leader].members[0], { x: -42, z: -49 });
+  files.set('homefront-world.json', covered);
+  assert.equal((await call('POST', attackPath, ally, payload)).data.error, 'infected_behind_cover',
+    'an exterior wall blocks a shared patrol attack');
+
+  Object.assign(covered.encounters[leader], { x: -39, z: -42, hp: 1 });
+  Object.assign(covered.encounters[leader].members[0], { x: -39, z: -42, hp: 1 });
+  files.set('homefront-world.json', covered);
+  const finish = await call('POST', attackPath, ally, payload);
+  assert.equal(finish.status, 200);
+  assert.equal(finish.data.combat.killed, true);
+  assert.ok(finish.data.combat.reward.scrap > 0);
+  assert.ok(finish.data.recentPatrolDeaths.includes(target.id));
+  const replay = await call('POST', attackPath, leader, payload);
+  assert.equal(replay.status, 400, 'a second player cannot claim a defeated patrol’s reward');
 
   console.log('Homefront authenticated save API simulation passed.');
 })().catch(e => { console.error(e); process.exitCode = 1; });

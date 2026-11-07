@@ -13,6 +13,62 @@ assert.equal(a.result.self.risk, 1, 'perimeter spawn is low risk');
 assert.ok(a.world.encounters['acct-a'], 'the authoritative director seeds an infected encounter when an explorer enters');
 assert.ok(a.result.director && a.result.director.nextSpawnAt > 1000, 'world snapshot exposes the persisted local director schedule');
 assert.equal(world.players['acct-a'].directorState.lastSpawnAt, 1000, 'director spawn cadence is persisted per player');
+assert.equal(a.result.self.spawn, 'north_gate', 'the first Homefront claims the Pine Crossing trailhead');
+assert.deepEqual(a.result.refugeReturn, { x: a.result.self.x, z: a.result.self.z });
+assert.equal(b.result.refugeEntries, undefined, 'private gate assignments are not shared with clients');
+{
+  const expedition = structuredClone(b.world);
+  const [first, second] = ['acct-a', 'acct-b'].map(id => expedition.players[id]);
+  const north = { x: first.x, z: first.z };
+  const east = { x: second.x, z: second.z };
+  expedition.encounters = {};
+  Object.assign(first, east, { spawn: second.spawn, lastSeen: 2000 });
+  second.lastSeen = 2000;
+  assert.equal(W.snapshot(expedition, 'acct-a', 2000).self.risk, 4, 'risk follows the permanent gate even after an expedition respawn');
+  assert.equal(W.snapshot(expedition, 'acct-b', 2000).self.risk, 1, 'the same waypoint is low risk near the other player’s home');
+  const near = W.spawnEncounter(expedition, 'acct-b', 2000).encounter;
+  const far = W.spawnEncounter(expedition, 'acct-a', 2000).encounter;
+  assert.equal(near.risk, 1);
+  assert.equal(far.risk, 4);
+  assert.ok(W.tickDirector(expedition, 'acct-a', 2000).spawnIntervalMs <
+    W.tickDirector(expedition, 'acct-b', 2000).spawnIntervalMs, 'outbound exposure shortens reinforcement intervals');
+  Object.assign(first, north);
+  const home = W.snapshot(expedition, 'acct-a', 2000).self;
+  assert.equal(home.homefrontDistance, 0);
+  assert.equal(home.risk, 1, 'returning to the gate lowers risk');
+  const party = W.createParty(expedition, 'acct-a', 2100);
+  const grouped = W.joinParty(party.world, 'acct-b', party.result.party.code, 2200).world;
+  assert.equal(W.tickDirector(grouped, 'acct-a', 2200).risk, 4, 'nearby teammates share the highest exposure');
+  grouped.players['acct-b'].lastSeen = 0;
+  grouped.players['acct-a'].lastSeen = 60000;
+  assert.equal(W.tickDirector(grouped, 'acct-a', 60000).risk, 1, 'inactive teammates do not scale the active patrol');
+}
+{
+  let saved = W.leave(a.world, 'acct-a', 2000).world;
+  // Save/restore after every exit with nobody left online. Every subsequent
+  // refuge still reserves a separate footprint.
+  const gates = [a.result.refugeReturn];
+  for (let i = 0; i < 24; i++) {
+    const account = 'offline-refuge-' + i;
+    const next = W.enter(JSON.parse(JSON.stringify(saved)), account, 3000 + i * 2000);
+    const gate = next.result.refugeReturn;
+    assert.ok(gates.every(other => Math.hypot(other.x - gate.x, other.z - gate.z) >= 14 - 1e-6),
+      'a new gate has a separate footprint even if all earlier owners left');
+    gates.push(gate);
+    saved = W.leave(next.world, account, 4000 + i * 2000).world;
+  }
+  const returned = W.enter(JSON.parse(JSON.stringify(saved)), 'acct-a', 60000);
+  assert.deepEqual(returned.result.refugeReturn, a.result.refugeReturn, 'returning Homefront keeps its reserved gate');
+  assert.deepEqual({ x: returned.result.self.x, z: returned.result.self.z }, a.result.refugeReturn);
+}
+{
+  const legacy = JSON.parse(JSON.stringify(a.world));
+  delete legacy.refugeEntries;
+  const newcomer = W.enter(legacy, 'new-refuge', 3000);
+  assert.notEqual(newcomer.result.self.spawn, 'north_gate',
+    'a new refuge cannot claim the return point of a pre-update active explorer');
+  assert.deepEqual(W.snapshot(newcomer.world, 'acct-a', 3000).refugeReturn, a.result.refugeReturn);
+}
 const noisyWorld = W.recordNoise(world, 'acct-a', 95, 1500);
 assert.equal(noisyWorld.players['acct-a'].noiseLevel, 95, 'server records gunfire noise intensity');
 assert.equal(noisyWorld.players['acct-a'].lastNoiseAt, 1500, 'server records the authoritative noise timestamp');
@@ -37,7 +93,10 @@ assert.ok(Math.hypot(recoveredSave.x - W.SPAWNS[0].x, recoveredSave.z - W.SPAWNS
 assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'cache'), 'shared world includes physical supply-cache landmarks');
 assert.ok(Object.values(a.result.world.caches).every(cache => cache.readyAt === 0), 'shared supply caches begin available');
 assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'rescue'), 'shared world includes survivor rescue sites');
-assert.equal(a.result.world.lootNodes.length, 8, 'shared world publishes eight physical scavenging nodes');
+const pineTrailLoot = a.result.world.lootNodes.filter(node => node.trail);
+assert.deepEqual(pineTrailLoot.map(node => node.id), ['loot_pine_logging_kit', 'loot_pine_creek_pack', 'loot_pine_relay_spares']);
+assert.ok(pineTrailLoot.every(node => require('../server/homefront-collision').isSafePosition(node.x, node.z)),
+  'trail supplies can be reached on foot');
 assert.ok(a.result.world.lootNodes.every(node => node.available && node.id.startsWith('loot_')), 'loot nodes start available and have stable IDs');
 assert.ok(Object.values(a.result.world.rescues).every(site => site.readyAt === 0), 'shared rescue sites begin available');
 
@@ -194,3 +253,85 @@ try {
   Collision.findPath = originalCollisionFindPath;
 }
 console.log('Homefront shared Graveyard world and terrain-movement integration passed.');
+
+{
+  const account = 'contact-survivor';
+  const start = 100000;
+  const fixture = W.enter(W.defaultWorld(), account, start).world;
+  const target = fixture.players[account];
+  const direction = [[1,0], [-1,0], [0,1], [0,-1]].find(([dx, dz]) =>
+    Collision.canTraverse(target.x, target.z, target.x + dx * 4, target.z + dz * 4) &&
+    Terrain.canTraverse(target.x, target.z, target.x + dx * 4, target.z + dz * 4));
+  assert.ok(direction, 'test spawn has a clear path for a pursuing infected');
+  const [dx, dz] = direction;
+  const encounter = fixture.encounters[account];
+  const member = { ...encounter.members[0], x: target.x + dx * 4, z: target.z + dz * 4 };
+  Object.assign(encounter, { x: member.x, z: member.z, hp: member.hp, maxHp: member.maxHp,
+    members: [member], lastAiAt: start, damage: 5 });
+  const observer = W.enter(fixture, 'contact-observer', start + 100).world;
+  assert.equal(observer.players[account].survival.health, 100, "another player's refresh does not apply damage to this account");
+
+  const distant = W.enter(observer, account, start + 400);
+  assert.equal(distant.result.selfInfectedHit, null, 'pursuit outside melee reach leaves the survivor unharmed');
+  const bitten = W.enter(distant.world, account, start + 1700);
+  assert.equal(bitten.result.selfInfectedHit.sourceId, member.id, 'an infected reaches and bites a stationary survivor without a player attack');
+  assert.equal(bitten.result.selfSurvival.health, 95);
+  assert.equal(bitten.result.selfSurvival.infection, 1);
+  const protectedTick = W.enter(JSON.parse(JSON.stringify(bitten.world)), account, start + 1750);
+  assert.equal(protectedTick.result.selfSurvival.health, 95, 'persisted recovery window prevents repeat damage from rapid requests');
+  assert.equal(protectedTick.result.selfInfectedHit.at, bitten.result.selfInfectedHit.at);
+  const secondBite = W.enter(protectedTick.world, account, start + 2700);
+  assert.equal(secondBite.result.selfSurvival.health, 90, 'an infected still in reach can attack after recovery');
+
+  secondBite.world.players[account].survival.health = 3;
+  secondBite.world.players[account].inventory = { ammo: 4 };
+  const defeated = W.enter(secondBite.world, account, start + 8000);
+  assert.equal(defeated.result.selfInfectedHit.defeated, true);
+  assert.equal(defeated.result.selfSurvival.health, require('../server/homefront-survival').RESPAWN_HEALTH);
+  assert.equal(defeated.result.selfInventory.ammo, 4, 'safe respawn keeps the field pack');
+  assert.equal(defeated.result.selfEncounter, null, 'the defeated player is released from the encounter');
+  assert.ok(Collision.isSafePosition(defeated.result.self.x, defeated.result.self.z));
+  assert.deepEqual(
+    {x:defeated.result.self.x,z:defeated.result.self.z}, defeated.result.refugeReturn,
+    'infected defeat returns the player to their own permanently reserved gate, not another refuge'
+  );
+  assert.equal(defeated.world.refugeEntries[account], fixture.refugeEntries[account],
+    'death preserves original refuge assignment across the same shared world');
+  assert.equal(W.snapshot(defeated.world, account, start + 12000).selfInfectedHit, null, 'expired hit feedback is not replayed on reconnect');
+}
+
+{
+  const account = 'pine-sprinter';
+  const entered = W.enter(W.defaultWorld(), account, 1000);
+  const start = W.moveInput(entered.world, account, { sequence: 0, x: -1, z: 0, sprint: true }, 2000);
+  const sprint = W.moveInput(start.world, account, { sequence: 1, x: -1, z: 0, sprint: true }, 2100);
+  const player = sprint.world.players[account];
+  assert.equal(player.noiseLevel, 32, 'sprinting along the logging road makes gravel noise');
+  assert.equal(player.noiseX, player.x, 'noise position comes from accepted movement');
+  Object.assign(player, { lastNoiseAt: 2100, noiseLevel: 95, noiseX: -20, noiseZ: -81 });
+  const resumed = W.moveInput(sprint.world, account, { sequence: 2, x: -1, z: 0, sprint: true }, 2900);
+  const next = W.moveInput(resumed.world, account, { sequence: 3, x: -1, z: 0, sprint: true }, 3000);
+  assert.ok(next.result.self.x < resumed.result.self.x, 'the explorer is actually sprinting after the shot');
+  assert.equal(next.world.players[account].noiseX, -20, 'a sprint cannot move the origin of a recent gunshot');
+}
+
+{
+  const now = 150000, owner = 'pine-owner', ally = 'pine-bite-ally';
+  let patrolWorld = W.enter(W.defaultWorld(), owner, now).world;
+  patrolWorld = W.enter(patrolWorld, ally, now).world;
+  const patrol = patrolWorld.encounters[owner];
+  delete patrolWorld.encounters[ally];
+  const party = 'D00D11';
+  patrolWorld.parties[party] = { leader: owner, members: [owner, ally] };
+  Object.assign(patrolWorld.players[owner], { x: -43, z: -42, partyCode: party });
+  Object.assign(patrolWorld.players[ally], { x: -38.2, z: -42, partyCode: party });
+  const member = { ...patrol.members[0], x: -39, z: -42 };
+  Object.assign(patrol, { x: member.x, z: member.z, members: [member], hp: member.hp, lastAiAt: now });
+  const bitten = W.enter(patrolWorld, ally, now + 100);
+  assert.equal(bitten.result.selfInfectedHit.encounterId, patrol.id, 'a shared patrol can bite a teammate');
+  assert.equal(bitten.world.players[owner].survival.health, 100, 'a teammate refresh does not apply damage to another account');
+
+  Object.assign(bitten.world.players[owner], { x: -38.3, z: -42 });
+  const second = W.enter(JSON.parse(JSON.stringify(bitten.world)), owner, now + 180);
+  assert.equal(second.result.selfSurvival.health, 100, 'one patrol does not double-strike on simultaneous refreshes');
+}

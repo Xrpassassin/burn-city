@@ -5,18 +5,38 @@ const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', 
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 
 assert.match(scene, /from '\.\/zaudio\.js'/, 'reuse the Zombies sound director in Homefront');
-assert.match(scene, /from '\.\/zombie-model-pilot\.mjs'/, 'reuse the existing animated Zombies model pilot');
-assert.match(scene, /zombieModelPilot\.update\(modelCandidates, dt, localForModels\)/, 'drive animated infected from authoritative encounter snapshots');
-assert.match(scene, /modeledZombieIds\.has\(actor\.userData\.encounterId\)/, 'bound detailed rigs and retain procedural fallback actors');
-assert.match(scene, /const opacity = modeled \? 0 : 1/, 'preserve raycast hit proxies under animated models');
-assert.match(scene, /createZombieModelPilot\(scene, \{ targetHeight: 2\.7, maxModels: /, 'fit rigs to Homefront combat hitbox scale with a lower rig cap on touch devices');
+assert.match(scene, /from '\.\/homefront-context-action-queue\.mjs'/, 'defer only explicit busy doorway taps until movement settles');
+assert.match(scene, /from '\.\/homefront-rover-mesh\.mjs'/, 'render the server-owned rover in the existing 3D world');
+assert.match(scene, /from '\.\/homefront-rover-controls\.mjs'/, 'enable explicit touch and WASD rover controls, not point-and-click travel');
+assert.match(scene, /syncRoverMeshes\(data\.world\?\.vehicles\|\|\[\]\)/, 'mirror the real server vehicle coordinates');
+assert.match(scene, /homefront\/world\/vehicle\/'\+action/, 'vehicle actions must use authenticated Homefront world API');
+assert.match(scene, /current\.id==='rescue-survivor'/, 'interact with a frightened human survivor in physical range');
+assert.match(scene, /homefront\/world\/rescue/, 'reuse the authoritative rescue and owned survivor roster system');
+assert.match(scene, /glow\.visible=false/, 'remove giant non-diegetic quest glow over rescue NPCs');
+assert.match(scene, /from '\.\/homefront-survivor-encounters\.mjs'/, 'authored survivor vignettes share the existing rescue POI states');
+assert.match(scene, /survivorInteraction\(survivor\)/, 'rescue prompts require physical proximity to the visible survivor actor');
+assert.match(scene, /survivorApproachCue\(scene,/, 'approach dialogue is short, location-driven and cooldown limited');
+assert.match(scene, /roverMotorBed\s*\|\|=\s*sfx\.roverMotor\(\)/, 'driver hears rover motor through existing audio bus');
+assert.match(scene, /stopRoverMotor\(\)/, 'dismount and hidden scene stop the rover motor');
+const audioSource = readFileSync(new URL('../client/arena/sfx.js', import.meta.url), 'utf8');
+assert.match(audioSource, /function roverMotor\(\)/, 'electric rover engine is a procedural cue with no asset download');
+assert.match(audioSource, /gain\.gain\.setTargetAtTime\(0\.0001,t,0\.07\)/, 'synthesized engine fades before oscillator cleanup');
+
+assert.match(scene, /queueDoorwayTap\(\{/, 'revalidate an explicitly tapped mobile doorway after movement acknowledgment');
+assert.match(scene, /current:\(\)=>availableContext\(\)/, 'deferred doorways re-check world position and session state');
+assert.match(scene, /import \{ createZombieRenderer \} from '\.\/fx\.js'/, 'reuse the arena renderer for both animated and instanced infected');
+assert.match(scene, /infectedRenderer\.update\(dt, presentedInfected, localForInfected\)/, 'drive the arena renderer from authoritative encounter snapshots');
+assert.match(scene, /MeshBasicMaterial\(\{ visible: false \}\)/, 'keep aiming proxies separate from the visible models');
+assert.match(scene, /createZombieRenderer\(scene, \{ low: coarsePointer, deathOnRemoval: false, scale: 1.25 \}\)/, 'keep render budgets and distinguish leaving interest range from a confirmed death');
 assert.match(scene, /createZombieAudio\(sfx, \{ base: new URL\('\.\/sfx\/'/, 'reuse the existing positional zombie audio sample bank');
 assert.match(scene, /from '\.\/homefront-ground-detail\.mjs'/, 'load deterministic lightweight ground dressing');
 assert.match(scene, /new THREE\.InstancedMesh\(/, 'batch micro-props to avoid one draw call per piece of scenery');
 assert.match(scene, /addGroundDetailInstances\(chunk, cx, cz\)/, 'cull ground details with their spatial chunk');
 assert.match(scene, /coarsePointer \? 1\.15 : 1\.6/, 'cap mobile render resolution to preserve frame time while allowing sharper desktop output');
-assert.match(scene, /zombieAudio\.tick\(dt, audioMe, audioZombies/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
+assert.match(scene, /zombieAudio\.tick\(dt, audioMe, presentedInfected/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
 assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play shared hit and headshot audio only after authoritative combat confirmation');
+assert.match(scene, /if \(hit\.killed\) infectedRenderer\.zdie/, 'play the shared death reaction after a confirmed kill');
+assert.match(scene, /else infectedRenderer\.zhit/, 'play the shared hit reaction after a confirmed hit');
 assert.match(scene, /if \(hit\.killed\) \{[\s\S]*?zombieAudio\.zdie\(/, 'play infected death audio only after server-confirmed kills');
 assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
 assert.match(scene, /const environmentVisuals = new Map\(\)/, 'index rendered environment structures by authoritative collision ID');
@@ -43,10 +63,6 @@ assert.match(zombiePilot, /MAX_MODEL_DISTANCE = 28/, 'keep detailed rigs near th
 assert.match(zombiePilot, /react\(id, kind = 'HitReact'\)/, 'expose authoritative hit and death animation reactions');
 assert.match(zombiePilot, /next\.setLoop\(THREE\.LoopOnce, 1\)/, 'play hit and death clips as one-shot reactions');
 assert.match(zombiePilot, /item\.deadUntil = item\.reactionUntil/, 'retain server-confirmed death animation after encounter removal');
-assert.match(scene, /zombieModelPilot\?\.react\(hit\.targetId, hit\.killed \? 'Death' : 'HitReact'\)/, 'trigger animated reactions only from confirmed combat events');
-assert.match(scene, /GLTFLoader/, 'reuse the existing GLTF asset loader');
-assert.match(scene, /SkeletonUtils\.clone/, 'clone animated zombie rigs safely');
-assert.match(scene, /assets\/homefront\/zombie\.glb/, 'reuse the existing Homefront zombie model');
 assert.match(scene, /\/api\/homefront\/world/, 'read the shared Homefront world snapshot');
 assert.match(scene, /\/api\/homefront\/world\/move/, 'send movement through the authoritative world API');
 assert.match(scene, /\/api\/homefront\/world\/exploration/, 'load account-persisted exploration notes');
@@ -62,12 +78,9 @@ assert.match(scene, /\/api\/homefront\/world\/' \+ action/, 'combat controls cal
 assert.match(scene, /data\.encounters/, 'render active server-owned infected encounters');
 assert.match(scene, /const combatActors = new Map\(\)/, 'retain infected scene actors across authoritative snapshots');
 assert.match(scene, /state\.targetX - actor\.position\.x/, 'interpolate infected movement between server snapshots');
-assert.match(scene, /actor\.userData\.hitFlash = 0\.38/, 'give confirmed enemy damage a brief visual hit flash');
-assert.match(scene, /threatRing/, 'render a proximity danger telegraph for nearby infected');
-assert.match(scene, /threatDistance <= 3/, 'increase infected danger feedback at close combat distance');
-assert.match(scene, /frontierBand/, 'show the current expansion band in the expedition HUD');
-assert.match(scene, /frontierDepth/, 'show inward frontier depth and rising danger context');
-assert.match(scene, /gunfire attracts attention/, 'warn players that noise escalates danger beyond the perimeter');
+assert.match(scene, /homefrontBand/, 'show the current Homefront risk band in the expedition HUD');
+assert.match(scene, /homefrontDistance/, 'show the distance from the reserved Homefront gate');
+assert.match(scene, /Gunfire draws infected/, 'warn players that noise escalates danger away from Homefront');
 assert.match(scene, /route surveyed; inspect local clues/, 'surveying a route points players toward evidence rather than implying completion');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(scene, /Visible held weapon silhouette/, 'render a visible weapon prop for each explorer in the 3D world');
@@ -113,22 +126,18 @@ assert.match(scene, /explorer\.userData\.weapon\.rotation\.z/, 'animate a visibl
 assert.match(scene, /weaponSwingWeaponId === 'marksman_rifle' \? 0\.62 : 0\.46/, 'firearms use weapon-specific recoil strength');
 assert.match(scene, /weaponSwingWeaponId === 'shock_maul'/, 'shock maul uses a heavier dedicated swing animation');
 assert.match(scene, /const kick = progress < 0\.2 \? progress \/ 0\.2/, 'firearm recoil kicks back quickly and recovers during the animation');
-assert.match(scene, /const headshot = state\.impactStyle === 'headshot'/, 'confirmed headshots trigger a stronger infected flinch');
-assert.match(scene, /headshot \? 0\.28 : 0\.12/, 'headshot hit reactions have a distinct knockback response');
 
-assert.match(scene, /impactStyle === 'blunt'/, 'blunt weapons produce a heavier body-bash response');
 assert.ok(scene.includes("if (detail.killed && style === 'sharp' && target)"), 'sharp-weapon separation effect requires a confirmed kill');
 assert.match(scene, /homefront:combat-hit/, 'impact response only runs from confirmed combat results');
 
 assert.match(scene, /import \{ sfx \} from '\.\/sfx\.js'/, 'reuse the existing arena sound engine');
-assert.ok(scene.includes("sfx.play(sfx.has(sound) ? sound : 'hit'"), 'fall back to a loaded hit sample when a dedicated weapon sound is unavailable');
+assert.ok(scene.includes("if (!sfx.play('shotgun',"), 'use the existing shotgun sound with a synth fallback');
+assert.match(scene, /sfx\.fieldStep\(interiorState \? 'wood' : pineSurfaceAt/, 'play a footstep matching the actual surface');
 assert.ok(scene.includes("const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16)"), 'head hits get distinct blood particle feedback');
 assert.match(scene, /drop\.userData\.blood = true/, 'mark short-lived blood particles for fade-out');
 
 assert.match(scene, /const weaponId = WEAPON_IDS\.includes\(detail\.weaponId\)/, 'select only known server-equipped weapon profiles for impact feedback');
-assert.match(scene, /weaponId === 'pump_shotgun' \|\| isAuto \? 'shotgun'/, 'shotgun and automatic tiers reuse the licensed firearm sample');
 assert.ok(scene.includes("detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18)"), 'shotgun killing blows produce a wider, stronger impact burst');
-assert.match(scene, /\.catch\(\(\) => \{\}\)/, 'audio asset failures cannot interrupt confirmed combat feedback');
 assert.match(scene, /data\.combat\.encounterId/, 'resolve encounter IDs from the combat response when available');
 
 assert.match(scene, /hitZone: data\.combat\.hitZone/, 'forward the server-calculated hit zone to the scene');
@@ -182,9 +191,10 @@ assert.match(scene, /node\.userData\.lootNodeId === selectedLootId/, 'highlight 
 assert.match(scene, /Math\.sin\(now \* 0\.006\) \* 0\.055/, 'pulse the selected supply ring in the render loop');
 assert.match(scene, /focus\.mesh\.material\.color\.setHex\(selected \? 0xffe08a : focus\.color\)/, 'restore each supply node base glow color when selection changes');
 assert.match(scene, /const previousExplorerPositions = new Map\(\)/, 'preserve each explorer position across world snapshots');
-assert.match(scene, /explorerPositions\.set\(key, \{ x: p\.x, y: targetY, z: p\.z \}\)/, 'store authoritative explorer destinations separately from rendered positions');
-assert.match(scene, /const travelBlend = 1 - Math\.exp\(-8 \* dt\)/, 'interpolate explorer motion smoothly per frame instead of snapping on each snapshot');
-assert.match(scene, /explorer\.rotation\.y = Math\.atan2\(target\.x - explorer\.position\.x, target\.z - explorer\.position\.z\)/, 'turn moving explorers toward their travel direction');
+assert.match(scene, /explorerPositions\.set\(key, \{ x: p\.x, y: targetY, z: p\.z, crouched: p\.crouched \}\)/,
+  'store authoritative explorer destinations and stance separately from rendered poses');
+assert.match(scene, /const travelBlend = directLocal \? 1 : 1 - Math\.exp\(-8 \* dt\)/, 'use local predicted position directly and interpolate remote explorers');
+assert.match(scene, /explorer\.rotation\.y = turnToward\(explorer\.rotation\.y, Math\.atan2\(dx, dz\), dt\)/, 'turn moving explorers toward their travel direction');
 assert.match(scene, /g\.userData\.avatarParts = \[/, 'retain avatar body, head, backpack, and strap references for animation');
 assert.match(scene, /const bob = movingAvatar \? Math\.abs\(Math\.sin\(now \* 0\.014\)\) \* 0\.11/, 'add a lightweight step bob while explorers move');
 assert.match(scene, /part\.object\.position\.y = part\.baseY \+ bob/, 'animate avatar parts without changing authoritative world coordinates');
@@ -200,7 +210,7 @@ assert.match(page, /cameraPose\(\{mode:yardView\.mode,building:constructionView/
 assert.match(page, /camera\.position\.lerp\((?:new THREE\.Vector3|yardCamTarget\.set)\(pose\.px,pose\.py,pose\.pz\),blend\)/, 'blend smoothly between construction and the previous walking view');
 assert.doesNotMatch(page, /Vector3\(constructionView\?0:19/, 'no fixed elevated yard camera outside construction');
 assert.match(page, /yardView=attachViewControls\(host,\{canLook:\(\)=>!pendingBuilding&&!constructionPaused\}\)/, 'yard look/joystick controls pause during construction');
-assert.match(scene, /attachViewControls\(host, \{ onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous \}\)/, 'Graveyard taps and direct-walk orbit come from the shared controller');
+assert.match(scene, /attachViewControls\(host, \{\s*onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous,/, 'Graveyard taps and direct-walk orbit come from the shared controller');
 assert.match(scene, /cameraPose\(\{ mode: view\.mode/, 'Graveyard camera follows the remembered first-/third-person mode');
 assert.match(scene, /worldMove\(view\.move\(\), heading, 0\)/, 'joystick / WASD travel is relative to the camera heading');
 assert.match(scene, /noiseWarning=noiseLevel>=55\?' Loud container! Noise '/, 'loot UI warns when a noisy container can attract infected');

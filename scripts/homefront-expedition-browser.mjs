@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
+import { PINE_CROSSING_BUILDINGS, PINE_CROSSING_ROUTES } from '../client/arena/homefront-pine-crossing.mjs';
 
 const localRequire = createRequire(import.meta.url);
 const playwrightRequire = createRequire(
@@ -15,11 +16,7 @@ const World = localRequire("../server/homefront-world.js");
 const Homefront = localRequire("../server/homefront.js");
 const guestMode = process.env.HOMEFRONT_EXPEDITION_GUEST === "1";
 const fixturePath = path => guestMode ? path.replace('/api/homefront','/api/homefront/guest') : path;
-let ACCOUNT = Array.from({ length: 50 }, (_, i) => "playtest-" + i).find(
-  (account) =>
-    World.chooseSafeSpawn(World.defaultWorld(), account).spawn.id ===
-    "north_gate",
-);
+let ACCOUNT = "playtest-first-refuge";
 const TOKEN = "ui-three-token";
 const guest = localRequire('../server/homefront-guest.js').createGuestHandler();
 let guestStore;
@@ -57,6 +54,7 @@ const mime = {
   ".json": "application/json",
   ".png": "image/png",
   ".jpg": "image/jpeg",
+  ".webp": "image/webp",
   ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml",
   ".glb": "model/gltf-binary",
@@ -94,22 +92,6 @@ const server = createServer(async (req, res) => {
       const raw=Buffer.concat(received).toString('utf8');
       const context={json,gate:()=>false,ip:'127.0.0.1',body:async()=>raw?JSON.parse(raw):{}};
       observed.push({path:url.pathname.replace('/guest',''),method:req.method,guest:true});
-      if (url.pathname.endsWith('/guest/start')) {
-        // Use real disposable sessions, choosing a North Gate guest just as
-        // the wallet fixture chooses a North Gate account. No spawn override,
-        // movement shortcut or test hook is installed in game code.
-        for (let attempt=0;attempt<100;attempt++) {
-          let started;
-          await guest.handle(req,res,url,{...context,json:(_res,status,data)=>{started={status,data};}});
-          assert.equal(started.status,200);
-          await guest.handle({method:'GET',headers:{'x-homefront-guest':started.data.token}},res,
-            new URL('/api/homefront/guest',url),{...context,json:()=>{}});
-          if (World.chooseSafeSpawn(World.defaultWorld(),ACCOUNT).spawn.id==='north_gate') {
-            json(res,200,started.data);return;
-          }
-        }
-        throw Error('No North Gate guest found in bounded fixture sampling');
-      }
       await guest.handle(req,res,url,context);return;
     }
     if (url.pathname.startsWith("/api/homefront")) {
@@ -176,6 +158,7 @@ const server = createServer(async (req, res) => {
 });
 
 process.env.HOMEFRONT_CONTINUOUS_MOVEMENT = "1";
+if(process.env.HOMEFRONT_EXPEDITION_ROVER==='1')process.env.HOMEFRONT_VEHICLES_ENABLED='1';
 const port = await new Promise((ok) =>
   server.listen(0, "127.0.0.1", () => ok(server.address().port)),
 );
@@ -246,6 +229,10 @@ try {
   }
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  let pineRockLoaded = false;
+  page.on('response', response => {
+    if (response.url().endsWith('/pine-crossing/rock-small.glb')) pineRockLoaded = response.ok();
+  });
   if (!guestMode) await page.addInitScript(
     ({ TOKEN, ACCOUNT }) => {
       localStorage.bcToken = TOKEN;
@@ -253,11 +240,15 @@ try {
     },
     { TOKEN, ACCOUNT },
   );
-  await page.route("**/*", (route) =>
-    ["localhost", "127.0.0.1"].includes(new URL(route.request().url()).hostname)
-      ? route.continue()
-      : route.abort(),
-  );
+  let inputDelayMs = Number(process.env.HOMEFRONT_TEST_INPUT_DELAY_MS) || 0;
+  await page.route("**/*", async route => {
+    const url = new URL(route.request().url());
+    if (!["localhost", "127.0.0.1"].includes(url.hostname)) return route.abort();
+    if (inputDelayMs > 0 && url.pathname.endsWith('/world/move-input')) {
+      await new Promise(resolve => setTimeout(resolve, inputDelayMs));
+    }
+    return route.continue();
+  });
   await page.goto(
     "http://localhost:" +
       port +
@@ -288,6 +279,9 @@ try {
     .filter({ hasText: "Skip" })
     .click();
 
+  // First complete the real refuge-to-world gate transition. Before this,
+  // we're still inside the private Homefront and world rover controls do not
+  // exist yet; the vehicle test must never skip that crossing.
   await startWalking("s");
   await page.waitForFunction(
     () => Math.abs(window.__hfYard.player.z - 8.9) <= 1.8,
@@ -295,6 +289,189 @@ try {
     { timeout: 20000 },
   );
   await stopWalking("s");
+
+  expeditionRun: {
+    if(process.env.HOMEFRONT_EXPEDITION_ROVER==='1'){
+      assert.equal(guestMode,false,'shared vehicle acceptance uses wallet-authenticated world fixture');
+      // Reaching the Homefront exit is not entering the shared overworld.
+      // The separate existing expedition path explicitly clicks this gate.
+      await activate(page.locator('#homefrontInteractionPrompt button'));
+      await page.waitForFunction(()=>document.body.classList.contains('rpg-mode-expedition')&&
+        document.querySelector('#graveyard3d')?.getClientRects().length>0);
+      // Loading the container isn't proof that the Three.js module has
+      // finished booting and installed its controls; require active gameplay.
+      await page.waitForFunction(()=>document.querySelector('#graveyard3dStatus')?.
+        textContent.includes('direct WASD'),null,{timeout:20000});
+      const built=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/vehicle/build'),{timeout:12000});
+      await page.keyboard.press('b');
+      const builtResult=await built.then(response=>response.json()).catch(async error=>{
+        console.error('ROVER_BUILD_DIAGNOSTICS',JSON.stringify({
+          error:String(error),observed:observed.slice(-16),
+          world:testState('homefront-world.json')?.players?.[ACCOUNT],
+          ui:await page.evaluate(()=>({
+            mode:document.body.className,
+            status:document.querySelector('#graveyard3dStatus')?.textContent,
+            prompt:document.querySelector('#homefrontContextAction')?.textContent,
+            visible:!!document.querySelector('#graveyard3d')?.getClientRects().length,
+            pending:document.querySelector('.hf-movement-status')?.textContent
+          }))
+        }));
+        throw error;
+      });
+      assert.equal(builtResult.vehicle?.type,'scrap_rover','B assembles a real salvage rover');
+      assert.ok(builtResult.world.vehicles.some(v=>v.mine),'the rover mesh receives authoritative physical state');
+      // Move the disposable test account next to its own vehicle only for
+      // touch/keyboard UI acceptance. This fixture is NOT a production teleport API.
+      const state=store.load('homefront-world.json',null);
+      Object.assign(state.players[ACCOUNT],{x:builtResult.vehicle.x,z:builtResult.vehicle.z,lastSeen:Date.now()});
+      store.save('homefront-world.json',state);
+      await page.waitForFunction(()=>document.getElementById('homefrontContextAction')?.textContent.includes('Board scrap rover'),
+        null,{timeout:15000});
+      const boarded=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/vehicle/board'));
+      await activate(page.locator('#homefrontContextAction'));
+      const boarding=await (await boarded).json();
+      assert.equal(boarding.selfVehicle?.id,'rover:'+ACCOUNT);
+      await page.waitForFunction(()=>getComputedStyle(document.querySelector('#graveyard3d .hf-rover-pad'))?.display==='grid',
+        null,{timeout:5000});
+      const firstPoint={x:boarding.self.x,z:boarding.self.z};
+      const driving=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/vehicle/drive'),{timeout:12000});
+      if(mobile){
+        const pad=page.getByRole('button',{name:'Rover KeyW'});
+        const bounds=await pad.boundingBox();
+        const at={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[at]});
+        await new Promise(resolve=>setTimeout(resolve,450));
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+      }else{
+        await page.keyboard.down('w');
+        await new Promise(resolve=>setTimeout(resolve,450));
+        await page.keyboard.up('w');
+      }
+      const driven=await (await driving).json();
+      assert.equal(driven.vehicle?.sequence,0);
+      assert.ok(Math.hypot(driven.self.x-firstPoint.x,driven.self.z-firstPoint.z)<1.5,
+        'server controls the first rover movement budget');
+      assert.ok(driven.vehicle.charge<100,'real driving consumes battery charge');
+      const park=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/vehicle/dismount'));
+      await page.waitForFunction(()=>document.getElementById('homefrontContextAction')?.textContent.includes('Park rover'),
+        null,{timeout:5000});
+      await activate(page.locator('#homefrontContextAction'));
+      assert.equal((await (await park).json()).selfVehicle,null);
+      assert.equal(store.load('homefront-world.json',null).vehicles[ACCOUNT].driver,null);
+      // The mobile player must be able to recharge without a hardware keyboard.
+      const scrapBeforeCharge=store.load('homefront.json',{})[ACCOUNT].resources.scrap;
+      const recharge=page.locator('#homefrontRoverRecharge');
+      await recharge.waitFor({state:'visible',timeout:10000});
+      const charged=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/vehicle/charge'));
+      await activate(recharge);
+      const charging=await (await charged).json();
+      assert.equal(charging.vehicle?.charge,100,'nearby garage tops up the driven battery');
+      assert.equal(store.load('homefront.json',{})[ACCOUNT].resources.scrap,scrapBeforeCharge-2,
+        'touch recharge consumes the same server-owned materials as keyboard recharge');
+      await recharge.waitFor({state:'hidden',timeout:5000});
+      // Move only the disposable account to the same authored rescue site.
+      // A survivor on the far side of the solid bus must not expose an E action.
+      const rescueState=store.load('homefront-world.json',null);
+      Object.assign(rescueState.players[ACCOUNT],{x:32.3,z:-42,lastSeen:Date.now()});
+      const blockedSnapshot=page.waitForResponse(async response=>{
+        if(response.request().method()!=='GET'||!response.url().endsWith('/api/homefront/world'))return false;
+        const data=await response.json().catch(()=>null);
+        return data?.self?.x===32.3&&data?.world?.rescues?.stranded_bus?.reachable===false;
+      },{timeout:15000});
+      store.save('homefront-world.json',rescueState);
+      await blockedSnapshot;
+      await page.waitForFunction(()=>document.querySelector('#homefrontContextAction')?.hidden||
+        document.querySelector('#homefrontContextAction')?.textContent.includes('Board scrap rover')===false,
+        null,{timeout:15000});
+      assert.equal(await page.locator('#homefrontContextAction').evaluate(el=>!el.hidden&&el.textContent.includes('Help the stranded driver')),false,
+        'the blocked survivor does not offer an interaction through the bus');
+      const physicalRescue=store.load('homefront-world.json',null);
+      Object.assign(physicalRescue.players[ACCOUNT],{x:39,z:-42,lastSeen:Date.now()});
+      physicalRescue.players[ACCOUNT].inventory.food=2;
+      physicalRescue.players[ACCOUNT].inventory.ammo=1;
+      const survivorCount=store.load('homefront.json',{})[ACCOUNT].survivors.length;
+      store.save('homefront-world.json',physicalRescue);
+      await page.waitForFunction(()=>!document.querySelector('#homefrontContextAction')?.hidden&&
+        document.querySelector('#homefrontContextAction')?.textContent.includes('Help the stranded driver'),
+        null,{timeout:15000});
+      const rescued=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/rescue'));
+      await activate(page.locator('#homefrontContextAction'));
+      const rescueResult=await (await rescued).json();
+      assert.equal(rescueResult.encounter?.rescued,true,'physical E/touch action recruits the shared survivor');
+      assert.equal(store.load('homefront.json',{})[ACCOUNT].survivors.length,survivorCount+1);
+      assert.equal(rescueResult.selfInventory.food,0,'rescue uses carried field food');
+      assert.equal(rescueResult.selfInventory.ammo,0,'rescue uses carried field ammo');
+      await page.waitForFunction(()=>document.querySelector('#homefrontContextAction')?.hidden||
+        document.querySelector('#homefrontContextAction')?.textContent.includes('Help the stranded driver')===false,null,{timeout:10000});
+      assert.deepEqual(errors,[]);
+      console.log('SHARED ROVER PLAYTEST PASSED',JSON.stringify({mobile,assembled:true,boarded:true,
+        serverCappedDrive:true,chargeUsed:true,parked:true,recharged:true,physicalRescue:true}));
+      break expeditionRun;
+    }
+
+  const pineCrossing = process.env.HOMEFRONT_EXPEDITION_PINE === '1';
+  if (pineCrossing) await page.evaluate(async () => {
+    const { sfx } = await import('/arena/sfx.js');
+    const { Object3D, PerspectiveCamera } = await import('/arena/vendor/three.module.min.js');
+    const lookAt = PerspectiveCamera.prototype.lookAt;
+    PerspectiveCamera.prototype.lookAt = function (...args) {
+      lookAt.apply(this, args);
+      if (this.fov === 48) window.pineCameraPosition = { x: this.position.x, z: this.position.z };
+    };
+    const environment = window.pineEnvironmentProbe = {};
+    const expected = new Set(['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier', 'pine-relay-station',
+      'pine-cracked-asphalt', 'pine-roadside-grass', 'pine-crows',
+      'loot_pine_logging_kit:closed', 'loot_pine_logging_kit:searched', 'loot_pine_creek_pack:closed',
+      'loot_pine_relay_spares:closed']);
+    const add = Object3D.prototype.add;
+    Object3D.prototype.add = function (...objects) {
+      const result = add.apply(this, objects);
+      if(this.isScene)window.pineSurfaceScene=this;
+      for (const object of objects) if (expected.delete(object?.name)) environment[object.name] = object.count ?? true;
+      if (expected.size === 0) Object3D.prototype.add = add;
+      return result;
+    };
+    const probe = window.fieldAudioProbe = { surfaces: [], cues: [], windStarts: 0, windStops: 0, creekPeak: 0, creekStops: 0 };
+    const cue = sfx.fieldCue;
+    sfx.fieldCue = (kind, ...position) => {
+      const played = cue(kind, ...position);
+      if (played && position.every(Number.isFinite)) probe.cues.push(kind);
+      return played;
+    };
+    const wind = sfx.fieldWind;
+    sfx.fieldWind = () => {
+      const loop = wind();
+      if (!loop) return null;
+      probe.windStarts++;
+      const stop = loop.stop;
+      loop.stop = () => { probe.windStops++; stop(); };
+      return loop;
+    };
+    const creek = sfx.fieldCreek;
+    sfx.fieldCreek = () => {
+      const loop = creek();
+      if (!loop) return null;
+      const { set, stop } = loop;
+      return {
+        set(level, ...position) {
+          if (position.every(Number.isFinite)) probe.creekPeak = Math.max(probe.creekPeak, level);
+          set(level, ...position);
+        },
+        stop() { probe.creekStops++; stop(); }
+      };
+    };
+    const step = sfx.fieldStep;
+    sfx.fieldStep = (surface, sprint) => {
+      probe.surfaces.push(surface);
+      step(surface, sprint);
+    };
+  });
   await activate(page.locator("#homefrontInteractionPrompt button"));
   await page.waitForFunction(() =>
     document.body.classList.contains("rpg-mode-expedition"),
@@ -304,6 +481,199 @@ try {
       .getElementById("graveyard3dStatus")
       .textContent.includes("direct WASD"),
   );
+  if (pineCrossing) {
+    const stance = page.locator('#graveyard3d .hf-crouch');
+    await stance.waitFor({ state: 'visible' });
+    const toggle = () => mobile ? stance.tap() : page.keyboard.press('z');
+    for (const crouched of [true, false]) {
+      await toggle();
+      await page.waitForFunction(expected =>
+        document.querySelector('#graveyard3d .hf-crouch')?.getAttribute('aria-pressed') === String(expected) &&
+        document.querySelector('.hf-survival-readout')?.textContent.includes('Crouched') === expected, crouched);
+      assert.equal(testState('homefront-world.json').players[ACCOUNT].crouched, crouched);
+    }
+  }
+
+  // Place a living infected within reach in the disposable store. Stand still
+  // and let the real browser poll the server. No attack or movement is sent.
+  const contactStore = guestMode ? guestStore : store;
+  const contactWorld = testState("homefront-world.json");
+  const contactPlayer = contactWorld.players[ACCOUNT];
+  assert.equal(contactPlayer.spawn, 'north_gate', 'the first Homefront enters at Pine Crossing’s North Gate');
+  const contactEncounter = contactWorld.encounters[ACCOUNT];
+  const attacker = {
+    ...contactEncounter.members[0], x: contactPlayer.x, z: contactPlayer.z
+  };
+  Object.assign(contactEncounter, { x: attacker.x, z: attacker.z, members: [attacker], damage: 2 });
+  contactPlayer.survival.health = 100;
+  delete contactPlayer.infectedHit;
+  const plantedAt = Date.now();
+  const bitten = page.waitForResponse(async response => {
+    if (response.request().method() !== 'GET' ||
+        !response.url().endsWith(fixturePath('/api/homefront/world'))) return false;
+    const data = await response.json().catch(() => null);
+    return data?.selfInfectedHit?.at >= plantedAt && data.selfInfectedHit.sourceId === attacker.id;
+  }, { timeout: 15000 });
+  contactStore.save("homefront-world.json", contactWorld);
+  const bite = await (await bitten).json();
+  await page.waitForFunction(() =>
+    document.querySelector(".hf-event-toast")?.textContent.includes("Bitten"),
+    null, { timeout: 10000 },
+  );
+  assert.ok(bite.selfSurvival.health < 100, "the stationary survivor takes authoritative infected damage");
+  assert.ok(!observed.some(entry => entry.path.endsWith("/world/attack")),
+    "the bite happens before the survivor attacks");
+
+  if (pineCrossing) {
+    const route = id => PINE_CROSSING_ROUTES.find(item => item.id === id).points;
+    const inputTrace = [];
+    page.on('response', async response => {
+      if (!response.url().endsWith(fixturePath('/api/homefront/world/move-input'))) return;
+      const request = response.request();
+      const command = request.postDataJSON();
+      const payload = await response.json().catch(() => null);
+      inputTrace.push({ command, status: response.status(), ack: payload?.inputAck, error: payload?.error });
+      if (inputTrace.length > 12) inputTrace.shift();
+    });
+    let touchOrigin;
+    if (mobile) {
+      const box = await page.locator('#graveyard3d .hf-joy').boundingBox();
+      touchOrigin = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    }
+    async function walkTo([x, z]) {
+      const held = new Set();
+      if (touchOrigin) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [touchOrigin] });
+      }
+      try {
+        const deadline = Date.now() + 14000;
+        while (Date.now() < deadline) {
+          const player = testState('homefront-world.json').players[ACCOUNT];
+          const dx = x - player.x, dz = z - player.z;
+          const distance = Math.hypot(dx, dz);
+          if (distance < 0.8) return;
+          if (touchOrigin) {
+            const scale = 46 / Math.max(2, distance);
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [
+              { x: touchOrigin.x - dx * scale, y: touchOrigin.y - dz * scale }
+            ] });
+          } else {
+            const keys = new Set([
+              ...(Math.abs(dx) > 0.56 ? [dx > 0 ? 'a' : 'd'] : []),
+              ...(Math.abs(dz) > 0.56 ? [dz > 0 ? 'w' : 's'] : [])
+            ]);
+            for (const key of held) if (!keys.has(key)) { await page.keyboard.up(key); held.delete(key); }
+            for (const key of keys) if (!held.has(key)) { await page.keyboard.down(key); held.add(key); }
+          }
+          await new Promise(resolve => setTimeout(resolve, 85));
+        }
+        const player = testState('homefront-world.json').players[ACCOUNT];
+        console.error('Pine Crossing input trace', JSON.stringify({ held: [...held], inputTrace,
+          browser: await page.evaluate(() => ({ hidden: document.hidden, focused: document.hasFocus(),
+            active: document.activeElement?.id, status: document.querySelector('#graveyard3dStatus')?.textContent,
+            modal: document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])')?.className })), errors }));
+        throw Error('Pine Crossing walk blocked near ' + JSON.stringify([player.x, player.z]) + ' toward ' + JSON.stringify([x,z]));
+      } finally {
+        if (touchOrigin) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        else for (const key of held) await page.keyboard.up(key);
+      }
+    }
+    const action = page.locator('#homefrontContextAction');
+    for (const point of route('logging-road').slice(1)) {
+      await walkTo(point);
+      if (inputDelayMs > 0) {
+        assert.ok(inputTrace.some(entry => entry.ack?.elapsedMs > 0 && entry.command.x < 0),
+          'delayed desktop input makes authoritative progress');
+        inputDelayMs = 0;
+      }
+      if (point[0] === -29) {
+        await page.waitForFunction(() => window.fieldAudioProbe.cues.includes('canopy'), null, { timeout: 6000 });
+      }
+      if (point[0] !== -43) continue;
+      await page.waitForFunction(() => document.querySelector('#explorationObjective')?.textContent.includes('Risk 2/5'));
+      await page.waitForFunction(() => document.querySelector('#homefrontContextAction')?.textContent.includes('Logging Bend Crew Kit'));
+      const searched = page.waitForResponse(response => response.url().endsWith(fixturePath('/api/homefront/world/loot')));
+      await activate(action);
+      const result = await (await searched).json();
+      assert.equal(result.loot.node.id, 'loot_pine_logging_kit');
+      assert.ok(result.loot.accepted.length || (result.loot.overflow.length && result.loot.overflowDestination === 'refuge'),
+        'the road shoulder yields supplies between buildings');
+    }
+    await walkTo([-36.5, -43]);
+    await page.waitForFunction(() => {
+      const camera = window.pineCameraPosition;
+      return camera && camera.x > -39 && camera.x < -35 && camera.z > -46.45 && camera.z < -44.5;
+    }, null, { timeout: 6000 });
+    await page.waitForFunction(()=>{
+      const maps=new Map();
+      window.pineSurfaceScene?.traverse(object=>{
+        const mat=object.material;if(!mat?.name?.startsWith('homefront-surface:'))return;
+        for(const slot of ['map','normalMap','roughnessMap']){
+          const map=mat[slot];if(map?.userData.loaded)maps.set(mat.name+':'+slot,[map.image?.width,map.image?.height]);
+        }
+      });
+      window.pineSurfaceProbe={maps:Object.fromEntries(maps)};
+      return maps.size===9;
+    },null,{timeout:15000});
+    const surfaceProbe=await page.evaluate(()=>window.pineSurfaceProbe);
+    assert.ok(Object.values(surfaceProbe.maps).every(([w,h])=>w===512&&h===512),'all three scanned materials decode their colour, normal and roughness maps at the mobile budget');
+    console.log('HOMEFRONT SURFACE PACK LOADED',JSON.stringify(surfaceProbe));
+    if (process.env.HOMEFRONT_PINE_SCREENSHOT) await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
+    await page.waitForFunction(() => window.fieldAudioProbe.cues.includes('canvas'), null, { timeout: 6000 });
+    for (const building of PINE_CROSSING_BUILDINGS) {
+      await walkTo([building.x, -43]);
+      await walkTo([building.x, -45.5]);
+      await page.waitForFunction(title => document.querySelector('#homefrontContextAction')?.textContent.includes('Enter ' + title),
+        building.title);
+      const entered = page.waitForResponse(response => response.url().endsWith(fixturePath('/api/homefront/world/interior/enter')));
+      await activate(action);
+      const interior = (await (await entered).json()).interior;
+      assert.equal(interior.landmarkId, building.id);
+      await page.waitForFunction(kind => window.fieldAudioProbe.cues.includes(kind),
+        building.finish === 'store' ? 'timber' : 'metal', { timeout: 6000 });
+      const item = building.finish === 'store' ? 'Dry goods shelf' : 'First-aid cabinet';
+      await walkTo([building.x - 0.8, building.z - 0.2]);
+      await page.waitForFunction(label => document.querySelector('#homefrontContextAction')?.textContent.includes(label), item);
+      const searched = page.waitForResponse(response => response.url().endsWith(fixturePath('/api/homefront/world/interior/action')));
+      await activate(action);
+      const result = await (await searched).json();
+      assert(result.interior.used.includes(building.id + '_search'));
+      assert(result.interiorReward.some(drop => drop.amount > 0 ||
+        (drop.overflow > 0 && result.overflowDestination === 'refuge')), item + ' yields a physical supply reward');
+      await walkTo([building.x, building.z + 1.95]);
+      await page.waitForFunction(() => document.querySelector('#homefrontContextAction')?.textContent.includes('Step outside'));
+      await activate(action);
+      await page.waitForFunction(() => document.querySelector('#interiorStatus')?.textContent.includes('Returned to the street'));
+      await walkTo([building.x, -43]);
+    }
+    for (const point of route('creek-trail')) await walkTo(point);
+    await walkTo([-8, -82]);
+    await page.waitForFunction(() => document.querySelector('#homefrontContextAction')?.textContent.includes('Return to refuge'));
+    await activate(action);
+    await page.waitForFunction(() => document.body.classList.contains('rpg-mode-home'));
+    assert.equal(testState('homefront-world.json').players[ACCOUNT], undefined);
+    await page.waitForFunction(() => window.fieldAudioProbe.windStops > 0);
+    const audio = await page.evaluate(() => window.fieldAudioProbe);
+    assert.ok(pineRockLoaded, 'the creek loads its bundled bank rock model');
+    assert.ok(audio.windStarts > 0, 'outdoor wind starts in the field');
+    assert.ok(audio.creekPeak > 0.14, 'creek grows audible on the return trail');
+    assert.ok(audio.creekStops > 0, 'creek audio stops at the refuge');
+    const environment = await page.evaluate(() => window.pineEnvironmentProbe);
+    for (const site of ['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier', 'pine-relay-station', 'pine-cracked-asphalt']) {
+      assert.equal(environment[site], true, site + ' was attached to the world scene');
+    }
+    assert.ok(environment['pine-roadside-grass'] > 0, 'shoulder growth is instanced in the scene');
+    assert.equal(environment['pine-crows'], 8, 'four crows use a single wing batch');
+    assert.equal(environment['loot_pine_logging_kit:closed'], true, 'the full crew kit is visible on the trail');
+    assert.equal(environment['loot_pine_logging_kit:searched'], true, 'scavenging leaves the kit visibly open');
+    assert.equal(environment['loot_pine_creek_pack:closed'], true, 'the first-aid case is visible on the creek trail');
+    assert.equal(environment['loot_pine_relay_spares:closed'], true, 'the radio-relay salvage case is visibly grounded in the woods');
+    for (const surface of ['gravel', 'asphalt', 'dirt', 'wood']) {
+      assert.ok(audio.surfaces.includes(surface), 'footsteps respond to ' + surface);
+    }
+    assert.deepEqual(errors, []);
+    console.log('PINE CROSSING PLAYTEST PASSED', JSON.stringify({ mobile, guest: guestMode, woods: true, store: true, clinic: true, creekReturn: true }));
+  } else {
 
   if (!mobile) {
     // Observe the real camera after lookAt, including its smoothed pitch.
@@ -375,10 +745,22 @@ try {
   });
   await stopWalking("w");
 
+  const looted=page.waitForResponse(response=>response.request().method()==='POST'&&
+    response.url().endsWith(fixturePath('/api/homefront/world/loot')),{timeout:15000});
   await activate(page.locator("#homefrontContextAction"));
-  await page.waitForFunction(() =>
-    document.querySelector(".hf-event-toast")?.textContent.includes("Pack:"),
-  );
+  const lootResponse=await looted;
+  const lootResult=await lootResponse.json();
+  assert.equal(lootResponse.status(),200,JSON.stringify(lootResult));
+  // A later world poll replaces the confirmation with "already searched",
+  // and nearby bites can replace the toast. Verify the real action result and
+  // shared stored cooldown, both of which survive those presentation updates.
+  assert.ok(lootResult.loot?.accepted?.length||lootResult.loot?.overflow?.length,
+    'in-world search grants carried supplies or the documented refuge overflow');
+  const claimed=testState('homefront-world.json').lootNodes[lootResult.loot.node.id];
+  assert.equal(claimed.claimedBy,ACCOUNT.slice(0,24),'stored claim metadata matches the server\'s bounded account label');
+  assert.ok(claimed.readyAt>Date.now(),'successful scavenging persists the shared container cooldown');
+  assert.ok(lootResult.world.lootNodes.some(node=>node.id===lootResult.loot.node.id&&!node.available),
+    'the same response marks the physical container unavailable');
 
   if (process.env.HOMEFRONT_EXPEDITION_INTERIOR === "1") {
     async function walkAxis(key, axis, target, direction) {
@@ -418,7 +800,21 @@ try {
       response.url().endsWith(fixturePath("/api/homefront/world/interior/enter")),
     );
     await activate(page.locator("#homefrontContextAction"));
-    assert.equal((await (await entered).json()).interior.roomId, "dispatch");
+    const enterResponse = await entered.catch(async error => {
+      console.error('EXPEDITION_DOORWAY_DIAGNOSTICS', JSON.stringify({
+        mobile, lastRequests:observed.slice(-14), errors,
+        ui:await page.evaluate(() => ({
+          prompt: document.getElementById('homefrontContextAction')?.textContent,
+          hidden: document.getElementById('homefrontContextAction')?.hidden,
+          interior: document.getElementById('interiorStatus')?.textContent,
+          movement: document.querySelector('.hf-movement-status')?.textContent,
+          mode:document.body.className
+        })),
+        player:testState('homefront-world.json')?.players?.[ACCOUNT]
+      }));
+      throw error;
+    });
+    assert.equal((await enterResponse.json()).interior.roomId, "dispatch");
     await walkAxis("s", "z", -64.3, -1);
     await page.waitForFunction(() =>
       document
@@ -523,6 +919,7 @@ try {
       walkedToDepot: true,
       scavenged: true,
       serverConfirmedAttack: true,
+      stationaryInfectedBite: true,
       returnedHome: true,
       repeatedGateTransition: true,
       cityExit: true,
@@ -531,6 +928,8 @@ try {
   );
 
   assert.deepEqual(errors, []);
+  } // expeditionRun
+  }
 } finally {
   Homefront.handle = realHandle;
   await browser.close();

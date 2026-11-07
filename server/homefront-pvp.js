@@ -13,7 +13,7 @@ const Travel = require('./homefront-travel');
 const MIN_INTERVAL = 900;
 const SPAWN_PROTECTION_MS = 10_000;
 const AIM_TOLERANCE = 1.75;
-const RESPAWN_HEALTH = 60;
+const { RESPAWN_HEALTH } = Survival;
 const MELEE = Object.freeze({
   pipe_blade: Object.freeze({ rounds: 1, range: 2.8, damage: 14, spread: 0, falloff: 1 }),
   shock_maul: Object.freeze({ rounds: 1, range: 3.0, damage: 18, spread: 0, falloff: 1 }),
@@ -90,6 +90,7 @@ function attack(w, attacker, { targetId, aimPoint, base, now = Date.now(), farSp
       t.x = spot.position.x; t.z = spot.position.z; t.spawn = spot.spawn.id; t.spawnedAt = now; t.lastMove = now;
       t.survival.health = RESPAWN_HEALTH;
       t.downedAt = now;
+      t.crouched = false;
       if (w.interiors?.[target]) w.interiors[target].activeLandmarkId = null;
       me.pvpKills = (me.pvpKills || 0) + 1;
     }

@@ -1,11 +1,12 @@
+import { createHomefrontSurfaces, worldSurfaceUVs } from './homefront-surface-materials.mjs';
 // Three.js shared XRPL Graveyard scene for Homefront.
 // Uses the existing Homefront world API as authority; this module owns presentation only.
 import * as THREE from './vendor/three.module.min.js';
 import { getGuestToken, fetchHomefront } from './homefront-guest.mjs';
-import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
-import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
+import { inPineCrossing, nearestPineCreek, pineAmbienceAt, pineRouteDistance, pineSurfaceAt, pineCrossingBuilding, PINE_CROSSING_BOUNDS } from './homefront-pine-crossing.mjs';
+import { addPineCrossingScenery, buildPineFacade } from './homefront-pine-scenery.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { atmosphereAt, AMBIENT_UPDATE_MS } from './homefront-atmosphere.mjs';
 import { groundDetailCandidates } from './homefront-ground-detail.mjs';
@@ -16,11 +17,15 @@ import { buildPowerStationSkyline, POWER_STATION_SITE } from './homefront-power-
 import { INTERIORS, availableInteriorActions, buildInteriorSetPiece, interiorForLandmark, interiorRoom } from './homefront-interior-world.mjs';
 import { sfx } from './sfx.js';
 import { createZombieAudio } from './zaudio.js';
-import { createZombieModelPilot } from './zombie-model-pilot.mjs';
+import { createZombieRenderer } from './fx.js';
 import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, directSprintRequested, releaseMovementControls } from './homefront-view.mjs';
 import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
+import { queueDoorwayTap } from './homefront-context-action-queue.mjs';
+import { buildRoverMesh } from './homefront-rover-mesh.mjs';
+import { closestStrandedSurvivor, survivorApproachCue, survivorInteraction, SURVIVOR_OFFSET } from './homefront-survivor-encounters.mjs';
+import { createRoverControls } from './homefront-rover-controls.mjs';
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
 import { clipInteriorCamera, interiorCameraProbeOrigins } from './homefront-camera-occlusion.mjs';
 import { applyInteriorVisualLayers } from './homefront-interior-visibility.mjs';
@@ -32,6 +37,12 @@ import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
 import { infectedPresentation, visibleInfected } from './homefront-infected-presentation.mjs';
 import { stepVertical, createMotion, turnToward } from '../js/player-motion.mjs';
+
+function expeditionRiskLabel(self) {
+  return (self.homefrontBand || self.frontierBand || 'Perimeter') +
+    (Number.isFinite(self.homefrontDistance) ? ' · ' + self.homefrontDistance + ' m from Homefront' : '') +
+    ' · Risk ' + (self.risk || 1) + '/5';
+}
 // Burn City walker avatars (shared with the city) at Graveyard scale; meshes reuse walker.js's cached geometry/materials.
 const EXPLORER_SCALE = 1.45, LITE_AVATARS = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const localJump = createMotion();
@@ -59,20 +70,26 @@ if (host) {
 
 function boot(host) {
   const status = document.getElementById('graveyard3dStatus');
-  const zombieAudio = createZombieAudio(sfx, { base: new URL('./sfx/', import.meta.url).href, mobile: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches });
+  const zombieAudio = createZombieAudio(sfx, { base: new URL('./sfx/', import.meta.url).href,
+    mobile: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches,
+    isVoiceObstructed: pineVoiceObstructed });
   let zombieAudioStarted = false;
   let zombieAudioActive = false;
   const audioDirection = new THREE.Vector3();
   const startZombieAudio = () => { if (zombieAudioStarted) return; zombieAudioStarted = true; zombieAudio.start(); };
-  window.addEventListener('pointerdown', startZombieAudio, { once: true, passive: true });
-  window.addEventListener('keydown', startZombieAudio, { once: true });
+  // The touch pad stops bubbling so it can own the gesture. Capture the
+  // gesture first, or mobile players can enter and walk in silence.
+  for (const gesture of ['pointerdown', 'touchend', 'keydown']) {
+    window.addEventListener(gesture, startZombieAudio, { once: true, passive: true, capture: true });
+  }
+  if (sfx.ctx_?.state === 'running') startZombieAudio();
   window.addEventListener('homefront:interior-breach', event => {
     const landmark = LANDMARKS.find(item => item.id === event.detail?.landmarkId);
     if (!landmark) return;
     startZombieAudio();
     if (sfx.has('attack')) sfx.play('attack', { pos: [landmark.x, terrainElevation(landmark.x, landmark.z) + 1.1, landmark.z], v: 1.1, ref: 4, max: 36, roll: 1.2 });
   });
-  window.addEventListener('pagehide', () => zombieAudio.stop(), { once: true });
+  window.addEventListener('pagehide', () => { zombieAudio.stop(); stopFieldAudio(); stopRoverMotor(); }, { once: true });
   const API = new URLSearchParams(location.search).get('api') ||
     (/fly\.dev$|localhost/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   const token = () => getGuestToken() || localStorage.getItem('bcToken') || '';
@@ -90,6 +107,7 @@ function boot(host) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.15 : 1.6));
   renderer.shadowMap.enabled = false;
   host.appendChild(renderer.domElement);
+  const surfaces=createHomefrontSurfaces(THREE,renderer,{mobile:coarsePointer});
   // Small in-world toast, not another dashboard panel. It stays clear of
   // joystick and bottom HUD, and never intercepts walking/interaction taps.
   const eventToast = document.createElement('div');
@@ -153,7 +171,8 @@ function boot(host) {
 
   // Color the continuous ground from the same seeded biome sampler as environmental dressing.
   // Elevation remains intentionally flat until movement, hit-testing, and server validation share terrain heights.
-  const groundGeometry = new THREE.PlaneGeometry(204, 204, 96, 96);
+  const groundSpan = 204, groundSegments = 96;
+  const groundGeometry = new THREE.PlaneGeometry(groundSpan, groundSpan, groundSegments, groundSegments);
   const groundPositions = groundGeometry.attributes.position;
   const groundColors = new Float32Array(groundPositions.count * 3);
   const groundColor = new THREE.Color();
@@ -162,9 +181,11 @@ function boot(host) {
     // Shallow broad rises and depressions create visible slopes without yet changing server movement rules.
     groundPositions.setZ(i, (terrainElevation(worldX, worldZ)));
     const biome = biomeAt(worldX, worldZ);
-    groundColor.setHex(biome.ground);
+    groundColor.setHex(inPineCrossing(worldX, worldZ) ? (worldZ < -45 ? 0x394331 : 0x514b3b) : biome.ground);
     // Tiny seeded-looking tonal drift from biome fields avoids a completely flat painted appearance.
-    const drift = (biome.moisture - 0.5) * 0.045 + (biome.urban - 0.5) * 0.025;
+    const pineVariation = inPineCrossing(worldX, worldZ)
+      ? Math.sin(worldX * 1.37 + worldZ * 0.47) * Math.cos(worldZ * 0.86) * 0.013 : 0;
+    const drift = (biome.moisture - 0.5) * 0.045 + (biome.urban - 0.5) * 0.025 + pineVariation;
     groundColors[i * 3] = Math.max(0, Math.min(1, groundColor.r + drift));
     groundColors[i * 3 + 1] = Math.max(0, Math.min(1, groundColor.g + drift));
     groundColors[i * 3 + 2] = Math.max(0, Math.min(1, groundColor.b + drift));
@@ -172,21 +193,47 @@ function boot(host) {
   groundGeometry.attributes.position.needsUpdate = true;
   groundGeometry.computeVertexNormals();
   groundGeometry.setAttribute('color', new THREE.BufferAttribute(groundColors, 3));
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 1 });
+  // Scanned colour supplies the fine grain; retain gentle biome tint at large scale.
+  for(let i=0;i<groundColors.length;i++)groundColors[i]=0.62+groundColors[i]*0.38;
+  groundGeometry.attributes.color.needsUpdate=true;
+  const groundUV=groundGeometry.attributes.uv;
+  for(let i=0;i<groundPositions.count;i++)groundUV.setXY(i,
+    groundPositions.getX(i)/3.15,-groundPositions.getY(i)/3.15);
+  groundUV.needsUpdate=true;
+  const groundMat = surfaces.material('soil',{vertexColors:true});
   const ground = new THREE.Mesh(groundGeometry, groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.y = 0; scene.add(ground);
   const raycaster = new THREE.Raycaster();
   const cameraWallRaycaster = new THREE.Raycaster();
   cameraWallRaycaster.near = 0.08;
   const cameraEye = new THREE.Vector3(), cameraArm = new THREE.Vector3(), cameraProbeEye = new THREE.Vector3();
+  const facadeCameraRay = new THREE.Ray(), facadeCameraHit = new THREE.Vector3();
+  const voiceRay = new THREE.Ray(), voiceHit = new THREE.Vector3();
   let lastCameraOcclusionAt = -Infinity, lastCameraOcclusionId = null, lastCameraHitDistance = Infinity;
   const pointer = new THREE.Vector2();
-  const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), zombieGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
+  const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
   const worldChunkGroups = new Map();
   const environmentVisuals = new Map();
   const environmentStateCache = new Map();
   let activeChunkSignature = '';
-  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, zombieGroup, combatGroup, impactGroup);
+  const roverGroup=new THREE.Group(),roverVisuals=new Map();
+  scene.add(cityGroup, poiGroup, lootGroup, playerGroup, combatGroup, impactGroup, roverGroup);
+  function syncRoverMeshes(vehicles=[]){
+    const seen=new Set();
+    for(const v of vehicles){
+      if(v?.type!=='scrap_rover'||!Number.isFinite(v.x)||!Number.isFinite(v.z)||!v.id)continue;
+      seen.add(v.id);
+      let model=roverVisuals.get(v.id);
+      if(!model){model=buildRoverMesh(THREE);model.name=v.id;roverVisuals.set(v.id,model);roverGroup.add(model);}
+      model.position.set(v.x,terrainElevation(v.x,v.z),v.z);
+      model.rotation.y=v.heading||0;
+    }
+    for(const [id,model]of roverVisuals)if(!seen.has(id)){
+      roverGroup.remove(model);
+      model.traverse(n=>{n.geometry?.dispose();n.material?.dispose();});
+      roverVisuals.delete(id);
+    }
+  }
   const tracerPool = createTracerPool(THREE, scene, { max: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 12 : 32 });
   const combatStatus = document.getElementById('combatStatus');
   const lootActionButton = document.getElementById('collectLoot');
@@ -235,20 +282,23 @@ function boot(host) {
   let selectedCombatAimPoint = null;
   let autoFireHeld = false;
   let autoFireTimer = null;
-  const zombieMixers = [];
   // Keep server-owned infected actors between snapshots so movement is presented smoothly.
   const combatActors = new Map();
-  let zombieModelPilot = null;
-  let zombieModelPilotLoading = false;
-  let zombieModelPilotFailed = false;
+  const infectedRenderer = createZombieRenderer(scene, { low: coarsePointer, deathOnRemoval: false, scale: 1.25 });
   // Interpolate explorer positions between authoritative world snapshots.
   const explorerPositions = new Map();
   let weaponSwingUntil = 0;
   let weaponSwingStartedAt = 0;
   let weaponSwingWeaponId = 'pipe_blade';
+  function combatEncounterFor(targetId) {
+    const primary = worldData?.selfEncounter || worldData?.encounter || null;
+    if (!targetId) return primary;
+    const matches = item => item && (item.id === targetId || item.members?.some(member => member.id === targetId));
+    return matches(primary) ? primary : (worldData?.encounters || []).find(item => item.attackable && matches(item)) || null;
+  }
   window.addEventListener('homefront:combat-hit', event => {
     const detail = event.detail || {};
-    const active = worldData?.selfEncounter || worldData?.encounter || (worldData?.encounters || []).find(item => item.id === detail.encounterId) || null;
+    const active = combatEncounterFor(detail.encounterId);
     const member = active?.members?.find(item => item.id === detail.hitTargetId);
     const hitActor = combatActors.get(detail.hitTargetId || active?.id);
     const point = hitActor?.position || member || active;
@@ -257,7 +307,9 @@ function boot(host) {
     const hits = detail.hits?.length ? detail.hits
       : [{ targetId: detail.hitTargetId || active?.id, killed: !!detail.killed }];
     for (const hit of hits) {
-      if (hit.targetId) zombieModelPilot?.react(hit.targetId, hit.killed ? 'Death' : 'HitReact');
+      if (!hit.targetId) continue;
+      if (hit.killed) infectedRenderer.zdie({ id: hit.targetId });
+      else infectedRenderer.zhit({ id: hit.targetId });
       if (hit.killed) {
         const actor = combatActors.get(hit.targetId);
         if (actor) zombieAudio.zdie({ x: actor.position.x, y: actor.position.y, z: actor.position.z });
@@ -290,17 +342,11 @@ function boot(host) {
         };
         setTimeout(() => {
           tracerPool.emit({ x: startX, y: fromY, z: startZ }, endpoint, TRACER_COLOR[weaponId] || 0xffb45c, weaponId === 'heavy_machine_gun' ? 0.13 : 0.095);
-          if (r && isAuto) sfx.weaponFire?.(weaponId);
         }, r * 70);
       });
     }
-    // Reuse the existing licensed sample bank; a failed fetch must never break combat feedback.
     if (target) {
       const pos = [target.position.x, target.position.y + (detail.hitZone === 'head' ? 1.75 : detail.hitZone === 'limb' ? 0.72 : 1.1), target.position.z];
-      const sound = weaponId === 'pump_shotgun' || isAuto ? 'shotgun' : 'hit';
-      sfx.loadBank(new URL('./sfx/', import.meta.url).href)
-        .then(() => sfx.play(sfx.has(sound) ? sound : 'hit', { pos, v: isAuto ? (weaponId === 'heavy_machine_gun' || weaponId === 'fifty_cal' ? 0.42 : 0.32) : weaponId === 'pump_shotgun' ? 0.72 : 0.55, ref: 2, max: 18, roll: 1.2 }))
-        .catch(() => {});
       // Weapon-specific, short-lived blood mist. Visual feedback never determines damage.
       const count = detail.hitZone === 'head' ? (detail.killed ? 30 : 16) : detail.killed ? (weaponId === 'pump_shotgun' ? 26 : 18) : (weaponId === 'pump_shotgun' ? 15 : 9);
       const spread = weaponId === 'pump_shotgun' ? 0.95 : weaponId === 'marksman_rifle' ? 0.22 : 0.5;
@@ -316,10 +362,6 @@ function boot(host) {
         drop.userData.blood = true;
         impactGroup.add(drop);
       }
-      target.userData.impactUntil = performance.now() + (style === 'blunt' ? 420 : detail.hitZone === 'head' ? 360 : 300);
-      target.userData.impactStyle = detail.hitZone === 'head' ? 'headshot' : style;
-      const playerX = Number.isFinite(worldData?.self?.x) ? worldData.self.x : 0;
-      target.userData.impactDirection = detail.direction || (target.position.x >= playerX ? 1 : -1);
     }
     // Stylized limb-separation feedback is visual-only and requires a server-confirmed sharp-weapon kill.
     if (detail.killed && style === 'sharp' && target) {
@@ -334,7 +376,7 @@ function boot(host) {
       }
     }
   });
-  const infectedSpawns = [[27, 25], [19, 34], [-32, 28], [-43, 36], [-11, 27], [-20, 15], [9, -12], [1, -15]];
+
 
   const mat = (color, roughness = 0.94) => new THREE.MeshStandardMaterial({ color, roughness });
   let equippedWeaponSkinColor = 0x9a7b62;
@@ -350,10 +392,13 @@ function boot(host) {
     equippedBackpackColor = parseCosmeticColor(detail.backpackColor, equippedBackpackColor);
     if (WEAPON_IDS.includes(detail.weaponId)) equippedWeaponId = detail.weaponId;
   });
-  const roadMat = mat(0x343733), buildingMats = [mat(0x41413a), mat(0x4b443a), mat(0x363d3d), mat(0x50483d)];
+  const roadMat = surfaces.material('asphalt'), buildingMats = [0xaaa99b,0xb6a58d,0x959fa0,0xb5a48e]
+    .map(color=>surfaces.material('concrete',{color}));
   const ruinMat = mat(0x292d2a), emberMat = new THREE.MeshStandardMaterial({ color: 0xff7738, emissive: 0x9c2507, emissiveIntensity: 0.8 });
   const addBox = (parent, w, h, d, x, y, z, material) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+    const geometry=new THREE.BoxGeometry(w,h,d);
+    if(material.userData.homefrontTileMetres)worldSurfaceUVs(THREE,geometry,material.userData.homefrontTileMetres);
+    const m = new THREE.Mesh(geometry, material);
     m.position.set(x, y + h / 2, z); parent.add(m); return m;
   };
   // Ruined structures are grouped by spatial chunk so distant scenery can be culled as the world grows.
@@ -372,10 +417,6 @@ function boot(host) {
     if (signature === activeChunkSignature) return;
     activeChunkSignature = signature;
     for (const [id, group] of worldChunkGroups) group.visible = visible.has(id);
-  }
-  for (const [radius, color] of [[25, 0x4f885b], [45, 0x88854b], [62, 0x9a683e], [76, 0x984d37], [90, 0x7d3037]]) {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(radius - 0.18, radius + 0.18, 128), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.68, side: THREE.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; scene.add(ring);
   }
   // Deterministic environmental dressing is grouped with structures so chunk visibility culls it together.
   // Props remain presentation-only: they do not grant loot, block movement, or alter server authority.
@@ -582,18 +623,48 @@ function boot(host) {
   for (let cz = -2; cz <= 1; cz++) for (let cx = -2; cx <= 1; cx++) {
     const chunk = cityChunkAt(cx * 64 + 0.01, cz * 64 + 0.01);
     addGroundDetailInstances(chunk, cx, cz);
-    for (const prop of environmentalCandidates(cx, cz, { density: 0.18 })) addEnvironmentalCandidate(chunk, prop);
-    for (const landmark of landmarkCandidates(cx, cz)) addLandmark(chunk, landmark);
+    for (const prop of environmentalCandidates(cx, cz, { density: 0.18 })) {
+      if (inPineCrossing(prop.x, prop.z) || (prop.z < -78 && pineRouteDistance(prop.x, prop.z) < 2.5)) continue;
+      addEnvironmentalCandidate(chunk, prop);
+    }
+    for (const landmark of landmarkCandidates(cx, cz)) if (!inPineCrossing(landmark.x, landmark.z, 4)) addLandmark(chunk, landmark);
   }
-  // Deterministic road grid and procedural ruined buildings; no extra engine or dependency.
-  for (let n = -90; n <= 90; n += 20) {
-    addBox(cityGroup, 4.2, 0.04, 196, n, 0, 0, roadMat);
-    addBox(cityGroup, 196, 0.04, 4.2, 0, 0, n, roadMat);
-    for (const offset of [-7, 7]) {
-      addBox(cityGroup, 0.22, 0.035, 196, n + offset, 0.025, 0, mat(0x55584d));
-      addBox(cityGroup, 196, 0.035, 0.22, 0, 0.025, n + offset, mat(0x55584d));
+  // Keep the existing routes beyond Pine Crossing. The new region is shaped by
+  // its logging road, main street and return trail rather than the old grid.
+  const bounds = PINE_CROSSING_BOUNDS;
+  function addOldRoad(vertical, at, width, material, height) {
+    const crossMin = vertical ? bounds.minX : bounds.minZ;
+    const crossMax = vertical ? bounds.maxX : bounds.maxZ;
+    const from = vertical ? bounds.minZ : bounds.minX;
+    const to = vertical ? bounds.maxZ : bounds.maxX;
+    const spans = at + width / 2 >= crossMin && at - width / 2 <= crossMax
+      ? [[-98, from], [to, 98]] : [[-98, 98]];
+    for (const [start, end] of spans) {
+      const center = (start + end) / 2, length = end - start;
+      addBox(cityGroup, vertical ? width : length, 0.035, vertical ? length : width,
+        vertical ? at : center, height, vertical ? center : at, material);
     }
   }
+  const oldLaneEdge = mat(0x55584d);
+  for (let n = -90; n <= 90; n += 20) {
+    for (const vertical of [true, false]) {
+      addOldRoad(vertical, n, 4.2, roadMat, 0);
+      for (const offset of [-7, 7]) addOldRoad(vertical, n + offset, 0.22, oldLaneEdge, 0.025);
+    }
+  }
+  // Drape the roads over the rendered triangles so the mesh and surface
+  // do not alternate in front of one another at shallow camera angles.
+  function renderedGroundAt(x, z) {
+    const gx = (x / groundSpan + 0.5) * groundSegments, gz = (z / groundSpan + 0.5) * groundSegments;
+    const ix = Math.floor(gx), iz = Math.floor(gz), tx = gx - ix, tz = gz - iz;
+    const stride = groundSegments + 1, a = iz * stride + ix;
+    const topRight = groundPositions.getZ(a + 1), bottomLeft = groundPositions.getZ(a + stride);
+    if (tx + tz <= 1) {
+      return groundPositions.getZ(a) * (1 - tx - tz) + topRight * tx + bottomLeft * tz;
+    }
+    return groundPositions.getZ(a + stride + 1) * (tx + tz - 1) + topRight * (1 - tz) + bottomLeft * (1 - tx);
+  }
+  const updatePineScenery = addPineCrossingScenery(THREE, cityChunkAt, renderedGroundAt, surfaces);
   let seed = 8675309;
   const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   for (let x = -90; x <= 90; x += 10) for (let z = -90; z <= 90; z += 10) {
@@ -601,19 +672,34 @@ function boot(host) {
     const bx = x + (rand() - 0.5) * 2.2, bz = z + (rand() - 0.5) * 2.2;
     if (Math.hypot(bx, bz) < 13) continue;
     const w = 3.4 + rand() * 3.4, d = 3.4 + rand() * 3.4, h = 3 + rand() * (Math.hypot(bx, bz) > 65 ? 11 : 6);
+    const material = buildingMats[Math.floor(rand() * buildingMats.length)];
+    const rotation = (rand() - 0.5) * 0.16;
+    const cap = rand() > 0.45 ? { x: rand() - 0.5, z: rand() - 0.5 } : null;
+    const emberHeight = rand() > 0.7 ? 1.2 + rand() : 0;
+    if (inPineCrossing(bx, bz, 3.5)) continue;
     const chunk = cityChunkAt(bx, bz);
     const baseY = terrainElevation(bx, bz);
     const structure = new THREE.Group();
-    const building = addBox(structure, w, h, d, bx, baseY, bz, buildingMats[Math.floor(rand() * buildingMats.length)]);
-    building.rotation.y = (rand() - 0.5) * 0.16;
-    if (rand() > 0.45) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + (rand() - .5), baseY + h, bz + (rand() - .5), ruinMat);
-    if (rand() > 0.7) { const emberHeight = 1.2 + rand(); addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat); }
+    const building = addBox(structure, w, h, d, bx, baseY, bz, material);
+    building.rotation.y = rotation;
+    if (cap) addBox(structure, w * 0.6, 0.45, d * 0.65, bx + cap.x, baseY + h, bz + cap.z, ruinMat);
+    if (emberHeight) addBox(structure, 0.35, emberHeight, 0.35, bx + w * .4, baseY, bz - d * .35, emberMat);
     chunk.add(structure);
     registerEnvironmentVisual('building:' + x + ',' + z, structure);
   }
   // Authored landmarks are distinct low-poly set pieces; server POIs remain the interaction authority.
-  const landmarkSetPieces = new Map();
+  const landmarkSetPieces = new Map(), pineFacadeBounds = [];
   for (const landmark of LANDMARKS) {
+    const pine = pineCrossingBuilding(landmark.id);
+    if (pine) {
+      const piece = buildPineFacade(THREE, pine, addBox, mat, surfaces);
+      cityChunkAt(pine.x, pine.z).add(piece);
+      landmarkSetPieces.set(pine.id, piece);
+      piece.updateWorldMatrix(true, true);
+      pineFacadeBounds.push(...piece.children.filter(mesh => mesh.userData.pineCameraOccluder)
+        .map(mesh => new THREE.Box3().setFromObject(mesh).expandByScalar(0.13)));
+      continue;
+    }
     // Offset the structure slightly from the server marker so its interaction beacon remains readable.
     const hash = [...landmark.id].reduce((sum, char) => (Math.imul(sum ^ char.charCodeAt(0), 16777619) >>> 0), 2166136261);
     const angle = (hash % 8) * Math.PI / 4;
@@ -623,6 +709,16 @@ function boot(host) {
     piece.userData.interactionPointId = landmark.id;
     cityChunkAt(visualX, visualZ).add(piece);
     landmarkSetPieces.set(landmark.id, piece);
+  }
+  function pineVoiceObstructed(listener, source) {
+    if (!inPineCrossing(listener[0], listener[2], 4)) return false;
+    voiceRay.origin.fromArray(listener);
+    voiceRay.direction.fromArray(source).sub(voiceRay.origin);
+    const distance = voiceRay.direction.length();
+    if (distance < 0.01) return false;
+    voiceRay.direction.multiplyScalar(1 / distance);
+    return pineFacadeBounds.some(bounds => !bounds.containsPoint(voiceRay.origin) &&
+      voiceRay.intersectBox(bounds, voiceHit) && voiceHit.distanceTo(voiceRay.origin) < distance);
   }
   // The distant power station is a skyline anchor beyond the authoritative world
   // boundary. It shares the existing chunk culling and never creates interactables.
@@ -668,10 +764,17 @@ function boot(host) {
     else if (p.type === 'medical') color = 0x9fce8a;
     else if (p.type === 'industrial') color = 0xe1b65b;
     const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.8, p.type === 'boss' ? 5.5 : 2.1, 8), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: p.type === 'boss' ? 0.6 : 0.15, transparent: true, opacity: 0.9 }));
-    glow.position.y = p.type === 'boss' ? 2.75 : 1.05; g.add(glow);
+    glow.position.y = p.type === 'boss' ? 2.75 : 1.05;
+    if(wantsContinuous&&p.type==='rescue')glow.visible=false; // survivor, not a glowing quest pillar
+    g.add(glow);
     const pad = new THREE.Mesh(new THREE.CylinderGeometry(p.type === 'boss' ? 5.2 : 3.2, p.type === 'boss' ? 5.2 : 3.2, 0.15, 20), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 }));
-    pad.position.y = 0.1; g.add(pad);
-    const label = labelSprite(p.label, '#' + color.toString(16).padStart(6, '0')); label.position.y = p.type === 'boss' ? 7.1 : 4.0; g.add(label);
+    pad.position.y = 0.1;
+    if(wantsContinuous&&p.type==='rescue')pad.visible=false;
+    g.add(pad);
+    const label = labelSprite(p.label, '#' + color.toString(16).padStart(6, '0'));
+    label.position.y = p.type === 'boss' ? 7.1 : 4.0;
+    if(wantsContinuous&&p.type==='rescue')label.visible=false;
+    g.add(label);
     if (p.type === 'cache') addBox(g, 1.7, 1.2, 1.3, 0, 0.15, 0, mat(0x8c6736));
     if (p.type === 'rescue') {
       addBox(g, 2.8, 1.7, 2.4, 0, 0.15, 0, mat(0x62584a));
@@ -681,12 +784,13 @@ function boot(host) {
       if (rescueReady) {
         const npc = buildWalker({suit:0x766551,accent:0xdca66c,skin:1,lite:true});
         npc.scale.setScalar(EXPLORER_SCALE*0.88);
-        npc.position.set(2.2,0,0.35);
+        npc.position.set(SURVIVOR_OFFSET.x,0,SURVIVOR_OFFSET.z);
         npc.rotation.y=-Math.PI*0.25;
         npc.traverse(node=>{if(node.isMesh)node.userData.sharedAsset=true;});
         g.add(npc);
+        g.userData.rescueActor=npc;
         const rescueNote=labelSprite('SURVIVOR · NEEDS HELP','#ffca9b');
-        rescueNote.position.set(2.2,4.45,0.35);rescueNote.scale.set(10,1.8,1);
+        rescueNote.position.set(SURVIVOR_OFFSET.x,4.45,SURVIVOR_OFFSET.z);rescueNote.scale.set(10,1.8,1);
         g.add(rescueNote);
       }
     }
@@ -694,6 +798,36 @@ function boot(host) {
   }
   function buildLootNode(p) {
     const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z); g.userData.lootNodeId = p.id;
+    if (p.trail && wantsContinuous) {
+      const pack = p.kind === 'medical';
+      g.name = p.id + (p.available ? ':closed' : ':searched');
+      const shell = mat(pack ? 0x747b60 : 0x695948), dark = mat(0x302c25);
+      const marking = mat(pack ? 0xd8d0ae : 0xcfab5e);
+      const width = pack ? 0.74 : 0.94, height = pack ? 0.27 : 0.32, depth = pack ? 0.48 : 0.57;
+      addBox(g, width, 0.075, depth, 0, 0.025, 0, shell);
+      for (const x of [-1, 1]) addBox(g, 0.045, height, depth, x * (width / 2 - 0.022), 0.1, 0, shell);
+      for (const z of [-1, 1]) addBox(g, width - 0.09, height, 0.045, 0, 0.1, z * (depth / 2 - 0.022), shell);
+      const lid = new THREE.Group();
+      lid.position.set(0, height + 0.1, -depth / 2);
+      lid.rotation.x = p.available ? 0 : -1.21;
+      g.add(lid);
+      addBox(lid, width, 0.075, depth, 0, 0, depth / 2, shell);
+      addBox(lid, 0.25, 0.055, 0.085, 0, 0.075, depth * 0.48, dark);
+      if (pack) {
+        const patch = mat(0x444d3d);
+        addBox(g, 0.28, 0.23, 0.025, 0, 0.11, depth / 2, patch);
+        addBox(g, 0.16, 0.045, 0.012, 0, 0.20, depth / 2 + 0.015, marking);
+        addBox(g, 0.045, 0.15, 0.012, 0, 0.15, depth / 2 + 0.015, marking);
+      } else {
+        for (const x of [-0.28, 0.28]) {
+          addBox(g, 0.14, 0.075, 0.022, x, 0.20, depth / 2, marking);
+          addBox(g, 0.06, 0.12, 0.035, x, height - 0.015, depth / 2, dark);
+        }
+      }
+      g.rotation.y = pack ? 0.68 : -0.38;
+      lootGroup.add(g);
+      return;
+    }
     const color = p.kind === 'medical' ? 0x9fce8a : p.kind === 'materials' ? 0xc5a36b : p.kind === 'highrisk' ? 0xff5a46 : 0xe1b65b;
     const crate = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.15, 1.45), mat(p.kind === 'medical' ? 0x667d5d : 0x6f5437));
     crate.position.y = 0.68; crate.userData.lootNodeId = p.id; g.add(crate);
@@ -708,6 +842,12 @@ function boot(host) {
     lootGroup.add(g);
   }
   let worldData = null, moving = false;
+  let roverMotorBed=null, roverLastDriveAt=0, roverLastMotorUpdateAt=0, roverLastPower=0;
+  function stopRoverMotor(){roverMotorBed?.stop();roverMotorBed=null;}
+  // The player approaches actual world actors instead of opening another
+  // browser-style dialogue screen. Cue each stranded NPC sparingly.
+  const survivorCueAt=new Map();
+  let survivorCueGlobalAt=0, lastSurvivorCheckAt=0;
   // Experimental direct walking requires BOTH the server flag and explicit ?movement=continuous.
   // Otherwise the established destination-based controls are unchanged.
 
@@ -738,6 +878,7 @@ function boot(host) {
     survivalReadout.hidden = !data?.self || !Number.isFinite(vitals?.health);
     if (survivalReadout.hidden) return;
     const lines = ['Health ' + Math.ceil(vitals.health)];
+    if (data.self.crouched) lines.push('Crouched · quieter movement');
     if (vitals.infection > 0) lines.push('Infection ' + Math.ceil(vitals.infection) + '%');
     if (vitals.thirst <= 25) lines.push(vitals.thirst <= 0 ? 'Dehydrated' : 'Thirsty');
     if (vitals.hunger <= 25) lines.push(vitals.hunger <= 0 ? 'Starving' : 'Hungry');
@@ -748,60 +889,75 @@ function boot(host) {
   let lastContinuousWorldRefresh = 0;
   let lastEnvironmentInputRefresh = 0;
   let lastRenderedWorldData = null;
+  let infectedHitAt = 0;
+  let infectedAttackUntil = 0;
+  function acceptInfectedHit(data) {
+    const hit = data.selfInfectedHit;
+    if (!hit || hit.at <= infectedHitAt) return false;
+    infectedHitAt = hit.at;
+    infectedAttackUntil = performance.now() + 450;
+    zombieAudio.bitten({ x: hit.x, y: terrainElevation(hit.x, hit.z), z: hit.z, ...infectedPresentation(hit.enemy) });
+    showFieldToast(hit.defeated ? 'Overrun by infected · relocated to safety' : 'Bitten · −' + Math.ceil(hit.damage) + ' health');
+    return hit.defeated;
+  }
+  function acceptRealtimeSnapshot(data, time) {
+    if (!worldData || !data.self) return;
+    const previous = worldData;
+    const next = mergeHomefrontInputSnapshot(previous, data);
+    // Moving should not destroy and rebuild every walker, label and loot mesh
+    // each second. Full scene reconciliation is reserved for material changes
+    // (new/removed actors, combat damage, outfit or loot state).
+    const respawned = next.selfInfectedHit?.defeated && next.selfInfectedHit.at > infectedHitAt;
+    if (respawned) view.resetCrouch?.();
+    if (respawned || (requiresHomefrontSceneRebuild(lastRenderedWorldData, next) && time - lastContinuousWorldRefresh >= 900)) {
+      lastContinuousWorldRefresh = time;
+      updateWorld(next);
+      return;
+    }
+    worldData = next;
+    acceptInfectedHit(next);
+    refreshContinuousProximity(next);
+    // Update remote actors using the existing frame interpolator; only the
+    // local avatar uses bounded visual prediction from continuousInput.
+    for (const p of playerPositionUpdates(next)) {
+      if (p.isLocalPlayer) continue;
+      explorerPositions.set(p.id, {
+        x: p.x, z: p.z, crouched: p.crouched, y: interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z))
+      });
+    }
+    for (const escort of next.companions || []) {
+      explorerPositions.set(escort.id,{
+        x:escort.x,z:escort.z,y:terrainElevation(escort.x,escort.z)
+      });
+    }
+    const nextInfected = wantsContinuous ? visibleInfected(next.encounters || []) : next.encounters || [];
+    for (const encounter of nextInfected) {
+      const actor = combatActors.get(encounter.id);
+      if (actor) {
+        actor.userData.targetX = encounter.x;
+        actor.userData.targetZ = encounter.z;
+      }
+    }
+    if (time - lastEnvironmentInputRefresh >= 1000) {
+      lastEnvironmentInputRefresh = time;
+      applyEnvironmentStateSnapshot(next.world?.environmentStructures);
+    }
+    // Server movement can lower the weapon, and a moving player can interrupt
+    // local reload sequences; update the small controls without rebuilding meshes.
+    if (typeof next.selfWeaponHandling?.aiming === 'boolean') {
+      aiming = next.selfWeaponHandling.aiming;
+      if (aimWeaponButton) {
+        aimWeaponButton.setAttribute('aria-pressed', String(aiming));
+        aimWeaponButton.textContent = aiming ? 'Lower weapon' : 'Aim weapon';
+      }
+    }
+  }
   const continuousInput = createContinuousInput({
     // The preview must never stall forever on a missing server response.
     // A timeout aborts the request; controller rollback keeps the local
     // avatar bounded until a fresh validated server acknowledgement.
     send: createHomefrontMoveTransport({ api: API, token, fetchImpl: (_url, options) => homefrontFetch('/api/homefront/world/move-input', options) }),
-    onSnapshot: (data, time) => {
-      if (!worldData || !data.self) return;
-      const previous = worldData;
-      const next = mergeHomefrontInputSnapshot(previous, data);
-      // Moving should not destroy and rebuild every walker, label and loot mesh
-      // each second. Full scene reconciliation is reserved for material changes
-      // (new/removed actors, combat damage, outfit or loot state).
-      if (requiresHomefrontSceneRebuild(lastRenderedWorldData, next) && time - lastContinuousWorldRefresh >= 900) {
-        lastContinuousWorldRefresh = time;
-        updateWorld(next);
-        return;
-      }
-      worldData = next;
-      refreshContinuousProximity(next);
-      // Update remote actors using the existing frame interpolator; only the
-      // local avatar uses bounded visual prediction from continuousInput.
-      for (const p of playerPositionUpdates(next)) {
-        if (p.isLocalPlayer) continue;
-        explorerPositions.set(p.id, {
-          x: p.x, z: p.z, y: interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z))
-        });
-      }
-      for (const escort of next.companions || []) {
-        explorerPositions.set(escort.id,{
-          x:escort.x,z:escort.z,y:terrainElevation(escort.x,escort.z)
-        });
-      }
-      const nextInfected = wantsContinuous ? visibleInfected(next.encounters || []) : next.encounters || [];
-      for (const encounter of nextInfected) {
-        const actor = combatActors.get(encounter.id);
-        if (actor) {
-          actor.userData.targetX = encounter.x;
-          actor.userData.targetZ = encounter.z;
-        }
-      }
-      if (time - lastEnvironmentInputRefresh >= 1000) {
-        lastEnvironmentInputRefresh = time;
-        applyEnvironmentStateSnapshot(next.world?.environmentStructures);
-      }
-      // Server movement can lower the weapon, and a moving player can interrupt
-      // local reload sequences; update the small controls without rebuilding meshes.
-      if (typeof next.selfWeaponHandling?.aiming === 'boolean') {
-        aiming = next.selfWeaponHandling.aiming;
-        if (aimWeaponButton) {
-          aimWeaponButton.setAttribute('aria-pressed', String(aiming));
-          aimWeaponButton.textContent = aiming ? 'Lower weapon' : 'Aim weapon';
-        }
-      }
-    },
+    onSnapshot(data, time) { acceptRealtimeSnapshot(data, time); },
     onUnavailable: reason => {
       if (status && reason !== 'returned_to_refuge' && reason !== 'interior_exit') status.textContent =
         'Direct walking unavailable (' + reason + ').';
@@ -958,43 +1114,6 @@ function boot(host) {
   }
   if (enterInteriorButton) enterInteriorButton.addEventListener('click', () => enterInterior(selectedInteriorLandmarkId));
   if (leaveInteriorButton) leaveInteriorButton.addEventListener('click', leaveInterior);
-  function spawnAmbientInfected(gltf = null) {
-    const positions = infectedSpawns;
-    for (let i = 0; i < positions.length; i++) {
-      const [x, z] = positions[i];
-      if (gltf?.scene) {
-        const actor = SkeletonUtils.clone(gltf.scene);
-        const bounds = new THREE.Box3().setFromObject(actor);
-        const size = bounds.getSize(new THREE.Vector3());
-        actor.scale.setScalar(1.8 / Math.max(0.01, size.y));
-        const fitted = new THREE.Box3().setFromObject(actor);
-        actor.position.set(x, terrainElevation(x, z) - fitted.min.y, z);
-        actor.rotation.y = Math.atan2(-x, -z);
-        actor.traverse(node => { if (node.isMesh) { node.castShadow = false; node.receiveShadow = false; } });
-        zombieGroup.add(actor);
-        const clips = gltf.animations || [];
-        const clip = clips.find(c => /walk|run|idle/i.test(c.name)) || clips[0];
-        if (clip) { const mixer = new THREE.AnimationMixer(actor); mixer.clipAction(clip).play(); zombieMixers.push(mixer); }
-      } else {
-        const actor = new THREE.Group(); actor.position.set(x, terrainElevation(x, z), z);
-        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.72, 3, 6), mat(i % 2 ? 0x526248 : 0x66704b));
-        body.position.y = 0.62; actor.add(body);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), mat(0x8c9972));
-        head.position.y = 1.22; actor.add(head); zombieGroup.add(actor);
-      }
-    }
-  }
-  async function loadInfectedAsset() {
-    try {
-      const loader = new GLTFLoader();
-      const url = new URL('./assets/homefront/zombie.glb', import.meta.url).href;
-      const gltf = await loader.loadAsync(url);
-      spawnAmbientInfected(gltf);
-    } catch (error) {
-      console.warn('[homefront-graveyard] zombie asset unavailable; using procedural infected', error);
-      spawnAmbientInfected();
-    }
-  }
   function clearGroup(group) {
     const disposeMaterial = material => {
       if (!material) return;
@@ -1016,10 +1135,14 @@ function boot(host) {
   }
   function updateWorld(data) {
     worldData = data;
+    const respawned = acceptInfectedHit(data);
     lastRenderedWorldData = data;
-    if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
+    if(data.selfVehicle)continuousInput.disable('rover_occupied');
+    else if (wantsContinuous && Object.prototype.hasOwnProperty.call(data, 'inputProtocol')) {
       continuousInput.sync(data.inputProtocol, data.self, performance.now());
     }
+    syncRoverMeshes(data.world?.vehicles||[]);
+    if(!data.selfVehicle)stopRoverMotor();
     if (Object.prototype.hasOwnProperty.call(data, 'interior')) {
       const previousInterior = interiorState;
       const nextInterior = data.interior ? { ...data.interior } : null;
@@ -1052,16 +1175,15 @@ function boot(host) {
         const discoveryLabel = guidance.alreadyDiscovered ? 'KNOWN SITE' : guidance.discoveredNow ? 'LOCATION DISCOVERED' : 'UNMAPPED SITE';
         const routeHint = guidance.routeLeads.length ? '  |  ROUTE LEADS · ' + guidance.routeLeads.join(' → ') : '';
         const storyHint = guidance.storyLead ? '  |  FIELD LEAD · ' + guidance.storyLead : '';
-        const frontier = 'FRONTIER · ' + (data.self.frontierBand || 'perimeter') + ' · ' + (data.self.frontierDepth || 0) + '% inward';
+        const frontier = expeditionRiskLabel(data.self);
         const threatHint = (data.self.risk || 1) >= 4 ? '  |  HIGH THREAT · Heavy infected likely; keep an extraction route.' : (data.self.risk || 1) >= 3 ? '  |  DANGER RISING · Noise can pull infected from nearby blocks.' : '  |  PERIMETER PATROL · Noise still carries.';
         objective.textContent = discoveryLabel + ' · ' + nearest.title + ' — ' + nearest.objective + '  |  ' + district.title + ' · Site risk ' + district.risk + '/5 · ' + frontier + threatHint + routeHint + storyHint;
       } else {
         const fieldNoteCount = explorationProgress?.discovered?.length || 0;
         const nextStory = explorationProgress?.storyLeads?.find(lead => !lead.complete);
         const journalHint = nextStory ? '  |  STORY LEAD · ' + nextStory.title + (nextStory.nextLandmarkTitle ? ' → ' + nextStory.nextLandmarkTitle : ' · route surveyed; inspect local clues') : '';
-        const frontier = (data.self.frontierBand || 'perimeter') + ' · ' + (data.self.frontierDepth || 0) + '% inward';
-        const threatHint = (data.self.risk || 1) >= 4 ? ' HIGH THREAT: consider turning back before ammunition runs dry.' : (data.self.risk || 1) >= 3 ? ' Threat rising deeper inside; gunfire attracts attention.' : ' Stay alert; the perimeter is safer, not sterile.';
-        objective.textContent = 'EXPEDITION · ' + frontier + ' · Risk ' + (data.self.risk || 1) + '/5 ·' + threatHint + ' FIELD NOTES ' + fieldNoteCount + ' sites. Survey the skyline and follow road markings for landmarks, shortcuts, caches, and rescue leads.' + journalHint;
+        const threatHint = (data.self.risk || 1) >= 4 ? ' HIGH THREAT · Check supplies for the return trip.' : (data.self.risk || 1) >= 3 ? ' DANGER RISING · Gunfire draws infected.' : ' PATROL COUNTRY · Noise carries.';
+        objective.textContent = 'EXPEDITION · ' + expeditionRiskLabel(data.self) + ' ·' + threatHint + ' FIELD NOTES ' + fieldNoteCount + ' sites. Survey the skyline and follow road markings for landmarks, shortcuts, caches, and rescue leads.' + journalHint;
       }
     }
     updateInteriorPanel();
@@ -1075,6 +1197,7 @@ function boot(host) {
     if (sprintTravelButton) { sprintTravelButton.setAttribute('aria-pressed', String(sprintTravel)); sprintTravelButton.textContent = sprintTravel ? 'Sprint travel: ON' : 'Sprint travel: OFF'; }
     clearGroup(poiGroup); clearGroup(lootGroup); markerObjects.clear();
     for (const p of (data.world?.pointsOfInterest || [])) {
+      if (pineCrossingBuilding(p.id)) continue;
       buildPOI(p,p.type!=='rescue'||!(data.world?.rescues?.[p.id]?.readyAt>Date.now()));
       const marker = markerObjects.get(p.id);
       if (p.type === 'cache' && data.world?.caches?.[p.id]?.readyAt > Date.now()) marker.children[0].material.color.setHex(0x77716b);
@@ -1087,7 +1210,7 @@ function boot(host) {
       if (key) previousExplorerPositions.set(key, explorer.position.clone());
     }
     clearGroup(playerGroup);
-    const encounters = wantsContinuous ? visibleInfected(data.encounters || []) : data.encounters || [];
+    const encounters = wantsContinuous ? visibleInfected(data.encounters || []) : (data.encounters || []).filter(e => !e.defeated && e.hp > 0);
     const activeEncounterIds = new Set();
     for (const e of encounters) {
       activeEncounterIds.add(e.id);
@@ -1095,38 +1218,32 @@ function boot(host) {
       if (!actor) {
         actor = new THREE.Group();
         actor.position.set(e.x, terrainElevation(e.x, e.z), e.z);
-        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.85, 1.1, 3, 7), mat(0x8e302d));
-        body.position.y = 1.2; actor.add(body);
-        const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), mat(0xaaa18a));
-        head.position.y = 2.15; actor.add(head);
+        // Invisible picking proxies preserve Homefront's aim transport. The arena
+        // renderer owns all visible infected geometry and reactions.
+        const hitboxMaterial = new THREE.MeshBasicMaterial({ visible: false });
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.92, 3, 7), hitboxMaterial);
+        body.position.y = 0.9; actor.add(body);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 8, 6), hitboxMaterial.clone());
+        head.position.y = 2.0; actor.add(head);
         body.userData.combatHitbox = true;
         head.userData.combatHitbox = true;
-        const label = labelSprite(e.enemy + ' · ' + e.hp + '/' + e.maxHp, '#ffaaa0');
-        label.position.y = 3.5; actor.add(label);
-        const threatRing = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.7, 32), new THREE.MeshBasicMaterial({ color: 0xd84b3e, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));
-        threatRing.rotation.x = -Math.PI / 2; threatRing.position.y = 0.045; actor.add(threatRing);
-        actor.userData = { encounterId: e.id, parentEncounterId: e.parentEncounterId || e.id, enemyType: e.enemy || '', targetX: e.x, targetZ: e.z, hp: e.hp, body, head, label, threatRing, hitFlash: 0, impactUntil: 0, impactStyle: 'sharp', impactDirection: 1 };
+        actor.userData = {
+          encounterId: e.id, parentEncounterId: e.parentEncounterId || e.id,
+          enemyType: e.enemy || '', targetX: e.x, targetZ: e.z, hp: e.hp
+        };
         combatActors.set(e.id, actor); combatGroup.add(actor);
       } else {
         actor.userData.encounterId = e.id;
         actor.userData.parentEncounterId = e.parentEncounterId || e.id;
         actor.userData.enemyType = e.enemy || actor.userData.enemyType || '';
         actor.userData.targetX = e.x; actor.userData.targetZ = e.z;
-        if (actor.userData.hp !== e.hp) {
-          actor.userData.hp = e.hp;
-          actor.userData.hitFlash = 0.38;
-          actor.userData.body.material.emissive?.setHex(0xff3018);
-          actor.userData.body.material.emissiveIntensity = 1.1;
-          const oldLabel = actor.userData.label;
-          actor.remove(oldLabel);
-          oldLabel.material.map?.dispose(); oldLabel.material.dispose();
-          const label = labelSprite(e.enemy + ' · ' + e.hp + '/' + e.maxHp, '#ffaaa0');
-          label.position.y = 3.5; actor.add(label); actor.userData.label = label;
-        }
+        actor.userData.hp = e.hp;
       }
     }
+    const recentPatrolDeaths = new Set(data.recentPatrolDeaths || []);
     for (const [id, actor] of combatActors) {
       if (activeEncounterIds.has(id)) continue;
+      if (recentPatrolDeaths.has(id)) infectedRenderer.zdie({ id });
       combatGroup.remove(actor); clearGroup(actor); combatActors.delete(id);
       if (selectedCombatTargetId === id) { selectedCombatTargetId = null; selectedCombatAimPoint = null; autoFireHeld = false; if (autoFireTimer) clearTimeout(autoFireTimer); autoFireTimer = null; }
     }
@@ -1144,10 +1261,6 @@ function boot(host) {
     if (!targetMatches || !enemyInReach) { aiming = false; if (aimWeaponButton) { aimWeaponButton.setAttribute('aria-pressed', 'false'); aimWeaponButton.textContent = 'Aim weapon'; } }
     if (attackInfectedButton) attackInfectedButton.disabled = !selfEncounter || selfEncounter.defeated || selfEncounter.hp <= 0 || !enemyInReach;
     if (autoFireButton) autoFireButton.disabled = !targetMatches || selfEncounter.defeated || selfEncounter.hp <= 0 || !enemyInReach || moving;
-    for (const [id, actor] of combatActors) {
-      const ring = actor.userData.threatRing;
-      if (ring) { ring.material.color.setHex(id === selectedCombatTargetId ? 0xffc05b : 0xd84b3e); ring.material.opacity = id === selectedCombatTargetId ? 0.72 : 0.08; }
-    }
     if (combatStatus) combatStatus.textContent = selfEncounter && !selfEncounter.defeated
       ? selfEncounter.enemy + ' · HP ' + selfEncounter.hp + '/' + selfEncounter.maxHp + ' · risk ' + selfEncounter.risk + '/5 · ' + Math.ceil(enemyDistance) + ' units away' + (enemyInReach ? ' · in attack range' : ' · move closer to attack')
       : 'No active encounter. Search for infected to begin a server-authoritative fight.';
@@ -1168,11 +1281,11 @@ function boot(host) {
           ? terrainElevation(p.x, p.z) + activeInteriorElevation()
           : terrainElevation(p.x, p.z);
       const g = new THREE.Group();
-      const previousPosition = previousExplorerPositions.get(key);
+      const previousPosition = respawned && p.label === 'You' ? null : previousExplorerPositions.get(key);
       g.position.set(previousPosition?.x ?? p.x, previousPosition?.y ?? targetY, previousPosition?.z ?? p.z);
       g.userData.explorerKey = key;
       g.userData.targetX = p.x; g.userData.targetZ = p.z; g.userData.targetY = targetY;
-      explorerPositions.set(key, { x: p.x, y: targetY, z: p.z });
+      explorerPositions.set(key, { x: p.x, y: targetY, z: p.z, crouched: p.crouched });
       const color = p.label === 'You' ? 0xffdf83 : p.party ? 0x8fd4f4 : 0xd7d1c5;
       const isLocalPlayer = p.label === 'You';
       const bodyColor = isLocalPlayer ? equippedOutfitColor : color;
@@ -1259,7 +1372,7 @@ function boot(host) {
     if (status) {
       const self = data.self;
       status.textContent = self
-        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.frontierBand || self.district || 'perimeter') + ' · ' + (self.frontierDepth || 0) + '% frontier depth · danger ' + self.risk + '/5 · deeper routes raise infected pressure; gunfire draws attention · ' + (continuousInput.enabled ? 'direct WASD/joystick walking (preview)' : 'tap to travel · WASD/joystick to move') + ' · drag to look · right-drag to orbit · scroll to zoom · V or 👁 switches first-/third-person · Overhead view is reserved for base construction'
+        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + expeditionRiskLabel(self) + ' · gunfire draws attention · ' + (continuousInput.enabled ? 'direct WASD/joystick walking (preview)' : 'tap to travel · WASD/joystick to move') + ' · drag to look · right-drag to orbit · scroll to zoom · V or 👁 switches first-/third-person · Overhead view is reserved for base construction'
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
     }
   }
@@ -1301,11 +1414,10 @@ function boot(host) {
       const site = guidance.nearest;
       objective.textContent = (guidance.alreadyDiscovered ? 'KNOWN SITE' : 'UNMAPPED SITE') +
         ' · ' + site.title + ' — ' + site.objective + ' · ' +
-        (self.frontierBand || self.district || 'perimeter') + ' · Risk ' + (self.risk || 1) + '/5';
+        expeditionRiskLabel(self);
     } else if (objective) {
       objective.textContent = 'EXPEDITION · ' +
-        (self.frontierBand || self.district || 'perimeter') +
-        ' · Risk ' + (self.risk || 1) + '/5 · Scan the skyline for supply caches and landmarks.';
+        expeditionRiskLabel(self) + ' · Scan the skyline for supply caches and landmarks.';
     }
   }
 
@@ -1483,7 +1595,7 @@ function boot(host) {
         const landmark = LANDMARKS.find(item => item.id === p.interior?.landmarkId);
         const room = interiorRoom(interiorForLandmark(p.interior?.landmarkId), p.interior?.roomId);
         explorerPositions.set(p.id, {
-          x: p.x, z: p.z,
+          x: p.x, z: p.z, crouched: p.crouched,
           y: landmark && room ? terrainElevation(landmark.x, landmark.z) + room.elevation : terrainElevation(p.x,p.z)
         });
       }
@@ -1501,16 +1613,45 @@ function boot(host) {
     if (detail.self) void fetchWorld();
   });
 
-  async function fetchWorld() {
-    if (!token() || moving) { if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.'; return; }
+  let worldFetchPending = false;
+  async function fetchWorld({ contactOnly = false } = {}) {
+    if (document.hidden || worldFetchPending || !token() || moving) {
+      if (status && !token()) status.textContent = 'Sign in to load the shared world. Your refuge and Graveyard position are saved to your account.';
+      return;
+    }
     const revision = gateRevision;
+    const previous = worldData;
+    worldFetchPending = true;
     try {
       const r = await homefrontFetch('/api/homefront/world', { headers: { authorization: 'Bearer ' + token() }, cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || data.error) throw new Error(data.message || data.error || 'world_unavailable');
-      await fetchExplorationProgress();
-      if (revision === gateRevision) updateWorld(data);
-    } catch (e) { if (status) status.textContent = '3D world unavailable: ' + e.message; }
+      if (!contactOnly) await fetchExplorationProgress();
+      if (revision !== gateRevision) return;
+      if (contactOnly) {
+        // A newer move or combat reply already carries the latest server hit.
+        if (worldData !== previous || moving) return;
+        if (continuousInput.enabled && data.self) {
+          const now = performance.now();
+          continuousInput.sync(data.inputProtocol, data.self, now);
+          acceptRealtimeSnapshot(data, now);
+          return;
+        }
+      }
+      updateWorld(data);
+    } catch (e) { if (status && !contactOnly) status.textContent = '3D world unavailable: ' + e.message; }
+    finally { worldFetchPending = false; }
+  }
+  function pollInfectedContact() {
+    const self = worldData?.self;
+    if (!view.visible || document.hidden || !self || continuousInput.pending) return;
+    const encounters = worldData.encounters ?? [worldData.selfEncounter];
+    const nearby = encounters.some(encounter => encounter &&
+      (encounter.attackable || encounter === worldData.selfEncounter) &&
+      !encounter.defeated && encounter.hp > 0 &&
+      Math.hypot(encounter.x - self.x, encounter.z - self.z) <= 24);
+    if (!nearby) return;
+    void fetchWorld({ contactOnly: true });
   }
   async function combatAction(action, targetId = selectedCombatTargetId, missPoint = null) {
     if (reloadState) cancelReload('Reload interrupted by combat.');
@@ -1520,7 +1661,7 @@ function boot(host) {
     if (findInfectedButton) findInfectedButton.disabled = true;
     if (attackInfectedButton) attackInfectedButton.disabled = true;
     try {
-      const activeTarget = worldData?.selfEncounter || worldData?.encounter || null;
+      const activeTarget = combatEncounterFor(targetId);
       const aimTarget = activeTarget?.id === targetId ? activeTarget
         : activeTarget?.members?.find(member => member.id === targetId);
       const aimPoint = selectedCombatAimPoint && aimTarget
@@ -1536,12 +1677,24 @@ function boot(host) {
       if (data.combat) {
         authoritativeAimStability = Number.isFinite(data.combat.aimStability) ? data.combat.aimStability : null;
         const hitDetail = { damage: data.combat.damage, hitZone: data.combat.hitZone, killed: data.combat.killed, weaponId: WEAPON_IDS.includes(data.combat.weaponId) ? data.combat.weaponId : equippedWeaponId, hitTargetId: data.combat.hitTargetId, hits: data.combat.hits, encounterId: data.encounter?.id || data.selfEncounter?.id || data.combat.encounter?.id || data.combat.encounterId, direction: 1 };
+        if (data.combat.ammoCost > 0) {
+          const revision = gateRevision;
+          const playShot = () => {
+            if (revision !== gateRevision || !view.visible || document.hidden) return;
+            if (hitDetail.weaponId === 'pump_shotgun') {
+              if (!sfx.play('shotgun', { v: 0.85, vr: 0.06 })) sfx.shot(2);
+            } else sfx.weaponFire(hitDetail.weaponId);
+          };
+          playShot();
+          for (let round = 1; round < Math.min(6, data.combat.ammoCost); round++) {
+            setTimeout(playShot, round * 70);
+          }
+        }
         if (data.combat.missed) {
           weaponSwingStartedAt = performance.now();
           weaponSwingUntil = weaponSwingStartedAt + 320;
           weaponSwingWeaponId = hitDetail.weaponId;
           if (data.combat.ammoCost > 0) {
-            sfx.weaponFire?.(hitDetail.weaponId);
             const shooter = worldData?.self;
             if (missPoint && shooter) {
               tracerPool?.emit(
@@ -1567,13 +1720,15 @@ function boot(host) {
         const fatigue = stamina !== null ? ' · stamina ' + stamina + '/100' + (stamina < 15 ? ' · exhausted: damage reduced' : stamina < 35 ? ' · tiring: damage reduced' : '') : '';
         combatStatus.textContent = result.missed ? (result.ammoCost ? 'Shot missed. Ammo spent: ' + result.ammoCost + '.' : 'Swing missed.') : result.killed
           ? 'Defeated the infected! +' + result.reward.scrap + ' scrap, +' + result.reward.embers + ' Embers (' + result.reward.quality + ').' + fatigue
-          : (result.hitZone === 'head' ? 'HEADSHOT! ' : result.hitZone === 'limb' ? 'Limb hit. ' : '') + 'Hit for ' + result.damage + '. Retaliation: ' + result.enemyDamage + '. Ammo spent: ' + result.ammoCost + '.' + fatigue + precision;
+          : (result.hitZone === 'head' ? 'HEADSHOT! ' : result.hitZone === 'limb' ? 'Limb hit. ' : '') + 'Hit for ' + result.damage + '. Ammo spent: ' + result.ammoCost + '.' + fatigue + precision;
       } else if (combatStatus && data.encounter) {
         combatStatus.textContent = (data.reused ? 'Active threat: ' : 'Threat detected: ') + data.encounter.enemy + ' · HP ' + data.encounter.hp + '/' + data.encounter.maxHp + '. Close distance and attack.';
       }
       return !(data.combat?.killed);
     } catch (e) {
-      if (combatStatus) combatStatus.textContent = e.message === 'enemy_out_of_range'
+      if (combatStatus) combatStatus.textContent = e.message === 'no_infected_nearby'
+        ? 'No infected tracks nearby.' : e.message === 'infected_behind_cover'
+        ? 'Your target is behind cover.' : e.message === 'enemy_out_of_range'
         ? 'Too far from the infected. Move closer on the map.'
         : e.message === 'attack_cooldown' ? 'Recovering from your last attack. Try again in a moment.'
         : e.message === 'insufficient_ammo' ? 'Magazine empty or short on rounds. Reload before firing.'
@@ -1970,7 +2125,11 @@ function boot(host) {
   // not a hotkey that can pull the player out of the world during combat.
   const masterView = 'third-person';
   // Third-/first-person toggle (V or the on-canvas button), touch joystick + drag-to-look, pinch zoom.
-  const view = attachViewControls(host, { onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous });
+  const view = attachViewControls(host, {
+    onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous,
+    canCrouch: wantsContinuous ? () => !!worldData?.self && continuousInput.enabled &&
+      !(worldData.party && !worldData.party.leader) : null
+  });
 
   // The direct-walk preview uses the camera to aim, with no separate target-selection step.
   let updateWeaponOverlay;
@@ -2003,9 +2162,9 @@ function boot(host) {
     unavailable.hidden = true;
     host.append(unavailable);
     updateWeaponOverlay = () => {
-      const hideUnavailable = !worldData?.self || continuousInput.enabled;
+      const hideUnavailable = !worldData?.self || continuousInput.enabled || !!worldData?.selfVehicle;
       if (unavailable.hidden !== hideUnavailable) unavailable.hidden = hideUnavailable;
-      const hidden = !worldData?.self || !continuousInput.enabled;
+      const hidden = !worldData?.self || !continuousInput.enabled || !!worldData?.selfVehicle;
       if (reticle.hidden !== hidden) reticle.hidden = hidden;
       if (coarsePointer && fire.hidden !== hidden) fire.hidden = hidden;
       if (coarsePointer) {
@@ -2023,7 +2182,6 @@ function boot(host) {
     host.append(fire);
 
     fireAtReticle = () => {
-      const active = worldData?.selfEncounter || worldData?.encounter;
       const self = worldData?.self;
       if (!view.visible || !self || !token() || moving || !continuousInput.enabled ||
           document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])')) return;
@@ -2034,6 +2192,7 @@ function boot(host) {
         .find(entry => entry.object.userData?.combatHitbox);
       let target = hit?.object;
       while (target && !target.userData?.encounterId) target = target.parent;
+      const active = combatEncounterFor(target?.userData.encounterId);
 
       const walls = interiorCameraOccluders.get(interiorState?.landmarkId) || [];
       const obstruction = raycaster.intersectObjects(walls.filter(wall => wall.visible), false)[0];
@@ -2065,6 +2224,83 @@ function boot(host) {
     });
   }
 
+  // Vehicle transport is part of the same world, not a separate game or map.
+  // Every rover action goes to the authenticated server. Touch controls are
+  // displayed only for the driver and have no independent collision authority.
+  async function roverRequest(action,payload={}){
+    if(!worldData?.vehicleEnabled||!token())throw Error('homefront_vehicles_unavailable');
+    const response=await homefrontFetch('/api/homefront/world/vehicle/'+action,{
+      method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await response.json();
+    if(!response.ok||data.error)throw Error(data.error||'vehicle_action_failed');
+    return data;
+  }
+  async function roverAction(action){
+    if(moving)return;
+    moving=true;
+    try{
+      const data=await roverRequest(action);
+      updateWorld(data);
+      const v=data.vehicle;
+      showFieldToast(({
+        build:'Scrap rover assembled · 24 scrap, 12 wood.',
+        board:'Rover ready · WASD or touch arrows to drive.',
+        dismount:'Rover parked · return when you need it.',
+        charge:'Recharged rover battery with 2 scrap.'
+      })[action]||'Rover ready');
+      if(v)roverUI.sync();
+    }catch(error){showFieldToast(error?.message==='vehicle_exit_blocked'
+      ?'Exit blocked. Clear the area or move the rover.'
+      :'Rover: '+String(error?.message||error));}
+    finally{moving=false;}
+  }
+  const roverUI=createRoverControls({
+    host,getSnapshot:()=>worldData,visible:()=>view.visible&&
+      !document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])'),
+    send:roverRequest,
+    onResync:async()=>{
+      if(!token())throw Error('sign_in_with_xaman');
+      const response=await homefrontFetch('/api/homefront/world',{
+        headers:{authorization:'Bearer '+token()}
+      });
+      const fresh=await response.json();
+      if(!response.ok||fresh.error)throw Error(fresh.error||'vehicle_resync_failed');
+      updateWorld(fresh);
+      return fresh;
+    },
+    onSnapshot:data=>{
+      if(!worldData||!data.vehicle)return;
+      const previous=worldData.world?.vehicles||[];
+      const cars=previous.map(v=>v.id===data.vehicle.id?{...v,...data.vehicle}:v);
+      const last=worldData.self;
+      roverLastPower=data.vehicleResult?.blocked?0.12:
+        Math.hypot(data.self.x-last.x,data.self.z-last.z)>0.035?0.78:0.22;
+      roverLastDriveAt=performance.now();
+      worldData={...worldData,
+        self:{...worldData.self,x:data.self.x,z:data.self.z},
+        selfVehicle:{...worldData.selfVehicle,...data.selfVehicle},
+        world:{...worldData.world,vehicles:cars}};
+      syncRoverMeshes(cars);
+      continuousInput.disable('rover_occupied');
+    },
+    onError:message=>{if(message)showFieldToast(message);}
+  });
+  window.addEventListener('keydown',event=>{
+    if(event.code==='KeyB'&&!event.repeat&&view.visible&&!worldData?.selfVehicle&&
+       worldData?.vehicleEnabled&&!(worldData.world?.vehicles||[]).some(v=>v.mine)&&
+       refugeReturnDistance()<=7&&
+       !/INPUT|TEXTAREA|SELECT/.test(event.target?.tagName||'')){
+      event.preventDefault();void roverAction('build');
+    }
+    if(event.code==='KeyC'&&!event.repeat&&view.visible&&!worldData?.selfVehicle&&
+       !/INPUT|TEXTAREA|SELECT/.test(event.target?.tagName||'')){
+      if(canRechargeRover()){
+        event.preventDefault();void roverAction('charge');
+      }
+    }
+  });
   // In-world contextual interaction (keyboard E / one mobile tap). The real
   // server-authenticated buttons remain the only way gameplay actions execute.
   // Never add a second loot, combat, or permission path here.
@@ -2080,6 +2316,23 @@ function boot(host) {
     renderer.domElement.style.touchAction = 'none';
   }
   host.append(contextPrompt);
+  const rechargePrompt=document.createElement('button');
+  rechargePrompt.type='button';
+  rechargePrompt.id='homefrontRoverRecharge';
+  rechargePrompt.hidden=true;
+  rechargePrompt.style.cssText=contextPrompt.style.cssText+';bottom:180px';
+  rechargePrompt.textContent='Recharge rover · 2 scrap / +25%';
+  rechargePrompt.addEventListener('pointerdown',event=>event.stopPropagation());
+  rechargePrompt.addEventListener('click',()=>{if(canRechargeRover())void roverAction('charge');});
+  host.append(rechargePrompt);
+  function canRechargeRover(){
+    const self=worldData?.self,gate=worldData?.refugeReturn;
+    const rover=(worldData?.world?.vehicles||[]).find(v=>v.mine);
+    return !!(worldData?.vehicleEnabled&&self&&gate&&rover&&view.visible&&!document.hidden&&token()&&
+      !moving&&!interiorState&&!worldData.selfVehicle&&!rover.occupied&&rover.charge<99.9&&
+      Math.hypot(self.x-rover.x,self.z-rover.z)<=3.5&&
+      Math.hypot(gate.x-rover.x,gate.z-rover.z)<=10);
+  }
   const contextControls = {
     enter: enterInteriorButton, loot: lootActionButton, damage: damageEnvironmentButton
   };
@@ -2099,6 +2352,8 @@ function boot(host) {
   }
   function availableContext() {
     if (!worldData?.self || !view.visible || moving || !token()) return null;
+    if(worldData.vehicleEnabled && worldData.selfVehicle)
+      return {id:'rover-dismount',label:'Park rover · E'};
     // Native exploration controls use only authored, server-authenticated rooms.
     // Show a target after walking within real reach; do not teleport, auto-loot,
     // or unlock doors based on client data.
@@ -2127,7 +2382,19 @@ function boot(host) {
         }
       }
     }
+    if(worldData.vehicleEnabled&&!interiorState){
+      const ownRover=(worldData.world?.vehicles||[]).find(v=>v.mine);
+      if(ownRover&&Math.hypot(worldData.self.x-ownRover.x,worldData.self.z-ownRover.z)<=3.5)
+        return {id:'rover-board',label:'Board scrap rover · charge '+Math.round(ownRover.charge)+'%'};
+      if(!ownRover&&refugeReturnDistance()>3&&refugeReturnDistance()<=6)
+        return {id:'rover-build',label:'Assemble scrap rover · 24 scrap + 12 wood'};
+    }
     if (refugeReturnDistance() <= 3) return { id: 'return-refuge', label: 'Return to refuge' };
+    if(!interiorState&&wantsContinuous){
+      const survivor=closestStrandedSurvivor(worldData.world,worldData.self,Date.now());
+      const interaction=survivorInteraction(survivor);
+      if(interaction)return interaction;
+    }
     if (continuousInput.enabled) {
       const self = worldData.self;
       let nearest = null, nearestDistance = 9;
@@ -2158,7 +2425,13 @@ function boot(host) {
     });
   }
   function renderContextAction() {
-    const next = availableContext();
+    rechargePrompt.hidden=!canRechargeRover();
+    const raw = availableContext();
+    // Keep the already-reached doorway tappable during a brief in-flight
+    // movement acknowledgment. Any actual entry still rechecks current reach
+    // after movement settles, and goes through server-side doorway validation.
+    const next = raw || (moving && shownContext?.id === 'enter-doorway' &&
+      view.visible && token() ? shownContext : null);
     if (next?.id === shownContext?.id && next?.label === shownContext?.label &&
         next?.targetId === shownContext?.targetId) return;
     shownContext = next;
@@ -2169,8 +2442,49 @@ function boot(host) {
     }
   }
   function activateContextAction() {
+    const tapped = shownContext;
+    // A touch may land between movement acknowledgement and prompt refresh.
+    // Preserve this one explicit doorway tap, but refuse it if the player has
+    // walked away, the menu opened or the server is still busy after 1.5s.
+    if (tapped?.id === 'enter-doorway' && moving) {
+      queueDoorwayTap({
+        intent:tapped, isBusy:()=>moving,
+        current:()=>availableContext(),
+        commit:landmarkId=>enterInterior(landmarkId)
+      });
+      return;
+    }
     const current = availableContext();
     if (!current || current.id !== shownContext?.id || current.targetId !== shownContext?.targetId) return;
+    if(current.id==='rover-build'){void roverAction('build');return;}
+    if(current.id==='rover-board'){void roverAction('board');return;}
+    if(current.id==='rover-dismount'){void roverAction('dismount');return;}
+    if(current.id==='rescue-survivor'){
+      moving=true;
+      void (async()=>{
+        try{
+          const response=await homefrontFetch('/api/homefront/world/rescue',{
+            method:'POST',headers:{authorization:'Bearer '+token(),'content-type':'application/json'},
+            body:JSON.stringify({pointId:current.targetId,difficulty:'standard'})
+          });
+          const data=await response.json();
+          if(!response.ok||data.error)throw Error(data.error||'rescue_failed');
+          updateWorld(data);
+          showFieldToast('Survivor rescued · '+(data.encounter?.survivor?.name||'New survivor')+
+            ' is heading toward the refuge. Your supplies have been consumed.');
+        }catch(error){
+          const message=({rescue_path_blocked:'Move around the cover to reach the survivor.',
+            too_far_from_rescue:'Move closer to the survivor.',
+            exit_vehicle_before_rescue:'Park and leave the rover before helping.',
+            leave_building_before_rescue:'Step outside to reach the survivor.',
+            field_supplies_required:'Carry 2 food and 1 ammo to help this survivor.',
+            rescue_unavailable:'Another survivor has already helped here.'})[error.message];
+          showFieldToast(message||'Survivor: '+String(error.message||error));
+        }
+        finally{moving=false;}
+      })();
+      return;
+    }
     if (current.id === 'return-refuge') {
       host.dispatchEvent(new CustomEvent('homefront:return-to-refuge'));
       return;
@@ -2214,19 +2528,90 @@ function boot(host) {
   let cameraInitialized = false;
   let lastStickMoveAt = 0;
   let lastFrame = performance.now();
+  let fieldWind = null, fieldCreek = null, lastFoot = null, stepDistance = 0, lastAmbientAt = -Infinity;
+  let activeCueId = null, cueSince = 0;
+  const nextCueAt = new Map();
+  function stopFieldAudio() {
+    fieldWind?.stop();
+    fieldWind = null;
+    fieldCreek?.stop();
+    fieldCreek = null;
+    lastFoot = null;
+    stepDistance = 0;
+    lastAmbientAt = -Infinity;
+    activeCueId = null;
+    nextCueAt.clear();
+  }
+  function updateFieldAudio(point, sprint, crouched, now) {
+    if (!zombieAudioStarted || !point || !inPineCrossing(point.x, point.z, 4)) {
+      if (fieldWind || lastFoot) stopFieldAudio();
+      return;
+    }
+    fieldWind ||= sfx.fieldWind();
+    if (now - lastAmbientAt >= 125) {
+      const cue = pineAmbienceAt(point.x, point.z, interiorState?.landmarkId);
+      const shelter = interiorState ? 0.08 : cue?.kind === 'canopy' ? 0.73 : 1;
+      const gust = 0.17 + 0.05 * Math.sin(now / 3900) + 0.028 * Math.sin(now / 1450);
+      fieldWind?.set(gust * shelter);
+      const creek = nearestPineCreek(point.x, point.z);
+      const proximity = Math.max(0, 1 - creek.distance / 16);
+      if (proximity > 0 && !interiorState) fieldCreek ||= sfx.fieldCreek();
+      const level = interiorState ? 0 : proximity ** 2 * (0.32 + 0.045 * Math.sin(now / 740));
+      fieldCreek?.set(level, creek.x, terrainElevation(creek.x, creek.z), creek.z);
+      const cueId = cue?.id ?? null;
+      if (activeCueId !== cueId) {
+        activeCueId = cueId;
+        cueSince = now;
+      }
+      if (cue && now - cueSince >= 1400 && now >= (nextCueAt.get(cueId) ?? 0) &&
+          sfx.fieldCue(cue.kind, cue.x, terrainElevation(cue.x, cue.z) + cue.height, cue.z)) {
+        nextCueAt.set(cueId, now + 9000 + Math.random() * 7000);
+      }
+      lastAmbientAt = now;
+    }
+    const step = lastFoot ? Math.hypot(point.x - lastFoot.x, point.z - lastFoot.z) : 0;
+    lastFoot = { x: point.x, z: point.z };
+    if (step > 0.85) { stepDistance = 0; return; }
+    if (step < 0.008) return;
+    stepDistance += step;
+    if (stepDistance >= (sprint ? 2.15 : crouched ? 1.4 : 1.8)) {
+      stepDistance = 0;
+      sfx.fieldStep(interiorState ? 'wood' : pineSurfaceAt(point.x, point.z), sprint, crouched);
+    }
+  }
   let sceneWasVisible = true;
+  function poseFieldWalker(explorer, movingAvatar, crouched, now, dt) {
+    const { walker, isLocalPlayer } = explorer.userData;
+    if (!walker) return;
+    const desired = crouched ? 1 : 0;
+    const current = explorer.userData.crouchBlend || 0;
+    const blend = current + (desired - current) * (1 - Math.exp(-11 * dt));
+    explorer.userData.crouchBlend = blend;
+    explorer.scale.y = 1 - 0.23 * blend;
+    poseWalker(walker, now * (crouched ? 0.008 : 0.012), movingAvatar ? 1 - 0.4 * blend : 0, now / 1000);
+    if (walker.userData.torso) walker.userData.torso.rotation.x -= 0.22 * blend;
+    if (isLocalPlayer) {
+      const jump = view.takeJump();
+      stepVertical(localJump, dt, 0, jump && !crouched, EXPLORER_SCALE);
+      walker.position.y = localJump.y;
+    }
+  }
   const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
     // Keep server polling authoritative, but do no world animation or scenery
     // work while at the refuge or in a hidden tab. Reset the frame clock above
     // so returning never applies a large catch-up animation step.
     if (!view.visible || document.hidden) {
       releaseMovementControls(view);
+      view.resetCrouch?.();
       view.jumpQueued = false;
       if (sceneWasVisible) {
         stopAutoFire();
         if (reloadState) cancelReload('Reload interrupted on leaving the field view.');
         if (zombieAudioActive) { zombieAudio.stop(); zombieAudioActive = false; }
+        stopFieldAudio();
+        stopRoverMotor();
         tracerPool.update(1);
+        infectedRenderer.clear();
         cameraInitialized = false;
         sceneWasVisible = false;
       }
@@ -2237,7 +2622,42 @@ function boot(host) {
       return;
     }
     sceneWasVisible = true;
+    if(worldData?.selfVehicle){
+      roverMotorBed ||= sfx.roverMotor();
+      if(roverMotorBed&&now-roverLastMotorUpdateAt>120){
+        roverLastMotorUpdateAt=now;
+        roverMotorBed.set(now-roverLastDriveAt<350?roverLastPower:0.12);
+      }
+    }else stopRoverMotor();
+    view.refreshCrouch?.();
+    updatePineScenery(dt);
     tracerPool.update(dt);
+    if(wantsContinuous&&worldData?.self&&!worldData.selfVehicle&&!interiorState){
+      // Three hand-authored survivors breathe, scan for infected and turn
+      // toward an approaching player. Geometry is cached by the world view.
+      // This is PRESENTATION, not independent NPC movement authority.
+      for(const marker of markerObjects.values()){
+        const npc=marker.userData?.rescueActor;
+        if(!npc)continue;
+        const worldX=marker.position.x+npc.position.x,worldZ=marker.position.z+npc.position.z;
+        const dx=worldData.self.x-worldX,dz=worldData.self.z-worldZ;
+        if(Math.hypot(dx,dz)<12){
+          const facing=Math.atan2(dx,dz);
+          npc.rotation.y+=Math.atan2(Math.sin(facing-npc.rotation.y),Math.cos(facing-npc.rotation.y))*Math.min(1,dt*2.2);
+        }else npc.rotation.y=-Math.PI/4+Math.sin(now*0.00025+worldX)*0.25;
+        npc.position.y=Math.sin(now*0.002+worldX)*0.025;
+      }
+      if(now-lastSurvivorCheckAt>=600){
+        lastSurvivorCheckAt=now;
+        const scene=closestStrandedSurvivor(worldData.world,worldData.self,Date.now());
+        const stamp=Date.now();
+        const cue=survivorApproachCue(scene,survivorCueAt.get(scene?.id),stamp);
+        if(cue&&stamp-survivorCueGlobalAt>16000){
+          survivorCueAt.set(cue.id,cue.at);survivorCueGlobalAt=stamp;
+          showFieldToast(cue.message);
+        }
+      }
+    }
     if (!eventToast.hidden && now > eventToastUntil) eventToast.hidden = true;
     if (now - lastAmbientUpdateAt >= AMBIENT_UPDATE_MS) {
       lastAmbientUpdateAt = now;
@@ -2257,45 +2677,43 @@ function boot(host) {
     const ashWind = ambientTarget.windX;
     for (let i = 0; i < ashCount; i++) { const j = i * 3; ashPositions[j + 1] -= dt * (0.35 + (i % 7) * 0.09); ashPositions[j] += (Math.sin(now * 0.0003 + i) * 0.12 + ashWind * 0.16) * dt;
       if (ashPositions[j] > 98) ashPositions[j] = -98;
-      if (ashPositions[j] < -98) ashPositions[j] = 98; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const mixer of zombieMixers) mixer.update(dt); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) { const travelBlend = 1 - Math.exp(-8 * dt); explorer.position.x += (target.x - explorer.position.x) * travelBlend; explorer.position.y += (target.y - explorer.position.y) * travelBlend; explorer.position.z += (target.z - explorer.position.z) * travelBlend; movingAvatar = Math.hypot(target.x - explorer.position.x, target.z - explorer.position.z) > 0.035; if (movingAvatar) explorer.rotation.y = Math.atan2(target.x - explorer.position.x, target.z - explorer.position.z); } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (explorer.userData.walker) { poseWalker(explorer.userData.walker, now * 0.012, movingAvatar ? 1 : 0, now / 1000); if (explorer.userData.isLocalPlayer) { stepVertical(localJump, dt, 0, view.takeJump(), EXPLORER_SCALE); explorer.userData.walker.position.y = localJump.y; } } if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.72 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; if (piece.userData.tracer) { piece.material.opacity = Math.max(0, piece.userData.life / (piece.userData.maxLife || 0.095)); if (piece.userData.life <= 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } continue; } piece.position.x += (piece.userData.vx || 0) * dt; piece.position.y += (piece.userData.vy || 0) * dt; piece.position.z += (piece.userData.vz || 0) * dt; piece.userData.vy = (piece.userData.vy || 0) - 5.5 * dt; if (piece.rotation) { piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; } if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); else if (piece.material?.opacity != null) piece.material.opacity = Math.max(0, piece.userData.life / 0.075); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } } for (const actor of combatActors.values()) { const state = actor.userData; const blend = 1 - Math.exp(-3.5 * dt); const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z; state.presentedSpeed = Math.hypot(dx, dz) * blend / Math.max(dt, 0.001); actor.position.x += dx * blend; actor.position.z += dz * blend; actor.position.y = terrainElevation(actor.position.x, actor.position.z);
-      const impactRemaining = state.impactUntil - now;
-      if (impactRemaining > 0) {
-        const p = impactRemaining / 300;
-        const hitPulse = Math.sin(p * Math.PI);
-        const headshot = state.impactStyle === 'headshot';
-        actor.position.x += state.impactDirection * (state.impactStyle === 'blunt' ? 0.075 : headshot ? 0.065 : 0.045) * hitPulse;
-        actor.rotation.z = (state.impactStyle === 'blunt' ? 0.22 : headshot ? 0.28 : 0.12) * hitPulse * state.impactDirection;
-        state.body.scale.y = state.impactStyle === 'blunt' ? 1 - 0.18 * hitPulse : headshot ? 1 - 0.1 * hitPulse : 1;
-      } else { actor.rotation.z = 0; state.body.scale.y = 1; }
-      if (Math.hypot(dx, dz) > 0.08) actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(dx, dz), dt); const self = worldData?.self; const threatDistance = self ? Math.hypot(self.x - actor.position.x, self.z - actor.position.z) : Infinity; if (state.threatRing) { const pressure = threatDistance <= 3 ? 1 : threatDistance <= 8 ? 0.42 : 0.08; state.threatRing.material.opacity = pressure * (0.72 + 0.28 * Math.sin(now / 150)); state.threatRing.scale.setScalar(threatDistance <= 3 ? 1.18 : 1); } if (state.hitFlash > 0) { state.hitFlash = Math.max(0, state.hitFlash - dt); if (state.hitFlash === 0) { state.body.material.emissive?.setHex(0x000000); state.body.material.emissiveIntensity = 0; } } }
-      // Shared Zombies selector/model pilot: at most eight nearby animated rigs, with procedural fallback.
-      const localForModels = worldData?.self || { x: 0, z: 0 };
-      const modelCandidates = [...combatActors.values()].map(actor => {
-        const state = actor.userData;
-        const distance = Math.hypot(localForModels.x - actor.position.x, localForModels.z - actor.position.z);
-        return { id: state.encounterId, x: actor.position.x, y: terrainElevation(actor.position.x, actor.position.z), z: actor.position.z, yaw: actor.rotation.y || 0, ...infectedPresentation(state.enemyType), speed: state.presentedSpeed || 0, ch: distance <= 2.7, hp: state.hp };
+      if (ashPositions[j] < -98) ashPositions[j] = 98; if (ashPositions[j + 1] < 0) { ashPositions[j + 1] = 12 + (i % 9); ashPositions[j] = ashRandom(i + 1) * 190 - 95; ashPositions[j + 2] = ashRandom(i + 201) * 190 - 95; } } ashGeometry.attributes.position.needsUpdate = true; for (const node of lootGroup.children) { const focus = node.userData.lootGlow; if (!focus) continue; const selected = node.userData.lootNodeId === selectedLootId; const pulse = 1 + Math.sin(now * 0.006) * 0.055; focus.mesh.scale.setScalar(selected ? pulse : 1); focus.mesh.material.color.setHex(selected ? 0xffe08a : focus.color); focus.mesh.material.opacity = focus.available ? (selected ? 0.95 : 0.8) : 0.2; } const recovery = now < aimRecoveryUntil ? Math.max(0, (aimRecoveryUntil - now) / 1250) : 0; const targetStability = aiming ? 1 - recovery * 0.58 : 1 - recovery * 0.3; aimStability += (targetStability - aimStability) * (1 - Math.exp(-dt * (aiming ? 1.8 : 3.5))); if (aimStabilityStatus) aimStabilityStatus.textContent = 'Aim stability · ' + Math.round((authoritativeAimStability === null ? aimStability : Math.min(aimStability, authoritativeAimStability)) * 100) + '%' + (recovery > 0 ? ' · recovering' : aiming ? ' · focused' : ' · ready'); for (const explorer of playerGroup.children) { const target = explorerPositions.get(explorer.userData.explorerKey); let movingAvatar = false; if (target) {
+      const dx = target.x - explorer.position.x, dz = target.z - explorer.position.z;
+      // The local predictor is already smoothed and bounded to server movement.
+      // A second position lerp leaves the avatar trailing its own camera.
+      const directLocal = continuousInput.enabled && explorer.userData.isLocalPlayer;
+      const travelBlend = directLocal ? 1 : 1 - Math.exp(-8 * dt);
+      explorer.position.x += dx * travelBlend;
+      explorer.position.y += (target.y - explorer.position.y) * travelBlend;
+      explorer.position.z += dz * travelBlend;
+      movingAvatar = Math.hypot(dx, dz) > (directLocal ? 0.004 : 0.035);
+      if (movingAvatar) explorer.rotation.y = turnToward(explorer.rotation.y, Math.atan2(dx, dz), dt);
+    } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; poseFieldWalker(explorer, movingAvatar, (explorer.userData.isLocalPlayer && view.crouching?.()) || target?.crouched, now, dt); if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.72 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; if (piece.userData.tracer) { piece.material.opacity = Math.max(0, piece.userData.life / (piece.userData.maxLife || 0.095)); if (piece.userData.life <= 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } continue; } piece.position.x += (piece.userData.vx || 0) * dt; piece.position.y += (piece.userData.vy || 0) * dt; piece.position.z += (piece.userData.vz || 0) * dt; piece.userData.vy = (piece.userData.vy || 0) - 5.5 * dt; if (piece.rotation) { piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; } if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); else if (piece.material?.opacity != null) piece.material.opacity = Math.max(0, piece.userData.life / 0.075); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } }
+    const localForInfected = continuousInput.position() || worldData?.self;
+    const presentedInfected = [];
+    for (const actor of combatActors.values()) {
+      const state = actor.userData;
+      const blend = 1 - Math.exp(-3.5 * dt);
+      const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z;
+      actor.position.x += dx * blend;
+      actor.position.z += dz * blend;
+      actor.position.y = terrainElevation(actor.position.x, actor.position.z);
+      if (Math.hypot(dx, dz) > 0.08) {
+        actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(dx, dz), dt);
+      }
+      const hit = worldData?.selfInfectedHit;
+      const attacking = now < infectedAttackUntil &&
+        (hit?.sourceId === state.encounterId || (!wantsContinuous && hit?.encounterId === state.encounterId));
+      if (attacking && localForInfected && !hit.defeated) {
+        actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(localForInfected.x - actor.position.x, localForInfected.z - actor.position.z), dt);
+      }
+      presentedInfected.push({
+        id: state.encounterId, x: actor.position.x, y: actor.position.y, z: actor.position.z,
+        yaw: actor.rotation.y, ch: attacking, ...infectedPresentation(state.enemyType),
+        speed: Math.hypot(dx, dz) * blend / Math.max(dt, 0.001), hp: state.hp
       });
-      let modeledZombieIds = new Set();
-      if (zombieModelPilot) modeledZombieIds = zombieModelPilot.update(modelCandidates, dt, localForModels);
-      for (const actor of combatActors.values()) {
-        const modeled = modeledZombieIds.has(actor.userData.encounterId);
-      if (wantsContinuous) {
-        const distance = Math.hypot(localForModels.x - actor.position.x, localForModels.z - actor.position.z);
-        actor.userData.label.scale.set(4.8, 0.9, 1);
-        actor.userData.label.visible = actor.userData.hp > 0 && distance >= 5 && distance <= 12;
-        actor.userData.threatRing.visible = false;
-      }
-        for (const proxy of [actor.userData.body, actor.userData.head]) {
-          if (!proxy) continue;
-          const opacity = modeled ? 0 : 1;
-          if (proxy.material.opacity !== opacity || proxy.material.transparent !== modeled) {
-            proxy.material.transparent = modeled;
-            proxy.material.opacity = opacity;
-            proxy.material.depthWrite = !modeled;
-            proxy.material.needsUpdate = true;
-          }
-        }
-      }
+    }
+    infectedRenderer.update(dt, presentedInfected, localForInfected);
       if (worldData?.self) {
       const self = worldData.self;
       if (zombieAudioStarted && view.visible && !document.hidden) {
@@ -2308,30 +2726,31 @@ function boot(host) {
           hp: Number.isFinite(survival.health) ? survival.health : 100,
           max: 100, alive: survival.health !== 0, down: survival.health === 0
         };
-        const audioZombies = [...combatActors.values()].filter(actor => actor.userData.hp > 0).map(actor => ({
-          id: actor.userData.encounterId, x: actor.position.x, y: actor.position.y,
-          z: actor.position.z, ...infectedPresentation(actor.userData.enemyType),
-          hp: actor.userData.hp, out: false
-        }));
-        zombieAudio.tick(dt, audioMe, audioZombies, [], 'homefront-local-player');
+        zombieAudio.tick(dt, audioMe, presentedInfected, [], 'homefront-local-player');
         zombieAudioActive = true;
       }
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
+      if(localActor)localActor.visible=!worldData.selfVehicle; // occupied seats do not leave an avatar standing behind
       const heading = walkingCameraHeading(localActor?.rotation.y || 0, cameraYawOffset, view.yaw, continuousInput.enabled);
       const stick = worldMove(view.move(), heading, 0);
+      const crouched = view.crouching?.() === true;
+      const sprint = !crouched && directSprintRequested(sprintTravel, view.running(), aiming);
       if (continuousInput.enabled && !moving && !(worldData.party && !worldData.party.leader)) {
-        continuousInput.step(stick, directSprintRequested(sprintTravel, view.running(), aiming), now, dt);
+        continuousInput.step(stick, sprint, now, dt, crouched);
       }
       const shownSelf = continuousInput.position() || self;
+      if(worldData.selfVehicle){lastFoot=null;stepDistance=0;}
+      else updateFieldAudio(shownSelf, sprint, crouched || self.crouched, now);
       updateVisibleChunks(shownSelf.x, shownSelf.z);
-      if (continuousInput.enabled && localActor?.userData.explorerKey) {
+      if ((continuousInput.enabled||worldData.selfVehicle) && localActor?.userData.explorerKey) {
         explorerPositions.set(localActor.userData.explorerKey, {
-          x: shownSelf.x, y: terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation(), z: shownSelf.z
+          x: shownSelf.x, y: terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation(), z: shownSelf.z, crouched: crouched || self.crouched
         });
       }
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
       const targetY = terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation();
-      const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
+      const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: (cameraDistance+(worldData.selfVehicle?2.1:0)) * view.distance / 6.2 });
+      if (crouched || self.crouched) { pose.py -= 0.47; pose.ly -= 0.47; }
       if (continuousInput.enabled && view.mode === 'third') {
         // Place the reticle beside the player's shoulder so their body does not obscure aim.
         const shoulderX = -Math.cos(heading) * 0.9;
@@ -2342,9 +2761,7 @@ function boot(host) {
         const cameraArmLength = Math.hypot(pose.px - pose.lx, pose.pz - pose.lz);
         pose.py = Math.max(targetY + 0.55, pose.ly - Math.tan(aimPitch) * cameraArmLength);
       }
-      // Only interior wall/closed-door geometry can shorten the camera arm;
-      // outdoor scenery, collectibles and player models never affect the view.
-      // Bound raycast frequency, particularly for touch/mobile GPUs.
+      // Interior wall and closed-door mesh raycasts are throttled on mobile.
       if (view.mode !== 'first' && interiorState?.landmarkId) {
         const roomRoot = interiorSetPieces.get(interiorState.landmarkId);
         const walls = interiorCameraOccluders.get(interiorState.landmarkId);
@@ -2395,6 +2812,24 @@ function boot(host) {
       camera.position.x += (pose.px - camera.position.x) * followBlend;
       camera.position.y += (pose.py - camera.position.y) * followBlend;
       camera.position.z += (pose.pz - camera.position.z) * followBlend;
+      if (view.mode === 'third' && !interiorState && inPineCrossing(shownSelf.x, shownSelf.z, 4)) {
+        // Clip the actual, smoothed camera arm so it cannot lag through a storefront.
+        cameraEye.set(shownSelf.x, pose.ly, shownSelf.z);
+        cameraArm.copy(camera.position).sub(cameraEye);
+        const distance = cameraArm.length();
+        if (distance > 0.01) {
+          facadeCameraRay.set(cameraEye, cameraArm.multiplyScalar(1 / distance));
+          let nearest = distance;
+          for (const bounds of pineFacadeBounds) {
+            if (bounds.containsPoint(cameraEye) || !facadeCameraRay.intersectBox(bounds, facadeCameraHit)) continue;
+            nearest = Math.min(nearest, facadeCameraHit.distanceTo(cameraEye));
+          }
+          if (nearest < distance) {
+            const safe = clipInteriorCamera(cameraEye, camera.position, nearest, 0.12);
+            camera.position.set(safe.x, safe.y, safe.z);
+          }
+        }
+      }
       lookTarget.x += (pose.lx - lookTarget.x) * followBlend; lookTarget.y += (pose.ly - lookTarget.y) * followBlend; lookTarget.z += (pose.lz - lookTarget.z) * followBlend;
       camera.lookAt(lookTarget);
       if (localActor) localActor.visible = view.mode !== 'first';
@@ -2404,7 +2839,11 @@ function boot(host) {
         moveTo(Math.max(-100, Math.min(100, self.x + stick.x * 10)), Math.max(-100, Math.min(100, self.z + stick.z * 10)));
       }
     }
-    if (!worldData?.self) cameraInitialized = false;
+    if (!worldData?.self) {
+      view.resetCrouch?.();
+      cameraInitialized = false;
+      if (fieldWind || lastFoot) stopFieldAudio();
+    }
     if (zombieAudioActive && (!worldData?.self || !view.visible || document.hidden)) {
       zombieAudio.stop();
       zombieAudioActive = false;
@@ -2414,17 +2853,7 @@ function boot(host) {
     updateSurvivalReadout(worldData);
     updateWeaponOverlay?.();
     if (view.visible) renderer.render(scene, camera); requestAnimationFrame(tick); };
-  // Load shared animated rigs asynchronously; failure never disables combat or fallback hitboxes.
-  zombieModelPilotLoading = true;
-  createZombieModelPilot(scene, { targetHeight: 2.7, maxModels: typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 4 : 8 }).then(pilot => {
-    zombieModelPilot = pilot;
-    zombieModelPilotLoading = false;
-    console.info('[homefront-graveyard] shared animated infected ready');
-  }).catch(error => {
-    zombieModelPilotFailed = true;
-    zombieModelPilotLoading = false;
-    console.warn('[homefront-graveyard] animated infected unavailable; using procedural infected', error);
-  });
-  tick(); if (!wantsContinuous) loadInfectedAsset(); fetchWorld(); setInterval(fetchWorld, 8000);
+  tick(); fetchWorld(); setInterval(fetchWorld, 8000);
+  setInterval(pollInfectedContact, 1500);
   setInterval(fetchBuildingPresence, 2400);
 }

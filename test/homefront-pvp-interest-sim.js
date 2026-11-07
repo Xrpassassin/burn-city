@@ -115,6 +115,8 @@ function assertInterest(snap, viewer, label) {
   assert.equal(kill.data.pvp.killed, true, 'lethal hit downs the target');
   const nb = files.get('homefront-world.json').players[B];
   assert.equal(nb.survival.health, PvP.RESPAWN_HEALTH); assert.ok(Math.hypot(nb.x + 20, nb.z - 30) > 30, 'downed player respawns far away');
+  assert.deepEqual(World.snapshot(files.get('homefront-world.json'), B).refugeReturn,
+    { x: spawns[1].x, z: spawns[1].z }, 'combat respawn cannot move the permanent refuge gate');
   // 6. PvP is off in Homefront: D travels home; nobody can hit D, and D cannot shoot from home.
   place(D, -19, 31);
   assert.equal((await call('POST', W + '/leave', D, { travel: true })).status, 200);

@@ -9,12 +9,13 @@ const end = html.indexOf('\nfunction startGraveyardWorld()', start);
 assert(start >= 0 && end > start, 'Homefront inline world action must be found');
 const handler = html.slice(start, end);
 
-function harness(initialMode = 'home') {
+function harness(initialMode = 'home', directWalkPreview = false) {
   let response = null;
   let failure = null;
-  const changes = [];
+  const requests = [];
   const sandbox = {
-    request: async () => { if (failure) throw failure; return response; },
+    directWalkPreview,
+    request: async (path, method, body) => { requests.push({ path, method, body }); if (failure) throw failure; return response; },
     drawGraveyardMap() {},
     renderSurvival() {},
     render() {},
@@ -37,13 +38,15 @@ function harness(initialMode = 'home') {
     run: sandbox.run,
     getMode: sandbox.getMode,
     getWorld: sandbox.getWorld,
-    changes: sandbox.modeChanges
+    changes: sandbox.modeChanges,
+    requests
   };
 }
 
-const direct = harness();
+const direct = harness('home', true);
 direct.setResponse({ self: { x: 2, z: 3 } });
 await direct.run('/api/homefront/world/enter', {});
+assert.equal(direct.requests[0].body.route, undefined, 'the server assigns each Homefront its own trailhead');
 assert.equal(direct.getMode(), 'expedition',
   'direct expedition entry must reveal the Graveyard panel');
 assert.deepEqual(Array.from(direct.changes), ['expedition'],
@@ -74,6 +77,7 @@ assert.equal(unaccepted.getMode(), 'home',
 const viaTravel = harness('expedition');
 viaTravel.setResponse({ self: { x: 1, z: 1 } });
 await viaTravel.run('/api/homefront/world/enter', { withParty: false });
+assert.equal(viaTravel.requests[0].body.route, undefined, 'legacy entry keeps normal spawn selection');
 assert.equal(viaTravel.getMode(), 'expedition');
 assert.equal(viaTravel.changes.length, 0,
   'normal Travel menu mode switch must not cause a second full render');

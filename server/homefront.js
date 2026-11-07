@@ -19,6 +19,8 @@ const PvP = require('./homefront-pvp');
 const Rpg = require('./homefront-rpg');
 const CindersEffects = require('./homefront-cinders-effects');
 const Collision = require('./homefront-collision');
+const Vehicles = require('./homefront-vehicles');
+const Rescue = require('./homefront-rescue');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
@@ -92,13 +94,19 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
   const cindersEffects = () => CindersEffects.fromAttributes(Rpg.get(store,user.acct).attributes);
   if (worldRoute) {
     const inputRoute = url.pathname === '/api/homefront/world/move-input';
-    // Deployment flag is server-owned; clients cannot enable experimental movement.
+    const roverInputRoute = url.pathname === '/api/homefront/world/vehicle/drive';
+    // Both preview transports are server-owned flags. Neither flag implies
+    // enabling the other; all control actions remain authenticated.
     if (inputRoute && process.env.HOMEFRONT_CONTINUOUS_MOVEMENT !== '1') {
       json(res, 501, { error: 'continuous_movement_unavailable' }); return true;
     }
-    // A separate bounded input budget avoids relaxing rate limits for inventory,
-    // combat, or other world actions. Short movement bursts still face a world cooldown.
-    const limited = inputRoute
+    if (roverInputRoute && process.env.HOMEFRONT_VEHICLES_ENABLED !== '1') {
+      json(res, 501, { error: 'homefront_vehicles_unavailable' }); return true;
+    }
+    // Steering can send six bounded commands per second. Apply the EXISTING
+    // dedicated movement-input budget to both streams, not the ordinary 120/min
+    // combat, loot and inventory budget. Neither may bypass server cooldown.
+    const limited = inputRoute || roverInputRoute
       ? (gate('homefront-world-input:' + user.acct, 480, 60e3) ||
          gate('homefront-world-input-ip:' + ip, 1440, 60e3))
       : (gate('homefront-world:' + user.acct, 120, 60e3) ||
@@ -200,6 +208,56 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
+        case '/api/homefront/world/vehicle/build':
+        case '/api/homefront/world/vehicle/board':
+        case '/api/homefront/world/vehicle/drive':
+        case '/api/homefront/world/vehicle/dismount':
+        case '/api/homefront/world/vehicle/charge': {
+          // Experimental, server-owned vehicle transport. Not enabled by the
+          // continuous walking flag: both must be tested independently.
+          if(process.env.HOMEFRONT_VEHICLES_ENABLED !== '1'){
+            json(res,501,{error:'homefront_vehicles_unavailable'});return true;
+          }
+          const now=Date.now(),account=user.acct;
+          if(!db.players[account])throw Error('not_in_expedition');
+          const action=url.pathname.split('/').at(-1);
+          const bases=store.load('homefront.json',{});
+          const base=Core.validateBase(bases[account]||Core.createBase(account),account);
+          if(!base)throw Error('save_invalid');
+          let vehicle,blocked=false;
+          if(action==='build')vehicle=Vehicles.build(db,base,account,World.ownRefugeGate(db,account),now);
+          else if(action==='board')vehicle=Vehicles.board(db,account,now);
+          else if(action==='drive'){
+            const out=Vehicles.drive(db,account,{sequence:payload.sequence,steer:payload.steer,throttle:payload.throttle},now);
+            vehicle=out.vehicle;blocked=out.blocked;
+          } else if(action==='dismount')vehicle=Vehicles.dismount(db,account,now);
+          else if(action==='charge')vehicle=Vehicles.charge(db,base,account,World.ownRefugeGate(db,account),now);
+          else throw Error('unknown_vehicle_action');
+          if(action==='build'||action==='charge'){
+            base.revision++;base.updatedAt=now;
+            base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'vehicle',
+              text:action==='build'?'Assembled the first scrap rover at the Homefront trailhead.':'Charged a salvaged rover battery at the parked vehicle.',at:now});
+            base.log=base.log.slice(-20);
+            bases[account]=base;
+            store.save('homefront.json',bases);
+          }
+          store.save('homefront-world.json',db);
+          const publicVehicle={id:vehicle.id,type:vehicle.type,x:vehicle.x,z:vehicle.z,
+            heading:vehicle.heading,charge:vehicle.charge,sequence:vehicle.sequence,occupied:!!vehicle.driver};
+          // Steering is high-frequency. Return a compact authoritative ack;
+          // do NOT clone/serialize hundreds of loot sites, doors, patrols,
+          // rosters and other players six times per second.
+          if(action==='drive'){
+            const driver=db.players[account];
+            json(res,200,{mode:'homefront-vehicle',vehicle:publicVehicle,vehicleResult:{action,blocked},
+              self:{x:driver.x,z:driver.z},selfVehicle:{...publicVehicle,mine:true}});
+            return true;
+          }
+          json(res,200,{mode:'homefront-world',...World.snapshot(db,account,now),
+            vehicle:publicVehicle,vehicleResult:{action,blocked},
+            base:action==='build'||action==='charge'?base:undefined});
+          return true;
+        }
         case '/api/homefront/world/exploration/discover': {
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');
@@ -377,7 +435,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           if (req.method !== 'POST') { json(res, 405, { error: 'method_not_allowed' }); return true; }
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');
-          const spawned = Combat.spawn({ encounters: db.encounters, account: user.acct, player, interiors: db.interiors, now: Date.now() });
+          const spawned = World.spawnEncounter(db, user.acct, Date.now());
+          if (!spawned.encounter) throw new Error('no_infected_nearby');
           db.encounters = spawned.encounters;
           player.lastSeen = Date.now();
           store.save('homefront-world.json', db);
@@ -422,7 +481,10 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const combatAt = Date.now();
           const training = cindersEffects();
           const survivalBeforeAttack = Survival.tick(player.survival, combatAt, training);
-          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), aimTrainingBonus: training.aimStabilityBonus, targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null, miss: payload?.miss === true && payload.targetId == null && payload.aimPoint == null });
+          const outcome = Combat.attack({ encounters: db.encounters, account: user.acct, player, players: db.players,
+            interiors: db.interiors, sharedInteriors: db.sharedInteriors,
+            destroyedObstacles: Object.values(db.environmentStructures).filter(s => s.health <= 0).map(s => s.id),
+            base: combatBase, survival: survivalBeforeAttack, now: combatAt, weaponPower: Core.weaponPower(base), aimTrainingBonus: training.aimStabilityBonus, targetId: payload?.targetId ?? null, aimPoint: payload?.aimPoint ?? null, miss: payload?.miss === true && payload.targetId == null && payload.aimPoint == null });
           // Gunfire and melee combat leave a server-recorded noise signature. The next
           // authoritative world tick uses it to attract the local infected director.
           player.noiseLevel = Math.max(player.noiseLevel || 0, Firearms.isFirearmTier(weaponId) ? Firearms.FIREARM_TIERS[weaponId].noise : weaponId === 'pump_shotgun' ? 95 : weaponId === 'marksman_rifle' ? 82 : 62);
@@ -435,10 +497,6 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           player.inventory = carried;
           db.encounters = outcome.encounters;
           player.survival = outcome.survival || survivalBeforeAttack;
-          if (outcome.enemyDamage > 0) {
-            player.survival.health = Math.max(0, player.survival.health - outcome.enemyDamage);
-            player.survival.infection = Math.min(100, player.survival.infection + Math.max(1, Math.floor(outcome.enemyDamage / 4)));
-          }
           player.lastSeen = combatAt;
           bases[user.acct] = outcome.base;
           store.save('homefront.json', bases);
@@ -617,7 +675,8 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');
           const nearest = World.nearestPoint(player.x, player.z, 'rescue');
-          if (!nearest || nearest.distance > 14) throw new Error('too_far_from_rescue');
+          const reachError=Rescue.reachError(db,user.acct,nearest?.point);
+          if(reachError)throw new Error(reachError);
           if (payload.pointId && payload.pointId !== nearest.point.id) throw new Error('too_far_from_rescue');
           const now = Date.now();
           const rescue = db.rescues[nearest.point.id];

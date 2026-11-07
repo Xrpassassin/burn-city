@@ -1,7 +1,8 @@
 // Optional Homefront 3D movement controller. Visual prediction never modifies game authority.
+import { ZOMBIE_WALK_SPEED as WALK_SPEED, ZOMBIE_FAST_SPEED as SPRINT_SPEED, HOMEFRONT_CROUCH_SPEED_SCALE } from './zombie-locomotion.mjs';
+
 export const INPUT_SEND_INTERVAL_MS = 125;
-export const WALK_SPEED = 8;
-export const SPRINT_SPEED = 12;
+export { WALK_SPEED, SPRINT_SPEED };
 export const MAX_PREDICTION_LEAD = 1.5;
 
 function normalizeDirection(direction) {
@@ -17,7 +18,7 @@ const coords = value => Number.isFinite(value?.x) && Number.isFinite(value?.z)
 export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailable = () => {} }) {
   if (typeof send !== 'function') throw new TypeError('send is required');
   let enabled = false, nextSequence = 0, pending = false, lastSentAt = -Infinity;
-  let sentMotion = false, lastAckAt = -Infinity, server = null, predicted = null, generation = 0;
+  let sentMotion = false, acknowledgedCrouch = false, lastAckAt = -Infinity, server = null, predicted = null, generation = 0;
   let readyAfter = -Infinity, fatalFallback = false;
   let lastFrameAt = -Infinity, networkFailureStreak = 0;
 
@@ -33,6 +34,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
     if (!Number.isSafeInteger(protocol.nextSequence) || protocol.nextSequence < 0) return;
     const point = coords(position);
     if (!point) return;
+    if (!pending) acknowledgedCrouch = position.crouched === true;
     if (!enabled) {
       enabled = true; generation++; nextSequence = protocol.nextSequence;
       server = point; predicted = { ...point }; lastSentAt = -Infinity; sentMotion = false;
@@ -54,13 +56,13 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       predicted.z += (server.z - predicted.z) * 0.35;
     }
   }
-  function step(direction, sprint, now, dt) {
+  function step(direction, sprint, now, dt, crouched = false) {
     if (Number.isFinite(now)) lastFrameAt = Math.max(lastFrameAt, now);
     if (!enabled || !server || !predicted) return;
     if (now < readyAfter) { predicted = { ...server }; return; }
     const vec = normalizeDirection(direction);
     if (vec.moving && Number.isFinite(dt) && dt > 0) {
-      const speed = sprint ? SPRINT_SPEED : WALK_SPEED;
+      const speed = crouched ? WALK_SPEED * HOMEFRONT_CROUCH_SPEED_SCALE : sprint ? SPRINT_SPEED : WALK_SPEED;
       predicted.x += vec.x * Math.min(0.05, dt) * speed;
       predicted.z += vec.z * Math.min(0.05, dt) * speed;
       const lead = Math.hypot(predicted.x - server.x, predicted.z - server.z);
@@ -74,16 +76,19 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       predicted.x += (server.x - predicted.x) * 0.16;
       predicted.z += (server.z - predicted.z) * 0.16;
     }
-    if (pending || now - lastSentAt < INPUT_SEND_INTERVAL_MS || (!vec.moving && !sentMotion)) return;
+    if (pending || now - lastSentAt < INPUT_SEND_INTERVAL_MS ||
+        (!vec.moving && !sentMotion && crouched === acknowledgedCrouch)) return;
     pending = true;
     lastSentAt = now;
     sentMotion = vec.moving;
-    const command = { sequence: nextSequence++, x: vec.moving ? vec.x : 0, z: vec.moving ? vec.z : 0, sprint: !!sprint };
+    const command = { sequence: nextSequence++, x: vec.moving ? vec.x : 0, z: vec.moving ? vec.z : 0,
+      sprint: !crouched && !!sprint, ...(crouched ? { crouched: true } : {}) };
     const requestGeneration = generation;
     Promise.resolve().then(() => send(command)).then(data => {
       if (!enabled || generation !== requestGeneration) return;
       if (!data?.inputAck || data.inputAck.sequence !== command.sequence) throw new Error('movement_ack_mismatch');
       correct(data.inputAck);
+      acknowledgedCrouch = data.self?.crouched ?? crouched;
       networkFailureStreak = 0;
       lastAckAt = Math.max(now, lastFrameAt);
       onSnapshot(data, now);

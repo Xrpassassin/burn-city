@@ -1,3 +1,5 @@
+import { PINE_CROSSING_BUILDINGS } from './homefront-pine-crossing.mjs';
+
 // Authored expedition content for Homefront's existing Graveyard map.
 // Presentation/mission metadata only: server/homefront-world.js remains authoritative
 // for coordinates, movement, combat, loot, rescues, and reward ownership.
@@ -74,6 +76,12 @@ const poi = (id, title, district, x, z, risk, archetype, objective, story, inter
   Object.freeze({ id, title, district, x, z, risk, archetype, objective, story, interactables: Object.freeze(interactables), lootProfile, routeTo: Object.freeze(routeTo), interior: Object.freeze(interior), flags: Object.freeze(flags) });
 
 export const LANDMARKS = Object.freeze([
+  ...PINE_CROSSING_BUILDINGS.map(({ id, title, x, z, finish }) =>
+    poi(id, title, 'outskirts', x, z, 1, finish === 'store' ? 'market_ruin' : 'medical_cache',
+      'Search the rooms at Pine Crossing', 'The logging road and creek trail both lead back toward North Gate.',
+      [id + '_search', id + '_back_search'], finish === 'store' ? 'food_tools' : 'medical',
+      PINE_CROSSING_BUILDINGS.filter(building => building.id !== id).map(building => building.id),
+      ['front room', 'back room'], ['starter_route', 'interior'])),
   poi('north_bus_depot', 'North Bus Depot', 'outskirts', -8, -65, 1, 'bus_depot', 'Search the stranded transit office', 'A driver left a hand-drawn evacuation route beneath the dispatch desk.', ['dispatch_drawer', 'bus_luggage', 'route_board'], 'food_tools', ['river_checkpoint', 'stranded_bus'], ['dispatch office', 'bus bays'], ['starter_route']),
   poi('river_checkpoint', 'River Checkpoint', 'outskirts', 62, -20, 1, 'road_checkpoint', 'Search the abandoned checkpoint', 'A final radio log mentions a convoy redirected inland.', ['guard_shack', 'roadblock_crate', 'radio_log'], 'ammo_supplies', ['north_bus_depot', 'east_checkpoint', 'exchange_market'], ['guard shack', 'road barrier'], ['radio_clue']),
   poi('wrecked_depot', 'Wrecked Depot', 'outskirts', 14, 72, 1, 'freight_depot', 'Salvage the depot without getting pinned', 'The loading ledger lists equipment moved to the Ironworks before the fall.', ['forklift_pallet', 'shipping_manifest', 'tool_locker'], 'scrap_tools', ['old_rail_yard', 'east_checkpoint'], ['loading bay', 'office mezzanine'], ['salvage']),

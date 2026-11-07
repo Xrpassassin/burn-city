@@ -19,6 +19,7 @@ const PvP = require('./homefront-pvp');
 const Rpg = require('./homefront-rpg');
 const CindersEffects = require('./homefront-cinders-effects');
 const Collision = require('./homefront-collision');
+const Vehicles = require('./homefront-vehicles');
 
 const SESSION_RESOURCES = ['wood','scrap','food','water','meds','ammo'];
 function addSessionTotals(player, { embers = 0, resources = {}, consumed = {} } = {}) {
@@ -200,6 +201,46 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
       }
       if (req.method !== 'POST' || !payload || typeof payload !== 'object' || Array.isArray(payload)) { json(res, 400, { error: 'invalid_world_action' }); return true; }
       switch (url.pathname) {
+        case '/api/homefront/world/vehicle/build':
+        case '/api/homefront/world/vehicle/board':
+        case '/api/homefront/world/vehicle/drive':
+        case '/api/homefront/world/vehicle/dismount':
+        case '/api/homefront/world/vehicle/charge': {
+          // Experimental, server-owned vehicle transport. Not enabled by the
+          // continuous walking flag: both must be tested independently.
+          if(process.env.HOMEFRONT_VEHICLES_ENABLED !== '1'){
+            json(res,501,{error:'homefront_vehicles_unavailable'});return true;
+          }
+          const now=Date.now(),account=user.acct;
+          if(!db.players[account])throw Error('not_in_expedition');
+          const action=url.pathname.split('/').at(-1);
+          const bases=store.load('homefront.json',{});
+          const base=Core.validateBase(bases[account]||Core.createBase(account),account);
+          if(!base)throw Error('save_invalid');
+          let vehicle,blocked=false;
+          if(action==='build')vehicle=Vehicles.build(db,base,account,World.ownRefugeGate(db,account),now);
+          else if(action==='board')vehicle=Vehicles.board(db,account,now);
+          else if(action==='drive'){
+            const out=Vehicles.drive(db,account,{sequence:payload.sequence,steer:payload.steer,throttle:payload.throttle},now);
+            vehicle=out.vehicle;blocked=out.blocked;
+          } else if(action==='dismount')vehicle=Vehicles.dismount(db,account,now);
+          else if(action==='charge')vehicle=Vehicles.charge(db,base,account,now);
+          else throw Error('unknown_vehicle_action');
+          if(action==='build'||action==='charge'){
+            base.revision++;base.updatedAt=now;
+            base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'vehicle',
+              text:action==='build'?'Assembled the first scrap rover at the Homefront trailhead.':'Charged a salvaged rover battery at the parked vehicle.',at:now});
+            base.log=base.log.slice(-20);
+            bases[account]=base;
+            store.save('homefront.json',bases);
+          }
+          store.save('homefront-world.json',db);
+          json(res,200,{mode:'homefront-world',...World.snapshot(db,account,now),
+            vehicle:{id:vehicle.id,type:vehicle.type,x:vehicle.x,z:vehicle.z,heading:vehicle.heading,
+              charge:vehicle.charge,sequence:vehicle.sequence,occupied:!!vehicle.driver},
+            vehicleResult:{action,blocked},base:action==='build'||action==='charge'?base:undefined});
+          return true;
+        }
         case '/api/homefront/world/exploration/discover': {
           const player = db.players[user.acct];
           if (!player) throw new Error('not_in_expedition');

@@ -1,14 +1,25 @@
-name: Deploy to Fly
+# /data/boot.sh on the Fly machine polls GitHub main and deploys updated
+# application code automatically. This workflow validates every merge.
+# A token-backed machine restart remains an explicitly initiated recovery task
+# behind the protected production environment; it is NOT the deploy trigger.
+name: Validate main and optionally restart Fly
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - '.github/workflows/deploy.yml'
+      - 'test/fly-auto-sync-workflow.test.mjs'
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
-  restart:
+  validate:
     runs-on: ubuntu-latest
-    environment: production
     steps:
       - uses: actions/checkout@v4
+      - name: Check auto-sync and protected restart boundary
+        run: node test/fly-auto-sync-workflow.test.mjs
       - name: Syntax check
         run: node --check server/server.js && node --check server/game.js
       - uses: actions/setup-node@v4
@@ -16,7 +27,7 @@ jobs:
           node-version: 22
       - name: Install deps
         run: npm ci
-      - name: Test money + security suites (blocks restart on failure)
+      - name: Test money + security suites
         env:
           DRY_RUN: 'true'
         run: |
@@ -28,7 +39,16 @@ jobs:
         run: |
           export DATA_DIR=$(mktemp -d)
           npm run test:all
-      - name: Restart Fly machine (it pulls main on boot)
+
+  # Normal pushes must never request production approval. The Fly machine
+  # already pulls main every ~3 minutes; manual restart is for recovery only.
+  restart:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Restart Fly machine (pulls main on boot)
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_IOV2 || secrets.FLY_IO }}
         run: |

@@ -600,9 +600,29 @@ try {
   await stopWalking("w");
 
   await activate(page.locator("#homefrontContextAction"));
+  // A full pack can legitimately route all rewards to refuge storage, and the
+  // toast may fade before software-WebGL polling starts. Verify the persistent
+  // authoritative response text rather than only one transient toast phrase.
   await page.waitForFunction(() =>
-    document.querySelector(".hf-event-toast")?.textContent.includes("Pack:"),
-  );
+    document.getElementById('lootStatus')?.textContent.includes('This container will restock'),
+    null, {timeout:30000}
+  ).catch(async error => {
+    console.error('EXPEDITION_LOOT_DIAGNOSTICS',JSON.stringify({
+      ui:await page.evaluate(()=>({
+        action:document.getElementById('homefrontContextAction')?.textContent,
+        loot:document.getElementById('lootStatus')?.textContent,
+        toast:document.querySelector('.hf-event-toast')?.textContent,
+        movement:document.querySelector('.hf-movement-status')?.textContent
+      })),world:store.load('homefront-world.json',null),
+      requests:observed.slice(-12),errors
+    }));
+    throw error;
+  });
+  assert.ok(observed.some(entry=>entry.path.endsWith('/world/loot')),
+    'in-world E/search button must send the actual authenticated loot action');
+  await page.waitForFunction(() => /Pack:|Sent to refuge:/.test(
+    document.querySelector('.hf-event-toast')?.textContent || ''
+  ), null, {timeout:5000});
 
   if (process.env.HOMEFRONT_EXPEDITION_INTERIOR === "1") {
     async function walkAxis(key, axis, target, direction) {

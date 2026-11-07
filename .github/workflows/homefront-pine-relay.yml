@@ -7,6 +7,9 @@ on:
       - 'server/homefront-loot.js'
       - 'server/homefront-collision.js'
       - 'test/homefront-pine-relay-sim.mjs'
+      - 'test/homefront-single-overworld.test.js'
+      - 'server/homefront-world.js'
+      - 'test/homefront-explore-multiplayer-sim.js'
       - '.github/workflows/homefront-pine-relay.yml'
   workflow_dispatch:
 permissions:
@@ -24,5 +27,5 @@ jobs:
         run: node test/homefront-pine-relay-sim.mjs
       - name: Existing Homefront collision and loot invariants
         run: node server/homefront-collision.test.js && node server/homefront-loot.test.js
-      - name: Shared world and persistent individual gate assignments
-        run: node test/homefront-world-sim.js
+      - name: Shared world, survivor Homefront separation, and persistent gate assignments
+        run: node test/homefront-world-sim.js && node test/homefront-single-overworld.test.js && node test/homefront-explore-multiplayer-sim.js

@@ -8,7 +8,7 @@
 'use strict';
 const G = require('../client/js/goldlock.js');
 const { auditBurnSupply } = require('./burn-supply-audit');
-const { reconcile: reconcileEcosystemSupply } = require('./ecosystem-supply-reconciliation');
+const { reconcile: reconcileEcosystemSupply, TOKENS: ECOSYSTEM_TOKENS } = require('./ecosystem-supply-reconciliation');
 const { BURN_ISSUER, BURN_CURRENCY } = require('./issuer-return-history');
 const BURN_KEY = BURN_ISSUER + '-' + BURN_CURRENCY;
 const { attachIssuerReturnHistory } = require('./issuer-return-api-contract');
@@ -168,8 +168,22 @@ function create(opts = {}) {
         const pools = d.pools.filter(p => p.amm && !p.gone);
         const burn = d.nodes.find(n=>n.key===BURN_KEY);
         if(burn) S.tokens[burn.name] = await token(burn,pools);
+        // Publish the three tower singularities before scanning potentially
+        // hundreds of AMM holders. Pool verification can take minutes, and the
+        // client must not wait for it to learn IMM/XRPyro issuer obligations.
+        // Exact issuer+currency matches prevent a renamed pool token from
+        // being mistaken for either tower's ledger identity.
+        for (const name of ['XRPyro', 'IMM']) {
+          const id = ECOSYSTEM_TOKENS[name];
+          const n = d.nodes.find(n => n.name === name && n.key === id.issuer + '-' + id.currency);
+          if (n) S.tokens[name] = await token(n, pools);
+        }
         for (const p of pools) S.pools[p.amm] = await pool(p);
-        for (const n of d.nodes) { if (!n.key || n.key===BURN_KEY || !n.key.includes('-') || SKIP_TOKENS.has(n.name)) continue; S.tokens[n.name] = await token(n, pools); }
+        for (const n of d.nodes) {
+          if (!n.key || n.key===BURN_KEY || !n.key.includes('-') ||
+              SKIP_TOKENS.has(n.name) || ECOSYSTEM_TOKENS[n.name]) continue;
+          S.tokens[n.name] = await token(n, pools);
+        }
         S.last_ok = iso(now()); S.last_err = null;
       } catch (e) { S.last_err = e.message; } finally { S.run = null; } })();
     return S.run;

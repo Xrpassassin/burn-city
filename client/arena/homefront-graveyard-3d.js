@@ -830,6 +830,8 @@ function boot(host) {
     lootGroup.add(g);
   }
   let worldData = null, moving = false;
+  let roverMotorBed=null, roverLastDriveAt=0, roverLastMotorUpdateAt=0, roverLastPower=0;
+  function stopRoverMotor(){roverMotorBed?.stop();roverMotorBed=null;}
   // The player approaches actual world actors instead of opening another
   // browser-style dialogue screen. Cue each stranded NPC sparingly.
   const survivorCueAt=new Map();
@@ -1128,6 +1130,7 @@ function boot(host) {
       continuousInput.sync(data.inputProtocol, data.self, performance.now());
     }
     syncRoverMeshes(data.world?.vehicles||[]);
+    if(!data.selfVehicle)stopRoverMotor();
     if (Object.prototype.hasOwnProperty.call(data, 'interior')) {
       const previousInterior = interiorState;
       const nextInterior = data.interior ? { ...data.interior } : null;
@@ -2256,6 +2259,10 @@ function boot(host) {
       if(!worldData||!data.vehicle)return;
       const previous=worldData.world?.vehicles||[];
       const cars=previous.map(v=>v.id===data.vehicle.id?{...v,...data.vehicle}:v);
+      const last=worldData.self;
+      roverLastPower=data.vehicleResult?.blocked?0.12:
+        Math.hypot(data.self.x-last.x,data.self.z-last.z)>0.035?0.78:0.22;
+      roverLastDriveAt=performance.now();
       worldData={...worldData,
         self:{...worldData.self,x:data.self.x,z:data.self.z},
         selfVehicle:{...worldData.selfVehicle,...data.selfVehicle},
@@ -2562,6 +2569,7 @@ function boot(host) {
         if (reloadState) cancelReload('Reload interrupted on leaving the field view.');
         if (zombieAudioActive) { zombieAudio.stop(); zombieAudioActive = false; }
         stopFieldAudio();
+        stopRoverMotor();
         tracerPool.update(1);
         infectedRenderer.clear();
         cameraInitialized = false;
@@ -2574,6 +2582,13 @@ function boot(host) {
       return;
     }
     sceneWasVisible = true;
+    if(worldData?.selfVehicle){
+      roverMotorBed ||= sfx.roverMotor();
+      if(roverMotorBed&&now-roverLastMotorUpdateAt>120){
+        roverLastMotorUpdateAt=now;
+        roverMotorBed.set(now-roverLastDriveAt<350?roverLastPower:0.12);
+      }
+    }else stopRoverMotor();
     view.refreshCrouch?.();
     updatePineScenery(dt);
     tracerPool.update(dt);

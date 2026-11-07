@@ -40,23 +40,38 @@ const W='/api/homefront/world';
   assert.equal(Object.keys(state.vehicles).length,1);
   assert.equal((await call('POST',W+'/vehicle/board','B')).body.error,'no_owned_vehicle',
    'other survivors cannot steal the owner-locked first rover');
+  const bHome={x:state.players.B.x,z:state.players.B.z};
   state.players.A.x=built.body.vehicle.x;state.players.A.z=built.body.vehicle.z;
   state.players.B.x=built.body.vehicle.x;state.players.B.z=built.body.vehicle.z;
   store.save('homefront-world.json',state);
   const view=await call('GET',W,'B');
   assert.equal(view.body.world.vehicles.length,1,'same rover is visible to stranger at same map coordinates');
   assert.equal(view.body.world.vehicles[0].mine,false);
+  assert.equal(view.body.world.vehicles[0].sequence,undefined,'owner control sequence stays private');
   const board=await call('POST',W+'/vehicle/board','A');
   assert.equal(board.status,200,JSON.stringify(board.body));
   assert.equal(board.body.selfVehicle.id,'rover:A');
   assert.equal((await call('POST',W+'/move','A',{x:0,z:0})).body.error,'exit_vehicle_before_walking');
   assert.equal((await call('POST',W+'/vehicle/drive','B',{sequence:0,throttle:1,steer:0})).body.error,'not_driving_vehicle');
   assert.equal((await call('POST',W+'/vehicle/drive','A',{sequence:0,throttle:500,steer:0})).body.error,'invalid_vehicle_input');
-  const movement=await call('POST',W+'/vehicle/drive','A',{sequence:0,throttle:1,steer:0,x:99,z:99});
+  const obstructed=await call('POST',W+'/vehicle/drive','A',{sequence:0,throttle:1,steer:0,x:99,z:99});
+  assert.equal(obstructed.status,200,JSON.stringify(obstructed.body));
+  assert.equal(obstructed.body.vehicleResult.blocked,true,
+   'a survivor physically standing in the lane stops the rover before collision');
+  assert.equal(obstructed.body.vehicle.charge,100,'blocked travel spends no battery');
+  // Leave the real person in their own area and use the next server-owned
+  // input sequence. The first blocked command cannot be replayed for movement.
+  const clearance=store.load('homefront-world.json',{});
+  Object.assign(clearance.players.B,bHome);
+  store.save('homefront-world.json',clearance);
+  await new Promise(resolve=>setTimeout(resolve,125));
+  const movement=await call('POST',W+'/vehicle/drive','A',{sequence:1,throttle:1,steer:0,x:99,z:99});
   assert.equal(movement.status,200,JSON.stringify(movement.body));
-  assert.equal(movement.body.vehicle.sequence,0);
-  assert.ok(Math.hypot(movement.body.self.x-board.body.self.x,movement.body.self.z-board.body.self.z)<=1.26,
-   'forged coordinates cannot teleport beyond the first server drive step');
+  assert.equal(movement.body.world,undefined,'compact drive acknowledgment is not a full world rebuild');
+  assert.equal(movement.body.vehicle.sequence,1);
+  assert.ok(Math.hypot(movement.body.self.x-board.body.self.x,movement.body.self.z-board.body.self.z)<=2.85,
+   'forged coordinates cannot teleport beyond capped server drive steps');
+  assert.ok(movement.body.vehicle.charge<100,'real driving drains battery');
   const exited=await call('POST',W+'/vehicle/dismount','A');
   assert.equal(exited.status,200,JSON.stringify(exited.body));
   assert.equal(exited.body.selfVehicle,null);

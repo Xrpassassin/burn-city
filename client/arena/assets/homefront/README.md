@@ -40,3 +40,11 @@ original biome tints remain as broad colour variation. No displacement is applie
 walking, vehicle collision, doors and camera geometry remain unchanged. Texture
 objects are shared per surface, with mipmaps and anisotropy capped at 2 on touch /
 4 on desktop. Missing maps fall back to a flat material. No runtime CDN requests.
+
+## Original woodland surface detail
+
+`homefront-pine-detail.mjs` generates the repeating bark colour/normal maps from
+original deterministic math at scene creation. The maps are 128x256 RGBA, shared
+by trunks, dry branches and the roadside deadfall, and use 256 KiB before mipmaps.
+Fern geometry, wind animation, wall tinting, drainage geometry and glazing lines
+are original scene code. No additional external texture pack is used in this pass.

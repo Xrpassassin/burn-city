@@ -229,6 +229,10 @@ try {
   }
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on('console',message=>{
+    if(message.type()==='error'&&/THREE.WebGLProgram|VALIDATE_STATUS|shader error/i.test(message.text()))
+      errors.push(message.text());
+  });
   let pineRockLoaded = false;
   page.on('response', response => {
     if (response.url().endsWith('/pine-crossing/rock-small.glb')) pineRockLoaded = response.ok();
@@ -352,19 +356,20 @@ try {
       const firstPoint={x:boarding.self.x,z:boarding.self.z};
       const driving=page.waitForResponse(response=>response.request().method()==='POST'&&
         response.url().endsWith('/api/homefront/world/vehicle/drive'),{timeout:12000});
+      let driveResponse;
       if(mobile){
         const pad=page.getByRole('button',{name:'Rover KeyW'});
         const bounds=await pad.boundingBox();
         const at={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
         await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[at]});
-        await new Promise(resolve=>setTimeout(resolve,450));
-        await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+        try{driveResponse=await driving;}
+        finally{await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});}
       }else{
         await page.keyboard.down('w');
-        await new Promise(resolve=>setTimeout(resolve,450));
-        await page.keyboard.up('w');
+        try{driveResponse=await driving;}
+        finally{await page.keyboard.up('w');}
       }
-      const driven=await (await driving).json();
+      const driven=await driveResponse.json();
       assert.equal(driven.vehicle?.sequence,0);
       assert.ok(Math.hypot(driven.self.x-firstPoint.x,driven.self.z-firstPoint.z)<1.5,
         'server controls the first rover movement budget');
@@ -435,12 +440,17 @@ try {
     const { Object3D, PerspectiveCamera } = await import('/arena/vendor/three.module.min.js');
     const lookAt = PerspectiveCamera.prototype.lookAt;
     PerspectiveCamera.prototype.lookAt = function (...args) {
+      if(this.fov===48&&window.pineFacadeShot){
+        this.position.fromArray(window.pineFacadeShot.position);
+        lookAt.apply(this,window.pineFacadeShot.target);return;
+      }
       lookAt.apply(this, args);
       if (this.fov === 48) window.pineCameraPosition = { x: this.position.x, z: this.position.z };
     };
     const environment = window.pineEnvironmentProbe = {};
     const expected = new Set(['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier', 'pine-relay-station',
       'pine-cracked-asphalt', 'pine-roadside-grass', 'pine-crows',
+      'pine-dry-branches', 'pine-fern-understory', 'pine-weathered-drainage', 'pine-fractured-glazing',
       'loot_pine_logging_kit:closed', 'loot_pine_logging_kit:searched', 'loot_pine_creek_pack:closed',
       'loot_pine_relay_spares:closed']);
     const add = Object3D.prototype.add;
@@ -632,10 +642,32 @@ try {
     const surfaceProbe=await page.evaluate(()=>window.pineSurfaceProbe);
     assert.ok(Object.values(surfaceProbe.maps).every(([w,h])=>w===512&&h===512),'all three scanned materials decode their colour, normal and roughness maps at the mobile budget');
     console.log('HOMEFRONT SURFACE PACK LOADED',JSON.stringify(surfaceProbe));
+    const renderBudget=await page.evaluate(()=>{
+      const canvas=document.querySelector('#graveyard3d canvas');
+      const gl=canvas.getContext('webgl2')||canvas.getContext('webgl');
+      const debug=gl.getExtension('WEBGL_debug_renderer_info');
+      return {renderer:String(gl.getParameter(debug?debug.UNMASKED_RENDERER_WEBGL:gl.RENDERER)),
+        antialias:gl.getContextAttributes().antialias,ratio:canvas.width/canvas.clientWidth};
+    });
+    if(/swiftshader|llvmpipe|softpipe|software rasterizer/i.test(renderBudget.renderer)){
+      assert.equal(renderBudget.antialias,false,'software rendering avoids desktop multisampling');
+      assert.ok(renderBudget.ratio<=0.76,'software rendering retains a bounded framebuffer');
+    }
+    console.log('WOODLAND RENDER BUDGET',JSON.stringify(renderBudget));
     if (process.env.HOMEFRONT_PINE_SCREENSHOT) await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
     await page.waitForFunction(() => window.fieldAudioProbe.cues.includes('canvas'), null, { timeout: 6000 });
     for (const building of PINE_CROSSING_BUILDINGS) {
       await walkTo([building.x, -43]);
+      if(process.env.HOMEFRONT_FACADE_SCREENSHOT&&building.finish==='store'){
+        await page.evaluate(async building=>{
+          const {terrainElevation}=await import('/arena/homefront-terrain-generation.mjs');
+          window.pineFacadeShot={position:[building.x+2.4,terrainElevation(building.x+2.4,-41)+1.9,-41],
+            target:[building.x+2.4,terrainElevation(building.x,building.z)+1.5,building.z]};
+          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        },building);
+        try{await page.screenshot({path:process.env.HOMEFRONT_FACADE_SCREENSHOT});}
+        finally{await page.evaluate(()=>{delete window.pineFacadeShot;});}
+      }
       await walkTo([building.x, -45.5]);
       await page.waitForFunction(title => document.querySelector('#homefrontContextAction')?.textContent.includes('Enter ' + title),
         building.title);
@@ -676,6 +708,10 @@ try {
     for (const site of ['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier', 'pine-relay-station', 'pine-cracked-asphalt']) {
       assert.equal(environment[site], true, site + ' was attached to the world scene');
     }
+    assert.ok(environment['pine-fern-understory']>0,'forest floor uses batched ferns');
+    assert.ok(environment['pine-dry-branches']>0,'trees have batched dry limbs');
+    assert.equal(environment['pine-weathered-drainage'],true,'weathered building drainage is attached');
+    assert.equal(environment['pine-fractured-glazing'],true,'cracked window glazing is attached');
     assert.ok(environment['pine-roadside-grass'] > 0, 'shoulder growth is instanced in the scene');
     assert.equal(environment['pine-crows'], 8, 'four crows use a single wing batch');
     assert.equal(environment['loot_pine_logging_kit:closed'], true, 'the full crew kit is visible on the trail');

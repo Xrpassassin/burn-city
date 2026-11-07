@@ -32,7 +32,7 @@ assert.match(scene, /createZombieAudio\(sfx, \{ base: new URL\('\.\/sfx\/'/, 're
 assert.match(scene, /from '\.\/homefront-ground-detail\.mjs'/, 'load deterministic lightweight ground dressing');
 assert.match(scene, /new THREE\.InstancedMesh\(/, 'batch micro-props to avoid one draw call per piece of scenery');
 assert.match(scene, /addGroundDetailInstances\(chunk, cx, cz\)/, 'cull ground details with their spatial chunk');
-assert.match(scene, /coarsePointer \? 1\.15 : 1\.6/, 'cap mobile render resolution to preserve frame time while allowing sharper desktop output');
+assert.match(scene, /renderer\.setPixelRatio\(homefrontPixelRatio\(/, 'apply the tested phone/GPU/software render resolution policy to the actual scene');
 assert.match(scene, /zombieAudio\.tick\(dt, audioMe, presentedInfected/, 'drive ambient infected audio and threat heartbeat from Homefront world snapshots');
 assert.match(scene, /zombieAudio\.hit\(\{ hs: detail\.hitZone === 'head'/, 'play shared hit and headshot audio only after authoritative combat confirmation');
 assert.match(scene, /if \(hit\.killed\) infectedRenderer\.zdie/, 'play the shared death reaction after a confirmed kill');

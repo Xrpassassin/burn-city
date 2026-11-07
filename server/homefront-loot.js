@@ -4,6 +4,9 @@
 const NODES = Object.freeze([
   {id:'loot_pine_logging_kit',label:'Logging Bend Crew Kit',x:-39,z:-63,district:'outskirts',risk:2,kind:'materials',trail:true},
   {id:'loot_pine_creek_pack',label:'Creek Trail First-Aid Pack',x:-25,z:-57,district:'outskirts',risk:1,kind:'medical',trail:true},
+  // The radio relay requires the exposed logging-road spur: better salvage,
+  // louder scavenging, and a patrol that can investigate the search noise.
+  {id:'loot_pine_relay_spares',label:'Relay 07 Emergency Spares',x:-47,z:-69,district:'outskirts',risk:4,kind:'highrisk',trail:true},
   {id:'loot_bus_depot',label:'Bus Depot Supply Crate',x:-8,z:-65,district:'outskirts',risk:1,kind:'supplies'},
   {id:'loot_river_checkpoint',label:'River Checkpoint Backpack',x:62,z:-20,district:'outskirts',risk:1,kind:'medical'},
   {id:'loot_wrecked_depot',label:'Wrecked Depot Cache',x:14,z:72,district:'outskirts',risk:1,kind:'materials'},

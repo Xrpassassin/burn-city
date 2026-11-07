@@ -102,6 +102,40 @@ function fieldNoiseBed(frequency, quality, spatial = false) {
     }
   };
 }
+// Small original synthesized electric-salvage-rover motor. It uses the
+// existing volume/mute bus, with no downloaded engine samples or new
+// AudioContext. The caller owns the lifecycle; it must stop on dismount.
+function roverMotor() {
+  if (!ready()) return null;
+  const low=A.createOscillator(),harmonic=A.createOscillator();
+  const filter=A.createBiquadFilter(),gain=A.createGain();
+  low.type='sawtooth';harmonic.type='triangle';
+  low.frequency.value=63;harmonic.frequency.value=126;
+  filter.type='lowpass';filter.frequency.value=300;filter.Q.value=0.48;
+  gain.gain.value=0.0001;
+  low.connect(filter);harmonic.connect(filter);filter.connect(gain).connect(bus);
+  low.start();harmonic.start();
+  let ended=false;
+  return {
+    set(power=0){
+      if(ended||!A)return;
+      const t=A.currentTime,v=Math.max(0,Math.min(1,Number.isFinite(power)?power:0));
+      low.frequency.setTargetAtTime(63+v*65,t,0.12);
+      harmonic.frequency.setTargetAtTime(126+v*130,t,0.12);
+      filter.frequency.setTargetAtTime(245+v*300,t,0.16);
+      gain.gain.setTargetAtTime(0.018+v*0.057,t,0.14);
+    },
+    stop(){
+      if(ended)return;ended=true;
+      const t=A.currentTime;
+      gain.gain.setTargetAtTime(0.0001,t,0.07);
+      for(const o of [low,harmonic]){try{o.stop(t+0.3);}catch{}}
+      low.onended=()=>{
+        low.disconnect();harmonic.disconnect();filter.disconnect();gain.disconnect();
+      };
+    }
+  };
+}
 // ---------- heartbeat: BPM + volume follow intensity (0..1); the rest of the mix gets muffled as it rises ----------
 const HB = { i: 0, bpm: 0, next: 0, cutoff: 20000, onBeat: null };
 function heartbeat(i) { HB.i = i; if (!A) return; const now = A.currentTime;
@@ -115,6 +149,7 @@ export const sfx = {
   setVol(x) { vol = Math.min(1, Math.max(0, x)); localStorage[LS] = vol; if (master) master.gain.value = muted ? 0 : vol; },
   setMuted(m) { muted = !!m; localStorage[MUTE] = muted ? '1' : '0'; if (master) master.gain.value = muted ? 0 : vol; },
   loadBank, play, loop, listen, heartbeat, has: k => !!BUF[k]?.length,
+  roverMotor,
   fieldWind() {
     return fieldNoiseBed(530, 0.58);
   },

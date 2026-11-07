@@ -12,7 +12,7 @@ export function createRoverControls({
  pad.className='hf-rover-pad';
  pad.hidden=true;
  pad.setAttribute('aria-label','Rover steering');
- pad.style.cssText='position:absolute;bottom:18px;right:12px;z-index:8;display:grid;grid-template-columns:repeat(3,48px);gap:4px;touch-action:none';
+ pad.style.cssText='position:absolute;bottom:18px;right:12px;z-index:8;display:none;grid-template-columns:repeat(3,48px);gap:4px;touch-action:none';
  const positions=[['KeyW','▲',2],['KeyA','◀',3],['KeyS','▼',4],['KeyD','▶',5]];
  for(const [code,label,slot]of positions){
   const button=document.createElement('button');
@@ -46,6 +46,7 @@ export function createRoverControls({
   const snap=getSnapshot(),id=snap?.selfVehicle?.id||null;
   if(id!==activeId){activeId=id;sequence=0;held.clear();}
   pad.hidden=!id||!visible();
+  pad.style.display=id&&visible()?'grid':'none';
   if(!id)return;
  }
  async function tick(){

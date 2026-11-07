@@ -283,7 +283,13 @@ try {
   const pineCrossing = process.env.HOMEFRONT_EXPEDITION_PINE === '1';
   if (pineCrossing) await page.evaluate(async () => {
     const { sfx } = await import('/arena/sfx.js');
-    const probe = window.fieldAudioProbe = { surfaces: [], windStarts: 0, windStops: 0, creekPeak: 0, creekStops: 0 };
+    const probe = window.fieldAudioProbe = { surfaces: [], cues: [], windStarts: 0, windStops: 0, creekPeak: 0, creekStops: 0 };
+    const cue = sfx.fieldCue;
+    sfx.fieldCue = (kind, ...position) => {
+      const played = cue(kind, ...position);
+      if (played && position.every(Number.isFinite)) probe.cues.push(kind);
+      return played;
+    };
     const wind = sfx.fieldWind;
     sfx.fieldWind = () => {
       const loop = wind();
@@ -408,6 +414,9 @@ try {
     const action = page.locator('#homefrontContextAction');
     for (const point of route('logging-road').slice(1)) {
       await walkTo(point);
+      if (point[0] === -29) {
+        await page.waitForFunction(() => window.fieldAudioProbe.cues.includes('canopy'), null, { timeout: 6000 });
+      }
       if (point[0] !== -43) continue;
       await page.waitForFunction(() => document.querySelector('#explorationObjective')?.textContent.includes('Risk 2/5'));
       await page.waitForFunction(() => document.querySelector('#homefrontContextAction')?.textContent.includes('Logging Bend Crew Kit'));
@@ -421,6 +430,7 @@ try {
     if (process.env.HOMEFRONT_PINE_SCREENSHOT) {
       await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
     }
+    await page.waitForFunction(() => window.fieldAudioProbe.cues.includes('canvas'), null, { timeout: 6000 });
     for (const building of PINE_CROSSING_BUILDINGS) {
       await walkTo([building.x, -43]);
       await walkTo([building.x, -45.5]);
@@ -430,6 +440,8 @@ try {
       await activate(action);
       const interior = (await (await entered).json()).interior;
       assert.equal(interior.landmarkId, building.id);
+      await page.waitForFunction(kind => window.fieldAudioProbe.cues.includes(kind),
+        building.finish === 'store' ? 'timber' : 'metal', { timeout: 6000 });
       const item = building.finish === 'store' ? 'Dry goods shelf' : 'First-aid cabinet';
       await walkTo([building.x - 0.8, building.z - 0.2]);
       await page.waitForFunction(label => document.querySelector('#homefrontContextAction')?.textContent.includes(label), item);

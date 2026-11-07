@@ -19,13 +19,13 @@ function unlock() { const a = ctx(); if (!a) return; try { const s = a.createBuf
 for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, unlock, { once: true, passive: true });
 const ready = () => A && A.state === 'running' && !muted && vol > 0;
 function env(g, t, a, peak, dec) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + dec); }
-function tone(f, { type = 'sine', at = 0, a = 0.01, dec = 0.2, v = 0.3, f1 = null, pan = 0 } = {}) {
+function tone(f, { type = 'sine', at = 0, a = 0.01, dec = 0.2, v = 0.3, f1 = null, pan = 0, out = bus } = {}) {
   if (!ready()) return; const t = A.currentTime + at, o = A.createOscillator(), g = A.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + a + dec);
-  env(g, t, a, v, dec); let out = g; if (pan && A.createStereoPanner) { const p = A.createStereoPanner(); p.pan.value = pan; g.connect(p); out = p; } o.connect(g); out.connect(bus); o.start(t); o.stop(t + a + dec + 0.05); }
-function noise({ at = 0, a = 0.005, dec = 0.2, v = 0.3, f = 1200, f1 = null, q = 1, type = 'bandpass' } = {}) {
+  env(g, t, a, v, dec); let signal = o.connect(g); if (pan && A.createStereoPanner) { const p = A.createStereoPanner(); p.pan.value = pan; signal = signal.connect(p); } signal.connect(out); o.start(t); o.stop(t + a + dec + 0.05); }
+function noise({ at = 0, a = 0.005, dec = 0.2, v = 0.3, f = 1200, f1 = null, q = 1, type = 'bandpass', out = bus } = {}) {
   if (!ready()) return; const t = A.currentTime + at, s = A.createBufferSource(), fl = A.createBiquadFilter(), g = A.createGain(); s.buffer = noiseBuf; s.loop = true;
   fl.type = type; fl.frequency.setValueAtTime(f, t); if (f1) fl.frequency.exponentialRampToValueAtTime(f1, t + a + dec); fl.Q.value = q; env(g, t, a, v, dec);
-  s.connect(fl).connect(g).connect(bus); s.start(t, Math.random() * 0.5); s.stop(t + a + dec + 0.05); }
+  s.connect(fl).connect(g).connect(out); s.start(t, Math.random() * 0.5); s.stop(t + a + dec + 0.05); return s; }
 const notes = (seq, type = 'triangle', v = 0.18) => seq.forEach(([f, at, d]) => tone(f, { type, at, dec: d, v }));
 // ---------- sample bank ----------
 const BANK = { groan: 6, breath: 3, shriek: 4, attack: 5, step: 4, crawl: 4, roar: 3, hit: 3, bite: 3, headshot: 0, shotgun: 0, pump: 0, firestorm: 0, boom: 0, flame_start: 0, flame_loop: 0, flame_end: 0, beam_loop: 0, reload: 0, pistol_reload: 0, pistol: 0, heartbeat: 0, horde: 0 };
@@ -108,6 +108,25 @@ export const sfx = {
   },
   fieldCreek() {
     return fieldNoiseBed(1450, 0.75, true);
+  },
+  fieldCue(kind, x, y, z) {
+    if (!ready()) return false;
+    const recipes = {
+      canopy: { f: 2100, f1: 850, q: 0.56, a: 0.25, dec: 0.66, v: 0.15 },
+      canvas: { f: 790, f1: 340, q: 0.87, a: 0.035, dec: 0.33, v: 0.21 },
+      timber: { f: 430, f1: 165, q: 1.6, a: 0.08, dec: 0.37, v: 0.15 },
+      metal: { f: 1450, f1: 720, q: 2.5, a: 0.008, dec: 0.40, v: 0.13 }
+    };
+    const recipe = recipes[kind];
+    if (!recipe) return false;
+    const out = panner(x, y, z, 3.8, 18, 1.1);
+    out.connect(bus);
+    const pitch = 0.88 + Math.random() * 0.24;
+    const source = noise({ ...recipe, f: recipe.f * pitch, f1: recipe.f1 * pitch, out });
+    if (kind === 'timber') tone(138 * pitch, { f1: 78 * pitch, type: 'triangle', a: 0.04, dec: 0.24, v: 0.075, out });
+    if (kind === 'metal') tone(465 * pitch, { f1: 395 * pitch, type: 'triangle', a: 0.008, dec: 0.23, v: 0.09, out });
+    source.onended = () => out.disconnect();
+    return true;
   },
   fieldStep(surface, sprint, crouched = false) {
     const gain = sprint ? 1.35 : crouched ? 0.28 : 1;

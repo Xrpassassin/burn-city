@@ -14,6 +14,30 @@ export const PINE_CROSSING_BUILDINGS = Object.freeze([
 ]);
 export const pineCrossingBuilding = id => PINE_CROSSING_BUILDINGS.find(building => building.id === id);
 
+const PINE_SOUND_SOURCES = [
+  { id: 'north-pines', kind: 'canopy', x: -25, z: -77, height: 4, radius: 15 },
+  { id: 'logging-pines', kind: 'canopy', x: -41, z: -65, height: 4.5, radius: 15 },
+  { id: 'creek-pines', kind: 'canopy', x: -20, z: -57, height: 3.5, radius: 11 },
+  { id: 'store-awning', kind: 'canvas', x: -41, z: -46.1, height: 2.3, radius: 11 }
+];
+const PINE_ROOM_SOUNDS = {
+  pine_general_store: { id: 'store-rafters', kind: 'timber', x: -41, z: -49.5, height: 2.4 },
+  pine_clinic: { id: 'clinic-duct', kind: 'metal', x: -28.5, z: -49.8, height: 2.1 }
+};
+
+export function pineAmbienceAt(x, z, interiorId) {
+  if (interiorId) return PINE_ROOM_SOUNDS[interiorId] ?? null;
+  let nearest = null, best = Infinity;
+  for (const source of PINE_SOUND_SOURCES) {
+    const distance = Math.hypot(x - source.x, z - source.z);
+    if (distance < source.radius && distance < best) {
+      nearest = source;
+      best = distance;
+    }
+  }
+  return nearest;
+}
+
 // Runs downhill from the logging-road culvert to the woods south of town.
 export const PINE_CREEK = Object.freeze([
   [-13.7,-77.5], [-15,-74], [-17.2,-70.5], [-19.3,-67], [-19.6,-62],

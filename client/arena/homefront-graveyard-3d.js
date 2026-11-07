@@ -4,7 +4,7 @@ import * as THREE from './vendor/three.module.min.js';
 import { getGuestToken, fetchHomefront } from './homefront-guest.mjs';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
-import { inPineCrossing, nearestPineCreek, pineRouteDistance, pineSurfaceAt, pineCrossingBuilding, PINE_CROSSING_BOUNDS } from './homefront-pine-crossing.mjs';
+import { inPineCrossing, nearestPineCreek, pineAmbienceAt, pineRouteDistance, pineSurfaceAt, pineCrossingBuilding, PINE_CROSSING_BOUNDS } from './homefront-pine-crossing.mjs';
 import { addPineCrossingScenery, buildPineFacade } from './homefront-pine-scenery.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { atmosphereAt, AMBIENT_UPDATE_MS } from './homefront-atmosphere.mjs';
@@ -2287,6 +2287,8 @@ function boot(host) {
   let lastStickMoveAt = 0;
   let lastFrame = performance.now();
   let fieldWind = null, fieldCreek = null, lastFoot = null, stepDistance = 0, lastAmbientAt = -Infinity;
+  let activeCueId = null, cueSince = 0;
+  const nextCueAt = new Map();
   function stopFieldAudio() {
     fieldWind?.stop();
     fieldWind = null;
@@ -2295,6 +2297,8 @@ function boot(host) {
     lastFoot = null;
     stepDistance = 0;
     lastAmbientAt = -Infinity;
+    activeCueId = null;
+    nextCueAt.clear();
   }
   function updateFieldAudio(point, sprint, crouched, now) {
     if (!zombieAudioStarted || !point || !inPineCrossing(point.x, point.z, 4)) {
@@ -2303,12 +2307,24 @@ function boot(host) {
     }
     fieldWind ||= sfx.fieldWind();
     if (now - lastAmbientAt >= 125) {
-      fieldWind?.set(interiorState ? 0.013 : 0.18 + 0.08 * Math.sin(now / 2150));
+      const cue = pineAmbienceAt(point.x, point.z, interiorState?.landmarkId);
+      const shelter = interiorState ? 0.08 : cue?.kind === 'canopy' ? 0.73 : 1;
+      const gust = 0.17 + 0.05 * Math.sin(now / 3900) + 0.028 * Math.sin(now / 1450);
+      fieldWind?.set(gust * shelter);
       const creek = nearestPineCreek(point.x, point.z);
       const proximity = Math.max(0, 1 - creek.distance / 16);
       if (proximity > 0 && !interiorState) fieldCreek ||= sfx.fieldCreek();
       const level = interiorState ? 0 : proximity ** 2 * (0.32 + 0.045 * Math.sin(now / 740));
       fieldCreek?.set(level, creek.x, terrainElevation(creek.x, creek.z), creek.z);
+      const cueId = cue?.id ?? null;
+      if (activeCueId !== cueId) {
+        activeCueId = cueId;
+        cueSince = now;
+      }
+      if (cue && now - cueSince >= 1400 && now >= (nextCueAt.get(cueId) ?? 0) &&
+          sfx.fieldCue(cue.kind, cue.x, terrainElevation(cue.x, cue.z) + cue.height, cue.z)) {
+        nextCueAt.set(cueId, now + 9000 + Math.random() * 7000);
+      }
       lastAmbientAt = now;
     }
     const step = lastFoot ? Math.hypot(point.x - lastFoot.x, point.z - lastFoot.z) : 0;

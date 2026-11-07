@@ -7,7 +7,7 @@ const goldlock = require('../client/js/goldlock.js');
 function issuerIsBlackholed(info) { return !!info?.account_data && !info.account_data.AMMID && goldlock.isBlackholedInfo(info); }
 const TOKENS = Object.freeze({
  IMM: {issuer:'rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP',currency:'IMM'},
- XRPyro: {issuer:'rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va',currency:'XRPYRO'}
+ XRPyro: {issuer:'rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va',currency:'58525079726F0000000000000000000000000000'}
 });
 function units(s) {
  if (typeof s !== 'string' || !/^(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(s)) throw Error('invalid unsigned XRPL amount');

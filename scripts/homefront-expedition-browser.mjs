@@ -757,7 +757,7 @@ try {
   assert.ok(lootResult.loot?.accepted?.length||lootResult.loot?.overflow?.length,
     'in-world search grants carried supplies or the documented refuge overflow');
   const claimed=testState('homefront-world.json').lootNodes[lootResult.loot.node.id];
-  assert.equal(claimed.claimedBy,ACCOUNT,'the authenticated explorer owns this claim');
+  assert.equal(claimed.claimedBy,ACCOUNT.slice(0,24),'stored claim metadata matches the server\'s bounded account label');
   assert.ok(claimed.readyAt>Date.now(),'successful scavenging persists the shared container cooldown');
   assert.ok(lootResult.world.lootNodes.some(node=>node.id===lootResult.loot.node.id&&!node.available),
     'the same response marks the physical container unavailable');

@@ -5,6 +5,7 @@ import { verifiedSupplyFraction } from './verified-supply-visual.mjs';
 import { verifiedEcosystemSupplyFraction } from './verified-ecosystem-supply-visual.mjs';
 import { observedBurnPreview } from './observed-burn-preview.mjs';
 import { xrpyroLedgerOutstanding } from './xrpyro-supply-visual.mjs';
+import { immLedgerOutstanding } from './imm-supply-visual.mjs';
 import { issuerReturnCard, supplyReconciliationCard, ecosystemSupplyCard } from './issuer-return-card.mjs';
 // AMM lock + burn visuals (server truth: GET /api/amm-lock, server/amm-lock.js). +3 draw calls total, all instanced/merged:
 //   1) ONE InstancedMesh: gold segmented chain halo around every pool bridge (at the arc's midpoint). Lit arc = VERIFIED permanently locked
@@ -123,15 +124,17 @@ export function initAmmLock(c) {
     if(ecosystem!==null && fresh(o))return {st:'verified',o:{...o,burned_pct:ecosystem*100},f:ecosystem,net:true};
     const historical = verifiedBurnFraction(o?.issuer_return_history, N[k]?.key);
     if(historical !== null && fresh(o))return {st:'verified',o:{...o,burned:o.issuer_return_history.burned,burned_pct:historical*100},f:historical};
-    // Supply-based XRPyro preview uses issuer obligations from the read-only
+    // Supply-based IMM and XRPyro previews use obligations from the read-only
     // ledger service. Require the exact token identity, gateway source, fresh
     // verified holder snapshot and disabled issuer keys. Not an audited burn.
     const xrpyroSupply = xrpyroLedgerOutstanding({name:k,tokenKey:N[k]?.key,record:o});
+    const immSupply = immLedgerOutstanding({name:k,tokenKey:N[k]?.key,record:o});
+    const previewSupply = k==='IMM' ? immSupply : xrpyroSupply;
     const preview = observedBurnPreview({name:k,tokenKey:N[k]?.key,
       observedReturns:N[k]?.burn_vol,transactionCount:N[k]?.burn_txs,
       scanComplete:N[k]?.burn_complete,
-      outstandingSupply:xrpyroSupply === null ? undefined : xrpyroSupply,
-      outstandingSource:xrpyroSupply === null ? undefined : 'xrpl_gateway_balances'});
+      outstandingSupply:previewSupply === null ? undefined : previewSupply,
+      outstandingSource:previewSupply === null ? undefined : 'xrpl_gateway_balances'});
     if(preview && o?.issuer_keys_disabled===true && fresh(o))
       return {st:preview.status === 'indicative_outstanding_supply' ? 'estimated' : 'partial',o,f:preview.fraction,preview};
     // A verified inaccessible issuer earns a small, fixed marker even while its
@@ -204,13 +207,16 @@ export function initAmmLock(c) {
         issuerVerified: !!(o && fresh(o) && o.issuer_keys_disabled === true) });
       if(!v.preview)return card;
       if(v.preview.status === 'indicative_outstanding_supply') {
+        const comparisonUrl = k==='IMM' ?
+          'https://xrpl.to/token/rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP-IMM' :
+          'https://xrpl.to/token/rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-58525079726F0000000000000000000000000000';
         return card + '<p class="dim"><b>Estimated launch-relative supply reduction: '+
           (v.preview.fraction*100).toFixed(4)+'%</b>. Launch supply: '+esc(String(v.preview.baseline))+
           ' '+esc(k)+' (project-provided); current outstanding: '+esc(String(v.preview.outstanding))+
           ' '+esc(k)+'; difference: '+esc(String(v.preview.removed))+' '+esc(k)+
           '. Source: XRPL gateway_balances (issuer obligations). '+
           'This is a supply-based visual estimate, not a complete historical burn audit. '+
-          '<a href="https://xrpl.to/token/rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-58525079726F0000000000000000000000000000" target="_blank" rel="noopener noreferrer">Compare on XRPL.to</a>.</p>';
+          '<a href="'+comparisonUrl+'" target="_blank" rel="noopener noreferrer">Compare on XRPL.to</a>.</p>';
       }
       return card + '<p class="dim">Indicative lower-bound visual: '+esc(String(v.preview.observedReturns))+' '+esc(k)+
         ' observed returned to issuer in an incomplete history scan; compared with the project-provided launch supply of '+

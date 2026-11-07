@@ -32,7 +32,7 @@ export function createRoverControls({
  const control=(event,down)=>{
   const code=event.code;
   if(!['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight'].includes(code))return;
-  const id=getSnapshot()?.selfVehicle?.id;
+  const live=getSnapshot();const id=live?.vehicleEnabled!==false?live?.selfVehicle?.id:null;
   if(!id||!visible())return;
   if(event.target?.isContentEditable||/INPUT|TEXTAREA|SELECT/.test(event.target?.tagName||''))return;
   event.preventDefault();
@@ -43,7 +43,7 @@ export function createRoverControls({
  window.addEventListener('keyup',event=>control(event,false),{capture:true});
  window.addEventListener('blur',()=>held.clear());
  function sync(){
-  const snap=getSnapshot(),id=snap?.selfVehicle?.id||null;
+  const snap=getSnapshot(),id=snap?.vehicleEnabled!==false?snap?.selfVehicle?.id||null:null;
   if(id!==activeId){activeId=id;sequence=Number.isSafeInteger(snap?.selfVehicle?.sequence)?snap.selfVehicle.sequence+1:0;held.clear();failedAcks=0;}
   pad.hidden=!id||!visible();
   pad.style.display=id&&visible()?'grid':'none';
@@ -51,7 +51,7 @@ export function createRoverControls({
  }
  async function tick(){
   sync();
-  const snap=getSnapshot(),id=snap?.selfVehicle?.id;
+  const snap=getSnapshot(),id=snap?.vehicleEnabled!==false?snap?.selfVehicle?.id:null;
   if(!id||busy||!visible()||document.hidden)return;
   const throttle=Number(held.has('KeyW'))-Number(held.has('KeyS'));
   const steer=Number(held.has('KeyD'))-Number(held.has('KeyA'));
@@ -67,7 +67,7 @@ export function createRoverControls({
   }catch(error){
    const reason=String(error?.message||error);
    failedAcks++;
-   if(reason==='invalid_vehicle_input'||failedAcks>=2){
+   if(['invalid_vehicle_input','not_driving_vehicle','homefront_vehicles_unavailable'].includes(reason)||failedAcks>=2){
      // A request can commit on the server while its response is lost. Do
      // not endlessly replay the old sequence or guess movement/position:
      // retrieve the current authoritative owner-only sequence and pose.
@@ -75,7 +75,7 @@ export function createRoverControls({
      held.clear();
      try{
        const fresh=await onResync();
-       if(fresh?.selfVehicle?.id===id&&Number.isSafeInteger(fresh.selfVehicle.sequence)){
+       if(fresh?.vehicleEnabled!==false&&fresh?.selfVehicle?.id===id&&Number.isSafeInteger(fresh.selfVehicle.sequence)){
          sequence=fresh.selfVehicle.sequence+1;failedAcks=0;
          onError('Rover connection restored. Resume steering.');
        }else {
@@ -85,8 +85,6 @@ export function createRoverControls({
      }catch(resyncError){
        onError('Rover reconnect failed: '+String(resyncError?.message||resyncError));
      }
-   }else if(['not_driving_vehicle','homefront_vehicles_unavailable'].includes(reason)){
-     held.clear();activeId=null;sequence=0;onError(reason);
    }else onError(reason);
   }finally{busy=false;}
  }

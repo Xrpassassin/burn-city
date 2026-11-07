@@ -12,6 +12,7 @@ on:
       - 'server/homefront-vehicles.js'
       - 'test/homefront-vehicles.test.js'
       - 'test/homefront-rover-api-sim.js'
+      - 'client/arena/homefront-rover-controls.test.mjs'
       - 'test/homefront-rover-corridors.test.mjs'
       - 'client/arena/homefront-vehicle-corridors.mjs'
       - 'client/arena/homefront-rover-*'
@@ -35,4 +36,4 @@ jobs:
       - name: Existing Homefront collision and loot invariants
         run: node server/homefront-collision.test.js && node server/homefront-loot.test.js
       - name: Shared world, survivor Homefront separation, and persistent gate assignments
-        run: node test/homefront-world-sim.js && node test/homefront-single-overworld.test.js && node test/homefront-vehicles.test.js && node test/homefront-rover-api-sim.js && node test/homefront-rover-corridors.test.mjs && node test/homefront-explore-multiplayer-sim.js
+        run: node test/homefront-world-sim.js && node test/homefront-single-overworld.test.js && node test/homefront-vehicles.test.js && node client/arena/homefront-rover-controls.test.mjs && node test/homefront-rover-api-sim.js && node test/homefront-rover-corridors.test.mjs && node test/homefront-explore-multiplayer-sim.js

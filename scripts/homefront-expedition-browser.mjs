@@ -470,7 +470,7 @@ try {
       assert(result.interior.used.includes(building.id + '_search'));
       assert(result.interiorReward.some(drop => drop.amount > 0 ||
         (drop.overflow > 0 && result.overflowDestination === 'refuge')), item + ' yields a physical supply reward');
-      await walkTo([building.x, building.z + 1.75]);
+      await walkTo([building.x, building.z + 1.95]);
       await page.waitForFunction(() => document.querySelector('#homefrontContextAction')?.textContent.includes('Step outside'));
       await activate(action);
       await page.waitForFunction(() => document.querySelector('#interiorStatus')?.textContent.includes('Returned to the street'));

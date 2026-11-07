@@ -291,6 +291,12 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
   assert.equal(defeated.result.selfInventory.ammo, 4, 'safe respawn keeps the field pack');
   assert.equal(defeated.result.selfEncounter, null, 'the defeated player is released from the encounter');
   assert.ok(Collision.isSafePosition(defeated.result.self.x, defeated.result.self.z));
+  assert.deepEqual(
+    {x:defeated.result.self.x,z:defeated.result.self.z}, defeated.result.refugeReturn,
+    'infected defeat returns the player to their own permanently reserved gate, not another refuge'
+  );
+  assert.equal(defeated.world.refugeEntries[account], fixture.refugeEntries[account],
+    'death preserves original refuge assignment across the same shared world');
   assert.equal(W.snapshot(defeated.world, account, start + 12000).selfInfectedHit, null, 'expired hit feedback is not replayed on reconnect');
 }
 

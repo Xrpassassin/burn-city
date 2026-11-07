@@ -63,5 +63,5 @@ assert.ok(world.vehicles['driver-a'],'returned owner finds the same parked rover
 assert.equal(Cars.normalize({'__proto__':{type:'scrap_rover',x:1,z:1}}).__proto__,undefined);
 const copy=World.snapshot(world,'driver-a',3700);
 assert.ok(copy.world.vehicles.some(v=>v.mine));
-assert.throws(()=>Cars.charge(world,{resources:{scrap:0}},'driver-a',3900),/insufficient_vehicle_materials|park_at_rover_to_charge|vehicle_fully_charged/);
+assert.throws(()=>Cars.charge(world,{resources:{scrap:0}},'driver-a',gate,3900),/insufficient_vehicle_materials|park_at_rover_to_charge|vehicle_fully_charged/);
 console.log('Homefront shared rover: built with real resources, capped drive, collision, owner lock, presence, and persistence');

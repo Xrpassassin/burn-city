@@ -221,6 +221,7 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); dist0 = state.distance; if (start) start.moved = true; }
   });
   host.addEventListener('pointermove', e => {
+    if (!state.visible || !canLook() || modalOpen()) { pts.clear(); start = null; pinch0 = 0; state.dragging = false; return; }
     const p = pts.get(e.pointerId); if (!p) return;
     const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
     if (pts.size === 2) { const [a, b] = [...pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0 > 0) state.distance = Math.max(3.5, Math.min(10.5, dist0 * pinch0 / Math.max(20, d))); return; }
@@ -235,10 +236,13 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
   document.addEventListener('visibilitychange', () => { if (document.hidden) resetLook(); });
   const up = e => {
     if (!pts.delete(e.pointerId)) return;
-    if (start && e.pointerId === start.id) { const tap = !start.moved && e.type === 'pointerup'; const s = start; start = null; setTimeout(() => { state.dragging = false; }, 0); if (tap && onTap) onTap({ clientX: e.clientX, clientY: e.clientY, button: s.button, pointerType: s.type }); }
+    if (start && e.pointerId === start.id) { const tap = !start.moved && e.type === 'pointerup' && !modalOpen() && canLook(); const s = start; start = null; setTimeout(() => { state.dragging = false; }, 0); if (tap && onTap) onTap({ clientX: e.clientX, clientY: e.clientY, button: s.button, pointerType: s.type }); }
     if (pts.size < 2) pinch0 = 0;
   };
   host.addEventListener('pointerup', up); host.addEventListener('pointercancel', up);
+  host.addEventListener('lostpointercapture', up);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
   if (wheel) host.addEventListener('wheel', e => { if (state.mode !== 'third') return; state.distance = Math.max(3.5, Math.min(10.5, state.distance + Math.sign(e.deltaY) * 0.65)); e.preventDefault(); }, { passive: false });
   if (typeof IntersectionObserver !== 'undefined') new IntersectionObserver(entries => { for (const en of entries) state.visible = en.isIntersecting; }).observe(host);
   state.move = () => {

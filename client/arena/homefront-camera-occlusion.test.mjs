@@ -39,3 +39,13 @@ assert.throws(()=>interiorCameraProbeOrigins(target,{x:NaN,y:0,z:0}),/finite cam
 assert.deepEqual(target,{x:0,y:1.8,z:0},'probe policy never changes the target');
 
 console.log('Homefront third-person interior camera wall clearance tests passed.');
+const {clipActorCamera}=await import('./homefront-camera-occlusion.mjs');
+const eye={x:0,y:1.3,z:0},lens={x:0,y:1.8,z:-6};
+const crowd=[{id:'behind-player',x:0,y:0,z:-4,hp:10,ty:0}];
+const clipped=clipActorCamera(eye,lens,crowd);
+assert.ok(clipped.occluded&&clipped.z>-4,'an infected between player and camera pulls the lens in front of its body');
+assert.deepEqual(clipActorCamera(eye,lens,[{...crowd[0],z:2}]),{...lens,occluded:false},'enemies in front of the player do not change camera reach');
+assert.deepEqual(clipActorCamera(eye,lens,[{...crowd[0],hp:0}]),{...lens,occluded:false},'dead actors do not obstruct the lens');
+assert.deepEqual(clipActorCamera(eye,lens,[{...crowd[0],x:4}]),{...lens,occluded:false},'off-axis enemies do not zoom the camera');
+assert.deepEqual(crowd,[{id:'behind-player',x:0,y:0,z:-4,hp:10,ty:0}],'camera clearance never moves an infected or changes its health');
+console.log('Homefront living-actor camera clearance passed');

@@ -135,3 +135,51 @@ offline.sync({enabled:true,nextSequence:100},{x:0,z:0});
 assert.equal(offline.enabled,false,'fatal network fallback needs an explicit page reload to re-enable preview');
 
 console.log('Homefront continuous client input prediction tests passed.');
+
+// A timed-out POST may commit or may be lost. A fresh GET determines the next
+// sequence; no client replay or invented movement is allowed during recovery.
+for(const committed of [false,true]){
+ const commands=[];let reads=0;
+ const recovered=createContinuousInput({
+  send:command=>{commands.push(command);if(commands.length===1)throw Error('movement_network_timeout');
+   return {inputAck:{sequence:command.sequence,x:3,z:4}};},
+  onResync:async()=>{reads++;return {self:{x:2,z:4},inputProtocol:{enabled:true,nextSequence:committed?1:0}};}
+ });
+ recovered.sync({enabled:true,nextSequence:0},{x:0,z:0});
+ recovered.step({x:1,z:0},false,100,0.05);await new Promise(r=>setImmediate(r));
+ assert.equal(recovered.recovering,true);assert.deepEqual(recovered.position(),{x:0,z:0});
+ recovered.step({x:1,z:0},false,300,0.05);await new Promise(r=>setImmediate(r));
+ assert.equal(reads,0,'recovery respects backoff');
+ recovered.step({x:1,z:0},false,500,0.05);await new Promise(r=>setImmediate(r));
+ assert.equal(commands.length,1,'recovery sends no new intent or replay');
+ assert.equal(recovered.recovering,false);assert.deepEqual(recovered.position(),{x:2,z:4});
+ recovered.step({x:1,z:0},false,700,0.05);await new Promise(r=>setImmediate(r));
+ assert.equal(commands[1].sequence,committed?1:0,'server alone decides whether the lost intent committed');
+ assert.equal(recovered.enabled,true);
+}
+let endRecovery;
+const abandoned=createContinuousInput({send:()=>{throw Error('invalid_movement_sequence');},
+ onResync:()=>new Promise(resolve=>{endRecovery=resolve;})});
+abandoned.sync({enabled:true,nextSequence:0},{x:0,z:0});
+abandoned.step({x:1,z:0},false,100,0.05);await new Promise(r=>setImmediate(r));
+abandoned.step(null,false,500,0.05);await new Promise(r=>setImmediate(r));
+abandoned.disable('returned_to_refuge');
+endRecovery({self:{x:99,z:99},inputProtocol:{enabled:true,nextSequence:10}});await new Promise(r=>setImmediate(r));
+assert.equal(abandoned.enabled,false,'a late recovery cannot re-enter an abandoned expedition');
+console.log('Homefront walking resync: committed/lost inputs, bounded recovery and abandoned sessions passed');
+let attempts=0;
+const reconnecting=createContinuousInput({send:()=>{throw Error('offline');},onResync:()=>{attempts++;throw Error('offline');}});
+reconnecting.sync({enabled:true,nextSequence:0},{x:0,z:0});
+reconnecting.step({x:1,z:0},false,100,0.05);await new Promise(r=>setImmediate(r));
+for(const at of [500,900,1700,3200,6200,10200]){
+ reconnecting.step({x:1,z:0},false,at,0.05);await new Promise(r=>setImmediate(r));
+}
+assert.equal(attempts,6,'failed resync reads use bounded exponential backoff');
+assert.equal(reconnecting.recovering,true,'a sustained outage stays recoverable without a mandatory page reload');
+assert.deepEqual(reconnecting.position(),{x:0,z:0},'offline recovery cannot invent distance');
+const offRecovery=createContinuousInput({send:()=>{throw Error('invalid_movement_sequence');},
+ onResync:()=>({self:{x:0,z:0},inputProtocol:{enabled:false,nextSequence:0}})});
+offRecovery.sync({enabled:true,nextSequence:0},{x:0,z:0});
+offRecovery.step({x:1,z:0},false,100,0.05);await new Promise(r=>setImmediate(r));
+offRecovery.step(null,false,500,0.05);await new Promise(r=>setImmediate(r));
+assert.equal(offRecovery.enabled,false,'authoritative recovery never enables a disabled server movement flag');

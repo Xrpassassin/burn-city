@@ -50,3 +50,28 @@ export function interiorCameraProbeOrigins(anchor, desired, {
   }
   return result;
 }
+
+// Presentation-only lens clearance around living infected. Never move actors,
+// change hit proxies, or remove an enemy standing in front of the player.
+export function clipActorCamera(anchor,desired,actors=[]){
+ const dx=desired.x-anchor.x,dy=desired.y-anchor.y,dz=desired.z-anchor.z;
+ const length=Math.hypot(dx,dy,dz);
+ if(length<0.001)return {...desired,occluded:false};
+ const ux=dx/length,uy=dy/length,uz=dz/length;
+ let nearest=length;
+ for(const actor of actors){
+  if(![actor?.x,actor?.y,actor?.z].every(Number.isFinite)||actor.hp<=0)continue;
+  const height=actor.cr?0.8:actor.ty===8?3.3:2.2;
+  const radius=actor.ty===8?0.95:0.65;
+  for(const level of [0.24,0.5,0.76]){
+   const x=anchor.x-actor.x,y=anchor.y-(actor.y+height*level),z=anchor.z-actor.z;
+   const c=x*x+y*y+z*z-radius*radius;
+   if(c<=0)continue; // a threat already at the player must not collapse the arm
+   const b=x*ux+y*uy+z*uz,disc=b*b-c;
+   if(disc<0)continue;
+   const entry=-b-Math.sqrt(disc);
+   if(entry>0&&entry<nearest)nearest=entry;
+  }
+ }
+ return clipInteriorCamera(anchor,desired,nearest,0.2);
+}

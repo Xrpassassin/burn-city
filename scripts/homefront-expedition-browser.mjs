@@ -240,10 +240,24 @@ try {
     },
     { TOKEN, ACCOUNT },
   );
+  const movementLoss=process.env.HOMEFRONT_TEST_MOVEMENT_LOSS||'';
+  let droppedMovement=null;const movementSequences=[];
   let inputDelayMs = Number(process.env.HOMEFRONT_TEST_INPUT_DELAY_MS) || 0;
   await page.route("**/*", async route => {
     const url = new URL(route.request().url());
     if (!["localhost", "127.0.0.1"].includes(url.hostname)) return route.abort();
+    if(movementLoss&&url.pathname.endsWith('/world/move-input')&&route.request().method()==='POST'){
+      const command=route.request().postDataJSON();movementSequences.push(command.sequence);
+      if(!droppedMovement&&(command.x||command.z)){
+        droppedMovement={sequence:command.sequence,committed:movementLoss==='committed'};
+        if(droppedMovement.committed){
+          const committed=await route.fetch();
+          assert.equal(committed.status(),200,'fault injection waits for a real successful server commit');
+          assert.equal((await committed.json()).inputAck?.sequence,command.sequence);
+        }
+        return route.abort('failed');
+      }
+    }
     if (inputDelayMs > 0 && url.pathname.endsWith('/world/move-input')) {
       await new Promise(resolve => setTimeout(resolve, inputDelayMs));
     }
@@ -744,6 +758,12 @@ try {
     throw error;
   });
   await stopWalking("w");
+  if(movementLoss){
+    assert.ok(droppedMovement,'the real browser encounters one deliberately lost movement response');
+    assert.ok(movementSequences.length>1,'walking resumes through the actual input transport after recovery');
+    if(droppedMovement.committed)assert.equal(movementSequences.filter(n=>n===droppedMovement.sequence).length,1,
+      'a committed movement packet is never replayed after its acknowledgement is lost');
+  }
 
   const looted=page.waitForResponse(response=>response.request().method()==='POST'&&
     response.url().endsWith(fixturePath('/api/homefront/world/loot')),{timeout:15000});

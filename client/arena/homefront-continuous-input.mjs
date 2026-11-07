@@ -15,16 +15,16 @@ function normalizeDirection(direction) {
 const coords = value => Number.isFinite(value?.x) && Number.isFinite(value?.z)
   ? { x: value.x, z: value.z } : null;
 
-export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailable = () => {} }) {
+export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailable = () => {}, onResync = null }) {
   if (typeof send !== 'function') throw new TypeError('send is required');
   let enabled = false, nextSequence = 0, pending = false, lastSentAt = -Infinity;
   let sentMotion = false, acknowledgedCrouch = false, lastAckAt = -Infinity, server = null, predicted = null, generation = 0;
   let readyAfter = -Infinity, fatalFallback = false;
-  let lastFrameAt = -Infinity, networkFailureStreak = 0;
+  let lastFrameAt = -Infinity, networkFailureStreak = 0, recovering = false;
 
   function disable(reason = 'disabled') {
     const hadMode = enabled;
-    enabled = false; pending = false; sentMotion = false; generation++;
+    enabled = false; pending = false; sentMotion = false; recovering = false; generation++;
     predicted = server ? { ...server } : null;
     if (hadMode) onUnavailable(reason);
   }
@@ -33,7 +33,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
     if (!protocol?.enabled) { disable('server_disabled'); return; }
     if (!Number.isSafeInteger(protocol.nextSequence) || protocol.nextSequence < 0) return;
     const point = coords(position);
-    if (!point) return;
+    if (!point || recovering) return;
     if (!pending) acknowledgedCrouch = position.crouched === true;
     if (!enabled) {
       enabled = true; generation++; nextSequence = protocol.nextSequence;
@@ -56,9 +56,36 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
       predicted.z += (server.z - predicted.z) * 0.35;
     }
   }
+  function recover(now) {
+    if(pending||now<readyAfter)return;
+    pending=true;
+    const revision=generation;
+    Promise.resolve().then(()=>onResync()).then(data=>{
+      if(!enabled||generation!==revision)return;
+      if(data?.inputProtocol?.enabled===false){disable('server_disabled');return;}
+      if(data?.self===null){disable('returned_to_refuge');return;}
+      const point=coords(data?.self),protocol=data?.inputProtocol;
+      if(!point||protocol?.enabled!==true||!Number.isSafeInteger(protocol.nextSequence)||protocol.nextSequence<0)
+        throw Error('movement_resync_invalid');
+      // The lost command may have committed or may never have reached the server.
+      // Only this fresh authenticated response may move the sequence backwards.
+      nextSequence=protocol.nextSequence;correct(point,true);
+      acknowledgedCrouch=data.self.crouched===true;sentMotion=false;
+      recovering=false;networkFailureStreak=0;
+      lastAckAt=Math.max(now,lastFrameAt);lastSentAt=lastAckAt;
+      readyAfter=lastAckAt+Math.min(1000,Math.max(0,Number.isFinite(protocol.readyInMs)?protocol.readyInMs:0));
+      onSnapshot(data,lastAckAt);
+    }).catch(error=>{
+      if(!enabled||generation!==revision)return;
+      if(error?.message==='sign_in_with_xaman'){fatalFallback=true;disable('sign_in_with_xaman');return;}
+      networkFailureStreak=Math.min(5,networkFailureStreak+1);
+      readyAfter=Math.max(now,lastFrameAt)+Math.min(4000,350*2**(networkFailureStreak-1));
+    }).finally(()=>{if(generation===revision)pending=false;});
+  }
   function step(direction, sprint, now, dt, crouched = false) {
     if (Number.isFinite(now)) lastFrameAt = Math.max(lastFrameAt, now);
     if (!enabled || !server || !predicted) return;
+    if(recovering){predicted={...server};recover(now);return;}
     if (now < readyAfter) { predicted = { ...server }; return; }
     const vec = normalizeDirection(direction);
     if (vec.moving && Number.isFinite(dt) && dt > 0) {
@@ -95,7 +122,10 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
     }).catch(error => {
       if (!enabled || generation !== requestGeneration) return;
       const code = String(error?.message || error);
-      if (code === 'continuous_movement_unavailable' || code === 'invalid_movement_sequence' ||
+      if(typeof onResync==='function'&&code!=='continuous_movement_unavailable'&&code!=='sign_in_with_xaman'){
+        recovering=true;correct(server,true);
+        readyAfter=Math.max(now,lastFrameAt)+350;
+      } else if (code === 'continuous_movement_unavailable' || code === 'invalid_movement_sequence' ||
           code === 'movement_ack_mismatch' || code === 'sign_in_with_xaman') {
         if (code !== 'continuous_movement_unavailable') fatalFallback = true;
         disable(code);
@@ -121,6 +151,7 @@ export function createContinuousInput({ send, onSnapshot = () => {}, onUnavailab
     sync, step, disable,
     get enabled() { return enabled; },
     get pending() { return pending; },
+    get recovering() { return recovering; },
     position() { return enabled && predicted ? { ...predicted } : null; },
     get nextSequence() { return nextSequence; }
   };

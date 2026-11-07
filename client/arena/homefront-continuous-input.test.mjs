@@ -134,6 +134,22 @@ assert.deepEqual(repeated,['movement_network_unavailable']);
 offline.sync({enabled:true,nextSequence:100},{x:0,z:0});
 assert.equal(offline.enabled,false,'fatal network fallback needs an explicit page reload to re-enable preview');
 
+// Idle correction must not depend on device refresh rate. Keep the same
+// authoritative position and pending packet while rendering one second of release.
+function idleAfterOneSecond(fps) {
+  const controller = createContinuousInput({ send: () => new Promise(() => {}) });
+  controller.sync({ enabled: true, nextSequence: 0 }, { x: 0, z: 0 });
+  controller.step({ x: 1, z: 0 }, false, 100, 0.05);
+  const initial = controller.position().x;
+  for (let i = 0; i < fps; i++) controller.step(null, false, 110 + i * 1000 / fps, 1 / fps);
+  return { initial, remaining: controller.position().x };
+}
+const idle30 = idleAfterOneSecond(30), idle120 = idleAfterOneSecond(120);
+assert.ok(idle30.initial > 0 && idle120.initial > 0, 'movement predicts immediately at either refresh rate');
+assert.ok(Math.abs(idle30.remaining - idle120.remaining) < 0.00001,
+  'one second of idle correction is refresh-rate independent');
+assert.ok(idle30.remaining < idle30.initial * 0.001, 'idle prediction settles toward the authoritative position');
+
 console.log('Homefront continuous client input prediction tests passed.');
 
 // A timed-out POST may commit or may be lost. A fresh GET determines the next

@@ -294,9 +294,10 @@ try {
       if (this.fov === 48) window.pineCameraPosition = { x: this.position.x, z: this.position.z };
     };
     const environment = window.pineEnvironmentProbe = {};
-    const expected = new Set(['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier',
+    const expected = new Set(['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier', 'pine-relay-station',
       'pine-cracked-asphalt', 'pine-roadside-grass', 'pine-crows',
-      'loot_pine_logging_kit:closed', 'loot_pine_logging_kit:searched', 'loot_pine_creek_pack:closed']);
+      'loot_pine_logging_kit:closed', 'loot_pine_logging_kit:searched', 'loot_pine_creek_pack:closed',
+      'loot_pine_relay_spares:closed']);
     const add = Object3D.prototype.add;
     Object3D.prototype.add = function (...objects) {
       const result = add.apply(this, objects);
@@ -512,7 +513,7 @@ try {
     assert.ok(audio.creekPeak > 0.14, 'creek grows audible on the return trail');
     assert.ok(audio.creekStops > 0, 'creek audio stops at the refuge');
     const environment = await page.evaluate(() => window.pineEnvironmentProbe);
-    for (const site of ['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier', 'pine-cracked-asphalt']) {
+    for (const site of ['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier', 'pine-relay-station', 'pine-cracked-asphalt']) {
       assert.equal(environment[site], true, site + ' was attached to the world scene');
     }
     assert.ok(environment['pine-roadside-grass'] > 0, 'shoulder growth is instanced in the scene');
@@ -520,6 +521,7 @@ try {
     assert.equal(environment['loot_pine_logging_kit:closed'], true, 'the full crew kit is visible on the trail');
     assert.equal(environment['loot_pine_logging_kit:searched'], true, 'scavenging leaves the kit visibly open');
     assert.equal(environment['loot_pine_creek_pack:closed'], true, 'the first-aid case is visible on the creek trail');
+    assert.equal(environment['loot_pine_relay_spares:closed'], true, 'the radio-relay salvage case is visibly grounded in the woods');
     for (const surface of ['gravel', 'asphalt', 'dirt', 'wood']) {
       assert.ok(audio.surfaces.includes(surface), 'footsteps respond to ' + surface);
     }

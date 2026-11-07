@@ -41,6 +41,23 @@ assert.ok(Math.abs(next.vehicle.heading)<1.5);
 assert.ok(next.vehicle.charge<=100);
 const snapshot=World.snapshot(world,'driver-a',2890);
 assert.equal(snapshot.selfVehicle.id,rover.id);
+// A live infected directly ahead blocks the rover until the road is cleared;
+// collision must not mint free kill rewards or move the server vehicle.
+const withInfected=structuredClone(world);
+withInfected.encounters={blocking:{
+  hp:12,defeated:false,members:[{
+    x:withInfected.vehicles['driver-a'].x,
+    z:withInfected.vehicles['driver-a'].z+1,
+    hp:12,defeated:false
+  }]
+}};
+const beforeInfected=structuredClone(withInfected.vehicles['driver-a']);
+const blockedInfected=Cars.drive(withInfected,'driver-a',{sequence:2,throttle:1,steer:0},3100);
+assert.equal(blockedInfected.blocked,true,'the rover cannot drive through a living infected');
+assert.equal(blockedInfected.vehicle.x,beforeInfected.x);
+assert.equal(blockedInfected.vehicle.z,beforeInfected.z);
+assert.equal(blockedInfected.vehicle.charge,beforeInfected.charge,
+  'blocked driving creates no free battery drain or zombie damage');
 const seen=World.enter(world,'driver-b',3000);
 world=seen.world;
 const ownGateB=World.ownRefugeGate(world,'driver-b');

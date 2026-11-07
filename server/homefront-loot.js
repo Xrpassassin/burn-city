@@ -2,6 +2,8 @@
 // Homefront physical scavenging nodes. Original implementation using authored locations
 // and server-side weighted tables; presentation clients never supply loot quantities.
 const NODES = Object.freeze([
+  {id:'loot_pine_logging_kit',label:'Logging Bend Crew Kit',x:-39,z:-63,district:'outskirts',risk:2,kind:'materials',trail:true},
+  {id:'loot_pine_creek_pack',label:'Creek Trail First-Aid Pack',x:-25,z:-57,district:'outskirts',risk:1,kind:'medical',trail:true},
   {id:'loot_bus_depot',label:'Bus Depot Supply Crate',x:-8,z:-65,district:'outskirts',risk:1,kind:'supplies'},
   {id:'loot_river_checkpoint',label:'River Checkpoint Backpack',x:62,z:-20,district:'outskirts',risk:1,kind:'medical'},
   {id:'loot_wrecked_depot',label:'Wrecked Depot Cache',x:14,z:72,district:'outskirts',risk:1,kind:'materials'},
@@ -35,7 +37,7 @@ function normalize(input={}) {
 }
 function publicNodes(state,now=Date.now()) {
  const s=normalize(state);
- return NODES.map(({id,label,x,z,district,risk,kind})=>({id,label,x,z,district,risk,kind,available:s[id].readyAt<=now,readyAt:s[id].readyAt}));
+ return NODES.map(({id,label,x,z,district,risk,kind,trail})=>({id,label,x,z,district,risk,kind,trail,available:s[id].readyAt<=now,readyAt:s[id].readyAt}));
 }
 function claim(input,{account,player,nodeId,now=Date.now(),addItem}) {
  if(!player) throw Error('not_in_expedition');

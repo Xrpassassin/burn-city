@@ -226,6 +226,23 @@ function safeSpawnPosition(spawn) {
   if (!safeSpawnCache.has(spawn.id)) safeSpawnCache.set(spawn.id, Collision.findSafePosition(spawn.x, spawn.z, { bounds: WORLD_SIZE }));
   const p = safeSpawnCache.get(spawn.id); return p ? { x: p.x, z: p.z } : null;
 }
+const EXPEDITION_BANDS = Object.freeze([
+  { until: 24, label: 'Near Homefront' },
+  { until: 48, label: 'Outer trails' },
+  { until: 75, label: 'Deep territory' },
+  { until: 110, label: 'Hostile territory' },
+  { until: Infinity, label: 'Far frontier' }
+]);
+function homefrontExposure(w, acct) {
+  const p = w.players[acct];
+  // Old expeditions may predate reservations. Their original gate is the
+  // fallback until redeployment assigns a permanent one.
+  const spawn = REFUGE_ENTRY_BY_ID.get(w.refugeEntries[acct] || p.spawn);
+  const gate = spawn && safeSpawnPosition(spawn);
+  const distance = gate ? Math.hypot(p.x - gate.x, p.z - gate.z) : 0;
+  const band = EXPEDITION_BANDS.findIndex(({ until }) => distance < until);
+  return { distance, risk: band + 1, band: EXPEDITION_BANDS[band].label };
+}
 function assignRefugeEntry(w, acct) {
   const existing = REFUGE_ENTRY_BY_ID.get(w.refugeEntries[acct]);
   const existingPosition = existing && safeSpawnPosition(existing);
@@ -319,35 +336,55 @@ function publicPlayer(acct, p, me, now, viewerParty = null) {
   return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, frontierDepth, frontierBand, spawn: acct === me ? p.spawn : undefined, party: acct !== me && !!viewerParty && p.partyCode === viewerParty, online: now - p.lastSeen <= PRESENCE_TTL };
 }
 function nearestPoint(x, z, type = null) { const points = POINTS_OF_INTEREST.filter(p => !type || (type === 'non-boss' ? p.type !== 'boss' && p.type !== 'interior' : p.type === type)); let best = null; for (const point of points) { const distance = Math.hypot(point.x - x, point.z - z); if (!best || distance < best.distance) best = { point, distance }; } return best; }
+function encounterContext(w, acct, now) {
+  const p = w.players[acct];
+  const district = districtAt(p.x, p.z);
+  const zoneId = district.id === 'graveyard_core' ? 'research_lab' : district.id === 'perimeter' ? 'outskirts' : district.id;
+  const party = w.parties[p.partyCode];
+  const nearby = (party?.members || []).filter(id => {
+    const other = w.players[id];
+    return id !== acct && other?.partyCode === p.partyCode && now - other.lastSeen <= PRESENCE_TTL &&
+      Math.hypot(other.x - p.x, other.z - p.z) <= 24;
+  });
+  // A shared squad gets one difficulty at spawn. A teammate close to their
+  // own gate cannot lower an exposed teammate's patrol difficulty.
+  const exposure = [acct, ...nearby].map(id => homefrontExposure(w, id))
+    .reduce((highest, current) => current.distance > highest.distance ? current : highest);
+  const activeEncounters = Number(Combat.retainEncounter(w.encounters[acct], acct, p, w.players, now)) +
+    Combat.nearbyPartyPatrols(w.encounters, acct, w.players, now).length;
+  const elapsed = Math.max(0, now - (p.lastNoiseAt || now));
+  const noise = Math.max(0, (p.noiseLevel || 0) - elapsed / 120);
+  return {
+    zoneId, risk: exposure.risk, frontierDepth: exposure.distance / 1.1,
+    playerCount: 1 + nearby.length, activeEncounters, noise, lastNoiseAt: p.lastNoiseAt, now,
+    seed: acct + ':' + district.id + ':' + Math.floor(p.x / 12) + ':' + Math.floor(p.z / 12) + ':' + Math.floor(now / 5000)
+  };
+}
+function spawnEncounter(w, acct, now, plan = Director.planEncounter(encounterContext(w, acct, now))) {
+  return Combat.spawn({ encounters: w.encounters, account: acct, player: w.players[acct], players: w.players, interiors: w.interiors, now, plan });
+}
 function tickDirector(w, acct, now = Date.now()) {
   const p = w.players[acct];
   if (!p) return null;
-  const district = districtAt(p.x, p.z);
-  const zoneId = district.id === 'graveyard_core' ? 'research_lab' : district.id === 'perimeter' ? 'outskirts' : district.id;
-  const frontierDepth = frontierDepthAt(p.x, p.z);
-  const encounters = Combat.normalizeEncounters(w.encounters, now);
-  const active = (encounters[acct] && !encounters[acct].defeated && encounters[acct].hp > 0 ? 1 : 0) +
-    Combat.nearbyPartyPatrols(encounters, acct, w.players, now).length;
-  const elapsed = Math.max(0, now - (p.lastNoiseAt || now));
-  const noise = Math.max(0, (p.noiseLevel || 0) - elapsed / 120);
+  const context = encounterContext(w, acct, now);
   const previousSpawnAt = p.directorState?.lastSpawnAt || 0;
-  const tick = Director.advanceDirector(p.directorState, {
-    zoneId, risk: district.risk, frontierDepth, playerCount: p.partyCode && w.parties[p.partyCode] ? w.parties[p.partyCode].members.length : 1,
-    activeEncounters: active, noise, lastNoiseAt: p.lastNoiseAt, now,
-    seed: acct + ':' + district.id + ':' + Math.floor(p.x / 12) + ':' + Math.floor(p.z / 12) + ':' + Math.floor(now / 5000)
-  });
+  const tick = Director.advanceDirector(p.directorState, context);
   p.directorState = tick.state;
-  if (tick.decision === 'spawn' && active === 0) {
-    const spawned = Combat.spawn({ encounters: w.encounters, account: acct, player: p, players: w.players, interiors: w.interiors, now, seed: tick.plan.threat });
-    w.encounters = spawned.encounters;
-    if (!spawned.encounter) {
+  if (tick.decision === 'spawn') {
+    let reason = 'A nearby infected squad is still active.';
+    if (context.activeEncounters === 0) {
+      const spawned = spawnEncounter(w, acct, now, tick.plan);
+      w.encounters = spawned.encounters;
+      reason = spawned.encounter ? '' : 'No unoccupied patrol route is close enough.';
+    }
+    if (reason) {
       p.directorState.lastSpawnAt = previousSpawnAt;
       p.directorState.nextSpawnAt = previousSpawnAt + tick.plan.spawnIntervalMs;
       p.directorState.lastDecision = tick.decision = 'hold';
-      tick.reason = 'No unoccupied patrol route is close enough.';
+      tick.reason = reason;
     }
   }
-  return { phase: tick.state.phase, decision: tick.decision, reason: tick.reason, threat: tick.plan.threat, pressure: tick.plan.pressure, risk: tick.plan.risk, zoneId: tick.plan.zoneId, recommendedMaxAlive: tick.plan.recommendedMaxAlive, spawnIntervalMs: tick.plan.spawnIntervalMs, nextSpawnAt: p.directorState.nextSpawnAt || 0, noise: Math.round(noise) };
+  return { phase: tick.state.phase, decision: tick.decision, reason: tick.reason, threat: tick.plan.threat, pressure: tick.plan.pressure, risk: tick.plan.risk, zoneId: tick.plan.zoneId, recommendedMaxAlive: tick.plan.recommendedMaxAlive, spawnIntervalMs: tick.plan.spawnIntervalMs, nextSpawnAt: p.directorState.nextSpawnAt || 0, noise: Math.round(context.noise) };
 }
 function recordNoise(input, acct, level = 75, now = Date.now()) {
   const w = normalizeWorld(JSON.parse(JSON.stringify(input || defaultWorld())));
@@ -398,10 +435,13 @@ function snapshot(input, acct, now = Date.now()) {
   const attackable = new Set(alliedPatrols.map(e => e.id));
   const own = w.encounters[acct];
   const primary = own && !own.defeated && own.hp > 0 ? own : alliedPatrols[0] || own;
+  const exposure = p && homefrontExposure(w, acct);
+  const self = p ? { ...publicPlayer(acct, p, acct, now, viewerParty), risk: exposure.risk,
+    homefrontDistance: Math.floor(exposure.distance), homefrontBand: exposure.band } : null;
   return {
     world: { width: WORLD_SIZE * 2, height: WORLD_SIZE * 2, districts: DISTRICTS, spawns: SPAWNS, pointsOfInterest: POINTS_OF_INTEREST, lootNodes: Loot.publicNodes(w.lootNodes, now), environmentStructures: Environment.nearby(w.environmentStructures, p?.x ?? 0, p?.z ?? 0), bosses: w.bosses, caches: w.caches, rescues: w.rescues },
     players: [...visible].map(id => {
-      const avatar = publicPlayer(id, w.players[id], acct, now, viewerParty);
+      const avatar = id === acct ? self : publicPlayer(id, w.players[id], acct, now, viewerParty);
       const presence = Interiors.roomPresence(w.interiors, w.players, id, now, PRESENCE_TTL);
       // Do not disclose interior room choices across unrelated buildings.
       const sameBuilding = presence && (id === acct ||
@@ -413,7 +453,7 @@ function snapshot(input, acct, now = Date.now()) {
     // arrays, cannot be targeted by PvP and reveal no private camp roster.
     companions: [...visible].filter(id => now - (w.players[id]?.lastSeen || 0) <= PRESENCE_TTL)
       .map(id => Companions.publicCompanion(id,w.players[id])).filter(Boolean),
-    self: p ? publicPlayer(acct, p, acct, now, viewerParty) : null,
+    self,
     refugeReturn: returnSpawn ? safeSpawnPosition(returnSpawn) : null,
     director: p ? { phase: p.directorState?.phase || 'calm', lastDecision: p.directorState?.lastDecision || 'hold', nextSpawnAt: p.directorState?.nextSpawnAt || 0, noise: Math.round(Math.max(0, (p.noiseLevel || 0) - Math.max(0, now - (p.lastNoiseAt || now)) / 120)) } : null,
     party: party ? { code: p.partyCode, leader: party.leader === acct, members: party.members.map(id => publicPlayer(id, w.players[id] || {x:0,z:0,spawn:SPAWNS[0].id,lastSeen:0,partyCode:p.partyCode}, acct, now, viewerParty)) } : null,
@@ -765,4 +805,4 @@ function leave(input, acct, now = Date.now(), { keepParty = false } = {}) {
   delete w.players[acct];
   return { world: w, result: snapshot(w, acct, now) };
 }
-module.exports = { FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, moveInput, inputReadyInMs, shareInteriorNoise, setAiming, createParty, joinParty, leaveParty, leave, tickDirector, recordNoise };
+module.exports = { FRONTIER_SPAWNS, ALL_SPAWNS, MIN_SPAWN_DISTANCE, INTEREST_RADIUS, visibleAccounts, buildInterestGrid, nearbyAccounts, chooseSafeSpawn, WORLD_SIZE, PRESENCE_TTL, MOVE_STEP, SPRINT_STEP, AIM_MOVE_SCALE, AIM_RECOVERY_MS, SPRINT_RECOVERY_MS, SPAWNS, DISTRICTS, POINTS_OF_INTEREST, defaultWorld, normalizeWorld, districtAt, frontierDepthAt, nearestPoint, snapshot, enter, move, moveInput, inputReadyInMs, shareInteriorNoise, setAiming, createParty, joinParty, leaveParty, leave, spawnEncounter, tickDirector, recordNoise };

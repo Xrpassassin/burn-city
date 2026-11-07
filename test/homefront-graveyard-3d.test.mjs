@@ -59,9 +59,9 @@ assert.match(scene, /\/api\/homefront\/world\/' \+ action/, 'combat controls cal
 assert.match(scene, /data\.encounters/, 'render active server-owned infected encounters');
 assert.match(scene, /const combatActors = new Map\(\)/, 'retain infected scene actors across authoritative snapshots');
 assert.match(scene, /state\.targetX - actor\.position\.x/, 'interpolate infected movement between server snapshots');
-assert.match(scene, /frontierBand/, 'show the current expansion band in the expedition HUD');
-assert.match(scene, /frontierDepth/, 'show inward frontier depth and rising danger context');
-assert.match(scene, /gunfire attracts attention/, 'warn players that noise escalates danger beyond the perimeter');
+assert.match(scene, /homefrontBand/, 'show the current Homefront risk band in the expedition HUD');
+assert.match(scene, /homefrontDistance/, 'show the distance from the reserved Homefront gate');
+assert.match(scene, /Gunfire draws infected/, 'warn players that noise escalates danger away from Homefront');
 assert.match(scene, /route surveyed; inspect local clues/, 'surveying a route points players toward evidence rather than implying completion');
 assert.match(scene, /attackInfectedButton/, 'wire the attack control to encounter state');
 assert.match(scene, /Visible held weapon silhouette/, 'render a visible weapon prop for each explorer in the 3D world');

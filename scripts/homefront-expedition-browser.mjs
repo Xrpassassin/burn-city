@@ -393,11 +393,21 @@ try {
         else for (const key of held) await page.keyboard.up(key);
       }
     }
-    for (const point of route('logging-road').slice(1)) await walkTo(point);
+    const action = page.locator('#homefrontContextAction');
+    for (const point of route('logging-road').slice(1)) {
+      await walkTo(point);
+      if (point[0] !== -43) continue;
+      await page.waitForFunction(() => document.querySelector('#explorationObjective')?.textContent.includes('Risk 2/5'));
+      await page.waitForFunction(() => document.querySelector('#homefrontContextAction')?.textContent.includes('Logging Bend Crew Kit'));
+      const searched = page.waitForResponse(response => response.url().endsWith(fixturePath('/api/homefront/world/loot')));
+      await activate(action);
+      const result = await (await searched).json();
+      assert.equal(result.loot.node.id, 'loot_pine_logging_kit');
+      assert.ok(result.loot.accepted.length, 'the road shoulder yields supplies between buildings');
+    }
     if (process.env.HOMEFRONT_PINE_SCREENSHOT) {
       await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
     }
-    const action = page.locator('#homefrontContextAction');
     for (const building of PINE_CROSSING_BUILDINGS) {
       await walkTo([building.x, -43]);
       await walkTo([building.x, -45.5]);

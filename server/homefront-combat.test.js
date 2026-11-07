@@ -186,6 +186,17 @@ assert.equal(interiorState[interiorAccount].interiors.mercy_hospital.doorDamage.
 }
 
 const hard=C.resolveSpawn({account:'x',x:0,z:0,district:'research_lab',risk:5,now:123000});assert.equal(hard.risk,5);
+{
+  const hordeAt = risk => C.resolveSpawn({
+    account: 'route-horde', x: 0, z: 0, district: 'outskirts', risk, now: 123000,
+    plan: { event: 'infected_horde', enemy: 'Roadside Pack', pursuitRadius: 16 + risk * 5 }
+  });
+  const near = hordeAt(1), far = hordeAt(5);
+  assert.ok(far.members.length > near.members.length);
+  assert.ok(far.members[0].maxHp > near.members[0].maxHp, 'adding infected does not dilute individual toughness');
+  assert.ok(far.damage > near.damage);
+  assert.equal(far.hp, far.members.reduce((total, member) => total + member.hp, 0));
+}
 assert.equal(Object.keys(C.normalizeEncounters({x:{...hard,expiresAt:1000}},2000)).length,0);
 const noAmmo=C.spawn({encounters:{},account:'b',player,now:200000});assert.throws(()=>C.attack({encounters:noAmmo.encounters,account:'b',player,base:{...base(),resources:{ammo:0},equippedWeapon:'pump_shotgun'},now:201000}),/insufficient_ammo/);
 const meleeSpawn=C.spawn({encounters:{},account:'melee',player,now:210000});

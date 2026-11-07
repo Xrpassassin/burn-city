@@ -32,6 +32,12 @@ import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
 import { infectedPresentation, visibleInfected } from './homefront-infected-presentation.mjs';
 import { stepVertical, createMotion, turnToward } from '../js/player-motion.mjs';
+
+function expeditionRiskLabel(self) {
+  return (self.homefrontBand || self.frontierBand || 'Perimeter') +
+    (Number.isFinite(self.homefrontDistance) ? ' · ' + self.homefrontDistance + ' m from Homefront' : '') +
+    ' · Risk ' + (self.risk || 1) + '/5';
+}
 // Burn City walker avatars (shared with the city) at Graveyard scale; meshes reuse walker.js's cached geometry/materials.
 const EXPLORER_SCALE = 1.45, LITE_AVATARS = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const localJump = createMotion();
@@ -734,6 +740,16 @@ function boot(host) {
   }
   function buildLootNode(p) {
     const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z); g.userData.lootNodeId = p.id;
+    if (p.trail && wantsContinuous) {
+      const pack = p.kind === 'medical';
+      addBox(g, 0.77, pack ? 0.33 : 0.41, 0.5, 0, 0.02, 0,
+        mat(p.available ? pack ? 0x747b60 : 0x695948 : 0x47443c));
+      addBox(g, 0.64, 0.08, 0.05, 0, 0.22, 0.25, mat(pack ? 0xbcb697 : 0x9d805d));
+      addBox(g, 0.24, 0.055, 0.07, 0, pack ? 0.37 : 0.45, 0, mat(0x524c3e));
+      g.rotation.y = pack ? 0.68 : -0.38;
+      lootGroup.add(g);
+      return;
+    }
     const color = p.kind === 'medical' ? 0x9fce8a : p.kind === 'materials' ? 0xc5a36b : p.kind === 'highrisk' ? 0xff5a46 : 0xe1b65b;
     const crate = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.15, 1.45), mat(p.kind === 'medical' ? 0x667d5d : 0x6f5437));
     crate.position.y = 0.68; crate.userData.lootNodeId = p.id; g.add(crate);
@@ -1070,16 +1086,15 @@ function boot(host) {
         const discoveryLabel = guidance.alreadyDiscovered ? 'KNOWN SITE' : guidance.discoveredNow ? 'LOCATION DISCOVERED' : 'UNMAPPED SITE';
         const routeHint = guidance.routeLeads.length ? '  |  ROUTE LEADS · ' + guidance.routeLeads.join(' → ') : '';
         const storyHint = guidance.storyLead ? '  |  FIELD LEAD · ' + guidance.storyLead : '';
-        const frontier = 'FRONTIER · ' + (data.self.frontierBand || 'perimeter') + ' · ' + (data.self.frontierDepth || 0) + '% inward';
+        const frontier = expeditionRiskLabel(data.self);
         const threatHint = (data.self.risk || 1) >= 4 ? '  |  HIGH THREAT · Heavy infected likely; keep an extraction route.' : (data.self.risk || 1) >= 3 ? '  |  DANGER RISING · Noise can pull infected from nearby blocks.' : '  |  PERIMETER PATROL · Noise still carries.';
         objective.textContent = discoveryLabel + ' · ' + nearest.title + ' — ' + nearest.objective + '  |  ' + district.title + ' · Site risk ' + district.risk + '/5 · ' + frontier + threatHint + routeHint + storyHint;
       } else {
         const fieldNoteCount = explorationProgress?.discovered?.length || 0;
         const nextStory = explorationProgress?.storyLeads?.find(lead => !lead.complete);
         const journalHint = nextStory ? '  |  STORY LEAD · ' + nextStory.title + (nextStory.nextLandmarkTitle ? ' → ' + nextStory.nextLandmarkTitle : ' · route surveyed; inspect local clues') : '';
-        const frontier = (data.self.frontierBand || 'perimeter') + ' · ' + (data.self.frontierDepth || 0) + '% inward';
-        const threatHint = (data.self.risk || 1) >= 4 ? ' HIGH THREAT: consider turning back before ammunition runs dry.' : (data.self.risk || 1) >= 3 ? ' Threat rising deeper inside; gunfire attracts attention.' : ' Stay alert; the perimeter is safer, not sterile.';
-        objective.textContent = 'EXPEDITION · ' + frontier + ' · Risk ' + (data.self.risk || 1) + '/5 ·' + threatHint + ' FIELD NOTES ' + fieldNoteCount + ' sites. Survey the skyline and follow road markings for landmarks, shortcuts, caches, and rescue leads.' + journalHint;
+        const threatHint = (data.self.risk || 1) >= 4 ? ' HIGH THREAT · Check supplies for the return trip.' : (data.self.risk || 1) >= 3 ? ' DANGER RISING · Gunfire draws infected.' : ' PATROL COUNTRY · Noise carries.';
+        objective.textContent = 'EXPEDITION · ' + expeditionRiskLabel(data.self) + ' ·' + threatHint + ' FIELD NOTES ' + fieldNoteCount + ' sites. Survey the skyline and follow road markings for landmarks, shortcuts, caches, and rescue leads.' + journalHint;
       }
     }
     updateInteriorPanel();
@@ -1268,7 +1283,7 @@ function boot(host) {
     if (status) {
       const self = data.self;
       status.textContent = self
-        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + (self.frontierBand || self.district || 'perimeter') + ' · ' + (self.frontierDepth || 0) + '% frontier depth · danger ' + self.risk + '/5 · deeper routes raise infected pressure; gunfire draws attention · ' + (continuousInput.enabled ? 'direct WASD/joystick walking (preview)' : 'tap to travel · WASD/joystick to move') + ' · drag to look · right-drag to orbit · scroll to zoom · V or 👁 switches first-/third-person · Overhead view is reserved for base construction'
+        ? '3D shared world live · ' + (data.players?.length || 0) + ' explorers · ' + expeditionRiskLabel(self) + ' · gunfire draws attention · ' + (continuousInput.enabled ? 'direct WASD/joystick walking (preview)' : 'tap to travel · WASD/joystick to move') + ' · drag to look · right-drag to orbit · scroll to zoom · V or 👁 switches first-/third-person · Overhead view is reserved for base construction'
         : 'Enter the Graveyard expedition below to spawn into the shared 3D world.';
     }
   }
@@ -1310,11 +1325,10 @@ function boot(host) {
       const site = guidance.nearest;
       objective.textContent = (guidance.alreadyDiscovered ? 'KNOWN SITE' : 'UNMAPPED SITE') +
         ' · ' + site.title + ' — ' + site.objective + ' · ' +
-        (self.frontierBand || self.district || 'perimeter') + ' · Risk ' + (self.risk || 1) + '/5';
+        expeditionRiskLabel(self);
     } else if (objective) {
       objective.textContent = 'EXPEDITION · ' +
-        (self.frontierBand || self.district || 'perimeter') +
-        ' · Risk ' + (self.risk || 1) + '/5 · Scan the skyline for supply caches and landmarks.';
+        expeditionRiskLabel(self) + ' · Scan the skyline for supply caches and landmarks.';
     }
   }
 

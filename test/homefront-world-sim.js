@@ -17,6 +17,33 @@ assert.equal(a.result.self.spawn, 'north_gate', 'the first Homefront claims the 
 assert.deepEqual(a.result.refugeReturn, { x: a.result.self.x, z: a.result.self.z });
 assert.equal(b.result.refugeEntries, undefined, 'private gate assignments are not shared with clients');
 {
+  const expedition = structuredClone(b.world);
+  const [first, second] = ['acct-a', 'acct-b'].map(id => expedition.players[id]);
+  const north = { x: first.x, z: first.z };
+  const east = { x: second.x, z: second.z };
+  expedition.encounters = {};
+  Object.assign(first, east, { spawn: second.spawn, lastSeen: 2000 });
+  second.lastSeen = 2000;
+  assert.equal(W.snapshot(expedition, 'acct-a', 2000).self.risk, 4, 'risk follows the permanent gate even after an expedition respawn');
+  assert.equal(W.snapshot(expedition, 'acct-b', 2000).self.risk, 1, 'the same waypoint is low risk near the other player’s home');
+  const near = W.spawnEncounter(expedition, 'acct-b', 2000).encounter;
+  const far = W.spawnEncounter(expedition, 'acct-a', 2000).encounter;
+  assert.equal(near.risk, 1);
+  assert.equal(far.risk, 4);
+  assert.ok(W.tickDirector(expedition, 'acct-a', 2000).spawnIntervalMs <
+    W.tickDirector(expedition, 'acct-b', 2000).spawnIntervalMs, 'outbound exposure shortens reinforcement intervals');
+  Object.assign(first, north);
+  const home = W.snapshot(expedition, 'acct-a', 2000).self;
+  assert.equal(home.homefrontDistance, 0);
+  assert.equal(home.risk, 1, 'returning to the gate lowers risk');
+  const party = W.createParty(expedition, 'acct-a', 2100);
+  const grouped = W.joinParty(party.world, 'acct-b', party.result.party.code, 2200).world;
+  assert.equal(W.tickDirector(grouped, 'acct-a', 2200).risk, 4, 'nearby teammates share the highest exposure');
+  grouped.players['acct-b'].lastSeen = 0;
+  grouped.players['acct-a'].lastSeen = 60000;
+  assert.equal(W.tickDirector(grouped, 'acct-a', 60000).risk, 1, 'inactive teammates do not scale the active patrol');
+}
+{
   let saved = W.leave(a.world, 'acct-a', 2000).world;
   // Save/restore after every exit with nobody left online. Every subsequent
   // refuge still reserves a separate footprint.
@@ -66,7 +93,10 @@ assert.ok(Math.hypot(recoveredSave.x - W.SPAWNS[0].x, recoveredSave.z - W.SPAWNS
 assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'cache'), 'shared world includes physical supply-cache landmarks');
 assert.ok(Object.values(a.result.world.caches).every(cache => cache.readyAt === 0), 'shared supply caches begin available');
 assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'rescue'), 'shared world includes survivor rescue sites');
-assert.equal(a.result.world.lootNodes.length, 8, 'shared world publishes eight physical scavenging nodes');
+const pineTrailLoot = a.result.world.lootNodes.filter(node => node.trail);
+assert.deepEqual(pineTrailLoot.map(node => node.id), ['loot_pine_logging_kit', 'loot_pine_creek_pack']);
+assert.ok(pineTrailLoot.every(node => require('../server/homefront-collision').isSafePosition(node.x, node.z)),
+  'trail supplies can be reached on foot');
 assert.ok(a.result.world.lootNodes.every(node => node.available && node.id.startsWith('loot_')), 'loot nodes start available and have stable IDs');
 assert.ok(Object.values(a.result.world.rescues).every(site => site.readyAt === 0), 'shared rescue sites begin available');
 

@@ -38,11 +38,22 @@ function safeEnemyPosition(x, z, fallbackX, fallbackZ, bounds = 100, removedObst
  }
  throw Error('no_safe_infected_spawn');
 }
-function resolveSpawn({account,x,z,district,risk=1,now=Date.now(),seed=0}){
+function resolveSpawn({account,x,z,district,risk=1,now=Date.now(),seed=0,plan=null}){
  risk=clamp(Math.floor(risk),1,5);
- const directorPlan=planEncounter({zoneId:district,risk,playerCount:1,activeEncounters:0,noise:0,seed:account+':'+Math.floor(x)+':'+Math.floor(z)+':'+Math.floor(now/30000)+':'+seed});
+ const directorPlan=plan || planEncounter({zoneId:district,risk,playerCount:1,activeEncounters:0,noise:0,seed:account+':'+Math.floor(x)+':'+Math.floor(z)+':'+Math.floor(now/30000)+':'+seed});
  const event=directorPlan.event,s=STATS[event],id='enc-'+hash(account+':'+now+':'+x+':'+z).toString(36);
- return {id,owner:account,event,enemy:directorPlan.enemy,directorPlan,packPlan:planHorde({event,risk,seed:id}),members:planHorde({event,risk,seed:id}).members.map(m=>({...m,x:clamp(x+m.offsetX,-100,100),z:clamp(z+m.offsetZ,-100,100),hp:Math.max(1,Math.round((s.hp+risk*7)*m.healthScale/Math.max(1,planHorde({event,risk,seed:id}).count))),maxHp:Math.max(1,Math.round((s.hp+risk*7)*m.healthScale/Math.max(1,planHorde({event,risk,seed:id}).count))),defeated:false,lastAttackAt:0})),district,x:clamp(x+(hash(id+':x')%13-6),-100,100),z:clamp(z+(hash(id+':z')%13-6),-100,100),hp:s.hp+risk*7,maxHp:s.hp+risk*7,damage:s.damage+Math.max(0,risk-1),ammoCost:s.ammo,range:s.range,risk,pursuitRadius:directorPlan.pursuitRadius,lastKnownX:x,lastKnownZ:z,lastKnownAt:now,investigateUntil:0,createdAt:now,lastAttackAt:0,lastAiAt:now,expiresAt:now+ENCOUNTER_TTL,defeated:false};
+ const packPlan = planHorde({ event, risk, seed: id });
+ // More distant hordes add members without dividing away each member's health.
+ const memberHealth = plan && event === 'infected_horde'
+  ? (s.hp + 7) / 2 + (risk - 1) * 5
+  : (s.hp + risk * 7) / packPlan.count;
+ const members = packPlan.members.map(m => {
+  const hp = Math.max(1, Math.round(memberHealth * m.healthScale));
+  return { ...m, x: clamp(x + m.offsetX, -100, 100), z: clamp(z + m.offsetZ, -100, 100),
+   hp, maxHp: hp, defeated: false, lastAttackAt: 0 };
+ });
+ const hp = members.reduce((total, member) => total + member.hp, 0);
+ return {id,owner:account,event,enemy:directorPlan.enemy,directorPlan,packPlan,members,district,x:clamp(x+(hash(id+':x')%13-6),-100,100),z:clamp(z+(hash(id+':z')%13-6),-100,100),hp,maxHp:hp,damage:s.damage+Math.max(0,risk-1),ammoCost:s.ammo,range:s.range,risk,pursuitRadius:directorPlan.pursuitRadius,lastKnownX:x,lastKnownZ:z,lastKnownAt:now,investigateUntil:0,createdAt:now,lastAttackAt:0,lastAiAt:now,expiresAt:now+ENCOUNTER_TTL,defeated:false};
 }
 function publicEncounter(e){return e?{id:e.id,event:e.event,enemy:e.enemy,district:e.district,x:e.x,z:e.z,hp:e.hp,maxHp:e.maxHp,risk:e.risk,range:e.range,expiresAt:e.expiresAt,defeated:!!e.defeated,packPlan:e.packPlan||planHorde({event:e.event,risk:e.risk,seed:e.id}),members:(e.members||[]).map(m=>({id:m.id,role:m.role,x:m.x,z:m.z,hp:m.hp,maxHp:m.maxHp,defeated:!!m.defeated}))}:null;}
 function canEngage(encounter, account, players = {}) {
@@ -71,14 +82,21 @@ function normalizeEncounters(input,now=Date.now()){
  }
  return out;
 }
-function spawn({ encounters, account, player, players = {}, interiors = null, now = Date.now(), seed = 0 }) {
+function retainEncounter(encounter, account, player, players, now) {
+ if (!encounter || encounter.defeated || encounter.hp <= 0 || encounter.expiresAt <= now) return false;
+ const distanceTo = other => Math.hypot(other.x - encounter.x, other.z - encounter.z);
+ if (distanceTo(player) <= Math.max(36, encounter.pursuitRadius + 12)) return true;
+ return !!encounter.patrolId && !!player.partyCode && Object.entries(players).some(([id, other]) =>
+  id !== account && other.partyCode === player.partyCode && now - other.lastSeen <= 45000 && distanceTo(other) <= 30);
+}
+function spawn({ encounters, account, player, players = {}, interiors = null, now = Date.now(), seed = 0, plan = null }) {
  const clean = normalizeEncounters(encounters, now), old = clean[account];
- if (old && !old.defeated && old.hp > 0) return { encounters: clean, encounter: publicEncounter(old), reused: true };
+ if (retainEncounter(old, account, player, players, now)) return { encounters: clean, encounter: publicEncounter(old), reused: true };
  const shared = nearbyPartyPatrols(clean, account, players, now)[0];
  if (shared) return { encounters: clean, encounter: publicEncounter(shared), reused: true };
  const depth = 100 - Math.hypot(player.x, player.z);
- const risk = depth < 45 ? 1 : depth < 62 ? 2 : depth < 76 ? 3 : depth < 88 ? 4 : 5;
- const district = risk >= 5 ? 'research_lab' : risk >= 4 ? 'industrial' : risk >= 3 ? 'commercial' : risk === 2 ? 'residential' : 'outskirts';
+ const risk = plan?.risk ?? (depth < 45 ? 1 : depth < 62 ? 2 : depth < 76 ? 3 : depth < 88 ? 4 : 5);
+ const district = plan?.zoneId ?? (risk >= 5 ? 'research_lab' : risk >= 4 ? 'industrial' : risk >= 3 ? 'commercial' : risk === 2 ? 'residential' : 'outskirts');
  const collisionOptions = interiorCollisionOptions(interiors, account);
  const pine = inPineCrossing(player.x, player.z, 4);
  let patrol = null;
@@ -98,12 +116,12 @@ function spawn({ encounters, account, player, players = {}, interiors = null, no
   if (!patrol) return { encounters: clean, encounter: null, reused: false };
  }
  const origin = patrol ? { x: patrol.points[0][0], z: patrol.points[0][1] } : player;
- const e = resolveSpawn({ account, ...origin, district, risk, now, seed });
+ const e = resolveSpawn({ account, ...origin, district, risk, now, seed, plan });
  const safe = patrol ? origin : safeEnemyPosition(e.x, e.z, player.x, player.z, 100, collisionOptions.removedObstacleIds);
  if (patrol) {
   e.patrolId = patrol.id;
   e.patrolIndex = 1;
-  e.pursuitRadius = 12;
+  e.pursuitRadius = 12 + (risk - 1) * 2;
   e.lastKnownAt = 0;
  }
  e.x = safe.x; e.z = safe.z;
@@ -366,11 +384,11 @@ function attack({encounters,account,player,players={},interiors,sharedInteriors,
  const zoneMultiplier=hitZone==='head'?1.8:hitZone==='limb'?0.75:1;
  const accuracyScale=aimed?1:0.72+aimStability*0.28;
  const baseDamage=Math.max(8,12+(power-1)*7+Math.floor(e.risk*1.5))*fatigueScale*accuracyScale;const hits=[];let damage=0,current=target;for(let r=0;r<(tier?rounds:1);r++){if(!current||current.defeated||current.hp<=0){const anchor=current||target;let next=null,best=Infinity;for(const m of living){if(m.defeated||m.hp<=0)continue;const d=Math.hypot(m.x-anchor.x,m.z-anchor.z);if(d<=(tier?tier.spread:0)&&d<best&&Math.hypot(player.x-m.x,player.z-m.z)<=e.range&&clearShot(m)){best=d;next=m;}}if(!next)break;current=next;}const roll=r===0?zoneRoll:hash(current.id+':'+now+':'+seed+':'+r)%100;const zone=r===0?hitZone:(roll<6?'head':roll<30?'limb':'torso');const mult=zone==='head'?1.8:zone==='limb'?0.75:1;const roundDamage=Math.max(5,Math.floor(baseDamage*mult*(tier?Math.pow(tier.falloff,r):1)));const before=current.hp;current.hp=Math.max(0,current.hp-roundDamage);current.lastAttackAt=now;damage+=before-current.hp;let killedMember=false;if(current.hp===0&&current!==e){const wasAnchor=living.find(m=>!m.defeated&&m.hp>0||m===current)===current;current.defeated=true;killedMember=true;const nextLead=living.find(m=>!m.defeated&&m.hp>0);if(wasAnchor&&nextLead){e.x=nextLead.x;e.z=nextLead.z;}}hits.push({targetId:current.id,damage:before-current.hp,hitZone:zone,killed:killedMember});if(current===e)break;}if(field)field.stamina=clamp(staminaBefore-8,0,100);e.hp=(e.members||[]).reduce((sum,m)=>sum+(m.defeated?0:m.hp),0);e.maxHp=(e.members||[]).reduce((sum,m)=>sum+m.maxHp,0);e.lastAttackAt=now;
- if(e.hp===0){e.defeated=true;const q=hash(e.id+':'+seed)%100,quality=q<2?'Legendary':q<8?'Epic':q<22?'Rare':q<48?'Uncommon':'Common',qi=QUALITY_ORDER.indexOf(quality),scrap=2+e.risk+qi*2,embers=e.risk+qi;
+ if(e.hp===0){e.defeated=true;const q=hash(e.id+':'+seed)%100,bonus=(e.risk-1)*3,quality=q<2?'Legendary':q<8?'Epic':q<22+bonus?'Rare':q<48+bonus?'Uncommon':'Common',qi=QUALITY_ORDER.indexOf(quality),scrap=2+e.risk+qi*2,embers=e.risk+qi;
  base.resources.scrap=Math.min(999999,(base.resources.scrap||0)+scrap);base.embers=Math.min(999999999,(base.embers||0)+embers);
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Cleared '+e.enemy+' squad and recovered '+quality.toLowerCase()+'-grade salvage: +'+scrap+' scrap and +'+embers+' Embers.'});base.log=base.log.slice(-20);}
  return{encounters:clean,encounter:publicEncounter(e),killed:true,damage,hitZone,hitTargetId:target.id,hits,rounds:ammoCost||hits.length,aimed,aimStability,adsProgress,enemyDamage:0,ammoCost,reward:{quality,scrap,embers},base,survival:field};}
  if(Array.isArray(base.log)){base.log.push({id:(base.log.at(-1)?.id||0)+1,kind:'combat',at:now,text:'Hit '+target.role+' in '+e.enemy+' squad for '+damage+' damage.'});base.log=base.log.slice(-20);}
  return{encounters:clean,encounter:publicEncounter(e),killed:false,damage,hitZone,hitTargetId:target.id,hits,rounds:ammoCost||hits.length,aimed,aimStability,adsProgress,enemyDamage:0,ammoCost,reward:null,base,survival:field};
 }
-module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,WEAPON_FIRE_INTERVAL,WEAPON_MAGAZINE_CAPACITY,WEAPON_HANDLING,STATS,normalizeEncounters,resolveSpawn,publicEncounter,nearbyPartyPatrols,spawn,advance,meleeContact,attack};
+module.exports={ENCOUNTER_TTL,ATTACK_COOLDOWN,WEAPON_FIRE_INTERVAL,WEAPON_MAGAZINE_CAPACITY,WEAPON_HANDLING,STATS,normalizeEncounters,resolveSpawn,publicEncounter,nearbyPartyPatrols,retainEncounter,spawn,advance,meleeContact,attack};

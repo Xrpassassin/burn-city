@@ -70,6 +70,10 @@ assert.ok(html.includes("hud?.inspect?.(panel,survivor.name||'Survivor')") &&
   html.includes("hud?.inspect?.(panel,'Farm plot')") &&
   html.includes("hud?.inspect?.(panel,title.textContent)"),
   'survivors, crops, and structures open their corresponding on-screen inspection');
+assert.ok(html.includes("if(e&&(e.__homefrontInspected||yardView?.dragging))return"),
+  'looking around cannot trigger base inspections on pointer release');
+assert.ok(html.includes("e.__homefrontInspected=true") && !html.includes("e.stopImmediatePropagation()"),
+  'world-object selection does not swallow pointer-up before the camera can release its drag');
 assert.ok(html.includes("function closeRefugeInspection(panel)"),
   'inspection close and server-backed actions restore the fullscreen camera');
 console.log('Homefront CC0 GLB asset checks passed.');

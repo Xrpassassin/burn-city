@@ -3,6 +3,7 @@
 // the shared Graveyard world. No client-selected spawn, rewards or position.
 const Collision=require('./homefront-collision');
 const Terrain=require('./homefront-terrain');
+const {vehicleCorridorAt}=require('../client/arena/homefront-vehicle-corridors.mjs');
 const BUILD_COST=Object.freeze({scrap:24,wood:12});
 const CHARGE_COST=Object.freeze({scrap:2});
 const VEHICLE_RADIUS=1.05;
@@ -54,13 +55,17 @@ function dynamicRoadClear(world,account,x,z,prevX,prevZ,now){
 }
 function parkingSpot(gate,vehicles){
  const offsets=[[0,4],[4,0],[-4,0],[0,-4],[6,0],[-6,0],[0,6],[0,-6],[8,0],[0,8]];
+ let fallback=null;
  for(const [dx,dz]of offsets){
   const point={x:gate.x+dx,z:gate.z+dz};
   if(!roadClear(point.x,point.z)||!Collision.isSafePosition(point.x,point.z,{radius:VEHICLE_RADIUS}))continue;
   if(Object.values(vehicles).some(v=>distance(v,point)<4))continue;
-  return point;
+  // Prefer road-accessible parking over a nearby bush/empty parcel.
+  // Remote Homefront trailheads without a road keep a collision-safe fallback.
+  if(vehicleCorridorAt(point.x,point.z))return point;
+  fallback ||= point;
  }
- return null;
+ return fallback;
 }
 function build(world,base,owner,gate,now=Date.now()){
  if(!world?.players?.[owner]||!gate||!Number.isFinite(gate.x)||!Number.isFinite(gate.z))throw Error('no_homefront_vehicle_site');

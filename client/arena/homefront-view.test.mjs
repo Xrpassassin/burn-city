@@ -20,7 +20,7 @@ assert.ok(Math.abs(fp.py - (at.y + 1.62)) < 1e-9 && Math.hypot(fp.px - at.x, fp.
 const tp = cameraPose({ ...at, mode: 'third' });
 assert.ok(Math.hypot(tp.px - at.x, tp.pz - at.z) > 3, 'third-person camera sits behind the character');
 const lookRight = lookDragAngles(0, 0, 60, 0);
-assert.ok(lookRight.yaw > 0 && cameraPose({ mode: 'third', heading: lookRight.yaw }).lx > 0,
+assert.ok(lookRight.yaw > 0 && (() => { const camera = cameraPose({ mode: 'third', heading: lookRight.yaw }); return camera.lx - camera.px > 0; })(),
   'rightward mouse/touch drag turns the third-person camera right in the yard and Wastes');
 const lookUp = lookDragAngles(0, 0, 0, -60);
 assert.ok(lookUp.pitch > 0, 'upward touch/mouse drag increases view pitch');

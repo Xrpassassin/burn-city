@@ -2237,9 +2237,14 @@ function boot(host) {
     host,getSnapshot:()=>worldData,visible:()=>view.visible,
     send:roverRequest,
     onSnapshot:data=>{
-      if(!worldData)return;
-      worldData={...worldData,...data,world:{...worldData.world,vehicles:data.world?.vehicles||[]}};
-      syncRoverMeshes(data.world?.vehicles||[]);
+      if(!worldData||!data.vehicle)return;
+      const previous=worldData.world?.vehicles||[];
+      const cars=previous.map(v=>v.id===data.vehicle.id?{...v,...data.vehicle}:v);
+      worldData={...worldData,
+        self:{...worldData.self,x:data.self.x,z:data.self.z},
+        selfVehicle:{...worldData.selfVehicle,...data.selfVehicle},
+        world:{...worldData.world,vehicles:cars}};
+      syncRoverMeshes(cars);
       continuousInput.disable('rover_occupied');
     },
     onError:message=>{if(message)showFieldToast(message);}

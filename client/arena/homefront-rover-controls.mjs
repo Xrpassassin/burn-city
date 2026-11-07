@@ -44,7 +44,7 @@ export function createRoverControls({
  window.addEventListener('blur',()=>held.clear());
  function sync(){
   const snap=getSnapshot(),id=snap?.selfVehicle?.id||null;
-  if(id!==activeId){activeId=id;sequence=0;held.clear();}
+  if(id!==activeId){activeId=id;sequence=Number.isSafeInteger(snap?.selfVehicle?.sequence)?snap.selfVehicle.sequence+1:0;held.clear();}
   pad.hidden=!id||!visible();
   pad.style.display=id&&visible()?'grid':'none';
   if(!id)return;

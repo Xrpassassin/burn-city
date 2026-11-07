@@ -41,13 +41,17 @@ assert(
 assert.throws(()=>World.moveInput(world,'precision-walker',command(6),2450),/move_cooldown/,
  'high-frequency packets cannot bypass existing server limiter');
 assert.throws(()=>World.moveInput(world,'precision-walker',{sequence:6,x:1,z:1,sprint:false},2600),/invalid_movement_vector/);
-const beforeStall={x:p.x,z:p.z};
-const stalled=World.moveInput(world,'precision-walker',command(6),3000);
+
+const delayed=World.moveInput(world,'precision-walker',command(6),2800);
+assert.equal(delayed.result.inputAck.elapsedMs,125,'a slow input stream keeps moving in capped steps');
+assert(Math.abs(Math.hypot(delayed.result.self.x-p.x,delayed.result.self.z-p.z)-0.15)<1e-7,
+ 'a slow packet earns only the capped analog displacement');
+const stalled=World.moveInput(delayed.world,'precision-walker',command(7),3900);
 assert.equal(stalled.result.inputAck.elapsedMs,0);
-assert.equal(stalled.world.players['precision-walker'].x,beforeStall.x,
+assert.equal(stalled.world.players['precision-walker'].x,delayed.result.self.x,
  'network stalls cannot bank fractional movement');
-assert.equal(stalled.world.players['precision-walker'].z,beforeStall.z);
+assert.equal(stalled.world.players['precision-walker'].z,delayed.result.self.z);
 const saved=JSON.parse(JSON.stringify(stalled.world));
-assert.equal(saved.players['precision-walker'].lastInputSequence,6,
+assert.equal(saved.players['precision-walker'].lastInputSequence,7,
  'higher coordinate precision is compatible with persistent replay protection');
 console.log('Homefront analog movement: 20% stick precision, exact travel budget, input cadence, stalled transport, persistence and replay checks passed');

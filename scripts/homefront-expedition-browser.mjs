@@ -238,11 +238,15 @@ try {
     },
     { TOKEN, ACCOUNT },
   );
-  await page.route("**/*", (route) =>
-    ["localhost", "127.0.0.1"].includes(new URL(route.request().url()).hostname)
-      ? route.continue()
-      : route.abort(),
-  );
+  let inputDelayMs = Number(process.env.HOMEFRONT_TEST_INPUT_DELAY_MS) || 0;
+  await page.route("**/*", async route => {
+    const url = new URL(route.request().url());
+    if (!["localhost", "127.0.0.1"].includes(url.hostname)) return route.abort();
+    if (inputDelayMs > 0 && url.pathname.endsWith('/world/move-input')) {
+      await new Promise(resolve => setTimeout(resolve, inputDelayMs));
+    }
+    return route.continue();
+  });
   await page.goto(
     "http://localhost:" +
       port +
@@ -388,6 +392,15 @@ try {
 
   if (pineCrossing) {
     const route = id => PINE_CROSSING_ROUTES.find(item => item.id === id).points;
+    const inputTrace = [];
+    page.on('response', async response => {
+      if (!response.url().endsWith(fixturePath('/api/homefront/world/move-input'))) return;
+      const request = response.request();
+      const command = request.postDataJSON();
+      const payload = await response.json().catch(() => null);
+      inputTrace.push({ command, status: response.status(), ack: payload?.inputAck, error: payload?.error });
+      if (inputTrace.length > 12) inputTrace.shift();
+    });
     let touchOrigin;
     if (mobile) {
       const box = await page.locator('#graveyard3d .hf-joy').boundingBox();
@@ -421,6 +434,10 @@ try {
           await new Promise(resolve => setTimeout(resolve, 85));
         }
         const player = testState('homefront-world.json').players[ACCOUNT];
+        console.error('Pine Crossing input trace', JSON.stringify({ held: [...held], inputTrace,
+          browser: await page.evaluate(() => ({ hidden: document.hidden, focused: document.hasFocus(),
+            active: document.activeElement?.id, status: document.querySelector('#graveyard3dStatus')?.textContent,
+            modal: document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])')?.className })), errors }));
         throw Error('Pine Crossing walk blocked near ' + JSON.stringify([player.x, player.z]) + ' toward ' + JSON.stringify([x,z]));
       } finally {
         if (touchOrigin) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
@@ -430,6 +447,11 @@ try {
     const action = page.locator('#homefrontContextAction');
     for (const point of route('logging-road').slice(1)) {
       await walkTo(point);
+      if (inputDelayMs > 0) {
+        assert.ok(inputTrace.some(entry => entry.ack?.elapsedMs > 0 && entry.command.x < 0),
+          'delayed desktop input makes authoritative progress');
+        inputDelayMs = 0;
+      }
       if (point[0] === -29) {
         await page.waitForFunction(() => window.fieldAudioProbe.cues.includes('canopy'), null, { timeout: 6000 });
       }

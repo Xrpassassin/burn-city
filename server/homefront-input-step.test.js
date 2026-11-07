@@ -18,6 +18,12 @@ assert.equal(stalled.elapsedMs, 0, 'long disconnects must not bank movement');
 assert.equal(stalled.x, 0); assert.equal(stalled.z, 0);
 const bounded = displacementForInput(cmd, { now: MAX_INPUT_DT_MS + 50, previousAt: 0, ...speeds });
 assert.equal(bounded.elapsedMs, MAX_INPUT_DT_MS, 'moderate scheduling delays are capped');
+for (const gap of [300, 500, 999]) {
+  assert.deepEqual(displacementForInput(cmd, { now: gap, previousAt: 0, ...speeds }),
+    bounded, 'slow input receives one bounded step and discards excess time');
+}
+assert.equal(displacementForInput(cmd, { now: 1000, previousAt: 0, ...speeds }).elapsedMs, 0,
+  'a disconnected stream must first establish a fresh baseline');
 const idle = displacementForInput(validateInput({ sequence: 3, x: 0, z: 0, sprint: false }, 2), { now: 10000, previousAt: 0, ...speeds });
 assert.equal(idle.x, 0); assert.equal(idle.z, 0);
 assert.throws(() => displacementForInput(cmd, { now: 10, previousAt: 20, ...speeds }), /server_time/);

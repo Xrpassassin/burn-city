@@ -135,8 +135,15 @@ function create(opts = {}) {
   async function token(n, pools) {
     if(n.key === BURN_KEY) {
       let record;
-      try { record = await auditBurnSupply({rpc:call,now:now()}); }
-      catch(e) { record = {status:'unverified',reason:e.message}; }
+      // Read-only ledger gateways occasionally return an inconsistent snapshot
+      // between server_info, account_info, escrow and gateway_balances.
+      // Retry with a NEW pinned ledger, never loosen reconciliation rules or
+      // preserve an unverified percentage. A successful first try costs no extra RPC.
+      for (let attempt=0; attempt<3; attempt++) {
+        try { record = await auditBurnSupply({rpc:call,now:now()}); }
+        catch(e) { record = {status:'unverified',reason:e.message}; }
+        if (record?.status === 'verified') break;
+      }
       return {name:n.name,issuer:BURN_ISSUER,currency:BURN_CURRENCY,status:record.status,
         t_ms:now(),ts:iso(now()),issuer_keys_disabled:record.status==='verified'?true:null,
         supply_reconciliation:record,pools:pools.filter(p=>p.a===n.name||p.b===n.name).map(p=>p.amm)};

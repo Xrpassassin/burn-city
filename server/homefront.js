@@ -235,10 +235,20 @@ async function handle(req, res, url, { json, gate, ip, body, who, store = HFStor
             store.save('homefront.json',bases);
           }
           store.save('homefront-world.json',db);
+          const publicVehicle={id:vehicle.id,type:vehicle.type,x:vehicle.x,z:vehicle.z,
+            heading:vehicle.heading,charge:vehicle.charge,sequence:vehicle.sequence,occupied:!!vehicle.driver};
+          // Steering is high-frequency. Return a compact authoritative ack;
+          // do NOT clone/serialize hundreds of loot sites, doors, patrols,
+          // rosters and other players six times per second.
+          if(action==='drive'){
+            const driver=db.players[account];
+            json(res,200,{mode:'homefront-vehicle',vehicle:publicVehicle,vehicleResult:{action,blocked},
+              self:{x:driver.x,z:driver.z},selfVehicle:{...publicVehicle,mine:true}});
+            return true;
+          }
           json(res,200,{mode:'homefront-world',...World.snapshot(db,account,now),
-            vehicle:{id:vehicle.id,type:vehicle.type,x:vehicle.x,z:vehicle.z,heading:vehicle.heading,
-              charge:vehicle.charge,sequence:vehicle.sequence,occupied:!!vehicle.driver},
-            vehicleResult:{action,blocked},base:action==='build'||action==='charge'?base:undefined});
+            vehicle:publicVehicle,vehicleResult:{action,blocked},
+            base:action==='build'||action==='charge'?base:undefined});
           return true;
         }
         case '/api/homefront/world/exploration/discover': {

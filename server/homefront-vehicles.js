@@ -116,10 +116,11 @@ function release(world,account){
  if(v?.driver===account){v.driver=null;v.lastDriveAt=0;}
  if(world.players?.[account])world.players[account].vehicleId=null;
 }
-function charge(world,base,account,now=Date.now()){
+function charge(world,base,account,gate,now=Date.now()){ 
  const p=world.players?.[account],v=world.vehicles?.[account];
  if(!p||!v)throw Error('no_owned_vehicle');
  if(v.driver||distance(p,v)>NEAR)throw Error('park_at_rover_to_charge');
+ if(!gate||distance(v,gate)>10)throw Error('return_to_homefront_garage_to_charge');
  if(!base?.resources||base.resources.scrap<CHARGE_COST.scrap)throw Error('insufficient_vehicle_materials');
  if(v.charge>=99.9)throw Error('vehicle_fully_charged');
  base.resources.scrap-=CHARGE_COST.scrap;

@@ -23,6 +23,7 @@ import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
 import { queueDoorwayTap } from './homefront-context-action-queue.mjs';
 import { buildRoverMesh } from './homefront-rover-mesh.mjs';
+import { closestStrandedSurvivor, survivorApproachCue, survivorInteraction } from './homefront-survivor-encounters.mjs';
 import { createRoverControls } from './homefront-rover-controls.mjs';
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
 import { clipInteriorCamera, interiorCameraProbeOrigins } from './homefront-camera-occlusion.mjs';
@@ -775,6 +776,7 @@ function boot(host) {
         npc.rotation.y=-Math.PI*0.25;
         npc.traverse(node=>{if(node.isMesh)node.userData.sharedAsset=true;});
         g.add(npc);
+        g.userData.rescueActor=npc;
         const rescueNote=labelSprite('SURVIVOR · NEEDS HELP','#ffca9b');
         rescueNote.position.set(2.2,4.45,0.35);rescueNote.scale.set(10,1.8,1);
         g.add(rescueNote);
@@ -828,6 +830,10 @@ function boot(host) {
     lootGroup.add(g);
   }
   let worldData = null, moving = false;
+  // The player approaches actual world actors instead of opening another
+  // browser-style dialogue screen. Cue each stranded NPC sparingly.
+  const survivorCueAt=new Map();
+  let survivorCueGlobalAt=0, lastSurvivorCheckAt=0;
   // Experimental direct walking requires BOTH the server flag and explicit ?movement=continuous.
   // Otherwise the established destination-based controls are unchanged.
 
@@ -2347,10 +2353,9 @@ function boot(host) {
     }
     if (refugeReturnDistance() <= 3) return { id: 'return-refuge', label: 'Return to refuge' };
     if(!interiorState&&wantsContinuous){
-      const survivor=(worldData.world?.pointsOfInterest||[]).find(p=>p.type==='rescue'&&
-        !(worldData.world?.rescues?.[p.id]?.readyAt>Date.now())&&
-        Math.hypot(worldData.self.x-p.x,worldData.self.z-p.z)<=5);
-      if(survivor)return {id:'rescue-survivor',targetId:survivor.id,label:'Help stranded survivor · 2 food + 1 ammo'};
+      const survivor=closestStrandedSurvivor(worldData.world,worldData.self,Date.now());
+      const interaction=survivorInteraction(survivor);
+      if(interaction)return interaction;
     }
     if (continuousInput.enabled) {
       const self = worldData.self;
@@ -2572,6 +2577,32 @@ function boot(host) {
     view.refreshCrouch?.();
     updatePineScenery(dt);
     tracerPool.update(dt);
+    if(wantsContinuous&&worldData?.self&&!interiorState){
+      // Three hand-authored survivors breathe, scan for infected and turn
+      // toward an approaching player. Geometry is cached by the world view.
+      // This is PRESENTATION, not independent NPC movement authority.
+      for(const marker of markerObjects.values()){
+        const npc=marker.userData?.rescueActor;
+        if(!npc)continue;
+        const worldX=marker.position.x+npc.position.x,worldZ=marker.position.z+npc.position.z;
+        const dx=worldData.self.x-worldX,dz=worldData.self.z-worldZ;
+        if(Math.hypot(dx,dz)<12){
+          const facing=Math.atan2(dx,dz);
+          npc.rotation.y+=Math.atan2(Math.sin(facing-npc.rotation.y),Math.cos(facing-npc.rotation.y))*Math.min(1,dt*2.2);
+        }else npc.rotation.y=-Math.PI/4+Math.sin(now*0.00025+worldX)*0.25;
+        npc.position.y=Math.sin(now*0.002+worldX)*0.025;
+      }
+      if(now-lastSurvivorCheckAt>=600){
+        lastSurvivorCheckAt=now;
+        const scene=closestStrandedSurvivor(worldData.world,worldData.self,Date.now());
+        const stamp=Date.now();
+        const cue=survivorApproachCue(scene,survivorCueAt.get(scene?.id),stamp);
+        if(cue&&stamp-survivorCueGlobalAt>16000){
+          survivorCueAt.set(cue.id,cue.at);survivorCueGlobalAt=stamp;
+          showFieldToast(cue.message);
+        }
+      }
+    }
     if (!eventToast.hidden && now > eventToastUntil) eventToast.hidden = true;
     if (now - lastAmbientUpdateAt >= AMBIENT_UPDATE_MS) {
       lastAmbientUpdateAt = now;

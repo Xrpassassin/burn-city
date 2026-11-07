@@ -2,6 +2,7 @@
 export const ZOMBIE_WALK_SPEED = 6;
 export const ZOMBIE_FAST_SPEED = 8.2;
 export const ZOMBIE_CRAWL_SPEED = 1.6;
+export const HOMEFRONT_CROUCH_SPEED_SCALE = 0.52;
 
 export function zombieMoveVector(strafe, forward, yaw) {
   const sin = Math.sin(yaw), cos = Math.cos(yaw);

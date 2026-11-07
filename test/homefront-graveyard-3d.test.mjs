@@ -172,7 +172,8 @@ assert.match(scene, /node\.userData\.lootNodeId === selectedLootId/, 'highlight 
 assert.match(scene, /Math\.sin\(now \* 0\.006\) \* 0\.055/, 'pulse the selected supply ring in the render loop');
 assert.match(scene, /focus\.mesh\.material\.color\.setHex\(selected \? 0xffe08a : focus\.color\)/, 'restore each supply node base glow color when selection changes');
 assert.match(scene, /const previousExplorerPositions = new Map\(\)/, 'preserve each explorer position across world snapshots');
-assert.match(scene, /explorerPositions\.set\(key, \{ x: p\.x, y: targetY, z: p\.z \}\)/, 'store authoritative explorer destinations separately from rendered positions');
+assert.match(scene, /explorerPositions\.set\(key, \{ x: p\.x, y: targetY, z: p\.z, crouched: p\.crouched \}\)/,
+  'store authoritative explorer destinations and stance separately from rendered poses');
 assert.match(scene, /const travelBlend = directLocal \? 1 : 1 - Math\.exp\(-8 \* dt\)/, 'use local predicted position directly and interpolate remote explorers');
 assert.match(scene, /explorer\.rotation\.y = turnToward\(explorer\.rotation\.y, Math\.atan2\(dx, dz\), dt\)/, 'turn moving explorers toward their travel direction');
 assert.match(scene, /g\.userData\.avatarParts = \[/, 'retain avatar body, head, backpack, and strap references for animation');
@@ -190,7 +191,7 @@ assert.match(page, /cameraPose\(\{mode:yardView\.mode,building:constructionView/
 assert.match(page, /camera\.position\.lerp\((?:new THREE\.Vector3|yardCamTarget\.set)\(pose\.px,pose\.py,pose\.pz\),blend\)/, 'blend smoothly between construction and the previous walking view');
 assert.doesNotMatch(page, /Vector3\(constructionView\?0:19/, 'no fixed elevated yard camera outside construction');
 assert.match(page, /yardView=attachViewControls\(host,\{canLook:\(\)=>!pendingBuilding&&!constructionPaused\}\)/, 'yard look/joystick controls pause during construction');
-assert.match(scene, /attachViewControls\(host, \{ onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous \}\)/, 'Graveyard taps and direct-walk orbit come from the shared controller');
+assert.match(scene, /attachViewControls\(host, \{\s*onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous,/, 'Graveyard taps and direct-walk orbit come from the shared controller');
 assert.match(scene, /cameraPose\(\{ mode: view\.mode/, 'Graveyard camera follows the remembered first-/third-person mode');
 assert.match(scene, /worldMove\(view\.move\(\), heading, 0\)/, 'joystick / WASD travel is relative to the camera heading');
 assert.match(scene, /noiseWarning=noiseLevel>=55\?' Loud container! Noise '/, 'loot UI warns when a noisy container can attract infected');

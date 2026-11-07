@@ -1,4 +1,5 @@
 'use strict';
+const { HOMEFRONT_CROUCH_SPEED_SCALE } = require('../client/arena/zombie-locomotion.mjs');
 
 // Pure validation/math for a future opt-in authoritative Homefront input endpoint.
 // This module does NOT move players, persist state, or bypass the legacy move cooldown.
@@ -8,13 +9,13 @@ const INPUT_EPSILON = 1e-6;
 
 function validateInput(command, lastSequence = -1) {
   if (!command || typeof command !== 'object' || Array.isArray(command)) throw new Error('invalid_movement_input');
-  const { sequence, x, z, sprint } = command;
+  const { sequence, x, z, sprint, crouched = false } = command;
   if (!Number.isSafeInteger(sequence) || sequence < 0 || !Number.isSafeInteger(lastSequence) || sequence <= lastSequence) throw new Error('invalid_movement_sequence');
   if (typeof x !== 'number' || typeof z !== 'number' || !Number.isFinite(x) || !Number.isFinite(z)) throw new Error('invalid_movement_vector');
   const magnitude = Math.hypot(x, z);
   if (magnitude > MAX_INPUT_MAGNITUDE + INPUT_EPSILON) throw new Error('invalid_movement_vector');
-  if (typeof sprint !== 'boolean') throw new Error('invalid_movement_mode');
-  return Object.freeze({ sequence, x, z, sprint, magnitude: Math.min(1, magnitude) });
+  if (typeof sprint !== 'boolean' || typeof crouched !== 'boolean' || (sprint && crouched)) throw new Error('invalid_movement_mode');
+  return Object.freeze({ sequence, x, z, sprint, crouched, magnitude: Math.min(1, magnitude) });
 }
 
 // Only a server-side clock may supply now/previousAt. Long gaps never bank movement.
@@ -25,7 +26,7 @@ function displacementForInput(input, { now, previousAt, walkSpeed, sprintSpeed }
   // A resumed stream must establish a fresh server-time baseline before moving.
   const gapMs = now - previousAt;
   const elapsedMs = gapMs > MAX_INPUT_DT_MS * 2 ? 0 : Math.min(MAX_INPUT_DT_MS, gapMs);
-  const speed = input.sprint ? sprintSpeed : walkSpeed;
+  const speed = input.sprint ? sprintSpeed : walkSpeed * (input.crouched ? HOMEFRONT_CROUCH_SPEED_SCALE : 1);
   const seconds = elapsedMs / 1000;
   return Object.freeze({ x: input.x * speed * seconds, z: input.z * speed * seconds, elapsedMs });
 }

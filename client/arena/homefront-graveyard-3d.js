@@ -794,6 +794,7 @@ function boot(host) {
     survivalReadout.hidden = !data?.self || !Number.isFinite(vitals?.health);
     if (survivalReadout.hidden) return;
     const lines = ['Health ' + Math.ceil(vitals.health)];
+    if (data.self.crouched) lines.push('Crouched · quieter movement');
     if (vitals.infection > 0) lines.push('Infection ' + Math.ceil(vitals.infection) + '%');
     if (vitals.thirst <= 25) lines.push(vitals.thirst <= 0 ? 'Dehydrated' : 'Thirsty');
     if (vitals.hunger <= 25) lines.push(vitals.hunger <= 0 ? 'Starving' : 'Hungry');
@@ -823,6 +824,7 @@ function boot(host) {
     // each second. Full scene reconciliation is reserved for material changes
     // (new/removed actors, combat damage, outfit or loot state).
     const respawned = next.selfInfectedHit?.defeated && next.selfInfectedHit.at > infectedHitAt;
+    if (respawned) view.resetCrouch?.();
     if (respawned || (requiresHomefrontSceneRebuild(lastRenderedWorldData, next) && time - lastContinuousWorldRefresh >= 900)) {
       lastContinuousWorldRefresh = time;
       updateWorld(next);
@@ -836,7 +838,7 @@ function boot(host) {
     for (const p of playerPositionUpdates(next)) {
       if (p.isLocalPlayer) continue;
       explorerPositions.set(p.id, {
-        x: p.x, z: p.z, y: interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z))
+        x: p.x, z: p.z, crouched: p.crouched, y: interiorElevationAt(p.x, p.z, terrainElevation(p.x, p.z))
       });
     }
     for (const escort of next.companions || []) {
@@ -1196,7 +1198,7 @@ function boot(host) {
       g.position.set(previousPosition?.x ?? p.x, previousPosition?.y ?? targetY, previousPosition?.z ?? p.z);
       g.userData.explorerKey = key;
       g.userData.targetX = p.x; g.userData.targetZ = p.z; g.userData.targetY = targetY;
-      explorerPositions.set(key, { x: p.x, y: targetY, z: p.z });
+      explorerPositions.set(key, { x: p.x, y: targetY, z: p.z, crouched: p.crouched });
       const color = p.label === 'You' ? 0xffdf83 : p.party ? 0x8fd4f4 : 0xd7d1c5;
       const isLocalPlayer = p.label === 'You';
       const bodyColor = isLocalPlayer ? equippedOutfitColor : color;
@@ -1506,7 +1508,7 @@ function boot(host) {
         const landmark = LANDMARKS.find(item => item.id === p.interior?.landmarkId);
         const room = interiorRoom(interiorForLandmark(p.interior?.landmarkId), p.interior?.roomId);
         explorerPositions.set(p.id, {
-          x: p.x, z: p.z,
+          x: p.x, z: p.z, crouched: p.crouched,
           y: landmark && room ? terrainElevation(landmark.x, landmark.z) + room.elevation : terrainElevation(p.x,p.z)
         });
       }
@@ -2036,7 +2038,11 @@ function boot(host) {
   // not a hotkey that can pull the player out of the world during combat.
   const masterView = 'third-person';
   // Third-/first-person toggle (V or the on-canvas button), touch joystick + drag-to-look, pinch zoom.
-  const view = attachViewControls(host, { onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous });
+  const view = attachViewControls(host, {
+    onTap: onWorldTap, wheel: false, rightDrag: wantsContinuous,
+    canCrouch: wantsContinuous ? () => !!worldData?.self && continuousInput.enabled &&
+      !(worldData.party && !worldData.party.leader) : null
+  });
 
   // The direct-walk preview uses the camera to aim, with no separate target-selection step.
   let updateWeaponOverlay;
@@ -2290,7 +2296,7 @@ function boot(host) {
     stepDistance = 0;
     lastAmbientAt = -Infinity;
   }
-  function updateFieldAudio(point, sprint, now) {
+  function updateFieldAudio(point, sprint, crouched, now) {
     if (!zombieAudioStarted || !point || !inPineCrossing(point.x, point.z, 4)) {
       if (fieldWind || lastFoot) stopFieldAudio();
       return;
@@ -2310,18 +2316,35 @@ function boot(host) {
     if (step > 0.85) { stepDistance = 0; return; }
     if (step < 0.008) return;
     stepDistance += step;
-    if (stepDistance >= (sprint ? 2.15 : 1.8)) {
+    if (stepDistance >= (sprint ? 2.15 : crouched ? 1.4 : 1.8)) {
       stepDistance = 0;
-      sfx.fieldStep(interiorState ? 'wood' : pineSurfaceAt(point.x, point.z), sprint);
+      sfx.fieldStep(interiorState ? 'wood' : pineSurfaceAt(point.x, point.z), sprint, crouched);
     }
   }
   let sceneWasVisible = true;
+  function poseFieldWalker(explorer, movingAvatar, crouched, now, dt) {
+    const { walker, isLocalPlayer } = explorer.userData;
+    if (!walker) return;
+    const desired = crouched ? 1 : 0;
+    const current = explorer.userData.crouchBlend || 0;
+    const blend = current + (desired - current) * (1 - Math.exp(-11 * dt));
+    explorer.userData.crouchBlend = blend;
+    explorer.scale.y = 1 - 0.23 * blend;
+    poseWalker(walker, now * (crouched ? 0.008 : 0.012), movingAvatar ? 1 - 0.4 * blend : 0, now / 1000);
+    if (walker.userData.torso) walker.userData.torso.rotation.x -= 0.22 * blend;
+    if (isLocalPlayer) {
+      const jump = view.takeJump();
+      stepVertical(localJump, dt, 0, jump && !crouched, EXPLORER_SCALE);
+      walker.position.y = localJump.y;
+    }
+  }
   const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
     // Keep server polling authoritative, but do no world animation or scenery
     // work while at the refuge or in a hidden tab. Reset the frame clock above
     // so returning never applies a large catch-up animation step.
     if (!view.visible || document.hidden) {
       releaseMovementControls(view);
+      view.resetCrouch?.();
       view.jumpQueued = false;
       if (sceneWasVisible) {
         stopAutoFire();
@@ -2340,6 +2363,7 @@ function boot(host) {
       return;
     }
     sceneWasVisible = true;
+    view.refreshCrouch?.();
     updatePineCreek(dt);
     tracerPool.update(dt);
     if (!eventToast.hidden && now > eventToastUntil) eventToast.hidden = true;
@@ -2372,7 +2396,7 @@ function boot(host) {
       explorer.position.z += dz * travelBlend;
       movingAvatar = Math.hypot(dx, dz) > (directLocal ? 0.004 : 0.035);
       if (movingAvatar) explorer.rotation.y = turnToward(explorer.rotation.y, Math.atan2(dx, dz), dt);
-    } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; if (explorer.userData.walker) { poseWalker(explorer.userData.walker, now * 0.012, movingAvatar ? 1 : 0, now / 1000); if (explorer.userData.isLocalPlayer) { stepVertical(localJump, dt, 0, view.takeJump(), EXPLORER_SCALE); explorer.userData.walker.position.y = localJump.y; } } if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.72 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; if (piece.userData.tracer) { piece.material.opacity = Math.max(0, piece.userData.life / (piece.userData.maxLife || 0.095)); if (piece.userData.life <= 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } continue; } piece.position.x += (piece.userData.vx || 0) * dt; piece.position.y += (piece.userData.vy || 0) * dt; piece.position.z += (piece.userData.vz || 0) * dt; piece.userData.vy = (piece.userData.vy || 0) - 5.5 * dt; if (piece.rotation) { piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; } if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); else if (piece.material?.opacity != null) piece.material.opacity = Math.max(0, piece.userData.life / 0.075); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } }
+    } const bob = movingAvatar ? Math.abs(Math.sin(now * 0.014)) * 0.11 : Math.sin(now * 0.002 + (explorer.userData.isLocalPlayer ? 0 : 1)) * 0.018; for (const part of (explorer.userData.avatarParts || [])) part.object.position.y = part.baseY + bob; poseFieldWalker(explorer, movingAvatar, (explorer.userData.isLocalPlayer && view.crouching?.()) || target?.crouched, now, dt); if (!explorer.userData.isLocalPlayer || !explorer.userData.weapon) continue; if (reloadState) { const phase = Math.max(0, Math.min(1, (now - reloadState.shellStartedAt) / (reloadState.weaponId === 'pump_shotgun' ? 680 : 2250))); if (reloadState.weaponId === 'pump_shotgun') { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(phase * Math.PI) * 0.48; explorer.userData.weapon.rotation.z = 0.16 + Math.sin(phase * Math.PI) * 0.22; } else { const dip = Math.sin(phase * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + dip * 0.62; explorer.userData.weapon.rotation.z = -0.08 - dip * 0.18; } continue; } const remaining = weaponSwingUntil - now; const progress = remaining > 0 ? Math.max(0, Math.min(1, (now - weaponSwingStartedAt) / 320)) : 0; if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (remaining <= 0) { explorer.userData.weapon.rotation.x = aiming ? -0.42 : -0.12; explorer.userData.weapon.rotation.z = aiming ? -0.06 : 0; continue; } if (weaponSwingWeaponId === 'pump_shotgun' || weaponSwingWeaponId === 'marksman_rifle' || weaponSwingWeaponId === 'heavy_machine_gun') { const kick = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8); const strength = weaponSwingWeaponId === 'heavy_machine_gun' ? 0.72 : weaponSwingWeaponId === 'marksman_rifle' ? 0.62 : 0.46; explorer.userData.weapon.rotation.x = -0.12 - kick * strength; explorer.userData.weapon.rotation.z = kick * 0.045; } else if (weaponSwingWeaponId === 'shock_maul') { const arc = Math.sin(progress * Math.PI); explorer.userData.weapon.rotation.x = -0.12 + arc * 1.15; explorer.userData.weapon.rotation.z = arc * 0.2; } else { explorer.userData.weapon.rotation.x = -0.12 + Math.sin(progress * Math.PI) * 0.95; explorer.userData.weapon.rotation.z = Math.sin(progress * Math.PI) * 0.38; } } for (const piece of [...impactGroup.children]) { piece.userData.life -= dt; if (piece.userData.tracer) { piece.material.opacity = Math.max(0, piece.userData.life / (piece.userData.maxLife || 0.095)); if (piece.userData.life <= 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } continue; } piece.position.x += (piece.userData.vx || 0) * dt; piece.position.y += (piece.userData.vy || 0) * dt; piece.position.z += (piece.userData.vz || 0) * dt; piece.userData.vy = (piece.userData.vy || 0) - 5.5 * dt; if (piece.rotation) { piece.rotation.x += dt * 5; piece.rotation.z += dt * 3; } if (piece.userData.blood) piece.material.opacity = Math.max(0, piece.userData.life / 0.75); else if (piece.material?.opacity != null) piece.material.opacity = Math.max(0, piece.userData.life / 0.075); if (piece.userData.life <= 0 || piece.position.y < 0) { impactGroup.remove(piece); piece.geometry.dispose(); piece.material.dispose(); } }
     const localForInfected = continuousInput.position() || worldData?.self;
     const presentedInfected = [];
     for (const actor of combatActors.values()) {
@@ -2416,21 +2440,23 @@ function boot(host) {
       const localActor = playerGroup.children.find(actor => actor.userData.isLocalPlayer);
       const heading = walkingCameraHeading(localActor?.rotation.y || 0, cameraYawOffset, view.yaw, continuousInput.enabled);
       const stick = worldMove(view.move(), heading, 0);
-      const sprint = directSprintRequested(sprintTravel, view.running(), aiming);
+      const crouched = view.crouching?.() === true;
+      const sprint = !crouched && directSprintRequested(sprintTravel, view.running(), aiming);
       if (continuousInput.enabled && !moving && !(worldData.party && !worldData.party.leader)) {
-        continuousInput.step(stick, sprint, now, dt);
+        continuousInput.step(stick, sprint, now, dt, crouched);
       }
       const shownSelf = continuousInput.position() || self;
-      updateFieldAudio(shownSelf, sprint, now);
+      updateFieldAudio(shownSelf, sprint, crouched || self.crouched, now);
       updateVisibleChunks(shownSelf.x, shownSelf.z);
       if (continuousInput.enabled && localActor?.userData.explorerKey) {
         explorerPositions.set(localActor.userData.explorerKey, {
-          x: shownSelf.x, y: terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation(), z: shownSelf.z
+          x: shownSelf.x, y: terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation(), z: shownSelf.z, crouched: crouched || self.crouched
         });
       }
       const followBlend = 1 - Math.exp(-dt * (view.mode === 'first' ? 14 : 6.5));
       const targetY = terrainElevation(shownSelf.x, shownSelf.z) + activeInteriorElevation();
       const pose = cameraPose({ mode: view.mode, x: shownSelf.x, y: targetY, z: shownSelf.z, heading, pitch: view.mode === 'first' ? view.pitch : cameraPitchOffset + view.pitch * 0.5, distance: cameraDistance * view.distance / 6.2 });
+      if (crouched || self.crouched) { pose.py -= 0.47; pose.ly -= 0.47; }
       if (continuousInput.enabled && view.mode === 'third') {
         // Place the reticle beside the player's shoulder so their body does not obscure aim.
         const shoulderX = -Math.cos(heading) * 0.9;
@@ -2504,6 +2530,7 @@ function boot(host) {
       }
     }
     if (!worldData?.self) {
+      view.resetCrouch?.();
       cameraInitialized = false;
       if (fieldWind || lastFoot) stopFieldAudio();
     }

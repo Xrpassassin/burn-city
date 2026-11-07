@@ -153,6 +153,7 @@ function normalizeWorld(input, now = Date.now()) {
     p.directorState = p.directorState && typeof p.directorState === 'object' ? p.directorState : {};
     p.lastNoiseAt = Number.isFinite(p.lastNoiseAt) ? clamp(p.lastNoiseAt, 0, Number.MAX_SAFE_INTEGER) : 0;
     p.noiseLevel = clamp(p.noiseLevel, 0, 100);
+    p.crouched = p.crouched === true;
     p.noiseX = clamp(p.noiseX ?? p.x, -WORLD_SIZE, WORLD_SIZE);
     p.noiseZ = clamp(p.noiseZ ?? p.z, -WORLD_SIZE, WORLD_SIZE);
     p.aiming = p.aiming === true;
@@ -333,7 +334,7 @@ function publicPlayer(acct, p, me, now, viewerParty = null) {
   // The safe perimeter lies around the outer edge; depth measures inward expansion.
   const frontierDepth = frontierDepthAt(p.x, p.z);
   const frontierBand = frontierDepth < 25 ? 'perimeter' : frontierDepth < 45 ? 'outer ring' : frontierDepth < 63 ? 'inner blocks' : frontierDepth < 76 ? 'commercial edge' : frontierDepth < 89 ? 'industrial belt' : 'core approach';
-  return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, frontierDepth, frontierBand, spawn: acct === me ? p.spawn : undefined, party: acct !== me && !!viewerParty && p.partyCode === viewerParty, online: now - p.lastSeen <= PRESENCE_TTL };
+  return { id: 'survivor-' + hash(acct).toString(36).slice(0, 7), label: acct === me ? 'You' : 'Survivor-' + hash(acct).toString(36).slice(0, 5), x: p.x, z: p.z, district: d.id, risk: d.risk, frontierDepth, frontierBand, crouched: p.crouched === true, spawn: acct === me ? p.spawn : undefined, party: acct !== me && !!viewerParty && p.partyCode === viewerParty, online: now - p.lastSeen <= PRESENCE_TTL };
 }
 function nearestPoint(x, z, type = null) { const points = POINTS_OF_INTEREST.filter(p => !type || (type === 'non-boss' ? p.type !== 'boss' && p.type !== 'interior' : p.type === type)); let best = null; for (const point of points) { const distance = Math.hypot(point.x - x, point.z - z); if (!best || distance < best.distance) best = { point, distance }; } return best; }
 function encounterContext(w, acct, now) {
@@ -356,7 +357,9 @@ function encounterContext(w, acct, now) {
   const noise = Math.max(0, (p.noiseLevel || 0) - elapsed / 120);
   return {
     zoneId, risk: exposure.risk, frontierDepth: exposure.distance / 1.1,
-    playerCount: 1 + nearby.length, activeEncounters, noise, lastNoiseAt: p.lastNoiseAt, now,
+    playerCount: 1 + nearby.length, activeEncounters, noise,
+    // Footsteps give nearby patrols a location without declaring an assault.
+    lastNoiseAt: p.noiseLevel >= 19 ? p.lastNoiseAt : 0, now,
     seed: acct + ':' + district.id + ':' + Math.floor(p.x / 12) + ':' + Math.floor(p.z / 12) + ':' + Math.floor(now / 5000)
   };
 }
@@ -515,7 +518,7 @@ function tickInfected(w, acct, now) {
   // spawn at reduced health with the field pack intact.
   const { spawn, position } = chooseSafeSpawn(w, acct);
   player.x = position.x; player.z = position.z;
-  player.spawn = spawn.id; player.spawnedAt = now; player.lastMove = now;
+  player.spawn = spawn.id; player.spawnedAt = now; player.lastMove = now; player.crouched = false;
   player.aiming = false; player.aimStartedAt = 0;
   survival.health = Survival.RESPAWN_HEALTH;
   if (w.interiors?.[acct]) w.interiors[acct].activeLandmarkId = null;
@@ -653,16 +656,19 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
   p.lastMove = p.lastSeen = now;
   p.lastMoveMode = isInput ? 'input' : 'legacy';
   p.lastInputAt = isInput ? now : 0;
+  p.crouched = command?.crouched === true;
   if (isInput) p.lastInputSequence = command.sequence;
   if (movedDistance > 0) {
     if (sprint) { p.lastSprintAt = now; p.accuracyRecoverUntil = now + SPRINT_RECOVERY_MS; }
     else p.accuracyRecoverUntil = Math.max(p.accuracyRecoverUntil || 0, now + AIM_RECOVERY_MS);
     p.aiming = false; p.aimStartedAt = 0;
-    if (sprint && inPineCrossing(p.x, p.z, 4) && now - (p.lastNoiseAt || 0) >= 750) {
-      const surface = pineSurfaceAt(p.x, p.z);
-      const level = surface === 'gravel' ? 32 : surface === 'asphalt' ? 24 : 19;
+    if ((isInput || sprint) && inPineCrossing(p.x, p.z, 4) && now - (p.lastNoiseAt || 0) >= 750) {
+      const surface = activeInteriorId ? 'wood' : pineSurfaceAt(p.x, p.z);
+      const stepNoise = surface === 'gravel' ? 12 : surface === 'wood' ? 9 : surface === 'asphalt' ? 6 : 4;
+      const level = sprint ? (surface === 'gravel' ? 32 : surface === 'asphalt' ? 24 : 19)
+        : p.crouched ? Math.floor(stepNoise * 0.25) : stepNoise;
       const remaining = Math.max(0, (p.noiseLevel || 0) - (now - (p.lastNoiseAt || 0)) / 120);
-      if (remaining <= level) {
+      if (level > 0 && remaining <= level) {
         p.lastNoiseAt = now;
         p.noiseX = p.x; p.noiseZ = p.z; p.noiseLevel = level;
       }
@@ -678,6 +684,7 @@ function move(input, acct, x, z, now = Date.now(), sprint = false, inputCommand 
       const offsetX = (hash(member) % 7) - 3;
       const offsetZ = (hash(member + 'z') % 7) - 3;
       const followerState = w.players[member];
+      followerState.crouched = p.crouched;
       const targetX = clamp(p.x + offsetX, -WORLD_SIZE, WORLD_SIZE);
       const targetZ = clamp(p.z + offsetZ, -WORLD_SIZE, WORLD_SIZE);
       const followerRemoved = Object.values(w.environmentStructures).filter(s => s.health <= 0).map(s => s.id);

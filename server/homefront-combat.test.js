@@ -293,6 +293,16 @@ console.log('fifty cal tier ok');
    'the logging patrol spawns beyond immediate contact range');
  const patrolled = C.advance({ encounters: JSON.parse(JSON.stringify(seeded.encounters)), players: { [account]: walker }, now: now + 1000 });
  assert.ok(patrolled[account].x < initial.x && patrolled[account].z > initial.z, 'undisturbed infected follow the authored patrol');
+ const crossing = { ...walker, x: -14, z: -81 };
+ const watch = (encounters, player, offset) => C.advance({
+   encounters, players: { [account]: player }, now: now + offset
+ })[account];
+ const noticed = watch(seeded.encounters, crossing, 1000);
+ assert.equal(noticed.lastKnownX, crossing.x, 'a standing survivor is visible across the clearing');
+ const quiet = watch(seeded.encounters, { ...crossing, crouched: true }, 1000);
+ assert.equal(quiet.lastKnownAt, 0, 'a crouched survivor can stay below patrol detection range');
+ const tracked = watch({ [account]: noticed }, { ...crossing, crouched: true }, 1200);
+ assert.equal(tracked.lastKnownAt, now + 1200, 'crouching alone cannot break recent visual contact');
 
  const shot = { ...walker, lastNoiseAt: now + 1000, noiseLevel: 95, noiseX: -20, noiseZ: -81 };
  const investigating = C.advance({ encounters: seeded.encounters, players: { [account]: shot }, now: now + 1000 });

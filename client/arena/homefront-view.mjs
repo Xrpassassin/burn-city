@@ -73,6 +73,7 @@ if (typeof window !== 'undefined') {
     if (k === 'v' && !e.repeat) { setViewMode(nextViewMode(readViewMode())); return; }
     // Keys drive the canvas on screen: a hidden view (e.g. the Graveyard while at home) hands over to a visible one.
     if (activeView && !activeView.visible) { const shown = [...views].find(v => v.visible); if (shown) activeView = shown; }
+    if (k === 'c' && !e.repeat && activeView?.visible && activeView.toggleCrouch?.()) e.preventDefault();
     if (KEYMAP[k] && activeView) { held.add(k); activeView.keys = keyVector(held); e.preventDefault(); }
     // Shared Burn City movement keys (client/js/player-motion.mjs): Shift runs, Space jumps.
     if (k === 'shift' && activeView) activeView.runKey = true;
@@ -92,7 +93,7 @@ export function setViewMode(mode) {
 
 // Per-canvas controller: toggle button, touch joystick, drag-to-look, pinch/wheel zoom, keyboard focus,
 // and offscreen detection so a hidden canvas can skip rendering (mobile perf).
-export function attachViewControls(host, { canLook = () => true, onTap = null, joystick = true, wheel = true, rightDrag = false } = {}) {
+export function attachViewControls(host, { canLook = () => true, onTap = null, joystick = true, wheel = true, rightDrag = false, canCrouch = null } = {}) {
   const state = { mode: readViewMode(), yaw: 0, pitch: 0, distance: 6.2, joy: { x: 0, y: 0 }, keys: { x: 0, y: 0 }, visible: true, dragging: false, runKey: false, runTouch: false, jumpQueued: false };
   views.add(state); if (!activeView) activeView = state;
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -140,6 +141,36 @@ export function attachViewControls(host, { canLook = () => true, onTap = null, j
     };
     mk('JUMP', 12, () => { state.jumpQueued = true; });
     mk('RUN', 78, () => { state.runTouch = true; }, () => { state.runTouch = false; });
+  }
+  if (canCrouch) {
+    const stance = document.createElement('button');
+    stance.type = 'button';
+    stance.className = 'hf-act hf-crouch';
+    stance.style.cssText = `position:absolute;left:12px;bottom:${coarse ? 128 : 12}px;min-width:58px;min-height:44px;padding:0 10px;border-radius:22px;border:2px solid #ffb06088;background:#1b1512ee;color:#ffe0c0;font:800 12px system-ui;z-index:3;touch-action:manipulation`;
+    let crouched = false;
+    const paintStance = () => {
+      stance.textContent = crouched ? 'Stand' : 'Crouch';
+      if (!coarse) stance.textContent += ' · C';
+      stance.setAttribute('aria-pressed', String(crouched));
+      stance.setAttribute('aria-label', 'Crouch');
+    };
+    state.toggleCrouch = () => {
+      if (!canCrouch() || modalOpen()) return false;
+      crouched = !crouched;
+      paintStance();
+      return true;
+    };
+    state.resetCrouch = () => { if (crouched) { crouched = false; paintStance(); } };
+    state.crouching = () => crouched && canCrouch();
+    state.refreshCrouch = () => {
+      const hidden = !canCrouch();
+      if (stance.hidden !== hidden) stance.hidden = hidden;
+    };
+    stance.addEventListener('pointerdown', e => { activeView = state; e.stopPropagation(); });
+    stance.addEventListener('click', e => { e.stopPropagation(); state.toggleCrouch(); });
+    host.append(stance);
+    paintStance();
+    state.refreshCrouch();
   }
   // Drag to look (left mouse or one finger) and pinch/wheel zoom. A press that never moves is a tap.
   const pts = new Map(); let start = null, pinch0 = 0, dist0 = 0;

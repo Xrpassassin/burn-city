@@ -257,7 +257,10 @@ function advance({encounters,players,interiors=null,sharedInteriors,destroyedObs
   let seen = null, heard = null, closest = e.pursuitRadius, loudest = -Infinity;
   for (const [id, candidate] of candidates) {
    const distance = Math.hypot(candidate.x - e.x, candidate.z - e.z);
-   if (distance <= closest) {
+   const tracked = e.lastKnownAt > 0 && !e.investigateUntil && now - e.lastKnownAt < 2200 &&
+    Math.hypot(candidate.x - e.lastKnownX, candidate.z - e.lastKnownZ) <= 3;
+   const sightRadius = e.patrolId && candidate.crouched && !tracked ? e.pursuitRadius * 0.56 : e.pursuitRadius;
+   if (distance <= closest && distance <= sightRadius) {
     const options = interiorCollisionOptions(interiors, id, sharedInteriors, destroyedObstacles);
     if (Collision.canTraverse(e.x, e.z, candidate.x, candidate.z, { ...options, radius: 0.45 })) {
      seen = [id, candidate];

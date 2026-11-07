@@ -90,6 +90,7 @@ function attack(w, attacker, { targetId, aimPoint, base, now = Date.now(), farSp
       t.x = spot.position.x; t.z = spot.position.z; t.spawn = spot.spawn.id; t.spawnedAt = now; t.lastMove = now;
       t.survival.health = RESPAWN_HEALTH;
       t.downedAt = now;
+      t.crouched = false;
       if (w.interiors?.[target]) w.interiors[target].activeLandmarkId = null;
       me.pvpKills = (me.pvpKills || 0) + 1;
     }

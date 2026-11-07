@@ -21,6 +21,24 @@ const direction = directions.find(d => Collision.canTraverse(p.x, p.z, p.x + d.x
 assert.ok(direction, 'spawn provides a traversable step');
 const input = (sequence, x = direction.x, z = direction.z, sprint = false) => ({ sequence, x, z, sprint });
 
+{
+  const quiet = structuredClone(w);
+  const player = quiet.players['walker-a'];
+  Object.assign(player, { x: -15, z: -81.6, lastMoveMode: 'input', lastInputAt: 2000, lastInputSequence: 1 });
+  const walk = World.moveInput(quiet, 'walker-a', input(2, -1, 0), 2100);
+  const crouch = World.moveInput(quiet, 'walker-a', { ...input(2, -1, 0), crouched: true }, 2100);
+  assert.ok(Math.abs(crouch.result.self.x - player.x) < Math.abs(walk.result.self.x - player.x));
+  assert.ok(crouch.result.director.noise < walk.result.director.noise);
+  assert.notEqual(walk.result.director.phase, 'assault', 'walking noise can alert a patrol without triggering an assault');
+  assert.equal(crouch.result.self.crouched, true);
+  const stood = World.moveInput(crouch.world, 'walker-a', input(3, 0, 0), 2200);
+  assert.equal(stood.result.self.crouched, false);
+  assert.equal(stood.result.self.x, crouch.result.self.x);
+  Object.assign(player, { lastInputAt: 2900, lastNoiseAt: 2000, noiseLevel: 88, noiseX: -16, noiseZ: -82 });
+  const afterShot = World.moveInput(quiet, 'walker-a', { ...input(2, -1, 0), crouched: true }, 3000);
+  assert.equal(afterShot.world.players['walker-a'].noiseLevel, 88, 'crouch cannot overwrite recent gunfire');
+}
+
 // New sessions establish a server-time baseline instead of moving on the initial command.
 assert.throws(() => World.moveInput(w, 'walker-a', input(1), 1500), /move_cooldown/);
 let out = World.moveInput(w, 'walker-a', input(1), 2000); w = out.world;

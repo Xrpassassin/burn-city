@@ -321,6 +321,18 @@ try {
       .getElementById("graveyard3dStatus")
       .textContent.includes("direct WASD"),
   );
+  if (pineCrossing) {
+    const stance = page.locator('#graveyard3d .hf-crouch');
+    await stance.waitFor({ state: 'visible' });
+    const toggle = () => mobile ? stance.tap() : page.keyboard.press('c');
+    for (const crouched of [true, false]) {
+      await toggle();
+      await page.waitForFunction(expected =>
+        document.querySelector('#graveyard3d .hf-crouch')?.getAttribute('aria-pressed') === String(expected) &&
+        document.querySelector('.hf-survival-readout')?.textContent.includes('Crouched') === expected, crouched);
+      assert.equal(testState('homefront-world.json').players[ACCOUNT].crouched, crouched);
+    }
+  }
 
   // Place a living infected within reach in the disposable store. Stand still
   // and let the real browser poll the server. No attack or movement is sent.

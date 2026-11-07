@@ -109,8 +109,8 @@ export const sfx = {
   fieldCreek() {
     return fieldNoiseBed(1450, 0.75, true);
   },
-  fieldStep(surface, sprint) {
-    const gain = sprint ? 1.35 : 1;
+  fieldStep(surface, sprint, crouched = false) {
+    const gain = sprint ? 1.35 : crouched ? 0.28 : 1;
     const pitch = 0.87 + Math.random() * 0.24;
     const profiles = {
       gravel: { f: 1900, dec: 0.125, v: 0.20 },

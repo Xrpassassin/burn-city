@@ -9,6 +9,8 @@ assert.throws(() => validateInput({ sequence: 1.2, x: 0, z: 1, sprint: false }),
 for (const x of [NaN, Infinity, -Infinity, '1', 2]) assert.throws(() => validateInput({ sequence: 3, x, z: 0, sprint: false }), /vector/);
 assert.throws(() => validateInput({ sequence: 3, x: 1, z: 1, sprint: false }), /vector/);
 assert.throws(() => validateInput({ sequence: 3, x: 0, z: 0, sprint: 1 }), /mode/);
+assert.throws(() => validateInput({ sequence: 3, x: 0, z: 0, sprint: true, crouched: true }), /mode/);
+assert.throws(() => validateInput({ sequence: 3, x: 0, z: 0, sprint: false, crouched: 'true' }), /mode/);
 const speeds = { walkSpeed: 4, sprintSpeed: 7 };
 assert.deepEqual(displacementForInput(cmd, { now: 100, previousAt: 0, ...speeds }), { x: 0.24, z: 0.32000000000000006, elapsedMs: 100 });
 const stalled = displacementForInput(cmd, { now: 10000, previousAt: 0, ...speeds });

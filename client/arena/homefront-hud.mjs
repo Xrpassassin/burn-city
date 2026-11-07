@@ -193,6 +193,7 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   document.body.append(sheet);
   const LABEL = { character: '🔥 C.I.N.D.E.R.S.', inventory: '🎒 Inventory', journal: '📓 Journal', build: '🛠 Build', manage: '📋 Manage', travel: '🧭 Travel' };
   let tab = 'character', rpg = null, borrowed = null, lastPackKey = '';
+  let inspectionTitle = null;
   let knownLevel = null, noticeUntil = 0, profilePending = false, lastProfileFetchAt = 0;
   const RPG_REFRESH_MS = 18000;
   function acceptRpgSheet(next) {
@@ -215,7 +216,7 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     try {
       const result = await request('/api/homefront/world/rpg');
       acceptRpgSheet(result.sheet);
-      if (!sheet.hidden && (tab === 'character' || tab === 'journal')) draw();
+      if (!inspectionTitle && !sheet.hidden && (tab === 'character' || tab === 'journal')) draw();
     } catch { /* Keep the last verified sheet and retry at the next interval. */ }
     finally { profilePending = false; }
   }
@@ -235,12 +236,32 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
   let priorFocus = null;
   const hide = ({ keepWorkshop = false } = {}) => {
     returnBorrowed();
+    inspectionTitle = null;
+    tabsEl.hidden = false;
     sheet.hidden = true;
     lastPackKey = '';
     if (!keepWorkshop && getMode() === 'workshop') setMode('home');
     if (priorFocus?.isConnected) priorFocus.focus({ preventScroll: true });
     priorFocus = null;
   };
+  // Show an actual in-world inspection inside the HUD drawer instead of
+  // inserting its controls into the offscreen legacy management dashboard.
+  function inspect(node, label = 'Inspection') {
+    if (!node || !node.parentNode || getMode() !== 'home' || getWorld()?.self) return false;
+    if (sheet.hidden) {
+      priorFocus = document.activeElement;
+      window.dispatchEvent(new Event('blur'));
+    }
+    returnBorrowed();
+    inspectionTitle = String(label).slice(0, 80);
+    tabsEl.hidden = true;
+    body.replaceChildren();
+    borrowPanel(node);
+    sheet.hidden = false;
+    titleLabel.textContent = 'HOMEFRONT · ' + inspectionTitle;
+    topClose.focus({ preventScroll: true });
+    return true;
+  }
   close.onclick = hide; topClose.onclick = hide;
   account.onclick = () => { hide(); document.getElementById('signin')?.click(); };
   sheet.addEventListener('click', e => { if (e.target === sheet) hide(); });
@@ -297,6 +318,8 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     }
   }
   function draw() {
+    inspectionTitle = null;
+    tabsEl.hidden = false;
     returnBorrowed();
     // Construction is a separate in-game mode only while Build is selected.
     if (tab !== 'build' && getMode() === 'workshop') setMode('home');
@@ -450,6 +473,8 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
       window.dispatchEvent(new Event('blur'));
     }
     tab = t;
+    inspectionTitle = null;
+    tabsEl.hidden = false;
     if (t === 'build' && getMode() !== 'workshop') setMode('workshop');
     if (t !== 'build' && getMode() === 'workshop') setMode('home');
     sheet.hidden = false;
@@ -490,7 +515,7 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     // when the original HTML header is hidden by immersive fullscreen mode.
     const guest = signedIn() && !walletConnected();
     account.textContent = guest ? 'Connect wallet to save' : 'Account';
-    titleLabel.textContent = guest ? 'HOMEFRONT · GUEST (UNSAVED)' : 'HOMEFRONT · FIELD MENU';
+    titleLabel.textContent = inspectionTitle ? 'HOMEFRONT · ' + inspectionTitle : guest ? 'HOMEFRONT · GUEST (UNSAVED)' : 'HOMEFRONT · FIELD MENU';
     menu.textContent = guest ? '☰ Guest' : '☰ Menu';
     menu.title = guest ? 'Guest progress is temporary. Open to connect a wallet and start a saved refuge.' : 'Open Homefront field menu';
     // The game HUD only owns the full viewport once the existing signed-in
@@ -505,7 +530,7 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     if (!levelNotice.hidden && Date.now() >= noticeUntil) levelNotice.hidden = true;
     const world = getWorld(), inWorld = !!world?.self;
     packButton.hidden = !inWorld;
-    if (!sheet.hidden && tab === 'inventory' && lastPackKey !== fieldPackKey(world?.selfInventory)) draw();
+    if (!inspectionTitle && !sheet.hidden && tab === 'inventory' && lastPackKey !== fieldPackKey(world?.selfInventory)) draw();
     const health = inWorld ? Math.round(world.selfSurvival?.health ?? 100) : 100;
     hp.style.width = Math.max(0, Math.min(100, health)) + '%'; hpText.textContent = '❤ ' + health + (inWorld ? '' : ' · Homefront');
     const mag = world?.selfWeaponMagazine;
@@ -521,5 +546,5 @@ export function createHud({ request, getWorld, getBase, getMode, setMode, travel
     layoutManagement();
   }
   setInterval(update, 700); update();
-  return { open, update, hide, element: hud, sheet };
+  return { open, inspect, update, hide, element: hud, sheet };
 }

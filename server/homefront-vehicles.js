@@ -35,6 +35,23 @@ function roadClear(x,z,prevX=x,prevZ=z){
  return Collision.canTraverse(prevX,prevZ,x,z,{bounds:WORLD_BOUND,radius:VEHICLE_RADIUS,sampleStep:0.35}) &&
    Terrain.canTraverse(prevX,prevZ,x,z);
 }
+function segmentDistance(px,pz,x0,z0,x1,z1){
+ const dx=x1-x0,dz=z1-z0,len=dx*dx+dz*dz;
+ const t=len>0?Math.max(0,Math.min(1,((px-x0)*dx+(pz-z0)*dz)/len)):0;
+ return Math.hypot(px-x0-t*dx,pz-z0-t*dz);
+}
+function dynamicRoadClear(world,account,x,z,prevX,prevZ,now){
+ for(const [owner,other]of Object.entries(world.vehicles||{})){
+  if(owner===account)continue;
+  if(segmentDistance(other.x,other.z,prevX,prevZ,x,z)<VEHICLE_RADIUS*2+0.35)return false;
+ }
+ for(const [id,other]of Object.entries(world.players||{})){
+  if(id===account||other?.vehicleId||!Number.isFinite(other?.lastSeen)||
+     now-other.lastSeen>45000)continue;
+  if(segmentDistance(other.x,other.z,prevX,prevZ,x,z)<VEHICLE_RADIUS+0.55)return false;
+ }
+ return true;
+}
 function parkingSpot(gate,vehicles){
  const offsets=[[0,4],[4,0],[-4,0],[0,-4],[6,0],[-6,0],[0,6],[0,-6],[8,0],[0,8]];
  for(const [dx,dz]of offsets){
@@ -86,7 +103,8 @@ function drive(world,account,input,now=Date.now()){
  const heading=v.heading+input.steer*MAX_TURN*dt;
  const step=input.throttle*MAX_SPEED*dt;
  const x=v.x+Math.sin(heading)*step,z=v.z+Math.cos(heading)*step;
- const blocked=Math.abs(step)>0.001&&!roadClear(x,z,v.x,v.z);
+ const blocked=Math.abs(step)>0.001&&(!roadClear(x,z,v.x,v.z)||
+   !dynamicRoadClear(world,account,x,z,v.x,v.z,now));
  // Even a blocked movement records the input, preventing repeated probes
  // from multiplying travel time or clipping across another frame.
  v.sequence=input.sequence;v.lastDriveAt=now;v.heading=heading;

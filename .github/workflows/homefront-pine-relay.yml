@@ -1,0 +1,28 @@
+name: Homefront Pine Crossing relay expedition
+on:
+  pull_request:
+    paths:
+      - 'client/arena/homefront-pine-crossing.mjs'
+      - 'client/arena/homefront-pine-scenery.mjs'
+      - 'server/homefront-loot.js'
+      - 'server/homefront-collision.js'
+      - 'test/homefront-pine-relay-sim.mjs'
+      - '.github/workflows/homefront-pine-relay.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Walkable relay route and collision / risk / cooldown
+        run: node test/homefront-pine-relay-sim.mjs
+      - name: Existing Homefront collision and loot invariants
+        run: node server/homefront-collision.test.js && node server/homefront-loot.test.js
+      - name: Shared world and persistent individual gate assignments
+        run: node test/homefront-world-sim.js

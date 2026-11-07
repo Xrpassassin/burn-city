@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {blackHoleRadius} from './blackhole-radius.mjs';
+assert.ok(blackHoleRadius({fraction:.965156,status:'verified'})>14);
+assert.ok(blackHoleRadius({fraction:.035224328,status:'partial'})>4.5);
+assert.ok(blackHoleRadius({fraction:.000595847,status:'partial'})>3.5);
+assert.equal(blackHoleRadius({fraction:.08,status:'history_pending'}),2.2);
+assert.equal(blackHoleRadius({fraction:1,status:'unverified'}),2.2);
+assert.equal(blackHoleRadius({fraction:0,status:'verified'}),2);
+assert.equal(blackHoleRadius({fraction:NaN,status:'partial'}),3.4);
+console.log('Verified, preview and fixed issuer-only sizing are independent');

@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'client/js/verified-three-token-blackholes*'
+      - 'client/js/observed-burn-preview*'
+      - 'client/js/blackhole-radius*'
+      - 'client/js/amm-lock.js'
+      - 'client/js/verified-ecosystem-supply-visual*'
       - 'client/js/issuer-return-card.mjs'
       - '.github/workflows/three-token-blackholes.yml'
   workflow_dispatch:
@@ -17,3 +21,7 @@ jobs:
       - run: node client/js/verified-three-token-blackholes.test.mjs
       - run: node client/js/verified-supply-visual.test.mjs
       - run: node client/js/verified-ecosystem-supply-visual.test.mjs
+      - run: node client/js/observed-burn-preview.test.mjs
+      - run: node client/js/blackhole-radius.test.mjs
+      - run: node test/blackhole-size-and-pending.test.js
+      - run: node test/three-token-live-wiring.test.js

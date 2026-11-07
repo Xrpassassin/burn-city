@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {verifiedEcosystemSupplyFraction as fraction} from './verified-ecosystem-supply-visual.mjs';
-const keys={IMM:['rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP','IMM'],XRPyro:['rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va','XRPYRO']};
+const keys={IMM:['rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP','IMM'],XRPyro:['rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va','58525079726F0000000000000000000000000000']};
 for(const [name,[issuer,currency]] of Object.entries(keys)){
  const now=100000000;
  const record={token:name,issuer,currency,status:'verified',method:'verified_launch_vs_outstanding_v1',

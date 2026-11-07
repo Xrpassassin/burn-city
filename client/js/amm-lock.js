@@ -1,7 +1,9 @@
 import { blackHoleAltitude } from './blackhole-altitude.mjs';
+import { blackHoleRadius } from './blackhole-radius.mjs';
 import { verifiedBurnFraction } from './verified-burn-visual.mjs';
 import { verifiedSupplyFraction } from './verified-supply-visual.mjs';
 import { verifiedEcosystemSupplyFraction } from './verified-ecosystem-supply-visual.mjs';
+import { observedBurnPreview } from './observed-burn-preview.mjs';
 import { issuerReturnCard, supplyReconciliationCard, ecosystemSupplyCard } from './issuer-return-card.mjs';
 // AMM lock + burn visuals (server truth: GET /api/amm-lock, server/amm-lock.js). +3 draw calls total, all instanced/merged:
 //   1) ONE InstancedMesh: gold segmented chain halo around every pool bridge (at the arc's midpoint). Lit arc = VERIFIED permanently locked
@@ -75,17 +77,16 @@ export function initAmmLock(c) {
 
   // ---- 2) singularities: one instanced draw (+ invisible pick spheres, 0 draws) ----
   const NT = Math.max(1, tokNames.length), sph = new THREE.SphereGeometry(1, LOW ? 12 : 20, LOW ? 8 : 14);
-  const sA = new Float32Array(NT); sph.setAttribute('bp', new THREE.InstancedBufferAttribute(sA, 1));
+  const sA = new Float32Array(NT * 4); sph.setAttribute('bp', new THREE.InstancedBufferAttribute(sA, 4));
   const sm = new THREE.ShaderMaterial({ toneMapped: false, fog: true, uniforms: { t: lockT, ...fogU },
-    vertexShader: 'attribute float bp;varying vec3 vN;varying float vB;varying vec3 vP;\n#include <fog_pars_vertex>\nvoid main(){vB=bp;vN=normalize(normalMatrix*mat3(instanceMatrix)*normal);vP=position;vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
-    fragmentShader: 'uniform float t;varying vec3 vN;varying float vB;varying vec3 vP;\n#include <fog_pars_fragment>\nvoid main(){float f=pow(1.-abs(normalize(vN).z),4.);float sw=.5+.5*sin(atan(vP.z,vP.x)*3.+vP.y*4.-t*.6);vec3 col=vec3(.001,.0,.003)+vec3(.45,.16,.95)*f*(.7+.3*vB)+vec3(.25,.05,.5)*f*sw*.5;gl_FragColor=vec4(col,1.);\n#include <fog_fragment>\n}' });
+    vertexShader: 'attribute vec4 bp;varying vec3 vN;varying float vB;varying vec3 vTint;varying vec3 vP;\n#include <fog_pars_vertex>\nvoid main(){vB=bp.x;vTint=bp.yzw;vN=normalize(normalMatrix*mat3(instanceMatrix)*normal);vP=position;vec4 mvPosition=modelViewMatrix*instanceMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
+    fragmentShader: 'uniform float t;varying vec3 vN;varying float vB;varying vec3 vTint;varying vec3 vP;\n#include <fog_pars_fragment>\nvoid main(){float f=pow(1.-abs(normalize(vN).z),4.);float sw=.5+.5*sin(atan(vP.z,vP.x)*3.+vP.y*4.-t*.6);vec3 col=vec3(.001,.0,.003)+vTint*f*(.7+.3*vB)+vTint*f*sw*.35;gl_FragColor=vec4(col,1.);\n#include <fog_fragment>\n}' });
   const sing = new THREE.InstancedMesh(sph, sm, NT); sing.frustumCulled = false; S.add(sing);
   const pickMat = new THREE.MeshBasicMaterial({ visible: false }), pickGeo = new THREE.SphereGeometry(1, 8, 6), pickers = {};
   // city centre for the outward offset (singularities sit on the far side of each tower from the hub, at street level: apart from every rail)
   const cx = tokNames.reduce((s, k) => s + N[k].pos.x, 0) / Math.max(1, tokNames.length), cz = tokNames.reduce((s, k) => s + N[k].pos.z, 0) / Math.max(1, tokNames.length);
   const singPos = (n, R, fraction, verified, out) => out.set(n.pos.x, blackHoleAltitude({ rooftop: n.top || n.h || 0, radius: R, fraction, verified }), n.pos.z);
   // Verified burns earn a dramatic skyline silhouette; fixed issuer markers remain small.
-  const singR = (f,verified) => verified ? 2 + 13 * Math.sqrt(Math.max(0,Math.min(1,f))) : 2.2;
 
   // ---- 3) accretion disks: one instanced draw, no lights/textures/post passes ----
   const diskGeo = new THREE.RingGeometry(1.06, 2.2, LOW ? 32 : 64);
@@ -121,10 +122,16 @@ export function initAmmLock(c) {
     if(ecosystem!==null && fresh(o))return {st:'verified',o:{...o,burned_pct:ecosystem*100},f:ecosystem,net:true};
     const historical = verifiedBurnFraction(o?.issuer_return_history, N[k]?.key);
     if(historical !== null && fresh(o))return {st:'verified',o:{...o,burned:o.issuer_return_history.burned,burned_pct:historical*100},f:historical};
+    // Incomplete issuer-return history may drive a distinctly labelled preview only.
+    // It never becomes verified supply accounting, and is never advertised as the total burned.
+    const preview = observedBurnPreview({name:k,tokenKey:N[k]?.key,observedReturns:N[k]?.burn_vol,
+      transactionCount:N[k]?.burn_txs,scanComplete:N[k]?.burn_complete});
+    if(preview && o?.issuer_keys_disabled===true && fresh(o))
+      return {st:'partial',o,f:preview.fraction,preview};
     // A verified inaccessible issuer earns a small, fixed marker even while its
     // launch supply is not established. This is NEVER a supply-percentage claim.
     const pendingIssuer = (k==='IMM' && N[k]?.key==='rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP-IMM') ||
-      (k==='XRPyro' && N[k]?.key==='rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-XRPYRO');
+      (k==='XRPyro' && N[k]?.key==='rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-58525079726F0000000000000000000000000000');
     if((burnIssuerMarker(N[k]?.key,o?.issuer_keys_disabled,!!fresh(o)) ||
       pendingIssuer && o?.issuer_keys_disabled===true && !!fresh(o)))
       return {st:'history_pending',o,f:0.08};
@@ -139,9 +146,12 @@ export function initAmmLock(c) {
       _m.compose(M.p, M.q, _s.setScalar(show ? M.R : 0)); halos.setMatrixAt(i, _m); });
     halos.instanceMatrix.needsUpdate = true; ring.attributes.lk.needsUpdate = true;
     let visibleSingularities = 0;
-    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = singR(v.f, v.st === 'verified'); singPos(n, R, v.f, v.st === 'verified', _v);
+    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = blackHoleRadius({fraction:v.f,status:v.st}); singPos(n, R, v.f, v.st === 'verified', _v);
       if(on) { const slot=visibleSingularities++;
-        _m.compose(_v,_q.identity(),_s.setScalar(R));sing.setMatrixAt(slot,_m);sA[slot]=v.f;
+        _m.compose(_v,_q.identity(),_s.setScalar(R));sing.setMatrixAt(slot,_m);
+        // BURN purple, IMM turquoise, XRPyro ember-orange; one batched shader and one singularity per token.
+        const tint = k==='IMM' ? [.08,.78,.83] : k==='XRPyro' ? [1.,.3,.07] : [.52,.2,.98];
+        sA.set([v.f,...tint],slot*4);
         _m.compose(_v,diskQ,_s.setScalar(R));disks.setMatrixAt(slot,_m);
       }
       let pk = pickers[k]; if (on) { if (!pk) { pk = pickers[k] = new THREE.Mesh(pickGeo, pickMat); pk.userData = { kind: 'ammlock', token: k }; S.add(pk); pick.push(pk); } pk.position.copy(_v); pk.scale.setScalar(R * 1.6); pk.visible = true; }
@@ -183,9 +193,14 @@ export function initAmmLock(c) {
       if(supplyCard)return supplyCard;
       const ecosystemCard = ecosystemSupplyCard({record:fresh(o)?o?.supply_reconciliation:null,tokenName:k});
       if(ecosystemCard)return ecosystemCard;
-      return issuerReturnCard({ record: fresh(o) ? o?.issuer_return_history : null,
+      const card = issuerReturnCard({ record: fresh(o) ? o?.issuer_return_history : null,
         tokenKey: n?.key, tokenName: k,
         issuerVerified: !!(o && fresh(o) && o.issuer_keys_disabled === true) });
+      if(!v.preview)return card;
+      return card + '<p class="dim">Indicative lower-bound visual: '+esc(String(v.preview.observedReturns))+' '+esc(k)+
+        ' observed returned to issuer in an incomplete history scan; compared with the project-provided launch supply of '+
+        esc(String(v.preview.baseline))+'. The '+(v.preview.fraction*100).toFixed(4)+
+        '% preview is NOT verified cumulative burned supply. Supply figures from independent explorers conflict.</p>';
     }
     if (o && v.st !== 'unverified') rows.push(['Burned / inaccessible', `<b style="color:#b98cff">${fmtN(o.burned)} ${esc(k)}</b> · ${pctS(o.burned_pct)} of total supply${v.st === 'partial' ? ' <span class="dim">(at least)</span>' : ''}`]);
     else rows.push(['Burned / inaccessible', '<b>not verified</b>' + (o && o.burned_min > 0 ? ` · at least ${fmtN(o.burned_min)}` : '')]);
@@ -202,7 +217,7 @@ export function initAmmLock(c) {
     lpText(p) { const b = bridges.find(x => x.p === p); const v = b ? poolView(b) : null; return v && v.st === 'verified' ? pctS(v.o.locked_pct) + ' verified' : pctS(+p.locked_pct || 0) + ' reported · unverified'; },
     card(box, u) { if (!box || !u) return; let h = ''; if (u.pool && !u.node) h = poolHTML(u.pool); else if (u.node && !u.lot && tokNames.includes(u.node.name)) h = tokHTML(u.node.name); if (h) box.insertAdjacentHTML('beforeend', h); },
     open(u) { const box = document.getElementById('info'); if (!box || !u.token) return; box.innerHTML = `<button class="x" aria-label="Close">✕</button><h2>${esc(u.token)} · black hole</h2>` + tokHTML(u.token); box.classList.remove('v2'); box.style.display = 'block'; box.scrollTop = 0; box.querySelector('.x').onclick = () => box.style.display = 'none'; },
-    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.st === 'history_pending' ? 'issuer inaccessible; launch supply unverified (fixed marker)' : v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + (v.net?' net supply reduction':' of supply burned')} · tap for details`; },
+    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.preview ? 'indicative partial issuer returns, NOT verified burn supply' : v.st === 'history_pending' ? 'issuer inaccessible; launch supply unverified (fixed marker)' : v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + (v.net?' net supply reduction':' of supply burned')} · tap for details`; },
     view: (DBG || TEST) ? () => ({ pools: bridges.map((b, i) => { const v = poolView(b); return { pair: b.p.a + '/' + b.p.b, amm: b.p.amm, st: v.st, perm: v.perm, tl: v.tl, shown: halos.instanceMatrix.array[i * 16] !== 0 || halos.instanceMatrix.array[i * 16 + 1] !== 0, mid: mids[i].p.toArray(), R: mids[i].R }; }),
       tokens: tokNames.map((k, i) => { const v = tokOf(k); return { token: k, st: v.st, f: v.f, pos: pickers[k] && v.f > 0 ? pickers[k].position.toArray() : null }; }) }) : undefined,
     objs: (DBG || TEST) ? [halos, sing, disks].filter(Boolean) : undefined,

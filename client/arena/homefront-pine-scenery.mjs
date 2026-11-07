@@ -1,3 +1,4 @@
+import { worldSurfaceUVs } from './homefront-surface-materials.mjs';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PINE_CREEK, PINE_CROSSING_ROUTES, PINE_CROSSING_TREES, PINE_ROADSIDE_SITES, pineRouteDistance } from './homefront-pine-crossing.mjs';
@@ -6,7 +7,8 @@ import { terrainElevation } from './homefront-terrain-generation.mjs';
 const ROAD_COLORS = { gravel: 0x766c56, dirt: 0x574933, asphalt: 0x414343 };
 const ROAD_OFFSETS = { dirt: 0.085, gravel: 0.11, asphalt: 0.17 };
 
-export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
+export function addPineCrossingScenery(THREE, chunkAt, groundAt, surfaces=null) {
+  const roadMaterials=new Map();
   for (const route of PINE_CROSSING_ROUTES) {
     const rows = [];
     for (let i = 1; i < route.points.length; i++) {
@@ -17,7 +19,7 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
     }
     rows.push(route.points.at(-1));
     const vertices = [], colors = [], indices = [];
-    const color = new THREE.Color(ROAD_COLORS[route.surface]);
+    const color = new THREE.Color(surfaces?(route.surface==='asphalt'?0xddddcf:route.surface==='gravel'?0xc8c1a2:0xa6987d):ROAD_COLORS[route.surface]);
     rows.forEach(([x,z], i) => {
       const [ax, az] = rows[Math.max(0, i - 1)], [bx, bz] = rows[Math.min(rows.length - 1, i + 1)];
       const dx = bx - ax, dz = bz - az;
@@ -41,7 +43,14 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
-    const ribbon = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 1 }));
+    let roadMaterial=roadMaterials.get(route.surface);
+    if(!roadMaterial){
+      roadMaterial=surfaces?surfaces.material(route.surface==='asphalt'?'asphalt':'soil',
+        {vertexColors:true,side:THREE.DoubleSide}):new THREE.MeshStandardMaterial({vertexColors:true,side:THREE.DoubleSide,roughness:1});
+      roadMaterials.set(route.surface,roadMaterial);
+    }
+    if(surfaces)worldSurfaceUVs(THREE,geometry,roadMaterial.userData.homefrontTileMetres);
+    const ribbon = new THREE.Mesh(geometry, roadMaterial);
     ribbon.name = 'pine-road:' + route.id;
     chunkAt(...route.points[Math.floor(route.points.length / 2)]).add(ribbon);
   }
@@ -89,12 +98,24 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
   }
   branchGeometry.computeVertexNormals();
   const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x514539, roughness: 1 });
+  // Soft contact shading grounds the trunk without mobile shadow-map passes.
+  const contactCanvas=document.createElement('canvas');contactCanvas.width=contactCanvas.height=64;
+  const contactContext=contactCanvas.getContext('2d');
+  const fade=contactContext.createRadialGradient(32,32,3,32,32,32);
+  fade.addColorStop(0,'rgba(15,19,12,0.42)');fade.addColorStop(0.45,'rgba(15,19,12,0.22)');fade.addColorStop(1,'rgba(15,19,12,0)');
+  contactContext.fillStyle=fade;contactContext.fillRect(0,0,64,64);
+  const contactMap=new THREE.CanvasTexture(contactCanvas);contactMap.colorSpace=THREE.SRGBColorSpace;
+  const contactMaterial=new THREE.MeshBasicMaterial({map:contactMap,transparent:true,depthWrite:false,
+    polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
+  const contactGeometry=new THREE.PlaneGeometry(1,1);contactGeometry.rotateX(-Math.PI/2);
   const needles = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
   const brushGeometry = new THREE.IcosahedronGeometry(1, 0);
   const dummy = new THREE.Object3D();
   const color = new THREE.Color();
   for (const [group, trees] of groups) {
     const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, trees.length);
+    const contacts=new THREE.InstancedMesh(contactGeometry,contactMaterial,trees.length);
+    contacts.name='pine-tree-contact-shadows';
     const crowns = new THREE.InstancedMesh(branchGeometry, needles, trees.length * 4);
     const brush = new THREE.InstancedMesh(brushGeometry, needles, trees.length * 2);
     trunks.name = 'pine-trunks';
@@ -102,6 +123,9 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
     brush.name = 'pine-undergrowth';
     trees.forEach(({x,z,height,radius,variation}, i) => {
       const ground = terrainElevation(x,z);
+      dummy.position.set(x,groundAt(x,z)+0.025,z);
+      dummy.rotation.set(0,0,0);dummy.scale.set(radius*4,1,radius*4);dummy.updateMatrix();
+      contacts.setMatrixAt(i,dummy.matrix);
       dummy.position.set(x, ground + height * 0.36, z);
       dummy.scale.set(radius, height * 0.72, radius);
       dummy.rotation.set(0, variation * Math.PI, 0);
@@ -135,7 +159,8 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
     trunks.computeBoundingSphere();
     crowns.computeBoundingSphere();
     brush.computeBoundingSphere();
-    group.add(trunks, crowns, brush);
+    contacts.computeBoundingSphere();
+    group.add(contacts, trunks, crowns, brush);
   }
   const updateCreek = addPineCreek(THREE, chunkAt, groundAt);
   const updateCrows = addPineCrows(THREE, chunkAt(-36, -58));
@@ -475,12 +500,12 @@ function addPineCreek(THREE, chunkAt, groundAt) {
   return dt => { if (chunk.visible) ripples.offset.y = (ripples.offset.y - dt * 0.13) % 1; };
 }
 
-export function buildPineFacade(THREE, building, addBox, mat) {
+export function buildPineFacade(THREE, building, addBox, mat, surfaces=null) {
   const root = new THREE.Group();
   root.position.set(building.x, terrainElevation(building.x, building.z), building.z);
   root.name = 'homefront-landmark:' + building.id;
   const store = building.finish === 'store';
-  const wall = mat(store ? 0x7a5e48 : 0xa4a394);
+  const wall = surfaces?surfaces.material('concrete',{color:store?0xc7a58b:0xd2d4cd}):mat(store ? 0x7a5e48 : 0xa4a394);
   const trim = mat(store ? 0xa18a68 : 0x4d6661);
   const timber = mat(0x51483a), glass = mat(0x273e41, 0.32), roof = mat(0x3e4643);
   const box = (w,h,d,x,y,z,material) => addBox(root,w,h,d,x,y,z,material);

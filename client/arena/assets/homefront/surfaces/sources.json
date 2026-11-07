@@ -1,0 +1,91 @@
+{
+  "license": "CC0-1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "sourceLicense": "https://polyhaven.com/license",
+  "transform": "1k JPEG source resized with Lanczos to 512x512 RGB WebP quality 87. No displacement geometry.",
+  "assets": [
+    {
+      "id": "forest_ground_04",
+      "url": "https://polyhaven.com/a/forest_ground_04",
+      "credit": "\"Forest Ground 04\" by Rico Cilliers, Rob Tuytel, Poly Haven (https://polyhaven.com/a/forest_ground_04), CC0 1.0",
+      "tileMetres": 3.15
+    },
+    {
+      "id": "asphalt_02",
+      "url": "https://polyhaven.com/a/asphalt_02",
+      "credit": "\"Asphalt 02\" by Rob Tuytel, Poly Haven (https://polyhaven.com/a/asphalt_02), CC0 1.0",
+      "tileMetres": 3.0
+    },
+    {
+      "id": "concrete_wall_006",
+      "url": "https://polyhaven.com/a/concrete_wall_006",
+      "credit": "\"Concrete Wall 006\" by Charlotte Baglioni, Dario Barresi, Poly Haven (https://polyhaven.com/a/concrete_wall_006), CC0 1.0",
+      "tileMetres": 2.0
+    }
+  ],
+  "files": [
+    {
+      "file": "forest_ground_04-color.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_diff_1k.jpg",
+      "sourceMd5": "6ad9df4d731a238299806f739a26af83",
+      "sha256": "38ca551cec948d72fe4b26842abc4aae949300b07eda6c6ce80dded6460293d3",
+      "bytes": 93632
+    },
+    {
+      "file": "forest_ground_04-normal.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_nor_gl_1k.jpg",
+      "sourceMd5": "a010a0802c2d9a930c6f00d3b1f196d2",
+      "sha256": "904c6e7301b59e6cc8f7cd7e1e880617df803847329c4a72fab6f598a2376e00",
+      "bytes": 110770
+    },
+    {
+      "file": "forest_ground_04-roughness.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forest_ground_04/forest_ground_04_rough_1k.jpg",
+      "sourceMd5": "b5c7ba5c16f00261e9a765d52cf7e0ac",
+      "sha256": "00cace98b4915e2919f01bddc2227e9d4293fa6a46ebd06724582c854a42c7df",
+      "bytes": 38366
+    },
+    {
+      "file": "asphalt_02-color.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/asphalt_02/asphalt_02_diff_1k.jpg",
+      "sourceMd5": "fa19772d4817754c3efab708c651f5a8",
+      "sha256": "4645c9c78d5f0c20319087a73b3b44d18ab89a5fbe966fc744ad4c273cbeea94",
+      "bytes": 99602
+    },
+    {
+      "file": "asphalt_02-normal.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/asphalt_02/asphalt_02_nor_gl_1k.jpg",
+      "sourceMd5": "338da8de636ea36133170578cac82e8e",
+      "sha256": "2c20f1f8b654aba359e89a5f8783981ff407210438acfd8fac20f5457224335c",
+      "bytes": 82720
+    },
+    {
+      "file": "asphalt_02-roughness.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/asphalt_02/asphalt_02_rough_1k.jpg",
+      "sourceMd5": "ec80a2929797c1b3ffc121c4f665585a",
+      "sha256": "f59adbb175bc74ec2f711d0d36a271dc355e8798b684d5a3e8bb0cf4f506fb92",
+      "bytes": 88230
+    },
+    {
+      "file": "concrete_wall_006-color.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_006/concrete_wall_006_diff_1k.jpg",
+      "sourceMd5": "62ac61307a3321ecec26e1abd045f2ab",
+      "sha256": "e89b5080bd3645da5beef7e6f2b6922d66244974143d36c734daf00d51bf0526",
+      "bytes": 38388
+    },
+    {
+      "file": "concrete_wall_006-normal.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_006/concrete_wall_006_nor_gl_1k.jpg",
+      "sourceMd5": "337cf8d33598e1ecd036ef3727a4b36d",
+      "sha256": "b9bfd8c803cb9b09561d4556d59eaf47faa906dcfda1258bc131dae65dfae88d",
+      "bytes": 89802
+    },
+    {
+      "file": "concrete_wall_006-roughness.webp",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_wall_006/concrete_wall_006_rough_1k.jpg",
+      "sourceMd5": "660e38696f8c92d1585b17b7cc01cc06",
+      "sha256": "47876f78d604b0bb805fd074afa305e4616d24316f8486ef21d7ff60badab60e",
+      "bytes": 854
+    }
+  ]
+}

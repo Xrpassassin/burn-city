@@ -1,3 +1,4 @@
+import { createHomefrontSurfaces, worldSurfaceUVs } from './homefront-surface-materials.mjs';
 // Three.js shared XRPL Graveyard scene for Homefront.
 // Uses the existing Homefront world API as authority; this module owns presentation only.
 import * as THREE from './vendor/three.module.min.js';
@@ -106,6 +107,7 @@ function boot(host) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.15 : 1.6));
   renderer.shadowMap.enabled = false;
   host.appendChild(renderer.domElement);
+  const surfaces=createHomefrontSurfaces(THREE,renderer,{mobile:coarsePointer});
   // Small in-world toast, not another dashboard panel. It stays clear of
   // joystick and bottom HUD, and never intercepts walking/interaction taps.
   const eventToast = document.createElement('div');
@@ -191,7 +193,14 @@ function boot(host) {
   groundGeometry.attributes.position.needsUpdate = true;
   groundGeometry.computeVertexNormals();
   groundGeometry.setAttribute('color', new THREE.BufferAttribute(groundColors, 3));
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 1 });
+  // Scanned colour supplies the fine grain; retain gentle biome tint at large scale.
+  for(let i=0;i<groundColors.length;i++)groundColors[i]=0.62+groundColors[i]*0.38;
+  groundGeometry.attributes.color.needsUpdate=true;
+  const groundUV=groundGeometry.attributes.uv;
+  for(let i=0;i<groundPositions.count;i++)groundUV.setXY(i,
+    groundPositions.getX(i)/3.15,-groundPositions.getY(i)/3.15);
+  groundUV.needsUpdate=true;
+  const groundMat = surfaces.material('soil',{vertexColors:true});
   const ground = new THREE.Mesh(groundGeometry, groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.y = 0; scene.add(ground);
   const raycaster = new THREE.Raycaster();
@@ -383,10 +392,13 @@ function boot(host) {
     equippedBackpackColor = parseCosmeticColor(detail.backpackColor, equippedBackpackColor);
     if (WEAPON_IDS.includes(detail.weaponId)) equippedWeaponId = detail.weaponId;
   });
-  const roadMat = mat(0x343733), buildingMats = [mat(0x41413a), mat(0x4b443a), mat(0x363d3d), mat(0x50483d)];
+  const roadMat = surfaces.material('asphalt'), buildingMats = [0xaaa99b,0xb6a58d,0x959fa0,0xb5a48e]
+    .map(color=>surfaces.material('concrete',{color}));
   const ruinMat = mat(0x292d2a), emberMat = new THREE.MeshStandardMaterial({ color: 0xff7738, emissive: 0x9c2507, emissiveIntensity: 0.8 });
   const addBox = (parent, w, h, d, x, y, z, material) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+    const geometry=new THREE.BoxGeometry(w,h,d);
+    if(material.userData.homefrontTileMetres)worldSurfaceUVs(THREE,geometry,material.userData.homefrontTileMetres);
+    const m = new THREE.Mesh(geometry, material);
     m.position.set(x, y + h / 2, z); parent.add(m); return m;
   };
   // Ruined structures are grouped by spatial chunk so distant scenery can be culled as the world grows.
@@ -652,7 +664,7 @@ function boot(host) {
     }
     return groundPositions.getZ(a + stride + 1) * (tx + tz - 1) + topRight * (1 - tz) + bottomLeft * (1 - tx);
   }
-  const updatePineScenery = addPineCrossingScenery(THREE, cityChunkAt, renderedGroundAt);
+  const updatePineScenery = addPineCrossingScenery(THREE, cityChunkAt, renderedGroundAt, surfaces);
   let seed = 8675309;
   const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   for (let x = -90; x <= 90; x += 10) for (let z = -90; z <= 90; z += 10) {
@@ -680,7 +692,7 @@ function boot(host) {
   for (const landmark of LANDMARKS) {
     const pine = pineCrossingBuilding(landmark.id);
     if (pine) {
-      const piece = buildPineFacade(THREE, pine, addBox, mat);
+      const piece = buildPineFacade(THREE, pine, addBox, mat, surfaces);
       cityChunkAt(pine.x, pine.z).add(piece);
       landmarkSetPieces.set(pine.id, piece);
       piece.updateWorldMatrix(true, true);

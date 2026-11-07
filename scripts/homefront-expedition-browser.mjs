@@ -54,6 +54,7 @@ const mime = {
   ".json": "application/json",
   ".png": "image/png",
   ".jpg": "image/jpeg",
+  ".webp": "image/webp",
   ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml",
   ".glb": "model/gltf-binary",
@@ -431,6 +432,7 @@ try {
     const add = Object3D.prototype.add;
     Object3D.prototype.add = function (...objects) {
       const result = add.apply(this, objects);
+      if(this.isScene)window.pineSurfaceScene=this;
       for (const object of objects) if (expected.delete(object?.name)) environment[object.name] = object.count ?? true;
       if (expected.size === 0) Object3D.prototype.add = add;
       return result;
@@ -602,6 +604,20 @@ try {
       const camera = window.pineCameraPosition;
       return camera && camera.x > -39 && camera.x < -35 && camera.z > -46.45 && camera.z < -44.5;
     }, null, { timeout: 6000 });
+    await page.waitForFunction(()=>{
+      const maps=new Map();
+      window.pineSurfaceScene?.traverse(object=>{
+        const mat=object.material;if(!mat?.name?.startsWith('homefront-surface:'))return;
+        for(const slot of ['map','normalMap','roughnessMap']){
+          const map=mat[slot];if(map?.userData.loaded)maps.set(mat.name+':'+slot,[map.image?.width,map.image?.height]);
+        }
+      });
+      window.pineSurfaceProbe={maps:Object.fromEntries(maps)};
+      return maps.size===9;
+    },null,{timeout:15000});
+    const surfaceProbe=await page.evaluate(()=>window.pineSurfaceProbe);
+    assert.ok(Object.values(surfaceProbe.maps).every(([w,h])=>w===512&&h===512),'all three scanned materials decode their colour, normal and roughness maps at the mobile budget');
+    console.log('HOMEFRONT SURFACE PACK LOADED',JSON.stringify(surfaceProbe));
     if (process.env.HOMEFRONT_PINE_SCREENSHOT) await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
     await page.waitForFunction(() => window.fieldAudioProbe.cues.includes('canvas'), null, { timeout: 6000 });
     for (const building of PINE_CROSSING_BUILDINGS) {

@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'client/arena/homefront*'
+      - 'client/arena/assets/homefront/surfaces/**'
       - 'client/arena/zombie*'
       - 'client/arena/zaudio.js'
       - 'client/arena/sfx.js'

@@ -1,3 +1,4 @@
+import { homefrontPixelRatio, homefrontRendererName } from './homefront-render-budget.mjs';
 import { createHomefrontSurfaces, worldSurfaceUVs } from './homefront-surface-materials.mjs';
 // Three.js shared XRPL Graveyard scene for Homefront.
 // Uses the existing Homefront world API as authority; this module owns presentation only.
@@ -104,7 +105,7 @@ function boot(host) {
   // Favor crisp rendering on desktop while avoiding expensive multisampling and oversized buffers on touch devices.
   const coarsePointer = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const renderer = new THREE.WebGLRenderer({ antialias: !coarsePointer, alpha: false, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.15 : 1.6));
+  renderer.setPixelRatio(homefrontPixelRatio(window.devicePixelRatio,coarsePointer,homefrontRendererName(renderer)));
   renderer.shadowMap.enabled = false;
   host.appendChild(renderer.domElement);
   const surfaces=createHomefrontSurfaces(THREE,renderer,{mobile:coarsePointer});

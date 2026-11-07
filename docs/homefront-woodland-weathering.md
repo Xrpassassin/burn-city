@@ -22,6 +22,11 @@ unchanged.
   the existing scanned concrete maps and do not move the wall geometry. Metalwork
   and glazing are batched per building.
 
+Software rasterizers (SwiftShader/llvmpipe/softpipe) use a 0.75 framebuffer pixel
+ratio to limit CPU rendering cost. Normal desktop and phone GPUs retain their
+existing resolution caps. Renderer detection is local, guarded, and never sent
+to the server.
+
 Unit checks cover deterministic textures, texture/triangle budgets, clear travel
 lanes and unchanged wall positions. Browser acceptance checks scene attachment and
 shader compilation errors while walking the woods, entering and looting both

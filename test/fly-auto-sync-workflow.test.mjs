@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const src=fs.readFileSync('.github/workflows/deploy.yml','utf8');
+const segments=src.split(/\n  restart:\n/);
+assert.equal(segments.length,2,'the emergency restart must be a separate job');
+const [validate,restart]=segments;
+assert.match(validate,/\n  push:\n    branches: \[main\]/);
+assert.match(validate,/\n  validate:\n/);
+assert.match(validate,/npm test/);
+assert.match(validate,/npm run test:all/);
+assert.doesNotMatch(validate,/environment: production|secrets\.FLY_/,'ordinary pushes must not wait for protected production or receive Fly credentials');
+assert.match(restart,/if: github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main'/);
+assert.match(restart,/needs: validate/);
+assert.match(restart,/environment: production/);
+assert.match(restart,/FLY_API_TOKEN: \$\{\{ secrets\.FLY_IOV2 \|\| secrets\.FLY_IO \}\}/);
+assert.match(restart,/api\.machines\.dev\/v1\/apps\/burn-city-game\/machines\/8d2909be270068\/restart/);
+assert.match(restart,/v\.source === "github-volume" && v\.commit === process\.env\.EXPECTED_SHA/);
+console.log('Fly auto-sync: main validation requires no deployment review; explicit manual restarts retain protected credentials.');

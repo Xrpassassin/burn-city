@@ -662,7 +662,21 @@ try {
       response.url().endsWith(fixturePath("/api/homefront/world/interior/enter")),
     );
     await activate(page.locator("#homefrontContextAction"));
-    assert.equal((await (await entered).json()).interior.roomId, "dispatch");
+    const enterResponse = await entered.catch(async error => {
+      console.error('EXPEDITION_DOORWAY_DIAGNOSTICS', JSON.stringify({
+        mobile, lastRequests:observed.slice(-14), errors,
+        ui:await page.evaluate(() => ({
+          prompt: document.getElementById('homefrontContextAction')?.textContent,
+          hidden: document.getElementById('homefrontContextAction')?.hidden,
+          interior: document.getElementById('interiorStatus')?.textContent,
+          movement: document.querySelector('.hf-movement-status')?.textContent,
+          mode:document.body.className
+        })),
+        player:testState('homefront-world.json')?.players?.[ACCOUNT]
+      }));
+      throw error;
+    });
+    assert.equal((await enterResponse.json()).interior.roomId, "dispatch");
     await walkAxis("s", "z", -64.3, -1);
     await page.waitForFunction(() =>
       document

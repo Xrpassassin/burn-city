@@ -457,14 +457,19 @@ export function buildPineFacade(THREE, building, addBox, mat) {
   const trim = mat(store ? 0xa18a68 : 0x4d6661);
   const timber = mat(0x51483a), glass = mat(0x273e41, 0.32), roof = mat(0x3e4643);
   const box = (w,h,d,x,y,z,material) => addBox(root,w,h,d,x,y,z,material);
+  const shell = (...args) => {
+    const mesh = box(...args);
+    mesh.userData.pineCameraOccluder = true;
+    return mesh;
+  };
   box(9.6, 0.29, 4.8, 2.4, -0.16, 0, mat(0x575954));
-  box(9.6, 2.72, 0.16, 2.4, 0, -2.32, wall);
-  for (const x of [-2.32,7.12]) box(0.16, 2.72, 4.8, x, 0, 0, wall);
+  shell(9.6, 2.72, 0.16, 2.4, 0, -2.32, wall);
+  for (const x of [-2.32,7.12]) shell(0.16, 2.72, 4.8, x, 0, 0, wall);
   // The entrance stays aligned with the interactive threshold in the room blueprint.
-  box(1.5, 2.72, 0.16, -1.65, 0, 2.32, wall);
-  box(6.3, 2.72, 0.16, 4.05, 0, 2.32, wall);
-  box(1.8, 0.54, 0.16, 0, 2.18, 2.32, wall);
-  box(1.58, 2.18, 0.06, 0, 0, 2.23, timber);
+  shell(1.5, 2.72, 0.16, -1.65, 0, 2.32, wall);
+  shell(6.3, 2.72, 0.16, 4.05, 0, 2.32, wall);
+  shell(1.8, 0.54, 0.16, 0, 2.18, 2.32, wall);
+  shell(1.58, 2.18, 0.06, 0, 0, 2.23, timber);
   for (const x of [-0.87,0.87]) box(0.12, 2.2, 0.16, x, 0, 2.43, trim);
   for (const x of [2.3,5.1]) {
     box(1.48, 1.14, 0.08, x, 0.9, 2.42, trim);
@@ -474,7 +479,7 @@ export function buildPineFacade(THREE, building, addBox, mat) {
   }
   if (store) {
     for (const side of [-1,1]) {
-      const panel = box(10.1, 0.15, 2.76, 2.4, 3.04, side * 1.26, roof);
+      const panel = shell(10.1, 0.15, 2.76, 2.4, 3.04, side * 1.26, roof);
       panel.rotation.x = side * 0.24;
       box(10.15, 0.085, 0.11, 2.4, 2.8, side * 2.59, timber);
     }
@@ -489,7 +494,7 @@ export function buildPineFacade(THREE, building, addBox, mat) {
     box(2.15, 0.12, 0.48, 4.99, 0.43, 2.71, timber);
     for (const x of [4.11, 5.87]) box(0.1, 0.43, 0.26, x, 0, 2.71, trim);
   } else {
-    box(9.87, 0.22, 4.99, 2.4, 2.73, 0, roof);
+    shell(9.87, 0.22, 4.99, 2.4, 2.73, 0, roof);
     for (const side of [-1, 1]) box(9.87, 0.27, 0.16, 2.4, 2.92, side * 2.41, wall);
     box(1.65, 0.32, 1.12, 5.95, 2.95, -0.98, trim);
     box(1.4, 0.035, 0.9, 5.95, 3.27, -0.98, roof);

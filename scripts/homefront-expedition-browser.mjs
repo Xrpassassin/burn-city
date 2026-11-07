@@ -283,7 +283,12 @@ try {
   const pineCrossing = process.env.HOMEFRONT_EXPEDITION_PINE === '1';
   if (pineCrossing) await page.evaluate(async () => {
     const { sfx } = await import('/arena/sfx.js');
-    const { Object3D } = await import('/arena/vendor/three.module.min.js');
+    const { Object3D, PerspectiveCamera } = await import('/arena/vendor/three.module.min.js');
+    const lookAt = PerspectiveCamera.prototype.lookAt;
+    PerspectiveCamera.prototype.lookAt = function (...args) {
+      lookAt.apply(this, args);
+      if (this.fov === 48) window.pineCameraPosition = { x: this.position.x, z: this.position.z };
+    };
     const environment = window.pineEnvironmentProbe = {};
     const expected = new Set(['pine-deadfall', 'pine-abandoned-pickup', 'pine-evacuation-barrier',
       'pine-cracked-asphalt', 'pine-roadside-grass', 'pine-crows']);
@@ -438,16 +443,12 @@ try {
       assert.ok(result.loot.accepted.length || (result.loot.overflow.length && result.loot.overflowDestination === 'refuge'),
         'the road shoulder yields supplies between buildings');
     }
-    if (process.env.HOMEFRONT_PINE_SCREENSHOT) {
-      await walkTo([-36.5, -43]);
-      const view = page.locator('#graveyard3d .hf-viewbtn');
-      const thirdPerson = (await view.getAttribute('aria-pressed')) !== 'true';
-      if (thirdPerson) await activate(view);
-      // Let the first-person camera clear the storefront behind the player.
-      await page.waitForTimeout(350);
-      await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
-      if (thirdPerson) await activate(view);
-    }
+    await walkTo([-36.5, -43]);
+    await page.waitForFunction(() => {
+      const camera = window.pineCameraPosition;
+      return camera && camera.x > -39 && camera.x < -35 && camera.z > -46.45 && camera.z < -44.5;
+    }, null, { timeout: 6000 });
+    if (process.env.HOMEFRONT_PINE_SCREENSHOT) await page.screenshot({ path: process.env.HOMEFRONT_PINE_SCREENSHOT });
     await page.waitForFunction(() => window.fieldAudioProbe.cues.includes('canvas'), null, { timeout: 6000 });
     for (const building of PINE_CROSSING_BUILDINGS) {
       await walkTo([building.x, -43]);

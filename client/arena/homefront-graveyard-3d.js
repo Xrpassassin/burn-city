@@ -192,6 +192,7 @@ function boot(host) {
   const cameraWallRaycaster = new THREE.Raycaster();
   cameraWallRaycaster.near = 0.08;
   const cameraEye = new THREE.Vector3(), cameraArm = new THREE.Vector3(), cameraProbeEye = new THREE.Vector3();
+  const facadeCameraRay = new THREE.Ray(), facadeCameraHit = new THREE.Vector3();
   let lastCameraOcclusionAt = -Infinity, lastCameraOcclusionId = null, lastCameraHitDistance = Infinity;
   const pointer = new THREE.Vector2();
   const poiGroup = new THREE.Group(), lootGroup = new THREE.Group(), playerGroup = new THREE.Group(), cityGroup = new THREE.Group(), combatGroup = new THREE.Group(), impactGroup = new THREE.Group();
@@ -651,13 +652,16 @@ function boot(host) {
     registerEnvironmentVisual('building:' + x + ',' + z, structure);
   }
   // Authored landmarks are distinct low-poly set pieces; server POIs remain the interaction authority.
-  const landmarkSetPieces = new Map();
+  const landmarkSetPieces = new Map(), pineFacadeCameraBounds = [];
   for (const landmark of LANDMARKS) {
     const pine = pineCrossingBuilding(landmark.id);
     if (pine) {
       const piece = buildPineFacade(THREE, pine, addBox, mat);
       cityChunkAt(pine.x, pine.z).add(piece);
       landmarkSetPieces.set(pine.id, piece);
+      piece.updateWorldMatrix(true, true);
+      pineFacadeCameraBounds.push(...piece.children.filter(mesh => mesh.userData.pineCameraOccluder)
+        .map(mesh => new THREE.Box3().setFromObject(mesh).expandByScalar(0.13)));
       continue;
     }
     // Offset the structure slightly from the server marker so its interaction beacon remains readable.
@@ -2483,9 +2487,7 @@ function boot(host) {
         const cameraArmLength = Math.hypot(pose.px - pose.lx, pose.pz - pose.lz);
         pose.py = Math.max(targetY + 0.55, pose.ly - Math.tan(aimPitch) * cameraArmLength);
       }
-      // Only interior wall/closed-door geometry can shorten the camera arm;
-      // outdoor scenery, collectibles and player models never affect the view.
-      // Bound raycast frequency, particularly for touch/mobile GPUs.
+      // Interior wall and closed-door mesh raycasts are throttled on mobile.
       if (view.mode !== 'first' && interiorState?.landmarkId) {
         const roomRoot = interiorSetPieces.get(interiorState.landmarkId);
         const walls = interiorCameraOccluders.get(interiorState.landmarkId);
@@ -2536,6 +2538,24 @@ function boot(host) {
       camera.position.x += (pose.px - camera.position.x) * followBlend;
       camera.position.y += (pose.py - camera.position.y) * followBlend;
       camera.position.z += (pose.pz - camera.position.z) * followBlend;
+      if (view.mode === 'third' && !interiorState && inPineCrossing(shownSelf.x, shownSelf.z, 4)) {
+        // Clip the actual, smoothed camera arm so it cannot lag through a storefront.
+        cameraEye.set(shownSelf.x, pose.ly, shownSelf.z);
+        cameraArm.copy(camera.position).sub(cameraEye);
+        const distance = cameraArm.length();
+        if (distance > 0.01) {
+          facadeCameraRay.set(cameraEye, cameraArm.multiplyScalar(1 / distance));
+          let nearest = distance;
+          for (const bounds of pineFacadeCameraBounds) {
+            if (bounds.containsPoint(cameraEye) || !facadeCameraRay.intersectBox(bounds, facadeCameraHit)) continue;
+            nearest = Math.min(nearest, facadeCameraHit.distanceTo(cameraEye));
+          }
+          if (nearest < distance) {
+            const safe = clipInteriorCamera(cameraEye, camera.position, nearest, 0.12);
+            camera.position.set(safe.x, safe.y, safe.z);
+          }
+        }
+      }
       lookTarget.x += (pose.lx - lookTarget.x) * followBlend; lookTarget.y += (pose.ly - lookTarget.y) * followBlend; lookTarget.z += (pose.lz - lookTarget.z) * followBlend;
       camera.lookAt(lookTarget);
       if (localActor) localActor.visible = view.mode !== 'first';

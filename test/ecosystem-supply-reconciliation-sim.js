@@ -2,6 +2,7 @@
 const assert=require('node:assert/strict');
 const {reconcile,TOKENS}=require('../server/ecosystem-supply-reconciliation');
 const HASH='A'.repeat(64),ISSUANCE='B'.repeat(64),PIN=107955066;
+assert.equal(TOKENS.XRPyro.currency,'58525079726F0000000000000000000000000000');
 for(const name of Object.keys(TOKENS)){
  const {issuer,currency}=TOKENS[name];
  const launch={status:'verified',issuer,currency,initial_supply:'1000',issuance_hash:ISSUANCE,launch_ledger:90000000,

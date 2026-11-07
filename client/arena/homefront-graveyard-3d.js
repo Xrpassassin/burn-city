@@ -4,7 +4,7 @@ import * as THREE from './vendor/three.module.min.js';
 import { getGuestToken, fetchHomefront } from './homefront-guest.mjs';
 import { chunkCoords, chunkKey, visibleChunkSet } from './homefront-world-streaming.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
-import { inPineCrossing, pineRouteDistance, pineSurfaceAt, pineCrossingBuilding, PINE_CROSSING_BOUNDS } from './homefront-pine-crossing.mjs';
+import { inPineCrossing, nearestPineCreek, pineRouteDistance, pineSurfaceAt, pineCrossingBuilding, PINE_CROSSING_BOUNDS } from './homefront-pine-crossing.mjs';
 import { addPineCrossingScenery, buildPineFacade } from './homefront-pine-scenery.mjs';
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { atmosphereAt, AMBIENT_UPDATE_MS } from './homefront-atmosphere.mjs';
@@ -621,7 +621,7 @@ function boot(host) {
     }
     return groundPositions.getZ(a + stride + 1) * (tx + tz - 1) + topRight * (1 - tz) + bottomLeft * (1 - tx);
   }
-  addPineCrossingScenery(THREE, cityChunkAt, renderedGroundAt);
+  const updatePineCreek = addPineCrossingScenery(THREE, cityChunkAt, renderedGroundAt);
   let seed = 8675309;
   const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   for (let x = -90; x <= 90; x += 10) for (let z = -90; z <= 90; z += 10) {
@@ -2266,13 +2266,15 @@ function boot(host) {
   let cameraInitialized = false;
   let lastStickMoveAt = 0;
   let lastFrame = performance.now();
-  let fieldWind = null, lastFoot = null, stepDistance = 0, lastWindAt = -Infinity;
+  let fieldWind = null, fieldCreek = null, lastFoot = null, stepDistance = 0, lastAmbientAt = -Infinity;
   function stopFieldAudio() {
     fieldWind?.stop();
     fieldWind = null;
+    fieldCreek?.stop();
+    fieldCreek = null;
     lastFoot = null;
     stepDistance = 0;
-    lastWindAt = -Infinity;
+    lastAmbientAt = -Infinity;
   }
   function updateFieldAudio(point, sprint, now) {
     if (!zombieAudioStarted || !point || !inPineCrossing(point.x, point.z, 4)) {
@@ -2280,9 +2282,14 @@ function boot(host) {
       return;
     }
     fieldWind ||= sfx.fieldWind();
-    if (fieldWind && now - lastWindAt >= 125) {
-      fieldWind.set(interiorState ? 0.013 : 0.18 + 0.08 * Math.sin(now / 2150));
-      lastWindAt = now;
+    if (now - lastAmbientAt >= 125) {
+      fieldWind?.set(interiorState ? 0.013 : 0.18 + 0.08 * Math.sin(now / 2150));
+      const creek = nearestPineCreek(point.x, point.z);
+      const proximity = Math.max(0, 1 - creek.distance / 16);
+      if (proximity > 0 && !interiorState) fieldCreek ||= sfx.fieldCreek();
+      const level = interiorState ? 0 : proximity ** 2 * (0.32 + 0.045 * Math.sin(now / 740));
+      fieldCreek?.set(level, creek.x, terrainElevation(creek.x, creek.z), creek.z);
+      lastAmbientAt = now;
     }
     const step = lastFoot ? Math.hypot(point.x - lastFoot.x, point.z - lastFoot.z) : 0;
     lastFoot = { x: point.x, z: point.z };
@@ -2319,6 +2326,7 @@ function boot(host) {
       return;
     }
     sceneWasVisible = true;
+    updatePineCreek(dt);
     tracerPool.update(dt);
     if (!eventToast.hidden && now > eventToastUntil) eventToast.hidden = true;
     if (now - lastAmbientUpdateAt >= AMBIENT_UPDATE_MS) {

@@ -227,6 +227,10 @@ try {
   }
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  let pineRockLoaded = false;
+  page.on('response', response => {
+    if (response.url().endsWith('/pine-crossing/rock-small.glb')) pineRockLoaded = response.ok();
+  });
   if (!guestMode) await page.addInitScript(
     ({ TOKEN, ACCOUNT }) => {
       localStorage.bcToken = TOKEN;
@@ -279,7 +283,7 @@ try {
   const pineCrossing = process.env.HOMEFRONT_EXPEDITION_PINE === '1';
   if (pineCrossing) await page.evaluate(async () => {
     const { sfx } = await import('/arena/sfx.js');
-    const probe = window.fieldAudioProbe = { surfaces: [], windStarts: 0, windStops: 0 };
+    const probe = window.fieldAudioProbe = { surfaces: [], windStarts: 0, windStops: 0, creekPeak: 0, creekStops: 0 };
     const wind = sfx.fieldWind;
     sfx.fieldWind = () => {
       const loop = wind();
@@ -288,6 +292,19 @@ try {
       const stop = loop.stop;
       loop.stop = () => { probe.windStops++; stop(); };
       return loop;
+    };
+    const creek = sfx.fieldCreek;
+    sfx.fieldCreek = () => {
+      const loop = creek();
+      if (!loop) return null;
+      const { set, stop } = loop;
+      return {
+        set(level, ...position) {
+          if (position.every(Number.isFinite)) probe.creekPeak = Math.max(probe.creekPeak, level);
+          set(level, ...position);
+        },
+        stop() { probe.creekStops++; stop(); }
+      };
     };
     const step = sfx.fieldStep;
     sfx.fieldStep = (surface, sprint) => {
@@ -412,7 +429,10 @@ try {
     assert.equal(testState('homefront-world.json').players[ACCOUNT], undefined);
     await page.waitForFunction(() => window.fieldAudioProbe.windStops > 0);
     const audio = await page.evaluate(() => window.fieldAudioProbe);
+    assert.ok(pineRockLoaded, 'the creek loads its bundled bank rock model');
     assert.ok(audio.windStarts > 0, 'outdoor wind starts in the field');
+    assert.ok(audio.creekPeak > 0.14, 'creek grows audible on the return trail');
+    assert.ok(audio.creekStops > 0, 'creek audio stops at the refuge');
     for (const surface of ['gravel', 'asphalt', 'dirt', 'wood']) {
       assert.ok(audio.surfaces.includes(surface), 'footsteps respond to ' + surface);
     }

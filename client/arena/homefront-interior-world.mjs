@@ -228,7 +228,11 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   root.position.set(origin.x, origin.y, origin.z);
   root.userData.interiorLandmarkId = interior.landmarkId;
   const material = color => new THREE.MeshStandardMaterial({ color, roughness: 0.95 });
-  const floorMat = material(0x4b4940), wallMat = material(0x5b554b), trimMat = material(0x7a5c42);
+  const pineStore = interior.landmarkId === 'pine_general_store';
+  const pineClinic = interior.landmarkId === 'pine_clinic';
+  const floorMat = material(pineClinic ? 0x616866 : pineStore ? 0x645541 : 0x4b4940);
+  const wallMat = material(pineClinic ? 0x888b78 : pineStore ? 0x77624d : 0x5b554b);
+  const trimMat = material(pineClinic ? 0x4c605e : 0x7a5c42);
   const objectMat = material(0x393b37), clueMat = material(0x9e7944), powerMat = material(0x647d70), glassMat = material(0x405357);
   const rubbleMat = material(0x62594e);
   const grimeMat = new THREE.MeshStandardMaterial({ color: 0x282b29, roughness: 1, transparent: true, opacity: 0.32, depthWrite: false });
@@ -333,7 +337,7 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   const profile = propProfiles[interior.landmarkId] || propProfiles.north_bus_depot;
   const furnitureMat = material(profile.color);
   const accentMat = new THREE.MeshStandardMaterial({
-    color: ['mercy_hospital','quarantine_shelter'].includes(interior.landmarkId) ? 0xb6c7be : 0xb58b4f,
+    color: pineClinic || ['mercy_hospital','quarantine_shelter'].includes(interior.landmarkId) ? 0xb6c7be : 0xb58b4f,
     emissive: ['research_annex','ashfall_station'].includes(interior.landmarkId) ? 0x1c6b63 : 0x000000,
     emissiveIntensity: 0.22, roughness: 0.82
   });
@@ -371,6 +375,14 @@ export function buildInteriorSetPiece(THREE, interior, origin = { x: 0, y: 0, z:
   for (const r of interior.rooms) {
     box(root, [r.width, 0.16, r.depth], [r.x, r.elevation - 0.08, r.z], floorMat);
     for (const side of ['north','south','east','west']) wall(root, r, side, hasExit(r, side) || (r.id === interior.entryRoom && side === 'south'));
+    if (pineClinic || pineStore) {
+      // Paint in the room's perimeter, leaving real door openings clear.
+      for (const side of ['north', 'south']) {
+        if (hasExit(r, side) || (r.id === interior.entryRoom && side === 'south')) continue;
+        box(root, [r.width - 0.18, pineClinic ? 0.17 : 0.10, 0.035],
+          [r.x, r.elevation + (pineClinic ? 0.94 : 0.16), r.z + (side === 'north' ? -1 : 1) * (r.depth / 2 - 0.09)], trimMat);
+      }
+    }
     // A small wall-mounted emergency light gives the roofless floorplan readable depth.
     box(root, [0.28, 0.12, 0.12], [r.x - r.width * 0.32, r.elevation + 1.75, r.z - r.depth / 2 + 0.16], clueMat);
     for (const exit of r.exits) {

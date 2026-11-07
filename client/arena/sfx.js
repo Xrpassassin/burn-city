@@ -54,6 +54,42 @@ function loop(k, { pos = null, v = 1, rate = 1, ref = 2.5, max = 45, out = null 
 function listen(x, y, z, yaw) { if (!A) return; const L = A.listener, fx = Math.sin(yaw), fz = Math.cos(yaw);
   if (L.positionX) { L.positionX.value = x; L.positionY.value = y; L.positionZ.value = z; L.forwardX.value = fx; L.forwardY.value = 0; L.forwardZ.value = fz; L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0; }
   else { L.setPosition(x, y, z); L.setOrientation(fx, 0, fz, 0, 1, 0); } }
+function fieldNoiseBed(frequency, quality, spatial = false) {
+  if (!A || !noiseBuf) return null;
+  const source = A.createBufferSource(), filter = A.createBiquadFilter(), gain = A.createGain();
+  const position = spatial ? panner(0, 0, 0, 3.5, 20, 0.6) : null;
+  source.buffer = noiseBuf;
+  source.loop = true;
+  filter.type = 'bandpass';
+  filter.frequency.value = frequency;
+  filter.Q.value = quality;
+  gain.gain.value = 0;
+  source.connect(filter).connect(gain);
+  if (position) gain.connect(position).connect(bus);
+  else gain.connect(bus);
+  source.start();
+  return {
+    set(level, x, y, z) {
+      const now = A.currentTime;
+      gain.gain.setTargetAtTime(level, now, 0.2);
+      if (position?.positionX) {
+        position.positionX.setTargetAtTime(x, now, 0.12);
+        position.positionY.setTargetAtTime(y, now, 0.12);
+        position.positionZ.setTargetAtTime(z, now, 0.12);
+      } else if (position) position.setPosition(x, y, z);
+    },
+    stop() {
+      gain.gain.setTargetAtTime(0, A.currentTime, 0.1);
+      source.onended = () => {
+        source.disconnect();
+        filter.disconnect();
+        gain.disconnect();
+        position?.disconnect();
+      };
+      source.stop(A.currentTime + 0.4);
+    }
+  };
+}
 // ---------- heartbeat: BPM + volume follow intensity (0..1); the rest of the mix gets muffled as it rises ----------
 const HB = { i: 0, bpm: 0, next: 0, cutoff: 20000, onBeat: null };
 function heartbeat(i) { HB.i = i; if (!A) return; const now = A.currentTime;
@@ -68,27 +104,10 @@ export const sfx = {
   setMuted(m) { muted = !!m; localStorage[MUTE] = muted ? '1' : '0'; if (master) master.gain.value = muted ? 0 : vol; },
   loadBank, play, loop, listen, heartbeat, has: k => !!BUF[k]?.length,
   fieldWind() {
-    if (!A || !noiseBuf) return null;
-    const source = A.createBufferSource(), filter = A.createBiquadFilter(), gain = A.createGain();
-    source.buffer = noiseBuf;
-    source.loop = true;
-    filter.type = 'bandpass';
-    filter.frequency.value = 530;
-    filter.Q.value = 0.58;
-    gain.gain.value = 0;
-    source.connect(filter).connect(gain).connect(bus);
-    source.start();
-    return {
-      set(level) {
-        gain.gain.cancelScheduledValues(A.currentTime);
-        gain.gain.setTargetAtTime(level, A.currentTime, 0.25);
-      },
-      stop() {
-        gain.gain.setTargetAtTime(0, A.currentTime, 0.1);
-        source.stop(A.currentTime + 0.4);
-        source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
-      }
-    };
+    return fieldNoiseBed(530, 0.58);
+  },
+  fieldCreek() {
+    return fieldNoiseBed(1450, 0.75, true);
   },
   fieldStep(surface, sprint) {
     const gain = sprint ? 1.35 : 1;

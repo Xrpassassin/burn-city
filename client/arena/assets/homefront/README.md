@@ -7,6 +7,7 @@ These binary GLB files are bundled locally for BURN City Homefront. They are not
 - `fence.glb`: Kenney, Nature Kit, CC0 1.0. Upstream file: https://github.com/mars-tw/storm-apocalypse/blob/main/public/models/fence.glb
 - `fence-gate.glb`: Kenney, Nature Kit, CC0 1.0. Upstream file: https://github.com/mars-tw/storm-apocalypse/blob/main/public/models/fence-gate.glb
 - `campfire-stones.glb`: Kenney, Nature Kit, CC0 1.0. Upstream file: https://github.com/mars-tw/storm-apocalypse/blob/main/public/models/campfire-stones.glb
+- `pine-crossing/rock-small.glb`: Kenney, [Nature Kit](https://kenney.nl/assets/nature-kit), CC0 1.0. [Redistributed GLB](https://github.com/syuhei176/ai-game-assets/blob/main/models/environment/rock_small.glb) (Git blob `b23471253cfafcca5916ffddb79853eca7433195`). The Pine Crossing scene instances its geometry with a local stone palette.
 
 The upstream [credits manifest](https://github.com/mars-tw/storm-apocalypse/blob/main/CREDITS.md) identifies these asset packs and licenses separately from the repository's MIT-licensed code. CC0 1.0 permits reuse, modification, and redistribution. Source URLs are retained for provenance. The GLBs are copied unchanged; BURN City code controls placement and presentation.
 

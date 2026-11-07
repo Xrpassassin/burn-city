@@ -14,15 +14,38 @@ export const PINE_CROSSING_BUILDINGS = Object.freeze([
 ]);
 export const pineCrossingBuilding = id => PINE_CROSSING_BUILDINGS.find(building => building.id === id);
 
+// Runs downhill from the logging-road culvert to the woods south of town.
+export const PINE_CREEK = Object.freeze([
+  [-13.7,-77.5], [-15,-74], [-17.2,-70.5], [-19.3,-67], [-19.6,-62],
+  [-20.8,-58.7], [-18.4,-54], [-16.7,-49.5], [-14.3,-46], [-13.2,-41.3],
+  [-14.5,-37.5], [-17.4,-34.5]
+]);
+
 export function inPineCrossing(x, z, padding = 0) {
   const { minX, maxX, minZ, maxZ } = PINE_CROSSING_BOUNDS;
   return x >= minX - padding && x <= maxX + padding && z >= minZ - padding && z <= maxZ + padding;
 }
 
-function segmentDistance(x, z, a, b) {
+function segmentProgress(x, z, a, b) {
   const dx = b[0] - a[0], dz = b[1] - a[1];
-  const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)));
-  return Math.hypot(x - a[0] - t * dx, z - a[1] - t * dz);
+  return Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)));
+}
+
+function segmentDistance(x, z, a, b) {
+  const t = segmentProgress(x, z, a, b);
+  return Math.hypot(x - a[0] - t * (b[0] - a[0]), z - a[1] - t * (b[1] - a[1]));
+}
+
+export function nearestPineCreek(x, z) {
+  let nearest = { x: 0, z: 0, distance: Infinity };
+  for (let i = 1; i < PINE_CREEK.length; i++) {
+    const a = PINE_CREEK[i - 1], b = PINE_CREEK[i];
+    const t = segmentProgress(x, z, a, b);
+    const cx = a[0] + t * (b[0] - a[0]), cz = a[1] + t * (b[1] - a[1]);
+    const distance = Math.hypot(x - cx, z - cz);
+    if (distance < nearest.distance) nearest = { x: cx, z: cz, distance };
+  }
+  return nearest;
 }
 
 export function pineRouteDistance(x, z) {
@@ -49,7 +72,8 @@ export const PINE_CROSSING_TREES = Object.freeze((() => {
     const inParcel = PINE_CROSSING_BUILDINGS.some(building =>
       x > building.x - 3.6 && x < building.x + 8.4 && Math.abs(z - building.z) < 3.6);
     const inTownClearing = z >= -46 && z <= -37;
-    if (inParcel || inTownClearing || pineRouteDistance(x, z) < 1.6 || jitter(gx, gz, 3) < 0.22) continue;
+    if (inParcel || inTownClearing || pineRouteDistance(x, z) < 1.6 ||
+        nearestPineCreek(x, z).distance < 1.35 || jitter(gx, gz, 3) < 0.22) continue;
     const height = 4.1 + jitter(gx, gz, 4) * 4.5;
     trees.push({ id: 'pine:' + gx + ',' + gz, x, z, height, radius: 0.24 + height * 0.023,
       variation: jitter(gx, gz, 5) });

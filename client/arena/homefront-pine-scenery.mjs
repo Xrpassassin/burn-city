@@ -1,4 +1,6 @@
-import { PINE_CROSSING_ROUTES, PINE_CROSSING_TREES } from './homefront-pine-crossing.mjs';
+import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeGeometries } from '../vendor/three/examples/jsm/utils/BufferGeometryUtils.js';
+import { PINE_CREEK, PINE_CROSSING_ROUTES, PINE_CROSSING_TREES, pineRouteDistance } from './homefront-pine-crossing.mjs';
 import { terrainElevation } from './homefront-terrain-generation.mjs';
 
 const ROAD_COLORS = { gravel: 0x766c56, dirt: 0x574933, asphalt: 0x414343 };
@@ -68,17 +70,32 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
     if (!groups.has(chunk)) groups.set(chunk, []);
     groups.get(chunk).push(tree);
   }
-  const trunkGeometry = new THREE.CylinderGeometry(0.67, 1, 1, 6);
-  const branchGeometry = new THREE.ConeGeometry(1, 1, 7);
+  const trunkGeometry = new THREE.CylinderGeometry(0.51, 1, 1, 7);
+  const branchGeometry = new THREE.LatheGeometry([
+    [0, -0.46], [0.51, -0.47], [0.95, -0.43], [0.81, -0.32],
+    [0.54, -0.11], [0.42, 0.07], [0.23, 0.25], [0, 0.52]
+  ].map(([radius, height]) => new THREE.Vector2(radius, height)), 9);
+  const needlesPosition = branchGeometry.getAttribute('position');
+  for (let i = 0; i < needlesPosition.count; i++) {
+    const x = needlesPosition.getX(i), z = needlesPosition.getZ(i), y = needlesPosition.getY(i);
+    const angle = Math.atan2(z, x);
+    const radius = Math.hypot(x, z);
+    const uneven = 1 + 0.18 * Math.sin(angle * 5 + y * 3) + 0.12 * Math.cos(angle * 3 - y * 4);
+    needlesPosition.setXYZ(i, x * uneven, y + radius * 0.10 * Math.sin(angle * 4), z * uneven);
+  }
+  branchGeometry.computeVertexNormals();
   const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x514539, roughness: 1 });
   const needles = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
+  const brushGeometry = new THREE.IcosahedronGeometry(1, 0);
   const dummy = new THREE.Object3D();
   const color = new THREE.Color();
   for (const [group, trees] of groups) {
     const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, trees.length);
-    const crowns = new THREE.InstancedMesh(branchGeometry, needles, trees.length * 3);
+    const crowns = new THREE.InstancedMesh(branchGeometry, needles, trees.length * 4);
+    const brush = new THREE.InstancedMesh(brushGeometry, needles, trees.length * 2);
     trunks.name = 'pine-trunks';
     crowns.name = 'pine-crowns';
+    brush.name = 'pine-undergrowth';
     trees.forEach(({x,z,height,radius,variation}, i) => {
       const ground = terrainElevation(x,z);
       dummy.position.set(x, ground + height * 0.36, z);
@@ -86,32 +103,175 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt) {
       dummy.rotation.set(0, variation * Math.PI, 0);
       dummy.updateMatrix();
       trunks.setMatrixAt(i, dummy.matrix);
-      for (let tier = 0; tier < 3; tier++) {
-        const spread = height * (0.28 - tier * 0.057);
-        dummy.position.set(x, ground + height * (0.52 + tier * 0.155), z);
-        dummy.scale.set(spread, height * (0.49 - tier * 0.035), spread * (0.84 + variation * 0.25));
+      for (let tier = 0; tier < 4; tier++) {
+        const spread = height * (0.239 - tier * 0.047) * (0.85 + variation * 0.3);
+        dummy.position.set(x + Math.sin(variation * 12 + tier) * spread * 0.13,
+          ground + height * (0.48 + tier * 0.13 + variation * 0.07), z);
+        dummy.scale.set(spread, height * (0.48 - tier * 0.045), spread * (0.72 + variation * 0.30));
+        dummy.rotation.x = (variation - 0.5) * 0.15;
         dummy.rotation.y = (variation + tier * 0.23) * Math.PI * 2;
         dummy.updateMatrix();
-        crowns.setMatrixAt(i * 3 + tier, dummy.matrix);
-        color.setHSL(0.29 + variation * 0.08, 0.19 + variation * 0.14, 0.16 + tier * 0.035 + variation * 0.055);
-        crowns.setColorAt(i * 3 + tier, color);
+        crowns.setMatrixAt(i * 4 + tier, dummy.matrix);
+        color.setHSL(0.21 + variation * 0.075, 0.16 + variation * 0.18, 0.13 + tier * 0.014 + variation * 0.084);
+        crowns.setColorAt(i * 4 + tier, color);
+      }
+      for (let tuft = 0; tuft < 2; tuft++) {
+        const angle = variation * 6.28 + tuft * 2.2;
+        const rx = x + Math.sin(angle) * 0.93, rz = z + Math.cos(angle) * 0.93;
+        const size = 0.21 + 0.32 * Math.abs(Math.sin(variation * 18 + tuft));
+        dummy.position.set(rx, groundAt(rx, rz) + size * 0.19, rz);
+        dummy.scale.set(size, size * 0.63, size * 0.77);
+        dummy.rotation.set(0, angle, 0);
+        dummy.updateMatrix();
+        brush.setMatrixAt(i * 2 + tuft, dummy.matrix);
+        color.setHSL(0.16 + variation * 0.1, 0.16 + variation * 0.13, 0.18 + variation * 0.07);
+        brush.setColorAt(i * 2 + tuft, color);
       }
     });
     trunks.computeBoundingSphere();
     crowns.computeBoundingSphere();
-    group.add(trunks, crowns);
+    brush.computeBoundingSphere();
+    group.add(trunks, crowns, brush);
   }
+  return addPineCreek(THREE, chunkAt, groundAt);
+}
+
+function addPineCreek(THREE, chunkAt, groundAt) {
+  const vertices = [], uv = [], indices = [], stoneSites = [];
+  let length = 0;
+  for (let i = 1; i < PINE_CREEK.length; i++) {
+    const [ax, az] = PINE_CREEK[i - 1], [bx, bz] = PINE_CREEK[i];
+    const dx = bx - ax, dz = bz - az, span = Math.hypot(dx, dz);
+    const rows = Math.ceil(span / 0.32);
+    for (let j = 0; j < rows; j++) {
+      const t = j / rows, x = ax + dx * t, z = az + dz * t;
+      const along = length + span * t;
+      const width = 0.72 + 0.17 * Math.sin(along * 0.52);
+      const row = vertices.length / 6;
+      for (const side of [-1, 1]) {
+        const wx = x - dz / span * width * side, wz = z + dx / span * width * side;
+        vertices.push(wx, groundAt(wx, wz) + 0.055, wz);
+        uv.push((side + 1) / 2, along / 4);
+      }
+      if (row > 0) {
+        const v = row * 2;
+        indices.push(v - 2, v, v - 1, v - 1, v, v + 1);
+      }
+      if (j % 5 === 1) {
+        const side = row % 2 ? 1 : -1;
+        const bank = width + 0.19 + 0.24 * Math.abs(Math.sin(row));
+        const sx = x - dz / span * bank * side, sz = z + dx / span * bank * side;
+        if (pineRouteDistance(sx, sz) > 0.32) stoneSites.push([sx, sz, row]);
+      }
+    }
+    length += span;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 128;
+  const context = canvas.getContext('2d');
+  const banks = context.createLinearGradient(0, 0, 64, 0);
+  banks.addColorStop(0, '#3e4c40');
+  banks.addColorStop(0.3, '#526b65');
+  banks.addColorStop(0.63, '#405d59');
+  banks.addColorStop(1, '#3e4c40');
+  context.fillStyle = banks;
+  context.fillRect(0, 0, 64, 128);
+  for (let i = 0; i < 35; i++) {
+    context.fillStyle = i % 3 ? '#9ea9a220' : '#202c2940';
+    context.fillRect(8 + i * 11 % 43, i * 23 % 128, 2 + i % 4, 3 + i % 8);
+  }
+  const ripples = new THREE.CanvasTexture(canvas);
+  ripples.colorSpace = THREE.SRGBColorSpace;
+  ripples.wrapT = THREE.RepeatWrapping;
+  const water = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+    map: ripples, color: 0xd8e1dc, roughness: 0.48, side: THREE.DoubleSide
+  }));
+  water.name = 'pine-creek-water';
+  const chunk = chunkAt(...PINE_CREEK[Math.floor(PINE_CREEK.length / 2)]);
+  chunk.add(water);
+
+  // Keep the whole bank in a single draw call, with a geometric fallback while
+  // the bundled Kenney rock loads. Normalize the source's miniature scale.
+  const fallback = new THREE.IcosahedronGeometry(0.5, 0);
+  const stones = new THREE.InstancedMesh(fallback, new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 1
+  }), stoneSites.length);
+  stones.name = 'pine-creek-stones';
+  const dummy = new THREE.Object3D(), tint = new THREE.Color();
+  for (const [index, [x, z, row]] of stoneSites.entries()) {
+    const size = 0.24 + 0.44 * Math.abs(Math.sin(row * 0.19));
+    dummy.position.set(x, groundAt(x, z) + size * 0.09, z);
+    dummy.scale.set(size, size * 0.63, size * 0.85);
+    dummy.rotation.y = row * 1.23;
+    dummy.updateMatrix();
+    stones.setMatrixAt(index, dummy.matrix);
+    tint.setHSL(0.15, 0.07, 0.31 + 0.16 * Math.abs(Math.cos(row)));
+    stones.setColorAt(index, tint);
+  }
+  chunk.add(stones);
+  const rockUrl = new URL('./assets/homefront/pine-crossing/rock-small.glb', import.meta.url).href;
+  new GLTFLoader().loadAsync(rockUrl).then(({ scene }) => {
+    const pieces = [];
+    scene.updateMatrixWorld(true);
+    scene.traverse(node => {
+      if (node.isMesh) pieces.push(node.geometry.clone().applyMatrix4(node.matrixWorld));
+    });
+    const shape = pieces.length ? mergeGeometries(pieces) : null;
+    for (const piece of pieces) piece.dispose();
+    scene.traverse(node => {
+      node.geometry?.dispose();
+      node.material?.dispose();
+    });
+    if (!shape) return;
+    shape.center();
+    const size = shape.boundingBox.getSize(new THREE.Vector3());
+    const footprint = Math.max(size.x, size.z);
+    shape.scale(1 / footprint, 1 / size.y, 1 / footprint);
+    stones.geometry = shape;
+    stones.computeBoundingSphere();
+    fallback.dispose();
+  }).catch(() => {});
+
+  const reedSites = stoneSites.filter(([, , row]) => row % 3 !== 0);
+  const reeds = new THREE.InstancedMesh(new THREE.ConeGeometry(1, 1, 3), new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 1
+  }), reedSites.length * 5);
+  reeds.name = 'pine-creek-reeds';
+  for (const [index, [x, z, row]] of reedSites.entries()) {
+    for (let blade = 0; blade < 5; blade++) {
+      const angle = row + blade * 2.4, height = 0.22 + 0.43 * Math.abs(Math.sin(angle));
+      const rx = x + Math.cos(angle) * 0.24, rz = z + Math.sin(angle) * 0.24;
+      dummy.position.set(rx, groundAt(rx, rz) + height * 0.43, rz);
+      dummy.rotation.set(0.19 * Math.cos(angle), angle, 0.19 * Math.sin(angle));
+      dummy.scale.set(0.037, height, 0.037);
+      dummy.updateMatrix();
+      const instance = index * 5 + blade;
+      reeds.setMatrixAt(instance, dummy.matrix);
+      tint.setHSL(0.19 + blade * 0.015, 0.22, 0.29 + blade * 0.027);
+      reeds.setColorAt(instance, tint);
+    }
+  }
+  chunk.add(reeds);
+  return dt => { if (chunk.visible) ripples.offset.y = (ripples.offset.y - dt * 0.13) % 1; };
 }
 
 export function buildPineFacade(THREE, building, addBox, mat) {
   const root = new THREE.Group();
   root.position.set(building.x, terrainElevation(building.x, building.z), building.z);
   root.name = 'homefront-landmark:' + building.id;
-  const wall = mat(building.finish === 'store' ? 0x635449 : 0x7b8073);
-  const trim = mat(building.finish === 'store' ? 0x917757 : 0x53686a);
-  const timber = mat(0x51483a), glass = mat(0x273e41), roof = mat(0x363b39);
+  const store = building.finish === 'store';
+  const wall = mat(store ? 0x7a5e48 : 0xa4a394);
+  const trim = mat(store ? 0xa18a68 : 0x4d6661);
+  const timber = mat(0x51483a), glass = mat(0x273e41, 0.32), roof = mat(0x3e4643);
   const box = (w,h,d,x,y,z,material) => addBox(root,w,h,d,x,y,z,material);
-  box(9.6, 0.16, 4.8, 2.4, -0.12, 0, timber);
+  box(9.6, 0.29, 4.8, 2.4, -0.16, 0, mat(0x575954));
   box(9.6, 2.72, 0.16, 2.4, 0, -2.32, wall);
   for (const x of [-2.32,7.12]) box(0.16, 2.72, 4.8, x, 0, 0, wall);
   // The entrance stays aligned with the interactive threshold in the room blueprint.
@@ -126,13 +286,36 @@ export function buildPineFacade(THREE, building, addBox, mat) {
     box(0.08, 0.92, 0.07, x, 1.01, 2.53, timber);
     box(1.52, 0.14, 0.07, x, 1.22, 2.55, timber).rotation.z = 0.15;
   }
-  for (const side of [-1,1]) {
-    const panel = box(10.1, 0.15, 2.76, 2.4, 3.04, side * 1.26, roof);
-    panel.rotation.x = side * 0.24;
+  if (store) {
+    for (const side of [-1,1]) {
+      const panel = box(10.1, 0.15, 2.76, 2.4, 3.04, side * 1.26, roof);
+      panel.rotation.x = side * 0.24;
+      box(10.15, 0.085, 0.11, 2.4, 2.8, side * 2.59, timber);
+    }
+    for (let y = 0.38; y < 2.55; y += 0.24) {
+      box(1.46, 0.035, 0.036, -1.65, y, 2.414, timber);
+      if (y < 0.86 || y > 2.05) box(6.29, 0.035, 0.036, 4.05, y, 2.414, timber);
+    }
+    const fadedCanvas = mat(0x854e39), fadedStripe = mat(0xbaa384);
+    for (let i = 0; i < 9; i++) {
+      box(0.51, 0.08, 1.02, -1.25 + i * 0.51, 2.19, 2.85, i % 2 ? fadedStripe : fadedCanvas).rotation.x = 0.19;
+    }
+    box(2.15, 0.12, 0.48, 4.99, 0.43, 2.71, timber);
+    for (const x of [4.11, 5.87]) box(0.1, 0.43, 0.26, x, 0, 2.71, trim);
+  } else {
+    box(9.87, 0.22, 4.99, 2.4, 2.73, 0, roof);
+    for (const side of [-1, 1]) box(9.87, 0.27, 0.16, 2.4, 2.92, side * 2.41, wall);
+    box(1.65, 0.32, 1.12, 5.95, 2.95, -0.98, trim);
+    box(1.4, 0.035, 0.9, 5.95, 3.27, -0.98, roof);
+    box(6.3, 0.18, 0.05, 4.05, 0.62, 2.43, trim);
+    box(1.5, 0.18, 0.05, -1.65, 0.62, 2.43, trim);
+    box(2.25, 0.12, 1.09, 0, 2.22, 2.86, trim);
+    const plaque = mat(0xddd7bd), medicalGreen = mat(0x41655b);
+    box(0.59, 0.59, 0.07, 6.39, 2.01, 2.44, plaque);
+    box(0.13, 0.41, 0.03, 6.39, 2.10, 2.49, medicalGreen);
+    box(0.41, 0.13, 0.03, 6.39, 2.24, 2.49, medicalGreen);
   }
-  box(10.0, 0.4, 4.8, 2.4, 2.68, 0, timber);
-  box(3.7, 0.13, 1.05, 0.36, 2.22, 2.89, trim).rotation.x = 0.08;
-  const plaque = signPlaque(THREE, building.sign, 3.05, building.finish === 'store' ? '#494139' : '#445557');
+  const plaque = signPlaque(THREE, building.sign, 3.05, store ? '#494139' : '#445557');
   plaque.position.set(2.25, 2.52, 2.44);
   root.add(plaque);
   return root;

@@ -21,6 +21,7 @@ import { attachViewControls, cameraPose, worldMove, walkingCameraHeading, direct
 import { createContinuousInput } from './homefront-continuous-input.mjs';
 import { createHomefrontMoveTransport } from './homefront-input-transport.mjs';
 import { homefrontContextAction, homefrontActionTarget } from './homefront-context-action.mjs';
+import { queueDoorwayTap } from './homefront-context-action-queue.mjs';
 import { nearestInteriorInteraction } from './homefront-room-proximity.mjs';
 import { clipInteriorCamera, interiorCameraProbeOrigins } from './homefront-camera-occlusion.mjs';
 import { applyInteriorVisualLayers } from './homefront-interior-visibility.mjs';
@@ -2267,7 +2268,12 @@ function boot(host) {
     });
   }
   function renderContextAction() {
-    const next = availableContext();
+    const raw = availableContext();
+    // Keep the already-reached doorway tappable during a brief in-flight
+    // movement acknowledgment. Any actual entry still rechecks current reach
+    // after movement settles, and goes through server-side doorway validation.
+    const next = raw || (moving && shownContext?.id === 'enter-doorway' &&
+      view.visible && token() ? shownContext : null);
     if (next?.id === shownContext?.id && next?.label === shownContext?.label &&
         next?.targetId === shownContext?.targetId) return;
     shownContext = next;
@@ -2278,6 +2284,18 @@ function boot(host) {
     }
   }
   function activateContextAction() {
+    const tapped = shownContext;
+    // A touch may land between movement acknowledgement and prompt refresh.
+    // Preserve this one explicit doorway tap, but refuse it if the player has
+    // walked away, the menu opened or the server is still busy after 1.5s.
+    if (tapped?.id === 'enter-doorway' && moving) {
+      queueDoorwayTap({
+        intent:tapped, isBusy:()=>moving,
+        current:()=>availableContext(),
+        commit:landmarkId=>enterInterior(landmarkId)
+      });
+      return;
+    }
     const current = availableContext();
     if (!current || current.id !== shownContext?.id || current.targetId !== shownContext?.targetId) return;
     if (current.id === 'return-refuge') {

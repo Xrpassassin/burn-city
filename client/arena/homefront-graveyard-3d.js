@@ -2236,6 +2236,16 @@ function boot(host) {
   const roverUI=createRoverControls({
     host,getSnapshot:()=>worldData,visible:()=>view.visible,
     send:roverRequest,
+    onResync:async()=>{
+      if(!token())throw Error('sign_in_with_xaman');
+      const response=await homefrontFetch('/api/homefront/world',{
+        headers:{authorization:'Bearer '+token()}
+      });
+      const fresh=await response.json();
+      if(!response.ok||fresh.error)throw Error(fresh.error||'vehicle_resync_failed');
+      updateWorld(fresh);
+      return fresh;
+    },
     onSnapshot:data=>{
       if(!worldData||!data.vehicle)return;
       const previous=worldData.world?.vehicles||[];

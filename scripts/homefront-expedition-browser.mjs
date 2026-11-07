@@ -157,6 +157,7 @@ const server = createServer(async (req, res) => {
 });
 
 process.env.HOMEFRONT_CONTINUOUS_MOVEMENT = "1";
+if(process.env.HOMEFRONT_EXPEDITION_ROVER==='1')process.env.HOMEFRONT_VEHICLES_ENABLED='1';
 const port = await new Promise((ok) =>
   server.listen(0, "127.0.0.1", () => ok(server.address().port)),
 );
@@ -276,6 +277,64 @@ try {
     .locator("#homefrontModal button")
     .filter({ hasText: "Skip" })
     .click();
+
+  expeditionRun: {
+    if(process.env.HOMEFRONT_EXPEDITION_ROVER==='1'){
+      assert.equal(guestMode,false,'shared vehicle acceptance uses wallet-authenticated world fixture');
+      await page.waitForFunction(()=>document.body.classList.contains('rpg-mode-expedition')&&
+        document.querySelector('#graveyard3d')?.getClientRects().length>0);
+      const built=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/vehicle/build'),{timeout:12000});
+      await page.keyboard.press('b');
+      const builtResult=await (await built).json();
+      assert.equal(builtResult.vehicle?.type,'scrap_rover','B assembles a real salvage rover');
+      assert.ok(builtResult.world.vehicles.some(v=>v.mine),'the rover mesh receives authoritative physical state');
+      // Move the disposable test account next to its own vehicle only for
+      // touch/keyboard UI acceptance. This fixture is NOT a production teleport API.
+      const state=store.load('homefront-world.json',null);
+      Object.assign(state.players[ACCOUNT],{x:builtResult.vehicle.x,z:builtResult.vehicle.z,lastSeen:Date.now()});
+      store.save('homefront-world.json',state);
+      await page.waitForFunction(()=>document.getElementById('homefrontContextAction')?.textContent.includes('Board scrap rover'),
+        null,{timeout:15000});
+      const boarded=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/vehicle/board'));
+      await activate(page.locator('#homefrontContextAction'));
+      const boarding=await (await boarded).json();
+      assert.equal(boarding.selfVehicle?.id,'rover:'+ACCOUNT);
+      await page.waitForFunction(()=>getComputedStyle(document.querySelector('#graveyard3d .hf-rover-pad'))?.display==='grid',
+        null,{timeout:5000});
+      const firstPoint={x:boarding.self.x,z:boarding.self.z};
+      const driving=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/vehicle/drive'),{timeout:12000});
+      if(mobile){
+        const pad=page.getByRole('button',{name:'Rover KeyW'});
+        const bounds=await pad.boundingBox();
+        const at={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[at]});
+        await new Promise(resolve=>setTimeout(resolve,450));
+        await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+      }else{
+        await page.keyboard.down('w');
+        await new Promise(resolve=>setTimeout(resolve,450));
+        await page.keyboard.up('w');
+      }
+      const driven=await (await driving).json();
+      assert.equal(driven.vehicle?.sequence,0);
+      assert.ok(Math.hypot(driven.self.x-firstPoint.x,driven.self.z-firstPoint.z)<1.5,
+        'server controls the first rover movement budget');
+      assert.ok(driven.vehicle.charge<100,'real driving consumes battery charge');
+      const park=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/vehicle/dismount'));
+      await page.waitForFunction(()=>document.getElementById('homefrontContextAction')?.textContent.includes('Park rover'),
+        null,{timeout:5000});
+      await activate(page.locator('#homefrontContextAction'));
+      assert.equal((await (await park).json()).selfVehicle,null);
+      assert.equal(store.load('homefront-world.json',null).vehicles[ACCOUNT].driver,null);
+      assert.deepEqual(errors,[]);
+      console.log('SHARED ROVER PLAYTEST PASSED',JSON.stringify({mobile,assembled:true,boarded:true,
+        serverCappedDrive:true,chargeUsed:true,parked:true}));
+      break expeditionRun;
+    }
 
   await startWalking("s");
   await page.waitForFunction(
@@ -790,6 +849,7 @@ try {
   );
 
   assert.deepEqual(errors, []);
+  } // expeditionRun
   }
 } finally {
   Homefront.handle = realHandle;

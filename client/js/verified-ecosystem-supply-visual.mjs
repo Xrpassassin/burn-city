@@ -1,7 +1,7 @@
 // Visual readout for IMM and XRPyro. A marker is never scaled by an unverified supply figure.
 const IDENTITIES=Object.freeze({
  IMM:{issuer:'rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP',currency:'IMM'},
- XRPyro:{issuer:'rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va',currency:'XRPYRO'}
+ XRPyro:{issuer:'rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va',currency:'58525079726F0000000000000000000000000000'}
 });
 export function verifiedEcosystemSupplyFraction(record,name,now=Date.now()){
  const id=IDENTITIES[name];

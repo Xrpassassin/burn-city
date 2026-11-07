@@ -4,6 +4,7 @@
 const Terrain = require('./homefront-terrain');
 const { inPineCrossing, pineRouteDistance, pineCrossingBuilding, PINE_CROSSING_TREES, PINE_ROADSIDE_SITES } =
   require('../client/arena/homefront-pine-crossing.mjs');
+const {vehicleCorridorAt}=require('../client/arena/homefront-vehicle-corridors.mjs');
 const InteriorRules = require('./homefront-interiors');
 const InteriorCatalog = require('../client/arena/homefront-interior-world.mjs');
 const WORLD_SIZE = 100;
@@ -52,7 +53,7 @@ function buildObstacles() {
       if (hash01(wx, wz, Terrain.DEFAULT_SEED ^ 0x12a4f3) > density) continue;
       const x = cx * chunkSize + (gx + 0.2 + hash01(wx, wz, Terrain.DEFAULT_SEED ^ 0x67ab91) * 0.6) * chunkSize / cells;
       const z = cz * chunkSize + (gz + 0.2 + hash01(wx, wz, Terrain.DEFAULT_SEED ^ 0x9981de) * 0.6) * chunkSize / cells;
-      if (inPineCrossing(x, z) || (z < -78 && pineRouteDistance(x, z) < 2.5)) continue;
+      if (inPineCrossing(x, z) || vehicleCorridorAt(x,z) || (z < -78 && pineRouteDistance(x, z) < 2.5)) continue;
       const biome = biomeAt(x, z), roll = hash01(wx, wz, Terrain.DEFAULT_SEED ^ 0x9e3779b9);
       const type = biome === 'marsh' ? (roll < 0.55 ? 'dead_reed' : 'standing_water') :
         biome === 'deadwood' ? (roll < 0.62 ? 'dead_tree' : 'fallen_log') :

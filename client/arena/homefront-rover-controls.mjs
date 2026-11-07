@@ -7,7 +7,8 @@ export function createRoverControls({
  if(!host||typeof getSnapshot!=='function'||typeof send!=='function'||typeof onSnapshot!=='function')
    throw TypeError('Rover controls require host, snapshot and server transport');
  const held=new Set();
- let busy=false,sequence=0,activeId=null,failedAcks=0;
+ let busy=false,sequence=0,activeId=null,failedAcks=0,stopped=false;
+ const releaseInput=()=>held.clear();
  const pad=document.createElement('div');
  pad.className='hf-rover-pad';
  pad.hidden=true;
@@ -23,6 +24,7 @@ export function createRoverControls({
   const cancel=()=>held.delete(code);
   button.addEventListener('pointerdown',event=>{
     event.preventDefault();event.stopPropagation();
+    if(stopped||!visible()||document.hidden||!getSnapshot()?.selfVehicle)return;
     held.add(code);button.setPointerCapture?.(event.pointerId);
   });
   button.addEventListener('pointerup',cancel);button.addEventListener('pointercancel',cancel);button.addEventListener('lostpointercapture',cancel);
@@ -33,17 +35,23 @@ export function createRoverControls({
   const code=event.code;
   if(!['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight'].includes(code))return;
   const live=getSnapshot();const id=live?.vehicleEnabled!==false?live?.selfVehicle?.id:null;
-  if(!id||!visible())return;
+  if(!down)held.delete(({ArrowUp:'KeyW',ArrowDown:'KeyS',ArrowLeft:'KeyA',ArrowRight:'KeyD'})[code]||code);
+  if(stopped||!id||!visible()||document.hidden)return;
   if(event.target?.isContentEditable||/INPUT|TEXTAREA|SELECT/.test(event.target?.tagName||''))return;
   event.preventDefault();
+  if(down&&event.repeat)return;
   const key=({ArrowUp:'KeyW',ArrowDown:'KeyS',ArrowLeft:'KeyA',ArrowRight:'KeyD'})[code]||code;
   if(down)held.add(key);else held.delete(key);
  };
- window.addEventListener('keydown',event=>control(event,true),{capture:true});
- window.addEventListener('keyup',event=>control(event,false),{capture:true});
- window.addEventListener('blur',()=>held.clear());
+ const keydown=event=>control(event,true),keyup=event=>control(event,false);
+ window.addEventListener('keydown',keydown,{capture:true});
+ window.addEventListener('keyup',keyup,{capture:true});
+ window.addEventListener('blur',releaseInput);
+ document.addEventListener('visibilitychange',releaseInput);
  function sync(){
+  if(stopped)return;
   const snap=getSnapshot(),id=snap?.vehicleEnabled!==false?snap?.selfVehicle?.id||null:null;
+  if(!visible()||document.hidden)releaseInput();
   if(id!==activeId){activeId=id;sequence=Number.isSafeInteger(snap?.selfVehicle?.sequence)?snap.selfVehicle.sequence+1:0;held.clear();failedAcks=0;}
   pad.hidden=!id||!visible();
   pad.style.display=id&&visible()?'grid':'none';
@@ -52,19 +60,21 @@ export function createRoverControls({
  async function tick(){
   sync();
   const snap=getSnapshot(),id=snap?.vehicleEnabled!==false?snap?.selfVehicle?.id:null;
-  if(!id||busy||!visible()||document.hidden)return;
+  if(stopped||!id||busy||!visible()||document.hidden)return;
   const throttle=Number(held.has('KeyW'))-Number(held.has('KeyS'));
   const steer=Number(held.has('KeyD'))-Number(held.has('KeyA'));
   if(!throttle&&!steer)return;
   busy=true;
   try{
    const response=await send('drive',{sequence:sequence,throttle,steer});
+   if(stopped)return;
    if(!response?.vehicle||response.vehicle.id!==id)throw Error('vehicle_response_mismatch');
    sequence=response.vehicle.sequence+1;
    failedAcks=0;
    onSnapshot(response);
    if(response.vehicleResult?.blocked)onError('Obstacle ahead. Find a wider route.');
   }catch(error){
+   if(stopped)return;
    const reason=String(error?.message||error);
    failedAcks++;
    if(['invalid_vehicle_input','not_driving_vehicle','homefront_vehicles_unavailable'].includes(reason)||failedAcks>=2){
@@ -75,6 +85,7 @@ export function createRoverControls({
      held.clear();
      try{
        const fresh=await onResync();
+       if(stopped)return;
        if(fresh?.vehicleEnabled!==false&&fresh?.selfVehicle?.id===id&&Number.isSafeInteger(fresh.selfVehicle.sequence)){
          sequence=fresh.selfVehicle.sequence+1;failedAcks=0;
          onError('Rover connection restored. Resume steering.');
@@ -90,5 +101,11 @@ export function createRoverControls({
  }
  const clock=setInterval(tick,165);
  sync();
- return {sync,stop(){clearInterval(clock);held.clear();pad.remove();}};
+ return {sync,stop(){
+  stopped=true;clearInterval(clock);releaseInput();pad.remove();
+  window.removeEventListener('keydown',keydown,{capture:true});
+  window.removeEventListener('keyup',keyup,{capture:true});
+  window.removeEventListener('blur',releaseInput);
+  document.removeEventListener('visibilitychange',releaseInput);
+ }};
 }

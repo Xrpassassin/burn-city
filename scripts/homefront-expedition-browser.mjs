@@ -361,9 +361,21 @@ try {
       await activate(page.locator('#homefrontContextAction'));
       assert.equal((await (await park).json()).selfVehicle,null);
       assert.equal(store.load('homefront-world.json',null).vehicles[ACCOUNT].driver,null);
+      // The mobile player must be able to recharge without a hardware keyboard.
+      const scrapBeforeCharge=store.load('homefront.json',{})[ACCOUNT].resources.scrap;
+      const recharge=page.locator('#homefrontRoverRecharge');
+      await recharge.waitFor({state:'visible',timeout:10000});
+      const charged=page.waitForResponse(response=>response.request().method()==='POST'&&
+        response.url().endsWith('/api/homefront/world/vehicle/charge'));
+      await activate(recharge);
+      const charging=await (await charged).json();
+      assert.equal(charging.vehicle?.charge,100,'nearby garage tops up the driven battery');
+      assert.equal(store.load('homefront.json',{})[ACCOUNT].resources.scrap,scrapBeforeCharge-2,
+        'touch recharge consumes the same server-owned materials as keyboard recharge');
+      await recharge.waitFor({state:'hidden',timeout:5000});
       assert.deepEqual(errors,[]);
       console.log('SHARED ROVER PLAYTEST PASSED',JSON.stringify({mobile,assembled:true,boarded:true,
-        serverCappedDrive:true,chargeUsed:true,parked:true}));
+        serverCappedDrive:true,chargeUsed:true,parked:true,recharged:true}));
       break expeditionRun;
     }
 

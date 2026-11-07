@@ -18,12 +18,16 @@ try {
   globalThis.window={addEventListener(name,cb){
     if(!listeners.has(name))listeners.set(name,[]);
     listeners.get(name).push(cb);
-  }};
-  globalThis.document={hidden:false,createElement:()=>new FakeElement()};
+  },removeEventListener(name,cb){listeners.set(name,(listeners.get(name)||[]).filter(fn=>fn!==cb));}};
+  const docListeners=new Map();
+  globalThis.document={hidden:false,createElement:()=>new FakeElement(),
+    addEventListener:(name,cb)=>docListeners.set(name,cb),
+    removeEventListener:(name,cb)=>{if(docListeners.get(name)===cb)docListeners.delete(name);}
+  };
   globalThis.setInterval=fn=>{const id=nextTimer++;clocks.set(id,fn);return id;};
   globalThis.clearInterval=id=>clocks.delete(id);
-  const key=(name,code)=>{
-    for(const cb of listeners.get(name)||[])cb({code,repeat:false,preventDefault(){},target:null});
+  const key=(name,code,repeat=false)=>{
+    for(const cb of listeners.get(name)||[])cb({code,repeat,preventDefault(){},target:null});
   };
   const input=async id=>{assert.ok(clocks.has(id),'the driver control clock remains installed');await clocks.get(id)();};
   const snap={vehicleEnabled:true,selfVehicle:{id:'rover:a',sequence:-1},self:{x:0,z:0}};
@@ -89,6 +93,35 @@ try {
   assert.equal(resynced,0,'single transient network error does not waste a resync');
   assert.equal(snap3.selfVehicle.sequence,1,'retries use the same sequence if the first command never committed');
   third.stop();
+  let playing=true, lifecycleSends=0,finishDrive;
+  const snap4={vehicleEnabled:true,selfVehicle:{id:'rover:d',sequence:-1}};
+  const fourth=createRoverControls({host:new FakeElement(),getSnapshot:()=>snap4,
+    visible:()=>playing,
+    send:async(_action,body)=>{lifecycleSends++;return {vehicle:{id:'rover:d',sequence:body.sequence}};},
+    onSnapshot:res=>{snap4.selfVehicle.sequence=res.vehicle.sequence;}
+  });
+  id=[...clocks.keys()][0];
+  key('keydown','KeyW');await input(id);
+  assert.equal(lifecycleSends,1);
+  playing=false;fourth.sync();playing=true;await input(id);
+  assert.equal(lifecycleSends,1,'reopening the scene cannot replay a held drive input');
+  key('keydown','KeyW',true);await input(id);
+  assert.equal(lifecycleSends,1,'OS key repeats after reopening cannot rearm a released control');
+  key('keydown','KeyW');document.hidden=true;docListeners.get('visibilitychange')();
+  document.hidden=false;await input(id);
+  assert.equal(lifecycleSends,1,'backgrounding the phone releases all steering');
+  key('keydown','KeyW');await input(id);
+  assert.equal(lifecycleSends,2,'a new intentional press resumes driving');
+  fourth.stop();
+  assert.ok([...listeners.values()].every(list=>list.length===0),'stop removes global listeners');
+  assert.equal(docListeners.size,0,'stop removes visibility listener');
+  let staleSnapshots=0;
+  const fifth=createRoverControls({host:new FakeElement(),getSnapshot:()=>snap4,
+    send:()=>new Promise(resolve=>{finishDrive=resolve;}),onSnapshot:()=>staleSnapshots++});
+  id=[...clocks.keys()][0];key('keydown','KeyW');
+  const pending=input(id);fifth.stop();
+  finishDrive({vehicle:{id:'rover:d',sequence:10}});await pending;
+  assert.equal(staleSnapshots,0,'late acknowledgements cannot update an abandoned scene');
   console.log('Homefront rover controls: authoritative sequence recovery, lost-driver disarm, and single-error retry passed');
 }finally{
   globalThis.window=oldWindow;

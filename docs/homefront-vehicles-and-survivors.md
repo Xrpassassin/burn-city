@@ -33,7 +33,8 @@ follows server snapshots; other nearby survivors see the same rover.
 - **Park:** E; a collision-safe foot exit must exist. Driver expiry,
   returning to refuge, and party regroup release the seat without erasing the
   physical world vehicle.
-- **Recharge:** **C** near a parked rover AT your Homefront garage.
+- **Recharge:** the nearby **Recharge rover** button (touch or mouse), or **C**,
+  near a parked rover AT your Homefront garage.
   Costs 2 scrap for 25% battery. No recharge through water, remote inventory,
   free currency, or invented items.
 - **Release safety:** the API requires `HOMEFRONT_VEHICLES_ENABLED=1`,
@@ -95,8 +96,14 @@ physical encounter, not an artificial NPC spawned separately per player.
 - `test/homefront-graveyard-3d.test.mjs`: browser wiring to server-authorized
   vehicle actions and physical survivor E rescue interaction.
 
-**Outstanding:** the draft's whole-scene desktop/phone expedition, especially
-mobile interior entry, must pass; physical iPhone driving, camera smoothing,
+**Automated acceptance:** revision `0f55151` passed the whole-scene desktop
+and simulated-phone expedition, including interior entry, plus desktop and
+touch rover build/board/drive/park in GitHub Actions run `42342891328`.
+The follow-up extends that rover route through paid garage recharge. Steering
+is released when the scene/menu is hidden or the page loses focus; abandoned
+controls remove their listeners and ignore late drive acknowledgements.
+
+**Outstanding:** physical iPhone driving, camera smoothing,
 control overlap, WebGL draw calls and audible survivor/engine direction need
 direct playtesting. No merge of PR #566 or enabling of production movement
 or vehicles before this acceptance.

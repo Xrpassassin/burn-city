@@ -2243,7 +2243,8 @@ function boot(host) {
     finally{moving=false;}
   }
   const roverUI=createRoverControls({
-    host,getSnapshot:()=>worldData,visible:()=>view.visible,
+    host,getSnapshot:()=>worldData,visible:()=>view.visible&&
+      !document.querySelector('.hf-sheet:not([hidden]), .homefront-modal:not([hidden])'),
     send:roverRequest,
     onResync:async()=>{
       if(!token())throw Error('sign_in_with_xaman');
@@ -2281,8 +2282,7 @@ function boot(host) {
     }
     if(event.code==='KeyC'&&!event.repeat&&view.visible&&!worldData?.selfVehicle&&
        !/INPUT|TEXTAREA|SELECT/.test(event.target?.tagName||'')){
-      const me=(worldData?.world?.vehicles||[]).find(v=>v.mine);
-      if(me&&worldData?.self&&Math.hypot(me.x-worldData.self.x,me.z-worldData.self.z)<=3.5&&me.charge<100){
+      if(canRechargeRover()){
         event.preventDefault();void roverAction('charge');
       }
     }
@@ -2302,6 +2302,23 @@ function boot(host) {
     renderer.domElement.style.touchAction = 'none';
   }
   host.append(contextPrompt);
+  const rechargePrompt=document.createElement('button');
+  rechargePrompt.type='button';
+  rechargePrompt.id='homefrontRoverRecharge';
+  rechargePrompt.hidden=true;
+  rechargePrompt.style.cssText=contextPrompt.style.cssText+';bottom:180px';
+  rechargePrompt.textContent='Recharge rover · 2 scrap / +25%';
+  rechargePrompt.addEventListener('pointerdown',event=>event.stopPropagation());
+  rechargePrompt.addEventListener('click',()=>{if(canRechargeRover())void roverAction('charge');});
+  host.append(rechargePrompt);
+  function canRechargeRover(){
+    const self=worldData?.self,gate=worldData?.refugeReturn;
+    const rover=(worldData?.world?.vehicles||[]).find(v=>v.mine);
+    return !!(worldData?.vehicleEnabled&&self&&gate&&rover&&view.visible&&!document.hidden&&token()&&
+      !moving&&!interiorState&&!worldData.selfVehicle&&!rover.occupied&&rover.charge<99.9&&
+      Math.hypot(self.x-rover.x,self.z-rover.z)<=3.5&&
+      Math.hypot(gate.x-rover.x,gate.z-rover.z)<=10);
+  }
   const contextControls = {
     enter: enterInteriorButton, loot: lootActionButton, damage: damageEnvironmentButton
   };
@@ -2354,7 +2371,7 @@ function boot(host) {
     if(worldData.vehicleEnabled&&!interiorState){
       const ownRover=(worldData.world?.vehicles||[]).find(v=>v.mine);
       if(ownRover&&Math.hypot(worldData.self.x-ownRover.x,worldData.self.z-ownRover.z)<=3.5)
-        return {id:'rover-board',label:'Board scrap rover · charge '+Math.round(ownRover.charge)+'% (C: recharge)'};
+        return {id:'rover-board',label:'Board scrap rover · charge '+Math.round(ownRover.charge)+'%'};
       if(!ownRover&&refugeReturnDistance()>3&&refugeReturnDistance()<=6)
         return {id:'rover-build',label:'Assemble scrap rover · 24 scrap + 12 wood'};
     }
@@ -2394,6 +2411,7 @@ function boot(host) {
     });
   }
   function renderContextAction() {
+    rechargePrompt.hidden=!canRechargeRover();
     const raw = availableContext();
     // Keep the already-reached doorway tappable during a brief in-flight
     // movement acknowledgment. Any actual entry still rechecks current reach

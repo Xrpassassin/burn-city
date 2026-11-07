@@ -6,7 +6,9 @@ export const PINE_CROSSING_ROUTES = Object.freeze([
   { id: 'main-street', width: 5.2, surface: 'asphalt', points: [[-49,-43],[-43,-43],[-35,-43],[-26,-43],[-19,-43],[-16,-42]] },
   { id: 'creek-trail', width: 2.4, surface: 'dirt', points: [[-19,-43],[-20,-51],[-24,-59],[-23,-68],[-18,-75],[-15,-81]] },
   { id: 'store-walk', width: 1.8, surface: 'gravel', points: [[-42,-43],[-42,-45.7]] },
-  { id: 'clinic-walk', width: 1.8, surface: 'gravel', points: [[-29,-43],[-29,-45.7]] }
+  { id: 'clinic-walk', width: 1.8, surface: 'gravel', points: [[-29,-43],[-29,-45.7]] },
+  // Branch off Logging Bend into the radio relay clearing. No teleport/auto-travel.
+  { id: 'relay-spur', width: 2.5, surface: 'gravel', points: [[-41,-63],[-44,-66],[-47,-69]] }
 ]);
 export const PINE_CROSSING_BUILDINGS = Object.freeze([
   { id: 'pine_general_store', title: 'Pine Crossing General Store', sign: 'GENERAL STORE', x: -42, z: -49, finish: 'store' },
@@ -19,14 +21,17 @@ export const pineCrossingBuilding = id => PINE_CROSSING_BUILDINGS.find(building 
 export const PINE_ROADSIDE_SITES = Object.freeze([
   { id: 'pine-deadfall', kind: 'deadfall', x: -40.5, z: -57, halfX: 1.9, halfZ: 0.44 },
   { id: 'pine-abandoned-pickup', kind: 'pickup', x: -36.5, z: -38.7, halfX: 2.2, halfZ: 1 },
-  { id: 'pine-evacuation-barrier', kind: 'barrier', x: -21.5, z: -39.1, halfX: 2.05, halfZ: 0.57 }
+  { id: 'pine-evacuation-barrier', kind: 'barrier', x: -21.5, z: -39.1, halfX: 2.05, halfZ: 0.57 },
+  // Grounded collision footprint of the derelict signal station; the antenna is visual only.
+  { id: 'pine-relay-station', kind: 'relay', x: -51, z: -70, halfX: 1.75, halfZ: 1.35 }
 ]);
 
 const PINE_SOUND_SOURCES = [
   { id: 'north-pines', kind: 'canopy', x: -25, z: -77, height: 4, radius: 15 },
   { id: 'logging-pines', kind: 'canopy', x: -41, z: -65, height: 4.5, radius: 15 },
   { id: 'creek-pines', kind: 'canopy', x: -20, z: -57, height: 3.5, radius: 11 },
-  { id: 'store-awning', kind: 'canvas', x: -41, z: -46.1, height: 2.3, radius: 11 }
+  { id: 'store-awning', kind: 'canvas', x: -41, z: -46.1, height: 2.3, radius: 11 },
+  { id: 'relay-aerial', kind: 'metal', x: -51, z: -70, height: 4.4, radius: 9 }
 ];
 const PINE_ROOM_SOUNDS = {
   pine_general_store: { id: 'store-rafters', kind: 'timber', x: -41, z: -49.5, height: 2.4 },
@@ -119,7 +124,9 @@ export const PINE_PATROLS = Object.freeze([
   { id: 'logging-approach', points: [[-20,-76],[-24,-73]] },
   { id: 'logging-bend', points: [[-39,-66],[-42,-62],[-44,-58],[-42,-62]] },
   { id: 'main-street', points: [[-39,-42],[-36,-42],[-32,-43],[-36,-42]] },
-  { id: 'creek-bank', points: [[-23,-55],[-24,-59],[-23,-64],[-24,-59]] }
+  { id: 'creek-bank', points: [[-23,-55],[-24,-59],[-23,-64],[-24,-59]] },
+  // A distinct route guard; noise at the cache can bring it toward the player.
+  { id: 'relay-watch', points: [[-45,-68],[-47,-66],[-44,-65],[-45,-68]] }
 ]);
 
 export function pineSurfaceAt(x, z) {

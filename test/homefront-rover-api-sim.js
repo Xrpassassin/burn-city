@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const {handle}=require('../server/homefront');
+const seenGates=[];
 const data=new Map();
 const store={
  load(name,fallback){return structuredClone(data.has(name)?data.get(name):fallback);},
@@ -10,7 +11,7 @@ const call=async(method,path,acct,payload={})=>{
  const response={};
  await handle({method},response,new URL('http://local'+path),{
   json:(_res,status,body)=>Object.assign(response,{status,body}),
-  gate:()=>false,ip:'127.0.0.1',body:async()=>payload,
+  gate:(key,max,period)=>{seenGates.push({key,max,period});return false;},ip:'127.0.0.1',body:async()=>payload,
   who:()=>acct?{acct}:null,store
  });
  return response;
@@ -72,6 +73,10 @@ const W='/api/homefront/world';
   assert.ok(Math.hypot(movement.body.self.x-board.body.self.x,movement.body.self.z-board.body.self.z)<=2.85,
    'forged coordinates cannot teleport beyond capped server drive steps');
   assert.ok(movement.body.vehicle.charge<100,'real driving drains battery');
+  assert.ok(seenGates.some(g=>g.key==='homefront-world-input:A'&&g.max===480),
+    'rapid driving has a dedicated, still bounded input budget');
+  assert.ok(seenGates.some(g=>g.key==='homefront-world:A'&&g.max===120),
+    'craft/loot actions retain the stricter normal world budget');
   const exited=await call('POST',W+'/vehicle/dismount','A');
   assert.equal(exited.status,200,JSON.stringify(exited.body));
   assert.equal(exited.body.selfVehicle,null);

@@ -1,3 +1,4 @@
+import { createPineBarkMaterial, pineUnderstorySites, fernGeometry, weatherWall } from './homefront-pine-detail.mjs';
 import { worldSurfaceUVs } from './homefront-surface-materials.mjs';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from '../vendor/three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -54,7 +55,8 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt, surfaces=null) 
     ribbon.name = 'pine-road:' + route.id;
     chunkAt(...route.points[Math.floor(route.points.length / 2)]).add(ribbon);
   }
-  addRoadsideDressing(THREE, chunkAt, groundAt);
+  const barkMaterial=createPineBarkMaterial(THREE);
+  addRoadsideDressing(THREE, chunkAt, groundAt, barkMaterial);
 
   const postGeometry = new THREE.BoxGeometry(0.13, 1.65, 0.13);
   const postMaterial = new THREE.MeshStandardMaterial({ color: 0x544b39, roughness: 1 });
@@ -97,7 +99,10 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt, surfaces=null) 
     needlesPosition.setXYZ(i, x * uneven, y + radius * 0.10 * Math.sin(angle * 4), z * uneven);
   }
   branchGeometry.computeVertexNormals();
-  const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x514539, roughness: 1 });
+  const trunkMaterial = barkMaterial;
+  for(let i=0;i<trunkGeometry.attributes.uv.count;i++)trunkGeometry.attributes.uv.setY(i,trunkGeometry.attributes.uv.getY(i)*4);
+  const limbGeometry=new THREE.ConeGeometry(0.085,1,5);
+  const axis=new THREE.Vector3(0,1,0),limbDirection=new THREE.Vector3();
   // Soft contact shading grounds the trunk without mobile shadow-map passes.
   const contactCanvas=document.createElement('canvas');contactCanvas.width=contactCanvas.height=64;
   const contactContext=contactCanvas.getContext('2d');
@@ -114,6 +119,8 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt, surfaces=null) 
   const color = new THREE.Color();
   for (const [group, trees] of groups) {
     const trunks = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, trees.length);
+    const limbs=new THREE.InstancedMesh(limbGeometry,barkMaterial,trees.length*5);
+    limbs.name='pine-dry-branches';
     const contacts=new THREE.InstancedMesh(contactGeometry,contactMaterial,trees.length);
     contacts.name='pine-tree-contact-shadows';
     const crowns = new THREE.InstancedMesh(branchGeometry, needles, trees.length * 4);
@@ -131,6 +138,16 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt, surfaces=null) 
       dummy.rotation.set(0, variation * Math.PI, 0);
       dummy.updateMatrix();
       trunks.setMatrixAt(i, dummy.matrix);
+      for(let branch=0;branch<5;branch++){
+        const angle=variation*18+branch*2.4,length=0.75+variation*0.5;
+        limbDirection.set(Math.cos(angle),0.25,Math.sin(angle)).normalize();
+        dummy.quaternion.setFromUnitVectors(axis,limbDirection);
+        dummy.scale.set(0.65+variation*0.35,length,0.65+variation*0.35);
+        dummy.position.set(x+limbDirection.x*length*0.5,
+          ground+Math.max(2.5,height*(0.29+branch*0.065)),z+limbDirection.z*length*0.5);
+        dummy.updateMatrix();limbs.setMatrixAt(i*5+branch,dummy.matrix);
+      }
+      dummy.rotation.set(0,0,0);
       for (let tier = 0; tier < 4; tier++) {
         const spread = height * (0.239 - tier * 0.047) * (0.85 + variation * 0.3);
         dummy.position.set(x + Math.sin(variation * 12 + tier) * spread * 0.13,
@@ -160,11 +177,39 @@ export function addPineCrossingScenery(THREE, chunkAt, groundAt, surfaces=null) 
     crowns.computeBoundingSphere();
     brush.computeBoundingSphere();
     contacts.computeBoundingSphere();
-    group.add(contacts, trunks, crowns, brush);
+    limbs.computeBoundingSphere();
+    group.add(contacts, trunks, limbs, crowns, brush);
+  }
+  const fernMaterial=new THREE.MeshStandardMaterial({vertexColors:true,side:THREE.DoubleSide,roughness:1});
+  const wind={value:0};
+  fernMaterial.onBeforeCompile=shader=>{
+    shader.uniforms.pineWindTime=wind;
+    shader.vertexShader='uniform float pineWindTime;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      float pineFernPhase=0.0;
+      #ifdef USE_INSTANCING
+      pineFernPhase=instanceMatrix[3].x*0.73+instanceMatrix[3].z*0.39;
+      #endif
+      float pineFernSway=sin(pineWindTime*1.3+pineFernPhase)*position.y*position.y*0.09;
+      transformed.x+=pineFernSway;transformed.z+=pineFernSway*0.55;`);
+  };
+  const fernGroups=new Map(),fern=fernGeometry(THREE);
+  for(const site of pineUnderstorySites()){
+    const chunk=chunkAt(site.x,site.z);if(!fernGroups.has(chunk))fernGroups.set(chunk,[]);
+    fernGroups.get(chunk).push(site);
+  }
+  for(const [chunk,sites]of fernGroups){
+    const plants=new THREE.InstancedMesh(fern,fernMaterial,sites.length);plants.name='pine-fern-understory';
+    sites.forEach((site,index)=>{
+      dummy.position.set(site.x,groundAt(site.x,site.z)+0.02,site.z);
+      dummy.rotation.set(0,site.yaw,0);dummy.scale.setScalar(site.scale);dummy.updateMatrix();
+      plants.setMatrixAt(index,dummy.matrix);
+    });
+    plants.computeBoundingSphere();plants.boundingSphere.radius+=0.05;chunk.add(plants);
   }
   const updateCreek = addPineCreek(THREE, chunkAt, groundAt);
   const updateCrows = addPineCrows(THREE, chunkAt(-36, -58));
-  return dt => { updateCreek(dt); updateCrows(dt); };
+  return dt => { wind.value+=Math.min(dt,0.05);updateCreek(dt); updateCrows(dt); };
 }
 
 function addPineCrows(THREE, chunk) {
@@ -200,9 +245,9 @@ function addPineCrows(THREE, chunk) {
   };
 }
 
-function addRoadsideDressing(THREE, chunkAt, groundAt) {
+function addRoadsideDressing(THREE, chunkAt, groundAt, barkMaterial) {
   const material = color => new THREE.MeshStandardMaterial({ color, roughness: 0.92 });
-  const bark = material(0x4b4035), cutWood = material(0x7a6247), moss = material(0x545d37);
+  const bark = barkMaterial, cutWood = material(0x7a6247), moss = material(0x545d37);
   const paint = material(0x53594e), rust = material(0x74503b), rubber = material(0x292924);
   const glass = material(0x273637), frame = material(0x414643), concrete = material(0x757267);
   const reflector = material(0x968354), lamp = material(0x8c825c);
@@ -512,6 +557,7 @@ export function buildPineFacade(THREE, building, addBox, mat, surfaces=null) {
   const shell = (...args) => {
     const mesh = box(...args);
     mesh.userData.pineCameraOccluder = true;
+    if(mesh.material===wall)weatherWall(THREE,mesh);
     return mesh;
   };
   box(9.6, 0.29, 4.8, 2.4, -0.16, 0, mat(0x575954));
@@ -558,6 +604,23 @@ export function buildPineFacade(THREE, building, addBox, mat, surfaces=null) {
     box(0.13, 0.41, 0.03, 6.39, 2.10, 2.49, medicalGreen);
     box(0.41, 0.13, 0.03, 6.39, 2.24, 2.49, medicalGreen);
   }
+  const pipeParts=[];
+  const downX=store?-2.12:7.1;
+  const gutter=new THREE.CylinderGeometry(0.055,0.055,9.5,6);
+  gutter.rotateZ(Math.PI/2);gutter.translate(2.4,2.86,2.56);pipeParts.push(gutter);
+  const downpipe=new THREE.CylinderGeometry(0.055,0.055,2.7,6);
+  downpipe.translate(downX,1.43,2.56);pipeParts.push(downpipe);
+  const hardware=new THREE.Mesh(mergeGeometries(pipeParts),mat(0x65554a));
+  hardware.name='pine-weathered-drainage';root.add(hardware);pipeParts.forEach(g=>g.dispose());
+  const crackPoints=[];
+  for(const x of [2.3,5.1]){
+    crackPoints.push(x-0.42,1.61,2.525,x+0.08,1.37,2.525,
+      x+0.08,1.37,2.525,x+0.40,1.15,2.525,
+      x+0.08,1.37,2.525,x+0.21,1.79,2.525);
+  }
+  const cracks=new THREE.BufferGeometry();cracks.setAttribute('position',new THREE.Float32BufferAttribute(crackPoints,3));
+  const glazing=new THREE.LineSegments(cracks,new THREE.LineBasicMaterial({color:0xa3aaa0,transparent:true,opacity:0.48}));
+  glazing.name='pine-fractured-glazing';root.add(glazing);
   const plaque = signPlaque(THREE, building.sign, 3.05, store ? '#494139' : '#445557');
   plaque.position.set(2.25, 2.52, 2.44);
   root.add(plaque);

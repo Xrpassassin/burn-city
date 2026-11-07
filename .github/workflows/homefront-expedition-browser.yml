@@ -86,3 +86,29 @@ jobs:
           PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-rover-browser
           HOMEFRONT_EXPEDITION_ROVER: '1'
           HOMEFRONT_EXPEDITION_MOBILE: '1'
+
+  woodland:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install woodland browser
+        run: |
+          npm install --prefix "$RUNNER_TEMP/homefront-woodland-browser" playwright@1.62.1 --no-audit --no-fund
+          node "$RUNNER_TEMP/homefront-woodland-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Walk the textured woods, weathered buildings and creek on desktop
+        run: node scripts/homefront-expedition-browser.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-woodland-browser
+          HOMEFRONT_EXPEDITION_PINE: '1'
+      - name: Walk the same woodland route with phone touch
+        run: node scripts/homefront-expedition-browser.mjs
+        env:
+          PLAYWRIGHT_DIR: ${{ runner.temp }}/homefront-woodland-browser
+          HOMEFRONT_EXPEDITION_PINE: '1'
+          HOMEFRONT_EXPEDITION_MOBILE: '1'

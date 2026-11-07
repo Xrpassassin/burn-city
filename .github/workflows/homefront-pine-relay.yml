@@ -4,6 +4,8 @@ on:
     paths:
       - 'client/arena/homefront-pine-crossing.mjs'
       - 'client/arena/homefront-pine-scenery.mjs'
+      - 'client/arena/homefront-pine-detail.mjs'
+      - 'client/arena/homefront-pine-detail.test.mjs'
       - 'server/homefront-loot.js'
       - 'server/homefront-collision.js'
       - 'test/homefront-pine-relay-sim.mjs'
@@ -35,6 +37,8 @@ jobs:
           node-version: '22'
       - name: Walkable relay route and collision / risk / cooldown
         run: node test/homefront-pine-relay-sim.mjs
+      - name: Woodland texture, instancing and travel-lane budgets
+        run: node client/arena/homefront-pine-detail.test.mjs
       - name: Existing Homefront collision and loot invariants
         run: node server/homefront-collision.test.js && node server/homefront-loot.test.js
       - name: Shared world, survivor Homefront separation, and persistent gate assignments

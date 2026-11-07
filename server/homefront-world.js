@@ -514,9 +514,11 @@ function tickInfected(w, acct, now) {
   player.infectedHit = { ...hit, defeated: survival.health === 0 };
   if (!player.infectedHit.defeated) return;
 
-  // Match Homefront's existing field defeat convention: return to a safe
-  // spawn at reduced health with the field pack intact.
-  const { spawn, position } = chooseSafeSpawn(w, acct);
+  // Death returns a survivor to THEIR reserved Homefront in the SAME shared
+  // overworld. Never choose another player's gate or start a private copy.
+  // Older saves without a reservation receive one through the usual bounded
+  // collision-safe allocator. Health/field-pack handling is unchanged.
+  const { spawn, position } = assignRefugeEntry(w, acct);
   player.x = position.x; player.z = position.z;
   player.spawn = spawn.id; player.spawnedAt = now; player.lastMove = now; player.crouched = false;
   player.aiming = false; player.aimStartedAt = 0;

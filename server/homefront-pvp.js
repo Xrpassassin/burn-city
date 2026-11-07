@@ -49,6 +49,7 @@ function attack(w, attacker, { targetId, aimPoint, base, now = Date.now(), farSp
   }
   if (Travel.sameParty(w, attacker, target)) throw new Error('friendly_fire_blocked');
   const t = w.players[target];
+  if (attacker.startsWith('guest_') || target.startsWith('guest_')) throw new Error('guest_pvp_disabled');
   if (now - (t.spawnedAt || 0) < SPAWN_PROTECTION_MS) throw new Error('target_spawn_protected');
   const weaponId = Object.prototype.hasOwnProperty.call(Combat.WEAPON_MAGAZINE_CAPACITY, base.equippedWeapon) ? base.equippedWeapon : 'pipe_blade';
   if (Firearms.isFirearmTier(weaponId)) {

@@ -34,6 +34,9 @@ const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
 const estatesInstance = createEstatesInstanceManager({maxLeases:40});
 const BT = require('./blacktide'), Homefront = require('./homefront'), HomefrontGuest = require('./homefront-guest'), FlightLobby = require('./flight-lobby');
+const homefrontOverworld = require('./homefront-overworld').createOverworld({ store: require('./homefront-store').shared });
+const homefrontGuests = HomefrontGuest.createGuestHandler({ overworld: homefrontOverworld });
+setInterval(() => homefrontGuests.sweep(), 60000).unref();
 const Jetpack = require('./jetpack');
 const AmmLock = require('./amm-lock');   // verified AMM LP locks + black-hole supply (/api/amm-lock)   // Blacktide pirate region: gold doubloons + cargo trade (/api/bt/*)
 const rooms = { tron: [], zombie: [] }; let roomSeq = 1;
@@ -117,12 +120,11 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { tickAvgMs: a.reduce((x, y) => x + y, 0) / (a.length || 1), tickP99Ms: a[Math.floor(a.length * 0.99)] || 0, tickMaxMs: a.at(-1) || 0, bytesOut: stats.bytesOut, upS: (Date.now() - stats.started) / 1e3, mem: process.memoryUsage().rss }); }
     const body = async () => { let b = ''; for await (const c of req) { b += c; if (b.length > 8000) throw new Error('big'); } try { const o = JSON.parse(b || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; } };
     const who = () => Pay.checkToken((req.headers.authorization || '').replace(/^Bearer /, ''));
-    // Guests reuse authoritative Homefront rules against per-session RAM only.
-    // Never map guest tokens through Pay.checkToken or the persistent store.
+    // Shared world authority; temporary guests retain disposable personal saves.
     if (url.pathname === '/api/homefront/guest' || url.pathname.startsWith('/api/homefront/guest/')) {
-      if (await HomefrontGuest.handle(req, res, url, { json, gate, ip, body })) return;
+      if (await homefrontGuests.handle(req, res, url, { json, gate, ip, body })) return;
     }
-    if (url.pathname === '/api/homefront' || url.pathname === '/api/homefront/action' || url.pathname === '/api/homefront/visit' || url.pathname === '/api/homefront/world' || url.pathname.startsWith('/api/homefront/world/')) { if (await Homefront.handle(req, res, url, { json, gate, ip, body, who })) return; }
+    if (url.pathname === '/api/homefront' || url.pathname === '/api/homefront/action' || url.pathname === '/api/homefront/visit' || url.pathname === '/api/homefront/world' || url.pathname.startsWith('/api/homefront/world/')) { if (await Homefront.handle(req, res, url, { json, gate, ip, body, who, store: homefrontOverworld.store })) return; }
     if ((url.pathname === '/api/jetpack' || url.pathname.startsWith('/api/jetpack/')) && await Jetpack.handle(req, res, url, { json, gate, ip, body, who })) return;   // jetpacks + real-XRP invoices (server/jetpack.js), off unless JETPACK_PAYMENTS=1
     if (url.pathname.startsWith('/api/cams') && await Cams.handle(req, res, url, { json, gate, ip, body })) return;
     if (url.pathname.startsWith('/api/bt/') && await BT.handle(req, res, url, { json, gate, ip, body, who })) return;   // Blacktide trade/progression (server/blacktide.js)   // AEGIS Pyramid live cams + per-stream comments (server/cams.js)

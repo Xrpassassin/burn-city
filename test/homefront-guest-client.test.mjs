@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { startGuest, endGuest, isGuest, hasHomefrontPlayer, fetchHomefront } from '../client/arena/homefront-guest.mjs';
+import { startGuest, endGuest, isGuest, isSharedGuest, hasHomefrontPlayer, fetchHomefront } from '../client/arena/homefront-guest.mjs';
 import { createHomefrontMoveTransport } from '../client/arena/homefront-input-transport.mjs';
 import { travelOptions } from '../client/arena/homefront-travel.mjs';
 const urls=[], token='a'.repeat(64);
@@ -8,13 +8,14 @@ const priorFetch=globalThis.fetch, priorStorage=globalThis.localStorage, priorWi
 globalThis.localStorage={ getItem:()=>null };
 globalThis.fetch=async(url,options={})=>{
   urls.push({url,options});
-  return {ok:true,json:async()=>({token})};
+  return {ok:true,json:async()=>({token,multiplayer:true})};
 };
 try {
   assert.equal(isGuest(),false);
   assert.equal(hasHomefrontPlayer(),false);
   await startGuest('https://burn-city-game.fly.dev');
   assert.equal(isGuest(),true);
+  assert.equal(isSharedGuest(),true,'server advertises shared exploration without granting saved progress');
   assert.equal(hasHomefrontPlayer(),true);
   assert.deepEqual(urls[0].options, {method:'POST',cache:'no-store',credentials:'omit'});
   assert(urls[0].url.endsWith('/api/homefront/guest/start'));
@@ -34,6 +35,7 @@ try {
   assert(!urls[2].options.headers,'no guest authentication sent to payment APIs');
   endGuest();
   assert.equal(isGuest(),false,'connecting a wallet discards unsaved guest state');
+  assert.equal(isSharedGuest(),false);
   assert.equal(hasHomefrontPlayer(),false);
   // Only a password-gated isolated PREVIEW may send its session cookie;
   // production guests never send stale wallet cookies or authorization.
@@ -69,7 +71,7 @@ try {
     'all direct world API requests respect guest isolation');
   const guestOptions=travelOptions({party:{leader:true,members:[]}},{guest:true});
   assert.deepEqual(guestOptions.map(o=>o.id),['solo'],
-    'guest Homefront only offers private solo exploration');
+    'guest Homefront explores shared terrain without party privileges');
   assert.deepEqual(travelOptions(null,{guest:true,inWorld:true}).map(o=>o.id),['return'],
     'guest in Wastes can return to private refuge');
   const savedOptions=travelOptions(null,{guest:false});

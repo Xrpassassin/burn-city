@@ -18,7 +18,6 @@ const guestMode = process.env.HOMEFRONT_EXPEDITION_GUEST === "1";
 const fixturePath = path => guestMode ? path.replace('/api/homefront','/api/homefront/guest') : path;
 let ACCOUNT = "playtest-first-refuge";
 const TOKEN = "ui-three-token";
-const guest = localRequire('../server/homefront-guest.js').createGuestHandler();
 let guestStore;
 // Observe, but do not replace, the authority's real per-session RAM store.
 // This lets the same end-to-end assertions inspect wallet and guest fixtures.
@@ -34,7 +33,7 @@ Homefront.handle = async (req, res, url, context) => {
 const REFUGE_ACCOUNT = "ui-refuge-test-only";
 const REFUGE_TOKEN = "ui-refuge-token";
 const objects = new Map();
-const store = {
+const personalStore = {
   load(key, fallback) {
     return objects.has(key) ? structuredClone(objects.get(key)) : fallback;
   },
@@ -42,6 +41,9 @@ const store = {
     objects.set(key, structuredClone(value));
   },
 };
+const overworld = localRequire('../server/homefront-overworld.js').createOverworld({ store: personalStore });
+const store = overworld.store;
+const guest = localRequire('../server/homefront-guest.js').createGuestHandler({ overworld });
 const testState = key => guestMode ? guestStore?.load(key, undefined) : objects.get(key);
 const initialWorld = World.defaultWorld();
 store.save("homefront-world.json", initialWorld);

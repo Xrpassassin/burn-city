@@ -1,3 +1,4 @@
+import { isSharedGuest } from './homefront-guest.mjs';
 // Homefront RPG travel sheet: Homefront instance <-> shared open world, with parties.
 // Presentation only; every rule is server-side (server/homefront-travel.js, /api/homefront/world/travel).
 // Hooks are passed in by homefront.html so this module stays dependency-free and testable.
@@ -9,7 +10,7 @@ export function travelOptions(travel, { inWorld = false, visiting = false, guest
   const party = travel?.party || null;
   const opts = [];
   if (inWorld) { opts.push({ id: 'return', label: '🏚 Return to Homefront', primary: true }); return opts; }
-  if (guest) { opts.push({ id: 'solo', label: '🧭 Explore solo Wastes (unsaved)', primary: true }); return opts; }
+  if (guest) { opts.push({ id: 'solo', label: '🧭 Explore the Wastes (unsaved)', primary: true }); return opts; }
   opts.push({ id: 'solo', label: party ? '🧭 Travel ahead alone' : '🧭 Travel to the Wastes', primary: !party || !party.leader });
   if (party?.leader) opts.push({ id: 'party', label: '👥 Travel with party', primary: true });
   if (party) for (const m of party.members) if (!m.you && m.where === 'homefront' && !m.inYourInstance) opts.push({ id: 'visit:' + m.id, label: '🏠 Join ' + (m.leader ? 'leader' : 'friend') + '’s Homefront', member: m.id });
@@ -47,7 +48,7 @@ export function createTravel({ request, signedIn, guest = () => false, visiting,
     await poll();
     const party = state?.party;
     const lines = [];
-    lines.push(guest() ? 'Guest trial: the Wastes are private, solo and unsaved. Connect Xaman to join the persistent multiplayer world.' : inWorld() ? 'You are out in the shared Wastes. Other survivors can see you nearby; only your party shows on the map.' : (state?.instance === 'friend' || visiting()) ? 'You are in a friend’s Homefront (PvP is off here).' : 'You are in your private Homefront (PvP is off here).');
+    lines.push(guest() ? (isSharedGuest() ? 'You share the Wastes with other survivors. Guest progress is temporary; connect Xaman to save and form parties.' : 'Guest preview: your progress is temporary. Connect Xaman to save.') : inWorld() ? 'You are out in the shared Wastes. Other survivors can see you nearby; only your party shows on the map.' : (state?.instance === 'friend' || visiting()) ? 'You are in a friend’s Homefront (PvP is off here).' : 'You are in your private Homefront (PvP is off here).');
     if (party) lines.push('Party ' + party.code + ' · ' + party.members.map(m => (m.you ? 'You' : m.id.slice(9, 14)) + (m.leader ? ' ★' : '') + ' ' + WHERE_LABEL[m.where]).join(' · '));
     modal.show('🧭 Travel', lines, travelOptions(state, { inWorld: inWorld(), visiting: visiting(), guest: guest() }), choose);
   }

@@ -94,7 +94,7 @@ assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'cache'), 'shared
 assert.ok(Object.values(a.result.world.caches).every(cache => cache.readyAt === 0), 'shared supply caches begin available');
 assert.ok(a.result.world.pointsOfInterest.some(p => p.type === 'rescue'), 'shared world includes survivor rescue sites');
 const pineTrailLoot = a.result.world.lootNodes.filter(node => node.trail);
-assert.deepEqual(pineTrailLoot.map(node => node.id), ['loot_pine_logging_kit', 'loot_pine_creek_pack']);
+assert.deepEqual(pineTrailLoot.map(node => node.id), ['loot_pine_logging_kit', 'loot_pine_creek_pack', 'loot_pine_relay_spares']);
 assert.ok(pineTrailLoot.every(node => require('../server/homefront-collision').isSafePosition(node.x, node.z)),
   'trail supplies can be reached on foot');
 assert.ok(a.result.world.lootNodes.every(node => node.available && node.id.startsWith('loot_')), 'loot nodes start available and have stable IDs');

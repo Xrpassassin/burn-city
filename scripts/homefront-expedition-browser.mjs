@@ -745,30 +745,22 @@ try {
   });
   await stopWalking("w");
 
+  const looted=page.waitForResponse(response=>response.request().method()==='POST'&&
+    response.url().endsWith(fixturePath('/api/homefront/world/loot')),{timeout:15000});
   await activate(page.locator("#homefrontContextAction"));
-  // A full pack can legitimately route all rewards to refuge storage, and the
-  // toast may fade before software-WebGL polling starts. Verify the persistent
-  // authoritative response text rather than only one transient toast phrase.
-  await page.waitForFunction(() =>
-    document.getElementById('lootStatus')?.textContent.includes('This container will restock'),
-    null, {timeout:30000}
-  ).catch(async error => {
-    console.error('EXPEDITION_LOOT_DIAGNOSTICS',JSON.stringify({
-      ui:await page.evaluate(()=>({
-        action:document.getElementById('homefrontContextAction')?.textContent,
-        loot:document.getElementById('lootStatus')?.textContent,
-        toast:document.querySelector('.hf-event-toast')?.textContent,
-        movement:document.querySelector('.hf-movement-status')?.textContent
-      })),world:store.load('homefront-world.json',null),
-      requests:observed.slice(-12),errors
-    }));
-    throw error;
-  });
-  assert.ok(observed.some(entry=>entry.path.endsWith('/world/loot')),
-    'in-world E/search button must send the actual authenticated loot action');
-  await page.waitForFunction(() => /Pack:|Sent to refuge:/.test(
-    document.querySelector('.hf-event-toast')?.textContent || ''
-  ), null, {timeout:5000});
+  const lootResponse=await looted;
+  const lootResult=await lootResponse.json();
+  assert.equal(lootResponse.status(),200,JSON.stringify(lootResult));
+  // A later world poll replaces the confirmation with "already searched",
+  // and nearby bites can replace the toast. Verify the real action result and
+  // shared stored cooldown, both of which survive those presentation updates.
+  assert.ok(lootResult.loot?.accepted?.length||lootResult.loot?.overflow?.length,
+    'in-world search grants carried supplies or the documented refuge overflow');
+  const claimed=testState('homefront-world.json').lootNodes[lootResult.loot.node.id];
+  assert.equal(claimed.claimedBy,ACCOUNT,'the authenticated explorer owns this claim');
+  assert.ok(claimed.readyAt>Date.now(),'successful scavenging persists the shared container cooldown');
+  assert.ok(lootResult.world.lootNodes.some(node=>node.id===lootResult.loot.node.id&&!node.available),
+    'the same response marks the physical container unavailable');
 
   if (process.env.HOMEFRONT_EXPEDITION_INTERIOR === "1") {
     async function walkAxis(key, axis, target, direction) {

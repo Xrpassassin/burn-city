@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {xrpyroLedgerOutstanding} from './xrpyro-supply-visual.mjs';
+const issuer='rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va',currency='58525079726F0000000000000000000000000000';
+const tokenKey=issuer+'-'+currency,now=1794020607521;
+const record={issuer,currency,status:'verified',issuer_keys_disabled:true,
+  supply_src:'gateway_balances('+issuer+').obligations',supply:0.6054112530289129,t_ms:now};
+const go=(r=record,opts={})=>xrpyroLedgerOutstanding({name:'XRPyro',tokenKey,record:r,now,...opts});
+assert.equal(go(),record.supply);
+assert.equal(go(record,{tokenKey:'different'}),null);
+assert.equal(go(record,{name:'IMM'}),null);
+assert.equal(go({...record,issuer:'wrong'}),null);
+assert.equal(go({...record,currency:'XRPYRO'}),null);
+assert.equal(go({...record,issuer_keys_disabled:false}),null);
+assert.equal(go({...record,status:'partial'}),null);
+assert.equal(go({...record,supply_src:'sum of account_lines'}),null);
+assert.equal(go({...record,supply:1.2}),null);
+assert.equal(go({...record,supply:-0.1}),null);
+assert.equal(go({...record,supply:NaN}),null);
+assert.equal(go({...record,t_ms:now-6*3600e3-1}),null);
+assert.equal(go({...record,t_ms:now+1}),null);
+assert.equal(go({...record,supply:0}),0);
+console.log('XRPyro issuer, source, key lock, amount, and snapshot freshness guards passed');

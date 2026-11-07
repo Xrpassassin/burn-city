@@ -4,6 +4,7 @@ import { verifiedBurnFraction } from './verified-burn-visual.mjs';
 import { verifiedSupplyFraction } from './verified-supply-visual.mjs';
 import { verifiedEcosystemSupplyFraction } from './verified-ecosystem-supply-visual.mjs';
 import { observedBurnPreview } from './observed-burn-preview.mjs';
+import { xrpyroLedgerOutstanding } from './xrpyro-supply-visual.mjs';
 import { issuerReturnCard, supplyReconciliationCard, ecosystemSupplyCard } from './issuer-return-card.mjs';
 // AMM lock + burn visuals (server truth: GET /api/amm-lock, server/amm-lock.js). +3 draw calls total, all instanced/merged:
 //   1) ONE InstancedMesh: gold segmented chain halo around every pool bridge (at the arc's midpoint). Lit arc = VERIFIED permanently locked
@@ -122,12 +123,17 @@ export function initAmmLock(c) {
     if(ecosystem!==null && fresh(o))return {st:'verified',o:{...o,burned_pct:ecosystem*100},f:ecosystem,net:true};
     const historical = verifiedBurnFraction(o?.issuer_return_history, N[k]?.key);
     if(historical !== null && fresh(o))return {st:'verified',o:{...o,burned:o.issuer_return_history.burned,burned_pct:historical*100},f:historical};
-    // Incomplete issuer-return history may drive a distinctly labelled preview only.
-    // It never becomes verified supply accounting, and is never advertised as the total burned.
-    const preview = observedBurnPreview({name:k,tokenKey:N[k]?.key,observedReturns:N[k]?.burn_vol,
-      transactionCount:N[k]?.burn_txs,scanComplete:N[k]?.burn_complete});
+    // Supply-based XRPyro preview uses issuer obligations from the read-only
+    // ledger service. Require the exact token identity, gateway source, fresh
+    // verified holder snapshot and disabled issuer keys. Not an audited burn.
+    const xrpyroSupply = xrpyroLedgerOutstanding({name:k,tokenKey:N[k]?.key,record:o});
+    const preview = observedBurnPreview({name:k,tokenKey:N[k]?.key,
+      observedReturns:N[k]?.burn_vol,transactionCount:N[k]?.burn_txs,
+      scanComplete:N[k]?.burn_complete,
+      outstandingSupply:xrpyroSupply === null ? undefined : xrpyroSupply,
+      outstandingSource:xrpyroSupply === null ? undefined : 'xrpl_gateway_balances'});
     if(preview && o?.issuer_keys_disabled===true && fresh(o))
-      return {st:'partial',o,f:preview.fraction,preview};
+      return {st:preview.status === 'indicative_outstanding_supply' ? 'estimated' : 'partial',o,f:preview.fraction,preview};
     // A verified inaccessible issuer earns a small, fixed marker even while its
     // launch supply is not established. This is NEVER a supply-percentage claim.
     const pendingIssuer = (k==='IMM' && N[k]?.key==='rH1znLFaK7wtmDGRSu4WPEqHCuofuJHdHP-IMM') ||
@@ -146,7 +152,7 @@ export function initAmmLock(c) {
       _m.compose(M.p, M.q, _s.setScalar(show ? M.R : 0)); halos.setMatrixAt(i, _m); });
     halos.instanceMatrix.needsUpdate = true; ring.attributes.lk.needsUpdate = true;
     let visibleSingularities = 0;
-    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = blackHoleRadius({fraction:v.f,status:v.st}); singPos(n, R, v.f, v.st === 'verified', _v);
+    tokNames.forEach((k, i) => { const v = tokOf(k), n = N[k], on = v.f > 0, R = blackHoleRadius({fraction:v.f,status:v.st}); singPos(n, R, v.f, v.st === 'verified' || v.st === 'estimated', _v);
       if(on) { const slot=visibleSingularities++;
         _m.compose(_v,_q.identity(),_s.setScalar(R));sing.setMatrixAt(slot,_m);
         // BURN purple, IMM turquoise, XRPyro ember-orange; one batched shader and one singularity per token.
@@ -171,7 +177,7 @@ export function initAmmLock(c) {
   apply(); load(); if (!TEST) setInterval(load, 10 * 60e3);
 
   // ---- cards (reuse #info styling: table rows, .dim) ----
-  const badge = (s, stale) => s === 'verified' ? '<b style="color:#7dffa8">✓ VERIFIED on-ledger</b>' : s === 'partial' ? '<b style="color:#ffd27a">◐ PARTIAL (lower bound)</b>' : `<b style="color:#c9c9d6">? UNVERIFIED${stale ? ' (stale)' : ''}</b>`;
+  const badge = (s, stale) => s === 'verified' ? '<b style="color:#7dffa8">✓ VERIFIED on-ledger</b>' : s === 'estimated' ? '<b style="color:#ffd27a">◐ ESTIMATED (launch minus supply)</b>' : s === 'partial' ? '<b style="color:#ffd27a">◐ PARTIAL (lower bound)</b>' : `<b style="color:#c9c9d6">? UNVERIFIED${stale ? ' (stale)' : ''}</b>`;
   const CLS = { permanent: ['#ffc64a', 'permanently locked'], time_locked: ['#ff9d3c', 'time-locked'], held: ['#8fd8ff', 'held (keys exist)'], unknown: ['#c9c9d6', 'unverified'], burned: ['#b98cff', 'black hole'], designated: ['#d9a7ff', 'sent to designated address'] };
   const legend = '<div class="dim" style="margin-top:6px;line-height:1.5"><span style="color:#8fd8ff">━</span> bridge = liquidity (thickness) + activity (blue→red) · <span style="color:#ffc64a">◯</span> gold chain halo = LP permanently locked (verified) · <span style="color:#ff9d3c">┅</span> time-locked · <span style="color:#c9c9d6">┅</span> grey = unverified · <span style="color:#b98cff">●</span> singularity = verified supply reduction · gold vein = strict gold (≥95% + ≥5k XRP)</div>';
   function poolHTML(p) {
@@ -197,6 +203,15 @@ export function initAmmLock(c) {
         tokenKey: n?.key, tokenName: k,
         issuerVerified: !!(o && fresh(o) && o.issuer_keys_disabled === true) });
       if(!v.preview)return card;
+      if(v.preview.status === 'indicative_outstanding_supply') {
+        return card + '<p class="dim"><b>Estimated launch-relative supply reduction: '+
+          (v.preview.fraction*100).toFixed(4)+'%</b>. Launch supply: '+esc(String(v.preview.baseline))+
+          ' '+esc(k)+' (project-provided); current outstanding: '+esc(String(v.preview.outstanding))+
+          ' '+esc(k)+'; difference: '+esc(String(v.preview.removed))+' '+esc(k)+
+          '. Source: XRPL gateway_balances (issuer obligations). '+
+          'This is a supply-based visual estimate, not a complete historical burn audit. '+
+          '<a href="https://xrpl.to/token/rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-58525079726F0000000000000000000000000000" target="_blank" rel="noopener noreferrer">Compare on XRPL.to</a>.</p>';
+      }
       return card + '<p class="dim">Indicative lower-bound visual: '+esc(String(v.preview.observedReturns))+' '+esc(k)+
         ' observed returned to issuer in an incomplete history scan; compared with the project-provided launch supply of '+
         esc(String(v.preview.baseline))+'. The '+(v.preview.fraction*100).toFixed(4)+
@@ -217,7 +232,7 @@ export function initAmmLock(c) {
     lpText(p) { const b = bridges.find(x => x.p === p); const v = b ? poolView(b) : null; return v && v.st === 'verified' ? pctS(v.o.locked_pct) + ' verified' : pctS(+p.locked_pct || 0) + ' reported · unverified'; },
     card(box, u) { if (!box || !u) return; let h = ''; if (u.pool && !u.node) h = poolHTML(u.pool); else if (u.node && !u.lot && tokNames.includes(u.node.name)) h = tokHTML(u.node.name); if (h) box.insertAdjacentHTML('beforeend', h); },
     open(u) { const box = document.getElementById('info'); if (!box || !u.token) return; box.innerHTML = `<button class="x" aria-label="Close">✕</button><h2>${esc(u.token)} · black hole</h2>` + tokHTML(u.token); box.classList.remove('v2'); box.style.display = 'block'; box.scrollTop = 0; box.querySelector('.x').onclick = () => box.style.display = 'none'; },
-    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.preview ? 'indicative partial issuer returns, NOT verified burn supply' : v.st === 'history_pending' ? 'issuer inaccessible; launch supply unverified (fixed marker)' : v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + (v.net?' net supply reduction':' of supply burned')} · tap for details`; },
+    tip(u) { const v = tokOf(u.token); return `Black hole · ${u.token} · ${v.preview?.status === 'indicative_outstanding_supply' ? pctS(v.preview.fraction * 100) + ' estimated supply reduction (not audited burns)' : v.preview ? 'indicative partial issuer returns, NOT verified burn supply' : v.st === 'history_pending' ? 'issuer inaccessible; launch supply unverified (fixed marker)' : v.st === 'unverified' ? 'unverified' : pctS(v.o.burned_pct) + (v.net?' net supply reduction':' of supply burned')} · tap for details`; },
     view: (DBG || TEST) ? () => ({ pools: bridges.map((b, i) => { const v = poolView(b); return { pair: b.p.a + '/' + b.p.b, amm: b.p.amm, st: v.st, perm: v.perm, tl: v.tl, shown: halos.instanceMatrix.array[i * 16] !== 0 || halos.instanceMatrix.array[i * 16 + 1] !== 0, mid: mids[i].p.toArray(), R: mids[i].R }; }),
       tokens: tokNames.map((k, i) => { const v = tokOf(k); return { token: k, st: v.st, f: v.f, pos: pickers[k] && v.f > 0 ? pickers[k].position.toArray() : null }; }) }) : undefined,
     objs: (DBG || TEST) ? [halos, sing, disks].filter(Boolean) : undefined,

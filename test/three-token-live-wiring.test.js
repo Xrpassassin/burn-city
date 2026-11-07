@@ -6,6 +6,11 @@ const src=fs.readFileSync(path.join(__dirname,'../client/js/amm-lock.js'),'utf8'
 assert.match(src,/import \{ verifiedEcosystemSupplyFraction \} from '\.\/verified-ecosystem-supply-visual\.mjs'/);
 assert.match(src,/const ecosystem = verifiedEcosystemSupplyFraction\(o\?\.supply_reconciliation,k\)/);
 assert.match(src,/import \{ observedBurnPreview \} from '\.\/observed-burn-preview\.mjs'/);
+assert.match(src,/import \{ xrpyroLedgerOutstanding \} from '\.\/xrpyro-supply-visual\.mjs'/);
+assert.match(src,/const xrpyroSupply = xrpyroLedgerOutstanding\(/);
+assert.match(src,/outstandingSource:xrpyroSupply === null \? undefined : 'xrpl_gateway_balances'/);
+assert.match(src,/st:preview.status === 'indicative_outstanding_supply' \? 'estimated' : 'partial'/);
+assert.match(src,/v.preview.status === 'indicative_outstanding_supply'/);
 assert.match(src,/const preview = observedBurnPreview\(/);
 assert.match(src,/if\(preview && o\?\.issuer_keys_disabled===true && fresh\(o\)\)/);
 assert.match(src,/const tint = k==='IMM'/);

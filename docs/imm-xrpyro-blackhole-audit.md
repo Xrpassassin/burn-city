@@ -18,6 +18,27 @@ The existing checked-in `client/data.js` incomplete issuer-return scan reports a
 
 The preview module uses **only these observed amounts, divided by the user-provided launch baseline**, as indicative lower-bound relative sizes. This is neither a cumulative burn total nor an asserted current burn percentage. The renderer marks the state `partial`, uses differently colored singularities (IMM turquoise, XRPyro ember), and does not label it verified. When no suitable observation or verified issuer status exists, the preview is omitted; a fixed issuer marker may remain. BURN's verified visual has precedence.
 
+## XRPyro live issuer-obligation visual (2026-11-06)
+
+The XRPL.to API for XRPyro (exact issuer and 160-bit currency key above) returned
+**0.60541125302891267723** outstanding XRPyro, last updated
+**2026-11-07 02:45:17 UTC**. The BURN City `/api/amm-lock` issuer
+`gateway_balances` result independently reported about
+**0.6054112530289129** XRPyro for the same identity, with the issuer keys
+reported disabled. Both are consistent with the user-provided launch supply of
+**1 XRPyro**, giving a **39.4588746971% estimated net supply reduction**.
+
+The XRPyro singularity now follows the **fresh, exact-identity** live
+`gateway_balances` issuer-obligation amount from BURN City's read-only XRPL
+service. The UI labels the resulting visualization *estimated*, never *verified
+historical burns*. The ledger snapshot must be less than six hours old; source,
+identity, record status, key disablement, and supply range are checked. Without
+this evidence, the existing incomplete issuer-return preview remains separate.
+There is no hardcoded percentage in the renderer, and no change to the token's
+amount on XRPL, its AMMs, its issuer, or its supply.
+
+XRPL.to reference: https://xrpl.to/token/rHqQ84DqPBbd5dRmhGAHrQ7eW3DCkbR9va-58525079726F0000000000000000000000000000
+
 ## Conflicting outstanding supply reports
 As inspected on 2026-11-06:
 - IMM: the project dataset reports approximately **800.54 trillion**; XRPL.to reports approximately **800.47 trillion**; XRPLWin shows **1.16 quadrillion**.

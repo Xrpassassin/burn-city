@@ -312,7 +312,14 @@ function advance({encounters,players,interiors=null,sharedInteriors,destroyedObs
   const living = (e.members || []).filter(m => !m.defeated && m.hp > 0);
   living.forEach((member, i) => {
    if (i === 0) { member.x = e.x; member.z = e.z; return; }
-   const slotX = clamp(e.x + (member.offsetX || 0), -100, 100), slotZ = clamp(e.z + (member.offsetZ || 0), -100, 100);
+   // Spread nearby attackers across the pursuit line instead of stacking on the anchor.
+   // Slots remain server-owned and collision-checked; no direct damage changes.
+   const closeToTarget = !patrolling && Math.hypot(player.x - e.x, player.z - e.z) < 8;
+   const facingX = player.x - e.x, facingZ = player.z - e.z;
+   const facingLength = Math.max(0.001, Math.hypot(facingX, facingZ));
+   const flank = closeToTarget ? (i % 2 ? 1 : -1) * (1.2 + Math.floor((i - 1) / 2) * 0.75) : 0;
+   const slotX = clamp(e.x + (member.offsetX || 0) - facingZ / facingLength * flank, -100, 100);
+   const slotZ = clamp(e.z + (member.offsetZ || 0) + facingX / facingLength * flank, -100, 100);
    const mdx = slotX - member.x, mdz = slotZ - member.z, md = Math.hypot(mdx, mdz);
    if (md <= 0.3) return;
    const memberStep = Math.min(md, speed * elapsed * (member.speedScale || 1));

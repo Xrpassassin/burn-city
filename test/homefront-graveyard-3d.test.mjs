@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 const zombieFx = readFileSync(new URL('../client/arena/fx.js', import.meta.url), 'utf8');
-assert.match(source, /const preparing = !attacking && state\.hp > 0 && threatDistance < 2\.8/, 'nearby infected anticipate without forcing a server hit');
+assert.match(scene, /const preparing = !attacking && state\.hp > 0 && threatDistance < 2\.8/, 'nearby infected anticipate without forcing a server hit');
 assert.match(zombieFx, /z\.preparingT = s\.preparing && !s\.ch/, 'renderer blends anticipation smoothly');
 assert.match(zombieFx, /attackReach \* 0\.9 - prestrike/, 'anticipation affects procedural zombie arm pose');
 const infectedCombat = readFileSync(new URL('../server/homefront-combat.js', import.meta.url), 'utf8');

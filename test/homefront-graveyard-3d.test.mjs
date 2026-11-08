@@ -9,7 +9,7 @@ assert.match(homefrontWorldServer, /impactAt: now \+ 600/, 'infected strikes hav
 assert.match(homefrontWorldServer, /pending\.sourceId !== candidate\.sourceId/, 'only the original attacker may complete a windup');
 assert.match(homefrontWorldServer, /if \(!hit\) return;/, 'missed windups do not apply damage');
 assert.match(scene, /windup\?\.sourceId === state\.encounterId/, 'client associates windup with the attacking infected');
-assert.match(scene, /const preparing = !attacking && state\.hp > 0 && threatDistance < 2\.8/, 'nearby infected anticipate without forcing a server hit');
+assert.match(scene, /const preparing = !attacking && state\.hp > 0 && \(serverPreparing \|\| \(threatDistance < 2\.8/, 'nearby infected anticipate without forcing a server hit');
 assert.match(zombieFx, /z\.preparingT = s\.preparing && !s\.ch/, 'renderer blends anticipation smoothly');
 assert.match(zombieFx, /attackReach \* 0\.9 - prestrike/, 'anticipation affects procedural zombie arm pose');
 const infectedCombat = readFileSync(new URL('../server/homefront-combat.js', import.meta.url), 'utf8');

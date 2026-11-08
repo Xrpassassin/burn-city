@@ -2744,9 +2744,12 @@ function boot(host) {
       if (attacking && localForInfected && !hit.defeated) {
         actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(localForInfected.x - actor.position.x, localForInfected.z - actor.position.z), dt);
       }
+      // Local proximity-only anticipation: presentation, not an authoritative damage telegraph.
+      const threatDistance = localForInfected ? Math.hypot(actor.position.x - localForInfected.x, actor.position.z - localForInfected.z) : Infinity;
+      const preparing = !attacking && state.hp > 0 && threatDistance < 2.8 && threatDistance > 0.35;
       presentedInfected.push({
         id: state.encounterId, x: actor.position.x, y: actor.position.y, z: actor.position.z,
-        yaw: actor.rotation.y, ch: attacking, ...infectedPresentation(state.enemyType),
+        yaw: actor.rotation.y, ch: attacking, preparing, ...infectedPresentation(state.enemyType),
         speed: Math.hypot(dx, dz) * blend / Math.max(dt, 0.001), hp: state.hp
       });
     }

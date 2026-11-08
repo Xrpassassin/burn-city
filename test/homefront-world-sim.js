@@ -333,11 +333,15 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
   Object.assign(patrolWorld.players[ally], { x: -38.2, z: -42, partyCode: party });
   const member = { ...patrol.members[0], x: -39, z: -42 };
   Object.assign(patrol, { x: member.x, z: member.z, members: [member], hp: member.hp, lastAiAt: now });
-  const bitten = W.enter(patrolWorld, ally, now + 100);
-  assert.equal(bitten.result.selfInfectedHit.encounterId, patrol.id, 'a shared patrol can bite a teammate');
-  assert.equal(bitten.world.players[owner].survival.health, 100, 'a teammate refresh does not apply damage to another account');
+  const winding = W.enter(patrolWorld, ally, now + 100);
+  assert.equal(winding.result.selfInfectedHit, null, 'a shared patrol telegraphs before damaging a teammate');
+  assert.equal(winding.result.selfInfectedWindup.encounterId, patrol.id, 'the shared patrol owns the pending windup');
+  assert.equal(winding.world.players[owner].survival.health, 100, 'a teammate refresh does not apply damage to another account');
 
-  Object.assign(bitten.world.players[owner], { x: -38.3, z: -42 });
-  const second = W.enter(JSON.parse(JSON.stringify(bitten.world)), owner, now + 180);
+  Object.assign(winding.world.players[owner], { x: -38.3, z: -42 });
+  const second = W.enter(JSON.parse(JSON.stringify(winding.world)), owner, now + 180);
   assert.equal(second.result.selfSurvival.health, 100, 'one patrol does not double-strike on simultaneous refreshes');
+  const bitten = W.enter(second.world, ally, now + 760);
+  assert.equal(bitten.result.selfInfectedHit.encounterId, patrol.id, 'a shared patrol can bite a teammate after its windup');
+  assert.equal(bitten.world.players[owner].survival.health, 100, 'the ally bite never damages the owner');
 }

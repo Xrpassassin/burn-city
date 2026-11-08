@@ -39,6 +39,9 @@ assert.match(scene, /if \(hit\.killed\) infectedRenderer\.zdie/, 'play the share
 assert.match(scene, /else infectedRenderer\.zhit/, 'play the shared hit reaction after a confirmed hit');
 assert.match(scene, /if \(hit\.killed\) \{[\s\S]*?zombieAudio\.zdie\(/, 'play infected death audio only after server-confirmed kills');
 assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
+assert.match(scene, /const infectedAttackUntilBySource = new Map\(\)/, 'track zombie attack presentation separately for each attacker');
+assert.match(scene, /infectedAttackUntilBySource\.set\(attackSource, performance\.now\(\) \+ 450\)/, 'start the attack reaction only for the server-reported infected source');
+assert.match(scene, /infectedAttackUntilBySource\.get\(state\.encounterId\)/, 'render each infected attack reaction from its own source marker');
 assert.match(scene, /const infectedWarp = Math\.hypot\(dx, dz\) > 12/, 'snap infected visual actors on large server relocations');
 assert.match(scene, /const closeThreat = localForInfected && Math\.hypot\(/, 'recognize nearby infected threats for responsive visual tracking');
 assert.match(scene, /const blend = infectedWarp \? 1 : 1 - Math\.exp\(-\(closeThreat \? 8 : 3\.5\) \* dt\)/, 'keep distant infected smooth while reducing close-range chase visual lag');

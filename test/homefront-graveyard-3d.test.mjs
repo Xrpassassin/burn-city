@@ -40,7 +40,8 @@ assert.match(scene, /else infectedRenderer\.zhit/, 'play the shared hit reaction
 assert.match(scene, /if \(hit\.killed\) \{[\s\S]*?zombieAudio\.zdie\(/, 'play infected death audio only after server-confirmed kills');
 assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
 assert.match(scene, /const infectedWarp = Math\.hypot\(dx, dz\) > 12/, 'snap infected visual actors on large server relocations');
-assert.match(scene, /const blend = infectedWarp \? 1 : 1 - Math\.exp\(-3\.5 \* dt\)/, 'keep ordinary infected travel smoothly interpolated');
+assert.match(scene, /const closeThreat = localForInfected && Math\.hypot\(/, 'recognize nearby infected threats for responsive visual tracking');
+assert.match(scene, /const blend = infectedWarp \? 1 : 1 - Math\.exp\(-\(closeThreat \? 8 : 3\.5\) \* dt\)/, 'keep distant infected smooth while reducing close-range chase visual lag');
 assert.match(scene, /if \(action === 'attack' && view\.visible && !document\.hidden\) \{[\s\S]*?weaponSwingStartedAt = performance\.now\(\)/, 'animate an authenticated local attack immediately before awaiting the server');
 assert.match(scene, /if \(performance\.now\(\) >= weaponSwingUntil\) \{[\s\S]*?weaponSwingUntil = weaponSwingStartedAt \+ 320/, 'server hit feedback does not restart an in-progress attack animation');
 

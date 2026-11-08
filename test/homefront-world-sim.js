@@ -276,6 +276,17 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
   const winding = W.enter(distant.world, account, start + 1700);
   assert.equal(winding.result.selfInfectedHit, null, 'a zombie must telegraph its bite before damage');
   assert.equal(winding.result.selfInfectedWindup.sourceId, member.id, 'windup identifies the attacker');
+  // A survivor who retreats out of reach must cancel the telegraph immediately,
+  // not merely avoid the delayed impact. Keep the original branch for hit tests.
+  const dodgedWorld = JSON.parse(JSON.stringify(winding.world));
+  dodgedWorld.players[account].x = target.x - dx * 12;
+  dodgedWorld.players[account].z = target.z - dz * 12;
+  const dodged = W.enter(dodgedWorld, account, start + 1800);
+  assert.equal(dodged.result.selfInfectedWindup, null, 'retreat immediately cancels the pending infected windup');
+  assert.equal(dodged.result.selfInfectedHit, null, 'retreat does not cause phantom bite damage');
+  assert.equal(dodged.result.selfSurvival.health, 100, 'dodging preserves survivor health');
+  const dodgeFollowup = W.enter(dodged.world, account, start + 2400);
+  assert.equal(dodgeFollowup.result.selfSurvival.health, 100, 'the canceled attack cannot land after its original impact time');
   const bitten = W.enter(winding.world, account, start + 2350);
   assert.equal(bitten.result.selfInfectedHit.sourceId, member.id, 'the same infected bites after its windup if the survivor remains in range');
   assert.equal(bitten.result.selfSurvival.health, 95);

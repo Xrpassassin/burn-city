@@ -2740,6 +2740,7 @@ function boot(host) {
       const hit = worldData?.selfInfectedHit;
       const attackUntil = infectedAttackUntilBySource.get(state.encounterId) || 0;
       const attacking = now < attackUntil;
+      if (attackUntil && !attacking) infectedAttackUntilBySource.delete(state.encounterId);
       if (attacking && localForInfected && !hit.defeated) {
         actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(localForInfected.x - actor.position.x, localForInfected.z - actor.position.z), dt);
       }

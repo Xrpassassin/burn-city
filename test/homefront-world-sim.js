@@ -273,19 +273,25 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
 
   const distant = W.enter(observer, account, start + 400);
   assert.equal(distant.result.selfInfectedHit, null, 'pursuit outside melee reach leaves the survivor unharmed');
-  const bitten = W.enter(distant.world, account, start + 1700);
-  assert.equal(bitten.result.selfInfectedHit.sourceId, member.id, 'an infected reaches and bites a stationary survivor without a player attack');
+  const winding = W.enter(distant.world, account, start + 1700);
+  assert.equal(winding.result.selfInfectedHit, null, 'a zombie must telegraph its bite before damage');
+  assert.equal(winding.result.selfInfectedWindup.sourceId, member.id, 'windup identifies the attacker');
+  const bitten = W.enter(winding.world, account, start + 2350);
+  assert.equal(bitten.result.selfInfectedHit.sourceId, member.id, 'the same infected bites after its windup if the survivor remains in range');
   assert.equal(bitten.result.selfSurvival.health, 95);
   assert.equal(bitten.result.selfSurvival.infection, 1);
-  const protectedTick = W.enter(JSON.parse(JSON.stringify(bitten.world)), account, start + 1750);
+  const protectedTick = W.enter(JSON.parse(JSON.stringify(bitten.world)), account, start + 2400);
   assert.equal(protectedTick.result.selfSurvival.health, 95, 'persisted recovery window prevents repeat damage from rapid requests');
   assert.equal(protectedTick.result.selfInfectedHit.at, bitten.result.selfInfectedHit.at);
-  const secondBite = W.enter(protectedTick.world, account, start + 2700);
-  assert.equal(secondBite.result.selfSurvival.health, 90, 'an infected still in reach can attack after recovery');
+  const secondWindup = W.enter(protectedTick.world, account, start + 3500);
+  assert.equal(secondWindup.result.selfSurvival.health, 95, 'recovery starts another windup rather than immediate damage');
+  const secondBite = W.enter(secondWindup.world, account, start + 4150);
+  assert.equal(secondBite.result.selfSurvival.health, 90, 'an infected still in reach can attack after recovery and a second windup');
 
   secondBite.world.players[account].survival.health = 3;
   secondBite.world.players[account].inventory = { ammo: 4 };
-  const defeated = W.enter(secondBite.world, account, start + 8000);
+  const fatalWindup = W.enter(secondBite.world, account, start + 8000);
+  const defeated = W.enter(fatalWindup.world, account, start + 8650);
   assert.equal(defeated.result.selfInfectedHit.defeated, true);
   assert.equal(defeated.result.selfSurvival.health, require('../server/homefront-survival').RESPAWN_HEALTH);
   assert.equal(defeated.result.selfInventory.ammo, 4, 'safe respawn keeps the field pack');

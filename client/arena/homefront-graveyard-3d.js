@@ -2719,8 +2719,11 @@ function boot(host) {
     const presentedInfected = [];
     for (const actor of combatActors.values()) {
       const state = actor.userData;
-      const blend = 1 - Math.exp(-3.5 * dt);
       const dx = state.targetX - actor.position.x, dz = state.targetZ - actor.position.z;
+      // An infected actor may be reassigned after a server-side relocation.
+      // Snap large discontinuities instead of sliding through buildings.
+      const infectedWarp = Math.hypot(dx, dz) > 12;
+      const blend = infectedWarp ? 1 : 1 - Math.exp(-3.5 * dt);
       actor.position.x += dx * blend;
       actor.position.z += dz * blend;
       actor.position.y = terrainElevation(actor.position.x, actor.position.z);

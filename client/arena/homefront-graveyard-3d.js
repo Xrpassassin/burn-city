@@ -2723,7 +2723,13 @@ function boot(host) {
       // An infected actor may be reassigned after a server-side relocation.
       // Snap large discontinuities instead of sliding through buildings.
       const infectedWarp = Math.hypot(dx, dz) > 12;
-      const blend = infectedWarp ? 1 : 1 - Math.exp(-3.5 * dt);
+      // Nearby threats should track fresh server positions more promptly than
+      // distant walkers, without predicting attacks or changing AI authority.
+      const closeThreat = localForInfected && Math.hypot(
+        actor.position.x - localForInfected.x,
+        actor.position.z - localForInfected.z
+      ) < 5;
+      const blend = infectedWarp ? 1 : 1 - Math.exp(-(closeThreat ? 8 : 3.5) * dt);
       actor.position.x += dx * blend;
       actor.position.z += dz * blend;
       actor.position.y = terrainElevation(actor.position.x, actor.position.z);

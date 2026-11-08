@@ -193,7 +193,8 @@ assert.match(scene, /focus\.mesh\.material\.color\.setHex\(selected \? 0xffe08a 
 assert.match(scene, /const previousExplorerPositions = new Map\(\)/, 'preserve each explorer position across world snapshots');
 assert.match(scene, /explorerPositions\.set\(key, \{ x: p\.x, y: targetY, z: p\.z, crouched: p\.crouched \}\)/,
   'store authoritative explorer destinations and stance separately from rendered poses');
-assert.match(scene, /const travelBlend = directLocal \? 1 : 1 - Math\.exp\(-8 \* dt\)/, 'use local predicted position directly and interpolate remote explorers');
+assert.match(scene, /const remoteWarp = !directLocal && Math\.hypot\(dx, dz\) > 12/, 'snap remote explorers on large authoritative world transfers');
+assert.match(scene, /const travelBlend = directLocal \|\| remoteWarp \? 1 : 1 - Math\.exp\(-8 \* dt\)/, 'use local predicted position directly and interpolate ordinary remote travel');
 assert.match(scene, /explorer\.rotation\.y = turnToward\(explorer\.rotation\.y, Math\.atan2\(dx, dz\), dt\)/, 'turn moving explorers toward their travel direction');
 assert.match(scene, /g\.userData\.avatarParts = \[/, 'retain avatar body, head, backpack, and strap references for animation');
 assert.match(scene, /const bob = movingAvatar \? Math\.abs\(Math\.sin\(now \* 0\.014\)\) \* 0\.11/, 'add a lightweight step bob while explorers move');

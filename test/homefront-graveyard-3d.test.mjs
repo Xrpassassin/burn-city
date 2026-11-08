@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 
 const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', import.meta.url), 'utf8');
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
+const zombieFx = readFileSync(new URL('../client/arena/fx.js', import.meta.url), 'utf8');
+assert.match(zombieFx, /const attackPhase = Math\.min\(1, Math\.max\(0, z\.attackT \|\| 0\) \/ 0\.45\)/, 'phase infected attack pose across the confirmed reaction window');
+assert.match(zombieFx, /const attackReach = !dead && z\.ch \? Math\.sin\(attackPhase \* Math\.PI\) : 0/, 'restore arm poses smoothly and disable attacks on dead infected');
+assert.match(zombieFx, /z\.attackT = s\.ch \? Math\.min\(0\.45, \(z\.attackT \|\| 0\) \+ dt\) : 0/, 'reset each infected attack pose when its authoritative attack marker ends');
 
 assert.match(scene, /from '\.\/zaudio\.js'/, 'reuse the Zombies sound director in Homefront');
 assert.match(scene, /from '\.\/homefront-context-action-queue\.mjs'/, 'defer only explicit busy doorway taps until movement settles');

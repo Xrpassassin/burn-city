@@ -111,7 +111,11 @@ function assertInterest(snap, viewer, label) {
   // Kill → far respawn at reduced health.
   place(A, -20, 30); place(B, -18, 30); edit(w => { w.players[B].survival.health = 5; w.players[A].lastPvpAt = 0; });
   let kill = null;
-  for (let i = 0; i < 6 && !kill?.data?.pvp?.killed; i++) { edit(w => { w.players[A].lastPvpAt = 0; w.players[B].spawnedAt = 0; Object.assign(w.players[B], { x: -18, z: 30 }); }); kill = await call('POST', W + '/pvp', A, { targetId: id(B), aimPoint: { x: -18, z: 30 } }); }
+  for (let i = 0; i < 6 && !kill?.data?.pvp?.killed; i++) {
+    // PvP hit rolls are seeded by millisecond timestamps; retries within one
+    // millisecond repeat the same miss rather than sampling another attack.
+    if (i) await new Promise(resolve => setTimeout(resolve, 2));
+    edit(w => { w.players[A].lastPvpAt = 0; w.players[B].spawnedAt = 0; Object.assign(w.players[B], { x: -18, z: 30 }); }); kill = await call('POST', W + '/pvp', A, { targetId: id(B), aimPoint: { x: -18, z: 30 } }); }
   assert.equal(kill.data.pvp.killed, true, 'lethal hit downs the target');
   const nb = files.get('homefront-world.json').players[B];
   assert.equal(nb.survival.health, PvP.RESPAWN_HEALTH); assert.ok(Math.hypot(nb.x + 20, nb.z - 30) > 30, 'downed player respawns far away');

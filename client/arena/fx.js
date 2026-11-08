@@ -101,6 +101,9 @@ export function createZombieRenderer(scene, { low = false, deathOnRemoval = true
   function drawZ(i, z, t, fade, burning) {
     const ty = TY[z.ty] || TY[0], quad = z.ty === 4 || z.ty === 5, crawl = z.cr || quad || (z.ty === 0 && z.seed % 4 === 0), brute = z.ty === 2 || z.ty === 3, runner = z.ty === 1 || z.ty === 4;
     const s = ty.s * z.v * scale, ph = z.ph, lurch = Math.sin(ph) * 0.12, sw = Math.sin(ph) * (runner ? 0.9 : 0.6), fl = z.fl || 0, dead = fade !== undefined;
+    // A short, attacker-specific reach-and-recover pose after a confirmed bite.
+    const attackPhase = Math.min(1, Math.max(0, z.attackT || 0) / 0.45);
+    const attackReach = !dead && z.ch ? Math.sin(attackPhase * Math.PI) : 0;
     const tint = (c, base) => { c.setHex(base); if (burning) c.lerp(burnC, 0.45 + 0.3 * Math.sin(t * 30 + z.seed)); if (z.flash > 0) c.lerp(hit, z.flash); if (dead) c.lerp(charC, Math.min(1, fade * 2)); return c; };
     const skin = tint(tmp, ty.skin[(z.seed * 7) % ty.skin.length]).multiplyScalar(1.15), shirt = tint(tmp3, z.ty === 3 ? (z.ch ? 0x8a2a14 : 0x4a4a54) : z.ty === 5 ? 0x1a2230 : CLOTH[(z.seed * 5 + z.ty) % CLOTH.length]);   // Juggernaut: iron plate (glows red mid-charge)
     // death: topple forward over 0.35 of the fade, then sink + char. flinch: snap back + small twist.
@@ -128,8 +131,8 @@ export function createZombieRenderer(scene, { low = false, deathOnRemoval = true
     put(Z.eye, i, z.x, y0, z.z, yaw, sc, 0.1, ey, ez, hp, 0, eyeC); put(arms2.eye, i, z.x, y0, z.z, yaw, sc, -0.1, ey, ez, hp, 0, eyeC);
     put(Z.glow, i, z.x, y0, z.z, yaw, dead || low ? HID : sc, 0, ey, ez + 0.03, hp, 0, eyeC);
     const reach = quad ? -1.45 + sw * 0.9 : crawl ? -1.6 : runner ? -0.6 - sw * 0.5 : -1.35, ay = 0.7 * Math.cos(pitch), az = 0.7 * Math.sin(pitch) + 0.05;
-    put(Z.arm, i, z.x, y0, z.z, yaw, sc * (brute ? 1.25 : z.ty === 4 ? 1.4 : 1), brute ? 0.27 : 0.4, ay, az, reach + sw * 0.3 + fall * 1.2, 0.1, skin);
-    put(arms2.arm, i, z.x, y0, z.z, yaw, sc * (brute ? 1.25 : z.ty === 4 ? 1.4 : 1), brute ? -0.27 : -0.4, ay, az, (quad ? -1.45 - sw * 0.9 : runner ? -0.6 + sw * 0.5 : reach + 0.1) - sw * 0.3 + fall * 1.2, -0.1, skin);
+    put(Z.arm, i, z.x, y0, z.z, yaw, sc * (brute ? 1.25 : z.ty === 4 ? 1.4 : 1), brute ? 0.27 : 0.4, ay, az, reach + sw * 0.3 + fall * 1.2 - attackReach * 0.9, 0.1, skin);
+    put(arms2.arm, i, z.x, y0, z.z, yaw, sc * (brute ? 1.25 : z.ty === 4 ? 1.4 : 1), brute ? -0.27 : -0.4, ay, az, (quad ? -1.45 - sw * 0.9 : runner ? -0.6 + sw * 0.5 : reach + 0.1) - sw * 0.3 + fall * 1.2 - attackReach * 0.75, -0.1, skin);
     const pants = tint(tmp2, PANTS[z.seed % PANTS.length]), lp = crawl ? 0.9 : 0;
     put(Z.leg, i, z.x, y0, z.z, yaw, sc, 0.16, 0, 0, (crawl ? sw * 0.3 : sw) + lp - fall * 0.3, 0, pants);
     put(arms2.leg, i, z.x, y0, z.z, yaw, sc, -0.16, 0, 0, -(crawl ? sw * 0.3 : sw) + lp - fall * 0.3, 0, pants);
@@ -166,7 +169,9 @@ export function createZombieRenderer(scene, { low = false, deathOnRemoval = true
           zs.set(s.id, z);
         }
         const dx = s.x - z.x, dz = s.z - z.z, d = Math.hypot(dx, dz); if (Number.isFinite(s.yaw)) z.yaw = s.yaw; else if (d > 0.01) z.yaw += (((Math.atan2(dx, dz) - z.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 6);
-        z.x = s.x; z.z = s.z; z.y = s.y || 0; z.speed = s.speed; z.ph += dt * (d / Math.max(dt, 1e-3) * 1.6 * (TY[s.ty]?.speed ? 1 : 1) + 1.5) * 0.9 / (TY[s.ty]?.s || 1); z.ty = s.ty; z.cr = s.cr; z.ch = s.ch; z.stagger = s.stagger || 0; z.armorBroken = s.armorBroken || 0; z.armored = s.armored || 0; z.hpFrac = s.hpFrac ?? 1;
+        z.x = s.x; z.z = s.z; z.y = s.y || 0; z.speed = s.speed; z.ph += dt * (d / Math.max(dt, 1e-3) * 1.6 * (TY[s.ty]?.speed ? 1 : 1) + 1.5) * 0.9 / (TY[s.ty]?.s || 1); z.ty = s.ty; z.cr = s.cr;
+        z.attackT = s.ch ? Math.min(0.45, (z.attackT || 0) + dt) : 0;
+        z.ch = s.ch; z.stagger = s.stagger || 0; z.armorBroken = s.armorBroken || 0; z.armored = s.armored || 0; z.hpFrac = s.hpFrac ?? 1;
         if (z.stagger > 0) z.fl = Math.max(z.fl || 0, Math.min(1, z.stagger * 3.5)); if (s.burn) { z.flash = Math.max(z.flash, 0.45); z.burnT = Math.max(z.burnT, 2.2); } else z.burnT = Math.max(0, z.burnT - dt); z.flash = Math.max(0, z.flash - dt * 5); z.fl = Math.max(0, (z.fl || 0) - dt * 6); }
       for (const id of zs.keys()) if (!seen.has(id)) { if (deathOnRemoval) dying.push({ ...zs.get(id), fade: 0 }); zs.delete(id); }
       const modeled = zombieModelPilot?.update([...zs.values()], dt, me) || new Set();

@@ -5,7 +5,7 @@ const scene = readFileSync(new URL('../client/arena/homefront-graveyard-3d.js', 
 const page = readFileSync(new URL('../client/arena/homefront.html', import.meta.url), 'utf8');
 const zombieFx = readFileSync(new URL('../client/arena/fx.js', import.meta.url), 'utf8');
 const infectedCombat = readFileSync(new URL('../server/homefront-combat.js', import.meta.url), 'utf8');
-assert.match(infectedCombat, /const closeToTarget = !patrolling && Math\.hypot\(player\.x - e\.x, player\.z - e\.z\) < 8/, 'only flank during close-range pursuit');
+assert.match(infectedCombat, /const closeToTarget = !!\(seen \|\| heard\) && !patrolling && Math\.hypot\(player\.x - e\.x, player\.z - e\.z\) < 8/, 'only flank during close-range pursuit');
 assert.match(infectedCombat, /const flank = closeToTarget \? \(i % 2 \? 1 : -1\)/, 'alternate infected flanking sides');
 assert.match(infectedCombat, /Collision\.canTraverse\(member\.x, member\.z, mx, mz, memberCollisionOptions\)/, 'retain collision checks for flanking members');
 assert.match(zombieFx, /const attackPhase = Math\.min\(1, Math\.max\(0, z\.attackT \|\| 0\) \/ 0\.45\)/, 'phase infected attack pose across the confirmed reaction window');

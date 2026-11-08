@@ -39,6 +39,9 @@ assert.match(scene, /if \(hit\.killed\) infectedRenderer\.zdie/, 'play the share
 assert.match(scene, /else infectedRenderer\.zhit/, 'play the shared hit reaction after a confirmed hit');
 assert.match(scene, /if \(hit\.killed\) \{[\s\S]*?zombieAudio\.zdie\(/, 'play infected death audio only after server-confirmed kills');
 assert.match(scene, /homefront:combat-hit-feedback/, 'preserve the existing weapon and particle feedback event alongside shared audio');
+assert.match(scene, /if \(action === 'attack' && view\.visible && !document\.hidden\) \{[\s\S]*?weaponSwingStartedAt = performance\.now\(\)/, 'animate an authenticated local attack immediately before awaiting the server');
+assert.match(scene, /if \(performance\.now\(\) >= weaponSwingUntil\) \{[\s\S]*?weaponSwingUntil = weaponSwingStartedAt \+ 320/, 'server hit feedback does not restart an in-progress attack animation');
+
 assert.match(scene, /const environmentVisuals = new Map\(\)/, 'index rendered environment structures by authoritative collision ID');
 assert.match(scene, /registerEnvironmentVisual\('building:' \+ x \+ ',' \+ z, structure\)/, 'group building meshes so server-confirmed destruction removes the whole structure');
 assert.match(scene, /registerEnvironmentVisual\(prefix \+ ':' \+ cell\[0\] \+ ',' \+ cell\[1\], g\)/, 'map destructible environmental props to the server collision catalog');

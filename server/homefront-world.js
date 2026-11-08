@@ -483,6 +483,7 @@ function snapshot(input, acct, now = Date.now()) {
       .flatMap(e => e.members.filter(m => m.defeated && m.lastAttackAt > 0 && now - m.lastAttackAt <= 3500).map(m => m.id)),
     selfSurvival: p ? { ...p.survival } : null,
     selfInfectedHit: p?.infectedHit && now - p.infectedHit.at <= 3500 ? { ...p.infectedHit } : null,
+    selfInfectedWindup: p?.infectedWindup && p.infectedWindup.impactAt > now ? { ...p.infectedWindup } : null,
     selfPvp: p ? { recentHits: p.pvpHits || [], kills: p.pvpKills || 0, downedAt: p.downedAt || 0, protectedUntil: (p.spawnedAt || 0) + 10_000 } : null,
     selfInventory: p ? { ...Inventory.normalize(p.inventory), used: Inventory.used(p.inventory), capacity: Inventory.CAPACITY } : null,
     selfWeaponMagazine: p ? { ...p.weaponMagazine, capacity: Combat.WEAPON_MAGAZINE_CAPACITY[p.weaponMagazine?.weaponId] || 0 } : null,
@@ -515,13 +516,27 @@ function tickInfected(w, acct, now) {
   w.encounters = Combat.advance({ ...scene, encounters: w.encounters, players: w.players });
   Companions.guard(w.encounters, acct, player, now);
   const threats = [w.encounters[acct], ...Combat.nearbyPartyPatrols(w.encounters, acct, w.players, now)];
+  // A bite requires a server-owned 600ms windup. Recheck reach, doors and
+  // the same living attacker at impact; retreating breaks contact without damage.
+  const pending = player.infectedWindup;
+  if (pending && now < pending.impactAt) return;
   let hit = null;
   for (const encounter of threats) {
-    hit = Combat.meleeContact({ ...scene, encounter, player, account: acct });
-    if (!hit) continue;
+    const candidate = Combat.meleeContact({ ...scene, encounter, player, account: acct });
+    if (!candidate) continue;
+    if (!pending) {
+      player.infectedWindup = {
+        encounterId: candidate.encounterId, sourceId: candidate.sourceId,
+        x: candidate.x, z: candidate.z, startedAt: now, impactAt: now + 600
+      };
+      return;
+    }
+    if (pending.encounterId !== candidate.encounterId || pending.sourceId !== candidate.sourceId) continue;
+    hit = candidate;
     if (encounter.patrolId) encounter.lastMeleeAt = now;
     break;
   }
+  player.infectedWindup = null;
   if (!hit) return;
 
   const survival = player.survival;

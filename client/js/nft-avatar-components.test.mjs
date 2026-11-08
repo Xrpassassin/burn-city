@@ -33,6 +33,10 @@ eq(realRacc.weaponStyle,'explosive','maps the real RACC Armed: TNT trait to an e
 eq(realRacc.outfitStyle,'streetwear','maps the real RACC Fits: Yellow Striped Sweater trait');
 eq(realRacc.patternStyle,'stripes','recognizes the sweater stripe treatment');
 eq(realRacc.headwearStyle,'beehive','maps the real RACC Top Gear: Bee Hive trait');
+const wovenHat = resolveNftAvatarComponents(resolveNftAvatarProfile({key:'racc',id:'woven-hat',traits:[['Top Gear','Woven Straw Hat']]}));
+eq(wovenHat.headwearStyle,'straw-hat','recognizes a woven straw hat as its own 3D headwear recipe');
+const conicalHat = resolveNftAvatarComponents(resolveNftAvatarProfile({key:'racc',id:'conical-hat',traits:[['Top Gear','Conical Sun Hat']]}));
+eq(conicalHat.headwearStyle,'straw-hat','recognizes a conical hat as distinct from a generic cap');
 
 const backgroundBurnOnly = resolveNftAvatarComponents(resolveNftAvatarProfile({key:'589',id:'background-burn-only',traits:[['Background','Burn']]}));
 eq(backgroundBurnOnly.bodyEffect,'none','a Burn background does not become a body flame effect');

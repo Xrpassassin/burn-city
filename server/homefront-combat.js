@@ -314,7 +314,7 @@ function advance({encounters,players,interiors=null,sharedInteriors,destroyedObs
    if (i === 0) { member.x = e.x; member.z = e.z; return; }
    // Spread nearby attackers across the pursuit line instead of stacking on the anchor.
    // Slots remain server-owned and collision-checked; no direct damage changes.
-   const closeToTarget = !patrolling && Math.hypot(player.x - e.x, player.z - e.z) < 8;
+   const closeToTarget = !!(seen || heard) && !patrolling && Math.hypot(player.x - e.x, player.z - e.z) < 8;
    const facingX = player.x - e.x, facingZ = player.z - e.z;
    const facingLength = Math.max(0.001, Math.hypot(facingX, facingZ));
    const flank = closeToTarget ? (i % 2 ? 1 : -1) * (1.2 + Math.floor((i - 1) / 2) * 0.75) : 0;

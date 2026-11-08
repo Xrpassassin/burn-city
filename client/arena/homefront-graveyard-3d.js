@@ -902,12 +902,13 @@ function boot(host) {
   let lastEnvironmentInputRefresh = 0;
   let lastRenderedWorldData = null;
   let infectedHitAt = 0;
-  let infectedAttackUntil = 0;
+  const infectedAttackUntilBySource = new Map();
   function acceptInfectedHit(data) {
     const hit = data.selfInfectedHit;
     if (!hit || hit.at <= infectedHitAt) return false;
     infectedHitAt = hit.at;
-    infectedAttackUntil = performance.now() + 450;
+    const attackSource = hit.sourceId || (!wantsContinuous ? hit.encounterId : null);
+    if (attackSource) infectedAttackUntilBySource.set(attackSource, performance.now() + 450);
     zombieAudio.bitten({ x: hit.x, y: terrainElevation(hit.x, hit.z), z: hit.z, ...infectedPresentation(hit.enemy) });
     showFieldToast(hit.defeated ? 'Overrun by infected · relocated to safety' : 'Bitten · −' + Math.ceil(hit.damage) + ' health');
     return hit.defeated;
@@ -2737,8 +2738,8 @@ function boot(host) {
         actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(dx, dz), dt);
       }
       const hit = worldData?.selfInfectedHit;
-      const attacking = now < infectedAttackUntil &&
-        (hit?.sourceId === state.encounterId || (!wantsContinuous && hit?.encounterId === state.encounterId));
+      const attackUntil = infectedAttackUntilBySource.get(state.encounterId) || 0;
+      const attacking = now < attackUntil;
       if (attacking && localForInfected && !hit.defeated) {
         actor.rotation.y = turnToward(actor.rotation.y, Math.atan2(localForInfected.x - actor.position.x, localForInfected.z - actor.position.z), dt);
       }

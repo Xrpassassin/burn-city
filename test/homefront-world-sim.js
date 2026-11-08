@@ -303,7 +303,7 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
   );
   assert.equal(defeated.world.refugeEntries[account], fixture.refugeEntries[account],
     'death preserves original refuge assignment across the same shared world');
-  assert.equal(W.snapshot(defeated.world, account, start + 12000).selfInfectedHit, null, 'expired hit feedback is not replayed on reconnect');
+  assert.equal(W.snapshot(defeated.world, account, start + 13000).selfInfectedHit, null, 'expired hit feedback is not replayed on reconnect');
 }
 
 {

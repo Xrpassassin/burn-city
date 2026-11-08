@@ -325,8 +325,12 @@ function boot(host) {
     }
   });
   window.addEventListener('homefront:combat-hit-feedback', event => {
-    weaponSwingStartedAt = performance.now();
-    weaponSwingUntil = weaponSwingStartedAt + 320;
+    // Keep an input-started swing in progress; only start one here for hits
+    // arriving from another action path (e.g. a scripted encounter).
+    if (performance.now() >= weaponSwingUntil) {
+      weaponSwingStartedAt = performance.now();
+      weaponSwingUntil = weaponSwingStartedAt + 320;
+    }
     const detail = event.detail || {};
     const weaponId = WEAPON_IDS.includes(detail.weaponId) ? detail.weaponId : 'pipe_blade';
     const isAuto = FIREARM_IDS.includes(weaponId);
@@ -1668,6 +1672,13 @@ function boot(host) {
     if (reloadState) cancelReload('Reload interrupted by combat.');
     if (!token()) { if (combatStatus) combatStatus.textContent = 'Sign in before fighting in the Graveyard.'; return; }
     if (moving) return;
+    // Start the local weapon motion on input, not after the network round-trip.
+    // Damage, hit reactions, ammo and tracers still require server confirmation.
+    if (action === 'attack' && view.visible && !document.hidden) {
+      weaponSwingStartedAt = performance.now();
+      weaponSwingUntil = weaponSwingStartedAt + 320;
+      weaponSwingWeaponId = WEAPON_IDS.includes(equippedWeaponId) ? equippedWeaponId : 'pipe_blade';
+    }
     moving = true;
     if (findInfectedButton) findInfectedButton.disabled = true;
     if (attackInfectedButton) attackInfectedButton.disabled = true;

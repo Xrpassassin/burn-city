@@ -273,19 +273,25 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
 
   const distant = W.enter(observer, account, start + 400);
   assert.equal(distant.result.selfInfectedHit, null, 'pursuit outside melee reach leaves the survivor unharmed');
-  const bitten = W.enter(distant.world, account, start + 1700);
-  assert.equal(bitten.result.selfInfectedHit.sourceId, member.id, 'an infected reaches and bites a stationary survivor without a player attack');
+  const winding = W.enter(distant.world, account, start + 1700);
+  assert.equal(winding.result.selfInfectedHit, null, 'a zombie must telegraph its bite before damage');
+  assert.equal(winding.result.selfInfectedWindup.sourceId, member.id, 'windup identifies the attacker');
+  const bitten = W.enter(winding.world, account, start + 2350);
+  assert.equal(bitten.result.selfInfectedHit.sourceId, member.id, 'the same infected bites after its windup if the survivor remains in range');
   assert.equal(bitten.result.selfSurvival.health, 95);
   assert.equal(bitten.result.selfSurvival.infection, 1);
-  const protectedTick = W.enter(JSON.parse(JSON.stringify(bitten.world)), account, start + 1750);
+  const protectedTick = W.enter(JSON.parse(JSON.stringify(bitten.world)), account, start + 2400);
   assert.equal(protectedTick.result.selfSurvival.health, 95, 'persisted recovery window prevents repeat damage from rapid requests');
   assert.equal(protectedTick.result.selfInfectedHit.at, bitten.result.selfInfectedHit.at);
-  const secondBite = W.enter(protectedTick.world, account, start + 2700);
-  assert.equal(secondBite.result.selfSurvival.health, 90, 'an infected still in reach can attack after recovery');
+  const secondWindup = W.enter(protectedTick.world, account, start + 3500);
+  assert.equal(secondWindup.result.selfSurvival.health, 95, 'recovery starts another windup rather than immediate damage');
+  const secondBite = W.enter(secondWindup.world, account, start + 4150);
+  assert.equal(secondBite.result.selfSurvival.health, 90, 'an infected still in reach can attack after recovery and a second windup');
 
   secondBite.world.players[account].survival.health = 3;
   secondBite.world.players[account].inventory = { ammo: 4 };
-  const defeated = W.enter(secondBite.world, account, start + 8000);
+  const fatalWindup = W.enter(secondBite.world, account, start + 8000);
+  const defeated = W.enter(fatalWindup.world, account, start + 8650);
   assert.equal(defeated.result.selfInfectedHit.defeated, true);
   assert.equal(defeated.result.selfSurvival.health, require('../server/homefront-survival').RESPAWN_HEALTH);
   assert.equal(defeated.result.selfInventory.ammo, 4, 'safe respawn keeps the field pack');
@@ -297,7 +303,7 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
   );
   assert.equal(defeated.world.refugeEntries[account], fixture.refugeEntries[account],
     'death preserves original refuge assignment across the same shared world');
-  assert.equal(W.snapshot(defeated.world, account, start + 12000).selfInfectedHit, null, 'expired hit feedback is not replayed on reconnect');
+  assert.equal(W.snapshot(defeated.world, account, start + 13000).selfInfectedHit, null, 'expired hit feedback is not replayed on reconnect');
 }
 
 {
@@ -327,11 +333,15 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
   Object.assign(patrolWorld.players[ally], { x: -38.2, z: -42, partyCode: party });
   const member = { ...patrol.members[0], x: -39, z: -42 };
   Object.assign(patrol, { x: member.x, z: member.z, members: [member], hp: member.hp, lastAiAt: now });
-  const bitten = W.enter(patrolWorld, ally, now + 100);
-  assert.equal(bitten.result.selfInfectedHit.encounterId, patrol.id, 'a shared patrol can bite a teammate');
-  assert.equal(bitten.world.players[owner].survival.health, 100, 'a teammate refresh does not apply damage to another account');
+  const winding = W.enter(patrolWorld, ally, now + 100);
+  assert.equal(winding.result.selfInfectedHit, null, 'a shared patrol telegraphs before damaging a teammate');
+  assert.equal(winding.result.selfInfectedWindup.encounterId, patrol.id, 'the shared patrol owns the pending windup');
+  assert.equal(winding.world.players[owner].survival.health, 100, 'a teammate refresh does not apply damage to another account');
 
-  Object.assign(bitten.world.players[owner], { x: -38.3, z: -42 });
-  const second = W.enter(JSON.parse(JSON.stringify(bitten.world)), owner, now + 180);
+  Object.assign(winding.world.players[owner], { x: -38.3, z: -42 });
+  const second = W.enter(JSON.parse(JSON.stringify(winding.world)), owner, now + 180);
   assert.equal(second.result.selfSurvival.health, 100, 'one patrol does not double-strike on simultaneous refreshes');
+  const bitten = W.enter(second.world, ally, now + 760);
+  assert.equal(bitten.result.selfInfectedHit.encounterId, patrol.id, 'a shared patrol can bite a teammate after its windup');
+  assert.equal(bitten.world.players[owner].survival.health, 100, 'the ally bite never damages the owner');
 }

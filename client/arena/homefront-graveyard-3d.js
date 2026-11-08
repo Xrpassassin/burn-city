@@ -2746,7 +2746,9 @@ function boot(host) {
       }
       // Local proximity-only anticipation: presentation, not an authoritative damage telegraph.
       const threatDistance = localForInfected ? Math.hypot(actor.position.x - localForInfected.x, actor.position.z - localForInfected.z) : Infinity;
-      const preparing = !attacking && state.hp > 0 && threatDistance < 2.8 && threatDistance > 0.35;
+      const windup = worldData?.selfInfectedWindup;
+      const serverPreparing = windup?.sourceId === state.encounterId && windup.impactAt > Date.now();
+      const preparing = !attacking && state.hp > 0 && (serverPreparing || (threatDistance < 2.8 && threatDistance > 0.35));
       presentedInfected.push({
         id: state.encounterId, x: actor.position.x, y: actor.position.y, z: actor.position.z,
         yaw: actor.rotation.y, ch: attacking, preparing, ...infectedPresentation(state.enemyType),

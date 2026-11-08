@@ -29,4 +29,6 @@ const unknown = resolveNftAvatarReconstruction(resolveNftAvatarProfile({key:'unm
 equal(unknown.archetype,'humanoid','unknown collections safely fall back to generic');
 equal(unknown.collectionKey,'generic','unknown key does not select a known collection blueprint');
 equal(unknown.traitOverrides.originalArtworkRequired,true,'generic fallback still preserves source art');
+ok(Array.isArray(racc.traitManifest),'retains trait manifest for downstream asset mapping');
+ok(Array.isArray(racc.unmappedTraits),'reports unmapped traits for visual QA');
 console.log('NFT avatar collection reconstruction: '+checks+' assertions passed');

@@ -519,7 +519,18 @@ function tickInfected(w, acct, now) {
   // A bite requires a server-owned 600ms windup. Recheck reach, doors and
   // the same living attacker at impact; retreating breaks contact without damage.
   const pending = player.infectedWindup;
-  if (pending && now < pending.impactAt) return;
+  if (pending && now < pending.impactAt) {
+    // Cancel a telegraph immediately when the original attacker loses legal
+    // contact (retreat, cover, closed doors, or death), rather than showing
+    // a phantom windup until its impact deadline.
+    const stillThreatening = threats.some(encounter => {
+      const contact = Combat.meleeContact({ ...scene, encounter, player, account: acct });
+      return contact?.encounterId === pending.encounterId && contact?.sourceId === pending.sourceId;
+    });
+    if (stillThreatening) return;
+    player.infectedWindup = null;
+    return;
+  }
   let hit = null;
   for (const encounter of threats) {
     const candidate = Combat.meleeContact({ ...scene, encounter, player, account: acct });

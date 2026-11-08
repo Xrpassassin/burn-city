@@ -145,6 +145,30 @@ export function buildNftChar(n, opts = {}) {
   } else if (components.outfitStyle === 'streetwear') {
     addCapsule(g, darkCloth, [0, 1.43, -.025], .115, .12, [1.2, .8, .9]);
   }
+  // RACC source-specific garment reconstruction: only apply when the NFT metadata names
+  // the recognizable yellow-striped sweater, avoiding invented stripes on other tokens.
+  const raccFitText = traitValue(/fits|outfit|clothing|sweater|shirt/i).toLowerCase();
+  if (key === 'racc' && /yellow striped sweater/.test(raccFitText)) {
+    const sweater = addCapsule(g, mat('#35383c', .94, .01), [0,1.17,.002], .249,.395,[1.16,1.04,.78]);
+    sweater.name='nft-racc-striped-sweater';
+    const yellow = mat('#e2bd32',.9,.01);
+    // Segmented horizontal bands follow the torso's curved front; gaps at the sides
+    // prevent the stripes from reading as flat rectangles wrapped through the body.
+    for(let row=0;row<5;row++) {
+      const y=1.035+row*.067;
+      for(let segment=-2;segment<=2;segment++) {
+        const x=segment*.078;
+        const z=.002+.188*Math.sqrt(Math.max(.12,1-(x/.285)**2));
+        const stripe=addBox(g,yellow,[x,y,z],[.039,.009,.006]);
+        stripe.name='nft-racc-sweater-stripe';
+        stripe.rotation.z=-x*.22;
+      }
+    }
+    const collar=add(geo('nft-racc-sweater-collar',()=>new THREE.TorusGeometry(.078,.012,6,20)),yellow,0,1.405,.01,g);
+    collar.rotation.x=Math.PI/2;
+    collar.name='nft-racc-sweater-collar';
+    addBox(g,mat('#e2bd32'),[0,1.385,.075],[.105,.014,.009]).name='nft-racc-sweater-neckline';
+  }
   // Surface patterns are driven by actual metadata and remain visible around the artwork tabard.
   // Prefer a dedicated pattern/marking trait; use outfit color only as a fallback.
   // Including "outfit" in the primary matcher made an earlier clothing trait mask a later pattern trait.
@@ -220,8 +244,33 @@ export function buildNftChar(n, opts = {}) {
   head.scale.multiply(new THREE.Vector3(...faceScale));
   if (key === 'racc') {
     // RACC gets an unmistakable rounded raccoon skull, eye mask, muzzle, ears and ringed tail.
-    addSphere(head,skin,[0,.02,0],[.235,.255,.22]);
-    addSphere(head,mat(traitColor(/mask/i,has(tr,/red mask/)?'#c4161c':'#282a30')),[0,.005,.165],[.207,.105,.07]);
+    addSphere(head,skin,[0,.02,0],[.235,.255,.22]).name='nft-racc-skull';
+    // Sculpt the classic raccoon mask as a tapered, angular band instead of a flat oval.
+    // The stepped contour leaves room for the eye patches and follows the brow/temple silhouette.
+    const maskShape = new THREE.Shape();
+    maskShape.moveTo(-.218,.055);
+    maskShape.lineTo(-.16,.09); maskShape.lineTo(-.085,.072);
+    maskShape.lineTo(0,.038); maskShape.lineTo(.085,.072);
+    maskShape.lineTo(.16,.09); maskShape.lineTo(.218,.055);
+    maskShape.lineTo(.17,-.015); maskShape.lineTo(.105,-.055);
+    maskShape.lineTo(.055,-.025); maskShape.lineTo(0,-.012);
+    maskShape.lineTo(-.055,-.025); maskShape.lineTo(-.105,-.055);
+    maskShape.lineTo(-.17,-.015); maskShape.closePath();
+    const maskGeometry=new THREE.ExtrudeGeometry(maskShape,{depth:.018,bevelEnabled:true,bevelSegments:1,steps:1,bevelSize:.004,bevelThickness:.003});
+    // Bend the mask over the ellipsoidal skull so the temples do not float like a flat visor.
+    // Keep the original extrusion as a small raised rim, while seating each vertex on the face.
+    const maskPositions=maskGeometry.attributes.position;
+    for(let i=0;i<maskPositions.count;i++){
+      const x=maskPositions.getX(i), y=maskPositions.getY(i)+.005;
+      const nx=x/.235, ny=(y-.02)/.255;
+      const faceZ=.22*Math.sqrt(Math.max(0,1-nx*nx-ny*ny));
+      maskPositions.setZ(i,faceZ-.204+.004+maskPositions.getZ(i)*.2);
+    }
+    maskPositions.needsUpdate=true;
+    maskGeometry.computeVertexNormals();
+    const maskMesh=add(maskGeometry,
+      mat(traitColor(/mask/i,has(tr,/red mask/)?'#c4161c':'#282a30')),-0,.005,.204,head);
+    maskMesh.name='nft-racc-angular-eye-mask';
     for (const s of [-1,1]) {
       // Layered ears: rounded outer fur, a tapered silhouette, and a contrasting inner ear.
       addSphere(head,mat('#686d75'),[s*.19,.205,-.005],[.085,.095,.065]);
@@ -231,8 +280,12 @@ export function buildNftChar(n, opts = {}) {
       // Pale cheek ruffs widen the unmistakable raccoon face silhouette.
       const cheek=addSphere(head,mat(shade(faceHex,1.22)),[s*.145,-.065,.155],[.082,.072,.047]);
       cheek.name='nft-racc-cheek-ruff';
-      addSphere(head,mat('#c9cdd0'),[s*.085,.02,.22],[.055,.05,.025]);
-      addSphere(head,components.eyeStyle === 'glowing' ? glow(eyeHex) : mat(eyeHex),[s*.085,.02,.242],[.022,.025,.012]);
+      addSphere(head,mat('#d8d9d6'),[s*.085,.02,.222],[.052,.047,.022]).name='nft-racc-eye-patch';
+      // RACC source art commonly uses vivid blue irises; explicit token eye traits still override this default.
+      const raccEyeHex = traitValue(/eye color|iris color|eyes?$|iris$/i) ? eyeHex : '#287ed1';
+      addSphere(head,components.eyeStyle === 'glowing' ? glow(raccEyeHex) : mat(raccEyeHex),[s*.085,.02,.244],[.024,.027,.013]).name='nft-racc-eye';
+      addSphere(head,mat('#11151b'),[s*.085,.02,.255],[.009,.016,.006]).name='nft-racc-pupil';
+      addSphere(head,mat('#ffffff'),[s*.078,.03,.261],[.005,.006,.003]).name='nft-racc-eye-glint';
       // Separate pale muzzle pads give the raccoon a forward-projecting animal profile
       // instead of reading as a human face with a mask.
       const muzzlePad=addSphere(head,mat(shade(faceHex,1.28)),[s*.048,-.087,.255],[.058,.043,.066]);
@@ -244,7 +297,28 @@ export function buildNftChar(n, opts = {}) {
     muzzle.rotation.x=Math.PI/2;
     muzzle.name='nft-racc-tapered-muzzle';
     addSphere(head,mat('#f0e4d0'),[0,-.11,.276],[.067,.042,.055]).name='nft-racc-chin';
-    addSphere(head,mat('#17181b'),[0,-.067,.329],[.036,.026,.02]).name='nft-racc-nose';
+    // A softly flattened triangular nose and two tiny nostrils read better in profile than a sphere alone.
+    const nose=add(geo('nft-racc-nose-shape',()=>new THREE.SphereGeometry(1,12,8)),mat('#17181b'),0,-.061,.327,head);
+    nose.scale.set(.038,.026,.019); nose.name='nft-racc-nose';
+    for(const s of [-1,1]) {
+      addSphere(head,mat('#090a0c'),[s*.016,-.065,.343],[.006,.004,.003]).name='nft-racc-nostril';
+    }
+    // A restrained mouth seam anchors the muzzle pads and chin without imposing an expression trait.
+    const mouthCurve=new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0,-.079,.329),
+      new THREE.Vector3(0,-.105,.326),
+      new THREE.Vector3(-.035,-.119,.313),
+      new THREE.Vector3(-.052,-.11,.307)
+    ]);
+    const mouth=add(geo('nft-racc-mouth-seam',()=>new THREE.TubeGeometry(mouthCurve,.16,.0035,5,false)),mat('#4b3935'),0,0,0,head);
+    mouth.name='nft-racc-mouth-seam';
+    const mouthMirror=add(geo('nft-racc-mouth-seam-mirror',()=>new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0,-.079,.329),
+      new THREE.Vector3(0,-.105,.326),
+      new THREE.Vector3(.035,-.119,.313),
+      new THREE.Vector3(.052,-.11,.307)
+    ]),.16,.0035,5,false)),mat('#4b3935'),0,0,0,head);
+    mouthMirror.name='nft-racc-mouth-seam';
     if (components.tailStyle !== 'none' && components.tailStyle !== 'custom') {
       const tail = new THREE.Group(); tail.name='nft-racc-tail'; tail.position.set(0,.77,-.17); tail.rotation.x=-.72; g.add(tail);
       for(let i=0;i<6;i++) {
@@ -395,6 +469,23 @@ export function buildNftChar(n, opts = {}) {
     const hive=add(geo('nft-beehive',()=>new THREE.ConeGeometry(.15,.27,9)),mat(traitColor(/headwear/i,'#d5a83f')) ,0,.22,-.005,head);
     hive.name='nft-beehive-headwear';
     add(geo('nft-beehive-band',()=>new THREE.TorusGeometry(.12,.012,5,16)),metal,0,.17,-.005,head);
+  } else if (components.headwearStyle === 'straw-hat') {
+    // A woven/conical hat has a broad brim and tapered crown; do not collapse it into the generic cap recipe.
+    const strawColor = mat(traitColor(/headwear/i, '#c8ad72'), .94, .01);
+    const brim = add(geo('nft-straw-hat-brim',()=>new THREE.CylinderGeometry(.32,.305,.024,32)),strawColor,0,.16,-.005,head);
+    brim.name='nft-straw-hat-brim';
+    // The source RACC hat has a tall, sharply tapered woven crown, not a flat-topped bucket.
+    const crown = add(geo('nft-straw-hat-crown',()=>new THREE.ConeGeometry(.158,.285,20,3)),strawColor,0,.31,-.005,head);
+    crown.name='nft-straw-hat-crown';
+    const weaveDark = mat(traitColor(/headwear/i, '#8a6841'), .96, .01);
+    // Concentric weave rows lie flat across the hat's horizontal cross-sections.
+    // Keep each row in the XY plane (the torus default) so it encircles the crown rather than forming vertical hoops.
+    for (const [row, radius, y] of [[0,.285,.174],[1,.245,.205],[2,.205,.238],[3,.165,.271],[4,.125,.304],[5,.085,.337],[6,.045,.368]]) {
+      const ring = add(geo('nft-straw-hat-weave-row-'+row,()=>new THREE.TorusGeometry(radius,.0035,4,32)),row%2 ? strawColor : weaveDark,0,y,-.005,head);
+      ring.name='nft-straw-hat-weave-row-'+row;
+    }
+    const band = add(geo('nft-straw-hat-band',()=>new THREE.TorusGeometry(.145,.012,5,24)),weaveDark,0,.205,-.005,head);
+    band.name='nft-straw-hat-band';
   } else if (components.headwearStyle === 'rock') {
     const rock=addSphere(head,mat(traitColor(/headwear/i,'#777a80')),[0,.16,-.01],[.22,.17,.2]); rock.name='nft-rock-headwear';
   } else if (components.headwearStyle === 'helmet' || has(tr,/helmet/)) {
@@ -581,11 +672,24 @@ export function buildNftChar(n, opts = {}) {
   if (weaponTrait && !/none|empty|no weapon|nothing/i.test(weaponTrait)) {
     const weaponMat=mat(/gold|legendary/i.test(weaponTrait)?'#d6ad45':'#353942',.48,.4);
     if (components.weaponStyle === 'explosive') {
-      const charge=addBox(g,mat('#a72b27',.62,.08),[.31,1.04,-.13],[.13,.16,.09]);
+      // A short red dynamite/TNT stick is more legible than a featureless rectangular charge.
+      const charge=add(geo('nft-held-tnt',()=>new THREE.CylinderGeometry(.043,.043,.22,12)),mat('#b52c2b',.58,.06),.31,1.045,-.13,g);
       charge.name='nft-held-tnt';
-      addBox(g,mat('#d7c5a0'),[.31,1.04,-.08],[.09,.045,.012]).name='nft-tnt-label';
-      const fuse=addCapsule(g,mat('#d8b76d'),[.31,1.145,-.13],.012,.055,[1,1,1]); fuse.rotation.z=-.25; fuse.name='nft-tnt-fuse';
-      addSphere(g,glow('#ff8b2c'),[.31,1.18,-.13],[.018,.018,.018]).name='nft-tnt-spark';
+      for(const y of [1.0,1.09]) {
+        const band=add(geo('nft-tnt-paper-band',()=>new THREE.TorusGeometry(.043,.004,5,12)),mat('#e0d4b6'),.31,y,-.13,g);
+        band.rotation.x=Math.PI/2;
+        band.name='nft-tnt-paper-band';
+      }
+      addBox(g,mat('#e7d7b4'),[.31,1.045,-.085],[.066,.038,.009]).name='nft-tnt-label';
+      addBox(g,mat('#292b30'),[.31,1.045,-.074],[.038,.009,.004]).name='nft-tnt-label-mark';
+      const fuse=addCapsule(g,mat('#c5a36d'),[.31,1.167,-.13],.009,.052,[1,1,1]); fuse.rotation.z=-.25; fuse.name='nft-tnt-fuse';
+      const sparkCore=addSphere(g,glow('#fff0a1'),[.31,1.2,-.13],[.009,.009,.009]); sparkCore.name='nft-tnt-spark-core';
+      addSphere(g,glow('#ff7b24'),[.31,1.2,-.13],[.02,.02,.02]).name='nft-tnt-spark';
+      for(let i=0;i<4;i++) {
+        const a=i*Math.PI/2;
+        const ember=addSphere(g,glow('#ffb34d'),[.31+Math.cos(a)*.027,1.2+Math.sin(a)*.027,-.13],[.004,.004,.004]);
+        ember.name='nft-tnt-ember';
+      }
     } else if (components.weaponStyle === 'blade' || /sword|blade|katana|knife/i.test(weaponTrait)) {
       const blade=addBox(g,metal,[.31,1.05,-.13],[.035,.48,.025]); blade.rotation.z=-.12;
       addBox(g,weaponMat,[.31,.8,-.13],[.12,.035,.04]);

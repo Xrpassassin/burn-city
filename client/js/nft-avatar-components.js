@@ -7,6 +7,7 @@ function headwearStyle(value) {
   if (has(value, /mohawk|hawk/)) return 'none';
   if (has(value, /halo|aureole/)) return 'halo';
   if (has(value, /bee hive|beehive/)) return 'beehive';
+  if (has(value, /straw|woven|conical|wide brim|sun hat|raffia/)) return 'straw-hat';
   if (has(value, /rock head|stone head/)) return 'rock';
   if (has(value, /crown|circlet|tiara|diadem/)) return 'crown';
   if (has(value, /hood|cowl/)) return 'hood';

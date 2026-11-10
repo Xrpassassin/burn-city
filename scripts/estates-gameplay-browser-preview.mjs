@@ -5,10 +5,12 @@ import {createRequire} from 'node:module';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 const require=createRequire((process.env.PLAYWRIGHT_DIR||process.cwd())+'/node_modules/');
-const {chromium}=require('playwright');
-const out='estates-gameplay-preview-output';mkdirSync(out,{recursive:true});
-const browser=await chromium.launch({headless:true,
- args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--no-sandbox','--no-zygote']});
+const {chromium,webkit}=require('playwright');
+const engine=process.env.ESTATES_BROWSER==='webkit'?'webkit':'chromium';
+const out=process.env.ESTATES_GAMEPLAY_OUTPUT||'estates-gameplay-preview-output';
+mkdirSync(out,{recursive:true});
+const browser=await (engine==='webkit'?webkit:chromium).launch({headless:true,
+ ...(engine==='chromium'?{args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--no-sandbox','--no-zygote']}: {})});
 const outcomes=[];
 try{
  for(const [label,width,height] of [['desktop',1365,768],['mobile-size',390,844]]){

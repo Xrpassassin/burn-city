@@ -23,7 +23,7 @@ function monthlyConfig(env=process.env){
   rlusdIssuer:env.ESTATE_RLUSD_ISSUER||RLUSD_ISSUER,rlusdCurrency:env.ESTATE_RLUSD_CURRENCY||RLUSD_HEX,
   reserveBps:int(env.ESTATE_XRP_RESERVE_BPS,100,0,2000),            // kept as XRP for fees/reserves (1%)
   reserveMinDrops:int(env.ESTATE_XRP_RESERVE_MIN_DROPS,0,0,10e6),
-  maxDepositDrops:int(env.ESTATE_MAX_DEPOSIT_DROPS,25e6,1e5,1e12), // per deposit; remainder stays queued
+  maxDepositDrops:int(env.ESTATE_MAX_DEPOSIT_DROPS,8e6,1e5,1e12), // per deposit run; remainder stays queued (IMG/XRP depth ~437 XRP => ~1% impact per 4 XRP leg)
   maxPriceImpactBps:int(env.ESTATE_MAX_PRICE_IMPACT_BPS,100,1,1000),// per swap leg
   slippageBps:int(env.ESTATE_SWAP_SLIPPAGE_BPS,100,1,1000),         // delivered >= quote*(1-slippage)
   maxPoolDeviationBps:int(env.ESTATE_MAX_POOL_DEVIATION_BPS,300,1,5000),// pool price vs. reference market

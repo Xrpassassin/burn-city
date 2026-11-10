@@ -15,7 +15,7 @@ assert.deepEqual(P.splitPurchase('3000000',cfg),{purchaseDrops:'3000000',operati
 assert.equal(P.splitPurchase('3000000',P.monthlyConfig({ESTATE_XRP_RESERVE_BPS:'500'})).operatingReserveDrops,'150000');
 assert.equal(P.splitPurchase('1000000',P.monthlyConfig({ESTATE_XRP_RESERVE_MIN_DROPS:'200000'})).operatingReserveDrops,'200000');
 assert.throws(()=>P.monthlyConfig({ESTATE_XRP_RESERVE_BPS:'9000'}),/invalid_monthly_plan_setting/);
-const legs=P.depositLegs('60000000',cfg);assert.deepEqual(legs,{spendDrops:'25000000',rlusdLegDrops:'12500000',imgLegDrops:'12500000',queuedDrops:'35000000'});
+const legs=P.depositLegs('60000000',cfg);assert.deepEqual(legs,{spendDrops:'8000000',rlusdLegDrops:'4000000',imgLegDrops:'4000000',queuedDrops:'52000000'});
 assert.equal(P.depositLegs('2970000',cfg).queuedDrops,'0');
 // ---- slippage / price-impact math (tiny pool: ~$77 TVL) ----
 const q=P.quoteSwap({amountIn:'10',poolIn:'90',poolOut:'900',tradingFee:0});

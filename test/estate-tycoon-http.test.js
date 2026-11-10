@@ -60,6 +60,37 @@ Pay.sdb.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run
  assert.equal(portfolio.code,200);assert.equal(portfolio.data.tycoon.recordedShareUnits,2);
  assert.equal(portfolio.data.portfolio.portfolioShareUnits,1,'active reward weight must not change');
  assert.equal((await call('/tycoon/confirm',{orderId:started.data.orderId})).data.alreadySettled,true);
+ // Premium hangar requires an installed 180 XRP helicopter and the current owning wallet.
+ assert.equal((await call('/tycoon/hangar?propertyId=mansion-01',null,null)).code,401);
+ assert.equal((await call('/tycoon/hangar?propertyId=trailer-01')).code,403);
+ Pay.sdb.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run('mansion-01',buyer,'E'.repeat(64),300000000,100,Date.now());
+ assert.equal((await call('/tycoon/hangar?propertyId=mansion-01')).code,403,'No hangar before helicopter upgrade');
+ const tycoon=require('../server/estate-tycoon').createEstateTycoonStore(Pay.sdb);
+ const aircraftOrder='tycoon_'+'d'.repeat(40);
+ tycoon.reserve({propertyId:'mansion-01',buyer,itemId:'estate-helicopter',orderId:aircraftOrder,now:Date.now()});
+ tycoon.settle({orderId:aircraftOrder,buyer,txHash:'C'.repeat(64),ledgerIndex:282,now:Date.now()});
+ const hangar=await call('/tycoon/hangar?propertyId=mansion-01');
+ assert.equal(hangar.code,200);assert.equal(hangar.data.style.callsign,'BURN AIR');
+ assert.equal(hangar.data.financialRewards,false);
+ assert.equal((await call('/tycoon/hangar?propertyId=mansion-01',null,other)).code,403);
+ const badStyle=await call('/tycoon/hangar/style',{propertyId:'mansion-01',paint:'invalid',trim:'brass',callsign:'BAD'});
+ assert.equal(badStyle.code,400);
+ const styled=await call('/tycoon/hangar/style',{propertyId:'mansion-01',paint:'ember',trim:'ice',callsign:'DRAGON ONE'});
+ assert.equal(styled.code,200);assert.equal(styled.data.style.paint,'ember');
+ assert.equal((await call('/tycoon/hangar/style',{propertyId:'mansion-01',paint:'royal',trim:'brass',callsign:'TAKEN'},other)).code,403);
+ const session=await call('/tycoon/hangar/flight/start',{propertyId:'mansion-01'});
+ assert.equal(session.code,200);assert.match(session.data.sessionId,/^[0-9a-f]{32}$/);
+ assert.equal((await call('/tycoon/hangar/flight/start',{propertyId:'mansion-01'},other)).code,403);
+ assert.equal((await call('/tycoon/hangar/flight/finish',{propertyId:'mansion-01',sessionId:session.data.sessionId,
+  durationSeconds:0,routeVisited:['bad'],landed:false})).code,400);
+ const completed=await call('/tycoon/hangar/flight/finish',{propertyId:'mansion-01',sessionId:session.data.sessionId,
+  durationSeconds:0,routeVisited:[],landed:false});
+ assert.equal(completed.code,200);assert.equal(completed.data.totals.completedFlights,1);
+ assert.equal(completed.data.milestones.firstLanding,false);
+ assert.equal((await call('/tycoon/hangar/flight/finish',{propertyId:'mansion-01',sessionId:session.data.sessionId,
+  durationSeconds:0,routeVisited:[],landed:false})).data.alreadyFinished,true);
+ assert.equal(completed.data.financialRewards,false);
+ assert.equal(tycoon.state('mansion-01').liveRewardShareUnits,100);
  console.log('Estate Tycoon HTTP: public privacy, auth, forged amount rejection, validated purchase, updated portfolio and separate payout weight passed');
  server.close();fs.rmSync(data,{recursive:true,force:true});process.exit(0);
 })().catch(e=>{console.error(e);process.exit(1);});

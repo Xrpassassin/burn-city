@@ -33,7 +33,7 @@ for(const [idx,id] of ['family-01','mansion-01'].entries()){
  assert.equal(reserved.price_drops,180000000);
  assert.equal(reserved.share_delta,60);
  assert.throws(()=>store.reserve({propertyId:id,buyer:guest,itemId:'estate-helicopter',orderId:'tycoon_'+'c'.repeat(40),now:1800000000000}),/property_owner_required/);
- const settled=store.settle({orderId,buyer:owner,txHash:String.fromCharCode(70+idx).repeat(64),ledgerIndex:300+idx,now:1800000001000+idx*1000});
+ const settled=store.settle({orderId,buyer:owner,txHash:(idx===0?'F':'A').repeat(64),ledgerIndex:300+idx,now:1800000001000+idx*1000});
  assert.equal(settled.recordedShareUnits,(id==='family-01'?50:100)+60);
  assert.equal(settled.liveRewardShareUnits,id==='family-01'?50:100,'existing payout allocation is unchanged');
  assert.equal(estateHelicopterAccess({propertyId:id,acct:owner,accessFor:acl,tycoonStore:store}).pilotAuthorized,true);

@@ -219,7 +219,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/estates/tycoon/world' && req.method === 'GET') {
       if(gate('estates-tycoon-world-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
-      return json(res,200,estateTycoon.publicState());
+      return json(res,200,{...estateTycoon.publicState(),helicopterStyles:estateHangar.publicStyles()});
     }
     if (url.pathname === '/api/estates/tour' && req.method === 'GET') {   // public tour check: unowned interiors are open to anyone (enter/inspect only); owned ones need sign-in + owner/invite
       if (gate('estates-tour-ip:' + ip, 60, 60e3)) return json(res, 429, { error: 'slow_down' });

@@ -276,6 +276,34 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
   const winding = W.enter(distant.world, account, start + 1700);
   assert.equal(winding.result.selfInfectedHit, null, 'a zombie must telegraph its bite before damage');
   assert.equal(winding.result.selfInfectedWindup.sourceId, member.id, 'windup identifies the attacker');
+  // A survivor who retreats out of reach must cancel the telegraph immediately,
+  // not merely avoid the delayed impact. Keep the original branch for hit tests.
+  const dodgedWorld = JSON.parse(JSON.stringify(winding.world));
+  dodgedWorld.players[account].x = target.x - dx * 12;
+  dodgedWorld.players[account].z = target.z - dz * 12;
+  const dodged = W.enter(dodgedWorld, account, start + 1800);
+  assert.equal(dodged.result.selfInfectedWindup, null, 'retreat immediately cancels the pending infected windup');
+  assert.equal(dodged.result.selfInfectedHit, null, 'retreat does not cause phantom bite damage');
+  assert.equal(dodged.result.selfSurvival.health, 100, 'dodging preserves survivor health');
+  const dodgeFollowup = W.enter(dodged.world, account, start + 2400);
+  assert.equal(dodgeFollowup.result.selfSurvival.health, 100, 'the canceled attack cannot land after its original impact time');
+  // The windup belongs to one attacker. A dead or replaced attacker must not
+  // leave a phantom red telegraph or let a different member inherit its bite.
+  const defeatedAttackerWorld = JSON.parse(JSON.stringify(winding.world));
+  const defeatedAttacker = defeatedAttackerWorld.encounters[account].members[0];
+  defeatedAttacker.hp = 0;
+  defeatedAttacker.defeated = true;
+  const defeatedWindup = W.enter(defeatedAttackerWorld, account, start + 1800);
+  assert.equal(defeatedWindup.result.selfInfectedWindup, null, 'defeating the original attacker cancels its windup');
+  assert.equal(defeatedWindup.result.selfInfectedHit, null, 'a defeated attacker does not inflict a phantom bite');
+
+  const changedAttackerWorld = JSON.parse(JSON.stringify(winding.world));
+  changedAttackerWorld.encounters[account].members[0].id = 'replacement-infected';
+  const changedWindup = W.enter(changedAttackerWorld, account, start + 1800);
+  assert.equal(changedWindup.result.selfInfectedWindup, null, 'a replacement infected cannot inherit another attacker\'s telegraph');
+  assert.equal(changedWindup.result.selfInfectedHit, null, 'replacing the original attacker cannot create instant damage');
+  const changedAfterDeadline = W.enter(changedWindup.world, account, start + 2400);
+  assert.equal(changedAfterDeadline.result.selfSurvival.health, 100, 'replacement never receives the original bite deadline');
   const bitten = W.enter(winding.world, account, start + 2350);
   assert.equal(bitten.result.selfInfectedHit.sourceId, member.id, 'the same infected bites after its windup if the survivor remains in range');
   assert.equal(bitten.result.selfSurvival.health, 95);

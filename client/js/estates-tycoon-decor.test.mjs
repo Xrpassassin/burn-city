@@ -19,7 +19,7 @@ assert.equal(decor.setUpgrades([{propertyId:'trailer-01',unlockedItemIds:[]}]),f
 assert.equal(decor.setUpgrades([{propertyId:'trailer-01',unlockedItemIds:['porch-lights','hidden-hatch','grow-lounge']}]),true);
 const houseDecor=parent.children[0].children[0];
 assert.equal(houseDecor.name,'tycoon-trailer-01');
-assert(houseDecor.children.some(x=>x.name==='porch-lights-lamp'));
+assert(houseDecor.children.some(x=>x.name.startsWith('porch-lights-wall-lantern-')));
 assert(houseDecor.children.some(x=>x.name==='hidden-hatch-hatch'));
 assert(houseDecor.children.some(x=>x.name==='grow-lounge-concealed-vent'));
 assert.equal(decor.setUpgrades([{propertyId:'trailer-01',unlockedItemIds:['porch-lights','hidden-hatch','grow-lounge']}]),false);

@@ -39,7 +39,8 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
  }
  function setPower(value){
   powerOn=!!value;
-  for(const lamp of illumination)if('intensity' in lamp)lamp.intensity=powerOn?lamp.userData?.onIntensity??1.2:.08;
+  for(const lamp of illumination)if('intensity' in lamp)
+   lamp.intensity=powerOn?(lamp.userData?.onIntensity??1.2):(lamp.userData?.emergencyIntensity??.08);
   const m=materials.get('emissive');
   if(m)m.emissiveIntensity=powerOn?1.2:.08;
   return powerOn;
@@ -55,10 +56,25 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
    mesh.position.set(part.x,part.y,part.z);mesh.name='secret-'+part.id;
    mesh.castShadow=false;mesh.receiveShadow=false;root.add(mesh);
   }
+  // Interior lighting must not depend on the city's sun being visible.
+  // The outdoor scene is hidden during private-room traversal, leaving
+  // physically based concrete and wood almost black without local fill light.
+  // A small hemisphere fill preserves readable surfaces during normal and
+  // emergency-power modes; four ceiling-area point lights provide depth.
+  if(typeof THREE.HemisphereLight==='function'){
+   const fill=new THREE.HemisphereLight(0xd4e9ff,0x53606e,.8);
+   fill.name='private-room-indirect-fill';
+   fill.userData={onIntensity:.8,emergencyIntensity:.22};
+   root.add(fill);illumination.push(fill);
+  }
   if(typeof THREE.PointLight==='function'){
-   for(const [x,z,c,intensity] of [[-4,-3,0x79b7da,1.7],[4,3,0xffb56b,1.1]]){
-    const light=new THREE.PointLight(c,intensity,11,2);
-    light.position.set(x,3.35,z);light.castShadow=false;light.userData={onIntensity:intensity};
+   for(const [x,z,c,intensity] of [
+    [-4.2,-3.2,0xb5d9ff,2.5],[4.2,-3.2,0xffd5a3,2.3],
+    [-4.2,3.5,0xd4e7ff,2.25],[4.2,3.5,0xffd7b3,2.1]
+   ]){
+    const light=new THREE.PointLight(c,intensity,14,2);
+    light.name='private-room-ceiling-area-light';
+    light.position.set(x,3.52,z);light.castShadow=false;light.userData={onIntensity:intensity,emergencyIntensity:.08};
     root.add(light);illumination.push(light);
    }
   }

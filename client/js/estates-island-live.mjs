@@ -4,7 +4,7 @@ import { mountEstateTycoon } from './estate-tycoon-ui.mjs';
 import { createEstatesSecretInteriorRenderer } from './estates-secret-interior-renderer.mjs';
 import { createEstateHelicopterWorld } from './estates-helicopter-world.mjs';
 import { mountEstateHangarLogbook } from './estates-hangar-ui.mjs';
-import { estateHelipadPosition } from './estates-helicopter-flight.mjs';
+
 import { mountEstateOwnership } from './estate-ownership-ui.mjs';
 import { mountEstatePurchase } from './estate-purchase-ui.mjs';
 import { buildEstatesIslandScene } from './estates-island-scene.mjs';
@@ -484,8 +484,9 @@ export async function installEstatesIslandLive({
       if(!s?.unlockedItemIds?.includes('estate-helicopter')||!helicopters.hasHelicopter(s.propertyId))continue;
       const lot=manifest.lots.find(l=>l.propertyId===s.propertyId);
       if(!lot)continue;
-      const p=estateHelipadPosition(lot);
-      if(Math.hypot(x-p.x,z-p.z)<=6.2)return s.propertyId;
+      // Roof helipads are inaccessible on foot: board from the public property approach.
+      const p=controllerRef.navigation.propertyApproach(s.propertyId);
+      if(p&&Math.hypot(x-p.x,z-p.z)<=6.2)return s.propertyId;
     }
     return null;
   }
@@ -566,9 +567,10 @@ export async function installEstatesIslandLive({
     pilotHeld.up=false;pilotHeld.down=false;
     helicopters.park();
     avatar.visible=current.avatarWasVisible;
-    const lot=manifest.lots.find(l=>l.propertyId===current.propertyId);
-    const pad=lot?estateHelipadPosition(lot):{x:current.former.x-OFFSET_X,z:current.former.z};
-    player.pos.set(OFFSET_X+pad.x,.15,pad.z+4.55);
+    const approach=controllerRef.navigation.propertyApproach(current.propertyId);
+    // Return the pilot to public walkable ground, never into the solid building below the roof pad.
+    const home=approach||{x:current.former.x-OFFSET_X,z:current.former.z};
+    player.pos.set(OFFSET_X+home.x,ISLAND_SPAWN.y,home.z);
     player.vel?.set(0,0,0);player.onGround=true;player.climb=null;
     avatar.position.copy(player.pos);
     flightHud.style.display='none';exitButton.textContent='↩ Return to BURN City';

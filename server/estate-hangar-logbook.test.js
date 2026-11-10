@@ -67,7 +67,7 @@ assert.equal(finished.totals.flightSeconds,40);
 assert.equal(hangar.finishFlight({propertyId:'mansion-01',acct:owner,sessionId:start.sessionId,durationSeconds:999,routeVisited:[],landed:false}).alreadyFinished,true);
 assert.equal(hangar.snapshot('mansion-01',owner).flights.length,1);
 assert.equal(store.state('mansion-01').liveRewardShareUnits,100,'flight achievements must not increase active payout weights');
-assert.equal(store.state('mansion-01').recordedShareUnits,160,'flight achievements must not mint upgrade shares');
+assert.equal(store.state('mansion-01').recordedShareUnits,120,'flight achievements must not mint upgrade shares beyond the 20 recorded units bought for 60 XRP');
 hangar=createEstateHangarLogbook(args);
 assert.equal(hangar.snapshot('mansion-01',owner).flights.length,1,'journal survives restart');
 assert.equal(hangar.snapshot('mansion-01',owner).style.callsign,'DRAGON ONE','appearance survives restart');

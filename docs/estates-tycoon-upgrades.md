@@ -44,6 +44,18 @@ Existing hourly/monthly distribution modules, historical purchase weights and es
 
 Existing cosmetic prestige purchases retain their separate appearance-only contract; this branch does not silently rebook them as shares.
 
+## Private Hangar Logbook — persistence and returning-home motivation
+
+Premium estate owners get an authenticated, server-persisted **Hangar Logbook** once the 180 XRP helicopter is purchased and verified. It is accessible from the Estates property inspection UI. Each eligible property maintains its own SQLite journal and cosmetic style, which follow the estate on resale. Neither current owner nor previous owner wallet addresses are exposed in the logbook API.
+
+**Customization:** five approved airframe paints (obsidian, ember, arctic, verdant, royal), five trim options (brass, ice, chrome, copper, ivory), and a short uppercase alphanumeric callsign. All input is whitelisted or validated server-side, with an authenticated owner-only save endpoint. The current owner's local Three.js airframe and roof/trim materials adopt the approved paint and trim. Callsign appears in the owner's private Hangar UI. Appearance edits do not change estate value or shares, and do not charge XRP.
+
+**Flight history:** when the helicopter is boarded, the client opens a randomly identified server session. The server limits one active flight per property, expires abandoned sessions, requires the current owning wallet at all write points, enforces plausible elapsed time and only accepts the three known sightseeing marker IDs. The client submits flight time, reported route markers and a distinct normal-landing/emergency-return flag on exit. Previous sessions cannot be reused to create another record. History is capped to the last 30 entries in the UI/API, with overall flight count and total duration retained separately. The public world and unauthenticated users never get owner-specific flight data.
+
+**Non-financial return goals:** first safe landing, ten recorded landings, all three scenic lookout reports, and a three-lookout circuit followed by landing. All markers and achievements are labeled **client-reported** because the flight simulation is local; they are not server-authoritative physical movement proofs. There are **no financial or token rewards, yield, guaranteed returns, leaderboard prizes or payout share modifications**. No claim that a game client's route reports are tamper-proof should be made.
+
+**Current known boundaries:** helicopter flight is still single-client/local and not synchronized to other players. Flight history requires a successful network start + finish; if the journal API is unavailable the flight remains playable but is shown as **not recording**, never invented as a completed entry. Cross-device persistence assumes the server SQLite database is durably stored on the production backend. Live financial upgrade buying remains disabled unless explicitly enabled after review. Desktop/mobile smoke tests and main-branch conflict resolution are still required before merge.
+
 ## Private aviation — premium repeatable Estates gameplay
 
 A **180 XRP helicopter and its own helipad** is a single fixed upgrade, item ID **estate-helicopter**. It costs 60% of the 300 XRP mansion price, and the server allows it only for the **150 XRP Family Home** and **300 XRP Luxury Mansion**. Trailer, apartment, starter home and cabin properties cannot buy it. The upgrade follows the estate on resale.
@@ -92,6 +104,11 @@ No external room models are required. The small procedural mesh generator is der
 - POST /api/estates/tycoon/start: propertyId and itemId, owner only, disabled unless opted in.
 - POST /api/estates/tycoon/confirm: orderId, owner only, validated XRPL receipt.
 - GET /api/estates/tycoon/helicopter-access?propertyId=...: current owner with verified 180 XRP unlock and Family/Mansion tier.
+- GET /api/estates/tycoon/hangar?propertyId=...: private recorded flight history, lifetime stats and saved customizations.
+- POST /api/estates/tycoon/hangar/style: propertyId + approved paint, trim, callsign; owner only.
+- POST /api/estates/tycoon/hangar/flight/start: starts or resumes an authenticated, bounded local flight journal session.
+- POST /api/estates/tycoon/hangar/flight/finish: sessionId, durationSeconds, routeVisited and landed flag; owner only, client-reported.
+
 - GET /api/estates/tycoon/interior-options?propertyId=...: signed-in owner/invited guest sees only verified unlocked room choices.
 - GET /api/estates/tycoon/interior-access?propertyId=...&roomId=...: signed-in wallet authorization and current paid room entitlement.
 

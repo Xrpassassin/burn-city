@@ -40,13 +40,24 @@ export function createEstateHelicopterFlight(lot){
   const blend=1-Math.exp(-2.2*step);
   velocity.x+=(canMove?vx-velocity.x:-velocity.x)*blend;
   velocity.z+=(canMove?vz-velocity.z:-velocity.z)*blend;
-  const x=clamp(position.x+velocity.x*step,-FLIGHT_LIMITS.radiusX,FLIGHT_LIMITS.radiusX);
-  const z=clamp(position.z+velocity.z*step,-FLIGHT_LIMITS.radiusZ,FLIGHT_LIMITS.radiusZ);
+  let x=clamp(position.x+velocity.x*step,-FLIGHT_LIMITS.radiusX,FLIGHT_LIMITS.radiusX);
+  let z=clamp(position.z+velocity.z*step,-FLIGHT_LIMITS.radiusZ,FLIGHT_LIMITS.radiusZ);
   if(x===-FLIGHT_LIMITS.radiusX||x===FLIGHT_LIMITS.radiusX)velocity.x=0;
   if(z===-FLIGHT_LIMITS.radiusZ||z===FLIGHT_LIMITS.radiusZ)velocity.z=0;
+  // Low hover is permitted over the owner's roof, but a moving aircraft must
+  // NEVER escape the pad radius at roof height and instantly snap up to 11 m.
+  // Keep the craft inside the safe hovering circle until it can cruise.
+  if(nextAltitude<FLIGHT_LIMITS.minCruiseAltitude&&!nearPad({x,z})){
+   const dx=x-pad.x,dz=z-pad.z,dist=Math.hypot(dx,dz);
+   if(dist>0){x=pad.x+dx/dist*3.5;z=pad.z+dz/dist*3.5;}
+   else{x=pad.x;z=pad.z;}
+   velocity.x=0;velocity.z=0;
+  }
   const approaching=nearPad({x,z});
-  // Prevent low-altitude collisions with unmodeled trees/buildings everywhere but the landing pad.
-  position={x,z,altitude:approaching?nextAltitude:Math.max(FLIGHT_LIMITS.minCruiseAltitude,nextAltitude)};
+  // Beyond the pad, maintain the 11 m obstacle clearance without teleporting
+  // a low-flying aircraft upward when it crosses the roof's hover boundary.
+  const altitude=approaching?nextAltitude:Math.max(FLIGHT_LIMITS.minCruiseAltitude,nextAltitude);
+  position={x,z,altitude};
   if(!approaching&&position.altitude===FLIGHT_LIMITS.minCruiseAltitude&&velocity.vertical<0)velocity.vertical=0;
   const speed=Math.hypot(velocity.x,velocity.z);
   let landmark=null;

@@ -43,6 +43,8 @@ assert(live.includes("hangarRequest('/flight/finish',current.propertyId"),'landi
 assert(live.includes("landed:!emergency"),'emergency return must not count as physical landing');
 assert(vehicle.includes('function setStyle(propertyId,style)'), 'approved paint and trim update helicopter materials');
 assert(hangar.includes('checkpoints are client-reported'), 'achievements disclose local, non-verified telemetry');
+assert(live.includes('for(const style of s.helicopterStyles||[])helicopters.setStyle(style.propertyId,style)'), 'public helicopter colors mirror verified world cosmetic state');
+assert(server.includes('helicopterStyles:estateHangar.publicStyles()'), 'public island only receives paint and trim, not the owner logbook');
 assert(server.includes("createEstateHangarLogbook"), 'hangar state is persisted in the server SQLite database');
 assert(server.includes("'/api/estates/tycoon/hangar/flight/finish'"), 'journal finalization requires authenticated endpoint');
 assert(server.includes("'/api/estates/tycoon/hangar/style'"), 'helicopter appearance has authenticated save endpoint');

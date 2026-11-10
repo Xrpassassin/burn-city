@@ -1,5 +1,7 @@
 # Estates Tycoon — affordable upgrade ladder (staged)
 
+> **Architecture upgrade pass (November 10, 2026):** The per-tier visual specification and all approved/current costs are recorded in [Realistic Estates upgrade ladder](estates-realistic-upgrade-ladder.md). New exterior geometry is now generated against actual lot and building footprints, with modeled support posts, anchored fences/entry paths, service vents, roof-aware terrace or planter treatments and discreet private-room exterior markers. This first pass remains procedural, not photorealistic; browser and mobile visual QA, PBR texture/asset evaluation and any new design-only catalogue items remain separate release steps. Existing XRP values, prerequisites, and recorded-vs-live reward policy are unchanged.
+
 ## Player model
 
 Every property class, including a 3 XRP trailer, has access to the same item unlock tree. Compact exterior improvements adapt to existing lot dimensions; the structure, ownership and tier are not replaced. The **Build & Upgrade · Estates Tycoon** panel appears in property inspection with a collapsed, grouped catalogue.

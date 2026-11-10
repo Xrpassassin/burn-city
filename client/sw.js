@@ -25,6 +25,9 @@ const isImmutable = u => u.pathname.includes('/vendor/') || u.pathname.includes(
 self.addEventListener('fetch', e => {
   const req = e.request; if (req.method !== 'GET') return;
   const u = new URL(req.url); if (u.origin !== location.origin) return;
+  // Never cache bearer-authenticated Estates, portfolio, access decisions or any API responses.
+  // A service-worker fallback must not show one wallet's private state to another.
+  if (u.pathname.startsWith('/api/')) { e.respondWith(fetch(req, {cache:'no-store'})); return; }
   if (u.pathname.includes('/music/') && !u.pathname.endsWith('.json')) return; // audio: streamed straight from network, never cached // CDN, analytics, ledger: straight to network
   if (isImmutable(u)) {
     e.respondWith(caches.match(req, {ignoreSearch: true}).then(r => r || fetch(req).then(res => {

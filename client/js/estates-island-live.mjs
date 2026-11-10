@@ -1,6 +1,7 @@
 // Live BURN City host integration for the public Estates Island traversal.
 import { mountEstatePrestige } from './estate-prestige-ui.mjs';
 import { mountEstateTycoon } from './estate-tycoon-ui.mjs';
+import { createEstatesSecretInteriorRenderer } from './estates-secret-interior-renderer.mjs';
 import { mountEstateOwnership } from './estate-ownership-ui.mjs';
 import { mountEstatePurchase } from './estate-purchase-ui.mjs';
 import { buildEstatesIslandScene } from './estates-island-scene.mjs';
@@ -103,6 +104,7 @@ export async function installEstatesIslandLive({
 
   const renderer = createEstatesIslandRenderer({ THREE, scene, manifest });
   const root = renderer.root;
+  const secretInterior=createEstatesSecretInteriorRenderer({THREE,scene});
   root.position.x = OFFSET_X;
   root.visible = false; // Do not expose the full island inside the city proxy.
   addBridgeArchitecture(THREE, root);
@@ -143,7 +145,7 @@ export async function installEstatesIslandLive({
   const exitButton=document.createElement('button');exitButton.id='bcEstatesExit';exitButton.type='button';exitButton.textContent='↩ Return to BURN City';
   exitButton.setAttribute('aria-label','Return to BURN City');
   exitButton.style.cssText='display:none;position:fixed;left:50%;top:calc(116px + env(safe-area-inset-top));transform:translateX(-50%);z-index:90;min-height:44px;padding:8px 14px;border:1px solid #ffb45b;border-radius:9px;background:#17151af0;color:#ffe4bd;font:700 13px system-ui;cursor:pointer';
-  document.body.appendChild(exitButton);exitButton.addEventListener('click',()=>leaveIsland());
+  document.body.appendChild(exitButton);exitButton.addEventListener('click',()=>secretSession?leaveSecretInterior():leaveIsland());
   let directoryOpen=false;
   const positionPanel = () => {
     const reserved=[];
@@ -274,7 +276,9 @@ export async function installEstatesIslandLive({
     const home=catalog.properties.find(p=>p.id===property.propertyId),tier=catalog.tiers.find(t=>t.id===home?.tier);
     showPanel(property.address,
       tier?tier.label+' · '+tier.price+' XRP · '+tier.shareUnits+' reward share units. Explore the finishes and see how this home can grow.':'This plot is reserved for a future home.',
-      [{label:'Navigate to property',primary:true,run:()=>{const lot=manifest.lots.find(l=>l.id===property.lotId);if(lot){targetLot=lot;if(selectedLotBeacon){selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=active;}if(guidanceHud)guidanceHud.style.display='block';hidePanel();}}},{label:'Close',run:hidePanel}],
+      [{label:'Navigate to property',primary:true,run:()=>{const lot=manifest.lots.find(l=>l.id===property.lotId);if(lot){targetLot=lot;if(selectedLotBeacon){selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=active;}if(guidanceHud)guidanceHud.style.display='block';hidePanel();}}},
+       {label:'Explore secret rooms',run:()=>void openSecretRoomMenu(property.propertyId)},
+       {label:'Close',run:hidePanel}],
       'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests. Borders: yellow = unowned; blue = purchased.');
     if(catalogued){
       const ownershipOptions={api:apiBase,onOwnership:properties=>renderer.setOwnership(properties)};
@@ -357,12 +361,12 @@ export async function installEstatesIslandLive({
   });
 
   let returnPosition = null, returnCamera = null, entering = false, leaseToken = null, heartbeatTimer = null;
-  let presenceSocket=null, presenceTimer=null, reconnectTimer=null, presenceStopped=true;
+  let presenceSocket=null, presenceTimer=null, reconnectTimer=null, presenceStopped=true,islandInstanceId=null;
   const remotePeers=new Map();
   const hiddenCityObjects=new Map();
   function hideCityScene(){
     for(const object of scene.children){
-      if(object===root||object===avatar||object===camera||object.isLight||object.isCamera||object.userData?.estatesKeep)continue;
+      if(object===root||object===secretInterior.root||object===avatar||object===camera||object.isLight||object.isCamera||object.userData?.estatesKeep)continue;
       if(!hiddenCityObjects.has(object))hiddenCityObjects.set(object,object.visible);
       object.visible=false;
     }
@@ -372,13 +376,13 @@ export async function installEstatesIslandLive({
     (/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   let verifiedAppearances=[],previewProperty=null,previewLevel=null,lastAppearanceFetch=0,appearanceFetching=false;
   let lastOwnershipFetch=0,ownershipFetching=false,ownershipRefreshQueued=false;
-  let lastTycoonFetch=0,tycoonFetching=false;
+  let lastTycoonFetch=0,tycoonFetching=false,verifiedTycoonProperties=[];
   async function refreshTycoon(force=false){
     if(disposed||tycoonFetching||(!force&&Date.now()-lastTycoonFetch<30000))return;
     tycoonFetching=true;lastTycoonFetch=Date.now();
     try{const r=await fetch(apiBase+'/api/estates/tycoon/world',{cache:'no-store',signal:AbortSignal.timeout(8000)});
       if(!r.ok)return;const s=await r.json();
-      if(!disposed&&Array.isArray(s.properties))renderer.setUpgrades(s.properties);
+      if(!disposed&&Array.isArray(s.properties)){verifiedTycoonProperties=s.properties;renderer.setUpgrades(s.properties);}
     }catch{}finally{tycoonFetching=false;}
   }
   async function refreshOwnership(force=false){
@@ -488,7 +492,7 @@ export async function installEstatesIslandLive({
       onStatus({state:'entry-failed',message:String(error?.message||error)});
       return false;
     } finally { entering=false; }
-    leaseToken=admission.leaseToken;
+    leaseToken=admission.leaseToken;islandInstanceId=admission.instanceId;
     heartbeatTimer=setInterval(()=>{
       const token=leaseToken;if(!token||!active)return;
       void leaseRequest('heartbeat',{leaseToken:token}).catch(error=>{
@@ -537,12 +541,13 @@ export async function installEstatesIslandLive({
   }
   function leaveIsland() {
     if(disposed||!active)return;
+    if(secretSession)leaveSecretInterior(false);
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();islandControls(false);
     if(guidanceHud)guidanceHud.style.display='none';
     if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
     exitButton.style.display='none'; directoryButton.style.display='none'; directoryOpen=false;
     if(root.userData.propertyDeepLinkHint)root.userData.propertyDeepLinkHint.style.display='block';
-    releaseLease();
+    releaseLease();islandInstanceId=null;
     restoreCityScene();
     const destination=returnPosition??gate;
     if(window.__skate?.active)window.__skate.toggle(false);
@@ -571,6 +576,7 @@ export async function installEstatesIslandLive({
       if(edge&&near) { enterIsland(); return true; }
       return false;
     }
+    if(secretSession)return tickSecretInterior(dt,moveForward,moveSide,running,desiredDelta,edge);
     hideCityScene();animatePeers(dt);void refreshAppearance();void refreshOwnership();void refreshTycoon();
     if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
       lastGuidanceUpdate=Date.now();
@@ -612,7 +618,8 @@ export async function installEstatesIslandLive({
     }
     runSpeed=running?7.2:4.5;
     const beforeX=player.pos.x,beforeZ=player.pos.z;
-    const result=controllerRef.update({dt,yaw:getYaw(),moveX:moveForward,moveZ:moveSide,interactPressed:edge,exitPressed:edge,desiredDelta});
+    const hatch=nearestVerifiedHatch();
+    const result=controllerRef.update({dt,yaw:getYaw(),moveX:moveForward,moveZ:moveSide,interactPressed:edge&&!hatch,exitPressed:edge&&!hatch,desiredDelta});
     if(desiredDelta&&window.__skate?.active){
       const board=window.__skate;board.state.pos.copy(player.pos);
       if(result.blockedX)board.state.vel.x=0;if(result.blockedZ)board.state.vel.z=0;
@@ -622,6 +629,7 @@ export async function installEstatesIslandLive({
     const movedX=player.pos.x-beforeX,movedZ=player.pos.z-beforeZ;
     avatar.rotation.y=Math.hypot(movedX,movedZ)>.001?Math.atan2(-movedX,-movedZ):getYaw();
     updateLandmarkInteraction(edge,Boolean(result.property));
+    if(hatch&&edge)void openSecretRoomMenu(hatch);
     if(result.property && edge) {
       // The controller callback supplies the explicit inspection action; no property entry is implied.
     }
@@ -656,7 +664,9 @@ export async function installEstatesIslandLive({
     returnToCity(){if(disposed||!active)return false;leaveIsland();return true;},
     enterFromCity(){if(disposed||active||entering)return false;void enterIsland();return true;},
     dispose(){
-      if(disposed)return false; disposed=true; islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();
+      if(disposed)return false;
+      if(secretSession)leaveSecretInterior(false);
+      disposed=true; islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();secretInterior.dispose();
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       root.userData.propertyDeepLinkHint?.remove(); guidanceHud?.remove();
       if(selectedLotBeacon){selectedLotBeacon.group.removeFromParent();for(const g of selectedLotBeacon.geometries)g.dispose();for(const m of selectedLotBeacon.materials)m.dispose();}

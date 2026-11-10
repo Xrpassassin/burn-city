@@ -19,6 +19,7 @@ on:
       - 'client/js/estates-tycoon*'
       - 'client/js/estates-island-renderer.mjs'
       - 'client/js/estates-island-live.mjs'
+      - 'client/js/app.js'
       - 'package.json'
       - '.github/workflows/estates-tycoon.yml'
 permissions:
@@ -44,6 +45,7 @@ jobs:
           node --check server/estate-hangar-logbook.js
           node --check client/js/estates-hangar-ui.mjs
           node --check client/js/estates-island-live.mjs
+          node --check --input-type=module < client/js/app.js
           npm run -s test:estate-tycoon
           node client/js/estates-island-renderer.test.mjs
           node client/js/estates-island-live.test.mjs

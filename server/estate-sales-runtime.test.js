@@ -5,8 +5,8 @@ const {createEstateSalesRuntime}=require('./estate-sales-runtime');
 const buyer='rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb',treasury='rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd';
 function database(){const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT NOT NULL,purchase_tx TEXT NOT NULL UNIQUE,purchase_amount_drops INTEGER NOT NULL,share_units INTEGER NOT NULL,purchased_at INTEGER NOT NULL)');return db;}
 const config={DRY_RUN:false,NETWORK:'mainnet',XUMM_KEY:'test-key',XUMM_SECRET:'test-secret',ESTATE_TREASURY:treasury};
-const releaseEnv={ESTATE_SALES_ENABLED:'1',ESTATE_PURCHASE_LEGAL_SIGNOFF:'1',
- ESTATE_PURCHASE_LEGAL_REFERENCE:'counsel-ref-2026-11-01',
+const releaseEnv={ESTATE_SALES_ENABLED:'1',ESTATE_OPERATOR_TERMS_ACCEPTED:'1',
+ ESTATE_OPERATOR_ACCEPTANCE_REFERENCE:'counsel-ref-2026-11-01',
  ESTATE_PURCHASE_TERMS_VERSION:'v1.0',
  ESTATE_PURCHASE_TERMS_SHA256:'A'.repeat(64),
  ESTATE_PURCHASE_TERMS_URL:'https://example.com/estates/terms'};
@@ -45,7 +45,7 @@ const acceptance={acceptedTerms:true,termsVersion:'v1.0',termsDigest:'A'.repeat(
  // Simulate revoking the entire launch configuration after a prior Xaman
  // request was issued. No NEW sale starts, but old validated XRP must still
  // reconcile safely; legal terms are not silently re-signed.
- const revoked={...releaseEnv,ESTATE_SALES_ENABLED:'0',ESTATE_PURCHASE_LEGAL_SIGNOFF:'0',
+ const revoked={...releaseEnv,ESTATE_SALES_ENABLED:'0',ESTATE_OPERATOR_TERMS_ACCEPTED:'0',
   ESTATE_PURCHASE_TERMS_VERSION:'',ESTATE_PURCHASE_TERMS_SHA256:'',ESTATE_PURCHASE_TERMS_URL:''};
  r=build(revoked);
  assert.equal(r.status().salesEnabled,false);

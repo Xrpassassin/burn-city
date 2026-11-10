@@ -27,7 +27,7 @@ function reserveExists(db,name){return !!db.prepare("SELECT 1 FROM sqlite_master
 // Also used by standalone guarded jobs. Does not create or mutate any schema.
 function estateCashReserve(db){
  let n=db.prepare('SELECT * FROM estate_capital_allocations').all().reduce((n,r)=>n+integer(r.purchase_drops)-integer(r.operating_reserve_drops||'0'),0n);
- if(reserveExists(db,'estate_liquidity_jobs'))for(const r of db.prepare('SELECT initial_budget_drops,data_json FROM estate_liquidity_jobs').all()){
+ if(reserveExists(db,'estate_liquidity_jobs'))for(const r of db.prepare("SELECT initial_budget_drops,data_json FROM estate_liquidity_jobs WHERE state!='superseded_policy3'").all()){
   const d=validateData(JSON.parse(r.data_json));n-=integer(r.initial_budget_drops);n+=integer(d.cash);
   if(d.harvestXrp)n+=BigInt(N.maximum(0,value(d.harvestXrp).minus(d.harvestFees||'0')).toFixed(0));
  }
@@ -36,6 +36,8 @@ function estateCashReserve(db){
   if(!r.carried)n+=integer(settlement?settlement.cash_drops:r.amount_drops);
  }
  if(reserveExists(db,'estate_xrp_profit_credits'))for(const r of db.prepare('SELECT amount_drops FROM estate_xrp_profit_credits').all())n+=integer(r.amount_drops);
+ // Policy v3 (monthly IMG/RLUSD plan): XRP already swapped into the two-sided deposit is no longer cash.
+ if(reserveExists(db,'estate_mp_deposits'))for(const r of db.prepare("SELECT xrp_drops,xrp_remaining_drops FROM estate_mp_deposits WHERE kind='purchase'").all())n-=integer(r.xrp_drops)-integer(r.xrp_remaining_drops);
  n+=rewardCashReserve(db);if(n<0n)throw Error('capital_reserve_underflow');return n.toString();
 }
 function estateGuardReserve(db){

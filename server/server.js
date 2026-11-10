@@ -19,6 +19,7 @@ const estateReviewAdminAccounts = parseEstateReviewAdminAccounts(process.env.EST
 const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: [...estateReviewAdminAccounts] });
 const estateSales = createEstateSalesRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 require('./guard').setEstateCapitalReserveReader(account=>account===C.ESTATE_TREASURY?estateSales.reservedCapitalDrops():'0');
+const estateMonthly = require('./estate-monthly-service').createEstateMonthlyService({db:Pay.sdb,pay:Pay,config:C,guard:require('./guard')});
 const estateHourly = require('./estate-hourly-service').createEstateHourlyService({db:Pay.sdb,pay:Pay,config:C,guard:require('./guard')});
 const estateImgTrustline=require('./estate-img-trustline').createEstateImgTrustline({db:Pay.sdb,client:{request:async q=>(await Pay.ledger()).request(q)},sdk:()=>Pay.sdk(),config:C});
 const {readEstatePortfolio}=require('./estate-portfolio');
@@ -195,7 +196,7 @@ const server = http.createServer(async (req, res) => {
       return json(res,200,{asOfMs:Date.now(),salesEnabled:sales.salesEnabled,salesStatus:sales.salesStatus,
         distributionsEnabled:rewards.distributionsEnabled,distributionStatus:rewards.distributionStatus,
         imgXrpProfitDistributionsEnabled:rewards.imgXrpProfitDistributionsEnabled,rewardsGuaranteed:false,
-        capitalAllocationPolicy:rewards.capitalAllocationPolicy,distributionSchedule:rewards.distributionSchedule,
+        capitalAllocationPolicy:sales.capitalAllocationPolicy,distributionSchedule:'monthly',monthlyPlan:estateMonthly.status(),
         imgRlusdFundingEnabled:rewards.imgRlusdFundingEnabled,imgRlusdPoolAccount:rewards.imgRlusdPoolAccount,
         imgRlusdStatus:rewards.imgRlusdStatus,imgRlusdPositionCount:rewards.liquidityPositions?.length||0,
         forwardImgRlusdRewards:rewards.forwardImgRlusdRewards,
@@ -587,6 +588,7 @@ setInterval(() => {
 }, 1000 * dt);
 
 estateHourly.start();
+estateMonthly.start();
 try { if (require('./img-burn').start()) console.log('[img-burn] JETPACK_TREASURY_AUTO=1: batched IMG buy-and-burn on'); } catch (e) { console.error('[img-burn] start', e?.message); }
 if (C.BURN_INTERVAL_MS > 0 && process.env.BURN_JOB_IN_SERVER === 'true') setInterval(() => require('./burn').run().catch(e => console.error('burn', e.message)), C.BURN_INTERVAL_MS);
 Nft.start();

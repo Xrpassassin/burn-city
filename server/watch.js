@@ -6,6 +6,9 @@ function known() { const k = new Set(S.load('watch_known.json', []));
   try { for (const l of fs.readFileSync(S.file('burns.jsonl'), 'utf8').split('\n')) { const h = l && JSON.parse(l).hash; if (h) k.add(h); } } catch {}
   try {const db=require('./payments').sdb;if(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_hourly_payouts'").get())for(const r of db.prepare('SELECT tx_hash FROM estate_hourly_payouts WHERE tx_hash IS NOT NULL').all())k.add(r.tx_hash);}catch{}
   try{const db=require('./payments').sdb;if(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_treasury_transactions'").get())for(const r of db.prepare('SELECT tx_hash FROM estate_treasury_transactions WHERE tx_hash IS NOT NULL').all())k.add(r.tx_hash);}catch{}
+  try{const db=require('./payments').sdb;if(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_mp_txs'").get())for(const r of db.prepare('SELECT hash FROM estate_mp_txs WHERE hash IS NOT NULL').all())k.add(r.hash);}catch{}
+  // Jetpack IMG buy-and-burn batches are signed by the same treasury; without this they would trip the auto-pause.
+  try{const d=require('./jetpack')._db();if(d.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='jp_img_batches'").get())for(const r of d.prepare('SELECT hash FROM jp_img_batches WHERE hash IS NOT NULL').all())k.add(r.hash);}catch{}
   return k; }
 async function tick(ledger) {
   if (!C.TREASURY) return; const c = await ledger();

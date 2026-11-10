@@ -231,11 +231,11 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, ({...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct)}));
       if (url.pathname === '/api/estates/portfolio' && req.method === 'GET') return json(res,200,{
         ...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct),
-        portfolio:readEstatePortfolio({db:Pay.sdb,owner:u.acct})});
+        portfolio:readEstatePortfolio({db:Pay.sdb,owner:u.acct}),tycoon:estateTycoon.portfolio(u.acct)});
       if (url.pathname === '/api/estates/tycoon/state' && req.method === 'GET') {
         const propertyId=String(url.searchParams.get('propertyId')||'');
         try{const state=estateTycoon.store.state(propertyId),access=estateTycoon.store.quote({propertyId,buyer:u.acct,itemId:'porch-lights'});
-          return json(res,200,{...state,ownerAuthorized:access.ownerAuthorized,purchasesEnabled:estateTycoon.enabled()});}
+          return json(res,200,{...state,ownerAuthorized:access.ownerAuthorized,pending:access.pending,purchasesEnabled:estateTycoon.enabled()});}
         catch(e){return json(res,404,{error:e.message==='unknown_property'?'unknown_property':'tycoon_state_unavailable'});}
       }
       if (url.pathname === '/api/estates/tycoon/portfolio' && req.method === 'GET')return json(res,200,estateTycoon.portfolio(u.acct));

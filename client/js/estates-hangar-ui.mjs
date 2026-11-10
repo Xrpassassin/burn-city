@@ -14,14 +14,36 @@ export function mountEstateHangarLogbook(container,propertyId,{api='',fetcher=fe
  const status=document.createElement('p');status.setAttribute('role','status');
  status.style.cssText='font:12px/1.5 system-ui;color:#ffce96';
  root.appendChild(status);container.appendChild(root);
- let busy=false;
+ const sessionToken=storage?.getItem('bcToken')||'';
+ let busy=false,closed=false;
+ // Prevent a private owner's journal from remaining visible when the wallet
+ // changes in this tab (storage events do not fire in their originating tab).
+ function closePrivate(reason=''){
+  if(closed)return;
+  closed=true;clearInterval(sessionMonitor);
+  window.removeEventListener('storage',checkSession);window.removeEventListener('focus',checkSession);
+  if(reason&&root.isConnected){root.replaceChildren();root.appendChild(element('p',reason));}
+ }
+ function checkSession(){
+  if(closed)return false;
+  if(!root.isConnected){closePrivate();return false;}
+  if((storage?.getItem('bcToken')||'')!==sessionToken){
+   closePrivate('Wallet changed. Reopen the Hangar Logbook using the current owner wallet.');
+   return false;
+  }
+  return true;
+ }
+ const sessionMonitor=setInterval(checkSession,750);
+ window.addEventListener('storage',checkSession);window.addEventListener('focus',checkSession);
  async function request(path,body){
+  if(!checkSession())throw Error('Hangar session closed or wallet changed.');
   const token=storage?.getItem('bcToken');
-  if(!token)throw Error('Connect the owning Xaman wallet to open this hangar.');
+  if(!token||token!==sessionToken)throw Error('Connect the owning Xaman wallet to open this hangar.');
   const res=await fetcher(api+'/api/estates/tycoon/hangar'+path,{
    method:body?'POST':'GET',cache:'no-store',headers:{authorization:'Bearer '+token,
     'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
   const json=await res.json();
+  if(!checkSession())throw Error('Wallet changed before the private hangar request completed.');
   if(!res.ok||json.ok!==true)
    throw Error(({property_owner_required:'Only the verified estate owner may manage this hangar.',
     helicopter_not_unlocked:'Purchase and verify the helicopter upgrade to open the hangar.',
@@ -41,7 +63,7 @@ export function mountEstateHangarLogbook(container,propertyId,{api='',fetcher=fe
   select.value=value;label.append(select);return {label,select};
  }
  function display(data){
-  if(!root.isConnected)return;
+  if(!root.isConnected||closed||!checkSession())return;
   root.replaceChildren();
   root.appendChild(element('h4','ESTATE HANGAR · '+data.style.callsign));
   const summary=element('p',data.totals.completedFlights+' completed flights · '+Math.floor(data.totals.flightSeconds/60)+' recorded minutes · '+data.totals.stopIds.length+'/3 viewpoints');
@@ -90,5 +112,5 @@ export function mountEstateHangarLogbook(container,propertyId,{api='',fetcher=fe
   finally{busy=false;}
  }
  void refresh();
- return {root,refresh};
+ return {root,refresh,dispose:()=>closePrivate()};
 }

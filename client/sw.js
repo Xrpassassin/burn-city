@@ -3,9 +3,9 @@
 // - Everything else on our origin (HTML, app code, data.js, data/*.json): NETWORK-FIRST,
 //   cache only used when offline -> nightly data refresh and new code always win when online.
 // - Live feed (wss://) and GoatCounter are never touched by the SW.
-const VERSION = 'bc-v132-estates-late-confirm';
+const VERSION = 'bc-v138-estates-3d-shop-preview';
 const SHELL = `${VERSION}-shell`, RUNTIME = `${VERSION}-runtime`;
-const PRECACHE = ['js/estate-ownership-ui.mjs', 'estate-properties.html', 'estate-buyer-preview.js', 'js/estate-portfolio-ui.mjs', 'js/estate-reward-scenario.mjs', 'js/estates-directory.mjs', 'js/estates-panel-layout.mjs', 'js/estates-walking-guidance.mjs', 'js/estate-prestige-ui.mjs', 'js/estates-house-design.mjs', 'js/nft-avatar-placeholder.js', './', 'index.html', 'style.css', 'ui.css', 'data.js', 'burned.js', 'launchpad.js', 'ads.js', 'manifest.webmanifest',
+const PRECACHE = ['js/estate-ownership-ui.mjs', 'estate-properties.html', 'estate-buyer-preview.js', 'js/estate-portfolio-ui.mjs', 'js/estate-reward-scenario.mjs', 'js/estates-directory.mjs', 'js/estates-panel-layout.mjs', 'js/estates-walking-guidance.mjs', 'js/estate-prestige-ui.mjs', 'js/estate-tycoon-ui.mjs', 'js/estates-tycoon-decor.mjs', 'js/estates-tycoon-architecture.mjs', 'js/estates-secret-layout.mjs', 'js/estates-secret-interior-renderer.mjs', 'js/estates-helicopter-flight.mjs', 'js/estates-helicopter-world.mjs', 'js/estates-hangar-ui.mjs', 'js/estates-house-design.mjs', 'js/nft-avatar-placeholder.js', './', 'index.html', 'style.css', 'ui.css', 'data.js', 'burned.js', 'launchpad.js', 'ads.js', 'manifest.webmanifest',
   'js/app.js', 'js/estate-purchase-ui.mjs', 'js/estate.js', 'js/drone.js', 'js/live.js', 'js/net.js', 'js/pwa.js', 'js/extras.js', 'js/city.js', 'js/nftchar.js', 'js/nft-avatar-adapters.js', 'js/nft-avatar-components.js', 'js/nft-avatar-reconstruction.js',  'js/walker.js', 'js/player-motion.mjs', 'js/jetpack-shop.mjs', 'js/jetpack-city.mjs', 'js/nftpick.js', 'js/fx2.js', 'js/retain.js', 'js/fish.js', 'js/boat.js', 'js/npc.js', 'js/debug.js', 'js/ui.js', 'js/replay.js', 'js/tower-interior.js', 'js/skate.js', 'js/streetprops.js', 'js/citylife.js', 'js/events.js', 'js/airport.js', 'js/experience-registry.mjs', 'js/estates-city-lake-geometry.mjs', 'js/estates-entry-adapter.mjs', 'js/estates-island-scene.mjs', 'js/estates-island-renderer.mjs', 'js/estates-island-runtime.mjs', 'js/estates-island-navigation.mjs', 'js/estates-island-controller.mjs', 'js/estates-island-live.mjs', 'js/skategear.js', 'js/aegis.js', 'js/aegis-pyramid.js', 'js/rainbow.js', 'js/goldlock.js', 'js/amm-lock.js', 'js/wilds-gate.js',   // The Wilds: only the tiny gate stub is precached; wilds*.js, data/wilds/*.json are runtime-cached on demand, music/ is never cached
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
   'vendor/three/build/three.module.min.js',
@@ -25,6 +25,9 @@ const isImmutable = u => u.pathname.includes('/vendor/') || u.pathname.includes(
 self.addEventListener('fetch', e => {
   const req = e.request; if (req.method !== 'GET') return;
   const u = new URL(req.url); if (u.origin !== location.origin) return;
+  // Never cache bearer-authenticated Estates, portfolio, access decisions or any API responses.
+  // A service-worker fallback must not show one wallet's private state to another.
+  if (u.pathname.startsWith('/api/')) { e.respondWith(fetch(req, {cache:'no-store'})); return; }
   if (u.pathname.includes('/music/') && !u.pathname.endsWith('.json')) return; // audio: streamed straight from network, never cached // CDN, analytics, ledger: straight to network
   if (isImmutable(u)) {
     e.respondWith(caches.match(req, {ignoreSearch: true}).then(r => r || fetch(req).then(res => {

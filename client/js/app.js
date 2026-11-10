@@ -1449,7 +1449,29 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
  const run=keys.ShiftLeft||keys.ShiftRight||tb.run,sp=speedFor(run);
  const f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0)-joy.y,s=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+joy.x;
  if(window.__estatesIslandLive?.active){
-  const island=window.__estatesIslandLive,board=window.__skate,ml=Math.min(1,Math.hypot(f,s));let desiredDelta=null,boardHeading=null;
+  const island=window.__estatesIslandLive;
+  if(island.flightActive){
+   // Aircraft motion owns the entire airborne frame. Do not run on-foot gravity,
+   // skating/jetpack physics or the walking avatar pose after this update.
+   island.tick(dt,f,s,run);
+   avatar.position.copy(P.pos);avatar.visible=!P.fp&&!island.flightActive;
+   P.near=null;$('prompt').style.display='none';$('tUse')?.classList.remove('hot');
+   me.set(P.pos,avatar.rotation.y,'idle',P.district);
+   return;
+  }
+  if(island.interiorActive){
+   // Indoor movement is fully owned by the private 3D room controller. Avoid
+   // applying city gravity, jetpack jumps and skate physics to a room avatar.
+   const ml=Math.min(1,Math.hypot(f,s));
+   island.tick(dt,f,s,run);
+   P.walk+=Math.max(0,Math.min(dt,.1))*ml*(run?MOTION.runCadence:MOTION.walkCadence);
+   poseWalker(avatar,P.walk,ml,performance.now()/1000);
+   avatar.position.copy(P.pos);avatar.visible=!P.fp;
+   P.near=null;$('prompt').style.display='none';$('tUse')?.classList.remove('hot');
+   me.set(P.pos,avatar.rotation.y,ml>.05?(run?'run':'walk'):'idle',P.district);
+   return;
+  }
+  const board=window.__skate,ml=Math.min(1,Math.hypot(f,s));let desiredDelta=null,boardHeading=null;
   if(board?.active){const oldX=P.pos.x,oldZ=P.pos.z;board.drive(dt,f,s);desiredDelta={x:P.pos.x-oldX,z:P.pos.z-oldZ};P.pos.x=oldX;P.pos.z=oldZ;boardHeading=avatar.rotation.y;}
   else {const fw=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw)),rt=new THREE.Vector3(-fw.z,0,fw.x),mv=fw.multiplyScalar(f).add(rt.multiplyScalar(s));if(ml>.05)mv.normalize().multiplyScalar(sp*ml);
    if(jetStep(dt,mv))desiredDelta={x:JET.v.x*dt,z:JET.v.z*dt};else if((keys.Space||tb.jump)&&P.onGround){P.vel.y=MOTION.jump;P.onGround=false;}

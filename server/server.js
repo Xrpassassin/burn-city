@@ -30,7 +30,9 @@ const estateResale=require('./estate-resale-market').createEstateResaleMarket(Pa
   xamanSdk:{payload:{create:(...a)=>Pay.sdk().payload.create(...a),get:(...a)=>Pay.sdk().payload.get(...a)}}});
 const {estateTreasuryMonitor}=require('./estate-treasury-monitor');
 const estatePrestige = require('./estate-prestige-runtime').createEstatePrestigeRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
+const estateTycoon = require('./estate-tycoon-runtime').createEstateTycoonRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const EstateAccess = require('./estate-access');
+const estateHangar = require('./estate-hangar-logbook').createEstateHangarLogbook({db:Pay.sdb,tycoonStore:estateTycoon.store,accessFor:EstateAccess.accessFor});
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
 const estatesInstance = createEstatesInstanceManager({maxLeases:40});
@@ -215,6 +217,10 @@ const server = http.createServer(async (req, res) => {
       if (gate('estates-appearance-ip:' + ip, 60, 60e3)) return json(res, 429, {error:'slow_down'});
       return json(res, 200, estatePrestige.publicState());
     }
+    if (url.pathname === '/api/estates/tycoon/world' && req.method === 'GET') {
+      if(gate('estates-tycoon-world-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
+      return json(res,200,{...estateTycoon.publicState(),helicopterStyles:estateHangar.publicStyles()});
+    }
     if (url.pathname === '/api/estates/tour' && req.method === 'GET') {   // public tour check: unowned interiors are open to anyone (enter/inspect only); owned ones need sign-in + owner/invite
       if (gate('estates-tour-ip:' + ip, 60, 60e3)) return json(res, 429, { error: 'slow_down' });
       const u = who(), result = EstateAccess.accessFor(u ? u.acct : '', String(url.searchParams.get('propertyId') || ''));
@@ -226,7 +232,71 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates' && req.method === 'GET') return json(res, 200, ({...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct)}));
       if (url.pathname === '/api/estates/portfolio' && req.method === 'GET') return json(res,200,{
         ...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct),
-        portfolio:readEstatePortfolio({db:Pay.sdb,owner:u.acct})});
+        portfolio:readEstatePortfolio({db:Pay.sdb,owner:u.acct}),tycoon:estateTycoon.portfolio(u.acct)});
+      if (url.pathname === '/api/estates/tycoon/state' && req.method === 'GET') {
+        const propertyId=String(url.searchParams.get('propertyId')||'');
+        try{const state=estateTycoon.store.state(propertyId),access=estateTycoon.store.quote({propertyId,buyer:u.acct,itemId:'porch-lights'});
+          return json(res,200,{...state,ownerAuthorized:access.ownerAuthorized,pending:access.pending,purchasesEnabled:estateTycoon.enabled()});}
+        catch(e){return json(res,404,{error:e.message==='unknown_property'?'unknown_property':'tycoon_state_unavailable'});}
+      }
+      if (url.pathname === '/api/estates/tycoon/interior-options' && req.method === 'GET') {
+        const result=require('./estate-tycoon-rooms').privateRoomOptions({
+          propertyId:String(url.searchParams.get('propertyId')||''),acct:u.acct,
+          accessFor:EstateAccess.accessFor,tycoonStore:estateTycoon.store
+        });
+        return json(res,result.ok?200:result.error==='unknown_property'?404:403,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/interior-access' && req.method === 'GET') {
+        const result=require('./estate-tycoon-rooms').privateRoomAccess({
+          propertyId:String(url.searchParams.get('propertyId')||''),roomId:String(url.searchParams.get('roomId')||''),
+          acct:u.acct,accessFor:EstateAccess.accessFor,tycoonStore:estateTycoon.store
+        });
+        return json(res,result.ok?200:result.error==='unknown_private_room'||result.error==='unknown_property'?404:403,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/helicopter-access' && req.method === 'GET') {
+        const result=require('./estate-tycoon-rooms').estateHelicopterAccess({
+          propertyId:String(url.searchParams.get('propertyId')||''),acct:u.acct,
+          accessFor:EstateAccess.accessFor,tycoonStore:estateTycoon.store
+        });
+        return json(res,result.ok?200:result.error==='unknown_property'?404:403,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/hangar' && req.method === 'GET') {
+        const result=estateHangar.snapshot(String(url.searchParams.get('propertyId')||''),u.acct);
+        return json(res,result.ok?200:403,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/hangar/style' && req.method === 'POST') {
+        if(gate('estate-hangar-style:'+u.acct,10,60000))return json(res,429,{ok:false,error:'slow_down'});
+        const b=await body(),result=estateHangar.setStyle({propertyId:String(b?.propertyId||''),acct:u.acct,paint:b?.paint,trim:b?.trim,callsign:b?.callsign});
+        return json(res,result.ok?200:result.error==='invalid_hangar_style'?400:403,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/hangar/flight/start' && req.method === 'POST') {
+        if(gate('estate-hangar-start:'+u.acct,8,60000))return json(res,429,{ok:false,error:'slow_down'});
+        const b=await body(),result=estateHangar.startFlight({propertyId:String(b?.propertyId||''),acct:u.acct});
+        return json(res,result.ok?200:403,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/hangar/flight/finish' && req.method === 'POST') {
+        if(gate('estate-hangar-finish:'+u.acct,20,60000))return json(res,429,{ok:false,error:'slow_down'});
+        const b=await body(),result=estateHangar.finishFlight({
+          propertyId:String(b?.propertyId||''),acct:u.acct,sessionId:b?.sessionId,
+          durationSeconds:b?.durationSeconds,routeVisited:b?.routeVisited,landed:b?.landed
+        });
+        return json(res,result.ok?200:result.error?.startsWith('invalid_')?400:403,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/portfolio' && req.method === 'GET')return json(res,200,estateTycoon.portfolio(u.acct));
+      if (url.pathname === '/api/estates/tycoon/quote' && req.method === 'GET') {
+        const result=estateTycoon.quote({propertyId:String(url.searchParams.get('propertyId')||''),itemId:String(url.searchParams.get('itemId')||''),buyer:u.acct});
+        return json(res,result.ok?200:400,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/start' && req.method === 'POST') {
+        if(gate('estate-tycoon-start:'+u.acct,5,600000))return json(res,429,{error:'slow_down'});
+        const b=await body(),result=await estateTycoon.start({propertyId:String(b?.propertyId||''),itemId:String(b?.itemId||''),buyer:u.acct});
+        return json(res,result.ok?200:409,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/confirm' && req.method === 'POST') {
+        if(gate('estate-tycoon-confirm:'+u.acct,15,60000))return json(res,429,{error:'slow_down'});
+        const b=await body(),result=await estateTycoon.confirm({orderId:String(b?.orderId||''),buyer:u.acct});
+        return json(res,result.ok?200:result.pending?202:409,result);
+      }
       if (url.pathname === '/api/estates/upgrade/quote' && req.method === 'GET') {const result=estatePrestige.quote({propertyId:String(url.searchParams.get('propertyId')||''),buyer:u.acct});return json(res,result.ok?200:400,result);}
       if (url.pathname === '/api/estates/upgrade/start' && req.method === 'POST') {
         if(gate('estate-upgrade-start:'+u.acct,5,600000))return json(res,429,{error:'slow_down'});

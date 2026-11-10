@@ -1,0 +1,56 @@
+name: Estates tycoon upgrade ledger
+on:
+  push:
+    branches:
+      - 'feature/estates-tycoon-upgrades-*'
+  pull_request:
+    paths:
+      - 'server/estate-tycoon*'
+      - 'client/js/estates-secret-*'
+      - 'client/js/estates-helicopter-*'
+      - 'client/js/estates-hangar-*'
+      - 'server/estate-hangar-*'
+      - 'client/sw.js'
+      - 'server/server.js'
+      - 'test/estate-tycoon-http.test.js'
+      - 'test/estate-hangar-http.test.js'
+      - 'client/js/estate-portfolio-ui.mjs'
+      - 'client/js/estate-tycoon*'
+      - 'client/js/estates-tycoon*'
+      - 'docs/estates-realistic-upgrade-ladder.md'
+      - 'client/js/estates-island-renderer.mjs'
+      - 'client/js/estates-island-live.mjs'
+      - 'client/js/app.js'
+      - 'package.json'
+      - '.github/workflows/estates-tycoon.yml'
+permissions:
+  contents: read
+jobs:
+  tycoon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: |
+          node --check server/estate-tycoon.js
+          node --check server/estate-tycoon-runtime.js
+          node --check server/server.js
+          node --check client/js/estate-tycoon-ui.mjs
+          node --check client/js/estates-tycoon-decor.mjs
+          node --check client/js/estates-tycoon-architecture.mjs
+          node --check client/js/estates-helicopter-flight.mjs
+          node --check client/js/estates-helicopter-world.mjs
+          node --check server/estate-tycoon-rooms.js
+          node --check server/estate-hangar-logbook.js
+          node --check client/js/estates-hangar-ui.mjs
+          node --check client/js/estates-island-live.mjs
+          node --check --input-type=module < client/js/app.js
+          npm run -s test:estate-tycoon
+          node client/js/estates-island-renderer.test.mjs
+          node client/js/estates-island-live.test.mjs
+          node server/estate-prestige-runtime.test.js
+          node server/estate-portfolio.test.js
+          node server/estate-price-weights.test.js

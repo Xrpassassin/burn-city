@@ -1,4 +1,5 @@
 import { renderEstateHouses } from './estates-house-design.mjs';
+import { createEstateTycoonDecor } from './estates-tycoon-decor.mjs';
 // Optional Three.js renderer adapter for buildEstatesIslandScene().
 // Pass the same THREE namespace already used by the host experience; no new CDN or bundle dependency.
 const PALETTE = {
@@ -122,6 +123,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
   const houseRoot=new THREE.Group();houseRoot.name='estates-property-architecture';root.add(houseRoot);
   const lots=source.objects.filter(item=>item.kind==='property-lot'&&item.buildingFootprint);
   const boundaries=new Map(lots.map(item=>[item.id,objects.get(item.id)]));
+  const tycoonDecor=createEstateTycoonDecor({THREE,parent:root,lots});
   let disposed=false,appearanceKey=null;
   function setOwnership(properties=[]){
     if(disposed)return false;
@@ -152,11 +154,14 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     root,
     setAppearance,
     setOwnership,
+    setUpgrades:tycoonDecor.setUpgrades,
+    previewUpgrade:tycoonDecor.previewUpgrade,
+    clearUpgradePreview:tycoonDecor.clearUpgradePreview,
     getObject(id){return objects.get(id)??null;},
     get objectCount(){return objects.size;},
     dispose(){
       if(disposed)return false;
-      disposed=true; scene.remove(root);
+      disposed=true; tycoonDecor.dispose(); scene.remove(root);
       root.traverse?.(node=>{
         node.geometry?.dispose?.();
         if(Array.isArray(node.material)) node.material.forEach(m=>m?.dispose?.()); else node.material?.dispose?.();

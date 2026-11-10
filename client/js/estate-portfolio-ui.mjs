@@ -1,4 +1,6 @@
 import {mountEstatePurchase,mountEstateImgTrustline} from './estate-purchase-ui.mjs';
+import {mountEstateTycoon} from './estate-tycoon-ui.mjs';
+import {mountEstateHangarLogbook} from './estates-hangar-ui.mjs';
 import {formatRewardUnits,sharePercent,rewardScenario} from './estate-reward-scenario.mjs';
 
 export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localStorage,api}={}){
@@ -36,7 +38,9 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
     // Keep at most one expanded detail panel across the directory.
     for(const other of $('properties').querySelectorAll('[data-purchase-detail]'))if(other!==target)other.replaceChildren();
     if(target.childElementCount){target.replaceChildren();button.setAttribute('aria-expanded','false');return;}
-    mountEstatePurchase(target,p.id,{api,fetcher,storage,onSettled:()=>void refresh()});button.setAttribute('aria-expanded','true');
+    mountEstatePurchase(target,p.id,{api,fetcher,storage,onSettled:()=>void refresh()});
+    if(mine)mountEstateTycoon(target,p.id,{api,fetcher,storage,onConfirmed:()=>void refresh()});
+    button.setAttribute('aria-expanded','true');
    });button.setAttribute('aria-expanded','false');card.append(button,target);$('properties').append(card);
   }
  }
@@ -68,13 +72,15 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  }
  function renderPortfolio(s){
   current=s;const report=s.portfolio,records=new Map(report.properties.map(p=>[p.propertyId,p]));
-  $('portfolio-summary').textContent=report.portfolioShareUnits+' / '+report.totalShareUnits+' current share units · '+sharePercent(report.portfolioShareUnits,report.totalShareUnits)+'% of current eligible weight. This is a reward share, not a fixed payout rate.';
+  const recorded=s.tycoon,tycoonRows=new Map((recorded?.properties||[]).map(p=>[p.propertyId,p]));
+  $('portfolio-summary').textContent=report.portfolioShareUnits+' / '+report.totalShareUnits+' current eligible reward share units · '+sharePercent(report.portfolioShareUnits,report.totalShareUnits)+'% of current eligible weight. '+(recorded?'Estates Tycoon development ledger: '+recorded.recordedShareUnits+' total recorded units, including '+recorded.upgradeShareUnits+' upgrade units, and '+formatRewardUnits(recorded.recordedValueDrops)+' XRP recorded development spending. Upgrade units are NOT active payout weight yet. ':'')+'No payout is guaranteed; recorded property spend is not market value.';
   $('owned-properties').replaceChildren();
   if(!s.owned.length)$('owned-properties').append(make('p','No verified properties in this wallet yet.'));
   for(const p of s.owned){
-   const r=records.get(p.propertyId),card=make('article');card.dataset.ownedProperty=p.propertyId;
+   const r=records.get(p.propertyId),tycoon=tycoonRows.get(p.propertyId),card=make('article');card.dataset.ownedProperty=p.propertyId;
    card.append(make('h3',p.property?.address||p.propertyId),make('p',p.tier?.label||p.property?.tier||''),
     field('Current reward share',sharePercent(p.shareUnits,report.totalShareUnits)+'% ('+p.shareUnits+' units)'));
+   if(tycoon)card.append(field('Tycoon development value',formatRewardUnits(tycoon.recordedValueDrops)+' XRP (verified spending, not market appraisal)'),field('Recorded property share balance',tycoon.recordedShareUnits+' units ('+tycoon.upgradeShareUnits+' from upgrades; not active payout weight)'));
    const funding=s.capitalAllocations?.find(a=>a.property_id===p.propertyId)?.fundingState;
    const allocation=s.capitalAllocations?.find(a=>a.property_id===p.propertyId);if(allocation)card.append(field(allocation.policy_version===1?'Historic funding record':'Funding route',allocation.pool||'Funding record unavailable'));
    card.append(field('Pool funding',({awaiting_pool:'Awaiting IMG/RLUSD pool activation',invested:'Invested',in_progress:'In progress',pending:'Awaiting execution',review_needed:'Awaiting review',legacy_retired_review:'Legacy route retired · prior funding under review'})[funding]||'Status unavailable'));
@@ -84,6 +90,15 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
     field('XRP profit allocated · last 24h',xrp?formatRewardUnits(r.xrpAllocated24hDrops)+' XRP':'History unavailable'),
     field('Approx. historical hourly average',xrp?formatRewardUnits(r.xrpAverageHourlyDrops)+' XRP/h':'Unavailable'),
     make('p','24-hour averages include zero-reward hours. Allocations are before delivery costs and may still be awaiting payment; they do not predict future earnings.','muted'),cityLink(p.propertyId));
+   if(tycoon?.unlockedItemIds?.includes('estate-helicopter')){
+    const hangarPanel=make('div');hangarPanel.dataset.estateHangarPanel=p.propertyId;
+    const openHangar=action('Open private Hangar Logbook',()=>{
+     if(hangarPanel.childElementCount){hangarPanel.replaceChildren();openHangar.setAttribute('aria-expanded','false');return;}
+     mountEstateHangarLogbook(hangarPanel,p.propertyId,{api,fetcher,storage});
+     openHangar.setAttribute('aria-expanded','true');
+    });
+    openHangar.setAttribute('aria-expanded','false');card.append(openHangar,hangarPanel);
+   }
    $('owned-properties').append(card);
   }
   $('history-through').textContent=report.dataThroughMs?'IMG ledger coverage through '+new Date(report.dataThroughMs).toLocaleString()+(report.scannerCurrent?'':'. Coverage is delayed; recent allocations may be missing.'):'Verified ledger coverage is not available yet.';

@@ -1,0 +1,52 @@
+name: Estates gameplay WebGL visual smoke
+on:
+  pull_request:
+    paths:
+      - 'client/js/estates-tycoon*'
+      - 'client/js/estates-house-design.mjs'
+      - 'client/js/estates-helicopter*'
+      - 'client/js/estates-island-live.mjs'
+      - 'client/js/estates-secret-*'
+      - 'client/js/app.js'
+      - 'scripts/estates-gameplay-browser-preview.mjs'
+      - '.github/workflows/estates-gameplay-browser-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --omit=dev
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Start isolated DRY_RUN world (never production)
+        run: |
+          DRY_RUN=true BURN_JOB_IN_SERVER=false PORT=8080 DATA_DIR=$(mktemp -d) node server/server.js > /tmp/estates-gameplay-browser.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/estates-gameplay-browser.log
+          exit 1
+      - run: node scripts/estates-gameplay-browser-preview.mjs
+        env:
+          ESTATES_BROWSER: ${{ matrix.browser }}
+          ESTATES_GAMEPLAY_OUTPUT: estates-gameplay-preview-output
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: estates-gameplay-webgl-previews-${{ matrix.browser }}
+          path: estates-gameplay-preview-output/
+          if-no-files-found: ignore
+      - if: failure()
+        run: if [ -f /tmp/estates-gameplay-browser.log ]; then tail -n 200 /tmp/estates-gameplay-browser.log; fi

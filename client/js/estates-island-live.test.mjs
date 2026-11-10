@@ -46,7 +46,8 @@ assert(live.indexOf("await leaseRequest('enter',{clientId})") < live.indexOf('ac
 assert(live.includes('window.__cityNet?.setPaused(true)'), 'entry pauses city presence');
 assert(live.includes('window.__cityNet?.setPaused(false)'), 'exit resumes city presence');
 assert(live.includes('connectPresence(leaseToken,admission.instanceId)'), 'admitted visitors connect to island presence');
-assert(live.includes("exitButton.addEventListener('click',()=>leaveIsland())"), 'return button exits the island');
+assert(live.includes("exitButton.addEventListener('click',()=>flightSession?endHelicopterFlight(true):secretSession?leaveSecretInterior():leaveIsland())"), 'return button exits active flight or private room before returning to island');
+assert(live.includes("returnToCity(){if(disposed||!active)return false;leaveIsland();return true;}"), 'explicit city exit remains available regardless of mode');
 assert(live.includes("skyline.name='estates-city-horizon'"), 'island has a city-facing horizon');
 assert(live.includes('stopPresence();'), 'island presence is closed on release');
 assert(live.includes('active=false; root.visible=false; hidePanel(); controllerRef.dispose();'), 'exit hides island and disposes active controller');
@@ -59,6 +60,8 @@ assert(live.includes('check purchase availability'), 'home inspection describes 
 assert(live.includes('Private homes are for their owners and invited guests.'), 'private access is explained without inferring ownership from a catalog record');
 assert(live.includes('updateLandmarkInteraction(edge,Boolean(result.property))'), 'public landmark interactions are checked in the live exploration loop');
 assert(live.includes('showLandmarkDetails(nearest)'), 'pressing E opens a landmark detail panel');
+assert(live.includes('onPreview:itemId=>renderer.previewUpgrade(property.propertyId,itemId)'), 'Tycoon shop has a real in-world 3D preview callback');
+assert(live.includes('renderer.clearUpgradePreview();directoryCleanup?.()'), 'closing property inspection clears all non-owned ghost upgrades');
 assert(live.includes('no ownership or transaction is implied'), 'landmark interactions cannot imply ownership or a live transaction');
 assert(live.includes('if(property.confirmedInteraction){showLotInspection(property);return;}'), 'E-key interaction opens the lot inspection directly');
 assert.equal((live.match(/onPropertyPrompt:property=>\{lastProperty=property;lastLandmarkId=null;showLotPrompt\(property\);\}/g)||[]).length,2,'initial and recreated island controllers share the same lot prompt behavior');

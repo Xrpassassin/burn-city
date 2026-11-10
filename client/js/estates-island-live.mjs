@@ -515,20 +515,26 @@ export async function installEstatesIslandLive({
     try{
       const token=await pilotAuthorization(propertyId);
       if(disposed||!active||secretSession||flightSession||!helicopters.hasHelicopter(propertyId))return false;
-      let journalId=null,logbookStatus='unavailable';
-      // An unavailable logbook never turns into a fictional completed flight.
-      try{
-        const [data,record]=await Promise.all([
-          hangarRequest('?propertyId='+encodeURIComponent(propertyId),propertyId),
-          hangarRequest('/flight/start',propertyId,{})
-        ]);
-        if(disposed||!active||secretSession||flightSession)return false;
-        helicopters.setStyle(propertyId,data.style);journalId=record.sessionId;logbookStatus='recording';
-      }catch{logbookStatus='unsaved';}
+      let journalId=null,logbookStatus='unsaved',callsign='BURN AIR';
+      // Appearance loading and journal creation fail independently: a cosmetic read
+      // outage must never strand a valid server-created flight session.
+      const [profileAttempt,sessionAttempt]=await Promise.allSettled([
+        hangarRequest('?propertyId='+encodeURIComponent(propertyId),propertyId),
+        hangarRequest('/flight/start',propertyId,{})
+      ]);
+      if(disposed||!active||secretSession||flightSession)return false;
+      if(profileAttempt.status==='fulfilled'){
+        helicopters.setStyle(propertyId,profileAttempt.value.style);
+        callsign=profileAttempt.value.style.callsign;
+      }
+      if(sessionAttempt.status==='fulfilled'){
+        journalId=sessionAttempt.value.sessionId;
+        logbookStatus='recording';
+      }
       const model=helicopters.board(propertyId);
       if(!model)return false;
       const avatarWasVisible=avatar.visible,former={x:player.pos.x,y:player.pos.y,z:player.pos.z};
-      flightSession={propertyId,model,token,avatarWasVisible,former,verifiedAt:Date.now(),last:null,unlockedAt:Date.now(),journalId,logbookStatus};
+      flightSession={propertyId,model,token,avatarWasVisible,former,verifiedAt:Date.now(),last:null,unlockedAt:Date.now(),journalId,logbookStatus,callsign};
       stopPresence();avatar.visible=false;
       player.vel?.set(0,0,0);player.fp=false;player.onGround=true;player.climb=null;
       const p=model.position;
@@ -598,7 +604,7 @@ export async function installEstatesIslandLive({
       camera.position.y+(desired.y-camera.position.y)*blend,camera.position.z+(desired.z-camera.position.z)*blend);
     camera.lookAt(player.pos.x,player.pos.y+1,player.pos.z);
     const mins=Math.floor(result.elapsed/60),secs=Math.floor(result.elapsed%60);
-    flightStatus.textContent='ESTATES PRIVATE AVIATION\nAltitude '+Math.round(result.position.altitude)+' m · '+Math.round(result.speed)+' m/s'+
+    flightStatus.textContent='ESTATES PRIVATE AVIATION · '+s.callsign+'\nAltitude '+Math.round(result.position.altitude)+' m · '+Math.round(result.speed)+' m/s'+
       '\nFlight '+mins+':'+String(secs).padStart(2,'0')+' · Lookouts '+result.routeVisited.length+'/3'+
       (result.landmark?'\nReached '+result.landmark:'')+
       '\nWASD/movement to steer · SPACE/R ascend · SHIFT/F descend'+

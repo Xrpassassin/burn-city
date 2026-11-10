@@ -46,7 +46,8 @@ assert(live.indexOf("await leaseRequest('enter',{clientId})") < live.indexOf('ac
 assert(live.includes('window.__cityNet?.setPaused(true)'), 'entry pauses city presence');
 assert(live.includes('window.__cityNet?.setPaused(false)'), 'exit resumes city presence');
 assert(live.includes('connectPresence(leaseToken,admission.instanceId)'), 'admitted visitors connect to island presence');
-assert(live.includes("exitButton.addEventListener('click',()=>leaveIsland())"), 'return button exits the island');
+assert(live.includes("exitButton.addEventListener('click',()=>flightSession?endHelicopterFlight(true):secretSession?leaveSecretInterior():leaveIsland())"), 'return button exits active flight or private room before returning to island');
+assert(live.includes("returnToCity(){if(disposed||!active)return false;leaveIsland();return true;}"), 'explicit city exit remains available regardless of mode');
 assert(live.includes("skyline.name='estates-city-horizon'"), 'island has a city-facing horizon');
 assert(live.includes('stopPresence();'), 'island presence is closed on release');
 assert(live.includes('active=false; root.visible=false; hidePanel(); controllerRef.dispose();'), 'exit hides island and disposes active controller');

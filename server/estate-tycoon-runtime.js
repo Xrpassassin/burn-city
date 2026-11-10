@@ -18,7 +18,7 @@ function createEstateTycoonRuntime({db,pay,config,env=process.env,paused=()=>tru
  async function start({propertyId,buyer,itemId}){
   const blocked=gate();if(blocked)return blocked;
   let r;try{r=store.reserve({propertyId,buyer,itemId,orderId:'tycoon_'+crypto.randomBytes(20).toString('hex'),now:clock()});}
-  catch(e){if(['property_owner_required','unknown_property','unknown_upgrade_item','upgrade_already_owned','upgrade_prerequisites_missing','another_upgrade_pending'].includes(e.message))return {ok:false,error:e.message};throw e;}
+  catch(e){if(['property_owner_required','unknown_property','unknown_upgrade_item','upgrade_already_owned','upgrade_prerequisites_missing','upgrade_tier_restricted','another_upgrade_pending'].includes(e.message))return {ok:false,error:e.message};throw e;}
   if(clock()>r.expires_at-60000)return {ok:false,error:'tycoon_order_requires_review',orderId:r.order_id};
   if(r.payload_uuid){
    const p=await pay.sdk().payload.get(r.payload_uuid);

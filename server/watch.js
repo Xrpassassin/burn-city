@@ -1,5 +1,7 @@
 // Treasury watchdog: any validated outgoing tx from the treasury that the payout queue or the burn job did not create
-// => persistent auto-pause (data/pause.json) + loud log. Unpause only via POST /admin/unpause.
+// is logged loudly. When TREASURY_WATCH_AUTOPAUSE is on (default), it also writes a persistent auto-pause
+// (data/pause.json). Unpause only via POST /admin/unpause. Set TREASURY_WATCH_AUTOPAUSE=0 to keep detecting
+// and recording those txs in watch_known.json without pausing payouts or estate sales.
 const fs = require('fs'), C = require('./config'), S = require('./store'), Q = require('./payq'), Guard = require('./guard');
 function known() { const k = new Set(S.load('watch_known.json', []));
   for (const r of Q.db.prepare('SELECT hash FROM payq WHERE hash IS NOT NULL UNION SELECT hash FROM payq_hist').all()) k.add(r.hash);
@@ -18,8 +20,20 @@ async function tick(ledger) {
     if (!st) { k.add(h); continue; }                                   // first run: baseline existing history
     const age = now - ((tx.date || 0) + 946684800) * 1000; if (!k.has(h) && age > 120e3) unknown.push({ hash: h, type: tx.TransactionType, to: tx.Destination, amount: tx.Amount }); }
   if (!st) { S.save('watch_known.json', [...k]); S.save('watch_state.json', { since: now }); return { baseline: k.size }; }
-  if (unknown.length && !Guard.paused()) { S.save('pause.json', { paused: true, t: now, reason: 'unexpected_outgoing_tx', unknown });
-    Guard.log('ALERT-unexpected-outgoing', { unknown }); console.error('[ALERT] treasury sent a tx not created by the game. Payouts paused.', JSON.stringify(unknown)); }
+  if (unknown.length) {
+    Guard.log('ALERT-unexpected-outgoing', { unknown, autopause: C.TREASURY_WATCH_AUTOPAUSE !== false });
+    if (C.TREASURY_WATCH_AUTOPAUSE !== false) {
+      if (!Guard.paused()) {
+        S.save('pause.json', { paused: true, t: now, reason: 'unexpected_outgoing_tx', unknown });
+        console.error('[ALERT] treasury sent a tx not created by the game. Payouts paused.', JSON.stringify(unknown));
+      }
+    } else {
+      const recorded = new Set(S.load('watch_known.json', []));
+      for (const u of unknown) recorded.add(u.hash);
+      S.save('watch_known.json', [...recorded]);
+      console.error('[ALERT] treasury sent a tx not created by the game. Autopause disabled; recorded and left payouts running.', JSON.stringify(unknown));
+    }
+  }
   return { unknown };
 }
 function start(ledger) { const run = () => tick(ledger).catch(e => console.error('watch', e.message)); setTimeout(run, 20e3); setInterval(run, 60e3); }

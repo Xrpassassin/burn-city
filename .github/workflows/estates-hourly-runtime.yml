@@ -30,6 +30,7 @@ on:
       - 'server/estate-img-*.js'
       - 'server/server.js'
       - 'server/watch.js'
+      - 'server/watch-autopause.test.js'
       - 'scripts/estate-bootstrap.cjs'
       - '.github/workflows/estates-hourly-runtime.yml'
 permissions:
@@ -62,6 +63,7 @@ jobs:
           node test/estate-sales-runtime-http.test.js
           node server/estate-instant-deposit.test.js
           node server/estate-sale-production-gates.test.js
+          node server/watch-autopause.test.js
   testnet:
     runs-on: ubuntu-24.04
     timeout-minutes: 20

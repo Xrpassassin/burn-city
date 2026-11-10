@@ -71,6 +71,7 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
  }
  const tokenDelta=(r,a)=>balanceDelta(r,treasury,a);
  // ---- purchase / redeposit deposits ----
+ let depositRunning=false;
  function syncPurchases(){
   // Every settled v3 allocation (and the #517 re-booked sale) becomes a queued two-sided deposit.
   if(!db.prepare("SELECT 1 FROM sqlite_master WHERE name='estate_capital_allocations'").get())return 0;
@@ -83,12 +84,19 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   let c=chunk;
   if(!c){
    if(row.kind==='purchase'&&BigInt(row.xrp_remaining_drops)>0n){
-    const legs=P.depositLegs(row.xrp_remaining_drops,cfg);
-    if(BigInt(legs.rlusdLegDrops)<BigInt(cfg.minSwapDrops))return {id:row.id,held:'below_min_swap'};
-    if(await spendableDrops()<BigInt(legs.spendDrops))return note(row,'insufficient_xrp');
+    if(BigInt(P.depositLegs(row.xrp_remaining_drops,cfg).rlusdLegDrops)<BigInt(cfg.minSwapDrops))return {id:row.id,held:'below_min_swap'};
     const [pl,xr,xi]=await Promise.all([pool(),xrpPool(xrpRlusdAsset),xrpPool(xrpImgAsset)]);
-    const qr=P.quoteSwap({amountIn:legs.rlusdLegDrops,poolIn:xr.drops,poolOut:xr.tokens,tradingFee:xr.tradingFee});
-    const qi=P.quoteSwap({amountIn:legs.imgLegDrops,poolIn:xi.drops,poolOut:xi.tokens,tradingFee:xi.tradingFee});
+    // Chunk size: per-run cap (maxDepositDrops), halved while either leg would exceed the
+    // price-impact cap. The impact guard below still applies to the final size unchanged.
+    let cap=BigInt(cfg.maxDepositDrops),legs,qr,qi;
+    for(;;){
+     legs=P.depositLegs(row.xrp_remaining_drops,{...cfg,maxDepositDrops:cap.toString()});
+     qr=P.quoteSwap({amountIn:legs.rlusdLegDrops,poolIn:xr.drops,poolOut:xr.tokens,tradingFee:xr.tradingFee});
+     qi=P.quoteSwap({amountIn:legs.imgLegDrops,poolIn:xi.drops,poolOut:xi.tokens,tradingFee:xi.tradingFee});
+     if((qr.impactBps<=cfg.maxPriceImpactBps&&qi.impactBps<=cfg.maxPriceImpactBps)||cap/2n<BigInt(cfg.minSwapDrops)*2n)break;
+     cap/=2n;
+    }
+    if(await spendableDrops()<BigInt(legs.spendDrops))return note(row,'insufficient_xrp');
     if(qr.impactBps>cfg.maxPriceImpactBps)return note(row,'guard:price_impact_rlusd_leg');
     if(qi.impactBps>cfg.maxPriceImpactBps)return note(row,'guard:price_impact_img_leg');
     const ref=qr.spot.div(qi.spot),poolPx=new N(pl.poolRlusd).div(pl.poolImg);
@@ -140,7 +148,10 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   if(!enabled)return {ok:false,error:'monthly_plan_disabled'};
   if(paused())return {ok:false,error:'treasury_paused'};
   syncPurchases();const out=[];
-  for(const row of L.queued())out.push(await processDeposit(row));
+  // Single-flight: a second caller (instant kick + timer) never runs a concurrent deposit pass.
+  if(depositRunning)return {ok:false,error:'deposit_run_in_progress'};
+  depositRunning=true;
+  try{for(const row of L.queued())out.push(await processDeposit(row));}finally{depositRunning=false;}
   return {ok:true,results:out};
  }
  // ---- monthly harvest, split, burn, redeposit, payouts ----
@@ -206,6 +217,6 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   return {policy:P.POLICY,enabled,cadence:'monthly',poolAccount:cfg.poolAccount||null,principalK:L.principalK(),trackedLp:L.trackedLp(),
    queuedDeposits:L.queued().length,pendingXrpDrops:L.pendingXrpDrops(),lastHarvestPeriod:L.lastPeriod(),payoutCurrencies:['IMG','RLUSD'],dustRlusd:cfg.dust};
  }
- return {processDeposits,runMonthly,status,syncPurchases,ledger:L,_send:send};
+ return {processDeposits,runMonthly,status,syncPurchases,queuedCount:()=>L.queued().length,ledger:L,_send:send};
 }
 module.exports={createEstateMonthlyExecutor};

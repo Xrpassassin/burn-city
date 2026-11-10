@@ -17,7 +17,7 @@ createEstateLatePaymentReconciliation(Pay.sdb); // Initialize durable review sch
 const estateReviewQueue = createEstateLatePaymentReviewQueue(Pay.sdb);
 const estateReviewAdminAccounts = parseEstateReviewAdminAccounts(process.env.ESTATE_REVIEW_ADMIN_ACCOUNTS || '');
 const estateReviewAudit = createEstateReviewAudit(Pay.sdb, { adminAccounts: [...estateReviewAdminAccounts] });
-const estateSales = createEstateSalesRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
+const estateSales = createEstateSalesRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused,onSettled:()=>estateMonthly.kick()});
 require('./guard').setEstateCapitalReserveReader(account=>account===C.ESTATE_TREASURY?estateSales.reservedCapitalDrops():'0');
 const estateMonthly = require('./estate-monthly-service').createEstateMonthlyService({db:Pay.sdb,pay:Pay,config:C,guard:require('./guard')});
 const estateHourly = require('./estate-hourly-service').createEstateHourlyService({db:Pay.sdb,pay:Pay,config:C,guard:require('./guard')});

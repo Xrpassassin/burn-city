@@ -4,6 +4,11 @@ on:
     paths:
       - 'server/estate-sale-finalization.js'
       - 'server/estate-sale-finalization.test.js'
+      - 'server/estate-sale-settlement.js'
+      - 'server/estate-sale-orchestrator.js'
+      - 'server/estate-sale-payment-verifier.js'
+      - 'server/estate-sale-late-review-queue.js'
+      - 'server/estate-sale-late-confirm.test.js'
       - '.github/workflows/estates-sale-finalization.yml'
   workflow_dispatch:
 jobs:
@@ -16,3 +21,4 @@ jobs:
           node-version: '22'
       - run: node --check server/estate-sale-finalization.js
       - run: node server/estate-sale-finalization.test.js
+      - run: node server/estate-sale-late-confirm.test.js

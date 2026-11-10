@@ -12,6 +12,17 @@ const PALETTE={
  screen:{color:0x1a5f8a,emissive:0x14548b,emissiveIntensity:.67,roughness:.4},
  emissive:{color:0x76edda,emissive:0x31c4a6,emissiveIntensity:1.2,roughness:.3}
 };
+// Simulated diffuse light bounce: an underground room has no outdoor
+// environment map. Physically based walls would otherwise be nearly black in
+// browsers with correct light falloff. This adds restrained indirect fill
+// without flattening the colored area lights or emergency-power effect.
+const INDIRECT_BOUNCE=Object.freeze({
+ concrete:{color:0x6b7481,power:.66},wall:{color:0x67798a,power:.68},
+ ceiling:{color:0x536174,power:.45},steel:{color:0x52697b,power:.31},
+ metal:{color:0x566f80,power:.28},wood:{color:0x6c574c,power:.25},
+ fabric:{color:0x5a6b7e,power:.31},rug:{color:0x554d66,power:.27},
+ velvet:{color:0x5f5472,power:.28},accent:{color:0x796952,power:.26}
+});
 function requireThree(THREE){
  for(const name of ['Group','Mesh','BoxGeometry','MeshStandardMaterial'])
   if(typeof THREE?.[name]!=='function')throw TypeError('missing_three_constructor_'+name);
@@ -34,15 +45,22 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   materials=new Map();illumination=[];active=null;
  }
  function material(name){
-  if(!materials.has(name))materials.set(name,new THREE.MeshStandardMaterial(PALETTE[name]||PALETTE.steel));
+  if(!materials.has(name)){
+   const options=PALETTE[name]||PALETTE.steel,bounce=INDIRECT_BOUNCE[name];
+   materials.set(name,new THREE.MeshStandardMaterial(bounce?
+    {...options,emissive:bounce.color,emissiveIntensity:bounce.power}:options));
+  }
   return materials.get(name);
  }
  function setPower(value){
   powerOn=!!value;
   for(const lamp of illumination)if('intensity' in lamp)
    lamp.intensity=powerOn?(lamp.userData?.onIntensity??1.2):(lamp.userData?.emergencyIntensity??.08);
-  const m=materials.get('emissive');
-  if(m)m.emissiveIntensity=powerOn?1.2:.08;
+  for(const [key,mat] of materials){
+   if(key==='emissive'){mat.emissiveIntensity=powerOn?1.2:.08;continue;}
+   const bounce=INDIRECT_BOUNCE[key];
+   if(bounce)mat.emissiveIntensity=powerOn?bounce.power:Math.min(.16,bounce.power*.35);
+  }
   return powerOn;
  }
  function setRoom(roomId){

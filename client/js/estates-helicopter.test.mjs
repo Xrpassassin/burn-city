@@ -35,7 +35,7 @@ class Group {
  traverse(fn){fn(this);for(const child of this.children)child.traverse?child.traverse(fn):fn(child);}
 }
 class Geometry{dispose(){this.disposed=true;}}
-class Material{constructor(options){this.options=options;}dispose(){this.disposed=true;}}
+class Material{constructor(options){this.options=options;this.color={value:options.color,setHex(hex){this.value=hex;}};}dispose(){this.disposed=true;}}
 class Mesh{constructor(geometry,material){this.geometry=geometry;this.material=material;this.position={set(){}};this.rotation={x:0,y:0,z:0};}}
 const THREE={Group,Mesh,BoxGeometry:Geometry,CylinderGeometry:Geometry,MeshStandardMaterial:Material};
 const root=new Group(),world=createEstateHelicopterWorld({THREE,parent:root,lots:[mansion,trailer]});
@@ -50,6 +50,13 @@ assert.equal(world.properties.length,1);
 const aircraft=root.children[0].children[0];
 assert(aircraft.children.some(x=>x.name==='private-helipad'));
 assert(aircraft.children.some(x=>x.name==='luxury-utility-helicopter'));
+assert.equal(world.setStyle('mansion-01',{paint:'royal',trim:'copper',callsign:'DRAGON ONE'}),true);
+const aircraftModel=aircraft.children.find(x=>x.name==='luxury-utility-helicopter');
+const fuselage=aircraftModel.children.find(x=>x.name==='fuselage');
+const roof=aircraftModel.children.find(x=>x.name==='roof');
+assert.equal(fuselage.material.color.value,0x55426f,'paint recolors fuselage');
+assert.equal(roof.material.color.value,0xd1784d,'trim recolors accent');
+assert.equal(world.setStyle('mansion-01',{paint:'forged',trim:'brass'}),false,'invalid owner paint choice cannot affect aircraft');
 assert.equal(world.board('mansion-01')?.position.altitude,1.4);
 assert.equal(world.board('mansion-01'),null,'only one flight session per local world');
 world.tick({propertyId:'mansion-01',position:{x:pad.x,z:pad.z,altitude:11},rotor:1.1,heading:.7,dt:.05});

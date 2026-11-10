@@ -5,8 +5,8 @@
 const {splitEstateCapital,POLICY}=require('./estate-capital-allocation');
 const {previewEstateStagedFunding}=require('./estate-rlusd-staged-funding-preview');
 function inspectEstateTierFundingCapacity({tiers,indicativeMaxPurchaseDrops}={}){
- if(!Array.isArray(tiers)||tiers.length===0||POLICY.version!==2||
-    POLICY.imgRlusdBps!==9900||POLICY.operatingReserveBps!==100)
+ if(!Array.isArray(tiers)||tiers.length===0||![2,3].includes(POLICY.version)||
+    POLICY.imgRlusdBps+POLICY.operatingReserveBps!==10000||POLICY.imgPlxBps!==0)
   throw Error('known_current_capital_policy_required');
  if(typeof indicativeMaxPurchaseDrops!=='string'||
     !/^(0|[1-9][0-9]*)$/.test(indicativeMaxPurchaseDrops))

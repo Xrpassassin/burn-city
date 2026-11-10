@@ -40,7 +40,7 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
   salesStatus:!configured?'sales_not_enabled':paused()?'treasury_paused':'open',
   purchaseTerms:terms?{version:terms.version,digest:terms.digest,url:terms.url}:null,
   capitalAllocationPolicy:POLICY,rewardsGuaranteed:false,imgXrpProfitDistributionsEnabled:false,
-  distributionSchedule:'hourly',payoutCurrencies:['IMG','XRP'],currency:'XRP',treasury:config.ESTATE_TREASURY});
+  distributionSchedule:'monthly',payoutCurrencies:['IMG','RLUSD'],currency:'XRP',treasury:config.ESTATE_TREASURY});
  const blocked=()=>!configured?{ok:false,error:'estate_sales_disabled'}:paused()?{ok:false,error:'estate_treasury_paused'}:null;
  const buyerBlock=input=>input?.buyer===config.ESTATE_TREASURY?{ok:false,error:'estate_treasury_cannot_purchase'}:null;
  function reserve(input){

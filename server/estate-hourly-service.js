@@ -9,13 +9,16 @@ const {createEstateRlusdHourScanner}=require('./estate-rlusd-validated-hour-scan
 function createEstateHourlyService({db,pay,config,guard,env=process.env}={}){
  const live=config.NETWORK==='mainnet'&&config.DRY_RUN===false;
  const accountingEnabled=live&&env.ESTATE_ACCOUNTING_ENABLED==='1';
- const payoutsEnabled=accountingEnabled&&env.ESTATE_DISTRIBUTIONS_ENABLED==='1';
+ // The hourly payout/funding/harvest cadence is retired (policy v3 pays monthly via
+ // estate-monthly-service.js). It can only be re-enabled with an explicit legacy switch.
+ const legacyHourly=env.ESTATE_LEGACY_HOURLY_ENGINE==='1';
+ const payoutsEnabled=accountingEnabled&&legacyHourly&&env.ESTATE_DISTRIBUTIONS_ENABLED==='1';
  const client={request:async q=>(await pay.ledger()).request(q),autofill:async q=>(await pay.ledger()).autofill(q)};
  const accounting=createEstateHourlyRuntime({db,client,treasury:config.ESTATE_TREASURY,imgIssuer:config.IMG_ISSUER,enabled:accountingEnabled});
  const executor=createEstatePayoutExecutor({db,client,treasury:config.ESTATE_TREASURY,imgIssuer:config.IMG_ISSUER,guard,enabled:payoutsEnabled,
   wallet:()=>{try{return config.TREASURY_SEED?require('xrpl').Wallet.fromSeed(config.TREASURY_SEED):null;}catch{return null;}}});
- const fundingEnabled=live&&env.ESTATE_LIQUIDITY_ENABLED==='1';
- const harvestEnabled=accountingEnabled&&env.ESTATE_XRP_PROFIT_HARVEST_ENABLED==='1';
+ const fundingEnabled=live&&legacyHourly&&env.ESTATE_LIQUIDITY_ENABLED==='1';
+ const harvestEnabled=accountingEnabled&&legacyHourly&&env.ESTATE_XRP_PROFIT_HARVEST_ENABLED==='1';
  const liquidity=createEstateLiquidityRuntime({db,client,treasury:config.ESTATE_TREASURY,imgIssuer:config.IMG_ISSUER,plxIssuer:config.PLX_ISSUER,legacyTradingEnabled:false,rlusdEnabled:env.ESTATE_RLUSD_ENABLED==='1',rlusdPoolAccount:env.ESTATE_IMG_RLUSD_POOL_ACCOUNT||'',guard,fundingEnabled,harvestEnabled,payoutsEnabled,wallet:()=>{try{return config.TREASURY_SEED?require('xrpl').Wallet.fromSeed(config.TREASURY_SEED):null;}catch{return null;}}});
  const netRewards=createEstateNetRewardExecutor({db,client,treasury:config.ESTATE_TREASURY,imgIssuer:config.IMG_ISSUER,guard,enabled:payoutsEnabled,wallet:()=>{try{return config.TREASURY_SEED?require('xrpl').Wallet.fromSeed(config.TREASURY_SEED):null;}catch{return null;}}});
  // Explicitly opt-in, scanner-only: no payments, credits, signer, or

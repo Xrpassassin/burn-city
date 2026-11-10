@@ -265,7 +265,7 @@ async function bookOnFly(){
    pause.unknown[0].hash!==WITHDRAW)
    throw Error('reviewed_treasury_pause_required');
   if(['ESTATE_SALES_ENABLED','ESTATE_LIQUIDITY_ENABLED','ESTATE_XRP_PROFIT_HARVEST_ENABLED',
-   'ESTATE_DISTRIBUTIONS_ENABLED','ESTATE_IMG_RLUSD_FUNDING_ENABLED']
+   'ESTATE_DISTRIBUTIONS_ENABLED','ESTATE_IMG_RLUSD_FUNDING_ENABLED','ESTATE_MONTHLY_PLAN_ENABLED']
    .some(name=>process.env[name]==='1'))throw Error('financial_flags_must_stay_off');
  }
  assertPaused();

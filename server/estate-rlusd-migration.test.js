@@ -20,7 +20,7 @@ createEstateLiquidityRuntime(opts);assert.deepEqual(db.prepare('SELECT * FROM es
 createEstateLiquidityRuntime(opts);assert.deepEqual(db.prepare('SELECT * FROM estate_liquidity_jobs').get(),saved,'restart does not alter migrated journals');
 db.prepare('INSERT INTO estate_property_ownership(property_id,acct,purchase_tx,purchase_amount_drops,purchased_at) VALUES(?,?,?,?,?)').run('new','owner','B'.repeat(64),3000000,2);
 const fresh=capital.record(db.prepare("SELECT * FROM estate_property_ownership WHERE property_id='new'").get());
-assert.equal(fresh.policy_version,2);assert.equal(fresh.img_rlusd_drops,'2970000');assert.equal(fresh.operating_reserve_drops,'30000');assert.equal(fresh.img_plx_drops,'0');
+assert.equal(fresh.policy_version,3,'new sales use the v3 monthly no-PLX policy');assert.equal(fresh.img_rlusd_drops,'2970000');assert.equal(fresh.operating_reserve_drops,'30000');assert.equal(fresh.img_plx_drops,'0');
 (async()=>{
  // Foreign keys prevent a destructive rebuild instead of silently rewriting dependencies.
  const dependency=new DatabaseSync(':memory:');dependency.exec("CREATE TABLE parent(id TEXT PRIMARY KEY,CHECK(id!='x'));CREATE TABLE child(id TEXT REFERENCES parent(id));");

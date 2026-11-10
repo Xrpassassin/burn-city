@@ -2,7 +2,7 @@
 // Single source of truth for every Estates switch that can move funds or open checkout.
 // Preflight reports, the booking guard and operator workflows must all use this list.
 const ESTATE_FINANCIAL_SWITCHES = Object.freeze(['ESTATE_SALES_ENABLED', 'ESTATE_LIQUIDITY_ENABLED',
-  'ESTATE_XRP_PROFIT_HARVEST_ENABLED', 'ESTATE_DISTRIBUTIONS_ENABLED', 'ESTATE_IMG_RLUSD_FUNDING_ENABLED']);
+  'ESTATE_XRP_PROFIT_HARVEST_ENABLED', 'ESTATE_DISTRIBUTIONS_ENABLED', 'ESTATE_IMG_RLUSD_FUNDING_ENABLED', 'ESTATE_MONTHLY_PLAN_ENABLED']);
 const AUTOMATION_SWITCHES = Object.freeze(ESTATE_FINANCIAL_SWITCHES.filter(k => k !== 'ESTATE_SALES_ENABLED'));
 function switchReport(env = process.env) {
   const switches = Object.fromEntries(ESTATE_FINANCIAL_SWITCHES.map(k => [k, env[k] === '1']));

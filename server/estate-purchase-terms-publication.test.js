@@ -4,8 +4,8 @@ const {createHash}=require('node:crypto');
 const {verifyEstatePurchaseTermsPublication:verify}=require('./estate-purchase-terms-publication');
 const body='Versioned virtual-property terms, reviewed and signed off before payment.';
 const digest=createHash('sha256').update(body).digest('hex').toUpperCase();
-const env={ESTATE_PURCHASE_LEGAL_SIGNOFF:'1',
- ESTATE_PURCHASE_LEGAL_REFERENCE:'counsel-reference-2026',
+const env={ESTATE_OPERATOR_TERMS_ACCEPTED:'1',
+ ESTATE_OPERATOR_ACCEPTANCE_REFERENCE:'counsel-reference-2026',
  ESTATE_PURCHASE_TERMS_VERSION:'v1.0',
  ESTATE_PURCHASE_TERMS_SHA256:digest,
  ESTATE_PURCHASE_TERMS_URL:'https://example.com/estate-terms'};
@@ -19,7 +19,7 @@ const serve=async()=>{requests++;return new Response(body,{status:200,
  assert.equal(result.paymentAuthorization,false);
  assert.equal(requests,1);
  await assert.rejects(verify({...env,ESTATE_PURCHASE_TERMS_SHA256:'A'.repeat(64)},{fetcher:serve}),/digest_mismatch/);
- await assert.rejects(verify({...env,ESTATE_PURCHASE_LEGAL_SIGNOFF:'0'},{fetcher:serve}),/configuration_required/);
+ await assert.rejects(verify({...env,ESTATE_OPERATOR_TERMS_ACCEPTED:'0'},{fetcher:serve}),/configuration_required/);
  await assert.rejects(verify({...env,ESTATE_PURCHASE_TERMS_URL:'https://127.0.0.1/terms'},{fetcher:serve}),/public_https_hostname/);
  await assert.rejects(verify({...env,ESTATE_PURCHASE_TERMS_URL:'https://localhost/terms'},{fetcher:serve}),/public_https_hostname/);
  await assert.rejects(verify({...env,ESTATE_PURCHASE_TERMS_URL:'https://example.com:8443/terms'},{fetcher:serve}),/public_https_hostname/);

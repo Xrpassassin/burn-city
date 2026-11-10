@@ -4,6 +4,8 @@ on:
     paths:
       - 'server/estate-tycoon*'
       - 'client/js/estates-secret-*'
+      - 'client/js/estates-helicopter-*'
+      - 'client/sw.js'
       - 'server/server.js'
       - 'test/estate-tycoon-http.test.js'
       - 'client/js/estate-portfolio-ui.mjs'
@@ -30,6 +32,9 @@ jobs:
           node --check server/server.js
           node --check client/js/estate-tycoon-ui.mjs
           node --check client/js/estates-tycoon-decor.mjs
+          node --check client/js/estates-helicopter-flight.mjs
+          node --check client/js/estates-helicopter-world.mjs
+          node --check server/estate-tycoon-rooms.js
           node --check client/js/estates-island-live.mjs
           npm run -s test:estate-tycoon
           node client/js/estates-island-renderer.test.mjs

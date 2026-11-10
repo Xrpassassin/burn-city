@@ -69,7 +69,7 @@ export function createEstateTycoonDecor({THREE,parent,lots}={}){
   previewRoot.add(group);
   return true;
  }
-  function setUpgrades(properties=[]){
+ function setUpgrades(properties=[]){
   if(disposed)return false;
   const mapped=new Map();
   for(const item of properties){
@@ -80,12 +80,43 @@ export function createEstateTycoonDecor({THREE,parent,lots}={}){
   const key=[...lotById.keys()].map(id=>id+':'+(mapped.get(id)||[]).join(',')).join('|');
   if(key===lastKey)return false;
   clear();lastKey=key;
+  const upgrades=[];
   for(const [id,items]of mapped){
    if(!items.length)continue;
-   const lot=lotById.get(id),group=new THREE.Group();
-   group.name='tycoon-'+id;group.position.set(lot.position.x,lot.position.y,lot.position.z);
-   for(const part of estateUpgradeExteriorParts(lot,items))box(group,part);
-   root.add(group);
+   const lot=lotById.get(id);
+   for(const part of estateUpgradeExteriorParts(lot,items))upgrades.push({lot,part});
+  }
+  // Real Three.js can render hundreds of verified facade/yard details in just
+  // a few material-batched draw calls. Preserve named meshes for lightweight
+  // renderers and unit test doubles that lack InstancedMesh support.
+  if(THREE.InstancedMesh&&THREE.Object3D){
+   const buckets=new Map();
+   for(const upgrade of upgrades){
+    const name=upgrade.part.mat;
+    if(!buckets.has(name))buckets.set(name,[]);
+    buckets.get(name).push(upgrade);
+   }
+   const transform=new THREE.Object3D();
+   for(const [name,entries]of buckets){
+    const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),material(name),entries.length);
+    mesh.name='estates-upgrades-instanced-'+name;
+    mesh.userData={verifiedUpgrades:true,visibleParts:entries.length};
+    entries.forEach(({lot,part},i)=>{
+     transform.position.set(lot.position.x+part.x,lot.position.y+part.y,lot.position.z+part.z);
+     transform.rotation.set(0,0,0);transform.scale.set(part.w,part.h,part.d);
+     transform.updateMatrix();mesh.setMatrixAt(i,transform.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate=true;
+    mesh.computeBoundingSphere?.();root.add(mesh);
+   }
+  }else{
+   for(const [id,items]of mapped){
+    if(!items.length)continue;
+    const lot=lotById.get(id),group=new THREE.Group();
+    group.name='tycoon-'+id;group.position.set(lot.position.x,lot.position.y,lot.position.z);
+    for(const part of estateUpgradeExteriorParts(lot,items))box(group,part);
+    root.add(group);
+   }
   }
   return true;
  }

@@ -25,6 +25,14 @@ assert(live.includes("'CONCEALED ESTATE ENTRANCE'"), 'owned-hatch proximity expo
 const aviation=await readFile(new URL('./estates-helicopter-flight.mjs',import.meta.url),'utf8');
 const vehicle=await readFile(new URL('./estates-helicopter-world.mjs',import.meta.url),'utf8');
 assert(live.includes("pilotAuthorization(propertyId)"),'pilot boarding requires verified current owner wallet');
+const host=await readFile(new URL('./app.js',import.meta.url),'utf8');
+assert(live.includes('get flightActive(){return active&&!!flightSession;}'),'airborne controller exposes a read-only state for host input transport');
+assert(live.includes('if(window.__skate?.active)window.__skate.toggle(false)'),'skateboard is dismounted before flight');
+assert(host.includes('if(island.flightActive){'),'host must bypass on-foot physics while in helicopter');
+assert(host.indexOf('if(island.flightActive){')<host.indexOf('if(board?.active){'),
+ 'flight override must run before skateboard and gravity handling');
+assert(host.includes('avatar.visible=!P.fp&&!island.flightActive'),'flying player avatar remains hidden after host frame');
+assert(host.includes("me.set(P.pos,avatar.rotation.y,'idle',P.district)"), 'airborne frame sends no walking animation state');
 assert(live.includes("/api/estates/tycoon/helicopter-access?"),'pilot action checks server-side entitlement');
 assert(live.includes("stopPresence();avatar.visible=false"),'no unvalidated airborne coordinates flow to public peers');
 assert(live.includes("if(flightSession)return tickHelicopterFlight"),'helicopter takes over third-person controller input');

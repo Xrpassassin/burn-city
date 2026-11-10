@@ -26,6 +26,13 @@ Pay.sdb.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run
   assert.equal((await call(p,null,null)).code,401);
  assert.equal((await call('/tycoon/start',{propertyId:'trailer-01',itemId:'porch-lights'},null)).code,401);
  assert.equal((await call('/tycoon/confirm',{orderId:'bad'},null)).code,401);
+ assert.equal((await call('/tycoon/interior-options?propertyId=trailer-01',null,null)).code,401);
+ assert.equal((await call('/tycoon/interior-access?propertyId=trailer-01&roomId=bunker',null,null)).code,401);
+ assert.equal((await call('/tycoon/interior-options?propertyId=trailer-01',null,other)).code,403);
+ const options=await call('/tycoon/interior-options?propertyId=trailer-01');
+ assert.equal(options.code,200);assert.deepEqual(options.data.rooms,[],'No secret room unlocks existed before this payment');
+ assert(!JSON.stringify(options.data).includes(buyer));
+ assert.equal((await call('/tycoon/interior-access?propertyId=trailer-01&roomId=bunker')).code,403,'Hatch/bunker cannot be entered without entitlement');
  const state=(await call('/tycoon/state?propertyId=trailer-01')).data;
  assert.equal(state.ownerAuthorized,true);
  assert.equal(state.recordedValueDrops,3000000);

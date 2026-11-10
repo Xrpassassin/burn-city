@@ -120,13 +120,25 @@ try{
   await canvas.screenshot({path:out+'/'+label+'-bunker-interior.png'});
   const final=await page.evaluate(()=>{
    const qa=window.__estatesGameplayQA;
+   const {renderer}=qa,gl=renderer.getContext(),pixels=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);
+   gl.readPixels(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+   let readable=0,bright=0;
+   for(let i=0;i<pixels.length;i+=4){
+    const mean=(pixels[i]+pixels[i+1]+pixels[i+2])/3;
+    if(mean>35)readable++;
+    if(mean>70)bright++;
+   }
+   const total=pixels.length/4;
    return {bunkerVisible:qa.privateRoom.root.visible,
     roomName:qa.privateRoom.layout?.roomId,
     roomGeometry:qa.privateRoom.root.children.length,
+    readableFraction:readable/total,brightFraction:bright/total,
     renderedDrawCalls:qa.renderer.info.render.calls};
   });
   assert.equal(final.roomName,'bunker');
   assert(final.bunkerVisible&&final.roomGeometry>10);
+  assert(final.readableFraction>.15,
+   'private bunker may not render almost entirely black; real room surfaces must remain visible');
   assert(final.renderedDrawCalls>0,'3D private room must have visible geometry');
   assert.deepEqual(pageErrors,[],'no unhandled errors in isolated gameplay browser');
   outcomes.push({label,...setup,...final,pageErrors});

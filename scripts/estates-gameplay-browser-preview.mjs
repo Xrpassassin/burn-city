@@ -92,7 +92,14 @@ try{
   assert(setup.props>350,'all five house tiers display substantial real upgrade geometry');
   assert(setup.verifiedDrawBatches<=17,'visible exterior details are batched by material');
   assert(setup.renderedDrawCalls>0,'an actual WebGL draw rendered the Estates branch scene');
-  const canvas=page.locator('#bcIsolatedEstatesQaCanvas');
+  // A continuously updating game page makes Playwright locator.screenshot()
+  // wait for impossible "element stability" on some GPU/browser combinations.
+  // Read our isolated renderer's preserved WebGL drawing buffer directly.
+  const capture=async filename=>{
+   const base64=await page.evaluate(()=>window.__estatesGameplayQA.renderer.domElement.toDataURL('image/png').split(',')[1]);
+   assert(base64.length>1000,'WebGL canvas did not produce a usable screenshot');
+   writeFileSync(out+'/'+filename,Buffer.from(base64,'base64'));
+  };
   for(const tier of ['trailer','apartment','starter','family','mansion']){
    await page.evaluate(tier=>{
     const {THREE,root,lots,render}=window.__estatesGameplayQA;
@@ -101,7 +108,7 @@ try{
     const range=innerWidth<600?27:22;
     render(target,[range*.75,range*.57,range]);
    },tier);
-   await canvas.screenshot({path:out+'/'+label+'-'+tier+'.png'});
+   await capture(label+'-'+tier+'.png');
   }
   await page.evaluate(()=>{
    const {THREE,root,lots,decor,render}=window.__estatesGameplayQA;
@@ -113,13 +120,13 @@ try{
    const starter=lots.find(l=>l.tier==='starter');
    render(new THREE.Vector3(root.position.x+starter.position.x,root.position.y+2.8,root.position.z),[13,12,22]);
   });
-  await canvas.screenshot({path:out+'/'+label+'-nonowned-upgrade-preview.png'});
+  await capture(label+'-nonowned-upgrade-preview.png');
   await page.evaluate(()=>{
    const {THREE,root,privateRoom,decor,render}=window.__estatesGameplayQA;
    decor.clearUpgradePreview();root.visible=false;privateRoom.setRoom('bunker');
    render(new THREE.Vector3(1875,9.8,-1110),[5,2.5,5.8]);
   });
-  await canvas.screenshot({path:out+'/'+label+'-bunker-interior.png'});
+  await capture(label+'-bunker-interior.png');
   const final=await page.evaluate(()=>{
    const qa=window.__estatesGameplayQA;
    const {renderer}=qa,gl=renderer.getContext(),pixels=new Uint8Array(gl.drawingBufferWidth*gl.drawingBufferHeight*4);

@@ -4,6 +4,7 @@ import { mountEstateTycoon } from './estate-tycoon-ui.mjs';
 import { createEstatesSecretInteriorRenderer } from './estates-secret-interior-renderer.mjs';
 import { createEstateHelicopterWorld } from './estates-helicopter-world.mjs';
 import { mountEstateHangarLogbook } from './estates-hangar-ui.mjs';
+import { estateUpgradeExteriorParts } from './estates-tycoon-architecture.mjs';
 
 import { mountEstateOwnership } from './estate-ownership-ui.mjs';
 import { mountEstatePurchase } from './estate-purchase-ui.mjs';
@@ -99,6 +100,9 @@ export async function installEstatesIslandLive({
   if (!response.ok) throw new Error('Estate catalog could not be loaded ('+response.status+')');
   const catalog = await response.json();
   const manifest = buildEstatesIslandScene({ catalog, seed: 20261024 });
+  const hatchAnchors=new Map(manifest.lots.filter(l=>l.propertyId&&l.buildingFootprint).map(l=>[
+    l.propertyId,estateUpgradeExteriorParts(l,['hidden-hatch']).find(part=>part.name==='hidden-hatch-hatch')
+  ]));
   // Resolve property deep links against the same manifest that builds the 3D lots.
   // Never trust query-supplied coordinates or property metadata.
   const requestedPropertyId = new URLSearchParams(location.search).get('estateProperty');
@@ -737,7 +741,8 @@ export async function installEstatesIslandLive({
     for(const state of verifiedTycoonProperties){
       if(!Array.isArray(state?.unlockedItemIds)||!state.unlockedItemIds.some(id=>id==='hidden-hatch'||id==='underground-bunker'))continue;
       const lot=manifest.lots.find(l=>l.propertyId===state.propertyId);
-      if(lot&&Math.hypot(x-lot.position.x-7,z-lot.position.z+4.5)<2.1)return state.propertyId;
+      const hatch=hatchAnchors.get(state.propertyId);
+      if(lot&&hatch&&Math.hypot(x-lot.position.x-hatch.x,z-lot.position.z-hatch.z)<2.1)return state.propertyId;
     }
     return null;
   }
@@ -1046,6 +1051,7 @@ export async function installEstatesIslandLive({
     },
     get active(){return active;},
     get flightActive(){return active&&!!flightSession;},
+    get interiorActive(){return active&&!!secretSession;}
     get manifest(){return manifest;}
   });
   window.__estatesIslandLive=api;

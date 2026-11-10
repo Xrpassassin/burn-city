@@ -16,6 +16,16 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   const wallets=[];
   for(let i=0;i<4;i++){const result=await client.fundWallet();wallets.push(result.wallet);console.log('Faucet wallet funded',i+1);}
   const [issuer,maker,treasury,owner]=wallets,IMG={currency:'IMG',issuer:issuer.classicAddress},RLUSD={currency:'524C555344000000000000000000000000000000',issuer:issuer.classicAddress};
+  // Open the test-only property reservation BEFORE several slow AMM provisioning
+  // transactions. XRPL testnet close timestamps can lag GitHub wall-clock by a
+  // few seconds; a reservation created immediately before a ledger close can
+  // falsely appear newer than that otherwise valid payment. The payment still
+  // must close INSIDE the unchanged 10-minute server reservation window.
+  const db=new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,purchase_tx TEXT UNIQUE,purchase_amount_drops INTEGER,share_units INTEGER,purchased_at INTEGER);CREATE TABLE estate_img_scan_watermarks(id INTEGER PRIMARY KEY,scanned_through_ms INTEGER,ledger_index INTEGER,verified_at_ms INTEGER)');
+  const reservations=createEstateSaleReservations(db),
+   reservation=reservations.reserve({reservationId:'testnet-estate-reservation',propertyId:'trailer-01',
+     buyer:owner.classicAddress,now:Date.now()});
   const send=async(w,tx)=>{const t=await client.autofill({Account:w.classicAddress,...tx});const result=(await client.submitAndWait(w.sign(t).tx_blob)).result;assert.equal(result.meta.TransactionResult,'tesSUCCESS',JSON.stringify({type:tx.TransactionType,result:result.meta.TransactionResult}));return result;};
   await send(issuer,{TransactionType:'AccountSet',SetFlag:xrpl.AccountSetAsfFlags.asfDefaultRipple});
   for(const w of [maker,treasury])for(const a of [IMG,RLUSD])await send(w,{TransactionType:'TrustSet',LimitAmount:{...a,value:'1000000'}});
@@ -23,10 +33,14 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   for(const a of [IMG,RLUSD])await send(maker,{TransactionType:'AMMCreate',Amount:'40000000',Amount2:{...a,value:'40000'},TradingFee:300});
   await send(maker,{TransactionType:'AMMCreate',Amount:{...IMG,value:'20000'},Amount2:{...RLUSD,value:'20000'},TradingFee:300});
   const pair=(await client.request({command:'amm_info',asset:IMG,asset2:RLUSD,ledger_index:'validated'})).result.amm.account;
-  const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,purchase_tx TEXT UNIQUE,purchase_amount_drops INTEGER,share_units INTEGER,purchased_at INTEGER);CREATE TABLE estate_img_scan_watermarks(id INTEGER PRIMARY KEY,scanned_through_ms INTEGER,ledger_index INTEGER,verified_at_ms INTEGER)');
-  const reservations=createEstateSaleReservations(db),reservation=reservations.reserve({reservationId:'testnet-estate-reservation',propertyId:'trailer-01',buyer:owner.classicAddress,now:Date.now()});
+  // The already-open reserved window covers the genuine signed payment below.
   const purchased=await send(owner,{TransactionType:'Payment',Destination:treasury.classicAddress,Amount:'3000000',Memos:[{Memo:{MemoType:Buffer.from('burncity/estates').toString('hex').toUpperCase(),MemoData:Buffer.from(reservation.reservation_id).toString('hex').toUpperCase()}}]});
   assert.ok(purchased.hash,'validated purchase hash required');
+  console.log('Testnet reservation/ledger timing',JSON.stringify({
+   createdAt:reservation.created_at,expiresAt:reservation.expires_at,
+   validatedAt:((purchased.tx_json?.date??purchased.date)+946684800)*1000,
+   wallClockAtConfirmation:Date.now()
+  }));
   await createEstateSaleOrchestrator(db,{treasury:treasury.classicAddress,client}).settle({reservationId:reservation.reservation_id,txHash:purchased.hash,now:Date.now()});
   const allocation=db.prepare('SELECT * FROM estate_capital_allocations WHERE purchase_tx=?').get(purchased.hash);
   // New sales book policy v3 (monthly plan, estate-monthly-executor.js). This script proves the

@@ -17,6 +17,7 @@ on:
       - 'client/js/estate-portfolio-ui.mjs'
       - 'client/js/estate-tycoon*'
       - 'client/js/estates-tycoon*'
+      - 'docs/estates-realistic-upgrade-ladder.md'
       - 'client/js/estates-island-renderer.mjs'
       - 'client/js/estates-island-live.mjs'
       - 'client/js/app.js'
@@ -39,6 +40,7 @@ jobs:
           node --check server/server.js
           node --check client/js/estate-tycoon-ui.mjs
           node --check client/js/estates-tycoon-decor.mjs
+          node --check client/js/estates-tycoon-architecture.mjs
           node --check client/js/estates-helicopter-flight.mjs
           node --check client/js/estates-helicopter-world.mjs
           node --check server/estate-tycoon-rooms.js

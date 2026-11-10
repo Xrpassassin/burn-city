@@ -1,6 +1,6 @@
 // Low-poly, dependency-free Three.js estate helicopter. No third-party assets copied.
 // Verifiable installation: only server-supplied settled upgrade IDs are used.
-import {estateHelipadPosition,createEstateHelicopterFlight} from './estates-helicopter-flight.mjs';
+import {estateHelipadPosition,estateHelipadAltitude,createEstateHelicopterFlight} from './estates-helicopter-flight.mjs';
 const PAINT=Object.freeze({obsidian:0x223b4b,ember:0x9f4731,arctic:0xc0d0d8,verdant:0x3d7664,royal:0x55426f});
 const TRIM=Object.freeze({brass:0xb49b67,ice:0x73d4e6,chrome:0xb4bdc7,copper:0xd1784d,ivory:0xe6ddd0});
 const C={body:0x223b4b,bodyAccent:0xb49b67,steel:0x4b5661,glass:0x25749a,pad:0x303b3b,
@@ -22,8 +22,10 @@ export function createEstateHelicopterWorld({THREE,parent,lots}={}){
  }
  function build(lot){
   const point=estateHelipadPosition(lot),g=new THREE.Group();g.name='estate-aircraft-'+lot.propertyId;
-  g.position.set(point.x,lot.position.y,point.z);root.add(g);
+  g.position.set(point.x,lot.position.y+estateHelipadAltitude(lot)-1.4,point.z);root.add(g);
   cylinder(g,'private-helipad',4.3,4.3,.18,0,.07,0,C.pad,32);
+  // Raised safety deck: all geometry stays inside the 20 x 18 estate lot footprint.
+  for(const x of [-3.2,3.2])for(const z of [-3.2,3.2])box(g,'roof-helipad-support',.35,2.1,.35,x,-1.05,z,C.steel,.5);
   box(g,'helipad-h-left',.28,.05,2.55,-.74,.2,0,C.white);
   box(g,'helipad-h-right',.28,.05,2.55,.74,.2,0,C.white);
   box(g,'helipad-h-cross',1.72,.05,.27,0,.2,0,C.white);
@@ -94,7 +96,7 @@ export function createEstateHelicopterWorld({THREE,parent,lots}={}){
   for(const [id,o] of installed){
    if(id===activeProperty&&id===propertyId&&position){
     const pad=estateHelipadPosition(o.lot);
-    o.craft.position.set(position.x-pad.x,position.altitude-.5,position.z-pad.z);
+    o.craft.position.set(position.x-pad.x,position.altitude-estateHelipadAltitude(o.lot),position.z-pad.z);
     o.craft.rotation.y=heading;o.craft.rotation.z=Math.max(-.18,Math.min(.18,bank));
     o.top.rotation.y=rotor;o.tail.rotation.x=rotor*2;
    }else{

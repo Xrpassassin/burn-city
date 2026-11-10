@@ -507,7 +507,7 @@ export async function installEstatesIslandLive({
     const lot=manifest.lots.find(l=>l.propertyId===propertyId);
     if(!lot||!['family','mansion'].includes(lot.tier))return false;
     if(!helicopters.hasHelicopter(propertyId)){
-      showPanel('ESTATE AVIATION','This property has no verified helicopter. A 180 XRP helicopter and helipad upgrade is available for Family Homes and Mansions.',[{label:'Close',run:hidePanel}]);return false;
+      showPanel('ESTATE AVIATION','This property has no verified helicopter. A 60 XRP helicopter and helipad upgrade is available for Family Homes and Mansions.',[{label:'Close',run:hidePanel}]);return false;
     }
     if(Math.hypot(player.pos.x-OFFSET_X-lot.position.x,player.pos.z-lot.position.z)>19){
       showPanel('HELIPAD TOO FAR','Approach this property before boarding its aircraft.',[{label:'Close',run:hidePanel}]);return false;

@@ -388,7 +388,7 @@ export async function installEstatesIslandLive({
     tycoonFetching=true;lastTycoonFetch=Date.now();
     try{const r=await fetch(apiBase+'/api/estates/tycoon/world',{cache:'no-store',signal:AbortSignal.timeout(8000)});
       if(!r.ok)return;const s=await r.json();
-      if(!disposed&&Array.isArray(s.properties)){verifiedTycoonProperties=s.properties;renderer.setUpgrades(s.properties);if(!flightSession)helicopters.setVerified(s.properties);}
+      if(!disposed&&Array.isArray(s.properties)){verifiedTycoonProperties=s.properties;renderer.setUpgrades(s.properties);if(!flightSession){helicopters.setVerified(s.properties);for(const style of s.helicopterStyles||[])helicopters.setStyle(style.propertyId,style);}}
     }catch{}finally{tycoonFetching=false;}
   }
   async function refreshOwnership(force=false){

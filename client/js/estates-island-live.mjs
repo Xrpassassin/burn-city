@@ -2,6 +2,8 @@
 import { mountEstatePrestige } from './estate-prestige-ui.mjs';
 import { mountEstateTycoon } from './estate-tycoon-ui.mjs';
 import { createEstatesSecretInteriorRenderer } from './estates-secret-interior-renderer.mjs';
+import { createEstateHelicopterWorld } from './estates-helicopter-world.mjs';
+import { estateHelipadPosition } from './estates-helicopter-flight.mjs';
 import { mountEstateOwnership } from './estate-ownership-ui.mjs';
 import { mountEstatePurchase } from './estate-purchase-ui.mjs';
 import { buildEstatesIslandScene } from './estates-island-scene.mjs';
@@ -105,6 +107,7 @@ export async function installEstatesIslandLive({
   const renderer = createEstatesIslandRenderer({ THREE, scene, manifest });
   const root = renderer.root;
   const secretInterior=createEstatesSecretInteriorRenderer({THREE,scene});
+  const helicopters=createEstateHelicopterWorld({THREE,parent:root,lots:manifest.lots});
   root.position.x = OFFSET_X;
   root.visible = false; // Do not expose the full island inside the city proxy.
   addBridgeArchitecture(THREE, root);
@@ -145,7 +148,7 @@ export async function installEstatesIslandLive({
   const exitButton=document.createElement('button');exitButton.id='bcEstatesExit';exitButton.type='button';exitButton.textContent='↩ Return to BURN City';
   exitButton.setAttribute('aria-label','Return to BURN City');
   exitButton.style.cssText='display:none;position:fixed;left:50%;top:calc(116px + env(safe-area-inset-top));transform:translateX(-50%);z-index:90;min-height:44px;padding:8px 14px;border:1px solid #ffb45b;border-radius:9px;background:#17151af0;color:#ffe4bd;font:700 13px system-ui;cursor:pointer';
-  document.body.appendChild(exitButton);exitButton.addEventListener('click',()=>secretSession?leaveSecretInterior():leaveIsland());
+  document.body.appendChild(exitButton);exitButton.addEventListener('click',()=>flightSession?endHelicopterFlight(true):secretSession?leaveSecretInterior():leaveIsland());
   let directoryOpen=false;
   const positionPanel = () => {
     const reserved=[];
@@ -278,6 +281,7 @@ export async function installEstatesIslandLive({
       tier?tier.label+' · '+tier.price+' XRP · '+tier.shareUnits+' reward share units. Explore the finishes and see how this home can grow.':'This plot is reserved for a future home.',
       [{label:'Navigate to property',primary:true,run:()=>{const lot=manifest.lots.find(l=>l.id===property.lotId);if(lot){targetLot=lot;if(selectedLotBeacon){selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=active;}if(guidanceHud)guidanceHud.style.display='block';hidePanel();}}},
        {label:'Explore secret rooms',run:()=>void openSecretRoomMenu(property.propertyId)},
+       {label:'Board estate helicopter',run:()=>void boardEstateHelicopter(property.propertyId)},
        {label:'Close',run:hidePanel}],
       'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests. Borders: yellow = unowned; blue = purchased.');
     if(catalogued){
@@ -382,7 +386,7 @@ export async function installEstatesIslandLive({
     tycoonFetching=true;lastTycoonFetch=Date.now();
     try{const r=await fetch(apiBase+'/api/estates/tycoon/world',{cache:'no-store',signal:AbortSignal.timeout(8000)});
       if(!r.ok)return;const s=await r.json();
-      if(!disposed&&Array.isArray(s.properties)){verifiedTycoonProperties=s.properties;renderer.setUpgrades(s.properties);}
+      if(!disposed&&Array.isArray(s.properties)){verifiedTycoonProperties=s.properties;renderer.setUpgrades(s.properties);if(!flightSession)helicopters.setVerified(s.properties);}
     }catch{}finally{tycoonFetching=false;}
   }
   async function refreshOwnership(force=false){
@@ -689,6 +693,7 @@ export async function installEstatesIslandLive({
   function leaveIsland() {
     if(disposed||!active)return;
     if(secretSession)leaveSecretInterior(false);
+    if(flightSession)endHelicopterFlight(false);
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();islandControls(false);
     if(guidanceHud)guidanceHud.style.display='none';
     if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
@@ -724,6 +729,7 @@ export async function installEstatesIslandLive({
       return false;
     }
     if(secretSession)return tickSecretInterior(dt,moveForward,moveSide,running,desiredDelta,edge);
+    if(flightSession)return tickHelicopterFlight(dt,moveForward,moveSide,edge);
     hideCityScene();animatePeers(dt);void refreshAppearance();void refreshOwnership();void refreshTycoon();
     if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
       lastGuidanceUpdate=Date.now();
@@ -765,7 +771,7 @@ export async function installEstatesIslandLive({
     }
     runSpeed=running?7.2:4.5;
     const beforeX=player.pos.x,beforeZ=player.pos.z;
-    const hatch=nearestVerifiedHatch();
+    const hatch=nearestVerifiedHatch(),helipad=nearestVerifiedHelipad();
     const result=controllerRef.update({dt,yaw:getYaw(),moveX:moveForward,moveZ:moveSide,interactPressed:edge&&!hatch,exitPressed:edge&&!hatch,desiredDelta});
     if(desiredDelta&&window.__skate?.active){
       const board=window.__skate;board.state.pos.copy(player.pos);
@@ -783,6 +789,11 @@ export async function installEstatesIslandLive({
         'Only unlocked rooms are enterable, and the owning or invited wallet must authorize the visit.');
     }
     if(hatch&&edge)void openSecretRoomMenu(hatch);
+    else if(helipad&&edge)void boardEstateHelicopter(helipad);
+    if(helipad&&!hatch&&helipad!==lastHelipadId)showPanel('PRIVATE ESTATE HELIPAD','This property has a verified private helicopter. Press E/USE or board with your authorized wallet.',
+      [{label:'Board helicopter',primary:true,run:()=>void boardEstateHelicopter(helipad)},{label:'Close',run:hidePanel}],
+      'Family and Mansion estates only · local island flight · no financial rewards.');
+    lastHelipadId=helipad;
     if(result.property && edge) {
       // The controller callback supplies the explicit inspection action; no property entry is implied.
     }
@@ -819,7 +830,8 @@ export async function installEstatesIslandLive({
     dispose(){
       if(disposed)return false;
       if(secretSession)leaveSecretInterior(false);
-      disposed=true; islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();secretInterior.dispose();
+      if(flightSession)endHelicopterFlight(false);
+      disposed=true; islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();secretInterior.dispose();helicopters.dispose();flightHud.remove();window.removeEventListener('keydown',pilotKeyDown);window.removeEventListener('keyup',pilotKeyUp);
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       root.userData.propertyDeepLinkHint?.remove(); guidanceHud?.remove();
       if(selectedLotBeacon){selectedLotBeacon.group.removeFromParent();for(const g of selectedLotBeacon.geometries)g.dispose();for(const m of selectedLotBeacon.materials)m.dispose();}

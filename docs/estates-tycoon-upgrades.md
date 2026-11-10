@@ -46,7 +46,7 @@ Existing cosmetic prestige purchases retain their separate appearance-only contr
 
 ## Private Hangar Logbook — persistence and returning-home motivation
 
-Premium estate owners get an authenticated, server-persisted **Hangar Logbook** once the 180 XRP helicopter is purchased and verified. It is accessible from the Estates property inspection UI. Each eligible property maintains its own SQLite journal and cosmetic style, which follow the estate on resale. Neither current owner nor previous owner wallet addresses are exposed in the logbook API.
+Premium estate owners get an authenticated, server-persisted **Hangar Logbook** once the 60 XRP helicopter is purchased and verified. It is accessible from the Estates property inspection UI. Each eligible property maintains its own SQLite journal and cosmetic style, which follow the estate on resale. Neither current owner nor previous owner wallet addresses are exposed in the logbook API.
 
 **Customization:** five approved airframe paints (obsidian, ember, arctic, verdant, royal), five trim options (brass, ice, chrome, copper, ivory), and a short uppercase alphanumeric callsign. All input is whitelisted or validated server-side, with an authenticated owner-only save endpoint. All island visitors see approved paint and trim via the public aggregate aircraft appearance endpoint; only owner-authorized UI calls receive callsigns, flight history or milestones. Callsign also appears in the pilot's flight HUD. Appearance edits do not change estate value or shares, and do not charge XRP.
 
@@ -58,9 +58,9 @@ Premium estate owners get an authenticated, server-persisted **Hangar Logbook** 
 
 ## Private aviation — premium repeatable Estates gameplay
 
-A **180 XRP helicopter and its own helipad** is a single fixed upgrade, item ID **estate-helicopter**. It costs 60% of the 300 XRP mansion price, and the server allows it only for the **150 XRP Family Home** and **300 XRP Luxury Mansion**. Trailer, apartment, starter home and cabin properties cannot buy it. The upgrade follows the estate on resale.
+A **60 XRP helicopter and its own helipad** is a single fixed upgrade, item ID **estate-helicopter**. It costs 20% of the 300 XRP mansion price (or 40% of a 150 XRP Family Home), and the server allows it only for the **150 XRP Family Home** and **300 XRP Luxury Mansion**. Trailer, apartment, starter home and cabin properties cannot buy it. The upgrade follows the estate on resale.
 
-The price adds 180 XRP to recorded property development spend and 60 recorded upgrade-share units; these are **not live payout weights**, a market appraisal, or guaranteed returns.
+The price adds 60 XRP to recorded property development spend and 20 recorded upgrade-share units; these are **not live payout weights**, a market appraisal, or guaranteed returns.
 
 The helicopter and helipad use original, procedural Three.js geometry: fuselage, glass cabin, boom, skids, spinning main/tail rotors, H-marked landing pad and lights. It introduces no new packages, binary models or third-party assets. The helicopter rests on a raised rooftop helipad inside the Family/Mansion building footprint. Players board from the public property approach, avoiding encroachment onto neighboring lots.
 
@@ -103,7 +103,7 @@ No external room models are required. The small procedural mesh generator is der
 - GET /api/estates/tycoon/quote?propertyId=...&itemId=...: authoritative price, prerequisites and eligibility.
 - POST /api/estates/tycoon/start: propertyId and itemId, owner only, disabled unless opted in.
 - POST /api/estates/tycoon/confirm: orderId, owner only, validated XRPL receipt.
-- GET /api/estates/tycoon/helicopter-access?propertyId=...: current owner with verified 180 XRP unlock and Family/Mansion tier.
+- GET /api/estates/tycoon/helicopter-access?propertyId=...: current owner with verified 60 XRP unlock and Family/Mansion tier.
 - GET /api/estates/tycoon/hangar?propertyId=...: private recorded flight history, lifetime stats and saved customizations.
 - POST /api/estates/tycoon/hangar/style: propertyId + approved paint, trim, callsign; owner only.
 - POST /api/estates/tycoon/hangar/flight/start: starts or resumes an authenticated, bounded local flight journal session.

@@ -29,7 +29,10 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
   assert.ok(purchased.hash,'validated purchase hash required');
   await createEstateSaleOrchestrator(db,{treasury:treasury.classicAddress,client}).settle({reservationId:reservation.reservation_id,txHash:purchased.hash,now:Date.now()});
   const allocation=db.prepare('SELECT * FROM estate_capital_allocations WHERE purchase_tx=?').get(purchased.hash);
-  assert.equal(allocation.policy_version,2);
+  // New sales book policy v3 (monthly plan, estate-monthly-executor.js). This script proves the
+  // RETIRED hourly engine, which only funds v2 rows, so the fixture row is relabelled v2 (same split).
+  assert.equal(allocation.policy_version,3);
+  db.prepare('UPDATE estate_capital_allocations SET policy_version=2 WHERE purchase_tx=?').run(purchased.hash);
   assert.equal(allocation.img_rlusd_drops,'2970000');
   assert.equal(allocation.operating_reserve_drops,'30000');
   assert.equal(allocation.img_plx_drops,'0');

@@ -10,6 +10,8 @@ on:
       - 'server/estate-liquidity-*.js'
       - 'server/estate-treasury-transactions*.js'
       - 'scripts/estate-liquidity-testnet.cjs'
+      - 'scripts/estate-monthly-plan-testnet.cjs'
+      - 'server/estate-monthly-*.js'
       - 'scripts/estate-live-*.cjs'
       - 'scripts/estate-live-*.mjs'
       - 'server/estate-capital-*.js'
@@ -68,3 +70,5 @@ jobs:
       - run: npm ci
       - name: Public testnet funding and realized XRP payout proof
         run: node scripts/estate-liquidity-testnet.cjs
+      - name: Public testnet monthly IMG/RLUSD plan proof (policy v3)
+        run: node scripts/estate-monthly-plan-testnet.cjs

@@ -93,7 +93,7 @@ function createEstateLiquidityRuntime({db,client,wallet,treasury,imgIssuer,plxIs
  }
  function note(row,message){db.prepare('UPDATE estate_liquidity_jobs SET note=? WHERE id=?').run(message,row.id);lastBlock=message;}
  function seed(){
-  for(const a of db.prepare('SELECT * FROM estate_capital_allocations ORDER BY created_at,purchase_tx').all())for(const [pair,budget] of (a.policy_version===2?[['img-rlusd',a.img_rlusd_drops]]:[['img-plx',a.img_plx_drops],['img-xrp',a.img_xrp_drops]])){
+  for(const a of db.prepare('SELECT * FROM estate_capital_allocations ORDER BY created_at,purchase_tx').all())for(const [pair,budget] of (a.policy_version===3?[]:a.policy_version===2?[['img-rlusd',a.img_rlusd_drops]]:[['img-plx',a.img_plx_drops],['img-xrp',a.img_xrp_drops]])){
    // Historical policy-v1 customer allocations remain in the database,
    // but cannot spawn fresh PLX or IMG/XRP trading intents.
    if(!legacyTradingEnabled&&pair!=='img-rlusd')continue;

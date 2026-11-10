@@ -11,6 +11,10 @@ assert(live.includes('connectPresence(leaseToken,islandInstanceId)'), 'island pr
 assert(live.includes('secretInterior.tickCamera'), 'private interiors use an indoor follow-camera');
 assert(live.includes('secretInterior.move'), 'private interiors use collision-guarded movement');
 assert(live.includes('if(secretSession)return tickSecretInterior'), 'private rooms take over the island controller tick');
+assert(live.includes("get interiorActive(){return active&&!!secretSession;}"),'private interior mode is exposed read-only to the host controller');
+assert(live.includes("estateUpgradeExteriorParts(l,['hidden-hatch'])"),'bunker interaction uses the actual measured exterior hatch geometry');
+assert(live.includes("hatchAnchors.get(state.propertyId)"),'bunker approach is derived from the rendered lot-specific hatch');
+assert(!live.includes("x-lot.position.x-7,z-lot.position.z+4.5"),'hardcoded hatch interaction location must be removed');
 assert(live.includes('if(secretSession)leaveSecretInterior(false)'), 'island exits dispose active private room before restoring city');
 assert(live.includes("if(currentWalletToken()!==secretSession.token)"), 'wallet changes immediately eject old private room session');
 assert(live.includes("privateRoomRequest('interior-access',previous.propertyId,previous.roomId)"), 'interior permissions are revalidated');
@@ -29,6 +33,11 @@ const host=await readFile(new URL('./app.js',import.meta.url),'utf8');
 assert(live.includes('get flightActive(){return active&&!!flightSession;}'),'airborne controller exposes a read-only state for host input transport');
 assert(live.includes('if(window.__skate?.active)window.__skate.toggle(false)'),'skateboard is dismounted before flight');
 assert(host.includes('if(island.flightActive){'),'host must bypass on-foot physics while in helicopter');
+assert(host.includes('if(island.interiorActive){'),'private rooms bypass outdoor gravity, jetpack and skateboard physics');
+assert(host.indexOf('if(island.interiorActive){')<host.indexOf('if(board?.active){'),
+ 'interior control must run before outdoor motion and jump physics');
+assert(host.includes("island.tick(dt,f,s,run);"),'private rooms use the actual real-time host movement axis');
+assert(host.includes("poseWalker(avatar,P.walk,ml,performance.now()/1000)"),'private rooms animate walking continuously');
 assert(host.indexOf('if(island.flightActive){')<host.indexOf('if(board?.active){'),
  'flight override must run before skateboard and gravity handling');
 assert(host.includes('avatar.visible=!P.fp&&!island.flightActive'),'flying player avatar remains hidden after host frame');

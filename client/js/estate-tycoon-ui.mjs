@@ -1,7 +1,7 @@
 // Optional per-property Roblox-style tycoon shop for Estates.
 // Never display a purchase as installed until the server confirms validated XRP.
 const xrp=d=>{const n=BigInt(d||0);return (n/1000000n).toString()+(n%1000000n?'.'+(n%1000000n).toString().padStart(6,'0').replace(/0+$/,''):'');};
-const humanError={tycoon_purchases_disabled:'XRP upgrades are not enabled yet.',estate_treasury_paused:'The treasury is paused.',property_owner_required:'Only the verified owner may upgrade.',upgrade_prerequisites_missing:'Unlock the prerequisite improvement first.',another_upgrade_pending:'Finish or review your pending upgrade first.',upgrade_already_owned:'This upgrade is already owned.',tycoon_payload_pending:'A payment request is pending. Check again later.',tycoon_order_requires_review:'This payment request requires review; do not pay again.',tycoon_order_not_found:'This order was not found for your wallet.',tycoon_payment_pending:'Your signed payment has not been validated yet.'};
+const humanError={tycoon_purchases_disabled:'XRP upgrades are not enabled yet.',estate_treasury_paused:'The treasury is paused.',property_owner_required:'Only the verified owner may upgrade.',upgrade_prerequisites_missing:'Unlock the prerequisite improvement first.',upgrade_tier_restricted:'Helicopters are available only for Family Homes and Luxury Mansions.',another_upgrade_pending:'Finish or review your pending upgrade first.',upgrade_already_owned:'This upgrade is already owned.',tycoon_payload_pending:'A payment request is pending. Check again later.',tycoon_order_requires_review:'This payment request requires review; do not pay again.',tycoon_order_not_found:'This order was not found for your wallet.',tycoon_payment_pending:'Your signed payment has not been validated yet.'};
 export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,storage=localStorage,onConfirmed=()=>{}}={}){
  const section=document.createElement('details');section.dataset.estateTycoon=propertyId;
  section.style.cssText='margin-top:12px;border-top:1px solid #7ca9bf;padding:10px 0;color:#d7e8ed';
@@ -57,7 +57,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
    catalogue.append(button('Check pending payment',confirm));
   }
   const unlocked=new Set(s.unlockedItemIds);
-  const groups=[['decor','Decorations'],['exterior','Exterior'],['interior','Interior'],['underground','Secrets & Bunkers'],['utility','Security & Utility']];
+  const groups=[['decor','Decorations'],['exterior','Exterior'],['interior','Interior'],['underground','Secrets & Bunkers'],['utility','Security & Utility'],['aviation','Private Aviation']];
   for(const [category,label] of groups){
    const subset=items.filter(i=>i.category===category);if(!subset.length)continue;
    const head=document.createElement('h5');head.textContent=label;head.style.cssText='font-size:12px;color:#a8d4e8;margin:12px 0 6px';catalogue.append(head);
@@ -65,10 +65,11 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
     const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 0;border-bottom:1px solid #5c7e8b55';
     const labelText=document.createElement('span');labelText.style.cssText='font-size:12px;flex:1';
     const missing=item.requires.filter(id=>!unlocked.has(id)),owned=unlocked.has(item.id);
-    labelText.textContent=item.name+' · '+item.priceXrp+' XRP · +'+item.shareUnitsDelta+' share'+(item.shareUnitsDelta===1?'':'s')+
-     (owned?' · UNLOCKED':missing.length?' · Needs '+missing.join(', '):'');
+    const tierEligible=!item.eligibleTiers?.length||item.eligibleTiers.includes(s.tier);
+    labelText.textContent=item.name+' · '+item.priceXrp+' XRP · +'+item.shareUnitsDelta+' recorded share'+(item.shareUnitsDelta===1?'':'s')+
+     (owned?' · UNLOCKED':!tierEligible?' · Family / Mansion only':missing.length?' · Needs '+missing.join(', '):'');
     row.append(labelText);
-    if(!owned&&s.ownerAuthorized&&s.purchasesEnabled&&!missing.length)row.append(button('Buy',()=>buy(item),!!s.pending));
+    if(!owned&&s.ownerAuthorized&&s.purchasesEnabled&&tierEligible&&!missing.length)row.append(button('Buy',()=>buy(item),!!s.pending));
     else if(owned){const tick=document.createElement('span');tick.textContent='✓';tick.style.color='#73e0aa';row.append(tick);}
     catalogue.append(row);
    }

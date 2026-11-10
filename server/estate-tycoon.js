@@ -23,7 +23,7 @@ const ITEMS=Object.freeze([
  {id:'underground-bunker',name:'Secret underground bunker',category:'underground',priceXrp:30,scene:'bunker',requires:['hidden-hatch']},
  {id:'bunker-arcade',name:'Bunker arcade & vault decor',category:'underground',priceXrp:36,scene:'bunker-arcade',requires:['underground-bunker']},
  // A prestige aircraft includes its own compact helipad. Restricted to upper property tiers.
- {id:'estate-helicopter',name:'Estate helicopter & private helipad',category:'aviation',priceXrp:180,scene:'helicopter',eligibleTiers:['family','mansion']}
+ {id:'estate-helicopter',name:'Estate helicopter & private helipad',category:'aviation',priceXrp:60,scene:'helicopter',eligibleTiers:['family','mansion']}
 ].map(item=>Object.freeze({...item,priceDrops:item.priceXrp*1000000,shareUnitsDelta:item.priceXrp/3,requires:Object.freeze(item.requires||[]),eligibleTiers:Object.freeze(item.eligibleTiers||[])})));
 const ITEM_BY_ID=new Map(ITEMS.map(x=>[x.id,x]));
 const WALLET=/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;

@@ -30,7 +30,7 @@ assert(live.includes("stopPresence();avatar.visible=false"),'no unvalidated airb
 assert(live.includes("if(flightSession)return tickHelicopterFlight"),'helicopter takes over third-person controller input');
 assert(live.includes("helicopters.tick({propertyId:s.propertyId"),'moving craft must render in the same island coordinate system');
 assert(live.includes("flightSession===s)endHelicopterFlight(true)"),'pilot access loss returns the aircraft home');
-assert(live.includes("if(flightSession)endHelicopterFlight(false)"),'island exit clears flight safely');
+assert(live.includes("if(flightSession)endHelicopterFlight(true,false)"),'island exit clears airborne flight without reopening multiplayer presence');
 assert(live.includes("window.removeEventListener('keydown',pilotKeyDown)"),'keyboard event listeners removed on island disposal');
 assert(live.includes("'Board estate helicopter'"),'owner property UI offers an aircraft entrance');
 assert(live.includes("'PRIVATE ESTATE HELIPAD'"),'helipad proximity offers an interaction');

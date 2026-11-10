@@ -536,6 +536,9 @@ export async function installEstatesIslandLive({
         journalId=sessionAttempt.value.sessionId;
         logbookStatus='recording';
       }
+      // Boarding a helicopter suspends skating and its physics controller;
+      // the airframe becomes the sole authority for player movement.
+      if(window.__skate?.active)window.__skate.toggle(false);
       const model=helicopters.board(propertyId);
       if(!model)return false;
       const avatarWasVisible=avatar.visible,former={x:player.pos.x,y:player.pos.y,z:player.pos.z};
@@ -1037,6 +1040,7 @@ export async function installEstatesIslandLive({
       onStatus({state:'disposed'}); return true;
     },
     get active(){return active;},
+    get flightActive(){return active&&!!flightSession;},
     get manifest(){return manifest;}
   });
   window.__estatesIslandLive=api;

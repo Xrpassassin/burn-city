@@ -1,5 +1,8 @@
 name: Estates tycoon upgrade ledger
 on:
+  push:
+    branches:
+      - 'feature/estates-tycoon-upgrades-*'
   pull_request:
     paths:
       - 'server/estate-tycoon*'

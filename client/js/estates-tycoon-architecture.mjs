@@ -68,7 +68,8 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     p(id,'front-beam',x,2.42,front+1.24,width,.22,.19,'wood','attached');break;
    }
    case 'privacy-fence':{
-    const x=edgeX-.52,z=edgeZ-.58;
+    // Keep boundary rails outside the usable side-yard pads, hearths and pond rims.
+    const x=edgeX-.24,z=edgeZ-.3;
     const fenceH=lot.tier==='mansion'?1.82:lot.tier==='family'?1.6:1.3;
     const railY=.05+fenceH/2,finish=lot.tier==='mansion'?'stone':lot.tier==='apartment'?'metal':'wood';
     for(const side of [-1,1]){

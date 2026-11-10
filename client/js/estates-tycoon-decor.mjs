@@ -1,84 +1,62 @@
-// Lightweight shared-island tycoon decorations. Never reveal private interiors.
-// Every instance is driven by server-verified public unlock IDs, not localStorage.
-const COLORS={stone:0x7b8287,wood:0x7c5437,metal:0x4a5860,gold:0xffbd65,
- green:0x4c8c4b,neon:0x2bd8c5,earth:0x43382d,red:0xa94936,water:0x3e86ab};
+// Architecturally grounded shared-island estate decorations.
+// Every detail comes from the server-verified unlock list, not local wallet state.
+// Authenticated interiors remain behind the separate private-room scene.
+import {estateUpgradeExteriorParts,ESTATE_EXTERIOR_ITEM_IDS} from './estates-tycoon-architecture.mjs';
+const COLORS=Object.freeze({
+ stone:0x87827a,wood:0x79563b,metal:0x596c73,brass:0xb5a079,
+ slate:0x344553,glass:0x85b8c1,warm:0xffca7b,green:0x557b4d,flower:0xd47c85,
+ gold:0xc6a663,earth:0x493728,red:0xa74731,water:0x3a8193
+});
+const known=new Set(ESTATE_EXTERIOR_ITEM_IDS);
 export function createEstateTycoonDecor({THREE,parent,lots}={}){
  if(!THREE?.Group||!THREE?.Mesh||!THREE?.BoxGeometry||!THREE?.MeshStandardMaterial||!parent?.add||!Array.isArray(lots))
-  throw new TypeError('tycoon_decoration_dependencies_required');
+  throw TypeError('tycoon_decoration_dependencies_required');
  const root=new THREE.Group();root.name='estate-tycoon-verified-decorations';parent.add(root);
  const lotById=new Map(lots.filter(l=>l.propertyId).map(l=>[l.propertyId,l]));
- const permitted=new Set(['porch-lights','flower-garden','custom-sign','cozy-awning','privacy-fence','fire-pit',
- 'game-lounge','garden-pond','reinforced-floor','grow-lounge','hobby-workshop','roof-garden','hidden-hatch',
- 'grow-lounge-deluxe','security-upgrade','underground-bunker','bunker-arcade']);
  let lastKey='',disposed=false;
- const box=(g,id,x,y,z,w,h,d,c)=>{
-  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({
-   color:COLORS[c]??COLORS.stone,metalness:c==='metal'?.48:0,roughness:.73,
-   ...(c==='neon'?{emissive:COLORS.neon,emissiveIntensity:.45}:{})}));
-  mesh.name=id;mesh.position.set(x,y,z);g.add(mesh);
+ const materials=new Map();
+ const material=key=>{
+  if(!materials.has(key))materials.set(key,new THREE.MeshStandardMaterial({
+   color:COLORS[key]??COLORS.stone,roughness:key==='water'?.22:key==='glass'?.26:key==='metal'?.47:key==='brass'?.4:.86,
+   metalness:key==='metal'?.7:key==='brass'?.53:key==='slate'?.33:0,
+   ...(key==='warm'?{emissive:COLORS.warm,emissiveIntensity:.54}:{})
+  }));
+  return materials.get(key);
  };
- function addItem(g,id,lot){
-  const height=lot.buildingFootprint?.height??3,front=(lot.buildingFootprint?.depth??5)/2;
-  switch(id){
-   case 'porch-lights':
-    for(const x of [-6,6]){box(g,id+'-pole',x,.95,6,.15,1.7,.15,'metal');box(g,id+'-lamp',x,1.85,6,.5,.28,.5,'gold');}break;
-   case 'flower-garden':
-    for(const x of [-6,6]){box(g,id+'-planter',x,.3,3.3,2,.45,.9,'wood');box(g,id+'-plant',x,.7,3.3,1.6,.38,.65,'green');}break;
-   case 'custom-sign':
-    box(g,id+'-post',-7,.92,7,.2,1.7,.2,'wood');box(g,id+'-plaque',-7,1.8,7,2.2,.65,.2,'gold');break;
-   case 'cozy-awning':
-    box(g,id+'-shelter',0,height*.8,front+.5,4,.2,2,'wood');
-    for(const x of [-1.8,1.8])box(g,id+'-support',x,height*.4,front+1.3,.17,height*.8,.17,'wood');break;
-   case 'privacy-fence':
-    for(const side of [-1,1]){
-     box(g,id+'-side',side*8.5,.7,0,.2,1.3,14,'wood');
-     box(g,id+'-back',0,.7,-side*7,17,1.3,.2,'wood');
-    }break;
-   case 'fire-pit':
-    box(g,id+'-hearth',6,.2,-5,1.8,.36,1.8,'stone');
-    box(g,id+'-ember',6,.42,-5,.8,.18,.8,'red');break;
-   case 'garden-pond':
-    box(g,id+'-rim',-6,.12,-5,3,.2,2.6,'stone');
-    box(g,id+'-water',-6,.25,-5,2.65,.06,2.22,'water');break;
-   case 'reinforced-floor':
-   case 'hidden-hatch':
-   case 'underground-bunker':
-    box(g,id+'-hatch',7,.2,-4.5,2.2,.18,2.2,id==='hidden-hatch'?'metal':'stone');
-    if(id==='underground-bunker')box(g,id+'-access-light',7,.38,-4.5,.8,.14,.8,'neon');break;
-   case 'roof-garden':
-    for(const x of [-1.3,1.3])box(g,id+'-roof-planter',x,height+.35,0,1.7,.45,1.4,'green');break;
-   case 'security-upgrade':
-    for(const x of [-7,7]){box(g,id+'-post',x,1.4,6,.2,2.4,.2,'metal');box(g,id+'-camera',x,2.6,6,.65,.24,.45,'neon');}break;
-   case 'grow-lounge':
-   case 'grow-lounge-deluxe':
-   case 'bunker-arcade':
-    // Private rooms remain out of the public scene; only the hidden vent is visible.
-    box(g,id+'-concealed-vent',7,.35,-6,1,.35,.7,'metal');break;
-   default: break; // Indoor room entries get geometry when private interiors ship.
-  }
- }
- const clear=()=>{
-  root.traverse?.(n=>{n.geometry?.dispose?.();if(Array.isArray(n.material))n.material.forEach(m=>m?.dispose?.());else n.material?.dispose?.();});
+ const box=(group,part)=>{
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(part.w,part.h,part.d),material(part.mat));
+  mesh.name=part.name;mesh.userData={estateUpgradeId:part.id,placement:part.placement};
+  mesh.position.set(part.x,part.y,part.z);group.add(mesh);
+ };
+ function clear(){
+  const geometries=new Set();
+  root.traverse?.(obj=>{if(obj.geometry)geometries.add(obj.geometry);});
+  for(const geom of geometries)geom.dispose?.();
+  for(const mat of materials.values())mat.dispose?.();
+  materials.clear();
   for(const child of [...root.children])root.remove(child);
- };
+ }
  function setUpgrades(properties=[]){
   if(disposed)return false;
   const mapped=new Map();
   for(const item of properties){
    if(!lotById.has(item?.propertyId)||!Array.isArray(item.unlockedItemIds))continue;
-   const ids=[...new Set(item.unlockedItemIds.filter(id=>typeof id==='string'&&permitted.has(id)))].sort();
+   const ids=[...new Set(item.unlockedItemIds.filter(id=>typeof id==='string'&&known.has(id)))].sort();
    mapped.set(item.propertyId,ids);
   }
   const key=[...lotById.keys()].map(id=>id+':'+(mapped.get(id)||[]).join(',')).join('|');
   if(key===lastKey)return false;
   clear();lastKey=key;
-  for(const [id,items] of mapped){
+  for(const [id,items]of mapped){
    if(!items.length)continue;
    const lot=lotById.get(id),group=new THREE.Group();
    group.name='tycoon-'+id;group.position.set(lot.position.x,lot.position.y,lot.position.z);
-   root.add(group);for(const itemId of items)addItem(group,itemId,lot);
+   for(const part of estateUpgradeExteriorParts(lot,items))box(group,part);
+   root.add(group);
   }
   return true;
  }
- return {root,setUpgrades,dispose(){if(disposed)return false;disposed=true;clear();parent.remove(root);return true;}};
+ return {root,setUpgrades,dispose(){
+  if(disposed)return false;disposed=true;clear();parent.remove(root);return true;
+ }};
 }

@@ -1,4 +1,5 @@
 import {mountEstatePurchase,mountEstateImgTrustline} from './estate-purchase-ui.mjs';
+import {mountEstateTycoon} from './estate-tycoon-ui.mjs';
 import {formatRewardUnits,sharePercent,rewardScenario} from './estate-reward-scenario.mjs';
 
 export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localStorage,api}={}){
@@ -36,7 +37,9 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
     // Keep at most one expanded detail panel across the directory.
     for(const other of $('properties').querySelectorAll('[data-purchase-detail]'))if(other!==target)other.replaceChildren();
     if(target.childElementCount){target.replaceChildren();button.setAttribute('aria-expanded','false');return;}
-    mountEstatePurchase(target,p.id,{api,fetcher,storage,onSettled:()=>void refresh()});button.setAttribute('aria-expanded','true');
+    mountEstatePurchase(target,p.id,{api,fetcher,storage,onSettled:()=>void refresh()});
+    if(mine)mountEstateTycoon(target,p.id,{api,fetcher,storage,onConfirmed:()=>void refresh()});
+    button.setAttribute('aria-expanded','true');
    });button.setAttribute('aria-expanded','false');card.append(button,target);$('properties').append(card);
   }
  }

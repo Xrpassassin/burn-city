@@ -1,7 +1,7 @@
 // Island-scoped helicopter flight approximation. Deterministic game motion, not an aviation simulator.
 // No financial rewards, speed exploits across world instances, or client-side unlock authority.
 export const HELICOPTER_PRICE_XRP=180;
-export const HELIPAD_OFFSET=Object.freeze({x:8.2,z:-5.5});
+export const HELIPAD_OFFSET=Object.freeze({x:-8.2,z:-5.5});
 export const FLIGHT_LIMITS=Object.freeze({radiusX:138,radiusZ:147,maxAltitude:92,minCruiseAltitude:11,maxSpeed:28});
 export const FLIGHT_ROUTE=Object.freeze([
  Object.freeze({id:'north-lookout',name:'North Shore Panorama',x:0,z:-111,altitude:27,radius:18}),

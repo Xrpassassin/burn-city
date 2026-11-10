@@ -252,6 +252,13 @@ const server = http.createServer(async (req, res) => {
         });
         return json(res,result.ok?200:result.error==='unknown_private_room'||result.error==='unknown_property'?404:403,result);
       }
+      if (url.pathname === '/api/estates/tycoon/helicopter-access' && req.method === 'GET') {
+        const result=require('./estate-tycoon-rooms').estateHelicopterAccess({
+          propertyId:String(url.searchParams.get('propertyId')||''),acct:u.acct,
+          accessFor:EstateAccess.accessFor,tycoonStore:estateTycoon.store
+        });
+        return json(res,result.ok?200:result.error==='unknown_property'?404:403,result);
+      }
       if (url.pathname === '/api/estates/tycoon/portfolio' && req.method === 'GET')return json(res,200,estateTycoon.portfolio(u.acct));
       if (url.pathname === '/api/estates/tycoon/quote' && req.method === 'GET') {
         const result=estateTycoon.quote({propertyId:String(url.searchParams.get('propertyId')||''),itemId:String(url.searchParams.get('itemId')||''),buyer:u.acct});

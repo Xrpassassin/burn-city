@@ -34,14 +34,22 @@ class Geometry{dispose(){this.disposed=true;}}
 class Material{constructor(options){Object.assign(this,options);}dispose(){this.disposed=true;}}
 class Mesh{constructor(geometry,material){this.geometry=geometry;this.material=material;this.position={set(){}};}}
 class PointLight{constructor(color,intensity){this.color=color;this.intensity=intensity;this.userData={};this.position={set(){}};}}
-const THREE={Group,Mesh,BoxGeometry:Geometry,MeshStandardMaterial:Material,PointLight};
+class HemisphereLight{constructor(sky,ground,intensity){this.color=sky;this.groundColor=ground;this.intensity=intensity;this.userData={};}}
+const THREE={Group,Mesh,BoxGeometry:Geometry,MeshStandardMaterial:Material,PointLight,HemisphereLight};
 const scene=new Group();
 const interior=createEstatesSecretInteriorRenderer({THREE,scene});
 assert.equal(scene.children.length,1);assert.equal(interior.active,false);assert.equal(interior.root.visible,false);
 let layout=interior.setRoom('bunker');assert.equal(interior.active,true);assert.equal(interior.root.visible,true);
-assert(interior.root.children.length>=layout.items.length+2);
+assert(interior.root.children.length>=layout.items.length+5);
+assert.equal(interior.root.children.filter(x=>x instanceof PointLight).length,4,
+ 'private rooms have full-depth local lighting independent of city sunlight');
+const fill=interior.root.children.find(x=>x instanceof HemisphereLight);
+assert(fill,'private rooms need non-spatial fill lighting even when the city environment is hidden');
+assert(fill.intensity>=.6,'bunker surfaces are readable with normal power');
 interior.setPower(false);assert.equal(interior.powerOn,false);
 assert(interior.root.children.filter(x=>x instanceof PointLight).every(x=>x.intensity===.08));
+assert(fill.intensity>.15&&fill.intensity<.4,
+ 'emergency power keeps subtle indirect fill without pretending all lights are on');
 interior.setPower(true);assert(interior.root.children.filter(x=>x instanceof PointLight).every(x=>x.intensity>.08));
 const oldMeshes=interior.root.children.filter(x=>x instanceof Mesh);
 layout=interior.setRoom('lounge');assert.equal(layout.roomId,'lounge');

@@ -477,7 +477,11 @@ export async function installEstatesIslandLive({
     if(event.code==='Space'||event.code==='KeyR')pilotHeld.up=false;
     if(event.code==='ShiftLeft'||event.code==='ShiftRight'||event.code==='KeyF')pilotHeld.down=false;
   }
+  function releasePilotInput(){pilotHeld.up=false;pilotHeld.down=false;}
+  const onPilotVisibility=()=>{if(document.hidden)releasePilotInput();};
   window.addEventListener('keydown',pilotKeyDown);window.addEventListener('keyup',pilotKeyUp);
+  window.addEventListener('blur',releasePilotInput);
+  document.addEventListener('visibilitychange',onPilotVisibility);
   function nearestVerifiedHelipad(){
     const x=player.pos.x-OFFSET_X,z=player.pos.z;
     for(const s of verifiedTycoonProperties){
@@ -1026,7 +1030,7 @@ export async function installEstatesIslandLive({
       if(disposed)return false;
       if(secretSession)leaveSecretInterior(false);
       if(flightSession)endHelicopterFlight(true,false);
-      disposed=true; islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();secretInterior.dispose();helicopters.dispose();flightHud.remove();window.removeEventListener('keydown',pilotKeyDown);window.removeEventListener('keyup',pilotKeyUp);
+      disposed=true; islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();secretInterior.dispose();helicopters.dispose();flightHud.remove();window.removeEventListener('keydown',pilotKeyDown);window.removeEventListener('keyup',pilotKeyUp);window.removeEventListener('blur',releasePilotInput);document.removeEventListener('visibilitychange',onPilotVisibility);
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       root.userData.propertyDeepLinkHint?.remove(); guidanceHud?.remove();
       if(selectedLotBeacon){selectedLotBeacon.group.removeFromParent();for(const g of selectedLotBeacon.geometries)g.dispose();for(const m of selectedLotBeacon.materials)m.dispose();}

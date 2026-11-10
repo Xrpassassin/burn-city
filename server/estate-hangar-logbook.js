@@ -92,6 +92,14 @@ function createEstateHangarLogbook({db,tycoonStore,accessFor,clock=Date.now}={})
   if(changed.changes!==1)return {ok:false,error:'flight_session_changed'};
   return snapshot(propertyId,acct);
  }
- return Object.freeze({snapshot,setStyle,startFlight,finishFlight});
+ function publicStyles(){
+  // Only verifiably settled helicopters are shown. Never expose callsigns, pilots or flight history.
+  const rows=db.prepare("SELECT s.property_id AS propertyId,s.paint,s.trim "+
+   "FROM estate_hangar_style s JOIN estate_tycoon_orders o ON o.property_id=s.property_id "+
+   "AND o.item_id='estate-helicopter' AND o.status='settled' "+
+   "JOIN estate_property_ownership p ON p.property_id=s.property_id ORDER BY s.property_id").all();
+  return rows.filter(s=>Object.hasOwn(PAINT,s.paint)&&Object.hasOwn(TRIM,s.trim));
+ }
+ return Object.freeze({snapshot,setStyle,startFlight,finishFlight,publicStyles});
 }
 module.exports={createEstateHangarLogbook,PAINT,TRIM,STOPS,DEFAULT_STYLE};

@@ -2,14 +2,14 @@
 // Never display a purchase as installed until the server confirms validated XRP.
 const xrp=d=>{const n=BigInt(d||0);return (n/1000000n).toString()+(n%1000000n?'.'+(n%1000000n).toString().padStart(6,'0').replace(/0+$/,''):'');};
 const humanError={tycoon_purchases_disabled:'XRP upgrades are not enabled yet.',estate_treasury_paused:'The treasury is paused.',property_owner_required:'Only the verified owner may upgrade.',upgrade_prerequisites_missing:'Unlock the prerequisite improvement first.',upgrade_tier_restricted:'Helicopters are available only for Family Homes and Luxury Mansions.',another_upgrade_pending:'Finish or review your pending upgrade first.',upgrade_already_owned:'This upgrade is already owned.',tycoon_payload_pending:'A payment request is pending. Check again later.',tycoon_order_requires_review:'This payment request requires review; do not pay again.',tycoon_order_not_found:'This order was not found for your wallet.',tycoon_payment_pending:'Your signed payment has not been validated yet.'};
-export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,storage=localStorage,onConfirmed=()=>{}}={}){
+export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,storage=localStorage,onConfirmed=()=>{},onPreview=null}={}){
  const section=document.createElement('details');section.dataset.estateTycoon=propertyId;
  section.style.cssText='margin-top:12px;border-top:1px solid #7ca9bf;padding:10px 0;color:#d7e8ed';
  const summary=document.createElement('summary');summary.textContent='BUILD & UPGRADE · Estates Tycoon';summary.style.cssText='cursor:pointer;font-weight:800;color:#6bd4ff';
  const meta=document.createElement('p'),message=document.createElement('p'),catalogue=document.createElement('div');
  message.setAttribute('role','status');message.style.cssText='font-size:12px;color:#ffca9e';
  section.append(summary,meta,message,catalogue);container.append(section);
- let current=null,busy=false,orderId='';
+ let current=null,busy=false,orderId='',previewItemId=null;
  function token(){return storage?.getItem('bcToken')||'';}
  async function request(path,data){
   const auth=token();
@@ -34,7 +34,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   const r=await request('confirm',{orderId});
   if(!r.ok){message.textContent='Payment not validated yet; nothing has been credited.';return;}
   message.textContent='Validated purchase credited to your property development value and recorded share balance.';
-  orderId='';onConfirmed(r.property);await load();
+  orderId='';previewItemId=null;onPreview?.(null);onConfirmed(r.property);await load();
  }
  async function buy(item){
   const q=await request('quote?propertyId='+encodeURIComponent(propertyId)+'&itemId='+encodeURIComponent(item.id));
@@ -50,8 +50,10 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   const s=current.state,items=current.catalog;
   meta.textContent=(s.owned?'Recorded property spending: ':'Preview starting price: ')+xrp(s.recordedValueDrops)+' XRP · '+(s.owned?'Recorded share balance: ':'Potential starting share units: ')+s.recordedShareUnits+' units ('+s.upgradeShareUnits+' from verified upgrades). '+(s.owned?'Recorded upgrade units are not active payout weight yet. ':'Buy the property before unlocking improvements. ')+'This is not a market appraisal or a guaranteed payout.';
   if(!s.ownerAuthorized&&s.owned)message.textContent='Only the property owner can buy upgrades. You can browse the upgrade tree.';
-  else if(!s.purchasesEnabled)message.textContent='Build previews available. XRP upgrade purchases remain disabled until treasury and distribution policy review.';
+  else if(!s.purchasesEnabled)message.textContent=(typeof onPreview==='function'?'View in-world previews; ':'Browse upgrade options; ')+'XRP upgrade purchases remain disabled until treasury and distribution policy review.';
   else message.textContent='';
+  if(previewItemId)message.textContent='CYAN 3D PREVIEW ONLY · '+(items.find(i=>i.id===previewItemId)?.name||'Selected upgrade')+
+   ' · not purchased, not installed, and no recorded shares or financial rights have changed.';
   if(s.ownerAuthorized&&s.pending?.orderId){
    orderId=s.pending.orderId;
    catalogue.append(button('Check pending payment',confirm));
@@ -69,6 +71,15 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
     labelText.textContent=item.name+' · '+item.priceXrp+' XRP · +'+item.shareUnitsDelta+' recorded share'+(item.shareUnitsDelta===1?'':'s')+
      (owned?' · UNLOCKED':!tierEligible?' · Family / Mansion only':missing.length?' · Needs '+missing.join(', '):'');
     row.append(labelText);
+    // Isolated visual-only outline, never a verified unlock or entitlement.
+    if(typeof onPreview==='function'&&!owned&&tierEligible&&item.category!=='aviation'){
+     row.append(button(previewItemId===item.id?'Hide preview':'View on property',()=>{
+      const next=previewItemId===item.id?null:item.id;
+      const changed=onPreview(next);
+      if(changed===false)throw Error('This upgrade cannot be previewed on this property.');
+      previewItemId=next;render();
+     }));
+    }
     if(!owned&&s.ownerAuthorized&&s.purchasesEnabled&&tierEligible&&!missing.length)row.append(button('Buy',()=>buy(item),!!s.pending));
     else if(owned){const tick=document.createElement('span');tick.textContent='✓';tick.style.color='#73e0aa';row.append(tick);}
     catalogue.append(row);

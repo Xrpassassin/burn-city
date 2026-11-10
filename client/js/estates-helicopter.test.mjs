@@ -5,7 +5,7 @@ const mansion={propertyId:'mansion-01',position:{x:15,y:.15,z:40},tier:'mansion'
 const trailer={propertyId:'trailer-01',position:{x:45,y:.15,z:40},tier:'trailer'};
 const pad=estateHelipadPosition(mansion);
 assert.equal(HELICOPTER_PRICE_XRP,180);
-assert.deepEqual(pad,{x:6.8,z:34.5});
+assert(Math.abs(pad.x-6.8)<1e-9&&Math.abs(pad.z-34.5)<1e-9,'helipad position uses floating-point coordinates');
 assert.equal(FLIGHT_ROUTE.length,3);
 const flight=createEstateHelicopterFlight(mansion);
 assert.equal(flight.position.altitude,1.4);

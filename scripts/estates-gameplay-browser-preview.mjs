@@ -124,7 +124,8 @@ try{
   await page.evaluate(()=>{
    const {THREE,root,privateRoom,decor,render}=window.__estatesGameplayQA;
    decor.clearUpgradePreview();root.visible=false;privateRoom.setRoom('bunker');
-   render(new THREE.Vector3(1875,9.8,-1110),[5,2.5,5.8]);
+   // Eye-level third-person composition (not an overhead view into the ceiling).
+   render(new THREE.Vector3(1875,9.8,-1111),[4,1,5.2]);
   });
   await capture(label+'-bunker-interior.png');
   const final=await page.evaluate(()=>{
@@ -144,6 +145,7 @@ try{
     readableFraction:readable/total,brightFraction:bright/total,
     renderedDrawCalls:qa.renderer.info.render.calls};
   });
+  console.log('Estates interior browser legibility',engine,label,JSON.stringify({readable:final.readableFraction,bright:final.brightFraction,parts:final.roomGeometry}));
   assert.equal(final.roomName,'bunker');
   assert(final.bunkerVisible&&final.roomGeometry>10);
   assert(final.readableFraction>.15,

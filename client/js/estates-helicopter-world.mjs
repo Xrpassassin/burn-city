@@ -1,6 +1,8 @@
 // Low-poly, dependency-free Three.js estate helicopter. No third-party assets copied.
 // Verifiable installation: only server-supplied settled upgrade IDs are used.
 import {estateHelipadPosition,createEstateHelicopterFlight} from './estates-helicopter-flight.mjs';
+const PAINT=Object.freeze({obsidian:0x223b4b,ember:0x9f4731,arctic:0xc0d0d8,verdant:0x3d7664,royal:0x55426f});
+const TRIM=Object.freeze({brass:0xb49b67,ice:0x73d4e6,chrome:0xb4bdc7,copper:0xd1784d,ivory:0xe6ddd0});
 const C={body:0x223b4b,bodyAccent:0xb49b67,steel:0x4b5661,glass:0x25749a,pad:0x303b3b,
  white:0xf3d38a,red:0xe86243,green:0x4ecbb0,rotor:0x19262f};
 export function createEstateHelicopterWorld({THREE,parent,lots}={}){
@@ -9,6 +11,7 @@ export function createEstateHelicopterWorld({THREE,parent,lots}={}){
  const root=new THREE.Group();root.name='estates-verified-aviation';parent.add(root);
  const byId=new Map(lots.filter(l=>l.propertyId&&['family','mansion'].includes(l.tier)).map(l=>[l.propertyId,l]));
  let installed=new Map(),disposed=false,activeProperty=null;
+ const savedStyles=new Map();
  function box(parent,id,w,h,d,x,y,z,color,metalness=0){
   const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color,roughness:.52,metalness}));
   mesh.name=id;mesh.position.set(x,y,z);parent.add(mesh);return mesh;
@@ -63,8 +66,23 @@ export function createEstateHelicopterWorld({THREE,parent,lots}={}){
   const next=[...ids].sort().join('|'),previous=[...installed.keys()].sort().join('|');
   if(next===previous)return false;
   clear();
-  for(const id of ids){const obj=build(byId.get(id));installed.set(id,obj);}
+  for(const id of ids){const obj=build(byId.get(id));installed.set(id,obj);applyStyle(id);}
   return true;
+ }
+ function applyStyle(id){
+  const obj=installed.get(id),style=savedStyles.get(id);
+  if(!obj||!style)return false;
+  obj.craft.traverse?.(node=>{
+   if(!node.material?.color?.setHex)return;
+   if(['fuselage','tail-boom'].includes(node.name))node.material.color.setHex(PAINT[style.paint]);
+   else if(['roof','tail-fin','cabin-door'].includes(node.name))node.material.color.setHex(TRIM[style.trim]);
+  });
+  return true;
+ }
+ function setStyle(propertyId,style){
+  if(!installed.has(propertyId)||!style||!Object.hasOwn(PAINT,style.paint)||!Object.hasOwn(TRIM,style.trim))return false;
+  savedStyles.set(propertyId,{paint:style.paint,trim:style.trim,callsign:String(style.callsign||'BURN AIR').slice(0,16)});
+  return applyStyle(propertyId);
  }
  function hasHelicopter(id){return installed.has(id);}
  function flightModel(id){return installed.get(id)?.model||null;}
@@ -93,6 +111,6 @@ export function createEstateHelicopterWorld({THREE,parent,lots}={}){
   activeProperty=null;return true;
  }
  function dispose(){if(disposed)return false;disposed=true;clear();parent.remove(root);return true;}
- return Object.freeze({root,setVerified,hasHelicopter,flightModel,board,tick,park,dispose,
+ return Object.freeze({root,setVerified,setStyle,hasHelicopter,flightModel,board,tick,park,dispose,
   get activeProperty(){return activeProperty},get properties(){return [...installed.keys()]}});
 }

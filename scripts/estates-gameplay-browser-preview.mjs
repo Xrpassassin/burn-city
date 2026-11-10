@@ -19,7 +19,12 @@ try{
   const response=await page.goto('http://127.0.0.1:8080/?noguide=1&live=0&q=low&view=street',
    {waitUntil:'domcontentloaded',timeout:60000});
   assert.equal(response?.status(),200);
-  await page.waitForFunction(()=>window.__ready&&window.__city?.S&&window.__city?.R&&window.__estatesIslandLive?.manifest,{timeout:60000});
+  await page.waitForFunction(()=>window.__ready&&window.__city?.S&&window.__city?.R&&window.__estatesIslandLive?.manifest,null,{timeout:60000});
+  // Exercise the real public admission/exit transitions, not only fake meshes.
+  assert.equal(await page.evaluate(()=>window.__estatesIslandLive.enterFromCity()),true);
+  await page.waitForFunction(()=>window.__estatesIslandLive?.active,null,{timeout:15000});
+  assert.equal(await page.evaluate(()=>window.__estatesIslandLive.returnToCity()),true);
+  await page.waitForFunction(()=>!window.__estatesIslandLive?.active,null,{timeout:5000});
   const setup=await page.evaluate(async()=>{
    const THREE=await import('three');
    const {renderEstateHouses}=await import('./js/estates-house-design.mjs');
@@ -52,11 +57,24 @@ try{
    heli.setVerified([{propertyId:'qa-family',unlockedItemIds:['estate-helicopter']},
     {propertyId:'qa-mansion',unlockedItemIds:['estate-helicopter']}]);
    const privateRoom=createEstatesSecretInteriorRenderer({THREE,scene:city.S,origin:{x:1875,y:8,z:-1110}});
+   const installed=root.children.find(c=>c.name==='estate-tycoon-verified-decorations');
+   const visualParts=installed.children.reduce((n,g)=>n+(g.isInstancedMesh?g.count:g.children.length),0);
+   const drawBatches=installed.children.length;
+   // Hide unrelated main-game scene/UI only in this disposable QA page so
+   // screen captures show the branch geometry and useful architectural detail.
+   for(const object of city.S.children){
+    if(object!==root&&object!==privateRoom.root&&!object.isLight&&!object.isCamera)object.visible=false;
+   }
+   city.S.fog=null;city.S.background=new THREE.Color(0x8aa9ba);
+   const canvas=city.R.domElement;
+   for(const el of document.querySelectorAll('body *')){
+    if(el===canvas||el.contains(canvas))continue;
+    el.style?.setProperty('visibility','hidden','important');
+   }
    const stats={ready:!!window.__ready,glVersion:city.R.getContext().getParameter(city.R.getContext().VERSION),
     lotCount:lots.length,upgrades:ESTATE_EXTERIOR_ITEM_IDS.length,
     helicopterLots:heli.properties,
-    props:root.children.filter(c=>c.name==='estate-tycoon-verified-decorations')
-      .flatMap(c=>c.children).reduce((n,g)=>n+g.children.length,0),
+    props:visualParts,verifiedDrawBatches:drawBatches,
     rendererDrawCalls:city.R.info.render.calls};
    window.__estatesGameplayQA={THREE,city,root,lots,decor,heli,privateRoom};
    return stats;
@@ -64,7 +82,8 @@ try{
   assert.equal(setup.lotCount,5);
   assert.equal(setup.upgrades,17);
   assert.equal(setup.helicopterLots.length,2);
-  assert(setup.props>30,'five distinct estates should show meaningful purchased upgrades');
+  assert(setup.props>350,'five distinct estates should show meaningful purchased upgrades');
+  assert(setup.verifiedDrawBatches<=17,'the real WebGL renderer batches verified exterior details by material');
   for(const tier of ['trailer','apartment','starter','family','mansion']){
    await page.evaluate(tier=>{
     const {city,THREE,root,lots}=window.__estatesGameplayQA;
@@ -77,6 +96,23 @@ try{
    await page.waitForTimeout(450);
    await page.screenshot({path:out+'/'+label+'-'+tier+'.png'});
   }
+  // Preview-only ghost is rendered without adding a verified item ID.
+  await page.evaluate(()=>{
+   const {city,THREE,root,lots,decor}=window.__estatesGameplayQA;
+   const starter=lots.find(l=>l.tier==='starter');
+   decor.setUpgrades(lots.map(l=>({propertyId:l.propertyId,
+    unlockedItemIds:l.tier==='starter'?
+     ['porch-lights','privacy-fence','flower-garden','hidden-hatch']:
+     ['porch-lights','privacy-fence','flower-garden','hidden-hatch','cozy-awning']})));
+   if(!decor.previewUpgrade('qa-starter','cozy-awning'))throw Error('preview_failed');
+   if(decor.previewRoot.children.length!==1)throw Error('unverified_preview_not_isolated');
+   const target=new THREE.Vector3(root.position.x+starter.position.x,root.position.y+2.8,root.position.z);
+   city.orbit.target.copy(target);city.C.position.copy(target).add(new THREE.Vector3(13,12,22));
+   city.C.lookAt(target);city.orbit.update();
+  });
+  await page.waitForTimeout(450);
+  await page.screenshot({path:out+'/'+label+'-nonowned-upgrade-preview.png'});
+  await page.evaluate(()=>window.__estatesGameplayQA.decor.clearUpgradePreview());
   await page.evaluate(()=>{
    const {city,THREE,root,privateRoom}=window.__estatesGameplayQA;
    root.visible=false;privateRoom.setRoom('bunker');

@@ -48,7 +48,7 @@ export function mountEstateTycoon(container,propertyId,{api='',fetcher=fetch,sto
   if(!section.isConnected||!current)return;
   catalogue.replaceChildren();
   const s=current.state,items=current.catalog;
-  meta.textContent='Recorded property spend: '+xrp(s.recordedValueDrops)+' XRP · Recorded share balance: '+s.recordedShareUnits+' units ('+s.upgradeShareUnits+' from upgrades). These are ledger totals, not an appraisal or guaranteed payouts.';
+  meta.textContent=(s.owned?'Recorded property spending: ':'Preview starting price: ')+xrp(s.recordedValueDrops)+' XRP · '+(s.owned?'Recorded share balance: ':'Potential starting share units: ')+s.recordedShareUnits+' units ('+s.upgradeShareUnits+' from verified upgrades). '+(s.owned?'Recorded upgrade units are not active payout weight yet. ':'Buy the property before unlocking improvements. ')+'This is not a market appraisal or a guaranteed payout.';
   if(!s.ownerAuthorized&&s.owned)message.textContent='Only the property owner can buy upgrades. You can browse the upgrade tree.';
   else if(!s.purchasesEnabled)message.textContent='Build previews available. XRP upgrade purchases remain disabled until treasury and distribution policy review.';
   else message.textContent='';

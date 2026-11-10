@@ -155,6 +155,8 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     setAppearance,
     setOwnership,
     setUpgrades:tycoonDecor.setUpgrades,
+    previewUpgrade:tycoonDecor.previewUpgrade,
+    clearUpgradePreview:tycoonDecor.clearUpgradePreview,
     getObject(id){return objects.get(id)??null;},
     get objectCount(){return objects.size;},
     dispose(){

@@ -43,7 +43,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
    }
    case 'flower-garden':{
     for(const [j,z]of [2.8,-.5].entries()){
-     supported(id,'flower-bed-'+j,-sideX,z,1.3,2,'wood');
+     supported(id,'flower-bed-'+j,-sideX,z,1.3,2,lot.tier==='mansion'?'stone':lot.tier==='apartment'?'metal':'wood');
      for(const [k,dz] of [-.55,0,.55].entries()){
       p(id,'flower-stem-'+j+'-'+k,-sideX,.48,z+dz,.08,.52,.08,'green');
       p(id,'flower-bloom-'+j+'-'+k,-sideX,.79,z+dz,.29,.22,.29,k%2?'flower':'gold');
@@ -63,24 +63,26 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
      p(id,'veranda-post-'+side,x+side*supportX,1.29,front+1.1,.16,2.48,.16,'wood','attached');
      p(id,'bracket-'+side,x+side*supportX,2.45,front+.2,.28,.2,.75,'metal','attached');
     }
-    p(id,'roof-deck',x,2.59,canopyZ,width,.19,1.7,lot.tier==='trailer'?'slate':'wood','attached');
+    p(id,'roof-deck',x,2.59,canopyZ,width,.19,1.7,['trailer','apartment','mansion'].includes(lot.tier)?'slate':'wood','attached');
     p(id,'roof-flashing',x,2.73,front-.08,width,.12,.15,'metal','attached');
     p(id,'front-beam',x,2.42,front+1.24,width,.22,.19,'wood','attached');break;
    }
    case 'privacy-fence':{
     const x=edgeX-.52,z=edgeZ-.58;
+    const fenceH=lot.tier==='mansion'?1.82:lot.tier==='family'?1.6:1.3;
+    const railY=.05+fenceH/2,finish=lot.tier==='mansion'?'stone':lot.tier==='apartment'?'metal':'wood';
     for(const side of [-1,1]){
-     p(id,'side-rail-'+side,side*x,.83,0,.16,1.52,2*z,'wood');
-     p(id,'rear-rail-'+side,side*x/2,.83,-z,x,1.52,.15,'wood');
-     // Leave a 6 m front opening. The approach and the building's door stay accessible.
-     p(id,'front-rail-'+side,side*(x+3.05)/2,.83,z,x-3.05,1.52,.15,'wood');
-     p(id,'gate-column-'+side,side*3.05,.9,z,.24,1.8,.24,'stone');
+     p(id,'side-rail-'+side,side*x,railY,0,.16,fenceH,2*z,finish);
+     p(id,'rear-rail-'+side,side*x/2,railY,-z,x,fenceH,.15,finish);
+     // Leave a wide physical opening at the public approach, never a solid front gate.
+     p(id,'front-rail-'+side,side*(x+3.05)/2,railY,z,x-3.05,fenceH,.15,finish);
+     p(id,'gate-column-'+side,side*3.05,.05+(fenceH+.25)/2,z,.24,fenceH+.25,.24,lot.tier==='mansion'?'brass':'stone');
     }break;
    }
    case 'fire-pit':{
     const x=sideX,z=1.6;
     p(id,'paving',x,.07,z,2.35,.12,2.25,'stone');
-    p(id,'hearth',x,.29,z,1.4,.38,1.3,'stone');
+    p(id,'hearth',x,.29,z,1.4,.38,1.3,lot.tier==='mansion'?'slate':'stone');
     p(id,'ash-grate',x,.48,z,.88,.07,.8,'metal');
     p(id,'embers',x,.52,z,.43,.06,.38,'red');break;
    }

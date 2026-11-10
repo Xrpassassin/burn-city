@@ -1051,7 +1051,7 @@ export async function installEstatesIslandLive({
     },
     get active(){return active;},
     get flightActive(){return active&&!!flightSession;},
-    get interiorActive(){return active&&!!secretSession;}
+    get interiorActive(){return active&&!!secretSession;},
     get manifest(){return manifest;}
   });
   window.__estatesIslandLive=api;

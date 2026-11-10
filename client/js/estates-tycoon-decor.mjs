@@ -12,6 +12,9 @@ export function createEstateTycoonDecor({THREE,parent,lots}={}){
  if(!THREE?.Group||!THREE?.Mesh||!THREE?.BoxGeometry||!THREE?.MeshStandardMaterial||!parent?.add||!Array.isArray(lots))
   throw TypeError('tycoon_decoration_dependencies_required');
  const root=new THREE.Group();root.name='estate-tycoon-verified-decorations';parent.add(root);
+ // Preview is an entirely separate local-only scene layer. Never add preview IDs
+ // to the verified server-backed upgrade list or public ownership state.
+ const previewRoot=new THREE.Group();previewRoot.name='estate-tycoon-preview-only';parent.add(previewRoot);
  const lotById=new Map(lots.filter(l=>l.propertyId).map(l=>[l.propertyId,l]));
  let lastKey='',disposed=false;
  const materials=new Map();
@@ -36,7 +39,37 @@ export function createEstateTycoonDecor({THREE,parent,lots}={}){
   materials.clear();
   for(const child of [...root.children])root.remove(child);
  }
- function setUpgrades(properties=[]){
+ function clearUpgradePreview(){
+  const geometries=new Set(),mats=new Set();
+  previewRoot.traverse?.(obj=>{
+   if(obj.geometry)geometries.add(obj.geometry);
+   if(obj.material)for(const mat of (Array.isArray(obj.material)?obj.material:[obj.material]))mats.add(mat);
+  });
+  for(const geometry of geometries)geometry.dispose?.();
+  for(const mat of mats)mat.dispose?.();
+  for(const child of [...previewRoot.children])previewRoot.remove(child);
+  return true;
+ }
+ function previewUpgrade(propertyId,itemId){
+  if(disposed)return false;
+  clearUpgradePreview();
+  if(itemId===null)return true;
+  if(!lotById.has(propertyId)||!known.has(itemId))return false;
+  const lot=lotById.get(propertyId),group=new THREE.Group();
+  group.name='preview-only-'+propertyId+'-'+itemId;
+  group.position.set(lot.position.x,lot.position.y,lot.position.z);
+  for(const part of estateUpgradeExteriorParts(lot,[itemId])){
+   const mesh=new THREE.Mesh(new THREE.BoxGeometry(part.w,part.h,part.d),
+    new THREE.MeshStandardMaterial({color:0x6ee7e9,emissive:0x136b80,emissiveIntensity:.24,
+      roughness:.65,transparent:true,opacity:.48,depthWrite:false}));
+   mesh.name='preview-only-'+part.name;
+   mesh.userData={previewOnly:true,notPurchased:true,estateUpgradeId:part.id};
+   mesh.position.set(part.x,part.y,part.z);group.add(mesh);
+  }
+  previewRoot.add(group);
+  return true;
+ }
+  function setUpgrades(properties=[]){
   if(disposed)return false;
   const mapped=new Map();
   for(const item of properties){
@@ -56,7 +89,8 @@ export function createEstateTycoonDecor({THREE,parent,lots}={}){
   }
   return true;
  }
- return {root,setUpgrades,dispose(){
-  if(disposed)return false;disposed=true;clear();parent.remove(root);return true;
+ return {root,previewRoot,setUpgrades,previewUpgrade,clearUpgradePreview,dispose(){
+  if(disposed)return false;disposed=true;clear();clearUpgradePreview();
+  parent.remove(root);parent.remove(previewRoot);return true;
  }};
 }

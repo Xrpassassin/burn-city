@@ -42,6 +42,6 @@ function estateHelicopterAccess({propertyId,acct,accessFor,tycoonStore}={}){
  if(!state.owned||!['family','mansion'].includes(state.tier))return {ok:false,error:'helicopter_tier_restricted'};
  if(!state.unlockedItemIds.includes('estate-helicopter'))return {ok:false,error:'helicopter_not_unlocked'};
  return {ok:true,propertyId,role:'owner',aircraft:'estate-helicopter',pilotAuthorized:true,flightNetworked:false,
-  priceDrops:180000000,flightScope:'estates_island_local',rewardsGuaranteed:false};
+  priceDrops:require('./estate-tycoon').ITEM_BY_ID.get('estate-helicopter').priceDrops,flightScope:'estates_island_local',rewardsGuaranteed:false};
 }
 module.exports={ROOMS,ROOM_BY_ID,privateRoomOptions,privateRoomAccess,estateHelicopterAccess};

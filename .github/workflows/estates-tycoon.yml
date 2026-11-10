@@ -4,6 +4,8 @@ on:
     paths:
       - 'server/estate-tycoon*'
       - 'server/server.js'
+      - 'test/estate-tycoon-http.test.js'
+      - 'client/js/estate-portfolio-ui.mjs'
       - 'client/js/estate-tycoon*'
       - 'client/js/estates-tycoon*'
       - 'client/js/estates-island-renderer.mjs'

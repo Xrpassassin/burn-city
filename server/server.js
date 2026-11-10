@@ -238,6 +238,20 @@ const server = http.createServer(async (req, res) => {
           return json(res,200,{...state,ownerAuthorized:access.ownerAuthorized,pending:access.pending,purchasesEnabled:estateTycoon.enabled()});}
         catch(e){return json(res,404,{error:e.message==='unknown_property'?'unknown_property':'tycoon_state_unavailable'});}
       }
+      if (url.pathname === '/api/estates/tycoon/interior-options' && req.method === 'GET') {
+        const result=require('./estate-tycoon-rooms').privateRoomOptions({
+          propertyId:String(url.searchParams.get('propertyId')||''),acct:u.acct,
+          accessFor:EstateAccess.accessFor,tycoonStore:estateTycoon.store
+        });
+        return json(res,result.ok?200:result.error==='unknown_property'?404:403,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/interior-access' && req.method === 'GET') {
+        const result=require('./estate-tycoon-rooms').privateRoomAccess({
+          propertyId:String(url.searchParams.get('propertyId')||''),roomId:String(url.searchParams.get('roomId')||''),
+          acct:u.acct,accessFor:EstateAccess.accessFor,tycoonStore:estateTycoon.store
+        });
+        return json(res,result.ok?200:result.error==='unknown_private_room'||result.error==='unknown_property'?404:403,result);
+      }
       if (url.pathname === '/api/estates/tycoon/portfolio' && req.method === 'GET')return json(res,200,estateTycoon.portfolio(u.acct));
       if (url.pathname === '/api/estates/tycoon/quote' && req.method === 'GET') {
         const result=estateTycoon.quote({propertyId:String(url.searchParams.get('propertyId')||''),itemId:String(url.searchParams.get('itemId')||''),buyer:u.acct});

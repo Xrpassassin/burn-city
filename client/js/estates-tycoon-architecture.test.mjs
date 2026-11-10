@@ -28,6 +28,14 @@ for(const [tier,buildingFootprint]of Object.entries(footprints)){
   }
  }
  assert(names.some(n=>n.startsWith('cozy-awning-veranda-post-')),tier+' veranda requires supporting posts');
+ const fence=parts.find(p=>p.name==='privacy-fence-side-rail--1');
+ assert.equal(fence.mat,tier==='mansion'?'stone':tier==='apartment'?'metal':'wood',
+  tier+' fence must have appropriate architectural material');
+ assert.equal(fence.h,tier==='mansion'?1.82:tier==='family'?1.6:1.3,
+  tier+' fence must use tier-appropriate height');
+ const awning=parts.find(p=>p.name==='cozy-awning-roof-deck');
+ assert.equal(awning.mat,['trailer','apartment','mansion'].includes(tier)?'slate':'wood',
+  tier+' doorway shelter must match house finishes');
  assert(names.some(n=>n==='hidden-hatch-hatch'),tier+' hatch must have steel hardware');
  assert(names.some(n=>n==='game-lounge-arcade-entrance-badge'),tier+' interior upgrades have a subtle public indication');
  assert(names.some(n=>n==='hobby-workshop-utility-door'),tier+' workshop must be legible from public exterior');

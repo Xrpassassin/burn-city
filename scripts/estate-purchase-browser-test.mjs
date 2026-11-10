@@ -40,10 +40,11 @@ try{
  await page.getByRole('checkbox').check();
  await page.getByRole('button',{name:'Reserve and review in Xaman'}).click();
  assert.equal(await page.getByRole('link',{name:'Open Xaman to review payment'}).getAttribute('href'),'https://example.com/sign');
- await page.getByRole('button',{name:'Check signed payment'}).click();
- await page.getByText('Payment is awaiting ledger validation.',{exact:false}).waitFor();
- await page.getByRole('button',{name:'Check signed payment'}).click();
- await page.getByText('Your XRP payment was verified on the ledger',{exact:false}).waitFor();
+ // No button press: the page auto-polls confirm after signing (pending, then settled).
+ assert.equal(await page.getByRole('button',{name:'Check signed payment'}).isVisible(),true);
+ await page.getByText('Payment is awaiting ledger validation.',{exact:false}).waitFor({timeout:15000});
+ await page.getByText('Your XRP payment was verified on the ledger',{exact:false}).waitFor({timeout:20000});
+ assert.equal((await page.evaluate(()=>window.calls)).filter(c=>c.path==='/purchase/payment/confirm').length,2);
  await page.getByLabel('Optional bonus settlement currency').selectOption('XRP');
  await page.getByRole('button',{name:'Save payout preference'}).click();
  await page.getByText('Payout preference saved.',{exact:false}).waitFor();

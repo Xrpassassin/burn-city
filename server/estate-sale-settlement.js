@@ -10,7 +10,8 @@ function createEstateSaleSettlementStore(db){
  const owned=db.prepare('SELECT * FROM estate_property_ownership WHERE property_id=?');
  const byTx=db.prepare('SELECT * FROM estate_property_ownership WHERE purchase_tx=?');
  const insert=db.prepare('INSERT INTO estate_property_ownership(property_id,acct,purchase_tx,purchase_amount_drops,share_units,purchased_at) VALUES(?,?,?,?,?,?)');
- const mark=db.prepare("UPDATE estate_sale_reservations SET status='settled',payment_tx=? WHERE reservation_id=? AND status='reserved'");
+ const mark=db.prepare("UPDATE estate_sale_reservations SET status='settled',payment_tx=? WHERE reservation_id=? AND status IN ('reserved','expired')");
+ const hasLateReviews=()=>!!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='estate_late_payment_reviews'").get();
  function settle({reservationId,verification,now=Date.now()}={}){
   if(typeof reservationId!=='string'||!reservationId||!verification||verification.settlementVerified!==true||verification.validated!==true||verification.ownershipAssigned!==false||verification.distributable!==false)throw new Error('trusted_payment_verification_required');
   if(!Number.isSafeInteger(now)||now<1)throw new TypeError('invalid_settlement_timestamp');
@@ -25,11 +26,23 @@ function createEstateSaleSettlementStore(db){
     if(prior?.purchase_tx!==hash||prior.acct!==row.buyer)throw new Error('settlement_state_conflict');
     db.exec('COMMIT');return prior;
    }
-   if(row.status!=='reserved'||now>row.expires_at)throw new Error('reservation_not_active');
+   const inWindow=row.status==='reserved'&&now<=row.expires_at;
+   // Late confirmation: the reservation deadline passed (or the row was marked
+   // expired) but the validated ledger payment closed inside the original window.
+   const late=!inWindow&&verification.lateConfirmed===true&&(row.status==='reserved'||row.status==='expired');
+   if(!inWindow&&!late)throw new Error('reservation_not_active');
+   if(late&&(!Number.isSafeInteger(verification.paymentAt)||verification.paymentAt<row.created_at-1000||verification.paymentAt>row.expires_at+1000))throw new Error('payment_outside_reservation_window');
    if(verification.reservationId!==row.reservation_id||verification.propertyId!==row.property_id||verification.buyer!==row.buyer||verification.amountDrops!==row.price_drops)throw new Error('payment_reservation_mismatch');
    if(!Number.isSafeInteger(verification.ledgerIndex)||verification.ledgerIndex<1)throw new Error('verified_ledger_required');
    if(owned.get(row.property_id))throw new Error('property_already_owned');
    if(byTx.get(hash))throw new Error('payment_already_used');
+   if(late&&hasLateReviews()){
+    // A recorded late-payment review must describe this exact payment.
+    const review=db.prepare('SELECT buyer,tx_hash FROM estate_late_payment_reviews WHERE reservation_id=?').get(reservationId);
+    if(review&&(review.tx_hash.toUpperCase()!==hash.toUpperCase()||review.buyer!==row.buyer))throw new Error('late_review_payment_mismatch');
+    const other=db.prepare('SELECT reservation_id FROM estate_late_payment_reviews WHERE upper(tx_hash)=upper(?) AND reservation_id<>?').get(hash,reservationId);
+    if(other)throw new Error('payment_already_used');
+   }
    const property=PROPERTY_BY_ID.get(row.property_id),tier=property&&TIER_BY_ID.get(property.tier);
    if(!tier||!Number.isSafeInteger(tier.shareUnits)||tier.shareUnits<1||tier.price*1000000!==row.price_drops)throw new Error('catalog_changed_since_reservation');
    insert.run(row.property_id,row.buyer,hash,row.price_drops,tier.shareUnits,now);

@@ -1,0 +1,36 @@
+name: Estates tycoon upgrade ledger
+on:
+  pull_request:
+    paths:
+      - 'server/estate-tycoon*'
+      - 'server/server.js'
+      - 'client/js/estate-tycoon*'
+      - 'client/js/estates-tycoon*'
+      - 'client/js/estates-island-renderer.mjs'
+      - 'client/js/estates-island-live.mjs'
+      - 'package.json'
+      - '.github/workflows/estates-tycoon.yml'
+permissions:
+  contents: read
+jobs:
+  tycoon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: |
+          node --check server/estate-tycoon.js
+          node --check server/estate-tycoon-runtime.js
+          node --check server/server.js
+          node --check client/js/estate-tycoon-ui.mjs
+          node --check client/js/estates-tycoon-decor.mjs
+          node --check client/js/estates-island-live.mjs
+          npm run -s test:estate-tycoon
+          node client/js/estates-island-renderer.test.mjs
+          node client/js/estates-island-live.test.mjs
+          node server/estate-prestige-runtime.test.js
+          node server/estate-portfolio.test.js
+          node server/estate-price-weights.test.js

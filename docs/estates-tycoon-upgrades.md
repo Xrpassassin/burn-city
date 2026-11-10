@@ -44,6 +44,26 @@ Existing hourly/monthly distribution modules, historical purchase weights and es
 
 Existing cosmetic prestige purchases retain their separate appearance-only contract; this branch does not silently rebook them as shares.
 
+## Private aviation — premium repeatable Estates gameplay
+
+A **180 XRP helicopter and its own helipad** is a single fixed upgrade, item ID **estate-helicopter**. It costs 60% of the 300 XRP mansion price, and the server allows it only for the **150 XRP Family Home** and **300 XRP Luxury Mansion**. Trailer, apartment, starter home and cabin properties cannot buy it. The upgrade follows the estate on resale.
+
+The price adds 180 XRP to recorded property development spend and 60 recorded upgrade-share units; these are **not live payout weights**, a market appraisal, or guaranteed returns.
+
+The helicopter and helipad use original, procedural Three.js geometry: fuselage, glass cabin, boom, skids, spinning main/tail rotors, H-marked landing pad and lights. It introduces no new packages, binary models or third-party assets. The pad sits on the side of each qualifying lot opposite the secret bunker hatch.
+
+Pilot authorization: the signed-in currently owning wallet must pass GET /api/estates/tycoon/helicopter-access?propertyId=... which checks current owner, verified settled helicopter unlock and eligible family/mansion tier. Invited guests may visit according to the estate ACL, but cannot pilot yet. After resale, the prior owner is denied and the new owner inherits verified helicopter access.
+
+Board using the property's **Board estate helicopter** inspection button or at its installed pad with **E/USE**. Existing third-person movement drives horizontal helicopter direction; **Space/R or touch ▲** ascends and **Shift/F or touch ▼** descends. The aircraft must rise above 11 meters for horizontal cruising, with bounded island movement, altitude/speed caps and a smoothed chase camera. To land, return over the home pad, descend, slow down and press E/USE or **Land at pad**. **Return home** is a non-rewarding, safe recovery if the flight cannot be completed.
+
+The flight HUD has a three-stop scenic circuit: North Shore Panorama, Eastern Lake Lookout and Southern Lake Overlook. Routes encourage owners to return to their helipad, but have **no token, XRP, yield, leaderboard, XP payout, or persistent prize**. Flights currently have session-only scores. No multiplayer passenger seat, server-authoritative aircraft replication, cross-instance flight, or realistic physics simulator is claimed.
+
+During flight, public island position broadcasting is stopped; an on-foot presence session resumes after parking. Entitlement is rechecked periodically and after wallet changes. Aircraft are restored to the pad on private access loss or world exit.
+
+Asset sourcing: inspected Skill Issue's agent-skill catalog and publicly available Three.js flight/vehicle reference projects. No external model or third-party flight source code was copied. An original, small Three.js procedural vehicle and deterministic movement module are preferable until license, performance, model quality and mobile input validation justify imported assets.
+
+**No production activation:** ESTATE_TYCOON_UPGRADES_ENABLED stays opt-in/off by default. Do not enable live payments or merge/deploy this slice before focused tests, actual browser/mobile WebGL smoke testing and financial/treasury review.
+
 ## Enterable secret-room gameplay (next staged slice)
 
 The first playable bunker/interior pass adds six **private, server-authorized room types**:
@@ -71,6 +91,7 @@ No external room models are required. The small procedural mesh generator is der
 - GET /api/estates/tycoon/quote?propertyId=...&itemId=...: authoritative price, prerequisites and eligibility.
 - POST /api/estates/tycoon/start: propertyId and itemId, owner only, disabled unless opted in.
 - POST /api/estates/tycoon/confirm: orderId, owner only, validated XRPL receipt.
+- GET /api/estates/tycoon/helicopter-access?propertyId=...: current owner with verified 180 XRP unlock and Family/Mansion tier.
 - GET /api/estates/tycoon/interior-options?propertyId=...: signed-in owner/invited guest sees only verified unlocked room choices.
 - GET /api/estates/tycoon/interior-access?propertyId=...&roomId=...: signed-in wallet authorization and current paid room entitlement.
 

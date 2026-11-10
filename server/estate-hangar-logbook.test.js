@@ -39,6 +39,8 @@ for(const s of [
 ])assert.equal(hangar.setStyle({propertyId:'mansion-01',acct:owner,...s}).error,'invalid_hangar_style');
 const chosen=hangar.setStyle({propertyId:'mansion-01',acct:owner,paint:'royal',trim:'copper',callsign:'DRAGON ONE'});
 assert.deepEqual(chosen.style,{paint:'royal',trim:'copper',callsign:'DRAGON ONE'});
+ assert.deepEqual(hangar.publicStyles(),[{propertyId:'mansion-01',paint:'royal',trim:'copper'}]);
+ assert(!JSON.stringify(hangar.publicStyles()).includes('DRAGON ONE'),'public appearances must never leak a private callsign');
 const start=hangar.startFlight({propertyId:'mansion-01',acct:owner});
 assert.equal(start.ok,true);assert.match(start.sessionId,/^[0-9a-f]{32}$/);
 assert.equal(hangar.startFlight({propertyId:'mansion-01',acct:owner}).sessionId,start.sessionId);

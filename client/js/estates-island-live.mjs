@@ -513,7 +513,7 @@ export async function installEstatesIslandLive({
         [{label:'Close',run:hidePanel}]);return false;
     }finally{flightPending=false;}
   }
-  function endHelicopterFlight(emergency=false){
+  function endHelicopterFlight(emergency=false,resumePresence=true){
     if(!flightSession)return false;
     const current=flightSession;
     if(!emergency&&!current.model.land())return false;
@@ -528,7 +528,7 @@ export async function installEstatesIslandLive({
     avatar.position.copy(player.pos);
     flightHud.style.display='none';exitButton.textContent='↩ Return to BURN City';
     exitButton.setAttribute('aria-label','Return to BURN City');
-    if(active&&leaseToken&&islandInstanceId)connectPresence(leaseToken,islandInstanceId);
+    if(resumePresence&&active&&leaseToken&&islandInstanceId)connectPresence(leaseToken,islandInstanceId);
     hidePanel();
     onStatus({state:'estate-helicopter-parked',propertyId:current.propertyId,emergency});
     return true;
@@ -840,7 +840,7 @@ export async function installEstatesIslandLive({
   function leaveIsland() {
     if(disposed||!active)return;
     if(secretSession)leaveSecretInterior(false);
-    if(flightSession)endHelicopterFlight(false);
+    if(flightSession)endHelicopterFlight(true,false);
     active=false; root.visible=false; hidePanel(); controllerRef.dispose();islandControls(false);
     if(guidanceHud)guidanceHud.style.display='none';
     if(selectedLotBeacon)selectedLotBeacon.group.visible=false;
@@ -977,7 +977,7 @@ export async function installEstatesIslandLive({
     dispose(){
       if(disposed)return false;
       if(secretSession)leaveSecretInterior(false);
-      if(flightSession)endHelicopterFlight(false);
+      if(flightSession)endHelicopterFlight(true,false);
       disposed=true; islandControls(false);releaseLease(); restoreCityScene(); window.__estatesCityPresencePaused=false;window.__cityNet?.setPaused(false); hidePanel(); exitButton.remove(); directoryButton.remove(); controllerRef.dispose(); renderer.dispose();secretInterior.dispose();helicopters.dispose();flightHud.remove();window.removeEventListener('keydown',pilotKeyDown);window.removeEventListener('keyup',pilotKeyUp);
       for(const mat of root.userData.estatesBridgeMaterials??[])mat.dispose?.();
       root.userData.propertyDeepLinkHint?.remove(); guidanceHud?.remove();

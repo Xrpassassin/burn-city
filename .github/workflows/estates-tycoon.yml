@@ -8,6 +8,8 @@ on:
       - 'server/estate-tycoon*'
       - 'client/js/estates-secret-*'
       - 'client/js/estates-helicopter-*'
+      - 'client/js/estates-hangar-*'
+      - 'server/estate-hangar-*'
       - 'client/sw.js'
       - 'server/server.js'
       - 'test/estate-tycoon-http.test.js'
@@ -38,6 +40,8 @@ jobs:
           node --check client/js/estates-helicopter-flight.mjs
           node --check client/js/estates-helicopter-world.mjs
           node --check server/estate-tycoon-rooms.js
+          node --check server/estate-hangar-logbook.js
+          node --check client/js/estates-hangar-ui.mjs
           node --check client/js/estates-island-live.mjs
           npm run -s test:estate-tycoon
           node client/js/estates-island-renderer.test.mjs

@@ -44,6 +44,25 @@ Existing hourly/monthly distribution modules, historical purchase weights and es
 
 Existing cosmetic prestige purchases retain their separate appearance-only contract; this branch does not silently rebook them as shares.
 
+## Enterable secret-room gameplay (next staged slice)
+
+The first playable bunker/interior pass adds six **private, server-authorized room types**:
+
+- Command bunker: blast door, generator, bunks, map desk, operations monitors, storage and emergency lighting
+- Hidden garden lounge: neon plant-wall conservatory, sofa, media screen, table and ornamental foliage
+- Deluxe secret lounge: larger aquatic display wall and additional plant alcove
+- Hobby workshop: assembly benches, storage racks, parts bins and plans
+- Private arcade: playable space with themed cabinet geometry and lounge seating (no arcade minigame implemented yet)
+- Bunker vault arcade: upgraded game vault behind the bunker progression
+
+A property can enter each room only after that room's **specific upgrade** has a settled, validated XRPL receipt. A purchased *hidden hatch alone* does not unlock a bunker room. The signed-in wallet must also be the current owner or a current invited guest. Unowned-property tours and uninvited wallets cannot access these rooms.
+
+Entry: walk to the verified outdoor hatch and press E/USE, or use the property's **Explore secret rooms** inspection action. Once in the private room, players move in third person with collision-guarded movement and indoor camera clamping. The marked return door exits back to the exact exterior position, and a side door offers other authorized rooms. Interactive power controls switch between normal/emergency lighting. Server permission checks are repeated periodically and room entry is revalidated after any transition.
+
+No external room models are required. The small procedural mesh generator is derived from the existing island's Three.js patterns, with a room-layout contract, furniture collision footprints, and shared materials. This avoids importing incompatible engine dependencies or unverified redistributed assets. Concepts reviewed from the open-source Three.js agent-skills ecosystem include deterministic floorplans, furniture placement/clearance and door interactions, but no third-party source code is copied.
+
+**Current boundaries:** this is a local private interior visualization attached to the player's authenticated island session. Public multiplayer position broadcasting stops while inside and resumes on exit. Full shared private-room multiplayer, new crafting/production systems, persistent furniture layout, operable arcade games and placement editing are NOT implemented yet. Cannabis-themed content is decorative virtual scenery only; no real-world manufacturing, production advice or financial income mechanic is included. Purchases remain disabled by default, recorded shares are not live payout weights, and there is no claim of live production deployment until PR review and acceptance testing.
+
 ## API
 
 - GET /api/estates/tycoon/world: public catalog and aggregate unlocks, no owner wallets.
@@ -52,6 +71,8 @@ Existing cosmetic prestige purchases retain their separate appearance-only contr
 - GET /api/estates/tycoon/quote?propertyId=...&itemId=...: authoritative price, prerequisites and eligibility.
 - POST /api/estates/tycoon/start: propertyId and itemId, owner only, disabled unless opted in.
 - POST /api/estates/tycoon/confirm: orderId, owner only, validated XRPL receipt.
+- GET /api/estates/tycoon/interior-options?propertyId=...: signed-in owner/invited guest sees only verified unlocked room choices.
+- GET /api/estates/tycoon/interior-access?propertyId=...&roomId=...: signed-in wallet authorization and current paid room entitlement.
 
 ## Validation
 

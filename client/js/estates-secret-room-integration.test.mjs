@@ -36,4 +36,14 @@ assert(live.includes("'Board estate helicopter'"),'owner property UI offers an a
 assert(live.includes("'PRIVATE ESTATE HELIPAD'"),'helipad proximity offers an interaction');
 assert(vehicle.includes("unlockedItemIds.includes('estate-helicopter')"),'decor appears only from verified server unlock IDs');
 assert(aviation.includes('minCruiseAltitude:11'),'avoid low flying into island structures outside helipads');
+const hangar=await readFile(new URL('./estates-hangar-ui.mjs',import.meta.url),'utf8');
+assert(live.includes("mountEstateHangarLogbook(panel,propertyId"),'hangar logbook available from property inspection');
+assert(live.includes("hangarRequest('/flight/start',propertyId,{})"),'flight launch creates a server-authorized journal session');
+assert(live.includes("hangarRequest('/flight/finish',current.propertyId"),'landing or recovery persists a journal record');
+assert(live.includes("landed:!emergency"),'emergency return must not count as physical landing');
+assert(vehicle.includes('function setStyle(propertyId,style)'), 'approved paint and trim update helicopter materials');
+assert(hangar.includes('checkpoints are client-reported'), 'achievements disclose local, non-verified telemetry');
+assert(server.includes("createEstateHangarLogbook"), 'hangar state is persisted in the server SQLite database');
+assert(server.includes("'/api/estates/tycoon/hangar/flight/finish'"), 'journal finalization requires authenticated endpoint');
+assert(server.includes("'/api/estates/tycoon/hangar/style'"), 'helicopter appearance has authenticated save endpoint');
 console.log('Estates secret room integration: access, controller, rendering, lifecycle and session isolation passed');

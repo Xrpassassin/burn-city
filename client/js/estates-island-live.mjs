@@ -183,6 +183,7 @@ export async function installEstatesIslandLive({
     } else panel.style.display='none';
   };
   const showPanel = (heading, message, actions, muted='') => {
+    renderer.clearUpgradePreview();
     restoreAppearance();
     panel.replaceChildren();
     const h = document.createElement('h3'); h.textContent = heading; panel.appendChild(h);
@@ -198,7 +199,7 @@ export async function installEstatesIslandLive({
     positionPanel();
   };
   let directoryCleanup=null;
-  const hidePanel = () => { directoryCleanup?.();directoryCleanup=null;directoryOpen=false; restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
+  const hidePanel = () => { renderer.clearUpgradePreview();directoryCleanup?.();directoryCleanup=null;directoryOpen=false; restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
   // A single shared panel hosts the directory and inspection; no stacked overlays.
   const directoryButton=document.createElement('button');
   directoryButton.type='button';
@@ -296,7 +297,9 @@ export async function installEstatesIslandLive({
       let finishes;
       mountEstatePurchase(panel,property.propertyId,{api:apiBase,onSettled:()=>{void refreshAppearance(true);void refreshOwnership(true);void finishes?.refresh();ownershipDetails.dispose();ownershipDetails.section.remove();ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);}});
       finishes=mountEstatePrestige(panel,property.propertyId,{api:apiBase,onPreview:level=>previewAppearance(property.propertyId,level),onConfirmed:()=>refreshAppearance(true)});
-      mountEstateTycoon(panel,property.propertyId,{api:apiBase,onConfirmed:()=>void refreshTycoon(true)});
+      mountEstateTycoon(panel,property.propertyId,{api:apiBase,
+        onConfirmed:()=>{renderer.clearUpgradePreview();void refreshTycoon(true);},
+        onPreview:itemId=>renderer.previewUpgrade(property.propertyId,itemId)});
     }
   };
   const showLotPrompt = property => {

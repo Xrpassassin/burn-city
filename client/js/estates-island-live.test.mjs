@@ -60,6 +60,8 @@ assert(live.includes('check purchase availability'), 'home inspection describes 
 assert(live.includes('Private homes are for their owners and invited guests.'), 'private access is explained without inferring ownership from a catalog record');
 assert(live.includes('updateLandmarkInteraction(edge,Boolean(result.property))'), 'public landmark interactions are checked in the live exploration loop');
 assert(live.includes('showLandmarkDetails(nearest)'), 'pressing E opens a landmark detail panel');
+assert(live.includes('onPreview:itemId=>renderer.previewUpgrade(property.propertyId,itemId)'), 'Tycoon shop has a real in-world 3D preview callback');
+assert(live.includes('renderer.clearUpgradePreview();directoryCleanup?.()'), 'closing property inspection clears all non-owned ghost upgrades');
 assert(live.includes('no ownership or transaction is implied'), 'landmark interactions cannot imply ownership or a live transaction');
 assert(live.includes('if(property.confirmedInteraction){showLotInspection(property);return;}'), 'E-key interaction opens the lot inspection directly');
 assert.equal((live.match(/onPropertyPrompt:property=>\{lastProperty=property;lastLandmarkId=null;showLotPrompt\(property\);\}/g)||[]).length,2,'initial and recreated island controllers share the same lot prompt behavior');

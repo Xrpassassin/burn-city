@@ -16,6 +16,7 @@ module.exports = {
   PRIZE_WALLET: e.PRIZE_WALLET_ADDRESS || '',          // funded by you; NOT from sales
   PRIZES: (e.PRIZES || '5000,2500,1000'),             // IMG for rank 1,2,3 (example)
   TREASURY: e.TREASURY_ADDRESS || '',
+  TREASURY_WATCH_AUTOPAUSE: e.TREASURY_WATCH_AUTOPAUSE !== '0', // unknown treasury txs still logged; 0 = do not auto-pause
   ESTATE_TREASURY: e.ESTATE_TREASURY_ADDRESS || 'rwfnp2k2jU8VeFbkK85AJqu2NyAjtiaEpb', // owner-supplied public address; verification required
   TREASURY_SEED: e.TREASURY_SEED || '',               // only the burn job reads this
   XRPL_WSS: e.XRPL_WSS || 'wss://xrplcluster.com',

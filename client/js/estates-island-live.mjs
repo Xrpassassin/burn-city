@@ -421,6 +421,153 @@ export async function installEstatesIslandLive({
     }catch{}finally{appearanceFetching=false;}
   }
 
+  // Local third-person helicopter flight. An ownership-verified purchase enables a
+  // helipad, but client aviation coordinates are never transmitted to public presence.
+  let flightSession=null,flightPending=false,flightRecheckBusy=false,lastHelipadId=null;
+  const pilotHeld={up:false,down:false},flightHud=document.createElement('aside');
+  flightHud.id='bcEstatesHelicopterFlight';
+  flightHud.style.cssText='display:none;position:fixed;right:10px;bottom:calc(145px + env(safe-area-inset-bottom));z-index:1200;max-width:min(290px,90vw);padding:10px 12px;border-radius:12px;border:1px solid #5ed9ff99;background:#101925f0;color:#f4e8d6;font:12px/1.5 system-ui';
+  const flightStatus=document.createElement('div');
+  flightStatus.setAttribute('role','status');flightStatus.style.cssText='white-space:pre-line;margin-bottom:8px;font-weight:700';
+  const flightRow=document.createElement('div');flightRow.style.cssText='display:flex;gap:7px;flex-wrap:wrap';
+  function flightButton(label,holdKey){
+    const b=document.createElement('button');b.type='button';b.textContent=label;
+    b.style.cssText='touch-action:none;user-select:none;padding:8px 11px;min-height:46px;border:1px solid #77b4c9;border-radius:7px;background:#183d50;color:white;font-weight:700';
+    if(holdKey){
+      const down=e=>{e.preventDefault();pilotHeld[holdKey]=true;b.setPointerCapture?.(e.pointerId);};
+      const up=e=>{e.preventDefault();pilotHeld[holdKey]=false;};
+      b.addEventListener('pointerdown',down);b.addEventListener('pointerup',up);
+      b.addEventListener('pointercancel',up);b.addEventListener('lostpointercapture',()=>{pilotHeld[holdKey]=false;});
+      b.addEventListener('blur',()=>{pilotHeld[holdKey]=false;});
+    }
+    flightRow.appendChild(b);return b;
+  }
+  flightButton('▲ Ascend','up');flightButton('▼ Descend','down');
+  const landFlightButton=flightButton('Land at pad');
+  landFlightButton.addEventListener('click',()=>{if(flightSession?.last?.canLand)endHelicopterFlight(false);});
+  const abortFlightButton=flightButton('Return home');
+  abortFlightButton.addEventListener('click',()=>endHelicopterFlight(true));
+  flightHud.append(flightStatus,flightRow);document.body.appendChild(flightHud);
+  function pilotKeyDown(event){
+    if(!flightSession||event.target?.matches?.('input,textarea,select'))return;
+    if(event.code==='Space'||event.code==='KeyR'){pilotHeld.up=true;event.preventDefault();}
+    if(event.code==='ShiftLeft'||event.code==='ShiftRight'||event.code==='KeyF'){pilotHeld.down=true;event.preventDefault();}
+  }
+  function pilotKeyUp(event){
+    if(event.code==='Space'||event.code==='KeyR')pilotHeld.up=false;
+    if(event.code==='ShiftLeft'||event.code==='ShiftRight'||event.code==='KeyF')pilotHeld.down=false;
+  }
+  window.addEventListener('keydown',pilotKeyDown);window.addEventListener('keyup',pilotKeyUp);
+  function nearestVerifiedHelipad(){
+    const x=player.pos.x-OFFSET_X,z=player.pos.z;
+    for(const s of verifiedTycoonProperties){
+      if(!s?.unlockedItemIds?.includes('estate-helicopter')||!helicopters.hasHelicopter(s.propertyId))continue;
+      const lot=manifest.lots.find(l=>l.propertyId===s.propertyId);
+      if(!lot)continue;
+      const p=estateHelipadPosition(lot);
+      if(Math.hypot(x-p.x,z-p.z)<=6.2)return s.propertyId;
+    }
+    return null;
+  }
+  async function pilotAuthorization(propertyId){
+    const token=currentWalletToken();
+    if(!token)throw Error('Connect the owning Xaman wallet to fly.');
+    const response=await fetch(apiBase+'/api/estates/tycoon/helicopter-access?'+new URLSearchParams({propertyId}),{
+      headers:{authorization:'Bearer '+token},cache:'no-store',signal:AbortSignal.timeout(9000)});
+    const data=await response.json();
+    if(!response.ok||data.ok!==true||!data.pilotAuthorized||data.propertyId!==propertyId)
+      throw Error(({helicopter_not_unlocked:'The helicopter must be purchased and verified first.',
+        property_owner_required:'Only the current estate owner can pilot.',
+        helicopter_tier_restricted:'A Family Home or Luxury Mansion is required.'})[data.error]||'Private helicopter access denied.');
+    return token;
+  }
+  async function boardEstateHelicopter(propertyId){
+    if(disposed||!active||secretSession||flightSession||flightPending)return false;
+    const lot=manifest.lots.find(l=>l.propertyId===propertyId);
+    if(!lot||!['family','mansion'].includes(lot.tier))return false;
+    if(!helicopters.hasHelicopter(propertyId)){
+      showPanel('ESTATE AVIATION','This property has no verified helicopter. A 180 XRP helicopter and helipad upgrade is available for Family Homes and Mansions.',[{label:'Close',run:hidePanel}]);return false;
+    }
+    if(Math.hypot(player.pos.x-OFFSET_X-lot.position.x,player.pos.z-lot.position.z)>19){
+      showPanel('HELIPAD TOO FAR','Approach this property before boarding its aircraft.',[{label:'Close',run:hidePanel}]);return false;
+    }
+    flightPending=true;
+    try{
+      const token=await pilotAuthorization(propertyId);
+      if(disposed||!active||secretSession||flightSession||!helicopters.hasHelicopter(propertyId))return false;
+      const model=helicopters.board(propertyId);
+      if(!model)return false;
+      const avatarWasVisible=avatar.visible,former={x:player.pos.x,y:player.pos.y,z:player.pos.z};
+      flightSession={propertyId,model,token,avatarWasVisible,former,verifiedAt:Date.now(),last:null,unlockedAt:Date.now()};
+      stopPresence();avatar.visible=false;
+      player.vel?.set(0,0,0);player.fp=false;player.onGround=true;player.climb=null;
+      const p=model.position;
+      player.pos.set(OFFSET_X+p.x,p.altitude+1.5,p.z);flightHud.style.display='block';
+      exitButton.textContent='↩ Return to Helipad';exitButton.setAttribute('aria-label','Return to helipad');
+      if(guidanceHud)guidanceHud.style.display='none';
+      hidePanel();
+      onStatus({state:'estate-helicopter-boarded',propertyId,pilotScope:'island-local'});
+      return true;
+    }catch(error){
+      if(!disposed&&active)showPanel('ESTATE HELICOPTER ACCESS',String(error?.message||error),
+        [{label:'Close',run:hidePanel}]);return false;
+    }finally{flightPending=false;}
+  }
+  function endHelicopterFlight(emergency=false){
+    if(!flightSession)return false;
+    const current=flightSession;
+    if(!emergency&&!current.model.land())return false;
+    flightSession=null;flightRecheckBusy=false;
+    pilotHeld.up=false;pilotHeld.down=false;
+    helicopters.park();
+    avatar.visible=current.avatarWasVisible;
+    const lot=manifest.lots.find(l=>l.propertyId===current.propertyId);
+    const pad=lot?estateHelipadPosition(lot):{x:current.former.x-OFFSET_X,z:current.former.z};
+    player.pos.set(OFFSET_X+pad.x,.15,pad.z+4.55);
+    player.vel?.set(0,0,0);player.onGround=true;player.climb=null;
+    avatar.position.copy(player.pos);
+    flightHud.style.display='none';exitButton.textContent='↩ Return to BURN City';
+    exitButton.setAttribute('aria-label','Return to BURN City');
+    if(active&&leaseToken&&islandInstanceId)connectPresence(leaseToken,islandInstanceId);
+    hidePanel();
+    onStatus({state:'estate-helicopter-parked',propertyId:current.propertyId,emergency});
+    return true;
+  }
+  function tickHelicopterFlight(dt,moveForward,moveSide,edge){
+    if(!flightSession)return true;
+    hideCityScene();
+    if(currentWalletToken()!==flightSession.token){endHelicopterFlight(true);return true;}
+    const s=flightSession;
+    if(!flightRecheckBusy&&Date.now()-s.verifiedAt>=30000){
+      s.verifiedAt=Date.now();flightRecheckBusy=true;
+      void pilotAuthorization(s.propertyId).then(token=>{
+        if(flightSession===s&&token!==s.token)endHelicopterFlight(true);
+      }).catch(()=>{if(flightSession===s)endHelicopterFlight(true);})
+        .finally(()=>{flightRecheckBusy=false;});
+    }
+    const yaw=getYaw();
+    const result=s.model.tick({dt,yaw,forward:moveForward,strafe:moveSide,
+      ascend:pilotHeld.up?1:0,descend:pilotHeld.down?1:0});
+    s.last=result;
+    helicopters.tick({propertyId:s.propertyId,position:result.position,rotor:result.rotor,heading:yaw,
+      bank:Math.max(-.12,Math.min(.12,moveSide*.09)),dt});
+    player.pos.set(OFFSET_X+result.position.x,result.position.altitude+1.5,result.position.z);
+    avatar.position.copy(player.pos);
+    const desired={x:player.pos.x+Math.sin(yaw)*11,y:player.pos.y+5,z:player.pos.z+Math.cos(yaw)*11};
+    const blend=1-Math.exp(-9*Math.max(0,Math.min(dt,.1)));
+    camera.position.set(camera.position.x+(desired.x-camera.position.x)*blend,
+      camera.position.y+(desired.y-camera.position.y)*blend,camera.position.z+(desired.z-camera.position.z)*blend);
+    camera.lookAt(player.pos.x,player.pos.y+1,player.pos.z);
+    const mins=Math.floor(result.elapsed/60),secs=Math.floor(result.elapsed%60);
+    flightStatus.textContent='ESTATES PRIVATE AVIATION\nAltitude '+Math.round(result.position.altitude)+' m · '+Math.round(result.speed)+' m/s'+
+      '\nFlight '+mins+':'+String(secs).padStart(2,'0')+' · Lookouts '+result.routeVisited.length+'/3'+
+      (result.landmark?'\nReached '+result.landmark:'')+
+      '\nWASD/movement to steer · SPACE/R ascend · SHIFT/F descend';
+    landFlightButton.disabled=!result.canLand;landFlightButton.style.opacity=result.canLand?'1':'.5';
+    if(edge&&result.canLand)endHelicopterFlight(false);
+    return true;
+  }
+
   // Secret interiors are client-side 3D scenes with server-verified entitlement.
   // Public island presence is suspended inside; there is no private-room networking yet.
   let secretSession=null,secretPending=false,secretPrompt=null,secretRecheckAt=0,secretRecheckBusy=false,lastHatchId=null;

@@ -1,5 +1,6 @@
 import {mountEstatePurchase,mountEstateImgTrustline} from './estate-purchase-ui.mjs';
 import {mountEstateTycoon} from './estate-tycoon-ui.mjs';
+import {mountEstateHangarLogbook} from './estates-hangar-ui.mjs';
 import {formatRewardUnits,sharePercent,rewardScenario} from './estate-reward-scenario.mjs';
 
 export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localStorage,api}={}){
@@ -89,6 +90,15 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
     field('XRP profit allocated · last 24h',xrp?formatRewardUnits(r.xrpAllocated24hDrops)+' XRP':'History unavailable'),
     field('Approx. historical hourly average',xrp?formatRewardUnits(r.xrpAverageHourlyDrops)+' XRP/h':'Unavailable'),
     make('p','24-hour averages include zero-reward hours. Allocations are before delivery costs and may still be awaiting payment; they do not predict future earnings.','muted'),cityLink(p.propertyId));
+   if(tycoon?.unlockedItemIds?.includes('estate-helicopter')){
+    const hangarPanel=make('div');hangarPanel.dataset.estateHangarPanel=p.propertyId;
+    const openHangar=action('Open private Hangar Logbook',()=>{
+     if(hangarPanel.childElementCount){hangarPanel.replaceChildren();openHangar.setAttribute('aria-expanded','false');return;}
+     mountEstateHangarLogbook(hangarPanel,p.propertyId,{api,fetcher,storage});
+     openHangar.setAttribute('aria-expanded','true');
+    });
+    openHangar.setAttribute('aria-expanded','false');card.append(openHangar,hangarPanel);
+   }
    $('owned-properties').append(card);
   }
   $('history-through').textContent=report.dataThroughMs?'IMG ledger coverage through '+new Date(report.dataThroughMs).toLocaleString()+(report.scannerCurrent?'':'. Coverage is delayed; recent allocations may be missing.'):'Verified ledger coverage is not available yet.';

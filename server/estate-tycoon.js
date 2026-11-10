@@ -63,7 +63,7 @@ function createEstateTycoonStore(db){
    marketValueEstimated:false,rewardsGuaranteed:false};
  }
  function publicState(){return {catalog:itemCatalog(),properties:[...PROPERTY_BY_ID.keys()].map(id=>{
-  const s=state(id);return {propertyId:id,owned:s.owned,unlockedItemIds:s.unlockedItemIds,
+  const s=state(id);return {propertyId:id,tier:s.tier,owned:s.owned,unlockedItemIds:s.unlockedItemIds,
    upgradeValueDrops:s.upgradeValueDrops,recordedValueDrops:s.recordedValueDrops,
    recordedShareUnits:s.recordedShareUnits,sharePolicy:s.sharePolicy};
  }),sharePolicy:'recorded_only_not_active_for_distributions'};}

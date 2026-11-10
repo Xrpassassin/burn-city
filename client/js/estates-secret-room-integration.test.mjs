@@ -32,6 +32,10 @@ assert(live.includes("helicopters.tick({propertyId:s.propertyId"),'moving craft 
 assert(live.includes("flightSession===s)endHelicopterFlight(true)"),'pilot access loss returns the aircraft home');
 assert(live.includes("if(flightSession)endHelicopterFlight(true,false)"),'island exit clears airborne flight without reopening multiplayer presence');
 assert(live.includes("window.removeEventListener('keydown',pilotKeyDown)"),'keyboard event listeners removed on island disposal');
+assert(live.includes("window.addEventListener('blur',releasePilotInput)"),'focus loss releases held helicopter throttle keys');
+assert(live.includes("document.addEventListener('visibilitychange',onPilotVisibility)"),'backgrounding the game stops stuck touch throttle');
+assert(live.includes("window.removeEventListener('blur',releasePilotInput)"),'focus recovery listener removed during scene disposal');
+assert(live.includes("document.removeEventListener('visibilitychange',onPilotVisibility)"),'visibility listener removed during island scene disposal');
 assert(live.includes("'Board estate helicopter'"),'owner property UI offers an aircraft entrance');
 assert(live.includes("'PRIVATE ESTATE HELIPAD'"),'helipad proximity offers an interaction');
 assert(vehicle.includes("unlockedItemIds.includes('estate-helicopter')"),'decor appears only from verified server unlock IDs');

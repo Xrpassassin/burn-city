@@ -33,6 +33,16 @@ for(const [tier,buildingFootprint]of Object.entries(footprints)){
   tier+' fence must have appropriate architectural material');
  assert.equal(fence.h,tier==='mansion'?1.82:tier==='family'?1.6:1.3,
   tier+' fence must use tier-appropriate height');
+ // Boundary fences and the busiest yard features must never share the same
+ // physical ground footprint (all are present after a fully upgraded purchase).
+ const fenceParts=parts.filter(p=>p.id==='privacy-fence');
+ for(const object of parts.filter(p=>['fire-pit','garden-pond','reinforced-floor','underground-bunker','bunker-arcade'].includes(p.id))){
+  for(const rail of fenceParts){
+   const collideX=Math.abs(object.x-rail.x)<(object.w+rail.w)/2-.001;
+   const collideZ=Math.abs(object.z-rail.z)<(object.d+rail.d)/2-.001;
+   assert(!(collideX&&collideZ),tier+' '+object.name+' intersects fence '+rail.name);
+  }
+ }
  const awning=parts.find(p=>p.name==='cozy-awning-roof-deck');
  assert.equal(awning.mat,['trailer','apartment','mansion'].includes(tier)?'slate':'wood',
   tier+' doorway shelter must match house finishes');

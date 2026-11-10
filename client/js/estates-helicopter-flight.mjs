@@ -47,7 +47,7 @@ export function createEstateHelicopterFlight(lot){
   // Low hover is permitted over the owner's roof, but a moving aircraft must
   // NEVER escape the pad radius at roof height and instantly snap up to 11 m.
   // Keep the craft inside the safe hovering circle until it can cruise.
-  if(nextAltitude<FLIGHT_LIMITS.minCruiseAltitude&&!nearPad({x,z})){
+  if(nextAltitude<FLIGHT_LIMITS.minCruiseAltitude&&nearPad(position)&&!nearPad({x,z})){
    const dx=x-pad.x,dz=z-pad.z,dist=Math.hypot(dx,dz);
    if(dist>0){x=pad.x+dx/dist*3.5;z=pad.z+dz/dist*3.5;}
    else{x=pad.x;z=pad.z;}

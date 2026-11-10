@@ -21,12 +21,14 @@ const ITEMS=Object.freeze([
  {id:'grow-lounge-deluxe',name:'Deluxe grow-themed lounge',category:'underground',priceXrp:18,scene:'grow-lounge-deluxe',requires:['grow-lounge']},
  {id:'security-upgrade',name:'Security doors & cameras',category:'utility',priceXrp:21,scene:'security',requires:['privacy-fence']},
  {id:'underground-bunker',name:'Secret underground bunker',category:'underground',priceXrp:30,scene:'bunker',requires:['hidden-hatch']},
- {id:'bunker-arcade',name:'Bunker arcade & vault decor',category:'underground',priceXrp:36,scene:'bunker-arcade',requires:['underground-bunker']}
-].map(item=>Object.freeze({...item,priceDrops:item.priceXrp*1000000,shareUnitsDelta:item.priceXrp/3,requires:Object.freeze(item.requires||[])})));
+ {id:'bunker-arcade',name:'Bunker arcade & vault decor',category:'underground',priceXrp:36,scene:'bunker-arcade',requires:['underground-bunker']},
+ // A prestige aircraft includes its own compact helipad. Restricted to upper property tiers.
+ {id:'estate-helicopter',name:'Estate helicopter & private helipad',category:'aviation',priceXrp:180,scene:'helicopter',eligibleTiers:['family','mansion']}
+].map(item=>Object.freeze({...item,priceDrops:item.priceXrp*1000000,shareUnitsDelta:item.priceXrp/3,requires:Object.freeze(item.requires||[]),eligibleTiers:Object.freeze(item.eligibleTiers||[])})));
 const ITEM_BY_ID=new Map(ITEMS.map(x=>[x.id,x]));
 const WALLET=/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 const HASH=/^[A-Fa-f0-9]{64}$/;
-function itemCatalog(){return ITEMS.map(({id,name,category,priceXrp,priceDrops,shareUnitsDelta,requires,scene})=>({id,name,category,priceXrp,priceDrops,shareUnitsDelta,requires,scene}));}
+function itemCatalog(){return ITEMS.map(({id,name,category,priceXrp,priceDrops,shareUnitsDelta,requires,eligibleTiers,scene})=>({id,name,category,priceXrp,priceDrops,shareUnitsDelta,requires,eligibleTiers,scene}));}
 function createEstateTycoonStore(db){
  if(!db||typeof db.prepare!=='function'||typeof db.exec!=='function')throw new TypeError('sqlite_db_required');
  db.exec('CREATE TABLE IF NOT EXISTS estate_tycoon_orders ('+
@@ -55,6 +57,7 @@ function createEstateTycoonStore(db){
    recordedShareUnits:tier.shareUnits+extraUnits,liveRewardShareUnits:ownership?.share_units??tier.shareUnits,
    unlockedItemIds:bought.map(x=>x.item_id),
    items:ITEMS.map(item=>({...item,unlocked:ownedIds.has(item.id),
+    tierEligible:!item.eligibleTiers.length||item.eligibleTiers.includes(property.tier),
     prerequisitesMet:item.requires.every(id=>ownedIds.has(id))})),
    sharePolicy:'recorded_only_not_active_for_distributions',
    marketValueEstimated:false,rewardsGuaranteed:false};
@@ -70,9 +73,9 @@ function createEstateTycoonStore(db){
   const ownership=owner.get(propertyId),available=s.items.find(x=>x.id===itemId);
   const pendingOrder=pending.get(propertyId);
   return {propertyId,itemId,item,owned:s.owned,ownerAuthorized:!!ownership&&ownership.acct===buyer,
-   alreadyUnlocked:available.unlocked,prerequisitesMet:available.prerequisitesMet,
+   alreadyUnlocked:available.unlocked,tierEligible:available.tierEligible,prerequisitesMet:available.prerequisitesMet,
    missingPrerequisites:item.requires.filter(id=>!s.unlockedItemIds.includes(id)),
-   canPurchase:!!ownership&&ownership.acct===buyer&&!available.unlocked&&available.prerequisitesMet&&!pendingOrder,
+   canPurchase:!!ownership&&ownership.acct===buyer&&available.tierEligible&&!available.unlocked&&available.prerequisitesMet&&!pendingOrder,
    pending:ownership?.acct===buyer?pendingOrder||null:null,
    baseValueDrops:s.baseValueDrops,upgradeValueDrops:s.upgradeValueDrops,recordedValueDrops:s.recordedValueDrops,
    baseShareUnits:s.baseShareUnits,upgradeShareUnits:s.upgradeShareUnits,
@@ -88,6 +91,7 @@ function createEstateTycoonStore(db){
    if(owner.get(propertyId)?.acct!==buyer)throw new Error('property_owner_required');
    const q=quote({propertyId,buyer,itemId});
    if(q.alreadyUnlocked)throw new Error('upgrade_already_owned');
+   if(!q.tierEligible)throw new Error('upgrade_tier_restricted');
    if(!q.prerequisitesMet)throw new Error('upgrade_prerequisites_missing');
    const existing=pending.get(propertyId);
    if(existing){
@@ -112,7 +116,9 @@ function createEstateTycoonStore(db){
    if(prestigeTable&&db.prepare("SELECT 1 FROM estate_cosmetic_upgrades WHERE UPPER(payment_tx)=? AND status='settled'").get(txHash.toUpperCase()))throw new Error('payment_already_used');
    const s=state(r.property_id),item=ITEM_BY_ID.get(r.item_id);
    if(!item||r.price_drops!==item.priceDrops||r.share_delta!==item.shareUnitsDelta||s.upgradeValueDrops!==r.before_upgrade_drops||
-     s.unlockedItemIds.includes(r.item_id)||!item.requires.every(id=>s.unlockedItemIds.includes(id)))throw new Error('upgrade_state_changed');
+     s.unlockedItemIds.includes(r.item_id)||
+     (item.eligibleTiers.length&&!item.eligibleTiers.includes(s.tier))||
+     !item.requires.every(id=>s.unlockedItemIds.includes(id)))throw new Error('upgrade_state_changed');
    db.prepare("UPDATE estate_tycoon_orders SET status='settled',payment_tx=?,ledger_index=?,settled_at=? WHERE order_id=? AND status='reserved'")
     .run(txHash.toUpperCase(),ledgerIndex,now,orderId);
    const updated=state(r.property_id);db.exec('COMMIT');return updated;

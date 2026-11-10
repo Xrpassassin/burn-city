@@ -513,13 +513,16 @@ export async function installEstatesIslandLive({
     if(!helicopters.hasHelicopter(propertyId)){
       showPanel('ESTATE AVIATION','This property has no verified helicopter. A 60 XRP helicopter and helipad upgrade is available for Family Homes and Mansions.',[{label:'Close',run:hidePanel}]);return false;
     }
-    if(Math.hypot(player.pos.x-OFFSET_X-lot.position.x,player.pos.z-lot.position.z)>19){
+    const withinBoardingDistance=()=>Math.hypot(player.pos.x-OFFSET_X-lot.position.x,player.pos.z-lot.position.z)<=19;
+    if(!withinBoardingDistance()){
       showPanel('HELIPAD TOO FAR','Approach this property before boarding its aircraft.',[{label:'Close',run:hidePanel}]);return false;
     }
     flightPending=true;
     try{
       const token=await pilotAuthorization(propertyId);
       if(disposed||!active||secretSession||flightSession||!helicopters.hasHelicopter(propertyId))return false;
+      if(currentWalletToken()!==token)throw Error('The wallet changed during authorization. Please try again.');
+      if(!withinBoardingDistance())throw Error('You moved away from the estate while boarding. Return to its entrance.');
       let journalId=null,logbookStatus='unsaved',callsign='BURN AIR';
       // Appearance loading and journal creation fail independently: a cosmetic read
       // outage must never strand a valid server-created flight session.
@@ -528,6 +531,8 @@ export async function installEstatesIslandLive({
         hangarRequest('/flight/start',propertyId,{})
       ]);
       if(disposed||!active||secretSession||flightSession)return false;
+      if(currentWalletToken()!==token)throw Error('The wallet changed during boarding. Please reconnect.');
+      if(!withinBoardingDistance())throw Error('The aircraft is too far away. Return to the estate entrance.');
       if(profileAttempt.status==='fulfilled'){
         helicopters.setStyle(propertyId,profileAttempt.value.style);
         callsign=profileAttempt.value.style.callsign;

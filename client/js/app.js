@@ -1459,6 +1459,18 @@ function updExplore(dt){if(window.__exploreLock&&window.__exploreLock()){P.near=
    me.set(P.pos,avatar.rotation.y,'idle',P.district);
    return;
   }
+  if(island.interiorActive){
+   // Indoor movement is fully owned by the private 3D room controller. Avoid
+   // applying city gravity, jetpack jumps and skate physics to a room avatar.
+   const ml=Math.min(1,Math.hypot(f,s));
+   island.tick(dt,f,s,run);
+   P.walk+=Math.max(0,Math.min(dt,.1))*ml*(run?MOTION.runCadence:MOTION.walkCadence);
+   poseWalker(avatar,P.walk,ml,performance.now()/1000);
+   avatar.position.copy(P.pos);avatar.visible=!P.fp;
+   P.near=null;$('prompt').style.display='none';$('tUse')?.classList.remove('hot');
+   me.set(P.pos,avatar.rotation.y,ml>.05?(run?'run':'walk'):'idle',P.district);
+   return;
+  }
   const board=window.__skate,ml=Math.min(1,Math.hypot(f,s));let desiredDelta=null,boardHeading=null;
   if(board?.active){const oldX=P.pos.x,oldZ=P.pos.z;board.drive(dt,f,s);desiredDelta={x:P.pos.x-oldX,z:P.pos.z-oldZ};P.pos.x=oldX;P.pos.z=oldZ;boardHeading=avatar.rotation.y;}
   else {const fw=new THREE.Vector3(-Math.sin(yp.yaw),0,-Math.cos(yp.yaw)),rt=new THREE.Vector3(-fw.z,0,fw.x),mv=fw.multiplyScalar(f).add(rt.multiplyScalar(s));if(ml>.05)mv.normalize().multiplyScalar(sp*ml);

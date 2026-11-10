@@ -419,7 +419,7 @@ export async function installEstatesIslandLive({
 
   // Secret interiors are client-side 3D scenes with server-verified entitlement.
   // Public island presence is suspended inside; there is no private-room networking yet.
-  let secretSession=null,secretPending=false,secretPrompt=null,secretRecheckAt=0,secretRecheckBusy=false;
+  let secretSession=null,secretPending=false,secretPrompt=null,secretRecheckAt=0,secretRecheckBusy=false,lastHatchId=null;
   const currentWalletToken=()=>{try{return localStorage.getItem('bcToken')||'';}catch{return '';}};
   async function privateRoomRequest(action,propertyId,roomId=''){
     const token=currentWalletToken();
@@ -475,7 +475,7 @@ export async function installEstatesIslandLive({
       setYaw(0);avatar.position.copy(player.pos);avatar.rotation.y=0;
       camera.position.set(origin.x,origin.y+2.65,origin.z+6.05);
       camera.lookAt(origin.x,origin.y+1.4,origin.z+layout.spawn.z);
-      exitButton.textContent='↩ Exit Secret Room';
+      exitButton.textContent='↩ Exit Secret Room';exitButton.setAttribute('aria-label','Exit Secret Room');
       secretPrompt=null;secretRecheckAt=Date.now();
       hidePanel();
       onStatus({state:'entered-secret-room',propertyId,roomId,role:data.role,privateRoomNetworked:false});
@@ -491,7 +491,7 @@ export async function installEstatesIslandLive({
     secretInterior.hide();secretPrompt=null;secretRecheckAt=0;
     root.visible=true;
     if(selectedLotBeacon)selectedLotBeacon.group.visible=Boolean(targetLot);
-    directoryButton.style.display='block';exitButton.textContent='↩ Return to BURN City';
+    directoryButton.style.display='block';exitButton.textContent='↩ Return to BURN City';exitButton.setAttribute('aria-label','Return to BURN City');
     const p=previous.returnAt;
     player.pos.set(p.x,p.y,p.z);
     player.vel?.set(0,0,0);player.fp=false;player.onGround=true;player.climb=null;player.spawned=1;
@@ -776,6 +776,12 @@ export async function installEstatesIslandLive({
     const movedX=player.pos.x-beforeX,movedZ=player.pos.z-beforeZ;
     avatar.rotation.y=Math.hypot(movedX,movedZ)>.001?Math.atan2(-movedX,-movedZ):getYaw();
     updateLandmarkInteraction(edge,Boolean(result.property));
+    if(hatch!==lastHatchId){
+      lastHatchId=hatch;
+      if(hatch&&!edge)showPanel('CONCEALED ESTATE ENTRANCE','A hidden hatch is built into this lot. Press E/USE or choose Explore to check your access.',
+        [{label:'Explore secret rooms',primary:true,run:()=>void openSecretRoomMenu(hatch)},{label:'Not now',run:hidePanel}],
+        'Only unlocked rooms are enterable, and the owning or invited wallet must authorize the visit.');
+    }
     if(hatch&&edge)void openSecretRoomMenu(hatch);
     if(result.property && edge) {
       // The controller callback supplies the explicit inspection action; no property entry is implied.

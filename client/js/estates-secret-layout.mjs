@@ -17,9 +17,7 @@ function layoutFor(roomId){
  put('floor',0,-.22,0,15.4,.38,14.3,'concrete');
  put('ceiling',0,4.75,0,15.4,.3,14.3,'ceiling');
  for(const z of [-7.15,7.15])put('wall-z-'+z,0,2.3,z,15.4,4.6,.32,'wall');
- for(const x of [-7.7,7.7])put('wall-x-'+x,2.3,2.3,0,.32,4.6,14.3,'wall');
- // Correct wall x centers.
- items.filter(x=>x.id.startsWith('wall-x-')).forEach(item=>{item.x=Number(item.id.slice(7));item.y=2.3;});
+ for(const x of [-7.7,7.7])put('wall-x-'+x,x,2.3,0,.32,4.6,14.3,'wall');
  put('entry-door',0,2,6.94,2.1,3.8,.2,'steel');
  put('entry-arch',0,4.14,6.86,3.1,.32,.45,'accent');
  put('entry-threshold',0,.08,5.95,2.6,.16,1.3,'accent');

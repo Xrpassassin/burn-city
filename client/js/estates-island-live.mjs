@@ -417,6 +417,153 @@ export async function installEstatesIslandLive({
     }catch{}finally{appearanceFetching=false;}
   }
 
+  // Secret interiors are client-side 3D scenes with server-verified entitlement.
+  // Public island presence is suspended inside; there is no private-room networking yet.
+  let secretSession=null,secretPending=false,secretPrompt=null,secretRecheckAt=0,secretRecheckBusy=false;
+  const currentWalletToken=()=>{try{return localStorage.getItem('bcToken')||'';}catch{return '';}};
+  async function privateRoomRequest(action,propertyId,roomId=''){
+    const token=currentWalletToken();
+    if(!token)throw Error('Sign in with Xaman before entering a private room.');
+    const query=new URLSearchParams({propertyId});if(roomId)query.set('roomId',roomId);
+    const response=await fetch(apiBase+'/api/estates/tycoon/'+action+'?'+query,{
+      cache:'no-store',headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(9000)
+    });
+    const data=await response.json();
+    if(!response.ok||data.ok!==true){
+      const message=({sign_in_with_xaman:'Connect the owning or invited wallet.',no_access:'Only the owner or invited guests may enter.',room_not_unlocked:'This room has not been purchased yet.',property_unowned:'This property has no private-room owner.'})[data.error]||'Private room access denied or temporarily unavailable.';
+      throw Error(message);
+    }
+    return {data,token};
+  }
+  async function openSecretRoomMenu(propertyId){
+    if(disposed||!active||secretPending||typeof propertyId!=='string')return;
+    secretPending=true;
+    try{
+      const {data}=await privateRoomRequest('interior-options',propertyId);
+      if(disposed||!active||secretSession&&secretSession.propertyId!==propertyId)return;
+      const actions=(data.rooms||[]).map(room=>({
+        label:'Enter '+room.title,primary:room.id==='bunker'||room.id==='lounge',
+        run:()=>void enterSecretRoom(propertyId,room.id)
+      }));
+      actions.push({label:secretSession?'Stay in this room':'Return to property',run:hidePanel});
+      showPanel('PRIVATE ESTATE INTERIORS',(data.rooms?.length?
+        'Verified '+data.role+' access · choose an unlocked room. E/USE interacts with doors and equipment.':
+        'No secret rooms are unlocked on this property yet. Upgrade the home first.'),actions,
+        'Room access is checked against paid upgrades and the server-owned guest list. No bonus payouts are created by entering.');
+    }catch(e){
+      if(!disposed&&active)showPanel('PRIVATE ROOM ACCESS',e.message,[{label:'Close',run:hidePanel}]);
+    }finally{secretPending=false;}
+  }
+  async function enterSecretRoom(propertyId,roomId){
+    if(disposed||!active||secretPending||secretSession&&secretSession.propertyId!==propertyId)return false;
+    secretPending=true;
+    try{
+      const {data,token}=await privateRoomRequest('interior-access',propertyId,roomId);
+      if(disposed||!active||!data.allowed||data.roomId!==roomId||data.propertyId!==propertyId)return false;
+      const switching=!!secretSession;
+      if(!switching){
+        const returnAt={x:player.pos.x,y:player.pos.y,z:player.pos.z,yaw:getYaw()};
+        secretSession={propertyId,roomId,token,returnAt};
+        stopPresence();root.visible=false;directoryButton.style.display='none';
+        if(guidanceHud)guidanceHud.style.display='none';
+        if(window.__skate?.active)window.__skate.toggle(false);
+      }else secretSession={...secretSession,roomId,token};
+      const layout=secretInterior.setRoom(roomId);
+      const origin=secretInterior.origin;
+      player.pos.set(origin.x+layout.spawn.x,origin.y+layout.walkHeight,origin.z+layout.spawn.z);
+      player.vel?.set(0,0,0);player.fp=false;player.onGround=true;player.climb=null;player.spawned=1;
+      setYaw(0);avatar.position.copy(player.pos);avatar.rotation.y=0;
+      camera.position.set(origin.x,origin.y+2.65,origin.z+6.05);
+      camera.lookAt(origin.x,origin.y+1.4,origin.z+layout.spawn.z);
+      exitButton.textContent='↩ Exit Secret Room';
+      secretPrompt=null;secretRecheckAt=Date.now();
+      hidePanel();
+      onStatus({state:'entered-secret-room',propertyId,roomId,role:data.role,privateRoomNetworked:false});
+      return true;
+    }catch(e){
+      if(!disposed&&active)showPanel('SECRET ROOM UNAVAILABLE',e.message,[{label:'Back',run:()=>void openSecretRoomMenu(propertyId)}]);
+      return false;
+    }finally{secretPending=false;}
+  }
+  function leaveSecretInterior(resumePresence=true){
+    if(!secretSession)return false;
+    const previous=secretSession;secretSession=null;
+    secretInterior.hide();secretPrompt=null;secretRecheckAt=0;
+    root.visible=true;
+    if(selectedLotBeacon)selectedLotBeacon.group.visible=Boolean(targetLot);
+    directoryButton.style.display='block';exitButton.textContent='↩ Return to BURN City';
+    const p=previous.returnAt;
+    player.pos.set(p.x,p.y,p.z);
+    player.vel?.set(0,0,0);player.fp=false;player.onGround=true;player.climb=null;player.spawned=1;
+    setYaw(p.yaw);avatar.position.copy(player.pos);avatar.rotation.y=p.yaw;
+    camera.position.set(p.x+Math.sin(p.yaw)*7,p.y+2.6,p.z+Math.cos(p.yaw)*7);
+    camera.lookAt(p.x,p.y+1.25,p.z);
+    hidePanel();
+    if(resumePresence&&active&&leaseToken&&islandInstanceId)connectPresence(leaseToken,islandInstanceId);
+    onStatus({state:'exited-secret-room',propertyId:previous.propertyId,roomId:previous.roomId});
+    return true;
+  }
+  function showSecretInteraction(interaction){
+    if(!interaction){if(secretPrompt)hidePanel();secretPrompt=null;return;}
+    secretPrompt=interaction.id;
+    const propertyId=secretSession?.propertyId;
+    if(interaction.id==='exit')showPanel('SECRET EXIT','The concealed stairway leads back outside.',
+      [{label:'Return to property',primary:true,run:()=>leaveSecretInterior()},{label:'Stay here',run:hidePanel}],
+      'Press E/USE at the door or use Exit Secret Room.');
+    else if(interaction.id==='portal')showPanel('INTERIOR ACCESS HALL','Switch to another unlocked room inside this property.',
+      [{label:'Choose another room',primary:true,run:()=>void openSecretRoomMenu(propertyId)},{label:'Continue exploring',run:hidePanel}],
+      'Only verified owner/invited-wallet room access permits room changes.');
+    else if(interaction.id==='power')showPanel('BACKUP POWER','Change the room lighting to emergency mode or restore full power.',
+      [{label:secretInterior.powerOn?'Switch to emergency lighting':'Restore full lighting',primary:true,
+        run:()=>{secretInterior.setPower(!secretInterior.powerOn);showSecretInteraction(interaction);}},{label:'Close',run:hidePanel}],
+      'This is a local environmental interaction. No utility fees or account transfers.');
+    else showPanel('ESTATE CONSOLE','A decorative operations terminal and property control desk. Functional crafting, storage and rewards are not enabled yet.',
+      [{label:'Continue exploring',run:hidePanel}],
+      'The terminal does not claim or transfer any funds.');
+  }
+  function nearestVerifiedHatch(){
+    const x=player.pos.x-OFFSET_X,z=player.pos.z;
+    for(const state of verifiedTycoonProperties){
+      if(!Array.isArray(state?.unlockedItemIds)||!state.unlockedItemIds.some(id=>id==='hidden-hatch'||id==='underground-bunker'))continue;
+      const lot=manifest.lots.find(l=>l.propertyId===state.propertyId);
+      if(lot&&Math.hypot(x-lot.position.x-7,z-lot.position.z+4.5)<2.1)return state.propertyId;
+    }
+    return null;
+  }
+  function tickSecretInterior(dt,moveForward,moveSide,running,desiredDelta,edge){
+    if(!secretSession)return true;
+    hideCityScene();
+    if(currentWalletToken()!==secretSession.token){leaveSecretInterior();return true;}
+    if(!secretRecheckBusy&&Date.now()-secretRecheckAt>30000){
+      secretRecheckBusy=true;secretRecheckAt=Date.now();
+      const previous=secretSession;
+      void privateRoomRequest('interior-access',previous.propertyId,previous.roomId)
+        .then(({token})=>{if(secretSession===previous&&token!==previous.token)leaveSecretInterior();})
+        .catch(()=>{if(secretSession===previous){leaveSecretInterior();showPanel('PRIVATE ACCESS ENDED','Your room access could not be revalidated.',
+          [{label:'Close',run:hidePanel}]);}})
+        .finally(()=>{secretRecheckBusy=false;});
+    }
+    const origin=secretInterior.origin,room=secretInterior.layout;
+    if(!room){leaveSecretInterior();return true;}
+    const before={x:player.pos.x-origin.x,z:player.pos.z-origin.z};
+    const delta=desiredDelta??islandMoveDelta({dt,yaw:getYaw(),moveX:moveForward,moveZ:moveSide},running?7.2:4.5);
+    const moved=secretInterior.move(before,{x:delta.x,z:delta.z});
+    player.pos.set(origin.x+moved.x,origin.y+room.walkHeight,origin.z+moved.z);
+    avatar.position.copy(player.pos);
+    avatar.rotation.y=Math.hypot(moved.x-before.x,moved.z-before.z)>.001?
+      Math.atan2(-(moved.x-before.x),-(moved.z-before.z)):getYaw();
+    secretInterior.tickCamera({camera,localPosition:moved,yaw:getYaw(),dt});
+    const trigger=secretInterior.interaction(moved);
+    if(trigger?.id!==secretPrompt)showSecretInteraction(trigger);
+    if(edge&&trigger){
+      if(trigger.id==='exit')leaveSecretInterior();
+      else if(trigger.id==='portal')void openSecretRoomMenu(secretSession.propertyId);
+      else if(trigger.id==='power'){secretInterior.setPower(!secretInterior.powerOn);showSecretInteraction(trigger);}
+      else showSecretInteraction(trigger);
+    }
+    return true;
+  }
+
   async function leaseRequest(action, payload, keepalive=false) {
     const response=await fetch(apiBase+'/api/estates/instance/'+action, {
       method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload),keepalive,

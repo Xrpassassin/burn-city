@@ -16,7 +16,7 @@ const ITEMS=Object.freeze([
  {id:'reinforced-floor',name:'Reinforced hidden floor',category:'underground',priceXrp:9,scene:'hatch-foundation'},
  {id:'grow-lounge',name:'Secret cannabis-themed lounge',category:'underground',priceXrp:9,scene:'grow-lounge',requires:['reinforced-floor']},
  {id:'hobby-workshop',name:'Compact hobby workshop',category:'interior',priceXrp:12,scene:'workshop'},
- {id:'roof-garden',name:'Rooftop garden',category:'decor',priceXrp:15,scene:'roof-garden',requires:['flower-garden']},
+ {id:'roof-garden',name:'Roof / supported terrace garden',category:'decor',priceXrp:15,scene:'roof-garden',requires:['flower-garden']},
  {id:'hidden-hatch',name:'Hidden bunker entrance',category:'underground',priceXrp:18,scene:'hatch',requires:['reinforced-floor']},
  {id:'grow-lounge-deluxe',name:'Deluxe grow-themed lounge',category:'underground',priceXrp:18,scene:'grow-lounge-deluxe',requires:['grow-lounge']},
  {id:'security-upgrade',name:'Security doors & cameras',category:'utility',priceXrp:21,scene:'security',requires:['privacy-fence']},

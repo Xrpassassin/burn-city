@@ -22,4 +22,18 @@ assert(serviceWorker.includes("'js/estates-secret-interior-renderer.mjs'"), 'off
 assert(serviceWorker.includes("u.pathname.startsWith('/api/')"), 'authenticated Estates API must never be offline cached');
 assert(serviceWorker.includes("fetch(req, {cache:'no-store'})"), 'private room checks require fresh server state');
 assert(live.includes("'CONCEALED ESTATE ENTRANCE'"), 'owned-hatch proximity exposes an explicit interaction prompt');
+const aviation=await readFile(new URL('./estates-helicopter-flight.mjs',import.meta.url),'utf8');
+const vehicle=await readFile(new URL('./estates-helicopter-world.mjs',import.meta.url),'utf8');
+assert(live.includes("pilotAuthorization(propertyId)"),'pilot boarding requires verified current owner wallet');
+assert(live.includes("/api/estates/tycoon/helicopter-access?"),'pilot action checks server-side entitlement');
+assert(live.includes("stopPresence();avatar.visible=false"),'no unvalidated airborne coordinates flow to public peers');
+assert(live.includes("if(flightSession)return tickHelicopterFlight"),'helicopter takes over third-person controller input');
+assert(live.includes("helicopters.tick({propertyId:s.propertyId"),'moving craft must render in the same island coordinate system');
+assert(live.includes("flightSession===s)endHelicopterFlight(true)"),'pilot access loss returns the aircraft home');
+assert(live.includes("if(flightSession)endHelicopterFlight(false)"),'island exit clears flight safely');
+assert(live.includes("window.removeEventListener('keydown',pilotKeyDown)"),'keyboard event listeners removed on island disposal');
+assert(live.includes("'Board estate helicopter'"),'owner property UI offers an aircraft entrance');
+assert(live.includes("'PRIVATE ESTATE HELIPAD'"),'helipad proximity offers an interaction');
+assert(vehicle.includes("unlockedItemIds.includes('estate-helicopter')"),'decor appears only from verified server unlock IDs');
+assert(aviation.includes('minCruiseAltitude:11'),'avoid low flying into island structures outside helipads');
 console.log('Estates secret room integration: access, controller, rendering, lifecycle and session isolation passed');

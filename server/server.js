@@ -278,7 +278,7 @@ const server = http.createServer(async (req, res) => {
         if(gate('estate-hangar-finish:'+u.acct,20,60000))return json(res,429,{ok:false,error:'slow_down'});
         const b=await body(),result=estateHangar.finishFlight({
           propertyId:String(b?.propertyId||''),acct:u.acct,sessionId:b?.sessionId,
-          durationSeconds:b?.durationSeconds,routeVisited:b?.routeVisited
+          durationSeconds:b?.durationSeconds,routeVisited:b?.routeVisited,landed:b?.landed
         });
         return json(res,result.ok?200:result.error?.startsWith('invalid_')?400:403,result);
       }

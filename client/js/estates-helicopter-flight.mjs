@@ -1,6 +1,6 @@
 // Island-scoped helicopter flight approximation. Deterministic game motion, not an aviation simulator.
 // No financial rewards, speed exploits across world instances, or client-side unlock authority.
-export const HELICOPTER_PRICE_XRP=180;
+export const HELICOPTER_PRICE_XRP=60;
 // Aircraft sit on a raised roof pad: ground pads cannot fit inside 20×18 Estates lots.
 export const HELIPAD_OFFSET=Object.freeze({x:0,z:0});
 export const FLIGHT_LIMITS=Object.freeze({radiusX:138,radiusZ:147,maxAltitude:92,minCruiseAltitude:11,maxSpeed:28});

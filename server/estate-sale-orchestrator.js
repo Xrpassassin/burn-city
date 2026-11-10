@@ -8,7 +8,7 @@ function createEstateSaleOrchestrator(db,{treasury,client}={}){
  if(typeof treasury!=='string'||!treasury||!client||typeof client.request!=='function')throw new TypeError('trusted_xrpl_configuration_required');
  const reservations=createEstateSaleReservations(db);
  const settlement=createEstateSaleSettlementStore(db);
- async function settle({reservationId,txHash,now=Date.now()}={}){
+ async function settle({reservationId,txHash,now=Date.now(),lateConfirm=false}={}){
   if(typeof reservationId!=='string'||!reservationId)throw new TypeError('reservation_id_required');
   const reservation=reservations.get(reservationId);
   if(!reservation)throw new Error('reservation_not_found');
@@ -17,7 +17,7 @@ function createEstateSaleOrchestrator(db,{treasury,client}={}){
    if(reservation.payment_tx!==txHash?.toUpperCase())throw new Error('reservation_already_settled');
    return {status:'already_settled',reservationId,propertyId:reservation.property_id,txHash:reservation.payment_tx};
   }
-  const evidence=await verifyEstateSalePayment(client,reservation,{txHash,treasury,now});
+  const evidence=await verifyEstateSalePayment(client,reservation,{txHash,treasury,now,lateConfirm:lateConfirm===true});
   const ownership=settlement.settle({reservationId,verification:evidence,now});
   return Object.freeze({status:'settled',reservationId,propertyId:ownership.property_id,buyer:ownership.acct,txHash:ownership.purchase_tx,ownershipAssigned:true,distributable:false});
  }

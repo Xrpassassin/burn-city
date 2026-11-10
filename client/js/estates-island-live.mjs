@@ -1,5 +1,6 @@
 // Live BURN City host integration for the public Estates Island traversal.
 import { mountEstatePrestige } from './estate-prestige-ui.mjs';
+import { mountEstateTycoon } from './estate-tycoon-ui.mjs';
 import { mountEstateOwnership } from './estate-ownership-ui.mjs';
 import { mountEstatePurchase } from './estate-purchase-ui.mjs';
 import { buildEstatesIslandScene } from './estates-island-scene.mjs';
@@ -281,6 +282,7 @@ export async function installEstatesIslandLive({
       let finishes;
       mountEstatePurchase(panel,property.propertyId,{api:apiBase,onSettled:()=>{void refreshAppearance(true);void refreshOwnership(true);void finishes?.refresh();ownershipDetails.dispose();ownershipDetails.section.remove();ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);}});
       finishes=mountEstatePrestige(panel,property.propertyId,{api:apiBase,onPreview:level=>previewAppearance(property.propertyId,level),onConfirmed:()=>refreshAppearance(true)});
+      mountEstateTycoon(panel,property.propertyId,{api:apiBase,onConfirmed:()=>void refreshTycoon(true)});
     }
   };
   const showLotPrompt = property => {
@@ -370,6 +372,15 @@ export async function installEstatesIslandLive({
     (/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   let verifiedAppearances=[],previewProperty=null,previewLevel=null,lastAppearanceFetch=0,appearanceFetching=false;
   let lastOwnershipFetch=0,ownershipFetching=false,ownershipRefreshQueued=false;
+  let lastTycoonFetch=0,tycoonFetching=false;
+  async function refreshTycoon(force=false){
+    if(disposed||tycoonFetching||(!force&&Date.now()-lastTycoonFetch<30000))return;
+    tycoonFetching=true;lastTycoonFetch=Date.now();
+    try{const r=await fetch(apiBase+'/api/estates/tycoon/world',{cache:'no-store',signal:AbortSignal.timeout(8000)});
+      if(!r.ok)return;const s=await r.json();
+      if(!disposed&&Array.isArray(s.properties))renderer.setUpgrades(s.properties);
+    }catch{}finally{tycoonFetching=false;}
+  }
   async function refreshOwnership(force=false){
     if(disposed)return;if(ownershipFetching){if(force)ownershipRefreshQueued=true;return;}if(!force&&Date.now()-lastOwnershipFetch<30000)return;
     ownershipFetching=true;lastOwnershipFetch=Date.now();
@@ -462,7 +473,7 @@ export async function installEstatesIslandLive({
   }
   async function enterIsland(destinationPropertyId=null) {
     if (disposed || active || entering) return false;
-    void refreshAppearance(true);void refreshOwnership(true);
+    void refreshAppearance(true);void refreshOwnership(true);void refreshTycoon(true);
     entering=true; hidePanel();
     let admission;
     try {
@@ -560,7 +571,7 @@ export async function installEstatesIslandLive({
       if(edge&&near) { enterIsland(); return true; }
       return false;
     }
-    hideCityScene();animatePeers(dt);void refreshAppearance();void refreshOwnership();
+    hideCityScene();animatePeers(dt);void refreshAppearance();void refreshOwnership();void refreshTycoon();
     if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
       lastGuidanceUpdate=Date.now();
       if(panel.childElementCount)positionPanel();

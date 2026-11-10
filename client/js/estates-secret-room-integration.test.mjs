@@ -19,4 +19,7 @@ assert(server.includes("require('./estate-tycoon-rooms').privateRoomAccess"), 'p
 assert(server.includes("accessFor:EstateAccess.accessFor,tycoonStore:estateTycoon.store"), 'room unlock permission must use estate ACL');
 assert(rights.includes("access.role==='tour'"), 'unowned public tours cannot visit private rooms');
 assert(serviceWorker.includes("'js/estates-secret-interior-renderer.mjs'"), 'offline shell includes private room renderer');
+assert(serviceWorker.includes("u.pathname.startsWith('/api/')"), 'authenticated Estates API must never be offline cached');
+assert(serviceWorker.includes("fetch(req, {cache:'no-store'})"), 'private room checks require fresh server state');
+assert(live.includes("'CONCEALED ESTATE ENTRANCE'"), 'owned-hatch proximity exposes an explicit interaction prompt');
 console.log('Estates secret room integration: access, controller, rendering, lifecycle and session isolation passed');

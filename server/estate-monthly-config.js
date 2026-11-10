@@ -28,6 +28,8 @@ function monthlyConfig(env=process.env){
   slippageBps:int(env.ESTATE_SWAP_SLIPPAGE_BPS,100,1,1000),         // delivered >= quote*(1-slippage)
   maxPoolDeviationBps:int(env.ESTATE_MAX_POOL_DEVIATION_BPS,300,1,5000),// pool price vs. reference market
   minSwapDrops:int(env.ESTATE_MIN_SWAP_DROPS,100000,1,1e9),
+  depositChunkIntervalMs:int(env.ESTATE_DEPOSIT_CHUNK_INTERVAL_MS,300000,60000,3600000),// cadence while deposits are queued
+  idleIntervalMs:3600000,                                            // hourly when the queue is empty (monthly harvest check)
   dust,
  });
 }

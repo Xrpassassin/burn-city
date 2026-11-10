@@ -8,7 +8,7 @@ for(const [i,id,price,shares]of [['B','trailer-01',3,1],['C','starter-01',75,25]
  db.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run(id,owner,i.repeat(64),price*1000000,shares,1);
 const store=createEstateTycoonStore(db),item=ITEM_BY_ID.get('estate-helicopter');
 assert(item);
-assert.equal(item.priceXrp,180);assert.equal(item.priceDrops,180000000);assert.equal(item.shareUnitsDelta,60);
+assert.equal(item.priceXrp,60);assert.equal(item.priceDrops,60000000);assert.equal(item.shareUnitsDelta,20);
 assert.deepEqual(item.eligibleTiers,['family','mansion']);
 const acl=(acct,id)=>{
  const current=db.prepare('SELECT acct FROM estate_property_ownership WHERE property_id=?').get(id);
@@ -25,18 +25,19 @@ for(const id of ['trailer-01','starter-01']){
 for(const [idx,id] of ['family-01','mansion-01'].entries()){
  const q=store.quote({propertyId:id,buyer:owner,itemId:'estate-helicopter'});
  assert.equal(q.canPurchase,true);
- assert.equal(q.projectedValueDrops,(id==='family-01'?150:300)*1000000+180000000);
- assert.equal(q.projectedShareUnits,(id==='family-01'?50:100)+60);
+ assert.equal(q.projectedValueDrops,(id==='family-01'?150:300)*1000000+60000000);
+ assert.equal(q.projectedShareUnits,(id==='family-01'?50:100)+20);
  assert.equal(estateHelicopterAccess({propertyId:id,acct:owner,accessFor:acl,tycoonStore:store}).error,'helicopter_not_unlocked');
  const orderId='tycoon_'+String(idx+1).repeat(40);
  const reserved=store.reserve({propertyId:id,buyer:owner,itemId:'estate-helicopter',orderId,now:1800000000000+idx*1000});
- assert.equal(reserved.price_drops,180000000);
- assert.equal(reserved.share_delta,60);
+ assert.equal(reserved.price_drops,60000000);
+ assert.equal(reserved.share_delta,20);
  assert.throws(()=>store.reserve({propertyId:id,buyer:guest,itemId:'estate-helicopter',orderId:'tycoon_'+'c'.repeat(40),now:1800000000000}),/property_owner_required/);
  const settled=store.settle({orderId,buyer:owner,txHash:(idx===0?'F':'A').repeat(64),ledgerIndex:300+idx,now:1800000001000+idx*1000});
- assert.equal(settled.recordedShareUnits,(id==='family-01'?50:100)+60);
+ assert.equal(settled.recordedShareUnits,(id==='family-01'?50:100)+20);
  assert.equal(settled.liveRewardShareUnits,id==='family-01'?50:100,'existing payout allocation is unchanged');
  assert.equal(estateHelicopterAccess({propertyId:id,acct:owner,accessFor:acl,tycoonStore:store}).pilotAuthorized,true);
+ assert.equal(estateHelicopterAccess({propertyId:id,acct:owner,accessFor:acl,tycoonStore:store}).priceDrops,60000000,'pilot access must report the catalog price');
  assert.equal(estateHelicopterAccess({propertyId:id,acct:guest,accessFor:acl,tycoonStore:store}).error,'property_owner_required');
 }
 db.prepare("UPDATE estate_property_ownership SET acct=? WHERE property_id='mansion-01'").run(guest);
@@ -45,4 +46,4 @@ assert.equal(estateHelicopterAccess({propertyId:'mansion-01',acct:guest,accessFo
  'verified aircraft follows estate on resale rather than old wallet');
 assert(!JSON.stringify(estateHelicopterAccess({propertyId:'mansion-01',acct:guest,accessFor:acl,tycoonStore:store})).includes(guest));
 db.close();
-console.log('Estates aviation: tier gates, 180 XRP receipts, replay-resistant ownership, resale, recorded shares and denied guests passed');
+console.log('Estates aviation: tier gates, 60 XRP receipts, replay-resistant ownership, resale, recorded shares and denied guests passed');

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {createEstateTycoonDecor} from './estates-tycoon-decor.mjs';
+import {readFile} from 'node:fs/promises';
 class Group {
  constructor(){this.children=[];this.position={set(){}};this.name='';}
  add(v){this.children.push(v);v.parent=this;}
@@ -28,4 +29,6 @@ assert.equal(parent.children[0].children.length,0,'unknown client-supplied upgra
 assert.equal(decor.dispose(),true);
 assert.equal(parent.children.length,0);
 assert.equal(decor.dispose(),false);
+const sw=await readFile(new URL('../sw.js',import.meta.url),'utf8');
+assert(sw.includes("'js/estates-tycoon-architecture.mjs'"),'offline shell must precache the new exterior geometry dependency');
 console.log('Estate tycoon decorations: verified IDs, deterministic updates, concealment and lifecycle passed');

@@ -17,8 +17,10 @@ const bal=async(acct,cur,iss)=>{const l=(await client.request({command:'account_
 async function run(){
  await client.connect();const t0=Date.now();
  try{
-  const fund=async()=> (await client.fundWallet(null,{faucetHost:'faucet.altnet.rippletest.net'})).wallet;
-  const [imgIss,rlIss,maker,maker2,treasury,holderA,holderB,trader]=await Promise.all(Array.from({length:8},fund));
+  // Sequential with backoff: the public faucet rate-limits bursts (HTTP 429).
+  const fund=async()=>{for(let i=0;;i++){try{return (await client.fundWallet(null,{faucetHost:'faucet.altnet.rippletest.net'})).wallet;}catch(e){if(i>=5)throw e;await new Promise(r=>setTimeout(r,5000*(i+1)));}}};
+  const ws=[];for(let i=0;i<8;i++)ws.push(await fund());
+  const [imgIss,rlIss,maker,maker2,treasury,holderA,holderB,trader]=ws;
   console.log('wallets funded',{treasury:treasury.classicAddress,imgIssuer:imgIss.classicAddress,rlusdIssuer:rlIss.classicAddress});
   const IMG={currency:'IMG',issuer:imgIss.classicAddress},RL={currency:RLHEX,issuer:rlIss.classicAddress};
   await Promise.all([imgIss,rlIss].map(w=>send(w,{TransactionType:'AccountSet',SetFlag:xrpl.AccountSetAsfFlags.asfDefaultRipple})));

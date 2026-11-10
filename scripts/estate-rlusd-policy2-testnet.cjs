@@ -142,7 +142,10 @@ async function run(){
   const alloc=db.prepare('SELECT * FROM estate_capital_allocations WHERE purchase_tx=?')
    .get(purchase.hash);
   assert(alloc,'verified_purchase_must_record_capital');
-  assert.equal(alloc.policy_version,2);
+  // New sales book policy v3 (same 99/1 split). This acceptance run proves the retired
+  // hourly engine, which funds only v2 rows, so the fixture row is relabelled v2.
+  assert.equal(alloc.policy_version,3);
+  db.prepare('UPDATE estate_capital_allocations SET policy_version=2 WHERE purchase_tx=?').run(purchase.hash);
   assert.equal(alloc.purchase_drops,'3000000');
   assert.equal(alloc.img_rlusd_drops,'2970000');
   assert.equal(alloc.operating_reserve_drops,'30000');

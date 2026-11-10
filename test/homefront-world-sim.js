@@ -287,6 +287,23 @@ console.log('Homefront shared Graveyard world and terrain-movement integration p
   assert.equal(dodged.result.selfSurvival.health, 100, 'dodging preserves survivor health');
   const dodgeFollowup = W.enter(dodged.world, account, start + 2400);
   assert.equal(dodgeFollowup.result.selfSurvival.health, 100, 'the canceled attack cannot land after its original impact time');
+  // The windup belongs to one attacker. A dead or replaced attacker must not
+  // leave a phantom red telegraph or let a different member inherit its bite.
+  const defeatedAttackerWorld = JSON.parse(JSON.stringify(winding.world));
+  const defeatedAttacker = defeatedAttackerWorld.encounters[account].members[0];
+  defeatedAttacker.hp = 0;
+  defeatedAttacker.defeated = true;
+  const defeatedWindup = W.enter(defeatedAttackerWorld, account, start + 1800);
+  assert.equal(defeatedWindup.result.selfInfectedWindup, null, 'defeating the original attacker cancels its windup');
+  assert.equal(defeatedWindup.result.selfInfectedHit, null, 'a defeated attacker does not inflict a phantom bite');
+
+  const changedAttackerWorld = JSON.parse(JSON.stringify(winding.world));
+  changedAttackerWorld.encounters[account].members[0].id = 'replacement-infected';
+  const changedWindup = W.enter(changedAttackerWorld, account, start + 1800);
+  assert.equal(changedWindup.result.selfInfectedWindup, null, 'a replacement infected cannot inherit another attacker\'s telegraph');
+  assert.equal(changedWindup.result.selfInfectedHit, null, 'replacing the original attacker cannot create instant damage');
+  const changedAfterDeadline = W.enter(changedWindup.world, account, start + 2400);
+  assert.equal(changedAfterDeadline.result.selfSurvival.health, 100, 'replacement never receives the original bite deadline');
   const bitten = W.enter(winding.world, account, start + 2350);
   assert.equal(bitten.result.selfInfectedHit.sourceId, member.id, 'the same infected bites after its windup if the survivor remains in range');
   assert.equal(bitten.result.selfSurvival.health, 95);

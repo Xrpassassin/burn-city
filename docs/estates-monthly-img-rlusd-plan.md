@@ -8,6 +8,12 @@ Approved by the operator (Derrik) on Nov 9, 2026. **Everything ships OFF.** Noth
    - an operating reserve kept as XRP (`ESTATE_XRP_RESERVE_BPS`, default 100 = 1%, optional floor `ESTATE_XRP_RESERVE_MIN_DROPS`);
    - the rest as IMG/RLUSD principal, queued for a two-sided deposit.
 2. **Deposit** (`server/estate-monthly-executor.js`): each run spends at most `ESTATE_MAX_DEPOSIT_DROPS` (default 8 XRP, sized so a 4 XRP leg into the ~437 XRP IMG/XRP pool stays near the 1% impact cap). About half is swapped to RLUSD (XRP/RLUSD market) and half to IMG (IMG/XRP market). Both swaps are Payments to the treasury itself, with a capped `SendMax`, an exact minimum delivery and no partial-payment flag. Then one `AMMDeposit` with `tfTwoAsset` puts in IMG and RLUSD at the pool's exact ratio. The treasury keeps the LP tokens.
+   - **Instant start:** when a purchase settles (normal or late confirm), its deposit is queued and a deposit run starts right away, without delaying the buyer's response.
+   - **Cadence:** while any deposit is queued, a chunk runs every `ESTATE_DEPOSIT_CHUNK_INTERVAL_MS` (default 300000 = 5 min, allowed 1–60 min). When the queue is empty, the service goes back to hourly. The monthly harvest check still runs at most hourly.
+   - **Sizing:** a chunk is at most `ESTATE_MAX_DEPOSIT_DROPS`, halved while either swap leg would exceed the 1% impact cap.
+   - **Guards:** all guards are unchanged. A guard hold waits for the next interval.
+   - **Errors:** public-node rate-limit errors back off 10/20/40/60 min. A failed ledger step is never re-signed, and the service drops to hourly checks.
+   - **Single-flight:** two deposit runs never overlap.
 3. **Monthly harvest**: after each UTC month ends, the plan withdraws (proportional `AMMWithdraw`, `tfLPToken`) **only** the LP value gained above principal. Principal is tracked per deposit in constant-product invariant units: `principal_k += LP received × sqrt(IMG×RLUSD)/LP supply`. That ratio grows only from trading fees, not from price moves, so price swings and impermanent loss are never "harvested" and principal stays in the pool. LP the plan did not deposit (for example the operator's own LP) is never touched.
 4. **Split** of the realized month, by value at pool price:
    - **10% IMG burn**: IMG is sent to the IMG issuer `rsJJMwweNS6GveA12RV7xmGNG1HdgAuiNd`, which destroys it. It uses the IMG received from the withdrawal, so no extra buy moves the tiny pool.

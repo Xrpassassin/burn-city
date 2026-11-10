@@ -9,7 +9,7 @@ const {estatePurchaseQuote}=require('./estate-sale-quote');
 const {purchaseTerms,confirmPurchaseTerms}=require('./estate-purchase-terms-gate');
 // Explicit opt-in, using the existing Xaman SDK and XRPL connection. Incoming
 // sales do not enable distributions or supply earnings to the reward ledger.
-function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true}={}){
+function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true,onSettled=null}={}){
  const capital=createEstateCapitalAllocation(db);
  const terms=purchaseTerms(env);
  // Creating new XRP requests needs all sale, legal, treasury and terms
@@ -61,7 +61,14 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
   // A pause, legal terms rotation, or disabled new sales must not block the
   // validated completion of an already-bound incoming XRP payment.
   // already-authorized incoming payment or replay of settled ownership.
-  try{return await settlement.finalize(input);}catch(e){
+  try{
+   const result=await settlement.finalize(input);
+   // Instant deposit: hand the newly settled purchase to the monthly plan without
+   // blocking the HTTP response. Replays (already_settled) also re-kick harmlessly.
+   if(result?.ok&&(result.status==='settled'||result.status==='already_settled')&&typeof onSettled==='function')
+    setImmediate(()=>{try{onSettled(result);}catch(e){console.error('[estate-sales] onSettled',e.message);}});
+   return result;
+  }catch(e){
    if(e.message==='payment_not_validated_success'||e.data?.error==='txnNotFound')return {ok:false,pending:true,error:'payment_pending_validation'};
    throw e;
   }

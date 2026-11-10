@@ -12,6 +12,8 @@ on:
       - 'scripts/estate-liquidity-testnet.cjs'
       - 'scripts/estate-monthly-plan-testnet.cjs'
       - 'server/estate-monthly-*.js'
+      - 'server/estate-instant-deposit.test.js'
+      - 'server/estate-sales-runtime.js'
       - 'scripts/estate-live-*.cjs'
       - 'scripts/estate-live-*.mjs'
       - 'server/estate-capital-*.js'
@@ -58,6 +60,7 @@ jobs:
           node server/estate-net-reward-executor.test.js
           for test in server/estate-img-*.test.js; do node "$test" || exit 1; done
           node test/estate-sales-runtime-http.test.js
+          node server/estate-instant-deposit.test.js
           node server/estate-sale-production-gates.test.js
   testnet:
     runs-on: ubuntu-24.04

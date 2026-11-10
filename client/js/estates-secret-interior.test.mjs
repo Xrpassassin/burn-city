@@ -46,10 +46,15 @@ assert.equal(interior.root.children.filter(x=>x instanceof PointLight).length,4,
 const fill=interior.root.children.find(x=>x instanceof HemisphereLight);
 assert(fill,'private rooms need non-spatial fill lighting even when the city environment is hidden');
 assert(fill.intensity>=.6,'bunker surfaces are readable with normal power');
+const walls=interior.root.children.find(x=>x instanceof Mesh&&x.name==='secret-wall-z--7.15');
+assert(walls?.material?.emissiveIntensity>=.55,
+ 'indirect reflected light keeps basement concrete surfaces legible across browsers');
 interior.setPower(false);assert.equal(interior.powerOn,false);
 assert(interior.root.children.filter(x=>x instanceof PointLight).every(x=>x.intensity===.08));
 assert(fill.intensity>.15&&fill.intensity<.4,
  'emergency power keeps subtle indirect fill without pretending all lights are on');
+assert(walls.material.emissiveIntensity<.2,
+ 'emergency mode dims reflected wall light rather than leaving a fully lit bunker');
 interior.setPower(true);assert(interior.root.children.filter(x=>x instanceof PointLight).every(x=>x.intensity>.08));
 const oldMeshes=interior.root.children.filter(x=>x instanceof Mesh);
 layout=interior.setRoom('lounge');assert.equal(layout.roomId,'lounge');

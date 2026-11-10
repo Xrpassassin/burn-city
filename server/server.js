@@ -30,6 +30,7 @@ const estateResale=require('./estate-resale-market').createEstateResaleMarket(Pa
   xamanSdk:{payload:{create:(...a)=>Pay.sdk().payload.create(...a),get:(...a)=>Pay.sdk().payload.get(...a)}}});
 const {estateTreasuryMonitor}=require('./estate-treasury-monitor');
 const estatePrestige = require('./estate-prestige-runtime').createEstatePrestigeRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
+const estateTycoon = require('./estate-tycoon-runtime').createEstateTycoonRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const EstateAccess = require('./estate-access');
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
@@ -215,6 +216,10 @@ const server = http.createServer(async (req, res) => {
       if (gate('estates-appearance-ip:' + ip, 60, 60e3)) return json(res, 429, {error:'slow_down'});
       return json(res, 200, estatePrestige.publicState());
     }
+    if (url.pathname === '/api/estates/tycoon/world' && req.method === 'GET') {
+      if(gate('estates-tycoon-world-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
+      return json(res,200,estateTycoon.publicState());
+    }
     if (url.pathname === '/api/estates/tour' && req.method === 'GET') {   // public tour check: unowned interiors are open to anyone (enter/inspect only); owned ones need sign-in + owner/invite
       if (gate('estates-tour-ip:' + ip, 60, 60e3)) return json(res, 429, { error: 'slow_down' });
       const u = who(), result = EstateAccess.accessFor(u ? u.acct : '', String(url.searchParams.get('propertyId') || ''));
@@ -227,6 +232,27 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/portfolio' && req.method === 'GET') return json(res,200,{
         ...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct),
         portfolio:readEstatePortfolio({db:Pay.sdb,owner:u.acct})});
+      if (url.pathname === '/api/estates/tycoon/state' && req.method === 'GET') {
+        const propertyId=String(url.searchParams.get('propertyId')||'');
+        try{const state=estateTycoon.store.state(propertyId),access=estateTycoon.store.quote({propertyId,buyer:u.acct,itemId:'porch-lights'});
+          return json(res,200,{...state,ownerAuthorized:access.ownerAuthorized,purchasesEnabled:estateTycoon.enabled()});}
+        catch(e){return json(res,404,{error:e.message==='unknown_property'?'unknown_property':'tycoon_state_unavailable'});}
+      }
+      if (url.pathname === '/api/estates/tycoon/portfolio' && req.method === 'GET')return json(res,200,estateTycoon.portfolio(u.acct));
+      if (url.pathname === '/api/estates/tycoon/quote' && req.method === 'GET') {
+        const result=estateTycoon.quote({propertyId:String(url.searchParams.get('propertyId')||''),itemId:String(url.searchParams.get('itemId')||''),buyer:u.acct});
+        return json(res,result.ok?200:400,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/start' && req.method === 'POST') {
+        if(gate('estate-tycoon-start:'+u.acct,5,600000))return json(res,429,{error:'slow_down'});
+        const b=await body(),result=await estateTycoon.start({propertyId:String(b?.propertyId||''),itemId:String(b?.itemId||''),buyer:u.acct});
+        return json(res,result.ok?200:409,result);
+      }
+      if (url.pathname === '/api/estates/tycoon/confirm' && req.method === 'POST') {
+        if(gate('estate-tycoon-confirm:'+u.acct,15,60000))return json(res,429,{error:'slow_down'});
+        const b=await body(),result=await estateTycoon.confirm({orderId:String(b?.orderId||''),buyer:u.acct});
+        return json(res,result.ok?200:result.pending?202:409,result);
+      }
       if (url.pathname === '/api/estates/upgrade/quote' && req.method === 'GET') {const result=estatePrestige.quote({propertyId:String(url.searchParams.get('propertyId')||''),buyer:u.acct});return json(res,result.ok?200:400,result);}
       if (url.pathname === '/api/estates/upgrade/start' && req.method === 'POST') {
         if(gate('estate-upgrade-start:'+u.acct,5,600000))return json(res,429,{error:'slow_down'});

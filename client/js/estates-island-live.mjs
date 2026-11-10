@@ -3,6 +3,7 @@ import { mountEstatePrestige } from './estate-prestige-ui.mjs';
 import { mountEstateTycoon } from './estate-tycoon-ui.mjs';
 import { createEstatesSecretInteriorRenderer } from './estates-secret-interior-renderer.mjs';
 import { createEstateHelicopterWorld } from './estates-helicopter-world.mjs';
+import { mountEstateHangarLogbook } from './estates-hangar-ui.mjs';
 import { estateHelipadPosition } from './estates-helicopter-flight.mjs';
 import { mountEstateOwnership } from './estate-ownership-ui.mjs';
 import { mountEstatePurchase } from './estate-purchase-ui.mjs';
@@ -282,6 +283,7 @@ export async function installEstatesIslandLive({
       [{label:'Navigate to property',primary:true,run:()=>{const lot=manifest.lots.find(l=>l.id===property.lotId);if(lot){targetLot=lot;if(selectedLotBeacon){selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=active;}if(guidanceHud)guidanceHud.style.display='block';hidePanel();}}},
        {label:'Explore secret rooms',run:()=>void openSecretRoomMenu(property.propertyId)},
        {label:'Board estate helicopter',run:()=>void boardEstateHelicopter(property.propertyId)},
+       {label:'Hangar logbook & customization',run:()=>showEstateHangar(property.propertyId)},
        {label:'Close',run:hidePanel}],
       'Public paths and shoreline are open to everyone. Private homes are for their owners and invited guests. Borders: yellow = unowned; blue = purchased.');
     if(catalogued){
@@ -421,6 +423,24 @@ export async function installEstatesIslandLive({
     }catch{}finally{appearanceFetching=false;}
   }
 
+  function showEstateHangar(propertyId){
+    if(!active||disposed||secretSession||flightSession)return;
+    showPanel('PRIVATE ESTATE HANGAR','Review recorded flights, choose an aircraft appearance, and see your sightseeing milestones.',
+      [{label:'Return to property',run:hidePanel}],
+      'Private owner logbook · local/client-reported flight visits · no rewards.');
+    mountEstateHangarLogbook(panel,propertyId,{api:apiBase,onStyle:(id,style)=>helicopters.setStyle(id,style)});
+    positionPanel();
+  }
+  async function hangarRequest(action,propertyId,data){
+    const token=currentWalletToken();
+    if(!token)throw Error('Connect your owning wallet to record this flight.');
+    const response=await fetch(apiBase+'/api/estates/tycoon/hangar'+action,{
+      method:data?'POST':'GET',cache:'no-store',headers:{authorization:'Bearer '+token,'content-type':'application/json'},
+      ...(data?{body:JSON.stringify({propertyId,...data})}:{}),signal:AbortSignal.timeout(9000)});
+    const result=await response.json();
+    if(!response.ok||result.ok!==true)throw Error(result.error||'hangar_unavailable');
+    return result;
+  }
   // Local third-person helicopter flight. An ownership-verified purchase enables a
   // helipad, but client aviation coordinates are never transmitted to public presence.
   let flightSession=null,flightPending=false,flightRecheckBusy=false,lastHelipadId=null;
@@ -495,10 +515,20 @@ export async function installEstatesIslandLive({
     try{
       const token=await pilotAuthorization(propertyId);
       if(disposed||!active||secretSession||flightSession||!helicopters.hasHelicopter(propertyId))return false;
+      let journalId=null,logbookStatus='unavailable';
+      // An unavailable logbook never turns into a fictional completed flight.
+      try{
+        const [data,record]=await Promise.all([
+          hangarRequest('?propertyId='+encodeURIComponent(propertyId),propertyId),
+          hangarRequest('/flight/start',propertyId,{})
+        ]);
+        if(disposed||!active||secretSession||flightSession)return false;
+        helicopters.setStyle(propertyId,data.style);journalId=record.sessionId;logbookStatus='recording';
+      }catch{logbookStatus='unsaved';}
       const model=helicopters.board(propertyId);
       if(!model)return false;
       const avatarWasVisible=avatar.visible,former={x:player.pos.x,y:player.pos.y,z:player.pos.z};
-      flightSession={propertyId,model,token,avatarWasVisible,former,verifiedAt:Date.now(),last:null,unlockedAt:Date.now()};
+      flightSession={propertyId,model,token,avatarWasVisible,former,verifiedAt:Date.now(),last:null,unlockedAt:Date.now(),journalId,logbookStatus};
       stopPresence();avatar.visible=false;
       player.vel?.set(0,0,0);player.fp=false;player.onGround=true;player.climb=null;
       const p=model.position;
@@ -518,6 +548,15 @@ export async function installEstatesIslandLive({
     const current=flightSession;
     if(!emergency&&!current.model.land())return false;
     flightSession=null;flightRecheckBusy=false;
+    if(current.journalId){
+      const last=current.last||{elapsed:0,routeVisited:[]};
+      // Server cross-checks elapsed wall time, route whitelist, session owner and current estate ownership.
+      void hangarRequest('/flight/finish',current.propertyId,{
+        sessionId:current.journalId,durationSeconds:Math.min(5400,Math.max(0,Math.floor(last.elapsed))),
+        routeVisited:last.routeVisited,landed:!emergency
+      }).then(()=>onStatus({state:'estate-flight-recorded',propertyId:current.propertyId,verification:'client_reported'}))
+        .catch(()=>onStatus({state:'estate-flight-log-unsaved',propertyId:current.propertyId}));
+    }
     pilotHeld.up=false;pilotHeld.down=false;
     helicopters.park();
     avatar.visible=current.avatarWasVisible;
@@ -562,7 +601,8 @@ export async function installEstatesIslandLive({
     flightStatus.textContent='ESTATES PRIVATE AVIATION\nAltitude '+Math.round(result.position.altitude)+' m · '+Math.round(result.speed)+' m/s'+
       '\nFlight '+mins+':'+String(secs).padStart(2,'0')+' · Lookouts '+result.routeVisited.length+'/3'+
       (result.landmark?'\nReached '+result.landmark:'')+
-      '\nWASD/movement to steer · SPACE/R ascend · SHIFT/F descend';
+      '\nWASD/movement to steer · SPACE/R ascend · SHIFT/F descend'+
+      '\nLogbook: '+(s.logbookStatus==='recording'?'recording (client-reported)':'not recording');
     landFlightButton.disabled=!result.canLand;landFlightButton.style.opacity=result.canLand?'1':'.5';
     if(edge&&result.canLand)endHelicopterFlight(false);
     return true;

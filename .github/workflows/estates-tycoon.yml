@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'server/estate-tycoon*'
+      - 'client/js/estates-secret-*'
       - 'server/server.js'
       - 'test/estate-tycoon-http.test.js'
       - 'client/js/estate-portfolio-ui.mjs'

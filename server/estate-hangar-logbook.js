@@ -98,7 +98,7 @@ function createEstateHangarLogbook({db,tycoonStore,accessFor,clock=Date.now}={})
    "FROM estate_hangar_style s JOIN estate_tycoon_orders o ON o.property_id=s.property_id "+
    "AND o.item_id='estate-helicopter' AND o.status='settled' "+
    "JOIN estate_property_ownership p ON p.property_id=s.property_id ORDER BY s.property_id").all();
-  return rows.filter(s=>Object.hasOwn(PAINT,s.paint)&&Object.hasOwn(TRIM,s.trim));
+  return rows.filter(s=>Object.hasOwn(PAINT,s.paint)&&Object.hasOwn(TRIM,s.trim)).map(s=>({propertyId:s.propertyId,paint:s.paint,trim:s.trim}));
  }
  return Object.freeze({snapshot,setStyle,startFlight,finishFlight,publicStyles});
 }

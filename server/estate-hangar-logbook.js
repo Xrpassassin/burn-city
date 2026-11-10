@@ -17,13 +17,13 @@ function createEstateHangarLogbook({db,tycoonStore,accessFor,clock=Date.now}={})
   "updated_at INTEGER NOT NULL, FOREIGN KEY(property_id) REFERENCES estate_property_ownership(property_id))");
  db.exec("CREATE TABLE IF NOT EXISTS estate_hangar_flights ("+
   "session_id TEXT PRIMARY KEY NOT NULL, property_id TEXT NOT NULL,pilot_acct TEXT NOT NULL,"+
-  "started_at INTEGER NOT NULL,ended_at INTEGER,duration_s INTEGER,route_ids TEXT,"+
+  "started_at INTEGER NOT NULL,ended_at INTEGER,duration_s INTEGER,route_ids TEXT,landed INTEGER NOT NULL DEFAULT 0,"+
   "status TEXT NOT NULL CHECK(status IN ('started','finished','abandoned')),"+
   "FOREIGN KEY(property_id) REFERENCES estate_property_ownership(property_id))");
  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS estate_hangar_single_active ON estate_hangar_flights(property_id) WHERE status='started'");
  db.exec("CREATE INDEX IF NOT EXISTS estate_hangar_history ON estate_hangar_flights(property_id,ended_at DESC)");
  const stGet=db.prepare('SELECT paint,trim,callsign FROM estate_hangar_style WHERE property_id=?');
- const flightsGet=db.prepare("SELECT session_id,started_at,ended_at,duration_s,route_ids FROM estate_hangar_flights WHERE property_id=? AND status='finished' ORDER BY ended_at DESC,session_id DESC LIMIT 30");
+ const flightsGet=db.prepare("SELECT session_id,started_at,ended_at,duration_s,route_ids,landed FROM estate_hangar_flights WHERE property_id=? AND status='finished' ORDER BY ended_at DESC,session_id DESC LIMIT 30");
  const flightBySession=db.prepare('SELECT * FROM estate_hangar_flights WHERE session_id=?');
  const authorized=(propertyId,acct)=>estateHelicopterAccess({propertyId,acct,accessFor,tycoonStore});
  function snapshot(propertyId,acct){
@@ -31,16 +31,17 @@ function createEstateHangarLogbook({db,tycoonStore,accessFor,clock=Date.now}={})
   const style=stGet.get(propertyId)||DEFAULT_STYLE;
   const flights=flightsGet.all(propertyId).map(f=>({
    sessionId:f.session_id,startedAt:f.started_at,endedAt:f.ended_at,
-   durationSeconds:f.duration_s,routeVisited:JSON.parse(f.route_ids||'[]'),verification:'client_reported'
+   durationSeconds:f.duration_s,landed:!!f.landed,routeVisited:JSON.parse(f.route_ids||'[]'),verification:'client_reported'
   }));
   const total=db.prepare("SELECT COUNT(*) AS n,COALESCE(SUM(duration_s),0) AS seconds FROM estate_hangar_flights WHERE property_id=? AND status='finished'").get(propertyId);
-  const all=db.prepare("SELECT route_ids FROM estate_hangar_flights WHERE property_id=? AND status='finished'").all(propertyId);
+  const all=db.prepare("SELECT route_ids,landed FROM estate_hangar_flights WHERE property_id=? AND status='finished'").all(propertyId);
   const stops=new Set();let circuit=false;
-  for(const row of all){const ids=JSON.parse(row.route_ids||'[]');if(ids.length===3)circuit=true;for(const id of ids)if(STOPS.includes(id))stops.add(id);}
+  const landed=db.prepare("SELECT COUNT(*) AS n FROM estate_hangar_flights WHERE property_id=? AND status='finished' AND landed=1 AND duration_s>=10").get(propertyId).n;
+  for(const row of all){const ids=JSON.parse(row.route_ids||'[]');if(ids.length===3&&row.landed)circuit=true;for(const id of ids)if(STOPS.includes(id))stops.add(id);}
   return {ok:true,propertyId,style:{paint:style.paint,trim:style.trim,callsign:style.callsign},
    choices:{paints:Object.keys(PAINT),trims:Object.keys(TRIM)},
    flights,totals:{completedFlights:total.n,flightSeconds:total.seconds,stopIds:[...stops]},
-   milestones:{firstLanding:total.n>=1,frequentPilot:total.n>=10,allLookouts:stops.size===3,oneFlightCircuit:circuit},
+   milestones:{firstLanding:landed>=1,frequentPilot:landed>=10,allLookouts:stops.size===3,oneFlightCircuit:circuit},
    verification:'client_reported',persistent:true,financialRewards:false,tokenRewards:false,scope:'property',sharePolicy:'unchanged'};
  }
  function setStyle({propertyId,acct,paint,trim,callsign}={}){
@@ -69,7 +70,7 @@ function createEstateHangarLogbook({db,tycoonStore,accessFor,clock=Date.now}={})
    db.exec('COMMIT');return {ok:true,propertyId,sessionId,reused:false,verification:'client_reported'};
   }catch(e){db.exec('ROLLBACK');throw e;}
  }
- function finishFlight({propertyId,acct,sessionId,durationSeconds,routeVisited}={}){
+ function finishFlight({propertyId,acct,sessionId,durationSeconds,routeVisited,landed=false}={}){
   const valid=authorized(propertyId,acct);if(!valid.ok)return valid;
   if(typeof sessionId!=='string'||!/^[0-9a-f]{32}$/.test(sessionId))return {ok:false,error:'invalid_flight_session'};
   const row=flightBySession.get(sessionId);
@@ -81,12 +82,13 @@ function createEstateHangarLogbook({db,tycoonStore,accessFor,clock=Date.now}={})
    return {ok:false,error:'flight_session_expired'};
   if(!Number.isInteger(durationSeconds)||durationSeconds<0||durationSeconds>5400||
    durationSeconds>serverElapsed+10)return {ok:false,error:'invalid_flight_duration'};
+  if(typeof landed!=='boolean')return {ok:false,error:'invalid_flight_landing'};
   if(!Array.isArray(routeVisited)||routeVisited.length>STOPS.length||
    routeVisited.some(id=>typeof id!=='string'||!STOPS.includes(id))||
    new Set(routeVisited).size!==routeVisited.length)return {ok:false,error:'invalid_flight_route'};
-  const changed=db.prepare("UPDATE estate_hangar_flights SET status='finished',ended_at=?,duration_s=?,route_ids=? "+
+  const changed=db.prepare("UPDATE estate_hangar_flights SET status='finished',ended_at=?,duration_s=?,route_ids=?,landed=? "+
    "WHERE session_id=? AND status='started' AND pilot_acct=? AND property_id=?")
-   .run(now,durationSeconds,JSON.stringify(routeVisited),sessionId,acct,propertyId);
+   .run(now,durationSeconds,JSON.stringify(routeVisited),landed?1:0,sessionId,acct,propertyId);
   if(changed.changes!==1)return {ok:false,error:'flight_session_changed'};
   return snapshot(propertyId,acct);
  }

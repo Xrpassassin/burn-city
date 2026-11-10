@@ -3,7 +3,7 @@
 const LEGACY_POLICY=Object.freeze({version:1,imgPlxBps:7000,imgXrpBps:3000});
 const POLICY_V2=Object.freeze({version:2,pair:'IMG/RLUSD',imgPlxBps:0,imgXrpBps:0,imgRlusdBps:9900,operatingReserveBps:100,automaticDepositsEnabled:false});
 // v3: monthly IMG/RLUSD plan (no PLX, no copytrading). Reserve is configurable (ESTATE_XRP_RESERVE_BPS, default 100).
-const MP=require('./estate-monthly-plan');
+const MP=require('./estate-monthly-config'); // no npm deps: loaded by bare CI gate jobs
 const reserveBps=(()=>{try{return MP.monthlyConfig().reserveBps;}catch{return 100;}})();
 const POLICY=Object.freeze({version:3,pair:'IMG/RLUSD',imgPlxBps:0,imgXrpBps:0,imgRlusdBps:10000-reserveBps,operatingReserveBps:reserveBps,
  plx:false,copytrading:false,cadence:'monthly',profitSplitBps:Object.freeze({imgBurn:1000,imgRlusdRedeposit:1000,holders:8000}),automaticDepositsEnabled:false});

@@ -9,7 +9,7 @@ class Element {
   this.parent=null;this.dataset={};this.style={};this.attributes={};this.value='';
  }
  get isConnected(){return this._connected||Boolean(this.parent?.isConnected);}
- set textContent(s){this._text=String(s);this.replaceChildren();}
+ set textContent(s){this.replaceChildren();this._text=String(s);}
  get textContent(){return this._text+this.children.map(x=>x.textContent).join('');}
  setAttribute(k,v){this.attributes[k]=v;}
  appendChild(child){if(child.parent)child.parent.replaceChildren(...child.parent.children.filter(c=>c!==child));

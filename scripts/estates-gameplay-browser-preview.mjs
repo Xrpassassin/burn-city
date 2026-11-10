@@ -158,9 +158,14 @@ try{
   const baselineNetworkWarnings=pageErrors.filter(e=>
    /due to access control checks/i.test(e)&&
    /(?:api\.xrpl\.fun|s1\.ripple\.com)/i.test(e));
-  const sceneErrors=pageErrors.filter(e=>!baselineNetworkWarnings.includes(e));
+  const observerWarnings=pageErrors.filter(e=>
+   e.trim()==='ResizeObserver loop completed with undelivered notifications.');
+  // WebKit exposes ResizeObserver's benign undelivered-notification warning as
+  // a pageerror while rapidly resizing the isolated canvas. Keep it in the
+  // report, but reject every actual exception or unknown browser failure.
+  const sceneErrors=pageErrors.filter(e=>!baselineNetworkWarnings.includes(e)&&!observerWarnings.includes(e));
   assert.deepEqual(sceneErrors,[],'no unhandled Estates or other JavaScript exceptions in browser');
-  outcomes.push({label,...setup,...final,sceneErrors,baselineNetworkWarnings});
+  outcomes.push({label,...setup,...final,sceneErrors,baselineNetworkWarnings,observerWarnings});
   await page.evaluate(()=>{
    const qa=window.__estatesGameplayQA;
    qa.decor.dispose();qa.heli.dispose();qa.privateRoom.dispose();

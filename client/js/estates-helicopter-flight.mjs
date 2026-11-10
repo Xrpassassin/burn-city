@@ -1,7 +1,8 @@
 // Island-scoped helicopter flight approximation. Deterministic game motion, not an aviation simulator.
 // No financial rewards, speed exploits across world instances, or client-side unlock authority.
 export const HELICOPTER_PRICE_XRP=180;
-export const HELIPAD_OFFSET=Object.freeze({x:-8.2,z:-5.5});
+// Aircraft sit on a raised roof pad: ground pads cannot fit inside 20×18 Estates lots.
+export const HELIPAD_OFFSET=Object.freeze({x:0,z:0});
 export const FLIGHT_LIMITS=Object.freeze({radiusX:138,radiusZ:147,maxAltitude:92,minCruiseAltitude:11,maxSpeed:28});
 export const FLIGHT_ROUTE=Object.freeze([
  Object.freeze({id:'north-lookout',name:'North Shore Panorama',x:0,z:-111,altitude:27,radius:18}),
@@ -13,11 +14,16 @@ export function estateHelipadPosition(lot){
  if(!lot||![lot.position?.x,lot.position?.z].every(Number.isFinite))throw TypeError('valid_estate_lot_required');
  return {x:lot.position.x+HELIPAD_OFFSET.x,z:lot.position.z+HELIPAD_OFFSET.z};
 }
+export function estateHelipadAltitude(lot){
+ const height=lot?.buildingFootprint?.height??(lot?.tier==='mansion'?8:6);
+ if(!Number.isFinite(height)||height<3||height>30)throw TypeError('invalid_rooftop_helipad_height');
+ return height+1.4;
+}
 export function createEstateHelicopterFlight(lot){
- const pad=estateHelipadPosition(lot);
- let position={x:pad.x,z:pad.z,altitude:1.4};
+ const pad=estateHelipadPosition(lot),padAltitude=estateHelipadAltitude(lot);
+ let position={x:pad.x,z:pad.z,altitude:padAltitude};
  let velocity={x:0,z:0,vertical:0},rotor=0,elapsed=0,visited=new Set();
- const nearPad=(p=position)=>Math.hypot(p.x-pad.x,p.z-pad.z)<=6;
+ const nearPad=(p=position)=>Math.hypot(p.x-pad.x,p.z-pad.z)<=3.6;
  function tick({dt=0,yaw=0,forward=0,strafe=0,ascend=0,descend=0}={}){
   if(![dt,yaw,forward,strafe,ascend,descend].every(Number.isFinite))throw TypeError('invalid_flight_input');
   const step=clamp(dt,0,.05),front=clamp(forward,-1,1),side=clamp(strafe,-1,1);
@@ -26,7 +32,7 @@ export function createEstateHelicopterFlight(lot){
   const targetV=clamp((rise-fall)*9,-7,9);
   const smoothV=1-Math.exp(-3.6*step);
   velocity.vertical+=(targetV-velocity.vertical)*smoothV;
-  const nextAltitude=clamp(position.altitude+velocity.vertical*step,1.4,FLIGHT_LIMITS.maxAltitude);
+  const nextAltitude=clamp(position.altitude+velocity.vertical*step,padAltitude,FLIGHT_LIMITS.maxAltitude);
   const canMove=nextAltitude>=FLIGHT_LIMITS.minCruiseAltitude;
   const length=Math.hypot(front,side),weight=length>1?1/length:1;
   const vx=(-Math.sin(yaw)*front+Math.cos(yaw)*side)*weight*FLIGHT_LIMITS.maxSpeed;
@@ -50,15 +56,15 @@ export function createEstateHelicopterFlight(lot){
    }
   }
   return {position:{...position},velocity:{...velocity},speed,rotor,elapsed,landmark,
-   routeVisited:[...visited],canLand:approaching&&position.altitude<=3&&speed<=3.5,nearHelipad:approaching};
+   routeVisited:[...visited],canLand:approaching&&position.altitude<=padAltitude+1.6&&speed<=3.5,nearHelipad:approaching};
  }
  function land(){
-  if(!nearPad()||position.altitude>3||Math.hypot(velocity.x,velocity.z)>3.5)return false;
-  position={x:pad.x,z:pad.z,altitude:1.4};
+  if(!nearPad()||position.altitude>padAltitude+1.6||Math.hypot(velocity.x,velocity.z)>3.5)return false;
+  position={x:pad.x,z:pad.z,altitude:padAltitude};
   velocity={x:0,z:0,vertical:0};return true;
  }
  function reset(){
-  position={x:pad.x,z:pad.z,altitude:1.4};
+  position={x:pad.x,z:pad.z,altitude:padAltitude};
   velocity={x:0,z:0,vertical:0};rotor=0;elapsed=0;visited.clear();
   return {position:{...position},pad:{...pad}};
  }

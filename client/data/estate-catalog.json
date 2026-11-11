@@ -250,6 +250,126 @@
         "x": 7,
         "z": 1
       }
+    },
+    {
+      "id": "trailer-05",
+      "tier": "trailer",
+      "address": "North Shore Trailer 05",
+      "district": "north-shore",
+      "lot": {
+        "x": -8,
+        "z": 1
+      }
+    },
+    {
+      "id": "trailer-06",
+      "tier": "trailer",
+      "address": "North Shore Trailer 06",
+      "district": "north-shore",
+      "lot": {
+        "x": -4,
+        "z": -6
+      }
+    },
+    {
+      "id": "trailer-07",
+      "tier": "trailer",
+      "address": "South Grove Trailer 07",
+      "district": "south-neighborhood",
+      "lot": {
+        "x": -4,
+        "z": 7
+      }
+    },
+    {
+      "id": "trailer-08",
+      "tier": "trailer",
+      "address": "South Grove Trailer 08",
+      "district": "south-neighborhood",
+      "lot": {
+        "x": -2,
+        "z": 7
+      }
+    },
+    {
+      "id": "trailer-09",
+      "tier": "trailer",
+      "address": "South Grove Trailer 09",
+      "district": "south-neighborhood",
+      "lot": {
+        "x": 2,
+        "z": 7
+      }
+    },
+    {
+      "id": "trailer-10",
+      "tier": "trailer",
+      "address": "North Shore Trailer 10",
+      "district": "north-shore",
+      "lot": {
+        "x": 4,
+        "z": -6
+      }
+    },
+    {
+      "id": "starter-05",
+      "tier": "starter",
+      "address": "Village Starter Home 05",
+      "district": "west-village",
+      "lot": {
+        "x": -3,
+        "z": 2
+      }
+    },
+    {
+      "id": "starter-06",
+      "tier": "starter",
+      "address": "Village Starter Home 06",
+      "district": "east-village",
+      "lot": {
+        "x": 3,
+        "z": 2
+      }
+    },
+    {
+      "id": "starter-07",
+      "tier": "starter",
+      "address": "South Grove Starter Home 07",
+      "district": "south-neighborhood",
+      "lot": {
+        "x": 4,
+        "z": 6
+      }
+    },
+    {
+      "id": "starter-08",
+      "tier": "starter",
+      "address": "Woodland Starter Home 08",
+      "district": "woodland-edge",
+      "lot": {
+        "x": 4,
+        "z": 8
+      }
+    },
+    {
+      "id": "family-05",
+      "tier": "family",
+      "address": "Woodland Family Home 05",
+      "district": "west-village",
+      "lot": {
+        "x": -6,
+        "z": 5
+      }
+    },
+    {
+      "id": "family-06",
+      "tier": "family",
+      "address": "East Grove Family Home 06",
+      "district": "east-village",
+      "lot": {
+        "x": 6,
+        "z": 4
+      }
     }
   ],
   "world": {

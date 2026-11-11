@@ -27,16 +27,16 @@ try{
  await page.waitForTimeout(1300);
  if(popups.length)page=popups.at(-1);
  console.log('[itch] after clicking the free-download choice',{
-   hostname:new URL(page.url()).hostname,pathname:new URL(page.url()).pathname,
+   hostname:new URL(page.url()).hostname,downloadPage:new URL(page.url()).pathname.includes('/download/'),
    uploadRows:await page.locator('.upload').count(),
    buttons:await page.locator('a.download_btn').count()
  });
  // Never mistake an included-files list on a purchase screen for actual
  // authorized download buttons.
- const fileText=page.getByText(/Street Props Pack\\.glb/i).first();
+ const fileText=page.getByText(/Street Props Pack\.glb/i).first();
  await fileText.waitFor({timeout:45000});
- let slot=page.locator('.upload').filter({hasText:/Street Props Pack\\.glb/}).first();
- if(!await slot.count())slot=page.locator('.upload_display').filter({hasText:/Street Props Pack\\.glb/}).first();
+ let slot=page.locator('.upload').filter({hasText:/Street Props Pack\.glb/}).first();
+ if(!await slot.count())slot=page.locator('.upload_display').filter({hasText:/Street Props Pack\.glb/}).first();
  if(!await slot.count()){
    const parentDetails=await fileText.evaluate(node=>{
      let el=node;const levels=[];

@@ -25,6 +25,7 @@ import {Reflector} from 'three/addons/objects/Reflector.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {PlayerState,NetClient} from './net.js';
 import {initAmmLock} from './amm-lock.js';
+import {goldCoreRadiusFraction,towerHelixRadius,towerStreamTaper,towerStreamOpacity} from './amm-gold-vein-profile.mjs';
 import {installCityNature} from './city-nature-render.mjs';
 import {installCityBirds} from './city-birds-render.mjs';   // verified LP-lock halos + per-token black-hole singularities (/api/amm-lock, +3 draws)
 import './goldlock.js';   // globalThis.BCGold: the ONE strict gold rule (>=95% LP black-holed AND TVL >= 5000 XRP), shared with server/eco.js
@@ -624,7 +625,7 @@ const arcMid=(a,b,A,B,i,r)=>{const mid=a.clone().add(b).multiplyScalar(.5);mid.y
 const HXN={},HXCAP=TIER==='low'?3:6,RAILSYNC=!(/[?&]debug=1/.test(location.search)&&Q.get('railsync')==='0');   // ?debug=1&railsync=0 = old roof endpoints (A/B audits only)
 const helixAt=(cu,end,n)=>{if(!n)return null;const k=HXN[n.name]=(HXN[n.name]||0)+1;if(k>HXCAP)return null;const p0=cu.getPoint(end?1:0);if(p0.y<8)return null;const tA=cu.getTangent(end?1:0).clone();if(!end)tA.negate();
  const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+(k-1)*.35,a0=Math.atan2(dz,dx),dir=(dx*tA.z-dz*tA.x)>0?-1:1,drop=Math.min(22,Math.max(6,p0.y-6)),turns=1.1+.12*k,lead=.22,TT=turns*6.283;
- const H=(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=R*(1+.06*u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
+ const H=(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=towerHelixRadius(R,Rin,u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
  const q=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q).normalize();return {k,H,q,ht,R}};
 const railSync=(c0,hx)=>{if(!hx[0]&&!hx[1])return c0;const P0=hx[0]?hx[0].q.clone():c0.v0.clone(),P3=hx[1]?hx[1].q.clone():c0.v2.clone(),d0=hx[0]?hx[0].ht.clone().negate():c0.getTangent(0),d3=hx[1]?hx[1].ht.clone():c0.getTangent(1);
  const M=c0.getPoint(.5),T=c0.getTangent(.5),l0=P0.distanceTo(M)*.5,l3=P3.distanceTo(M)*.5,cp=new THREE.CurvePath();
@@ -649,49 +650,40 @@ pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p
  const th=new THREE.Mesh(new THREE.BoxGeometry(1.4,3,1.4),new THREE.MeshBasicMaterial({visible:false}));th.position.y=1.5;th.userData={kind:'terminal',pool:p};term.add(th);pick.push(th);
  bridges.push(Object.assign(b0,{p,curve,r,L,minor,group:g,term,share,Lv:L,hx}))});
 
-// ---------- Forever Rails: metallic rails + gold edge glow along both sides of every bridge; coverage = LP locked in blackholed wallets ----------
-// ONE merged mesh for all bridges (per-vertex bridge index + arc position; shader clips at b.Lv, so live lockFX animates the rails extending).
-// Gold = b.forever = BCGold.isGold(pool) (client/js/goldlock.js): >=95% of LP held by black-holed accounts AND pool TVL >= GOLD_MIN_TVL_XRP.
-// Only gold pools get these rails (full length), the FOREVER plaques, gold cores, gold seals, LOCKED FOREVER labels and gold swirls/sparks; everything else has zero gold.
-// ?debug=1&goldtest=1 (top-2 TVL pools) or goldtest=XRP/BURN,XRP/IMM forces gold for visual tests only.
-{const SEG=TIER==='low'?24:MOBILE?36:56,geos=[],NB=Math.min(bridges.length,64),GL=globalThis.BCGold;
- const GT=/[?&]debug=1/.test(location.search)&&Q.get('goldtest'),gtSet=new Set(GT&&GT!=='1'?GT.split(',').map(x=>x.trim().toUpperCase()):[]),gtTop=GT==='1'?bridges.filter(b=>!b.minor).sort((x,y)=>y.p.tvl_xrp-x.p.tvl_xrp).slice(0,2):[];
- const forced=b=>!!GT&&(gtTop.includes(b)||gtSet.has((b.p.a+'/'+b.p.b).toUpperCase())||gtSet.has((b.p.b+'/'+b.p.a).toUpperCase())||gtSet.has(String(b.p.amm).toUpperCase()));
- const LV0=Math.log10(10),LVM=Math.log10(Math.max(100,...bridges.map(b=>b.p.tvl_xrp*b.L))),covOf=b=>{const lv=b.p.tvl_xrp*b.Lv;return lv<10?0:Math.min(1,(Math.log10(lv)-LV0)/(LVM-LV0))};bridges.forEach(b=>{b.lockedXrp=b.p.tvl_xrp*b.L;b.forever=GL.isGold(b.p)||forced(b)});window.__gold={min_tvl:GL.GOLD_MIN_TVL_XRP,min_pct:GL.GOLD_MIN_LOCK_PCT,forced:!!GT,pools:bridges.filter(b=>b.forever).map(b=>b.p.a+'/'+b.p.b)};
- bridges.slice(0,NB).forEach((b,bi)=>{if(b.minor||!b.forever)return;const side=new THREE.Vector3();for(const sd of [-1,1]){const pts=[];for(let k=0;k<=SEG;k++){const u=k/SEG,q=b.curve.getPoint(u);side.crossVectors(b.curve.getTangent(u),UPV).normalize().multiplyScalar(sd*(b.r+1.1));pts.push(q.add(side).setY(q.y-b.r*.35))}
-   const tg=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),SEG,.14+.42*Math.max(.35,covOf(b)),5,false);const n=tg.attributes.position.count,ba=new Float32Array(n).fill(bi);tg.setAttribute('bi',new THREE.BufferAttribute(ba,1));geos.push(tg)}});
- if(geos.length){const cov=new Float32Array(64),glow=new Float32Array(64);
-  const m=new THREE.ShaderMaterial({uniforms:{cov:{value:cov},forever:{value:glow},t:U.t,...THREE.UniformsUtils.merge([THREE.UniformsLib.fog])},fog:true,
-   vertexShader:'attribute float bi;varying vec2 vU;varying float vB;varying vec3 vN;\n#include <fog_pars_vertex>\nvoid main(){vU=uv;vB=bi;vN=normalize(normalMatrix*normal);vec4 mvPosition=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mvPosition;\n#include <fog_vertex>\n}',
-   fragmentShader:'uniform float cov[64];uniform float forever[64];uniform float t;varying vec2 vU;varying float vB;varying vec3 vN;\n#include <fog_pars_fragment>\nvoid main(){int i=int(vB+.5);float c=cov[i];if(vU.x>c)discard;float rim=pow(1.-abs(vN.z),2.);float spec=pow(max(0.,vN.y),6.);'+
-    'vec3 steel=vec3(.22,.24,.28)+vec3(.5)*spec;float tip=smoothstep(.04,0.,c-vU.x)*step(c,.999);float fv=floor(forever[i]+.0001);float lp=fract(forever[i]+.0001)*1000.;float pul=fv*(.5+.5*sin(t*1.6-vU.x*6.));vec3 gold=vec3(.85,.5,.04)*((.3+rim*.9)*(.45+.4*lp+.15*pul)+tip*.6);vec3 col=steel*.35+gold;float L=dot(col,vec3(.299,.587,.114));col*=min(1.,.46/max(L,1e-3));gl_FragColor=vec4(col,1.);\n#include <fog_fragment>\n}'});
-  const mesh=new THREE.Mesh(mergeGeometries(geos),m);mesh.frustumCulled=false;S.add(mesh);
-  anim.push(()=>{for(let i=0;i<NB;i++){const b=bridges[i];cov[i]=b.forever?1.01:0;glow[i]=b.forever?1.001:0}});}
+// Certification is independent of the gold-bar visual: the strict ≥95%
+// and ≥5k XRP rule still controls the existing ∞ FOREVER info plaques.
+// Dedicated side rails were removed so the verified gold is INSIDE the pool
+// stream rather than three competing golden structures.
+{const GL=globalThis.BCGold;
+ const GT=/[?&]debug=1/.test(location.search)&&Q.get('goldtest'),
+ gtSet=new Set(GT&&GT!=='1'?GT.split(',').map(x=>x.trim().toUpperCase()):[]),
+ gtTop=GT==='1'?bridges.filter(b=>!b.minor).sort((x,y)=>y.p.tvl_xrp-x.p.tvl_xrp).slice(0,2):[],
+ forced=b=>!!GT&&(gtTop.includes(b)||gtSet.has((b.p.a+'/'+b.p.b).toUpperCase())||gtSet.has((b.p.b+'/'+b.p.a).toUpperCase())||gtSet.has(String(b.p.amm).toUpperCase()));
+ bridges.forEach(b=>{b.lockedXrp=b.p.tvl_xrp*b.L;b.forever=GL.isGold(b.p)||forced(b)});
+ window.__gold={min_tvl:GL.GOLD_MIN_TVL_XRP,min_pct:GL.GOLD_MIN_LOCK_PCT,
+   forced:!!GT,pools:bridges.filter(b=>b.forever).map(b=>b.p.a+'/'+b.p.b)};
  // FOREVER plaques
  const fv=bridges.filter(b=>b.forever&&!b.minor);if(fv.length){const cv=document.createElement('canvas');cv.width=256;cv.height=96;const x=cv.getContext('2d');x.fillStyle='#1a1205';x.fillRect(0,0,256,96);x.strokeStyle='#ffc64a';x.lineWidth=6;x.strokeRect(4,4,248,88);x.fillStyle='#ffd77a';x.font='900 44px system-ui,sans-serif';x.textAlign='center';x.fillText('∞ FOREVER',128,64);
   const pm=new THREE.InstancedMesh(new THREE.PlaneGeometry(2.6,1),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv),side:THREE.DoubleSide,toneMapped:false}),fv.length*2);let k=0;
   fv.forEach(b=>{for(const [A,B] of [[N[b.p.a],N[b.p.b]],[N[b.p.b],N[b.p.a]]]){const d=B.pos.clone().sub(A.pos).setY(0).normalize(),tp=A.pos.clone().addScaledVector(d,A.w*2.25);_m.compose(_v.set(tp.x,3.3,tp.z),_q.setFromAxisAngle(UPV,Math.atan2(d.x,d.z)),_s.set(1,1,1));pm.setMatrixAt(k++,_m)}});
   pm.count=k;S.add(pm);anim.push(t=>pm.material.color.setScalar(.5+.08*Math.sin(t*1.6)))}}
 
-// Gold lock vein (gold pools only, b.forever): width as a fraction of the core tube radius, log scale on XRP locked (b.lockedXrp = tvl_xrp x locked share):
-// ~3.2k XRP -> .28 (thin), 1M+ XRP -> .88. Shared by the rail core and the swirl shaders (per-material uniform / packed into the swirl's fl.y), +0 draws.
-const veinW=b=>b.forever?Math.min(.88,Math.max(.28,.28+.6*(Math.log10(Math.max(1,b.lockedXrp||0))-3.5)/2.5)):0;let swirlRecolor=null;   // set by the AMM swirl block, called from actScore()
-// ---------- AMM rails polish: animated liquidity flow along every bridge core + 🔒 LOCKED FOREVER seals ----------
+// The gold bar is a real nested TubeGeometry rather than a view-facing
+// stripe. Every segment shares the surrounding activity-coloured path.
+let swirlRecolor=null;
+// ---------- AMM rails: one activity-coloured animated tube; gold bar rendered inside ----------
 // Locked = LP tokens held by verified black-holed wallets (server/eco.js isBlackhole: DisableMaster, no usable RegularKey, no SignerList).
 // Phone-light: one shared shader program for the flow, ONE instanced draw for every seal ring/chain link, DOM labels via the existing declutter.
 {const GLB=globalThis.BCGold,FV='varying vec2 vU;varying vec3 vN;void main(){vU=uv;vN=normalMatrix*normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-  FF='uniform float t,op,sp,vw;uniform vec3 c,g;uniform float lk;varying vec2 vU;varying vec3 vN;void main(){float s=fract(vU.x*9.-t*sp);float streak=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);'+
-  // gold pools: a gold vein down the middle of the core (view-facing band, width vw of the radius) instead of tinting the whole core
-  'vec3 n=normalize(vN);float off=sqrt(max(0.,1.-n.z*n.z));float vein=lk*(1.-smoothstep(vw*.7,vw,off));float pul=.8+.35*sin(t*1.6-vU.x*6.);'+
-  'vec3 col=mix(c*(.55+1.1*streak),g*1.25*pul,vein);gl_FragColor=vec4(col,op*mix(.55+.45*streak,1.,vein));}';
+  FF='uniform float t,op,sp;uniform vec3 c;varying vec2 vU;varying vec3 vN;void main(){float s=fract(vU.x*9.-t*sp);float streak=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);'+
+  'vec3 col=c*(.55+1.1*streak);gl_FragColor=vec4(col,op*(.55+.45*streak));}';
  const LOCKC=new THREE.Color(0xffb020),EMBC=new THREE.Color(0xff5a1a);
  bridges.forEach(b=>{if(!b.core)return;const o=b.core.material,L=b.L;b.core.material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,
-   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)},g:{value:LOCKC},lk:{value:b.forever?1:0},vw:{value:veinW(b)}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material,dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v*dim}});{const sm=b.solid.material;let so=sm.opacity;Object.defineProperty(sm,'opacity',{get:()=>so,set:v=>{so=v*dim}});sm.opacity=so}o.dispose()});
+   uniforms:{t:U.t,op:{value:o.opacity},sp:{value:.25+.9*Math.min(1,b.share*2)},c:{value:new THREE.Color(0xbff8ff)}},vertexShader:FV,fragmentShader:FF});const nm=b.core.material,dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5;nm.color=nm.uniforms.c.value;Object.defineProperty(nm,'opacity',{get:()=>nm.uniforms.op.value,set:v=>{nm.uniforms.op.value=v*dim}});{const sm=b.solid.material;let so=sm.opacity;Object.defineProperty(sm,'opacity',{get:()=>so,set:v=>{so=v*dim}});sm.opacity=so}o.dispose()});
+ // Remove the old endpoint torus/seal rings. Text labels remain available
+ // for pool details and strict forever certification.
  const lk=bridges.filter(b=>(b.forever||b.L>=.01)&&!b.minor);
- if(lk.length){const links=TIER==='low'?1:3,im=new THREE.InstancedMesh(new THREE.TorusGeometry(1,.09,5,TIER==='low'?14:20),new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false}),lk.length*2*links);let k=0;const tg=new THREE.Vector3(),cc=new THREE.Color(),ZF=new THREE.Vector3(0,0,1),qa=new THREE.Quaternion();
-  lk.forEach(b=>{if(b.forever)cc.copy(LOCKC).multiplyScalar(2.2);else cc.copy(EMBC).multiplyScalar(.6+1.0*b.L);/* gold seals only for gold pools; partly locked = ember */for(const u0 of [.07,.93])for(let j=0;j<links;j++){const u=u0+(u0<.5?1:-1)*j*.022,q=b.curve.getPoint(u);b.curve.getTangent(u,tg);
-    _q.setFromUnitVectors(ZF,tg);if(j%2)_q.multiply(qa.setFromAxisAngle(ZF,Math.PI/2));const rr=b.r+.55;_m.compose(q,_q,_s.set(rr,rr*(j%2?.7:1),rr));im.setMatrixAt(k,_m);im.setColorAt(k++,cc)}});
-  im.count=k;im.instanceColor.needsUpdate=true;im.frustumCulled=false;S.add(im);anim.push(t=>im.material.color.setScalar(.85+.15*Math.sin(t*1.4)));
+ if(lk.length){
   lk.filter(b=>b.forever||b.L>=.1).forEach(b=>{const el=document.createElement('div'),g=b.forever;el.className='lbl lockLbl'+(g?'':' part');el.style.setProperty('--c',g?'#ffc64a':'#8fd8ff');el.textContent=g?`🔒 LOCKED FOREVER · ${(b.L*100).toFixed(b.L>=.995?0:1)}%${GLB.isGold(b.p)?'':' · test'}`:`🔒 LP locked · ${(b.L*100).toFixed(1)}%`;$('labels').appendChild(el);
    const top=b.curve.getPoint(.5);labelEls.push({el,pos:top.clone().setY(top.y+b.r+2.5),pri:b.p.tvl_xrp*b.L*.5,minor:true})})}}
 
@@ -704,7 +696,7 @@ const veinW=b=>b.forever?Math.min(.88,Math.max(.28,.28+.6*(Math.log10(Math.max(1
   const p0=b.curve.getPoint(end?1:0);if(p0.y<8)return;b.curve.getTangent(end?1:0,tA);if(!end)tA.negate();   // rail's travel direction at the tower end
   const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+(k-1)*.35,a0=Math.atan2(dz,dx);
   const dir=(dx*tA.z-dz*tA.x)>0?-1:1,drop=Math.min(22,Math.max(6,p0.y-6)),turns=1.1+.12*k,lead=.22,TT=turns*6.283;   // spin the way the rail is already curving
-  const H=hs?hs.H:(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=R*(1+.06*u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
+  const H=hs?hs.H:(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=towerHelixRadius(R,Rin,u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
   const q1=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q1).normalize(),D=p0.distanceTo(q1),kr=kRail(b.curve,end),hb=D*.42;
    // G2-ish join: pick the first handle so the lead-in starts with the rail's own curvature (no sudden tightening), penalising any sharp bend inside it
    let bz=null,best=1e9;if(!hs)for(const f of [.3,.4,.5,.6,.75,.9]){const c3=new THREE.CubicBezierCurve3(p0.clone(),p0.clone().addScaledVector(tA,D*f),q1.clone().addScaledVector(ht,-hb),q1.clone());let km=0;for(let j=1;j<6;j++)km=Math.max(km,kAt(c3,j/6));const cost=Math.abs(kAt(c3,0)-kr)+.5*km;if(cost<best){best=cost;bz=c3}}

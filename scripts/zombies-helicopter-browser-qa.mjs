@@ -43,7 +43,7 @@ try {
    const snapshot=[2,60,[7],0,1,[0,0],[0,0],0,0,3.6,0];
    heli.update(.016,1,snapshot,{me:7,cam:camera,quest:null,hasPad:true,players:[],yaw:0,pitch:0});
    renderer.render(scene,camera);
-   window.__heliQA={heli,snapshot,scene,renderer,camera};
+   window.__heliQA={heli,snapshot,scene,renderer,camera,rotorAudio:window.__qaAudio.at(-1)};
    return {
     canvases:document.querySelectorAll('canvas').length,
     gunVisible:!document.getElementById('heliGunUse').hidden,
@@ -72,7 +72,7 @@ try {
   await page.screenshot({path:out+'/'+tag+'-'+view.name+'-gunner-mounted.png',fullPage:false});
   const migration=await page.evaluate(async()=>{
    const {heli,scene,renderer,camera}=window.__heliQA;
-   const audio=window.__qaAudio.at(-1);
+   const audio=window.__heliQA.rotorAudio; // sfx creates its own master context on button tap
    heli.event({e:'map_transition',to:'The Ashen Cosmodrome'},7);
    heli.update(.016,3,null,{me:7,cam:camera,quest:null,hasPad:false,players:[]});
    const hudGone=document.getElementById('heliGunUse').hidden;

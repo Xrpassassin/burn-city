@@ -1,4 +1,5 @@
 import {estateSurfaceProperties} from './estates-material-fidelity.mjs';
+import {estateFreeStyle,estatePaletteColor} from './estate-free-style-options.mjs';
 // Static architectural parts in lot-local metres. All solid detail stays inside the
 // existing footprint, so decorative improvements cannot obstruct public paths.
 export const HOUSE_MATERIALS = Object.freeze({
@@ -10,6 +11,7 @@ export function estateHouseParts(item) {
   const f=item.buildingFootprint;
   if(!f) return [];
   const {width:w,depth:d,height:h}=f, tier=item.tier;
+  const freeStyle=estateFreeStyle(item),architecture=freeStyle.architecture;
   const trailer=tier==='trailer', apartment=tier==='apartment', mansion=tier==='mansion', family=tier==='family';
   const level=Number.isInteger(item.prestigeLevel)&&item.prestigeLevel>=0&&item.prestigeLevel<=5?item.prestigeLevel:0;
   const parts=[];
@@ -110,6 +112,41 @@ export function estateHouseParts(item) {
     for(let i=0;i<5;i++) { const y=rise*(i+.5)/5, span=W*(1-y/rise); for(const side of [-1,1]) add('gable-'+i+'-'+side,'timber',0,top+y,side*front,span,rise/5+.015,.1); }
     add('chimney','stone',-W*.28,top+rise*.8,-D*.2,.55,1.1,.65);
   }
+  // Distinct *free* base-model accents are generated for all tiers. They stay
+  // inside the existing collision shell and never assume a paid unlock.
+  if(architecture==='modern'){
+    // Clean contemporary fascia, asymmetric vertical screens and a front
+    // accent panel, recessed enough not to clip existing public walkways.
+    add('modern-fascia','metal',0,top-.09,front+.12,W*.94,.11,.12);
+    for(const side of [-1,1]){
+      const x=side*(W/2-.18);
+      add('modern-edge-pilaster-'+side,'frame',x,top*.53,front+.11,.11,Math.max(.34,top-.38),.12);
+      for(let i=0;i<3;i++){
+        const shadeX=x-side*(.21+i*.17);
+        add('modern-vertical-slat-'+side+'-'+i,'timber',shadeX,top*.7,front+.135,.055,Math.min(top*.34,1.4),.08);
+      }
+    }
+    add('modern-entrance-lintel','slate',doorX,Math.min(top-.17,doorH+.54),front+.15,1.62,.18,.13);
+  }else if(architecture==='rustic'){
+    // Exposed timber joinery and capped stone corner piers make every tier
+    // read as a warm lodge/craftsman variant, not a recolored default cube.
+    for(const side of [-1,1]){
+      const x=side*(W/2-.19);
+      add('rustic-corner-timber-'+side,'timber',x,top*.5,front+.10,.16,Math.max(.35,top-.42),.14);
+      add('rustic-stone-plinth-'+side,'stone',x,.53,front+.10,.3,.48,.17);
+      add('rustic-eave-bracket-'+side,'timber',x,top-.28,front+.12,.32,.32,.13);
+    }
+    add('rustic-heavy-lintel','timber',doorX,Math.min(top-.23,doorH+.44),front+.18,1.76,.23,.17);
+    add('rustic-roof-trim','copper',0,top-.09,front+.13,W*.9,.055,.12);
+  }else{
+    // Traditional masonry accents and a restrained transom add relief
+    // to the default house without affecting its prestige stages.
+    for(const side of [-1,1]){
+      const x=side*(W/2-.15);
+      for(let i=0;i<3;i++)add('classic-corner-quoins-'+side+'-'+i,'stone',x,.53+i*.56,front+.11,.24,.22,.12);
+    }
+    add('classic-door-transom','glass',doorX,Math.min(top-.24,doorH+.48),front+.2,.72,.14,.045);
+  }
   // Planters sit against the wall, avoiding any extra obstacle in the garden.
   for(const x of [-W*.42,W*.42]) {
     add('planter','stone',x,.51,front+.02,.62,.42,.42);
@@ -163,15 +200,16 @@ export function estateHouseParts(item) {
 export function renderEstateHouses(THREE,parent,items) {
   const records=new Map(),buckets=new Map();
   for(const item of items) for(const part of estateHouseParts(item)) {
-    const record={...part,item};
-    const bucket=part.mat+'|'+part.shape;
+    const style=estateFreeStyle(item);
+    const record={...part,item,freePalette:style.palette};
+    const bucket=part.mat+'|'+part.shape+'|'+style.palette;
     if(!buckets.has(bucket)) buckets.set(bucket,[]);
     buckets.get(bucket).push(record);
   }
   for(const [bucket,parts] of buckets) {
-    const [key,shape]=bucket.split('|');
+    const [key,shape,palette]=bucket.split('|');
     const mat=new THREE.MeshStandardMaterial({
-      color:HOUSE_MATERIALS[key],
+      color:estatePaletteColor(key,palette,HOUSE_MATERIALS[key]),
       roughness:key==='glass'?.17:key==='brass'?.36:key==='roof'?.62:key==='frame'?.44:key==='stone'?.92:.82,
       metalness:key==='brass'?.48:key==='copper'?.61:key==='frame'?.45:0,
       emissive:key==='warm'?HOUSE_MATERIALS.warm:0,emissiveIntensity:.45,
@@ -184,7 +222,7 @@ export function renderEstateHouses(THREE,parent,items) {
     };
     if(THREE.InstancedMesh && THREE.Object3D) {
       const mesh=new THREE.InstancedMesh(geometry(),mat,parts.length), transform=new THREE.Object3D();
-      mesh.name='estates-houses-'+key+'-'+shape;
+      mesh.name='estates-houses-'+key+'-'+shape+(palette==='original'?'':'-'+palette);
       parts.forEach((p,i)=>{
         transform.position.set(p.item.position.x+p.x,p.item.position.y+p.y,p.item.position.z+p.z);
         transform.rotation.set(0,0,p.rz);transform.scale.set(p.width,p.height,p.depth);transform.updateMatrix();

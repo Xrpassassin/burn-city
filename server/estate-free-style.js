@@ -12,7 +12,8 @@ function createEstateFreeStyleStore({db,clock=Date.now}={}){
  const get=db.prepare('SELECT architecture,palette FROM estate_free_styles WHERE property_id=?');
  const list=db.prepare('SELECT f.property_id AS propertyId,f.architecture,f.palette FROM estate_free_styles f '+
    'JOIN estate_property_ownership o ON o.property_id=f.property_id ORDER BY f.property_id');
- const upsert=db.prepare('INSERT INTO estate_free_styles(property_id,architecture,palette,updated_at) VALUES(?,?,?,?) '+
+ const upsert=db.prepare('INSERT INTO estate_free_styles(property_id,architecture,palette,updated_at) '+
+   'SELECT ?,?,?,? FROM estate_property_ownership WHERE property_id=? AND acct=? '+
    'ON CONFLICT(property_id) DO UPDATE SET architecture=excluded.architecture,palette=excluded.palette,updated_at=excluded.updated_at');
  const styleFor=propertyId=>{const row=get.get(propertyId);return row?{architecture:row.architecture,palette:row.palette}:{...DEFAULT};};
  const choices=()=>({architectures:[...ARCHITECTURES],palettes:[...PALETTES]});
@@ -29,11 +30,10 @@ function createEstateFreeStyleStore({db,clock=Date.now}={}){
    return {ok:false,error:'invalid_free_style'};
   const now=clock();
   if(!Number.isSafeInteger(now)||now<1)return {ok:false,error:'invalid_style_clock'};
-  // Compare-and-write against current ownership; no client can take control
-  // after resale with an old wallet token.
-  const changed=db.prepare('SELECT acct FROM estate_property_ownership WHERE property_id=?').get(propertyId);
-  if(changed?.acct!==acct)return {ok:false,error:'property_owner_required'};
-  upsert.run(propertyId,architecture,palette,now);
+  // The SQL predicate and write happen atomically: a former owner cannot
+  // win a resale race after an earlier check approved a now-stale token.
+  const changed=upsert.run(propertyId,architecture,palette,now,propertyId,acct);
+  if(changed.changes!==1)return {ok:false,error:'property_owner_required'};
   return state({propertyId,acct});
  }
  function publicState(){

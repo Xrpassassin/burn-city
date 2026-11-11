@@ -21,13 +21,39 @@ try{
  // Never submit payment, an email, a credit card or sign-in.
  const noThanks=page.getByText(/no thanks, just take me to the downloads/i);
  await noThanks.waitFor({timeout:30000});
+ const popups=[];
+ page.on('popup',p=>popups.push(p));
  await noThanks.click({timeout:25000});
- // itch.io redirects to a short-lived, authorized download-token page.
- await page.getByText(/Street Props Pack\.glb/i).first().waitFor({timeout:45000});
- const slot=page.locator('.upload').filter({hasText:/Street Props Pack\.glb/}).first();
+ await page.waitForTimeout(1300);
+ if(popups.length)page=popups.at(-1);
+ console.log('[itch] after clicking the free-download choice',{
+   hostname:new URL(page.url()).hostname,pathname:new URL(page.url()).pathname,
+   uploadRows:await page.locator('.upload').count(),
+   buttons:await page.locator('a.download_btn').count()
+ });
+ // Never mistake an included-files list on a purchase screen for actual
+ // authorized download buttons.
+ const fileText=page.getByText(/Street Props Pack\\.glb/i).first();
+ await fileText.waitFor({timeout:45000});
+ let slot=page.locator('.upload').filter({hasText:/Street Props Pack\\.glb/}).first();
+ if(!await slot.count())slot=page.locator('.upload_display').filter({hasText:/Street Props Pack\\.glb/}).first();
+ if(!await slot.count()){
+   const parentDetails=await fileText.evaluate(node=>{
+     let el=node;const levels=[];
+     for(let i=0;i<4&&el;i++,el=el.parentElement)levels.push({
+       tag:el.tagName,classes:el.className,
+       labels:[...el.querySelectorAll('a,button')].map(a=>({
+         tag:a.tagName,text:(a.textContent||'').slice(0,60),cls:a.className
+       })).slice(0,8)
+     });
+     return levels;
+   });
+   console.log('[itch] sanitized file row (no links)',JSON.stringify(parentDetails));
+ }
  let link=slot.locator('a.download_btn').first();
  if(!await link.count())link=slot.getByRole('link',{name:/download/i}).first();
- if(!await link.count())throw Error('Author file download link not found; never use an alternate mirror.');
+ if(!await link.count())link=page.locator('a.download_btn').filter({hasText:/download/i}).first();
+ if(!await link.count())throw Error('Artist-hosted file download link not found; do not substitute mirrors.');
  const [download]=await Promise.all([
   page.waitForEvent('download',{timeout:55000}),
   link.click({timeout:30000})

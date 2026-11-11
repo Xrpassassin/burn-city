@@ -78,7 +78,7 @@ export async function createZombieModelPilot(scene, options = {}) {
   // The same human/hazmat/thin GLB artwork is also baked into a cheap idle
   // mesh for the rest of the horde. Only nearby characters need skinned rigs.
   let staticLOD=null;
-  try{staticLOD=createZombieInstancedLOD(scene,models,{capacity:48});}
+  try{if(options.distantLOD!==false)staticLOD=createZombieInstancedLOD(scene,models,{capacity:48});}
   catch(error){console.warn('[Zombies] Textured distant-infected LOD unavailable; using safe fallback:',error);}
 
   if(results.some(x=>x.status==='rejected'))

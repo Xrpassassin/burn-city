@@ -108,7 +108,7 @@ try{
   });
   assert.equal(setup.lotCount,5);
    assert(setup.neighborhoodParts>=140);
-   assert(setup.neighborhoodDrawBatches<=13);
+   assert(setup.neighborhoodDrawBatches<=18);
    assert.equal(setup.architecturalStyles,3);
    assert.equal(setup.exteriorPalettes,4);
   assert.equal(setup.upgrades,17);

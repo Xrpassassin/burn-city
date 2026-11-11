@@ -3,8 +3,8 @@
 // Authenticated interiors remain behind the separate private-room scene.
 import {estateUpgradeExteriorParts,ESTATE_EXTERIOR_ITEM_IDS} from './estates-tycoon-architecture.mjs';
 const COLORS=Object.freeze({
- stone:0x87827a,wood:0x79563b,metal:0x596c73,brass:0xb5a079,
- slate:0x344553,glass:0x85b8c1,warm:0xffca7b,green:0x557b4d,flower:0xd47c85,
+ stone:0x91897d,wood:0x78604b,metal:0x596970,brass:0xbba16d,
+ slate:0x35444e,glass:0x86b4bd,warm:0xffc782,green:0x567e4b,flower:0xd98795,
  gold:0xc6a663,earth:0x493728,red:0xa74731,water:0x3a8193
 });
 const known=new Set(ESTATE_EXTERIOR_ITEM_IDS);
@@ -20,14 +20,32 @@ export function createEstateTycoonDecor({THREE,parent,lots}={}){
  const materials=new Map();
  const material=key=>{
   if(!materials.has(key))materials.set(key,new THREE.MeshStandardMaterial({
-   color:COLORS[key]??COLORS.stone,roughness:key==='water'?.22:key==='glass'?.26:key==='metal'?.47:key==='brass'?.4:.86,
-   metalness:key==='metal'?.7:key==='brass'?.53:key==='slate'?.33:0,
-   ...(key==='warm'?{emissive:COLORS.warm,emissiveIntensity:.54}:{})
+   color:COLORS[key]??COLORS.stone,roughness:key==='water'?.18:key==='glass'?.22:key==='metal'?.39:key==='brass'?.35:key==='wood'?.78:.89,
+   metalness:key==='metal'?.72:key==='brass'?.62:key==='slate'?.26:0,
+   ...(key==='warm'?{emissive:COLORS.warm,emissiveIntensity:.72}:{}),
+   ...(key==='water'?{transparent:true,opacity:.84}:{} )
   }));
   return materials.get(key);
  };
+ // Primitive selection is immutable and tied to server-verified, measured parts.
+ // Round lenses, bollards and flower blossoms need not remain cubic. Unsupported
+ // test/lightweight Three namespaces fall back to original boxes.
+ const partGeometry=(part,unit=false)=>{
+  const w=unit?1:part.w,h=unit?1:part.h,d=unit?1:part.d;
+  if(part.shape==='cylinder'&&THREE.CylinderGeometry){
+   const geom=new THREE.CylinderGeometry(w/2,w/2,h,10);
+   geom.scale?.(1,1,d/w);
+   return geom;
+  }
+  if(part.shape==='sphere'&&THREE.SphereGeometry){
+   const geom=new THREE.SphereGeometry(w/2,10,7);
+   geom.scale?.(1,h/w,d/w);
+   return geom;
+  }
+  return new THREE.BoxGeometry(w,h,d);
+ };
  const box=(group,part)=>{
-  const mesh=new THREE.Mesh(new THREE.BoxGeometry(part.w,part.h,part.d),material(part.mat));
+  const mesh=new THREE.Mesh(partGeometry(part),material(part.mat));
   mesh.name=part.name;mesh.userData={estateUpgradeId:part.id,placement:part.placement};
   mesh.position.set(part.x,part.y,part.z);group.add(mesh);
  };
@@ -59,7 +77,7 @@ export function createEstateTycoonDecor({THREE,parent,lots}={}){
   group.name='preview-only-'+propertyId+'-'+itemId;
   group.position.set(lot.position.x,lot.position.y,lot.position.z);
   for(const part of estateUpgradeExteriorParts(lot,[itemId])){
-   const mesh=new THREE.Mesh(new THREE.BoxGeometry(part.w,part.h,part.d),
+   const mesh=new THREE.Mesh(partGeometry(part),
     new THREE.MeshStandardMaterial({color:0x6ee7e9,emissive:0x136b80,emissiveIntensity:.24,
       roughness:.65,transparent:true,opacity:.48,depthWrite:false}));
    mesh.name='preview-only-'+part.name;
@@ -92,14 +110,15 @@ export function createEstateTycoonDecor({THREE,parent,lots}={}){
   if(THREE.InstancedMesh&&THREE.Object3D){
    const buckets=new Map();
    for(const upgrade of upgrades){
-    const name=upgrade.part.mat;
-    if(!buckets.has(name))buckets.set(name,[]);
-    buckets.get(name).push(upgrade);
+    const key=upgrade.part.mat+'|'+(upgrade.part.shape||'box');
+    if(!buckets.has(key))buckets.set(key,[]);
+    buckets.get(key).push(upgrade);
    }
    const transform=new THREE.Object3D();
-   for(const [name,entries]of buckets){
-    const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),material(name),entries.length);
-    mesh.name='estates-upgrades-instanced-'+name;
+   for(const [key,entries]of buckets){
+    const [name,shape]=key.split('|');
+    const mesh=new THREE.InstancedMesh(partGeometry({shape},true),material(name),entries.length);
+    mesh.name='estates-upgrades-instanced-'+name+'-'+shape;
     mesh.userData={verifiedUpgrades:true,visibleParts:entries.length};
     entries.forEach(({lot,part},i)=>{
      transform.position.set(lot.position.x+part.x,lot.position.y+part.y,lot.position.z+part.z);

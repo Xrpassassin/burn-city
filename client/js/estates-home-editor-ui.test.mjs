@@ -35,6 +35,7 @@ const editor=mountEstateHomeEditor(host,initial,{storage,fetcher,onPreview:s=>pr
 const selects=all(editor.root,x=>x.tag==='select');
 const canvas=all(editor.root,x=>x.tag==='canvas')[0];
 assert.equal(selects.length,2);
+assert(selects.every(s=>s.style.cssText.includes('width:100%')&&s.style.cssText.includes('min-width:0')),'all dropdowns must fit 320px device widths regardless of option length');
 assert.equal(canvas.role,'grid');
 assert.equal(canvas.tabindex,'0');
 assert(canvas.style.cssText.includes('width:100%'),'floor plan fits phones and tablets');

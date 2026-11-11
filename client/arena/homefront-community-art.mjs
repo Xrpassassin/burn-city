@@ -59,14 +59,20 @@ function fitToBox(source,{width=2,height=2.5,depth=2}={},cloneModel=object=>obje
  const scale=Math.min(width/size.x,height/size.y,depth/size.z);
  if(!Number.isFinite(scale)||scale<.005||scale>150)return null;
  const group=new THREE.Group();
- model.scale.multiplyScalar(scale);
- model.position.set(-(bounds.min.x+bounds.max.x)*scale*.5,-bounds.min.y*scale,
+ // Keep the source mesh/bone pivot and all local pack transforms intact.
+ // Applying the offset directly to a lone imported mesh used to overwrite
+ // its artist-authored position, leaving roadside props several meters away.
+ const fit=new THREE.Group();
+ fit.name='homefront-community-normalize';
+ fit.scale.setScalar(scale);
+ fit.position.set(-(bounds.min.x+bounds.max.x)*scale*.5,-bounds.min.y*scale,
   -(bounds.min.z+bounds.max.z)*scale*.5);
+ fit.add(model);
  model.traverse(node=>{if(node.isMesh){
   // Existing clearGroup must not dispose shared GLB geometry/textures.
   node.userData.sharedAsset=true;node.castShadow=false;node.receiveShadow=false;
  }});
- group.add(model);
+ group.add(fit);
  group.userData.cosmeticNoCollision=true;
  return {group,model};
 }

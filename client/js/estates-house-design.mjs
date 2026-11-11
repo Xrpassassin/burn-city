@@ -27,7 +27,7 @@ export function estateHouseParts(item) {
   add('entry-light','warm',doorX-.86,doorH+.05,front+.12,.15,.27,.09);
   // Door casing, lintel, kick plate and individual facade joints keep the
   // silhouette from reading as one flat box at eye height.
-  add('entry-threshold','stone',doorX,.32,front+.19,1.24,.08,.23);
+  add('entry-threshold','stone',doorX,.32,front+.16,1.24,.08,.22);
   add('entry-lintel','timber',doorX,.3+doorH+.1,front+.17,1.32,.12,.15);
   for(const side of [-1,1]){
     add('entry-jamb-'+side,'stone',doorX+side*.62,.3+doorH/2,front+.17,.09,doorH,.13);

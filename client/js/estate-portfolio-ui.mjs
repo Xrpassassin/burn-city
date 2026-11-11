@@ -27,9 +27,15 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  function renderCatalog(){
   if(!catalog)return;const tiers=new Map(catalog.tiers.map(t=>[t.id,t])),owned=new Set((current?.owned||[]).map(p=>p.propertyId));
   $('properties').replaceChildren();
+  const selectedTier=$('estate-tier-filter')?.value||'all',
+    unownedOnly=$('estate-unowned-filter')?.checked===true;
+  let shown=0,unowned=0;
   for(const p of catalog.properties){
-   const t=tiers.get(p.tier);if(!t)continue;const card=make('article');card.dataset.propertyId=p.id;
+   const t=tiers.get(p.tier);if(!t||selectedTier!=='all'&&p.tier!==selectedTier)continue;
    const verifiedOwner=publicOwners.get(p.id),mine=owned.has(p.id);
+   if(unownedOnly&&verifiedOwner)continue;
+   shown++;if(!verifiedOwner)unowned++;
+   const card=make('article');card.dataset.propertyId=p.id;
    card.dataset.propertyStatus=mine?'owned-by-you':verifiedOwner?'owned':liveSalesEnabled?'available':'sales-paused';
    card.append(make('h3',p.address||p.id),field(t.label,t.price+' XRP'),field('Allocation weight',t.shareUnits+' share units'),cityLink(p.id));
    card.append(make('p',mine?'Owned by you':verifiedOwner?'Owned · unavailable for purchase':liveSalesEnabled?'Unowned · check availability':'Sales paused · view only','muted'));
@@ -43,6 +49,10 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
     button.setAttribute('aria-expanded','true');
    });button.setAttribute('aria-expanded','false');card.append(button,target);$('properties').append(card);
   }
+  const count=$('estate-catalog-count');
+  if(count)count.textContent=shown+' properties shown · '+unowned+
+    ' unowned (subject to live reservation and availability checks).';
+  if(!shown)$('properties').append(make('p','No properties match those filters. Try another home type or turn off “Unowned only”.','muted'));
  }
  function clearPrivate(message){
   trustlineDispose?.();trustlineDispose=null;current=null;$('scenario-property').replaceChildren();$('payout-currency').value='';$('preference-status').textContent='';$('history-through').textContent='';$('owned-properties').replaceChildren(make('p',message));$('portfolio-summary').textContent='';
@@ -138,6 +148,8 @@ export function mountEstatePortfolio({doc=document,fetcher=fetch,storage=localSt
  const onStorage=e=>{if(e.key==='bcToken'||e.key===null)void refresh();};
  const onFocus=()=>{if(token()!==lastToken)void refresh();};
  $('refresh-portfolio').addEventListener('click',()=>void refresh());
+ $('estate-tier-filter')?.addEventListener('change',renderCatalog);
+ $('estate-unowned-filter')?.addEventListener('change',renderCatalog);
  $('save-preference').addEventListener('click',async()=>{
   const auth=token(),currency=$('payout-currency').value;if(!auth||!currency){$('preference-status').textContent='Choose IMG or XRP while signed in.';return;}
   $('save-preference').disabled=true;

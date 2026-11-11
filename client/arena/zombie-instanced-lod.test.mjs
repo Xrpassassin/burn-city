@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const src=readFileSync(new URL('./zombie-instanced-lod.mjs',import.meta.url),'utf8');
+const fx=readFileSync(new URL('./fx.js',import.meta.url),'utf8');
+const pilot=readFileSync(new URL('./zombie-model-pilot.mjs',import.meta.url),'utf8');
+assert.match(src,/createZombieInstancedLOD/,'LOD module exposes baked asset renderer');
+assert.match(src,/applyBoneTransform\(i,v\)/,'static far geometry retains original posed skinned anatomy');
+assert.match(src,/new THREE\.InstancedMesh\(geo,node\.material,max\)/,'far artists keep their original textured shader materials');
+assert.match(src,/frustumCulled=false/,'skinned bounds cannot randomly clip distant meshes');
+assert.match(src,/instanceMatrix\.needsUpdate=count>0/,'distant transforms refresh for moving enemies');
+assert.match(src,/zombieHumanShape\(z\.ty\)/,'old boss and runner visual size hierarchy preserved');
+assert.match(pilot,/staticLOD\.update\(zombies,animated,now\*\.001\)/,'all nonanimated enemies get human models');
+assert.match(pilot,/return new Set\(\[\.\.\.animated,\.\.\.distant\]\)/,'fallback procedural box instances suppressed when actual 3D model renders');
+assert.match(pilot,/staticLOD\?\.dispose\(\)/,'geometry is disposed when leaving Zombies');
+assert.match(fx,/const modeled = zombieModelPilot\?\.update/,'original renderer uses visual-only pilot without changing gameplay');
+assert(!/from\s*['\"][^'\"]*(?:homefront|minecraft|goblin)/i.test(src),'no Homefront or cartoon asset imports');
+console.log('Original Zombies distant 3D art: real licensed baked skin mesh, instancing, capacity and independence passed');

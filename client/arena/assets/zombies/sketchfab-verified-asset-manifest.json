@@ -1,0 +1,75 @@
+{
+  "sourceHost": "https://walking.morgannriu.fr/assets/models/",
+  "note": "Files redistributed under original authors’ CC BY licenses; optimized in the cited reference game; see ATTRIBUTION-SKETCHFAB.md",
+  "models": [
+    {
+      "asset": "zombie-aiden.glb",
+      "sha256": "bed36651349bf5bfe62a456c7c1a7d9d947ab33aad251105342a536f5dfce2b8",
+      "bytes": 4961508,
+      "license": "CC-BY-4.0",
+      "creator": "Aiden Studios",
+      "source": "https://sketchfab.com/3d-models/zombie-rigged-animated-131688807ad444609ed9b2ed572dc4aa",
+      "animations": [
+        "Attack1.001",
+        "Idle",
+        "Walk1"
+      ],
+      "skins": 1,
+      "meshes": 5,
+      "materials": 5,
+      "images": 13,
+      "primitiveGroups": 5
+    },
+    {
+      "asset": "zombie-hazmat.glb",
+      "sha256": "225d72918865ec13eb7f28fea577245299df4b551d8faf47e0369c98112afcff",
+      "bytes": 2939512,
+      "license": "CC-BY-4.0",
+      "creator": "LxNazarov",
+      "source": "https://sketchfab.com/3d-models/zombie-hazmat-49b3b4307f6a4d2386fdb02354158d04",
+      "animations": [
+        "Zombie_EnemySpotted",
+        "Zombie_Skill",
+        "Zombie_Idle",
+        "Zombie_Walk_Root"
+      ],
+      "skins": 1,
+      "meshes": 2,
+      "materials": 2,
+      "images": 6,
+      "primitiveGroups": 2
+    },
+    {
+      "asset": "zombie-thin.glb",
+      "sha256": "dcfdc559f24c221994c2bcb259edc8a20d2f3cd53bedb10a2263695d0522d499",
+      "bytes": 2087624,
+      "license": "CC-BY-3.0",
+      "creator": "Rosswet Mobile",
+      "source": "https://opengameart.org/content/thin-zombie-awake-zombie-asset",
+      "animations": [
+        "attack1_l",
+        "attack1_r",
+        "attack2",
+        "attack3",
+        "dead1",
+        "dead2",
+        "dead3",
+        "enter_side",
+        "hurt",
+        "hurt_b",
+        "hurt_head",
+        "hurt_l",
+        "hurt_r",
+        "idle",
+        "run",
+        "walk",
+        "walk2"
+      ],
+      "skins": 1,
+      "meshes": 1,
+      "materials": 1,
+      "images": 1,
+      "primitiveGroups": 1
+    }
+  ]
+}

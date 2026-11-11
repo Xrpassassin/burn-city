@@ -695,12 +695,13 @@ const ammGoldGeos=[],ammGoldRanges=[];let ammGoldCount=0,refreshAmmGold=()=>{};
 function addAmmGoldTube(b,curve,segments,radius,taper){
  const sides=TIER==='low'?4:6,geo=new THREE.TubeGeometry(curve,segments,radius,sides,false),
   pos=geo.getAttribute('position'),centers=new Float32Array(pos.count*3),
-  lock=new Float32Array(pos.count),v=new THREE.Vector3();
+  lock=new Float32Array(pos.count),fadeA=new Float32Array(pos.count),v=new THREE.Vector3();
  for(let i=0;i<=segments;i++){
   const u=i/segments;curve.getPointAt(u,v);
   for(let j=0;j<=sides;j++){
    const id=i*(sides+1)+j,at=id*3;
    centers[at]=v.x;centers[at+1]=v.y;centers[at+2]=v.z;
+   fadeA[id]=taper?towerStreamOpacity(u):1;
    if(taper){const scale=taper(u);
     pos.setXYZ(id,v.x+(pos.getX(id)-v.x)*scale,v.y+(pos.getY(id)-v.y)*scale,
       v.z+(pos.getZ(id)-v.z)*scale);}
@@ -708,6 +709,7 @@ function addAmmGoldTube(b,curve,segments,radius,taper){
  }
  pos.needsUpdate=true;geo.setAttribute('gCenter',new THREE.BufferAttribute(centers,3));
  geo.setAttribute('gShare',new THREE.BufferAttribute(lock,1));
+ geo.setAttribute('gFade',new THREE.BufferAttribute(fadeA,1));
  ammGoldRanges.push({amm:b.p.amm,start:ammGoldCount,end:ammGoldCount+pos.count,b});
  ammGoldCount+=pos.count;ammGoldGeos.push(geo);
 }
@@ -778,8 +780,8 @@ if(ammGoldGeos.length){
  const merged=mergeGeometries(ammGoldGeos),shareA=merged.getAttribute('gShare'),data=shareA.array;
  const material=new THREE.ShaderMaterial({
   transparent:true,depthWrite:false,blending:THREE.NormalBlending,toneMapped:false,
-  vertexShader:'attribute vec3 gCenter;attribute float gShare;varying float vS;varying vec3 vN;void main(){vS=clamp(gShare,0.,1.);float core=.88*sqrt(vS);vec3 p=gCenter+(position-gCenter)*core;vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}',
-  fragmentShader:'varying float vS;varying vec3 vN;void main(){if(vS<.00001)discard;vec3 n=normalize(vN);float light=.4+.4*max(0.,dot(n,normalize(vec3(.35,.72,.55))));float gleam=pow(max(0.,dot(n,normalize(vec3(-.3,.9,.2)))),18.);vec3 gold=vec3(.67,.40,.09)*light+vec3(.52,.38,.19)*gleam;gl_FragColor=vec4(gold,1.);}'
+  vertexShader:'attribute vec3 gCenter;attribute float gShare,gFade;varying float vS,vFade;varying vec3 vN;void main(){vS=clamp(gShare,0.,1.);vFade=gFade;float core=.88*sqrt(vS);vec3 p=gCenter+(position-gCenter)*core;vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}',
+  fragmentShader:'varying float vS,vFade;varying vec3 vN;void main(){if(vS<.00001||vFade<.001)discard;vec3 n=normalize(vN);float light=.4+.4*max(0.,dot(n,normalize(vec3(.35,.72,.55))));float gleam=pow(max(0.,dot(n,normalize(vec3(-.3,.9,.2)))),18.);vec3 gold=vec3(.67,.40,.09)*light+vec3(.52,.38,.19)*gleam;gl_FragColor=vec4(gold,vFade);}'
  });
  const mesh=new THREE.Mesh(merged,material);mesh.frustumCulled=false;mesh.renderOrder=3;mesh.name='AMM verified permanent LP gold core';S.add(mesh);
  const perPool=new Map();for(const range of ammGoldRanges){

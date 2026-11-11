@@ -16,6 +16,21 @@ All five estate tiers (3 XRP trailer, apartment, starter home, family home, mans
 - Authenticated GET `/api/estates/free-style?propertyId=...` returns verified owner's selection.
 - Authenticated POST `/api/estates/free-style` with `{propertyId,architecture,palette}` persists a choice if the current owner matches the signed token. It is rate-limited and validates exact preset IDs.
 
+## Visual art direction and material treatment
+
+The free presets use a deliberately restrained, natural architectural palette. Each colorway is composed as a coordinated **wall, lighter trim, darker roof and front-door accent** instead of independently saturated colors:
+
+- **Warm Neutral** (the existing `original` ID): warm limestone, cream trim, slate roof and walnut door.
+- **Coastal:** soft sand stucco, weathered blue-grey siding, off-white trim and a muted sea-glass door.
+- **Forest:** sage and warm ivory, moss-dark roofing and natural oak details.
+- **Charcoal:** greige/charcoal walls, linen trim and warm honeyed wood. No pure-black wall blocks or bright-white trim.
+
+The free base models themselves also gain more realistic semantic materials: painted cream window surrounds instead of dark window-box frames, intentionally colored doors, round soil-filled stone planters, a modern timber entry soffit, rustic knee braces, and a classic roofline cornice. These details are constrained to the original measured building envelope and do not interfere with paid progress, access gates, helicopter landings, or XRPL transactions.
+
+The in-game picker shows matching wall/trim/roof/door swatches and a short description, helping owners choose one pleasant composition without memorizing RGB colors. Automated design checks assert restrained field/roof saturation, a lighter trim-to-wall relationship, roof depth, all five tier collision bounds and an actual geometry signature for each architecture. The WebGL smoke fixture now renders a mix of free variants on five tier lots instead of testing only the original appearance.
+
+The style direction is grounded in traditional exterior design principles: muted low-chroma paint, material consistency, warm timber accents and restrained contrasts, **not** an imported third-party texture/model pack or photorealism guarantee. Handheld Safari readability and performance should continue to be observed as the broader island evolves.
+
 ## QA
 
 Tests cover whitelist validation, persistence across store recreation, atomic ownership check on resale, public privacy, no XRP payment calls, all five tier build envelopes, material batching, local preview clearing, and prestige level coexistence.

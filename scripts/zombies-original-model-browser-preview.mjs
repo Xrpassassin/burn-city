@@ -118,7 +118,38 @@ try{
     await page.screenshot({path:out+'/'+tag+'-'+view.name+'-'+variant+'-portrait.png',fullPage:false});
     solo.push(details);
   }
-  results.push({view:view.name,fallback:init,animated:detailed,portraits:solo});
+  // More than eight visible enemies used to fall back to Roblox-looking
+  // primitive bodies. Verify the REAL human/hazmat/thin GLB skin is baked
+  // into inexpensive textured InstancedMeshes for the distant horde.
+  const distant=await page.evaluate(()=>{
+    const {THREE,scene,camera,gl,pilot}=window.__zombieQA;
+    for(const g of scene.children.filter(x=>x.userData?.infectedAssetId))g.visible=true;
+    const near=Array.from({length:8},(_,i)=>({
+      id:'original-bundled-'+i,ty:i,x:(i%4-1.5)*2.3,z:Math.floor(i/4)*-3,
+      y:0,yaw:0,v:1,speed:0,ch:false,cr:false
+    }));
+    const far=Array.from({length:30},(_,i)=>({
+      id:'textured-distant-'+i,ty:i%9,x:(i%10-4.5)*2.25,
+      z:-9-Math.floor(i/10)*3,y:0,yaw:0,v:1,speed:0,
+      ch:false,cr:false
+    }));
+    const drawn=pilot.update([...near,...far],.016,{x:0,z:6});
+    const batches=scene.children.filter(x=>x.isInstancedMesh&&x.name.includes('distant textured infected'));
+    const visible=batches.filter(x=>x.count>0);
+    camera.position.set(0,7,17);camera.lookAt(0,1,-9);gl.render(scene,camera);
+    return {expected:38,drawn:drawn.size,batches:batches.length,
+      activeBatches:visible.length,instancedActors:Math.max(...batches.map(x=>x.count)),
+      draws:gl.info.render.calls,
+      containsTexturedBody:visible.some(x=>!!x.material?.map||!!x.material?.normalMap),
+      poseGeometry:visible.some(x=>x.geometry?.attributes?.position?.count>1000)};
+  });
+  assert.equal(distant.drawn,distant.expected,'all 38 rendered enemies use licensed meshes; no boxy fallback');
+  assert(distant.activeBatches>=3,'multiple GLB body/material batches should render');
+  assert(distant.containsTexturedBody,'far zombie skin remains textured PBR, not flat placeholder');
+  assert(distant.poseGeometry,'distant zombies use actual baked anatomical geometry');
+  assert(distant.draws<150,'mobile and desktop instancing avoids dozens of costly skinned rigs');
+  await page.screenshot({path:out+'/'+tag+'-'+view.name+'-38-real-zombie-horde.png',fullPage:false});
+  results.push({view:view.name,fallback:init,animated:detailed,portraits:solo,distant});
   await ctx.close();
   continue;
 

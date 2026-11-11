@@ -61,6 +61,11 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
     }
   }
 
+  // Street fixtures are physical, but their 0.2-0.3m bases are measured
+  // separately from buildings and roads. Do not block an entire lot or route.
+  const streetBlockers=(manifest.streetFurniture||[]).map(item=>({
+    x:item.position.x,z:item.position.z,r:(item.collisionRadius||.22)+radius
+  }));
   function onWalkableLand(x,z) {
     if (insideEllipse(x,z,rx,rz)) return true;
     // Keep the two designed bridge corridors walkable while blocking the lake ring.
@@ -76,6 +81,10 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
     }
     for (const blocker of landmarkBlockers) {
       if(circleRectOverlap(x,z,radius,blocker)) return true;
+    }
+    for(const p of streetBlockers){
+      const dx=x-p.x,dz=z-p.z;
+      if(dx*dx+dz*dz<p.r*p.r)return true;
     }
     for (const t of trees) {
       const dx=x-t.x,dz=z-t.z;
@@ -164,7 +173,7 @@ export function createEstatesIslandNavigation({manifest, playerRadius=0.65, coll
 
   return Object.freeze({
     move, nearbyProperty, isWalkable, accessibleApproach, propertyApproach,
-    get collisionCount(){return buildings.length+trees.length+landmarkBlockers.length;},
+    get collisionCount(){return buildings.length+trees.length+landmarkBlockers.length+streetBlockers.length;},
     get buildingColliderCount(){return buildings.length;},
     get treeColliderCount(){return trees.length;},
     get landmarkColliderCount(){return landmarkBlockers.length;}

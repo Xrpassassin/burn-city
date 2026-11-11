@@ -65,7 +65,18 @@ try{
   assert.equal(geometry.clipped.length,0,'no furnishing buttons may escape viewport');
   assert(geometry.canvasWidth<=v.width,'floor grid never exceeds phone width');
   assert.equal(geometry.touchButtons,geometry.totalButtons,'all furniture controls are 48px touch targets');
-  await page.screenshot({path:out+'/'+tag+'-'+v.name+'-owner-designer.png',fullPage:false});
+  const clickGeometry=await page.evaluate(()=>{
+    const buttons=[...document.querySelectorAll('#home-editor-qa button')];
+    const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,scroll:document.scrollingElement?.scrollHeight}};
+    const save=buttons.find(e=>e.textContent.includes('Save design'));
+    const other=buttons.filter(e=>e!==save);
+    const a=save.getBoundingClientRect();
+    return {save:rect(save),bodyHeight:document.body.scrollHeight,viewHeight:innerHeight,
+      overlapping:other.filter(e=>{const c=e.getBoundingClientRect();return a.left<c.right&&a.right>c.left&&a.top<c.bottom&&a.bottom>c.top;}).map(e=>({name:e.textContent,rect:rect(e)})),
+      all:buttons.map(e=>({name:e.textContent,rect:rect(e)}))};
+  });
+  console.log('EDITOR_GEOMETRY',v.name,JSON.stringify(clickGeometry));
+  await page.screenshot({path:out+'/'+tag+'-'+v.name+'-owner-designer.png',fullPage:true});
   await page.locator('#home-editor-qa button').filter({hasText:'Save design · 0 XRP'}).click();
   await page.waitForFunction(()=>window.__homeEditorQA.saved.length===1);
   const saved=await page.evaluate(()=>({

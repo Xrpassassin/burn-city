@@ -18,7 +18,7 @@ const ROADSIDES=Object.freeze([
  {x:43.1,z:17.6,kind:'trashbag'}
 ]);
 const PROP_PATTERNS=Object.freeze({
- dumpster:/^Big Bin Body$/i,bin:/^Red Trash Can(?:\\.\\d+)?$/i,
+ dumpster:/^Big Bin Body$/i,bin:/^Red Trash Can(?:\.\d+)?$/i,
  bench:/^Wood Bench$/i,barrier:/^Concrete Barrier$/i,
  streetlight:/^Street Light$/i,trashbag:/^Bag 1$/i
 });

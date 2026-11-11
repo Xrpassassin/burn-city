@@ -8,7 +8,7 @@ export function mountEstateHomeEditor(container,initial,{
  if(!container?.appendChild||!initial?.ok)throw TypeError('home_editor_state_required');
  const root=document.createElement('section');
  root.dataset.estateHomeEditor=initial.propertyId;
- root.style.cssText='padding:10px 0;max-width:100%;color:#f2e9d8;font:14px/1.5 system-ui;overscroll-behavior:contain';
+ root.style.cssText='padding:10px 0;min-width:0;max-width:100%;box-sizing:border-box;color:#f2e9d8;font:14px/1.5 system-ui;overscroll-behavior:contain';
  root.setAttribute('aria-label','Estate home furnishing editor');
  const heading=document.createElement('h4');heading.textContent='Design your home · 0 XRP for free layouts & furniture';
  const status=document.createElement('p');status.setAttribute('role','status');
@@ -19,17 +19,17 @@ export function mountEstateHomeEditor(container,initial,{
  root.append(heading,help);
  const select=(label,entries)=>{
   const wrap=document.createElement('label');wrap.textContent=label+' ';
-  wrap.style.cssText='display:grid;gap:3px;min-width:130px;flex:1';
-  const el=document.createElement('select');el.style.cssText='min-height:48px;max-width:100%;font-size:16px;border-radius:7px;background:#25363c;color:white;border:1px solid #839a91';
+  wrap.style.cssText='display:grid;grid-template-columns:minmax(0,1fr);gap:3px;min-width:0;width:100%;max-width:100%;flex:1 1 160px;box-sizing:border-box';
+  const el=document.createElement('select');el.style.cssText='min-height:48px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;font-size:16px;border-radius:7px;background:#25363c;color:white;border:1px solid #839a91';
   for(const [value,txt,disabled]of entries){const o=document.createElement('option');o.value=value;o.textContent=txt;o.disabled=!!disabled;el.appendChild(o);}
   wrap.appendChild(el);return {wrap,el};
  };
- const row=document.createElement('div');row.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:8px 0';
+ const row=document.createElement('div');row.style.cssText='display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;min-width:0;max-width:100%;box-sizing:border-box';
  const layouts=select('Floor plan',initial.layouts.map(l=>[l.id,l.name+(l.priceXrp>0?' · '+l.priceXrp+' XRP upgrade':' · FREE')+(l.unlocked?'':' · LOCKED'),!l.unlocked]));
  const furniture=select('Furniture',initial.catalog.map(f=>[f.id,f.label+' · FREE',false]));
  row.append(layouts.wrap,furniture.wrap);root.appendChild(row);
  const canvas=document.createElement('canvas');canvas.width=360;canvas.height=300;
- canvas.style.cssText='display:block;width:100%;max-width:440px;height:auto;aspect-ratio:6/5;background:#d5c7ae;border:2px solid #9d8970;border-radius:9px;touch-action:manipulation;cursor:crosshair;outline-offset:3px';
+ canvas.style.cssText='display:block;width:100%;max-width:440px;min-width:0;box-sizing:border-box;height:auto;aspect-ratio:6/5;background:#d5c7ae;border:2px solid #9d8970;border-radius:9px;touch-action:manipulation;cursor:crosshair;outline-offset:3px';
  canvas.setAttribute('role','grid');canvas.setAttribute('tabindex','0');
  canvas.setAttribute('aria-label','Editable top-down home floor plan. Tap a piece then tap a clear space to move it. Keyboard arrows nudge, R rotates, Delete removes.');
  root.appendChild(canvas);

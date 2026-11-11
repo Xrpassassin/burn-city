@@ -44,3 +44,6 @@ assert.match(pilot,/proceduralHit=true/);
 assert.match(pilot,/zombieVisualModelId\(z\.ty\)/);
 assert(!/from ['"][^'"]*homefront/i.test(pilot));
 console.log('Licensed Sketchfab infected: three actual GLBs, verified hashes, humanoid skin meshes, original animations, artist credits, no robotic default passed');
+
+// Community-asset admission is tested alongside the existing mode regressions.
+await import('./community-art-intake.test.mjs');

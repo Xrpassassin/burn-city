@@ -28,8 +28,9 @@ assert.match(fx,/const modeled = zombieModelPilot\?\.update/,'original animation
 assert.match(fx,/for \(const mesh of Object\.values\(Z\)\) put\(/,'procedural double-rendering remains prevented');
 assert.match(fx,/zombieModelPilot\?\.react\(e\.id, 'Death'\)/,'original Death reaction preserved');
 assert.match(fx,/zombieModelPilot\?\.react\(e\.id, 'HitReact'\)/,'original HitReact preserved');
-assert.match(model,/Promise\.allSettled\(ZOMBIE_SKETCHFAB_MODELS/,'one corrupt GLB cannot wipe out other original models');
-assert.match(model,/model\.scale \* zombieHumanShape\(z\.ty\)/,'bosses and shamblers keep their original relative scales');
+assert.match(model,/Promise\.allSettled\(MODEL_ROSTER/,'one corrupt GLB cannot wipe out other original models');
+assert.match(model,/MODEL_ROSTER=\[\.\.\.ZOMBIE_SKETCHFAB_MODELS,\.\.\.SPECIAL_MODELS\]/,'original licensed infected are still the baseline cast when no optional specials are installed');
+assert.match(model,/model\.definition\.special\?1:zombieHumanShape\(z\.ty\)/,'default bosses and shamblers keep their original relative scales; abnormal specials have own proportions');
 assert.match(model,/material\.color\.lerp\(tint, 0\.025\)/,'original skin and suit textures retain their full character');
 assert(model.includes("import {ZOMBIE_SKETCHFAB_MODELS,zombieVisualModelId,zombieClipAliases}"),
  'original Zombies mode casts only verified Sketchfab infected models');

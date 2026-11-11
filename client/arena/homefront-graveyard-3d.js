@@ -39,6 +39,7 @@ import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPosit
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
 import {applyHomefrontFieldLook} from './homefront-survivor-appearance.mjs';
+import {createHomefrontCommunityArt} from './homefront-community-art.mjs';
 import { infectedPresentation, visibleInfected } from './homefront-infected-presentation.mjs';
 import { stepVertical, createMotion, turnToward } from '../js/player-motion.mjs';
 
@@ -119,6 +120,7 @@ function boot(host) {
   renderer.shadowMap.enabled = false;
   host.appendChild(renderer.domElement);
   const surfaces=createHomefrontSurfaces(THREE,renderer,{mobile:coarsePointer});
+  const communityArt=createHomefrontCommunityArt({mobile:coarsePointer});
   // Small in-world toast, not another dashboard panel. It stays clear of
   // joystick and bottom HUD, and never intercepts walking/interaction taps.
   const eventToast = document.createElement('div');
@@ -727,6 +729,10 @@ function boot(host) {
     cityChunkAt(visualX, visualZ).add(piece);
     landmarkSetPieces.set(landmark.id, piece);
   }
+  // Local, credited GLBs replace visuals only after verified files are installed;
+  // the default remains the shipped Homefront scene with no third-party fetches.
+  void communityArt.load().then(()=>communityArt.attachWorld({landmarks:LANDMARKS,
+    landmarkSetPieces,cityChunkAt,terrainElevation}));
   function pineVoiceObstructed(listener, source) {
     if (!inPineCrossing(listener[0], listener[2], 4)) return false;
     voiceRay.origin.fromArray(listener);
@@ -1232,6 +1238,7 @@ function boot(host) {
       const key = explorer.userData.explorerKey;
       if (key) previousExplorerPositions.set(key, explorer.position.clone());
     }
+    communityArt.clearActors();
     clearGroup(playerGroup);
     const encounters = wantsContinuous ? visibleInfected(data.encounters || []) : (data.encounters || []).filter(e => !e.defeated && e.hp > 0);
     const activeEncounterIds = new Set();
@@ -1317,6 +1324,7 @@ function boot(host) {
       walker.rotation.y = Math.PI; walker.scale.setScalar(EXPLORER_SCALE);
       walker.traverse(node => { if (node.isMesh) node.userData.sharedAsset = true; });
       g.add(walker); g.userData.walker = walker;
+      communityArt.decorateExplorer(g,walker,{isLocal:isLocalPlayer});
       g.userData.pvpTarget = !isLocalPlayer && !p.party;   // strangers in interest range are PvP targets; party members never
       // A readable field pack makes the backpack slot visible in-world without affecting gameplay stats.
       const packColor = isLocalPlayer ? equippedBackpackColor : 0x78604a;
@@ -2628,6 +2636,7 @@ function boot(host) {
       stepVertical(localJump, dt, 0, jump && !crouched, EXPLORER_SCALE);
       walker.position.y = localJump.y;
     }
+    communityArt.animateExplorer(explorer,movingAvatar,dt,isLocalPlayer?localJump.y:0);
   }
   const tick = () => { const now = performance.now(), dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
     // Keep server polling authoritative, but do no world animation or scenery

@@ -7,13 +7,17 @@ import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils
 import { selectZombieModelCandidates, stableZombieHash } from './zombie-model-selection.mjs';
 import {ARENA_ZOMBIE_SKINS,zombieHumanShape} from './zombie-arena-appearance.mjs';
 import {ZOMBIE_SKETCHFAB_MODELS,zombieVisualModelId,zombieClipAliases} from './zombie-sketchfab-cast.mjs';
+import {enabledZombieSpecials,zombieSpecialModelForType,zombieSpecialClipAliases,zombieSpecialModelHeight} from './zombie-special-art.mjs';
 import {createZombieInstancedLOD} from './zombie-instanced-lod.mjs';
 import {zombieShadowMetrics,infectedShadowPixels} from './zombie-contact-shadow.mjs';
 
 const MAX_MODELS = 8;
 const MAX_MODEL_DISTANCE = 28;
 const TARGET_HEIGHT = 1.72;
-const MODEL_URLS=ZOMBIE_SKETCHFAB_MODELS.map(model=>new URL('./assets/zombies/'+model.file,import.meta.url).href);
+const SPECIAL_MODELS=enabledZombieSpecials();
+const MODEL_ROSTER=[...ZOMBIE_SKETCHFAB_MODELS,...SPECIAL_MODELS];
+const BASE_MODEL_URLS=ZOMBIE_SKETCHFAB_MODELS.map(model=>new URL('./assets/zombies/'+model.file,import.meta.url).href);
+const MODEL_URLS=[...BASE_MODEL_URLS,...SPECIAL_MODELS.map(model=>new URL('./assets/community/'+model.file,import.meta.url).href)];
 const PALETTES=ARENA_ZOMBIE_SKINS.map(shades=>shades[0]);
 const NAME='original-zombies-real-infected';
 
@@ -48,7 +52,7 @@ export async function createZombieModelPilot(scene, options = {}) {
   const targetHeight = Number.isFinite(options.targetHeight) ? Math.max(0.8, Math.min(3.2, options.targetHeight)) : TARGET_HEIGHT;
   const loader = new GLTFLoader();
   // A malformed optional GLB must not hide all other working zombies.
-  const results=await Promise.allSettled(ZOMBIE_SKETCHFAB_MODELS.map(async (definition,i)=>{
+  const results=await Promise.allSettled(MODEL_ROSTER.map(async (definition,i)=>{
     const url=MODEL_URLS[i],gltf=await loader.loadAsync(url);
     if(!gltf.scene||!gltf.animations?.length)throw Error(definition.file+': skinned/animated zombie required');
     let skinCount=0,hasTexture=false;
@@ -62,7 +66,9 @@ export async function createZombieModelPilot(scene, options = {}) {
     });
     if(!skinCount||!hasTexture)throw Error(definition.file+': missing textured skinned infected body');
     if(definition.id==='hazmat')removeHazmatRootMotion(gltf.animations.find(x=>x.name==='Zombie_Walk_Root'));
-    const aliases=zombieClipAliases(definition,gltf.animations.map(x=>x.name));
+    const aliases=definition.special
+      ? zombieSpecialClipAliases(definition,gltf.animations.map(x=>x.name))
+      : zombieClipAliases(definition,gltf.animations.map(x=>x.name));
     if(!aliases.has('Idle')||!aliases.has('Walk')||!aliases.has('Idle_Attack'))
       throw Error(definition.file+': missing playable locomotion/attack clips');
     const clips=new Map(gltf.animations.map(clip=>[clip.name,clip]));
@@ -83,10 +89,13 @@ export async function createZombieModelPilot(scene, options = {}) {
     if(!Number.isFinite(height)||height<.3||height>20)
       throw Error(definition.file+': invalid skinned animated bounds '+height);
     const width=bounds.max.x-bounds.min.x,depth=bounds.max.z-bounds.min.z;
-    if(!Number.isFinite(width)||!Number.isFinite(depth)||width>height*2.4||depth>height*2.4)
+    // A blob can spread wider than an upright humanoid, but bounding boxes
+    // must still be finite and plausibly sized after an actual animation pose.
+    const maxAspect=definition.id==='living-flesh-blob'?6:2.4;
+    if(!Number.isFinite(width)||!Number.isFinite(depth)||width>height*maxAspect||depth>height*maxAspect)
       throw Error(definition.file+': malformed animated anatomy');
     return {gltf,clips,id:definition.id,definition,minY:bounds.min.y,
-      scale:targetHeight/height,poseHeight:height};
+      scale:zombieSpecialModelHeight(definition,targetHeight)/height,poseHeight:height};
   }));
   const models=results.filter(x=>x.status==='fulfilled').map(x=>x.value);
   if(!models.length)throw Error('No usable licensed human-infected Zombies model loaded');
@@ -94,7 +103,7 @@ export async function createZombieModelPilot(scene, options = {}) {
   // The same human/hazmat/thin GLB artwork is also baked into a cheap idle
   // mesh for the rest of the horde. Only nearby characters need skinned rigs.
   let staticLOD=null;
-  try{if(options.distantLOD!==false)staticLOD=createZombieInstancedLOD(scene,models,{capacity:48});}
+  try{if(options.distantLOD!==false)staticLOD=createZombieInstancedLOD(scene,models.filter(m=>!m.definition.special),{capacity:48});}
   catch(error){console.warn('[Zombies] Textured distant-infected LOD unavailable; using safe fallback:',error);}
 
   if(results.some(x=>x.status==='rejected'))
@@ -143,7 +152,7 @@ export async function createZombieModelPilot(scene, options = {}) {
   }
 
   function createInstance(z) {
-    const preferred=zombieVisualModelId(z.ty);
+    const preferred=zombieSpecialModelForType(z.ty,models.map(m=>m.definition))||zombieVisualModelId(z.ty);
     const model=byId.get(preferred)||models[stableZombieHash(z.id)%models.length];
     const visual = SkeletonUtils.clone(model.gltf.scene);
     const tint = new THREE.Color(PALETTES[Math.abs(z.ty || 0) % PALETTES.length]);
@@ -160,7 +169,7 @@ export async function createZombieModelPilot(scene, options = {}) {
     const group = new THREE.Group();
     group.name='Arena Zombies · '+model.id+' · '+String(z.id);
     group.userData.infectedAssetId=model.id;
-    group.scale.setScalar(model.scale * zombieHumanShape(z.ty) * (Number.isFinite(z.v)?z.v:1));
+    group.scale.setScalar(model.scale * (model.definition.special?1:zombieHumanShape(z.ty)) * (Number.isFinite(z.v)?z.v:1));
     visual.position.y = -model.minY;
     group.add(visual);
     scene.add(group);

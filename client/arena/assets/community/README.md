@@ -1,0 +1,36 @@
+# Community model intake — Homefront and ORIGINAL Zombies
+
+The BURN City game uses locally bundled, license-verified GLB assets, not Sketchfab embed scripts or temporary CDN URLs.
+
+**One approved model binary is now bundled:** `homefront-street-props.glb` from MadeByYeshe/CrazyDrPants. Its 9,826,272 bytes, 20,667 triangles, 56 mesh nodes, 38 materials, SHA-256 `30b97656624cb6596495b7aa343f87c42c01124717cdb0975fdde0fcf7edf332`, and mesh names were independently recorded from the official free itch.io download in `street-props-acquisition.json`. Its record is `installed:true`, so the optional Homefront street-dressing adapter can render the six verified submesh families. The other **five** entries in `../../community-art-intake.mjs` remain `installed:false`. Never flip another entry or claim a model is deployed without its audited GLB, animation inspection where applicable, and SHA-256.
+
+## Assets approved for examination (November 11, 2026)
+
+| Purpose | Source, creator | Page license | Working filename |
+| --- | --- | --- | --- |
+| Homefront temporary human player | [Zombie Apocalypse Survivor Male](https://sketchfab.com/3d-models/3d-zombie-apocalypse-survivor-male-character-f56ffc64d18c40cf95d17559542ca44c) — codersan | CC BY 4.0 | `homefront-male-survivor.glb` |
+| Homefront street props | [PBR Street Props Pack](https://sketchfab.com/3d-models/pbr-street-props-pack-game-ready-8013d8e6af4645d1a7c3d5b24054bfc8) — MadeByYeshe (official [itch.io GLB](https://crazydrpants.itch.io/street-props-pack)) | CC BY 4.0 | `homefront-street-props.glb` |
+| Homefront derelict freight block | [Abandoned Garage Block](https://sketchfab.com/3d-models/abandoned-garage-block-rusty-ruined-game-ready-a1959927a98e4752bdb01b6e1f7f7d26) — olegolegperepelica | CC BY 4.0 | `homefront-garage.glb` |
+| Homefront checkpoint | [Military Control Building](https://sketchfab.com/3d-models/military-control-building-game-ready-2bff5075256e4370b93ad58237567008) — AVALMesh | CC BY 4.0 | `homefront-military-control.glb` |
+| Original Zombies: special boss body | [Horror Mutant Bloody Nurse Gore](https://sketchfab.com/3d-models/horror-mutant-bloody-nurse-gore-rigged-2bc6e1cac98e458a824691009ef2433c) — KrimzonHaze | CC BY 4.0 | `zombie-mutant-nurse.glb` |
+| Original Zombies: pulsing crawler body | [Living Flesh Blob](https://sketchfab.com/3d-models/living-flesh-blob-free-organic-horror-asset-6357bbc094d54cf5ba150ef2951b3750) — Yury Misiyuk | CC BY 4.0 | `zombie-flesh-blob.glb` |
+
+Attribution in redistributions must retain creator, title, license link (https://creativecommons.org/licenses/by/4.0/), source URL, and change notes. The creator's page license is the controlling license, even if an alternative download host has a different claim. Check that source textures and any embedded animation are licensed too. Do not embed downloaded files unless their chain of title and license are documented.
+
+## File acquisition — only official channels
+
+1. The street pack was obtained through the original creator's official free/name-your-price itch.io download, which provides a 9.3 MiB combined GLB. Its 9,826,272-byte vetted archive and `street-props-acquisition.json` are in this folder. The original file names include `Big Bin Body`, `Red Trash Can`, `Wood Bench`, `Concrete Barrier`, `Street Light`, and `Bag 1` (not the generic names in the original intake proposal). The ephemeral Cloudflare signed URL expires quickly and is **never** pasted into the game.
+2. The survivor creator provides FBX on [itch.io](https://codersan.itch.io/zombie-apocalypse-survivor-male-3d); Sketchfab lists CC BY for this creator's model. Download the creator's FBX archive using official sources and inspect animation clips — the third-person Unity controller may contain separate animation dependencies.
+3. Sketchfab CC BY listings support authenticated downloads. Use the official Sketchfab login/Download API. Do not use developer console caches, ripped viewer assets, bypass scripts, or unknown mirrors.
+4. Convert permitted FBX to glTF 2.0 binary with Blender. Preserve skinning, UV maps, roughness/normal maps, clip names, and native scale; export with embedded texture images.
+5. Verify local SHA-256, GLB integrity, actual mesh triangles, animations, skin mesh, bone transforms, and mobile runtime budget. Adjust the `sha256` value and `installed:true` **in the same reviewed commit** that adds the resulting GLB and passes the tests.
+6. Test real desktop + mobile gameplay and cleanup. For a nurse with only a rig and no clips, first build and validate actual idle/walk/attack animations; for the blob, verify the pulsing clip. Never silently substitute the existing goblin or robotic fallback.
+7. Finalize optional art only once the server-owned interaction/hitboxes, building entrances, streaming visibility, scene snapshots, game modes, wallets and NFT avatar slots are verified.
+
+### Original Zombies isolation
+`zombie-special-art.mjs` routes the approved nurse to existing Arena Zombies type 8 and the flesh blob to type 5 for **visual identity only**. They inherit the original game's existing enemy rules and damage, not Homefront logic. The baseline human/hazmat/thin GLBs continue to be used when models are unavailable or fail validation.
+
+### Homefront isolation
+`homefront-community-art.mjs` can substitute only the existing visual structure at a road checkpoint or freight depot, instance named objects within the 37-item street pack along preauthored shoulder locations, and add a temporary male-survivor rig onto the present third-person explorer. The original animated walker remains as a safe fallback, and the renderer continues to obey server-owned movement and interaction state. NFT-specific character models remain separate; do not stretch Firekeeper/589 art onto an inaccurate generic human skeleton.
+
+This intake now includes and enables the **street-props GLB**; it does **not** include or render the other five third-party model files. Real-browser visual QA and release checks remain mandatory before merge.

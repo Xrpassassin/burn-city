@@ -1,0 +1,39 @@
+name: Acquire credited CC BY Homefront street-prop GLB
+on:
+  push:
+    branches:
+      - feat/community-art-intake-homefront-zombies-20261111
+    paths:
+      - scripts/vendor-homefront-street-props.mjs
+      - .github/workflows/community-street-props-acquisition.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  acquire:
+    if: github.repository == 'Xrpassassin/burn-city' && github.ref == 'refs/heads/feat/community-art-intake-homefront-zombies-20261111'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated browser for author-provided public free download
+        run: |
+          npm install --no-save --no-package-lock playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Fetch, inspect, and hash official artist-hosted street prop GLB
+        run: node scripts/vendor-homefront-street-props.mjs
+      - name: Commit inspected GLB only to this owned review branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/arena/assets/community/homefront-street-props.glb client/arena/assets/community/street-props-acquisition.json
+          if ! git diff --cached --quiet; then
+            git commit -m "assets(homefront): stage credited CC BY street prop GLB for review (not enabled)"
+            git push origin HEAD:feat/community-art-intake-homefront-zombies-20261111
+          fi

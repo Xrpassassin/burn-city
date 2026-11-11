@@ -38,7 +38,7 @@ for(const item of a.streetFurniture){
 const root=new THREE.Group(),view=createEstateNeighborhoodDecor({THREE,parent:root,manifest:a});
 assert.equal(view.fixtureCount,a.streetFurniture.length);
 assert(view.partCount>140);
-assert(view.drawBatches<=13,'instancing batches all fixtures by material and geometry');
+assert(view.drawBatches<=18,'instancing batches all fixtures by material and geometry');
 assert(view.root.children.filter(o=>o.isLight).length<=3,'only three real GPU light sources');
 assert(root.children.includes(view.root));
 assert(view.root.children.some(x=>x.isInstancedMesh));

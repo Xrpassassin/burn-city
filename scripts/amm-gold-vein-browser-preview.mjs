@@ -20,8 +20,21 @@ try{
   page.on('pageerror',e=>issues.push(v.name+': '+e.message));
   page.on('console',m=>{if(m.type()==='error'&&/THREE.WebGLProgram|Shader Error|VALIDATE_STATUS|FRAGMENT|VERTEX_SHADER/i.test(m.text()))issues.push(v.name+': '+m.text());});
   await page.goto('http://127.0.0.1:8080/?debug=1&locktest=1',{waitUntil:'domcontentloaded',timeout:45000});
-  await page.waitForFunction(()=>window.__ammGold?.mesh?.geometry?.attributes?.gShare&&window.__swirl?.n>0&&window.__ammLock?.test,{timeout:60000});
-  await page.waitForTimeout(1500);
+  // A created shader mesh is not evidence that the city is visible. Wait for
+  // the full first render AND the 0.9s splash dismissal in WebKit/Chromium.
+  await page.waitForFunction(()=>window.__ready===true&&window.__ammGold?.mesh?.geometry?.attributes?.gShare&&
+    window.__swirl?.n>0&&window.__ammLock?.test&&
+    document.getElementById('loader')?.classList.contains('done'),null,{timeout:90000});
+  await page.waitForFunction(()=>getComputedStyle(document.getElementById('loader')).visibility==='hidden',null,{timeout:12000});
+  // First-run tutorial obscures/defocuses the 3D scene even when all shaders
+  // have compiled. Exercise the real Skip control, do not disable the tutorial
+  // from production code or fake an unobscured screenshot.
+  const skip=page.getByRole('button',{name:'Skip',exact:true});
+  if(await skip.count())await skip.first().click({timeout:8000});
+  await page.waitForFunction(()=>![...document.querySelectorAll('button')].some(x=>
+    x.textContent?.trim()==='Skip'&&x.getBoundingClientRect().width>0&&getComputedStyle(x).visibility!=='hidden'),null,{timeout:8000});
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await page.waitForTimeout(1000);
   const state=await page.evaluate(()=>{
    const gold=window.__ammGold.mesh,values=gold.geometry.getAttribute('gShare').array;
    const shares=[...new Set(Array.from(values).map(x=>Math.round(x*1000)/1000))];
@@ -29,7 +42,9 @@ try{
     goldVeins:window.__swirl.veins?.length,spirals:window.__swirl.n,lockDraws:window.__ammLock.draws(),
     ringFree:window.__ammLock.objs?.every(m=>m.geometry?.type!=='TorusGeometry')??false,
     bodyColor:window.__swirl.paths?.[0]?.b?.actCol?.getHexString?.(),
-    canvas:document.querySelectorAll('canvas').length};
+    canvas:document.querySelectorAll('canvas').length,
+    loaderHidden:getComputedStyle(document.getElementById('loader')).visibility==='hidden',
+    tutorialSkipVisible:[...document.querySelectorAll('button')].some(x=>x.textContent?.trim()==='Skip'&&x.getBoundingClientRect().width>0)};
   });
   assert(state.spirals>0,'actual tower spirals must exist');
   assert(state.goldSegments>=state.spirals,'continuous gold tubes include rail + tower sections');
@@ -38,6 +53,7 @@ try{
   assert.equal(state.lockDraws,2,'lock halos were removed without touching token singularities');
   assert(state.ringFree,'AMM lock renderer contains no torus halo geometry');
   assert(state.canvas>0,'real world WebGL canvas renders');
+  assert(state.loaderHidden&&!state.tutorialSkipVisible,'actual scene must be unobscured before screenshot');
   await page.screenshot({path:output+'/'+process.env.AMM_BROWSER+'-'+v.name+'.png',fullPage:false});
   facts.push({viewport:v.name,...state});
   await context.close();

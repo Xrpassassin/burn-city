@@ -32,6 +32,7 @@ const {estateTreasuryMonitor}=require('./estate-treasury-monitor');
 const estatePrestige = require('./estate-prestige-runtime').createEstatePrestigeRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const estateTycoon = require('./estate-tycoon-runtime').createEstateTycoonRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const EstateAccess = require('./estate-access');
+const estateHome = require('./estate-home-interior').createEstateHomeInteriorStore({db:Pay.sdb,accessFor:EstateAccess.accessFor,tycoonStore:estateTycoon.store});
 const estateFreeStyles = require('./estate-free-style').createEstateFreeStyleStore({db:Pay.sdb});
 const estateHangar = require('./estate-hangar-logbook').createEstateHangarLogbook({db:Pay.sdb,tycoonStore:estateTycoon.store,accessFor:EstateAccess.accessFor});
 const { createEstatesInstanceManager } = require('./estates-instance');
@@ -252,6 +253,18 @@ const server = http.createServer(async (req, res) => {
         try{const state=estateTycoon.store.state(propertyId),access=estateTycoon.store.quote({propertyId,buyer:u.acct,itemId:'porch-lights'});
           return json(res,200,{...state,ownerAuthorized:access.ownerAuthorized,pending:access.pending,purchasesEnabled:estateTycoon.enabled()});}
         catch(e){return json(res,404,{error:e.message==='unknown_property'?'unknown_property':'tycoon_state_unavailable'});}
+      }
+      // Free owner-editable home interiors. The only premium themes here
+      // require an existing, verified Tycoon unlock; no extra XRP transfer.
+      if (url.pathname === '/api/estates/home/state' && req.method === 'GET') {
+        const result=estateHome.state(String(url.searchParams.get('propertyId')||''),u.acct);
+        return json(res,result.ok?200:result.error==='unknown_property'?404:403,result);
+      }
+      if (url.pathname === '/api/estates/home/state' && req.method === 'POST') {
+        if(gate('estate-home-edit:'+u.acct,18,60000))return json(res,429,{ok:false,error:'slow_down'});
+        const b=await body(),result=estateHome.save({
+          propertyId:b?.propertyId,acct:u.acct,layoutId:b?.layoutId,furniture:b?.furniture});
+        return json(res,result.ok?200:result.error==='property_owner_required'||result.error==='property_owner_or_invitation_required'?403:400,result);
       }
       if (url.pathname === '/api/estates/tycoon/interior-options' && req.method === 'GET') {
         const result=require('./estate-tycoon-rooms').privateRoomOptions({

@@ -254,8 +254,8 @@
     {
       "id": "trailer-05",
       "tier": "trailer",
-      "address": "North Shore Trailer 05",
-      "district": "north-shore",
+      "address": "West Village Trailer 05",
+      "district": "west-village",
       "lot": {
         "x": -8,
         "z": 1

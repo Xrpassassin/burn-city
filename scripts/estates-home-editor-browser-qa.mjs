@@ -62,6 +62,8 @@ try{
     touchButtons:buttons.filter(b=>parseFloat(getComputedStyle(b).minHeight)>=48).length,
     totalButtons:buttons.length,clipped:clips.map(b=>b.textContent.slice(0,25))};
   });
+  assert(geometry.bodyWidth<=v.width+1,'home editor must NEVER widen the '+v.width+'px viewport (long select values)');
+  assert(geometry.screen<=v.width+1,'mobile layout viewport must not expand beyond the configured device');
   assert.equal(geometry.clipped.length,0,'no furnishing buttons may escape viewport');
   assert(geometry.canvasWidth<=v.width,'floor grid never exceeds phone width');
   assert.equal(geometry.touchButtons,geometry.totalButtons,'all furniture controls are 48px touch targets');

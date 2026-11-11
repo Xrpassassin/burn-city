@@ -22,6 +22,12 @@ export function bakeInfectedGeometry(mesh,groundOffset=0) {
   v.applyMatrix4(mesh.matrixWorld);
   a.setXYZ(i,v.x,v.y-groundOffset,v.z);
  }
+ // The result is a STATIC baked mesh. Leaving skin/morph target attributes
+ // on an InstancedMesh makes WebGL attempt to upload nonexistent rig buffers
+ // and crashes Chromium and Safari (undefined array.length).
+ copy.deleteAttribute('skinIndex');copy.deleteAttribute('skinWeight');
+ copy.morphAttributes={};copy.morphTargetsRelative=false;
+ copy.clearGroups();
  a.needsUpdate=true;copy.computeVertexNormals();copy.computeBoundingSphere();return copy;
 }
 

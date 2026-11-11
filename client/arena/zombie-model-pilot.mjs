@@ -8,6 +8,7 @@ import { selectZombieModelCandidates, stableZombieHash } from './zombie-model-se
 import {ARENA_ZOMBIE_SKINS,zombieHumanShape} from './zombie-arena-appearance.mjs';
 import {ZOMBIE_SKETCHFAB_MODELS,zombieVisualModelId,zombieClipAliases} from './zombie-sketchfab-cast.mjs';
 import {createZombieInstancedLOD} from './zombie-instanced-lod.mjs';
+import {zombieShadowMetrics,infectedShadowPixels} from './zombie-contact-shadow.mjs';
 
 const MAX_MODELS = 8;
 const MAX_MODEL_DISTANCE = 28;
@@ -100,6 +101,27 @@ export async function createZombieModelPilot(scene, options = {}) {
     console.warn('[Zombies] Some original human-infected GLBs failed; still using available licensed models.',
       results.filter(x=>x.status==='rejected').map(x=>String(x.reason?.message||x.reason)));
   const active = new Map();
+  // One soft decal batch anchors the authentic, animated infected to floors.
+  // No shadow maps, new lights, per-zombie meshes, hitboxes, or frame allocations.
+  const contactPixels=infectedShadowPixels();
+  const contactMap=new THREE.DataTexture(contactPixels,64,64,THREE.RGBAFormat);
+  contactMap.magFilter=THREE.LinearFilter;
+  contactMap.minFilter=THREE.LinearFilter;
+  contactMap.generateMipmaps=false;
+  contactMap.needsUpdate=true;
+  const contactGeometry=new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2);
+  const contactMaterial=new THREE.MeshBasicMaterial({
+    map:contactMap,transparent:true,depthWrite:false,side:THREE.DoubleSide,
+    polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1
+  });
+  const contactShadows=new THREE.InstancedMesh(contactGeometry,contactMaterial,maxModels);
+  contactShadows.name='Original Zombies / animated infected contact shadows';
+  contactShadows.frustumCulled=false;
+  contactShadows.count=0;
+  contactShadows.castShadow=false;
+  contactShadows.receiveShadow=false;
+  scene.add(contactShadows);
+  const contactObject=new THREE.Object3D();
 
   function setAnimation(item, name, oneShot = false) {
     const clip = item.model.clips.get(name) || item.model.clips.get('Idle') || item.model.gltf.animations[0];
@@ -132,6 +154,7 @@ export async function createZombieModelPilot(scene, options = {}) {
         : node.material.clone();
       for (const material of (Array.isArray(node.material) ? node.material : [node.material])) {
         if (material.color) material.color.lerp(tint, 0.025); // preserve textured human flesh and hazmat suit; no global slime-green tint
+        if (Number.isFinite(material.roughness)) material.roughness=Math.max(material.roughness,0.78); // dull wet-weathered cloth/skin, not plastic
       }
     });
     const group = new THREE.Group();
@@ -178,6 +201,9 @@ export async function createZombieModelPilot(scene, options = {}) {
         const moving = hasSpeed ? z.speed > 0.15
           : Math.hypot(z.x - item.group.position.x, z.z - item.group.position.z) > 0.012;
         item.group.position.set(z.x, z.y || 0, z.z);
+        item.shadowType=z.ty;
+        item.shadowVariant=z.v;
+        item.shadowCrawling=!!z.cr||z.ty===5;
         item.group.rotation.set(0,z.yaw||0,0);
         if(item.proceduralDeath&&item.deadUntil>now){
           const u=1-Math.min(1,(item.deadUntil-now)/850);
@@ -209,6 +235,21 @@ export async function createZombieModelPilot(scene, options = {}) {
         if (item.deadUntil > now) item.mixer.update(Math.min(0.05, Math.max(0, dt)));
         else if (item.deadUntil) remove(id);
       }
+      let shadowCount=0;
+      for(const item of active.values()){
+        if(shadowCount>=maxModels)break;
+        const shape=zombieShadowMetrics(item.shadowType,{
+          variant:item.shadowVariant,crawling:item.shadowCrawling,dead:item.deadUntil>now
+        });
+        if(!shape.visible)continue;
+        contactObject.position.set(item.group.position.x,item.group.position.y+0.025,item.group.position.z);
+        contactObject.rotation.set(0,0,0);
+        contactObject.scale.set(shape.width,1,shape.length);
+        contactObject.updateMatrix();
+        contactShadows.setMatrixAt(shadowCount++,contactObject.matrix);
+      }
+      contactShadows.count=shadowCount;
+      if(shadowCount)contactShadows.instanceMatrix.needsUpdate=true;
       const animated=new Set(active.keys());
       if(!staticLOD)return animated;
       const distant=staticLOD.update(zombies,animated,now*.001);
@@ -243,6 +284,7 @@ export async function createZombieModelPilot(scene, options = {}) {
     clear() {
       for (const id of [...active.keys()]) remove(id);
       staticLOD?.dispose();staticLOD=null;
+      contactShadows.count=0;
     }
   };
 }

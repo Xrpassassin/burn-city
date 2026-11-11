@@ -1,5 +1,6 @@
 // Live BURN City host integration for the public Estates Island traversal.
 import { mountEstatePrestige } from './estate-prestige-ui.mjs';
+import { mountEstateFreeStyle } from './estate-free-style-ui.mjs';
 import { mountEstateTycoon } from './estate-tycoon-ui.mjs';
 import { createEstatesSecretInteriorRenderer } from './estates-secret-interior-renderer.mjs';
 import { createEstateHelicopterWorld } from './estates-helicopter-world.mjs';
@@ -295,7 +296,12 @@ export async function installEstatesIslandLive({
       const ownershipOptions={api:apiBase,onOwnership:properties=>renderer.setOwnership(properties)};
       let ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);
       let finishes;
-      mountEstatePurchase(panel,property.propertyId,{api:apiBase,onSettled:()=>{void refreshAppearance(true);void refreshOwnership(true);void finishes?.refresh();ownershipDetails.dispose();ownershipDetails.section.remove();ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);}});
+      mountEstatePurchase(panel,property.propertyId,{api:apiBase,onSettled:()=>{void refreshAppearance(true);void refreshFreeStyles(true);void refreshOwnership(true);void finishes?.refresh();ownershipDetails.dispose();ownershipDetails.section.remove();ownershipDetails=mountEstateOwnership(panel,property.propertyId,ownershipOptions);}});
+      mountEstateFreeStyle(panel,property.propertyId,{api:apiBase,
+        initialStyle:verifiedFreeStyles.find(x=>x.propertyId===property.propertyId),
+        onPreview:style=>previewFreeStyle(property.propertyId,style),
+        onSaved:(propertyId,style)=>{verifiedFreeStyles=[...verifiedFreeStyles.filter(p=>p.propertyId!==propertyId),{propertyId,...style}];applyAppearance();void refreshFreeStyles(true);}
+      });
       finishes=mountEstatePrestige(panel,property.propertyId,{api:apiBase,onPreview:level=>previewAppearance(property.propertyId,level),onConfirmed:()=>refreshAppearance(true)});
       mountEstateTycoon(panel,property.propertyId,{api:apiBase,
         onConfirmed:()=>{renderer.clearUpgradePreview();void refreshTycoon(true);},
@@ -388,6 +394,7 @@ export async function installEstatesIslandLive({
   const apiBase = new URLSearchParams(location.search).get('citysrv') ||
     (/localhost|127\.0\.0\.1|fly\.dev$/.test(location.hostname) ? location.origin : 'https://burn-city-game.fly.dev');
   let verifiedAppearances=[],previewProperty=null,previewLevel=null,lastAppearanceFetch=0,appearanceFetching=false;
+  let verifiedFreeStyles=[],stylePreviewProperty=null,stylePreview=null,lastFreeStyleFetch=0,freeStyleFetching=false;
   let lastOwnershipFetch=0,ownershipFetching=false,ownershipRefreshQueued=false;
   let lastTycoonFetch=0,tycoonFetching=false,verifiedTycoonProperties=[];
   async function refreshTycoon(force=false){
@@ -412,11 +419,34 @@ export async function installEstatesIslandLive({
       document.querySelector('#vHint')?.classList.remove('on');
     }
   }
-  function restoreAppearance(){previewProperty=null;previewLevel=null;renderer.setAppearance(verifiedAppearances);}
+  // Compose two independent cosmetic systems: paid prestige levels and free
+  // property styles. Local previews never change server-verified ownership.
+  function applyAppearance(){
+    const byId=new Map();
+    for(const p of verifiedAppearances)if(typeof p?.propertyId==='string')byId.set(p.propertyId,{...p});
+    for(const p of verifiedFreeStyles)if(typeof p?.propertyId==='string')byId.set(p.propertyId,{...(byId.get(p.propertyId)||{}),...p});
+    if(previewProperty!==null)byId.set(previewProperty,{...(byId.get(previewProperty)||{}),propertyId:previewProperty,level:previewLevel});
+    if(stylePreviewProperty!==null&&stylePreview)byId.set(stylePreviewProperty,{...(byId.get(stylePreviewProperty)||{}),propertyId:stylePreviewProperty,...stylePreview});
+    renderer.setAppearance([...byId.values()]);
+  }
+  function restoreAppearance(){previewProperty=null;previewLevel=null;stylePreviewProperty=null;stylePreview=null;applyAppearance();}
   function previewAppearance(propertyId,level){
-    if(level===null){restoreAppearance();return;}
-    previewProperty=propertyId;previewLevel=level;
-    renderer.setAppearance([...verifiedAppearances.filter(p=>p.propertyId!==propertyId),{propertyId,level}]);
+    previewProperty=level===null?null:propertyId;previewLevel=level;
+    applyAppearance();
+  }
+  function previewFreeStyle(propertyId,style){
+    stylePreviewProperty=style?propertyId:null;stylePreview=style;
+    applyAppearance();
+  }
+  async function refreshFreeStyles(force=false){
+    if(disposed||freeStyleFetching||(!force&&Date.now()-lastFreeStyleFetch<30000))return;
+    freeStyleFetching=true;lastFreeStyleFetch=Date.now();
+    try{
+      const response=await fetch(apiBase+'/api/estates/free-styles',{cache:'no-store',signal:AbortSignal.timeout(8000)});
+      if(!response.ok)return;const data=await response.json();
+      if(disposed||!Array.isArray(data.properties))return;
+      verifiedFreeStyles=data.properties;applyAppearance();
+    }catch{}finally{freeStyleFetching=false;}
   }
   async function refreshAppearance(force=false){
     if(disposed||appearanceFetching||(!force&&Date.now()-lastAppearanceFetch<30000))return;
@@ -426,7 +456,7 @@ export async function installEstatesIslandLive({
       if(!response.ok)return;const result=await response.json();
       if(disposed||!Array.isArray(result.properties))return;
       verifiedAppearances=result.properties;
-      if(previewProperty!==null)previewAppearance(previewProperty,previewLevel);else renderer.setAppearance(verifiedAppearances);
+      applyAppearance();
     }catch{}finally{appearanceFetching=false;}
   }
 
@@ -945,7 +975,7 @@ export async function installEstatesIslandLive({
     }
     if(secretSession)return tickSecretInterior(dt,moveForward,moveSide,running,desiredDelta,edge);
     if(flightSession)return tickHelicopterFlight(dt,moveForward,moveSide,edge);
-    hideCityScene();animatePeers(dt);void refreshAppearance();void refreshOwnership();void refreshTycoon();
+    hideCityScene();animatePeers(dt);void refreshAppearance();void refreshFreeStyles();void refreshOwnership();void refreshTycoon();
     if(guidanceHud&&Date.now()-lastGuidanceUpdate>250){
       lastGuidanceUpdate=Date.now();
       if(panel.childElementCount)positionPanel();

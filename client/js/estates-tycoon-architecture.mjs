@@ -56,7 +56,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
      supported(id,'flower-bed-'+j,-sideX,z,1.3,2,lot.tier==='mansion'?'stone':lot.tier==='apartment'?'metal':'wood');
      for(const [k,dz] of [-.55,0,.55].entries()){
       p(id,'flower-stem-'+j+'-'+k,-sideX,.48,z+dz,.08,.52,.08,'green');
-      p(id,'flower-bloom-'+j+'-'+k,-sideX,.79,z+dz,.29,.22,.29,k%2?'flower':'gold');
+      p(id,'flower-bloom-'+j+'-'+k,-sideX,.79,z+dz,.29,.22,.29,k%2?'flower':'gold','yard','sphere');
      }
     }break;
    }
@@ -145,7 +145,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     p(id,'stone-rim-right',x+1.17,.26,z,.15,.24,2.32,'stone');
     p(id,'stone-rim-front',x,.26,z+1.05,2.48,.24,.15,'stone');
     p(id,'stone-rim-rear',x,.26,z-1.05,2.48,.24,.15,'stone');
-    p(id,'pond-water',x,.22,z,2.13,.035,1.91,'water');break;
+    p(id,'pond-water',x,.22,z,2.13,.035,1.91,'water','yard','cylinder');break;
    }
    case 'reinforced-floor':{
     const x=sideX,z=-4.2;
@@ -169,7 +169,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
      const x=Math.min(W/2-.67,5.4),z=Math.min(D/2-1,3.7);
      for(const side of [-1,1]){
       p(id,'flat-roof-box-'+side,side*x,top+.52,z,1.02,.55,1.25,'wood','roof');
-      p(id,'flat-roof-foliage-'+side,side*x,top+.95,z,.77,.42,.93,'green','roof');
+      p(id,'flat-roof-foliage-'+side,side*x,top+.95,z,.77,.42,.93,'green','roof','sphere');
       p(id,'parapet-rail-'+side,side*x,top+1.06,z+1,.14,1.1,.14,'metal','roof');
      }
     }else{
@@ -181,7 +181,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
       p(id,'terrace-post-'+sx+'-'+sz,x+sx*.94,1.35,z+sz*.8,.13,2.25,.13,'wood');
      p(id,'terrace-crossbar',x,2.46,z,2.14,.13,1.77,'wood');
      p(id,'terrace-planter',x,.66,z,1.5,.42,1,'earth');
-     p(id,'terrace-foliage',x,1.07,z,1.27,.36,.78,'green');
+     p(id,'terrace-foliage',x,1.07,z,1.27,.36,.78,'green','yard','sphere');
     }break;
    }
    case 'hidden-hatch':{
@@ -207,7 +207,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
    case 'underground-bunker':{
     const x=sideX,z=-4.2;
     p(id,'hatch-armored-lid',x,.44,z,1.86,.22,1.95,'slate');
-    p(id,'hatch-access-light',x+.72,.67,z+.65,.24,.23,.22,'warm');
+    p(id,'hatch-access-light',x+.72,.67,z+.65,.24,.23,.22,'warm','yard','cylinder');
     p(id,'air-intake-riser',x,.69,z-1.4,.52,1.2,.5,'metal');
     p(id,'riser-cap',x,1.37,z-1.4,.7,.2,.62,'slate');
     break;
@@ -216,7 +216,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     const x=sideX,z=-6.75;
     p(id,'utility-housing',x,.54,z,1.1,1.03,.77,'metal');
     p(id,'utility-grille',x,.64,z+.4,.75,.6,.08,'slate');
-    p(id,'service-beacon',x,1.13,z,.18,.14,.2,'warm');
+    p(id,'service-beacon',x,1.13,z,.18,.14,.2,'warm','yard','cylinder');
     break;
    }
   }

@@ -20,9 +20,9 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
  // A 2.2-metre yard fixture fits beside the widest existing mansion (13 m shell).
  const sideX=clamp(W/2+(edgeX-W/2)/2,5,edgeX-1.2);
  const backZ=-edgeZ+1.35,frontZ=edgeZ-1.25;
- const p=(id,name,x,y,z,w,h,d,mat,placement='yard')=>{
+ const p=(id,name,x,y,z,w,h,d,mat,placement='yard',shape='box')=>{
   if(![x,y,z,w,h,d].every(Number.isFinite)||w<=0||h<=0||d<=0)throw TypeError('invalid_upgrade_geometry');
-  parts.push(Object.freeze({id,name:id+'-'+name,x,y,z,w,h,d,mat,placement}));
+  parts.push(Object.freeze({id,name:id+'-'+name,x,y,z,w,h,d,mat,placement,shape}));
  };
  const supported=(id,name,x,z,w,d,material='wood')=>{
   p(id,name+'-base',x,.13,z,w,.16,d,material);
@@ -32,21 +32,31 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
   if(!purchased.has(id))continue;
   switch(id){
    case 'porch-lights':{
-    // Two waterproof porch sconces, attached on either side of the entrance.
+    // Connected stepping-stone approach and sealed warm-glass wall lanterns:
+    // every small home gets visible value without crossing public rights-of-way.
     for(const side of [-1,1]){
-     const x=doorX+side*.86;
-     p(id,'wall-base-'+side,x,1.9,front+.17,.18,.38,.12,'metal','attached');
-     p(id,'wall-lantern-'+side,x,1.9,front+.26,.24,.32,.21,'warm','attached');
-     p(id,'path-pedestal-'+side,side*1.4,.48,Math.min(front+1.6,frontZ-.6),.18,.85,.18,'metal');
-     p(id,'path-light-'+side,side*1.4,.97,Math.min(front+1.6,frontZ-.6),.26,.16,.26,'warm');
-    }break;
+      const x=doorX+side*.86;
+      p(id,'wall-base-'+side,x,1.9,front+.17,.18,.38,.12,'metal','attached');
+      p(id,'wall-lantern-'+side,x,1.9,front+.26,.24,.32,.21,'warm','attached');
+      p(id,'lantern-cap-'+side,x,2.1,front+.26,.3,.09,.25,'brass','attached');
+      const lampZ=Math.min(front+1.6,frontZ-.6);
+      p(id,'path-pedestal-'+side,side*1.4,.48,lampZ,.18,.85,.18,'metal','yard','cylinder');
+      p(id,'path-light-'+side,side*1.4,.97,lampZ,.26,.16,.26,'warm','yard','cylinder');
+      p(id,'path-light-cap-'+side,side*1.4,1.09,lampZ,.29,.06,.29,'slate','yard','cylinder');
+    }
+    const start=front+.42,end=edgeZ-.65,count=Math.max(1,Math.floor((end-start)/.84));
+    for(let i=0;i<count;i++){
+      const z=start+i*(end-start)/count;
+      p(id,'entry-paver-'+i,doorX,.055,z,1.06,.1,.64,'stone');
+    }
+    break;
    }
    case 'flower-garden':{
     for(const [j,z]of [2.8,-.5].entries()){
      supported(id,'flower-bed-'+j,-sideX,z,1.3,2,lot.tier==='mansion'?'stone':lot.tier==='apartment'?'metal':'wood');
      for(const [k,dz] of [-.55,0,.55].entries()){
       p(id,'flower-stem-'+j+'-'+k,-sideX,.48,z+dz,.08,.52,.08,'green');
-      p(id,'flower-bloom-'+j+'-'+k,-sideX,.79,z+dz,.29,.22,.29,k%2?'flower':'gold');
+      p(id,'flower-bloom-'+j+'-'+k,-sideX,.79,z+dz,.29,.22,.29,k%2?'flower':'gold','yard','sphere');
      }
     }break;
    }
@@ -68,24 +78,61 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     p(id,'front-beam',x,2.42,front+1.24,width,.22,.19,'wood','attached');break;
    }
    case 'privacy-fence':{
-    // Keep boundary rails outside the usable side-yard pads, hearths and pond rims.
+    // Low-poly but physically believable: separated slats, horizontal rails and
+    // ground-anchored posts. The former single wall slabs hid the entire yard.
+    // The opening is aligned to the *actual* tier-specific front door.
     const x=edgeX-.24,z=edgeZ-.3;
     const fenceH=lot.tier==='mansion'?1.82:lot.tier==='family'?1.6:1.3;
-    const railY=.05+fenceH/2,finish=lot.tier==='mansion'?'stone':lot.tier==='apartment'?'metal':'wood';
-    for(const side of [-1,1]){
-     p(id,'side-rail-'+side,side*x,railY,0,.16,fenceH,2*z,finish);
-     p(id,'rear-rail-'+side,side*x/2,railY,-z,x,fenceH,.15,finish);
-     // Leave a wide physical opening at the public approach, never a solid front gate.
-     p(id,'front-rail-'+side,side*(x+3.05)/2,railY,z,x-3.05,fenceH,.15,finish);
-     p(id,'gate-column-'+side,side*3.05,.05+(fenceH+.25)/2,z,.24,fenceH+.25,.24,lot.tier==='mansion'?'brass':'stone');
-    }break;
+    const finish=lot.tier==='mansion'?'stone':lot.tier==='apartment'?'metal':'wood';
+    const infill=lot.tier==='mansion'?'metal':finish;
+    const fenceRun=(axis,fixed,start,end,key)=>{
+      const len=end-start,middle=(start+end)/2,vertical=axis==='z';
+      const dim=(length,thickness)=>vertical?[thickness,length]:[length,thickness];
+      for(const [row,height]of [['upper',fenceH-.18],['lower',.42]]){
+        const [w,d]=dim(len,.105);
+        p(id,key+'-rail-'+row,vertical?fixed:middle,height,vertical?middle:fixed,w,.095,d,infill);
+      }
+      // Open slats and separate structural uprights make the fence read as
+      // construction, not a continuous concrete privacy wall.
+      const slats=Math.max(1,Math.floor(len/.49));
+      for(let i=1;i<slats;i++){
+        const at=start+len*i/slats,[w,d]=dim(.115,.115);
+        p(id,key+'-slat-'+i,vertical?fixed:at,.055+fenceH*.47,vertical?at:fixed,w,fenceH*.94,d,infill);
+      }
+      const posts=Math.max(1,Math.ceil(len/2.45));
+      for(let i=0;i<=posts;i++){
+        const at=start+len*i/posts,[w,d]=dim(.2,.2);
+        p(id,key+'-post-'+i,vertical?fixed:at,.05+fenceH/2,vertical?at:fixed,w,fenceH,d,finish);
+        p(id,key+'-post-cap-'+i,vertical?fixed:at,.07+fenceH,vertical?at:fixed,w+.06,.1,d+.06,finish);
+      }
+    };
+    for(const side of [-1,1])fenceRun('z',side*x,-z,z,'side-'+side);
+    fenceRun('x',-z,-x,x,'rear');
+    const gateLeft=clamp(doorX-1.65,-x+1,x-1);
+    const gateRight=clamp(doorX+1.65,-x+1,x-1);
+    fenceRun('x',z,-x,gateLeft,'front-left');
+    fenceRun('x',z,gateRight,x,'front-right');
+    // Visually distinct gate piers retain a clear >=3.3m walk-through gap.
+    for(const [i,gx]of [gateLeft,gateRight].entries()){
+      p(id,'gate-pier-'+i,gx,.08+(fenceH+.12)/2,z,.3,fenceH+.12,.3,finish);
+      p(id,'gate-cap-'+i,gx,fenceH+.21,z,.37,.12,.37,'brass');
+    }
+    break;
    }
    case 'fire-pit':{
     const x=sideX,z=1.6;
     p(id,'paving',x,.07,z,2.35,.12,2.25,'stone');
     p(id,'hearth',x,.29,z,1.4,.38,1.3,lot.tier==='mansion'?'slate':'stone');
     p(id,'ash-grate',x,.48,z,.88,.07,.8,'metal');
-    p(id,'embers',x,.52,z,.43,.06,.38,'red');break;
+    p(id,'embers',x,.52,z,.43,.06,.38,'red');
+    // Small firebrick courses and cross-stacked logs give the hearth recognizable
+    // scale without adding emitters or gameplay fire to a decorative purchase.
+    for(const side of [-1,1]){
+      p(id,'hearth-coping-x-'+side,x+side*.62,.52,z,.15,.12,1.38,'brass');
+      p(id,'hearth-coping-z-'+side,x,.52,z+side*.57,1.18,.12,.12,'stone');
+      p(id,'log-'+side,x+side*.16,.62,z,.12,.11,.65,'wood');
+    }
+    break;
    }
    case 'game-lounge':{
     p(id,'arcade-entrance-badge',Math.min(W/2-.85,doorX+2.0),2.05,front+.17,.78,.42,.13,'slate','attached');
@@ -98,7 +145,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     p(id,'stone-rim-right',x+1.17,.26,z,.15,.24,2.32,'stone');
     p(id,'stone-rim-front',x,.26,z+1.05,2.48,.24,.15,'stone');
     p(id,'stone-rim-rear',x,.26,z-1.05,2.48,.24,.15,'stone');
-    p(id,'pond-water',x,.22,z,2.13,.035,1.91,'water');break;
+    p(id,'pond-water',x,.22,z,2.13,.035,1.91,'water','yard','cylinder');break;
    }
    case 'reinforced-floor':{
     const x=sideX,z=-4.2;
@@ -122,7 +169,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
      const x=Math.min(W/2-.67,5.4),z=Math.min(D/2-1,3.7);
      for(const side of [-1,1]){
       p(id,'flat-roof-box-'+side,side*x,top+.52,z,1.02,.55,1.25,'wood','roof');
-      p(id,'flat-roof-foliage-'+side,side*x,top+.95,z,.77,.42,.93,'green','roof');
+      p(id,'flat-roof-foliage-'+side,side*x,top+.95,z,.77,.42,.93,'green','roof','sphere');
       p(id,'parapet-rail-'+side,side*x,top+1.06,z+1,.14,1.1,.14,'metal','roof');
      }
     }else{
@@ -134,7 +181,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
       p(id,'terrace-post-'+sx+'-'+sz,x+sx*.94,1.35,z+sz*.8,.13,2.25,.13,'wood');
      p(id,'terrace-crossbar',x,2.46,z,2.14,.13,1.77,'wood');
      p(id,'terrace-planter',x,.66,z,1.5,.42,1,'earth');
-     p(id,'terrace-foliage',x,1.07,z,1.27,.36,.78,'green');
+     p(id,'terrace-foliage',x,1.07,z,1.27,.36,.78,'green','yard','sphere');
     }break;
    }
    case 'hidden-hatch':{
@@ -160,7 +207,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
    case 'underground-bunker':{
     const x=sideX,z=-4.2;
     p(id,'hatch-armored-lid',x,.44,z,1.86,.22,1.95,'slate');
-    p(id,'hatch-access-light',x+.72,.67,z+.65,.24,.23,.22,'warm');
+    p(id,'hatch-access-light',x+.72,.67,z+.65,.24,.23,.22,'warm','yard','cylinder');
     p(id,'air-intake-riser',x,.69,z-1.4,.52,1.2,.5,'metal');
     p(id,'riser-cap',x,1.37,z-1.4,.7,.2,.62,'slate');
     break;
@@ -169,7 +216,7 @@ export function estateUpgradeExteriorParts(lot,unlockedIds=[]){
     const x=sideX,z=-6.75;
     p(id,'utility-housing',x,.54,z,1.1,1.03,.77,'metal');
     p(id,'utility-grille',x,.64,z+.4,.75,.6,.08,'slate');
-    p(id,'service-beacon',x,1.13,z,.18,.14,.2,'warm');
+    p(id,'service-beacon',x,1.13,z,.18,.14,.2,'warm','yard','cylinder');
     break;
    }
   }

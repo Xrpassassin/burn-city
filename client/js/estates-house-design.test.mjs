@@ -10,8 +10,12 @@ const catalog=JSON.parse(await readFile(new URL('../data/estate-catalog.json',im
 const manifest=buildEstatesIslandScene({catalog}),lots=manifest.lots.filter(x=>x.buildingFootprint);
 const parent=new THREE.Group(),records=renderEstateHouses(THREE,parent,lots);
 assert.equal(records.size,lots.length);
-assert(parent.children.length<=Object.keys(HOUSE_MATERIALS).length,'neighbourhood shares one draw call per material');
+assert(parent.children.length<=Object.keys(HOUSE_MATERIALS).length+3,'neighbourhood batches by material and only three lightweight geometry types');
 assert(parent.children.every(x=>x.isInstancedMesh));
+assert(parent.children.some(x=>x.name==='estates-houses-leaf-sphere'),'landscape uses curved vegetation geometry');
+assert(parent.children.some(x=>x.name==='estates-houses-stone-cylinder'),'mansion entrance has real round columns');
+const textured=parent.children.find(x=>x.name==='estates-houses-plaster-box');
+assert(textured?.material.map?.image?.data?.length===64*64*4,'masonry has a tiny self-contained procedural material texture');
 const signatures=new Set();
 for(let level=0;level<=5;level++) for(const original of lots) {
  const lot={...original,prestigeLevel:level};
@@ -34,10 +38,15 @@ const architecture=view.root.children.find(x=>x.name==='estates-property-archite
 let disposedOld=0;before.forEach(m=>m.geometry.addEventListener('dispose',()=>disposedOld++));
 assert(view.setAppearance(lots.map(l=>({propertyId:l.propertyId,level:5}))));
 assert.equal(disposedOld,before.length,'a stage refresh releases the replaced geometry');
-assert(architecture.children.length<=Object.keys(HOUSE_MATERIALS).length);
+assert(architecture.children.length<=Object.keys(HOUSE_MATERIALS).length+3);
 assert.equal(view.setAppearance(lots.map(l=>({propertyId:l.propertyId,level:5}))),false,'unchanged server state skips rebuilding');
 assert(view.setAppearance([{propertyId:lots[0].propertyId,level:100}]));
 assert.equal(view.setAppearance([]),false,'invalid stages fall back to original architecture');
 for(const mesh of parent.children){assert(mesh.boundingSphere&&Number.isFinite(mesh.boundingSphere.radius));}
+const oldTexture=architecture.children.find(x=>x.material.map)?.material.map;
+assert(oldTexture&&oldTexture.isDataTexture,'architectural surfaces have physically shaded texture breakup');
+let disposedTexture=0;oldTexture.addEventListener('dispose',()=>disposedTexture++);
+assert(view.setAppearance(lots.map(l=>({propertyId:l.propertyId,level:4}))));
+assert.equal(disposedTexture,1,'changing appearance releases old GPU material texture');
 assert.equal(view.dispose(),true);assert.equal(view.dispose(),false);
 console.log('Estate house architecture: footprint, tier, instancing, and real Three.js renderer checks passed');

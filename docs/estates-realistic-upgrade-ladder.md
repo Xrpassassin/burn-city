@@ -2,6 +2,13 @@
 
 Design status: approved direction, **implementation staged**. This document distinguishes the existing 18 ledger-backed Tycoon item IDs from future concepts. No new XRP payment products are activated by this design. Do not alter previous receipts or enable the `ESTATE_TYCOON_UPGRADES_ENABLED` flag as part of a visual-only change.
 
+
+## Visual fidelity pass — measured slatted fences and supported fixtures
+
+**Implementation branch (November 10, 2026; pending review):** The existing 18 upgrade prices and payout policy remain unchanged. Exterior details still use an original procedural renderer, but the next step replaces the unconvincing opaque privacy-fence slabs with spaced slats, two horizontal rails, capped posts and masonry/metal/timber finishes selected by property tier. The physical gate opening is centered on each tier's actual doorway, rather than an unrelated world-center gap. Porch-light purchases gain a stone-paver entry approach, enclosed sconces and capped cylindrical path lights. Fire pits gain visible coping and logs; flowers, foliage, water and beacons use curved primitive geometry where the host Three.js supports it. The production renderer batches these details by geometry type and material; lightweight/test renderers retain measured boxes as a fallback.
+
+All new geometry derives from verified upgrade IDs and stays within the reserved 20 × 18 m plot. The preview layer remains visibly separate from settled ownership. Regression tests assert the non-solid fence construction, doorway clearance, material tier, round fixtures, lot setbacks and roof/helipad separation. No new purchasable SKU, payment flag, reward unit, server endpoint or property price is introduced. **Still to verify before merging:** gameplay-scale material readability and frame rate on real iPhone Safari and desktop browser, especially on fully decorated lots. No imported PBR textures or third-party models are claimed.
+
 ## The rule for every estate
 
 Every purchase must produce an **identifiable permanent change**: an exterior fixture, realistic structural/detail improvement, or an authenticated enterable interior. Use measured lot-local dimensions, appropriate supporting structures, plausible material finishes, anchored paths and clear sightlines. Buildings must remain in their assigned **20 × 18 metre lot** and may never obstruct the public roadway, neighboring property, or usable entrance. Purchases are attached to the property on resale.

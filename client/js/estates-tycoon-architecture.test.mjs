@@ -28,11 +28,30 @@ for(const [tier,buildingFootprint]of Object.entries(footprints)){
   }
  }
  assert(names.some(n=>n.startsWith('cozy-awning-veranda-post-')),tier+' veranda requires supporting posts');
- const fence=parts.find(p=>p.name==='privacy-fence-side-rail--1');
- assert.equal(fence.mat,tier==='mansion'?'stone':tier==='apartment'?'metal':'wood',
-  tier+' fence must have appropriate architectural material');
- assert.equal(fence.h,tier==='mansion'?1.82:tier==='family'?1.6:1.3,
-  tier+' fence must use tier-appropriate height');
+ const fenceH=tier==='mansion'?1.82:tier==='family'?1.6:1.3;
+ const fence=parts.find(p=>p.name==='privacy-fence-side--1-rail-upper');
+ assert(fence&&fence.h<.12,'fence must be a slim real crossrail, never a solid wall');
+ assert.equal(fence.mat,tier==='mansion'?'metal':tier==='apartment'?'metal':'wood',
+  tier+' privacy panels use plausible timber/metal infill');
+ const fencePost=parts.find(p=>p.name==='privacy-fence-side--1-post-0');
+ assert.equal(fencePost.mat,tier==='mansion'?'stone':tier==='apartment'?'metal':'wood');
+ assert.equal(fencePost.h,fenceH,tier+' fence posts reach their authored height');
+ assert(parts.filter(p=>p.name.startsWith('privacy-fence-side--1-slat-')).length>=16,
+  'boundary must read as separate slats with daylight instead of a solid slab');
+ const doorX=tier==='apartment'?0:-(buildingFootprint.width-.6)*.24;
+ const left=parts.find(p=>p.name==='privacy-fence-front-left-rail-upper');
+ const right=parts.find(p=>p.name==='privacy-fence-front-right-rail-upper');
+ assert(left&&right&&left.x+left.w/2<=doorX-1.64,
+  'left front rail stays clear of the actual tier-specific entrance');
+ assert(right.x-right.w/2>=doorX+1.64,
+  'right front rail stays clear of the actual tier-specific entrance');
+ const pavers=parts.filter(p=>p.name.startsWith('porch-lights-entry-paver-'));
+ assert(pavers.length>=2,'paid porch lighting includes an actual stone pedestrian approach');
+ assert(pavers.every(p=>Math.abs(p.x-doorX)<eps),'approach must align with entry door');
+ assert(parts.some(p=>p.shape==='sphere'&&p.name.startsWith('flower-garden-flower-bloom-')),
+  'garden blossoms use curved meshes where the renderer supports them');
+ assert(parts.some(p=>p.shape==='cylinder'&&p.name.startsWith('porch-lights-path-light-')),
+  'bollard lenses have rounded form instead of box-only lights');
  // Boundary fences and the busiest yard features must never share the same
  // physical ground footprint (all are present after a fully upgraded purchase).
  const fenceParts=parts.filter(p=>p.id==='privacy-fence');
@@ -75,4 +94,4 @@ for(const [tier,buildingFootprint]of Object.entries(footprints)){
 }
 assert.throws(()=>estateUpgradeExteriorParts({buildingFootprint:{width:15,depth:16,height:5},dimensions:{width:20,depth:18}},all),/footprint/);
 assert.throws(()=>estateUpgradeExteriorParts({buildingFootprint:{width:6,depth:5,height:3}},'invalid'),/upgrade_ids_required/);
-console.log('Realistic Estates architecture: five tiers, all 17 exterior items, lot/house clearance, roof supports and no helicopter clash passed');
+console.log('Realistic Estates architecture: five tiers, 17 exterior items, door-aligned slatted fences, rounded details and roof clearance passed');

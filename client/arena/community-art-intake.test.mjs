@@ -107,7 +107,8 @@ assert(Math.abs(replacedBounds.min.y)<.01,
 const fakeStreet=new THREE.Group();
 for(const [i,name] of ['Big Bin Body','Red Trash Can','Wood Bench','Concrete Barrier','Street Light','Bag 1'].entries()){
  const part=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial());
- part.name=name;part.position.set(25+i*4,4,-17-i*2);fakeStreet.add(part);
+ part.name=name.replaceAll(' ','_');part.userData.name=name; // GLTFLoader's name sanitization behavior
+ part.position.set(25+i*4,4,-17-i*2);fakeStreet.add(part);
 }
 const fakeStreetSpec={...communityArtById('street-props-pack')};
 const fakeStreetLoader={loadAsync(url){

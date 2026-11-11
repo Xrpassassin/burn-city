@@ -22,6 +22,7 @@ let interactions=0;
 const renderer=createEstatesIslandRenderer({THREE,scene,manifest,onInteract:()=>interactions++});
 assert.equal(scene.children.length,1);
 assert.equal(renderer.objectCount,9,'renderer registers every manifest object, including each blockout type');
+assert.equal(renderer.neighborhood.fixtureCount,0,'legacy manifests without furniture render safely');
 assert(renderer.getObject('welcome-kiosk').length>=6,'public kiosk renders a counter, posts, roof, and sign as separate meshes');
 assert.ok(renderer.getObject('lot').length>=3);
 assert.deepEqual(renderer.getObject('road-x')[0].geometry.args,[40,.2,3],'X-oriented road must put length on X and width on Z');

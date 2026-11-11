@@ -89,7 +89,10 @@ export async function createZombieModelPilot(scene, options = {}) {
     if(!Number.isFinite(height)||height<.3||height>20)
       throw Error(definition.file+': invalid skinned animated bounds '+height);
     const width=bounds.max.x-bounds.min.x,depth=bounds.max.z-bounds.min.z;
-    if(!Number.isFinite(width)||!Number.isFinite(depth)||width>height*2.4||depth>height*2.4)
+    // A blob can spread wider than an upright humanoid, but bounding boxes
+    // must still be finite and plausibly sized after an actual animation pose.
+    const maxAspect=definition.id==='living-flesh-blob'?6:2.4;
+    if(!Number.isFinite(width)||!Number.isFinite(depth)||width>height*maxAspect||depth>height*maxAspect)
       throw Error(definition.file+': malformed animated anatomy');
     return {gltf,clips,id:definition.id,definition,minY:bounds.min.y,
       scale:zombieSpecialModelHeight(definition,targetHeight)/height,poseHeight:height};

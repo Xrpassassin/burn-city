@@ -2,7 +2,7 @@
 
 The BURN City game uses locally bundled, license-verified GLB assets, not Sketchfab embed scripts or temporary CDN URLs.
 
-**This folder currently contains no imported third-party model binaries.** All six entries in `../../community-art-intake.mjs` are intentionally `installed:false`. Game appearance remains exactly as shipped until verified assets are submitted. Never flip `installed:true` or claim a model is deployed without its actual audited GLB and sha256.
+**One approved model binary is now bundled:** `homefront-street-props.glb` from MadeByYeshe/CrazyDrPants. Its 9,826,272 bytes, 20,667 triangles, 56 mesh nodes, 38 materials, SHA-256 `30b97656624cb6596495b7aa343f87c42c01124717cdb0975fdde0fcf7edf332`, and mesh names were independently recorded from the official free itch.io download in `street-props-acquisition.json`. Its record is `installed:true`, so the optional Homefront street-dressing adapter can render the six verified submesh families. The other **five** entries in `../../community-art-intake.mjs` remain `installed:false`. Never flip another entry or claim a model is deployed without its audited GLB, animation inspection where applicable, and SHA-256.
 
 ## Assets approved for examination (November 11, 2026)
 
@@ -19,7 +19,7 @@ Attribution in redistributions must retain creator, title, license link (https:/
 
 ## File acquisition — only official channels
 
-1. The street pack has an official free/name-your-price itch.io download, including a 9.3 MB combined GLB. Use the site's standard public download link. The ephemeral Cloudflare signed URL expires quickly; do **not** paste it into the game.
+1. The street pack was obtained through the original creator's official free/name-your-price itch.io download, which provides a 9.3 MiB combined GLB. Its 9,826,272-byte vetted archive and `street-props-acquisition.json` are in this folder. The original file names include `Big Bin Body`, `Red Trash Can`, `Wood Bench`, `Concrete Barrier`, `Street Light`, and `Bag 1` (not the generic names in the original intake proposal). The ephemeral Cloudflare signed URL expires quickly and is **never** pasted into the game.
 2. The survivor creator provides FBX on [itch.io](https://codersan.itch.io/zombie-apocalypse-survivor-male-3d); Sketchfab lists CC BY for this creator's model. Download the creator's FBX archive using official sources and inspect animation clips — the third-person Unity controller may contain separate animation dependencies.
 3. Sketchfab CC BY listings support authenticated downloads. Use the official Sketchfab login/Download API. Do not use developer console caches, ripped viewer assets, bypass scripts, or unknown mirrors.
 4. Convert permitted FBX to glTF 2.0 binary with Blender. Preserve skinning, UV maps, roughness/normal maps, clip names, and native scale; export with embedded texture images.
@@ -33,4 +33,4 @@ Attribution in redistributions must retain creator, title, license link (https:/
 ### Homefront isolation
 `homefront-community-art.mjs` can substitute only the existing visual structure at a road checkpoint or freight depot, instance named objects within the 37-item street pack along preauthored shoulder locations, and add a temporary male-survivor rig onto the present third-person explorer. The original animated walker remains as a safe fallback, and the renderer continues to obey server-owned movement and interaction state. NFT-specific character models remain separate; do not stretch Firekeeper/589 art onto an inaccurate generic human skeleton.
 
-This intake **does not by itself import, spawn, or guarantee** the selected external GLBs. Only a future commit with actual licensed binaries and passing visual QA will make their art visible.
+This intake now includes and enables the **street-props GLB**; it does **not** include or render the other five third-party model files. Real-browser visual QA and release checks remain mandatory before merge.

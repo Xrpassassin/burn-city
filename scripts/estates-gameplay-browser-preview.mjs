@@ -31,6 +31,8 @@ try{
    const THREE=await import('three');
    const {renderEstateHouses,estateHouseParts}=await import('./js/estates-house-design.mjs');
    const {createEstateTycoonDecor}=await import('./js/estates-tycoon-decor.mjs');
+   const {createEstateNeighborhoodDecor}=await import('./js/estates-neighborhood-renderer.mjs');
+   const {buildEstateNeighborhoodFurniture}=await import('./js/estates-neighborhood-data.mjs');
    const {ESTATE_EXTERIOR_ITEM_IDS}=await import('./js/estates-tycoon-architecture.mjs');
    const {createEstateHelicopterWorld}=await import('./js/estates-helicopter-world.mjs');
    const {createEstatesSecretInteriorRenderer}=await import('./js/estates-secret-interior-renderer.mjs');
@@ -81,6 +83,8 @@ try{
     walk.position.set(lot.position.x,.09,5.6);root.add(walk);
    }
    renderEstateHouses(THREE,root,lots);
+   const neighborhood=createEstateNeighborhoodDecor({THREE,parent:root,manifest:{streetFurniture:buildEstateNeighborhoodFurniture(lots)}});
+   if(neighborhood.drawBatches>18||neighborhood.fixtureCount<20)throw Error('neighborhood_fixture_render_contract');
    const decor=createEstateTycoonDecor({THREE,parent:root,lots});
    decor.setUpgrades(lots.map(l=>({propertyId:l.propertyId,unlockedItemIds:ESTATE_EXTERIOR_ITEM_IDS})));
    const heli=createEstateHelicopterWorld({THREE,parent:root,lots});
@@ -99,10 +103,12 @@ try{
    return {ready:!!window.__ready,glVersion:renderer.getContext().getParameter(renderer.getContext().VERSION),
     lotCount:lots.length,upgrades:ESTATE_EXTERIOR_ITEM_IDS.length,
      architecturalStyles:styleCoverage.size,exteriorPalettes:colorCoverage.size,
-    helicopterLots:heli.properties,props:visualParts,verifiedDrawBatches:drawBatches,
+    helicopterLots:heli.properties,props:visualParts,verifiedDrawBatches:drawBatches,neighborhoodParts:neighborhood.partCount,neighborhoodDrawBatches:neighborhood.drawBatches,
     renderedDrawCalls:renderer.info.render.calls};
   });
   assert.equal(setup.lotCount,5);
+   assert(setup.neighborhoodParts>=140);
+   assert(setup.neighborhoodDrawBatches<=18);
    assert.equal(setup.architecturalStyles,3);
    assert.equal(setup.exteriorPalettes,4);
   assert.equal(setup.upgrades,17);

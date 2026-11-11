@@ -11,6 +11,7 @@ import { addPineCrossingScenery, buildPineFacade } from './homefront-pine-scener
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { atmosphereAt, AMBIENT_UPDATE_MS } from './homefront-atmosphere.mjs';
 import { groundDetailCandidates } from './homefront-ground-detail.mjs';
+import { createHomefrontTuftGeometry, createHomefrontRubbleGeometry } from './homefront-ground-meshes.mjs';
 import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
 import { explorationGuidance } from './homefront-exploration-guidance.mjs';
 import { buildLandmarkSetPiece } from './homefront-landmark-builder.mjs';
@@ -444,10 +445,12 @@ function boot(host) {
   };
   // Thousands of tiny scenic details are batched into two draw calls per visible chunk.
   // They have no collision or gameplay authority and are culled with their parent chunk.
-  const microRockGeometry = new THREE.DodecahedronGeometry(0.28, 0);
-  const microTuftGeometry = new THREE.ConeGeometry(0.12, 0.62, 4);
+  const microRockGeometry = createHomefrontRubbleGeometry(THREE);
+  const microTuftGeometry = createHomefrontTuftGeometry(THREE);
   const microRockMaterial = mat(0x77756a);
-  const microTuftMaterial = mat(0x596348);
+  const microTuftMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff, vertexColors: true, roughness: 1, side: THREE.DoubleSide
+  });
   const microTemp = new THREE.Object3D();
   function addGroundDetailInstances(parent, cx, cz) {
     const candidates = groundDetailCandidates(cx, cz, { count: 52 });
@@ -458,7 +461,7 @@ function boot(host) {
       mesh.name = 'ground-detail-' + kind + '-' + cx + ',' + cz;
       mesh.frustumCulled = true;
       items.forEach((item, index) => {
-        microTemp.position.set(item.x, item.y + (kind === 'rock' ? 0.12 : 0.29 * item.scale), item.z);
+        microTemp.position.set(item.x, item.y + (kind === 'rock' ? 0.12 : 0.015), item.z);
         microTemp.rotation.set(kind === 'rock' ? item.rotation * 0.35 : 0, item.rotation, kind === 'rock' ? item.rotation * 0.7 : (item.rotation % 0.4) - 0.2);
         microTemp.scale.setScalar(item.scale);
         microTemp.updateMatrix();

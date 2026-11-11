@@ -41,6 +41,11 @@ const streetDocument=JSON.parse(streetBytes.toString('utf8',20,20+streetJsonLeng
 const streetNodes=streetDocument.nodes.map(n=>n.name||'').filter(Boolean);
 assert.equal(streetDocument.meshes.length,56,'real street pack GLB contains 56 individually named mesh primitives');
 assert.equal(streetDocument.materials.length,38,'original creator PBR material diversity is retained');
+for(const image of streetDocument.images||[])
+ assert(Number.isInteger(image.bufferView)||String(image.uri||'').startsWith('data:'),
+   'creator GLB must bundle every texture rather than silently 404 on remote/relative image URLs');
+for(const primitive of streetDocument.meshes.flatMap(m=>m.primitives||[]))
+ assert(primitive.attributes?.POSITION!==undefined,'all imported street props must have position geometry');
 assert.deepEqual(streetNodes,streetManifest.names,'author-provided names are checked against the real binary rather than trusted from a JSON record');
 const streetKinds=[...new Set(HOMEFRONT_COMMUNITY_PROP_SITES.map(x=>x.kind))];
 assert.equal(streetKinds.length,6,'six distinct street prop families are authored');

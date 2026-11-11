@@ -42,7 +42,13 @@ try{
     fades=gold.geometry.getAttribute('gFade')?.array;
    const shares=[...new Set(Array.from(values).map(x=>Math.round(x*1000)/1000))];
    return {goldSegments:window.__ammGold.segments,goldType:gold.type,shareValues:shares,
-    goldVeins:window.__swirl.veins?.length,spirals:window.__swirl.n,lockDraws:window.__ammLock.draws(),
+    goldVeins:window.__swirl.veins?.length,spirals:window.__swirl.n,
+    expectedSpirals:window.__swirl.expected,missingSpirals:window.__swirl.missing,
+    poolCount:window.__city?.bridges?.length,
+    minorPools:window.__city?.bridges?.filter(b=>b.minor)?.length,
+    minorSpirals:window.__swirl.minor,
+    towerCounts:window.__swirl.perTower,
+    lockDraws:window.__ammLock.draws(),
     tailFade:fades?{min:Math.min(...fades),max:Math.max(...fades)}:null,
     ringFree:window.__ammLock.objs?.every(m=>m.geometry?.type!=='TorusGeometry')??false,
     bodyColor:window.__swirl.paths?.[0]?.b?.actCol?.getHexString?.(),
@@ -51,6 +57,12 @@ try{
     tutorialSkipVisible:[...document.querySelectorAll('button')].some(x=>x.textContent?.trim()==='Skip'&&x.getBoundingClientRect().width>0)};
   });
   assert(state.spirals>0,'actual tower spirals must exist');
+  assert.equal(state.missingSpirals,0,'NO pool may be dropped at either endpoint');
+  assert.equal(state.spirals,state.expectedSpirals,'every AMM must wrap both of its towers');
+  assert.equal(state.spirals,state.poolCount*2,'every currently visualized pool has both endpoints');
+  assert.equal(state.minorSpirals,state.minorPools*2,'minor AMM pools must also wrap both towers');
+  assert(Object.entries(state.towerCounts).every(([,c])=>c.expected===c.actual),
+    'busy towers must not silently cap their spiral count');
   assert(state.goldSegments>=state.spirals,'continuous gold tubes include rail + tower sections');
   assert(state.shareValues.some(x=>x>.8),'verified 90.5% / 100% lock fixtures create a substantial solid core');
   assert(state.shareValues.includes(0),'unverified and zero-lock pools have zero gold');
@@ -79,7 +91,26 @@ try{
   assert(junction?.lockedShare>.8,'must be able to focus the verified-gold tower joint');
   await page.waitForTimeout(500);
   await page.screenshot({path:output+'/'+process.env.AMM_BROWSER+'-'+v.name+'-tower-closeup.png',fullPage:false});
-  facts.push({viewport:v.name,...state,closeup:junction});
+  // The highest-degree tower is the regression target for the old 3/6 cap.
+  const busy=await page.evaluate(()=>{
+    const city=window.__city,all=window.__swirl.paths||[];
+    const entries=Object.entries(window.__swirl.perTower).sort((a,b)=>b[1].expected-a[1].expected);
+    const [name,tally]=entries[0]||[],tower=city.N[name];
+    if(!tower)return null;
+    const paths=all.filter(P=>name===(P.end?P.b.p.b:P.b.p.a));
+    const target=paths[0]?.cv?.getPointAt(.28);
+    const focus=target?target.clone():tower.pos.clone().setY(tower.h*.5);
+    city.orbit.autoRotate=false;city.orbit.enableDamping=false;
+    city.orbit.target.copy(focus);
+    city.C.position.set(focus.x+32,focus.y+18,focus.z+28);
+    city.orbit.update();
+    return {tower:name,expected:tally.expected,actual:paths.length};
+  });
+  assert(busy?.expected>6,'fixture must exercise a tower that exceeds the former six-spiral cap');
+  assert.equal(busy.actual,busy.expected);
+  await page.waitForTimeout(400);
+  await page.screenshot({path:output+'/'+process.env.AMM_BROWSER+'-'+v.name+'-crowded-tower.png',fullPage:false});
+  facts.push({viewport:v.name,...state,closeup:junction,busy});
   await context.close();
  }
  assert.equal(issues.length,0,'no WebGL shader compilation errors');

@@ -840,6 +840,9 @@ export async function installEstatesIslandLive({
     if(!secretSession)return true;
     hideCityScene();
     if(currentWalletToken()!==secretSession.token){leaveSecretInterior();return true;}
+    // While furnishing, pointer and movement input belong to the design grid,
+    // not outdoor walking or nearby interactive prompts.
+    if(homeEditorActive)return true;
     if(!secretRecheckBusy&&Date.now()-secretRecheckAt>30000){
       secretRecheckBusy=true;secretRecheckAt=Date.now();
       const previous=secretSession;

@@ -2,8 +2,6 @@
 // NOT a model downloader. No external URLs, collision, saves, network state,
 // payment logic or NPC AI. Existing visuals stay visible until a checked GLB loads.
 import * as THREE from './vendor/three.module.min.js';
-import {GLTFLoader} from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
-import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 import {enabledCommunityArt} from './community-art-intake.mjs';
 
 const ROADSIDES=Object.freeze([
@@ -52,8 +50,8 @@ export function homefrontAssetQuality(gltf,spec){
   return {valid:false,reason:'invalid_bounds',triangles};
  return {valid:true,triangles,skinned,clips:clips.map(a=>a.name),size};
 }
-function fitToBox(source,{width=2,height=2.5,depth=2}={}){
- const model=SkeletonUtils.clone(source);
+function fitToBox(source,{width=2,height=2.5,depth=2}={},cloneModel=object=>object.clone(true)){
+ const model=cloneModel(source);
  const bounds=new THREE.Box3().setFromObject(model,true);
  const size=bounds.getSize(new THREE.Vector3());
  if(!size.x||!size.y||!size.z)return null;
@@ -84,7 +82,8 @@ function chooseProp(gltf,kind){
 }
 export function createHomefrontCommunityArt({
  specs=enabledCommunityArt('homefront'),
- loader=new GLTFLoader(),
+ loader=null,
+ cloneModel=null,
  mobile=false
 }={}){
  const models=new Map(),actors=new Set();
@@ -92,6 +91,9 @@ export function createHomefrontCommunityArt({
  async function load(){
   if(loaded)return models;
   loaded=true;
+  if(!specs.length)return models; // No browser-only imports or downloads on test runners.
+  if(!loader){const {GLTFLoader}=await import('../vendor/three/examples/jsm/loaders/GLTFLoader.js');loader=new GLTFLoader();}
+  if(!cloneModel){const util=await import('../vendor/three/examples/jsm/utils/SkeletonUtils.js');cloneModel=util.clone;}
   await Promise.all(specs.map(async spec=>{
    try{
     const url=new URL('./assets/community/'+spec.file,import.meta.url).href;
@@ -113,7 +115,7 @@ export function createHomefrontCommunityArt({
    const site=landmarks.find(p=>p.archetype===target.archetype);
    const base=site&&landmarkSetPieces.get(site.id);
    if(!base)continue;
-   const visual=fitToBox(asset.gltf.scene,target);
+   const visual=fitToBox(asset.gltf.scene,target,cloneModel);
    if(!visual)continue;
    // Keep the original POI, marker and streaming group as authoritative.
    for(const old of base.children)old.visible=false;
@@ -129,7 +131,7 @@ export function createHomefrontCommunityArt({
     const node=chooseProp(pack.gltf,site.kind);
     if(!node)continue;
     const visual=fitToBox(node,{width:site.kind==='streetlight'?0.8:1.5,
-     height:site.kind==='streetlight'?4.3:1.7,depth:site.kind==='bench'?1.7:1.4});
+     height:site.kind==='streetlight'?4.3:1.7,depth:site.kind==='bench'?1.7:1.4},cloneModel);
     if(!visual)continue;
     visual.group.position.set(site.x,terrainElevation(site.x,site.z),site.z);
     visual.group.name='homefront-vendored-street-'+site.kind;
@@ -142,7 +144,7 @@ export function createHomefrontCommunityArt({
  function decorateExplorer(group,walker,{isLocal=false}={}){
   const asset=models.get('homefront-male-survivor');
   if(!asset||(mobile&&!isLocal)||actors.size>=8)return false;
-  const fitted=fitToBox(asset.gltf.scene,{width:1.5,height:2.85,depth:1.3});
+  const fitted=fitToBox(asset.gltf.scene,{width:1.5,height:2.85,depth:1.3},cloneModel);
   if(!fitted)return false;
   fitted.group.rotation.y=Math.PI;
   fitted.group.name='homefront-licensed-survivor';

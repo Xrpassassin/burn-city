@@ -31,6 +31,24 @@ for(let level=0;level<=5;level++) for(const original of lots) {
   assert([p.x,p.y,p.z,p.width,p.height,p.depth].every(Number.isFinite));
  }
 }
+// All architecture choices keep their realistic collision envelope on each
+// tier. The free selector changes real geometry, not only a CSS color label.
+for(const tier of new Set(lots.map(x=>x.tier))){
+ const lot=lots.find(x=>x.tier===tier);
+ const variants=['classic','modern','rustic'].map(architecture=>estateHouseParts({...lot,architecture}));
+ const keys=variants.map(parts=>parts.filter(p=>p.name.startsWith('modern-')||p.name.startsWith('rustic-')||p.name.startsWith('classic-')).map(p=>p.name).join('|'));
+ assert.equal(new Set(keys).size,3,tier+' free architecture options have visibly different built elements');
+ for(const parts of variants)for(const p of parts){
+  const halfX=(Math.abs(Math.cos(p.rz))*p.width+Math.abs(Math.sin(p.rz))*p.height)/2;
+  assert(Math.abs(p.x)+halfX<=lot.buildingFootprint.width/2+.001,tier+' '+p.name+' may not cross building width');
+  assert(Math.abs(p.z)+p.depth/2<=lot.buildingFootprint.depth/2+.001,tier+' '+p.name+' may not cross building depth');
+ }
+}
+const colored=new THREE.Group();
+renderEstateHouses(THREE,colored,lots.slice(0,4).map((lot,i)=>({...lot,palette:['original','coastal','forest','charcoal'][i]})));
+assert(colored.children.some(x=>x.name.includes('-coastal')),'coastal houses have distinct material batches');
+assert(colored.children.some(x=>x.name.includes('-forest')),'forest houses have distinct material batches');
+assert(colored.children.some(x=>x.name.includes('-charcoal')),'charcoal houses have distinct material batches');
 assert.equal(signatures.size,5,'all five tiers have a distinct design');
 const scene=new THREE.Scene(),view=createEstatesIslandRenderer({THREE,scene,manifest});
 view.root.updateMatrixWorld(true);
@@ -40,6 +58,7 @@ assert(view.setAppearance(lots.map(l=>({propertyId:l.propertyId,level:5}))));
 assert.equal(disposedOld,before.length,'a stage refresh releases the replaced geometry');
 assert(architecture.children.length<=Object.keys(HOUSE_MATERIALS).length+3);
 assert.equal(view.setAppearance(lots.map(l=>({propertyId:l.propertyId,level:5}))),false,'unchanged server state skips rebuilding');
+assert(view.setAppearance(lots.map((l,i)=>({propertyId:l.propertyId,level:5,architecture:i%2?'modern':'rustic',palette:i%2?'forest':'charcoal'}))),'free styles can rebuild real house geometry even when prestige levels are unchanged');
 assert(view.setAppearance([{propertyId:lots[0].propertyId,level:100}]));
 assert.equal(view.setAppearance([]),false,'invalid stages fall back to original architecture');
 for(const mesh of parent.children){assert(mesh.boundingSphere&&Number.isFinite(mesh.boundingSphere.radius));}

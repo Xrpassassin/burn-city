@@ -1,4 +1,5 @@
 import {buildEstatesLakeFishingSpots} from './estates-lake-fishing.mjs';
+import {buildEstateNeighborhoodFurniture} from './estates-neighborhood-data.mjs';
 // Renderer-agnostic 3D scene manifest for the shared Estates island.
 // A renderer converts descriptors to engine-specific meshes, colliders, and materials.
 const DISTRICTS = [
@@ -103,7 +104,8 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
       {width:7,length:13,height:0.4},'timber',
       {orientation:Math.abs(spot.position.x)>Math.abs(spot.position.z)?'x':'z',
        fishingSpotId:spot.id,shore:spot.shore,access:spot.access,walkable:true,boatsEnabled:false}));
-  const objects=[...terrain,...roads,...access,...fishingAccess,...lots,...vegetation,...landmarks];
+  const streetFurniture=buildEstateNeighborhoodFurniture(lots);
+  const objects=[...terrain,...roads,...access,...fishingAccess,...lots,...vegetation,...landmarks,...streetFurniture];
   const ids=objects.map(o=>o.id);
   if(new Set(ids).size!==ids.length) throw new Error('scene object IDs must be unique');
   if(lots.some(l=>Math.abs(l.position.x)>105||Math.abs(l.position.z)>112)) throw new Error('lot outside buildable island bounds');
@@ -112,7 +114,7 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
     topology:{islandSurroundedByContinuousLake:true,lakeRing:true,walkableShoreline:true,waterCollision:true,swimmingEnabled:false,boatsEnabled:false},
     districts:DISTRICTS,spawn:point(0,0.1,123),returnAnchor:'estates-island-entrance',
     bounds:{minX:-145,maxX:145,minZ:-155,maxZ:155},
-    fishingSpots,terrain:Object.freeze(terrain),access:Object.freeze([...access,...fishingAccess]),roads:Object.freeze(roads),lots:Object.freeze(lots),vegetation:Object.freeze(vegetation),landmarks:Object.freeze(landmarks),objects:Object.freeze(objects)
+    fishingSpots,terrain:Object.freeze(terrain),access:Object.freeze([...access,...fishingAccess]),roads:Object.freeze(roads),lots:Object.freeze(lots),vegetation:Object.freeze(vegetation),landmarks:Object.freeze(landmarks),streetFurniture,objects:Object.freeze(objects)
   });
 }
 

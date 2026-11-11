@@ -24,3 +24,21 @@ export function towerHelixRadius(start,buildingSafeRadius,u) {
 // spiral; no hard shoulder at the join.
 export function towerStreamTaper(u) { return 1-.66*easeProfile((clamp01(u)-.26)/.74); }
 export function towerStreamOpacity(u) { return 1-easeProfile((clamp01(u)-.72)/.28); }
+
+/** Every pool gets its own spiral at both endpoints, even on crowded towers.
+ * A repeating radial lane separates overlapping wraps without turning the
+ * spiral into an ever-expanding starburst as degree increases.
+ */
+export function towerSpiralLane(index) {
+ const i=Math.max(0,Math.floor(Number(index)||1)-1);
+ return {ring:i%6,layer:Math.floor(i/6),radialOffset:(i%6)*.32+Math.floor(i/6)*.14,
+  turns:1.04+(i%3)*.08};
+}
+/** The join begins pixel-identically to the rail and gradually gains the
+ * tower-side illumination profile over the first 30% of the helix.
+ */
+export function towerJunctionGradient(u) { return easeProfile(clamp01(u)/.30); }
+export function towerJunctionOpacity(railOpacity,helixOpacity,u) {
+ const blend=towerJunctionGradient(u);
+ return (railOpacity+(helixOpacity-railOpacity)*blend)*towerStreamOpacity(u);
+}

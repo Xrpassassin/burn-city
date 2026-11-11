@@ -4,6 +4,7 @@ import { createFPBody } from './fpbody.js';
 import { buildNftChar, disposeNftChar } from '../js/nftchar.js';
 import { stableZombieHash } from './zombie-model-selection.mjs';
 import { zombieModelPolicy } from './zombie-model-policy.mjs';
+import {ARENA_ZOMBIE_SKINS,ARENA_ZOMBIE_EYES,ARENA_ZOMBIE_CLOTH,ARENA_ZOMBIE_PANTS,zombieEyeIntensity,zombieHumanShape} from './zombie-arena-appearance.mjs';
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), V = new THREE.Vector3(), S = new THREE.Vector3(), C = new THREE.Color();
 const P = new THREE.Vector3(), Pt = new THREE.Matrix4();
 // one instanced mesh per body part; each part has a pivot offset (shoulder/hip) so limbs swing naturally
@@ -14,6 +15,19 @@ function rig(scene, max, parts) {
   return out;
 }
 const box = (w, h, d, py = 0) => new THREE.BoxGeometry(w, h, d).translate(0, py, 0);
+// Original Zombies only: softened anatomical geometry in the SAME instancing
+// pipeline. No Homefront rendering, enemy logic or map code is imported.
+function zombieRoundedBox(w,h,d,r=0.055,py=0){
+ const radius=Math.min(r,w*.45,h*.45,d*.45),geo=new THREE.BoxGeometry(w,h,d,3,3,3);
+ const a=geo.getAttribute('position'),hx=w/2-radius,hy=h/2-radius,hz=d/2-radius;
+ for(let i=0;i<a.count;i++){
+  const x=a.getX(i),y=a.getY(i),z=a.getZ(i);
+  const cx=Math.max(-hx,Math.min(hx,x)),cy=Math.max(-hy,Math.min(hy,y)),cz=Math.max(-hz,Math.min(hz,z));
+  const dx=x-cx,dy=y-cy,dz=z-cz,dist=Math.hypot(dx,dy,dz);
+  if(dist>1e-8)a.setXYZ(i,cx+dx/dist*radius,cy+dy/dist*radius,cz+dz/dist*radius);
+ }
+ a.needsUpdate=true;geo.computeVertexNormals();geo.translate(0,py,0);return geo;
+}
 // write a part: base transform (pos x/z, yaw, scale) * local offset * local rotation
 function put(mesh, i, x, y, z, yaw, sc, ox, oy, oz, rx = 0, rz = 0, col) {
   Q.setFromEuler(E.set(0, yaw, 0)); M.compose(V.set(x, y, z), Q, S.set(sc, sc, sc));
@@ -55,21 +69,29 @@ export function createZombieRenderer(scene, { low = false, deathOnRemoval = true
   const cloth = new THREE.MeshLambertMaterial({ color: 0xffffff, map: rag, alphaTest: 0.5, side: THREE.DoubleSide });
   const glow = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'), gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, '#fff'); gr.addColorStop(0.3, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c); })();
   const MAXZ = 48, Z = rig(scene, MAXZ, [
-    ['body', box(0.62, 0.8, 0.36, 0.4), skinM], ['head', box(0.42, 0.42, 0.42, 0.21), headMats],
-    ['jaw', box(0.3, 0.1, 0.22), skinM], ['shirt', box(0.68, 0.62, 0.42, 0.47), cloth], ['belly', box(0.78, 0.5, 0.56, 0.25), skinM],
-    ['arm', box(0.16, 0.72, 0.16, -0.36), skinM], ['leg', box(0.2, 0.78, 0.2, -0.39), pantsM],
-    ['eye', box(0.09, 0.06, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff })],
+    ['body', zombieRoundedBox(0.58, 0.82, 0.38, 0.13, 0.41), skinM],
+    ['head', zombieRoundedBox(0.43, 0.44, 0.39, 0.14, 0.22), headMats],
+    ['jaw', zombieRoundedBox(0.26, 0.095, 0.19, 0.04), skinM],
+    ['shirt', zombieRoundedBox(0.67, 0.68, 0.43, 0.10, 0.46), cloth],
+    ['belly', zombieRoundedBox(0.74, 0.50, 0.51, 0.16, 0.25), skinM],
+    ['arm', zombieRoundedBox(0.17, 0.74, 0.17, 0.07, -0.37), skinM],
+    ['leg', zombieRoundedBox(0.205, 0.80, 0.21, 0.07, -0.40), pantsM],
+    ['eye', zombieRoundedBox(0.038, 0.044, 0.032, 0.015), new THREE.MeshBasicMaterial({ color: 0xffffff })],
     // Cosmetic detail pass: chipped scavenged armor, exposed wounds, and a mutant dorsal spike.
     // Instanced with the rest of the horde to keep draw calls bounded on mobile.
     ['armor', box(0.34, 0.24, 0.1), new THREE.MeshLambertMaterial({ color: 0xffffff })],
     ['wound', box(0.13, 0.075, 0.025), new THREE.MeshBasicMaterial({ color: 0xffffff })],
-    ['spike', new THREE.ConeGeometry(0.075, 0.24, 5), new THREE.MeshLambertMaterial({ color: 0xffffff })],
-    ['glow', new THREE.PlaneGeometry(0.55, 0.3), new THREE.MeshBasicMaterial({ color: 0xffffff, map: glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })]]);
-  const arms2 = rig(scene, MAXZ, [['arm', box(0.16, 0.72, 0.16, -0.36), skinM], ['leg', box(0.2, 0.78, 0.2, -0.39), pantsM], ['eye', box(0.09, 0.06, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff })]]);
+    ['spike', new THREE.ConeGeometry(0.045, 0.16, 7), new THREE.MeshLambertMaterial({ color: 0xffffff })],
+    ['glow', new THREE.PlaneGeometry(0.27, 0.14), new THREE.MeshBasicMaterial({ color: 0xffffff, map: glow, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })]]);
+  const arms2 = rig(scene, MAXZ, [['arm', zombieRoundedBox(0.17,0.74,0.17,0.07,-0.37), skinM],
+    ['leg', zombieRoundedBox(0.205,0.80,0.21,0.07,-0.40), pantsM],
+    ['eye', zombieRoundedBox(0.038,0.044,0.032,0.015), new THREE.MeshBasicMaterial({color:0xffffff})]]);
   // body variants: 0 walker, 1 runner (lean, hunched forward), 2 brute (huge, belly), 3 crawler-looking (walker id%4==0: bent double, dragging)
-  const TY = [{ s: 1, skin: [0x6f9a4a, 0x7c8d55, 0x5d8a62, 0x8a9a6a], eye: 0xfff26a, speed: 1 }, { s: 0.85, skin: [0xa3b86a, 0x9fae7a, 0xb0a888], eye: 0xff3b2f, speed: 2 }, { s: 1.45, skin: [0x55704a, 0x4a5f52, 0x6a6a50], eye: 0xff8a00, speed: 0.6 },
-    { s: 1.9, skin: [0x3c3a40, 0x45403a], eye: 0xff2010, speed: 0.55 }, { s: 1.0, skin: [0xb8b49a, 0xa8a890], eye: 0x9aff40, speed: 1.75 }, { s: 0.62, skin: [0x4a5a78, 0x3e4e66], eye: 0x40e8ff, speed: 1.55 }, { s: 0.9, skin: [0x387f99, 0x295b70], eye: 0x58eaff, speed: 1.25 }, { s: 1.05, skin: [0x87629c, 0x59416b], eye: 0xc18aff, speed: 0.72 }, { s: 1.55, skin: [0x3c3538, 0x5d342c], eye: 0xff7b42, speed: 0.68 }];   // 3 Juggernaut, 4 Lope (runs on its arms), 5 Skitter
-  const CLOTH = [0x5a3a2a, 0x2f3d55, 0x6a6a6a, 0x7a2a22, 0x3e4a2e, 0x8a7a5a, 0x40304a], PANTS = [0x2a2a33, 0x3a3226, 0x23324a, 0x4a3a2a];
+  const TY = ARENA_ZOMBIE_SKINS.map((skin,ty)=>({
+    s:zombieHumanShape(ty),skin,eye:ARENA_ZOMBIE_EYES[ty],
+    speed:[1,2,.6,.55,1.75,1.55,1.25,.72,.68][ty]
+  }));
+  const CLOTH=ARENA_ZOMBIE_CLOTH,PANTS=ARENA_ZOMBIE_PANTS;
   const zs = new Map(), dying = [];   // id -> {x,z,yaw,ph,var,heat}
   // Animated infected are enabled automatically only for suitable devices.
   // Nearby detailed rigs replace procedural copies; distant hordes remain instanced.
@@ -107,7 +129,7 @@ export function createZombieRenderer(scene, { low = false, deathOnRemoval = true
     // A restrained forward shoulder/arm tension when an infected closes to striking distance.
     const prestrike = !dead && !z.ch ? (z.preparingT || 0) * 0.35 : 0;
     const tint = (c, base) => { c.setHex(base); if (burning) c.lerp(burnC, 0.45 + 0.3 * Math.sin(t * 30 + z.seed)); if (z.flash > 0) c.lerp(hit, z.flash); if (dead) c.lerp(charC, Math.min(1, fade * 2)); return c; };
-    const skin = tint(tmp, ty.skin[(z.seed * 7) % ty.skin.length]).multiplyScalar(1.15), shirt = tint(tmp3, z.ty === 3 ? (z.ch ? 0x8a2a14 : 0x4a4a54) : z.ty === 5 ? 0x1a2230 : CLOTH[(z.seed * 5 + z.ty) % CLOTH.length]);   // Juggernaut: iron plate (glows red mid-charge)
+    const skin = tint(tmp, ty.skin[(z.seed * 7) % ty.skin.length]).multiplyScalar(1.03), shirt = tint(tmp3, z.ty === 3 ? (z.ch ? 0x8a2a14 : 0x4a4a54) : z.ty === 5 ? 0x1a2230 : CLOTH[(z.seed * 5 + z.ty) % CLOTH.length]);   // Juggernaut: iron plate (glows red mid-charge)
     // death: topple forward over 0.35 of the fade, then sink + char. flinch: snap back + small twist.
     const fall = dead ? Math.min(1, fade / 0.35) : 0, deathKick = dead ? (z.deathType === 3 || z.deathType === 8 ? 0.75 : z.deathType === 4 || z.deathType === 5 ? -0.55 : 0.2) : 0, pitch = (quad || z.cr ? 1.35 : crawl ? 0.9 : runner ? 0.45 : 0.25) + (z.ch ? 0.35 : 0) - fl * 0.55 + fall * (1.45 - (crawl ? 0.6 : 0.25)) + deathKick * fall;
     let y0 = dead ? Math.max(0, 1 - fall) * 0.78 * s - Math.max(0, fade - 0.5) * 0.9 * s + 0.15 * s * fall : (quad ? 0.5 : z.cr ? 0.2 : crawl ? 0.45 : 0.78) * s + Math.abs(Math.cos(ph)) * (quad ? 0.12 : 0.05) * s;
@@ -123,15 +145,19 @@ export function createZombieRenderer(scene, { low = false, deathOnRemoval = true
     const wounded = z.seed % 3 === 0 || z.ty === 4;
     put(Z.wound, i, z.x, y0, z.z, yaw, wounded ? sc : HID, z.seed % 2 ? -0.18 : 0.18, 0.46, 0.247, pitch + lurch, z.seed % 2 ? -0.25 : 0.25, tint(tmp3, burning ? 0xff6a18 : 0x681b1b));
     // Skitters and juggernauts get a small dorsal mutation so their silhouettes read at a distance.
-    const spined = z.ty === 3 || z.ty === 5;
+    const spined = z.ty === 8 && z.seed % 4 === 0; // rare boss-only injury, no generic goblin horns
     put(Z.spike, i, z.x, y0, z.z, yaw, spined ? sc : HID, 0, 0.65, -0.22, pitch + lurch, 0.35, tint(tmp4, z.ty === 5 ? 0x526d83 : 0x514b48));
     const hp = pitch + 0.1 + lurch, hy = 0.8 * Math.cos(pitch), hz = 0.8 * Math.sin(pitch) + 0.08;
     put(Z.head, i, z.x, y0, z.z, yaw, sc, 0, hy, hz, hp, 0.2 * Math.sin(ph * 0.5) + (crawl ? 0.3 : 0), skin);
-    const jawOpen = 0.25 + 0.2 * Math.sin(t * 5 + z.seed);
-    put(Z.jaw, i, z.x, y0, z.z, yaw, sc, 0, hy + 0.03 - Math.sin(hp) * 0.05, hz + 0.18 + Math.cos(hp) * 0.04, hp + jawOpen, 0, tmp2.copy(skin).multiplyScalar(0.7));
-    const eyeC = dead ? tmp4.setHex(0x000000) : burning ? tmp4.setHex(0xff5a10) : tmp4.setHex(ty.eye), ey = hy + 0.25 * Math.cos(hp), ez = hz + 0.22 + 0.25 * Math.sin(hp);
-    put(Z.eye, i, z.x, y0, z.z, yaw, sc, 0.1, ey, ez, hp, 0, eyeC); put(arms2.eye, i, z.x, y0, z.z, yaw, sc, -0.1, ey, ez, hp, 0, eyeC);
-    put(Z.glow, i, z.x, y0, z.z, yaw, dead || low ? HID : sc, 0, ey, ez + 0.03, hp, 0, eyeC);
+    const jawOpen = 0.10 + 0.12 * Math.sin(t * 3.8 + z.seed);
+    put(Z.jaw, i, z.x, y0, z.z, yaw, sc, 0, hy - 0.13 * Math.cos(hp), hz + 0.18 + Math.sin(hp) * 0.07, hp + jawOpen, 0, tmp2.copy(skin).multiplyScalar(0.7));
+    const eyeGlow=zombieEyeIntensity(z.ty,{burning,dead,low}),
+      eyeC=dead?tmp4.setHex(0x000000):burning?tmp4.setHex(0x9f5b2a):tmp4.setHex(ty.eye),
+      ey=hy+0.06*Math.cos(hp),ez=hz+0.16+0.06*Math.sin(hp);
+    // Eyes sit WITHIN the face and normal undead have dim sockets, not LEDs.
+    put(Z.eye,i,z.x,y0,z.z,yaw,sc,0.078,ey,ez,hp,0,eyeC);
+    put(arms2.eye,i,z.x,y0,z.z,yaw,sc,-0.078,ey,ez,hp,0,eyeC);
+    put(Z.glow,i,z.x,y0,z.z,yaw,eyeGlow>0?sc*eyeGlow:HID,0,ey,ez+0.012,hp,0,eyeC);
     const reach = quad ? -1.45 + sw * 0.9 : crawl ? -1.6 : runner ? -0.6 - sw * 0.5 : -1.35, ay = 0.7 * Math.cos(pitch), az = 0.7 * Math.sin(pitch) + 0.05;
     put(Z.arm, i, z.x, y0, z.z, yaw, sc * (brute ? 1.25 : z.ty === 4 ? 1.4 : 1), brute ? 0.27 : 0.4, ay, az, reach + sw * 0.3 + fall * 1.2 - attackReach * 0.9 - prestrike, 0.1, skin);
     put(arms2.arm, i, z.x, y0, z.z, yaw, sc * (brute ? 1.25 : z.ty === 4 ? 1.4 : 1), brute ? -0.27 : -0.4, ay, az, (quad ? -1.45 - sw * 0.9 : runner ? -0.6 + sw * 0.5 : reach + 0.1) - sw * 0.3 + fall * 1.2 - attackReach * 0.75 - prestrike, -0.1, skin);

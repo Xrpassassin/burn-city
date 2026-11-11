@@ -1,9 +1,11 @@
-// Opt-in animated zombie model pilot. Uses locally vendored Three.js utilities and bundled MIT-licensed GLBs.
+// Original ARENA Zombies: reuse the bundled animated human-infected GLBs as
+// cosmetic replacements. Keep Homefront rendering and gameplay entirely out.
 import * as THREE from './vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils.js';
 
 import { selectZombieModelCandidates, stableZombieHash } from './zombie-model-selection.mjs';
+import {ARENA_ZOMBIE_SKINS,zombieHumanShape} from './zombie-arena-appearance.mjs';
 
 const MAX_MODELS = 8;
 const MAX_MODEL_DISTANCE = 28;
@@ -11,11 +13,13 @@ const TARGET_HEIGHT = 1.72;
 const MODEL_URLS = [
   new URL('./assets/zombies/zombie-ash.glb', import.meta.url).href,
   new URL('./assets/zombies/zombie-frost.glb', import.meta.url).href,
-  new URL('./assets/zombies/zombie-rust.glb', import.meta.url).href,
-  new URL('./assets/zombies/quaternius-zombie.glb', import.meta.url).href
+  new URL('./assets/zombies/zombie-rust.glb', import.meta.url).href
 ];
-const PALETTES = [0xb6b7a1, 0x91a47c, 0xa77a68, 0x8293a5, 0xaaa38b, 0x758078, 0x48dfff, 0xb76aff, 0xff6848];
-const VARIANT_BY_TYPE = [0, 2, 0, 1, 2, 1, 3, 2, 1];
+const PALETTES=ARENA_ZOMBIE_SKINS.map(shades=>shades[0]);
+// Keep distinctive skinned human infected from the original Zombies asset
+// library; the more cartoon-like Quaternius preview is no longer in default
+// rotation. The file stays bundled for isolated art review if wanted.
+const VARIANT_BY_TYPE=[0,1,2,2,1,0,0,1,2];
 
 function animationFor(z, clips, moving) {
   if (z.ch && clips.has('Idle_Attack')) return 'Idle_Attack';
@@ -31,17 +35,18 @@ export async function createZombieModelPilot(scene, options = {}) {
   const maxDistance = Number.isFinite(options.maxDistance) ? Math.max(8, Math.min(MAX_MODEL_DISTANCE, options.maxDistance)) : MAX_MODEL_DISTANCE;
   const targetHeight = Number.isFinite(options.targetHeight) ? Math.max(0.8, Math.min(3.2, options.targetHeight)) : TARGET_HEIGHT;
   const loader = new GLTFLoader();
-  const models = await Promise.all(MODEL_URLS.map(async url => {
-    const gltf = await loader.loadAsync(url);
-    if (!gltf.scene || !gltf.animations?.length) throw new Error('Zombie model has no scene or animation clips');
-    const bounds = new THREE.Box3().setFromObject(gltf.scene);
-    return {
-      gltf,
-      clips: new Map(gltf.animations.map(clip => [clip.name, clip])),
-      minY: bounds.min.y,
-      scale: targetHeight / Math.max(0.01, bounds.max.y - bounds.min.y)
-    };
+  // A malformed optional GLB must not hide all other working zombies.
+  const results=await Promise.allSettled(MODEL_URLS.map(async url=>{
+    const gltf=await loader.loadAsync(url);
+    if(!gltf.scene||!gltf.animations?.length)throw new Error('Zombie GLB requires a skinned mesh and animation');
+    const bounds=new THREE.Box3().setFromObject(gltf.scene);
+    if(!Number.isFinite(bounds.min.y)||!Number.isFinite(bounds.max.y)||bounds.max.y<=bounds.min.y)
+      throw new Error('Zombie GLB bounds are invalid');
+    return {gltf,clips:new Map(gltf.animations.map(clip=>[clip.name,clip])),
+      minY:bounds.min.y,scale:targetHeight/Math.max(.01,bounds.max.y-bounds.min.y)};
   }));
+  const models=results.filter(x=>x.status==='fulfilled').map(x=>x.value);
+  if(!models.length)throw Error('No valid original Zombies animated model loaded');
   const active = new Map();
 
   function setAnimation(item, name, oneShot = false) {
@@ -74,11 +79,11 @@ export async function createZombieModelPilot(scene, options = {}) {
         ? node.material.map(material => material.clone())
         : node.material.clone();
       for (const material of (Array.isArray(node.material) ? node.material : [node.material])) {
-        if (material.color) material.color.lerp(tint, 0.22);
+        if (material.color) material.color.lerp(tint, 0.06); // preserve original zombie material/skin fidelity
       }
     });
     const group = new THREE.Group();
-    group.scale.setScalar(model.scale * (z.ty === 8 ? 1.55 : 1));
+    group.scale.setScalar(model.scale * zombieHumanShape(z.ty) * (Number.isFinite(z.v)?z.v:1));
     visual.position.y = -model.minY;
     group.add(visual);
     scene.add(group);

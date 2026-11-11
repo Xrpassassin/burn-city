@@ -40,3 +40,21 @@ assert(!/from [\x27\x22][^\x27\x22]*homefront/i.test(fx+model),
 assert(base.includes("import { createZombieFX } from './fx.js'"),'old Zombies arena entry point is untouched');
 assert(home.length>10000,'separate Homefront game remains present; no overwrite');
 console.log('Original Zombies model fidelity: 9 existing archetypes, human silhouette, no goblin default, working GLB fallback, death/hit feedback and complete Homefront isolation passed');
+
+
+import {zombieShadowMetrics,infectedShadowPixels} from './zombie-contact-shadow.mjs';
+const normal=zombieShadowMetrics(0),boss=zombieShadowMetrics(8),
+  crawler=zombieShadowMetrics(5,{crawling:true});
+assert(boss.width>normal.width&&boss.length>normal.length,
+ 'large original bosses have wider ground contact than ordinary infected');
+assert(crawler.length>crawler.width,'crawlers keep a long grounded silhouette');
+assert.equal(zombieShadowMetrics(0,{dead:true}).visible,false,'dead infected lose live contact patches');
+assert.deepEqual(infectedShadowPixels(),infectedShadowPixels(),'contact mask never flickers between spawns');
+const pixels=infectedShadowPixels();
+assert.equal(pixels.length,64*64*4);
+assert.equal(pixels[3],0,'edges fade to transparent');
+assert(pixels[(32*64+32)*4+3]>80,'body contact remains visible at center');
+assert.throws(()=>infectedShadowPixels(1000),RangeError);
+assert(model.includes('new THREE.InstancedMesh(contactGeometry,contactMaterial,maxModels)'),
+ 'shadowing stays in one pooled GPU draw rather than one mesh per zombie');
+assert(model.includes("contactShadows.count=0"),'wave reset clears old shadows');

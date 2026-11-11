@@ -18,7 +18,7 @@ jobs:
           node - <<'NODE'
           const fs=require('fs'),assert=require('node:assert/strict');
           const index=fs.readFileSync('client/index.html','utf8');
-          assert.match(index,/id="estatesPreviewLink" href="estate-properties.html"/);
+          assert.match(index,/id="estatesPreviewLink"[^>]*href="estate-properties.html"/);
           assert.ok(fs.existsSync('client/estate-properties.html'));
           assert.ok(fs.existsSync('client/estate-buyer-preview.js'));
           const page=fs.readFileSync('client/estate-properties.html','utf8');

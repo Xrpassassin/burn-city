@@ -1,0 +1,39 @@
+name: Vendor credited Sketchfab human infected assets
+on:
+  push:
+    branches:
+      - feature/zombies-original-mode-model-fidelity-20261111
+    paths:
+      - scripts/vendor-zombie-sketchfab-models.mjs
+      - .github/workflows/zombies-ccby-asset-vendor.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  vendor:
+    if: github.repository == 'Xrpassassin/burn-city' && github.ref == 'refs/heads/feature/zombies-original-mode-model-fidelity-20261111'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify creators, embedded licenses, skinned rigs and animations
+        run: node scripts/vendor-zombie-sketchfab-models.mjs
+      - name: Sanity-check verified GLB size and credit manifest
+        run: |
+          du -h client/arena/assets/zombies/zombie-aiden.glb client/arena/assets/zombies/zombie-hazmat.glb client/arena/assets/zombies/zombie-thin.glb
+          cat client/arena/assets/zombies/sketchfab-verified-asset-manifest.json
+      - name: Commit verified models only to this owned feature branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/arena/assets/zombies/zombie-aiden.glb client/arena/assets/zombies/zombie-hazmat.glb client/arena/assets/zombies/zombie-thin.glb client/arena/assets/zombies/sketchfab-verified-asset-manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "assets(zombies): vendor verified attributed human, hazmat and thin GLBs"
+            git push origin HEAD:feature/zombies-original-mode-model-fidelity-20261111
+          fi

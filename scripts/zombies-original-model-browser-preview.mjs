@@ -72,12 +72,19 @@ try{
     if(mats.some(m=>m?.map||m?.normalMap))textured++;
    }});
    const cast=scene.children.filter(obj=>obj.userData?.infectedAssetId).map(obj=>obj.userData.infectedAssetId);
+   const actorBounds=scene.children.filter(obj=>obj.userData?.infectedAssetId).map(obj=>{
+     const box=new THREE.Box3().setFromObject(obj,true);
+     const size=box.getSize(new THREE.Vector3());
+     const centre=box.getCenter(new THREE.Vector3());
+     return {asset:obj.userData.infectedAssetId,height:+size.y.toFixed(2),width:+size.x.toFixed(2),
+       depth:+size.z.toFixed(2),center:centre.toArray().map(x=>+x.toFixed(2)),scale:obj.scale.x};
+   });
    window.__zombieQA.pilot=pilot;
    const hitAiden=pilot.react('original-bundled-0','HitReact');
    const hitHazmat=pilot.react('original-bundled-3','HitReact');
    const deathThin=pilot.react('original-bundled-1','Death');
    pilot.update(zombies,.016,{x:0,z:6});gl.render(scene,camera);
-   return {modeled:modeled.size,skinned,meshes,textured,cast,hitAiden,hitHazmat,deathThin,
+   return {modeled:modeled.size,skinned,meshes,textured,cast,actorBounds,hitAiden,hitHazmat,deathThin,
     drawCalls:gl.info.render.calls};
   });
   assert.equal(detailed.modeled,8,'all nearby Zombies should show the new realistic assets, not blocky fallbacks');
@@ -86,20 +93,35 @@ try{
   assert.deepEqual(new Set(detailed.cast),new Set(['human','hazmat','thin']),'all three verified CC-BY casts appear');
   assert(detailed.hitAiden&&detailed.hitHazmat&&detailed.deathThin,'missing hit/death clips get visual fallback, not lost reactions');
   assert(detailed.drawCalls>0&&detailed.drawCalls<350);
+  for(const actor of detailed.actorBounds) {
+    assert(actor.height>.6&&actor.height<5.5,'actor '+actor.asset+' height is implausible: '+actor.height);
+    assert(actor.width<5&&actor.depth<5,'actor '+actor.asset+' has implausible warped limbs');
+  }
   await page.screenshot({path:out+'/'+tag+'-'+view.name+'-sketchfab-infected.png',fullPage:false});
-  const closeup=await page.evaluate(()=>{
-    const {scene,camera,gl}=window.__zombieQA;
-    const hazmat=scene.children.find(x=>x.userData?.infectedAssetId==='hazmat');
-    if(!hazmat)return null;
-    camera.position.set(hazmat.position.x+1.8,2.35,hazmat.position.z+4.8);
-    camera.lookAt(hazmat.position.x,1.25,hazmat.position.z);
-    gl.render(scene,camera);
-    return {asset:hazmat.userData.infectedAssetId,x:hazmat.position.x,z:hazmat.position.z};
-  });
-  assert.equal(closeup?.asset,'hazmat','must show a real hazmat infected close-up');
-  await page.screenshot({path:out+'/'+tag+'-'+view.name+'-hazmat-closeup.png',fullPage:false});
-  results.push({view:view.name,fallback:init,animated:detailed});
+  const solo=[];
+  for(const variant of ['human','hazmat','thin']){
+    const details=await page.evaluate(type=>{
+      const {THREE,scene,camera,gl}=window.__zombieQA;
+      const groups=scene.children.filter(x=>x.userData?.infectedAssetId);
+      const subject=groups.find(x=>x.userData.infectedAssetId===type);
+      if(!subject)return null;
+      for(const g of groups)g.visible=(g===subject);
+      const box=new THREE.Box3().setFromObject(subject,true);
+      const size=box.getSize(new THREE.Vector3()),centre=box.getCenter(new THREE.Vector3());
+      const radius=Math.max(size.x,size.y,size.z);
+      camera.position.set(centre.x+radius*.20,centre.y+radius*.13,centre.z+radius*1.75);
+      camera.lookAt(centre);
+      camera.near=.05;camera.far=500;camera.updateProjectionMatrix();gl.render(scene,camera);
+      return {asset:type,size:size.toArray().map(x=>+x.toFixed(3)),centre:centre.toArray().map(x=>+x.toFixed(3))};
+    },variant);
+    assert.equal(details?.asset,variant,'missing isolated '+variant+' closeup');
+    await page.screenshot({path:out+'/'+tag+'-'+view.name+'-'+variant+'-portrait.png',fullPage:false});
+    solo.push(details);
+  }
+  results.push({view:view.name,fallback:init,animated:detailed,portraits:solo});
   await ctx.close();
+  continue;
+
  }
  assert.equal(failures.length,0,'no shader compilation errors');
  await writeFile(out+'/'+tag+'-report.json',JSON.stringify({results,failures},null,2));

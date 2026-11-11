@@ -19,16 +19,17 @@ try{
   const page=await context.newPage();
   page.on('pageerror',e=>issues.push(v.name+': '+e.message));
   page.on('console',m=>{if(m.type()==='error'&&/THREE.WebGLProgram|Shader Error|VALIDATE_STATUS|FRAGMENT|VERTEX_SHADER/i.test(m.text()))issues.push(v.name+': '+m.text());});
-  await page.goto('http://127.0.0.1:8080/?debug=1&locktest=1',{waitUntil:'domcontentloaded',timeout:45000});
+  // The game's documented noguide and shot flags prevent a delayed first-run
+  // guide from opening AFTER the screenshot is taken. No production UI hidden.
+  await page.goto('http://127.0.0.1:8080/?debug=1&locktest=1&noguide=1&shot=1',{waitUntil:'domcontentloaded',timeout:45000});
   // A created shader mesh is not evidence that the city is visible. Wait for
   // the full first render AND the 0.9s splash dismissal in WebKit/Chromium.
   await page.waitForFunction(()=>window.__ready===true&&window.__ammGold?.mesh?.geometry?.attributes?.gShare&&
     window.__swirl?.n>0&&window.__ammLock?.test&&
     document.getElementById('loader')?.classList.contains('done'),null,{timeout:90000});
   await page.waitForFunction(()=>getComputedStyle(document.getElementById('loader')).visibility==='hidden',null,{timeout:12000});
-  // First-run tutorial obscures/defocuses the 3D scene even when all shaders
-  // have compiled. Exercise the real Skip control, do not disable the tutorial
-  // from production code or fake an unobscured screenshot.
+  // Browser QA may exercise Skip when the guide is explicitly opened. In
+  // automated screenshots the supported noguide=1 flag makes it stay closed.
   const skip=page.getByRole('button',{name:'Skip',exact:true});
   if(await skip.count())await skip.first().click({timeout:8000});
   await page.waitForFunction(()=>![...document.querySelectorAll('button')].some(x=>

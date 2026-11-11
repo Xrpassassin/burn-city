@@ -37,10 +37,12 @@ try{
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   await page.waitForTimeout(1000);
   const state=await page.evaluate(()=>{
-   const gold=window.__ammGold.mesh,values=gold.geometry.getAttribute('gShare').array;
+   const gold=window.__ammGold.mesh,values=gold.geometry.getAttribute('gShare').array,
+    fades=gold.geometry.getAttribute('gFade')?.array;
    const shares=[...new Set(Array.from(values).map(x=>Math.round(x*1000)/1000))];
    return {goldSegments:window.__ammGold.segments,goldType:gold.type,shareValues:shares,
     goldVeins:window.__swirl.veins?.length,spirals:window.__swirl.n,lockDraws:window.__ammLock.draws(),
+    tailFade:fades?{min:Math.min(...fades),max:Math.max(...fades)}:null,
     ringFree:window.__ammLock.objs?.every(m=>m.geometry?.type!=='TorusGeometry')??false,
     bodyColor:window.__swirl.paths?.[0]?.b?.actCol?.getHexString?.(),
     canvas:document.querySelectorAll('canvas').length,
@@ -54,6 +56,7 @@ try{
   assert.equal(state.lockDraws,2,'lock halos were removed without touching token singularities');
   assert(state.ringFree,'AMM lock renderer contains no torus halo geometry');
   assert(state.canvas>0,'real world WebGL canvas renders');
+  assert(state.tailFade?.min===0&&state.tailFade?.max===1,'solid gold veins must fade away smoothly at the tower face');
   assert(state.loaderHidden&&!state.tutorialSkipVisible,'actual scene must be unobscured before screenshot');
   await page.screenshot({path:output+'/'+process.env.AMM_BROWSER+'-'+v.name+'.png',fullPage:false});
   facts.push({viewport:v.name,...state});

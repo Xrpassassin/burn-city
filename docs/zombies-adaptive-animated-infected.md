@@ -1,27 +1,38 @@
-# Zombies: animated infected by default on capable devices
+# Zombies: realistic infected replacement — preserve original Arena gameplay
 
-## Change
-Until now, the four bundled, animated infected GLB models appeared only under `?zombieModels=1`. The primary free-play Zombies renderer otherwise used procedural instanced zombie geometry. This first-pass polish enables **close-range animated GLBs automatically** on suitable desktop systems, optionally on high-end mobile, while preserving the inexpensive instanced horde everywhere else. No gameplay state, enemy counts, damage, net snapshots, ranked score, economy or map logic is changed.
+## What changes
 
-`zombieModelPolicy()` is a pure, unit-tested device/accessibility selection function. It chooses a visible cap of eight detailed close-up models within 28 m for capable desktop devices, three within 20 m for known capable mobile, and otherwise the original procedural renderer. If a device reports no mobile memory/hardware information, mobile defaults to the inexpensive mode. Low graphics, reduced-motion preference and data saver disable automatic detailed models.
+The original Zombies game is still BURN City's pre-existing **Arena** mode, with its existing third-person movement, real-time attacks, weapons, wave director, perks, boss mechanics, Ashen Cosmodrome helicopter transition and multiplayer controls. **Homefront is separate.** This implementation changes *only* the Arena enemy visual presentation and its asset dependencies.
 
-The two explicit user controls remain:
+The default near-player animated character roster now uses the verified creator-credited CC BY versions of the following **human-infected** assets, not the previous cartoon robot/skeleton assets:
 
-- `?zombieModels=0`: force procedural-only models.
-- `?zombieModels=1`: request the animated pilot even on a lower-end device, with a smaller model cap if low graphics is enabled. This is an opt-in exception to the automatic performance policy.
+- [Zombie (Rigged & Animated)](https://sketchfab.com/3d-models/zombie-rigged-animated-131688807ad444609ed9b2ed572dc4aa) by Aiden Studios — Aiden standard infected, original Idle/Walk1/Attack1.001.
+- [Zombie Hazmat](https://sketchfab.com/3d-models/zombie-hazmat-49b3b4307f6a4d2386fdb02354158d04) by LxNazarov — contamination/armored specials, original Zombie_Idle/Zombie_Walk_Root/Zombie_Skill.
+- [Thin Zombie (Awake Zombie)](https://opengameart.org/content/thin-zombie-awake-zombie-asset) by Rosswet Mobile — frantic/thin infected, original idle/walk/run/attack1_r/hurt/dead1 and related animations.
 
-Failed imports or invalid GLBs still fall back to existing procedural zombies without changing server mechanics. Models are loaded only for close-up enemies; distant horde members remain instanced.
+These GLBs are bundled with the client after a **SHA-256, embedded creator/source/license (where present), skinned mesh and named clip verification**. Their materials and textures are retained with only minor grading, rather than the old bright green/purple goblin-like colors. The prior Ash/Frost/Rust and Quaternius GLBs are preserved in the repository for provenance, but are not chosen by the original Zombies model pilot.
 
-## Combat feedback
-The already server-authoritative `zdie` event now uses the bundled GLB's actual `Death` clip for currently modeled zombies and skips the simultaneous duplicate procedural corpse. Enemies not represented by a GLB continue using the existing procedural death fall/fade. The authoritative `zarmor` event requests `HitReact` while preserving the usual armor-break flash. Ordinary damage hitmarkers are unchanged; hit signals do not become client-authoritative damage events.
+### Animation compatibility and gameplay boundaries
 
-## Testing and limitations
+The existing client model pilot remaps each asset's real clip names to the Arena Idle / Walk / Run / Attack roles. Hazmat's baked hip X/Z walk displacement is held steady because original Zombies gameplay already moves enemies authoritatively; otherwise bodies would visibly glide. The Aiden and Hazmat files don't contain named hit/death clips; the pilot uses local procedural visual flinches and corpse toppling instead of silently dropping reactions. The thin infected has usable damage/death clips. These are **cosmetic only**. No damage, hitbox, enemy speed, wave spawn, score, or XRP accounting change is authorized by this work.
 
-- `node client/arena/zombie-model-policy.test.mjs`
-- `node client/arena/zombie-model-pilot-integration.test.mjs`
-- `npm run -s test:graphics-labs`
-- `node --input-type=module --check < client/arena/fx.js`
+On capable desktop devices the near-player pilot currently renders up to **8 skinned animated infected within 28m**. Known capable mobiles use up to **3 within 20m**; modern 6-core Safari mobiles with private device-memory information use up to **2 within 16m**. Data saver, reduced motion, low graphics and less powerful mobiles continue using the lower-cost instanced horde fallback. Additional realistic distant impostors and more original multi-limbed boss modeling are separate art improvements, not already implemented by this change.
 
-There is no new external asset download or game monetization. The model assets and licenses are described in `client/arena/assets/zombies/README.md` and `client/arena/ZOMBIE_GRAPHICS_SOURCES.md`.
+A user can inspect alternate behavior via `?zombieModels=1` (request detailed animated models) or `?zombieModels=0` (force procedural mode).
 
-This is a **visibility/performance-first step**, not a complete gameplay overhaul. Still needed: browser-level visual smoke tests on desktop and iOS/Android, measured mobile frame times, AI wave variety, encounter telegraphs, cover/pathfinding and weapon feedback. Do not claim those are finished through this change.
+## Provenance and licensing
+
+The exact CC BY files are made available by an independently attributed reference game, [Dernière Nuit à Perpignan](https://walking.morgannriu.fr/), with [detailed 3D author and adaptation credits](https://walking.morgannriu.fr/assets/models/CREDITS.md). They were downloaded from the creator's Sketchfab pages using the source project's authenticated Sketchfab workflow, then WebP-optimized before redistribution. The reproducible vendoring script validates them, pins hashes in `sketchfab-verified-asset-manifest.json`, and records their provenance. Full [BURN City model attribution](../client/arena/assets/zombies/ATTRIBUTION-SKETCHFAB.md) and a direct accessible credit link appear in the Arena menu.
+
+Creative Commons Attribution reuse requires creator credit, original work link, license link and a clear indication of modifications. These characters remain third-party works.
+
+## QA required for merge
+
+- `node client/arena/zombie-sketchfab-cast.test.mjs` — asset SHA-256, author, clips, textures, skin and no rejected robot cast.
+- `node client/arena/zombie-arena-appearance.test.mjs` — nine preserved enemy types, visual-only separation from Homefront.
+- `node client/arena/zombie-model-policy.test.mjs` — low graphics, mobile, data saver and reduced motion.
+- `node client/arena/zombie-model-pilot-integration.test.mjs` — source Arena reactions and fallback.
+- Chromium and WebKit in real desktop/mobile WebGL scenes for the original procedural fallback, actual textured Aiden/hazmat/thin skinned meshes, and a hazmat close-up. Capture screenshots and inspect actual appearance; passing tests is insufficient if they still look cartoonish.
+- Original combat and wave/cosmodrome/map regression suites.
+
+No new financial, Homefront, weapon, enemy-AI or monetization changes. The final visual judgement is a separate merge gate.

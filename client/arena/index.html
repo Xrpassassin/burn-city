@@ -36,7 +36,7 @@ button{background:#2a0d00;color:#ffb060;border:1px solid #f60;border-radius:8px;
 <div style="margin-top:6px"><b>Create a match</b><br><select id="tcteams"><option value="0">Free-for-all</option><option value="2">2 teams</option><option value="3">3 teams</option><option value="4">4 teams</option></select>
 <label><input id="tcff" type="checkbox" checked> Teammates' trails kill</label> <label><input id="tcbo3" type="checkbox"> Best of 3</label><br>
 <button id="tcfree">Create free match</button> <span id="tcrk"></span></div>
-<div id="tlobbies" style="margin-top:6px"></div><div id="trk" style="margin-top:6px"></div></div><div class="small"><b>🗡 Eternal Grind</b></div><button onclick="location.href='../dungeon/'">Dungeon RPG</button><div class="small"><b>🧟 Zombie Survival</b></div><button id="freePlayBtn">🧟 Free Play · The BURN Refinery (Map 1)</button><button id="homefrontBtn">🏚 Homefront · Build & Defend</button><button id="dailyBtn">🗓 Daily Challenge</button>
+<div id="tlobbies" style="margin-top:6px"></div><div id="trk" style="margin-top:6px"></div></div><div class="small"><b>🗡 Eternal Grind</b></div><button onclick="location.href='../dungeon/'">Dungeon RPG</button><div class="small"><b>🧟 Zombie Survival</b></div><button id="freePlayBtn">🧟 Free Play · The BURN Refinery (Map 1)</button><button id="homefrontBtn">🏚 Homefront · Build & Defend</button><button id="dailyBtn">🗓 Daily Challenge</button><a href="zombies-credits.html" class="small" style="color:#e6c7a2;text-decoration:underline" target="_blank" rel="noopener">Zombie character artists &amp; licenses</a>
 <div id="ranked" class="small" style="border:1px solid #f604;border-radius:10px;padding:8px 12px;max-width:340px"><b>🏆 Ranked Matches</b> <span id="rkstat"></span><br><span id="rkinfo"></span><div id="rkbtn"></div><div id="rklb"></div><a href="rules.html" style="color:#ffb060">Ranked rules</a></div>
 <a href="../" class="small" style="color:#ffb060">← Back to Burn City</a> · <a href="history.html" class="small" style="color:#ffb060">📜 My match history</a><div id="safefoot" class="small" style="margin:6px auto;max-width:420px;opacity:.9"></div><div class="small">Free to play, no sign-in needed. <button id="signin" style="background:none;border:0;padding:0;color:#ffb060;text-decoration:underline;font-size:12px;cursor:pointer">Sign in to save rewards (optional)</button></div>
 <div id="price" class="small"></div><div id="qr"></div><div id="shop" class="small"></div><div id="lb" class="small"></div>
@@ -232,7 +232,7 @@ function start(m, ranked = null, extra = '') {
     .on('board', e => { world?.board(e); if (e.by === net?.me) { hammerT = 0.3; sfx.hammer(); if (e.pts) toast(`+${e.pts} 🔨`, 600); else toast('🔨 Board rebuilt (repair points maxed this round)', 900); } })
     .on('shot', e => { if (e.w === 'minigun') return void HELI().tracer(e, e.id === net?.me); const mine = e.id === net?.me, sy = mine ? pred?.y || 0 : net?.state()?.players.find(p => p.id === e.id)?.y || 0; if (e.w === 'ravager') sfx.weaponFire('heavy_machine_gun', mine); else if (sfx.has('shotgun')) ZA.shot(e, mine, sy); else sfx.shot(e.w === 'shotgun' ? 2 : e.w === 'napalm' ? (e.ray ? 1 : 3) : 0, mine); FX.shot(e, mine, pred?.x ?? e.x, pred?.z ?? e.z, sy); })
     .on('heli', e => HELI().event(e, net?.me)).on('hboard', e => { if (e.id === net?.me) toast('🚁 Aboard! You are safe. Vote to leave or man a minigun', 2600); }).on('hvote', e => HELI().event(e, net?.me)).on('hgun', e => HELI().event(e, net?.me))
-    .on('hres', e => HELI().event(e, net?.me)).on('hleft', e => { HELI().event(e, net?.me); if (e.id === net?.me) toast('☠️ The bird is gone. They are coming…', 3000); }).on('map_transition', e => { toast('🚁 EXTRACTION SUCCESSFUL<br><small>Arriving at ' + e.to + '…</small>', 4500); }).on('qflare', () => { toast('🧨 Flare lit! Hold the roof for the helicopter', 2600); sfx.roundStart(); })
+    .on('hres', e => HELI().event(e, net?.me)).on('hleft', e => { HELI().event(e, net?.me); if (e.id === net?.me) toast('☠️ The bird is gone. They are coming…', 3000); }).on('map_transition', e => { heliMod?.event(e, net?.me); heliMod?.dispose(); heliMod = null; toast('🚁 EXTRACTION SUCCESSFUL<br><small>Arriving at ' + e.to + '…</small>', 4500); }).on('qflare', () => { toast('🧨 Flare lit! Hold the roof for the helicopter', 2600); sfx.roundStart(); })
     .on('gameover', e => { heliMod?.event(e, net?.me); sfx.roundEnd(); overUntil = performance.now() + (e.in || 5) * 1000; overInfo = e; }).on('close', why => leave(/ranked_locked|match_already_started/.test(why || '') ? 'Ranked match in progress — locked' : 'Disconnected ' + (why || '')));
   if (mode === 'zombie' && !mobile) r.domElement.requestPointerLock?.()?.catch?.(() => {});
   if (mode === 'zombie') { sfx.unlock(); ZA.start(); MUSIC.startMatch(); }   // Burn City Lives once per match, then the BURN playlist
@@ -335,7 +335,7 @@ function riderNft(p, c) { const n = NFTOF(p.id), cur = c.userData.nc;
   if (c.userData.nc) { c.userData.nc.visible = !!p.alive; const cd = c.userData.nc.userData.card; if (cd) { cd.position.y = c.userData.nc.userData.frame.position.y = 5.2; cd.scale.set(1.5, 1.5, 1); c.userData.nc.userData.frame.scale.set(1.68, 1.68, 1); } } }
 const LOW = (P.get('q') || localStorage.getItem('bc_quality') || 'auto') === 'low' || ((P.get('q') || localStorage.getItem('bc_quality') || 'auto') === 'auto' && mobile && (navigator.hardwareConcurrency || 4) <= 4);
 const FX = createZombieFX(scene, { low: LOW }); FX.attach(cam); fitGun();
-let heliMod = null; const HELI = () => { if (!heliMod) { heliMod = createHeli(scene, { low: LOW, gun: FX.gun }); heliMod.toast = (m) => toast(m, 2200); } return heliMod; };   // helicopter finale (built on first use)
+let heliMod = null; const HELI = () => { if (!heliMod) { heliMod = createHeli(scene, { low: LOW, gun: FX.gun, audioSettings: () => ({ volume: sfx.vol, muted: sfx.muted }) }); heliMod.toast = (m) => toast(m, 2200); } return heliMod; };   // helicopter finale (built on first use)
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S1 = new THREE.Vector3(1, 1, 1), UP = new THREE.Vector3(0, 1, 0);
 function wall(id) { let w = walls.get(id); if (!w) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(1200 * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(1200 * 4), 4));
   w = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: COL(id), vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })); w.frustumCulled = false; scene.add(w); walls.set(id, w); } return w; }
@@ -479,12 +479,19 @@ r.setAnimationLoop(() => {
       let mz = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0), mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
       if (joy.id !== null) { mx = joy.x; mz = -joy.y; } lastMx = mx;
       // auto-fire: crosshair on a zombie within the gun's effective range. me.ar = server's fireRange() (weapon in hand, Forge, Long Reach, last stand), so it follows swaps and buffs; 8.5 m if an old server doesn't send it
-      const autoR = me?.ar || 8.5; let auto = false; if (autoFire && me?.alive) { const cand = []; for (const z of st.zombies) { const dx = z.x - me.x, dz = z.z - me.z, d = Math.hypot(dx, dz); if (d < autoR && d > 0.1 && (dx * Math.sin(yaw) + dz * Math.cos(yaw)) / d > 0.96) cand.push([d, z]); }
+      // Mounted door miniguns reach much farther than the player's handheld
+      // weapon. Keep aim, LOS and damage server-authoritative.
+      const manningHeliGun=mode==='zombie'&&st.heli?.[5]?.includes(net?.me);
+      const autoR=manningHeliGun?46:(me?.ar||8.5);let auto=false; if (autoFire && me?.alive) { const cand = []; for (const z of st.zombies) { const dx = z.x - me.x, dz = z.z - me.z, d = Math.hypot(dx, dz); if (d < autoR && d > 0.1 && (dx * Math.sin(yaw) + dz * Math.cos(yaw)) / d > 0.96) cand.push([d, z]); }
         // nearest first, 1 LOS ray per candidate: never auto-fire at a zombie behind a wall (damage rules unchanged, server Z.los still decides hits)
         cand.sort((a, b) => a[0] - b[0]); const myLv = pred?.lv ?? (world?.hasUp && (me.y || 0) > world.upH * 0.5 ? 1 : 0);
         for (const [, z] of cand) { const zl = world?.hasUp && (z.y || 0) > world.upH * 0.5 ? 1 : 0; if (!world?.los || world.los(me.x, me.z, z.x, z.z, st.map?.[0] ?? 63, myLv, zl)) { auto = true; break; } } }
       if (swQ && me?.w2 >= 0) ZA.reload('pistol_reload');
-      net.input({ yaw, mx, mz, fire: fire || auto, pi: Math.round(pitch * 100) / 100, use: useQ ? 1 : 0, sw: swQ ? 1 : 0, hold: keys.KeyF || useHold ? 1 : 0, ...(pkQ != null ? { pk: pkQ } : {}), ...(heliMod?.takeVote() ? { vote: 1 } : {}) }); useQ = swQ = false; pkQ = null;
+      const helicopterUse=heliMod?.takeUse()||false;
+      net.input({yaw,mx,mz,fire:fire||auto,pi:Math.round(pitch*100)/100,
+        use:useQ||helicopterUse?1:0,sw:swQ?1:0,hold:keys.KeyF||useHold?1:0,
+        ...(pkQ!=null?{pk:pkQ}:{}),...(heliMod?.takeVote()?{vote:1}:{})});
+      useQ=swQ=false;pkQ=null;
       // client-side prediction for my own movement, reconciled to the newest authoritative snapshot
       const raw = net.buf[net.buf.length-1]?.p.find(p => p[0] === net.me);
       if (me && raw) { const rawY = raw[18] || 0, rawLv = world?.hasUp && rawY > world.upH * 0.5 ? 1 : 0; if (!pred || !me.alive) pred = { x: raw[1], z: raw[2], lv: rawLv, y: rawY, lvT: 0 };

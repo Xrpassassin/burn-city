@@ -1,7 +1,10 @@
 'use strict';
 const assert = require('node:assert/strict');
 const { CATALOG, propertyWeight, allocateProfit, buildWeeklySnapshot } = require('../server/estate-economy');
-assert.equal(CATALOG.properties.length, 21);
+assert.equal(CATALOG.properties.length, 33);
+assert.equal(CATALOG.properties.filter(p=>p.tier==='trailer').length,10);
+assert.equal(CATALOG.properties.filter(p=>p.tier==='starter').length,10);
+assert.equal(CATALOG.properties.filter(p=>p.tier==='family').length,6);
 assert.equal(new Set(CATALOG.properties.map(p => p.id)).size, CATALOG.properties.length, 'catalog property IDs are unique');
 assert.equal(propertyWeight('trailer-01'), 1);
 assert.equal(propertyWeight('apartment-01'), 5);

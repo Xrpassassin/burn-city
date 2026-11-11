@@ -1,0 +1,97 @@
+name: Original Zombies realistic Sketchfab human infected and Homefront isolation
+on:
+  pull_request:
+    paths:
+      - 'client/arena/fx.js'
+      - 'client/arena/zombie-arena-appearance.mjs'
+      - 'client/arena/zombie-arena-appearance.test.mjs'
+      - 'client/arena/zombie-model-pilot.mjs'
+      - 'client/arena/zombie-instanced-lod.mjs'
+      - 'client/arena/zombie-instanced-lod.test.mjs'
+      - 'client/arena/zombie-sketchfab-cast.mjs'
+      - 'client/arena/zombie-sketchfab-cast.test.mjs'
+      - 'client/arena/assets/zombies/*.glb'
+      - 'client/arena/assets/zombies/*manifest.json'
+      - 'client/arena/zombies-credits.html'
+      - 'client/arena/index.html'
+      - 'client/arena/zombie-model-policy.mjs'
+      - 'client/arena/zombie-model-policy.test.mjs'
+      - 'scripts/zombies-original-model-browser-preview.mjs'
+      - '.github/workflows/zombies-original-model-fidelity.yml'
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  original-game-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Syntax checks
+        run: |
+          node --check client/arena/zombie-arena-appearance.mjs
+          node --check client/arena/zombie-model-pilot.mjs
+          node --check client/arena/zombie-instanced-lod.mjs
+          node --check client/arena/zombie-sketchfab-cast.mjs
+          node --check client/arena/zombie-model-policy.mjs
+          node --input-type=module --check < client/arena/fx.js
+          node --check scripts/zombies-original-model-browser-preview.mjs
+      - name: Original art and engine isolation
+        run: |
+          node client/arena/zombie-arena-appearance.test.mjs
+          node client/arena/zombie-sketchfab-cast.test.mjs
+          node scripts/inspect-zombie-animation-units.mjs
+          node client/arena/zombie-instanced-lod.test.mjs
+          node client/arena/zombie-model-pilot.test.mjs
+          node client/arena/zombie-model-policy.test.mjs
+          node client/arena/zombie-model-pilot-integration.test.mjs
+          node client/arena/zombie-model-selection.test.mjs
+      - name: Unchanged Zombies movement and battle engine
+        run: |
+          node test/zombie-wave-director-sim.js
+          node test/zombie-cosmodrome-sim.js
+          node test/zombie-map-progression-sim.js
+          node test/zombie-helicopter-arrival-sim.js
+  browser-models:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Start isolated dry-run Arena
+        run: |
+          DRY_RUN=true BURN_JOB_IN_SERVER=false PORT=8080 DATA_DIR=$(mktemp -d) node server/server.js > /tmp/zombies-art-preview.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8080/arena/index.html >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 140 /tmp/zombies-art-preview.log
+          exit 1
+      - name: Real original Zombies fallback and credited human/hazmat/thin skinned models
+        run: node scripts/zombies-original-model-browser-preview.mjs
+        env:
+          ZOMBIE_QA_BROWSER: ${{ matrix.browser }}
+          ZOMBIE_QA_OUTPUT: zombies-original-model-previews
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zombies-original-model-previews-${{ matrix.browser }}
+          path: zombies-original-model-previews/
+          if-no-files-found: ignore
+      - if: failure()
+        run: test -f /tmp/zombies-art-preview.log && tail -n 150 /tmp/zombies-art-preview.log || true

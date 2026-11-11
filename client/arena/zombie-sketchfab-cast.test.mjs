@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {ZOMBIE_SKETCHFAB_MODELS,zombieVisualModelId,zombieClipAliases} from './zombie-sketchfab-cast.mjs';
+const root=new URL('./assets/zombies/',import.meta.url);
+const manifest=JSON.parse(readFileSync(new URL('sketchfab-verified-asset-manifest.json',root),'utf8'));
+const credits=readFileSync(new URL('ATTRIBUTION-SKETCHFAB.md',root),'utf8');
+assert.equal(ZOMBIE_SKETCHFAB_MODELS.length,3);
+assert.deepEqual(ZOMBIE_SKETCHFAB_MODELS.map(m=>m.id),['human','hazmat','thin']);
+for(const spec of ZOMBIE_SKETCHFAB_MODELS){
+ const bytes=readFileSync(new URL(spec.file,root));
+ const entry=manifest.models.find(x=>x.asset===spec.file);
+ assert(entry, spec.file+' must have a SHA-256 and original creator record');
+ assert.equal(bytes.toString('ascii',0,4),'glTF');
+ assert.equal(bytes.readUInt32LE(4),2);
+ assert.equal(bytes.readUInt32LE(8),bytes.length);
+ assert.equal(bytes.readUInt32LE(16),0x4e4f534a);
+ assert.equal(entry.bytes,bytes.length);
+ assert.equal(entry.sha256,createHash('sha256').update(bytes).digest('hex'));
+ assert.equal(entry.license,spec.license);
+ assert.equal(entry.creator,spec.creator);
+ assert(credits.includes(spec.creator)&&credits.includes(entry.source),
+   spec.creator+' must be credited in a discoverable in-game document');
+ const size=bytes.readUInt32LE(12),gltf=JSON.parse(bytes.toString('utf8',20,20+size));
+ assert(gltf.skins.length>0&&gltf.meshes.length>0&&gltf.materials.length>0);
+ assert(gltf.animations.length>=3);
+ assert((gltf.images?.length||0)>0,'characters must carry textured/PBR appearance, not solid plastic paint');
+ assert.deepEqual(gltf.animations.map(x=>x.name),entry.animations,'clip names are checked against packed model');
+ const roles=zombieClipAliases(spec,gltf.animations.map(x=>x.name));
+ for(const name of ['Idle','Walk','Idle_Attack'])assert(roles.has(name),spec.id+' missing gameplay animation '+name);
+ assert(!/ash|frost|rust|quaternius/.test(spec.file),'rejected robot/goblin variants must not return to default cast');
+}
+for(let i=0;i<9;i++)assert(['human','hazmat','thin'].includes(zombieVisualModelId(i)));
+assert.equal(zombieVisualModelId(6),'hazmat','special enemy should be visually recognizable');
+assert.equal(zombieVisualModelId(1),'thin','runner should be an emaciated humanoid');
+assert.equal(zombieVisualModelId(0),'human','standard shamblers use lifelike infected human');
+const pilot=readFileSync(new URL('./zombie-model-pilot.mjs',import.meta.url),'utf8');
+assert.match(pilot,/ZOMBIE_SKETCHFAB_MODELS\.map/);
+assert(!/zombie-(?:ash|frost|rust)\.glb/.test(pilot),'do not reload rejected robotic GLBs');
+assert.match(pilot,/removeHazmatRootMotion/);
+assert.match(pilot,/if\(kind==='Death'\)/);
+assert.match(pilot,/proceduralDeath=true/);
+assert.match(pilot,/proceduralHit=true/);
+assert.match(pilot,/zombieVisualModelId\(z\.ty\)/);
+assert(!/from ['"][^'"]*homefront/i.test(pilot));
+console.log('Licensed Sketchfab infected: three actual GLBs, verified hashes, humanoid skin meshes, original animations, artist credits, no robotic default passed');

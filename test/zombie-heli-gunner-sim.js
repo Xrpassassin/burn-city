@@ -1,0 +1,41 @@
+// Real authoritative helicopter boarding, minigun seat, spinup, shooting,
+// leave gun and successful migration from Map 1 to Ashen Cosmodrome.
+const assert=require('node:assert/strict');
+const {Room}=require('../server/game');
+const Heli=require('../server/heli');
+const room=new Room('zombie-real-heli-gun-fixture','zombie','refinery');
+const id=room.add({name:'GunnerQA',in:{mx:0,mz:0,fire:false,turn:0}});
+const p=room.players.get(id),events=[];
+assert(p&&p.alive);
+Heli.start(room,events);
+assert(room.heli,'the helicopter starts on authored roof pad');
+const h=room.heli;
+h.st=2;h.t=55;p.x=h.x;p.z=h.z;p.lv=1;p.y=h.y;
+Heli.tick(room,[p],.04,events);
+assert.equal(p.aboard,1,'players at helipad automatically board');
+assert(h.b.has(id));
+assert.deepEqual(h.g,[0,0],'both mounted guns are initially available');
+const weapon={reachH:(p,max)=>max,missD:()=>30,endY:()=>2,hsV:()=>false,vAim:()=>true,hurt:()=>{}};
+p.in.use=true;
+Heli.rider(room,p,.05,events,weapon);
+assert.equal(p.mg,0,'USE mounts the left available minigun');
+assert.equal(h.g[0],id,'gunner reservation is server-authoritative');
+assert(events.some(x=>x.e==='hgun'&&x.id===id&&x.g===0));
+p.in.fire=true;
+for(let i=0;i<20;i++)Heli.rider(room,p,.08,events,weapon);
+assert(h.shots>=1,'holding FIRE spins the gun and emits shots');
+assert(events.some(x=>x.e==='shot'&&x.w==='minigun'),'minigun sends actual tracer events');
+assert(p.firing);
+p.in.fire=false;p.in.use=true;
+Heli.rider(room,p,.06,events,weapon);
+assert.equal(p.mg,null,'USE again releases the mounted minigun');
+assert.equal(h.g[0],0,'the seat becomes available for teammates');
+assert(events.some(x=>x.e==='hgun'&&x.g===-1));
+h.st=3;h.t=.01;
+Heli.tick(room,[p],.1,events);
+assert(events.some(e=>e.e==='map_transition'&&e.to==='The Ashen Cosmodrome'),
+  'successful extraction signals the client to stop helicopter sound');
+assert.equal(room.mapId,'cosmodrome');
+assert.equal(room.heli,null,'server map reset removes the helicopter without a zombie gameplay restart');
+assert.equal(room.players.get(id).aboard,0,'the same player returns to free movement at Map 2');
+console.log('Zombies helicopter: automatic boarding, manning, spinup/fire, dismount and silent Map-2 reset passed');

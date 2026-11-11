@@ -1,4 +1,5 @@
 import {buildEstatesLakeFishingSpots} from './estates-lake-fishing.mjs';
+import {buildEstateNeighborhoodFurniture} from './estates-neighborhood-data.mjs';
 // Renderer-agnostic 3D scene manifest for the shared Estates island.
 // A renderer converts descriptors to engine-specific meshes, colliders, and materials.
 const DISTRICTS = [
@@ -9,7 +10,17 @@ const DISTRICTS = [
   { id:'lakefront', label:'Lakefront', x:0, z:-2 },
   { id:'woodland-edge', label:'Woodland Edge', x:-6, z:108 }
 ];
-const SLOT_LAYOUT = [[-42,-91],[-14,-99],[14,-99],[42,-91],[-76,-54],[-48,-47],[-20,-53],[20,-53],[48,-47],[76,-54],[-91,-12],[-63,-6],[-35,-12],[35,-12],[63,-6],[91,-12],[-72,38],[-42,52],[-14,62],[14,62],[48,48]];
+// Slots 0–20 are immutable legacy allocations. New sites are APPENDED only:
+// purchases, in-game locations, invited guests and player screenshots must
+// never shift when the community adds a new release of homes.
+const SLOT_LAYOUT = [
+ [-42,-91],[-14,-99],[14,-99],[42,-91],[-76,-54],[-48,-47],[-20,-53],
+ [20,-53],[48,-47],[76,-54],[-91,-12],[-63,-6],[-35,-12],[35,-12],
+ [63,-6],[91,-12],[-72,38],[-42,52],[-14,62],[14,62],[48,48],
+ // Phase-2 residences: 6 trailers, 4 starter homes, 2 family homes.
+ [-97,17],[-53,-71],[-53,83],[-20,83],[24,83],[46,-71],
+ [-31,28],[35,28],[46,72],[46,94],[-75,61],[79,50]
+];
 const LOT_SIZE = Object.freeze({ width:20, depth:18 });
 const finite = n => typeof n === 'number' && Number.isFinite(n);
 function point(x,y,z) { return Object.freeze({x,y,z}); }
@@ -26,7 +37,7 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
     const property=catalog.properties[i]??null;
     const tier=property?tierById.get(property.tier):null;
     if(property&&!tier) throw new TypeError('Estate property references unknown tier: '+property.tier);
-    const district=i<4?'north-shore':i<10?'east-village':i<16?'west-village':i<19?'south-neighborhood':'lakefront';
+    const district=property?.district||(i<4?'north-shore':i<10?'east-village':i<16?'west-village':i<19?'south-neighborhood':'lakefront');
     const footprint=tier ? (tier.id==='mansion'?{width:13,depth:11,height:8}:tier.id==='family'?{width:10,depth:9,height:6}:tier.id==='starter'?{width:8,depth:7,height:5}:tier.id==='apartment'?{width:7,depth:8,height:10}:{width:6,depth:5,height:3}) : null;
     return descriptor('estate-lot-'+String(i+1).padStart(2,'0'),'property-lot',point(x,0.15,z),{...LOT_SIZE,height:0.3},'lot-boundary',{
       propertyId:property?.id??null,address:property?.address??'Unassigned lot '+String(i+1).padStart(2,'0'),
@@ -54,7 +65,12 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
     descriptor('road-east-loop','road',point(56,0.08,8),{width:6,length:94,height:0.16},'asphalt',{orientation:'z'}),
     descriptor('road-west-loop','road',point(-56,0.08,8),{width:6,length:94,height:0.16},'asphalt',{orientation:'z'}),
     descriptor('path-shore-north','footpath',point(0,0.12,-123),{width:3,length:112,height:0.12},'stone',{orientation:'x'}),
-    descriptor('path-shore-south','footpath',point(0,0.12,111),{width:3,length:100,height:0.12},'stone',{orientation:'x'})
+    descriptor('path-shore-south','footpath',point(0,0.12,111),{width:3,length:100,height:0.12},'stone',{orientation:'x'}),
+    // Public, walkable paths between the new residential rows. Positions are
+    // in the setbacks between plots rather than crossing existing property.
+    descriptor('path-south-grove','footpath',point(-12,0.12,96),{width:3,length:94,height:0.12},'stone',{orientation:'x'}),
+    descriptor('path-north-trailers-west','footpath',point(-50,0.12,-59),{width:3,length:28,height:0.12},'stone',{orientation:'x'}),
+    descriptor('path-north-trailers-east','footpath',point(48,0.12,-59),{width:3,length:26,height:0.12},'stone',{orientation:'x'})
   ];
   const access=[
     descriptor('primary-bridge','bridge',point(0,0.4,159),{width:12,length:52,height:0.8},'weathered-concrete',{orientation:'z',connects:['city-side-entrance','island-gate'],walkable:true,vehicleAccess:true}),
@@ -103,16 +119,25 @@ export function buildEstatesIslandScene({catalog,seed=20261024}={}) {
       {width:7,length:13,height:0.4},'timber',
       {orientation:Math.abs(spot.position.x)>Math.abs(spot.position.z)?'x':'z',
        fishingSpotId:spot.id,shore:spot.shore,access:spot.access,walkable:true,boatsEnabled:false}));
-  const objects=[...terrain,...roads,...access,...fishingAccess,...lots,...vegetation,...landmarks];
+  const streetFurniture=buildEstateNeighborhoodFurniture(lots);
+  const objects=[...terrain,...roads,...access,...fishingAccess,...lots,...vegetation,...landmarks,...streetFurniture];
   const ids=objects.map(o=>o.id);
   if(new Set(ids).size!==ids.length) throw new Error('scene object IDs must be unique');
   if(lots.some(l=>Math.abs(l.position.x)>105||Math.abs(l.position.z)>112)) throw new Error('lot outside buildable island bounds');
+  // Each 20×18m plot must sit on dry walkable ground INCLUDING its corners,
+  // not just its centre. Keep the river/lake ring and old footbridges intact.
+  for(const lot of lots){
+    const x=lot.position.x,z=lot.position.z;
+    for(const dx of [-LOT_SIZE.width/2,LOT_SIZE.width/2])for(const dz of [-LOT_SIZE.depth/2,LOT_SIZE.depth/2])
+      if(((x+dx)/139)**2+((z+dz)/149)**2>1)
+        throw new Error('Estate lot reaches the shoreline water: '+lot.id);
+  }
   return Object.freeze({
     id:'estates-island',version:1,seed,coordinateSystem:'right-handed-y-up-metres',status:'renderer-adapter-required',
     topology:{islandSurroundedByContinuousLake:true,lakeRing:true,walkableShoreline:true,waterCollision:true,swimmingEnabled:false,boatsEnabled:false},
     districts:DISTRICTS,spawn:point(0,0.1,123),returnAnchor:'estates-island-entrance',
     bounds:{minX:-145,maxX:145,minZ:-155,maxZ:155},
-    fishingSpots,terrain:Object.freeze(terrain),access:Object.freeze([...access,...fishingAccess]),roads:Object.freeze(roads),lots:Object.freeze(lots),vegetation:Object.freeze(vegetation),landmarks:Object.freeze(landmarks),objects:Object.freeze(objects)
+    fishingSpots,terrain:Object.freeze(terrain),access:Object.freeze([...access,...fishingAccess]),roads:Object.freeze(roads),lots:Object.freeze(lots),vegetation:Object.freeze(vegetation),landmarks:Object.freeze(landmarks),streetFurniture,objects:Object.freeze(objects)
   });
 }
 

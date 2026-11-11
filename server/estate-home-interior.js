@@ -14,7 +14,8 @@ const LAYOUTS=Object.freeze([
  {id:'maker-suite',name:'Workshop Maker Suite',priceXrp:12,upgradeId:'hobby-workshop'},
  {id:'bunker-suite',name:'Command Suite',priceXrp:30,upgradeId:'underground-bunker'}
  ].map(x=>Object.freeze(x)));
-const LAYOUT_BY_ID=new Map(LAYOUTS.map(x=>[x.id,x]));
+for(const l of LAYOUTS)if(l.upgradeId&&ITEM_BY_ID.get(l.upgradeId)?.priceXrp!==l.priceXrp)
+ throw Error('home_premium_price_must_match_existing_tycoon_catalog');
 const FURNITURE=Object.freeze([
  {id:'sofa',label:'Fabric Sofa',width:1.6,depth:.8},
  {id:'coffee-table',label:'Coffee Table',width:1,depth:.7},

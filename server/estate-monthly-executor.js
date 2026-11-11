@@ -154,25 +154,29 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   try{for(const row of L.queued())out.push(await processDeposit(row));}finally{depositRunning=false;}
   return {ok:true,results:out};
  }
- // ---- monthly harvest, split, burn, redeposit, payouts ----
+ // ---- harvest, split, burn, redeposit, payouts (monthly default, or daily when configured) ----
  function owners(){
+  // Snapshot at split time: current share_units, not time-weighted mid-period ownership.
   return db.prepare('SELECT acct,share_units FROM estate_property_ownership').all().filter(r=>r.acct!==treasury).map(r=>({acct:r.acct,shareUnits:Number(r.share_units)}));
  }
  async function runMonthly(){
   if(!enabled)return {ok:false,error:'monthly_plan_disabled'};
   if(paused())return {ok:false,error:'treasury_paused'};
+  const cadence=cfg.harvestCadence||'monthly';
   const open=db.prepare("SELECT period FROM estate_mp_harvests WHERE state IN ('withdrawn','split') ORDER BY period").get();
-  // Never harvest a month that ended before the plan's first deposit existed.
+  // Never harvest a period that ended before the plan's first deposit existed.
   const first=db.prepare('SELECT MIN(created) t FROM estate_mp_deposits').get().t;
   if(!first)return {ok:true,state:'not_due'};
-  const fp=new Date(first);const baseline=new Date(Date.UTC(fp.getUTCFullYear(),fp.getUTCMonth()-1,1)).toISOString().slice(0,7);
+  const baseline=P.periodBaseline(first,cadence);
   const last=L.lastPeriod();
-  const period=open?.period||P.duePeriod(last&&last>baseline?last:baseline,now());
+  const effective=last&&P.periodEndUtc(last).getTime()>P.periodEndUtc(baseline).getTime()?last:baseline;
+  const period=open?.period||P.duePeriod(effective,now(),cadence);
   if(!period)return {ok:true,state:'not_due'};
   let h=L.harvest(period);
   if(!h){
    const pl=await pool();const onLedger=await lpBalance(pl.lpCurrency);
-   const plan=P.harvestPlan({trackedLp:L.trackedLp(),onLedgerLp:onLedger,principalK:L.principalK(),pool:pl});
+   const plan=P.harvestPlan({trackedLp:L.trackedLp(),onLedgerLp:onLedger,principalK:L.principalK(),pool:pl,
+    minValueRlusd:cadence==='daily'?cfg.dust:undefined});
    if(!new N(plan.lpToWithdraw).gt(0)){T("INSERT INTO estate_mp_harvests(period,state,created,updated) VALUES(?,'nothing_to_harvest',?,?)",period,now(),now());return {ok:true,period,state:'nothing_to_harvest'};}
    const r=await send(`harvest:${period}:withdraw`,{TransactionType:'AMMWithdraw',Asset:IMG,Asset2:RL,
     LPTokenIn:{currency:pl.lpCurrency,issuer:cfg.poolAccount,value:plan.lpToWithdraw},Flags:P.TF.lpToken},{maxLpIn:plan.lpToWithdraw});
@@ -204,7 +208,7 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
      const r=await send(`payout:${period}:${p.acct}:${p.currency}`,{TransactionType:'Payment',Destination:p.acct,Amount:iou(p.currency==='IMG'?IMG:RL,p.amount)},{holders});
      T("UPDATE estate_mp_payouts SET state='paid',tx_hash=? WHERE period=? AND acct=? AND currency=?",r.hash||r.tx_json?.hash,period,p.acct,p.currency);
     }catch(e){
-     if(!/^tec/.test(e.result||''))throw e; // validated tec (e.g. no trust line): carry it forward to next month
+     if(!/^tec/.test(e.result||''))throw e; // validated tec (e.g. no trust line): carry it forward to the next period
      const c=L.carry(),k=p.currency==='IMG'?'img':'rlusd';c[p.acct]=c[p.acct]||{img:'0',rlusd:'0'};c[p.acct][k]=new N(c[p.acct][k]).plus(p.amount).toFixed();
      db.exec('BEGIN');L.setCarry(c);T("UPDATE estate_mp_payouts SET state='carried' WHERE period=? AND acct=? AND currency=?",period,p.acct,p.currency);db.exec('COMMIT');
     }
@@ -214,7 +218,7 @@ function createEstateMonthlyExecutor({db,client,wallet,treasury,cfg,enabled=fals
   return {ok:true,period,state:'paid',...JSON.parse(L.harvest(period).split_json||'{}')};
  }
  function status(){
-  return {policy:P.POLICY,enabled,cadence:'monthly',poolAccount:cfg.poolAccount||null,principalK:L.principalK(),trackedLp:L.trackedLp(),
+  return {policy:P.POLICY,enabled,cadence:cfg.harvestCadence||'monthly',poolAccount:cfg.poolAccount||null,principalK:L.principalK(),trackedLp:L.trackedLp(),
    queuedDeposits:L.queued().length,pendingXrpDrops:L.pendingXrpDrops(),lastHarvestPeriod:L.lastPeriod(),payoutCurrencies:['IMG','RLUSD'],dustRlusd:cfg.dust};
  }
  return {processDeposits,runMonthly,status,syncPurchases,queuedCount:()=>L.queued().length,ledger:L,_send:send};

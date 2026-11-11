@@ -194,11 +194,11 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/estates/status' && req.method === 'GET') {
       if(gate('estates-status-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
-      const sales=estateSales.status(),rewards=estateHourly.status();
+      const sales=estateSales.status(),rewards=estateHourly.status(),plan=estateMonthly.status();
       return json(res,200,{asOfMs:Date.now(),salesEnabled:sales.salesEnabled,salesStatus:sales.salesStatus,
         distributionsEnabled:rewards.distributionsEnabled,distributionStatus:rewards.distributionStatus,
         imgXrpProfitDistributionsEnabled:rewards.imgXrpProfitDistributionsEnabled,rewardsGuaranteed:false,
-        capitalAllocationPolicy:sales.capitalAllocationPolicy,distributionSchedule:'monthly',monthlyPlan:estateMonthly.status(),
+        capitalAllocationPolicy:{...sales.capitalAllocationPolicy,cadence:plan.cadence},distributionSchedule:plan.cadence,monthlyPlan:plan,
         imgRlusdFundingEnabled:rewards.imgRlusdFundingEnabled,imgRlusdPoolAccount:rewards.imgRlusdPoolAccount,
         imgRlusdStatus:rewards.imgRlusdStatus,imgRlusdPositionCount:rewards.liquidityPositions?.length||0,
         forwardImgRlusdRewards:rewards.forwardImgRlusdRewards,

@@ -5,6 +5,7 @@ const {createEstateSaleFinalization}=require('./estate-sale-finalization');
 const {createEstateSaleSessionRecovery}=require('./estate-sale-session-recovery');
 const {createEstateLatePaymentReconciliation}=require('./estate-sale-late-reconciliation');
 const {createEstateCapitalAllocation,POLICY}=require('./estate-capital-allocation');
+const {monthlyConfig}=require('./estate-monthly-config');
 const {estatePurchaseQuote}=require('./estate-sale-quote');
 const {purchaseTerms,confirmPurchaseTerms}=require('./estate-purchase-terms-gate');
 // Explicit opt-in, using the existing Xaman SDK and XRPL connection. Incoming
@@ -34,13 +35,14 @@ function createEstateSalesRuntime({db,pay,config,env=process.env,paused=()=>true
  const settlement=createEstateSaleFinalization(db,settlementOptions);
  const recovery=createEstateSaleSessionRecovery(db);
  const late=createEstateLatePaymentReconciliation(db,settlementOptions);
+ const harvestCadence=(()=>{try{return monthlyConfig(env).harvestCadence;}catch{return 'monthly';}})();
  const status=()=>({salesEnabled:configured&&!paused(),
   preexistingPaymentReconciliationAvailable:recoveryConfigured,
   distributionsEnabled:false,
   salesStatus:!configured?'sales_not_enabled':paused()?'treasury_paused':'open',
   purchaseTerms:terms?{version:terms.version,digest:terms.digest,url:terms.url}:null,
-  capitalAllocationPolicy:POLICY,rewardsGuaranteed:false,imgXrpProfitDistributionsEnabled:false,
-  distributionSchedule:'monthly',payoutCurrencies:['IMG','RLUSD'],currency:'XRP',treasury:config.ESTATE_TREASURY});
+  capitalAllocationPolicy:{...POLICY,cadence:harvestCadence},rewardsGuaranteed:false,imgXrpProfitDistributionsEnabled:false,
+  distributionSchedule:harvestCadence,payoutCurrencies:['IMG','RLUSD'],currency:'XRP',treasury:config.ESTATE_TREASURY});
  const blocked=()=>!configured?{ok:false,error:'estate_sales_disabled'}:paused()?{ok:false,error:'estate_treasury_paused'}:null;
  const buyerBlock=input=>input?.buyer===config.ESTATE_TREASURY?{ok:false,error:'estate_treasury_cannot_purchase'}:null;
  function reserve(input){

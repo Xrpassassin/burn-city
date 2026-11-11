@@ -61,6 +61,8 @@ jobs:
           node server/estate-net-reward-executor.test.js
           for test in server/estate-img-*.test.js; do node "$test" || exit 1; done
           node test/estate-sales-runtime-http.test.js
+          node server/estate-monthly-plan.test.js
+          node server/estate-harvest-cadence.test.js
           node server/estate-instant-deposit.test.js
           node server/estate-sale-production-gates.test.js
           node server/watch-autopause.test.js

@@ -3,7 +3,7 @@
 //  ESTATE_MONTHLY_PLAN_ENABLED=1, mainnet, DRY_RUN=false, ESTATE_IMG_RLUSD_POOL_ACCOUNT equals the
 //  verified IMG/RLUSD AMM, TREASURY_SEED signs for ESTATE_TREASURY_ADDRESS, and the treasury is not paused.
 // Each tick: queued two-sided deposits (every ~5 min while queued, else hourly), then at most hourly
-// the monthly check (only once per completed UTC month) for the harvest/split/payout.
+// the harvest check (once per completed UTC month, or once per completed UTC day when cadence is daily).
 const P=require('./estate-monthly-plan');
 const {createEstateMonthlyExecutor}=require('./estate-monthly-executor');
 const RLUSD_XRP_REF={currency:P.RLUSD_HEX,issuer:P.RLUSD_ISSUER};
@@ -20,7 +20,7 @@ function createEstateMonthlyService({db,pay,config,guard,env=process.env,timers=
   wallet:()=>{try{return require('xrpl').Wallet.fromSeed(config.TREASURY_SEED);}catch{return null;}},
   log:(k,o)=>guard.log('estate-monthly-'+k,o)});
  // Scheduler: deposit chunks every depositChunkIntervalMs while deposits are queued, hourly when
- // the queue is empty. The monthly harvest is checked at most hourly (timing unchanged). A settled
+ // the queue is empty. The harvest is checked at most hourly (timing unchanged). A settled
  // purchase calls kick() to queue and start its deposit immediately. Single-flight: never two passes.
  const T={setTimeout:(f,ms)=>setTimeout(f,ms),clearTimeout:t=>clearTimeout(t),now:()=>Date.now(),...(timers||{})};
  const FAST=cfg.depositChunkIntervalMs,IDLE=cfg.idleIntervalMs||3600e3;

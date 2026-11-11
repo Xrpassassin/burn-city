@@ -10,15 +10,15 @@ const store=createEstateTycoonStore(db);
 const owners=(acct,propertyId)=>({allowed:acct===owner&&propertyId==='trailer-01',role:acct===owner?'owner':'visitor',permissions:acct===owner?['enter','inspect','build']:[],reason:'no_access'});
 const guestAccess=(acct,propertyId)=>({allowed:propertyId==='trailer-01'&&(acct===owner||acct===guest),role:acct===owner?'owner':'guest',permissions:['enter','inspect']});
 const args={propertyId:'trailer-01',acct:owner,accessFor:owners,tycoonStore:store};
-assert.equal(ROOMS.length,6);
+assert.equal(ROOMS.length,7);
 assert.equal(privateRoomOptions(args).ok,true);
-assert.equal(privateRoomOptions(args).rooms.length,0);
+assert.deepEqual(privateRoomOptions(args).rooms.map(r=>r.id),['home']);
 assert.equal(privateRoomOptions({...args,acct:''}).error,'sign_in_with_xaman');
 assert.equal(privateRoomOptions({...args,acct:guest}).error,'no_access');
 assert.equal(privateRoomAccess({...args,roomId:'bunker'}).error,'room_not_unlocked');
 assert.equal(privateRoomAccess({...args,roomId:'invalid'}).error,'unknown_private_room');
 const access={...args,accessFor:guestAccess};
-assert.equal(privateRoomOptions({...access,acct:guest}).rooms.length,0);
+assert.deepEqual(privateRoomOptions({...access,acct:guest}).rooms.map(r=>r.id),['home']);
 let seq=0;
 function unlock(itemId){
  const orderId='tycoon_'+String(++seq).padStart(40,'a').replace(/[^a-f0-9]/g,'a');
@@ -27,12 +27,14 @@ function unlock(itemId){
 }
 unlock('reinforced-floor');
 unlock('hidden-hatch');
-assert.equal(privateRoomOptions(args).rooms.length,0,'A decorative hatch never opens unpurchased bunker space');
+assert.deepEqual(privateRoomOptions(args).rooms.map(r=>r.id),['home'],'A hatch never opens unpurchased bunker space');
 unlock('underground-bunker');
 unlock('grow-lounge');
 unlock('hobby-workshop');
 const ownerRooms=privateRoomOptions(args);
-assert.deepEqual(ownerRooms.rooms.map(r=>r.id),['bunker','lounge','workshop']);
+assert.deepEqual(ownerRooms.rooms.map(r=>r.id),['home','bunker','lounge','workshop']);
+assert.equal(privateRoomAccess({...args,roomId:'home'}).allowed,true,'paid unlock is never required for a real owned home');
+assert.equal(privateRoomAccess({...access,acct:guest,roomId:'home'}).allowed,true,'invited guests can enter owner home');
 assert.equal(privateRoomAccess({...args,roomId:'bunker'}).allowed,true);
 assert.equal(privateRoomAccess({...access,acct:guest,roomId:'bunker'}).role,'guest');
 assert.equal(privateRoomAccess({...args,roomId:'vault'}).error,'room_not_unlocked');

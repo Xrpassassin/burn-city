@@ -43,3 +43,13 @@ export function estateSurfaceProperties(THREE,key){
  const texture=estateSurfaceTexture(THREE,key);
  return texture?{map:texture,bumpMap:texture,bumpScale:key==='stone'?.026:key==='wood'||key==='timber'?.018:.012}:{};
 }
+
+// Rebuilding an island's house or upgrade collection must never leak texture
+// allocations. One map may be used by multiple material channels.
+export function disposeEstateSurfaceMaterial(material){
+ const seen=new Set();
+ for(const texture of [material?.map,material?.bumpMap]){
+  if(texture&&!seen.has(texture)){seen.add(texture);texture.dispose?.();}
+ }
+ material?.dispose?.();
+}

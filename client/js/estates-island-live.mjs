@@ -219,6 +219,7 @@ export async function installEstatesIslandLive({
       if(secretSession?.roomId==='home'&&secretSession.homeState)secretInterior.setRoom('home',secretSession.homeState);
     }
     renderer.clearUpgradePreview();directoryCleanup?.();directoryCleanup=null;directoryOpen=false;
+    panel.style.zIndex='';panel.style.overflowY='';
     restoreAppearance(); panel.style.display='none'; panel.replaceChildren();
   };
   // A single shared panel hosts the directory and inspection; no stacked overlays.

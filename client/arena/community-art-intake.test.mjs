@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import * as THREE from './vendor/three.module.min.js';
 import {COMMUNITY_ART,communityArtById,enabledCommunityArt,verifyCommunitySpec} from './community-art-intake.mjs';
 import {enabledZombieSpecials,zombieSpecialModelForType,zombieSpecialClipAliases,zombieSpecialModelHeight} from './zombie-special-art.mjs';
-import {createHomefrontCommunityArt,homefrontAssetQuality,HOMEFRONT_COMMUNITY_LANDMARKS,HOMEFRONT_COMMUNITY_PROP_SITES} from './homefront-community-art.mjs';
+import {createHomefrontCommunityArt,homefrontAssetQuality,communityPropNameMatches,HOMEFRONT_COMMUNITY_LANDMARKS,HOMEFRONT_COMMUNITY_PROP_SITES} from './homefront-community-art.mjs';
 
 assert.equal(COMMUNITY_ART.length,6,'all six explicitly selected community models have intake records');
 assert.equal(new Set(COMMUNITY_ART.map(a=>a.id)).size,6);
@@ -27,8 +27,19 @@ for(const spec of COMMUNITY_ART){
   assert.equal(spec.sha256,null,'unapproved downloads must not carry false hashes');
  }
 }
-assert.equal(enabledCommunityArt('homefront').length,0,'never fetch absent 3D models by default');
+assert.deepEqual(enabledCommunityArt('homefront').map(x=>x.id),['street-props-pack'],'only the actually vendored street GLB is enabled');
 assert.equal(enabledCommunityArt('zombies').length,0,'original Zombies must keep its proven GLB trio');
+
+const streetManifest=JSON.parse(readFileSync(new URL('./assets/community/street-props-acquisition.json',import.meta.url),'utf8'));
+assert.equal(streetManifest.status,'ACQUIRED_NOT_ENABLED','audit manifest preserves the pre-approval acquisition state');
+assert.equal(streetManifest.sha256,communityArtById('street-props-pack').sha256,'catalog activation must be anchored to actual imported GLB checksum');
+assert.equal(streetManifest.triangles,20667,'the downloaded archive was inspected, not only the source listing');
+const streetKinds=[...new Set(HOMEFRONT_COMMUNITY_PROP_SITES.map(x=>x.kind))];
+assert.equal(streetKinds.length,6,'six distinct street prop families are authored');
+for(const kind of streetKinds)
+ assert(communityPropNameMatches(kind,streetManifest.names),'real imported street GLB must actually contain usable '+kind+' submesh');
+assert.equal(communityPropNameMatches('streetlight',['Completely Unrelated Mesh']),false);
+
 const pretend=[{...communityArtById('mutant-nurse'),installed:true,sha256:'a'.repeat(64)},
  {...communityArtById('living-flesh-blob'),installed:true,sha256:'b'.repeat(64)}];
 assert.deepEqual(enabledZombieSpecials(pretend).map(x=>x.id),['mutant-nurse','living-flesh-blob']);
@@ -54,7 +65,7 @@ const notRigged={...communityArtById('homefront-male-survivor')};
 assert.equal(homefrontAssetQuality({scene:body,animations:[]},notRigged).reason,'missing_skeleton');
 
 let attemptedFetch=0;
-const unused=createHomefrontCommunityArt({loader:{loadAsync(){attemptedFetch++;throw Error('unexpected remote fetch')}}});
+const unused=createHomefrontCommunityArt({specs:[],loader:{loadAsync(){attemptedFetch++;throw Error('unexpected remote fetch')}}});
 await unused.load();
 assert.equal(attemptedFetch,0,'no third-party binary fetch when not installed');
 assert.deepEqual(unused.attachWorld({landmarks:[],landmarkSetPieces:new Map(),cityChunkAt(){throw Error('unexpected chunk')},terrainElevation:()=>0}),{replaced:0,props:0});
@@ -75,4 +86,4 @@ const world=readFileSync(new URL('./homefront-graveyard-3d.js',import.meta.url),
 assert(world.includes('communityArt.decorateExplorer'));
 assert(world.includes('communityArt.animateExplorer'));
 assert(world.includes('communityArt.clearActors'));
-console.log('Community model intake passed: 6 sources, CC BY, disabled-until-installed, no hotlinks, original Zombies fallback, Homefront military rendering test');
+console.log('Community model intake passed: 6 sources, one real imported/staged street GLB verified, 6 matching real prop classes, missing-asset fallbacks, original Zombies mode isolation');

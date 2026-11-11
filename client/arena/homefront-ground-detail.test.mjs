@@ -27,3 +27,11 @@ assert([...stone.getAttribute('position').array].every(Number.isFinite));
 const flat=stone.getAttribute('position').array;
 assert(Math.max(...flat.filter((_,i)=>i%3===1))<.25,'rubble stays low and partly embedded');
 tuft.dispose();stone.dispose();
+
+import {createHomefrontFieldPackGeometry} from './homefront-field-pack.mjs';
+const gear=createHomefrontFieldPackGeometry(THREE);
+const gearVertices=gear.getAttribute('position');
+assert(gearVertices.count>60&&gearVertices.count<1200,'sculpted gear has controlled topology');
+assert([...gearVertices.array].every(Number.isFinite),'field gear mesh must contain only finite vertices');
+assert(gear.boundingSphere.radius<1,'field gear remains wearable, not a world obstacle');
+gear.dispose();

@@ -85,7 +85,10 @@ function chooseProp(gltf,kind){
  if(!pattern)return null;
  const matches=[];
  gltf.scene.traverse(node=>{
-  if(!pattern.test(node.name||''))return;
+  // GLTFLoader sanitizes names ("Street Light" -> "Street_Light") but keeps
+  // the creator's literal glTF node name in userData.name.
+  const sourceName=node.userData?.name||node.name||'';
+  if(!pattern.test(sourceName))return;
   // Prefer a distinct mesh/group, not the entire scene containing 37 props.
   if(node.isMesh||(node.isGroup&&node.children.some(x=>x.isMesh)))matches.push(node);
  });

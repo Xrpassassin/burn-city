@@ -1,0 +1,85 @@
+name: Estates 33-lot expansion / buyer inventory
+on:
+  pull_request:
+    paths:
+      - 'client/data/estate-catalog.json'
+      - 'client/js/estates-island-scene.mjs'
+      - 'client/js/estates-expansion.test.mjs'
+      - 'client/js/estates-island-*.test.mjs'
+      - 'client/js/estates-plot-separation.test.mjs'
+      - 'client/js/estate-portfolio-ui.mjs'
+      - 'client/estate-properties.html'
+      - 'scripts/estates-inventory-browser-preview.mjs'
+      - '.github/workflows/estates-inventory-expansion.yml'
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  safety-and-world:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Syntax and expansion contracts
+        run: |
+          node --check client/js/estates-island-scene.mjs
+          node --check client/js/estate-portfolio-ui.mjs
+          node --check scripts/estates-inventory-browser-preview.mjs
+          npm run -s test:estates-island-scene
+          node client/js/estates-plot-separation.test.mjs
+      - name: Playable world, sidewalks and mailbox geometry
+        run: |
+          node client/js/estates-island-runtime.test.mjs
+          node client/js/estates-island-navigation.test.mjs
+          node client/js/estates-island-property-reach.test.mjs
+          node client/js/estates-neighborhood.test.mjs
+          node client/js/estates-helicopter.test.mjs
+      - name: XRP quotation, safe wallet caps and economic weights
+        run: |
+          node server/estate-purchase-contract.test.js
+          node server/estate-price-weights.test.js
+          node test/estate-economy-sim.js
+          node server/estate-draft-reservations.test.js
+  browser-inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Start isolated dry-run Estates server
+        run: |
+          DRY_RUN=true BURN_JOB_IN_SERVER=false PORT=8080 DATA_DIR=$(mktemp -d) node server/server.js > /tmp/estate-inventory-qa.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 180 /tmp/estate-inventory-qa.log
+          exit 1
+      - name: Real 33-property 3D render and usable buyer filters
+        run: node scripts/estates-inventory-browser-preview.mjs
+        env:
+          ESTATES_INVENTORY_BROWSER: ${{ matrix.browser }}
+          ESTATES_INVENTORY_OUTPUT: estates-inventory-output
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: estates-inventory-33-lot-${{ matrix.browser }}
+          path: estates-inventory-output/
+          if-no-files-found: ignore
+      - if: failure()
+        run: test -f /tmp/estate-inventory-qa.log && tail -n 150 /tmp/estate-inventory-qa.log || true

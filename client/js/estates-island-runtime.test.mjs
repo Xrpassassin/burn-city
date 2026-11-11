@@ -24,7 +24,7 @@ const runtime=createEstatesIslandRuntime({
  seed:123
 });
 assert.equal(hostScene.children.length,1);
-assert.equal(runtime.manifest.lots.length,21);
+assert.equal(runtime.manifest.lots.length,33);
 assert.equal(runtime.manifest.lots.filter(l=>l.propertyId).length,1);
 assert.equal(runtime.entryAdapter.state.inside,false);
 assert.deepEqual(runtime.updateProximity({x:0,y:0,z:132}),{near:true,promptVisible:true,requiresConfirmation:true});

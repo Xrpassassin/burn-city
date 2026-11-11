@@ -1,5 +1,7 @@
 // Lightweight, deterministic landmark set pieces for Homefront's existing Three.js scene.
 // Geometry only: interaction authority and physical POI coordinates remain server-owned.
+import {worldSurfaceUVs} from './homefront-surface-materials.mjs';
+import {addLandmarkFacadeDetails} from './homefront-architectural-facades.mjs';
 const MAT = Object.freeze({
   concrete: 0x5a5a50, concreteDark: 0x373a35, brick: 0x634a3d, metal: 0x454b49,
   rust: 0x87533b, glass: 0x42575a, hazard: 0xc19a43, medical: 0x78977b,
@@ -122,7 +124,24 @@ function sharedMaterial(THREE, materialName) {
   return material;
 }
 
-export function buildLandmarkSetPiece(THREE, landmark, terrainY = 0) {
+// Share scanned surface materials among all set pieces built in one renderer.
+// The CC0 maps are already bundled for Homefront roads and Pine Crossing.
+const SURFACED_MATERIALS=new WeakMap();
+function landmarkMaterial(THREE,key,surfaces){
+ if(!surfaces||!['concrete','concreteDark','white','sand','medical','brick'].includes(key))
+   return sharedMaterial(THREE,key);
+ let cache=SURFACED_MATERIALS.get(surfaces);
+ if(!cache){cache=new Map();SURFACED_MATERIALS.set(surfaces,cache);}
+ if(!cache.has(key)){
+   const tint=new THREE.Color(MAT[key]).lerp(new THREE.Color(0xffffff),.43);
+   cache.set(key,surfaces.material('concrete',{
+     color:tint.getHex(),roughness:.96,metalness:0
+   }));
+ }
+ return cache.get(key);
+}
+
+export function buildLandmarkSetPiece(THREE, landmark, terrainY = 0, surfaces = null) {
   if (!THREE || typeof THREE.Group !== 'function' || typeof THREE.Mesh !== 'function') throw new TypeError('Three.js namespace is required');
   if (!landmark || typeof landmark.id !== 'string' || !Number.isFinite(landmark.x) || !Number.isFinite(landmark.z)) throw new TypeError('valid landmark descriptor is required');
   const recipe = RECIPES[landmark.archetype];
@@ -137,7 +156,9 @@ export function buildLandmarkSetPiece(THREE, landmark, terrainY = 0) {
     const geometry = shape === 'cylinder'
       ? new THREE.CylinderGeometry(a, a, b, 8)
       : new THREE.BoxGeometry(a, b, c);
-    const material = sharedMaterial(THREE, materialName);
+    const material = landmarkMaterial(THREE, materialName, surfaces);
+    if(material.userData?.homefrontTileMetres)
+      worldSurfaceUVs(THREE,geometry,material.userData.homefrontTileMetres);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(position[0], position[1], position[2]);
     mesh.castShadow = false;
@@ -145,6 +166,10 @@ export function buildLandmarkSetPiece(THREE, landmark, terrainY = 0) {
     mesh.userData.landmarkId = landmark.id;
     root.add(mesh);
   }
+  // Thin, clipped-to-facade instanced art. No new solid volumes are added.
+  // Public room doors and server collision remain exactly where they were.
+  const facade=addLandmarkFacadeDetails(THREE,root,landmark.archetype,landmark.id);
+  root.userData.facadeArt=facade;
   return root;
 }
 

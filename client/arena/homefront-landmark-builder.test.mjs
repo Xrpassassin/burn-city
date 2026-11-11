@@ -55,3 +55,47 @@ for (const [archetype, originalPieces, minimum] of [
 assert.throws(() => buildLandmarkSetPiece(THREE, { id: 'broken', x: NaN, z: 0, archetype: 'bus_depot' }), /valid landmark descriptor/);
 assert.throws(() => buildLandmarkSetPiece(THREE, { id: 'unknown', x: 0, z: 0, archetype: 'not-real' }), /unknown_landmark_archetype/);
 console.log('Homefront landmark builder checks passed.');
+
+
+import * as RenderTHREE from './vendor/three.module.min.js';
+import {landmarkFacadeSpecs} from './homefront-architectural-facades.mjs';
+
+const PBR_KEYS=['concrete','concreteDark','white','sand','medical','brick'];
+const materialCalls=[];
+const fakeScans={material(kind,options){
+  assert.equal(kind,'concrete','local CC0 scanned concrete supplies facade surfaces');
+  materialCalls.push(options);
+  const material=new RenderTHREE.MeshStandardMaterial(options);
+  material.userData.homefrontTileMetres=2;
+  return material;
+}};
+let totalWindows=0,totalBatches=0,decoratedSites=0;
+for(const site of LANDMARKS){
+ const details=landmarkFacadeSpecs(site.archetype);
+ if(!details)continue;
+ decoratedSites++;
+ assert(details.panes.length>=3,'real art pass requires several framed openings');
+ assert(details.panes.every(([x,y,w,h])=>Number.isFinite(x)&&y>=1&&w>0&&h>0));
+ const group=buildLandmarkSetPiece(RenderTHREE,site,0,fakeScans);
+ assert(group.userData.facadeArt.panes===details.panes.length);
+ const visuals=group.children.filter(child=>child.userData?.cosmeticNoCollision);
+ assert(visuals.length>=2&&visuals.length<=3,'one shared pane/frame/board batch each');
+ assert(visuals.every(mesh=>mesh.isInstancedMesh&&mesh.castShadow===false));
+ assert(visuals.every(mesh=>mesh.userData.landmarkId===site.id));
+ assert(visuals.every(mesh=>mesh.count<=details.panes.length*2));
+ assert(visuals.every(mesh=>mesh.instanceMatrix.array.every(Number.isFinite)));
+ totalWindows+=details.panes.length;totalBatches+=visuals.length;
+ for(const body of group.children.filter(child=>child.isMesh&&!child.isInstancedMesh))
+  if(body.material.userData?.homefrontTileMetres)
+   assert.equal(body.geometry.attributes.uv.count,body.geometry.attributes.position.count,
+    'world-scale UVs must exist on CC0 scanned materials');
+}
+assert(totalWindows>=26,'recognizable institutional/apocalypse facades are authored');
+assert(totalBatches<=3*decoratedSites,'framing stays at most three instanced batches per landmark');
+assert(materialCalls.length>=2&&materialCalls.length<=PBR_KEYS.length,
+ 'each scan palette is cached across all landmark buildings');
+
+const one=landmarkFacadeSpecs('hospital_complex'),two=landmarkFacadeSpecs('hospital_complex');
+assert.notEqual(one.panes,two.panes,'callers never mutate shared authored layouts');
+assert.equal(landmarkFacadeSpecs('underpass'),null,'roads and underpasses receive no floating windows');
+console.log('Homefront scanned landmark and instanced facade art checks passed');

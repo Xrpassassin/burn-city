@@ -1,0 +1,44 @@
+name: Estates home interiors and cross-platform builder
+on:
+  pull_request:
+    paths:
+      - 'server/estate-home-interior.js'
+      - 'server/estate-tycoon-rooms.js'
+      - 'server/server.js'
+      - 'client/js/estates-home-*.mjs'
+      - 'client/js/estates-secret-layout.mjs'
+      - 'client/js/estates-secret-interior-renderer.mjs'
+      - 'client/js/estates-island-live.mjs'
+      - 'test/estate-home-interior-http.test.js'
+      - '.github/workflows/estates-home-editor.yml'
+  push:
+    branches: [main]
+jobs:
+  home-builder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Syntax check home editor and authoritative server
+        run: |
+          node --check server/estate-home-interior.js
+          node --check client/js/estates-home-editor-ui.mjs
+          node --check client/js/estates-home-layout.mjs
+          node --check client/js/estates-island-live.mjs
+          node --check client/js/estates-secret-interior-renderer.mjs
+      - name: Estate home and resale permissions
+        run: |
+          node server/estate-home-interior.test.js
+          node test/estate-home-interior-http.test.js
+          node server/estate-tycoon-rooms.test.js
+      - name: Cross-platform furnishing interactions and collision
+        run: |
+          node client/js/estates-home-interior.test.mjs
+          node client/js/estates-home-editor-ui.test.mjs
+          node client/js/estates-secret-interior.test.mjs
+          node client/js/estates-secret-room-integration.test.mjs

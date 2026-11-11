@@ -35,3 +35,6 @@ assert(gearVertices.count>60&&gearVertices.count<1200,'sculpted gear has control
 assert([...gearVertices.array].every(Number.isFinite),'field gear mesh must contain only finite vertices');
 assert(gear.boundingSphere.radius<1,'field gear remains wearable, not a world obstacle');
 gear.dispose();
+
+// Homefront-specific explorer 3D kit tests run in this established suite.
+await import('./homefront-survivor-appearance.test.mjs');

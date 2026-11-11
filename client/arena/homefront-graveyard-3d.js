@@ -38,6 +38,7 @@ import { nextInteriorEvent } from './homefront-interior-event-feed.mjs';
 import { requiresHomefrontSceneRebuild, mergeHomefrontInputSnapshot, playerPositionUpdates, homefrontInputProximity } from './homefront-input-snapshot.mjs';
 import { createTracerPool } from './homefront-tracers.mjs';
 import { buildWalker, poseWalker } from '../js/walker.js';
+import {applyHomefrontFieldLook} from './homefront-survivor-appearance.mjs';
 import { infectedPresentation, visibleInfected } from './homefront-infected-presentation.mjs';
 import { stepVertical, createMotion, turnToward } from '../js/player-motion.mjs';
 
@@ -800,6 +801,7 @@ function boot(host) {
       // using the same cached walker assets as playable characters.
       if (rescueReady) {
         const npc = buildWalker({suit:0x766551,accent:0xdca66c,skin:1,lite:true});
+        applyHomefrontFieldLook(THREE,npc,{lite:true});
         npc.scale.setScalar(EXPLORER_SCALE*0.88);
         npc.position.set(SURVIVOR_OFFSET.x,0,SURVIVOR_OFFSET.z);
         npc.rotation.y=-Math.PI*0.25;
@@ -1311,6 +1313,7 @@ function boot(host) {
       const isLocalPlayer = p.label === 'You';
       const bodyColor = isLocalPlayer ? equippedOutfitColor : color;
       const walker = buildWalker({ suit: bodyColor, accent: isLocalPlayer ? 0xffb45c : p.party ? 0x8fd4f4 : 0xc5aa8a, skin: 1, lite: LITE_AVATARS || !isLocalPlayer });
+      applyHomefrontFieldLook(THREE,walker,{lite:LITE_AVATARS || !isLocalPlayer});
       walker.rotation.y = Math.PI; walker.scale.setScalar(EXPLORER_SCALE);
       walker.traverse(node => { if (node.isMesh) node.userData.sharedAsset = true; });
       g.add(walker); g.userData.walker = walker;
@@ -1377,6 +1380,7 @@ function boot(host) {
         accent:legendary?0xffcf67:0xcda4f3,
         skin:1,lite:true
       });
+      applyHomefrontFieldLook(THREE,walker,{lite:true});
       walker.scale.setScalar(EXPLORER_SCALE);
       walker.rotation.y=Math.PI;
       walker.traverse(node=>{if(node.isMesh)node.userData.sharedAsset=true;});

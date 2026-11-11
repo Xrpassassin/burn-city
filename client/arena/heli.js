@@ -124,9 +124,9 @@ export function createHeli(scene, { low = false, gun = null, audioSettings = () 
   document.body.appendChild(gunBtn);
   const res = mk('heliRes', 'position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#fff;font:700 16px system-ui,sans-serif;text-align:center;pointer-events:none;text-shadow:0 2px 6px #000');
   const wash = mk('heliWash', 'position:fixed;inset:0;z-index:7;pointer-events:none;background:radial-gradient(ellipse at center,transparent 45%,rgba(160,0,0,.45));');
-  let voteQ=false,useQ=false;
+  let voteQ=false,useQ=false,lastGunUseAt=-10000;
   vote.onclick=e=>{e.stopPropagation();voteQ=true;vote.disabled=true;vote.textContent='✅ VOTED';};
-  gunBtn.onclick=e=>{e.preventDefault();e.stopPropagation();useQ=true;gunBtn.disabled=true;};
+  gunBtn.onclick=e=>{e.preventDefault();e.stopPropagation();if(performance.now()-lastGunUseAt<350)return;lastGunUseAt=performance.now();useQ=true;gunBtn.disabled=true;};
 
   const onKey=e=>{
     if(e.repeat)return;
@@ -225,7 +225,7 @@ export function createHeli(scene, { low = false, gun = null, audioSettings = () 
         ? `MINIGUN ${gi?'RIGHT':'LEFT'} · hold FIRE to spin up · E / tap to exit`
         : control.available?'E / tap to man a door minigun':'Both miniguns are occupied';
       gunBtn.hidden=!control.canInteract;
-      gunBtn.disabled=!control.canInteract;
+      gunBtn.disabled=!control.canInteract||performance.now()-lastGunUseAt<350;
       gunBtn.textContent=control.mounted?'EXIT MINIGUN · E':'MAN MINIGUN · E';
       if (shake > 0) shake -= dt; },
     shakeAmt: () => Math.max(0, shake),

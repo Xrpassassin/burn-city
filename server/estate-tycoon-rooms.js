@@ -1,6 +1,7 @@
 'use strict';
 // Private, owner-or-invited-guest rooms. Never infer authority from client unlocks.
 const ROOMS=Object.freeze([
+ {id:'home',title:'Your Home',upgradeId:null,description:'A furnished walkable home with free floor-plan choices'},
  {id:'bunker',title:'Underground Command Bunker',upgradeId:'underground-bunker',description:'Blast doors, operations desk and backup power'},
  {id:'lounge',title:'Hidden Garden Lounge',upgradeId:'grow-lounge',description:'Private neon conservatory and media lounge'},
  {id:'deluxe-lounge',title:'Deluxe Secret Lounge',upgradeId:'grow-lounge-deluxe',description:'Expanded planted lounge and aquarium wall'},
@@ -18,8 +19,8 @@ function privateRoomOptions({propertyId,acct,accessFor,tycoonStore}={}){
  let state;try{state=tycoonStore.state(propertyId);}catch(e){return {ok:false,error:e.message==='unknown_property'?'unknown_property':'private_room_unavailable'};}
  if(!state.owned)return {ok:false,error:'property_unowned'};
  const installed=new Set(state.unlockedItemIds);
- return {ok:true,propertyId,role:access.role,rooms:ROOMS.filter(r=>installed.has(r.upgradeId)).map(r=>({...r,verified:true})),
-  bonusRoomsOnly:true,ownerMayCustomize:access.role==='owner',canEnter:access.permissions.includes('enter')};
+ return {ok:true,propertyId,role:access.role,rooms:ROOMS.filter(r=>!r.upgradeId||installed.has(r.upgradeId)).map(r=>({...r,verified:true,free:r.upgradeId===null})),
+  bonusRoomsOnly:false,ownerMayCustomize:access.role==='owner',canEnter:access.permissions.includes('enter')};
 }
 function privateRoomAccess(input={}){
  const options=privateRoomOptions(input);

@@ -29,7 +29,7 @@ try{
   await page.waitForFunction(()=>!window.__estatesIslandLive?.active,null,{timeout:5000});
   const setup=await page.evaluate(async()=>{
    const THREE=await import('three');
-   const {renderEstateHouses}=await import('./js/estates-house-design.mjs');
+   const {renderEstateHouses,estateHouseParts}=await import('./js/estates-house-design.mjs');
    const {createEstateTycoonDecor}=await import('./js/estates-tycoon-decor.mjs');
    const {ESTATE_EXTERIOR_ITEM_IDS}=await import('./js/estates-tycoon-architecture.mjs');
    const {createEstateHelicopterWorld}=await import('./js/estates-helicopter-world.mjs');
@@ -50,10 +50,25 @@ try{
    root.position.set(1850,8,-1200);scene.add(root);
    const specs=[['trailer',6,5,3],['apartment',7,8,10],['starter',8,7,5],
     ['family',10,9,6],['mansion',13,11,8]];
+   // Exercise real, distinct free variants in five tier screenshots.
+   const freeStyles=[
+    {architecture:'rustic',palette:'forest'},
+    {architecture:'classic',palette:'coastal'},
+    {architecture:'modern',palette:'original'},
+    {architecture:'rustic',palette:'charcoal'},
+    {architecture:'modern',palette:'coastal'}
+   ];
    const lots=specs.map(([tier,w,d,h],i)=>({
     id:'qa-'+tier,propertyId:'qa-'+tier,tier,position:{x:(i-2)*26,y:.15,z:0},
-    dimensions:{width:20,depth:18},buildingFootprint:{width:w,depth:d,height:h}
+    dimensions:{width:20,depth:18},buildingFootprint:{width:w,depth:d,height:h},...freeStyles[i]
    }));
+   const styleCoverage=new Set(lots.map(l=>l.architecture));
+   const colorCoverage=new Set(lots.map(l=>l.palette));
+   if(styleCoverage.size!==3||colorCoverage.size!==4)throw Error('estate_free_style_browser_coverage_missing');
+   for(const lot of lots){
+    if(!estateHouseParts(lot).some(p=>p.name.startsWith(lot.architecture+'-')))
+     throw Error('estate_free_style_geometry_missing_'+lot.tier);
+   }
    root.add(new THREE.AmbientLight(0xffffff,1.85));
    const sun=new THREE.DirectionalLight(0xffe8ce,2.2);sun.position.set(-20,45,35);root.add(sun);
    for(const lot of lots){
@@ -83,10 +98,13 @@ try{
    render(new THREE.Vector3(root.position.x,root.position.y+4,root.position.z),[36,25,60]);
    return {ready:!!window.__ready,glVersion:renderer.getContext().getParameter(renderer.getContext().VERSION),
     lotCount:lots.length,upgrades:ESTATE_EXTERIOR_ITEM_IDS.length,
+     architecturalStyles:styleCoverage.size,exteriorPalettes:colorCoverage.size,
     helicopterLots:heli.properties,props:visualParts,verifiedDrawBatches:drawBatches,
     renderedDrawCalls:renderer.info.render.calls};
   });
   assert.equal(setup.lotCount,5);
+   assert.equal(setup.architecturalStyles,3);
+   assert.equal(setup.exteriorPalettes,4);
   assert.equal(setup.upgrades,17);
   assert.equal(setup.helicopterLots.length,2);
   assert(setup.props>350,'all five house tiers display substantial real upgrade geometry');
@@ -100,7 +118,14 @@ try{
    assert(base64.length>1000,'WebGL canvas did not produce a usable screenshot');
    writeFileSync(out+'/'+filename,Buffer.from(base64,'base64'));
   };
-  for(const tier of ['trailer','apartment','starter','family','mansion']){
+  await page.evaluate(()=>{
+    const {THREE,root,render}=window.__estatesGameplayQA;
+    const mobile=innerWidth<600;
+    render(new THREE.Vector3(root.position.x,root.position.y+4,root.position.z),
+      mobile?[0,150,230]:[0,70,130]);
+   });
+   await capture(label+'-free-style-overview.png');
+   for(const tier of ['trailer','apartment','starter','family','mansion']){
    await page.evaluate(tier=>{
     const {THREE,root,lots,render}=window.__estatesGameplayQA;
     const lot=lots.find(l=>l.tier===tier);

@@ -1,4 +1,4 @@
-import {ESTATE_ARCHITECTURES,ESTATE_PALETTES,estateFreeStyle} from './estate-free-style-options.mjs';
+import {ESTATE_ARCHITECTURES,ESTATE_ARCHITECTURE_NOTES,ESTATE_PALETTES,estatePalettePreview,estateFreeStyle} from './estate-free-style-options.mjs';
 // In-world visual-only estate style picker. Saving never launches Xaman payments.
 export function mountEstateFreeStyle(container,propertyId,{
  api='',fetcher=fetch,storage=localStorage,onPreview=()=>{},onSaved=()=>{},initialStyle={}
@@ -23,6 +23,29 @@ export function mountEstateFreeStyle(container,propertyId,{
  const architecture=picker('Base architecture',Object.entries(ESTATE_ARCHITECTURES));
  const palette=picker('Exterior colors',Object.entries(ESTATE_PALETTES).map(([k,v])=>[k,v.label]));
  section.appendChild(line);
+ // Give the owner a useful visual explanation before saving: the combinations
+ // are designed as coordinated wall/trim/roof/door schemes, not random tint sliders.
+ const summary=document.createElement('p');
+ summary.style.cssText='font:12px/1.45 system-ui;color:#d4d6cc;margin:5px 0';
+ const chips=document.createElement('div');
+ chips.style.cssText='display:flex;gap:7px;margin:8px 0;align-items:center;flex-wrap:wrap';
+ const names=['Walls','Trim','Roof','Door'];
+ const swatches=names.map(name=>{
+  const chip=document.createElement('span');chip.title=name;chip.setAttribute('role','img');
+  chip.setAttribute('aria-label',name+' color sample');
+  chip.style.cssText='display:inline-block;width:40px;height:28px;border-radius:6px;border:1px solid #9eaaa1;box-shadow:inset 0 0 0 1px #10191b44';
+  chips.appendChild(chip);return chip;
+ });
+ const chipsLegend=document.createElement('span');chipsLegend.textContent='Wall · trim · roof · door';
+ chipsLegend.style.cssText='font:11px system-ui;color:#c5d1c8';
+ chips.appendChild(chipsLegend);
+ const updateStyleDetails=()=>{
+  const selected=estateFreeStyle({architecture:architecture.value,palette:palette.value});
+  summary.textContent=ESTATE_ARCHITECTURE_NOTES[selected.architecture]+' '+ESTATE_PALETTES[selected.palette].description;
+  const values=estatePalettePreview(selected.palette);
+  swatches.forEach((chip,i)=>{chip.style.background='#'+values[i].toString(16).padStart(6,'0');});
+ };
+ section.append(summary,chips);
  const row=document.createElement('div');row.style.cssText='display:flex;gap:7px;flex-wrap:wrap';
  const status=document.createElement('p');status.setAttribute('role','status');
  status.style.cssText='font:12px/1.4 system-ui;color:#ffce96';
@@ -32,9 +55,9 @@ export function mountEstateFreeStyle(container,propertyId,{
  let saved=estateFreeStyle(initialStyle),owner=false,busy=false,tokenAtOpen=storage?.getItem('bcToken')||'';
  const alive=()=>section.isConnected!==false;
  const choice=()=>estateFreeStyle({architecture:architecture.value,palette:palette.value});
- const sync=style=>{architecture.value=style.architecture;palette.value=style.palette;};
+ const sync=style=>{architecture.value=style.architecture;palette.value=style.palette;updateStyleDetails();};
  sync(saved);
- const preview=()=>{if(alive())onPreview(choice());};
+ const preview=()=>{if(alive()){updateStyleDetails();onPreview(choice());}};
  architecture.addEventListener('change',preview);palette.addEventListener('change',preview);
  button('Preview free style',preview);
  const revert=button('Cancel preview',()=>{sync(saved);onPreview(null);status.textContent='Preview cleared. No changes made.';});

@@ -3,9 +3,10 @@ import {estateFreeStyle,estatePaletteColor} from './estate-free-style-options.mj
 // Static architectural parts in lot-local metres. All solid detail stays inside the
 // existing footprint, so decorative improvements cannot obstruct public paths.
 export const HOUSE_MATERIALS = Object.freeze({
-  plaster:0xd8cbb5, stone:0x817d73, siding:0x71878a, timber:0x855a3c,
-  roof:0x303b49, slate:0x3f4d58, metal:0x69777b, frame:0x283d49, glass:0x537f8b, warm:0xffc982,
-  brass:0xb89457, leaf:0x48664c, flower:0xd37a73, copper:0xb0754a, ivory:0xe9dfcc
+  plaster:0xd3c7b6, stone:0xaaa291, siding:0x889390, timber:0x89694f,
+  roof:0x474b4a, slate:0x535856, metal:0x6a746f, frame:0x444744, glass:0x647e80, warm:0xffc982,
+  brass:0xada079, leaf:0x50694c, flower:0xb87e7c, copper:0x98775d, ivory:0xe3dbca,
+  trim:0xe5dfd0, door:0x6d4d38, earth:0x594d40
 });
 export function estateHouseParts(item) {
   const f=item.buildingFootprint;
@@ -22,25 +23,25 @@ export function estateHouseParts(item) {
   add('shell',level>=5?'ivory':trailer?'siding':'plaster',0,.3+bodyH/2,0,W,bodyH,D);
   const front=D/2, top=.3+bodyH;
   const doorX=apartment?0:-W*.24, doorH=Math.min(2.2,bodyH*.78);
-  add('entry-frame','stone',doorX,.3+doorH/2,front+.035,1.35,doorH+.18,.16);
-  add('entry-door','timber',doorX,.3+doorH/2,front+.13,1.06,doorH,.08);
+  add('entry-frame','trim',doorX,.3+doorH/2,front+.035,1.35,doorH+.18,.16);
+  add('entry-door','door',doorX,.3+doorH/2,front+.13,1.06,doorH,.08);
   add('entry-handle','brass',doorX+.35,1.2,front+.19,.07,.32,.04);
   add('entry-canopy','roof',doorX,doorH+.55,front-.15,2,.14,.8);
   add('entry-light','warm',doorX-.86,doorH+.05,front+.12,.15,.27,.09);
   // Door casing, lintel, kick plate and individual facade joints keep the
   // silhouette from reading as one flat box at eye height.
   add('entry-threshold','stone',doorX,.32,front+.16,1.24,.08,.22);
-  add('entry-lintel','timber',doorX,.3+doorH+.1,front+.17,1.32,.12,.15);
+  add('entry-lintel','trim',doorX,.3+doorH+.1,front+.17,1.32,.12,.15);
   for(const side of [-1,1]){
-    add('entry-jamb-'+side,'stone',doorX+side*.62,.3+doorH/2,front+.17,.09,doorH,.13);
+    add('entry-jamb-'+side,'trim',doorX+side*.62,.3+doorH/2,front+.17,.09,doorH,.13);
     add('corner-trim-front-'+side,'stone',side*(W/2-.08),top*.51,front+.065,.11,Math.max(.3,top-.34),.11);
   }
-  add('fascia-front','timber',0,top-.17,front+.07,W,.13,.13);
+  add('fascia-front',architecture==='rustic'?'timber':'trim',0,top-.17,front+.07,W,.13,.13);
   add('base-flashing','copper',0,.4,front+.1,W,.035,.12);
   function window(name,x,y,z,width,height,side=false) {
-    add(name+'-surround','frame',x,y,z,side?.12:width+.18,height+.18,side?width+.18:.12);
+    add(name+'-surround','trim',x,y,z,side?.12:width+.18,height+.18,side?width+.18:.12);
     add(name+'-pane','glass',x+(side?.075:0),y,z+(side?0:(z<0?-.075:.075)),side?.06:width,height,side?width:.06);
-    add(name+'-mullion','stone',x+(side?.115:0),y,z+(side?0:(z<0?-.115:.115)),side?.04:.07,height,side?.07:.04);
+    add(name+'-mullion','frame',x+(side?.115:0),y,z+(side?0:(z<0?-.115:.115)),side?.04:.07,height,side?.07:.04);
     add(name+'-sill','stone',x, y-height/2-.12,z,side?.25:width+.32,.12,side?width+.32:.25);
   }
   const floors=apartment?3:family||mansion?2:1;
@@ -79,7 +80,7 @@ export function estateHouseParts(item) {
     for(const x of [-W*.37,-W*.12,W*.13,W*.38]){
       add('roof-membrane-joint-'+x.toFixed(2),'slate',x,top+.255,0,.045,.035,d-.34);
     }
-    add('parapet-front-coping','stone',0,top+.62,front-.06,W,.1,.23);
+    add('parapet-front-coping','trim',0,top+.62,front-.06,W,.1,.23);
     for(const side of [-1,1]) add('parapet-'+side,'plaster',side*(W/2),top+.38,0,.18,.5,D);
     add('parapet-rear','plaster',0,top+.38,-front,W,.5,.18);
     if(apartment) {
@@ -126,7 +127,9 @@ export function estateHouseParts(item) {
         add('modern-vertical-slat-'+side+'-'+i,'timber',shadeX,top*.7,front+.135,.055,Math.min(top*.34,1.4),.08);
       }
     }
-    add('modern-entrance-lintel','slate',doorX,Math.min(top-.17,doorH+.54),front+.15,1.62,.18,.13);
+    add('modern-entrance-lintel','metal',doorX,Math.min(top-.17,doorH+.54),front+.15,1.62,.18,.13);
+    // A slender timber soffit warms the otherwise cool modern entrance.
+    add('modern-soffit','timber',doorX,Math.min(top-.26,doorH+.36),front+.16,1.45,.055,.1);
   }else if(architecture==='rustic'){
     // Exposed timber joinery and capped stone corner piers make every tier
     // read as a warm lodge/craftsman variant, not a recolored default cube.
@@ -135,24 +138,30 @@ export function estateHouseParts(item) {
       add('rustic-corner-timber-'+side,'timber',x,top*.5,front+.10,.16,Math.max(.35,top-.42),.14);
       add('rustic-stone-plinth-'+side,'stone',x,.53,front+.10,.3,.48,.17);
       add('rustic-eave-bracket-'+side,'timber',x,top-.28,front+.12,.32,.32,.13);
+      // Tapered-looking diagonal timber support reads as structural joinery.
+      add('rustic-knee-brace-'+side,'timber',x-side*.22,top-.53,front+.14,.065,.45,.085,side*.52);
     }
     add('rustic-heavy-lintel','timber',doorX,Math.min(top-.23,doorH+.44),front+.18,1.76,.23,.17);
-    add('rustic-roof-trim','copper',0,top-.09,front+.13,W*.9,.055,.12);
+    add('rustic-roof-trim','timber',0,top-.09,front+.13,W*.9,.075,.12);
+    add('rustic-door-step','stone',doorX,.33,front+.135,1.1,.06,.16);
   }else{
     // Traditional masonry accents and a restrained transom add relief
     // to the default house without affecting its prestige stages.
     for(const side of [-1,1]){
       const x=side*(W/2-.15);
-      for(let i=0;i<3;i++)add('classic-corner-quoins-'+side+'-'+i,'stone',x,.53+i*.56,front+.11,.24,.22,.12);
+      for(let i=0;i<4;i++)add('classic-corner-quoins-'+side+'-'+i,'stone',x,.58+i*(Math.max(1.1,top-1.1)/4),front+.11,.24,.19,.12);
     }
     add('classic-door-transom','glass',doorX,Math.min(top-.24,doorH+.48),front+.2,.72,.14,.045);
+    add('classic-eave-cornice','trim',0,top-.22,front+.145,W*.88,.12,.13);
   }
   // Planters sit against the wall, avoiding any extra obstacle in the garden.
   for(const x of [-W*.42,W*.42]) {
-    add('planter','stone',x,.51,front+.02,.62,.42,.42);
-    add('planter-rim','timber',x,.73,front+.02,.66,.06,.46);
-    add('plant','leaf',x,.8,front+.02,.52,.3,.36,0,'sphere');
-    for(const dx of [-.17,.13])add('plant-frond-'+dx,'leaf',x+dx,.96,front+.02,.13,.29,.15,dx<0?-.22:.22,'sphere');
+    // Round clay/stone pots with a soil disc avoid the box-planter silhouette.
+    add('planter','stone',x,.51,front+.02,.58,.42,.42,0,'cylinder');
+    add('planter-rim','trim',x,.73,front+.02,.66,.055,.46,0,'cylinder');
+    add('planter-soil','earth',x,.755,front+.02,.48,.035,.34,0,'cylinder');
+    add('plant','leaf',x,.9,front+.02,.52,.32,.36,0,'sphere');
+    for(const dx of [-.17,.13])add('plant-frond-'+dx,'leaf',x+dx,1.04,front+.02,.13,.29,.15,dx<0?-.22:.22,'sphere');
   }
   // Cumulative cosmetic stages: no garden objects beyond the collision shell.
   if(level>=1) for(const side of [-1,1]) {
@@ -210,8 +219,8 @@ export function renderEstateHouses(THREE,parent,items) {
     const [key,shape,palette]=bucket.split('|');
     const mat=new THREE.MeshStandardMaterial({
       color:estatePaletteColor(key,palette,HOUSE_MATERIALS[key]),
-      roughness:key==='glass'?.17:key==='brass'?.36:key==='roof'?.62:key==='frame'?.44:key==='stone'?.92:.82,
-      metalness:key==='brass'?.48:key==='copper'?.61:key==='frame'?.45:0,
+      roughness:key==='glass'?.22:key==='brass'?.43:key==='roof'?.69:key==='frame'?.52:key==='metal'?.5:key==='timber'||key==='door'?.75:key==='stone'?.92:.84,
+      metalness:key==='brass'?.45:key==='copper'?.52:key==='frame'?.36:key==='metal'?.55:0,
       emissive:key==='warm'?HOUSE_MATERIALS.warm:0,emissiveIntensity:.45,
       ...estateSurfaceProperties(THREE,key)
     });

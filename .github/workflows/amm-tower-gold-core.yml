@@ -1,0 +1,67 @@
+name: AMM tower continuity and verified gold cores
+on:
+  pull_request:
+    paths:
+      - 'client/js/app.js'
+      - 'client/js/amm-lock.js'
+      - 'client/js/amm-gold-vein-profile.mjs'
+      - 'test/amm-gold-vein-profile.test.mjs'
+      - 'scripts/amm-gold-vein-browser-preview.mjs'
+      - '.github/workflows/amm-tower-gold-core.yml'
+  push:
+    branches: [main]
+jobs:
+  formulas-and-verified-ledger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --ignore-scripts
+      - name: JavaScript syntax
+        run: |
+          node --check client/js/app.js
+          node --check client/js/amm-lock.js
+          node --check client/js/amm-gold-vein-profile.mjs
+          node --check scripts/amm-gold-vein-browser-preview.mjs
+      - name: LP versus token-burn integrity and helix profile
+        run: |
+          node test/amm-gold-vein-profile.test.mjs
+          node test/goldlock-sim.js
+          node test/amm-lock-sim.js
+  real-webgl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    strategy:
+      fail-fast: false
+      matrix: {browser: [chromium, webkit]}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --ignore-scripts
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Start isolated dry-run game
+        run: |
+          DRY_RUN=true BURN_JOB_IN_SERVER=false PORT=8080 DATA_DIR=$(mktemp -d) node server/server.js > /tmp/amm-webgl.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 200 /tmp/amm-webgl.log
+          exit 1
+      - name: Real-world AMM tower shader and gold-core visual acceptance
+        run: node scripts/amm-gold-vein-browser-preview.mjs
+        env:
+          AMM_BROWSER: ${{ matrix.browser }}
+          AMM_PREVIEW_OUTPUT: amm-gold-vein-preview-output
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: amm-gold-vein-previews-${{ matrix.browser }}
+          path: amm-gold-vein-preview-output/
+          if-no-files-found: ignore
+      - if: failure()
+        run: test -f /tmp/amm-webgl.log && tail -n 150 /tmp/amm-webgl.log || true

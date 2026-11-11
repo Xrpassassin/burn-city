@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {verifiedGoldFraction,goldCoreRadiusFraction,towerHelixRadius,towerStreamTaper,towerStreamOpacity,easeProfile} from '../client/js/amm-gold-vein-profile.mjs';
+assert.equal(verifiedGoldFraction(null),0);
+assert.equal(verifiedGoldFraction(undefined),0);
+assert.equal(verifiedGoldFraction(NaN),0);
+assert.equal(verifiedGoldFraction(-.05),0);
+assert.equal(verifiedGoldFraction(1.001),0,'unverified/out-of-range data is never treated as 100% locked');
+assert.equal(verifiedGoldFraction(.92),.92);
+assert.equal(goldCoreRadiusFraction(0),0);
+assert(Math.abs(goldCoreRadiusFraction(.25)-.44)<1e-8,'25% verified lock yields half the 100% bar radius');
+assert(Math.abs(goldCoreRadiusFraction(1)-.88)<1e-8,'100% always leaves an activity-colour sheath');
+for(let i=0;i<=100;i++){
+ const q=i/100,r=goldCoreRadiusFraction(q);
+ assert(r>=0&&r<=.88);
+ if(i>0)assert(r>goldCoreRadiusFraction((i-1)/100),'more verified LP permanently locked must always widen the gold bar');
+}
+assert(goldCoreRadiusFraction(.99)>goldCoreRadiusFraction(.5),'relative LP share rather than raw token amount drives width');
+assert(Math.abs(easeProfile(0))<1e-8&&Math.abs(easeProfile(1)-1)<1e-8);
+const towerRadius=4.5,safe=3.75,results=[...Array(101)].map((_,i)=>towerHelixRadius(towerRadius,safe,i/100));
+assert.equal(results[0],towerRadius);
+assert(results.every(v=>v>=safe+.12-1e-8&&v<=towerRadius+1e-8),'spiral does not intersect the structure');
+assert(results.every((v,i)=>i===0||v<=results[i-1]+1e-8),'spiral settles smoothly toward the wall');
+assert(Math.abs(results[0]-results[1])<.00001,'no abrupt radial kink where the bridge connects');
+assert(Math.abs(results[99]-results[100])<.001,'the final approach settles at the face');
+const taper=[...Array(101)].map((_,i)=>towerStreamTaper(i/100));
+const fade=[...Array(101)].map((_,i)=>towerStreamOpacity(i/100));
+assert.equal(taper[0],1);assert(Math.abs(taper[100]-.34)<1e-8);
+assert.equal(fade[0],1);assert.equal(fade[100],0);
+assert(taper.every((v,i)=>i===0||v<=taper[i-1]+1e-8));
+assert(fade.every((v,i)=>i===0||v<=fade[i-1]+1e-8));
+assert(taper.every(v=>v>=.34-1e-8),'a shrinking gold core is still visible before it fades');
+console.log('AMM gold bars: verified LP percentage, conservative unknowns, tangent-safe tower approach and smooth fade passed');

@@ -22,5 +22,6 @@ assert.match(src,/if\(ecosystem!==null && fresh\(o\)\)return \{st:'verified'/);
 assert.match(src,/const ecosystemCard = ecosystemSupplyCard\(/);
 assert.match(src,/if\(ecosystemCard\)return ecosystemCard/);
 assert.match(src,/sing\.count = disks\.count = visibleSingularities/);
-assert.match(src,/st\.draws = 3/);
+assert.match(src,/st\.draws = 2/,'AMM lock halo draw is removed; singularity and accretion disk remain');
+assert.match(src,/c\.onVerifiedPool\(b\.p\.amm,share\)/,'verified LP percentages still feed the AMM gold core');
 console.log('Three-token live renderer wiring guards passed');

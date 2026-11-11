@@ -76,6 +76,6 @@ const guestHost=new Element('root');token='';
 const guest=mountEstateHomeEditor(guestHost,{...initial,role:'guest',editable:false},{storage,fetcher});
 assert(button(guest.root,'Save design · 0 XRP').disabled);
 assert(button(guest.root,'↑').disabled);
-assert(guest.root.textContent.includes('invited guests'));
+assert.match(guest.root.textContent, /invited guests/i, 'read-only editor clearly explains guest permissions');
 guest.dispose();
 console.log('Estate cross-platform furnishing editor: responsive touch targets, visible selection, D-pad, keyboard, undo, ownership and save controls passed');

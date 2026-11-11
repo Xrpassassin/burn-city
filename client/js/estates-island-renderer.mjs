@@ -1,3 +1,4 @@
+import {disposeEstateSurfaceMaterial} from './estates-material-fidelity.mjs';
 import { renderEstateHouses } from './estates-house-design.mjs';
 import { createEstateTycoonDecor } from './estates-tycoon-decor.mjs';
 // Optional Three.js renderer adapter for buildEstatesIslandScene().
@@ -142,7 +143,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     appearanceKey=key;
     const geometries=new Set(),materials=new Set();
     houseRoot.traverse?.(node=>{if(node.geometry)geometries.add(node.geometry);if(node.material)materials.add(node.material);});
-    for(const geometry of geometries)geometry.dispose?.();for(const mat of materials)mat.dispose?.();
+    for(const geometry of geometries)geometry.dispose?.();for(const mat of materials)disposeEstateSurfaceMaterial(mat);
     for(const child of [...houseRoot.children])houseRoot.remove(child);
     const houses=renderEstateHouses(THREE,houseRoot,lots.map(item=>({...item,prestigeLevel:levels.get(item.propertyId)||0})));
     for(const [id,meshes] of houses)objects.set(id,[...boundaries.get(id),...meshes]);
@@ -164,7 +165,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
       disposed=true; tycoonDecor.dispose(); scene.remove(root);
       root.traverse?.(node=>{
         node.geometry?.dispose?.();
-        if(Array.isArray(node.material)) node.material.forEach(m=>m?.dispose?.()); else node.material?.dispose?.();
+        if(Array.isArray(node.material)) node.material.forEach(disposeEstateSurfaceMaterial); else disposeEstateSurfaceMaterial(node.material);
       });
       objects.clear(); return true;
     }

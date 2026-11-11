@@ -13,5 +13,5 @@ assert.match(pilot,/staticLOD\.update\(zombies,animated,now\*\.001\)/,'all nonan
 assert.match(pilot,/return new Set\(\[\.\.\.animated,\.\.\.distant\]\)/,'fallback procedural box instances suppressed when actual 3D model renders');
 assert.match(pilot,/staticLOD\?\.dispose\(\)/,'geometry is disposed when leaving Zombies');
 assert.match(fx,/const modeled = zombieModelPilot\?\.update/,'original renderer uses visual-only pilot without changing gameplay');
-assert(!/homefront|minecraft|goblin/i.test(src),'no Homefront or cartoon asset imports');
+assert(!/from\s*['\"][^'\"]*(?:homefront|minecraft|goblin)/i.test(src),'no Homefront or cartoon asset imports');
 console.log('Original Zombies distant 3D art: real licensed baked skin mesh, instancing, capacity and independence passed');

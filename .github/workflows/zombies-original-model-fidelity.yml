@@ -6,6 +6,8 @@ on:
       - 'client/arena/zombie-arena-appearance.mjs'
       - 'client/arena/zombie-arena-appearance.test.mjs'
       - 'client/arena/zombie-model-pilot.mjs'
+      - 'client/arena/zombie-instanced-lod.mjs'
+      - 'client/arena/zombie-instanced-lod.test.mjs'
       - 'client/arena/zombie-sketchfab-cast.mjs'
       - 'client/arena/zombie-sketchfab-cast.test.mjs'
       - 'client/arena/assets/zombies/*.glb'
@@ -35,6 +37,7 @@ jobs:
         run: |
           node --check client/arena/zombie-arena-appearance.mjs
           node --check client/arena/zombie-model-pilot.mjs
+          node --check client/arena/zombie-instanced-lod.mjs
           node --check client/arena/zombie-sketchfab-cast.mjs
           node --check client/arena/zombie-model-policy.mjs
           node --input-type=module --check < client/arena/fx.js
@@ -43,6 +46,7 @@ jobs:
         run: |
           node client/arena/zombie-arena-appearance.test.mjs
           node client/arena/zombie-sketchfab-cast.test.mjs
+          node client/arena/zombie-instanced-lod.test.mjs
           node client/arena/zombie-model-pilot.test.mjs
           node client/arena/zombie-model-policy.test.mjs
           node client/arena/zombie-model-pilot-integration.test.mjs

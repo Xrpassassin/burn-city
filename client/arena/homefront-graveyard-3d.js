@@ -721,7 +721,7 @@ function boot(host) {
     const angle = (hash % 8) * Math.PI / 4;
     const visualX = Math.max(-96, Math.min(96, landmark.x + Math.cos(angle) * 4.2));
     const visualZ = Math.max(-96, Math.min(96, landmark.z + Math.sin(angle) * 4.2));
-    const piece = buildLandmarkSetPiece(THREE, { ...landmark, x: visualX, z: visualZ }, terrainElevation(visualX, visualZ));
+    const piece = buildLandmarkSetPiece(THREE, { ...landmark, x: visualX, z: visualZ }, terrainElevation(visualX, visualZ), surfaces);
     piece.userData.interactionPointId = landmark.id;
     cityChunkAt(visualX, visualZ).add(piece);
     landmarkSetPieces.set(landmark.id, piece);

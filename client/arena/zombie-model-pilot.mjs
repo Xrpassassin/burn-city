@@ -214,13 +214,13 @@ export async function createZombieModelPilot(scene, options = {}) {
       const distant=staticLOD.update(zombies,animated,now*.001);
       return new Set([...animated,...distant]);
     },
-    react(id,kind='HitReact'){
+    react(id, kind = 'HitReact'){
       const item=active.get(id);
       if(!item)return false;
       const now=performance.now();
       if(item.model.clips.has(kind)){
         setAnimation(item,kind,true);
-        if(kind==='Death')item.deadUntil=item.reactionUntil;
+        if (kind === 'Death') item.deadUntil = item.reactionUntil;
         return true;
       }
       // Aiden Studios and LxNazarov do not supply HitReact or Death.

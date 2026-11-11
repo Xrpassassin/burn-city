@@ -86,7 +86,7 @@ export function createEstateHomeLayout({tier='trailer',layoutId='cozy',furniture
   add('window-sill-'+side,side*(halfX-.23),1.12,-halfZ*.38,.19,.1,1.22,'home-wood');
  }
  add('home-rug',0,.01,-.15,Math.min(W-1,2.7),.045,Math.min(D-1.1,2),'home-rug');
- add('home-ceiling-rose',0,wallHeight-.08,0,.62,.12,.62,'home-trim','false','cylinder');
+ add('home-ceiling-rose',0,wallHeight-.08,0,.62,.12,.62,'home-trim',false,'cylinder');
  add('home-light',0,wallHeight-.25,0,.49,.21,.49,'home-warm',false,'sphere');
  if(layoutId==='open'||layoutId==='maker-suite'){
   add('open-breakfast-counter',0,.45,-halfZ+.36,Math.min(W-1,2.25),.9,.44,'home-wood',true);

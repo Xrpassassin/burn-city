@@ -11,6 +11,8 @@ import { addPineCrossingScenery, buildPineFacade } from './homefront-pine-scener
 import { biomeAt, environmentalCandidates, landmarkCandidates } from './homefront-world-generation.mjs';
 import { atmosphereAt, AMBIENT_UPDATE_MS } from './homefront-atmosphere.mjs';
 import { groundDetailCandidates } from './homefront-ground-detail.mjs';
+import { createHomefrontTuftGeometry, createHomefrontRubbleGeometry } from './homefront-ground-meshes.mjs';
+import { createHomefrontFieldPackGeometry } from './homefront-field-pack.mjs';
 import { DISTRICTS, LANDMARKS } from './homefront-exploration-content.mjs';
 import { explorationGuidance } from './homefront-exploration-guidance.mjs';
 import { buildLandmarkSetPiece } from './homefront-landmark-builder.mjs';
@@ -444,10 +446,12 @@ function boot(host) {
   };
   // Thousands of tiny scenic details are batched into two draw calls per visible chunk.
   // They have no collision or gameplay authority and are culled with their parent chunk.
-  const microRockGeometry = new THREE.DodecahedronGeometry(0.28, 0);
-  const microTuftGeometry = new THREE.ConeGeometry(0.12, 0.62, 4);
+  const microRockGeometry = createHomefrontRubbleGeometry(THREE);
+  const microTuftGeometry = createHomefrontTuftGeometry(THREE);
   const microRockMaterial = mat(0x77756a);
-  const microTuftMaterial = mat(0x596348);
+  const microTuftMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffffff, vertexColors: true, roughness: 1, side: THREE.DoubleSide
+  });
   const microTemp = new THREE.Object3D();
   function addGroundDetailInstances(parent, cx, cz) {
     const candidates = groundDetailCandidates(cx, cz, { count: 52 });
@@ -458,7 +462,7 @@ function boot(host) {
       mesh.name = 'ground-detail-' + kind + '-' + cx + ',' + cz;
       mesh.frustumCulled = true;
       items.forEach((item, index) => {
-        microTemp.position.set(item.x, item.y + (kind === 'rock' ? 0.12 : 0.29 * item.scale), item.z);
+        microTemp.position.set(item.x, item.y + (kind === 'rock' ? 0.12 : 0.015), item.z);
         microTemp.rotation.set(kind === 'rock' ? item.rotation * 0.35 : 0, item.rotation, kind === 'rock' ? item.rotation * 0.7 : (item.rotation % 0.4) - 0.2);
         microTemp.scale.setScalar(item.scale);
         microTemp.updateMatrix();
@@ -761,11 +765,12 @@ function boot(host) {
   function labelSprite(text, color = '#f6d8b5') {
     const c = document.createElement('canvas'); c.width = 512; c.height = 96;
     const cx = c.getContext('2d'); cx.font = 'bold 34px system-ui'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-    cx.fillStyle = '#090a09d9'; cx.fillRect(8, 8, 496, 80); cx.strokeStyle = color; cx.lineWidth = 4; cx.strokeRect(8, 8, 496, 80);
+    cx.fillStyle = 'rgba(11,14,13,.65)'; cx.fillRect(38, 24, 436, 47);
+    cx.shadowColor = '#030505'; cx.shadowBlur = 8;
     cx.fillStyle = color; cx.fillText(text.slice(0, 30), 256, 48);
     const texture = new THREE.CanvasTexture(c);
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-    sprite.scale.set(wantsContinuous ? 4.5 : 13, wantsContinuous ? 0.85 : 2.45, 1); return sprite;
+    sprite.scale.set(wantsContinuous ? 2.7 : 6.5, wantsContinuous ? 0.54 : 1.22, 1); return sprite;
   }
   function buildPOI(p, rescueReady = true) {
     const g = new THREE.Group(); g.position.set(p.x, terrainElevation(p.x, p.z), p.z);
@@ -802,7 +807,7 @@ function boot(host) {
         g.add(npc);
         g.userData.rescueActor=npc;
         const rescueNote=labelSprite('SURVIVOR · NEEDS HELP','#ffca9b');
-        rescueNote.position.set(SURVIVOR_OFFSET.x,4.45,SURVIVOR_OFFSET.z);rescueNote.scale.set(10,1.8,1);
+        rescueNote.position.set(SURVIVOR_OFFSET.x,3.5,SURVIVOR_OFFSET.z);rescueNote.scale.set(3.3,.66,1);
         g.add(rescueNote);
       }
     }
@@ -1312,7 +1317,7 @@ function boot(host) {
       g.userData.pvpTarget = !isLocalPlayer && !p.party;   // strangers in interest range are PvP targets; party members never
       // A readable field pack makes the backpack slot visible in-world without affecting gameplay stats.
       const packColor = isLocalPlayer ? equippedBackpackColor : 0x78604a;
-      const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.82, 0.34), mat(packColor));
+      const backpack = new THREE.Mesh(createHomefrontFieldPackGeometry(THREE), mat(packColor));
       backpack.position.set(0, 1.85, -0.42); g.add(backpack);
       const packStrap = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.1, 0.38), mat(0x29251f));
       packStrap.position.set(0, 1.92, -0.43); g.add(packStrap);
@@ -1378,7 +1383,7 @@ function boot(host) {
       npc.add(walker);npc.userData.walker=walker;
       const label=labelSprite('ALLY · '+escort.name+' · '+escort.rarity.toUpperCase(),
         legendary?'#ffd375':'#d4aaff');
-      label.position.y=4.7;label.scale.set(11.5,2.0,1);npc.add(label);
+      label.position.y=4.7;label.scale.set(3.6,.72,1);npc.add(label);
       playerGroup.add(npc);
     }
     const selectedLoot = (data.world?.lootNodes || []).find(n => n.id === selectedLootId);

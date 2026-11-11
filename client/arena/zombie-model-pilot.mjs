@@ -113,6 +113,8 @@ export async function createZombieModelPilot(scene, options = {}) {
       }
     });
     const group = new THREE.Group();
+    group.name='Arena Zombies · '+model.id+' · '+String(z.id);
+    group.userData.infectedAssetId=model.id;
     group.scale.setScalar(model.scale * zombieHumanShape(z.ty) * (Number.isFinite(z.v)?z.v:1));
     visual.position.y = -model.minY;
     group.add(visual);

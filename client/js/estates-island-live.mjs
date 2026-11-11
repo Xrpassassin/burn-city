@@ -158,6 +158,17 @@ export async function installEstatesIslandLive({
   document.body.appendChild(exitButton);exitButton.addEventListener('click',()=>flightSession?endHelicopterFlight(true):secretSession?leaveSecretInterior():leaveIsland());
   let directoryOpen=false;
   const positionPanel = () => {
+    if(homeEditorActive&&window.innerWidth<=700){
+      // Full-width, scrollable mobile design tray. Walking/gamepad controls
+      // are paused while editing; the larger tap targets must not be squeezed
+      // into the compact property inspection popup.
+      panel.style.left='8px';panel.style.top='calc(8px + env(safe-area-inset-top))';
+      panel.style.bottom='auto';panel.style.transform='none';
+      panel.style.width='calc(100vw - 16px)';
+      panel.style.maxHeight='calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))';
+      panel.style.overflowY='auto';panel.style.zIndex='1250';panel.style.display='block';
+      return;
+    }
     const reserved=[];
     // Reserve visible movement, interaction, and wallet controls where detectable.
     for(const selector of ['#bcEstatesExit','#bcEstatesWalkingGuidance','#bcEstatePropertyHint',

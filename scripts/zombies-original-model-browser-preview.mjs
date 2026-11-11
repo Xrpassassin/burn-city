@@ -1,5 +1,5 @@
-// Render the original Zombies mode's OWN procedural fallback and existing
-// R8 animated zombies in an isolated real WebGL test. Never starts gameplay,
+// Render the original Zombies mode's OWN procedural fallback and licensed
+// human, hazmat and thin infected CC-BY zombies in an isolated real WebGL test. Never starts gameplay,
 // touches Homefront, wallet, purchases or server combat data.
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -66,15 +66,38 @@ try{
    const modeled=pilot.update(zombies,.016,{x:0,z:6});
    camera.position.set(0,4,13);camera.lookAt(0,1.2,0);
    gl.render(scene,camera);
-   let skinned=0,meshes=0;
-   scene.traverse(obj=>{if(obj.isSkinnedMesh)skinned++;if(obj.isMesh)meshes++;});
+   let skinned=0,meshes=0,textured=0;
+   scene.traverse(obj=>{if(obj.isSkinnedMesh)skinned++;if(obj.isMesh){
+    meshes++;const mats=Array.isArray(obj.material)?obj.material:[obj.material];
+    if(mats.some(m=>m?.map||m?.normalMap))textured++;
+   }});
+   const cast=scene.children.filter(obj=>obj.userData?.infectedAssetId).map(obj=>obj.userData.infectedAssetId);
    window.__zombieQA.pilot=pilot;
-   return {modeled:modeled.size,skinned,meshes,drawCalls:gl.info.render.calls};
+   const hitAiden=pilot.react('original-bundled-0','HitReact');
+   const hitHazmat=pilot.react('original-bundled-3','HitReact');
+   const deathThin=pilot.react('original-bundled-1','Death');
+   pilot.update(zombies,.016,{x:0,z:6});gl.render(scene,camera);
+   return {modeled:modeled.size,skinned,meshes,textured,cast,hitAiden,hitHazmat,deathThin,
+    drawCalls:gl.info.render.calls};
   });
-  assert.equal(detailed.modeled,8,'original bundled human zombie models must all instantiate');
-  assert(detailed.skinned>0,'preview uses actual skinned animated characters');
+  assert.equal(detailed.modeled,8,'all nearby Zombies should show the new realistic assets, not blocky fallbacks');
+  assert(detailed.skinned>=8,'preview uses real skinned animated humans, not generic fake capsule models');
+  assert(detailed.textured>=8,'each detailed character uses real material textures');
+  assert.deepEqual(new Set(detailed.cast),new Set(['human','hazmat','thin']),'all three verified CC-BY casts appear');
+  assert(detailed.hitAiden&&detailed.hitHazmat&&detailed.deathThin,'missing hit/death clips get visual fallback, not lost reactions');
   assert(detailed.drawCalls>0&&detailed.drawCalls<350);
-  await page.screenshot({path:out+'/'+tag+'-'+view.name+'-original-animated-zombies.png',fullPage:false});
+  await page.screenshot({path:out+'/'+tag+'-'+view.name+'-sketchfab-infected.png',fullPage:false});
+  const closeup=await page.evaluate(()=>{
+    const {scene,camera,gl}=window.__zombieQA;
+    const hazmat=scene.children.find(x=>x.userData?.infectedAssetId==='hazmat');
+    if(!hazmat)return null;
+    camera.position.set(hazmat.position.x+1.8,2.35,hazmat.position.z+4.8);
+    camera.lookAt(hazmat.position.x,1.25,hazmat.position.z);
+    gl.render(scene,camera);
+    return {asset:hazmat.userData.infectedAssetId,x:hazmat.position.x,z:hazmat.position.z};
+  });
+  assert.equal(closeup?.asset,'hazmat','must show a real hazmat infected close-up');
+  await page.screenshot({path:out+'/'+tag+'-'+view.name+'-hazmat-closeup.png',fullPage:false});
   results.push({view:view.name,fallback:init,animated:detailed});
   await ctx.close();
  }

@@ -69,10 +69,11 @@ const fakeScans={material(kind,options){
   material.userData.homefrontTileMetres=2;
   return material;
 }};
-let totalWindows=0,totalBatches=0;
+let totalWindows=0,totalBatches=0,decoratedSites=0;
 for(const site of LANDMARKS){
  const details=landmarkFacadeSpecs(site.archetype);
  if(!details)continue;
+ decoratedSites++;
  assert(details.panes.length>=3,'real art pass requires several framed openings');
  assert(details.panes.every(([x,y,w,h])=>Number.isFinite(x)&&y>=1&&w>0&&h>0));
  const group=buildLandmarkSetPiece(RenderTHREE,site,0,fakeScans);
@@ -90,7 +91,7 @@ for(const site of LANDMARKS){
     'world-scale UVs must exist on CC0 scanned materials');
 }
 assert(totalWindows>=26,'recognizable institutional/apocalypse facades are authored');
-assert(totalBatches<=24,'framing remains batched for mobile rendering');
+assert(totalBatches<=3*decoratedSites,'framing stays at most three instanced batches per landmark');
 assert(materialCalls.length>=2&&materialCalls.length<=PBR_KEYS.length,
  'each scan palette is cached across all landmark buildings');
 

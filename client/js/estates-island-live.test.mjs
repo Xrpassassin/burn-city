@@ -61,6 +61,9 @@ assert(live.includes('Private homes are for their owners and invited guests.'), 
 assert(live.includes('updateLandmarkInteraction(edge,Boolean(result.property))'), 'public landmark interactions are checked in the live exploration loop');
 assert(live.includes('showLandmarkDetails(nearest)'), 'pressing E opens a landmark detail panel');
 assert(live.includes('onPreview:itemId=>renderer.previewUpgrade(property.propertyId,itemId)'), 'Tycoon shop has a real in-world 3D preview callback');
+assert(live.includes('mountEstateFreeStyle(panel,property.propertyId'), 'estate inspection includes the free home-style picker');
+assert(live.includes('void refreshFreeStyles();'), 'shared island periodically refreshes verified free styles');
+assert(live.includes('stylePreviewProperty=null;stylePreview=null;applyAppearance()'), 'closing inspection clears local free style preview');
 assert(live.includes('renderer.clearUpgradePreview();directoryCleanup?.()'), 'closing property inspection clears all non-owned ghost upgrades');
 assert(live.includes('no ownership or transaction is implied'), 'landmark interactions cannot imply ownership or a live transaction');
 assert(live.includes('if(property.confirmedInteraction){showLotInspection(property);return;}'), 'E-key interaction opens the lot inspection directly');

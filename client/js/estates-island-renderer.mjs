@@ -1,4 +1,5 @@
 import {disposeEstateSurfaceMaterial} from './estates-material-fidelity.mjs';
+import {estateFreeStyle} from './estate-free-style-options.mjs';
 import { renderEstateHouses } from './estates-house-design.mjs';
 import { createEstateTycoonDecor } from './estates-tycoon-decor.mjs';
 // Optional Three.js renderer adapter for buildEstatesIslandScene().
@@ -137,15 +138,18 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
   }
   function setAppearance(properties=[]){
     if(disposed)return false;
-    const levels=new Map(properties.filter(p=>typeof p?.propertyId==='string'&&Number.isInteger(p.level)&&p.level>=0&&p.level<=5).map(p=>[p.propertyId,p.level]));
-    const key=lots.map(l=>levels.get(l.propertyId)||0).join(',');
+    const settings=new Map(properties.filter(p=>typeof p?.propertyId==='string').map(p=>[p.propertyId,p]));
+    const visual=lots.map(l=>{const p=settings.get(l.propertyId)||{},style=estateFreeStyle(p);
+      const level=Number.isInteger(p.level)&&p.level>=0&&p.level<=5?p.level:0;
+      return {...l,prestigeLevel:level,...style};});
+    const key=visual.map(v=>[v.prestigeLevel,v.architecture,v.palette].join(':')).join(',');
     if(key===appearanceKey)return false;
     appearanceKey=key;
     const geometries=new Set(),materials=new Set();
     houseRoot.traverse?.(node=>{if(node.geometry)geometries.add(node.geometry);if(node.material)materials.add(node.material);});
     for(const geometry of geometries)geometry.dispose?.();for(const mat of materials)disposeEstateSurfaceMaterial(mat);
     for(const child of [...houseRoot.children])houseRoot.remove(child);
-    const houses=renderEstateHouses(THREE,houseRoot,lots.map(item=>({...item,prestigeLevel:levels.get(item.propertyId)||0})));
+    const houses=renderEstateHouses(THREE,houseRoot,visual);
     for(const [id,meshes] of houses)objects.set(id,[...boundaries.get(id),...meshes]);
     return true;
   }

@@ -34,10 +34,18 @@ const streetManifest=JSON.parse(readFileSync(new URL('./assets/community/street-
 assert.equal(streetManifest.status,'ACQUIRED_NOT_ENABLED','audit manifest preserves the pre-approval acquisition state');
 assert.equal(streetManifest.sha256,communityArtById('street-props-pack').sha256,'catalog activation must be anchored to actual imported GLB checksum');
 assert.equal(streetManifest.triangles,20667,'the downloaded archive was inspected, not only the source listing');
+const streetBytes=readFileSync(new URL('./assets/community/homefront-street-props.glb',import.meta.url));
+const streetJsonLength=streetBytes.readUInt32LE(12);
+assert.equal(streetBytes.readUInt32LE(16),0x4e4f534a);
+const streetDocument=JSON.parse(streetBytes.toString('utf8',20,20+streetJsonLength));
+const streetNodes=streetDocument.nodes.map(n=>n.name||'').filter(Boolean);
+assert.equal(streetDocument.meshes.length,56,'real street pack GLB contains 56 individually named mesh primitives');
+assert.equal(streetDocument.materials.length,38,'original creator PBR material diversity is retained');
+assert.deepEqual(streetNodes,streetManifest.names,'author-provided names are checked against the real binary rather than trusted from a JSON record');
 const streetKinds=[...new Set(HOMEFRONT_COMMUNITY_PROP_SITES.map(x=>x.kind))];
 assert.equal(streetKinds.length,6,'six distinct street prop families are authored');
 for(const kind of streetKinds)
- assert(communityPropNameMatches(kind,streetManifest.names),'real imported street GLB must actually contain usable '+kind+' submesh');
+ assert(communityPropNameMatches(kind,streetNodes),'actual bundled GLB must contain matched '+kind+' submesh');
 assert.equal(communityPropNameMatches('streetlight',['Completely Unrelated Mesh']),false);
 
 const pretend=[{...communityArtById('mutant-nurse'),installed:true,sha256:'a'.repeat(64)},

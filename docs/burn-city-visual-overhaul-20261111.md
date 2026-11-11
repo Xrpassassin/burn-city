@@ -6,6 +6,16 @@ BURN City has multiple independent game scenes. Improvements must be judged **in
 
 Skill Issue (https://skill-issue.in/) catalogs **agent skills**, not a verified 3D asset marketplace. Consult design and QA skill guidance, but do not execute unreviewed installers. The source of *each* third-party model/texture must be tracked separately.
 
+## Skill Issue workflows shortlisted (guidance, not code imports)
+
+- [threejs-game-skills](https://skill-issue.in/?skill=game-dev-threejs-game-skills) — browser Three.js graphics, camera, assets and QA; the closest stack match to BURN City.
+- [create-game-assets](https://skill-issue.in/?skill=game-dev-create-game-assets) — coherent art direction, model scale/pivot, texture budgets and asset provenance.
+- [level-design](https://skill-issue.in/?skill=game-dev-level-design) and [procedural-gen](https://skill-issue.in/?skill=game-dev-procedural-gen) — meaningful exploration beats and non-grid world dressing in Homefront/Blacktide.
+- [game-feel](https://skill-issue.in/?skill=game-dev-game-feel) — responsive recoil, impact, camera easing and feedback that respect existing combat timing.
+- [dream-loop](https://skill-issue.in/?skill=game-dev-dream-loop) — screenshot-comparison review to expose defects in real rendered scenes before committing art changes.
+
+These entries were located in Skill Issue's Game Dev catalog. **No third-party agent skill was installed or executed.** Apply ideas selectively; never let generic agent output replace the original Zombies renderer or Homefront input stack.
+
 ## First runnable visual slice — city foliage
 
 - Replace primitive cone tufts with 3D pointed-blade clusters, varied per district/instance, with occasional grounded wildflowers. No network requests, extra lights, physics or per-frame update.

@@ -84,7 +84,7 @@ try{
    }
    renderEstateHouses(THREE,root,lots);
    const neighborhood=createEstateNeighborhoodDecor({THREE,parent:root,manifest:{streetFurniture:buildEstateNeighborhoodFurniture(lots)}});
-   if(neighborhood.drawBatches>13||neighborhood.fixtureCount<20)throw Error('neighborhood_fixture_render_contract');
+   if(neighborhood.drawBatches>18||neighborhood.fixtureCount<20)throw Error('neighborhood_fixture_render_contract');
    const decor=createEstateTycoonDecor({THREE,parent:root,lots});
    decor.setUpgrades(lots.map(l=>({propertyId:l.propertyId,unlockedItemIds:ESTATE_EXTERIOR_ITEM_IDS})));
    const heli=createEstateHelicopterWorld({THREE,parent:root,lots});

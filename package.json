@@ -59,7 +59,7 @@
     "test:jetpack": "node test/jetpack-pay-sim.js && node test/img-burn-sim.js && node client/arena/homefront-jetpack.test.mjs",
     "test:estates-wallet": "node test/estate-wallet.test.js",
     "test:estates-entry-adapter": "node client/js/estates-entry-adapter.test.mjs",
-    "test:estates-island-scene": "node client/js/estates-island-scene.test.mjs",
+    "test:estates-island-scene": "node client/js/estates-island-scene.test.mjs && node client/js/estates-expansion.test.mjs",
     "test:estates-island-renderer": "node client/js/estates-island-renderer.test.mjs && node client/js/estates-house-design.test.mjs",
     "test:estates-island-runtime": "node client/js/estates-island-runtime.test.mjs",
     "test:estates-island-navigation": "node client/js/estates-island-navigation.test.mjs && node client/js/estates-island-property-reach.test.mjs && node client/js/estates-island-landmark-access.test.mjs && node client/js/estates-lake-fishing.test.mjs && node client/js/estates-lake-fishing-adapter.test.mjs && node client/js/lake-casting-geometry.test.mjs && node client/js/estates-fishing-integration.test.mjs",

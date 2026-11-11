@@ -64,13 +64,28 @@ export async function createZombieModelPilot(scene, options = {}) {
     const aliases=zombieClipAliases(definition,gltf.animations.map(x=>x.name));
     if(!aliases.has('Idle')||!aliases.has('Walk')||!aliases.has('Idle_Attack'))
       throw Error(definition.file+': missing playable locomotion/attack clips');
-    const bounds=new THREE.Box3().setFromObject(gltf.scene,true);
-    if(!Number.isFinite(bounds.min.y)||!Number.isFinite(bounds.max.y)||bounds.max.y<=bounds.min.y)
-      throw Error(definition.file+': invalid character bounds');
     const clips=new Map(gltf.animations.map(clip=>[clip.name,clip]));
     for(const [role,name]of aliases)clips.set(role,clips.get(name));
+    // Some Sketchfab Blender/FBX exports have *tiny bind-pose geometry
+    // bounds* but full-size bones once animation evaluates. Measuring the
+    // unposed scene gave Aiden scale=249 and Hazmat scale=192 (!). Measure
+    // the actual animated skinned vertices instead; this is independent of
+    // animation source units, bone naming and glTF node hierarchies.
+    const probe=SkeletonUtils.clone(gltf.scene),
+      probeMixer=new THREE.AnimationMixer(probe),
+      idle=clips.get('Idle')||gltf.animations[0];
+    probeMixer.clipAction(idle).play();
+    probeMixer.update(.03);
+    probe.updateMatrixWorld(true);
+    const bounds=new THREE.Box3().setFromObject(probe,true),height=bounds.max.y-bounds.min.y;
+    probeMixer.stopAllAction();
+    if(!Number.isFinite(height)||height<.3||height>20)
+      throw Error(definition.file+': invalid skinned animated bounds '+height);
+    const width=bounds.max.x-bounds.min.x,depth=bounds.max.z-bounds.min.z;
+    if(!Number.isFinite(width)||!Number.isFinite(depth)||width>height*2.4||depth>height*2.4)
+      throw Error(definition.file+': malformed animated anatomy');
     return {gltf,clips,id:definition.id,definition,minY:bounds.min.y,
-      scale:targetHeight/Math.max(.01,bounds.max.y-bounds.min.y)};
+      scale:targetHeight/height,poseHeight:height};
   }));
   const models=results.filter(x=>x.status==='fulfilled').map(x=>x.value);
   if(!models.length)throw Error('No usable licensed human-infected Zombies model loaded');

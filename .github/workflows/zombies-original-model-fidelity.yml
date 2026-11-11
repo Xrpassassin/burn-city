@@ -1,4 +1,4 @@
-name: Original Zombies model fidelity and Homefront isolation
+name: Original Zombies realistic Sketchfab human infected and Homefront isolation
 on:
   pull_request:
     paths:
@@ -6,6 +6,12 @@ on:
       - 'client/arena/zombie-arena-appearance.mjs'
       - 'client/arena/zombie-arena-appearance.test.mjs'
       - 'client/arena/zombie-model-pilot.mjs'
+      - 'client/arena/zombie-sketchfab-cast.mjs'
+      - 'client/arena/zombie-sketchfab-cast.test.mjs'
+      - 'client/arena/assets/zombies/*.glb'
+      - 'client/arena/assets/zombies/*manifest.json'
+      - 'client/arena/zombies-credits.html'
+      - 'client/arena/index.html'
       - 'client/arena/zombie-model-policy.mjs'
       - 'client/arena/zombie-model-policy.test.mjs'
       - 'scripts/zombies-original-model-browser-preview.mjs'
@@ -29,12 +35,14 @@ jobs:
         run: |
           node --check client/arena/zombie-arena-appearance.mjs
           node --check client/arena/zombie-model-pilot.mjs
+          node --check client/arena/zombie-sketchfab-cast.mjs
           node --check client/arena/zombie-model-policy.mjs
           node --input-type=module --check < client/arena/fx.js
           node --check scripts/zombies-original-model-browser-preview.mjs
       - name: Original art and engine isolation
         run: |
           node client/arena/zombie-arena-appearance.test.mjs
+          node client/arena/zombie-sketchfab-cast.test.mjs
           node client/arena/zombie-model-pilot.test.mjs
           node client/arena/zombie-model-policy.test.mjs
           node client/arena/zombie-model-pilot-integration.test.mjs
@@ -69,7 +77,7 @@ jobs:
           done
           tail -n 140 /tmp/zombies-art-preview.log
           exit 1
-      - name: Real original Zombies fallback and bundled skinned models
+      - name: Real original Zombies fallback and credited human/hazmat/thin skinned models
         run: node scripts/zombies-original-model-browser-preview.mjs
         env:
           ZOMBIE_QA_BROWSER: ${{ matrix.browser }}

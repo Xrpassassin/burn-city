@@ -687,6 +687,33 @@ let swirlRecolor=null;
   lk.filter(b=>b.forever||b.L>=.1).forEach(b=>{const el=document.createElement('div'),g=b.forever;el.className='lbl lockLbl'+(g?'':' part');el.style.setProperty('--c',g?'#ffc64a':'#8fd8ff');el.textContent=g?`🔒 LOCKED FOREVER · ${(b.L*100).toFixed(b.L>=.995?0:1)}%${GLB.isGold(b.p)?'':' · test'}`:`🔒 LP locked · ${(b.L*100).toFixed(1)}%`;$('labels').appendChild(el);
    const top=b.curve.getPoint(.5);labelEls.push({el,pos:top.clone().setY(top.y+b.r+2.5),pri:b.p.tvl_xrp*b.L*.5,minor:true})})}}
 
+// One real gold cylinder runs continuously through every rail and its tower
+// helix. Shader scales each cross-section by sqrt(VERIFIED permanent LP share).
+// The activity-coloured outer tubes remain independent, and no guessed or
+// unverified LP percentage can create a gold bar.
+const ammGoldGeos=[],ammGoldRanges=[];let ammGoldCount=0,refreshAmmGold=()=>{};
+function addAmmGoldTube(b,curve,segments,radius,taper){
+ const sides=TIER==='low'?4:6,geo=new THREE.TubeGeometry(curve,segments,radius,sides,false),
+  pos=geo.getAttribute('position'),centers=new Float32Array(pos.count*3),
+  lock=new Float32Array(pos.count),v=new THREE.Vector3();
+ for(let i=0;i<=segments;i++){
+  const u=i/segments;curve.getPointAt(u,v);
+  for(let j=0;j<=sides;j++){
+   const id=i*(sides+1)+j,at=id*3;
+   centers[at]=v.x;centers[at+1]=v.y;centers[at+2]=v.z;
+   if(taper){const scale=taper(u);
+    pos.setXYZ(id,v.x+(pos.getX(id)-v.x)*scale,v.y+(pos.getY(id)-v.y)*scale,
+      v.z+(pos.getZ(id)-v.z)*scale);}
+  }
+ }
+ pos.needsUpdate=true;geo.setAttribute('gCenter',new THREE.BufferAttribute(centers,3));
+ geo.setAttribute('gShare',new THREE.BufferAttribute(lock,1));
+ ammGoldRanges.push({amm:b.p.amm,start:ammGoldCount,end:ammGoldCount+pos.count,b});
+ ammGoldCount+=pos.count;ammGoldGeos.push(geo);
+}
+bridges.forEach(b=>{if(!b.curve||!b.core)return;
+ addAmmGoldTube(b,b.curve,64,Math.max(.06,b.r*.28));});
+
 // ---------- AMM swirls: each rail end flows tangent-continuously into a helix wrapping its tower (ONE merged draw) + drifting sparks on the same path (ONE Points draw) ----------
 // Join: cubic Bezier lead-in leaves the rail end along the rail tangent and lands on the helix along the helix tangent (C1, no kink);
 // flow phase/speed/thickness/colour continue the rail core's so it reads as one stream; tube tapers + fades at the tail.
@@ -704,13 +731,14 @@ let swirlRecolor=null;
   for(let j=1;j<=SEGH;j++)pts.push(H(j/SEGH,new THREE.Vector3()));
   const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=(hs?0:SEGB)+SEGH,lock=b.forever?1:0,UB=(hs?1:SEGB)/NS,c=CYC.clone().lerp(LOCKC,lock*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
   // colour starts cyan (activity colours do not exist yet at build) and is repainted from b.actCol by swirlRecolor(); vein width is packed into fl.y (= sp + 8*round(100*vw))
-  const P={cv,b,c:lock?GOLD:c.clone(),sp:lock?sp*.45:sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z},vw=veinW(b);
-  const shell=(rad,aMul,core)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*4),fy=sp+8*Math.round(100*vw*cr/rad);
-   for(let i=0;i<=NS;i++){const u=i/NS;cv.getPointAt(u,cP);const tap=1-.75*Math.pow(u,1.6),fade=1-THREE.MathUtils.smoothstep(u,.62,1),ph=9*(end?1+u*SL/Lr:-u*SL/Lr);
+  const P={cv,b,c:c.clone(),sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z};
+  const shell=(rad,aMul,core)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*4),fy=sp;
+   for(let i=0;i<=NS;i++){const u=i/NS;cv.getPointAt(u,cP);const tap=towerStreamTaper(u),fade=towerStreamOpacity(u),ph=9*(end?1+u*SL/Lr:-u*SL/Lr);
     for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,op*aMul*fade],v*4);fl.set([ph,fy,lock*THREE.MathUtils.smoothstep(u,0,UB*1.5),u],v*4)}}
    tg.setAttribute('sc',new THREE.BufferAttribute(ca,4));tg.setAttribute('fl',new THREE.BufferAttribute(fl,4));geos.push(tg);   // normal kept: the lock vein needs it (view-facing band)
    const st0=ranges.length?ranges[ranges.length-1].end:0;ranges.push({P,core,start:st0,end:st0+cnt})};
-  shell(cr,1,1);if(!LOW)shell(cr*2.6,.32,0);   // core matches the rail core exactly; soft glow sheath (same draw) makes it read from a distance
+  shell(cr,1,1);if(!LOW)shell(b.r,.72,0);
+  addAmmGoldTube(b,cv,NS,cr,towerStreamTaper);   // core matches the rail core exactly; soft glow sheath (same draw) makes it read from a distance
   paths.push(P)})});
  if(geos.length){const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,uniforms:{t:U.t},
    // fl.y unpacked here (vertex = highp): speed + vein width
@@ -740,10 +768,10 @@ let swirlRecolor=null;
    recolor=()=>{for(let i=0;i<NS0;i++){const c=st[i].P.c;pc[i*3]=c.r;pc[i*3+1]=c.g;pc[i*3+2]=c.b}pg.attributes.color.needsUpdate=true}}
   // repaint every swirl (and its sparks) from its pool's live activity colour; gold pools keep gold sparks + vein. Called from actScore(), CPU-only, +0 draws.
   const scA=merged.getAttribute('sc'),sca=scA.array,tc=new THREE.Color();
-  swirlRecolor=()=>{for(const P of paths)if(P.b.actCol&&!P.lock)P.c.copy(P.b.actCol);
-   for(const R of ranges){const ac=R.P.b.actCol;if(!ac)continue;tc.copy(ac);if(R.core)tc.lerp(CYC,.35);for(let v=R.start;v<R.end;v++){sca[v*4]=tc.r;sca[v*4+1]=tc.g;sca[v*4+2]=tc.b}}
+  swirlRecolor=()=>{for(const P of paths)if(P.b.actCol)P.c.copy(P.b.actCol);
+   for(const R of ranges){const ac=R.P.b.actCol;if(!ac)continue;tc.copy(ac);if(R.core)tc.lerp(WHITE_C,.55);for(let v=R.start;v<R.end;v++){sca[v*4]=tc.r;sca[v*4+1]=tc.g;sca[v*4+2]=tc.b}}
    scA.needsUpdate=true;if(recolor)recolor()};
-  window.__swirl={n:paths.length,geos:geos.length,particles:NP,sparks:NS0,disperse:ND,gold:gp.length,veins:paths.filter(P=>P.lock).map(P=>({pool:P.b.p.a+'/'+P.b.p.b,lockedXrp:Math.round(P.b.lockedXrp),w:+veinW(P.b).toFixed(2)}))};if(/[?&]debug=1/.test(location.search))window.__swirl.paths=paths}}
+  window.__swirl={n:paths.length,geos:geos.length,particles:NP,sparks:NS0,disperse:ND,gold:gp.length,veins:[],goldTubeSegments:ammGoldGeos.length};if(/[?&]debug=1/.test(location.search))window.__swirl.paths=paths}}
 
 // ---------- pool traffic basis (activity colour + card): min 24h volume of the pair ----------
 const vol=n=>n.name==='XRP'?null:(n.vol24h??null);

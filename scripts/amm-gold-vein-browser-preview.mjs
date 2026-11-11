@@ -19,9 +19,10 @@ try{
   const page=await context.newPage();
   page.on('pageerror',e=>issues.push(v.name+': '+e.message));
   page.on('console',m=>{if(m.type()==='error'&&/THREE.WebGLProgram|Shader Error|VALIDATE_STATUS|FRAGMENT|VERTEX_SHADER/i.test(m.text()))issues.push(v.name+': '+m.text());});
+  // Clear weather isolates AMM material/shape QA from transient rainbow rays.
   // The game's documented noguide and shot flags prevent a delayed first-run
   // guide from opening AFTER the screenshot is taken. No production UI hidden.
-  await page.goto('http://127.0.0.1:8080/?debug=1&locktest=1&noguide=1&shot=1',{waitUntil:'domcontentloaded',timeout:45000});
+  await page.goto('http://127.0.0.1:8080/?debug=1&locktest=1&noguide=1&shot=1&weather=clear',{waitUntil:'domcontentloaded',timeout:45000});
   // A created shader mesh is not evidence that the city is visible. Wait for
   // the full first render AND the 0.9s splash dismissal in WebKit/Chromium.
   await page.waitForFunction(()=>window.__ready===true&&window.__ammGold?.mesh?.geometry?.attributes?.gShare&&

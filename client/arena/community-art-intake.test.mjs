@@ -58,7 +58,7 @@ const unused=createHomefrontCommunityArt({loader:{loadAsync(){attemptedFetch++;t
 await unused.load();
 assert.equal(attemptedFetch,0,'no third-party binary fetch when not installed');
 assert.deepEqual(unused.attachWorld({landmarks:[],landmarkSetPieces:new Map(),cityChunkAt(){throw Error('unexpected chunk')},terrainElevation:()=>0}),{replaced:0,props:0});
-const installed=createHomefrontCommunityArt({specs:[spec],loader:{loadAsync(url){assert(url.endsWith('/assets/community/'+spec.file));return Promise.resolve({scene:body,animations:[]})}}});
+const installed=createHomefrontCommunityArt({specs:[spec],cloneModel:scene=>scene.clone(true),loader:{loadAsync(url){assert(url.endsWith('/assets/community/'+spec.file));return Promise.resolve({scene:body,animations:[]})}}});
 await installed.load();
 const existing=new THREE.Group();existing.add(new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial()));
 const landmarks=[{id:'test-checkpoint',archetype:'road_checkpoint'}];

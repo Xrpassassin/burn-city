@@ -37,7 +37,8 @@ function createEstateFreeStyleStore({db,clock=Date.now}={}){
   return state({propertyId,acct});
  }
  function publicState(){
-  const properties=list.all().filter(row=>ARCHITECTURES.includes(row.architecture)&&PALETTES.includes(row.palette));
+  const properties=list.all().filter(row=>ARCHITECTURES.includes(row.architecture)&&PALETTES.includes(row.palette))
+   .map(row=>({propertyId:row.propertyId,architecture:row.architecture,palette:row.palette}));
   return {properties,choices:choices(),costXrp:0,financialRewards:false};
  }
  return Object.freeze({state,save,publicState});

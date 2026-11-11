@@ -14,7 +14,7 @@ try{
  for(const v of [{name:'desktop',width:1365,height:850,mobile:false},{name:'phone',width:390,height:844,mobile:true},{name:'small-phone',width:320,height:700,mobile:true}]){
   const ctx=await browser.newContext({viewport:{width:v.width,height:v.height},hasTouch:v.mobile,isMobile:v.mobile,deviceScaleFactor:1});
   const page=await ctx.newPage();page.on('pageerror',e=>errors.push(v.name+': '+e.message));
-  await page.goto('http://127.0.0.1:8080/estate-properties.html',{waitUntil:'domcontentloaded',timeout:40000});
+  await page.goto('http://127.0.0.1:8080/arena/zombies-credits.html',{waitUntil:'domcontentloaded',timeout:40000});
   const initial=await page.evaluate(async()=>{
    document.body.innerHTML='<main id="home-editor-qa" style="padding:10px;max-width:100%;box-sizing:border-box"></main>';
    document.body.style.cssText='margin:0;min-width:0;background:#17242b;color:#f6eddc';

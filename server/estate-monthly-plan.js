@@ -2,14 +2,18 @@
 // Estates IMG/RLUSD monthly plan (allocation policy v3, no PLX anywhere).
 //  1. Purchase XRP -> small configurable XRP reserve; the rest is swapped ~half to RLUSD and
 //     ~half to IMG, then deposited TWO-SIDED into the IMG/RLUSD AMM. The treasury keeps the LP.
-//  2. Monthly: withdraw (proportionally, both assets) ONLY the LP value gained above principal.
+//  2. Each completed reward period (monthly by default, or daily when ESTATE_HARVEST_CADENCE=daily):
+//     withdraw (proportionally, both assets) ONLY the LP value gained above principal.
 //     Principal is tracked in constant-product invariant units (sqrt(IMG*RLUSD) per LP token),
 //     which grow only from trading fees, never from price moves, so principal stays in the pool.
-//  3. Realized monthly profit split by value: 10% IMG burn (sent to the IMG issuer),
-//     10% two-sided redeposit (becomes principal), 80% to estate holders pro rata by share units.
+//  3. Realized period profit split by value: 10% IMG burn (sent to the IMG issuer),
+//     10% two-sided redeposit (becomes principal), 80% to estate holders pro rata by share units
+//     owned at the moment of the split (snapshot; there is no transfer-history time-weighting).
 //     A proportional withdrawal from a 50/50 pool is equal value per side, so per asset this is:
 //     IMG  -> 20% burn, 10% redeposit, 70% holders;  RLUSD -> 0% burn, 10% redeposit, 90% holders.
-//  4. Payouts are monthly. Per-holder amounts below the dust threshold carry forward.
+//  4. Payouts follow the configured cadence. Per-holder amounts below the dust threshold carry
+//     forward to a later period. In daily mode, a period whose withdrawn value is under the dust
+//     threshold is left in the pool (nothing_to_harvest) so tiny days roll forward on-ledger.
 // Pure math + SQLite ledger only. Nothing here signs or submits; see estate-monthly-executor.js.
 const {N,value}=require('./estate-liquidity-ledger');
 const {POLICY,TF,IMG_ISSUER,RLUSD_ISSUER,RLUSD_HEX,IMG_RLUSD_POOL,ADDR,monthlyConfig,splitPurchase}=require('./estate-monthly-config');
@@ -48,14 +52,19 @@ function poolDeviationBps(poolRlusdPerImg,refRlusdPerImg){
 }
 // ---- principal & harvest ----
 const kPerLp=({poolImg,poolRlusd,lpSupply})=>new N(poolImg).times(poolRlusd).sqrt().div(lpSupply).precision(30,N.ROUND_DOWN);
-function harvestPlan({trackedLp,onLedgerLp,principalK,pool}){
+function harvestPlan({trackedLp,onLedgerLp,principalK,pool,minValueRlusd}){
  const tracked=N.minimum(new N(trackedLp),new N(onLedgerLp));
  const k=kPerLp(pool);
  const gainK=tracked.times(k).minus(principalK);
  if(!tracked.gt(0)||!gainK.gt(0))return {lpToWithdraw:'0',gainK:'0',kPerLp:k.toFixed()};
  let lp=gainK.div(k).precision(15,N.ROUND_DOWN);if(lp.gt(tracked))lp=tracked;
- // Below one part per million of the position the gain stays in the pool and rolls into next month.
+ // Below one part per million of the position the gain stays in the pool and rolls into the next period.
  if(lp.lt(tracked.times('0.000001')))return {lpToWithdraw:'0',gainK:'0',kPerLp:k.toFixed()};
+ // Daily mode can also require a minimum withdrawn value (dust), so tiny days stay in the pool.
+ if(minValueRlusd!=null&&new N(minValueRlusd).gt(0)&&pool.lpSupply){
+  const valueRlusd=lp.div(pool.lpSupply).times(pool.poolRlusd).times(2);
+  if(valueRlusd.lt(minValueRlusd))return {lpToWithdraw:'0',gainK:gainK.precision(30,N.ROUND_DOWN).toFixed(),kPerLp:k.toFixed(),skipped:'below_dust_value'};
+ }
  return {lpToWithdraw:lp.toFixed(),gainK:gainK.precision(30,N.ROUND_DOWN).toFixed(),kPerLp:k.toFixed()};
 }
 function splitHarvest({img,rlusd}){
@@ -66,8 +75,12 @@ function splitHarvest({img,rlusd}){
  return {burnImg:burnImg.toFixed(),redepositImg:redImg.toFixed(),redepositRlusd:redRl.toFixed(),
   holdersImg:i.minus(burnImg).minus(redImg).toFixed(),holdersRlusd:r.minus(redRl).toFixed()};
 }
-// Pro rata by share units, plus each holder's carried balance. Values under dust carry forward.
-// Rounding residue is carried under '__unallocated__' and joins next month's pot.
+// Pro rata by current share units at split time (the wallet that owns the property when the
+// split is made), plus each holder's carried balance. There is no time-weighted mid-period
+// pro-rating: ownership history is not kept, so a mid-period buyer who holds at the split
+// receives that period's full pro-rata share, and a seller who sold before the split receives
+// none of it. Daily cadence shortens that window to one UTC day. Values under dust carry
+// forward. Rounding residue is carried under '__unallocated__' and joins the next period's pot.
 function allocateHolders({holdersImg,holdersRlusd,owners,carry={},rlusdPerImg,dust}){
  const units=new Map();for(const o of owners){if(!ADDR.test(o.acct)||!Number.isSafeInteger(o.shareUnits)||o.shareUnits<=0)throw Error('invalid_owner');units.set(o.acct,(units.get(o.acct)||0)+o.shareUnits);}
  const total=[...units.values()].reduce((a,b)=>a+b,0);
@@ -87,12 +100,43 @@ function allocateHolders({holdersImg,holdersRlusd,owners,carry={},rlusdPerImg,du
  next.__unallocated__={img:potI.minus(usedI).toFixed(),rlusd:potR.minus(usedR).toFixed()};
  return {payouts:pay,carry:next};
 }
-// ---- monthly cadence ----
-const periodOf=ms=>new Date(ms).toISOString().slice(0,7);
-function duePeriod(lastPeriod,nowMs){
- const d=new Date(nowMs);const prev=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()-1,1));
- const p=prev.toISOString().slice(0,7);
- return !lastPeriod||lastPeriod<p?p:null; // only completed months, once each
+// ---- harvest cadence (monthly default; daily when configured) ----
+// Period keys: monthly YYYY-MM, daily YYYY-MM-DD. duePeriod returns only the latest completed
+// period whose start is at or after the end of lastPeriod, so a cadence switch cannot
+// re-harvest a month or day that was already covered, and a missed window is paid once
+// (all accumulated gain) under the latest due period key.
+const PERIOD_RE=/^(\d{4})-(\d{2})(?:-(\d{2}))?$/;
+function periodOf(ms,cadence='monthly'){
+ const iso=new Date(ms).toISOString();
+ return cadence==='daily'?iso.slice(0,10):iso.slice(0,7);
+}
+function periodStartUtc(period){
+ const m=PERIOD_RE.exec(period);if(!m)throw Error('invalid_harvest_period');
+ const y=+m[1],mo=+m[2],d=m[3]==null?1:+m[3];
+ if(mo<1||mo>12||(m[3]!=null&&(d<1||d>31)))throw Error('invalid_harvest_period');
+ const dt=new Date(Date.UTC(y,mo-1,d));
+ if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==mo-1||dt.getUTCDate()!==d)throw Error('invalid_harvest_period');
+ return dt;
+}
+function periodEndUtc(period){
+ const start=periodStartUtc(period);
+ return PERIOD_RE.exec(period)[3]==null?new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth()+1,1))
+  :new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth(),start.getUTCDate()+1));
+}
+function periodBaseline(firstMs,cadence='monthly'){
+ const d=new Date(firstMs);
+ return cadence==='daily'?periodOf(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-1),'daily')
+  :periodOf(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()-1,1),'monthly');
+}
+function duePeriod(lastPeriod,nowMs,cadence='monthly'){
+ if(cadence!=='monthly'&&cadence!=='daily')throw Error('invalid_harvest_period');
+ const d=new Date(nowMs);
+ const prev=cadence==='daily'?new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-1))
+  :new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()-1,1));
+ const p=periodOf(prev.getTime(),cadence);
+ if(!lastPeriod)return p;
+ const lastEnd=periodEndUtc(lastPeriod).getTime(),pStart=periodStartUtc(p).getTime();
+ return pStart>=lastEnd?p:null; // only completed periods that start after last coverage, once each
 }
 // ---- transaction guard: every tx the plan signs passes through here ----
 function assertSafeTransaction(tx,ctx){
@@ -172,4 +216,4 @@ function createEstateMonthlyLedger(db){
  };
 }
 module.exports={POLICY,TF,IMG_ISSUER,RLUSD_ISSUER,RLUSD_HEX,IMG_RLUSD_POOL,monthlyConfig,splitPurchase,depositLegs,quoteSwap,minOut,ratioDeposit,
- poolDeviationBps,kPerLp,harvestPlan,splitHarvest,allocateHolders,periodOf,duePeriod,assertSafeTransaction,createEstateMonthlyLedger,fx};
+ poolDeviationBps,kPerLp,harvestPlan,splitHarvest,allocateHolders,periodOf,periodStartUtc,periodEndUtc,periodBaseline,duePeriod,assertSafeTransaction,createEstateMonthlyLedger,fx};

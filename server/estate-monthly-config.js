@@ -12,6 +12,7 @@ const ADDR=/^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;
 const TF={partialPayment:0x00020000,lpToken:0x00010000,withdrawAll:0x00020000,oneAssetWithdrawAll:0x00040000,
  singleAsset:0x00080000,twoAsset:0x00100000,oneAssetLPToken:0x00200000,limitLPToken:0x00400000,twoAssetIfEmpty:0x00800000};
 const int=(v,d,min,max)=>{if(v===undefined||v==='')return d;const n=Number(v);if(!Number.isSafeInteger(n)||n<min||n>max)throw Error('invalid_monthly_plan_setting');return n;};
+const cadenceOf=v=>{if(v===undefined||v==='')return 'monthly';const c=String(v).trim().toLowerCase();if(c!=='monthly'&&c!=='daily')throw Error('invalid_monthly_plan_setting');return c;};
 function monthlyConfig(env=process.env){
  const pool=env.ESTATE_IMG_RLUSD_POOL_ACCOUNT||'';
  const dust=env.ESTATE_PAYOUT_DUST_RLUSD||'0.05';
@@ -29,7 +30,8 @@ function monthlyConfig(env=process.env){
   maxPoolDeviationBps:int(env.ESTATE_MAX_POOL_DEVIATION_BPS,300,1,5000),// pool price vs. reference market
   minSwapDrops:int(env.ESTATE_MIN_SWAP_DROPS,100000,1,1e9),
   depositChunkIntervalMs:int(env.ESTATE_DEPOSIT_CHUNK_INTERVAL_MS,300000,60000,3600000),// cadence while deposits are queued
-  idleIntervalMs:3600000,                                            // hourly when the queue is empty (monthly harvest check)
+  idleIntervalMs:3600000,                                            // hourly when the queue is empty (harvest check at most hourly)
+  harvestCadence:cadenceOf(env.ESTATE_HARVEST_CADENCE),              // monthly (default) or daily; nothing changes until set
   dust,
  });
 }

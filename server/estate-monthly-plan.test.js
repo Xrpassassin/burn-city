@@ -15,6 +15,10 @@ assert.deepEqual(P.splitPurchase('3000000',cfg),{purchaseDrops:'3000000',operati
 assert.equal(P.splitPurchase('3000000',P.monthlyConfig({ESTATE_XRP_RESERVE_BPS:'500'})).operatingReserveDrops,'150000');
 assert.equal(P.splitPurchase('1000000',P.monthlyConfig({ESTATE_XRP_RESERVE_MIN_DROPS:'200000'})).operatingReserveDrops,'200000');
 assert.throws(()=>P.monthlyConfig({ESTATE_XRP_RESERVE_BPS:'9000'}),/invalid_monthly_plan_setting/);
+assert.equal(P.monthlyConfig({}).harvestCadence,'monthly');
+assert.equal(P.monthlyConfig({ESTATE_HARVEST_CADENCE:'daily'}).harvestCadence,'daily');
+assert.equal(P.monthlyConfig({ESTATE_HARVEST_CADENCE:'MONTHLY'}).harvestCadence,'monthly');
+assert.throws(()=>P.monthlyConfig({ESTATE_HARVEST_CADENCE:'hourly'}),/invalid_monthly_plan_setting/);
 const legs=P.depositLegs('60000000',cfg);assert.deepEqual(legs,{spendDrops:'8000000',rlusdLegDrops:'4000000',imgLegDrops:'4000000',queuedDrops:'52000000'});
 assert.equal(P.depositLegs('2970000',cfg).queuedDrops,'0');
 // ---- slippage / price-impact math (tiny pool: ~$77 TVL) ----
@@ -38,6 +42,11 @@ const remainingK=new N(100).minus(h.lpToWithdraw).times(P.kPerLp(grown));assert(
 // operator LP that the plan never deposited is never harvested
 assert.equal(P.harvestPlan({trackedLp:'100',onLedgerLp:'5000',principalK,pool:grown}).lpToWithdraw,h.lpToWithdraw);
 assert.equal(P.harvestPlan({trackedLp:'100',onLedgerLp:'50',principalK,pool:grown}).lpToWithdraw,'0');
+// daily dust floor: gain above principal but value under dust stays in the pool
+const tiny=P.harvestPlan({trackedLp:'100',onLedgerLp:'100',principalK,pool:grown,minValueRlusd:'1'});
+assert.equal(tiny.lpToWithdraw,'0');assert.equal(tiny.skipped,'below_dust_value');assert(new N(tiny.gainK).gt(0));
+assert(new N(P.harvestPlan({trackedLp:'100',onLedgerLp:'100',principalK,pool:grown,minValueRlusd:'0.0000001'}).lpToWithdraw).gt(0));
+assert.equal(P.harvestPlan({trackedLp:'100',onLedgerLp:'100',principalK,pool:{poolImg:'20000',poolRlusd:'50',lpSupply:'1000'},minValueRlusd:'0.0000001'}).lpToWithdraw,'0','gain<=0 never withdraws even with a dust floor');
 // ---- split math: value 10/10/80 ----
 const s=P.splitHarvest({img:'1000',rlusd:'10'});
 assert.deepEqual(s,{burnImg:'200',redepositImg:'100',redepositRlusd:'1',holdersImg:'700',holdersRlusd:'9'});
@@ -58,12 +67,29 @@ const a3=P.allocateHolders({holdersImg:'1',holdersRlusd:'1',owners:[{acct:A,shar
 assert.deepEqual(a3.carry[C],{img:'5',rlusd:'0'},'former holder keeps earned carry');
 const a4=P.allocateHolders({holdersImg:'1',holdersRlusd:'1',owners:[{acct:A,shareUnits:1},{acct:B,shareUnits:1},{acct:C,shareUnits:1}],rlusdPerImg:'1',dust:'0'});
 assert.equal(new N(a4.carry.__unallocated__.img).plus(a4.payouts.reduce((n,p)=>n.plus(p.img),new N(0))).toFixed(),'1','rounding residue carried, nothing lost');
-// ---- monthly cadence (no hourly) ----
+// ---- monthly cadence (default; no hourly harvest) ----
 assert.equal(P.duePeriod(null,Date.UTC(2026,11,1,0,5)),'2026-11');
 assert.equal(P.duePeriod('2026-11',Date.UTC(2026,11,15)),null,'once per month');
 assert.equal(P.duePeriod('2026-10',Date.UTC(2026,11,15)),'2026-11');
 assert.equal(P.duePeriod('2026-12',Date.UTC(2027,0,1)),null);
 assert.equal(P.duePeriod('2026-11',Date.UTC(2027,0,2)),'2026-12');
+assert.equal(P.duePeriod('2026-10',Date.UTC(2026,11,15),'monthly'),'2026-11');
+assert.equal(P.periodBaseline(Date.UTC(2026,10,10),'monthly'),'2026-10');
+// daily cadence: one harvest per completed UTC day, idempotent per YYYY-MM-DD key
+assert.equal(P.periodOf(Date.UTC(2026,10,10,15),'daily'),'2026-11-10');
+assert.equal(P.periodBaseline(Date.UTC(2026,10,10,15),'daily'),'2026-11-09');
+assert.equal(P.duePeriod(null,Date.UTC(2026,10,11,0,5),'daily'),'2026-11-10');
+assert.equal(P.duePeriod('2026-11-10',Date.UTC(2026,10,11,15),'daily'),null,'once per day');
+assert.equal(P.duePeriod('2026-11-09',Date.UTC(2026,10,10,23,59),'daily'),null,'day still open');
+assert.equal(P.duePeriod('2026-11-09',Date.UTC(2026,10,11,0,0),'daily'),'2026-11-10');
+assert.equal(P.duePeriod('2026-11-10',Date.UTC(2026,10,12,0,1),'daily'),'2026-11-11');
+// cadence switch must not re-harvest coverage already recorded under the other key format
+assert.equal(P.duePeriod('2026-11',Date.UTC(2026,10,15),'daily'),null,'monthly Nov already covers mid-Nov days');
+assert.equal(P.duePeriod('2026-11',Date.UTC(2026,11,1,0,5),'daily'),null,'30 Nov is still inside the harvested month');
+assert.equal(P.duePeriod('2026-11',Date.UTC(2026,11,2,0,5),'daily'),'2026-12-01','daily starts the day after the harvested month');
+assert.equal(P.duePeriod('2026-11-15',Date.UTC(2026,10,20),'monthly'),null,'do not re-harvest a month already paid in part daily');
+assert.equal(P.duePeriod('2026-11-15',Date.UTC(2027,0,2),'monthly'),'2026-12','monthly resumes the next full month after the last daily day');
+assert.throws(()=>P.duePeriod('nope',Date.UTC(2026,10,11),'daily'),/invalid_harvest_period/);
 {const hs=fs.readFileSync(path.join(__dirname,'estate-hourly-service.js'),'utf8');assert(hs.includes("legacyHourly&&env.ESTATE_DISTRIBUTIONS_ENABLED==='1'"),'hourly payouts need the explicit legacy switch');}
 // ---- transaction guards ----
 const ctx={treasury:B,poolAccount:P.IMG_RLUSD_POOL,imgIssuer:P.IMG_ISSUER,imgCurrency:'IMG',rlusdIssuer:P.RLUSD_ISSUER,rlusdCurrency:P.RLUSD_HEX,holders:new Set([A])};
@@ -94,6 +120,9 @@ assert.equal(purchaseTerms({ESTATE_PURCHASE_LEGAL_SIGNOFF:'1',ESTATE_PURCHASE_LE
 const page=fs.readFileSync(path.join(__dirname,'..','client','terms','estates-purchase-terms-2026-11-09.html'));
 assert.equal(crypto.createHash('sha256').update(page).digest('hex'),tenv.ESTATE_PURCHASE_TERMS_SHA256,'published terms bytes changed: bump version + SHA256');
 assert(/no guaranteed return/i.test(page)&&/monthly/i.test(page)&&!/PLX/.test(page));
+const dailyTerms=fs.readFileSync(path.join(__dirname,'..','client','terms','estates-purchase-terms-2026-11-10.html'));
+assert.equal(crypto.createHash('sha256').update(dailyTerms).digest('hex'),'04d3c9fc27804a84e2de71bc62a458460ba059354c5a56709df84eccd27d4881','2026-11-10 terms bytes changed: bump version + SHA256');
+assert(/no guaranteed return/i.test(dailyTerms)&&/paid from realized pool fee gains when available/i.test(dailyTerms)&&/daily periods/i.test(dailyTerms)&&!/PLX/.test(dailyTerms));
 // ---- #517 migration ----
 const db=new DatabaseSync(':memory:');
 db.exec(`CREATE TABLE estate_property_ownership(property_id TEXT PRIMARY KEY,acct TEXT,share_units INTEGER,purchase_tx TEXT,purchase_amount_drops INTEGER,purchased_at INTEGER);
@@ -117,4 +146,4 @@ const {estateCashReserve}=require('./estate-liquidity-runtime');
 assert.equal(estateCashReserve(db),'2970000');
 db.prepare("UPDATE estate_mp_deposits SET xrp_remaining_drops='970000'").run();assert.equal(estateCashReserve(db),'970000');
 assert.throws(()=>M.rebook517(new DatabaseSync(':memory:'),{apply:true}),/ownership_does_not_match|no such table/);
-console.log('Estates monthly plan: v3 no-PLX policy, split 10/10/80, principal-only harvest, guards, monthly cadence + dust carry, terms gate and #517 re-book passed');
+console.log('Estates monthly plan: v3 no-PLX policy, split 10/10/80, principal-only harvest, guards, monthly/daily cadence + dust carry, terms gate and #517 re-book passed');

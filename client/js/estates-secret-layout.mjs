@@ -1,3 +1,4 @@
+import {createEstateHomeLayout} from './estates-home-layout.mjs';
 // Pure room layouts and third-person collision contract for private Estates Tycoon interiors.
 // This does not authenticate a wallet. Server /interior-access is mandatory before entry.
 export const ROOM_HALF=Object.freeze({x:7.7,z:7.15});
@@ -89,7 +90,7 @@ function layoutFor(roomId){
  return Object.freeze({roomId,title:room.title,theme:room.theme,items,obstacles,interactions,
   spawn:{x:0,z:4.1},bounds:ROOM_HALF,walkHeight:.15});
 }
-export function createSecretRoomLayout(roomId){return layoutFor(roomId);}
+export function createSecretRoomLayout(roomId,options={}){return roomId==='home'?createEstateHomeLayout(options):layoutFor(roomId);}
 export function resolveSecretRoomMotion(position,delta,layout,radius=.35){
  if(!layout||!Array.isArray(layout.obstacles))throw TypeError('room_layout_required');
  if(![position?.x,position?.z,delta?.x,delta?.z,radius].every(Number.isFinite)||radius<=0||radius>.9)

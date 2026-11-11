@@ -1,6 +1,7 @@
 import {disposeEstateSurfaceMaterial} from './estates-material-fidelity.mjs';
 import {estateFreeStyle} from './estate-free-style-options.mjs';
 import { renderEstateHouses } from './estates-house-design.mjs';
+import {createEstateNeighborhoodDecor} from './estates-neighborhood-renderer.mjs';
 import { createEstateTycoonDecor } from './estates-tycoon-decor.mjs';
 // Optional Three.js renderer adapter for buildEstatesIslandScene().
 // Pass the same THREE namespace already used by the host experience; no new CDN or bundle dependency.
@@ -103,6 +104,13 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
         }
         break;
       }
+      case 'street-light':
+      case 'mailbox':
+      case 'street-sign':
+      case 'waste-bin':
+        // Instanced public details are rendered together below to avoid
+        // hundreds of independent mesh draw calls on mobile.
+        made=[];break;
       case 'property-lot': {
         const w=d.width,dep=d.depth;
         const boundary=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w,.12,dep)),new THREE.LineBasicMaterial({color:PALETTE['lot-boundary']}));
@@ -122,6 +130,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     }
     objects.set(item.id,made);
   }
+  const neighborhood=createEstateNeighborhoodDecor({THREE,parent:root,manifest:source});
   const houseRoot=new THREE.Group();houseRoot.name='estates-property-architecture';root.add(houseRoot);
   const lots=source.objects.filter(item=>item.kind==='property-lot'&&item.buildingFootprint);
   const boundaries=new Map(lots.map(item=>[item.id,objects.get(item.id)]));
@@ -159,6 +168,7 @@ export function createEstatesIslandRenderer({THREE,scene,manifest,onInteract=()=
     root,
     setAppearance,
     setOwnership,
+    get neighborhood(){return neighborhood;},
     setUpgrades:tycoonDecor.setUpgrades,
     previewUpgrade:tycoonDecor.previewUpgrade,
     clearUpgradePreview:tycoonDecor.clearUpgradePreview,

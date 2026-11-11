@@ -741,14 +741,11 @@ bridges.forEach(b=>{if(!b.curve||!b.core)return;
   addAmmGoldTube(b,cv,NS,cr,towerStreamTaper);   // core matches the rail core exactly; soft glow sheath (same draw) makes it read from a distance
   paths.push(P)})});
  if(geos.length){const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,uniforms:{t:U.t},
-   // fl.y unpacked here (vertex = highp): speed + vein width
-   vertexShader:'attribute vec4 sc;attribute vec4 fl;varying vec4 vF;varying vec4 vC;varying vec2 vU;varying vec3 vN;varying float vW;void main(){float k=floor(fl.y/8.);vF=vec4(fl.x,fl.y-8.*k,fl.zw);vW=k/100.;vC=sc;vU=uv;vN=normalMatrix*normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-   // body = pool activity colour (vC) with the rail streak; gold pools (vF.z>0) add a gold vein down the middle (view-facing band, width vW of the radius, thicker = more XRP locked)
-   // that shimmers and dissolves over the lower half: vein cells crumble away (moving with the flow) and the edge left behind glows; normal swirls (vF.z=0) unchanged
-   fragmentShader:'uniform float t;varying vec4 vF;varying vec4 vC;varying vec2 vU;varying vec3 vN;varying float vW;void main(){float s=fract(vF.x-t*vF.y);float st=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);float sh=.55+.45*sin(t*1.3-vF.x*.35);'+
-    'vec3 n=normalize(vN);float off=sqrt(max(0.,1.-n.z*n.z));float vr=vF.z*(1.-smoothstep(vW*.7,vW,off));'+
-    'float dz=vF.z*smoothstep(.45,.97,vF.w);float h=fract(sin(dot(floor(vec2(vU.x*150.-t*vF.y*5.,vU.y*7.)),vec2(12.9898,78.233)))*43758.5453);float keep=step(dz*1.05,h);float vein=vr*keep;float edge=vr*keep*dz*(1.-smoothstep(0.,.18,h-dz));'+
-    'gl_FragColor=vec4(vC.rgb*(.55+1.1*st)*(1.-.85*vein)+vec3(1.,.66,.12)*vein*(.9+.6*sh)+vec3(1.,.72,.2)*edge*.9,vC.a*mix(.55+.45*st,1.25,vein));}'});   // same streak + speed as the rail core shader
+   // Both glow sheaths and main cores follow the exact activity-colour
+   // palette and flow phase of the bridge. Gold is a separate physical bar.
+   vertexShader:'attribute vec4 sc;attribute vec4 fl;varying vec4 vF;varying vec4 vC;void main(){vF=fl;vC=sc;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+   fragmentShader:'uniform float t;varying vec4 vF;varying vec4 vC;void main(){float s=fract(vF.x-t*vF.y);float st=smoothstep(0.,.18,s)*smoothstep(.55,.2,s);gl_FragColor=vec4(vC.rgb*(.55+1.1*st),vC.a*(.55+.45*st));}'
+   });
   const merged=mergeGeometries(geos),mesh=new THREE.Mesh(merged,m);mesh.frustumCulled=false;S.add(mesh);let recolor=null;
   // sparks: light, one Points draw on the exact swirl path, moving with the flow; phones ≤150, desktop ≤360 TOTAL (incl. gold dispersal), Low = off
   // gold dispersal (same Points draw, +0 calls): gold swirls shed golden motes over their lower half that drift outward + up with the flow and fade
@@ -772,6 +769,38 @@ bridges.forEach(b=>{if(!b.curve||!b.core)return;
    for(const R of ranges){const ac=R.P.b.actCol;if(!ac)continue;tc.copy(ac);if(R.core)tc.lerp(WHITE_C,.55);for(let v=R.start;v<R.end;v++){sca[v*4]=tc.r;sca[v*4+1]=tc.g;sca[v*4+2]=tc.b}}
    scA.needsUpdate=true;if(recolor)recolor()};
   window.__swirl={n:paths.length,geos:geos.length,particles:NP,sparks:NS0,disperse:ND,gold:gp.length,veins:[],goldTubeSegments:ammGoldGeos.length};if(/[?&]debug=1/.test(location.search))window.__swirl.paths=paths}}
+
+// Single draw for all permanently locked LP gold cores (both rail and tower).
+// The dynamic attribute is updated ONLY by fresh verified /api/amm-lock
+// responses; on verification failure every core shrinks to zero. No time-lock,
+// supply burn, or explorer-reported percentage can appear as permanent gold.
+if(ammGoldGeos.length){
+ const merged=mergeGeometries(ammGoldGeos),shareA=merged.getAttribute('gShare'),data=shareA.array;
+ const material=new THREE.ShaderMaterial({
+  transparent:true,depthWrite:false,blending:THREE.NormalBlending,toneMapped:false,
+  vertexShader:'attribute vec3 gCenter;attribute float gShare;varying float vS;varying vec3 vN;void main(){vS=clamp(gShare,0.,1.);float core=.88*sqrt(vS);vec3 p=gCenter+(position-gCenter)*core;vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}',
+  fragmentShader:'varying float vS;varying vec3 vN;void main(){if(vS<.00001)discard;vec3 n=normalize(vN);float light=.4+.4*max(0.,dot(n,normalize(vec3(.35,.72,.55))));float gleam=pow(max(0.,dot(n,normalize(vec3(-.3,.9,.2)))),18.);vec3 gold=vec3(.67,.40,.09)*light+vec3(.52,.38,.19)*gleam;gl_FragColor=vec4(gold,1.);}'
+ });
+ const mesh=new THREE.Mesh(merged,material);mesh.frustumCulled=false;mesh.renderOrder=3;mesh.name='AMM verified permanent LP gold core';S.add(mesh);
+ const perPool=new Map();for(const range of ammGoldRanges){
+  if(!perPool.has(range.amm))perPool.set(range.amm,[]);
+  perPool.get(range.amm).push(range);
+ }
+ refreshAmmGold=(account,share)=>{
+  const v=typeof share==='number'&&Number.isFinite(share)&&share>=0&&share<=1?share:0;
+  const ranges=perPool.get(account);if(!ranges)return;
+  for(const range of ranges){data.fill(v,range.start,range.end);range.b.verifiedGoldShare=v;}
+  shareA.needsUpdate=true;
+  if(window.__swirl)window.__swirl.veins=bridges.filter(x=>x.verifiedGoldShare>0).map(x=>({
+    pool:x.p.a+'/'+x.p.b,lockedPercent:+(x.verifiedGoldShare*100).toFixed(2),
+    lockedXrp:Math.round(x.p.tvl_xrp*x.verifiedGoldShare),
+    radiusFraction:+goldCoreRadiusFraction(x.verifiedGoldShare).toFixed(3),
+    source:'verified_permanent_lp'
+  }));
+ };
+ if(/[?&]debug=1/.test(location.search))
+  window.__ammGold={mesh,segments:ammGoldRanges.length,refresh:refreshAmmGold};
+}
 
 // ---------- pool traffic basis (activity colour + card): min 24h volume of the pair ----------
 const vol=n=>n.name==='XRP'?null:(n.vol24h??null);
@@ -1658,7 +1687,7 @@ function lockFX(b,L){b.lock={from:b.Lv,to:Math.max(b.Lv,L),t:0};const f=take(FXP
 function bridgeLook(b){const L=b.Lv,minor=b.minor;// neon is activity-only again (full intensity for every pool); locked share is shown by the gold Forever Rails layer
  if(b.actCol)b.solid.material.color.copy(b.actCol);else b.solid.material.color.set(0x3cf3ff);b.baseOp=minor?.3:.85;b.core.material.opacity=minor?.4:.95;b.solid.material.opacity=b.baseOp;if(b.flk)b.rail=Math.max(0,(1-L)/Math.max(.001,1-b.L))}
 actScore();bridges.forEach(b=>{b.baseOp=b.solid.material.opacity});
-try{initAmmLock({THREE,S,bridges,N,U,anim,TIER,MOBILE,pick})}catch(e){console.warn('amm-lock',e)}
+try{initAmmLock({THREE,S,bridges,N,U,anim,TIER,MOBILE,pick,onVerifiedPool:refreshAmmGold})}catch(e){console.warn('amm-lock',e)}
 try { if(!Q.has('nonature')) window.__cityNature=installCityNature({scene:S,nodes:E.nodes,onRoad:(x,z,r)=>onRoad(x,z,r)||ESTATE.beach.contains(x,z,r),colliders,tier:TIER}); } catch(e) { console.warn('city nature optional pass',e); }
 try { if(!Q.has('nobirds')) window.__cityBirds=installCityBirds({scene:S,nodes:E.nodes,tier:TIER,anim}); } catch(e) {console.warn('city birds optional pass',e)}
 {let af=0;anim.push(t=>{if(MOBILE&&(af++%3))return;for(const b of bridges){if(b.act==null||!b.group.visible)continue;const k=b.act,sp=.6+4.4*k*k;b.core.material.color.copy(b.actCol).lerp(WHITE_C,.55);b.core.material.opacity=(b.minor?.3:.35+.65*b.Lv)*(.55+.45*(.5+.5*Math.sin(t*sp+b.r*7)))}})}

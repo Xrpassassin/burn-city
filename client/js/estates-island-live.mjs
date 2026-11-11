@@ -1,5 +1,6 @@
 // Live BURN City host integration for the public Estates Island traversal.
 import { mountEstatePrestige } from './estate-prestige-ui.mjs';
+import {mountEstateHomeEditor} from './estates-home-editor-ui.mjs';
 import { mountEstateFreeStyle } from './estate-free-style-ui.mjs';
 import { mountEstateTycoon } from './estate-tycoon-ui.mjs';
 import { createEstatesSecretInteriorRenderer } from './estates-secret-interior-renderer.mjs';
@@ -183,6 +184,7 @@ export async function installEstatesIslandLive({
       panel.style.display='block';
     } else panel.style.display='none';
   };
+  let homeEditorActive=false;
   const showPanel = (heading, message, actions, muted='') => {
     renderer.clearUpgradePreview();
     restoreAppearance();
@@ -200,7 +202,14 @@ export async function installEstatesIslandLive({
     positionPanel();
   };
   let directoryCleanup=null;
-  const hidePanel = () => { renderer.clearUpgradePreview();directoryCleanup?.();directoryCleanup=null;directoryOpen=false; restoreAppearance(); panel.style.display='none'; panel.replaceChildren(); };
+  const hidePanel = () => {
+    if(homeEditorActive){
+      homeEditorActive=false;
+      if(secretSession?.roomId==='home'&&secretSession.homeState)secretInterior.setRoom('home',secretSession.homeState);
+    }
+    renderer.clearUpgradePreview();directoryCleanup?.();directoryCleanup=null;directoryOpen=false;
+    restoreAppearance(); panel.style.display='none'; panel.replaceChildren();
+  };
   // A single shared panel hosts the directory and inspection; no stacked overlays.
   const directoryButton=document.createElement('button');
   directoryButton.type='button';
@@ -287,7 +296,8 @@ export async function installEstatesIslandLive({
     showPanel(property.address,
       tier?tier.label+' · '+tier.price+' XRP · '+tier.shareUnits+' reward share units. Explore the finishes and see how this home can grow.':'This plot is reserved for a future home.',
       [{label:'Navigate to property',primary:true,run:()=>{const lot=manifest.lots.find(l=>l.id===property.lotId);if(lot){targetLot=lot;if(selectedLotBeacon){selectedLotBeacon.group.position.set(lot.position.x,.4,lot.position.z);selectedLotBeacon.group.visible=active;}if(guidanceHud)guidanceHud.style.display='block';hidePanel();}}},
-       {label:'Explore secret rooms',run:()=>void openSecretRoomMenu(property.propertyId)},
+       {label:'Enter home · owner or invited guest',primary:true,run:()=>void enterSecretRoom(property.propertyId,'home')},
+       {label:'Explore other private rooms',run:()=>void openSecretRoomMenu(property.propertyId)},
        {label:'Board estate helicopter',run:()=>void boardEstateHelicopter(property.propertyId)},
        {label:'Hangar logbook & customization',run:()=>showEstateHangar(property.propertyId)},
        {label:'Close',run:hidePanel}],
@@ -683,6 +693,45 @@ export async function installEstatesIslandLive({
     }
     return {data,token};
   }
+  async function homeRequest(propertyId,payload=null){
+    const token=currentWalletToken();if(!token)throw Error('Connect the owning or invited Xaman wallet.');
+    const response=await fetch(apiBase+'/api/estates/home/state'+(payload?'':'?propertyId='+encodeURIComponent(propertyId)),{
+      method:payload?'POST':'GET',cache:'no-store',
+      headers:{authorization:'Bearer '+token,'content-type':'application/json'},
+      ...(payload?{body:JSON.stringify({propertyId,...payload})}:{}),signal:AbortSignal.timeout(9000)
+    });
+    const result=await response.json();
+    if(token!==currentWalletToken())throw Error('Wallet changed during interior access.');
+    if(!response.ok||result.ok!==true)throw Error(result.error||'home_interior_unavailable');
+    return result;
+  }
+  async function openHomeEditor(propertyId){
+    if(disposed||!active||!secretSession||secretSession.roomId!=='home'||secretSession.propertyId!==propertyId)return;
+    const session=secretSession;
+    try{
+      const state=await homeRequest(propertyId);
+      if(secretSession!==session)return;
+      showPanel('YOUR HOME DESIGN STUDIO','Arrange furnishings in a free floor-plan builder. Premium room themes only unlock after a verified Tycoon purchase.',
+        [{label:'Keep exploring',run:hidePanel}],
+        'Free furniture · 0 XRP. Existing Arcade, Workshop and Bunker upgrades unlock three premium themes.');
+      homeEditorActive=true;
+      mountEstateHomeEditor(panel,state,{api:apiBase,
+        onPreview:preview=>{
+          if(secretSession!==session||!homeEditorActive)return;
+          secretInterior.setRoom('home',preview||session.homeState);
+        },
+        onSaved:newState=>{
+          if(secretSession!==session)return;
+          session.homeState=newState;
+          secretInterior.setRoom('home',newState);
+        },
+        onExit:hidePanel
+      });
+      positionPanel();
+    }catch(e){
+      if(secretSession===session)showPanel('HOME EDITOR UNAVAILABLE',e.message,[{label:'Back',run:hidePanel}]);
+    }
+  }
   async function openSecretRoomMenu(propertyId){
     if(disposed||!active||secretPending||typeof propertyId!=='string')return;
     secretPending=true;
@@ -690,13 +739,13 @@ export async function installEstatesIslandLive({
       const {data}=await privateRoomRequest('interior-options',propertyId);
       if(disposed||!active||secretSession&&secretSession.propertyId!==propertyId)return;
       const actions=(data.rooms||[]).map(room=>({
-        label:'Enter '+room.title,primary:room.id==='bunker'||room.id==='lounge',
+        label:'Enter '+room.title+(room.free?' · FREE':''),primary:room.id==='home',
         run:()=>void enterSecretRoom(propertyId,room.id)
       }));
       actions.push({label:secretSession?'Stay in this room':'Return to property',run:hidePanel});
       showPanel('PRIVATE ESTATE INTERIORS',(data.rooms?.length?
         'Verified '+data.role+' access · choose an unlocked room. E/USE interacts with doors and equipment.':
-        'No secret rooms are unlocked on this property yet. Upgrade the home first.'),actions,
+        'Every purchased home includes its own private interior. Paid room upgrades are optional.'),actions,
         'Room access is checked against paid upgrades and the server-owned guest list. No bonus payouts are created by entering.');
     }catch(e){
       if(!disposed&&active)showPanel('PRIVATE ROOM ACCESS',e.message,[{label:'Close',run:hidePanel}]);
@@ -708,24 +757,28 @@ export async function installEstatesIslandLive({
     try{
       const {data,token}=await privateRoomRequest('interior-access',propertyId,roomId);
       if(disposed||!active||!data.allowed||data.roomId!==roomId||data.propertyId!==propertyId)return false;
+      const homeState=roomId==='home'?await homeRequest(propertyId):null;
       const switching=!!secretSession;
       if(!switching){
         const returnAt={x:player.pos.x,y:player.pos.y,z:player.pos.z,yaw:getYaw()};
-        secretSession={propertyId,roomId,token,returnAt};
+        secretSession={propertyId,roomId,token,returnAt,homeState};
         stopPresence();root.visible=false;directoryButton.style.display='none';
         if(guidanceHud)guidanceHud.style.display='none';
         if(window.__skate?.active)window.__skate.toggle(false);
-      }else secretSession={...secretSession,roomId,token};
-      const layout=secretInterior.setRoom(roomId);
+      }else secretSession={...secretSession,roomId,token,homeState};
+      const layout=secretInterior.setRoom(roomId,homeState||{});
       const origin=secretInterior.origin;
       player.pos.set(origin.x+layout.spawn.x,origin.y+layout.walkHeight,origin.z+layout.spawn.z);
       player.vel?.set(0,0,0);player.fp=false;player.onGround=true;player.climb=null;player.spawned=1;
       setYaw(0);avatar.position.copy(player.pos);avatar.rotation.y=0;
       camera.position.set(origin.x,origin.y+2.65,origin.z+6.05);
       camera.lookAt(origin.x,origin.y+1.4,origin.z+layout.spawn.z);
-      exitButton.textContent='↩ Exit Secret Room';exitButton.setAttribute('aria-label','Exit Secret Room');
+      exitButton.textContent=roomId==='home'?'↩ Exit Home':'↩ Exit Secret Room';exitButton.setAttribute('aria-label',roomId==='home'?'Exit Home':'Exit Secret Room');
       secretPrompt=null;secretRecheckAt=Date.now();
       hidePanel();
+      if(roomId==='home')showPanel('WELCOME HOME', 'Explore your furnished residence in real-time third-person movement.',
+        [{label:'Open furnishing editor',primary:true,run:()=>void openHomeEditor(propertyId)},
+         {label:'Continue exploring',run:hidePanel}], 'Free layouts and furniture are available to every owner; invited guests can explore but cannot save changes.');
       onStatus({state:'entered-secret-room',propertyId,roomId,role:data.role,privateRoomNetworked:false});
       return true;
     }catch(e){
@@ -765,6 +818,10 @@ export async function installEstatesIslandLive({
       [{label:secretInterior.powerOn?'Switch to emergency lighting':'Restore full lighting',primary:true,
         run:()=>{secretInterior.setPower(!secretInterior.powerOn);showSecretInteraction(interaction);}},{label:'Close',run:hidePanel}],
       'This is a local environmental interaction. No utility fees or account transfers.');
+    else if(secretSession?.roomId==='home')showPanel('HOME DESIGN DESK','Customize furniture and choose a floor plan for this property.',
+      [{label:'Open furnishing editor',primary:true,run:()=>void openHomeEditor(propertyId)},
+       {label:'Continue exploring',run:hidePanel}],
+      'Free plans and furniture never charge XRP. Premium plans use already verified Tycoon unlocks.');
     else showPanel('ESTATE CONSOLE','A decorative operations terminal and property control desk. Functional crafting, storage and rewards are not enabled yet.',
       [{label:'Continue exploring',run:hidePanel}],
       'The terminal does not claim or transfer any funds.');

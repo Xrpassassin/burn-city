@@ -59,7 +59,7 @@ try{
    const instanced=scene.children.filter(x=>x.isInstancedMesh);
    for(const obj of instanced)scene.remove(obj);
    const {createZombieModelPilot}=await import('./zombie-model-pilot.mjs');
-   const pilot=await createZombieModelPilot(scene,{maxModels:8,maxDistance:120,targetHeight:1.72,distantLOD:false});
+   const pilot=await createZombieModelPilot(scene,{maxModels:8,maxDistance:120,targetHeight:1.72});
    const zombies=Array.from({length:8},(_,i)=>({id:'original-bundled-'+i,ty:i,
     x:(i%4-1.5)*2.3,z:Math.floor(i/4)*-3,y:0,yaw:0,v:1,speed:0,
     ch:false,cr:false}));

@@ -13,7 +13,7 @@ export function estateHouseParts(item) {
   const trailer=tier==='trailer', apartment=tier==='apartment', mansion=tier==='mansion', family=tier==='family';
   const level=Number.isInteger(item.prestigeLevel)&&item.prestigeLevel>=0&&item.prestigeLevel<=5?item.prestigeLevel:0;
   const parts=[];
-  const add=(name,mat,x,y,z,width,height,depth,rz=0)=>parts.push({name,mat,x,y,z,width,height,depth,rz});
+  const add=(name,mat,x,y,z,width,height,depth,rz=0,shape='box')=>parts.push({name,mat,x,y,z,width,height,depth,rz,shape});
   // Recess the shell to leave room for frames, eaves and an entry terrace within collision bounds.
   const W=w-.6,D=d-.6, bodyH=apartment?h-.55:trailer?h-.55:h*.72;
   add('foundation','stone',0,.15,0,w,.3,d);
@@ -93,7 +93,7 @@ export function estateHouseParts(item) {
       add('pavilion-cap','slate',W*.2,top+1.015,-D*.14,W*.47,.11,D*.55);
       add('arrival-stonework','stone',0,top*.63,front+.085,W*.83,.055,.07);
       add('pavilion-glass','glass',W*.2,top+.58,D*.12,W*.36,.48,.08);
-      for(const x of [-W*.43,W*.43]) add('entry-pier','stone',x,1.55,front+.05,.4,2.5,.4);
+      for(const x of [-W*.43,W*.43]) add('entry-pier','stone',x,1.55,front+.05,.4,2.5,.4,0,'cylinder');
       add('arrival-lintel','timber',0,2.85,front-.06,W,.2,.5);
     }
   } else {
@@ -114,15 +114,15 @@ export function estateHouseParts(item) {
   for(const x of [-W*.42,W*.42]) {
     add('planter','stone',x,.51,front+.02,.62,.42,.42);
     add('planter-rim','timber',x,.73,front+.02,.66,.06,.46);
-    add('plant','leaf',x,.8,front+.02,.52,.3,.36);
-    for(const dx of [-.17,.13])add('plant-frond-'+dx,'leaf',x+dx,.96,front+.02,.13,.29,.15,dx<0?-.22:.22);
+    add('plant','leaf',x,.8,front+.02,.52,.3,.36,0,'sphere');
+    for(const dx of [-.17,.13])add('plant-frond-'+dx,'leaf',x+dx,.96,front+.02,.13,.29,.15,dx<0?-.22:.22,'sphere');
   }
   // Cumulative cosmetic stages: no garden objects beyond the collision shell.
   if(level>=1) for(const side of [-1,1]) {
     const x=side*W*.33;
     add('garden-box','timber',x,.5,front+.06,W*.22,.32,.28);
-    add('garden-leaf','leaf',x,.72,front+.06,W*.24,.2,.26);
-    for(const dx of [-.22,0,.22])add('garden-flower','flower',x+dx,.86,front+.09,.12,.16,.12);
+    add('garden-leaf','leaf',x,.72,front+.06,W*.24,.2,.26,0,'sphere');
+    for(const dx of [-.22,0,.22])add('garden-flower','flower',x+dx,.86,front+.09,.12,.16,.12,0,'sphere');
   }
   if(level>=2) {
     add('crafted-base-band','stone',0,.48,front+.09,W,.16,.16);
@@ -164,10 +164,12 @@ export function renderEstateHouses(THREE,parent,items) {
   const records=new Map(),buckets=new Map();
   for(const item of items) for(const part of estateHouseParts(item)) {
     const record={...part,item};
-    if(!buckets.has(part.mat)) buckets.set(part.mat,[]);
-    buckets.get(part.mat).push(record);
+    const bucket=part.mat+'|'+part.shape;
+    if(!buckets.has(bucket)) buckets.set(bucket,[]);
+    buckets.get(bucket).push(record);
   }
-  for(const [key,parts] of buckets) {
+  for(const [bucket,parts] of buckets) {
+    const [key,shape]=bucket.split('|');
     const mat=new THREE.MeshStandardMaterial({
       color:HOUSE_MATERIALS[key],
       roughness:key==='glass'?.17:key==='brass'?.36:key==='roof'?.62:key==='frame'?.44:key==='stone'?.92:.82,
@@ -175,9 +177,14 @@ export function renderEstateHouses(THREE,parent,items) {
       emissive:key==='warm'?HOUSE_MATERIALS.warm:0,emissiveIntensity:.45,
       ...estateSurfaceProperties(THREE,key)
     });
+    const geometry=(w=1,h=1,d=1)=>{
+      if(shape==='sphere'&&THREE.SphereGeometry){const g=new THREE.SphereGeometry(.5,12,8);g.scale?.(w,h,d);return g;}
+      if(shape==='cylinder'&&THREE.CylinderGeometry){const g=new THREE.CylinderGeometry(.5,.5,1,12);g.scale?.(w,h,d);return g;}
+      return new THREE.BoxGeometry(w,h,d);
+    };
     if(THREE.InstancedMesh && THREE.Object3D) {
-      const mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),mat,parts.length), transform=new THREE.Object3D();
-      mesh.name='estates-houses-'+key;
+      const mesh=new THREE.InstancedMesh(geometry(),mat,parts.length), transform=new THREE.Object3D();
+      mesh.name='estates-houses-'+key+'-'+shape;
       parts.forEach((p,i)=>{
         transform.position.set(p.item.position.x+p.x,p.item.position.y+p.y,p.item.position.z+p.z);
         transform.rotation.set(0,0,p.rz);transform.scale.set(p.width,p.height,p.depth);transform.updateMatrix();
@@ -187,7 +194,7 @@ export function renderEstateHouses(THREE,parent,items) {
       });
       mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();parent.add(mesh);
     } else for(const p of parts) {
-      const mesh=new THREE.Mesh(new THREE.BoxGeometry(p.width,p.height,p.depth),mat);
+      const mesh=new THREE.Mesh(geometry(p.width,p.height,p.depth),mat);
       mesh.name=p.item.id+'-'+p.name;mesh.position.set(p.item.position.x+p.x,p.item.position.y+p.y,p.item.position.z+p.z);mesh.rotation.z=p.rz;parent.add(mesh);
       if(!records.has(p.item.id)) records.set(p.item.id,[]);records.get(p.item.id).push(mesh);
     }

@@ -32,6 +32,7 @@ const {estateTreasuryMonitor}=require('./estate-treasury-monitor');
 const estatePrestige = require('./estate-prestige-runtime').createEstatePrestigeRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const estateTycoon = require('./estate-tycoon-runtime').createEstateTycoonRuntime({db:Pay.sdb,pay:Pay,config:C,paused:require('./guard').paused});
 const EstateAccess = require('./estate-access');
+const estateFreeStyles = require('./estate-free-style').createEstateFreeStyleStore({db:Pay.sdb});
 const estateHangar = require('./estate-hangar-logbook').createEstateHangarLogbook({db:Pay.sdb,tycoonStore:estateTycoon.store,accessFor:EstateAccess.accessFor});
 const { createEstatesInstanceManager } = require('./estates-instance');
 const EstatesPresence = require('./estates-presence');
@@ -217,6 +218,10 @@ const server = http.createServer(async (req, res) => {
       if (gate('estates-appearance-ip:' + ip, 60, 60e3)) return json(res, 429, {error:'slow_down'});
       return json(res, 200, estatePrestige.publicState());
     }
+    if (url.pathname === '/api/estates/free-styles' && req.method === 'GET') {
+      if(gate('estates-free-styles-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
+      return json(res,200,estateFreeStyles.publicState());
+    }
     if (url.pathname === '/api/estates/tycoon/world' && req.method === 'GET') {
       if(gate('estates-tycoon-world-ip:'+ip,60,60000))return json(res,429,{error:'slow_down'});
       return json(res,200,{...estateTycoon.publicState(),helicopterStyles:estateHangar.publicStyles()});
@@ -233,6 +238,15 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/estates/portfolio' && req.method === 'GET') return json(res,200,{
         ...Estates.getState(u.acct),...estateSales.status(),...estateSales.capitalState(u.acct),...estateHourly.status(u.acct),
         portfolio:readEstatePortfolio({db:Pay.sdb,owner:u.acct}),tycoon:estateTycoon.portfolio(u.acct)});
+      if (url.pathname === '/api/estates/free-style' && req.method === 'GET') {
+        const result=estateFreeStyles.state({propertyId:String(url.searchParams.get('propertyId')||''),acct:u.acct});
+        return json(res,result.ok?200:result.error==='unknown_property'?404:403,result);
+      }
+      if (url.pathname === '/api/estates/free-style' && req.method === 'POST') {
+        if(gate('estate-free-style:'+u.acct,12,60000))return json(res,429,{ok:false,error:'slow_down'});
+        const b=await body(),result=estateFreeStyles.save({propertyId:b?.propertyId,acct:u.acct,architecture:b?.architecture,palette:b?.palette});
+        return json(res,result.ok?200:result.error==='invalid_free_style'?400:403,result);
+      }
       if (url.pathname === '/api/estates/tycoon/state' && req.method === 'GET') {
         const propertyId=String(url.searchParams.get('propertyId')||'');
         try{const state=estateTycoon.store.state(propertyId),access=estateTycoon.store.quote({propertyId,buyer:u.acct,itemId:'porch-lights'});

@@ -91,6 +91,51 @@ assert.deepEqual(installedArt,{replaced:1,props:0});
 assert.equal(existing.children[0].visible,false,'replace model art, not authoritative site');
 assert.equal(existing.children.at(-1).userData.cosmeticNoCollision,true);
 assert.equal(existing.userData.communityArt,'military-control');
+
+const replacedGeometry=existing.children.at(-1);
+const replacedBounds=new THREE.Box3().setFromObject(replacedGeometry,true);
+assert(Math.abs(replacedBounds.getCenter(new THREE.Vector3()).x)<.01 &&
+ Math.abs(replacedBounds.getCenter(new THREE.Vector3()).z)<.01,
+ 'landmark imported mesh must be centered at the existing authored POI');
+assert(Math.abs(replacedBounds.min.y)<.01,
+ 'normalization must floor the imported landmark without changing its collision footprint');
+
+// Original artist meshes may sit far away in a single GLB pack scene.
+// Fitting one individually must retain the source transform and normalize
+// its world bounds to the authored roadside site, rather than subtracting
+// its position twice.
+const fakeStreet=new THREE.Group();
+for(const [i,name] of ['Big Bin Body','Red Trash Can','Wood Bench','Concrete Barrier','Street Light','Bag 1'].entries()){
+ const part=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial());
+ part.name=name;part.position.set(25+i*4,4,-17-i*2);fakeStreet.add(part);
+}
+const fakeStreetSpec={...communityArtById('street-props-pack')};
+const fakeStreetLoader={loadAsync(url){
+ assert(url.endsWith('/assets/community/homefront-street-props.glb'));
+ return Promise.resolve({scene:fakeStreet,animations:[]});
+}};
+const streetAdapter=createHomefrontCommunityArt({
+ specs:[fakeStreetSpec],cloneModel:object=>object.clone(true),loader:fakeStreetLoader,mobile:true
+});
+await streetAdapter.load();
+const roadside=new THREE.Group();
+const streetResult=streetAdapter.attachWorld({
+ landmarks:[],landmarkSetPieces:new Map(),
+ cityChunkAt(){return roadside},terrainElevation(){return 0}
+});
+assert.deepEqual(streetResult,{replaced:0,props:6},'mobile places six distinct street prop types');
+assert.equal(roadside.children.length,6);
+for(const [i,visual] of roadside.children.entries()){
+ const site=HOMEFRONT_COMMUNITY_PROP_SITES[i];
+ const bounds=new THREE.Box3().setFromObject(visual,true);
+ const center=bounds.getCenter(new THREE.Vector3());
+ assert(Math.abs(center.x-site.x)<.05 && Math.abs(center.z-site.z)<.05,
+   'individually imported '+site.kind+' must be centered where its author-chunk site was declared');
+ assert(Math.abs(bounds.min.y)<.05,'street prop model should rest on ground after normalization');
+ const originalClone=visual.children[0]?.children[0];
+ assert(originalClone?.position.x>=25,'the original GLB node transform is preserved under a normalization wrapper');
+}
+
 assert(HOMEFRONT_COMMUNITY_LANDMARKS.length===2&&HOMEFRONT_COMMUNITY_PROP_SITES.length>=8);
 const pilot=readFileSync(new URL('./zombie-model-pilot.mjs',import.meta.url),'utf8');
 assert(pilot.includes('zombieSpecialModelForType')&&pilot.includes('createZombieInstancedLOD'));

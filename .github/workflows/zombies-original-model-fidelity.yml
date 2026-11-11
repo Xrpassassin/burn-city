@@ -46,6 +46,7 @@ jobs:
         run: |
           node client/arena/zombie-arena-appearance.test.mjs
           node client/arena/zombie-sketchfab-cast.test.mjs
+          node scripts/inspect-zombie-animation-units.mjs
           node client/arena/zombie-instanced-lod.test.mjs
           node client/arena/zombie-model-pilot.test.mjs
           node client/arena/zombie-model-policy.test.mjs

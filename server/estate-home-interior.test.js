@@ -50,7 +50,7 @@ assert.equal(store.save({propertyId:'trailer-01',acct:owner,layoutId:'arcade-sui
 assert.equal(tycoon.state('trailer-01').liveRewardShareUnits,1,'interior choices do not change payout shares');
 const newOwner='rABCDEF12345'.padEnd(30,'5');
 db.prepare('UPDATE estate_property_ownership SET acct=? WHERE property_id=?').run(newOwner,'trailer-01');
-assert.equal(store.save({propertyId:'trailer-01',acct:owner,layoutId:'cozy',furniture:[]}).error,'property_owner_required');
+assert.equal(store.save({propertyId:'trailer-01',acct:owner,layoutId:'cozy',furniture:[]}).error,'property_owner_or_invitation_required');
 assert.equal(store.state('trailer-01',newOwner).layoutId,'arcade-suite','interior follows property on resale');
 assert.equal(store.save({propertyId:'trailer-01',acct:newOwner,layoutId:'split',furniture:[]}).ok,true);
 for(const tier of ['trailer','apartment','starter','family','mansion']){

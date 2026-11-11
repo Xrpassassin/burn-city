@@ -1,25 +1,45 @@
 import * as THREE from 'three';
 import { planCityNature } from './city-nature-plan.mjs';
-// Instanced ground tufts (two draws at most), no per-object updates or physics.
+import { cityFoliageTriangles } from './city-nature-shapes.mjs';
+
+// Grounded curved-blade silhouettes replace cone grass. Two instanced draws
+// at most; no animation, physics, remote assets, shaders or extra lights.
 export function installCityNature({scene,nodes,onRoad,colliders,tier='medium'}) {
  const placements=planCityNature({nodes,onRoad,colliders,tier});
- const meshes=[];const dummy=new THREE.Object3D();
- // Varied blade-cluster silhouettes share geometry; no new draw calls.
- const geo=new THREE.ConeGeometry(.22,1,3);
- const types=[placements.filter(p=>!p.flower),placements.filter(p=>p.flower)];
- for(let t=0;t<types.length;t++){
-  const group=types[t];if(!group.length)continue;
-  const mat=new THREE.MeshLambertMaterial({color:t?0xb39a57:0x557e48,side:THREE.DoubleSide});
+ const meshes=[],dummy=new THREE.Object3D(),tint=new THREE.Color();
+ const grasses=placements.filter(p=>!p.flower);
+ const flowers=placements.filter(p=>p.flower);
+ const groups=[grasses,flowers];
+ const grassTints=[0x819773,0x758e6b,0x9b9872,0x6d8364,0x8a956f];
+ const flowerTints=[0xf3eadb,0xffebd7,0xe8d6c2,0xf3e0c4];
+ for(let t=0;t<groups.length;t++){
+  const group=groups[t];if(!group.length)continue;
+  const {positions,colors}=cityFoliageTriangles({flower:!!t});
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+  geo.computeVertexNormals();
+  const mat=new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true,side:THREE.DoubleSide});
   const mesh=new THREE.InstancedMesh(geo,mat,group.length);
-  group.forEach((p,i)=>{dummy.position.set(p.x,p.height*.5-.045,p.z);dummy.rotation.set(0,p.rotation,0);
-   const variation=.75+.25*Math.sin(i*2.399963229728653);
-   dummy.scale.set((t?.65:1)*variation,p.height,(t?.65:1)*(1.15-variation*.2));dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix)});
+  mesh.name=t?'city-sparse-wildflowers':'city-ground-blade-clusters';
+  group.forEach((p,i)=>{
+   const variation=.84+.16*Math.sin(i*2.399963229728653);
+   dummy.position.set(p.x,-.028,p.z);
+   dummy.rotation.set(0,p.rotation,0);
+   dummy.scale.set((t?.65:1)*variation,p.height,(t?.65:1)*(1.16-variation*.12));
+   dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
+   const palette=t?flowerTints:grassTints;
+   const colorIndex=(Math.floor(Math.abs(p.x)*13+Math.abs(p.z)*29)+i)%palette.length;
+   tint.setHex(palette[colorIndex]);mesh.setColorAt(i,tint);
+  });
   mesh.instanceMatrix.needsUpdate=true;
-  // InstancedMesh's initial bounds describe the untransformed cone, not scattered tufts.
-  // Recompute so frustum culling doesn't make distant vegetation disappear abruptly.
+  if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
   mesh.computeBoundingSphere();
-  mesh.receiveShadow=false;mesh.castShadow=false;
+  mesh.castShadow=false;mesh.receiveShadow=false;
   scene.add(mesh);meshes.push(mesh);
  }
- return {count:placements.length,draws:meshes.length,dispose(){for(const mesh of meshes){scene.remove(mesh);mesh.material.dispose()}geo.dispose()}};
+ return {
+  count:placements.length,draws:meshes.length,
+  dispose(){for(const mesh of meshes){scene.remove(mesh);mesh.geometry.dispose();mesh.material.dispose();}}
+ };
 }

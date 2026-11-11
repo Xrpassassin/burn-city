@@ -7,6 +7,7 @@ import * as SkeletonUtils from '../vendor/three/examples/jsm/utils/SkeletonUtils
 import { selectZombieModelCandidates, stableZombieHash } from './zombie-model-selection.mjs';
 import {ARENA_ZOMBIE_SKINS,zombieHumanShape} from './zombie-arena-appearance.mjs';
 import {ZOMBIE_SKETCHFAB_MODELS,zombieVisualModelId,zombieClipAliases} from './zombie-sketchfab-cast.mjs';
+import {createZombieInstancedLOD} from './zombie-instanced-lod.mjs';
 
 const MAX_MODELS = 8;
 const MAX_MODEL_DISTANCE = 28;
@@ -74,6 +75,12 @@ export async function createZombieModelPilot(scene, options = {}) {
   const models=results.filter(x=>x.status==='fulfilled').map(x=>x.value);
   if(!models.length)throw Error('No usable licensed human-infected Zombies model loaded');
   const byId=new Map(models.map(x=>[x.id,x]));
+  // The same human/hazmat/thin GLB artwork is also baked into a cheap idle
+  // mesh for the rest of the horde. Only nearby characters need skinned rigs.
+  let staticLOD=null;
+  try{staticLOD=createZombieInstancedLOD(scene,models,{capacity:48});}
+  catch(error){console.warn('[Zombies] Textured distant-infected LOD unavailable; using safe fallback:',error);}
+
   if(results.some(x=>x.status==='rejected'))
     console.warn('[Zombies] Some original human-infected GLBs failed; still using available licensed models.',
       results.filter(x=>x.status==='rejected').map(x=>String(x.reason?.message||x.reason)));
@@ -187,7 +194,10 @@ export async function createZombieModelPilot(scene, options = {}) {
         if (item.deadUntil > now) item.mixer.update(Math.min(0.05, Math.max(0, dt)));
         else if (item.deadUntil) remove(id);
       }
-      return new Set(active.keys());
+      const animated=new Set(active.keys());
+      if(!staticLOD)return animated;
+      const distant=staticLOD.update(zombies,animated,now*.001);
+      return new Set([...animated,...distant]);
     },
     react(id,kind='HitReact'){
       const item=active.get(id);
@@ -217,6 +227,7 @@ export async function createZombieModelPilot(scene, options = {}) {
     },
     clear() {
       for (const id of [...active.keys()]) remove(id);
+      staticLOD?.dispose();staticLOD=null;
     }
   };
 }

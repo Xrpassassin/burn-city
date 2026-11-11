@@ -93,6 +93,7 @@ try{
   assert.deepEqual(new Set(detailed.cast),new Set(['human','hazmat','thin']),'all three verified CC-BY casts appear');
   assert(detailed.hitAiden&&detailed.hitHazmat&&detailed.deathThin,'missing hit/death clips get visual fallback, not lost reactions');
   assert(detailed.drawCalls>0&&detailed.drawCalls<350);
+  console.log('ZOMBIE_MODEL_BOUNDS '+tag+' '+view.name+' '+JSON.stringify(detailed.actorBounds));
   for(const actor of detailed.actorBounds) {
     assert(actor.height>.6&&actor.height<5.5,'actor '+actor.asset+' height is implausible: '+actor.height);
     assert(actor.width<5&&actor.depth<5,'actor '+actor.asset+' has implausible warped limbs');

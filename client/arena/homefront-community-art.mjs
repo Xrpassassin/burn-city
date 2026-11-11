@@ -5,21 +5,22 @@ import * as THREE from './vendor/three.module.min.js';
 import {enabledCommunityArt} from './community-art-intake.mjs';
 
 const ROADSIDES=Object.freeze([
+ // One of each recognizable street prop is visible on phones, too.
  {x:31.5,z:-26.3,kind:'dumpster'},
- {x:47.3,z:-62.5,kind:'dumpster'},
  {x:-66.5,z:17.5,kind:'bin'},
  {x:63.3,z:43.6,kind:'bench'},
  {x:71.2,z:-8.5,kind:'barrier'},
- {x:-67.1,z:42.8,kind:'barrier'},
  {x:-6.8,z:67.3,kind:'streetlight'},
- {x:36.5,z:68.4,kind:'streetlight'},
  {x:-71.8,z:-17.4,kind:'trashbag'},
+ {x:47.3,z:-62.5,kind:'dumpster'},
+ {x:-67.1,z:42.8,kind:'barrier'},
+ {x:36.5,z:68.4,kind:'streetlight'},
  {x:43.1,z:17.6,kind:'trashbag'}
 ]);
 const PROP_PATTERNS=Object.freeze({
- dumpster:/dumpster/i,bin:/trash.?can|garbage.?can|bin/i,
- bench:/bench/i,barrier:/barrier|bollard/i,
- streetlight:/street.?light|lamp.?post/i,trashbag:/trash.?bag|garbage.?bag/i
+ dumpster:/^Big Bin Body$/i,bin:/^Red Trash Can(?:\\.\\d+)?$/i,
+ bench:/^Wood Bench$/i,barrier:/^Concrete Barrier$/i,
+ streetlight:/^Street Light$/i,trashbag:/^Bag 1$/i
 });
 const targetLandmarks=Object.freeze([
  {archetype:'road_checkpoint',model:'military-control',width:3.8,height:3.4,depth:2.8},
@@ -68,6 +69,10 @@ function fitToBox(source,{width=2,height=2.5,depth=2}={},cloneModel=object=>obje
  group.add(model);
  group.userData.cosmeticNoCollision=true;
  return {group,model};
+}
+export function communityPropNameMatches(kind,names){
+ const pattern=PROP_PATTERNS[kind];
+ return pattern ? names.some(name=>pattern.test(String(name))) : false;
 }
 function chooseProp(gltf,kind){
  const pattern=PROP_PATTERNS[kind];
@@ -126,7 +131,7 @@ export function createHomefrontCommunityArt({
   }
   const pack=models.get('street-props-pack');
   if(pack){
-   const limit=mobile?5:ROADSIDES.length;
+   const limit=mobile?6:ROADSIDES.length;
    for(const site of ROADSIDES.slice(0,limit)){
     const node=chooseProp(pack.gltf,site.kind);
     if(!node)continue;

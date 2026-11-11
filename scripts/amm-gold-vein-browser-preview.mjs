@@ -59,7 +59,26 @@ try{
   assert(state.tailFade?.min===0&&state.tailFade?.max===1,'solid gold veins must fade away smoothly at the tower face');
   assert(state.loaderHidden&&!state.tutorialSkipVisible,'actual scene must be unobscured before screenshot');
   await page.screenshot({path:output+'/'+process.env.AMM_BROWSER+'-'+v.name+'.png',fullPage:false});
-  facts.push({viewport:v.name,...state});
+  // Close-up of a synthetic high-verified-lock tower junction: inspect whether
+  // the colored shell and the shaded gold inner core remain continuous as the
+  // stream turns down toward the facade. This is a camera-only QA operation.
+  const junction=await page.evaluate(()=>{
+    const path=window.__swirl?.paths?.find(p=>p.b?.verifiedGoldShare>.8);
+    const city=window.__city;
+    if(!path||!city?.orbit||!city?.C)return null;
+    const p0=path.cv.getPointAt(.08),p1=path.cv.getPointAt(.52);
+    const focus=p0.clone().lerp(p1,.43);
+    const dx=focus.x-path.cx,dz=focus.z-path.cz,len=Math.hypot(dx,dz)||1;
+    city.orbit.autoRotate=false;city.orbit.enableDamping=false;
+    city.orbit.target.copy(focus);
+    city.C.position.set(focus.x+dx/len*19+6,focus.y+11,focus.z+dz/len*19+6);
+    city.orbit.update();
+    return {pool:path.b.p.a+'/'+path.b.p.b,lockedShare:path.b.verifiedGoldShare};
+  });
+  assert(junction?.lockedShare>.8,'must be able to focus the verified-gold tower joint');
+  await page.waitForTimeout(500);
+  await page.screenshot({path:output+'/'+process.env.AMM_BROWSER+'-'+v.name+'-tower-closeup.png',fullPage:false});
+  facts.push({viewport:v.name,...state,closeup:junction});
   await context.close();
  }
  assert.equal(issues.length,0,'no WebGL shader compilation errors');

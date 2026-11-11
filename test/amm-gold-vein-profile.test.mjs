@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {verifiedGoldFraction,goldCoreRadiusFraction,towerHelixRadius,towerStreamTaper,towerStreamOpacity,easeProfile} from '../client/js/amm-gold-vein-profile.mjs';
+import {verifiedGoldFraction,goldCoreRadiusFraction,towerHelixRadius,towerStreamTaper,towerStreamOpacity,easeProfile,towerSpiralLane,towerJunctionGradient,towerJunctionOpacity} from '../client/js/amm-gold-vein-profile.mjs';
 assert.equal(verifiedGoldFraction(null),0);
 assert.equal(verifiedGoldFraction(undefined),0);
 assert.equal(verifiedGoldFraction(NaN),0);
@@ -30,3 +30,24 @@ assert(taper.every((v,i)=>i===0||v<=taper[i-1]+1e-8));
 assert(fade.every((v,i)=>i===0||v<=fade[i-1]+1e-8));
 assert(taper.every(v=>v>=.34-1e-8),'a shrinking gold core is still visible before it fades');
 console.log('AMM gold bars: verified LP percentage, conservative unknowns, tangent-safe tower approach and smooth fade passed');
+
+for(let i=1;i<=100;i++){
+ const lane=towerSpiralLane(i);
+ assert(lane.turns>=1,'every AMM must wrap its connected tower at least once');
+ assert(lane.radialOffset>=0,'no wrap lane may pierce its building');
+ assert(lane.radialOffset<7,'even 100 connections should not create a giant starburst');
+ if(i>1)assert.notDeepEqual([lane.ring,lane.layer],[towerSpiralLane(i-1).ring,towerSpiralLane(i-1).layer]);
+}
+assert.equal(towerSpiralLane(1).radialOffset,0);
+assert.equal(towerSpiralLane(7).layer,1,'beyond the former 6-spiral cap gets a second layer');
+assert.equal(towerJunctionGradient(0),0);
+assert.equal(towerJunctionGradient(1),1);
+assert.equal(towerJunctionOpacity(.85,.22,0),.85,'seam starts with the EXACT rail shell alpha');
+assert.equal(towerJunctionOpacity(.95,.45,0),.95,'inner core starts with the EXACT rail core alpha');
+assert.equal(towerJunctionOpacity(.85,.22,1),0,'tower seam fades away at the tail');
+const gs=Array.from({length:101},(_,i)=>towerJunctionGradient(i/100));
+assert(gs.every((v,i)=>i===0||v>=gs[i-1]),'gradient must be monotone and free of steps');
+assert(gs.every(v=>v>=0&&v<=1));
+assert(Math.abs(gs[1]-gs[0])<.01,'junction gradient has a smooth start');
+assert(Math.abs(gs[30]-gs[31])<.01,'junction gradient reaches plateau smoothly');
+console.log('AMM endpoint lanes and bridge-to-tower gradient acceptance passed');

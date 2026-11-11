@@ -3,6 +3,7 @@
 // [state, secs left, boarded ids, votes, active count, gunner ids, spin x10, pad x, pad z, seat y]
 // state 1 inbound, 2 boarding, 3 liftoff, 4 left-behind surge, 5 done. Draw calls: body 1, rotor 1, tail rotor 1, cone 1, dust 1, guns 2, tracers 1, beacon 1 = 9.
 import * as THREE from 'three';
+import {helicopterAudioGain,helicopterGunnerControls} from './heli-controls.mjs';
 const add = THREE.AdditiveBlending;
 function merge(parts) {   // [geometry, color, [x,y,z], [rx,ry,rz]] -> one non-indexed geometry with baked vertex shading (no lights needed)
   const pos = [], col = [], c = new THREE.Color(), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), n = new THREE.Vector3(), L = new THREE.Vector3(0.4, 0.85, 0.3).normalize();
@@ -16,7 +17,7 @@ function blurTex() { const cv = document.createElement('canvas'); cv.width = cv.
   for (let b = 0; b < 4; b++) { const a = b * Math.PI / 2; for (let k = 0; k < 14; k++) { x.strokeStyle = `rgba(15,15,15,${0.5 * (1 - k / 14)})`; x.lineWidth = 10; x.beginPath(); x.arc(C, C, 70, a - k * 0.06, a - k * 0.06 - 0.05, true); x.lineTo(C, C); x.stroke(); } }   // smeared blade streaks
   x.strokeStyle = 'rgba(255,220,120,0.35)'; x.lineWidth = 3; x.beginPath(); x.arc(C, C, 124, 0, 7); x.stroke();   // painted blade tips
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; }
-export function createHeli(scene, { low = false, gun = null } = {}) {
+export function createHeli(scene, { low = false, gun = null, audioSettings = () => ({volume: 0.3, muted: false}) } = {}) {
   const root = new THREE.Group(); root.visible = false; scene.add(root);
   const OL = 0x4a5a32, OD = 0x323d22, GL = 0x1a2a3a, BK = 0x1c1c1c, YE = 0xd8b030;
   const B = (w, h, d) => new THREE.BoxGeometry(w, h, d), Cy = (r0, r1, h, s = 8) => new THREE.CylinderGeometry(r0, r1, h, s);
@@ -46,23 +47,95 @@ export function createHeli(scene, { low = false, gun = null } = {}) {
   const tracers = new THREE.LineSegments(trG, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: add, depthWrite: false })); tracers.frustumCulled = false; scene.add(tracers); let tI = 0;
   // pad beacon: pole + pulsing lamp (merged), visible while the quest/finale is on
   const beacon = new THREE.Mesh(merge([[Cy(0.06, 0.08, 2.2, 6), 0x333333, [0, 1.1, 0]], [B(0.4, 0.4, 0.4), 0xff3020, [0, 2.3, 0]]]), new THREE.MeshBasicMaterial({ vertexColors: true })); beacon.visible = false; scene.add(beacon);
-  // ---------- audio (lazy; needs the page to have had a gesture, which joining a match already is) ----------
-  let A = null; function audio() { if (A !== null) return A; try { const ctx = new (window.AudioContext || window.webkitAudioContext)(), nb = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-      const src = ctx.createBufferSource(); src.buffer = nb; src.loop = true; const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520; const chop = ctx.createGain(); chop.gain.value = 0.5; const lfo = ctx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 11; const lg = ctx.createGain(); lg.gain.value = 0.45; lfo.connect(lg).connect(chop.gain);
-      const vol = ctx.createGain(); vol.gain.value = 0; src.connect(lp).connect(chop).connect(vol).connect(ctx.destination); src.start(); lfo.start();
-      const mg = ctx.createOscillator(); mg.type = 'sawtooth'; mg.frequency.value = 40; const mgf = ctx.createBiquadFilter(); mgf.type = 'bandpass'; mgf.frequency.value = 900; const mgv = ctx.createGain(); mgv.gain.value = 0; mg.connect(mgf).connect(mgv).connect(ctx.destination); mg.start();
-      A = { ctx, vol, lfo, lp, mg, mgv, nb }; } catch { A = false; } return A; }
-  function bang(k = 1) { const a = audio(); if (!a) return; const s = a.ctx.createBufferSource(); s.buffer = a.nb; const g = a.ctx.createGain(), hp = a.ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 700; const t0 = a.ctx.currentTime; g.gain.setValueAtTime(0.16 * k, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.06); s.connect(hp).connect(g).connect(a.ctx.destination); s.start(t0, Math.random(), 0.08); }
+  // ---------- original Zombies helicopter audio ----------
+  // The rotor is intentionally quieter than combat, obeys the Arena master
+  // volume/mute, and NEVER survives a map transition / lost helicopter.
+  // All oscillator and looping-buffer sources have an explicit stop path.
+  let A=null,destroyed=false;
+  function releaseAudio(){
+    const a=A;A=null;if(!a)return;
+    try{
+      const now=a.ctx.currentTime;
+      for(const g of [a.vol,a.mgv]){
+        g.gain.cancelScheduledValues(now);
+        g.gain.setValueAtTime(0,now);
+      }
+      for(const src of [a.src,a.lfo,a.mg]){try{src.stop(now);}catch{}}
+      for(const node of [a.src,a.lp,a.chop,a.lfo,a.lg,a.vol,a.mg,a.mgf,a.mgv])
+        try{node.disconnect();}catch{}
+      void a.ctx.close()?.catch?.(()=>{});
+    }catch{}
+  }
+  const onPageHide=()=>releaseAudio();
+  addEventListener('pagehide',onPageHide);
+  function audio(){
+    if(destroyed)return false;
+    if(A!==null)return A;
+    let ctx=null,src=null,lfo=null,mg=null;
+    try{
+      ctx=new (window.AudioContext||window.webkitAudioContext)();
+      const nb=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate),
+        data=nb.getChannelData(0);
+      for(let i=0;i<data.length;i++)data[i]=Math.random()*2-1;
+      src=ctx.createBufferSource();src.buffer=nb;src.loop=true;
+      const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=430;
+      const chop=ctx.createGain();chop.gain.value=.25;
+      lfo=ctx.createOscillator();lfo.type='square';lfo.frequency.value=11;
+      const lg=ctx.createGain();lg.gain.value=.2;
+      lfo.connect(lg).connect(chop.gain);
+      const vol=ctx.createGain();vol.gain.value=0;
+      src.connect(lp).connect(chop).connect(vol).connect(ctx.destination);
+      src.start();lfo.start();
+      mg=ctx.createOscillator();mg.type='sawtooth';mg.frequency.value=40;
+      const mgf=ctx.createBiquadFilter();mgf.type='bandpass';mgf.frequency.value=900;
+      const mgv=ctx.createGain();mgv.gain.value=0;
+      mg.connect(mgf).connect(mgv).connect(ctx.destination);mg.start();
+      A={ctx,src,lp,chop,lfo,lg,vol,mg,mgf,mgv,nb};
+    }catch{
+      for(const source of [src,lfo,mg])try{source?.stop();}catch{}
+      try{ctx?.close();}catch{}
+      A=false;
+    }
+    return A;
+  }
+  function bang(k=1){
+    const a=audio();if(!a)return;
+    const s=a.ctx.createBufferSource();s.buffer=a.nb;
+    const g=a.ctx.createGain(),hp=a.ctx.createBiquadFilter();
+    hp.type='highpass';hp.frequency.value=700;
+    const now=a.ctx.currentTime;
+    const settings=audioSettings();
+    const master=settings?.muted?0:Math.max(0,Math.min(1,settings?.volume??.3));
+    g.gain.setValueAtTime(.075*k*master,now);
+    g.gain.exponentialRampToValueAtTime(.0001,now+.06);
+    s.connect(hp).connect(g).connect(a.ctx.destination);
+    s.onended=()=>{s.disconnect();hp.disconnect();g.disconnect();};
+    s.start(now,Math.random(),.08);
+  }
   // ---------- HUD (runtime elements, no markup / CSS file edits) ----------
   const mk = (id, css) => { let d = document.getElementById(id); if (!d) { d = document.createElement('div'); d.id = id; document.body.appendChild(d); } d.style.cssText = css; d.hidden = true; return d; };
   const hud = mk('heliHud', 'position:fixed;left:50%;top:calc(150px + env(safe-area-inset-top));transform:translateX(-50%);z-index:9;padding:6px 14px;border-radius:10px;background:rgba(10,14,8,.72);border:1px solid #7aff6a66;color:#e8ffe0;font:700 14px/1.35 system-ui,sans-serif;text-align:center;pointer-events:none;text-shadow:0 1px 2px #000;white-space:nowrap');
   const vote = document.getElementById('heliVote') || document.createElement('button'); vote.id = 'heliVote'; vote.hidden = true; vote.textContent = '🚁 VOTE TO LEAVE (V)'; document.body.appendChild(vote);
   vote.style.cssText = 'position:fixed;left:50%;top:calc(204px + env(safe-area-inset-top));transform:translateX(-50%);z-index:9;padding:10px 18px;border-radius:12px;border:2px solid #7aff6a;background:rgba(20,60,16,.85);color:#fff;font:800 15px system-ui,sans-serif;touch-action:manipulation';
-  const gunP = mk('heliGun', 'position:fixed;left:50%;top:calc(258px + env(safe-area-inset-top));transform:translateX(-50%);z-index:9;padding:6px 12px;border-radius:8px;background:rgba(0,0,0,.6);color:#ffd27a;font:700 14px system-ui,sans-serif;pointer-events:none');
+  const gunP = mk('heliGun', 'position:fixed;left:50%;top:calc(258px + env(safe-area-inset-top));transform:translateX(-50%);z-index:9;padding:6px 12px;border-radius:8px;background:rgba(0,0,0,.6);color:#ffd27a;font:700 14px system-ui,sans-serif;pointer-events:none;text-align:center;white-space:normal;max-width:calc(100vw - 24px)');
+  const gunBtn=document.createElement('button');
+  gunBtn.id='heliGunUse';gunBtn.type='button';gunBtn.hidden=true;
+  gunBtn.style.cssText='position:fixed;left:50%;top:calc(298px + env(safe-area-inset-top));transform:translateX(-50%);z-index:14;min-height:52px;min-width:190px;max-width:calc(100vw - 32px);padding:12px 18px;border:2px solid #e9bd72;border-radius:11px;background:#273b34;color:white;font:800 15px system-ui;touch-action:manipulation;cursor:pointer';
+  document.body.appendChild(gunBtn);
   const res = mk('heliRes', 'position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#fff;font:700 16px system-ui,sans-serif;text-align:center;pointer-events:none;text-shadow:0 2px 6px #000');
   const wash = mk('heliWash', 'position:fixed;inset:0;z-index:7;pointer-events:none;background:radial-gradient(ellipse at center,transparent 45%,rgba(160,0,0,.45));');
-  let voteQ = false; vote.onclick = e => { e.stopPropagation(); voteQ = true; vote.disabled = true; vote.textContent = '✅ VOTED'; };
-  const onKey = e => { if (e.code === 'KeyV' && !e.repeat && !vote.hidden && !vote.disabled) vote.onclick(e); }; addEventListener('keydown', onKey);
+  let voteQ=false,useQ=false;
+  vote.onclick=e=>{e.stopPropagation();voteQ=true;vote.disabled=true;vote.textContent='✅ VOTED';};
+  gunBtn.onclick=e=>{e.preventDefault();e.stopPropagation();useQ=true;gunBtn.disabled=true;};
+
+  const onKey=e=>{
+    if(e.repeat)return;
+    if(e.code==='KeyV'&&!vote.hidden&&!vote.disabled)vote.onclick(e);
+    if(e.code==='KeyE'&&!gunBtn.hidden&&!gunBtn.disabled){
+      e.preventDefault();gunBtn.onclick(e);
+    }
+  };
+  addEventListener('keydown',onKey);
   // ---------- state ----------
   let H = null, st = 0, tLoc = 0, outT = 0, lastSt = 0, myRes = null, leftT = 0, padY = 3.6, shake = 0; const tmp = new THREE.Vector3(), from = new THREE.Vector3();
   const fmt = s => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
@@ -75,13 +148,16 @@ export function createHeli(scene, { low = false, gun = null } = {}) {
   return {
     get state() { return st; },
     aboard: (h, me) => !!(h && h[2] && h[2].includes(me)),
-    takeVote() { const v = voteQ; voteQ = false; return v; },
+    takeVote() { const v=voteQ;voteQ=false;return v; },
+    takeUse() { const v=useQ;useQ=false;return v; },
     event(e, me) {
       if (e.e === 'heli') { if (e.s === 1) { shake = 0.3; } if (e.s === 3 && e.why) this.toast?.(e.why === 'vote' ? '🚁 Vote passed, lifting off!' : e.why === 'all' ? '🚁 Everyone aboard, lifting off!' : '🚁 Out of time, lifting off!'); }
       if (e.e === 'hres' && e.id === me) { myRes = e; if (e.r === 'x') showRes(e); }
       if (e.e === 'hleft' && e.id === me) { leftT = 1; wash.hidden = false; }
       if (e.e === 'gameover' && myRes && myRes.r === 'l') showRes(myRes);
-      if (e.e === 'hgun' && e.id === me) audio(); },
+      if(e.e==='hgun'&&e.id===me&&e.g>=0)audio();
+      if(e.e==='map_transition'){releaseAudio();}
+    },
     tracer(e, mine) { const i = tI++ % TN, o = i * 6; tP[o] = e.x; tP[o + 1] = (e.y || padY) + 1.75 - 0.4; tP[o + 2] = e.z; tP[o + 3] = e.tx; tP[o + 4] = e.ty ?? e.y; tP[o + 5] = e.tz; tL[i] = 1;
       if (root.visible) { tmp.set(0, 1.75, -1.6); tmp.x = e.g ? 1.95 : -1.95; root.localToWorld(tmp); tP[o] = tmp.x; tP[o + 1] = tmp.y; tP[o + 2] = tmp.z; }
       bang(mine ? 1 : 0.4); },
@@ -90,8 +166,15 @@ export function createHeli(scene, { low = false, gun = null } = {}) {
       for (let i = 0; i < TN; i++) { if (tL[i] <= 0) continue; tL[i] -= dt * 9; const k = Math.max(0, tL[i]), o = i * 6; tC[o] = 1 * k; tC[o + 1] = 0.85 * k; tC[o + 2] = 0.45 * k; tC[o + 3] = 0.6 * k; tC[o + 4] = 0.3 * k; tC[o + 5] = 0.1 * k; if (k <= 0) for (let j = 0; j < 6; j++) tP[o + j] = 0; }
       trG.attributes.position.needsUpdate = true; trG.attributes.color.needsUpdate = true;
       if (leftT > 0) { leftT += dt; wash.style.opacity = 0.6 + 0.4 * Math.sin(t * 5); }
-      if (!h && !myRes) { if (H) { root.visible = dust.visible = false; hud.hidden = vote.hidden = gunP.hidden = true; } H = null; st = 0; return; }
-      if (!h) { hud.hidden = vote.hidden = gunP.hidden = true; root.visible = false; dust.visible = false; return; }
+      if(!h){
+        // Server reset during map-2 migration keeps this module alive. Previous
+        // code returned without muting either infinite oscillator.
+        releaseAudio();
+        root.visible=dust.visible=false;
+        hud.hidden=vote.hidden=gunP.hidden=gunBtn.hidden=true;
+        H=null;st=0;lastSt=0;useQ=false;
+        return;
+      }
       H = h; const S = h[0], me = ctx.me; padY = h[9] - 0.4;
       if (S !== lastSt) { tLoc = h[1]; lastSt = S; if (S >= 4) outT = 0; } else tLoc = Math.min(h[1], Math.max(h[1] - 1, tLoc - dt));
       st = S; const px = h[7], pz = h[8];
@@ -112,10 +195,23 @@ export function createHeli(scene, { low = false, gun = null } = {}) {
           dP[o] += dV[o] * dt; dP[o + 1] += (dV[o + 1] -= dt * 1.5) * dt; dP[o + 2] += dV[o + 2] * dt; if (dP[o + 1] < padY) dP[o + 1] = -1; }
         dustG.attributes.position.needsUpdate = true; dust.material.opacity = 0.55 * str; }
       // audio: rotor gets louder as it closes in; thump rate rises on liftoff
-      const a = audio(); if (a) { const d = ctx.cam ? ctx.cam.position.distanceTo(root.position) : 50, v = root.visible ? Math.min(1, Math.pow(Math.max(0, 1 - d / 170), 2) * 1.1) * 0.55 : 0; a.vol.gain.setTargetAtTime(v, a.ctx.currentTime, 0.15); a.lfo.frequency.setTargetAtTime(S >= 3 ? 14 : 11, a.ctx.currentTime, 0.5); a.lp.frequency.value = 350 + 500 * v; }
+      const a=audio();
+      if(a){
+        const d=ctx.cam?ctx.cam.position.distanceTo(root.position):50;
+        const v=helicopterAudioGain(d,{...audioSettings(),visible:root.visible});
+        a.vol.gain.setTargetAtTime(v,a.ctx.currentTime,.20);
+        a.lfo.frequency.setTargetAtTime(S>=3?14:11,a.ctx.currentTime,.5);
+        a.lp.frequency.value=320+440*v;
+      }
       // HUD
-      const on = h[2].includes(me), gi = h[5].indexOf(me), act = h[4] || 1, need = Math.floor(act / 2) + 1;
-      if (a) { const sp = gi >= 0 ? (h[6][gi] || 0) / 10 : 0; a.mg.frequency.setTargetAtTime(40 + sp * 180, a.ctx.currentTime, 0.05); a.mgv.gain.setTargetAtTime(sp * 0.08, a.ctx.currentTime, 0.05); }
+      const control=helicopterGunnerControls(h,me);
+      const on=control.aboard,gi=control.seat,act=h[4]||1,need=Math.floor(act/2)+1;
+      if(a){
+        const sp=gi>=0?(h[6][gi]||0)/10:0;
+        a.mg.frequency.setTargetAtTime(40+sp*180,a.ctx.currentTime,.05);
+        const settings=audioSettings();
+        a.mgv.gain.setTargetAtTime(sp*.026*(settings?.muted?0:(settings?.volume??.3)),a.ctx.currentTime,.05);
+      }
       h[5].forEach((id, i) => { const g = guns[i]; const p = id && ctx.players ? ctx.players.find(o => o.id === id) : null; const ty = p ? (id === me && ctx.yaw != null ? ctx.yaw : p.r) - root.rotation.y + Math.PI : (i ? -0.5 : 0.5), tp = p ? (id === me && ctx.pitch != null ? ctx.pitch : p.pi || 0) : 0;
         g.rotation.order = 'YXZ'; g.rotation.y += (Math.atan2(Math.sin(ty - g.rotation.y), Math.cos(ty - g.rotation.y))) * Math.min(1, dt * 14); g.rotation.x = tp; g.rotation.z += dt * 40 * (h[6][i] || 0) / 10; });
       if (gun) gun.visible = gun.visible && gi < 0;   // the door gun replaces the view-model while manning
@@ -124,10 +220,23 @@ export function createHeli(scene, { low = false, gun = null } = {}) {
       else if (S === 2 && h[10]) hud.innerHTML = `🚁 DEPARTING IN ${h[10]} · aboard ${h[2].length}/${act}<br><small style="opacity:.8">${on ? 'Man a minigun (USE) · vote to leave now' : 'Get on the pad NOW'}</small>`;
       else if (S === 2) hud.innerHTML = `🚁 BOARDING · ${fmt(tLoc)} · aboard ${h[2].length}/${act}<br><small style="opacity:.8">${on ? `Votes to leave ${h[3]}/${need} needed` : 'Stand on the helipad to board'}</small>`;
       else if (S === 3) hud.innerHTML = '🚁 LIFTING OFF';
-      gunP.hidden = !on || S > 3; gunP.textContent = gi >= 0 ? `MINIGUN ${gi ? 'R' : 'L'} · hold FIRE to spin up · USE to let go` : h[5].includes(0) ? 'Press USE to man a door minigun' : 'Both miniguns manned';
+      gunP.hidden=!on||S>3;
+      gunP.textContent=control.mounted
+        ? `MINIGUN ${gi?'RIGHT':'LEFT'} · hold FIRE to spin up · E / tap to exit`
+        : control.available?'E / tap to man a door minigun':'Both miniguns are occupied';
+      gunBtn.hidden=!control.canInteract;
+      gunBtn.disabled=!control.canInteract;
+      gunBtn.textContent=control.mounted?'EXIT MINIGUN · E':'MAN MINIGUN · E';
       if (shake > 0) shake -= dt; },
     shakeAmt: () => Math.max(0, shake),
     get objs() { return [root, dust, tracers, beacon]; },   // perf checks: everything this module adds to the scene
-    dispose() { removeEventListener('keydown', onKey); for (const o of [root, dust, tracers, beacon]) scene.remove(o); [hud, vote, gunP, res, wash].forEach(d => d.remove()); body.geometry.dispose(); gunGeo.dispose(); rotM.map.dispose(); try { A && A.ctx.close(); } catch {} }
+    dispose(){
+      if(destroyed)return;destroyed=true;
+      releaseAudio();removeEventListener('pagehide',onPageHide);
+      removeEventListener('keydown',onKey);
+      for(const o of [root,dust,tracers,beacon])scene.remove(o);
+      for(const d of [hud,vote,gunP,gunBtn,res,wash])d.remove();
+      body.geometry.dispose();gunGeo.dispose();rotM.map.dispose();
+    }
   };
 }

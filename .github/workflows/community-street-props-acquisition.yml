@@ -12,7 +12,7 @@ permissions:
 jobs:
   acquire:
     if: github.repository == 'Xrpassassin/burn-city' && github.ref == 'refs/heads/feat/community-art-intake-homefront-zombies-20261111'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4

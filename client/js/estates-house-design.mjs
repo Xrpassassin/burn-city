@@ -3,7 +3,7 @@ import {estateSurfaceProperties} from './estates-material-fidelity.mjs';
 // existing footprint, so decorative improvements cannot obstruct public paths.
 export const HOUSE_MATERIALS = Object.freeze({
   plaster:0xd8cbb5, stone:0x817d73, siding:0x71878a, timber:0x855a3c,
-  roof:0x303b49, frame:0x283d49, glass:0x537f8b, warm:0xffc982,
+  roof:0x303b49, slate:0x3f4d58, metal:0x69777b, frame:0x283d49, glass:0x537f8b, warm:0xffc982,
   brass:0xb89457, leaf:0x48664c, flower:0xd37a73, copper:0xb0754a, ivory:0xe9dfcc
 });
 export function estateHouseParts(item) {

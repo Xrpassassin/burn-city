@@ -1,3 +1,4 @@
+import {estateSurfaceProperties,disposeEstateSurfaceMaterial} from './estates-material-fidelity.mjs';
 // Architecturally grounded shared-island estate decorations.
 // Every detail comes from the server-verified unlock list, not local wallet state.
 // Authenticated interiors remain behind the separate private-room scene.
@@ -23,7 +24,8 @@ export function createEstateTycoonDecor({THREE,parent,lots}={}){
    color:COLORS[key]??COLORS.stone,roughness:key==='water'?.18:key==='glass'?.22:key==='metal'?.39:key==='brass'?.35:key==='wood'?.78:.89,
    metalness:key==='metal'?.72:key==='brass'?.62:key==='slate'?.26:0,
    ...(key==='warm'?{emissive:COLORS.warm,emissiveIntensity:.72}:{}),
-   ...(key==='water'?{transparent:true,opacity:.84}:{} )
+   ...(key==='water'?{transparent:true,opacity:.84}:{} ),
+   ...estateSurfaceProperties(THREE,key)
   }));
   return materials.get(key);
  };
@@ -53,7 +55,7 @@ export function createEstateTycoonDecor({THREE,parent,lots}={}){
   const geometries=new Set();
   root.traverse?.(obj=>{if(obj.geometry)geometries.add(obj.geometry);});
   for(const geom of geometries)geom.dispose?.();
-  for(const mat of materials.values())mat.dispose?.();
+  for(const mat of materials.values())disposeEstateSurfaceMaterial(mat);
   materials.clear();
   for(const child of [...root.children])root.remove(child);
  }

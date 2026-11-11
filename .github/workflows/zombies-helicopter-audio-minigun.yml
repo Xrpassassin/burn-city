@@ -1,0 +1,75 @@
+name: Zombies helicopter audio, minigun controls and Map 2 teardown
+on:
+  pull_request:
+    paths:
+      - 'client/arena/heli.js'
+      - 'client/arena/heli-controls.mjs'
+      - 'client/arena/heli-controls.test.mjs'
+      - 'client/arena/index.html'
+      - 'test/zombie-heli-gunner-sim.js'
+      - 'scripts/zombies-helicopter-browser-qa.mjs'
+      - '.github/workflows/zombies-helicopter-audio-minigun.yml'
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  audio-and-server-authority:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Client syntax and audio volume
+        run: |
+          node --check client/arena/heli.js
+          node --check client/arena/heli-controls.mjs
+          node --check scripts/zombies-helicopter-browser-qa.mjs
+          node client/arena/heli-controls.test.mjs
+      - name: Server gun spin-up, shots, boarding and two-map handoff
+        run: |
+          node test/zombie-heli-gunner-sim.js
+          node test/zombie-map-progression-sim.js
+          node test/zombie-campaign-carryover-sim.js
+          node test/zombie-helicopter-arrival-sim.js
+  browsers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Start dry-run Zombies game
+        run: |
+          DRY_RUN=true BURN_JOB_IN_SERVER=false PORT=8080 DATA_DIR=$(mktemp -d) node server/server.js >/tmp/heli-qa-server.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8080/arena/index.html >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 120 /tmp/heli-qa-server.log
+          exit 1
+      - name: Real browser audio cleanup and usable gunner button
+        run: node scripts/zombies-helicopter-browser-qa.mjs
+        env:
+          HELI_QA_BROWSER: ${{ matrix.browser }}
+          HELI_QA_OUTPUT: zombie-helicopter-qa-output
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zombie-heli-gunner-${{ matrix.browser }}
+          path: zombie-helicopter-qa-output/
+          if-no-files-found: ignore
+      - if: failure()
+        run: test -f /tmp/heli-qa-server.log && tail -n 120 /tmp/heli-qa-server.log || true

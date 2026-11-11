@@ -9,6 +9,22 @@ const PALETTE={
  wood:{color:0x745039,roughness:.84},fabric:{color:0x355266,roughness:1},
  velvet:{color:0x3d2e5b,roughness:.94},rug:{color:0x443c54,roughness:1},
  green:{color:0x3c7454,roughness:.97},water:{color:0x1d8b9e,roughness:.2,metalness:.2,transparent:true,opacity:.82},
+ 'home-wall':{color:0xcbbfae,roughness:.92},
+ 'home-floor':{color:0x9f8568,roughness:.77},
+ 'home-ceiling':{color:0xe8dfcf,roughness:.92},
+ 'home-trim':{color:0xe2d8c5,roughness:.77},
+ 'home-wood':{color:0x80624a,roughness:.76},
+ 'home-door':{color:0x6f543f,roughness:.71},
+ 'home-fabric':{color:0x677f77,roughness:.95},
+ 'home-leather':{color:0x75604a,roughness:.87},
+ 'home-cream':{color:0xe4d8c5,roughness:.98},
+ 'home-rug':{color:0xb3a38c,roughness:1},
+ 'home-plant':{color:0x597c5a,roughness:.98},
+ 'home-ceramic':{color:0xaca89b,roughness:.73},
+ 'home-earth':{color:0x5b534a,roughness:1},
+ 'home-metal':{color:0x68716d,metalness:.48,roughness:.52},
+ 'home-glass':{color:0x93b3b2,metalness:.1,roughness:.25,transparent:true,opacity:.76},
+ 'home-warm':{color:0xffd9a0,emissive:0xffbc78,emissiveIntensity:.7,roughness:.5},
  screen:{color:0x1a5f8a,emissive:0x14548b,emissiveIntensity:.67,roughness:.4},
  emissive:{color:0x76edda,emissive:0x31c4a6,emissiveIntensity:1.2,roughness:.3}
 };
@@ -21,7 +37,9 @@ const INDIRECT_BOUNCE=Object.freeze({
  ceiling:{color:0x536174,power:.45},steel:{color:0x52697b,power:.31},
  metal:{color:0x566f80,power:.28},wood:{color:0x6c574c,power:.25},
  fabric:{color:0x5a6b7e,power:.31},rug:{color:0x554d66,power:.27},
- velvet:{color:0x5f5472,power:.28},accent:{color:0x796952,power:.26}
+ velvet:{color:0x5f5472,power:.28},accent:{color:0x796952,power:.26},
+ 'home-wall':{color:0x8f806f,power:.24},'home-ceiling':{color:0x9c8e78,power:.22},
+ 'home-floor':{color:0x675849,power:.12}
 });
 function requireThree(THREE){
  for(const name of ['Group','Mesh','BoxGeometry','MeshStandardMaterial'])
@@ -63,15 +81,21 @@ export function createEstatesSecretInteriorRenderer({THREE,scene,origin=PRIVATE_
   }
   return powerOn;
  }
- function setRoom(roomId){
+ function setRoom(roomId,options={}){
   if(disposed)throw Error('private_interior_disposed');
-  const layout=createSecretRoomLayout(roomId);
+  const layout=createSecretRoomLayout(roomId,options);
   disposeRoom();
   active=layout;
   // Build room only on entry, so island traversal has no interior draw-call burden.
   for(const part of layout.items){
-   const mesh=new THREE.Mesh(new THREE.BoxGeometry(part.w,part.h,part.d),material(part.mat));
-   mesh.position.set(part.x,part.y,part.z);mesh.name='secret-'+part.id;
+   const geo=part.shape==='sphere'&&THREE.SphereGeometry?
+    new THREE.SphereGeometry(.5,10,7):part.shape==='cylinder'&&THREE.CylinderGeometry?
+    new THREE.CylinderGeometry(.5,.5,1,10):new THREE.BoxGeometry(1,1,1);
+   geo.scale?.(part.w,part.h,part.d);
+   const mesh=new THREE.Mesh(geo,material(part.mat));
+   mesh.position.set(part.x,part.y,part.z);
+   if(mesh.rotation&&Number.isFinite(part.ry))mesh.rotation.y=part.ry;
+   mesh.name='secret-'+part.id;
    mesh.castShadow=false;mesh.receiveShadow=false;root.add(mesh);
   }
   // Interior lighting must not depend on the city's sun being visible.

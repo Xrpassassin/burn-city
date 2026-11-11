@@ -1,0 +1,83 @@
+name: Estates home interiors and cross-platform builder
+on:
+  pull_request:
+    paths:
+      - 'server/estate-home-interior.js'
+      - 'server/estate-tycoon-rooms.js'
+      - 'server/server.js'
+      - 'client/js/estates-home-*.mjs'
+      - 'client/js/estates-secret-layout.mjs'
+      - 'client/js/estates-secret-interior-renderer.mjs'
+      - 'client/js/estates-island-live.mjs'
+      - 'test/estate-home-interior-http.test.js'
+      - 'scripts/estates-home-editor-browser-qa.mjs'
+      - '.github/workflows/estates-home-editor.yml'
+  push:
+    branches: [main]
+jobs:
+  home-builder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Syntax check home editor and authoritative server
+        run: |
+          node --check server/estate-home-interior.js
+          node --check client/js/estates-home-editor-ui.mjs
+          node --check client/js/estates-home-layout.mjs
+          node --check client/js/estates-island-live.mjs
+          node --check client/js/estates-secret-interior-renderer.mjs
+      - name: Estate home and resale permissions
+        run: |
+          node server/estate-home-interior.test.js
+          node test/estate-home-interior-http.test.js
+          node server/estate-tycoon-rooms.test.js
+      - name: Cross-platform furnishing interactions and collision
+        run: |
+          node client/js/estates-home-interior.test.mjs
+          node client/js/estates-home-editor-ui.test.mjs
+          node client/js/estates-secret-interior.test.mjs
+          node client/js/estates-secret-room-integration.test.mjs
+
+  browser-editor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: npm install --no-save --package-lock=false playwright@1.56.1
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Start isolated Estates test server
+        run: |
+          DRY_RUN=true BURN_JOB_IN_SERVER=false PORT=8080 DATA_DIR=$(mktemp -d) node server/server.js >/tmp/estates-home-editor-qa.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8080/arena/zombies-credits.html >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          tail -n 160 /tmp/estates-home-editor-qa.log
+          exit 1
+      - name: Phone, narrow phone and desktop home editor acceptance
+        run: node scripts/estates-home-editor-browser-qa.mjs
+        env:
+          HOME_EDITOR_BROWSER: ${{ matrix.browser }}
+          HOME_EDITOR_QA_OUTPUT: estates-home-editor-qa
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: estates-home-editor-${{ matrix.browser }}
+          path: estates-home-editor-qa/
+          if-no-files-found: ignore
+      - if: failure()
+        run: test -f /tmp/estates-home-editor-qa.log && tail -n 160 /tmp/estates-home-editor-qa.log || true

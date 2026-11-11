@@ -33,7 +33,7 @@ Pay.sdb.prepare('INSERT INTO estate_property_ownership VALUES(?,?,?,?,?,?)').run
  assert.equal((await call('/tycoon/helicopter-access?propertyId=trailer-01',null,other)).code,403);
  assert.equal((await call('/tycoon/helicopter-access?propertyId=trailer-01')).code,403,'3 XRP trailer is never permitted to fly');
  const options=await call('/tycoon/interior-options?propertyId=trailer-01');
- assert.equal(options.code,200);assert.deepEqual(options.data.rooms,[],'No secret room unlocks existed before this payment');
+ assert.equal(options.code,200);assert.deepEqual(options.data.rooms.map(x=>x.id),['home'],'Every owned home is free to enter; no paid bonus rooms unlocked yet');
  assert(!JSON.stringify(options.data).includes(buyer));
  assert.equal((await call('/tycoon/interior-access?propertyId=trailer-01&roomId=bunker')).code,403,'Hatch/bunker cannot be entered without entitlement');
  const state=(await call('/tycoon/state?propertyId=trailer-01')).data;

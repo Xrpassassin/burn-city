@@ -38,3 +38,6 @@ gear.dispose();
 
 // Homefront-specific explorer 3D kit tests run in this established suite.
 await import('./homefront-survivor-appearance.test.mjs');
+
+// Community-asset admission is tested alongside the existing mode regressions.
+await import('./community-art-intake.test.mjs');

@@ -77,7 +77,21 @@ try{
   });
   console.log('EDITOR_GEOMETRY',v.name,JSON.stringify(clickGeometry));
   await page.screenshot({path:out+'/'+tag+'-'+v.name+'-owner-designer.png',fullPage:true});
-  await page.locator('#home-editor-qa button').filter({hasText:'Save design · 0 XRP'}).click();
+  // A real user must scroll down to Save on a 320px phone. The preceding
+  // Chrome mobile emulation locator.scrollIntoViewIfNeeded occasionally
+  // targeted a different row; validate the actual pixel hit target and tap it.
+  const clickPoint=await page.evaluate(()=>{
+    const save=[...document.querySelectorAll('#home-editor-qa button')].find(x=>x.textContent.includes('Save design · 0 XRP'));
+    save.scrollIntoView({behavior:'instant',block:'center'});
+    const rect=save.getBoundingClientRect(),x=rect.left+rect.width/2,y=rect.top+rect.height/2;
+    const hit=document.elementFromPoint(x,y);
+    return {x,y,scrollY,innerHeight,hit:hit?.textContent,top:rect.top,bottom:rect.bottom};
+  });
+  console.log('EDITOR_SAVE_TARGET',v.name,JSON.stringify(clickPoint));
+  assert(clickPoint.hit?.includes('Save design · 0 XRP'),
+    'Save must be directly tappable after scrolling; no furniture button overlaps it');
+  if(v.mobile)await page.touchscreen.tap(clickPoint.x,clickPoint.y);
+  else await page.mouse.click(clickPoint.x,clickPoint.y);
   await page.waitForFunction(()=>window.__homeEditorQA.saved.length===1);
   const saved=await page.evaluate(()=>({
    requests:window.__homeEditorQA.requests.map(x=>({url:x.url,method:x.opts.method,payload:JSON.parse(x.opts.body)})),

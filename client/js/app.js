@@ -25,7 +25,7 @@ import {Reflector} from 'three/addons/objects/Reflector.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {PlayerState,NetClient} from './net.js';
 import {initAmmLock} from './amm-lock.js';
-import {goldCoreRadiusFraction,towerHelixRadius,towerStreamTaper,towerStreamOpacity} from './amm-gold-vein-profile.mjs';
+import {goldCoreRadiusFraction,towerHelixRadius,towerStreamTaper,towerStreamOpacity,towerSpiralLane,towerJunctionGradient,towerJunctionOpacity} from './amm-gold-vein-profile.mjs';
 import {installCityNature} from './city-nature-render.mjs';
 import {installCityBirds} from './city-birds-render.mjs';   // verified LP-lock halos + per-token black-hole singularities (/api/amm-lock, +3 draws)
 import './goldlock.js';   // globalThis.BCGold: the ONE strict gold rule (>=95% LP black-holed AND TVL >= 5000 XRP), shared with server/eco.js
@@ -622,11 +622,24 @@ const arcMid=(a,b,A,B,i,r)=>{const mid=a.clone().add(b).multiplyScalar(.5);mid.y
 // Rail sync: each major rail ENDS where it meets its tower's swirl helix (same point, radius and height as the helix start, tangent-continuous),
 // instead of running on to the roof near the tower axis. helixAt() is the swirl's own helix (same params, same per-tower order/cap), computed from the
 // plain arc; railSync() rebuilds the rail as two cubics: helix start -> arc midpoint (horizontal, same clearance height) -> other helix start. +0 draws.
-const HXN={},HXCAP=TIER==='low'?3:6,RAILSYNC=!(/[?&]debug=1/.test(location.search)&&Q.get('railsync')==='0');   // ?debug=1&railsync=0 = old roof endpoints (A/B audits only)
-const helixAt=(cu,end,n)=>{if(!n)return null;const k=HXN[n.name]=(HXN[n.name]||0)+1;if(k>HXCAP)return null;const p0=cu.getPoint(end?1:0);if(p0.y<8)return null;const tA=cu.getTangent(end?1:0).clone();if(!end)tA.negate();
- const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+(k-1)*.35,a0=Math.atan2(dz,dx),dir=(dx*tA.z-dz*tA.x)>0?-1:1,drop=Math.min(22,Math.max(6,p0.y-6)),turns=1.1+.12*k,lead=.22,TT=turns*6.283;
- const H=(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=towerHelixRadius(R,Rin,u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
- const q=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q).normalize();return {k,H,q,ht,R}};
+// A pool must have one spiral on EACH connected tower. No liquidity, height,
+// or tower-degree cap; busy towers distribute wraps into measured radial lanes.
+// On debug ?railsync=0 the legacy unsnapped end remains available for comparison.
+const HXN={},RAILSYNC=!(/[?&]debug=1/.test(location.search)&&Q.get('railsync')==='0');
+const helixAt=(cu,end,n)=>{
+ if(!n)return null;
+ const k=HXN[n.name]=(HXN[n.name]||0)+1,slot=towerSpiralLane(k);
+ const p0=cu.getPoint(end?1:0),tA=cu.getTangent(end?1:0).clone();
+ if(!end)tA.negate();
+ const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6;
+ const R=Math.max(Math.hypot(dx,dz),Rin)+slot.radialOffset,a0=Math.atan2(dz,dx);
+ const dir=(dx*tA.z-dz*tA.x)>0?-1:1;
+ const drop=Math.max(.25,Math.min(22,p0.y-1.2)),lead=.22,TT=slot.turns*6.28318530718;
+ const H=(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=towerHelixRadius(R,Rin,u);
+  return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
+ const q=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q).normalize();
+ return {k,H,q,ht,R,slot};
+};
 const railSync=(c0,hx)=>{if(!hx[0]&&!hx[1])return c0;const P0=hx[0]?hx[0].q.clone():c0.v0.clone(),P3=hx[1]?hx[1].q.clone():c0.v2.clone(),d0=hx[0]?hx[0].ht.clone().negate():c0.getTangent(0),d3=hx[1]?hx[1].ht.clone():c0.getTangent(1);
  const M=c0.getPoint(.5),T=c0.getTangent(.5),l0=P0.distanceTo(M)*.5,l3=P3.distanceTo(M)*.5,cp=new THREE.CurvePath();
  cp.add(new THREE.CubicBezierCurve3(P0,P0.clone().addScaledVector(d0,l0),M.clone().addScaledVector(T,-l0),M.clone()));cp.add(new THREE.CubicBezierCurve3(M.clone(),M.clone().addScaledVector(T,l3),P3.clone().addScaledVector(d3,-l3),P3));
@@ -634,7 +647,7 @@ const railSync=(c0,hx)=>{if(!hx[0]&&!hx[1])return c0;const P0=hx[0]?hx[0].q.clon
  cp.v0=P0;cp.v2=P3;return cp};   // v0/v2 kept: garage decks read the end heights
 pools.forEach((p,i)=>{const A=N[p.a],B=N[p.b];const a=topAt(A,B,p),b=topAt(B,A,p);
  const mid=arcMid(a,b,A,B,i,.18+2.1*Math.sqrt(p.tvl_xrp/maxT));
- const curve0=new THREE.QuadraticBezierCurve3(a,mid,b);const share=Math.sqrt(p.tvl_xrp/maxT),r=.18+2.1*share,L=p.locked_pct/100,minor=p.tvl_xrp<100;const hx=minor||!RAILSYNC?null:[helixAt(curve0,0,A),helixAt(curve0,1,B)],curve=hx?railSync(curve0,hx):curve0;const g=new THREE.Group();S.add(g);const b0={rail:1,pulse:0};const lite=TIER==='low'&&rankT.indexOf(p)>=12;
+ const curve0=new THREE.QuadraticBezierCurve3(a,mid,b);const share=Math.sqrt(p.tvl_xrp/maxT),r=.18+2.1*share,L=p.locked_pct/100,minor=p.tvl_xrp<100;const hx=RAILSYNC?[helixAt(curve0,0,A),helixAt(curve0,1,B)]:null,curve=hx?railSync(curve0,hx):curve0;const g=new THREE.Group();S.add(g);const b0={rail:1,pulse:0};const lite=TIER==='low'&&rankT.indexOf(p)>=12;
  const solid=new THREE.Mesh(new THREE.TubeGeometry(curve,64,r,8),new THREE.MeshBasicMaterial({color:new THREE.Color(0x3cf3ff).multiplyScalar(.15+.95*L),transparent:true,opacity:minor?.25:.18+.75*L,depthWrite:false,blending:THREE.AdditiveBlending}));
  solid.userData={kind:'bridge',pool:p};g.add(solid);pick.push(solid);
  const core=new THREE.Mesh(new THREE.TubeGeometry(curve,64,Math.max(.06,r*.28),5),new THREE.MeshBasicMaterial({color:0xe8ffff,transparent:true,opacity:minor?.3:.35+.65*L}));g.add(core);b0.solid=solid;b0.core=core;
@@ -719,12 +732,12 @@ bridges.forEach(b=>{if(!b.curve||!b.core)return;
 // ---------- AMM swirls: each rail end flows tangent-continuously into a helix wrapping its tower (ONE merged draw) + drifting sparks on the same path (ONE Points draw) ----------
 // Join: cubic Bezier lead-in leaves the rail end along the rail tangent and lands on the helix along the helix tangent (C1, no kink);
 // flow phase/speed/thickness/colour continue the rail core's so it reads as one stream; tube tapers + fades at the tail.
-{const LOW=TIER==='low',SEGH=LOW?20:MOBILE?32:48,SEGB=LOW?6:MOBILE?8:12,RAD=LOW?4:5,geos=[],paths=[],ranges=[],per={},LOCKC=new THREE.Color(0xffb020),CYC=new THREE.Color(0xbff8ff),GOLD=new THREE.Color(0xffc64a),kAt=(cu,t)=>{const h=1e-3;t=Math.min(1-2*h,Math.max(2*h,t));const a=cu.getPoint(t-h),m=cu.getPoint(t),z=cu.getPoint(t+h),d1=z.clone().sub(a),d2=z.clone().add(a).addScaledVector(m,-2);return 4*d1.clone().cross(d2).length()/Math.max(1e-12,d1.length()**3)},kRail=(cu,end)=>{const h=.002;return kAt(cu,end?1-h:h)},tA=new THREE.Vector3(),cP=new THREE.Vector3();
- bridges.forEach(b=>{if(b.minor||!b.core)return;const Lr=b.curve.getLength(),dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5,cr=Math.max(.06,b.r*.28);
- [0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a];if(!n)return;const hs=b.hx&&b.hx[end];if(b.hx&&!hs)return;const k=hs?hs.k:(per[n.name]=(per[n.name]||0)+1);if(k>(LOW?3:6))return;   // busy towers: cap swirls so they never starburst
-  const p0=b.curve.getPoint(end?1:0);if(p0.y<8)return;b.curve.getTangent(end?1:0,tA);if(!end)tA.negate();   // rail's travel direction at the tower end
-  const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+(k-1)*.35,a0=Math.atan2(dz,dx);
-  const dir=(dx*tA.z-dz*tA.x)>0?-1:1,drop=Math.min(22,Math.max(6,p0.y-6)),turns=1.1+.12*k,lead=.22,TT=turns*6.283;   // spin the way the rail is already curving
+{const LOW=TIER==='low',SEGH=LOW?16:MOBILE?24:36,SEGB=LOW?5:MOBILE?7:10,RAD=LOW?4:5,geos=[],paths=[],ranges=[],per={},LOCKC=new THREE.Color(0xffb020),CYC=new THREE.Color(0xbff8ff),GOLD=new THREE.Color(0xffc64a),kAt=(cu,t)=>{const h=1e-3;t=Math.min(1-2*h,Math.max(2*h,t));const a=cu.getPoint(t-h),m=cu.getPoint(t),z=cu.getPoint(t+h),d1=z.clone().sub(a),d2=z.clone().add(a).addScaledVector(m,-2);return 4*d1.clone().cross(d2).length()/Math.max(1e-12,d1.length()**3)},kRail=(cu,end)=>{const h=.002;return kAt(cu,end?1-h:h)},tA=new THREE.Vector3(),cP=new THREE.Vector3();
+ bridges.forEach(b=>{if(!b.core)return;const Lr=b.curve.getLength(),dim=Math.min(1,6/Math.max(RTOT[b.p.a]||1,RTOT[b.p.b]||1))**.5,cr=Math.max(.06,b.r*.28);
+ [0,1].forEach(end=>{const n=N[end?b.p.b:b.p.a];if(!n)return;const hs=b.hx&&b.hx[end];if(b.hx&&!hs)return;const k=hs?hs.k:(per[n.name]=(per[n.name]||0)+1),slot=hs?.slot||towerSpiralLane(k);
+  const p0=b.curve.getPoint(end?1:0);b.curve.getTangent(end?1:0,tA);if(!end)tA.negate();   // rail's travel direction at the tower end
+  const dx=p0.x-n.pos.x,dz=p0.z-n.pos.z,Rin=n.w*(n.sxz||1)*1.1+.6,R=Math.max(Math.hypot(dx,dz),Rin)+slot.radialOffset,a0=Math.atan2(dz,dx);
+  const dir=(dx*tA.z-dz*tA.x)>0?-1:1,drop=Math.max(.25,Math.min(22,p0.y-1.2)),turns=slot.turns,lead=.22,TT=turns*6.28318530718;   // spin the way the rail is already curving
   const H=hs?hs.H:(u,o)=>{const a=a0+dir*(lead+u*(1-lead))*TT,rr=towerHelixRadius(R,Rin,u);return o.set(n.pos.x+Math.cos(a)*rr,p0.y-drop*(.08+.92*u),n.pos.z+Math.sin(a)*rr)};
   const q1=H(0,new THREE.Vector3()),ht=H(.002,new THREE.Vector3()).sub(q1).normalize(),D=p0.distanceTo(q1),kr=kRail(b.curve,end),hb=D*.42;
    // G2-ish join: pick the first handle so the lead-in starts with the rail's own curvature (no sudden tightening), penalising any sharp bend inside it
@@ -733,12 +746,16 @@ bridges.forEach(b=>{if(!b.curve||!b.core)return;
   for(let j=1;j<=SEGH;j++)pts.push(H(j/SEGH,new THREE.Vector3()));
   const cv=new THREE.CatmullRomCurve3(pts,false,'centripetal'),SL=cv.getLength(),NS=(hs?0:SEGB)+SEGH,lock=b.forever?1:0,UB=(hs?1:SEGB)/NS,c=CYC.clone().lerp(LOCKC,lock*.55),op=(.35+.65*b.L)*dim,sp=.25+.9*Math.min(1,b.share*2);
   // colour starts cyan (activity colours do not exist yet at build) and is repainted from b.actCol by swirlRecolor(); vein width is packed into fl.y (= sp + 8*round(100*vw))
-  const P={cv,b,c:c.clone(),sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z};
+  const P={cv,b,c:c.clone(),sp,fw:end?1:-1,lock,cx:n.pos.x,cz:n.pos.z,end,slot:k};
   const shell=(rad,aMul,core)=>{const tg=new THREE.TubeGeometry(cv,NS,rad,RAD,false),pa=tg.attributes.position,cnt=pa.count,ca=new Float32Array(cnt*4),fl=new Float32Array(cnt*4),fy=sp;
-   for(let i=0;i<=NS;i++){const u=i/NS;cv.getPointAt(u,cP);const tap=towerStreamTaper(u),fade=towerStreamOpacity(u),ph=9*(end?1+u*SL/Lr:-u*SL/Lr);
-    for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,op*aMul*fade],v*4);fl.set([ph,fy,lock*THREE.MathUtils.smoothstep(u,0,UB*1.5),u],v*4)}}
-   tg.setAttribute('sc',new THREE.BufferAttribute(ca,4));tg.setAttribute('fl',new THREE.BufferAttribute(fl,4));geos.push(tg);   // normal kept: the lock vein needs it (view-facing band)
-   const st0=ranges.length?ranges[ranges.length-1].end:0;ranges.push({P,core,start:st0,end:st0+cnt})};
+   // The very first pixel is identical to the parent rail's material. A
+   // smooth 30%-of-helix gradient then settles into the tower illumination,
+   // instead of snapping from the bridge's solid/neon render styles.
+   const railOp=core?(b.minor?.4:.95):(b.minor?.3:.85),helixOp=op*aMul;
+   for(let i=0;i<=NS;i++){const u=i/NS;cv.getPointAt(u,cP);const tap=towerStreamTaper(u),alpha=towerJunctionOpacity(railOp,helixOp,u),ph=9*(end?1+u*SL/Lr:-u*SL/Lr);
+    for(let r=0;r<=RAD;r++){const v=i*(RAD+1)+r;pa.setXYZ(v,cP.x+(pa.getX(v)-cP.x)*tap,cP.y+(pa.getY(v)-cP.y)*tap,cP.z+(pa.getZ(v)-cP.z)*tap);ca.set([c.r,c.g,c.b,alpha],v*4);fl.set([ph,fy,lock*THREE.MathUtils.smoothstep(u,0,UB*1.5),u],v*4)}}
+   tg.setAttribute('sc',new THREE.BufferAttribute(ca,4));tg.setAttribute('fl',new THREE.BufferAttribute(fl,4));geos.push(tg);
+   const st0=ranges.length?ranges[ranges.length-1].end:0;ranges.push({P,core,segments:NS,sides:RAD+1,start:st0,end:st0+cnt})};
   shell(cr,1,1);if(!LOW)shell(b.r,.72,0);
   addAmmGoldTube(b,cv,NS,cr,towerStreamTaper);   // core matches the rail core exactly; soft glow sheath (same draw) makes it read from a distance
   paths.push(P)})});
@@ -768,9 +785,16 @@ bridges.forEach(b=>{if(!b.curve||!b.core)return;
   // repaint every swirl (and its sparks) from its pool's live activity colour; gold pools keep gold sparks + vein. Called from actScore(), CPU-only, +0 draws.
   const scA=merged.getAttribute('sc'),sca=scA.array,tc=new THREE.Color();
   swirlRecolor=()=>{for(const P of paths)if(P.b.actCol)P.c.copy(P.b.actCol);
-   for(const R of ranges){const ac=R.P.b.actCol;if(!ac)continue;tc.copy(ac);if(R.core)tc.lerp(WHITE_C,.55);for(let v=R.start;v<R.end;v++){sca[v*4]=tc.r;sca[v*4+1]=tc.g;sca[v*4+2]=tc.b}}
+   for(const R of ranges){const ac=R.P.b.actCol;if(!ac)continue;
+    for(let i=0;i<=R.segments;i++){
+     const gradient=towerJunctionGradient(i/R.segments);
+     // Preserve each pool's activity hue: the inner core matches the
+     // bridge's 55% white mix at the seam, then gently grows warmer/brighter.
+     tc.copy(ac).lerp(WHITE_C,R.core?.55-.10*gradient:.06*gradient);
+     for(let j=0;j<R.sides;j++){const v=R.start+i*R.sides+j;sca[v*4]=tc.r;sca[v*4+1]=tc.g;sca[v*4+2]=tc.b;}
+    }}
    scA.needsUpdate=true;if(recolor)recolor()};
-  window.__swirl={n:paths.length,geos:geos.length,particles:NP,sparks:NS0,disperse:ND,gold:gp.length,veins:[],goldTubeSegments:ammGoldGeos.length};if(/[?&]debug=1/.test(location.search))window.__swirl.paths=paths}}
+  window.__swirl={n:paths.length,expected:bridges.length*2,missing:bridges.length*2-paths.length,perTower:Object.fromEntries(Object.entries(RTOT).map(([name,count])=>[name,{expected:count,actual:paths.filter(P=>name=== (P.end?P.b.p.b:P.b.p.a)).length}])),minor:paths.filter(P=>P.b.minor).length,geos:geos.length,particles:NP,sparks:NS0,disperse:ND,gold:gp.length,veins:[],goldTubeSegments:ammGoldGeos.length};if(/[?&]debug=1/.test(location.search))window.__swirl.paths=paths}}
 
 // Single draw for all permanently locked LP gold cores (both rail and tower).
 // The dynamic attribute is updated ONLY by fresh verified /api/amm-lock

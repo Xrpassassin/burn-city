@@ -64,8 +64,19 @@ export function homefrontAssetQuality(gltf,spec){
   return {valid:false,reason:'invalid_bounds',triangles};
  return {valid:true,triangles,skinned,clips:clips.map(a=>a.name),size};
 }
-function fitToBox(source,{width=2,height=2.5,depth=2}={},cloneModel=object=>object.clone(true)){
+function fitToBox(source,{width=2,height=2.5,depth=2}={},cloneModel=object=>object.clone(true),poseClip=null){
  const model=cloneModel(source);
+ // Skinned FBX->glTF humanoids can have bind-pose bounds that differ by
+ // 50-250x from the evaluated animation. Measure EXACTLY the posed clone
+ // that will be shown, just as the original Zombies renderer does. Otherwise
+ // the actual player appears as a gigantic body off to the side of the pack.
+ let poseMixer=null,poseAction=null;
+ if(poseClip){
+  poseMixer=new THREE.AnimationMixer(model);
+  poseAction=poseMixer.clipAction(poseClip).play();
+  poseMixer.update(.033);
+  model.updateMatrixWorld(true);
+ }
  const bounds=new THREE.Box3().setFromObject(model,true);
  const size=bounds.getSize(new THREE.Vector3());
  if(!size.x||!size.y||!size.z)return null;
@@ -87,7 +98,7 @@ function fitToBox(source,{width=2,height=2.5,depth=2}={},cloneModel=object=>obje
  }});
  group.add(fit);
  group.userData.cosmeticNoCollision=true;
- return {group,model};
+ return {group,model,poseMixer,poseAction};
 }
 export function communityPropNameMatches(kind,names){
  const pattern=PROP_PATTERNS[kind];
@@ -171,19 +182,21 @@ export function createHomefrontCommunityArt({
  function decorateExplorer(group,walker,{isLocal=false}={}){
   const asset=models.get('homefront-male-survivor');
   if(!asset||(mobile&&!isLocal)||actors.size>=8)return false;
-  const fitted=fitToBox(asset.gltf.scene,{width:1.5,height:2.85,depth:1.3},cloneModel);
+  const animations=asset.gltf.animations||[];
+  const idle=animations.find(x=>/^Idle$/i.test(x.name))||animations.find(x=>/idle/i.test(x.name))||animations[0];
+  const fitted=fitToBox(asset.gltf.scene,{width:1.5,height:2.85,depth:1.3},cloneModel,idle);
   if(!fitted)return false;
   fitted.group.rotation.y=Math.PI;
   fitted.group.name='homefront-licensed-survivor';
   group.add(fitted.group);
   walker.visible=false;
-  const mixer=new THREE.AnimationMixer(fitted.model);
-  const animations=asset.gltf.animations||[];
-  const idle=animations.find(x=>/idle/i.test(x.name))||animations[0];
+  // The probe mixer already holds the visual rig in the same first Idle
+  // pose used to measure its physical bounds. Reuse it: no bind-pose jump.
+  const mixer=fitted.poseMixer||new THREE.AnimationMixer(fitted.model);
   const walk=animations.find(x=>/^walk$/i.test(x.name))||animations.find(x=>/walk/i.test(x.name))||idle;
   const run=animations.find(x=>/^run$/i.test(x.name))||animations.find(x=>/run/i.test(x.name))||walk;
   const jump=animations.find(x=>/^jump$/i.test(x.name))||null;
-  const actor={group,visual:fitted.group,mixer,idle,walk,run,jump,current:null,action:null};
+  const actor={group,visual:fitted.group,mixer,idle,walk,run,jump,current:idle,action:fitted.poseAction};
   actors.add(actor);
   group.userData.communityActor=actor;
   return true;

@@ -74,7 +74,7 @@ export function pickNear(agents, cx, cz, k, radius, visible = () => true) {
 }
 
 export const BUDGET = {   // near (rigged) slots / near radius m / far cull radius m, per City quality tier
-  low: { near: 4, nearR: 14, farR: 180 }, medium: { near: 6, nearR: 18, farR: 260 }, high: { near: 16, nearR: 30, farR: 420 },
+  low: { near: 4, nearR: 14, farR: 180 }, medium: { near: 6, nearR: 18, farR: 260 }, high: { near: 16, nearR: 30, farR: 300 },
   phoneHigh: { near: 8, nearR: 20, farR: 300 }
 };
 export const budgetFor = (tier, mobile) => mobile && tier === 'high' ? BUDGET.phoneHigh : (BUDGET[tier] || BUDGET.medium);

@@ -1,0 +1,33 @@
+{
+ "id": "keys-portrait",
+ "verts": 1987,
+ "indices": 3600,
+ "frames": 17,
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "uvOffset": 0,
+ "idxOffset": 15896,
+ "posOffset": 23096,
+ "nrmOffset": 225770,
+ "min": [
+  -0.31706351041793823,
+  -0.0317005030810833,
+  -0.6148456335067749
+ ],
+ "size": [
+  0.6398019194602966,
+  1.8131901137530804,
+  1.1022635102272034
+ ],
+ "tris": 1200,
+ "nearTris": 8994,
+ "sourceTris": 264082,
+ "height": 1.78,
+ "unweightedFixed": 0,
+ "limbWeightsCleaned": 1519,
+ "legSideFixed": 104,
+ "legWebFacesCut": 6,
+ "armsOutRest": [],
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.424
+}

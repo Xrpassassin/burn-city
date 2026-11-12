@@ -4,11 +4,14 @@ import { validateCitizen, activeEntry, resolvePlace, pickNear, minutesOf, placeO
 const root = new URL('../', import.meta.url);
 const models = JSON.parse(readFileSync(new URL('assets/citizens/models.json', root)));
 const ids = models.models.map(m => m.id);
-assert.ok(ids.length >= 4, 'at least the 4 test-batch models are published');
+assert.ok(ids.length >= 10, 'the 10 approved walker models are published');
 for (const m of models.models) {
   assert.equal(m.license, 'CC-BY-4.0', m.id + ' must be CC BY 4.0');
   assert.match(m.url, /^https:\/\/sketchfab\.com\/3d-models\//); assert.ok(m.artist && m.title);
   for (const f of [m.id + '.gltf', m.id + '.far.bin', m.id + '.far.json', m.id + '.far.webp']) readFileSync(new URL('assets/citizens/' + f, root));
+  const gltf = JSON.parse(readFileSync(new URL('assets/citizens/' + m.id + '.gltf', root)));
+  for (const im of gltf.images || []) { readFileSync(new URL('assets/citizens/' + im.uri, root)); readFileSync(new URL('assets/citizens/' + im.uri.replace('-tex/', '-tex-512/'), root)); }
+  assert.deepEqual((gltf.animations || []).map(a => a.name).sort(), ['Idle', 'Walk'], m.id + ' has Walk + Idle');
   const far = JSON.parse(readFileSync(new URL('assets/citizens/' + m.id + '.far.json', root)));
   assert.ok(far.tris <= 2000, m.id + ' far LOD <= 2k tris'); assert.ok(far.nearTris <= 10000, m.id + ' near LOD <= 10k tris');
 }

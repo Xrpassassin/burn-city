@@ -39,12 +39,14 @@ async function loadFar(m, cap) {
   const V = meta.verts, Fr = meta.frames;
   const uv = new Float32Array(bin, meta.uvOffset, V * 2), idx = new Uint16Array(bin, meta.idxOffset, meta.indices);
   const qp = new Int16Array(bin.slice(meta.posOffset, meta.posOffset + V * Fr * 6)), qn = new Int8Array(bin, meta.nrmOffset, V * Fr * 3);
-  const P = new Float32Array(V * Fr * 4), N = new Float32Array(V * Fr * 4);
+  // vertex-animation tables as half floats (~0.5 MB GPU per model instead of ~1 MB)
+  const P = new Float32Array(V * Fr * 4), N = new Float32Array(V * Fr * 4), hP = new Uint16Array(V * Fr * 4), hN = new Uint16Array(V * Fr * 4);
   for (let i = 0; i < V * Fr; i++) for (let c = 0; c < 3; c++) {
     P[i * 4 + c] = meta.min[c] + (qp[i * 3 + c] + 32768) / 65535 * meta.size[c]; N[i * 4 + c] = qn[i * 3 + c] / 127;
+    hP[i * 4 + c] = THREE.DataUtils.toHalfFloat(P[i * 4 + c]); hN[i * 4 + c] = THREE.DataUtils.toHalfFloat(N[i * 4 + c]);
   }
-  const mk = d => { const t = new THREE.DataTexture(d, V, Fr, THREE.RGBAFormat, THREE.FloatType); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; };
-  const vatP = mk(P), vatN = mk(N), g = new THREE.BufferGeometry(), rest = meta.idleFrame * V;
+  const mk = d => { const t = new THREE.DataTexture(d, V, Fr, THREE.RGBAFormat, THREE.HalfFloatType); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; };
+  const vatP = mk(hP), vatN = mk(hN), g = new THREE.BufferGeometry(), rest = meta.idleFrame * V;
   const pos = new Float32Array(V * 3), nrm = new Float32Array(V * 3), vid = new Float32Array(V);
   for (let i = 0; i < V; i++) { for (let c = 0; c < 3; c++) { pos[i * 3 + c] = P[(rest + i) * 4 + c]; nrm[i * 3 + c] = N[(rest + i) * 4 + c]; } vid[i] = i; }
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
@@ -76,7 +78,8 @@ async function init() {
   // agents: crowd copies read their source instance; named ones run their own schedule
   const agents = [], rnd = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
   const tint = i => new THREE.Color().setHSL(rnd(i, 3) * .1, .06 + rnd(i, 4) * .1, .5).multiplyScalar(1.6 + rnd(i, 5) * .35);
-  const add = (src, i, k) => agents.push({ src, i, model: ids[(rnd(k, 1) * ids.length) | 0], tint: tint(k), x: 0, z: 0, yaw: 0, sp: 0, ph: rnd(k, 2), lx: NaN, lz: NaN, hidden: true });
+  // even mix: crowd member k uses model k mod N
+  const add = (src, i, k) => agents.push({ src, i, model: ids[k % ids.length], tint: tint(k), x: 0, z: 0, yaw: 0, sp: 0, ph: rnd(k, 2), lx: NaN, lz: NaN, hidden: true });
   let k = 0;
   if (peds) for (let i = 0; i < peds.count; i++) add(peds, i, k++);
   if (shop) for (let i = 0; i < shop.count; i++) add(shop, i, k++);
@@ -87,13 +90,16 @@ async function init() {
   }
   for (const id of ids) c.S.add(FAR[id].mesh);
   if (peds) peds.visible = false; if (shop) shop.visible = false;
-  // near LOD pool
-  const gl = new GLTFLoader(), NEAR = {};
-  await Promise.all(models.map(async m => { const g = await gl.loadAsync(new URL(m.id + '.gltf', ASSETS).href); NEAR[m.id] = g; }));
+  // near LOD pool: each model's rigged glTF is fetched only the first time someone of that model comes close.
+  // Phones get 512 px textures (<id>-tex-512/) instead of 1024 px.
+  const lm = new THREE.LoadingManager(); if (c.MOBILE || c.TIER === 'low') lm.setURLModifier(u => u.replace(/-tex\//, '-tex-512/'));
+  const gl = new GLTFLoader(lm), NEAR = {}, loading = {};
+  const want = model => { if (!loading[model]) loading[model] = gl.loadAsync(new URL(model + '.gltf', ASSETS).href).then(g => { NEAR[model] = g; }).catch(e => { NEAR[model] = null; console.warn('citizens near', model, e); }); };
   const slots = [];
   const getSlot = model => {
     let s = slots.find(o => !o.agent && o.model === model); if (s) return s;
     if (slots.filter(o => o.model === model).length >= B.near) return null;
+    if (!NEAR[model]) { want(model); return null; }   // far LOD keeps drawing them until the near model has loaded
     const g = NEAR[model], root = SkeletonUtils.clone(g.scene); root.traverse(o => { if (o.isMesh) { o.frustumCulled = false; } });
     const mixer = new THREE.AnimationMixer(root), clip = n => g.animations.find(a => a.name === n) || g.animations[0];
     const walk = mixer.clipAction(clip('Walk')), idle = mixer.clipAction(clip('Idle')); walk.play(); idle.play(); idle.weight = 0;
@@ -150,7 +156,7 @@ async function init() {
       q.setFromAxisAngle(up, a.yaw); m4.compose(pv.set(a.x, 0, a.z), q, one); F.mesh.setMatrixAt(n, m4); F.mesh.setColorAt(n, a.tint);
       F.anim.array[n * 2] = a.ph; F.anim.array[n * 2 + 1] = a.sp > .15 ? 0 : 1; drawn++;
     }
-    for (const id in FAR) { const M = FAR[id].mesh; M.instanceMatrix.needsUpdate = true; if (M.instanceColor) M.instanceColor.needsUpdate = true; FAR[id].anim.needsUpdate = true; }
+    for (const id in FAR) { const M = FAR[id].mesh; M.visible = M.count > 0; M.instanceMatrix.needsUpdate = true; if (M.instanceColor) M.instanceColor.needsUpdate = true; FAR[id].anim.needsUpdate = true; }
     // named-citizen tags & dialogue
     const W = innerWidth, H = innerHeight;
     for (const a of agents) if (a.named) {

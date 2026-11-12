@@ -1631,22 +1631,6 @@
 		{
 			"doubleSided":true,
 			"name":"Material_0",
-			"normalTexture":{
-				"extensions":{
-					"KHR_texture_transform":{
-						"offset":[
-							0.00014968699542805552,
-							2.09808349609375e-05
-						],
-						"scale":[
-							15.902299880981445,
-							16.002899169921875
-						]
-					}
-				},
-				"index":0,
-				"texCoord":3
-			},
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
 					"extensions":{
@@ -1661,7 +1645,7 @@
 							]
 						}
 					},
-					"index":1
+					"index":0
 				},
 				"metallicFactor":0,
 				"roughnessFactor":0.800000011920929
@@ -1698,22 +1682,9 @@
 				}
 			},
 			"sampler":0
-		},
-		{
-			"extensions":{
-				"EXT_texture_webp":{
-					"source":1
-				}
-			},
-			"sampler":0
 		}
 	],
 	"images":[
-		{
-			"mimeType":"image/webp",
-			"name":"Material_0_normal",
-			"uri":"casual-w-tex/Material_0_normal.webp"
-		},
 		{
 			"mimeType":"image/webp",
 			"name":"Material_0_baseColor",

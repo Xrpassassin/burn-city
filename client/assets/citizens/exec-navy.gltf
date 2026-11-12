@@ -1639,13 +1639,9 @@
 		{
 			"doubleSided":true,
 			"name":"material_0",
-			"normalTexture":{
-				"index":0,
-				"texCoord":3
-			},
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
-					"index":1
+					"index":0
 				},
 				"metallicFactor":0,
 				"roughnessFactor":0.800000011920929
@@ -1682,22 +1678,9 @@
 				}
 			},
 			"sampler":0
-		},
-		{
-			"extensions":{
-				"EXT_texture_webp":{
-					"source":1
-				}
-			},
-			"sampler":0
 		}
 	],
 	"images":[
-		{
-			"mimeType":"image/webp",
-			"name":"material_0_normal",
-			"uri":"exec-navy-tex/material_0_normal.webp"
-		},
 		{
 			"mimeType":"image/webp",
 			"name":"material_0_baseColor",

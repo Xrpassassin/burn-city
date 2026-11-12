@@ -43,9 +43,14 @@ bpy.ops.mesh.remove_doubles(threshold=.0005 * H); bpy.ops.mesh.delete_loose(); b
 decimate(ob, NEAR_TRIS)
 bpy.ops.object.shade_smooth()
 
-# ---- materials: base colour (1024) + normal (512); drop emissive / metal-rough (constant rough 0.8)
+# ---- materials: base colour only (1024); drop normal / emissive / metal-rough (constant rough 0.8)
 mat = ob.data.materials[0]; nt = mat.node_tree
-bsdf = next(n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED')
+bsdf = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+if bsdf is None:  # e.g. KHR_materials_unlit scans: rebuild as a lit PBR material around the same base colour image
+    img = next(n.image for n in nt.nodes if n.type == 'TEX_IMAGE' and n.image)
+    mat = bpy.data.materials.new(MID + '_mat'); mat.use_nodes = True; nt = mat.node_tree
+    bsdf = next(n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'); tn = nt.nodes.new('ShaderNodeTexImage'); tn.image = img
+    nt.links.new(tn.outputs['Color'], bsdf.inputs['Base Color']); ob.data.materials[0] = mat
 base_img = None
 for inp in ['Emission Color', 'Metallic', 'Roughness']:
     for l in list(bsdf.inputs[inp].links): nt.links.remove(l)
@@ -55,7 +60,7 @@ for n in nt.nodes:
     if n.type == 'TEX_IMAGE' and n.image:
         nm = n.image.name.lower()
         if 'basecolor' in nm: base_img = n.image; n.image.scale(1024, 1024); nt.nodes.active = n
-        elif 'normal' in nm: n.image.scale(512, 512)
+        elif 'normal' in nm: nt.nodes.remove(n)  # scan normal maps are near-flat: drop them (saves ~1.4 MB GPU per model)
 for n in list(nt.nodes):
     if n.type == 'TEX_IMAGE' and n.image and not n.outputs['Color'].links: nt.nodes.remove(n)
 
@@ -85,11 +90,22 @@ J['kneeL'], J['kneeR'] = two(.27, .30, J['hipL'], J['hipR'])
 J['ankleL'], J['ankleR'] = two(.045, .07, J['kneeL'], J['kneeR'])
 for side, sg in (('L', 1), ('R', -1)):
     J['toe' + side] = J['ankle' + side] + Vector((0, -.075 * H, -.04 * H))
+ARMS_OUT = {}
 for side, sg in (('L', 1), ('R', -1)):
     def arm(z0, z1):
         q = [p for p in P if z0 * H <= p.z < z1 * H and sg * p.x > 0]
         ext = max(sg * p.x for p in q)
         return cen(z0, z1, lambda p: sg * p.x > ext - .045 * H)
+    band = [p for p in P if .48 * H < p.z < .86 * H and sg * p.x > 0]
+    reach = max(sg * p.x for p in band); print('REACH', side, round(reach / H, 3))
+    if reach > .30 * H:  # T/A-pose scan: arms stick out sideways, sample the arm along x instead of z
+        ARMS_OUT[side] = True
+        def armx(f):
+            x0 = .12 * H + f * (reach - .12 * H); q = [p for p in P if abs(sg * p.x - x0) < .02 * H and p.z > .55 * H]
+            return Vector((sum(p.x for p in q) / len(q), sum(p.y for p in q) / len(q), sum(p.z for p in q) / len(q)))
+        J['shoulder' + side] = Vector((sg * .105 * H, J['chest'].y, .815 * H)); J['elbow' + side] = armx(.42); J['wrist' + side] = armx(.82)
+        J['hand' + side] = J['wrist' + side] + (J['wrist' + side] - J['elbow' + side]).normalized() * .07 * H
+        continue
     sh = arm(.80, .82); sh.x -= sg * .035 * H
     J['shoulder' + side] = sh; J['elbow' + side] = arm(.61, .63); J['wrist' + side] = arm(.47, .49)
     if sg * J['elbow' + side].x < .09 * H: J['elbow' + side].x = sh.x
@@ -138,6 +154,52 @@ for v in ob.data.vertices:
     if sum(g.weight for g in v.groups if ob.vertex_groups[g.group].name in names) < 1e-3:
         b = min(arm_ob.data.bones, key=lambda b: segd(p, b) + (1 if b.name in limb else 0) * 0)
         ob.vertex_groups.get(b.name).add([v.index], 1.0, 'REPLACE') if ob.vertex_groups.get(b.name) else ob.vertex_groups.new(name=b.name).add([v.index], 1.0, 'REPLACE')
+
+# legs: a vertex below the hips belongs to ONE leg chain (stops a shoe smearing to the other foot when feet are close)
+legs = {s: ['thigh.' + s, 'shin.' + s, 'foot.' + s] for s in 'LR'}
+side_fixed = 0
+for v in ob.data.vertices:
+    p = ob.matrix_world @ v.co
+    if p.z > .5 * H: continue
+    dL = min(segd(p, arm_ob.data.bones[n]) for n in legs['L']); dR = min(segd(p, arm_ob.data.bones[n]) for n in legs['R'])
+    if abs(dL - dR) < .012 * H: continue
+    far_side = 'R' if dL < dR else 'L'
+    for g in list(v.groups):
+        if ob.vertex_groups[g.group].name in legs[far_side]: ob.vertex_groups[g.group].remove([v.index]); side_fixed += 1
+    if sum(g.weight for g in v.groups if ob.vertex_groups[g.group].name in names) < 1e-3:
+        n = min(legs['L' if far_side == 'R' else 'R'], key=lambda n: segd(p, arm_ob.data.bones[n])); ob.vertex_groups[n].add([v.index], 1.0, 'REPLACE')
+
+# delete faces that weld the two lower legs/feet together (touching shoes or straps in the scan)
+import bmesh
+gidx = {ob.vertex_groups[n].index: s for s in 'LR' for n in legs[s] if ob.vertex_groups.get(n)}
+def vside(v):
+    w = {'L': 0, 'R': 0}
+    for g in v.groups:
+        if g.group in gidx: w[gidx[g.group]] += g.weight
+    return None if w['L'] + w['R'] < .5 else ('L' if w['L'] > w['R'] else 'R')
+sides = [vside(v) if (ob.matrix_world @ v.co).z < .32 * H else None for v in ob.data.vertices]
+bm = bmesh.new(); bm.from_mesh(ob.data); bm.faces.ensure_lookup_table()
+web = [f for f in bm.faces if len({sides[v.index] for v in f.verts if sides[v.index]}) > 1]
+bmesh.ops.delete(bm, geom=web, context='FACES_ONLY'); bm.to_mesh(ob.data); bm.free(); ob.data.update()
+webs_cut = len(web)
+
+# T/A-pose scans: swing the arms down to the sides and make that the new rest pose
+if ARMS_OUT:
+    from mathutils import Matrix
+    bpy.context.view_layer.objects.active = arm_ob; bpy.ops.object.mode_set(mode='POSE')
+    for side, sg in (('L', 1), ('R', -1)):
+        if not ARMS_OUT.get(side): continue
+        pb = arm_ob.pose.bones['upperarm.' + side]; hd = J['shoulder' + side]
+        cur = (J['wrist' + side] - hd).normalized(); tgt = Vector((sg * math.sin(math.radians(9)), cur.y * .3, -math.cos(math.radians(9)))).normalized()
+        pb.matrix = Matrix.Translation(hd) @ cur.rotation_difference(tgt).to_matrix().to_4x4() @ Matrix.Translation(-hd) @ pb.matrix
+    bpy.context.view_layer.update(); bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.context.view_layer.objects.active = ob
+    mod = next(m for m in ob.modifiers if m.type == 'ARMATURE'); bpy.ops.object.modifier_apply(modifier=mod.name)
+    bpy.context.view_layer.objects.active = arm_ob; bpy.ops.object.mode_set(mode='POSE'); bpy.ops.pose.select_all(action='SELECT'); bpy.ops.pose.armature_apply(selected=False)
+    bpy.ops.object.mode_set(mode='EDIT')
+    for b in arm_ob.data.edit_bones: b.align_roll(Vector((1, 0, 0)).cross((b.tail - b.head).normalized()))
+    bpy.ops.object.mode_set(mode='OBJECT')
+    m = ob.modifiers.new('Armature', 'ARMATURE'); m.object = arm_ob
 
 # ---- in-house procedural clips (+angle about world X: bone top tips forward / hanging bone swings back)
 D = math.radians
@@ -218,7 +280,7 @@ if base_img:
     fi = base_img.copy(); fi.scale(256, 256); fi.filepath_raw = os.path.join(OUT, MID + '.far.webp'); fi.file_format = 'WEBP'; fi.save()
 meta = {'id': MID, 'verts': nv, 'indices': len(idx), 'frames': len(F), 'walkFrames': FAR_FRAMES, 'idleFrame': FAR_FRAMES,
         'uvOffset': 0, 'idxOffset': uv_bytes, 'posOffset': pos_off, 'nrmOffset': nrm_off, 'min': mn, 'size': sz,
-        'tris': len(idx) // 3, 'nearTris': tris(ob), 'sourceTris': src_tris, 'height': H, 'unweightedFixed': unweighted, 'limbWeightsCleaned': cleaned,
+        'tris': len(idx) // 3, 'nearTris': tris(ob), 'sourceTris': src_tris, 'height': H, 'unweightedFixed': unweighted, 'limbWeightsCleaned': cleaned, 'legSideFixed': side_fixed, 'legWebFacesCut': webs_cut, 'armsOutRest': sorted(ARMS_OUT),
         'walkCycleSec': WALK_FRAMES / 24, 'strideMetersPerCycle': 1.4 * H / 1.75}
 json.dump(meta, open(os.path.join(OUT, MID + '.far.json'), 'w'), indent=1)
 bpy.data.objects.remove(far)

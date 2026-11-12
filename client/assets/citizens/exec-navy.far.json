@@ -25,6 +25,9 @@
  "height": 1.8,
  "unweightedFixed": 0,
  "limbWeightsCleaned": 2139,
+ "legSideFixed": 107,
+ "legWebFacesCut": 0,
+ "armsOutRest": [],
  "walkCycleSec": 1.0,
  "strideMetersPerCycle": 1.44
 }

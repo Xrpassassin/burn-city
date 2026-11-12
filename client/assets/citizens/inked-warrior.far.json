@@ -1,0 +1,33 @@
+{
+ "id": "inked-warrior",
+ "verts": 2101,
+ "indices": 3597,
+ "frames": 17,
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "uvOffset": 0,
+ "idxOffset": 16808,
+ "posOffset": 24004,
+ "nrmOffset": 238306,
+ "min": [
+  -0.2996644973754883,
+  -0.02891765907406807,
+  -0.6180739402770996
+ ],
+ "size": [
+  0.5938234925270081,
+  1.8505757935345173,
+  1.1227191090583801
+ ],
+ "tris": 1199,
+ "nearTris": 8999,
+ "sourceTris": 270507,
+ "height": 1.82,
+ "unweightedFixed": 0,
+ "limbWeightsCleaned": 1546,
+ "legSideFixed": 87,
+ "legWebFacesCut": 0,
+ "armsOutRest": [],
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.456
+}

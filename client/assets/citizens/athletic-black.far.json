@@ -1,0 +1,33 @@
+{
+ "id": "athletic-black",
+ "verts": 2197,
+ "indices": 3600,
+ "frames": 17,
+ "walkFrames": 16,
+ "idleFrame": 16,
+ "uvOffset": 0,
+ "idxOffset": 17576,
+ "posOffset": 24776,
+ "nrmOffset": 248870,
+ "min": [
+  -0.259723961353302,
+  -0.03309149295091629,
+  -0.4953216314315796
+ ],
+ "size": [
+  0.5131666660308838,
+  1.7184690907597542,
+  0.87086021900177
+ ],
+ "tris": 1200,
+ "nearTris": 8986,
+ "sourceTris": 218364,
+ "height": 1.68,
+ "unweightedFixed": 3,
+ "limbWeightsCleaned": 1484,
+ "legSideFixed": 46,
+ "legWebFacesCut": 13,
+ "armsOutRest": [],
+ "walkCycleSec": 1.0,
+ "strideMetersPerCycle": 1.3439999999999999
+}

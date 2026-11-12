@@ -1,0 +1,64 @@
+{
+ "props": [
+  {
+   "id": "sliding-door",
+   "title": "sliding door animation",
+   "artist": "cubeline",
+   "artistUrl": "https://sketchfab.com/cubeline",
+   "url": "https://sketchfab.com/3d-models/3e457ac00d64481a91e6d0aade3bc32a",
+   "license": "CC BY 4.0",
+   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+   "use": "sliding doors on the Main Street shops"
+  },
+  {
+   "id": "fisher-boat",
+   "title": "Fisherman's Boat",
+   "artist": "92navi_1",
+   "artistUrl": "https://sketchfab.com/92navi_1",
+   "url": "https://sketchfab.com/3d-models/f4f1dd2c4559415d942906d002a99406",
+   "license": "CC BY 4.0",
+   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+   "use": "boat moored at the fishing dock"
+  },
+  {
+   "id": "duck",
+   "title": "Lowpoly Duck (animated)",
+   "artist": "wisdom3D",
+   "artistUrl": "https://sketchfab.com/wisdom3D",
+   "url": "https://sketchfab.com/3d-models/0242fe38361c4bdabadcfddb42eb3325",
+   "license": "CC BY 4.0",
+   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+   "use": "ducks on the lake"
+  },
+  {
+   "id": "pigeon",
+   "title": "Low Poly Pigeon",
+   "artist": "hedaytul333",
+   "artistUrl": "https://sketchfab.com/hedaytul333",
+   "url": "https://sketchfab.com/3d-models/79de3c5b47f24376a5694029b1693088",
+   "license": "CC BY 4.0",
+   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+   "use": "pigeons on the sidewalks and plaza"
+  },
+  {
+   "id": "vending",
+   "title": "Vending Machine",
+   "artist": "Emanuel Silva",
+   "artistUrl": "https://sketchfab.com/Emanuel.Silva",
+   "url": "https://sketchfab.com/3d-models/4bfb493631f84f8a9adc00bb69831000",
+   "license": "CC BY 4.0",
+   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+   "use": "vending machines outside BURN MART, EMBER SMOKE SHOP and HOT BEANS"
+  },
+  {
+   "id": "arcade",
+   "title": "Arcade Machine - Pixel-art Low-Poly",
+   "artist": "Wade_Kenny",
+   "artistUrl": "https://sketchfab.com/Mr_Kenny12",
+   "url": "https://sketchfab.com/3d-models/2e95a489783e4e75a132bcc9e42b69e6",
+   "license": "CC BY 4.0",
+   "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+   "use": "arcade cabinets at PIXEL ARCADE"
+  }
+ ]
+}

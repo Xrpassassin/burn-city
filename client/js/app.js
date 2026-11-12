@@ -7,6 +7,7 @@ import {buildWalker,poseWalker} from './walker.js';
 import {MOTION,speedFor,turnToward,JETPACK,jetHorizontal,jetVertical} from './player-motion.mjs';   // shared walk/run/jump physics (also used by Homefront)
 import './skate.js';
 import './citylife.js';
+import './cityprops.mjs';   // CC BY street props: sliding shop doors, vending/arcade machines, pigeons, ducks, moored boat, see city-credits.html
 import './citizens.mjs';   // CC BY 3D people for the sidewalk crowd (far VAT instancing + near rigged LOD), see city-credits.html
 import './streetprops.js';
 import './events.js';

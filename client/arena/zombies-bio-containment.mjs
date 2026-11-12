@@ -31,13 +31,16 @@ export function tissueTexture(){
  return t;
 }
 export function lobeGeometry(){
- const geo=new THREE.IcosahedronGeometry(1,3);
+ // Indexed sphere shares vertices at ring seams, so computed normals blend
+ // smoothly around the swollen anatomy instead of flat icosahedron facets.
+ // The exterior is still mathematically irregular, but NOT faceted Roblox art.
+ const geo=new THREE.SphereGeometry(1,40,28);
  const pos=geo.getAttribute('position');
  for(let i=0;i<pos.count;i++){
   const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);
-  const w=Math.sin(x*12.7+y*6.3+z*8.9)*.095+
-    Math.sin(x*22.1-z*15.5+y*3.6)*.05+
-    Math.cos(x*5.9+y*12.4-z*8.1)*.065;
+  const w=Math.sin(x*7.7+y*5.3+z*8.9)*.075+
+    Math.sin(x*18.1-z*13.5+y*5.6)*.033+
+    Math.cos(x*4.9+y*10.4-z*8.1)*.052;
   pos.setXYZ(i,x*(1+w),y*(1+w),z*(1+w));
  }
  geo.computeVertexNormals();
@@ -54,7 +57,8 @@ export function addZombiesBioContainment(root,layout,{
   update(){},dispose(){}};
  const texture=tissueTexture(),materials=[];
  const organic=safeMaterial(materials,new THREE.MeshStandardMaterial({
-  map:texture,color:0xc8a7a0,roughness:.67,metalness:.015,
+  map:texture,color:0xd2bbb6,roughness:.59,metalness:0,
+  emissive:0x2f090c,emissiveIntensity:.055,
   side:THREE.FrontSide}));
  const steel=safeMaterial(materials,new THREE.MeshStandardMaterial({
   color:0x635954,roughness:.93,metalness:.17}));

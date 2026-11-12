@@ -37,14 +37,13 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends blender python3-numpy
       - name: Validate archive paths and inspect animated/skinned artist glTF
-        run: blender -b --factory-startup -noaudio --python scripts/convert-official-zombies-sketchfab.py -- "${{ inputs.model }}"
+        run: blender -b --factory-startup -noaudio --python-exit-code 1 --python scripts/convert-official-zombies-sketchfab.py -- "${{ inputs.model }}"
       - name: Keep the resulting verified source in REVIEW ONLY artifact
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: zombies-sketchfab-official-${{ inputs.model }}-REVIEW-ONLY
           retention-days: 7
-          if-no-files-found: warn
+          if-no-files-found: error
           path: |
             zombie-special-audit/${{ inputs.model }}/source-manifest.json
             zombie-special-audit/${{ inputs.model }}/scene-review.json

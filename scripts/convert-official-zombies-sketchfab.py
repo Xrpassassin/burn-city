@@ -58,7 +58,23 @@ if triangles<500 or triangles>55000:
     raise RuntimeError('Unexpected verified special model triangle count')
 if kind=='nurse' and not arms:
     raise RuntimeError('The selected nurse author asset is not rigged as described')
-animations=[x.name for x in bpy.data.actions]
+actions = sorted(bpy.data.actions, key=lambda action: action.name)
+armatures = [
+    {
+        'name': armature.name,
+        'restWorldMatrix': [list(row) for row in armature.matrix_world],
+        'bones': [
+            {
+                'name': bone.name,
+                'parent': bone.parent.name if bone.parent else None,
+                'deform': bone.use_deform,
+                'restMatrix': [list(row) for row in bone.matrix_local],
+            }
+            for bone in armature.data.bones
+        ],
+    }
+    for armature in arms
+]
 materials=sum(bool(o.data.materials) for o in meshes)
 images=[x for x in bpy.data.images if x.source=='FILE' and x.size[0]>0]
 if not materials or not images:
@@ -74,7 +90,10 @@ bpy.ops.export_scene.gltf(filepath=str((folder/(kind+'-source-review.glb')).reso
  export_materials='EXPORT',use_selection=False)
 audit={'model':kind,'status':'SOURCE_CONVERSION_ONLY_NOT_LIVE',
  'meshCount':len(meshes),'armatureCount':len(arms),'triangles':triangles,
- 'materials':materials,'images':len(images),'animations':animations,
+ 'materials':materials,'images':len(images),'animations':[action.name for action in actions],
+ 'framesPerSecond':bpy.context.scene.render.fps / bpy.context.scene.render.fps_base,
+ 'animationFrames':[{'name':action.name,'range':list(action.frame_range)} for action in actions],
+ 'armatures':armatures,
  'note':'Requires rig/clip/texture and license acceptance plus reviewed PR before enabling installed:true'}
 (folder/'scene-review.json').write_text(json.dumps(audit,indent=2)+'\n')
 print(json.dumps(audit,indent=2))

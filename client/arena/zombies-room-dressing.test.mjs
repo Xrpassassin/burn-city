@@ -91,6 +91,28 @@ const fixed={kind:'refinery',name:'The BURN Refinery',grid,gw:14,gh:12,cell:2,zo
 const fixtures=planZombiesRoomDressing(fixed);
 assert(fixtures.length>=1,'same system decorates existing handcrafted maps');
 assert(fixtures.every(s=>s.theme==='spawn'),'zone 0 is spawn; no gameplay map classification changed');
+// Verify integration against the EXACT public layout shape created by the
+// live original Zombies server, not only the mapgen input structure.
+const {Room}=require('../../server/game');
+const Cod=require('../../server/cod');
+for(const [name,mapId] of [['refinery','refinery'],['cosmodrome','cosmodrome'],['random',null]]){
+ const room=new Room('environment-'+name,'zombie',mapId==='cosmodrome'?null:mapId);
+ if(mapId==='cosmodrome')room.mapId='cosmodrome';
+ if(mapId===null)room.seedT=9827;
+ room.reset();
+ Cod.bind(room);
+ const actual=Cod.layout();
+ assert.equal(actual.kind,name==='random'?'proc':name==='refinery'?'classic':'cosmodrome');
+ assert(actual.grid.length===32&&actual.zones.length>0);
+ const places=planZombiesRoomDressing(actual);
+ assert(places.length>0,'live server '+name+' must place some high-detail fixtures');
+ assert(places.every(site=>actual.grid[site.r]?.[site.c]===site.zone));
+ const root=new THREE.Group();
+ const rendering=addZombiesRoomDressing(root,actual);
+ assert(rendering.drawCalls>0&&rendering.drawCalls<=5);
+ root.traverse(x=>{if(x.isMesh){x.geometry.dispose();x.material.dispose();}});
+}
+
 console.log('Original Zombies atmospheric map dressing passed:',validated,
  'procedurally generated maps,',total,'desktop wall fixtures,',
  '5 or fewer instanced draws per map; handcrafted map compatibility');

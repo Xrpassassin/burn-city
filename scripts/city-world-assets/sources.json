@@ -1,0 +1,73 @@
+{
+  "license": "CC-BY-4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "assets": {
+    "grand-canyon": {
+      "title": "The Grand Canyon",
+      "creator": "3D Terrain Tool",
+      "source": "https://skfb.ly/pQoZv",
+      "uid": "d71ab0e325a545e6b32e697cfc845ef9",
+      "listedTriangles": 1200000,
+      "sourceCredits": {
+        "elevation": "Mapterhorn and Terrain Tiles on AWS",
+        "aerialImagery": "USDA and USGS The National Map Orthoimagery"
+      },
+      "target": "Distant City and Estates canyon skyline",
+      "previewBudget": {"triangles": 20000, "textureEdge": 1024}
+    },
+    "moon": {
+      "title": "Moon",
+      "creator": "JanesBT",
+      "source": "https://skfb.ly/owwT7",
+      "uid": "fc1e78cfc65549c6a49e88ba599b7901",
+      "listedTriangles": 15900,
+      "target": "Lunar surface texture in the City moon phase layer",
+      "previewBudget": {"triangles": 0, "textureEdge": 1024}
+    },
+    "sun": {
+      "title": "Sun",
+      "creator": "Rex Omandac",
+      "source": "https://skfb.ly/pOztp",
+      "uid": "a138cdddfa314686aeb6c17cfc453648",
+      "listedTriangles": 9800,
+      "target": "Solar surface artwork in the City sky shader",
+      "previewBudget": {"triangles": 0, "textureEdge": 512}
+    },
+    "constellations": {
+      "title": "skybox of constellations",
+      "creator": "tiunov.se",
+      "source": "https://skfb.ly/oKWVn",
+      "uid": "398b3166a9dc4854b5343d7f477bb7ed",
+      "listedTriangles": 2400,
+      "target": "Night-only constellation texture on the City sky",
+      "previewBudget": {"triangles": 0, "textureEdge": 2048}
+    },
+    "crj-900": {
+      "title": "Airplane CRJ-900 Cityjet",
+      "creator": "CityJet Training",
+      "source": "https://skfb.ly/oAYDw",
+      "uid": "02c4fa44604243c2bb48db64506a39af",
+      "listedTriangles": 8300,
+      "target": "Parked and moving regional aircraft at the City airport",
+      "previewBudget": {"triangles": 9000, "textureEdge": 1024}
+    },
+    "airplane": {
+      "title": "Airplane",
+      "creator": "Dark Blender",
+      "source": "https://skfb.ly/6YRH6",
+      "uid": "9287cf6247b44c83b4c3cdf1ea08d196",
+      "listedTriangles": 7500,
+      "target": "Secondary airport aircraft selected after inspecting the design",
+      "previewBudget": {"triangles": 8000, "textureEdge": 1024}
+    },
+    "lynx": {
+      "title": "Lynx Helicopter",
+      "creator": "artfletch",
+      "source": "https://skfb.ly/os9pD",
+      "uid": "9028fe1f38a74a789a023300e034efd3",
+      "listedTriangles": 160400,
+      "target": "Airport utility helicopter with independent rotor pivots",
+      "previewBudget": {"triangles": 12000, "textureEdge": 1024}
+    }
+  }
+}

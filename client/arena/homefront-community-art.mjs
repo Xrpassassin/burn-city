@@ -180,16 +180,21 @@ export function createHomefrontCommunityArt({
   const mixer=new THREE.AnimationMixer(fitted.model);
   const animations=asset.gltf.animations||[];
   const idle=animations.find(x=>/idle/i.test(x.name))||animations[0];
-  const walk=animations.find(x=>/walk/i.test(x.name))||animations.find(x=>/run/i.test(x.name))||idle;
-  const actor={group,visual:fitted.group,mixer,idle,walk,current:null,action:null};
+  const walk=animations.find(x=>/^walk$/i.test(x.name))||animations.find(x=>/walk/i.test(x.name))||idle;
+  const run=animations.find(x=>/^run$/i.test(x.name))||animations.find(x=>/run/i.test(x.name))||walk;
+  const jump=animations.find(x=>/^jump$/i.test(x.name))||null;
+  const actor={group,visual:fitted.group,mixer,idle,walk,run,jump,current:null,action:null};
   actors.add(actor);
   group.userData.communityActor=actor;
   return true;
  }
- function animateExplorer(explorer,moving,dt,jumpY=0){
+ function animateExplorer(explorer,moving,dt,jumpY=0,running=false){
   const actor=explorer?.userData?.communityActor;
   if(!actor)return;
-  const clip=moving?actor.walk:actor.idle;
+  // This remains cosmetic: authoritative movement, jumping and aiming come
+  // from the existing Homefront input/network simulation.
+  const airborne=Number.isFinite(jumpY)&&jumpY>0.08;
+  const clip=airborne&&actor.jump?actor.jump:moving?(running?actor.run:actor.walk):actor.idle;
   if(clip&&clip!==actor.current){
    const action=actor.mixer.clipAction(clip);
    action.reset().fadeIn(.16).play();
@@ -197,7 +202,7 @@ export function createHomefrontCommunityArt({
    actor.action=action;actor.current=clip;
   }
   actor.mixer.update(Math.min(.05,Math.max(0,dt)));
-  actor.visual.position.y=jumpY;
+  actor.visual.position.y=Number.isFinite(jumpY)?jumpY:0;
  }
  function clearActors(){
   for(const actor of actors)actor.mixer.stopAllAction();

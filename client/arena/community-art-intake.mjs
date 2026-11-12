@@ -8,7 +8,7 @@ const entry=(id,mode,file,source,creator,triangles,additional={})=>
 export const COMMUNITY_ART=Object.freeze([
  entry('homefront-male-survivor','homefront','homefront-male-survivor.glb',
   'https://sketchfab.com/3d-models/3d-zombie-apocalypse-survivor-male-character-f56ffc64d18c40cf95d17559542ca44c',
-  'codersan',10000,{purpose:'temporary_player',rigged:true,animationRequired:true}),
+  'codersan',10000,{purpose:'temporary_player',rigged:true,animationRequired:true,installed:true,sha256:'3b1abfcbcc79f3f24097587f94284152e053e0df9db9a5aab42b2a7ab84b0c3f'}),
  entry('street-props-pack','homefront','homefront-street-props.glb',
   'https://sketchfab.com/3d-models/pbr-street-props-pack-game-ready-8013d8e6af4645d1a7c3d5b24054bfc8',
   'MadeByYeshe',20700,{purpose:'world_props',downloadSource:'https://crazydrpants.itch.io/street-props-pack',installed:true,sha256:'30b97656624cb6596495b7aa343f87c42c01124717cdb0975fdde0fcf7edf332'}),

@@ -1,0 +1,24 @@
+{
+  "asset": "homefront-male-survivor.glb",
+  "sourceUrl": "https://codersan.itch.io/zombie-apocalypse-survivor-male-3d",
+  "creator": "codersan",
+  "license": "CC-BY-4.0",
+  "sourceArchiveSha256": "f8c7d876b2386a5ad08d2fb1ca168906e3c342a31f6724f36ccb140d0d3e299a",
+  "sha256": "3b1abfcbcc79f3f24097587f94284152e053e0df9db9a5aab42b2a7ab84b0c3f",
+  "bytes": 2743104,
+  "triangles": 10000,
+  "skins": 1,
+  "materials": 1,
+  "textures": 1,
+  "animations": [
+    "Idle",
+    "Idle2",
+    "Idle3",
+    "Walk",
+    "Run",
+    "Jump"
+  ],
+  "motionSource": "Original, deterministic local Blender-compatible quaternion gait; not Unity/StarterAssets animation",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "note": "Rigged male-survivor pilot, retained fallback. Visual acceptance required before production merge."
+}

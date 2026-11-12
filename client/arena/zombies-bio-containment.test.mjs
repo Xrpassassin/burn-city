@@ -18,10 +18,10 @@ assert(ownTex.isDataTexture&&ownTex.image.data.length===128*128*4);
 ownTex.dispose();
 const smooth=lobeGeometry();assert(smooth.attributes.position.count>250);
 smooth.dispose();
-for(const type of [5,8]){
+for(const type of [5]){
  const fx=createZombieOriginalFallback(type);
  assert(fx.group.isGroup&&fx.group.userData.originalZombieConcept);
- assert.equal(fx.hidesBaseModel,type===5);
+ assert.equal(fx.hidesBaseModel,true);
  assert(fx.group.children.length>=5,'organic anatomy and medical costume must not be a simplistic cube');
  let triangles=0;
  for(const mesh of fx.group.children){
@@ -39,6 +39,7 @@ for(const type of [5,8]){
  fx.dispose();assert.equal(fx.group.children.length,0,'deterministic disposal');
 }
 assert.equal(createZombieOriginalFallback(0),null);
+assert.equal(createZombieOriginalFallback(8),null,'do not replace original Warden with low-fidelity nurse costume');
 
 function check(layout,low=false){
  const before=JSON.stringify(layout);

@@ -51,10 +51,12 @@ try{
  // The artist also supplies a free Unity controller package. We may
  // INSPECT its filenames to find genuine walk/run/jump clips, but never execute
  // Unity scripts or assume third-party controller animation licenses.
- const unityRow=page.locator('.upload').filter({hasText:/ZombieApocalypseSurvivorMale\.unitypackage/i}).first();
+ const unityPage=await context.newPage();
+ await unityPage.goto(origin,{waitUntil:'domcontentloaded',timeout:45000});
+ const unityRow=unityPage.locator('.upload').filter({hasText:/ZombieApocalypseSurvivorMale\.unitypackage/i}).first();
  await unityRow.waitFor({timeout:20000});
  const [unityDownload]=await Promise.all([
-  page.waitForEvent('download',{timeout:90000}),
+  unityPage.waitForEvent('download',{timeout:90000}),
   unityRow.locator('a.download_btn').first().click({timeout:25000})
  ]);
  if(unityDownload.suggestedFilename()!=='ZombieApocalypseSurvivorMale.unitypackage')

@@ -1,0 +1,56 @@
+name: Stage licensed Homefront survivor with locally authored locomotion
+on:
+  push:
+    branches:
+      - feat/homefront-official-survivor-playable-20261111
+    paths:
+      - scripts/build-homefront-survivor-original-motion.py
+      - scripts/stage-homefront-survivor-pilot.mjs
+      - client/arena/community-art-intake.test.mjs
+      - .github/workflows/homefront-survivor-pilot-vendor.yml
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+jobs:
+  stage:
+    if: github.repository == 'Xrpassassin/burn-city' && github.ref == 'refs/heads/feat/homefront-official-survivor-playable-20261111'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore exactly the reviewed author-sourced character GLB
+        uses: actions/download-artifact@v4
+        with:
+          repository: Xrpassassin/burn-city
+          run-id: 43130779738
+          name: official-survivor-audit-only
+          path: survivor-source-audit
+          github-token: ${{ github.token }}
+      - name: Add original in-house walk, run and jump actions to the proven creator rig
+        run: python3 scripts/build-homefront-survivor-original-motion.py
+      - name: Verify provenance and stage GLB with SHA-pinned candidate metadata
+        run: node scripts/stage-homefront-survivor-pilot.mjs
+      - name: Run native scene/asset/source and Zombies-isolation tests
+        run: |
+          node client/arena/community-art-intake.test.mjs
+          node client/arena/zombie-sketchfab-cast.test.mjs
+          node client/arena/homefront-ground-detail.test.mjs
+      - name: Commit only reviewed character binary and its SHA-pinned catalog activation to feature branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/arena/assets/community/homefront-male-survivor.glb \
+            client/arena/assets/community/homefront-survivor-verified.json \
+            client/arena/community-art-intake.mjs
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m "assets(homefront): stage vetted CC BY male survivor with original walk/run/jump"
+            git push origin HEAD:feat/homefront-official-survivor-playable-20261111
+          fi
